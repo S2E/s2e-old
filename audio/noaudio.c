@@ -159,7 +159,7 @@ static struct audio_pcm_ops no_pcm_ops = {
 
 struct audio_driver no_audio_driver = {
     INIT_FIELD (name           = ) "none",
-    INIT_FIELD (descr          = ) "Timer based audio emulation",
+    INIT_FIELD (descr          = ) "disabled audio",
     INIT_FIELD (options        = ) NULL,
     INIT_FIELD (init           = ) no_audio_init,
     INIT_FIELD (fini           = ) no_audio_fini,

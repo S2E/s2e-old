@@ -1067,7 +1067,7 @@ static struct audio_pcm_ops dsound_pcm_ops = {
 struct audio_driver dsound_audio_driver = {
     INIT_FIELD (name           = ) "dsound",
     INIT_FIELD (descr          = )
-    "DirectSound http://wikipedia.org/wiki/DirectSound",
+    "DirectSound audio (www.wikipedia.org/wiki/DirectSound)",
     INIT_FIELD (options        = ) dsound_options,
     INIT_FIELD (init           = ) dsound_audio_init,
     INIT_FIELD (fini           = ) dsound_audio_fini,

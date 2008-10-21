@@ -3,45 +3,48 @@
 include config-host.mak
 
 .PHONY: all clean distclean dvi info install install-doc tar tarbin \
-	speed test test2 html dvi info
+	speed test test2 html dvi info zlib-lib libgpng-lib
 
-CFLAGS=-Wall -O2 -g -fno-strict-aliasing -I.
+CFLAGS=-Wall -O2 -g -fno-strict-aliasing -I. -MMD -MP
 ifdef CONFIG_DARWIN
-CFLAGS+= -mdynamic-no-pic
+CFLAGS+= -mdynamic-no-pic -I/opt/local/include
 endif
 ifeq ($(ARCH),sparc)
 CFLAGS+=-mcpu=ultrasparc
 endif
 LDFLAGS=-g
 LIBS=
-DEFINES+=-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-TOOLS=qemu-img$(EXESUF)
+DEFINES+=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+TOOLS=
 ifdef CONFIG_STATIC
 LDFLAGS+=-static
 endif
-ifdef BUILD_DOCS
-DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1
-else
 DOCS=
+
+UNAME=$(shell uname -s)
+ifneq ($(findstring CYGWIN,$(UNAME)),)
+CFLAGS+=-mno-cygwin -D_WIN32
+LDFLAGS+=-mno-cygwin
 endif
 
-all: $(TOOLS) $(DOCS) recurse-all
+all: $(TOOLS) $(DOCS) recurse-all zlib-lib  libgpng-lib
 
 subdir-%: dyngen$(EXESUF)
 	$(MAKE) -C $(subst subdir-,,$@) all
 
+include $(SRC_PATH)/distrib/Makefile
+
 recurse-all: $(patsubst %,subdir-%, $(TARGET_DIRS))
-        
-qemu-img$(EXESUF): qemu-img.c block.c block-cow.c block-qcow.c aes.c block-vmdk.c block-cloop.c block-dmg.c block-bochs.c block-vpc.c block-vvfat.c
-	$(CC) -DQEMU_TOOL $(CFLAGS) $(LDFLAGS) $(DEFINES) -o $@ $^ -lz $(LIBS)
+
+libz.a: subdir-distrib
 
 dyngen$(EXESUF): dyngen.c
 	$(HOST_CC) $(CFLAGS) $(DEFINES) -o $@ $^
 
-clean:
+clean: clean-zlib clean-libpng
 # avoid old build problems by removing potentially incorrect old files
-	rm -f config.mak config.h op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h 
-	rm -f *.o *.a $(TOOLS) dyngen$(EXESUF) TAGS *.pod *~ */*~
+	rm -f config.mak config.h op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
+	rm -f *.o *.d *.a $(TOOLS) dyngen$(EXESUF) TAGS *.pod *~ */*~
 	$(MAKE) -C tests clean
 	for d in $(TARGET_DIRS); do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
@@ -88,7 +91,7 @@ endif
 test speed test2: all
 	$(MAKE) -C tests $@
 
-TAGS: 
+TAGS:
 	etags *.[ch] tests/*.[ch]
 
 cscope:
@@ -158,6 +161,5 @@ tarbin:
 	$(docdir)/qemu-tech.html \
 	$(mandir)/man1/qemu.1 $(mandir)/man1/qemu-img.1 )
 
-ifneq ($(wildcard .depend),)
-include .depend
-endif
+include $(wildcard *.d)
+

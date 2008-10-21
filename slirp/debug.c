@@ -42,7 +42,7 @@ debug_init(file, dbg)
 		fflush(dfd);
 		slirp_debug = dbg;
 	} else {
-		lprint("Error: Debugging file \"%s\" could not be opened: %s\r\n",
+		fprintf(stderr, "Error: Debugging file \"%s\" could not be opened: %s\r\n",
 			file, strerror(errno));
 	}
 }
@@ -265,30 +265,6 @@ icmpstats()
 	lprint("  %6d with type not supported\r\n", icmpstat.icps_notsupp);
 	lprint("  %6d with bad type feilds\r\n", icmpstat.icps_badtype);
 	lprint("  %6d ICMP packets sent in reply\r\n", icmpstat.icps_reflect);
-}
-
-void
-mbufstats()
-{
-	struct mbuf *m;
-	int i;
-	
-        lprint(" \r\n");
-	
-	lprint("Mbuf stats:\r\n");
-
-	lprint("  %6d mbufs allocated (%d max)\r\n", mbuf_alloced, mbuf_max);
-	
-	i = 0;
-	for (m = m_freelist.m_next; m != &m_freelist; m = m->m_next)
-		i++;
-	lprint("  %6d mbufs on free list\r\n",  i);
-	
-	i = 0;
-	for (m = m_usedlist.m_next; m != &m_usedlist; m = m->m_next)
-		i++;
-	lprint("  %6d mbufs on used list\r\n",  i);
-        lprint("  %6d mbufs queued as packets\r\n\r\n", if_queued);
 }
 
 void

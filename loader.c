@@ -1,8 +1,8 @@
 /*
  * QEMU Executable loader
- * 
+ *
  * Copyright (c) 2006 Fabrice Bellard
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -28,7 +28,7 @@
 int get_image_size(const char *filename)
 {
     int fd, size;
-    fd = open(filename, O_RDONLY | O_BINARY);
+    fd = open(filename, O_BINARY | O_RDONLY | O_BINARY);
     if (fd < 0)
         return -1;
     size = lseek(fd, 0, SEEK_END);
@@ -218,7 +218,7 @@ int load_elf(const char *filename, int64_t virt_to_phys_addend,
     data_order = ELFDATA2LSB;
 #endif
     must_swab = data_order != e_ident[EI_DATA];
-    
+
     lseek(fd, 0, SEEK_SET);
     if (e_ident[EI_CLASS] == ELFCLASS64) {
         ret = load_elf64(fd, virt_to_phys_addend, must_swab, pentry);

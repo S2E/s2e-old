@@ -110,4 +110,4 @@ struct bootp_t {
     uint8_t bp_vend[DHCP_OPT_LEN];
 };
 
-void bootp_input(struct mbuf *m);
+void bootp_input(MBuf m);

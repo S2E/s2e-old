@@ -1,6 +1,6 @@
 /*
  *  Generic Dynamic compiler generator
- * 
+ *
  *  Copyright (c) 2003 Fabrice Bellard
  *
  *  The COFF object format support was extracted from Kazu's QEMU port
@@ -31,6 +31,8 @@
 #include <fcntl.h>
 
 #include "config-host.h"
+
+//#define DEBUG_OP
 
 /* NOTE: we test CONFIG_WIN32 instead of _WIN32 to enabled cross
    compilation */
@@ -180,6 +182,20 @@ typedef struct coff_rel {
 #include <mach-o/reloc.h>
 #include <mach-o/ppc/reloc.h>
 
+#ifdef HOST_PPC
+
+#define MACH_CPU_TYPE CPU_TYPE_POWERPC
+#define mach_check_cputype(x) ((x) == CPU_TYPE_POWERPC)
+
+#elif defined(HOST_I386)
+
+#define MACH_CPU_TYPE CPU_TYPE_I386
+#define mach_check_cputype(x) ((x) == CPU_TYPE_I386)
+
+#else
+#error unsupported CPU - please update the code
+#endif
+
 # define check_mach_header(x) (x.magic == MH_MAGIC)
 typedef int32_t host_long;
 typedef uint32_t host_ulong;
@@ -187,11 +203,11 @@ typedef uint32_t host_ulong;
 struct nlist_extended
 {
    union {
-   char *n_name; 
-   long  n_strx; 
+   char *n_name;
+   long  n_strx;
    } n_un;
-   unsigned char n_type; 
-   unsigned char n_sect; 
+   unsigned char n_type;
+   unsigned char n_sect;
    short st_desc;
    unsigned long st_value;
    unsigned long st_size;
@@ -345,10 +361,10 @@ int elf_must_swap(struct elfhdr *h)
   } swaptest;
 
   swaptest.i = 1;
-  return (h->e_ident[EI_DATA] == ELFDATA2MSB) != 
+  return (h->e_ident[EI_DATA] == ELFDATA2MSB) !=
       (swaptest.b[0] == 0);
 }
-  
+
 void elf_swap_ehdr(struct elfhdr *h)
 {
     swab16s(&h->e_type);			/* Object file type */
@@ -401,7 +417,7 @@ void elf_swap_rel(ELF_RELOC *rel)
 #endif
 }
 
-struct elf_shdr *find_elf_section(struct elf_shdr *shdr, int shnum, const char *shstr, 
+struct elf_shdr *find_elf_section(struct elf_shdr *shdr, int shnum, const char *shstr,
                                   const char *name)
 {
     int i;
@@ -426,7 +442,7 @@ int find_reloc(int sh_index)
 
     for(i = 0; i < ehdr.e_shnum; i++) {
         sec = &shdr[i];
-        if (sec->sh_type == SHT_RELOC && sec->sh_info == sh_index) 
+        if (sec->sh_type == SHT_RELOC && sec->sh_info == sh_index)
             return i;
     }
     return 0;
@@ -456,11 +472,11 @@ int load_object(const char *filename)
     ElfW(Sym) *sym;
     char *shstr;
     ELF_RELOC *rel;
-    
+
     fd = open(filename, O_RDONLY);
-    if (fd < 0) 
+    if (fd < 0)
         error("can't open file '%s'", filename);
-    
+
     /* Read ELF header.  */
     if (read(fd, &ehdr, sizeof (ehdr)) != sizeof (ehdr))
         error("unable to read file header");
@@ -478,13 +494,13 @@ int load_object(const char *filename)
     if (do_swap)
         elf_swap_ehdr(&ehdr);
     if (ehdr.e_ident[EI_CLASS] != ELF_CLASS)
-        error("Unsupported ELF class");
+        error("file %s: unsupported ELF class", filename);
     if (ehdr.e_type != ET_REL)
-        error("ELF object file expected");
+        error("file %s: ELF object file expected", filename);
     if (ehdr.e_version != EV_CURRENT)
-        error("Invalid ELF version");
+        error("file %s: invalid ELF version", filename);
     if (!elf_check_arch(ehdr.e_machine))
-        error("Unsupported CPU (e_machine=%d)", ehdr.e_machine);
+        error("file %s: unsupported CPU (e_machine=%d)", filename, ehdr.e_machine);
 
     /* read section headers */
     shdr = load_data(fd, ehdr.e_shoff, ehdr.e_shnum * sizeof(struct elf_shdr));
@@ -497,7 +513,7 @@ int load_object(const char *filename)
     /* read all section data */
     sdata = malloc(sizeof(void *) * ehdr.e_shnum);
     memset(sdata, 0, sizeof(void *) * ehdr.e_shnum);
-    
+
     for(i = 0;i < ehdr.e_shnum; i++) {
         sec = &shdr[i];
         if (sec->sh_type != SHT_NOBITS)
@@ -505,7 +521,7 @@ int load_object(const char *filename)
     }
 
     sec = &shdr[ehdr.e_shstrndx];
-    shstr = sdata[ehdr.e_shstrndx];
+    shstr = (char*) sdata[ehdr.e_shstrndx];
 
     /* swap relocations */
     for(i = 0; i < ehdr.e_shnum; i++) {
@@ -541,8 +557,8 @@ int load_object(const char *filename)
     strtab_sec = &shdr[symtab_sec->sh_link];
 
     symtab = (ElfW(Sym) *)sdata[symtab_sec - shdr];
-    strtab = sdata[symtab_sec->sh_link];
-    
+    strtab = (char*) sdata[symtab_sec->sh_link];
+
     nb_syms = symtab_sec->sh_size / sizeof(ElfW(Sym));
     if (do_swap) {
         for(i = 0, sym = symtab; i < nb_syms; i++, sym++) {
@@ -582,7 +598,7 @@ void sym_ent_name(struct external_syment *ext_sym, EXE_SYM *sym)
 {
     char *q;
     int c, i, len;
-    
+
     if (ext_sym->e.e.e_zeroes != 0) {
         q = sym->st_name;
         for(i = 0; i < 8; i++) {
@@ -616,7 +632,7 @@ char *name_for_dotdata(struct coff_rel *rel)
 		if (sym->st_syment->e_scnum == data_shndx &&
                     text_data >= sym->st_value &&
                     text_data < sym->st_value + sym->st_size) {
-                    
+
                     return sym->st_name;
 
 		}
@@ -674,15 +690,15 @@ int load_object(const char *filename)
     uint32_t *n_strtab;
     EXE_SYM *sym;
     EXE_RELOC *rel;
-	
-    fd = open(filename, O_RDONLY 
+
+    fd = open(filename, O_RDONLY
 #ifdef _WIN32
               | O_BINARY
 #endif
               );
-    if (fd < 0) 
+    if (fd < 0)
         error("can't open file '%s'", filename);
-    
+
     /* Read COFF header.  */
     if (read(fd, &fhdr, sizeof (fhdr)) != sizeof (fhdr))
         error("unable to read file header");
@@ -695,11 +711,11 @@ int load_object(const char *filename)
 
     /* read section headers */
     shdr = load_data(fd, sizeof(struct external_filehdr) + fhdr.f_opthdr, fhdr.f_nscns * sizeof(struct external_scnhdr));
-	
+
     /* read all section data */
     sdata = malloc(sizeof(void *) * fhdr.f_nscns);
     memset(sdata, 0, sizeof(void *) * fhdr.f_nscns);
-    
+
     const char *p;
     for(i = 0;i < fhdr.f_nscns; i++) {
         sec = &shdr[i];
@@ -720,7 +736,7 @@ int load_object(const char *filename)
     if (!data_sec)
         error("could not find .data section");
     coff_data_shndx = data_sec - shdr;
-    
+
     coff_symtab = load_data(fd, fhdr.f_symptr, fhdr.f_nsyms*SYMESZ);
     for (i = 0, ext_sym = coff_symtab; i < nb_syms; i++, ext_sym++) {
         for(i=0;i<8;i++)
@@ -730,8 +746,8 @@ int load_object(const char *filename)
 
 
     n_strtab = load_data(fd, (fhdr.f_symptr + fhdr.f_nsyms*SYMESZ), STRTAB_SIZE);
-    strtab = load_data(fd, (fhdr.f_symptr + fhdr.f_nsyms*SYMESZ), *n_strtab); 
-    
+    strtab = load_data(fd, (fhdr.f_symptr + fhdr.f_nsyms*SYMESZ), *n_strtab);
+
     nb_syms = fhdr.f_nsyms;
 
     for (i = 0, ext_sym = coff_symtab; i < nb_syms; i++, ext_sym++) {
@@ -778,12 +794,12 @@ int load_object(const char *filename)
 		} else {
 			sym->st_size = 0;
 		}
-		
+
 		sym->st_type = ext_sym->e_type;
 		sym->st_shndx = ext_sym->e_scnum;
 	}
 
-		
+
     /* find text relocations, if any */
     sec = &shdr[coff_text_shndx];
     coff_relocs = load_data(fd, sec->s_relptr, sec->s_nreloc*RELSZ);
@@ -791,7 +807,7 @@ int load_object(const char *filename)
 
     /* set coff relocation */
     relocs = malloc(sizeof(struct coff_rel) * nb_relocs);
-    for (i = 0, ext_rel = coff_relocs, rel = relocs; i < nb_relocs; 
+    for (i = 0, ext_rel = coff_relocs, rel = relocs; i < nb_relocs;
          i++, ext_rel++, rel++) {
         memset(rel, 0, sizeof(*rel));
         rel->r_reloc = ext_rel;
@@ -820,7 +836,7 @@ uint8_t 	**sdata;
 
 /* relocs */
 struct relocation_info *relocs;
-	
+
 /* symbols */
 EXE_SYM			*symtab;
 struct nlist 	*symtab_std;
@@ -840,10 +856,10 @@ static inline char *find_str_by_index(int index)
 static char *get_sym_name(EXE_SYM *sym)
 {
 	char *name = find_str_by_index(sym->n_un.n_strx);
-	
+
 	if ( sym->n_type & N_STAB ) /* Debug symbols are ignored */
 		return "debug";
-			
+
 	if(!name)
 		return name;
 	if(name[0]=='_')
@@ -853,7 +869,7 @@ static char *get_sym_name(EXE_SYM *sym)
 }
 
 /* find a section index given its segname, sectname */
-static int find_mach_sec_index(struct section *section_hdr, int shnum, const char *segname, 
+static int find_mach_sec_index(struct section *section_hdr, int shnum, const char *segname,
                                   const char *sectname)
 {
     int i;
@@ -869,7 +885,7 @@ static int find_mach_sec_index(struct section *section_hdr, int shnum, const cha
 }
 
 /* find a section header given its segname, sectname */
-struct section *find_mach_sec_hdr(struct section *section_hdr, int shnum, const char *segname, 
+struct section *find_mach_sec_hdr(struct section *section_hdr, int shnum, const char *segname,
                                   const char *sectname)
 {
     int index = find_mach_sec_index(section_hdr, shnum, segname, sectname);
@@ -882,7 +898,7 @@ struct section *find_mach_sec_hdr(struct section *section_hdr, int shnum, const 
 static inline void fetch_next_pair_value(struct relocation_info * rel, unsigned int *value)
 {
     struct scattered_relocation_info * scarel;
-	
+
     if(R_SCATTERED & rel->r_address) {
         scarel = (struct scattered_relocation_info*)rel;
         if(scarel->r_type != PPC_RELOC_PAIR)
@@ -895,58 +911,36 @@ static inline void fetch_next_pair_value(struct relocation_info * rel, unsigned 
 	}
 }
 
-/* find a sym name given its value, in a section number */
-static const char * find_sym_with_value_and_sec_number( int value, int sectnum, int * offset )
-{
-	int i, ret = -1;
-	
-	for( i = 0 ; i < nb_syms; i++ )
-	{
-	    if( !(symtab[i].n_type & N_STAB) && (symtab[i].n_type & N_SECT) &&
-			 (symtab[i].n_sect ==  sectnum) && (symtab[i].st_value <= value) )
-		{
-			if( (ret<0) || (symtab[i].st_value >= symtab[ret].st_value) )
-				ret = i;
-		}
-	}
-	if( ret < 0 ) {
-		*offset = 0;
-		return 0;
-	} else {
-		*offset = value - symtab[ret].st_value;
-		return get_sym_name(&symtab[ret]);
-	}
-}
-
-/* 
- *  Find symbol name given a (virtual) address, and a section which is of type 
+/*
+ *  Find symbol name given a (virtual) address, and a section which is of type
  *  S_NON_LAZY_SYMBOL_POINTERS or S_LAZY_SYMBOL_POINTERS or S_SYMBOL_STUBS
  */
 static const char * find_reloc_name_in_sec_ptr(int address, struct section * sec_hdr)
 {
     unsigned int tocindex, symindex, size;
     const char *name = 0;
-    
+	int section_type;
+
     /* Sanity check */
     if(!( address >= sec_hdr->addr && address < (sec_hdr->addr + sec_hdr->size) ) )
         return (char*)0;
-		
-	if( sec_hdr->flags & S_SYMBOL_STUBS ){
+
+	section_type = sec_hdr->flags & SECTION_TYPE;
+	if( section_type == S_SYMBOL_STUBS ){
 		size = sec_hdr->reserved2;
 		if(size == 0)
 		    error("size = 0");
-		
 	}
-	else if( sec_hdr->flags & S_LAZY_SYMBOL_POINTERS ||
-	            sec_hdr->flags & S_NON_LAZY_SYMBOL_POINTERS)
+	else if( section_type == S_LAZY_SYMBOL_POINTERS ||
+			 section_type == S_NON_LAZY_SYMBOL_POINTERS)
 		size = sizeof(unsigned long);
 	else
-		return 0;
-		
+		return NULL;
+
     /* Compute our index in toc */
 	tocindex = (address - sec_hdr->addr)/size;
 	symindex = tocdylib[sec_hdr->reserved1 + tocindex];
-	
+
 	name = get_sym_name(&symtab[symindex]);
 
     return name;
@@ -958,11 +952,54 @@ static const char * find_reloc_name_given_its_address(int address)
     for(i = 0; i < segment->nsects ; i++)
     {
         const char * name = find_reloc_name_in_sec_ptr(address, &section_hdr[i]);
-        if((long)name != -1)
+        if((long)name != 0)
             return name;
     }
     return 0;
 }
+
+/* find a sym name given its value, in a section number */
+static const char * find_sym_with_value_and_sec_number( int value, int sectnum, int * offset )
+{
+	int i, ret = -1;
+
+	for( i = 0 ; i < nb_syms; i++ )
+	{
+	    if( !(symtab[i].n_type & N_STAB) && (symtab[i].n_type & N_SECT) &&
+			 (symtab[i].n_sect ==  sectnum) && (symtab[i].st_value <= value) )
+		{
+			if( (ret<0) || (symtab[i].st_value >= symtab[ret].st_value) )
+				ret = i;
+		}
+	}
+	if( ret < 0 ) {
+                /* look in indirect symbols if not found */
+                struct section*  sec_hdr      = &section_hdr[sectnum-1];
+                int              section_type = sec_hdr->flags & SECTION_TYPE;
+
+                if (section_type == S_NON_LAZY_SYMBOL_POINTERS)
+                {
+                    int          tocindex = (int)(value - sec_hdr->addr)/sizeof(long);
+                    int          symindex = tocdylib[sec_hdr->reserved1 + tocindex];
+                    const char*  name      = get_sym_name(&symtab[symindex]);
+                    *offset = 0;
+                    return name;
+                }
+                error("no symbol match for value=0x%04x in section %d with flags %02x", value, sectnum, sec_hdr->flags);
+		return NULL;
+	} else {
+		*offset = value - symtab[ret].st_value;
+		return get_sym_name(&symtab[ret]);
+	}
+}
+
+
+static int   is_reloc_non_lazy(EXE_RELOC*  rel)
+{
+    return ( rel->r_symbolnum >= 1 && rel->r_symbolnum <= segment->nsects &&
+             (section_hdr[rel->r_symbolnum-1].flags & SECTION_TYPE) == S_NON_LAZY_SYMBOL_POINTERS );
+}
+
 
 static const char * get_reloc_name(EXE_RELOC * rel, int * sslide)
 {
@@ -971,24 +1008,43 @@ static const char * get_reloc_name(EXE_RELOC * rel, int * sslide)
 	int sectnum = rel->r_symbolnum;
 	int sectoffset;
 	int other_half=0;
-	
+
 	/* init the slide value */
 	*sslide = 0;
-	
-	if(R_SCATTERED & rel->r_address)
-		return (char *)find_reloc_name_given_its_address(sca_rel->r_value);
+
+	if (R_SCATTERED & rel->r_address) {
+        char *name = (char *)find_reloc_name_given_its_address(sca_rel->r_value);
+
+        /* search it in the full symbol list, if not found */
+        if (!name) {
+            int i;
+            for (i = 0; i < nb_syms; i++) {
+                EXE_SYM *sym = &symtab[i];
+                if (sym->st_value == sca_rel->r_value) {
+                    name = get_sym_name(sym);
+                    switch (sca_rel->r_type) {
+                    case GENERIC_RELOC_VANILLA:
+                        *sslide = *(uint32_t *)(text + sca_rel->r_address) - sca_rel->r_value;
+                        break;
+                    }
+                    break;
+                }
+            }
+        }
+        return name;
+    }
 
 	if(rel->r_extern)
 	{
 		/* ignore debug sym */
-		if ( symtab[rel->r_symbolnum].n_type & N_STAB ) 
+		if ( symtab[rel->r_symbolnum].n_type & N_STAB )
 			return 0;
 		return get_sym_name(&symtab[rel->r_symbolnum]);
 	}
 
 	/* Intruction contains an offset to the symbols pointed to, in the rel->r_symbolnum section */
 	sectoffset = *(uint32_t *)(text + rel->r_address) & 0xffff;
-			
+
 	if(sectnum==0xffffff)
 		return 0;
 
@@ -1008,20 +1064,27 @@ static const char * get_reloc_name(EXE_RELOC * rel, int * sslide)
 			sectoffset = ( *(uint32_t *)(text + rel->r_address) & 0x03fffffc );
 			if (sectoffset & 0x02000000) sectoffset |= 0xfc000000;
 			break;
+        case GENERIC_RELOC_VANILLA:
+            sectoffset  = *(uint32_t *)(text + rel->r_address);
+            break;
 		default:
-			error("switch(rel->type) not found");
+			error("switch(rel->type=%d) not found", rel->r_type);
 	}
 
-	if(rel->r_pcrel)
+	if(rel->r_pcrel) {
 		sectoffset += rel->r_address;
-			
-	if (rel->r_type == PPC_RELOC_BR24)
+#ifdef HOST_I386
+        sectoffset += (1 << rel->r_length);
+#endif
+    }
+
+	if (rel->r_type == PPC_RELOC_BR24 || rel->r_pcrel)
 		name = (char *)find_reloc_name_in_sec_ptr((int)sectoffset, &section_hdr[sectnum-1]);
 
 	/* search it in the full symbol list, if not found */
 	if(!name)
 		name = (char *)find_sym_with_value_and_sec_number(sectoffset, sectnum, sslide);
-	
+
 	return name;
 }
 
@@ -1053,11 +1116,11 @@ int load_object(const char *filename)
     unsigned int i, j;
 	EXE_SYM *sym;
 	struct nlist *syment;
-    
+
 	fd = open(filename, O_RDONLY);
-    if (fd < 0) 
+    if (fd < 0)
         error("can't open file '%s'", filename);
-		
+
     /* Read Mach header.  */
     if (read(fd, &mach_hdr, sizeof (mach_hdr)) != sizeof (mach_hdr))
         error("unable to read file header");
@@ -1066,13 +1129,13 @@ int load_object(const char *filename)
     if (!check_mach_header(mach_hdr)) {
         error("bad Mach header");
     }
-    
-    if (mach_hdr.cputype != CPU_TYPE_POWERPC)
+
+    if (!mach_check_cputype(mach_hdr.cputype))
         error("Unsupported CPU");
-        
+
     if (mach_hdr.filetype != MH_OBJECT)
         error("Unsupported Mach Object");
-    
+
     /* read segment headers */
     for(i=0, j=sizeof(mach_hdr); i<mach_hdr.ncmds ; i++)
     {
@@ -1116,26 +1179,26 @@ int load_object(const char *filename)
     /* read all section data */
     sdata = (uint8_t **)malloc(sizeof(void *) * segment->nsects);
     memset(sdata, 0, sizeof(void *) * segment->nsects);
-    
+
 	/* Load the data in section data */
 	for(i = 0; i < segment->nsects; i++) {
         sdata[i] = load_data(fd, section_hdr[i].offset, section_hdr[i].size);
     }
-	
+
     /* text section */
 	text_sec_hdr = find_mach_sec_hdr(section_hdr, segment->nsects, SEG_TEXT, SECT_TEXT);
 	i = find_mach_sec_index(section_hdr, segment->nsects, SEG_TEXT, SECT_TEXT);
 	if (i == -1 || !text_sec_hdr)
         error("could not find __TEXT,__text section");
     text = sdata[i];
-	
+
     /* Make sure dysym was loaded */
     if(!(int)dysymtabcmd)
         error("could not find __DYSYMTAB segment");
-    
+
     /* read the table of content of the indirect sym */
     tocdylib = load_data( fd, dysymtabcmd->indirectsymoff, dysymtabcmd->nindirectsyms * sizeof(uint32_t) );
-    
+
     /* Make sure symtab was loaded  */
     if(!(int)symtabcmd)
         error("could not find __SYMTAB segment");
@@ -1143,20 +1206,20 @@ int load_object(const char *filename)
 
     symtab_std = load_data(fd, symtabcmd->symoff, symtabcmd->nsyms * sizeof(struct nlist));
     strtab = load_data(fd, symtabcmd->stroff, symtabcmd->strsize);
-	
+
 	symtab = malloc(sizeof(EXE_SYM) * nb_syms);
-	
+
 	/* Now transform the symtab, to an extended version, with the sym size, and the C name */
 	for(i = 0, sym = symtab, syment = symtab_std; i < nb_syms; i++, sym++, syment++) {
         struct nlist *sym_follow, *sym_next = 0;
         unsigned int j;
 		memset(sym, 0, sizeof(*sym));
-		
+
 		if ( syment->n_type & N_STAB ) /* Debug symbols are skipped */
             continue;
-			
+
 		memcpy(sym, syment, sizeof(*syment));
-			
+
 		/* Find the following symbol in order to get the current symbol size */
         for(j = 0, sym_follow = symtab_std; j < nb_syms; j++, sym_follow++) {
             if ( sym_follow->n_sect != 1 || sym_follow->n_type & N_STAB || !(sym_follow->n_value > sym->st_value))
@@ -1174,7 +1237,7 @@ int load_object(const char *filename)
 		else
             sym->st_size = text_sec_hdr->size - sym->st_value;
 	}
-	
+
     /* Find Reloc */
     relocs = load_data(fd, text_sec_hdr->reloff, text_sec_hdr->nreloc * sizeof(struct relocation_info));
     nb_relocs = text_sec_hdr->nreloc;
@@ -1258,9 +1321,9 @@ int arm_emit_ldr_info(const char *name, unsigned long start_offset,
     int offset, min_offset, pc_offset, data_size;
     uint8_t data_allocated[1024];
     unsigned int data_index;
-    
+
     memset(data_allocated, 0, sizeof(data_allocated));
-    
+
     p = p_start;
     min_offset = p_end - p_start;
     while (p < p_start + min_offset) {
@@ -1271,22 +1334,22 @@ int arm_emit_ldr_info(const char *name, unsigned long start_offset,
             if (!(insn & 0x00800000))
                         offset = -offset;
             if ((offset & 3) !=0)
-                error("%s:%04x: ldr pc offset must be 32 bit aligned", 
+                error("%s:%04x: ldr pc offset must be 32 bit aligned",
                       name, start_offset + p - p_start);
             pc_offset = p - p_start + offset + 8;
-            if (pc_offset <= (p - p_start) || 
+            if (pc_offset <= (p - p_start) ||
                 pc_offset >= (p_end - p_start))
-                error("%s:%04x: ldr pc offset must point inside the function code", 
+                error("%s:%04x: ldr pc offset must point inside the function code",
                       name, start_offset + p - p_start);
             if (pc_offset < min_offset)
                 min_offset = pc_offset;
             if (outfile) {
                 /* ldr position */
-                fprintf(outfile, "    arm_ldr_ptr->ptr = gen_code_ptr + %d;\n", 
+                fprintf(outfile, "    arm_ldr_ptr->ptr = gen_code_ptr + %d;\n",
                         p - p_start);
                 /* ldr data index */
                 data_index = ((p_end - p_start) - pc_offset - 4) >> 2;
-                fprintf(outfile, "    arm_ldr_ptr->data_ptr = arm_data_ptr + %d;\n", 
+                fprintf(outfile, "    arm_ldr_ptr->data_ptr = arm_data_ptr + %d;\n",
                         data_index);
                 fprintf(outfile, "    arm_ldr_ptr++;\n");
                 if (data_index >= sizeof(data_allocated))
@@ -1338,15 +1401,653 @@ int arm_emit_ldr_info(const char *name, unsigned long start_offset,
         if (!outfile)
             printf("%s: invalid epilog\n", name);
     }
-    return p - p_start;	    
+    return p - p_start;
 }
 #endif
 
 
+#if defined(HOST_I386) || defined(HOST_X86_64)
+
+/* This byte is the first byte of an instruction.  */
+#define FLAG_INSN     (1 << 0)
+/* This byte has been processed as part of an instruction.  */
+#define FLAG_SCANNED  (1 << 1)
+/* This instruction is a return instruction.  Gcc cometimes generates prefix
+   bytes, so may be more than one byte long.  */
+#define FLAG_RET      (1 << 2)
+/* This is either the target of a jump, or the preceeding instruction uses
+   a pc-relative offset.  */
+#define FLAG_TARGET   (1 << 3)
+/* This is a magic instruction that needs fixing up.  */
+#define FLAG_EXIT     (1 << 4)
+#define MAX_EXITS     5
+
+static void
+bad_opcode(const char *name, uint32_t op)
+{
+    error("Unsupported opcode %0*x in %s", (op > 0xff) ? 4 : 2, op, name);
+}
+
+/* Mark len bytes as scanned,  Returns insn_size + len.  Reports an error
+   if these bytes have already been scanned.  */
+static int
+eat_bytes(const char *name, char *flags, int insn, int insn_size, int len)
+{
+    while (len > 0) {
+        /* This should never occur in sane code.  */
+        if (flags[insn + insn_size] & FLAG_SCANNED)
+            error ("Overlapping instructions in %s", name);
+        flags[insn + insn_size] |= FLAG_SCANNED;
+        insn_size++;
+        len--;
+    }
+    return insn_size;
+}
+
+static void
+trace_i386_insn (const char *name, uint8_t *start_p, char *flags, int insn,
+                 int len)
+{
+    uint8_t *ptr;
+    uint8_t op;
+    int modrm;
+    int is_prefix;
+    int op_size;
+    int addr_size;
+    int insn_size;
+    int is_ret;
+    int is_condjmp;
+    int is_jmp;
+    int is_exit;
+    int is_pcrel;
+    int immed;
+    int seen_rexw;
+    int32_t disp;
+
+    ptr = start_p + insn;
+    /* nonzero if this insn has a ModR/M byte.  */
+    modrm = 1;
+    /* The size of the immediate value in this instruction.  */
+    immed = 0;
+    /* The operand size.  */
+    op_size = 4;
+    /* The address size */
+    addr_size = 4;
+    /* The total length of this instruction.  */
+    insn_size = 0;
+    is_prefix = 1;
+    is_ret = 0;
+    is_condjmp = 0;
+    is_jmp = 0;
+    is_exit = 0;
+    seen_rexw = 0;
+    is_pcrel = 0;
+
+    while (is_prefix) {
+        op = ptr[insn_size];
+        insn_size = eat_bytes(name, flags, insn, insn_size, 1);
+        is_prefix = 0;
+        switch (op >> 4) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+            if (op == 0x0f) {
+                /* two-byte opcode.  */
+                op = ptr[insn_size];
+                insn_size = eat_bytes(name, flags, insn, insn_size, 1);
+                switch (op >> 4) {
+                case 0:
+                    if ((op & 0xf) > 3)
+                      modrm = 0;
+                    break;
+                case 1: /* vector move or prefetch */
+                case 2: /* various moves and vector compares.  */
+                case 4: /* cmov */
+                case 5: /* vector instructions */
+                case 6:
+                case 13:
+                case 14:
+                case 15:
+                    break;
+                case 7: /* mmx */
+                    if (op & 0x77) /* emms */
+                      modrm = 0;
+                    break;
+                case 3: /* wrmsr, rdtsc, rdmsr, rdpmc, sysenter, sysexit */
+                    modrm = 0;
+                    break;
+                case 8: /* long conditional jump */
+                    is_condjmp = 1;
+                    immed = op_size;
+                    modrm = 0;
+                    break;
+                case 9: /* setcc */
+                    break;
+                case 10:
+                    switch (op & 0x7) {
+                    case 0: /* push fs/gs */
+                    case 1: /* pop fs/gs */
+                    case 2: /* cpuid/rsm */
+                        modrm = 0;
+                        break;
+                    case 4: /* shld/shrd immediate */
+                        immed = 1;
+                        break;
+                    default: /* Normal instructions with a ModR/M byte.  */
+                        break;
+                    }
+                    break;
+                case 11:
+                    switch (op & 0xf) {
+                    case 10: /* bt, bts, btr, btc */
+                        immed = 1;
+                        break;
+                    default:
+                        /* cmpxchg, lss, btr, lfs, lgs, movzx, btc, bsf, bsr
+                           undefined, and movsx */
+                        break;
+                    }
+                    break;
+                case 12:
+                    if (op & 8) {
+                        /* bswap */
+                        modrm = 0;
+                    } else {
+                        switch (op & 0x7) {
+                        case 2:
+                        case 4:
+                        case 5:
+                        case 6:
+                            immed = 1;
+                            break;
+                        default:
+                            break;
+                        }
+                    }
+                    break;
+                }
+            } else if ((op & 0x07) <= 0x3) {
+                /* General arithmentic ax.  */
+            } else if ((op & 0x07) <= 0x5) {
+                /* General arithmetic ax, immediate.  */
+                if (op & 0x01)
+                    immed = op_size;
+                else
+                    immed = 1;
+                modrm = 0;
+            } else if ((op & 0x23) == 0x22) {
+                /* Segment prefix.  */
+                is_prefix = 1;
+            } else {
+                /* Segment register push/pop or DAA/AAA/DAS/AAS.  */
+                modrm = 0;
+            }
+            break;
+
+#if defined(HOST_X86_64)
+        case 4: /* rex prefix.  */
+            is_prefix = 1;
+            /* The address/operand size is actually 64-bit, but the immediate
+               values in the instruction are still 32-bit.  */
+            op_size = 4;
+            addr_size = 4;
+            if (op & 8)
+                seen_rexw = 1;
+            break;
+#else
+        case 4: /* inc/dec register.  */
+#endif
+        case 5: /* push/pop general register.  */
+            modrm = 0;
+            break;
+
+        case 6:
+            switch (op & 0x0f) {
+            case 0: /* pusha */
+            case 1: /* popa */
+                modrm = 0;
+                break;
+            case 2: /* bound */
+            case 3: /* arpl */
+                break;
+            case 4: /* FS */
+            case 5: /* GS */
+                is_prefix = 1;
+                break;
+            case 6: /* opcode size prefix.  */
+                op_size = 2;
+                is_prefix = 1;
+                break;
+            case 7: /* Address size prefix.  */
+                addr_size = 2;
+                is_prefix = 1;
+                break;
+            case 8: /* push immediate */
+                immed = op_size;
+                modrm = 0;
+                break;
+            case 10: /* push 8-bit immediate */
+                immed = 1;
+                modrm = 0;
+                break;
+            case 9: /* imul immediate */
+                immed = op_size;
+                break;
+            case 11: /* imul 8-bit immediate */
+                immed = 1;
+                break;
+            case 12: /* insb */
+            case 13: /* insw */
+            case 14: /* outsb */
+            case 15: /* outsw */
+                modrm = 0;
+                break;
+            }
+            break;
+
+        case 7: /* Short conditional jump.  */
+            is_condjmp = 1;
+            immed = 1;
+            modrm = 0;
+            break;
+
+        case 8:
+            if ((op & 0xf) <= 3) {
+                /* arithmetic immediate.  */
+                if ((op & 3) == 1)
+                    immed = op_size;
+                else
+                    immed = 1;
+            }
+            /* else test, xchg, mov, lea or pop general.  */
+            break;
+
+        case 9:
+            /* Various single-byte opcodes with no modrm byte.  */
+            modrm = 0;
+            if (op == 10) {
+                /* Call */
+                immed = 4;
+            }
+            break;
+
+        case 10:
+            switch ((op & 0xe) >> 1) {
+            case 0: /* mov absoliute immediate.  */
+            case 1:
+                if (seen_rexw)
+                    immed = 8;
+                else
+                    immed = addr_size;
+                break;
+            case 4: /* test immediate.  */
+                if (op & 1)
+                    immed = op_size;
+                else
+                    immed = 1;
+                break;
+            default: /* Various string ops.  */
+                break;
+            }
+            modrm = 0;
+            break;
+
+        case 11: /* move immediate to register */
+            if (op & 8) {
+                if (seen_rexw)
+                    immed = 8;
+                else
+                    immed = op_size;
+            } else {
+                immed = 1;
+            }
+            modrm = 0;
+            break;
+
+          case 12:
+            switch (op & 0xf) {
+            case 0: /* shift immediate */
+            case 1:
+                immed = 1;
+                break;
+            case 2: /* ret immediate */
+                immed = 2;
+                modrm = 0;
+                bad_opcode(name, op);
+                break;
+            case 3: /* ret */
+                modrm = 0;
+                is_ret = 1;
+            case 4: /* les */
+            case 5: /* lds */
+                break;
+            case 6: /* mov immediate byte */
+                immed = 1;
+                break;
+            case 7: /* mov immediate */
+                immed = op_size;
+                break;
+            case 8: /* enter */
+                /* TODO: Is this right?  */
+                immed = 3;
+                modrm = 0;
+                break;
+            case 10: /* retf immediate */
+                immed = 2;
+                modrm = 0;
+                bad_opcode(name, op);
+                break;
+            case 13: /* int */
+                immed = 1;
+                modrm = 0;
+                break;
+            case 11: /* retf */
+            case 15: /* iret */
+                modrm = 0;
+                bad_opcode(name, op);
+                break;
+            default: /* leave, int3 or into */
+                modrm = 0;
+                break;
+            }
+            break;
+
+        case 13:
+            if ((op & 0xf) >= 8) {
+                /* Coprocessor escape.  For our purposes this is just a normal
+                   instruction with a ModR/M byte.  */
+            } else if ((op & 0xf) >= 4) {
+                /* AAM, AAD or XLAT */
+                modrm = 0;
+            }
+            /* else shift instruction */
+            break;
+
+        case 14:
+            switch ((op & 0xc) >> 2) {
+            case 0: /* loop or jcxz */
+                is_condjmp = 1;
+                immed = 1;
+                break;
+            case 1: /* in/out immed */
+                immed = 1;
+                break;
+            case 2: /* call or jmp */
+                switch (op & 3) {
+                case 0: /* call */
+                    immed = op_size;
+                    break;
+                case 1: /* long jump */
+                    immed = 4;
+                    is_jmp = 1;
+                    break;
+                case 2: /* far jmp */
+                    bad_opcode(name, op);
+                    break;
+                case 3: /* short jmp */
+                    immed = 1;
+                    is_jmp = 1;
+                    break;
+                }
+                break;
+            case 3: /* in/out register */
+                break;
+            }
+            modrm = 0;
+            break;
+
+        case 15:
+            switch ((op & 0xe) >> 1) {
+            case 0:
+            case 1:
+                is_prefix = 1;
+                break;
+            case 2:
+            case 4:
+            case 5:
+            case 6:
+                modrm = 0;
+                /* Some privileged insns are used as markers.  */
+                switch (op) {
+                case 0xf4: /* hlt: Exit translation block.  */
+                    is_exit = 1;
+                    break;
+                case 0xfa: /* cli: Jump to label.  */
+                    is_exit = 1;
+                    immed = 4;
+                    break;
+                case 0xfb: /* sti: TB patch jump.  */
+                    /* Mark the insn for patching, but continue sscanning.  */
+                    flags[insn] |= FLAG_EXIT;
+                    immed = 4;
+                    break;
+                }
+                break;
+            case 3: /* unary grp3 */
+                if ((ptr[insn_size] & 0x38) == 0) {
+                    if (op == 0xf7)
+                        immed = op_size;
+                    else
+                        immed = 1; /* test immediate */
+                }
+                break;
+            case 7: /* inc/dec grp4/5 */
+                /* TODO: This includes indirect jumps.  We should fail if we
+                   encounter one of these. */
+                break;
+            }
+            break;
+        }
+    }
+
+    if (modrm) {
+        if (addr_size != 4)
+            error("16-bit addressing mode used in %s", name);
+
+        disp = 0;
+        modrm = ptr[insn_size];
+        insn_size = eat_bytes(name, flags, insn, insn_size, 1);
+        modrm &= 0xc7;
+        switch ((modrm & 0xc0) >> 6) {
+        case 0:
+            if (modrm == 5)
+              disp = 4;
+            break;
+        case 1:
+            disp = 1;
+            break;
+        case 2:
+            disp = 4;
+            break;
+        }
+        if ((modrm & 0xc0) != 0xc0 && (modrm & 0x7) == 4) {
+            /* SIB byte */
+            if (modrm == 4 && (ptr[insn_size] & 0x7) == 5) {
+                disp = 4;
+                is_pcrel = 1;
+            }
+            insn_size = eat_bytes(name, flags, insn, insn_size, 1);
+        }
+        insn_size = eat_bytes(name, flags, insn, insn_size, disp);
+    }
+    insn_size = eat_bytes(name, flags, insn, insn_size, immed);
+    if (is_condjmp || is_jmp) {
+        if (immed == 1) {
+            disp = (int8_t)*(ptr + insn_size - 1);
+        } else {
+            disp = (((int32_t)*(ptr + insn_size - 1)) << 24)
+                   | (((int32_t)*(ptr + insn_size - 2)) << 16)
+                   | (((int32_t)*(ptr + insn_size - 3)) << 8)
+                   | *(ptr + insn_size - 4);
+        }
+        disp += insn_size;
+        /* Jumps to external symbols point to the address of the offset
+           before relocation.  */
+        /* ??? These are probably a tailcall.  We could fix them up by
+           replacing them with jmp to EOB + call, but it's easier to just
+           prevent the compiler generating them.  */
+        if (disp == 1)
+            error("Unconditional jump (sibcall?) in %s", name);
+        disp += insn;
+        if (disp < 0 || disp > len)
+            error("Jump outside instruction in %s", name);
+
+        if ((flags[disp] & (FLAG_INSN | FLAG_SCANNED)) == FLAG_SCANNED)
+            error("Overlapping instructions in %s", name);
+
+        flags[disp] |= (FLAG_INSN | FLAG_TARGET);
+        is_pcrel = 1;
+    }
+    if (is_pcrel) {
+        /* Mark the following insn as a jump target.  This will stop
+           this instruction being moved.  */
+        flags[insn + insn_size] |= FLAG_TARGET;
+    }
+    if (is_ret)
+      flags[insn] |= FLAG_RET;
+
+    if (is_exit)
+      flags[insn] |= FLAG_EXIT;
+
+    if (!(is_jmp || is_ret || is_exit))
+      flags[insn + insn_size] |= FLAG_INSN;
+}
+
+/* Scan a function body.  Returns the position of the return sequence.
+   Sets *patch_bytes to the number of bytes that need to be copied from that
+   location.  If no patching is required (ie. the return is the last insn)
+   *patch_bytes will be set to -1.  *plen is the number of code bytes to copy.
+ */
+static int trace_i386_op(const char * name, uint8_t *start_p, int *plen,
+                         int *patch_bytes, int *exit_addrs)
+{
+    char *flags;
+    int more;
+    int insn;
+    int retpos;
+    int bytes;
+    int num_exits;
+    int len;
+    int last_insn;
+
+    len = *plen;
+    flags = malloc(len + 1);
+    memset(flags, 0, len + 1);
+    flags[0] |= FLAG_INSN;
+    more = 1;
+    while (more) {
+        more = 0;
+        for (insn = 0; insn < len; insn++) {
+            if ((flags[insn] & (FLAG_INSN | FLAG_SCANNED)) == FLAG_INSN) {
+                trace_i386_insn(name, start_p, flags, insn, len);
+                more = 1;
+            }
+        }
+    }
+
+    /* Strip any unused code at the end of the function.  */
+    while (len > 0 && flags[len - 1] == 0)
+      len--;
+
+    retpos = -1;
+    num_exits = 0;
+    last_insn = 0;
+    for (insn = 0; insn < len; insn++) {
+        if (flags[insn] & FLAG_RET) {
+            /* ??? In theory it should be possible to handle multiple return
+               points.  In practice it's not worth the effort.  */
+            if (retpos != -1)
+                error("Multiple return instructions in %s", name);
+            retpos = insn;
+        }
+        if (flags[insn] & FLAG_EXIT) {
+            if (num_exits == MAX_EXITS)
+                error("Too many block exits in %s", name);
+            exit_addrs[num_exits] = insn;
+            num_exits++;
+        }
+        if (flags[insn] & FLAG_INSN)
+            last_insn = insn;
+    }
+
+    exit_addrs[num_exits] = -1;
+    if (retpos == -1) {
+        if (num_exits == 0) {
+            error ("No return instruction found in %s", name);
+        } else {
+            retpos = len;
+            last_insn = len;
+        }
+    }
+
+    /* If the return instruction is the last instruction we can just
+       remove it.  */
+    if (retpos == last_insn)
+        *patch_bytes = -1;
+    else
+        *patch_bytes = 0;
+
+    /* Back up over any nop instructions.  */
+    while (retpos > 0
+           && (flags[retpos] & FLAG_TARGET) == 0
+           && (flags[retpos - 1] & FLAG_INSN) != 0
+           && start_p[retpos - 1] == 0x90) {
+        retpos--;
+    }
+
+    if (*patch_bytes == -1) {
+        *plen = retpos;
+        free (flags);
+        return retpos;
+    }
+    *plen = len;
+
+    /* The ret is in the middle of the function.  Find four more bytes that
+       so the ret can be replaced by a jmp. */
+    /* ??? Use a short jump where possible. */
+    bytes = 4;
+    insn = retpos + 1;
+    /* We can clobber everything up to the next jump target.  */
+    while (insn < len && bytes > 0 && (flags[insn] & FLAG_TARGET) == 0) {
+        insn++;
+        bytes--;
+    }
+    if (bytes > 0) {
+        /* ???: Strip out nop blocks.  */
+        /* We can't do the replacement without clobbering anything important.
+           Copy preceeding instructions(s) to give us some space.  */
+        while (retpos > 0) {
+            /* If this byte is the target of a jmp we can't move it.  */
+            if (flags[retpos] & FLAG_TARGET)
+                break;
+
+            (*patch_bytes)++;
+            bytes--;
+            retpos--;
+
+            /* Break out of the loop if we have enough space and this is either
+               the first byte of an instruction or a pad byte.  */
+            if ((flags[retpos] & (FLAG_INSN | FLAG_SCANNED)) != FLAG_SCANNED
+                && bytes <= 0) {
+                break;
+            }
+        }
+    }
+
+    if (bytes > 0)
+        error("Unable to replace ret with jmp in %s\n", name);
+
+    free(flags);
+    return retpos;
+}
+
+#endif
+
 #define MAX_ARGS 3
 
 /* generate op code */
-void gen_code(const char *name, host_ulong offset, host_ulong size, 
+void gen_code(const char *name, host_ulong offset, host_ulong size,
               FILE *outfile, int gen_switch)
 {
     int copy_size = 0;
@@ -1357,6 +2058,19 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
     const char *sym_name, *p;
     EXE_RELOC *rel;
 
+#if defined(CONFIG_FORMAT_MACH)
+    typedef struct { const char*  name; int nonlazy; } SymRef;
+    int       num_symrefs = 0;
+    int       max_symrefs = 0;
+    SymRef*   symrefs     = NULL;
+#endif
+
+#if defined(HOST_I386) || defined(HOST_X86_64)
+    int patch_bytes;
+    int retpos;
+    int exit_addrs[MAX_EXITS];
+#endif
+
     /* Compute exact size excluding prologue and epilogue instructions.
      * Increment start_offset to skip epilogue instructions, then compute
      * copy_size the indicate the size of the remaining instructions (in
@@ -1366,37 +2080,20 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
     p_end = p_start + size;
     start_offset = offset;
 #if defined(HOST_I386) || defined(HOST_X86_64)
-#ifdef CONFIG_FORMAT_COFF
-    {
-        uint8_t *p;
-        p = p_end - 1;
-        if (p == p_start)
-            error("empty code for %s", name);
-        while (*p != 0xc3) {
-            p--;
-            if (p <= p_start)
-                error("ret or jmp expected at the end of %s", name);
-        }
-        copy_size = p - p_start;
-    }
-#else
     {
         int len;
         len = p_end - p_start;
-        if (len == 0)
-            error("empty code for %s", name);
-        if (p_end[-1] == 0xc3) {
-            len--;
-        } else {
-            error("ret or jmp expected at the end of %s", name);
-        }
+        retpos = trace_i386_op(name, p_start, &len, &patch_bytes, exit_addrs);
         copy_size = len;
     }
-#endif    
 #elif defined(HOST_PPC)
     {
         uint8_t *p;
         p = (void *)(p_end - 4);
+	while (p > p_start && get32((uint32_t*)p) == 0x60000000) {
+		p_end = p;
+		p    -= 4;
+	}
         if (p == p_start)
             error("empty code for %s", name);
         if (get32((uint32_t *)p) != 0x4e800020)
@@ -1424,7 +2121,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 #endif
         if (get32((uint32_t *)p) != 0x6bfa8001)
             error("ret expected at the end of %s", name);
-        copy_size = p - p_start;	    
+        copy_size = p - p_start;
     }
 #elif defined(HOST_IA64)
     {
@@ -1442,12 +2139,9 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
     {
 #define INSN_SAVE       0x9de3a000
 #define INSN_RET        0x81c7e008
-#define INSN_RETL       0x81c3e008
 #define INSN_RESTORE    0x81e80000
 #define INSN_RETURN     0x81cfe008
 #define INSN_NOP        0x01000000
-#define INSN_ADD_SP     0x9c03a000 // add %sp, nn, %sp
-#define INSN_SUB_SP     0x9c23a000 // sub %sp, nn, %sp
 
         uint32_t start_insn, end_insn1, end_insn2;
         uint8_t *p;
@@ -1457,21 +2151,17 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
         start_insn = get32((uint32_t *)(p_start + 0x0));
         end_insn1 = get32((uint32_t *)(p + 0x0));
         end_insn2 = get32((uint32_t *)(p + 0x4));
-        if (((start_insn & ~0x1fff) == INSN_SAVE) ||
-            (start_insn & ~0x1fff) == INSN_ADD_SP) {
+        if ((start_insn & ~0x1fff) == INSN_SAVE) {
             p_start += 0x4;
             start_offset += 0x4;
+            if ((int)(start_insn | ~0x1fff) < -128)
+                error("Found bogus save at the start of %s", name);
             if (end_insn1 == INSN_RET && end_insn2 == INSN_RESTORE)
                 /* SPARC v7: ret; restore; */ ;
             else if (end_insn1 == INSN_RETURN && end_insn2 == INSN_NOP)
                 /* SPARC v9: return; nop; */ ;
-            else if (end_insn1 == INSN_RETL && (end_insn2 & ~0x1fff) == INSN_SUB_SP)
-                /* SPARC v7: retl; sub %sp, nn, %sp; */ ;
             else
-
                 error("ret; restore; not found at end of %s", name);
-        } else if (end_insn1 == INSN_RETL && end_insn2 == INSN_NOP) {
-            ;
         } else {
             error("No save at the beginning of %s", name);
         }
@@ -1487,52 +2177,32 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
     }
 #elif defined(HOST_SPARC64)
     {
-#define INSN_SAVE       0x9de3a000
-#define INSN_RET        0x81c7e008
-#define INSN_RETL       0x81c3e008
-#define INSN_RESTORE    0x81e80000
-#define INSN_RETURN     0x81cfe008
-#define INSN_NOP        0x01000000
-#define INSN_ADD_SP     0x9c03a000 // add %sp, nn, %sp
-#define INSN_SUB_SP     0x9c23a000 // sub %sp, nn, %sp
-
         uint32_t start_insn, end_insn1, end_insn2, skip_insn;
         uint8_t *p;
         p = (void *)(p_end - 8);
-#if 0
-        /* XXX: check why it occurs */
         if (p <= p_start)
             error("empty code for %s", name);
-#endif
         start_insn = get32((uint32_t *)(p_start + 0x0));
         end_insn1 = get32((uint32_t *)(p + 0x0));
         end_insn2 = get32((uint32_t *)(p + 0x4));
-        if (((start_insn & ~0x1fff) == INSN_SAVE) ||
-            (start_insn & ~0x1fff) == INSN_ADD_SP) {
+        if ((start_insn & ~0x1fff) == 0x9de3a000) {
             p_start += 0x4;
             start_offset += 0x4;
-            if (end_insn1 == INSN_RET && end_insn2 == INSN_RESTORE)
-                /* SPARC v7: ret; restore; */ ;
-            else if (end_insn1 == INSN_RETURN && end_insn2 == INSN_NOP)
-                /* SPARC v9: return; nop; */ ;
-            else if (end_insn1 == INSN_RETL && (end_insn2 & ~0x1fff) == INSN_SUB_SP)
-                /* SPARC v7: retl; sub %sp, nn, %sp; */ ;
-            else
-
+            if ((int)(start_insn | ~0x1fff) < -256)
+                error("Found bogus save at the start of %s", name);
+            if (end_insn1 != 0x81c7e008 || end_insn2 != 0x81e80000)
                 error("ret; restore; not found at end of %s", name);
-        } else if (end_insn1 == INSN_RETL && end_insn2 == INSN_NOP) {
-            ;
         } else {
             error("No save at the beginning of %s", name);
         }
-        
+
         /* Skip a preceeding nop, if present.  */
         if (p > p_start) {
             skip_insn = get32((uint32_t *)(p - 0x4));
             if (skip_insn == 0x01000000)
                 p -= 4;
         }
-        
+
         copy_size = p - p_start;
     }
 #elif defined(HOST_ARM)
@@ -1545,7 +2215,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
             error("%s: invalid prolog", name);
         p_start += 12;
         start_offset += 12;
-        copy_size = arm_emit_ldr_info(name, start_offset, NULL, p_start, p_end, 
+        copy_size = arm_emit_ldr_info(name, start_offset, NULL, p_start, p_end,
                                       relocs, nb_relocs);
     }
 #elif defined(HOST_M68K)
@@ -1556,7 +2226,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
             error("empty code for %s", name);
         // remove NOP's, probably added for alignment
         while ((get16((uint16_t *)p) == 0x4e71) &&
-               (p>p_start)) 
+               (p>p_start))
             p -= 2;
         if (get16((uint16_t *)p) != 0x4e75)
             error("rts expected at the end of %s", name);
@@ -1586,7 +2256,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
             }
         }
     }
-    
+
     nb_args = 0;
     while (nb_args < MAX_ARGS && args_present[nb_args])
         nb_args++;
@@ -1596,6 +2266,13 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
     }
 
     if (gen_switch == 2) {
+#if defined(HOST_I386) || defined(HOST_X86_64)
+        if (patch_bytes != -1)
+            copy_size += patch_bytes;
+#ifdef DEBUG_OP
+        copy_size += 2;
+#endif
+#endif
         fprintf(outfile, "DEF(%s, %d, %d)\n", name + 3, nb_args, copy_size);
     } else if (gen_switch == 1) {
 
@@ -1610,11 +2287,30 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
             }
             fprintf(outfile, ";\n");
         }
+
+#if 1
+        fprintf(outfile, "    static const unsigned char %s[%d] = {\n", name, copy_size);
+        {
+            uint8_t*  code = p_start + (start_offset - offset);
+            int       nn;
+            const char*  comma = "        ";
+
+            for (nn = 0; nn < copy_size; nn++) {
+                fprintf(outfile, "%s0x%02x", comma, code[nn]);
+                comma = ", ";
+                if (((nn+1) & 15) == 0)
+                    comma = ",\n        ";
+            }
+            offset = start_offset;
+        }
+        fprintf(outfile, "\n    };\n" );
+#else  /* 0 */
 #if defined(HOST_IA64)
         fprintf(outfile, "    extern char %s;\n", name);
 #else
         fprintf(outfile, "    extern void %s();\n", name);
 #endif
+#endif /* 0 */
 
         for(i = 0, rel = relocs;i < nb_relocs; i++, rel++) {
             host_ulong offset = get_rel_offset(rel);
@@ -1623,7 +2319,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                 sym_name = get_rel_sym_name(rel);
                 if(!sym_name)
                     continue;
-                if (*sym_name && 
+                if (*sym_name &&
                     !strstart(sym_name, "__op_param", NULL) &&
                     !strstart(sym_name, "__op_jmp", NULL) &&
                     !strstart(sym_name, "__op_gen_label", NULL)) {
@@ -1634,10 +2330,35 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 				sym_name+1, sym_name);
 			continue;
 		    }
-#endif
-#if defined(__APPLE__)
-/* set __attribute((unused)) on darwin because we wan't to avoid warning when we don't use the symbol */
-                    fprintf(outfile, "extern char %s __attribute__((unused));\n", sym_name);
+#elif defined(CONFIG_FORMAT_MACH)
+                    {
+                        int  nn;
+
+                        for (nn = 0; nn < num_symrefs; nn++)
+                            if ( !strcmp(sym_name, symrefs[nn].name) )
+                                break;
+
+                        if (nn >= num_symrefs)
+                        {
+                            if (num_symrefs >= max_symrefs) {
+                                int      new_max   = max_symrefs + 16;
+                                SymRef*  new_refs = realloc( symrefs, new_max*sizeof(SymRef) );
+                                symrefs = new_refs;
+                                max_symrefs = new_max;
+                            }
+
+                            symrefs[nn].name    = sym_name;
+                            symrefs[nn].nonlazy = 0;
+
+                            fprintf(outfile, "    extern char %s __attribute__((unused));\n", sym_name);
+                            num_symrefs++;
+                        }
+
+                        if ( !symrefs[nn].nonlazy && is_reloc_non_lazy(rel) ) {
+                            symrefs[nn].nonlazy = 1;
+                            fprintf(outfile, "    static const void* __to_%s = &%s;\n", sym_name, sym_name );
+                        }
+                    }
 #elif defined(HOST_IA64)
 			if (ELF64_R_TYPE(rel->r_info) != R_IA64_PCREL21B)
 				/*
@@ -1669,7 +2390,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                 if (strstart(sym_name, "__op_label", &p)) {
                     uint8_t *ptr;
                     unsigned long offset;
-                    
+
                     /* test if the variable refers to a label inside
                        the code we are generating */
 #ifdef CONFIG_FORMAT_COFF
@@ -1701,7 +2422,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                         /* try to find a matching relocation */
                         reloc_shndx = find_reloc(sym->st_shndx);
                         if (reloc_shndx) {
-                            nb_relocs1 = shdr[reloc_shndx].sh_size / 
+                            nb_relocs1 = shdr[reloc_shndx].sh_size /
                                 shdr[reloc_shndx].sh_entsize;
                             rel = (ELF_RELOC *)sdata[reloc_shndx];
                             for(j = 0; j < nb_relocs1; j++) {
@@ -1713,7 +2434,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                             }
                         }
                     }
-#endif                    
+#endif
                     if (val >= start_offset && val <= start_offset + copy_size) {
                         n = strtol(p, NULL, 10);
                         fprintf(outfile, "    label_offsets[%d] = %ld + (gen_code_ptr - gen_code_buf);\n", n, (long)(val - start_offset));
@@ -1730,6 +2451,85 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
         /* patch relocations */
 #if defined(HOST_I386)
             {
+#ifdef CONFIG_FORMAT_MACH
+                struct scattered_relocation_info *scarel;
+                struct relocation_info * rel;
+				char final_sym_name[256];
+				const char *sym_name;
+				const char *p;
+				int slide, sslide;
+				int i;
+
+				for (i = 0, rel = relocs; i < nb_relocs; i++, rel++) {
+					unsigned int offset, length, value = 0;
+					unsigned int type, pcrel, isym = 0;
+					unsigned int usesym = 0;
+
+					if (R_SCATTERED & rel->r_address) {
+						scarel = (struct scattered_relocation_info*)rel;
+						offset = (unsigned int)scarel->r_address;
+						length = scarel->r_length;
+						pcrel = scarel->r_pcrel;
+						type = scarel->r_type;
+						value = scarel->r_value;
+					}
+                    else {
+						value = isym = rel->r_symbolnum;
+						usesym = (rel->r_extern);
+						offset = rel->r_address;
+						length = rel->r_length;
+						pcrel = rel->r_pcrel;
+						type = rel->r_type;
+					}
+
+					slide = offset - start_offset;
+
+					if (!(offset >= start_offset && offset < start_offset + size))
+						continue;  /* not in our range */
+
+					sym_name = get_reloc_name(rel, &sslide);
+
+					if (usesym && symtab[isym].n_type & N_STAB)
+						continue; /* don't handle STAB (debug sym) */
+
+					if (sym_name && strstart(sym_name, "__op_jmp", &p)) {
+						int n;
+						n = strtol(p, NULL, 10);
+						fprintf(outfile, "    jmp_offsets[%d] = %d + (gen_code_ptr - gen_code_buf);\n", n, slide);
+						continue; /* Nothing more to do */
+					}
+
+					if (!sym_name) {
+						fprintf(outfile, "/* #warning relocation not handled in %s (value 0x%x, %s, offset 0x%x, length 0x%x, %s, type 0x%x) */\n",
+                                name, value, usesym ? "use sym" : "don't use sym", offset, length, pcrel ? "pcrel":"", type);
+						continue; /* dunno how to handle without final_sym_name */
+					}
+
+                    get_reloc_expr(final_sym_name, sizeof(final_sym_name),
+                                   sym_name);
+
+                    if (length != 2)
+                        error("unsupported %d-bit relocation", 8 * (1 << length));
+
+					switch (type) {
+					case GENERIC_RELOC_VANILLA:
+                        if (pcrel || strstart(sym_name,"__op_gen_label",&p)) {
+                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %d) - 4;\n",
+                                    slide, final_sym_name, slide);
+                        }
+                        else {
+                            if ( is_reloc_non_lazy(rel) )
+                                fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (uint32_t)(void*)&__to_%s;\n", slide, sym_name);
+                            else
+                            	fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (%s + %d);\n",
+                                	slide, final_sym_name, sslide);
+                        }
+                        break;
+                    default:
+                        error("unsupported i386 relocation (%d)", type);
+                    }
+                }
+#else
                 char name[256];
                 int type;
                 int addend;
@@ -1759,11 +2559,11 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                     type = ELF32_R_TYPE(rel->r_info);
                     switch(type) {
                     case R_386_32:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                 reloc_offset, name, addend);
                         break;
                     case R_386_PC32:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %d) + %d;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %d) + %d;\n",
                                 reloc_offset, name, reloc_offset, addend);
                         break;
                     default:
@@ -1786,11 +2586,11 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                     type = rel->r_type;
                     switch(type) {
                     case DIR32:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                 reloc_offset, name, addend);
                         break;
                     case DISP32:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %d) + %d -4;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %d) + %d -4;\n",
                                 reloc_offset, name, reloc_offset, addend);
                         break;
                     default:
@@ -1801,6 +2601,43 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 #endif
                 }
                 }
+#endif
+                /* Replace the marker instructions with the actual opcodes.  */
+                for (i = 0; exit_addrs[i] != -1; i++) {
+                    int op;
+                    switch (p_start[exit_addrs[i]])
+                      {
+                      case 0xf4: op = 0xc3; break; /* hlt -> ret */
+                      case 0xfa: op = 0xe9; break; /* cli -> jmp */
+                      case 0xfb: op = 0xe9; break; /* sti -> jmp */
+                      default: error("Internal error");
+                      }
+                    fprintf(outfile,
+                            "    *(uint8_t *)(gen_code_ptr + %d) = 0x%x;\n",
+                            exit_addrs[i], op);
+                }
+                /* Fix up the return instruction.  */
+                if (patch_bytes != -1) {
+                    if (patch_bytes) {
+                        fprintf(outfile, "    memcpy(gen_code_ptr + %d,"
+                                "gen_code_ptr + %d, %d);\n",
+                                copy_size, retpos, patch_bytes);
+                    }
+                    fprintf(outfile,
+                            "    *(uint8_t *)(gen_code_ptr + %d) = 0xe9;\n",
+                            retpos);
+                    fprintf(outfile,
+                            "    *(uint32_t *)(gen_code_ptr + %d) = 0x%x;\n",
+                            retpos + 1, copy_size - (retpos + 5));
+
+                    copy_size += patch_bytes;
+                }
+#ifdef DEBUG_OP
+                fprintf(outfile,
+                        "    *(uint16_t *)(gen_code_ptr + %d) = 0x9090;\n",
+                        copy_size);
+                copy_size += 2;
+#endif
             }
 #elif defined(HOST_X86_64)
             {
@@ -1818,15 +2655,15 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                     reloc_offset = rel->r_offset - start_offset;
                     switch(type) {
                     case R_X86_64_32:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (uint32_t)%s + %d;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (uint32_t)%s + %d;\n",
                                 reloc_offset, name, addend);
                         break;
                     case R_X86_64_32S:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (int32_t)%s + %d;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (int32_t)%s + %d;\n",
                                 reloc_offset, name, addend);
                         break;
                     case R_X86_64_PC32:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %d) + %d;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %d) + %d;\n",
                                 reloc_offset, name, reloc_offset, addend);
                         break;
                     default:
@@ -1834,6 +2671,42 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                     }
                 }
                 }
+                /* Replace the marker instructions with the actual opcodes.  */
+                for (i = 0; exit_addrs[i] != -1; i++) {
+                    int op;
+                    switch (p_start[exit_addrs[i]])
+                      {
+                      case 0xf4: op = 0xc3; break; /* hlt -> ret */
+                      case 0xfa: op = 0xe9; break; /* cli -> jmp */
+                      case 0xfb: op = 0xe9; break; /* sti -> jmp */
+                      default: error("Internal error");
+                      }
+                    fprintf(outfile,
+                            "    *(uint8_t *)(gen_code_ptr + %d) = 0x%x;\n",
+                            exit_addrs[i], op);
+                }
+                /* Fix up the return instruction.  */
+                if (patch_bytes != -1) {
+                    if (patch_bytes) {
+                        fprintf(outfile, "    memcpy(gen_code_ptr + %d,"
+                                "gen_code_ptr + %d, %d);\n",
+                                copy_size, retpos, patch_bytes);
+                    }
+                    fprintf(outfile,
+                            "    *(uint8_t *)(gen_code_ptr + %d) = 0xe9;\n",
+                            retpos);
+                    fprintf(outfile,
+                            "    *(uint32_t *)(gen_code_ptr + %d) = 0x%x;\n",
+                            retpos + 1, copy_size - (retpos + 5));
+
+                    copy_size += patch_bytes;
+                }
+#ifdef DEBUG_OP
+                fprintf(outfile,
+                        "    *(uint16_t *)(gen_code_ptr + %d) = 0x9090;\n",
+                        copy_size);
+                copy_size += 2;
+#endif
             }
 #elif defined(HOST_PPC)
             {
@@ -1858,30 +2731,30 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                                     n, reloc_offset);
                             continue;
                         }
-                        
+
                         get_reloc_expr(name, sizeof(name), sym_name);
                         type = ELF32_R_TYPE(rel->r_info);
                         addend = rel->r_addend;
                         switch(type) {
                         case R_PPC_ADDR32:
-                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                     reloc_offset, name, addend);
                             break;
                         case R_PPC_ADDR16_LO:
-                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = (%s + %d);\n", 
+                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = (%s + %d);\n",
                                     reloc_offset, name, addend);
                             break;
                         case R_PPC_ADDR16_HI:
-                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = (%s + %d) >> 16;\n", 
+                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = (%s + %d) >> 16;\n",
                                     reloc_offset, name, addend);
                             break;
                         case R_PPC_ADDR16_HA:
-                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = (%s + %d + 0x8000) >> 16;\n", 
+                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = (%s + %d + 0x8000) >> 16;\n",
                                     reloc_offset, name, addend);
                             break;
                         case R_PPC_REL24:
                             /* warning: must be at 32 MB distancy */
-                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (*(uint32_t *)(gen_code_ptr + %d) & ~0x03fffffc) | ((%s - (long)(gen_code_ptr + %d) + %d) & 0x03fffffc);\n", 
+                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (*(uint32_t *)(gen_code_ptr + %d) & ~0x03fffffc) | ((%s - (long)(gen_code_ptr + %d) + %d) & 0x03fffffc);\n",
                                     reloc_offset, reloc_offset, name, reloc_offset, addend);
                             break;
                         default:
@@ -1897,12 +2770,12 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 				const char *p;
 				int slide, sslide;
 				int i;
-	
+
 				for(i = 0, rel = relocs; i < nb_relocs; i++, rel++) {
 					unsigned int offset, length, value = 0;
 					unsigned int type, pcrel, isym = 0;
 					unsigned int usesym = 0;
-				
+
 					if(R_SCATTERED & rel->r_address) {
 						scarel = (struct scattered_relocation_info*)rel;
 						offset = (unsigned int)scarel->r_address;
@@ -1918,17 +2791,17 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 						pcrel = rel->r_pcrel;
 						type = rel->r_type;
 					}
-				
+
 					slide = offset - start_offset;
-		
-					if (!(offset >= start_offset && offset < start_offset + size)) 
+
+					if (!(offset >= start_offset && offset < start_offset + size))
 						continue;  /* not in our range */
 
 					sym_name = get_reloc_name(rel, &sslide);
-					
+
 					if(usesym && symtab[isym].n_type & N_STAB)
 						continue; /* don't handle STAB (debug sym) */
-					
+
 					if (sym_name && strstart(sym_name, "__op_jmp", &p)) {
 						int n;
 						n = strtol(p, NULL, 10);
@@ -1936,40 +2809,52 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 							n, slide);
 						continue; /* Nothing more to do */
 					}
-					
+
 					if(!sym_name)
 					{
 						fprintf(outfile, "/* #warning relocation not handled in %s (value 0x%x, %s, offset 0x%x, length 0x%x, %s, type 0x%x) */\n",
 						           name, value, usesym ? "use sym" : "don't use sym", offset, length, pcrel ? "pcrel":"", type);
 						continue; /* dunno how to handle without final_sym_name */
 					}
-													   
-                                        get_reloc_expr(final_sym_name, sizeof(final_sym_name), 
+
+                                        get_reloc_expr(final_sym_name, sizeof(final_sym_name),
                                                        sym_name);
 					switch(type) {
 					case PPC_RELOC_BR24:
 					    if (!strstart(sym_name,"__op_gen_label",&p)) {
-    						fprintf(outfile, "{\n");
-    						fprintf(outfile, "    uint32_t imm = *(uint32_t *)(gen_code_ptr + %d) & 0x3fffffc;\n", slide);
-    						fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (*(uint32_t *)(gen_code_ptr + %d) & ~0x03fffffc) | ((imm + ((long)%s - (long)gen_code_ptr) + %d) & 0x03fffffc);\n", 
-											slide, slide, name, sslide );
-    						fprintf(outfile, "}\n");
+    						fprintf(outfile, "    {\n");
+    						fprintf(outfile, "        uint32_t imm = (uint32_t) & %s;\n", get_rel_sym_name(rel));
+    						fprintf(outfile, "        *(uint32_t *)(gen_code_ptr + %d) = (*(uint32_t *)(gen_code_ptr + %d) & ~0x03fffffc) | ((imm - ((uint32_t)gen_code_ptr + %d)) & 0x03fffffc);\n",
+											slide, slide, slide );
+    						fprintf(outfile, "    }\n");
     					} else {
 							fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = (*(uint32_t *)(gen_code_ptr + %d) & ~0x03fffffc) | (((long)%s - (long)gen_code_ptr - %d) & 0x03fffffc);\n",
 											slide, slide, final_sym_name, slide);
     					}
 						break;
 					case PPC_RELOC_HI16:
-						fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = (%s + %d) >> 16;\n", 
-							slide, final_sym_name, sslide);
+						if ( is_reloc_non_lazy(rel) )
+							fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = ((uint32_t)(void*)&__to_%s + %d) >> 16;\n",
+							slide, sym_name, sslide);
+						else
+							fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = (%s + %d) >> 16;\n",
+								slide, final_sym_name, sslide);
 						break;
 					case PPC_RELOC_LO16:
-						fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = (%s + %d);\n", 
-					slide, final_sym_name, sslide);
-                            break;
+						if ( is_reloc_non_lazy(rel) )
+							fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = ((uint32_t)(void*)&__to_%s + %d);\n",
+								slide, sym_name, sslide);
+						else
+							fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = (%s + %d);\n",
+										slide, final_sym_name, sslide);
+                            			break;
 					case PPC_RELOC_HA16:
-						fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = (%s + %d + 0x8000) >> 16;\n", 
-							slide, final_sym_name, sslide);
+						if ( is_reloc_non_lazy(rel) )
+							fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = ((uint32_t)(void*)&__to_%s + %d + 0x8000) >> 16;\n",
+										slide, sym_name, sslide);
+						else
+							fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d + 2) = (%s + %d + 0x8000) >> 16;\n",
+				 						slide, final_sym_name, sslide);
 						break;
 				default:
 					error("unsupported powerpc relocation (%d)", type);
@@ -1995,15 +2880,15 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                         reloc_offset = rel->r_offset - start_offset;
                         switch(type) {
                         case R_390_32:
-                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                     reloc_offset, name, addend);
                             break;
                         case R_390_16:
-                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                            fprintf(outfile, "    *(uint16_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                     reloc_offset, name, addend);
                             break;
                         case R_390_8:
-                            fprintf(outfile, "    *(uint8_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                            fprintf(outfile, "    *(uint8_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                     reloc_offset, name, addend);
                             break;
                         default:
@@ -2159,7 +3044,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                         reloc_offset = rel->r_offset - start_offset;
                         switch(type) {
                         case R_SPARC_32:
-                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                            fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                     reloc_offset, name, addend);
 			    break;
 			case R_SPARC_HI22:
@@ -2217,7 +3102,7 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 			rel->r_offset < start_offset + copy_size) {
                         sym_name = strtab + symtab[ELF64_R_SYM(rel->r_info)].st_name;
                         get_reloc_expr(name, sizeof(name), sym_name);
-                        type = ELF32_R_TYPE(rel->r_info);
+                        type = ELF64_R_TYPE(rel->r_info);
                         addend = rel->r_addend;
                         reloc_offset = rel->r_offset - start_offset;
                         switch(type) {
@@ -2241,15 +3126,6 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 				    " | ((%s + %d) & 0x3ff);\n",
                                     reloc_offset, reloc_offset, name, addend);
 			    break;
-                        case R_SPARC_OLO10:
-                            addend += ELF64_R_TYPE_DATA (rel->r_info);
-                            fprintf(outfile,
-				    "    *(uint32_t *)(gen_code_ptr + %d) = "
-				    "((*(uint32_t *)(gen_code_ptr + %d)) "
-				    " & ~0x3ff) "
-				    " | ((%s + %d) & 0x3ff);\n",
-                                    reloc_offset, reloc_offset, name, addend);
-			    break;
 			case R_SPARC_WDISP30:
 			    fprintf(outfile,
 				    "    *(uint32_t *)(gen_code_ptr + %d) = "
@@ -2260,18 +3136,8 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
 				    reloc_offset, reloc_offset, name, addend,
 				    reloc_offset);
 			    break;
-                        case R_SPARC_WDISP22:
-                            fprintf(outfile,
-                                    "    *(uint32_t *)(gen_code_ptr + %d) = "
-                                    "((*(uint32_t *)(gen_code_ptr + %d)) "
-                                    " & ~0x3fffff) "
-                                    " | ((((%s + %d) - (long)(gen_code_ptr + %d))>>2) "
-                                    "    & 0x3fffff);\n",
-                                    reloc_offset, reloc_offset, name, addend,
-				    reloc_offset);
-                            break;
                         default:
-			    error("unsupported sparc64 relocation (%d) for symbol %s", type, name);
+			    error("unsupported sparc64 relocation (%d)", type);
                         }
                     }
                 }
@@ -2299,11 +3165,11 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                     reloc_offset = rel->r_offset - start_offset;
                     switch(type) {
                     case R_ARM_ABS32:
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %d;\n",
                                 reloc_offset, name, addend);
                         break;
                     case R_ARM_PC24:
-                        fprintf(outfile, "    arm_reloc_pc24((uint32_t *)(gen_code_ptr + %d), 0x%x, %s);\n", 
+                        fprintf(outfile, "    arm_reloc_pc24((uint32_t *)(gen_code_ptr + %d), 0x%x, %s);\n",
                                 reloc_offset, addend, name);
                         break;
                     default:
@@ -2331,12 +3197,12 @@ void gen_code(const char *name, host_ulong offset, host_ulong size,
                     switch(type) {
                     case R_68K_32:
 		        fprintf(outfile, "    /* R_68K_32 RELOC, offset %x */\n", rel->r_offset) ;
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %#x;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s + %#x;\n",
                                 reloc_offset, name, addend );
                         break;
                     case R_68K_PC32:
 		        fprintf(outfile, "    /* R_68K_PC32 RELOC, offset %x */\n", rel->r_offset);
-                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %#x) + %#x;\n", 
+                        fprintf(outfile, "    *(uint32_t *)(gen_code_ptr + %d) = %s - (long)(gen_code_ptr + %#x) + %#x;\n",
                                 reloc_offset, name, reloc_offset, /*sym->st_value+*/ addend);
                         break;
                     default:
@@ -2404,7 +3270,7 @@ int gen_file(FILE *outfile, int out_type)
                 gen_code(name, sym->st_value, sym->st_size, outfile, 0);
             }
         }
-        
+
     } else {
         /* generate big code generation switch */
 fprintf(outfile,
@@ -2422,6 +3288,64 @@ fprintf(outfile,
 "    LDREntry *arm_ldr_ptr = arm_ldr_table;\n"
 "    uint32_t *arm_data_ptr = arm_data_table;\n");
 #endif
+
+#if 0 && defined CONFIG_FORMAT_MACH
+    {
+        typedef struct { const char*  name; int  nonlazy; }  SymRef;
+
+        EXE_RELOC*   rel     = relocs;
+        EXE_RELOC*   rel_end = relocs + nb_relocs;
+        SymRef*      symrefs = NULL;
+        int          num_symrefs = 0;
+        int          max_symrefs = 0;
+
+        for ( ; rel < rel_end; rel++ )
+        {
+            const char*  sym_name = get_rel_sym_name(rel);
+            int          nn;
+
+            if(!sym_name)
+                continue;
+
+            if ( !*sym_name ||
+                 strstart(sym_name, "__op_param", NULL) ||
+                 strstart(sym_name, "__op_jmp", NULL)   ||
+                 strstart(sym_name, "__op_gen_label", NULL))
+                continue;
+
+            for (nn = 0; nn < num_symrefs; nn++) {
+                if ( !strcmp( sym_name, symrefs[nn].name ) )
+                    break;
+            }
+
+            if (nn >= num_symrefs)
+            {
+                if (num_symrefs >= max_symrefs) {
+                    int      new_max   = max_symrefs + 16;
+                    SymRef*  new_refs = realloc( symrefs, new_max*sizeof(SymRef) );
+                    if (new_refs == NULL) {
+                        break;
+                    }
+                    symrefs = new_refs;
+                    max_symrefs = new_max;
+                }
+
+                symrefs[nn].name    = sym_name;
+                symrefs[nn].nonlazy = 0;
+
+                fprintf(outfile, "    extern char %s __attribute__((unused));\n", sym_name);
+                num_symrefs++;
+            }
+
+            if ( !symrefs[nn].nonlazy && is_reloc_non_lazy(rel) ) {
+                symrefs[nn].nonlazy = 1;
+                fprintf(outfile, "    static const void* __to_%s = &%s;\n", sym_name, sym_name );
+            }
+        }
+        free( symrefs );
+    }
+#endif
+
 #ifdef HOST_IA64
     {
 	long addend, not_first = 0;
@@ -2486,7 +3410,7 @@ fprintf(outfile,
 "    opc_ptr = opc_buf;\n"
 "    opparam_ptr = opparam_buf;\n");
 
-	/* Generate prologue, if needed. */ 
+	/* Generate prologue, if needed. */
 
 fprintf(outfile,
 "    for(;;) {\n"
@@ -2498,7 +3422,7 @@ fprintf(outfile,
             name = get_sym_name(sym);
             if (strstart(name, OP_PREFIX, NULL)) {
 #if 0
-                printf("%4d: %s pos=0x%08x len=%d\n", 
+                printf("%4d: %s pos=0x%08x len=%d\n",
                        i, name, sym->st_value, sym->st_size);
 #endif
 #if defined(CONFIG_FORMAT_ELF) || defined(CONFIG_FORMAT_COFF)
@@ -2533,7 +3457,7 @@ fprintf(outfile,
 "            last_gen_code_ptr = gen_code_ptr;\n"
 "            arm_ldr_ptr = arm_ldr_table;\n"
 "            arm_data_ptr = arm_data_table;\n"
-"        }\n");         
+"        }\n");
 #endif
 
 
@@ -2551,7 +3475,7 @@ fprintf(outfile,
 	    "plt_target, plt_offset);\n    }\n");
 #endif
 
-/* generate some code patching */ 
+/* generate some code patching */
 #ifdef HOST_ARM
 fprintf(outfile, "gen_code_ptr = arm_flush_ldr(gen_code_ptr, arm_ldr_table, arm_ldr_ptr, arm_data_table, arm_data_ptr, 0);\n");
 #endif

@@ -1,6 +1,7 @@
 /*
  * QEMU WAV audio driver
  *
+ * Copyright (c) 2007 The Android Open Source Project
  * Copyright (c) 2004-2005 Vassili Karpov (malc)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,6 +27,10 @@
 #define AUDIO_CAP "wav"
 #include "audio_int.h"
 
+#define  WAV_AUDIO_IN  1
+
+/** VOICE OUT  (Saving to a .WAV file)
+ **/
 typedef struct WAVVoiceOut {
     HWVoiceOut hw;
     QEMUFile *f;
@@ -37,7 +42,7 @@ typedef struct WAVVoiceOut {
 static struct {
     audsettings_t settings;
     const char *wav_path;
-} conf = {
+} conf_out = {
     {
         44100,
         2,
@@ -46,7 +51,7 @@ static struct {
     "qemu.wav"
 };
 
-static int wav_run_out (HWVoiceOut *hw)
+static int wav_out_run (HWVoiceOut *hw)
 {
     WAVVoiceOut *wav = (WAVVoiceOut *) hw;
     int rpos, live, decr, samples;
@@ -91,7 +96,7 @@ static int wav_run_out (HWVoiceOut *hw)
     return decr;
 }
 
-static int wav_write_out (SWVoiceOut *sw, void *buf, int len)
+static int wav_out_write (SWVoiceOut *sw, void *buf, int len)
 {
     return audio_pcm_sw_write (sw, buf, len);
 }
@@ -106,7 +111,7 @@ static void le_store (uint8_t *buf, uint32_t val, int len)
     }
 }
 
-static int wav_init_out (HWVoiceOut *hw, audsettings_t *as)
+static int wav_out_init (HWVoiceOut *hw, audsettings_t *as)
 {
     WAVVoiceOut *wav = (WAVVoiceOut *) hw;
     int bits16 = 0, stereo = 0;
@@ -116,7 +121,7 @@ static int wav_init_out (HWVoiceOut *hw, audsettings_t *as)
         0x02, 0x00, 0x44, 0xac, 0x00, 0x00, 0x10, 0xb1, 0x02, 0x00, 0x04,
         0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61, 0x00, 0x00, 0x00, 0x00
     };
-    audsettings_t wav_as = conf.settings;
+    audsettings_t wav_as = conf_out.settings;
 
     (void) as;
 
@@ -151,10 +156,10 @@ static int wav_init_out (HWVoiceOut *hw, audsettings_t *as)
     le_store (hdr + 28, hw->info.freq << (bits16 + stereo), 4);
     le_store (hdr + 32, 1 << (bits16 + stereo), 2);
 
-    wav->f = fopen (conf.wav_path, "wb");
+    wav->f = fopen (conf_out.wav_path, "wb");
     if (!wav->f) {
         dolog ("Failed to open wave file `%s'\nReason: %s\n",
-               conf.wav_path, strerror (errno));
+               conf_out.wav_path, strerror (errno));
         qemu_free (wav->pcm_buf);
         wav->pcm_buf = NULL;
         return -1;
@@ -164,7 +169,7 @@ static int wav_init_out (HWVoiceOut *hw, audsettings_t *as)
     return 0;
 }
 
-static void wav_fini_out (HWVoiceOut *hw)
+static void wav_out_fini (HWVoiceOut *hw)
 {
     WAVVoiceOut *wav = (WAVVoiceOut *) hw;
     uint8_t rlen[4];
@@ -192,16 +197,212 @@ static void wav_fini_out (HWVoiceOut *hw)
     wav->pcm_buf = NULL;
 }
 
-static int wav_ctl_out (HWVoiceOut *hw, int cmd, ...)
+static int wav_out_ctl (HWVoiceOut *hw, int cmd, ...)
 {
     (void) hw;
     (void) cmd;
     return 0;
 }
 
+
+#if WAV_AUDIO_IN
+
+/** WAV IN (Reading from a .WAV file)
+ **/
+
+ static struct {
+    const char *wav_path;
+} conf_in = {
+    "qemu.wav"
+};
+
+typedef struct WAVVoiceIn {
+    HWVoiceIn  hw;
+    QEMUFile*  f;
+    int64_t    old_ticks;
+    void*      pcm_buf;
+    int        total_samples;
+    int        total_size;
+} WAVVoiceIn;
+
+
+static int
+le_read( const uint8_t*  p, int  size ) {
+    int  shift  = 0;
+    int  result = 0;
+    for ( ; size > 0; size-- ) {
+        result = result | (p[0] << shift);
+        p     += 1;
+        shift += 8;
+    }
+    return  result;
+}
+
+static int
+wav_in_init (HWVoiceIn *hw, audsettings_t *as)
+{
+    WAVVoiceIn*  wav = (WAVVoiceIn *) hw;
+    const char*  path = conf_in.wav_path;
+    uint8_t      hdr[44];
+    audsettings_t wav_as = *as;
+    int           nchannels, freq, format, bits;
+
+    wav->f = fopen (path, "rb");
+    if (wav->f == NULL) {
+        dolog("Failed to open wave file '%s'\nReason: %s\n", path,
+              strerror(errno));
+        return -1;
+    }
+
+    if (qemu_get_buffer (wav->f, hdr, sizeof(hdr)) != (int)sizeof(hdr)) {
+        dolog("File '%s' to be a .wav file\n", path);
+        goto Fail;
+    }
+
+    /* check that this is a wave file */
+    if ( hdr[0] != 'R' || hdr[1] != 'I' || hdr[2] != 'F' || hdr[3] != 'F' ||
+         hdr[8] != 'W' || hdr[9] != 'A' || hdr[10]!= 'V' || hdr[11]!= 'E' ||
+         hdr[12]!= 'f' || hdr[13]!= 'm' || hdr[14]!= 't' || hdr[15]!= ' ' ||
+         hdr[40]!= 'd' || hdr[41]!= 'a' || hdr[42]!= 't' || hdr[43]!= 'a') {
+         dolog("File '%s' is not a valid .wav file\n", path);
+         goto Fail;
+    }
+
+    nchannels   = le_read( hdr+22, 2 );
+    freq        = le_read( hdr+24, 4 );
+    format      = le_read( hdr+32, 2 );
+    bits        = le_read( hdr+34, 2 );
+
+    wav->total_size = le_read( hdr+40, 4 );
+
+    /* perform some sainty checks */
+    switch (nchannels) {
+        case 1:
+        case 2: break;
+        default:
+            dolog("unsupported number of channels (%d) in '%s'\n",
+                  nchannels, path);
+            goto Fail;
+    }
+
+    switch (format) {
+        case 1:
+        case 2:
+        case 4: break;
+        default:
+            dolog("unsupported bytes per sample (%d) in '%s'\n",
+                  format, path);
+            goto Fail;
+    }
+
+    if (format*8/nchannels != bits) {
+        dolog("invalid bits per sample (%d, expected %d) in '%s'\n",
+              bits, format*8/nchannels, path);
+        goto Fail;
+    }
+
+    wav_as.nchannels  = nchannels;
+    wav_as.fmt        = (bits == 8) ? AUD_FMT_U8 : AUD_FMT_S16;
+    wav_as.freq       = freq;
+    wav_as.endianness = 0;  /* always little endian */
+
+    audio_pcm_init_info (&hw->info, &wav_as);
+
+    hw->samples  = 1024;
+    wav->pcm_buf = audio_calloc (AUDIO_FUNC, hw->samples, 1 << hw->info.shift);
+    if (!wav->pcm_buf) {
+        goto Fail;
+    }
+    return 0;
+
+Fail:
+    fclose (wav->f);
+    wav->f = NULL;
+    return -1;
+}
+
+
+static void wav_in_fini (HWVoiceIn *hw)
+{
+    WAVVoiceIn *wav = (WAVVoiceIn *) hw;
+
+    if (!wav->f) {
+        return;
+    }
+
+    fclose (wav->f);
+    wav->f = NULL;
+
+    qemu_free (wav->pcm_buf);
+    wav->pcm_buf = NULL;
+}
+
+static int wav_in_run (HWVoiceIn *hw)
+{
+    WAVVoiceIn*   wav = (WAVVoiceIn *) hw;
+    int           wpos, live, decr, samples;
+    uint8_t*      src;
+    st_sample_t*  dst;
+
+    int64_t  now   = qemu_get_clock (vm_clock);
+    int64_t  ticks = now - wav->old_ticks;
+    int64_t  bytes = (ticks * hw->info.bytes_per_second) / ticks_per_sec;
+
+    if (bytes > INT_MAX) {
+        samples = INT_MAX >> hw->info.shift;
+    }
+    else {
+        samples = bytes >> hw->info.shift;
+    }
+
+    live = audio_pcm_hw_get_live_in (hw);
+    if (!live) {
+        return 0;
+    }
+
+    wav->old_ticks = now;
+
+    decr    = audio_MIN (live, samples);
+    samples = decr;
+    wpos    = hw->wpos;
+    while (samples) {
+        int left_till_end_samples = hw->samples - wpos;
+        int convert_samples       = audio_MIN (samples, left_till_end_samples);
+
+        dst = hw->conv_buf + wpos;
+        src = advance (wav->pcm_buf, wpos << hw->info.shift);
+
+        qemu_get_buffer (wav->f, src, convert_samples << hw->info.shift);
+        memcpy (dst, src, convert_samples << hw->info.shift);
+
+        wpos                = (wpos + convert_samples) % hw->samples;
+        samples            -= convert_samples;
+        wav->total_samples += convert_samples;
+    }
+
+    hw->wpos = wpos;
+    return decr;
+}
+
+static int wav_in_read (SWVoiceIn *sw, void *buf, int len)
+{
+    return audio_pcm_sw_read (sw, buf, len);
+}
+
+static int wav_in_ctl (HWVoiceIn *hw, int cmd, ...)
+{
+    (void) hw;
+    (void) cmd;
+    return 0;
+}
+
+#endif  /* WAV_AUDIO_IN */
+
+/** COMMON CODE
+ **/
 static void *wav_audio_init (void)
 {
-    return &conf;
+    return &conf_out;
 }
 
 static void wav_audio_fini (void *opaque)
@@ -211,45 +412,65 @@ static void wav_audio_fini (void *opaque)
 }
 
 struct audio_option wav_options[] = {
-    {"FREQUENCY", AUD_OPT_INT, &conf.settings.freq,
+    {"FREQUENCY", AUD_OPT_INT, &conf_out.settings.freq,
      "Frequency", NULL, 0},
 
-    {"FORMAT", AUD_OPT_FMT, &conf.settings.fmt,
+    {"FORMAT", AUD_OPT_FMT, &conf_out.settings.fmt,
      "Format", NULL, 0},
 
-    {"DAC_FIXED_CHANNELS", AUD_OPT_INT, &conf.settings.nchannels,
+    {"DAC_FIXED_CHANNELS", AUD_OPT_INT, &conf_out.settings.nchannels,
      "Number of channels (1 - mono, 2 - stereo)", NULL, 0},
 
-    {"PATH", AUD_OPT_STR, &conf.wav_path,
-     "Path to wave file", NULL, 0},
+    {"PATH", AUD_OPT_STR, &conf_out.wav_path,
+     "Path to output .wav file", NULL, 0},
+
+#if WAV_AUDIO_IN
+    {"IN_PATH", AUD_OPT_STR, &conf_in.wav_path,
+     "Path to input .wav file", NULL, 0},
+#endif
     {NULL, 0, NULL, NULL, NULL, 0}
 };
 
 struct audio_pcm_ops wav_pcm_ops = {
-    wav_init_out,
-    wav_fini_out,
-    wav_run_out,
-    wav_write_out,
-    wav_ctl_out,
+    wav_out_init,
+    wav_out_fini,
+    wav_out_run,
+    wav_out_write,
+    wav_out_ctl,
 
+#if WAV_AUDIO_IN
+    wav_in_init,
+    wav_in_fini,
+    wav_in_run,
+    wav_in_read,
+    wav_in_ctl
+#else
     NULL,
     NULL,
     NULL,
     NULL,
     NULL
+#endif
 };
 
 struct audio_driver wav_audio_driver = {
     INIT_FIELD (name           = ) "wav",
     INIT_FIELD (descr          = )
-    "WAV renderer http://wikipedia.org/wiki/WAV",
+    "WAV file read/write (www.wikipedia.org/wiki/WAV)",
     INIT_FIELD (options        = ) wav_options,
     INIT_FIELD (init           = ) wav_audio_init,
     INIT_FIELD (fini           = ) wav_audio_fini,
     INIT_FIELD (pcm_ops        = ) &wav_pcm_ops,
     INIT_FIELD (can_be_default = ) 0,
+#if WAV_AUDIO_IN
+    INIT_FIELD (max_voices_in  = ) 1,
+    INIT_FIELD (max_voices_out = ) 1,
+    INIT_FIELD (voice_size_out = ) sizeof (WAVVoiceOut),
+    INIT_FIELD (voice_size_in  = ) sizeof (WAVVoiceIn)
+#else
     INIT_FIELD (max_voices_out = ) 1,
     INIT_FIELD (max_voices_in  = ) 0,
     INIT_FIELD (voice_size_out = ) sizeof (WAVVoiceOut),
     INIT_FIELD (voice_size_in  = ) 0
+#endif
 };

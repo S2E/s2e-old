@@ -46,8 +46,8 @@ these four paragraphs for those parts of this code that are retained.
 typedef char flag;
 typedef uint8_t uint8;
 typedef int8_t int8;
-typedef int uint16;
-typedef int int16;
+typedef uint16_t uint16;
+typedef int16_t int16;
 typedef unsigned int uint32;
 typedef signed int int32;
 typedef uint64_t uint64;

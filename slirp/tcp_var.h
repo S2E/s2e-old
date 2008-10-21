@@ -37,6 +37,7 @@
 #ifndef _TCP_VAR_H_
 #define _TCP_VAR_H_
 
+#include "mbuf.h"
 #include "tcpip.h"
 #include "tcp_timer.h"
 
@@ -172,14 +173,14 @@ struct tcpcb {
 
 /* XXX
  * We want to avoid doing m_pullup on incoming packets but that
- * means avoiding dtom on the tcp reassembly code.  That in turn means
+ * means avoiding MBUF_FROM on the tcp reassembly code.  That in turn means
  * keeping an mbuf pointer in the reassembly queue (since we might
  * have a cluster).  As a quick hack, the source & destination
  * port numbers (which are no longer needed once we've located the
  * tcpcb) are overlayed with an mbuf pointer.
  */
 #if SIZEOF_CHAR_P == 4
-typedef struct mbuf *mbufp_32;
+typedef MBuf mbufp_32;
 #else
 typedef u_int32_t mbufp_32;
 #endif

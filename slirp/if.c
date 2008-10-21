@@ -22,7 +22,7 @@ struct	mbuf *next_m;			/* Pointer to next mbuf to output */
 
 void
 ifs_insque(ifm, ifmhead)
-	struct mbuf *ifm, *ifmhead;
+	MBuf ifm, ifmhead;
 {
 	ifm->ifs_next = ifmhead->ifs_next;
 	ifmhead->ifs_next = ifm;
@@ -32,7 +32,7 @@ ifs_insque(ifm, ifmhead)
 
 void
 ifs_remque(ifm)
-	struct mbuf *ifm;
+	MBuf ifm;
 {
 	ifm->ifs_prev->ifs_next = ifm->ifs_next;
 	ifm->ifs_next->ifs_prev = ifm->ifs_prev;
@@ -159,9 +159,9 @@ if_input(ttyp)
 void
 if_output(so, ifm)
 	struct socket *so;
-	struct mbuf *ifm;
+	MBuf ifm;
 {
-	struct mbuf *ifq;
+	MBuf ifq;
 	int on_fastq = 1;
 	
 	DEBUG_CALL("if_output");
@@ -266,7 +266,7 @@ diddit:
 void
 if_start(void)
 {
-	struct mbuf *ifm, *ifqt;
+	MBuf ifm, *ifqt;
 	
 	DEBUG_CALL("if_start");
 	
@@ -315,7 +315,7 @@ if_start(void)
 	/* Encapsulate the packet for sending */
         if_encap(ifm->m_data, ifm->m_len);
 
-        m_free(ifm);
+        mbuf_free(ifm);
 
 	if (if_queued)
 	   goto again;

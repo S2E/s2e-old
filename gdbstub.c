@@ -32,7 +32,7 @@
 #include "vl.h"
 #endif
 
-#include "qemu_socket.h"
+#include "sockets.h"
 #ifdef _WIN32
 /* XXX: these constants may be independent of the host ones even for Unix */
 #ifndef SIGTRAP
@@ -886,7 +886,7 @@ static void gdb_accept(void *opaque)
     GDBState *s;
     struct sockaddr_in sockaddr;
     socklen_t len;
-    int val, fd;
+    int fd;
 
     for(;;) {
         len = sizeof(sockaddr);
@@ -900,8 +900,7 @@ static void gdb_accept(void *opaque)
     }
 
     /* set short latency */
-    val = 1;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&val, sizeof(val));
+    socket_set_lowlatency(fd);
     
 #ifdef CONFIG_USER_ONLY
     s = &gdbserver_state;
@@ -916,9 +915,8 @@ static void gdb_accept(void *opaque)
     s->env = first_cpu; /* XXX: allow to change CPU */
     s->fd = fd;
 
-#ifdef CONFIG_USER_ONLY
-    fcntl(fd, F_SETFL, O_NONBLOCK);
-#else
+    socket_set_nonblock(fd);
+#ifndef CONFIG_USER_ONLY
     socket_set_nonblock(fd);
 
     /* stop the VM */
@@ -934,7 +932,7 @@ static void gdb_accept(void *opaque)
 static int gdbserver_open(int port)
 {
     struct sockaddr_in sockaddr;
-    int fd, val, ret;
+    int fd, ret;
 
     fd = socket(PF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
@@ -943,8 +941,7 @@ static int gdbserver_open(int port)
     }
 
     /* allow fast reuse */
-    val = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&val, sizeof(val));
+    socket_set_xreuseaddr(fd);
 
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_port = htons(port);

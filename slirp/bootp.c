@@ -38,6 +38,8 @@ typedef struct {
 
 BOOTPClient bootp_clients[NB_ADDR];
 
+const char *bootp_filename;
+
 static const uint8_t rfc1533_cookie[] = { RFC1533_COOKIE };
 
 #ifdef DEBUG
@@ -125,7 +127,7 @@ static void dhcp_decode(const uint8_t *buf, int size,
 static void bootp_reply(struct bootp_t *bp)
 {
     BOOTPClient *bc;
-    struct mbuf *m;
+    MBuf m;
     struct bootp_t *rbp;
     struct sockaddr_in saddr, daddr;
     struct in_addr dns_addr;
@@ -145,7 +147,7 @@ static void bootp_reply(struct bootp_t *bp)
     /* XXX: this is a hack to get the client mac address */
     memcpy(client_ethaddr, bp->bp_hwaddr, 6);
     
-    if ((m = m_get()) == NULL)
+    if ((m = mbuf_alloc()) == NULL)
         return;
     m->m_data += if_maxlinkhdr;
     rbp = (struct bootp_t *)m->m_data;
@@ -168,6 +170,9 @@ static void bootp_reply(struct bootp_t *bp)
             goto new_addr;
         }
     }
+    if (bootp_filename)
+        snprintf((char*)rbp->bp_file, sizeof(rbp->bp_file), "%s", bootp_filename);
+
     dprintf("offered addr=%08x\n", ntohl(daddr.sin_addr.s_addr));
 
     saddr.sin_addr.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
@@ -244,9 +249,9 @@ static void bootp_reply(struct bootp_t *bp)
     udp_output2(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
 }
 
-void bootp_input(struct mbuf *m)
+void bootp_input(MBuf m)
 {
-    struct bootp_t *bp = mtod(m, struct bootp_t *);
+    struct bootp_t *bp = MBUF_TO(m, struct bootp_t *);
 
     if (bp->bp_op == BOOTP_REQUEST) {
         bootp_reply(bp);

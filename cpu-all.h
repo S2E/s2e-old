@@ -339,7 +339,13 @@ static inline void stl_le_p(void *ptr, int v)
 
 static inline void stq_le_p(void *ptr, uint64_t v)
 {
+#if defined(__i386__) && __GNUC__ >= 4
+    const union { uint64_t v; uint32_t p[2]; } x = { .v = v };
+    ((uint32_t *)ptr)[0] = x.p[0];
+    ((uint32_t *)ptr)[1] = x.p[1];
+#else
     *(uint64_t *)ptr = v;
+#endif
 }
 
 /* float access */
@@ -971,7 +977,7 @@ static inline int64_t cpu_get_real_ticks(void)
     return val;
 }
 
-#elif defined(__sparc_v9__)
+#elif defined(__sparc__) && defined(HOST_SOLARIS)
 
 static inline int64_t cpu_get_real_ticks (void)
 {

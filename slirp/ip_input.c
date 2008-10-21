@@ -69,7 +69,7 @@ ip_init()
  */
 void
 ip_input(m)
-	struct mbuf *m;
+	MBuf m;
 {
 	register struct ip *ip;
 	int hlen;
@@ -85,7 +85,7 @@ ip_input(m)
 		return;
 	}
 	
-	ip = mtod(m, struct ip *);
+	ip = MBUF_TO(m, struct ip *);
 	
 	if (ip->ip_v != IPVERSION) {
 		ipstat.ips_badvers++;
@@ -130,7 +130,7 @@ ip_input(m)
 	}
 	/* Should drop packet if mbuf too long? hmmm... */
 	if (m->m_len > ip->ip_len)
-	   m_adj(m, ip->ip_len - m->m_len);
+	   mbuf_trim(m, ip->ip_len - m->m_len);
 
 	/* check ip_ttl for a correct ICMP reply */
 	if(ip->ip_ttl==0 || ip->ip_ttl==1) {
@@ -197,7 +197,7 @@ ip_input(m)
 			if (ip == 0)
 				return;
 			ipstat.ips_reassembled++;
-			m = dtom(ip);
+			m = MBUF_FROM(ip);
 		} else
 			if (fp)
 		   	   ip_freef(fp);
@@ -221,11 +221,11 @@ ip_input(m)
 		break;
 	 default:
 		ipstat.ips_noproto++;
-		m_free(m);
+		mbuf_free(m);
 	}
 	return;
 bad:
-	m_freem(m);
+	mbuf_free(m);
 	return;
 }
 
@@ -240,7 +240,7 @@ ip_reass(ip, fp)
 	register struct ipasfrag *ip;
 	register struct ipq *fp;
 {
-	register struct mbuf *m = dtom(ip);
+	register MBuf m = MBUF_FROM(ip);
 	register struct ipasfrag *q;
 	int hlen = ip->ip_hl << 2;
 	int i, next;
@@ -262,9 +262,9 @@ ip_reass(ip, fp)
 	 * If first fragment to arrive, create a reassembly queue.
 	 */
 	if (fp == 0) {
-	  struct mbuf *t;
-	  if ((t = m_get()) == NULL) goto dropfrag;
-	  fp = mtod(t, struct ipq *);
+	  MBuf t;
+	  if ((t = mbuf_alloc()) == NULL) goto dropfrag;
+	  fp = MBUF_TO(t, struct ipq *);
 	  insque_32(fp, &ipq);
 	  fp->ipq_ttl = IPFRAGTTL;
 	  fp->ipq_p = ip->ip_p;
@@ -295,7 +295,7 @@ ip_reass(ip, fp)
 		if (i > 0) {
 			if (i >= ip->ip_len)
 				goto dropfrag;
-			m_adj(dtom(ip), i);
+			mbuf_trim(MBUF_FROM(ip), i);
 			ip->ip_off += i;
 			ip->ip_len -= i;
 		}
@@ -310,11 +310,11 @@ ip_reass(ip, fp)
 		if (i < q->ip_len) {
 			q->ip_len -= i;
 			q->ip_off += i;
-			m_adj(dtom(q), i);
+			mbuf_trim(MBUF_FROM(q), i);
 			break;
 		}
 		q = (struct ipasfrag *) q->ipf_next;
-		m_freem(dtom((struct ipasfrag *) q->ipf_prev));
+		mbuf_free(MBUF_FROM((struct ipasfrag *) q->ipf_prev));
 		ip_deq((struct ipasfrag *) q->ipf_prev);
 	}
 
@@ -338,14 +338,14 @@ insert:
 	 * Reassembly is complete; concatenate fragments.
 	 */
 	q = (struct ipasfrag *) fp->ipq_next;
-	m = dtom(q);
+	m = MBUF_FROM(q);
 
 	q = (struct ipasfrag *) q->ipf_next;
 	while (q != (struct ipasfrag *)fp) {
-	  struct mbuf *t;
-	  t = dtom(q);
+	  MBuf t;
+	  t = MBUF_FROM(q);
 	  q = (struct ipasfrag *) q->ipf_next;
-	  m_cat(m, t);
+	  mbuf_append(m, t);
 	}
 
 	/*
@@ -377,8 +377,8 @@ insert:
 	((struct ip *)ip)->ip_src = fp->ipq_src;
 	((struct ip *)ip)->ip_dst = fp->ipq_dst;
 	remque_32(fp);
-	(void) m_free(dtom(fp));
-	m = dtom(ip);
+	(void) mbuf_free(MBUF_FROM(fp));
+	m = MBUF_FROM(ip);
 	m->m_len += (ip->ip_hl << 2);
 	m->m_data -= (ip->ip_hl << 2);
 
@@ -386,7 +386,7 @@ insert:
 
 dropfrag:
 	ipstat.ips_fragdropped++;
-	m_freem(m);
+	mbuf_free(m);
 	return (0);
 }
 
@@ -404,10 +404,10 @@ ip_freef(fp)
 	    q = p) {
 		p = (struct ipasfrag *) q->ipf_next;
 		ip_deq(q);
-		m_freem(dtom(q));
+		mbuf_free(MBUF_FROM(q));
 	}
 	remque_32(fp);
-	(void) m_free(dtom(fp));
+	(void) mbuf_free(MBUF_FROM(fp));
 }
 
 /*
@@ -475,9 +475,9 @@ ip_slowtimo()
 
 int
 ip_dooptions(m)
-	struct mbuf *m;
+	MBuf m;
 {
-	register struct ip *ip = mtod(m, struct ip *);
+	register struct ip *ip = MBUF_TO(m, struct ip *);
 	register u_char *cp;
 	register struct ip_timestamp *ipt;
 	register struct in_ifaddr *ia;
@@ -679,11 +679,11 @@ bad:
  */
 void
 ip_stripoptions(m, mopt)
-	register struct mbuf *m;
-	struct mbuf *mopt;
+	register MBuf m;
+	MBuf mopt;
 {
 	register int i;
-	struct ip *ip = mtod(m, struct ip *);
+	struct ip *ip = MBUF_TO(m, struct ip *);
 	register caddr_t opts;
 	int olen;
 

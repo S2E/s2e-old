@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1995 Danny Gasparovski.
- * 
- * Please read the file COPYRIGHT for the 
+ *
+ * Please read the file COPYRIGHT for the
  * terms and conditions of the copyright.
  */
 
@@ -23,7 +23,7 @@ struct socket {
   int s;                           /* The actual socket */
 
 			/* XXX union these with not-yet-used sbuf params */
-  struct mbuf *so_m;	           /* Pointer to the original SYN packet,
+  MBuf so_m;	           /* Pointer to the original SYN packet,
 				    * for non-blocking connect()'s, and
 				    * PING reply's */
   struct tcpiphdr *so_ti;	   /* Pointer to the original ti within
@@ -33,23 +33,24 @@ struct socket {
   struct in_addr so_laddr;	   /* local host table entry */
   u_int16_t so_fport;		   /* foreign port */
   u_int16_t so_lport;		   /* local port */
-  
+  u_int16_t so_hport;
+
   u_int8_t	so_iptos;	/* Type of service */
   u_int8_t	so_emu;		/* Is the socket emulated? */
-  
+
   u_char	so_type;		/* Type of socket, UDP or TCP */
   int	so_state;		/* internal state flags SS_*, below */
-  
+
   struct 	tcpcb *so_tcpcb;	/* pointer to TCP protocol control block */
   u_int	so_expire;		/* When the socket will expire */
-  
+
   int	so_queued;		/* Number of packets queued from this socket */
   int	so_nqueued;		/* Number of packets queued in a row
 				 * Used to determine when to "downgrade" a session
 					 * from fastq to batchq */
-	
-  struct sbuf so_rcv;		/* Receive buffer */
-  struct sbuf so_snd;		/* Send buffer */
+
+  SBufRec so_rcv;		/* Receive buffer */
+  SBufRec so_snd;		/* Send buffer */
   void * extra;			/* Extra pointer */
 };
 
@@ -70,7 +71,8 @@ struct socket {
 #define SS_CTL			0x080
 #define SS_FACCEPTCONN		0x100	/* Socket is accepting connections from a host on the internet */
 #define SS_FACCEPTONCE		0x200	/* If set, the SS_FACCEPTCONN socket will die after one accept */
-
+#define SS_PROXIFIED            0x400   /* Socket is trying to connect through a proxy, only makes sense
+                                           when SS_ISFCONNECTING is also set */
 extern struct socket tcb;
 
 
@@ -90,8 +92,9 @@ void sorecvoob _P((struct socket *));
 int sosendoob _P((struct socket *));
 int sowrite _P((struct socket *));
 void sorecvfrom _P((struct socket *));
-int sosendto _P((struct socket *, struct mbuf *));
+int sosendto _P((struct socket *, MBuf ));
 struct socket * solisten _P((u_int, u_int32_t, u_int, int));
+int  sounlisten _P((u_int port));
 void sorwakeup _P((struct socket *));
 void sowwakeup _P((struct socket *));
 void soisfconnecting _P((register struct socket *));

@@ -94,11 +94,18 @@ DATA_TYPE REGPARM(1) glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         if (tlb_addr & ~TARGET_PAGE_MASK) {
             /* IO access */
             if ((addr & (DATA_SIZE - 1)) != 0)
-                goto do_unaligned_access;
-            res = glue(io_read, SUFFIX)(physaddr, tlb_addr);
-        } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
+            {
+                retaddr = GETPC();
+#ifdef IO_ALIGNED_ONLY
+                do_unaligned_access(addr, READ_ACCESS_TYPE, is_user, retaddr);
+#endif
+                res = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(addr, is_user, retaddr);
+            }
+            else
+                res = glue(io_read, SUFFIX)(physaddr, tlb_addr);
+        } 
+        else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
             /* slow unaligned access (it spans two pages or IO) */
-        do_unaligned_access:
             retaddr = GETPC();
 #ifdef ALIGNED_ONLY
             do_unaligned_access(addr, READ_ACCESS_TYPE, is_user, retaddr);
@@ -118,7 +125,7 @@ DATA_TYPE REGPARM(1) glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     } else {
         /* the page is not in the TLB : fill it */
         retaddr = GETPC();
-#ifdef ALIGNED_ONLY
+#ifdef zzALIGNED_ONLY
         if ((addr & (DATA_SIZE - 1)) != 0)
             do_unaligned_access(addr, READ_ACCESS_TYPE, is_user, retaddr);
 #endif
@@ -217,7 +224,8 @@ void REGPARM(2) glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_ulong tlb_addr;
     void *retaddr;
     int index;
-    
+   
+    env->mem_write_vaddr = addr; 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[is_user][index].addr_write;
@@ -225,12 +233,18 @@ void REGPARM(2) glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         physaddr = addr + env->tlb_table[is_user][index].addend;
         if (tlb_addr & ~TARGET_PAGE_MASK) {
             /* IO access */
-            if ((addr & (DATA_SIZE - 1)) != 0)
-                goto do_unaligned_access;
             retaddr = GETPC();
-            glue(io_write, SUFFIX)(physaddr, val, tlb_addr, retaddr);
-        } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
-        do_unaligned_access:
+            if ((addr & (DATA_SIZE - 1)) != 0)
+            {
+#ifdef IO_ALIGNED_ONLY
+                do_unaligned_acess(addr, 1, is_user, retaddr);
+#endif
+                glue(glue(slow_st, SUFFIX), MMUSUFFIX)(addr, val, is_user, retaddr);
+            }
+            else
+                glue(io_write, SUFFIX)(physaddr, val, tlb_addr, retaddr);
+        }
+        else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
             retaddr = GETPC();
 #ifdef ALIGNED_ONLY
             do_unaligned_access(addr, 1, is_user, retaddr);

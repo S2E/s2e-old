@@ -74,7 +74,7 @@ tcp_output(tp)
 	register struct socket *so = tp->t_socket;
 	register long len, win;
 	int off, flags, error;
-	register struct mbuf *m;
+	register MBuf m;
 	register struct tcpiphdr *ti;
 	u_char opt[MAX_TCPOPTLEN];
 	unsigned optlen, hdrlen;
@@ -166,7 +166,7 @@ again:
 	if (SEQ_LT(tp->snd_nxt + len, tp->snd_una + so->so_snd.sb_cc))
 		flags &= ~TH_FIN;
 
-	win = sbspace(&so->so_rcv);
+	win = sbuf_space(&so->so_rcv);
 
 	/*
 	 * Sender silly window avoidance.  If connection is idle
@@ -348,7 +348,7 @@ send:
 			tcpstat.tcps_sndbyte += len;
 		}
 
-		m = m_get();
+		m = mbuf_alloc();
 		if (m == NULL) {
 /*			error = ENOBUFS; */
 			error = 1;
@@ -363,11 +363,11 @@ send:
 		 */
 /*		if (len <= MHLEN - hdrlen - max_linkhdr) { */
 
-			sbcopy(&so->so_snd, off, (int) len, mtod(m, caddr_t) + hdrlen);
+			sbuf_copy(&so->so_snd, off, (int) len, MBUF_TO(m, caddr_t) + hdrlen);
 			m->m_len += len;
 
 /*		} else {
- *			m->m_next = m_copy(so->so_snd.sb_mb, off, (int) len);
+ *			m->m_next = mbuf_copy(so->so_snd.sb_mb, off, (int) len);
  *			if (m->m_next == 0)
  *				len = 0;
  *		}
@@ -390,7 +390,7 @@ send:
 		else
 			tcpstat.tcps_sndwinup++;
 
-		m = m_get();
+		m = mbuf_alloc();
 		if (m == NULL) {
 /*			error = ENOBUFS; */
 			error = 1;
@@ -400,7 +400,7 @@ send:
 		m->m_len = hdrlen;
 	}
 
-	ti = mtod(m, struct tcpiphdr *);
+	ti = MBUF_TO(m, struct tcpiphdr *);
 	
 	memcpy((caddr_t)ti, &tp->t_template, sizeof (struct tcpiphdr));
 
@@ -547,7 +547,7 @@ send:
 	error = ip_output(so, m);
 
 /* #else
- *	error = ip_output(m, (struct mbuf *)0, &tp->t_inpcb->inp_route, 
+ *	error = ip_output(m, (MBuf )0, &tp->t_inpcb->inp_route, 
  *	    so->so_options & SO_DONTROUTE);
  * #endif
  */

@@ -55,10 +55,10 @@ u_int16_t ip_id;
 int
 ip_output(so, m0)
 	struct socket *so;
-	struct mbuf *m0;
+	MBuf m0;
 {
 	register struct ip *ip;
-	register struct mbuf *m = m0;
+	register MBuf m = m0;
 	register int hlen = sizeof(struct ip );
 	int len, off, error = 0;
 
@@ -72,7 +72,7 @@ ip_output(so, m0)
  *		hlen = len;
  *	}
  */
-	ip = mtod(m, struct ip *);
+	ip = MBUF_TO(m, struct ip *);
 	/*
 	 * Fill in IP header.
 	 */
@@ -124,7 +124,7 @@ ip_output(so, m0)
 
     {
 	int mhlen, firstlen = len;
-	struct mbuf **mnext = &m->m_nextpkt;
+	MBuf *mnext = &m->m_nextpkt;
 
 	/*
 	 * Loop through length of segment after first fragment,
@@ -134,14 +134,14 @@ ip_output(so, m0)
 	mhlen = sizeof (struct ip);
 	for (off = hlen + len; off < (u_int16_t)ip->ip_len; off += len) {
 	  register struct ip *mhip;
-	  m = m_get();
+	  m = mbuf_alloc();
 	  if (m == 0) {
 	    error = -1;
 	    ipstat.ips_odropped++;
 	    goto sendorfree;
 	  }
 	  m->m_data += if_maxlinkhdr;
-	  mhip = mtod(m, struct ip *);
+	  mhip = MBUF_TO(m, struct ip *);
 	  *mhip = *ip;
 		
 		/* No options */
@@ -160,7 +160,7 @@ ip_output(so, m0)
 	    mhip->ip_off |= IP_MF;
 	  mhip->ip_len = htons((u_int16_t)(len + mhlen));
 	  
-	  if (m_copy(m, m0, off, len) < 0) {
+	  if (mbuf_copy(m, m0, off, len) < 0) {
 	    error = -1;
 	    goto sendorfree;
 	  }
@@ -177,7 +177,7 @@ ip_output(so, m0)
 	 * and updating header, then send each fragment (in order).
 	 */
 	m = m0;
-	m_adj(m, hlen + firstlen - (u_int16_t)ip->ip_len);
+	mbuf_trim(m, hlen + firstlen - (u_int16_t)ip->ip_len);
 	ip->ip_len = htons((u_int16_t)m->m_len);
 	ip->ip_off = htons((u_int16_t)(ip->ip_off | IP_MF));
 	ip->ip_sum = 0;
@@ -189,7 +189,7 @@ sendorfree:
 		if (error == 0)
 			if_output(so, m);
 		else
-			m_freem(m);
+			mbuf_free(m);
 	}
 
 	if (error == 0)
@@ -200,6 +200,6 @@ done:
 	return (error);
 
 bad:
-	m_freem(m0);
+	mbuf_free(m0);
 	goto done;
 }

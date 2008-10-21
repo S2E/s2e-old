@@ -2,6 +2,8 @@
 #define QEMU_OSDEP_H
 
 #include <stdarg.h>
+#include <setjmp.h>
+#include "config.h"
 
 int qemu_vsnprintf(char *buf, int buflen, const char *fmt, va_list args);
 void qemu_vprintf(const char *fmt, va_list ap);
@@ -40,7 +42,7 @@ struct qemu_sigaction {
     sigset_t sa_mask;		/* mask last for extensibility */
 };
 
-int qemu_sigaction(int signum, const struct qemu_sigaction *act, 
+int qemu_sigaction(int signum, const struct qemu_sigaction *act,
                    struct qemu_sigaction *oldact);
 
 #undef sigaction

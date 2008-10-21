@@ -755,7 +755,7 @@ static struct audio_pcm_ops oss_pcm_ops = {
 
 struct audio_driver oss_audio_driver = {
     INIT_FIELD (name           = ) "oss",
-    INIT_FIELD (descr          = ) "OSS http://www.opensound.com",
+    INIT_FIELD (descr          = ) "OSS audio (www.opensound.com)",
     INIT_FIELD (options        = ) oss_options,
     INIT_FIELD (init           = ) oss_audio_init,
     INIT_FIELD (fini           = ) oss_audio_fini,

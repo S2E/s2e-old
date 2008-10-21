@@ -63,7 +63,7 @@ static int icmp_flush[19] = {
 /* INFO (15) */          0,
 /* INFO REPLY (16) */    0,
 /* ADDR MASK (17) */     0,
-/* ADDR MASK REPLY (18) */ 0 
+/* ADDR MASK REPLY (18) */ 0
 };
 
 /*
@@ -71,20 +71,20 @@ static int icmp_flush[19] = {
  */
 void
 icmp_input(m, hlen)
-     struct mbuf *m;
+     MBuf m;
      int hlen;
 {
   register struct icmp *icp;
-  register struct ip *ip=mtod(m, struct ip *);
+  register struct ip *ip=MBUF_TO(m, struct ip *);
   int icmplen=ip->ip_len;
   /* int code; */
-	
+
   DEBUG_CALL("icmp_input");
   DEBUG_ARG("m = %lx", (long )m);
   DEBUG_ARG("m_len = %d", m->m_len);
 
   icmpstat.icps_received++;
-	
+
   /*
    * Locate icmp structure in mbuf, and check
    * that its not corrupted and of at least minimum length.
@@ -92,20 +92,20 @@ icmp_input(m, hlen)
   if (icmplen < ICMP_MINLEN) {          /* min 8 bytes payload */
     icmpstat.icps_tooshort++;
   freeit:
-    m_freem(m);
+    mbuf_free(m);
     goto end_error;
   }
 
   m->m_len -= hlen;
   m->m_data += hlen;
-  icp = mtod(m, struct icmp *);
+  icp = MBUF_TO(m, struct icmp *);
   if (cksum(m, icmplen)) {
     icmpstat.icps_checksum++;
     goto freeit;
   }
   m->m_len += hlen;
   m->m_data -= hlen;
-  
+
   /*	icmpstat.icps_inhist[icp->icmp_type]++; */
   /* code = icp->icmp_code; */
 
@@ -121,10 +121,10 @@ icmp_input(m, hlen)
       struct sockaddr_in addr;
       if ((so = socreate()) == NULL) goto freeit;
       if(udp_attach(so) == -1) {
-	DEBUG_MISC((dfd,"icmp_input udp_attach errno = %d-%s\n", 
+	DEBUG_MISC((dfd,"icmp_input udp_attach errno = %d-%s\n",
 		    errno,strerror(errno)));
 	sofree(so);
-	m_free(m);
+	mbuf_free(m);
 	goto end_error;
       }
       so->so_m = m;
@@ -135,20 +135,17 @@ icmp_input(m, hlen)
       so->so_iptos = ip->ip_tos;
       so->so_type = IPPROTO_ICMP;
       so->so_state = SS_ISFCONNECTED;
-      
+
       /* Send the packet */
       addr.sin_family = AF_INET;
       if ((so->so_faddr.s_addr & htonl(0xffffff00)) == special_addr.s_addr) {
 	/* It's an alias */
-	switch(ntohl(so->so_faddr.s_addr) & 0xff) {
-	case CTL_DNS:
-	  addr.sin_addr = dns_addr;
-	  break;
-	case CTL_ALIAS:
-	default:
-	  addr.sin_addr = loopback_addr;
-	  break;
-	}
+        int  low = ntohl(so->so_faddr.s_addr) & 0xff;
+
+        if (low >= CTL_DNS && low < CTL_DNS + dns_addr_count)
+            addr.sin_addr = dns_addr[low - CTL_DNS];
+        else
+            addr.sin_addr = loopback_addr;
       } else {
 	addr.sin_addr = so->so_faddr;
       }
@@ -157,7 +154,7 @@ icmp_input(m, hlen)
 		(struct sockaddr *)&addr, sizeof(addr)) == -1) {
 	DEBUG_MISC((dfd,"icmp_input udp sendto tx errno = %d-%s\n",
 		    errno,strerror(errno)));
-	icmp_error(m, ICMP_UNREACH,ICMP_UNREACH_NET, 0,strerror(errno)); 
+	icmp_error(m, ICMP_UNREACH,ICMP_UNREACH_NET, 0,strerror(errno));
 	udp_detach(so);
       }
     } /* if ip->ip_dst.s_addr == alias_addr.s_addr */
@@ -171,16 +168,16 @@ icmp_input(m, hlen)
   case ICMP_MASKREQ:
   case ICMP_REDIRECT:
     icmpstat.icps_notsupp++;
-    m_freem(m);
+    mbuf_free(m);
     break;
-    
+
   default:
     icmpstat.icps_badtype++;
-    m_freem(m);
+    mbuf_free(m);
   } /* swith */
 
 end_error:
-  /* m is m_free()'d xor put in a socket xor or given to ip_send */
+  /* m is mbuf_free()'d xor put in a socket xor or given to ip_send */
   return;
 }
 
@@ -196,17 +193,17 @@ end_error:
  */
 /*
  * Send ICMP_UNREACH back to the source regarding msrc.
- * mbuf *msrc is used as a template, but is NOT m_free()'d.
+ * mbuf *msrc is used as a template, but is NOT mbuf_free()'d.
  * It is reported as the bad ip packet.  The header should
  * be fully correct and in host byte order.
- * ICMP fragmentation is illegal.  All machines must accept 576 bytes in one 
+ * ICMP fragmentation is illegal.  All machines must accept 576 bytes in one
  * packet.  The maximum payload is 576-20(ip hdr)-8(icmp hdr)=548
  */
 
 #define ICMP_MAXDATALEN (IP_MSS-28)
 void
 icmp_error(msrc, type, code, minsize, message)
-     struct mbuf *msrc;
+     MBuf msrc;
      u_char type;
      u_char code;
      int minsize;
@@ -215,7 +212,7 @@ icmp_error(msrc, type, code, minsize, message)
   unsigned hlen, shlen, s_ip_len;
   register struct ip *ip;
   register struct icmp *icp;
-  register struct mbuf *m;
+  register MBuf m;
 
   DEBUG_CALL("icmp_error");
   DEBUG_ARG("msrc = %lx", (long )msrc);
@@ -225,8 +222,8 @@ icmp_error(msrc, type, code, minsize, message)
 
   /* check msrc */
   if(!msrc) goto end_error;
-  ip = mtod(msrc, struct ip *);
-#if DEBUG  
+  ip = MBUF_TO(msrc, struct ip *);
+#if DEBUG
   { char bufa[20], bufb[20];
     strcpy(bufa, inet_ntoa(ip->ip_src));
     strcpy(bufb, inet_ntoa(ip->ip_dst));
@@ -247,29 +244,29 @@ icmp_error(msrc, type, code, minsize, message)
   }
 
   /* make a copy */
-  if(!(m=m_get())) goto end_error;               /* get mbuf */
+  if(!(m=mbuf_alloc())) goto end_error;               /* get mbuf */
   { int new_m_size;
     new_m_size=sizeof(struct ip )+ICMP_MINLEN+msrc->m_len+ICMP_MAXDATALEN;
-    if(new_m_size>m->m_size) m_inc(m, new_m_size);
+    if(new_m_size>m->m_size) mbuf_ensure(m, new_m_size);
   }
   memcpy(m->m_data, msrc->m_data, msrc->m_len);
   m->m_len = msrc->m_len;                        /* copy msrc to m */
 
   /* make the header of the reply packet */
-  ip  = mtod(m, struct ip *);
+  ip  = MBUF_TO(m, struct ip *);
   hlen= sizeof(struct ip );     /* no options in reply */
-  
+
   /* fill in icmp */
-  m->m_data += hlen;                  
+  m->m_data += hlen;
   m->m_len -= hlen;
 
-  icp = mtod(m, struct icmp *);
+  icp = MBUF_TO(m, struct icmp *);
 
   if(minsize) s_ip_len=shlen+ICMP_MINLEN;   /* return header+8b only */
   else if(s_ip_len>ICMP_MAXDATALEN)         /* maximum size */
     s_ip_len=ICMP_MAXDATALEN;
 
-  m->m_len=ICMP_MINLEN+s_ip_len;        /* 8 bytes ICMP header */  
+  m->m_len=ICMP_MINLEN+s_ip_len;        /* 8 bytes ICMP header */
 
   /* min. size = 8+sizeof(struct ip)+8 */
 
@@ -304,7 +301,7 @@ icmp_error(msrc, type, code, minsize, message)
   /* fill in ip */
   ip->ip_hl = hlen >> 2;
   ip->ip_len = m->m_len;
-  
+
   ip->ip_tos=((ip->ip_tos & 0x1E) | 0xC0);  /* high priority for errors */
 
   ip->ip_ttl = MAXTTL;
@@ -313,7 +310,7 @@ icmp_error(msrc, type, code, minsize, message)
   ip->ip_src = alias_addr;
 
   (void ) ip_output((struct socket *)NULL, m);
-  
+
   icmpstat.icps_reflect++;
 
 end_error:
@@ -326,9 +323,9 @@ end_error:
  */
 void
 icmp_reflect(m)
-     struct mbuf *m;
+     MBuf m;
 {
-  register struct ip *ip = mtod(m, struct ip *);
+  register struct ip *ip = MBUF_TO(m, struct ip *);
   int hlen = ip->ip_hl << 2;
   int optlen = hlen - sizeof(struct ip );
   register struct icmp *icp;
@@ -339,7 +336,7 @@ icmp_reflect(m)
    */
   m->m_data += hlen;
   m->m_len -= hlen;
-  icp = mtod(m, struct icmp *);
+  icp = MBUF_TO(m, struct icmp *);
 
   icp->icmp_cksum = 0;
   icp->icmp_cksum = cksum(m, ip->ip_len - hlen);

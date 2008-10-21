@@ -24,7 +24,7 @@
  */
 
 #include "vl.h"
-#include "qemu_socket.h"
+#include "sockets.h"
 
 #define VNC_REFRESH_INTERVAL (1000 / 30)
 
@@ -163,7 +163,7 @@ static void vnc_framebuffer_update(VncState *vs, int x, int y, int w, int h,
     vnc_write_s32(vs, encoding);
 }
 
-static void vnc_dpy_resize(DisplayState *ds, int w, int h)
+static void vnc_dpy_resize(DisplayState *ds, int w, int h, int rotation)
 {
     VncState *vs = ds->opaque;
 
@@ -522,7 +522,7 @@ static int vnc_client_io_error(VncState *vs, int ret, int last_errno)
 	    return 0;
 
 	qemu_set_fd_handler2(vs->csock, NULL, NULL, NULL, NULL);
-	closesocket(vs->csock);
+	socket_close(vs->csock);
 	vs->csock = -1;
 	buffer_reset(&vs->input);
 	buffer_reset(&vs->output);
@@ -543,7 +543,7 @@ static void vnc_client_write(void *opaque)
     VncState *vs = opaque;
 
     ret = send(vs->csock, vs->output.buffer, vs->output.offset, 0);
-    ret = vnc_client_io_error(vs, ret, socket_error());
+    ret = vnc_client_io_error(vs, ret, socket_errno);
     if (!ret)
 	return;
 
@@ -569,7 +569,7 @@ static void vnc_client_read(void *opaque)
     buffer_reserve(&vs->input, 4096);
 
     ret = recv(vs->csock, buffer_end(&vs->input), 4096, 0);
-    ret = vnc_client_io_error(vs, ret, socket_error());
+    ret = vnc_client_io_error(vs, ret, socket_errno);
     if (!ret)
 	return;
 
@@ -840,7 +840,7 @@ static void set_pixel_format(VncState *vs,
         vs->send_hextile_tile = send_hextile_tile_generic;
     }
 
-    vnc_dpy_resize(vs->ds, vs->ds->width, vs->ds->height);
+    vnc_dpy_resize(vs->ds, vs->ds->width, vs->ds->height, 0);
     memset(vs->dirty_row, 0xFF, sizeof(vs->dirty_row));
     memset(vs->old_data, 42, vs->ds->linesize * vs->ds->height);
 
@@ -1019,7 +1019,7 @@ static void vnc_listen_read(void *opaque)
 void vnc_display_init(DisplayState *ds, int display)
 {
     struct sockaddr_in addr;
-    int reuse_addr, ret;
+    int ret;
     VncState *vs;
 
     vs = qemu_mallocz(sizeof(VncState));
@@ -1051,9 +1051,7 @@ void vnc_display_init(DisplayState *ds, int display)
     addr.sin_port = htons(5900 + display);
     memset(&addr.sin_addr, 0, sizeof(addr.sin_addr));
 
-    reuse_addr = 1;
-    ret = setsockopt(vs->lsock, SOL_SOCKET, SO_REUSEADDR,
-		     (const char *)&reuse_addr, sizeof(reuse_addr));
+    ret = socket_set_xreuseaddr(vs->lsock);
     if (ret == -1) {
 	fprintf(stderr, "setsockopt() failed\n");
 	exit(1);
@@ -1081,5 +1079,5 @@ void vnc_display_init(DisplayState *ds, int display)
 
     memset(vs->dirty_row, 0xFF, sizeof(vs->dirty_row));
 
-    vnc_dpy_resize(vs->ds, 640, 400);
+    vnc_dpy_resize(vs->ds, 640, 400, 0);
 }

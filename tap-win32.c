@@ -635,7 +635,7 @@ static int tap_win32_open(tap_win32_overlapped_t **phandle,
 
 static TAPState *tap_win32_state = NULL;
 
-static void tap_receive(void *opaque, const uint8_t *buf, int size)
+void tap_receive(void *opaque, const uint8_t *buf, int size)
 {
     TAPState *s = opaque;
 

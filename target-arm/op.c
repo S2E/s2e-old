@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include "exec.h"
+#ifdef GEN_TRACE
+#include "trace.h"
+#endif
 
 #define REGNAME r0
 #define REG (env->regs[0])
@@ -84,6 +87,30 @@
 #define REG (env->regs[15])
 #define SET_REG(x) REG = x & ~(uint32_t)1
 #include "op_template.h"
+
+#ifdef GEN_TRACE
+void OPPROTO op_shutdown(void)
+{
+  extern void qemu_system_shutdown_request(void);
+  qemu_system_shutdown_request();
+  EXIT_TB();
+}
+
+void OPPROTO op_trace_bb(void)
+{
+  trace_bb_helper(PARAM1, (TranslationBlock *)PARAM2);
+}
+
+void OPPROTO op_trace_insn(void)
+{
+  trace_insn_helper();
+}
+
+void OPPROTO op_add_to_sim_time(void)
+{
+  sim_time += PARAM1;
+}
+#endif
 
 void OPPROTO op_bx_T0(void)
 {

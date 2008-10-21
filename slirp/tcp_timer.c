@@ -305,10 +305,10 @@ tcp_timers(tp, timer)
 			 * The keepalive packet must have nonzero length
 			 * to get a 4.2 host to respond.
 			 */
-			tcp_respond(tp, &tp->t_template, (struct mbuf *)NULL,
+			tcp_respond(tp, &tp->t_template, (MBuf )NULL,
 			    tp->rcv_nxt - 1, tp->snd_una - 1, 0);
 #else
-			tcp_respond(tp, &tp->t_template, (struct mbuf *)NULL,
+			tcp_respond(tp, &tp->t_template, (MBuf )NULL,
 			    tp->rcv_nxt, tp->snd_una - 1, 0);
 #endif
 			tp->t_timer[TCPT_KEEP] = tcp_keepintvl;

@@ -50,7 +50,7 @@ static void sdl_update(DisplayState *ds, int x, int y, int w, int h)
     SDL_UpdateRect(screen, x, y, w, h);
 }
 
-static void sdl_resize(DisplayState *ds, int w, int h)
+static void sdl_resize(DisplayState *ds, int w, int h, int  rotation)
 {
     int flags;
 
@@ -64,7 +64,7 @@ static void sdl_resize(DisplayState *ds, int w, int h)
     height = h;
 
  again:
-    screen = SDL_SetVideoMode(w, h, 0, flags);
+    screen = SDL_SetVideoMode(w, h, 16, flags);
     if (!screen) {
         fprintf(stderr, "Could not open SDL display\n");
         exit(1);
@@ -350,7 +350,7 @@ static void sdl_send_mouse_event(int dz)
 static void toggle_full_screen(DisplayState *ds)
 {
     gui_fullscreen = !gui_fullscreen;
-    sdl_resize(ds, screen->w, screen->h);
+    sdl_resize(ds, screen->w, screen->h, 0);
     if (gui_fullscreen) {
         gui_saved_grab = gui_grab;
         sdl_grab_start();
@@ -551,7 +551,8 @@ void sdl_display_init(DisplayState *ds, int full_screen)
     ds->dpy_resize = sdl_resize;
     ds->dpy_refresh = sdl_refresh;
 
-    sdl_resize(ds, 640, 400);
+//    sdl_resize(ds, 640, 400, 0);
+    sdl_resize(ds, 240, 320, 0);
     sdl_update_caption();
     SDL_EnableKeyRepeat(250, 50);
     SDL_EnableUNICODE(1);

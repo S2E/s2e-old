@@ -35,14 +35,11 @@
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
-// Linux/Sparc64 defines uint64_t
-#if !(defined (__sparc_v9__) && defined(__linux__))
 /* XXX may be done for all 64 bits targets ? */
 #if defined (__x86_64__) || defined(__ia64)
 typedef unsigned long uint64_t;
 #else
 typedef unsigned long long uint64_t;
-#endif
 #endif
 
 /* if Solaris/__sun__, don't typedef int8_t, as it will be typedef'd
@@ -53,13 +50,10 @@ typedef signed char int8_t;
 #endif
 typedef signed short int16_t;
 typedef signed int int32_t;
-// Linux/Sparc64 defines int64_t
-#if !(defined (__sparc_v9__) && defined(__linux__))
 #if defined (__x86_64__) || defined(__ia64)
 typedef signed long int64_t;
 #else
 typedef signed long long int64_t;
-#endif
 #endif
 
 #define INT8_MIN		(-128)
@@ -134,12 +128,6 @@ extern int printf(const char *, ...);
 #define AREG3 "g5"
 #define AREG4 "g6"
 #else
-#ifdef __sparc_v9__
-#define AREG0 "g1"
-#define AREG1 "g4"
-#define AREG2 "g5"
-#define AREG3 "g7"
-#else
 #define AREG0 "g6"
 #define AREG1 "g1"
 #define AREG2 "g2"
@@ -152,7 +140,6 @@ extern int printf(const char *, ...);
 #define AREG9 "l5"
 #define AREG10 "l6"
 #define AREG11 "l7"
-#endif
 #endif
 #define USE_FP_CONVERT
 #endif
@@ -188,7 +175,12 @@ extern int printf(const char *, ...);
 #endif
 
 /* force GCC to generate only one epilog at the end of the function */
+#if defined(__i386__) || defined(__x86_64__)
+/* Also add 4 bytes of padding so that we can replace the ret with a jmp.  */
+#define FORCE_RET() asm volatile ("nop;nop;nop;nop");
+#else
 #define FORCE_RET() asm volatile ("");
+#endif
 
 #ifndef OPPROTO
 #define OPPROTO
@@ -238,12 +230,26 @@ extern int __op_jmp0, __op_jmp1, __op_jmp2, __op_jmp3;
 #endif
 
 #ifdef __i386__
-#define EXIT_TB() asm volatile ("ret")
-#define GOTO_LABEL_PARAM(n) asm volatile ("jmp " ASM_NAME(__op_gen_label) #n)
+/* Dyngen will replace hlt instructions with a ret instruction.  Inserting a
+   ret directly would confuse dyngen.  */
+#define EXIT_TB() asm volatile ("hlt")
+/* Dyngen will replace cli with 0x9e (jmp). 
+   We generate the offset manually.  */
+#if defined(__APPLE__)
+/* XXX Different relocations are generated for MacOS X for Intel
+   (please as from cctools).  */
+#define GOTO_LABEL_PARAM(n) \
+  asm volatile ("cli;.long " ASM_NAME(__op_gen_label) #n)
+#else
+#define GOTO_LABEL_PARAM(n) \
+  asm volatile ("cli;.long " ASM_NAME(__op_gen_label) #n " - 1f;1:")
+#endif
 #endif
 #ifdef __x86_64__
-#define EXIT_TB() asm volatile ("ret")
-#define GOTO_LABEL_PARAM(n) asm volatile ("jmp " ASM_NAME(__op_gen_label) #n)
+/* The same as i386.  */
+#define EXIT_TB() asm volatile ("hlt")
+#define GOTO_LABEL_PARAM(n) \
+  asm volatile ("cli;.long " ASM_NAME(__op_gen_label) #n " - 1f;1:")
 #endif
 #ifdef __powerpc__
 #define EXIT_TB() asm volatile ("blr")
@@ -272,5 +278,14 @@ extern int __op_jmp0, __op_jmp1, __op_jmp2, __op_jmp3;
 #ifdef __mc68000
 #define EXIT_TB() asm volatile ("rts")
 #endif
+
+/* this definition to force inlining of all code that is used by op.c
+ * if we don't do that, some functions fail to properly inline with some
+ * GCC versions. and this results in erratic crashes that are hard to debug
+ *
+ * (that's because the non-inlined functions might clobber some "reserved"
+ * registers used by the translation block code
+ */
+#define  inline  __attribute__((always_inline)) __inline__
 
 #endif /* !defined(__DYNGEN_EXEC_H__) */

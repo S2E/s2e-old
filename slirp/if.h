@@ -25,7 +25,7 @@ extern int	if_thresh;	/* Number of packets queued before we start sending
 
 extern	struct mbuf if_fastq;                  /* fast queue (for interactive data) */
 extern	struct mbuf if_batchq;                 /* queue for non-interactive data */
-extern	struct mbuf *next_m;
+extern	MBuf next_m;
 
 #define ifs_init(ifm) ((ifm)->ifs_next = (ifm)->ifs_prev = (ifm))
 

@@ -182,8 +182,10 @@ struct SWVoiceCap {
 };
 
 struct AudioState {
-    struct audio_driver *drv;
-    void *drv_opaque;
+    struct audio_driver*  drv_in;
+    void*                 drv_in_opaque;
+    struct audio_driver*  drv_out;
+    void*                 drv_out_opaque;
 
     QEMUTimer *ts;
     LIST_HEAD (card_listhead, QEMUSoundCard) card_head;
@@ -197,8 +199,10 @@ struct AudioState {
 extern struct audio_driver no_audio_driver;
 extern struct audio_driver oss_audio_driver;
 extern struct audio_driver sdl_audio_driver;
+extern struct audio_driver win_audio_driver;
 extern struct audio_driver wav_audio_driver;
 extern struct audio_driver fmod_audio_driver;
+extern struct audio_driver esd_audio_driver;
 extern struct audio_driver alsa_audio_driver;
 extern struct audio_driver coreaudio_audio_driver;
 extern struct audio_driver dsound_audio_driver;

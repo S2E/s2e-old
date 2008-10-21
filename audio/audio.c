@@ -1,6 +1,7 @@
 /*
  * QEMU Audio subsystem
  *
+ * Copyright (c) 2007-2008 The Android Open Source Project
  * Copyright (c) 2003-2005 Vassili Karpov (malc)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,6 +26,8 @@
 
 #define AUDIO_CAP "audio"
 #include "audio_int.h"
+#include "android_utils.h"
+#include "android.h"
 
 /* #define DEBUG_PLIVE */
 /* #define DEBUG_LIVE */
@@ -34,8 +37,8 @@
 #define SW_NAME(sw) (sw)->name ? (sw)->name : "unknown"
 
 static struct audio_driver *drvtab[] = {
-#ifdef CONFIG_OSS
-    &oss_audio_driver,
+#ifdef CONFIG_ESD
+    &esd_audio_driver,
 #endif
 #ifdef CONFIG_ALSA
     &alsa_audio_driver,
@@ -49,12 +52,90 @@ static struct audio_driver *drvtab[] = {
 #ifdef CONFIG_FMOD
     &fmod_audio_driver,
 #endif
+#ifdef CONFIG_WINAUDIO
+    &win_audio_driver,
+#endif
 #ifdef CONFIG_SDL
     &sdl_audio_driver,
 #endif
+#ifdef CONFIG_OSS
+    &oss_audio_driver,
+#endif
     &no_audio_driver,
+#if 0  /* disabled WAV audio for now - until we find a user-friendly way to use it */
     &wav_audio_driver
+#endif
 };
+
+
+int
+audio_get_backend_count( int  is_input )
+{
+    int  nn, count = 0;
+
+    for (nn = 0; nn < sizeof(drvtab)/sizeof(drvtab[0]); nn++)
+    {
+        if (is_input) {
+            if ( drvtab[nn]->max_voices_in > 0 )
+                count += 1;
+        } else {
+            if ( drvtab[nn]->max_voices_out > 0 )
+                count += 1;
+        }
+    }
+    return  count;
+}
+
+const char*
+audio_get_backend_name( int   is_input, int  index, const char*  *pinfo )
+{
+    int  nn;
+
+    index += 1;
+    for (nn = 0; nn < sizeof(drvtab)/sizeof(drvtab[0]); nn++)
+    {
+        if (is_input) {
+            if ( drvtab[nn]->max_voices_in > 0 ) {
+                if ( --index == 0 ) {
+                    *pinfo = drvtab[nn]->descr;
+                    return drvtab[nn]->name;
+                }
+            }
+        } else {
+            if ( drvtab[nn]->max_voices_out > 0 ) {
+                if ( --index == 0 ) {
+                    *pinfo = drvtab[nn]->descr;
+                    return drvtab[nn]->name;
+                }
+            }
+        }
+    }
+    *pinfo = NULL;
+    return  NULL;
+}
+
+
+int
+audio_check_backend_name( int  is_input, const char*  name )
+{
+    int  nn;
+
+    for (nn = 0; nn < sizeof(drvtab)/sizeof(drvtab[0]); nn++)
+    {
+        if ( !strcmp(drvtab[nn]->name, name) ) {
+            if (is_input) {
+                if (drvtab[nn]->max_voices_in > 0)
+                    return 1;
+            } else {
+                if (drvtab[nn]->max_voices_out > 0)
+                    return 1;
+            }
+            break;
+        }
+    }
+    return 0;
+}
+
 
 struct fixed_settings {
     int enabled;
@@ -100,7 +181,7 @@ static struct {
     0                           /* log_to_monitor */
 };
 
-static AudioState glob_audio_state;
+AudioState glob_audio_state;
 
 volume_t nominal_volume = {
     0,
@@ -303,6 +384,10 @@ static const char *audio_get_conf_str (const char *key,
     }
 }
 
+/* defined in android_sdl.c */
+extern void  dprintn(const char*  fmt, ...);
+extern void  dprintnv(const char*  fmt, va_list  args);
+
 void AUD_vlog (const char *cap, const char *fmt, va_list ap)
 {
     if (conf.log_to_monitor) {
@@ -313,11 +398,14 @@ void AUD_vlog (const char *cap, const char *fmt, va_list ap)
         term_vprintf (fmt, ap);
     }
     else {
+        if (!VERBOSE_CHECK(audio))
+            return;
+
         if (cap) {
-            fprintf (stderr, "%s: ", cap);
+            dprintn("%s: ", cap);
         }
 
-        vfprintf (stderr, fmt, ap);
+        dprintnv(fmt, ap);
     }
 }
 
@@ -605,11 +693,11 @@ void audio_pcm_info_clear_buf (struct audio_pcm_info *info, void *buf, int len)
     }
 
     if (info->sign) {
-        memset (buf, len << info->shift, 0x00);
+        memset (buf, 0x80, len << info->shift);
     }
     else {
         if (info->bits == 8) {
-            memset (buf, len << info->shift, 0x80);
+            memset (buf, 0x80, len << info->shift);
         }
         else {
             int i;
@@ -1024,7 +1112,9 @@ int AUD_write (SWVoiceOut *sw, void *buf, int size)
         return 0;
     }
 
-    bytes = sw->hw->pcm_ops->write (sw, buf, size);
+    BEGIN_NOSIGALRM
+        bytes = sw->hw->pcm_ops->write (sw, buf, size);
+    END_NOSIGALRM
     return bytes;
 }
 
@@ -1042,7 +1132,9 @@ int AUD_read (SWVoiceIn *sw, void *buf, int size)
         return 0;
     }
 
-    bytes = sw->hw->pcm_ops->read (sw, buf, size);
+    BEGIN_NOSIGALRM
+        bytes = sw->hw->pcm_ops->read (sw, buf, size);
+    END_NOSIGALRM
     return bytes;
 }
 
@@ -1068,7 +1160,9 @@ void AUD_set_active_out (SWVoiceOut *sw, int on)
             hw->pending_disable = 0;
             if (!hw->enabled) {
                 hw->enabled = 1;
-                hw->pcm_ops->ctl_out (hw, VOICE_ENABLE);
+                BEGIN_NOSIGALRM
+                    hw->pcm_ops->ctl_out (hw, VOICE_ENABLE);
+                END_NOSIGALRM
             }
         }
         else {
@@ -1109,7 +1203,9 @@ void AUD_set_active_in (SWVoiceIn *sw, int on)
         if (on) {
             if (!hw->enabled) {
                 hw->enabled = 1;
-                hw->pcm_ops->ctl_in (hw, VOICE_ENABLE);
+                BEGIN_NOSIGALRM
+                    hw->pcm_ops->ctl_in (hw, VOICE_ENABLE);
+                END_NOSIGALRM
             }
             sw->total_hw_samples_acquired = hw->total_samples_captured;
         }
@@ -1124,7 +1220,9 @@ void AUD_set_active_in (SWVoiceIn *sw, int on)
 
                 if (nb_active == 1) {
                     hw->enabled = 0;
-                    hw->pcm_ops->ctl_in (hw, VOICE_DISABLE);
+                    BEGIN_NOSIGALRM
+                        hw->pcm_ops->ctl_in (hw, VOICE_DISABLE);
+                    END_NOSIGALRM
                 }
             }
         }
@@ -1244,7 +1342,9 @@ static void audio_run_out (AudioState *s)
 #endif
             hw->enabled = 0;
             hw->pending_disable = 0;
-            hw->pcm_ops->ctl_out (hw, VOICE_DISABLE);
+            BEGIN_NOSIGALRM
+                hw->pcm_ops->ctl_out (hw, VOICE_DISABLE);
+            END_NOSIGALRM
             for (sc = hw->cap_head.lh_first; sc; sc = sc->entries.le_next) {
                 sc->sw.active = 0;
                 audio_recalc_and_notify_capture (sc->cap);
@@ -1265,7 +1365,9 @@ static void audio_run_out (AudioState *s)
         }
 
         prev_rpos = hw->rpos;
-        played = hw->pcm_ops->run_out (hw);
+        BEGIN_NOSIGALRM
+            played = hw->pcm_ops->run_out (hw);
+        END_NOSIGALRM
         if (audio_bug (AUDIO_FUNC, hw->rpos >= hw->samples)) {
             dolog ("hw->rpos=%d hw->samples=%d played=%d\n",
                    hw->rpos, hw->samples, played);
@@ -1334,7 +1436,9 @@ static void audio_run_in (AudioState *s)
         SWVoiceIn *sw;
         int captured, min;
 
-        captured = hw->pcm_ops->run_in (hw);
+        BEGIN_NOSIGALRM
+            captured = hw->pcm_ops->run_in (hw);
+        END_NOSIGALRM
 
         min = audio_pcm_hw_find_min_in (hw);
         hw->total_samples_captured += captured - min;
@@ -1404,8 +1508,36 @@ static void audio_run_capture (AudioState *s)
 
 static void audio_timer (void *opaque)
 {
-    AudioState *s = opaque;
+    AudioState*     s = opaque;
+#if 0
+#define  MAX_DIFFS  1000
+    int64_t         now  = qemu_get_clock(vm_clock);
+	static int64_t  last = 0;
+	static float    diffs[MAX_DIFFS];
+	static int      num_diffs;
 
+    if (last == 0)
+	    last = now;
+	else {
+		diffs[num_diffs] = (float)((now-last)/1e6);  /* last diff in ms */
+		if (++num_diffs == MAX_DIFFS) {
+			double  min_diff = 1e6, max_diff = -1e6;
+			double  all_diff = 0.;
+			int     nn;
+
+			for (nn = 0; nn < num_diffs; nn++) {
+				if (diffs[nn] < min_diff) min_diff = diffs[nn];
+				if (diffs[nn] > max_diff) max_diff = diffs[nn];
+				all_diff += diffs[nn];
+			}
+			all_diff *= 1.0/num_diffs;
+			printf("audio timer: min_diff=%6.2g max_diff=%6.2g avg_diff=%6.2g samples=%d\n",
+					min_diff, max_diff, all_diff, num_diffs);
+			num_diffs = 0;
+		}
+	}
+	last = now;
+#endif
     audio_run_out (s);
     audio_run_in (s);
     audio_run_capture (s);
@@ -1530,17 +1662,43 @@ void AUD_help (void)
         );
 }
 
-static int audio_driver_init (AudioState *s, struct audio_driver *drv)
+static int audio_driver_init (AudioState *s, struct audio_driver *drv, int  out)
 {
+    void*   opaque;
+
     if (drv->options) {
         audio_process_options (drv->name, drv->options);
     }
-    s->drv_opaque = drv->init ();
 
-    if (s->drv_opaque) {
+    /* is the driver already initialized ? */
+    if (out) {
+        if (drv == s->drv_in) {
+            s->drv_out        = drv;
+            s->drv_out_opaque = s->drv_in_opaque;
+            return 0;
+        }
+    } else {
+        if (drv == s->drv_out) {
+            s->drv_in        = drv;
+            s->drv_in_opaque = s->drv_out_opaque;
+            return 0;
+        }
+    }
+
+    BEGIN_NOSIGALRM
+    opaque = drv->init();
+    END_NOSIGALRM
+
+    if (opaque != NULL) {
         audio_init_nb_voices_out (s, drv);
         audio_init_nb_voices_in (s, drv);
-        s->drv = drv;
+        if (out) {
+            s->drv_out         = drv;
+            s->drv_out_opaque  = opaque;
+        } else {
+            s->drv_in        = drv;
+            s->drv_in_opaque = opaque;
+        }
         return 0;
     }
     else {
@@ -1556,14 +1714,19 @@ static void audio_vm_change_state_handler (void *opaque, int running)
     HWVoiceIn *hwi = NULL;
     int op = running ? VOICE_ENABLE : VOICE_DISABLE;
 
-    while ((hwo = audio_pcm_hw_find_any_enabled_out (s, hwo))) {
-        hwo->pcm_ops->ctl_out (hwo, op);
-    }
+    BEGIN_NOSIGALRM
+        while ((hwo = audio_pcm_hw_find_any_enabled_out (s, hwo))) {
+            hwo->pcm_ops->ctl_out (hwo, op);
+        }
 
-    while ((hwi = audio_pcm_hw_find_any_enabled_in (s, hwi))) {
-        hwi->pcm_ops->ctl_in (hwi, op);
-    }
+        while ((hwi = audio_pcm_hw_find_any_enabled_in (s, hwi))) {
+            hwi->pcm_ops->ctl_in (hwi, op);
+        }
+    END_NOSIGALRM
 }
+
+// to make sure audio_atexit() is only called once
+static int initialized = 0;
 
 static void audio_atexit (void)
 {
@@ -1571,6 +1734,10 @@ static void audio_atexit (void)
     HWVoiceOut *hwo = NULL;
     HWVoiceIn *hwi = NULL;
 
+    if (!initialized) return;
+    initialized = 0;
+
+    BEGIN_NOSIGALRM
     while ((hwo = audio_pcm_hw_find_any_enabled_out (s, hwo))) {
         SWVoiceCap *sc;
 
@@ -1592,9 +1759,13 @@ static void audio_atexit (void)
         hwi->pcm_ops->fini_in (hwi);
     }
 
-    if (s->drv) {
-        s->drv->fini (s->drv_opaque);
+    if (s->drv_in) {
+        s->drv_in->fini (s->drv_in_opaque);
     }
+    if (s->drv_out) {
+        s->drv_out->fini (s->drv_out_opaque);
+    }
+    END_NOSIGALRM
 }
 
 static void audio_save (QEMUFile *f, void *opaque)
@@ -1630,11 +1801,70 @@ void AUD_remove_card (QEMUSoundCard *card)
     qemu_free (card->name);
 }
 
+static int
+find_audio_driver( AudioState*  s, int  out )
+{
+    int                   i, done = 0, def;
+    const char*           envname;
+    const char*           drvname;
+    struct audio_driver*  drv     = NULL;
+    const char*           drvtype = out ? "output" : "input";
+
+    envname = out ? "QEMU_AUDIO_OUT_DRV" : "QEMU_AUDIO_IN_DRV";
+    drvname = audio_get_conf_str(envname, NULL, &def);
+    if (drvname == NULL) {
+        drvname = audio_get_conf_str("QEMU_AUDIO_DRV", NULL, &def);
+    }
+
+    if (drvname != NULL) {  /* look for a specific driver */
+        for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
+            if (!strcmp (drvname, drvtab[i]->name)) {
+                drv   = drvtab[i];
+                break;
+            }
+        }
+    }
+
+    if (drv != NULL) {
+        done  = !audio_driver_init (s, drv, out);
+        if (!done) {
+            dolog ("Could not initialize '%s' %s audio backend, trying default one.\n",
+                    drvname, drvtype);
+            dolog ("Run with -qemu -audio-help to list available backends\n");
+            drv = NULL;
+        }
+    }
+
+    if (!drv) {
+        for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
+            if (drvtab[i]->can_be_default) {
+                drv   = drvtab[i];
+                done  = !audio_driver_init (s, drv, out);
+                if (done)
+                    break;
+            }
+        }
+    }
+
+    if (!done) {
+        drv  = &no_audio_driver;
+        done = !audio_driver_init (s, drv, out);
+        if (!done) {
+            /* this should never happen */
+            dolog ("Could not initialize audio subsystem\n");
+            return -1;
+        }
+        dolog ("warning: Could not find suitable audio %s backend\n", drvtype);
+    }
+
+    if (VERBOSE_CHECK(init))
+        dprint("using '%s' audio %s backend", drv->name, drvtype );
+    return 0;
+}
+
+
 AudioState *AUD_init (void)
 {
-    size_t i;
-    int done = 0;
-    const char *drvname;
     AudioState *s = &glob_audio_state;
 
     LIST_INIT (&s->hw_head_out);
@@ -1665,47 +1895,9 @@ AudioState *AUD_init (void)
         s->nb_hw_voices_in = 0;
     }
 
+    if ( find_audio_driver (s, 0) == 0 &&
+         find_audio_driver (s, 1) == 0 )
     {
-        int def;
-        drvname = audio_get_conf_str ("QEMU_AUDIO_DRV", NULL, &def);
-    }
-
-    if (drvname) {
-        int found = 0;
-
-        for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
-            if (!strcmp (drvname, drvtab[i]->name)) {
-                done = !audio_driver_init (s, drvtab[i]);
-                found = 1;
-                break;
-            }
-        }
-
-        if (!found) {
-            dolog ("Unknown audio driver `%s'\n", drvname);
-            dolog ("Run with -audio-help to list available drivers\n");
-        }
-    }
-
-    if (!done) {
-        for (i = 0; !done && i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
-            if (drvtab[i]->can_be_default) {
-                done = !audio_driver_init (s, drvtab[i]);
-            }
-        }
-    }
-
-    if (!done) {
-        done = !audio_driver_init (s, &no_audio_driver);
-        if (!done) {
-            dolog ("Could not initialize audio subsystem\n");
-        }
-        else {
-            dolog ("warning: Using timer based audio emulation\n");
-        }
-    }
-
-    if (done) {
         VMChangeStateEntry *e;
 
         if (conf.period.hz <= 0) {
@@ -1731,10 +1923,18 @@ AudioState *AUD_init (void)
         return NULL;
     }
 
+    initialized = 1;
+
     LIST_INIT (&s->card_head);
     register_savevm ("audio", 0, 1, audio_save, audio_load, s);
     qemu_mod_timer (s->ts, qemu_get_clock (vm_clock) + conf.period.ticks);
     return s;
+}
+
+// this was added to work around a deadlock in SDL when quitting
+void AUD_cleanup()
+{
+    audio_atexit();
 }
 
 CaptureVoiceOut *AUD_add_capture (
@@ -1845,21 +2045,16 @@ void AUD_del_capture (CaptureVoiceOut *cap, void *cb_opaque)
 
             if (!cap->cb_head.lh_first) {
                 SWVoiceOut *sw = cap->hw.sw_head.lh_first, *sw1;
-
                 while (sw) {
-                    SWVoiceCap *sc = (SWVoiceCap *) sw;
 #ifdef DEBUG_CAPTURE
                     dolog ("freeing %s\n", sw->name);
 #endif
-
                     sw1 = sw->entries.le_next;
                     if (sw->rate) {
                         st_rate_stop (sw->rate);
                         sw->rate = NULL;
                     }
                     LIST_REMOVE (sw, entries);
-                    LIST_REMOVE (sc, entries);
-                    qemu_free (sc);
                     sw = sw1;
                 }
                 LIST_REMOVE (cap, entries);

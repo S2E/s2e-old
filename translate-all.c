@@ -30,13 +30,45 @@
 #include "exec-all.h"
 #include "disas.h"
 
+typedef int (*cpu_gen_code_func)(CPUState*          env,
+                                 TranslationBlock*  tb,
+                                 int                max_code_size,
+                                 int*               gen_code_size_ptr);
+
+typedef int (*cpu_restore_state_func)(TranslationBlock*  tb,
+                                      CPUState*          env,
+                                      unsigned long      searched_pc,
+                                      void*              puc);
+
+typedef void (*dump_ops_func)(const uint16_t *opc_buf, const uint32_t *opparam_buf);
+
+extern cpu_gen_code_func       _cpu_gen_code;
+extern cpu_restore_state_func  _cpu_restore_state;
+extern dump_ops_func           _dump_ops;
+
+
+#ifdef GEN_TRACE
+#define  OPC_H  "opc-trace.h"
+#define  CPU_GEN_CODE       trace_cpu_gen_code
+#define  CPU_RESTORE_STATE  trace_cpu_restore_state
+#define  DUMP_OPS           trace_dump_ops
+#else
+#define OPC_H  "opc.h"
+#define  CPU_GEN_CODE       default_cpu_gen_code
+#define  CPU_RESTORE_STATE  default_cpu_restore_state
+#define  DUMP_OPS           default_dump_ops
+#endif
+
+
+
+
 extern int dyngen_code(uint8_t *gen_code_buf,
                        uint16_t *label_offsets, uint16_t *jmp_offsets,
                        const uint16_t *opc_buf, const uint32_t *opparam_buf, const long *gen_labels);
 
 enum {
 #define DEF(s, n, copy_size) INDEX_op_ ## s,
-#include "opc.h"
+#include OPC_H
 #undef DEF
     NB_OPS,
 };
@@ -57,28 +89,30 @@ target_ulong gen_opc_jump_pc[2];
 uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 #endif
 
+#ifndef GEN_TRACE
 int code_copy_enabled = 1;
+#endif
 
 #ifdef DEBUG_DISAS
 static const char *op_str[] = {
 #define DEF(s, n, copy_size) #s,
-#include "opc.h"
+#include OPC_H
 #undef DEF
 };
 
 static uint8_t op_nb_args[] = {
 #define DEF(s, n, copy_size) n,
-#include "opc.h"
+#include OPC_H
 #undef DEF
 };
 
 static const unsigned short opc_copy_size[] = {
 #define DEF(s, n, copy_size) copy_size,
-#include "opc.h"
+#include OPC_H
 #undef DEF
 };
 
-void dump_ops(const uint16_t *opc_buf, const uint32_t *opparam_buf)
+void DUMP_OPS(const uint16_t *opc_buf, const uint32_t *opparam_buf)
 {
     const uint16_t *opc_ptr;
     const uint32_t *opparam_ptr;
@@ -138,7 +172,7 @@ static void dyngen_labels(long *gen_labels, int nb_gen_labels,
    '*gen_code_size_ptr' contains the size of the generated code (host
    code).
 */
-int cpu_gen_code(CPUState *env, TranslationBlock *tb,
+static int CPU_GEN_CODE(CPUState *env, TranslationBlock *tb,
                  int max_code_size, int *gen_code_size_ptr)
 {
     uint8_t *gen_code_buf;
@@ -187,7 +221,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb,
 
 /* The cpu state corresponding to 'searched_pc' is restored. 
  */
-int cpu_restore_state(TranslationBlock *tb, 
+static int CPU_RESTORE_STATE(TranslationBlock *tb,
                       CPUState *env, unsigned long searched_pc,
                       void *puc)
 {
@@ -309,3 +343,46 @@ int cpu_restore_state(TranslationBlock *tb,
 #endif
     return 0;
 }
+
+
+#ifdef GEN_TRACE
+
+void  qemu_trace_enable_gencode( void )
+{
+    _cpu_gen_code      = CPU_GEN_CODE;
+    _cpu_restore_state = CPU_RESTORE_STATE;
+    _dump_ops          = DUMP_OPS;
+}
+
+#else
+
+cpu_gen_code_func       _cpu_gen_code      = CPU_GEN_CODE;
+cpu_restore_state_func  _cpu_restore_state = CPU_RESTORE_STATE;
+dump_ops_func           _dump_ops          = DUMP_OPS;
+
+void  qemu_trace_disable_gencode( void )
+{
+    _cpu_gen_code      = CPU_GEN_CODE;
+    _cpu_restore_state = CPU_RESTORE_STATE;
+    _dump_ops          = DUMP_OPS;
+}
+
+int cpu_gen_code(CPUState *env, TranslationBlock *tb,
+                 int max_code_size, int *gen_code_size_ptr)
+{
+  return (*_cpu_gen_code)(env, tb, max_code_size, gen_code_size_ptr);
+}
+
+int cpu_restore_state(TranslationBlock *tb,
+                      CPUState *env, unsigned long searched_pc,
+                      void *puc)
+{
+  return (*_cpu_restore_state)(tb, env, searched_pc, puc);
+}
+
+void dump_ops(const uint16_t *opc_buf, const uint32_t *opparam_buf)
+{
+  (*_dump_ops)(opc_buf, opparam_buf);
+}
+
+#endif

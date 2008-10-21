@@ -8,20 +8,11 @@
 #ifndef _MISC_H_
 #define _MISC_H_
 
-struct ex_list {
-	int ex_pty;			/* Do we want a pty? */
-	int ex_addr;			/* The last byte of the address */
-	int ex_fport;                   /* Port to telnet to */
-	char *ex_exec;                  /* Command line of what to exec */
-	struct ex_list *ex_next;
-};
-
-extern struct ex_list *exec_list;
 extern u_int curtime, time_fasttimo, last_slowtimo, detach_time, detach_wait;
 
 extern int (*lprint_print) _P((void *, const char *, va_list));
 extern char *lprint_ptr, *lprint_ptr2, **lprint_arg;
-extern struct sbuf *lprint_sb;
+//extern SBuf lprint_sb;
 
 #ifndef HAVE_STRDUP
 char *strdup _P((const char *));
@@ -65,23 +56,9 @@ struct emu_t {
 
 extern struct emu_t *tcpemu;
 
-extern int x_port, x_server, x_display;
-
-int show_x _P((char *, struct socket *));
-void redir_x _P((u_int32_t, int, int, int));
 void getouraddr _P((void));
 inline  void slirp_insque  _P((void *, void *));
 inline  void slirp_remque  _P((void *));
-int add_exec _P((struct ex_list **, int, char *, int, int));
-int slirp_openpty _P((int *, int *));
-int fork_exec _P((struct socket *, char *, int));
-void snooze_hup _P((int));
-void snooze _P((void));
-void relay _P((int));
 void add_emu _P((char *));
-void u_sleep _P((int));
-void fd_nonblock _P((int));
-void fd_block _P((int));
-int rsh_exec _P((struct socket *, struct socket *, char *, char *, char *));
 
 #endif

@@ -15,6 +15,7 @@ TMPC="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.c"
 TMPO="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.o"
 TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}"
 TMPS="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.S"
+TMPL="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.log"
 
 # default parameters
 prefix=""
@@ -23,6 +24,12 @@ static="no"
 cross_prefix=""
 cc="gcc"
 host_cc="gcc"
+if [ -n "$CC" ] ; then
+    cc="$CC"
+fi
+if [ -n "$HOSTCC" ] ; then
+    host_cc="$HOSTCC"
+fi
 ar="ar"
 make="make"
 install="install"
@@ -65,6 +72,18 @@ case "$cpu" in
   ;;
   x86_64|amd64)
     cpu="x86_64"
+    # if the kernel release contains mixed64, we have a 64-bit kernel with
+    # a 32-bit environment. We should generate i386 binaries then or things
+    # will go very wrong
+    kernel_mixed=`uname -r | grep mixed64`
+    if test ! -z "$kernel_mixed" ; then
+	cpu="i386"
+    fi
+    # another specific case
+    kernel_uXen=`uname -r | grep "gg.*-xenU"`
+    if test ! -z "$kernel_uXen" ; then
+        cpu="i386"
+    fi
   ;;
   *)
     cpu="unknown"
@@ -80,7 +99,9 @@ adlib="no"
 oss="no"
 dsound="no"
 coreaudio="no"
+winaudio="no"
 alsa="no"
+esd="no"
 fmod="no"
 fmod_lib=""
 fmod_inc=""
@@ -91,12 +112,15 @@ profiler="no"
 kernel_path=""
 cocoa="no"
 check_gfx="yes"
-check_gcc="yes"
+check_gcc="no"  # 2006-10-10; digit:  no check required anymore
 softmmu="yes"
 user="no"
 build_docs="no"
 build_acpi_tables="no"
 uname_release=""
+shaper="no"
+debug="no"
+android_nand_limits="no"
 
 # OS specific
 targetos=`uname -s`
@@ -104,6 +128,7 @@ case $targetos in
 CYGWIN*)
 mingw32="yes"
 CFLAGS="-O2 -mno-cygwin"
+LDFLAGS="-mno-cygwin -mwindows"
 ;;
 MINGW32*)
 mingw32="yes"
@@ -131,7 +156,6 @@ SunOS)
 solaris="yes"
 ;;
 *)
-oss="yes"
 linux="yes"
 user="yes"
 if [ "$cpu" = "i386" -o "$cpu" = "x86_64" ] ; then
@@ -181,6 +205,8 @@ for opt do
   ;;
   --cc=*) cc="$optarg"
   ;;
+  --debug) debug="yes"
+  ;;
   --host-cc=*) host_cc="$optarg"
   ;;
   --make=*) make="$optarg"
@@ -201,9 +227,17 @@ for opt do
   ;;
   --disable-sdl) sdl="no"
   ;;
+  --static-sdl) force_static_sdl="yes"
+  ;;
   --enable-coreaudio) coreaudio="yes"
   ;;
+  --enable-winaudio) winaudio="yes"
+  ;;
   --enable-alsa) alsa="yes"
+  ;;
+  --enable-esd) esd="yes"
+  ;;
+  --enable-oss) oss="yes"
   ;;
   --enable-dsound) dsound="yes"
   ;;
@@ -243,6 +277,22 @@ for opt do
   ;;
   --enable-iasl) build_acpi_tables="yes"
   ;;
+## Added functions for Android ##
+  --enable-qfb) qfb="yes"
+  ;;
+  --enable-trace) trace="yes"
+  ;;
+  --enable-skins) skins="yes"
+  ;;
+  --enable-nand) nand="yes"
+  ;;
+  --enable-shaper) shaper="yes"
+  ;;
+  --use-sdl-config=*) sdl_config="$optarg"
+  ;;
+  --enable-nand-limits) android_nand_limits="yes"
+  ;;
+#################################
   esac
 done
 
@@ -281,7 +331,10 @@ echo "  --enable-cocoa           enable COCOA (Mac OS X only)"
 echo "  --enable-mingw32         enable Win32 cross compilation with mingw32"
 echo "  --enable-adlib           enable Adlib emulation"
 echo "  --enable-coreaudio       enable Coreaudio audio driver"
+echo "  --enable-winaudio        enable Windows Wave audio driver"
 echo "  --enable-alsa            enable ALSA audio driver"
+echo "  --enable-esd             enable ESD audio driver"
+echo "  --enable-oss             enable OSS audio driver"
 echo "  --enable-fmod            enable FMOD audio driver"
 echo "  --enabled-dsound         enable DirectSound audio driver"
 echo "  --enable-system          enable all system emulation targets"
@@ -292,6 +345,16 @@ echo "  --fmod-lib               path to FMOD library"
 echo "  --fmod-inc               path to FMOD includes"
 echo "  --enable-uname-release=R Return R for uname -r in usermode emulation"
 echo "  --enable-iasl            compilation of ACPI tables with the IASL compiler"
+## Added functions for Android ##
+echo "  --static-sdl             force static linking of libSDL"
+echo "  --enable-qfb             enable QEMU FUSE Bridge support"
+echo "  --enable-trace           enable ARM trace support"
+echo "  --enable-skins           enable device skin feature (requires SDL)"
+echo "  --enable-nand            enable NAND image support"
+echo "  --enable-shaper          enable network shaping support"
+echo "  --use-sdl-config=FILE    use a specific sdl-config script"
+echo "  --enable-nand-limits     enable NAND read/write thresholding support"
+#################################
 echo ""
 echo "NOTE: The object files are build at the place where configure is launched"
 exit 1
@@ -317,6 +380,7 @@ if test "$mingw32" = "yes" ; then
     linux="no"
     EXESUF=".exe"
     oss="no"
+    TMPE="$TMPE$EXESUF"
     if [ "$cpu" = "i386" ] ; then
         kqemu="yes"
     fi
@@ -329,7 +393,7 @@ if test "$solaris" = "yes" ; then
   #
   # gcc for solaris 10/fcs in /usr/sfw/bin doesn't compile qemu correctly
   # override the check with --disable-gcc-check
-  # 
+  #
   if test "$solarisrev" -eq 10 -a "$check_gcc" = "yes" ; then
     solgcc=`which $cc`
     if test "$solgcc" = "/usr/sfw/bin/gcc" ; then
@@ -360,13 +424,15 @@ if test "$solaris" = "yes" ; then
     fi
     exit 1
   fi
-fi 
+fi
 
 
 if test -z "$target_list" ; then
 # these targets are portable
     if [ "$softmmu" = "yes" ] ; then
-        target_list="i386-softmmu ppc-softmmu sparc-softmmu x86_64-softmmu mips-softmmu mipsel-softmmu arm-softmmu"
+	# x86_64-softmmu has been removed from the default list because it doesn't build on Intel MAC
+	# 2006-10-10; digit
+        target_list="i386-softmmu ppc-softmmu sparc-softmmu mips-softmmu mipsel-softmmu arm-softmmu"
     fi
 # the following are Linux specific
     if [ "$user" = "yes" ] ; then
@@ -424,7 +490,7 @@ if $cc -fno-reorder-blocks -fno-optimize-sibling-calls -o $TMPO $TMPC 2> /dev/nu
    have_gcc3_options="yes"
 fi
 
-# Check for gcc4, error if pre-gcc4 
+# Check for gcc4, error if pre-gcc4
 if test "$check_gcc" = "yes" ; then
     cat > $TMPC <<EOF
 #if __GNUC__ < 4
@@ -441,56 +507,132 @@ EOF
     fi
 fi
 
+# use our own static build of libpng + libz, since their respective configure script
+# make it hard to build these libraries statically on Cygwin/MSYS
+#
+png=no
+png_static=yes
+png_static_libs="\$(SRC_PATH)/libpng.a \$(SRC_PATH)/libz.a"
+png_cflags="\$(ZLIB_CFLAGS) \$(LIBPNG_CFLAGS)"
+
 ##########################################
 # SDL probe
 
 sdl_too_old=no
 
 if test -z "$sdl" ; then
-
-sdl_config="sdl-config"
-sdl=no
-sdl_static=no
-
-if test "$mingw32" = "yes" -a ! -z "$cross_prefix" ; then
-# win32 cross compilation case
-    sdl_config="i386-mingw32msvc-sdl-config"
-    sdl=yes
-else
-# normal SDL probe
-cat > $TMPC << EOF
+    if test -z "$sdl_config" ; then
+        sdl_config="sdl-config"
+    fi
+    sdl=no
+    sdl_static=no
+    if test "$mingw32" = "yes" -a ! -z "$cross_prefix" ; then
+        # win32 cross compilation case
+        sdl_config="i386-mingw32msvc-sdl-config"
+        sdl=yes
+    else
+        # normal SDL probe
+        cat > $TMPC << EOF
 #include <SDL.h>
 #undef main /* We don't want SDL to override our main() */
 int main( void ) { return SDL_Init (SDL_INIT_VIDEO); }
 EOF
+        sdl_cflags=`$sdl_config --cflags 2> /dev/null`
+        sdl_libs=`$sdl_config --libs 2> /dev/null`
 
-if $cc -o $TMPE `$sdl_config --cflags 2> /dev/null` $TMPC `$sdl_config --libs 2> /dev/null` 2> /dev/null ; then
-_sdlversion=`$sdl_config --version | sed 's/[^0-9]//g'`
-if test "$_sdlversion" -lt 121 ; then
-sdl_too_old=yes
+        if $cc -o $TMPE $sdl_cflags $TMPC $sdl_libs 2> /dev/null ; then
+            _sdlversion=`$sdl_config --version | sed 's/[^0-9]//g'`
+            if test "$_sdlversion" -lt 121 ; then
+                sdl_too_old=yes
+            else
+                sdl=yes
+            fi
+        fi # sdl compile and link test
+
+        # static link with sdl ? only test if needed
+        aa="no"
+        if test "$force_static_sdl" = "yes" -o "$sdl" = "no"; then
+            sdl_static_libs=`$sdl_config --static-libs`
+            if test -n "$sdl_static_libs"; then
+                if $cc -o $TMPE $sdl_cflags $TMPC $sdl_static_libs 2> $TMPL; then
+                    sdl_static=yes
+                else
+                    echo "Warning: static libSDL link doesn't work."
+                    if [ "x$linux" == "xyes" ]; then
+                        echo "Are you missing the libaudio-dev and the libxt-dev libraries?"
+                    fi
+                    echo "Correct the errors below and try again"
+                    cat $TMPL
+                fi
+            fi
+        fi
+    fi # cross compilation
+fi # -w "$sdl"
+
+if test "$force_static_sdl" = "yes" ; then
+    if test "$sdl_static" = "no"; then
+        echo "could not find a usable static version of SDL"
+        exit 3
+    else
+        sdl="no"
+    fi
 else
-sdl=yes
+    # favor dynamic linking in the normal case
+    if test "$sdl" = "yes"; then
+        sdl_static="no"
+    fi
 fi
 
-# static link with sdl ?
-if test "$sdl" = "yes" ; then
-aa="no"
-`$sdl_config --static-libs | grep \\\-laa > /dev/null` && aa="yes"
-sdl_static_libs=`$sdl_config --static-libs`
-if [ "$aa" = "yes" ] ; then
-  sdl_static_libs="$sdl_static_libs `aalib-config --static-libs`"
+########################################################
+# ALSA probe
+#
+if test "$alsa" = "yes"; then
+    alsa_cflags=`pkg-config --cflags alsa 2> /dev/null`
+    alsa_libs=`pkg-config --libs alsa 2> /dev/null`
+
+    cat > $TMPC << EOF
+#include <alsa/asoundlib.h>
+int main( void ) { snd_pcm_t*  handle; return snd_pcm_open( &handle,NULL,0,0); }
+EOF
+
+    if $cc -o $TMPE $alsa_cflags $TMPC $alsa_libs 2> $TMPL ; then
+        echo "ALSA seems to be usable on this system"
+    else
+        echo "the ALSA development files do not seem to be installed on this system"
+        if [ "x$linux" = "xyes" ] ; then
+            echo "Are you missing the libasound-dev package ?"
+        fi
+        echo "Correct the erros below and try again"
+        cat $TMPL
+        exit 1
+    fi
 fi
 
-if $cc -o $TMPE `$sdl_config --cflags 2> /dev/null` $TMPC $sdl_static_libs 2> /dev/null; then
-  sdl_static=yes
+########################################################
+# ESD probe
+#
+if test "$esd" = "yes"; then
+    esd_cflags=`pkg-config --cflags esound 2> /dev/null`
+    esd_libs=`pkg-config --libs esound 2> /dev/null`
+
+    cat > $TMPC << EOF
+#include <esd.h>
+int main( void ) { return esd_open_sound(0); }
+EOF
+
+    if $cc -o $TMPE $esd_cflags $TMPC $esd_libs 2> $TMPL ; then
+        echo "ESD seems to be usable on this system"
+    else
+        echo "the EsounD development files do not seem to be installed on this system"
+        if [ "x$linux" = "xyes" ] ; then
+            echo "Are you missing the libesd-dev package ?"
+        fi
+        echo "Correct the errors below and try again:"
+        cat $TMPL
+        rm -f $TMPC $TMPO $TMPE $TMPL
+        exit 1
+    fi
 fi
-
-fi # static link
-
-fi # sdl compile test
-
-fi # cross compilation
-fi # -z $sdl
 
 # Check if tools are available to build documentation.
 if [ -x "`which texi2html`" ] && [ -x "`which pod2man`" ]; then
@@ -531,19 +673,30 @@ echo "host CPU          $cpu"
 echo "host big endian   $bigendian"
 echo "target list       $target_list"
 echo "gprof enabled     $gprof"
+echo "gdb stub          $gdbstub"
 echo "profiler          $profiler"
+echo "debug build       $debug"
 echo "static build      $static"
 if test "$darwin" = "yes" ; then
     echo "Cocoa support     $cocoa"
 fi
-echo "SDL support       $sdl"
-if test "$sdl" != "no" ; then
-    echo "SDL static link   $sdl_static"
+png_support="$png"
+if test "$png" = "no" -a "$png_static" = "yes" ; then
+    png_support="static"
 fi
+echo "PNG support       $png_support"
+sdl_support="$sdl"
+if test "$sdl" = "no" -a "$sdl_static" = "yes"; then
+    sdl_support="static"
+fi
+echo "SDL support       $sdl_support"
 echo "mingw32 support   $mingw32"
 echo "Adlib support     $adlib"
 echo "CoreAudio support $coreaudio"
+echo "WinAudio support  $winaudio"
 echo "ALSA support      $alsa"
+echo "ESD support       $esd"
+echo "OSS support       $oss"
 echo "DSound support    $dsound"
 if test "$fmod" = "yes"; then
     if test -z $fmod_lib || test -z $fmod_inc; then
@@ -591,6 +744,13 @@ if test "$have_gcc3_options" = "yes" ; then
   echo "HAVE_GCC3_OPTIONS=yes" >> $config_mak
 fi
 echo "HOST_CC=$host_cc" >> $config_mak
+
+if test "$debug" = "yes"; then
+  echo "OPTIM=-O0 -g -fno-strict-aliasing" >> $config_mak
+else
+  echo "OPTIM=-O2 -fomit-frame-pointer -fno-strict-aliasing" >> $config_mak
+fi
+
 echo "AR=$ar" >> $config_mak
 echo "STRIP=$strip -s -R .comment -R .note" >> $config_mak
 echo "CFLAGS=$CFLAGS" >> $config_mak
@@ -686,9 +846,21 @@ if test "$coreaudio" = "yes" ; then
   echo "CONFIG_COREAUDIO=yes" >> $config_mak
   echo "#define CONFIG_COREAUDIO 1" >> $config_h
 fi
+if test "$winaudio" = "yes" ; then
+  echo "CONFIG_WINAUDIO=yes" >> $config_mak
+  echo "#define CONFIG_WINAUDIO 1" >> $config_h
+fi
 if test "$alsa" = "yes" ; then
   echo "CONFIG_ALSA=yes" >> $config_mak
+  echo "CONFIG_ALSA_INC=$alsa_cflags" >> $config_mak
+  echo "CONFIG_ALSA_LIB=$alsa_libs" >> $config_mak
   echo "#define CONFIG_ALSA 1" >> $config_h
+fi
+if test "$esd" = "yes" ; then
+  echo "CONFIG_ESD=yes" >> $config_mak
+  echo "CONFIG_ESD_INC=$esd_cflags" >> $config_mak
+  echo "CONFIG_ESD_LIB=$esd_libs" >> $config_mak
+  echo "#define CONFIG_ESD 1" >> $config_h
 fi
 if test "$dsound" = "yes" ; then
   echo "CONFIG_DSOUND=yes" >> $config_mak
@@ -723,6 +895,11 @@ if [ "$bsd" = "yes" ] ; then
   echo "#define _BSD 1" >> $config_h
 fi
 
+if test "$skins" = "yes" ; then
+  echo "CONFIG_SKINS=yes" >> $config_mak
+  echo "#define CONFIG_SKINS 1" >> $config_h
+fi
+
 echo "#define CONFIG_UNAME_RELEASE \"$uname_release\"" >> $config_h
 
 for target in $target_list; do
@@ -748,7 +925,7 @@ if expr $target : '.*-user' > /dev/null ; then
 fi
 
 if test "$target_user_only" = "no" -a "$check_gfx" = "yes" \
-        -a "$sdl" = "no" -a "$cocoa" = "no" ; then
+        -a "$sdl" = "no" -a "$sdl_static" = "no" -a "$cocoa" = "no" ; then
     echo "ERROR: QEMU requires SDL or Cocoa for graphical output"
     echo "To build QEMU without graphical output configure with --disable-gfx-check"
     echo "Note that this will disable all output from the virtual graphics card."
@@ -796,6 +973,24 @@ elif test "$target_cpu" = "arm" -o "$target_cpu" = "armeb" ; then
   echo "#define TARGET_ARCH \"arm\"" >> $config_h
   echo "#define TARGET_ARM 1" >> $config_h
   bflt="yes"
+## Added functions for Android ##
+  if test "$qfb" = "yes" ; then
+    echo "CONFIG_QFB=yes" >> $config_mak
+    echo "#define CONFIG_QFB 1" >> $config_h
+  fi
+  if test "$trace" = "yes" ; then
+    echo "CONFIG_TRACE=yes" >> $config_mak
+    echo "#define CONFIG_TRACE 1" >> $config_h
+  fi
+  if test "$nand" = "yes" ; then
+    echo "CONFIG_NAND=yes" >> $config_mak
+    echo "#define CONFIG_NAND 1" >> $config_h
+  fi
+  if test "$shaper" = "yes"; then
+    echo "CONFIG_SHAPER=yes" >> $config_mak
+    echo "#define CONFIG_SHAPER 1" >> $config_h
+  fi
+#################################
 elif test "$target_cpu" = "sparc" ; then
   echo "TARGET_ARCH=sparc" >> $config_mak
   echo "#define TARGET_ARCH \"sparc\"" >> $config_h
@@ -861,23 +1056,30 @@ fi
 # sdl defines
 
 if test "$target_user_only" = "no"; then
-    if test "$target_softmmu" = "no" -o "$static" = "yes"; then
-        sdl1=$sdl_static
-    else
-        sdl1=$sdl
-    fi
-    if test "$sdl1" = "yes" ; then
+    if test "$sdl" = "yes" -o "$sdl_static" = "yes" ; then
         echo "#define CONFIG_SDL 1" >> $config_h
         echo "CONFIG_SDL=yes" >> $config_mak
-        if test "$target_softmmu" = "no" -o "$static" = "yes"; then
+        if test "$sdl_static" = "yes"; then
             echo "SDL_LIBS=$sdl_static_libs" >> $config_mak
         else
-            echo "SDL_LIBS=`$sdl_config --libs`" >> $config_mak
+            echo "SDL_LIBS=$sdl_libs" >> $config_mak
         fi
         if [ "${aa}" = "yes" ] ; then
-            echo "SDL_CFLAGS=`$sdl_config --cflags` `aalib-config --cflags`" >> $config_mak
+            echo "SDL_CFLAGS=$sdl_cflags `aalib-config --cflags`" >> $config_mak
         else
-            echo "SDL_CFLAGS=`$sdl_config --cflags`" >> $config_mak
+            echo "SDL_CFLAGS=$sdl_cflags" >> $config_mak
+        fi
+    fi
+fi
+
+# png defines
+if test "$png" = "yes" -o "$png_static" = "yes" ; then
+    if test "$target_softmmu" = "yes" -o "$static" = "yes"; then
+        echo "PNG_CFLAGS=$png_cflags" >> $config_mak
+        if test "$png_static" = "yes"; then
+            echo "PNG_LIBS=$png_static_libs" >> $config_mak
+        else
+            echo "PNG_LIBS=$png_libs" >> $config_mak
         fi
     fi
 fi
@@ -901,6 +1103,10 @@ if test "$source_path_used" = "yes" ; then
         rm -f $f
         ln -s $source_path/$f $f
     done
+fi
+
+if test "$android_nand_limits" = "yes"; then
+	echo "#define CONFIG_NAND_LIMITS 1" >> $config_h
 fi
 
 rm -f $TMPO $TMPC $TMPE $TMPS

@@ -1,8 +1,8 @@
 /*
  * QEMU low level functions
- * 
+ *
  * Copyright (c) 2003 Fabrice Bellard
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -89,7 +89,7 @@ __asm__ volatile ("int $0x80" \
 	: "0" (__NR_##name),"b" ((long)(arg1)),"c" ((long)(arg2)), \
 	  "d" ((long)(arg3)),"S" ((long)(arg4))); \
 return __res; \
-} 
+}
 
 #define QEMU_SYSCALL5(name,arg1,arg2,arg3,arg4,arg5) \
 { \
@@ -122,8 +122,8 @@ int qemu_write(int fd, const void *buf, size_t n)
 /****************************************************************/
 /* shmat replacement */
 
-int qemu_ipc(int call, unsigned long first, 
-            unsigned long second, unsigned long third, 
+int qemu_ipc(int call, unsigned long first,
+            unsigned long second, unsigned long third,
             void *ptr, unsigned long fifth)
 {
     QEMU_SYSCALL6(ipc, call, first, second, third, ptr, fifth);
@@ -149,14 +149,14 @@ void *shmat(int shmid, const void *shmaddr, int shmflg)
 /****************************************************************/
 /* sigaction bypassing the threads */
 
-static int kernel_sigaction(int signum, const struct qemu_sigaction *act, 
-                            struct qemu_sigaction *oldact, 
+static int kernel_sigaction(int signum, const struct qemu_sigaction *act,
+                            struct qemu_sigaction *oldact,
                             int sigsetsize)
 {
     QEMU_SYSCALL4(rt_sigaction, signum, act, oldact, sigsetsize);
 }
 
-int qemu_sigaction(int signum, const struct qemu_sigaction *act, 
+int qemu_sigaction(int signum, const struct qemu_sigaction *act,
                    struct qemu_sigaction *oldact)
 {
     return kernel_sigaction(signum, act, oldact, 8);
@@ -185,8 +185,8 @@ static void *malloc_get_space(size_t size)
 {
     void *ptr;
     size = TARGET_PAGE_ALIGN(size);
-    ptr = mmap((void *)malloc_addr, size, 
-               PROT_WRITE | PROT_READ, 
+    ptr = mmap((void *)malloc_addr, size,
+               PROT_WRITE | PROT_READ,
                MAP_PRIVATE | MAP_FIXED | MAP_ANON, -1, 0);
     if (ptr == MAP_FAILED)
         return NULL;
@@ -199,7 +199,7 @@ void *qemu_malloc(size_t size)
     MemoryBlock *mb, *mb1, **pmb;
     void *ptr;
     size_t size1, area_size;
-    
+
     if (size == 0)
         return NULL;
 
@@ -353,7 +353,7 @@ void *kqemu_vmalloc(size_t size)
             free_space = (int64_t)stfs.f_bavail * stfs.f_bsize;
             if ((ram_size + 8192 * 1024) >= free_space) {
                 ram_mb = (ram_size / (1024 * 1024));
-                fprintf(stderr, 
+                fprintf(stderr,
                         "You do not have enough space in '%s' for the %d MB of QEMU virtual RAM.\n",
                         tmpdir, ram_mb);
                 if (strcmp(tmpdir, "/dev/shm") == 0) {
@@ -362,7 +362,7 @@ void *kqemu_vmalloc(size_t size)
                             "mount -t tmpfs -o size=%dm none /dev/shm\n",
                             ram_mb + 16);
                 } else {
-                    fprintf(stderr, 
+                    fprintf(stderr,
                             "Use the '-m' option of QEMU to diminish the amount of virtual RAM or use the\n"
                             "QEMU_TMPDIR environment variable to set another directory where the QEMU\n"
                             "temporary RAM file will be opened.\n");
@@ -371,25 +371,25 @@ void *kqemu_vmalloc(size_t size)
                 exit(1);
             }
         }
-        snprintf(phys_ram_file, sizeof(phys_ram_file), "%s/qemuXXXXXX", 
+        snprintf(phys_ram_file, sizeof(phys_ram_file), "%s/qemuXXXXXX",
                  tmpdir);
         if (mkstemp(phys_ram_file) < 0) {
-            fprintf(stderr, 
+            fprintf(stderr,
                     "warning: could not create temporary file in '%s'.\n"
                     "Use QEMU_TMPDIR to select a directory in a tmpfs filesystem.\n"
                     "Using '/tmp' as fallback.\n",
                     tmpdir);
-            snprintf(phys_ram_file, sizeof(phys_ram_file), "%s/qemuXXXXXX", 
+            snprintf(phys_ram_file, sizeof(phys_ram_file), "%s/qemuXXXXXX",
                      "/tmp");
             if (mkstemp(phys_ram_file) < 0) {
-                fprintf(stderr, "Could not create temporary memory file '%s'\n", 
+                fprintf(stderr, "Could not create temporary memory file '%s'\n",
                         phys_ram_file);
                 exit(1);
             }
         }
-        phys_ram_fd = open(phys_ram_file, O_CREAT | O_TRUNC | O_RDWR, 0600);
+        phys_ram_fd = open(phys_ram_file, O_CREAT | O_TRUNC | O_RDWR | O_BINARY, 0600);
         if (phys_ram_fd < 0) {
-            fprintf(stderr, "Could not open temporary memory file '%s'\n", 
+            fprintf(stderr, "Could not open temporary memory file '%s'\n",
                     phys_ram_file);
             exit(1);
         }
@@ -397,9 +397,9 @@ void *kqemu_vmalloc(size_t size)
     }
     size = (size + 4095) & ~4095;
     ftruncate(phys_ram_fd, phys_ram_size + size);
-    ptr = mmap(NULL, 
-               size, 
-               PROT_WRITE | PROT_READ, MAP_SHARED, 
+    ptr = mmap(NULL,
+               size,
+               PROT_WRITE | PROT_READ, MAP_SHARED,
                phys_ram_fd, phys_ram_size);
     if (ptr == MAP_FAILED) {
         fprintf(stderr, "Could not map physical memory\n");
@@ -627,7 +627,7 @@ void qemu_vprintf(const char *fmt, va_list ap)
 {
     char buf[1024];
     int len;
-    
+
     len = qemu_vsnprintf(buf, sizeof(buf), fmt, ap);
     qemu_write(1, buf, len);
 }

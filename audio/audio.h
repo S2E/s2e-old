@@ -93,6 +93,8 @@ void AUD_log (const char *cap, const char *fmt, ...)
 #endif
     ;
 
+extern AudioState glob_audio_state;
+
 AudioState *AUD_init (void);
 void AUD_help (void);
 void AUD_register_card (AudioState *s, const char *name, QEMUSoundCard *card);
@@ -165,5 +167,14 @@ uint32_t lsbindex (uint32_t u);
 #define audio_MIN(a, b) ((a)>(b)?(b):(a))
 #define audio_MAX(a, b) ((a)<(b)?(b):(a))
 #endif
+
+extern int
+audio_get_backend_count( int  is_input );
+
+extern const char*
+audio_get_backend_name( int   is_input, int  index, const char*  *pinfo );
+
+extern int
+audio_check_backend_name( int  is_input, const char*  name );
 
 #endif  /* audio.h */

@@ -1,6 +1,6 @@
 /*
  *  ARM translation
- * 
+ *
  *  Copyright (c) 2003 Fabrice Bellard
  *  Copyright (c) 2005 CodeSourcery, LLC
  *
@@ -27,6 +27,14 @@
 #include "cpu.h"
 #include "exec-all.h"
 #include "disas.h"
+#ifdef GEN_TRACE
+#include "trace.h"
+#endif
+
+typedef int  (*gen_intermediate_code_func)(CPUState  *env, struct TranslationBlock  *tb);
+
+extern gen_intermediate_code_func   _gen_intermediate_code;
+extern gen_intermediate_code_func   _gen_intermediate_code_pc;
 
 #define ENABLE_ARCH_5J  0
 #define ENABLE_ARCH_6   1
@@ -72,12 +80,20 @@ extern int loglevel;
 
 enum {
 #define DEF(s, n, copy_size) INDEX_op_ ## s,
+#ifdef GEN_TRACE
+#include "opc-trace.h"
+#else
 #include "opc.h"
+#endif
 #undef DEF
     NB_OPS,
 };
 
+#ifdef GEN_TRACE
+#include "gen-op-trace.h"
+#else
 #include "gen-op.h"
+#endif
 
 static GenOpFunc1 *gen_test_cc[14] = {
     gen_op_test_eq,
@@ -96,7 +112,7 @@ static GenOpFunc1 *gen_test_cc[14] = {
     gen_op_test_le,
 };
 
-const uint8_t table_logic_cc[16] = {
+static const uint8_t table_logic_cc[16] = {
     1, /* and */
     1, /* xor */
     0, /* sub */
@@ -114,7 +130,7 @@ const uint8_t table_logic_cc[16] = {
     1, /* bic */
     1, /* mvn */
 };
-    
+
 static GenOpFunc1 *gen_shift_T1_im[4] = {
     gen_op_shll_T1_im,
     gen_op_shrl_T1_im,
@@ -387,13 +403,13 @@ static inline void gen_add_datah_offset(DisasContext *s, unsigned int insn,
                                         int extra)
 {
     int val, rm;
-    
+
     if (insn & (1 << 22)) {
         /* immediate */
         val = (insn & 0xf) | ((insn >> 4) & 0xf0);
-        val += extra;
         if (!(insn & (1 << 23)))
             val = -val;
+        val += extra;
         if (val != 0)
             gen_op_addl_T1_im(val);
     } else {
@@ -687,7 +703,7 @@ static int disas_vfp_insn(CPUState * env, DisasContext *s, uint32_t insn)
             delta_m = 0;
             delta_d = 0;
             bank_mask = 0;
-            
+
             if (veclen > 0) {
                 if (dp)
                     bank_mask = 0xc;
@@ -1108,12 +1124,26 @@ static void gen_exception_return(DisasContext *s)
 static void disas_arm_insn(CPUState * env, DisasContext *s)
 {
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
-    
+#ifdef GEN_TRACE
+    int          insn_ticks = 0;
+#endif
+
     insn = ldl_code(s->pc);
+#ifdef GEN_TRACE
+    if (tracing) {
+        trace_add_insn(insn, 0 /* not thumb */);
+        insn_ticks = get_insn_ticks(insn);
+        gen_op_trace_insn();
+    }
+#endif
     s->pc += 4;
-    
+
     cond = insn >> 28;
     if (cond == 0xf){
+#ifdef GEN_TRACE
+        if (tracing)
+            gen_op_add_to_sim_time(insn_ticks);
+#endif
         /* Unconditional instructions.  */
         if ((insn & 0x0d70f000) == 0x0550f000)
             return; /* PLD */
@@ -1150,6 +1180,13 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         goto illegal_op;
     }
     if (cond != 0xe) {
+#ifdef GEN_TRACE
+        if (tracing) {
+            /* a non-executed conditional instruction takes only 1 cycle */
+            gen_op_add_to_sim_time(1);
+            insn_ticks -= 1;
+        }
+#endif
         /* if not always execute, we generate a conditional jump to
            next instruction */
         s->condlabel = gen_new_label();
@@ -1158,6 +1195,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         //gen_test_cc[cond ^ 1]((long)s->tb, (long)s->pc);
         //s->is_jmp = DISAS_JUMP_NEXT;
     }
+#ifdef GEN_TRACE
+    if (tracing)
+        gen_op_add_to_sim_time(insn_ticks);
+#endif
     if ((insn & 0x0f900000) == 0x03000000) {
         if ((insn & 0x0fb0f000) != 0x0320f000)
             goto illegal_op;
@@ -1299,7 +1340,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 (insn & 0x00000090) != 0x90) ||
                ((insn & 0x0e000000) == (1 << 25))) {
         int set_cc, logic_cc, shiftop;
-        
+
         op1 = (insn >> 21) & 0xf;
         set_cc = (insn >> 20) & 1;
         logic_cc = table_logic_cc[op1] & set_cc;
@@ -1490,14 +1531,14 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             gen_movl_T1_reg(s, rn);
                             gen_op_addl_T0_T1();
                         }
-                        if (insn & (1 << 20)) 
+                        if (insn & (1 << 20))
                             gen_op_logic_T0_cc();
                         gen_movl_reg_T0(s, rd);
                     } else {
                         /* 64 bit mul */
                         gen_movl_T0_reg(s, rs);
                         gen_movl_T1_reg(s, rm);
-                        if (insn & (1 << 22)) 
+                        if (insn & (1 << 22))
                             gen_op_imull_T0_T1();
                         else
                             gen_op_mull_T0_T1();
@@ -1508,7 +1549,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             gen_op_addq_lo_T0_T1(rn);
                             gen_op_addq_lo_T0_T1(rd);
                         }
-                        if (insn & (1 << 20)) 
+                        if (insn & (1 << 20))
                             gen_op_logicq_cc();
                         gen_movl_reg_T0(s, rn);
                         gen_movl_reg_T1(s, rd);
@@ -1522,7 +1563,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                     } else {
                         /* SWP instruction */
                         rm = (insn) & 0xf;
-                        
+
                         gen_movl_T0_reg(s, rm);
                         gen_movl_T1_reg(s, rn);
                         if (insn & (1 << 22)) {
@@ -1594,6 +1635,18 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         case 0x5:
         case 0x6:
         case 0x7:
+#ifdef GEN_TRACE
+            /* Added a special undefined instruction to cause the
+            * simulator to exit.  This allows us to write short assembly
+            * language tests that can exit the simulator.
+            */
+#define EXIT_SIMULATION 0xe6c00110
+            if (insn == EXIT_SIMULATION) {
+                gen_op_shutdown();
+                break;
+            }
+#endif
+
             /* Check for undefined extension instructions
              * per the ARM Bible IE:
              * xxxx 0111 1111 xxxx  xxxx xxxx 1111 xxxx
@@ -1679,7 +1732,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 }
                 rn = (insn >> 16) & 0xf;
                 gen_movl_T1_reg(s, rn);
-                
+
                 /* compute total size */
                 loaded_base = 0;
                 n = 0;
@@ -1724,8 +1777,8 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         } else {
                             /* store */
                             if (i == 15) {
-                                /* special case: r15 = PC + 12 */
-                                val = (long)s->pc + 8;
+                                /* special case: r15 = PC + 8  (was 12) */
+                                val = (long)s->pc + 4;
                                 gen_op_movl_TN_im[0](val);
                             } else if (user) {
                                 gen_op_movl_T0_user(i);
@@ -1777,7 +1830,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         case 0xb:
             {
                 int32_t offset;
-                
+
                 /* branch (and link) */
                 val = (int32_t)s->pc;
                 if (insn & (1 << 24)) {
@@ -1834,6 +1887,16 @@ static void disas_thumb_insn(DisasContext *s)
     int i;
 
     insn = lduw_code(s->pc);
+#ifdef GEN_TRACE
+    if (tracing) {
+        int insn_ticks;
+
+        trace_add_insn( insn_wrap_thumb(insn), 1 /* thumb insn */ );
+        insn_ticks = get_insn_ticks_thumb(insn);
+        gen_op_trace_insn();
+        gen_op_add_to_sim_time(insn_ticks);
+    }
+#endif
     s->pc += 2;
 
     switch (insn >> 12) {
@@ -2357,12 +2420,22 @@ static void disas_thumb_insn(DisasContext *s)
         }
         offset = ((int32_t)insn << 21) >> 10;
         insn = lduw_code(s->pc);
+#ifdef GEN_TRACE
+        if (tracing) {
+            int insn_ticks;
+
+            trace_add_insn( insn_wrap_thumb(insn), 1 /* thumb insn */ );
+            insn_ticks = get_insn_ticks_thumb(insn);
+            gen_op_trace_insn();
+            gen_op_add_to_sim_time(insn_ticks);
+        }
+#endif
         offset |= insn & 0x7ff;
 
         val = (uint32_t)s->pc + 2;
         gen_op_movl_T1_im(val | 1);
         gen_movl_reg_T1(s, 14);
-        
+
         val += offset << 1;
         if (insn & (1 << 12)) {
             /* bl */
@@ -2385,8 +2458,8 @@ undef:
 /* generate intermediate code in gen_opc_buf and gen_opparam_buf for
    basic block 'tb'. If search_pc is TRUE, also generate PC
    information for each intermediate instruction. */
-static inline int gen_intermediate_code_internal(CPUState *env, 
-                                                 TranslationBlock *tb, 
+static inline int gen_intermediate_code_internal(CPUState *env,
+                                                 TranslationBlock *tb,
                                                  int search_pc)
 {
     DisasContext dc1, *dc = &dc1;
@@ -2394,10 +2467,10 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     int j, lj;
     target_ulong pc_start;
     uint32_t next_page_start;
-    
+
     /* generate intermediate code */
     pc_start = tb->pc;
-       
+
     dc->tb = tb;
 
     gen_opc_ptr = gen_opc_buf;
@@ -2415,6 +2488,12 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     next_page_start = (pc_start & TARGET_PAGE_MASK) + TARGET_PAGE_SIZE;
     nb_gen_labels = 0;
     lj = -1;
+#ifdef GEN_TRACE
+    if (tracing) {
+        gen_op_trace_bb(trace_static.bb_num, (long) tb);
+        trace_bb_start(dc->pc);
+    }
+#endif
     do {
         if (env->nb_breakpoints > 0) {
             for(j = 0; j < env->nb_breakpoints; j++) {
@@ -2454,6 +2533,12 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     } while (!dc->is_jmp && gen_opc_ptr < gen_opc_end &&
              !env->singlestep_enabled &&
              dc->pc < next_page_start);
+#ifdef GEN_TRACE
+    if (tracing) {
+        trace_bb_end();
+    }
+#endif
+
     /* At this stage dc->condjmp will only be set when the skipped
      * instruction was a conditional branch, and the PC has already been
      * written.  */
@@ -2518,21 +2603,58 @@ static inline int gen_intermediate_code_internal(CPUState *env,
     return 0;
 }
 
-int gen_intermediate_code(CPUState *env, TranslationBlock *tb)
+#if defined(GEN_TRACE)
+static int trace_gen_intermediate_code(CPUState *env, TranslationBlock *tb)
 {
     return gen_intermediate_code_internal(env, tb, 0);
 }
 
-int gen_intermediate_code_pc(CPUState *env, TranslationBlock *tb)
+static int trace_gen_intermediate_code_pc(CPUState *env, TranslationBlock *tb)
 {
     return gen_intermediate_code_internal(env, tb, 1);
 }
 
-static const char *cpu_mode_names[16] = {
+void  qemu_trace_enable(void)
+{
+    _gen_intermediate_code    = trace_gen_intermediate_code;
+    _gen_intermediate_code_pc = trace_gen_intermediate_code_pc;
+}
+#else
+
+static int default_gen_intermediate_code(CPUState *env, TranslationBlock *tb)
+{
+    return gen_intermediate_code_internal(env, tb, 0);
+}
+
+static int default_gen_intermediate_code_pc(CPUState *env, TranslationBlock *tb)
+{
+    return gen_intermediate_code_internal(env, tb, 1);
+}
+
+gen_intermediate_code_func   _gen_intermediate_code    = default_gen_intermediate_code;
+gen_intermediate_code_func   _gen_intermediate_code_pc = default_gen_intermediate_code_pc;
+
+int gen_intermediate_code(CPUState *env, TranslationBlock *tb)
+{
+    return (*_gen_intermediate_code)(env, tb);
+}
+
+int gen_intermediate_code_pc(CPUState *env, TranslationBlock *tb)
+{
+    return (*_gen_intermediate_code_pc)(env, tb);
+}
+
+void  qemu_trace_disable( void )
+{
+    _gen_intermediate_code    = default_gen_intermediate_code;
+    _gen_intermediate_code_pc = default_gen_intermediate_code_pc;
+}
+
+static const char * const cpu_mode_names[16] = {
   "usr", "fiq", "irq", "svc", "???", "???", "???", "abt",
   "???", "???", "???", "und", "???", "???", "???", "sys"
 };
-void cpu_dump_state(CPUState *env, FILE *f, 
+void cpu_dump_state(CPUState *env, FILE *f,
                     int (*cpu_fprintf)(FILE *f, const char *fmt, ...),
                     int flags)
 {
@@ -2552,13 +2674,13 @@ void cpu_dump_state(CPUState *env, FILE *f,
             cpu_fprintf(f, " ");
     }
     psr = cpsr_read(env);
-    cpu_fprintf(f, "PSR=%08x %c%c%c%c %c %s%d %x\n", 
-                psr, 
+    cpu_fprintf(f, "PSR=%08x %c%c%c%c %c %s%d %x\n",
+                psr,
                 psr & (1 << 31) ? 'N' : '-',
                 psr & (1 << 30) ? 'Z' : '-',
                 psr & (1 << 29) ? 'C' : '-',
                 psr & (1 << 28) ? 'V' : '-',
-                psr & CPSR_T ? 'T' : 'A', 
+                psr & CPSR_T ? 'T' : 'A',
                 cpu_mode_names[psr & 0xf], (psr & 0x10) ? 32 : 26);
 
     for (i = 0; i < 16; i++) {
@@ -2574,3 +2696,4 @@ void cpu_dump_state(CPUState *env, FILE *f,
     cpu_fprintf(f, "FPSCR: %08x\n", (int)env->vfp.xregs[ARM_VFP_FPSCR]);
 }
 
+#endif

@@ -4,6 +4,9 @@
 
 #include "cpu.h"
 #include "exec-all.h"
+#ifdef CONFIG_TRACE
+#include "trace.h"
+#endif
 
 void cpu_reset(CPUARMState *env)
 {
@@ -60,7 +63,7 @@ void cpu_arm_close(CPUARMState *env)
     free(env);
 }
 
-#if defined(CONFIG_USER_ONLY) 
+#if defined(CONFIG_USER_ONLY)
 
 void do_interrupt (CPUState *env)
 {
@@ -163,6 +166,11 @@ void do_interrupt(CPUARMState *env)
     int new_mode;
     uint32_t offset;
 
+#ifdef CONFIG_TRACE
+    if (tracing)
+      trace_exception(env->regs[15]);
+#endif
+
     /* TODO: Vectored interrupt controller.  */
     switch (env->exception_index) {
     case EXCP_UDEF:
@@ -239,7 +247,7 @@ static inline int check_ap(CPUState *env, int ap, int domain, int access_type,
 
   switch (ap) {
   case 0:
-      if (access_type != 1)
+      if (access_type == 1)
           return 0;
       switch ((env->cp15.c1_sys >> 8) & 3) {
       case 1:
@@ -420,6 +428,7 @@ void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
         break;
     case 3: /* MMU Domain access control.  */
         env->cp15.c3 = val;
+        tlb_flush(env, 1);
         break;
     case 4: /* Reserved.  */
         goto bad_reg;
@@ -466,7 +475,7 @@ void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
             tlb_flush_page(env, val + 0x800);
             tlb_flush_page(env, val + 0xc00);
 #else
-            tlb_flush(env, 1);
+            //tlb_flush(env, 1);
 #endif
             break;
         default:
@@ -494,18 +503,10 @@ void helper_set_cp15(CPUState *env, uint32_t insn, uint32_t val)
     case 13: /* Process ID.  */
         switch (op2) {
         case 0:
-            /* Unlike real hardware the qemu TLB uses virtual addresses,
-               not modified virtual addresses, so this causes a TLB flush.
-             */
-            if (env->cp15.c13_fcse != val)
-              tlb_flush(env, 1);
-            env->cp15.c13_fcse = val;
+            env->cp15.c9_data = val;
             break;
         case 1:
-            /* This changes the ASID, so do a TLB flush.  */
-            if (env->cp15.c13_context != val)
-              tlb_flush(env, 0);
-            env->cp15.c13_context = val;
+            env->cp15.c9_insn = val;
             break;
         default:
             goto bad_reg;

@@ -157,8 +157,8 @@ struct icmp {
 	(type) == ICMP_IREQ || (type) == ICMP_IREQREPLY || \
 	(type) == ICMP_MASKREQ || (type) == ICMP_MASKREPLY)
 
-void icmp_input _P((struct mbuf *, int));
-void icmp_error _P((struct mbuf *, u_char, u_char, int, char *));
-void icmp_reflect _P((struct mbuf *));
+void icmp_input _P((MBuf , int));
+void icmp_error _P((MBuf , u_char, u_char, int, char *));
+void icmp_reflect _P((MBuf ));
 
 #endif

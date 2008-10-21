@@ -103,8 +103,7 @@ int wav_start_capture (CaptureState *s, const char *path, int freq,
     }
 
     if (nchannels != 1 && nchannels != 2) {
-        term_printf ("incorrect channel count %d, must be 1 or 2\n",
-                     nchannels);
+        term_printf ("incorrect channel count %d, must be 1 or 2\n", bits);
         return -1;
     }
 
@@ -122,8 +121,7 @@ int wav_start_capture (CaptureState *s, const char *path, int freq,
 
     wav = qemu_mallocz (sizeof (*wav));
     if (!wav) {
-        term_printf ("Could not allocate memory for wav capture (%zu bytes)",
-                     sizeof (*wav));
+        AUD_log ("wav", "Could not allocate memory (%zu bytes)", sizeof (*wav));
         return -1;
     }
 

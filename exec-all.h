@@ -194,6 +194,10 @@ typedef struct TranslationBlock {
        jmp_first */
     struct TranslationBlock *jmp_next[2]; 
     struct TranslationBlock *jmp_first;
+#ifdef CONFIG_TRACE
+    struct BBRec *bb_rec;
+    uint64_t prev_time;
+#endif
 } TranslationBlock;
 
 static inline unsigned int tb_jmp_cache_hash_func(target_ulong pc)
@@ -316,16 +320,31 @@ do {\
 
 #elif defined(__i386__) && defined(USE_DIRECT_JUMP)
 
-/* we patch the jump instruction directly */
+/* we patch the jump instruction directly.  Use sti in place of the actual
+   jmp instruction so that dyngen can patch in the correct result.  */
+#if defined(__APPLE__)
+/* XXX Different relocations are generated for MacOS X for Intel
+   (please as from cctools).  */
 #define GOTO_TB(opname, tbparam, n)\
 do {\
-    asm volatile (".section .data\n"\
+    asm volatile (ASM_DATA_SECTION\
 		  ASM_OP_LABEL_NAME(n, opname) ":\n"\
 		  ".long 1f\n"\
 		  ASM_PREVIOUS_SECTION \
-                  "jmp " ASM_NAME(__op_jmp) #n "\n"\
+                  "sti;.long " ASM_NAME(__op_jmp) #n "\n"\
 		  "1:\n");\
 } while (0)
+#else
+#define GOTO_TB(opname, tbparam, n)\
+do {\
+    asm volatile (ASM_DATA_SECTION\
+		  ASM_OP_LABEL_NAME(n, opname) ":\n"\
+		  ".long 1f\n"\
+		  ASM_PREVIOUS_SECTION \
+                  "sti;.long " ASM_NAME(__op_jmp) #n " - 1f\n"\
+		  "1:\n");\
+} while (0)
+#endif
 
 #else
 

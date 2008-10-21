@@ -28,12 +28,17 @@
 #define AUDIO_CAP "sdl"
 #include "audio_int.h"
 
-typedef struct SDLVoiceOut {
-    HWVoiceOut hw;
-    int live;
-    int rpos;
-    int decr;
-} SDLVoiceOut;
+/* define DEBUG to 1 to dump audio debugging info at runtime to stderr */
+#define  DEBUG  0
+
+/* define NEW_AUDIO to 1 to activate the new audio thread callback */
+#define  NEW_AUDIO 1
+
+#if DEBUG
+#  define  D(...)   fprintf(stderr, __VA_ARGS__)
+#else
+#  define  D(...)   ((void)0)
+#endif
 
 static struct {
     int nb_samples;
@@ -41,12 +46,41 @@ static struct {
     1024
 };
 
+#if DEBUG
+int64_t  start_time;
+#endif
+
+#if NEW_AUDIO
+
+#define  AUDIO_BUFFER_SIZE  (8192)
+
+typedef HWVoiceOut  SDLVoiceOut;
+
+struct SDLAudioState {
+    int         exit;
+    SDL_mutex*  mutex;
+    int         initialized;
+    uint8_t     data[ AUDIO_BUFFER_SIZE ];
+    int         pos, count;
+} glob_sdl;
+#else /* !NEW_AUDIO */
+
+typedef struct SDLVoiceOut {
+    HWVoiceOut hw;
+    int live;
+    int rpos;
+    int decr;
+} SDLVoiceOut;
+
 struct SDLAudioState {
     int exit;
     SDL_mutex *mutex;
     SDL_sem *sem;
     int initialized;
 } glob_sdl;
+
+#endif /* !NEW_AUDIO */
+
 typedef struct SDLAudioState SDLAudioState;
 
 static void GCC_FMT_ATTR (1, 2) sdl_logerr (const char *fmt, ...)
@@ -78,6 +112,7 @@ static int sdl_unlock (SDLAudioState *s, const char *forfn)
     return 0;
 }
 
+#if !NEW_AUDIO
 static int sdl_post (SDLAudioState *s, const char *forfn)
 {
     if (SDL_SemPost (s->sem)) {
@@ -104,6 +139,7 @@ static int sdl_unlock_and_post (SDLAudioState *s, const char *forfn)
 
     return sdl_post (s, forfn);
 }
+#endif
 
 static int aud_to_sdlfmt (audfmt_e fmt, int *shift)
 {
@@ -190,13 +226,62 @@ static void sdl_close (SDLAudioState *s)
     if (s->initialized) {
         sdl_lock (s, "sdl_close");
         s->exit = 1;
+#if NEW_AUDIO
+        sdl_unlock (s, "sdl_close");
+#else
         sdl_unlock_and_post (s, "sdl_close");
+#endif
         SDL_PauseAudio (1);
         SDL_CloseAudio ();
         s->initialized = 0;
     }
 }
 
+#if NEW_AUDIO
+
+static void sdl_callback (void *opaque, Uint8 *buf, int len)
+{
+#if DEBUG
+    int64_t    now;
+#endif
+    SDLAudioState *s = &glob_sdl;
+
+    if (s->exit) {
+        return;
+    }
+
+    sdl_lock (s, "sdl_callback");
+#if DEBUG
+    if (s->count > 0) {
+        now = qemu_get_clock(vm_clock);
+        if (start_time == 0)
+            start_time = now;
+        now = now - start_time;
+        D( "R %6.3f: pos:%5d count:%5d len:%5d\n", now/1e9, s->pos, s->count, len );
+    }
+#endif
+    while (len > 0) {
+        int  avail = audio_MIN( AUDIO_BUFFER_SIZE - s->pos, s->count );
+
+        if (avail == 0)
+            break;
+
+        if (avail > len)
+            avail = len;
+
+        memcpy( buf, s->data + s->pos, avail );
+        buf += avail;
+        len -= avail;
+
+        s->count -= avail;
+        s->pos   += avail;
+        if (s->pos == AUDIO_BUFFER_SIZE)
+            s->pos = 0;
+    }
+    sdl_unlock (s, "sdl_callback");
+}
+
+#else /* !NEW_AUDIO */
 static void sdl_callback (void *opaque, Uint8 *buf, int len)
 {
     SDLVoiceOut *sdl = opaque;
@@ -255,12 +340,69 @@ static void sdl_callback (void *opaque, Uint8 *buf, int len)
     }
     /* dolog ("done len=%d\n", len); */
 }
+#endif /* !NEW_AUDIO */
 
 static int sdl_write_out (SWVoiceOut *sw, void *buf, int len)
 {
     return audio_pcm_sw_write (sw, buf, len);
 }
 
+#if NEW_AUDIO
+
+static int sdl_run_out (HWVoiceOut *hw)
+{
+    SDLAudioState *s = &glob_sdl;
+    int  live, avail, end, total;
+
+    if (sdl_lock (s, "sdl_run_out")) {
+        return 0;
+    }
+    avail = AUDIO_BUFFER_SIZE - s->count;
+    end   = s->pos + s->count;
+    if (end >= AUDIO_BUFFER_SIZE)
+        end -= AUDIO_BUFFER_SIZE;
+    sdl_unlock (s, "sdl_run_out");
+
+    live = audio_pcm_hw_get_live_out (hw);
+
+    total = 0;
+    while (live > 0) {
+        int           bytes     = audio_MIN(AUDIO_BUFFER_SIZE - end, avail);
+        int           samples   = bytes >> hw->info.shift;
+        int           hwsamples = audio_MIN(hw->samples - hw->rpos, live);
+        uint8_t*      dst       = s->data + end;
+        st_sample_t*  src       = hw->mix_buf + hw->rpos;
+
+        if (samples == 0)
+            break;
+
+        if (samples > hwsamples) {
+            samples = hwsamples;
+            bytes   = hwsamples << hw->info.shift;
+        }
+
+        hw->clip (dst, src, samples);
+        hw->rpos += samples;
+        if (hw->rpos == hw->samples)
+            hw->rpos = 0;
+
+        live  -= samples;
+        avail -= bytes;
+        end   += bytes;
+        if (end == AUDIO_BUFFER_SIZE)
+            end = 0;
+
+        total += bytes;
+    }
+
+    sdl_lock (s, "sdl_run_out");
+    s->count += total;
+    sdl_unlock (s, "sdl_run_out");
+
+    return  total >> hw->info.shift;
+}
+
+#else /* !NEW_AUDIO */
 static int sdl_run_out (HWVoiceOut *hw)
 {
     int decr, live;
@@ -294,6 +436,7 @@ static int sdl_run_out (HWVoiceOut *hw)
     }
     return decr;
 }
+#endif /* !NEW_AUDIO */
 
 static void sdl_fini_out (HWVoiceOut *hw)
 {
@@ -301,6 +444,54 @@ static void sdl_fini_out (HWVoiceOut *hw)
 
     sdl_close (&glob_sdl);
 }
+
+#if DEBUG
+
+typedef struct { int  value; const char*  name; } MatchRec;
+typedef const MatchRec*                           Match;
+
+static const char*
+match_find( Match  matches, int  value, char*  temp )
+{
+    int  nn;
+    for ( nn = 0; matches[nn].name != NULL; nn++ ) {
+        if ( matches[nn].value == value )
+            return matches[nn].name;
+    }
+    sprintf( temp, "(%d?)", value );
+    return temp;
+}
+
+static const MatchRec   sdl_audio_format_matches[] = {
+    { AUDIO_U8, "AUDIO_U8" },
+    { AUDIO_S8, "AUDIO_S8" },
+    { AUDIO_U16, "AUDIO_U16LE" },
+    { AUDIO_S16, "AUDIO_S16LE" },
+    { AUDIO_U16MSB, "AUDIO_U16BE" },
+    { AUDIO_S16MSB, "AUDIO_S16BE" },
+    { 0, NULL }
+};
+
+static void
+print_sdl_audiospec( SDL_AudioSpec*  spec, const char*  prefix )
+{
+    char         temp[64];
+    const char*  fmt;
+
+    if (!prefix)
+        prefix = "";
+
+    printf( "%s audiospec [freq:%d format:%s channels:%d samples:%d bytes:%d",
+            prefix,
+            spec->freq,
+            match_find( sdl_audio_format_matches, spec->format, temp ),
+            spec->channels,
+            spec->samples,
+            spec->size
+          );
+    printf( "]\n" );
+}
+#endif
 
 static int sdl_init_out (HWVoiceOut *hw, audsettings_t *as)
 {
@@ -322,9 +513,17 @@ static int sdl_init_out (HWVoiceOut *hw, audsettings_t *as)
     req.callback = sdl_callback;
     req.userdata = sdl;
 
+#if DEBUG
+    print_sdl_audiospec( &req, "wanted" );
+#endif
+
     if (sdl_open (&req, &obt)) {
         return -1;
     }
+
+#if DEBUG
+    print_sdl_audiospec( &req, "obtained" );
+#endif
 
     err = sdl_to_audfmt (obt.format, &effective_fmt, &endianess);
     if (err) {
@@ -332,16 +531,20 @@ static int sdl_init_out (HWVoiceOut *hw, audsettings_t *as)
         return -1;
     }
 
-    obt_as.freq = obt.freq;
-    obt_as.nchannels = obt.channels;
-    obt_as.fmt = effective_fmt;
+    obt_as.freq       = obt.freq;
+    obt_as.nchannels  = obt.channels;
+    obt_as.fmt        = effective_fmt;
     obt_as.endianness = endianess;
 
     audio_pcm_init_info (&hw->info, &obt_as);
     hw->samples = obt.samples;
 
+#if DEBUG
+    start_time = qemu_get_clock(vm_clock);
+#endif
+
     s->initialized = 1;
-    s->exit = 0;
+    s->exit        = 0;
     SDL_PauseAudio (0);
     return 0;
 }
@@ -377,7 +580,7 @@ static void *sdl_audio_init (void)
         SDL_QuitSubSystem (SDL_INIT_AUDIO);
         return NULL;
     }
-
+#if !NEW_AUDIO
     s->sem = SDL_CreateSemaphore (0);
     if (!s->sem) {
         sdl_logerr ("Failed to create SDL semaphore\n");
@@ -385,7 +588,7 @@ static void *sdl_audio_init (void)
         SDL_QuitSubSystem (SDL_INIT_AUDIO);
         return NULL;
     }
-
+#endif
     return s;
 }
 
@@ -393,8 +596,16 @@ static void sdl_audio_fini (void *opaque)
 {
     SDLAudioState *s = opaque;
     sdl_close (s);
-    SDL_DestroySemaphore (s->sem);
-    SDL_DestroyMutex (s->mutex);
+#if !NEW_AUDIO
+    if (s->sem) {
+        SDL_DestroySemaphore (s->sem);
+        s->sem = NULL;
+    }
+#endif
+    if (s->mutex) {
+        SDL_DestroyMutex (s->mutex);
+        s->mutex = NULL;
+    }
     SDL_QuitSubSystem (SDL_INIT_AUDIO);
 }
 
@@ -420,7 +631,7 @@ static struct audio_pcm_ops sdl_pcm_ops = {
 
 struct audio_driver sdl_audio_driver = {
     INIT_FIELD (name           = ) "sdl",
-    INIT_FIELD (descr          = ) "SDL http://www.libsdl.org",
+    INIT_FIELD (descr          = ) "SDL audio (www.libsdl.org)",
     INIT_FIELD (options        = ) sdl_options,
     INIT_FIELD (init           = ) sdl_audio_init,
     INIT_FIELD (fini           = ) sdl_audio_fini,

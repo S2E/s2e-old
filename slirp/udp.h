@@ -97,14 +97,15 @@ extern struct socket udb;
 struct mbuf;
 
 void udp_init _P((void));
-void udp_input _P((register struct mbuf *, int));
-int udp_output _P((struct socket *, struct mbuf *, struct sockaddr_in *));
+void udp_input _P((register MBuf , int));
+int udp_output _P((struct socket *, MBuf , struct sockaddr_in *));
 int udp_attach _P((struct socket *));
 void udp_detach _P((struct socket *));
 u_int8_t udp_tos _P((struct socket *));
-void udp_emu _P((struct socket *, struct mbuf *));
+void udp_emu _P((struct socket *, MBuf ));
 struct socket * udp_listen _P((u_int, u_int32_t, u_int, int));
-int udp_output2(struct socket *so, struct mbuf *m, 
+int udp_unlisten _P((u_int));
+int udp_output2(struct socket *so, MBuf m,
                 struct sockaddr_in *saddr, struct sockaddr_in *daddr,
                 int iptos);
 #endif

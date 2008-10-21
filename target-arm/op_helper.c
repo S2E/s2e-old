@@ -177,8 +177,11 @@ void do_vfp_get_fpscr(void)
 
 #if !defined(CONFIG_USER_ONLY)
 
+static void do_unaligned_access (target_ulong addr, int is_write, int is_user, void *retaddr);
+
 #define MMUSUFFIX _mmu
 #define GETPC() (__builtin_return_address(0))
+#define ALIGNED_ONLY  1
 
 #define SHIFT 0
 #include "softmmu_template.h"
@@ -191,6 +194,19 @@ void do_vfp_get_fpscr(void)
 
 #define SHIFT 3
 #include "softmmu_template.h"
+
+static void do_unaligned_access (target_ulong addr, int is_write, int is_user, void *retaddr)
+{
+    //printf("::UNALIGNED:: addr=%lx is_write=%d is_user=%d retaddr=%p\n", addr, is_write, is_user, retaddr);
+    if (is_user)
+    {
+        env = cpu_single_env;
+        env->cp15.c5_data = 0x00000001;  /* corresponds to an alignment fault */
+        env->cp15.c6_data = addr;
+        env->exception_index = EXCP_DATA_ABORT;
+        cpu_loop_exit();
+    }
+}
 
 /* try to fill the TLB and return an exception if error. If retaddr is
    NULL, it means that the function was called in C code (i.e. not
@@ -223,5 +239,115 @@ void tlb_fill (target_ulong addr, int is_write, int is_user, void *retaddr)
     }
     env = saved_env;
 }
+
+#if 1
+#include <string.h>
+/*
+ * The following functions are address translation helper functions 
+ * for fast memory access in QEMU. 
+ */
+static unsigned long v2p_mmu(target_ulong addr, int is_user)
+{
+    int index;
+    target_ulong tlb_addr;
+    target_phys_addr_t physaddr;
+    void *retaddr;
+
+    index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
+redo:
+    tlb_addr = env->tlb_table[is_user][index].addr_read;
+    if ((addr & TARGET_PAGE_MASK) == (tlb_addr & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
+        physaddr = addr + env->tlb_table[is_user][index].addend;
+    } else {
+        /* the page is not in the TLB : fill it */
+        retaddr = GETPC();
+        tlb_fill(addr, 0, is_user, retaddr);
+        goto redo;
+    }
+    return physaddr;
+}
+
+/* 
+ * translation from virtual address of simulated OS 
+ * to the address of simulation host (not the physical 
+ * address of simulated OS.
+ */
+unsigned long v2p(target_ulong ptr, int is_user)
+{
+    CPUState *saved_env;
+    int index;
+    target_ulong addr;
+    unsigned long physaddr;
+
+    saved_env = env;
+    env = cpu_single_env;
+    addr = ptr;
+    index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
+    if (__builtin_expect(env->tlb_table[is_user][index].addr_read != 
+                (addr & TARGET_PAGE_MASK), 0)) {
+        return v2p_mmu(addr, is_user);
+    } else {
+        physaddr = addr + env->tlb_table[is_user][index].addend;
+    }
+    env = saved_env;
+    return physaddr;
+}
+
+#define MINSIZE(x,y)    ((x) < (y) ? (x) : (y))
+/* copy memory from the simulated virtual space to a buffer in QEMU */
+void vmemcpy(target_ulong ptr, char *buf, int size)
+{
+    if (buf == NULL) return;
+    while (size) {
+        int page_remain = TARGET_PAGE_SIZE - (ptr & ~TARGET_PAGE_MASK);
+        int to_copy = MINSIZE(size, page_remain);
+        char *phys = (char *)v2p(ptr, 0);
+        if (phys == NULL) return;
+        memcpy(buf, phys, to_copy);
+        ptr += to_copy;
+        buf += to_copy;
+        size -= to_copy;
+    }
+}
+
+/* copy memory from the QEMU buffer to simulated virtual space */
+void pmemcpy(target_ulong ptr, char *buf, int size)
+{
+    if (buf == NULL) return;
+    while (size) {
+        int page_remain = TARGET_PAGE_SIZE - (ptr & ~TARGET_PAGE_MASK);
+        int to_copy = MINSIZE(size, page_remain);
+        char *phys = (char *)v2p(ptr, 0);
+        if (phys == NULL) return;
+        memcpy(phys, buf, to_copy);
+        ptr += to_copy;
+        buf += to_copy;
+        size -= to_copy;
+    }
+}
+
+/* copy a string from the simulated virtual space to a buffer in QEMU */
+void vstrcpy(target_ulong ptr, char *buf, int max)
+{
+    char *phys = 0;
+    unsigned long page = 0;
+
+    if (buf == NULL) return;
+
+    while (max) {
+        if ((ptr & TARGET_PAGE_MASK) != page) {
+            phys = (char *)v2p(ptr, 0);
+            page = ptr & TARGET_PAGE_MASK;
+        }
+        *buf = *phys;
+        if (*phys == '\0')
+            return;
+        ptr ++;
+        buf ++;
+        phys ++;
+        max --;
+    }
+}
+#endif
 
 #endif

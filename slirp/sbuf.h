@@ -8,24 +8,30 @@
 #ifndef _SBUF_H_
 #define _SBUF_H_
 
-#define sbflush(sb) sbdrop((sb),(sb)->sb_cc)
-#define sbspace(sb) ((sb)->sb_datalen - (sb)->sb_cc)
+#include "mbuf.h"
+#include <stddef.h>
 
-struct sbuf {
-	u_int	sb_cc;		/* actual chars in buffer */
-	u_int	sb_datalen;	/* Length of data  */
-	char	*sb_wptr;	/* write pointer. points to where the next
-				 * bytes should be written in the sbuf */
-	char	*sb_rptr;	/* read pointer. points to where the next
-				 * byte should be read from the sbuf */
-	char	*sb_data;	/* Actual data */
-};
+/* a SBuf is a simple circular buffer used to hold RX and TX data in a struct socket
+ */
 
-void sbfree _P((struct sbuf *));
-void sbdrop _P((struct sbuf *, int));
-void sbreserve _P((struct sbuf *, int));
-void sbappend _P((struct socket *, struct mbuf *));
-void sbappendsb _P((struct sbuf *, struct mbuf *));
-void sbcopy _P((struct sbuf *, int, int, char *));
+typedef struct sbuf {
+	unsigned  sb_cc;      /* actual chars in buffer */
+	unsigned  sb_datalen; /* Length of data  */
+	char*     sb_wptr;    /* write pointer. points to where the next
+			                                       * bytes should be written in the sbuf */
+	char*     sb_rptr;    /* read pointer. points to where the next
+                                                                       * byte should be read from the sbuf */
+	char*     sb_data;	/* Actual data */
+} SBufRec, *SBuf;
+
+void sbuf_free    (SBuf  sb);
+void sbuf_drop    (SBuf  sb, int  num);
+void sbuf_reserve (SBuf  sb, int  count);
+void sbuf_append  (struct socket *so, MBuf  m);
+void sbuf_appendsb(SBuf  sb, MBuf  m);
+void sbuf_copy    (SBuf  sb, int  offset, int  length, char *to);
+
+#define sbuf_flush(sb) sbuf_drop((sb),(sb)->sb_cc)
+#define sbuf_space(sb) ((sb)->sb_datalen - (sb)->sb_cc)
 
 #endif

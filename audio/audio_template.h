@@ -205,7 +205,9 @@ static void glue (audio_pcm_hw_gc_, TYPE) (AudioState *s, HW **hwp)
         LIST_REMOVE (hw, entries);
         glue (s->nb_hw_voices_, TYPE) += 1;
         glue (audio_pcm_hw_free_resources_ ,TYPE) (hw);
+        BEGIN_NOSIGALRM
         glue (hw->pcm_ops->fini_, TYPE) (hw);
+        END_NOSIGALRM
         qemu_free (hw);
         *hwp = NULL;
     }
@@ -243,7 +245,8 @@ static HW *glue (audio_pcm_hw_find_specific_, TYPE) (
 static HW *glue (audio_pcm_hw_add_new_, TYPE) (AudioState *s, audsettings_t *as)
 {
     HW *hw;
-    struct audio_driver *drv = s->drv;
+    struct audio_driver *drv = glue(s->drv_, TYPE);
+    int  err;
 
     if (!glue (s->nb_hw_voices_, TYPE)) {
         return NULL;
@@ -271,9 +274,11 @@ static HW *glue (audio_pcm_hw_add_new_, TYPE) (AudioState *s, audsettings_t *as)
 #ifdef DAC
     LIST_INIT (&hw->cap_head);
 #endif
-    if (glue (hw->pcm_ops->init_, TYPE) (hw, as)) {
+    BEGIN_NOSIGALRM
+    err = glue (hw->pcm_ops->init_, TYPE) (hw, as);
+    END_NOSIGALRM
+    if (err)
         goto err0;
-    }
 
     if (audio_bug (AUDIO_FUNC, hw->samples <= 0)) {
         dolog ("hw->samples=%d\n", hw->samples);
@@ -302,7 +307,9 @@ static HW *glue (audio_pcm_hw_add_new_, TYPE) (AudioState *s, audsettings_t *as)
     return hw;
 
  err1:
+    BEGIN_NOSIGALRM
     glue (hw->pcm_ops->fini_, TYPE) (hw);
+    END_NOSIGALRM
  err0:
     qemu_free (hw);
     return NULL;
@@ -431,7 +438,7 @@ SW *glue (AUD_open_, TYPE) (
         goto fail;
     }
 
-    if (audio_bug (AUDIO_FUNC, !s->drv)) {
+    if (audio_bug (AUDIO_FUNC, !glue (s->drv_, TYPE))) {
         dolog ("Can not open `%s' (no host audio driver)\n", name);
         goto fail;
     }

@@ -1,8 +1,8 @@
 /*
  * QEMU System Emulator block driver
- * 
+ *
  * Copyright (c) 2003 Fabrice Bellard
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -57,7 +57,7 @@ static kern_return_t GetBSDPath( io_iterator_t mediaIterator, char *bsdPath, CFI
 
 kern_return_t FindEjectableCDMedia( io_iterator_t *mediaIterator )
 {
-    kern_return_t       kernResult; 
+    kern_return_t       kernResult;
     mach_port_t     masterPort;
     CFMutableDictionaryRef  classesToMatch;
 
@@ -65,8 +65,8 @@ kern_return_t FindEjectableCDMedia( io_iterator_t *mediaIterator )
     if ( KERN_SUCCESS != kernResult ) {
         printf( "IOMasterPort returned %d\n", kernResult );
     }
-    
-    classesToMatch = IOServiceMatching( kIOCDMediaClass ); 
+
+    classesToMatch = IOServiceMatching( kIOCDMediaClass );
     if ( classesToMatch == NULL ) {
         printf( "IOServiceMatching returned a NULL dictionary.\n" );
     } else {
@@ -77,7 +77,7 @@ kern_return_t FindEjectableCDMedia( io_iterator_t *mediaIterator )
     {
         printf( "IOServiceGetMatchingServices returned %d\n", kernResult );
     }
-    
+
     return kernResult;
 }
 
@@ -103,7 +103,7 @@ kern_return_t GetBSDPath( io_iterator_t mediaIterator, char *bsdPath, CFIndex ma
         }
         IOObjectRelease( nextMedia );
     }
-    
+
     return kernResult;
 }
 
@@ -144,7 +144,7 @@ BlockDriver *bdrv_find_format(const char *format_name)
     return NULL;
 }
 
-int bdrv_create(BlockDriver *drv, 
+int bdrv_create(BlockDriver *drv,
                 const char *filename, int64_t size_in_sectors,
                 const char *backing_file, int flags)
 {
@@ -215,7 +215,7 @@ static BlockDriver *find_image_format(const char *filename)
         }
         close(fd);
     }
-    
+
     drv = NULL;
     score_max = 0;
     for(drv1 = first_drv; drv1 != NULL; drv1 = drv1->next) {
@@ -237,10 +237,10 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int snapshot)
         io_iterator_t mediaIterator;
         char bsdPath[ MAXPATHLEN ];
         int fd;
- 
+
         kernResult = FindEjectableCDMedia( &mediaIterator );
         kernResult = GetBSDPath( mediaIterator, bsdPath, sizeof( bsdPath ) );
-    
+
         if ( bsdPath[ 0 ] != '\0' ) {
             strcat(bsdPath,"s0");
             /* some CDs don't have a partition 0 */
@@ -252,7 +252,7 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int snapshot)
             }
             filename = bsdPath;
         }
-        
+
         if ( mediaIterator )
             IOObjectRelease( mediaIterator );
     }
@@ -265,7 +265,7 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int snapshot,
 {
     int ret;
     char tmp_filename[1024];
-    
+
     bs->read_only = 0;
     bs->is_temporary = 0;
     bs->encrypted = 0;
@@ -273,7 +273,7 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int snapshot,
     if (snapshot) {
         BlockDriverState *bs1;
         int64_t total_size;
-        
+
         /* if snapshot, we create a temporary backing file and open it
            instead of opening 'filename' directly */
 
@@ -288,10 +288,10 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int snapshot,
         }
         total_size = bs1->total_sectors;
         bdrv_delete(bs1);
-        
+
         get_tmp_filename(tmp_filename, sizeof(tmp_filename));
         /* XXX: use cow for linux as it is more efficient ? */
-        if (bdrv_create(&bdrv_qcow, tmp_filename, 
+        if (bdrv_create(&bdrv_qcow, tmp_filename,
                         total_size, filename, 0) < 0) {
             return -1;
         }
@@ -309,7 +309,7 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int snapshot,
     bs->opaque = qemu_mallocz(drv->instance_size);
     if (bs->opaque == NULL && drv->instance_size > 0)
         return -1;
-    
+
     ret = drv->bdrv_open(bs, filename);
     if (ret < 0) {
         qemu_free(bs->opaque);
@@ -412,7 +412,7 @@ int bdrv_commit(BlockDriverState *bs)
 }
 
 /* return -1 if error */
-int bdrv_read(BlockDriverState *bs, int64_t sector_num, 
+int bdrv_read(BlockDriverState *bs, int64_t sector_num,
               uint8_t *buf, int nb_sectors)
 {
     int ret, n;
@@ -451,7 +451,7 @@ int bdrv_read(BlockDriverState *bs, int64_t sector_num,
 }
 
 /* return -1 if error */
-int bdrv_write(BlockDriverState *bs, int64_t sector_num, 
+int bdrv_write(BlockDriverState *bs, int64_t sector_num,
                const uint8_t *buf, int nb_sectors)
 {
     if (!bs->inserted)
@@ -459,7 +459,7 @@ int bdrv_write(BlockDriverState *bs, int64_t sector_num,
     if (bs->read_only)
         return -1;
     if (sector_num == 0 && bs->boot_sector_enabled && nb_sectors > 0) {
-        memcpy(bs->boot_sector_data, buf, 512);   
+        memcpy(bs->boot_sector_data, buf, 512);
     }
     return bs->drv->bdrv_write(bs, sector_num, buf, nb_sectors);
 }
@@ -479,7 +479,7 @@ void bdrv_set_boot_sector(BlockDriverState *bs, const uint8_t *data, int size)
     memset(bs->boot_sector_data + size, 0, 512 - size);
 }
 
-void bdrv_set_geometry_hint(BlockDriverState *bs, 
+void bdrv_set_geometry_hint(BlockDriverState *bs,
                             int cyls, int heads, int secs)
 {
     bs->cyls = cyls;
@@ -499,7 +499,7 @@ void bdrv_set_translation_hint(BlockDriverState *bs, int translation)
     bs->translation = translation;
 }
 
-void bdrv_get_geometry_hint(BlockDriverState *bs, 
+void bdrv_get_geometry_hint(BlockDriverState *bs,
                             int *pcyls, int *pheads, int *psecs)
 {
     *pcyls = bs->cyls;
@@ -542,7 +542,7 @@ void bdrv_set_locked(BlockDriverState *bs, int locked)
     bs->locked = locked;
 }
 
-void bdrv_set_change_cb(BlockDriverState *bs, 
+void bdrv_set_change_cb(BlockDriverState *bs,
                         void (*change_cb)(void *opaque), void *opaque)
 {
     bs->change_cb = change_cb;
@@ -580,7 +580,7 @@ void bdrv_get_format(BlockDriverState *bs, char *buf, int buf_size)
     }
 }
 
-void bdrv_iterate_format(void (*it)(void *opaque, const char *name), 
+void bdrv_iterate_format(void (*it)(void *opaque, const char *name),
                          void *opaque)
 {
     BlockDriver *drv;
@@ -729,28 +729,28 @@ static int raw_open(BlockDriverState *bs, const char *filename)
     return 0;
 }
 
-static int raw_read(BlockDriverState *bs, int64_t sector_num, 
+static int raw_read(BlockDriverState *bs, int64_t sector_num,
                     uint8_t *buf, int nb_sectors)
 {
     BDRVRawState *s = bs->opaque;
     int ret;
-    
+
     lseek(s->fd, sector_num * 512, SEEK_SET);
     ret = read(s->fd, buf, nb_sectors * 512);
-    if (ret != nb_sectors * 512) 
+    if (ret != nb_sectors * 512)
         return -1;
     return 0;
 }
 
-static int raw_write(BlockDriverState *bs, int64_t sector_num, 
+static int raw_write(BlockDriverState *bs, int64_t sector_num,
                      const uint8_t *buf, int nb_sectors)
 {
     BDRVRawState *s = bs->opaque;
     int ret;
-    
+
     lseek(s->fd, sector_num * 512, SEEK_SET);
     ret = write(s->fd, buf, nb_sectors * 512);
-    if (ret != nb_sectors * 512) 
+    if (ret != nb_sectors * 512)
         return -1;
     return 0;
 }
@@ -814,7 +814,7 @@ static int raw_create(const char *filename, int64_t total_size,
     if (flags || backing_file)
         return -ENOTSUP;
 
-    fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE, 
+    fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE,
               0644);
     if (fd < 0)
         return -EIO;
@@ -845,14 +845,7 @@ BlockDriver bdrv_raw = {
 void bdrv_init(void)
 {
     bdrv_register(&bdrv_raw);
-#ifndef _WIN32
-    bdrv_register(&bdrv_cow);
-#endif
-    bdrv_register(&bdrv_qcow);
-    bdrv_register(&bdrv_vmdk);
     bdrv_register(&bdrv_cloop);
+    bdrv_register(&bdrv_qcow);
     bdrv_register(&bdrv_dmg);
-    bdrv_register(&bdrv_bochs);
-    bdrv_register(&bdrv_vpc);
-    bdrv_register(&bdrv_vvfat);
 }

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1995 Danny Gasparovski.
- * 
- * Please read the file COPYRIGHT for the 
+ *
+ * Please read the file COPYRIGHT for the
  * terms and conditions of the copyright.
  */
 
@@ -28,6 +28,8 @@ extern int ctty_closed;
  */
 #define TIME_DIFF(x,y) (x)-(y) < 0 ? ~0-(y)+(x) : (x)-(y)
 
+#define  DNS_ADDR_MAX  4
+
 extern char *slirp_tty;
 extern char *exec_shell;
 extern u_int curtime;
@@ -37,7 +39,8 @@ extern struct in_addr special_addr;
 extern struct in_addr alias_addr;
 extern struct in_addr our_addr;
 extern struct in_addr loopback_addr;
-extern struct in_addr dns_addr;
+extern struct in_addr dns_addr[DNS_ADDR_MAX];
+extern int            dns_addr_count;
 extern char *username;
 extern char *socket_path;
 extern int towrite_max;

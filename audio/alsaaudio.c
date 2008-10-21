@@ -1,6 +1,7 @@
 /*
  * QEMU ALSA audio driver
  *
+ * Copyright (c) 2008 The Android Open Source Project
  * Copyright (c) 2005 Vassili Karpov (malc)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,6 +27,77 @@
 
 #define AUDIO_CAP "alsa"
 #include "audio_int.h"
+#include <dlfcn.h>
+#include <pthread.h>
+#include "android_debug.h"
+
+#define  DEBUG  1
+
+#if DEBUG
+#  include <stdio.h>
+#  define D(...)  VERBOSE_PRINT(audio,__VA_ARGS__)
+#  define D_ACTIVE  VERBOSE_CHECK(audio)
+#  define O(...)  VERBOSE_PRINT(audioout,__VA_ARGS__)
+#  define I(...)  VERBOSE_PRINT(audioin,__VA_ARGS__)
+#else
+#  define D(...)  ((void)0)
+#  define D_ACTIVE  0
+#  define O(...)  ((void)0)
+#  define I(...)  ((void)0)
+#endif
+
+
+#define  STRINGIFY_(x)  #x
+#define  STRINGIFY(x)   STRINGIFY_(x)
+
+#define  DYN_SYMBOLS   \
+    DYN_FUNCTION(size_t,snd_pcm_sw_params_sizeof,(void))    \
+    DYN_FUNCTION(int,snd_pcm_hw_params_current,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)) \
+    DYN_FUNCTION(int,snd_pcm_sw_params_set_start_threshold,(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val))  \
+    DYN_FUNCTION(int,snd_pcm_sw_params,(snd_pcm_t *pcm, snd_pcm_sw_params_t *params))  \
+    DYN_FUNCTION(int,snd_pcm_sw_params_current,(snd_pcm_t *pcm, snd_pcm_sw_params_t *params)) \
+    DYN_FUNCTION(size_t,snd_pcm_hw_params_sizeof,(void))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_any,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_access,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_access_t _access))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_format,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_format_t val))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_rate_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val, int *dir))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_channels_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_buffer_time_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val, int *dir))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_get_buffer_size,(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val))  \
+    DYN_FUNCTION(int,snd_pcm_prepare,(snd_pcm_t *pcm))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_get_period_size,(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *frames, int *dir))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_get_period_size_min,(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *frames, int *dir))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_period_size,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t val, int dir))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_get_buffer_size_min,(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val)) \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_buffer_size,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t val))  \
+    DYN_FUNCTION(int,snd_pcm_hw_params_set_period_time_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val, int *dir))  \
+    DYN_FUNCTION(snd_pcm_sframes_t,snd_pcm_avail_update,(snd_pcm_t *pcm)) \
+    DYN_FUNCTION(int,snd_pcm_drop,(snd_pcm_t *pcm))  \
+    DYN_FUNCTION(snd_pcm_sframes_t,snd_pcm_writei,(snd_pcm_t *pcm, const void *buffer, snd_pcm_uframes_t size))  \
+    DYN_FUNCTION(snd_pcm_sframes_t,snd_pcm_readi,(snd_pcm_t *pcm, void *buffer, snd_pcm_uframes_t size))  \
+    DYN_FUNCTION(snd_pcm_state_t,snd_pcm_state,(snd_pcm_t *pcm))  \
+    DYN_FUNCTION(const char*,snd_strerror,(int errnum)) \
+    DYN_FUNCTION(int,snd_pcm_open,(snd_pcm_t **pcm, const char *name,snd_pcm_stream_t stream, int mode)) \
+    DYN_FUNCTION(int,snd_pcm_close,(snd_pcm_t *pcm))  \
+
+
+
+/* define pointers to library functions we're going to use */
+#define  DYN_FUNCTION(ret,name,sig)   \
+    static ret  (*func_ ## name)sig;
+
+DYN_SYMBOLS
+
+#undef  DYN_FUNCTION
+
+#define func_snd_pcm_hw_params_alloca(ptr) \
+    do { assert(ptr); *ptr = (snd_pcm_hw_params_t *) alloca(func_snd_pcm_hw_params_sizeof()); memset(*ptr, 0, func_snd_pcm_hw_params_sizeof()); } while (0)
+
+#define func_snd_pcm_sw_params_alloca(ptr) \
+    do { assert(ptr); *ptr = (snd_pcm_sw_params_t *) alloca(func_snd_pcm_sw_params_sizeof()); memset(*ptr, 0, func_snd_pcm_sw_params_sizeof()); } while (0)
+
+static void*  alsa_lib;
 
 typedef struct ALSAVoiceOut {
     HWVoiceOut hw;
@@ -107,7 +179,7 @@ static void GCC_FMT_ATTR (2, 3) alsa_logerr (int err, const char *fmt, ...)
     AUD_vlog (AUDIO_CAP, fmt, ap);
     va_end (ap);
 
-    AUD_log (AUDIO_CAP, "Reason: %s\n", snd_strerror (err));
+    AUD_log (AUDIO_CAP, "Reason: %s\n", func_snd_strerror (err));
 }
 
 static void GCC_FMT_ATTR (3, 4) alsa_logerr2 (
@@ -125,12 +197,12 @@ static void GCC_FMT_ATTR (3, 4) alsa_logerr2 (
     AUD_vlog (AUDIO_CAP, fmt, ap);
     va_end (ap);
 
-    AUD_log (AUDIO_CAP, "Reason: %s\n", snd_strerror (err));
+    AUD_log (AUDIO_CAP, "Reason: %s\n", func_snd_strerror (err));
 }
 
 static void alsa_anal_close (snd_pcm_t **handlep)
 {
-    int err = snd_pcm_close (*handlep);
+    int err = func_snd_pcm_close (*handlep);
     if (err) {
         alsa_logerr (err, "Failed to close PCM handle %p\n", *handlep);
     }
@@ -228,16 +300,16 @@ static void alsa_set_threshold (snd_pcm_t *handle, snd_pcm_uframes_t threshold)
     int err;
     snd_pcm_sw_params_t *sw_params;
 
-    snd_pcm_sw_params_alloca (&sw_params);
+    func_snd_pcm_sw_params_alloca (&sw_params);
 
-    err = snd_pcm_sw_params_current (handle, sw_params);
+    err = func_snd_pcm_sw_params_current (handle, sw_params);
     if (err < 0) {
         dolog ("Could not fully initialize DAC\n");
         alsa_logerr (err, "Failed to get current software parameters\n");
         return;
     }
 
-    err = snd_pcm_sw_params_set_start_threshold (handle, sw_params, threshold);
+    err = func_snd_pcm_sw_params_set_start_threshold (handle, sw_params, threshold);
     if (err < 0) {
         dolog ("Could not fully initialize DAC\n");
         alsa_logerr (err, "Failed to set software threshold to %ld\n",
@@ -245,7 +317,7 @@ static void alsa_set_threshold (snd_pcm_t *handle, snd_pcm_uframes_t threshold)
         return;
     }
 
-    err = snd_pcm_sw_params (handle, sw_params);
+    err = func_snd_pcm_sw_params (handle, sw_params);
     if (err < 0) {
         dolog ("Could not fully initialize DAC\n");
         alsa_logerr (err, "Failed to set software parameters\n");
@@ -269,9 +341,9 @@ static int alsa_open (int in, struct alsa_params_req *req,
     buffer_size = req->buffer_size;
     nchannels = req->nchannels;
 
-    snd_pcm_hw_params_alloca (&hw_params);
+    func_snd_pcm_hw_params_alloca (&hw_params);
 
-    err = snd_pcm_open (
+    err = func_snd_pcm_open (
         &handle,
         pcm_name,
         in ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK,
@@ -282,13 +354,13 @@ static int alsa_open (int in, struct alsa_params_req *req,
         return -1;
     }
 
-    err = snd_pcm_hw_params_any (handle, hw_params);
+    err = func_snd_pcm_hw_params_any (handle, hw_params);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to initialize hardware parameters\n");
         goto err;
     }
 
-    err = snd_pcm_hw_params_set_access (
+    err = func_snd_pcm_hw_params_set_access (
         handle,
         hw_params,
         SND_PCM_ACCESS_RW_INTERLEAVED
@@ -298,22 +370,22 @@ static int alsa_open (int in, struct alsa_params_req *req,
         goto err;
     }
 
-    err = snd_pcm_hw_params_set_format (handle, hw_params, req->fmt);
+    err = func_snd_pcm_hw_params_set_format (handle, hw_params, req->fmt);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to set format %d\n", req->fmt);
         goto err;
     }
 
-    err = snd_pcm_hw_params_set_rate_near (handle, hw_params, &freq, 0);
+    err = func_snd_pcm_hw_params_set_rate_near (handle, hw_params, (unsigned*)&freq, 0);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to set frequency %d\n", req->freq);
         goto err;
     }
 
-    err = snd_pcm_hw_params_set_channels_near (
+    err = func_snd_pcm_hw_params_set_channels_near (
         handle,
         hw_params,
-        &nchannels
+        (unsigned*)&nchannels
         );
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to set number of channels %d\n",
@@ -338,7 +410,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
     if (buffer_size) {
         if ((in && conf.size_in_usec_in) || (!in && conf.size_in_usec_out)) {
             if (period_size) {
-                err = snd_pcm_hw_params_set_period_time_near (
+                err = func_snd_pcm_hw_params_set_period_time_near (
                     handle,
                     hw_params,
                     &period_size,
@@ -352,7 +424,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
                 }
             }
 
-            err = snd_pcm_hw_params_set_buffer_time_near (
+            err = func_snd_pcm_hw_params_set_buffer_time_near (
                 handle,
                 hw_params,
                 &buffer_size,
@@ -374,7 +446,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
                 minval = period_size;
                 dir = 0;
 
-                err = snd_pcm_hw_params_get_period_size_min (
+                err = func_snd_pcm_hw_params_get_period_size_min (
                     hw_params,
                     &minval,
                     &dir
@@ -400,7 +472,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
                     }
                 }
 
-                err = snd_pcm_hw_params_set_period_size (
+                err = func_snd_pcm_hw_params_set_period_size (
                     handle,
                     hw_params,
                     period_size,
@@ -414,7 +486,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
             }
 
             minval = buffer_size;
-            err = snd_pcm_hw_params_get_buffer_size_min (
+            err = func_snd_pcm_hw_params_get_buffer_size_min (
                 hw_params,
                 &minval
                 );
@@ -438,7 +510,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
                 }
             }
 
-            err = snd_pcm_hw_params_set_buffer_size (
+            err = func_snd_pcm_hw_params_set_buffer_size (
                 handle,
                 hw_params,
                 buffer_size
@@ -454,19 +526,19 @@ static int alsa_open (int in, struct alsa_params_req *req,
         dolog ("warning: Buffer size is not set\n");
     }
 
-    err = snd_pcm_hw_params (handle, hw_params);
+    err = func_snd_pcm_hw_params (handle, hw_params);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to apply audio parameters\n");
         goto err;
     }
 
-    err = snd_pcm_hw_params_get_buffer_size (hw_params, &obt_buffer_size);
+    err = func_snd_pcm_hw_params_get_buffer_size (hw_params, &obt_buffer_size);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to get buffer size\n");
         goto err;
     }
 
-    err = snd_pcm_prepare (handle);
+    err = func_snd_pcm_prepare (handle);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Could not prepare handle %p\n", handle);
         goto err;
@@ -511,7 +583,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
 
 static int alsa_recover (snd_pcm_t *handle)
 {
-    int err = snd_pcm_prepare (handle);
+    int err = func_snd_pcm_prepare (handle);
     if (err < 0) {
         alsa_logerr (err, "Failed to prepare handle %p\n", handle);
         return -1;
@@ -523,11 +595,11 @@ static snd_pcm_sframes_t alsa_get_avail (snd_pcm_t *handle)
 {
     snd_pcm_sframes_t avail;
 
-    avail = snd_pcm_avail_update (handle);
+    avail = func_snd_pcm_avail_update (handle);
     if (avail < 0) {
         if (avail == -EPIPE) {
             if (!alsa_recover (handle)) {
-                avail = snd_pcm_avail_update (handle);
+                avail = func_snd_pcm_avail_update (handle);
             }
         }
 
@@ -575,7 +647,7 @@ static int alsa_run_out (HWVoiceOut *hw)
         hw->clip (dst, src, len);
 
         while (len) {
-            written = snd_pcm_writei (alsa->handle, dst, len);
+            written = func_snd_pcm_writei (alsa->handle, dst, len);
 
             if (written <= 0) {
                 switch (written) {
@@ -639,9 +711,13 @@ static int alsa_init_out (HWVoiceOut *hw, audsettings_t *as)
     struct alsa_params_obt obt;
     audfmt_e effective_fmt;
     int endianness;
-    int err;
+    int err, result = -1;
     snd_pcm_t *handle;
     audsettings_t obt_as;
+
+    /* shut alsa debug spew */
+    if (!D_ACTIVE)
+        stdio_disable();
 
     req.fmt = aud_to_alsafmt (as->fmt);
     req.freq = as->freq;
@@ -650,13 +726,13 @@ static int alsa_init_out (HWVoiceOut *hw, audsettings_t *as)
     req.buffer_size = conf.buffer_size_out;
 
     if (alsa_open (0, &req, &obt, &handle)) {
-        return -1;
+        goto Exit;
     }
 
     err = alsa_to_audfmt (obt.fmt, &effective_fmt, &endianness);
     if (err) {
         alsa_anal_close (&handle);
-        return -1;
+        goto Exit;
     }
 
     obt_as.freq = obt.freq;
@@ -672,11 +748,17 @@ static int alsa_init_out (HWVoiceOut *hw, audsettings_t *as)
         dolog ("Could not allocate DAC buffer (%d samples, each %d bytes)\n",
                hw->samples, 1 << hw->info.shift);
         alsa_anal_close (&handle);
-        return -1;
+        goto Exit;
     }
 
     alsa->handle = handle;
-    return 0;
+    result       = 0;  /* success */
+
+Exit:
+    if (!D_ACTIVE)
+        stdio_enable();
+
+    return result;
 }
 
 static int alsa_voice_ctl (snd_pcm_t *handle, const char *typ, int pause)
@@ -684,14 +766,14 @@ static int alsa_voice_ctl (snd_pcm_t *handle, const char *typ, int pause)
     int err;
 
     if (pause) {
-        err = snd_pcm_drop (handle);
+        err = func_snd_pcm_drop (handle);
         if (err < 0) {
             alsa_logerr (err, "Could not stop %s\n", typ);
             return -1;
         }
     }
     else {
-        err = snd_pcm_prepare (handle);
+        err = func_snd_pcm_prepare (handle);
         if (err < 0) {
             alsa_logerr (err, "Could not prepare handle for %s\n", typ);
             return -1;
@@ -724,10 +806,14 @@ static int alsa_init_in (HWVoiceIn *hw, audsettings_t *as)
     struct alsa_params_req req;
     struct alsa_params_obt obt;
     int endianness;
-    int err;
+    int err, result = -1;
     audfmt_e effective_fmt;
     snd_pcm_t *handle;
     audsettings_t obt_as;
+
+    /* shut alsa debug spew */
+    if (!D_ACTIVE)
+        stdio_disable();
 
     req.fmt = aud_to_alsafmt (as->fmt);
     req.freq = as->freq;
@@ -736,13 +822,13 @@ static int alsa_init_in (HWVoiceIn *hw, audsettings_t *as)
     req.buffer_size = conf.buffer_size_in;
 
     if (alsa_open (1, &req, &obt, &handle)) {
-        return -1;
+        goto Exit;
     }
 
     err = alsa_to_audfmt (obt.fmt, &effective_fmt, &endianness);
     if (err) {
         alsa_anal_close (&handle);
-        return -1;
+        goto Exit;
     }
 
     obt_as.freq = obt.freq;
@@ -758,11 +844,17 @@ static int alsa_init_in (HWVoiceIn *hw, audsettings_t *as)
         dolog ("Could not allocate ADC buffer (%d samples, each %d bytes)\n",
                hw->samples, 1 << hw->info.shift);
         alsa_anal_close (&handle);
-        return -1;
+        goto Exit;
     }
 
     alsa->handle = handle;
-    return 0;
+    result       = 0;  /* success */
+
+Exit:
+    if (!D_ACTIVE)
+        stdio_enable();
+
+    return result;
 }
 
 static void alsa_fini_in (HWVoiceIn *hw)
@@ -805,7 +897,7 @@ static int alsa_run_in (HWVoiceIn *hw)
         return 0;
     }
 
-    if (!avail && (snd_pcm_state (alsa->handle) == SND_PCM_STATE_PREPARED)) {
+    if (!avail && (func_snd_pcm_state (alsa->handle) == SND_PCM_STATE_PREPARED)) {
         avail = hw->samples;
     }
 
@@ -834,7 +926,7 @@ static int alsa_run_in (HWVoiceIn *hw)
         dst = hw->conv_buf + bufs[i].add;
 
         while (len) {
-            nread = snd_pcm_readi (alsa->handle, src, len);
+            nread = func_snd_pcm_readi (alsa->handle, src, len);
 
             if (nread <= 0) {
                 switch (nread) {
@@ -907,11 +999,46 @@ static int alsa_ctl_in (HWVoiceIn *hw, int cmd, ...)
 
 static void *alsa_audio_init (void)
 {
-    return &conf;
+    void*    result = NULL;
+
+    alsa_lib = dlopen( "libasound.so", RTLD_NOW );
+    if (alsa_lib == NULL)
+        alsa_lib = dlopen( "libasound.so.2", RTLD_NOW );
+
+    if (alsa_lib == NULL) {
+        ldebug("could not find libasound on this system\n");
+        goto Exit;
+    }
+
+#undef  DYN_FUNCTION
+#define DYN_FUNCTION(ret,name,sig)                                               \
+    do {                                                                         \
+        (func_ ##name) = dlsym( alsa_lib, STRINGIFY(name) );                     \
+        if ((func_##name) == NULL) {                                             \
+            ldebug("could not find %s in libasound\n", STRINGIFY(name)); \
+            goto Fail;                                                           \
+        }                                                                        \
+    } while (0);
+
+    DYN_SYMBOLS
+
+    result = &conf;
+    goto Exit;
+
+Fail:
+    ldebug("%s: failed to open library\n", __FUNCTION__);
+    dlclose(alsa_lib);
+
+Exit:
+    return result;
 }
 
 static void alsa_audio_fini (void *opaque)
 {
+    if (alsa_lib != NULL) {
+        dlclose(alsa_lib);
+        alsa_lib = NULL;
+    }
     (void) opaque;
 }
 
@@ -961,7 +1088,7 @@ static struct audio_pcm_ops alsa_pcm_ops = {
 
 struct audio_driver alsa_audio_driver = {
     INIT_FIELD (name           = ) "alsa",
-    INIT_FIELD (descr          = ) "ALSA http://www.alsa-project.org",
+    INIT_FIELD (descr          = ) "ALSA audio (www.alsa-project.org)",
     INIT_FIELD (options        = ) alsa_options,
     INIT_FIELD (init           = ) alsa_audio_init,
     INIT_FIELD (fini           = ) alsa_audio_fini,

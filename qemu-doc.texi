@@ -526,6 +526,8 @@ Write output to filename. No character can be read.
 [Unix only] standard input/output
 @item pipe:filename
 name pipe @var{filename}
+@item fdpair:fd1:fd2
+[Unix only] Use fd1 as input and fd2 as output (from the point of view of the emulator).
 @item COMn
 [Windows only] Use host serial port @var{n}
 @item udp:[remote_host]:remote_port[@@[src_ip]:src_port]
@@ -741,8 +743,6 @@ show emulated PCI device
 show USB devices plugged on the virtual USB hub
 @item info usbhost
 show all USB host devices
-@item info capture
-show information about active capturing
 @end table
 
 @item q or quit
@@ -756,23 +756,6 @@ Change a removable media.
 
 @item screendump filename
 Save screen into PPM image @var{filename}.
-
-@item wavcapture filename [frequency [bits [channels]]]
-Capture audio into @var{filename}. Using sample rate @var{frequency}
-bits per sample @var{bits} and number of channels @var{channels}.
-
-Defaults:
-@itemize @minus
-@item Sample rate = 44100 Hz - CD quality
-@item Bits = 16
-@item Number of channels = 2 - Stereo
-@end itemize
-
-@item stopcapture index
-Stop capture with a given @var{index}, index can be obtained with
-@example
-info capture
-@end example
 
 @item log item1[,...]
 Activate logging of the specified items to @file{/tmp/qemu.log}.
