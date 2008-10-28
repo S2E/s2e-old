@@ -1677,6 +1677,8 @@ int main(int argc, char **argv)
         opt = (++argv)[0];
 
         if(!strcmp(opt, "-qemu")) {
+            ++argv;
+            --argc;
             break;
         }
 
