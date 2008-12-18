@@ -31,6 +31,8 @@
     _VERBOSE_TAG(qemud,        "qemud multiplexer daemon") \
     _VERBOSE_TAG(gps,          "emulated GPS") \
     _VERBOSE_TAG(nand_limits,  "nand/flash read/write thresholding") \
+    _VERBOSE_TAG(hw_control,   "emulated power/flashlight/led/vibrator") \
+    _VERBOSE_TAG(vm_config,    "virtual device configuration") \
 
 #define  _VERBOSE_TAG(x,y)  VERBOSE_##x,
 typedef enum {

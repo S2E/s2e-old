@@ -52,6 +52,15 @@ int  socket_init( void );
 
 int  socket_get_type(int  fd);
 
+/* this call creates a pair of non-blocking sockets connected
+ * to each other. this is equivalent to calling the Unix function:
+ * socketpair(AF_LOCAL,SOCK_STREAM,0,&fds)
+ *
+ * on Windows, this will use a pair of TCP loopback sockets instead
+ * returns 0 on success, -1 on error.
+ */
+int  socket_pair(int  *fd1, int *fd2);
+
 /* set SO_REUSEADDR on Unix, SO_EXCLUSIVEADDR on Windows */
 int  socket_set_xreuseaddr(int  fd);
 int  socket_set_nonblock(int fd);

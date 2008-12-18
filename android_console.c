@@ -30,6 +30,7 @@
 #include "shaper.h"
 #include "modem_driver.h"
 #include "android_gps.h"
+#include "android/globals.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -1853,6 +1854,13 @@ do_vm_status( ControlClient  client, char*  args )
     return 0;
 }
 
+static int
+do_vm_name( ControlClient  client, char*  args )
+{
+    control_write( client, "%s\r\n", avmInfo_getName(android_vmInfo) );
+    return 0;
+}
+
 static const CommandDefRec  vm_commands[] =
 {
     { "stop", "stop the virtual machine",
@@ -1866,6 +1874,10 @@ static const CommandDefRec  vm_commands[] =
     { "status", "query virtual machine status",
     "'vm status' will indicate wether the virtual machine is running or not\r\n",
     NULL, do_vm_status, NULL },
+
+    { "name", "query virtual machine name",
+    "'vm name' will return the name of this virtual machine\r\n",
+    NULL, do_vm_name, NULL },
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };

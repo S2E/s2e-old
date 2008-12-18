@@ -97,8 +97,6 @@ QEMUDIR=$TMPDIR/qemu
 copy_source_files $QEMUDIR $QEMUROOT $QEMUVIEW
 
 echo "copying control scripts"
-cp -f $QEMUDIR/Makefile.qemu $QEMUDIR/Makefile
-rm -f $QEMUDIR/Makefile.android
 cp $QEMUDIR/distrib/build-emulator.sh $TMPDIR/build-emulator.sh
 cp $QEMUDIR/distrib/README $TMPDIR/README
 

@@ -12,6 +12,7 @@
 #include "vl.h"
 #include "arm_pic.h"
 #include "goldfish_device.h"
+#include "android/globals.h"
 
 int android_audio_enabled;
 char* audio_input_source = NULL;
@@ -112,7 +113,8 @@ static void android_arm_init(int ram_size, int vga_ram_size,
 
     goldfish_memlog_init(0xff006000);
 
-    goldfish_battery_init();
+    if (android_hw->hw_battery)
+        goldfish_battery_init();
 
     goldfish_add_device_no_io(&event0_device);
     events_dev_init(event0_device.base, goldfish_pic[event0_device.irq]);
@@ -146,4 +148,5 @@ QEMUMachine android_arm_machine = {
     "android_arm",
     "ARM Android Emulator",
     android_arm_init,
+    NULL
 };

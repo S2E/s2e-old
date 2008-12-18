@@ -36,6 +36,39 @@
 
 #define  D(...)   VERBOSE_PRINT(init,__VA_ARGS__)
 
+#ifdef _WIN32
+char*
+win32_strsep(char**  pline, const char*  delim)
+{
+    char*  line = *pline;
+    char*  p    = line;
+
+    if (p == NULL)
+        return NULL;
+
+    for (;;) {
+        int          c = *p++;
+        const char*  q = delim;
+
+        if (c == 0) {
+            p = NULL;
+            break;
+        }
+
+        while (*q) {
+            if (*q == c) {
+                p[-1] = 0;
+                goto Exit;
+            }
+            q++;
+        }
+    }
+Exit:	
+    *pline = p;
+    return line;
+}
+#endif
+
 /** PATH HANDLING ROUTINES
  **
  **  path_parent() can be used to return the n-level parent of a given directory
@@ -419,12 +452,12 @@ bufprint_config_path(char*  buff, char*  end)
     SHGetFolderPath( NULL, CSIDL_LOCAL_APPDATA|CSIDL_FLAG_CREATE,
                      NULL, 0, path);
 
-    return bufprint(buff, end, "%s\\%s\\%s", path, _ANDROID_PATH, ANDROID_SDK_VERSION);
+    return bufprint(buff, end, "%s\\%s", path, _ANDROID_PATH );
 #else
     const char*  home = getenv("HOME");
     if (home == NULL)
         home = "/tmp";
-    return bufprint(buff, end, "%s/%s/%s", home, _ANDROID_PATH, ANDROID_SDK_VERSION);
+    return bufprint(buff, end, "%s/%s", home, _ANDROID_PATH );
 #endif
 }
 
@@ -477,11 +510,7 @@ bufprint_temp_file(char*  buff, char*  end, const char*  suffix)
  ** writable file (e.g. the userdata.img disk images).
  **
  ** create a FileLock object with filelock_create(), ithis function should return NULL
- ** only if thee file doesn't exist, or if you don't have enough memory.
- *
- *  then call filelock_lock() to try to acquire a lock for the corresponding file.
- ** returns 0 on success, or -1 in case of error, which means that another program
- ** is using the file or that the directory containing the file is read-only.
+ ** only if the corresponding file path could not be locked.
  **
  ** all file locks are automatically released and destroyed when the program exits.
  ** the filelock_lock() function can also detect stale file locks that can linger
@@ -516,6 +545,10 @@ struct FileLock
   FileLock*    next;
 };
 
+/* used to cleanup all locks at emulator exit */
+static FileLock*   _all_filelocks;
+
+
 #define  LOCK_NAME   ".lock"
 #define  TEMP_NAME   ".tmp-XXXXXX"
 
@@ -524,7 +557,7 @@ struct FileLock
 #endif
 
 /* returns 0 on success, -1 on failure */
-int
+static int
 filelock_lock( FileLock*  lock )
 {
     int    ret;
@@ -780,21 +813,18 @@ Fail:
 }
 
 void
-filelock_unlock( FileLock*  lock )
+filelock_release( FileLock*  lock )
 {
+    if (lock->locked) {
 #ifdef _WIN32
-    unlink_file( (char*)lock->temp );
-    rmdir( (char*)lock->lock );
-    lock->locked = 0;
+        unlink_file( (char*)lock->temp );
+        rmdir( (char*)lock->lock );
 #else
-    unlink( (char*)lock->lock );
-    lock->locked = 0;
+        unlink( (char*)lock->lock );
 #endif
+        lock->locked = 0;
+    }
 }
-
-
-/* used to cleanup all locks at emulator exit */
-static FileLock*   _all_filelocks;
 
 static void
 filelock_atexit( void )
@@ -802,10 +832,7 @@ filelock_atexit( void )
   FileLock*  lock;
 
   for (lock = _all_filelocks; lock != NULL; lock = lock->next)
-  {
-    if (lock->locked)
-        filelock_unlock( lock );
-  }
+     filelock_release( lock );
 }
 
 /* create a file lock */
@@ -822,8 +849,6 @@ filelock_create( const char*  file )
     int    total_len = sizeof(FileLock) + file_len + lock_len + temp_len + 3;
 
     FileLock*  lock = malloc(total_len);
-    if (lock == NULL)
-      goto Exit;
 
     lock->file = (const char*)(lock + 1);
     memcpy( (char*)lock->file, file, file_len+1 );
@@ -834,18 +859,23 @@ filelock_create( const char*  file )
 
     lock->temp    = (char*)lock->lock + lock_len + 1;
 #ifdef _WIN32
-    sprintf( (char*)lock->temp, "%s\\" PIDFILE_NAME, lock->lock );
+    snprintf( (char*)lock->temp, temp_len, "%s\\" PIDFILE_NAME, lock->lock );
 #else
     lock->temp[0] = 0;
 #endif
     lock->locked = 0;
+
+    if (filelock_lock(lock) < 0) {
+        free(lock);
+        return NULL;
+    }
 
     lock->next     = _all_filelocks;
     _all_filelocks = lock;
 
     if (lock->next == NULL)
         atexit( filelock_atexit );
-Exit:
+
     return lock;
 }
 
@@ -1189,8 +1219,52 @@ get_monitor_resolution( int  *px_dpi, int  *py_dpi )
 #else  /* Linux and others */
 #include <SDL.h>
 #include <SDL_syswm.h>
+#include <dlfcn.h>
 #include <X11/Xlib.h>
 #define  MM_PER_INCH   25.4
+
+#define  DYNLINK_FUNCTIONS  \
+    DYNLINK_FUNC(int,XDefaultScreen,(Display*)) \
+    DYNLINK_FUNC(int,XDisplayWidth,(Display*,int)) \
+    DYNLINK_FUNC(int,XDisplayWidthMM,(Display*,int)) \
+    DYNLINK_FUNC(int,XDisplayHeight,(Display*,int)) \
+    DYNLINK_FUNC(int,XDisplayHeightMM,(Display*,int)) \
+
+#define  DYNLINK_FUNCTIONS_INIT \
+    x11_dynlink_init
+
+#include "dynlink.h"
+
+static int    x11_lib_inited;
+static void*  x11_lib;
+
+int
+x11_lib_init( void )
+{
+    if (!x11_lib_inited) {
+        x11_lib_inited = 1;
+
+        x11_lib = dlopen( "libX11.so", RTLD_NOW );
+
+        if (x11_lib == NULL) {
+            x11_lib = dlopen( "libX11.so.6", RTLD_NOW );
+        }
+        if (x11_lib == NULL) {
+            D("%s: Could not find libX11.so on this machine",
+              __FUNCTION__);
+            return -1;
+        }
+
+        if (x11_dynlink_init(x11_lib) < 0) {
+            D("%s: didn't find necessary symbols in libX11.so",
+              __FUNCTION__);
+            dlclose(x11_lib);
+            x11_lib = NULL;
+        }
+    }
+    return x11_lib ? 0 : -1;
+}
+
 
 int
 get_monitor_resolution( int  *px_dpi, int  *py_dpi )
@@ -1207,13 +1281,16 @@ get_monitor_resolution( int  *px_dpi, int  *py_dpi )
         return -1;
     }
 
-    display = info.info.x11.display;
-    screen  = XDefaultScreen(display);
+    if (x11_lib_init() < 0)
+        return -1;
 
-    width     = XDisplayWidth(display, screen);
-    width_mm  = XDisplayWidthMM(display, screen);
-    height    = XDisplayHeight(display, screen);
-    height_mm = XDisplayHeightMM(display, screen);
+    display = info.info.x11.display;
+    screen  = FF(XDefaultScreen)(display);
+
+    width     = FF(XDisplayWidth)(display, screen);
+    width_mm  = FF(XDisplayWidthMM)(display, screen);
+    height    = FF(XDisplayHeight)(display, screen);
+    height_mm = FF(XDisplayHeightMM)(display, screen);
 
     if (width_mm <= 0 || height_mm <= 0) {
         D( "%s: bad screen dimensions: width_mm = %d, height_mm = %d",
@@ -1343,23 +1420,31 @@ stralloc_tabular( stralloc_t*  out,
 }
 
 extern void
-buffer_translate_char( char*  buff, unsigned  len,
-                       char   from, char      to )
-{
-    char*  p   = buff;
-    char*  end = p + len;
-
-    while (p != NULL && (p = memchr(p, from, (size_t)(end - p))) != NULL)
-        *p++ = to;
-}
-
-extern void
 string_translate_char( char*  str, char from, char to )
 {
     char*  p = str;
     while (p != NULL && (p = strchr(p, from)) != NULL)
         *p++ = to;
 }
+
+extern void
+buffer_translate_char( char*        buff,
+                       unsigned     buffLen,
+                       const char*  src,
+                       char         fromChar,
+                       char         toChar )
+{
+    int    len = strlen(src);
+
+    if (len >= buffLen)
+        len = buffLen-1;
+
+    memcpy(buff, src, len);
+    buff[len] = 0;
+
+    string_translate_char( buff, fromChar, toChar );
+}
+
 
 /** DYNAMIC STRINGS
  **/
@@ -1544,6 +1629,64 @@ stralloc_add_quote_bytes( stralloc_t*  s, const void*  from, unsigned  len )
         } else {
             stralloc_add_format( s, "\\x%02x", c );
         }
+    }
+}
+
+extern void
+stralloc_add_hex( stralloc_t*  s, unsigned  value, int  num_digits )
+{
+    const char   hexdigits[16] = "0123456789abcdef";
+    int          nn;
+
+    if (num_digits <= 0)
+        return;
+
+    stralloc_readyplus(s, num_digits);
+    for (nn = num_digits-1; nn >= 0; nn--) {
+        s->s[s->n+nn] = hexdigits[value & 15];
+        value >>= 4;
+    }
+    s->n += num_digits;
+}
+
+extern void
+stralloc_add_hexdump( stralloc_t*  s, void*  base, int  size, const char*  prefix )
+{
+    uint8_t*   p          = (uint8_t*)base;
+    const int  max_count  = 16;
+    int        prefix_len = strlen(prefix);
+
+    while (size > 0) {
+        int          count = size > max_count ? max_count : size;
+        int          count2;
+        int          n;
+
+        stralloc_add_bytes( s, prefix, prefix_len );
+        stralloc_add_hex( s, p[0], 2 );
+
+        for (n = 1; n < count; n++) {
+            stralloc_add_c( s, ' ' );
+            stralloc_add_hex( s, p[n], 2 );
+        }
+
+        count2 = 4 + 3*(max_count - count);
+        stralloc_readyplus( s, count2 );
+        memset( s->s + s->n, ' ', count2 );
+        s->n += count2;
+
+        stralloc_readyplus(s, count+1);
+        for (n = 0; n < count; n++) {
+            int  c = p[n];
+
+            if (c < 32 || c > 127)
+                c = '.';
+
+            s->s[s->n++] = c;
+        }
+        s->s[s->n++] = '\n';
+
+        size -= count;
+        p    += count;
     }
 }
 
@@ -1762,3 +1905,46 @@ qvector_remove_n( qvector_t*  v, int  index, int  count )
     v->n -= count;
 }
 
+
+/** HEXADECIMAL CHARACTER SEQUENCES
+ **/
+
+static int
+hexdigit( int  c )
+{
+    unsigned  d;
+
+    d = (unsigned)(c - '0');
+    if (d < 10) return d;
+
+    d = (unsigned)(c - 'a');
+    if (d < 6) return d+10;
+
+    d = (unsigned)(c - 'A');
+    if (d < 6) return d+10;
+
+    return -1;
+}
+
+int
+hex2int( const uint8_t*  hex, int  len )
+{
+    int  result = 0;
+    while (len > 0) {
+        int  c = hexdigit(*hex++);
+        if (c < 0)
+            return -1;
+
+        result = (result << 4) | c;
+        len --;
+    }
+    return result;
+}
+
+void
+int2hex( uint8_t*  hex, int  len, int  val )
+{
+    static const uint8_t  hexchars[16] = "0123456789abcdef";
+    while ( --len >= 0 )
+        *hex++ = hexchars[(val >> (len*4)) & 15];
+}

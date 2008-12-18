@@ -74,7 +74,7 @@ sofree(so)
 	struct socket *so;
 {
   if (so->so_state & SS_PROXIFIED)
-    proxy_manager_del(so->s);
+    proxy_manager_del(so);
 
   if (so->extra) {
 	sofree(so->extra);
@@ -543,7 +543,7 @@ solisten(port, laddr, lport, flags)
 {
 	struct sockaddr_in addr;
 	struct socket *so;
-	int s, addrlen = sizeof(addr), opt = 1;
+	int s, addrlen = sizeof(addr);
 
 	DEBUG_CALL("solisten");
 	DEBUG_ARG("port = %d", port);

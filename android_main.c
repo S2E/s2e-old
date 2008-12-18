@@ -54,10 +54,14 @@
 #include "android_gps.h"
 #include "android_qemud.h"
 #include "android_kmsg.h"
+#include "android_hw_control.h"
+#include "android/utils/dirscanner.h"
 
 #include "android_option.h"
 #include "android_help.h"
 #include "hw/goldfish_nand.h"
+
+#include "android/globals.h"
 
 #include "framebuffer.h"
 AndroidRotation  android_framebuffer_rotation;
@@ -351,6 +355,7 @@ typedef struct {
     int            win_y;
     int            show_trackball;
     SkinTrackBall* trackball;
+    int            lcd_brightness;
     SkinImage*     onion;
     SkinRotation   onion_rotation;
     int            onion_alpha;
@@ -576,7 +581,10 @@ qemulator_set_title( QEmulator*  emulator )
     if (emulator->window == NULL)
         return;
 
-    snprintf( temp, sizeof(temp), "Android Emulator (%d)", android_base_port );
+    snprintf( temp, sizeof(temp), "Android Emulator (%s:%d)",
+              avmInfo_getName( android_vmInfo ),
+              android_base_port );
+
     skin_window_set_title( emulator->window, temp );
 }
 
@@ -596,6 +604,21 @@ sdl_update(DisplayState *ds, int x, int y, int w, int h)
     (void)h;
 }
 
+
+
+static void
+qemulator_light_brightness( void* opaque, const char*  light, int  value )
+{
+    QEmulator*  emulator = opaque;
+
+    D("%s: light='%s' value=%d window=%p", __FUNCTION__, light, value, emulator->window);
+    if ( !strcmp(light, "lcd_backlight") ) {
+        emulator->lcd_brightness = value;
+        if (emulator->window)
+            skin_window_set_lcd_brightness( emulator->window, value );
+        return;
+    }
+}
 
 
 static void
@@ -624,6 +647,9 @@ qemulator_setup( QEmulator*  emulator )
             ball = skin_trackball_create( &params );
             emulator->trackball = ball;
             skin_window_set_trackball( emulator->window, ball );
+
+            emulator->lcd_brightness = 128;  /* 50% */
+            skin_window_set_lcd_brightness( emulator->window, emulator->lcd_brightness );
         }
 
         if ( emulator->onion != NULL )
@@ -633,6 +659,19 @@ qemulator_setup( QEmulator*  emulator )
                                    emulator->onion_alpha );
 
         qemulator_set_title( emulator );
+
+        skin_window_enable_touch ( emulator->window, android_hw->hw_touchScreen != 0 );
+        skin_window_enable_dpad  ( emulator->window, android_hw->hw_dPad != 0 );
+        skin_window_enable_qwerty( emulator->window, android_hw->hw_keyboard != 0 );
+        skin_window_enable_trackball( emulator->window, android_hw->hw_trackBall != 0 );
+    }
+
+    /* initialize hardware control support */
+    {
+        AndroidHwControlFuncs  funcs;
+
+        funcs.light_brightness = qemulator_light_brightness;
+        android_hw_control_init( emulator, &funcs );
     }
 }
 
@@ -779,11 +818,11 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
         }
     }
 
-    // for the trackball command, handle down events to enable, and
+    // for the show-trackball command, handle down events to enable, and
     // up events to disable
-    if (command == SKIN_KEY_COMMAND_TOGGLE_TRACKBALL) {
-        skin_window_toggle_trackball( emulator->window );
-        emulator->show_trackball = !emulator->show_trackball;
+    if (command == SKIN_KEY_COMMAND_SHOW_TRACKBALL) {
+        emulator->show_trackball = (down != 0);
+        skin_window_show_trackball( emulator->window, emulator->show_trackball );
         //qemulator_set_title( emulator );
         return;
     }
@@ -825,6 +864,11 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
         }
         break;
 
+    case SKIN_KEY_COMMAND_TOGGLE_TRACKBALL:
+        emulator->show_trackball = !emulator->show_trackball;
+        skin_window_show_trackball( emulator->window, emulator->show_trackball );
+        break;
+
     case SKIN_KEY_COMMAND_ONION_ALPHA_UP:
     case SKIN_KEY_COMMAND_ONION_ALPHA_DOWN:
         if (emulator->onion)
@@ -864,14 +908,23 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
                     layout = layout->next;
             }
             if (layout != NULL) {
+                SkinRotation  rotation;
+
                 emulator->layout = layout;
                 skin_window_reset( emulator->window, layout );
 
+                rotation = skin_layout_get_dpad_rotation( layout );
+
                 if (emulator->keyboard)
-                    skin_keyboard_set_rotation( emulator->keyboard,
-                                                skin_layout_get_dpad_rotation( layout ) );
-                if (emulator->trackball)
+                    skin_keyboard_set_rotation( emulator->keyboard, rotation );
+
+                if (emulator->trackball) {
+                    skin_trackball_set_rotation( emulator->trackball, rotation );
                     skin_window_set_trackball( emulator->window, emulator->trackball );
+                    skin_window_show_trackball( emulator->window, emulator->show_trackball );
+                }
+
+                skin_window_set_lcd_brightness( emulator->window, emulator->lcd_brightness );
 
                 qframebuffer_invalidate_all();
                 qframebuffer_check_updates();
@@ -993,11 +1046,22 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
 
     if(name) {
         /* Support skin aliases like QVGA-H QVGA-P, etc...
-           But first we check if it's a directory that exist before applyin the alias */
-        sprintf(tmp, "%s/%s", path, name);
-        if (!path_exists(tmp)) {
-            /* directory is invalid, apply alias */
+           But first we check if it's a directory that exist before applying
+           the alias */
+        int  checkAlias = 1;
+
+        if (path != NULL) {
+            bufprint(tmp, tmp+sizeof(tmp), "%s/%s", path, name);
+            if (path_exists(tmp)) {
+                checkAlias = 0;
+            } else {
+                D("there is no '%s' skin in '%s'", name, path);
+            }
+        }
+
+        if (checkAlias) {
             int  nn;
+
             for (nn = 0; ; nn++ ) {
                 const char*  skin_name  = skin_aliases[nn].name;
                 const char*  skin_alias = skin_aliases[nn].alias;
@@ -1006,6 +1070,7 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
                     break;
 
                 if ( !strcasecmp( skin_name, name ) ) {
+                    D("skin name '%s' aliased to '%s'", name, skin_alias);
                     name = skin_alias;
                     break;
                 }
@@ -1018,11 +1083,17 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
             if(x && isdigit(x[1])) {
                 int width = atoi(name);
                 int height = atoi(x + 1);
-                sprintf(tmp,"display {\n  width %d\n  height %d\n}\n", width, height);
+                sprintf(tmp,"display {\n  width %d\n  height %d\n}\n", 
+                        width, height);
                 aconfig_load(root, strdup(tmp));
                 path = ":";
                 goto found_a_skin;
             }
+        }
+
+        if (path == NULL) {
+            derror("unknown skin name '%s'", name);
+            exit(1);
         }
 
         sprintf(tmp, "%s/%s/layout", path, name);
@@ -1033,7 +1104,8 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
             path = tmp;
             goto found_a_skin;
         } else {
-            fprintf(stderr, "### WARNING: could not load skin file '%s', using built-in one\n", tmp);
+            dwarning("could not load skin file '%s', using built-in one\n", 
+                     tmp);
         }
     }
 
@@ -1127,15 +1199,6 @@ found_a_skin:
         qemulator->onion_rotation = rotate;
     }
 }
-
-/* where to look relative to appdir for system.img and friends */
-const char *sysdir_paths[] = {
-    "%s/lib/images/%s",    /* emulator in <sdk>, images in <sdk>/lib/images */
-    "%s/%s",                /* emulator and images in the same directory */
-    "%s/../%s",
-    "%s/../../%s",          /* emulator in <build>/host/bin, images in <build> */
-    0
-};
 
 int qemu_main(int argc, char **argv);
 
@@ -1418,41 +1481,6 @@ parse_nand_limits(char*  limits)
 }
 #endif /* CONFIG_NAND_LIMITS */
 
-/* If *arg isn't already set, and <dir>/<file> exists, use it. */
-static void default_file(char **arg, const char*  option, const char *dir, const char *file) {
-    if (*arg == NULL || (*arg)[0] == '\0') {
-        *arg = malloc(strlen(dir) + strlen(PATH_SEP) + strlen(file) + 1);
-        sprintf(*arg, "%s%s%s", dir, PATH_SEP, file);
-        if (option)
-            D("autoconfig: -%s %s", option, *arg);
-    }
-}
-
-
-/* Call default_file() and also exit if the file doesn't exist. */
-static void require_file(char **arg, const char*  option, const char *dir, const char *file) {
-    default_file(arg, option, dir, file);
-    if (!path_exists(*arg)) {
-        fprintf(stderr, "Cannot find file: %s\n", *arg);
-        if (option != NULL)
-            fprintf(stderr, "Please specify a valid -%s file\n", option);
-        exit(1);
-    }
-}
-
-
-/* If *arg is set, require it to exist, else use the default if it exists. */
-static void optional_file(char **arg, const char*  option, const char *dir, const char *file) {
-    if (*arg == NULL) {
-        default_file(arg, option, dir, file);
-        if (!path_exists(*arg))
-            *arg = NULL;
-    } else {
-        /* If it's supplied explciitly, it better be there. */
-        require_file(arg, option, dir, file);
-    }
-}
-
 void emulator_help( void )
 {
     STRALLOC_DEFINE(out);
@@ -1642,6 +1670,120 @@ report_console( const char*  proto_port, int  console_port )
     restore_sigalrm (&sigstate);
 }
 
+/* this function is used to perform auto-detection of the
+ * system directory in the case of a SDK installation.
+ *
+ * we want to deal with several historical usages, hence
+ * the slightly complicated logic.
+ *
+ * NOTE: the function returns the path to the directory
+ *       containing 'fileName'. this is *not* the full
+ *       path to 'fileName'.
+ */
+static char*
+_getSdkImagePath( const char*  fileName )
+{
+    char   temp[MAX_PATH];
+    char*  p   = temp;
+    char*  end = p + sizeof(temp);
+    char*  q;
+    char*  app;
+
+    static const char* const  searchPaths[] = {
+        "",                                  /* program's directory */
+        "/lib/images",                       /* this is for SDK 1.0 */
+        "/../platforms/android-1.1/images",  /* this is for SDK 1.1 */
+        NULL
+    };
+
+    app = bufprint_app_dir(temp, end);
+    if (app >= end)
+        return NULL;
+
+    do {
+        int  nn;
+
+        /* first search a few well-known paths */
+        for (nn = 0; searchPaths[nn] != NULL; nn++) {
+            p = bufprint(app, end, "%s", searchPaths[nn]);
+            q = bufprint(p, end, "/%s", fileName);
+            if (q < end && path_exists(temp)) {
+                *p = 0;
+                goto FOUND_IT;
+            }
+        }
+
+        /* hmmm. let's assume that we are in a post-1.1 SDK
+         * scan ../platforms if it exists
+         */
+        p = bufprint(app, end, "/../platforms");
+        if (p < end) {
+            DirScanner*  scanner = dirScanner_new(temp);
+            if (scanner != NULL) {
+                int          found = 0;
+                const char*  subdir;
+
+                for (;;) {
+                    subdir = dirScanner_next(scanner);
+                    if (!subdir) break;
+
+                    q = bufprint(p, end, "/%s/images/%s", subdir, fileName);
+                    if (q >= end || !path_exists(temp))
+                        continue;
+
+                    found = 1;
+                    q = bufprint(p, end, "/%s/images", subdir);
+                    break;
+                }
+                dirScanner_free(scanner);
+                if (found)
+                    break;
+            }
+        }
+
+        /* I'm out of ideas */
+        return NULL;
+
+    } while (0);
+
+FOUND_IT:
+    //D("image auto-detection: %s/%s", temp, fileName);
+    return qemu_strdup(temp);
+}
+
+static char*
+_getSdkImage( const char*  path, const char*  pathText, const char*  file )
+{
+    char  temp[MAX_PATH];
+    char  *p = temp, *end = p + sizeof(temp);
+
+    p = bufprint(temp, end, "%s/%s", path, file);
+    if (p >= end || !path_exists(temp)) {
+        derror("you %s directory is missing the '%s' image file.",
+               pathText, file);
+        exit(2);
+    }
+
+    return qemu_strdup(temp);
+}
+
+
+static void
+_forceVmImagePath( AvmImageType  imageType, 
+                   const char*   path, 
+                   const char*   description,
+                   int           required )
+{
+    if (path == NULL)
+        return;
+
+    if (required && !path_exists(path)) {
+        derror("cannot find %s image file: %s", description, path);
+        exit(1);
+    }
+    android_vmParams->forcePaths[imageType] = path;
+}
+
 #ifdef _WIN32
 #undef main  /* we don't want SDL to define main */
 #endif
@@ -1660,8 +1802,11 @@ int main(int argc, char **argv)
     int    qemud_serial = 0;
     int    shell_serial = 0;
     int    dns_count = 0;
+    unsigned  cachePartitionSize = 0;
 
-    const char *appdir = get_app_dir();
+    AndroidHwConfig*  hw;
+
+    //const char *appdir = get_app_dir();
     char*       android_build_root = NULL;
     char*       android_build_out  = NULL;
 
@@ -1677,6 +1822,8 @@ int main(int argc, char **argv)
         opt = (++argv)[0];
 
         if(!strcmp(opt, "-qemu")) {
+            argc--;
+            argv++;
             break;
         }
 
@@ -1702,17 +1849,21 @@ int main(int argc, char **argv)
                 exit(0);
             }
 
-            fprintf(stderr, "unknown option: -%s\n", opt);
-            emulator_help();
+            fprintf(stderr, "unknown option: -help-%s\n", opt);
+            fprintf(stderr, "please use -help for a list of valid topics\n");
+            exit(1);
         }
 
         if (opt[0] == '-') {
             fprintf(stderr, "unknown option: %s\n", opt);
-            emulator_help();
+            fprintf(stderr, "please use -help for a list of valid options\n");
+            exit(1);
         }
 
-        fprintf(stderr, "invalid command-line parameter: %s\n", opt);
-        emulator_help();
+        fprintf(stderr, "invalid command-line parameter: %s.\n", opt);
+        fprintf(stderr, "Hint: use '@foo' to launch a virtual machine named 'foo'.\n");
+        fprintf(stderr, "please use -help for more information\n");
+        exit(1);
     }
 
     android_charmap = android_charmaps[0];
@@ -1743,9 +1894,9 @@ int main(int argc, char **argv)
         }
     }
 
-    //if(opts->nopoll) qemu_milli_needed = 0;
-
-    /* try to find the top of the Android build tree */
+    /* try to find the top of the Android build tree
+     * unless we have been given a virtual machine name
+     */
     do {
         char*  out = getenv("ANDROID_PRODUCT_OUT");
 
@@ -1772,147 +1923,162 @@ int main(int argc, char **argv)
         D( "found Android build out:  %s", android_build_out );
     } while (0);
 
-        /* if no opts->system was specified, try to find one */
-    if (opts->system == NULL) {
-        for (n = 0; sysdir_paths[n]; n++) {
-            sprintf(tmp, sysdir_paths[n], appdir, "system.img");
-            if (path_exists(tmp)) {
-                sprintf(tmp, sysdir_paths[n], appdir, "");
-                opts->system = strdup(tmp);
-                break;
-            }
-        }
-
-        if (opts->system == NULL && android_build_out) {
-            sprintf(tmp, "%s/%s", android_build_out, "system.img");
-            if (path_exists(tmp))
-                opts->system = android_build_out;
-        }
-
-        if (opts->system == NULL) {
-            fprintf(stderr,
-                "Cannot locate system directory, which "
-                                        "contains 'system.img' and other\n"
-                "system files.  Please specify one by "
-                                      "using '-system <directory>' or by\n"
-                "defining the environment variable ANDROID_PRODUCT_OUT.\n");
-            exit(1);
-        }
-
-        D("autoconfig: -system %s", opts->system);
-    }
-
-    if (opts->datadir == NULL) {
-        if (android_build_out)
-            opts->datadir = android_build_out;
-        else {
-            bufprint_config_path( tmp, tmpend );
-            opts->datadir = strdup(tmp);
-        }
-        D("autoconfig: -datadir %s", opts->datadir);
-    }
-
-    sprintf(tmp, "%s%s.", opts->datadir, PATH_SEP);
-    if (!path_can_write(tmp)) {
-        if (path_mkdir_if_needed(opts->datadir, 0755) != 0) {
-            fprintf(stderr,
-                "Cannot create data directory: %s\n"
-                "Please specify a writable directory with -datadir.\n", opts->datadir);
-            exit(1);
-        }
-    }
-
-    /* try to find the qemu kernel in the system directory,
-     * otherwise, try to get it in the prebuilt directory */
-    optional_file(&opts->kernel, "kernel", opts->system, "kernel-qemu");
-    if (!opts->kernel && android_build_root) {
-        sprintf(tmp, "%s/prebuilt/android-arm/kernel", android_build_root);
-        optional_file(&opts->kernel, "kernel", tmp, "kernel-qemu");
-    }
-
-    /* similar hack for emulator skins */
-    if (!opts->noskin && opts->skindir == NULL) {
-        if (android_build_root) {
-            sprintf(tmp, "%s/development/emulator", android_build_root);
-            optional_file(&opts->skindir, "skindir", tmp, "skins");
-        }
-    }
-
-    require_file(&opts->kernel, "kernel", opts->system, "kernel-qemu");
-    require_file(&opts->ramdisk, "ramdisk", opts->system, "ramdisk.img");
-    require_file(&opts->image, "image", opts->system, "system.img");
-    require_file(&opts->initdata, "initdata", opts->system, "userdata.img");
-
-    if (!opts->skindir)
-        optional_file(&opts->skindir, "skindir", opts->system, "skins");
-
-    optional_file(&opts->sdcard, "sdcard", opts->datadir, "sdcard.img");
-
-    if (opts->data == NULL) {
-        if (strcmp(opts->datadir, opts->system) != 0) {
-          /* in the past, the writable image was called "userdata.img" */
-          optional_file(&opts->data, "data", opts->datadir, "userdata.img");
-        }
-        default_file(&opts->data, "data", opts->datadir, "userdata-qemu.img");
-
-        if ( !path_exists(opts->data) ) {
-            /* if the file does not exist, imply a -wipe-data */
-            opts->wipe_data = 1;
-        }
-    } else if ( !path_exists(opts->data) ) {
-        /* if -data is used with a non-existent data file */
-        opts->wipe_data = 1;
-    }
-
-    {
-        FileLock*  data_lock = filelock_create(opts->data);
-        if (data_lock == NULL) {
-            fprintf(stderr, "Cannot create /data image file lock\n");
-            exit(2);
-        }
-        /* if the file is already used, use a temporary file instead */
-        if (filelock_lock(data_lock) < 0) {
-            TempFile*  data_tmp;
-            fprintf(stderr,
-                    "### WARNING: Another emulator is running with our data file\n");
-
-            data_tmp = tempfile_create();
-            if (data_tmp == NULL) {
-                fprintf(stderr, "annot create a new temporary user data file.\n" );
+    /* if no virtual machine name is given, and we're not in the
+     * Android build system, we'll need to perform some auto-detection
+     * magic :-)
+     */
+    if (opts->vm == NULL && !android_build_out) {
+        if (!opts->system) {
+            opts->system = _getSdkImagePath("system.img");
+            if (!opts->system) {
+            NO_VM_NAME:
+                derror( "you must provide the name of a virtual machine to start the emulator.\n"
+                        "please see -help-vm for details." );
                 exit(2);
             }
-            fprintf(stderr, "### WARNING: User data changes will NOT be saved!\n");
-            opts->data     = (char*) tempfile_path(data_tmp);
-            opts->wipe_data = 1;
+            D("autoconfig: -system %s", opts->system);
+        }
+
+        if (!opts->image) {
+            opts->image = _getSdkImage(opts->system, "-system", "system.img");
+            D("autoconfig: -image %s", opts->image);
+        }
+
+        if (!opts->kernel) {
+            opts->kernel = _getSdkImage(opts->system, "-system", "kernel-qemu");
+            D("autoconfig: -kernel %s", opts->kernel);
+        }
+
+        if (!opts->ramdisk) {
+            opts->ramdisk = _getSdkImage(opts->system, "-ramdisk", "ramdisk.img");
+            D("autoconfig: -ramdisk %s", opts->ramdisk);
+        }
+
+        if (!opts->data) {
+            /* we don't want new SDK users to keep using their
+             * obsolete data images. unless they specifically
+             * use -data or -datadir with an existing file,
+             * we're going to complain.
+             */
+            if (!opts->datadir) {
+                goto NO_VM_NAME;
+            }
+
+            /* here the user used -datadir, so check that there is a
+             * valid data partition file here, if not abort.
+             */
+            bufprint(tmp, tmpend, opts->datadir, "/userdata-qemu.img");
+            if (!path_exists(tmp))
+                goto NO_VM_NAME;
+
+            opts->data = qemu_strdup(tmp);
+            D("autoconfig: -data %s", opts->data);
+        }
+
+        if (!opts->sdcard && opts->datadir) {
+            bufprint(tmp, tmpend, opts->datadir, "/sdcard.img");
+            if (path_exists(tmp)) {
+                opts->sdcard = qemu_strdup(tmp);
+                D("autoconfig: -sdcard %s", opts->sdcard);
+            }
         }
     }
 
+    /* setup the virtual machine parameters from our options
+     */
+    if (opts->nocache) {
+        android_vmParams->flags |= AVMINFO_NO_CACHE;
+    }
+    if (opts->wipe_data) {
+        android_vmParams->flags |= AVMINFO_WIPE_DATA | AVMINFO_WIPE_CACHE;
+    }
 
-    /* wipe the data file if necessary */
-    if (opts->wipe_data || !path_exists(opts->data)) {
-        if (copy_file(opts->data, opts->initdata) >= 0) {
-            D("copied file '%s' from '%s'", opts->data, opts->initdata);
-        } else {
-            fprintf(stderr,
-                "### WARNING: Cannot write user data file '%s': %s\n",
-                opts->data, strerror(errno));
-            exit(3);
+    /* if certain options are set, we can force the path of
+        * certain kernel/disk image files
+        */
+    _forceVmImagePath(AVM_IMAGE_KERNEL,  opts->kernel, "kernel", 1);
+    _forceVmImagePath(AVM_IMAGE_SYSTEM,  opts->image,  "system", 1);
+    _forceVmImagePath(AVM_IMAGE_RAMDISK, opts->ramdisk,"ramdisk", 1);
+    _forceVmImagePath(AVM_IMAGE_USERDATA,opts->data,   "user data", 0);
+    _forceVmImagePath(AVM_IMAGE_CACHE,   opts->cache,  "cache", 0);
+    _forceVmImagePath(AVM_IMAGE_SDCARD,  opts->sdcard, "SD Card", 0);
+
+    /* we don't accept -skindir without -skin now
+     * to simplify the autoconfig stuff with virtual devices
+     */
+    if (opts->noskin) {
+        opts->skin    = "320x480";
+        opts->skindir = NULL;
+    }
+
+    if (opts->skindir) {
+        if (!opts->skin) {
+            derror( "the -skindir <path> option requires a -skin <name> option");
+            exit(1);
+        }
+    }
+    else {
+        if (!opts->skin && android_build_out) {
+            /* select default skin based on product type */
+            const char*  p = strrchr(android_build_out,'/');
+            if (p) {
+                if (p[1] == 's') {
+                    opts->skin = "QVGA-L";
+                } else if (p[1] == 'd') {
+                    opts->skin = "HVGA";
+                }
+            }
+            D("autoconfig: -skin %s", opts->skin);
+        }
+        android_vmParams->skinName = opts->skin;
+    }
+    /* setup the virtual machine differently depending on whether
+     * we are in the Android build system or not
+     */
+    if (opts->vm != NULL)
+    {
+        android_vmInfo = avmInfo_new( opts->vm, android_vmParams );
+        if (android_vmInfo == NULL) {
+            /* an error message has already been printed */
+            D("could not find virtual machine named '%s'", opts->vm);
+            exit(1);
+        }
+    }
+    else
+    {
+        if (!android_build_out) {
+            android_build_root = android_build_out = opts->system;
+        }
+
+        android_vmInfo = avmInfo_newForAndroidBuild(
+                            android_build_root,
+                            android_build_out,
+                            android_vmParams );
+
+        if(android_vmInfo == NULL) {
+            D("could not start virtual machine\n");
+            exit(1);
         }
     }
 
-    /* lock the SD card image file */
-    if (opts->sdcard != NULL) {
-        FileLock*  sdcard_lock = filelock_create( opts->sdcard );
-        int        free_sdcard = (sdcard_lock == NULL);
+    if (!opts->skindir) {
+        /* get the skin from the virtual machine configuration */
+        opts->skin    = (char*) avmInfo_getSkinName( android_vmInfo );
+        opts->skindir = (char*) avmInfo_getSkinDir( android_vmInfo );
 
-        if (sdcard_lock && filelock_lock(sdcard_lock) < 0) {
-            fprintf( stderr, "#### WARNING: SD Card emulation disabled. '%s' already in use\n", opts->sdcard );
-            free_sdcard = 1;
+        if (opts->skin) {
+            D("autoconfig: -skin %s", opts->skin);
         }
+        if (opts->skindir) {
+            D("autoconfig: -skindir %s", opts->skindir);
+        }
+    }
 
-        if (free_sdcard) {
-            opts->sdcard = NULL;
-        }
+    /* Read hardware configuration */
+    hw = android_hw;
+    if (avmInfo_getHwConfig(android_vmInfo, hw) < 0) {
+        derror("could not read hardware configuration ?");
+        exit(1);
     }
 
 #ifdef CONFIG_NAND_LIMITS
@@ -1924,7 +2090,8 @@ int main(int argc, char **argv)
         parse_keyset(opts->keyset, opts);
         if (!android_keyset) {
             fprintf(stderr,
-                    "emulator: WARNING: could not find keyset file named '%s', using defaults instead\n",
+                    "emulator: WARNING: could not find keyset file named '%s',"
+                    " using defaults instead\n",
                     opts->keyset);
         }
     }
@@ -1969,6 +2136,10 @@ int main(int argc, char **argv)
         }
         bufprint( env, env+sizeof(env), "QEMU_AUDIO_IN_DRV=%s", opts->audio_in );
         putenv( env );
+
+        if (!hw->hw_audioInput) {
+            dwarning( "Emulated hardware doesn't have audio input.");
+        }
     }
     if (opts->audio_out) {
         static char  env[64]; /* note: putenv needs a static unique string buffer */
@@ -1979,26 +2150,8 @@ int main(int argc, char **argv)
         }
         bufprint( env, env+sizeof(env), "QEMU_AUDIO_OUT_DRV=%s", opts->audio_out );
         putenv( env );
-    }
-
-    if (opts->noskin) {
-        opts->skin    = "320x240";
-        opts->skindir = NULL;
-    } else if (opts->skin == NULL) {
-        /* select default skin based on product type */
-        const char* env = getenv("ANDROID_PRODUCT_OUT");
-        if (env) {
-            const char*  p = strrchr(env,'/');
-            if (p) {
-                if (p[1] == 's') {
-                    opts->skin = "QVGA-L";
-                } else if (p[1] == 'd') {
-                    opts->skin = "HVGA";
-                }
-            }
-        }
-        if (opts->skin) {
-            D("autoconfig: -skin %s", opts->skin);
+        if (!hw->hw_audioOutput) {
+            dwarning( "Emulated hardware doesn't have audio output");
         }
     }
 
@@ -2047,40 +2200,23 @@ int main(int argc, char **argv)
     }
 
     if (opts->trace) {
-        int          ret;
-        sprintf(tmp, "%s/traces", opts->system);
-        ret = path_mkdir_if_needed( tmp, 0755 );
+        char*   tracePath = avmInfo_getTracePath(android_vmInfo, opts->trace);
+        int     ret;
+
+        if (tracePath == NULL) {
+            derror( "bad -trace parameter" );
+            exit(1);
+        }
+        ret = path_mkdir_if_needed( tracePath, 0755 );
         if (ret < 0) {
             fprintf(stderr, "could not create directory '%s'\n", tmp);
             exit(2);
         }
-        sprintf(tmp, "%s/traces/%s", opts->system, opts->trace);
-        opts->trace = strdup(tmp);
+        opts->trace = tracePath;
     }
 
     if (opts->nocache)
         opts->cache = 0;
-
-    if (opts->cache) {
-        FileLock*  cache_lock = filelock_create(opts->cache);
-        if (cache_lock == NULL) {
-            fprintf(stderr, "Could not create cache image file lock\n" );
-            exit(2);
-        }
-        if ( filelock_lock( cache_lock ) < 0 ) {
-            fprintf(stderr, "### WARNING: Another emulator instance is using our cache file. using temp file\n");
-            opts->cache = NULL;
-        }
-        else if ( !path_exists(opts->cache) ) {
-            /* -cache <file> where <file> does not exit, we simply */
-            /* create an empty file then                           */
-            if ( make_empty_file( opts->cache ) < 0 ) {
-                fprintf(stderr, "could not create cache file '%s'\n", opts->cache);
-                exit(2);
-            }
-            D( "created non-existent cache image file: %s\n", opts->cache );
-        }
-    }
 
     if (opts->dns_server) {
         char*  x = strchr(opts->dns_server, ',');
@@ -2119,33 +2255,63 @@ int main(int argc, char **argv)
 
     n = 1;
     /* generate arguments for the underlying qemu main() */
-    if(opts->kernel) {
-        args[n++] = "-kernel";
-        args[n++] = opts->kernel;
-    }
-    if(opts->ramdisk) {
-        args[n++] = "-initrd";
-        args[n++] = opts->ramdisk;
-    }
-    if(opts->image) {
-        sprintf(tmp, "system,size=0x4200000,initfile=%s", opts->image);
+    args[n++] = "-kernel";
+    args[n++] = (char*) avmInfo_getImageFile(android_vmInfo, AVM_IMAGE_KERNEL);
+
+    args[n++] = "-initrd";
+    args[n++] = (char*) avmInfo_getImageFile(android_vmInfo, AVM_IMAGE_RAMDISK);
+
+    {
+        const char*  filetype = "file";
+
+        if (avmInfo_isImageReadOnly(android_vmInfo, AVM_IMAGE_SYSTEM))
+            filetype = "initfile";
+
+        bufprint(tmp, tmpend,
+             "system,size=0x4200000,%s=%s", filetype,
+             avmInfo_getImageFile(android_vmInfo, AVM_IMAGE_SYSTEM));
+
         args[n++] = "-nand";
         args[n++] = strdup(tmp);
     }
-    if(opts->data) {
-        sprintf(tmp, "userdata,size=0x4200000,file=%s", opts->data);
-        args[n++] = "-nand";
-        args[n++] = strdup(tmp);
+
+    bufprint(tmp, tmpend,
+             "userdata,size=0x4200000,file=%s",
+             avmInfo_getImageFile(android_vmInfo, AVM_IMAGE_USERDATA));
+
+    args[n++] = "-nand";
+    args[n++] = strdup(tmp);
+
+    if (hw->disk_cachePartition) {
+        opts->cache = (char*) avmInfo_getImageFile(android_vmInfo, AVM_IMAGE_CACHE);
+        cachePartitionSize = hw->disk_cachePartition_size;
     }
+    else if (opts->cache) {
+        dwarning( "Emulated hardware doesn't support a cache partition" );
+        opts->cache   = NULL;
+        opts->nocache = 1;
+    }
+
     if (opts->cache) {
-        sprintf(tmp, "cache,size=0x4200000,file=%s", opts->cache);
-        args[n++] = "-nand";
-        args[n++] = strdup(tmp);
-    } else if(!opts->nocache) {
-        sprintf(tmp, "cache,size=0x4200000");
+        /* use a specific cache file */
+        sprintf(tmp, "cache,size=0x%0x,file=%s", cachePartitionSize, opts->cache);
         args[n++] = "-nand";
         args[n++] = strdup(tmp);
     }
+    else if (!opts->nocache) {
+        /* create a temporary cache partition file */
+        sprintf(tmp, "cache,size=0x%0x", cachePartitionSize);
+        args[n++] = "-nand";
+        args[n++] = strdup(tmp);
+    }
+
+    if (hw->hw_sdCard != 0)
+        opts->sdcard = (char*) avmInfo_getImageFile(android_vmInfo, AVM_IMAGE_SDCARD);
+    else if (opts->sdcard) {
+        dwarning( "Emulated hardware doesn't support SD Cards" );
+        opts->sdcard = NULL;
+    }
+
     if(opts->sdcard) {
         uint64_t  size;
         if (path_get_size(opts->sdcard, &size) == 0) {
@@ -2158,7 +2324,7 @@ int main(int argc, char **argv)
                 use_sdcard_img = 1;
             }
         } else {
-            dprint("could not find or access sdcard image at '%s'", opts->sdcard);
+            D("no SD Card image at '%s'", opts->sdcard);
         }
     }
 
@@ -2233,7 +2399,7 @@ int main(int argc, char **argv)
             }
             android_qemud_set_channel( ANDROID_QEMUD_GSM, cs);
         }
-        else {
+        else if ( hw->hw_gsmModem != 0 ) {
             if ( android_qemud_get_channel( ANDROID_QEMUD_GSM, &android_modem_cs ) < 0 ) {
                 derror( "could not initialize qemud 'gsm' channel" );
                 exit(1);
@@ -2249,12 +2415,29 @@ int main(int argc, char **argv)
             }
             android_qemud_set_channel( ANDROID_QEMUD_GPS, cs);
         }
-        else {
+        else if ( hw->hw_gps != 0 ) {
             if ( android_qemud_get_channel( "gps", &android_gps_cs ) < 0 ) {
                 derror( "could not initialize qemud 'gps' channel" );
                 exit(1);
             }
         }
+    }
+
+    if (opts->memory) {
+        char*  end;
+        long   ramSize = strtol(opts->memory, &end, 0);
+        if (ramSize < 0 || *end != 0) {
+            derror( "-memory must be followed by a positive integer" );
+            exit(1);
+        }
+        if (ramSize < 32 || ramSize > 4096) {
+            derror( "physical memory size must be between 32 and 4096 MB" );
+            exit(1);
+        }
+    }
+    if (!opts->memory) {
+        bufprint(tmp, tmpend, "%d", hw->hw_ramSize);
+        opts->memory = qemu_strdup(tmp);
     }
 
     if (opts->noaudio) {
@@ -2280,6 +2463,18 @@ int main(int argc, char **argv)
     }
 
     args[n++] = "-append";
+
+    if (opts->bootchart) {
+        char*  end;
+        int    timeout = strtol(opts->bootchart, &end, 10);
+        if (timeout == 0)
+            opts->bootchart = NULL;
+        else if (timeout < 0 || timeout > 15*60) {
+            derror( "timeout specified for -bootchart option is invalid.\n"
+                    "please use integers between 1 and 900\n");
+            exit(1);
+        }
+    }
 
     {
         static char  params[1024];
@@ -2336,6 +2531,10 @@ int main(int argc, char **argv)
             p = bufprint(p, end, " android.ndns=%d", dns_count);
         }
 
+        if (opts->bootchart) {
+            p = bufprint(p, end, " androidboot.bootchart=%s", opts->bootchart);
+        }
+
         if (p >= end) {
             fprintf(stderr, "### ERROR: kernel parameters too long\n");
             exit(1);
@@ -2343,6 +2542,10 @@ int main(int argc, char **argv)
 
         args[n++] = strdup(params);
     }
+
+    /* physical memory */
+    args[n++] = "-m";
+    args[n++] = opts->memory;
 
     while(argc-- > 0) {
         args[n++] = *argv++;
@@ -2380,45 +2583,79 @@ void  android_emulation_setup( void )
     }
 #endif
 
-    if (opts->port) {
-        char*  end;
-        int    port = strtol( opts->port, &end, 0 );
-        if ( end == NULL || *end ||
-             (unsigned)((port - base_port) >> 1) >= (unsigned)tries )
-        {
-            derror( "option -port must be followed by an even integer number between %d and %d\n",
-                     base_port, base_port + (tries-1)*2 );
+    if (opts->port && opts->ports) {
+        fprintf( stderr, "options -port and -ports cannot be used together.\n");
+        exit(1);
+    }
+
+    if (opts->ports) {
+        char* comma_location;
+        char* end;
+        int console_port = strtol( opts->ports, &comma_location, 0 );
+
+        if ( comma_location == NULL || *comma_location != ',' ) {
+            derror( "option -ports must be followed by two comma separated positive integer numbers" );
             exit(1);
         }
-        if ( (port & 1) != 0 ) {
-            port &= ~1;
-            dwarning( "option -port must be followed by an even integer, using  port number %d\n",
-                       port );
-        }
-        base_port = port;
-        tries     = 1;
-    }
 
-    for ( ; tries > 0; tries--, base_port += 2 ) {
+        int adb_port = strtol( comma_location+1, &end, 0 );
 
-        /* setup first redirection for ADB, the Android Debug Bridge */
-        if ( slirp_redir( 0, base_port+1, guest_addr, 5555 ) < 0 )
-            continue;
-
-        /* setup second redirection for the emulator console */
-        if ( control_console_start( base_port ) < 0 ) {
-            slirp_unredir( 0, base_port+1 );
-            continue;
+        if ( end == NULL || *end ) {
+            derror( "option -ports must be followed by two comma separated positive integer numbers" );
+            exit(1);
         }
 
-        D( "control console listening on port %d, ADB on port %d", base_port, base_port+1 );
-        success = 1;
-        break;
-    }
+        if ( console_port == adb_port ) {
+            derror( "option -ports must be followed by two different integer numbers" );
+            exit(1);
+        }
 
-    if (!success) {
-        fprintf(stderr, "it seems too many emulator instances are running on this machine. Aborting\n" );
-        exit(1);
+        slirp_redir( 0, adb_port, guest_addr, 5555 );
+        if ( control_console_start( console_port ) < 0 ) {
+            slirp_unredir( 0, adb_port );
+        }
+
+        base_port = console_port;
+    } else {
+        if (opts->port) {
+            char*  end;
+            int    port = strtol( opts->port, &end, 0 );
+            if ( end == NULL || *end ||
+                (unsigned)((port - base_port) >> 1) >= (unsigned)tries ) {
+                derror( "option -port must be followed by an even integer number between %d and %d\n",
+                        base_port, base_port + (tries-1)*2 );
+                exit(1);
+            }
+            if ( (port & 1) != 0 ) {
+                port &= ~1;
+                dwarning( "option -port must be followed by an even integer, using  port number %d\n",
+                          port );
+            }
+            base_port = port;
+            tries     = 1;
+        }
+
+        for ( ; tries > 0; tries--, base_port += 2 ) {
+
+            /* setup first redirection for ADB, the Android Debug Bridge */
+            if ( slirp_redir( 0, base_port+1, guest_addr, 5555 ) < 0 )
+                continue;
+
+            /* setup second redirection for the emulator console */
+            if ( control_console_start( base_port ) < 0 ) {
+                slirp_unredir( 0, base_port+1 );
+                continue;
+            }
+
+            D( "control console listening on port %d, ADB on port %d", base_port, base_port+1 );
+            success = 1;
+            break;
+        }
+
+        if (!success) {
+            fprintf(stderr, "it seems too many emulator instances are running on this machine. Aborting\n" );
+            exit(1);
+        }
     }
 
     if (opts->report_console) {

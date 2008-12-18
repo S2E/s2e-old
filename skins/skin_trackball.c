@@ -187,8 +187,24 @@ typedef struct SkinTrackBall
     int              acc_threshold;
     double           acc_scale;
 
+    /* rotation applied to events send to the system */
+    SkinRotation     rotation;
+
 } TrackBallRec, *TrackBall;
 
+
+/* The following constants are used to better mimic a real trackball.
+ *
+ * ACC_THRESHOLD is used to filter small ball movements out.
+ * If the length of the relative mouse motion is smaller than this
+ * constant, then no corresponding ball event will be sent to the
+ * system.
+ *
+ * ACC_SCALE is used to scale the relative mouse motion vector into
+ * the corresponding ball motion vector.
+ */
+#define  ACC_THRESHOLD  20
+#define  ACC_SCALE      0.2
 
 static void
 trackball_init( TrackBall  ball, int  diameter, int  ring,
@@ -199,15 +215,16 @@ trackball_init( TrackBall  ball, int  diameter, int  ring,
 
     memset( ball, 0, sizeof(*ball) );
 
-    /* XXX: hard-coded constants are evil */
-    ball->acc_threshold = 20;
-    ball->acc_scale     = 0.2;
+    ball->acc_threshold = ACC_THRESHOLD;
+    ball->acc_scale     = ACC_SCALE;
 
     /* init SDL surface */
     ball->diameter   = diameter2;
     ball->ball_color = ball_color;
     ball->dot_color  = dot_color;
     ball->ring_color = ring_color;
+
+    ball->rotation   = SKIN_ROTATION_0;
 
     ball->pixels   = (unsigned*)calloc( diameter2*diameter2, sizeof(unsigned) );
     ball->surface  = sdl_surface_from_argb32( ball->pixels, diameter2, diameter2 );
@@ -405,9 +422,32 @@ trackball_move( TrackBall  ball,  int  dx, int  dy )
     {
         int  ddx = ball->acc_x * ball->acc_scale;
         int  ddy = ball->acc_y * ball->acc_scale;
+        int  ddt;
 
         ball->acc_x = 0;
         ball->acc_y = 0;
+
+        switch (ball->rotation) {
+        case SKIN_ROTATION_0:
+            break;
+
+        case SKIN_ROTATION_90:
+            ddt = ddx;
+            ddx = ddy;
+            ddy = -ddt;
+            break;
+
+        case SKIN_ROTATION_180:
+            ddx = -ddx;
+            ddy = -ddy;
+            break;
+
+        case SKIN_ROTATION_270:
+            ddt = ddx;
+            ddx = -ddy;
+            ddy = ddt;
+            break;
+        }
 
         kbd_mouse_event(ddx, ddy, 1, 0);
     }
@@ -576,4 +616,11 @@ skin_trackball_rect( SkinTrackBall*  ball, SDL_Rect*  rect )
     rect->y = 0;
     rect->w = ball->diameter;
     rect->h = ball->diameter;
+}
+
+
+void
+skin_trackball_set_rotation( SkinTrackBall*  ball, SkinRotation  rotation )
+{
+    ball->rotation = rotation & 3;
 }

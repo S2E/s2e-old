@@ -546,7 +546,7 @@ netdelay_send_aux( NetDelay  delay, const void*  data, size_t  size, void* opaqu
                 int   latency = delay->min_ms;
                 int   range   = delay->max_ms - delay->min_ms;
 
-                 if (delay > 0)
+                 if (range > 0)
                     latency += rand() % range;
 
                     //fprintf(stderr, "NetDelay:RST: delay creation for %s\n", session_to_string(info) );

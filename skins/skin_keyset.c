@@ -530,7 +530,8 @@ skin_keyset_get_default( void )
     "BUTTON_DPAD_RIGHT   Keypad_6\n"
     "BUTTON_DPAD_DOWN    Keypad_2\n"
 
-    "TOGGLE_TRACKBALL    Ctrl-T\n"
+    "TOGGLE_TRACKBALL    F6\n"
+    "SHOW_TRACKBALL      Delete\n"
 
     "CHANGE_LAYOUT_PREV  Keypad_7, Ctrl-F11\n"
     "CHANGE_LAYOUT_NEXT  Keypad_9, Ctrl-F12\n"

@@ -29,7 +29,7 @@ typedef enum {
 } ProxyEvent;
 
 /* event can't be NONE when this callback is called */
-typedef void (*ProxyEventFunc)( void*  opaque, ProxyEvent  event );
+typedef void (*ProxyEventFunc)( void*  opaque, int  fd, ProxyEvent  event );
 
 extern void  proxy_set_verbose(int  mode);
 
@@ -61,19 +61,27 @@ typedef struct {
  *
  * returns 0 on success, or -1 if there is no proxy service for this type of connection
  */
-extern int   proxy_manager_add( int  socket, struct sockaddr_in*  address, void*  ev_opaque, ProxyEventFunc  ev_func );
+extern int   proxy_manager_add( struct sockaddr_in*  address,
+                                int                  sock_type,
+                                ProxyEventFunc       ev_func,
+                                void*                ev_opaque );
 
 /* remove an on-going proxified socket connection from the manager's list.
  * this is only necessary when the socket connection must be canceled before
  * the connection accept/refusal occured
  */
-extern void  proxy_manager_del( int  socket );
+extern void  proxy_manager_del( void*  ev_opaque );
 
 /* this function is called to update the select file descriptor sets
  * with those of the proxified connection sockets that are currently managed */
-extern void  proxy_manager_select_fill( int  *pcount, fd_set*  read_fds, fd_set*  write_fds, fd_set*  err_fds);
+extern void  proxy_manager_select_fill( int     *pcount, 
+                                        fd_set*  read_fds, 
+                                        fd_set*  write_fds, 
+                                        fd_set*  err_fds);
 
 /* this function is called to act on proxified connection sockets when network events arrive */
-extern void  proxy_manager_poll( fd_set*  read_fds, fd_set*  write_fds, fd_set*  err_fds );
+extern void  proxy_manager_poll( fd_set*  read_fds, 
+                                 fd_set*  write_fds, 
+                                 fd_set*  err_fds );
 
 #endif /* END */

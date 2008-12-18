@@ -10,7 +10,58 @@ Versions:
    1.4 => Internal release (build 84853)
    1.5 => SDK 0.9_r1
    1.6 => SDK 1.0_r1
-   1.7 => SDK 1.0_r2  (planned, unreleased)
+   1.7 => SDK 1.0_r2
+   1.8 => (unreleased, planned, named likely to change)
+
+==============================================================================
+Changes between 1.7 and 1.8
+
+IMPORTANT CHANGES:
+
+- The emulator now requires that you specify a virtual machine name when
+  starting the emulator, prefixed with the '@' sign. For example, to start
+  the 'foo' virtual machine, type:
+
+      emulator @foo
+
+  Each VM corresponds to a directory used to store mutable disk images, an
+  optional system image/kernel/sdcard,  plus some configuration file(s).
+
+  The command-line tool 'android' that comes with the SDK can be used to
+  create/list/remove virtual machines on your system.
+
+  Note that the '@<name>' form is a convenience shortcut for '-vm <name>'.
+  It is thus possible to place options after the VM name on your command
+  line, as in:
+
+      emulator @foo -verbose -shell
+
+  Finally, when building the Android platform source tree, a VM name is not
+  required and 'emulator' will start a new emulator instance exactly as
+  previously.
+
+- Hardware emulation is now limited to the corresponding Android Virtual
+  Machine's configuration. This means it is now possible to not emulate
+  a touch-screen, trackball, dpad, keyboard, modem, etc...
+
+  Note that in the case of the Android build system, all hardware properties
+  are enabled by default, so this only affects "normal" virtual machines
+  created with the 'android' tool.
+
+OTHER:
+
+- A new console command 'vm name' can be used to query the name of the
+  virtual machine running in the emulator. Note that it will be '<build>'
+  if you run from the Android build system.
+
+  Also, the emulator's window title also displays the VM name now.
+
+- The option '-memory <size>' has been added. <memory> must be an integer
+  specifying the amount of physical RAM in the emulated device in megabytes.
+  The default value is 96.
+
+- The '-skindir <path>' option now requires that you specify a '-skin <name>'
+  option as well.
 
 ==============================================================================
 Changes between 1.6 and 1.7
@@ -21,10 +72,21 @@ IMPORTANT BUG FIXES:
 
 - Do not leave temporary files in Android app-specific directory on Win32
 
-- Trackball mode toggle key (Ctrl-T by default) now works after rotating
-  your skin once.
+- Support for HTTP/HTTPS proxies has been considerably improved and should now
+  "just work" with a lot more HTTP proxies. In case of problem, use the
+  -debug-proxy option to dump debugging data to stderr.
 
 OTHER:
+
+- Trackball emulation has changed. First, the awkward "Control-T" keybinding
+  is gone. Instead, you can now:
+
+     - press 'Delete' to show the trackball and have it disappear as soon
+       as your release the key.
+
+     - press 'F6' to perform a persistent trackball mode toggle.
+
+  Also, trackball emulation is fixed in rotated/landscape mode now.
 
 - New option '-nand-limits <limits>' allows you to send a signal to a remote
   process when a read or write threshold on flash storage is reached. This is
@@ -34,7 +96,13 @@ OTHER:
   tolerate the _GNU_SOURCE macro definition anymore)
 
 - Fix Win32 emulator to support SD Card images larger than 2 GiB
-  
+
+- The non-Android build system has been completely rewritten to allow building
+  the emulator on Linux x86_64. Also, there is now a single Makefile that
+  drives the build in both Android and non-Android modes.
+
+- '-qemu <other-options>' works again
+
 ==============================================================================
 Changes between 1.5 and 1.6
 
@@ -76,7 +144,23 @@ Changes between 1.4 and 1.5
 
 IMPORTANT BUG FIXES:
 
-- fix spurious discards of SMS messages when using two emulators.
+- Fix spurious discards of SMS messages when using two emulators.
+
+OTHER:
+
+- Get rid of EsounD-related freezes on Linux (again)
+
+- Fix the documentation in -help-audio. '-audio list' doesn't work; one
+  needs to call -help-audio-out and -help-audio-in to get the list of valid
+  audio backends
+
+- Fix scrollwheel Dpad emulation in rotated mode. before that, using the
+  scroll-wheel would always generated Dpad Up/Down events, even when in
+  landscape mode.
+
+- Re-enable CPU fault emulation in case of unaligned data access. This was
+  previously disabled because it crashed the emulated kernel in previous
+  releases.
 
 ==============================================================================
 Changes between 1.3 and 1.4

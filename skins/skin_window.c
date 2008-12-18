@@ -21,6 +21,11 @@
 /* when shrinking, we reduce the pixel ratio by this fixed amount */
 #define  SHRINK_SCALE  0.6
 
+/* maximum value of LCD brighness */
+#define  LCD_BRIGHTNESS_MIN      0
+#define  LCD_BRIGHTNESS_DEFAULT  128
+#define  LCD_BRIGHTNESS_MAX      255
+
 typedef struct Background {
     SkinImage*   image;
     SkinRect     rect;
@@ -81,6 +86,7 @@ typedef struct ADisplay {
     QFrameBuffer*  qfbuff;
     SkinImage*     onion;       /* onion image */
     SkinRect       onion_rect;  /* onion rect, if any */
+    int            brightness;
 } ADisplay;
 
 static void
@@ -129,7 +135,10 @@ display_init( ADisplay*  disp, SkinDisplay*  sdisp, SkinLocation*  loc, SkinRect
 #endif
     disp->qfbuff = sdisp->qfbuff;
     disp->data   = sdisp->qfbuff->pixels;
-    disp->onion = NULL;
+    disp->onion  = NULL;
+
+    disp->brightness = LCD_BRIGHTNESS_DEFAULT;
+
     return (disp->data == NULL) ? -1 : 0;
 }
 
@@ -219,6 +228,141 @@ dotmatrix_dither_argb32( unsigned char*  pixels, int  x, int  y, int  w, int  h,
 
 #endif /* DOT_MATRIX */
 
+/* technical note about the lightness emulation
+ *
+ * we try to emulate something that looks like the Dream's
+ * non-linear LCD lightness, without going too dark or bright.
+ *
+ * the default lightness is around 105 (about 40%) and we prefer
+ * to keep full RGB colors at that setting, to not alleviate
+ * developers who will not understand why the emulator's colors
+ * look slightly too dark.
+ *
+ * we also want to implement a 'bright' mode by de-saturating
+ * colors towards bright white.
+ *
+ * All of this leads to the implementation below that looks like
+ * the following:
+ *
+ * if (level == MIN)
+ *     screen is off
+ *
+ * if (level > MIN && level < LOW)
+ *     interpolate towards black, with
+ *     MINALPHA = 0.2
+ *     alpha = MINALPHA + (1-MINALPHA)*(level-MIN)/(LOW-MIN)
+ *
+ * if (level >= LOW && level <= HIGH)
+ *     keep full RGB colors
+ *
+ * if (level > HIGH)
+ *     interpolate towards bright white, with
+ *     MAXALPHA = 0.6
+ *     alpha = MAXALPHA*(level-HIGH)/(MAX-HIGH)
+ *
+ * we probably want some sort of power law instead of interpolating
+ * linearly, but frankly, this is sufficient for most uses.
+ */
+
+#define  LCD_BRIGHTNESS_LOW   80
+#define  LCD_BRIGHTNESS_HIGH  180
+
+#define  LCD_ALPHA_LOW_MIN      0.2
+#define  LCD_ALPHA_HIGH_MAX     0.6
+
+/* treat as special value to turn screen off */
+#define  LCD_BRIGHTNESS_OFF   LCD_BRIGHTNESS_MIN
+
+static void
+lcd_brightness_argb32( unsigned char*  pixels, SkinRect*  r, int  pitch, int  brightness )
+{
+    const unsigned  b_min  = LCD_BRIGHTNESS_MIN;
+    const unsigned  b_max  = LCD_BRIGHTNESS_MAX;
+    const unsigned  b_low  = LCD_BRIGHTNESS_LOW;
+    const unsigned  b_high = LCD_BRIGHTNESS_HIGH;
+
+    unsigned        alpha = brightness;
+    int             w     = r->size.w;
+    int             h     = r->size.h;
+
+    if (alpha < b_min)
+        alpha = b_min;
+    else if (alpha > b_max)
+        alpha = b_max;
+
+    pixels += 4*r->pos.x + r->pos.y*pitch;
+
+    if (alpha < b_low)
+    {
+        const unsigned  alpha_min   = (255*LCD_ALPHA_LOW_MIN);
+        const unsigned  alpha_range = (255 - alpha_min);
+
+        alpha = alpha_min + ((alpha - b_min)*alpha_range) / (b_low - b_min);
+
+        for ( ; h > 0; h-- ) {
+            unsigned*  line = (unsigned*) pixels;
+            int        nn;
+
+            for (nn = 0; nn < w; nn++) {
+                unsigned  c  = line[nn];
+                unsigned  ag = (c >> 8) & 0x00ff00ff;
+                unsigned  rb = (c)      & 0x00ff00ff;
+
+                ag = (ag*alpha)        & 0xff00ff00;
+                rb = ((rb*alpha) >> 8) & 0x00ff00ff;
+
+                line[nn] = (unsigned)(ag | rb);
+            }
+            pixels += pitch;
+        }
+    }
+    else if (alpha > LCD_BRIGHTNESS_HIGH) /* 'superluminous' mode */
+    {
+        const unsigned  alpha_max   = (255*LCD_ALPHA_HIGH_MAX);
+        const unsigned  alpha_range = (255-alpha_max);
+        unsigned        ialpha;
+
+        alpha  = ((alpha - b_high)*alpha_range) / (b_max - b_high);
+        ialpha = 255-alpha;
+
+        for ( ; h > 0; h-- ) {
+            unsigned*  line = (unsigned*) pixels;
+            int        nn;
+
+            for (nn = 0; nn < w; nn++) {
+                unsigned  c  = line[nn];
+                unsigned  ag = (c >> 8) & 0x00ff00ff;
+                unsigned  rb = (c)      & 0x00ff00ff;
+
+                /* interpolate towards bright white, i.e. 0x00ffffff */
+                ag = ((ag*ialpha + 0x00ff00ff*alpha)) & 0xff00ff00;
+                rb = ((rb*ialpha + 0x00ff00ff*alpha) >> 8) & 0x00ff00ff;
+
+                line[nn] = (unsigned)(ag | rb);
+            }
+            pixels += pitch;
+        }
+    }
+}
+
+
+/* this is called when the LCD framebuffer is off */
+static void
+lcd_off_argb32( unsigned char*  pixels, SkinRect*  r, int  pitch )
+{
+    int  x = r->pos.x;
+    int  y = r->pos.y;
+    int  w = r->size.w;
+    int  h = r->size.h;
+
+    pixels += 4*x + y*pitch;
+    for ( ; h > 0; h-- ) {
+        memset( pixels, 0, w*4 );
+        pixels += pitch;
+    }
+}
+
+
 static void
 display_redraw( ADisplay*  disp, SkinRect*  rect, SDL_Surface*  surface )
 {
@@ -245,84 +389,95 @@ display_redraw( ADisplay*  disp, SkinRect*  rect, SDL_Surface*  surface )
                         rect->pos.x, rect->pos.y, rect->size.w, rect->size.h );
 #endif
         SDL_LockSurface( surface );
-        switch ( disp->rotation & 3 )
+
+        if (disp->brightness == LCD_BRIGHTNESS_OFF)
         {
-        case ANDROID_ROTATION_0:
-            src_line += x*2 + y*src_pitch;
-
-            for (yy = h; yy > 0; yy--)
-            {
-                uint32_t*  dst = (uint32_t*)dst_line;
-                uint16_t*  src = (uint16_t*)src_line;
-
-                for (xx = 0; xx < w; xx++) {
-                    dst[xx] = rgb565_to_argb32(src[xx]);
-                }
-                src_line += src_pitch;
-                dst_line += dst_pitch;
-            }
-            break;
-
-        case ANDROID_ROTATION_90:
-            src_line += y*2 + (disp_w - x - 1)*src_pitch;
-
-            for (yy = h; yy > 0; yy--)
-            {
-                uint32_t*  dst = (uint32_t*)dst_line;
-                uint8_t*   src = src_line;
-
-                for (xx = w; xx > 0; xx--)
-                {
-                    dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
-                    src -= src_pitch;
-                    dst += 1;
-                }
-                src_line += 2;
-                dst_line += dst_pitch;
-            }
-            break;
-
-        case ANDROID_ROTATION_180:
-            src_line += (disp_w -1 - x)*2 + (disp_h-1-y)*src_pitch;
-
-            for (yy = h; yy > 0; yy--)
-            {
-                uint16_t*  src = (uint16_t*)src_line;
-                uint32_t*  dst = (uint32_t*)dst_line;
-
-                for (xx = w; xx > 0; xx--) {
-                    dst[0] = rgb565_to_argb32(src[0]);
-                    src -= 1;
-                    dst += 1;
-                }
-
-                src_line -= src_pitch;
-                dst_line += dst_pitch;
-           }
-           break;
-
-        default:  /* ANDROID_ROTATION_270 */
-            src_line += (disp_h-1-y)*2 + x*src_pitch;
-
-            for (yy = h; yy > 0; yy--)
-            {
-                uint32_t*  dst = (uint32_t*)dst_line;
-                uint8_t*   src = src_line;
-
-                for (xx = w; xx > 0; xx--) {
-                    dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
-                    dst   += 1;
-                    src   += src_pitch;
-                }
-                src_line -= 2;
-                dst_line += dst_pitch;
-            }
+            lcd_off_argb32( surface->pixels, &r, dst_pitch );
         }
+        else
+        {
+            switch ( disp->rotation & 3 )
+            {
+            case ANDROID_ROTATION_0:
+                src_line += x*2 + y*src_pitch;
+
+                for (yy = h; yy > 0; yy--)
+                {
+                    uint32_t*  dst = (uint32_t*)dst_line;
+                    uint16_t*  src = (uint16_t*)src_line;
+
+                    for (xx = 0; xx < w; xx++) {
+                        dst[xx] = rgb565_to_argb32(src[xx]);
+                    }
+                    src_line += src_pitch;
+                    dst_line += dst_pitch;
+                }
+                break;
+
+            case ANDROID_ROTATION_90:
+                src_line += y*2 + (disp_w - x - 1)*src_pitch;
+
+                for (yy = h; yy > 0; yy--)
+                {
+                    uint32_t*  dst = (uint32_t*)dst_line;
+                    uint8_t*   src = src_line;
+
+                    for (xx = w; xx > 0; xx--)
+                    {
+                        dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
+                        src -= src_pitch;
+                        dst += 1;
+                    }
+                    src_line += 2;
+                    dst_line += dst_pitch;
+                }
+                break;
+
+            case ANDROID_ROTATION_180:
+                src_line += (disp_w -1 - x)*2 + (disp_h-1-y)*src_pitch;
+
+                for (yy = h; yy > 0; yy--)
+                {
+                    uint16_t*  src = (uint16_t*)src_line;
+                    uint32_t*  dst = (uint32_t*)dst_line;
+
+                    for (xx = w; xx > 0; xx--) {
+                        dst[0] = rgb565_to_argb32(src[0]);
+                        src -= 1;
+                        dst += 1;
+                    }
+
+                    src_line -= src_pitch;
+                    dst_line += dst_pitch;
+            }
+            break;
+
+            default:  /* ANDROID_ROTATION_270 */
+                src_line += (disp_h-1-y)*2 + x*src_pitch;
+
+                for (yy = h; yy > 0; yy--)
+                {
+                    uint32_t*  dst = (uint32_t*)dst_line;
+                    uint8_t*   src = src_line;
+
+                    for (xx = w; xx > 0; xx--) {
+                        dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
+                        dst   += 1;
+                        src   += src_pitch;
+                    }
+                    src_line -= 2;
+                    dst_line += dst_pitch;
+                }
+            }
 #if DOT_MATRIX
-        dotmatrix_dither_argb32( surface->pixels, r.pos.x, r.pos.y, r.size.w, r.size.h, surface->pitch );
+            dotmatrix_dither_argb32( surface->pixels, r.pos.x, r.pos.y, r.size.w, r.size.h, surface->pitch );
 #endif
+            /* apply lightness */
+            lcd_brightness_argb32( surface->pixels, &r, surface->pitch, disp->brightness );
+        }
         SDL_UnlockSurface( surface );
 
+        /* Apply onion skin */
         if (disp->onion != NULL) {
             SkinRect  r2;
 
@@ -468,34 +623,31 @@ ball_state_redraw( BallState*  state, SkinRect*  rect, SDL_Surface*  surface )
 }
 
 static void
-ball_state_show( BallState*  state )
+ball_state_show( BallState*  state, int  enable )
 {
-    if ( !state->tracking ) {
-        state->tracking = 1;
-        SDL_ShowCursor(0);
-        SDL_WM_GrabInput( SDL_GRAB_ON );
-        skin_trackball_refresh( state->ball );
-        skin_window_redraw( state->window, &state->rect );
+    if (enable) {
+        if ( !state->tracking ) {
+            state->tracking = 1;
+            SDL_ShowCursor(0);
+            SDL_WM_GrabInput( SDL_GRAB_ON );
+            skin_trackball_refresh( state->ball );
+            skin_window_redraw( state->window, &state->rect );
+        }
+    } else {
+        if ( state->tracking ) {
+            state->tracking = 0;
+            SDL_WM_GrabInput( SDL_GRAB_OFF );
+            SDL_ShowCursor(1);
+            skin_window_redraw( state->window, &state->rect );
+        }
     }
 }
 
-static void
-ball_state_hide( BallState*  state )
-{
-    if ( state->tracking ) {
-        state->tracking = 0;
-        SDL_WM_GrabInput( SDL_GRAB_OFF );
-        SDL_ShowCursor(1);
-
-        skin_window_redraw( state->window, &state->rect );
-    }
-}
 
 static void
 ball_state_set( BallState*  state, SkinTrackBall*  ball )
 {
-    if ( state->tracking )
-        ball_state_hide( state );
+    ball_state_show( state, 0 );
 
     state->ball = ball;
     if (ball != NULL) {
@@ -507,15 +659,6 @@ ball_state_set( BallState*  state, SkinTrackBall*  ball )
         state->rect.size.w = sr.w;
         state->rect.size.h = sr.h;
     }
-}
-
-static void
-ball_state_toggle( BallState*  state )
-{
-    if (state->tracking)
-        ball_state_hide( state );
-    else
-        ball_state_show( state );
 }
 
 typedef struct Layout {
@@ -669,6 +812,11 @@ struct SkinWindow {
     char          fullscreen;
     char          no_display;
 
+    char          enable_touch;
+    char          enable_trackball;
+    char          enable_dpad;
+    char          enable_qwerty;
+
     SkinImage*    onion;
     SkinRotation  onion_rotation;
     int           onion_alpha;
@@ -697,6 +845,9 @@ skin_window_find_finger( SkinWindow*  window,
     /* find the display that contains this movement */
     finger->display = NULL;
     finger->inside  = 0;
+
+    if (!window->enable_touch)
+        return;
 
     LAYOUT_LOOP_DISPLAYS(&window->layout,disp)
         if ( skin_rect_contains( &disp->rect, x, y ) ) {
@@ -767,6 +918,38 @@ skin_window_move_mouse( SkinWindow*  window,
             }
         LAYOUT_LOOP_END_BUTTONS
 
+        /* filter DPAD and QWERTY buttons right here */
+        if (hover != NULL) {
+            switch (hover->keycode) {
+                /* these correspond to the DPad */
+                case kKeyCodeDpadUp:
+                case kKeyCodeDpadDown:
+                case kKeyCodeDpadLeft:
+                case kKeyCodeDpadRight:
+                case kKeyCodeDpadCenter:
+                    if (!window->enable_dpad)
+                        hover = NULL;
+                    break;
+
+                /* these correspond to non-qwerty buttons */
+                case kKeyCodeSoftLeft:
+                case kKeyCodeSoftRight:
+                case kKeyCodeVolumeUp:
+                case kKeyCodeVolumeDown:
+                case kKeyCodePower:
+                case kKeyCodeHome:
+                case kKeyCodeBack:
+                case kKeyCodeCall:
+                case kKeyCodeEndCall:
+                    break;
+
+                /* all the rest is assumed to be qwerty */
+                default:
+                    if (!window->enable_qwerty)
+                        hover = NULL;
+            }
+        }
+
         if (hover != NULL) {
             hover->down = 1;
             skin_window_redraw( window, &hover->rect );
@@ -801,12 +984,12 @@ skin_window_set_trackball( SkinWindow*  window, SkinTrackBall*  ball )
 }
 
 void
-skin_window_toggle_trackball( SkinWindow*  window )
+skin_window_show_trackball( SkinWindow*  window, int  enable )
 {
     BallState*  state = &window->ball;
 
-    if (state->ball != NULL) {
-        ball_state_toggle(state);
+    if (state->ball != NULL && window->enable_trackball) {
+        ball_state_show(state, enable);
     }
 }
 
@@ -829,6 +1012,12 @@ skin_window_create( SkinLayout*  slayout, int  x, int  y, double  scale, int  no
     window->scaler       = skin_scaler_create();
     window->no_display   = no_display;
 
+    /* enable everything by default */
+    window->enable_touch     = 1;
+    window->enable_trackball = 1;
+    window->enable_dpad      = 1;
+    window->enable_qwerty    = 1;
+
     if (skin_window_reset(window, slayout) < 0) {
         skin_window_free( window );
         return NULL;
@@ -841,6 +1030,30 @@ skin_window_create( SkinLayout*  slayout, int  x, int  y, double  scale, int  no
     }
 
     return window;
+}
+
+void
+skin_window_enable_touch( SkinWindow*  window, int  enabled )
+{
+    window->enable_touch = !!enabled;
+}
+
+void
+skin_window_enable_trackball( SkinWindow*  window, int  enabled )
+{
+    window->enable_trackball = !!enabled;
+}
+
+void
+skin_window_enable_dpad( SkinWindow*  window, int  enabled )
+{
+    window->enable_dpad = !!enabled;
+}
+
+void
+skin_window_enable_qwerty( SkinWindow*  window, int  enabled )
+{
+    window->enable_qwerty = !!enabled;
 }
 
 void
@@ -942,6 +1155,17 @@ skin_window_reset ( SkinWindow*  window, SkinLayout*  slayout )
     }
 
     return 0;
+}
+
+void
+skin_window_set_lcd_brightness( SkinWindow*  window, int  brightness )
+{
+    ADisplay*  disp = window->layout.displays;
+
+    if (disp != NULL) {
+        disp->brightness = brightness;
+        skin_window_redraw( window, NULL );
+    }
 }
 
 void

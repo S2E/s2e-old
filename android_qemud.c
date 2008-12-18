@@ -32,48 +32,6 @@
 
 #define  CHANNEL_CONTROL_INDEX 0
 
-/** utilities
- **/
-static int
-hexdigit( int  c )
-{
-    unsigned  d;
-
-    d = (unsigned)(c - '0');
-    if (d < 10) return d;
-
-    d = (unsigned)(c - 'a');
-    if (d < 6) return d+10;
-
-    d = (unsigned)(c - 'A');
-    if (d < 6) return d+10;
-
-    return -1;
-}
-
-static int
-hex2int( const uint8_t*  hex, int  len )
-{
-    int  result = 0;
-    while (len > 0) {
-        int  c = hexdigit(*hex++);
-        if (c < 0)
-            return -1;
-
-        result = (result << 4) | c;
-        len --;
-    }
-    return result;
-}
-
-static void
-int2hex( uint8_t*  hex, int  len, int  val )
-{
-    static const uint8_t  hexchars[16] = "0123456789abcdef";
-    while ( --len >= 0 )
-        *hex++ = hexchars[(val >> (len*4)) & 15];
-}
-
 /** packets
  **/
 #define  HEADER_SIZE  6

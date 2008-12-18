@@ -387,11 +387,13 @@ tcp_sockclosed(tp)
 
 static void
 tcp_proxy_event( struct socket*  so,
+                 int             s,
                  ProxyEvent      event )
 {
     so->so_state &= ~SS_PROXIFIED;
 
     if (event == PROXY_EVENT_CONNECTED) {
+        so->s         = s;
         so->so_state &= ~(SS_ISFCONNECTING);
     }
     else {
@@ -415,21 +417,17 @@ tcp_proxy_event( struct socket*  so,
 int tcp_fconnect(so)
      struct socket *so;
 {
-  int ret=0;
-  int try_proxy = 0;
-
-  DEBUG_CALL("tcp_fconnect");
-  DEBUG_ARG("so = %lx", (long )so);
-
-  if( (ret=so->s=socket(AF_INET,SOCK_STREAM,0)) >= 0) {
-    int s=so->s;
+    int ret=0;
+    int try_proxy = 1;
     struct sockaddr_in addr;
 
-    socket_set_nonblock(s);
-    socket_set_xreuseaddr(s);
-    socket_set_oobinline(s);
+    DEBUG_CALL("tcp_fconnect");
+    DEBUG_ARG("so = %lx", (long )so);
 
     addr.sin_family = AF_INET;
+    addr.sin_addr   = so->so_faddr;
+    addr.sin_port   = so->so_fport;
+
     if ((so->so_faddr.s_addr & htonl(0xffffff00)) == special_addr.s_addr) {
       /* It's an alias */
       int  last_byte = ntohl(so->so_faddr.s_addr) & 0xff;
@@ -438,32 +436,39 @@ int tcp_fconnect(so)
         addr.sin_addr = dns_addr[last_byte - CTL_DNS];
       else
         addr.sin_addr = loopback_addr;
-    } else {
-      addr.sin_addr = so->so_faddr;
-      try_proxy = 1;
+      try_proxy = 0;
     }
-    addr.sin_port = so->so_fport;
 
     DEBUG_MISC((dfd, " connect()ing, addr.sin_port=%d, "
-                "addr.sin_addr.s_addr=%.16s\n",
-                ntohs(addr.sin_port), inet_ntoa(addr.sin_addr)));
+                "addr.sin_addr.s_addr=%.16s proxy=%d\n",
+                ntohs(addr.sin_port), inet_ntoa(addr.sin_addr),
+                try_proxy));
 
     if (try_proxy) {
-        if (!proxy_manager_add(s, &addr, so, (ProxyEventFunc) tcp_proxy_event)) {
+        if (!proxy_manager_add(&addr, SOCK_STREAM, (ProxyEventFunc) tcp_proxy_event, so)) {
             soisfconnecting(so);
+            so->s         = -1;
             so->so_state |= SS_PROXIFIED;
             return 0;
         }
     }
 
-    /* We don't care what port we get */
-    ret = connect(s,(struct sockaddr *)&addr,sizeof (addr));
+    if ((ret=so->s=socket(AF_INET,SOCK_STREAM,0)) >= 0) 
+    {
+        int  s = so->s;
 
-    /*
-     * If it's not in progress, it failed, so we just return 0,
-     * without clearing SS_NOFDREF
-     */
-    soisfconnecting(so);
+        socket_set_nonblock(s);
+        socket_set_xreuseaddr(s);
+        socket_set_oobinline(s);
+
+        /* We don't care what port we get */
+        ret = connect(s,(struct sockaddr *)&addr,sizeof (addr));
+
+        /*
+        * If it's not in progress, it failed, so we just return 0,
+        * without clearing SS_NOFDREF
+        */
+        soisfconnecting(so);
   }
 
   return(ret);
@@ -840,7 +845,7 @@ tcp_emu(so, m)
 		 * A typical packet for player version 1.0 (release version):
 		 *
 		 * 0000:50 4E 41 00 05
-		 * 0000:00 01 00 02 1B D7 00 00 67 E6 6C DC 63 00 12 50 .....×..gælÜc..P
+		 * 0000:00 01 00 02 1B D7 00 00 67 E6 6C DC 63 00 12 50 .....ï¿½..gï¿½lï¿½c..P
 		 * 0010:4E 43 4C 49 45 4E 54 20 31 30 31 20 41 4C 50 48 NCLIENT 101 ALPH
 		 * 0020:41 6C 00 00 52 00 17 72 61 66 69 6C 65 73 2F 76 Al..R..rafiles/v
 		 * 0030:6F 61 2F 65 6E 67 6C 69 73 68 5F 2E 72 61 79 42 oa/english_.rayB
@@ -852,8 +857,8 @@ tcp_emu(so, m)
 		 *
 		 * A typical packet for player version 2.0 (beta):
 		 *
-		 * 0000:50 4E 41 00 06 00 02 00 00 00 01 00 02 1B C1 00 PNA...........Á.
-		 * 0010:00 67 75 78 F5 63 00 0A 57 69 6E 32 2E 30 2E 30 .guxõc..Win2.0.0
+		 * 0000:50 4E 41 00 06 00 02 00 00 00 01 00 02 1B C1 00 PNA...........ï¿½.
+		 * 0010:00 67 75 78 F5 63 00 0A 57 69 6E 32 2E 30 2E 30 .guxï¿½c..Win2.0.0
 		 * 0020:2E 35 6C 00 00 52 00 1C 72 61 66 69 6C 65 73 2F .5l..R..rafiles/
 		 * 0030:77 65 62 73 69 74 65 2F 32 30 72 65 6C 65 61 73 website/20releas
 		 * 0040:65 2E 72 61 79 53 00 00 06 36 42                e.rayS...6B

@@ -3,6 +3,7 @@
 
 #include <stdarg.h>
 #include <setjmp.h>
+#include <stddef.h>
 #include "config.h"
 
 int qemu_vsnprintf(char *buf, int buflen, const char *fmt, va_list args);

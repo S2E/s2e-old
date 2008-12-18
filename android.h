@@ -13,12 +13,7 @@
 #define  _qemu_android_h
 
 #define  ANDROID_VERSION_MAJOR  1
-#define  ANDROID_VERSION_MINOR  7
-
-// Used to know where to store the user data image.
-// Note: this *must* match the similar-named constant in the ADT plugin,
-// defined in tools/androidprefs/src/com/android/prefs/AndroidLocation.java
-#define ANDROID_SDK_VERSION "SDK-1.0"
+#define  ANDROID_VERSION_MINOR  8
 
 #define  CONFIG_SHAPER  1
 
