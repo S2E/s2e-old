@@ -7,7 +7,8 @@ EMULATOR_OP_LIBRARIES := $(EMULATOR_OP_LIBRARIES) $(LOCAL_MODULE)
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 
-LOCAL_CFLAGS += $(OP_CFLAGS)
+LOCAL_LDFLAGS += $(my_32bit_ldflags)
+LOCAL_CFLAGS += $(my_32bit_cflags) $(OP_CFLAGS)
 
 INTERMEDIATE := $(call intermediates-dir-for,STATIC_LIBRARIES,$(LOCAL_MODULE),true)
 OP_OBJ       := $(INTERMEDIATE)/target-arm/op.o

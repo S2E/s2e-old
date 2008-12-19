@@ -315,11 +315,11 @@ SysChannel
 sys_channel_create_tcp_server( int port )
 {
     SysChannel  channel = sys_channel_alloc();
-    const int   BACKLOG = 4;
 
     channel->fd = socket_anyaddr_server( port, SOCK_STREAM );
     if (channel->fd < 0) {
-        D( "%s: failed to created network socket on TCP:%d\n", port );
+        D( "%s: failed to created network socket on TCP:%d\n", 
+            __FUNCTION__, port );
         sys_channel_free( channel );
         return NULL;
     }

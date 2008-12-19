@@ -26,6 +26,7 @@ proxy_LOG(const char*  fmt, ...)
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);
     va_end(args);
+    fprintf(stderr, "\n");
 }
 
 void
@@ -39,48 +40,38 @@ proxy_set_verbose(int  mode)
 
 static ProxyConnection  s_connections[1];
 
+#define  MAX_HEX_DUMP  512
+
 static void
 hex_dump( void*   base, int  size, const char*  prefix )
 {
-    uint8_t*   p         = (uint8_t*)base;
-    const int  max_count = 16;
-
-    while (size > 0) {
-        int          count = size > max_count ? max_count : size;
-        int          n;
-        const char*  space = prefix;
-
-        for (n = 0; n < count; n++) {
-            proxy_LOG( "%s%02x", space, p[n] );
-            space = " ";
-        }
-
-        proxy_LOG( "%-*s", 4 + 3*(max_count-n), "" );
-
-        for (n = 0; n < count; n++) {
-            int  c = p[n];
-
-            if (c < 32 || c > 127)
-                c = '.';
-            proxy_LOG( "%c", c );
-        }
-        proxy_LOG( "\n" );
-        size -= count;
-        p    += count;
-    }
+    STRALLOC_DEFINE(s);
+    if (size > MAX_HEX_DUMP)
+        size = MAX_HEX_DUMP;
+    stralloc_add_hexdump(s, base, size, prefix);
+    proxy_LOG( "%s", stralloc_cstr(s) );
+    stralloc_reset(s);
 }
 
-
 void
-proxy_connection_init( ProxyConnection*     conn,
-                       int                  socket,
-                       struct sockaddr_in*  address,
-                       ProxyService*        service )
+proxy_connection_init( ProxyConnection*           conn,
+                       int                        socket,
+                       struct sockaddr_in*        address,
+                       ProxyService*              service,
+                       ProxyConnectionFreeFunc    conn_free,
+                       ProxyConnectionSelectFunc  conn_select,
+                       ProxyConnectionPollFunc    conn_poll )
 {
     conn->socket    = socket;
     conn->address   = address[0];
     conn->service   = service;
     conn->next      = NULL;
+
+    conn->conn_free   = conn_free;
+    conn->conn_select = conn_select;
+    conn->conn_poll   = conn_poll;
+
+    socket_set_nonblock(socket);
 
     {
         uint32_t  ip   = ntohl(address->sin_addr.s_addr);
@@ -98,121 +89,153 @@ proxy_connection_init( ProxyConnection*     conn,
         conn->name[sizeof(conn->name)-1] = 0;
     }
 
-    conn->buffer_pos = 0;
-    conn->buffer_len = 0;
-    conn->buffer     = conn->buffer0;
+    stralloc_reset(conn->str);
+    conn->str_pos = 0;
 }
 
 void
 proxy_connection_done( ProxyConnection*  conn )
 {
-    if (conn->buffer != conn->buffer0) {
-        qemu_free(conn->buffer);
+    stralloc_reset( conn->str );
+    if (conn->socket >= 0) {
+        socket_close(conn->socket);
+        conn->socket = -1;
     }
 }
 
 
-int
-proxy_connection_send( ProxyConnection*  conn )
+void
+proxy_connection_rewind( ProxyConnection*  conn )
 {
-    int  result = -1;
-    int  fd     = conn->socket;
-    int  avail  = conn->buffer_len - conn->buffer_pos;
+    stralloc_t*  str = conn->str;
+
+    /* only keep a small buffer in the heap */
+    conn->str_pos = 0;
+    str->n        = 0;
+    if (str->a > 1024)
+        stralloc_reset(str);
+}
+
+DataStatus
+proxy_connection_send( ProxyConnection*  conn, int  fd )
+{
+    stralloc_t*  str    = conn->str;
+    int          avail  = str->n - conn->str_pos;
+
+    conn->str_sent = 0;
+
+    if (avail <= 0)
+        return 1;
 
     if (proxy_log) {
-        PROXY_LOG("%s: sending %d bytes:\n", conn->name, avail );
-        hex_dump( conn->buffer + conn->buffer_pos, avail, ">> " );
+        PROXY_LOG("%s: sending %d bytes:", conn->name, avail );
+        hex_dump( str->s + conn->str_pos, avail, ">> " );
     }
 
     while (avail > 0) {
-        int  n = send(fd, conn->buffer + conn->buffer_pos, avail, 0);
-        if (n < 0) {
-            if (errno == EINTR)
-                continue;
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-                return 0;
-            PROXY_LOG("%s: error: %s\n", conn->name, strerror(errno));
-            return -1;
+        int  n = send(fd, str->s + conn->str_pos, avail, 0);
+        if (n == 0) {
+            PROXY_LOG("%s: connection reset by peer (send)",
+                      conn->name);
+            return DATA_ERROR;
         }
-        conn->buffer_pos += n;
-        avail            -= n;
+        if (n < 0) {
+            if (socket_errno == EINTR)
+                continue;
+
+            if (socket_errno == EWOULDBLOCK || socket_errno == EAGAIN)
+                return DATA_NEED_MORE;
+
+            PROXY_LOG("%s: error: %s", conn->name, socket_errstr());
+            return DATA_ERROR;
+        }
+        conn->str_pos  += n;
+        conn->str_sent += n;
+        avail          -= n;
     }
-    return 1;
+
+    proxy_connection_rewind(conn);
+    return DATA_COMPLETED;
 }
 
-int
-proxy_connection_receive( ProxyConnection*  conn )
-{
-    int  result = -1;
-    int  fd     = conn->socket;
-    int  avail  = conn->buffer_len - conn->buffer_pos;
 
-    while (avail > 0) {
-        int  n = recv(fd, conn->buffer + conn->buffer_pos, avail, 0);
+DataStatus
+proxy_connection_receive( ProxyConnection*  conn, int  fd, int  wanted )
+{
+    stralloc_t*  str    = conn->str;
+
+    conn->str_recv = 0;
+
+    while (wanted > 0) {
+        int  n;
+
+        stralloc_readyplus( str, wanted );
+        n = recv(fd, str->s + str->n, wanted, 0);
+        if (n == 0) {
+            PROXY_LOG("%s: connection reset by peer (receive)",
+                      conn->name);
+            return DATA_ERROR;
+        }
         if (n < 0) {
-            if (errno == EINTR)
+            if (socket_errno == EINTR)
                 continue;
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-                return 0;
-            PROXY_LOG("%s: error: %s\n", conn->name, strerror(errno));
-            return -1;
+
+            if (socket_errno == EWOULDBLOCK || socket_errno == EAGAIN)
+                return DATA_NEED_MORE;
+
+            PROXY_LOG("%s: error: %s", conn->name, socket_errstr());
+            return DATA_ERROR;
         }
 
         if (proxy_log) {
-            PROXY_LOG("%s: received %d bytes:\n", conn->name, n );
-            hex_dump( conn->buffer + conn->buffer_pos, n, ">> " );
+            PROXY_LOG("%s: received %d bytes:", conn->name, n );
+            hex_dump( str->s + str->n, n, "<< " );
         }
 
-        conn->buffer_pos += n;
-        avail            -= n;
+        str->n         += n;
+        wanted         -= n;
+        conn->str_recv += n;
     }
-    return 1;
+    return DATA_COMPLETED;
 }
 
-int
-proxy_connection_receive_line( ProxyConnection*  conn )
+
+DataStatus
+proxy_connection_receive_line( ProxyConnection*  conn, int  fd )
 {
-    int  result = -1;
-    int  fd     = conn->socket;
+    stralloc_t*  str = conn->str;
 
     for (;;) {
         char  c;
         int   n = recv(fd, &c, 1, 0);
         if (n == 0) {
-            PROXY_LOG("%s: disconnected from server\n", conn->name );
-            return -1;
+            PROXY_LOG("%s: disconnected from server", conn->name );
+            return DATA_ERROR;
         }
         if (n < 0) {
-            if (errno == EINTR)
+            if (socket_errno == EINTR)
                 continue;
-            if (errno == EWOULDBLOCK || errno == EAGAIN) {
-                PROXY_LOG("%s: blocked\n", conn->name);
-                return 0;
+
+            if (socket_errno == EWOULDBLOCK || socket_errno == EAGAIN) {
+                PROXY_LOG("%s: blocked", conn->name);
+                return DATA_NEED_MORE;
             }
-            PROXY_LOG("%s: error: %s\n", conn->name, strerror(errno));
-            return -1;
+            PROXY_LOG("%s: error: %s", conn->name, socket_errstr());
+            return DATA_ERROR;
         }
 
+        stralloc_add_c(str, c);
         if (c == '\n') {
-            if (conn->buffer_pos > 0 && conn->buffer[conn->buffer_pos-1] == '\r')
-                conn->buffer_pos -= 1;
+            str->s[--str->n] = 0;
+            if (str->n > 0 && str->s[str->n-1] == '\r')
+                str->s[--str->n] = 0;
 
-            conn->buffer[conn->buffer_pos] = 0;
-
-            PROXY_LOG("%s: received '%.*s'\n", conn->name,
-                      conn->buffer_pos, conn->buffer);
-            return 1;
-        }
-
-        conn->buffer[ conn->buffer_pos++ ] = c;
-        if (conn->buffer_pos == conn->buffer_len) {
-            PROXY_LOG("%s: line received from proxy is too long\n", conn->name);
-            return -1;
+            PROXY_LOG("%s: received '%s'", conn->name,
+                      quote_bytes(str->s, str->n));
+            return DATA_COMPLETED;
         }
     }
 }
-
-
 
 static void
 proxy_connection_insert( ProxyConnection*  conn, ProxyConnection*  after )
@@ -276,7 +299,7 @@ proxy_manager_atexit( void )
     /* free all proxy connections */
     while (conn != s_connections) {
         ProxyConnection*  next = conn->next;
-        conn->service->conn_free( conn );
+        conn->conn_free( conn );
         conn = next;
     }
     conn->next = conn;
@@ -293,6 +316,7 @@ proxy_manager_atexit( void )
 
 void
 proxy_connection_free( ProxyConnection*  conn,
+                       int               keep_alive,
                        ProxyEvent        event )
 {
     if (conn) {
@@ -301,18 +325,21 @@ proxy_connection_free( ProxyConnection*  conn,
         proxy_connection_remove(conn);
 
         if (event != PROXY_EVENT_NONE)
-            conn->ev_func( conn->ev_opaque, event );
+            conn->ev_func( conn->ev_opaque, fd, event );
 
-        conn->service->conn_free(conn);
+        if (keep_alive)
+            conn->socket = -1;
+
+        conn->conn_free(conn);
     }
 }
 
 
 int
-proxy_manager_add( int                  socket,
-                   struct sockaddr_in*  address,
-                   void*                ev_opaque,
-                   ProxyEventFunc       ev_func )
+proxy_manager_add( struct sockaddr_in*  address,
+                   int                  sock_type,
+                   ProxyEventFunc       ev_func,
+                   void*                ev_opaque )
 {
     int  n;
 
@@ -320,16 +347,14 @@ proxy_manager_add( int                  socket,
         proxy_manager_init();
     }
 
-    socket_set_nonblock(socket);
-
     for (n = 0; n < s_num_services; n++) {
         ProxyService*     service = s_services[n];
         ProxyConnection*  conn    = service->serv_connect( service->opaque,
-                                                           socket,
+                                                           sock_type,
                                                            address );
         if (conn != NULL) {
-            conn->ev_opaque = ev_opaque;
             conn->ev_func   = ev_func;
+            conn->ev_opaque = ev_opaque;
             proxy_connection_insert(conn, s_connections->prev);
             return 0;
         }
@@ -343,18 +368,60 @@ proxy_manager_add( int                  socket,
  * the connection accept/refusal occured
  */
 void
-proxy_manager_del( int  socket )
+proxy_manager_del( void*  ev_opaque )
 {
     ProxyConnection*  conn = s_connections->next;
     for ( ; conn != s_connections; conn = conn->next ) {
-        if (conn->socket == socket) {
-            int  fd = conn->socket;
+        if (conn->ev_opaque == ev_opaque) {
             proxy_connection_remove(conn);
-            conn->service->conn_free(conn);
-            socket_close(fd);
+            conn->conn_free(conn);
             return;
         }
     }
+}
+
+void
+proxy_select_set( ProxySelect*  sel,
+                  int           fd,
+                  unsigned      flags )
+{
+    if (fd < 0 || !flags)
+        return;
+
+    if (*sel->pcount < fd+1)
+        *sel->pcount = fd+1;
+
+    if (flags & PROXY_SELECT_READ) {
+        FD_SET( fd, sel->reads );
+    } else {
+        FD_CLR( fd, sel->reads );
+    }
+    if (flags & PROXY_SELECT_WRITE) {
+        FD_SET( fd, sel->writes );
+    } else {
+        FD_CLR( fd, sel->writes );
+    }
+    if (flags & PROXY_SELECT_ERROR) {
+        FD_SET( fd, sel->errors );
+    } else {
+        FD_CLR( fd, sel->errors );
+    }
+}
+
+unsigned
+proxy_select_poll( ProxySelect*  sel, int  fd )
+{
+    unsigned  flags = 0;
+
+    if (fd >= 0) {
+        if ( FD_ISSET(fd, sel->reads) )
+            flags |= PROXY_SELECT_READ;
+        if ( FD_ISSET(fd, sel->writes) )
+            flags |= PROXY_SELECT_WRITE;
+        if ( FD_ISSET(fd, sel->errors) )
+            flags |= PROXY_SELECT_ERROR;
+    }
+    return flags;
 }
 
 /* this function is called to update the select file descriptor sets
@@ -363,30 +430,21 @@ void
 proxy_manager_select_fill( int  *pcount, fd_set*  read_fds, fd_set*  write_fds, fd_set*  err_fds)
 {
     ProxyConnection*  conn;
+    ProxySelect       sel[1];
 
     if (!s_init)
         proxy_manager_init();
 
+    sel->pcount = pcount;
+    sel->reads  = read_fds;
+    sel->writes = write_fds;
+    sel->errors = err_fds;
+
     conn = s_connections->next;
-    for ( ; conn != s_connections; conn = conn->next ) {
-        unsigned  flags = conn->service->conn_select(conn);
-        int       fd    = conn->socket;
-
-        if (!flags)
-            continue;
-
-        if (*pcount < fd+1)
-            *pcount = fd+1;
-
-        if (flags & PROXY_SELECT_READ) {
-            FD_SET( fd, read_fds );
-        }
-        if (flags & PROXY_SELECT_WRITE) {
-            FD_SET( fd, write_fds );
-        }
-        if (flags & PROXY_SELECT_ERROR) {
-            FD_SET( fd, err_fds );
-        }
+    while (conn != s_connections) {
+        ProxyConnection*  next = conn->next;
+        conn->conn_select(conn, sel);
+        conn = next;
     }
 }
 
@@ -395,21 +453,16 @@ void
 proxy_manager_poll( fd_set*  read_fds, fd_set*  write_fds, fd_set*  err_fds )
 {
     ProxyConnection*  conn = s_connections->next;
+    ProxySelect       sel[1];
+
+    sel->pcount = NULL;
+    sel->reads  = read_fds;
+    sel->writes = write_fds;
+    sel->errors = err_fds;
+
     while (conn != s_connections) {
         ProxyConnection*  next  = conn->next;
-        int               fd    = conn->socket;
-        unsigned          flags = 0;
-
-        if ( FD_ISSET(fd, read_fds) )
-            flags |= PROXY_SELECT_READ;
-        if ( FD_ISSET(fd, write_fds) )
-            flags |= PROXY_SELECT_WRITE;
-        if ( FD_ISSET(fd, err_fds) )
-            flags |= PROXY_SELECT_ERROR;
-
-        if (flags != 0) {
-            conn->service->conn_poll( conn, flags );
-        }
+        conn->conn_poll( conn, sel );
         conn = next;
     }
 }
@@ -480,7 +533,7 @@ proxy_resolve_server( struct sockaddr_in*  addr,
 
     host = gethostbyname(name);
     if (host == NULL) {
-        PROXY_LOG("%s: can't resolve proxy server name '%s'\n",
+        PROXY_LOG("%s: can't resolve proxy server name '%s'",
                   __FUNCTION__, name);
         goto Exit;
     }
@@ -488,7 +541,7 @@ proxy_resolve_server( struct sockaddr_in*  addr,
     addr->sin_addr = *(struct in_addr*)host->h_addr;
     {
         uint32_t  a = ntohl(addr->sin_addr.s_addr);
-        PROXY_LOG("server name '%s' resolved to %d.%d.%d.%d\n", name, (a>>24)&255, (a>>16)&255,(a>>8)&255,a&255);
+        PROXY_LOG("server name '%s' resolved to %d.%d.%d.%d", name, (a>>24)&255, (a>>16)&255,(a>>8)&255,a&255);
     }
     result = 0;
 

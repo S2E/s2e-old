@@ -266,7 +266,7 @@ diddit:
 void
 if_start(void)
 {
-	MBuf ifm, *ifqt;
+	MBuf ifm, ifqt;
 	
 	DEBUG_CALL("if_start");
 	

@@ -116,11 +116,7 @@ extern void  android_emulation_teardown( void );
 #ifdef TARGET_PPC
 #define DEFAULT_RAM_SIZE 144
 #else
-#if 1  /* Android */
-#define DEFAULT_RAM_SIZE 96
-#else
 #define DEFAULT_RAM_SIZE 128
-#endif
 #endif
 /* in ms */
 #define GUI_REFRESH_INTERVAL (1000/60)

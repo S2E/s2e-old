@@ -49,9 +49,21 @@
 #ifdef _WIN32
 #  undef   MAX_PATH
 #  define  MAX_PATH    1024
+#  define  PATH_MAX    MAX_PATH
 #else
 #  include <limits.h>
 #  define  MAX_PATH    PATH_MAX
+#endif
+
+#ifdef _WIN32
+#  define  strcasecmp  stricmp
+#endif
+
+
+#ifdef _WIN32
+#  undef   strsep
+#  define  strsep    win32_strsep
+extern char*  win32_strsep(char**  pline, const char*  delim);
 #endif
 
 /** NON-GRAPHIC USAGE
@@ -173,23 +185,22 @@ extern char*  bufprint_temp_file  (char*  buffer, char*  buffend, const char*  s
  ** a FileLock is useful to prevent several emulator instances from using the same
  ** writable file (e.g. the userdata.img disk images).
  **
- ** create a FileLock object with filelock_create(), note that the function will *not*
- ** return NULL if the file doesn't exist.
- *
- *  then call filelock_lock() to try to acquire a lock for the corresponding file.
- ** returns 0 on success, or -1 in case of error, which means that another program
- ** is using the file or that the directory containing the file is read-only.
+ ** create a FileLock object with filelock_create(), the function will return
+ ** NULL only if the corresponding path is already locked by another emulator
+ ** of if the path is read-only.
  **
- ** all file locks are automatically released and destroyed when the program exits.
- ** the filelock_lock() function can also detect stale file locks that can linger
- ** when the emulator crashes unexpectedly, and will happily clean them for you
+ ** note that 'path' can designate a non-existing path and that the lock creation
+ ** function can detect stale file locks that can longer when the emulator
+ ** crashes unexpectedly, and will happily clean them for you.
+ **
+ ** you can call filelock_release() to release a file lock explicitely. otherwise
+ ** all file locks are automatically released when the program exits.
  **/
 
 typedef struct FileLock  FileLock;
 
-extern FileLock*  filelock_create( const char*  path );
-extern int        filelock_lock( FileLock*  lock );
-extern void       filelock_unlock( FileLock*  lock );
+extern FileLock*  filelock_create ( const char*  path );
+extern void       filelock_release( FileLock*  lock );
 
 /** TEMP FILE SUPPORT
  **
@@ -317,8 +328,11 @@ extern void   print_tabular( const char** strings, int  count,
  ** converts one character into another in strings
  **/
 
-extern void   buffer_translate_char( char*  buff, unsigned  len,
-                                     char   from, char      to );
+extern void   buffer_translate_char( char*        buff,
+                                     unsigned     buffLen,
+                                     const char*  src,
+                                     char         fromChar,
+                                     char         toChar );
 
 extern void   string_translate_char( char*  str, char from, char to );
 
@@ -353,6 +367,9 @@ extern void   stralloc_add_format( stralloc_t*  s, const char*  fmt, ... );
 extern void   stralloc_add_quote_c( stralloc_t*  s, int  c );
 extern void   stralloc_add_quote_str( stralloc_t*  s, const char*  str );
 extern void   stralloc_add_quote_bytes( stralloc_t*  s, const void*  from, unsigned   len );
+
+extern void   stralloc_add_hex( stralloc_t*  s, unsigned  value, int  num_digits );
+extern void   stralloc_add_hexdump( stralloc_t*  s, void*  base, int  size, const char*  prefix );
 
 extern void   stralloc_tabular( stralloc_t*  s, const char** strings, int  count,
                                                 const char*  prefix,  int  width );
@@ -400,5 +417,16 @@ extern int    qvector_index( qvector_t*  v, void*  item );  /* returns -1 is not
 extern void   qvector_insert( qvector_t*  v, int  index, void*  item );
 extern void   qvector_remove( qvector_t*  v, int  index );
 extern void   qvector_remove_n( qvector_t*  v, int  index, int  count );
+
+/** DECIMAL AND HEXADECIMAL CHARACTER SEQUENCES
+ **/
+
+/* decodes a sequence of 'len' hexadecimal chars from 'hex' into
+ * an integer. returns -1 in case of error (i.e. badly formed chars)
+ */
+extern int    hex2int( const uint8_t*  hex, int  len );
+
+/* encodes an integer 'val' into 'len' hexadecimal charaters into 'hex' */
+extern void   int2hex( uint8_t*  hex, int  len, int  val );
 
 #endif /* _ANDROID_UTILS_H */

@@ -13,6 +13,23 @@
 #define  PRINTF(...)  stralloc_add_format(out,__VA_ARGS__)
 
 static void
+help_virtual_machine( stralloc_t*  out )
+{
+    PRINTF(
+    "  An Android Virtual Machine (avm) models a single virtual\n"
+    "  device running the Android platform that has its own kernel,\n"
+    "  system image and data partition.\n\n"
+
+    "  Only one emulator process can run a given AVM at a time, but\n"
+    "  you can create several AVMs and run them concurrently.\n\n"
+
+    "  TODO TODO TODO: ADD INFORMATION ABOUT AVM CONTENT DIRECTORIES,\n"
+    "                  AVM MANAGEMENT, ETC...\n"
+    );
+}
+
+
+static void
 help_disk_images( stralloc_t*  out )
 {
     char  datadir[256];
@@ -313,15 +330,31 @@ help_char_devices(stralloc_t*  out)
 
 static const  struct {  const char*  name; const char*  descr; void (*help_func)(stralloc_t*  out); }  help_topics[] =
 {
-    { "disk-images", "about disk images",      help_disk_images },
-    { "keys",        "supported key bindings", help_keys },
-    { "debug-tags",  "debug tags for -debug <tags>", help_debug_tags },
-    { "char-devices", "character <device> specification", help_char_devices },
-    { "environment", "environment variables",  help_environment },
-    { "keyset-file",  "key bindings configuration file", help_keyset_file },
-    { NULL, NULL }
+    { "disk-images",     "about disk images",      help_disk_images },
+    { "keys",            "supported key bindings", help_keys },
+    { "debug-tags",      "debug tags for -debug <tags>", help_debug_tags },
+    { "char-devices",    "character <device> specification", help_char_devices },
+    { "environment",     "environment variables",  help_environment },
+    { "keyset-file",     "key bindings configuration file", help_keyset_file },
+    { "virtual-machine", "virtual machine management", help_virtual_machine },
+    { NULL, NULL, NULL }
 };
 
+
+static void
+help_vm(stralloc_t*  out)
+{
+    PRINTF(
+    "  use '-vm <name>' to start the emulator program with a given vm,\n"
+    "  where <name> must correspond to the name of one of the\n"
+    "  Android virtual machines available on your host.\n\n"
+
+    "  As a special convenience, using '@<name>' is equivalent to using\n"
+    "  '-vm <name>'.\n\n"
+
+    "  For more information about virtual machines, see -help-virtual-machine.\n"
+    );
+}
 
 static void
 help_system(stralloc_t*  out)
@@ -480,7 +513,10 @@ help_skindir(stralloc_t*  out)
     PRINTF(
     "  use '-skindir <dir>' to specify a directory that will be used to search\n"
     "  for emulator skins. each skin must be a subdirectory of <dir>. by default\n"
-    "  the emulator will look in the 'skins' sub-directory of the system directory\n\n" );
+    "  the emulator will look in the 'skins' sub-directory of the system directory\n\n"
+
+    "  the '-skin <name>' option is required when -skindir is used.\n"
+    );
 }
 
 static void
@@ -880,6 +916,26 @@ help_port(stralloc_t*  out)
 }
 
 static void
+help_ports(stralloc_t*  out)
+{
+    PRINTF(
+    "  the '-ports <consoleport>,<adbport>' option allows you to explicitely set\n"
+    "  the TCP ports used by the emulator to implement its control console and\n"
+    "  communicate with the ADB tool.\n\n"
+
+    "  This is a very special option that should probably *not* be used by typical\n"
+    "  developers using the Android SDK (use '-port <port>' instead), because the\n"
+    "  corresponding instance is probably not going to be seen from adb/DDMS. Its\n"
+    "  purpose is to use the emulator in very specific network configurations.\n\n"
+
+    "    <consoleport> is the TCP port used to bind the control console\n"
+    "    <adbport> is the TCP port used to bind the ADB local transport/tunnel.\n\n"
+
+    "  If both ports aren't available on startup, the emulator will exit.\n\n");
+}
+
+
+static void
 help_onion(stralloc_t*  out)
 {
     PRINTF(
@@ -1079,15 +1135,30 @@ help_nand_limits(stralloc_t*  out)
 }
 #endif /* CONFIG_NAND_LIMITS */
 
+static void
+help_bootchart(stralloc_t  *out)
+{
+    PRINTF(
+    "  some Android system images have a modified 'init' system that  integrates\n"
+    "  a bootcharting facility (see http://www.bootchart.org/). You can pass a\n"
+    "  bootcharting period to the system with the following:\n\n"
+
+    "    -bootchart <timeout>\n\n"
+
+    "  where 'timeout' is a period expressed in seconds. Note that this won't do\n"
+    "  anything if your init doesn't have bootcharting activated.\n\n"
+    );
+}
+
 #define  help_noskin  NULL
 #define  help_netspeed  help_shaper
 #define  help_netdelay  help_shaper
 #define  help_netfast   help_shaper
 
 #define  help_nojni        NULL
-#define  help_no_window       NULL
-#define  help_version         NULL
-
+#define  help_no_window    NULL
+#define  help_version      NULL
+#define  help_memory       NULL
 
 typedef struct {
     const char*  name;
@@ -1130,8 +1201,7 @@ android_help_for_option( const char*  option, stralloc_t*  out )
      * of dashes, so create a tranlated copy of the option name
      * before scanning the table for matches
      */
-    pstrcpy(temp, sizeof temp, option);
-    buffer_translate_char( temp, sizeof temp, '-', '_' );
+    buffer_translate_char( temp, sizeof temp, option, '-', '_' );
 
     for ( oo = option_help; oo->name != NULL; oo++ ) {
         if ( !strcmp(oo->name, temp) ) {
@@ -1181,8 +1251,7 @@ android_help_list_options( stralloc_t*  out )
         /* the names in the option_help table use underscores instead
          * of dashes, so create a translated copy of the option's name
          */
-        pstrcpy(temp, sizeof temp, oo->name);
-        buffer_translate_char(temp, sizeof temp, '_', '-');
+        buffer_translate_char(temp, sizeof temp, oo->name, '_', '-');
 
         stralloc_add_format( out, "    -%s %-*s %s\n",
             temp,

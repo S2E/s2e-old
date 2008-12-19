@@ -39,6 +39,7 @@ typedef struct SkinKeyset  SkinKeyset;
     _SKIN_KEY_COMMAND(TOGGLE_TRACING,"toggle code profiling")           \
     _SKIN_KEY_COMMAND(TOGGLE_FULLSCREEN,"toggle fullscreen mode")        \
     _SKIN_KEY_COMMAND(TOGGLE_TRACKBALL,"toggle trackball mode")         \
+    _SKIN_KEY_COMMAND(SHOW_TRACKBALL,"show trackball") \
     _SKIN_KEY_COMMAND(BUTTON_DPAD_CENTER,"DPad center")       \
     _SKIN_KEY_COMMAND(BUTTON_DPAD_LEFT,"DPad left") \
     _SKIN_KEY_COMMAND(BUTTON_DPAD_RIGHT,"DPad right")        \

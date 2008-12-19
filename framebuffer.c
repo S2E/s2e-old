@@ -133,7 +133,7 @@ qframebuffer_add_client( QFrameBuffer*           qfbuff,
 }
 
 void
-qframebuffer_add_producer( QFrameBuffer*                qfbuff,
+qframebuffer_set_producer( QFrameBuffer*                qfbuff,
                            void*                        opaque,
                            QFrameBufferCheckUpdateFunc  pr_check,
                            QFrameBufferInvalidateFunc   pr_invalidate,

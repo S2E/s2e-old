@@ -447,3 +447,71 @@ socket_unix_client( const char*  name, int  type )
 }
 #endif
 
+
+
+int
+socket_pair(int *fd1, int *fd2)
+{
+#ifndef _WIN32
+    int   fds[2];
+    int   ret = socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
+
+    if (!ret) {
+        socket_set_nonblock(fds[0]);
+        socket_set_nonblock(fds[1]);
+        *fd1 = fds[0];
+        *fd2 = fds[1];
+    }
+    return ret;
+#else /* _WIN32 */
+    /* on Windows, select() only works with network sockets, which
+     * means we absolutely cannot use Win32 PIPEs to implement
+     * socket pairs with the current event loop implementation.
+     * We're going to do like Cygwin: create a random pair
+     * of localhost TCP sockets and connect them together
+     */
+    int                 s0, s1, s2, port;
+    struct sockaddr_in  sockin;
+    socklen_t           len;
+
+    /* first, create the 'server' socket.
+     * a port number of 0 means 'any port between 1024 and 5000.
+     * see Winsock bind() documentation for details */
+    s0 = socket_loopback_server( 0, SOCK_STREAM );
+    if (s0 < 0)
+        return -1;
+
+    /* now connect a client socket to it, we first need to
+     * extract the server socket's port number */
+    len = sizeof sockin;
+    if (getsockname(s0, (struct sockaddr*) &sockin, &len) < 0) {
+        closesocket (s0);
+        return -1;
+    }
+
+    port = ntohs(sockin.sin_port);
+    s2   = socket_loopback_client( port, SOCK_STREAM );
+    if (s2 < 0) {
+        closesocket(s0);
+        return -1;
+    }
+
+    /* we need to accept the connection on the server socket
+     * this will create the second socket for the pair
+     */
+    len = sizeof sockin;
+    s1  = accept(s0, (struct sockaddr*) &sockin, &len);
+    if (s1 == INVALID_SOCKET) {
+        closesocket (s0);
+        closesocket (s2);
+        return -1;
+    }
+    socket_set_nonblock(s1);
+
+    /* close server socket */
+    closesocket(s0);
+    *fd1 = s1;
+    *fd2 = s2;
+    return 0;
+#endif /* _WIN32 */
+}

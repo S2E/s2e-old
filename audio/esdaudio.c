@@ -89,19 +89,16 @@ static struct {
 
 /* link dynamically to the libesd.so */
 
-#define  ESD_SYMBOLS   \
-    ESD_FUNCTION(int,esd_play_stream,(esd_format_t,int,const char*,const char*))   \
-    ESD_FUNCTION(int,esd_record_stream,(esd_format_t,int,const char*,const char*)) \
-    ESD_FUNCTION(int,esd_open_sound,( const char *host )) \
-    ESD_FUNCTION(int,esd_close,(int)) \
+#define  DYNLINK_FUNCTIONS   \
+    DYNLINK_FUNC(int,esd_play_stream,(esd_format_t,int,const char*,const char*))   \
+    DYNLINK_FUNC(int,esd_record_stream,(esd_format_t,int,const char*,const char*)) \
+    DYNLINK_FUNC(int,esd_open_sound,( const char *host )) \
+    DYNLINK_FUNC(int,esd_close,(int)) \
 
-/* define pointers to library functions we're going to use */
-#define  ESD_FUNCTION(ret,name,sig)   \
-    static ret  (*func_ ## name)sig;
+#define  DYNLINK_FUNCTIONS_INIT \
+    esd_dynlink_init
 
-ESD_SYMBOLS
-
-#undef  ESD_FUNCTION
+#include "dynlink.h"
 
 static void*    esd_lib;
 
@@ -292,10 +289,10 @@ static int qesd_init_out (HWVoiceOut *hw, audsettings_t *as)
         goto exit;
     }
 
-    esd->fd = func_esd_play_stream (esdfmt, as->freq, conf.dac_host, NULL);
+    esd->fd = FF(esd_play_stream) (esdfmt, as->freq, conf.dac_host, NULL);
     if (esd->fd < 0) {
         if (conf.dac_host == NULL) {
-            esd->fd = func_esd_play_stream (esdfmt, as->freq, "localhost", NULL);
+            esd->fd = FF(esd_play_stream) (esdfmt, as->freq, "localhost", NULL);
         }
         if (esd->fd < 0) {
             qesd_logerr (errno, "esd_play_stream failed\n");
@@ -513,10 +510,10 @@ static int qesd_init_in (HWVoiceIn *hw, audsettings_t *as)
         goto exit;
     }
 
-    esd->fd = func_esd_record_stream (esdfmt, as->freq, conf.adc_host, NULL);
+    esd->fd = FF(esd_record_stream) (esdfmt, as->freq, conf.adc_host, NULL);
     if (esd->fd < 0) {
         if (conf.adc_host == NULL) {
-            esd->fd = func_esd_record_stream (esdfmt, as->freq, "localhost", NULL);
+            esd->fd = FF(esd_record_stream) (esdfmt, as->freq, "localhost", NULL);
         }
         if (esd->fd < 0) {
             qesd_logerr (errno, "esd_record_stream failed\n");
@@ -598,23 +595,14 @@ static void *qesd_audio_init (void)
             goto Exit;
         }
 
-    #undef  ESD_FUNCTION
-    #define ESD_FUNCTION(ret,name,sig)                                               \
-        do {                                                                         \
-            (func_ ##name) = dlsym( esd_lib, STRINGIFY(name) );                      \
-            if ((func_##name) == NULL) {                                             \
-                D("could not find %s in libesd\n", STRINGIFY(name));   \
-                goto Fail;                                                           \
-            }                                                                        \
-        } while (0);
+        if (esd_dynlink_init(esd_lib) < 0)
+            goto Fail;
 
-        ESD_SYMBOLS
-
-        fd = func_esd_open_sound(conf.dac_host);
+        fd = FF(esd_open_sound)(conf.dac_host);
         if (fd < 0) {
             D("%s: could not open direct sound server connection, trying localhost",
               __FUNCTION__);
-            fd = func_esd_open_sound("localhost");
+            fd = FF(esd_open_sound)("localhost");
             if (fd < 0) {
                 D("%s: could not open localhost sound server connection", __FUNCTION__);
                 goto Fail;
@@ -622,7 +610,7 @@ static void *qesd_audio_init (void)
         }
 
         D("%s: EsounD server connection succeeded", __FUNCTION__);
-        /* func_esd_close(fd); */
+        /* FF(esd_close)(fd); */
     }
     result = &conf;
     goto Exit;

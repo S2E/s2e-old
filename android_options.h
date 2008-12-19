@@ -70,10 +70,11 @@ CFG_PARAM( cache,    "<file>", "cache partition image (default is temporary file
 CFG_FLAG ( nocache,  "disable the cache partition" )
 OPT_PARAM( sdcard, "<file>", "SD card image (default <system>/sdcard.img")
 OPT_FLAG ( wipe_data, "reset the use data image (copy it from initdata)" )
-
+CFG_PARAM( vm, "<name>", "use a specific virtual machine" )
 CFG_PARAM( skindir, "<dir>", "search skins in <dir> (default <system>/skins)" )
 CFG_PARAM( skin, "<file>", "select a given skin" )
 CFG_FLAG ( noskin, "don't use any emulator skin" )
+CFG_PARAM( memory, "<size>", "physical RAM size in MBs" )
 
 OPT_PARAM( netspeed, "<speed>", "maximum network download/upload speeds" )
 OPT_PARAM( netdelay, "<delay>", "network latency emulation" )
@@ -93,6 +94,7 @@ OPT_PARAM( audio_out,"<backend>", "use specific audio output backend" )
 OPT_FLAG ( raw_keys, "disable Unicode keyboard reverse-mapping" )
 OPT_PARAM( radio, "<device>", "redirect radio modem interface to character device" )
 OPT_PARAM( port, "<port>", "TCP port that will be used for the console" )
+OPT_PARAM( ports, "<consoleport>,<adbport>", "TCP ports used for the console and adb bridge" )
 OPT_PARAM( onion, "<image>", "use overlay PNG image over screen" )
 OPT_PARAM( onion_alpha, "<%age>", "specify onion-skin translucency" )
 OPT_PARAM( onion_rotation, "0|1|2|3", "specify onion-skin rotation" )
@@ -116,9 +118,12 @@ OPT_PARAM( keyset, "<name>", "specify keyset file name" )
 OPT_PARAM( shell_serial, "<device>", "specific character device for root shell" )
 OPT_FLAG ( old_system, "support old (pre 1.4) system images" )
 
+
 #ifdef CONFIG_NAND_LIMITS
 OPT_PARAM( nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds" )
 #endif
+
+OPT_PARAM( bootchart, "<timeout>", "enable bootcharting")
 
 #undef CFG_FLAG
 #undef CFG_PARAM

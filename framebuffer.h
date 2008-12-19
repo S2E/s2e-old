@@ -12,18 +12,27 @@
 #ifndef _QEMU_FRAMEBUFFER_H_
 #define _QEMU_FRAMEBUFFER_H_
 
-/* a simple interface to a framebuffer display. this is to be used by the hardware framebuffer
- * driver (e.g. hw/goldfish_fb.c) to send VRAM updates to the emulator.
+/* A simple abstract interface to framebuffer displays. this is used to
+ * de-couple hardware emulation from final display.
  *
- * note the 'rotation' field: it can take values 0, 1, 2 or 3 and corresponds to a rotation
- * that must be performed to the pixels stored in the framebuffer *before* displaying them
- * a value of 1 corresponds to a rotation of 90 clockwise-degrees, when the framebuffer is
- * rotated 90 or 270 degrees, its width/height are swapped automatically
+ * Each QFrameBuffer object holds a pixel buffer that is shared between
+ * one 'Producer' and one or more 'Clients'
  *
- * phys_width_mm and phys_height_mm are physical dimensions expressed in millimeters
+ * The Producer is in charge of updating the pixel buffer from the state
+ * of the emulated VRAM. A Client listens to updates to the pixel buffer,
+ * sent from the producer through qframebuffer_update()/_rotate() and
+ * displays them.
  *
- * each QFrameBuffer can have one "client" that reacts to VRAM updates or the framebuffer
- * rotations requested by the system.
+ * note the 'rotation' field: it can take values 0, 1, 2 or 3 and corresponds
+ * to a rotation that must be performed to the pixels stored in the framebuffer
+ * *before* displaying them a value of 1 corresponds to a rotation of
+ * 90 clockwise-degrees, when the framebuffer is rotated 90 or 270 degrees,
+ * its width/height are swapped automatically
+ *
+ * phys_width_mm and phys_height_mm are physical dimensions expressed
+ * in millimeters
+ *
+ * More about the client/producer relationships below.
  */
 typedef struct QFrameBuffer   QFrameBuffer;
 
@@ -50,8 +59,9 @@ struct QFrameBuffer {
 
 };
 
-/* the default dpi resolution of a typical framebuffer. this is an average between
- * various prototypes being used during the development of the Android system...
+/* the default dpi resolution of a typical framebuffer. this is an average
+ * between various prototypes being used during the development of the
+ * Android system...
  */
 #define  DEFAULT_FRAMEBUFFER_DPI   165
 
@@ -66,25 +76,46 @@ qframebuffer_init( QFrameBuffer*       qfbuff,
                    int                 rotation,
                    QFrameBufferFormat  format );
 
-/* recompute phys_width_mm and phys_height_mm according to the emulated screen DPI settings */
+/* recompute phys_width_mm and phys_height_mm according to the emulated 
+ * screen DPI settings */
 extern void
 qframebuffer_set_dpi( QFrameBuffer*   qfbuff,
                       int             x_dpi,
                       int             y_dpi );
 
-/* alternative to qframebuffer_set_dpi where one can set the physical dimensions directly */
-/* in millimeters. for the record 1 inch = 25.4 mm */
+/* alternative to qframebuffer_set_dpi where one can set the physical 
+ * dimensions directly in millimeters. for the record 1 inch = 25.4 mm */
 extern void
 qframebuffer_set_mm( QFrameBuffer*   qfbuff,
                      int             width_mm,
                      int             height_mm );
 
-/* add one client to a given framebuffer */
-/* client functions */
-typedef void (*QFrameBufferUpdateFunc)( void*  opaque, int  x, int  y, int  w, int  h );
+/* the Client::Update method is called to instruct a client that a given
+ * rectangle of the framebuffer pixels was updated and needs to be
+ * redrawn.
+ */
+typedef void (*QFrameBufferUpdateFunc)( void*  opaque, int  x, int  y, 
+                                                       int  w, int  h );
+
+/* the Client::Rotate method is called to instruct the client that a
+ * framebuffer's internal rotation has changed. This is the rotation
+ * that must be applied before displaying the pixels.
+ *
+ * Note that it is assumed that all framebuffer pixels have changed too
+ * so the client should call its Update method as well.
+ */
 typedef void (*QFrameBufferRotateFunc)( void*  opaque, int  rotation );
+
+/* the Client::Done func tells a client that a framebuffer object was freed.
+ * no more reference to its pixels should be done.
+ */
 typedef void (*QFrameBufferDoneFunc)  ( void*  opaque );
 
+/* add one client to a given framebuffer.
+ * the current implementation only allows one client per frame-buffer,
+ * but we could allow more for various reasons (e.g. displaying the
+ * framebuffer + dispatching it through VNC at the same time)
+ */
 extern void
 qframebuffer_add_client( QFrameBuffer*           qfbuff,
                          void*                   fb_opaque,
@@ -92,58 +123,83 @@ qframebuffer_add_client( QFrameBuffer*           qfbuff,
                          QFrameBufferRotateFunc  fb_rotate,
                          QFrameBufferDoneFunc    fb_done );
 
-/* add one producer to a given framebuffer */
-/* producer functions */
+/* Producer::CheckUpdate is called to let the producer check the
+ * VRAM state (e.g. VRAM dirty pages) to see if anything changed since the
+ * last call to the method. When true, the method should call either
+ * qframebuffer_update() or qframebuffer_rotate() with the appropriate values.
+ */
 typedef void (*QFrameBufferCheckUpdateFunc)( void*  opaque );
+
+/* Producer::Invalidate tells the producer that the next call to
+ * CheckUpdate should act as if the whole content of VRAM had changed.
+ * this is normally done to force client initialization/refreshes.
+ */
 typedef void (*QFrameBufferInvalidateFunc) ( void*  opaque );
+
+/* the Producer::Detach method is used to tell the producer that the
+ * underlying QFrameBuffer object is about to be de-allocated.
+ */
 typedef void (*QFrameBufferDetachFunc)     ( void*  opaque );
 
+/* set the producer of a given framebuffer */
 extern void
-qframebuffer_add_producer( QFrameBuffer*                qfbuff,
+qframebuffer_set_producer( QFrameBuffer*                qfbuff,
                            void*                        opaque,
                            QFrameBufferCheckUpdateFunc  fb_check,
                            QFrameBufferInvalidateFunc   fb_invalidate,
                            QFrameBufferDetachFunc       fb_detach );
 
-/* tell a client that a rectangle region has been updated in the framebuffer pixel buffer */
+/* tell a client that a rectangle region has been updated in the framebuffer
+ * pixel buffer this is typically called from a Producer::CheckUpdate method
+ */
 extern void
 qframebuffer_update( QFrameBuffer*  qfbuff, int  x, int  y, int  w, int  h );
 
-/* rotate the framebuffer (may swap width/height), and tell a client that we did */
+/* rotate the framebuffer (may swap width/height), and tell all clients.
+ * Should be called from a Producer::CheckUpdate method
+ */
 extern void
 qframebuffer_rotate( QFrameBuffer*  qfbuff, int  rotation );
 
-/* finalize a framebuffer, release its pixel buffer */
+/* finalize a framebuffer, release its pixel buffer. Should be called
+ * from the framebuffer object's owner
+ */
 extern void
 qframebuffer_done( QFrameBuffer*   qfbuff );
 
 
+/* this is called repeatedly by the emulator. for each registered framebuffer,
+ * call its producer's CheckUpdate method, if any.
+ */
+extern void
+qframebuffer_check_updates( void );
+
+/* this is called by the emulator. for each registered framebuffer, call
+ * its producer's Invalidate method, if any
+ */
+extern void
+qframebuffer_invalidate_all( void );
+
 /*
- * QFrameBuffer objects are created by the emulated system, its characteristics typically
- * depend on the current device skin being used.
+ * to completely separate the implementation of clients, producers, and skins,
+ * we use a simple global FIFO list of QFrameBuffer objects.
  *
- * there are also used by emulated framebuffer devices, who don't know much about all this
+ * qframebuffer_fifo_add() is typically called by the emulator initialization
+ * depending on the emulated device's configuration
  *
- * use a simple fifo to bridge these together
+ * qframebuffer_fifo_get() is typically called by a hardware framebuffer
+ * emulation.
  */
 
 /* add a new constructed frame buffer object to our global list */
 extern void
 qframebuffer_fifo_add( QFrameBuffer*  qfbuff );
 
+/* retrieve a frame buffer object from the global FIFO list */
 extern QFrameBuffer*
 qframebuffer_fifo_get( void );
 
-/*
- *  check all registered framebuffers for updates. tgus wukk cakk tge ckuebt's update
- *  functions in the end...
- */
-
-extern void
-qframebuffer_check_updates( void );
-
-extern void
-qframebuffer_invalidate_all( void );
+/* */
 
 #endif /* _QEMU_FRAMEBUFFER_H_ */
 

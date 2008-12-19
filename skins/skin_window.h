@@ -27,6 +27,11 @@ extern SkinWindow*      skin_window_create( SkinLayout*  layout,
                                             double       scale,
                                             int          no_display );
 
+extern void             skin_window_enable_touch( SkinWindow*  window, int  enabled );
+extern void             skin_window_enable_trackball( SkinWindow*  window, int  enabled );
+extern void             skin_window_enable_dpad( SkinWindow*  window, int  enabled );
+extern void             skin_window_enable_qwerty( SkinWindow*  window, int  enabled );
+
 extern int              skin_window_reset ( SkinWindow*  window, SkinLayout*  layout );
 extern void             skin_window_free  ( SkinWindow*  window );
 extern void             skin_window_redraw( SkinWindow*  window, SkinRect*  rect );
@@ -44,8 +49,11 @@ extern void             skin_window_set_title( SkinWindow*  window,
                                                const char*  title );
 
 extern void             skin_window_set_trackball( SkinWindow*  window, SkinTrackBall*  ball );
-extern void             skin_window_toggle_trackball( SkinWindow*  window );
+extern void             skin_window_show_trackball( SkinWindow*  window, int  enable );
 extern void             skin_window_toggle_fullscreen( SkinWindow*  window );
+
+/* change the brightness of the emulator LCD screen. 'brightness' will be clamped to 0..255 */
+extern void             skin_window_set_lcd_brightness( SkinWindow*  window, int  brightness );
 
 typedef struct {
     int           width;

@@ -13,6 +13,7 @@
 #include "goldfish_device.h"
 #include "audio/audio.h"
 #include "android_debug.h"
+#include "android/globals.h"
 
 #define  DEBUG  1
 
@@ -157,8 +158,11 @@ static int   audio_state_load( QEMUFile*  f, void*  opaque, int  version_id )
 static void enable_audio(struct goldfish_audio_state *s, int enable)
 {
     // enable or disable the output voice
-    AUD_set_active_out(s->voice,   (enable & (AUDIO_INT_WRITE_BUFFER_1_EMPTY | AUDIO_INT_WRITE_BUFFER_2_EMPTY)) != 0);
-    AUD_set_active_in (s->voicein, (enable & AUDIO_INT_READ_BUFFER_FULL) != 0);
+    if (s->voice != NULL)
+        AUD_set_active_out(s->voice,   (enable & (AUDIO_INT_WRITE_BUFFER_1_EMPTY | AUDIO_INT_WRITE_BUFFER_2_EMPTY)) != 0);
+
+    if (s->voicein)
+        AUD_set_active_in (s->voicein, (enable & AUDIO_INT_READ_BUFFER_FULL) != 0);
     // reset buffer information
     s->data_1_length = 0;
     s->data_2_length = 0;
@@ -456,6 +460,10 @@ void goldfish_audio_init(uint32_t base, int id, const char* input_source)
     struct goldfish_audio_state *s;
     audsettings_t as;
 
+    /* nothing to do if no audio input and output */
+    if (!android_hw->hw_audioOutput && !android_hw->hw_audioInput)
+        return;
+
     s = (struct goldfish_audio_state *)qemu_mallocz(sizeof(*s));
     s->dev.name = "goldfish_audio";
     s->dev.id = id;
@@ -481,17 +489,19 @@ void goldfish_audio_init(uint32_t base, int id, const char* input_source)
     as.fmt = AUD_FMT_S16;
     as.endianness = AUDIO_HOST_ENDIANNESS;
 
-    s->voice = AUD_open_out (
-        &s->card,
-        s->voice,
-        "goldfish_audio",
-        s,
-        goldfish_audio_callback,
-        &as
-        );
-    if (!s->voice) {
-        dprint("warning: opening audio output failed\n");
-        return;
+    if (android_hw->hw_audioOutput) {
+        s->voice = AUD_open_out (
+            &s->card,
+            s->voice,
+            "goldfish_audio",
+            s,
+            goldfish_audio_callback,
+            &as
+            );
+        if (!s->voice) {
+            dprint("warning: opening audio output failed\n");
+            return;
+        }
     }
 
 #if USE_QEMU_AUDIO_IN
@@ -500,16 +510,18 @@ void goldfish_audio_init(uint32_t base, int id, const char* input_source)
     as.fmt        = AUD_FMT_S16;
     as.endianness = AUDIO_HOST_ENDIANNESS;
 
-    s->voicein = AUD_open_in (
-        &s->card,
-        NULL,
-        "goldfish_audio_in",
-        s,
-        goldfish_audio_in_callback,
-        &as
-        );
-    if (!s->voicein) {
-        dprint("warning: opening audio input failed\n");
+    if (android_hw->hw_audioInput) {
+        s->voicein = AUD_open_in (
+            &s->card,
+            NULL,
+            "goldfish_audio_in",
+            s,
+            goldfish_audio_in_callback,
+            &as
+            );
+        if (!s->voicein) {
+            dprint("warning: opening audio input failed\n");
+        }
     }
 #endif
 

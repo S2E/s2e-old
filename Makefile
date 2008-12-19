@@ -1,165 +1,71 @@
-# Makefile for QEMU.
+# Copyright (C) 2008 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
-include config-host.mak
+# this is a set of definitions that allow the usage of Makefile.android
+# even if we're not using the Android build system.
+#
 
-.PHONY: all clean distclean dvi info install install-doc tar tarbin \
-	speed test test2 html dvi info zlib-lib libgpng-lib
+BUILD_SYSTEM := android/build
+OBJS_DIR     := objs
+CONFIG_MAKE  := $(OBJS_DIR)/config.make
+CONFIG_H     := $(OBJS_DIR)/config-host.h
 
-CFLAGS=-Wall -O2 -g -fno-strict-aliasing -I. -MMD -MP
-ifdef CONFIG_DARWIN
-CFLAGS+= -mdynamic-no-pic -I/opt/local/include
-endif
-ifeq ($(ARCH),sparc)
-CFLAGS+=-mcpu=ultrasparc
-endif
-LDFLAGS=-g
-LIBS=
-DEFINES+=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-TOOLS=
-ifdef CONFIG_STATIC
-LDFLAGS+=-static
-endif
-DOCS=
-
-UNAME=$(shell uname -s)
-ifneq ($(findstring CYGWIN,$(UNAME)),)
-CFLAGS+=-mno-cygwin -D_WIN32
-LDFLAGS+=-mno-cygwin
-endif
-
-all: $(TOOLS) $(DOCS) recurse-all zlib-lib  libgpng-lib
-
-subdir-%: dyngen$(EXESUF)
-	$(MAKE) -C $(subst subdir-,,$@) all
-
-include $(SRC_PATH)/distrib/Makefile
-
-recurse-all: $(patsubst %,subdir-%, $(TARGET_DIRS))
-
-libz.a: subdir-distrib
-
-dyngen$(EXESUF): dyngen.c
-	$(HOST_CC) $(CFLAGS) $(DEFINES) -o $@ $^
-
-clean: clean-zlib clean-libpng
-# avoid old build problems by removing potentially incorrect old files
-	rm -f config.mak config.h op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
-	rm -f *.o *.d *.a $(TOOLS) dyngen$(EXESUF) TAGS *.pod *~ */*~
-	$(MAKE) -C tests clean
-	for d in $(TARGET_DIRS); do \
-	$(MAKE) -C $$d $@ || exit 1 ; \
-        done
-
-distclean: clean
-	rm -f config-host.mak config-host.h $(DOCS)
-	rm -f qemu-{doc,tech}.{info,aux,cp,dvi,fn,info,ky,log,pg,toc,tp,vr}
-	for d in $(TARGET_DIRS); do \
-	rm -rf $$d || exit 1 ; \
-        done
-
-KEYMAPS=da     en-gb  et  fr     fr-ch  is  lt  modifiers  no  pt-br  sv \
-ar      de     en-us  fi  fr-be  hr     it  lv  nl         pl  ru     th \
-common  de-ch  es     fo  fr-ca  hu     ja  mk  nl-be      pt  sl     tr
-
-install-doc: $(DOCS)
-	mkdir -p "$(DESTDIR)$(docdir)"
-	$(INSTALL) -m 644 qemu-doc.html  qemu-tech.html "$(DESTDIR)$(docdir)"
-ifndef CONFIG_WIN32
-	mkdir -p "$(DESTDIR)$(mandir)/man1"
-	$(INSTALL) qemu.1 qemu-img.1 "$(DESTDIR)$(mandir)/man1"
+ifeq ($(wildcard $(CONFIG_MAKE)),)
+    $(error "The configuration file '$(CONFIG_MAKE)' doesnt' exist, please run the "rebuilt.sh" script)
 endif
 
-install: all $(if $(BUILD_DOCS),install-doc)
-	mkdir -p "$(DESTDIR)$(bindir)"
-	$(INSTALL) -m 755 -s $(TOOLS) "$(DESTDIR)$(bindir)"
-	mkdir -p "$(DESTDIR)$(datadir)"
-	for x in bios.bin vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
-			video.x openbios-sparc32 linux_boot.bin; do \
-		$(INSTALL) -m 644 $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(datadir)"; \
-	done
-ifndef CONFIG_WIN32
-	mkdir -p "$(DESTDIR)$(datadir)/keymaps"
-	for x in $(KEYMAPS); do \
-		$(INSTALL) -m 644 $(SRC_PATH)/keymaps/$$x "$(DESTDIR)$(datadir)/keymaps"; \
-	done
-endif
-	for d in $(TARGET_DIRS); do \
-	$(MAKE) -C $$d $@ || exit 1 ; \
-        done
+include $(CONFIG_MAKE)
+include $(BUILD_SYSTEM)/definitions.make
 
-# various test targets
-test speed test2: all
-	$(MAKE) -C tests $@
+VPATH := $(OBJS_DIR)
+VPATH += :$(SRC_PATH)/android/config
+VPATH += :$(SRC_PATH):$(SRC_PATH)/target-$(TARGET_ARCH)
 
-TAGS:
-	etags *.[ch] tests/*.[ch]
+.PHONY: all libraries executables clean clean-config clean-objs-dir \
+        clean-executables clean-libraries
 
-cscope:
-	rm -f ./cscope.*
-	find . -name "*.[ch]" -print > ./cscope.files
-	cscope -b
+CLEAR_VARS                := $(BUILD_SYSTEM)/clear_vars.make
+BUILD_HOST_EXECUTABLE     := $(BUILD_SYSTEM)/host_executable.make
+BUILD_HOST_STATIC_LIBRARY := $(BUILD_SYSTEM)/host_static_library.make
 
-# documentation
-%.html: %.texi
-	texi2html -monolithic -number $<
+all: libraries executables
+EXECUTABLES :=
+LIBRARIES   :=
 
-%.info: %.texi
-	makeinfo $< -o $@
+SDL_CONFIG ?= $(PREBUILT)/sdl/bin/sdl-config
+SDL_LIBS   := $(filter %.a,$(shell $(SDL_CONFIG) --static-libs))
+$(foreach lib,$(SDL_LIBS), \
+    $(eval $(call copy-prebuilt-lib,$(lib))) \
+)
 
-%.dvi: %.texi
-	texi2dvi $<
+clean: clean-intermediates
 
-qemu.1: qemu-doc.texi
-	$(SRC_PATH)/texi2pod.pl $< qemu.pod
-	pod2man --section=1 --center=" " --release=" " qemu.pod > $@
+distclean: clean clean-config
 
-qemu-img.1: qemu-img.texi
-	$(SRC_PATH)/texi2pod.pl $< qemu-img.pod
-	pod2man --section=1 --center=" " --release=" " qemu-img.pod > $@
+# let's roll
+include Makefile.android
 
-info: qemu-doc.info qemu-tech.info
+libraries: $(LIBRARIES)
+executables: $(EXECUTABLES)
 
-dvi: qemu-doc.dvi qemu-tech.dvi
+clean-intermediates:
+	rm -rf $(OBJS_DIR)/intermediates $(EXECUTABLES) $(LIBRARIES)
 
-html: qemu-doc.html qemu-tech.html
+clean-config:
+	rm -f $(CONFIG_MAKE) $(CONFIG_H)
 
-FILE=qemu-$(shell cat VERSION)
-
-# tar release (use 'make -k tar' on a checkouted tree)
-tar:
-	rm -rf /tmp/$(FILE)
-	cp -r . /tmp/$(FILE)
-	( cd /tmp ; tar zcvf ~/$(FILE).tar.gz $(FILE) --exclude CVS )
-	rm -rf /tmp/$(FILE)
-
-# generate a binary distribution
-tarbin:
-	( cd / ; tar zcvf ~/qemu-$(VERSION)-i386.tar.gz \
-	$(bindir)/qemu \
-	$(bindir)/qemu-system-ppc \
-	$(bindir)/qemu-system-sparc \
-	$(bindir)/qemu-system-x86_64 \
-	$(bindir)/qemu-system-mips \
-	$(bindir)/qemu-system-mipsel \
-	$(bindir)/qemu-system-arm \
-	$(bindir)/qemu-i386 \
-        $(bindir)/qemu-arm \
-        $(bindir)/qemu-armeb \
-        $(bindir)/qemu-sparc \
-        $(bindir)/qemu-ppc \
-        $(bindir)/qemu-mips \
-        $(bindir)/qemu-mipsel \
-        $(bindir)/qemu-img \
-	$(datadir)/bios.bin \
-	$(datadir)/vgabios.bin \
-	$(datadir)/vgabios-cirrus.bin \
-	$(datadir)/ppc_rom.bin \
-	$(datadir)/video.x \
-	$(datadir)/openbios-sparc32 \
-	$(datadir)/linux_boot.bin \
-	$(docdir)/qemu-doc.html \
-	$(docdir)/qemu-tech.html \
-	$(mandir)/man1/qemu.1 $(mandir)/man1/qemu-img.1 )
-
-include $(wildcard *.d)
-
+# include dependency information
+CLEAN_OBJS_DIRS := $(sort $(CLEAN_OBJS_DIRS))
+-include $(wildcard $(CLEAN_OBJS_DIRS:%=%/*.d))

@@ -89,7 +89,7 @@ mmx_interp255( mmx_t  m1, mmx_t  m2, mmx_t  zero, int  alpha )
 #define   ARGB_UNPACK(x,v)      x =  mmx_load8888((v), _zero)
 #define   ARGB_PACK(x)          mmx_save8888(x, _zero)
 #define   ARGB_COPY(x,y)        x = y
-#define   ARGB_SUM(x1,x2,x3)    x1 = _mm_add_si64(x2, x3)
+#define   ARGB_SUM(x1,x2,x3)    x1 = _mm_add_pi32(x2, x3)
 #define   ARGB_REDUCE(x,red)   \
     ({ \
         int  _red = (red) >> 8;  \

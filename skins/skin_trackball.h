@@ -13,6 +13,7 @@
 #define _ANDROID_SKIN_TRACKBALL_H
 
 #include <SDL.h>
+#include "skin_rect.h"
 
 typedef struct SkinTrackBall  SkinTrackBall;
 
@@ -34,6 +35,9 @@ extern int             skin_trackball_move    ( SkinTrackBall*  ball, int  dx, i
 extern void            skin_trackball_refresh ( SkinTrackBall*  ball );
 extern void            skin_trackball_draw    ( SkinTrackBall*  ball, int  x, int  y, SDL_Surface*  dst );
 extern void            skin_trackball_destroy ( SkinTrackBall*  ball );
+
+/* this sets the rotation that will be applied to mouse events sent to the system */
+extern void            skin_trackball_set_rotation( SkinTrackBall*  ball, SkinRotation  rotation);
 
 #endif /* END */
 

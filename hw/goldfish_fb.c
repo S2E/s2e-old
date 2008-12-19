@@ -392,7 +392,7 @@ void goldfish_fb_init(DisplayState *ds, int id)
     s->dev.irq_count = 1;
 
     s->qfbuff = qframebuffer_fifo_get();
-    qframebuffer_add_producer( s->qfbuff, s,
+    qframebuffer_set_producer( s->qfbuff, s,
                                goldfish_fb_update_display,
                                goldfish_fb_invalidate_display,
                                goldfish_fb_detach_display );

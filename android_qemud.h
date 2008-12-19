@@ -63,8 +63,9 @@ extern int  android_qemud_get_channel( const char*  name, CharDriverState* *pcs 
 extern int  android_qemud_set_channel( const char*  name, CharDriverState*  peer_cs );
 
 /* list of known qemud channel names */
-#define  ANDROID_QEMUD_GSM  "gsm"
-#define  ANDROID_QEMUD_GPS  "gps"
+#define  ANDROID_QEMUD_GSM      "gsm"
+#define  ANDROID_QEMUD_GPS      "gps"
+#define  ANDROID_QEMUD_CONTROL  "control"
 
 /* add new channel names here when you need them */
 

@@ -45,9 +45,29 @@ android_parse_options( int  *pargc, char**  *pargv, AndroidOptions*  opt )
 
     memset( opt, 0, sizeof *opt );
 
-    while (nargs > 0 && aread[0][0] == '-') {
-        char*  arg = aread[0]+1;
+    while (nargs > 0) {
+        char*  arg;
+        char   arg2_tab[64], *arg2 = arg2_tab;
         int    nn;
+
+        /* process @<name> as a special exception meaning
+         * '-vm <name>'
+         */
+        if (aread[0][0] == '@') {
+            opt->vm = aread[0]+1;
+            nargs--;
+            aread++;
+            continue;
+        }
+
+        /* anything that isn't an option past this points
+         * exits the loop
+         */
+        if (aread[0][0] != '-') {
+            break;
+        }
+
+        arg = aread[0]+1;
 
         /* an option cannot contain an underscore */
         if (strchr(arg, '_') != NULL) {
@@ -73,21 +93,38 @@ android_parse_options( int  *pargc, char**  *pargv, AndroidOptions*  opt )
             continue;
         }
 
+        /* NOTE: variable tables map option names to values
+         * (e.g. field offsets into the AndroidOptions structure).
+         *
+         * however, the names stored in the table used underscores
+         * instead of dashes. this means that the command-line option
+         * '-foo-bar' will be associated to the name 'foo_bar' in
+         * this table, and will point to the field 'foo_bar' or
+         * AndroidOptions.
+         *
+         * as such, before comparing the current option to the
+         * content of the table, we're going to translate dashes
+         * into underscores.
+         */
+        arg2 = arg2_tab;
+        buffer_translate_char( arg2_tab, sizeof(arg2_tab),
+                               arg, '-', '_');
+
         /* special handling for -debug-<tag> and -debug-no-<tag> */
-        if (!strncmp(arg, "debug-", 6)) {
+        if (!memcmp(arg2, "debug_", 6)) {
             int            remove = 0;
             unsigned long  mask   = 0;
-            arg += 6;
-            if (!strncmp(arg, "no-", 3)) {
-                arg   += 3;
+            arg2 += 6;
+            if (!memcmp(arg2, "no_", 3)) {
+                arg2  += 3;
                 remove = 1;
             }
-            if (!strcmp(arg, "all")) {
+            if (!strcmp(arg2, "all")) {
                 mask = ~0;
             }
             for (nn = 0; debug_tags[nn].name; nn++) {
-                if (!strcmp(arg, debug_tags[nn].name)) {
-                    mask = (1 << debug_tags[nn].flag);
+                if (!strcmp(arg2, debug_tags[nn].name)) {
+                    mask = (1UL << debug_tags[nn].flag);
                     break;
                 }
             }
@@ -100,33 +137,9 @@ android_parse_options( int  *pargc, char**  *pargv, AndroidOptions*  opt )
 
         /* look into our table of options
          *
-         * NOTE: the 'option_keys' table maps option names
-         * to field offsets into the AndroidOptions structure.
-         *
-         * however, the names stored in the table used underscores
-         * instead of dashes. this means that the command-line option
-         * '-foo-bar' will be associated to the name 'foo_bar' in
-         * this table, and will point to the field 'foo_bar' or
-         * AndroidOptions.
-         *
-         * as such, before comparing the current option to the
-         * content of the table, we're going to translate dashes
-         * into underscores.
          */
         {
             const OptionInfo*  oo = option_keys;
-            char               arg2[64];
-            int                len = strlen(arg);
-
-            /* copy into 'arg2' buffer, translating dashes
-             * to underscores. note that we truncate to 63
-             * characters, which should be enough in practice
-             */
-            if (len > sizeof(arg2)-1)
-                len = sizeof(arg2)-1;
-
-            memcpy(arg2, arg, len+1);
-            buffer_translate_char(arg2, len, '-', '_'); 
 
             for ( ; oo->name; oo++ ) {
                 if ( !strcmp( oo->name, arg2 ) ) {
@@ -207,8 +220,11 @@ parse_debug_tags( const char*  tags )
             if (!strcmp( "all", x ))
                 mask = ~0;
             else {
+                char  temp[32];
+                buffer_translate_char(temp, sizeof temp, x, '-', '_');
+
                 for (nn = 0; debug_tags[nn].name != NULL; nn++) {
-                    if ( !strcmp( debug_tags[nn].name, x ) ) {
+                    if ( !strcmp( debug_tags[nn].name, temp ) ) {
                         mask |= (1 << debug_tags[nn].flag);
                         break;
                     }
