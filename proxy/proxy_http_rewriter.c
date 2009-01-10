@@ -364,23 +364,16 @@ rewrite_connection_init( RewriteConnection*   conn )
 {
     HttpService*      service = (HttpService*) conn->root->service;
     ProxyConnection*  root    = conn->root;
-    int               ret;
 
     conn->slirp_fd = -1;
     conn->state    = STATE_CONNECTING;
 
-    do {
-        ret = connect( root->socket,
-                    (struct sockaddr*) &service->server_addr,
-                    sizeof(service->server_addr) );
-    } while (ret < 0 && socket_errno == EINTR);
-
-    if (ret < 0) {
-        if (socket_errno == EINPROGRESS || socket_errno == EWOULDBLOCK) {
+    if (socket_connect( root->socket, &service->server_addr ) < 0) {
+        if (errno == EINPROGRESS || errno == EWOULDBLOCK) {
             PROXY_LOG("%s: connecting", conn->root->name);
         }
         else {
-            PROXY_LOG("%s: cannot connect to proxy: %s", root->name, socket_errstr());
+            PROXY_LOG("%s: cannot connect to proxy: %s", root->name, errno_str);
             return -1;
         }
     }
@@ -401,7 +394,7 @@ rewrite_connection_create_sockets( RewriteConnection*  conn )
 
     if (socket_pair( &slirp_1, &conn->slirp_fd ) < 0) {
         PROXY_LOG("%s: coult not create socket pair: %s",
-                    root->name, socket_errstr());
+                    root->name, errno_str);
         return -1;
     }
 
@@ -1102,13 +1095,13 @@ rewrite_connection_poll( ProxyConnection*  root,
 
 
 ProxyConnection*
-http_rewriter_connect( HttpService*         service,
-                       struct sockaddr_in*  address )
+http_rewriter_connect( HttpService*  service,
+                       SockAddress*  address )
 {
     RewriteConnection*  conn;
     int                 s;
 
-    s = socket(AF_INET, SOCK_STREAM, 0);
+    s = socket_create_inet( SOCKET_STREAM );
     if (s < 0)
         return NULL;
 

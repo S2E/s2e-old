@@ -30,6 +30,7 @@
 #include "android_gps.h"
 #include "android_qemud.h"
 #include "android_kmsg.h"
+#include "tcpdump.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -756,11 +757,9 @@ static int send_all(int fd, const uint8_t *buf, int len1)
 
     len = len1;
     while (len > 0) {
-        ret = send(fd, buf, len, 0);
+        ret = socket_send(fd, buf, len);
         if (ret < 0) {
-            int errno;
-            errno = WSAGetLastError();
-            if (errno != WSAEWOULDBLOCK) {
+            if (errno != EWOULDBLOCK) {
                 return -1;
             }
         } else if (ret == 0) {
@@ -1827,7 +1826,7 @@ typedef struct {
     IOReadHandler *fd_read;
     void *fd_opaque;
     int fd;
-    struct sockaddr_in daddr;
+    SockAddress daddr;
     char buf[1024];
     int bufcnt;
     int bufptr;
@@ -1838,8 +1837,7 @@ static int udp_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
 {
     NetCharDriver *s = chr->opaque;
 
-    return sendto(s->fd, buf, len, 0,
-                  (struct sockaddr *)&s->daddr, sizeof(struct sockaddr_in));
+    return socket_sendto(s->fd, buf, len, &s->daddr);
 }
 
 static int udp_chr_read_poll(void *opaque)
@@ -1895,9 +1893,9 @@ static void udp_chr_add_read_handler(CharDriverState *chr,
     }
 }
 
-int parse_host_port(struct sockaddr_in *saddr, const char *str);
-int parse_host_src_port(struct sockaddr_in *haddr,
-                        struct sockaddr_in *saddr,
+int parse_host_port(SockAddress *saddr, const char *str);
+int parse_host_src_port(SockAddress *haddr,
+                        SockAddress *saddr,
                         const char *str);
 
 CharDriverState *qemu_chr_open_udp(const char *def)
@@ -1905,7 +1903,7 @@ CharDriverState *qemu_chr_open_udp(const char *def)
     CharDriverState *chr = NULL;
     NetCharDriver *s = NULL;
     int fd = -1;
-    struct sockaddr_in saddr;
+    SockAddress saddr;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
     if (!chr)
@@ -1925,7 +1923,7 @@ CharDriverState *qemu_chr_open_udp(const char *def)
         goto return_err;
     }
 
-    if (bind(fd, (struct sockaddr *)&saddr, sizeof(saddr)) < 0)
+    if (socket_bind(fd, &saddr) < 0)
     {
         perror("bind");
         goto return_err;
@@ -2047,7 +2045,7 @@ static void tcp_chr_read(void *opaque)
     len = sizeof(buf);
     if (len > s->max_size)
         len = s->max_size;
-    size = recv(s->fd, buf, len, 0);
+    size = socket_recv(s->fd, buf, len);
     if (size == 0) {
         /* connection closed */
         s->connected = 0;
@@ -2092,26 +2090,23 @@ static void tcp_chr_telnet_init(int fd)
     char buf[3];
     /* Send the telnet negotion to put telnet in binary, no echo, single char mode */
     IACSET(buf, 0xff, 0xfb, 0x01);  /* IAC WILL ECHO */
-    send(fd, (char *)buf, 3, 0);
+    socket_send(fd, (char *)buf, 3);
     IACSET(buf, 0xff, 0xfb, 0x03);  /* IAC WILL Suppress go ahead */
-    send(fd, (char *)buf, 3, 0);
+    socket_send(fd, (char *)buf, 3);
     IACSET(buf, 0xff, 0xfb, 0x00);  /* IAC WILL Binary */
-    send(fd, (char *)buf, 3, 0);
+    socket_send(fd, (char *)buf, 3);
     IACSET(buf, 0xff, 0xfd, 0x00);  /* IAC DO Binary */
-    send(fd, (char *)buf, 3, 0);
+    socket_send(fd, (char *)buf, 3);
 }
 
 static void tcp_chr_accept(void *opaque)
 {
     CharDriverState *chr = opaque;
     TCPCharDriver *s = chr->opaque;
-    struct sockaddr_in saddr;
-    socklen_t len;
     int fd;
 
     for(;;) {
-        len = sizeof(saddr);
-        fd = accept(s->listen_fd, (struct sockaddr *)&saddr, &len);
+        fd = socket_accept(s->listen_fd, NULL);
         if (fd < 0 && errno != EINTR) {
             return;
         } else if (fd >= 0) {
@@ -2145,7 +2140,7 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
     int is_listen = 0;
     int is_waitconnect = 1;
     const char *ptr;
-    struct sockaddr_in saddr;
+    SockAddress saddr;
 
     if (parse_host_port(&saddr, host_str) < 0)
         goto fail;
@@ -2172,7 +2167,7 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
     if (!s)
         goto fail;
 
-    fd = socket(PF_INET, SOCK_STREAM, 0);
+    fd = socket_create_inet( SOCKET_STREAM );
     if (fd < 0)
         goto fail;
 
@@ -2186,21 +2181,19 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
         /* allow fast reuse */
         socket_set_xreuseaddr(fd);
 
-        ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
-        if (ret < 0)
+        if (socket_bind(fd, &saddr) < 0 ||
+            socket_listen(fd, 0) < 0)
             goto fail;
-        ret = listen(fd, 0);
-        if (ret < 0)
-            goto fail;
+
         s->listen_fd = fd;
         qemu_set_fd_handler(s->listen_fd, tcp_chr_accept, NULL, chr);
         if (is_telnet)
             s->do_telnetopt = 1;
     } else {
         for(;;) {
-            ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
+            ret = socket_connect(fd, &saddr);
             if (ret < 0) {
-                err = socket_errno;
+                err = errno;
                 if (err == EINTR || err == EWOULDBLOCK) {
                 } else if (err == EINPROGRESS) {
                     break;
@@ -2383,8 +2376,8 @@ static int get_str_sep(char *buf, int buf_size, const char **pp, int sep)
     return 0;
 }
 
-int parse_host_src_port(struct sockaddr_in *haddr,
-                        struct sockaddr_in *saddr,
+int parse_host_src_port(SockAddress *haddr,
+                        SockAddress *saddr,
                         const char *input_str)
 {
     char *str = strdup(input_str);
@@ -2422,33 +2415,26 @@ fail:
     return -1;
 }
 
-int parse_host_port(struct sockaddr_in *saddr, const char *str)
+int parse_host_port(SockAddress  *saddr, const char *str)
 {
     char buf[512];
-    struct hostent *he;
     const char *p, *r;
-    int port;
+    uint16_t  port;
 
     p = str;
     if (get_str_sep(buf, sizeof(buf), &p, ':') < 0)
         return -1;
-    saddr->sin_family = AF_INET;
-    if (buf[0] == '\0') {
-        saddr->sin_addr.s_addr = 0;
-    } else {
-        if (isdigit(buf[0])) {
-            if (!inet_aton(buf, &saddr->sin_addr))
-                return -1;
-        } else {
-            if ((he = gethostbyname(buf)) == NULL)
-                return - 1;
-            saddr->sin_addr = *(struct in_addr *)he->h_addr;
-        }
-    }
+
     port = strtol(p, (char **)&r, 0);
     if (r == p)
         return -1;
-    saddr->sin_port = htons(port);
+
+    if (buf[0] == '\0') {
+        sock_address_init_inet( saddr, SOCK_ADDRESS_INET_ANY, port );
+    } else {
+        if (sock_address_init_resolve( saddr, buf, port, 0 ) < 0)
+            return -1;
+    }
     return 0;
 }
 
@@ -2850,6 +2836,9 @@ void slirp_output(const uint8_t *pkt, int pkt_len)
     if (!slirp_vc)
         return;
 
+    if (qemu_tcpdump_active)
+        qemu_tcpdump_packet(pkt, pkt_len);
+
     /* always send internal packets */
     if ( ip_packet_is_internal( pkt, pkt_len ) ) {
         qemu_send_packet( slirp_vc, pkt, pkt_len );
@@ -2872,6 +2861,9 @@ static void slirp_receive(void *opaque, const uint8_t *buf, int size)
     printf("slirp input:\n");
     hex_dump(stdout, buf, size);
 #endif
+    if (qemu_tcpdump_active)
+        qemu_tcpdump_packet(buf, size);
+
     if ( ip_packet_is_internal( buf, size ) ) {
         slirp_input(buf, size);
         return;
@@ -2904,7 +2896,7 @@ static int net_slirp_redir(const char *redir_str)
     int is_udp;
     char buf[256], *r;
     const char *p;
-    struct in_addr guest_addr;
+    uint32_t  guest_ip;
     int host_port, guest_port;
 
     if (!slirp_inited) {
@@ -2934,14 +2926,14 @@ static int net_slirp_redir(const char *redir_str)
     if (buf[0] == '\0') {
         pstrcpy(buf, sizeof(buf), "10.0.2.15");
     }
-    if (!inet_aton(buf, &guest_addr))
+    if (inet_strtoip(buf, &guest_ip) < 0)
         goto fail;
 
     guest_port = strtol(p, &r, 0);
     if (r == p)
         goto fail;
 
-    if (slirp_redir(is_udp, host_port, guest_addr, guest_port) < 0) {
+    if (slirp_redir(is_udp, host_port, guest_ip, guest_port) < 0) {
         return -1;
     }
 
@@ -3199,7 +3191,7 @@ typedef struct NetSocketState {
     int index;
     int packet_len;
     uint8_t buf[4096];
-    struct sockaddr_in dgram_dst; /* contains inet host and port destination iff connectionless (SOCK_DGRAM) */
+    SockAddress dgram_dst; /* contains inet host and port destination iff connectionless (SOCK_DGRAM) */
 } NetSocketState;
 
 typedef struct NetSocketListenState {
@@ -3221,8 +3213,7 @@ static void net_socket_receive(void *opaque, const uint8_t *buf, int size)
 static void net_socket_receive_dgram(void *opaque, const uint8_t *buf, int size)
 {
     NetSocketState *s = opaque;
-    sendto(s->fd, buf, size, 0,
-           (struct sockaddr *)&s->dgram_dst, sizeof(s->dgram_dst));
+    socket_sendto(s->fd, buf, size, &s->dgram_dst);
 }
 
 static void net_socket_send(void *opaque)
@@ -3232,9 +3223,9 @@ static void net_socket_send(void *opaque)
     uint8_t buf1[4096];
     const uint8_t *buf;
 
-    size = recv(s->fd, buf1, sizeof(buf1), 0);
+    size = socket_recv(s->fd, buf1, sizeof(buf1));
     if (size < 0) {
-        err = socket_errno;
+        err = errno;
         if (err != EWOULDBLOCK)
             goto eoc;
     } else if (size == 0) {
@@ -3286,7 +3277,7 @@ static void net_socket_send_dgram(void *opaque)
     NetSocketState *s = opaque;
     int size;
 
-    size = recv(s->fd, s->buf, sizeof(s->buf), 0);
+    size = socket_recv(s->fd, s->buf, sizeof(s->buf));
     if (size < 0)
         return;
     if (size == 0) {
@@ -3297,54 +3288,44 @@ static void net_socket_send_dgram(void *opaque)
     qemu_send_packet(s->vc, s->buf, size);
 }
 
-static int net_socket_mcast_create(struct sockaddr_in *mcastaddr)
+static int net_socket_mcast_create(SockAddress*  mcastaddr)
 {
-    struct ip_mreq imr;
+    uint32_t   mcast_ip = (uint32_t) sock_address_get_ip(mcastaddr);
+
     int fd;
-    int val, ret;
-    if (!IN_MULTICAST(ntohl(mcastaddr->sin_addr.s_addr))) {
-	fprintf(stderr, "qemu: error: specified mcastaddr \"%s\" (0x%08x) does not contain a multicast address\n",
-		inet_ntoa(mcastaddr->sin_addr),
-                (int)ntohl(mcastaddr->sin_addr.s_addr));
-	return -1;
+
+    if (!IN_MULTICAST(mcast_ip)) {
+        fprintf(stderr, "qemu: error: specified mcastaddr \"%s\" does not contain a multicast address\n",
+                sock_address_to_string(mcastaddr));
+        return -1;
 
     }
-    fd = socket(PF_INET, SOCK_DGRAM, 0);
+    fd = socket_create_inet( SOCKET_DGRAM );
     if (fd < 0) {
         perror("socket(PF_INET, SOCK_DGRAM)");
         return -1;
     }
 
-    ret=socket_set_xreuseaddr(fd);
-    if (ret < 0) {
-	perror("setsockopt(SOL_SOCKET, SO_REUSEADDR)");
-	goto fail;
+    if (socket_set_xreuseaddr(fd) < 0) {
+        perror("setsockopt(SOL_SOCKET, SO_REUSEADDR)");
+        goto fail;
     }
 
-    ret = bind(fd, (struct sockaddr *)mcastaddr, sizeof(*mcastaddr));
-    if (ret < 0) {
+    if (socket_bind(fd, mcastaddr) < 0) {
         perror("bind");
         goto fail;
     }
 
     /* Add host to multicast group */
-    imr.imr_multiaddr = mcastaddr->sin_addr;
-    imr.imr_interface.s_addr = htonl(INADDR_ANY);
-
-    ret = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                     (const char *)&imr, sizeof(struct ip_mreq));
-    if (ret < 0) {
-	perror("setsockopt(IP_ADD_MEMBERSHIP)");
-	goto fail;
+    if (socket_mcast_inet_add_membership(fd, mcast_ip) < 0) {
+        perror("setsockopt(IP_ADD_MEMBERSHIP)");
+        goto fail;
     }
 
     /* Force mcast msgs to loopback (eg. several QEMUs in same host */
-    val = 1;
-    ret=setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP,
-                   (const char *)&val, sizeof(val));
-    if (ret < 0) {
-	perror("setsockopt(SOL_IP, IP_MULTICAST_LOOP)");
-	goto fail;
+    if (socket_mcast_inet_set_loop(fd, 1) < 0) {
+        perror("setsockopt(SOL_IP, IP_MULTICAST_LOOP)");
+        goto fail;
     }
 
     socket_set_nonblock(fd);
@@ -3358,9 +3339,8 @@ fail:
 static NetSocketState *net_socket_fd_init_dgram(VLANState *vlan, int fd,
                                           int is_connected)
 {
-    struct sockaddr_in saddr;
+    SockAddress  saddr;
     int newfd;
-    socklen_t saddr_len;
     NetSocketState *s;
 
     /* fd passed: multicast: "learn" dgram_dst address from bound address and save it
@@ -3369,9 +3349,9 @@ static NetSocketState *net_socket_fd_init_dgram(VLANState *vlan, int fd,
      */
 
     if (is_connected) {
-	if (getsockname(fd, (struct sockaddr *) &saddr, &saddr_len) == 0) {
+	if (socket_get_address(fd, &saddr) == 0) {
 	    /* must be bound */
-	    if (saddr.sin_addr.s_addr==0) {
+	    if (sock_address_get_ip(&saddr) == 0) {
 		fprintf(stderr, "qemu: error: init_dgram: fd=%d unbound, cannot setup multicast dst addr\n",
 			fd);
 		return NULL;
@@ -3389,7 +3369,7 @@ static NetSocketState *net_socket_fd_init_dgram(VLANState *vlan, int fd,
 
 	} else {
 	    fprintf(stderr, "qemu: error: init_dgram: fd=%d failed getsockname(): %s\n",
-		    fd, strerror(errno));
+		    fd, errno_str);
 	    return NULL;
 	}
     }
@@ -3406,9 +3386,9 @@ static NetSocketState *net_socket_fd_init_dgram(VLANState *vlan, int fd,
     if (is_connected) s->dgram_dst=saddr;
 
     snprintf(s->vc->info_str, sizeof(s->vc->info_str),
-	    "socket: fd=%d (%s mcast=%s:%d)",
+	    "socket: fd=%d (%s mcast=%s)",
 	    fd, is_connected? "cloned" : "",
-	    inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
+	    sock_address_to_string(&saddr));
     return s;
 }
 
@@ -3441,16 +3421,13 @@ static NetSocketState *net_socket_fd_init_stream(VLANState *vlan, int fd,
 static NetSocketState *net_socket_fd_init(VLANState *vlan, int fd,
                                           int is_connected)
 {
-    int so_type=-1, optlen=sizeof(so_type);
+    SocketType  so_type;
 
-    if(getsockopt(fd, SOL_SOCKET, SO_TYPE, (char *)&so_type, (unsigned*)&optlen)< 0) {
-	fprintf(stderr, "qemu: error: setsockopt(SO_TYPE) for fd=%d failed\n", fd);
-	return NULL;
-    }
+    so_type = socket_get_type(fd);
     switch(so_type) {
-    case SOCK_DGRAM:
+    case SOCKET_DGRAM:
         return net_socket_fd_init_dgram(vlan, fd, is_connected);
-    case SOCK_STREAM:
+    case SOCKET_STREAM:
         return net_socket_fd_init_stream(vlan, fd, is_connected);
     default:
         /* who knows ... this could be a eg. a pty, do warn and continue as stream */
@@ -3464,34 +3441,29 @@ static void net_socket_accept(void *opaque)
 {
     NetSocketListenState *s = opaque;
     NetSocketState *s1;
-    struct sockaddr_in saddr;
-    socklen_t len;
+    SockAddress   saddr;
     int fd;
 
-    for(;;) {
-        len = sizeof(saddr);
-        fd = accept(s->fd, (struct sockaddr *)&saddr, &len);
-        if (fd < 0 && errno != EINTR) {
-            return;
-        } else if (fd >= 0) {
-            break;
-        }
-    }
+    fd = socket_accept(s->fd, &saddr);
+    if (fd < 0)
+        return;
+
     s1 = net_socket_fd_init(s->vlan, fd, 1);
     if (!s1) {
         socket_close(fd);
     } else {
         snprintf(s1->vc->info_str, sizeof(s1->vc->info_str),
-                 "socket: connection from %s:%d",
-                 inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
+                 "socket: connection from %s",
+                 sock_address_to_string(&saddr));
     }
+    sock_address_done(&saddr);
 }
 
 static int net_socket_listen_init(VLANState *vlan, const char *host_str)
 {
     NetSocketListenState *s;
     int fd, ret;
-    struct sockaddr_in saddr;
+    SockAddress saddr;
 
     if (parse_host_port(&saddr, host_str) < 0)
         return -1;
@@ -3500,27 +3472,28 @@ static int net_socket_listen_init(VLANState *vlan, const char *host_str)
     if (!s)
         return -1;
 
-    fd = socket(PF_INET, SOCK_STREAM, 0);
+    fd = socket_create_inet( SOCKET_STREAM );
     if (fd < 0) {
         perror("socket");
         return -1;
     }
     socket_set_nonblock(fd);
-
     socket_set_xreuseaddr(fd);
 
-    ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
+    ret = socket_bind(fd, &saddr);
     if (ret < 0) {
         perror("bind");
+        socket_close(fd);
         return -1;
     }
-    ret = listen(fd, 0);
+    ret = socket_listen(fd, 0);
     if (ret < 0) {
         perror("listen");
+        socket_close(fd);
         return -1;
     }
     s->vlan = vlan;
-    s->fd = fd;
+    s->fd   = fd;
     qemu_set_fd_handler(fd, net_socket_accept, NULL, s);
     return 0;
 }
@@ -3529,12 +3502,12 @@ static int net_socket_connect_init(VLANState *vlan, const char *host_str)
 {
     NetSocketState *s;
     int fd, connected, ret, err;
-    struct sockaddr_in saddr;
+    SockAddress  saddr;
 
     if (parse_host_port(&saddr, host_str) < 0)
         return -1;
 
-    fd = socket(PF_INET, SOCK_STREAM, 0);
+    fd = socket_create_inet( SOCKET_STREAM );
     if (fd < 0) {
         perror("socket");
         return -1;
@@ -3543,9 +3516,9 @@ static int net_socket_connect_init(VLANState *vlan, const char *host_str)
 
     connected = 0;
     for(;;) {
-        ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
+        ret = socket_connect(fd, &saddr);
         if (ret < 0) {
-            err = socket_errno;
+            err = errno;
             if (err == EINTR || err == EWOULDBLOCK) {
             } else if (err == EINPROGRESS) {
                 break;
@@ -3562,9 +3535,9 @@ static int net_socket_connect_init(VLANState *vlan, const char *host_str)
     s = net_socket_fd_init(vlan, fd, connected);
     if (!s)
         return -1;
+
     snprintf(s->vc->info_str, sizeof(s->vc->info_str),
-             "socket: connect to %s:%d",
-             inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
+             "socket: connect to %s", sock_address_to_string(&saddr));
     return 0;
 }
 
@@ -3572,7 +3545,7 @@ static int net_socket_mcast_init(VLANState *vlan, const char *host_str)
 {
     NetSocketState *s;
     int fd;
-    struct sockaddr_in saddr;
+    SockAddress  saddr;
 
     if (parse_host_port(&saddr, host_str) < 0)
         return -1;
@@ -3589,8 +3562,7 @@ static int net_socket_mcast_init(VLANState *vlan, const char *host_str)
     s->dgram_dst = saddr;
 
     snprintf(s->vc->info_str, sizeof(s->vc->info_str),
-             "socket: mcast=%s:%d",
-             inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
+             "socket: mcast=%s", sock_address_to_string(&saddr));
     return 0;
 
 }
@@ -5849,7 +5821,7 @@ const QEMUOption qemu_options[] = {
     { "nand", HAS_ARG, QEMU_OPTION_nand },
 #endif
     { "clock", HAS_ARG, QEMU_OPTION_clock },
-    { NULL },
+    { NULL, 0, 0 },
 };
 
 #if defined (TARGET_I386) && defined(USE_CODE_COPY)

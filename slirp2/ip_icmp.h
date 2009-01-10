@@ -37,6 +37,8 @@
 #ifndef _NETINET_IP_ICMP_H_
 #define _NETINET_IP_ICMP_H_
 
+#include "helper.h"
+
 /*
  * Interface Control Message Protocol Definitions.
  * Per RFC 792, September 1981.
@@ -52,8 +54,8 @@ struct icmp {
 	u_char	icmp_code;		/* type sub code */
 	u_short	icmp_cksum;		/* ones complement cksum of struct */
 	union {
-		u_char ih_pptr;			/* ICMP_PARAMPROB */
-		struct in_addr ih_gwaddr;	/* ICMP_REDIRECT */
+		u_char    ih_pptr;			/* ICMP_PARAMPROB */
+		ipaddr_t  ih_gwaddr;	/* ICMP_REDIRECT */
 		struct ih_idseq {
 			u_short	icd_id;
 			u_short	icd_seq;
@@ -158,7 +160,7 @@ struct icmp {
 	(type) == ICMP_MASKREQ || (type) == ICMP_MASKREPLY)
 
 void icmp_input _P((MBuf , int));
-void icmp_error _P((MBuf , u_char, u_char, int, char *));
+void icmp_error _P((MBuf , u_char, u_char, int, const char *));
 void icmp_reflect _P((MBuf ));
 
 #endif

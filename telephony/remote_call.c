@@ -269,7 +269,7 @@ remote_call_event( void*  opaque, int  events )
         int  n = sys_channel_read( call->channel, temp, sizeof(temp) );
         if (n <= 0) {
             /* remote emulator probably quitted */
-            //S("%s: emulator %d quitted with %d: %s\n", __FUNCTION__, call->to_port, socket_errno, socket_errstr());
+            //S("%s: emulator %d quitted with %d: %s\n", __FUNCTION__, call->to_port, errno, errno_str);
             remote_call_free( call );
             return;
         }
@@ -305,7 +305,7 @@ remote_call_event( void*  opaque, int  events )
         if (n <= 0) {
             /* remote emulator probably quitted */
             S("%s: emulator %d quitted unexpectedly with error %d: %s\n",
-                    __FUNCTION__, call->to_port, socket_errno, socket_errstr());
+                    __FUNCTION__, call->to_port, errno, errno_str);
             if (call->result_func)
                 call->result_func( call->result_opaque, 0 );
             remote_call_free( call );
@@ -334,7 +334,7 @@ remote_call_event( void*  opaque, int  events )
 
 static RemoteCall  _the_remote_calls;
 
-
+#if 0
 static int
 remote_from_number( const char*  from )
 {
@@ -349,7 +349,7 @@ remote_from_number( const char*  from )
 
     return (int) num;
 }
-
+#endif
 
 static RemoteCall
 remote_call_generic( RemoteCallType  type, const char*  to_number, int  from_port )

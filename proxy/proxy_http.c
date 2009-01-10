@@ -29,34 +29,22 @@ http_service_free( HttpService*  service )
 
 
 static ProxyConnection*
-http_service_connect( HttpService*         service,
-                      int                  sock_type,
-                      struct sockaddr_in*  address )
+http_service_connect( HttpService*  service,
+                      SocketType    sock_type,
+                      SockAddress*  address )
 {
-    uint32_t  addr;
-    int       port;
-
     /* the HTTP proxy can only handle TCP connections */
-    if (sock_type != SOCK_STREAM)
+    if (sock_type != SOCKET_STREAM)
         return NULL;
 
     /* if the client tries to directly connect to the proxy, let it do so */
-    if (address->sin_addr.s_addr == service->server_addr.sin_addr.s_addr &&
-        address->sin_port        == service->server_addr.sin_port)
+    if (sock_address_equal( address, &service->server_addr ))
         return NULL;
 
-    addr = ntohl(address->sin_addr.s_addr);
-    port = ntohs(address->sin_port);
+    PROXY_LOG("%s: trying to connect to %s",
+              __FUNCTION__, sock_address_to_string(address));
 
-    PROXY_LOG("%s: trying to connect to %d.%d.%d.%d on port %d",
-              __FUNCTION__, 
-              (addr >> 24) & 255,
-              (addr >> 16) & 255,
-              (addr >> 8) & 255,
-              addr & 255,
-              port );
-
-    if (port == 80) {
+    if (sock_address_get_port(address) == 80) {
         /* use the rewriter for HTTP */
         PROXY_LOG("%s: using HTTP rewriter", __FUNCTION__);
         return http_rewriter_connect(service, address);
@@ -75,7 +63,7 @@ proxy_http_setup( const char*         servername,
                   const ProxyOption*  options )
 {
     HttpService*        service;
-    struct sockaddr_in  server_addr;
+    SockAddress         server_addr;
     const ProxyOption*  opt_nocache   = NULL;
     const ProxyOption*  opt_keepalive = NULL;
     const ProxyOption*  opt_auth_user = NULL;

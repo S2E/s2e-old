@@ -12,11 +12,12 @@
 #ifndef _PROXY_COMMON_H_
 #define _PROXY_COMMON_H_
 
+#include "sockets.h"
+
 #ifdef _WIN32
 #include <winsock2.h>
 #else
 #include <sys/select.h>
-#include <netinet/in.h>
 #endif
 
 /* types and definitions used by all proxy connections */
@@ -61,8 +62,8 @@ typedef struct {
  *
  * returns 0 on success, or -1 if there is no proxy service for this type of connection
  */
-extern int   proxy_manager_add( struct sockaddr_in*  address,
-                                int                  sock_type,
+extern int   proxy_manager_add( SockAddress*         address,
+                                SocketType           sock_type,
                                 ProxyEventFunc       ev_func,
                                 void*                ev_opaque );
 

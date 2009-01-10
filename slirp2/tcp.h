@@ -37,6 +37,8 @@
 #ifndef _TCP_H_
 #define _TCP_H_
 
+#include "helper.h"
+
 typedef	u_int32_t	tcp_seq;
 
 #define      PR_SLOWHZ       2               /* 2 slow timeouts per second (approx) */
@@ -54,8 +56,8 @@ extern struct socket *tcp_last_so;
  * Per RFC 793, September, 1981.
  */
 struct tcphdr {
-	u_int16_t	th_sport;		/* source port */
-	u_int16_t	th_dport;		/* destination port */
+	port_t	th_sport;		/* source port */
+	port_t	th_dport;		/* destination port */
 	tcp_seq	th_seq;			/* sequence number */
 	tcp_seq	th_ack;			/* acknowledgement number */
 #ifdef WORDS_BIGENDIAN

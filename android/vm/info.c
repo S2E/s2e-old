@@ -1094,7 +1094,7 @@ _checkSkinDir( char*  temp, char*  end, const char*  skinDirRoot, const char*  s
         return -1;
 
     /* first, is this a normal skin directory ? */
-    q = bufprint(q, end, "/layout");
+    q = bufprint(p, end, "/layout");
     if (q < end && path_exists(temp)) {
         /* yes */
         *p = 0;

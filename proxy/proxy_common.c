@@ -56,7 +56,7 @@ hex_dump( void*   base, int  size, const char*  prefix )
 void
 proxy_connection_init( ProxyConnection*           conn,
                        int                        socket,
-                       struct sockaddr_in*        address,
+                       SockAddress*               address,
                        ProxyService*              service,
                        ProxyConnectionFreeFunc    conn_free,
                        ProxyConnectionSelectFunc  conn_select,
@@ -74,16 +74,12 @@ proxy_connection_init( ProxyConnection*           conn,
     socket_set_nonblock(socket);
 
     {
-        uint32_t  ip   = ntohl(address->sin_addr.s_addr);
-        uint16_t  port = ntohs(address->sin_port);
-        int       type = socket_get_type(socket);
+        SocketType  type = socket_get_type(socket);
 
         snprintf( conn->name, sizeof(conn->name),
-                  "%s:%d.%d.%d.%d:%d(%d)",
-                  (type == SOCK_STREAM) ? "tcp" : "udp",
-                  (ip >> 24) & 255, (ip >> 16) & 255,
-                  (ip >> 8)  & 255, ip & 255, port,
-                  socket );
+                  "%s:%s(%d)",
+                  (type == SOCKET_STREAM) ? "tcp" : "udp",
+                  sock_address_to_string(address), socket );
 
         /* just in case */
         conn->name[sizeof(conn->name)-1] = 0;
@@ -133,20 +129,17 @@ proxy_connection_send( ProxyConnection*  conn, int  fd )
     }
 
     while (avail > 0) {
-        int  n = send(fd, str->s + conn->str_pos, avail, 0);
+        int  n = socket_send(fd, str->s + conn->str_pos, avail);
         if (n == 0) {
             PROXY_LOG("%s: connection reset by peer (send)",
                       conn->name);
             return DATA_ERROR;
         }
         if (n < 0) {
-            if (socket_errno == EINTR)
-                continue;
-
-            if (socket_errno == EWOULDBLOCK || socket_errno == EAGAIN)
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
                 return DATA_NEED_MORE;
 
-            PROXY_LOG("%s: error: %s", conn->name, socket_errstr());
+            PROXY_LOG("%s: error: %s", conn->name, errno_str);
             return DATA_ERROR;
         }
         conn->str_pos  += n;
@@ -170,20 +163,17 @@ proxy_connection_receive( ProxyConnection*  conn, int  fd, int  wanted )
         int  n;
 
         stralloc_readyplus( str, wanted );
-        n = recv(fd, str->s + str->n, wanted, 0);
+        n = socket_recv(fd, str->s + str->n, wanted);
         if (n == 0) {
             PROXY_LOG("%s: connection reset by peer (receive)",
                       conn->name);
             return DATA_ERROR;
         }
         if (n < 0) {
-            if (socket_errno == EINTR)
-                continue;
-
-            if (socket_errno == EWOULDBLOCK || socket_errno == EAGAIN)
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
                 return DATA_NEED_MORE;
 
-            PROXY_LOG("%s: error: %s", conn->name, socket_errstr());
+            PROXY_LOG("%s: error: %s", conn->name, errno_str);
             return DATA_ERROR;
         }
 
@@ -207,20 +197,17 @@ proxy_connection_receive_line( ProxyConnection*  conn, int  fd )
 
     for (;;) {
         char  c;
-        int   n = recv(fd, &c, 1, 0);
+        int   n = socket_recv(fd, &c, 1);
         if (n == 0) {
             PROXY_LOG("%s: disconnected from server", conn->name );
             return DATA_ERROR;
         }
         if (n < 0) {
-            if (socket_errno == EINTR)
-                continue;
-
-            if (socket_errno == EWOULDBLOCK || socket_errno == EAGAIN) {
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 PROXY_LOG("%s: blocked", conn->name);
                 return DATA_NEED_MORE;
             }
-            PROXY_LOG("%s: error: %s", conn->name, socket_errstr());
+            PROXY_LOG("%s: error: %s", conn->name, errno_str);
             return DATA_ERROR;
         }
 
@@ -336,10 +323,10 @@ proxy_connection_free( ProxyConnection*  conn,
 
 
 int
-proxy_manager_add( struct sockaddr_in*  address,
-                   int                  sock_type,
-                   ProxyEventFunc       ev_func,
-                   void*                ev_opaque )
+proxy_manager_add( SockAddress*    address,
+                   SocketType      sock_type,
+                   ProxyEventFunc  ev_func,
+                   void*           ev_opaque )
 {
     int  n;
 
@@ -506,21 +493,16 @@ proxy_base64_encode( const char*  src, int  srclen,
 }
 
 int
-proxy_resolve_server( struct sockaddr_in*  addr,
-                      const char*          servername,
-                      int                  servernamelen,
-                      int                  serverport )
+proxy_resolve_server( SockAddress*   addr,
+                      const char*    servername,
+                      int            servernamelen,
+                      int            serverport )
 {
-    char              name0[64], *name = name0;
-    int               result = -1;
-    struct hostent*   host;
+    char  name0[64], *name = name0;
+    int   result = -1;
 
     if (servernamelen < 0)
         servernamelen = strlen(servername);
-
-    memset(addr, 0, sizeof(*addr));
-    addr->sin_family = AF_INET;
-    addr->sin_port   = htons(serverport);
 
     if (servernamelen >= sizeof(name0)) {
         name = qemu_malloc(servernamelen+1);
@@ -531,18 +513,13 @@ proxy_resolve_server( struct sockaddr_in*  addr,
     memcpy(name, servername, servernamelen);
     name[servernamelen] = 0;
 
-    host = gethostbyname(name);
-    if (host == NULL) {
+    if (sock_address_init_resolve( addr, name, serverport, 0 ) < 0) {
         PROXY_LOG("%s: can't resolve proxy server name '%s'",
                   __FUNCTION__, name);
         goto Exit;
     }
 
-    addr->sin_addr = *(struct in_addr*)host->h_addr;
-    {
-        uint32_t  a = ntohl(addr->sin_addr.s_addr);
-        PROXY_LOG("server name '%s' resolved to %d.%d.%d.%d", name, (a>>24)&255, (a>>16)&255,(a>>8)&255,a&255);
-    }
+    PROXY_LOG("server name '%s' resolved to %s", name, sock_address_to_string(addr));
     result = 0;
 
 Exit:

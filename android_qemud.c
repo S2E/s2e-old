@@ -428,7 +428,6 @@ android_qemud_set_channel( const char*  name, CharDriverState*  peer_cs )
 {
     Multiplexer*  m = _multiplexer;
     Channel*      c;
-    int           ret;
 
     if (m->cs == NULL)
         android_qemud_init();
@@ -451,5 +450,5 @@ android_qemud_set_channel( const char*  name, CharDriverState*  peer_cs )
     m->count += 1;
     multiplexer_query_channel( m, c->name );
 
-    return ret;
+    return 0;
 }

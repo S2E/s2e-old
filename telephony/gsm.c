@@ -35,7 +35,7 @@ gsm_int_from_bcdi( byte_t  val )
     return ret;
 }
 
-
+#if 0
 static int
 gsm_bcdi_to_ascii( cbytes_t  bcd, int  bcdlen, bytes_t  dst )
 {
@@ -63,8 +63,9 @@ gsm_bcdi_to_ascii( cbytes_t  bcd, int  bcdlen, bytes_t  dst )
     }
     return result;
 }
+#endif
 
-
+#if 0
 static int
 gsm_bcdi_from_ascii( cbytes_t  ascii, int  asciilen, bytes_t  dst )
 {
@@ -101,7 +102,7 @@ gsm_bcdi_from_ascii( cbytes_t  ascii, int  asciilen, bytes_t  dst )
     }
     return  result;
 }
-
+#endif
 
 int
 gsm_hexchar_to_int( char  c )
@@ -1129,6 +1130,7 @@ sim_adn_alpha_to_utf8( cbytes_t  alpha, cbytes_t  end, bytes_t  dst )
     return result;
 }
 
+#if 0
 static int
 sim_adn_alpha_from_utf8( cbytes_t  utf8, int  utf8len, bytes_t  dst )
 {
@@ -1146,6 +1148,7 @@ sim_adn_alpha_from_utf8( cbytes_t  utf8, int  utf8len, bytes_t  dst )
     }
     return  result;
 }
+#endif
 
 int
 sim_adn_record_from_bytes( SimAdnRecord  rec, cbytes_t  data, int  len )

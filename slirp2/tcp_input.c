@@ -367,16 +367,22 @@ tcp_input(m, iphlen, inso)
 	 */
 findso:
 	so = tcp_last_so;
-	if (so->so_fport != ti->ti_dport ||
-	    so->so_lport != ti->ti_sport ||
-	    so->so_laddr.s_addr != ti->ti_src.s_addr ||
-	    so->so_faddr.s_addr != ti->ti_dst.s_addr) {
-		so = solookup(&tcb, ti->ti_src, ti->ti_sport,
-			       ti->ti_dst, ti->ti_dport);
+        {
+            uint32_t  srcip   = ip_geth(ti->ti_src);
+            uint32_t  dstip   = ip_geth(ti->ti_dst);
+            uint16_t  dstport = port_geth(ti->ti_dport);
+            uint16_t  srcport = port_geth(ti->ti_sport);
+ 
+	if (so->so_faddr_port != dstport ||
+	    so->so_laddr_port != srcport ||
+	    so->so_laddr_ip   != srcip ||
+	    so->so_faddr_ip   != dstip) {
+		so = solookup(&tcb, srcip, srcport, dstip, dstport);
 		if (so)
 			tcp_last_so = so;
 		++tcpstat.tcps_socachemiss;
 	}
+        }
 
 	/*
 	 * If the state is CLOSED (i.e., TCB does not exist) then
@@ -408,10 +414,10 @@ findso:
 	  /*		tcp_last_so = so; */  /* XXX ? */
 	  /*		tp = sototcpcb(so);    */
 
-	  so->so_laddr = ti->ti_src;
-	  so->so_lport = ti->ti_sport;
-	  so->so_faddr = ti->ti_dst;
-	  so->so_fport = ti->ti_dport;
+	  so->so_laddr_ip   = ip_geth(ti->ti_src);
+	  so->so_laddr_port = port_geth(ti->ti_sport);
+	  so->so_faddr_ip   = ip_geth(ti->ti_dst);
+	  so->so_faddr_port = port_geth(ti->ti_dport);
 
 	  if ((so->so_iptos = tcp_tos(so)) == 0)
 	    so->so_iptos = ((struct ip *)ti)->ip_tos;
@@ -634,8 +640,8 @@ findso:
 	   * If this is destined for the control address, then flag to
 	   * tcp_ctl once connected, otherwise connect
 	   */
-	  if ((so->so_faddr.s_addr&htonl(0xffffff00)) == special_addr.s_addr) {
-	    int lastbyte=ntohl(so->so_faddr.s_addr) & 0xff;
+	  if ((so->so_faddr_ip & 0xffffff00) == special_addr_ip) {
+	    //int lastbyte=ntohl(so->so_faddr.s_addr) & 0xff;
 	    /* CTL_ALIAS: Do nothing, tcp_fconnect will be called on it */
 	  }
 
@@ -647,7 +653,7 @@ findso:
 	  if((tcp_fconnect(so) == -1) && (errno != EINPROGRESS) && (errno != EWOULDBLOCK)) {
 	    u_char code=ICMP_UNREACH_NET;
 	    DEBUG_MISC((dfd," tcp fconnect errno = %d-%s\n",
-			errno,strerror(errno)));
+			errno,errno_str));
 	    if(errno == ECONNREFUSED) {
 	      /* ACK the SYN, send RST to refuse the connection */
 	      tcp_respond(tp, ti, m, ti->ti_seq+1, (tcp_seq)0,
@@ -661,7 +667,7 @@ findso:
 	      m->m_data -= sizeof(struct tcpiphdr)+off-sizeof(struct tcphdr);
 	      m->m_len  += sizeof(struct tcpiphdr)+off-sizeof(struct tcphdr);
 	      *ip=save_ip;
-	      icmp_error(m, ICMP_UNREACH,code, 0,strerror(errno));
+	      icmp_error(m, ICMP_UNREACH,code, 0,errno_str);
 	    }
 	    tp = tcp_close(tp);
 	    mbuf_free(m);

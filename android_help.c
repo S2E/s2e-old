@@ -1150,6 +1150,24 @@ help_bootchart(stralloc_t  *out)
     );
 }
 
+static void
+help_tcpdump(stralloc_t  *out)
+{
+    PRINTF(
+    "  use the -tcpdump <file> option to start capturing all network packets\n"
+    "  that are sent through the emulator's virtual Ethernet LAN. You can later\n"
+    "  use tools like WireShark to analyze the traffic and understand what\n"
+    "  really happens.\n\n"
+
+    "  note that this captures all Ethernet packets, and is not limited to TCP\n"
+    "  connections.\n\n"
+
+    "  you can also start/stop the packet capture dynamically through the console;\n"
+    "  see the 'network capture start' and 'network capture stop' commands for\n"
+    "  details.\n\n"
+    );
+}
+
 #define  help_noskin  NULL
 #define  help_netspeed  help_shaper
 #define  help_netdelay  help_shaper

@@ -160,12 +160,6 @@
 /* Define if you have srandom() */
 #undef HAVE_SRANDOM
 
-/* Define if you have inet_aton */
-#undef HAVE_INET_ATON
-#ifndef _WIN32
-#define HAVE_INET_ATON
-#endif
-
 /* Define if you have setenv */
 #undef HAVE_SETENV
 

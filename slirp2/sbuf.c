@@ -6,8 +6,6 @@
  */
 
 #include <slirp.h>
-#define SLIRP_COMPILATION
-#include "sockets.h"
 
 void
 sbuf_free(SBuf  sb)
@@ -84,10 +82,8 @@ sbuf_append(struct socket *so, MBuf  m)
 	 * ottherwise it'll arrive out of order, and hence corrupt
 	 */
 	if (!so->so_rcv.sb_cc) {
-        do {
-            ret = send(so->s, m->m_data, m->m_len, 0);
-        } while (ret == 0 && socket_errno == EINTR);
-    }
+	   ret = socket_send(so->s, m->m_data, m->m_len);
+        }
 
 	if (ret <= 0) {
 		/* 

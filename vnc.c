@@ -542,8 +542,8 @@ static void vnc_client_write(void *opaque)
     long ret;
     VncState *vs = opaque;
 
-    ret = send(vs->csock, vs->output.buffer, vs->output.offset, 0);
-    ret = vnc_client_io_error(vs, ret, socket_errno);
+    ret = socket_send(vs->csock, vs->output.buffer, vs->output.offset);
+    ret = vnc_client_io_error(vs, ret, errno);
     if (!ret)
 	return;
 
@@ -568,8 +568,8 @@ static void vnc_client_read(void *opaque)
 
     buffer_reserve(&vs->input, 4096);
 
-    ret = recv(vs->csock, buffer_end(&vs->input), 4096, 0);
-    ret = vnc_client_io_error(vs, ret, socket_errno);
+    ret = socket_recv(vs->csock, buffer_end(&vs->input), 4096);
+    ret = vnc_client_io_error(vs, ret, errno);
     if (!ret)
 	return;
 
@@ -998,10 +998,8 @@ static int protocol_version(VncState *vs, char *version, size_t len)
 static void vnc_listen_read(void *opaque)
 {
     VncState *vs = opaque;
-    struct sockaddr_in addr;
-    socklen_t addrlen = sizeof(addr);
 
-    vs->csock = accept(vs->lsock, (struct sockaddr *)&addr, &addrlen);
+    vs->csock = socket_accept(vs->lsock, NULL);
     if (vs->csock != -1) {
         socket_set_nonblock(vs->csock);
 	qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, NULL, opaque);
@@ -1018,7 +1016,7 @@ static void vnc_listen_read(void *opaque)
 
 void vnc_display_init(DisplayState *ds, int display)
 {
-    struct sockaddr_in addr;
+    SockAddress addr;
     int ret;
     VncState *vs;
 
@@ -1041,15 +1039,13 @@ void vnc_display_init(DisplayState *ds, int display)
     if (!vs->kbd_layout)
 	exit(1);
 
-    vs->lsock = socket(PF_INET, SOCK_STREAM, 0);
+    vs->lsock = socket_create_inet( SOCKET_STREAM );
     if (vs->lsock == -1) {
 	fprintf(stderr, "Could not create socket\n");
 	exit(1);
     }
 
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(5900 + display);
-    memset(&addr.sin_addr, 0, sizeof(addr.sin_addr));
+    sock_address_init_inet( &addr, SOCK_ADDRESS_INET_ANY, 5900+display );
 
     ret = socket_set_xreuseaddr(vs->lsock);
     if (ret == -1) {
@@ -1057,12 +1053,12 @@ void vnc_display_init(DisplayState *ds, int display)
 	exit(1);
     }
 
-    if (bind(vs->lsock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+    if (socket_bind(vs->lsock, &addr) < 0) {
 	fprintf(stderr, "bind() failed\n");
 	exit(1);
     }
 
-    if (listen(vs->lsock, 1) == -1) {
+    if (socket_listen(vs->lsock, 1) == -1) {
 	fprintf(stderr, "listen() failed\n");
 	exit(1);
     }

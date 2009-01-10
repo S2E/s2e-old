@@ -17,8 +17,8 @@ endif
 
 ifeq ($(HOST_OS),windows)
   MY_CFLAGS += -D_WIN32 -mno-cygwin
-  # we need Win32 features  that are available since Windows 2000 (NT 5.0)
-  MY_CFLAGS += -DWINVER=0x500
+  # we need Win32 features  that are available since Windows 2000 Professional/Server (NT 5.0)
+  MY_CFLAGS += -DWINVER=0x501
 endif
 
 MY_CC := $(HOST_CC)
@@ -199,7 +199,7 @@ LOCAL_STATIC_LIBRARIES          := $(EMULATOR_OP_LIBRARIES) emulator-arm
 LOCAL_LDFLAGS                   := $(my_32bit_ldflags)
 
 # don't remove the -fno-strict-aliasing, or you'll break things
-# (e.g. slirp/network support)
+# (e.g. slirp2/network support)
 #
 LOCAL_CFLAGS := $(my_32bit_cflags) \
                 -fno-PIC -fomit-frame-pointer -Wno-sign-compare \
@@ -350,14 +350,14 @@ HW_SOURCES := android_arm.c  arm_boot.c  arm_pic.c  cdrom.c \
 LOCAL_SRC_FILES += $(HW_SOURCES:%=hw/%)
 LOCAL_CFLAGS    += -I$(LOCAL_PATH)/hw
 
-# include slirp code, i.e. the user-level networking stuff
+# include slirp2 code, i.e. the user-level networking stuff
 #
 SLIRP_SOURCES := bootp.c     cksum.c      debug.c  if.c     ip_icmp.c  ip_input.c   ip_output.c  \
                  mbuf.c      misc.c       sbuf.c   slirp.c  socket.c   tcp_input.c  tcp_output.c \
                  tcp_subr.c  tcp_timer.c  tftp.c   udp.c
 
-LOCAL_SRC_FILES += $(SLIRP_SOURCES:%=slirp/%)
-LOCAL_CFLAGS    += -I$(LOCAL_PATH)/slirp
+LOCAL_SRC_FILES += $(SLIRP_SOURCES:%=slirp2/%)
+LOCAL_CFLAGS    += -I$(LOCAL_PATH)/slirp2
 
 # socket proxy support
 #
@@ -408,6 +408,7 @@ VL_SOURCES := vl.c osdep.c \
               qemu_timers.c \
               shaper.c charpipe.c loadpng.c \
               framebuffer.c \
+              tcpdump.c \
               android_debug.c \
               android_help.c \
               android_option.c \
@@ -415,7 +416,6 @@ VL_SOURCES := vl.c osdep.c \
               android_charmap.c \
               android_resource.c \
               android_utils.c \
-              android_profile.c \
               android_console.c \
               android_events.c \
               android_timezone.c \

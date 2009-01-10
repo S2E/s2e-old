@@ -42,13 +42,14 @@
 #  define  PATH_SEP   "/"
 #endif
 
-/* get MAX_PATH, note that MAX_PATH is set to 260 on Windows for
+/* get MAX_PATH, note that PATH_MAX is set to 260 on Windows for
  * stupid backwards-compatibility reason, though any 32-bit version
  * of the OS handles much much longer paths
  */
 #ifdef _WIN32
 #  undef   MAX_PATH
 #  define  MAX_PATH    1024
+#  undef   PATH_MAX
 #  define  PATH_MAX    MAX_PATH
 #else
 #  include <limits.h>
@@ -258,7 +259,7 @@ extern void          atexit_close_fd_remove(int  fd);
 
 extern int     make_empty_file( const char*  path );
 extern int     copy_file( const char*  dest, const char*  source );
-extern int     unkink_file( const char*  path );
+extern int     unlink_file( const char*  path );
 extern void*   load_text_file( const char*  path );
 
 /** HOST RESOLUTION SETTINGS

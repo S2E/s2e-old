@@ -13,6 +13,11 @@
 #include <string.h>
 #include <assert.h>
 
+/* set ENABLE_DYNAMIC_RECORDS to 1 to enable dynamic records
+ * for now, this is an experimental feature that needs more testing
+ */
+#define  ENABLE_DYNAMIC_RECORDS  0
+
 #define  A_SIM_PIN_SIZE  4
 #define  A_SIM_PUK_SIZE  8
 
@@ -180,6 +185,7 @@ typedef union {
 } SimFileRec, *SimFile;
 
 
+#if ENABLE_DYNAMIC_RECORDS
 /* convert a SIM File descriptor into an ASCII string,
    assumes 'dst' is NULL or properly sized.
    return the number of chars, or -1 on error */
@@ -196,7 +202,7 @@ sim_file_to_hex( SimFile  file, bytes_t  dst )
         case SIM_FILE_EF_CYCLIC:
             {
                 if (dst) {
-                    int  file_size, file_type, perm;
+                    int  file_size, perm;
 
                     memcpy(dst, "0000", 4);  /* bytes 1-2 are RFU */
                     dst += 4;
@@ -311,14 +317,15 @@ static SimFileEFDedicatedRec  _const_files_dedicated[] =
 
     { 0, 0, 0, NULL, 0 }  /* end of list */
 };
-
+#endif /* ENABLE_DYNAMIC_RECORDS */
 
 const char*
 asimcard_io( ASimCard  sim, const char*  cmd )
 {
     int  nn;
+#if ENABLE_DYNAMIC_RECORDS
     int  command, id, p1, p2, p3;
-
+#endif
     static const struct { const char*  cmd; const char*  answer; } answers[] =
     {
         { "+CRSM=192,28436,0,0,15", "+CRSM: 144,0,000000146f1404001aa0aa01020000" },
@@ -365,7 +372,7 @@ asimcard_io( ASimCard  sim, const char*  cmd )
 
     assert( memcmp( cmd, "+CRSM=", 6 ) == 0 );
 
-#if 0  /* this code officially disabled in the depot until properly tested and debugged */
+#if ENABLE_DYNAMIC_RECORDS
     if ( sscanf(cmd, "+CRSM=%d,%d,%d,%d,%d", &command, &id, &p1, &p2, &p3) == 5 ) {
         switch (command) {
             case A_SIM_CMD_GET_RESPONSE:

@@ -54,6 +54,7 @@ define  compile-c-source
 SRC:=$(1)
 OBJ:=$$(LOCAL_OBJS_DIR)/$$(SRC:%.c=%.o)
 LOCAL_OBJECTS += $$(OBJ)
+DEPENDENCY_DIRS += $$(dir $$(OBJ))
 $$(OBJ): PRIVATE_CFLAGS := $$(CFLAGS) $$(LOCAL_CFLAGS) -I$$(LOCAL_PATH) -I$$(OBJS_DIR)
 $$(OBJ): PRIVATE_CC     := $$(LOCAL_CC)
 $$(OBJ): PRIVATE_OBJ    := $$(OBJ)

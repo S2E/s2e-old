@@ -175,7 +175,7 @@ void *readpng(const unsigned char *base, size_t   size, unsigned *_width, unsign
     reader.end    = base + size;
     reader.cursor = base;
 
-    if(size < 8 || png_sig_cmp(base, 0, 8)) {
+    if(size < 8 || png_sig_cmp((unsigned char*)base, 0, 8)) {
         LOG("%s: header is not a PNG header\n", fn);
         goto oops;
     }

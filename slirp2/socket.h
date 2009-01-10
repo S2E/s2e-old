@@ -29,11 +29,11 @@ struct socket {
   struct tcpiphdr *so_ti;	   /* Pointer to the original ti within
 				    * so_mconn, for non-blocking connections */
   int so_urgc;
-  struct in_addr so_faddr;	   /* foreign host table entry */
-  struct in_addr so_laddr;	   /* local host table entry */
-  u_int16_t so_fport;		   /* foreign port */
-  u_int16_t so_lport;		   /* local port */
-  u_int16_t so_hport;
+  uint32_t   so_faddr_ip;
+  uint32_t   so_laddr_ip;
+  uint16_t   so_faddr_port;
+  uint16_t   so_laddr_port;
+  uint16_t   so_haddr_port;
 
   u_int8_t	so_iptos;	/* Type of service */
   u_int8_t	so_emu;		/* Is the socket emulated? */
@@ -84,7 +84,7 @@ struct iovec {
 #endif
 
 void so_init _P((void));
-struct socket * solookup _P((struct socket *, struct in_addr, u_int, struct in_addr, u_int));
+struct socket * solookup _P((struct socket *, uint32_t, u_int, uint32_t, u_int));
 struct socket * socreate _P((void));
 void sofree _P((struct socket *));
 int soread _P((struct socket *));

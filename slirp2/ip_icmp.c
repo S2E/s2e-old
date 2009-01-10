@@ -36,6 +36,7 @@
 
 #include "slirp.h"
 #include "ip_icmp.h"
+#include "sockets.h"
 
 struct icmpstat icmpstat;
 
@@ -114,48 +115,52 @@ icmp_input(m, hlen)
   case ICMP_ECHO:
     icp->icmp_type = ICMP_ECHOREPLY;
     ip->ip_len += hlen;	             /* since ip_input subtracts this */
-    if (ip->ip_dst.s_addr == alias_addr.s_addr) {
+    if (ip_geth(ip->ip_dst) == alias_addr_ip) {
       icmp_reflect(m);
     } else {
       struct socket *so;
-      struct sockaddr_in addr;
+      SockAddress  addr;
+      uint32_t     addr_ip;
+      uint16_t     addr_port;
+
       if ((so = socreate()) == NULL) goto freeit;
       if(udp_attach(so) == -1) {
 	DEBUG_MISC((dfd,"icmp_input udp_attach errno = %d-%s\n",
-		    errno,strerror(errno)));
+		    errno,errno_str));
 	sofree(so);
 	mbuf_free(m);
 	goto end_error;
       }
       so->so_m = m;
-      so->so_faddr = ip->ip_dst;
-      so->so_fport = htons(7);
-      so->so_laddr = ip->ip_src;
-      so->so_lport = htons(9);
+      so->so_faddr_ip   = ip_geth(ip->ip_dst);
+      so->so_faddr_port = 7;
+      so->so_laddr_ip   = ip_geth(ip->ip_src);
+      so->so_laddr_port = 9;
       so->so_iptos = ip->ip_tos;
       so->so_type = IPPROTO_ICMP;
       so->so_state = SS_ISFCONNECTED;
 
       /* Send the packet */
-      addr.sin_family = AF_INET;
-      if ((so->so_faddr.s_addr & htonl(0xffffff00)) == special_addr.s_addr) {
-	/* It's an alias */
-        int  low = ntohl(so->so_faddr.s_addr) & 0xff;
+      if ((so->so_faddr_ip & 0xffffff00) == special_addr_ip) {
+        /* It's an alias */
+        int  low = so->so_faddr_ip & 0xff;
 
         if (low >= CTL_DNS && low < CTL_DNS + dns_addr_count)
-            addr.sin_addr = dns_addr[low - CTL_DNS];
+            addr_ip = dns_addr[low - CTL_DNS];
         else
-            addr.sin_addr = loopback_addr;
+            addr_ip = loopback_addr_ip;
       } else {
-	addr.sin_addr = so->so_faddr;
+            addr_ip = so->so_faddr_ip;
       }
-      addr.sin_port = so->so_fport;
-      if(sendto(so->s, icmp_ping_msg, strlen(icmp_ping_msg), 0,
-		(struct sockaddr *)&addr, sizeof(addr)) == -1) {
-	DEBUG_MISC((dfd,"icmp_input udp sendto tx errno = %d-%s\n",
-		    errno,strerror(errno)));
-	icmp_error(m, ICMP_UNREACH,ICMP_UNREACH_NET, 0,strerror(errno));
-	udp_detach(so);
+      addr_port = so->so_faddr_port;
+
+      sock_address_init_inet( &addr, addr_ip, addr_port );
+
+      if(socket_sendto(so->s, icmp_ping_msg, strlen(icmp_ping_msg), &addr) < 0) {
+        DEBUG_MISC((dfd,"icmp_input udp sendto tx errno = %d-%s\n",
+                    errno,errno_str));
+        icmp_error(m, ICMP_UNREACH,ICMP_UNREACH_NET, 0,errno_str);
+        udp_detach(so);
       }
     } /* if ip->ip_dst.s_addr == alias_addr.s_addr */
     break;
@@ -207,7 +212,7 @@ icmp_error(msrc, type, code, minsize, message)
      u_char type;
      u_char code;
      int minsize;
-     char *message;
+     const char *message;
 {
   unsigned hlen, shlen, s_ip_len;
   register struct ip *ip;
@@ -225,8 +230,8 @@ icmp_error(msrc, type, code, minsize, message)
   ip = MBUF_TO(msrc, struct ip *);
 #if DEBUG
   { char bufa[20], bufb[20];
-    strcpy(bufa, inet_ntoa(ip->ip_src));
-    strcpy(bufb, inet_ntoa(ip->ip_dst));
+    strcpy(bufa, inet_iptostr(ip_geth(ip->ip_src)));
+    strcpy(bufb, inet_iptostr(ip_geth(ip->ip_dst)));
     DEBUG_MISC((dfd, " %.16s to %.16s\n", bufa, bufb));
   }
 #endif
@@ -307,7 +312,7 @@ icmp_error(msrc, type, code, minsize, message)
   ip->ip_ttl = MAXTTL;
   ip->ip_p = IPPROTO_ICMP;
   ip->ip_dst = ip->ip_src;    /* ip adresses */
-  ip->ip_src = alias_addr;
+  ip->ip_src = ip_setn(alias_addr_ip);
 
   (void ) ip_output((struct socket *)NULL, m);
 
@@ -360,8 +365,8 @@ icmp_reflect(m)
 
   ip->ip_ttl = MAXTTL;
   { /* swap */
-    struct in_addr icmp_dst;
-    icmp_dst = ip->ip_dst;
+    ipaddr_t icmp_dst;
+    icmp_dst   = ip->ip_dst;
     ip->ip_dst = ip->ip_src;
     ip->ip_src = icmp_dst;
   }

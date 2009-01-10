@@ -12,7 +12,7 @@
 #ifdef __sun__
 #include <sys/filio.h>
 #endif
-#define  SLIRP_COMPILATION
+#define  SLIRP_COMPILATION 1
 #include "sockets.h"
 #include "proxy_common.h"
 
@@ -26,18 +26,18 @@ so_init()
 struct socket *
 solookup(head, laddr, lport, faddr, fport)
 	struct socket *head;
-	struct in_addr laddr;
+	uint32_t laddr;
 	u_int lport;
-	struct in_addr faddr;
+	uint32_t faddr;
 	u_int fport;
 {
 	struct socket *so;
 
 	for (so = head->so_next; so != head; so = so->so_next) {
-		if (so->so_lport == lport &&
-		    so->so_laddr.s_addr == laddr.s_addr &&
-		    so->so_faddr.s_addr == faddr.s_addr &&
-		    so->so_fport == fport)
+		if (so->so_laddr_port == lport &&
+		    so->so_laddr_ip   == laddr &&
+		    so->so_faddr_ip   == faddr &&
+		    so->so_faddr_port == fport)
 		   break;
 	}
 
@@ -161,13 +161,13 @@ soread(so)
 	nn = readv(so->s, (struct iovec *)iov, n);
 	DEBUG_MISC((dfd, " ... read nn = %d bytes\n", nn));
 #else
-	nn = recv(so->s, iov[0].iov_base, iov[0].iov_len,0);
+	nn = socket_recv(so->s, iov[0].iov_base, iov[0].iov_len);
 #endif
 	if (nn <= 0) {
 		if (nn < 0 && (errno == EINTR || errno == EAGAIN))
 			return 0;
 		else {
-			DEBUG_MISC((dfd, " --- soread() disconnected, nn = %d, errno = %d-%s\n", nn, errno,strerror(errno)));
+			DEBUG_MISC((dfd, " --- soread() disconnected, nn = %d, errno = %d-%s\n", nn, errno,errno_str));
 			sofcantrcvmore(so);
 			tcp_sockclosed(sototcpcb(so));
 			return -1;
@@ -186,7 +186,7 @@ soread(so)
 	 */
 	if (n == 2 && nn == iov[0].iov_len) {
             int ret;
-            ret = recv(so->s, iov[1].iov_base, iov[1].iov_len,0);
+            ret = socket_recv(so->s, iov[1].iov_base, iov[1].iov_len);
             if (ret > 0)
                 nn += ret;
         }
@@ -254,7 +254,7 @@ sosendoob(so)
 
 	if (sb->sb_rptr < sb->sb_wptr) {
 		/* We can send it directly */
-		n = send(so->s, sb->sb_rptr, so->so_urgc, (MSG_OOB)); /* |MSG_DONTWAIT)); */
+		n = socket_send_oob(so->s, sb->sb_rptr, so->so_urgc); /* |MSG_DONTWAIT)); */
 		so->so_urgc -= n;
 
 		DEBUG_MISC((dfd, " --- sent %d bytes urgent data, %d urgent bytes left\n", n, so->so_urgc));
@@ -275,7 +275,7 @@ sosendoob(so)
 			so->so_urgc -= n;
 			len += n;
 		}
-		n = send(so->s, buff, len, (MSG_OOB)); /* |MSG_DONTWAIT)); */
+		n = socket_send_oob(so->s, buff, len); /* |MSG_DONTWAIT)); */
 #ifdef DEBUG
 		if (n != len)
 		   DEBUG_ERROR((dfd, "Didn't send all data urgently XXXXX\n"));
@@ -345,7 +345,7 @@ sowrite(so)
 
 	DEBUG_MISC((dfd, "  ... wrote nn = %d bytes\n", nn));
 #else
-	nn = send(so->s, iov[0].iov_base, iov[0].iov_len,0);
+	nn = socket_send(so->s, iov[0].iov_base, iov[0].iov_len);
 #endif
 	/* This should never happen, but people tell me it does *shrug* */
 	if (nn < 0 && (errno == EAGAIN || errno == EINTR))
@@ -362,7 +362,7 @@ sowrite(so)
 #ifndef HAVE_READV
 	if (n == 2 && nn == iov[0].iov_len) {
             int ret;
-            ret = send(so->s, iov[1].iov_base, iov[1].iov_len,0);
+            ret = socket_send(so->s, iov[1].iov_base, iov[1].iov_len);
             if (ret > 0)
                 nn += ret;
         }
@@ -392,8 +392,7 @@ void
 sorecvfrom(so)
 	struct socket *so;
 {
-	struct sockaddr_in addr;
-	int addrlen = sizeof(struct sockaddr_in);
+        SockAddress  addr;
 
 	DEBUG_CALL("sorecvfrom");
 	DEBUG_ARG("so = %lx", (long)so);
@@ -402,8 +401,7 @@ sorecvfrom(so)
 	  char buff[256];
 	  int len;
 
-	  len = recvfrom(so->s, buff, 256, 0,
-			 (struct sockaddr *)&addr, &addrlen);
+	  len = socket_recvfrom(so->s, buff, 256, &addr);
 	  /* XXX Check if reply is "correct"? */
 
 	  if(len == -1 || len == 0) {
@@ -413,8 +411,8 @@ sorecvfrom(so)
 	    else if(errno == ENETUNREACH) code=ICMP_UNREACH_NET;
 
 	    DEBUG_MISC((dfd," udp icmp rx errno = %d-%s\n",
-			errno,strerror(errno)));
-	    icmp_error(so->so_m, ICMP_UNREACH,code, 0,strerror(errno));
+			errno,errno_str));
+	    icmp_error(so->so_m, ICMP_UNREACH,code, 0,errno_str);
 	  } else {
 	    icmp_reflect(so->so_m);
 	    so->so_m = 0; /* Don't mbuf_free() it again! */
@@ -434,7 +432,7 @@ sorecvfrom(so)
 	   */
 	  len = mbuf_freeroom(m);
 	  /* if (so->so_fport != htons(53)) { */
-	  ioctlsocket(so->s, FIONREAD, &n);
+	  n = socket_can_read(so->s);
 
 	  if (n > len) {
 	    n = (m->m_data - m->m_dat) + m->m_len + n + 1;
@@ -443,10 +441,9 @@ sorecvfrom(so)
 	  }
 	  /* } */
 
-	  m->m_len = recvfrom(so->s, m->m_data, len, 0,
-			      (struct sockaddr *)&addr, &addrlen);
+	  m->m_len = socket_recvfrom(so->s, m->m_data, len, &addr);
 	  DEBUG_MISC((dfd, " did recvfrom %d, errno = %d-%s\n",
-		      m->m_len, errno,strerror(errno)));
+		      m->m_len, errno,errno_str));
 	  if(m->m_len<0) {
 	    u_char code=ICMP_UNREACH_PORT;
 
@@ -454,7 +451,7 @@ sorecvfrom(so)
 	    else if(errno == ENETUNREACH) code=ICMP_UNREACH_NET;
 
 	    DEBUG_MISC((dfd," rx error, tx icmp ICMP_UNREACH:%i\n", code));
-	    icmp_error(so->so_m, ICMP_UNREACH,code, 0,strerror(errno));
+	    icmp_error(so->so_m, ICMP_UNREACH,code, 0,errno_str);
 	    mbuf_free(m);
 	  } else {
 	  /*
@@ -464,7 +461,7 @@ sorecvfrom(so)
 	   * out much quicker (10 seconds  for now...)
 	   */
 	    if (so->so_expire) {
-	      if (so->so_fport == htons(53))
+	      if (so->so_faddr_port == 53)
 		so->so_expire = curtime + SO_EXPIREFAST;
 	      else
 		so->so_expire = curtime + SO_EXPIRE;
@@ -480,7 +477,7 @@ sorecvfrom(so)
 	     * If this packet was destined for CTL_ADDR,
 	     * make it look like that's where it came from, done by udp_output
 	     */
-	    udp_output(so, m, &addr);
+	    udp_output_(so, m, &addr);
 	  } /* rx error */
 	} /* if ping packet */
 }
@@ -493,31 +490,34 @@ sosendto(so, m)
 	struct socket *so;
 	MBuf m;
 {
-	int ret;
-	struct sockaddr_in addr;
+        SockAddress   addr;
+        uint32_t      addr_ip;
+        uint16_t      addr_port;
+        int           ret;
 
 	DEBUG_CALL("sosendto");
 	DEBUG_ARG("so = %lx", (long)so);
 	DEBUG_ARG("m = %lx", (long)m);
 
-        addr.sin_family = AF_INET;
-	if ((so->so_faddr.s_addr & htonl(0xffffff00)) == special_addr.s_addr) {
+	if ((so->so_faddr_ip & 0xffffff00) == special_addr_ip) {
 	  /* It's an alias */
-          int  low = ntohl(so->so_faddr.s_addr) & 0xff;
+          int  low = so->so_faddr_ip & 0xff;
 
           if ( CTL_IS_DNS(low) )
-            addr.sin_addr = dns_addr[low - CTL_DNS];
+            addr_ip = dns_addr[low - CTL_DNS];
           else
-            addr.sin_addr = loopback_addr;
+            addr_ip = loopback_addr_ip;
 	} else
-	  addr.sin_addr = so->so_faddr;
-	addr.sin_port = so->so_fport;
+	    addr_ip = so->so_faddr_ip;
 
-	DEBUG_MISC((dfd, " sendto()ing, addr.sin_port=%d, addr.sin_addr.s_addr=%.16s\n", ntohs(addr.sin_port), inet_ntoa(addr.sin_addr)));
+	addr_port = so->so_faddr_port;
+
+        sock_address_init_inet(&addr, addr_ip, addr_port);
+
+	DEBUG_MISC((dfd, " sendto()ing, addr.sin_port=%d, addr.sin_addr.s_addr=%08x\n", addr_port, addr_ip));
 
 	/* Don't care what port we get */
-	ret = sendto(so->s, m->m_data, m->m_len, 0,
-		     (struct sockaddr *)&addr, sizeof (struct sockaddr));
+	ret = socket_sendto(so->s, m->m_data, m->m_len,&addr);
 	if (ret < 0)
 		return -1;
 
@@ -541,9 +541,10 @@ solisten(port, laddr, lport, flags)
 	u_int lport;
 	int flags;
 {
-	struct sockaddr_in addr;
+	SockAddress  addr;
+	uint32_t     addr_ip;
 	struct socket *so;
-	int s, addrlen = sizeof(addr);
+	int s;
 
 	DEBUG_CALL("solisten");
 	DEBUG_ARG("port = %d", port);
@@ -569,46 +570,25 @@ solisten(port, laddr, lport, flags)
 	if (flags & SS_FACCEPTONCE)
 	   so->so_tcpcb->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT*2;
 
-	so->so_state = (SS_FACCEPTCONN|flags);
-	so->so_lport = lport; /* Kept in network format */
-        so->so_hport = port;
-	so->so_laddr.s_addr = laddr; /* Ditto */
+	so->so_state      = (SS_FACCEPTCONN|flags);
+	so->so_laddr_port = lport; /* Kept in host format */
+        so->so_laddr_ip   = laddr; /* Ditto */
+        so->so_haddr_port = port;
 
-        memset( &addr, 0, sizeof(addr) );
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	addr.sin_port = port;
-
-        if ((s = socket(AF_INET,SOCK_STREAM,0)) < 0) {
-            sofree(so);
+        s = socket_loopback_server( port, SOCKET_STREAM );
+        if (s < 0)
             return NULL;
-        }
 
-        socket_set_xreuseaddr(s);
+        socket_get_address(s, &addr);
 
-	if ((socket_set_xreuseaddr(s) < 0) ||
-            (bind(s,(struct sockaddr *)&addr, sizeof(addr)) < 0) ||
-	    (listen(s,1) < 0)) {
-		int tmperrno = errno; /* Don't clobber the real reason we failed */
+	so->so_faddr_port = sock_address_get_port(&addr);
 
-		close(s);
-		sofree(so);
-		/* Restore the real errno */
-#ifdef _WIN32
-		WSASetLastError(tmperrno);
-#else
-		errno = tmperrno;
-#endif
-		return NULL;
-	}
-        socket_set_oobinline(s);
+        addr_ip = (uint32_t) sock_address_get_ip(&addr);
 
-	getsockname(s,(struct sockaddr *)&addr,&addrlen);
-	so->so_fport = addr.sin_port;
-	if (addr.sin_addr.s_addr == 0 || addr.sin_addr.s_addr == loopback_addr.s_addr)
-	   so->so_faddr = alias_addr;
-	else
-	   so->so_faddr = addr.sin_addr;
+        if (addr_ip == 0 || addr_ip == loopback_addr_ip)
+            so->so_faddr_ip = alias_addr_ip;
+        else
+            so->so_faddr_ip = addr_ip;
 
 	so->s = s;
 	return so;
@@ -621,7 +601,7 @@ sounlisten(u_int  port)
     struct socket *so;
 
     for (so = tcb.so_next; so != &tcb; so = so->so_next) {
-        if (so->so_hport == htons(port)) {
+        if (so->so_haddr_port == port) {
             break;
         }
     }

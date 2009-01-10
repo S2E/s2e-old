@@ -37,6 +37,8 @@
 #ifndef _IP_H_
 #define _IP_H_
 
+#include "helper.h"
+
 #ifdef WORDS_BIGENDIAN
 # ifndef NTOHL
 #  define NTOHL(d)
@@ -78,13 +80,13 @@ typedef u_int32_t n_long;                 /* long as received from the net */
  */
 struct ip {
 #ifdef WORDS_BIGENDIAN
-	u_int ip_v:4,			/* version */
-		ip_hl:4;		/* header length */
+	u_int ip_v:4;		/* version */
+	u_int ip_hl:4;		/* header length */
 #else
-	u_int ip_hl:4,		/* header length */
-		ip_v:4;			/* version */
+	u_int ip_hl:4;		/* header length */
+	u_int ip_v:4;		/* version */
 #endif
-	u_int8_t ip_tos;			/* type of service */
+	u_int8_t  ip_tos;			/* type of service */
 	u_int16_t	ip_len;			/* total length */
 	u_int16_t	ip_id;			/* identification */
 	u_int16_t	ip_off;			/* fragment offset field */
@@ -94,7 +96,7 @@ struct ip {
 	u_int8_t ip_ttl;			/* time to live */
 	u_int8_t ip_p;			/* protocol */
 	u_int16_t	ip_sum;			/* checksum */
-	struct	in_addr ip_src,ip_dst;	/* source and dest address */
+        ipaddr_t        ip_src, ip_dst; /* source and dest address */
 };
 
 #define	IP_MAXPACKET	65535		/* maximum packet size */
@@ -153,8 +155,8 @@ struct	ip_timestamp {
 	union ipt_timestamp {
 		n_long	ipt_time[1];
 		struct	ipt_ta {
-			struct in_addr ipt_addr;
-			n_long ipt_time;
+			ipaddr_t ipt_addr;
+			n_long   ipt_time;
 		} ipt_ta[1];
 	} ipt_timestamp;
 };
@@ -209,8 +211,8 @@ struct ipovly {
 	u_int8_t	ih_x1;			/* (unused) */
 	u_int8_t	ih_pr;			/* protocol */
 	u_int16_t	ih_len;			/* protocol length */
-	struct	in_addr ih_src;		/* source internet address */
-	struct	in_addr ih_dst;		/* destination internet address */
+	ipaddr_t        ih_src;		/* source internet address */
+	ipaddr_t        ih_dst;		/* destination internet address */
 };
 
 /*
@@ -225,9 +227,9 @@ struct ipq {
 	u_int8_t	ipq_ttl;		/* time for reass q to live */
 	u_int8_t	ipq_p;			/* protocol of this fragment */
 	u_int16_t	ipq_id;			/* sequence id for reassembly */
-	ipasfragp_32 ipq_next,ipq_prev;
+	ipasfragp_32    ipq_next,ipq_prev;
 					/* to ip headers of fragments */
-	struct	in_addr ipq_src,ipq_dst;
+	ipaddr_t        ipq_src,ipq_dst;
 };
 
 /*
@@ -268,8 +270,8 @@ struct	ipasfrag {
 #define MAX_IPOPTLEN	40
 
 struct ipoption {
-	struct	in_addr ipopt_dst;	/* first-hop dst if source routed */
-	int8_t	ipopt_list[MAX_IPOPTLEN];	/* options proper */
+	u_int32_t ipopt_dst;	/* first-hop dst if source routed */
+	int8_t	  ipopt_list[MAX_IPOPTLEN];	/* options proper */
 };
 
 /*
