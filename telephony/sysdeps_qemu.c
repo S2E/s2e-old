@@ -12,16 +12,6 @@
 #include "sockets.h"
 #include "sysdeps.h"
 #include "vl.h"
-#ifdef _WIN32
-#include <winsock2.h>
-#else
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <netdb.h>
-#endif
 
 #define  DEBUG  1
 
@@ -243,14 +233,14 @@ sys_channel_read( SysChannel  channel, void*  buffer, int  size )
     char* buf = (char*) buffer;
 
     while (len > 0) {
-        int  ret = recv(channel->fd, buf, len, 0);
+        int  ret = socket_recv(channel->fd, buf, len);
         if (ret < 0) {
-            if (socket_errno == EINTR)
+            if (errno == EINTR)
                 continue;
-            if (socket_errno == EWOULDBLOCK)
+            if (errno == EWOULDBLOCK)
                 break;
             D( "%s: after reading %d bytes, recv() returned error %d: %s\n",
-                __FUNCTION__, size - len, socket_errno, socket_errstr());
+                __FUNCTION__, size - len, errno, errno_str);
             return -1;
         } else if (ret == 0) {
             break;
@@ -270,14 +260,14 @@ sys_channel_write( SysChannel  channel, const void*  buffer, int  size )
     const char* buf = (const char*) buffer;
 
     while (len > 0) {
-        int  ret = send(channel->fd, buf, len, 0);
+        int  ret = socket_send(channel->fd, buf, len);
         if (ret < 0) {
-            if (socket_errno == EINTR)
+            if (errno == EINTR)
                 continue;
-            if (socket_errno == EWOULDBLOCK)
+            if (errno == EWOULDBLOCK)
                 break;
             D( "%s: send() returned error %d: %s\n",
-                __FUNCTION__, socket_errno, socket_errstr());
+                __FUNCTION__, errno, errno_str);
             return -1;
         } else if (ret == 0) {
             break;
@@ -316,7 +306,7 @@ sys_channel_create_tcp_server( int port )
 {
     SysChannel  channel = sys_channel_alloc();
 
-    channel->fd = socket_anyaddr_server( port, SOCK_STREAM );
+    channel->fd = socket_anyaddr_server( port, SOCKET_STREAM );
     if (channel->fd < 0) {
         D( "%s: failed to created network socket on TCP:%d\n", 
             __FUNCTION__, port );
@@ -361,7 +351,7 @@ sys_channel_create_tcp_client( const char*  hostname, int  port )
 {
     SysChannel  channel = sys_channel_alloc();
 
-    channel->fd = socket_network_client( hostname, port, SOCK_STREAM );
+    channel->fd = socket_network_client( hostname, port, SOCKET_STREAM );
     if (channel->fd < 0) {
         sys_channel_free(channel);
         return NULL;

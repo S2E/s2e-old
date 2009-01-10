@@ -79,14 +79,14 @@ writen(fd, bptr, n)
 	int total;
 	
 	/* This should succeed most of the time */
-	ret = send(fd, bptr, n,0);
+	ret = socket_send(fd, bptr, n);
 	if (ret == n || ret <= 0)
 	   return ret;
 	
 	/* Didn't write everything, go into the loop */
 	total = ret;
 	while (n > total) {
-		ret = send(fd, bptr+total, n-total,0);
+		ret = socket_send(fd, bptr+total, n-total);
 		if (ret <= 0)
 		   return ret;
 		total += ret;
@@ -111,7 +111,7 @@ if_input(ttyp)
 	DEBUG_CALL("if_input");
 	DEBUG_ARG("ttyp = %lx", (long)ttyp);
 	
-	if_n = recv(ttyp->fd, (char *)if_inbuff, INBUFF_SIZE,0);
+	if_n = socket_recv(ttyp->fd, (char *)if_inbuff, INBUFF_SIZE);
 	
 	DEBUG_MISC((dfd, " read %d bytes\n", if_n));
 	

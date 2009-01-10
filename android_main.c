@@ -14,12 +14,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/time.h>
-#ifndef _WIN32
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#else
-#include <winsock2.h>
+#ifdef _WIN32
 #include <process.h>
 #endif
 #include "libslirp.h"
@@ -62,6 +57,7 @@
 #include "hw/goldfish_nand.h"
 
 #include "android/globals.h"
+#include "tcpdump.h"
 
 #include "framebuffer.h"
 AndroidRotation  android_framebuffer_rotation;
@@ -611,7 +607,7 @@ qemulator_light_brightness( void* opaque, const char*  light, int  value )
 {
     QEmulator*  emulator = opaque;
 
-    D("%s: light='%s' value=%d window=%p", __FUNCTION__, light, value, emulator->window);
+    VERBOSE_PRINT(hw_control,"%s: light='%s' value=%d window=%p", __FUNCTION__, light, value, emulator->window);
     if ( !strcmp(light, "lcd_backlight") ) {
         emulator->lcd_brightness = value;
         if (emulator->window)
@@ -1493,20 +1489,18 @@ void emulator_help( void )
 static int
 add_dns_server( const char*  server_name )
 {
-    struct in_addr   dns1;
-    struct hostent*  host = gethostbyname(server_name);
+    SockAddress   addr;
 
-    if (host == NULL) {
+    if (sock_address_init_resolve( &addr, server_name, 55, 0 ) < 0) {
         fprintf(stderr,
                 "### WARNING: can't resolve DNS server name '%s'\n",
                 server_name );
         return -1;
     }
 
-    dns1 = *(struct in_addr*)host->h_addr;
-    D( "DNS server name '%s' resolved to %s", server_name, inet_ntoa(dns1) );
+    D( "DNS server name '%s' resolved to %s", server_name, sock_address_to_string(&addr) );
 
-    if ( slirp_add_dns_server( dns1 ) < 0 ) {
+    if ( slirp_add_dns_server( &addr ) < 0 ) {
         fprintf(stderr,
                 "### WARNING: could not add DNS server '%s' to the network stack\n", server_name);
         return -1;
@@ -1559,7 +1553,7 @@ get_report_console_options( char*  end, int  *maxtries )
 static void
 report_console( const char*  proto_port, int  console_port )
 {
-    int   s = -1, s2, ret;
+    int   s = -1, s2;
     int   maxtries = 10;
     int   flags = 0;
     signal_state_t  sigstate;
@@ -1573,16 +1567,16 @@ report_console( const char*  proto_port, int  console_port )
         flags = get_report_console_options( end, &maxtries );
 
         if (flags & REPORT_CONSOLE_SERVER) {
-            s = socket_loopback_server( port, SOCK_STREAM );
+            s = socket_loopback_server( port, SOCKET_STREAM );
             if (s < 0) {
                 fprintf(stderr, "could not create server socket on TCP:%ld: %s\n",
-                        port, socket_errstr());
+                        port, errno_str);
                 exit(3);
             }
         } else {
             for ( ; maxtries > 0; maxtries-- ) {
                 D("trying to find console-report client on tcp:%d", port);
-                s = socket_loopback_client( port, SOCK_STREAM );
+                s = socket_loopback_client( port, SOCKET_STREAM );
                 if (s >= 0)
                     break;
 
@@ -1590,7 +1584,7 @@ report_console( const char*  proto_port, int  console_port )
             }
             if (s < 0) {
                 fprintf(stderr, "could not connect to server on TCP:%ld: %s\n",
-                        port, socket_errstr());
+                        port, errno_str);
                 exit(3);
             }
         }
@@ -1606,15 +1600,15 @@ report_console( const char*  proto_port, int  console_port )
             *end  = 0;
         }
         if (flags & REPORT_CONSOLE_SERVER) {
-            s = socket_unix_server( path, SOCK_STREAM );
+            s = socket_unix_server( path, SOCKET_STREAM );
             if (s < 0) {
                 fprintf(stderr, "could not bind unix socket on '%s': %s\n",
-                        proto_port+5, socket_errstr());
+                        proto_port+5, errno_str);
                 exit(3);
             }
         } else {
             for ( ; maxtries > 0; maxtries-- ) {
-                s = socket_unix_client( path, SOCK_STREAM );
+                s = socket_unix_client( path, SOCKET_STREAM );
                 if (s >= 0)
                     break;
 
@@ -1622,7 +1616,7 @@ report_console( const char*  proto_port, int  console_port )
             }
             if (s < 0) {
                 fprintf(stderr, "could not connect to unix socket on '%s': %s\n",
-                        path, socket_errstr());
+                        path, errno_str);
                 exit(3);
             }
         }
@@ -1637,12 +1631,12 @@ report_console( const char*  proto_port, int  console_port )
         int  tries = 3;
         D( "waiting for console-reporting client" );
         do {
-            s2 = accept( s, NULL, NULL );
-        } while (s2 < 0 && socket_errno == EINTR && --tries > 0);
+            s2 = socket_accept(s, NULL);
+        } while (s2 < 0 && --tries > 0);
 
         if (s2 < 0) {
             fprintf(stderr, "could not accept console-reporting client connection: %s\n",
-                   socket_errstr());
+                   errno_str);
             exit(3);
         }
 
@@ -1654,13 +1648,10 @@ report_console( const char*  proto_port, int  console_port )
     {
         char  temp[12];
         snprintf( temp, sizeof(temp), "%d", console_port );
-        do {
-            ret = send( s, temp, strlen(temp), 0 );
-        } while (ret < 0 && socket_errno == EINTR);
 
-        if (ret < 0) {
+        if (socket_send(s, temp, strlen(temp)) < 0) {
             fprintf(stderr, "could not send console number report: %d: %s\n",
-                    socket_errno, socket_errstr() );
+                    errno, errno_str );
             exit(3);
         }
         socket_close(s);
@@ -2215,6 +2206,12 @@ int main(int argc, char **argv)
         opts->trace = tracePath;
     }
 
+    if (opts->tcpdump) {
+        if (qemu_tcpdump_start(opts->tcpdump) < 0) {
+            dwarning( "could not start packet capture: %s", strerror(errno));
+        }
+    }
+
     if (opts->nocache)
         opts->cache = 0;
 
@@ -2571,10 +2568,11 @@ void  android_emulation_setup( void )
     int   base_port = 5554;
     int   success   = 0;
     int   s;
-    struct in_addr guest_addr;
+    uint32_t  guest_ip;
+
     AndroidOptions*  opts = qemulator->opts;
 
-    inet_aton("10.0.2.15", &guest_addr);
+    inet_strtoip("10.0.2.15", &guest_ip);
 
 #if 0
     if (opts->adb_port) {
@@ -2610,7 +2608,7 @@ void  android_emulation_setup( void )
             exit(1);
         }
 
-        slirp_redir( 0, adb_port, guest_addr, 5555 );
+        slirp_redir( 0, adb_port, guest_ip, 5555 );
         if ( control_console_start( console_port ) < 0 ) {
             slirp_unredir( 0, adb_port );
         }
@@ -2638,7 +2636,7 @@ void  android_emulation_setup( void )
         for ( ; tries > 0; tries--, base_port += 2 ) {
 
             /* setup first redirection for ADB, the Android Debug Bridge */
-            if ( slirp_redir( 0, base_port+1, guest_addr, 5555 ) < 0 )
+            if ( slirp_redir( 0, base_port+1, guest_ip, 5555 ) < 0 )
                 continue;
 
             /* setup second redirection for the emulator console */
@@ -2670,39 +2668,29 @@ void  android_emulation_setup( void )
     */
     do
     {
-        struct sockaddr_in  addr;
-        char                tmp[32];
-        int                 ret;
+        SockAddress  addr;
+        char         tmp[32];
 
-        s = socket(PF_INET, SOCK_STREAM, 0);
+        s = socket_create_inet( SOCKET_STREAM );
         if (s < 0) {
             D("can't create socket to talk to the ADB server");
             break;
         }
 
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family      = AF_INET;
-        addr.sin_port        = htons(5037);
-        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-
-        do {
-            ret = connect(s, (struct sockaddr*)&addr, sizeof(addr));
-        } while (ret < 0 && socket_errno == EINTR);
-
-        if (ret < 0) {
-            D("can't connect to ADB server: errno %d: %s", socket_errno, socket_errstr() );
+        sock_address_init_inet( &addr, SOCK_ADDRESS_INET_LOOPBACK, 5037 );
+        if (socket_connect( s, &addr ) < 0) {
+            D("can't connect to ADB server: %s", errno_str );
             break;
         }
 
         sprintf(tmp,"0012host:emulator:%d",base_port+1);
-
-        while ( send(s, tmp, 18+4, 0) < 0 && errno == EINTR ) {
-        };
+        socket_send(s, tmp, 18+4);
         D("sent '%s' to ADB server", tmp);
     }
     while (0);
+
     if (s >= 0)
-        close(s);
+        socket_close(s);
 
     /* setup the http proxy, if any */
     if (VERBOSE_CHECK(proxy))

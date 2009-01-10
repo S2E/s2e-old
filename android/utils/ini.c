@@ -159,7 +159,7 @@ isKeyStartChar( int  c )
 static int
 isKeyChar( int  c )
 {
-    return isKeyStartChar(c) || ((unsigned)(c-'0') < 10) || (c == '.');
+    return isKeyStartChar(c) || ((unsigned)(c-'0') < 10) || (c == '.') || (c == '-');
 }
 
 IniFile*

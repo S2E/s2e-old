@@ -48,6 +48,15 @@ IMPORTANT CHANGES:
   are enabled by default, so this only affects "normal" virtual machines
   created with the 'android' tool.
 
+- The emulator now supports capturing network packets to a file.
+  You can either use the new -tcpdump <file> command-line option, or use
+  the new console 'network capture start <file>' command (then use
+  'network capture stop' to stop it).
+
+  This captures all ethernet packets on the virtual LAN, so this includes
+  ARP, UDP, TCP, etc... The file is in libpcap format and can be opened with
+  external tools like WireShark for analysis.
+
 OTHER:
 
 - A new console command 'vm name' can be used to query the name of the

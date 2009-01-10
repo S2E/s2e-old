@@ -155,9 +155,10 @@ struct mmc_opcode {
     { "MMC_GEN_CMD",              56  },
     { "SD_APP_OP_COND",           41  },
     { "SD_APP_SEND_SCR",          51  },
-    { "UNKNOWN"                   -1  }
+    { "UNKNOWN",                  -1  }
 };
 
+#if 0
 static const char* get_command_name(int command)
 {
     struct mmc_opcode* opcode = mmc_opcodes;
@@ -165,6 +166,7 @@ static const char* get_command_name(int command)
     while (opcode->cmd != command && opcode->cmd != -1) opcode++;
     return opcode->name;
 }
+#endif
 
 static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, uint32_t arg)
 {

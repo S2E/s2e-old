@@ -67,7 +67,7 @@ typedef void              (*ProxyConnectionPollFunc)   ( ProxyConnection*  conn,
 /* root ProxyConnection object */
 struct ProxyConnection {
     int                 socket;
-    struct sockaddr_in  address;  /* for debugging */
+    SockAddress         address;  /* for debugging */
     ProxyConnection*    next;
     ProxyConnection*    prev;
     ProxyEventFunc      ev_func;
@@ -95,7 +95,7 @@ struct ProxyConnection {
 extern void
 proxy_connection_init( ProxyConnection*           conn,
                        int                        socket,
-                       struct sockaddr_in*        address,
+                       SockAddress*               address,
                        ProxyService*              service,
                        ProxyConnectionFreeFunc    conn_free,
                        ProxyConnectionSelectFunc  conn_select,
@@ -172,10 +172,10 @@ proxy_base64_encode( const char*  src, int  srclen,
                      char*        dst, int  dstlen );
 
 extern int
-proxy_resolve_server( struct sockaddr_in*  addr,
-                      const char*          servername,
-                      int                  servernamelen,
-                      int                  serverport );
+proxy_resolve_server( SockAddress*   addr,
+                      const char*    servername,
+                      int            servernamelen,
+                      int            serverport );
 
 /* a ProxyService is really a proxy server and associated options */
 
@@ -184,9 +184,9 @@ typedef void              (*ProxyServiceFreeFunc)      ( void*  opaque );
 
 /* tries to create a new proxified connection, returns NULL if the service can't
  * handle this address */
-typedef ProxyConnection*  (*ProxyServiceConnectFunc)( void*                opaque,
-                                                      int                  socket_type,
-                                                      struct sockaddr_in*  address );
+typedef ProxyConnection*  (*ProxyServiceConnectFunc)( void*               opaque,
+                                                      SocketType          socket_type,
+                                                      const SockAddress*  address );
 
 struct ProxyService {
     void*                      opaque;

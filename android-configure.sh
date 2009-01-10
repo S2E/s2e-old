@@ -105,11 +105,11 @@ if [ -n "$ANDROID_PRODUCT_OUT" ] ; then
     log "TOP found at $TOP"
     # $TOP/config/envsetup.make is for the old tree layout
     # $TOP/build/envsetup.sh is for the new one
-    ANDROID_ENVSETUP_MK=$TOP/config/envsetup.make
-    if [ ! -f $ANDROID_ENVSETUP_MK ] ; then
-        ANDROID_ENVSETUP_MK=$TOP/build/core/envsetup.mk
+    ANDROID_CONFIG_MK=$TOP/config/envsetup.make
+    if [ ! -f $ANDROID_CONFIG_MK ] ; then
+        ANDROID_CONFIG_MK=$TOP/build/core/config.mk
     fi
-    if [ ! -f $ANDROID_ENVSETUP_MK ] ; then
+    if [ ! -f $ANDROID_CONFIG_MK ] ; then
         echo "Cannot find build system root (TOP)"
         echo "defaulting to non-Android build"
         unset TOP
@@ -219,8 +219,7 @@ if [ "$IN_ANDROID_BUILD" = "yes" ] ; then
     # Get the value of a build variable as an absolute path.
     function get_abs_build_var()
     {
-       (cd "$TOP" &&
-        CALLED_FROM_SETUP=true make -f $ANDROID_ENVSETUP_MK dumpvar-abs-$1)
+       (cd $TOP && CALLED_FROM_SETUP=true BUILD_SYSTEM=build/core make -f $ANDROID_CONFIG_MK dumpvar-abs-$1)
     }
 
     # locate prebuilt directory

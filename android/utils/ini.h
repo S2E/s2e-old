@@ -23,7 +23,7 @@
  *  assignment       := <space>* <keyName> <space>* '=' <space>* <valueString> <space>* <LF>
  *  keyName          := <keyNameStartChar> <keyNameChar>*
  *  keyNameStartChar := [A-Za-z_]
- *  keyNameChar      := [A-Za-z0-9_.]
+ *  keyNameChar      := [A-Za-z0-9_.-]
  *  valueString      := <noLF>*
  *  space            := ' ' | '\t'
  *  LF               := '\r\n' | '\n' | '\r'
@@ -35,7 +35,7 @@
  * - empty lines are ignored, as well as lines beginning with ';' or '#'
  * - lines must be of the form: "<keyName> = <value>"
  * - key names must start with a letter or an underscore
- * - other key name characters can be letters, digits, underscores or dots
+ * - other key name characters can be letters, digits, underscores, dots or dashes
  *
  * - leading and trailing space are allowed and ignored before/after the key name
  *   and before/after the value

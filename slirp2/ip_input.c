@@ -166,8 +166,8 @@ ip_input(m)
 		for (fp = (struct ipq *) ipq.next; fp != &ipq;
 		     fp = (struct ipq *) fp->next)
 		  if (ip->ip_id == fp->ipq_id &&
-		      ip->ip_src.s_addr == fp->ipq_src.s_addr &&
-		      ip->ip_dst.s_addr == fp->ipq_dst.s_addr &&
+		      ip_equal(ip->ip_src, fp->ipq_src) &&
+		      ip_equal(ip->ip_dst, fp->ipq_dst) &&
 		      ip->ip_p == fp->ipq_p)
 		    goto found;
 		fp = 0;
@@ -483,7 +483,7 @@ ip_dooptions(m)
 	register struct in_ifaddr *ia;
 /*	int opt, optlen, cnt, off, code, type = ICMP_PARAMPROB, forward = 0; */
 	int opt, optlen, cnt, off, code, type, forward = 0;
-	struct in_addr *sin, dst;
+	ipaddr_t *sin, dst;
 typedef u_int32_t n_time;
 	n_time ntime;
 

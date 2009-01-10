@@ -18,7 +18,7 @@
 /* the HttpService object */
 typedef struct HttpService {
     ProxyService        root[1];
-    struct sockaddr_in  server_addr;  /* server address and port */
+    SockAddress         server_addr;  /* server address and port */
     char*               footer;      /* the footer contains the static parts of the */
     int                 footer_len;  /* connection header, we generate it only once */
     char                footer0[512];
@@ -26,13 +26,13 @@ typedef struct HttpService {
 
 /* create a CONNECT connection (for port != 80) */
 extern ProxyConnection*  http_connector_connect(
-                                HttpService*         service,
-                                struct sockaddr_in*  address );
+                                HttpService*   service,
+                                SockAddress*   address );
 
 /* create a HTTP rewriting connection (for port == 80) */
 extern ProxyConnection*  http_rewriter_connect(
-                                HttpService*         service,
-                                struct sockaddr_in*  address );
+                                HttpService*   service,
+                                SockAddress*   address );
 
 
 #endif /* _PROXY_HTTP_INT_H */

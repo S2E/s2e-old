@@ -11,6 +11,9 @@
 #include "config.h"
 #include "slirp_config.h"
 
+#include <stddef.h>
+#include "sockets.h"
+
 #ifdef _WIN32
 # include <inttypes.h>
 
@@ -21,19 +24,9 @@ typedef uint64_t u_int64_t;
 typedef char *caddr_t;
 
 # include <windows.h>
-# include <winsock2.h>
 # include <sys/timeb.h>
 # include <iphlpapi.h>
-
-# define EWOULDBLOCK WSAEWOULDBLOCK
-# define EINPROGRESS WSAEINPROGRESS
-# define ENOTCONN WSAENOTCONN
-# define EHOSTUNREACH WSAEHOSTUNREACH
-# define ENETUNREACH WSAENETUNREACH
-# define ECONNREFUSED WSAECONNREFUSED
 #else
-# define ioctlsocket ioctl
-# define closesocket(s) close(s)
 # define O_BINARY 0
 #endif
 
@@ -118,7 +111,6 @@ typedef unsigned char u_int8_t;
 #endif
 
 #ifndef _WIN32
-#include <netinet/in.h>
 #include <arpa/inet.h>
 #endif
 
@@ -137,49 +129,11 @@ void *malloc _P((size_t arg));
 void free _P((void *ptr));
 #endif
 
-#ifndef HAVE_INET_ATON
-int inet_aton _P((const char *cp, struct in_addr *ia));
-#endif
-
-#include <fcntl.h>
-#ifndef NO_UNIX_SOCKETS
-#include <sys/un.h>
-#endif
-#include <signal.h>
-#ifdef HAVE_SYS_SIGNAL_H
-# include <sys/signal.h>
-#endif
-#ifndef _WIN32
-#include <sys/socket.h>
-#endif
-
-#if defined(HAVE_SYS_IOCTL_H)
-# include <sys/ioctl.h>
-#endif
-
-#ifdef HAVE_SYS_SELECT_H
-# include <sys/select.h>
-#endif
-
-#ifdef HAVE_SYS_WAIT_H
-# include <sys/wait.h>
-#endif
-
-#ifdef HAVE_SYS_FILIO_H
-# include <sys/filio.h>
-#endif
-
-#ifdef USE_PPP
-#include <ppp/slirppp.h>
-#endif
-
 #ifdef __STDC__
 #include <stdarg.h>
 #else
 #include <varargs.h>
 #endif
-
-#include <sys/stat.h>
 
 /* Avoid conflicting with the libc insque() and remque(), which
    have different prototypes. */
@@ -265,10 +219,6 @@ extern int do_echo;
  inline void remque_32 _P((void *));
 #endif
 
-#ifndef _WIN32
-#include <netdb.h>
-#endif
-
 #define DEFAULT_BAUD 115200
 
 /* cksum.c */
@@ -329,11 +279,6 @@ struct tcpcb *tcp_drop(struct tcpcb *tp, int err);
 #ifndef _WIN32
 #define min(x,y) ((x) < (y) ? (x) : (y))
 #define max(x,y) ((x) > (y) ? (x) : (y))
-#endif
-
-#ifdef _WIN32
-#undef errno
-#define errno (WSAGetLastError())
 #endif
 
 #endif

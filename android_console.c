@@ -31,6 +31,7 @@
 #include "modem_driver.h"
 #include "android_gps.h"
 #include "android/globals.h"
+#include "tcpdump.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -75,7 +76,7 @@ typedef struct ControlClientRec_*  ControlClient;
 typedef struct {
     int           host_port;
     int           host_udp;
-    unsigned int  guest_addr;
+    unsigned int  guest_ip;
     int           guest_port;
 } RedirRec, *Redir;
 
@@ -119,7 +120,7 @@ static int
 control_global_add_redir( ControlGlobal  global,
                           int            host_port,
                           int            host_udp,
-                          unsigned int   guest_addr,
+                          unsigned int   guest_ip,
                           int            guest_port )
 {
     Redir  redir;
@@ -141,7 +142,7 @@ control_global_add_redir( ControlGlobal  global,
 
     redir->host_port  = host_port;
     redir->host_udp   = host_udp;
-    redir->guest_addr = guest_addr;
+    redir->guest_ip   = guest_ip;
     redir->guest_port = guest_port;
 
     return 0;
@@ -221,10 +222,10 @@ static void  control_control_write( ControlClient  client, const char*  buff, in
 #if USE_SYSDEPS
         ret = sys_channel_write( client->sock, buff, len );
 #else
-        ret = send( client->sock, buff, len, 0);
+        ret = socket_send( client->sock, buff, len);
 #endif
         if (ret < 0) {
-            if (socket_errno != EINTR && socket_errno != EWOULDBLOCK)
+            if (errno != EINTR && errno != EWOULDBLOCK)
                 return;
         } else {
             buff += ret;
@@ -485,11 +486,11 @@ control_client_read( void*  _client )
 #if USE_SYSDEPS
     size = sys_channel_read( client->sock, buf, sizeof(buf) );
 #else
-    size = recv( client->sock, buf, sizeof(buf), 0 );
+    size = socket_recv( client->sock, buf, sizeof(buf) );
 #endif
     if (size < 0) {
-        D(( "size < 0, exiting with %d: %s\n", socket_errno, socket_errstr() ));
-		if (socket_errno != EWOULDBLOCK && socket_errno != EINTR)
+        D(( "size < 0, exiting with %d: %s\n", errno, errno_str ));
+		if (errno != EWOULDBLOCK && errno != EINTR)
 			control_client_destroy( client );
         return;
     }
@@ -503,18 +504,18 @@ control_client_read( void*  _client )
         int  nn;
 #ifdef _WIN32
 #  if DEBUG
-		char  temp[16];
-		int   count = size > sizeof(temp)-1 ? sizeof(temp)-1 : size;
-		for (nn = 0; nn < count; nn++) {
-			int  c = buf[nn];
-			if (c == '\n')
-				temp[nn] = '!';
-		    else if (c < 32)
-				temp[nn] = '.';
-			else
-			    temp[nn] = (char)c;
-		}
-		temp[nn] = 0;
+        char  temp[16];
+        int   count = size > sizeof(temp)-1 ? sizeof(temp)-1 : size;
+        for (nn = 0; nn < count; nn++) {
+                int  c = buf[nn];
+                if (c == '\n')
+                        temp[nn] = '!';
+            else if (c < 32)
+                        temp[nn] = '.';
+                else
+                    temp[nn] = (char)c;
+        }
+        temp[nn] = 0;
         D(( "received %d bytes: %s\n", size, temp ));
 #  endif
 #else
@@ -549,12 +550,9 @@ control_global_accept( void*  _global )
     }
 #else
     for(;;) {
-        struct sockaddr_in  sockaddr;
-        socklen_t           len = sizeof(sockaddr);
-
-        fd = accept( global->listen_fd, (struct sockaddr *)&sockaddr, &len);
-        if (fd < 0 && socket_errno != EINTR) {
-            D(( "problem in accept: %d: %s\n", socket_errno, socket_errstr() ));
+        fd = socket_accept( global->listen_fd, NULL );
+        if (fd < 0 && errno != EINTR) {
+            D(( "problem in accept: %d: %s\n", errno, errno_str ));
             perror("accept");
             return;
         } else if (fd >= 0) {
@@ -583,7 +581,7 @@ control_global_init( ControlGlobal  global,
     Socket  fd;
 #if !USE_SYSDEPS
     int     ret;
-    struct sockaddr_in sockaddr;
+    SockAddress  sockaddr;
 #endif
 
     memset( global, 0, sizeof(*global) );
@@ -603,7 +601,7 @@ control_global_init( ControlGlobal  global,
                     (SysChannelCallback) control_global_accept,
                     global );
 #else
-    fd = socket(PF_INET, SOCK_STREAM, 0);
+    fd = socket_create_inet( SOCKET_STREAM );
     if (fd < 0) {
         perror("socket");
         return -1;
@@ -611,22 +609,19 @@ control_global_init( ControlGlobal  global,
 
     socket_set_xreuseaddr( fd );
 
-    memset( &sockaddr, 0, sizeof(sockaddr) );
-    sockaddr.sin_family      = AF_INET;
-    sockaddr.sin_port        = htons(control_port);
-    sockaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    sock_address_init_inet( &sockaddr, SOCK_ADDRESS_INET_LOOPBACK, control_port );
 
-    ret = bind(fd, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
+    ret = socket_bind(fd, &sockaddr );
     if (ret < 0) {
         perror("bind");
-        close( fd );
+        socket_close( fd );
         return -1;
     }
 
-    ret = listen(fd, 0);
+    ret = socket_listen(fd, 0);
     if (ret < 0) {
         perror("listen");
-        close( fd );
+        socket_close( fd );
         return -1;
     }
 
@@ -740,6 +735,46 @@ describe_network_delay( ControlClient  client )
     /* XXX: TODO */
 }
 
+static int
+do_network_capture_start( ControlClient  client, char*  args )
+{
+    if ( !args ) {
+        control_write( client, "KO: missing <file> argument, see 'help network capture start'\r\n" );
+        return -1;
+    }
+    if ( qemu_tcpdump_start(args) < 0) {
+        control_write( client, "KO: could not start capture: %s", strerror(errno) );
+        return -1;
+    }
+    return 0;
+}
+
+static int
+do_network_capture_stop( ControlClient  client, char*  args )
+{
+    /* no need to return an error here */
+    qemu_tcpdump_stop();
+    return 0;
+}
+
+static const CommandDefRec  network_capture_commands[] =
+{
+    { "start", "start network capture",
+      "'network capture start <file>' starts a new capture of network packets\r\n"
+      "into a specific <file>. This will stop any capture already in progress.\r\n"
+      "the capture file can later be analyzed by tools like WireShark. It uses\r\n"
+      "the libpcap file format.\r\n\r\n"
+      "you can stop the capture anytime with 'network capture stop'\r\n", NULL,
+      do_network_capture_start, NULL },
+
+    { "stop", "stop network capture",
+      "'network capture stop' stops a currently running packet capture, if any.\r\n"
+      "you can start one with 'network capture start <file>'\r\n", NULL,
+      do_network_capture_stop, NULL },
+
+    { NULL, NULL, NULL, NULL, NULL, NULL }
+};
+
 static const CommandDefRec  network_commands[] =
 {
     { "status", "dump network status", NULL, NULL,
@@ -750,6 +785,10 @@ static const CommandDefRec  network_commands[] =
 
     { "delay", "change network latency", NULL, describe_network_delay,
        do_network_delay, NULL },
+
+    { "capture", "dump network packets to file",
+      "allows to start/stop capture of network packets to a file for later analysis\r\n", NULL,
+      NULL, network_capture_commands },
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };
@@ -841,9 +880,9 @@ redir_find( ControlGlobal  global, int  port, int  isudp )
 static int
 do_redir_add( ControlClient  client, char*  args )
 {
-    int            len, host_proto, host_port, guest_port;
-    struct in_addr guest_addr;
-    Redir          redir;
+    int       len, host_proto, host_port, guest_port;
+    uint32_t  guest_ip;
+    Redir     redir;
 
     if ( !args )
         goto BadFormat;
@@ -868,20 +907,20 @@ do_redir_add( ControlClient  client, char*  args )
         return -1;
     }
 
-    if (!inet_aton("10.0.2.15", &guest_addr)) {
+    if (!inet_strtoip("10.0.2.15", &guest_ip)) {
         control_write( client, "KO: unexpected internal failure when resolving 10.0.2.15\r\n" );
         return -1;
     }
 
     D(("pattern hport=%d gport=%d proto=%d\n", host_port, guest_port, host_proto ));
     if ( control_global_add_redir( client->global, host_port, host_proto,
-                                   guest_addr.s_addr, guest_port ) < 0 )
+                                   guest_ip, guest_port ) < 0 )
     {
         control_write( client, "KO: not enough memory to allocate redirection\r\n" );
         return -1;
     }
 
-    if (slirp_redir(host_proto, host_port, guest_addr, guest_port) < 0) {
+    if (slirp_redir(host_proto, host_port, guest_ip, guest_port) < 0) {
         control_write( client, "KO: can't setup redirection, port probably used by another program on host\r\n" );
         control_global_del_redir( client->global, host_port, host_proto );
         return -1;
@@ -2109,7 +2148,7 @@ static const CommandDefRec   main_commands[] =
       NULL, network_commands },
 
     { "power", "power related commands",
-      "allows change battery and AC power status\r\n", NULL,
+      "allows to change battery and AC power status\r\n", NULL,
       NULL, power_commands },
 
     { "quit|exit", "quit control session", NULL, NULL,

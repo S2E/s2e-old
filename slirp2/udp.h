@@ -37,6 +37,8 @@
 #ifndef _UDP_H_
 #define _UDP_H_
 
+#include "helper.h"
+
 #define UDP_TTL 0x60
 #define UDP_UDPDATALEN 16192
 
@@ -47,8 +49,8 @@ extern struct socket *udp_last_so;
  * Per RFC 768, September, 1981.
  */
 struct udphdr {
-	u_int16_t	uh_sport;		/* source port */
-	u_int16_t	uh_dport;		/* destination port */
+	port_t	uh_sport;		/* source port */
+	port_t	uh_dport;		/* destination port */
 	int16_t	uh_ulen;		/* udp length */
 	u_int16_t	uh_sum;			/* udp checksum */
 };
@@ -98,14 +100,17 @@ struct mbuf;
 
 void udp_init _P((void));
 void udp_input _P((register MBuf , int));
-int udp_output _P((struct socket *, MBuf , struct sockaddr_in *));
 int udp_attach _P((struct socket *));
 void udp_detach _P((struct socket *));
 u_int8_t udp_tos _P((struct socket *));
 void udp_emu _P((struct socket *, MBuf ));
 struct socket * udp_listen _P((u_int, u_int32_t, u_int, int));
 int udp_unlisten _P((u_int));
-int udp_output2(struct socket *so, MBuf m,
-                struct sockaddr_in *saddr, struct sockaddr_in *daddr,
-                int iptos);
+
+int udp_output_(struct socket *, MBuf, SockAddress*);
+
+int udp_output2_(struct socket*  so, MBuf  m,
+                 const SockAddress*  saddr, const SockAddress*  daddr,
+                 int  iptos);
+
 #endif

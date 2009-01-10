@@ -79,7 +79,7 @@ static int get_char(GDBState *s)
     int ret;
 
     for(;;) {
-        ret = recv(s->fd, &ch, 1, 0);
+        ret = socket_recv(s->fd, &ch, 1);
         if (ret < 0) {
             if (errno != EINTR && errno != EAGAIN)
                 return -1;
@@ -97,7 +97,7 @@ static void put_buffer(GDBState *s, const uint8_t *buf, int len)
     int ret;
 
     while (len > 0) {
-        ret = send(s->fd, buf, len, 0);
+        ret = socket_send(s->fd, buf, len);
         if (ret < 0) {
             if (errno != EINTR && errno != EAGAIN)
                 return;
@@ -864,7 +864,7 @@ static void gdb_read(void *opaque)
     int i, size;
     uint8_t buf[4096];
 
-    size = recv(s->fd, buf, sizeof(buf), 0);
+    size = socket_recv(s->fd, buf, sizeof(buf));
     if (size < 0)
         return;
     if (size == 0) {
@@ -884,14 +884,11 @@ static void gdb_read(void *opaque)
 static void gdb_accept(void *opaque)
 {
     GDBState *s;
-    struct sockaddr_in sockaddr;
-    socklen_t len;
-    int fd;
+    int       fd;
 
     for(;;) {
-        len = sizeof(sockaddr);
-        fd = accept(gdbserver_fd, (struct sockaddr *)&sockaddr, &len);
-        if (fd < 0 && errno != EINTR) {
+        fd = socket_accept(gdbserver_fd, NULL);
+        if (fd < 0) {
             perror("accept");
             return;
         } else if (fd >= 0) {
@@ -931,10 +928,10 @@ static void gdb_accept(void *opaque)
 
 static int gdbserver_open(int port)
 {
-    struct sockaddr_in sockaddr;
+    SockAddress  sockaddr;
     int fd, ret;
 
-    fd = socket(PF_INET, SOCK_STREAM, 0);
+    fd = socket_create_inet( SOCKET_STREAM );
     if (fd < 0) {
         perror("socket");
         return -1;
@@ -943,17 +940,16 @@ static int gdbserver_open(int port)
     /* allow fast reuse */
     socket_set_xreuseaddr(fd);
 
-    sockaddr.sin_family = AF_INET;
-    sockaddr.sin_port = htons(port);
-    sockaddr.sin_addr.s_addr = 0;
-    ret = bind(fd, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
+    sock_address_init_inet( &sockaddr, port, SOCK_ADDRESS_INET_ANY );
+    ret = socket_bind(fd, &sockaddr);
     if (ret < 0) {
         perror("bind");
         return -1;
     }
-    ret = listen(fd, 0);
+    ret = socket_listen(fd, 0);
     if (ret < 0) {
         perror("listen");
+        socket_close(fd);
         return -1;
     }
 #ifndef CONFIG_USER_ONLY

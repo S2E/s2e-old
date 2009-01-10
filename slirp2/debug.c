@@ -287,9 +287,9 @@ sockstats()
 		buff[17] = 0;
 		lprint("%s %3d   %15s %5d ",
 				buff, so->s,
-				inet_ntoa(so->so_laddr), ntohs(so->so_lport));
+				inet_iptostr(so->so_laddr_ip), so->so_laddr_port);
 		lprint("%15s %5d %5d %5d\r\n",
-				inet_ntoa(so->so_faddr), ntohs(so->so_fport),
+				inet_iptostr(so->so_faddr_ip), so->so_faddr_port,
 				so->so_rcv.sb_cc, so->so_snd.sb_cc);
 	}
 		   
@@ -301,9 +301,9 @@ sockstats()
 		buff[17] = 0;
 		lprint("%s %3d  %15s %5d  ",
 				buff, so->s,
-				inet_ntoa(so->so_laddr), ntohs(so->so_lport));
+				inet_iptostr(so->so_laddr_ip), so->so_laddr_port);
 		lprint("%15s %5d %5d %5d\r\n",
-				inet_ntoa(so->so_faddr), ntohs(so->so_fport),
+				inet_iptostr(so->so_faddr_ip), so->so_faddr_port,
 				so->so_rcv.sb_cc, so->so_snd.sb_cc);
 	}
 }

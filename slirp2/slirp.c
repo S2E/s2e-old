@@ -2,23 +2,25 @@
 #include "proxy_common.h"
 #include "android_utils.h"  /* for dprint */
 #include "android.h"
+#include "sockets.h"
 
 #define  D(...)   VERBOSE_PRINT(slirp,__VA_ARGS__)
 #define  DN(...)  do { if (VERBOSE_CHECK(slirp)) dprintn(__VA_ARGS__); } while (0)
 
 /* host address */
-struct in_addr our_addr;
+uint32_t our_addr_ip;
 /* host dns address */
-struct in_addr dns_addr[DNS_ADDR_MAX];
-int            dns_addr_count;
+uint32_t dns_addr[DNS_ADDR_MAX];
+int      dns_addr_count;
 
 /* host loopback address */
-struct in_addr loopback_addr;
+uint32_t loopback_addr_ip;
 
 /* address for slirp virtual addresses */
-struct in_addr special_addr;
+uint32_t  special_addr_ip;
+
 /* virtual address alias for host */
-struct in_addr alias_addr;
+uint32_t alias_addr_ip;
 
 const uint8_t special_ethaddr[6] = {
     0x52, 0x54, 0x00, 0x12, 0x35, 0x00
@@ -38,12 +40,18 @@ fd_set *global_readfds, *global_writefds, *global_xfds;
 
 char slirp_hostname[33];
 
-int slirp_add_dns_server(struct in_addr  new_dns_addr)
+int slirp_add_dns_server(const SockAddress*  new_dns_addr)
 {
+    int   dns_ip;
+
     if (dns_addr_count >= DNS_ADDR_MAX)
         return -1;
 
-    dns_addr[dns_addr_count++] = new_dns_addr;
+    dns_ip = sock_address_get_ip(new_dns_addr);
+    if (dns_ip < 0)
+        return -1;
+
+    dns_addr[dns_addr_count++] = dns_ip;
     return 0;
 }
 
@@ -56,7 +64,6 @@ int slirp_get_system_dns_servers()
     ULONG    BufLen;
     DWORD    ret;
     IP_ADDR_STRING *pIPAddr;
-    struct in_addr tmp_addr;
 
     if (dns_addr_count > 0)
         return dns_addr_count;
@@ -84,12 +91,14 @@ int slirp_get_system_dns_servers()
     D( "DNS Servers:");
     pIPAddr = &(FixedInfo->DnsServerList);
     while (pIPAddr && dns_addr_count < DNS_ADDR_MAX) {
+        uint32_t  ip;
         D( "  %s", pIPAddr->IpAddress.String );
-        inet_aton(pIPAddr->IpAddress.String, &tmp_addr);
-        if (tmp_addr.s_addr == loopback_addr.s_addr)
-            tmp_addr = our_addr;
-        if (dns_addr_count < DNS_ADDR_MAX)
-            dns_addr[dns_addr_count++] = tmp_addr;
+        if (inet_strtoip(pIPAddr->IpAddress.String, &ip) == 0) {
+            if (ip == loopback_addr_ip)
+                ip = our_addr_ip;
+            if (dns_addr_count < DNS_ADDR_MAX)
+                dns_addr[dns_addr_count++] = ip;
+        }
         pIPAddr = pIPAddr->Next;
     }
 
@@ -110,7 +119,6 @@ int slirp_get_system_dns_servers(void)
     char buff[512];
     char buff2[256];
     FILE *f;
-    struct in_addr tmp_addr;
 
     if (dns_addr_count > 0)
         return dns_addr_count;
@@ -133,15 +141,17 @@ int slirp_get_system_dns_servers(void)
     DN("emulator: IP address of your DNS(s): ");
     while (fgets(buff, 512, f) != NULL) {
         if (sscanf(buff, "nameserver%*[ \t]%256s", buff2) == 1) {
-            if (!inet_aton(buff2, &tmp_addr))
+            uint32_t  tmp_ip;
+
+            if (inet_strtoip(buff2, &tmp_ip) < 0)
                 continue;
-            if (tmp_addr.s_addr == loopback_addr.s_addr)
-                tmp_addr = our_addr;
+            if (tmp_ip == loopback_addr_ip)
+                tmp_ip = our_addr_ip;
             if (dns_addr_count < DNS_ADDR_MAX) {
-                dns_addr[dns_addr_count++] = tmp_addr;
+                dns_addr[dns_addr_count++] = tmp_ip;
                 if (dns_addr_count > 1)
                     DN(", ");
-                DN("%s", inet_ntoa(tmp_addr));
+                DN("%s", inet_iptostr(tmp_ip));
             } else {
                 DN("(more)");
                 break;
@@ -164,9 +174,8 @@ extern void  slirp_init_shapers();
 void slirp_init(void)
 {
 #if DEBUG
-    int          slirp_logmask = 0;
-    char         slirp_logfile[512];
-
+    int   slirp_logmask = 0;
+    char  slirp_logfile[512];
     {
         const char*  env = getenv( "ANDROID_SLIRP_LOGMASK" );
         if (env != NULL)
@@ -200,18 +209,19 @@ void slirp_init(void)
     mbuf_init();
 
     /* set default addresses */
-    inet_aton("127.0.0.1", &loopback_addr);
+    inet_strtoip("127.0.0.1", &loopback_addr_ip);
 
     if (dns_addr_count == 0) {
         if (slirp_get_system_dns_servers() < 0) {
-            dns_addr[0]    = loopback_addr;
+            dns_addr[0]    = loopback_addr_ip;
             dns_addr_count = 1;
             fprintf (stderr, "Warning: No DNS servers found\n");
         }
     }
 
-    inet_aton(CTL_SPECIAL, &special_addr);
-    alias_addr.s_addr = special_addr.s_addr | htonl(CTL_ALIAS);
+    inet_strtoip(CTL_SPECIAL, &special_addr_ip);
+
+    alias_addr_ip = special_addr_ip | CTL_ALIAS;
     getouraddr();
 
     slirp_init_shapers();
@@ -498,7 +508,7 @@ void slirp_select_poll(fd_set *readfds, fd_set *writefds, fd_set *xfds)
 			    /* Connected */
 			    so->so_state &= ~SS_ISFCONNECTING;
 
-			    ret = send(so->s, (char*)&ret, 0, 0);
+			    ret = socket_send(so->s, (char*)&ret, 0);
 			    if (ret < 0) {
 			      /* XXXXX Must fix, zero bytes is a NOP */
 			      if (errno == EAGAIN || errno == EWOULDBLOCK ||
@@ -531,7 +541,7 @@ void slirp_select_poll(fd_set *readfds, fd_set *writefds, fd_set *xfds)
 	 	 	 */
 #ifdef PROBE_CONN
 			if (so->so_state & SS_ISFCONNECTING) {
-			  ret = recv(so->s, (char *)&ret, 0,0);
+			  ret = socket_recv(so->s, (char *)&ret, 0);
 
 			  if (ret < 0) {
 			    /* XXX */
@@ -544,7 +554,7 @@ void slirp_select_poll(fd_set *readfds, fd_set *writefds, fd_set *xfds)
 
 			    /* tcp_input will take care of it */
 			  } else {
-			    ret = send(so->s, &ret, 0,0);
+			    ret = socket_send(so->s, &ret, 0,0);
 			    if (ret < 0) {
 			      /* XXX */
 			      if (errno == EAGAIN || errno == EWOULDBLOCK ||
@@ -643,8 +653,10 @@ void arp_input(const uint8_t *pkt, int pkt_len)
 
     ar_op = ntohs(ah->ar_op);
     switch(ar_op) {
+        uint32_t   ar_tip_ip;
     case ARPOP_REQUEST:
-        if (!memcmp(ah->ar_tip, &special_addr, 3)) {
+        ar_tip_ip = (ah->ar_tip[0] << 24) | (ah->ar_tip[1] << 16) | (ah->ar_tip[2] << 8);
+        if (ar_tip_ip == special_addr_ip) {
             if ( CTL_IS_DNS(ah->ar_tip[3]) || ah->ar_tip[3] == CTL_ALIAS)
                 goto arp_ok;
             return;
@@ -725,15 +737,15 @@ void if_encap(const uint8_t *ip_data, int ip_data_len)
 }
 
 int slirp_redir(int is_udp, int host_port,
-                struct in_addr guest_addr, int guest_port)
+                uint32_t  guest_ip, int guest_port)
 {
     if (is_udp) {
-        if (!udp_listen(htons(host_port), guest_addr.s_addr,
-                        htons(guest_port), 0))
+        if (!udp_listen(host_port,
+                        guest_ip,
+                        guest_port, 0))
             return -1;
     } else {
-        if (!solisten(htons(host_port), guest_addr.s_addr,
-                      htons(guest_port), 0))
+        if (!solisten(host_port, guest_ip, guest_port, 0))
             return -1;
     }
     return 0;

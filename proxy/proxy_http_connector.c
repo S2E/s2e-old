@@ -52,35 +52,25 @@ connection_init( Connection*  conn )
     HttpService*      service = (HttpService*) conn->root->service;
     ProxyConnection*  root    = conn->root;
     stralloc_t*       str     = root->str;
-    int               ret;
-    uint32_t          address  = ntohl(root->address.sin_addr.s_addr);
-    int               port     = ntohs(root->address.sin_port);
 
     proxy_connection_rewind(root);
-    stralloc_add_format(str, "CONNECT %d.%d.%d.%d:%d HTTP/" HTTP_VERSION "\r\n",
-                 (address >> 24) & 0xff, (address >> 16) & 0xff,
-                 (address >> 8)  & 0xff, address & 0xff, port);
+    stralloc_add_format(str, "CONNECT %s HTTP/" HTTP_VERSION "\r\n",
+                        sock_address_to_string(&root->address));
 
     stralloc_add_bytes(str, service->footer, service->footer_len);
 
-    do {
-        ret = connect( root->socket,
-                    (struct sockaddr*) &service->server_addr,
-                    sizeof(service->server_addr) );
-    } while (ret < 0 && socket_errno == EINTR);
-
-    if (ret == 0) {
+    if (!socket_connect( root->socket, &service->server_addr )) {
         /* immediate connection ?? */
         conn->state = STATE_SEND_HEADER;
         PROXY_LOG("%s: immediate connection", root->name);
     }
     else {
-        if (socket_errno == EINPROGRESS || socket_errno == EWOULDBLOCK) {
+        if (errno == EINPROGRESS || errno == EWOULDBLOCK) {
             conn->state = STATE_CONNECTING;
             PROXY_LOG("%s: connecting", root->name);
         }
         else {
-            PROXY_LOG("%s: cannot connect to proxy: %s", root->name, socket_errstr());
+            PROXY_LOG("%s: cannot connect to proxy: %s", root->name, errno_str);
             return -1;
         }
     }
@@ -183,13 +173,13 @@ connection_poll( ProxyConnection*   root,
 
 
 ProxyConnection*
-http_connector_connect( HttpService*         service,
-                        struct sockaddr_in*  address )
+http_connector_connect( HttpService*  service,
+                        SockAddress*  address )
 {
     Connection*  conn;
     int          s;
 
-    s = socket(AF_INET, SOCK_STREAM, 0);
+    s = socket_create_inet( SOCKET_STREAM );
     if (s < 0)
         return NULL;
 

@@ -7,24 +7,41 @@
 
 #define WANT_SYS_IOCTL_H
 #include <slirp.h>
-#define  SLIRP_COMPILATION
-#include "sockets.h"
 
 u_int curtime, time_fasttimo, last_slowtimo, detach_time;
 u_int detach_wait = 600000;	/* 10 minutes */
 struct emu_t *tcpemu;
 
-#ifndef HAVE_INET_ATON
 int
-inet_aton(const char* cp, struct in_addr* ia)
+inet_strtoip(const char*  str, uint32_t  *ip)
 {
-	u_int32_t addr = inet_addr(cp);
-	if (addr == 0xffffffff)
-		return 0;
-	ia->s_addr = addr;
-	return 1;
+    int  comp[4];
+
+    if (sscanf(str, "%d.%d.%d.%d", &comp[0], &comp[1], &comp[2], &comp[3]) != 4)
+        return -1;
+
+    if ((unsigned)comp[0] >= 256 ||
+        (unsigned)comp[1] >= 256 ||
+        (unsigned)comp[2] >= 256 ||
+        (unsigned)comp[3] >= 256)
+        return -1;
+
+    *ip = (uint32_t)((comp[0] << 24) | (comp[1] << 16) |
+                     (comp[2] << 8)  |  comp[3]);
+    return 0;
 }
-#endif
+
+char*  inet_iptostr(uint32_t  ip)
+{
+    static char  buff[32];
+
+    snprintf(buff, sizeof(buff), "%d.%d.%d.%d",
+             (ip >> 24) & 255,
+             (ip >> 16) & 255,
+             (ip >> 8) & 255,
+             ip & 255);
+    return buff;
+}
 
 /*
  * Get our IP address and put it in our_addr
@@ -32,15 +49,17 @@ inet_aton(const char* cp, struct in_addr* ia)
 void
 getouraddr()
 {
-	char buff[256];
-	struct hostent *he = NULL;
+    char*        hostname = host_name();
+    SockAddress  hostaddr;
 
-	if (gethostname(buff,256) == 0)
-            he = gethostbyname(buff);
-        if (he)
-            our_addr = *(struct in_addr *)he->h_addr;
-        if (our_addr.s_addr == 0)
-            our_addr.s_addr = loopback_addr.s_addr;
+    our_addr_ip = loopback_addr_ip;
+
+    if (sock_address_init_resolve( &hostaddr, hostname, 0, 0 ) < 0)
+        return;
+
+    our_addr_ip = sock_address_get_ip(&hostaddr);
+    if (our_addr_ip == (uint32_t)-1)
+        our_addr_ip = loopback_addr_ip;
 }
 
 #if SIZEOF_CHAR_P == 8
@@ -247,8 +266,8 @@ add_emu(char* buff)
 
 	/* And finally, mark all current sessions, if any, as being emulated */
 	for (so = tcb.so_next; so != &tcb; so = so->so_next) {
-		if ((lport && lport == ntohs(so->so_lport)) ||
-		    (fport && fport == ntohs(so->so_fport))) {
+		if ((lport && lport == so->so_laddr_port) ||
+		    (fport && fport == so->so_faddr_port)) {
 			if (emu)
 			   so->so_emu = emu;
 			if (tos)

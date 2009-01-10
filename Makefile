@@ -40,6 +40,8 @@ CLEAR_VARS                := $(BUILD_SYSTEM)/clear_vars.make
 BUILD_HOST_EXECUTABLE     := $(BUILD_SYSTEM)/host_executable.make
 BUILD_HOST_STATIC_LIBRARY := $(BUILD_SYSTEM)/host_static_library.make
 
+DEPENDENCY_DIRS :=
+
 all: libraries executables
 EXECUTABLES :=
 LIBRARIES   :=
@@ -67,5 +69,5 @@ clean-config:
 	rm -f $(CONFIG_MAKE) $(CONFIG_H)
 
 # include dependency information
-CLEAN_OBJS_DIRS := $(sort $(CLEAN_OBJS_DIRS))
--include $(wildcard $(CLEAN_OBJS_DIRS:%=%/*.d))
+DEPENDENCY_DIRS := $(sort $(DEPENDENCY_DIRS))
+-include $(wildcard $(DEPENDENCY_DIRS:%=%/*.d))

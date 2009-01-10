@@ -49,7 +49,7 @@ if (slirp_debug & DBG_CALL) { fprintf(dfd, fmt, ## args); fflush(dfd); }
 #define dprintf(fmt, args...)
 #endif
 
-static BOOTPClient *get_new_addr(struct in_addr *paddr)
+static BOOTPClient *get_new_addr(SockAddress*  paddr)
 {
     BOOTPClient *bc;
     int i;
@@ -62,11 +62,13 @@ static BOOTPClient *get_new_addr(struct in_addr *paddr)
  found:
     bc = &bootp_clients[i];
     bc->allocated = 1;
-    paddr->s_addr = htonl(ntohl(special_addr.s_addr) | (i + START_ADDR));
+    sock_address_init_inet( paddr, 
+                            special_addr_ip | (i+START_ADDR),
+                            BOOTP_CLIENT );
     return bc;
 }
 
-static BOOTPClient *find_addr(struct in_addr *paddr, const uint8_t *macaddr)
+static BOOTPClient *find_addr(SockAddress* paddr, const uint8_t *macaddr)
 {
     BOOTPClient *bc;
     int i;
@@ -79,7 +81,9 @@ static BOOTPClient *find_addr(struct in_addr *paddr, const uint8_t *macaddr)
  found:
     bc = &bootp_clients[i];
     bc->allocated = 1;
-    paddr->s_addr = htonl(ntohl(special_addr.s_addr) | (i + START_ADDR));
+    sock_address_init_inet( paddr,
+                            special_addr_ip | (i + START_ADDR),
+                            BOOTP_CLIENT );
     return bc;
 }
 
@@ -129,8 +133,8 @@ static void bootp_reply(struct bootp_t *bp)
     BOOTPClient *bc;
     MBuf m;
     struct bootp_t *rbp;
-    struct sockaddr_in saddr, daddr;
-    struct in_addr dns_addr;
+    SockAddress  saddr, daddr;
+    uint32_t     dns_addr;
     int dhcp_msg_type, val;
     uint8_t *q;
 
@@ -156,14 +160,14 @@ static void bootp_reply(struct bootp_t *bp)
 
     if (dhcp_msg_type == DHCPDISCOVER) {
     new_addr:
-        bc = get_new_addr(&daddr.sin_addr);
+        bc = get_new_addr(&daddr);
         if (!bc) {
             dprintf("no address left\n");
             return;
         }
         memcpy(bc->macaddr, client_ethaddr, 6);
     } else {
-        bc = find_addr(&daddr.sin_addr, bp->bp_hwaddr);
+        bc = find_addr(&daddr, bp->bp_hwaddr);
         if (!bc) {
             /* if never assigned, behaves as if it was already
                assigned (windows fix because it remembers its address) */
@@ -173,12 +177,10 @@ static void bootp_reply(struct bootp_t *bp)
     if (bootp_filename)
         snprintf((char*)rbp->bp_file, sizeof(rbp->bp_file), "%s", bootp_filename);
 
-    dprintf("offered addr=%08x\n", ntohl(daddr.sin_addr.s_addr));
+    dprintf("offered addr=%s\n", sock_address_to_string(&daddr));
 
-    saddr.sin_addr.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
-    saddr.sin_port = htons(BOOTP_SERVER);
-
-    daddr.sin_port = htons(BOOTP_CLIENT);
+    sock_address_init_inet( &saddr, special_addr_ip | CTL_ALIAS,
+                            BOOTP_SERVER );
 
     rbp->bp_op = BOOTP_REPLY;
     rbp->bp_xid = bp->bp_xid;
@@ -186,8 +188,8 @@ static void bootp_reply(struct bootp_t *bp)
     rbp->bp_hlen = 6;
     memcpy(rbp->bp_hwaddr, bp->bp_hwaddr, 6);
 
-    rbp->bp_yiaddr = daddr.sin_addr; /* Client IP address */
-    rbp->bp_siaddr = saddr.sin_addr; /* Server IP address */
+    rbp->bp_yiaddr = htonl(sock_address_get_ip(&daddr)); /* Client IP address */
+    rbp->bp_siaddr = htonl(sock_address_get_ip(&saddr)); /* Server IP address */
 
     q = rbp->bp_vend;
     memcpy(q, rfc1533_cookie, 4);
@@ -202,12 +204,13 @@ static void bootp_reply(struct bootp_t *bp)
         *q++ = 1;
         *q++ = DHCPACK;
     }
-        
+
     if (dhcp_msg_type == DHCPDISCOVER ||
         dhcp_msg_type == DHCPREQUEST) {
+        uint32_t  saddr_ip = htonl(sock_address_get_ip(&saddr));
         *q++ = RFC2132_SRV_ID;
         *q++ = 4;
-        memcpy(q, &saddr.sin_addr, 4);
+        memcpy(q, &saddr_ip, 4);
         q += 4;
 
         *q++ = RFC1533_NETMASK;
@@ -216,15 +219,15 @@ static void bootp_reply(struct bootp_t *bp)
         *q++ = 0xff;
         *q++ = 0xff;
         *q++ = 0x00;
-        
+
         *q++ = RFC1533_GATEWAY;
         *q++ = 4;
-        memcpy(q, &saddr.sin_addr, 4);
+        memcpy(q, &saddr_ip, 4);
         q += 4;
-        
+
         *q++ = RFC1533_DNS;
         *q++ = 4;
-        dns_addr.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_DNS);
+        dns_addr = htonl(special_addr_ip | CTL_DNS);
         memcpy(q, &dns_addr, 4);
         q += 4;
 
@@ -246,7 +249,8 @@ static void bootp_reply(struct bootp_t *bp)
     
     m->m_len = sizeof(struct bootp_t) - 
         sizeof(struct ip) - sizeof(struct udphdr);
-    udp_output2(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
+
+    udp_output2_(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
 }
 
 void bootp_input(MBuf m)

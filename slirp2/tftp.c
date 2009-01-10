@@ -23,13 +23,15 @@
  */
 
 #include <slirp.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 struct tftp_session {
     int in_use;
     unsigned char filename[TFTP_FILENAME_MAX];
 
-    struct in_addr client_ip;
-    u_int16_t client_port;
+    uint32_t client_ip;
+    uint16_t client_port;
 
     int timestamp;
 };
@@ -69,8 +71,8 @@ static int tftp_session_allocate(struct tftp_t *tp)
 
  found:
   memset(spt, 0, sizeof(*spt));
-  memcpy(&spt->client_ip, &tp->ip.ip_src, sizeof(spt->client_ip));
-  spt->client_port = tp->udp.uh_sport;
+  spt->client_ip   = ip_geth(tp->ip.ip_src);
+  spt->client_port = port_geth(tp->udp.uh_sport);
 
   tftp_session_update(spt);
 
@@ -86,8 +88,8 @@ static int tftp_session_find(struct tftp_t *tp)
     spt = &tftp_sessions[k];
 
     if (spt->in_use) {
-      if (!memcmp(&spt->client_ip, &tp->ip.ip_src, sizeof(spt->client_ip))) {
-	if (spt->client_port == tp->udp.uh_sport) {
+      if (spt->client_ip == ip_geth(tp->ip.ip_src)) {
+	if (spt->client_port == port_geth(tp->udp.uh_sport)) {
 	  return k;
 	}
       }
@@ -131,7 +133,7 @@ static int tftp_send_oack(struct tftp_session *spt,
                           const char *key, uint32_t value,
                           struct tftp_t *recv_tp)
 {
-    struct sockaddr_in saddr, daddr;
+    SockAddress  saddr, daddr;
     MBuf m;
     struct tftp_t *tp;
     int n = 0;
@@ -151,15 +153,17 @@ static int tftp_send_oack(struct tftp_session *spt,
     n += sprintf((char*)tp->x.tp_buf + n, "%s", key) + 1;
     n += sprintf((char*)tp->x.tp_buf + n, "%u", value) + 1;
 
-    saddr.sin_addr = recv_tp->ip.ip_dst;
-    saddr.sin_port = recv_tp->udp.uh_dport;
+    sock_address_init_inet( &saddr,
+                            ip_geth(recv_tp->ip.ip_dst),
+                            port_geth(recv_tp->udp.uh_dport) );
 
-    daddr.sin_addr = spt->client_ip;
-    daddr.sin_port = spt->client_port;
+    sock_address_init_inet( &daddr,
+                            spt->client_ip,
+                            spt->client_port );
 
     m->m_len = sizeof(struct tftp_t) - 514 + n -
             sizeof(struct ip) - sizeof(struct udphdr);
-    udp_output2(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
+    udp_output2_(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
 
     return 0;
 }
@@ -170,7 +174,7 @@ static int tftp_send_error(struct tftp_session *spt,
 			   u_int16_t errorcode, const char *msg,
 			   struct tftp_t *recv_tp)
 {
-  struct sockaddr_in saddr, daddr;
+  SockAddress saddr, daddr;
   MBuf m;
   struct tftp_t *tp;
   int nobytes;
@@ -191,18 +195,20 @@ static int tftp_send_error(struct tftp_session *spt,
   tp->x.tp_error.tp_error_code = htons(errorcode);
   strcpy((char*)tp->x.tp_error.tp_msg, msg);
 
-  saddr.sin_addr = recv_tp->ip.ip_dst;
-  saddr.sin_port = recv_tp->udp.uh_dport;
+  sock_address_init_inet( &saddr,
+                          ip_geth(recv_tp->ip.ip_dst),
+                          port_geth(recv_tp->udp.uh_dport) );
 
-  daddr.sin_addr = spt->client_ip;
-  daddr.sin_port = spt->client_port;
+  sock_address_init_inet( &daddr,
+                          spt->client_ip,
+                          spt->client_port );
 
   nobytes = 2;
 
   m->m_len = sizeof(struct tftp_t) - 514 + 3 + strlen(msg) -
         sizeof(struct ip) - sizeof(struct udphdr);
 
-  udp_output2(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
+  udp_output2_(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
 
   tftp_session_terminate(spt);
 
@@ -213,7 +219,7 @@ static int tftp_send_data(struct tftp_session *spt,
 			  u_int16_t block_nr,
 			  struct tftp_t *recv_tp)
 {
-  struct sockaddr_in saddr, daddr;
+  SockAddress saddr, daddr;
   MBuf m;
   struct tftp_t *tp;
   int nobytes;
@@ -237,11 +243,13 @@ static int tftp_send_data(struct tftp_session *spt,
   tp->tp_op = htons(TFTP_DATA);
   tp->x.tp_data.tp_block_nr = htons(block_nr);
 
-  saddr.sin_addr = recv_tp->ip.ip_dst;
-  saddr.sin_port = recv_tp->udp.uh_dport;
+  sock_address_init_inet( &saddr,
+                          ip_geth(recv_tp->ip.ip_dst),
+                          port_geth(recv_tp->udp.uh_dport) );
 
-  daddr.sin_addr = spt->client_ip;
-  daddr.sin_port = spt->client_port;
+  sock_address_init_inet( &daddr,
+                          spt->client_ip,
+                          spt->client_port );
 
   nobytes = tftp_read_data(spt, block_nr - 1, tp->x.tp_data.tp_buf, 512);
 
@@ -258,7 +266,7 @@ static int tftp_send_data(struct tftp_session *spt,
   m->m_len = sizeof(struct tftp_t) - (512 - nobytes) -
         sizeof(struct ip) - sizeof(struct udphdr);
 
-  udp_output2(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
+  udp_output2_(NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
 
   if (nobytes == 512) {
     tftp_session_update(spt);

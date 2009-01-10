@@ -117,7 +117,7 @@ OPT_PARAM( gps, "<device>", "redirect NMEA GPS to character device" )
 OPT_PARAM( keyset, "<name>", "specify keyset file name" )
 OPT_PARAM( shell_serial, "<device>", "specific character device for root shell" )
 OPT_FLAG ( old_system, "support old (pre 1.4) system images" )
-
+OPT_PARAM( tcpdump, "<file>", "capture network packets to file" )
 
 #ifdef CONFIG_NAND_LIMITS
 OPT_PARAM( nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds" )

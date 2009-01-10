@@ -100,10 +100,10 @@ struct bootp_t {
     uint32_t bp_xid;
     uint16_t bp_secs;
     uint16_t unused;
-    struct in_addr bp_ciaddr;
-    struct in_addr bp_yiaddr;
-    struct in_addr bp_siaddr;
-    struct in_addr bp_giaddr;
+    uint32_t bp_ciaddr;
+    uint32_t bp_yiaddr;
+    uint32_t bp_siaddr;
+    uint32_t bp_giaddr;
     uint8_t bp_hwaddr[16];
     uint8_t bp_sname[64];
     uint8_t bp_file[128];
