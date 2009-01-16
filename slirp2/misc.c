@@ -62,36 +62,6 @@ getouraddr()
         our_addr_ip = loopback_addr_ip;
 }
 
-#if SIZEOF_CHAR_P == 8
-
-struct quehead_32 {
-	u_int32_t qh_link;
-	u_int32_t qh_rlink;
-};
-
-inline void
-insque_32(void* a, void* b)
-{
-	register struct quehead_32 *element = (struct quehead_32 *) a;
-	register struct quehead_32 *head = (struct quehead_32 *) b;
-	element->qh_link = head->qh_link;
-	head->qh_link = (u_int32_t)element;
-	element->qh_rlink = (u_int32_t)head;
-	((struct quehead_32 *)(element->qh_link))->qh_rlink
-	= (u_int32_t)element;
-}
-
-inline void
-remque_32(void* a)
-{
-	register struct quehead_32 *element = (struct quehead_32 *) a;
-	((struct quehead_32 *)(element->qh_link))->qh_rlink = element->qh_rlink;
-	((struct quehead_32 *)(element->qh_rlink))->qh_link = element->qh_link;
-	element->qh_rlink = 0;
-}
-
-#endif /* SIZEOF_CHAR_P == 8 */
-
 struct quehead {
 	struct quehead *qh_link;
 	struct quehead *qh_rlink;

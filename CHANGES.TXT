@@ -72,6 +72,8 @@ OTHER:
 - The '-skindir <path>' option now requires that you specify a '-skin <name>'
   option as well.
 
+- Better handling of Audio on Linux for the EsounD and Alsa backends
+
 ==============================================================================
 Changes between 1.6 and 1.7
 

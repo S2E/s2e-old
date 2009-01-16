@@ -231,7 +231,7 @@ static int oss_open (int in, struct oss_params *req,
         goto err;
     }
 
-    if (ioctl (fd, SNDCTL_DSP_NONBLOCK)) {
+    if (ioctl (fd, SNDCTL_DSP_NONBLOCK, NULL)) {
         oss_logerr2 (errno, typ, "Failed to set non-blocking mode\n");
         goto err;
     }
@@ -245,6 +245,12 @@ static int oss_open (int in, struct oss_params *req,
 
     if (ioctl (fd, in ? SNDCTL_DSP_GETISPACE : SNDCTL_DSP_GETOSPACE, &abinfo)) {
         oss_logerr2 (errno, typ, "Failed to get buffer length\n");
+        goto err;
+    }
+
+    if (!abinfo.fragstotal || !abinfo.fragsize) {
+        AUD_log(AUDIO_CAP, "Returned bogus buffer information(%d, %d) for %s\n",
+                abinfo.fragstotal, abinfo.fragsize, typ);
         goto err;
     }
 

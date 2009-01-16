@@ -123,6 +123,10 @@ static void *qesd_thread_out (void *arg)
 
     threshold = conf.divisor ? hw->samples / conf.divisor : 0;
 
+    if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+        return NULL;
+    }
+
     /* ignore SIGALRM in this thread */
     sigemptyset(&set);
     sigaddset(&set, SIGALRM);
@@ -271,13 +275,10 @@ static int qesd_init_out (HWVoiceOut *hw, audsettings_t *as)
 
     default:
         dolog ("Internal logic error: Bad audio format %d\n", as->fmt);
-#ifdef DEBUG_FMOD
-        abort ();
-#endif
         goto deffmt;
 
     }
-    obt_as.endianness = 0;
+    obt_as.endianness = AUDIO_HOST_ENDIANNESS;
 
     audio_pcm_init_info (&hw->info, &obt_as);
 
@@ -363,6 +364,10 @@ static void *qesd_thread_in (void *arg)
     int threshold;
 
     threshold = conf.divisor ? hw->samples / conf.divisor : 0;
+
+    if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+        return NULL;
+    }
 
     for (;;) {
         int incr, to_grab, wpos;
@@ -498,7 +503,7 @@ static int qesd_init_in (HWVoiceIn *hw, audsettings_t *as)
         break;
 #endif
     }
-    obt_as.endianness = 0;
+    obt_as.endianness = AUDIO_HOST_ENDIANNESS;
 
     audio_pcm_init_info (&hw->info, &obt_as);
 

@@ -80,6 +80,9 @@
     DYNLINK_FUNC(const char*,snd_strerror,(int errnum)) \
     DYNLINK_FUNC(int,snd_pcm_open,(snd_pcm_t **pcm, const char *name,snd_pcm_stream_t stream, int mode)) \
     DYNLINK_FUNC(int,snd_pcm_close,(snd_pcm_t *pcm))  \
+    DYNLINK_FUNC(int,snd_pcm_hw_params_set_buffer_size_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val)) \
+    DYNLINK_FUNC(int,snd_pcm_hw_params_set_period_size_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val, int *dir)) \
+    DYNLINK_FUNC(int,snd_pcm_hw_params_get_format,(const snd_pcm_hw_params_t *params, snd_pcm_format_t *val)) \
 
 #define DYNLINK_FUNCTIONS_INIT \
     alsa_dynlink_init
@@ -118,44 +121,24 @@ static struct {
     unsigned int period_size_out;
     unsigned int threshold;
 
-    int buffer_size_in_overriden;
-    int period_size_in_overriden;
+    int buffer_size_in_overridden;
+    int period_size_in_overridden;
 
-    int buffer_size_out_overriden;
-    int period_size_out_overriden;
+    int buffer_size_out_overridden;
+    int period_size_out_overridden;
     int verbose;
 } conf = {
-#ifdef HIGH_LATENCY
-    .size_in_usec_in = 1,
-    .size_in_usec_out = 1,
-#endif
+    .buffer_size_out = 1024,
     .pcm_name_out = "default",
     .pcm_name_in = "default",
-#ifdef HIGH_LATENCY
-    .buffer_size_in = 400000,
-    .period_size_in = 400000 / 4,
-    .buffer_size_out = 400000,
-    .period_size_out = 400000 / 4,
-#else
-#define DEFAULT_BUFFER_SIZE 1024
-#define DEFAULT_PERIOD_SIZE 256
-    .buffer_size_in = DEFAULT_BUFFER_SIZE * 4,
-    .period_size_in = DEFAULT_PERIOD_SIZE * 4,
-    .buffer_size_out = DEFAULT_BUFFER_SIZE,
-    .period_size_out = DEFAULT_PERIOD_SIZE,
-    .buffer_size_in_overriden = 0,
-    .buffer_size_out_overriden = 0,
-    .period_size_in_overriden = 0,
-    .period_size_out_overriden = 0,
-#endif
-    .threshold = 0,
-    .verbose = 0
 };
 
 struct alsa_params_req {
     int freq;
-    audfmt_e fmt;
+    snd_pcm_format_t fmt;
     int nchannels;
+    int size_in_usec;
+    int override_mask;
     unsigned int buffer_size;
     unsigned int period_size;
 };
@@ -163,6 +146,7 @@ struct alsa_params_req {
 struct alsa_params_obt {
     int freq;
     audfmt_e fmt;
+    int endianness;
     int nchannels;
     snd_pcm_uframes_t samples;
 };
@@ -234,7 +218,8 @@ static int aud_to_alsafmt (audfmt_e fmt)
     }
 }
 
-static int alsa_to_audfmt (int alsafmt, audfmt_e *fmt, int *endianness)
+static int alsa_to_audfmt (snd_pcm_format_t alsafmt, audfmt_e *fmt,
+                           int *endianness)
 {
     switch (alsafmt) {
     case SND_PCM_FORMAT_S8:
@@ -275,7 +260,6 @@ static int alsa_to_audfmt (int alsafmt, audfmt_e *fmt, int *endianness)
     return 0;
 }
 
-#if defined DEBUG_MISMATCHES || defined DEBUG
 static void alsa_dump_info (struct alsa_params_req *req,
                             struct alsa_params_obt *obt)
 {
@@ -289,7 +273,6 @@ static void alsa_dump_info (struct alsa_params_req *req,
            req->buffer_size, req->period_size);
     dolog ("obtained: samples %ld\n", obt->samples);
 }
-#endif
 
 static void alsa_set_threshold (snd_pcm_t *handle, snd_pcm_uframes_t threshold)
 {
@@ -326,16 +309,17 @@ static int alsa_open (int in, struct alsa_params_req *req,
 {
     snd_pcm_t *handle;
     snd_pcm_hw_params_t *hw_params;
-    int err, freq, nchannels;
+    int err;
+    int size_in_usec;
+    unsigned int freq, nchannels;
     const char *pcm_name = in ? conf.pcm_name_in : conf.pcm_name_out;
-    unsigned int period_size, buffer_size;
     snd_pcm_uframes_t obt_buffer_size;
     const char *typ = in ? "ADC" : "DAC";
+    snd_pcm_format_t obtfmt;
 
     freq = req->freq;
-    period_size = req->period_size;
-    buffer_size = req->buffer_size;
     nchannels = req->nchannels;
+    size_in_usec = req->size_in_usec;
 
     FF_snd_pcm_hw_params_alloca (&hw_params);
 
@@ -367,12 +351,12 @@ static int alsa_open (int in, struct alsa_params_req *req,
     }
 
     err = FF(snd_pcm_hw_params_set_format) (handle, hw_params, req->fmt);
-    if (err < 0) {
+    if (err < 0 && conf.verbose) {
         alsa_logerr2 (err, typ, "Failed to set format %d\n", req->fmt);
         goto err;
     }
 
-    err = FF(snd_pcm_hw_params_set_rate_near) (handle, hw_params, (unsigned*)&freq, 0);
+    err = FF(snd_pcm_hw_params_set_rate_near) (handle, hw_params, &freq, 0);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to set frequency %d\n", req->freq);
         goto err;
@@ -381,7 +365,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
     err = FF(snd_pcm_hw_params_set_channels_near) (
         handle,
         hw_params,
-        (unsigned*)&nchannels
+        &nchannels
         );
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to set number of channels %d\n",
@@ -396,130 +380,79 @@ static int alsa_open (int in, struct alsa_params_req *req,
         goto err;
     }
 
-    if (!((in && conf.size_in_usec_in) || (!in && conf.size_in_usec_out))) {
-        if (!buffer_size) {
-            buffer_size = DEFAULT_BUFFER_SIZE;
-            period_size= DEFAULT_PERIOD_SIZE;
-        }
-    }
+    if (req->buffer_size) {
+        unsigned long obt;
 
-    if (buffer_size) {
-        if ((in && conf.size_in_usec_in) || (!in && conf.size_in_usec_out)) {
-            if (period_size) {
-                err = FF(snd_pcm_hw_params_set_period_time_near) (
-                    handle,
-                    hw_params,
-                    &period_size,
-                    0
-                    );
-                if (err < 0) {
-                    alsa_logerr2 (err, typ,
-                                  "Failed to set period time %d\n",
-                                  req->period_size);
-                    goto err;
-                }
-            }
+        if (size_in_usec) {
+            int dir = 0;
+            unsigned int btime = req->buffer_size;
 
             err = FF(snd_pcm_hw_params_set_buffer_time_near) (
                 handle,
                 hw_params,
-                &buffer_size,
-                0
+                &btime,
+                &dir
                 );
-
-            if (err < 0) {
-                alsa_logerr2 (err, typ,
-                              "Failed to set buffer time %d\n",
-                              req->buffer_size);
-                goto err;
-            }
+            obt = btime;
         }
         else {
-            int dir;
-            snd_pcm_uframes_t minval;
+            snd_pcm_uframes_t bsize = req->buffer_size;
 
-            if (period_size) {
-                minval = period_size;
-                dir = 0;
-
-                err = FF(snd_pcm_hw_params_get_period_size_min) (
-                    hw_params,
-                    &minval,
-                    &dir
-                    );
-                if (err < 0) {
-                    alsa_logerr (
-                        err,
-                        "Could not get minmal period size for %s\n",
-                        typ
-                        );
-                }
-                else {
-                    if (period_size < minval) {
-                        if ((in && conf.period_size_in_overriden)
-                            || (!in && conf.period_size_out_overriden)) {
-                            dolog ("%s period size(%d) is less "
-                                   "than minmal period size(%ld)\n",
-                                   typ,
-                                   period_size,
-                                   minval);
-                        }
-                        period_size = minval;
-                    }
-                }
-
-                err = FF(snd_pcm_hw_params_set_period_size) (
-                    handle,
-                    hw_params,
-                    period_size,
-                    0
-                    );
-                if (err < 0) {
-                    alsa_logerr2 (err, typ, "Failed to set period size %d\n",
-                                  req->period_size);
-                    goto err;
-                }
-            }
-
-            minval = buffer_size;
-            err = FF(snd_pcm_hw_params_get_buffer_size_min) (
-                hw_params,
-                &minval
-                );
-            if (err < 0) {
-                alsa_logerr (err, "Could not get minmal buffer size for %s\n",
-                             typ);
-            }
-            else {
-                if (buffer_size < minval) {
-                    if ((in && conf.buffer_size_in_overriden)
-                        || (!in && conf.buffer_size_out_overriden)) {
-                        dolog (
-                            "%s buffer size(%d) is less "
-                            "than minimal buffer size(%ld)\n",
-                            typ,
-                            buffer_size,
-                            minval
-                            );
-                    }
-                    buffer_size = minval;
-                }
-            }
-
-            err = FF(snd_pcm_hw_params_set_buffer_size) (
+            err = FF(snd_pcm_hw_params_set_buffer_size_near) (
                 handle,
                 hw_params,
-                buffer_size
+                &bsize
                 );
-            if (err < 0) {
-                alsa_logerr2 (err, typ, "Failed to set buffer size %d\n",
-                              req->buffer_size);
-                goto err;
-            }
+            obt = bsize;
         }
+        if (err < 0) {
+            alsa_logerr2 (err, typ, "Failed to set buffer %s to %d\n",
+                          size_in_usec ? "time" : "size", req->buffer_size);
+            goto err;
+        }
+
+        if ((req->override_mask & 2) && (obt - req->buffer_size))
+            dolog ("Requested buffer %s %u was rejected, using %lu\n",
+                   size_in_usec ? "time" : "size", req->buffer_size, obt);
     }
-    else {
-        dolog ("warning: Buffer size is not set\n");
+
+    if (req->period_size) {
+        unsigned long obt;
+
+        if (size_in_usec) {
+            int dir = 0;
+            unsigned int ptime = req->period_size;
+
+            err = FF(snd_pcm_hw_params_set_period_time_near) (
+                handle,
+                hw_params,
+                &ptime,
+                &dir
+                );
+            obt = ptime;
+        }
+        else {
+            int dir = 0;
+            snd_pcm_uframes_t psize = req->period_size;
+
+            err = FF(snd_pcm_hw_params_set_period_size_near) (
+                handle,
+                hw_params,
+                &psize,
+                &dir
+                );
+            obt = psize;
+        }
+
+        if (err < 0) {
+            alsa_logerr2 (err, typ, "Failed to set period %s to %d\n",
+                          size_in_usec ? "time" : "size", req->period_size);
+            goto err;
+        }
+
+        if ((req->override_mask & 1) && (obt - req->period_size))
+            dolog ("Requested period %s %u was rejected, using %lu\n",
+                   size_in_usec ? "time" : "size", req->period_size, obt);
     }
 
     err = FF(snd_pcm_hw_params) (handle, hw_params);
@@ -534,6 +467,17 @@ static int alsa_open (int in, struct alsa_params_req *req,
         goto err;
     }
 
+    err = FF(snd_pcm_hw_params_get_format)(hw_params, &obtfmt);
+    if (err < 0) {
+        alsa_logerr2 (err, typ, "Failed to get format\n");
+        goto err;
+    }
+
+    if (alsa_to_audfmt (obtfmt, &obt->fmt, &obt->endianness)) {
+        dolog ("Invalid format was returned %d\n", obtfmt);
+        goto err;
+    }
+
     err = FF(snd_pcm_prepare) (handle);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Could not prepare handle %p\n", handle);
@@ -544,28 +488,36 @@ static int alsa_open (int in, struct alsa_params_req *req,
         snd_pcm_uframes_t threshold;
         int bytes_per_sec;
 
-        bytes_per_sec = freq
-            << (nchannels == 2)
-            << (req->fmt == AUD_FMT_S16 || req->fmt == AUD_FMT_U16);
+        bytes_per_sec = freq << (nchannels == 2);
+
+        switch (obt->fmt) {
+        case AUD_FMT_S8:
+        case AUD_FMT_U8:
+            break;
+
+        case AUD_FMT_S16:
+        case AUD_FMT_U16:
+            bytes_per_sec <<= 1;
+            break;
+        }
 
         threshold = (conf.threshold * bytes_per_sec) / 1000;
         alsa_set_threshold (handle, threshold);
     }
 
-    obt->fmt = req->fmt;
     obt->nchannels = nchannels;
     obt->freq = freq;
     obt->samples = obt_buffer_size;
+
     *handlep = handle;
 
-#if defined DEBUG_MISMATCHES || defined DEBUG
-    if (obt->fmt != req->fmt ||
-        obt->nchannels != req->nchannels ||
-        obt->freq != req->freq) {
-        dolog ("Audio paramters mismatch for %s\n", typ);
+    if (conf.verbose &&
+        (obt->fmt != req->fmt ||
+         obt->nchannels != req->nchannels ||
+         obt->freq != req->freq)) {
+        dolog ("Audio paramters for %s\n", typ);
         alsa_dump_info (req, obt);
     }
-#endif
 
 #ifdef DEBUG
     alsa_dump_info (req, obt);
@@ -705,11 +657,9 @@ static int alsa_init_out (HWVoiceOut *hw, audsettings_t *as)
     ALSAVoiceOut *alsa = (ALSAVoiceOut *) hw;
     struct alsa_params_req req;
     struct alsa_params_obt obt;
-    audfmt_e effective_fmt;
-    int endianness;
-    int err, result = -1;
     snd_pcm_t *handle;
     audsettings_t obt_as;
+    int  result = -1;
 
     /* shut alsa debug spew */
     if (!D_ACTIVE)
@@ -720,21 +670,18 @@ static int alsa_init_out (HWVoiceOut *hw, audsettings_t *as)
     req.nchannels = as->nchannels;
     req.period_size = conf.period_size_out;
     req.buffer_size = conf.buffer_size_out;
+    req.size_in_usec = conf.size_in_usec_out;
+    req.override_mask = !!conf.period_size_out_overridden
+        | (!!conf.buffer_size_out_overridden << 1);
 
     if (alsa_open (0, &req, &obt, &handle)) {
         goto Exit;
     }
 
-    err = alsa_to_audfmt (obt.fmt, &effective_fmt, &endianness);
-    if (err) {
-        alsa_anal_close (&handle);
-        goto Exit;
-    }
-
     obt_as.freq = obt.freq;
     obt_as.nchannels = obt.nchannels;
-    obt_as.fmt = effective_fmt;
-    obt_as.endianness = endianness;
+    obt_as.fmt = obt.fmt;
+    obt_as.endianness = obt.endianness;
 
     audio_pcm_init_info (&hw->info, &obt_as);
     hw->samples = obt.samples;
@@ -801,11 +748,9 @@ static int alsa_init_in (HWVoiceIn *hw, audsettings_t *as)
     ALSAVoiceIn *alsa = (ALSAVoiceIn *) hw;
     struct alsa_params_req req;
     struct alsa_params_obt obt;
-    int endianness;
-    int err, result = -1;
-    audfmt_e effective_fmt;
     snd_pcm_t *handle;
     audsettings_t obt_as;
+    int result = -1;
 
     /* shut alsa debug spew */
     if (!D_ACTIVE)
@@ -816,21 +761,18 @@ static int alsa_init_in (HWVoiceIn *hw, audsettings_t *as)
     req.nchannels = as->nchannels;
     req.period_size = conf.period_size_in;
     req.buffer_size = conf.buffer_size_in;
+    req.size_in_usec = conf.size_in_usec_in;
+    req.override_mask = !!conf.period_size_in_overridden
+        | (!!conf.buffer_size_in_overridden << 1);
 
     if (alsa_open (1, &req, &obt, &handle)) {
         goto Exit;
     }
 
-    err = alsa_to_audfmt (obt.fmt, &effective_fmt, &endianness);
-    if (err) {
-        alsa_anal_close (&handle);
-        goto Exit;
-    }
-
     obt_as.freq = obt.freq;
     obt_as.nchannels = obt.nchannels;
-    obt_as.fmt = effective_fmt;
-    obt_as.endianness = endianness;
+    obt_as.fmt = obt.fmt;
+    obt_as.endianness = obt.endianness;
 
     audio_pcm_init_info (&hw->info, &obt_as);
     hw->samples = obt.samples;
@@ -1033,16 +975,20 @@ static struct audio_option alsa_options[] = {
     {"DAC_SIZE_IN_USEC", AUD_OPT_BOOL, &conf.size_in_usec_out,
      "DAC period/buffer size in microseconds (otherwise in frames)", NULL, 0},
     {"DAC_PERIOD_SIZE", AUD_OPT_INT, &conf.period_size_out,
-     "DAC period size", &conf.period_size_out_overriden, 0},
+     "DAC period size (0 to go with system default)",
+     &conf.period_size_out_overridden, 0},
     {"DAC_BUFFER_SIZE", AUD_OPT_INT, &conf.buffer_size_out,
-     "DAC buffer size", &conf.buffer_size_out_overriden, 0},
+     "DAC buffer size (0 to go with system default)",
+     &conf.buffer_size_out_overridden, 0},
 
     {"ADC_SIZE_IN_USEC", AUD_OPT_BOOL, &conf.size_in_usec_in,
      "ADC period/buffer size in microseconds (otherwise in frames)", NULL, 0},
     {"ADC_PERIOD_SIZE", AUD_OPT_INT, &conf.period_size_in,
-     "ADC period size", &conf.period_size_in_overriden, 0},
+     "ADC period size (0 to go with system default)",
+     &conf.period_size_in_overridden, 0},
     {"ADC_BUFFER_SIZE", AUD_OPT_INT, &conf.buffer_size_in,
-     "ADC buffer size", &conf.buffer_size_in_overriden, 0},
+     "ADC buffer size (0 to go with system default)",
+     &conf.buffer_size_in_overridden, 0},
 
     {"THRESHOLD", AUD_OPT_INT, &conf.threshold,
      "(undocumented)", NULL, 0},

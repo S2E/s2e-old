@@ -1078,20 +1078,24 @@ _getImagePaths(AvmInfo*  i, AvmInfoParams*  params )
 
 /* check that there is a skin named 'skinName' listed from 'skinDirRoot'
  * this returns 1 on success, 0 on failure
- * on success, the 'temp' buffer will get the path of the real skin
- * directory (after alias expansion, if needed)
+ * on success, the 'temp' buffer will get the path containing the real
+ * skin directory (after alias expansion), including the skin name.
  */
 static int
 _checkSkinDir( char*  temp, char*  end, const char*  skinDirRoot, const char*  skinName )
 {
     DirScanner*  scanner;
     char        *p, *q;
+    int          result;
 
-    p = bufprint(temp, end, "%s/skins/%s",
-                 skinDirRoot, skinName);
+    p  = bufprint(temp, end, "%s/skins/%s",
+                  skinDirRoot, skinName);
 
-    if (p >= end || !path_exists(temp))
-        return -1;
+    DD("probing skin content in %s", temp);
+
+    if (p >= end || !path_exists(temp)) {
+        return 0;
+    }
 
     /* first, is this a normal skin directory ? */
     q = bufprint(p, end, "/layout");
@@ -1103,6 +1107,7 @@ _checkSkinDir( char*  temp, char*  end, const char*  skinDirRoot, const char*  s
 
     /* second, is it an alias to another skin ? */
     *p      = 0;
+    result  = 0;
     scanner = dirScanner_new(temp);
     if (scanner != NULL) {
         for (;;) {
@@ -1120,13 +1125,14 @@ _checkSkinDir( char*  temp, char*  end, const char*  skinDirRoot, const char*  s
             q = bufprint(p, end, "/layout");
             if (q < end && path_exists(temp)) {
                 /* yes, it's an alias */
-                *p = 0;
-                return 1;
+                *p     = 0;
+                result = 1;
+                break;
             }
         }
         dirScanner_free(scanner);
     }
-    return 0;
+    return result;
 }
 
 static int
@@ -1159,9 +1165,14 @@ _getSkin( AvmInfo*  i, AvmInfoParams*  params )
          * user wants,  unless an explicit name was given
          */
         if (!explicitSkin) {
-            p = bufprint(temp, end, "%s/skin/layout", i->contentPath);
-            if (p < end && path_exists(temp)) {
+            char*  q;
+
+            p = bufprint(temp, end, "%s/skin", i->contentPath);
+            q = bufprint(p, end, "/layout");
+            if (q < end && path_exists(temp)) {
                 /* use this one - cheat a little */
+                *p = 0;
+                D("using skin content from %s", temp);
                 qemu_free(i->skinName);
                 i->skinName    = qemu_strdup("skin");
                 i->skinDirPath = qemu_strdup(i->contentPath);
@@ -1190,6 +1201,19 @@ _getSkin( AvmInfo*  i, AvmInfoParams*  params )
 
     } while (0);
 
+    /* separate skin name from parent directory. the skin name
+     * returned in 'temp' might be different from the original
+     * one due to alias expansion so strip it.
+     */
+    p = strrchr(temp, '/');
+    if (p == NULL) {
+        /* should not happen */
+        DD("weird skin path: %s", temp);
+        return -1;
+    }
+
+    *p = 0;
+    DD("found skin content in %s", temp);
     i->skinDirPath = qemu_strdup(temp);
     return 0;
 }
@@ -1413,14 +1437,12 @@ _getBuildSkin( AvmInfo*  i, AvmInfoParams*  params )
         p = bufprint( temp, end, "%s", skinDir );
     }
 
-    q = bufprint(p, end, "/%s/layout", skinName);
+    q  = bufprint(p, end, "/%s/layout", skinName);
     if (q >= end || !path_exists(temp)) {
+        DD("skin content directory does not exist: %s", temp);
         if (skinDir)
             dwarning("could not find valid skin '%s' in %s:\n",
-                     skinName, skinDir);
-        else
-            DD("could not find directory for skin '%s'",
-                skinName);
+                     skinName, temp);
         return -1;
     }
     *p = 0;
