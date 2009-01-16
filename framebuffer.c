@@ -92,8 +92,8 @@ qframebuffer_set_dpi( QFrameBuffer*   qfbuff,
     ** mm / 25.4 = dots / dpi
     ** mm = (dots * 25.4)/dpi
     */
-    qfbuff->phys_width_mm  = 25.4 * qfbuff->width  / x_dpi;
-    qfbuff->phys_height_mm = 25.4 * qfbuff->height / y_dpi;
+    qfbuff->phys_width_mm  = (int)(0.5 + 25.4 * qfbuff->width  / x_dpi);
+    qfbuff->phys_height_mm = (int)(0.5 + 25.4 * qfbuff->height / y_dpi);
 }
 
 /* alternative to qframebuffer_set_dpi where one can set the physical dimensions directly */

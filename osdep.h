@@ -6,6 +6,12 @@
 #include <stddef.h>
 #include "config.h"
 
+#ifndef container_of
+#define container_of(ptr, type, member) ({                      \
+        const typeof(((type *) 0)->member) *__mptr = (ptr);     \
+        (type *) ((char *) __mptr - offsetof(type, member));})
+#endif
+
 int qemu_vsnprintf(char *buf, int buflen, const char *fmt, va_list args);
 void qemu_vprintf(const char *fmt, va_list ap);
 void qemu_printf(const char *fmt, ...);

@@ -211,14 +211,6 @@ void lprint _P((const char *, ...));
 
 extern int do_echo;
 
-#if SIZEOF_CHAR_P == 4
-# define insque_32 insque
-# define remque_32 remque
-#else
- inline void insque_32 _P((void *, void *));
- inline void remque_32 _P((void *));
-#endif
-
 #define DEFAULT_BAUD 115200
 
 /* cksum.c */
@@ -231,7 +223,7 @@ void if_output _P((struct socket *, MBuf ));
 /* ip_input.c */
 void ip_init _P((void));
 void ip_input _P((MBuf ));
-struct ip * ip_reass _P((register struct ipasfrag *, register struct ipq *));
+struct ip * ip_reass _P((register struct ip*, register struct ipq *));
 void ip_freef _P((struct ipq *));
 void ip_enq _P((register struct ipasfrag *, register struct ipasfrag *));
 void ip_deq _P((register struct ipasfrag *));
