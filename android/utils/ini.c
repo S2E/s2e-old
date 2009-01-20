@@ -248,7 +248,7 @@ iniFile_newFromFile( const char*  filepath )
     IniFile*     ini = NULL;
 
     if (fp == NULL) {
-        W("could not open .ini file: %s: %s",
+        D("could not open .ini file: %s: %s",
           filepath, strerror(errno));
         return NULL;
     }
