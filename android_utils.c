@@ -437,11 +437,7 @@ bufprint_app_dir(char*  buff, char*  end)
 }
 #endif
 
-#ifdef _WIN32
-#define  _ANDROID_PATH   "Android"
-#else
 #define  _ANDROID_PATH   ".android"
-#endif
 
 char*
 bufprint_config_path(char*  buff, char*  end)
@@ -449,7 +445,7 @@ bufprint_config_path(char*  buff, char*  end)
 #ifdef _WIN32
     char  path[MAX_PATH];
 
-    SHGetFolderPath( NULL, CSIDL_LOCAL_APPDATA|CSIDL_FLAG_CREATE,
+    SHGetFolderPath( NULL, CSIDL_PROFILE,
                      NULL, 0, path);
 
     return bufprint(buff, end, "%s\\%s", path, _ANDROID_PATH );

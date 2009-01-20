@@ -1723,7 +1723,7 @@ _getSdkImagePath( const char*  fileName )
                         continue;
 
                     found = 1;
-                    q = bufprint(p, end, "/%s/images", subdir);
+                    p = bufprint(p, end, "/%s/images", subdir);
                     break;
                 }
                 dirScanner_free(scanner);
@@ -1743,21 +1743,31 @@ FOUND_IT:
 }
 
 static char*
-_getSdkImage( const char*  path, const char*  pathText, const char*  file )
+_getSdkImage( const char*  path, const char*  file )
 {
     char  temp[MAX_PATH];
     char  *p = temp, *end = p + sizeof(temp);
 
     p = bufprint(temp, end, "%s/%s", path, file);
-    if (p >= end || !path_exists(temp)) {
-        derror("you %s directory is missing the '%s' image file.",
-               pathText, file);
-        exit(2);
-    }
+    if (p >= end || !path_exists(temp))
+        return NULL;
 
     return qemu_strdup(temp);
 }
 
+static char*
+_getSdkSystemImage( const char*  path, const char*  optionName, const char*  file )
+{
+    char*  image = _getSdkImage(path, file);
+
+    if (image == NULL) {
+        derror("Your system directory is missing the '%s' image file.\n"
+               "Please specify one with the '%s <filepath>' option",
+               file, optionName);
+        exit(2);
+    }
+    return image;
+}
 
 static void
 _forceVmImagePath( AvmImageType  imageType, 
@@ -1769,7 +1779,7 @@ _forceVmImagePath( AvmImageType  imageType,
         return;
 
     if (required && !path_exists(path)) {
-        derror("cannot find %s image file: %s", description, path);
+        derror("Cannot find %s image file: %s", description, path);
         exit(1);
     }
     android_vmParams->forcePaths[imageType] = path;
@@ -1895,19 +1905,19 @@ int main(int argc, char **argv)
             break;
 
         if (!path_exists(out)) {
-            dprint("### Weird, can't access ANDROID_PRODUCT_OUT as '%s'", out);
-            break;
+            derror("Can't access ANDROID_PRODUCT_OUT as '%s\n"
+                   "You need to build the Android system before launching the emulator",
+                   out);
+            exit(2);
         }
 
         android_build_root = path_parent( out, 4 );
-        if (android_build_root == NULL) {
-            break;
-        }
-        if (!path_exists(android_build_root)) {
-            dprint("### Weird, can't access build root as '%s'", android_build_root);
-            free(android_build_root);
-            android_build_root = NULL;
-            break;
+        if (android_build_root == NULL || !path_exists(android_build_root)) {
+            derror("Can't find the Android build root from '%s'\n"
+                   "Please check the definition of the ANDROID_PRODUCT_OUT variable.\n"
+                   "It should point to your product-specific build output directory.\n",
+                   out );
+            exit(2);
         }
         android_build_out = out;
         D( "found Android build root: %s", android_build_root );
@@ -1918,56 +1928,66 @@ int main(int argc, char **argv)
      * Android build system, we'll need to perform some auto-detection
      * magic :-)
      */
-    if (opts->vm == NULL && !android_build_out) {
+    if (opts->vm == NULL && !android_build_out) 
+    {
+        char   dataDirIsSystem = 0;
+
         if (!opts->system) {
             opts->system = _getSdkImagePath("system.img");
             if (!opts->system) {
-            NO_VM_NAME:
-                derror( "you must provide the name of a virtual machine to start the emulator.\n"
-                        "please see -help-vm for details." );
+                derror(
+                "You did not specify a virtual machine name, and the system\n"
+                "directory could not be found.\n\n"
+                "If you are an Android SDK user, please use '@<name>' or '-vm <name>'\n"
+                "to start a given virtual machine (see -help-vm for details).\n\n"
+
+                "Otherwise, follow the instructions in -help-disk-images to start the emulator\n"
+                );
                 exit(2);
             }
             D("autoconfig: -system %s", opts->system);
         }
 
         if (!opts->image) {
-            opts->image = _getSdkImage(opts->system, "-system", "system.img");
+            opts->image = _getSdkSystemImage(opts->system, "-image", "system.img");
             D("autoconfig: -image %s", opts->image);
         }
 
         if (!opts->kernel) {
-            opts->kernel = _getSdkImage(opts->system, "-system", "kernel-qemu");
+            opts->kernel = _getSdkSystemImage(opts->system, "-kernel", "kernel-qemu");
             D("autoconfig: -kernel %s", opts->kernel);
         }
 
         if (!opts->ramdisk) {
-            opts->ramdisk = _getSdkImage(opts->system, "-ramdisk", "ramdisk.img");
+            opts->ramdisk = _getSdkSystemImage(opts->system, "-ramdisk", "ramdisk.img");
             D("autoconfig: -ramdisk %s", opts->ramdisk);
         }
 
-        if (!opts->data) {
-            /* we don't want new SDK users to keep using their
-             * obsolete data images. unless they specifically
-             * use -data or -datadir with an existing file,
-             * we're going to complain.
-             */
-            if (!opts->datadir) {
-                goto NO_VM_NAME;
-            }
+        /* if no data directory is specified, use the system directory */
+        if (!opts->datadir) {
+            opts->datadir   = qemu_strdup(opts->system);
+            dataDirIsSystem = 1;
+            D("autoconfig: -datadir %s", opts->system);
+        }
 
-            /* here the user used -datadir, so check that there is a
-             * valid data partition file here, if not abort.
-             */
-            bufprint(tmp, tmpend, opts->datadir, "/userdata-qemu.img");
-            if (!path_exists(tmp))
-                goto NO_VM_NAME;
+        if (!opts->data) {
+            /* check for userdata-qemu.img in the data directory */
+            bufprint(tmp, tmpend, "%s/userdata-qemu.img", opts->datadir);
+            if (!path_exists(tmp)) {
+                derror(
+                "There is no file named 'userdata-qemu.img' in your %s directory.\n"
+                "You should specify one with the '-data <filepath>' option.",
+                dataDirIsSystem ? "system" : "data"
+                );
+                exit(2);
+            }
 
             opts->data = qemu_strdup(tmp);
             D("autoconfig: -data %s", opts->data);
         }
 
         if (!opts->sdcard && opts->datadir) {
-            bufprint(tmp, tmpend, opts->datadir, "/sdcard.img");
+            bufprint(tmp, tmpend, "%s/sdcard.img", opts->datadir);
             if (path_exists(tmp)) {
                 opts->sdcard = qemu_strdup(tmp);
                 D("autoconfig: -sdcard %s", opts->sdcard);
@@ -2014,7 +2034,7 @@ int main(int argc, char **argv)
             const char*  p = strrchr(android_build_out,'/');
             if (p) {
                 if (p[1] == 's') {
-                    opts->skin = "QVGA-L";
+                    opts->skin = "HVGA";  /* used to be QVGA-L */
                 } else if (p[1] == 'd') {
                     opts->skin = "HVGA";
                 }
@@ -2038,9 +2058,8 @@ int main(int argc, char **argv)
     else
     {
         if (!android_build_out) {
-            android_build_root = android_build_out = opts->system;
+            android_build_out = android_build_root = opts->system;
         }
-
         android_vmInfo = avmInfo_newForAndroidBuild(
                             android_build_root,
                             android_build_out,

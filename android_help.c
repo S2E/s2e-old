@@ -16,18 +16,124 @@ static void
 help_virtual_machine( stralloc_t*  out )
 {
     PRINTF(
-    "  An Android Virtual Machine (avm) models a single virtual\n"
-    "  device running the Android platform that has its own kernel,\n"
-    "  system image and data partition.\n\n"
+    "  An Android Virtual Machine (AVM) models a single virtual\n"
+    "  device running the Android platform that has, at least, its own\n"
+    "  kernel, system image and data partition.\n\n"
 
     "  Only one emulator process can run a given AVM at a time, but\n"
     "  you can create several AVMs and run them concurrently.\n\n"
 
-    "  TODO TODO TODO: ADD INFORMATION ABOUT AVM CONTENT DIRECTORIES,\n"
-    "                  AVM MANAGEMENT, ETC...\n"
+    "  You can invoke a given AVM at startup using either '-vm <name>'\n"
+    "  or '@<name>', both forms being equivalent. For example, to launch\n"
+    "  the AVM named 'foo', type:\n\n"
+
+    "      emulator @foo\n\n"
+
+    "  The 'android' helper tool can be used to manage virtual machines.\n"
+    "  For example:\n\n"
+
+    "    android vm    -- creates a new virtual machine.\n"
+    "    android list  -- list all virtual machines available.\n\n"
+
+    "  Each AVM really corresponds to a content directory which stores\n"
+    "  persistent and writable disk images as well as configuration files.\n"
+
+    "  Each AVM must be created against an existing SDK platform or add-on.\n"
+    "  For more information on this topic, see -help-sdk-images.\n\n"
+
+    "  SPECIAL NOTE: in the case where you are *not* using the emulator\n"
+    "  with the Android SDK, but with the Android build system, you will\n"
+    "  need to define the ANDROID_PRODUCT_OUT variable in your environment.\n"
+    "  See -help-build-images for the details.\n"
     );
 }
 
+
+static void
+help_sdk_images( stralloc_t*  out )
+{
+    PRINTF(
+    "  The Android SDK now supports multiple versions of the Android platform.\n"
+    "  Each SDK 'platform' corresponds to:\n\n"
+
+    "    - a given version of the Android API.\n"
+    "    - a set of corresponding system image files.\n"
+    "    - build and configuration properties.\n"
+    "    - an android.jar file used when building your application.\n"
+    "    - skins.\n\n"
+
+    "  The Android SDK also supports the concept of 'add-ons'. Each add-on is\n"
+    "  based on an existing platform, and provides replacement or additional\n"
+    "  image files, android.jar, hardware configuration options and/or skins.\n\n"
+
+    "  The purpose of add-ons is to allow vendors to provide their own customized\n"
+    "  system images and APIs without needing to package a complete SDK.\n\n"
+
+    "  Before using the SDK, you need to create an Android Virtual Machine (AVM)\n"
+    "  (see -help-virtual-machine for details). Each AVM is created in reference\n"
+    "  to a given SDK platform *or* add-on, and will search the corresponding\n"
+    "  directories for system image files, in the following order:\n\n" 
+
+    "    - in the AVM's content directory.\n"
+    "    - in the AVM's SDK add-on directory, if any.\n"
+    "    - in the AVM's SDK platform directory, if any.\n\n"
+
+    "  The image files are documented in -help-disk-images. By default, an AVM\n"
+    "  content directory will contain the following persistent image files:\n\n"
+
+    "     userdata-qemu.img     - the /data partition image file\n"
+    "     cache.img             - the /cache partition image file\n\n"
+
+    "  You can use -wipe-data to re-initialize the /data partition to its factory\n"
+    "  defaults. This will erase all user settings for the virtual machine.\n\n"
+    );
+}
+
+static void
+help_build_images( stralloc_t*  out )
+{
+    PRINTF(
+    "  The emulator detects that you are working from the Android build system\n"
+    "  by looking at the ANDROID_PRODUCT_OUT variable in your environment.\n\n"
+
+    "  If it is defined, it should point to the product-specific directory that\n"
+    "  contains the generated system images.\n"
+
+    "  In this case, the emulator will look by default for the following image\n"
+    "  files there:\n\n"
+
+    "    - system.img   : the *initial* system image.\n"
+    "    - ramdisk.img  : the ramdisk image used to boot the system.\n"
+    "    - userdata.img : the *initial* user data image (see below).\n"
+    "    - kernel-qemu  : the emulator-specific Linux kernel image.\n\n"
+
+    "  If the kernel image is not found in the out directory, then it is searched\n"
+    "  in <build-root>/prebuilt/android-arm/kernel/.\n\n"
+
+    "  Skins will be looked in <build-root>/development/emulator/skins/\n\n"
+
+    "  You can use the -system, -image, -kernel, -ramdisk, -datadir, -data options\n"
+    "  to specify different search directories or specific image files. You can\n"
+    "  also use the -cache and -sdcard options to indicate specific cache partition\n"
+    "  and SD Card image files.\n\n"
+
+    "  For more details, see the corresponding -help-<option> section.\n\n"
+
+    "  Note that the following behaviour is specific to 'build mode':\n\n"
+
+    "  - the *initial* system image is copied to a temporary file which is\n"
+    "    automatically removed when the emulator exits. There is thus no way to\n"
+    "    make persistent changes to this image through the emulator, even if\n"
+    "    you use the '-image <file>' option.\n\n"
+
+    "  - unless you use the '-cache <file>' option, the cache partition image\n"
+    "    is backed by a temporary file that is initially empty and destroyed on\n"
+    "    program exit.\n\n"
+
+    "  SPECIAL NOTE: If you are using the emulator with the Android SDK, the\n"
+    "  information above doesn't apply. See -help-sdk-images for more details.\n"
+    );
+}
 
 static void
 help_disk_images( stralloc_t*  out )
@@ -37,59 +143,54 @@ help_disk_images( stralloc_t*  out )
     bufprint_config_path( datadir, datadir + sizeof(datadir) );
 
     PRINTF(
-    "  the emulator needs several key read-only image files to run appropriately.\n"
-    "  they are normally searched in 'lib/images' under the emulator's program\n"
-    "  location, but you can also use '-system <dir>' to specify a different\n"
-    "  directory\n\n"
+    "  The emulator needs several key image files to run appropriately.\n"
+    "  Their exact location depends on whether you're using the emulator\n"
+    "  from the Android SDK, or not (more details below).\n\n"
 
-    "  the files that are looked up in the system directory are, by default:\n\n"
+    "  The minimal required image files are the following:\n\n"
 
     "    kernel-qemu      the emulator-specific Linux kernel image\n"
     "    ramdisk.img      the ramdisk image used to boot the system\n"
     "    system.img       the *initial* system image\n"
     "    userdata.img     the *initial* data partition image\n\n"
 
-    "  use '-kernel <file>', '-ramdisk <file>', '-image <file>' and\n"
-    "  '-initdata <file>' respectively if you want to override these.\n\n"
+    "  It will also use the following writable image files:\n\n"
 
-    "  several *writable* files are also used at runtime. they are searched\n"
-    "  in a specific data directory, which is, on this system:\n\n"
+    "    userdata-qemu.img  the persistent data partition image\n"
+    "    cache.img          an *optional* cache partition image\n"
+    "    sdcard.img         an *optional* SD Card partition image\n\n"
 
-    "    %s\n\n"
+    "  If you use a virtual machine, its content directory should store\n"
+    "  all writable images, and read-only ones will be found from the\n"
+    "  corresponding platform/add-on directories. See -help-sdk-images\n"
+    "  for more details.\n\n"
 
-    "  you can use the '-datadir <dir>' option to use another directory.\n"
-    "  the writable image files there are:\n\n"
+    "  If you are building from the Android build system, you should\n"
+    "  have ANDROID_PRODUCT_OUT defined in your environment, and the\n"
+    "  emulator shall be able to pick-up the right image files automatically.\n"
+    "  See -help-build-images for more details.\n\n"
 
-    "    userdata-qemu.img    the persistent /data partition image\n"
-    "    sdcard.img           an *optional* SD Card partition image file\n\n"
+    "  If you're neither using the SDK or the Android build system, you\n"
+    "  can still run the emulator by explicitely providing the paths to\n"
+    "  *all* required disk images through a combination of the following\n"
+    "  options: -system, -kernel, -ramdisk, -image, -datadir, -data, -cache\n"
+    "  and -sdcard\n\n"
 
-    "  use '-data <file>' to specify an alternative /data partition image. if\n"
-    "  <file> does not exist, it will be created with a copy of the initial\n"
-    "  userdata.img file.\n\n"
+    "  The actual logic being that the emulator should be able to find all\n"
+    "  images from the options you give it.\n\n"
 
-    "  use '-wipe-data' to copy the initial data partition image into your\n"
-    "  data image. this has the effect of resetting everything in /data to the\n"
-    "  'factory defaults', wiping all installed applications and settings.\n\n"
+    "  For more detail, see the corresponding -help-<option> entry.\n\n"
 
-    "  use '-sdcard <file>' to specify a different SD Card partition image. these\n"
-    "  are simple FAT32 image disks that can be used with the 'mksdcard' tool that\n"
-    "  comes with the Android SDK. If <file> does not exist, the option is ignored\n"
-    "  and the emulator will start without an attached SD Card.\n\n"
+    "  Other related options are:\n\n"
 
-    "  finally, some *writable* *temporary* files are used at runtime:\n\n"
+    "      -initdata    Specify an alernative *initial* user data image\n\n"
 
-    "    the *writable* system image\n"
-    "    the /cache partition image\n\n"
+    "      -wipe-data   Copy the content of the *initial* user data image\n"
+    "                   (userdata.img) into the writable one (userdata-qemu.img)\n\n"
 
-    "  the writable system image is initialized on startup with the read-only\n"
-    "  system.img file. it is always deleted on exit, and there is currently no\n"
-    "   way to make changes in there persistent\n\n"
-
-    "  the /cache partition image is initially empty, and is used by the browser\n"
-    "  to cache downloaded web pages and images. you can use '-cache <file>' to\n"
-    "  make it persistent. if <file> does not exist, it will be created empty.\n"
-    "  another option is to disable the cache partition with '-nocache'\n\n",
-
+    "      -nocache     do not use a cache partition, even if one is\n"
+    "                   available.\n\n"
+    ,
     datadir );
 }
 
@@ -328,19 +429,6 @@ help_char_devices(stralloc_t*  out)
     );
 }
 
-static const  struct {  const char*  name; const char*  descr; void (*help_func)(stralloc_t*  out); }  help_topics[] =
-{
-    { "disk-images",     "about disk images",      help_disk_images },
-    { "keys",            "supported key bindings", help_keys },
-    { "debug-tags",      "debug tags for -debug <tags>", help_debug_tags },
-    { "char-devices",    "character <device> specification", help_char_devices },
-    { "environment",     "environment variables",  help_environment },
-    { "keyset-file",     "key bindings configuration file", help_keyset_file },
-    { "virtual-machine", "virtual machine management", help_virtual_machine },
-    { NULL, NULL, NULL }
-};
-
-
 static void
 help_vm(stralloc_t*  out)
 {
@@ -395,13 +483,13 @@ help_kernel(stralloc_t*  out)
 {
     PRINTF(
     "  use '-kernel <file>' to specify a Linux kernel image to be run.\n"
-    "  the default image is 'kernel-qemu' from the system directory.\n\n" );
-    PRINTF(
-    "  you can use '-debug-kernel' to send debug messages from the kernel\n"
-    "  to the terminal\n\n" );
+    "  the default image is 'kernel-qemu' from the system directory.\n\n"
 
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  you can use '-debug-kernel' to see debug messages from the kernel\n"
+    "  to the terminal\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
@@ -409,9 +497,10 @@ help_ramdisk(stralloc_t*  out)
 {
     PRINTF(
     "  use '-ramdisk <file>' to specify a Linux ramdisk boot image to be run in\n"
-    "  the emulator. the default image is 'ramdisk.img' from the system directory.\n\n" );
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  the emulator. the default image is 'ramdisk.img' from the system directory.\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
@@ -419,9 +508,10 @@ help_image(stralloc_t*  out)
 {
     PRINTF(
     "  use '-image <file>' to specify the intial system image that will be loaded.\n"
-    "  the default image is 'system.img' from the system directory.\n\n");
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  the default image is 'system.img' from the system directory.\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
@@ -431,25 +521,20 @@ help_initdata(stralloc_t*  out)
     "  use '-initdata <file>' to specify an *init* /data partition file.\n"
     "  it is only used when creating a new writable /data image file, or\n"
     "  when you use '-wipe-data' to reset it. the default is 'userdata.img'\n"
-    "  from the system directory.\n\n" );
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  from the system directory.\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
 help_data(stralloc_t*  out)
 {
-    char    file[MAX_PATH];
-
-    bufprint_config_file( file, file+sizeof(file), "userdata-qemu.img" );
-
     PRINTF(
-    "  use '-data <file>' to specify a different /data partition image file.\n"
-    "  the default, on this system is the following:\n\n"
-    "      %s\n\n", file );
+    "  use '-data <file>' to specify a different /data partition image file.\n\n"
 
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
@@ -457,10 +542,10 @@ help_wipe_data(stralloc_t*  out)
 {
     PRINTF(
     "  use '-wipe-data' to reset your /data partition image to its factory\n"
-    "  defaults. this removes all installed applications and settings.\n\n" );
+    "  defaults. this removes all installed applications and settings.\n\n"
 
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
@@ -470,12 +555,12 @@ help_cache(stralloc_t*  out)
     "  use '-cache <file>' to specify a /cache partition image. if <file> does\n"
     "  not exist, it will be created empty. by default, the cache partition is\n"
     "  backed by a temporary file that is deleted when the emulator exits.\n"
-    "  using the -cache option allows it to be persistent.\n\n" );
+    "  using the -cache option allows it to be persistent.\n\n"
 
-    PRINTF(
-    "  the '-nocache' option can be used to disable the cache partition.\n\n" );
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  the '-nocache' option can be used to disable the cache partition.\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
@@ -484,27 +569,25 @@ help_nocache(stralloc_t*  out)
     PRINTF(
     "  use '-nocache' to disable the cache partition in the emulated system.\n"
     "  the cache partition is optional, but when available, is used by the browser\n"
-    "  to cache web pages and images\n\n" );
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  to cache web pages and images\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
 help_sdcard(stralloc_t*  out)
 {
-    char  file[MAX_PATH];
-
-    bufprint_config_file( file, file+sizeof(file), "sdcard.img" );
-
     PRINTF(
     "  use '-sdcard <file>' to specify a SD Card image file that will be attached\n"
-    "  to the emulator. By default, the following file is searched:\n\n"
-    "      %s\n\n", file );
-    PRINTF(
+    "  to the emulator. By default, the 'sdcard.img' file is searched in the data\n"
+    "  directory.\n\n"
+
     "  if the file does not exist, the emulator will still start, but without an\n"
-    "  attached SD Card.\n\n");
-    PRINTF(
-    "  see '-help-disk-images' for more information about disk image files\n\n" );
+    "  attached SD Card.\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
 }
 
 static void
@@ -1083,6 +1166,7 @@ help_keyset(stralloc_t*  out)
     bufprint_config_path(temp, temp+sizeof(temp));
     PRINTF(
     "  however, if -keyset is used, then the emulator does the following:\n\n"
+
     "  - first, if <name> doesn't have an extension, then the '.keyset' suffix\n"
     "    is appended to it (e.g. \"foo\" => \"foo.keyset\"),\n\n"
 
@@ -1206,6 +1290,9 @@ static const TopicHelp    topic_help[] = {
     { "char-devices", "character <device> specification", help_char_devices },
     { "environment",  "environment variables",  help_environment },
     { "keyset-file",  "key bindings configuration file", help_keyset_file },
+    { "virtual-machine", "virtual machine management", help_virtual_machine },
+    { "sdk-images",   "about disk images when using the SDK", help_sdk_images },
+    { "build-images", "about disk images when building Android", help_build_images },
     { NULL, NULL, NULL }
 };
 
