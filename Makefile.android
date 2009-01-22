@@ -9,10 +9,16 @@ CONFIG_DIRS     := \
 
 CONFIG_INCLUDES := $(CONFIG_DIRS:%=-I%)
 
-MY_CFLAGS := $(CONFIG_INCLUDES)
+MY_CFLAGS  := $(CONFIG_INCLUDES)
+MY_LDFLAGS :=
+
 # this is needed to build the emulator on 64-bit Linux systems
 ifeq ($(HOST_OS),linux)
   MY_CFLAGS += -Wa,--32
+endif
+
+ifeq ($(HOST_OS),freebsd)
+  MY_CFLAGS += -Wa,--32 -I /usr/local/include
 endif
 
 ifeq ($(HOST_OS),windows)
@@ -44,8 +50,8 @@ endif
 
 
 ifneq ($(combo_target)$(TARGET_SIMULATOR),HOST_true)
-my_32bit_cflags += -m32
-my_32bit_ldflags += -m32
+  MY_CFLAGS  += -m32
+  MY_LDFLAGS += -m32
 endif
 
 include $(CLEAR_VARS)
@@ -58,8 +64,8 @@ include $(CLEAR_VARS)
 #
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
-LOCAL_CFLAGS                    := $(my_32bit_cflags) $(MY_CFLAGS) $(LOCAL_CFLAGS)
-LOCAL_LDFLAGS                   := $(my_32bit_ldflags)
+LOCAL_CFLAGS                    := $(MY_CFLAGS) $(LOCAL_CFLAGS)
+LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
 LOCAL_SRC_FILES                 := dyngen.c
 
 ifeq ($(HOST_OS),windows)
@@ -137,10 +143,9 @@ include $(CLEAR_VARS)
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := emulator-arm
-LOCAL_LDFLAGS                   := $(my_32bit_ldflags)
+LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
 
-LOCAL_CFLAGS := $(my_32bit_cflags) \
-        -fno-PIC -fomit-frame-pointer -Wno-sign-compare
+LOCAL_CFLAGS := -fno-PIC -fomit-frame-pointer -Wno-sign-compare
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
 
 ifeq ($(HOST_OS),darwin)
@@ -188,6 +193,109 @@ include $(BUILD_HOST_STATIC_LIBRARY)
 endif # BUILD_ARM_LIBRARY
 
 ##############################################################################
+# SDL-related definitions
+#
+
+SDL_CONFIG ?= prebuilt/$(HOST_PREBUILT_TAG)/sdl/bin/sdl-config
+SDL_CFLAGS := $(shell $(SDL_CONFIG) --cflags)
+
+# We need to filter out the _GNU_SOURCE variable because it breaks recent
+# releases of Cygwin when using the -mno-cygwin option. Moreover, we don't
+# need this macro at all to build the Android emulator.
+SDL_CFLAGS := $(filter-out -D_GNU_SOURCE=1,$(SDL_CFLAGS))
+SDL_LDLIBS := $(filter-out %.a %.lib,$(shell $(SDL_CONFIG) --static-libs))
+
+
+##############################################################################
+# determine audio sources, build the prebuilt audio-library if needed
+#
+
+# determine AUDIO sources based on current configuration
+#
+AUDIO_SOURCES := audio.c noaudio.c wavaudio.c sdlaudio.c wavcapture.c mixeng.c
+AUDIO_CFLAGS  := -I$(LOCAL_PATH)/audio -DHAS_AUDIO
+AUDIO_LDLIBS  :=
+
+ifeq ($(HOST_OS),darwin)
+  CONFIG_COREAUDIO ?= yes
+endif
+
+ifeq ($(HOST_OS),windows)
+  CONFIG_WINAUDIO ?= yes
+endif
+
+ifeq ($(HOST_OS),linux)
+  CONFIG_OSS  ?= yes
+  CONFIG_ALSA ?= yes
+  CONFIG_ESD  ?= yes
+endif
+
+ifeq ($(CONFIG_COREAUDIO),yes)
+  AUDIO_SOURCES += coreaudio.c
+  AUDIO_CFLAGS  += -DCONFIG_COREAUDIO
+  AUDIO_LDLIBS  += -Wl,-framework,CoreAudio
+endif
+
+ifeq ($(CONFIG_WINAUDIO),yes)
+  AUDIO_SOURCES += winaudio.c
+  AUDIO_CFLAGS  += -DCONFIG_WINAUDIO
+endif
+
+ifeq ($(CONFIG_ALSA),yes)
+  AUDIO_SOURCES += alsaaudio.c audio_pt_int.c
+  AUDIO_CFLAGS  += -DCONFIG_ALSA
+endif
+
+ifeq ($(CONFIG_ESD),yes)
+  AUDIO_SOURCES += esdaudio.c
+  AUDIO_CFLAGS  += -DCONFIG_ESD
+endif
+
+ifeq ($(CONFIG_OSS),yes)
+  AUDIO_SOURCES += ossaudio.c
+  AUDIO_CFLAGS  += -DCONFIG_OSS
+endif
+
+AUDIO_SOURCES := $(AUDIO_SOURCES:%=audio/%)
+
+# determine whether we're going to use the prebuilt
+# audio library (this is useful on Linux to avoid requiring
+# all sound-related development packages to be installed on
+# the build and developer machines.
+#
+QEMU_AUDIO_LIB :=
+
+ifneq ($(BUILD_STANDALONE_EMULATOR),true)
+  QEMU_AUDIO_LIB := $(wildcard \
+	prebuilt/$(HOST_PREBUILT_TAG)/emulator/libqemu-audio.a)
+endif
+
+ifeq ($(BUILD_QEMU_AUDIO_LIB),true)
+  include $(CLEAR_VARS)
+  LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
+  LOCAL_CC                        := $(MY_CC)
+  LOCAL_MODULE                    := libqemu-audio
+  LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
+
+  LOCAL_CFLAGS := -fno-PIC -fomit-frame-pointer -Wno-sign-compare \
+                  -fno-strict-aliasing -g -W -Wall -Wno-unused-parameter \
+                  -O2 \
+                  -I$(LOCAL_PATH) \
+                  -I$(LOCAL_PATH)/target-arm \
+                  -I$(LOCAL_PATH)/fpu \
+
+  LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(AUDIO_CFLAGS)
+
+  LOCAL_CFLAGS += $(SDL_CFLAGS)
+
+  LOCAL_SRC_FILES += $(AUDIO_SOURCES)
+
+  include $(BUILD_HOST_STATIC_LIBRARY)
+  QEMU_AUDIO_LIB := $(LOCAL_BUILT_MODULE)
+
+endif  # !QEMU_AUDIO_LIB
+
+##############################################################################
 # now build the emulator itself
 #
 include $(CLEAR_VARS)
@@ -196,13 +304,12 @@ LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := emulator
 LOCAL_STATIC_LIBRARIES          := $(EMULATOR_OP_LIBRARIES) emulator-arm
-LOCAL_LDFLAGS                   := $(my_32bit_ldflags)
+LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
 
 # don't remove the -fno-strict-aliasing, or you'll break things
 # (e.g. slirp2/network support)
 #
-LOCAL_CFLAGS := $(my_32bit_cflags) \
-                -fno-PIC -fomit-frame-pointer -Wno-sign-compare \
+LOCAL_CFLAGS := -fno-PIC -fomit-frame-pointer -Wno-sign-compare \
                 -fno-strict-aliasing -g -W -Wall -Wno-unused-parameter
 
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
@@ -282,57 +389,12 @@ LOCAL_CFLAGS    += -I$(LOCAL_PATH)/telephony
 #   ./android-rebuild.sh
 #   distrib/update-audio.sh
 #
-QEMU_AUDIO_LIB := $(wildcard \
-	prebuilt/$(HOST_PREBUILT_TAG)/emulator/libqemu-audio.a)
-
 ifeq ($(QEMU_AUDIO_LIB),)
-  AUDIO_SOURCES := audio.c noaudio.c wavaudio.c sdlaudio.c wavcapture.c mixeng.c
-
-  ifeq ($(HOST_OS),darwin)
-    CONFIG_COREAUDIO ?= yes
-  endif
-
-  ifeq ($(HOST_OS),windows)
-    CONFIG_WINAUDIO ?= yes
-  endif
-
-  ifeq ($(HOST_OS),linux)
-    CONFIG_OSS  ?= yes
-    CONFIG_ALSA ?= yes
-    CONFIG_ESD  ?= yes
-  endif
-
-  ifeq ($(CONFIG_COREAUDIO),yes)
-    AUDIO_SOURCES += coreaudio.c
-    LOCAL_CFLAGS  += -DCONFIG_COREAUDIO
-    LOCAL_LDLIBS  += -Wl,-framework,CoreAudio
-  endif
-
-  ifeq ($(CONFIG_WINAUDIO),yes)
-    AUDIO_SOURCES += winaudio.c
-    LOCAL_CFLAGS  += -DCONFIG_WINAUDIO
-  endif
-
-  ifeq ($(CONFIG_ALSA),yes)
-    AUDIO_SOURCES += alsaaudio.c audio_pt_int.c
-    LOCAL_CFLAGS  += -DCONFIG_ALSA
-  endif
-
-  ifeq ($(CONFIG_ESD),yes)
-    AUDIO_SOURCES += esdaudio.c
-    LOCAL_CFLAGS  += -DCONFIG_ESD
-  endif
-
-  ifeq ($(CONFIG_OSS),yes)
-    AUDIO_SOURCES += ossaudio.c
-    LOCAL_CFLAGS  += -DCONFIG_OSS
-  endif
-
-  LOCAL_SRC_FILES += $(AUDIO_SOURCES:%=audio/%)
+  LOCAL_SRC_FILES += $(AUDIO_SOURCES)
 endif  # !QEMU_AUDIO_LIB
 
-LOCAL_CFLAGS += -I$(LOCAL_PATH)/audio
-LOCAL_CFLAGS += -DHAS_AUDIO
+LOCAL_CFLAGS  += $(AUDIO_CFLAGS)
+LOCAL_LDLIBS  += $(AUDIO_LDLIBS)
 
 # include emulated hardware source files
 #
@@ -453,16 +515,8 @@ endif
 
 # add SDL-specific flags
 #
-SDL_CONFIG ?= prebuilt/$(HOST_PREBUILT_TAG)/sdl/bin/sdl-config
-SDL_CFLAGS := $(shell $(SDL_CONFIG) --cflags)
-
-# We need to filter out the _GNU_SOURCE variable because it breaks recent
-# releases of Cygwin when using the -mno-cygwin option. Moreover, we don't
-# need this macro at all to build the Android emulator.
-SDL_CFLAGS := $(filter-out -D_GNU_SOURCE=1,$(SDL_CFLAGS))
-
 LOCAL_CFLAGS += $(SDL_CFLAGS)
-LOCAL_LDLIBS += $(filter-out %.a %.lib,$(shell $(SDL_CONFIG) --static-libs))
+LOCAL_LDLIBS += $(SDL_LDLIBS)
 LOCAL_STATIC_LIBRARIES += libSDL libSDLmain
 
 # on Windows, link the icon file as well into the executable

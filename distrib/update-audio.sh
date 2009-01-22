@@ -31,13 +31,22 @@ case "$OS" in
             OS=darwin-ppc
         fi
         ;;
-    *_NT-5.1)
+    Linux)
+        CPU=`uname -m`
+        case "$CPU" in
+        i?86|x86_64|amd64)
+            CPU=x86
+            ;;
+        esac
+        OS=linux-$CPU
+        ;;
+    *_NT-*)
         OS=windows
         EXE=.exe
         ;;
 esac
 
-PREBUILT=$(locate_depot_files //device/prebuilt/$OS)
+PREBUILT=$(locate_depot_files //branches/cupcake/android/prebuilt/$OS)
 
 # find the GNU Make program
 is_gnu_make ()
@@ -72,12 +81,13 @@ fi
 # ensure we have a recent audio library built
 #
 #echo "GNUMAKE is $GNUMAKE"
-source=arm-softmmu/libqemu-audio.a
-$GNUMAKE $source || (echo "could not build the audio library. Aborting" && exit 1)
+source=objs/libqemu-audio.a
+./android-configure.sh
+$GNUMAKE $source BUILD_QEMU_AUDIO_LIB=true || (echo "could not build the audio library. Aborting" && exit 1)
 
 # now do a p4 edit, a copy and ask for submission
 #
-TARGET=$PREBUILT/qemu/libqemu-audio.a
+TARGET=$PREBUILT/emulator/libqemu-audio.a
 
 p4 edit $TARGET || (echo "could not p4 edit $TARGET" && exit 3)
 cp -f $source $TARGET
