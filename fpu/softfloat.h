@@ -32,6 +32,10 @@ these four paragraphs for those parts of this code that are retained.
 #ifndef SOFTFLOAT_H
 #define SOFTFLOAT_H
 
+#if defined(HOST_SOLARIS) && defined(NEEDS_LIBSUNMATH)
+#include <sunmath.h>
+#endif
+
 #include <inttypes.h>
 #include "config.h"
 
@@ -43,11 +47,11 @@ these four paragraphs for those parts of this code that are retained.
 | implementations of C, `flag', `uint8', and `int8' should all be `typedef'ed
 | to the same as `int'.
 *----------------------------------------------------------------------------*/
-typedef char flag;
+typedef uint8_t flag;
 typedef uint8_t uint8;
 typedef int8_t int8;
-typedef uint16_t uint16;
-typedef int16_t int16;
+typedef int uint16;
+typedef int int16;
 typedef unsigned int uint32;
 typedef signed int int32;
 typedef uint64_t uint64;
@@ -107,8 +111,31 @@ enum {
 /*----------------------------------------------------------------------------
 | Software IEC/IEEE floating-point types.
 *----------------------------------------------------------------------------*/
+/* Use structures for soft-float types.  This prevents accidentally mixing
+   them with native int/float types.  A sufficiently clever compiler and
+   sane ABI should be able to see though these structs.  However
+   x86/gcc 3.x seems to struggle a bit, so leave them disabled by default.  */
+//#define USE_SOFTFLOAT_STRUCT_TYPES
+#ifdef USE_SOFTFLOAT_STRUCT_TYPES
+typedef struct {
+    uint32_t v;
+} float32;
+/* The cast ensures an error if the wrong type is passed.  */
+#define float32_val(x) (((float32)(x)).v)
+#define make_float32(x) __extension__ ({ float32 f32_val = {x}; f32_val; })
+typedef struct {
+    uint64_t v;
+} float64;
+#define float64_val(x) (((float64)(x)).v)
+#define make_float64(x) __extension__ ({ float64 f64_val = {x}; f64_val; })
+#else
 typedef uint32_t float32;
 typedef uint64_t float64;
+#define float32_val(x) (x)
+#define float64_val(x) (x)
+#define make_float32(x) (x)
+#define make_float64(x) (x)
+#endif
 #ifdef FLOATX80
 typedef struct {
     uint64_t low;
@@ -193,7 +220,9 @@ floatx80 int32_to_floatx80( int STATUS_PARAM );
 float128 int32_to_float128( int STATUS_PARAM );
 #endif
 float32 int64_to_float32( int64_t STATUS_PARAM );
+float32 uint64_to_float32( uint64_t STATUS_PARAM );
 float64 int64_to_float64( int64_t STATUS_PARAM );
+float64 uint64_to_float64( uint64_t STATUS_PARAM );
 #ifdef FLOATX80
 floatx80 int64_to_floatx80( int64_t STATUS_PARAM );
 #endif
@@ -228,25 +257,29 @@ float32 float32_mul( float32, float32 STATUS_PARAM );
 float32 float32_div( float32, float32 STATUS_PARAM );
 float32 float32_rem( float32, float32 STATUS_PARAM );
 float32 float32_sqrt( float32 STATUS_PARAM );
-char float32_eq( float32, float32 STATUS_PARAM );
-char float32_le( float32, float32 STATUS_PARAM );
-char float32_lt( float32, float32 STATUS_PARAM );
-char float32_eq_signaling( float32, float32 STATUS_PARAM );
-char float32_le_quiet( float32, float32 STATUS_PARAM );
-char float32_lt_quiet( float32, float32 STATUS_PARAM );
-char float32_compare( float32, float32 STATUS_PARAM );
-char float32_compare_quiet( float32, float32 STATUS_PARAM );
-char float32_is_signaling_nan( float32 );
+int float32_eq( float32, float32 STATUS_PARAM );
+int float32_le( float32, float32 STATUS_PARAM );
+int float32_lt( float32, float32 STATUS_PARAM );
+int float32_eq_signaling( float32, float32 STATUS_PARAM );
+int float32_le_quiet( float32, float32 STATUS_PARAM );
+int float32_lt_quiet( float32, float32 STATUS_PARAM );
+int float32_compare( float32, float32 STATUS_PARAM );
+int float32_compare_quiet( float32, float32 STATUS_PARAM );
+int float32_is_nan( float32 );
+int float32_is_signaling_nan( float32 );
+float32 float32_scalbn( float32, int STATUS_PARAM );
 
 INLINE float32 float32_abs(float32 a)
 {
-    return a & 0x7fffffff;
+    return make_float32(float32_val(a) & 0x7fffffff);
 }
 
 INLINE float32 float32_chs(float32 a)
 {
-    return a ^ 0x80000000;
+    return make_float32(float32_val(a) ^ 0x80000000);
 }
+
+#define float32_zero make_float32(0)
 
 /*----------------------------------------------------------------------------
 | Software IEC/IEEE double-precision conversion routines.
@@ -257,6 +290,8 @@ unsigned int float64_to_uint32( float64 STATUS_PARAM );
 unsigned int float64_to_uint32_round_to_zero( float64 STATUS_PARAM );
 int64_t float64_to_int64( float64 STATUS_PARAM );
 int64_t float64_to_int64_round_to_zero( float64 STATUS_PARAM );
+uint64_t float64_to_uint64 (float64 a STATUS_PARAM);
+uint64_t float64_to_uint64_round_to_zero (float64 a STATUS_PARAM);
 float32 float64_to_float32( float64 STATUS_PARAM );
 #ifdef FLOATX80
 floatx80 float64_to_floatx80( float64 STATUS_PARAM );
@@ -269,31 +304,36 @@ float128 float64_to_float128( float64 STATUS_PARAM );
 | Software IEC/IEEE double-precision operations.
 *----------------------------------------------------------------------------*/
 float64 float64_round_to_int( float64 STATUS_PARAM );
+float64 float64_trunc_to_int( float64 STATUS_PARAM );
 float64 float64_add( float64, float64 STATUS_PARAM );
 float64 float64_sub( float64, float64 STATUS_PARAM );
 float64 float64_mul( float64, float64 STATUS_PARAM );
 float64 float64_div( float64, float64 STATUS_PARAM );
 float64 float64_rem( float64, float64 STATUS_PARAM );
 float64 float64_sqrt( float64 STATUS_PARAM );
-char float64_eq( float64, float64 STATUS_PARAM );
-char float64_le( float64, float64 STATUS_PARAM );
-char float64_lt( float64, float64 STATUS_PARAM );
-char float64_eq_signaling( float64, float64 STATUS_PARAM );
-char float64_le_quiet( float64, float64 STATUS_PARAM );
-char float64_lt_quiet( float64, float64 STATUS_PARAM );
-char float64_compare( float64, float64 STATUS_PARAM );
-char float64_compare_quiet( float64, float64 STATUS_PARAM );
-char float64_is_signaling_nan( float64 );
+int float64_eq( float64, float64 STATUS_PARAM );
+int float64_le( float64, float64 STATUS_PARAM );
+int float64_lt( float64, float64 STATUS_PARAM );
+int float64_eq_signaling( float64, float64 STATUS_PARAM );
+int float64_le_quiet( float64, float64 STATUS_PARAM );
+int float64_lt_quiet( float64, float64 STATUS_PARAM );
+int float64_compare( float64, float64 STATUS_PARAM );
+int float64_compare_quiet( float64, float64 STATUS_PARAM );
+int float64_is_nan( float64 a );
+int float64_is_signaling_nan( float64 );
+float64 float64_scalbn( float64, int STATUS_PARAM );
 
 INLINE float64 float64_abs(float64 a)
 {
-    return a & 0x7fffffffffffffffLL;
+    return make_float64(float64_val(a) & 0x7fffffffffffffffLL);
 }
 
 INLINE float64 float64_chs(float64 a)
 {
-    return a ^ 0x8000000000000000LL;
+    return make_float64(float64_val(a) ^ 0x8000000000000000LL);
 }
+
+#define float64_zero make_float64(0)
 
 #ifdef FLOATX80
 
@@ -320,13 +360,15 @@ floatx80 floatx80_mul( floatx80, floatx80 STATUS_PARAM );
 floatx80 floatx80_div( floatx80, floatx80 STATUS_PARAM );
 floatx80 floatx80_rem( floatx80, floatx80 STATUS_PARAM );
 floatx80 floatx80_sqrt( floatx80 STATUS_PARAM );
-char floatx80_eq( floatx80, floatx80 STATUS_PARAM );
-char floatx80_le( floatx80, floatx80 STATUS_PARAM );
-char floatx80_lt( floatx80, floatx80 STATUS_PARAM );
-char floatx80_eq_signaling( floatx80, floatx80 STATUS_PARAM );
-char floatx80_le_quiet( floatx80, floatx80 STATUS_PARAM );
-char floatx80_lt_quiet( floatx80, floatx80 STATUS_PARAM );
-char floatx80_is_signaling_nan( floatx80 );
+int floatx80_eq( floatx80, floatx80 STATUS_PARAM );
+int floatx80_le( floatx80, floatx80 STATUS_PARAM );
+int floatx80_lt( floatx80, floatx80 STATUS_PARAM );
+int floatx80_eq_signaling( floatx80, floatx80 STATUS_PARAM );
+int floatx80_le_quiet( floatx80, floatx80 STATUS_PARAM );
+int floatx80_lt_quiet( floatx80, floatx80 STATUS_PARAM );
+int floatx80_is_nan( floatx80 );
+int floatx80_is_signaling_nan( floatx80 );
+floatx80 floatx80_scalbn( floatx80, int STATUS_PARAM );
 
 INLINE floatx80 floatx80_abs(floatx80 a)
 {
@@ -367,13 +409,17 @@ float128 float128_mul( float128, float128 STATUS_PARAM );
 float128 float128_div( float128, float128 STATUS_PARAM );
 float128 float128_rem( float128, float128 STATUS_PARAM );
 float128 float128_sqrt( float128 STATUS_PARAM );
-char float128_eq( float128, float128 STATUS_PARAM );
-char float128_le( float128, float128 STATUS_PARAM );
-char float128_lt( float128, float128 STATUS_PARAM );
-char float128_eq_signaling( float128, float128 STATUS_PARAM );
-char float128_le_quiet( float128, float128 STATUS_PARAM );
-char float128_lt_quiet( float128, float128 STATUS_PARAM );
-char float128_is_signaling_nan( float128 );
+int float128_eq( float128, float128 STATUS_PARAM );
+int float128_le( float128, float128 STATUS_PARAM );
+int float128_lt( float128, float128 STATUS_PARAM );
+int float128_eq_signaling( float128, float128 STATUS_PARAM );
+int float128_le_quiet( float128, float128 STATUS_PARAM );
+int float128_lt_quiet( float128, float128 STATUS_PARAM );
+int float128_compare( float128, float128 STATUS_PARAM );
+int float128_compare_quiet( float128, float128 STATUS_PARAM );
+int float128_is_nan( float128 );
+int float128_is_signaling_nan( float128 );
+float128 float128_scalbn( float128, int STATUS_PARAM );
 
 INLINE float128 float128_abs(float128 a)
 {

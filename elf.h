@@ -227,6 +227,7 @@ typedef struct {
 
 #define ELF64_R_SYM(i)			((i) >> 32)
 #define ELF64_R_TYPE(i)			((i) & 0xffffffff)
+#define ELF64_R_TYPE_DATA(i)            (((ELF64_R_TYPE(i) >> 8) ^ 0x00800000) - 0x00800000)
 
 #define R_386_NONE	0
 #define R_386_32	1
@@ -326,6 +327,10 @@ typedef struct {
 #define R_SPARC_10		30
 #define R_SPARC_11		31
 #define R_SPARC_64		32
+#define R_SPARC_OLO10           33
+#define R_SPARC_HH22            34
+#define R_SPARC_HM10            35
+#define R_SPARC_LM22            36
 #define R_SPARC_WDISP16		40
 #define R_SPARC_WDISP19		41
 #define R_SPARC_7		43
@@ -500,6 +505,8 @@ typedef struct {
 #define R_ARM_GOTPC		25	/* 32 bit PC relative offset to GOT */
 #define R_ARM_GOT32		26	/* 32 bit GOT entry */
 #define R_ARM_PLT32		27	/* 32 bit PLT address */
+#define R_ARM_CALL              28
+#define R_ARM_JUMP24            29
 #define R_ARM_GNU_VTENTRY	100
 #define R_ARM_GNU_VTINHERIT	101
 #define R_ARM_THM_PC11		102	/* thumb unconditional branch */
@@ -1038,7 +1045,7 @@ typedef struct elf64_phdr {
 #define SHN_COMMON	0xfff2
 #define SHN_HIRESERVE	0xffff
 #define SHN_MIPS_ACCOMON	0xff00
- 
+
 typedef struct elf32_shdr {
   Elf32_Word	sh_name;
   Elf32_Word	sh_type;
@@ -1116,6 +1123,7 @@ typedef struct elf64_note {
   Elf64_Word n_type;	/* Content type */
 } Elf64_Nhdr;
 
+#ifdef ELF_CLASS
 #if ELF_CLASS == ELFCLASS32
 
 #define elfhdr		elf32_hdr
@@ -1123,6 +1131,7 @@ typedef struct elf64_note {
 #define elf_note	elf32_note
 #define elf_shdr	elf32_shdr
 #define elf_sym		elf32_sym
+#define elf_addr_t	Elf32_Off
 
 #ifdef ELF_USES_RELOCA
 # define ELF_RELOC      Elf32_Rela
@@ -1137,6 +1146,7 @@ typedef struct elf64_note {
 #define elf_note	elf64_note
 #define elf_shdr	elf64_shdr
 #define elf_sym		elf64_sym
+#define elf_addr_t	Elf64_Off
 
 #ifdef ELF_USES_RELOCA
 # define ELF_RELOC      Elf64_Rela
@@ -1155,6 +1165,8 @@ typedef struct elf64_note {
 #  define ELFW(x)  ELF64_ ## x
 # endif
 #endif
+
+#endif /* ELF_CLASS */
 
 
 #endif /* _QEMU_ELF_H */

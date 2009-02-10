@@ -20,6 +20,13 @@
 
 extern FILE *ftrace_debug;
 
+int dcache_size = 16 * 1024;
+int dcache_ways = 4;
+int dcache_line_size = 32;
+int dcache_replace_policy = kPolicyRandom;
+int dcache_load_miss_penalty = 30;
+int dcache_store_miss_penalty = 5;
+
 typedef struct Dcache {
   int		size;
   int		ways;

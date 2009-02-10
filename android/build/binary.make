@@ -21,9 +21,14 @@ LOCAL_OBJS_DIR  := $(call intermediates-dir-for,EXECUTABLES,$(LOCAL_MODULE))
 LOCAL_OBJECTS   :=
 LOCAL_CC        ?= $(CC)
 LOCAL_C_SOURCES := $(filter  %.c,$(LOCAL_SRC_FILES))
+LOCAL_OBJC_SOURCES := $(filter %.m,$(LOCAL_SRC_FILES))
 
 $(foreach src,$(LOCAL_C_SOURCES), \
     $(eval $(call compile-c-source,$(src))) \
+)
+
+$(foreach src,$(LOCAL_OBJC_SOURCES), \
+    $(eval $(call compile-objc-source,$(src))) \
 )
 
 CLEAN_OBJS_DIRS += $(LOCAL_OBJS_DIR)

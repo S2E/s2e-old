@@ -13,7 +13,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include "vl.h"
+#include "qemu-common.h"
 
 /* A HttpConnector implements a non-HTTP proxied connection
  * through the CONNECT method. Many firewalls are configured

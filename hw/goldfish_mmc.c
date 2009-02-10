@@ -9,10 +9,11 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
+#include "qemu_file.h"
 #include "goldfish_device.h"
 #include "mmc.h"
 #include "sd.h"
+#include "block.h"
 
 enum {
     /* status register */
@@ -190,7 +191,7 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
             uint8_t exponent;
             uint32_t m;
 
-            bdrv_get_geometry(s->bs, &sector_count);
+            bdrv_get_geometry(s->bs, (uint64_t*)&sector_count);
             capacity = sector_count * 512;
             if (capacity > 2147483648U) {
                 // if storages is > 2 gig, then emulate SDHC card

@@ -9,7 +9,8 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
+#include "qemu_file.h"
+#include "qemu-char.h"
 #include "goldfish_device.h"
 
 enum {
@@ -165,14 +166,14 @@ static void goldfish_tty_write(void *opaque, target_phys_addr_t offset, uint32_t
     }
 }
 
-static int tty_can_recieve(void *opaque)
+static int tty_can_receive(void *opaque)
 {
     struct tty_state *s = opaque;
 
     return (sizeof(s->data) - s->data_count);
 }
 
-static void tty_recieve(void *opaque, const uint8_t *buf, int size)
+static void tty_receive(void *opaque, const uint8_t *buf, int size)
 {
     struct tty_state *s = opaque;
 
@@ -210,7 +211,7 @@ int goldfish_tty_add(CharDriverState *cs, int id, uint32_t base, int irq)
     s->cs = cs;
 
     if(cs) {
-        qemu_chr_add_read_handler(cs, tty_can_recieve, tty_recieve, s);
+        qemu_chr_add_handlers(cs, tty_can_receive, tty_receive, NULL, s);
     }
 
     ret = goldfish_device_add(&s->dev, goldfish_tty_readfn, goldfish_tty_writefn, s);

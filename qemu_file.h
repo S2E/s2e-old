@@ -1,76 +1,7 @@
 #ifndef _QEMU_FILE_H
 #define _QEMU_FILE_H
 
-#include <stddef.h>
-
-typedef FILE QEMUFile;
-
-void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size);
-void qemu_put_byte(QEMUFile *f, int v);
-void qemu_put_be16(QEMUFile *f, unsigned int v);
-void qemu_put_be32(QEMUFile *f, unsigned int v);
-void qemu_put_be64(QEMUFile *f, uint64_t v);
-
-int qemu_get_buffer(QEMUFile *f, uint8_t *buf, int size);
-int qemu_get_byte(QEMUFile *f);
-unsigned int qemu_get_be16(QEMUFile *f);
-unsigned int qemu_get_be32(QEMUFile *f);
-uint64_t qemu_get_be64(QEMUFile *f);
-
-static inline void qemu_put_be64s(QEMUFile *f, const uint64_t *pv)
-{
-    qemu_put_be64(f, *pv);
-}
-
-static inline void qemu_put_be32s(QEMUFile *f, const uint32_t *pv)
-{
-    qemu_put_be32(f, *pv);
-}
-
-static inline void qemu_put_be16s(QEMUFile *f, const uint16_t *pv)
-{
-    qemu_put_be16(f, *pv);
-}
-
-static inline void qemu_put_8s(QEMUFile *f, const uint8_t *pv)
-{
-    qemu_put_byte(f, *pv);
-}
-
-static inline void qemu_get_be64s(QEMUFile *f, uint64_t *pv)
-{
-    *pv = qemu_get_be64(f);
-}
-
-static inline void qemu_get_be32s(QEMUFile *f, uint32_t *pv)
-{
-    *pv = qemu_get_be32(f);
-}
-
-static inline void qemu_get_be16s(QEMUFile *f, uint16_t *pv)
-{
-    *pv = qemu_get_be16(f);
-}
-
-static inline void qemu_get_8s(QEMUFile *f, uint8_t *pv)
-{
-    *pv = qemu_get_byte(f);
-}
-
-#if TARGET_LONG_BITS == 64
-#define qemu_put_betl qemu_put_be64
-#define qemu_get_betl qemu_get_be64
-#define qemu_put_betls qemu_put_be64s
-#define qemu_get_betls qemu_get_be64s
-#else
-#define qemu_put_betl qemu_put_be32
-#define qemu_get_betl qemu_get_be32
-#define qemu_put_betls qemu_put_be32s
-#define qemu_get_betls qemu_get_be32s
-#endif
-
-int64_t qemu_ftell(QEMUFile *f);
-int64_t qemu_fseek(QEMUFile *f, int64_t pos, int whence);
+#include "hw/hw.h"
 
 typedef enum {
     Q_FIELD_END,          /* mark end of field list */

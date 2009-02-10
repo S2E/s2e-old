@@ -24,7 +24,6 @@
  */
 
 #include <esd.h>
-#include "vl.h"
 #include "audio.h"
 #include <signal.h>
 
@@ -33,7 +32,7 @@
 #include "audio_pt_int.h"
 #include <dlfcn.h>
 
-#include "android_debug.h"
+#include "qemu_debug.h"
 
 #define  DEBUG  1
 
@@ -494,14 +493,12 @@ static int qesd_init_in (HWVoiceIn *hw, audsettings_t *as)
         esdfmt |= ESD_BITS16;
         obt_as.fmt = AUD_FMT_S16;
         break;
-#if 0
     case AUD_FMT_S32:
     case AUD_FMT_U32:
         dolog ("Will use 16 instead of 32 bit samples\n");
         esdfmt |= ESD_BITS16;
         obt_as.fmt = AUD_FMT_S16;
         break;
-#endif
     }
     obt_as.endianness = AUDIO_HOST_ENDIANNESS;
 

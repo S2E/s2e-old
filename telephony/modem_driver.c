@@ -14,6 +14,7 @@
  * on the emulated device.
  */
 #include "modem_driver.h"
+#include "qemu-char.h"
 
 #define  xxDEBUG
 
@@ -107,7 +108,7 @@ modem_driver_read( void*  _md, const uint8_t*  src, int  len )
                     md->in_sms = 1;
 
                 qemu_chr_write(md->cs, (const uint8_t*)answer, len);
-                qemu_chr_write(md->cs, "\r", 1);
+                qemu_chr_write(md->cs, (const uint8_t*)"\r", 1);
             } else
                 D( "%s: -- NO ANSWER\n", __FUNCTION__ );
 
@@ -132,7 +133,7 @@ modem_driver_init( int  base_port, ModemDriver*  dm, CharDriverState*  cs )
     dm->in_sms = 0;
     dm->modem  = amodem_create( base_port, modem_driver_unsol, dm );
 
-    qemu_chr_add_read_handler( cs, modem_driver_can_read, modem_driver_read, dm );
+    qemu_chr_add_handlers( cs, modem_driver_can_read, modem_driver_read, NULL, dm );
 }
 
 

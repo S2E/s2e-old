@@ -10,8 +10,8 @@
 ** GNU General Public License for more details.
 */
 #include "android/utils/dirscanner.h"
-#include "android_utils.h"
-#include "vl.h"
+#include "android/utils/bufprint.h"
+#include "qemu-common.h"
 #include <stddef.h>
 
 #define  DIRSCANNER_BASE     \
@@ -46,7 +46,7 @@ _dirScannerInit( DirScanner*  s )
     if (p >= end)
         return -1;
 
-    ret = _findfirst(s->root, &s->findData) + 1;
+    ret = _findfirst(s->root, &s->findData);
 
     s->findIndex1 = ret+1;
     return ret;

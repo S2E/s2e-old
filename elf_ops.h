@@ -49,7 +49,7 @@ static void glue(bswap_sym, SZ)(struct elf_sym *sym)
     bswap16s(&sym->st_shndx);
 }
 
-static struct elf_shdr *glue(find_section, SZ)(struct elf_shdr *shdr_table, 
+static struct elf_shdr *glue(find_section, SZ)(struct elf_shdr *shdr_table,
                                                int n, int type)
 {
     int i;
@@ -71,17 +71,17 @@ static int glue(load_symbols, SZ)(struct elfhdr *ehdr, int fd, int must_swab)
     int nsyms, i;
     char *str = NULL;
 
-    shdr_table = load_at(fd, ehdr->e_shoff, 
+    shdr_table = load_at(fd, ehdr->e_shoff,
                          sizeof(struct elf_shdr) * ehdr->e_shnum);
     if (!shdr_table)
         return -1;
-    
+
     if (must_swab) {
         for (i = 0; i < ehdr->e_shnum; i++) {
             glue(bswap_shdr, SZ)(shdr_table + i);
         }
     }
-        
+
     symtab = glue(find_section, SZ)(shdr_table, ehdr->e_shnum, SHT_SYMTAB);
     if (!symtab)
         goto fail;
@@ -138,13 +138,15 @@ static int glue(load_symbols, SZ)(struct elfhdr *ehdr, int fd, int must_swab)
     return -1;
 }
 
-int glue(load_elf, SZ)(int fd, int64_t virt_to_phys_addend,
-                       int must_swab, uint64_t *pentry)
+static int glue(load_elf, SZ)(int fd, int64_t virt_to_phys_addend,
+                              int must_swab, uint64_t *pentry,
+                              uint64_t *lowaddr, uint64_t *highaddr)
 {
     struct elfhdr ehdr;
     struct elf_phdr *phdr = NULL, *ph;
     int size, i, total_size;
-    elf_word mem_size, addr;
+    elf_word mem_size;
+    uint64_t addr, low = 0, high = 0;
     uint8_t *data = NULL;
 
     if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr))
@@ -153,8 +155,11 @@ int glue(load_elf, SZ)(int fd, int64_t virt_to_phys_addend,
         glue(bswap_ehdr, SZ)(&ehdr);
     }
 
+    if (ELF_MACHINE != ehdr.e_machine)
+        goto fail;
+
     if (pentry)
-   	*pentry = (uint64_t)ehdr.e_entry;
+   	*pentry = (uint64_t)(elf_sword)ehdr.e_entry;
 
     glue(load_symbols, SZ)(&ehdr, fd, must_swab);
 
@@ -171,7 +176,7 @@ int glue(load_elf, SZ)(int fd, int64_t virt_to_phys_addend,
             glue(bswap_phdr, SZ)(ph);
         }
     }
-    
+
     total_size = 0;
     for(i = 0; i < ehdr.e_phnum; i++) {
         ph = &phdr[i];
@@ -190,16 +195,23 @@ int glue(load_elf, SZ)(int fd, int64_t virt_to_phys_addend,
             cpu_physical_memory_write_rom(addr, data, mem_size);
 
             total_size += mem_size;
+            if (!low || addr < low)
+                low = addr;
+            if (!high || (addr + mem_size) > high)
+                high = addr + mem_size;
 
             qemu_free(data);
             data = NULL;
         }
     }
     qemu_free(phdr);
+    if (lowaddr)
+        *lowaddr = (uint64_t)(elf_sword)low;
+    if (highaddr)
+        *highaddr = (uint64_t)(elf_sword)high;
     return total_size;
  fail:
     qemu_free(data);
     qemu_free(phdr);
     return -1;
 }
-

@@ -76,21 +76,18 @@ function compile-exec-run()
 OS=`uname -s`
 CPU=`uname -m`
 EXE=""
+case "$CPU" in
+    i?86) CPU=x86
+    ;;
+esac
+
 case "$OS" in
     Darwin)
-        if [ $CPU = "i386" ] ; then
-            OS=darwin-x86
-         else
-            OS=darwin-ppc
-         fi
-         ;;
+        OS=darwin-$CPU
+        ;;
     Linux)
-        case "$CPU" in
-            i?86) OS=linux-x86
-                  ;;
-            # note that building on x86_64 is handled later
-            *)    OS=linux-$CPU
-        esac
+        # note that building on x86_64 is handled later
+        OS=linux-$CPU
         ;;
     *_NT-*)
         OS=windows
@@ -134,6 +131,10 @@ OPTION_IGNORE_AUDIO=no
 OPTION_NO_PREBUILTS=no
 OPTION_TRY_64=no
 OPTION_HELP=no
+
+if [ -z "$CC" ] ; then
+  CC=gcc
+fi
 
 for opt do
   optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'`
@@ -207,7 +208,7 @@ function clean-exit ()
 # Adjust a few things when we're building within the Android build
 # system:
 #    - locate prebuilt directory
-#    - locate and use prebuilt libraries and compiler
+#    - locate and use prebuilt libraries
 #    - copy the new binary to the correct location
 #
 if [ "$OPTION_NO_PREBUILTS" = "yes" ] ; then
@@ -253,29 +254,6 @@ if [ "$IN_ANDROID_BUILD" = "yes" ] ; then
         fi
     fi
     log "Prebuilt   : PREBUILT=$PREBUILT"
-
-    # if CC is unspecified, grab the prebuilt compiler
-    if [ -z "$CC" ] ; then
-        PREBUILT_GCC=$PREBUILT/gcc-qemu/bin/gcc
-        if [ ! -f $PREBUILT_GCC ] ; then
-            # try to find the prebuilt compiler in the new tree layout
-            # this is pretty specific to each OS and hard-coded in the
-            # build system
-            case "$OS" in
-                linux-*)
-                    QEMUGCC=i686-linux-gnu-3.4.6
-                    ;;
-                darwin-x86)
-                    QEMUGCC=i686-apple-darwin8-4.0.1
-                    ;;
-            esac
-            PREBUILT_GCC=$PREBUILT/toolchain/$QEMUGCC/bin/gcc
-        fi
-        if [ -f $PREBUILT_GCC ] ; then
-            CC=$PREBUILT_GCC
-            log "Prebuilt   : CC=$CC"
-        fi
-    fi
 
     # use ccache if USE_CCACHE is defined and the corresponding
     # binary is available.
@@ -619,6 +597,7 @@ echo "CC                := $CC" >> $config_mk
 echo "HOST_CC           := $CC" >> $config_mk
 echo "LD                := $LD" >> $config_mk
 echo "NO_PREBUILT       := $OPTION_NO_PREBUILTS" >> $config_mk
+echo "HOST_PREBUILT_TAG := $PREBUILT_HOST_TAG" >> $config_mk
 echo "PREBUILT          := $PREBUILT" >> $config_mk
 echo "CFLAGS            := $CFLAGS" >> $config_mk
 echo "LDFLAGS           := $LDFLAGS" >> $config_mk
@@ -628,7 +607,7 @@ echo "CONFIG_WINAUDIO   := $PROBE_WINAUDIO" >> $config_mk
 echo "CONFIG_ESD        := $PROBE_ESD" >> $config_mk
 echo "CONFIG_ALSA       := $PROBE_ALSA" >> $config_mk
 echo "CONFIG_OSS        := $PROBE_OSS" >> $config_mk
-echo "" >> $config-mk
+echo "" >> $config_mk
 echo "BUILD_STANDALONE_EMULATOR := true" >> $config_mk
 echo "HOST_PREBUILT_TAG         := $PREBUILT_HOST_TAG" >> $config_mk
 

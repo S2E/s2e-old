@@ -9,8 +9,8 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
-#include "android_events.h"
+#include "qemu_file.h"
+#include "android/hw-events.h"
 #include "irq.h"
 
 #if 0

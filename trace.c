@@ -24,7 +24,6 @@
 #include "exec-all.h"
 #include "trace.h"
 #include "varint.h"
-#include "android_utils.h"
 
 TraceBB trace_bb;
 TraceInsn trace_insn;
@@ -35,6 +34,11 @@ TraceExc trace_exc;
 TracePid trace_pid;
 TraceMethod trace_method;
 static TraceHeader header;
+
+const char *trace_filename;
+int tracing;
+int trace_cache_miss;
+int trace_all_addr;
 
 // The simulation time in cpu clock cycles
 uint64_t sim_time = 1;
@@ -438,11 +442,11 @@ void trace_init(const char *filename)
 }
 
 /* the following array is used to deal with def-use register interlocks, which we
- * can compute statically, very fortunately.
+ * can compute statically (ignoring conditions), very fortunately.
  *
  * the idea is that interlock_base contains the number of cycles "executed" from
  * the start of a basic block. It is set to 0 in trace_bb_start, and incremented
- * in each call to get_insn_ticks.
+ * in each call to get_insn_ticks_arm.
  *
  * interlocks[N] correspond to the value of interlock_base after which a register N
  * can be used by another operation, it is set each time an instruction writes to
@@ -761,7 +765,7 @@ void trace_cleanup()
 // not including any I-cache or D-cache misses.  This function
 // is called for each instruction in a basic block when that
 // block is being translated.
-int get_insn_ticks(uint32_t insn)
+int get_insn_ticks_arm(uint32_t insn)
 {
 #if 1
     int   result   =  1;   /* by default, use 1 cycle */

@@ -41,6 +41,9 @@
 #  ifndef EINPROGRESS
 #    define EINPROGRESS  10036
 #  endif
+#  ifndef EALREADY
+#    define EALREADY     10037
+#  endif
 #  ifndef EDESTADDRREQ
 #    define EDESTADDRREQ 10039
 #  endif
@@ -212,6 +215,12 @@ const char*  sock_address_to_string( const SockAddress*  a );
 /* return the port number of a given socket address, or -1 if it's a Unix one */
 int   sock_address_get_port( const SockAddress*  a );
 
+/* set the port number of a given socket address, don't do anything for Unix ones */
+void  sock_address_set_port( SockAddress*  a, uint16_t  port );
+
+/* return the path of a given Unix socket, returns NULL for non-Unix ones */
+const char*  sock_address_get_path( const SockAddress*  a );
+
 /* return the inet address, or -1 if it's not SOCKET_INET */
 int   sock_address_get_ip( const SockAddress*  a );
 
@@ -257,7 +266,7 @@ int  socket_set_nonblock(int fd);
 int  socket_set_blocking(int fd);
 
 /* disable the TCP Nagle algorithm for lower latency */
-int  socket_set_lowlatency(int fd);
+int  socket_set_nodelay(int fd);
 
 /* send OOB data inline for this socket */
 int  socket_set_oobinline(int  fd);

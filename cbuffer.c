@@ -10,7 +10,7 @@
 ** GNU General Public License for more details.
 */
 #include "cbuffer.h"
-#include "android_utils.h"
+#include "android/utils/stralloc.h"
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -188,7 +188,7 @@ cbuffer_quote( CBuffer*  cb )
     stralloc_format( s, "cbuffer %p (pos=%d count=%d size=%d)",
                      cb, cb->rpos, cb->count, cb->size );
 
-    q = tempstr_from_stralloc( s );
+    q = stralloc_to_tempstr( s );
     stralloc_reset(s);
 
     return q;
@@ -216,7 +216,7 @@ cbuffer_quote_data( CBuffer*  cb )
         len  -= avail;
     }
 
-    result = tempstr_from_stralloc(s);
+    result = stralloc_to_tempstr(s);
     stralloc_reset(s);
 
     return result;

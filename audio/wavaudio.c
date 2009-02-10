@@ -22,10 +22,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "vl.h"
-
 #define AUDIO_CAP "wav"
+#include "qemu-timer.h"
 #include "audio_int.h"
+#include "qemu_file.h"
 
 #define  WAV_AUDIO_IN  1
 
@@ -46,7 +46,8 @@ static struct {
     {
         44100,
         2,
-        AUD_FMT_S16
+        AUD_FMT_S16,
+        0
     },
     "qemu.wav"
 };
@@ -136,6 +137,11 @@ static int wav_out_init (HWVoiceOut *hw, audsettings_t *as)
     case AUD_FMT_U16:
         bits16 = 1;
         break;
+
+    case AUD_FMT_S32:
+    case AUD_FMT_U32:
+        dolog ("WAVE files can not handle 32bit formats\n");
+        return -1;
     }
 
     hdr[34] = bits16 ? 0x10 : 0x08;
@@ -156,7 +162,7 @@ static int wav_out_init (HWVoiceOut *hw, audsettings_t *as)
     le_store (hdr + 28, hw->info.freq << (bits16 + stereo), 4);
     le_store (hdr + 32, 1 << (bits16 + stereo), 2);
 
-    wav->f = fopen (conf_out.wav_path, "wb");
+    wav->f = qemu_fopen (conf_out.wav_path, "wb");
     if (!wav->f) {
         dolog ("Failed to open wave file `%s'\nReason: %s\n",
                conf_out.wav_path, strerror (errno));
@@ -190,7 +196,7 @@ static void wav_out_fini (HWVoiceOut *hw)
     qemu_fseek (wav->f, 32, SEEK_CUR);
     qemu_put_buffer (wav->f, dlen, 4);
 
-    fclose (wav->f);
+    qemu_fclose (wav->f);
     wav->f = NULL;
 
     qemu_free (wav->pcm_buf);
@@ -247,7 +253,7 @@ wav_in_init (HWVoiceIn *hw, audsettings_t *as)
     audsettings_t wav_as = *as;
     int           nchannels, freq, format, bits;
 
-    wav->f = fopen (path, "rb");
+    wav->f = qemu_fopen (path, "rb");
     if (wav->f == NULL) {
         dolog("Failed to open wave file '%s'\nReason: %s\n", path,
               strerror(errno));
@@ -316,7 +322,7 @@ wav_in_init (HWVoiceIn *hw, audsettings_t *as)
     return 0;
 
 Fail:
-    fclose (wav->f);
+    qemu_fclose (wav->f);
     wav->f = NULL;
     return -1;
 }
@@ -330,7 +336,7 @@ static void wav_in_fini (HWVoiceIn *hw)
         return;
     }
 
-    fclose (wav->f);
+    qemu_fclose (wav->f);
     wav->f = NULL;
 
     qemu_free (wav->pcm_buf);

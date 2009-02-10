@@ -14,7 +14,7 @@
 
 #include "proxy_common.h"
 #include "sockets.h"
-#include "android_utils.h"
+#include "android/utils/stralloc.h"
 
 extern int  proxy_log;
 

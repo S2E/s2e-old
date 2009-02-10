@@ -140,10 +140,10 @@ extern void start_tracing();
 extern void stop_tracing();
 extern void trace_init(const char *filename);
 extern void trace_bb_start(uint32_t bb_addr);
-extern void trace_add_insn(uint32_t insn, int is_thumb);
+extern void trace_add_insn_arm(uint32_t insn, int is_thumb);
 extern void trace_bb_end();
 
-extern int get_insn_ticks(uint32_t insn);
+extern int get_insn_ticks_arm(uint32_t insn);
 extern int get_insn_ticks_thumb(uint32_t  insn);
 
 extern void trace_exception(uint32 pc);
@@ -153,5 +153,10 @@ extern void sim_dcache_load(uint32_t addr);
 extern void sim_dcache_store(uint32_t addr, uint32_t val);
 extern void sim_dcache_swp(uint32_t addr);
 extern void trace_interpreted_method(uint32_t addr, int call_type);
+
+extern const char *trace_filename;
+extern int tracing;
+extern int trace_cache_miss;
+extern int trace_all_addr;
 
 #endif /* TRACE_H */

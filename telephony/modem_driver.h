@@ -13,7 +13,7 @@
 #define _modem_driver_h
 
 #include "android_modem.h"
-#include "vl.h"
+#include "qemu-common.h"
 
 /** in telephony/modem_driver.c */
 /* this is the internal character driver used to communicate with the

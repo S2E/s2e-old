@@ -1,4 +1,4 @@
-/* 
+/*
  * SMSC 91C111 Ethernet interface emulation
  *
  * Copyright (c) 2005 CodeSourcery, LLC.
@@ -7,8 +7,9 @@
  * This code is licenced under the GPL
  */
 
-#include "vl.h"
-#include "irq.h"
+#include "hw.h"
+#include "net.h"
+#include "devices.h"
 /* For crc32 */
 #include <zlib.h>
 
@@ -191,7 +192,9 @@ static void smc91c111_do_tx(smc91c111_state *s)
            about.  */
         add_crc = (control & 0x10) || (s->tcr & TCR_NOCRC) == 0;
         if (add_crc) {
-            uint32_t crc = crc32(~0, p, len);
+            uint32_t crc;
+
+            crc = crc32(~0, p, len);
             memcpy(p + len, &crc, 4);
             len += 4;
         }
@@ -412,7 +415,7 @@ static void smc91c111_writeb(void *opaque, target_phys_addr_t offset,
         break;
     }
     cpu_abort (cpu_single_env, "smc91c111_write: Bad reg %d:%x\n",
-               s->bank, offset);
+               s->bank, (int)offset);
 }
 
 static uint32_t smc91c111_readb(void *opaque, target_phys_addr_t offset)
@@ -444,7 +447,9 @@ static uint32_t smc91c111_readb(void *opaque, target_phys_addr_t offset)
         case 7:
             /* Not implemented.  */
             return 0;
-        case 8: /* Free memory available.  */
+        case 8: /* Memory size.  */
+            return NUM_PACKETS;
+        case 9: /* Free memory available.  */
             {
                 int i;
                 int n;
@@ -455,8 +460,6 @@ static uint32_t smc91c111_readb(void *opaque, target_phys_addr_t offset)
                 }
                 return n;
             }
-        case 9: /* Memory size.  */
-            return NUM_PACKETS;
         case 10: case 11: /* RPCR */
             /* Not implemented.  */
             return 0;
@@ -554,7 +557,7 @@ static uint32_t smc91c111_readb(void *opaque, target_phys_addr_t offset)
         break;
     }
     cpu_abort (cpu_single_env, "smc91c111_read: Bad reg %d:%x\n",
-               s->bank, offset);
+               s->bank, (int)offset);
     return 0;
 }
 
@@ -614,7 +617,7 @@ static void smc91c111_receive(void *opaque, const uint8_t *buf, int size)
 
     if ((s->rcr & RCR_RXEN) == 0 || (s->rcr & RCR_SOFT_RST))
         return;
-    /* Short packets are padded with zeros.  Recieveing a packet
+    /* Short packets are padded with zeros.  Receiving a packet
        < 64 bytes long is considered an error condition.  */
     if (size < 64)
         packetsize = 64;
@@ -648,7 +651,7 @@ static void smc91c111_receive(void *opaque, const uint8_t *buf, int size)
     /* Pad short packets.  */
     if (size < 64) {
         int pad;
-        
+
         if (size & 1)
             *(p++) = buf[size - 1];
         pad = 64 - size;

@@ -22,12 +22,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "vl.h"
+#include "hw/hw.h"
+#include "audio.h"
+#include "console.h"
+#include "qemu-timer.h"
+#include "sysemu.h"
 
 #define AUDIO_CAP "audio"
 #include "audio_int.h"
-#include "android_utils.h"
-#include "android.h"
+#include "android/utils/system.h"
+#include "qemu_debug.h"
+#include "android/android.h"
 
 /* #define DEBUG_PLIVE */
 /* #define DEBUG_LIVE */
@@ -161,7 +166,8 @@ static struct {
         {
             44100,              /* freq */
             2,                  /* nchannels */
-            AUD_FMT_S16         /* fmt */
+            AUD_FMT_S16,        /* fmt */
+            AUDIO_HOST_ENDIANNESS
         }
     },
 
@@ -172,7 +178,8 @@ static struct {
         {
             44100,              /* freq */
             2,                  /* nchannels */
-            AUD_FMT_S16         /* fmt */
+            AUD_FMT_S16,        /* fmt */
+            AUDIO_HOST_ENDIANNESS
         }
     },
 
@@ -189,8 +196,8 @@ volume_t nominal_volume = {
     1.0,
     1.0
 #else
-    UINT_MAX,
-    UINT_MAX
+    1ULL << 32,
+    1ULL << 32
 #endif
 };
 
@@ -247,6 +254,25 @@ int audio_bug (const char *funcname, int cond)
 }
 #endif
 
+static inline int audio_bits_to_index (int bits)
+{
+    switch (bits) {
+    case 8:
+        return 0;
+
+    case 16:
+        return 1;
+
+    case 32:
+        return 2;
+
+    default:
+        audio_bug ("bits_to_index", 1);
+        AUD_log (NULL, "invalid bits %d\n", bits);
+        return 0;
+    }
+}
+
 void *audio_calloc (const char *funcname, int nmemb, size_t size)
 {
     int cond;
@@ -294,7 +320,7 @@ static char *audio_alloc_prefix (const char *s)
     return r;
 }
 
-const char *audio_audfmt_to_string (audfmt_e fmt)
+static const char *audio_audfmt_to_string (audfmt_e fmt)
 {
     switch (fmt) {
     case AUD_FMT_U8:
@@ -308,13 +334,20 @@ const char *audio_audfmt_to_string (audfmt_e fmt)
 
     case AUD_FMT_S16:
         return "S16";
+
+    case AUD_FMT_U32:
+        return "U32";
+
+    case AUD_FMT_S32:
+        return "S32";
     }
 
     dolog ("Bogus audfmt %d returning S16\n", fmt);
     return "S16";
 }
 
-audfmt_e audio_string_to_audfmt (const char *s, audfmt_e defval, int *defaultp)
+static audfmt_e audio_string_to_audfmt (const char *s, audfmt_e defval,
+                                        int *defaultp)
 {
     if (!strcasecmp (s, "u8")) {
         *defaultp = 0;
@@ -324,6 +357,10 @@ audfmt_e audio_string_to_audfmt (const char *s, audfmt_e defval, int *defaultp)
         *defaultp = 0;
         return AUD_FMT_U16;
     }
+    else if (!strcasecmp (s, "u32")) {
+        *defaultp = 0;
+        return AUD_FMT_U32;
+    }
     else if (!strcasecmp (s, "s8")) {
         *defaultp = 0;
         return AUD_FMT_S8;
@@ -331,6 +368,10 @@ audfmt_e audio_string_to_audfmt (const char *s, audfmt_e defval, int *defaultp)
     else if (!strcasecmp (s, "s16")) {
         *defaultp = 0;
         return AUD_FMT_S16;
+    }
+    else if (!strcasecmp (s, "s32")) {
+        *defaultp = 0;
+        return AUD_FMT_S32;
     }
     else {
         dolog ("Bogus audio format `%s' using %s\n",
@@ -439,7 +480,7 @@ static void audio_print_options (const char *prefix,
         const char *state = "default";
         printf ("  %s_%s: ", uprefix, opt->name);
 
-        if (opt->overridenp && *opt->overridenp) {
+        if (opt->overriddenp && *opt->overriddenp) {
             state = "current";
         }
 
@@ -462,7 +503,7 @@ static void audio_print_options (const char *prefix,
             {
                 audfmt_e *fmtp = opt->valp;
                 printf (
-                    "format, %s = %s, (one of: U8 S8 U16 S16)\n",
+                    "format, %s = %s, (one of: U8 S8 U16 S16 U32 S32)\n",
                     state,
                     audio_audfmt_to_string (*fmtp)
                     );
@@ -569,10 +610,10 @@ static void audio_process_options (const char *prefix,
             break;
         }
 
-        if (!opt->overridenp) {
-            opt->overridenp = &opt->overriden;
+        if (!opt->overriddenp) {
+            opt->overriddenp = &opt->overridden;
         }
-        *opt->overridenp = !def;
+        *opt->overriddenp = !def;
         qemu_free (optname);
     }
 }
@@ -626,6 +667,8 @@ static int audio_validate_settings (audsettings_t *as)
     case AUD_FMT_U8:
     case AUD_FMT_S16:
     case AUD_FMT_U16:
+    case AUD_FMT_S32:
+    case AUD_FMT_U32:
         break;
     default:
         invalid = 1;
@@ -651,6 +694,11 @@ static int audio_pcm_info_eq (struct audio_pcm_info *info, audsettings_t *as)
     case AUD_FMT_U16:
         bits = 16;
         break;
+    case AUD_FMT_S32:
+        sign = 1;
+    case AUD_FMT_U32:
+        bits = 32;
+        break;
     }
     return info->freq == as->freq
         && info->nchannels == as->nchannels
@@ -661,7 +709,7 @@ static int audio_pcm_info_eq (struct audio_pcm_info *info, audsettings_t *as)
 
 void audio_pcm_init_info (struct audio_pcm_info *info, audsettings_t *as)
 {
-    int bits = 8, sign = 0;
+    int bits = 8, sign = 0, shift = 0;
 
     switch (as->fmt) {
     case AUD_FMT_S8:
@@ -673,6 +721,14 @@ void audio_pcm_init_info (struct audio_pcm_info *info, audsettings_t *as)
         sign = 1;
     case AUD_FMT_U16:
         bits = 16;
+        shift = 1;
+        break;
+
+    case AUD_FMT_S32:
+        sign = 1;
+    case AUD_FMT_U32:
+        bits = 32;
+        shift = 2;
         break;
     }
 
@@ -680,7 +736,7 @@ void audio_pcm_init_info (struct audio_pcm_info *info, audsettings_t *as)
     info->bits = bits;
     info->sign = sign;
     info->nchannels = as->nchannels;
-    info->shift = (as->nchannels == 2) + (bits == 16);
+    info->shift = (as->nchannels == 2) + shift;
     info->align = (1 << info->shift) - 1;
     info->bytes_per_second = info->freq << info->shift;
     info->swap_endianness = (as->endianness != AUDIO_HOST_ENDIANNESS);
@@ -693,25 +749,52 @@ void audio_pcm_info_clear_buf (struct audio_pcm_info *info, void *buf, int len)
     }
 
     if (info->sign) {
-        memset (buf, 0x80, len << info->shift);
+        memset (buf, 0x00, len << info->shift);
     }
     else {
-        if (info->bits == 8) {
+        switch (info->bits) {
+        case 8:
             memset (buf, 0x80, len << info->shift);
-        }
-        else {
-            int i;
-            uint16_t *p = buf;
-            int shift = info->nchannels - 1;
-            short s = INT16_MAX;
+            break;
 
-            if (info->swap_endianness) {
-                s = bswap16 (s);
-            }
+        case 16:
+            {
+                int i;
+                uint16_t *p = buf;
+                int shift = info->nchannels - 1;
+                short s = INT16_MAX;
 
-            for (i = 0; i < len << shift; i++) {
-                p[i] = s;
+                if (info->swap_endianness) {
+                    s = bswap16 (s);
+                }
+
+                for (i = 0; i < len << shift; i++) {
+                    p[i] = s;
+                }
             }
+            break;
+
+        case 32:
+            {
+                int i;
+                uint32_t *p = buf;
+                int shift = info->nchannels - 1;
+                int32_t s = INT32_MAX;
+
+                if (info->swap_endianness) {
+                    s = bswap32 (s);
+                }
+
+                for (i = 0; i < len << shift; i++) {
+                    p[i] = s;
+                }
+            }
+            break;
+
+        default:
+            AUD_log (NULL, "audio_pcm_info_clear_buf: invalid bits %d\n",
+                     info->bits);
+            break;
         }
     }
 }
@@ -1508,7 +1591,7 @@ static void audio_run_capture (AudioState *s)
 
 static void audio_timer (void *opaque)
 {
-    AudioState*     s = opaque;
+    AudioState* s = opaque;
 #if 0
 #define  MAX_DIFFS  1000
     int64_t         now  = qemu_get_clock(vm_clock);
@@ -1586,7 +1669,7 @@ static struct audio_option audio_options[] = {
      "(undocumented)", NULL, 0},
 
     {"LOG_TO_MONITOR", AUD_OPT_BOOL, &conf.log_to_monitor,
-     "print logging messages to montior instead of stderr", NULL, 0},
+     "print logging messages to monitor instead of stderr", NULL, 0},
 
     {NULL, 0, NULL, NULL, NULL, 0}
 };
@@ -2011,7 +2094,7 @@ CaptureVoiceOut *AUD_add_capture (
             [hw->info.nchannels == 2]
             [hw->info.sign]
             [hw->info.swap_endianness]
-            [hw->info.bits == 16];
+            [audio_bits_to_index (hw->info.bits)];
 
         LIST_INSERT_HEAD (&s->cap_head, cap, entries);
         LIST_INSERT_HEAD (&cap->cb_head, cb, entries);
@@ -2045,16 +2128,21 @@ void AUD_del_capture (CaptureVoiceOut *cap, void *cb_opaque)
 
             if (!cap->cb_head.lh_first) {
                 SWVoiceOut *sw = cap->hw.sw_head.lh_first, *sw1;
+
                 while (sw) {
+                    SWVoiceCap *sc = (SWVoiceCap *) sw;
 #ifdef DEBUG_CAPTURE
                     dolog ("freeing %s\n", sw->name);
 #endif
+
                     sw1 = sw->entries.le_next;
                     if (sw->rate) {
                         st_rate_stop (sw->rate);
                         sw->rate = NULL;
                     }
                     LIST_REMOVE (sw, entries);
+                    LIST_REMOVE (sc, entries);
+                    qemu_free (sc);
                     sw = sw1;
                 }
                 LIST_REMOVE (cap, entries);
@@ -2062,5 +2150,23 @@ void AUD_del_capture (CaptureVoiceOut *cap, void *cb_opaque)
             }
             return;
         }
+    }
+}
+
+void AUD_set_volume_out (SWVoiceOut *sw, int mute, uint8_t lvol, uint8_t rvol)
+{
+    if (sw) {
+        sw->vol.mute = mute;
+        sw->vol.l = nominal_volume.l * lvol / 255;
+        sw->vol.r = nominal_volume.r * rvol / 255;
+    }
+}
+
+void AUD_set_volume_in (SWVoiceIn *sw, int mute, uint8_t lvol, uint8_t rvol)
+{
+    if (sw) {
+        sw->vol.mute = mute;
+        sw->vol.l = nominal_volume.l * lvol / 255;
+        sw->vol.r = nominal_volume.r * rvol / 255;
     }
 }

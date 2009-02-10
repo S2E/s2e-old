@@ -1,8 +1,8 @@
 /*
  * QEMU readline utility
- * 
+ *
  * Copyright (c) 2003-2004 Fabrice Bellard
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -21,7 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "vl.h"
+#include "qemu-common.h"
+#include "console.h"
 
 #define TERM_CMD_BUF_SIZE 4095
 #define TERM_MAX_CMDS 64
@@ -156,6 +157,45 @@ static void term_backspace(void)
     }
 }
 
+static void term_backword(void)
+{
+    int start;
+
+    if (term_cmd_buf_index == 0 || term_cmd_buf_index > term_cmd_buf_size) {
+        return;
+    }
+
+    start = term_cmd_buf_index - 1;
+
+    /* find first word (backwards) */
+    while (start > 0) {
+        if (!isspace(term_cmd_buf[start])) {
+            break;
+        }
+
+        --start;
+    }
+
+    /* find first space (backwards) */
+    while (start > 0) {
+        if (isspace(term_cmd_buf[start])) {
+            ++start;
+            break;
+        }
+
+        --start;
+    }
+
+    /* remove word */
+    if (start < term_cmd_buf_index) {
+        memmove(term_cmd_buf + start,
+                term_cmd_buf + term_cmd_buf_index,
+                term_cmd_buf_size - term_cmd_buf_index);
+        term_cmd_buf_size -= term_cmd_buf_index - start;
+        term_cmd_buf_index = start;
+    }
+}
+
 static void term_bol(void)
 {
     term_cmd_buf_index = 0;
@@ -182,7 +222,7 @@ static void term_up_char(void)
     }
     term_hist_entry--;
     if (term_hist_entry >= 0) {
-	pstrcpy(term_cmd_buf, sizeof(term_cmd_buf), 
+	pstrcpy(term_cmd_buf, sizeof(term_cmd_buf),
                 term_history[term_hist_entry]);
 	term_cmd_buf_index = term_cmd_buf_size = strlen(term_cmd_buf);
     }
@@ -227,7 +267,7 @@ static void term_hist_add(const char *cmdline)
 	    new_entry = hist_entry;
 	    /* Put this entry at the end of history */
 	    memmove(&term_history[idx], &term_history[idx + 1],
-		    &term_history[TERM_MAX_CMDS] - &term_history[idx + 1]);
+		    (TERM_MAX_CMDS - idx + 1) * sizeof(char *));
 	    term_history[TERM_MAX_CMDS - 1] = NULL;
 	    for (; idx < TERM_MAX_CMDS; idx++) {
 		if (term_history[idx] == NULL)
@@ -240,7 +280,7 @@ static void term_hist_add(const char *cmdline)
 	/* Need to get one free slot */
 	free(term_history[0]);
 	memcpy(term_history, &term_history[1],
-	       &term_history[TERM_MAX_CMDS] - &term_history[1]);
+	       (TERM_MAX_CMDS - 1) * sizeof(char *));
 	term_history[TERM_MAX_CMDS - 1] = NULL;
 	idx = TERM_MAX_CMDS - 1;
     }
@@ -261,11 +301,11 @@ void add_completion(const char *str)
 
 static void term_completion(void)
 {
-    int len, i, j, max_width, nb_cols;
+    int len, i, j, max_width, nb_cols, max_prefix;
     char *cmdline;
 
     nb_completions = 0;
-    
+
     cmdline = qemu_malloc(term_cmd_buf_index + 1);
     if (!cmdline)
         return;
@@ -288,11 +328,26 @@ static void term_completion(void)
     } else {
         term_printf("\n");
         max_width = 0;
+        max_prefix = 0;	
         for(i = 0; i < nb_completions; i++) {
             len = strlen(completions[i]);
+            if (i==0) {
+                max_prefix = len;
+            } else {
+                if (len < max_prefix)
+                    max_prefix = len;
+                for(j=0; j<max_prefix; j++) {
+                    if (completions[i][j] != completions[0][j])
+                        max_prefix = j;
+                }
+            }
             if (len > max_width)
                 max_width = len;
         }
+        if (max_prefix > 0) 
+            for(i = completion_index; i < max_prefix; i++) {
+                term_insert_char(completions[0][i]);
+            }
         max_width += 2;
         if (max_width < 10)
             max_width = 10;
@@ -335,8 +390,16 @@ void readline_handle_byte(int ch)
             if (!term_is_password)
                 term_hist_add(term_cmd_buf);
             term_printf("\n");
+            term_cmd_buf_index = 0;
+            term_cmd_buf_size = 0;
+            term_last_cmd_buf_index = 0;
+            term_last_cmd_buf_size = 0;
             /* NOTE: readline_start can be called here */
             term_readline_func(term_readline_opaque, term_cmd_buf);
+            break;
+        case 23:
+            /* ^W */
+            term_backword();
             break;
         case 27:
             term_esc_state = IS_ESC;

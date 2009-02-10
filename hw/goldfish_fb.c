@@ -9,8 +9,8 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
-#include "android.h"
+#include "qemu_file.h"
+#include "android/android.h"
 #include "goldfish_device.h"
 #include "framebuffer.h"
 

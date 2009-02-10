@@ -10,10 +10,10 @@
 ** GNU General Public License for more details.
 */
 #include "proxy_http_int.h"
-#include "android_utils.h"
 #include <stdio.h>
 #include <string.h>
-#include "vl.h"
+#include "qemu-common.h"
+#include "android/utils/system.h"  /* strsep */
 
 /* this implements a transparent HTTP rewriting proxy
  *

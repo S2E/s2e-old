@@ -1,6 +1,6 @@
 /*
  *  Generic thunking code to convert data between host and target CPU
- * 
+ *
  *  Copyright (c) 2003 Fabrice Bellard
  *
  * This library is free software; you can redistribute it and/or
@@ -69,11 +69,14 @@ typedef struct bitmask_transtbl {
 
 void thunk_register_struct(int id, const char *name, const argtype *types);
 void thunk_register_struct_direct(int id, const char *name, StructEntry *se1);
-const argtype *thunk_convert(void *dst, const void *src, 
+const argtype *thunk_convert(void *dst, const void *src,
                              const argtype *type_ptr, int to_host);
 #ifndef NO_THUNK_TYPE_SIZE
 
 extern StructEntry struct_entries[];
+
+int thunk_type_size_array(const argtype *type_ptr, int is_host);
+int thunk_type_align_array(const argtype *type_ptr, int is_host);
 
 static inline int thunk_type_size(const argtype *type_ptr, int is_host)
 {
@@ -98,12 +101,12 @@ static inline int thunk_type_size(const argtype *type_ptr, int is_host)
         if (is_host) {
             return HOST_LONG_SIZE;
         } else {
-            return TARGET_LONG_SIZE;
+            return TARGET_ABI_BITS / 8;
         }
         break;
     case TYPE_ARRAY:
         size = type_ptr[1];
-        return size * thunk_type_size(type_ptr + 2, is_host);
+        return size * thunk_type_size_array(type_ptr + 2, is_host);
     case TYPE_STRUCT:
         se = struct_entries + type_ptr[1];
         return se->size[is_host];
@@ -135,11 +138,11 @@ static inline int thunk_type_align(const argtype *type_ptr, int is_host)
         if (is_host) {
             return HOST_LONG_SIZE;
         } else {
-            return TARGET_LONG_SIZE;
+            return TARGET_ABI_BITS / 8;
         }
         break;
     case TYPE_ARRAY:
-        return thunk_type_align(type_ptr + 2, is_host);
+        return thunk_type_align_array(type_ptr + 2, is_host);
     case TYPE_STRUCT:
         se = struct_entries + type_ptr[1];
         return se->align[is_host];
@@ -150,9 +153,9 @@ static inline int thunk_type_align(const argtype *type_ptr, int is_host)
 
 #endif /* NO_THUNK_TYPE_SIZE */
 
-unsigned int target_to_host_bitmask(unsigned int x86_mask, 
+unsigned int target_to_host_bitmask(unsigned int x86_mask,
                                     bitmask_transtbl * trans_tbl);
-unsigned int host_to_target_bitmask(unsigned int alpha_mask, 
+unsigned int host_to_target_bitmask(unsigned int alpha_mask,
                                     bitmask_transtbl * trans_tbl);
 
 #endif

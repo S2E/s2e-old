@@ -23,13 +23,13 @@
  * THE SOFTWARE.
  */
 #include <alsa/asoundlib.h>
-#include "vl.h"
+#include "audio.h"
 
 #define AUDIO_CAP "alsa"
 #include "audio_int.h"
 #include <dlfcn.h>
 #include <pthread.h>
-#include "android_debug.h"
+#include "qemu_debug.h"
 
 #define  DEBUG  1
 
@@ -59,6 +59,7 @@
     DYNLINK_FUNC(size_t,snd_pcm_hw_params_sizeof,(void))  \
     DYNLINK_FUNC(int,snd_pcm_hw_params_any,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params))  \
     DYNLINK_FUNC(int,snd_pcm_hw_params_set_access,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_access_t _access))  \
+    DYNLINK_FUNC(int,snd_pcm_hw_params_get_format,(const snd_pcm_hw_params_t *params, snd_pcm_format_t *val)) \
     DYNLINK_FUNC(int,snd_pcm_hw_params_set_format,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_format_t val))  \
     DYNLINK_FUNC(int,snd_pcm_hw_params_set_rate_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val, int *dir))  \
     DYNLINK_FUNC(int,snd_pcm_hw_params_set_channels_near,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val))  \
@@ -194,7 +195,7 @@ static int alsa_write (SWVoiceOut *sw, void *buf, int len)
     return audio_pcm_sw_write (sw, buf, len);
 }
 
-static int aud_to_alsafmt (audfmt_e fmt)
+static snd_pcm_format_t aud_to_alsafmt (audfmt_e fmt)
 {
     switch (fmt) {
     case AUD_FMT_S8:
@@ -208,6 +209,12 @@ static int aud_to_alsafmt (audfmt_e fmt)
 
     case AUD_FMT_U16:
         return SND_PCM_FORMAT_U16_LE;
+
+    case AUD_FMT_S32:
+        return SND_PCM_FORMAT_S32_LE;
+
+    case AUD_FMT_U32:
+        return SND_PCM_FORMAT_U32_LE;
 
     default:
         dolog ("Internal logic error: Bad audio format %d\n", fmt);
@@ -250,6 +257,26 @@ static int alsa_to_audfmt (snd_pcm_format_t alsafmt, audfmt_e *fmt,
     case SND_PCM_FORMAT_U16_BE:
         *endianness = 1;
         *fmt = AUD_FMT_U16;
+        break;
+
+    case SND_PCM_FORMAT_S32_LE:
+        *endianness = 0;
+        *fmt = AUD_FMT_S32;
+        break;
+
+    case SND_PCM_FORMAT_U32_LE:
+        *endianness = 0;
+        *fmt = AUD_FMT_U32;
+        break;
+
+    case SND_PCM_FORMAT_S32_BE:
+        *endianness = 1;
+        *fmt = AUD_FMT_S32;
+        break;
+
+    case SND_PCM_FORMAT_U32_BE:
+        *endianness = 1;
+        *fmt = AUD_FMT_U32;
         break;
 
     default:
@@ -468,6 +495,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
     }
 
     err = FF(snd_pcm_hw_params_get_format)(hw_params, &obtfmt);
+    err = FF(snd_pcm_hw_params_get_format) (hw_params, &obtfmt);
     if (err < 0) {
         alsa_logerr2 (err, typ, "Failed to get format\n");
         goto err;
@@ -498,6 +526,11 @@ static int alsa_open (int in, struct alsa_params_req *req,
         case AUD_FMT_S16:
         case AUD_FMT_U16:
             bytes_per_sec <<= 1;
+            break;
+
+        case AUD_FMT_S32:
+        case AUD_FMT_U32:
+            bytes_per_sec <<= 2;
             break;
         }
 

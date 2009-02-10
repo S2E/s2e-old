@@ -9,12 +9,12 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
+#include "qemu_file.h"
 #include "goldfish_nand_reg.h"
 #include "goldfish_nand.h"
-#include "android_utils.h"
-#include "android_debug.h"
-#include "android.h"
+#include "android/utils/tempfile.h"
+#include "qemu_debug.h"
+#include "android/android.h"
 
 #define  DEBUG  1
 #if DEBUG
@@ -152,9 +152,6 @@ static int   nand_dev_state_load(QEMUFile*  f, void*  opaque, int  version_id)
     return qemu_get_struct(f, nand_dev_state_fields, s);
 }
 
-
-extern void vmemcpy(target_ulong ptr, char *buf, int size); /* copy memory from the simulated virtual space to a buffer in QEMU */
-extern void pmemcpy(target_ulong ptr, char *buf, int size); /* copy memory from the QEMU buffer to simulated virtual space */
 
 static int  do_read(int  fd, void*  buf, size_t  size)
 {

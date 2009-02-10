@@ -21,7 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "vl.h"
+#include "hw.h"
+#include "pci.h"
+#include "console.h"
+#include "net.h"
 
 //#define DEBUG_PCI
 
@@ -29,25 +32,83 @@ struct PCIBus {
     int bus_num;
     int devfn_min;
     pci_set_irq_fn set_irq;
+    pci_map_irq_fn map_irq;
     uint32_t config_reg; /* XXX: suppress */
     /* low level pic */
     SetIRQFunc *low_set_irq;
-    void *irq_opaque;
+    qemu_irq *irq_opaque;
     PCIDevice *devices[256];
+    PCIDevice *parent_dev;
+    PCIBus *next;
+    /* The bus IRQ state is the logical OR of the connected devices.
+       Keep a count of the number of devices with raised IRQs.  */
+    int nirq;
+    int irq_count[];
 };
+
+static void pci_update_mappings(PCIDevice *d);
+static void pci_set_irq(void *opaque, int irq_num, int level);
 
 target_phys_addr_t pci_mem_base;
 static int pci_irq_index;
 static PCIBus *first_bus;
 
-PCIBus *pci_register_bus(pci_set_irq_fn set_irq, void *pic, int devfn_min)
+static void pcibus_save(QEMUFile *f, void *opaque)
+{
+    PCIBus *bus = (PCIBus *)opaque;
+    int i;
+
+    qemu_put_be32(f, bus->nirq);
+    for (i = 0; i < bus->nirq; i++)
+        qemu_put_be32(f, bus->irq_count[i]);
+}
+
+static int  pcibus_load(QEMUFile *f, void *opaque, int version_id)
+{
+    PCIBus *bus = (PCIBus *)opaque;
+    int i, nirq;
+
+    if (version_id != 1)
+        return -EINVAL;
+
+    nirq = qemu_get_be32(f);
+    if (bus->nirq != nirq) {
+        fprintf(stderr, "pcibus_load: nirq mismatch: src=%d dst=%d\n",
+                nirq, bus->nirq);
+        return -EINVAL;
+    }
+
+    for (i = 0; i < nirq; i++)
+        bus->irq_count[i] = qemu_get_be32(f);
+
+    return 0;
+}
+
+PCIBus *pci_register_bus(pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
+                         qemu_irq *pic, int devfn_min, int nirq)
+{
+    PCIBus *bus;
+    static int nbus = 0;
+
+    bus = qemu_mallocz(sizeof(PCIBus) + (nirq * sizeof(int)));
+    bus->set_irq = set_irq;
+    bus->map_irq = map_irq;
+    bus->irq_opaque = pic;
+    bus->devfn_min = devfn_min;
+    bus->nirq = nirq;
+    first_bus = bus;
+    register_savevm("PCIBUS", nbus++, 1, pcibus_save, pcibus_load, bus);
+    return bus;
+}
+
+static PCIBus *pci_register_secondary_bus(PCIDevice *dev, pci_map_irq_fn map_irq)
 {
     PCIBus *bus;
     bus = qemu_mallocz(sizeof(PCIBus));
-    bus->set_irq = set_irq;
-    bus->irq_opaque = pic;
-    bus->devfn_min = devfn_min;
-    first_bus = bus;
+    bus->map_irq = map_irq;
+    bus->parent_dev = dev;
+    bus->next = dev->bus->next;
+    dev->bus->next = bus;
     return bus;
 }
 
@@ -56,21 +117,31 @@ int pci_bus_num(PCIBus *s)
     return s->bus_num;
 }
 
-void generic_pci_save(QEMUFile* f, void *opaque)
+void pci_device_save(PCIDevice *s, QEMUFile *f)
 {
-    PCIDevice* s=(PCIDevice*)opaque;
+    int i;
 
+    qemu_put_be32(f, 2); /* PCI device version */
     qemu_put_buffer(f, s->config, 256);
+    for (i = 0; i < 4; i++)
+        qemu_put_be32(f, s->irq_state[i]);
 }
 
-int generic_pci_load(QEMUFile* f, void *opaque, int version_id)
+int pci_device_load(PCIDevice *s, QEMUFile *f)
 {
-    PCIDevice* s=(PCIDevice*)opaque;
+    uint32_t version_id;
+    int i;
 
-    if (version_id != 1)
+    version_id = qemu_get_be32(f);
+    if (version_id > 2)
         return -EINVAL;
-
     qemu_get_buffer(f, s->config, 256);
+    pci_update_mappings(s);
+
+    if (version_id >= 2)
+        for (i = 0; i < 4; i ++)
+            s->irq_state[i] = qemu_get_be32(f);
+
     return 0;
 }
 
@@ -99,6 +170,7 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
     pci_dev->bus = bus;
     pci_dev->devfn = devfn;
     pstrcpy(pci_dev->name, sizeof(pci_dev->name), name);
+    memset(pci_dev->irq_state, 0, sizeof(pci_dev->irq_state));
 
     if (!config_read)
         config_read = pci_default_read_config;
@@ -108,6 +180,7 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
     pci_dev->config_write = config_write;
     pci_dev->irq_index = pci_irq_index++;
     bus->devices[devfn] = pci_dev;
+    pci_dev->irq = qemu_allocate_irqs(pci_set_irq, pci_dev, 4);
     return pci_dev;
 }
 
@@ -133,7 +206,7 @@ void pci_register_io_region(PCIDevice *pci_dev, int region_num,
     *(uint32_t *)(pci_dev->config + addr) = cpu_to_le32(type);
 }
 
-target_phys_addr_t pci_to_cpu_addr(target_phys_addr_t addr)
+static target_phys_addr_t pci_to_cpu_addr(target_phys_addr_t addr)
 {
     return addr + pci_mem_base;
 }
@@ -221,16 +294,23 @@ uint32_t pci_default_read_config(PCIDevice *d,
                                  uint32_t address, int len)
 {
     uint32_t val;
+
     switch(len) {
-    case 1:
-        val = d->config[address];
-        break;
-    case 2:
-        val = le16_to_cpu(*(uint16_t *)(d->config + address));
-        break;
     default:
     case 4:
-        val = le32_to_cpu(*(uint32_t *)(d->config + address));
+	if (address <= 0xfc) {
+	    val = le32_to_cpu(*(uint32_t *)(d->config + address));
+	    break;
+	}
+	/* fall through */
+    case 2:
+        if (address <= 0xfe) {
+	    val = le16_to_cpu(*(uint16_t *)(d->config + address));
+	    break;
+	}
+	/* fall through */
+    case 1:
+        val = d->config[address];
         break;
     }
     return val;
@@ -320,7 +400,8 @@ void pci_default_write_config(PCIDevice *d,
         if (can_write) {
             d->config[addr] = val;
         }
-        addr++;
+        if (++addr > 0xff)
+        	break;
         val >>= 8;
     }
 
@@ -342,7 +423,9 @@ void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len)
            addr, val, len);
 #endif
     bus_num = (addr >> 16) & 0xff;
-    if (bus_num != 0)
+    while (s && s->bus_num != bus_num)
+        s = s->next;
+    if (!s)
         return;
     pci_dev = s->devices[(addr >> 8) & 0xff];
     if (!pci_dev)
@@ -363,7 +446,9 @@ uint32_t pci_data_read(void *opaque, uint32_t addr, int len)
     uint32_t val;
 
     bus_num = (addr >> 16) & 0xff;
-    if (bus_num != 0)
+    while (s && s->bus_num != bus_num)
+        s= s->next;
+    if (!s)
         goto fail;
     pci_dev = s->devices[(addr >> 8) & 0xff];
     if (!pci_dev) {
@@ -400,10 +485,26 @@ uint32_t pci_data_read(void *opaque, uint32_t addr, int len)
 /* generic PCI irq support */
 
 /* 0 <= irq_num <= 3. level must be 0 or 1 */
-void pci_set_irq(PCIDevice *pci_dev, int irq_num, int level)
+static void pci_set_irq(void *opaque, int irq_num, int level)
 {
-    PCIBus *bus = pci_dev->bus;
-    bus->set_irq(pci_dev, bus->irq_opaque, irq_num, level);
+    PCIDevice *pci_dev = (PCIDevice *)opaque;
+    PCIBus *bus;
+    int change;
+
+    change = level - pci_dev->irq_state[irq_num];
+    if (!change)
+        return;
+
+    pci_dev->irq_state[irq_num] = level;
+    for (;;) {
+        bus = pci_dev->bus;
+        irq_num = bus->map_irq(pci_dev, irq_num);
+        if (bus->set_irq)
+            break;
+        pci_dev = bus->parent_dev;
+    }
+    bus->irq_count[irq_num] += change;
+    bus->set_irq(bus->irq_opaque, irq_num, bus->irq_count[irq_num] != 0);
 }
 
 /***********************************************************/
@@ -416,12 +517,40 @@ typedef struct {
 
 static pci_class_desc pci_class_descriptions[] =
 {
+    { 0x0100, "SCSI controller"},
     { 0x0101, "IDE controller"},
+    { 0x0102, "Floppy controller"},
+    { 0x0103, "IPI controller"},
+    { 0x0104, "RAID controller"},
+    { 0x0106, "SATA controller"},
+    { 0x0107, "SAS controller"},
+    { 0x0180, "Storage controller"},
     { 0x0200, "Ethernet controller"},
+    { 0x0201, "Token Ring controller"},
+    { 0x0202, "FDDI controller"},
+    { 0x0203, "ATM controller"},
+    { 0x0280, "Network controller"},
     { 0x0300, "VGA controller"},
+    { 0x0301, "XGA controller"},
+    { 0x0302, "3D controller"},
+    { 0x0380, "Display controller"},
+    { 0x0400, "Video controller"},
+    { 0x0401, "Audio controller"},
+    { 0x0402, "Phone"},
+    { 0x0480, "Multimedia controller"},
+    { 0x0500, "RAM controller"},
+    { 0x0501, "Flash controller"},
+    { 0x0580, "Memory controller"},
     { 0x0600, "Host bridge"},
     { 0x0601, "ISA bridge"},
+    { 0x0602, "EISA bridge"},
+    { 0x0603, "MC bridge"},
     { 0x0604, "PCI bridge"},
+    { 0x0605, "PCMCIA bridge"},
+    { 0x0606, "NUBUS bridge"},
+    { 0x0607, "CARDBUS bridge"},
+    { 0x0608, "RACEWAY bridge"},
+    { 0x0680, "Bridge"},
     { 0x0c03, "USB controller"},
     { 0, NULL}
 };
@@ -451,6 +580,9 @@ static void pci_info_device(PCIDevice *d)
     if (d->config[PCI_INTERRUPT_PIN] != 0) {
         term_printf("      IRQ %d.\n", d->config[PCI_INTERRUPT_LINE]);
     }
+    if (class == 0x0604) {
+        term_printf("      BUS %d.\n", d->config[0x19]);
+    }
     for(i = 0;i < PCI_NUM_REGIONS; i++) {
         r = &d->io_regions[i];
         if (r->size != 0) {
@@ -464,14 +596,19 @@ static void pci_info_device(PCIDevice *d)
             }
         }
     }
+    if (class == 0x0604 && d->config[0x19] != 0) {
+        pci_for_each_device(d->config[0x19], pci_info_device);
+    }
 }
 
-void pci_for_each_device(void (*fn)(PCIDevice *d))
+void pci_for_each_device(int bus_num, void (*fn)(PCIDevice *d))
 {
     PCIBus *bus = first_bus;
     PCIDevice *d;
     int devfn;
 
+    while (bus && bus->bus_num != bus_num)
+        bus = bus->next;
     if (bus) {
         for(devfn = 0; devfn < 256; devfn++) {
             d = bus->devices[devfn];
@@ -483,25 +620,82 @@ void pci_for_each_device(void (*fn)(PCIDevice *d))
 
 void pci_info(void)
 {
-    pci_for_each_device(pci_info_device);
+    pci_for_each_device(0, pci_info_device);
 }
 
 /* Initialize a PCI NIC.  */
-void pci_nic_init(PCIBus *bus, NICInfo *nd)
+void pci_nic_init(PCIBus *bus, NICInfo *nd, int devfn)
 {
-#if 0 /* ANDROID */
+#if 0
     if (strcmp(nd->model, "ne2k_pci") == 0) {
-        pci_ne2000_init(bus, nd);
+        pci_ne2000_init(bus, nd, devfn);
+    } else if (strcmp(nd->model, "i82551") == 0) {
+        pci_i82551_init(bus, nd, devfn);
+    } else if (strcmp(nd->model, "i82557b") == 0) {
+        pci_i82557b_init(bus, nd, devfn);
+    } else if (strcmp(nd->model, "i82559er") == 0) {
+        pci_i82559er_init(bus, nd, devfn);
     } else if (strcmp(nd->model, "rtl8139") == 0) {
-        pci_rtl8139_init(bus, nd);
+        pci_rtl8139_init(bus, nd, devfn);
+    } else if (strcmp(nd->model, "e1000") == 0) {
+        pci_e1000_init(bus, nd, devfn);
     } else if (strcmp(nd->model, "pcnet") == 0) {
-        pci_pcnet_init(bus, nd);
+        pci_pcnet_init(bus, nd, devfn);
+    } else if (strcmp(nd->model, "?") == 0) {
+        fprintf(stderr, "qemu: Supported PCI NICs: i82551 i82557b i82559er"
+                        " ne2k_pci pcnet rtl8139 e1000\n");
+        exit (1);
     } else {
-#else
-    {
-#endif
         fprintf(stderr, "qemu: Unsupported NIC: %s\n", nd->model);
         exit (1);
     }
+#endif
 }
 
+typedef struct {
+    PCIDevice dev;
+    PCIBus *bus;
+} PCIBridge;
+
+static void pci_bridge_write_config(PCIDevice *d,
+                             uint32_t address, uint32_t val, int len)
+{
+    PCIBridge *s = (PCIBridge *)d;
+
+    if (address == 0x19 || (address == 0x18 && len > 1)) {
+        if (address == 0x19)
+            s->bus->bus_num = val & 0xff;
+        else
+            s->bus->bus_num = (val >> 8) & 0xff;
+#if defined(DEBUG_PCI)
+        printf ("pci-bridge: %s: Assigned bus %d\n", d->name, s->bus->bus_num);
+#endif
+    }
+    pci_default_write_config(d, address, val, len);
+}
+
+PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint32_t id,
+                        pci_map_irq_fn map_irq, const char *name)
+{
+    PCIBridge *s;
+    s = (PCIBridge *)pci_register_device(bus, name, sizeof(PCIBridge),
+                                         devfn, NULL, pci_bridge_write_config);
+    s->dev.config[0x00] = id >> 16;
+    s->dev.config[0x01] = id >> 24;
+    s->dev.config[0x02] = id; // device_id
+    s->dev.config[0x03] = id >> 8;
+    s->dev.config[0x04] = 0x06; // command = bus master, pci mem
+    s->dev.config[0x05] = 0x00;
+    s->dev.config[0x06] = 0xa0; // status = fast back-to-back, 66MHz, no error
+    s->dev.config[0x07] = 0x00; // status = fast devsel
+    s->dev.config[0x08] = 0x00; // revision
+    s->dev.config[0x09] = 0x00; // programming i/f
+    s->dev.config[0x0A] = 0x04; // class_sub = PCI to PCI bridge
+    s->dev.config[0x0B] = 0x06; // class_base = PCI_bridge
+    s->dev.config[0x0D] = 0x10; // latency_timer
+    s->dev.config[0x0E] = 0x81; // header_type
+    s->dev.config[0x1E] = 0xa0; // secondary status
+
+    s->bus = pci_register_secondary_bus(&s->dev, map_irq);
+    return s->bus;
+}

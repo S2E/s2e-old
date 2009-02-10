@@ -528,7 +528,7 @@ tcp_connect(inso)
 	socket_set_nonblock(s);
 	socket_set_xreuseaddr(s);
 	socket_set_oobinline(s);
-	socket_set_lowlatency(s);
+	socket_set_nodelay(s);
 
 	so->so_faddr_port = sock_address_get_port(&addr);
 	

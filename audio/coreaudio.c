@@ -27,7 +27,7 @@
 #include <string.h>             /* strerror */
 #include <pthread.h>            /* pthread_X */
 
-#include "vl.h"
+#include "audio.h"
 
 #define AUDIO_CAP "coreaudio"
 #include "audio_int.h"
@@ -628,7 +628,6 @@ coreaudio_run_in (HWVoiceIn *hw)
     if (coreaudio_voice_lock (core, "coreaudio_run_in")) {
         return 0;
     }
-
     D("%s: core.decr=%d core.pos=%d\n", __FUNCTION__, core->decr, core->pos);
     decr        = core->decr;
     core->decr -= decr;

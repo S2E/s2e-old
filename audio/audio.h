@@ -25,6 +25,7 @@
 #define QEMU_AUDIO_H
 
 #include "config.h"
+#include "qemu-common.h"
 #include "sys-queue.h"
 
 typedef void (*audio_callback_fn_t) (void *opaque, int avail);
@@ -33,7 +34,9 @@ typedef enum {
     AUD_FMT_U8,
     AUD_FMT_S8,
     AUD_FMT_U16,
-    AUD_FMT_S16
+    AUD_FMT_S16,
+    AUD_FMT_U32,
+    AUD_FMT_S32
 } audfmt_e;
 
 #ifdef WORDS_BIGENDIAN
@@ -71,7 +74,6 @@ typedef struct CaptureState {
     LIST_ENTRY (CaptureState) entries;
 } CaptureState;
 
-typedef struct AudioState AudioState;
 typedef struct SWVoiceOut SWVoiceOut;
 typedef struct CaptureVoiceOut CaptureVoiceOut;
 typedef struct SWVoiceIn SWVoiceIn;
@@ -124,6 +126,9 @@ int  AUD_is_active_out (SWVoiceOut *sw);
 
 void     AUD_init_time_stamp_out (SWVoiceOut *sw, QEMUAudioTimeStamp *ts);
 uint64_t AUD_get_elapsed_usec_out (SWVoiceOut *sw, QEMUAudioTimeStamp *ts);
+
+void AUD_set_volume_out (SWVoiceOut *sw, int mute, uint8_t lvol, uint8_t rvol);
+void AUD_set_volume_in (SWVoiceIn *sw, int mute, uint8_t lvol, uint8_t rvol);
 
 SWVoiceIn *AUD_open_in (
     QEMUSoundCard *card,

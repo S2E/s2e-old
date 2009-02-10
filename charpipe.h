@@ -12,7 +12,7 @@
 #ifndef _CHARPIPE_H
 #define _CHARPIPE_H
 
-#include "vl.h"
+#include "qemu-common.h"
 
 /* open two connected character drivers that can be used to communicate by internal
  * QEMU components. For Android, this is used to connect an emulated serial port
