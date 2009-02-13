@@ -1158,7 +1158,7 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
     char   temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
     char   explicitSkin = 1;
 
-    /* determine the skin name, the default is "default"
+    /* determine the skin name, the default is "HVGA"
      * unless specified by the caller or in config.ini
      */
     if (params->skinName) {
@@ -1166,7 +1166,7 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
     } else {
         skinName = iniFile_getString( i->configIni, "skin" );
         if (skinName == NULL) {
-            skinName     = qemu_strdup("default");
+            skinName     = qemu_strdup("HVGA");
             explicitSkin = 0;
         }
     }
