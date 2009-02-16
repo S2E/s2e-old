@@ -46,7 +46,7 @@ _dirScannerInit( DirScanner*  s )
     if (p >= end)
         return -1;
 
-    ret = _findfirst(s->root, &s->findData) + 1;
+    ret = _findfirst(s->root, &s->findData);
 
     s->findIndex1 = ret+1;
     return ret;
