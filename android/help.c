@@ -115,7 +115,7 @@ help_build_images( stralloc_t*  out )
 
     "  Skins will be looked in <build-root>/development/emulator/skins/\n\n"
 
-    "  You can use the -sysdir, -system, -kernel, -ramdisk, -datadir, -data options\n"
+    "  You can use the -system, -image, -kernel, -ramdisk, -datadir, -data options\n"
     "  to specify different search directories or specific image files. You can\n"
     "  also use the -cache and -sdcard options to indicate specific cache partition\n"
     "  and SD Card image files.\n\n"
@@ -160,7 +160,6 @@ help_disk_images( stralloc_t*  out )
     "  It will also use the following writable image files:\n\n"
 
     "    userdata-qemu.img  the persistent data partition image\n"
-    "    system-qemu.img    an *optional* persistent system image\n"
     "    cache.img          an *optional* cache partition image\n"
     "    sdcard.img         an *optional* SD Card partition image\n\n"
 
@@ -177,7 +176,7 @@ help_disk_images( stralloc_t*  out )
     "  If you're neither using the SDK or the Android build system, you\n"
     "  can still run the emulator by explicitely providing the paths to\n"
     "  *all* required disk images through a combination of the following\n"
-    "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data, -cache\n"
+    "  options: -system, -kernel, -ramdisk, -image, -datadir, -data, -cache\n"
     "  and -sdcard\n\n"
 
     "  The actual logic being that the emulator should be able to find all\n"
@@ -187,12 +186,12 @@ help_disk_images( stralloc_t*  out )
 
     "  Other related options are:\n\n"
 
-    "      -init-data   Specify an alernative *initial* user data image\n\n"
+    "      -initdata    Specify an alernative *initial* user data image\n\n"
 
     "      -wipe-data   Copy the content of the *initial* user data image\n"
     "                   (userdata.img) into the writable one (userdata-qemu.img)\n\n"
 
-    "      -no-cache    do not use a cache partition, even if one is\n"
+    "      -nocache     do not use a cache partition, even if one is\n"
     "                   available.\n\n"
     ,
     datadir );
@@ -458,7 +457,7 @@ help_avd(stralloc_t*  out)
 }
 
 static void
-help_sysdir(stralloc_t*  out)
+help_system(stralloc_t*  out)
 {
     char   systemdir[MAX_PATH];
     char   *p = systemdir, *end = p + sizeof(systemdir);
@@ -467,7 +466,7 @@ help_sysdir(stralloc_t*  out)
     p = bufprint( p, end, PATH_SEP "lib" PATH_SEP "images" );
 
     PRINTF(
-    "  use '-sysdir <dir>' to specify a directory where system read-only\n"
+    "  use '-system <dir>' to specify a directory where system read-only\n"
     "  image files will be searched. on this system, the default directory is:\n\n"
     "      %s\n\n", systemdir );
 
@@ -517,35 +516,21 @@ help_ramdisk(stralloc_t*  out)
 }
 
 static void
-help_system(stralloc_t*  out)
-{
-    PRINTF(
-    "  use '-system <file>' to specify the intial system image that will be loaded.\n"
-    "  the default image is 'system.img' from the system directory.\n\n"
-
-    "  NOTE: In previous releases of the Android SDK, this option was named '-image'.\n"
-    "        And using '-system <path>' was equivalent to using '-sysdir <path>' now.\n\n"
-
-    "  see '-help-disk-images' for more information about disk image files\n\n"
-    );
-}
-
-static void
 help_image(stralloc_t*  out)
 {
     PRINTF(
-    "  This option is obsolete, you should use '-system <file>' instead to point\n"
-    "  to the initial system image.\n\n"
+    "  use '-image <file>' to specify the intial system image that will be loaded.\n"
+    "  the default image is 'system.img' from the system directory.\n\n"
 
     "  see '-help-disk-images' for more information about disk image files\n\n"
     );
 }
 
 static void
-help_init_data(stralloc_t*  out)
+help_initdata(stralloc_t*  out)
 {
     PRINTF(
-    "  use '-init-data <file>' to specify an *init* /data partition file.\n"
+    "  use '-initdata <file>' to specify an *init* /data partition file.\n"
     "  it is only used when creating a new writable /data image file, or\n"
     "  when you use '-wipe-data' to reset it. the default is 'userdata.img'\n"
     "  from the system directory.\n\n"
@@ -584,17 +569,17 @@ help_cache(stralloc_t*  out)
     "  backed by a temporary file that is deleted when the emulator exits.\n"
     "  using the -cache option allows it to be persistent.\n\n"
 
-    "  the '-no-cache' option can be used to disable the cache partition.\n\n"
+    "  the '-nocache' option can be used to disable the cache partition.\n\n"
 
     "  see '-help-disk-images' for more information about disk image files\n\n"
     );
 }
 
 static void
-help_no_cache(stralloc_t*  out)
+help_nocache(stralloc_t*  out)
 {
     PRINTF(
-    "  use '-no-cache' to disable the cache partition in the emulated system.\n"
+    "  use '-nocache' to disable the cache partition in the emulated system.\n"
     "  the cache partition is optional, but when available, is used by the browser\n"
     "  to cache web pages and images\n\n"
 
@@ -940,10 +925,10 @@ help_logcat(stralloc_t*  out)
 }
 
 static void
-help_no_audio(stralloc_t*  out)
+help_noaudio(stralloc_t*  out)
 {
     PRINTF(
-    "  use '-no-audio' to disable all audio support in the emulator. this may be\n"
+    "  use '-noaudio' to disable all audio support in the emulator. this may be\n"
     "  unfortunately be necessary in some cases:\n\n"
 
     "  * at least two users have reported that their Windows machine rebooted\n"
@@ -1279,17 +1264,12 @@ help_tcpdump(stralloc_t  *out)
     );
 }
 
-#define  help_no_skin   NULL
+#define  help_noskin  NULL
 #define  help_netspeed  help_shaper
 #define  help_netdelay  help_shaper
 #define  help_netfast   help_shaper
 
-#define  help_noaudio      NULL
-#define  help_noskin       NULL
-#define  help_nocache      NULL
-#define  help_no_jni       NULL
 #define  help_nojni        NULL
-#define  help_initdata     NULL
 #define  help_no_window    NULL
 #define  help_version      NULL
 #define  help_memory       NULL

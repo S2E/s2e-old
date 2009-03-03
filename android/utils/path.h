@@ -55,9 +55,6 @@ extern ABool  path_is_regular( const char*  path );
 /* checks that a path points to a directory */
 extern ABool  path_is_dir( const char*  path );
 
-/* checks that a path is absolute or not */
-extern ABool  path_is_absolute( const char*  path );
-
 /* checks that one can read/write a given (regular) file */
 extern ABool  path_can_read( const char*  path );
 extern ABool  path_can_write( const char*  path );
@@ -79,33 +76,6 @@ extern APosixStatus   path_get_size( const char*  path, uint64_t  *psize );
  *  the returned string must be freed by the caller.
  */
 extern char*  path_parent( const char*  path, int  levels );
-
-/* split a path into a (dirname,basename) pair. the result strings must be freed
- * by the caller. Return 0 on success, or -1 on error. Error conditions include
- * the following:
- *   - 'path' is empty
- *   - 'path' is "/" or degenerate cases like "////"
- *   - basename is "." or ".."
- *
- * if there is no directory separator in path, *dirname will be set to "."
- * if the path is of type "/foo", then *dirname will be set to "/"
- *
- * pdirname can be NULL if you don't want the directory name
- * pbasename can be NULL if you don't want the base name
- */
-extern int    path_split( const char*  path, char* *pdirname, char* *pbasename );
-
-/* a convenience function to retrieve the directory name as returned by
- * path_split(). Returns NULL if path_split() returns an error.
- * the result string must be freed by the caller
- */
-extern char*  path_dirname( const char*  path );
-
-/* a convenience function to retrieve the base name as returned by
- * path_split(). Returns NULL if path_split() returns an error.
- * the result must be freed by the caller.
- */
-extern char*  path_basename( const char*  path );
 
 /** OTHER FILE UTILITIES
  **

@@ -51,7 +51,6 @@
 #include "android/qemud.h"
 #include "android/hw-kmsg.h"
 #include "android/hw-control.h"
-#include "android/user-config.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
 #include "android/utils/path.h"
@@ -64,9 +63,6 @@
 
 #include "android/globals.h"
 #include "tcpdump.h"
-
-/* in vl.c */
-extern void  qemu_help(int  code);
 
 #include "framebuffer.h"
 AndroidRotation  android_framebuffer_rotation;
@@ -136,28 +132,126 @@ const char*  get_app_dir(void)
 /***  CONFIGURATION
  ***/
 
-static AUserConfig*  userConfig;
+static AConfig*  emulator_config;
+static int       emulator_config_found;
+static char      emulator_configpath[256];
 
 void
 emulator_config_init( void )
 {
-    userConfig = auserConfig_new( android_avdInfo );
+    char*  end = emulator_configpath + sizeof(emulator_configpath);
+    char*  p;
+    void*  config;
+
+    emulator_config = aconfig_node("","");
+
+    p = bufprint_config_file(emulator_configpath, end, "emulator.cfg");
+    if (p >= end) {
+        dwarning( "emulator configuration path too long" );
+        emulator_configpath[0] = 0;
+        return;
+    }
+
+    config = path_load_file( emulator_configpath, NULL );
+    if (config == NULL)
+        D( "cannot load emulator configuration at '%s'\n",
+           emulator_configpath );
+    else {
+        aconfig_load( emulator_config, config );
+        emulator_config_found = 1;
+    }
 }
 
 /* only call this function on normal exits, so that ^C doesn't save the configuration */
 void
 emulator_config_done( void )
 {
-    int  win_x, win_y;
+    int     save = 0;  /* only save config if we see changes */
+    AConfig*  guid_node;
+    char    guid_value[32];
+    AConfig*  window_node;
+    int     prev_x, prev_y, win_x, win_y;
 
-    if (!userConfig) {
-        D("no user configuration?");
+    if (!emulator_configpath[0]) {
+        D("no config path ?");
         return;
     }
 
-    SDL_WM_GetPos( &win_x, &win_y );
-    auserConfig_setWindowPos(userConfig, win_x, win_y);
-    auserConfig_save(userConfig);
+    /* compare window positions */
+    {
+        SDL_WM_GetPos( &win_x, &win_y );
+        prev_x = win_x - 1;
+        prev_y = win_y - 1;
+
+        window_node = aconfig_find( emulator_config, "window" );
+        if (window_node == NULL) {
+            aconfig_set( emulator_config, "window", "" );
+            window_node = aconfig_find( emulator_config, "window" );
+            save = 1;
+        }
+
+        prev_x = (int)aconfig_unsigned( window_node, "x", 0 );
+        prev_y = (int)aconfig_unsigned( window_node, "y", 0 );
+
+        save = (prev_x != win_x) || (prev_y != win_y);
+
+       /* Beware: If the new window position is definitely off-screen,
+        * we don't want to save it in the configuration file. This can
+        * happen for example on Linux where certain window managers
+        * will 'minimize' a window by moving it to coordinates like
+        * (-5000,-5000)
+        */
+        if ( !SDL_WM_IsFullyVisible(0) ) {
+            D( "not saving new emulator window position since it is not fully visible" );
+            save = 0;
+        }
+        else if (save)
+            D( "emulator window position changed and will be saved as (%d, %d)", win_x, win_y );
+    }
+
+    /* If there is no guid node, create one with the current time in
+     * milliseconds. Thus, the value doesn't correspond to any system or
+     * user-specific data
+     */
+#define  GUID_NAME  "unique-id"
+
+    guid_node = aconfig_find( emulator_config, GUID_NAME );
+    if (!guid_node) {
+        struct timeval  tm;
+        gettimeofday( &tm, NULL );
+        sprintf( guid_value, "%lld", (long long)tm.tv_sec*1000 + tm.tv_usec/1000 );
+        save = 1;
+        aconfig_set( emulator_config, GUID_NAME, guid_value );
+    }
+
+    if (save) {
+        char  xbuf[16], ybuf[16];
+
+        sprintf( xbuf, "%d", win_x );
+        sprintf( ybuf, "%d", win_y );
+
+        aconfig_set( window_node, "x", xbuf );
+        aconfig_set( window_node, "y", ybuf );
+
+        /* do we need to create the $HOME/.android directory ? */
+        if ( !path_exists(emulator_configpath) ) {
+            char*  dir = path_parent(emulator_configpath, 1);
+            if (dir == NULL) {
+                D("invalid user-specific config directory: '%s'", emulator_configpath);
+                return;
+            }
+            if ( path_mkdir_if_needed(dir, 0755) < 0 ) {
+                D("cannot create directory '%s', configuration lost", dir);
+                free(dir);
+                return;
+            }
+            free(dir);
+        }
+        if ( aconfig_save_file( emulator_config, emulator_configpath ) < 0 ) {
+            D( "cannot save configuration to %s", emulator_configpath);
+        } else
+            D( "configuration saved to %s", emulator_configpath );
+    }
 }
 
 void *loadpng(const char *fn, unsigned *_width, unsigned *_height);
@@ -1041,11 +1135,18 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
 
 found_a_skin:
     {
+        AConfig*  node = aconfig_find( emulator_config, "window" );
+
         win_x = 10;
         win_y = 10;
 
-        if (userConfig)
-            auserConfig_getWindowPos(userConfig, &win_x, &win_y);
+        if (node == NULL) {
+            if (emulator_config_found)
+                dwarning( "broken configuration file doesn't have 'window' element" );
+        } else {
+            win_x = aconfig_int( node, "x", win_x );
+            win_y = aconfig_int( node, "y", win_y );
+        }
     }
     if ( qemulator_init( qemulator, root, path, win_x, win_y, opts ) < 0 ) {
         fprintf(stderr, "### Error: could not load emulator skin '%s'\n", name);
@@ -1238,7 +1339,7 @@ parse_keyset(const char*  keyset, AndroidOptions*  opts)
         return;
 
     p = temp;
-    p = bufprint(p, end, "%s" PATH_SEP "keysets" PATH_SEP "%s", opts->sysdir, keyset);
+    p = bufprint(p, end, "%s" PATH_SEP "keysets" PATH_SEP "%s", opts->system, keyset);
     if (p < end && load_keyset(temp) == 0)
         return;
 
@@ -1773,16 +1874,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    /* special case, if -qemu -h is used, directly invoke the QEMU-specific help */
-    if (argc > 0) {
-        int  nn;
-        for (nn = 0; nn < argc; nn++)
-            if (!strcmp(argv[nn], "-h")) {
-                qemu_help(0);
-                break;
-            }
-    }
-
     android_charmap = android_charmaps[0];
 
     if (opts->version) {
@@ -1809,55 +1900,6 @@ int main(int argc, char **argv)
         if ( timezone_set(opts->timezone) < 0 ) {
             fprintf(stderr, "emulator: it seems the timezone '%s' is not in zoneinfo format\n", opts->timezone);
         }
-    }
-
-    /* legacy support: we used to use -system <dir> and -image <file>
-     * instead of -sysdir <dir> and -system <file>, so handle this by checking
-     * whether the options point to directories or files.
-     */
-    if (opts->image != NULL) {
-        if (opts->system != NULL) {
-            if (opts->sysdir != NULL) {
-                derror( "You can't use -sysdir, -system and -image at the same time.\n"
-                        "You should probably use '-sysdir <path> -system <file>'.\n" );
-                exit(2);
-            }
-        }
-        dwarning( "Please note that -image is obsolete and that -system is now used to point\n"
-                  "to the system image. Next time, try using '-sysdir <path> -system <file>' instead.\n" );
-        opts->sysdir = opts->system;
-        opts->system = opts->image;
-        opts->image  = NULL;
-    }
-    else if (opts->system != NULL && path_is_dir(opts->system)) {
-        if (opts->sysdir != NULL) {
-            derror( "Option -system should now be followed by a file path, not a directory one.\n"
-                    "Please use '-sysdir <path>' to point to the system directory.\n" );
-            exit(1);
-        }
-        dwarning( "Please note that the -system option should now be used to point to the initial\n"
-                  "system image (like the obsolete -image option). To point to the system directory\n"
-                  "please now use '-sysdir <path>' instead.\n" );
-
-        opts->sysdir = opts->system;
-        opts->system = NULL;
-    }
-
-    if (opts->nojni)
-        opts->no_jni = opts->nojni;
-
-    if (opts->nocache)
-        opts->no_cache = opts->nocache;
-
-    if (opts->noaudio)
-        opts->no_audio = opts->noaudio;
-
-    if (opts->noskin)
-        opts->no_skin = opts->noskin;
-
-    if (opts->initdata) {
-        opts->init_data = opts->initdata;
-        opts->initdata  = NULL;
     }
 
     /* If no AVD name was given, try to find the top of the
@@ -1898,9 +1940,9 @@ int main(int argc, char **argv)
     {
         char   dataDirIsSystem = 0;
 
-        if (!opts->sysdir) {
-            opts->sysdir = _getSdkImagePath("system.img");
-            if (!opts->sysdir) {
+        if (!opts->system) {
+            opts->system = _getSdkImagePath("system.img");
+            if (!opts->system) {
                 derror(
                 "You did not specify a virtual device name, and the system\n"
                 "directory could not be found.\n\n"
@@ -1911,29 +1953,29 @@ int main(int argc, char **argv)
                 );
                 exit(2);
             }
-            D("autoconfig: -sysdir %s", opts->sysdir);
+            D("autoconfig: -system %s", opts->system);
         }
 
-        if (!opts->system) {
-            opts->system = _getSdkSystemImage(opts->sysdir, "-image", "system.img");
+        if (!opts->image) {
+            opts->image = _getSdkSystemImage(opts->system, "-image", "system.img");
             D("autoconfig: -image %s", opts->image);
         }
 
         if (!opts->kernel) {
-            opts->kernel = _getSdkSystemImage(opts->sysdir, "-kernel", "kernel-qemu");
+            opts->kernel = _getSdkSystemImage(opts->system, "-kernel", "kernel-qemu");
             D("autoconfig: -kernel %s", opts->kernel);
         }
 
         if (!opts->ramdisk) {
-            opts->ramdisk = _getSdkSystemImage(opts->sysdir, "-ramdisk", "ramdisk.img");
+            opts->ramdisk = _getSdkSystemImage(opts->system, "-ramdisk", "ramdisk.img");
             D("autoconfig: -ramdisk %s", opts->ramdisk);
         }
 
         /* if no data directory is specified, use the system directory */
         if (!opts->datadir) {
-            opts->datadir   = qemu_strdup(opts->sysdir);
+            opts->datadir   = qemu_strdup(opts->system);
             dataDirIsSystem = 1;
-            D("autoconfig: -datadir %s", opts->sysdir);
+            D("autoconfig: -datadir %s", opts->system);
         }
 
         if (!opts->data) {
@@ -1941,11 +1983,9 @@ int main(int argc, char **argv)
             bufprint(tmp, tmpend, "%s/userdata-qemu.img", opts->datadir);
             if (!path_exists(tmp)) {
                 derror(
-                "You did not provide the name of an Android Virtual Device\n"
-                "with the '-avd <name>' option. Read -help-avd for more information.\n\n"
-
-                "If you *really* want to *NOT* run an AVD, consider using '-data <file>'\n"
-                "to specify a data partition image file (I hope you know what you're doing).\n"
+                "There is no file named 'userdata-qemu.img' in your %s directory.\n"
+                "You should specify one with the '-data <filepath>' option.",
+                dataDirIsSystem ? "system" : "data"
                 );
                 exit(2);
             }
@@ -1965,7 +2005,7 @@ int main(int argc, char **argv)
 
     /* setup the virtual device parameters from our options
      */
-    if (opts->no_cache) {
+    if (opts->nocache) {
         android_avdParams->flags |= AVDINFO_NO_CACHE;
     }
     if (opts->wipe_data) {
@@ -1975,17 +2015,17 @@ int main(int argc, char **argv)
     /* if certain options are set, we can force the path of
         * certain kernel/disk image files
         */
-    _forceAvdImagePath(AVD_IMAGE_KERNEL,     opts->kernel, "kernel", 1);
-    _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system, "system", 1);
-    _forceAvdImagePath(AVD_IMAGE_RAMDISK,    opts->ramdisk,"ramdisk", 1);
-    _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,   "user data", 0);
-    _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,  "cache", 0);
-    _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard, "SD Card", 0);
+    _forceAvdImagePath(AVD_IMAGE_KERNEL,  opts->kernel, "kernel", 1);
+    _forceAvdImagePath(AVD_IMAGE_SYSTEM,  opts->image,  "system", 1);
+    _forceAvdImagePath(AVD_IMAGE_RAMDISK, opts->ramdisk,"ramdisk", 1);
+    _forceAvdImagePath(AVD_IMAGE_USERDATA,opts->data,   "user data", 0);
+    _forceAvdImagePath(AVD_IMAGE_CACHE,   opts->cache,  "cache", 0);
+    _forceAvdImagePath(AVD_IMAGE_SDCARD,  opts->sdcard, "SD Card", 0);
 
     /* we don't accept -skindir without -skin now
      * to simplify the autoconfig stuff with virtual devices
      */
-    if (opts->no_skin) {
+    if (opts->noskin) {
         opts->skin    = "320x480";
         opts->skindir = NULL;
     }
@@ -2026,7 +2066,7 @@ int main(int argc, char **argv)
     else
     {
         if (!android_build_out) {
-            android_build_out = android_build_root = opts->sysdir;
+            android_build_out = android_build_root = opts->system;
         }
         android_avdInfo = avdInfo_newForAndroidBuild(
                             android_build_root,
@@ -2039,15 +2079,17 @@ int main(int argc, char **argv)
         }
     }
 
-    /* get the skin from the virtual device configuration */
-    opts->skin    = (char*) avdInfo_getSkinName( android_avdInfo );
-    opts->skindir = (char*) avdInfo_getSkinDir( android_avdInfo );
+    if (!opts->skindir) {
+        /* get the skin from the virtual device configuration */
+        opts->skin    = (char*) avdInfo_getSkinName( android_avdInfo );
+        opts->skindir = (char*) avdInfo_getSkinDir( android_avdInfo );
 
-    if (opts->skin) {
-        D("autoconfig: -skin %s", opts->skin);
-    }
-    if (opts->skindir) {
-        D("autoconfig: -skindir %s", opts->skindir);
+        if (opts->skin) {
+            D("autoconfig: -skin %s", opts->skin);
+        }
+        if (opts->skindir) {
+            D("autoconfig: -skindir %s", opts->skindir);
+        }
     }
 
     /* Read hardware configuration */
@@ -2200,7 +2242,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (opts->no_cache)
+    if (opts->nocache)
         opts->cache = 0;
 
     if (opts->dns_server) {
@@ -2249,12 +2291,12 @@ int main(int argc, char **argv)
     {
         const char*  filetype = "file";
 
-        if (avdInfo_isImageReadOnly(android_avdInfo, AVD_IMAGE_INITSYSTEM))
+        if (avdInfo_isImageReadOnly(android_avdInfo, AVD_IMAGE_SYSTEM))
             filetype = "initfile";
 
         bufprint(tmp, tmpend,
              "system,size=0x4200000,%s=%s", filetype,
-             avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_INITSYSTEM));
+             avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_SYSTEM));
 
         args[n++] = "-nand";
         args[n++] = strdup(tmp);
@@ -2273,8 +2315,8 @@ int main(int argc, char **argv)
     }
     else if (opts->cache) {
         dwarning( "Emulated hardware doesn't support a cache partition" );
-        opts->cache    = NULL;
-        opts->no_cache = 1;
+        opts->cache   = NULL;
+        opts->nocache = 1;
     }
 
     if (opts->cache) {
@@ -2283,7 +2325,7 @@ int main(int argc, char **argv)
         args[n++] = "-nand";
         args[n++] = strdup(tmp);
     }
-    else if (!opts->no_cache) {
+    else if (!opts->nocache) {
         /* create a temporary cache partition file */
         sprintf(tmp, "cache,size=0x%0x", cachePartitionSize);
         args[n++] = "-nand";
@@ -2430,9 +2472,20 @@ int main(int argc, char **argv)
         opts->memory = qemu_strdup(tmp);
     }
 
-    if (opts->no_audio) {
+    if (opts->noaudio) {
         args[n++] = "-noaudio";
     }
+
+#if 0
+    if (opts->mic) {
+        if (path_can_read(opts->mic)) {
+            args[n++] = "-mic";
+            args[n++] = opts->mic;
+        } else {
+            dprint("could not find or access audio input at '%s'", opts->mic);
+        }
+    }
+#endif
 
     if (opts->trace) {
         args[n++] = "-trace";
@@ -2469,7 +2522,7 @@ int main(int argc, char **argv)
             p = bufprint(p, end, " android.tracing=1");
         }
 
-        if (!opts->no_jni) {
+        if (!opts->nojni) {
             p = bufprint(p, end, " android.checkjni=1");
         }
 

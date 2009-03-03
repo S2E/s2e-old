@@ -150,8 +150,7 @@ char *bdrv_snapshot_dump(char *buf, int buf_size, QEMUSnapshotInfo *sn);
 int bdrv_ioctl(BlockDriverState *bs, unsigned long int req, void *buf);
 
 char *get_human_readable_size(char *buf, int buf_size, int64_t size);
-// don't remove below comment, it makes integration with upstream sources easier
-//int path_is_absolute(const char *path);
+int path_is_absolute(const char *path);
 void path_combine(char *dest, int dest_size,
                   const char *base_path,
                   const char *filename);

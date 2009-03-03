@@ -56,7 +56,7 @@ static int bdrv_write_em(BlockDriverState *bs, int64_t sector_num,
 
 static BlockDriver *first_drv;
 
-static int path_is_absolute(const char *path)
+int path_is_absolute(const char *path)
 {
     const char *p;
 #ifdef _WIN32

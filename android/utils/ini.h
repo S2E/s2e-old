@@ -62,11 +62,6 @@ IniFile*  iniFile_newFromMemory( const char*  text, const char*  fileName  );
  */
 IniFile*  iniFile_newFromFile( const char*  filePath);
 
-/* try to write an IniFile into a given file.
- * returns 0 on success, -1 on error (see errno for error code)
- */
-int       iniFile_saveToFile( IniFile*  f, const char*  filePath );
-
 /* free an IniFile object */
 void      iniFile_free( IniFile*  f );
 

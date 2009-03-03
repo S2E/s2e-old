@@ -52,10 +52,8 @@
 #define  AVD_IMAGE_LIST \
     _AVD_IMG(KERNEL,"kernel-qemu","kernel") \
     _AVD_IMG(RAMDISK,"ramdisk.img","ramdisk") \
-    _AVD_IMG(INITSYSTEM,"system.img","init system") \
-    _AVD_IMG(INITDATA,"userdata.img","init data") \
-    _AVD_IMG(USERSYSTEM,"system-qemu.img","user system") \
-    _AVD_IMG(USERDATA,"userdata-qemu.img", "user data") \
+    _AVD_IMG(SYSTEM,"system.img","system") \
+    _AVD_IMG(USERDATA,"userdata.img","user data") \
     _AVD_IMG(CACHE,"cache.img","cache") \
     _AVD_IMG(SDCARD,"sdcard.img","SD Card") \
 
@@ -84,8 +82,6 @@ typedef enum {
     AVDINFO_WIPE_CACHE = (1 << 2),
     /* use to ignore ignore SDCard image (default or provided) */
     AVDINFO_NO_SDCARD = (1 << 3),
-    /* use to wipe the system image with new initial values */
-    AVDINFO_WIPE_SYSTEM = (1 << 4),
 } AvdFlags;
 
 typedef struct {
@@ -153,12 +149,6 @@ const char*  avdInfo_getSkinName( AvdInfo*  i );
 
 /* Returns the root skin directory for this device */
 const char*  avdInfo_getSkinDir ( AvdInfo*  i );
-
-/* Returns the content path of the virtual device */
-const char*  avdInfo_getContentPath( AvdInfo*  i );
-
-/* Returns TRUE iff in the Android build system */
-int          avdInfo_inAndroidBuild( AvdInfo*  i );
 
 /* Reads the AVD's hardware configuration into 'hw'. returns -1 on error, 0 otherwise */
 int          avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw );
