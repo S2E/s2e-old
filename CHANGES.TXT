@@ -46,6 +46,28 @@ IMPORTANT CHANGES:
   required and 'emulator' will start a new emulator instance exactly as
   previously.
 
+- A new option '-sysdir <dir>' has been introduced, the interpretation of
+  the '-system' option has changed, and '-image <file>' should now be
+  considered obsolete. In more details:
+
+  * you should now use '-sysdir <dir>' instead of '-system <dir>' to specify
+    the directory where system images will be searched by the emulator
+    on startup.
+
+  * you should now use '-system <file>' to indicate which system.img partition
+    image to use at startup.
+
+  * you should not use '-system <dir>' or '-image <path>' anymore. However,
+    these options are still supported but will print a warning to remind you
+    to change your scripts/habits.
+
+  The change was done to reduce confusion as to what these options provide.
+
+- Options '-noaudio', '-nojni', '-noskin' and 'nocache' are deprecated.
+  You should use '-no-audio', '-no-jni', '-no-skin' and '-no-cache' instead.
+
+- Option 'initdata' is deprecated, you should use '-init-data' instead.
+
 - Hardware emulation is now limited to the corresponding Android Virtual
   Device's configuration. This means it is now possible to not emulate
   a touch-screen, trackball, dpad, keyboard, modem, etc...
@@ -70,7 +92,7 @@ OTHER:
   available.
 
 - Environment variable ANDROID_SDK_ROOT can be used to specifiy the location
-  of the SDK.
+  of the SDK installation path.
 
 - Environment variable ANDROID_SDK_HOME can be used to specify the location
   of the '.android' data directory.

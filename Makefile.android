@@ -433,6 +433,7 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               android/main.c \
               android/qemud.c \
               android/resource.c \
+              android/user-config.c \
               android/utils/bufprint.c \
               android/utils/debug.c \
               android/utils/dirscanner.c \

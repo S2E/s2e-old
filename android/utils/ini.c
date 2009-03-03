@@ -17,6 +17,7 @@
 #include <errno.h>
 #include "android/utils/debug.h"
 #include "android/utils/system.h" /* for ASTRDUP */
+#include "android/utils/bufprint.h"
 #include "osdep.h"
 
 /* W() is used to print warnings, D() to print debugging info */
@@ -172,7 +173,7 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
     int          lineno = 0;
 
     if (!fileName)
-        fileName = "<unknownFile>";
+        fileName = "<memoryFile>";
 
     D("%s: parsing as .ini file", fileName);
 
@@ -197,8 +198,8 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
         key = p++;
         if (!isKeyStartChar(*key)) {
             p = skipToEOL(p);
-            W("%s:%d: key name doesn't start with valid character. line ignored",
-              fileName, lineno);
+            W("%4d: key name doesn't start with valid character. line ignored",
+              lineno);
             continue;
         }
 
@@ -210,8 +211,8 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
 
         /* check the equal */
         if (*p != '=') {
-            W("%s:%d: missing expected assignment operator (=). line ignored",
-              fileName, lineno);
+            W("%4d: missing expected assignment operator (=). line ignored",
+              lineno);
             p = skipToEOL(p);
             continue;
         }
@@ -232,11 +233,13 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
         valueLen = p - value;
 
         iniFile_addPair(ini, key, keyLen, value, valueLen);
-        D("%s:%d: KEY='%.*s' VALUE='%.*s'", fileName, lineno,
+        D("%4d: KEY='%.*s' VALUE='%.*s'", lineno,
           keyLen, key, valueLen, value);
 
         p = skipToEOL(p);
     }
+
+    D("%s: parsing finished", fileName);
 
     return ini;
 }
@@ -281,6 +284,33 @@ iniFile_newFromFile( const char*  filepath )
 EXIT:
     fclose(fp);
     return ini;
+}
+
+int
+iniFile_saveToFile( IniFile*  f, const char*  filepath )
+{
+    FILE*  fp = fopen(filepath, "wt");
+    IniPair*  pair    = f->pairs;
+    IniPair*  pairEnd = pair + f->numPairs;
+    int       result  = 0;
+
+    if (fp == NULL) {
+        D("could not create .ini file: %s: %s",
+          filepath, strerror(errno));
+        return -1;
+    }
+
+    for ( ; pair < pairEnd; pair++ ) {
+        char  temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+        p = bufprint(temp, end, "%s = %s\n", pair->key, pair->value);
+        if (fwrite(temp, p - temp, 1, fp) != 1) {
+            result = -1;
+            break;
+        }
+    }
+
+    fclose(fp);
+    return result;
 }
 
 char*

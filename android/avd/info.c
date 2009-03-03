@@ -16,11 +16,20 @@
 #include "android/utils/tempfile.h"
 #include "android/utils/debug.h"
 #include "android/utils/dirscanner.h"
-#include "qemu-common.h"
+#include <ctype.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <errno.h>
+
+/* define this to 1 to support obsolete platform/add-on
+ * specific parsing and path searching as was used temporarily
+ * in post-1.1 / pre-cupcake SDKs.
+ *
+ * the corresponding code should be removed soon.
+ */
+#define  SUPPORT_PLATFORM_OR_ADDON  1
 
 /* global variables - see android/globals.h */
 AvdInfoParams   android_avdParams[1];
@@ -31,6 +40,44 @@ AvdInfo*        android_avdInfo;
 #define  DD(...)  VERBOSE_PRINT(avd_config,__VA_ARGS__)
 
 /* technical note on how all of this is supposed to work:
+ *
+ * Each AVD corresponds to a "content directory" that is used to
+ * store persistent disk images and configuration files. Most remarkable
+ * are:
+ *
+ * - a "config.ini" file used to hold configuration information for the
+ *   AVD
+ *
+ * - mandatory user data image ("userdata-qemu.img") and cache image
+ *   ("cache.img")
+ *
+ * - optional mutable system image ("system-qemu.img"), kernel image
+ *   ("kernel-qemu") and read-only ramdisk ("ramdisk.img")
+ *
+ * When starting up an AVD, the emulator looks for relevant disk images
+ * in the content directory. If it doesn't find a given image there, it
+ * will try to search in the list of system directories listed in the
+ * 'config.ini' file through one of the following (key,value) pairs:
+ *
+ *    images.sysdir.1 = <first search path>
+ *    images.sysdir.2 = <second search path>
+ *
+ * The search paths can be absolute, or relative to the root SDK installation
+ * path (which is determined from the emulator program's location, or from the
+ * ANDROID_SDK_ROOT environment variable).
+ *
+ * Individual image disk search patch can be over-riden on the command-line
+ * with one of the usual options.
+ */
+
+#if SUPPORT_PLATFORM_OR_ADDON
+/*
+ * BELOW IS THE DOCUMENTATION FOR AN OBSOLETE SCHEME THAT USED TO BE MORE
+ * COMPLEX TO IMPLEMENT, AND EXPOSED TOO MUCH SDK INTERNALS WITHIN THE
+ * EMULATOR SOURCE CODE.
+ *
+ * THE CORRESPONDING CODE IS STILL THERE FOR LEGACY SUPPORT REASON BUT WILL
+ * SOON BE REMOVED FOR SIMPLIFICATION REASONS.
  *
  * we assume the following SDK layout:
  *
@@ -194,16 +241,40 @@ AvdInfo*        android_avdInfo;
  */
 
 /* the name of the $SDKROOT subdirectory that contains all platforms */
-#define  PLATFORMS_SUBDIR  "platforms"
+#  define  PLATFORMS_SUBDIR  "platforms"
 
 /* the name of the $SDKROOT subdirectory that contains add-ons */
-#define  ADDONS_SUBDIR     "add-ons"
+#  define  ADDONS_SUBDIR     "add-ons"
+
+#endif /* SUPPORT_PLATFORM_OR_ADDON */
 
 /* this is the subdirectory of $HOME/.android where all
  * root configuration files (and default content directories)
  * are located.
  */
 #define  ANDROID_AVD_DIR    "avd"
+
+/* the prefix of config.ini keys that will be used for search directories
+ * of system images.
+ */
+#define  SEARCH_PREFIX   "images.sysdir."
+
+/* the maximum number of search path keys we're going to read from the
+ * config.ini file
+ */
+#define  MAX_SEARCH_PATHS  2
+
+/* the config.ini key that will be used to indicate the full relative
+ * path to the skin directory (including the skin name).
+ *
+ * If SUPPORT_PLATFORM_OR_ADDON is defined, then this can also be
+ * the name of a skin, without any path, and platform/add-on directories
+ * will be searched for it.
+ */
+#define  SKIN_PATH       "skin"
+
+/* default skin name */
+#define  SKIN_DEFAULT    "HVGA"
 
 /* certain disk image files are mounted read/write by the emulator
  * to ensure that several emulators referencing the same files
@@ -240,10 +311,15 @@ struct AvdInfo {
     /* for the normal virtual device case */
     char*     deviceName;
     char*     sdkRootPath;
+    char      sdkRootPathFromEnv;
+    char*     searchPaths[ MAX_SEARCH_PATHS ];
+    int       numSearchPaths;
+#if SUPPORT_PLATFORM_OR_ADDON
     int       platformVersion;
     char*     platformPath;
     char*     addonTarget;
     char*     addonPath;
+#endif
     char*     contentPath;
     IniFile*  rootIni;      /* root <foo>.ini file */
     IniFile*  configIni;    /* virtual device's config.ini */
@@ -265,10 +341,15 @@ avdInfo_free( AvdInfo*  i )
         int  nn;
 
         for (nn = 0; nn < AVD_IMAGE_MAX; nn++)
-            qemu_free(i->imagePath[nn]);
+            AFREE(i->imagePath[nn]);
 
-        qemu_free(i->skinName);
-        qemu_free(i->skinDirPath);
+        AFREE(i->skinName);
+        AFREE(i->skinDirPath);
+
+        for (nn = 0; nn < i->numSearchPaths; nn++)
+            AFREE(i->searchPaths[nn]);
+
+        i->numSearchPaths = 0;
 
         if (i->configIni) {
             iniFile_free(i->configIni);
@@ -280,20 +361,22 @@ avdInfo_free( AvdInfo*  i )
             i->rootIni = NULL;
         }
 
-        qemu_free(i->contentPath);
-        qemu_free(i->sdkRootPath);
+        AFREE(i->contentPath);
+        AFREE(i->sdkRootPath);
 
         if (i->inAndroidBuild) {
-            qemu_free(i->androidOut);
-            qemu_free(i->androidBuildRoot);
+            AFREE(i->androidOut);
+            AFREE(i->androidBuildRoot);
         } else {
-            qemu_free(i->platformPath);
-            qemu_free(i->addonTarget);
-            qemu_free(i->addonPath);
+#if SUPPORT_PLATFORM_OR_ADDON
+            AFREE(i->platformPath);
+            AFREE(i->addonTarget);
+            AFREE(i->addonPath);
+#endif
         }
 
-        qemu_free(i->deviceName);
-        qemu_free(i);
+        AFREE(i->deviceName);
+        AFREE(i);
     }
 }
 
@@ -333,7 +416,8 @@ _getSdkRoot( AvdInfo*  i )
     if (env != NULL && env[0] != 0) {
         if (path_exists(env)) {
             D("found " SDK_ROOT_ENV ": %s", env);
-            i->sdkRootPath = qemu_strdup(env);
+            i->sdkRootPath = ASTRDUP(env);
+            i->sdkRootPathFromEnv = 1;
             return 0;
         }
         D(SDK_ROOT_ENV " points to unknown directory: %s", env);
@@ -350,6 +434,41 @@ _getSdkRoot( AvdInfo*  i )
     return 0;
 }
 
+static void
+_getSearchPaths( AvdInfo*  i )
+{
+    char  temp[PATH_MAX], *p = temp, *end= p+sizeof temp;
+    int   nn, count = 0;
+
+
+
+    for (nn = 0; nn < MAX_SEARCH_PATHS; nn++) {
+        char*  path;
+
+        p = bufprint(temp, end, "%s%d", SEARCH_PREFIX, nn+1 );
+        if (p >= end)
+            continue;
+
+        path = iniFile_getString( i->configIni, temp );
+        if (path != NULL) {
+            DD("    found image search path: %s", path);
+            if (!path_is_absolute(path)) {
+                p = bufprint(temp, end, "%s/%s", i->sdkRootPath, path);
+                AFREE(path);
+                path = ASTRDUP(temp);
+            }
+            i->searchPaths[count++] = path;
+        }
+    }
+
+    i->numSearchPaths = count;
+    if (count == 0)
+        DD("no search paths found in this AVD's config.ini");
+    else
+        DD("found a total of %d search paths for this AVD", count);
+}
+
+#if SUPPORT_PLATFORM_OR_ADDON
 /* returns the full path of the platform subdirectory
  * corresponding to a given API version
  */
@@ -402,7 +521,7 @@ _findPlatformByVersion( const char*  sdkRoot, int  version )
 
         if (apiVersion == version) {
             /* Bingo */
-            subdir = qemu_strdup(subdir);
+            subdir = ASTRDUP(subdir);
             break;
         }
     }
@@ -422,7 +541,7 @@ _findPlatformByVersion( const char*  sdkRoot, int  version )
 static char*
 _findAddonByTarget( const char*  sdkRoot, const char*  target, int  *pversion )
 {
-    char*  targetCopy    = qemu_strdup(target);
+    char*  targetCopy    = ASTRDUP(target);
     char*  targetVendor  = NULL;
     char*  targetName    = NULL;
     int    targetVersion = -1;
@@ -516,7 +635,7 @@ _findAddonByTarget( const char*  sdkRoot, const char*  target, int  *pversion )
         if (matches == 3) {
             /* bingo */
             *pversion = version;
-            subdir    = qemu_strdup(subdir);
+            subdir    = ASTRDUP(subdir);
             break;
         }
     }
@@ -527,9 +646,10 @@ _findAddonByTarget( const char*  sdkRoot, const char*  target, int  *pversion )
     return subdir;
 
 FAIL:
-    qemu_free(targetCopy);
+    AFREE(targetCopy);
     return NULL;
 }
+#endif /* SUPPORT_PLATFORM_OR_ADDON */
 
 static int
 _checkAvdName( const char*  name )
@@ -568,23 +688,29 @@ _getRootIni( AvdInfo*  i )
 /* the .ini variable name that points to the content directory
  * in a root AVD ini file. This is required */
 #   define  ROOT_PATH_KEY    "path"
-#   define  ROOT_TARGET_KEY  "target"
 
-/* retrieve the content path and target from the root .ini file */
 static int
-_getTarget( AvdInfo*  i )
+_getContentPath( AvdInfo*  i )
 {
     i->contentPath = iniFile_getString(i->rootIni, ROOT_PATH_KEY);
-    i->addonTarget = iniFile_getString(i->rootIni, ROOT_TARGET_KEY);
-
-    iniFile_free(i->rootIni);
-    i->rootIni = NULL;
 
     if (i->contentPath == NULL) {
         derror("bad config: %s",
                "virtual device file lacks a "ROOT_PATH_KEY" entry");
         return -1;
     }
+    D("virtual device content at %s", i->contentPath);
+    return 0;
+}
+
+#if SUPPORT_PLATFORM_OR_ADDON
+#   define  ROOT_TARGET_KEY  "target"
+
+/* retrieve the content path and target from the root .ini file */
+static int
+_getTarget( AvdInfo*  i )
+{
+    i->addonTarget = iniFile_getString(i->rootIni, ROOT_TARGET_KEY);
 
     if (i->addonTarget == NULL) {
         derror("bad config: %s",
@@ -592,7 +718,6 @@ _getTarget( AvdInfo*  i )
         return -1;
     }
 
-    D("virtual device content at %s", i->contentPath);
     D("virtual device target is %s", i->addonTarget);
 
     if (!strncmp(i->addonTarget, "android-", 8)) {  /* target is platform */
@@ -634,7 +759,7 @@ _getTarget( AvdInfo*  i )
     D("virtual device platform version %d", i->platformVersion);
     return 0;
 }
-
+#endif /* SUPPORT_PLATFORM_OR_ADDON */
 
 /* find and parse the config.ini file from the content directory */
 static int
@@ -712,9 +837,9 @@ imageLoader_set( ImageLoader*  l, AvdImageType  id )
 static char*
 imageLoader_setPath( ImageLoader*  l, const char*  path )
 {
-    path = path ? qemu_strdup(path) : NULL;
+    path = path ? ASTRDUP(path) : NULL;
 
-    qemu_free(l->pPath[0]);
+    AFREE(l->pPath[0]);
     l->pPath[0] = (char*) path;
 
     return (char*) path;
@@ -739,45 +864,58 @@ enum {
 
 #define  IMAGE_OPTIONAL  0
 
-/* find an image from the SDK add-on and/or platform
- * directories. returns the full path or NULL if
- * the file could not be found.
+/* find an image from the SDK search directories.
+ * returns the full path or NULL if the file could not be found.
  *
  * note: this stores the result in the image's path as well
  */
 static char*
 imageLoader_lookupSdk( ImageLoader*  l  )
 {
-    AvdInfo*  i     = l->info;
-    char*     temp  = l->temp, *p = temp, *end = p + sizeof(l->temp);
+    AvdInfo*     i     = l->info;
+    const char*  image = l->imageFile;
+    char*        temp  = l->temp, *p = temp, *end = p + sizeof(l->temp);
 
     do {
+        /* try the search paths */
+        int  nn;
+
+        for (nn = 0; nn < i->numSearchPaths; nn++) {
+            const char* searchDir = i->searchPaths[nn];
+
+            p = bufprint(temp, end, "%s/%s", searchDir, image);
+            if (p < end && path_exists(temp)) {
+                DD("found %s in search dir: %s", image, searchDir);
+                goto FOUND;
+            }
+            DD("    no %s in search dir: %s", image, searchDir);
+        }
+
+#if SUPPORT_PLATFORM_OR_ADDON
         /* try the add-on directory, if any */
         if (i->addonPath != NULL) {
-            DD("searching %s in add-on directory: %s", 
-                l->imageFile, i->addonPath);
-
-            p = bufprint(temp, end, "%s/images/%s",
-                         i->addonPath, l->imageFile);
-
-            if (p < end && path_exists(temp))
+            p = bufprint(temp, end, "%s/images/%s", i->addonPath, image);
+            if (p < end && path_exists(temp)) {
+                DD("found %s in add-on dir:", image, i->addonPath);
                 break;
+            }
+            DD("    no %s in add-on dir: ", image, i->addonPath);
         }
 
         /* or try the platform directory */
-        DD("searching %s in platform directory: %s", 
-           l->imageFile, i->platformPath);
-
         p = bufprint(temp, end, "%s/images/%s",
-                     i->platformPath, l->imageFile);
-        if (p < end && path_exists(temp))
+                     i->platformPath, image);
+        if (p < end && path_exists(temp)) {
+            DD("found %s in platform dir:", image, i->platformPath);
             break;
-
-        DD("could not find %s in SDK", l->imageFile);
+        }
+        DD("    no %s in platform dir: ", image, i->platformPath);
+#endif
         return NULL;
 
     } while (0);
 
+FOUND:
     l->pState[0] = IMAGE_STATE_READONLY;
 
     return imageLoader_setPath(l, temp);
@@ -795,16 +933,16 @@ imageLoader_lookupContent( ImageLoader*  l )
     AvdInfo*  i     = l->info;
     char*     temp  = l->temp, *p = temp, *end = p + sizeof(l->temp);
 
-    DD("searching %s in content directory", l->imageFile);
     p = bufprint(temp, end, "%s/%s", i->contentPath, l->imageFile);
     if (p >= end) {
         derror("content directory path too long");
         exit(2);
     }
     if (!path_exists(temp)) {
-        DD("not found %s in content directory", l->imageFile);
+        DD("    no %s in content directory", l->imageFile);
         return NULL;
     }
+    DD("found %s in content directory", l->imageFile);
 
     /* assume content image files must be locked */
     l->pState[0] = IMAGE_STATE_MUSTLOCK;
@@ -827,7 +965,7 @@ imageLoader_lock( ImageLoader*  l, unsigned  flags )
     if (l->pState[0] != IMAGE_STATE_MUSTLOCK)
         return;
 
-    D("locking %s image at %s", l->imageText, path);
+    D("    locking %s image at %s", l->imageText, path);
 
     if (filelock_create(path) != NULL) {
         /* succesful lock */
@@ -913,15 +1051,14 @@ imageLoader_load( ImageLoader*    l,
 {
     const char*  path = NULL;
 
-    DD("looking for %s image (%s)", l->imageText, l->imageFile);
-
     /* first, check user-provided path */
     path = l->params->forcePaths[l->id];
     if (path != NULL) {
         imageLoader_setPath(l, path);
-        if (path_exists(path))
+        if (path_exists(path)) {
+            DD("found user-provided %s image: %s", l->imageText, l->imageFile);
             goto EXIT;
-
+        }
         D("user-provided %s image does not exist: %s",
           l->imageText, path);
 
@@ -933,20 +1070,20 @@ imageLoader_load( ImageLoader*    l,
         }
     }
     else {
-        const char*   contentFile;
+        const char*  contentFile;
 
         /* second, look in the content directory */
         path = imageLoader_lookupContent(l);
         if (path) goto EXIT;
 
-        contentFile = qemu_strdup(l->temp);
+        contentFile = ASTRDUP(l->temp);
 
         /* it's not there */
         if (flags & IMAGE_SEARCH_SDK) {
             /* third, look in the SDK directory */
             path = imageLoader_lookupSdk(l);
             if (path) {
-                qemu_free((char*)contentFile);
+                AFREE((char*)contentFile);
                 goto EXIT;
             }
         }
@@ -954,13 +1091,25 @@ imageLoader_load( ImageLoader*    l,
 
         /* if the file is required, abort */
         if (flags & IMAGE_REQUIRED) {
-            derror("could not find required %s image (%s)",
-                    l->imageText, l->imageFile);
+            AvdInfo*  i = l->info;
+
+            derror("could not find required %s image (%s).", 
+                   l->imageText, l->imageFile);
+
+            if (i->inAndroidBuild) {
+                dprint( "Did you build everything ?" );
+            } else if (!i->sdkRootPathFromEnv) {
+                dprint( "Maybe defining %s to point to a valid SDK "
+                        "installation path might help ?", SDK_ROOT_ENV );
+            } else {
+                dprint( "Your %s is probably wrong: %s", SDK_ROOT_ENV,
+                        i->sdkRootPath );
+            }
             exit(2);
         }
 
         path = imageLoader_setPath(l, contentFile);
-        qemu_free((char*)contentFile);
+        AFREE((char*)contentFile);
     }
 
     /* otherwise, do we need to create it ? */
@@ -1006,7 +1155,7 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
      * if there is one in the content directory just lock
      * and use it.
      */
-    imageLoader_set ( l, AVD_IMAGE_SYSTEM );
+    imageLoader_set ( l, AVD_IMAGE_INITSYSTEM );
     imageLoader_load( l, IMAGE_REQUIRED | IMAGE_SEARCH_SDK );
 
     /* the data partition - this one is special because if it
@@ -1038,7 +1187,7 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
         srcPath = imageLoader_extractPath(l);
 
         imageLoader_copyFrom( l, srcPath );
-        qemu_free((char*) srcPath);
+        AFREE((char*) srcPath);
     }
     else
     {
@@ -1092,32 +1241,49 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
     return 0;
 }
 
+/* check that a given directory contains a valid skin.
+ * returns 1 on success, 0 on failure.
+ */
+static int
+_checkSkinPath( const char*  skinPath )
+{
+    char  temp[MAX_PATH], *p=temp, *end=p+sizeof(temp);
+
+    /* for now, if it has a 'layout' file, it is a valid skin path */
+    p = bufprint(temp, end, "%s/layout", skinPath);
+    if (p >= end || !path_exists(temp))
+        return 0;
+
+    return 1;
+}
+
 /* check that there is a skin named 'skinName' listed from 'skinDirRoot'
  * this returns 1 on success, 0 on failure
  * on success, the 'temp' buffer will get the path containing the real
  * skin directory (after alias expansion), including the skin name.
  */
 static int
-_checkSkinDir( char*  temp, char*  end, const char*  skinDirRoot, const char*  skinName )
+_checkSkinDir( char*        temp,
+               char*        end,
+               const char*  skinDirRoot,
+               const char*  skinName )
 {
     DirScanner*  scanner;
-    char        *p, *q;
+    char        *p;
     int          result;
 
-    p  = bufprint(temp, end, "%s/skins/%s",
-                  skinDirRoot, skinName);
-
-    DD("probing skin content in %s", temp);
+    p = bufprint(temp, end, "%s/skins/%s",
+                 skinDirRoot, skinName);
 
     if (p >= end || !path_exists(temp)) {
+        DD("    ignore bad skin directory %s", temp);
         return 0;
     }
 
     /* first, is this a normal skin directory ? */
-    q = bufprint(p, end, "/layout");
-    if (q < end && path_exists(temp)) {
+    if (_checkSkinPath(temp)) {
         /* yes */
-        *p = 0;
+        DD("    found skin directory: %s", temp);
         return 1;
     }
 
@@ -1138,10 +1304,10 @@ _checkSkinDir( char*  temp, char*  end, const char*  skinDirRoot, const char*  s
             p = bufprint(temp, end, "%s/skins/%s",
                             skinDirRoot, file+6);
 
-            q = bufprint(p, end, "/layout");
-            if (q < end && path_exists(temp)) {
+            if (p < end && _checkSkinPath(temp)) {
                 /* yes, it's an alias */
-                *p     = 0;
+                DD("    skin alias '%s' points to skin directory: %s",
+                   file+6, temp);
                 result = 1;
                 break;
             }
@@ -1151,6 +1317,54 @@ _checkSkinDir( char*  temp, char*  end, const char*  skinDirRoot, const char*  s
     return result;
 }
 
+/* try to see if the skin name leads to a magic skin or skin path directly
+ * returns 1 on success, 0 on error.
+ * on success, this sets up 'skinDirPath' and 'skinName' in the AvdInfo.
+ */
+static int
+_getSkinPathFromName( AvdInfo*  i, const char*  skinName )
+{
+    char  temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+
+    /* if the skin name has the format 'NNNNxNNN' where
+    * NNN is a decimal value, then this is a 'magic' skin
+    * name that doesn't require a skin directory
+    */
+    if (isdigit(skinName[0])) {
+        int  width, height;
+        if (sscanf(skinName, "%dx%d", &width, &height) == 2) {
+            D("'magic' skin format detected: %s", skinName);
+            i->skinName    = ASTRDUP(skinName);
+            i->skinDirPath = NULL;
+            return 1;
+        }
+    }
+
+    /* is the skin name a direct path to the skin directory ? */
+    if (_checkSkinPath(skinName)) {
+        goto FOUND_IT;
+    }
+
+    /* is the skin name a relative path from the SDK root ? */
+    p = bufprint(temp, end, "%s/%s", i->sdkRootPath, skinName);
+    if (p < end && _checkSkinPath(temp)) {
+        skinName = temp;
+        goto FOUND_IT;
+    }
+
+    /* nope */
+    return 0;
+
+FOUND_IT:
+    if (path_split(skinName, &i->skinDirPath, &i->skinName) < 0) {
+        derror("malformed skin name: %s", skinName);
+        exit(2);
+    }
+    D("found skin '%s' in directory: %s", i->skinName, i->skinDirPath);
+    return 1;
+}
+
+/* return 0 on success, -1 on error */
 static int
 _getSkin( AvdInfo*  i, AvdInfoParams*  params )
 {
@@ -1158,33 +1372,51 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
     char   temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
     char   explicitSkin = 1;
 
-    /* determine the skin name, the default is "HVGA"
-     * unless specified by the caller or in config.ini
+    /* this function is used to compute the 'skinName' and 'skinDirPath'
+     * fields of the AvdInfo.
+     */
+
+    /* processing here is a bit tricky, so here's how it happens
+     *
+     * - command-line option '-skin <name>' can be used to specify the
+     *   name of a skin, to override the AVD settings.
+     *
+     * - skins are searched from <dir>/../skins for each <dir> in the
+     *   images search list, unless a '-skindir <path>' option has been
+     *   provided on the command-line
+     *
+     * - otherwise, the config.ini can also contain a SKIN_PATH key that
+     *   shall  give the full path to the skin directory, either relative
+     *   to the SDK root, or an absolute path.
+     *
+     * - skin names like '320x480' corresponds to "magic skins" that
+     *   simply display a framebuffer, without any ornaments of the
+     *   corresponding size. They do not correspond to any real skin
+     *   directory / files and are handled later. But they must be
+     *   recognized here and report a NULL skindir.
      */
     if (params->skinName) {
-        skinName = qemu_strdup(params->skinName);
+        skinName = ASTRDUP(params->skinName);
     } else {
-        skinName = iniFile_getString( i->configIni, "skin" );
-        if (skinName == NULL) {
-            skinName     = qemu_strdup("HVGA");
-            explicitSkin = 0;
-        }
+        skinName = iniFile_getString( i->configIni, SKIN_PATH );
+        explicitSkin = 0;
+    }
+
+    /* first, check that the skin name is not magic or a direct
+     * directory path
+     */
+    if (skinName != NULL && _getSkinPathFromName(i, skinName)) {
+        AFREE(skinName);
+        return 0;
+    }
+
+    /* if not, the default skinName is "HVGA" */
+    if (skinName == NULL) {
+        skinName = ASTRDUP(SKIN_DEFAULT);
+        explicitSkin = 0;
     }
 
     i->skinName = skinName;
-
-    /* if the skin name has the format 'NNNNxNNN' where
-     * NNN is a decimal value, then this is a 'magic' skin
-     * name that doesn't require a skin directory
-     */
-    if (isdigit(skinName[0])) {
-        int  width, height;
-        if (sscanf(skinName, "%dx%d", &width, &height) == 2) {
-            D("'magic' skin format detected: %s", skinName);
-            i->skinDirPath = NULL;
-            return 0;
-        }
-    }
 
     /* now try to find the skin directory for that name -
      * first try the content directory */
@@ -1194,17 +1426,12 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
          * user wants,  unless an explicit name was given
          */
         if (!explicitSkin) {
-            char*  q;
-
             p = bufprint(temp, end, "%s/skin", i->contentPath);
-            q = bufprint(p, end, "/layout");
-            if (q < end && path_exists(temp)) {
-                /* use this one - cheat a little */
-                *p = 0;
+            if (p < end && _checkSkinPath(temp)) {
                 D("using skin content from %s", temp);
-                qemu_free(i->skinName);
-                i->skinName    = qemu_strdup("skin");
-                i->skinDirPath = qemu_strdup(i->contentPath);
+                AFREE(i->skinName);
+                i->skinName    = ASTRDUP("skin");
+                i->skinDirPath = ASTRDUP(i->contentPath);
                 return 0;
             }
         }
@@ -1213,6 +1440,25 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
         if (_checkSkinDir(temp, end, i->contentPath, skinName))
             break;
 
+        /* look in the search paths. For each <dir> in the list,
+         * look the skins in <dir>/.. */
+        {
+            int  nn;
+            for (nn = 0; nn < i->numSearchPaths; nn++) {
+                char*  parentDir = path_parent(i->searchPaths[nn], 1);
+                int    ret;
+                if (parentDir == NULL)
+                    continue;
+                ret=_checkSkinDir(temp, end, parentDir, skinName);
+                AFREE(parentDir);
+                if (ret)
+                  break;
+            }
+            if (nn < i->numSearchPaths)
+                break;
+        }
+
+#if SUPPORT_PLATFORM_OR_ADDON
         /* look in the add-on directory, if any */
         if (i->addonPath && 
             _checkSkinDir(temp, end, i->addonPath, skinName))
@@ -1221,10 +1467,19 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
         /* look in the platforms directory */
         if (_checkSkinDir(temp, end, i->platformPath, skinName))
             break;
-
+#endif
         /* didn't find it */
-        if (explicitSkin)
-            dwarning("could not find directory for skin '%s'", skinName);
+        if (explicitSkin) {
+            derror("could not find directory for skin '%s',"
+                   " please use a different name", skinName);
+            exit(2);
+        } else {
+            dwarning("no skin directory matched '%s', so reverted to default",
+                     skinName);
+            AFREE(i->skinName);
+            params->skinName = SKIN_DEFAULT;
+            return _getSkin(i, params);
+        }
 
         return -1;
 
@@ -1234,16 +1489,13 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
      * returned in 'temp' might be different from the original
      * one due to alias expansion so strip it.
      */
-    p = strrchr(temp, '/');
-    if (p == NULL) {
-        /* should not happen */
-        DD("weird skin path: %s", temp);
+    AFREE(i->skinName);
+
+    if (path_split(temp, &i->skinDirPath, &i->skinName) < 0) {
+        derror("weird skin path: %s", temp);
         return -1;
     }
-
-    *p = 0;
-    DD("found skin content in %s", temp);
-    i->skinDirPath = qemu_strdup(temp);
+    DD("found skin '%s' in directory: %s", i->skinName, i->skinDirPath);
     return 0;
 }
 
@@ -1261,14 +1513,31 @@ avdInfo_new( const char*  name, AvdInfoParams*  params )
         exit(1);
     }
 
-    i              = qemu_mallocz(sizeof *i);
-    i->deviceName = qemu_strdup(name);
+    ANEW0(i);
+    i->deviceName = ASTRDUP(name);
 
-    if ( _getSdkRoot(i)    < 0 ||
-         _getRootIni(i)    < 0 ||
-         _getTarget(i)     < 0 ||
-         _getConfigIni(i)  < 0 )
+    if ( _getSdkRoot(i)     < 0 ||
+         _getRootIni(i)     < 0 ||
+         _getContentPath(i) < 0 ||
+         _getConfigIni(i)   < 0 )
         goto FAIL;
+
+    /* look for image search paths. handle post 1.1/pre cupcake
+     * obsolete SDKs.
+     */
+    _getSearchPaths(i);
+
+    if (i->numSearchPaths == 0) {
+#if SUPPORT_PLATFORM_OR_ADDON
+        /* no search paths, look for platform/add-on */
+        if (_getTarget(i) < 0)
+            goto FAIL;
+#endif
+    }
+
+    /* don't need this anymore */
+    iniFile_free(i->rootIni);
+    i->rootIni = NULL;
 
     if ( _getImagePaths(i, params) < 0 ||
          _getSkin      (i, params) < 0 )
@@ -1399,7 +1668,7 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
         }
     }
 
-    qemu_free(srcData);
+    AFREE(srcData);
 
     /** load the ramdisk image
      **/
@@ -1410,7 +1679,7 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
     /** load the system image. read-only. the caller must
      ** take care of checking the state
      **/
-    imageLoader_set ( l, AVD_IMAGE_SYSTEM );
+    imageLoader_set ( l, AVD_IMAGE_INITSYSTEM );
     imageLoader_load( l, IMAGE_REQUIRED | IMAGE_DONT_LOCK );
 
     /* force the system image to read-only status */
@@ -1449,11 +1718,11 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
 
     if (!skinName) {
         /* the (current) default skin name for the build system */
-        skinName = "HVGA";
+        skinName = SKIN_DEFAULT;
         DD("selecting default skin name '%s'", skinName);
     }
 
-    i->skinName = qemu_strdup(skinName);
+    i->skinName = ASTRDUP(skinName);
 
     if (!skinDir) {
 
@@ -1476,7 +1745,7 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
     }
     *p = 0;
     DD("found skin path: %s", temp);
-    i->skinDirPath = qemu_strdup(temp);
+    i->skinDirPath = ASTRDUP(temp);
 
     return 0;
 }
@@ -1488,15 +1757,15 @@ avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
 {
     AvdInfo*  i;
 
-    i = qemu_mallocz(sizeof *i);
+    ANEW0(i);
 
     i->inAndroidBuild   = 1;
-    i->androidBuildRoot = qemu_strdup(androidBuildRoot);
-    i->androidOut       = qemu_strdup(androidOut);
-    i->contentPath      = qemu_strdup(androidOut);
+    i->androidBuildRoot = ASTRDUP(androidBuildRoot);
+    i->androidOut       = ASTRDUP(androidOut);
+    i->contentPath      = ASTRDUP(androidOut);
 
     /* TODO: find a way to provide better information from the build files */
-    i->deviceName = qemu_strdup("<build>");
+    i->deviceName = ASTRDUP("<build>");
 
     if (_getBuildConfigIni(i)          < 0 ||
         _getBuildImagePaths(i, params) < 0 )
@@ -1565,6 +1834,17 @@ avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw )
     return ret;
 }
 
+const char*
+avdInfo_getContentPath( AvdInfo*  i )
+{
+    return i->contentPath;
+}
+
+int
+avdInfo_inAndroidBuild( AvdInfo*  i )
+{
+    return i->inAndroidBuild;
+}
 
 char*
 avdInfo_getTracePath( AvdInfo*  i, const char*  traceName )
@@ -1581,5 +1861,5 @@ avdInfo_getTracePath( AvdInfo*  i, const char*  traceName )
         p = bufprint( p, end, "%s" PATH_SEP "traces" PATH_SEP "%s",
                       i->contentPath, traceName );
     }
-    return qemu_strdup(tmp);
+    return ASTRDUP(tmp);
 }

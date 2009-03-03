@@ -8102,7 +8102,7 @@ ExitRequested:
 #endif
 }
 
-static void help(int exitcode)
+void qemu_help(int exitcode)
 {
     printf("QEMU PC emulator version " QEMU_VERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n"
            "usage: %s [options] [disk_image]\n"
@@ -9046,7 +9046,7 @@ int main(int argc, char **argv)
                 break;
 #endif
             case QEMU_OPTION_h:
-                help(0);
+                qemu_help(0);
                 break;
             case QEMU_OPTION_m: {
                 uint64_t value;
@@ -9465,7 +9465,7 @@ int main(int argc, char **argv)
 
     if (!linux_boot && net_boot == 0 &&
         !machine->nodisk_ok && nb_drives_opt == 0)
-        help(1);
+        qemu_help(1);
 
     if (!linux_boot && *kernel_cmdline != '\0') {
         fprintf(stderr, "-append only allowed with -kernel option\n");
