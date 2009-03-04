@@ -1,0 +1,25 @@
+HOW TO REBUILT THE ANDROID EMULATOR-SPECIFIC KERNEL:
+====================================================
+
+You need to have the Android toolchain in your path
+(i.e. 'arm-eabi-gcc --version' must work)
+
+then:
+
+git clone git://android.git.kernel.org/kernel/common.git kernel-common
+cd kernel-common
+git checkout origin/android-goldfish-2.6.27
+
+export CROSS_COMPILE=arm-eabi-
+export ARCH=arm
+export SUBARCH=arm
+make goldfish_defconfig    # configure the kernel
+make -j2                   # build it
+
+=> this generates a file named arch/arm/boot/zImage
+
+Now, you can use it with:
+
+  emulator -kernel path/to/your/new/zImage <other-options>
+
+Voila !

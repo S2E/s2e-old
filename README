@@ -1,0 +1,23 @@
+This package contains the sources to the Android emulator program.
+
+This program emulates a virtual ARM board that can be used to run Android
+system images on a typical developer machine. To do so, you'll need additionnal
+files provided with the public Android Software Development Kit (SDK).
+
+To download them, go to http://code.google.com/android/
+
+Emulator-specific documentation is available at the following page:
+
+    http://code.google.com/android/reference/emulator.html
+
+Please read the INSTALL file to see how you can rebuild the emulator, or
+build a source distribution package tarball.
+
+Read the CHANGES.TXT file to see what important changes were added since
+the last release.
+
+Note: This program is distributed under the terms of the GNU General Public
+      License, which exact licensing conditions are available in the COPYING
+      file found within this package.
+
+- Android Emulator Team
