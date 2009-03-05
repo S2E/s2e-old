@@ -2085,6 +2085,11 @@ int main(int argc, char **argv)
         }
     }
 
+    /* the purpose of -no-audio is to disable sound output from the emulator,
+     * not to disable Audio emulation. So simply force the 'none' backends */
+    if (opts->no_audio)
+        opts->audio = "none";
+
     if (opts->audio) {
         if (opts->audio_in || opts->audio_out) {
             derror( "you can't use -audio with -audio-in or -audio-out\n" );
@@ -2428,10 +2433,6 @@ int main(int argc, char **argv)
     if (!opts->memory) {
         bufprint(tmp, tmpend, "%d", hw->hw_ramSize);
         opts->memory = qemu_strdup(tmp);
-    }
-
-    if (opts->no_audio) {
-        args[n++] = "-noaudio";
     }
 
     if (opts->trace) {
@@ -2815,7 +2816,16 @@ void  android_emulation_setup( void )
 
             D( "ping command: %s %s", comspec, args );
 #else
-            int  pid = fork();
+            int  pid;
+
+            /* disable SIGALRM for the fork(), the periodic signal seems to
+             * interefere badly with the fork() implementation on Linux running
+             * under VMWare.
+             */
+            BEGIN_NOSIGALRM
+              pid = fork();
+            END_NOSIGALRM
+
             if (pid == 0) {
                 int  fd = open("/dev/null", O_WRONLY);
                 dup2(fd, 1);

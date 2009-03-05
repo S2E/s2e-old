@@ -282,7 +282,6 @@ QEMUTimer *icount_vm_timer;
 
 
 extern int   qemu_cpu_delay;
-extern int   android_audio_enabled;
 extern char* audio_input_source;
 
 extern void  dprint( const char* format, ... );
@@ -8354,7 +8353,6 @@ enum {
     QEMU_OPTION_name,
     QEMU_OPTION_prom_env,
     QEMU_OPTION_old_param,
-    QEMU_OPTION_noaudio,
     QEMU_OPTION_mic,
 #ifdef CONFIG_TRACE
     QEMU_OPTION_trace_file,
@@ -8482,7 +8480,6 @@ const QEMUOption qemu_options[] = {
 #endif
 
     /* android stuff */
-    { "noaudio", 0, QEMU_OPTION_noaudio },
     { "mic", HAS_ARG, QEMU_OPTION_mic },
 #ifdef CONFIG_TRACE
     { "trace", HAS_ARG, QEMU_OPTION_trace_file },
@@ -8808,7 +8805,6 @@ int main(int argc, char **argv)
     nb_nics = 0;
 
     tb_size = 0;
-	android_audio_enabled = 1;
 
     optind = 1;
     for(;;) {
@@ -9349,9 +9345,6 @@ int main(int argc, char **argv)
                 }
                 break;
 
-            case QEMU_OPTION_noaudio:
-                android_audio_enabled = 0;
-                break;
             case QEMU_OPTION_mic:
                 audio_input_source = (char*)optarg;
                 break;

@@ -116,6 +116,9 @@ OTHER:
   toggle will not switch the display resolution anymore (which resulted
   in distorted images).
 
+- Using '-no-audio' no longer disables sound hardware emulation. It simply
+  mutes the emulator program on the host.
+
 ==============================================================================
 Changes between 1.6 and 1.7
 

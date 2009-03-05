@@ -23,14 +23,6 @@
 #include <stdio.h>
 #include <errno.h>
 
-/* define this to 1 to support obsolete platform/add-on
- * specific parsing and path searching as was used temporarily
- * in post-1.1 / pre-cupcake SDKs.
- *
- * the corresponding code should be removed soon.
- */
-#define  SUPPORT_PLATFORM_OR_ADDON  1
-
 /* global variables - see android/globals.h */
 AvdInfoParams   android_avdParams[1];
 AvdInfo*        android_avdInfo;
@@ -70,184 +62,6 @@ AvdInfo*        android_avdInfo;
  * with one of the usual options.
  */
 
-#if SUPPORT_PLATFORM_OR_ADDON
-/*
- * BELOW IS THE DOCUMENTATION FOR AN OBSOLETE SCHEME THAT USED TO BE MORE
- * COMPLEX TO IMPLEMENT, AND EXPOSED TOO MUCH SDK INTERNALS WITHIN THE
- * EMULATOR SOURCE CODE.
- *
- * THE CORRESPONDING CODE IS STILL THERE FOR LEGACY SUPPORT REASON BUT WILL
- * SOON BE REMOVED FOR SIMPLIFICATION REASONS.
- *
- * we assume the following SDK layout:
- *
- *  SDK/
- *    tools/
- *      emulator[.exe]
- *      libs/
- *        hardware-properties.ini
- *        ...
- *
- *    platforms/
- *      <platform1>/
- *        build.prop
- *        images/
- *          <default kernel/disk images>
- *        skins/
- *          default/    --> default skin
- *            layout
- *            <skin bitmaps>
- *          <skin2>/    --> another skin
- *            layout
- *            <skin bitmaps>
- *          <skin3>/    --> skin alias to <skin2>
- *            alias-<skin2>
- *
- *      <platform2>/
- *        build.prop
- *        images/
- *          <other default kernel/disk images>
- *
- *    add-ons/
- *      <partner1>/
- *        manifest.ini
- *        images/
- *          <replacement disk images>
- *
- *      <partner2>/
- *        manifest.ini
- *        <replacement disk images>
- *        hardware.ini
- *        skins/
- *           default/
- *              layout
- *              <skin bitmaps>
- *           <skin2>/
- *              layout
- *              <skin bitmaps>
- *
- *
- * we define a 'platform' as a directory that provides a complete
- * set of disk/kernel images, some skins, as well as a build.prop
- * file.
- *
- * we define an 'addon' as a directory that provides additionnal
- * or replacement files related to a given existing platform.
- * each add-on provides at the minimum a 'manifest.ini' file
- * that describes it (see below).
- *
- * important notes:
- *
- * - the build.prop file of a given platform directory contains
- *   a line that reads 'ro.build.version.sdk=<version>' where
- *   <version> is an integer corresponding to the corresponding
- *   official API version number as defined by Android.
- *
- *   each platform provided with the SDK must have a unique
- *   version number.
- *
- * - the manifest.ini of a given addon must contain lines
- *   that include:
- *
- *      name=<addOnName>
- *      vendor=<vendorName>
- *      api=<version>
- *
- *   where <version> is used to identify the platform the add-on
- *   refers to. Note that the platform's directory name is
- *   irrelevant to the matching algorithm.
- *
- *   each addon available must have a unique
- *   <vendor>:<name>:<sdk> triplet
- *
- * - an add-on can provide a hardware.ini file. If present, this
- *   is used to force the hardware setting of any virtual device
- *   built from the add-on.
- *
- * - the file in SDK/tools/lib/hardware-properties.ini declares which
- *   hardware properties are supported by the emulator binary.
- *   these can appear in the config.ini file of a given virtual
- *   device, or the hardware.ini of a given add-on.
- *
- * normally, a virtual device corresponds to:
- *
- *  - a root configuration file, placed in ~/.android/avd/<foo>.ini
- *    where <foo> is the name of the virtual device.
- *
- *  - a "content" directory, which contains disk images for the
- *    virtual device (e.g. at a minimum, the userdata.img file)
- *    plus some configuration information.
- *
- *  - the root config file must have at least two lines like:
- *
- *      path=<pathToContentDirectory>
- *      target=<targetAddonOrPlatform>
- *
- *    the 'path' value must point to the location of
- *    the virtual device's content directory. By default, this
- *    should be ~/.android/avd/<foo>/, though the user should be
- *    able to choose an alternative path at creation time.
- *
- *    the 'target' value can be one of:
- *
- *        android-<version>
- *        <vendor>:<name>:<version>
- *
- *    the first form is used to refer to a given platform.
- *    the second form is used to refer to a unique add-on.
- *    in both forms, <version> must be an integer that
- *    matches one of the available platforms.
- *
- *    <vendor>:<name>:<version> must match the triplet of one
- *    of the available add-ons
- *
- *    if the target value is incorrect, or if the content path
- *    is invalid, the emulator will abort with an error.
- *
- * - the content directory shall contain a 'config.ini' that
- *   contains hardware properties for the virtual device
- *   (as defined by SDK/tools/lib/hardware-properties.ini), as
- *   well as additional lines like:
- *
- *      sdcard=<pathToDefaultSDCard>
- *      skin=<defaultSkinName>
- *      options=<additionalEmulatorStartupOptions>
- *
- *
- *  Finally, to find the skin to be used with a given virtual
- *  device, the following logic is used:
- *
- *  - if no skin name has been manually specified on
- *    the command line, or in the config.ini file,
- *    look in $CONTENT/skin/layout and use it if available.
- *
- *  - otherwise, set SKINNAME to 'default' if not manually
- *    specified, and look for $ADDON/skins/$SKINNAME/layout
- *    and use it if available
- *
- *  - otherwise, look for $PLATFORM/skins/$SKINNAME/layout
- *    and use it if available.
- *
- *  - otherwise, look for $PLATFORM/skins/$SKINNAME/alias-<other>.
- *    if a file exist by that name, look at $PLATFORM/skins/<other>/layout
- *    and use it if available. Aliases are not recursives :-)
- */
-
-/*  now, things get a little bit more complicated when working
- *  within the Android build system. In this mode, which can be
- *  detected by looking at the definition of the ANDROID_PRODUCT_OUT
- *  environment variable, we're going to simply pick the image files
- *  from the out directory, or from $BUILDROOT/prebuilt
- */
-
-/* the name of the $SDKROOT subdirectory that contains all platforms */
-#  define  PLATFORMS_SUBDIR  "platforms"
-
-/* the name of the $SDKROOT subdirectory that contains add-ons */
-#  define  ADDONS_SUBDIR     "add-ons"
-
-#endif /* SUPPORT_PLATFORM_OR_ADDON */
-
 /* this is the subdirectory of $HOME/.android where all
  * root configuration files (and default content directories)
  * are located.
@@ -257,7 +71,7 @@ AvdInfo*        android_avdInfo;
 /* the prefix of config.ini keys that will be used for search directories
  * of system images.
  */
-#define  SEARCH_PREFIX   "images.sysdir."
+#define  SEARCH_PREFIX   "image.sysdir."
 
 /* the maximum number of search path keys we're going to read from the
  * config.ini file
@@ -266,12 +80,8 @@ AvdInfo*        android_avdInfo;
 
 /* the config.ini key that will be used to indicate the full relative
  * path to the skin directory (including the skin name).
- *
- * If SUPPORT_PLATFORM_OR_ADDON is defined, then this can also be
- * the name of a skin, without any path, and platform/add-on directories
- * will be searched for it.
  */
-#define  SKIN_PATH       "skin"
+#define  SKIN_PATH       "skin.path"
 
 /* default skin name */
 #define  SKIN_DEFAULT    "HVGA"
@@ -314,12 +124,6 @@ struct AvdInfo {
     char      sdkRootPathFromEnv;
     char*     searchPaths[ MAX_SEARCH_PATHS ];
     int       numSearchPaths;
-#if SUPPORT_PLATFORM_OR_ADDON
-    int       platformVersion;
-    char*     platformPath;
-    char*     addonTarget;
-    char*     addonPath;
-#endif
     char*     contentPath;
     IniFile*  rootIni;      /* root <foo>.ini file */
     IniFile*  configIni;    /* virtual device's config.ini */
@@ -367,12 +171,6 @@ avdInfo_free( AvdInfo*  i )
         if (i->inAndroidBuild) {
             AFREE(i->androidOut);
             AFREE(i->androidBuildRoot);
-        } else {
-#if SUPPORT_PLATFORM_OR_ADDON
-            AFREE(i->platformPath);
-            AFREE(i->addonTarget);
-            AFREE(i->addonPath);
-#endif
         }
 
         AFREE(i->deviceName);
@@ -462,194 +260,14 @@ _getSearchPaths( AvdInfo*  i )
     }
 
     i->numSearchPaths = count;
-    if (count == 0)
-        DD("no search paths found in this AVD's config.ini");
+    if (count == 0) {
+        derror("no search paths found in this AVD's configuration.\n"
+               "Weird, the AVD's config.ini file is malformed. Try re-creating it.\n");
+        exit(2);
+    }
     else
         DD("found a total of %d search paths for this AVD", count);
 }
-
-#if SUPPORT_PLATFORM_OR_ADDON
-/* returns the full path of the platform subdirectory
- * corresponding to a given API version
- */
-static char*
-_findPlatformByVersion( const char*  sdkRoot, int  version )
-{
-    char         temp[PATH_MAX], *p=temp, *end=p+sizeof temp;
-    char*        subdir = NULL;
-    DirScanner*  scanner;
-
-    DD("> %s(%s,%d)", __FUNCTION__, sdkRoot, version);
-    p = bufprint(temp, end, "%s/%s", sdkRoot, PLATFORMS_SUBDIR);
-    if (p >= end) {
-        DD("! path too long");
-        return NULL;
-    }
-
-    scanner = dirScanner_new(temp);
-    if (scanner == NULL) {
-        DD("! cannot scan path %s: %s", temp, strerror(errno));
-        return NULL;
-    }
-
-    for (;;) {
-        IniFile*  ini;
-        int       apiVersion;
-
-        subdir = (char*) dirScanner_nextFull(scanner);
-        if (subdir == NULL)
-            break;
-
-        /* look for a file named "build.prop */
-        p = bufprint(temp, end, "%s/build.prop", subdir);
-        if (p >= end)
-            continue;
-
-        if (!path_exists(temp)) {
-            DD("! no file at %s", temp);
-            continue;
-        }
-
-        ini = iniFile_newFromFile(temp);
-        if (ini == NULL)
-            continue;
-
-        apiVersion = iniFile_getInteger(ini, "ro.build.version.sdk", -1);
-        iniFile_free(ini);
-
-        DD("! found %s (version %d)", temp, apiVersion);
-
-        if (apiVersion == version) {
-            /* Bingo */
-            subdir = ASTRDUP(subdir);
-            break;
-        }
-    }
-
-    if (!subdir) {
-        DD("< didn't found anything");
-    }
-
-    dirScanner_free(scanner);
-    return subdir;
-}
-
-/* returns the full path of the addon corresponding to a given target,
- * or NULL if not found. on success, *pversion will contain the SDK
- * version number
- */
-static char*
-_findAddonByTarget( const char*  sdkRoot, const char*  target, int  *pversion )
-{
-    char*  targetCopy    = ASTRDUP(target);
-    char*  targetVendor  = NULL;
-    char*  targetName    = NULL;
-    int    targetVersion = -1;
-
-    char         temp[PATH_MAX];
-    char*        p;
-    char*        end;
-    DirScanner*  scanner;
-    char*        subdir;
-
-    DD("> %s(%s,%s)", __FUNCTION__, sdkRoot, target);
-
-    /* extract triplet from target string */
-    targetVendor = targetCopy;
-
-    p = strchr(targetVendor, ':');
-    if (p == NULL) {
-        DD("< missing first column separator");
-        goto FAIL;
-    }
-    *p         = 0;
-    targetName = p + 1;
-    p          = strchr(targetName, ':');
-    if (p == NULL) {
-        DD("< missing second column separator");
-        goto FAIL;
-    }
-    *p++ = 0;
-
-    targetVersion = atoi(p);
-
-    if (targetVersion == 0) {
-        DD("< invalid version number");
-        goto FAIL;
-    }
-    /* now scan addons directory */
-    p   = temp;
-    end = p + sizeof temp;
-
-    p = bufprint(p, end, "%s/%s", sdkRoot, ADDONS_SUBDIR);
-    if (p >= end) {
-        DD("< add-on path too long");
-        goto FAIL;
-    }
-    scanner = dirScanner_new(temp);
-    if (scanner == NULL) {
-        DD("< cannot scan add-on path %s: %s", temp, strerror(errno));
-        goto FAIL;
-    }
-    for (;;) {
-        IniFile*     ini;
-        const char*  vendor;
-        const char*  name;
-        int          version;
-        int          matches;
-
-        subdir = (char*) dirScanner_nextFull(scanner);
-        if (subdir == NULL)
-            break;
-
-        /* try to open the manifest.ini file */
-        p = bufprint(temp, end, "%s/manifest.ini", subdir);
-        if (p >= end)
-            continue;
-
-        ini = iniFile_newFromFile(temp);
-        if (ini == NULL)
-            continue;
-
-        DD("! scanning manifest.ini in %s", temp);
-
-        /* find the vendor, name and version */
-        vendor  = iniFile_getValue(ini,  "vendor");
-        name    = iniFile_getValue(ini,  "name");
-        version = iniFile_getInteger(ini, "api", -1);
-
-        matches = 0;
-
-        matches += (version == targetVersion);
-        matches += (vendor && !strcmp(vendor, targetVendor));
-        matches += (name   && !strcmp(name, targetName));
-
-        DD("! matches=%d vendor=[%s] name=[%s] version=%d",
-           matches,
-           vendor ? vendor : "<NULL>",
-           name ? name : "<NULL>",
-           version);
-
-        iniFile_free(ini);
-
-        if (matches == 3) {
-            /* bingo */
-            *pversion = version;
-            subdir    = ASTRDUP(subdir);
-            break;
-        }
-    }
-
-    dirScanner_free(scanner);
-
-    DD("< returning %s", subdir ? subdir : "<NULL>");
-    return subdir;
-
-FAIL:
-    AFREE(targetCopy);
-    return NULL;
-}
-#endif /* SUPPORT_PLATFORM_OR_ADDON */
 
 static int
 _checkAvdName( const char*  name )
@@ -702,64 +320,6 @@ _getContentPath( AvdInfo*  i )
     D("virtual device content at %s", i->contentPath);
     return 0;
 }
-
-#if SUPPORT_PLATFORM_OR_ADDON
-#   define  ROOT_TARGET_KEY  "target"
-
-/* retrieve the content path and target from the root .ini file */
-static int
-_getTarget( AvdInfo*  i )
-{
-    i->addonTarget = iniFile_getString(i->rootIni, ROOT_TARGET_KEY);
-
-    if (i->addonTarget == NULL) {
-        derror("bad config: %s",
-               "virtual device file lacks a "ROOT_TARGET_KEY" entry");
-        return -1;
-    }
-
-    D("virtual device target is %s", i->addonTarget);
-
-    if (!strncmp(i->addonTarget, "android-", 8)) {  /* target is platform */
-        char*        end;
-        const char*  versionString = i->addonTarget+8;
-        int          version = (int) strtol(versionString, &end, 10);
-        if (*end != 0 || version <= 0) {
-            derror("bad config: invalid platform version: '%s'", versionString);
-            return -1;
-        }
-        i->platformVersion = version;
-        i->platformPath    = _findPlatformByVersion(i->sdkRootPath, 
-                                                    version);
-        if (i->platformPath == NULL) {
-            derror("bad config: unknown platform version: '%d'", version);
-            return -1;
-        }
-    }
-    else  /* target is add-on */
-    {
-        i->addonPath = _findAddonByTarget(i->sdkRootPath, i->addonTarget,
-                                          &i->platformVersion);
-        if (i->addonPath == NULL) {
-            derror("bad config: %s",
-                   "unknown add-on target: '%s'", i->addonTarget);
-            return -1;
-        }
-
-        i->platformPath = _findPlatformByVersion(i->sdkRootPath, 
-                                                 i->platformVersion);
-        if (i->platformPath == NULL) {
-            derror("bad config: %s",
-                   "unknown add-on platform version: '%d'", i->platformVersion);
-            return -1;
-        }
-        D("virtual device add-on path: %s", i->addonPath);
-    }
-    D("virtual device platform path: %s",   i->platformPath);
-    D("virtual device platform version %d", i->platformVersion);
-    return 0;
-}
-#endif /* SUPPORT_PLATFORM_OR_ADDON */
 
 /* find and parse the config.ini file from the content directory */
 static int
@@ -891,26 +451,6 @@ imageLoader_lookupSdk( ImageLoader*  l  )
             DD("    no %s in search dir: %s", image, searchDir);
         }
 
-#if SUPPORT_PLATFORM_OR_ADDON
-        /* try the add-on directory, if any */
-        if (i->addonPath != NULL) {
-            p = bufprint(temp, end, "%s/images/%s", i->addonPath, image);
-            if (p < end && path_exists(temp)) {
-                DD("found %s in add-on dir:", image, i->addonPath);
-                break;
-            }
-            DD("    no %s in add-on dir: ", image, i->addonPath);
-        }
-
-        /* or try the platform directory */
-        p = bufprint(temp, end, "%s/images/%s",
-                     i->platformPath, image);
-        if (p < end && path_exists(temp)) {
-            DD("found %s in platform dir:", image, i->platformPath);
-            break;
-        }
-        DD("    no %s in platform dir: ", image, i->platformPath);
-#endif
         return NULL;
 
     } while (0);
@@ -1179,13 +719,15 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
         /* find SDK source file */
         const char*  srcPath;
 
-        if (imageLoader_lookupSdk(l)) {
+        imageLoader_set( l, AVD_IMAGE_INITDATA );
+        if (imageLoader_lookupSdk(l) == NULL) {
             derror("can't locate initial %s image in SDK",
                 l->imageText);
             exit(2);
         }
         srcPath = imageLoader_extractPath(l);
 
+        imageLoader_set( l, AVD_IMAGE_USERDATA );
         imageLoader_copyFrom( l, srcPath );
         AFREE((char*) srcPath);
     }
@@ -1458,16 +1000,6 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
                 break;
         }
 
-#if SUPPORT_PLATFORM_OR_ADDON
-        /* look in the add-on directory, if any */
-        if (i->addonPath && 
-            _checkSkinDir(temp, end, i->addonPath, skinName))
-            break;
-
-        /* look in the platforms directory */
-        if (_checkSkinDir(temp, end, i->platformPath, skinName))
-            break;
-#endif
         /* didn't find it */
         if (explicitSkin) {
             derror("could not find directory for skin '%s',"
@@ -1527,14 +1059,6 @@ avdInfo_new( const char*  name, AvdInfoParams*  params )
      */
     _getSearchPaths(i);
 
-    if (i->numSearchPaths == 0) {
-#if SUPPORT_PLATFORM_OR_ADDON
-        /* no search paths, look for platform/add-on */
-        if (_getTarget(i) < 0)
-            goto FAIL;
-#endif
-    }
-
     /* don't need this anymore */
     iniFile_free(i->rootIni);
     i->rootIni = NULL;
@@ -1571,8 +1095,7 @@ FAIL:
  *****      prebuilt
  *****
  *****    - there is no root .ini file, or any config.ini in
- *****      the content directory, no SDK platform version
- *****      and no add-on to consider.
+ *****      the content directory, no SDK images search path.
  *****/
 
 /* used to fake a config.ini located in the content directory */

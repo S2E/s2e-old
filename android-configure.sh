@@ -365,6 +365,22 @@ if [ $? != 0 ] ; then
 fi
 log "LD         : linker check ok ($LD)"
 
+# We may need to add -fno-stack-protector but this is not
+# supported by older versions of GCC
+#
+cat > $TMPC <<EOF
+int main(void) {}
+EOF
+OLD_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -fno-stack-protector"
+compile
+if [ $? != 0 ] ; then
+    log "CFLAGS     : C compiler doesn't support -fno-stack-protector"
+    CFLAGS="$OLD_CFLAGS"
+else
+    log "CFLAGS     : Adding -fno-stack-protector to CFLAGS"
+fi
+
 ###
 ###  SDL Probe
 ###

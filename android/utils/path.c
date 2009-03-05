@@ -34,7 +34,8 @@
 #include <signal.h>
 #endif
 
-#define  D(...)  ((void)0)
+#include "android/utils/debug.h"
+#define  D(...)  VERBOSE_PRINT(init,__VA_ARGS__)
 
 #ifndef CHECKED
 #  ifdef _WIN32
@@ -454,6 +455,12 @@ path_copy_file( const char*  dest, const char*  source )
     /* if the destination doesn't exist, create it */
     if ( access(source, F_OK)  < 0 ||
          path_empty_file(dest) < 0) {
+        return -1;
+    }
+
+    if ( access(source, R_OK) < 0 ) {
+        D("%s: source file is un-readable: %s\n",
+          __FUNCTION__, source);
         return -1;
     }
 

@@ -22,7 +22,6 @@
 
 #define ARM_CPU_SAVE_VERSION  1
 
-int android_audio_enabled;
 char* audio_input_source = NULL;
 
 void goldfish_memlog_init(uint32_t base);
@@ -116,10 +115,8 @@ static void android_arm_init(ram_addr_t ram_size, int vga_ram_size,
 
     goldfish_fb_init(ds, 0);
 #ifdef HAS_AUDIO
-    if (android_audio_enabled) {
-        AUD_init();
-        goldfish_audio_init(0xff004000, 0, audio_input_source);
-    }
+    AUD_init();
+    goldfish_audio_init(0xff004000, 0, audio_input_source);
 #endif
     {
         int  idx = drive_get_index( IF_IDE, 0, 0 );
@@ -171,5 +168,7 @@ QEMUMachine android_arm_machine = {
     "android_arm",
     "ARM Android Emulator",
     android_arm_init,
+    0,
+    0,
     NULL
 };
