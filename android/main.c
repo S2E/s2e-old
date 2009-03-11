@@ -708,6 +708,7 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
         { SKIN_KEY_COMMAND_BUTTON_DPAD_CENTER, kKeyCodeDpadCenter },
         { SKIN_KEY_COMMAND_BUTTON_VOLUME_UP,   kKeyCodeVolumeUp },
         { SKIN_KEY_COMMAND_BUTTON_VOLUME_DOWN, kKeyCodeVolumeDown },
+        { SKIN_KEY_COMMAND_BUTTON_CAMERA,      kKeyCodeCamera },
         { SKIN_KEY_COMMAND_NONE, 0 }
     };
     int          nn;

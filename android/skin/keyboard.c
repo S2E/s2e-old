@@ -24,8 +24,6 @@
 #endif
 
 
-#define  USE_KEYSET  1
-
 /** LAST PRESSED KEYS
  ** a small buffer of last pressed keys, this is used to properly
  ** implement the Unicode keyboard mode (SDL key up event always have
@@ -237,7 +235,6 @@ skin_keyboard_rotate_sym( SkinKeyboard*  keyboard,
     return  sym;
 }
 
-#if USE_KEYSET
 static AndroidKeyCode
 skin_keyboard_key_to_code( SkinKeyboard*  keyboard,
                            unsigned       sym,
@@ -336,157 +333,6 @@ skin_keyboard_key_to_code( SkinKeyboard*  keyboard,
       skin_key_symmod_to_str(sym,mod));
     return -1;
 }
-#else /* !USE_KEYSET */
-/* this will look for non-Unicode key strokes, e.g. arrows, F1, F2, etc...
- * note that we have some special handling for shift-<arrow>, these will
- * be emulated as two key strokes on the device
- */
-static AndroidKeyCode
-skin_keyboard_key_to_code( SkinKeyboard*  keyboard,
-                           unsigned       sym,
-                           int            mod,
-                           int            down )
-{
-    AndroidKeyCode  code       = 0;
-    int             doAltShift = 0;
-
-    sym = skin_keyboard_rotate_sym(keyboard, sym);
-
-    switch (sym) {
-        case SDLK_LEFT:       code = kKeyCodeDpadLeft;  doAltShift = 1; break;
-        case SDLK_RIGHT:      code = kKeyCodeDpadRight; doAltShift = 1; break;
-        case SDLK_UP:         code = kKeyCodeDpadUp;    doAltShift = 1; break;
-        case SDLK_DOWN:       code = kKeyCodeDpadDown;  doAltShift = 1; break;
-        case SDLK_HOME:       code = kKeyCodeHome; break;
-        case SDLK_BACKSPACE:  code = kKeyCodeDel; doAltShift = 1; break;
-        case SDLK_ESCAPE:     code = kKeyCodeBack; break;
-        case SDLK_RETURN:     code = kKeyCodeNewline; doAltShift = 1; break;
-        case SDLK_F1:         code = kKeyCodeSoftLeft; break;
-        case SDLK_F2:         code = kKeyCodeSoftRight; break;
-        case SDLK_F3:         code = kKeyCodeCall; break;
-        case SDLK_F4:         code = kKeyCodeEndCall; break;
-        case SDLK_F5:         code = kKeyCodeSearch; break;
-        case SDLK_F7:         code = kKeyCodePower; break;
-
-        case SDLK_F8: /* network connect/disconnect */
-            if (down) {
-                skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_TOGGLE_NETWORK, 1 );
-            }
-            return 0;
-
-#ifdef CONFIG_TRACE
-        case SDLK_F9:  /* start tracing */
-            if (down) {
-                skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_TOGGLE_TRACING, 1 );
-            }
-            return 0;
-
-            case SDLK_F10: /* stop tracing */
-            if (down) {
-                skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_TOGGLE_TRACING, 1 );
-            }
-            return 0;
-#endif
-
-        case SDLK_F12: /* change orientation */
-            if (down && (mod & (KMOD_LCTRL | KMOD_RCTRL)) != 0) {
-                skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_CHANGE_LAYOUT, +1 );
-            }
-            return 0;
-
-        case SDLK_PAGEUP:     return kKeyCodeSoftLeft;
-        case SDLK_PAGEDOWN:   return kKeyCodeSoftRight;
-
-        case SDLK_t:
-            if (down && (mod & (KMOD_LCTRL| KMOD_RCTRL)) != 0) {
-                skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_TOGGLE_TRACKBALL, 1 );
-                return 0;
-            }
-            break;
-
-        case SDLK_KP5:
-            if ((mod & (KMOD_LCTRL | KMOD_RCTRL)) != 0)
-                code = kKeyCodeCamera;
-            break;
-    }
-
-    if (code != 0) {
-        if (doAltShift && !keyboard->raw_keys) {
-            int  doCapL, doCapR, doAltL, doAltR;
-
-            if (!down) {
-                LastKey*  k = skin_keyboard_find_last(keyboard, sym);
-                if (k != NULL) {
-                    mod = k->mod;
-                    skin_keyboard_remove_last( keyboard, sym );
-                }
-            } else {
-                skin_keyboard_add_last( keyboard, sym, mod, 0);
-            }
-
-            doCapL = (mod & 0x7ff) & KMOD_LSHIFT;
-            doCapR = (mod & 0x7ff) & KMOD_RSHIFT;
-            doAltL = (mod & 0x7ff) & KMOD_LALT;
-            doAltR = (mod & 0x7ff) & KMOD_RALT;
-
-            if (down) {
-                if (doAltL) skin_keyboard_add_key_event( keyboard, kKeyCodeAltLeft, 1 );
-                if (doAltR) skin_keyboard_add_key_event( keyboard, kKeyCodeAltRight, 1 );
-                if (doCapL) skin_keyboard_add_key_event( keyboard, kKeyCodeCapLeft, 1 );
-                if (doCapR) skin_keyboard_add_key_event( keyboard, kKeyCodeCapRight, 1 );
-            }
-            skin_keyboard_add_key_event(keyboard, code, down);
-
-            if (!down) {
-                if (doCapR) skin_keyboard_add_key_event( keyboard, kKeyCodeCapRight, 0 );
-                if (doCapL) skin_keyboard_add_key_event( keyboard, kKeyCodeCapLeft, 0 );
-                if (doAltR) skin_keyboard_add_key_event( keyboard, kKeyCodeAltRight, 0 );
-                if (doAltL) skin_keyboard_add_key_event( keyboard, kKeyCodeAltLeft, 0 );
-            }
-            code = 0;
-        }
-        return code;
-    }
-
-    if ((mod & KMOD_NUM) == 0) {
-        switch (sym) {
-            case SDLK_KP8:       return kKeyCodeDpadUp;
-            case SDLK_KP2:       return kKeyCodeDpadDown;
-            case SDLK_KP4:       return kKeyCodeDpadLeft;
-            case SDLK_KP6:       return kKeyCodeDpadRight;
-            case SDLK_KP5:       return kKeyCodeDpadCenter;
-
-            case SDLK_KP_PLUS:    return kKeyCodeVolumeUp;
-            case SDLK_KP_MINUS:   return kKeyCodeVolumeDown;
-
-            case SDLK_KP_MULTIPLY:
-                if (down) {
-                    skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_ONION_ALPHA_UP, 1 );
-                }
-                return 0;
-
-            case SDLK_KP_DIVIDE:
-                if (down) {
-                    skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_ONION_ALPHA_DOWN, 1 );
-                }
-                return 0;
-
-            case SDLK_KP7:
-                if (down) {
-                    skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_CHANGE_LAYOUT_PREV, 1 );
-                }
-                return 0;
-
-            case SDLK_KP9:
-                if (down) {
-                    skin_keyboard_cmd( keyboard, SKIN_KEY_COMMAND_CHANGE_LAYOUT_NEXT, 1 );
-                }
-                return 0;
-        }
-    }
-    return -1;
-}
-#endif /* !USE_KEYSET */
 
 /* this gets called only if the reverse unicode mapping didn't work
  * or wasn't used (when in raw keys mode)

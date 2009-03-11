@@ -60,20 +60,6 @@ HWCFG_BOOL(
   "Whether there is a GSM modem in the device.")
 
 HWCFG_BOOL(
-  hw_wifi,
-  "hw.wifi",
-  "no",
-  "Wifi support",
-  "Whether the device has a Wifi chipset.")
-
-HWCFG_BOOL(
-  hw_bluetooth,
-  "hw.bluetooth",
-  "no",
-  "Bluetooth support",
-  "Whether the device has a Bluetooth chipset.")
-
-HWCFG_BOOL(
   hw_camera,
   "hw.camera",
   "no",
@@ -102,13 +88,6 @@ HWCFG_BOOL(
   "Whether there is a GPS in the device.")
 
 HWCFG_BOOL(
-  hw_accelerometer,
-  "hw.accelerometer",
-  "no",
-  "Accelerometer support",
-  "Whether there is an accelerometer in the device.")
-
-HWCFG_BOOL(
   hw_battery,
   "hw.battery",
   "yes",
@@ -128,13 +107,6 @@ HWCFG_BOOL(
   "yes",
   "Audio playback support",
   "Whether the device can play audio")
-
-HWCFG_BOOL(
-  hw_compass,
-  "hw.compass",
-  "no",
-  "Compass support",
-  "Whether there is a compass in the device.")
 
 HWCFG_BOOL(
   hw_sdCard,

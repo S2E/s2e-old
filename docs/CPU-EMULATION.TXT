@@ -5,7 +5,7 @@ Translating ARM to x86 machine code:
 ------------------------------------
 
 QEMU starts by isolating code "fragments" from the emulated machine code.
-Each "fragment" corresponds to a seris of ARM instructions ending with a
+Each "fragment" corresponds to a series of ARM instructions ending with a
 branch (e.g. jumps, conditional branches, returns).
 
 Each fragment is translated into a "translated block" (a.k.a. TB) of host
@@ -28,7 +28,7 @@ again.
 CPU state is kept in a single global structure which the generated code
 can access directly (with direct memory addressing).
 
-the file target-arm/translate.c is in charge of translating the ARM or
+The file target-arm/translate.c is in charge of translating the ARM or
 Thumb instructions starting at the current instruction pointer position
 into a TB. This is done by decomposing each instruction into a series of
 micro-operations supported by the TCG code generator.
@@ -62,13 +62,13 @@ translated from user-level code.
 This means that a memory load in the kernel will not be translated into the
 same instructions than the same load in user space.
 
-Each TLB is also implemented as a global per-CPU hash-table.
-The user-level TLB is flushed on each process context switch. 
+Each TLB is also implemented as a global per-emulated-CPU hash-table.
+The user-level TLB is flushed on each process context switch.
 
 When initializing the MMU emulation, one can define several zones of the
 address space, with different access rights / type. This is how memory-mapped
-i/o is implemented: the virtual->physical conversion helper function detects
-that you're trying to read/write from an i/o memory region, and will then call
+I/O is implemented: the virtual->physical conversion helper function detects
+that you're trying to read/write from an I/O memory region, and will then call
 a callback function associated to it.
 
 
@@ -76,8 +76,8 @@ Hardware Emulation:
 -------------------
 
 Most hardware emulation code initializes by registering its own region of
-i/o memory, as well as providing read/write callbacks for it. Then actions 
-will be based on which offset of the i/o memory is read from/written to and
+I/O memory, as well as providing read/write callbacks for it. Then actions
+will be based on which offset of the I/O memory is read from/written to and
 eventually with which value.
 
 You can have a look at hw/goldfish_tty.c that implements an emulated serial

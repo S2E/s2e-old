@@ -102,12 +102,6 @@ typedef enum {
     kKeyCodeNotification            = KEY_NOTIFICATION,
     kKeyCodeSearch                  = KEY_SEARCH,
 
-    kKeyCodeBtnMouse                = BTN_MOUSE,
-
-    kKeyCodeOrientation0   = 77,
-    kKeyCodeOrientation90  = 78,
-    kKeyCodeOrientation180 = 79,
-    kKeyCodeOrientation270 = 80
 } AndroidKeyCode;
 
 

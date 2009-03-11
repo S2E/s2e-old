@@ -11,128 +11,9 @@
 */
 #include "qemu_file.h"
 #include "android/hw-events.h"
+#include "android/charmap.h"
+#include "android/globals.h"  /* for android_hw */
 #include "irq.h"
-
-#if 0
-// From kernel...
-#define EV_SYN			0x00
-#define EV_KEY			0x01
-#define EV_REL			0x02
-#define EV_ABS			0x03
-#define EV_MSC			0x04
-#define EV_SW			0x05
-#define EV_LED			0x11
-#define EV_SND			0x12
-#define EV_REP			0x14
-#define EV_FF			0x15
-#define EV_PWR			0x16
-#define EV_FF_STATUS		0x17
-#define EV_MAX			0x1f
-
-#define BTN_MISC		0x100
-#define BTN_0			0x100
-#define BTN_1			0x101
-#define BTN_2			0x102
-#define BTN_3			0x103
-#define BTN_4			0x104
-#define BTN_5			0x105
-#define BTN_6			0x106
-#define BTN_7			0x107
-#define BTN_8			0x108
-#define BTN_9			0x109
-
-#define BTN_MOUSE		0x110
-#define BTN_LEFT		0x110
-#define BTN_RIGHT		0x111
-#define BTN_MIDDLE		0x112
-#define BTN_SIDE		0x113
-#define BTN_EXTRA		0x114
-#define BTN_FORWARD		0x115
-#define BTN_BACK		0x116
-#define BTN_TASK		0x117
-
-#define BTN_JOYSTICK		0x120
-#define BTN_TRIGGER		0x120
-#define BTN_THUMB		0x121
-#define BTN_THUMB2		0x122
-#define BTN_TOP			0x123
-#define BTN_TOP2		0x124
-#define BTN_PINKIE		0x125
-#define BTN_BASE		0x126
-#define BTN_BASE2		0x127
-#define BTN_BASE3		0x128
-#define BTN_BASE4		0x129
-#define BTN_BASE5		0x12a
-#define BTN_BASE6		0x12b
-#define BTN_DEAD		0x12f
-
-#define BTN_GAMEPAD		0x130
-#define BTN_A			0x130
-#define BTN_B			0x131
-#define BTN_C			0x132
-#define BTN_X			0x133
-#define BTN_Y			0x134
-#define BTN_Z			0x135
-#define BTN_TL			0x136
-#define BTN_TR			0x137
-#define BTN_TL2			0x138
-#define BTN_TR2			0x139
-#define BTN_SELECT		0x13a
-#define BTN_START		0x13b
-#define BTN_MODE		0x13c
-#define BTN_THUMBL		0x13d
-#define BTN_THUMBR		0x13e
-
-#define BTN_DIGI		0x140
-#define BTN_TOOL_PEN		0x140
-#define BTN_TOOL_RUBBER		0x141
-#define BTN_TOOL_BRUSH		0x142
-#define BTN_TOOL_PENCIL		0x143
-#define BTN_TOOL_AIRBRUSH	0x144
-#define BTN_TOOL_FINGER		0x145
-#define BTN_TOOL_MOUSE		0x146
-#define BTN_TOOL_LENS		0x147
-#define BTN_TOUCH		0x14a
-#define BTN_STYLUS		0x14b
-#define BTN_STYLUS2		0x14c
-#define BTN_TOOL_DOUBLETAP	0x14d
-#define BTN_TOOL_TRIPLETAP	0x14e
-
-#define BTN_WHEEL		0x150
-#define BTN_GEAR_DOWN		0x150
-#define BTN_GEAR_UP		0x151
-
-#define REL_X           0x00
-#define REL_Y           0x01
-
-#define ABS_X			0x00
-#define ABS_Y			0x01
-#define ABS_Z			0x02
-#define ABS_RX			0x03
-#define ABS_RY			0x04
-#define ABS_RZ			0x05
-#define ABS_THROTTLE		0x06
-#define ABS_RUDDER		0x07
-#define ABS_WHEEL		0x08
-#define ABS_GAS			0x09
-#define ABS_BRAKE		0x0a
-#define ABS_HAT0X		0x10
-#define ABS_HAT0Y		0x11
-#define ABS_HAT1X		0x12
-#define ABS_HAT1Y		0x13
-#define ABS_HAT2X		0x14
-#define ABS_HAT2Y		0x15
-#define ABS_HAT3X		0x16
-#define ABS_HAT3Y		0x17
-#define ABS_PRESSURE		0x18
-#define ABS_DISTANCE		0x19
-#define ABS_TILT_X		0x1a
-#define ABS_TILT_Y		0x1b
-#define ABS_TOOL_WIDTH		0x1c
-#define ABS_VOLUME		0x20
-#define ABS_MISC		0x28
-#define ABS_MAX			0x3f
-#endif
 
 #define MAX_EVENTS 256*4
 
@@ -147,6 +28,10 @@ enum {
     PAGE_ABSDATA    = 0x20000 | EV_ABS,
 };
 
+/* NOTE: The ev_bits arrays are used to indicate to the kernel
+ *       which events can be sent by the emulated hardware.
+ */
+
 typedef struct
 {
     uint32_t base;
@@ -159,10 +44,12 @@ typedef struct
     unsigned last;
 
     const char *name;
+
     struct {
-        size_t len;
+        size_t   len;
         uint8_t *bits;
     } ev_bits[EV_MAX + 1];
+
     int32_t *abs_info;
     size_t abs_info_count;
 } events_state;
@@ -317,6 +204,10 @@ static void events_put_keycode(void *x, int keycode)
 static void events_put_mouse(void *opaque, int dx, int dy, int dz, int buttons_state)
 {
     events_state *s = (events_state *) opaque;
+    /* in the Android emulator, we use dz == 0 for touchscreen events,
+     * and dz == 1 for trackball events. See the kbd_mouse_event calls
+     * in android/skin/trackball.c and android/skin/window.c
+     */
     if (dz == 0) {
         enqueue_event(s, EV_ABS, ABS_X, dx);
         enqueue_event(s, EV_ABS, ABS_Y, dy);
@@ -336,7 +227,10 @@ static void  events_put_generic(void*  opaque, int  type, int  code, int  value)
     enqueue_event(s, type, code, value);
 }
 
-static int events_set_bits(events_state *s, int type, int bitl, int bith)
+/* set bits [bitl..bith] in the ev_bits[type] array
+ */
+static void
+events_set_bits(events_state *s, int type, int bitl, int bith)
 {
     uint8_t *bits;
     uint8_t maskl, maskh;
@@ -346,9 +240,9 @@ static int events_set_bits(events_state *s, int type, int bitl, int bith)
     if (ih >= s->ev_bits[type].len) {
         bits = qemu_mallocz(ih + 1);
         if (bits == NULL)
-            return -ENOMEM;
+            return;
         memcpy(bits, s->ev_bits[type].bits, s->ev_bits[type].len);
-	qemu_free(s->ev_bits[type].bits);
+        qemu_free(s->ev_bits[type].bits);
         s->ev_bits[type].bits = bits;
         s->ev_bits[type].len = ih + 1;
     }
@@ -364,45 +258,135 @@ static int events_set_bits(events_state *s, int type, int bitl, int bith)
             bits[il] = 0xff;
     }
     bits[ih] |= maskh;
-    return 0;
 }
 
-#if 0
-static int events_set_abs_info(events_state *s, int axis, int32_t min, int32_t max, int32_t fuzz, int32_t flat)
+static void
+events_set_bit(events_state* s, int  type, int  bit)
 {
-    int32_t *info;
-    if (axis * 4 >= s->abs_info_count) {
-        info = qemu_mallocz((axis + 1) * 4 * sizeof(int32_t));
-        if (info == NULL)
-            return -ENOMEM;
-        memcpy(info, s->abs_info, s->abs_info_count);
-	qemu_free(s->abs_info);
-        s->abs_info = info;
-        s->abs_info_count = (axis + 1) * 4;
-    }
-    else
-        info = s->abs_info;
-    info += axis * 4;
-    *info++ = min;
-    *info++ = max;
-    *info++ = fuzz;
-    *info++ = flat;
+    events_set_bits(s, type, bit, bit);
 }
-#endif
 
 void events_dev_init(uint32_t base, qemu_irq irq)
 {
     events_state *s;
     int iomemtype;
+    AndroidHwConfig*  config = android_hw;
 
     s = (events_state *) qemu_mallocz(sizeof(events_state));
     s->name = android_skin_keycharmap;
-    events_set_bits(s, EV_SYN, EV_SYN, EV_ABS);
-    events_set_bits(s, EV_SYN, EV_SW, EV_SW);
-    events_set_bits(s, EV_KEY, 1, 0x1ff);
-    events_set_bits(s, EV_REL, REL_X, REL_Y);
-    events_set_bits(s, EV_ABS, ABS_X, ABS_Z);
-    events_set_bits(s, EV_SW, 0, 0);
+
+    /* now set the events capability bits depending on hardware configuration */
+    /* apparently, the EV_SYN array is used to indicate which other
+     * event classes to consider.
+     */
+
+    /* configure EV_KEY array
+     *
+     * All Android devices must have the following keys:
+     *   KEY_HOME, KEY_BACK, KEY_SEND (Call), KEY_END (EndCall),
+     *   KEY_SOFT1 (Menu), VOLUME_UP, VOLUME_DOWN
+     *
+     *   Note that previous models also had a KEY_SOFT2,
+     *   and a KEY_POWER  which we still support here.
+     *
+     * A Dpad will send: KEY_DOWN / UP / LEFT / RIGHT / CENTER
+     *
+     * The KEY_CAMERA button isn't very useful if there is no camera.
+     *
+     * BTN_MOUSE is sent when the trackball is pressed
+     * BTN_TOUCH is sent when the touchscreen is pressed
+     */
+    events_set_bit (s, EV_SYN, EV_KEY );
+
+    events_set_bit(s, EV_KEY, KEY_HOME);
+    events_set_bit(s, EV_KEY, KEY_BACK);
+    events_set_bit(s, EV_KEY, KEY_SEND);
+    events_set_bit(s, EV_KEY, KEY_END);
+    events_set_bit(s, EV_KEY, KEY_SOFT1);
+    events_set_bit(s, EV_KEY, KEY_VOLUMEUP);
+    events_set_bit(s, EV_KEY, KEY_VOLUMEDOWN);
+    events_set_bit(s, EV_KEY, KEY_SOFT2);
+    events_set_bit(s, EV_KEY, KEY_POWER);
+
+    if (config->hw_dPad) {
+        events_set_bit(s, EV_KEY, KEY_DOWN);
+        events_set_bit(s, EV_KEY, KEY_UP);
+        events_set_bit(s, EV_KEY, KEY_LEFT);
+        events_set_bit(s, EV_KEY, KEY_RIGHT);
+        events_set_bit(s, EV_KEY, KEY_CENTER);
+    }
+
+    if (config->hw_trackBall) {
+        events_set_bit(s, EV_KEY, BTN_MOUSE);
+    }
+    if (config->hw_touchScreen) {
+        events_set_bit(s, EV_KEY, BTN_TOUCH);
+    }
+
+    if (config->hw_camera) {
+        events_set_bit(s, EV_KEY, KEY_CAMERA);
+    }
+
+    if (config->hw_keyboard) {
+        /* since we want to implement Unicode reverse-mapping
+         * allow any kind of key, even those not available on
+         * the skin.
+         *
+         * the previous code did set the [1..0x1ff] range, but
+         * we don't want to enable certain bits in the middle
+         * of the range that are registered for mouse/trackball/joystick
+         * events.
+         *
+         * see "linux_keycodes.h" for the list of events codes.
+         */
+        events_set_bits(s, EV_KEY, 1, 0xff);
+        events_set_bits(s, EV_KEY, 0x160, 0x1ff);
+    }
+
+    /* configure EV_REL array
+     *
+     * EV_REL events are sent when the trackball is moved
+     */
+    if (config->hw_trackBall) {
+        events_set_bit (s, EV_SYN, EV_REL );
+        events_set_bits(s, EV_REL, REL_X, REL_Y);
+    }
+
+    /* configure EV_ABS array.
+     *
+     * EV_ABS events are sent when the touchscreen is pressed
+     */
+    if (config->hw_touchScreen) {
+        events_set_bit (s, EV_SYN, EV_ABS );
+        events_set_bits(s, EV_ABS, ABS_X, ABS_Z);
+    }
+
+    /* configure EV_SW array
+     *
+     * EW_SW events are sent to indicate that the keyboard lid
+     * was closed or opened (done when we switch layouts through
+     * KP-7 or KP-9).
+     *
+     * Ideally, we would want to only support this when there is
+     * a real keyboard. However doing so will disable auto-rotate
+     * when rotating the skin, because the system will only
+     * consider orientation sensor events then, which are not
+     * currently implemented/emulated.
+     *
+     * So force it anyway, and remove the "1 ||" later when
+     * we properly implement sensor events (which unfortunately
+     * requires system changes).
+     *
+     * Note that the system will switch to landscape properly but
+     * is *not* capable of returning to portrait mode when we switch
+     * back. Blame the framework for not interpreting switch events
+     * symetrically.
+     */
+    if (1 || config->hw_keyboard) {
+        events_set_bit(s, EV_SYN, EV_SW);
+        events_set_bit(s, EV_SW, 0);
+    }
+
     iomemtype = cpu_register_io_memory(0, events_readfn, events_writefn, s);
 
     cpu_register_physical_memory(base, 0xfff, iomemtype);
