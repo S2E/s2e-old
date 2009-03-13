@@ -1293,6 +1293,7 @@ help_tcpdump(stralloc_t  *out)
 #define  help_no_window    NULL
 #define  help_version      NULL
 #define  help_memory       NULL
+#define  help_partition_size NULL
 
 typedef struct {
     const char*  name;

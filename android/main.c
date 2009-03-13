@@ -1711,6 +1711,7 @@ int main(int argc, char **argv)
     int    shell_serial = 0;
     int    dns_count = 0;
     unsigned  cachePartitionSize = 0;
+    unsigned  defaultPartitionSize = 0x4200000;
 
     AndroidHwConfig*  hw;
 
@@ -2252,6 +2253,24 @@ int main(int argc, char **argv)
     args[n++] = "-initrd";
     args[n++] = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_RAMDISK);
 
+    if (opts->partition_size) {
+        char*  end;
+        long   size = strtol(opts->partition_size, &end, 0);
+        long   maxSize = LONG_MAX / (1024*1024);
+        long   defaultMB = (defaultPartitionSize + (512*1024)) / (1024*1024);
+
+        if (size < 0 || *end != 0) {
+            derror( "-partition-size must be followed by a positive integer" );
+            exit(1);
+        }
+        if (size < defaultMB || size > maxSize) {
+            derror( "partition-size (%d) must be between %dMB and %dMB",
+                    size, defaultMB, maxSize );
+            exit(1);
+        }
+        defaultPartitionSize = size * 1024*1024;
+    }
+
     {
         const char*  filetype = "file";
 
@@ -2259,7 +2278,7 @@ int main(int argc, char **argv)
             filetype = "initfile";
 
         bufprint(tmp, tmpend,
-             "system,size=0x4200000,%s=%s", filetype,
+             "system,size=0x%x,%s=%s", defaultPartitionSize, filetype,
              avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_INITSYSTEM));
 
         args[n++] = "-nand";
@@ -2267,7 +2286,8 @@ int main(int argc, char **argv)
     }
 
     bufprint(tmp, tmpend,
-             "userdata,size=0x4200000,file=%s",
+             "userdata,size=0x%x,file=%s",
+             defaultPartitionSize,
              avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_USERDATA));
 
     args[n++] = "-nand";

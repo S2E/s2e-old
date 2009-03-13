@@ -83,7 +83,7 @@ HWCFG_INT(
 HWCFG_BOOL(
   hw_gps,
   "hw.gps",
-  "no",
+  "yes",
   "GPS support",
   "Whether there is a GPS in the device.")
 
