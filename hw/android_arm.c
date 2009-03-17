@@ -9,12 +9,19 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
+#include "hw.h"
+#include "boards.h"
+#include "devices.h"
+#include "net.h"
 #include "arm_pic.h"
+#include "sysemu.h"
 #include "goldfish_device.h"
 #include "android/globals.h"
+#include "audio/audio.h"
+#include "arm-misc.h"
 
-int android_audio_enabled;
+#define ARM_CPU_SAVE_VERSION  1
+
 char* audio_input_source = NULL;
 
 void goldfish_memlog_init(uint32_t base);
@@ -49,18 +56,23 @@ uint32_t switch_test_write(void *opaque, uint32_t state)
 }
 #endif
 
-static void android_arm_init(int ram_size, int vga_ram_size,
-    int boot_device, DisplayState *ds, const char **fd_filename, int snapshot,
-    const char *kernel_filename, const char *kernel_cmdline,
-    const char *initrd_filename)
+static void android_arm_init(ram_addr_t ram_size, int vga_ram_size,
+    const char *boot_device, DisplayState *ds, 
+    const char *kernel_filename, 
+    const char *kernel_cmdline,
+    const char *initrd_filename,
+    const char *cpu_model)
 {
     CPUState *env;
     qemu_irq *cpu_pic;
     qemu_irq *goldfish_pic;
     int i;
+    struct arm_boot_info  info;
 
-    env = cpu_init();
-    cpu_arm_set_model(env, ARM_CPUID_ARM926);
+    if (!cpu_model)
+        cpu_model = "arm926";
+
+    env = cpu_init(cpu_model);
 
     register_savevm( "cpu", 0, ARM_CPU_SAVE_VERSION, cpu_save, cpu_load, env );
 
@@ -103,13 +115,14 @@ static void android_arm_init(int ram_size, int vga_ram_size,
 
     goldfish_fb_init(ds, 0);
 #ifdef HAS_AUDIO
-    if (android_audio_enabled) {
-        AUD_init();
-        goldfish_audio_init(0xff004000, 0, audio_input_source);
-    }
+    AUD_init();
+    goldfish_audio_init(0xff004000, 0, audio_input_source);
 #endif
-    if (bs_table[0])
-        goldfish_mmc_init(0xff005000, 0, bs_table[0]);
+    {
+        int  idx = drive_get_index( IF_IDE, 0, 0 );
+        if (idx >= 0)
+            goldfish_mmc_init(0xff005000, 0, drives_table[idx].bdrv);
+    }
 
     goldfish_memlog_init(0xff006000);
 
@@ -140,13 +153,22 @@ static void android_arm_init(int ram_size, int vga_ram_size,
     }
 #endif
 
-    arm_load_kernel(ram_size, kernel_filename, kernel_cmdline,
-                    initrd_filename, 1441);
+    memset(&info, 0, sizeof info);
+    info.ram_size        = ram_size;
+    info.kernel_filename = kernel_filename;
+    info.kernel_cmdline  = kernel_cmdline;
+    info.initrd_filename = initrd_filename;
+    info.nb_cpus         = 1;
+    info.board_id        = 1441;
+
+    arm_load_kernel(env, &info);
 }
 
 QEMUMachine android_arm_machine = {
     "android_arm",
     "ARM Android Emulator",
     android_arm_init,
+    0,
+    0,
     NULL
 };

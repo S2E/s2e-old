@@ -13,8 +13,7 @@
  * Virtual hardware for bridging the FUSE kernel module
  * in the emulated OS and outside file system
  */
-#include "vl.h"
-
+#include "qemu_file.h"
 #include "goldfish_trace.h"
 
 //#define DEBUG   1

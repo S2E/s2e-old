@@ -37,6 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #include <stdlib.h>
 #include "dis-asm.h"
+#include "qemu-common.h"
 
 #define MAXLEN 20
 
@@ -59,7 +60,8 @@ static int putop PARAMS ((const char *, int));
 static void oappend PARAMS ((const char *));
 static void append_seg PARAMS ((void));
 static void OP_indirE PARAMS ((int, int));
-static void print_operand_value PARAMS ((char *, int, bfd_vma));
+static void print_operand_value (char *buf, size_t bufsize, int hex,
+                                 bfd_vma disp);
 static void OP_E PARAMS ((int, int));
 static void OP_G PARAMS ((int, int));
 static bfd_vma get64 PARAMS ((void));
@@ -1838,29 +1840,6 @@ static char close_char;
 static char separator_char;
 static char scale_char;
 
-/* Here for backwards compatibility.  When gdb stops using
-   print_insn_i386_att and print_insn_i386_intel these functions can
-   disappear, and print_insn_i386 be merged into print_insn.  */
-int
-print_insn_i386_att (pc, info)
-     bfd_vma pc;
-     disassemble_info *info;
-{
-  intel_syntax = 0;
-
-  return print_insn (pc, info);
-}
-
-int
-print_insn_i386_intel (pc, info)
-     bfd_vma pc;
-     disassemble_info *info;
-{
-  intel_syntax = 1;
-
-  return print_insn (pc, info);
-}
-
 int
 print_insn_i386 (pc, info)
      bfd_vma pc;
@@ -2455,7 +2434,7 @@ static const struct dis386 float_reg[][8] = {
   },
 };
 
-static char *fgrps[][8] = {
+static const char *fgrps[][8] = {
   /* d9_2  0 */
   {
     "fnop","(bad)","(bad)","(bad)","(bad)","(bad)","(bad)","(bad)",
@@ -2535,7 +2514,7 @@ dofloat (sizeflag)
 
       /* Instruction fnstsw is only one with strange arg.  */
       if (floatop == 0xdf && codep[-1] == 0xe0)
-	strcpy (op1out, names16[0]);
+        pstrcpy (op1out, sizeof(op1out), names16[0]);
     }
   else
     {
@@ -2563,7 +2542,7 @@ OP_STi (bytemode, sizeflag)
      int bytemode;
      int sizeflag;
 {
-  sprintf (scratchbuf, "%%st(%d)", rm);
+  snprintf (scratchbuf, sizeof(scratchbuf), "%%st(%d)", rm);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -2596,7 +2575,7 @@ putop (template, sizeflag)
 		  if (*p == '}')
 		    {
 		      /* Alternative not valid.  */
-		      strcpy (obuf, "(bad)");
+                      pstrcpy (obuf, sizeof(obuf), "(bad)");
 		      obufp = obuf + 5;
 		      return 1;
 		    }
@@ -2897,10 +2876,7 @@ OP_indirE (bytemode, sizeflag)
 }
 
 static void
-print_operand_value (buf, hex, disp)
-  char *buf;
-  int hex;
-  bfd_vma disp;
+print_operand_value (char *buf, size_t bufsize, int hex, bfd_vma disp)
 {
   if (mode_64bit)
     {
@@ -2910,9 +2886,9 @@ print_operand_value (buf, hex, disp)
 	  int i;
 	  buf[0] = '0';
 	  buf[1] = 'x';
-	  sprintf_vma (tmp, disp);
+          snprintf_vma (tmp, sizeof(tmp), disp);
 	  for (i = 0; tmp[i] == '0' && tmp[i + 1]; i++);
-	  strcpy (buf + 2, tmp + i);
+          pstrcpy (buf + 2, bufsize - 2, tmp + i);
 	}
       else
 	{
@@ -2926,13 +2902,13 @@ print_operand_value (buf, hex, disp)
 	      /* Check for possible overflow on 0x8000000000000000.  */
 	      if (v < 0)
 		{
-		  strcpy (buf, "9223372036854775808");
+                  pstrcpy (buf, bufsize, "9223372036854775808");
 		  return;
 		}
 	    }
 	  if (!v)
 	    {
-	      strcpy (buf, "0");
+                pstrcpy (buf, bufsize, "0");
 	      return;
 	    }
 
@@ -2944,15 +2920,15 @@ print_operand_value (buf, hex, disp)
 	      v /= 10;
 	      i++;
 	    }
-	  strcpy (buf, tmp + 29 - i);
+          pstrcpy (buf, bufsize, tmp + 29 - i);
 	}
     }
   else
     {
       if (hex)
-	sprintf (buf, "0x%x", (unsigned int) disp);
+        snprintf (buf, bufsize, "0x%x", (unsigned int) disp);
       else
-	sprintf (buf, "%d", (int) disp);
+        snprintf (buf, bufsize, "%d", (int) disp);
     }
 }
 
@@ -3077,7 +3053,7 @@ OP_E (bytemode, sizeflag)
       if (!intel_syntax)
         if (mod != 0 || (base & 7) == 5)
           {
-	    print_operand_value (scratchbuf, !riprel, disp);
+            print_operand_value (scratchbuf, sizeof(scratchbuf), !riprel, disp);
             oappend (scratchbuf);
 	    if (riprel)
 	      {
@@ -3138,14 +3114,14 @@ OP_E (bytemode, sizeflag)
                           *obufp++ = separator_char;
                           *obufp = '\0';
                         }
-                      sprintf (scratchbuf, "%s",
-			       mode_64bit && (sizeflag & AFLAG)
-			       ? names64[index] : names32[index]);
+                      snprintf (scratchbuf, sizeof(scratchbuf), "%s",
+                                mode_64bit && (sizeflag & AFLAG)
+                                ? names64[index] : names32[index]);
                     }
                   else
-		    sprintf (scratchbuf, ",%s",
-			     mode_64bit && (sizeflag & AFLAG)
-			     ? names64[index] : names32[index]);
+                      snprintf (scratchbuf, sizeof(scratchbuf), ",%s",
+                                mode_64bit && (sizeflag & AFLAG)
+                                ? names64[index] : names32[index]);
 		  oappend (scratchbuf);
 		}
               if (!intel_syntax
@@ -3156,7 +3132,7 @@ OP_E (bytemode, sizeflag)
                 {
                   *obufp++ = scale_char;
                   *obufp = '\0';
-	          sprintf (scratchbuf, "%d", 1 << scale);
+                  snprintf (scratchbuf, sizeof(scratchbuf), "%d", 1 << scale);
 	          oappend (scratchbuf);
                 }
 	    }
@@ -3172,7 +3148,8 @@ OP_E (bytemode, sizeflag)
 			*obufp = '\0';
 		      }
 
-		    print_operand_value (scratchbuf, 0, disp);
+                    print_operand_value (scratchbuf, sizeof(scratchbuf), 0,
+                                         disp);
                     oappend (scratchbuf);
                   }
               }
@@ -3192,7 +3169,7 @@ OP_E (bytemode, sizeflag)
 		  oappend (names_seg[ds_reg - es_reg]);
 		  oappend (":");
 		}
-	      print_operand_value (scratchbuf, 1, disp);
+              print_operand_value (scratchbuf, sizeof(scratchbuf), 1, disp);
               oappend (scratchbuf);
             }
         }
@@ -3225,7 +3202,7 @@ OP_E (bytemode, sizeflag)
       if (!intel_syntax)
         if (mod != 0 || (rm & 7) == 6)
           {
-	    print_operand_value (scratchbuf, 0, disp);
+            print_operand_value (scratchbuf, sizeof(scratchbuf), 0, disp);
             oappend (scratchbuf);
           }
 
@@ -3527,7 +3504,7 @@ OP_I (bytemode, sizeflag)
 
   op &= mask;
   scratchbuf[0] = '$';
-  print_operand_value (scratchbuf + 1, 1, op);
+  print_operand_value (scratchbuf + 1, sizeof(scratchbuf) - 1, 1, op);
   oappend (scratchbuf + intel_syntax);
   scratchbuf[0] = '\0';
 }
@@ -3580,7 +3557,7 @@ OP_I64 (bytemode, sizeflag)
 
   op &= mask;
   scratchbuf[0] = '$';
-  print_operand_value (scratchbuf + 1, 1, op);
+  print_operand_value (scratchbuf + 1, sizeof(scratchbuf) - 1, 1, op);
   oappend (scratchbuf + intel_syntax);
   scratchbuf[0] = '\0';
 }
@@ -3632,7 +3609,7 @@ OP_sI (bytemode, sizeflag)
     }
 
   scratchbuf[0] = '$';
-  print_operand_value (scratchbuf + 1, 1, op);
+  print_operand_value (scratchbuf + 1, sizeof(scratchbuf) - 1, 1, op);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -3670,7 +3647,7 @@ OP_J (bytemode, sizeflag)
     }
   disp = (start_pc + codep - start_codep + disp) & mask;
   set_op (disp, 0);
-  print_operand_value (scratchbuf, 1, disp);
+  print_operand_value (scratchbuf, sizeof(scratchbuf), 1, disp);
   oappend (scratchbuf);
 }
 
@@ -3701,9 +3678,9 @@ OP_DIR (dummy, sizeflag)
     }
   used_prefixes |= (prefixes & PREFIX_DATA);
   if (intel_syntax)
-    sprintf (scratchbuf, "0x%x,0x%x", seg, offset);
+    snprintf (scratchbuf, sizeof(scratchbuf), "0x%x,0x%x", seg, offset);
   else
-    sprintf (scratchbuf, "$0x%x,$0x%x", seg, offset);
+    snprintf (scratchbuf, sizeof(scratchbuf), "$0x%x,$0x%x", seg, offset);
   oappend (scratchbuf);
 }
 
@@ -3730,7 +3707,7 @@ OP_OFF (bytemode, sizeflag)
 	  oappend (":");
 	}
     }
-  print_operand_value (scratchbuf, 1, off);
+  print_operand_value (scratchbuf, sizeof(scratchbuf), 1, off);
   oappend (scratchbuf);
 }
 
@@ -3760,7 +3737,7 @@ OP_OFF64 (bytemode, sizeflag)
 	  oappend (":");
 	}
     }
-  print_operand_value (scratchbuf, 1, off);
+  print_operand_value (scratchbuf, sizeof(scratchbuf), 1, off);
   oappend (scratchbuf);
 }
 
@@ -3829,7 +3806,7 @@ OP_C (dummy, sizeflag)
   USED_REX (REX_EXTX);
   if (rex & REX_EXTX)
     add = 8;
-  sprintf (scratchbuf, "%%cr%d", reg + add);
+  snprintf (scratchbuf, sizeof(scratchbuf), "%%cr%d", reg + add);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -3843,9 +3820,9 @@ OP_D (dummy, sizeflag)
   if (rex & REX_EXTX)
     add = 8;
   if (intel_syntax)
-    sprintf (scratchbuf, "db%d", reg + add);
+    snprintf (scratchbuf, sizeof(scratchbuf), "db%d", reg + add);
   else
-    sprintf (scratchbuf, "%%db%d", reg + add);
+    snprintf (scratchbuf, sizeof(scratchbuf), "%%db%d", reg + add);
   oappend (scratchbuf);
 }
 
@@ -3854,7 +3831,7 @@ OP_T (dummy, sizeflag)
      int dummy;
      int sizeflag;
 {
-  sprintf (scratchbuf, "%%tr%d", reg);
+  snprintf (scratchbuf, sizeof(scratchbuf), "%%tr%d", reg);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -3880,9 +3857,9 @@ OP_MMX (bytemode, sizeflag)
     add = 8;
   used_prefixes |= (prefixes & PREFIX_DATA);
   if (prefixes & PREFIX_DATA)
-    sprintf (scratchbuf, "%%xmm%d", reg + add);
+    snprintf (scratchbuf, sizeof(scratchbuf), "%%xmm%d", reg + add);
   else
-    sprintf (scratchbuf, "%%mm%d", reg + add);
+    snprintf (scratchbuf, sizeof(scratchbuf), "%%mm%d", reg + add);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -3895,7 +3872,7 @@ OP_XMM (bytemode, sizeflag)
   USED_REX (REX_EXTX);
   if (rex & REX_EXTX)
     add = 8;
-  sprintf (scratchbuf, "%%xmm%d", reg + add);
+  snprintf (scratchbuf, sizeof(scratchbuf), "%%xmm%d", reg + add);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -3919,9 +3896,9 @@ OP_EM (bytemode, sizeflag)
   codep++;
   used_prefixes |= (prefixes & PREFIX_DATA);
   if (prefixes & PREFIX_DATA)
-    sprintf (scratchbuf, "%%xmm%d", rm + add);
+    snprintf (scratchbuf, sizeof(scratchbuf), "%%xmm%d", rm + add);
   else
-    sprintf (scratchbuf, "%%mm%d", rm + add);
+    snprintf (scratchbuf, sizeof(scratchbuf), "%%mm%d", rm + add);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -3943,7 +3920,7 @@ OP_EX (bytemode, sizeflag)
   /* Skip mod/rm byte.  */
   MODRM_CHECK;
   codep++;
-  sprintf (scratchbuf, "%%xmm%d", rm + add);
+  snprintf (scratchbuf, sizeof(scratchbuf), "%%xmm%d", rm + add);
   oappend (scratchbuf + intel_syntax);
 }
 
@@ -4102,8 +4079,8 @@ OP_SIMD_Suffix (bytemode, sizeflag)
 		suffix1 = 's', suffix2 = 'd';
 	    }
 	}
-      sprintf (scratchbuf, "cmp%s%c%c",
-	       simd_cmp_op[cmp_type], suffix1, suffix2);
+      snprintf (scratchbuf, sizeof(scratchbuf), "cmp%s%c%c",
+                simd_cmp_op[cmp_type], suffix1, suffix2);
       used_prefixes |= (prefixes & PREFIX_REPZ);
       oappend (scratchbuf);
     }

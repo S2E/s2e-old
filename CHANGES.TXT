@@ -11,41 +11,69 @@ Versions:
    1.5 => SDK 0.9_r1
    1.6 => SDK 1.0_r1
    1.7 => SDK 1.0_r2
-   1.8 => (unreleased, planned, named likely to change)
+   1.8 => SDK 1.1
+   1.9 => (unreleased, planned, named likely to change)
 
 ==============================================================================
-Changes between 1.7 and 1.8
+Changes between 1.8 and 1.9
 
 IMPORTANT CHANGES:
 
-- The emulator now requires that you specify a virtual machine name when
+- Many features have been integrated from upstream QEMU sources, including
+  the new TCG code generator used by the ARM translator. This should result
+  in slightly faster execution speed on all supported platforms.
+
+- The emulator now requires that you specify a virtual device name when
   starting the emulator, prefixed with the '@' sign. For example, to start
-  the 'foo' virtual machine, type:
+  the 'foo' virtual device, type:
 
       emulator @foo
 
-  Each VM corresponds to a directory used to store mutable disk images, an
-  optional system image/kernel/sdcard,  plus some configuration file(s).
+  Each AVD (Android Virtual Device) corresponds to a directory used to store
+  mutable disk images, an optional system image/kernel/sdcard, plus some
+  configuration file(s).
 
   The command-line tool 'android' that comes with the SDK can be used to
-  create/list/remove virtual machines on your system.
+  create/list/remove virtual devices on your system.
 
-  Note that the '@<name>' form is a convenience shortcut for '-vm <name>'.
-  It is thus possible to place options after the VM name on your command
+  Note that the '@<name>' form is a convenience shortcut for '-avd <name>'.
+  It is thus possible to place options after the AVD name on your command
   line, as in:
 
       emulator @foo -verbose -shell
 
-  Finally, when building the Android platform source tree, a VM name is not
+  Finally, when building the Android platform source tree, an AVD name is not
   required and 'emulator' will start a new emulator instance exactly as
   previously.
 
+- A new option '-sysdir <dir>' has been introduced, the interpretation of
+  the '-system' option has changed, and '-image <file>' should now be
+  considered obsolete. In more details:
+
+  * you should now use '-sysdir <dir>' instead of '-system <dir>' to specify
+    the directory where system images will be searched by the emulator
+    on startup.
+
+  * you should now use '-system <file>' to indicate which system.img partition
+    image to use at startup.
+
+  * you should not use '-system <dir>' or '-image <path>' anymore. However,
+    these options are still supported but will print a warning to remind you
+    to change your scripts/habits.
+
+  The change was done to reduce confusion as to what these options provide.
+
+- Options '-noaudio', '-nojni', '-noskin' and 'nocache' are deprecated.
+  You should use '-no-audio', '-no-jni', '-no-skin' and '-no-cache' instead.
+
+- Option 'initdata' is deprecated, you should use '-init-data' instead.
+
 - Hardware emulation is now limited to the corresponding Android Virtual
-  Machine's configuration. This means it is now possible to not emulate
+  Device's configuration. This means it is now possible to not emulate
   a touch-screen, trackball, dpad, keyboard, modem, etc...
 
   Note that in the case of the Android build system, all hardware properties
-  are enabled by default, so this only affects "normal" virtual machines
+  are enabled by default, so this only affects "normal" virtual devices
   created with the 'android' tool.
 
 - The emulator now supports capturing network packets to a file.
@@ -59,11 +87,21 @@ IMPORTANT CHANGES:
 
 OTHER:
 
-- A new console command 'vm name' can be used to query the name of the
-  virtual machine running in the emulator. Note that it will be '<build>'
+- The file in ~/.android/default.keyset was ignored, unless you used
+  '-keyset default' explicitely. It is now loaded automatically when
+  available.
+
+- Environment variable ANDROID_SDK_ROOT can be used to specifiy the location
+  of the SDK installation path.
+
+- Environment variable ANDROID_SDK_HOME can be used to specify the location
+  of the '.android' data directory.
+
+- A new console command 'avd name' can be used to query the name of the
+  virtual device running in the emulator. Note that it will be '<build>'
   if you run from the Android build system.
 
-  Also, the emulator's window title also displays the VM name now.
+  Also, the emulator's window title also displays the AVD name now.
 
 - The option '-memory <size>' has been added. <memory> must be an integer
   specifying the amount of physical RAM in the emulated device in megabytes.
@@ -73,6 +111,13 @@ OTHER:
   option as well.
 
 - Better handling of Audio on Linux for the EsounD and Alsa backends
+
+- Fullscreen toggle should now work on Windows and OS X. On Linux, the
+  toggle will not switch the display resolution anymore (which resulted
+  in distorted images).
+
+- Using '-no-audio' no longer disables sound hardware emulation. It simply
+  mutes the emulator program on the host.
 
 ==============================================================================
 Changes between 1.6 and 1.7
@@ -492,8 +537,8 @@ NEW CONSOLE COMMANDS:
 - the new 'event text <textMessage>' command can be used to simulate
   keypresses of small text messages, where <textMessage> is an utf-8 string.
 
-- the new 'vm stop' and 'vm start' command can be used to stop/start the
-  emulation. you can also use 'vm status' to query the current state.
+- the new 'avd stop' and 'avd start' command can be used to stop/start the
+  emulation. you can also use 'avd status' to query the current state.
 
 - the new 'window scale <scale>' command allows you to change the scale of
   the emulator window dynamically. <scale> is either an integer followed by
@@ -607,9 +652,9 @@ OTHER:
   they are used internally by the voice/sms auto-forwarder and are probably
   not very useful to typical developers
 
-- some code has been added to support save/restore of the VM state to/from
+- some code has been added to support save/restore of the AVD state to/from
   a file. however this is not properly tested yet, and requires that you
-  use exactly the same options and disk images when reloading the VM state.
+  use exactly the same options and disk images when reloading the AVD state.
 
 - added a new -cache <file> option to specify the cache partition image
   file. the default is to use a temporary file instead

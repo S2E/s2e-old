@@ -1,7 +1,8 @@
 #include "slirp.h"
 #include "proxy_common.h"
-#include "android_utils.h"  /* for dprint */
-#include "android.h"
+#include "android/utils/debug.h"  /* for dprint */
+#include "android/utils/bufprint.h"
+#include "android/android.h"
 #include "sockets.h"
 
 #define  D(...)   VERBOSE_PRINT(slirp,__VA_ARGS__)

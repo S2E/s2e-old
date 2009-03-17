@@ -10,8 +10,8 @@
 ** GNU General Public License for more details.
 */
 #include "android/utils/dirscanner.h"
-#include "android_utils.h"
-#include "vl.h"
+#include "android/utils/bufprint.h"
+#include "qemu-common.h"
 #include <stddef.h>
 
 #define  DIRSCANNER_BASE     \

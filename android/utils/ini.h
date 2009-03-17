@@ -62,6 +62,11 @@ IniFile*  iniFile_newFromMemory( const char*  text, const char*  fileName  );
  */
 IniFile*  iniFile_newFromFile( const char*  filePath);
 
+/* try to write an IniFile into a given file.
+ * returns 0 on success, -1 on error (see errno for error code)
+ */
+int       iniFile_saveToFile( IniFile*  f, const char*  filePath );
+
 /* free an IniFile object */
 void      iniFile_free( IniFile*  f );
 
@@ -92,6 +97,11 @@ char*   iniFile_getString( IniFile*  f, const char*  key );
  * missing or badly formatted
  */
 int     iniFile_getInteger( IniFile*  f, const char*  key, int  defaultValue );
+
+/* returns a 64-bit integer value, or a default in case the value string is
+ * missing or badly formatted
+ */
+int64_t iniFile_getInt64( IniFile*  f, const char*  key, int64_t  defaultValue );
 
 /* returns a double value, or a default in case the value string is
  * missing or badly formatted

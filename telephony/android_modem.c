@@ -9,9 +9,11 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "android.h"
+#include "android/android.h"
 #include "android_modem.h"
-#include "android_timezone.h"
+#include "android/utils/debug.h"
+#include "android/utils/timezone.h"
+#include "android/utils/system.h"
 #include "sim_card.h"
 #include "sysdeps.h"
 #include <memory.h>
@@ -21,7 +23,6 @@
 #include <stdio.h>
 #include "sms.h"
 #include "remote_call.h"
-#include "vl.h"
 
 #define  DEBUG  1
 

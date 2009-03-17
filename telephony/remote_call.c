@@ -10,10 +10,11 @@
 ** GNU General Public License for more details.
 */
 #include "remote_call.h"
-#include "android_utils.h"
+#include "android/utils/bufprint.h"
+#include "android/utils/debug.h"
 #include "sysdeps.h"
 #include "gsm.h"
-#include "android.h"
+#include "android/android.h"
 #include "sockets.h"
 #include <stdlib.h>
 

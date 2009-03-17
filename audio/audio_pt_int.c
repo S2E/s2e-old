@@ -1,4 +1,3 @@
-#include "vl.h"
 #include "audio.h"
 
 #define AUDIO_CAP "audio-pt"

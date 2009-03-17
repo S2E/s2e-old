@@ -1,6 +1,6 @@
 /*
  * gdb server stub
- * 
+ *
  * Copyright (c) 2003-2005 Fabrice Bellard
  *
  * This library is free software; you can redistribute it and/or
@@ -29,10 +29,14 @@
 
 #include "qemu.h"
 #else
-#include "vl.h"
+#include "qemu-common.h"
+#include "qemu-char.h"
+#include "sysemu.h"
+#include "cpu.h"
+#include "gdbstub.h"
 #endif
 
-#include "sockets.h"
+#include "qemu_socket.h"
 #ifdef _WIN32
 /* XXX: these constants may be independent of the host ones even for Unix */
 #ifndef SIGTRAP
@@ -52,26 +56,36 @@ enum RSState {
     RS_GETLINE,
     RS_CHKSUM1,
     RS_CHKSUM2,
+    RS_SYSCALL,
 };
-/* XXX: This is not thread safe.  Do we care?  */
-static int gdbserver_fd = -1;
-
 typedef struct GDBState {
     CPUState *env; /* current CPU */
     enum RSState state; /* parsing state */
-    int fd;
     char line_buf[4096];
     int line_buf_index;
     int line_csum;
+    uint8_t last_packet[4100];
+    int last_packet_len;
+    int signal;
 #ifdef CONFIG_USER_ONLY
+    int fd;
     int running_state;
+#else
+    CharDriverState *chr;
 #endif
 } GDBState;
 
+/* By default use no IRQs and no timers while single stepping so as to
+ * make single stepping like an ICE HW step.
+ */
+static int sstep_flags = SSTEP_ENABLE|SSTEP_NOIRQ|SSTEP_NOTIMER;
+
 #ifdef CONFIG_USER_ONLY
+/* XXX: This is not thread safe.  Do we care?  */
+static int gdbserver_fd = -1;
+
 /* XXX: remove this hack.  */
 static GDBState gdbserver_state;
-#endif
 
 static int get_char(GDBState *s)
 {
@@ -81,9 +95,13 @@ static int get_char(GDBState *s)
     for(;;) {
         ret = socket_recv(s->fd, &ch, 1);
         if (ret < 0) {
+            if (errno == ECONNRESET)
+                s->fd = -1;
             if (errno != EINTR && errno != EAGAIN)
                 return -1;
         } else if (ret == 0) {
+            socket_close(s->fd);
+            s->fd = -1;
             return -1;
         } else {
             break;
@@ -91,9 +109,42 @@ static int get_char(GDBState *s)
     }
     return ch;
 }
+#endif
+
+/* GDB stub state for use by semihosting syscalls.  */
+static GDBState *gdb_syscall_state;
+static gdb_syscall_complete_cb gdb_current_syscall_cb;
+
+enum {
+    GDB_SYS_UNKNOWN,
+    GDB_SYS_ENABLED,
+    GDB_SYS_DISABLED,
+} gdb_syscall_mode;
+
+/* If gdb is connected when the first semihosting syscall occurs then use
+   remote gdb syscalls.  Otherwise use native file IO.  */
+int use_gdb_syscalls(void)
+{
+    if (gdb_syscall_mode == GDB_SYS_UNKNOWN) {
+        gdb_syscall_mode = (gdb_syscall_state ? GDB_SYS_ENABLED
+                                              : GDB_SYS_DISABLED);
+    }
+    return gdb_syscall_mode == GDB_SYS_ENABLED;
+}
+
+/* Resume execution.  */
+static inline void gdb_continue(GDBState *s)
+{
+#ifdef CONFIG_USER_ONLY
+    s->running_state = 1;
+#else
+    vm_start();
+#endif
+}
 
 static void put_buffer(GDBState *s, const uint8_t *buf, int len)
 {
+#ifdef CONFIG_USER_ONLY
     int ret;
 
     while (len > 0) {
@@ -106,6 +157,9 @@ static void put_buffer(GDBState *s, const uint8_t *buf, int len)
             len -= ret;
         }
     }
+#else
+    qemu_chr_write(s->chr, buf, len);
+#endif
 }
 
 static inline int fromhex(int v)
@@ -152,99 +206,213 @@ static void hextomem(uint8_t *mem, const char *buf, int len)
 }
 
 /* return -1 if error, 0 if OK */
-static int put_packet(GDBState *s, char *buf)
+static int put_packet(GDBState *s, const char *buf)
 {
-    char buf1[3];
-    int len, csum, ch, i;
+    int len, csum, i;
+    uint8_t *p;
 
 #ifdef DEBUG_GDB
     printf("reply='%s'\n", buf);
 #endif
 
     for(;;) {
-        buf1[0] = '$';
-        put_buffer(s, buf1, 1);
+        p = s->last_packet;
+        *(p++) = '$';
         len = strlen(buf);
-        put_buffer(s, buf, len);
+        memcpy(p, buf, len);
+        p += len;
         csum = 0;
         for(i = 0; i < len; i++) {
             csum += buf[i];
         }
-        buf1[0] = '#';
-        buf1[1] = tohex((csum >> 4) & 0xf);
-        buf1[2] = tohex((csum) & 0xf);
+        *(p++) = '#';
+        *(p++) = tohex((csum >> 4) & 0xf);
+        *(p++) = tohex((csum) & 0xf);
 
-        put_buffer(s, buf1, 3);
+        s->last_packet_len = p - s->last_packet;
+        put_buffer(s, (uint8_t *)s->last_packet, s->last_packet_len);
 
-        ch = get_char(s);
-        if (ch < 0)
+#ifdef CONFIG_USER_ONLY
+        i = get_char(s);
+        if (i < 0)
             return -1;
-        if (ch == '+')
+        if (i == '+')
             break;
+#else
+        break;
+#endif
     }
     return 0;
 }
 
 #if defined(TARGET_I386)
 
+#ifdef TARGET_X86_64
+static const uint8_t gdb_x86_64_regs[16] = {
+    R_EAX, R_EBX, R_ECX, R_EDX, R_ESI, R_EDI, R_EBP, R_ESP,
+    8, 9, 10, 11, 12, 13, 14, 15,
+};
+#endif
+
 static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
 {
-    uint32_t *registers = (uint32_t *)mem_buf;
-    int i, fpus;
+    int i, fpus, nb_regs;
+    uint8_t *p;
 
-    for(i = 0; i < 8; i++) {
-        registers[i] = env->regs[i];
+    p = mem_buf;
+#ifdef TARGET_X86_64
+    if (env->hflags & HF_CS64_MASK) {
+        nb_regs = 16;
+        for(i = 0; i < 16; i++) {
+            *(uint64_t *)p = tswap64(env->regs[gdb_x86_64_regs[i]]);
+            p += 8;
+        }
+        *(uint64_t *)p = tswap64(env->eip);
+        p += 8;
+    } else
+#endif
+    {
+        nb_regs = 8;
+        for(i = 0; i < 8; i++) {
+            *(uint32_t *)p = tswap32(env->regs[i]);
+            p += 4;
+        }
+        *(uint32_t *)p = tswap32(env->eip);
+        p += 4;
     }
-    registers[8] = env->eip;
-    registers[9] = env->eflags;
-    registers[10] = env->segs[R_CS].selector;
-    registers[11] = env->segs[R_SS].selector;
-    registers[12] = env->segs[R_DS].selector;
-    registers[13] = env->segs[R_ES].selector;
-    registers[14] = env->segs[R_FS].selector;
-    registers[15] = env->segs[R_GS].selector;
-    /* XXX: convert floats */
+
+    *(uint32_t *)p = tswap32(env->eflags);
+    p += 4;
+    *(uint32_t *)p = tswap32(env->segs[R_CS].selector);
+    p += 4;
+    *(uint32_t *)p = tswap32(env->segs[R_SS].selector);
+    p += 4;
+    *(uint32_t *)p = tswap32(env->segs[R_DS].selector);
+    p += 4;
+    *(uint32_t *)p = tswap32(env->segs[R_ES].selector);
+    p += 4;
+    *(uint32_t *)p = tswap32(env->segs[R_FS].selector);
+    p += 4;
+    *(uint32_t *)p = tswap32(env->segs[R_GS].selector);
+    p += 4;
     for(i = 0; i < 8; i++) {
-        memcpy(mem_buf + 16 * 4 + i * 10, &env->fpregs[i], 10);
+        /* XXX: convert floats */
+#ifdef USE_X86LDOUBLE
+        memcpy(p, &env->fpregs[i], 10);
+#else
+        memset(p, 0, 10);
+#endif
+        p += 10;
     }
-    registers[36] = env->fpuc;
+    *(uint32_t *)p = tswap32(env->fpuc); /* fctrl */
+    p += 4;
     fpus = (env->fpus & ~0x3800) | (env->fpstt & 0x7) << 11;
-    registers[37] = fpus;
-    registers[38] = 0; /* XXX: convert tags */
-    registers[39] = 0; /* fiseg */
-    registers[40] = 0; /* fioff */
-    registers[41] = 0; /* foseg */
-    registers[42] = 0; /* fooff */
-    registers[43] = 0; /* fop */
-    
-    for(i = 0; i < 16; i++)
-        tswapls(&registers[i]);
-    for(i = 36; i < 44; i++)
-        tswapls(&registers[i]);
-    return 44 * 4;
+    *(uint32_t *)p = tswap32(fpus); /* fstat */
+    p += 4;
+    *(uint32_t *)p = 0; /* ftag */
+    p += 4;
+    *(uint32_t *)p = 0; /* fiseg */
+    p += 4;
+    *(uint32_t *)p = 0; /* fioff */
+    p += 4;
+    *(uint32_t *)p = 0; /* foseg */
+    p += 4;
+    *(uint32_t *)p = 0; /* fooff */
+    p += 4;
+    *(uint32_t *)p = 0; /* fop */
+    p += 4;
+    for(i = 0; i < nb_regs; i++) {
+        *(uint64_t *)p = tswap64(env->xmm_regs[i].XMM_Q(0));
+        p += 8;
+        *(uint64_t *)p = tswap64(env->xmm_regs[i].XMM_Q(1));
+        p += 8;
+    }
+    *(uint32_t *)p = tswap32(env->mxcsr);
+    p += 4;
+    return p - mem_buf;
+}
+
+static inline void cpu_gdb_load_seg(CPUState *env, const uint8_t **pp, 
+                                    int sreg)
+{
+    const uint8_t *p;
+    uint32_t sel;
+    p = *pp;
+    sel = tswap32(*(uint32_t *)p);
+    p += 4;
+    if (sel != env->segs[sreg].selector) {
+#if defined(CONFIG_USER_ONLY)
+        cpu_x86_load_seg(env, sreg, sel);
+#else
+        /* XXX: do it with a debug function which does not raise an
+           exception */
+#endif
+    }
+    *pp = p;
 }
 
 static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
 {
-    uint32_t *registers = (uint32_t *)mem_buf;
-    int i;
+    const uint8_t *p = mem_buf;
+    int i, nb_regs;
+    uint16_t fpus;
 
-    for(i = 0; i < 8; i++) {
-        env->regs[i] = tswapl(registers[i]);
-    }
-    env->eip = tswapl(registers[8]);
-    env->eflags = tswapl(registers[9]);
-#if defined(CONFIG_USER_ONLY)
-#define LOAD_SEG(index, sreg)\
-            if (tswapl(registers[index]) != env->segs[sreg].selector)\
-                cpu_x86_load_seg(env, sreg, tswapl(registers[index]));
-            LOAD_SEG(10, R_CS);
-            LOAD_SEG(11, R_SS);
-            LOAD_SEG(12, R_DS);
-            LOAD_SEG(13, R_ES);
-            LOAD_SEG(14, R_FS);
-            LOAD_SEG(15, R_GS);
+#ifdef TARGET_X86_64
+    if (env->hflags & HF_CS64_MASK) {
+        nb_regs = 16;
+        for(i = 0; i < 16; i++) {
+            env->regs[gdb_x86_64_regs[i]] = tswap64(*(uint64_t *)p);
+            p += 8;
+        }
+        env->eip = tswap64(*(uint64_t *)p);
+        p += 8;
+    } else
 #endif
+    {
+        nb_regs = 8;
+        for(i = 0; i < 8; i++) {
+            env->regs[i] = tswap32(*(uint32_t *)p);
+            p += 4;
+        }
+        env->eip = tswap32(*(uint32_t *)p);
+        p += 4;
+    }
+    env->eflags = tswap32(*(uint32_t *)p);
+    p += 4;
+    cpu_gdb_load_seg(env, &p, R_CS);
+    cpu_gdb_load_seg(env, &p, R_SS);
+    cpu_gdb_load_seg(env, &p, R_DS);
+    cpu_gdb_load_seg(env, &p, R_ES);
+    cpu_gdb_load_seg(env, &p, R_FS);
+    cpu_gdb_load_seg(env, &p, R_GS);
+    
+    /* FPU state */
+    for(i = 0; i < 8; i++) {
+        /* XXX: convert floats */
+#ifdef USE_X86LDOUBLE
+        memcpy(&env->fpregs[i], p, 10);
+#endif
+        p += 10;
+    }
+    env->fpuc = tswap32(*(uint32_t *)p); /* fctrl */
+    p += 4;
+    fpus = tswap32(*(uint32_t *)p);
+    p += 4;
+    env->fpstt = (fpus >> 11) & 7;
+    env->fpus = fpus & ~0x3800;
+    p += 4 * 6;
+    
+    if (size >= ((p - mem_buf) + 16 * nb_regs + 4)) {
+        /* SSE state */
+        for(i = 0; i < nb_regs; i++) {
+            env->xmm_regs[i].XMM_Q(0) = tswap64(*(uint64_t *)p);
+            p += 8;
+            env->xmm_regs[i].XMM_Q(1) = tswap64(*(uint64_t *)p);
+            p += 8;
+        }
+        env->mxcsr = tswap32(*(uint32_t *)p);
+        p += 4;
+    }
 }
 
 #elif defined (TARGET_PPC)
@@ -264,14 +432,14 @@ static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
     }
     /* nip, msr, ccr, lnk, ctr, xer, mq */
     registers[96] = tswapl(env->nip);
-    registers[97] = tswapl(do_load_msr(env));
+    registers[97] = tswapl(env->msr);
     tmp = 0;
     for (i = 0; i < 8; i++)
         tmp |= env->crf[i] << (32 - ((i + 1) * 4));
     registers[98] = tswapl(tmp);
     registers[99] = tswapl(env->lr);
     registers[100] = tswapl(env->ctr);
-    registers[101] = tswapl(do_load_xer(env));
+    registers[101] = tswapl(ppc_load_xer(env));
     registers[102] = 0;
 
     return 103 * 4;
@@ -293,61 +461,73 @@ static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
     }
     /* nip, msr, ccr, lnk, ctr, xer, mq */
     env->nip = tswapl(registers[96]);
-    do_store_msr(env, tswapl(registers[97]));
+    ppc_store_msr(env, tswapl(registers[97]));
     registers[98] = tswapl(registers[98]);
     for (i = 0; i < 8; i++)
         env->crf[i] = (registers[98] >> (32 - ((i + 1) * 4))) & 0xF;
     env->lr = tswapl(registers[99]);
     env->ctr = tswapl(registers[100]);
-    do_store_xer(env, tswapl(registers[101]));
+    ppc_store_xer(env, tswapl(registers[101]));
 }
 #elif defined (TARGET_SPARC)
+#ifdef TARGET_ABI32
+#define tswap_abi(val) tswap32(val &0xffffffff)
+#else
+#define tswap_abi(val) tswapl(val)
+#endif
 static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
 {
+#ifdef TARGET_ABI32
+    abi_ulong *registers = (abi_ulong *)mem_buf;
+#else
     target_ulong *registers = (target_ulong *)mem_buf;
+#endif
     int i;
 
     /* fill in g0..g7 */
     for(i = 0; i < 8; i++) {
-        registers[i] = tswapl(env->gregs[i]);
+        registers[i] = tswap_abi(env->gregs[i]);
     }
     /* fill in register window */
     for(i = 0; i < 24; i++) {
-        registers[i + 8] = tswapl(env->regwptr[i]);
+        registers[i + 8] = tswap_abi(env->regwptr[i]);
     }
-#ifndef TARGET_SPARC64
+#if !defined(TARGET_SPARC64) || defined(TARGET_ABI32)
     /* fill in fprs */
     for (i = 0; i < 32; i++) {
-        registers[i + 32] = tswapl(*((uint32_t *)&env->fpr[i]));
+        registers[i + 32] = tswap_abi(*((uint32_t *)&env->fpr[i]));
     }
     /* Y, PSR, WIM, TBR, PC, NPC, FPSR, CPSR */
-    registers[64] = tswapl(env->y);
+    registers[64] = tswap_abi(env->y);
     {
-	target_ulong tmp;
+        uint32_t tmp;
 
-	tmp = GET_PSR(env);
-	registers[65] = tswapl(tmp);
+        tmp = GET_PSR(env);
+        registers[65] = tswap32(tmp);
     }
-    registers[66] = tswapl(env->wim);
-    registers[67] = tswapl(env->tbr);
-    registers[68] = tswapl(env->pc);
-    registers[69] = tswapl(env->npc);
-    registers[70] = tswapl(env->fsr);
+    registers[66] = tswap_abi(env->wim);
+    registers[67] = tswap_abi(env->tbr);
+    registers[68] = tswap_abi(env->pc);
+    registers[69] = tswap_abi(env->npc);
+    registers[70] = tswap_abi(env->fsr);
     registers[71] = 0; /* csr */
     registers[72] = 0;
-    return 73 * sizeof(target_ulong);
+    return 73 * sizeof(uint32_t);
 #else
     /* fill in fprs */
     for (i = 0; i < 64; i += 2) {
 	uint64_t tmp;
 
-        tmp = (uint64_t)tswap32(*((uint32_t *)&env->fpr[i])) << 32;
-        tmp |= tswap32(*((uint32_t *)&env->fpr[i + 1]));
-        registers[i/2 + 32] = tmp;
+        tmp = ((uint64_t)*(uint32_t *)&env->fpr[i]) << 32;
+        tmp |= *(uint32_t *)&env->fpr[i + 1];
+        registers[i / 2 + 32] = tswap64(tmp);
     }
     registers[64] = tswapl(env->pc);
     registers[65] = tswapl(env->npc);
-    registers[66] = tswapl(env->tstate[env->tl]);
+    registers[66] = tswapl(((uint64_t)GET_CCR(env) << 32) |
+                           ((env->asi & 0xff) << 24) |
+                           ((env->pstate & 0xfff) << 8) |
+                           GET_CWP64(env));
     registers[67] = tswapl(env->fsr);
     registers[68] = tswapl(env->fprs);
     registers[69] = tswapl(env->y);
@@ -357,43 +537,58 @@ static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
 
 static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
 {
+#ifdef TARGET_ABI32
+    abi_ulong *registers = (abi_ulong *)mem_buf;
+#else
     target_ulong *registers = (target_ulong *)mem_buf;
+#endif
     int i;
 
     /* fill in g0..g7 */
     for(i = 0; i < 7; i++) {
-        env->gregs[i] = tswapl(registers[i]);
+        env->gregs[i] = tswap_abi(registers[i]);
     }
     /* fill in register window */
     for(i = 0; i < 24; i++) {
-        env->regwptr[i] = tswapl(registers[i + 8]);
+        env->regwptr[i] = tswap_abi(registers[i + 8]);
     }
-#ifndef TARGET_SPARC64
+#if !defined(TARGET_SPARC64) || defined(TARGET_ABI32)
     /* fill in fprs */
     for (i = 0; i < 32; i++) {
-        *((uint32_t *)&env->fpr[i]) = tswapl(registers[i + 32]);
+        *((uint32_t *)&env->fpr[i]) = tswap_abi(registers[i + 32]);
     }
     /* Y, PSR, WIM, TBR, PC, NPC, FPSR, CPSR */
-    env->y = tswapl(registers[64]);
-    PUT_PSR(env, tswapl(registers[65]));
-    env->wim = tswapl(registers[66]);
-    env->tbr = tswapl(registers[67]);
-    env->pc = tswapl(registers[68]);
-    env->npc = tswapl(registers[69]);
-    env->fsr = tswapl(registers[70]);
+    env->y = tswap_abi(registers[64]);
+    PUT_PSR(env, tswap_abi(registers[65]));
+    env->wim = tswap_abi(registers[66]);
+    env->tbr = tswap_abi(registers[67]);
+    env->pc = tswap_abi(registers[68]);
+    env->npc = tswap_abi(registers[69]);
+    env->fsr = tswap_abi(registers[70]);
 #else
     for (i = 0; i < 64; i += 2) {
-	*((uint32_t *)&env->fpr[i]) = tswap32(registers[i/2 + 32] >> 32);
-	*((uint32_t *)&env->fpr[i + 1]) = tswap32(registers[i/2 + 32] & 0xffffffff);
+        uint64_t tmp;
+
+        tmp = tswap64(registers[i / 2 + 32]);
+	*((uint32_t *)&env->fpr[i]) = tmp >> 32;
+	*((uint32_t *)&env->fpr[i + 1]) = tmp & 0xffffffff;
     }
     env->pc = tswapl(registers[64]);
     env->npc = tswapl(registers[65]);
-    env->tstate[env->tl] = tswapl(registers[66]);
+    {
+        uint64_t tmp = tswapl(registers[66]);
+
+        PUT_CCR(env, tmp >> 32);
+        env->asi = (tmp >> 24) & 0xff;
+        env->pstate = (tmp >> 8) & 0xfff;
+        PUT_CWP64(env, tmp & 0xff);
+    }
     env->fsr = tswapl(registers[67]);
     env->fprs = tswapl(registers[68]);
     env->y = tswapl(registers[69]);
 #endif
 }
+#undef tswap_abi
 #elif defined (TARGET_ARM)
 static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
 {
@@ -434,6 +629,73 @@ static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
     ptr += 8 * 12 + 4;
     cpsr_write (env, tswapl(*(uint32_t *)ptr), 0xffffffff);
 }
+#elif defined (TARGET_M68K)
+static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
+{
+    int i;
+    uint8_t *ptr;
+    CPU_DoubleU u;
+
+    ptr = mem_buf;
+    /* D0-D7 */
+    for (i = 0; i < 8; i++) {
+        *(uint32_t *)ptr = tswapl(env->dregs[i]);
+        ptr += 4;
+    }
+    /* A0-A7 */
+    for (i = 0; i < 8; i++) {
+        *(uint32_t *)ptr = tswapl(env->aregs[i]);
+        ptr += 4;
+    }
+    *(uint32_t *)ptr = tswapl(env->sr);
+    ptr += 4;
+    *(uint32_t *)ptr = tswapl(env->pc);
+    ptr += 4;
+    /* F0-F7.  The 68881/68040 have 12-bit extended precision registers.
+       ColdFire has 8-bit double precision registers.  */
+    for (i = 0; i < 8; i++) {
+        u.d = env->fregs[i];
+        *(uint32_t *)ptr = tswap32(u.l.upper);
+        *(uint32_t *)ptr = tswap32(u.l.lower);
+    }
+    /* FP control regs (not implemented).  */
+    memset (ptr, 0, 3 * 4);
+    ptr += 3 * 4;
+
+    return ptr - mem_buf;
+}
+
+static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
+{
+    int i;
+    uint8_t *ptr;
+    CPU_DoubleU u;
+
+    ptr = mem_buf;
+    /* D0-D7 */
+    for (i = 0; i < 8; i++) {
+        env->dregs[i] = tswapl(*(uint32_t *)ptr);
+        ptr += 4;
+    }
+    /* A0-A7 */
+    for (i = 0; i < 8; i++) {
+        env->aregs[i] = tswapl(*(uint32_t *)ptr);
+        ptr += 4;
+    }
+    env->sr = tswapl(*(uint32_t *)ptr);
+    ptr += 4;
+    env->pc = tswapl(*(uint32_t *)ptr);
+    ptr += 4;
+    /* F0-F7.  The 68881/68040 have 12-bit extended precision registers.
+       ColdFire has 8-bit double precision registers.  */
+    for (i = 0; i < 8; i++) {
+        u.l.upper = tswap32(*(uint32_t *)ptr);
+        u.l.lower = tswap32(*(uint32_t *)ptr);
+        env->fregs[i] = u.d;
+    }
+    /* FP control regs (not implemented).  */
+    ptr += 3 * 4;
+}
 #elif defined (TARGET_MIPS)
 static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
 {
@@ -443,32 +705,74 @@ static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
     ptr = mem_buf;
     for (i = 0; i < 32; i++)
       {
-        *(uint32_t *)ptr = tswapl(env->gpr[i]);
-        ptr += 4;
+        *(target_ulong *)ptr = tswapl(env->active_tc.gpr[i]);
+        ptr += sizeof(target_ulong);
       }
 
-    *(uint32_t *)ptr = tswapl(env->CP0_Status);
-    ptr += 4;
+    *(target_ulong *)ptr = (int32_t)tswap32(env->CP0_Status);
+    ptr += sizeof(target_ulong);
 
-    *(uint32_t *)ptr = tswapl(env->LO);
-    ptr += 4;
+    *(target_ulong *)ptr = tswapl(env->active_tc.LO[0]);
+    ptr += sizeof(target_ulong);
 
-    *(uint32_t *)ptr = tswapl(env->HI);
-    ptr += 4;
+    *(target_ulong *)ptr = tswapl(env->active_tc.HI[0]);
+    ptr += sizeof(target_ulong);
 
-    *(uint32_t *)ptr = tswapl(env->CP0_BadVAddr);
-    ptr += 4;
+    *(target_ulong *)ptr = tswapl(env->CP0_BadVAddr);
+    ptr += sizeof(target_ulong);
 
-    *(uint32_t *)ptr = tswapl(env->CP0_Cause);
-    ptr += 4;
+    *(target_ulong *)ptr = (int32_t)tswap32(env->CP0_Cause);
+    ptr += sizeof(target_ulong);
 
-    *(uint32_t *)ptr = tswapl(env->PC);
-    ptr += 4;
+    *(target_ulong *)ptr = tswapl(env->active_tc.PC);
+    ptr += sizeof(target_ulong);
 
-    /* 32 FP registers, fsr, fir, fp.  Not yet implemented.  */
+    if (env->CP0_Config1 & (1 << CP0C1_FP))
+      {
+        for (i = 0; i < 32; i++)
+          {
+            if (env->CP0_Status & (1 << CP0St_FR))
+              *(target_ulong *)ptr = tswapl(env->fpu->fpr[i].d);
+            else
+              *(target_ulong *)ptr = tswap32(env->fpu->fpr[i].w[FP_ENDIAN_IDX]);
+            ptr += sizeof(target_ulong);
+          }
+
+        *(target_ulong *)ptr = (int32_t)tswap32(env->fpu->fcr31);
+        ptr += sizeof(target_ulong);
+
+        *(target_ulong *)ptr = (int32_t)tswap32(env->fpu->fcr0);
+        ptr += sizeof(target_ulong);
+      }
+
+    /* "fp", pseudo frame pointer. Not yet implemented in gdb. */
+    *(target_ulong *)ptr = 0;
+    ptr += sizeof(target_ulong);
+
+    /* Registers for embedded use, we just pad them. */
+    for (i = 0; i < 16; i++)
+      {
+        *(target_ulong *)ptr = 0;
+        ptr += sizeof(target_ulong);
+      }
+
+    /* Processor ID. */
+    *(target_ulong *)ptr = (int32_t)tswap32(env->CP0_PRid);
+    ptr += sizeof(target_ulong);
 
     return ptr - mem_buf;
 }
+
+/* convert MIPS rounding mode in FCR31 to IEEE library */
+static unsigned int ieee_rm[] =
+  {
+    float_round_nearest_even,
+    float_round_to_zero,
+    float_round_up,
+    float_round_down
+  };
+#define RESTORE_ROUNDING_MODE \
+    set_float_rounding_mode(ieee_rm[env->fpu->fcr31 & 3], &env->fpu->fp_status)
 
 static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
 {
@@ -478,29 +782,57 @@ static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
     ptr = mem_buf;
     for (i = 0; i < 32; i++)
       {
-        env->gpr[i] = tswapl(*(uint32_t *)ptr);
-        ptr += 4;
+        env->active_tc.gpr[i] = tswapl(*(target_ulong *)ptr);
+        ptr += sizeof(target_ulong);
       }
 
-    env->CP0_Status = tswapl(*(uint32_t *)ptr);
-    ptr += 4;
+    env->CP0_Status = tswapl(*(target_ulong *)ptr);
+    ptr += sizeof(target_ulong);
 
-    env->LO = tswapl(*(uint32_t *)ptr);
-    ptr += 4;
+    env->active_tc.LO[0] = tswapl(*(target_ulong *)ptr);
+    ptr += sizeof(target_ulong);
 
-    env->HI = tswapl(*(uint32_t *)ptr);
-    ptr += 4;
+    env->active_tc.HI[0] = tswapl(*(target_ulong *)ptr);
+    ptr += sizeof(target_ulong);
 
-    env->CP0_BadVAddr = tswapl(*(uint32_t *)ptr);
-    ptr += 4;
+    env->CP0_BadVAddr = tswapl(*(target_ulong *)ptr);
+    ptr += sizeof(target_ulong);
 
-    env->CP0_Cause = tswapl(*(uint32_t *)ptr);
-    ptr += 4;
+    env->CP0_Cause = tswapl(*(target_ulong *)ptr);
+    ptr += sizeof(target_ulong);
 
-    env->PC = tswapl(*(uint32_t *)ptr);
-    ptr += 4;
+    env->active_tc.PC = tswapl(*(target_ulong *)ptr);
+    ptr += sizeof(target_ulong);
+
+    if (env->CP0_Config1 & (1 << CP0C1_FP))
+      {
+        for (i = 0; i < 32; i++)
+          {
+            if (env->CP0_Status & (1 << CP0St_FR))
+              env->fpu->fpr[i].d = tswapl(*(target_ulong *)ptr);
+            else
+              env->fpu->fpr[i].w[FP_ENDIAN_IDX] = tswapl(*(target_ulong *)ptr);
+            ptr += sizeof(target_ulong);
+          }
+
+        env->fpu->fcr31 = tswapl(*(target_ulong *)ptr) & 0xFF83FFFF;
+        ptr += sizeof(target_ulong);
+
+        /* The remaining registers are assumed to be read-only. */
+
+        /* set rounding mode */
+        RESTORE_ROUNDING_MODE;
+
+#ifndef CONFIG_SOFTFLOAT
+        /* no floating point exception for native float */
+        SET_FP_ENABLE(env->fcr31, 0);
+#endif
+      }
 }
 #elif defined (TARGET_SH4)
+
+/* Hint: Use "set architecture sh4" in GDB to see fpu registers */
+
 static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
 {
   uint32_t *ptr = (uint32_t *)mem_buf;
@@ -520,12 +852,14 @@ static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
   SAVE (env->mach);
   SAVE (env->macl);
   SAVE (env->sr);
-  SAVE (0); /* TICKS */
-  SAVE (0); /* STALLS */
-  SAVE (0); /* CYCLES */
-  SAVE (0); /* INSTS */
-  SAVE (0); /* PLR */
-
+  SAVE (env->fpul);
+  SAVE (env->fpscr);
+  for (i = 0; i < 16; i++)
+      SAVE(env->fregs[i + ((env->fpscr & FPSCR_FR) ? 16 : 0)]);
+  SAVE (env->ssr);
+  SAVE (env->spc);
+  for (i = 0; i < 8; i++) SAVE(env->gregs[i]);
+  for (i = 0; i < 8; i++) SAVE(env->gregs[i + 16]);
   return ((uint8_t *)ptr - mem_buf);
 }
 
@@ -548,6 +882,74 @@ static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
   LOAD (env->mach);
   LOAD (env->macl);
   LOAD (env->sr);
+  LOAD (env->fpul);
+  LOAD (env->fpscr);
+  for (i = 0; i < 16; i++)
+      LOAD(env->fregs[i + ((env->fpscr & FPSCR_FR) ? 16 : 0)]);
+  LOAD (env->ssr);
+  LOAD (env->spc);
+  for (i = 0; i < 8; i++) LOAD(env->gregs[i]);
+  for (i = 0; i < 8; i++) LOAD(env->gregs[i + 16]);
+}
+#elif defined (TARGET_CRIS)
+
+static int cris_save_32 (unsigned char *d, uint32_t value)
+{
+	*d++ = (value);
+	*d++ = (value >>= 8);
+	*d++ = (value >>= 8);
+	*d++ = (value >>= 8);
+	return 4;
+}
+static int cris_save_16 (unsigned char *d, uint32_t value)
+{
+	*d++ = (value);
+	*d++ = (value >>= 8);
+	return 2;
+}
+static int cris_save_8 (unsigned char *d, uint32_t value)
+{
+	*d++ = (value);
+	return 1;
+}
+
+/* FIXME: this will bug on archs not supporting unaligned word accesses.  */
+static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
+{
+  uint8_t *ptr = mem_buf;
+  uint8_t srs;
+  int i;
+
+  for (i = 0; i < 16; i++)
+	  ptr += cris_save_32 (ptr, env->regs[i]);
+
+  srs = env->pregs[PR_SRS];
+
+  ptr += cris_save_8 (ptr, env->pregs[0]);
+  ptr += cris_save_8 (ptr, env->pregs[1]);
+  ptr += cris_save_32 (ptr, env->pregs[2]);
+  ptr += cris_save_8 (ptr, srs);
+  ptr += cris_save_16 (ptr, env->pregs[4]);
+
+  for (i = 5; i < 16; i++)
+	  ptr += cris_save_32 (ptr, env->pregs[i]);
+
+  ptr += cris_save_32 (ptr, env->pc);
+
+  for (i = 0; i < 16; i++)
+	  ptr += cris_save_32 (ptr, env->sregs[srs][i]);
+
+  return ((uint8_t *)ptr - mem_buf);
+}
+
+static void cpu_gdb_write_registers(CPUState *env, uint8_t *mem_buf, int size)
+{
+  uint32_t *ptr = (uint32_t *)mem_buf;
+  int i;
+
+#define LOAD(x) (x)=*ptr++;
+  for (i = 0; i < 16; i++) LOAD(env->regs[i]);
+  LOAD (env->pc);
 }
 #else
 static int cpu_gdb_read_registers(CPUState *env, uint8_t *mem_buf)
@@ -566,10 +968,10 @@ static int gdb_handle_packet(GDBState *s, CPUState *env, const char *line_buf)
     const char *p;
     int ch, reg_size, type;
     char buf[4096];
-    uint8_t mem_buf[2000];
+    uint8_t mem_buf[4096];
     uint32_t *registers;
     target_ulong addr, len;
-    
+
 #ifdef DEBUG_GDB
     printf("command='%s'\n", line_buf);
 #endif
@@ -580,6 +982,12 @@ static int gdb_handle_packet(GDBState *s, CPUState *env, const char *line_buf)
         /* TODO: Make this return the correct value for user-mode.  */
         snprintf(buf, sizeof(buf), "S%02x", SIGTRAP);
         put_packet(s, buf);
+        /* Remove all the breakpoints when this query is issued,
+         * because gdb is doing and initial connect and the state
+         * should be cleaned up.
+         */
+        cpu_breakpoint_remove_all(env);
+        cpu_watchpoint_remove_all(env);
         break;
     case 'c':
         if (*p != '\0') {
@@ -594,18 +1002,33 @@ static int gdb_handle_packet(GDBState *s, CPUState *env, const char *line_buf)
 #elif defined (TARGET_ARM)
             env->regs[15] = addr;
 #elif defined (TARGET_SH4)
-	    env->pc = addr;
+            env->pc = addr;
+#elif defined (TARGET_MIPS)
+            env->active_tc.PC = addr;
+#elif defined (TARGET_CRIS)
+            env->pc = addr;
 #endif
         }
-#ifdef CONFIG_USER_ONLY
-        s->running_state = 1;
-#else
-        vm_start();
-#endif
+        gdb_continue(s);
 	return RS_IDLE;
+    case 'C':
+        s->signal = strtoul(p, (char **)&p, 16);
+        gdb_continue(s);
+        return RS_IDLE;
+    case 'k':
+        /* Kill the target */
+        fprintf(stderr, "\nQEMU: Terminated via GDBstub\n");
+        exit(0);
+    case 'D':
+        /* Detach packet */
+        cpu_breakpoint_remove_all(env);
+        cpu_watchpoint_remove_all(env);
+        gdb_continue(s);
+        put_packet(s, "OK");
+        break;
     case 's':
         if (*p != '\0') {
-            addr = strtoul(p, (char **)&p, 16);
+            addr = strtoull(p, (char **)&p, 16);
 #if defined(TARGET_I386)
             env->eip = addr;
 #elif defined (TARGET_PPC)
@@ -616,16 +1039,40 @@ static int gdb_handle_packet(GDBState *s, CPUState *env, const char *line_buf)
 #elif defined (TARGET_ARM)
             env->regs[15] = addr;
 #elif defined (TARGET_SH4)
-	    env->pc = addr;
+            env->pc = addr;
+#elif defined (TARGET_MIPS)
+            env->active_tc.PC = addr;
+#elif defined (TARGET_CRIS)
+            env->pc = addr;
 #endif
         }
-        cpu_single_step(env, 1);
-#ifdef CONFIG_USER_ONLY
-        s->running_state = 1;
-#else
-        vm_start();
-#endif
+        cpu_single_step(env, sstep_flags);
+        gdb_continue(s);
 	return RS_IDLE;
+    case 'F':
+        {
+            target_ulong ret;
+            target_ulong err;
+
+            ret = strtoull(p, (char **)&p, 16);
+            if (*p == ',') {
+                p++;
+                err = strtoull(p, (char **)&p, 16);
+            } else {
+                err = 0;
+            }
+            if (*p == ',')
+                p++;
+            type = *p;
+            if (gdb_current_syscall_cb)
+                gdb_current_syscall_cb(s->env, ret, err);
+            if (type == 'C') {
+                put_packet(s, "T02");
+            } else {
+                gdb_continue(s);
+            }
+        }
+        break;
     case 'g':
         reg_size = cpu_gdb_read_registers(env, mem_buf);
         memtohex(buf, mem_buf, reg_size);
@@ -671,15 +1118,37 @@ static int gdb_handle_packet(GDBState *s, CPUState *env, const char *line_buf)
         if (*p == ',')
             p++;
         len = strtoull(p, (char **)&p, 16);
-        if (type == 0 || type == 1) {
+        switch (type) {
+        case 0:
+        case 1:
             if (cpu_breakpoint_insert(env, addr) < 0)
                 goto breakpoint_error;
             put_packet(s, "OK");
-        } else {
-        breakpoint_error:
-            put_packet(s, "E22");
+            break;
+#ifndef CONFIG_USER_ONLY
+        case 2:
+            type = PAGE_WRITE;
+            goto insert_watchpoint;
+        case 3:
+            type = PAGE_READ;
+            goto insert_watchpoint;
+        case 4:
+            type = PAGE_READ | PAGE_WRITE;
+        insert_watchpoint:
+            if (cpu_watchpoint_insert(env, addr, type) < 0)
+                goto breakpoint_error;
+            put_packet(s, "OK");
+            break;
+#endif
+        default:
+            put_packet(s, "");
+            break;
         }
         break;
+    breakpoint_error:
+        put_packet(s, "E22");
+        break;
+
     case 'z':
         type = strtoul(p, (char **)&p, 16);
         if (*p == ',')
@@ -691,24 +1160,57 @@ static int gdb_handle_packet(GDBState *s, CPUState *env, const char *line_buf)
         if (type == 0 || type == 1) {
             cpu_breakpoint_remove(env, addr);
             put_packet(s, "OK");
+#ifndef CONFIG_USER_ONLY
+        } else if (type >= 2 || type <= 4) {
+            cpu_watchpoint_remove(env, addr);
+            put_packet(s, "OK");
+#endif
         } else {
-            goto breakpoint_error;
+            put_packet(s, "");
         }
         break;
-#ifdef CONFIG_USER_ONLY
     case 'q':
-        if (strncmp(p, "Offsets", 7) == 0) {
+    case 'Q':
+        /* parse any 'q' packets here */
+        if (!strcmp(p,"qemu.sstepbits")) {
+            /* Query Breakpoint bit definitions */
+            snprintf(buf, sizeof(buf), "ENABLE=%x,NOIRQ=%x,NOTIMER=%x",
+                     SSTEP_ENABLE,
+                     SSTEP_NOIRQ,
+                     SSTEP_NOTIMER);
+            put_packet(s, buf);
+            break;
+        } else if (strncmp(p,"qemu.sstep",10) == 0) {
+            /* Display or change the sstep_flags */
+            p += 10;
+            if (*p != '=') {
+                /* Display current setting */
+                snprintf(buf, sizeof(buf), "0x%x", sstep_flags);
+                put_packet(s, buf);
+                break;
+            }
+            p++;
+            type = strtoul(p, (char **)&p, 16);
+            sstep_flags = type;
+            put_packet(s, "OK");
+            break;
+        }
+#ifdef CONFIG_LINUX_USER
+        else if (strncmp(p, "Offsets", 7) == 0) {
             TaskState *ts = env->opaque;
 
-            sprintf(buf, "Text=%x;Data=%x;Bss=%x", ts->info->code_offset,
-                ts->info->data_offset, ts->info->data_offset);
+            snprintf(buf, sizeof(buf),
+                     "Text=" TARGET_ABI_FMT_lx ";Data=" TARGET_ABI_FMT_lx
+                     ";Bss=" TARGET_ABI_FMT_lx,
+                     ts->info->code_offset,
+                     ts->info->data_offset,
+                     ts->info->data_offset);
             put_packet(s, buf);
             break;
         }
-        /* Fall through.  */
 #endif
+        /* Fall through.  */
     default:
-        //        unknown_command:
         /* put empty packet */
         buf[0] = '\0';
         put_packet(s, buf);
@@ -726,10 +1228,21 @@ static void gdb_vm_stopped(void *opaque, int reason)
     char buf[256];
     int ret;
 
+    if (s->state == RS_SYSCALL)
+        return;
+
     /* disable single step if it was enable */
     cpu_single_step(s->env, 0);
 
     if (reason == EXCP_DEBUG) {
+        if (s->env->watchpoint_hit) {
+            snprintf(buf, sizeof(buf), "T%02xwatch:" TARGET_FMT_lx ";",
+                     SIGTRAP,
+                     s->env->watchpoint[s->env->watchpoint_hit - 1].vaddr);
+            put_packet(s, buf);
+            s->env->watchpoint_hit = 0;
+            return;
+        }
 	tb_flush(s->env);
         ret = SIGTRAP;
     } else if (reason == EXCP_INTERRUPT) {
@@ -742,18 +1255,103 @@ static void gdb_vm_stopped(void *opaque, int reason)
 }
 #endif
 
+/* Send a gdb syscall request.
+   This accepts limited printf-style format specifiers, specifically:
+    %x  - target_ulong argument printed in hex.
+    %lx - 64-bit argument printed in hex.
+    %s  - string pointer (target_ulong) and length (int) pair.  */
+void gdb_do_syscall(gdb_syscall_complete_cb cb, const char *fmt, ...)
+{
+    va_list va;
+    char buf[256];
+    char *p;
+    target_ulong addr;
+    uint64_t i64;
+    GDBState *s;
+
+    s = gdb_syscall_state;
+    if (!s)
+        return;
+    gdb_current_syscall_cb = cb;
+    s->state = RS_SYSCALL;
+#ifndef CONFIG_USER_ONLY
+    vm_stop(EXCP_DEBUG);
+#endif
+    s->state = RS_IDLE;
+    va_start(va, fmt);
+    p = buf;
+    *(p++) = 'F';
+    while (*fmt) {
+        if (*fmt == '%') {
+            fmt++;
+            switch (*fmt++) {
+            case 'x':
+                addr = va_arg(va, target_ulong);
+                p += snprintf(p, &buf[sizeof(buf)] - p, TARGET_FMT_lx, addr);
+                break;
+            case 'l':
+                if (*(fmt++) != 'x')
+                    goto bad_format;
+                i64 = va_arg(va, uint64_t);
+                p += snprintf(p, &buf[sizeof(buf)] - p, "%" PRIx64, i64);
+                break;
+            case 's':
+                addr = va_arg(va, target_ulong);
+                p += snprintf(p, &buf[sizeof(buf)] - p, TARGET_FMT_lx "/%x",
+                              addr, va_arg(va, int));
+                break;
+            default:
+            bad_format:
+                fprintf(stderr, "gdbstub: Bad syscall format string '%s'\n",
+                        fmt - 1);
+                break;
+            }
+        } else {
+            *(p++) = *(fmt++);
+        }
+    }
+    *p = 0;
+    va_end(va);
+    put_packet(s, buf);
+#ifdef CONFIG_USER_ONLY
+    gdb_handlesig(s->env, 0);
+#else
+    cpu_interrupt(s->env, CPU_INTERRUPT_EXIT);
+#endif
+}
+
 static void gdb_read_byte(GDBState *s, int ch)
 {
     CPUState *env = s->env;
     int i, csum;
-    char reply[1];
+    uint8_t reply;
 
 #ifndef CONFIG_USER_ONLY
+    if (s->last_packet_len) {
+        /* Waiting for a response to the last packet.  If we see the start
+           of a new command then abandon the previous response.  */
+        if (ch == '-') {
+#ifdef DEBUG_GDB
+            printf("Got NACK, retransmitting\n");
+#endif
+            put_buffer(s, (uint8_t *)s->last_packet, s->last_packet_len);
+        }
+#ifdef DEBUG_GDB
+        else if (ch == '+')
+            printf("Got ACK\n");
+        else
+            printf("Got '%c' when expecting ACK/NACK\n", ch);
+#endif
+        if (ch == '+' || ch == '$')
+            s->last_packet_len = 0;
+        if (ch != '$')
+            return;
+    }
     if (vm_running) {
         /* when the CPU is running, we cannot do anything except stop
            it when receiving a char */
         vm_stop(EXCP_INTERRUPT);
-    } else 
+    } else
 #endif
     {
         switch(s->state) {
@@ -784,15 +1382,17 @@ static void gdb_read_byte(GDBState *s, int ch)
                 csum += s->line_buf[i];
             }
             if (s->line_csum != (csum & 0xff)) {
-                reply[0] = '-';
-                put_buffer(s, reply, 1);
+                reply = '-';
+                put_buffer(s, &reply, 1);
                 s->state = RS_IDLE;
             } else {
-                reply[0] = '+';
-                put_buffer(s, reply, 1);
+                reply = '+';
+                put_buffer(s, &reply, 1);
                 s->state = gdb_handle_packet(s, env, s->line_buf);
             }
             break;
+        default:
+            abort();
         }
     }
 }
@@ -805,10 +1405,9 @@ gdb_handlesig (CPUState *env, int sig)
   char buf[256];
   int n;
 
-  if (gdbserver_fd < 0)
-    return sig;
-
   s = &gdbserver_state;
+  if (gdbserver_fd < 0 || s->fd < 0)
+    return sig;
 
   /* disable single step if it was enabled */
   cpu_single_step(env, 0);
@@ -819,6 +1418,10 @@ gdb_handlesig (CPUState *env, int sig)
       snprintf(buf, sizeof(buf), "S%02x", sig);
       put_packet(s, buf);
     }
+  /* put_packet() might have detected that the peer terminated the 
+     connection.  */
+  if (s->fd < 0)
+      return sig;
 
   sig = 0;
   s->state = RS_IDLE;
@@ -839,6 +1442,8 @@ gdb_handlesig (CPUState *env, int sig)
           return sig;
         }
   }
+  sig = s->signal;
+  s->signal = 0;
   return sig;
 }
 
@@ -848,38 +1453,14 @@ void gdb_exit(CPUState *env, int code)
   GDBState *s;
   char buf[4];
 
-  if (gdbserver_fd < 0)
-    return;
-
   s = &gdbserver_state;
+  if (gdbserver_fd < 0 || s->fd < 0)
+    return;
 
   snprintf(buf, sizeof(buf), "W%02x", code);
   put_packet(s, buf);
 }
 
-#else
-static void gdb_read(void *opaque)
-{
-    GDBState *s = opaque;
-    int i, size;
-    uint8_t buf[4096];
-
-    size = socket_recv(s->fd, buf, sizeof(buf));
-    if (size < 0)
-        return;
-    if (size == 0) {
-        /* end of connection */
-        qemu_del_vm_stop_handler(gdb_vm_stopped, s);
-        qemu_set_fd_handler(s->fd, NULL, NULL, NULL);
-        qemu_free(s);
-        vm_start();
-    } else {
-        for(i = 0; i < size; i++)
-            gdb_read_byte(s, buf[i]);
-    }
-}
-
-#endif
 
 static void gdb_accept(void *opaque)
 {
@@ -899,37 +1480,20 @@ static void gdb_accept(void *opaque)
     /* set short latency */
     socket_set_lowlatency(fd);
     
-#ifdef CONFIG_USER_ONLY
     s = &gdbserver_state;
     memset (s, 0, sizeof (GDBState));
-#else
-    s = qemu_mallocz(sizeof(GDBState));
-    if (!s) {
-        close(fd);
-        return;
-    }
-#endif
     s->env = first_cpu; /* XXX: allow to change CPU */
     s->fd = fd;
 
-    socket_set_nonblock(fd);
-#ifndef CONFIG_USER_ONLY
-    socket_set_nonblock(fd);
+    gdb_syscall_state = s;
 
-    /* stop the VM */
-    vm_stop(EXCP_INTERRUPT);
-
-    /* start handling I/O */
-    qemu_set_fd_handler(s->fd, gdb_read, NULL, s);
-    /* when the VM is stopped, the following callback is called */
-    qemu_add_vm_stop_handler(gdb_vm_stopped, s);
-#endif
+    socket_set_nonblock(fd);
 }
 
 static int gdbserver_open(int port)
 {
     SockAddress  sockaddr;
-    int fd, ret;
+    int fd, val, ret;
 
     fd = socket_create_inet( SOCKET_STREAM );
     if (fd < 0) {
@@ -952,9 +1516,6 @@ static int gdbserver_open(int port)
         socket_close(fd);
         return -1;
     }
-#ifndef CONFIG_USER_ONLY
-    socket_set_nonblock(fd);
-#endif
     return fd;
 }
 
@@ -964,10 +1525,69 @@ int gdbserver_start(int port)
     if (gdbserver_fd < 0)
         return -1;
     /* accept connections */
-#ifdef CONFIG_USER_ONLY
     gdb_accept (NULL);
-#else
-    qemu_set_fd_handler(gdbserver_fd, gdb_accept, NULL, NULL);
-#endif
     return 0;
 }
+#else
+static int gdb_chr_can_receive(void *opaque)
+{
+  return 1;
+}
+
+static void gdb_chr_receive(void *opaque, const uint8_t *buf, int size)
+{
+    GDBState *s = opaque;
+    int i;
+
+    for (i = 0; i < size; i++) {
+        gdb_read_byte(s, buf[i]);
+    }
+}
+
+static void gdb_chr_event(void *opaque, int event)
+{
+    switch (event) {
+    case CHR_EVENT_RESET:
+        vm_stop(EXCP_INTERRUPT);
+        gdb_syscall_state = opaque;
+        break;
+    default:
+        break;
+    }
+}
+
+int gdbserver_start(const char *port)
+{
+    GDBState *s;
+    char gdbstub_port_name[128];
+    int port_num;
+    char *p;
+    CharDriverState *chr;
+
+    if (!port || !*port)
+      return -1;
+
+    port_num = strtol(port, &p, 10);
+    if (*p == 0) {
+        /* A numeric value is interpreted as a port number.  */
+        snprintf(gdbstub_port_name, sizeof(gdbstub_port_name),
+                 "tcp::%d,nowait,nodelay,server", port_num);
+        port = gdbstub_port_name;
+    }
+
+    chr = qemu_chr_open(port);
+    if (!chr)
+        return -1;
+
+    s = qemu_mallocz(sizeof(GDBState));
+    if (!s) {
+        return -1;
+    }
+    s->env = first_cpu; /* XXX: allow to change CPU */
+    s->chr = chr;
+    qemu_chr_add_handlers(chr, gdb_chr_can_receive, gdb_chr_receive,
+                          gdb_chr_event, s);
+    qemu_add_vm_stop_handler(gdb_vm_stopped, s);
+    return 0;
+}
+#endif

@@ -24,6 +24,8 @@
 #ifndef QEMU_AUDIO_INT_H
 #define QEMU_AUDIO_INT_H
 
+#include "audio/audio.h"
+
 #ifdef CONFIG_COREAUDIO
 #define FLOAT_MIXENG
 /* #define RECIPROCAL */
@@ -44,8 +46,8 @@ struct audio_option {
     audio_option_tag_e tag;
     void *valp;
     const char *descr;
-    int *overridenp;
-    int overriden;
+    int *overriddenp;
+    int overridden;
 };
 
 struct audio_callback {
@@ -206,6 +208,7 @@ extern struct audio_driver esd_audio_driver;
 extern struct audio_driver alsa_audio_driver;
 extern struct audio_driver coreaudio_audio_driver;
 extern struct audio_driver dsound_audio_driver;
+extern struct audio_driver esd_audio_driver;
 extern volume_t nominal_volume;
 
 void audio_pcm_init_info (struct audio_pcm_info *info, audsettings_t *as);

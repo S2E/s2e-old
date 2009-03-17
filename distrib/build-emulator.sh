@@ -32,6 +32,8 @@ if ! (./android-configure --prefix=$LOCAL && make && make install); then
 fi
 
 cd $CURDIR/qemu
-if ! (./android-rebuild.sh --sdl-config=$LOCAL/bin/sdl-config --install=$CURDIR/emulator); then
-    echo "ERROR: could not build SDL library"
+if ! (./android-rebuild.sh --sdl-config=$LOCAL/bin/sdl-config); then
+    echo "ERROR: could not build the emulator, please check the sources"
 fi
+
+cp objs/emulator $CURDIR/emulator

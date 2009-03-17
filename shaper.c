@@ -10,7 +10,8 @@
 ** GNU General Public License for more details.
 */
 #include "shaper.h"
-#include "vl.h"
+#include "qemu-common.h"
+#include "qemu-timer.h"
 #include <stdlib.h>
 
 #define  SHAPER_CLOCK        rt_clock
@@ -162,8 +163,6 @@ netshaper_create( int                do_copy,
                   NetShaperSendFunc  send_func )
 {
     NetShaper  shaper = qemu_malloc(sizeof(*shaper));
-
-    init_timers();
 
     shaper->active = 0;
     shaper->packets = NULL;
@@ -461,8 +460,6 @@ NetDelay
 netdelay_create( NetShaperSendFunc  send_func )
 {
     NetDelay  delay = qemu_malloc(sizeof(*delay));
-
-    init_timers();
 
     delay->sessions     = NULL;
     delay->num_sessions = 0;

@@ -68,6 +68,26 @@ $$(OBJ): $$(SRC_PATH)/$$(SRC)
 	$(hide) $$(SRC_PATH)/android/build/mkdeps.sh $$(PRIVATE_OBJ) $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_OBJ).d
 endef
 
+# Compile an Objective-C source file
+#
+define  compile-objc-source
+SRC:=$(1)
+OBJ:=$$(LOCAL_OBJS_DIR)/$$(SRC:%.m=%.o)
+LOCAL_OBJECTS += $$(OBJ)
+DEPENDENCY_DIRS += $$(dir $$(OBJ))
+$$(OBJ): PRIVATE_CFLAGS := $$(CFLAGS) $$(LOCAL_CFLAGS) -I$$(LOCAL_PATH) -I$$(OBJS_DIR)
+$$(OBJ): PRIVATE_CC     := $$(LOCAL_CC)
+$$(OBJ): PRIVATE_OBJ    := $$(OBJ)
+$$(OBJ): PRIVATE_MODULE := $$(LOCAL_MODULE)
+$$(OBJ): PRIVATE_SRC    := $$(SRC_PATH)/$$(SRC)
+$$(OBJ): PRIVATE_SRC0   := $$(SRC)
+$$(OBJ): $$(SRC_PATH)/$$(SRC)
+	@mkdir -p $$(dir $$(PRIVATE_OBJ))
+	@echo "Compile: $$(PRIVATE_MODULE) <= $$(PRIVATE_SRC0)"
+	$(hide) $$(PRIVATE_CC) $$(PRIVATE_CFLAGS) -c -o $$(PRIVATE_OBJ) -MMD -MP -MF $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_SRC)
+	$(hide) $$(SRC_PATH)/android/build/mkdeps.sh $$(PRIVATE_OBJ) $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_OBJ).d
+endef
+
 # for now, we only use prebuilt SDL libraries, so copy them
 define copy-prebuilt-lib
 _SRC := $(1)

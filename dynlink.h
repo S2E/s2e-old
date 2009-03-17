@@ -65,6 +65,9 @@
 #define  DYNLINK_FUNC(ret,name,sig) \
       static ret  (*_dynlink_##name) sig ;
 
+#define  DYNLINK_STR(name)   DYNLINK_STR_(name)
+#define  DYNLINK_STR_(name)  #name
+
 DYNLINK_FUNCTIONS
 #undef DYNLINK_FUNC
 
@@ -81,7 +84,7 @@ DYNLINK_FUNCTIONS_INIT(void*  library)
 {
 #define  DYNLINK_FUNC(ret,name,sig) \
     do { \
-        _dynlink_##name = dlsym( library, STRINGIFY(name) ); \
+        _dynlink_##name = dlsym( library, DYNLINK_STR(name) ); \
         if (_dynlink_##name == NULL) goto Fail; \
     } while (0);
 

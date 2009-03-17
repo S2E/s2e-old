@@ -134,10 +134,10 @@ print_insn_thumb1(bfd_vma pc, disassemble_info *info)
 }
 #endif
 
-/* Disassemble this for me please... (debugging). 'flags' has teh following
+/* Disassemble this for me please... (debugging). 'flags' has the following
    values:
     i386 - nonzero means 16 bit code
-    arm  - nonzero means thumb code 
+    arm  - nonzero means thumb code
     ppc  - nonzero means little endian
     other targets - unused
  */
@@ -162,7 +162,7 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
 #if defined(TARGET_I386)
     if (flags == 2)
         disasm_info.mach = bfd_mach_x86_64;
-    else if (flags == 1) 
+    else if (flags == 1)
         disasm_info.mach = bfd_mach_i386_i8086;
     else
         disasm_info.mach = bfd_mach_i386_i386;
@@ -176,27 +176,38 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
     print_insn = print_insn_sparc;
 #ifdef TARGET_SPARC64
     disasm_info.mach = bfd_mach_sparc_v9b;
-#endif    
-#elif defined(TARGET_PPC)
-    if (flags)
-        disasm_info.endian = BFD_ENDIAN_LITTLE;
-#ifdef TARGET_PPC64
-    disasm_info.mach = bfd_mach_ppc64;
-#else
-    disasm_info.mach = bfd_mach_ppc;
 #endif
+#elif defined(TARGET_PPC)
+    if (flags >> 16)
+        disasm_info.endian = BFD_ENDIAN_LITTLE;
+    if (flags & 0xFFFF) {
+        /* If we have a precise definitions of the instructions set, use it */
+        disasm_info.mach = flags & 0xFFFF;
+    } else {
+#ifdef TARGET_PPC64
+        disasm_info.mach = bfd_mach_ppc64;
+#else
+        disasm_info.mach = bfd_mach_ppc;
+#endif
+    }
     print_insn = print_insn_ppc;
+#elif defined(TARGET_M68K)
+    print_insn = print_insn_m68k;
 #elif defined(TARGET_MIPS)
 #ifdef TARGET_WORDS_BIGENDIAN
     print_insn = print_insn_big_mips;
 #else
     print_insn = print_insn_little_mips;
 #endif
-#elif defined(TARGET_M68K)
-    print_insn = print_insn_m68k;
 #elif defined(TARGET_SH4)
     disasm_info.mach = bfd_mach_sh4;
     print_insn = print_insn_sh;
+#elif defined(TARGET_ALPHA)
+    disasm_info.mach = bfd_mach_alpha;
+    print_insn = print_insn_alpha;
+#elif defined(TARGET_CRIS)
+    disasm_info.mach = bfd_mach_cris_v32;
+    print_insn = print_insn_crisv32;
 #else
     fprintf(out, "0x" TARGET_FMT_lx
 	    ": Asm output not supported on this arch\n", code);
@@ -255,7 +266,10 @@ void disas(FILE *out, void *code, unsigned long size)
     print_insn = print_insn_alpha;
 #elif defined(__sparc__)
     print_insn = print_insn_sparc;
-#elif defined(__arm__) 
+#if defined(__sparc_v8plus__) || defined(__sparc_v8plusa__) || defined(__sparc_v9__)
+    disasm_info.mach = bfd_mach_sparc_v9b;
+#endif
+#elif defined(__arm__)
     print_insn = print_insn_arm;
 #elif defined(__MIPSEB__)
     print_insn = print_insn_big_mips;
@@ -263,6 +277,10 @@ void disas(FILE *out, void *code, unsigned long size)
     print_insn = print_insn_little_mips;
 #elif defined(__m68k__)
     print_insn = print_insn_m68k;
+#elif defined(__s390__)
+    print_insn = print_insn_s390;
+#elif defined(__hppa__)
+    print_insn = print_insn_hppa;
 #else
     fprintf(out, "0x%lx: Asm output not supported on this arch\n",
 	    (long) code);
@@ -271,11 +289,9 @@ void disas(FILE *out, void *code, unsigned long size)
     for (pc = (unsigned long)code; pc < (unsigned long)code + size; pc += count) {
 	fprintf(out, "0x%08lx:  ", pc);
 #ifdef __arm__
-        /* since data are included in the code, it is better to
+        /* since data is included in the code, it is better to
            display code data too */
-        if (is_host) {
-            fprintf(out, "%08x  ", (int)bfd_getl32((const bfd_byte *)pc));
-        }
+        fprintf(out, "%08x  ", (int)bfd_getl32((const bfd_byte *)pc));
 #endif
 	count = print_insn(pc, &disasm_info);
 	fprintf(out, "\n");
@@ -292,7 +308,7 @@ const char *lookup_symbol(target_ulong orig_addr)
     Elf32_Sym *sym;
     struct syminfo *s;
     target_ulong addr;
-    
+
     for (s = syminfos; s; s = s->next) {
 	sym = s->disas_symtab;
 	for (i = 0; i < s->disas_num_syms; i++) {
@@ -304,8 +320,8 @@ const char *lookup_symbol(target_ulong orig_addr)
 		continue;
 
 	    addr = sym[i].st_value;
-#ifdef TARGET_ARM
-            /* The bottom address bit marks a Thumb symbol.  */
+#if defined(TARGET_ARM) || defined (TARGET_MIPS)
+            /* The bottom address bit marks a Thumb or MIPS16 symbol.  */
             addr &= ~(target_ulong)1;
 #endif
 	    if (orig_addr >= addr
@@ -325,11 +341,8 @@ static int monitor_disas_is_physical;
 static CPUState *monitor_disas_env;
 
 static int
-monitor_read_memory (memaddr, myaddr, length, info)
-     bfd_vma memaddr;
-     bfd_byte *myaddr;
-     int length;
-     struct disassemble_info *info;
+monitor_read_memory (bfd_vma memaddr, bfd_byte *myaddr, int length,
+                     struct disassemble_info *info)
 {
     if (monitor_disas_is_physical) {
         cpu_physical_memory_rw(memaddr, myaddr, length, 0);
@@ -371,15 +384,20 @@ void monitor_disas(CPUState *env,
 #if defined(TARGET_I386)
     if (flags == 2)
         disasm_info.mach = bfd_mach_x86_64;
-    else if (flags == 1) 
+    else if (flags == 1)
         disasm_info.mach = bfd_mach_i386_i8086;
     else
         disasm_info.mach = bfd_mach_i386_i386;
     print_insn = print_insn_i386;
 #elif defined(TARGET_ARM)
     print_insn = print_insn_arm;
+#elif defined(TARGET_ALPHA)
+    print_insn = print_insn_alpha;
 #elif defined(TARGET_SPARC)
     print_insn = print_insn_sparc;
+#ifdef TARGET_SPARC64
+    disasm_info.mach = bfd_mach_sparc_v9b;
+#endif
 #elif defined(TARGET_PPC)
 #ifdef TARGET_PPC64
     disasm_info.mach = bfd_mach_ppc64;
@@ -387,14 +405,14 @@ void monitor_disas(CPUState *env,
     disasm_info.mach = bfd_mach_ppc;
 #endif
     print_insn = print_insn_ppc;
+#elif defined(TARGET_M68K)
+    print_insn = print_insn_m68k;
 #elif defined(TARGET_MIPS)
 #ifdef TARGET_WORDS_BIGENDIAN
     print_insn = print_insn_big_mips;
 #else
     print_insn = print_insn_little_mips;
 #endif
-#elif defined(TARGET_M68K)
-    print_insn = print_insn_m68k;
 #else
     term_printf("0x" TARGET_FMT_lx
 		": Asm output not supported on this arch\n", pc);

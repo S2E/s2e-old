@@ -23,7 +23,6 @@
  */
 #include <SDL.h>
 #include <SDL_thread.h>
-#include "vl.h"
 
 #ifndef _WIN32
 #ifdef __sun__

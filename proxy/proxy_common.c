@@ -15,7 +15,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include "vl.h"
+#include "android/utils/misc.h"
+#include "android/utils/system.h"
+#include <stdlib.h>
 
 int  proxy_log = 0;
 
@@ -505,9 +507,7 @@ proxy_resolve_server( SockAddress*   addr,
         servernamelen = strlen(servername);
 
     if (servernamelen >= sizeof(name0)) {
-        name = qemu_malloc(servernamelen+1);
-        if (name == NULL)
-            return -1;
+        AARRAY_NEW(name, servernamelen+1);
     }
 
     memcpy(name, servername, servernamelen);
@@ -524,7 +524,7 @@ proxy_resolve_server( SockAddress*   addr,
 
 Exit:
     if (name != name0)
-        qemu_free(name);
+        AFREE(name);
 
     return result;
 }

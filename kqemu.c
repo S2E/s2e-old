@@ -1,7 +1,7 @@
 /*
  *  KQEMU support
- * 
- *  Copyright (c) 2005 Fabrice Bellard
+ *
+ *  Copyright (c) 2005-2008 Fabrice Bellard
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,12 +19,16 @@
  */
 #include "config.h"
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winioctl.h>
 #else
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#endif
+#ifdef HOST_SOLARIS
+#include <sys/ioccom.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -36,6 +40,7 @@
 
 #include "cpu.h"
 #include "exec-all.h"
+#include "qemu-common.h"
 
 #ifdef USE_KQEMU
 
@@ -46,23 +51,13 @@
 #include <fcntl.h>
 #include "kqemu.h"
 
-/* compatibility stuff */
-#ifndef KQEMU_RET_SYSCALL
-#define KQEMU_RET_SYSCALL   0x0300 /* syscall insn */
-#endif
-#ifndef KQEMU_MAX_RAM_PAGES_TO_UPDATE
-#define KQEMU_MAX_RAM_PAGES_TO_UPDATE 512
-#define KQEMU_RAM_PAGES_UPDATE_ALL (KQEMU_MAX_RAM_PAGES_TO_UPDATE + 1)
-#endif
-#ifndef KQEMU_MAX_MODIFIED_RAM_PAGES
-#define KQEMU_MAX_MODIFIED_RAM_PAGES 512
-#endif
-
 #ifdef _WIN32
 #define KQEMU_DEVICE "\\\\.\\kqemu"
 #else
 #define KQEMU_DEVICE "/dev/kqemu"
 #endif
+
+static void qpi_init(void);
 
 #ifdef _WIN32
 #define KQEMU_INVALID_FD INVALID_HANDLE_VALUE
@@ -79,14 +74,15 @@ int kqemu_fd = KQEMU_INVALID_FD;
    2 = kernel kqemu
 */
 int kqemu_allowed = 1;
-unsigned long *pages_to_flush;
+uint64_t *pages_to_flush;
 unsigned int nb_pages_to_flush;
-unsigned long *ram_pages_to_update;
+uint64_t *ram_pages_to_update;
 unsigned int nb_ram_pages_to_update;
-unsigned long *modified_ram_pages;
+uint64_t *modified_ram_pages;
 unsigned int nb_modified_ram_pages;
 uint8_t *modified_ram_pages_table;
-extern uint32_t **l1_phys_map;
+int qpi_io_memory;
+uint32_t kqemu_comm_base; /* physical address of the QPI communication page */
 
 #define cpuid(index, eax, ebx, ecx, edx) \
   asm volatile ("cpuid" \
@@ -126,9 +122,9 @@ static void kqemu_update_cpuid(CPUState *env)
        target cpus because they are important for user code. Strictly
        speaking, only SSE really matters because the OS must support
        it if the user code uses it. */
-    critical_features_mask = 
-        CPUID_CMOV | CPUID_CX8 | 
-        CPUID_FXSR | CPUID_MMX | CPUID_SSE | 
+    critical_features_mask =
+        CPUID_CMOV | CPUID_CX8 |
+        CPUID_FXSR | CPUID_MMX | CPUID_SSE |
         CPUID_SSE2 | CPUID_SEP;
     ext_features_mask = CPUID_EXT_SSE3 | CPUID_EXT_MONITOR;
     if (!is_cpuid_supported()) {
@@ -156,7 +152,7 @@ static void kqemu_update_cpuid(CPUState *env)
 
 int kqemu_init(CPUState *env)
 {
-    struct kqemu_init init;
+    struct kqemu_init kinit;
     int ret, version;
 #ifdef _WIN32
     DWORD temp;
@@ -170,13 +166,19 @@ int kqemu_init(CPUState *env)
                           FILE_SHARE_READ | FILE_SHARE_WRITE,
                           NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
                           NULL);
-#else
-    kqemu_fd = open(KQEMU_DEVICE, O_RDWR);
-#endif
     if (kqemu_fd == KQEMU_INVALID_FD) {
-        fprintf(stderr, "Could not open '%s' - QEMU acceleration layer not activated\n", KQEMU_DEVICE);
+        fprintf(stderr, "Could not open '%s' - QEMU acceleration layer not activated: %lu\n",
+                KQEMU_DEVICE, GetLastError());
         return -1;
     }
+#else
+    kqemu_fd = open(KQEMU_DEVICE, O_RDWR);
+    if (kqemu_fd == KQEMU_INVALID_FD) {
+        fprintf(stderr, "Could not open '%s' - QEMU acceleration layer not activated: %s\n",
+                KQEMU_DEVICE, strerror(errno));
+        return -1;
+    }
+#endif
     version = 0;
 #ifdef _WIN32
     DeviceIoControl(kqemu_fd, KQEMU_GET_VERSION, NULL, 0,
@@ -190,40 +192,36 @@ int kqemu_init(CPUState *env)
         goto fail;
     }
 
-    pages_to_flush = qemu_vmalloc(KQEMU_MAX_PAGES_TO_FLUSH * 
-                                  sizeof(unsigned long));
+    pages_to_flush = qemu_vmalloc(KQEMU_MAX_PAGES_TO_FLUSH *
+                                  sizeof(uint64_t));
     if (!pages_to_flush)
         goto fail;
 
-    ram_pages_to_update = qemu_vmalloc(KQEMU_MAX_RAM_PAGES_TO_UPDATE * 
-                                       sizeof(unsigned long));
+    ram_pages_to_update = qemu_vmalloc(KQEMU_MAX_RAM_PAGES_TO_UPDATE *
+                                       sizeof(uint64_t));
     if (!ram_pages_to_update)
         goto fail;
 
-    modified_ram_pages = qemu_vmalloc(KQEMU_MAX_MODIFIED_RAM_PAGES * 
-                                      sizeof(unsigned long));
+    modified_ram_pages = qemu_vmalloc(KQEMU_MAX_MODIFIED_RAM_PAGES *
+                                      sizeof(uint64_t));
     if (!modified_ram_pages)
         goto fail;
     modified_ram_pages_table = qemu_mallocz(phys_ram_size >> TARGET_PAGE_BITS);
     if (!modified_ram_pages_table)
         goto fail;
 
-    init.ram_base = phys_ram_base;
-    init.ram_size = phys_ram_size;
-    init.ram_dirty = phys_ram_dirty;
-    init.phys_to_ram_map = l1_phys_map;
-    init.pages_to_flush = pages_to_flush;
-#if KQEMU_VERSION >= 0x010200
-    init.ram_pages_to_update = ram_pages_to_update;
-#endif
-#if KQEMU_VERSION >= 0x010300
-    init.modified_ram_pages = modified_ram_pages;
-#endif
+    memset(&kinit, 0, sizeof(kinit)); /* set the paddings to zero */
+    kinit.ram_base = phys_ram_base;
+    kinit.ram_size = phys_ram_size;
+    kinit.ram_dirty = phys_ram_dirty;
+    kinit.pages_to_flush = pages_to_flush;
+    kinit.ram_pages_to_update = ram_pages_to_update;
+    kinit.modified_ram_pages = modified_ram_pages;
 #ifdef _WIN32
-    ret = DeviceIoControl(kqemu_fd, KQEMU_INIT, &init, sizeof(init),
+    ret = DeviceIoControl(kqemu_fd, KQEMU_INIT, &kinit, sizeof(kinit),
                           NULL, 0, &temp, NULL) == TRUE ? 0 : -1;
 #else
-    ret = ioctl(kqemu_fd, KQEMU_INIT, &init);
+    ret = ioctl(kqemu_fd, KQEMU_INIT, &kinit);
 #endif
     if (ret < 0) {
         fprintf(stderr, "Error %d while initializing QEMU acceleration layer - disabling it for now\n", ret);
@@ -236,6 +234,8 @@ int kqemu_init(CPUState *env)
     env->kqemu_enabled = kqemu_allowed;
     nb_pages_to_flush = 0;
     nb_ram_pages_to_update = 0;
+
+    qpi_init();
     return 0;
 }
 
@@ -266,7 +266,8 @@ void kqemu_set_notdirty(CPUState *env, ram_addr_t ram_addr)
 {
 #ifdef DEBUG
     if (loglevel & CPU_LOG_INT) {
-        fprintf(logfile, "kqemu_set_notdirty: addr=%08lx\n", ram_addr);
+        fprintf(logfile, "kqemu_set_notdirty: addr=%08lx\n", 
+                (unsigned long)ram_addr);
     }
 #endif
     /* we only track transitions to dirty state */
@@ -282,7 +283,7 @@ static void kqemu_reset_modified_ram_pages(void)
 {
     int i;
     unsigned long page_index;
-    
+
     for(i = 0; i < nb_modified_ram_pages; i++) {
         page_index = modified_ram_pages[i] >> TARGET_PAGE_BITS;
         modified_ram_pages_table[page_index] = 0;
@@ -308,16 +309,61 @@ void kqemu_modify_page(CPUState *env, ram_addr_t ram_addr)
         if (nb_modified_ram_pages >= KQEMU_MAX_MODIFIED_RAM_PAGES) {
             /* flush */
 #ifdef _WIN32
-            ret = DeviceIoControl(kqemu_fd, KQEMU_MODIFY_RAM_PAGES, 
-                                  &nb_modified_ram_pages, 
+            ret = DeviceIoControl(kqemu_fd, KQEMU_MODIFY_RAM_PAGES,
+                                  &nb_modified_ram_pages,
                                   sizeof(nb_modified_ram_pages),
                                   NULL, 0, &temp, NULL);
 #else
-            ret = ioctl(kqemu_fd, KQEMU_MODIFY_RAM_PAGES, 
+            ret = ioctl(kqemu_fd, KQEMU_MODIFY_RAM_PAGES,
                         &nb_modified_ram_pages);
 #endif
             kqemu_reset_modified_ram_pages();
         }
+    }
+}
+
+void kqemu_set_phys_mem(uint64_t start_addr, ram_addr_t size, 
+                        ram_addr_t phys_offset)
+{
+    struct kqemu_phys_mem kphys_mem1, *kphys_mem = &kphys_mem1;
+    uint64_t end;
+    int ret, io_index;
+
+    end = (start_addr + size + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK;
+    start_addr &= TARGET_PAGE_MASK;
+    kphys_mem->phys_addr = start_addr;
+    kphys_mem->size = end - start_addr;
+    kphys_mem->ram_addr = phys_offset & TARGET_PAGE_MASK;
+    io_index = phys_offset & ~TARGET_PAGE_MASK;
+    switch(io_index) {
+    case IO_MEM_RAM:
+        kphys_mem->io_index = KQEMU_IO_MEM_RAM;
+        break;
+    case IO_MEM_ROM:
+        kphys_mem->io_index = KQEMU_IO_MEM_ROM;
+        break;
+    default:
+        if (qpi_io_memory == io_index) {
+            kphys_mem->io_index = KQEMU_IO_MEM_COMM;
+        } else {
+            kphys_mem->io_index = KQEMU_IO_MEM_UNASSIGNED;
+        }
+        break;
+    }
+#ifdef _WIN32
+    {
+        DWORD temp;
+        ret = DeviceIoControl(kqemu_fd, KQEMU_SET_PHYS_MEM, 
+                              kphys_mem, sizeof(*kphys_mem),
+                              NULL, 0, &temp, NULL) == TRUE ? 0 : -1;
+    }
+#else
+    ret = ioctl(kqemu_fd, KQEMU_SET_PHYS_MEM, kphys_mem);
+#endif
+    if (ret < 0) {
+        fprintf(stderr, "kqemu: KQEMU_SET_PHYS_PAGE error=%d: start_addr=0x%016" PRIx64 " size=0x%08lx phys_offset=0x%08lx\n",
+                ret, start_addr, 
+                (unsigned long)size, (unsigned long)phys_offset);
     }
 }
 
@@ -360,7 +406,7 @@ static void restore_native_fp_frstor(CPUState *env)
 {
     int fptag, i, j;
     struct fpstate fp1, *fp = &fp1;
-    
+
     fp->fpuc = env->fpuc;
     fp->fpus = (env->fpus & ~0x3800) | (env->fpstt & 0x7) << 11;
     fptag = 0;
@@ -380,7 +426,7 @@ static void restore_native_fp_frstor(CPUState *env)
     }
     asm volatile ("frstor %0" : "=m" (*fp));
 }
- 
+
 static void save_native_fp_fsave(CPUState *env)
 {
     int fptag, i, j;
@@ -466,41 +512,45 @@ static int do_syscall(CPUState *env,
                       struct kqemu_cpu_state *kenv)
 {
     int selector;
-    
+
     selector = (env->star >> 32) & 0xffff;
-#ifdef __x86_64__
+#ifdef TARGET_X86_64
     if (env->hflags & HF_LMA_MASK) {
+        int code64;
+
         env->regs[R_ECX] = kenv->next_eip;
         env->regs[11] = env->eflags;
 
+        code64 = env->hflags & HF_CS64_MASK;
+
         cpu_x86_set_cpl(env, 0);
-        cpu_x86_load_seg_cache(env, R_CS, selector & 0xfffc, 
-                               0, 0xffffffff, 
-                               DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
+        cpu_x86_load_seg_cache(env, R_CS, selector & 0xfffc,
+                               0, 0xffffffff,
+                               DESC_G_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_CS_MASK | DESC_R_MASK | DESC_A_MASK | DESC_L_MASK);
-        cpu_x86_load_seg_cache(env, R_SS, (selector + 8) & 0xfffc, 
+        cpu_x86_load_seg_cache(env, R_SS, (selector + 8) & 0xfffc,
                                0, 0xffffffff,
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_W_MASK | DESC_A_MASK);
         env->eflags &= ~env->fmask;
-        if (env->hflags & HF_CS64_MASK)
+        if (code64)
             env->eip = env->lstar;
         else
             env->eip = env->cstar;
-    } else 
+    } else
 #endif
     {
         env->regs[R_ECX] = (uint32_t)kenv->next_eip;
-        
+
         cpu_x86_set_cpl(env, 0);
-        cpu_x86_load_seg_cache(env, R_CS, selector & 0xfffc, 
-                           0, 0xffffffff, 
+        cpu_x86_load_seg_cache(env, R_CS, selector & 0xfffc,
+                           0, 0xffffffff,
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_CS_MASK | DESC_R_MASK | DESC_A_MASK);
-        cpu_x86_load_seg_cache(env, R_SS, (selector + 8) & 0xfffc, 
+        cpu_x86_load_seg_cache(env, R_SS, (selector + 8) & 0xfffc,
                                0, 0xffffffff,
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
@@ -597,7 +647,7 @@ void kqemu_record_dump(void)
         }
     }
     qsort(pr, nb_pc_records, sizeof(PCRecord *), pc_rec_cmp);
-    
+
     f = fopen("/tmp/kqemu.stats", "w");
     if (!f) {
         perror("/tmp/kqemu.stats");
@@ -608,9 +658,9 @@ void kqemu_record_dump(void)
     for(i = 0; i < nb_pc_records; i++) {
         r = pr[i];
         sum += r->count;
-        fprintf(f, "%08lx: %" PRId64 " %0.2f%% %0.2f%%\n", 
-                r->pc, 
-                r->count, 
+        fprintf(f, "%08lx: %" PRId64 " %0.2f%% %0.2f%%\n",
+                r->pc,
+                r->count,
                 (double)r->count / (double)total * 100.0,
                 (double)sum / (double)total * 100.0);
     }
@@ -621,6 +671,24 @@ void kqemu_record_dump(void)
 }
 #endif
 
+static inline void kqemu_load_seg(struct kqemu_segment_cache *ksc,
+                                  const SegmentCache *sc)
+{
+    ksc->selector = sc->selector;
+    ksc->flags = sc->flags;
+    ksc->limit = sc->limit;
+    ksc->base = sc->base;
+}
+
+static inline void kqemu_save_seg(SegmentCache *sc,
+                                  const struct kqemu_segment_cache *ksc)
+{
+    sc->selector = ksc->selector;
+    sc->flags = ksc->flags;
+    sc->limit = ksc->limit;
+    sc->base = ksc->base;
+}
+
 int kqemu_cpu_exec(CPUState *env)
 {
     struct kqemu_cpu_state kcpu_state, *kenv = &kcpu_state;
@@ -628,7 +696,6 @@ int kqemu_cpu_exec(CPUState *env)
 #ifdef CONFIG_PROFILER
     int64_t ti;
 #endif
-
 #ifdef _WIN32
     DWORD temp;
 #endif
@@ -642,34 +709,32 @@ int kqemu_cpu_exec(CPUState *env)
         cpu_dump_state(env, logfile, fprintf, 0);
     }
 #endif
-    memcpy(kenv->regs, env->regs, sizeof(kenv->regs));
+    for(i = 0; i < CPU_NB_REGS; i++)
+        kenv->regs[i] = env->regs[i];
     kenv->eip = env->eip;
     kenv->eflags = env->eflags;
-    memcpy(&kenv->segs, &env->segs, sizeof(env->segs));
-    memcpy(&kenv->ldt, &env->ldt, sizeof(env->ldt));
-    memcpy(&kenv->tr, &env->tr, sizeof(env->tr));
-    memcpy(&kenv->gdt, &env->gdt, sizeof(env->gdt));
-    memcpy(&kenv->idt, &env->idt, sizeof(env->idt));
+    for(i = 0; i < 6; i++)
+        kqemu_load_seg(&kenv->segs[i], &env->segs[i]);
+    kqemu_load_seg(&kenv->ldt, &env->ldt);
+    kqemu_load_seg(&kenv->tr, &env->tr);
+    kqemu_load_seg(&kenv->gdt, &env->gdt);
+    kqemu_load_seg(&kenv->idt, &env->idt);
     kenv->cr0 = env->cr[0];
     kenv->cr2 = env->cr[2];
     kenv->cr3 = env->cr[3];
     kenv->cr4 = env->cr[4];
     kenv->a20_mask = env->a20_mask;
-#if KQEMU_VERSION >= 0x010100
     kenv->efer = env->efer;
-#endif
-#if KQEMU_VERSION >= 0x010300
     kenv->tsc_offset = 0;
     kenv->star = env->star;
     kenv->sysenter_cs = env->sysenter_cs;
     kenv->sysenter_esp = env->sysenter_esp;
     kenv->sysenter_eip = env->sysenter_eip;
-#ifdef __x86_64__
+#ifdef TARGET_X86_64
     kenv->lstar = env->lstar;
     kenv->cstar = env->cstar;
     kenv->fmask = env->fmask;
     kenv->kernelgsbase = env->kernelgsbase;
-#endif
 #endif
     if (env->dr[7] & 0xff) {
         kenv->dr7 = env->dr[7];
@@ -684,15 +749,11 @@ int kqemu_cpu_exec(CPUState *env)
     cpl = (env->hflags & HF_CPL_MASK);
     kenv->cpl = cpl;
     kenv->nb_pages_to_flush = nb_pages_to_flush;
-#if KQEMU_VERSION >= 0x010200
     kenv->user_only = (env->kqemu_enabled == 1);
     kenv->nb_ram_pages_to_update = nb_ram_pages_to_update;
-#endif
     nb_ram_pages_to_update = 0;
-    
-#if KQEMU_VERSION >= 0x010300
     kenv->nb_modified_ram_pages = nb_modified_ram_pages;
-#endif
+
     kqemu_reset_modified_ram_pages();
 
     if (env->cpuid_features & CPUID_FXSR)
@@ -710,40 +771,29 @@ int kqemu_cpu_exec(CPUState *env)
         ret = -1;
     }
 #else
-#if KQEMU_VERSION >= 0x010100
     ioctl(kqemu_fd, KQEMU_EXEC, kenv);
     ret = kenv->retval;
-#else
-    ret = ioctl(kqemu_fd, KQEMU_EXEC, kenv);
-#endif
 #endif
     if (env->cpuid_features & CPUID_FXSR)
         save_native_fp_fxsave(env);
     else
         save_native_fp_fsave(env);
 
-    memcpy(env->regs, kenv->regs, sizeof(env->regs));
+    for(i = 0; i < CPU_NB_REGS; i++)
+        env->regs[i] = kenv->regs[i];
     env->eip = kenv->eip;
     env->eflags = kenv->eflags;
-    memcpy(env->segs, kenv->segs, sizeof(env->segs));
+    for(i = 0; i < 6; i++)
+        kqemu_save_seg(&env->segs[i], &kenv->segs[i]);
     cpu_x86_set_cpl(env, kenv->cpl);
-    memcpy(&env->ldt, &kenv->ldt, sizeof(env->ldt));
-#if 0
-    /* no need to restore that */
-    memcpy(env->tr, kenv->tr, sizeof(env->tr));
-    memcpy(env->gdt, kenv->gdt, sizeof(env->gdt));
-    memcpy(env->idt, kenv->idt, sizeof(env->idt));
-    env->a20_mask = kenv->a20_mask;
-#endif
+    kqemu_save_seg(&env->ldt, &kenv->ldt);
     env->cr[0] = kenv->cr0;
     env->cr[4] = kenv->cr4;
     env->cr[3] = kenv->cr3;
     env->cr[2] = kenv->cr2;
     env->dr[6] = kenv->dr6;
-#if KQEMU_VERSION >= 0x010300
-#ifdef __x86_64__
+#ifdef TARGET_X86_64
     env->kernelgsbase = kenv->kernelgsbase;
-#endif
 #endif
 
     /* flush pages as indicated by kqemu */
@@ -761,13 +811,10 @@ int kqemu_cpu_exec(CPUState *env)
     kqemu_exec_count++;
 #endif
 
-#if KQEMU_VERSION >= 0x010200
     if (kenv->nb_ram_pages_to_update > 0) {
         cpu_tlb_update_dirty(env);
     }
-#endif
 
-#if KQEMU_VERSION >= 0x010300
     if (kenv->nb_modified_ram_pages > 0) {
         for(i = 0; i < kenv->nb_modified_ram_pages; i++) {
             unsigned long addr;
@@ -775,13 +822,12 @@ int kqemu_cpu_exec(CPUState *env)
             tb_invalidate_phys_page_range(addr, addr + TARGET_PAGE_SIZE, 0);
         }
     }
-#endif
 
     /* restore the hidden flags */
     {
         unsigned int new_hflags;
 #ifdef TARGET_X86_64
-        if ((env->hflags & HF_LMA_MASK) && 
+        if ((env->hflags & HF_LMA_MASK) &&
             (env->segs[R_CS].flags & DESC_L_MASK)) {
             /* long mode */
             new_hflags = HF_CS32_MASK | HF_SS32_MASK | HF_CS64_MASK;
@@ -793,7 +839,7 @@ int kqemu_cpu_exec(CPUState *env)
                 >> (DESC_B_SHIFT - HF_CS32_SHIFT);
             new_hflags |= (env->segs[R_SS].flags & DESC_B_MASK)
                 >> (DESC_B_SHIFT - HF_SS32_SHIFT);
-            if (!(env->cr[0] & CR0_PE_MASK) || 
+            if (!(env->cr[0] & CR0_PE_MASK) ||
                    (env->eflags & VM_MASK) ||
                    !(env->hflags & HF_CS32_MASK)) {
                 /* XXX: try to avoid this test. The problem comes from the
@@ -803,13 +849,13 @@ int kqemu_cpu_exec(CPUState *env)
                    translate-i386.c. */
                 new_hflags |= HF_ADDSEG_MASK;
             } else {
-                new_hflags |= ((env->segs[R_DS].base | 
+                new_hflags |= ((env->segs[R_DS].base |
                                 env->segs[R_ES].base |
-                                env->segs[R_SS].base) != 0) << 
+                                env->segs[R_SS].base) != 0) <<
                     HF_ADDSEG_SHIFT;
             }
         }
-        env->hflags = (env->hflags & 
+        env->hflags = (env->hflags &
            ~(HF_CS32_MASK | HF_SS32_MASK | HF_CS64_MASK | HF_ADDSEG_MASK)) |
             new_hflags;
     }
@@ -820,7 +866,7 @@ int kqemu_cpu_exec(CPUState *env)
         env->hflags |= HF_OSFXSR_MASK;
     else
         env->hflags &= ~HF_OSFXSR_MASK;
-        
+
 #ifdef DEBUG
     if (loglevel & CPU_LOG_INT) {
         fprintf(logfile, "kqemu: kqemu_cpu_exec: ret=0x%x\n", ret);
@@ -829,7 +875,7 @@ int kqemu_cpu_exec(CPUState *env)
     if (ret == KQEMU_RET_SYSCALL) {
         /* syscall instruction */
         return do_syscall(env, kenv);
-    } else 
+    } else
     if ((ret & 0xff00) == KQEMU_RET_INT) {
         env->exception_index = ret & 0xff;
         env->error_code = 0;
@@ -840,7 +886,7 @@ int kqemu_cpu_exec(CPUState *env)
 #endif
 #ifdef DEBUG
         if (loglevel & CPU_LOG_INT) {
-            fprintf(logfile, "kqemu: interrupt v=%02x:\n", 
+            fprintf(logfile, "kqemu: interrupt v=%02x:\n",
                     env->exception_index);
             cpu_dump_state(env, logfile, fprintf, 0);
         }
@@ -872,7 +918,7 @@ int kqemu_cpu_exec(CPUState *env)
         }
 #endif
         return 0;
-    } else if (ret == KQEMU_RET_SOFTMMU) { 
+    } else if (ret == KQEMU_RET_SOFTMMU) {
 #ifdef CONFIG_PROFILER
         {
             unsigned long pc = env->eip + env->segs[R_CS].base;
@@ -895,11 +941,85 @@ int kqemu_cpu_exec(CPUState *env)
 
 void kqemu_cpu_interrupt(CPUState *env)
 {
-#if defined(_WIN32) && KQEMU_VERSION >= 0x010101
-    /* cancelling the I/O request causes KQEMU to finish executing the 
+#if defined(_WIN32)
+    /* cancelling the I/O request causes KQEMU to finish executing the
        current block and successfully returning. */
     CancelIo(kqemu_fd);
 #endif
 }
 
+/* 
+   QEMU paravirtualization interface. The current interface only
+   allows to modify the IF and IOPL flags when running in
+   kqemu.
+
+   At this point it is not very satisfactory. I leave it for reference
+   as it adds little complexity.
+*/
+
+#define QPI_COMM_PAGE_PHYS_ADDR 0xff000000
+
+static uint32_t qpi_mem_readb(void *opaque, target_phys_addr_t addr)
+{
+    return 0;
+}
+
+static uint32_t qpi_mem_readw(void *opaque, target_phys_addr_t addr)
+{
+    return 0;
+}
+
+static void qpi_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
+{
+}
+
+static void qpi_mem_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
+{
+}
+
+static uint32_t qpi_mem_readl(void *opaque, target_phys_addr_t addr)
+{
+    CPUState *env;
+
+    env = cpu_single_env;
+    if (!env)
+        return 0;
+    return env->eflags & (IF_MASK | IOPL_MASK);
+}
+
+/* Note: after writing to this address, the guest code must make sure
+   it is exiting the current TB. pushf/popf can be used for that
+   purpose. */
+static void qpi_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
+{
+    CPUState *env;
+
+    env = cpu_single_env;
+    if (!env)
+        return;
+    env->eflags = (env->eflags & ~(IF_MASK | IOPL_MASK)) | 
+        (val & (IF_MASK | IOPL_MASK));
+}
+
+static CPUReadMemoryFunc *qpi_mem_read[3] = {
+    qpi_mem_readb,
+    qpi_mem_readw,
+    qpi_mem_readl,
+};
+
+static CPUWriteMemoryFunc *qpi_mem_write[3] = {
+    qpi_mem_writeb,
+    qpi_mem_writew,
+    qpi_mem_writel,
+};
+
+static void qpi_init(void)
+{
+    kqemu_comm_base = 0xff000000 | 1;
+    qpi_io_memory = cpu_register_io_memory(0, 
+                                           qpi_mem_read, 
+                                           qpi_mem_write, NULL);
+    cpu_register_physical_memory(kqemu_comm_base & ~0xfff, 
+                                 0x1000, qpi_io_memory);
+}
 #endif

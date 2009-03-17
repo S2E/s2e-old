@@ -9,17 +9,17 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# this script is used to generate 'android/vm/hw-config.h' by
-# parsing 'android/vm/hardware-properties.ini'
+# this script is used to generate 'android/avd/hw-config.h' by
+# parsing 'android/avd/hardware-properties.ini'
 #
 #
 import  sys, os, string, re
 
 # location of source file, relative to current program directory
-relativeSourcePath = "../vm/hardware-properties.ini"
+relativeSourcePath = "../avd/hardware-properties.ini"
 
 # location of target file, relative to current program directory
-relativeTargetPath = "../vm/hw-config-defs.h"
+relativeTargetPath = "../avd/hw-config-defs.h"
 
 def quoteStringForC(str):
     """quote a string so it can be used in C"""

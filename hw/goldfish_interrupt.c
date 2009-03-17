@@ -9,7 +9,7 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
+#include "qemu_file.h"
 #include "arm_pic.h"
 #include "goldfish_device.h"
 #include "irq.h"

@@ -15,12 +15,14 @@
 #include <string.h>
 #include <limits.h>
 #include <errno.h>
-#include "android_debug.h"
+#include "android/utils/debug.h"
+#include "android/utils/system.h" /* for ASTRDUP */
+#include "android/utils/bufprint.h"
 #include "osdep.h"
 
 /* W() is used to print warnings, D() to print debugging info */
 #define  W(...)   dwarning(__VA_ARGS__)
-#define  D(...)   VERBOSE_PRINT(vm_config,__VA_ARGS__)
+#define  D(...)   VERBOSE_PRINT(avd_config,__VA_ARGS__)
 
 /* a simple .ini file parser and container for Android
  * no sections support. see android/utils/ini.h for
@@ -42,18 +44,20 @@ iniFile_free( IniFile*  i )
 {
     int  nn;
     for (nn = 0; nn < i->numPairs; nn++) {
-        free(i->pairs[nn].key);
+        AFREE(i->pairs[nn].key);
         i->pairs[nn].key   = NULL;
         i->pairs[nn].value = NULL;
     }
-    free(i->pairs);
-    free(i);
+    AFREE(i->pairs);
+    AFREE(i);
 }
 
 static IniFile*
 iniFile_alloc( void )
 {
-    IniFile*  i = calloc(1, sizeof(*i));
+    IniFile*  i;
+
+    ANEW0(i);
     return i;
 }
 
@@ -64,17 +68,16 @@ iniFile_addPair( IniFile*  i, const char*  key,   int  keyLen,
     IniPair*  pair;
 
     if (i->numPairs >= i->maxPairs) {
-        int       oldMax   = i->maxPairs;
-        int       newMax   = oldMax + (oldMax >> 1) + 4;
-        IniPair*  newPairs = realloc(i->pairs, newMax*sizeof(newPairs[0]));
+        int       oldMax = i->maxPairs;
+        int       newMax = oldMax + (oldMax >> 1) + 4;
 
-        i->pairs    = newPairs;
+        AARRAY_RENEW(i->pairs, newMax);
         i->maxPairs = newMax;
     }
 
     pair = i->pairs + i->numPairs;
 
-    pair->key   = malloc(keyLen + valueLen + 2);
+    AARRAY_NEW(pair->key, keyLen + valueLen + 2);
     memcpy(pair->key, key, keyLen);
     pair->key[keyLen] = 0;
 
@@ -170,7 +173,7 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
     int          lineno = 0;
 
     if (!fileName)
-        fileName = "<unknownFile>";
+        fileName = "<memoryFile>";
 
     D("%s: parsing as .ini file", fileName);
 
@@ -195,8 +198,8 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
         key = p++;
         if (!isKeyStartChar(*key)) {
             p = skipToEOL(p);
-            W("%s:%d: key name doesn't start with valid character. line ignored",
-              fileName, lineno);
+            W("%4d: key name doesn't start with valid character. line ignored",
+              lineno);
             continue;
         }
 
@@ -208,8 +211,8 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
 
         /* check the equal */
         if (*p != '=') {
-            W("%s:%d: missing expected assignment operator (=). line ignored",
-              fileName, lineno);
+            W("%4d: missing expected assignment operator (=). line ignored",
+              lineno);
             p = skipToEOL(p);
             continue;
         }
@@ -230,11 +233,13 @@ iniFile_newFromMemory( const char*  text, const char*  fileName )
         valueLen = p - value;
 
         iniFile_addPair(ini, key, keyLen, value, valueLen);
-        D("%s:%d: KEY='%.*s' VALUE='%.*s'", fileName, lineno,
+        D("%4d: KEY='%.*s' VALUE='%.*s'", lineno,
           keyLen, key, valueLen, value);
 
         p = skipToEOL(p);
     }
+
+    D("%s: parsing finished", fileName);
 
     return ini;
 }
@@ -269,16 +274,43 @@ iniFile_newFromFile( const char*  filepath )
     }
 
     /* read the file, add a sentinel at the end of it */
-    text = malloc(size+1);
+    AARRAY_NEW(text, size+1);
     fread(text, 1, size, fp);
     text[size] = 0;
 
     ini = iniFile_newFromMemory(text, filepath);
-    free(text);
+    AFREE(text);
 
 EXIT:
     fclose(fp);
     return ini;
+}
+
+int
+iniFile_saveToFile( IniFile*  f, const char*  filepath )
+{
+    FILE*  fp = fopen(filepath, "wt");
+    IniPair*  pair    = f->pairs;
+    IniPair*  pairEnd = pair + f->numPairs;
+    int       result  = 0;
+
+    if (fp == NULL) {
+        D("could not create .ini file: %s: %s",
+          filepath, strerror(errno));
+        return -1;
+    }
+
+    for ( ; pair < pairEnd; pair++ ) {
+        char  temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+        p = bufprint(temp, end, "%s = %s\n", pair->key, pair->value);
+        if (fwrite(temp, p - temp, 1, fp) != 1) {
+            result = -1;
+            break;
+        }
+    }
+
+    fclose(fp);
+    return result;
 }
 
 char*
@@ -289,7 +321,7 @@ iniFile_getString( IniFile*  f, const char*  key )
     if (!val)
         return NULL;
 
-    return qemu_strdup(val);
+    return ASTRDUP(val);
 }
 
 int
@@ -345,8 +377,8 @@ iniFile_getBoolean( IniFile*  f, const char*  key, const char*  defaultValue )
 int64_t
 iniFile_getDiskSize( IniFile*  f, const char*  key, const char*  defaultValue )
 {
-    const char*    valStr = iniFile_getValue(f, key);
-    int64_t        value  = 0;
+    const char*  valStr = iniFile_getValue(f, key);
+    int64_t      value  = 0;
 
     if (!valStr)
         valStr = defaultValue;
@@ -364,3 +396,21 @@ iniFile_getDiskSize( IniFile*  f, const char*  key, const char*  defaultValue )
     }
     return value;
 }
+
+int64_t
+iniFile_getInt64( IniFile*  f, const char*  key, int64_t  defaultValue )
+{
+    const char*  valStr = iniFile_getValue(f, key);
+    int64_t      value  = defaultValue;
+
+    if (valStr != NULL) {
+        char*    end;
+        int64_t  d;
+
+        d = strtoll(valStr, &end, 10);
+        if (end != NULL && end[0] == 0)
+            value = d;
+    }
+    return value;
+}
+

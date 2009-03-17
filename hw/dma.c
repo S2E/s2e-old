@@ -21,7 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "vl.h"
+#include "hw.h"
+#include "isa.h"
 
 /* #define DEBUG_DMA */
 
@@ -383,7 +384,7 @@ void DMA_register_channel (int nchan,
 int DMA_read_memory (int nchan, void *buf, int pos, int len)
 {
     struct dma_regs *r = &dma_controllers[nchan > 3].regs[nchan & 3];
-    target_ulong addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
+    target_phys_addr_t addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
 
     if (r->mode & 0x20) {
         int i;
@@ -405,7 +406,7 @@ int DMA_read_memory (int nchan, void *buf, int pos, int len)
 int DMA_write_memory (int nchan, void *buf, int pos, int len)
 {
     struct dma_regs *r = &dma_controllers[nchan > 3].regs[nchan & 3];
-    target_ulong addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
+    target_phys_addr_t addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
 
     if (r->mode & 0x20) {
         int i;
@@ -438,11 +439,18 @@ static void dma_reset(void *opaque)
     write_cont (d, (0x0d << d->dshift), 0);
 }
 
+static int dma_phony_handler (void *opaque, int nchan, int dma_pos, int dma_len)
+{
+    dolog ("unregistered DMA channel used nchan=%d dma_pos=%d dma_len=%d\n",
+           nchan, dma_pos, dma_len);
+    return dma_pos;
+}
+
 /* dshift = 0: 8 bit DMA, 1 = 16 bit DMA */
 static void dma_init2(struct dma_cont *d, int base, int dshift,
                       int page_base, int pageh_base)
 {
-    const static int page_port_list[] = { 0x1, 0x2, 0x3, 0x7 };
+    static const int page_port_list[] = { 0x1, 0x2, 0x3, 0x7 };
     int i;
 
     d->dshift = dshift;
@@ -470,6 +478,9 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
     }
     qemu_register_reset(dma_reset, d);
     dma_reset(d);
+    for (i = 0; i < LENOFA (d->regs); ++i) {
+        d->regs[i].transfer_handler = dma_phony_handler;
+    }
 }
 
 static void dma_save (QEMUFile *f, void *opaque)
@@ -481,12 +492,12 @@ static void dma_save (QEMUFile *f, void *opaque)
     qemu_put_8s (f, &d->command);
     qemu_put_8s (f, &d->mask);
     qemu_put_8s (f, &d->flip_flop);
-    qemu_put_be32s (f, &d->dshift);
+    qemu_put_be32 (f, d->dshift);
 
     for (i = 0; i < 4; ++i) {
         struct dma_regs *r = &d->regs[i];
-        qemu_put_be32s (f, &r->now[0]);
-        qemu_put_be32s (f, &r->now[1]);
+        qemu_put_be32 (f, r->now[0]);
+        qemu_put_be32 (f, r->now[1]);
         qemu_put_be16s (f, &r->base[0]);
         qemu_put_be16s (f, &r->base[1]);
         qemu_put_8s (f, &r->mode);
@@ -509,12 +520,12 @@ static int dma_load (QEMUFile *f, void *opaque, int version_id)
     qemu_get_8s (f, &d->command);
     qemu_get_8s (f, &d->mask);
     qemu_get_8s (f, &d->flip_flop);
-    qemu_get_be32s (f, &d->dshift);
+    d->dshift=qemu_get_be32 (f);
 
     for (i = 0; i < 4; ++i) {
         struct dma_regs *r = &d->regs[i];
-        qemu_get_be32s (f, &r->now[0]);
-        qemu_get_be32s (f, &r->now[1]);
+        r->now[0]=qemu_get_be32 (f);
+        r->now[1]=qemu_get_be32 (f);
         qemu_get_be16s (f, &r->base[0]);
         qemu_get_be16s (f, &r->base[1]);
         qemu_get_8s (f, &r->mode);

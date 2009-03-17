@@ -9,10 +9,10 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "vl.h"
+#include "qemu_file.h"
 #include "goldfish_device.h"
 #include "audio/audio.h"
-#include "android_debug.h"
+#include "qemu_debug.h"
 #include "android/globals.h"
 
 #define  DEBUG  1

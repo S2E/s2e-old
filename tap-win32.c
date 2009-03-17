@@ -26,8 +26,8 @@
  *  distribution); if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#include "vl.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <windows.h>
 
 /* NOTE: PCIBus is redefined in winddk.h */

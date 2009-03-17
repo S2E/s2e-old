@@ -12,7 +12,7 @@
 #ifndef _SLIRP_SHAPER_H_
 #define _SLIRP_SHAPER_H_
 
-#include "vl.h"
+#include <stddef.h>
 
 /* a NetShaper object is used to limit the throughput of data packets
  * at a fixed rate expressed in bits/seconds

@@ -11,7 +11,17 @@
 */
 #include "sockets.h"
 #include "sysdeps.h"
-#include "vl.h"
+#include "qemu-timer.h"
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <netdb.h>
+#endif
 
 #define  DEBUG  1
 
@@ -337,7 +347,7 @@ sys_channel_create_tcp_handler( SysChannel  server_channel )
     }
 
     /* disable Nagle algorithm */
-    socket_set_lowlatency( channel->fd );
+    socket_set_nodelay( channel->fd );
 
     D( "%s: handler %p:%d created from server %p:%d\n", __FUNCTION__,
         server_channel, server_channel->fd, channel, channel->fd );
@@ -359,7 +369,7 @@ sys_channel_create_tcp_client( const char*  hostname, int  port )
 
     /* set to non-blocking and disable Nagle algorithm */
     socket_set_nonblock( channel->fd );
-    socket_set_lowlatency( channel->fd );
+    socket_set_nodelay( channel->fd );
 
     return channel;
 }

@@ -25,7 +25,6 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/soundcard.h>
-#include "vl.h"
 
 #define AUDIO_CAP "oss"
 #include "audio_int.h"

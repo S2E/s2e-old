@@ -21,9 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "vl.h"
+#include "hw/hw.h"
+#include "hw/usb.h"
+
+#include "hw/pc.h"
+#include "hw/pci.h"
+#include "gdbstub.h"
+#include "net.h"
+#include "qemu-char.h"
+#include "sysemu.h"
+#include "console.h"
+#include "block.h"
+#include "audio/audio.h"
 #include "disas.h"
+#include "cpu-defs.h"
 #include <dirent.h>
+#include "qemu-timer.h"
 
 //#define DEBUG
 //#define DEBUG_COMPLETION
@@ -49,17 +62,19 @@
 typedef struct term_cmd_t {
     const char *name;
     const char *args_type;
-    void (*handler)();
+    void *handler;
     const char *params;
     const char *help;
 } term_cmd_t;
 
-static CharDriverState *monitor_hd;
+#define MAX_MON 4
+static CharDriverState *monitor_hd[MAX_MON];
+static int hide_banner;
 
 static term_cmd_t term_cmds[];
 static term_cmd_t info_cmds[];
 
-static char term_outbuf[1024];
+static uint8_t term_outbuf[1024];
 static int term_outbuf_index;
 
 static void monitor_start_input(void);
@@ -68,8 +83,11 @@ CPUState *mon_cpu = NULL;
 
 void term_flush(void)
 {
+    int i;
     if (term_outbuf_index > 0) {
-        qemu_chr_write(monitor_hd, (uint8_t*)term_outbuf, term_outbuf_index);
+        for (i = 0; i < MAX_MON; i++)
+            if (monitor_hd[i] && monitor_hd[i]->focus == 0)
+                qemu_chr_write(monitor_hd[i], term_outbuf, term_outbuf_index);
         term_outbuf_index = 0;
     }
 }
@@ -77,7 +95,7 @@ void term_flush(void)
 /* flush at every end of line or if the buffer is full */
 void term_puts(const char *str)
 {
-    int c;
+    char c;
     for(;;) {
         c = *str++;
         if (c == '\0')
@@ -104,6 +122,33 @@ void term_printf(const char *fmt, ...)
     va_start(ap, fmt);
     term_vprintf(fmt, ap);
     va_end(ap);
+}
+
+void term_print_filename(const char *filename)
+{
+    int i;
+
+    for (i = 0; filename[i]; i++) {
+	switch (filename[i]) {
+	case ' ':
+	case '"':
+	case '\\':
+	    term_printf("\\%c", filename[i]);
+	    break;
+	case '\t':
+	    term_printf("\\t");
+	    break;
+	case '\r':
+	    term_printf("\\r");
+	    break;
+	case '\n':
+	    term_printf("\\n");
+	    break;
+	default:
+	    term_printf("%c", filename[i]);
+	    break;
+	}
+    }
 }
 
 static int monitor_fprintf(FILE *stream, const char *fmt, ...)
@@ -167,20 +212,22 @@ static void do_help(const char *name)
     help_cmd(name);
 }
 
-static void do_commit(void)
+static void do_commit(const char *device)
 {
-    int i;
+    int i, all_devices;
 
-    for (i = 0; i < MAX_DISKS; i++) {
-        if (bs_table[i]) {
-            bdrv_commit(bs_table[i]);
-        }
+    all_devices = !strcmp(device, "all");
+    for (i = 0; i < nb_drives; i++) {
+            if (all_devices ||
+                !strcmp(bdrv_get_device_name(drives_table[i].bdrv), device))
+                bdrv_commit(drives_table[i].bdrv);
     }
 }
 
 static void do_info(const char *item)
 {
     term_cmd_t *cmd;
+    void (*handler)(void);
 
     if (!item)
         goto help;
@@ -192,7 +239,8 @@ static void do_info(const char *item)
     help_cmd("info");
     return;
  found:
-    cmd->handler();
+    handler = cmd->handler;
+    handler();
 }
 
 static void do_info_version(void)
@@ -200,13 +248,24 @@ static void do_info_version(void)
   term_printf("%s\n", QEMU_VERSION);
 }
 
+static void do_info_name(void)
+{
+    if (qemu_name)
+        term_printf("%s\n", qemu_name);
+}
+
 static void do_info_block(void)
 {
     bdrv_info();
 }
 
+static void do_info_blockstats(void)
+{
+    bdrv_info_stats();
+}
+
 /* get the current CPU defined by the user */
-int mon_set_cpu(int cpu_index)
+static int mon_set_cpu(int cpu_index)
 {
     CPUState *env;
 
@@ -219,7 +278,7 @@ int mon_set_cpu(int cpu_index)
     return -1;
 }
 
-CPUState *mon_get_cpu(void)
+static CPUState *mon_get_cpu(void)
 {
     if (!mon_cpu) {
         mon_set_cpu(0);
@@ -255,17 +314,15 @@ static void do_info_cpus(void)
                     env->cpu_index);
 #if defined(TARGET_I386)
         term_printf(" pc=0x" TARGET_FMT_lx, env->eip + env->segs[R_CS].base);
-        if (env->hflags & HF_HALTED_MASK)
-            term_printf(" (halted)");
 #elif defined(TARGET_PPC)
         term_printf(" nip=0x" TARGET_FMT_lx, env->nip);
-        if (env->halted)
-            term_printf(" (halted)");
 #elif defined(TARGET_SPARC)
         term_printf(" pc=0x" TARGET_FMT_lx " npc=0x" TARGET_FMT_lx, env->pc, env->npc);
+#elif defined(TARGET_MIPS)
+        term_printf(" PC=0x" TARGET_FMT_lx, env->active_tc.PC);
+#endif
         if (env->halted)
             term_printf(" (halted)");
-#endif
         term_printf("\n");
     }
 }
@@ -295,6 +352,17 @@ static void do_info_history (void)
         i++;
     }
 }
+
+#if defined(TARGET_PPC)
+/* XXX: not implemented in other targets */
+static void do_info_cpu_stats (void)
+{
+    CPUState *env;
+
+    env = mon_get_cpu();
+    cpu_dump_statistics(env, NULL, &monitor_fprintf, 0);
+}
+#endif
 
 static void do_quit(void)
 {
@@ -331,34 +399,61 @@ static void do_eject(int force, const char *filename)
     eject_device(bs, force);
 }
 
-static void do_change(const char *device, const char *filename)
+static void do_change_block(const char *device, const char *filename, const char *fmt)
 {
     BlockDriverState *bs;
-    int i;
-    char password[256];
+    BlockDriver *drv = NULL;
 
     bs = bdrv_find(device);
     if (!bs) {
         term_printf("device not found\n");
         return;
     }
+    if (fmt) {
+        drv = bdrv_find_format(fmt);
+        if (!drv) {
+            term_printf("invalid format %s\n", fmt);
+            return;
+        }
+    }
     if (eject_device(bs, 0) < 0)
         return;
-    bdrv_open(bs, filename, 0);
-    if (bdrv_is_encrypted(bs)) {
-        term_printf("%s is encrypted.\n", device);
-        for(i = 0; i < 3; i++) {
-            monitor_readline("Password: ", 1, password, sizeof(password));
-            if (bdrv_set_key(bs, password) == 0)
-                break;
-            term_printf("invalid password\n");
-        }
+    bdrv_open2(bs, filename, 0, drv);
+    qemu_key_check(bs, filename);
+}
+
+static void do_change_vnc(const char *target)
+{
+    if (strcmp(target, "passwd") == 0 ||
+	strcmp(target, "password") == 0) {
+	char password[9];
+	monitor_readline("Password: ", 1, password, sizeof(password)-1);
+	password[sizeof(password)-1] = '\0';
+	if (vnc_display_password(NULL, password) < 0)
+	    term_printf("could not set VNC server password\n");
+    } else {
+	if (vnc_display_open(NULL, target) < 0)
+	    term_printf("could not start VNC server on %s\n", target);
+    }
+}
+
+static void do_change(const char *device, const char *target, const char *fmt)
+{
+    if (strcmp(device, "vnc") == 0) {
+	do_change_vnc(target);
+    } else {
+	do_change_block(device, target, fmt);
     }
 }
 
 static void do_screen_dump(const char *filename)
 {
     vga_hw_screen_dump(filename);
+}
+
+static void do_logfile(const char *filename)
+{
+    cpu_set_log_filename(filename);
 }
 
 static void do_log(const char *items)
@@ -377,18 +472,6 @@ static void do_log(const char *items)
     cpu_set_log(mask);
 }
 
-static void do_savevm(const char *filename)
-{
-    if (qemu_savevm(filename) < 0)
-        term_printf("I/O error when saving VM to '%s'\n", filename);
-}
-
-static void do_loadvm(const char *filename)
-{
-    if (qemu_loadvm(filename) < 0)
-        term_printf("I/O error when loading VM from '%s'\n", filename);
-}
-
 static void do_stop(void)
 {
     vm_stop(EXCP_INTERRUPT);
@@ -400,14 +483,14 @@ static void do_cont(void)
 }
 
 #ifdef CONFIG_GDBSTUB
-static void do_gdbserver(int has_port, int port)
+static void do_gdbserver(const char *port)
 {
-    if (!has_port)
+    if (!port)
         port = DEFAULT_GDBSTUB_PORT;
     if (gdbserver_start(port) < 0) {
-        qemu_printf("Could not open gdbserver socket on port %d\n", port);
+        qemu_printf("Could not open gdbserver socket on port '%s'\n", port);
     } else {
-        qemu_printf("Waiting gdb connection on port %d\n", port);
+        qemu_printf("Waiting gdb connection on port '%s'\n", port);
     }
 }
 #endif
@@ -440,7 +523,7 @@ static void term_printc(int c)
 }
 
 static void memory_dump(int count, int format, int wsize,
-                        target_ulong addr, int is_physical)
+                        target_phys_addr_t addr, int is_physical)
 {
     CPUState *env;
     int nb_per_line, l, line_size, i, max_digits, len;
@@ -503,7 +586,10 @@ static void memory_dump(int count, int format, int wsize,
     }
 
     while (len > 0) {
-        term_printf(TARGET_FMT_lx ":", addr);
+        if (is_physical)
+            term_printf(TARGET_FMT_plx ":", addr);
+        else
+            term_printf(TARGET_FMT_lx ":", (target_ulong)addr);
         l = len;
         if (l > line_size)
             l = line_size;
@@ -513,7 +599,10 @@ static void memory_dump(int count, int format, int wsize,
             env = mon_get_cpu();
             if (!env)
                 break;
-            cpu_memory_rw_debug(env, addr, buf, l, 0);
+            if (cpu_memory_rw_debug(env, addr, buf, l, 0) < 0) {
+                term_printf(" Cannot access memory\n");
+                break;
+            }
         }
         i = 0;
         while (i < l) {
@@ -571,18 +660,24 @@ static void do_memory_dump(int count, int format, int size,
     memory_dump(count, format, size, addr, 0);
 }
 
+#if TARGET_PHYS_ADDR_BITS > 32
+#define GET_TPHYSADDR(h, l) (((uint64_t)(h) << 32) | (l))
+#else
+#define GET_TPHYSADDR(h, l) (l)
+#endif
+
 static void do_physical_memory_dump(int count, int format, int size,
                                     uint32_t addrh, uint32_t addrl)
 
 {
-    target_long addr = GET_TLONG(addrh, addrl);
+    target_phys_addr_t addr = GET_TPHYSADDR(addrh, addrl);
     memory_dump(count, format, size, addr, 1);
 }
 
 static void do_print(int count, int format, int size, unsigned int valh, unsigned int vall)
 {
-    target_long val = GET_TLONG(valh, vall);
-#if TARGET_LONG_BITS == 32
+    target_phys_addr_t val = GET_TPHYSADDR(valh, vall);
+#if TARGET_PHYS_ADDR_BITS == 32
     switch(format) {
     case 'o':
         term_printf("%#o", val);
@@ -624,6 +719,62 @@ static void do_print(int count, int format, int size, unsigned int valh, unsigne
     term_printf("\n");
 }
 
+static void do_memory_save(unsigned int valh, unsigned int vall,
+                           uint32_t size, const char *filename)
+{
+    FILE *f;
+    target_long addr = GET_TLONG(valh, vall);
+    uint32_t l;
+    CPUState *env;
+    uint8_t buf[1024];
+
+    env = mon_get_cpu();
+    if (!env)
+        return;
+
+    f = fopen(filename, "wb");
+    if (!f) {
+        term_printf("could not open '%s'\n", filename);
+        return;
+    }
+    while (size != 0) {
+        l = sizeof(buf);
+        if (l > size)
+            l = size;
+        cpu_memory_rw_debug(env, addr, buf, l, 0);
+        fwrite(buf, 1, l, f);
+        addr += l;
+        size -= l;
+    }
+    fclose(f);
+}
+
+static void do_physical_memory_save(unsigned int valh, unsigned int vall,
+                                    uint32_t size, const char *filename)
+{
+    FILE *f;
+    uint32_t l;
+    uint8_t buf[1024];
+    target_phys_addr_t addr = GET_TPHYSADDR(valh, vall); 
+
+    f = fopen(filename, "wb");
+    if (!f) {
+        term_printf("could not open '%s'\n", filename);
+        return;
+    }
+    while (size != 0) {
+        l = sizeof(buf);
+        if (l > size)
+            l = size;
+        cpu_physical_memory_rw(addr, buf, l, 0);
+        fwrite(buf, 1, l, f);
+        fflush(f);
+        addr += l;
+        size -= l;
+    }
+    fclose(f);
+}
+
 static void do_sum(uint32_t start, uint32_t size)
 {
     uint32_t addr;
@@ -651,6 +802,8 @@ static const KeyDef key_defs[] = {
 
     { 0x38, "alt" },
     { 0xb8, "alt_r" },
+    { 0x64, "altgr" },
+    { 0xe4, "altgr_r" },
     { 0x1d, "ctrl" },
     { 0x9d, "ctrl_r" },
 
@@ -704,6 +857,8 @@ static const KeyDef key_defs[] = {
     { 0x31, "n" },
     { 0x32, "m" },
 
+    { 0x37, "asterisk" },
+
     { 0x39, "spc" },
     { 0x3a, "caps_lock" },
     { 0x3b, "f1" },
@@ -721,10 +876,11 @@ static const KeyDef key_defs[] = {
 
     { 0xb5, "kp_divide" },
     { 0x37, "kp_multiply" },
-    { 0x4a, "kp_substract" },
+    { 0x4a, "kp_subtract" },
     { 0x4e, "kp_add" },
     { 0x9c, "kp_enter" },
     { 0x53, "kp_decimal" },
+    { 0x54, "sysrq" },
 
     { 0x52, "kp_0" },
     { 0x4f, "kp_1" },
@@ -756,6 +912,23 @@ static const KeyDef key_defs[] = {
 
     { 0xd2, "insert" },
     { 0xd3, "delete" },
+#if defined(TARGET_SPARC) && !defined(TARGET_SPARC64)
+    { 0xf0, "stop" },
+    { 0xf1, "again" },
+    { 0xf2, "props" },
+    { 0xf3, "undo" },
+    { 0xf4, "front" },
+    { 0xf5, "copy" },
+    { 0xf6, "open" },
+    { 0xf7, "paste" },
+    { 0xf8, "find" },
+    { 0xf9, "cut" },
+    { 0xfa, "lf" },
+    { 0xfb, "help" },
+    { 0xfc, "meta_l" },
+    { 0xfd, "meta_r" },
+    { 0xfe, "compose" },
+#endif
     { 0, NULL },
 };
 
@@ -777,48 +950,73 @@ static int get_keycode(const char *key)
     return -1;
 }
 
-static void do_send_key(const char *string)
-{
-    char keybuf[16], *q;
-    uint8_t keycodes[16];
-    const char *p;
-    int nb_keycodes, keycode, i;
+#define MAX_KEYCODES 16
+static uint8_t keycodes[MAX_KEYCODES];
+static int nb_pending_keycodes;
+static QEMUTimer *key_timer;
 
-    nb_keycodes = 0;
-    p = string;
-    while (*p != '\0') {
-        q = keybuf;
-        while (*p != '\0' && *p != '-') {
-            if ((q - keybuf) < sizeof(keybuf) - 1) {
-                *q++ = *p;
-            }
-            p++;
-        }
-        *q = '\0';
-        keycode = get_keycode(keybuf);
-        if (keycode < 0) {
-            term_printf("unknown key: '%s'\n", keybuf);
-            return;
-        }
-        keycodes[nb_keycodes++] = keycode;
-        if (*p == '\0')
-            break;
-        p++;
+static void release_keys(void *opaque)
+{
+    int keycode;
+
+    while (nb_pending_keycodes > 0) {
+        nb_pending_keycodes--;
+        keycode = keycodes[nb_pending_keycodes];
+        if (keycode & 0x80)
+            kbd_put_keycode(0xe0);
+        kbd_put_keycode(keycode | 0x80);
     }
+}
+
+static void do_sendkey(const char *string, int has_hold_time, int hold_time)
+{
+    char keyname_buf[16];
+    char *separator;
+    int keyname_len, keycode, i;
+
+    if (nb_pending_keycodes > 0) {
+        qemu_del_timer(key_timer);
+        release_keys(NULL);
+    }
+    if (!has_hold_time)
+        hold_time = 100;
+    i = 0;
+    while (1) {
+        separator = strchr(string, '-');
+        keyname_len = separator ? separator - string : strlen(string);
+        if (keyname_len > 0) {
+            pstrcpy(keyname_buf, sizeof(keyname_buf), string);
+            if (keyname_len > sizeof(keyname_buf) - 1) {
+                term_printf("invalid key: '%s...'\n", keyname_buf);
+                return;
+            }
+            if (i == MAX_KEYCODES) {
+                term_printf("too many keys\n");
+                return;
+            }
+            keyname_buf[keyname_len] = 0;
+            keycode = get_keycode(keyname_buf);
+            if (keycode < 0) {
+                term_printf("unknown key: '%s'\n", keyname_buf);
+                return;
+            }
+            keycodes[i++] = keycode;
+        }
+        if (!separator)
+            break;
+        string = separator + 1;
+    }
+    nb_pending_keycodes = i;
     /* key down events */
-    for(i = 0; i < nb_keycodes; i++) {
+    for (i = 0; i < nb_pending_keycodes; i++) {
         keycode = keycodes[i];
         if (keycode & 0x80)
             kbd_put_keycode(0xe0);
         kbd_put_keycode(keycode & 0x7f);
     }
-    /* key up events */
-    for(i = nb_keycodes - 1; i >= 0; i--) {
-        keycode = keycodes[i];
-        if (keycode & 0x80)
-            kbd_put_keycode(0xe0);
-        kbd_put_keycode(keycode | 0x80);
-    }
+    /* delayed key up events */
+    qemu_mod_timer(key_timer, qemu_get_clock(vm_clock) +
+                    muldiv64(ticks_per_sec, hold_time, 1000));
 }
 
 static int mouse_button_state;
@@ -1139,8 +1337,8 @@ static void do_wav_capture (const char *path,
 static term_cmd_t term_cmds[] = {
     { "help|?", "s?", do_help,
       "[cmd]", "show the help" },
-    { "commit", "", do_commit,
-      "", "commit changes to the disk images (if -snapshot is used)" },
+    { "commit", "s", do_commit,
+      "device|all", "commit changes to the disk images (if -snapshot is used) or backing files" },
     { "info", "s?", do_info,
       "subcommand", "show various information about the system state" },
     { "q|quit", "", do_quit,
@@ -1153,16 +1351,18 @@ static term_cmd_t term_cmds[] = {
       "filename", "save screen into PPM image 'filename'" },
     { "log", "s", do_log,
       "item1[,...]", "activate logging of the specified items to '/tmp/qemu.log'" },
+#if 0
     { "savevm", "F", do_savevm,
       "filename", "save the whole virtual machine state to 'filename'" },
     { "loadvm", "F", do_loadvm,
       "filename", "restore the whole virtual machine state from 'filename'" },
+#endif
     { "stop", "", do_stop,
       "", "stop emulation", },
     { "c|cont", "", do_cont,
       "", "resume emulation", },
 #ifdef CONFIG_GDBSTUB
-    { "gdbserver", "i?", do_gdbserver,
+    { "gdbserver", "s?", do_gdbserver,
       "[port]", "start gdbserver session (default port=1234)", },
 #endif
     { "x", "/l", do_memory_dump,
@@ -1174,8 +1374,8 @@ static term_cmd_t term_cmds[] = {
     { "i", "/ii.", do_ioport_read,
       "/fmt addr", "I/O port read" },
 
-    { "sendkey", "s", do_send_key,
-      "keys", "send keys to the VM (e.g. 'sendkey ctrl-alt-f1')" },
+    { "sendkey", "si?", do_sendkey,
+      "keys [hold_ms]", "send keys to the VM (e.g. 'sendkey ctrl-alt-f1', default hold time=100 ms)" },
     { "system_reset", "", do_system_reset,
       "", "reset the system" },
     { "system_powerdown", "", do_system_powerdown,
@@ -1289,21 +1489,7 @@ static target_long monitor_get_msr (struct MonitorDef *md, int val)
     CPUState *env = mon_get_cpu();
     if (!env)
         return 0;
-    return (env->msr[MSR_POW] << MSR_POW) |
-        (env->msr[MSR_ILE] << MSR_ILE) |
-        (env->msr[MSR_EE] << MSR_EE) |
-        (env->msr[MSR_PR] << MSR_PR) |
-        (env->msr[MSR_FP] << MSR_FP) |
-        (env->msr[MSR_ME] << MSR_ME) |
-        (env->msr[MSR_FE0] << MSR_FE0) |
-        (env->msr[MSR_SE] << MSR_SE) |
-        (env->msr[MSR_BE] << MSR_BE) |
-        (env->msr[MSR_FE1] << MSR_FE1) |
-        (env->msr[MSR_IP] << MSR_IP) |
-        (env->msr[MSR_IR] << MSR_IR) |
-        (env->msr[MSR_DR] << MSR_DR) |
-        (env->msr[MSR_RI] << MSR_RI) |
-        (env->msr[MSR_LE] << MSR_LE);
+    return env->msr;
 }
 
 static target_long monitor_get_xer (struct MonitorDef *md, int val)
@@ -1311,10 +1497,7 @@ static target_long monitor_get_xer (struct MonitorDef *md, int val)
     CPUState *env = mon_get_cpu();
     if (!env)
         return 0;
-    return (env->xer[XER_SO] << XER_SO) |
-        (env->xer[XER_OV] << XER_OV) |
-        (env->xer[XER_CA] << XER_CA) |
-        (env->xer[XER_BC] << XER_BC);
+    return ppc_load_xer(env);
 }
 
 static target_long monitor_get_decr (struct MonitorDef *md, int val)
@@ -1398,6 +1581,7 @@ static MonitorDef monitor_defs[] = {
     SEG("gs", R_GS)
     { "pc", 0, monitor_get_pc, },
 #elif defined(TARGET_PPC)
+    /* General purpose registers */
     { "r0", offsetof(CPUState, gpr[0]) },
     { "r1", offsetof(CPUState, gpr[1]) },
     { "r2", offsetof(CPUState, gpr[2]) },
@@ -1430,15 +1614,56 @@ static MonitorDef monitor_defs[] = {
     { "r29", offsetof(CPUState, gpr[29]) },
     { "r30", offsetof(CPUState, gpr[30]) },
     { "r31", offsetof(CPUState, gpr[31]) },
+    /* Floating point registers */
+    { "f0", offsetof(CPUState, fpr[0]) },
+    { "f1", offsetof(CPUState, fpr[1]) },
+    { "f2", offsetof(CPUState, fpr[2]) },
+    { "f3", offsetof(CPUState, fpr[3]) },
+    { "f4", offsetof(CPUState, fpr[4]) },
+    { "f5", offsetof(CPUState, fpr[5]) },
+    { "f6", offsetof(CPUState, fpr[6]) },
+    { "f7", offsetof(CPUState, fpr[7]) },
+    { "f8", offsetof(CPUState, fpr[8]) },
+    { "f9", offsetof(CPUState, fpr[9]) },
+    { "f10", offsetof(CPUState, fpr[10]) },
+    { "f11", offsetof(CPUState, fpr[11]) },
+    { "f12", offsetof(CPUState, fpr[12]) },
+    { "f13", offsetof(CPUState, fpr[13]) },
+    { "f14", offsetof(CPUState, fpr[14]) },
+    { "f15", offsetof(CPUState, fpr[15]) },
+    { "f16", offsetof(CPUState, fpr[16]) },
+    { "f17", offsetof(CPUState, fpr[17]) },
+    { "f18", offsetof(CPUState, fpr[18]) },
+    { "f19", offsetof(CPUState, fpr[19]) },
+    { "f20", offsetof(CPUState, fpr[20]) },
+    { "f21", offsetof(CPUState, fpr[21]) },
+    { "f22", offsetof(CPUState, fpr[22]) },
+    { "f23", offsetof(CPUState, fpr[23]) },
+    { "f24", offsetof(CPUState, fpr[24]) },
+    { "f25", offsetof(CPUState, fpr[25]) },
+    { "f26", offsetof(CPUState, fpr[26]) },
+    { "f27", offsetof(CPUState, fpr[27]) },
+    { "f28", offsetof(CPUState, fpr[28]) },
+    { "f29", offsetof(CPUState, fpr[29]) },
+    { "f30", offsetof(CPUState, fpr[30]) },
+    { "f31", offsetof(CPUState, fpr[31]) },
+    { "fpscr", offsetof(CPUState, fpscr) },
+    /* Next instruction pointer */
     { "nip|pc", offsetof(CPUState, nip) },
     { "lr", offsetof(CPUState, lr) },
     { "ctr", offsetof(CPUState, ctr) },
     { "decr", 0, &monitor_get_decr, },
     { "ccr", 0, &monitor_get_ccr, },
+    /* Machine state register */
     { "msr", 0, &monitor_get_msr, },
     { "xer", 0, &monitor_get_xer, },
     { "tbu", 0, &monitor_get_tbu, },
     { "tbl", 0, &monitor_get_tbl, },
+#if defined(TARGET_PPC64)
+    /* Address space register */
+    { "asr", offsetof(CPUState, asr) },
+#endif
+    /* Segment registers */
     { "sdr1", offsetof(CPUState, sdr1) },
     { "sr0", offsetof(CPUState, sr[0]) },
     { "sr1", offsetof(CPUState, sr[1]) },
@@ -1631,11 +1856,11 @@ static void next(void)
     }
 }
 
-static target_long expr_sum(void);
+static int64_t expr_sum(void);
 
-static target_long expr_unary(void)
+static int64_t expr_unary(void)
 {
-    target_long n = 0;
+    int64_t n;
     char *p;
     int ret;
 
@@ -1673,6 +1898,7 @@ static target_long expr_unary(void)
     case '$':
         {
             char buf[128], *q;
+            target_long reg=0;
 
             pch++;
             q = buf;
@@ -1687,11 +1913,12 @@ static target_long expr_unary(void)
             while (isspace(*pch))
                 pch++;
             *q = 0;
-            ret = get_monitor_def(&n, buf);
+            ret = get_monitor_def(&reg, buf);
             if (ret == -1)
                 expr_error("unknown register");
             else if (ret == -2)
                 expr_error("no cpu defined");
+            n = reg;
         }
         break;
     case '\0':
@@ -1699,7 +1926,7 @@ static target_long expr_unary(void)
         n = 0;
         break;
     default:
-#if TARGET_LONG_BITS == 64
+#if TARGET_PHYS_ADDR_BITS > 32
         n = strtoull(pch, &p, 0);
 #else
         n = strtoul(pch, &p, 0);
@@ -1716,9 +1943,9 @@ static target_long expr_unary(void)
 }
 
 
-static target_long expr_prod(void)
+static int64_t expr_prod(void)
 {
-    target_long val, val2;
+    int64_t val, val2;
     int op;
 
     val = expr_unary();
@@ -1747,9 +1974,9 @@ static target_long expr_prod(void)
     return val;
 }
 
-static target_long expr_logic(void)
+static int64_t expr_logic(void)
 {
-    target_long val, val2;
+    int64_t val, val2;
     int op;
 
     val = expr_prod();
@@ -1775,9 +2002,9 @@ static target_long expr_logic(void)
     return val;
 }
 
-static target_long expr_sum(void)
+static int64_t expr_sum(void)
 {
-    target_long val, val2;
+    int64_t val, val2;
     int op;
 
     val = expr_logic();
@@ -1795,7 +2022,7 @@ static target_long expr_sum(void)
     return val;
 }
 
-static int get_expr(target_long *pval, const char **pp)
+static int get_expr(int64_t *pval, const char **pp)
 {
     pch = *pp;
     if (setjmp(expr_env)) {
@@ -1889,6 +2116,17 @@ static void monitor_handle_command(const char *cmdline)
     char buf[1024];
     void *str_allocated[MAX_ARGS];
     void *args[MAX_ARGS];
+    void (*handler_0)(void);
+    void (*handler_1)(void *arg0);
+    void (*handler_2)(void *arg0, void *arg1);
+    void (*handler_3)(void *arg0, void *arg1, void *arg2);
+    void (*handler_4)(void *arg0, void *arg1, void *arg2, void *arg3);
+    void (*handler_5)(void *arg0, void *arg1, void *arg2, void *arg3,
+                      void *arg4);
+    void (*handler_6)(void *arg0, void *arg1, void *arg2, void *arg3,
+                      void *arg4, void *arg5);
+    void (*handler_7)(void *arg0, void *arg1, void *arg2, void *arg3,
+                      void *arg4, void *arg5, void *arg6);
 
 #ifdef DEBUG
     term_printf("command='%s'\n", cmdline);
@@ -1964,7 +2202,7 @@ static void monitor_handle_command(const char *cmdline)
                     goto fail;
                 }
                 str = qemu_malloc(strlen(buf) + 1);
-                strcpy(str, buf);
+                pstrcpy(str, sizeof(buf), buf);
                 str_allocated[nb_args] = str;
             add_str:
                 if (nb_args >= MAX_ARGS) {
@@ -2050,15 +2288,16 @@ static void monitor_handle_command(const char *cmdline)
                 }
                 if (nb_args + 3 > MAX_ARGS)
                     goto error_args;
-                args[nb_args++] = (void*)count;
-                args[nb_args++] = (void*)format;
-                args[nb_args++] = (void*)size;
+                args[nb_args++] = (void*)(long)count;
+                args[nb_args++] = (void*)(long)format;
+                args[nb_args++] = (void*)(long)size;
             }
             break;
         case 'i':
         case 'l':
             {
-                target_long val;
+                int64_t val;
+
                 while (isspace(*p))
                     p++;
                 if (*typestr == '?' || *typestr == '.') {
@@ -2080,7 +2319,7 @@ static void monitor_handle_command(const char *cmdline)
                     typestr++;
                     if (nb_args >= MAX_ARGS)
                         goto error_args;
-                    args[nb_args++] = (void *)has_arg;
+                    args[nb_args++] = (void *)(long)has_arg;
                     if (!has_arg) {
                         if (nb_args >= MAX_ARGS)
                             goto error_args;
@@ -2094,16 +2333,16 @@ static void monitor_handle_command(const char *cmdline)
                 if (c == 'i') {
                     if (nb_args >= MAX_ARGS)
                         goto error_args;
-                    args[nb_args++] = (void *)(int)val;
+                    args[nb_args++] = (void *)(long)val;
                 } else {
                     if ((nb_args + 1) >= MAX_ARGS)
                         goto error_args;
-#if TARGET_LONG_BITS == 64
-                    args[nb_args++] = (void *)(int)((val >> 32) & 0xffffffff);
+#if TARGET_PHYS_ADDR_BITS > 32
+                    args[nb_args++] = (void *)(long)((val >> 32) & 0xffffffff);
 #else
                     args[nb_args++] = (void *)0;
 #endif
-                    args[nb_args++] = (void *)(int)(val & 0xffffffff);
+                    args[nb_args++] = (void *)(long)(val & 0xffffffff);
                 }
             }
             break;
@@ -2130,7 +2369,7 @@ static void monitor_handle_command(const char *cmdline)
                 }
                 if (nb_args >= MAX_ARGS)
                     goto error_args;
-                args[nb_args++] = (void *)has_option;
+                args[nb_args++] = (void *)(long)has_option;
             }
             break;
         default:
@@ -2150,28 +2389,36 @@ static void monitor_handle_command(const char *cmdline)
 
     switch(nb_args) {
     case 0:
-        cmd->handler();
+        handler_0 = cmd->handler;
+        handler_0();
         break;
     case 1:
-        cmd->handler(args[0]);
+        handler_1 = cmd->handler;
+        handler_1(args[0]);
         break;
     case 2:
-        cmd->handler(args[0], args[1]);
+        handler_2 = cmd->handler;
+        handler_2(args[0], args[1]);
         break;
     case 3:
-        cmd->handler(args[0], args[1], args[2]);
+        handler_3 = cmd->handler;
+        handler_3(args[0], args[1], args[2]);
         break;
     case 4:
-        cmd->handler(args[0], args[1], args[2], args[3]);
+        handler_4 = cmd->handler;
+        handler_4(args[0], args[1], args[2], args[3]);
         break;
     case 5:
-        cmd->handler(args[0], args[1], args[2], args[3], args[4]);
+        handler_5 = cmd->handler;
+        handler_5(args[0], args[1], args[2], args[3], args[4]);
         break;
     case 6:
-        cmd->handler(args[0], args[1], args[2], args[3], args[4], args[5]);
+        handler_6 = cmd->handler;
+        handler_6(args[0], args[1], args[2], args[3], args[4], args[5]);
         break;
     case 7:
-        cmd->handler(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        handler_7 = cmd->handler;
+        handler_7(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
         break;
     default:
         term_printf("unsupported number of arguments: %d\n", nb_args);
@@ -2222,7 +2469,7 @@ static void file_completion(const char *input)
     if (!p) {
         input_path_len = 0;
         pstrcpy(file_prefix, sizeof(file_prefix), input);
-        strcpy(path, ".");
+        pstrcpy(path, sizeof(path), ".");
     } else {
         input_path_len = p - input + 1;
         memcpy(path, input, input_path_len);
@@ -2244,13 +2491,15 @@ static void file_completion(const char *input)
             break;
         if (strstart(d->d_name, file_prefix, NULL)) {
             memcpy(file, input, input_path_len);
-            strcpy(file + input_path_len, d->d_name);
+            if (input_path_len < sizeof(file))
+                pstrcpy(file + input_path_len, sizeof(file) - input_path_len,
+                        d->d_name);
             /* stat the file to find out if it's a directory.
              * In that case add a slash to speed up typing long paths
              */
             stat(file, &sb);
             if(S_ISDIR(sb.st_mode))
-                strcat(file, "/");
+                pstrcat(file, sizeof(file), "/");
             add_completion(file);
         }
     }
@@ -2402,15 +2651,44 @@ static void monitor_start_input(void)
     readline_start("(qemu) ", 0, monitor_handle_command1, NULL);
 }
 
+static void term_event(void *opaque, int event)
+{
+    if (event != CHR_EVENT_RESET)
+	return;
+
+    if (!hide_banner)
+	    term_printf("QEMU %s monitor - type 'help' for more information\n",
+			QEMU_VERSION);
+    monitor_start_input();
+}
+
+static int is_first_init = 1;
+
 void monitor_init(CharDriverState *hd, int show_banner)
 {
-    monitor_hd = hd;
-    if (show_banner) {
-        term_printf("QEMU %s monitor - type 'help' for more information\n",
-                    QEMU_VERSION);
+    int i;
+
+    if (is_first_init) {
+        key_timer = qemu_new_timer(vm_clock, release_keys, NULL);
+        if (!key_timer)
+            return;
+        for (i = 0; i < MAX_MON; i++) {
+            monitor_hd[i] = NULL;
+        }
+        is_first_init = 0;
     }
-    qemu_chr_add_read_handler(hd, term_can_read, term_read, NULL);
-    monitor_start_input();
+    for (i = 0; i < MAX_MON; i++) {
+        if (monitor_hd[i] == NULL) {
+            monitor_hd[i] = hd;
+            break;
+        }
+    }
+
+    hide_banner = !show_banner;
+
+    qemu_chr_add_handlers(hd, term_can_read, term_read, term_event, NULL);
+
+    readline_start("", 0, monitor_handle_command1, NULL);
 }
 
 /* XXX: use threads ? */
@@ -2428,14 +2706,31 @@ static void monitor_readline_cb(void *opaque, const char *input)
 void monitor_readline(const char *prompt, int is_password,
                       char *buf, int buf_size)
 {
+    int i;
+    int old_focus[MAX_MON];
+
     if (is_password) {
-        qemu_chr_send_event(monitor_hd, CHR_EVENT_FOCUS);
+        for (i = 0; i < MAX_MON; i++) {
+            old_focus[i] = 0;
+            if (monitor_hd[i]) {
+                old_focus[i] = monitor_hd[i]->focus;
+                monitor_hd[i]->focus = 0;
+                qemu_chr_send_event(monitor_hd[i], CHR_EVENT_FOCUS);
+            }
+        }
     }
+
     readline_start(prompt, is_password, monitor_readline_cb, NULL);
     monitor_readline_buf = buf;
     monitor_readline_buf_size = buf_size;
     monitor_readline_started = 1;
     while (monitor_readline_started) {
         main_loop_wait(10);
+    }
+    /* restore original focus */
+    if (is_password) {
+        for (i = 0; i < MAX_MON; i++)
+            if (old_focus[i])
+                monitor_hd[i]->focus = old_focus[i];
     }
 }

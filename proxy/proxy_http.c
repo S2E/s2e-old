@@ -11,10 +11,10 @@
 */
 #include "proxy_int.h"
 #include "proxy_http_int.h"
+#include "qemu-common.h"
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include "vl.h"
 
 #define  HTTP_VERSION  "1.1"
 

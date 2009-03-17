@@ -1,6 +1,6 @@
 /*
  *  Host code generation
- * 
+ *
  *  Copyright (c) 2003 Fabrice Bellard
  *
  * This library is free software; you can redistribute it and/or
@@ -29,185 +29,103 @@
 #include "cpu.h"
 #include "exec-all.h"
 #include "disas.h"
+#include "tcg.h"
 
-typedef int (*cpu_gen_code_func)(CPUState*          env,
-                                 TranslationBlock*  tb,
-                                 int                max_code_size,
-                                 int*               gen_code_size_ptr);
-
-typedef int (*cpu_restore_state_func)(TranslationBlock*  tb,
-                                      CPUState*          env,
-                                      unsigned long      searched_pc,
-                                      void*              puc);
-
-typedef void (*dump_ops_func)(const uint16_t *opc_buf, const uint32_t *opparam_buf);
-
-extern cpu_gen_code_func       _cpu_gen_code;
-extern cpu_restore_state_func  _cpu_restore_state;
-extern dump_ops_func           _dump_ops;
-
-
-#ifdef GEN_TRACE
-#define  OPC_H  "opc-trace.h"
-#define  CPU_GEN_CODE       trace_cpu_gen_code
-#define  CPU_RESTORE_STATE  trace_cpu_restore_state
-#define  DUMP_OPS           trace_dump_ops
-#else
-#define OPC_H  "opc.h"
-#define  CPU_GEN_CODE       default_cpu_gen_code
-#define  CPU_RESTORE_STATE  default_cpu_restore_state
-#define  DUMP_OPS           default_dump_ops
-#endif
-
-
-
-
-extern int dyngen_code(uint8_t *gen_code_buf,
-                       uint16_t *label_offsets, uint16_t *jmp_offsets,
-                       const uint16_t *opc_buf, const uint32_t *opparam_buf, const long *gen_labels);
-
-enum {
-#define DEF(s, n, copy_size) INDEX_op_ ## s,
-#include OPC_H
-#undef DEF
-    NB_OPS,
-};
+/* code generation context */
+TCGContext tcg_ctx;
 
 uint16_t gen_opc_buf[OPC_BUF_SIZE];
-uint32_t gen_opparam_buf[OPPARAM_BUF_SIZE];
-long gen_labels[OPC_BUF_SIZE];
-int nb_gen_labels;
+TCGArg gen_opparam_buf[OPPARAM_BUF_SIZE];
 
 target_ulong gen_opc_pc[OPC_BUF_SIZE];
+uint16_t gen_opc_icount[OPC_BUF_SIZE];
 uint8_t gen_opc_instr_start[OPC_BUF_SIZE];
 #if defined(TARGET_I386)
 uint8_t gen_opc_cc_op[OPC_BUF_SIZE];
 #elif defined(TARGET_SPARC)
 target_ulong gen_opc_npc[OPC_BUF_SIZE];
 target_ulong gen_opc_jump_pc[2];
-#elif defined(TARGET_MIPS)
+#elif defined(TARGET_MIPS) || defined(TARGET_SH4)
 uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 #endif
 
-#ifndef GEN_TRACE
-int code_copy_enabled = 1;
-#endif
-
-#ifdef DEBUG_DISAS
-static const char *op_str[] = {
-#define DEF(s, n, copy_size) #s,
-#include OPC_H
-#undef DEF
-};
-
-static uint8_t op_nb_args[] = {
-#define DEF(s, n, copy_size) n,
-#include OPC_H
-#undef DEF
-};
-
-static const unsigned short opc_copy_size[] = {
-#define DEF(s, n, copy_size) copy_size,
-#include OPC_H
-#undef DEF
-};
-
-void DUMP_OPS(const uint16_t *opc_buf, const uint32_t *opparam_buf)
+/* XXX: suppress that */
+unsigned long code_gen_max_block_size(void)
 {
-    const uint16_t *opc_ptr;
-    const uint32_t *opparam_ptr;
-    int c, n, i;
+    static unsigned long max;
 
-    opc_ptr = opc_buf;
-    opparam_ptr = opparam_buf;
-    for(;;) {
-        c = *opc_ptr++;
-        n = op_nb_args[c];
-        fprintf(logfile, "0x%04x: %s", 
-                (int)(opc_ptr - opc_buf - 1), op_str[c]);
-        for(i = 0; i < n; i++) {
-            fprintf(logfile, " 0x%x", opparam_ptr[i]);
-        }
-        fprintf(logfile, "\n");
-        if (c == INDEX_op_end)
-            break;
-        opparam_ptr += n;
+    if (max == 0) {
+        max = TCG_MAX_OP_SIZE;
+#define DEF(s, n, copy_size) max = copy_size > max? copy_size : max;
+#include "tcg-opc.h"
+#undef DEF
+        max *= OPC_MAX_SIZE;
     }
+
+    return max;
 }
 
-#endif
-
-/* compute label info */
-static void dyngen_labels(long *gen_labels, int nb_gen_labels,
-                          uint8_t *gen_code_buf, const uint16_t *opc_buf)
+void cpu_gen_init(void)
 {
-    uint8_t *gen_code_ptr;
-    int c, i;
-    unsigned long gen_code_addr[OPC_BUF_SIZE];
-    
-    if (nb_gen_labels == 0)
-        return;
-    /* compute the address of each op code */
-    
-    gen_code_ptr = gen_code_buf;
-    i = 0;
-    for(;;) {
-        c = opc_buf[i];
-        gen_code_addr[i] =(unsigned long)gen_code_ptr;
-        if (c == INDEX_op_end)
-            break;
-        gen_code_ptr += opc_copy_size[c];
-        i++;
-    }
-    
-    /* compute the address of each label */
-    for(i = 0; i < nb_gen_labels; i++) {
-        gen_labels[i] = gen_code_addr[gen_labels[i]];
-    }
+    tcg_context_init(&tcg_ctx); 
+    tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
+                  CPU_TEMP_BUF_NLONGS * sizeof(long));
 }
 
 /* return non zero if the very first instruction is invalid so that
-   the virtual CPU can trigger an exception. 
+   the virtual CPU can trigger an exception.
 
    '*gen_code_size_ptr' contains the size of the generated code (host
    code).
 */
-static int CPU_GEN_CODE(CPUState *env, TranslationBlock *tb,
-                 int max_code_size, int *gen_code_size_ptr)
+int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 {
+    TCGContext *s = &tcg_ctx;
     uint8_t *gen_code_buf;
     int gen_code_size;
-
-#ifdef USE_CODE_COPY
-    if (code_copy_enabled &&
-        cpu_gen_code_copy(env, tb, max_code_size, &gen_code_size) == 0) {
-        /* nothing more to do */
-    } else
+#ifdef CONFIG_PROFILER
+    int64_t ti;
 #endif
-    {
-        if (gen_intermediate_code(env, tb) < 0)
-            return -1;
 
-        /* generate machine code */
-        tb->tb_next_offset[0] = 0xffff;
-        tb->tb_next_offset[1] = 0xffff;
-        gen_code_buf = tb->tc_ptr;
-#ifdef USE_DIRECT_JUMP
-        /* the following two entries are optional (only used for string ops) */
-        tb->tb_jmp_offset[2] = 0xffff;
-        tb->tb_jmp_offset[3] = 0xffff;
+#ifdef CONFIG_PROFILER
+    s->tb_count1++; /* includes aborted translations because of
+                       exceptions */
+    ti = profile_getclock();
 #endif
-        dyngen_labels(gen_labels, nb_gen_labels, gen_code_buf, gen_opc_buf);
+    tcg_func_start(s);
 
-        gen_code_size = dyngen_code(gen_code_buf, tb->tb_next_offset,
+    gen_intermediate_code(env, tb);
+
+    /* generate machine code */
+    gen_code_buf = tb->tc_ptr;
+    tb->tb_next_offset[0] = 0xffff;
+    tb->tb_next_offset[1] = 0xffff;
+    s->tb_next_offset = tb->tb_next_offset;
 #ifdef USE_DIRECT_JUMP
-                                    tb->tb_jmp_offset,
+    s->tb_jmp_offset = tb->tb_jmp_offset;
+    s->tb_next = NULL;
+    /* the following two entries are optional (only used for string ops) */
+    /* XXX: not used ? */
+    tb->tb_jmp_offset[2] = 0xffff;
+    tb->tb_jmp_offset[3] = 0xffff;
 #else
-                                    NULL,
+    s->tb_jmp_offset = NULL;
+    s->tb_next = tb->tb_next;
 #endif
-                                    gen_opc_buf, gen_opparam_buf, gen_labels);
-    }
+
+#ifdef CONFIG_PROFILER
+    s->tb_count++;
+    s->interm_time += profile_getclock() - ti;
+    s->code_time -= profile_getclock();
+#endif
+    gen_code_size = dyngen_code(s, gen_code_buf);
     *gen_code_size_ptr = gen_code_size;
+#ifdef CONFIG_PROFILER
+    s->code_time += profile_getclock();
+    s->code_in_len += tb->size;
+    s->code_out_len += gen_code_size;
+#endif
+
 #ifdef DEBUG_DISAS
     if (loglevel & CPU_LOG_TB_OUT_ASM) {
         fprintf(logfile, "OUT: [size=%d]\n", *gen_code_size_ptr);
@@ -219,170 +137,59 @@ static int CPU_GEN_CODE(CPUState *env, TranslationBlock *tb,
     return 0;
 }
 
-/* The cpu state corresponding to 'searched_pc' is restored. 
+/* The cpu state corresponding to 'searched_pc' is restored.
  */
-static int CPU_RESTORE_STATE(TranslationBlock *tb,
-                      CPUState *env, unsigned long searched_pc,
-                      void *puc)
-{
-    int j, c;
-    unsigned long tc_ptr;
-    uint16_t *opc_ptr;
-
-#ifdef USE_CODE_COPY
-    if (tb->cflags & CF_CODE_COPY) {
-        return cpu_restore_state_copy(tb, env, searched_pc, puc);
-    }
-#endif
-    if (gen_intermediate_code_pc(env, tb) < 0)
-        return -1;
-    
-    /* find opc index corresponding to search_pc */
-    tc_ptr = (unsigned long)tb->tc_ptr;
-    if (searched_pc < tc_ptr)
-        return -1;
-    j = 0;
-    opc_ptr = gen_opc_buf;
-    for(;;) {
-        c = *opc_ptr;
-        if (c == INDEX_op_end)
-            return -1;
-        tc_ptr += opc_copy_size[c];
-        if (searched_pc < tc_ptr)
-            break;
-        opc_ptr++;
-    }
-    j = opc_ptr - gen_opc_buf;
-    /* now find start of instruction before */
-    while (gen_opc_instr_start[j] == 0)
-        j--;
-#if defined(TARGET_I386)
-    {
-        int cc_op;
-#ifdef DEBUG_DISAS
-        if (loglevel & CPU_LOG_TB_OP) {
-            int i;
-            fprintf(logfile, "RESTORE:\n");
-            for(i=0;i<=j; i++) {
-                if (gen_opc_instr_start[i]) {
-                    fprintf(logfile, "0x%04x: " TARGET_FMT_lx "\n", i, gen_opc_pc[i]);
-                }
-            }
-            fprintf(logfile, "spc=0x%08lx j=0x%x eip=" TARGET_FMT_lx " cs_base=%x\n", 
-                    searched_pc, j, gen_opc_pc[j] - tb->cs_base, 
-                    (uint32_t)tb->cs_base);
-        }
-#endif
-        env->eip = gen_opc_pc[j] - tb->cs_base;
-        cc_op = gen_opc_cc_op[j];
-        if (cc_op != CC_OP_DYNAMIC)
-            env->cc_op = cc_op;
-    }
-#elif defined(TARGET_ARM)
-    env->regs[15] = gen_opc_pc[j];
-#elif defined(TARGET_SPARC)
-    {
-        target_ulong npc;
-        env->pc = gen_opc_pc[j];
-        npc = gen_opc_npc[j];
-        if (npc == 1) {
-            /* dynamic NPC: already stored */
-        } else if (npc == 2) {
-            target_ulong t2 = (target_ulong)puc;
-            /* jump PC: use T2 and the jump targets of the translation */
-            if (t2) 
-                env->npc = gen_opc_jump_pc[0];
-            else
-                env->npc = gen_opc_jump_pc[1];
-        } else {
-            env->npc = npc;
-        }
-    }
-#elif defined(TARGET_PPC)
-    {
-        int type;
-        /* for PPC, we need to look at the micro operation to get the
-           access type */
-        env->nip = gen_opc_pc[j];
-        switch(c) {
-#if defined(CONFIG_USER_ONLY)
-#define CASE3(op)\
-        case INDEX_op_ ## op ## _raw
-#else
-#define CASE3(op)\
-        case INDEX_op_ ## op ## _user:\
-        case INDEX_op_ ## op ## _kernel
-#endif
-            
-        CASE3(stfd):
-        CASE3(stfs):
-        CASE3(lfd):
-        CASE3(lfs):
-            type = ACCESS_FLOAT;
-            break;
-        CASE3(lwarx):
-            type = ACCESS_RES;
-            break;
-        CASE3(stwcx):
-            type = ACCESS_RES;
-            break;
-        CASE3(eciwx):
-        CASE3(ecowx):
-            type = ACCESS_EXT;
-            break;
-        default:
-            type = ACCESS_INT;
-            break;
-        }
-        env->access_type = type;
-    }
-#elif defined(TARGET_MIPS)
-    env->PC = gen_opc_pc[j];
-    env->hflags &= ~MIPS_HFLAG_BMASK;
-    env->hflags |= gen_opc_hflags[j];
-#endif
-    return 0;
-}
-
-
-#ifdef GEN_TRACE
-
-void  qemu_trace_enable_gencode( void )
-{
-    _cpu_gen_code      = CPU_GEN_CODE;
-    _cpu_restore_state = CPU_RESTORE_STATE;
-    _dump_ops          = DUMP_OPS;
-}
-
-#else
-
-cpu_gen_code_func       _cpu_gen_code      = CPU_GEN_CODE;
-cpu_restore_state_func  _cpu_restore_state = CPU_RESTORE_STATE;
-dump_ops_func           _dump_ops          = DUMP_OPS;
-
-void  qemu_trace_disable_gencode( void )
-{
-    _cpu_gen_code      = CPU_GEN_CODE;
-    _cpu_restore_state = CPU_RESTORE_STATE;
-    _dump_ops          = DUMP_OPS;
-}
-
-int cpu_gen_code(CPUState *env, TranslationBlock *tb,
-                 int max_code_size, int *gen_code_size_ptr)
-{
-  return (*_cpu_gen_code)(env, tb, max_code_size, gen_code_size_ptr);
-}
-
 int cpu_restore_state(TranslationBlock *tb,
                       CPUState *env, unsigned long searched_pc,
                       void *puc)
 {
-  return (*_cpu_restore_state)(tb, env, searched_pc, puc);
-}
-
-void dump_ops(const uint16_t *opc_buf, const uint32_t *opparam_buf)
-{
-  (*_dump_ops)(opc_buf, opparam_buf);
-}
-
+    TCGContext *s = &tcg_ctx;
+    int j;
+    unsigned long tc_ptr;
+#ifdef CONFIG_PROFILER
+    int64_t ti;
 #endif
+
+#ifdef CONFIG_PROFILER
+    ti = profile_getclock();
+#endif
+    tcg_func_start(s);
+
+    gen_intermediate_code_pc(env, tb);
+
+    if (use_icount) {
+        /* Reset the cycle counter to the start of the block.  */
+        env->icount_decr.u16.low += tb->icount;
+        /* Clear the IO flag.  */
+        env->can_do_io = 0;
+    }
+
+    /* find opc index corresponding to search_pc */
+    tc_ptr = (unsigned long)tb->tc_ptr;
+    if (searched_pc < tc_ptr)
+        return -1;
+
+    s->tb_next_offset = tb->tb_next_offset;
+#ifdef USE_DIRECT_JUMP
+    s->tb_jmp_offset = tb->tb_jmp_offset;
+    s->tb_next = NULL;
+#else
+    s->tb_jmp_offset = NULL;
+    s->tb_next = tb->tb_next;
+#endif
+    j = dyngen_code_search_pc(s, (uint8_t *)tc_ptr, searched_pc - tc_ptr);
+    if (j < 0)
+        return -1;
+    /* now find start of instruction before */
+    while (gen_opc_instr_start[j] == 0)
+        j--;
+    env->icount_decr.u16.low -= gen_opc_icount[j];
+
+    gen_pc_load(env, tb, searched_pc, j, puc);
+
+#ifdef CONFIG_PROFILER
+    s->restore_time += profile_getclock() - ti;
+    s->restore_count++;
+#endif
+    return 0;
+}

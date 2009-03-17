@@ -8,6 +8,11 @@
 #include <fenv.h>
 #endif
 
+#ifdef __OpenBSD__
+/* Get OpenBSD version number */
+#include <sys/param.h>
+#endif
+
 /*
  * Define some C99-7.12.3 classification macros and
  *        some C99-.12.4 for Solaris systems OS less than 10,
@@ -15,7 +20,9 @@
  *   Solaris 10 with GCC4 does not need these macros as they
  *   are defined in <iso/math_c99.h> with a compiler directive
  */
-#if defined(HOST_SOLARIS) && (( HOST_SOLARIS <= 9 ) || ( ( HOST_SOLARIS >= 10 ) && ( __GNUC__ <= 4) ))
+#if defined(HOST_SOLARIS) && (( HOST_SOLARIS <= 9 ) || ((HOST_SOLARIS >= 10) \
+                                                        && (__GNUC__ <= 4))) \
+    || (defined(__OpenBSD__) && (OpenBSD < 200811))
 /*
  * C99 7.12.3 classification macros
  * and
@@ -24,6 +31,9 @@
  * ... do not work on Solaris 10 using GNU CC 3.4.x.
  * Try to workaround the missing / broken C99 math macros.
  */
+#if defined(__OpenBSD__)
+#define unordered(x, y) (isnan(x) || isnan(y))
+#endif
 
 #define isnormal(x)             (fpclass(x) >= FP_NZERO)
 #define isgreater(x, y)         ((!unordered(x, y)) && ((x) > (y)))
@@ -31,6 +41,29 @@
 #define isless(x, y)            ((!unordered(x, y)) && ((x) < (y)))
 #define islessequal(x, y)       ((!unordered(x, y)) && ((x) <= (y)))
 #define isunordered(x,y)        unordered(x, y)
+#endif
+
+#if defined(__sun__) && !defined(NEED_LIBSUNMATH)
+
+#ifndef isnan
+# define isnan(x) \
+    (sizeof (x) == sizeof (long double) ? isnan_ld (x) \
+     : sizeof (x) == sizeof (double) ? isnan_d (x) \
+     : isnan_f (x))
+static inline int isnan_f  (float       x) { return x != x; }
+static inline int isnan_d  (double      x) { return x != x; }
+static inline int isnan_ld (long double x) { return x != x; }
+#endif
+
+#ifndef isinf
+# define isinf(x) \
+    (sizeof (x) == sizeof (long double) ? isinf_ld (x) \
+     : sizeof (x) == sizeof (double) ? isinf_d (x) \
+     : isinf_f (x))
+static inline int isinf_f  (float       x) { return isnan (x - x); }
+static inline int isinf_d  (double      x) { return isnan (x - x); }
+static inline int isinf_ld (long double x) { return isnan (x - x); }
+#endif
 #endif
 
 typedef float float32;
@@ -61,6 +94,11 @@ typedef union {
 | Software IEC/IEEE floating-point rounding mode.
 *----------------------------------------------------------------------------*/
 #if (defined(_BSD) && !defined(__APPLE__)) || defined(HOST_SOLARIS)
+#if defined(__OpenBSD__)
+#define FE_RM FP_RM
+#define FE_RP FP_RP
+#define FE_RZ FP_RZ
+#endif
 enum {
     float_round_nearest_even = FP_RN,
     float_round_down         = FP_RM,
@@ -99,7 +137,9 @@ void set_floatx80_rounding_precision(int val STATUS_PARAM);
 | Software IEC/IEEE integer-to-floating-point conversion routines.
 *----------------------------------------------------------------------------*/
 float32 int32_to_float32( int STATUS_PARAM);
+float32 uint32_to_float32( unsigned int STATUS_PARAM);
 float64 int32_to_float64( int STATUS_PARAM);
+float64 uint32_to_float64( unsigned int STATUS_PARAM);
 #ifdef FLOATX80
 floatx80 int32_to_floatx80( int STATUS_PARAM);
 #endif
@@ -107,7 +147,9 @@ floatx80 int32_to_floatx80( int STATUS_PARAM);
 float128 int32_to_float128( int STATUS_PARAM);
 #endif
 float32 int64_to_float32( int64_t STATUS_PARAM);
+float32 uint64_to_float32( uint64_t STATUS_PARAM);
 float64 int64_to_float64( int64_t STATUS_PARAM);
+float64 uint64_to_float64( uint64_t v STATUS_PARAM);
 #ifdef FLOATX80
 floatx80 int64_to_floatx80( int64_t STATUS_PARAM);
 #endif
@@ -120,6 +162,8 @@ float128 int64_to_float128( int64_t STATUS_PARAM);
 *----------------------------------------------------------------------------*/
 int float32_to_int32( float32  STATUS_PARAM);
 int float32_to_int32_round_to_zero( float32  STATUS_PARAM);
+unsigned int float32_to_uint32( float32 a STATUS_PARAM);
+unsigned int float32_to_uint32_round_to_zero( float32 a STATUS_PARAM);
 int64_t float32_to_int64( float32  STATUS_PARAM);
 int64_t float32_to_int64_round_to_zero( float32  STATUS_PARAM);
 float64 float32_to_float64( float32  STATUS_PARAM);
@@ -152,38 +196,38 @@ INLINE float32 float32_div( float32 a, float32 b STATUS_PARAM)
 }
 float32 float32_rem( float32, float32  STATUS_PARAM);
 float32 float32_sqrt( float32  STATUS_PARAM);
-INLINE char float32_eq( float32 a, float32 b STATUS_PARAM)
+INLINE int float32_eq( float32 a, float32 b STATUS_PARAM)
 {
     return a == b;
 }
-INLINE char float32_le( float32 a, float32 b STATUS_PARAM)
+INLINE int float32_le( float32 a, float32 b STATUS_PARAM)
 {
     return a <= b;
 }
-INLINE char float32_lt( float32 a, float32 b STATUS_PARAM)
+INLINE int float32_lt( float32 a, float32 b STATUS_PARAM)
 {
     return a < b;
 }
-INLINE char float32_eq_signaling( float32 a, float32 b STATUS_PARAM)
+INLINE int float32_eq_signaling( float32 a, float32 b STATUS_PARAM)
 {
     return a <= b && a >= b;
 }
-INLINE char float32_le_quiet( float32 a, float32 b STATUS_PARAM)
+INLINE int float32_le_quiet( float32 a, float32 b STATUS_PARAM)
 {
     return islessequal(a, b);
 }
-INLINE char float32_lt_quiet( float32 a, float32 b STATUS_PARAM)
+INLINE int float32_lt_quiet( float32 a, float32 b STATUS_PARAM)
 {
     return isless(a, b);
 }
-INLINE char float32_unordered( float32 a, float32 b STATUS_PARAM)
+INLINE int float32_unordered( float32 a, float32 b STATUS_PARAM)
 {
     return isunordered(a, b);
 
 }
-char float32_compare( float32, float32 STATUS_PARAM );
-char float32_compare_quiet( float32, float32 STATUS_PARAM );
-char float32_is_signaling_nan( float32 );
+int float32_compare( float32, float32 STATUS_PARAM );
+int float32_compare_quiet( float32, float32 STATUS_PARAM );
+int float32_is_signaling_nan( float32 );
 
 INLINE float32 float32_abs(float32 a)
 {
@@ -195,13 +239,22 @@ INLINE float32 float32_chs(float32 a)
     return -a;
 }
 
+INLINE float32 float32_scalbn(float32 a, int n)
+{
+    return scalbnf(a, n);
+}
+
 /*----------------------------------------------------------------------------
 | Software IEC/IEEE double-precision conversion routines.
 *----------------------------------------------------------------------------*/
 int float64_to_int32( float64 STATUS_PARAM );
 int float64_to_int32_round_to_zero( float64 STATUS_PARAM );
+unsigned int float64_to_uint32( float64 STATUS_PARAM );
+unsigned int float64_to_uint32_round_to_zero( float64 STATUS_PARAM );
 int64_t float64_to_int64( float64 STATUS_PARAM );
 int64_t float64_to_int64_round_to_zero( float64 STATUS_PARAM );
+uint64_t float64_to_uint64( float64 STATUS_PARAM );
+uint64_t float64_to_uint64_round_to_zero( float64 STATUS_PARAM );
 float32 float64_to_float32( float64 STATUS_PARAM );
 #ifdef FLOATX80
 floatx80 float64_to_floatx80( float64 STATUS_PARAM );
@@ -214,6 +267,7 @@ float128 float64_to_float128( float64 STATUS_PARAM );
 | Software IEC/IEEE double-precision operations.
 *----------------------------------------------------------------------------*/
 float64 float64_round_to_int( float64 STATUS_PARAM );
+float64 float64_trunc_to_int( float64 STATUS_PARAM );
 INLINE float64 float64_add( float64 a, float64 b STATUS_PARAM)
 {
     return a + b;
@@ -232,39 +286,40 @@ INLINE float64 float64_div( float64 a, float64 b STATUS_PARAM)
 }
 float64 float64_rem( float64, float64 STATUS_PARAM );
 float64 float64_sqrt( float64 STATUS_PARAM );
-INLINE char float64_eq( float64 a, float64 b STATUS_PARAM)
+INLINE int float64_eq( float64 a, float64 b STATUS_PARAM)
 {
     return a == b;
 }
-INLINE char float64_le( float64 a, float64 b STATUS_PARAM)
+INLINE int float64_le( float64 a, float64 b STATUS_PARAM)
 {
     return a <= b;
 }
-INLINE char float64_lt( float64 a, float64 b STATUS_PARAM)
+INLINE int float64_lt( float64 a, float64 b STATUS_PARAM)
 {
     return a < b;
 }
-INLINE char float64_eq_signaling( float64 a, float64 b STATUS_PARAM)
+INLINE int float64_eq_signaling( float64 a, float64 b STATUS_PARAM)
 {
     return a <= b && a >= b;
 }
-INLINE char float64_le_quiet( float64 a, float64 b STATUS_PARAM)
+INLINE int float64_le_quiet( float64 a, float64 b STATUS_PARAM)
 {
     return islessequal(a, b);
 }
-INLINE char float64_lt_quiet( float64 a, float64 b STATUS_PARAM)
+INLINE int float64_lt_quiet( float64 a, float64 b STATUS_PARAM)
 {
     return isless(a, b);
 
 }
-INLINE char float64_unordered( float64 a, float64 b STATUS_PARAM)
+INLINE int float64_unordered( float64 a, float64 b STATUS_PARAM)
 {
     return isunordered(a, b);
 
 }
-char float64_compare( float64, float64 STATUS_PARAM );
-char float64_compare_quiet( float64, float64 STATUS_PARAM );
-char float64_is_signaling_nan( float64 );
+int float64_compare( float64, float64 STATUS_PARAM );
+int float64_compare_quiet( float64, float64 STATUS_PARAM );
+int float64_is_signaling_nan( float64 );
+int float64_is_nan( float64 );
 
 INLINE float64 float64_abs(float64 a)
 {
@@ -274,6 +329,11 @@ INLINE float64 float64_abs(float64 a)
 INLINE float64 float64_chs(float64 a)
 {
     return -a;
+}
+
+INLINE float64 float64_scalbn(float64 a, int n)
+{
+    return scalbn(a, n);
 }
 
 #ifdef FLOATX80
@@ -313,39 +373,39 @@ INLINE floatx80 floatx80_div( floatx80 a, floatx80 b STATUS_PARAM)
 }
 floatx80 floatx80_rem( floatx80, floatx80 STATUS_PARAM );
 floatx80 floatx80_sqrt( floatx80 STATUS_PARAM );
-INLINE char floatx80_eq( floatx80 a, floatx80 b STATUS_PARAM)
+INLINE int floatx80_eq( floatx80 a, floatx80 b STATUS_PARAM)
 {
     return a == b;
 }
-INLINE char floatx80_le( floatx80 a, floatx80 b STATUS_PARAM)
+INLINE int floatx80_le( floatx80 a, floatx80 b STATUS_PARAM)
 {
     return a <= b;
 }
-INLINE char floatx80_lt( floatx80 a, floatx80 b STATUS_PARAM)
+INLINE int floatx80_lt( floatx80 a, floatx80 b STATUS_PARAM)
 {
     return a < b;
 }
-INLINE char floatx80_eq_signaling( floatx80 a, floatx80 b STATUS_PARAM)
+INLINE int floatx80_eq_signaling( floatx80 a, floatx80 b STATUS_PARAM)
 {
     return a <= b && a >= b;
 }
-INLINE char floatx80_le_quiet( floatx80 a, floatx80 b STATUS_PARAM)
+INLINE int floatx80_le_quiet( floatx80 a, floatx80 b STATUS_PARAM)
 {
     return islessequal(a, b);
 }
-INLINE char floatx80_lt_quiet( floatx80 a, floatx80 b STATUS_PARAM)
+INLINE int floatx80_lt_quiet( floatx80 a, floatx80 b STATUS_PARAM)
 {
     return isless(a, b);
 
 }
-INLINE char floatx80_unordered( floatx80 a, floatx80 b STATUS_PARAM)
+INLINE int floatx80_unordered( floatx80 a, floatx80 b STATUS_PARAM)
 {
     return isunordered(a, b);
 
 }
-char floatx80_compare( floatx80, floatx80 STATUS_PARAM );
-char floatx80_compare_quiet( floatx80, floatx80 STATUS_PARAM );
-char floatx80_is_signaling_nan( floatx80 );
+int floatx80_compare( floatx80, floatx80 STATUS_PARAM );
+int floatx80_compare_quiet( floatx80, floatx80 STATUS_PARAM );
+int floatx80_is_signaling_nan( floatx80 );
 
 INLINE floatx80 floatx80_abs(floatx80 a)
 {
@@ -356,4 +416,10 @@ INLINE floatx80 floatx80_chs(floatx80 a)
 {
     return -a;
 }
+
+INLINE floatx80 floatx80_scalbn(floatx80 a, int n)
+{
+    return scalbnl(a, n);
+}
+
 #endif

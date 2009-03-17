@@ -51,8 +51,9 @@ typedef struct {
  * interfaces for copy from virtual space
  * from target-arm/op_helper.c
  */
-extern unsigned long v2p(target_ulong ptr, int is_user);
+extern target_phys_addr_t v2p(target_ulong ptr, int is_user);
 extern void vmemcpy(target_ulong ptr, char *buf, int size);
+extern void pmemcpy(target_ulong ptr, const char* buf, int size);
 extern void vstrcpy(target_ulong ptr, char *buf, int max);
 
 /*

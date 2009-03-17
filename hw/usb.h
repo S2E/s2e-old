@@ -1,8 +1,8 @@
 /*
  * QEMU USB API
- * 
+ *
  * Copyright (c) 2005 Fabrice Bellard
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -29,12 +29,12 @@
 #define USB_MSG_ATTACH   0x100
 #define USB_MSG_DETACH   0x101
 #define USB_MSG_RESET    0x102
-#define USB_MSG_DESTROY  0x103
 
-#define USB_RET_NODEV  (-1) 
+#define USB_RET_NODEV  (-1)
 #define USB_RET_NAK    (-2)
 #define USB_RET_STALL  (-3)
 #define USB_RET_BABBLE (-4)
+#define USB_RET_ASYNC  (-5)
 
 #define USB_SPEED_LOW   0
 #define USB_SPEED_FULL  1
@@ -108,28 +108,64 @@
 #define USB_DT_INTERFACE		0x04
 #define USB_DT_ENDPOINT			0x05
 
+#define USB_ENDPOINT_XFER_CONTROL	0
+#define USB_ENDPOINT_XFER_ISOC		1
+#define USB_ENDPOINT_XFER_BULK		2
+#define USB_ENDPOINT_XFER_INT		3
+
 typedef struct USBPort USBPort;
 typedef struct USBDevice USBDevice;
+typedef struct USBPacket USBPacket;
 
 /* definition of a USB device */
 struct USBDevice {
     void *opaque;
-    int (*handle_packet)(USBDevice *dev, int pid, 
-                         uint8_t devaddr, uint8_t devep,
-                         uint8_t *data, int len);
+
+    /* 
+     * Process USB packet. 
+     * Called by the HC (Host Controller).
+     *
+     * Returns length of the transaction 
+     * or one of the USB_RET_XXX codes.
+     */ 
+    int (*handle_packet)(USBDevice *dev, USBPacket *p);
+
+    /* 
+     * Called when device is destroyed.
+     */
+    void (*handle_destroy)(USBDevice *dev);
+
     int speed;
-    
+
     /* The following fields are used by the generic USB device
-       layer. They are here just to avoid creating a new structure for
-       them. */
-    void (*handle_reset)(USBDevice *dev, int destroy);
+       layer. They are here just to avoid creating a new structure 
+       for them. */
+
+    /*
+     * Reset the device
+     */  
+    void (*handle_reset)(USBDevice *dev);
+
+    /*
+     * Process control request.
+     * Called from handle_packet().
+     *
+     * Returns length or one of the USB_RET_ codes.
+     */
     int (*handle_control)(USBDevice *dev, int request, int value,
                           int index, int length, uint8_t *data);
-    int (*handle_data)(USBDevice *dev, int pid, uint8_t devep,
-                       uint8_t *data, int len);
+
+    /*
+     * Process data transfers (both BULK and ISOC).
+     * Called from handle_packet().
+     *
+     * Returns length or one of the USB_RET_ codes.
+     */
+    int (*handle_data)(USBDevice *dev, USBPacket *p);
+
     uint8_t addr;
     char devname[32];
-    
+
     int state;
     uint8_t setup_buf[8];
     uint8_t data_buf[1024];
@@ -150,28 +186,106 @@ struct USBPort {
     struct USBPort *next; /* Used internally by qemu.  */
 };
 
+typedef void USBCallback(USBPacket * packet, void *opaque);
+
+/* Structure used to hold information about an active USB packet.  */
+struct USBPacket {
+    /* Data fields for use by the driver.  */
+    int pid;
+    uint8_t devaddr;
+    uint8_t devep;
+    uint8_t *data;
+    int len;
+    /* Internal use by the USB layer.  */
+    USBCallback *complete_cb;
+    void *complete_opaque;
+    USBCallback *cancel_cb;
+    void *cancel_opaque;
+};
+
+/* Defer completion of a USB packet.  The hadle_packet routine should then
+   return USB_RET_ASYNC.  Packets that complete immediately (before
+   handle_packet returns) should not call this method.  */
+static inline void usb_defer_packet(USBPacket *p, USBCallback *cancel,
+                                    void * opaque)
+{
+    p->cancel_cb = cancel;
+    p->cancel_opaque = opaque;
+}
+
+/* Notify the controller that an async packet is complete.  This should only
+   be called for packets previously deferred with usb_defer_packet, and
+   should never be called from within handle_packet.  */
+static inline void usb_packet_complete(USBPacket *p)
+{
+    p->complete_cb(p, p->complete_opaque);
+}
+
+/* Cancel an active packet.  The packed must have been deferred with
+   usb_defer_packet,  and not yet completed.  */
+static inline void usb_cancel_packet(USBPacket * p)
+{
+    p->cancel_cb(p, p->cancel_opaque);
+}
+
+int usb_device_add_dev(USBDevice *dev);
+int usb_device_del_addr(int bus_num, int addr);
 void usb_attach(USBPort *port, USBDevice *dev);
-int usb_generic_handle_packet(USBDevice *s, int pid, 
-                              uint8_t devaddr, uint8_t devep,
-                              uint8_t *data, int len);
+int usb_generic_handle_packet(USBDevice *s, USBPacket *p);
 int set_usb_string(uint8_t *buf, const char *str);
+void usb_send_msg(USBDevice *dev, int msg);
 
 /* usb hub */
 USBDevice *usb_hub_init(int nb_ports);
 
-/* usb-uhci.c */
-void usb_uhci_init(PCIBus *bus, int devfn);
-
-/* usb-ohci.c */
-void usb_ohci_init(struct PCIBus *bus, int num_ports, int devfn);
-
 /* usb-linux.c */
 USBDevice *usb_host_device_open(const char *devname);
+int usb_host_device_close(const char *devname);
 void usb_host_info(void);
 
 /* usb-hid.c */
 USBDevice *usb_mouse_init(void);
 USBDevice *usb_tablet_init(void);
+USBDevice *usb_keyboard_init(void);
 
 /* usb-msd.c */
 USBDevice *usb_msd_init(const char *filename);
+
+/* usb-net.c */
+USBDevice *usb_net_init(NICInfo *nd);
+
+/* usb-wacom.c */
+USBDevice *usb_wacom_init(void);
+
+/* usb-serial.c */
+USBDevice *usb_serial_init(const char *filename);
+
+/* usb ports of the VM */
+
+void qemu_register_usb_port(USBPort *port, void *opaque, int index,
+                            usb_attachfn attach);
+
+#define VM_USB_HUB_SIZE 8
+
+/* usb-musb.c */
+enum musb_irq_source_e {
+    musb_irq_suspend = 0,
+    musb_irq_resume,
+    musb_irq_rst_babble,
+    musb_irq_sof,
+    musb_irq_connect,
+    musb_irq_disconnect,
+    musb_irq_vbus_request,
+    musb_irq_vbus_error,
+    musb_irq_rx,
+    musb_irq_tx,
+    musb_set_vbus,
+    musb_set_session,
+    __musb_irq_max,
+};
+
+struct musb_s;
+struct musb_s *musb_init(qemu_irq *irqs);
+uint32_t musb_core_intr_get(struct musb_s *s);
+void musb_core_intr_clear(struct musb_s *s, uint32_t mask);
+void musb_set_size(struct musb_s *s, int epnum, int size, int is_tx);

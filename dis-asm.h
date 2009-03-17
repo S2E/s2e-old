@@ -20,6 +20,7 @@ typedef uint64_t bfd_vma;
 typedef int64_t bfd_signed_vma;
 typedef uint8_t bfd_byte;
 #define sprintf_vma(s,x) sprintf (s, "%0" PRIx64, x)
+#define snprintf_vma(s,ss,x) snprintf (s, ss, "%0" PRIx64, x)
 
 #define BFD64
 
@@ -44,7 +45,7 @@ enum bfd_flavour {
 
 enum bfd_endian { BFD_ENDIAN_BIG, BFD_ENDIAN_LITTLE, BFD_ENDIAN_UNKNOWN };
 
-enum bfd_architecture 
+enum bfd_architecture
 {
   bfd_arch_unknown,    /* File arch not known */
   bfd_arch_obscure,    /* Arch known, not one of these */
@@ -67,14 +68,14 @@ enum bfd_architecture
 #define bfd_mach_mcf5249   16
 #define bfd_mach_mcf547x   17
 #define bfd_mach_mcf548x   18
-  bfd_arch_vax,        /* DEC Vax */   
+  bfd_arch_vax,        /* DEC Vax */
   bfd_arch_i960,       /* Intel 960 */
      /* The order of the following is important.
-       lower number indicates a machine type that 
+       lower number indicates a machine type that
        only accepts a subset of the instructions
        available to machines with higher numbers.
        The exception is the "ca", which is
-       incompatible with all other machines except 
+       incompatible with all other machines except
        "core". */
 
 #define bfd_mach_i960_core      1
@@ -157,6 +158,10 @@ enum bfd_architecture
 #define bfd_mach_ppc_7400      7400
   bfd_arch_rs6000,     /* IBM RS/6000 */
   bfd_arch_hppa,       /* HP PA RISC */
+#define bfd_mach_hppa10        10
+#define bfd_mach_hppa11        11
+#define bfd_mach_hppa20        20
+#define bfd_mach_hppa20w       25
   bfd_arch_d10v,       /* Mitsubishi D10V */
   bfd_arch_z8k,        /* Zilog Z8000 */
 #define bfd_mach_z8001         1
@@ -181,13 +186,22 @@ enum bfd_architecture
 #define bfd_mach_sh4al_dsp  0x4d
 #define bfd_mach_sh5        0x50
   bfd_arch_alpha,      /* Dec Alpha */
+#define bfd_mach_alpha 1
   bfd_arch_arm,        /* Advanced Risc Machines ARM */
-#define bfd_mach_arm_2         1
-#define bfd_mach_arm_2a                2
-#define bfd_mach_arm_3         3
-#define bfd_mach_arm_3M        4
-#define bfd_mach_arm_4                 5
-#define bfd_mach_arm_4T        6
+#define bfd_mach_arm_unknown	0
+#define bfd_mach_arm_2		1
+#define bfd_mach_arm_2a		2
+#define bfd_mach_arm_3		3
+#define bfd_mach_arm_3M 	4
+#define bfd_mach_arm_4 		5
+#define bfd_mach_arm_4T 	6
+#define bfd_mach_arm_5 		7
+#define bfd_mach_arm_5T		8
+#define bfd_mach_arm_5TE	9
+#define bfd_mach_arm_XScale	10
+#define bfd_mach_arm_ep9312	11
+#define bfd_mach_arm_iWMMXt	12
+#define bfd_mach_arm_iWMMXt2	13
   bfd_arch_ns32k,      /* National Semiconductors ns32000 */
   bfd_arch_w65,        /* WDC 65816 */
   bfd_arch_tic30,      /* Texas Instruments TMS320C30 */
@@ -199,8 +213,14 @@ enum bfd_architecture
 #define bfd_mach_m32r          0  /* backwards compatibility */
   bfd_arch_mn10200,    /* Matsushita MN10200 */
   bfd_arch_mn10300,    /* Matsushita MN10300 */
+  bfd_arch_cris,       /* Axis CRIS */
+#define bfd_mach_cris_v0_v10   255
+#define bfd_mach_cris_v32      32
+#define bfd_mach_cris_v10_v32  1032
   bfd_arch_last
   };
+#define bfd_mach_s390_31 31
+#define bfd_mach_s390_64 64
 
 typedef struct symbol_cache_entry
 {
@@ -225,7 +245,7 @@ enum dis_insn_type {
   dis_dref2			/* Two data references in instruction */
 };
 
-/* This struct is passed into the instruction decoding routine, 
+/* This struct is passed into the instruction decoding routine,
    and is passed back out into each callback.  The various fields are used
    for conveying information from your main routine into your callbacks,
    for passing information into the instruction decoders (such as the
@@ -377,6 +397,8 @@ extern int print_insn_d10v		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_v850		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_tic30		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_ppc		PARAMS ((bfd_vma, disassemble_info*));
+extern int print_insn_s390		PARAMS ((bfd_vma, disassemble_info*));
+extern int print_insn_crisv32           PARAMS ((bfd_vma, disassemble_info*));
 
 #if 0
 /* Fetch the disassembler for a given BFD, if that support is available.  */
@@ -419,13 +441,14 @@ extern int generic_symbol_at_address
 /* Call this macro to initialize only the internal variables for the
    disassembler.  Architecture dependent things such as byte order, or machine
    variant are not touched by this macro.  This makes things much easier for
-   GDB which must initialize these things seperatly.  */
+   GDB which must initialize these things separately.  */
 
 #define INIT_DISASSEMBLE_INFO_NO_ARCH(INFO, STREAM, FPRINTF_FUNC) \
   (INFO).fprintf_func = (FPRINTF_FUNC), \
   (INFO).stream = (STREAM), \
   (INFO).symbols = NULL, \
   (INFO).num_symbols = 0, \
+  (INFO).private_data = NULL, \
   (INFO).buffer = NULL, \
   (INFO).buffer_vma = 0, \
   (INFO).buffer_length = 0, \
