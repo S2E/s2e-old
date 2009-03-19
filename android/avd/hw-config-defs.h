@@ -95,6 +95,13 @@ HWCFG_BOOL(
   "Whether the device can run on a battery.")
 
 HWCFG_BOOL(
+  hw_accelerometer,
+  "hw.accelerometer",
+  "yes",
+  "Accelerometer",
+  "Whether there is an accelerometer in the device.")
+
+HWCFG_BOOL(
   hw_audioInput,
   "hw.audioInput",
   "yes",

@@ -48,9 +48,10 @@
 #include "android/skin/keyset.h"
 
 #include "android/gps.h"
-#include "android/qemud.h"
+#include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
 #include "android/hw-control.h"
+#include "android/hw-sensors.h"
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
@@ -1873,7 +1874,7 @@ int main(int argc, char **argv)
                 break;
 
             if (!path_exists(out)) {
-                derror("Can't access ANDROID_PRODUCT_OUT as '%s\n"
+                derror("Can't access ANDROID_PRODUCT_OUT as '%s'\n"
                     "You need to build the Android system before launching the emulator",
                     out);
                 exit(2);
@@ -2777,6 +2778,9 @@ void  android_emulation_setup( void )
         }
     }
     while (0);
+
+    /* initialize sensors, this must be done here due to timer issues */
+    android_hw_sensors_init();
 
    /* cool, now try to run the "ddms ping" command, which will take care of pinging usage
     * if the user agreed for it. the emulator itself never sends anything to any outside
