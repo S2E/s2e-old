@@ -16,7 +16,7 @@
 #endif
 
 /* required to ensure that the CONFIG_XXX macros are properly defined */
-//XXX#include "config.h"
+#include "android/config/config.h"
 
 /* Some options acts like flags, while others must be followed by a parameter
  * string. Nothing really new here.
@@ -126,11 +126,12 @@ OPT_PARAM( shell_serial, "<device>", "specific character device for root shell" 
 OPT_FLAG ( old_system, "support old (pre 1.4) system images" )
 OPT_PARAM( tcpdump, "<file>", "capture network packets to file" )
 
+OPT_PARAM( bootchart, "<timeout>", "enable bootcharting")
+
 #ifdef CONFIG_NAND_LIMITS
 OPT_PARAM( nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds" )
 #endif
 
-OPT_PARAM( bootchart, "<timeout>", "enable bootcharting")
 
 #undef CFG_FLAG
 #undef CFG_PARAM
