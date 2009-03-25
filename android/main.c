@@ -1999,21 +1999,9 @@ int main(int argc, char **argv)
             exit(1);
         }
     }
-    else {
-        if (!opts->skin && android_build_out) {
-            /* select default skin based on product type */
-            const char*  p = strrchr(android_build_out,'/');
-            if (p) {
-                if (p[1] == 's') {
-                    opts->skin = "HVGA";  /* used to be QVGA-L */
-                } else if (p[1] == 'd') {
-                    opts->skin = "HVGA";
-                }
-            }
-            D("autoconfig: -skin %s", opts->skin);
-        }
-        android_avdParams->skinName = opts->skin;
-    }
+    android_avdParams->skinName     = opts->skin;
+    android_avdParams->skinRootPath = opts->skindir;
+
     /* setup the virtual device differently depending on whether
      * we are in the Android build system or not
      */
@@ -2848,15 +2836,15 @@ void  android_emulation_setup( void )
              * under VMWare.
              */
             BEGIN_NOSIGALRM
-              pid = fork();
+                pid = fork();
+                if (pid == 0) {
+                    int  fd = open("/dev/null", O_WRONLY);
+                    dup2(fd, 1);
+                    dup2(fd, 2);
+                    execl( tmp, _ANDROID_PING_PROGRAM, "ping", "emulator", VERSION_STRING, NULL );
+                }
             END_NOSIGALRM
 
-            if (pid == 0) {
-                int  fd = open("/dev/null", O_WRONLY);
-                dup2(fd, 1);
-                dup2(fd, 2);
-                execl( tmp, _ANDROID_PING_PROGRAM, "ping", "emulator", VERSION_STRING, NULL );
-            }
             /* don't do anything in the parent or in case of error */
             strncat( tmp, " ping emulator " VERSION_STRING, PATH_MAX - strlen(tmp) );
             D( "ping command: %s", tmp );
