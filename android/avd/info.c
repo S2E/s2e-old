@@ -1355,6 +1355,7 @@ avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw )
         iniFile_free(ini);
 
     /* special product-specific hardware configuration */
+    if (i->androidOut != NULL)
     {
         char*  p = strrchr(i->androidOut, '/');
         if (p != NULL && p[0] != 0) {
