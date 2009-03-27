@@ -14,7 +14,7 @@ MY_CFLAGS := $(CONFIG_INCLUDES) -O2 -g \
              -falign-functions=0 \
              -fomit-frame-pointer \
 
-MY_LDFLAGS :=
+:wqMY_LDFLAGS :=
 
 # this is needed to build the emulator on 64-bit Linux systems
 ifeq ($(HOST_OS)-$(HOST_ARCH),linux-x86)
@@ -430,8 +430,9 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               android/hw-control.c \
               android/hw-events.c \
               android/hw-kmsg.c \
+              android/hw-qemud.c \
+              android/hw-sensors.c \
               android/main.c \
-              android/qemud.c \
               android/resource.c \
               android/user-config.c \
               android/utils/bufprint.c \

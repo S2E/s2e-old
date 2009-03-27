@@ -367,22 +367,10 @@ void events_dev_init(uint32_t base, qemu_irq irq)
      * was closed or opened (done when we switch layouts through
      * KP-7 or KP-9).
      *
-     * Ideally, we would want to only support this when there is
-     * a real keyboard. However doing so will disable auto-rotate
-     * when rotating the skin, because the system will only
-     * consider orientation sensor events then, which are not
-     * currently implemented/emulated.
-     *
-     * So force it anyway, and remove the "1 ||" later when
-     * we properly implement sensor events (which unfortunately
-     * requires system changes).
-     *
-     * Note that the system will switch to landscape properly but
-     * is *not* capable of returning to portrait mode when we switch
-     * back. Blame the framework for not interpreting switch events
-     * symetrically.
+     * We only support this when there is a real keyboard, which
+     * we assume can be hidden/revealed.
      */
-    if (1 || config->hw_keyboard) {
+    if (config->hw_keyboard) {
         events_set_bit(s, EV_SYN, EV_SW);
         events_set_bit(s, EV_SW, 0);
     }

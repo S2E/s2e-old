@@ -51,7 +51,7 @@
 #include "shaper.h"
 #include "modem_driver.h"
 #include "android/gps.h"
-#include "android/qemud.h"
+#include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
 #include "tcpdump.h"
 

@@ -1242,7 +1242,7 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
     if (!skinName) {
         /* the (current) default skin name for the build system */
         skinName = SKIN_DEFAULT;
-        DD("selecting default skin name '%s'", skinName);
+        D("selecting default skin name '%s'", skinName);
     }
 
     i->skinName = ASTRDUP(skinName);
@@ -1353,6 +1353,17 @@ avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw )
 
     if (ini != i->configIni)
         iniFile_free(ini);
+
+    /* special product-specific hardware configuration */
+    if (i->androidOut != NULL)
+    {
+        char*  p = strrchr(i->androidOut, '/');
+        if (p != NULL && p[0] != 0) {
+            if (p[1] == 's') {
+                hw->hw_keyboard = 0;
+            }
+        }
+    }
 
     return ret;
 }

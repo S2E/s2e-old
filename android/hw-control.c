@@ -22,7 +22,7 @@
  */
 #include "android/hw-control.h"
 #include "cbuffer.h"
-#include "android/qemud.h"
+#include "android/hw-qemud.h"
 #include "android/utils/misc.h"
 #include "android/utils/debug.h"
 #include "qemu-char.h"
@@ -40,104 +40,37 @@
 #define  T(...)   ((void)0)
 #endif
 
-static void*                  hw_control_client;
-static AndroidHwControlFuncs  hw_control_funcs;
-
-#define  BUFFER_SIZE  512
-
 typedef struct {
-    CharDriverState*  cs;
-    int               overflow;
-    int               wanted;
-    CBuffer           input[1];
-    char              input_0[ BUFFER_SIZE ];
-    /* note: 1 more byte to zero-terminate the query */
-    char              query[ BUFFER_SIZE+1 ];
+    void*                  client;
+    AndroidHwControlFuncs  client_funcs;
+    QemudService*          service;
 } HwControl;
 
-/* forward */
-static void  hw_control_do_query( HwControl*  h,
-                                  uint8_t*    query,
-                                  int         querylen );
+/* handle query */
+static void  hw_control_do_query( HwControl*  h, uint8_t*  query, int  querylen );
 
+/* called when a qemud client sends a command */
 static void
-hw_control_init( HwControl*  h, CharDriverState*  cs )
+_hw_control_qemud_client_recv( void*  opaque,
+                               uint8_t*  msg,
+                               int       msglen )
 {
-    h->cs       = cs;
-    h->overflow = 0;
-    h->wanted   = 0;
-    cbuffer_reset( h->input,  h->input_0,  sizeof h->input_0 );
+    hw_control_do_query(opaque, msg, msglen);
 }
 
-static int
-hw_control_can_read( void*  _hw )
+/* called when a qemud client connects to the service */
+static QemudClient*
+_hw_control_qemud_connect( void*  opaque, QemudService*  service, int  channel )
 {
-    HwControl*  h = _hw;
-    return cbuffer_write_avail( h->input );
-}
+    QemudClient*  client;
 
-static void
-hw_control_read( void*  _hw, const uint8_t*  data, int  len )
-{
-    HwControl*  h     = _hw;
-    CBuffer*    input = h->input;
+    client = qemud_client_new( service, channel,
+                               opaque,
+                               _hw_control_qemud_client_recv,
+                               NULL );
 
-    T("%s: %4d '%.*s'", __FUNCTION__, len, len, data);
-
-    cbuffer_write( input, data, len );
-
-    while ( input->count > 0 )
-    {
-        /* skip over unwanted data, if any */
-        while (h->overflow > 0) {
-            uint8_t*  dummy;
-            int       avail = cbuffer_read_peek( input, &dummy );
-
-            if (avail == 0)
-                return;
-
-            if (avail > h->overflow)
-                avail = h->overflow;
-
-            cbuffer_read_step( input, avail );
-            h->overflow -= avail;
-        }
-
-        /* all incoming messages are made of a 4-byte hexchar sequence giving */
-        /* the length of the following payload                                */
-        if (h->wanted == 0)
-        {
-            char  header[4];
-            int   len;
-
-            if (input->count < 4)
-                return;
-
-            cbuffer_read( input, header, 4 );
-            len = hex2int( (uint8_t*)header, 4 );
-            if (len >= 0) {
-                /* if the message is too long, skip it */
-                if (len > input->size) {
-                    T("%s: skipping oversized message (%d > %d)",
-                    __FUNCTION__, len, input->size);
-                    h->overflow = len;
-                } else {
-                    T("%s: waiting for %d bytes", __FUNCTION__, len);
-                    h->wanted = len;
-                }
-            }
-        }
-        else
-        {
-            if (input->count < h->wanted)
-                break;
-
-            cbuffer_read( input, h->query, h->wanted );
-            h->query[h->wanted] = 0;
-            hw_control_do_query( h, (uint8_t*)h->query, h->wanted );
-            h->wanted = 0;
-        }
-    }
+    qemud_client_set_framing(client, 1);
+    return client;
 }
 
 
@@ -160,11 +93,11 @@ hw_control_do_query( HwControl*  h,
 {
     uint8_t*   q;
 
-    D("%s: query %4d '%.*s'", __FUNCTION__, querylen, querylen, query );
+    T("%s: query %4d '%.*s'", __FUNCTION__, querylen, querylen, query );
 
     q = if_starts_with( query, querylen, "power:light:brightness:" );
     if (q != NULL) {
-        if (hw_control_funcs.light_brightness) {
+        if (h->client_funcs.light_brightness) {
             char*  qq = strchr((const char*)q, ':');
             int    value;
             if (qq == NULL) {
@@ -173,32 +106,30 @@ hw_control_do_query( HwControl*  h,
             }
             *qq++ = 0;
             value = atoi(qq);
-            hw_control_funcs.light_brightness( hw_control_client, (char*)q, value );
+            h->client_funcs.light_brightness( h->client, (char*)q, value );
         }
         return;
     }
 }
 
 
+static void
+hw_control_init( HwControl*                    control,
+                 void*                         client,
+                 const AndroidHwControlFuncs*  client_funcs )
+{
+    control->client       = client;
+    control->client_funcs = client_funcs[0];
+    control->service      = qemud_service_register( "hw-control", 0,
+                                                    control,
+                                                    _hw_control_qemud_connect );
+}
+
 void
 android_hw_control_init( void*  opaque, const AndroidHwControlFuncs*  funcs )
 {
-    static CharDriverState*   hw_control_cs;
-    static HwControl          hwstate[1];
+    static HwControl   hwstate[1];
 
-    if (hw_control_cs == NULL) {
-        CharDriverState*  cs;
-        if ( android_qemud_get_channel( ANDROID_QEMUD_CONTROL, &cs ) < 0 ) {
-            derror( "could not create hardware control charpipe" );
-            exit(1);
-        }
-
-        hw_control_cs = cs;
-        hw_control_init( hwstate, cs );
-        qemu_chr_add_handlers( cs, hw_control_can_read, hw_control_read, NULL, hwstate );
-
-        D("%s: hw-control char pipe initialized", __FUNCTION__);
-    }
-    hw_control_client = opaque;
-    hw_control_funcs  = funcs[0];
+    hw_control_init(hwstate, opaque, funcs);
+    D("%s: hw-control qemud handler initialized", __FUNCTION__);
 }

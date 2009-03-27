@@ -135,7 +135,7 @@ extern int drive_get_max_bus(BlockInterfaceType type);
 
 /* serial ports */
 
-#define MAX_SERIAL_PORTS 4
+#define MAX_SERIAL_PORTS 8
 
 extern CharDriverState *serial_hds[MAX_SERIAL_PORTS];
 

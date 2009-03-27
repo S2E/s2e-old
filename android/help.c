@@ -35,8 +35,10 @@ help_virtual_device( stralloc_t*  out )
     "  The 'android' helper tool can be used to manage virtual devices.\n"
     "  For example:\n\n"
 
-    "    android avd   -- creates a new virtual device.\n"
-    "    android list  -- list all virtual devices available.\n\n"
+    "    android create avd -n <name> -t 1  # creates a new virtual device.\n"
+    "    android list avd                   # list all virtual devices available.\n\n"
+
+    "  Try 'android --help' for more commands.\n\n"
 
     "  Each AVD really corresponds to a content directory which stores\n"
     "  persistent and writable disk images as well as configuration files.\n"
@@ -446,14 +448,14 @@ static void
 help_avd(stralloc_t*  out)
 {
     PRINTF(
-    "  use '-avd <name>' to start the emulator program with a given avd,\n"
-    "  where <name> must correspond to the name of one of the\n"
-    "  Android Virtual Devices available on your host.\n\n"
+    "  use '-avd <name>' to start the emulator program with a given Android\n"
+    "  Virtual Device (a.k.a. AVD), where <name> must correspond to the name\n"
+    "  of one of the existing AVDs available on your host machine.\n\n"
+
+      "See -help-virtual-device to learn how to create/list/manage AVDs.\n\n"
 
     "  As a special convenience, using '@<name>' is equivalent to using\n"
     "  '-avd <name>'.\n\n"
-
-    "  For more information about virtual devices, see -help-virtual-device.\n"
     );
 }
 

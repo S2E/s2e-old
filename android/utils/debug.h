@@ -33,6 +33,7 @@
     _VERBOSE_TAG(nand_limits,  "nand/flash read/write thresholding") \
     _VERBOSE_TAG(hw_control,   "emulated power/flashlight/led/vibrator") \
     _VERBOSE_TAG(avd_config,   "android virtual device configuration") \
+    _VERBOSE_TAG(sensors,      "emulated sensors") \
 
 #define  _VERBOSE_TAG(x,y)  VERBOSE_##x,
 typedef enum {

@@ -15,6 +15,7 @@
 #include "android/charmap.h"
 #include "android/utils/debug.h"
 #include "android/utils/display.h"
+#include "android/hw-sensors.h"
 #include <SDL_syswm.h>
 #include "qemu-common.h"
 #include <math.h>
@@ -1204,6 +1205,11 @@ skin_window_reset_internal ( SkinWindow*  window, SkinLayout*  slayout )
 
     if (slayout->event_type != 0) {
         kbd_generic_event( slayout->event_type, slayout->event_code, slayout->event_value );
+        /* XXX: hack, replace by better code here */
+        if (slayout->event_value != 0)
+            android_sensors_set_coarse_orientation( ANDROID_COARSE_PORTRAIT );
+        else
+            android_sensors_set_coarse_orientation( ANDROID_COARSE_LANDSCAPE );
     }
 
     return 0;
