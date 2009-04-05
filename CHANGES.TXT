@@ -21,7 +21,9 @@ IMPORTANT CHANGES:
 
 - Many features have been integrated from upstream QEMU sources, including
   the new TCG code generator used by the ARM translator. This should result
-  in slightly faster execution speed on all supported platforms.
+  in slightly faster execution speed on all supported platforms. Another
+  benefit is that you no longer require a specific (and obsolete) version
+  of GCC to build the emulator.
 
 - The emulator now requires that you specify a virtual device name when
   starting the emulator, prefixed with the '@' sign. For example, to start
@@ -95,7 +97,7 @@ OTHER:
   of the SDK installation path.
 
 - Environment variable ANDROID_SDK_HOME can be used to specify the location
-  of the '.android' data directory.
+  of the '.android' data directory (which defaults to your $HOME).
 
 - A new console command 'avd name' can be used to query the name of the
   virtual device running in the emulator. Note that it will be '<build>'
