@@ -14,30 +14,8 @@
 
 #include "qemu-common.h"
 
-/* recent versions of the emulated Android system contains a background
- * daemon, named 'qemud', which runs as root and opens /dev/ttyS0
- *
- * its purpose is to multiplex several communication channels between
- * the emulator and the system through a single serial port.
- *
- * each channel will be connected to a qemud-created unix socket on the
- * system, and to either a emulated character device or other facility in
- * the emulator.
- *
- *                                                       +--------> /dev/socket/qemud_gsm
- *   emulated GSM    <-----+                       ______|_
- *                         |        emulated      |        |
- *                         +====> /dev/ttyS0 <===>| qemud  |------> /dev/socket/qemud_gps
- *                         |                      |________|
- *   emulated GPS    <-----+                            |
- *                         |                            +---------> other
- *                         |
- *   other  <--------------+
- *
- *
- *   this is done to overcome specific permission problems, as well as to add various
- *   features that would require special kernel drivers otherwise even though they
- *   only need a simple character channel.
+/* Support for the qemud-based 'services' in the emulator.
+ * Please read docs/ANDROID-QEMUD.TXT to understand what this is about.
  */
 
 /* initialize the qemud support code in the emulator
@@ -50,14 +28,21 @@ extern void  android_qemud_init( void );
  */
 extern CharDriverState*  android_qemud_get_cs( void );
 
-/* return the character driver state corresponding to a named qemud communication
- * channel. this can be used to send/data the channel.
+/* returns in '*pcs' a CharDriverState object that will be connected to
+ * a single client in the emulated system for a given named service.
+ *
+ * this is only used to connect GPS and GSM service clients to the
+ * implementation that requires a CharDriverState object for legacy
+ * reasons.
+ *
  * returns 0 on success, or -1 in case of error
  */
 extern int  android_qemud_get_channel( const char*  name, CharDriverState* *pcs );
 
-/* set the character driver state for a given qemud communication channel. this
- * is used to attach the channel to an external char driver device directly.
+/* set an explicit CharDriverState object for a given qemud communication channel. this
+ * is used to attach the channel to an external char driver device (e.g. one
+ * created with "-serial <device>") directly.
+ *
  * returns 0 on success, -1 on error
  */
 extern int  android_qemud_set_channel( const char*  name, CharDriverState*  peer_cs );

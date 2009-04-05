@@ -62,6 +62,9 @@
  **
  **/
 
+/* HttpHeader is a simple structure used to hold a (key,value)
+ * pair in a linked list.
+ */
 typedef struct HttpHeader {
     struct HttpHeader*  next;
     const char*         key;
@@ -103,6 +106,12 @@ http_header_alloc( const char*  key, const char*  value )
     }
     return h;
 }
+
+/** *************************************************************
+ **
+ **   HTTP HEADERS LIST
+ **
+ **/
 
 typedef struct {
     HttpHeader*   first;
@@ -166,15 +175,18 @@ typedef enum {
     HTTP_REQUEST_DELETE,
 } HttpRequestType;
 
+/* HttpRequest is used both to store information about a specific
+ * request and the corresponding reply
+ */
 typedef struct {
-    HttpRequestType   req_type;
-    char*             req_method;
-    char*             req_uri;
-    char*             req_version;
-    char*             rep_version;
-    int               rep_code;
-    char*             rep_readable;
-    HttpHeaderList    headers[1];
+    HttpRequestType   req_type;     /* request type */
+    char*             req_method;   /* "GET", "POST", "HEAD", etc... */
+    char*             req_uri;      /* the request URI */
+    char*             req_version;  /* "HTTP/1.0" or "HTTP/1.1" */
+    char*             rep_version;  /* reply version string */
+    int               rep_code;     /* reply code as decimal */
+    char*             rep_readable; /* human-friendly reply/error message */
+    HttpHeaderList    headers[1];   /* headers */
 } HttpRequest;
 
 
@@ -641,6 +653,16 @@ rewrite_connection_get_body_length( RewriteConnection*  conn,
             conn->body_length = body_len;
         }
     } else {
+        transfer_encoding = http_request_find_header(r, "Transfer-Encoding");
+        if (transfer_encoding && !strcasecmp(transfer_encoding, "Chunked")) {
+            conn->body_mode           = BODY_CHUNKED;
+            conn->parse_chunk_header  = 0;
+            conn->parse_chunk_trailer = 0;
+            conn->chunk_length        = -1;
+            conn->chunk_total         = 0;
+        }
+    }
+    if (conn->body_mode == BODY_NONE) {
         char*  connection = http_request_find_header(r, "Proxy-Connection");
 
         if (!connection)
@@ -657,14 +679,6 @@ rewrite_connection_get_body_length( RewriteConnection*  conn,
          * disconnects the connection.
          */
         conn->body_mode = BODY_UNTIL_CLOSE;
-    }
-    transfer_encoding = http_request_find_header(r, "Transfer-Encoding");
-    if (transfer_encoding && !strcasecmp(transfer_encoding, "Chunked")) {
-        conn->body_mode           = BODY_CHUNKED;
-        conn->parse_chunk_header  = 0;
-        conn->parse_chunk_trailer = 0;
-        conn->chunk_length        = -1;
-        conn->chunk_total         = 0;
     }
     D("%s: body_length=%lld body_mode=%s",
       root->name, conn->body_length, 
