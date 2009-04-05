@@ -99,26 +99,26 @@
  *       internal unique channel number > 0, then sends a connection
  *       initiation request to the emulator (i.e. through channel 0):
  *
- *           connect:<hxid>:<name>
+ *           connect:<id>:<name>
  *
- *       where <name> is the service name, and <hxid> is a 4-hexchar
+ *       where <name> is the service name, and <id> is a 2-hexchar
  *       number corresponding to the channel number.
  *
  *     * in case of success, the emulator responds through channel 0
  *       with:
  *
- *           ok:connect:<hxid>
+ *           ok:connect:<id>
  *
  *       after this, all messages between the client and the emulator
  *       are passed in pass-through mode. If the client closes the
  *       connection, qemud sends the following to the emulator:
  *
- *           disconnect:<hxid>
+ *           disconnect:<id>
  *
  *     * if the emulator refuses the service connection, it will
  *       send the following through channel 0:
  *
- *           ko:connect:<hxid>:reason-for-failure
+ *           ko:connect:<id>:reason-for-failure
  *
  *     * any command sent through channel 0 to the emulator that is
  *       not properly recognized will be answered by:
@@ -562,7 +562,7 @@ qemud_client_disconnect( void*  opaque )
     /* send a disconnect command to the daemon */
     if (c->channel > 0) {
         char  tmp[128], *p=tmp, *end=p+sizeof(tmp);
-        p = bufprint(tmp, end, "disconnect:%04x", c->channel);
+        p = bufprint(tmp, end, "disconnect:%02x", c->channel);
         qemud_serial_send(c->serial, 0, 0, (uint8_t*)tmp, p-tmp);
     }
 
@@ -837,7 +837,7 @@ qemud_multiplexer_control_recv( void*     opaque,
 
     /* handle connection attempts.
      * the client message must be "connect:<service-name>:<id>"
-     * where <id> is a 4-char hexadecimal string, which must be > 0
+     * where <id> is a 2-char hexadecimal string, which must be > 0
      */
     if (msglen > 8 && !memcmp(msg, "connect:", 8))
     {
@@ -846,16 +846,16 @@ qemud_multiplexer_control_recv( void*     opaque,
         char*          q;
 
         q = strchr(service_name, ':');
-        if (q == NULL || q+5 != (char*)msgend) {
+        if (q == NULL || q+3 != (char*)msgend) {
             D("%s: malformed connect message: '%.*s' (offset=%d)",
               __FUNCTION__, msglen, (const char*)msg, q ? q-(char*)msg : -1);
             return;
         }
         *q++ = 0;  /* zero-terminate service name */
-        channel = hex2int((uint8_t*)q, 4);
+        channel = hex2int((uint8_t*)q, 2);
         if (channel <= 0) {
             D("%s: malformed channel id '%.*s",
-              __FUNCTION__, 4, q);
+              __FUNCTION__, 2, q);
             return;
         }
 
@@ -867,13 +867,13 @@ qemud_multiplexer_control_recv( void*     opaque,
         if (ret < 0) {
             if (ret == -1) {
                 /* could not connect */
-                p = bufprint(tmp, end, "ko:connect:%04x:unknown service", channel);
+                p = bufprint(tmp, end, "ko:connect:%02x:unknown service", channel);
             } else {
-                p = bufprint(tmp, end, "ko:connect:%04x:service busy", channel);
+                p = bufprint(tmp, end, "ko:connect:%02x:service busy", channel);
             }
         }
         else {
-            p = bufprint(tmp, end, "ok:connect:%04x", channel);
+            p = bufprint(tmp, end, "ok:connect:%02x", channel);
         }
         qemud_serial_send(mult->serial, 0, 0, (uint8_t*)tmp, p-tmp);
         return;
@@ -881,13 +881,13 @@ qemud_multiplexer_control_recv( void*     opaque,
 
     /* handle client disconnections,
      * this message arrives when the client has closed the connection.
-     * format: "disconnect:<id>" where <id> is a 4-hex channel id > 0
+     * format: "disconnect:<id>" where <id> is a 2-hex channel id > 0
      */
-    if (msglen == 15 && !memcmp(msg, "disconnect:", 11)) {
-        int  channel_id = hex2int(msg+11, 4);
+    if (msglen == 13 && !memcmp(msg, "disconnect:", 11)) {
+        int  channel_id = hex2int(msg+11, 2);
         if (channel_id <= 0) {
             D("%s: malformed disconnect channel id: '%.*s'",
-              __FUNCTION__, 4, msg+11);
+              __FUNCTION__, 2, msg+11);
             return;
         }
         qemud_multiplexer_disconnect(mult, channel_id);
@@ -1189,6 +1189,11 @@ android_qemud_get_channel( const char*  name, CharDriverState* *pcs )
 int
 android_qemud_set_channel( const char*  name, CharDriverState*  peer_cs )
 {
-    qemud_service_register(name, 1, peer_cs, _qemud_char_service_connect);
+    CharDriverState*  char_buffer = qemu_chr_open_buffer(peer_cs);
+
+    if (char_buffer == NULL)
+        return -1;
+
+    qemud_service_register(name, 1, char_buffer, _qemud_char_service_connect);
     return 0;
 }
