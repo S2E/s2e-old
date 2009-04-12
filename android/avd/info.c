@@ -1281,9 +1281,18 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
 
 #define  PREBUILT_SKINS_DIR  "development/emulator/skins"
 
-        /* the (current) default skin directory */
-        p = bufprint( temp, end, "%s/%s",
-                      i->androidBuildRoot, PREBUILT_SKINS_DIR );
+        do {
+            /* try in <sysdir>/../skins first */
+            p = bufprint( temp, end, "%s/../skins",
+                          i->androidBuildRoot );
+            if (path_exists(temp))
+                break;
+
+            /* the (current) default skin directory */
+            p = bufprint( temp, end, "%s/%s",
+                        i->androidBuildRoot, PREBUILT_SKINS_DIR );
+        } while (0);
+
     } else {
         p = bufprint( temp, end, "%s", skinDir );
     }
