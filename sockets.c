@@ -624,8 +624,29 @@ sock_address_init_resolve( SockAddress*  a, const char*  hostname, uint16_t  por
     memset(hints, 0, sizeof(hints));
     hints->ai_family   = preferIn6 ? AF_INET6 : AF_UNSPEC;
 
-    if (getaddrinfo(hostname, NULL, hints, &res) < 0) {
-        return _fix_errno();
+    ret = getaddrinfo(hostname, NULL, hints, &res);
+    if (ret != 0) {
+        int  err;
+
+        switch (ret) {
+        case EAI_AGAIN:  /* server is down */
+        case EAI_FAIL:   /* server is sick */
+            err = EHOSTDOWN;
+            break;
+
+        case EAI_NODATA:
+        case EAI_NONAME:
+            err = ENOENT;
+            break;
+
+        case EAI_MEMORY:
+            err = ENOMEM;
+            break;
+
+        default:
+            err = EINVAL;
+        }
+        return _set_errno(err);
     }
 
     ret = sock_address_from_bsd( a, res->ai_addr, res->ai_addrlen );
