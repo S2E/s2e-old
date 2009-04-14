@@ -121,6 +121,14 @@ OTHER:
 - Using '-no-audio' no longer disables sound hardware emulation. It simply
   mutes the emulator program on the host.
 
+- The window title bar changes when you toggle persistent trackball mode
+  (F6 by default). It will display something like the following:
+
+    "Press F6 to exit trackball mode ..."
+
+  The actual text depends on your key binding configuration. This is to help
+  people toggle the mode by accident.
+
 ==============================================================================
 Changes between 1.6 and 1.7
 
