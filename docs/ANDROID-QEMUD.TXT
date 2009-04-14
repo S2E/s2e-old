@@ -92,7 +92,7 @@ Since the "cupcake" platform, this works as follows:
 
         connect:<service>:<id>
 
-      where <service> is the service name, and <id> is a 4-hexchar string
+      where <service> is the service name, and <id> is a 2-hexchar string
       giving the allocated channel index for the client.
 
 
@@ -181,9 +181,19 @@ This is documented here since this explains some subtleties in the
 implementation code of android/hw-qemud.c
 
 The old scheme also used a serial port to allow the daemon and the emulator
-to communicate. Besides, the same multiplexing protocol was used to pass
-messages through multiple channels. However, several other differences
-exist, best illustrated by the following graphics:
+to communicate. However, the multiplexing protocol swaps the position of
+'channel' and 'length' in the header:
+
+           offset    size    description
+
+               0       4     4-char hex string giving the payload size
+
+               4       2     2-char hex string giving the destination or
+                             source channel
+
+               6       n     the message payload
+
+Several other differences, best illustrated by the following graphics:
 
     emulator <==serial==> qemud <-+--> /dev/socket/qemud_gsm <--> GSM client
                                   |
