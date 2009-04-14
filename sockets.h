@@ -228,8 +228,18 @@ int   sock_address_get_ip( const SockAddress*  a );
 char* bufprint_sock_address( char*  p, char*  end, const SockAddress*  a );
 
 /* resolve a hostname or decimal IPv4/IPv6 address into a socket address.
- * returns 0 on success, or -1 on failure */
-int   sock_address_init_resolve( SockAddress*  a, const char*  hostname, uint16_t  port, int  preferIn6 ); 
+ * returns 0 on success, or -1 on failure. Note that the values or errno
+ * set by this function are the following:
+ *
+ *   EINVAL    : invalid argument
+ *   EHOSTDOWN : could not reach DNS server
+ *   ENOENT    : no host with this name, or host doesn't have any IP address
+ *   ENOMEM    : not enough memory to perform request
+ */
+int   sock_address_init_resolve( SockAddress*  a,
+                                 const char*   hostname,
+                                 uint16_t      port,
+                                 int           preferIn6 );
 
 /* create a new socket, return the socket number of -1 on failure */
 int  socket_create( SocketFamily  family, SocketType  type );
