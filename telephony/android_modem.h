@@ -23,6 +23,7 @@ typedef struct AModemRec_*    AModem;
 typedef void (*AModemUnsolFunc)( void*  opaque, const char*  message );
 
 extern AModem      amodem_create( int  base_port, AModemUnsolFunc  unsol_func, void*  unsol_opaque );
+extern void        amodem_set_legacy( AModem  modem );
 extern void        amodem_destroy( AModem  modem );
 
 /* send a command to the modem */
