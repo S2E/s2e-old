@@ -86,6 +86,12 @@ AvdInfo*        android_avdInfo;
 /* default skin name */
 #define  SKIN_DEFAULT    "HVGA"
 
+/* the config.ini key that is used to indicate the absolute path
+ * to the SD Card image file, if you don't want to place it in
+ * the content directory.
+ */
+#define  SDCARD_PATH     "sdcard.path"
+
 /* certain disk image files are mounted read/write by the emulator
  * to ensure that several emulators referencing the same files
  * do not corrupt these files, we need to lock them and respond
@@ -591,7 +597,12 @@ imageLoader_load( ImageLoader*    l,
 {
     const char*  path = NULL;
 
-    /* first, check user-provided path */
+    /* set image state */
+    l->pState[0] = (flags & IMAGE_DONT_LOCK) == 0
+                 ? IMAGE_STATE_MUSTLOCK 
+                 : IMAGE_STATE_READONLY;
+
+    /* check user-provided path */
     path = l->params->forcePaths[l->id];
     if (path != NULL) {
         imageLoader_setPath(l, path);
@@ -696,7 +707,7 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
      * and use it.
      */
     imageLoader_set ( l, AVD_IMAGE_INITSYSTEM );
-    imageLoader_load( l, IMAGE_REQUIRED | IMAGE_SEARCH_SDK );
+    imageLoader_load( l, IMAGE_REQUIRED | IMAGE_SEARCH_SDK | IMAGE_DONT_LOCK );
 
     /* the data partition - this one is special because if it
      * is missing, we need to copy the initial image file into it.
@@ -1031,6 +1042,24 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
     return 0;
 }
 
+/* If the user didn't explicitely provide an SD Card path,
+ * check the SDCARD_PATH key in config.ini and use that if
+ * available.
+ */
+static void
+_getSDCardPath( AvdInfo*  i, AvdInfoParams*  params )
+{
+    const char*  path;
+
+    if (params->forcePaths[AVD_IMAGE_SDCARD] != NULL)
+        return;
+
+    path = iniFile_getString(i->configIni, SDCARD_PATH);
+    if (path == NULL)
+        return;
+
+    params->forcePaths[AVD_IMAGE_SDCARD] = path;
+}
 
 AvdInfo*
 avdInfo_new( const char*  name, AvdInfoParams*  params )
@@ -1058,6 +1087,7 @@ avdInfo_new( const char*  name, AvdInfoParams*  params )
      * obsolete SDKs.
      */
     _getSearchPaths(i);
+    _getSDCardPath(i, params);
 
     /* don't need this anymore */
     iniFile_free(i->rootIni);

@@ -34,7 +34,8 @@ SOUND PLAYBACK DETAILS:
 Each HWVoiceOut has the following too:
 
   - A fixed-size circular buffer of stereo samples (for stereo).
-    whose format is either floats or int64_t per sample (depending on build configuration).
+    whose format is either floats or int64_t per sample (depending on build
+    configuration).
 
   - A 'samples' field giving the (constant) number of sample pairs in the stereo buffer.
 
@@ -45,17 +46,32 @@ Each HWVoiceOut has the following too:
   - A 'rpos' offset into the circular buffer which tells where to read the next samples
     from the stereo buffer for the next conversion through 'clip'.
 
+
+            |<----------------- samples ----------------------->|
+
+            |                                                   |
+
+            |       rpos                                        |
+                    |
+            |_______v___________________________________________|
+            |       |                                           |
+            |       |                                           |
+            |_______|___________________________________________|
+
+
   - A 'run_out' method that is called each time to tell the output backend to
     send samples from the stereo buffer to the host sound card/server. This method
     shall also modify 'rpos' and returns the number of samples 'played'. A more detailed
     description of this process appears below.
 
   - A 'write' method callback used to write a buffer of emulated sound samples from
-    a SWVoiceOut into the stereo buffer. *All* backends simply call the generic
-    function audio_pcm_sw_write() to implement this. It's difficult to see why
-    it's needed at all ?
+    a SWVoiceOut into the stereo buffer. Currently all backends simply call the generic
+    function audio_pcm_sw_write() to implement this.
 
-    (Similarly, all backends have a 'read' methods which simply calls 'audio_pcm_sw_read')
+    According to malc, the audio sub-system's original author, this is to allow
+    a backend to use a platform-specific function to do the same thing if available.
+
+    (Similarly, all input backends have a 'read' methods which simply calls 'audio_pcm_sw_read')
 
 Each SWVoiceOut has the following:
 
@@ -67,6 +83,27 @@ Each SWVoiceOut has the following:
     HWVoiceOut's 'rpos' offset). NOTE: this is a count of samples in the HWVoiceOut
     stereo buffer, not emulated hardware sound samples, which can have different
     properties (frequency, size, endianess).
+                                         ______________
+                                        |              |
+                                        |  SWVoiceOut2 |
+                                        |______________|
+                  ______________           |
+                 |              |          |
+                 |  SWVoiceOut1 |          |     thsm<N> := total_hw_samples_mixed
+                 |______________|          |                for SWVoiceOut<N>
+                           |               |
+                           |               |
+                    |<-----|------------thsm2-->|
+                    |      |                    |
+                    |<---thsm1-------->|        |
+             _______|__________________v________|_______________ 
+            |       |111111111111111111|        v               |
+            |       |222222222222222222222222222|               |
+            |_______|___________________________________________|
+                    ^
+                    |         HWVoiceOut stereo buffer
+                    rpos
+
 
   - a 'ratio' value, which is the ratio of the target HWVoiceOut's frequency by
     the SWVoiceOut's frequency, multiplied by (1 << 32), as a 64-bit integer.
@@ -86,23 +123,18 @@ Each SWVoiceOut has the following:
 Here's a small graphics that explains it better:
 
    SWVoiceOut:  emulated hardware sound buffers:
-
           |
-          |   (mixed through AUD_write() from user-provided callback)
-          |
+          |   (mixed through AUD_write() called from user-provided
+          |    callback which is itself called on each audio timer
+          |    tick).
           v
-
    HWVoiceOut: stereo sample circular buffer
-
           |
-          |   (through HWVoiceOut's 'clip' function, invoked from the
-          |    'run_out' method)
+          |   (sent through HWVoiceOut's 'clip' function, which is
+          |    invoked from the 'run_out' method, also called on each
+          |    audio timer tick)
           v
-
    backend-specific sound buffers
-
-THERE IS NO COMMON TIMEBASE BETWEEN ALL LAYERS. DON'T EXPECT ANY HIGH-ACCURACY /
-LOW-LATENCY IN THIS IMPLEMENTATION.
 
 
 The function audio_timer() in audio/audio.c is called periodically and it is used as
@@ -123,7 +155,7 @@ output voices:
 
 It's important to note that the SWVoiceOut callback:
 
-- takes a 'free' parameter which is the number of emulated sound samples that can
+- takes a 'free' parameter which is the number of stereo sound samples that can
   be sent to the hardware stereo buffer (before rate adjustment, i.e. not the number
   of sound samples in the SWVoiceOut emulated hardware sound buffer).
 
@@ -157,4 +189,7 @@ So, in the end, we have the pseudo-code:
 SOUND RECORDING DETAILS:
 ========================
 
-Things are similar but in reverse order.
+Things are similar but in reverse order. I.e. the HWVoiceIn acquires sound samples
+in its stereo sound buffer, and the SWVoiceIn objects must consume them as soon as
+they can.
+
