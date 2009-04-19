@@ -190,6 +190,9 @@ typedef struct {
 
 typedef struct AModemRec_
 {
+    /* Legacy support */
+    char          supportsNetworkDataType;
+
     /* Radio state */
     ARadioState   radio_state;
     int           area_code;
@@ -349,6 +352,7 @@ amodem_create( int  base_port, AModemUnsolFunc  unsol_func, void*  unsol_opaque 
     AModem  modem = _android_modem;
 
     amodem_reset( modem );
+    modem->supportsNetworkDataType = 1;
     modem->base_port    = base_port;
     modem->unsol_func   = unsol_func;
     modem->unsol_opaque = unsol_opaque;
@@ -356,6 +360,12 @@ amodem_create( int  base_port, AModemUnsolFunc  unsol_func, void*  unsol_opaque 
     modem->sim = asimcard_create();
 
     return  modem;
+}
+
+void
+amodem_set_legacy( AModem  modem )
+{
+    modem->supportsNetworkDataType = 0;
 }
 
 void
@@ -444,10 +454,15 @@ amodem_set_data_registration( AModem  modem, ARegistrationState  state )
             break;
 
         case A_REGISTRATION_UNSOL_ENABLED_FULL:
-            amodem_unsol( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\",\"%04x\"\r",
-                          modem->data_mode, modem->data_state,
-                          modem->area_code, modem->cell_id,
-                          modem->data_network );
+            if (modem->supportsNetworkDataType)
+                amodem_unsol( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\",\"%04x\"\r",
+                            modem->data_mode, modem->data_state,
+                            modem->area_code, modem->cell_id,
+                            modem->data_network );
+            else
+                amodem_unsol( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\"\r",
+                            modem->data_mode, modem->data_state,
+                            modem->area_code, modem->cell_id );
             break;
 
         default:
@@ -794,11 +809,16 @@ handleNetworkRegistration( const char*  cmd, AModem  modem )
         }
     } else if ( !memcmp( cmd, "+CGREG", 6 ) ) {
         cmd += 6;
-        if (cmd[0] == '?') {\
-            return amodem_printf( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\",\"%04x\"",
-                                  modem->data_mode, modem->data_state,
-                                  modem->area_code, modem->cell_id,
-                                  modem->data_network );
+        if (cmd[0] == '?') {
+            if (modem->supportsNetworkDataType)
+                return amodem_printf( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\",\"%04x\"",
+                                    modem->data_mode, modem->data_state,
+                                    modem->area_code, modem->cell_id,
+                                    modem->data_network );
+            else
+                return amodem_printf( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\"",
+                                    modem->data_mode, modem->data_state,
+                                    modem->area_code, modem->cell_id );
         } else if (cmd[0] == '=') {
             switch (cmd[1]) {
                 case '0':
