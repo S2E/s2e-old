@@ -634,7 +634,9 @@ sock_address_init_resolve( SockAddress*  a, const char*  hostname, uint16_t  por
             err = EHOSTDOWN;
             break;
 
+#ifdef EAI_NODATA
         case EAI_NODATA:
+#endif
         case EAI_NONAME:
             err = ENOENT;
             break;
