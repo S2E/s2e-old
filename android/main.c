@@ -484,14 +484,40 @@ android_emulator_set_window_scale( double  scale, int  is_dpi )
 static void
 qemulator_set_title( QEmulator*  emulator )
 {
-    char  temp[64];
+    char  temp[128], *p=temp, *end=p+sizeof temp;;
 
     if (emulator->window == NULL)
         return;
 
-    snprintf( temp, sizeof(temp), "Android Emulator (%s:%d)",
-              avdInfo_getName( android_avdInfo ),
-              android_base_port );
+    if (emulator->show_trackball) {
+        SkinKeyBinding  bindings[ SKIN_KEY_COMMAND_MAX_BINDINGS ];
+        int             count;
+
+        count = skin_keyset_get_bindings( android_keyset,
+                                          SKIN_KEY_COMMAND_TOGGLE_TRACKBALL,
+                                          bindings );
+
+        if (count > 0) {
+            int  nn;
+            p = bufprint( p, end, "Press " );
+            for (nn = 0; nn < count; nn++) {
+                if (nn > 0) {
+                    if (nn < count-1)
+                        p = bufprint(p, end, ", ");
+                    else
+                        p = bufprint(p, end, " or ");
+                }
+                p = bufprint(p, end, "%s",
+                             skin_key_symmod_to_str( bindings[nn].sym,
+                                                     bindings[nn].mod ) );
+            }
+            p = bufprint(p, end, " to leave trackball mode. ");
+        }
+    }
+
+    p = bufprint(p, end, "Android Emulator (%s:%d)",
+                 avdInfo_getName( android_avdInfo ),
+                 android_base_port );
 
     skin_window_set_title( emulator->window, temp );
 }
@@ -778,6 +804,7 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
     case SKIN_KEY_COMMAND_TOGGLE_TRACKBALL:
         emulator->show_trackball = !emulator->show_trackball;
         skin_window_show_trackball( emulator->window, emulator->show_trackball );
+        qemulator_set_title( emulator );
         break;
 
     case SKIN_KEY_COMMAND_ONION_ALPHA_UP:

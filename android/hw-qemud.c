@@ -40,93 +40,24 @@
 #define  MAX_FRAME_PAYLOAD  65535
 
 
+/* define SUPPORT_LEGACY_QEMUD to 1 if you want to support
+ * talking to a legacy qemud daemon. See docs/ANDROID-QEMUD.TXT
+ * for details.
+ */
+#define  SUPPORT_LEGACY_QEMUD  1
+
+#if SUPPORT_LEGACY_QEMUD
+#include "telephony/android_modem.h"
+#include "telephony/modem_driver.h"
+#endif
+
 /*
- *  the qemud daemon program is only used within Android as a bridge
- *  between the emulator program and the emulated system. it really works as
- *  a simple stream multiplexer that works as follows:
+ *  This implements support for the 'qemud' multiplexing communication
+ *  channel between clients running in the emulated system and 'services'
+ *  provided by the emulator.
  *
- *    - qemud is started by init following instructions in
- *      /system/etc/init.goldfish.rc (i.e. it is never started on real devices)
+ *  For additional details, please read docs/ANDROID-QEMUD.TXT
  *
- *    - qemud communicates with the emulator program through a single serial
- *      port, whose name is passed through a kernel boot parameter
- *      (e.g. android.qemud=ttyS1)
- *
- *    - qemud binds one unix local stream socket (/dev/socket/qemud, created
- *      by init through /system/etc/init.goldfish.rc).
- *
- *
- *      emulator <==serial==> qemud <---> /dev/socket/qemud <-+--> client1
- *                                                            |
- *                                                            +--> client2
- *
- *    - the protocol used on the serial connection is pretty simple:
- *
- *          offset    size    description
- *              0       2     2-char hex string giving the destination or
- *                            source channel
- *              2       4     4-char hex string giving the payload size
- *              6       n     the message payload
- *
- *      for emulator->system messages, the 'channel' index indicates
- *      to which channel the payload must be sent
- *
- *      for system->emulator messages, the 'channel' index indicates from
- *      which channel the payload comes from.
- *
- *      the payload size is limited to MAX_SERIAL_PAYLOAD bytes.
- *
- *   - communication between a client and qemud is stream based, but supports
- *     an optional framing mode which can be used to send packets larger than
- *     MAX_SERIAL_PAYLOAD bytes and provides packet bounding.
- *
- *          offset    size    description
- *              0       4     4-char hex string giving the payload size
- *              6       n     the message payload
- *
- *     The size of the payload is then limited to 65535 bytes.
- *
- *   - the special channel index 0 is used by the emulator and qemud only.
- *     other channel numbers correspond to clients. More specifically,
- *     connection are created like this:
- *
- *     * the client connects to /dev/socket/qemud
- *
- *     * the client sends the service name through the socket, as
- *            <service-name>
- *
- *     * qemud creates a "Client" object internally, assigns it an
- *       internal unique channel number > 0, then sends a connection
- *       initiation request to the emulator (i.e. through channel 0):
- *
- *           connect:<id>:<name>
- *
- *       where <name> is the service name, and <id> is a 2-hexchar
- *       number corresponding to the channel number.
- *
- *     * in case of success, the emulator responds through channel 0
- *       with:
- *
- *           ok:connect:<id>
- *
- *       after this, all messages between the client and the emulator
- *       are passed in pass-through mode. If the client closes the
- *       connection, qemud sends the following to the emulator:
- *
- *           disconnect:<id>
- *
- *     * if the emulator refuses the service connection, it will
- *       send the following through channel 0:
- *
- *           ko:connect:<id>:reason-for-failure
- *
- *     * any command sent through channel 0 to the emulator that is
- *       not properly recognized will be answered by:
- *
- *           ko:unknown command
- *
- *  Internally, the daemon maintains a "Client" object for each client
- *  connection (i.e. accepting socket connection).
  */
 
 /*
@@ -154,12 +85,18 @@
 /** HANDLING INCOMING DATA FRAMES
  **/
 
+/* A QemudSink is just a handly data structure that is used to
+ * read a fixed amount of bytes into a buffer
+ */
 typedef struct QemudSink {
     int       len;
     int       size;
     uint8_t*  buff;
 } QemudSink;
 
+/* reset a QemudSink, i.e. provide a new destination buffer address
+ * and its size in bytes.
+ */
 static void
 qemud_sink_reset( QemudSink*  ss, int  size, uint8_t*  buffer )
 {
@@ -168,6 +105,12 @@ qemud_sink_reset( QemudSink*  ss, int  size, uint8_t*  buffer )
     ss->buff = buffer;
 }
 
+/* try to fill the sink by reading bytes from the source buffer
+ * '*pmsg' which contains '*plen' bytes
+ *
+ * this functions updates '*pmsg' and '*plen', and returns
+ * 1 if the sink's destination buffer is full, or 0 otherwise.
+ */
 static int
 qemud_sink_fill( QemudSink*  ss, const uint8_t* *pmsg, int  *plen)
 {
@@ -187,6 +130,9 @@ qemud_sink_fill( QemudSink*  ss, const uint8_t* *pmsg, int  *plen)
     return (ss->len == ss->size);
 }
 
+/* returns the number of bytes needed to fill a sink's destination
+ * buffer.
+ */
 static int
 qemud_sink_needed( QemudSink*  ss )
 {
@@ -215,6 +161,17 @@ qemud_sink_needed( QemudSink*  ss )
 #define  CHANNEL_OFFSET 0
 #define  CHANNEL_SIZE   2
 
+#if SUPPORT_LEGACY_QEMUD
+typedef enum {
+    QEMUD_VERSION_UNKNOWN,
+    QEMUD_VERSION_LEGACY,
+    QEMUD_VERSION_NORMAL
+} QemudVersion;
+
+#  define  LEGACY_LENGTH_OFFSET   0
+#  define  LEGACY_CHANNEL_OFFSET  4
+#endif
+
 /* length of the framed header */
 #define  FRAME_HEADER_SIZE  4
 
@@ -233,6 +190,9 @@ typedef struct QemudSerial {
     int           overflow;
     int           in_size;
     int           in_channel;
+#if SUPPORT_LEGACY_QEMUD
+    QemudVersion  version;
+#endif
     QemudSink     header[1];
     QemudSink     payload[1];
     uint8_t       data0[MAX_SERIAL_PAYLOAD+1];
@@ -293,9 +253,35 @@ qemud_serial_read( void*  opaque, const uint8_t*  from, int  len )
             if (!qemud_sink_fill(s->header, (const uint8_t**)&from, &len))
                 break;
 
+#if SUPPORT_LEGACY_QEMUD
+            if (s->version == QEMUD_VERSION_UNKNOWN) {
+                /* if we receive "001200" as the first header, then we
+                 * detected a legacy qemud daemon. See the comments
+                 * in qemud_serial_send_legacy_probe() for details.
+                 */
+                if ( !memcmp(s->data0, "001200", 6) ) {
+                    D("%s: legacy qemud detected.", __FUNCTION__);
+                    s->version = QEMUD_VERSION_LEGACY;
+                    /* tell the modem to use legacy emulation mode */
+                    amodem_set_legacy(android_modem);
+                } else {
+                    D("%s: normal qemud detected.", __FUNCTION__);
+                    s->version = QEMUD_VERSION_NORMAL;
+                }
+            }
+
+            if (s->version == QEMUD_VERSION_LEGACY) {
+                s->in_size     = hex2int( s->data0 + LEGACY_LENGTH_OFFSET,  LENGTH_SIZE );
+                s->in_channel  = hex2int( s->data0 + LEGACY_CHANNEL_OFFSET, CHANNEL_SIZE );
+            } else {
+                s->in_size     = hex2int( s->data0 + LENGTH_OFFSET,  LENGTH_SIZE );
+                s->in_channel  = hex2int( s->data0 + CHANNEL_OFFSET, CHANNEL_SIZE );
+            }
+#else
             /* extract payload length + channel id */
             s->in_size     = hex2int( s->data0 + LENGTH_OFFSET,  LENGTH_SIZE );
             s->in_channel  = hex2int( s->data0 + CHANNEL_OFFSET, CHANNEL_SIZE );
+#endif
             s->header->len = 0;
 
             if (s->in_size <= 0 || s->in_channel < 0) {
@@ -332,6 +318,68 @@ qemud_serial_read( void*  opaque, const uint8_t*  from, int  len )
     }
 }
 
+
+#if SUPPORT_LEGACY_QEMUD
+static void
+qemud_serial_send_legacy_probe( QemudSerial*  s )
+{
+    /* we're going to send a specially crafted packet to the qemud
+     * daemon, this will help us determine whether we're talking
+     * to a legacy or a normal daemon.
+     *
+     * the trick is to known that a legacy daemon uses the following
+     * header:
+     *
+     *    <length><channel><payload>
+     *
+     * while the normal one uses:
+     *
+     *    <channel><length><payload>
+     *
+     * where <channel> is a 2-hexchar string, and <length> a 4-hexchar
+     * string.
+     *
+     * if we send a header of "000100", it is interpreted:
+     *
+     * - as the header of a 1-byte payload by the legacy daemon
+     * - as the header of a 256-byte payload by the normal one.
+     *
+     * we're going to send something that looks like:
+     *
+     *   "000100" + "X" +
+     *   "000b00" + "connect:gsm" +
+     *   "000b00" + "connect:gps" +
+     *   "000f00" + "connect:control" +
+     *   "00c210" + "0"*194
+     *
+     * the normal daemon will interpret this as a 256-byte payload
+     * for channel 0, with garbage content ("X000b00conn...") which
+     * will be silently ignored.
+     *
+     * on the other hand, the legacy daemon will see it as a
+     * series of packets:
+     *
+     *   one message "X" on channel 0, which will force the daemon
+     *   to send back "001200ko:unknown command" as its first answer.
+     *
+     *   three "connect:<xxx>" messages used to receive the channel
+     *   numbers of the three legacy services implemented by the daemon.
+     *
+     *   a garbage packet of 194 zeroes for channel 16, which will be
+     *   silently ignored.
+     */
+    uint8_t  tab[194];
+
+    memset(tab, 0, sizeof(tab));
+    qemu_chr_write(s->cs, (uint8_t*)"000100X", 7);
+    qemu_chr_write(s->cs, (uint8_t*)"000b00connect:gsm", 17);
+    qemu_chr_write(s->cs, (uint8_t*)"000b00connect:gps", 17);
+    qemu_chr_write(s->cs, (uint8_t*)"000f00connect:control", 21);
+    qemu_chr_write(s->cs, (uint8_t*)"00c210", 6);
+    qemu_chr_write(s->cs, tab, sizeof(tab));
+}
+#endif /* SUPPORT_LEGACY_QEMUD */
+
 /* intialize a QemudSerial object with a charpipe endpoint
  * and a receiver.
  */
@@ -350,6 +398,11 @@ qemud_serial_init( QemudSerial*        s,
     qemud_sink_reset( s->header, HEADER_SIZE, s->data0 );
     s->in_size      = 0;
     s->in_channel   = -1;
+
+#if SUPPORT_LEGACY_QEMUD
+    s->version = QEMUD_VERSION_UNKNOWN;
+    qemud_serial_send_legacy_probe(s);
+#endif
 
     qemu_chr_add_handlers( cs,
                            qemud_serial_can_read,
@@ -391,13 +444,25 @@ qemud_serial_send( QemudSerial*    s,
             avail = MAX_SERIAL_PAYLOAD;
 
         /* write this packet's header */
+#if SUPPORT_LEGACY_QEMUD
+        if (s->version == QEMUD_VERSION_LEGACY) {
+            int2hex(header + LEGACY_LENGTH_OFFSET,  LENGTH_SIZE,  avail);
+            int2hex(header + LEGACY_CHANNEL_OFFSET, CHANNEL_SIZE, channel);
+        } else {
+            int2hex(header + LENGTH_OFFSET,  LENGTH_SIZE,  avail);
+            int2hex(header + CHANNEL_OFFSET, CHANNEL_SIZE, channel);
+        }
+#else
         int2hex(header + LENGTH_OFFSET,  LENGTH_SIZE,  avail);
         int2hex(header + CHANNEL_OFFSET, CHANNEL_SIZE, channel);
+#endif
+        T("%s: '%.*s'", __FUNCTION__, HEADER_SIZE, header);
         qemu_chr_write(s->cs, header, HEADER_SIZE);
 
         /* insert frame header when needed */
         if (framing) {
             int2hex(frame, FRAME_HEADER_SIZE, msglen);
+            T("%s: '%.*s'", __FUNCTION__, FRAME_HEADER_SIZE, frame);
             qemu_chr_write(s->cs, frame, FRAME_HEADER_SIZE);
             avail  -= FRAME_HEADER_SIZE;
             len    -= FRAME_HEADER_SIZE;
@@ -405,6 +470,7 @@ qemud_serial_send( QemudSerial*    s,
         }
 
         /* write message content */
+        T("%s: '%.*s'", __FUNCTION__, avail, msg);
         qemu_chr_write(s->cs, msg, avail);
         msg += avail;
         len -= avail;
@@ -893,6 +959,61 @@ qemud_multiplexer_control_recv( void*     opaque,
         qemud_multiplexer_disconnect(mult, channel_id);
         return;
     }
+
+#if SUPPORT_LEGACY_QEMUD
+    /* an ok:connect:<service>:<id> message can be received if we're
+     * talking to a legacy qemud daemon, i.e. one running in a 1.0 or
+     * 1.1 system image.
+     *
+     * we should treat is as a normal "connect:" attempt, except that
+     * we must not send back any acknowledgment.
+     */
+    if (msglen > 11 && !memcmp(msg, "ok:connect:", 11)) {
+        const char*  service_name = (const char*)msg + 11;
+        char*        q            = strchr(service_name, ':');
+        int          channel;
+
+        if (q == NULL || q+3 != (char*)msgend) {
+            D("%s: malformed legacy connect message: '%.*s' (offset=%d)",
+              __FUNCTION__, msglen, (const char*)msg, q ? q-(char*)msg : -1);
+            return;
+        }
+        *q++ = 0;  /* zero-terminate service name */
+        channel = hex2int((uint8_t*)q, 2);
+        if (channel <= 0) {
+            D("%s: malformed legacy channel id '%.*s",
+              __FUNCTION__, 2, q);
+            return;
+        }
+
+        switch (mult->serial->version) {
+        case QEMUD_VERSION_UNKNOWN:
+            mult->serial->version = QEMUD_VERSION_LEGACY;
+            D("%s: legacy qemud daemon detected.", __FUNCTION__);
+            break;
+
+        case QEMUD_VERSION_LEGACY:
+            /* nothing unusual */
+            break;
+
+        default:
+            D("%s: weird, ignoring legacy qemud control message: '%.*s'",
+              __FUNCTION__, msglen, msg);
+            return;
+        }
+
+        /* "hw-control" was called "control" in 1.0/1.1 */
+        if (!strcmp(service_name,"control"))
+            service_name = "hw-control";
+
+        qemud_multiplexer_connect(mult, service_name, channel);
+        return;
+    }
+
+    /* anything else, don't answer for legacy */
+    if (mult->serial->version == QEMUD_VERSION_LEGACY)
+        return;
+#endif /* SUPPORT_LEGACY_QEMUD */
 
     /* anything else is a problem */
     p = bufprint(tmp, end, "ko:unknown command");
