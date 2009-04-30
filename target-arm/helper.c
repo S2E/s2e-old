@@ -7,6 +7,9 @@
 #include "gdbstub.h"
 #include "helpers.h"
 #include "qemu-common.h"
+#ifdef CONFIG_TRACE
+#include "trace.h"
+#endif
 
 static uint32_t cortexa8_cp15_c0_c1[8] =
 { 0x1031, 0x11, 0x400, 0, 0x31100003, 0x20000000, 0x01202000, 0x11 };
@@ -701,6 +704,12 @@ void do_interrupt(CPUARMState *env)
     uint32_t mask;
     int new_mode;
     uint32_t offset;
+
+#ifdef CONFIG_TRACE
+    if (tracing) {
+        trace_exception(env->regs[15]);
+    }
+#endif
 
     if (IS_M(env)) {
         do_interrupt_v7m(env);
