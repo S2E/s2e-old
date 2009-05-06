@@ -266,22 +266,7 @@ void dcache_load(uint32_t addr)
 // a dcache store access.
 void dcache_store(uint32_t addr, uint32_t val)
 {
-  // Check for a write to a magic address (this is a virtual address)
   //printf("st %lld 0x%08x val 0x%x\n", sim_time, addr, val);
-  if ((addr & kMagicBaseMask) == kMagicBaseAddr) {
-    uint32_t offset = addr & kMagicOffsetMask;
-    switch (offset) {
-    case kMethodTraceEnterOffset:
-        trace_interpreted_method(val, kMethodEnter);
-        break;
-    case kMethodTraceExitOffset:
-        trace_interpreted_method(val, kMethodExit);
-        break;
-    case kMethodTraceExceptionOffset:
-        trace_interpreted_method(val, kMethodException);
-        break;
-    }
-  }
 
   int ii;
   int ways = dcache.ways;
