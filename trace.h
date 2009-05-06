@@ -20,16 +20,6 @@ extern uint64_t start_time, end_time;
 extern uint64_t elapsed_usecs;
 extern uint64 Now();
 
-// Define magic addresses so that the simulated program can interact with the
-// simulator.
-#define kMagicBaseAddr		0x08000000
-#define kMagicBaseMask		0xfffff000
-#define kMagicOffsetMask	0x00000fff
-
-#define kMethodTraceEnterOffset		0x0004
-#define kMethodTraceExitOffset		0x0008
-#define kMethodTraceExceptionOffset	0x000c
-
 struct TranslationBlock;
 
 // For tracing dynamic execution of basic blocks

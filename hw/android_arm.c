@@ -39,12 +39,6 @@ static struct goldfish_device nand_device = {
     .size = 0x1000
 };
 
-static struct goldfish_device trace_device = {
-    .name = "qemu_trace",
-    .id = -1,
-    .size = 0x1000
-};
-
 /* Board init.  */
 
 #define TEST_SWITCH 1
@@ -138,9 +132,8 @@ static void android_arm_init(ram_addr_t ram_size, int vga_ram_size,
 #endif
 #ifdef CONFIG_TRACE
     extern const char *trace_filename;
-    if(trace_filename != NULL) {
-        goldfish_add_device_no_io(&trace_device);
-        trace_dev_init(trace_device.base);
+    if (trace_filename != NULL) {
+        trace_dev_init();
     }
 #endif
 

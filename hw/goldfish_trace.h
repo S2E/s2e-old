@@ -12,6 +12,8 @@
 #ifndef _TRACE_DEV_H_
 #define _TRACE_DEV_H_
 
+#include "goldfish_device.h"
+
 #define CLIENT_PAGE_SIZE        4096
 
 /* trace device registers */
@@ -41,10 +43,13 @@
 #define TRACE_DEV_REG_PRINT_NUM_HEX     62
 #define TRACE_DEV_REG_STOP_EMU          90
 #define TRACE_DEV_REG_ENABLE            100
+#define TRACE_DEV_REG_METHOD_ENTRY      1024
+#define TRACE_DEV_REG_METHOD_EXIT       1025
+#define TRACE_DEV_REG_METHOD_EXCEPTION  1026
 
 /* the virtual trace device state */
 typedef struct {
-    uint32_t base;
+    struct goldfish_device dev;
 } trace_dev_state;
 
 /*
