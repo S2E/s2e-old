@@ -12,6 +12,7 @@
 #include "sockets.h"
 #include "sysdeps.h"
 #include "qemu-timer.h"
+#include "qemu-char.h"
 #ifdef _WIN32
 #include <winsock2.h>
 #else
@@ -23,7 +24,7 @@
 #include <netdb.h>
 #endif
 
-#define  DEBUG  1
+#define  DEBUG  0
 
 #define  D_ACTIVE  DEBUG
 
