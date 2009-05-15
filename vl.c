@@ -9688,9 +9688,13 @@ int main(int argc, char **argv)
 #ifdef CONFIG_TRACE
     if (trace_filename) {
         trace_init(trace_filename);
+#if 0
+        // We don't need the dcache code until we can get load and store tracing
+        // working again.
         dcache_init(dcache_size, dcache_ways, dcache_line_size,
                     dcache_replace_policy, dcache_load_miss_penalty,
                     dcache_store_miss_penalty);
+#endif
         fprintf(stderr, "-- When done tracing, exit the emulator. --\n");
     }
 #endif
