@@ -130,7 +130,7 @@ extern void start_tracing();
 extern void stop_tracing();
 extern void trace_init(const char *filename);
 extern void trace_bb_start(uint32_t bb_addr);
-extern void trace_add_insn_arm(uint32_t insn, int is_thumb);
+extern void trace_add_insn(uint32_t insn, int is_thumb);
 extern void trace_bb_end();
 
 extern int get_insn_ticks_arm(uint32_t insn);
