@@ -5691,7 +5691,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     insn = ldl_code(s->pc);
 #ifdef CONFIG_TRACE
     if (tracing) {
-        trace_add_insn(insn);
+        trace_add_insn(insn, 0);
         ticks = get_insn_ticks_arm(insn);
         gen_helper_traceInsn();
     }
