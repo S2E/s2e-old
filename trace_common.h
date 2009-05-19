@@ -29,10 +29,13 @@
 #define kMethodEnter		0
 #define kMethodExit		1
 #define kMethodException	2
+#define kNativeEnter		4
+#define kNativeExit		5
+#define kNativeException	6
 
 // The trace identifier string must be less than 16 characters.
 #define TRACE_IDENT "qemu_trace_file"
-#define TRACE_VERSION 1
+#define TRACE_VERSION 2
 
 typedef struct TraceHeader {
     char	ident[16];
