@@ -50,7 +50,10 @@
     do { _ret = (_cmd); } while ( _ret < 0 && WSAGetLastError() == WSAEINTR )
 #else
 #  define  QSOCKET_CALL(_ret,_cmd)   \
-    do { _ret = (_cmd); } while ( _ret < 0 && errno == EINTR )
+    do { \
+        errno = 0; \
+        do { _ret = (_cmd); } while ( _ret < 0 && errno == EINTR ); \
+    } while (0);
 #endif
 
 #ifdef _WIN32
