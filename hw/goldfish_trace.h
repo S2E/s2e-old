@@ -46,6 +46,9 @@
 #define TRACE_DEV_REG_METHOD_ENTRY      1024
 #define TRACE_DEV_REG_METHOD_EXIT       1025
 #define TRACE_DEV_REG_METHOD_EXCEPTION  1026
+#define TRACE_DEV_REG_NATIVE_ENTRY      1028
+#define TRACE_DEV_REG_NATIVE_EXIT       1029
+#define TRACE_DEV_REG_NATIVE_EXCEPTION  1030
 
 /* the virtual trace device state */
 typedef struct {

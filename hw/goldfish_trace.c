@@ -205,6 +205,9 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
     case TRACE_DEV_REG_METHOD_ENTRY:
     case TRACE_DEV_REG_METHOD_EXIT:
     case TRACE_DEV_REG_METHOD_EXCEPTION:
+    case TRACE_DEV_REG_NATIVE_ENTRY:
+    case TRACE_DEV_REG_NATIVE_EXIT:
+    case TRACE_DEV_REG_NATIVE_EXCEPTION:
         if (tracing) {
             int call_type = (offset - 4096) >> 2;
             trace_interpreted_method(value, call_type);
