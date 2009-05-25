@@ -12,9 +12,17 @@
 #ifndef _ANDROID_OPTION_H
 #define _ANDROID_OPTION_H
 
+/* a structure used to model a linked list of parameters
+ */
+typedef struct ParamList {
+    char*              param;
+    struct ParamList*  next;
+} ParamList;
+
 /* define a structure that will hold all option variables
  */
 typedef struct {
+#define OPT_LIST(n,t,d)    ParamList*  n;
 #define OPT_PARAM(n,t,d)   char*  n;
 #define OPT_FLAG(n,d)      int    n;
 #include "android/cmdline-options.h"

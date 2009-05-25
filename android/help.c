@@ -5,6 +5,7 @@
 #include "android/utils/debug.h"
 #include "android/utils/misc.h"
 #include "android/skin/keyset.h"
+#include "android/boot-properties.h"
 #include "android/android.h"
 #include <stdint.h>
 #include "audio/audio.h"
@@ -1281,6 +1282,24 @@ help_tcpdump(stralloc_t  *out)
     );
 }
 
+static void
+help_prop(stralloc_t  *out)
+{
+    PRINTF(
+    "  use '-prop <name>=<value>' to set a boot-time system property.\n"
+    "  <name> must be a property name of at most %d characters, without any\n"
+    "  space in it, and <value> must be a string of at most %d characters.\n\n",
+    PROPERTY_MAX_NAME, PROPERTY_MAX_VALUE );
+
+    PRINTF(
+    "  the corresponding system property will be set at boot time in the\n"
+    "  emulated system. This can be useful for debugging purposes.\n\n"
+
+    "  note that you can use several -prop options to define more than one\n"
+    "  boot property.\n\n"
+    );
+}
+
 #define  help_no_skin   NULL
 #define  help_netspeed  help_shaper
 #define  help_netdelay  help_shaper
@@ -1307,6 +1326,7 @@ typedef struct {
 static const OptionHelp    option_help[] = {
 #define  OPT_FLAG(_name,_descr)             { STRINGIFY(_name), NULL, _descr, help_##_name },
 #define  OPT_PARAM(_name,_template,_descr)  { STRINGIFY(_name), _template, _descr, help_##_name },
+#define  OPT_LIST                           OPT_PARAM
 #include "android/cmdline-options.h"
     { NULL, NULL, NULL, NULL }
 };

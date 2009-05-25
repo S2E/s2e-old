@@ -153,3 +153,28 @@ image.
 
   Implementation: android/hw-sensors.c
   Since:          SDK 1.5 (cupcake)
+
+
+"boot-properties" service:
+--------------------------
+
+  This service is used to set system properties in the emulated system at
+  boot time. It is invoked by the 'qemu-props' helper program that is invoked
+  by /system/etc/init.goldfish.rc. All messages are framed and the protocol
+  is the following:
+
+  1/ Clients sends the 'list' command
+
+  2/ Service answers by listing all system properties to set. One per
+     message with the following format:
+
+        <property-name>=<property-value>
+
+     Note that <property-value> is not zero-terminated.
+
+
+  3/ After sending all the properties, the service force-closes the
+     connection.
+
+  Implementation: android/boot-properties.c
+  Since:          SDK 1.XXX (donut)
