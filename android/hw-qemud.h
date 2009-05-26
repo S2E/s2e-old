@@ -62,28 +62,58 @@ typedef struct QemudClient   QemudClient;
 typedef struct QemudService  QemudService;
 
 
+/* A function that will be called when the client running in the emulated
+ * system has closed its connection to qemud.
+ */
 typedef void (*QemudClientClose)( void*  opaque );
-typedef void (*QemudClientRecv) ( void*  opaque, uint8_t*  msg, int  msglen );
 
+/* A function that will be called when the client sends a message to the
+ * service through qemud.
+ */
+typedef void (*QemudClientRecv) ( void*  opaque, uint8_t*  msg, int  msglen, QemudClient*  client );
+
+/* Register a new client for a given service.
+ * 'clie_opaque' will be sent as the first argument to 'clie_recv' and 'clie_close'
+ * 'clie_recv' and 'clie_close' are both optional and may be NULL.
+ *
+ * You should typically use this function within a QemudServiceConnect callback
+ * (see below).
+ */
 extern QemudClient*  qemud_client_new( QemudService*     service,
                                        int               channel_id,
                                        void*             clie_opaque,
                                        QemudClientRecv   clie_recv,
                                        QemudClientClose  clie_close );
 
+/* Enable framing on a given client channel.
+ */
 extern void           qemud_client_set_framing( QemudClient*  client, int  enabled );
 
+/* Send a message to a given qemud client
+ */
 extern void   qemud_client_send ( QemudClient*  client, const uint8_t*  msg, int  msglen );
+
+/* Force-close the connection to a given qemud client.
+ */
 extern void   qemud_client_close( QemudClient*  client );
 
 
+/* A function that will be called each time a new client in the emulated
+ * system tries to connect to a given qemud service. This should typically
+ * call qemud_client_new() to register a new client.
+ */
 typedef QemudClient*  (*QemudServiceConnect)( void*   opaque, QemudService*  service, int  channel );
 
+/* Register a new qemud service.
+ * 'serv_opaque' is the first parameter to 'serv_connect'
+ */
 extern QemudService*  qemud_service_register( const char*          serviceName,
                                               int                  max_clients,
                                               void*                serv_opaque,
                                               QemudServiceConnect  serv_connect );
 
+/* Sends a message to all clients of a given service.
+ */
 extern void           qemud_service_broadcast( QemudService*   sv,
                                                const uint8_t*  msg,
                                                int             msglen );

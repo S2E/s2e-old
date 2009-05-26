@@ -5,6 +5,9 @@
 #ifndef OPT_PARAM
 #error OPT_PARAM is not defined
 #endif
+#ifndef OPT_LIST
+#error OPT_LIST is not defined
+#endif
 #ifndef OPT_FLAG
 #error OPT_FLAG is not defined
 #endif
@@ -128,6 +131,8 @@ OPT_PARAM( tcpdump, "<file>", "capture network packets to file" )
 
 OPT_PARAM( bootchart, "<timeout>", "enable bootcharting")
 
+OPT_LIST(  prop, "<name>=<value>", "set system property on boot")
+
 #ifdef CONFIG_NAND_LIMITS
 OPT_PARAM( nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds" )
 #endif
@@ -137,3 +142,4 @@ OPT_PARAM( nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds" 
 #undef CFG_PARAM
 #undef OPT_FLAG
 #undef OPT_PARAM
+#undef OPT_LIST

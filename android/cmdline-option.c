@@ -1,6 +1,7 @@
 #include "android/cmdline-option.h"
 #include "android/utils/debug.h"
 #include "android/utils/misc.h"
+#include "android/utils/system.h"
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
@@ -15,11 +16,16 @@ debug_tags[] = {
 static void  parse_debug_tags( const char*  tags );
 void  parse_env_debug_tags( void );
 
+enum {
+    OPTION_IS_FLAG = 0,
+    OPTION_IS_PARAM,
+    OPTION_IS_LIST,
+};
 
 typedef struct {
     const char*  name;
     int          var_offset;
-    int          var_is_param;
+    int          var_type;
     int          var_is_config;
 } OptionInfo;
 
@@ -28,10 +34,11 @@ typedef struct {
 
 
 static const OptionInfo  option_keys[] = {
-#define  OPT_PARAM(_name,_template,_descr)  OPTION(_name,1,0)
-#define  OPT_FLAG(_name,_descr)             OPTION(_name,0,0)
-#define  CFG_PARAM(_name,_template,_descr)  OPTION(_name,1,1)
-#define  CFG_FLAG(_name,_descr)             OPTION(_name,0,1)
+#define  OPT_FLAG(_name,_descr)             OPTION(_name,OPTION_IS_FLAG,0)
+#define  OPT_PARAM(_name,_template,_descr)  OPTION(_name,OPTION_IS_PARAM,0)
+#define  OPT_LIST(_name,_template,_descr)   OPTION(_name,OPTION_IS_LIST,0)
+#define  CFG_FLAG(_name,_descr)             OPTION(_name,OPTION_IS_FLAG,1)
+#define  CFG_PARAM(_name,_template,_descr)  OPTION(_name,OPTION_IS_PARAM,1)
 #include "android/cmdline-options.h"
     { NULL, 0, 0, 0 }
 };
@@ -145,15 +152,31 @@ android_parse_options( int  *pargc, char**  *pargv, AndroidOptions*  opt )
                 if ( !strcmp( oo->name, arg2 ) ) {
                     void*  field = (char*)opt + oo->var_offset;
 
-                    if (oo->var_is_param) {
-                        /* parameter option */
+                    if (oo->var_type != OPTION_IS_FLAG) {
+                        /* parameter/list option */
                         if (nargs == 0) {
                             derror( "-%s must be followed by parameter (see -help-%s)",
                                     arg, arg );
                             exit(1);
                         }
                         nargs--;
-                        ((char**)field)[0] = *aread++;
+
+                        if (oo->var_type == OPTION_IS_PARAM)
+                        {
+                            ((char**)field)[0] = *aread++;
+                        }
+                        else if (oo->var_type == OPTION_IS_LIST) 
+                        {
+                            ParamList**  head = (ParamList**)field;
+                            ParamList*   pl;
+                            ANEW0(pl);
+                            /* note: store list items in reverse order here
+                             *       the list is reversed later in this function.
+                             */
+                            pl->param = *aread++;
+                            pl->next  = *head;
+                            *head     = pl;
+                        }
                     } else {
                         /* flag option */
                         ((int*)field)[0] = 1;
@@ -181,6 +204,28 @@ android_parse_options( int  *pargc, char**  *pargv, AndroidOptions*  opt )
     }
 
     awrite[0] = NULL;
+
+    /* reverse any parameter list before exit.
+     */
+    {
+        const OptionInfo*  oo = option_keys;
+
+        for ( ; oo->name; oo++ ) {
+            if ( oo->var_type == OPTION_IS_LIST ) {
+                ParamList**  head = (ParamList**)((char*)opt + oo->var_offset);
+                ParamList*   prev = NULL;
+                ParamList*   cur  = *head;
+
+                while (cur != NULL) {
+                    ParamList*  next = cur->next;
+                    cur->next = prev;
+                    prev      = cur;
+                    cur       = next;
+                }
+                *head = prev;
+            }
+        }
+    }
 
     return 0;
 }
