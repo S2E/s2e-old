@@ -1504,7 +1504,7 @@ static int gdbserver_open(int port)
     /* allow fast reuse */
     socket_set_xreuseaddr(fd);
 
-    sock_address_init_inet( &sockaddr, port, SOCK_ADDRESS_INET_ANY );
+    sock_address_init_inet( &sockaddr, SOCK_ADDRESS_INET_ANY, port );
     ret = socket_bind(fd, &sockaddr);
     if (ret < 0) {
         perror("bind");
