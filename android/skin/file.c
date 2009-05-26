@@ -125,6 +125,7 @@ static KeyInfo  _keyinfo_table[] = {
     { "dpad-center",  kKeyCodeDpadCenter },
     { "soft-left",    kKeyCodeSoftLeft },
     { "soft-right",   kKeyCodeSoftRight },
+    { "search",       kKeyCodeSearch },
     { "volume-up",    kKeyCodeVolumeUp },
     { "volume-down",  kKeyCodeVolumeDown },
     { "power",        kKeyCodePower },
