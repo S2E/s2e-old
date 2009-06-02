@@ -421,6 +421,7 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               shaper.c charpipe.c loadpng.c \
               framebuffer.c \
               tcpdump.c \
+              android/boot-properties.c \
               android/charmap.c \
               android/cmdline-option.c \
               android/config.c \

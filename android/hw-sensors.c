@@ -158,7 +158,8 @@ static void  hw_sensors_timer_tick(void*  opaque);
 /* Qemud service management */
 
 static void
-_hw_sensors_qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
+_hw_sensors_qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen,
+                               QemudClient*  client )
 {
     hw_sensors_receive(opaque, msg, msglen);
 }

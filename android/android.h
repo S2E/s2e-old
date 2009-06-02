@@ -13,7 +13,7 @@
 #define  _qemu_android_h
 
 #define  ANDROID_VERSION_MAJOR  1
-#define  ANDROID_VERSION_MINOR  9
+#define  ANDROID_VERSION_MINOR  10
 
 #define  CONFIG_SHAPER  1
 

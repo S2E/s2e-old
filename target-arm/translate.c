@@ -5691,7 +5691,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     insn = ldl_code(s->pc);
 #ifdef CONFIG_TRACE
     if (tracing) {
-        trace_add_insn(insn);
+        trace_add_insn(insn, 0);
         ticks = get_insn_ticks_arm(insn);
         gen_helper_traceInsn();
     }
@@ -6014,7 +6014,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         case 0x5: /* saturating add/subtract */
             rd = (insn >> 12) & 0xf;
             rn = (insn >> 16) & 0xf;
-            tmp = load_reg(s, rn);
+            tmp = load_reg(s, rm);
             tmp2 = load_reg(s, rn);
             if (op1 & 2)
                 gen_helper_double_saturate(tmp2, tmp2);

@@ -42,7 +42,7 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
 {
     trace_dev_state *s = (trace_dev_state *)opaque;
 
-    offset -= s->base;
+    offset -= s->dev.base;
     switch (offset >> 2) {
     case TRACE_DEV_REG_SWITCH:  // context switch, switch to pid
         trace_switch(value);
@@ -202,8 +202,22 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
         trace_munmap(unmap_start, value);
         break;
 
+    case TRACE_DEV_REG_METHOD_ENTRY:
+    case TRACE_DEV_REG_METHOD_EXIT:
+    case TRACE_DEV_REG_METHOD_EXCEPTION:
+    case TRACE_DEV_REG_NATIVE_ENTRY:
+    case TRACE_DEV_REG_NATIVE_EXIT:
+    case TRACE_DEV_REG_NATIVE_EXCEPTION:
+        if (tracing) {
+            int call_type = (offset - 4096) >> 2;
+            trace_interpreted_method(value, call_type);
+        }
+        break;
+
     default:
-        cpu_abort(cpu_single_env, "trace_dev_write: Bad offset %x\n", offset);
+        if (offset < 4096) {
+            cpu_abort(cpu_single_env, "trace_dev_write: Bad offset %x\n", offset);
+        }
         break;
     }
 }
@@ -213,12 +227,14 @@ static uint32_t trace_dev_read(void *opaque, target_phys_addr_t offset)
 {
     trace_dev_state *s = (trace_dev_state *)opaque;
 
-    offset -= s->base;
+    offset -= s->dev.base;
     switch (offset >> 2) {
     case TRACE_DEV_REG_ENABLE:          // tracing enable
         return tracing;
     default:
-        cpu_abort(cpu_single_env, "trace_dev_read: Bad offset %x\n", offset);
+        if (offset < 4096) {
+            cpu_abort(cpu_single_env, "trace_dev_read: Bad offset %x\n", offset);
+        }
         return 0;
     }
     return 0;
@@ -237,15 +253,20 @@ static CPUWriteMemoryFunc *trace_dev_writefn[] = {
 };
 
 /* initialize the trace device */
-void trace_dev_init(uint32_t base)
+void trace_dev_init()
 {
     int iomemtype;
     trace_dev_state *s;
 
     s = (trace_dev_state *)qemu_mallocz(sizeof(trace_dev_state));
-    iomemtype = cpu_register_io_memory(0, trace_dev_readfn, trace_dev_writefn, s);
-    cpu_register_physical_memory(base, 0x00000fff, iomemtype);
-    s->base = base;
+    s->dev.name = "qemu_trace";
+    s->dev.id = -1;
+    s->dev.base = 0;       // will be allocated dynamically
+    s->dev.size = 0x2000;
+    s->dev.irq = 0;
+    s->dev.irq_count = 0;
+
+    goldfish_device_add(&s->dev, trace_dev_readfn, trace_dev_writefn, s);
 
     path[0] = arg[0] = '\0';
 }

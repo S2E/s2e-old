@@ -289,6 +289,9 @@ void events_dev_init(uint32_t base, qemu_irq irq)
      *   Note that previous models also had a KEY_SOFT2,
      *   and a KEY_POWER  which we still support here.
      *
+     *   Newer models have a KEY_SEARCH key, which we always
+     *   enable here.
+     *
      * A Dpad will send: KEY_DOWN / UP / LEFT / RIGHT / CENTER
      *
      * The KEY_CAMERA button isn't very useful if there is no camera.
@@ -307,6 +310,7 @@ void events_dev_init(uint32_t base, qemu_irq irq)
     events_set_bit(s, EV_KEY, KEY_VOLUMEDOWN);
     events_set_bit(s, EV_KEY, KEY_SOFT2);
     events_set_bit(s, EV_KEY, KEY_POWER);
+    events_set_bit(s, EV_KEY, KEY_SEARCH);
 
     if (config->hw_dPad) {
         events_set_bit(s, EV_KEY, KEY_DOWN);

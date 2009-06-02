@@ -226,7 +226,7 @@ static int qesd_run_out (HWVoiceOut *hw)
     esd->live = live - decr;
     hw->rpos = esd->rpos;
     if (esd->live > 0) {
-        O("%s: signaling %d samples\n", esd->live);
+        O("%s: signaling %d samples\n", __FUNCTION__, esd->live);
         audio_pt_unlock_and_signal (&esd->pt, AUDIO_FUNC);
     }
     else {

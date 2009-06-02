@@ -51,9 +51,10 @@ static void  hw_control_do_query( HwControl*  h, uint8_t*  query, int  querylen 
 
 /* called when a qemud client sends a command */
 static void
-_hw_control_qemud_client_recv( void*  opaque,
-                               uint8_t*  msg,
-                               int       msglen )
+_hw_control_qemud_client_recv( void*         opaque,
+                               uint8_t*      msg,
+                               int           msglen,
+                               QemudClient*  client )
 {
     hw_control_do_query(opaque, msg, msglen);
 }

@@ -51,7 +51,7 @@ void *goldfish_switch_add(char *name, uint32_t (*writefn)(void *opaque, uint32_t
 void goldfish_switch_set_state(void *opaque, uint32_t state);
 
 // these do not add a device
-void trace_dev_init(uint32_t base);
+void trace_dev_init();
 void events_dev_init(uint32_t base, qemu_irq irq);
 void nand_dev_init(uint32_t base);
 

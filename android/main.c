@@ -52,6 +52,7 @@
 #include "android/hw-kmsg.h"
 #include "android/hw-control.h"
 #include "android/hw-sensors.h"
+#include "android/boot-properties.h"
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
@@ -2493,6 +2494,20 @@ int main(int argc, char **argv)
         }
     }
 
+    /* start the 'boot-properties service, and parse the -prop
+     * options, if any.
+     */
+    boot_property_init_service();
+
+    if (opts->prop != NULL) {
+        ParamList*  pl = opts->prop;
+        for ( ; pl != NULL; pl = pl->next ) {
+            boot_property_parse_option(pl->param);
+        }
+    }
+
+    /* Setup the kernel init options
+     */
     {
         static char  params[1024];
         char        *p = params, *end = p + sizeof(params);

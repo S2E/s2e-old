@@ -12,10 +12,59 @@ Versions:
    1.6 => SDK 1.0_r1
    1.7 => SDK 1.0_r2
    1.8 => SDK 1.1
-   1.9 => (unreleased, planned, named likely to change)
+   1.9 => SDK 1.5_r1
+   1.10 => unreleased yet
 
 ==============================================================================
-Changes between 1.8 and 1.9
+Changes between 1.10 and 1.9
+
+IMPORTANT BUG FIXES:
+
+- Fixed sock_address_init_resolve() in sockets.c to work properly on
+  IPv6 capable systems, when the list returned by getaddrinfo() doesn't
+  necessarily reflect the simplistic heuristics that were used by the
+  previous implementation. On such systems, inter-emulator telephony
+  and SMS didn't work properly, as well as certain other network-related
+  tasks.
+
+IMPORTANT CHANGES:
+
+- Skins can now provide a button for the "SEARCH" scan-code, simply using
+  the "search" label for it.
+
+- A new option '-prop <name>=<value>' can be used to set a system property
+  at boot time in the emulated system. This only works for system images
+  starting at 1.5_r3, and will be ignored for older ones.
+
+  Note that properties starting with "ro." can only be set once. Moreover,
+  all system properties in the system build.prop or local.prop are parsed
+  by init before anything else. Any "ro." property in them cannot be
+  changed with this option.
+
+OTHER:
+
+- Allow the SEARCH key-binding (F5) to work on keyboard-less hardware
+  configurations (AVDs).
+
+- Fixed a typo which prevented the kernel gdbstub from working properly
+
+- Fixed bad QADD/QDADD/QSUB/QDSUB emulation in the ARM JIT.
+
+- Fixed one minor crash when the Linux OSS audio backend was used with the
+  -debug-audio option.
+
+- Fixed emulator tracing bug (basic block address could be wrong). And add
+  support for recording native (JNI) calls when profiling.
+
+- Fixed build for platforms where deprecated symbol EAI_NODATA is not
+  defined.
+
+- 
+
+- Added some technical documentation in the docs/ directory.
+
+==============================================================================
+Changes between 1.9 and 1.8
 
 IMPORTANT CHANGES:
 
@@ -130,7 +179,7 @@ OTHER:
   people toggle the mode by accident.
 
 ==============================================================================
-Changes between 1.6 and 1.7
+Changes between 1.7 and 1.6
 
 IMPORTANT BUG FIXES:
 
@@ -170,7 +219,7 @@ OTHER:
 - '-qemu <other-options>' works again
 
 ==============================================================================
-Changes between 1.5 and 1.6
+Changes between 1.6 and 1.5
 
 IMPORTANT CHANGES:
 
@@ -206,7 +255,7 @@ OTHER:
   properly modify the voice icon on the device
 
 ==============================================================================
-Changes between 1.4 and 1.5
+Changes between 1.5 and 1.4
 
 IMPORTANT BUG FIXES:
 
@@ -229,7 +278,7 @@ OTHER:
   releases.
 
 ==============================================================================
-Changes between 1.3 and 1.4
+Changes between 1.4 and 1.3
 
 IMPORTANT BUG FIXES:
 
@@ -304,7 +353,7 @@ KNOWN ISSUES:
   emulated system, though a single serial port.
 
 ==============================================================================
-Changes between 1.2 and 1.3
+Changes between 1.3 and 1.2
 
 IMPORTANT BUG FIXES:
 
@@ -400,7 +449,7 @@ KNOWN ISSUES:
   emulated system, though a single serial port.
 
 ==============================================================================
-Changes between 1.1 and 1.2
+Changes between 1.2 and 1.1
 
 
 IMPORTANT BUG FIXES:
