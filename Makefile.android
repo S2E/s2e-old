@@ -14,7 +14,7 @@ MY_CFLAGS := $(CONFIG_INCLUDES) -O2 -g \
              -falign-functions=0 \
              -fomit-frame-pointer \
 
-:wqMY_LDFLAGS :=
+MY_LDFLAGS :=
 
 # this is needed to build the emulator on 64-bit Linux systems
 ifeq ($(HOST_OS)-$(HOST_ARCH),linux-x86)
@@ -37,6 +37,23 @@ endif
 
 ifeq ($(HOST_OS),darwin)
     MY_CFLAGS += -mdynamic-no-pic
+
+    # When building on Leopard or above, we need to use the 10.4 SDK
+    # or the generated binary will not run on Tiger.
+    DARWIN_VERSION := $(strip $(shell sw_vers -productVersion))
+    ifneq ($(filter 10.1 10.2 10.3 10.1.% 10.2.% 10.3.%,$(DARWIN_VERSION)),)
+        $(error Building the Android emulator requires OS X 10.4 or above)
+    endif
+    ifeq ($(filter 10.4 10.4.%,$(DARWIN_VERSION)),)
+        # We are on Leopard or above
+        TIGER_SDK := /Developer/SDKs/MacOSX10.4u.sdk
+        ifeq ($(strip $(wildcard $(TIGER_SDK))),)
+            $(info  Please install the 10.4 SDK on this machine at $(TIGER_SDK))
+            $(error Aborting the build.)
+        endif
+        MY_CFLAGS  += -isysroot $(TIGER_SDK) -mmacosx-version-min=10.4
+        MY_LDFLAGS += -isysroot $(TIGER_SDK) -Wl,-syslibroot,$(TIGER_SDK) -mmacosx-version-min=10.4
+    endif
 endif
 MY_CC := $(HOST_CC)
 
