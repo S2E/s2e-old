@@ -308,6 +308,12 @@ ifeq ($(BUILD_QEMU_AUDIO_LIB),true)
                   -I$(LOCAL_PATH)/target-arm \
                   -I$(LOCAL_PATH)/fpu \
 
+  # this is very important, otherwise the generated binaries may
+  # not link properly on our build servers
+  ifeq ($(HOST_OS),linux)
+    LOCAL_CFLAGS += -fno-stack-protector
+  endif
+
   LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(AUDIO_CFLAGS)
 
   LOCAL_CFLAGS += $(SDL_CFLAGS)
@@ -456,7 +462,6 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               android/utils/bufprint.c \
               android/utils/debug.c \
               android/utils/dirscanner.c \
-              android/utils/display.c \
               android/utils/ini.c \
               android/utils/filelock.c \
               android/utils/misc.c \
@@ -468,17 +473,6 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               android/utils/timezone.c \
               android/avd/hw-config.c \
               android/avd/info.c \
-
-# we need to add a Quartz-specific file
-ifeq ($(HOST_OS),darwin)
-  # Alas, the Android build system doesn't know how to deal
-  # with Objective C sources yet.
-  ifeq ($(BUILD_STANDALONE_EMULATOR),true)
-    VL_SOURCES += android/utils/display-quartz.m
-  else
-    LOCAL_CFLAGS += -DCONFIG_NO_COCOA
-  endif
-endif
 
 VL_SOURCES += hw/arm_boot.c \
               hw/android_arm.c \
