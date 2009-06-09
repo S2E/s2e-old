@@ -27,7 +27,7 @@ fi
 LOCAL=$CURDIR/local
 
 cd $CURDIR/sdl
-if ! (./android-configure --prefix=$LOCAL && make && make install); then
+if ! (ANDROID_QEMU_PATH=$CURDIR/qemu ./android-configure.sh --prefix=$LOCAL && make && make install); then
     echo "ERROR: could not build SDL library, please check their sources"
 fi
 

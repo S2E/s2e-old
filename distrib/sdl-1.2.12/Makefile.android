@@ -1,0 +1,299 @@
+LOCAL_PATH:= $(call my-dir)
+
+CONFIG_DIRS     := \
+    $(LOCAL_PATH)/objs \
+    $(LOCAL_PATH)/include \
+    $(LOCAL_PATH) \
+
+CONFIG_INCLUDES := $(CONFIG_DIRS:%=-I%)
+
+MY_CC      := $(CC)
+MY_LD      := $(LD)
+MY_CFLAGS  := $(CFLAGS) $(CONFIG_INCLUDES)
+MY_LDFLAGS := $(LDFLAGS)
+
+include $(CLEAR_VARS)
+
+LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
+LOCAL_CC                        := $(MY_CC)
+LOCAL_CFLAGS                    := $(MY_CFLAGS) $(LOCAL_CFLAGS)
+LOCAL_LDFLAGS                   := $(MY_LDFLAGS) $(LOCAL_LDFLAGS)
+
+LOCAL_MODULE := libSDL
+
+LOCAL_SRC_FILES :=
+
+# the main src/ sources
+#
+SRCS := SDL.c \
+        SDL_error.c \
+        SDL_fatal.c \
+
+SRCS += events/SDL_active.c \
+	events/SDL_events.c \
+	events/SDL_expose.c \
+	events/SDL_keyboard.c \
+	events/SDL_mouse.c \
+	events/SDL_quit.c \
+	events/SDL_resize.c \
+
+SRCS += file/SDL_rwops.c
+
+ifeq ($(CONFIG_LIBC),yes)
+  SRCS += stdlib/SDL_getenv.c \
+  	  stdlib/SDL_iconv.c \
+  	  stdlib/SDL_malloc.c \
+  	  stdlib/SDL_qsort.c \
+  	  stdlib/SDL_stdlib.c \
+  	  stdlib/SDL_string.c
+endif
+
+ifeq ($(CONFIG_CPUINFO),yes)
+  SRCS += cpuinfo/SDL_cpuinfo.c
+endif
+
+LOCAL_SRC_FILES += $(SRCS:%=src/%)
+
+# the Audio sources
+#
+SRCS := SDL_audio.c \
+	SDL_audiocvt.c \
+	SDL_audiodev.c \
+	SDL_mixer.c \
+	SDL_mixer_MMX.c \
+	dummy/SDL_dummyaudio.c \
+
+ifeq ($(CONFIG_AUDIO_ALSA),yes)
+  SRCS += alsa/SDL_alsa_audio.c
+endif
+
+ifeq ($(CONFIG_AUDIO_ESD),yes)
+  SRCS += esd/SDL_esdaudio.c
+endif
+
+ifeq ($(CONFIG_AUDIO_OSS),yes)
+  SRCS += dsp/SDL_dspaudio.c \
+          dma/SDL_dmaaudio.c
+endif
+
+ifeq ($(CONFIG_AUDIO_COREAUDIO),yes)
+  SRCS += macosx/SDL_coreaudio.c
+endif
+
+ifeq ($(CONFIG_AUDIO_WAVEOUT),yes)
+  SRCS += windib/SDL_dibaudio.c
+endif
+
+LOCAL_SRC_FILES += $(SRCS:%=src/audio/%)
+
+# the LoadSO sources
+#
+
+SRCS :=
+
+ifeq ($(CONFIG_LOADSO_DLOPEN),yes)
+  SRCS += dlopen/SDL_sysloadso.c
+endif
+
+ifeq ($(CONFIG_LOADSO_DLCOMPAT),yes)
+  SRCS += macosx/SDL_dlcompat.c
+endif
+
+ifeq ($(CONFIG_LOADSO_WIN32),yes)
+  SRCS += win32/SDL_sysloadso.c
+endif
+
+LOCAL_SRC_FILES += $(SRCS:%=src/loadso/%)
+
+# the Thread sources
+#
+
+SRCS := SDL_thread.c
+
+ifeq ($(CONFIG_THREAD_PTHREAD),yes)
+  SRCS += pthread/SDL_syscond.c \
+          pthread/SDL_sysmutex.c \
+          pthread/SDL_syssem.c \
+          pthread/SDL_systhread.c
+endif
+
+ifeq ($(CONFIG_THREAD_WIN32),yes)
+  SRCS += win32/SDL_sysmutex.c \
+          win32/SDL_syssem.c \
+          win32/SDL_systhread.c
+endif
+
+LOCAL_SRC_FILES += $(SRCS:%=src/thread/%)
+
+# the Timer sources
+#
+
+SRCS := SDL_timer.c
+
+ifeq ($(CONFIG_TIMER_UNIX),yes)
+  SRCS += unix/SDL_systimer.c
+endif
+
+ifeq ($(CONFIG_TIMER_WIN32),yes)
+  SRCS += win32/SDL_systimer.c
+endif
+
+LOCAL_SRC_FILES += $(SRCS:%=src/timer/%)
+
+# the Video sources
+#
+
+SRCS := SDL_RLEaccel.c \
+	SDL_blit.c \
+	SDL_blit_0.c \
+	SDL_blit_1.c \
+	SDL_blit_A.c \
+	SDL_blit_N.c \
+	SDL_bmp.c \
+	SDL_cursor.c \
+	SDL_gamma.c \
+	SDL_pixels.c \
+	SDL_stretch.c \
+	SDL_surface.c \
+	SDL_video.c \
+	SDL_yuv.c \
+	SDL_yuv_mmx.c \
+	SDL_yuv_sw.c \
+
+SRCS += dummy/SDL_nullevents.c \
+        dummy/SDL_nullmouse.c \
+        dummy/SDL_nullvideo.c
+
+ifeq ($(CONFIG_VIDEO_WINDIB),yes)
+  SRCS += windib/SDL_dibevents.c \
+          windib/SDL_dibvideo.c \
+          wincommon/SDL_sysevents.c \
+          wincommon/SDL_sysmouse.c \
+          wincommon/SDL_syswm.c \
+          wincommon/SDL_wingl.c
+endif
+
+ifeq ($(CONFIG_VIDEO_QUARTZ),yes)
+  SRCS += quartz/SDL_QuartzGL.m \
+          quartz/SDL_QuartzVideo.m \
+          quartz/SDL_QuartzWM.m \
+          quartz/SDL_QuartzWindow.m \
+          quartz/SDL_QuartzYUV.m \
+          quartz/SDL_QuartzEvents.m \
+          maccommon/SDL_macevents.c \
+          maccommon/SDL_macgl.c \
+          maccommon/SDL_macmouse.c \
+          maccommon/SDL_macwm.c
+endif
+
+ifeq ($(CONFIG_VIDEO_X11),yes)
+  SRCS += x11/SDL_x11dyn.c \
+          x11/SDL_x11dga.c \
+          x11/SDL_x11events.c \
+          x11/SDL_x11gamma.c \
+          x11/SDL_x11gl.c \
+          x11/SDL_x11image.c \
+          x11/SDL_x11modes.c \
+          x11/SDL_x11mouse.c \
+          x11/SDL_x11video.c \
+          x11/SDL_x11wm.c \
+          x11/SDL_x11yuv.c
+endif
+
+ifeq ($(CONFIG_VIDEO_X11_DGAMOUSE),yes)
+  SRCS += x11/SDL_x11dga.c
+endif
+
+ifeq ($(CONFIG_VIDEO_X11_XME),yes)
+  SRCS += Xext/XME/xme.c
+endif
+
+ifeq ($(CONFIG_VIDEO_X11_XINERAMA),yes)
+  SRCS += Xext/Xinerama/Xinerama.c
+endif
+
+ifeq ($(CONFIG_VIDEO_X11_XV),yes)
+  SRCS += Xext/Xv/Xv.c
+endif
+
+LOCAL_SRC_FILES += $(SRCS:%=src/video/%)
+
+include $(BUILD_HOST_STATIC_LIBRARY)
+
+## Build libSDLmain
+##
+
+include $(CLEAR_VARS)
+
+LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
+LOCAL_CC                        := $(MY_CC)
+LOCAL_CFLAGS                    := $(MY_CFLAGS) $(LOCAL_CFLAGS)
+LOCAL_LDFLAGS                   := $(MY_LDFLAGS) $(LOCAL_LDFLAGS)
+
+LOCAL_MODULE := libSDLmain
+
+SRCS :=
+
+ifeq ($(CONFIG_MAIN_DUMMY),yes)
+  SRCS += dummy/SDL_dummy_main.c
+endif
+
+ifeq ($(CONFIG_MAIN_MACOSX),yes)
+  SRCS += macosx/SDLMain.m
+endif
+
+ifeq ($(HOST_OS),windows)
+  SRCS += win32/SDL_win32_main.c
+endif
+
+LOCAL_SRC_FILES := $(SRCS:%=src/main/%)
+
+include $(BUILD_HOST_STATIC_LIBRARY)
+
+# handle installation of generated files
+#
+
+SDL_HEADERS := \
+	SDL.h \
+	SDL_active.h \
+	SDL_audio.h \
+	SDL_byteorder.h \
+	SDL_cdrom.h \
+	SDL_copying.h \
+	SDL_cpuinfo.h \
+	SDL_endian.h \
+	SDL_error.h \
+	SDL_events.h \
+	SDL_getenv.h \
+	SDL_joystick.h \
+	SDL_keyboard.h \
+	SDL_keysym.h \
+	SDL_loadso.h \
+	SDL_main.h \
+	SDL_mouse.h \
+	SDL_mutex.h \
+	SDL_name.h \
+	SDL_opengl.h \
+	SDL_platform.h \
+	SDL_quit.h \
+	SDL_rwops.h \
+	SDL_stdinc.h \
+	SDL_syswm.h \
+	SDL_thread.h \
+	SDL_timer.h \
+	SDL_types.h \
+	SDL_version.h \
+	SDL_video.h \
+	begin_code.h \
+	close_code.h \
+
+
+$(foreach target,$(INSTALL_TARGETS),\
+  $(eval $(call install-target,objs/sdl-config,$(target)/bin/sdl-config)) \
+  $(eval $(call install-target,objs/SDL_config.h,$(target)/include/SDL/SDL_config.h)) \
+  $(eval $(call install-target,objs/libSDL.a,$(target)/lib/libSDL.a)) \
+  $(eval $(call install-target,objs/libSDLmain.a,$(target)/lib/libSDLmain.a)) \
+  $(foreach header,$(SDL_HEADERS), \
+    $(eval $(call install-target,include/$(header),$(target)/include/SDL/$(header))) \
+  ) \
+)

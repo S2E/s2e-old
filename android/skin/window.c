@@ -14,7 +14,6 @@
 #include "android/skin/scaler.h"
 #include "android/charmap.h"
 #include "android/utils/debug.h"
-#include "android/utils/display.h"
 #include "android/hw-sensors.h"
 #include <SDL_syswm.h>
 #include "qemu-common.h"
@@ -1107,12 +1106,19 @@ skin_window_resize( SkinWindow*  window )
         int           fullscreen = window->fullscreen;
 
         if (fullscreen) {
-            if (get_nearest_monitor_rect(&window_x, &window_y,
-                                         &window_w, &window_h) < 0) {
+            SDL_Rect  r;
+            if (SDL_WM_GetMonitorRect(&r) < 0) {
                 fullscreen = 0;
             } else {
-                double  x_scale = window_w * 1.0 / layout_w;
-                double  y_scale = window_h * 1.0 / layout_h;
+                double  x_scale, y_scale;
+
+                window_x = r.x;
+                window_y = r.y;
+                window_w = r.w;
+                window_h = r.h;
+
+                x_scale = window_w * 1.0 / layout_w;
+                y_scale = window_h * 1.0 / layout_h;
 
                 scale = (x_scale <= y_scale) ? x_scale : y_scale;
             }
