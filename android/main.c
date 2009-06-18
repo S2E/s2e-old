@@ -50,6 +50,7 @@
 #include "android/gps.h"
 #include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
+#include "android/hw-lcd.h"
 #include "android/hw-control.h"
 #include "android/hw-sensors.h"
 #include "android/boot-properties.h"
@@ -393,7 +394,7 @@ qemulator_rotate_keycode( QEmulator*      emulator,
 static int
 get_device_dpi( AndroidOptions*  opts )
 {
-    int    dpi_device  = DEFAULT_DEVICE_DPI;
+    int    dpi_device  = android_hw->hw_lcd_density;
 
     if (opts->dpi_device != NULL) {
         char*  end;
@@ -2497,6 +2498,8 @@ int main(int argc, char **argv)
      * options, if any.
      */
     boot_property_init_service();
+
+    hwLcd_setBootProperty(get_device_dpi(opts));
 
     if (opts->prop != NULL) {
         ParamList*  pl = opts->prop;

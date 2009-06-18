@@ -136,6 +136,13 @@ HWCFG_DISKSIZE(
   "Cache partition size",
   "")
 
+HWCFG_INT(
+  hw_lcd_density,
+  "hw.lcd.density",
+  160,
+  "Abstracted LCD density",
+  "Must be one of 120, 160 or 240. A value used to roughly describe the density of the LCD screen for automatic resource/asset selection.")
+
 #undef HWCFG_INT
 #undef HWCFG_BOOL
 #undef HWCFG_DISKSIZE
