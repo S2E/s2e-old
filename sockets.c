@@ -255,11 +255,14 @@ void  sock_address_done( SockAddress*  a )
 static char*
 format_char( char*  buf, char*  end, int  c )
 {
-    if (buf >= end)
-        return buf;
-    if (buf+1 == end)
-        c = 0;
-    *buf++ = (char) c;
+    if (buf < end) {
+        if (buf+1 == end) {
+            *buf++ = 0;
+        } else {
+            *buf++ = (char) c;
+            *buf    = 0;
+        }
+    }
     return buf;
 }
 
@@ -350,7 +353,7 @@ const char*
 sock_address_to_string( const SockAddress*  a )
 {
     static char buf0[MAX_PATH];
-    char       *buf = buf0, *end = buf + sizeof(buf0);
+    char *buf = buf0, *end = buf + sizeof(buf0);
 
     switch (a->family) {
     case SOCKET_INET:
