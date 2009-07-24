@@ -13,6 +13,11 @@
 #ifndef _ANDROID_BOOT_PROPERTIES_H
 #define _ANDROID_BOOT_PROPERTIES_H
 
+/* Manage the set of boot system properties.
+ * See the documentation for the 'boot-properties' service
+ * in docs/ANDROID-QEMUD-SERVICES.TXT
+ */
+
 /* these values give the maximum length of system property
  * names and values. They must match the corresponding definitions
  * in the Android source tree (in system/core/include/cutils/properties.h)
@@ -40,7 +45,7 @@ int  boot_property_add2( const char*  name, int  namelen,
  */
 void  boot_property_init_service( void );
 
-/* parse the parameter the list of -prop options passed on the command line
+/* parse the parameter of -prop options passed on the command line
  */
 void  boot_property_parse_option( const char*  param );
 

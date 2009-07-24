@@ -180,7 +180,9 @@ bufprint_config_path(char*  buff, char*  end)
         return bufprint(buff, end, "%s\\%s", path, _ANDROID_PATH );
     }
 #else
-    const char*  home = getenv("HOME");
+    const char*  home = getenv("ANDROID_SDK_HOME");
+    if (home == NULL)
+        home = getenv("HOME");
     if (home == NULL)
         home = "/tmp";
     return bufprint(buff, end, "%s/%s", home, _ANDROID_PATH );
