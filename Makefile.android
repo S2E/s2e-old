@@ -14,7 +14,7 @@ MY_CFLAGS := $(CONFIG_INCLUDES) -O2 -g \
              -falign-functions=0 \
              -fomit-frame-pointer \
 
-:wqMY_LDFLAGS :=
+MY_LDFLAGS :=
 
 # this is needed to build the emulator on 64-bit Linux systems
 ifeq ($(HOST_OS)-$(HOST_ARCH),linux-x86)
@@ -37,6 +37,23 @@ endif
 
 ifeq ($(HOST_OS),darwin)
     MY_CFLAGS += -mdynamic-no-pic
+
+    # When building on Leopard or above, we need to use the 10.4 SDK
+    # or the generated binary will not run on Tiger.
+    DARWIN_VERSION := $(strip $(shell sw_vers -productVersion))
+    ifneq ($(filter 10.1 10.2 10.3 10.1.% 10.2.% 10.3.%,$(DARWIN_VERSION)),)
+        $(error Building the Android emulator requires OS X 10.4 or above)
+    endif
+    ifeq ($(filter 10.4 10.4.%,$(DARWIN_VERSION)),)
+        # We are on Leopard or above
+        TIGER_SDK := /Developer/SDKs/MacOSX10.4u.sdk
+        ifeq ($(strip $(wildcard $(TIGER_SDK))),)
+            $(info  Please install the 10.4 SDK on this machine at $(TIGER_SDK))
+            $(error Aborting the build.)
+        endif
+        MY_CFLAGS  += -isysroot $(TIGER_SDK) -mmacosx-version-min=10.4
+        MY_LDFLAGS += -isysroot $(TIGER_SDK) -Wl,-syslibroot,$(TIGER_SDK) -mmacosx-version-min=10.4
+    endif
 endif
 MY_CC := $(HOST_CC)
 
@@ -291,6 +308,12 @@ ifeq ($(BUILD_QEMU_AUDIO_LIB),true)
                   -I$(LOCAL_PATH)/target-arm \
                   -I$(LOCAL_PATH)/fpu \
 
+  # this is very important, otherwise the generated binaries may
+  # not link properly on our build servers
+  ifeq ($(HOST_OS),linux)
+    LOCAL_CFLAGS += -fno-stack-protector
+  endif
+
   LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(AUDIO_CFLAGS)
 
   LOCAL_CFLAGS += $(SDL_CFLAGS)
@@ -421,6 +444,7 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               shaper.c charpipe.c loadpng.c \
               framebuffer.c \
               tcpdump.c \
+              android/boot-properties.c \
               android/charmap.c \
               android/cmdline-option.c \
               android/config.c \
@@ -430,6 +454,7 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               android/hw-control.c \
               android/hw-events.c \
               android/hw-kmsg.c \
+              android/hw-lcd.c \
               android/hw-qemud.c \
               android/hw-sensors.c \
               android/main.c \
@@ -438,7 +463,6 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               android/utils/bufprint.c \
               android/utils/debug.c \
               android/utils/dirscanner.c \
-              android/utils/display.c \
               android/utils/ini.c \
               android/utils/filelock.c \
               android/utils/misc.c \
@@ -450,17 +474,6 @@ VL_SOURCES := vl.c osdep.c cutils.c \
               android/utils/timezone.c \
               android/avd/hw-config.c \
               android/avd/info.c \
-
-# we need to add a Quartz-specific file
-ifeq ($(HOST_OS),darwin)
-  # Alas, the Android build system doesn't know how to deal
-  # with Objective C sources yet.
-  ifeq ($(BUILD_STANDALONE_EMULATOR),true)
-    VL_SOURCES += android/utils/display-quartz.m
-  else
-    LOCAL_CFLAGS += -DCONFIG_NO_COCOA
-  endif
-endif
 
 VL_SOURCES += hw/arm_boot.c \
               hw/android_arm.c \

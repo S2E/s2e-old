@@ -13,6 +13,7 @@
 #include "android/hw-sensors.h"
 #include "android/utils/debug.h"
 #include "android/utils/misc.h"
+#include "android/utils/system.h"
 #include "android/hw-qemud.h"
 #include "android/globals.h"
 #include "qemu-char.h"
@@ -139,45 +140,292 @@ typedef struct {
 #define  HEADER_SIZE  4
 #define  BUFFER_SIZE  512
 
+typedef struct HwSensorClient   HwSensorClient;
+
 typedef struct {
-    QemudService*   service;
-    int32_t         delay_ms;
-    uint32_t        enabledMask;
-    QEMUTimer*      timer;
-    Sensor          sensors[MAX_SENSORS];
+    QemudService*    service;
+    Sensor           sensors[MAX_SENSORS];
+    HwSensorClient*  clients;
 } HwSensors;
+
+struct HwSensorClient {
+    HwSensorClient*  next;
+    HwSensors*       sensors;
+    QemudClient*     client;
+    QEMUTimer*       timer;
+    uint32_t         enabledMask;
+    int32_t          delay_ms;
+};
+
+static void
+_hwSensorClient_free( HwSensorClient*  cl )
+{
+    /* remove from sensors's list */
+    if (cl->sensors) {
+        HwSensorClient**  pnode = &cl->sensors->clients;
+        for (;;) {
+            HwSensorClient*  node = *pnode;
+            if (node == NULL)
+                break;
+            if (node == cl) {
+                *pnode = cl->next;
+                break;
+            }
+            pnode = &node->next;
+        }
+        cl->next    = NULL;
+        cl->sensors = NULL;
+    }
+
+    /* close QEMUD client, if any */
+    if (cl->client) {
+        qemud_client_close(cl->client);
+        cl->client = NULL;
+    }
+    /* remove timer, if any */
+    if (cl->timer) {
+        qemu_del_timer(cl->timer);
+        qemu_free_timer(cl->timer);
+        cl->timer = NULL;
+    }
+    AFREE(cl);
+}
+
+/* forward */
+static void  _hwSensorClient_tick(void*  opaque);
+
+
+static HwSensorClient*
+_hwSensorClient_new( HwSensors*  sensors )
+{
+    HwSensorClient*  cl;
+
+    ANEW0(cl);
+
+    cl->sensors     = sensors;
+    cl->enabledMask = 0;
+    cl->delay_ms    = 1000;
+    cl->timer       = qemu_new_timer(vm_clock, _hwSensorClient_tick, cl);
+
+    cl->next         = sensors->clients;
+    sensors->clients = cl;
+
+    return cl;
+}
 
 /* forward */
 
-static void  hw_sensors_receive( HwSensors*  h,
-                                 uint8_t*    query,
-                                 int         querylen );
-
-static void  hw_sensors_timer_tick(void*  opaque);
+static void  _hwSensorClient_receive( HwSensorClient*  cl,
+                                      uint8_t*         query,
+                                      int              querylen );
 
 /* Qemud service management */
 
 static void
-_hw_sensors_qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
+_hwSensorClient_recv( void*  opaque, uint8_t*  msg, int  msglen,
+                      QemudClient*  client )
 {
-    hw_sensors_receive(opaque, msg, msglen);
+    HwSensorClient*  cl = opaque;
+
+    _hwSensorClient_receive(cl, msg, msglen);
 }
 
-static QemudClient*
-_hw_sensors_service_connect( void*  opaque, QemudService*  service, int  channel )
+static void
+_hwSensorClient_close( void*  opaque )
 {
-    HwSensors*    sensors = opaque;
-    QemudClient*  client  = qemud_client_new(service, channel,
-                                             sensors,
-                                             _hw_sensors_qemud_client_recv,
-                                             NULL);
+    HwSensorClient*  cl = opaque;
+
+    /* the client is already closed here */
+    cl->client = NULL;
+    _hwSensorClient_free(cl);
+}
+
+/* send a one-line message to the HAL module through a qemud channel */
+static void
+_hwSensorClient_send( HwSensorClient*  cl, const uint8_t*  msg, int  msglen )
+{
+    D("%s: '%s'", __FUNCTION__, quote_bytes((const void*)msg, msglen));
+    qemud_client_send(cl->client, msg, msglen);
+}
+
+static int
+_hwSensorClient_enabled( HwSensorClient*  cl, int  sensorId )
+{
+    return (cl->enabledMask & (1 << sensorId)) != 0;
+}
+
+/* this function is called periodically to send sensor reports
+ * to the HAL module, and re-arm the timer if necessary
+ */
+static void
+_hwSensorClient_tick( void*  opaque )
+{
+    HwSensorClient*  cl = opaque;
+    HwSensors*       hw  = cl->sensors;
+    int64_t          delay = cl->delay_ms;
+    int64_t          now_ns;
+    uint32_t         mask  = cl->enabledMask;
+    Sensor*          sensor;
+    char             buffer[128];
+
+    if (_hwSensorClient_enabled(cl, ANDROID_SENSOR_ACCELERATION)) {
+        sensor = &hw->sensors[ANDROID_SENSOR_ACCELERATION];
+        snprintf(buffer, sizeof buffer, "acceleration:%g:%g:%g",
+                 sensor->u.acceleration.x,
+                 sensor->u.acceleration.y,
+                 sensor->u.acceleration.z);
+        _hwSensorClient_send(cl, (uint8_t*)buffer, strlen(buffer));
+    }
+
+    if (_hwSensorClient_enabled(cl, ANDROID_SENSOR_MAGNETIC_FIELD)) {
+        sensor = &hw->sensors[ANDROID_SENSOR_MAGNETIC_FIELD];
+        snprintf(buffer, sizeof buffer, "magnetic-field:%g:%g:%g",
+                 sensor->u.magnetic.x,
+                 sensor->u.magnetic.y,
+                 sensor->u.magnetic.z);
+        _hwSensorClient_send(cl, (uint8_t*)buffer, strlen(buffer));
+    }
+
+    if (_hwSensorClient_enabled(cl, ANDROID_SENSOR_ORIENTATION)) {
+        sensor = &hw->sensors[ANDROID_SENSOR_ORIENTATION];
+        snprintf(buffer, sizeof buffer, "orientation:%g:%g:%g",
+                 sensor->u.orientation.azimuth,
+                 sensor->u.orientation.pitch,
+                 sensor->u.orientation.roll);
+        _hwSensorClient_send(cl, (uint8_t*)buffer, strlen(buffer));
+    }
+
+    if (_hwSensorClient_enabled(cl, ANDROID_SENSOR_TEMPERATURE)) {
+        sensor = &hw->sensors[ANDROID_SENSOR_TEMPERATURE];
+        snprintf(buffer, sizeof buffer, "temperature:%g",
+                 sensor->u.temperature.celsius);
+        _hwSensorClient_send(cl, (uint8_t*)buffer, strlen(buffer));
+    }
+
+    now_ns = qemu_get_clock(vm_clock);
+
+    snprintf(buffer, sizeof buffer, "sync:%lld", now_ns/1000);
+    _hwSensorClient_send(cl, (uint8_t*)buffer, strlen(buffer));
+
+    /* rearm timer, use a minimum delay of 20 ms, just to
+     * be safe.
+     */
+    if (mask == 0)
+        return;
+
+    if (delay < 20)
+        delay = 20;
+
+    delay *= 1000000LL;  /* convert to nanoseconds */
+    qemu_mod_timer(cl->timer, now_ns + delay);
+}
+
+/* handle incoming messages from the HAL module */
+static void
+_hwSensorClient_receive( HwSensorClient*  cl, uint8_t*  msg, int  msglen )
+{
+    HwSensors*  hw = cl->sensors;
+
+    D("%s: '%.*s'", __FUNCTION__, msglen, msg);
+
+    /* "list-sensors" is used to get an integer bit map of
+     * available emulated sensors. We compute the mask from the
+     * current hardware configuration.
+     */
+    if (msglen == 12 && !memcmp(msg, "list-sensors", 12)) {
+        char  buff[12];
+        int   mask = 0;
+        int   nn;
+
+        for (nn = 0; nn < MAX_SENSORS; nn++) {
+            if (hw->sensors[nn].enabled)
+                mask |= (1 << nn);
+        }
+
+        snprintf(buff, sizeof buff, "%d", mask);
+        _hwSensorClient_send(cl, (const uint8_t*)buff, strlen(buff));
+        return;
+    }
+
+    /* "wake" is a special message that must be sent back through
+     * the channel. It is used to exit a blocking read.
+     */
+    if (msglen == 4 && !memcmp(msg, "wake", 4)) {
+        _hwSensorClient_send(cl, (const uint8_t*)"wake", 4);
+        return;
+    }
+
+    /* "set-delay:<delay>" is used to set the delay in milliseconds
+     * between sensor events
+     */
+    if (msglen > 10 && !memcmp(msg, "set-delay:", 10)) {
+        cl->delay_ms = atoi((const char*)msg+10);
+        if (cl->enabledMask != 0)
+            _hwSensorClient_tick(cl);
+
+        return;
+    }
+
+    /* "set:<name>:<state>" is used to enable/disable a given
+     * sensor. <state> must be 0 or 1
+     */
+    if (msglen > 4 && !memcmp(msg, "set:", 4)) {
+        char*  q;
+        int    id, enabled, oldEnabledMask = cl->enabledMask;
+        msg += 4;
+        q    = strchr((char*)msg, ':');
+        if (q == NULL) {  /* should not happen */
+            D("%s: ignore bad 'set' command", __FUNCTION__);
+            return;
+        }
+        *q++ = 0;
+
+        id = _sensorIdFromName((const char*)msg);
+        if (id < 0 || id >= MAX_SENSORS) {
+            D("%s: ignore unknown sensor name '%s'", __FUNCTION__, msg);
+            return;
+        }
+
+        if (!hw->sensors[id].enabled) {
+            D("%s: trying to set disabled %s sensor", __FUNCTION__, msg);
+            return;
+        }
+        enabled = (q[0] == '1');
+
+        if (enabled)
+            cl->enabledMask |= (1 << id);
+        else
+            cl->enabledMask &= ~(1 << id);
+
+        if (cl->enabledMask != oldEnabledMask) {
+            D("%s: %s %s sensor", __FUNCTION__,
+                (cl->enabledMask & (1 << id))  ? "enabling" : "disabling",  msg);
+        }
+        _hwSensorClient_tick(cl);
+        return;
+    }
+
+    D("%s: ignoring unknown query", __FUNCTION__);
+}
+
+
+static QemudClient*
+_hwSensors_connect( void*  opaque, QemudService*  service, int  channel )
+{
+    HwSensors*       sensors = opaque;
+    HwSensorClient*  cl      = _hwSensorClient_new(sensors);
+    QemudClient*     client  = qemud_client_new(service, channel, cl,
+                                                _hwSensorClient_recv,
+                                                _hwSensorClient_close);
     qemud_client_set_framing(client, 1);
+    cl->client = client;
+
     return client;
 }
 
 /* change the value of the emulated acceleration vector */
 static void
-hw_sensors_set_acceleration( HwSensors*  h, float x, float y, float z )
+_hwSensors_setAcceleration( HwSensors*  h, float x, float y, float z )
 {
     Sensor*  s = &h->sensors[ANDROID_SENSOR_ACCELERATION];
     s->u.acceleration.x = x;
@@ -188,7 +436,7 @@ hw_sensors_set_acceleration( HwSensors*  h, float x, float y, float z )
 #if 0  /* not used yet */
 /* change the value of the emulated magnetic vector */
 static void
-hw_sensors_set_magnetic_field( HwSensors*  h, float x, float y, float z )
+_hwSensors_setMagneticField( HwSensors*  h, float x, float y, float z )
 {
     Sensor*  s = &h->sensors[ANDROID_SENSOR_MAGNETIC_FIELD];
     s->u.magnetic.x = x;
@@ -198,9 +446,9 @@ hw_sensors_set_magnetic_field( HwSensors*  h, float x, float y, float z )
 
 /* change the values of the emulated orientation */
 static void
-hw_sensors_set_orientation( HwSensors*  h, float azimuth, float pitch, float roll )
+_hwSensors_setOrientation( HwSensors*  h, float azimuth, float pitch, float roll )
 {
-    Sensor*  s = &h->sensors[ANDROID_SENSOR_MAGNETIC_FIELD];
+    Sensor*  s = &h->sensors[ANDROID_SENSOR_ORIENTATION];
     s->u.orientation.azimuth = azimuth;
     s->u.orientation.pitch   = pitch;
     s->u.orientation.roll    = roll;
@@ -208,16 +456,16 @@ hw_sensors_set_orientation( HwSensors*  h, float azimuth, float pitch, float rol
 
 /* change the emulated temperature */
 static void
-hw_sensors_set_temperature( HwSensors*  h, float celsius )
+_hwSensors_setTemperature( HwSensors*  h, float celsius )
 {
-    Sensor*  s = &h->sensors[ANDROID_SENSOR_MAGNETIC_FIELD];
+    Sensor*  s = &h->sensors[ANDROID_SENSOR_TEMPERATURE];
     s->u.temperature.celsius = celsius;
 }
 #endif
 
 /* change the coarse orientation (landscape/portrait) of the emulated device */
 static void
-hw_sensors_set_coarse_orientation( HwSensors*  h, AndroidCoarseOrientation  orient )
+_hwSensors_setCoarseOrientation( HwSensors*  h, AndroidCoarseOrientation  orient )
 {
     /* The Android framework computes the orientation by looking at
      * the accelerometer sensor (*not* the orientation sensor !)
@@ -237,11 +485,11 @@ hw_sensors_set_coarse_orientation( HwSensors*  h, AndroidCoarseOrientation  orie
 
     switch (orient) {
     case ANDROID_COARSE_PORTRAIT:
-        hw_sensors_set_acceleration( h, 0., g*cos_30, g*sin_30 );
+        _hwSensors_setAcceleration( h, 0., g*cos_30, g*sin_30 );
         break;
 
     case ANDROID_COARSE_LANDSCAPE:
-        hw_sensors_set_acceleration( h, g*cos_30, 0., g*sin_30 );
+        _hwSensors_setAcceleration( h, g*cos_30, 0., g*sin_30 );
         break;
     default:
         ;
@@ -251,181 +499,19 @@ hw_sensors_set_coarse_orientation( HwSensors*  h, AndroidCoarseOrientation  orie
 
 /* initialize the sensors state */
 static void
-hw_sensors_init( HwSensors*  h )
+_hwSensors_init( HwSensors*  h )
 {
-    h->service = qemud_service_register("sensors", 1, h,
-                                        _hw_sensors_service_connect );
-    h->enabledMask = 0;
-    h->delay_ms    = 1000;
-    h->timer       = qemu_new_timer(vm_clock, hw_sensors_timer_tick, h);
+    h->service = qemud_service_register("sensors", 0, h,
+                                        _hwSensors_connect );
 
-    hw_sensors_set_coarse_orientation(h, ANDROID_COARSE_PORTRAIT);
+    if (android_hw->hw_accelerometer)
+        h->sensors[ANDROID_SENSOR_ACCELERATION].enabled = 1;
+
+    /* XXX: TODO: Add other tests when we add the corresponding
+        * properties to hardware-properties.ini et al. */
+
+    _hwSensors_setCoarseOrientation(h, ANDROID_COARSE_PORTRAIT);
 }
-
-/* send a one-line message to the HAL module through a qemud channel */
-static void
-hw_sensors_send( HwSensors*  hw, const uint8_t*  msg, int  msglen )
-{
-    D("%s: '%s'", __FUNCTION__, quote_bytes((const void*)msg, msglen));
-    qemud_service_broadcast(hw->service, msg, msglen);
-}
-
-/* this function is called periodically to send sensor reports
- * to the HAL module, and re-arm the timer if necessary
- */
-static void
-hw_sensors_timer_tick( void*  opaque )
-{
-    HwSensors*  h = opaque;
-    int64_t     delay = h->delay_ms;
-    int64_t     now_ns;
-    uint32_t    mask  = h->enabledMask;
-    Sensor*     sensor;
-    char        buffer[128];
-
-    sensor = &h->sensors[ANDROID_SENSOR_ACCELERATION];
-    if (sensor->enabled) {
-        snprintf(buffer, sizeof buffer, "acceleration:%g:%g:%g",
-                 sensor->u.acceleration.x,
-                 sensor->u.acceleration.y,
-                 sensor->u.acceleration.z);
-        hw_sensors_send(h, (uint8_t*)buffer, strlen(buffer));
-    }
-
-    sensor = &h->sensors[ANDROID_SENSOR_MAGNETIC_FIELD];
-    if (sensor->enabled) {
-        snprintf(buffer, sizeof buffer, "magnetic-field:%g:%g:%g",
-                 sensor->u.magnetic.x,
-                 sensor->u.magnetic.y,
-                 sensor->u.magnetic.z);
-        hw_sensors_send(h, (uint8_t*)buffer, strlen(buffer));
-    }
-
-    sensor = &h->sensors[ANDROID_SENSOR_ORIENTATION];
-    if (sensor->enabled) {
-        snprintf(buffer, sizeof buffer, "orientation:%g:%g:%g",
-                 sensor->u.orientation.azimuth,
-                 sensor->u.orientation.pitch,
-                 sensor->u.orientation.roll);
-        hw_sensors_send(h, (uint8_t*)buffer, strlen(buffer));
-    }
-
-    sensor = &h->sensors[ANDROID_SENSOR_TEMPERATURE];
-    if (sensor->enabled) {
-        snprintf(buffer, sizeof buffer, "temperature:%g",
-                 sensor->u.temperature.celsius);
-        hw_sensors_send(h, (uint8_t*)buffer, strlen(buffer));
-    }
-
-    now_ns = qemu_get_clock(vm_clock);
-
-    snprintf(buffer, sizeof buffer, "sync:%lld", now_ns/1000);
-    hw_sensors_send(h, (uint8_t*)buffer, strlen(buffer));
-
-    /* rearm timer, use a minimum delay of 20 ms, just to
-     * be safe.
-     */
-    if (mask == 0)
-        return;
-
-    if (delay < 20)
-        delay = 20;
-
-    delay *= 1000000LL;  /* convert to nanoseconds */
-    qemu_mod_timer(h->timer, now_ns + delay);
-}
-
-/* handle incoming messages from the HAL module */
-static void
-hw_sensors_receive( HwSensors*  hw, uint8_t*  msg, int  msglen )
-{
-    D("%s: '%.*s'", __FUNCTION__, msglen, msg);
-
-    /* "list-sensors" is used to get an integer bit map of
-     * available emulated sensors. We compute the mask from the
-     * current hardware configuration.
-     */
-    if (msglen == 12 && !memcmp(msg, "list-sensors", 12)) {
-        char  buff[12];
-        int   mask = 0;
-
-        if (android_hw->hw_accelerometer)
-            mask |= (1 << ANDROID_SENSOR_ACCELERATION);
-
-        /* XXX: TODO: Add other tests when we add the corresponding
-         * properties to hardware-properties.ini et al. */
-
-        snprintf(buff, sizeof buff, "%d", mask);
-        hw_sensors_send(hw, (const uint8_t*)buff, strlen(buff));
-        return;
-    }
-
-    /* "wake" is a special message that must be sent back through
-     * the channel. It is used to exit a blocking read.
-     */
-    if (msglen == 4 && !memcmp(msg, "wake", 4)) {
-        hw_sensors_send(hw, (const uint8_t*)"wake", 4);
-        return;
-    }
-
-    /* "set-delay:<delay>" is used to set the delay in milliseconds
-     * between sensor events
-     */
-    if (msglen > 10 && !memcmp(msg, "set-delay:", 10)) {
-        hw->delay_ms = atoi((const char*)msg+10);
-        if (hw->enabledMask != 0)
-            hw_sensors_timer_tick(hw);
-
-        return;
-    }
-
-    /* "set:<name>:<state>" is used to enable/disable a given
-     * sensor. <state> must be 0 or 1
-     */
-    if (msglen > 4 && !memcmp(msg, "set:", 4)) {
-        char*  q;
-        int    id, enabled, oldEnabledMask = hw->enabledMask;
-        msg += 4;
-        q    = strchr((char*)msg, ':');
-        if (q == NULL) {  /* should not happen */
-            D("%s: ignore bad 'set' command", __FUNCTION__);
-            return;
-        }
-        *q++ = 0;
-
-        id = _sensorIdFromName((const char*)msg);
-        if (id < 0) {
-            D("%s: ignore unknown sensor name '%s'", __FUNCTION__, msg);
-            return;
-        }
-
-        enabled = (q[0] == '1');
-
-        hw->sensors[id].enabled = (char) enabled;
-        if (enabled)
-            hw->enabledMask |= (1 << id);
-        else
-            hw->enabledMask &= ~(1 << id);
-
-        D("%s: %s %s sensor", __FUNCTION__,
-          hw->sensors[id].enabled ? "enabling" : "disabling",  msg);
-
-        if (oldEnabledMask == 0 && enabled) {
-            /* we enabled our first sensor, start event reporting */
-            D("%s: starting event reporting (mask=%04x)", __FUNCTION__,
-              hw->enabledMask);
-        }
-        else if (hw->enabledMask == 0 && !enabled) {
-            /* we disabled our last sensor, stop event reporting */
-            D("%s: stopping event reporting", __FUNCTION__);
-        }
-        hw_sensors_timer_tick(hw);
-        return;
-    }
-
-    D("%s: ignoring unknown query", __FUNCTION__);
-}
-
 
 static HwSensors    _sensorsState[1];
 
@@ -435,7 +521,7 @@ android_hw_sensors_init( void )
     HwSensors*  hw = _sensorsState;
 
     if (hw->service == NULL) {
-        hw_sensors_init(hw);
+        _hwSensors_init(hw);
         D("%s: sensors qemud service initialized", __FUNCTION__);
     }
 }
@@ -445,6 +531,6 @@ extern void
 android_sensors_set_coarse_orientation( AndroidCoarseOrientation  orient )
 {
     android_hw_sensors_init();
-    hw_sensors_set_coarse_orientation(_sensorsState, orient);
+    _hwSensors_setCoarseOrientation(_sensorsState, orient);
 }
 

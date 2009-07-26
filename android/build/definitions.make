@@ -65,7 +65,7 @@ $$(OBJ): $$(SRC_PATH)/$$(SRC)
 	@mkdir -p $$(dir $$(PRIVATE_OBJ))
 	@echo "Compile: $$(PRIVATE_MODULE) <= $$(PRIVATE_SRC0)"
 	$(hide) $$(PRIVATE_CC) $$(PRIVATE_CFLAGS) -c -o $$(PRIVATE_OBJ) -MMD -MP -MF $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_SRC)
-	$(hide) $$(SRC_PATH)/android/build/mkdeps.sh $$(PRIVATE_OBJ) $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_OBJ).d
+	$(hide) $$(BUILD_SYSTEM)/mkdeps.sh $$(PRIVATE_OBJ) $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_OBJ).d
 endef
 
 # Compile an Objective-C source file
@@ -85,7 +85,23 @@ $$(OBJ): $$(SRC_PATH)/$$(SRC)
 	@mkdir -p $$(dir $$(PRIVATE_OBJ))
 	@echo "Compile: $$(PRIVATE_MODULE) <= $$(PRIVATE_SRC0)"
 	$(hide) $$(PRIVATE_CC) $$(PRIVATE_CFLAGS) -c -o $$(PRIVATE_OBJ) -MMD -MP -MF $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_SRC)
-	$(hide) $$(SRC_PATH)/android/build/mkdeps.sh $$(PRIVATE_OBJ) $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_OBJ).d
+	$(hide) $$(BUILD_SYSTEM)/mkdeps.sh $$(PRIVATE_OBJ) $$(PRIVATE_OBJ).d.tmp $$(PRIVATE_OBJ).d
+endef
+
+# Install a file
+#
+define install-target
+SRC:=$(1)
+DST:=$(2)
+$$(DST): PRIVATE_SRC := $$(SRC)
+$$(DST): PRIVATE_DST := $$(DST)
+$$(DST): PRIVATE_DST_NAME := $$(notdir $$(DST))
+$$(DST): PRIVATE_SRC_NAME := $$(SRC)
+$$(DST): $$(SRC)
+	@mkdir -p $$(dir $$(PRIVATE_DST))
+	@echo "Install: $$(PRIVATE_DST_NAME) <= $$(PRIVATE_SRC_NAME)"
+	$(hide) cp -f $$(PRIVATE_SRC) $$(PRIVATE_DST)
+install: $$(DST)
 endef
 
 # for now, we only use prebuilt SDL libraries, so copy them

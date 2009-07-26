@@ -545,7 +545,7 @@ qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
     /* no framing, things are simple */
     if (!c->framing) {
         if (c->clie_recv)
-            c->clie_recv( c->clie_opaque, msg, msglen );
+            c->clie_recv( c->clie_opaque, msg, msglen, c );
         return;
     }
 
@@ -566,7 +566,7 @@ qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
             if (c->clie_recv)
                 c->clie_recv( c->clie_opaque, 
                               msg+FRAME_HEADER_SIZE,
-                              msglen-FRAME_HEADER_SIZE);
+                              msglen-FRAME_HEADER_SIZE, c );
             return;
         }
     }
@@ -606,7 +606,7 @@ qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
 
 
         if (c->clie_recv)
-            c->clie_recv( c->clie_opaque, c->payload->buff, c->payload->size );
+            c->clie_recv( c->clie_opaque, c->payload->buff, c->payload->size, c );
 
         AFREE(c->payload->buff);
         c->need_header = 1;
@@ -893,9 +893,10 @@ qemud_multiplexer_disconnect( QemudMultiplexer*  m,
  * (i.e. msg[msglen] is a valid memory read that returns '\0')
  */
 static void
-qemud_multiplexer_control_recv( void*     opaque,
-                                uint8_t*  msg,
-                                int       msglen )
+qemud_multiplexer_control_recv( void*         opaque,
+                                uint8_t*      msg,
+                                int           msglen,
+                                QemudClient*  client )
 {
     QemudMultiplexer*  mult   = opaque;
     uint8_t*           msgend = msg + msglen;
@@ -1226,7 +1227,8 @@ typedef struct {
  * this simply sends the message through the charpipe to the user.
  */
 static void
-_qemud_char_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
+_qemud_char_client_recv( void*  opaque, uint8_t*  msg, int  msglen,
+                         QemudClient*  client )
 {
     CharDriverState*  cs = opaque;
     qemu_chr_write(cs, msg, msglen);

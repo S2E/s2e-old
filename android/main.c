@@ -50,14 +50,15 @@
 #include "android/gps.h"
 #include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
+#include "android/hw-lcd.h"
 #include "android/hw-control.h"
 #include "android/hw-sensors.h"
+#include "android/boot-properties.h"
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
 #include "android/utils/path.h"
 #include "android/utils/timezone.h"
-#include "android/utils/display.h"
 
 #include "android/cmdline-option.h"
 #include "android/help.h"
@@ -393,7 +394,7 @@ qemulator_rotate_keycode( QEmulator*      emulator,
 static int
 get_device_dpi( AndroidOptions*  opts )
 {
-    int    dpi_device  = DEFAULT_DEVICE_DPI;
+    int    dpi_device  = android_hw->hw_lcd_density;
 
     if (opts->dpi_device != NULL) {
         char*  end;
@@ -425,7 +426,7 @@ get_default_scale( AndroidOptions*  opts )
             /* we need to get the host dpi resolution ? */
             int   xdpi, ydpi;
 
-            if ( get_monitor_resolution( &xdpi, &ydpi ) < 0 ) {
+            if ( SDL_WM_GetMonitorDPI( &xdpi, &ydpi ) < 0 ) {
                 fprintf(stderr, "could not get monitor DPI resolution from system. please use -dpi-monitor to specify one\n" );
                 exit(1);
             }
@@ -2493,6 +2494,22 @@ int main(int argc, char **argv)
         }
     }
 
+    /* start the 'boot-properties service, and parse the -prop
+     * options, if any.
+     */
+    boot_property_init_service();
+
+    hwLcd_setBootProperty(get_device_dpi(opts));
+
+    if (opts->prop != NULL) {
+        ParamList*  pl = opts->prop;
+        for ( ; pl != NULL; pl = pl->next ) {
+            boot_property_parse_option(pl->param);
+        }
+    }
+
+    /* Setup the kernel init options
+     */
     {
         static char  params[1024];
         char        *p = params, *end = p + sizeof(params);

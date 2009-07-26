@@ -20,16 +20,6 @@ extern uint64_t start_time, end_time;
 extern uint64_t elapsed_usecs;
 extern uint64 Now();
 
-// Define magic addresses so that the simulated program can interact with the
-// simulator.
-#define kMagicBaseAddr		0x08000000
-#define kMagicBaseMask		0xfffff000
-#define kMagicOffsetMask	0x00000fff
-
-#define kMethodTraceEnterOffset		0x0004
-#define kMethodTraceExitOffset		0x0008
-#define kMethodTraceExceptionOffset	0x000c
-
 struct TranslationBlock;
 
 // For tracing dynamic execution of basic blocks
@@ -140,7 +130,7 @@ extern void start_tracing();
 extern void stop_tracing();
 extern void trace_init(const char *filename);
 extern void trace_bb_start(uint32_t bb_addr);
-extern void trace_add_insn_arm(uint32_t insn, int is_thumb);
+extern void trace_add_insn(uint32_t insn, int is_thumb);
 extern void trace_bb_end();
 
 extern int get_insn_ticks_arm(uint32_t insn);

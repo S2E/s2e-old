@@ -17,6 +17,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "android/utils/path.h"
+#include "android/utils/debug.h"
+
+#define  D(...) VERBOSE_PRINT(socket,__VA_ARGS__)
 
 #ifdef _WIN32
 #  define xxWIN32_LEAN_AND_MEAN
@@ -47,7 +50,10 @@
     do { _ret = (_cmd); } while ( _ret < 0 && WSAGetLastError() == WSAEINTR )
 #else
 #  define  QSOCKET_CALL(_ret,_cmd)   \
-    do { _ret = (_cmd); } while ( _ret < 0 && errno == EINTR )
+    do { \
+        errno = 0; \
+        do { _ret = (_cmd); } while ( _ret < 0 && errno == EINTR ); \
+    } while (0);
 #endif
 
 #ifdef _WIN32
@@ -122,7 +128,7 @@ _fix_errno( void )
             unix = werr->unix;
             break;
         }
-	}
+    }
     errno = unix;
     return -1;
 }
@@ -651,8 +657,51 @@ sock_address_init_resolve( SockAddress*  a, const char*  hostname, uint16_t  por
         return _set_errno(err);
     }
 
-    ret = sock_address_from_bsd( a, res->ai_addr, res->ai_addrlen );
-    freeaddrinfo(res);
+    /* Parse the returned list of addresses. */
+    {
+        struct addrinfo*  res_ipv4 = NULL;
+        struct addrinfo*  res_ipv6 = NULL;
+        struct addrinfo*  r;
+
+       /* If preferIn6 is false, we stop on the first IPv4 address,
+        * otherwise, we stop on the first IPv6 one
+        */
+        for (r = res; r != NULL; r = r->ai_next) {
+            if (r->ai_family == AF_INET && res_ipv4 == NULL) {
+                res_ipv4 = r;
+                if (!preferIn6)
+                    break;
+            }
+            else if (r->ai_family == AF_INET6 && res_ipv6 == NULL) {
+                res_ipv6 = r;
+                if (preferIn6)
+                    break;
+            }
+        }
+
+        /* Select the best address in 'r', which will be NULL
+         * if there is no corresponding address.
+         */
+        if (preferIn6) {
+            r = res_ipv6;
+            if (r == NULL)
+                r = res_ipv4;
+        } else {
+            r = res_ipv4;
+            if (r == NULL)
+                r = res_ipv6;
+        }
+
+        if (r == NULL) {
+            ret = _set_errno(ENOENT);
+            goto Exit;
+        }
+
+        /* Convert to a SockAddress */
+        ret = sock_address_from_bsd( a, r->ai_addr, r->ai_addrlen );
+        if (ret < 0)
+            goto Exit;
+    }
 
     /* need to set the port */
     switch (a->family) {
@@ -661,6 +710,8 @@ sock_address_init_resolve( SockAddress*  a, const char*  hostname, uint16_t  por
     default: ;
     }
 
+Exit:
+    freeaddrinfo(res);
     return ret;
 }
 
@@ -1001,15 +1052,15 @@ socket_bind_server( int  s, const SockAddress*  to, SocketType  type )
     socket_set_xreuseaddr(s);
 
     if (socket_bind(s, to) < 0) {
-        dprint("could not bind server socket address %s: %s", 
-                sock_address_to_string(to), errno_str);
+        D("could not bind server socket address %s: %s",
+          sock_address_to_string(to), errno_str);
         goto FAIL;
     }
 
     if (type == SOCKET_STREAM) {
         if (socket_listen(s, 4) < 0) {
-            dprint("could not listen server socket %s: %s",
-                   sock_address_to_string(to), errno_str);
+            D("could not listen server socket %s: %s",
+              sock_address_to_string(to), errno_str);
             goto FAIL;
         }
     }
@@ -1025,8 +1076,8 @@ static int
 socket_connect_client( int  s, const SockAddress*  to )
 {
     if (socket_connect(s, to) < 0) {
-        dprint( "could not connect client socket to %s: %s\n",
-                sock_address_to_string(to), errno_str );
+        D( "could not connect client socket to %s: %s\n",
+           sock_address_to_string(to), errno_str );
         socket_close(s);
         return -1;
     }
@@ -1104,8 +1155,8 @@ socket_accept_any( int  server_fd )
 
     QSOCKET_CALL(fd, accept( server_fd, NULL, 0 ));
     if (fd < 0) {
-        dprint( "could not accept client connection from fd %d: %s",
-                server_fd, errno_str );
+        D( "could not accept client connection from fd %d: %s",
+           server_fd, errno_str );
         return -1;
     }
 
