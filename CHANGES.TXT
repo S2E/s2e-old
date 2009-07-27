@@ -12,8 +12,18 @@ Versions:
    1.6 => SDK 1.0_r1
    1.7 => SDK 1.0_r2
    1.8 => SDK 1.1
-   1.9 => SDK 1.5_r1
-   1.10 => unreleased yet
+   1.9 => SDK 1.5_r1 (and SDK 1.5_r2)
+   1.10 => SDK 1.5_r3
+   1.11 => current
+
+==============================================================================
+Changes between 1.11 and 1.10
+
+IMPORTANT BUG FIXES:
+
+- Fixed ANDROID_SDK_HOME being ignored on Unix (not Windows). This environment
+  variable is used to locate a user's configuration files for the SDK, with a
+  default value of ~/.android
 
 ==============================================================================
 Changes between 1.10 and 1.9
@@ -41,6 +51,9 @@ IMPORTANT CHANGES:
   by init before anything else. Any "ro." property in them cannot be
   changed with this option.
 
+- Allow the HTTP proxy implementation to receive chunked encoding data.
+  This shall solve problems when talking to Microsoft proxies.
+
 OTHER:
 
 - Allow the SEARCH key-binding (F5) to work on keyboard-less hardware
@@ -59,7 +72,8 @@ OTHER:
 - Fixed build for platforms where deprecated symbol EAI_NODATA is not
   defined.
 
-- 
+- Fix GPS emulation to allow several clients concurrently. There are still
+  problems that may be due to changes in the system's framework.
 
 - Added some technical documentation in the docs/ directory.
 
