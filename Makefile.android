@@ -14,6 +14,13 @@ MY_CFLAGS := $(CONFIG_INCLUDES) -O2 -g \
              -falign-functions=0 \
              -fomit-frame-pointer \
 
+# Overwrite configuration for debug builds.
+#
+ifeq ($(BUILD_DEBUG_EMULATOR),true)
+    MY_CFLAGS := $(CONFIG_INCLUDES) -O0 -g \
+                 -fno-PIC -falign-functions=0
+endif
+
 MY_LDFLAGS :=
 
 # this is needed to build the emulator on 64-bit Linux systems
