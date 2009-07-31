@@ -17,108 +17,115 @@
 typedef struct {
     const char*  name;
     int          value;
-} PairRec;
+} EventInfo;
 
-#define  EV_TYPE(n,v)   { STRINGIFY(n), (v) },
-#define  BTN_CODE(n,v)  { STRINGIFY(n), (v) },
-#define  REL_CODE(n,v)  { STRINGIFY(n), (v) },
-#define  ABS_CODE(n,v)  { STRINGIFY(n), (v) },
+#define  EV_TYPE(n,v)   { "EV_" STRINGIFY(n), (v) },
 
-static const PairRec  _ev_types_tab[] =
+#define  BTN_CODE(n,v)  { "BTN_" STRINGIFY(n), (v) },
+#define  KEY_CODE(n,v)  { "KEY_" STRINGIFY(n), (v) },
+#define  REL_CODE(n,v)  { "REL_" STRINGIFY(n), (v) },
+#define  ABS_CODE(n,v)  { "ABS_" STRINGIFY(n), (v) },
+#define  END_CODE       { NULL, 0 }
+
+static const EventInfo  _ev_types_tab[] =
 {
     EVENT_TYPE_LIST
-    { NULL, 0 }
+    END_CODE
 };
 
-static const PairRec  _btn_codes_list[] =
+static const EventInfo _key_codes_list[] =
 {
+    EVENT_KEY_LIST
     EVENT_BTN_LIST
-    { NULL, 0 }
+    END_CODE
 };
 
-static const PairRec  _rel_codes_list[] =
+static const EventInfo _rel_codes_list[] =
 {
     EVENT_REL_LIST
-    { NULL, 0 }
+    END_CODE
 };
-
-static const PairRec  _abs_codes_list[] =
+static const EventInfo _abs_codes_list[] =
 {
     EVENT_ABS_LIST
-    { NULL, 0 }
+    END_CODE
 };
 
 #undef EV_TYPE
 #undef BTN_CODE
+#undef KEY_CODE
 #undef REL_CODE
 #undef ABS_CODE
 
-static int
-count_list( const PairRec*  list )
-{
-    int  nn = 0;
-    while (list[nn].name != NULL)
-        nn += 1;
+typedef const EventInfo*  EventList;
 
+typedef struct {
+    int               type;
+    const EventInfo*  table;
+} EventCodeList;
+
+
+static const EventCodeList  _codes[] = {
+    { EV_KEY, _key_codes_list },
+    { EV_REL, _rel_codes_list },
+    { EV_ABS, _abs_codes_list },
+    { -1, NULL }
+};
+
+static EventList
+eventList_findByType( int  type )
+{
+    int  nn;
+
+    for (nn = 0; _codes[nn].type >= 0; nn++) {
+        if (_codes[nn].type == type)
+            return _codes[nn].table;
+    }
+    return NULL;
+}
+
+static int
+eventList_getCount( EventList  list )
+{
+    int  nn;
+
+    if (list == NULL)
+        return 0;
+
+    for (nn = 0; list[nn].name != NULL; nn++) {
+        /* nothing */
+    }
     return nn;
 }
 
 static int
-scan_list( const PairRec*  list,
-           const char*     prefix,
-           const char*     name,
-           int             namelen )
+eventList_findCodeByName( EventList    list,
+                          const char*  name,
+                          int          namelen )
 {
-    int   len;
-
     if (namelen <= 0)
         return -1;
 
-    len = strlen(prefix);
-    if (namelen <= len)
-        return -1;
-    if ( memcmp( name, prefix, len ) != 0 )
-        return -1;
-
-    name    += len;
-    namelen -= len;
-
-    for ( ; list->name != NULL; list += 1 )
-    {
-        if ( memcmp( list->name, name, namelen ) == 0 && list->name[namelen] == 0 )
+    for ( ; list != NULL; list += 1 ) {
+        if ( !memcmp(name, list->name, namelen) &&
+             list->name[namelen] == 0 )
+        {
             return list->value;
+        }
     }
     return -1;
 }
 
-
-typedef struct {
-    int             type;
-    const char*     prefix;
-    const PairRec*  pairs;
-} TypeListRec;
-
-typedef const TypeListRec*  TypeList;
-
-static const TypeListRec  _types_list[] =
+static char*
+eventList_bufprintCode( EventList  list,
+                        int        index,
+                        char*      buf,
+                        char*      bufend )
 {
-    { EV_KEY, "BTN_", _btn_codes_list },
-    { EV_REL, "REL_", _rel_codes_list },
-    { EV_ABS, "ABS_", _abs_codes_list },
-    { -1, NULL, NULL }
-};
+    if (list == NULL)
+        return buf;
 
-
-static TypeList
-find_type_list( int  type )
-{
-    TypeList  list = _types_list;
-
-    for ( ; list->type >= 0; list += 1 )
-        if (list->type == type)
-            return list;
-
-    return NULL;
+    return bufprint(buf, bufend, "%s", list[index].name);
 }
 
 
@@ -131,7 +138,7 @@ android_event_from_str( const char*  name,
     const char*  p;
     const char*  pend;
     const char*  q;
-    TypeList     list;
+    EventList    list;
     char*        end;
 
     *ptype  = 0;
@@ -144,7 +151,7 @@ android_event_from_str( const char*  name,
     if (q == NULL || q > pend)
         q = pend;
 
-    *ptype = scan_list( _ev_types_tab, "EV_", p, q-p );
+    *ptype = eventList_findCodeByName( _ev_types_tab, p, q-p );
     if (*ptype < 0) {
         *ptype = (int) strtol( p, &end, 0 );
         if (end != q)
@@ -159,12 +166,8 @@ android_event_from_str( const char*  name,
     if (q == NULL || q > pend)
         q = pend;
 
-    list = find_type_list( *ptype );
-
-    *pcode = -1;
-    if (list != NULL) {
-        *pcode = scan_list( list->pairs, list->prefix, p, q-p );
-    }
+    list   = eventList_findByType( *ptype );
+    *pcode = eventList_findCodeByName( list, p, q-p );
     if (*pcode < 0) {
         *pcode = (int) strtol( p, &end, 0 );
         if (end != q)
@@ -189,35 +192,29 @@ android_event_from_str( const char*  name,
 int
 android_event_get_type_count( void )
 {
-    return count_list( _ev_types_tab );
+    return eventList_getCount( _ev_types_tab );
 }
 
 char*
 android_event_bufprint_type_str( char*  buff, char*  end, int  type_index )
 {
-    return bufprint( buff, end, "EV_%s", _ev_types_tab[type_index].name );
+    return eventList_bufprintCode( _ev_types_tab, type_index, buff, end );
 }
 
 /* returns the list of valid event code string aliases for a given event type */
 int
 android_event_get_code_count( int  type )
 {
-    TypeList  list = find_type_list(type);
+    EventList  list = eventList_findByType(type);
 
-    if (list == NULL)
-        return 0;
-
-    return count_list( list->pairs );
+    return eventList_getCount(list);
 }
 
 char*
 android_event_bufprint_code_str( char*  buff, char*  end, int  type, int  code_index )
 {
-    TypeList  list = find_type_list(type);
+    EventList  list = eventList_findByType(type);
 
-    if (list == NULL)
-        return buff;
-
-    return bufprint( buff, end, "%s%s", list->prefix, list->pairs[code_index].name );
+    return eventList_bufprintCode(list, code_index, buff, end);
 }
 

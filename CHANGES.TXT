@@ -25,6 +25,36 @@ IMPORTANT BUG FIXES:
   variable is used to locate a user's configuration files for the SDK, with a
   default value of ~/.android
 
+OTHER:
+
+- Add "KEY_XXX" name alias for EV_KEY codes. This means that the console
+  command "event codes EV_KEY" will now return KEY_XXX code names (in addition
+  to BTN_YYY ones), and that you can use "event send EV_KEY:KEY_SOFT1:1"
+  instead of "event send EV_KEY:229:1" to simulate the press of the Menu
+  button.
+
+  The KEY_XXX values are defined by Linux. The following Android-specific
+  mappings apply:
+
+     KEY_HOME   => Home key
+     KEY_BACK   => Back key
+     KEY_SEND   => Call key (e.g. Green Phone)
+     KEY_END    => EndCall key (e.g. Red Phone)
+     KEY_SOFT1  => Menu key
+
+     KEY_VOLUME_UP
+     KEY_VOLUME_DOWN
+
+     KEY_SEARCH => Search key (if any)
+     KEY_POWER  => Power button
+     KEY_CAMERA => Camera button
+
+     KEY_DOWN / UP / LEFT / RIGHT => DPad keys
+     KEY_CENTER                   => DPad / trackball click
+
+  Beware: KEY_MENU does *not* correspond to the "Menu" key of most Android
+          devices.
+
 ==============================================================================
 Changes between 1.10 and 1.9
 
