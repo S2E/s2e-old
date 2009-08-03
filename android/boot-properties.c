@@ -27,6 +27,10 @@
 #define  T(...)   ((void)0)
 #endif
 
+/* this code supports the list of system properties that will
+ * be set on boot in the emulated system.
+ */
+
 typedef struct BootProperty {
     struct BootProperty*  next;
     char*                 property;
@@ -58,10 +62,6 @@ boot_property_alloc( const char*  name,  int  namelen,
 static BootProperty*   _boot_properties;
 static BootProperty**  _boot_properties_tail = &_boot_properties;
 static int             _inited;
-
-/* this code supports the list of system properties that will
- * be set on boot in the emulated system.
- */
 
 int
 boot_property_add2( const char*  name, int  namelen,
