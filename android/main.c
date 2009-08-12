@@ -516,9 +516,9 @@ qemulator_set_title( QEmulator*  emulator )
         }
     }
 
-    p = bufprint(p, end, "Android Emulator (%s:%d)",
-                 avdInfo_getName( android_avdInfo ),
-                 android_base_port );
+    p = bufprint(p, end, "%d:%s",
+                 android_base_port,
+                 avdInfo_getName( android_avdInfo ));
 
     skin_window_set_title( emulator->window, temp );
 }
