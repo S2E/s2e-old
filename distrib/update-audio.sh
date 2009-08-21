@@ -8,16 +8,16 @@
 # assumes this script is located in the 'distrib' sub-directory
 cd `dirname $0`
 cd ..
+. android/build/common.sh
 
-locate_depot_files ()
-{
-    root=$(p4 where $1) || (
-        echo "you need to map $1 into your workspace to build an emulator source release package"
-        exit 3
-    )
-    root=$(echo $root | cut -d" " -f3 | sed -e "s%/\.\.\.%%")
-    echo $root
-}
+check_android_build
+if [ $IN_ANDROID_BUILD != yes ] ; then
+    echo "Sorry, this script can only be run from a full Android build tree"
+    exit 1
+fi
+
+force_32bit_binaries
+locate_android_prebuilt
 
 # find the prebuilt directory
 OS=`uname -s`
@@ -87,9 +87,8 @@ $GNUMAKE $source BUILD_QEMU_AUDIO_LIB=true || (echo "could not build the audio l
 
 # now do a p4 edit, a copy and ask for submission
 #
-TARGET=$PREBUILT/emulator/libqemu-audio.a
+TARGET=$ANDROID_PREBUILT/emulator/libqemu-audio.a
 
-p4 edit $TARGET || (echo "could not p4 edit $TARGET" && exit 3)
 cp -f $source $TARGET
-echo "please do: p4 submit $TARGET"
+echo "ok, file copied to $TARGET"
 

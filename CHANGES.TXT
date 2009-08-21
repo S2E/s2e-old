@@ -14,7 +14,16 @@ Versions:
    1.8 => SDK 1.1
    1.9 => SDK 1.5_r1 (and SDK 1.5_r2)
    1.10 => SDK 1.5_r3
-   1.11 => current
+   1.11 => SDK 1.6_r1
+   1.12 => current
+
+==============================================================================
+Changes between 1.12 and 1.11
+
+IMPORTANT BUG FIXES:
+
+- Fixed a nasty race condition in the Linux EsounD audio backend which resulted
+  in rare lockups when stopping the emulator on this platform.
 
 ==============================================================================
 Changes between 1.11 and 1.10
