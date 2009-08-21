@@ -98,7 +98,7 @@ typedef enum {
     kKeyCodeHeadsetHook             = KEY_HEADSETHOOK,
     kKeyCodeFocus                   = KEY_FOCUS,
     kKeyCodePlus                    = KEY_PLUS,
-    kKeyCodeMenu                    = KEY_MENU,
+    kKeyCodeMenu                    = KEY_SOFT1,
     kKeyCodeNotification            = KEY_NOTIFICATION,
     kKeyCodeSearch                  = KEY_SEARCH,
 

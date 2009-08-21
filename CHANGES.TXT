@@ -25,6 +25,9 @@ IMPORTANT BUG FIXES:
 - Fixed a nasty race condition in the Linux EsounD audio backend which resulted
   in rare lockups when stopping the emulator on this platform.
 
+- The key-bindings for the Menu button (F2 and PageUp by default) didn't work
+  due to a typo.
+
 ==============================================================================
 Changes between 1.11 and 1.10
 
