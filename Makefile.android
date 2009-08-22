@@ -21,7 +21,7 @@ ifeq ($(BUILD_DEBUG_EMULATOR),true)
                  -fno-PIC -falign-functions=0
 endif
 
-MY_LDFLAGS :=
+MY_LDLIBS :=
 
 # this is needed to build the emulator on 64-bit Linux systems
 ifeq ($(HOST_OS)-$(HOST_ARCH),linux-x86)
@@ -58,8 +58,8 @@ ifeq ($(HOST_OS),darwin)
             $(info  Please install the 10.4 SDK on this machine at $(TIGER_SDK))
             $(error Aborting the build.)
         endif
-        MY_CFLAGS  += -isysroot $(TIGER_SDK) -mmacosx-version-min=10.4
-        MY_LDFLAGS += -isysroot $(TIGER_SDK) -Wl,-syslibroot,$(TIGER_SDK) -mmacosx-version-min=10.4
+        MY_CFLAGS += -isysroot $(TIGER_SDK) -mmacosx-version-min=10.4 -DMACOSX_DEPLOYMENT_TARGET=10.4
+        MY_LDLIBS += -isysroot $(TIGER_SDK) -Wl,-syslibroot,$(TIGER_SDK) -mmacosx-version-min=10.4
     endif
 endif
 MY_CC := $(HOST_CC)
@@ -78,8 +78,8 @@ endif
 
 ifneq ($(combo_target)$(TARGET_SIMULATOR),HOST_true)
   ifneq ($(HOST_ARCH),x86_64)
-    MY_CFLAGS  += -m32
-    MY_LDFLAGS += -m32
+    MY_CFLAGS += -m32
+    MY_LDLIBS += -m32
   endif
 endif
 
@@ -105,7 +105,7 @@ include $(CLEAR_VARS)
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_CFLAGS                    := $(MY_CFLAGS) $(LOCAL_CFLAGS)
-LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
+LOCAL_LDLIBS                    := $(MY_LDLIBS)
 LOCAL_MODULE                    := emulator-tcg
 
 TCG_TARGET := $(HOST_ARCH)
@@ -181,7 +181,7 @@ include $(CLEAR_VARS)
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := emulator-arm
-LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
+LOCAL_LDLIBS                    := $(MY_LDLIBS)
 LOCAL_CFLAGS                    := $(MY_CFLAGS) $(LOCAL_CFLAGS)
 LOCAL_STATIC_LIBRARIES          := emulator-hw
 
@@ -307,7 +307,7 @@ ifeq ($(BUILD_QEMU_AUDIO_LIB),true)
   LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
   LOCAL_CC                        := $(MY_CC)
   LOCAL_MODULE                    := libqemu-audio
-  LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
+  LOCAL_LDLIBS                    := $(MY_LDLIBS)
 
   LOCAL_CFLAGS := -Wno-sign-compare \
                   -fno-strict-aliasing -W -Wall -Wno-unused-parameter \
@@ -341,7 +341,7 @@ LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := emulator
 LOCAL_STATIC_LIBRARIES          := emulator-hw emulator-arm emulator-tcg
-LOCAL_LDFLAGS                   := $(MY_LDFLAGS)
+LOCAL_LDLIBS                    := $(MY_LDLIBS)
 
 # don't remove the -fno-strict-aliasing, or you'll break things
 # (e.g. slirp2/network support)
