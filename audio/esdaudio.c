@@ -137,6 +137,8 @@ static int qesd_run_out (HWVoiceOut *hw)
             O("EsounD output thread write error: %s", strerror(errno));
             break;
         }
+        if (nwrite == 0)
+            break;
 
         writeSamples = nwrite >> hw->info.shift;
         writeBytes   = writeSamples << hw->info.shift;
@@ -288,6 +290,8 @@ static int qesd_run_in (HWVoiceIn *hw)
             qesd_logerr (errno, "read failed: %s\n", strerror(errno));
             break;
         }
+        if (nread == 0)
+            break;
 
         readSamples = nread >> hw->info.shift;
         readBytes   = readSamples << hw->info.shift;
