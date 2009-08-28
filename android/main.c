@@ -234,6 +234,25 @@ sdl_set_window_icon( void )
 }
 
 
+#define  ONE_MB  (1024*1024)
+
+unsigned convertBytesToMB( uint64_t  size )
+{
+    if (size == 0)
+        return 0;
+
+    size = (size + ONE_MB-1) >> 20;
+    if (size > UINT_MAX)
+        size = UINT_MAX;
+
+    return (unsigned) size;
+}
+
+uint64_t  convertMBToBytes( unsigned  megaBytes )
+{
+    return ((uint64_t)megaBytes << 20);
+}
+
 /***********************************************************************/
 /***********************************************************************/
 /*****                                                             *****/
@@ -1721,6 +1740,38 @@ _forceAvdImagePath( AvdImageType  imageType,
     android_avdParams->forcePaths[imageType] = path;
 }
 
+static uint64_t
+_adjustPartitionSize( const char*  description,
+                      uint64_t     imageBytes,
+                      uint64_t     defaultBytes,
+                      int          inAndroidBuild )
+{
+    char      temp[64];
+    unsigned  imageMB;
+    unsigned  defaultMB;
+
+    if (imageBytes <= defaultBytes)
+        return defaultBytes;
+
+    imageMB   = convertBytesToMB(imageBytes);
+    defaultMB = convertBytesToMB(defaultBytes);
+
+    if (imageMB > defaultMB) {
+        snprintf(temp, sizeof temp, "(%d MB > %d MB)", imageMB, defaultMB);
+    } else {
+        snprintf(temp, sizeof temp, "(%lld bytes > %lld bytes)", imageBytes, defaultBytes);
+    }
+
+    if (!inAndroidBuild) {
+        derror("%s image file too large for device's hardware configuration %s.\n"
+            "Aborting !", description, temp);
+        exit(1);
+    }
+    dwarning("%s partition size adjusted to match image file %s\n", description, temp);
+
+    return convertMBToBytes(imageMB);
+}
+
 #ifdef _WIN32
 #undef main  /* we don't want SDL to define main */
 #endif
@@ -1740,9 +1791,12 @@ int main(int argc, char **argv)
     int    shell_serial = 0;
     int    dns_count = 0;
     unsigned  cachePartitionSize = 0;
-    unsigned  defaultPartitionSize = 0x4200000;
+    unsigned  systemPartitionSize = 0;
+    unsigned  dataPartitionSize = 0;
+    unsigned  defaultPartitionSize = convertBytesToMB(66);
 
     AndroidHwConfig*  hw;
+    AvdInfo*          avd;
 
     //const char *appdir = get_app_dir();
     char*       android_build_root = NULL;
@@ -2058,9 +2112,11 @@ int main(int argc, char **argv)
         }
     }
 
+    avd = android_avdInfo;
+
     /* get the skin from the virtual device configuration */
-    opts->skin    = (char*) avdInfo_getSkinName( android_avdInfo );
-    opts->skindir = (char*) avdInfo_getSkinDir( android_avdInfo );
+    opts->skin    = (char*) avdInfo_getSkinName( avd );
+    opts->skindir = (char*) avdInfo_getSkinDir( avd );
 
     if (opts->skin) {
         D("autoconfig: -skin %s", opts->skin);
@@ -2071,7 +2127,7 @@ int main(int argc, char **argv)
 
     /* Read hardware configuration */
     hw = android_hw;
-    if (avdInfo_getHwConfig(android_avdInfo, hw) < 0) {
+    if (avdInfo_getHwConfig(avd, hw) < 0) {
         derror("could not read hardware configuration ?");
         exit(1);
     }
@@ -2203,7 +2259,7 @@ int main(int argc, char **argv)
     }
 
     if (opts->trace) {
-        char*   tracePath = avdInfo_getTracePath(android_avdInfo, opts->trace);
+        char*   tracePath = avdInfo_getTracePath(avd, opts->trace);
         int     ret;
 
         if (tracePath == NULL) {
@@ -2265,38 +2321,84 @@ int main(int argc, char **argv)
     n = 1;
     /* generate arguments for the underlying qemu main() */
     args[n++] = "-kernel";
-    args[n++] = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_KERNEL);
+    args[n++] = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_KERNEL);
 
     args[n++] = "-initrd";
-    args[n++] = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_RAMDISK);
+    args[n++] = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_RAMDISK);
 
     if (opts->partition_size) {
         char*  end;
-        long   size = strtol(opts->partition_size, &end, 0);
-        long   maxSize = LONG_MAX / (1024*1024);
-        long   defaultMB = (defaultPartitionSize + (512*1024)) / (1024*1024);
+        long   sizeMB = strtol(opts->partition_size, &end, 0);
+        long   minSizeMB = 10;
+        long   maxSizeMB = LONG_MAX / ONE_MB;
 
-        if (size < 0 || *end != 0) {
+        if (sizeMB < 0 || *end != 0) {
             derror( "-partition-size must be followed by a positive integer" );
             exit(1);
         }
-        if (size < defaultMB || size > maxSize) {
+        if (sizeMB < minSizeMB || sizeMB > maxSizeMB) {
             derror( "partition-size (%d) must be between %dMB and %dMB",
-                    size, defaultMB, maxSize );
+                    sizeMB, minSizeMB, maxSizeMB );
             exit(1);
         }
-        defaultPartitionSize = size * 1024*1024;
+        defaultPartitionSize = sizeMB * ONE_MB;
+    }
+
+    /* Check the size of the system partition image.
+     * If we have an AVD, it must be smaller than
+     * the disk.systemPartition.size hardware property.
+     *
+     * Otherwise, we need to adjust the systemPartitionSize
+     * automatically, and print a warning.
+     *
+     */
+    {
+        uint64_t   systemBytes  = avdInfo_getImageFileSize(avd, AVD_IMAGE_INITSYSTEM);
+        uint64_t   defaultBytes = hw->disk_systemPartition_size;
+
+        if (defaultBytes == 0 || opts->partition_size)
+            defaultBytes = defaultPartitionSize;
+
+        systemPartitionSize = _adjustPartitionSize("system", systemBytes, defaultBytes,
+                                                   android_build_out != NULL);
+    }
+
+    /* Check the size of the /data partition. The only interesting cases here are:
+     * - when the USERDATA image already exists and is larger than the deffault
+     * - when we're wiping data and the INITDATA is larger than the default.
+     */
+
+    {
+        const char*  dataPath     = avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA);
+        uint64_t     defaultBytes = hw->disk_dataPartition_size;
+
+        if (defaultBytes == 0 || opts->partition_size)
+            defaultBytes = defaultPartitionSize;
+
+        if (dataPath == NULL || !path_exists(dataPath) || opts->wipe_data) {
+            dataPath = avdInfo_getImageFile(avd, AVD_IMAGE_INITDATA);
+        }
+        if (dataPath == NULL || !path_exists(dataPath)) {
+            dataPartitionSize = defaultBytes;
+        }
+        else {
+            uint64_t  dataBytes;
+            path_get_size(dataPath, &dataBytes);
+
+            dataPartitionSize = _adjustPartitionSize("data", dataBytes, defaultBytes,
+                                                     android_build_out != NULL);
+        }
     }
 
     {
         const char*  filetype = "file";
 
-        if (avdInfo_isImageReadOnly(android_avdInfo, AVD_IMAGE_INITSYSTEM))
+        if (avdInfo_isImageReadOnly(avd, AVD_IMAGE_INITSYSTEM))
             filetype = "initfile";
 
         bufprint(tmp, tmpend,
-             "system,size=0x%x,%s=%s", defaultPartitionSize, filetype,
-             avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_INITSYSTEM));
+             "system,size=0x%x,%s=%s", systemPartitionSize, filetype,
+             avdInfo_getImageFile(avd, AVD_IMAGE_INITSYSTEM));
 
         args[n++] = "-nand";
         args[n++] = strdup(tmp);
@@ -2304,14 +2406,14 @@ int main(int argc, char **argv)
 
     bufprint(tmp, tmpend,
              "userdata,size=0x%x,file=%s",
-             defaultPartitionSize,
-             avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_USERDATA));
+             dataPartitionSize,
+             avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA));
 
     args[n++] = "-nand";
     args[n++] = strdup(tmp);
 
     if (hw->disk_cachePartition) {
-        opts->cache = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_CACHE);
+        opts->cache = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_CACHE);
         cachePartitionSize = hw->disk_cachePartition_size;
     }
     else if (opts->cache) {
@@ -2334,7 +2436,7 @@ int main(int argc, char **argv)
     }
 
     if (hw->hw_sdCard != 0)
-        opts->sdcard = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_SDCARD);
+        opts->sdcard = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SDCARD);
     else if (opts->sdcard) {
         dwarning( "Emulated hardware doesn't support SD Cards" );
         opts->sdcard = NULL;

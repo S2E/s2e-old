@@ -28,6 +28,30 @@ IMPORTANT BUG FIXES:
 - The key-bindings for the Menu button (F2 and PageUp by default) didn't work
   due to a typo.
 
+OTHER:
+
+- Added two new hardware properties disk.systemPartition.size and
+  disk.dataPartition.size to specify the size of the system and data partition
+  in a given AVD.
+
+  If the emulator detects that an image file is larger than the corresponding
+  setting, it will do the following:
+
+    - for AVDs running from the SDK, an error message will be printed and
+      the emulator aborts. Note that this can only happen if there are some
+      serious mis-configuration of AVDs anyway.
+
+    - when launching the emulator from the Android build system, a warning
+      will be printed, and the partition size will be automatically adjusted
+      at launch.
+
+  Previously, trying to launch an over-sized system image would result in the
+  emulated system booting, but then failing to find certain files, depending on
+  how the yaffs2 disk images are built. This caused hard-to-debug issues.
+
+  Note that the option -partition-size <size> can be used to override the AVD's
+  setting at runtime.
+
 ==============================================================================
 Changes between 1.11 and 1.10
 

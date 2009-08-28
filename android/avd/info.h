@@ -131,6 +131,11 @@ const char*  avdInfo_getName( AvdInfo*  i );
  */
 const char*  avdInfo_getImageFile( AvdInfo*  i, AvdImageType  imageType );
 
+/* Return the size of a given image file. Returns 0 if the file
+ * does not exist or could not be accessed.
+ */
+uint64_t     avdInfo_getImageFileSize( AvdInfo*  i, AvdImageType  imageType );
+
 /* Returns 1 if the corresponding image file is read-only
  */
 int          avdInfo_isImageReadOnly( AvdInfo*  i, AvdImageType  imageType );

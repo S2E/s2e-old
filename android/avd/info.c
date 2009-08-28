@@ -1358,6 +1358,21 @@ avdInfo_getImageFile( AvdInfo*  i, AvdImageType  imageType )
     return i->imagePath[imageType];
 }
 
+uint64_t
+avdInfo_getImageFileSize( AvdInfo*  i, AvdImageType  imageType )
+{
+    const char* file = avdInfo_getImageFile(i, imageType);
+    uint64_t    size;
+
+    if (file == NULL)
+        return 0ULL;
+
+    if (path_get_size(file, &size) < 0)
+        return 0ULL;
+
+    return size;
+}
+
 int
 avdInfo_isImageReadOnly( AvdInfo*  i, AvdImageType  imageType )
 {
