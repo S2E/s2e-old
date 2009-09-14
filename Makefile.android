@@ -510,6 +510,10 @@ ifeq ($(HOST_OS),windows)
   LOCAL_LDLIBS += -mno-cygwin -mwindows -mconsole
 endif
 
+ifeq ($(HOST_OS),freebsd)
+    LOCAL_LDLIBS += -L/usr/local/lib -lpthread -lX11 -lutil
+endif
+
 LOCAL_SRC_FILES += $(VL_SOURCES)
 
 ifeq ($(HOST_OS),linux)
