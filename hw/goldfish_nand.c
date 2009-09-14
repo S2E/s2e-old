@@ -193,7 +193,7 @@ static uint32_t nand_dev_read_file(nand_dev *dev, uint32_t data, uint64_t addr, 
         if(!eof) {
             read_len = do_read(dev->fd, dev->data, read_len);
         }
-        pmemcpy(data, dev->data, read_len);
+        cpu_memory_rw_debug(cpu_single_env, data, dev->data, read_len, 1);
         data += read_len;
         len -= read_len;
     }
@@ -212,7 +212,7 @@ static uint32_t nand_dev_write_file(nand_dev *dev, uint32_t data, uint64_t addr,
     while(len > 0) {
         if(len < write_len)
             write_len = len;
-        vmemcpy(data, dev->data, write_len);
+        cpu_memory_rw_debug(cpu_single_env, data, dev->data, write_len, 0);
         ret = do_write(dev->fd, dev->data, write_len);
         if(ret < write_len) {
             XLOG("nand_dev_write_file, write failed: %s\n", strerror(errno));
@@ -274,7 +274,7 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
     case NAND_CMD_GET_DEV_NAME:
         if(size > dev->devname_len)
             size = dev->devname_len;
-        pmemcpy(s->data, dev->devname, size);
+        cpu_memory_rw_debug(cpu_single_env, s->data, dev->devname, size, 1);
         return size;
     case NAND_CMD_READ:
         if(addr >= dev->size)
@@ -283,7 +283,7 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
             size = dev->size - addr;
         if(dev->fd >= 0)
             return nand_dev_read_file(dev, s->data, addr, size);
-        pmemcpy(s->data, &dev->data[addr], size);
+        cpu_memory_rw_debug(cpu_single_env,s->data, &dev->data[addr], size, 1);
         return size;
     case NAND_CMD_WRITE:
         if(dev->flags & NAND_DEV_FLAG_READ_ONLY)
@@ -294,7 +294,7 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
             size = dev->size - addr;
         if(dev->fd >= 0)
             return nand_dev_write_file(dev, s->data, addr, size);
-        vmemcpy(s->data, &dev->data[addr], size);
+        cpu_memory_rw_debug(cpu_single_env,s->data, &dev->data[addr], size, 0);
         return size;
     case NAND_CMD_ERASE:
         if(dev->flags & NAND_DEV_FLAG_READ_ONLY)
@@ -324,7 +324,6 @@ static void nand_dev_write(void *opaque, target_phys_addr_t offset, uint32_t val
 {
     nand_dev_state *s = (nand_dev_state *)opaque;
 
-    offset -= s->base;
     switch (offset) {
     case NAND_DEV:
         s->dev = value;
@@ -359,7 +358,6 @@ static uint32_t nand_dev_read(void *opaque, target_phys_addr_t offset)
     nand_dev_state *s = (nand_dev_state *)opaque;
     nand_dev *dev;
 
-    offset -= s->base;
     switch (offset) {
     case NAND_VERSION:
         return NAND_VERSION_CURRENT;
@@ -422,7 +420,7 @@ void nand_dev_init(uint32_t base)
     nand_dev_state *s;
 
     s = (nand_dev_state *)qemu_mallocz(sizeof(nand_dev_state));
-    iomemtype = cpu_register_io_memory(0, nand_dev_readfn, nand_dev_writefn, s);
+    iomemtype = cpu_register_io_memory(nand_dev_readfn, nand_dev_writefn, s);
     cpu_register_physical_memory(base, 0x00000fff, iomemtype);
     s->base = base;
 

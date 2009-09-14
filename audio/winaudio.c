@@ -156,7 +156,7 @@ winaudio_out_fini (HWVoiceOut *hw)
 
 
 static int
-winaudio_out_init (HWVoiceOut *hw, audsettings_t *as)
+winaudio_out_init (HWVoiceOut *hw, struct audsettings *as)
 {
     WinAudioOut*   s = (WinAudioOut*) hw;
     MMRESULT       result;
@@ -272,7 +272,7 @@ winaudio_out_run (HWVoiceOut *hw)
             int           wav_bytes   = (s->write_size - s->write_pos);
             int           wav_samples = audio_MIN(wav_bytes >> hw->info.shift, live);
             int           hw_samples  = audio_MIN(hw->samples - hw->rpos, live);
-            st_sample_t*  src         = hw->mix_buf + hw->rpos;
+            struct st_sample*  src         = hw->mix_buf + hw->rpos;
             uint8_t*      dst         = (uint8_t*)wav_buffer->lpData + s->write_pos;
 
             if (wav_samples > hw_samples) {
@@ -403,7 +403,7 @@ winaudio_in_fini (HWVoiceIn *hw)
 
 
 static int
-winaudio_in_init (HWVoiceIn *hw, audsettings_t *as)
+winaudio_in_init (HWVoiceIn *hw, struct audsettings *as)
 {
     WinAudioIn*   s = (WinAudioIn*) hw;
     MMRESULT       result;
@@ -532,7 +532,7 @@ winaudio_in_run (HWVoiceIn *hw)
             int           wav_bytes   = (s->read_size - s->read_pos);
             int           wav_samples = audio_MIN(wav_bytes >> hw->info.shift, live);
             int           hw_samples  = audio_MIN(hw->samples - hw->wpos, live);
-            st_sample_t*  dst         = hw->conv_buf + hw->wpos;
+            struct st_sample*  dst    = hw->conv_buf + hw->wpos;
             uint8_t*      src         = (uint8_t*)wav_buffer->lpData + s->read_pos;
 
             if (wav_samples > hw_samples) {

@@ -21,10 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#ifdef __OpenBSD__
+#include <soundcard.h>
+#else
 #include <sys/soundcard.h>
+#endif
+#include "qemu-common.h"
+#include "audio.h"
 
 #define AUDIO_CAP "oss"
 #include "audio_int.h"
@@ -143,7 +150,7 @@ static int oss_to_audfmt (int ossfmt, audfmt_e *fmt, int *endianness)
 {
     switch (ossfmt) {
     case AFMT_S8:
-        *endianness =0;
+        *endianness = 0;
         *fmt = AUD_FMT_S8;
         break;
 
@@ -248,8 +255,8 @@ static int oss_open (int in, struct oss_params *req,
     }
 
     if (!abinfo.fragstotal || !abinfo.fragsize) {
-        AUD_log(AUDIO_CAP, "Returned bogus buffer information(%d, %d) for %s\n",
-                abinfo.fragstotal, abinfo.fragsize, typ);
+        AUD_log (AUDIO_CAP, "Returned bogus buffer information(%d, %d) for %s\n",
+                 abinfo.fragstotal, abinfo.fragsize, typ);
         goto err;
     }
 
@@ -287,7 +294,7 @@ static int oss_run_out (HWVoiceOut *hw)
     int err, rpos, live, decr;
     int samples;
     uint8_t *dst;
-    st_sample_t *src;
+    struct st_sample *src;
     struct audio_buf_info abinfo;
     struct count_info cntinfo;
     int bufsize;
@@ -427,7 +434,7 @@ static void oss_fini_out (HWVoiceOut *hw)
     }
 }
 
-static int oss_init_out (HWVoiceOut *hw, audsettings_t *as)
+static int oss_init_out (HWVoiceOut *hw, struct audsettings *as)
 {
     OSSVoiceOut *oss = (OSSVoiceOut *) hw;
     struct oss_params req, obt;
@@ -435,7 +442,7 @@ static int oss_init_out (HWVoiceOut *hw, audsettings_t *as)
     int err;
     int fd;
     audfmt_e effective_fmt;
-    audsettings_t obt_as;
+    struct audsettings obt_as;
 
     oss->fd = -1;
 
@@ -569,7 +576,7 @@ static int oss_ctl_out (HWVoiceOut *hw, int cmd, ...)
     return 0;
 }
 
-static int oss_init_in (HWVoiceIn *hw, audsettings_t *as)
+static int oss_init_in (HWVoiceIn *hw, struct audsettings *as)
 {
     OSSVoiceIn *oss = (OSSVoiceIn *) hw;
     struct oss_params req, obt;
@@ -577,7 +584,7 @@ static int oss_init_in (HWVoiceIn *hw, audsettings_t *as)
     int err;
     int fd;
     audfmt_e effective_fmt;
-    audsettings_t obt_as;
+    struct audsettings obt_as;
 
     oss->fd = -1;
 

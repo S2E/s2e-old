@@ -24,7 +24,6 @@ int fd = -1;
 static uint32_t memlog_read(void *opaque, target_phys_addr_t offset)
 {
     struct goldfish_device *dev = opaque;
-    offset -= dev->base;
 
     return 0;
 }
@@ -35,7 +34,6 @@ static void memlog_write(void *opaque, target_phys_addr_t offset, uint32_t val)
 {
     char buf[128];
     struct goldfish_device *dev = opaque;
-    offset -= dev->base;
 
     info[offset / 4] = val;
 

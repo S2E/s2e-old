@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 #include "exec.h"
 #include "helpers.h"
@@ -31,7 +31,7 @@ void raise_exception(int tt)
 
 /* thread support */
 
-spinlock_t global_cpu_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t global_cpu_lock = SPIN_LOCK_UNLOCKED;
 
 void cpu_lock(void)
 {
@@ -56,7 +56,7 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
     for (shift = 0; shift < 32; shift += 8) {
         index = (ireg >> shift) & 0xff;
         if (index < maxindex) {
-            tmp = (table[index >> 3] >> (index & 7)) & 0xff;
+            tmp = (table[index >> 3] >> ((index & 7) << 3)) & 0xff;
             val |= tmp << shift;
         } else {
             val |= def & (0xff << shift);
@@ -129,116 +129,19 @@ void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     env = saved_env;
 }
 
-#if 1
-#include <string.h>
-/*
- * The following functions are address translation helper functions 
- * for fast memory access in QEMU. 
- */
-static target_phys_addr_t v2p_mmu(target_ulong addr, int mmu_idx)
-{
-    int index;
-    target_ulong tlb_addr;
-    target_phys_addr_t physaddr;
-    void *retaddr;
-
-    index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-redo:
-    tlb_addr = env->tlb_table[mmu_idx][index].addr_read;
-    if ((addr & TARGET_PAGE_MASK) == (tlb_addr & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
-        physaddr = addr + env->tlb_table[mmu_idx][index].addend;
-    } else {
-        /* the page is not in the TLB : fill it */
-        retaddr = GETPC();
-        tlb_fill(addr, 0, mmu_idx, retaddr);
-        goto redo;
-    }
-    return physaddr;
-}
-
-/* 
- * translation from virtual address of simulated OS 
- * to the address of simulation host (not the physical 
- * address of simulated OS.
- */
-target_phys_addr_t v2p(target_ulong ptr, int mmu_idx)
-{
-    CPUState *saved_env;
-    int index;
-    target_ulong addr;
-    target_phys_addr_t physaddr;
-
-    saved_env = env;
-    env = cpu_single_env;
-    addr = ptr;
-    index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-    if (__builtin_expect(env->tlb_table[mmu_idx][index].addr_read != 
-                (addr & TARGET_PAGE_MASK), 0)) 
-    {
-        physaddr = v2p_mmu(addr, mmu_idx);
-    } else {
-        physaddr = (target_phys_addr_t)addr + env->tlb_table[mmu_idx][index].addend;
-    }
-    env = saved_env;
-    return physaddr;
-}
-
-#define MINSIZE(x,y)    ((x) < (y) ? (x) : (y))
-/* copy memory from the simulated virtual space to a buffer in QEMU */
-void vmemcpy(target_ulong ptr, char *buf, int size)
-{
-    if (buf == NULL) return;
-    while (size) {
-        int page_remain = TARGET_PAGE_SIZE - (ptr & ~TARGET_PAGE_MASK);
-        int to_copy = MINSIZE(size, page_remain);
-        char *phys = (char *)v2p(ptr, 0);
-        if (phys == NULL) return;
-        memcpy(buf, phys, to_copy);
-        ptr += to_copy;
-        buf += to_copy;
-        size -= to_copy;
-    }
-}
-
-/* copy memory from the QEMU buffer to simulated virtual space */
-void pmemcpy(target_ulong ptr, const char *buf, int size)
-{
-    if (buf == NULL) return;
-    while (size) {
-        int page_remain = TARGET_PAGE_SIZE - (ptr & ~TARGET_PAGE_MASK);
-        int to_copy = MINSIZE(size, page_remain);
-        char *phys = (char *)v2p(ptr, 0);
-        if (phys == NULL) return;
-        memcpy(phys, buf, to_copy);
-        ptr += to_copy;
-        buf += to_copy;
-        size -= to_copy;
-    }
-}
-
 /* copy a string from the simulated virtual space to a buffer in QEMU */
 void vstrcpy(target_ulong ptr, char *buf, int max)
 {
-    char *phys = 0;
-    unsigned long page = 0;
+    int  index;
 
     if (buf == NULL) return;
 
-    while (max) {
-        if ((ptr & TARGET_PAGE_MASK) != page) {
-            phys = (char *)v2p(ptr, 0);
-            page = ptr & TARGET_PAGE_MASK;
-        }
-        *buf = *phys;
-        if (*phys == '\0')
-            return;
-        ptr ++;
-        buf ++;
-        phys ++;
-        max --;
+    for (index = 0; index < max; index += 1) {
+        cpu_physical_memory_read(ptr + index, buf + index, 1);
+        if (buf[index] == 0)
+            break;
     }
 }
-#endif
 #endif
 
 /* FIXME: Pass an axplicit pointer to QF to CPUState, and move saturating
@@ -434,7 +337,7 @@ void HELPER(set_user_reg)(uint32_t regno, uint32_t val)
 uint32_t HELPER (add_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
-    result = T0 + T1;
+    result = a + b;
     env->NF = env->ZF = result;
     env->CF = result < a;
     env->VF = (a ^ b ^ -1) & (a ^ result);
@@ -636,7 +539,6 @@ void HELPER(neon_trn_u8)(void)
     rm = ((T1 & 0xff00ff00) >> 8) | (T0 & 0xff00ff00);
     T0 = rd;
     T1 = rm;
-    FORCE_RET();
 }
 
 void HELPER(neon_trn_u16)(void)
@@ -647,7 +549,6 @@ void HELPER(neon_trn_u16)(void)
     rm = (T1 >> 16) | (T0 & 0xffff0000);
     T0 = rd;
     T1 = rm;
-    FORCE_RET();
 }
 
 /* Worker routines for zip and unzip.  */
@@ -661,7 +562,6 @@ void HELPER(neon_unzip_u8)(void)
          | ((T1 << 8) & 0xff0000) | (T1 & 0xff000000);
     T0 = rd;
     T1 = rm;
-    FORCE_RET();
 }
 
 void HELPER(neon_zip_u8)(void)
@@ -674,7 +574,6 @@ void HELPER(neon_zip_u8)(void)
          | ((T0 >> 8) & 0xff0000) | (T1 & 0xff000000);
     T0 = rd;
     T1 = rm;
-    FORCE_RET();
 }
 
 void HELPER(neon_zip_u16)(void)
@@ -684,5 +583,4 @@ void HELPER(neon_zip_u16)(void)
     tmp = (T0 & 0xffff) | (T1 << 16);
     T1 = (T1 & 0xffff0000) | (T0 >> 16);
     T0 = tmp;
-    FORCE_RET();
 }

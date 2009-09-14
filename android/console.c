@@ -37,6 +37,7 @@
 #include "android/utils/debug.h"
 #include "android/utils/stralloc.h"
 #include "tcpdump.h"
+#include "net.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -71,8 +72,6 @@
 #else
 #  define  D(x)   do{}while(0)
 #endif
-
-extern int  slirp_inited;  /* in vl.c */
 
 typedef struct ControlGlobalRec_*  ControlGlobal;
 
@@ -892,9 +891,9 @@ do_redir_add( ControlClient  client, char*  args )
     if ( !args )
         goto BadFormat;
 
-    if (!slirp_inited) {
-        slirp_inited = 1;
-        slirp_init();
+    if (!slirp_is_inited()) {
+        control_write( client, "KO: network emulation disabled\r\n");
+        return -1;
     }
 
     len = redir_parse_proto_port( args, &host_port, &host_proto );

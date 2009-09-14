@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 #ifndef CPU_ARM_H
 #define CPU_ARM_H
@@ -23,6 +23,8 @@
 #define TARGET_LONG_BITS 32
 
 #define ELF_MACHINE	EM_ARM
+
+#define CPUState struct CPUARMState
 
 #include "cpu-defs.h"
 
@@ -100,6 +102,9 @@ typedef struct CPUARMState {
     struct {
         uint32_t c0_cpuid;
         uint32_t c0_cachetype;
+        uint32_t c0_ccsid[16]; /* Cache size.  */
+        uint32_t c0_clid; /* Cache level.  */
+        uint32_t c0_cssel; /* Cache size selection.  */
         uint32_t c0_c1[8]; /* Feature registers.  */
         uint32_t c0_c2[8]; /* Instruction set registers.  */
         uint32_t c1_sys; /* System control register.  */
@@ -107,7 +112,9 @@ typedef struct CPUARMState {
         uint32_t c1_xscaleauxcr; /* XScale auxiliary control register.  */
         uint32_t c2_base0; /* MMU translation table base 0.  */
         uint32_t c2_base1; /* MMU translation table base 1.  */
-        uint32_t c2_mask; /* MMU translation table base mask.  */
+        uint32_t c2_control; /* MMU translation table base control.  */
+        uint32_t c2_mask; /* MMU translation table base selection mask.  */
+        uint32_t c2_base_mask; /* MMU translation table base 0 mask. */
         uint32_t c2_data; /* MPU data cachable bits.  */
         uint32_t c2_insn; /* MPU instruction cachable bits.  */
         uint32_t c3; /* MMU domain access control register
@@ -148,6 +155,10 @@ typedef struct CPUARMState {
         ARMWriteCPFunc *cp_write;
         void *opaque;
     } cp[15];
+
+    /* Thumb-2 EE state.  */
+    uint32_t teecr;
+    uint32_t teehbr;
 
     /* Internal CPU feature flags.  */
     uint32_t features;
@@ -208,6 +219,8 @@ uint32_t do_arm_semihosting(CPUARMState *env);
    is returned if the signal was handled by the virtual CPU.  */
 int cpu_arm_signal_handler(int host_signum, void *pinfo,
                            void *puc);
+int cpu_arm_handle_mmu_fault (CPUARMState *env, target_ulong address, int rw,
+                              int mmu_idx, int is_softmuu);
 
 void cpu_lock(void);
 void cpu_unlock(void);
@@ -327,7 +340,8 @@ enum arm_features {
     ARM_FEATURE_NEON,
     ARM_FEATURE_DIV,
     ARM_FEATURE_M, /* Microcontroller profile.  */
-    ARM_FEATURE_OMAPCP  /* OMAP specific CP15 ops handling.  */
+    ARM_FEATURE_OMAPCP, /* OMAP specific CP15 ops handling.  */
+    ARM_FEATURE_THUMB2EE
 };
 
 static inline int arm_feature(CPUARMState *env, int feature)
@@ -386,7 +400,6 @@ void cpu_arm_set_cp_io(CPUARMState *env, int cpnum,
 #define TARGET_PAGE_BITS 10
 #endif
 
-#define CPUState CPUARMState
 #define cpu_init cpu_arm_init
 #define cpu_exec cpu_arm_exec
 #define cpu_gen_code cpu_arm_gen_code
@@ -413,8 +426,25 @@ static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 }
 #endif
 
-#define CPU_PC_FROM_TB(env, tb) env->regs[15] = tb->pc
-
 #include "cpu-all.h"
+#include "exec-all.h"
+
+static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
+{
+    env->regs[15] = tb->pc;
+}
+
+static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
+                                        target_ulong *cs_base, int *flags)
+{
+    *pc = env->regs[15];
+    *cs_base = 0;
+    *flags = env->thumb | (env->vfp.vec_len << 1)
+            | (env->vfp.vec_stride << 4) | (env->condexec_bits << 8);
+    if ((env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR)
+        *flags |= (1 << 6);
+    if (env->vfp.xregs[ARM_VFP_FPEXC] & (1 << 30))
+        *flags |= (1 << 7);
+}
 
 #endif

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include "qemu-common.h"
+#include "host-utils.h"
 
 void pstrcpy(char *buf, int buf_size, const char *str)
 {
@@ -72,7 +73,7 @@ int stristart(const char *str, const char *val, const char **ptr)
     p = str;
     q = val;
     while (*q != '\0') {
-        if (toupper(*p) != toupper(*q))
+        if (qemu_toupper(*p) != qemu_toupper(*q))
             return 0;
         p++;
         q++;
@@ -96,42 +97,85 @@ time_t mktimegm(struct tm *tm)
     return t;
 }
 
-void *get_mmap_addr(unsigned long size)
+int qemu_fls(int i)
 {
-    return NULL;
+    return 32 - clz32(i);
 }
 
-void qemu_free(void *ptr)
+/* io vectors */
+
+void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint)
 {
-    free(ptr);
+    qiov->iov = qemu_malloc(alloc_hint * sizeof(struct iovec));
+    qiov->niov = 0;
+    qiov->nalloc = alloc_hint;
+    qiov->size = 0;
 }
 
-void *qemu_malloc(size_t size)
+void qemu_iovec_init_external(QEMUIOVector *qiov, struct iovec *iov, int niov)
 {
-    return malloc(size);
+    int i;
+
+    qiov->iov = iov;
+    qiov->niov = niov;
+    qiov->nalloc = -1;
+    qiov->size = 0;
+    for (i = 0; i < niov; i++)
+        qiov->size += iov[i].iov_len;
 }
 
-void *qemu_mallocz(size_t size)
+void qemu_iovec_add(QEMUIOVector *qiov, void *base, size_t len)
 {
-    void *ptr;
-    ptr = qemu_malloc(size);
-    if (!ptr)
-        return NULL;
-    memset(ptr, 0, size);
-    return ptr;
+    assert(qiov->nalloc != -1);
+
+    if (qiov->niov == qiov->nalloc) {
+        qiov->nalloc = 2 * qiov->nalloc + 1;
+        qiov->iov = qemu_realloc(qiov->iov, qiov->nalloc * sizeof(struct iovec));
+    }
+    qiov->iov[qiov->niov].iov_base = base;
+    qiov->iov[qiov->niov].iov_len = len;
+    qiov->size += len;
+    ++qiov->niov;
 }
 
-void *qemu_realloc(void*  ptr, size_t size)
+void qemu_iovec_destroy(QEMUIOVector *qiov)
 {
-    return realloc(ptr, size);
+    assert(qiov->nalloc != -1);
+
+    qemu_free(qiov->iov);
 }
 
-char *qemu_strdup(const char *str)
+void qemu_iovec_reset(QEMUIOVector *qiov)
 {
-    char *ptr;
-    ptr = qemu_malloc(strlen(str) + 1);
-    if (!ptr)
-        return NULL;
-    strcpy(ptr, str);
-    return ptr;
+    assert(qiov->nalloc != -1);
+
+    qiov->niov = 0;
+    qiov->size = 0;
+}
+
+void qemu_iovec_to_buffer(QEMUIOVector *qiov, void *buf)
+{
+    uint8_t *p = (uint8_t *)buf;
+    int i;
+
+    for (i = 0; i < qiov->niov; ++i) {
+        memcpy(p, qiov->iov[i].iov_base, qiov->iov[i].iov_len);
+        p += qiov->iov[i].iov_len;
+    }
+}
+
+void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count)
+{
+    const uint8_t *p = (const uint8_t *)buf;
+    size_t copy;
+    int i;
+
+    for (i = 0; i < qiov->niov && count; ++i) {
+        copy = count;
+        if (copy > qiov->iov[i].iov_len)
+            copy = qiov->iov[i].iov_len;
+        memcpy(qiov->iov[i].iov_base, p, copy);
+        p     += copy;
+        count -= copy;
+    }
 }

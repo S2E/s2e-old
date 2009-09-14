@@ -5,9 +5,11 @@
 #define CONFIG_DARWIN 1
 #define CONFIG_GDBSTUB 1
 #define CONFIG_SLIRP 1
-#define QEMU_VERSION "0.8.2"
+#define QEMU_VERSION "0.10.50"
+#define QEMU_PKGVERSION "Android"
 #define O_LARGEFILE 0
 #define MAP_ANONYMOUS MAP_ANON
+#define HAVE_IOVEC 1
 #define _BSD 1
 #define CONFIG_SKINS 1
 #define CONFIG_UNAME_RELEASE ""

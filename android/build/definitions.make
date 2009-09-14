@@ -123,3 +123,9 @@ $(1):
 	mkdir -p $(1)
 endef
 
+define transform-generated-source
+@echo "Generated: $(PRIVATE_MODULE) <= $<"
+@mkdir -p $(dir $@)
+$(hide) $(PRIVATE_CUSTOM_TOOL)
+endef
+

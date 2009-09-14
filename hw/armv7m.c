@@ -7,18 +7,18 @@
  * This code is licenced under the GPL.
  */
 
-#include "hw.h"
+#include "sysbus.h"
 #include "arm-misc.h"
 #include "sysemu.h"
 
 /* Bitbanded IO.  Each word corresponds to a single bit.  */
 
 /* Get the byte address of the real memory for a bitband acess.  */
-static inline uint32_t bitband_addr(uint32_t addr)
+static inline uint32_t bitband_addr(void * opaque, uint32_t addr)
 {
     uint32_t res;
 
-    res = addr & 0xe0000000;
+    res = *(uint32_t *)opaque;
     res |= (addr & 0x1ffffff) >> 5;
     return res;
 
@@ -27,7 +27,7 @@ static inline uint32_t bitband_addr(uint32_t addr)
 static uint32_t bitband_readb(void *opaque, target_phys_addr_t offset)
 {
     uint8_t v;
-    cpu_physical_memory_read(bitband_addr(offset), &v, 1);
+    cpu_physical_memory_read(bitband_addr(opaque, offset), &v, 1);
     return (v & (1 << ((offset >> 2) & 7))) != 0;
 }
 
@@ -37,7 +37,7 @@ static void bitband_writeb(void *opaque, target_phys_addr_t offset,
     uint32_t addr;
     uint8_t mask;
     uint8_t v;
-    addr = bitband_addr(offset);
+    addr = bitband_addr(opaque, offset);
     mask = (1 << ((offset >> 2) & 7));
     cpu_physical_memory_read(addr, &v, 1);
     if (value & 1)
@@ -52,7 +52,7 @@ static uint32_t bitband_readw(void *opaque, target_phys_addr_t offset)
     uint32_t addr;
     uint16_t mask;
     uint16_t v;
-    addr = bitband_addr(offset) & ~1;
+    addr = bitband_addr(opaque, offset) & ~1;
     mask = (1 << ((offset >> 2) & 15));
     mask = tswap16(mask);
     cpu_physical_memory_read(addr, (uint8_t *)&v, 2);
@@ -65,7 +65,7 @@ static void bitband_writew(void *opaque, target_phys_addr_t offset,
     uint32_t addr;
     uint16_t mask;
     uint16_t v;
-    addr = bitband_addr(offset) & ~1;
+    addr = bitband_addr(opaque, offset) & ~1;
     mask = (1 << ((offset >> 2) & 15));
     mask = tswap16(mask);
     cpu_physical_memory_read(addr, (uint8_t *)&v, 2);
@@ -81,7 +81,7 @@ static uint32_t bitband_readl(void *opaque, target_phys_addr_t offset)
     uint32_t addr;
     uint32_t mask;
     uint32_t v;
-    addr = bitband_addr(offset) & ~3;
+    addr = bitband_addr(opaque, offset) & ~3;
     mask = (1 << ((offset >> 2) & 31));
     mask = tswap32(mask);
     cpu_physical_memory_read(addr, (uint8_t *)&v, 4);
@@ -94,7 +94,7 @@ static void bitband_writel(void *opaque, target_phys_addr_t offset,
     uint32_t addr;
     uint32_t mask;
     uint32_t v;
-    addr = bitband_addr(offset) & ~3;
+    addr = bitband_addr(opaque, offset) & ~3;
     mask = (1 << ((offset >> 2) & 31));
     mask = tswap32(mask);
     cpu_physical_memory_read(addr, (uint8_t *)&v, 4);
@@ -117,14 +117,35 @@ static CPUWriteMemoryFunc *bitband_writefn[] = {
    bitband_writel
 };
 
-static void armv7m_bitband_init(void)
+typedef struct {
+    SysBusDevice busdev;
+    uint32_t base;
+} BitBandState;
+
+static void bitband_init(SysBusDevice *dev)
 {
+    BitBandState *s = FROM_SYSBUS(BitBandState, dev);
     int iomemtype;
 
-    iomemtype = cpu_register_io_memory(0, bitband_readfn, bitband_writefn,
-                                       NULL);
-    cpu_register_physical_memory(0x22000000, 0x02000000, iomemtype);
-    cpu_register_physical_memory(0x42000000, 0x02000000, iomemtype);
+    s->base = qdev_get_prop_int(&dev->qdev, "base", 0);
+    iomemtype = cpu_register_io_memory(bitband_readfn, bitband_writefn,
+                                       &s->base);
+    sysbus_init_mmio(dev, 0x02000000, iomemtype);
+}
+
+static void armv7m_bitband_init(void)
+{
+    DeviceState *dev;
+
+    dev = qdev_create(NULL, "ARM,bitband-memory");
+    qdev_set_prop_int(dev, "base", 0x20000000);
+    qdev_init(dev);
+    sysbus_mmio_map(sysbus_from_qdev(dev), 0, 0x22000000);
+
+    dev = qdev_create(NULL, "ARM,bitband-memory");
+    qdev_set_prop_int(dev, "base", 0x40000000);
+    qdev_init(dev);
+    sysbus_mmio_map(sysbus_from_qdev(dev), 0, 0x42000000);
 }
 
 /* Board init.  */
@@ -136,11 +157,15 @@ qemu_irq *armv7m_init(int flash_size, int sram_size,
                       const char *kernel_filename, const char *cpu_model)
 {
     CPUState *env;
-    qemu_irq *pic;
+    DeviceState *nvic;
+    /* FIXME: make this local state.  */
+    static qemu_irq pic[64];
+    qemu_irq *cpu_pic;
     uint32_t pc;
     int image_size;
     uint64_t entry;
     uint64_t lowaddr;
+    int i;
 
     flash_size *= 1024;
     sram_size *= 1024;
@@ -166,16 +191,24 @@ qemu_irq *armv7m_init(int flash_size, int sram_size,
 #endif
 
     /* Flash programming is done via the SCU, so pretend it is ROM.  */
-    cpu_register_physical_memory(0, flash_size, IO_MEM_ROM);
+    cpu_register_physical_memory(0, flash_size,
+                                 qemu_ram_alloc(flash_size) | IO_MEM_ROM);
     cpu_register_physical_memory(0x20000000, sram_size,
-                                 flash_size + IO_MEM_RAM);
+                                 qemu_ram_alloc(sram_size) | IO_MEM_RAM);
     armv7m_bitband_init();
 
-    pic = armv7m_nvic_init(env);
+    nvic = qdev_create(NULL, "armv7m_nvic");
+    env->v7m.nvic = nvic;
+    qdev_init(nvic);
+    cpu_pic = arm_pic_init_cpu(env);
+    sysbus_connect_irq(sysbus_from_qdev(nvic), 0, cpu_pic[ARM_PIC_CPU_IRQ]);
+    for (i = 0; i < 64; i++) {
+        pic[i] = qdev_get_gpio_in(nvic, i);
+    }
 
     image_size = load_elf(kernel_filename, 0, &entry, &lowaddr, NULL);
     if (image_size < 0) {
-        image_size = load_image(kernel_filename, phys_ram_base);
+        image_size = load_image_targphys(kernel_filename, 0, flash_size);
 	lowaddr = 0;
     }
     if (image_size < 0) {
@@ -188,8 +221,8 @@ qemu_irq *armv7m_init(int flash_size, int sram_size,
        regular ROM image and perform the normal CPU reset sequence.
        Otherwise jump directly to the entry point.  */
     if (lowaddr == 0) {
-	env->regs[13] = tswap32(*(uint32_t *)phys_ram_base);
-	pc = tswap32(*(uint32_t *)(phys_ram_base + 4));
+	env->regs[13] = ldl_phys(0);
+	pc = ldl_phys(4);
     } else {
 	pc = entry;
     }
@@ -199,8 +232,16 @@ qemu_irq *armv7m_init(int flash_size, int sram_size,
     /* Hack to map an additional page of ram at the top of the address
        space.  This stops qemu complaining about executing code outside RAM
        when returning from an exception.  */
-    cpu_register_physical_memory(0xfffff000, 0x1000, IO_MEM_RAM + ram_size);
+    cpu_register_physical_memory(0xfffff000, 0x1000,
+                                 qemu_ram_alloc(0x1000) | IO_MEM_RAM);
 
     return pic;
 }
 
+static void armv7m_register_devices(void)
+{
+    sysbus_register_dev("ARM,bitband-memory", sizeof(BitBandState),
+                        bitband_init);
+}
+
+device_init(armv7m_register_devices)

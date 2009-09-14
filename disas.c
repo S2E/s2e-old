@@ -14,11 +14,8 @@ struct syminfo *syminfos = NULL;
 /* Get LENGTH bytes from info's buffer, at target address memaddr.
    Transfer them to myaddr.  */
 int
-buffer_read_memory (memaddr, myaddr, length, info)
-     bfd_vma memaddr;
-     bfd_byte *myaddr;
-     int length;
-     struct disassemble_info *info;
+buffer_read_memory(bfd_vma memaddr, bfd_byte *myaddr, int length,
+                   struct disassemble_info *info)
 {
     if (memaddr < info->buffer_vma
         || memaddr + length > info->buffer_vma + info->buffer_length)
@@ -36,20 +33,14 @@ target_read_memory (bfd_vma memaddr,
                     int length,
                     struct disassemble_info *info)
 {
-    int i;
-    for(i = 0; i < length; i++) {
-        myaddr[i] = ldub_code(memaddr + i);
-    }
+    cpu_memory_rw_debug(cpu_single_env, memaddr, myaddr, length, 0);
     return 0;
 }
 
 /* Print an error message.  We can assume that this is in response to
    an error return from buffer_read_memory.  */
 void
-perror_memory (status, memaddr, info)
-     int status;
-     bfd_vma memaddr;
-     struct disassemble_info *info;
+perror_memory (int status, bfd_vma memaddr, struct disassemble_info *info)
 {
   if (status != EIO)
     /* Can't happen.  */
@@ -69,9 +60,7 @@ perror_memory (status, memaddr, info)
    addresses).  */
 
 void
-generic_print_address (addr, info)
-     bfd_vma addr;
-     struct disassemble_info *info;
+generic_print_address (bfd_vma addr, struct disassemble_info *info)
 {
     (*info->fprintf_func) (info->stream, "0x%" PRIx64, addr);
 }
@@ -79,9 +68,7 @@ generic_print_address (addr, info)
 /* Just return the given address.  */
 
 int
-generic_symbol_at_address (addr, info)
-     bfd_vma addr;
-     struct disassemble_info * info;
+generic_symbol_at_address (bfd_vma addr, struct disassemble_info *info)
 {
   return 1;
 }
@@ -208,13 +195,16 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
 #elif defined(TARGET_CRIS)
     disasm_info.mach = bfd_mach_cris_v32;
     print_insn = print_insn_crisv32;
+#elif defined(TARGET_MICROBLAZE)
+    disasm_info.mach = bfd_arch_microblaze;
+    print_insn = print_insn_microblaze;
 #else
     fprintf(out, "0x" TARGET_FMT_lx
 	    ": Asm output not supported on this arch\n", code);
     return;
 #endif
 
-    for (pc = code; pc < code + size; pc += count) {
+    for (pc = code; size > 0; pc += count, size -= count) {
 	fprintf(out, "0x" TARGET_FMT_lx ":  ", pc);
 	count = print_insn(pc, &disasm_info);
 #if 0
@@ -232,6 +222,13 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
 	fprintf(out, "\n");
 	if (count < 0)
 	    break;
+        if (size < count) {
+            fprintf(out,
+                    "Disassembler disagrees with translator over instruction "
+                    "decoding\n"
+                    "Please report this to qemu-devel@nongnu.org\n");
+            break;
+        }
     }
 }
 
@@ -260,7 +257,7 @@ void disas(FILE *out, void *code, unsigned long size)
 #elif defined(__x86_64__)
     disasm_info.mach = bfd_mach_x86_64;
     print_insn = print_insn_i386;
-#elif defined(__powerpc__)
+#elif defined(_ARCH_PPC)
     print_insn = print_insn_ppc;
 #elif defined(__alpha__)
     print_insn = print_insn_alpha;
@@ -286,7 +283,7 @@ void disas(FILE *out, void *code, unsigned long size)
 	    (long) code);
     return;
 #endif
-    for (pc = (unsigned long)code; pc < (unsigned long)code + size; pc += count) {
+    for (pc = (unsigned long)code; size > 0; pc += count, size -= count) {
 	fprintf(out, "0x%08lx:  ", pc);
 #ifdef __arm__
         /* since data is included in the code, it is better to
@@ -303,39 +300,22 @@ void disas(FILE *out, void *code, unsigned long size)
 /* Look up symbol for debugging purpose.  Returns "" if unknown. */
 const char *lookup_symbol(target_ulong orig_addr)
 {
-    unsigned int i;
-    /* Hack, because we know this is x86. */
-    Elf32_Sym *sym;
+    const char *symbol = "";
     struct syminfo *s;
-    target_ulong addr;
 
     for (s = syminfos; s; s = s->next) {
-	sym = s->disas_symtab;
-	for (i = 0; i < s->disas_num_syms; i++) {
-	    if (sym[i].st_shndx == SHN_UNDEF
-		|| sym[i].st_shndx >= SHN_LORESERVE)
-		continue;
-
-	    if (ELF_ST_TYPE(sym[i].st_info) != STT_FUNC)
-		continue;
-
-	    addr = sym[i].st_value;
-#if defined(TARGET_ARM) || defined (TARGET_MIPS)
-            /* The bottom address bit marks a Thumb or MIPS16 symbol.  */
-            addr &= ~(target_ulong)1;
-#endif
-	    if (orig_addr >= addr
-		&& orig_addr < addr + sym[i].st_size)
-		return s->disas_strtab + sym[i].st_name;
-	}
+        symbol = s->lookup_symbol(s, orig_addr);
+        if (symbol[0] != '\0') {
+            break;
+        }
     }
-    return "";
+
+    return symbol;
 }
 
 #if !defined(CONFIG_USER_ONLY)
 
-void term_vprintf(const char *fmt, va_list ap);
-void term_printf(const char *fmt, ...);
+#include "monitor.h"
 
 static int monitor_disas_is_physical;
 static CPUState *monitor_disas_env;
@@ -356,19 +336,19 @@ static int monitor_fprintf(FILE *stream, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    term_vprintf(fmt, ap);
+    monitor_vprintf((Monitor *)stream, fmt, ap);
     va_end(ap);
     return 0;
 }
 
-void monitor_disas(CPUState *env,
+void monitor_disas(Monitor *mon, CPUState *env,
                    target_ulong pc, int nb_insn, int is_physical, int flags)
 {
     int count, i;
     struct disassemble_info disasm_info;
     int (*print_insn)(bfd_vma pc, disassemble_info *info);
 
-    INIT_DISASSEMBLE_INFO(disasm_info, NULL, monitor_fprintf);
+    INIT_DISASSEMBLE_INFO(disasm_info, (FILE *)mon, monitor_fprintf);
 
     monitor_disas_env = env;
     monitor_disas_is_physical = is_physical;
@@ -414,15 +394,15 @@ void monitor_disas(CPUState *env,
     print_insn = print_insn_little_mips;
 #endif
 #else
-    term_printf("0x" TARGET_FMT_lx
-		": Asm output not supported on this arch\n", pc);
+    monitor_printf(mon, "0x" TARGET_FMT_lx
+                   ": Asm output not supported on this arch\n", pc);
     return;
 #endif
 
     for(i = 0; i < nb_insn; i++) {
-	term_printf("0x" TARGET_FMT_lx ":  ", pc);
+	monitor_printf(mon, "0x" TARGET_FMT_lx ":  ", pc);
 	count = print_insn(pc, &disasm_info);
-	term_printf("\n");
+	monitor_printf(mon, "\n");
 	if (count < 0)
 	    break;
         pc += count;

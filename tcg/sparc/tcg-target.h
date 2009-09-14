@@ -75,19 +75,21 @@ enum {
 #define TCG_REG_CALL_STACK TCG_REG_I6
 #ifdef __arch64__
 // Reserve space for AREG0
-#define TCG_TARGET_STACK_MINFRAME (176 + 2 * (int)sizeof(long))
-#define TCG_TARGET_CALL_STACK_OFFSET (2047 + TCG_TARGET_STACK_MINFRAME)
+#define TCG_TARGET_STACK_MINFRAME (176 + 4 * (int)sizeof(long) + \
+                                   TCG_STATIC_CALL_ARGS_SIZE)
+#define TCG_TARGET_CALL_STACK_OFFSET (2047 - 16)
 #define TCG_TARGET_STACK_ALIGN 16
 #else
 // AREG0 + one word for alignment
-#define TCG_TARGET_STACK_MINFRAME (92 + (2 + 1) * (int)sizeof(long))
+#define TCG_TARGET_STACK_MINFRAME (92 + (2 + 1) * (int)sizeof(long) + \
+                                   TCG_STATIC_CALL_ARGS_SIZE)
 #define TCG_TARGET_CALL_STACK_OFFSET TCG_TARGET_STACK_MINFRAME
 #define TCG_TARGET_STACK_ALIGN 8
 #endif
 
 /* optional instructions */
-//#define TCG_TARGET_HAS_bswap_i32
-//#define TCG_TARGET_HAS_bswap_i64
+//#define TCG_TARGET_HAS_bswap32_i32
+//#define TCG_TARGET_HAS_bswap64_i64
 //#define TCG_TARGET_HAS_neg_i32
 //#define TCG_TARGET_HAS_neg_i64
 
@@ -97,8 +99,6 @@ enum {
 #define TCG_AREG0 TCG_REG_G2
 #define TCG_AREG1 TCG_REG_G3
 #define TCG_AREG2 TCG_REG_G4
-#define TCG_AREG3 TCG_REG_G5
-#define TCG_AREG4 TCG_REG_G6
 #elif defined(__sparc_v9__)
 #define TCG_AREG0 TCG_REG_G5
 #define TCG_AREG1 TCG_REG_G6
@@ -107,7 +107,6 @@ enum {
 #define TCG_AREG0 TCG_REG_G6
 #define TCG_AREG1 TCG_REG_G1
 #define TCG_AREG2 TCG_REG_G2
-#define TCG_AREG3 TCG_REG_G3
 #endif
 
 static inline void flush_icache_range(unsigned long start, unsigned long stop)

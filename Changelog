@@ -1,3 +1,112 @@
+version 0.10.2:
+
+  - fix savevm/loadvm (Anthony Liguori)
+  - live migration: fix dirty tracking windows (Glauber Costa)
+  - live migration: improve error propogation (Glauber Costa)
+  - qcow2: fix image creation for > ~2TB images (Chris Wright)
+  - hotplug: fix error handling for if= parameter (Eduardo Habkost)
+  - qcow2: fix data corruption (Nolan Leake)
+  - virtio: fix guest oops with 2.6.25 kernels (Rusty Russell)
+  - SH4: add support for -kernel (Takashi Yoshii, Aurelien Jarno)
+  - hotplug: fix closing of char devices (Jan Kiszka)
+  - hotplug: remove incorrect check for device name (Eduardo Habkost)
+  - enable -k on win32 (Herve Poussineau)
+  - configure: use LANG=C for grep (Andreas Faerber)
+  - fix VGA regression (malc)
+	
+version 0.10.1:
+
+  - virtio-net: check right return size on sg list (Alex Williamson)
+  - Make qemu_announce_self handle holes (live migration after hotplug)
+    (Marcelo Tosatti)
+  - Revert r6804-r6808 (qcow2 allocation info).  This series of changes added
+    a high cost to startup for large qcow2 images (Anthony Liguori)
+  - qemu-img: fix help message (Aurelien Jarno)
+  - Fix build for non-default installs of SDL (Anthony Liguori)
+  - Fix race condition in env->interrupt_request.  When using TCG and a dynticks
+    host timer, this condition could cause TCG to get stuck in an infinite
+    loop (Aurelien Jarno)
+  - Fix reading encrypted hard disk passwords during early startup (Jan Kiszka)
+  - Fix encrypted disk reporting in 'info block' (Jan Kiszka)
+  - Fix console size with tiny displays (MusicPal) (Jan Kiszka)
+  - Improve error handling in bdrv_open2 (Jan Kiszka)
+  - Avoid leaking data in mux'ed character devices (Jan Kiszka)
+  - Fix initial character device reset (no banner in monitor) (Jan Kiszka)
+  - Fix cpuid KVM crash on i386 host (Lubomir Rintel)
+  - Fix SLES10sp2 installation by adding ISTAT1 register to LSI SCSI emulation
+    (Ryan Harper)
+
+version 0.10.0:
+
+  - TCG support (No longer requires GCC 3.x)
+  - Kernel Virtual Machine acceleration support
+  - BSD userspace emulation
+  - Bluetooth emulation and host passthrough support
+  - GDB XML register description support
+  - Intel e1000 emulation
+  - HPET emulation
+  - VirtIO paravirtual device support
+  - Marvell 88w8618 / MusicPal emulation
+  - Nokia N-series tablet emulation / OMAP2 processor emulation
+  - PCI hotplug support
+  - Live migration and new save/restore formats
+  - Curses display support
+  - qemu-nbd utility to mount supported block formats
+  - Altivec support in PPC emulation and new firmware (OpenBIOS)
+  - Multiple VNC clients are now supported
+  - TLS encryption is now supported in VNC
+  - MIPS Magnum R4000 machine (Hervé Poussineau)
+  - Braille support (Samuel Thibault)
+  - Freecom MusicPal system emulation (Jan Kiszka)
+  - OMAP242x and Nokia N800, N810 machines (Andrzej Zaborowski)
+  - EsounD audio driver (Frederick Reeve)
+  - Gravis Ultrasound GF1 sound card (Tibor "TS" Schütz)
+  - Many, many, bug fixes and new features
+
+version 0.9.1:
+
+  - TFTP booting from host directory (Anthony Liguori, Erwan Velu)
+  - Tap device emulation for Solaris (Sittichai Palanisong)
+  - Monitor multiplexing to several I/O channels (Jason Wessel)
+  - ds1225y nvram support (Herve Poussineau)
+  - CPU model selection support (J. Mayer, Paul Brook, Herve Poussineau)
+  - Several Sparc fixes (Aurelien Jarno, Blue Swirl, Robert Reif)
+  - MIPS 64-bit FPU support (Thiemo Seufer)
+  - Xscale PDA emulation (Andrzej Zaborowski)
+  - ColdFire system emulation (Paul Brook)
+  - Improved SH4 support (Magnus Damm)
+  - MIPS64 support (Aurelien Jarno, Thiemo Seufer)
+  - Preliminary Alpha guest support (J. Mayer)
+  - Read-only support for Parallels disk images (Alex Beregszaszi)
+  - SVM (x86 virtualization) support (Alexander Graf)
+  - CRIS emulation (Edgar E. Iglesias)
+  - SPARC32PLUS execution support (Blue Swirl)
+  - MIPS mipssim pseudo machine (Thiemo Seufer)
+  - Strace for Linux userland emulation (Stuart Anderson, Thayne Harbaugh)
+  - OMAP310 MPU emulation plus Palm T|E machine (Andrzej Zaborowski)
+  - ARM v6, v7, NEON SIMD and SMP emulation (Paul Brook/CodeSourcery)
+  - Gumstix boards: connex and verdex emulation (Thorsten Zitterell)
+  - Intel mainstone II board emulation (Armin Kuster)
+  - VMware SVGA II graphics card support (Andrzej Zaborowski)
+
+version 0.9.0:
+
+  - Support for relative paths in backing files for disk images
+  - Async file I/O API
+  - New qcow2 disk image format
+  - Support of multiple VM snapshots
+  - Linux: specific host CDROM and floppy support
+  - SMM support
+  - Moved PCI init, MP table init and ACPI table init to Bochs BIOS
+  - Support for MIPS32 Release 2 instruction set (Thiemo Seufer)
+  - MIPS Malta system emulation (Aurelien Jarno, Stefan Weil)
+  - Darwin userspace emulation (Pierre d'Herbemont)
+  - m68k user support (Paul Brook)
+  - several x86 and x86_64 emulation fixes
+  - Mouse relative offset VNC extension (Anthony Liguori)
+  - PXE boot support (Anthony Liguori)
+  - '-daemonize' option (Anthony Liguori)
+
 version 0.8.2:
 
   - ACPI support
@@ -5,7 +114,7 @@ version 0.8.2:
   - switch to OpenBios for SPARC targets (Blue Swirl)
   - VNC server fixes
   - MIPS FPU support (Marius Groeger)
-  - Solaris/SPARC host support (Ben Taylor)
+  - Solaris/SPARC host support (Juergen Keil)
   - PPC breakpoints and single stepping (Jason Wessel)
   - USB updates (Paul Brook)
   - UDP/TCP/telnet character devices (Jason Wessel)
@@ -24,7 +133,7 @@ version 0.8.1:
   - PC speaker support (Joachim Henke)
   - IDE LBA48 support (Jens Axboe)
   - SSE3 support
-  - Solaris port (Ben Taylor)
+  - Solaris port (Juergen Keil)
   - Preliminary SH4 target (Samuel Tardieu)
   - VNC server (Anthony Liguori)
   - slirp fixes (Ed Swierk et al.)
@@ -54,7 +163,7 @@ version 0.8.0:
     (Johannes Schindelin)
 
 version 0.7.2:
-  
+
   - x86_64 fixes (Win2000 and Linux 2.6 boot in 32 bit)
   - merge self modifying code handling in dirty ram page mecanism.
   - MIPS fixes (Ralf Baechle)
@@ -103,7 +212,7 @@ version 0.6.1:
   - Mac OS X port (Pierre d'Herbemont)
   - Virtual console support
   - Better monitor line edition
-  - New block device layer 
+  - New block device layer
   - New 'qcow' growable disk image support with AES encryption and
     transparent decompression
   - VMware 3 and 4 read-only disk image support (untested)
@@ -169,7 +278,7 @@ version 0.5.5:
   - FDC fixes for Win98
 
 version 0.5.4:
-  
+
   - qemu-fast fixes
   - BIOS area protection fix (aka EMM386.EXE fix) (Mike Nordell)
   - keyboard/mouse fix (Mike Nordell)
@@ -196,7 +305,7 @@ version 0.5.3:
   - added accurate CR0.MP/ME/TS emulation
   - fixed DMA memory write access (Win95 boot floppy fix)
   - graphical x86 linux loader
-  - command line monitor 
+  - command line monitor
   - generic removable device support
   - support of CD-ROM change
   - multiple network interface support
@@ -234,7 +343,7 @@ version 0.5.2:
   - eflags optimisation fix for string operations
 
 version 0.5.1:
-  
+
   - float access fixes when using soft mmu
   - PC emulation support on PowerPC
   - A20 support
@@ -249,7 +358,7 @@ version 0.5.1:
   - Major SPARC target fixes (dynamically linked programs begin to work)
 
 version 0.5.0:
-  
+
   - full hardware level VGA emulation
   - graphical display with SDL
   - added PS/2 mouse and keyboard emulation
@@ -287,7 +396,7 @@ version 0.4.2:
  - SMP kernels can at least be booted
 
 version 0.4.1:
-  
+
  - more accurate timer support in vl.
  - more reliable NE2000 probe in vl.
  - added 2.5.66 kernel in vl-test.
@@ -373,7 +482,7 @@ version 0.1.3:
  - added bound, cmpxchg8b, cpuid instructions
  - added 16 bit addressing support/override for string operations
  - poll() fix
- 
+
 version 0.1.2:
 
  - compile fixes

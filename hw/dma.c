@@ -28,16 +28,12 @@
 
 #define dolog(...) fprintf (stderr, "dma: " __VA_ARGS__)
 #ifdef DEBUG_DMA
-#define lwarn(...) fprintf (stderr, "dma: " __VA_ARGS__)
 #define linfo(...) fprintf (stderr, "dma: " __VA_ARGS__)
 #define ldebug(...) fprintf (stderr, "dma: " __VA_ARGS__)
 #else
-#define lwarn(...)
 #define linfo(...)
 #define ldebug(...)
 #endif
-
-#define LENOFA(a) ((int) (sizeof(a)/sizeof(a[0])))
 
 struct dma_regs {
     int now[2];
@@ -77,6 +73,8 @@ enum {
     | CMD_LOW_DREQ | CMD_LOW_DACK
 
 };
+
+static void DMA_run (void);
 
 static int channels[8] = {-1, 2, 3, 1, -1, -1, -1, 0};
 
@@ -214,6 +212,7 @@ static void write_cont (void *opaque, uint32_t nport, uint32_t data)
             d->status &= ~(1 << (ichan + 4));
         }
         d->status &= ~(1 << ichan);
+        DMA_run();
         break;
 
     case 0x0a:                  /* single mask */
@@ -221,6 +220,7 @@ static void write_cont (void *opaque, uint32_t nport, uint32_t data)
             d->mask |= 1 << (data & 3);
         else
             d->mask &= ~(1 << (data & 3));
+        DMA_run();
         break;
 
     case 0x0b:                  /* mode */
@@ -255,10 +255,12 @@ static void write_cont (void *opaque, uint32_t nport, uint32_t data)
 
     case 0x0e:                  /* clear mask for all channels */
         d->mask = 0;
+        DMA_run();
         break;
 
     case 0x0f:                  /* write mask for all channels */
         d->mask = data;
+        DMA_run();
         break;
 
     default:
@@ -310,6 +312,7 @@ void DMA_hold_DREQ (int nchan)
     ichan = nchan & 3;
     linfo ("held cont=%d chan=%d\n", ncont, ichan);
     dma_controllers[ncont].status |= 1 << (ichan + 4);
+    DMA_run();
 }
 
 void DMA_release_DREQ (int nchan)
@@ -320,6 +323,7 @@ void DMA_release_DREQ (int nchan)
     ichan = nchan & 3;
     linfo ("released cont=%d chan=%d\n", ncont, ichan);
     dma_controllers[ncont].status &= ~(1 << (ichan + 4));
+    DMA_run();
 }
 
 static void channel_run (int ncont, int ichan)
@@ -347,10 +351,13 @@ static void channel_run (int ncont, int ichan)
     ldebug ("dma_pos %d size %d\n", n, (r->base[COUNT] + 1) << ncont);
 }
 
-void DMA_run (void)
+static QEMUBH *dma_bh;
+
+static void DMA_run (void)
 {
     struct dma_cont *d;
     int icont, ichan;
+    int rearm = 0;
 
     d = dma_controllers;
 
@@ -360,10 +367,20 @@ void DMA_run (void)
 
             mask = 1 << ichan;
 
-            if ((0 == (d->mask & mask)) && (0 != (d->status & (mask << 4))))
+            if ((0 == (d->mask & mask)) && (0 != (d->status & (mask << 4)))) {
                 channel_run (icont, ichan);
+                rearm = 1;
+            }
         }
     }
+
+    if (rearm)
+        qemu_bh_schedule_idle(dma_bh);
+}
+
+static void DMA_run_bh(void *unused)
+{
+    DMA_run();
 }
 
 void DMA_register_channel (int nchan,
@@ -430,7 +447,7 @@ void DMA_schedule(int nchan)
 {
     CPUState *env = cpu_single_env;
     if (env)
-        cpu_interrupt(env, CPU_INTERRUPT_EXIT);
+        cpu_exit(env);
 }
 
 static void dma_reset(void *opaque)
@@ -458,7 +475,7 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
         register_ioport_write (base + (i << dshift), 1, 1, write_chan, d);
         register_ioport_read (base + (i << dshift), 1, 1, read_chan, d);
     }
-    for (i = 0; i < LENOFA (page_port_list); i++) {
+    for (i = 0; i < ARRAY_SIZE (page_port_list); i++) {
         register_ioport_write (page_base + page_port_list[i], 1, 1,
                                write_page, d);
         register_ioport_read (page_base + page_port_list[i], 1, 1,
@@ -476,9 +493,9 @@ static void dma_init2(struct dma_cont *d, int base, int dshift,
         register_ioport_read (base + ((i + 8) << dshift), 1, 1,
                               read_cont, d);
     }
-    qemu_register_reset(dma_reset, d);
+    qemu_register_reset(dma_reset, 0, d);
     dma_reset(d);
-    for (i = 0; i < LENOFA (d->regs); ++i) {
+    for (i = 0; i < ARRAY_SIZE (d->regs); ++i) {
         d->regs[i].transfer_handler = dma_phony_handler;
     }
 }
@@ -534,6 +551,9 @@ static int dma_load (QEMUFile *f, void *opaque, int version_id)
         qemu_get_8s (f, &r->dack);
         qemu_get_8s (f, &r->eop);
     }
+
+    DMA_run();
+
     return 0;
 }
 
@@ -545,4 +565,6 @@ void DMA_init (int high_page_enable)
               high_page_enable ? 0x488 : -1);
     register_savevm ("dma", 0, 1, dma_save, dma_load, &dma_controllers[0]);
     register_savevm ("dma", 1, 1, dma_save, dma_load, &dma_controllers[1]);
+
+    dma_bh = qemu_bh_new(DMA_run_bh, NULL);
 }

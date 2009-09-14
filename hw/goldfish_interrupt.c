@@ -95,7 +95,6 @@ static void goldfish_int_set_irq(void *opaque, int irq, int level)
 static uint32_t goldfish_int_read(void *opaque, target_phys_addr_t offset)
 {
     struct goldfish_int_state *s = (struct goldfish_int_state *)opaque;
-    offset -= s->dev.base;
 
     switch (offset) {
     case INTERRUPT_STATUS: /* IRQ_STATUS */
@@ -119,7 +118,6 @@ static void goldfish_int_write(void *opaque, target_phys_addr_t offset, uint32_t
 {
     struct goldfish_int_state *s = (struct goldfish_int_state *)opaque;
     uint32_t mask = (1U << value);
-    offset -= s->dev.base;
 
     switch (offset) {
         case INTERRUPT_DISABLE_ALL:

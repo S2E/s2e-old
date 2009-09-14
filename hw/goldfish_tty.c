@@ -69,7 +69,6 @@ static int  goldfish_tty_load(QEMUFile*  f, void*  opaque, int  version_id)
 static uint32_t goldfish_tty_read(void *opaque, target_phys_addr_t offset)
 {
     struct tty_state *s = (struct tty_state *)opaque;
-    offset -= s->dev.base;
 
     //printf("goldfish_tty_read %x %x\n", offset, size);
 
@@ -85,7 +84,6 @@ static uint32_t goldfish_tty_read(void *opaque, target_phys_addr_t offset)
 static void goldfish_tty_write(void *opaque, target_phys_addr_t offset, uint32_t value)
 {
     struct tty_state *s = (struct tty_state *)opaque;
-    offset -= s->dev.base;
 
     //printf("goldfish_tty_read %x %x %x\n", offset, value, size);
 
@@ -117,18 +115,19 @@ static void goldfish_tty_write(void *opaque, target_phys_addr_t offset, uint32_t
                 case TTY_CMD_WRITE_BUFFER:
                     if(s->cs) {
                         int len;
-                        target_ulong buf;
+                        target_phys_addr_t  buf;
 
                         buf = s->ptr;
                         len = s->ptr_len;
 
-                        while(len) {
-                            int page_remain = TARGET_PAGE_SIZE - (buf & ~TARGET_PAGE_MASK);
-                            int to_write = len;
-                            uint8_t *phys = (uint8_t *)v2p(buf, 0);
-                            if(to_write > page_remain)
-                                to_write = page_remain;
-                            qemu_chr_write(s->cs, phys, to_write);
+                        while (len) {
+                            char   temp[64];
+                            int    to_write = sizeof(temp);
+                            if (to_write > len)
+                                to_write = len;
+
+                            cpu_memory_rw_debug(cpu_single_env, buf, temp, to_write, 0);
+                            qemu_chr_write(s->cs, temp, to_write);
                             buf += to_write;
                             len -= to_write;
                         }
@@ -139,7 +138,7 @@ static void goldfish_tty_write(void *opaque, target_phys_addr_t offset, uint32_t
                 case TTY_CMD_READ_BUFFER:
                     if(s->ptr_len > s->data_count)
                         cpu_abort (cpu_single_env, "goldfish_tty_write: reading more data than available %d %d\n", s->ptr_len, s->data_count);
-                    pmemcpy(s->ptr, s->data, s->ptr_len);
+                    cpu_memory_rw_debug(cpu_single_env,s->ptr, s->data, s->ptr_len,1);
                     //printf("goldfish_tty_write: read %d bytes to %x\n", s->ptr_len, s->ptr);
                     if(s->data_count > s->ptr_len)
                         memmove(s->data, s->data + s->ptr_len, s->data_count - s->ptr_len);

@@ -63,7 +63,7 @@ struct goldfish_mmc_state {
     struct goldfish_device dev;
     BlockDriverState *bs;
     // pointer to our buffer
-    uint8_t* buffer;
+    uint32_t buffer_address;
     // offsets for read and write operations
     uint32_t read_offset, write_offset;
     // buffer status flags
@@ -78,11 +78,14 @@ struct goldfish_mmc_state {
     uint32_t block_length;
     uint32_t block_count;
     int is_SDHC;
+
+    uint8_t* buf;
 };
 
-#define  GOLDFISH_MMC_SAVE_VERSION  1
+#define  GOLDFISH_MMC_SAVE_VERSION  2
 #define  QFIELD_STRUCT  struct goldfish_mmc_state
 QFIELD_BEGIN(goldfish_mmc_fields)
+    QFIELD_INT32(buffer_address),
     QFIELD_INT32(read_offset),
     QFIELD_INT32(write_offset),
     QFIELD_INT32(int_status),
@@ -101,7 +104,6 @@ static void  goldfish_mmc_save(QEMUFile*  f, void*  opaque)
 {
     struct goldfish_mmc_state*  s = opaque;
 
-    qemu_put_be32(f, s->buffer - phys_ram_base);
     qemu_put_struct(f, goldfish_mmc_fields, s);
 }
 
@@ -112,7 +114,6 @@ static int  goldfish_mmc_load(QEMUFile*  f, void*  opaque, int  version_id)
     if (version_id != GOLDFISH_MMC_SAVE_VERSION)
         return -1;
 
-    s->buffer = qemu_get_be32(f) + phys_ram_base;
     return qemu_get_struct(f, goldfish_mmc_fields, s);
 }
 
@@ -168,6 +169,48 @@ static const char* get_command_name(int command)
     return opcode->name;
 }
 #endif
+
+static int  goldfish_mmc_bdrv_read(struct goldfish_mmc_state *s,
+                                   int64_t                    sector_number,
+                                   target_phys_addr_t         dst_address,
+                                   int                        num_sectors)
+{
+    int  ret;
+
+    while (num_sectors > 0) {
+        ret = bdrv_read(s->bs, sector_number, s->buf, 1);
+        if (ret < 0)
+            return ret;
+
+        cpu_physical_memory_write(dst_address, s->buf, 512);
+        dst_address   += 512;
+        num_sectors   -= 1;
+        sector_number += 1;
+    }
+    return 0;
+}
+
+static int  goldfish_mmc_bdrv_write(struct goldfish_mmc_state *s,
+                                    int64_t                    sector_number,
+                                    target_phys_addr_t         dst_address,
+                                    int                        num_sectors)
+{
+    int  ret;
+
+    while (num_sectors > 0) {
+        cpu_physical_memory_read(dst_address, s->buf, 512);
+
+        ret = bdrv_write(s->bs, sector_number, s->buf, 1);
+        if (ret < 0)
+            return ret;
+
+        dst_address   += 512;
+        num_sectors   -= 1;
+        sector_number += 1;
+    }
+    return 0;
+}
+
 
 static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, uint32_t arg)
 {
@@ -269,9 +312,15 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
 
         case SD_APP_SEND_SCR:
         {
-            uint32_t* scr = (uint32_t*)s->buffer;
+#if 1 /* this code is actually endian-safe */
+            const uint8_t  scr[8] = "\x02\x25\x00\x00\x00\x00\x00\x00";
+#else /* this original code wasn't */
+            uint32_t scr[2];
             scr[0] = 0x00002502;
             scr[1] = 0x00000000;
+#endif
+            cpu_physical_memory_write(s->buffer_address, (uint8_t*)scr, 8);
+
             s->resp[0] = SET_R1_CURRENT_STATE(4) | R1_READY_FOR_DATA | R1_APP_CMD; //2336
             new_status |= MMC_STAT_END_OF_DATA;
             break;
@@ -293,9 +342,10 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
 
          case MMC_SWITCH:
             if (arg == 0x00FFFFF1 || arg == 0x80FFFFF1) {
-                uint8_t* switchbuf = s->buffer;
-                memset(switchbuf, 0, 64);
-                switchbuf[13] = 2;
+                uint8_t  buff0[64];
+                memset(buff0, 0, sizeof buff0);
+                buff0[13] = 2;
+                cpu_physical_memory_write(s->buffer_address, buff0, sizeof buff0);
                 new_status |= MMC_STAT_END_OF_DATA;
             }
             s->resp[0] = SET_R1_CURRENT_STATE(4) | R1_READY_FOR_DATA | R1_APP_CMD; //2336
@@ -317,7 +367,7 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
                 if (arg & 511) fprintf(stderr, "offset %d is not multiple of 512 when reading\n", arg);
                 arg /= s->block_length;
             }
-            result = bdrv_read(s->bs, arg, s->buffer, s->block_count);
+            result = goldfish_mmc_bdrv_read(s, arg, s->buffer_address, s->block_count);
             new_status |= MMC_STAT_END_OF_DATA;
             s->resp[0] = SET_R1_CURRENT_STATE(4) | R1_READY_FOR_DATA; // 2304
             break;
@@ -335,7 +385,7 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
                 arg /= s->block_length;
             }
             // arg is byte offset
-            result = bdrv_write(s->bs, arg, s->buffer, s->block_count);
+            result = goldfish_mmc_bdrv_write(s, arg, s->buffer_address, s->block_count);
 //            bdrv_flush(s->bs);
             new_status |= MMC_STAT_END_OF_DATA;
             s->resp[0] = SET_R1_CURRENT_STATE(4) | R1_READY_FOR_DATA; // 2304
@@ -363,7 +413,6 @@ static uint32_t goldfish_mmc_read(void *opaque, target_phys_addr_t offset)
     uint32_t ret;
     struct goldfish_mmc_state *s = opaque;
 
-    offset -= s->dev.base;
     switch(offset) {
         case MMC_INT_STATUS:
             // return current buffer status flags
@@ -394,8 +443,6 @@ static void goldfish_mmc_write(void *opaque, target_phys_addr_t offset, uint32_t
     struct goldfish_mmc_state *s = opaque;
     int status, old_status;
 
-    offset -= s->dev.base;
-
     switch(offset) {
 
         case MMC_INT_STATUS:
@@ -416,7 +463,7 @@ static void goldfish_mmc_write(void *opaque, target_phys_addr_t offset, uint32_t
             break;
         case MMC_SET_BUFFER:
             /* save pointer to buffer 1 */
-            s->buffer = phys_ram_base + val;
+            s->buffer_address = val;
             break;
         case MMC_CMD:
             goldfish_mmc_do_command(s, val, s->arg);
@@ -459,6 +506,7 @@ void goldfish_mmc_init(uint32_t base, int id, BlockDriverState* bs)
     s->dev.size = 0x1000;
     s->dev.irq_count = 1;
     s->bs = bs;
+    s->buf = qemu_memalign(512,512);
 
     goldfish_device_add(&s->dev, goldfish_mmc_readfn, goldfish_mmc_writefn, s);
 
