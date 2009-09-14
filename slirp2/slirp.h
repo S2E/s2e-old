@@ -14,6 +14,10 @@
 #include <stddef.h>
 #include "sockets.h"
 
+#ifdef _BSD
+#include <netinet/in.h>
+#endif
+
 #ifdef _WIN32
 # include <inttypes.h>
 
