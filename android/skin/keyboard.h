@@ -26,6 +26,8 @@ typedef void (*SkinKeyEventFunc)( void*  opaque, AndroidKeyCode  code, int  down
 
 extern SkinKeyboard*  skin_keyboard_create_from_aconfig( AConfig*  aconfig, int  use_raw_keys );
 
+extern SkinKeyboard*  skin_keyboard_create_from_kcm( const char*  kcm_file_path, int  use_raw_keys );
+
 extern void           skin_keyboard_set_keyset( SkinKeyboard*  keyboard, SkinKeyset*  kset );
 
 extern const char*    skin_keyboard_charmap_name( SkinKeyboard*  keyboard );

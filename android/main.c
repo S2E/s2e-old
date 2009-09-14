@@ -91,8 +91,6 @@ extern int qemu_milli_needed;
  */
 #define  DEFAULT_DEVICE_DPI  165
 
-static const AKeyCharmap*  android_charmap;
-
 int    android_base_port;
 
 #if 0
@@ -372,7 +370,17 @@ qemulator_init( QEmulator*       emulator,
     emulator->aconfig     = aconfig;
     emulator->layout_file = skin_file_create_from_aconfig(aconfig, basepath);
     emulator->layout      = emulator->layout_file->layouts;
-    emulator->keyboard    = skin_keyboard_create_from_aconfig(aconfig, opts->raw_keys);
+    // If we have a custom charmap use it to initialize keyboard.
+    // Otherwise initialize keyboard from configuration settings.
+    // Another way to configure keyboard to use a custom charmap would
+    // be saving a custom charmap name into AConfig's keyboard->charmap
+    // property, and calling single skin_keyboard_create_from_aconfig
+    // routine to initialize keyboard.
+    if (NULL != opts->charmap) {
+        emulator->keyboard = skin_keyboard_create_from_kcm(opts->charmap, opts->raw_keys);
+    } else {
+        emulator->keyboard = skin_keyboard_create_from_aconfig(aconfig, opts->raw_keys);
+    }
     emulator->window      = NULL;
     emulator->win_x       = x;
     emulator->win_y       = y;
@@ -1097,6 +1105,7 @@ found_a_skin:
         if (userConfig)
             auserConfig_getWindowPos(userConfig, &win_x, &win_y);
     }
+
     if ( qemulator_init( qemulator, root, path, win_x, win_y, opts ) < 0 ) {
         fprintf(stderr, "### Error: could not load emulator skin '%s'\n", name);
         exit(1);
@@ -1869,7 +1878,9 @@ int main(int argc, char **argv)
             }
     }
 
-    android_charmap = android_charmaps[0];
+    if (android_charmap_setup(opts->charmap)) {
+        exit(1);
+    }
 
     if (opts->version) {
         printf("Android emulator version %s\n"
@@ -3026,4 +3037,5 @@ void  android_emulation_setup( void )
 
 void  android_emulation_teardown( void )
 {
+    android_charmap_done();
 }

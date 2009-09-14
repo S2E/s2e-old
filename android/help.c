@@ -1283,6 +1283,15 @@ help_tcpdump(stralloc_t  *out)
 }
 
 static void
+help_charmap(stralloc_t  *out)
+{
+    PRINTF(
+    "  use '-charmap <file>' to use key character map specified in that file.\n"
+    "  <file> must be a full path to a kcm file, containing desired character map.\n\n"
+    );
+}
+
+static void
 help_prop(stralloc_t  *out)
 {
     PRINTF(
