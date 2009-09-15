@@ -203,6 +203,12 @@ log "SDL-probe  : SDL_LIBS   = $SDL_LIBS"
 EXTRA_CFLAGS="$SDL_CFLAGS"
 EXTRA_LDFLAGS="$SDL_LIBS"
 
+case "$OS" in
+    freebsd-*)
+    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lm -lpthread"
+    ;;
+esac
+
 cat > $TMPC << EOF
 #include <SDL.h>
 #undef main
@@ -268,6 +274,8 @@ case "$OS" in
     darwin*) PROBE_COREAUDIO=yes;
     ;;
     linux-*) PROBE_ALSA=yes; PROBE_OSS=yes; PROBE_ESD=yes;
+    ;;
+    freebsd-*) PROBE_OSS=yes;
     ;;
     windows) PROBE_WINAUDIO=yes
     ;;
@@ -412,6 +420,9 @@ case "$OS" in
     linux-*) CONFIG_OS=LINUX
     ;;
     darwin-*) CONFIG_OS=DARWIN
+              BSD=1
+    ;;
+    freebsd-*) CONFIG_OS=FREEBSD
               BSD=1
     ;;
     windows*) CONFIG_OS=WIN32

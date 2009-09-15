@@ -88,6 +88,9 @@ case "$OS" in
     Linux)
         # note that building  32-bit binaries on x86_64 is handled later
         OS=linux-$CPU
+	;;
+    FreeBSD)
+        OS=freebsd-$CPU
         ;;
     CYGWIN*|*_NT-*)
         OS=windows
@@ -122,6 +125,8 @@ case $OS in
     linux-*) HOST_OS=linux
     ;;
     darwin-*) HOST_OS=darwin
+    ;;
+    freebsd-*) HOST_OS=freebsd
     ;;
     *) HOST_OS=$OS
 esac
@@ -161,6 +166,7 @@ force_32bit_binaries ()
         case $OS in
             linux-x86_64) OS=linux-x86 ;;
             darwin-x86_64) OS=darwin-x86 ;;
+	    freebsd-x86_64) OS=freebsd-x86 ;;
         esac
         HOST_ARCH=x86
         CPU=x86
