@@ -31,7 +31,14 @@
 #  include <sys/socket.h>
 #  include <netinet/in.h>
 #  include <netinet/tcp.h>
-#  include <netdb.h>
+#  ifdef __linux__ /* Recent versions of glibc only define EAI_NODATA, which is an
+                      extension to the POSIX standard, if __USE_GNU is defined. */
+#    define __USE_GNU
+#    include <netdb.h>
+#    undef __USE_GNU
+#  else /* !__linux__ */
+#    include <netdb.h>
+#  endif /* !__linux__ */
 #  if HAVE_UNIX_SOCKETS
 #    include <sys/un.h>
 #    ifndef UNIX_PATH_MAX
