@@ -2,12 +2,19 @@
 #ifndef QEMU_COMMON_H
 #define QEMU_COMMON_H
 
+#define QEMU_NORETURN __attribute__ ((__noreturn__))
+
+/* Hack around the mess dyngen-exec.h causes: We need QEMU_NORETURN in files that
+   cannot include the following headers without conflicts. This condition has
+   to be removed once dyngen is gone. */
+#ifndef __DYNGEN_EXEC_H__
+
 /* we put basic includes here to avoid repeating them in device drivers */
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
 #include <stdarg.h>
 #include <string.h>
+#include <strings.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <time.h>
@@ -16,6 +23,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <assert.h>
+#include "config-host.h"
 
 #ifndef O_LARGEFILE
 #define O_LARGEFILE 0
@@ -26,6 +35,16 @@
 
 #ifndef ENOMEDIUM
 #define ENOMEDIUM ENODEV
+#endif
+
+#ifndef HAVE_IOVEC
+#define HAVE_IOVEC
+struct iovec {
+    void *iov_base;
+    size_t iov_len;
+};
+#else
+#include <sys/uio.h>
 #endif
 
 #ifdef _WIN32
@@ -53,7 +72,6 @@ static inline char *realpath(const char *path, char *resolved_path)
 /* FIXME: Remove NEED_CPU_H.  */
 #ifndef NEED_CPU_H
 
-#include "config-host.h"
 #include <setjmp.h>
 #include "osdep.h"
 #include "bswap.h"
@@ -71,6 +89,13 @@ typedef void QEMUBHFunc(void *opaque);
 
 QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque);
 void qemu_bh_schedule(QEMUBH *bh);
+/* Bottom halfs that are scheduled from a bottom half handler are instantly
+ * invoked.  This can create an infinite loop if a bottom half handler
+ * schedules itself.  qemu_bh_schedule_idle() avoids this infinite loop by
+ * ensuring that the bottom half isn't executed until the next main loop
+ * iteration.
+ */
+void qemu_bh_schedule_idle(QEMUBH *bh);
 void qemu_bh_cancel(QEMUBH *bh);
 void qemu_bh_delete(QEMUBH *bh);
 int qemu_bh_poll(void);
@@ -86,21 +111,38 @@ char *pstrcat(char *buf, int buf_size, const char *s);
 int strstart(const char *str, const char *val, const char **ptr);
 int stristart(const char *str, const char *val, const char **ptr);
 time_t mktimegm(struct tm *tm);
+int qemu_fls(int i);
+
+#define qemu_isalnum(c)		isalnum((unsigned char)(c))
+#define qemu_isalpha(c)		isalpha((unsigned char)(c))
+#define qemu_iscntrl(c)		iscntrl((unsigned char)(c))
+#define qemu_isdigit(c)		isdigit((unsigned char)(c))
+#define qemu_isgraph(c)		isgraph((unsigned char)(c))
+#define qemu_islower(c)		islower((unsigned char)(c))
+#define qemu_isprint(c)		isprint((unsigned char)(c))
+#define qemu_ispunct(c)		ispunct((unsigned char)(c))
+#define qemu_isspace(c)		isspace((unsigned char)(c))
+#define qemu_isupper(c)		isupper((unsigned char)(c))
+#define qemu_isxdigit(c)	isxdigit((unsigned char)(c))
+#define qemu_tolower(c)		tolower((unsigned char)(c))
+#define qemu_toupper(c)		toupper((unsigned char)(c))
+#define qemu_isascii(c)		isascii((unsigned char)(c))
+#define qemu_toascii(c)		toascii((unsigned char)(c))
 
 void *qemu_malloc(size_t size);
 void *qemu_realloc(void *ptr, size_t size);
 void *qemu_mallocz(size_t size);
 void qemu_free(void *ptr);
 char *qemu_strdup(const char *str);
+char *qemu_strndup(const char *str, size_t size);
 
 void *get_mmap_addr(unsigned long size);
 
 
 /* Error handling.  */
 
-void hw_error(const char *fmt, ...)
-    __attribute__ ((__format__ (__printf__, 1, 2)))
-    __attribute__ ((__noreturn__));
+void QEMU_NORETURN hw_error(const char *fmt, ...)
+    __attribute__ ((__format__ (__printf__, 1, 2)));
 
 /* IO callbacks.  */
 typedef void IOReadHandler(void *opaque, const uint8_t *buf, int size);
@@ -117,9 +159,14 @@ typedef int (*DMA_transfer_handler) (void *opaque, int nchan, int pos, int size)
 /* A load of opaque types so that device init declarations don't have to
    pull in all the real definitions.  */
 typedef struct NICInfo NICInfo;
+typedef struct HCIInfo HCIInfo;
 typedef struct AudioState AudioState;
 typedef struct BlockDriverState BlockDriverState;
 typedef struct DisplayState DisplayState;
+typedef struct DisplayChangeListener DisplayChangeListener;
+typedef struct DisplaySurface DisplaySurface;
+typedef struct DisplayAllocator DisplayAllocator;
+typedef struct PixelFormat PixelFormat;
 typedef struct TextConsole TextConsole;
 typedef TextConsole QEMUConsole;
 typedef struct CharDriverState CharDriverState;
@@ -133,10 +180,53 @@ typedef struct PCIBus PCIBus;
 typedef struct PCIDevice PCIDevice;
 typedef struct SerialState SerialState;
 typedef struct IRQState *qemu_irq;
-struct pcmcia_card_s;
+typedef struct PCMCIACardState PCMCIACardState;
+typedef struct MouseTransformInfo MouseTransformInfo;
+typedef struct uWireSlave uWireSlave;
+typedef struct I2SCodec I2SCodec;
+typedef struct DeviceState DeviceState;
+typedef struct SSIBus SSIBus;
 
 /* CPU save/load.  */
 void cpu_save(QEMUFile *f, void *opaque);
 int cpu_load(QEMUFile *f, void *opaque, int version_id);
+
+/* Force QEMU to stop what it's doing and service IO */
+void qemu_service_io(void);
+
+/* Force QEMU to process pending events */
+void qemu_notify_event(void);
+
+/* Unblock cpu */
+void qemu_cpu_kick(void *env);
+int qemu_cpu_self(void *env);
+
+#ifdef CONFIG_USER_ONLY
+#define qemu_init_vcpu(env) do { } while (0)
+#else
+void qemu_init_vcpu(void *env);
+#endif
+
+typedef struct QEMUIOVector {
+    struct iovec *iov;
+    int niov;
+    int nalloc;
+    size_t size;
+} QEMUIOVector;
+
+void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint);
+void qemu_iovec_init_external(QEMUIOVector *qiov, struct iovec *iov, int niov);
+void qemu_iovec_add(QEMUIOVector *qiov, void *base, size_t len);
+void qemu_iovec_destroy(QEMUIOVector *qiov);
+void qemu_iovec_reset(QEMUIOVector *qiov);
+void qemu_iovec_to_buffer(QEMUIOVector *qiov, void *buf);
+void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count);
+
+struct Monitor;
+typedef struct Monitor Monitor;
+
+#include "module.h"
+
+#endif /* dyngen-exec.h hack */
 
 #endif

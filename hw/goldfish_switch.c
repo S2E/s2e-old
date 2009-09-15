@@ -62,7 +62,6 @@ static int  goldfish_switch_load(QEMUFile*  f, void*  opaque, int  version_id)
 static uint32_t goldfish_switch_read(void *opaque, target_phys_addr_t offset)
 {
     struct switch_state *s = (struct switch_state *)opaque;
-    offset -= s->dev.base;
 
     //printf("goldfish_switch_read %x %x\n", offset, size);
 
@@ -89,13 +88,12 @@ static uint32_t goldfish_switch_read(void *opaque, target_phys_addr_t offset)
 static void goldfish_switch_write(void *opaque, target_phys_addr_t offset, uint32_t value)
 {
     struct switch_state *s = (struct switch_state *)opaque;
-    offset -= s->dev.base;
 
     //printf("goldfish_switch_read %x %x %x\n", offset, value, size);
 
     switch(offset) {
         case SW_NAME_PTR:
-            pmemcpy(value, s->name, strlen(s->name));
+            cpu_memory_rw_debug(cpu_single_env, value, (void*)s->name, strlen(s->name), 1);
             break;
 
         case SW_STATE:

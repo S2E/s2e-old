@@ -52,6 +52,12 @@ OTHER:
   Note that the option -partition-size <size> can be used to override the AVD's
   setting at runtime.
 
+- Sources have been refreshed by a large integration of upstream QEMU
+  sources (version 0.10.50). The integration is based on the following commit,
+  dated 2009-06-19:
+
+         d2e9fd8f703203c2eeeed120b1ef6c3a6574e0ab
+
 ==============================================================================
 Changes between 1.11 and 1.10
 

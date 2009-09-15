@@ -3,6 +3,7 @@
 #define CONFIG_QEMU_PREFIX "/usr/gnemul/qemu-arm"
 #define TARGET_ARCH "arm"
 #define TARGET_ARM 1
+#define TARGET_PHYS_ADDR_BITS  32
 #define CONFIG_TRACE 1
 #define CONFIG_NAND 1
 #define CONFIG_SHAPER 1

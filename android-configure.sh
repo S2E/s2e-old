@@ -403,7 +403,8 @@ echo "#define CONFIG_TRACE    1" >> $config_h
 if [ "$OS" != "windows" ] ; then
     echo "#define CONFIG_NAND_LIMITS  1" >> $config_h
 fi
-echo "#define QEMU_VERSION    \"0.8.2\"" >> $config_h
+echo "#define QEMU_VERSION    \"0.10.50\"" >> $config_h
+echo "#define QEMU_PKGVERSION \"Android\"" >> $config_h
 case "$CPU" in
     x86) CONFIG_CPU=I386
     ;;
@@ -429,12 +430,26 @@ case "$OS" in
     ;;
     *) CONFIG_OS=$OS
 esac
+
+case $OS in
+    linux-*|darwin-*)
+        echo "#define HAVE_IOVEC 1" >> $config_h
+        ;;
+esac
+
+case $OS in
+    linux-*)
+        echo "#define CONFIG_IOTHREAD 1" >> $config_h
+        ;;
+esac
+
 echo "#define CONFIG_$CONFIG_OS   1" >> $config_h
 if [ $BSD = 1 ] ; then
     echo "#define _BSD             1" >> $config_h
     echo "#define O_LARGEFILE      0" >> $config_h
     echo "#define MAP_ANONYMOUS    MAP_ANON" >> $config_h
 fi
+
 log "Generate   : $config_h"
 
 echo "Ready to go. Type 'make' to build emulator"

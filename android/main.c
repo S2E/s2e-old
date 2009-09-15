@@ -233,6 +233,29 @@ sdl_set_window_icon( void )
     }
 }
 
+/* see http://en.wikipedia.org/wiki/List_of_device_bandwidths or a complete list */
+const NetworkSpeed  android_netspeeds[] = {
+    { "gsm", "GSM/CSD", 14400, 14400 },
+    { "hscsd", "HSCSD", 14400, 43200 },
+    { "gprs", "GPRS", 40000, 80000 },
+    { "edge", "EDGE/EGPRS", 118400, 236800 },
+    { "umts", "UMTS/3G", 128000, 1920000 },
+    { "hsdpa", "HSDPA", 348000, 14400000 },
+    { "full", "no limit", 0, 0 },
+    { NULL, NULL, 0, 0 }
+};
+
+const NetworkLatency  android_netdelays[] = {
+    /* FIXME: these numbers are totally imaginary */
+    { "gprs", "GPRS", 150, 550 },
+    { "edge", "EDGE/EGPRS", 80, 400 },
+    { "umts", "UMTS/3G", 35, 200 },
+    { "none", "no latency", 0, 0 },
+    { NULL, NULL, 0, 0 }
+};
+
+
+
 
 #define  ONE_MB  (1024*1024)
 
@@ -633,13 +656,14 @@ qemulator_setup( QEmulator*  emulator )
 /* called by the emulated framebuffer device each time the framebuffer
  * is resized or rotated */
 static void
-sdl_resize(DisplayState *ds, int w, int h)
+sdl_resize(DisplayState *ds)
 {
-    fprintf(stderr, "weird, sdl_resize being called with framebuffer interface\n");
-    exit(1);
+    //fprintf(stderr, "weird, sdl_resize being called with framebuffer interface\n");
+    //exit(1);
 }
 
 
+/* called periodically to poll for user input events */
 static void sdl_refresh(DisplayState *ds)
 {
     QEmulator*     emulator = ds->opaque;
@@ -909,21 +933,30 @@ void sdl_display_init(DisplayState *ds, int full_screen, int  no_frame)
 {
     QEmulator*    emulator = qemulator;
     SkinDisplay*  disp     = skin_layout_get_display(emulator->layout);
-
-//    fprintf(stderr,"*** sdl_display_init ***\n");
-    ds->opaque = emulator;
+    DisplayChangeListener*  dcl;
+    int           width, height;
 
     if (disp->rotation & 1) {
-        ds->width  = disp->rect.size.h;
-        ds->height = disp->rect.size.w;
+        width  = disp->rect.size.h;
+        height = disp->rect.size.w;
     } else {
-        ds->width  = disp->rect.size.w;
-        ds->height = disp->rect.size.h;
+        width  = disp->rect.size.w;
+        height = disp->rect.size.h;
     }
 
-    ds->dpy_update  = sdl_update;
-    ds->dpy_resize  = sdl_resize;
-    ds->dpy_refresh = sdl_refresh;
+    /* Register a display state object for the emulated framebuffer */
+    ds->allocator = &default_allocator;
+    ds->opaque    = emulator;
+    ds->surface   = qemu_create_displaysurface(ds, width, height);
+    register_displaystate(ds);
+
+    /* Register a change listener for it */
+    dcl = (DisplayChangeListener *) qemu_mallocz(sizeof(DisplayChangeListener));
+    dcl->dpy_update      = sdl_update;
+    dcl->dpy_resize      = sdl_resize;
+    dcl->dpy_refresh     = sdl_refresh;
+    dcl->dpy_text_cursor = NULL;
+    register_displaychangelistener(ds, dcl);
 
     skin_keyboard_enable( emulator->keyboard, 1 );
     skin_keyboard_on_command( emulator->keyboard, handle_key_command, emulator );
@@ -2526,7 +2559,7 @@ int main(int argc, char **argv)
         qemud_serial = serial++;
 
         if (opts->radio) {
-            CharDriverState*  cs = qemu_chr_open(opts->radio);
+            CharDriverState*  cs = qemu_chr_open("radio",opts->radio,NULL);
             if (cs == NULL) {
                 derror( "unsupported character device specification: %s\n"
                         "used -help-char-devices for list of available formats\n", opts->radio );
@@ -2542,7 +2575,7 @@ int main(int argc, char **argv)
         }
 
         if (opts->gps) {
-            CharDriverState*  cs = qemu_chr_open(opts->gps);
+            CharDriverState*  cs = qemu_chr_open("gps",opts->gps,NULL);
             if (cs == NULL) {
                 derror( "unsupported character device specification: %s\n"
                         "used -help-char-devices for list of available formats\n", opts->gps );

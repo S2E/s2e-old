@@ -19,6 +19,7 @@
 #include "android/globals.h"
 #include "audio/audio.h"
 #include "arm-misc.h"
+#include "console.h"
 
 #define ARM_CPU_SAVE_VERSION  1
 
@@ -49,9 +50,8 @@ uint32_t switch_test_write(void *opaque, uint32_t state)
     return state;
 }
 #endif
-
-static void android_arm_init(ram_addr_t ram_size, int vga_ram_size,
-    const char *boot_device, DisplayState *ds, 
+static void android_arm_init_(ram_addr_t ram_size,
+    const char *boot_device,
     const char *kernel_filename, 
     const char *kernel_cmdline,
     const char *initrd_filename,
@@ -62,15 +62,17 @@ static void android_arm_init(ram_addr_t ram_size, int vga_ram_size,
     qemu_irq *goldfish_pic;
     int i;
     struct arm_boot_info  info;
+    ram_addr_t ram_offset;
+    DisplayState*  ds = get_displaystate();
 
     if (!cpu_model)
         cpu_model = "arm926";
 
     env = cpu_init(cpu_model);
-
     register_savevm( "cpu", 0, ARM_CPU_SAVE_VERSION, cpu_save, cpu_load, env );
 
-    cpu_register_physical_memory(0, ram_size, IO_MEM_RAM);
+    ram_offset = qemu_ram_alloc(ram_size);
+    cpu_register_physical_memory(0, ram_size, ram_offset | IO_MEM_RAM);
 
     cpu_pic = arm_pic_init_cpu(env);
     goldfish_pic = goldfish_interrupt_init(0xff000000, cpu_pic[ARM_PIC_CPU_IRQ], cpu_pic[ARM_PIC_CPU_FIQ]);
@@ -109,7 +111,6 @@ static void android_arm_init(ram_addr_t ram_size, int vga_ram_size,
 
     goldfish_fb_init(ds, 0);
 #ifdef HAS_AUDIO
-    AUD_init();
     goldfish_audio_init(0xff004000, 0, audio_input_source);
 #endif
     {
@@ -160,8 +161,16 @@ static void android_arm_init(ram_addr_t ram_size, int vga_ram_size,
 QEMUMachine android_arm_machine = {
     "android_arm",
     "ARM Android Emulator",
-    android_arm_init,
+    android_arm_init_,
     0,
     0,
+    1,
     NULL
 };
+
+static void android_arm_init(void)
+{
+    qemu_register_machine(&android_arm_machine);
+}
+
+machine_init(android_arm_init);

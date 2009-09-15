@@ -22,8 +22,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 #include <esd.h>
+#include "qemu-common.h"
 #include "audio.h"
 #include <signal.h>
 
@@ -122,7 +122,7 @@ static int qesd_run_out (HWVoiceOut *hw)
     while (liveSamples > 0) {
         int  chunkSamples = audio_MIN (liveSamples, hw->samples - rpos);
         int  chunkBytes   = chunkSamples << hw->info.shift;
-        st_sample_t *src = hw->mix_buf + rpos;
+        struct st_sample *src = hw->mix_buf + rpos;
 
         hw->clip (esd->pcm_buf, src, chunkSamples);
 
@@ -142,7 +142,7 @@ static int qesd_run_out (HWVoiceOut *hw)
 
         writeSamples = nwrite >> hw->info.shift;
         writeBytes   = writeSamples << hw->info.shift;
-        if (writeSamples != writeBytes) {
+        if (writeBytes != nwrite) {
             dolog ("warning: Misaligned write %d (requested %d), "
                     "alignment %d\n",
                     nwrite, writeBytes, hw->info.align + 1);
@@ -160,10 +160,10 @@ static int qesd_write (SWVoiceOut *sw, void *buf, int len)
     return audio_pcm_sw_write (sw, buf, len);
 }
 
-static int qesd_init_out (HWVoiceOut *hw, audsettings_t *as)
+static int qesd_init_out (HWVoiceOut *hw, struct audsettings *as)
 {
     ESDVoiceOut *esd = (ESDVoiceOut *) hw;
-    audsettings_t obt_as = *as;
+    struct audsettings obt_as = *as;
     int esdfmt = ESD_STREAM | ESD_PLAY;
     int result = -1;
 
@@ -318,10 +318,10 @@ static int qesd_read (SWVoiceIn *sw, void *buf, int len)
     return audio_pcm_sw_read (sw, buf, len);
 }
 
-static int qesd_init_in (HWVoiceIn *hw, audsettings_t *as)
+static int qesd_init_in (HWVoiceIn *hw, struct audsettings *as)
 {
     ESDVoiceIn *esd = (ESDVoiceIn *) hw;
-    audsettings_t obt_as = *as;
+    struct audsettings obt_as = *as;
     int esdfmt = ESD_STREAM | ESD_RECORD;
     int result = -1;
 
@@ -342,6 +342,7 @@ static int qesd_init_in (HWVoiceIn *hw, audsettings_t *as)
         esdfmt |= ESD_BITS16;
         obt_as.fmt = AUD_FMT_S16;
         break;
+
     case AUD_FMT_S32:
     case AUD_FMT_U32:
         dolog ("Will use 16 instead of 32 bit samples\n");
@@ -487,7 +488,7 @@ struct audio_option qesd_options[] = {
     {NULL, 0, NULL, NULL, NULL, 0}
 };
 
-struct audio_pcm_ops qesd_pcm_ops = {
+static struct audio_pcm_ops qesd_pcm_ops = {
     qesd_init_out,
     qesd_fini_out,
     qesd_run_out,

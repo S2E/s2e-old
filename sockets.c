@@ -196,7 +196,7 @@ socket_type_to_bsd( SocketType  type )
     switch (type) {
         case SOCKET_DGRAM:  return SOCK_DGRAM;
         case SOCKET_STREAM: return SOCK_STREAM;
-        default: return -1;
+        default: return 0;
     }
 }
 
@@ -206,7 +206,7 @@ socket_type_from_bsd( int  type )
     switch (type) {
         case SOCK_DGRAM:  return SOCKET_DGRAM;
         case SOCK_STREAM: return SOCKET_STREAM;
-        default:          return (SocketType) -1;
+        default:          return (SocketType) SOCKET_UNSPEC;
     }
 }
 
@@ -718,6 +718,146 @@ Exit:
     return ret;
 }
 
+/* The Winsock headers for mingw lack some definitions */
+#ifndef AI_ADDRCONFIG
+#  define  AI_ADDRCONFIG  0
+#endif
+
+SockAddress**
+sock_address_list_create( const char*  hostname,
+                          const char*  port,
+                          unsigned     flags )
+{
+    SockAddress**    list = NULL;
+    SockAddress*     addr;
+    int              nn, count, ret;
+    struct addrinfo  ai, *res, *e;
+
+    memset(&ai, 0, sizeof(ai));
+    ai.ai_flags   |= AI_ADDRCONFIG;
+    ai.ai_family   = PF_UNSPEC;
+
+    if (flags & SOCKET_LIST_FORCE_INET)
+        ai.ai_family = PF_INET;
+    else if (flags & SOCKET_LIST_FORCE_IN6)
+        ai.ai_family = PF_INET6;
+
+    if (flags & SOCKET_LIST_PASSIVE)
+        ai.ai_flags |= AI_PASSIVE;
+    else
+        ai.ai_flags |= AI_CANONNAME;
+
+    while (1) {
+        struct addrinfo  hints = ai;
+
+        ret = getaddrinfo(hostname, port, &hints, &res);
+        if (ret == 0)
+            break;
+
+        switch (ret) {
+#ifdef EAI_ADDRFAMILY		
+        case EAI_ADDRFAMILY: 
+#endif		
+        case EAI_NODATA:
+            _set_errno(ENOENT);
+            break;
+        case EAI_FAMILY:
+            _set_errno(EAFNOSUPPORT);
+            break;
+        case EAI_AGAIN:
+            _set_errno(EAGAIN);
+            break;
+#ifdef EAI_SYSTEM			
+        case EAI_SYSTEM:
+            if (errno == EINTR)
+                continue;
+            break;
+#endif			
+        default:
+            _set_errno(EINVAL);
+        }
+        return NULL;
+    }
+
+    /* allocate result list */
+    for (count = 0, e = res; e != NULL; e = e->ai_next)
+        count += 1;
+
+    list = (SockAddress**) qemu_malloc((count+1)*sizeof(SockAddress*));
+    addr = (SockAddress*)  qemu_malloc(count*sizeof(SockAddress));
+
+    for (nn = 0, e = res; e != NULL; e = e->ai_next) {
+
+        ret = sock_address_from_bsd(addr, e->ai_addr, e->ai_addrlen);
+        if (ret < 0)
+            continue;
+
+        list[nn++] = addr++;
+    }
+    list[nn] = NULL;
+    freeaddrinfo(res);
+    return list;
+}
+
+void
+sock_address_list_free( SockAddress**  list )
+{
+    int  nn;
+    SockAddress*  addr;
+
+    if (list == NULL)
+        return;
+
+    addr = list[0];
+    for (nn = 0; list[nn] != NULL; nn++) {
+        sock_address_done(list[nn]);
+        list[nn] = NULL;
+    }
+    qemu_free(addr);
+    qemu_free(list);
+}
+
+int
+sock_address_get_numeric_info( SockAddress*  a,
+                               char*         host,
+                               size_t        hostlen,
+                               char*         serv,
+                               size_t        servlen )
+{
+    struct sockaddr*  saddr;
+    socklen_t         slen;
+    int               ret;
+
+    switch (a->family) {
+    case SOCKET_INET:
+        saddr = (struct sockaddr*) &a->u.inet.address;
+        slen  = sizeof(a->u.inet.address);
+        break;
+
+#if HAVE_IN6_SOCKET
+    case SOCKET_IN6:
+        saddr = (struct sockaddr*) &a->u.in6.address;
+        slen  = sizeof(a->u.in6.address);
+        break;
+#endif
+    default:
+        return _set_errno(EINVAL);
+    }
+
+    ret = getnameinfo( saddr, slen, host, hostlen, serv, servlen,
+                       NI_NUMERICHOST | NI_NUMERICSERV );
+
+    switch (ret) {
+    case 0:
+        break;
+    case EAI_AGAIN:
+        ret = EAGAIN;
+        break;
+    default:
+        ret = EINVAL;
+    }
+    return ret;
+}
 
 int
 socket_create( SocketFamily  family, SocketType  type )
@@ -872,6 +1012,20 @@ socket_get_address( int  fd, SockAddress*  address )
 }
 
 int
+socket_get_peer_address( int  fd, SockAddress*  address )
+{
+    struct sockaddr   addr;
+    socklen_t         addrlen = sizeof(addr);
+    int               ret;
+
+    QSOCKET_CALL(ret, getpeername(fd, &addr, &addrlen));
+    if (ret < 0)
+        return _fix_errno();
+
+    return sock_address_from_bsd(address, &addr, addrlen);
+}
+
+int
 socket_listen( int  fd, int  backlog )
 {
     SOCKET_CALL(listen(fd, backlog));
@@ -897,13 +1051,31 @@ socket_accept( int  fd, SockAddress*  address )
     return ret;
 }
 
+static int
+socket_getoption(int  fd, int  domain, int  option, int  defaut)
+{
+    int  ret;
+    while (1) {
+#ifdef _WIN32
+        DWORD opt = (DWORD)-1;
+#else
+        int  opt  = -1;
+#endif
+        size_t  optlen = sizeof(opt);
+        ret = getsockopt(fd, domain, option, (char*)&opt, &optlen);
+        if (ret == 0)
+            return (int)opt;
+        if (errno != EINTR)
+            return defaut;
+    }
+#undef OPT_CAST	
+}
+
+
 SocketType socket_get_type(int fd)
 {
-    int  opt    = -1;
-    int  optlen = sizeof(opt);
-    getsockopt(fd, SOL_SOCKET, SO_TYPE, (void*)&opt, (void*)&optlen );
-
-    return socket_type_from_bsd(opt);
+    int   so_type = socket_getoption(fd, SOL_SOCKET, SO_TYPE, -1);
+    return socket_type_from_bsd(so_type);
 }
 
 int socket_set_nonblock(int fd)
@@ -939,7 +1111,6 @@ socket_setoption(int  fd, int  domain, int  option, int  _flag)
     return setsockopt( fd, domain, option, (const char*)&flag, sizeof(flag) );
 }
 
-
 int socket_set_xreuseaddr(int  fd)
 {
 #ifdef _WIN32
@@ -966,6 +1137,23 @@ int  socket_set_nodelay(int  fd)
     return socket_setoption(fd, IPPROTO_TCP, TCP_NODELAY, 1);
 }
 
+int socket_set_ipv6only(int  fd)
+{
+/* IPV6_ONLY is only supported since Vista on Windows,
+ * and the Mingw headers lack its definition anyway.
+ */
+#if defined(_WIN32) && !defined(IPV6_V6ONLY)
+	return 0;
+#else
+    return socket_setoption(fd, IPPROTO_IPV6, IPV6_V6ONLY, 1);
+#endif	
+}
+
+
+int socket_get_error(int fd)
+{
+    return socket_getoption(fd, SOL_SOCKET, SO_ERROR, -1);
+}
 
 #ifdef _WIN32
 #include <stdlib.h>

@@ -6,5 +6,6 @@
 #define CONFIG_GDBSTUB 1
 #define CONFIG_SLIRP 1
 #define QEMU_VERSION "0.8.2"
+#define QEMU_PKGVERSION "Android"
 #define CONFIG_SKINS 1
 #define CONFIG_UNAME_RELEASE ""

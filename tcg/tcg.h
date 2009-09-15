@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "qemu-common.h"
 #include "tcg-target.h"
 
 #if TCG_TARGET_REG_BITS == 32
@@ -114,37 +115,61 @@ typedef tcg_target_ulong TCGArg;
    expecially on targets with braindamaged ABIs (e.g. i386).
    We use plain int by default to avoid this runtime overhead.
    Users of tcg_gen_* don't need to know about any of this, and should
-   treat TCGv as an opaque type.  */
+   treat TCGv as an opaque type.
+   In additon we do typechecking for different types of variables.  TCGv_i32
+   and TCGv_i64 are 32/64-bit variables respectively.  TCGv and TCGv_ptr
+   are aliases for target_ulong and host pointer sized values respectively.
+ */
 
-//#define DEBUG_TCGV 1
+#ifdef DEBUG_TCG
+#define DEBUG_TCGV 1
+#endif
 
 #ifdef DEBUG_TCGV
 
 typedef struct
 {
-    int n;
-} TCGv;
+    int i32;
+} TCGv_i32;
 
-#define MAKE_TCGV(i) __extension__ \
-  ({ TCGv make_tcgv_tmp = {i}; make_tcgv_tmp;})
-#define GET_TCGV(t) ((t).n)
+typedef struct
+{
+    int i64;
+} TCGv_i64;
+
+#define MAKE_TCGV_I32(i) __extension__                  \
+    ({ TCGv_i32 make_tcgv_tmp = {i}; make_tcgv_tmp;})
+#define MAKE_TCGV_I64(i) __extension__                  \
+    ({ TCGv_i64 make_tcgv_tmp = {i}; make_tcgv_tmp;})
+#define GET_TCGV_I32(t) ((t).i32)
+#define GET_TCGV_I64(t) ((t).i64)
 #if TCG_TARGET_REG_BITS == 32
-#define TCGV_HIGH(t) MAKE_TCGV(GET_TCGV(t) + 1)
+#define TCGV_LOW(t) MAKE_TCGV_I32(GET_TCGV_I64(t))
+#define TCGV_HIGH(t) MAKE_TCGV_I32(GET_TCGV_I64(t) + 1)
 #endif
 
 #else /* !DEBUG_TCGV */
 
-typedef int TCGv;
-#define MAKE_TCGV(x) (x)
-#define GET_TCGV(t) (t)
+typedef int TCGv_i32;
+typedef int TCGv_i64;
+#define MAKE_TCGV_I32(x) (x)
+#define MAKE_TCGV_I64(x) (x)
+#define GET_TCGV_I32(t) (t)
+#define GET_TCGV_I64(t) (t)
+
 #if TCG_TARGET_REG_BITS == 32
+#define TCGV_LOW(t) (t)
 #define TCGV_HIGH(t) ((t) + 1)
 #endif
 
 #endif /* DEBUG_TCGV */
 
+#define TCGV_EQUAL_I32(a, b) (GET_TCGV_I32(a) == GET_TCGV_I32(b))
+#define TCGV_EQUAL_I64(a, b) (GET_TCGV_I64(a) == GET_TCGV_I64(b))
+
 /* Dummy definition to avoid compiler warnings.  */
-#define TCGV_UNUSED(x) x = MAKE_TCGV(-1)
+#define TCGV_UNUSED_I32(x) x = MAKE_TCGV_I32(-1)
+#define TCGV_UNUSED_I64(x) x = MAKE_TCGV_I64(-1)
 
 /* call flags */
 #define TCG_CALL_TYPE_MASK      0x000f
@@ -152,13 +177,17 @@ typedef int TCGv;
 #define TCG_CALL_TYPE_REGPARM_1 0x0001 /* i386 style regparm call (1 reg) */
 #define TCG_CALL_TYPE_REGPARM_2 0x0002 /* i386 style regparm call (2 regs) */
 #define TCG_CALL_TYPE_REGPARM   0x0003 /* i386 style regparm call (3 regs) */
-/* A pure function only reads its arguments and globals variables and
-   cannot raise exceptions. Hence a call to a pure function can be
+/* A pure function only reads its arguments and TCG global variables
+   and cannot raise exceptions. Hence a call to a pure function can be
    safely suppressed if the return value is not used. */
 #define TCG_CALL_PURE           0x0010 
+/* A const function only reads its arguments and does not use TCG
+   global variables. Hence a call to such a function does not
+   save TCG global variables back to their canonical location. */
+#define TCG_CALL_CONST          0x0020
 
 /* used to align parameters */
-#define TCG_CALL_DUMMY_TCGV     MAKE_TCGV(-1)
+#define TCG_CALL_DUMMY_TCGV     MAKE_TCGV_I32(-1)
 #define TCG_CALL_DUMMY_ARG      ((TCGArg)(-1))
 
 typedef enum {
@@ -254,7 +283,6 @@ struct TCGContext {
     int op_count_max; /* max insn per TB */
     int64_t temp_count;
     int temp_count_max;
-    int64_t old_op_count;
     int64_t del_op_count;
     int64_t code_in_len;
     int64_t code_out_len;
@@ -296,27 +324,42 @@ static inline void *tcg_malloc(int size)
 void tcg_context_init(TCGContext *s);
 void tcg_func_start(TCGContext *s);
 
-int dyngen_code(TCGContext *s, uint8_t *gen_code_buf);
-int dyngen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, long offset);
+int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf);
+int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, long offset);
 
 void tcg_set_frame(TCGContext *s, int reg,
                    tcg_target_long start, tcg_target_long size);
-TCGv tcg_global_reg_new(TCGType type, int reg, const char *name);
-TCGv tcg_global_reg2_new_hack(TCGType type, int reg1, int reg2, 
-                              const char *name);
-TCGv tcg_global_mem_new(TCGType type, int reg, tcg_target_long offset,
-                        const char *name);
-TCGv tcg_temp_new_internal(TCGType type, int temp_local);
-static inline TCGv tcg_temp_new(TCGType type)
+
+TCGv_i32 tcg_global_reg_new_i32(int reg, const char *name);
+TCGv_i32 tcg_global_mem_new_i32(int reg, tcg_target_long offset,
+                                const char *name);
+TCGv_i32 tcg_temp_new_internal_i32(int temp_local);
+static inline TCGv_i32 tcg_temp_new_i32(void)
 {
-    return tcg_temp_new_internal(type, 0);
+    return tcg_temp_new_internal_i32(0);
 }
-static inline TCGv tcg_temp_local_new(TCGType type)
+static inline TCGv_i32 tcg_temp_local_new_i32(void)
 {
-    return tcg_temp_new_internal(type, 1);
+    return tcg_temp_new_internal_i32(1);
 }
-void tcg_temp_free(TCGv arg);
-char *tcg_get_arg_str(TCGContext *s, char *buf, int buf_size, TCGv arg);
+void tcg_temp_free_i32(TCGv_i32 arg);
+char *tcg_get_arg_str_i32(TCGContext *s, char *buf, int buf_size, TCGv_i32 arg);
+
+TCGv_i64 tcg_global_reg_new_i64(int reg, const char *name);
+TCGv_i64 tcg_global_mem_new_i64(int reg, tcg_target_long offset,
+                                const char *name);
+TCGv_i64 tcg_temp_new_internal_i64(int temp_local);
+static inline TCGv_i64 tcg_temp_new_i64(void)
+{
+    return tcg_temp_new_internal_i64(0);
+}
+static inline TCGv_i64 tcg_temp_local_new_i64(void)
+{
+    return tcg_temp_new_internal_i64(1);
+}
+void tcg_temp_free_i64(TCGv_i64 arg);
+char *tcg_get_arg_str_i64(TCGContext *s, char *buf, int buf_size, TCGv_i64 arg);
+
 void tcg_dump_info(FILE *f,
                    int (*cpu_fprintf)(FILE *f, const char *fmt, ...));
 
@@ -357,8 +400,6 @@ typedef struct TCGTargetOpDef {
     const char *args_ct_str[TCG_MAX_OP_ARGS];
 } TCGTargetOpDef;
 
-extern TCGOpDef tcg_op_defs[];
-
 void tcg_target_init(TCGContext *s);
 void tcg_target_qemu_prologue(TCGContext *s);
 
@@ -370,38 +411,49 @@ do {\
 
 void tcg_add_target_add_op_defs(const TCGTargetOpDef *tdefs);
 
-void tcg_gen_call(TCGContext *s, TCGv func, unsigned int flags,
-                  unsigned int nb_rets, const TCGv *rets,
-                  unsigned int nb_params, const TCGv *args1);
-void tcg_gen_shifti_i64(TCGv ret, TCGv arg1, 
-                        int c, int right, int arith);
-
-/* only used for debugging purposes */
-void tcg_register_helper(void *func, const char *name);
-#define TCG_HELPER(func) tcg_register_helper(func, #func)
-const char *tcg_helper_get_name(TCGContext *s, void *func);
-void tcg_dump_ops(TCGContext *s, FILE *outfile);
-
-void dump_ops(const uint16_t *opc_buf, const TCGArg *opparam_buf);
-TCGv tcg_const_i32(int32_t val);
-TCGv tcg_const_i64(int64_t val);
-
 #if TCG_TARGET_REG_BITS == 32
 #define tcg_const_ptr tcg_const_i32
 #define tcg_add_ptr tcg_add_i32
 #define tcg_sub_ptr tcg_sub_i32
+#define TCGv_ptr TCGv_i32
+#define GET_TCGV_PTR GET_TCGV_I32
+#define tcg_global_reg_new_ptr tcg_global_reg_new_i32
+#define tcg_global_mem_new_ptr tcg_global_mem_new_i32
+#define tcg_temp_new_ptr tcg_temp_new_i32
+#define tcg_temp_free_ptr tcg_temp_free_i32
 #else
 #define tcg_const_ptr tcg_const_i64
 #define tcg_add_ptr tcg_add_i64
 #define tcg_sub_ptr tcg_sub_i64
+#define TCGv_ptr TCGv_i64
+#define GET_TCGV_PTR GET_TCGV_I64
+#define tcg_global_reg_new_ptr tcg_global_reg_new_i64
+#define tcg_global_mem_new_ptr tcg_global_mem_new_i64
+#define tcg_temp_new_ptr tcg_temp_new_i64
+#define tcg_temp_free_ptr tcg_temp_free_i64
 #endif
+
+void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
+                   int sizemask, TCGArg ret, int nargs, TCGArg *args);
+
+void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
+                        int c, int right, int arith);
+
+/* only used for debugging purposes */
+void tcg_register_helper(void *func, const char *name);
+const char *tcg_helper_get_name(TCGContext *s, void *func);
+void tcg_dump_ops(TCGContext *s, FILE *outfile);
+
+void dump_ops(const uint16_t *opc_buf, const TCGArg *opparam_buf);
+TCGv_i32 tcg_const_i32(int32_t val);
+TCGv_i64 tcg_const_i64(int64_t val);
+TCGv_i32 tcg_const_local_i32(int32_t val);
+TCGv_i64 tcg_const_local_i64(int64_t val);
 
 void tcg_out_reloc(TCGContext *s, uint8_t *code_ptr, int type, 
                    int label_index, long addend);
 const TCGArg *tcg_gen_code_op(TCGContext *s, int opc, const TCGArg *args1,
                               unsigned int dead_iargs);
-
-const TCGArg *dyngen_op(TCGContext *s, int opc, const TCGArg *opparam_ptr);
 
 /* tcg-runtime.c */
 int64_t tcg_helper_shl_i64(int64_t arg1, int64_t arg2);
@@ -413,7 +465,7 @@ uint64_t tcg_helper_divu_i64(uint64_t arg1, uint64_t arg2);
 uint64_t tcg_helper_remu_i64(uint64_t arg1, uint64_t arg2);
 
 extern uint8_t code_gen_prologue[];
-#if defined(__powerpc__) && !defined(__powerpc64__)
+#if defined(_ARCH_PPC) && !defined(_ARCH_PPC64)
 #define tcg_qemu_tb_exec(tb_ptr) \
     ((long REGPARM __attribute__ ((longcall)) (*)(void *))code_gen_prologue)(tb_ptr)
 #else

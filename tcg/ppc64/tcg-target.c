@@ -42,6 +42,7 @@ static uint8_t *tb_ret_addr;
 #define CMP_L (1<<21)
 #endif
 
+#ifndef NDEBUG
 static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
     "r0",
     "r1",
@@ -76,6 +77,7 @@ static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
     "r30",
     "r31"
 };
+#endif
 
 static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_R14,
@@ -102,10 +104,6 @@ static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_R10,
     TCG_REG_R11,
     TCG_REG_R12,
-    TCG_REG_R13,
-    TCG_REG_R0,
-    TCG_REG_R1,
-    TCG_REG_R2,
     TCG_REG_R24,
     TCG_REG_R25,
     TCG_REG_R26,
@@ -138,6 +136,11 @@ static const int tcg_target_callee_save_regs[] = {
     TCG_REG_R21,
     TCG_REG_R22,
     TCG_REG_R23,
+    TCG_REG_R24,
+    TCG_REG_R25,
+    TCG_REG_R26,
+    /* TCG_REG_R27, */ /* currently used for the global env, so no
+                          need to save */
     TCG_REG_R28,
     TCG_REG_R29,
     TCG_REG_R30,
@@ -197,7 +200,7 @@ static void patch_reloc (uint8_t *code_ptr, int type,
 /* maximum number of register used for input function arguments */
 static int tcg_target_get_call_iarg_regs_count (int flags)
 {
-    return sizeof (tcg_target_call_iarg_regs) / sizeof (tcg_target_call_iarg_regs[0]);
+    return ARRAY_SIZE (tcg_target_call_iarg_regs);
 }
 
 /* parse target specific constraints */
@@ -303,6 +306,7 @@ static int tcg_target_const_match (tcg_target_long val,
 
 #define RLDICL XO30(  0)
 #define RLDICR XO30(  1)
+#define RLDIMI XO30(  3)
 
 #define BCLR   XO19( 16)
 #define BCCTR  XO19(528)
@@ -364,9 +368,6 @@ static int tcg_target_const_match (tcg_target_long val,
 #define SRD    XO31(539)
 #define SRAD   XO31(794)
 #define SRADI  XO31(413<<1)
-
-#define LMW    OPCD( 46)
-#define STMW   OPCD( 47)
 
 #define TW     XO31( 4)
 #define TRAP   (TW | TO (31))
@@ -487,6 +488,17 @@ static void tcg_out_ldst (TCGContext *s, int ret, int addr,
                           int offset, int op1, int op2)
 {
     if (offset == (int16_t) offset)
+        tcg_out32 (s, op1 | RT (ret) | RA (addr) | (offset & 0xffff));
+    else {
+        tcg_out_movi (s, TCG_TYPE_I64, 0, offset);
+        tcg_out32 (s, op2 | RT (ret) | RA (addr) | RB (0));
+    }
+}
+
+static void tcg_out_ldsta (TCGContext *s, int ret, int addr,
+                           int offset, int op1, int op2)
+{
+    if (offset == (int16_t) (offset & ~3))
         tcg_out32 (s, op1 | RT (ret) | RA (addr) | (offset & 0xffff));
     else {
         tcg_out_movi (s, TCG_TYPE_I64, 0, offset);
@@ -691,11 +703,10 @@ static void tcg_out_qemu_ld (TCGContext *s, const TCGArg *args, int opc)
         break;
     case 3:
         if (bswap) {
-            tcg_out32 (s, LWBRX | RT (0) | RB (r0));
-            tcg_out32 (s, ADDI | RT (r1) | RA (r0) | 4);
-            tcg_out32 (s, LWBRX | RT (data_reg) | RB (r1));
-            tcg_out_rld (s, RLDICR, data_reg, data_reg, 32, 31);
-            tcg_out32 (s, OR | SAB (0, data_reg, data_reg));
+            tcg_out_movi32 (s, 0, 4);
+            tcg_out32 (s, LWBRX | RT (data_reg) | RB (r0));
+            tcg_out32 (s, LWBRX | RT (      r1) | RA (r0));
+            tcg_out_rld (s, RLDIMI, data_reg, r1, 32, 0);
         }
         else tcg_out32 (s, LD | RT (data_reg) | RA (r0));
         break;
@@ -858,7 +869,7 @@ static void tcg_out_ld (TCGContext *s, TCGType type, int ret, int arg1,
     if (type == TCG_TYPE_I32)
         tcg_out_ldst (s, ret, arg1, arg2, LWZ, LWZX);
     else
-        tcg_out_ldst (s, ret, arg1, arg2, LD, LDX);
+        tcg_out_ldsta (s, ret, arg1, arg2, LD, LDX);
 }
 
 static void tcg_out_st (TCGContext *s, TCGType type, int arg, int arg1,
@@ -867,7 +878,7 @@ static void tcg_out_st (TCGContext *s, TCGType type, int arg, int arg1,
     if (type == TCG_TYPE_I32)
         tcg_out_ldst (s, arg, arg1, arg2, STW, STWX);
     else
-        tcg_out_ldst (s, arg, arg1, arg2, STD, STDX);
+        tcg_out_ldsta (s, arg, arg1, arg2, STD, STDX);
 }
 
 static void ppc_addi32 (TCGContext *s, int rt, int ra, tcg_target_long si)
@@ -888,7 +899,7 @@ static void ppc_addi64 (TCGContext *s, int rt, int ra, tcg_target_long si)
 {
     /* XXX: suboptimal */
     if (si == (int16_t) si
-        || (((uint64_t) si >> 31) == 0) && (si & 0x8000) == 0)
+        || ((((uint64_t) si >> 31) == 0) && (si & 0x8000) == 0))
         ppc_addi32 (s, rt, ra, si);
     else {
         tcg_out_movi (s, TCG_TYPE_I64, 0, si);
@@ -1086,10 +1097,10 @@ static void tcg_out_op (TCGContext *s, int opc, const TCGArg *args,
         tcg_out_ldst (s, args[0], args[1], args[2], LWZ, LWZX);
         break;
     case INDEX_op_ld32s_i64:
-        tcg_out_ldst (s, args[0], args[1], args[2], LWA, LWAX);
+        tcg_out_ldsta (s, args[0], args[1], args[2], LWA, LWAX);
         break;
     case INDEX_op_ld_i64:
-        tcg_out_ldst (s, args[0], args[1], args[2], LD, LDX);
+        tcg_out_ldsta (s, args[0], args[1], args[2], LD, LDX);
         break;
     case INDEX_op_st8_i32:
     case INDEX_op_st8_i64:
@@ -1104,7 +1115,7 @@ static void tcg_out_op (TCGContext *s, int opc, const TCGArg *args,
         tcg_out_ldst (s, args[0], args[1], args[2], STW, STWX);
         break;
     case INDEX_op_st_i64:
-        tcg_out_ldst (s, args[0], args[1], args[2], STD, STDX);
+        tcg_out_ldsta (s, args[0], args[1], args[2], STD, STDX);
         break;
 
     case INDEX_op_add_i32:

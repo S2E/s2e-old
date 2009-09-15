@@ -23,6 +23,7 @@
  */
 #include <fmod.h>
 #include <fmod_errors.h>
+#include "qemu-common.h"
 #include "audio.h"
 
 #define AUDIO_CAP "fmod"
@@ -141,8 +142,8 @@ static void fmod_write_sample (HWVoiceOut *hw, uint8_t *dst, int dst_len)
     int src_len1 = dst_len;
     int src_len2 = 0;
     int pos = hw->rpos + dst_len;
-    st_sample_t *src1 = hw->mix_buf + hw->rpos;
-    st_sample_t *src2 = NULL;
+    struct st_sample *src1 = hw->mix_buf + hw->rpos;
+    struct st_sample *src2 = NULL;
 
     if (pos > hw->samples) {
         src_len1 = hw->samples - hw->rpos;
@@ -354,11 +355,11 @@ static void fmod_fini_out (HWVoiceOut *hw)
     }
 }
 
-static int fmod_init_out (HWVoiceOut *hw, audsettings_t *as)
+static int fmod_init_out (HWVoiceOut *hw, struct audsettings *as)
 {
     int bits16, mode, channel;
     FMODVoiceOut *fmd = (FMODVoiceOut *) hw;
-    audsettings_t obt_as = *as;
+    struct audsettings obt_as = *as;
 
     mode = aud_to_fmodfmt (as->fmt, as->nchannels == 2 ? 1 : 0);
     fmd->fmod_sample = FSOUND_Sample_Alloc (
@@ -416,11 +417,11 @@ static int fmod_ctl_out (HWVoiceOut *hw, int cmd, ...)
     return 0;
 }
 
-static int fmod_init_in (HWVoiceIn *hw, audsettings_t *as)
+static int fmod_init_in (HWVoiceIn *hw, struct audsettings *as)
 {
     int bits16, mode;
     FMODVoiceIn *fmd = (FMODVoiceIn *) hw;
-    audsettings_t obt_as = *as;
+    struct audsettings obt_as = *as;
 
     if (conf.broken_adc) {
         return -1;
@@ -563,7 +564,7 @@ static void *fmod_audio_init (void)
 
     if (drv) {
         int found = 0;
-        for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
+        for (i = 0; i < ARRAY_SIZE (drvtab); i++) {
             if (!strcmp (drv, drvtab[i].name)) {
                 output_type = drvtab[i].type;
                 found = 1;
@@ -573,7 +574,7 @@ static void *fmod_audio_init (void)
         if (!found) {
             dolog ("Unknown FMOD driver `%s'\n", drv);
             dolog ("Valid drivers:\n");
-            for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
+            for (i = 0; i < ARRAY_SIZE (drvtab); i++) {
                 dolog ("  %s\n", drvtab[i].name);
             }
         }

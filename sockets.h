@@ -56,6 +56,9 @@
 #  ifndef ENOPROTOOPT
 #    define ENOPROTOOPT  10042
 #  endif
+#  ifndef EAFNOSUPPORT
+#    define EAFNOSUPPORT 10047
+#  endif
 #  ifndef EADDRINUSE
 #    define EADDRINUSE   10048
 #  endif
@@ -212,6 +215,12 @@ int   sock_address_to_inet( SockAddress*  a, int  *paddr_ip, int  *paddr_port );
 /* return a static string describing the address */
 const char*  sock_address_to_string( const SockAddress*  a );
 
+static __inline__
+SocketFamily  sock_address_get_family( const SockAddress*  a )
+{
+    return a->family;
+}
+
 /* return the port number of a given socket address, or -1 if it's a Unix one */
 int   sock_address_get_port( const SockAddress*  a );
 
@@ -240,6 +249,40 @@ int   sock_address_init_resolve( SockAddress*  a,
                                  const char*   hostname,
                                  uint16_t      port,
                                  int           preferIn6 );
+
+int  sock_address_get_numeric_info( SockAddress*  a,
+                                    char*         host,
+                                    size_t        hostlen,
+                                    char*         serv,
+                                    size_t        servlen );
+
+/* Support for listing all socket addresses of a given host */
+enum {
+    SOCKET_LIST_PASSIVE    = (1 << 0),
+    SOCKET_LIST_FORCE_INET = (1 << 1),
+    SOCKET_LIST_FORCE_IN6  = (1 << 2)
+};
+
+/* resolve a host and service/port name into a list of SockAddress objects.
+ * returns a NULL-terminated array of SockAddress pointers on success,
+ * or NULL in case of failure, with the value of errno set to one of the
+ * following:
+ *
+ *    EINVAL    : invalid argument
+ *    EHOSTDOWN : could not reach DNS server
+ *    ENOENT    : no host with this name, or host doesn't have IP address
+ *    ENOMEM    : not enough memory to perform request
+ *
+ * other system-level errors can also be set depending on the host sockets
+ * implementation.
+ *
+ * This function loops on EINTR so the caller shouldn't have to check for it.
+ */
+SockAddress**  sock_address_list_create( const char*  hostname,
+                                         const char*  port,
+                                         unsigned     flags );
+
+void sock_address_list_free( SockAddress**  list );
 
 /* create a new socket, return the socket number of -1 on failure */
 int  socket_create( SocketFamily  family, SocketType  type );
@@ -281,6 +324,12 @@ int  socket_set_nodelay(int fd);
 /* send OOB data inline for this socket */
 int  socket_set_oobinline(int  fd);
 
+/* force listening to IPv6 interfaces only */
+int  socket_set_ipv6only(int  fd);
+
+/* retrieve last socket error code */
+int  socket_get_error(int  fd);
+
 /* close an opened socket. Note that this is unlike the Unix 'close' because:
  * - it will properly shutdown the socket in the background
  * - it does not modify errno
@@ -299,6 +348,7 @@ int   socket_sendto( int  fd, const void*  buf, int  buflen, const SockAddress* 
 int   socket_connect( int  fd, const SockAddress*  address );
 int   socket_bind( int  fd, const SockAddress*  address );
 int   socket_get_address( int  fd, SockAddress*  address );
+int   socket_get_peer_address( int  fd, SockAddress*  address );
 int   socket_listen( int  fd, int  backlog );
 int   socket_accept( int  fd, SockAddress*  address );
 

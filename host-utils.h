@@ -47,14 +47,16 @@ void muls64(uint64_t *phigh, uint64_t *plow, int64_t a, int64_t b);
 void mulu64(uint64_t *phigh, uint64_t *plow, uint64_t a, uint64_t b);
 #endif
 
-/* Note that some of those functions may end up calling libgcc functions,
-   depending on the host machine. It is up to the target emulation to
-   cope with that. */
-
 /* Binary search for leading zeros.  */
 
 static always_inline int clz32(uint32_t val)
 {
+#if QEMU_GNUC_PREREQ(3, 4)
+    if (val)
+        return __builtin_clz(val);
+    else
+        return 32;
+#else
     int cnt = 0;
 
     if (!(val & 0xFFFF0000U)) {
@@ -81,6 +83,7 @@ static always_inline int clz32(uint32_t val)
         cnt++;
     }
     return cnt;
+#endif
 }
 
 static always_inline int clo32(uint32_t val)
@@ -90,6 +93,12 @@ static always_inline int clo32(uint32_t val)
 
 static always_inline int clz64(uint64_t val)
 {
+#if QEMU_GNUC_PREREQ(3, 4)
+    if (val)
+        return __builtin_clzll(val);
+    else
+        return 64;
+#else
     int cnt = 0;
 
     if (!(val >> 32)) {
@@ -99,6 +108,7 @@ static always_inline int clz64(uint64_t val)
     }
 
     return cnt + clz32(val);
+#endif
 }
 
 static always_inline int clo64(uint64_t val)
@@ -106,45 +116,58 @@ static always_inline int clo64(uint64_t val)
     return clz64(~val);
 }
 
-static always_inline int ctz32 (uint32_t val)
+static always_inline int ctz32(uint32_t val)
 {
+#if QEMU_GNUC_PREREQ(3, 4)
+    if (val)
+        return __builtin_ctz(val);
+    else
+        return 32;
+#else
     int cnt;
 
     cnt = 0;
     if (!(val & 0x0000FFFFUL)) {
-         cnt += 16;
+        cnt += 16;
         val >>= 16;
-     }
+    }
     if (!(val & 0x000000FFUL)) {
-         cnt += 8;
+        cnt += 8;
         val >>= 8;
-     }
+    }
     if (!(val & 0x0000000FUL)) {
-         cnt += 4;
+        cnt += 4;
         val >>= 4;
-     }
+    }
     if (!(val & 0x00000003UL)) {
-         cnt += 2;
+        cnt += 2;
         val >>= 2;
-     }
+    }
     if (!(val & 0x00000001UL)) {
-         cnt++;
+        cnt++;
         val >>= 1;
-     }
+    }
     if (!(val & 0x00000001UL)) {
-         cnt++;
-     }
+        cnt++;
+    }
 
-     return cnt;
- }
- 
-static always_inline int cto32 (uint32_t val)
- {
+    return cnt;
+#endif
+}
+
+static always_inline int cto32(uint32_t val)
+{
     return ctz32(~val);
 }
 
-static always_inline int ctz64 (uint64_t val)
+static always_inline int ctz64(uint64_t val)
 {
+#if QEMU_GNUC_PREREQ(3, 4)
+    if (val)
+        return __builtin_ctz(val);
+    else
+        return 64;
+#else
     int cnt;
 
     cnt = 0;
@@ -154,14 +177,15 @@ static always_inline int ctz64 (uint64_t val)
     }
 
     return cnt + ctz32(val);
+#endif
 }
 
-static always_inline int cto64 (uint64_t val)
+static always_inline int cto64(uint64_t val)
 {
     return ctz64(~val);
 }
 
-static always_inline int ctpop8 (uint8_t val)
+static always_inline int ctpop8(uint8_t val)
 {
     val = (val & 0x55) + ((val >> 1) & 0x55);
     val = (val & 0x33) + ((val >> 2) & 0x33);
@@ -170,7 +194,7 @@ static always_inline int ctpop8 (uint8_t val)
     return val;
 }
 
-static always_inline int ctpop16 (uint16_t val)
+static always_inline int ctpop16(uint16_t val)
 {
     val = (val & 0x5555) + ((val >> 1) & 0x5555);
     val = (val & 0x3333) + ((val >> 2) & 0x3333);
@@ -180,8 +204,11 @@ static always_inline int ctpop16 (uint16_t val)
     return val;
 }
 
-static always_inline int ctpop32 (uint32_t val)
+static always_inline int ctpop32(uint32_t val)
 {
+#if QEMU_GNUC_PREREQ(3, 4)
+    return __builtin_popcount(val);
+#else
     val = (val & 0x55555555) + ((val >>  1) & 0x55555555);
     val = (val & 0x33333333) + ((val >>  2) & 0x33333333);
     val = (val & 0x0f0f0f0f) + ((val >>  4) & 0x0f0f0f0f);
@@ -189,10 +216,14 @@ static always_inline int ctpop32 (uint32_t val)
     val = (val & 0x0000ffff) + ((val >> 16) & 0x0000ffff);
 
     return val;
+#endif
 }
 
-static always_inline int ctpop64 (uint64_t val)
+static always_inline int ctpop64(uint64_t val)
 {
+#if QEMU_GNUC_PREREQ(3, 4)
+    return __builtin_popcountll(val);
+#else
     val = (val & 0x5555555555555555ULL) + ((val >>  1) & 0x5555555555555555ULL);
     val = (val & 0x3333333333333333ULL) + ((val >>  2) & 0x3333333333333333ULL);
     val = (val & 0x0f0f0f0f0f0f0f0fULL) + ((val >>  4) & 0x0f0f0f0f0f0f0f0fULL);
@@ -201,4 +232,5 @@ static always_inline int ctpop64 (uint64_t val)
     val = (val & 0x00000000ffffffffULL) + ((val >> 32) & 0x00000000ffffffffULL);
 
     return val;
+#endif
 }

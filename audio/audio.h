@@ -45,12 +45,12 @@ typedef enum {
 #define AUDIO_HOST_ENDIANNESS 0
 #endif
 
-typedef struct {
+struct audsettings {
     int freq;
     int nchannels;
     audfmt_e fmt;
     int endianness;
-} audsettings_t;
+};
 
 typedef enum {
     AUD_CNOTIFY_ENABLE,
@@ -79,7 +79,6 @@ typedef struct CaptureVoiceOut CaptureVoiceOut;
 typedef struct SWVoiceIn SWVoiceIn;
 
 typedef struct QEMUSoundCard {
-    AudioState *audio;
     char *name;
     LIST_ENTRY (QEMUSoundCard) entries;
 } QEMUSoundCard;
@@ -95,15 +94,11 @@ void AUD_log (const char *cap, const char *fmt, ...)
 #endif
     ;
 
-extern AudioState glob_audio_state;
-
-AudioState *AUD_init (void);
 void AUD_help (void);
-void AUD_register_card (AudioState *s, const char *name, QEMUSoundCard *card);
+void AUD_register_card (const char *name, QEMUSoundCard *card);
 void AUD_remove_card (QEMUSoundCard *card);
 CaptureVoiceOut *AUD_add_capture (
-    AudioState *s,
-    audsettings_t *as,
+    struct audsettings *as,
     struct audio_capture_ops *ops,
     void *opaque
     );
@@ -115,7 +110,7 @@ SWVoiceOut *AUD_open_out (
     const char *name,
     void *callback_opaque,
     audio_callback_fn_t callback_fn,
-    audsettings_t *settings
+    struct audsettings *settings
     );
 
 void AUD_close_out (QEMUSoundCard *card, SWVoiceOut *sw);
@@ -136,7 +131,7 @@ SWVoiceIn *AUD_open_in (
     const char *name,
     void *callback_opaque,
     audio_callback_fn_t callback_fn,
-    audsettings_t *settings
+    struct audsettings *settings
     );
 
 void AUD_close_in (QEMUSoundCard *card, SWVoiceIn *sw);
@@ -172,6 +167,9 @@ uint32_t lsbindex (uint32_t u);
 #define audio_MIN(a, b) ((a)>(b)?(b):(a))
 #define audio_MAX(a, b) ((a)<(b)?(b):(a))
 #endif
+
+int wav_start_capture (CaptureState *s, const char *path, int freq,
+                       int bits, int nchannels);
 
 extern int
 audio_get_backend_count( int  is_input );

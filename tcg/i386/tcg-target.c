@@ -21,7 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-const char *tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
+
+#ifndef NDEBUG
+static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
     "%eax",
     "%ecx",
     "%edx",
@@ -31,8 +33,9 @@ const char *tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
     "%esi",
     "%edi",
 };
+#endif
 
-int tcg_target_reg_alloc_order[] = {
+static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_EAX,
     TCG_REG_EDX,
     TCG_REG_ECX,
@@ -42,8 +45,8 @@ int tcg_target_reg_alloc_order[] = {
     TCG_REG_EBP,
 };
 
-const int tcg_target_call_iarg_regs[3] = { TCG_REG_EAX, TCG_REG_EDX, TCG_REG_ECX };
-const int tcg_target_call_oarg_regs[2] = { TCG_REG_EAX, TCG_REG_EDX };
+static const int tcg_target_call_iarg_regs[3] = { TCG_REG_EAX, TCG_REG_EDX, TCG_REG_ECX };
+static const int tcg_target_call_oarg_regs[2] = { TCG_REG_EAX, TCG_REG_EDX };
 
 static uint8_t *tb_ret_addr;
 
@@ -80,7 +83,7 @@ static inline int tcg_target_get_call_iarg_regs_count(int flags)
 }
 
 /* parse target specific constraints */
-int target_parse_constraint(TCGArgConstraint *ct, const char **pct_str)
+static int target_parse_constraint(TCGArgConstraint *ct, const char **pct_str)
 {
     const char *ct_str;
 
@@ -155,6 +158,8 @@ static inline int tcg_target_const_match(tcg_target_long val,
 #define ARITH_XOR 6
 #define ARITH_CMP 7
 
+#define SHIFT_ROL 0
+#define SHIFT_ROR 1
 #define SHIFT_SHL 4
 #define SHIFT_SHR 5
 #define SHIFT_SAR 7
@@ -282,7 +287,7 @@ static inline void tgen_arithi(TCGContext *s, int c, int r0, int32_t val)
     }
 }
 
-void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val)
+static void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val)
 {
     if (val != 0)
         tgen_arithi(s, ARITH_ADD, reg, val);
@@ -522,7 +527,13 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_out_modrm(s, 0xbf | P_EXT, data_reg, TCG_REG_EAX);
         break;
     case 0:
+        /* movzbl */
+        tcg_out_modrm(s, 0xb6 | P_EXT, data_reg, TCG_REG_EAX);
+        break;
     case 1:
+        /* movzwl */
+        tcg_out_modrm(s, 0xb7 | P_EXT, data_reg, TCG_REG_EAX);
+        break;
     case 2:
     default:
         tcg_out_mov(s, data_reg, TCG_REG_EAX);
@@ -989,7 +1000,13 @@ static inline void tcg_out_op(TCGContext *s, int opc,
     case INDEX_op_sar_i32:
         c = SHIFT_SAR;
         goto gen_shift32;
-        
+    case INDEX_op_rotl_i32:
+        c = SHIFT_ROL;
+        goto gen_shift32;
+    case INDEX_op_rotr_i32:
+        c = SHIFT_ROR;
+        goto gen_shift32;
+
     case INDEX_op_add2_i32:
         if (const_args[4]) 
             tgen_arithi(s, ARITH_ADD, args[0], args[4]);
@@ -1015,6 +1032,30 @@ static inline void tcg_out_op(TCGContext *s, int opc,
         break;
     case INDEX_op_brcond2_i32:
         tcg_out_brcond2(s, args, const_args);
+        break;
+
+    case INDEX_op_bswap16_i32:
+        tcg_out8(s, 0x66);
+        tcg_out_modrm(s, 0xc1, SHIFT_ROL, args[0]);
+        tcg_out8(s, 8);
+        break;
+    case INDEX_op_bswap32_i32:
+        tcg_out_opc(s, (0xc8 + args[0]) | P_EXT);
+        break;
+
+    case INDEX_op_neg_i32:
+        tcg_out_modrm(s, 0xf7, 3, args[0]);
+        break;
+
+    case INDEX_op_not_i32:
+        tcg_out_modrm(s, 0xf7, 2, args[0]);
+        break;
+
+    case INDEX_op_ext8s_i32:
+        tcg_out_modrm(s, 0xbe | P_EXT, args[0], args[1]);
+        break;
+    case INDEX_op_ext16s_i32:
+        tcg_out_modrm(s, 0xbf | P_EXT, args[0], args[1]);
         break;
 
     case INDEX_op_qemu_ld8u:
@@ -1084,12 +1125,25 @@ static const TCGTargetOpDef x86_op_defs[] = {
     { INDEX_op_shl_i32, { "r", "0", "ci" } },
     { INDEX_op_shr_i32, { "r", "0", "ci" } },
     { INDEX_op_sar_i32, { "r", "0", "ci" } },
+    { INDEX_op_sar_i32, { "r", "0", "ci" } },
+    { INDEX_op_rotl_i32, { "r", "0", "ci" } },
+    { INDEX_op_rotr_i32, { "r", "0", "ci" } },
 
     { INDEX_op_brcond_i32, { "r", "ri" } },
 
     { INDEX_op_add2_i32, { "r", "r", "0", "1", "ri", "ri" } },
     { INDEX_op_sub2_i32, { "r", "r", "0", "1", "ri", "ri" } },
     { INDEX_op_brcond2_i32, { "r", "r", "ri", "ri" } },
+
+    { INDEX_op_bswap16_i32, { "r", "0" } },
+    { INDEX_op_bswap32_i32, { "r", "0" } },
+
+    { INDEX_op_neg_i32, { "r", "0" } },
+
+    { INDEX_op_not_i32, { "r", "0" } },
+
+    { INDEX_op_ext8s_i32, { "r", "q" } },
+    { INDEX_op_ext16s_i32, { "r", "r" } },
 
 #if TARGET_LONG_BITS == 32
     { INDEX_op_qemu_ld8u, { "r", "L" } },
