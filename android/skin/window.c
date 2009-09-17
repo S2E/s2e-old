@@ -523,7 +523,7 @@ button_done( Button*  button )
 }
 
 static void
-button_init( Button*  button, SkinButton*  sbutton, SkinLocation*  loc, Background*  back, SkinRect*  frame )
+button_init( Button*  button, SkinButton*  sbutton, SkinLocation*  loc, Background*  back, SkinRect*  frame, SkinLayout*  slayout )
 {
     SkinRect  r;
 
@@ -531,6 +531,14 @@ button_init( Button*  button, SkinButton*  sbutton, SkinLocation*  loc, Backgrou
     button->background = back;
     button->keycode    = sbutton->keycode;
     button->down       = 0;
+
+    if (slayout->has_dpad_rotation) {
+        /* Dpad keys must be rotated if the skin provides a 'dpad-rotation' field.
+         * this is used as a counter-measure to the fact that the framework always assumes
+         * that the physical D-Pad has been rotated when in landscape mode.
+         */
+        button->keycode = android_keycode_rotate( button->keycode, -slayout->dpad_rotation );
+    }
 
     skin_rect_rotate( &r, &sbutton->rect, loc->rotation );
     r.pos.x += loc->anchor.x;
@@ -792,7 +800,7 @@ layout_init( Layout*  layout, SkinLayout*  slayout )
 
         SKIN_PART_LOOP_BUTTONS(part, sbutton)
             Button*  button = layout->buttons + n_buttons;
-            button_init( button, sbutton, loc, back, &layout->rect );
+            button_init( button, sbutton, loc, back, &layout->rect, slayout );
             n_buttons += 1;
         SKIN_PART_LOOP_END
     SKIN_LAYOUT_LOOP_END

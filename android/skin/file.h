@@ -75,6 +75,8 @@ typedef struct SkinLayout {
     int                 event_type;
     int                 event_code;
     int                 event_value;
+    char                has_dpad_rotation;
+    SkinRotation        dpad_rotation;
     SkinSize            size;
     SkinLocation*       locations;
 } SkinLayout;
