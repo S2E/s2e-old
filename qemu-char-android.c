@@ -662,6 +662,26 @@ static CharDriverState *qemu_chr_open_pipe(const char *filename)
     return qemu_chr_open_fd(fd_in, fd_out);
 }
 
+static CharDriverState *qemu_chr_open_fdpair(const char *fd_pair)
+{
+    int fd_in, fd_out;
+    char *endptr;
+
+    /* fd_pair should contain two decimal fd values, separated by
+     * a colon. */
+    endptr = NULL;
+    fd_in = strtol(fd_pair, &endptr, 10);
+    if (endptr == NULL || endptr == fd_pair || *endptr != ':')
+        return NULL;
+    endptr++;   // skip colon
+    fd_pair = endptr;
+    endptr = NULL;
+    fd_out = strtol(fd_pair, &endptr, 10);
+    if (endptr == NULL || endptr == fd_pair || *endptr != '\0')
+        return NULL;
+
+    return qemu_chr_open_fd(fd_in, fd_out);
+}
 
 /* for STDIO, we handle the case where several clients use it
    (nographic mode) */
@@ -2160,6 +2180,8 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*i
         chr = qemu_chr_open_file_out(p);
     } else if (strstart(filename, "pipe:", &p)) {
         chr = qemu_chr_open_pipe(p);
+    } else if (strstart(filename, "fdpair:", &p)) {
+        chr = qemu_chr_open_fdpair(p);
     } else if (!strcmp(filename, "pty")) {
         chr = qemu_chr_open_pty();
     } else if (!strcmp(filename, "stdio")) {
