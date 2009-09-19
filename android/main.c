@@ -397,40 +397,8 @@ static AndroidKeyCode
 qemulator_rotate_keycode( QEmulator*      emulator,
                           AndroidKeyCode  sym )
 {
-    switch (skin_layout_get_dpad_rotation(emulator->layout)) {
-        case SKIN_ROTATION_90:
-            switch (sym) {
-                case kKeyCodeDpadLeft:  sym = kKeyCodeDpadDown; break;
-                case kKeyCodeDpadRight: sym = kKeyCodeDpadUp; break;
-                case kKeyCodeDpadUp:    sym = kKeyCodeDpadLeft; break;
-                case kKeyCodeDpadDown:  sym = kKeyCodeDpadRight; break;
-                default: ;
-            }
-            break;
-
-        case SKIN_ROTATION_180:
-            switch (sym) {
-                case kKeyCodeDpadLeft:  sym = kKeyCodeDpadRight; break;
-                case kKeyCodeDpadRight: sym = kKeyCodeDpadLeft; break;
-                case kKeyCodeDpadUp:    sym = kKeyCodeDpadDown; break;
-                case kKeyCodeDpadDown:  sym = kKeyCodeDpadUp; break;
-                default: ;
-            }
-            break;
-
-        case SKIN_ROTATION_270:
-            switch (sym) {
-                case kKeyCodeDpadLeft:  sym = kKeyCodeDpadUp; break;
-                case kKeyCodeDpadRight: sym = kKeyCodeDpadDown; break;
-                case kKeyCodeDpadUp:    sym = kKeyCodeDpadRight; break;
-                case kKeyCodeDpadDown:  sym = kKeyCodeDpadLeft; break;
-                default: ;
-            }
-            break;
-
-        default: ;
-    }
-    return sym;
+    return android_keycode_rotate( sym,
+                                   skin_layout_get_dpad_rotation(emulator->layout) );
 }
 
 static int

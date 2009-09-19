@@ -424,6 +424,9 @@ skin_layout_get_display( SkinLayout*  layout )
 SkinRotation
 skin_layout_get_dpad_rotation( SkinLayout*  layout )
 {
+    if (layout->has_dpad_rotation)
+        return layout->dpad_rotation;
+
     SKIN_LAYOUT_LOOP_LOCS(layout, loc)
         SkinPart*  part = loc->part;
         SKIN_PART_LOOP_BUTTONS(part,button)
@@ -504,6 +507,12 @@ skin_layout_create_from_v2( AConfig*  root, SkinPart*  parts )
     layout->name  = root->name;
     layout->color = aconfig_unsigned( root, "color", 0x808080 ) | 0xff000000;
     ptail         = &layout->locations;
+
+    node = aconfig_find( root, "dpad-rotation" );
+    if (node != NULL) {
+        layout->dpad_rotation     = aconfig_int( root, "dpad-rotation", 0 );
+        layout->has_dpad_rotation = 1;
+    }
 
     for (node = root->first_child; node; node = node->next)
     {
