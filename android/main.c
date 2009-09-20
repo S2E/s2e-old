@@ -2321,8 +2321,31 @@ int main(int argc, char **argv)
 
     n = 1;
     /* generate arguments for the underlying qemu main() */
-    args[n++] = "-kernel";
-    args[n++] = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_KERNEL);
+    {
+        const char*  kernelFile    = avdInfo_getImageFile(avd, AVD_IMAGE_KERNEL);
+        int          kernelFileLen = strlen(kernelFile);
+
+        args[n++] = "-kernel";
+        args[n++] = (char*)kernelFile;
+
+        /* If the kernel image name ends in "-armv7", then change the cpu
+         * type automatically. This is a poor man's approach to configuration
+         * management, but should allow us to get past building ARMv7
+         * system images with dex preopt pass without introducing too many
+         * changes to the emulator sources.
+         *
+         * XXX:
+         * A 'proper' change would require adding some sort of hardware-property
+         * to each AVD config file, then automatically determine its value for
+         * full Android builds (depending on some environment variable), plus
+         * some build system changes. I prefer not to do that for now for reasons
+         * of simplicity.
+         */
+         if (kernelFileLen > 6 && !memcmp(kernelFile + kernelFileLen - 6, "-armv7", 6)) {
+            args[n++] = "-cpu";
+            args[n++] = "cortex-a8";
+         }
+    }
 
     args[n++] = "-initrd";
     args[n++] = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_RAMDISK);
