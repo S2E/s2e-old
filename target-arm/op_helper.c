@@ -70,7 +70,7 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
 static void do_unaligned_access (target_ulong addr, int is_write, int is_user, void *retaddr);
 
 #define MMUSUFFIX _mmu
-#define ALIGNED_ONLY  1
+//#define ALIGNED_ONLY  1
 
 #define SHIFT 0
 #include "softmmu_template.h"
