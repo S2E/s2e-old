@@ -580,7 +580,10 @@ kcm_extract_charmap_name(const char* kcm_file_path,
     }
 
     // Copy file name to charmap name.
-    to_copy = min(max_len - 1, ext_separator - file_name);
+    to_copy = ext_separator - file_name;
+    if (to_copy > (max_len - 1)) {
+        to_copy = max_len - 1;
+    }
     memcpy(charmap_name, file_name, to_copy);
     charmap_name[to_copy] = '\0';
 }
