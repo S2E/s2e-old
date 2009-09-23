@@ -39,9 +39,6 @@ extern const AKeyCharmap**  android_charmaps;
 /* Number of entries in android_charmaps array. */
 extern int                  android_charmap_count;
 
-/* Custom character map created with -charmap option. */
-extern AKeyCharmap          android_custom_charmap;
-
 /* Extracts charmap name from .kcm file name.
  * Charmap name, extracted by this routine is a name of the kcm file, trimmed
  * of file name extension, and shrinked (if necessary) to fit into the name

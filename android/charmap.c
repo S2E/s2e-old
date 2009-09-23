@@ -263,7 +263,7 @@ static const AKeyCharmap  _qwerty2_charmap =
 };
 
 /* Custom character map created with -charmap option. */
-AKeyCharmap android_custom_charmap = { 0 };
+static AKeyCharmap android_custom_charmap = { 0 };
 
 const AKeyCharmap** android_charmaps = 0;
 int                 android_charmap_count = 0;
@@ -721,15 +721,6 @@ android_charmap_setup(const char* kcm_file_path) {
 void
 android_charmap_done(void) {
   if (NULL != android_charmaps) {
-      int n;
-      for (n = 0; n < android_charmap_count; n++) {
-          // Entries for qwerty and qwerty2 character maps are
-          // static entries defined in charmap.c
-          if ((&_qwerty_charmap != android_charmaps[n]->entries) &&
-              (&_qwerty2_charmap != android_charmaps[n]->entries)) {
-              qemu_free((void*)android_charmaps[n]->entries);
-          }
-      }
       qemu_free(android_charmaps);
   }
 }
