@@ -721,6 +721,15 @@ android_charmap_setup(const char* kcm_file_path) {
 void
 android_charmap_done(void) {
   if (NULL != android_charmaps) {
+      int n;
+      for (n = 0; n < android_charmap_count; n++) {
+          // Entries for qwerty and qwerty2 character maps are
+          // static entries defined in charmap.c
+          if ((_qwerty_charmap.entries != android_charmaps[n]->entries) &&
+              (_qwerty2_charmap.entries != android_charmaps[n]->entries)) {
+              qemu_free((void*)android_charmaps[n]->entries);
+          }
+      }
       qemu_free(android_charmaps);
   }
 }
