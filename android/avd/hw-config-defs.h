@@ -125,7 +125,7 @@ HWCFG_BOOL(
 HWCFG_DISKSIZE(
   disk_systemPartition_size,
   "disk.systemPartition.size",
-  "66MB",
+  "72MB",
   "System partition size",
   "")
 
