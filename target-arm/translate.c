@@ -3828,7 +3828,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     gen_neon_dup_low16(tmp);
                     break;
                 case 2:
-                    tmp = gen_ld32(cpu_T[0], IS_USER(s));
+                    tmp = gen_ld32(cpu_T[1], IS_USER(s));
                     break;
                 case 3:
                     return 1;

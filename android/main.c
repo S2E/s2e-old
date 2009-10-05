@@ -67,6 +67,8 @@
 #include "android/globals.h"
 #include "tcpdump.h"
 
+#include "tcg.h"
+
 /* in vl.c */
 extern void  qemu_help(int  code);
 
@@ -2356,6 +2358,14 @@ int main(int argc, char **argv)
             args[n++] = "-cpu";
             args[n++] = "cortex-a8";
          }
+         /* we also disable liveness analysis in the code generator, because it seems
+          * that ARMv7 -> x86 code generation triggers a fatal assertion when it is
+          * activated. The drawback is that the generated code is slower, but at the
+          * moment, ARMv7 emulation is only used to run the dex preopt pass within the
+          * Android build system. This hack should be removed when we fix the code
+          * generator.
+          */
+          tcg_disable_liveness_analysis = 1;
     }
 
     args[n++] = "-initrd";
