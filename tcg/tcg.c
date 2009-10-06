@@ -57,8 +57,6 @@
 #include "tcg-op.h"
 #include "elf.h"
 
-int tcg_disable_liveness_analysis;
-
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
 
@@ -1079,13 +1077,11 @@ static void tcg_liveness_analysis(TCGContext *s)
     uint8_t *dead_temps;
     unsigned int dead_iargs;
 
-    if (tcg_disable_liveness_analysis) {
-        int nb_ops;
-        nb_ops = gen_opc_ptr - gen_opc_buf + 1;
-
-        s->op_dead_iargs = tcg_malloc(nb_ops * sizeof(uint16_t));
-        memset(s->op_dead_iargs, 0, nb_ops * sizeof(uint16_t));
-        return;
+    /* sanity check */
+    if (gen_opc_ptr - gen_opc_buf > OPC_BUF_SIZE) {
+        fprintf(stderr, "PANIC: too many opcodes generated (%d > %d)\n",
+                gen_opc_ptr - gen_opc_buf, OPC_BUF_SIZE);
+        tcg_abort();
     }
 
     gen_opc_ptr++; /* skip end */
@@ -2020,6 +2016,13 @@ int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
             s->temp_count_max = s->nb_temps;
     }
 #endif
+
+    /* sanity check */
+    if (gen_opc_ptr - gen_opc_buf > OPC_BUF_SIZE) {
+        fprintf(stderr, "PANIC: too many opcodes generated (%d > %d)\n",
+                gen_opc_ptr - gen_opc_buf, OPC_BUF_SIZE);
+        tcg_abort();
+    }
 
     tcg_gen_code_common(s, gen_code_buf, -1);
 
