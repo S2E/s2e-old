@@ -14,6 +14,7 @@
 #include "android/skin/scaler.h"
 #include "android/charmap.h"
 #include "android/utils/debug.h"
+#include "android/utils/system.h"
 #include "android/hw-sensors.h"
 #include <SDL_syswm.h>
 #include "qemu-common.h"
@@ -767,9 +768,9 @@ layout_init( Layout*  layout, SkinLayout*  slayout )
     layout->num_displays    = n_displays;
 
     /* now allocate arrays, then populate them */
-    layout->buttons     = qemu_mallocz( sizeof(Button) *     n_buttons );
-    layout->backgrounds = qemu_mallocz( sizeof(Background) * n_backgrounds );
-    layout->displays    = qemu_mallocz( sizeof(ADisplay) *    n_displays );
+    AARRAY_NEW0(layout->buttons,     n_buttons);
+    AARRAY_NEW0(layout->backgrounds, n_backgrounds);
+    AARRAY_NEW0(layout->displays,    n_displays);
 
     if (layout->buttons == NULL && n_buttons > 0) goto Fail;
     if (layout->backgrounds == NULL && n_backgrounds > 0) goto Fail;
@@ -1021,7 +1022,9 @@ static int  skin_window_reset_internal (SkinWindow*, SkinLayout*);
 SkinWindow*
 skin_window_create( SkinLayout*  slayout, int  x, int  y, double  scale, int  no_display )
 {
-    SkinWindow*  window = qemu_mallocz(sizeof(*window));
+    SkinWindow*  window;
+
+    ANEW0(window);
 
     window->shrink_scale = scale;
     window->shrink       = (scale != 1.0);
@@ -1173,7 +1176,7 @@ skin_window_resize( SkinWindow*  window )
             window_h = (int) ceil(window_h / scale );
 
             window->shrink_surface = surface;
-            window->shrink_pixels  = qemu_mallocz( window_w * window_h * 4 );
+            AARRAY_NEW0(window->shrink_pixels, window_w * window_h * 4);
             if (window->shrink_pixels == NULL) {
                 fprintf(stderr, "### Error: could not allocate memory for rescaling surface\n");
                 exit(1);
