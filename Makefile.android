@@ -641,6 +641,20 @@ $(intermediates)/vl-android.o: $(QEMU_GDBSTUB_XML_C)
 
 LOCAL_GENERATED_SOURCES += $(QEMU_GDBSTUB_XML_C)
 
+# hw-config-defs.h is generated from android/avd/hardware-properties.ini
+#
+QEMU_HARDWARE_PROPERTIES_INI := android/avd/hardware-properties.ini
+QEMU_HW_CONFIG_DEFS_H := $(LOCAL_PATH)/android/avd/hw-config-defs.h
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_SOURCES := $(LOCAL_PATH)/$(QEMU_HARDWARE_PROPERTIES_INI)
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/android/tools/gen-hw-config.py $(LOCAL_PATH)/$(QEMU_HARDWARE_PROPERTIES_INI) $@
+$(QEMU_HW_CONFIG_DEFS_H): $(LOCAL_PATH)/$(QEMU_HARDWARE_PROPERTIES_INI) $(LOCAL_PATH)/android/tools/gen-hw-config.py
+	$(hide) rm -f $@
+	$(transform-generated-source)
+
+$(LOCAL_PATH)/android/avd/hw-config.h: $(QEMU_HW_CONFIG_DEFS_H)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_HW_CONFIG_DEFS_H)
 
 # this is already done by the Android build system, but is done for the
 # benefit of the stand-alone one.
