@@ -2399,7 +2399,7 @@ int main(int argc, char **argv)
     }
 
     /* Check the size of the /data partition. The only interesting cases here are:
-     * - when the USERDATA image already exists and is larger than the deffault
+     * - when the USERDATA image already exists and is larger than the default
      * - when we're wiping data and the INITDATA is larger than the default.
      */
 
