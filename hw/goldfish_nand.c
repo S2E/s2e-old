@@ -18,8 +18,8 @@
 
 #define  DEBUG  1
 #if DEBUG
-#  define  D(...)    VERBOSE_PRINT(nand,__VA_ARGS__)
-#  define  D_ACTIVE  VERBOSE_CHECK(nand)
+#  define  D(...)    VERBOSE_PRINT(init,__VA_ARGS__)
+#  define  D_ACTIVE  VERBOSE_CHECK(init)
 #  define  T(...)    VERBOSE_PRINT(nand_limits,__VA_ARGS__)
 #  define  T_ACTIVE  VERBOSE_CHECK(nand_limits)
 #else
@@ -593,7 +593,7 @@ void nand_add_dev(const char *arg)
     pad = dev_size % dev->erase_size;
     if (pad != 0) {
         dev_size += (dev->erase_size - pad);
-        XLOG("rounding devsize up to a full eraseunit, now %llx\n", dev_size);
+        D("rounding devsize up to a full eraseunit, now %llx\n", dev_size);
     }
     dev->devname = devname;
     dev->devname_len = devname_len;
