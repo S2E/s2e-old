@@ -2638,6 +2638,14 @@ int main(int argc, char **argv)
 
     hwLcd_setBootProperty(get_device_dpi(opts));
 
+    /* Set the VM's max heap size, passed as a boot property */
+    if (hw->vm_heapSize > 0) {
+        char  tmp[32], *p=tmp, *end=p + sizeof(tmp);
+        p = bufprint(p, end, "%dm", hw->vm_heapSize);
+
+        boot_property_add("dalvik.vm.heapsize",tmp);
+    }
+
     if (opts->prop != NULL) {
         ParamList*  pl = opts->prop;
         for ( ; pl != NULL; pl = pl->next ) {

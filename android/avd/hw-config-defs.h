@@ -157,6 +157,13 @@ HWCFG_INT(
   "Abstracted LCD density",
   "Must be one of 120, 160 or 240. A value used to roughly describe the density of the LCD screen for automatic resource/asset selection.")
 
+HWCFG_INT(
+  vm_heapSize,
+  "vm.heapSize",
+  16,
+  "Max VM application heap size",
+  "The maximum heap size a Dalvik application might allocate before being killed by the system. Value is in megabytes.")
+
 #undef HWCFG_INT
 #undef HWCFG_BOOL
 #undef HWCFG_DISKSIZE
