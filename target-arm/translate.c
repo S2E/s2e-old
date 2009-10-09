@@ -58,6 +58,7 @@ typedef struct DisasContext {
     /* Thumb-2 condtional execution bits.  */
     int condexec_mask;
     int condexec_cond;
+    int condexec_mask_prev;  /* mask at start of instruction/block */
     struct TranslationBlock *tb;
     int singlestep_enabled;
     int thumb;
@@ -3513,6 +3514,11 @@ gen_set_condexec (DisasContext *s)
         uint32_t val = (s->condexec_cond << 4) | (s->condexec_mask >> 1);
         TCGv tmp = new_tmp();
         tcg_gen_movi_i32(tmp, val);
+        store_cpu_field(tmp, condexec_bits);
+    }
+    else if (s->condexec_mask_prev != 0) {
+        TCGv tmp = new_tmp();
+        tcg_gen_movi_i32(tmp, 0);
         store_cpu_field(tmp, condexec_bits);
     }
 }
@@ -8789,6 +8795,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     dc->condjmp = 0;
     dc->thumb = env->thumb;
     dc->condexec_mask = (env->condexec_bits & 0xf) << 1;
+    dc->condexec_mask_prev = dc->condexec_mask;
     dc->condexec_cond = env->condexec_bits >> 4;
 #if !defined(CONFIG_USER_ONLY)
     if (IS_M(env)) {
@@ -8813,14 +8820,6 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         max_insns = CF_COUNT_MASK;
 
     gen_icount_start();
-    /* Reset the conditional execution bits immediately. This avoids
-       complications trying to do it at the end of the block.  */
-    if (env->condexec_bits)
-      {
-        TCGv tmp = new_tmp();
-        tcg_gen_movi_i32(tmp, 0);
-        store_cpu_field(tmp, condexec_bits);
-      }
 #ifdef CONFIG_TRACE
     if (tracing) {
         gen_helper_traceBB(trace_static.bb_num, (target_phys_addr_t)tb );
@@ -8880,6 +8879,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
 
         if (env->thumb) {
             disas_thumb_insn(env, dc);
+            dc->condexec_mask_prev = dc->condexec_mask;
             if (dc->condexec_mask) {
                 dc->condexec_cond = (dc->condexec_cond & 0xe)
                                    | ((dc->condexec_mask >> 4) & 1);
@@ -8892,7 +8892,8 @@ static inline void gen_intermediate_code_internal(CPUState *env,
             disas_arm_insn(env, dc);
         }
         if (num_temps) {
-            fprintf(stderr, "Internal resource leak before %08x\n", dc->pc);
+            fprintf(stderr, "Internal resource leak before %08x (%d temps)\n", dc->pc, num_temps);
+            tcg_dump_ops(&tcg_ctx, stderr);
             num_temps = 0;
         }
 
