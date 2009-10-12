@@ -471,7 +471,3 @@ extern uint8_t code_gen_prologue[];
 #else
 #define tcg_qemu_tb_exec(tb_ptr) ((long REGPARM (*)(void *))code_gen_prologue)(tb_ptr)
 #endif
-
-/* set to 1 to disable LIVENESS ANALYSIS - temporary work-around for
- * specific fatal assertion error in ARMv7 -> x86 code translation. */
-extern int tcg_disable_liveness_analysis;
