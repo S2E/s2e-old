@@ -57,6 +57,7 @@
 #include "tcg-op.h"
 #include "elf.h"
 
+int tcg_disable_liveness_analysis;
 
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
@@ -1077,7 +1078,16 @@ static void tcg_liveness_analysis(TCGContext *s)
     const TCGOpDef *def;
     uint8_t *dead_temps;
     unsigned int dead_iargs;
-    
+
+    if (tcg_disable_liveness_analysis) {
+        int nb_ops;
+        nb_ops = gen_opc_ptr - gen_opc_buf + 1;
+
+        s->op_dead_iargs = tcg_malloc(nb_ops * sizeof(uint16_t));
+        memset(s->op_dead_iargs, 0, nb_ops * sizeof(uint16_t));
+        return;
+    }
+
     gen_opc_ptr++; /* skip end */
 
     nb_ops = gen_opc_ptr - gen_opc_buf;
