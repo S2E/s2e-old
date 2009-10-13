@@ -437,12 +437,6 @@ case $OS in
         ;;
 esac
 
-case $OS in
-    linux-*)
-        echo "#define CONFIG_IOTHREAD 1" >> $config_h
-        ;;
-esac
-
 echo "#define CONFIG_$CONFIG_OS   1" >> $config_h
 if [ $BSD = 1 ] ; then
     echo "#define _BSD             1" >> $config_h
