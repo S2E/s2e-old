@@ -19,7 +19,7 @@ DEF_HELPER_1(abs, i32, i32)
 DEF_HELPER_1(traceTicks, void, i32)
 DEF_HELPER_0(traceInsn, void)
 #if HOST_LONG_BITS == 32
-DEF_HELPER_3(traceBB32, void, i32, i32, i32)
+DEF_HELPER_2(traceBB32, void, i64, i32)
 #endif
 #if HOST_LONG_BITS == 64
 DEF_HELPER_2(traceBB64, void, i64, i64)

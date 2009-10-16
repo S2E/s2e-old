@@ -4461,6 +4461,15 @@ static int qemu_cpu_exec(CPUState *env)
         env->icount_decr.u16.low = decr;
         env->icount_extra = count;
     }
+#ifdef CONFIG_TRACE
+    if (tbflush_requested) {
+        tbflush_requested = 0;
+        tb_flush(env);
+        return EXCP_INTERRUPT;
+    }
+#endif
+
+
     ret = cpu_exec(env);
 #ifdef CONFIG_PROFILER
     qemu_time += profile_getclock() - ti;
@@ -5843,7 +5852,7 @@ int main(int argc, char **argv, char **envp)
                 audio_input_source = (char*)optarg;
                 break;
 #ifdef CONFIG_TRACE
-            case QEMU_OPTION_trace_file:
+            case QEMU_OPTION_trace:
                 trace_filename = optarg;
                 tracing = 1;
                 break;
