@@ -1589,9 +1589,9 @@ DEF("old-param", 0, QEMU_OPTION_old_param,
 DEF("tracing", HAS_ARG, QEMU_OPTION_tracing, \
     "-tracing on|off enable/disable tracing\n")
 
-DEF("trace-file", HAS_ARG, QEMU_OPTION_trace_file, \
-    "-trace-file file\n" \
-    "                set trace file\n")
+DEF("trace", HAS_ARG, QEMU_OPTION_trace, \
+    "-trace name\n" \
+    "                set trace directory\n")
 
 DEF("nand", HAS_ARG, QEMU_OPTION_nand, \
     "-nand <params>  enable NAND Flash partition\n")
