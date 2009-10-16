@@ -2644,9 +2644,8 @@ void  HELPER(traceInsn)(void)
 }
 
 #if HOST_LONG_BITS == 32
-void HELPER(traceBB32)(uint32_t  hi, uint32_t  lo, uint32_t  tb)
+void HELPER(traceBB32)(uint64_t  bb_num, uint32_t  tb)
 {
-    uint64_t  bb_num = ((uint64_t)hi << 32) | lo;
     trace_bb_helper(bb_num, (void*)tb);
 }
 #endif
