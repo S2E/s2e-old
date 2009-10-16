@@ -75,15 +75,6 @@ typedef struct DisasContext {
 
 #ifdef CONFIG_TRACE
 #include "helpers.h"
-#if HOST_LONG_BITS == 32
-#  define  gen_helper_traceBB(num,tb)  \
-      gen_helper_traceBB32((uint32_t)((num) >> 32), (uint32_t)(num), (tb))
-#elif HOST_LONG_BITS == 64
-#  define  gen_helper_traceBB  gen_helper_traceBB64
-#else
-#  error Unsupported HOST_LONG_BITS value
-#endif
-#
 #endif /* CONFIG_TRACE */
 
 /* These instructions trap after executing, so defer them until after the
@@ -5742,6 +5733,45 @@ static void gen_logicq_cc(TCGv_i64 val)
     dead_tmp(tmp);
 }
 
+
+#ifdef CONFIG_TRACE
+
+#define  gen_traceInsn()   gen_helper_traceInsn()
+
+static void
+gen_traceTicks( int  count )
+{
+    TCGv  tmp = tcg_temp_new_i32();
+    tcg_gen_movi_i32(tmp, count);
+    gen_helper_traceTicks(tmp);
+    tcg_temp_free_i32(tmp);
+}
+
+static void
+gen_traceBB( uint64_t  bbNum, target_phys_addr_t  tb )
+{
+#if HOST_LONG_BITS == 32
+    TCGv_i64  tmpNum = tcg_temp_new_i64();
+    TCGv_i32  tmpTb  = tcg_temp_new_i32();
+
+    tcg_gen_movi_i64(tmpNum, (int64_t)bbNum);
+    tcg_gen_movi_i32(tmpTb,  (int32_t)tb);
+    gen_helper_traceBB32(tmpNum, tmpTb);
+    tcg_temp_free_i32(tmpTb);
+    tcg_temp_free_i64(tmpNum);
+#elif HOST_LONG_BITS == 64
+    TCGv_i64  tmpNum = tcg_temp_new_i64();
+    TCGv_i64  tmpTb  = tcg_temp_new_i32();
+
+    tcg_gen_movi_i64(tmpNum, (int64_t)bbNum);
+    tcg_gen_movi_i64(tmpTb,  (int64_t)tb);
+    gen_helper_traceBB32(tmpNum, tmpTb);
+    tcg_temp_free_i64(tmpTb);
+    tcg_temp_free_i64(tmpNum);
+#endif
+}
+#endif /* CONFIG_TRACE */
+
 static void disas_arm_insn(CPUState * env, DisasContext *s)
 {
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
@@ -5759,7 +5789,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     if (tracing) {
         trace_add_insn(insn, 0);
         ticks = get_insn_ticks_arm(insn);
-        gen_helper_traceInsn();
+        gen_traceInsn();
     }
 #endif
     s->pc += 4;
@@ -5771,7 +5801,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     if (cond == 0xf){
 #ifdef CONFIG_TRACE
         if (tracing) {
-            gen_helper_traceTicks(ticks);
+            gen_traceTicks(ticks);
         }
 #endif
         /* Unconditional instructions.  */
@@ -5965,7 +5995,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         if (tracing) {
             /* a non-executed conditional instruction takes */
             /* only 1 cycle */
-            gen_helper_traceTicks(1);
+            gen_traceTicks(1);
             ticks -= 1;
         }
 #endif
@@ -5977,7 +6007,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     }
 #ifdef CONFIG_TRACE
     if (tracing && ticks > 0) {
-        gen_helper_traceTicks(ticks);
+        gen_traceTicks(ticks);
     }
 #endif
     if ((insn & 0x0f900000) == 0x03000000) {
@@ -7136,8 +7166,8 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
     if (tracing) {
         int  ticks = get_insn_ticks_thumb(insn);
         trace_add_insn( insn_wrap_thumb(insn), 1 );
-        gen_helper_traceInsn();
-        gen_helper_traceTicks(ticks);
+        gen_traceInsn();
+        gen_traceTicks(ticks);
     }
 #endif
     s->pc += 2;
@@ -8123,8 +8153,8 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
     if (tracing) {
         int  ticks = get_insn_ticks_thumb(insn);
         trace_add_insn( insn_wrap_thumb(insn), 1 );
-        gen_helper_traceInsn();
-        gen_helper_traceTicks(ticks);
+        gen_traceInsn();
+        gen_traceTicks(ticks);
     }
 #endif
     s->pc += 2;
@@ -8822,7 +8852,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     gen_icount_start();
 #ifdef CONFIG_TRACE
     if (tracing) {
-        gen_helper_traceBB(trace_static.bb_num, (target_phys_addr_t)tb );
+        gen_traceBB(trace_static.bb_num, (target_phys_addr_t)tb );
         trace_bb_start(dc->pc);
     }
 #endif
