@@ -1772,12 +1772,9 @@ _adjustPartitionSize( const char*  description,
         snprintf(temp, sizeof temp, "(%lld bytes > %lld bytes)", imageBytes, defaultBytes);
     }
 
-    if (!inAndroidBuild) {
-        derror("%s image file too large for device's hardware configuration %s.\n"
-            "Aborting !", description, temp);
-        exit(1);
+    if (inAndroidBuild) {
+        dwarning("%s partition size adjusted to match image file %s\n", description, temp);
     }
-    dwarning("%s partition size adjusted to match image file %s\n", description, temp);
 
     return convertMBToBytes(imageMB);
 }
@@ -2389,7 +2386,7 @@ int main(int argc, char **argv)
      */
     {
         uint64_t   systemBytes  = avdInfo_getImageFileSize(avd, AVD_IMAGE_INITSYSTEM);
-        uint64_t   defaultBytes = hw->disk_systemPartition_size;
+        uint64_t   defaultBytes = defaultPartitionSize;
 
         if (defaultBytes == 0 || opts->partition_size)
             defaultBytes = defaultPartitionSize;
@@ -2405,7 +2402,7 @@ int main(int argc, char **argv)
 
     {
         const char*  dataPath     = avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA);
-        uint64_t     defaultBytes = hw->disk_dataPartition_size;
+        uint64_t     defaultBytes = defaultPartitionSize;
 
         if (defaultBytes == 0 || opts->partition_size)
             defaultBytes = defaultPartitionSize;

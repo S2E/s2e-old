@@ -122,20 +122,6 @@ HWCFG_BOOL(
   "SD Card support",
   "Whether the device supports insertion/removal of virtual SD Cards.")
 
-HWCFG_DISKSIZE(
-  disk_systemPartition_size,
-  "disk.systemPartition.size",
-  "72MB",
-  "System partition size",
-  "")
-
-HWCFG_DISKSIZE(
-  disk_dataPartition_size,
-  "disk.dataPartition.size",
-  "66MB",
-  "Data partition size",
-  "")
-
 HWCFG_BOOL(
   disk_cachePartition,
   "disk.cachePartition",
