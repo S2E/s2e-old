@@ -1800,7 +1800,7 @@ int main(int argc, char **argv)
     unsigned  cachePartitionSize = 0;
     unsigned  systemPartitionSize = 0;
     unsigned  dataPartitionSize = 0;
-    unsigned  defaultPartitionSize = convertBytesToMB(66);
+    unsigned  defaultPartitionSize = convertMBToBytes(66);
 
     AndroidHwConfig*  hw;
     AvdInfo*          avd;
