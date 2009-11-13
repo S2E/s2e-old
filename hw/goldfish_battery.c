@@ -83,7 +83,7 @@ static uint32_t goldfish_battery_read(void *opaque, target_phys_addr_t offset)
 {
     uint32_t ret;
     struct goldfish_battery_state *s = opaque;
-    offset -= s->dev.base;
+
     switch(offset) {
         case BATTERY_INT_STATUS:
             // return current buffer status flags
@@ -116,7 +116,6 @@ static uint32_t goldfish_battery_read(void *opaque, target_phys_addr_t offset)
 static void goldfish_battery_write(void *opaque, target_phys_addr_t offset, uint32_t val)
 {
     struct goldfish_battery_state *s = opaque;
-    offset -= s->dev.base;
 
     switch(offset) {
         case BATTERY_INT_ENABLE:

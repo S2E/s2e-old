@@ -155,7 +155,7 @@ static void goldfish_fb_update_display(void *opaque)
         s->need_update = 0;
     }
 
-    src_line = phys_ram_base + base;
+    src_line  = qemu_get_ram_ptr( base );
     dst_line  = s->qfbuff->pixels;
     pitch     = s->qfbuff->pitch;
     width     = s->qfbuff->width;
@@ -292,7 +292,7 @@ static uint32_t goldfish_fb_read(void *opaque, target_phys_addr_t offset)
 {
     uint32_t ret;
     struct goldfish_fb_state *s = opaque;
-    offset -= s->dev.base;
+
     switch(offset) {
         case FB_GET_WIDTH:
             ret = s->qfbuff->width;
@@ -332,7 +332,7 @@ static void goldfish_fb_write(void *opaque, target_phys_addr_t offset,
                         uint32_t val)
 {
     struct goldfish_fb_state *s = opaque;
-    offset -= s->dev.base;
+
     switch(offset) {
         case FB_INT_ENABLE:
             s->int_enable = val;

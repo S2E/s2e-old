@@ -142,6 +142,7 @@ enum bfd_architecture
 #define bfd_mach_ppc64         1
 #define bfd_mach_ppc_403       403
 #define bfd_mach_ppc_403gc     4030
+#define bfd_mach_ppc_e500      500
 #define bfd_mach_ppc_505       505
 #define bfd_mach_ppc_601       601
 #define bfd_mach_ppc_602       602
@@ -217,6 +218,7 @@ enum bfd_architecture
 #define bfd_mach_cris_v0_v10   255
 #define bfd_mach_cris_v32      32
 #define bfd_mach_cris_v10_v32  1032
+  bfd_arch_microblaze, /* Xilinx MicroBlaze.  */
   bfd_arch_last
   };
 #define bfd_mach_s390_31 31
@@ -399,6 +401,7 @@ extern int print_insn_tic30		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_ppc		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_s390		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_crisv32           PARAMS ((bfd_vma, disassemble_info*));
+extern int print_insn_microblaze        PARAMS ((bfd_vma, disassemble_info*));
 
 #if 0
 /* Fetch the disassembler for a given BFD, if that support is available.  */

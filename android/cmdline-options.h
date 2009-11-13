@@ -131,6 +131,8 @@ OPT_PARAM( tcpdump, "<file>", "capture network packets to file" )
 
 OPT_PARAM( bootchart, "<timeout>", "enable bootcharting")
 
+OPT_PARAM( charmap, "<file>", "use specific key character map")
+
 OPT_LIST(  prop, "<name>=<value>", "set system property on boot")
 
 #ifdef CONFIG_NAND_LIMITS

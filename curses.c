@@ -21,11 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include "qemu-common.h"
-#include "console.h"
-#include "sysemu.h"
-
 #include <curses.h>
 
 #ifndef _WIN32
@@ -37,6 +32,10 @@
 #ifdef __OpenBSD__
 #define resize_term resizeterm
 #endif
+
+#include "qemu-common.h"
+#include "console.h"
+#include "sysemu.h"
 
 #define FONT_HEIGHT 16
 #define FONT_WIDTH 8
@@ -60,7 +59,7 @@ static void curses_update(DisplayState *ds, int x, int y, int w, int h)
 
 static void curses_calc_pad(void)
 {
-    if (is_graphic_console()) {
+    if (is_fixedsize_console()) {
         width = gwidth;
         height = gheight;
     } else {
@@ -97,15 +96,17 @@ static void curses_calc_pad(void)
     }
 }
 
-static void curses_resize(DisplayState *ds, int w, int h)
+static void curses_resize(DisplayState *ds)
 {
-    if (w == gwidth && h == gheight)
+    if (ds_get_width(ds) == gwidth && ds_get_height(ds) == gheight)
         return;
 
-    gwidth = w;
-    gheight = h;
+    gwidth = ds_get_width(ds);
+    gheight = ds_get_height(ds);
 
     curses_calc_pad();
+    ds->surface->width = width * FONT_WIDTH;
+    ds->surface->height = height * FONT_HEIGHT;
 }
 
 #ifndef _WIN32
@@ -156,7 +157,6 @@ static void curses_cursor_position(DisplayState *ds, int x, int y)
 /* generic keyboard conversion */
 
 #include "curses_keys.h"
-#include "keymaps.c"
 
 static kbd_layout_t *kbd_layout = 0;
 static int keycode2keysym[CURSES_KEYS];
@@ -169,8 +169,8 @@ static void curses_refresh(DisplayState *ds)
         clear();
         refresh();
         curses_calc_pad();
-        ds->width = FONT_WIDTH * width;
-        ds->height = FONT_HEIGHT * height;
+        ds->surface->width = FONT_WIDTH * width;
+        ds->surface->height = FONT_HEIGHT * height;
         vga_hw_invalidate();
         invalidate = 0;
     }
@@ -197,8 +197,8 @@ static void curses_refresh(DisplayState *ds)
             refresh();
             curses_calc_pad();
             curses_update(ds, 0, 0, width, height);
-            ds->width = FONT_WIDTH * width;
-            ds->height = FONT_HEIGHT * height;
+            ds->surface->width = FONT_WIDTH * width;
+            ds->surface->height = FONT_HEIGHT * height;
             continue;
         }
 #endif
@@ -309,7 +309,7 @@ static void curses_keyboard_setup(void)
         keyboard_layout = "en-us";
 #endif
     if(keyboard_layout) {
-        kbd_layout = init_keyboard_layout(keyboard_layout);
+        kbd_layout = init_keyboard_layout(name2keysym, keyboard_layout);
         if (!kbd_layout)
             exit(1);
     }
@@ -338,6 +338,7 @@ static void curses_keyboard_setup(void)
 
 void curses_display_init(DisplayState *ds, int full_screen)
 {
+    DisplayChangeListener *dcl;
 #ifndef _WIN32
     if (!isatty(1)) {
         fprintf(stderr, "We need a terminal output\n");
@@ -357,18 +358,17 @@ void curses_display_init(DisplayState *ds, int full_screen)
 #endif
 #endif
 
-    ds->data = (void *) screen;
-    ds->linesize = 0;
-    ds->depth = 0;
-    ds->width = 640;
-    ds->height = 400;
-    ds->dpy_update = curses_update;
-    ds->dpy_resize = curses_resize;
-    ds->dpy_refresh = curses_refresh;
-    ds->dpy_text_cursor = curses_cursor_position;
+    dcl = (DisplayChangeListener *) qemu_mallocz(sizeof(DisplayChangeListener));
+    dcl->dpy_update = curses_update;
+    dcl->dpy_resize = curses_resize;
+    dcl->dpy_refresh = curses_refresh;
+    dcl->dpy_text_cursor = curses_cursor_position;
+    register_displaychangelistener(ds, dcl);
+    qemu_free_displaysurface(ds);
+    ds->surface = qemu_create_displaysurface_from(640, 400, 0, 0, (uint8_t*) screen);
 
     invalidate = 1;
 
     /* Standard VGA initial text mode dimensions */
-    curses_resize(ds, 80, 25);
+    curses_resize(ds);
 }

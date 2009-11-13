@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 #ifndef THUNK_H
 #define THUNK_H
@@ -68,7 +68,8 @@ typedef struct bitmask_transtbl {
 } bitmask_transtbl;
 
 void thunk_register_struct(int id, const char *name, const argtype *types);
-void thunk_register_struct_direct(int id, const char *name, StructEntry *se1);
+void thunk_register_struct_direct(int id, const char *name,
+                                  const StructEntry *se1);
 const argtype *thunk_convert(void *dst, const void *src,
                              const argtype *type_ptr, int to_host);
 #ifndef NO_THUNK_TYPE_SIZE
@@ -154,8 +155,8 @@ static inline int thunk_type_align(const argtype *type_ptr, int is_host)
 #endif /* NO_THUNK_TYPE_SIZE */
 
 unsigned int target_to_host_bitmask(unsigned int x86_mask,
-                                    bitmask_transtbl * trans_tbl);
+                                    const bitmask_transtbl * trans_tbl);
 unsigned int host_to_target_bitmask(unsigned int alpha_mask,
-                                    bitmask_transtbl * trans_tbl);
+                                    const bitmask_transtbl * trans_tbl);
 
 #endif

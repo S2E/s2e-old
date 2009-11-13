@@ -91,8 +91,6 @@ extern int qemu_milli_needed;
  */
 #define  DEFAULT_DEVICE_DPI  165
 
-static const AKeyCharmap*  android_charmap;
-
 int    android_base_port;
 
 #if 0
@@ -233,6 +231,48 @@ sdl_set_window_icon( void )
     }
 }
 
+/* see http://en.wikipedia.org/wiki/List_of_device_bandwidths or a complete list */
+const NetworkSpeed  android_netspeeds[] = {
+    { "gsm", "GSM/CSD", 14400, 14400 },
+    { "hscsd", "HSCSD", 14400, 43200 },
+    { "gprs", "GPRS", 40000, 80000 },
+    { "edge", "EDGE/EGPRS", 118400, 236800 },
+    { "umts", "UMTS/3G", 128000, 1920000 },
+    { "hsdpa", "HSDPA", 348000, 14400000 },
+    { "full", "no limit", 0, 0 },
+    { NULL, NULL, 0, 0 }
+};
+
+const NetworkLatency  android_netdelays[] = {
+    /* FIXME: these numbers are totally imaginary */
+    { "gprs", "GPRS", 150, 550 },
+    { "edge", "EDGE/EGPRS", 80, 400 },
+    { "umts", "UMTS/3G", 35, 200 },
+    { "none", "no latency", 0, 0 },
+    { NULL, NULL, 0, 0 }
+};
+
+
+
+
+#define  ONE_MB  (1024*1024)
+
+unsigned convertBytesToMB( uint64_t  size )
+{
+    if (size == 0)
+        return 0;
+
+    size = (size + ONE_MB-1) >> 20;
+    if (size > UINT_MAX)
+        size = UINT_MAX;
+
+    return (unsigned) size;
+}
+
+uint64_t  convertMBToBytes( unsigned  megaBytes )
+{
+    return ((uint64_t)megaBytes << 20);
+}
 
 /***********************************************************************/
 /***********************************************************************/
@@ -330,7 +370,17 @@ qemulator_init( QEmulator*       emulator,
     emulator->aconfig     = aconfig;
     emulator->layout_file = skin_file_create_from_aconfig(aconfig, basepath);
     emulator->layout      = emulator->layout_file->layouts;
-    emulator->keyboard    = skin_keyboard_create_from_aconfig(aconfig, opts->raw_keys);
+    // If we have a custom charmap use it to initialize keyboard.
+    // Otherwise initialize keyboard from configuration settings.
+    // Another way to configure keyboard to use a custom charmap would
+    // be saving a custom charmap name into AConfig's keyboard->charmap
+    // property, and calling single skin_keyboard_create_from_aconfig
+    // routine to initialize keyboard.
+    if (NULL != opts->charmap) {
+        emulator->keyboard = skin_keyboard_create_from_kcm(opts->charmap, opts->raw_keys);
+    } else {
+        emulator->keyboard = skin_keyboard_create_from_aconfig(aconfig, opts->raw_keys);
+    }
     emulator->window      = NULL;
     emulator->win_x       = x;
     emulator->win_y       = y;
@@ -355,40 +405,8 @@ static AndroidKeyCode
 qemulator_rotate_keycode( QEmulator*      emulator,
                           AndroidKeyCode  sym )
 {
-    switch (skin_layout_get_dpad_rotation(emulator->layout)) {
-        case SKIN_ROTATION_90:
-            switch (sym) {
-                case kKeyCodeDpadLeft:  sym = kKeyCodeDpadDown; break;
-                case kKeyCodeDpadRight: sym = kKeyCodeDpadUp; break;
-                case kKeyCodeDpadUp:    sym = kKeyCodeDpadLeft; break;
-                case kKeyCodeDpadDown:  sym = kKeyCodeDpadRight; break;
-                default: ;
-            }
-            break;
-
-        case SKIN_ROTATION_180:
-            switch (sym) {
-                case kKeyCodeDpadLeft:  sym = kKeyCodeDpadRight; break;
-                case kKeyCodeDpadRight: sym = kKeyCodeDpadLeft; break;
-                case kKeyCodeDpadUp:    sym = kKeyCodeDpadDown; break;
-                case kKeyCodeDpadDown:  sym = kKeyCodeDpadUp; break;
-                default: ;
-            }
-            break;
-
-        case SKIN_ROTATION_270:
-            switch (sym) {
-                case kKeyCodeDpadLeft:  sym = kKeyCodeDpadUp; break;
-                case kKeyCodeDpadRight: sym = kKeyCodeDpadDown; break;
-                case kKeyCodeDpadUp:    sym = kKeyCodeDpadRight; break;
-                case kKeyCodeDpadDown:  sym = kKeyCodeDpadLeft; break;
-                default: ;
-            }
-            break;
-
-        default: ;
-    }
-    return sym;
+    return android_keycode_rotate( sym,
+                                   skin_layout_get_dpad_rotation(emulator->layout) );
 }
 
 static int
@@ -614,13 +632,14 @@ qemulator_setup( QEmulator*  emulator )
 /* called by the emulated framebuffer device each time the framebuffer
  * is resized or rotated */
 static void
-sdl_resize(DisplayState *ds, int w, int h)
+sdl_resize(DisplayState *ds)
 {
-    fprintf(stderr, "weird, sdl_resize being called with framebuffer interface\n");
-    exit(1);
+    //fprintf(stderr, "weird, sdl_resize being called with framebuffer interface\n");
+    //exit(1);
 }
 
 
+/* called periodically to poll for user input events */
 static void sdl_refresh(DisplayState *ds)
 {
     QEmulator*     emulator = ds->opaque;
@@ -890,21 +909,30 @@ void sdl_display_init(DisplayState *ds, int full_screen, int  no_frame)
 {
     QEmulator*    emulator = qemulator;
     SkinDisplay*  disp     = skin_layout_get_display(emulator->layout);
-
-//    fprintf(stderr,"*** sdl_display_init ***\n");
-    ds->opaque = emulator;
+    DisplayChangeListener*  dcl;
+    int           width, height;
 
     if (disp->rotation & 1) {
-        ds->width  = disp->rect.size.h;
-        ds->height = disp->rect.size.w;
+        width  = disp->rect.size.h;
+        height = disp->rect.size.w;
     } else {
-        ds->width  = disp->rect.size.w;
-        ds->height = disp->rect.size.h;
+        width  = disp->rect.size.w;
+        height = disp->rect.size.h;
     }
 
-    ds->dpy_update  = sdl_update;
-    ds->dpy_resize  = sdl_resize;
-    ds->dpy_refresh = sdl_refresh;
+    /* Register a display state object for the emulated framebuffer */
+    ds->allocator = &default_allocator;
+    ds->opaque    = emulator;
+    ds->surface   = qemu_create_displaysurface(ds, width, height);
+    register_displaystate(ds);
+
+    /* Register a change listener for it */
+    dcl = (DisplayChangeListener *) qemu_mallocz(sizeof(DisplayChangeListener));
+    dcl->dpy_update      = sdl_update;
+    dcl->dpy_resize      = sdl_resize;
+    dcl->dpy_refresh     = sdl_refresh;
+    dcl->dpy_text_cursor = NULL;
+    register_displaychangelistener(ds, dcl);
 
     skin_keyboard_enable( emulator->keyboard, 1 );
     skin_keyboard_on_command( emulator->keyboard, handle_key_command, emulator );
@@ -1077,6 +1105,7 @@ found_a_skin:
         if (userConfig)
             auserConfig_getWindowPos(userConfig, &win_x, &win_y);
     }
+
     if ( qemulator_init( qemulator, root, path, win_x, win_y, opts ) < 0 ) {
         fprintf(stderr, "### Error: could not load emulator skin '%s'\n", name);
         exit(1);
@@ -1721,6 +1750,35 @@ _forceAvdImagePath( AvdImageType  imageType,
     android_avdParams->forcePaths[imageType] = path;
 }
 
+static uint64_t
+_adjustPartitionSize( const char*  description,
+                      uint64_t     imageBytes,
+                      uint64_t     defaultBytes,
+                      int          inAndroidBuild )
+{
+    char      temp[64];
+    unsigned  imageMB;
+    unsigned  defaultMB;
+
+    if (imageBytes <= defaultBytes)
+        return defaultBytes;
+
+    imageMB   = convertBytesToMB(imageBytes);
+    defaultMB = convertBytesToMB(defaultBytes);
+
+    if (imageMB > defaultMB) {
+        snprintf(temp, sizeof temp, "(%d MB > %d MB)", imageMB, defaultMB);
+    } else {
+        snprintf(temp, sizeof temp, "(%lld bytes > %lld bytes)", imageBytes, defaultBytes);
+    }
+
+    if (inAndroidBuild) {
+        dwarning("%s partition size adjusted to match image file %s\n", description, temp);
+    }
+
+    return convertMBToBytes(imageMB);
+}
+
 #ifdef _WIN32
 #undef main  /* we don't want SDL to define main */
 #endif
@@ -1740,9 +1798,12 @@ int main(int argc, char **argv)
     int    shell_serial = 0;
     int    dns_count = 0;
     unsigned  cachePartitionSize = 0;
-    unsigned  defaultPartitionSize = 0x4200000;
+    unsigned  systemPartitionSize = 0;
+    unsigned  dataPartitionSize = 0;
+    unsigned  defaultPartitionSize = convertMBToBytes(66);
 
     AndroidHwConfig*  hw;
+    AvdInfo*          avd;
 
     //const char *appdir = get_app_dir();
     char*       android_build_root = NULL;
@@ -1814,7 +1875,9 @@ int main(int argc, char **argv)
             }
     }
 
-    android_charmap = android_charmaps[0];
+    if (android_charmap_setup(opts->charmap)) {
+        exit(1);
+    }
 
     if (opts->version) {
         printf("Android emulator version %s\n"
@@ -2058,9 +2121,11 @@ int main(int argc, char **argv)
         }
     }
 
+    avd = android_avdInfo;
+
     /* get the skin from the virtual device configuration */
-    opts->skin    = (char*) avdInfo_getSkinName( android_avdInfo );
-    opts->skindir = (char*) avdInfo_getSkinDir( android_avdInfo );
+    opts->skin    = (char*) avdInfo_getSkinName( avd );
+    opts->skindir = (char*) avdInfo_getSkinDir( avd );
 
     if (opts->skin) {
         D("autoconfig: -skin %s", opts->skin);
@@ -2071,7 +2136,7 @@ int main(int argc, char **argv)
 
     /* Read hardware configuration */
     hw = android_hw;
-    if (avdInfo_getHwConfig(android_avdInfo, hw) < 0) {
+    if (avdInfo_getHwConfig(avd, hw) < 0) {
         derror("could not read hardware configuration ?");
         exit(1);
     }
@@ -2203,7 +2268,7 @@ int main(int argc, char **argv)
     }
 
     if (opts->trace) {
-        char*   tracePath = avdInfo_getTracePath(android_avdInfo, opts->trace);
+        char*   tracePath = avdInfo_getTracePath(avd, opts->trace);
         int     ret;
 
         if (tracePath == NULL) {
@@ -2264,39 +2329,108 @@ int main(int argc, char **argv)
 
     n = 1;
     /* generate arguments for the underlying qemu main() */
-    args[n++] = "-kernel";
-    args[n++] = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_KERNEL);
+    {
+        const char*  kernelFile    = avdInfo_getImageFile(avd, AVD_IMAGE_KERNEL);
+        int          kernelFileLen = strlen(kernelFile);
+
+        args[n++] = "-kernel";
+        args[n++] = (char*)kernelFile;
+
+        /* If the kernel image name ends in "-armv7", then change the cpu
+         * type automatically. This is a poor man's approach to configuration
+         * management, but should allow us to get past building ARMv7
+         * system images with dex preopt pass without introducing too many
+         * changes to the emulator sources.
+         *
+         * XXX:
+         * A 'proper' change would require adding some sort of hardware-property
+         * to each AVD config file, then automatically determine its value for
+         * full Android builds (depending on some environment variable), plus
+         * some build system changes. I prefer not to do that for now for reasons
+         * of simplicity.
+         */
+         if (kernelFileLen > 6 && !memcmp(kernelFile + kernelFileLen - 6, "-armv7", 6)) {
+            args[n++] = "-cpu";
+            args[n++] = "cortex-a8";
+         }
+    }
 
     args[n++] = "-initrd";
-    args[n++] = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_RAMDISK);
+    args[n++] = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_RAMDISK);
 
     if (opts->partition_size) {
         char*  end;
-        long   size = strtol(opts->partition_size, &end, 0);
-        long   maxSize = LONG_MAX / (1024*1024);
-        long   defaultMB = (defaultPartitionSize + (512*1024)) / (1024*1024);
+        long   sizeMB = strtol(opts->partition_size, &end, 0);
+        long   minSizeMB = 10;
+        long   maxSizeMB = LONG_MAX / ONE_MB;
 
-        if (size < 0 || *end != 0) {
+        if (sizeMB < 0 || *end != 0) {
             derror( "-partition-size must be followed by a positive integer" );
             exit(1);
         }
-        if (size < defaultMB || size > maxSize) {
+        if (sizeMB < minSizeMB || sizeMB > maxSizeMB) {
             derror( "partition-size (%d) must be between %dMB and %dMB",
-                    size, defaultMB, maxSize );
+                    sizeMB, minSizeMB, maxSizeMB );
             exit(1);
         }
-        defaultPartitionSize = size * 1024*1024;
+        defaultPartitionSize = sizeMB * ONE_MB;
+    }
+
+    /* Check the size of the system partition image.
+     * If we have an AVD, it must be smaller than
+     * the disk.systemPartition.size hardware property.
+     *
+     * Otherwise, we need to adjust the systemPartitionSize
+     * automatically, and print a warning.
+     *
+     */
+    {
+        uint64_t   systemBytes  = avdInfo_getImageFileSize(avd, AVD_IMAGE_INITSYSTEM);
+        uint64_t   defaultBytes = defaultPartitionSize;
+
+        if (defaultBytes == 0 || opts->partition_size)
+            defaultBytes = defaultPartitionSize;
+
+        systemPartitionSize = _adjustPartitionSize("system", systemBytes, defaultBytes,
+                                                   android_build_out != NULL);
+    }
+
+    /* Check the size of the /data partition. The only interesting cases here are:
+     * - when the USERDATA image already exists and is larger than the default
+     * - when we're wiping data and the INITDATA is larger than the default.
+     */
+
+    {
+        const char*  dataPath     = avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA);
+        uint64_t     defaultBytes = defaultPartitionSize;
+
+        if (defaultBytes == 0 || opts->partition_size)
+            defaultBytes = defaultPartitionSize;
+
+        if (dataPath == NULL || !path_exists(dataPath) || opts->wipe_data) {
+            dataPath = avdInfo_getImageFile(avd, AVD_IMAGE_INITDATA);
+        }
+        if (dataPath == NULL || !path_exists(dataPath)) {
+            dataPartitionSize = defaultBytes;
+        }
+        else {
+            uint64_t  dataBytes;
+            path_get_size(dataPath, &dataBytes);
+
+            dataPartitionSize = _adjustPartitionSize("data", dataBytes, defaultBytes,
+                                                     android_build_out != NULL);
+        }
     }
 
     {
         const char*  filetype = "file";
 
-        if (avdInfo_isImageReadOnly(android_avdInfo, AVD_IMAGE_INITSYSTEM))
+        if (avdInfo_isImageReadOnly(avd, AVD_IMAGE_INITSYSTEM))
             filetype = "initfile";
 
         bufprint(tmp, tmpend,
-             "system,size=0x%x,%s=%s", defaultPartitionSize, filetype,
-             avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_INITSYSTEM));
+             "system,size=0x%x,%s=%s", systemPartitionSize, filetype,
+             avdInfo_getImageFile(avd, AVD_IMAGE_INITSYSTEM));
 
         args[n++] = "-nand";
         args[n++] = strdup(tmp);
@@ -2304,14 +2438,14 @@ int main(int argc, char **argv)
 
     bufprint(tmp, tmpend,
              "userdata,size=0x%x,file=%s",
-             defaultPartitionSize,
-             avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_USERDATA));
+             dataPartitionSize,
+             avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA));
 
     args[n++] = "-nand";
     args[n++] = strdup(tmp);
 
     if (hw->disk_cachePartition) {
-        opts->cache = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_CACHE);
+        opts->cache = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_CACHE);
         cachePartitionSize = hw->disk_cachePartition_size;
     }
     else if (opts->cache) {
@@ -2334,7 +2468,7 @@ int main(int argc, char **argv)
     }
 
     if (hw->hw_sdCard != 0)
-        opts->sdcard = (char*) avdInfo_getImageFile(android_avdInfo, AVD_IMAGE_SDCARD);
+        opts->sdcard = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SDCARD);
     else if (opts->sdcard) {
         dwarning( "Emulated hardware doesn't support SD Cards" );
         opts->sdcard = NULL;
@@ -2424,7 +2558,7 @@ int main(int argc, char **argv)
         qemud_serial = serial++;
 
         if (opts->radio) {
-            CharDriverState*  cs = qemu_chr_open(opts->radio);
+            CharDriverState*  cs = qemu_chr_open("radio",opts->radio,NULL);
             if (cs == NULL) {
                 derror( "unsupported character device specification: %s\n"
                         "used -help-char-devices for list of available formats\n", opts->radio );
@@ -2440,7 +2574,7 @@ int main(int argc, char **argv)
         }
 
         if (opts->gps) {
-            CharDriverState*  cs = qemu_chr_open(opts->gps);
+            CharDriverState*  cs = qemu_chr_open("gps",opts->gps,NULL);
             if (cs == NULL) {
                 derror( "unsupported character device specification: %s\n"
                         "used -help-char-devices for list of available formats\n", opts->gps );
@@ -2500,6 +2634,14 @@ int main(int argc, char **argv)
     boot_property_init_service();
 
     hwLcd_setBootProperty(get_device_dpi(opts));
+
+    /* Set the VM's max heap size, passed as a boot property */
+    if (hw->vm_heapSize > 0) {
+        char  tmp[32], *p=tmp, *end=p + sizeof(tmp);
+        p = bufprint(p, end, "%dm", hw->vm_heapSize);
+
+        boot_property_add("dalvik.vm.heapsize",tmp);
+    }
 
     if (opts->prop != NULL) {
         ParamList*  pl = opts->prop;
@@ -2900,4 +3042,5 @@ void  android_emulation_setup( void )
 
 void  android_emulation_teardown( void )
 {
+    android_charmap_done();
 }

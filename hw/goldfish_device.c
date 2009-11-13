@@ -77,8 +77,7 @@ int goldfish_device_add(struct goldfish_device *dev,
 {
     int iomemtype;
     goldfish_add_device_no_io(dev);
-    iomemtype = cpu_register_io_memory(0, mem_read,
-                                       mem_write, opaque);
+    iomemtype = cpu_register_io_memory(mem_read, mem_write, opaque);
     cpu_register_physical_memory(dev->base, dev->size, iomemtype);
     return 0;
 }
@@ -86,7 +85,6 @@ int goldfish_device_add(struct goldfish_device *dev,
 static uint32_t goldfish_bus_read(void *opaque, target_phys_addr_t offset)
 {
     struct bus_state *s = (struct bus_state *)opaque;
-    offset -= s->dev.base;
 
     switch (offset) {
         case PDEV_BUS_OP:
@@ -138,7 +136,6 @@ static void goldfish_bus_op_init(struct bus_state *s)
 static void goldfish_bus_write(void *opaque, target_phys_addr_t offset, uint32_t value)
 {
     struct bus_state *s = (struct bus_state *)opaque;
-    offset -= s->dev.base;
 
     switch(offset) {
         case PDEV_BUS_OP:
@@ -152,7 +149,7 @@ static void goldfish_bus_write(void *opaque, target_phys_addr_t offset, uint32_t
             break;
         case PDEV_BUS_GET_NAME:
             if(s->current)
-                pmemcpy(value, s->current->name, strlen(s->current->name));
+                cpu_memory_rw_debug(cpu_single_env, value, (void*)s->current->name, strlen(s->current->name), 1);
             break;
         default:
             cpu_abort (cpu_single_env, "goldfish_bus_write: Bad offset %x\n", offset);

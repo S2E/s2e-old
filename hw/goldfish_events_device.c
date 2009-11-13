@@ -164,7 +164,7 @@ static int get_page_data(events_state *s, int offset)
 static uint32_t events_read(void *x, target_phys_addr_t off)
 {
     events_state *s = (events_state *) x;
-    int offset = off - s->base;
+    int offset = off; // - s->base;
     if (offset == REG_READ)
         return dequeue_event(s);
     else if (offset == REG_LEN)
@@ -177,7 +177,7 @@ static uint32_t events_read(void *x, target_phys_addr_t off)
 static void events_write(void *x, target_phys_addr_t off, uint32_t val)
 {
     events_state *s = (events_state *) x;
-    int offset = off - s->base;
+    int offset = off; // - s->base;
     if (offset == REG_SET_PAGE)
         s->page = val;
 }
@@ -379,12 +379,12 @@ void events_dev_init(uint32_t base, qemu_irq irq)
         events_set_bit(s, EV_SW, 0);
     }
 
-    iomemtype = cpu_register_io_memory(0, events_readfn, events_writefn, s);
+    iomemtype = cpu_register_io_memory(events_readfn, events_writefn, s);
 
     cpu_register_physical_memory(base, 0xfff, iomemtype);
 
     qemu_add_kbd_event_handler(events_put_keycode, s);
-    qemu_add_mouse_event_handler(events_put_mouse, s, 1);
+    qemu_add_mouse_event_handler(events_put_mouse, s, 1, "goldfish-events");
     qemu_add_generic_event_handler(events_put_generic, s);
 
     s->base = base;

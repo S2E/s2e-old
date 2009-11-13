@@ -15,13 +15,13 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 #include "config.h"
-#define CPU_NO_GLOBAL_REGS
 #include "exec.h"
 #include "disas.h"
 #include "tcg.h"
+#include "kvm.h"
 
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
@@ -34,7 +34,9 @@
 #undef EDI
 #undef EIP
 #include <signal.h>
+#ifdef __linux__
 #include <sys/ucontext.h>
+#endif
 #endif
 
 #if defined(__sparc__) && !defined(HOST_SOLARIS)
@@ -48,6 +50,11 @@ int tb_invalidated_flag;
 //#define DEBUG_EXEC
 //#define DEBUG_SIGNAL
 
+int qemu_cpu_has_work(CPUState *env)
+{
+    return cpu_has_work(env);
+}
+
 void cpu_loop_exit(void)
 {
     /* NOTE: the register at this point must be saved by hand because
@@ -56,17 +63,17 @@ void cpu_loop_exit(void)
     longjmp(env->jmp_env, 1);
 }
 
-#if !(defined(TARGET_SPARC) || defined(TARGET_SH4) || defined(TARGET_M68K))
-#define reg_T2
-#endif
-
 /* exit the current TB from a signal handler. The host registers are
    restored in a state compatible with the CPU emulator
  */
 void cpu_resume_from_signal(CPUState *env1, void *puc)
 {
 #if !defined(CONFIG_SOFTMMU)
+#ifdef __linux__
     struct ucontext *uc = puc;
+#elif defined(__OpenBSD__)
+    struct sigcontext *uc = puc;
+#endif
 #endif
 
     env = env1;
@@ -76,9 +83,14 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
 #if !defined(CONFIG_SOFTMMU)
     if (puc) {
         /* XXX: use siglongjmp ? */
+#ifdef __linux__
         sigprocmask(SIG_SETMASK, &uc->uc_sigmask, NULL);
+#elif defined(__OpenBSD__)
+        sigprocmask(SIG_SETMASK, &uc->sc_mask, NULL);
+#endif
     }
 #endif
+    env->exception_index = -1;
     longjmp(env->jmp_env, 1);
 }
 
@@ -103,7 +115,7 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     if ((next_tb & 3) == 2) {
         /* Restore PC.  This may happen if async event occurs before
            the TB starts executing.  */
-        CPU_PC_FROM_TB(env, tb);
+        cpu_pc_from_tb(env, tb);
     }
     tb_phys_invalidate(tb, -1);
     tb_free(tb);
@@ -162,77 +174,40 @@ static inline TranslationBlock *tb_find_fast(void)
 {
     TranslationBlock *tb;
     target_ulong cs_base, pc;
-    uint64_t flags;
+    int flags;
 
     /* we record a subset of the CPU state. It will
        always be the same before a given translated block
        is executed. */
-#if defined(TARGET_I386)
-    flags = env->hflags;
-    flags |= (env->eflags & (IOPL_MASK | TF_MASK | VM_MASK));
-    cs_base = env->segs[R_CS].base;
-    pc = cs_base + env->eip;
-#elif defined(TARGET_ARM)
-    flags = env->thumb | (env->vfp.vec_len << 1)
-            | (env->vfp.vec_stride << 4);
-    if ((env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR)
-        flags |= (1 << 6);
-    if (env->vfp.xregs[ARM_VFP_FPEXC] & (1 << 30))
-        flags |= (1 << 7);
-    flags |= (env->condexec_bits << 8);
-    cs_base = 0;
-    pc = env->regs[15];
-#elif defined(TARGET_SPARC)
-#ifdef TARGET_SPARC64
-    // AM . Combined FPU enable bits . PRIV . DMMU enabled . IMMU enabled
-    flags = ((env->pstate & PS_AM) << 2)
-        | (((env->pstate & PS_PEF) >> 1) | ((env->fprs & FPRS_FEF) << 2))
-        | (env->pstate & PS_PRIV) | ((env->lsu & (DMMU_E | IMMU_E)) >> 2);
-#else
-    // FPU enable . Supervisor
-    flags = (env->psref << 4) | env->psrs;
-#endif
-    cs_base = env->npc;
-    pc = env->pc;
-#elif defined(TARGET_PPC)
-    flags = env->hflags;
-    cs_base = 0;
-    pc = env->nip;
-#elif defined(TARGET_MIPS)
-    flags = env->hflags & (MIPS_HFLAG_TMASK | MIPS_HFLAG_BMASK);
-    cs_base = 0;
-    pc = env->active_tc.PC;
-#elif defined(TARGET_M68K)
-    flags = (env->fpcr & M68K_FPCR_PREC)  /* Bit  6 */
-            | (env->sr & SR_S)            /* Bit  13 */
-            | ((env->macsr >> 4) & 0xf);  /* Bits 0-3 */
-    cs_base = 0;
-    pc = env->pc;
-#elif defined(TARGET_SH4)
-    flags = (env->flags & (DELAY_SLOT | DELAY_SLOT_CONDITIONAL
-                    | DELAY_SLOT_TRUE | DELAY_SLOT_CLEARME))   /* Bits  0- 3 */
-            | (env->fpscr & (FPSCR_FR | FPSCR_SZ | FPSCR_PR))  /* Bits 19-21 */
-            | (env->sr & (SR_MD | SR_RB));                     /* Bits 29-30 */
-    cs_base = 0;
-    pc = env->pc;
-#elif defined(TARGET_ALPHA)
-    flags = env->ps;
-    cs_base = 0;
-    pc = env->pc;
-#elif defined(TARGET_CRIS)
-    flags = env->pregs[PR_CCS] & (P_FLAG | U_FLAG | X_FLAG);
-    flags |= env->dslot;
-    cs_base = 0;
-    pc = env->pc;
-#else
-#error unsupported CPU
-#endif
+    cpu_get_tb_cpu_state(env, &pc, &cs_base, &flags);
     tb = env->tb_jmp_cache[tb_jmp_cache_hash_func(pc)];
     if (unlikely(!tb || tb->pc != pc || tb->cs_base != cs_base ||
                  tb->flags != flags)) {
         tb = tb_find_slow(pc, cs_base, flags);
     }
     return tb;
+}
+
+static CPUDebugExcpHandler *debug_excp_handler;
+
+CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler)
+{
+    CPUDebugExcpHandler *old_handler = debug_excp_handler;
+
+    debug_excp_handler = handler;
+    return old_handler;
+}
+
+static void cpu_handle_debug_exception(CPUState *env)
+{
+    CPUWatchpoint *wp;
+
+    if (!env->watchpoint_hit)
+        TAILQ_FOREACH(wp, &env->watchpoints, entry)
+            wp->flags &= ~BP_WATCHPOINT_HIT;
+
+    if (debug_excp_handler)
+        debug_excp_handler(env);
 }
 
 /* main execution loop */
@@ -271,6 +246,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_ALPHA)
 #elif defined(TARGET_ARM)
 #elif defined(TARGET_PPC)
+#elif defined(TARGET_MICROBLAZE)
 #elif defined(TARGET_MIPS)
 #elif defined(TARGET_SH4)
 #elif defined(TARGET_CRIS)
@@ -283,14 +259,22 @@ int cpu_exec(CPUState *env1)
     /* prepare setjmp context for exception handling */
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
+#if defined(__sparc__) && !defined(HOST_SOLARIS)
+#undef env
+                    env = cpu_single_env;
+#define env cpu_single_env
+#endif
             env->current_tb = NULL;
             /* if an exception is pending, we execute it here */
             if (env->exception_index >= 0) {
                 if (env->exception_index >= EXCP_INTERRUPT) {
                     /* exit request from the cpu execution loop */
                     ret = env->exception_index;
+                    if (ret == EXCP_DEBUG)
+                        cpu_handle_debug_exception(env);
                     break;
-                } else if (env->user_mode_only) {
+                } else {
+#if defined(CONFIG_USER_ONLY)
                     /* if user mode only, we simulate a fake exception
                        which will be handled outside the cpu execution
                        loop */
@@ -304,7 +288,7 @@ int cpu_exec(CPUState *env1)
 #endif
                     ret = env->exception_index;
                     break;
-                } else {
+#else
 #if defined(TARGET_I386)
                     /* simulate a real cpu exception. On i386, it can
                        trigger new exceptions, but we do not handle
@@ -316,6 +300,8 @@ int cpu_exec(CPUState *env1)
                     /* successfully delivered */
                     env->old_exception = -1;
 #elif defined(TARGET_PPC)
+                    do_interrupt(env);
+#elif defined(TARGET_MICROBLAZE)
                     do_interrupt(env);
 #elif defined(TARGET_MIPS)
                     do_interrupt(env);
@@ -332,13 +318,14 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_M68K)
                     do_interrupt(0);
 #endif
+#endif
                 }
                 env->exception_index = -1;
             }
-#ifdef USE_KQEMU
-            if (kqemu_is_ok(env) && env->interrupt_request == 0) {
+#ifdef CONFIG_KQEMU
+            if (kqemu_is_ok(env) && env->interrupt_request == 0 && env->exit_request == 0) {
                 int ret;
-                env->eflags = env->eflags | cc_table[CC_OP].compute_all() | (DF & DF_MASK);
+                env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
                 ret = kqemu_cpu_exec(env);
                 /* put eflags in CPU temporary format */
                 CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
@@ -351,7 +338,7 @@ int cpu_exec(CPUState *env1)
                 } else if (ret == 2) {
                     /* softmmu execution needed */
                 } else {
-                    if (env->interrupt_request != 0) {
+                    if (env->interrupt_request != 0 || env->exit_request != 0) {
                         /* hardware interrupt will be executed just after */
                     } else {
                         /* otherwise, we restart */
@@ -361,18 +348,30 @@ int cpu_exec(CPUState *env1)
             }
 #endif
 
+            if (kvm_enabled()) {
+                kvm_cpu_exec(env);
+                longjmp(env->jmp_env, 1);
+            }
+
             next_tb = 0; /* force lookup of first TB */
             for(;;) {
                 interrupt_request = env->interrupt_request;
-                if (unlikely(interrupt_request) &&
-                    likely(!(env->singlestep_enabled & SSTEP_NOIRQ))) {
+                if (unlikely(interrupt_request)) {
+                    if (unlikely(env->singlestep_enabled & SSTEP_NOIRQ)) {
+                        /* Mask out external interrupts for this step. */
+                        interrupt_request &= ~(CPU_INTERRUPT_HARD |
+                                               CPU_INTERRUPT_FIQ |
+                                               CPU_INTERRUPT_SMI |
+                                               CPU_INTERRUPT_NMI);
+                    }
                     if (interrupt_request & CPU_INTERRUPT_DEBUG) {
                         env->interrupt_request &= ~CPU_INTERRUPT_DEBUG;
                         env->exception_index = EXCP_DEBUG;
                         cpu_loop_exit();
                     }
 #if defined(TARGET_ARM) || defined(TARGET_SPARC) || defined(TARGET_MIPS) || \
-    defined(TARGET_PPC) || defined(TARGET_ALPHA) || defined(TARGET_CRIS)
+    defined(TARGET_PPC) || defined(TARGET_ALPHA) || defined(TARGET_CRIS) || \
+    defined(TARGET_MICROBLAZE)
                     if (interrupt_request & CPU_INTERRUPT_HALT) {
                         env->interrupt_request &= ~CPU_INTERRUPT_HALT;
                         env->halted = 1;
@@ -404,9 +403,12 @@ int cpu_exec(CPUState *env1)
                             svm_check_intercept(SVM_EXIT_INTR);
                             env->interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_VIRQ);
                             intno = cpu_get_pic_interrupt(env);
-                            if (loglevel & CPU_LOG_TB_IN_ASM) {
-                                fprintf(logfile, "Servicing hardware INT=0x%02x\n", intno);
-                            }
+                            qemu_log_mask(CPU_LOG_TB_IN_ASM, "Servicing hardware INT=0x%02x\n", intno);
+#if defined(__sparc__) && !defined(HOST_SOLARIS)
+#undef env
+                    env = cpu_single_env;
+#define env cpu_single_env
+#endif
                             do_interrupt(intno, 0, 0, 0, 1);
                             /* ensure that no TB jump will be modified as
                                the program flow was changed */
@@ -418,11 +420,10 @@ int cpu_exec(CPUState *env1)
                             int intno;
                             /* FIXME: this should respect TPR */
                             svm_check_intercept(SVM_EXIT_VINTR);
-                            env->interrupt_request &= ~CPU_INTERRUPT_VIRQ;
                             intno = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.int_vector));
-                            if (loglevel & CPU_LOG_TB_IN_ASM)
-                                fprintf(logfile, "Servicing virtual hardware INT=0x%02x\n", intno);
+                            qemu_log_mask(CPU_LOG_TB_IN_ASM, "Servicing virtual hardware INT=0x%02x\n", intno);
                             do_interrupt(intno, 0, 0, 0, 1);
+                            env->interrupt_request &= ~CPU_INTERRUPT_VIRQ;
                             next_tb = 0;
 #endif
                         }
@@ -437,6 +438,15 @@ int cpu_exec(CPUState *env1)
                         ppc_hw_interrupt(env);
                         if (env->pending_interrupts == 0)
                             env->interrupt_request &= ~CPU_INTERRUPT_HARD;
+                        next_tb = 0;
+                    }
+#elif defined(TARGET_MICROBLAZE)
+                    if ((interrupt_request & CPU_INTERRUPT_HARD)
+                        && (env->sregs[SR_MSR] & MSR_IE)
+                        && !(env->sregs[SR_MSR] & (MSR_EIP | MSR_BIP))
+                        && !(env->iflags & (D_FLAG | IMM_FLAG))) {
+                        env->exception_index = EXCP_IRQ;
+                        do_interrupt(env);
                         next_tb = 0;
                     }
 #elif defined(TARGET_MIPS)
@@ -542,40 +552,42 @@ int cpu_exec(CPUState *env1)
                            the program flow was changed */
                         next_tb = 0;
                     }
-                    if (interrupt_request & CPU_INTERRUPT_EXIT) {
-                        env->interrupt_request &= ~CPU_INTERRUPT_EXIT;
-                        env->exception_index = EXCP_INTERRUPT;
-                        cpu_loop_exit();
-                    }
+                }
+                if (unlikely(env->exit_request)) {
+                    env->exit_request = 0;
+                    env->exception_index = EXCP_INTERRUPT;
+                    cpu_loop_exit();
                 }
 #ifdef DEBUG_EXEC
-                if ((loglevel & CPU_LOG_TB_CPU)) {
+                if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
                     /* restore flags in standard format */
                     regs_to_env();
 #if defined(TARGET_I386)
-                    env->eflags = env->eflags | cc_table[CC_OP].compute_all() | (DF & DF_MASK);
-                    cpu_dump_state(env, logfile, fprintf, X86_DUMP_CCOP);
+                    env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+                    log_cpu_state(env, X86_DUMP_CCOP);
                     env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
 #elif defined(TARGET_ARM)
-                    cpu_dump_state(env, logfile, fprintf, 0);
+                    log_cpu_state(env, 0);
 #elif defined(TARGET_SPARC)
-                    cpu_dump_state(env, logfile, fprintf, 0);
+                    log_cpu_state(env, 0);
 #elif defined(TARGET_PPC)
-                    cpu_dump_state(env, logfile, fprintf, 0);
+                    log_cpu_state(env, 0);
 #elif defined(TARGET_M68K)
                     cpu_m68k_flush_flags(env, env->cc_op);
                     env->cc_op = CC_OP_FLAGS;
                     env->sr = (env->sr & 0xffe0)
                               | env->cc_dest | (env->cc_x << 4);
-                    cpu_dump_state(env, logfile, fprintf, 0);
+                    log_cpu_state(env, 0);
+#elif defined(TARGET_MICROBLAZE)
+                    log_cpu_state(env, 0);
 #elif defined(TARGET_MIPS)
-                    cpu_dump_state(env, logfile, fprintf, 0);
+                    log_cpu_state(env, 0);
 #elif defined(TARGET_SH4)
-		    cpu_dump_state(env, logfile, fprintf, 0);
+		    log_cpu_state(env, 0);
 #elif defined(TARGET_ALPHA)
-                    cpu_dump_state(env, logfile, fprintf, 0);
+                    log_cpu_state(env, 0);
 #elif defined(TARGET_CRIS)
-                    cpu_dump_state(env, logfile, fprintf, 0);
+                    log_cpu_state(env, 0);
 #else
 #error unsupported target CPU
 #endif
@@ -593,18 +605,16 @@ int cpu_exec(CPUState *env1)
                     tb_invalidated_flag = 0;
                 }
 #ifdef DEBUG_EXEC
-                if ((loglevel & CPU_LOG_EXEC)) {
-                    fprintf(logfile, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
-                            (long)tb->tc_ptr, tb->pc,
-                            lookup_symbol(tb->pc));
-                }
+                qemu_log_mask(CPU_LOG_EXEC, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
+                             (long)tb->tc_ptr, tb->pc,
+                             lookup_symbol(tb->pc));
 #endif
                 /* see if we can patch the calling TB. When the TB
                    spans two pages, we cannot safely do a direct
                    jump. */
                 {
                     if (next_tb != 0 &&
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
                         (env->kqemu_enabled != 2) &&
 #endif
                         tb->page_addr[1] == -1) {
@@ -613,6 +623,14 @@ int cpu_exec(CPUState *env1)
                 }
                 spin_unlock(&tb_lock);
                 env->current_tb = tb;
+
+                /* cpu_interrupt might be called while translating the
+                   TB, but before it is linked into a potentially
+                   infinite loop and becomes env->current_tb. Avoid
+                   starting execution if there is a pending interrupt. */
+                if (unlikely (env->exit_request))
+                    env->current_tb = NULL;
+
                 while (env->current_tb) {
                     tc_ptr = tb->tc_ptr;
                 /* execute the generated code */
@@ -628,7 +646,7 @@ int cpu_exec(CPUState *env1)
                         int insns_left;
                         tb = (TranslationBlock *)(long)(next_tb & ~3);
                         /* Restore PC.  */
-                        CPU_PC_FROM_TB(env, tb);
+                        cpu_pc_from_tb(env, tb);
                         insns_left = env->icount_decr.u32;
                         if (env->icount_extra && insns_left >= 0) {
                             /* Refill decrementer and continue execution.  */
@@ -653,7 +671,7 @@ int cpu_exec(CPUState *env1)
                 }
                 /* reset soft MMU for next block (it can currently
                    only be set by a memory fault) */
-#if defined(USE_KQEMU)
+#if defined(CONFIG_KQEMU)
 #define MIN_CYCLE_BEFORE_SWITCH (100 * 1000)
                 if (kqemu_is_ok(env) &&
                     (cpu_get_time_fast() - env->last_io_time) >= MIN_CYCLE_BEFORE_SWITCH) {
@@ -669,7 +687,7 @@ int cpu_exec(CPUState *env1)
 
 #if defined(TARGET_I386)
     /* restore flags in standard format */
-    env->eflags = env->eflags | cc_table[CC_OP].compute_all() | (DF & DF_MASK);
+    env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
 #elif defined(TARGET_ARM)
     /* XXX: Save/restore host fpu exception state?.  */
 #elif defined(TARGET_SPARC)
@@ -679,6 +697,7 @@ int cpu_exec(CPUState *env1)
     env->cc_op = CC_OP_FLAGS;
     env->sr = (env->sr & 0xffe0)
               | env->cc_dest | (env->cc_x << 4);
+#elif defined(TARGET_MICROBLAZE)
 #elif defined(TARGET_MIPS)
 #elif defined(TARGET_SH4)
 #elif defined(TARGET_ALPHA)
@@ -927,7 +946,7 @@ static inline int handle_cpu_signal(unsigned long pc, unsigned long address,
     /* we restore the process signal mask as the sigreturn should
        do it (XXX: use sigsetjmp) */
         sigprocmask(SIG_SETMASK, old_set, NULL);
-        do_raise_exception_err(env->exception_index, env->error_code);
+        cpu_loop_exit();
     } else {
         /* activate soft MMU for this block */
         cpu_resume_from_signal(env, puc);
@@ -1016,7 +1035,57 @@ static inline int handle_cpu_signal(unsigned long pc, unsigned long address,
     /* we restore the process signal mask as the sigreturn should
        do it (XXX: use sigsetjmp) */
         sigprocmask(SIG_SETMASK, old_set, NULL);
-        do_raise_exception_err(env->exception_index, env->error_code);
+        cpu_loop_exit();
+    } else {
+        /* activate soft MMU for this block */
+        cpu_resume_from_signal(env, puc);
+    }
+    /* never comes here */
+    return 1;
+}
+
+#elif defined (TARGET_MICROBLAZE)
+static inline int handle_cpu_signal(unsigned long pc, unsigned long address,
+                                    int is_write, sigset_t *old_set,
+                                    void *puc)
+{
+    TranslationBlock *tb;
+    int ret;
+
+    if (cpu_single_env)
+        env = cpu_single_env; /* XXX: find a correct solution for multithread */
+#if defined(DEBUG_SIGNAL)
+    printf("qemu: SIGSEGV pc=0x%08lx address=%08lx w=%d oldset=0x%08lx\n",
+           pc, address, is_write, *(unsigned long *)old_set);
+#endif
+    /* XXX: locking issue */
+    if (is_write && page_unprotect(h2g(address), pc, puc)) {
+        return 1;
+    }
+
+    /* see if it is an MMU fault */
+    ret = cpu_mb_handle_mmu_fault(env, address, is_write, MMU_USER_IDX, 0);
+    if (ret < 0)
+        return 0; /* not an MMU fault */
+    if (ret == 0)
+        return 1; /* the MMU fault was handled without causing real CPU fault */
+
+    /* now we have a real cpu fault */
+    tb = tb_find_pc(pc);
+    if (tb) {
+        /* the PC is inside the translated code. It means that we have
+           a virtual CPU fault */
+        cpu_restore_state(tb, env, pc, puc);
+    }
+    if (ret == 1) {
+#if 0
+        printf("PF exception: PC=0x" TARGET_FMT_lx " error=0x%x %p\n",
+               env->PC, env->error_code, tb);
+#endif
+    /* we restore the process signal mask as the sigreturn should
+       do it (XXX: use sigsetjmp) */
+        sigprocmask(SIG_SETMASK, old_set, NULL);
+        cpu_loop_exit();
     } else {
         /* activate soft MMU for this block */
         cpu_resume_from_signal(env, puc);
@@ -1167,17 +1236,28 @@ static inline int handle_cpu_signal(unsigned long pc, unsigned long address,
 # define EIP_sig(context)  (*((unsigned long*)&(context)->uc_mcontext->ss.eip))
 # define TRAP_sig(context)    ((context)->uc_mcontext->es.trapno)
 # define ERROR_sig(context)   ((context)->uc_mcontext->es.err)
+# define MASK_sig(context)    ((context)->uc_sigmask)
+#elif defined(__OpenBSD__)
+# define EIP_sig(context)     ((context)->sc_eip)
+# define TRAP_sig(context)    ((context)->sc_trapno)
+# define ERROR_sig(context)   ((context)->sc_err)
+# define MASK_sig(context)    ((context)->sc_mask)
 #else
 # define EIP_sig(context)     ((context)->uc_mcontext.gregs[REG_EIP])
 # define TRAP_sig(context)    ((context)->uc_mcontext.gregs[REG_TRAPNO])
 # define ERROR_sig(context)   ((context)->uc_mcontext.gregs[REG_ERR])
+# define MASK_sig(context)    ((context)->uc_sigmask)
 #endif
 
 int cpu_signal_handler(int host_signum, void *pinfo,
                        void *puc)
 {
     siginfo_t *info = pinfo;
+#if defined(__OpenBSD__)
+    struct sigcontext *uc = puc;
+#else
     struct ucontext *uc = puc;
+#endif
     unsigned long pc;
     int trapno;
 
@@ -1192,26 +1272,49 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     return handle_cpu_signal(pc, (unsigned long)info->si_addr,
                              trapno == 0xe ?
                              (ERROR_sig(uc) >> 1) & 1 : 0,
-                             &uc->uc_sigmask, puc);
+                             &MASK_sig(uc), puc);
 }
 
 #elif defined(__x86_64__)
+
+#ifdef __NetBSD__
+#define PC_sig(context)       _UC_MACHINE_PC(context)
+#define TRAP_sig(context)     ((context)->uc_mcontext.__gregs[_REG_TRAPNO])
+#define ERROR_sig(context)    ((context)->uc_mcontext.__gregs[_REG_ERR])
+#define MASK_sig(context)     ((context)->uc_sigmask)
+#elif defined(__OpenBSD__)
+#define PC_sig(context)       ((context)->sc_rip)
+#define TRAP_sig(context)     ((context)->sc_trapno)
+#define ERROR_sig(context)    ((context)->sc_err)
+#define MASK_sig(context)     ((context)->sc_mask)
+#else
+#define PC_sig(context)       ((context)->uc_mcontext.gregs[REG_RIP])
+#define TRAP_sig(context)     ((context)->uc_mcontext.gregs[REG_TRAPNO])
+#define ERROR_sig(context)    ((context)->uc_mcontext.gregs[REG_ERR])
+#define MASK_sig(context)     ((context)->uc_sigmask)
+#endif
 
 int cpu_signal_handler(int host_signum, void *pinfo,
                        void *puc)
 {
     siginfo_t *info = pinfo;
-    struct ucontext *uc = puc;
     unsigned long pc;
+#ifdef __NetBSD__
+    ucontext_t *uc = puc;
+#elif defined(__OpenBSD__)
+    struct sigcontext *uc = puc;
+#else
+    struct ucontext *uc = puc;
+#endif
 
-    pc = uc->uc_mcontext.gregs[REG_RIP];
+    pc = PC_sig(uc);
     return handle_cpu_signal(pc, (unsigned long)info->si_addr,
-                             uc->uc_mcontext.gregs[REG_TRAPNO] == 0xe ?
-                             (uc->uc_mcontext.gregs[REG_ERR] >> 1) & 1 : 0,
-                             &uc->uc_sigmask, puc);
+                             TRAP_sig(uc) == 0xe ?
+                             (ERROR_sig(uc) >> 1) & 1 : 0,
+                             &MASK_sig(uc), puc);
 }
 
-#elif defined(__powerpc__)
+#elif defined(_ARCH_PPC)
 
 /***********************************************************************
  * signal context platform-specific definitions
@@ -1328,9 +1431,15 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     /* XXX: is there a standard glibc define ? */
     unsigned long pc = regs[1];
 #else
+#ifdef __linux__
     struct sigcontext *sc = puc;
     unsigned long pc = sc->sigc_regs.tpc;
     void *sigmask = (void *)sc->sigc_mask;
+#elif defined(__OpenBSD__)
+    struct sigcontext *uc = puc;
+    unsigned long pc = uc->sc_pc;
+    void *sigmask = (void *)(long)uc->sc_mask;
+#endif
 #endif
 
     /* XXX: need kernel patch to get write flag faster */
@@ -1339,12 +1448,24 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     if ((insn >> 30) == 3) {
       switch((insn >> 19) & 0x3f) {
       case 0x05: // stb
+      case 0x15: // stba
       case 0x06: // sth
+      case 0x16: // stha
       case 0x04: // st
+      case 0x14: // sta
       case 0x07: // std
+      case 0x17: // stda
+      case 0x0e: // stx
+      case 0x1e: // stxa
       case 0x24: // stf
+      case 0x34: // stfa
       case 0x27: // stdf
+      case 0x37: // stdfa
+      case 0x26: // stqf
+      case 0x36: // stqfa
       case 0x25: // stfsr
+      case 0x3c: // casa
+      case 0x3e: // casxa
 	is_write = 1;
 	break;
       }

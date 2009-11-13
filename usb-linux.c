@@ -7,6 +7,10 @@
  *      Support for host device auto connect & disconnect
  *      Major rewrite to support fully async operation
  *
+ * Copyright 2008 TJ <linux@tjworld.net>
+ *      Added flexible support for /dev/bus/usb /sys/bus/usb/devices in addition
+ *      to the legacy /proc/bus/usb USB device discovery and handling
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -28,9 +32,8 @@
 
 #include "qemu-common.h"
 #include "qemu-timer.h"
-#include "console.h"
+#include "monitor.h"
 
-#if defined(__linux__)
 #include <dirent.h>
 #include <sys/ioctl.h>
 #include <signal.h>
@@ -72,9 +75,22 @@ static int usb_host_find_device(int *pbus_num, int *paddr,
 #define dprintf(...)
 #endif
 
-#define USBDEVFS_PATH "/proc/bus/usb"
+#define USBDBG_DEVOPENED "husb: opened %s/devices\n"
+
+#define USBPROCBUS_PATH "/proc/bus/usb"
 #define PRODUCT_NAME_SZ 32
 #define MAX_ENDPOINTS 16
+#define USBDEVBUS_PATH "/dev/bus/usb"
+#define USBSYSBUS_PATH "/sys/bus/usb"
+
+static char *usb_host_device_path;
+
+#define USB_FS_NONE 0
+#define USB_FS_PROC 1
+#define USB_FS_DEV 2
+#define USB_FS_SYS 3
+
+static int usb_fs_type;
 
 /* endpoint association data */
 struct endp_data {
@@ -425,10 +441,6 @@ static int usb_host_handle_data(USBHostDevice *s, USBPacket *p)
     int ret;
 
     aurb = async_alloc();
-    if (!aurb) {
-        dprintf("husb: async malloc failed\n");
-        return USB_RET_NAK;
-    }
     aurb->hdev   = s;
     aurb->packet = p;
 
@@ -569,10 +581,6 @@ static int usb_host_handle_control(USBHostDevice *s, USBPacket *p)
     /* The rest are asynchronous */
 
     aurb = async_alloc();
-    if (!aurb) {
-        dprintf("husb: async malloc failed\n");
-        return USB_RET_NAK;
-    }
     aurb->hdev   = s;
     aurb->packet = p;
 
@@ -771,7 +779,7 @@ static int usb_linux_update_endp_table(USBHostDevice *s)
 {
     uint8_t *descriptors;
     uint8_t devep, type, configuration, alt_interface;
-    struct usbdevfs_ctrltransfer ct;
+    struct usb_ctrltransfer ct;
     int interface, ret, length, i;
 
     ct.bRequestType = USB_DIR_IN;
@@ -825,8 +833,7 @@ static int usb_linux_update_endp_table(USBHostDevice *s)
 
         ret = ioctl(s->fd, USBDEVFS_CONTROL, &ct);
         if (ret < 0) {
-            perror("usb_linux_update_endp_table");
-            return 1;
+            alt_interface = interface;
         }
 
         /* the current interface descriptor is the active interface
@@ -882,21 +889,24 @@ static USBDevice *usb_host_device_open_addr(int bus_num, int addr, const char *p
     char buf[1024];
 
     dev = qemu_mallocz(sizeof(USBHostDevice));
-    if (!dev)
-        goto fail;
 
     dev->bus_num = bus_num;
     dev->addr = addr;
 
     printf("husb: open device %d.%d\n", bus_num, addr);
 
-    snprintf(buf, sizeof(buf), USBDEVFS_PATH "/%03d/%03d",
+    if (!usb_host_device_path) {
+        perror("husb: USB Host Device Path not set");
+        goto fail;
+    }
+    snprintf(buf, sizeof(buf), "%s/%03d/%03d", usb_host_device_path,
              bus_num, addr);
     fd = open(buf, O_RDWR | O_NONBLOCK);
     if (fd < 0) {
         perror(buf);
         goto fail;
     }
+    dprintf("husb: opened %s\n", buf);
 
     /* read the device description */
     dev->descr_len = read(fd, dev->descr, sizeof(dev->descr));
@@ -974,6 +984,7 @@ static int usb_host_auto_del(const char *spec);
 
 USBDevice *usb_host_device_open(const char *devname)
 {
+    Monitor *mon = cur_mon;
     int bus_num, addr;
     char product_name[PRODUCT_NAME_SZ];
 
@@ -987,7 +998,8 @@ USBDevice *usb_host_device_open(const char *devname)
         return NULL;
 
     if (hostdev_find(bus_num, addr)) {
-       term_printf("husb: host usb device %d.%d is already open\n", bus_num, addr);
+       monitor_printf(mon, "husb: host usb device %d.%d is already open\n",
+                      bus_num, addr);
        return NULL;
     }
 
@@ -1026,7 +1038,7 @@ static int get_tag_value(char *buf, int buf_size,
     if (!p)
         return -1;
     p += strlen(tag);
-    while (isspace(*p))
+    while (qemu_isspace(*p))
         p++;
     q = buf;
     while (*p != '\0' && !strchr(stopchars, *p)) {
@@ -1038,23 +1050,33 @@ static int get_tag_value(char *buf, int buf_size,
     return q - buf;
 }
 
-static int usb_host_scan(void *opaque, USBScanFunc *func)
+/*
+ * Use /proc/bus/usb/devices or /dev/bus/usb/devices file to determine
+ * host's USB devices. This is legacy support since many distributions
+ * are moving to /sys/bus/usb
+ */
+static int usb_host_scan_dev(void *opaque, USBScanFunc *func)
 {
-    FILE *f;
+    FILE *f = 0;
     char line[1024];
     char buf[1024];
     int bus_num, addr, speed, device_count, class_id, product_id, vendor_id;
-    int ret;
     char product_name[512];
+    int ret = 0;
 
-    f = fopen(USBDEVFS_PATH "/devices", "r");
-    if (!f) {
-        term_printf("husb: could not open %s\n", USBDEVFS_PATH "/devices");
-        return 0;
+    if (!usb_host_device_path) {
+        perror("husb: USB Host Device Path not set");
+        goto the_end;
     }
+    snprintf(line, sizeof(line), "%s/devices", usb_host_device_path);
+    f = fopen(line, "r");
+    if (!f) {
+        perror("husb: cannot open devices file");
+        goto the_end;
+    }
+
     device_count = 0;
     bus_num = addr = speed = class_id = product_id = vendor_id = 0;
-    ret = 0;
     for(;;) {
         if (fgets(line, sizeof(line), f) == NULL)
             break;
@@ -1111,7 +1133,191 @@ static int usb_host_scan(void *opaque, USBScanFunc *func)
                    product_id, product_name, speed);
     }
  the_end:
-    fclose(f);
+    if (f)
+        fclose(f);
+    return ret;
+}
+
+/*
+ * Read sys file-system device file
+ *
+ * @line address of buffer to put file contents in
+ * @line_size size of line
+ * @device_file path to device file (printf format string)
+ * @device_name device being opened (inserted into device_file)
+ *
+ * @return 0 failed, 1 succeeded ('line' contains data)
+ */
+static int usb_host_read_file(char *line, size_t line_size, const char *device_file, const char *device_name)
+{
+    Monitor *mon = cur_mon;
+    FILE *f;
+    int ret = 0;
+    char filename[PATH_MAX];
+
+    snprintf(filename, PATH_MAX, USBSYSBUS_PATH "/devices/%s/%s", device_name,
+             device_file);
+    f = fopen(filename, "r");
+    if (f) {
+        fgets(line, line_size, f);
+        fclose(f);
+        ret = 1;
+    } else {
+        monitor_printf(mon, "husb: could not open %s\n", filename);
+    }
+
+    return ret;
+}
+
+/*
+ * Use /sys/bus/usb/devices/ directory to determine host's USB
+ * devices.
+ *
+ * This code is based on Robert Schiele's original patches posted to
+ * the Novell bug-tracker https://bugzilla.novell.com/show_bug.cgi?id=241950
+ */
+static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
+{
+    DIR *dir = 0;
+    char line[1024];
+    int bus_num, addr, speed, class_id, product_id, vendor_id;
+    int ret = 0;
+    char product_name[512];
+    struct dirent *de;
+
+    dir = opendir(USBSYSBUS_PATH "/devices");
+    if (!dir) {
+        perror("husb: cannot open devices directory");
+        goto the_end;
+    }
+
+    while ((de = readdir(dir))) {
+        if (de->d_name[0] != '.' && !strchr(de->d_name, ':')) {
+            char *tmpstr = de->d_name;
+            if (!strncmp(de->d_name, "usb", 3))
+                tmpstr += 3;
+            bus_num = atoi(tmpstr);
+
+            if (!usb_host_read_file(line, sizeof(line), "devnum", de->d_name))
+                goto the_end;
+            if (sscanf(line, "%d", &addr) != 1)
+                goto the_end;
+
+            if (!usb_host_read_file(line, sizeof(line), "bDeviceClass",
+                                    de->d_name))
+                goto the_end;
+            if (sscanf(line, "%x", &class_id) != 1)
+                goto the_end;
+
+            if (!usb_host_read_file(line, sizeof(line), "idVendor", de->d_name))
+                goto the_end;
+            if (sscanf(line, "%x", &vendor_id) != 1)
+                goto the_end;
+
+            if (!usb_host_read_file(line, sizeof(line), "idProduct",
+                                    de->d_name))
+                goto the_end;
+            if (sscanf(line, "%x", &product_id) != 1)
+                goto the_end;
+
+            if (!usb_host_read_file(line, sizeof(line), "product",
+                                    de->d_name)) {
+                *product_name = 0;
+            } else {
+                if (strlen(line) > 0)
+                    line[strlen(line) - 1] = '\0';
+                pstrcpy(product_name, sizeof(product_name), line);
+            }
+
+            if (!usb_host_read_file(line, sizeof(line), "speed", de->d_name))
+                goto the_end;
+            if (!strcmp(line, "480\n"))
+                speed = USB_SPEED_HIGH;
+            else if (!strcmp(line, "1.5\n"))
+                speed = USB_SPEED_LOW;
+            else
+                speed = USB_SPEED_FULL;
+
+            ret = func(opaque, bus_num, addr, class_id, vendor_id,
+                       product_id, product_name, speed);
+            if (ret)
+                goto the_end;
+        }
+    }
+ the_end:
+    if (dir)
+        closedir(dir);
+    return ret;
+}
+
+/*
+ * Determine how to access the host's USB devices and call the
+ * specific support function.
+ */
+static int usb_host_scan(void *opaque, USBScanFunc *func)
+{
+    Monitor *mon = cur_mon;
+    FILE *f = 0;
+    DIR *dir = 0;
+    int ret = 0;
+    const char *fs_type[] = {"unknown", "proc", "dev", "sys"};
+    char devpath[PATH_MAX];
+
+    /* only check the host once */
+    if (!usb_fs_type) {
+        f = fopen(USBPROCBUS_PATH "/devices", "r");
+        if (f) {
+            /* devices found in /proc/bus/usb/ */
+            strcpy(devpath, USBPROCBUS_PATH);
+            usb_fs_type = USB_FS_PROC;
+            fclose(f);
+            dprintf(USBDBG_DEVOPENED, USBPROCBUS_PATH);
+            goto found_devices;
+        }
+        /* try additional methods if an access method hasn't been found yet */
+        f = fopen(USBDEVBUS_PATH "/devices", "r");
+        if (f) {
+            /* devices found in /dev/bus/usb/ */
+            strcpy(devpath, USBDEVBUS_PATH);
+            usb_fs_type = USB_FS_DEV;
+            fclose(f);
+            dprintf(USBDBG_DEVOPENED, USBDEVBUS_PATH);
+            goto found_devices;
+        }
+        dir = opendir(USBSYSBUS_PATH "/devices");
+        if (dir) {
+            /* devices found in /dev/bus/usb/ (yes - not a mistake!) */
+            strcpy(devpath, USBDEVBUS_PATH);
+            usb_fs_type = USB_FS_SYS;
+            closedir(dir);
+            dprintf(USBDBG_DEVOPENED, USBSYSBUS_PATH);
+            goto found_devices;
+        }
+    found_devices:
+        if (!usb_fs_type) {
+            monitor_printf(mon, "husb: unable to access USB devices\n");
+            return -ENOENT;
+        }
+
+        /* the module setting (used later for opening devices) */
+        usb_host_device_path = qemu_mallocz(strlen(devpath)+1);
+        strcpy(usb_host_device_path, devpath);
+        monitor_printf(mon, "husb: using %s file-system with %s\n",
+                       fs_type[usb_fs_type], usb_host_device_path);
+    }
+
+    switch (usb_fs_type) {
+    case USB_FS_PROC:
+    case USB_FS_DEV:
+        ret = usb_host_scan_dev(opaque, func);
+        break;
+    case USB_FS_SYS:
+        ret = usb_host_scan_sys(opaque, func);
+        break;
+    default:
+        ret = -EINVAL;
+        break;
+    }
     return ret;
 }
 
@@ -1237,10 +1443,6 @@ static int usb_host_auto_add(const char *spec)
         return -1;
 
     f = qemu_mallocz(sizeof(*f));
-    if (!f) {
-        fprintf(stderr, "husb: failed to allocate auto filter\n");
-        return -1;
-    }
 
     *f = filter; 
 
@@ -1408,6 +1610,7 @@ static void usb_info_device(int bus_num, int addr, int class_id,
                             const char *product_name,
                             int speed)
 {
+    Monitor *mon = cur_mon;
     const char *class_str, *speed_str;
 
     switch(speed) {
@@ -1425,17 +1628,17 @@ static void usb_info_device(int bus_num, int addr, int class_id,
         break;
     }
 
-    term_printf("  Device %d.%d, speed %s Mb/s\n",
+    monitor_printf(mon, "  Device %d.%d, speed %s Mb/s\n",
                 bus_num, addr, speed_str);
     class_str = usb_class_str(class_id);
     if (class_str)
-        term_printf("    %s:", class_str);
+        monitor_printf(mon, "    %s:", class_str);
     else
-        term_printf("    Class %02x:", class_id);
-    term_printf(" USB device %04x:%04x", vendor_id, product_id);
+        monitor_printf(mon, "    Class %02x:", class_id);
+    monitor_printf(mon, " USB device %04x:%04x", vendor_id, product_id);
     if (product_name[0] != '\0')
-        term_printf(", %s", product_name);
-    term_printf("\n");
+        monitor_printf(mon, ", %s", product_name);
+    monitor_printf(mon, "\n");
 }
 
 static int usb_host_info_device(void *opaque, int bus_num, int addr,
@@ -1449,58 +1652,37 @@ static int usb_host_info_device(void *opaque, int bus_num, int addr,
     return 0;
 }
 
-static void dec2str(int val, char *str)
+static void dec2str(int val, char *str, size_t size)
 {
     if (val == -1)
-        strcpy(str, "*");
+        snprintf(str, size, "*");
     else
-        sprintf(str, "%d", val); 
+        snprintf(str, size, "%d", val); 
 }
 
-static void hex2str(int val, char *str)
+static void hex2str(int val, char *str, size_t size)
 {
     if (val == -1)
-        strcpy(str, "*");
+        snprintf(str, size, "*");
     else
-        sprintf(str, "%x", val);
+        snprintf(str, size, "%x", val);
 }
 
-void usb_host_info(void)
+void usb_host_info(Monitor *mon)
 {
     struct USBAutoFilter *f;
 
     usb_host_scan(NULL, usb_host_info_device);
 
     if (usb_auto_filter)
-        term_printf("  Auto filters:\n");
+        monitor_printf(mon, "  Auto filters:\n");
     for (f = usb_auto_filter; f; f = f->next) {
         char bus[10], addr[10], vid[10], pid[10];
-        dec2str(f->bus_num, bus);
-        dec2str(f->addr, addr);
-        hex2str(f->vendor_id, vid);
-        hex2str(f->product_id, pid);
-    	term_printf("    Device %s.%s ID %s:%s\n", bus, addr, vid, pid);
+        dec2str(f->bus_num, bus, sizeof(bus));
+        dec2str(f->addr, addr, sizeof(addr));
+        hex2str(f->vendor_id, vid, sizeof(vid));
+        hex2str(f->product_id, pid, sizeof(pid));
+        monitor_printf(mon, "    Device %s.%s ID %s:%s\n",
+                       bus, addr, vid, pid);
     }
 }
-
-#else
-
-#include "hw/usb.h"
-
-void usb_host_info(void)
-{
-    term_printf("USB host devices not supported\n");
-}
-
-/* XXX: modify configure to compile the right host driver */
-USBDevice *usb_host_device_open(const char *devname)
-{
-    return NULL;
-}
-
-int usb_host_device_close(const char *devname)
-{
-    return 0;
-}
-
-#endif

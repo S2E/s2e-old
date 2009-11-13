@@ -15,12 +15,12 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 
-/* The GCC global register vairable extension is used to reserve some
-   host registers for use by dyngen.  However only the core parts of the
-   translation engine are compiled with these settings.  We must manually
+/* The GCC global register variable extension is used to reserve some
+   host registers for use by generated code.  However only the core parts of
+   the translation engine are compiled with these settings.  We must manually
    save/restore these registers when called from regular code.
    It is not sufficient to save/restore T0 et. al. as these may be declared
    with a datatype smaller than the actual register.  */
@@ -55,42 +55,6 @@ DO_REG(1)
 
 #ifdef AREG2
 DO_REG(2)
-#endif
-
-#ifdef AREG3
-DO_REG(3)
-#endif
-
-#ifdef AREG4
-DO_REG(4)
-#endif
-
-#ifdef AREG5
-DO_REG(5)
-#endif
-
-#ifdef AREG6
-DO_REG(6)
-#endif
-
-#ifdef AREG7
-DO_REG(7)
-#endif
-
-#ifdef AREG8
-DO_REG(8)
-#endif
-
-#ifdef AREG9
-DO_REG(9)
-#endif
-
-#ifdef AREG10
-DO_REG(10)
-#endif
-
-#ifdef AREG11
-DO_REG(11)
 #endif
 
 #undef SAVE_HOST_REGS

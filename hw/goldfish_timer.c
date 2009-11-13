@@ -74,7 +74,6 @@ static int  goldfish_timer_load(QEMUFile*  f, void*  opaque, int  version_id)
 static uint32_t goldfish_timer_read(void *opaque, target_phys_addr_t offset)
 {
     struct timer_state *s = (struct timer_state *)opaque;
-    offset -= s->dev.base;
     switch(offset) {
         case TIMER_TIME_LOW:
             s->now = muldiv64(qemu_get_clock(vm_clock), 1000000000, ticks_per_sec);
@@ -91,7 +90,6 @@ static void goldfish_timer_write(void *opaque, target_phys_addr_t offset, uint32
 {
     struct timer_state *s = (struct timer_state *)opaque;
     int64_t alarm, now;
-    offset -= s->dev.base;
     switch(offset) {
         case TIMER_ALARM_LOW:
             s->alarm_low = value;
@@ -161,7 +159,6 @@ static int  goldfish_rtc_load(QEMUFile*  f, void*  opaque, int  version_id)
 static uint32_t goldfish_rtc_read(void *opaque, target_phys_addr_t offset)
 {
     struct rtc_state *s = (struct rtc_state *)opaque;
-    offset -= s->dev.base;
     switch(offset) {
         case 0x0:
             s->now = (int64_t)time(NULL) * 1000000000;
@@ -178,7 +175,6 @@ static void goldfish_rtc_write(void *opaque, target_phys_addr_t offset, uint32_t
 {
     struct rtc_state *s = (struct rtc_state *)opaque;
     int64_t alarm;
-    offset -= s->dev.base;
     switch(offset) {
         case 0x8:
             s->alarm_low = value;

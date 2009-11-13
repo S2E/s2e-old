@@ -444,18 +444,6 @@ locate_android_prebuilt ()
 {
     # locate prebuilt directory
     ANDROID_PREBUILT_HOST_TAG=$OS
-    case $OS in
-        linux-*)
-            # Linux is a special case because in the old tree layout
-            # we simply used 'Linux' as the prebuilt host tag, but
-            # are now using "linux-x86" in the new layout
-            # check which one should be used
-            #
-            if [ -d $ANDROID_TOP/prebuilt/Linux ] ; then
-                PREBUILT_HOST_TAG=Linux
-            fi
-            ;;
-    esac
     ANDROID_PREBUILT=$ANDROID_TOP/prebuilt/$ANDROID_PREBUILT_HOST_TAG
     if [ ! -d $ANDROID_PREBUILT ] ; then
         # this can happen when building on x86_64

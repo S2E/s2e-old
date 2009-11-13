@@ -34,15 +34,9 @@
 #define NDEBUG
 #endif
 
-#include <assert.h>
-
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
-
-#define MAXKC   (256/32)
-#define MAXKB   (256/8)
-#define MAXNR   14
 
 /* This controls loop-unrolling in aes_core.c */
 #undef FULL_UNROLL

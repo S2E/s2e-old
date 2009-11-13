@@ -63,9 +63,8 @@ static const unsigned char pc2[48] = {
 	40, 51, 30, 36, 46, 54, 29, 39, 50, 44, 32, 47,
 	43, 48, 38, 55, 33, 52, 45, 41, 49, 35, 28, 31 };
 
-void deskey(key, edf)	/* Thanks to James Gillogly & Phil Karn! */
-unsigned char *key;
-int edf;
+/* Thanks to James Gillogly & Phil Karn! */
+void deskey(unsigned char *key, int edf)
 {
 	register int i, j, l, m, n;
 	unsigned char pc1m[56], pcr[56];
@@ -100,8 +99,7 @@ int edf;
 	return;
 	}
 
-static void cookey(raw1)
-register unsigned long *raw1;
+static void cookey(register unsigned long *raw1)
 {
 	register unsigned long *cook, *raw0;
 	unsigned long dough[32];
@@ -123,8 +121,7 @@ register unsigned long *raw1;
 	return;
 	}
 
-void cpkey(into)
-register unsigned long *into;
+void cpkey(register unsigned long *into)
 {
 	register unsigned long *from, *endp;
 
@@ -133,8 +130,7 @@ register unsigned long *into;
 	return;
 	}
 
-void usekey(from)
-register unsigned long *from;
+void usekey(register unsigned long *from)
 {
 	register unsigned long *to, *endp;
 
@@ -143,8 +139,7 @@ register unsigned long *from;
 	return;
 	}
 
-void des(inblock, outblock)
-unsigned char *inblock, *outblock;
+void des(unsigned char *inblock, unsigned char *outblock)
 {
 	unsigned long work[2];
 
@@ -154,9 +149,7 @@ unsigned char *inblock, *outblock;
 	return;
 	}
 
-static void scrunch(outof, into)
-register unsigned char *outof;
-register unsigned long *into;
+static void scrunch(register unsigned char *outof, register unsigned long *into)
 {
 	*into	 = (*outof++ & 0xffL) << 24;
 	*into	|= (*outof++ & 0xffL) << 16;
@@ -169,9 +162,7 @@ register unsigned long *into;
 	return;
 	}
 
-static void unscrun(outof, into)
-register unsigned long *outof;
-register unsigned char *into;
+static void unscrun(register unsigned long *outof, register unsigned char *into)
 {
 	*into++ = (unsigned char)((*outof >> 24) & 0xffL);
 	*into++ = (unsigned char)((*outof >> 16) & 0xffL);
@@ -184,7 +175,7 @@ register unsigned char *into;
 	return;
 	}
 
-static unsigned long SP1[64] = {
+static const unsigned long SP1[64] = {
 	0x01010400L, 0x00000000L, 0x00010000L, 0x01010404L,
 	0x01010004L, 0x00010404L, 0x00000004L, 0x00010000L,
 	0x00000400L, 0x01010400L, 0x01010404L, 0x00000400L,
@@ -202,7 +193,7 @@ static unsigned long SP1[64] = {
 	0x00000404L, 0x01000400L, 0x01000400L, 0x00000000L,
 	0x00010004L, 0x00010400L, 0x00000000L, 0x01010004L };
 
-static unsigned long SP2[64] = {
+static const unsigned long SP2[64] = {
 	0x80108020L, 0x80008000L, 0x00008000L, 0x00108020L,
 	0x00100000L, 0x00000020L, 0x80100020L, 0x80008020L,
 	0x80000020L, 0x80108020L, 0x80108000L, 0x80000000L,
@@ -220,7 +211,7 @@ static unsigned long SP2[64] = {
 	0x00108000L, 0x00000000L, 0x80008000L, 0x00008020L,
 	0x80000000L, 0x80100020L, 0x80108020L, 0x00108000L };
 
-static unsigned long SP3[64] = {
+static const unsigned long SP3[64] = {
 	0x00000208L, 0x08020200L, 0x00000000L, 0x08020008L,
 	0x08000200L, 0x00000000L, 0x00020208L, 0x08000200L,
 	0x00020008L, 0x08000008L, 0x08000008L, 0x00020000L,
@@ -238,7 +229,7 @@ static unsigned long SP3[64] = {
 	0x08020000L, 0x08000208L, 0x00000208L, 0x08020000L,
 	0x00020208L, 0x00000008L, 0x08020008L, 0x00020200L };
 
-static unsigned long SP4[64] = {
+static const unsigned long SP4[64] = {
 	0x00802001L, 0x00002081L, 0x00002081L, 0x00000080L,
 	0x00802080L, 0x00800081L, 0x00800001L, 0x00002001L,
 	0x00000000L, 0x00802000L, 0x00802000L, 0x00802081L,
@@ -256,7 +247,7 @@ static unsigned long SP4[64] = {
 	0x00002001L, 0x00002080L, 0x00800000L, 0x00802001L,
 	0x00000080L, 0x00800000L, 0x00002000L, 0x00802080L };
 
-static unsigned long SP5[64] = {
+static const unsigned long SP5[64] = {
 	0x00000100L, 0x02080100L, 0x02080000L, 0x42000100L,
 	0x00080000L, 0x00000100L, 0x40000000L, 0x02080000L,
 	0x40080100L, 0x00080000L, 0x02000100L, 0x40080100L,
@@ -274,7 +265,7 @@ static unsigned long SP5[64] = {
 	0x00080100L, 0x02000100L, 0x40000100L, 0x00080000L,
 	0x00000000L, 0x40080000L, 0x02080100L, 0x40000100L };
 
-static unsigned long SP6[64] = {
+static const unsigned long SP6[64] = {
 	0x20000010L, 0x20400000L, 0x00004000L, 0x20404010L,
 	0x20400000L, 0x00000010L, 0x20404010L, 0x00400000L,
 	0x20004000L, 0x00404010L, 0x00400000L, 0x20000010L,
@@ -292,7 +283,7 @@ static unsigned long SP6[64] = {
 	0x00004000L, 0x00400010L, 0x20004010L, 0x00000000L,
 	0x20404000L, 0x20000000L, 0x00400010L, 0x20004010L };
 
-static unsigned long SP7[64] = {
+static const unsigned long SP7[64] = {
 	0x00200000L, 0x04200002L, 0x04000802L, 0x00000000L,
 	0x00000800L, 0x04000802L, 0x00200802L, 0x04200800L,
 	0x04200802L, 0x00200000L, 0x00000000L, 0x04000002L,
@@ -310,7 +301,7 @@ static unsigned long SP7[64] = {
 	0x00000000L, 0x00200802L, 0x04200000L, 0x00000800L,
 	0x04000002L, 0x04000800L, 0x00000800L, 0x00200002L };
 
-static unsigned long SP8[64] = {
+static const unsigned long SP8[64] = {
 	0x10001040L, 0x00001000L, 0x00040000L, 0x10041040L,
 	0x10000000L, 0x10001040L, 0x00000040L, 0x10000000L,
 	0x00040040L, 0x10040000L, 0x10041040L, 0x00041000L,
@@ -328,8 +319,7 @@ static unsigned long SP8[64] = {
 	0x10041040L, 0x00041000L, 0x00041000L, 0x00001040L,
 	0x00001040L, 0x00040040L, 0x10000000L, 0x10041000L };
 
-static void desfunc(block, keys)
-register unsigned long *block, *keys;
+static void desfunc(register unsigned long *block, register unsigned long *keys)
 {
 	register unsigned long fval, work, right, leftt;
 	register int round;
