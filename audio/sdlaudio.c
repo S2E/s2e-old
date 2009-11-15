@@ -23,10 +23,14 @@
  */
 #include <SDL.h>
 #include <SDL_thread.h>
+#include "qemu-common.h"
+#include "audio.h"
 
 #ifndef _WIN32
 #ifdef __sun__
 #define _POSIX_PTHREAD_SEMANTICS 1
+#elif defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
+#include <pthread.h>
 #endif
 #include <signal.h>
 #endif
@@ -78,7 +82,7 @@ typedef struct SDLVoiceOut {
     int decr;
 } SDLVoiceOut;
 
-struct SDLAudioState {
+static struct SDLAudioState {
     int exit;
     SDL_mutex *mutex;
     SDL_sem *sem;
@@ -337,7 +341,7 @@ static void sdl_callback (void *opaque, Uint8 *buf, int len)
         decr = to_mix;
         while (to_mix) {
             int chunk = audio_MIN (to_mix, hw->samples - hw->rpos);
-            st_sample_t *src = hw->mix_buf + hw->rpos;
+            struct st_sample *src = hw->mix_buf + hw->rpos;
 
             /* dolog ("in callback to_mix %d, chunk %d\n", to_mix, chunk); */
             hw->clip (buf, src, chunk);
@@ -387,7 +391,7 @@ static int sdl_run_out (HWVoiceOut *hw)
         int           samples   = bytes >> hw->info.shift;
         int           hwsamples = audio_MIN(hw->samples - hw->rpos, live);
         uint8_t*      dst       = s->data + end;
-        st_sample_t*  src       = hw->mix_buf + hw->rpos;
+        struct st_sample*  src  = hw->mix_buf + hw->rpos;
 
         if (samples == 0)
             break;
@@ -509,7 +513,7 @@ print_sdl_audiospec( SDL_AudioSpec*  spec, const char*  prefix )
 }
 #endif
 
-static int sdl_init_out (HWVoiceOut *hw, audsettings_t *as)
+static int sdl_init_out (HWVoiceOut *hw, struct audsettings *as)
 {
     SDLVoiceOut *sdl = (SDLVoiceOut *) hw;
     SDLAudioState *s = &glob_sdl;
@@ -518,7 +522,7 @@ static int sdl_init_out (HWVoiceOut *hw, audsettings_t *as)
     int endianess;
     int err;
     audfmt_e effective_fmt;
-    audsettings_t obt_as;
+    struct audsettings obt_as;
 
     shift <<= as->nchannels == 2;
 

@@ -24,7 +24,7 @@
  */
 #include "hw/hw.h"
 #include "audio.h"
-#include "console.h"
+#include "monitor.h"
 #include "qemu-timer.h"
 #include "sysemu.h"
 
@@ -146,14 +146,14 @@ struct fixed_settings {
     int enabled;
     int nb_voices;
     int greedy;
-    audsettings_t settings;
+    struct audsettings settings;
 };
 
 static struct {
     struct fixed_settings fixed_out;
     struct fixed_settings fixed_in;
     union {
-        int hz;
+        int hertz;
         int64_t ticks;
     } period;
     int plive;
@@ -183,14 +183,14 @@ static struct {
         }
     },
 
-    { 0 },                      /* period */
+    { 250 },                    /* period */
     0,                          /* plive */
     0                           /* log_to_monitor */
 };
 
-AudioState glob_audio_state;
+static AudioState glob_audio_state;
 
-volume_t nominal_volume = {
+struct mixeng_volume nominal_volume = {
     0,
 #ifdef FLOAT_MIXENG
     1.0,
@@ -296,8 +296,8 @@ void *audio_calloc (const char *funcname, int nmemb, size_t size)
 static char *audio_alloc_prefix (const char *s)
 {
     const char qemu_prefix[] = "QEMU_";
-    size_t len;
-    char *r;
+    size_t len, i;
+    char *r, *u;
 
     if (!s) {
         return NULL;
@@ -306,17 +306,15 @@ static char *audio_alloc_prefix (const char *s)
     len = strlen (s);
     r = qemu_malloc (len + sizeof (qemu_prefix));
 
-    if (r) {
-        size_t i;
-        char *u = r + sizeof (qemu_prefix) - 1;
+    u = r + sizeof (qemu_prefix) - 1;
 
-        strcpy (r, qemu_prefix);
-        strcat (r, s);
+    pstrcpy (r, len + sizeof (qemu_prefix), qemu_prefix);
+    pstrcat (r, len + sizeof (qemu_prefix), s);
 
-        for (i = 0; i < len; ++i) {
-            u[i] = toupper (u[i]);
-        }
+    for (i = 0; i < len; ++i) {
+        u[i] = qemu_toupper(u[i]);
     }
+
     return r;
 }
 
@@ -433,10 +431,10 @@ void AUD_vlog (const char *cap, const char *fmt, va_list ap)
 {
     if (conf.log_to_monitor) {
         if (cap) {
-            term_printf ("%s: ", cap);
+            monitor_printf(cur_mon, "%s: ", cap);
         }
 
-        term_vprintf (fmt, ap);
+        monitor_vprintf(cur_mon, fmt, ap);
     }
     else {
         if (!VERBOSE_CHECK(audio))
@@ -536,7 +534,7 @@ static void audio_process_options (const char *prefix,
 {
     char *optname;
     const char qemu_prefix[] = "QEMU_";
-    size_t preflen;
+    size_t preflen, optlen;
 
     if (audio_bug (AUDIO_FUNC, !prefix)) {
         dolog ("prefix = NULL\n");
@@ -564,21 +562,17 @@ static void audio_process_options (const char *prefix,
         /* len of opt->name + len of prefix + size of qemu_prefix
          * (includes trailing zero) + zero + underscore (on behalf of
          * sizeof) */
-        optname = qemu_malloc (len + preflen + sizeof (qemu_prefix) + 1);
-        if (!optname) {
-            dolog ("Could not allocate memory for option name `%s'\n",
-                   opt->name);
-            continue;
-        }
+        optlen = len + preflen + sizeof (qemu_prefix) + 1;
+        optname = qemu_malloc (optlen);
 
-        strcpy (optname, qemu_prefix);
+        pstrcpy (optname, optlen, qemu_prefix);
 
         /* copy while upper-casing, including trailing zero */
         for (i = 0; i <= preflen; ++i) {
-            optname[i + sizeof (qemu_prefix) - 1] = toupper (prefix[i]);
+            optname[i + sizeof (qemu_prefix) - 1] = qemu_toupper(prefix[i]);
         }
-        strcat (optname, "_");
-        strcat (optname, opt->name);
+        pstrcat (optname, optlen, "_");
+        pstrcat (optname, optlen, opt->name);
 
         def = 1;
         switch (opt->tag) {
@@ -618,7 +612,7 @@ static void audio_process_options (const char *prefix,
     }
 }
 
-static void audio_print_settings (audsettings_t *as)
+static void audio_print_settings (struct audsettings *as)
 {
     dolog ("frequency=%d nchannels=%d fmt=", as->freq, as->nchannels);
 
@@ -634,6 +628,12 @@ static void audio_print_settings (audsettings_t *as)
         break;
     case AUD_FMT_U16:
         AUD_log (NULL, "U16");
+        break;
+    case AUD_FMT_S32:
+        AUD_log (NULL, "S32");
+        break;
+    case AUD_FMT_U32:
+        AUD_log (NULL, "U32");
         break;
     default:
         AUD_log (NULL, "invalid(%d)", as->fmt);
@@ -655,7 +655,7 @@ static void audio_print_settings (audsettings_t *as)
     AUD_log (NULL, "\n");
 }
 
-static int audio_validate_settings (audsettings_t *as)
+static int audio_validate_settings (struct audsettings *as)
 {
     int invalid;
 
@@ -679,7 +679,7 @@ static int audio_validate_settings (audsettings_t *as)
     return invalid ? -1 : 0;
 }
 
-static int audio_pcm_info_eq (struct audio_pcm_info *info, audsettings_t *as)
+static int audio_pcm_info_eq (struct audio_pcm_info *info, struct audsettings *as)
 {
     int bits = 8, sign = 0;
 
@@ -694,6 +694,7 @@ static int audio_pcm_info_eq (struct audio_pcm_info *info, audsettings_t *as)
     case AUD_FMT_U16:
         bits = 16;
         break;
+
     case AUD_FMT_S32:
         sign = 1;
     case AUD_FMT_U32:
@@ -707,7 +708,7 @@ static int audio_pcm_info_eq (struct audio_pcm_info *info, audsettings_t *as)
         && info->swap_endianness == (as->endianness != AUDIO_HOST_ENDIANNESS);
 }
 
-void audio_pcm_init_info (struct audio_pcm_info *info, audsettings_t *as)
+void audio_pcm_init_info (struct audio_pcm_info *info, struct audsettings *as)
 {
     int bits = 8, sign = 0, shift = 0;
 
@@ -802,8 +803,8 @@ void audio_pcm_info_clear_buf (struct audio_pcm_info *info, void *buf, int len)
 /*
  * Capture
  */
-static void noop_conv (st_sample_t *dst, const void *src,
-                       int samples, volume_t *vol)
+static void noop_conv (struct st_sample *dst, const void *src,
+                       int samples, struct mixeng_volume *vol)
 {
     (void) src;
     (void) dst;
@@ -812,11 +813,11 @@ static void noop_conv (st_sample_t *dst, const void *src,
 }
 
 static CaptureVoiceOut *audio_pcm_capture_find_specific (
-    AudioState *s,
-    audsettings_t *as
+    struct audsettings *as
     )
 {
     CaptureVoiceOut *cap;
+    AudioState *s = &glob_audio_state;
 
     for (cap = s->cap_head.lh_first; cap; cap = cap->entries.le_next) {
         if (audio_pcm_info_eq (&cap->hw.info, as)) {
@@ -891,8 +892,9 @@ static void audio_detach_capture (HWVoiceOut *hw)
     }
 }
 
-static int audio_attach_capture (AudioState *s, HWVoiceOut *hw)
+static int audio_attach_capture (HWVoiceOut *hw)
 {
+    AudioState *s = &glob_audio_state;
     CaptureVoiceOut *cap;
 
     audio_detach_capture (hw);
@@ -989,7 +991,7 @@ int audio_pcm_sw_read (SWVoiceIn *sw, void *buf, int size)
 {
     HWVoiceIn *hw = sw->hw;
     int samples, live, ret = 0, swlim, isamp, osamp, rpos, total = 0;
-    st_sample_t *src, *dst = sw->buf;
+    struct st_sample *src, *dst = sw->buf;
 
     rpos = audio_pcm_sw_get_rpos_in (sw) % hw->samples;
 
@@ -1236,6 +1238,7 @@ void AUD_set_active_out (SWVoiceOut *sw, int on)
 
     hw = sw->hw;
     if (sw->active != on) {
+        AudioState *s = &glob_audio_state;
         SWVoiceOut *temp_sw;
         SWVoiceCap *sc;
 
@@ -1243,9 +1246,11 @@ void AUD_set_active_out (SWVoiceOut *sw, int on)
             hw->pending_disable = 0;
             if (!hw->enabled) {
                 hw->enabled = 1;
+                if (s->vm_running) {
                 BEGIN_NOSIGALRM
                     hw->pcm_ops->ctl_out (hw, VOICE_ENABLE);
                 END_NOSIGALRM
+                }
             }
         }
         else {
@@ -1281,14 +1286,17 @@ void AUD_set_active_in (SWVoiceIn *sw, int on)
 
     hw = sw->hw;
     if (sw->active != on) {
+        AudioState *s = &glob_audio_state;
         SWVoiceIn *temp_sw;
 
         if (on) {
             if (!hw->enabled) {
                 hw->enabled = 1;
+                if (s->vm_running) {
                 BEGIN_NOSIGALRM
                     hw->pcm_ops->ctl_in (hw, VOICE_ENABLE);
                 END_NOSIGALRM
+                }
             }
             sw->total_hw_samples_acquired = hw->total_samples_captured;
         }
@@ -1404,7 +1412,7 @@ static void audio_run_out (AudioState *s)
     HWVoiceOut *hw = NULL;
     SWVoiceOut *sw;
 
-    while ((hw = audio_pcm_hw_find_any_enabled_out (s, hw))) {
+    while ((hw = audio_pcm_hw_find_any_enabled_out (hw))) {
         int played;
         int live, free, nb_live, cleanup_required, prev_rpos;
 
@@ -1503,7 +1511,7 @@ static void audio_run_out (AudioState *s)
 #ifdef DEBUG_PLIVE
                     dolog ("Finishing with old voice\n");
 #endif
-                    audio_close_out (s, sw);
+                    audio_close_out (sw);
                 }
                 sw = sw1;
             }
@@ -1515,7 +1523,7 @@ static void audio_run_in (AudioState *s)
 {
     HWVoiceIn *hw = NULL;
 
-    while ((hw = audio_pcm_hw_find_any_enabled_in (s, hw))) {
+    while ((hw = audio_pcm_hw_find_any_enabled_in (hw))) {
         SWVoiceIn *sw;
         int captured, min;
 
@@ -1556,7 +1564,7 @@ static void audio_run_capture (AudioState *s)
         while (live) {
             int left = hw->samples - rpos;
             int to_capture = audio_MIN (live, left);
-            st_sample_t *src;
+            struct st_sample *src;
             struct capture_callback *cb;
 
             src = hw->mix_buf + rpos;
@@ -1591,7 +1599,7 @@ static void audio_run_capture (AudioState *s)
 
 static void audio_timer (void *opaque)
 {
-    AudioState* s = opaque;
+    AudioState *s = opaque;
 #if 0
 #define  MAX_DIFFS  1000
     int64_t         now  = qemu_get_clock(vm_clock);
@@ -1662,7 +1670,7 @@ static struct audio_option audio_options[] = {
      "Number of voices for ADC", NULL, 0},
 
     /* Misc */
-    {"TIMER_PERIOD", AUD_OPT_INT, &conf.period.hz,
+    {"TIMER_PERIOD", AUD_OPT_INT, &conf.period.hertz,
      "Timer period in HZ (0 - use lowest possible)", NULL, 0},
 
     {"PLIVE", AUD_OPT_BOOL, &conf.plive,
@@ -1698,7 +1706,7 @@ void AUD_help (void)
     size_t i;
 
     audio_process_options ("AUDIO", audio_options);
-    for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
+    for (i = 0; i < ARRAY_SIZE (drvtab); i++) {
         struct audio_driver *d = drvtab[i];
         if (d->options) {
             audio_process_options (d->name, d->options);
@@ -1711,7 +1719,7 @@ void AUD_help (void)
 
     printf ("Available drivers:\n");
 
-    for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
+    for (i = 0; i < ARRAY_SIZE (drvtab); i++) {
         struct audio_driver *d = drvtab[i];
 
         printf ("Name: %s\n", d->name);
@@ -1773,8 +1781,8 @@ static int audio_driver_init (AudioState *s, struct audio_driver *drv, int  out)
     END_NOSIGALRM
 
     if (opaque != NULL) {
-        audio_init_nb_voices_out (s, drv);
-        audio_init_nb_voices_in (s, drv);
+        audio_init_nb_voices_out (drv);
+        audio_init_nb_voices_in (drv);
         if (out) {
             s->drv_out         = drv;
             s->drv_out_opaque  = opaque;
@@ -1790,19 +1798,21 @@ static int audio_driver_init (AudioState *s, struct audio_driver *drv, int  out)
     }
 }
 
-static void audio_vm_change_state_handler (void *opaque, int running)
+static void audio_vm_change_state_handler (void *opaque, int running,
+                                           int reason)
 {
     AudioState *s = opaque;
     HWVoiceOut *hwo = NULL;
     HWVoiceIn *hwi = NULL;
     int op = running ? VOICE_ENABLE : VOICE_DISABLE;
 
+    s->vm_running = running;
     BEGIN_NOSIGALRM
-        while ((hwo = audio_pcm_hw_find_any_enabled_out (s, hwo))) {
+        while ((hwo = audio_pcm_hw_find_any_enabled_out (hwo))) {
             hwo->pcm_ops->ctl_out (hwo, op);
         }
 
-        while ((hwi = audio_pcm_hw_find_any_enabled_in (s, hwi))) {
+        while ((hwi = audio_pcm_hw_find_any_enabled_in (hwi))) {
             hwi->pcm_ops->ctl_in (hwi, op);
         }
     END_NOSIGALRM
@@ -1821,7 +1831,7 @@ static void audio_atexit (void)
     initialized = 0;
 
     BEGIN_NOSIGALRM
-    while ((hwo = audio_pcm_hw_find_any_enabled_out (s, hwo))) {
+    while ((hwo = audio_pcm_hw_find_any_enabled_out (hwo))) {
         SWVoiceCap *sc;
 
         hwo->pcm_ops->ctl_out (hwo, VOICE_DISABLE);
@@ -1837,7 +1847,7 @@ static void audio_atexit (void)
         }
     }
 
-    while ((hwi = audio_pcm_hw_find_any_enabled_in (s, hwi))) {
+    while ((hwi = audio_pcm_hw_find_any_enabled_in (hwi))) {
         hwi->pcm_ops->ctl_in (hwi, VOICE_DISABLE);
         hwi->pcm_ops->fini_in (hwi);
     }
@@ -1867,21 +1877,6 @@ static int audio_load (QEMUFile *f, void *opaque, int version_id)
     }
 
     return 0;
-}
-
-void AUD_register_card (AudioState *s, const char *name, QEMUSoundCard *card)
-{
-    card->audio = s;
-    card->name = qemu_strdup (name);
-    memset (&card->entries, 0, sizeof (card->entries));
-    LIST_INSERT_HEAD (&s->card_head, card, entries);
-}
-
-void AUD_remove_card (QEMUSoundCard *card)
-{
-    LIST_REMOVE (card, entries);
-    card->audio = NULL;
-    qemu_free (card->name);
 }
 
 static int
@@ -1946,9 +1941,13 @@ find_audio_driver( AudioState*  s, int  out )
 }
 
 
-AudioState *AUD_init (void)
+static void audio_init (void)
 {
     AudioState *s = &glob_audio_state;
+
+    if (s->drv_out && s->drv_in) {
+        return;
+    }
 
     LIST_INIT (&s->hw_head_out);
     LIST_INIT (&s->hw_head_in);
@@ -1958,7 +1957,7 @@ AudioState *AUD_init (void)
     s->ts = qemu_new_timer (vm_clock, audio_timer, s);
     if (!s->ts) {
         dolog ("Could not create audio timer\n");
-        return NULL;
+        return;
     }
 
     audio_process_options ("AUDIO", audio_options);
@@ -1978,32 +1977,29 @@ AudioState *AUD_init (void)
         s->nb_hw_voices_in = 0;
     }
 
-    if ( find_audio_driver (s, 0) == 0 &&
-         find_audio_driver (s, 1) == 0 )
-    {
-        VMChangeStateEntry *e;
-
-        if (conf.period.hz <= 0) {
-            if (conf.period.hz < 0) {
-                dolog ("warning: Timer period is negative - %d "
-                       "treating as zero\n",
-                       conf.period.hz);
-            }
-            conf.period.ticks = 1;
-        }
-        else {
-            conf.period.ticks = ticks_per_sec / conf.period.hz;
-        }
-
-        e = qemu_add_vm_change_state_handler (audio_vm_change_state_handler, s);
-        if (!e) {
-            dolog ("warning: Could not register change state handler\n"
-                   "(Audio can continue looping even after stopping the VM)\n");
-        }
-    }
-    else {
+    if ( find_audio_driver (s, 0) != 0 ||
+         find_audio_driver (s, 1) != 0 ) {
         qemu_del_timer (s->ts);
-        return NULL;
+        return;
+    }
+
+    VMChangeStateEntry *e;
+
+    if (conf.period.hertz <= 0) {
+        if (conf.period.hertz < 0) {
+            dolog ("warning: Timer period is negative - %d "
+                   "treating as zero\n",
+                   conf.period.hertz);
+        }
+        conf.period.ticks = 1;
+    } else {
+        conf.period.ticks = ticks_per_sec / conf.period.hertz;
+    }
+
+    e = qemu_add_vm_change_state_handler (audio_vm_change_state_handler, s);
+    if (!e) {
+        dolog ("warning: Could not register change state handler\n"
+               "(Audio can continue looping even after stopping the VM)\n");
     }
 
     initialized = 1;
@@ -2011,7 +2007,20 @@ AudioState *AUD_init (void)
     LIST_INIT (&s->card_head);
     register_savevm ("audio", 0, 1, audio_save, audio_load, s);
     qemu_mod_timer (s->ts, qemu_get_clock (vm_clock) + conf.period.ticks);
-    return s;
+}
+
+void AUD_register_card (const char *name, QEMUSoundCard *card)
+{
+    audio_init ();
+    card->name = qemu_strdup (name);
+    memset (&card->entries, 0, sizeof (card->entries));
+    LIST_INSERT_HEAD (&glob_audio_state.card_head, card, entries);
+}
+
+void AUD_remove_card (QEMUSoundCard *card)
+{
+    LIST_REMOVE (card, entries);
+    qemu_free (card->name);
 }
 
 // this was added to work around a deadlock in SDL when quitting
@@ -2021,19 +2030,14 @@ void AUD_cleanup()
 }
 
 CaptureVoiceOut *AUD_add_capture (
-    AudioState *s,
-    audsettings_t *as,
+    struct audsettings *as,
     struct audio_capture_ops *ops,
     void *cb_opaque
     )
 {
+    AudioState *s = &glob_audio_state;
     CaptureVoiceOut *cap;
     struct capture_callback *cb;
-
-    if (!s) {
-        /* XXX suppress */
-        s = &glob_audio_state;
-    }
 
     if (audio_validate_settings (as)) {
         dolog ("Invalid settings were passed when trying to add capture\n");
@@ -2050,7 +2054,7 @@ CaptureVoiceOut *AUD_add_capture (
     cb->ops = *ops;
     cb->opaque = cb_opaque;
 
-    cap = audio_pcm_capture_find_specific (s, as);
+    cap = audio_pcm_capture_find_specific (as);
     if (cap) {
         LIST_INSERT_HEAD (&cap->cb_head, cb, entries);
         return cap;
@@ -2073,7 +2077,7 @@ CaptureVoiceOut *AUD_add_capture (
         /* XXX find a more elegant way */
         hw->samples = 4096 * 4;
         hw->mix_buf = audio_calloc (AUDIO_FUNC, hw->samples,
-                                    sizeof (st_sample_t));
+                                    sizeof (struct st_sample));
         if (!hw->mix_buf) {
             dolog ("Could not allocate capture mix buffer (%d samples)\n",
                    hw->samples);
@@ -2100,8 +2104,8 @@ CaptureVoiceOut *AUD_add_capture (
         LIST_INSERT_HEAD (&cap->cb_head, cb, entries);
 
         hw = NULL;
-        while ((hw = audio_pcm_hw_find_any_out (s, hw))) {
-            audio_attach_capture (s, hw);
+        while ((hw = audio_pcm_hw_find_any_out (hw))) {
+            audio_attach_capture (hw);
         }
         return cap;
 

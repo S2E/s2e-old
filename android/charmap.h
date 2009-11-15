@@ -12,98 +12,7 @@
 #ifndef _android_charmap_h
 #define _android_charmap_h
 
-#include "linux_keycodes.h"
-
-/* Keep it consistent with linux/input.h */
-typedef enum {
-    kKeyCodeSoftLeft                = KEY_SOFT1,
-    kKeyCodeSoftRight               = KEY_SOFT2,
-    kKeyCodeHome                    = KEY_HOME,
-    kKeyCodeBack                    = KEY_BACK,
-    kKeyCodeCall                    = KEY_SEND,
-    kKeyCodeEndCall                 = KEY_END,
-    kKeyCode0                       = KEY_0,
-    kKeyCode1                       = KEY_1,
-    kKeyCode2                       = KEY_2,
-    kKeyCode3                       = KEY_3,
-    kKeyCode4                       = KEY_4,
-    kKeyCode5                       = KEY_5,
-    kKeyCode6                       = KEY_6,
-    kKeyCode7                       = KEY_7,
-    kKeyCode8                       = KEY_8,
-    kKeyCode9                       = KEY_9,
-    kKeyCodeStar                    = KEY_STAR,
-    kKeyCodePound                   = KEY_SHARP,
-    kKeyCodeDpadUp                  = KEY_UP,
-    kKeyCodeDpadDown                = KEY_DOWN,
-    kKeyCodeDpadLeft                = KEY_LEFT,
-    kKeyCodeDpadRight               = KEY_RIGHT,
-    kKeyCodeDpadCenter              = KEY_CENTER,
-    kKeyCodeVolumeUp                = KEY_VOLUMEUP,
-    kKeyCodeVolumeDown              = KEY_VOLUMEDOWN,
-    kKeyCodePower                   = KEY_POWER,
-    kKeyCodeCamera                  = KEY_CAMERA,
-    kKeyCodeClear                   = KEY_CLEAR,
-    kKeyCodeA                       = KEY_A,
-    kKeyCodeB                       = KEY_B,
-    kKeyCodeC                       = KEY_C,
-    kKeyCodeD                       = KEY_D,
-    kKeyCodeE                       = KEY_E,
-    kKeyCodeF                       = KEY_F,
-    kKeyCodeG                       = KEY_G,
-    kKeyCodeH                       = KEY_H,
-    kKeyCodeI                       = KEY_I,
-    kKeyCodeJ                       = KEY_J,
-    kKeyCodeK                       = KEY_K,
-    kKeyCodeL                       = KEY_L,
-    kKeyCodeM                       = KEY_M,
-    kKeyCodeN                       = KEY_N,
-    kKeyCodeO                       = KEY_O,
-    kKeyCodeP                       = KEY_P,
-    kKeyCodeQ                       = KEY_Q,
-    kKeyCodeR                       = KEY_R,
-    kKeyCodeS                       = KEY_S,
-    kKeyCodeT                       = KEY_T,
-    kKeyCodeU                       = KEY_U,
-    kKeyCodeV                       = KEY_V,
-    kKeyCodeW                       = KEY_W,
-    kKeyCodeX                       = KEY_X,
-    kKeyCodeY                       = KEY_Y,
-    kKeyCodeZ                       = KEY_Z,
-
-    kKeyCodeComma                   = KEY_COMMA,
-    kKeyCodePeriod                  = KEY_DOT,
-    kKeyCodeAltLeft                 = KEY_LEFTALT,
-    kKeyCodeAltRight                = KEY_RIGHTALT,
-    kKeyCodeCapLeft                 = KEY_LEFTSHIFT,
-    kKeyCodeCapRight                = KEY_RIGHTSHIFT,
-    kKeyCodeTab                     = KEY_TAB,
-    kKeyCodeSpace                   = KEY_SPACE,
-    kKeyCodeSym                     = KEY_COMPOSE,
-    kKeyCodeExplorer                = KEY_WWW,
-    kKeyCodeEnvelope                = KEY_MAIL,
-    kKeyCodeNewline                 = KEY_ENTER,
-    kKeyCodeDel                     = KEY_BACKSPACE,
-    kKeyCodeGrave                   = 399,
-    kKeyCodeMinus                   = KEY_MINUS,
-    kKeyCodeEquals                  = KEY_EQUAL,
-    kKeyCodeLeftBracket             = KEY_LEFTBRACE,
-    kKeyCodeRightBracket            = KEY_RIGHTBRACE,
-    kKeyCodeBackslash               = KEY_BACKSLASH,
-    kKeyCodeSemicolon               = KEY_SEMICOLON,
-    kKeyCodeApostrophe              = KEY_APOSTROPHE,
-    kKeyCodeSlash                   = KEY_SLASH,
-    kKeyCodeAt                      = KEY_EMAIL,
-    kKeyCodeNum                     = KEY_NUM,
-    kKeyCodeHeadsetHook             = KEY_HEADSETHOOK,
-    kKeyCodeFocus                   = KEY_FOCUS,
-    kKeyCodePlus                    = KEY_PLUS,
-    kKeyCodeMenu                    = KEY_MENU,
-    kKeyCodeNotification            = KEY_NOTIFICATION,
-    kKeyCodeSearch                  = KEY_SEARCH,
-
-} AndroidKeyCode;
-
+#include "android/keycode.h"
 
 /* this defines a structure used to describe an Android keyboard charmap */
 typedef struct AKeyEntry {
@@ -115,13 +24,52 @@ typedef struct AKeyEntry {
     unsigned short  number;
 } AKeyEntry;
 
-typedef struct {
+/* Defines size of name buffer in AKeyCharmap entry. */
+#define AKEYCHARMAP_NAME_SIZE   32
+
+typedef struct AKeyCharmap {
     const AKeyEntry*  entries;
     int               num_entries;
-    char              name[ 32 ];
+    char              name[ AKEYCHARMAP_NAME_SIZE ];
 } AKeyCharmap;
 
-extern const int           android_charmap_count;
-extern const AKeyCharmap*  android_charmaps[];
+/* Array of charmaps available in the current emulator session. */
+extern const AKeyCharmap**  android_charmaps;
+
+/* Number of entries in android_charmaps array. */
+extern int                  android_charmap_count;
+
+/* Extracts charmap name from .kcm file name.
+ * Charmap name, extracted by this routine is a name of the kcm file, trimmed
+ * of file name extension, and shrinked (if necessary) to fit into the name
+ * buffer. Here are examples on how this routine extracts charmap name:
+ * /a/path/to/kcmfile.kcm       -> kcmfile
+ * /a/path/to/kcmfile.ext.kcm   -> kcmfile.ext
+ * /a/path/to/kcmfile           -> kcmfile
+ * /a/path/to/.kcmfile          -> kcmfile
+ * /a/path/to/.kcmfile.kcm      -> .kcmfile
+ * kcm_file_path - Path to key charmap file to extract charmap name from.
+ * charmap_name - Buffer, where to save extracted charname.
+ * max_len - charmap_name buffer size.
+*/
+void kcm_extract_charmap_name(const char* kcm_file_path,
+                              char* charmap_name,
+                              int max_len);
+
+/* Initialzes key charmap array.
+ * Key charmap array always contains two maps: one for qwerty, and
+ * another for qwerty2 keyboard layout. However, a custom layout can
+ * be requested with -charmap option. In tha case kcm_file_path
+ * parameter contains path to a .kcm file that defines that custom
+ * layout, and as the result, key charmap array will contain another
+ * entry built from that file. If -charmap option was not specified,
+ * kcm_file_path is NULL and final key charmap array will contain only
+ * two default entries.
+ * Returns a zero value on success, or -1 on failure.
+*/
+int android_charmap_setup(const char* kcm_file_path);
+
+/* Cleanups initialization performed in android_charmap_setup routine. */
+void android_charmap_done(void);
 
 #endif /* _android_charmap_h */

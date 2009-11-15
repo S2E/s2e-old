@@ -26,10 +26,13 @@ static uint8_t *tb_ret_addr;
 
 #ifdef __APPLE__
 #define LINKAGE_AREA_SIZE 24
-#define BACK_CHAIN_OFFSET 8
+#define LR_OFFSET 8
+#elif defined _AIX
+#define LINKAGE_AREA_SIZE 52
+#define LR_OFFSET 8
 #else
 #define LINKAGE_AREA_SIZE 8
-#define BACK_CHAIN_OFFSET 4
+#define LR_OFFSET 4
 #endif
 
 #define FAST_PATH
@@ -39,6 +42,7 @@ static uint8_t *tb_ret_addr;
 #define ADDEND_OFFSET 4
 #endif
 
+#ifndef NDEBUG
 static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
     "r0",
     "r1",
@@ -73,6 +77,7 @@ static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
     "r30",
     "r31"
 };
+#endif
 
 static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_R14,
@@ -104,10 +109,9 @@ static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_R11,
 #endif
     TCG_REG_R12,
+#ifndef __linux__
     TCG_REG_R13,
-    TCG_REG_R0,
-    TCG_REG_R1,
-    TCG_REG_R2,
+#endif
     TCG_REG_R24,
     TCG_REG_R25,
     TCG_REG_R26,
@@ -135,6 +139,9 @@ static const int tcg_target_callee_save_regs[] = {
     TCG_REG_R11,
     TCG_REG_R13,
 #endif
+#ifdef _AIX
+    TCG_REG_R13,
+#endif
     TCG_REG_R14,
     TCG_REG_R15,
     TCG_REG_R16,
@@ -145,6 +152,11 @@ static const int tcg_target_callee_save_regs[] = {
     TCG_REG_R21,
     TCG_REG_R22,
     TCG_REG_R23,
+    TCG_REG_R24,
+    TCG_REG_R25,
+    TCG_REG_R26,
+    /* TCG_REG_R27, */ /* currently used for the global env, so no
+                          need to save */
     TCG_REG_R28,
     TCG_REG_R29,
     TCG_REG_R30,
@@ -204,7 +216,7 @@ static void patch_reloc(uint8_t *code_ptr, int type,
 /* maximum number of register used for input function arguments */
 static int tcg_target_get_call_iarg_regs_count(int flags)
 {
-    return sizeof (tcg_target_call_iarg_regs) / sizeof (tcg_target_call_iarg_regs[0]);
+    return ARRAY_SIZE (tcg_target_call_iarg_regs);
 }
 
 /* parse target specific constraints */
@@ -360,9 +372,6 @@ static int tcg_target_const_match(tcg_target_long val,
 #define SRW    XO31(536)
 #define SRAW   XO31(792)
 
-#define LMW    OPCD(46)
-#define STMW   OPCD(47)
-
 #define TW     XO31(4)
 #define TRAP   (TW | TO (31))
 
@@ -453,6 +462,24 @@ static void tcg_out_b (TCGContext *s, int mask, tcg_target_long target)
     }
 }
 
+#ifdef _AIX
+static void tcg_out_call (TCGContext *s, tcg_target_long arg, int const_arg)
+{
+    int reg;
+
+    if (const_arg) {
+        reg = 2;
+        tcg_out_movi (s, TCG_TYPE_I32, reg, arg);
+    }
+    else reg = arg;
+
+    tcg_out32 (s, LWZ | RT (0) | RA (reg));
+    tcg_out32 (s, MTSPR | RA (0) | CTR);
+    tcg_out32 (s, LWZ | RT (2) | RA (reg) | 4);
+    tcg_out32 (s, BCCTR | BO_ALWAYS | LK);
+}
+#endif
+
 #if defined(CONFIG_SOFTMMU)
 
 #include "../../softmmu_defs.h"
@@ -474,9 +501,9 @@ static void *qemu_st_helpers[4] = {
 
 static void tcg_out_qemu_ld (TCGContext *s, const TCGArg *args, int opc)
 {
-    int addr_reg, data_reg, data_reg2, r0, mem_index, s_bits, bswap;
+    int addr_reg, data_reg, data_reg2, r0, r1, mem_index, s_bits, bswap;
 #ifdef CONFIG_SOFTMMU
-    int r1, r2;
+    int r2;
     void *label1_ptr, *label2_ptr;
 #endif
 #if TARGET_LONG_BITS == 64
@@ -546,7 +573,11 @@ static void tcg_out_qemu_ld (TCGContext *s, const TCGArg *args, int opc)
     tcg_out_movi (s, TCG_TYPE_I32, 5, mem_index);
 #endif
 
+#ifdef _AIX
+    tcg_out_call (s, (tcg_target_long) qemu_ld_helpers[s_bits], 1);
+#else
     tcg_out_b (s, LK, (tcg_target_long) qemu_ld_helpers[s_bits]);
+#endif
     switch (opc) {
     case 0|4:
         tcg_out32 (s, EXTSB | RA (data_reg) | RS (3));
@@ -599,6 +630,7 @@ static void tcg_out_qemu_ld (TCGContext *s, const TCGArg *args, int opc)
 
 #else  /* !CONFIG_SOFTMMU */
     r0 = addr_reg;
+    r1 = 3;
 #endif
 
 #ifdef TARGET_WORDS_BIGENDIAN
@@ -632,17 +664,9 @@ static void tcg_out_qemu_ld (TCGContext *s, const TCGArg *args, int opc)
         break;
     case 3:
         if (bswap) {
-            if (r0 == data_reg) {
-                tcg_out32 (s, LWBRX | RT (0) | RB (r0));
-                tcg_out32 (s, ADDI | RT (r0) | RA (r0) |  4);
-                tcg_out32 (s, LWBRX | RT (data_reg2) | RB (r0));
-                tcg_out_mov (s, data_reg, 0);
-            }
-            else {
-                tcg_out32 (s, LWBRX | RT (data_reg) | RB (r0));
-                tcg_out32 (s, ADDI | RT (r0) | RA (r0) |  4);
-                tcg_out32 (s, LWBRX | RT (data_reg2) | RB (r0));
-            }
+            tcg_out32 (s, ADDI | RT (r1) | RA (r0) |  4);
+            tcg_out32 (s, LWBRX | RT (data_reg) | RB (r0));
+            tcg_out32 (s, LWBRX | RT (data_reg2) | RB (r1));
         }
         else {
             if (r0 == data_reg2) {
@@ -771,7 +795,11 @@ static void tcg_out_qemu_st (TCGContext *s, const TCGArg *args, int opc)
     ir++;
 
     tcg_out_movi (s, TCG_TYPE_I32, ir, mem_index);
+#ifdef _AIX
+    tcg_out_call (s, (tcg_target_long) qemu_st_helpers[opc], 1);
+#else
     tcg_out_b (s, LK, (tcg_target_long) qemu_st_helpers[opc]);
+#endif
     label2_ptr = s->code_ptr;
     tcg_out32 (s, B);
 
@@ -841,6 +869,16 @@ void tcg_target_qemu_prologue (TCGContext *s)
         ;
     frame_size = (frame_size + 15) & ~15;
 
+#ifdef _AIX
+    {
+        uint32_t addr;
+
+        /* First emit adhoc function descriptor */
+        addr = (uint32_t) s->code_ptr + 12;
+        tcg_out32 (s, addr);        /* entry point */
+        s->code_ptr += 8;           /* skip TOC and environment pointer */
+    }
+#endif
     tcg_out32 (s, MFSPR | RT (0) | LR);
     tcg_out32 (s, STWU | RS (1) | RA (1) | (-frame_size & 0xffff));
     for (i = 0; i < ARRAY_SIZE (tcg_target_callee_save_regs); ++i)
@@ -850,7 +888,7 @@ void tcg_target_qemu_prologue (TCGContext *s)
                        | (i * 4 + LINKAGE_AREA_SIZE + TCG_STATIC_CALL_ARGS_SIZE)
                        )
             );
-    tcg_out32 (s, STW | RS (0) | RA (1) | (frame_size + BACK_CHAIN_OFFSET));
+    tcg_out32 (s, STW | RS (0) | RA (1) | (frame_size + LR_OFFSET));
 
     tcg_out32 (s, MTSPR | RS (3) | CTR);
     tcg_out32 (s, BCCTR | BO_ALWAYS);
@@ -863,7 +901,7 @@ void tcg_target_qemu_prologue (TCGContext *s)
                        | (i * 4 + LINKAGE_AREA_SIZE + TCG_STATIC_CALL_ARGS_SIZE)
                        )
             );
-    tcg_out32 (s, LWZ | RT (0) | RA (1) | (frame_size + BACK_CHAIN_OFFSET));
+    tcg_out32 (s, LWZ | RT (0) | RA (1) | (frame_size + LR_OFFSET));
     tcg_out32 (s, MTSPR | RS (0) | LR);
     tcg_out32 (s, ADDI | RT (1) | RA (1) | frame_size);
     tcg_out32 (s, BCLR | BO_ALWAYS);
@@ -1111,6 +1149,9 @@ static void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
         }
         break;
     case INDEX_op_call:
+#ifdef _AIX
+        tcg_out_call (s, args[0], const_args[0]);
+#else
         if (const_args[0]) {
             tcg_out_b (s, LK, args[0]);
         }
@@ -1118,6 +1159,7 @@ static void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
             tcg_out32 (s, MTSPR | RS (args[0]) | LR);
             tcg_out32 (s, BCLR | BO_ALWAYS | LK);
         }
+#endif
         break;
     case INDEX_op_jmp:
         if (const_args[0]) {
@@ -1486,6 +1528,9 @@ void tcg_target_init(TCGContext *s)
     tcg_regset_set_reg(s->reserved_regs, TCG_REG_R1);
 #ifndef __APPLE__
     tcg_regset_set_reg(s->reserved_regs, TCG_REG_R2);
+#endif
+#ifdef __linux__
+    tcg_regset_set_reg(s->reserved_regs, TCG_REG_R13);
 #endif
 
     tcg_add_target_add_op_defs(ppc_op_defs);

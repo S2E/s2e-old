@@ -65,11 +65,15 @@ enum {
 /* used for function call generation */
 #define TCG_REG_CALL_STACK TCG_REG_R1
 #define TCG_TARGET_STACK_ALIGN 16
-#ifdef __APPLE__
+#if defined __APPLE__
 #define TCG_TARGET_CALL_STACK_OFFSET 24
-#else
+#elif defined _AIX
+#define TCG_TARGET_CALL_STACK_OFFSET 52
+#elif defined __linux__
 #define TCG_TARGET_CALL_ALIGN_ARGS 1
 #define TCG_TARGET_CALL_STACK_OFFSET 8
+#else
+#error Unsupported system
 #endif
 
 /* optional instructions */
@@ -81,25 +85,3 @@ enum {
 #define TCG_AREG0 TCG_REG_R27
 #define TCG_AREG1 TCG_REG_R24
 #define TCG_AREG2 TCG_REG_R25
-#define TCG_AREG3 TCG_REG_R26
-
-/* taken directly from tcg-dyngen.c */
-#define MIN_CACHE_LINE_SIZE 8 /* conservative value */
-
-static inline void flush_icache_range(unsigned long start, unsigned long stop)
-{
-    unsigned long p;
-
-    start &= ~(MIN_CACHE_LINE_SIZE - 1);
-    stop = (stop + MIN_CACHE_LINE_SIZE - 1) & ~(MIN_CACHE_LINE_SIZE - 1);
-
-    for (p = start; p < stop; p += MIN_CACHE_LINE_SIZE) {
-        asm volatile ("dcbst 0,%0" : : "r"(p) : "memory");
-    }
-    asm volatile ("sync" : : : "memory");
-    for (p = start; p < stop; p += MIN_CACHE_LINE_SIZE) {
-        asm volatile ("icbi 0,%0" : : "r"(p) : "memory");
-    }
-    asm volatile ("sync" : : : "memory");
-    asm volatile ("isync" : : : "memory");
-}

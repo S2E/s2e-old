@@ -62,21 +62,25 @@ enum {
 	AUDIO_INT_READ_BUFFER_FULL      = 1U << 2,
 };
 
+struct goldfish_audio_buff {
+    uint32_t  address;
+    uint32_t  length;
+    uint8*    data;
+    uint32_t  capacity;
+    uint32_t  offset;
+};
+
 
 struct goldfish_audio_state {
     struct goldfish_device dev;
-    // pointers to our two write buffers
-    uint32_t buffer_1, buffer_2;
-    uint32_t read_buffer;
     // buffer flags
     uint32_t int_status;
     // irq enable mask for int_status
     uint32_t int_enable;
 
-#if USE_QEMU_AUDIO_IN
-    uint32_t  read_pos;
-    uint32_t  read_size;
-#else
+#ifndef USE_QEMU_AUDIO_IN
+    // address of the read buffer
+    uint32_t read_buffer;
     // path to file or device to use for input
     const char* input_source;
     // true if input is a wav file
@@ -94,11 +98,9 @@ struct goldfish_audio_state {
     int current_buffer;
 
     // current data to write
-    uint8* data_1;
-    uint32_t data_1_length;
-    uint8* data_2;
-    uint32_t data_2_length;
-
+    struct goldfish_audio_buff  out_buff1[1];
+    struct goldfish_audio_buff  out_buff2[1];
+    struct goldfish_audio_buff  in_buff[1];
 
     // for QEMU sound output
     QEMUSoundCard card;
@@ -108,24 +110,132 @@ struct goldfish_audio_state {
 #endif
 };
 
+static void
+goldfish_audio_buff_init( struct goldfish_audio_buff*  b )
+{
+    b->address  = 0;
+    b->length   = 0;
+    b->data     = NULL;
+    b->capacity = 0;
+    b->offset   = 0;
+}
+
+static void
+goldfish_audio_buff_reset( struct goldfish_audio_buff*  b )
+{
+    b->offset = 0;
+    b->length = 0;
+}
+
+static uint32_t
+goldfish_audio_buff_length( struct goldfish_audio_buff*  b )
+{
+    return b->length;
+}
+
+static void
+goldfish_audio_buff_ensure( struct goldfish_audio_buff*  b, uint32_t  size )
+{
+    if (b->capacity < size) {
+        b->data     = qemu_realloc(b->data, size);
+        b->capacity = size;
+    }
+}
+
+static void
+goldfish_audio_buff_set_address( struct goldfish_audio_buff*  b, uint32_t  addr )
+{
+    b->address = addr;
+}
+
+static void
+goldfish_audio_buff_set_length( struct goldfish_audio_buff*  b, uint32_t  len )
+{
+    b->length = len;
+    b->offset = 0;
+    goldfish_audio_buff_ensure(b, len);
+}
+
+static void
+goldfish_audio_buff_read( struct goldfish_audio_buff*  b )
+{
+    cpu_physical_memory_read(b->address, b->data, b->length);
+}
+
+static void
+goldfish_audio_buff_write( struct goldfish_audio_buff*  b )
+{
+    cpu_physical_memory_write(b->address, b->data, b->length);
+}
+
+static int
+goldfish_audio_buff_send( struct goldfish_audio_buff*  b, int  free, struct goldfish_audio_state*  s )
+{
+    int  ret, write = b->length;
+
+    if (write > free)
+        write = free;
+
+    ret = AUD_write(s->voice, b->data + b->offset, write);
+    b->offset += ret;
+    b->length -= ret;
+    return ret;
+}
+
+static int
+goldfish_audio_buff_available( struct goldfish_audio_buff*  b )
+{
+    return b->length - b->offset;
+}
+
+static int
+goldfish_audio_buff_recv( struct goldfish_audio_buff*  b, int  avail, struct goldfish_audio_state*  s )
+{
+    int     missing = b->length - b->offset;
+    int     avail2 = (avail > missing) ? missing : avail;
+    int     read;
+
+    read = AUD_read(s->voicein, b->data + b->offset, avail2 );
+    if (read == 0)
+        return 0;
+
+    if (avail2 > 0)
+        D("%s: AUD_read(%d) returned %d", __FUNCTION__, avail2, read);
+
+    cpu_physical_memory_write( b->address + b->offset, b->data, read );
+    b->offset += read;
+
+    return read;
+}
+
+static void
+goldfish_audio_buff_put( struct goldfish_audio_buff*  b, QEMUFile*  f )
+{
+    qemu_put_be32(f, b->address );
+    qemu_put_be32(f, b->length );
+    qemu_put_be32(f, b->offset );
+    qemu_put_buffer(f, b->data, b->length );
+}
+
+static int
+goldfish_audio_buff_get( struct goldfish_audio_buff*  b, QEMUFile*  f )
+{
+    b->address = qemu_get_be32(f);
+    b->length  = qemu_get_be32(f);
+    b->offset  = qemu_get_be32(f);
+    goldfish_audio_buff_ensure(b, b->length);
+    qemu_get_buffer(f, b->data, b->length);
+}
+
 /* update this whenever you change the goldfish_audio_state structure */
-#define  AUDIO_STATE_SAVE_VERSION  1
+#define  AUDIO_STATE_SAVE_VERSION  2
 
 #define  QFIELD_STRUCT   struct goldfish_audio_state
 QFIELD_BEGIN(audio_state_fields)
-    QFIELD_INT32(buffer_1),
-    QFIELD_INT32(buffer_2),
-    QFIELD_INT32(read_buffer),
     QFIELD_INT32(int_status),
     QFIELD_INT32(int_enable),
-#if USE_QEMU_AUDIO_IN
-    QFIELD_INT32(read_pos),
-    QFIELD_INT32(read_size),
-#endif
     QFIELD_INT32(read_buffer_available),
     QFIELD_INT32(current_buffer),
-    QFIELD_INT32(data_1_length),
-    QFIELD_INT32(data_2_length),
 QFIELD_END
 
 static void  audio_state_save( QEMUFile*  f, void* opaque )
@@ -134,9 +244,9 @@ static void  audio_state_save( QEMUFile*  f, void* opaque )
 
     qemu_put_struct(f, audio_state_fields, s);
 
-    /* we can't write data_1 and data_2 directly */
-    qemu_put_be32( f, s->data_1 - phys_ram_base );
-    qemu_put_be32( f, s->data_2 - phys_ram_base );
+    goldfish_audio_buff_put (s->out_buff1, f);
+    goldfish_audio_buff_put (s->out_buff2, f);
+    goldfish_audio_buff_put (s->in_buff, f);
 }
 
 static int   audio_state_load( QEMUFile*  f, void*  opaque, int  version_id )
@@ -149,8 +259,9 @@ static int   audio_state_load( QEMUFile*  f, void*  opaque, int  version_id )
 
     ret = qemu_get_struct(f, audio_state_fields, s);
     if (!ret) {
-        s->data_1 = qemu_get_be32(f) + phys_ram_base;
-        s->data_2 = qemu_get_be32(f) + phys_ram_base;
+        goldfish_audio_buff_get( s->out_buff1, f );
+        goldfish_audio_buff_get( s->out_buff2, f );
+        goldfish_audio_buff_get (s->in_buff, f);
     }
     return -1;
 }
@@ -158,25 +269,25 @@ static int   audio_state_load( QEMUFile*  f, void*  opaque, int  version_id )
 static void enable_audio(struct goldfish_audio_state *s, int enable)
 {
     // enable or disable the output voice
-    if (s->voice != NULL)
+    if (s->voice != NULL) {
         AUD_set_active_out(s->voice,   (enable & (AUDIO_INT_WRITE_BUFFER_1_EMPTY | AUDIO_INT_WRITE_BUFFER_2_EMPTY)) != 0);
+        goldfish_audio_buff_reset( s->out_buff1 );
+        goldfish_audio_buff_reset( s->out_buff2 );
+    }
 
-    if (s->voicein)
+    if (s->voicein) {
         AUD_set_active_in (s->voicein, (enable & AUDIO_INT_READ_BUFFER_FULL) != 0);
-    // reset buffer information
-    s->data_1_length = 0;
-    s->data_2_length = 0;
+        goldfish_audio_buff_reset( s->in_buff );
+    }
     s->current_buffer = 0;
-    s->read_pos = 0;
 }
 
 #if USE_QEMU_AUDIO_IN
 static void start_read(struct goldfish_audio_state *s, uint32_t count)
 {
     //printf( "... goldfish audio start_read, count=%d\n", count );
-    s->read_size = count;
-    s->read_buffer_available = 0;
-    s->read_pos  = 0;
+    goldfish_audio_buff_set_length( s->in_buff, count );
+    s->read_buffer_available = count;
 }
 #else
 static void start_read(struct goldfish_audio_state *s, uint32_t count)
@@ -255,7 +366,6 @@ static uint32_t goldfish_audio_read(void *opaque, target_phys_addr_t offset)
 {
     uint32_t ret;
     struct goldfish_audio_state *s = opaque;
-    offset -= s->dev.base;
     switch(offset) {
         case AUDIO_INT_STATUS:
             // return current buffer status flags
@@ -277,6 +387,7 @@ static uint32_t goldfish_audio_read(void *opaque, target_phys_addr_t offset)
 	case AUDIO_READ_BUFFER_AVAILABLE:
             D("%s: AUDIO_READ_BUFFER_AVAILABLE returns %d", __FUNCTION__,
                s->read_buffer_available);
+            goldfish_audio_buff_write( s->in_buff );
 	    return s->read_buffer_available;
 
         default:
@@ -288,7 +399,6 @@ static uint32_t goldfish_audio_read(void *opaque, target_phys_addr_t offset)
 static void goldfish_audio_write(void *opaque, target_phys_addr_t offset, uint32_t val)
 {
     struct goldfish_audio_state *s = opaque;
-    offset -= s->dev.base;
 
     switch(offset) {
         case AUDIO_INT_ENABLE:
@@ -301,30 +411,34 @@ static void goldfish_audio_write(void *opaque, target_phys_addr_t offset, uint32
             break;
         case AUDIO_SET_WRITE_BUFFER_1:
             /* save pointer to buffer 1 */
-            s->buffer_1 = val;
+            D( "%s: AUDIO_SET_WRITE_BUFFER_1 %08x", __FUNCTION__, val);
+            goldfish_audio_buff_set_address( s->out_buff1, val );
             break;
         case AUDIO_SET_WRITE_BUFFER_2:
             /* save pointer to buffer 2 */
-            s->buffer_2 = val;
+            D( "%s: AUDIO_SET_WRITE_BUFFER_2 %08x", __FUNCTION__, val);
+            goldfish_audio_buff_set_address( s->out_buff2, val );
             break;
         case AUDIO_WRITE_BUFFER_1:
             /* record that data in buffer 1 is ready to write */
+            //D( "%s: AUDIO_WRITE_BUFFER_1 %08x", __FUNCTION__, val);
             if (s->current_buffer == 0) s->current_buffer = 1;
-            s->data_1 = phys_ram_base + s->buffer_1;
-            s->data_1_length = val;
+            goldfish_audio_buff_set_length( s->out_buff1, val );
+            goldfish_audio_buff_read( s->out_buff1 );
             s->int_status &= ~AUDIO_INT_WRITE_BUFFER_1_EMPTY;
             break;
         case AUDIO_WRITE_BUFFER_2:
             /* record that data in buffer 2 is ready to write */
+            //D( "%s: AUDIO_WRITE_BUFFER_2 %08x", __FUNCTION__, val);
             if (s->current_buffer == 0) s->current_buffer = 2;
-            s->data_2 = phys_ram_base + s->buffer_2;
-            s->data_2_length = val;
+            goldfish_audio_buff_set_length( s->out_buff2, val );
+            goldfish_audio_buff_read( s->out_buff2 );
             s->int_status &= ~AUDIO_INT_WRITE_BUFFER_2_EMPTY;
             break;
 
-	case AUDIO_SET_READ_BUFFER:
+        case AUDIO_SET_READ_BUFFER:
             /* save pointer to the read buffer */
-            s->read_buffer = val;
+            goldfish_audio_buff_set_address( s->in_buff, val );
             D( "%s: AUDIO_SET_READ_BUFFER %p", __FUNCTION__, (void*)val );
             break;
 
@@ -350,19 +464,14 @@ static void goldfish_audio_callback(void *opaque, int free)
 
         /* write data in buffer 1 */
         while (free && s->current_buffer == 1) {
-            int write = s->data_1_length;
-            if (write > free) write = free;
-
-            int written = AUD_write(s->voice, s->data_1, write);
+            int  written = goldfish_audio_buff_send( s->out_buff1, free, s );
             if (written) {
-                D("%s: sent %d bytes to audio output", __FUNCTION__, write);
-                s->data_1 += written;
-                s->data_1_length -= written;
+                D("%s: sent %5d bytes to audio output (buffer 1)", __FUNCTION__, written);
                 free -= written;
 
-                if (s->data_1_length == 0) {
+                if (goldfish_audio_buff_length( s->out_buff1 ) == 0) {
                     new_status |= AUDIO_INT_WRITE_BUFFER_1_EMPTY;
-                    s->current_buffer = (s->data_2_length ? 2 : 0);
+                    s->current_buffer = (goldfish_audio_buff_length( s->out_buff2 ) ? 2 : 0);
                 }
             } else {
                 break;
@@ -371,19 +480,14 @@ static void goldfish_audio_callback(void *opaque, int free)
 
         /* write data in buffer 2 */
         while (free && s->current_buffer == 2) {
-            int write = s->data_2_length;
-            if (write > free) write = free;
-
-            int written = AUD_write(s->voice, s->data_2, write);
+            int  written = goldfish_audio_buff_send( s->out_buff2, free, s );
             if (written) {
-                D("%s: sent %d bytes to audio output", __FUNCTION__, write);
-                s->data_2 += written;
-                s->data_2_length -= written;
+                D("%s: sent %5d bytes to audio output (buffer 2)", __FUNCTION__, written);
                 free -= written;
 
-                if (s->data_2_length == 0) {
+                if (goldfish_audio_buff_length( s->out_buff2 ) == 0) {
                     new_status |= AUDIO_INT_WRITE_BUFFER_2_EMPTY;
-                    s->current_buffer = (s->data_1_length ? 1 : 0);
+                    s->current_buffer = (goldfish_audio_buff_length( s->out_buff1 ) ? 1 : 0);
                 }
             } else {
                 break;
@@ -404,36 +508,22 @@ goldfish_audio_in_callback(void *opaque, int avail)
     struct goldfish_audio_state *s = opaque;
     int new_status = 0;
 
-    if (s->read_pos >= s->read_size)
+    if (goldfish_audio_buff_available( s->in_buff ) == 0 )
         return;
 
-    if (0 && s->read_size > 0)
-        D("%s: in %d (pos=%d size=%d)", __FUNCTION__,
-           avail, s->read_pos, s->read_size );
-
     while (avail > 0) {
-        int     pos     = s->read_pos;
-        int     missing = s->read_size - pos;
-        uint8*  buffer  = (uint8*)phys_ram_base + s->read_buffer + pos;
-        int     read;
-        int     avail2 = (avail > missing) ? missing : avail;
-
-        read = AUD_read(s->voicein, buffer, avail2);
+        int  read = goldfish_audio_buff_recv( s->in_buff, avail, s );
         if (read == 0)
             break;
 
-        if (avail2 > 0)
-            D("%s: AUD_read(%d) returned %d", __FUNCTION__, avail2, read);
-
-        s->read_buffer_available += read;
-
         avail -= read;
-        pos   += read;
-        if (pos == s->read_size) {
+
+        if (goldfish_audio_buff_available( s->in_buff) == 0) {
             new_status |= AUDIO_INT_READ_BUFFER_FULL;
-            D("%s: AUDIO_INT_READ_BUFFER_FULL available=%d", __FUNCTION__, s->read_buffer_available);
+            D("%s: AUDIO_INT_READ_BUFFER_FULL available=%d",
+              __FUNCTION__, goldfish_audio_buff_length( s->in_buff ));
+            break;
         }
-        s->read_pos = pos;
     }
 
     if (new_status && new_status != s->int_status) {
@@ -458,7 +548,7 @@ static CPUWriteMemoryFunc *goldfish_audio_writefn[] = {
 void goldfish_audio_init(uint32_t base, int id, const char* input_source)
 {
     struct goldfish_audio_state *s;
-    audsettings_t as;
+    struct audsettings as;
 
     /* nothing to do if no audio input and output */
     if (!android_hw->hw_audioOutput && !android_hw->hw_audioInput)
@@ -482,7 +572,7 @@ void goldfish_audio_init(uint32_t base, int id, const char* input_source)
      }
 #endif
 
-    AUD_register_card( &glob_audio_state, "goldfish_audio", &s->card);
+    AUD_register_card( "goldfish_audio", &s->card);
 
     as.freq = 44100;
     as.nchannels = 2;
@@ -524,6 +614,10 @@ void goldfish_audio_init(uint32_t base, int id, const char* input_source)
         }
     }
 #endif
+
+    goldfish_audio_buff_init( s->out_buff1 );
+    goldfish_audio_buff_init( s->out_buff2 );
+    goldfish_audio_buff_init( s->in_buff );
 
     goldfish_device_add(&s->dev, goldfish_audio_readfn, goldfish_audio_writefn, s);
 

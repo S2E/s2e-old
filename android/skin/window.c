@@ -14,6 +14,7 @@
 #include "android/skin/scaler.h"
 #include "android/charmap.h"
 #include "android/utils/debug.h"
+#include "android/utils/system.h"
 #include "android/hw-sensors.h"
 #include <SDL_syswm.h>
 #include "qemu-common.h"
@@ -523,7 +524,7 @@ button_done( Button*  button )
 }
 
 static void
-button_init( Button*  button, SkinButton*  sbutton, SkinLocation*  loc, Background*  back, SkinRect*  frame )
+button_init( Button*  button, SkinButton*  sbutton, SkinLocation*  loc, Background*  back, SkinRect*  frame, SkinLayout*  slayout )
 {
     SkinRect  r;
 
@@ -531,6 +532,14 @@ button_init( Button*  button, SkinButton*  sbutton, SkinLocation*  loc, Backgrou
     button->background = back;
     button->keycode    = sbutton->keycode;
     button->down       = 0;
+
+    if (slayout->has_dpad_rotation) {
+        /* Dpad keys must be rotated if the skin provides a 'dpad-rotation' field.
+         * this is used as a counter-measure to the fact that the framework always assumes
+         * that the physical D-Pad has been rotated when in landscape mode.
+         */
+        button->keycode = android_keycode_rotate( button->keycode, -slayout->dpad_rotation );
+    }
 
     skin_rect_rotate( &r, &sbutton->rect, loc->rotation );
     r.pos.x += loc->anchor.x;
@@ -759,9 +768,9 @@ layout_init( Layout*  layout, SkinLayout*  slayout )
     layout->num_displays    = n_displays;
 
     /* now allocate arrays, then populate them */
-    layout->buttons     = qemu_mallocz( sizeof(Button) *     n_buttons );
-    layout->backgrounds = qemu_mallocz( sizeof(Background) * n_backgrounds );
-    layout->displays    = qemu_mallocz( sizeof(ADisplay) *    n_displays );
+    AARRAY_NEW0(layout->buttons,     n_buttons);
+    AARRAY_NEW0(layout->backgrounds, n_backgrounds);
+    AARRAY_NEW0(layout->displays,    n_displays);
 
     if (layout->buttons == NULL && n_buttons > 0) goto Fail;
     if (layout->backgrounds == NULL && n_backgrounds > 0) goto Fail;
@@ -792,7 +801,7 @@ layout_init( Layout*  layout, SkinLayout*  slayout )
 
         SKIN_PART_LOOP_BUTTONS(part, sbutton)
             Button*  button = layout->buttons + n_buttons;
-            button_init( button, sbutton, loc, back, &layout->rect );
+            button_init( button, sbutton, loc, back, &layout->rect, slayout );
             n_buttons += 1;
         SKIN_PART_LOOP_END
     SKIN_LAYOUT_LOOP_END
@@ -1013,7 +1022,9 @@ static int  skin_window_reset_internal (SkinWindow*, SkinLayout*);
 SkinWindow*
 skin_window_create( SkinLayout*  slayout, int  x, int  y, double  scale, int  no_display )
 {
-    SkinWindow*  window = qemu_mallocz(sizeof(*window));
+    SkinWindow*  window;
+
+    ANEW0(window);
 
     window->shrink_scale = scale;
     window->shrink       = (scale != 1.0);
@@ -1165,7 +1176,7 @@ skin_window_resize( SkinWindow*  window )
             window_h = (int) ceil(window_h / scale );
 
             window->shrink_surface = surface;
-            window->shrink_pixels  = qemu_mallocz( window_w * window_h * 4 );
+            AARRAY_NEW0(window->shrink_pixels, window_w * window_h * 4);
             if (window->shrink_pixels == NULL) {
                 fprintf(stderr, "### Error: could not allocate memory for rescaling surface\n");
                 exit(1);

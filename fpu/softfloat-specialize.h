@@ -37,12 +37,6 @@ these four paragraphs for those parts of this code that are retained.
 #endif
 
 /*----------------------------------------------------------------------------
-| Underflow tininess-detection mode, statically initialized to default value.
-| (The declaration in `softfloat.h' must match the `int8' type here.)
-*----------------------------------------------------------------------------*/
-int8 float_detect_tininess = float_tininess_after_rounding;
-
-/*----------------------------------------------------------------------------
 | Raises the exceptions specified by `flags'.  Floating-point traps can be
 | defined here if desired.  It is currently not possible for such a trap
 | to substitute a result value.  If traps are not implemented, this routine
@@ -67,7 +61,7 @@ typedef struct {
 *----------------------------------------------------------------------------*/
 #if defined(TARGET_SPARC)
 #define float32_default_nan make_float32(0x7FFFFFFF)
-#elif defined(TARGET_POWERPC)
+#elif defined(TARGET_POWERPC) || defined(TARGET_ARM)
 #define float32_default_nan make_float32(0x7FC00000)
 #elif defined(TARGET_HPPA)
 #define float32_default_nan make_float32(0x7FA00000)
@@ -150,6 +144,9 @@ static float32 propagateFloat32NaN( float32 a, float32 b STATUS_PARAM)
     flag aIsNaN, aIsSignalingNaN, bIsNaN, bIsSignalingNaN;
     bits32 av, bv, res;
 
+    if ( STATUS(default_nan_mode) )
+        return float32_default_nan;
+
     aIsNaN = float32_is_nan( a );
     aIsSignalingNaN = float32_is_signaling_nan( a );
     bIsNaN = float32_is_nan( b );
@@ -169,7 +166,7 @@ static float32 propagateFloat32NaN( float32 a, float32 b STATUS_PARAM)
         res = bIsNaN ? bv : av;
     }
     else if ( aIsNaN ) {
-        if ( bIsSignalingNaN | ! bIsNaN )
+        if ( bIsSignalingNaN || ! bIsNaN )
             res = av;
         else {
  returnLargerSignificand:
@@ -192,7 +189,7 @@ static float32 propagateFloat32NaN( float32 a, float32 b STATUS_PARAM)
 *----------------------------------------------------------------------------*/
 #if defined(TARGET_SPARC)
 #define float64_default_nan make_float64(LIT64( 0x7FFFFFFFFFFFFFFF ))
-#elif defined(TARGET_POWERPC)
+#elif defined(TARGET_POWERPC) || defined(TARGET_ARM)
 #define float64_default_nan make_float64(LIT64( 0x7FF8000000000000 ))
 #elif defined(TARGET_HPPA)
 #define float64_default_nan make_float64(LIT64( 0x7FF4000000000000 ))
@@ -282,6 +279,9 @@ static float64 propagateFloat64NaN( float64 a, float64 b STATUS_PARAM)
     flag aIsNaN, aIsSignalingNaN, bIsNaN, bIsSignalingNaN;
     bits64 av, bv, res;
 
+    if ( STATUS(default_nan_mode) )
+        return float64_default_nan;
+
     aIsNaN = float64_is_nan( a );
     aIsSignalingNaN = float64_is_signaling_nan( a );
     bIsNaN = float64_is_nan( b );
@@ -301,7 +301,7 @@ static float64 propagateFloat64NaN( float64 a, float64 b STATUS_PARAM)
         res = bIsNaN ? bv : av;
     }
     else if ( aIsNaN ) {
-        if ( bIsSignalingNaN | ! bIsNaN )
+        if ( bIsSignalingNaN || ! bIsNaN )
             res = av;
         else {
  returnLargerSignificand:
@@ -418,6 +418,12 @@ static floatx80 propagateFloatx80NaN( floatx80 a, floatx80 b STATUS_PARAM)
 {
     flag aIsNaN, aIsSignalingNaN, bIsNaN, bIsSignalingNaN;
 
+    if ( STATUS(default_nan_mode) ) {
+        a.low = floatx80_default_nan_low;
+        a.high = floatx80_default_nan_high;
+        return a;
+    }
+
     aIsNaN = floatx80_is_nan( a );
     aIsSignalingNaN = floatx80_is_signaling_nan( a );
     bIsNaN = floatx80_is_nan( b );
@@ -435,7 +441,7 @@ static floatx80 propagateFloatx80NaN( floatx80 a, floatx80 b STATUS_PARAM)
         return bIsNaN ? b : a;
     }
     else if ( aIsNaN ) {
-        if ( bIsSignalingNaN | ! bIsNaN ) return a;
+        if ( bIsSignalingNaN || ! bIsNaN ) return a;
  returnLargerSignificand:
         if ( a.low < b.low ) return b;
         if ( b.low < a.low ) return a;
@@ -538,6 +544,12 @@ static float128 propagateFloat128NaN( float128 a, float128 b STATUS_PARAM)
 {
     flag aIsNaN, aIsSignalingNaN, bIsNaN, bIsSignalingNaN;
 
+    if ( STATUS(default_nan_mode) ) {
+        a.low = float128_default_nan_low;
+        a.high = float128_default_nan_high;
+        return a;
+    }
+
     aIsNaN = float128_is_nan( a );
     aIsSignalingNaN = float128_is_signaling_nan( a );
     bIsNaN = float128_is_nan( b );
@@ -555,7 +567,7 @@ static float128 propagateFloat128NaN( float128 a, float128 b STATUS_PARAM)
         return bIsNaN ? b : a;
     }
     else if ( aIsNaN ) {
-        if ( bIsSignalingNaN | ! bIsNaN ) return a;
+        if ( bIsSignalingNaN || ! bIsNaN ) return a;
  returnLargerSignificand:
         if ( lt128( a.high<<1, a.low, b.high<<1, b.low ) ) return b;
         if ( lt128( b.high<<1, b.low, a.high<<1, a.low ) ) return a;

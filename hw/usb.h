@@ -21,6 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#ifndef _HW_USB_H
+#define _HW_USB_H
+
+#include "block.h"
+
 #define USB_TOKEN_SETUP 0x2d
 #define USB_TOKEN_IN    0x69 /* device -> host */
 #define USB_TOKEN_OUT   0xe1 /* host -> device */
@@ -241,18 +247,23 @@ USBDevice *usb_hub_init(int nb_ports);
 /* usb-linux.c */
 USBDevice *usb_host_device_open(const char *devname);
 int usb_host_device_close(const char *devname);
-void usb_host_info(void);
+void usb_host_info(Monitor *mon);
 
 /* usb-hid.c */
 USBDevice *usb_mouse_init(void);
 USBDevice *usb_tablet_init(void);
 USBDevice *usb_keyboard_init(void);
+void usb_hid_datain_cb(USBDevice *dev, void *opaque, void (*datain)(void *));
 
 /* usb-msd.c */
 USBDevice *usb_msd_init(const char *filename);
+BlockDriverState *usb_msd_get_bdrv(USBDevice *dev);
 
 /* usb-net.c */
 USBDevice *usb_net_init(NICInfo *nd);
+
+/* usb-bt.c */
+USBDevice *usb_bt_init(HCIInfo *hci);
 
 /* usb-wacom.c */
 USBDevice *usb_wacom_init(void);
@@ -284,8 +295,10 @@ enum musb_irq_source_e {
     __musb_irq_max,
 };
 
-struct musb_s;
-struct musb_s *musb_init(qemu_irq *irqs);
-uint32_t musb_core_intr_get(struct musb_s *s);
-void musb_core_intr_clear(struct musb_s *s, uint32_t mask);
-void musb_set_size(struct musb_s *s, int epnum, int size, int is_tx);
+typedef struct MUSBState MUSBState;
+MUSBState *musb_init(qemu_irq *irqs);
+uint32_t musb_core_intr_get(MUSBState *s);
+void musb_core_intr_clear(MUSBState *s, uint32_t mask);
+void musb_set_size(MUSBState *s, int epnum, int size, int is_tx);
+
+#endif /* _HW_USB_H */

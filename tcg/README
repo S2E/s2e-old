@@ -60,9 +60,8 @@ add_i32 t0, t1, t2  (t0 <- t1 + t2)
 
 - Basic blocks end after branches (e.g. brcond_i32 instruction),
   goto_tb and exit_tb instructions.
-- Basic blocks end before legacy dyngen operations.
-- Basic blocks start after the end of a previous basic block, at a
-  set_label instruction or after a legacy dyngen operation.
+- Basic blocks start after the end of a previous basic block, or at a
+  set_label instruction.
 
 After the end of a basic block, the content of temporaries is
 destroyed, but local temporaries and globals are preserved.
@@ -205,7 +204,27 @@ t0=t1^t2
 
 t0=~t1
 
-********* Shifts
+* andc_i32/i64 t0, t1, t2
+
+t0=t1&~t2
+
+* eqv_i32/i64 t0, t1, t2
+
+t0=~(t1^t2)
+
+* nand_i32/i64 t0, t1, t2
+
+t0=~(t1&t2)
+
+* nor_i32/i64 t0, t1, t2
+
+t0=~(t1|t2)
+
+* orc_i32/i64 t0, t1, t2
+
+t0=t1|~t2
+
+********* Shifts/Rotates
 
 * shl_i32/i64 t0, t1, t2
 
@@ -218,6 +237,14 @@ t0=t1 >> t2 (unsigned). Undefined behavior if t2 < 0 or t2 >= 32 (resp 64)
 * sar_i32/i64 t0, t1, t2
 
 t0=t1 >> t2 (signed). Undefined behavior if t2 < 0 or t2 >= 32 (resp 64)
+
+* rotl_i32/i64 t0, t1, t2
+
+Rotation of t2 bits to the left. Undefined behavior if t2 < 0 or t2 >= 32 (resp 64)
+
+* rotr_i32/i64 t0, t1, t2
+
+Rotation of t2 bits to the right. Undefined behavior if t2 < 0 or t2 >= 32 (resp 64)
 
 ********* Misc
 
@@ -236,16 +263,17 @@ ext32u_i64 t0, t1
 
 8, 16 or 32 bit sign/zero extension (both operands must have the same type)
 
-* bswap16_i32 t0, t1
+* bswap16_i32/i64 t0, t1
 
-16 bit byte swap on a 32 bit value. The two high order bytes must be set
-to zero.
+16 bit byte swap on a 32/64 bit value. The two/six high order bytes must be
+set to zero.
 
-* bswap_i32 t0, t1
+* bswap32_i32/i64 t0, t1
 
-32 bit byte swap
+32 bit byte swap on a 32/64 bit value. With a 64 bit value, the four high
+order bytes must be set to zero.
 
-* bswap_i64 t0, t1
+* bswap64_i64 t0, t1
 
 64 bit byte swap
 
@@ -264,6 +292,14 @@ Convert t1 (32 bit) to t0 (64 bit) and does zero extension
 
 * trunc_i64_i32 t0, t1
 Truncate t1 (64 bit) to t0 (32 bit)
+
+* concat_i32_i64 t0, t1, t2
+Construct t0 (64-bit) taking the low half from t1 (32 bit) and the high half
+from t2 (32 bit).
+
+* concat32_i64 t0, t1, t2
+Construct t0 (64-bit) taking the low half from t1 (64 bit) and the high half
+from t2 (64 bit).
 
 ********* Load/Store
 
@@ -299,22 +335,22 @@ Exit the current TB and jump to the TB index 'index' (constant) if the
 current TB was linked to this TB. Otherwise execute the next
 instructions.
 
-* qemu_ld_i32/i64 t0, t1, flags
-qemu_ld8u_i32/i64 t0, t1, flags
-qemu_ld8s_i32/i64 t0, t1, flags
-qemu_ld16u_i32/i64 t0, t1, flags
-qemu_ld16s_i32/i64 t0, t1, flags
-qemu_ld32u_i64 t0, t1, flags
-qemu_ld32s_i64 t0, t1, flags
+* qemu_ld8u t0, t1, flags
+qemu_ld8s t0, t1, flags
+qemu_ld16u t0, t1, flags
+qemu_ld16s t0, t1, flags
+qemu_ld32u t0, t1, flags
+qemu_ld32s t0, t1, flags
+qemu_ld64 t0, t1, flags
 
 Load data at the QEMU CPU address t1 into t0. t1 has the QEMU CPU
 address type. 'flags' contains the QEMU memory index (selects user or
 kernel access) for example.
 
-* qemu_st_i32/i64 t0, t1, flags
-qemu_st8_i32/i64 t0, t1, flags
-qemu_st16_i32/i64 t0, t1, flags
-qemu_st32_i64 t0, t1, flags
+* qemu_st8 t0, t1, flags
+qemu_st16 t0, t1, flags
+qemu_st32 t0, t1, flags
+qemu_st64 t0, t1, flags
 
 Store the data t0 at the QEMU CPU Address t1. t1 has the QEMU CPU
 address type. 'flags' contains the QEMU memory index (selects user or
@@ -354,6 +390,11 @@ GCC like constraints are used to define the constraints of every
 instruction. Memory constraints are not supported in this
 version. Aliases are specified in the input operands as for GCC.
 
+The same register may be used for both an input and an output, even when
+they are not explicitly aliased.  If an op expands to multiple target
+instructions then care must be taken to avoid clobbering input values.
+GCC style "early clobber" outputs are not currently supported.
+
 A target can define specific register or constant constraints. If an
 operation uses a constant input constraint which does not allow all
 constants, it must also accept registers in order to have a fallback.
@@ -382,18 +423,7 @@ register.
   target, functions must be able to return 2 values in registers for
   64 bit return type.
 
-5) Migration from dyngen to TCG
-
-TCG is backward compatible with QEMU "dyngen" operations. It means
-that TCG instructions can be freely mixed with dyngen operations. It
-is expected that QEMU targets will be progressively fully converted to
-TCG. Once a target is fully converted to TCG, it will be possible
-to apply more optimizations because more registers will be free for
-the generated code.
-
-The exception model is the same as the dyngen one.
-
-6) Recommended coding rules for best performance
+5) Recommended coding rules for best performance
 
 - Use globals to represent the parts of the QEMU CPU state which are
   often modified, e.g. the integer registers and the condition
@@ -401,8 +431,7 @@ The exception model is the same as the dyngen one.
 
 - Avoid globals stored in fixed registers. They must be used only to
   store the pointer to the CPU state and possibly to store a pointer
-  to a register window. The other uses are to ensure backward
-  compatibility with dyngen during the porting a new target to TCG.
+  to a register window.
 
 - Use temporaries. Use local temporaries only when really needed,
   e.g. when you need to use a value after a jump. Local temporaries

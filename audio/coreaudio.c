@@ -283,7 +283,7 @@ coreaudio_voice_fini (coreaudioVoice*  core)
 
 static int
 coreaudio_voice_init (coreaudioVoice*    core,
-                      audsettings_t*     as,
+                      struct audsettings*  as,
                       int                frameSize,
                       AudioDeviceIOProc  ioproc,
                       void*              hw,
@@ -510,7 +510,7 @@ audioOutDeviceIOProc(
     HWVoiceOut *hw = hwptr;
     coreaudioVoice *core = CORE_OUT(hw);
     int rpos, live;
-    st_sample_t *src;
+    struct st_sample *src;
 #ifndef FLOAT_MIXENG
 #ifdef RECIPROCAL
     const float scale = 1.f / UINT_MAX;
@@ -568,7 +568,7 @@ coreaudio_write (SWVoiceOut *sw, void *buf, int len)
 }
 
 static int
-coreaudio_init_out (HWVoiceOut *hw, audsettings_t *as)
+coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
 {
     coreaudioVoice*  core = CORE_OUT(hw);
     int              err;
@@ -654,7 +654,7 @@ audioInDeviceIOProc(
     HWVoiceIn *hw = hwptr;
     coreaudioVoice *core = CORE_IN(hw);
     int wpos, avail;
-    st_sample_t *dst;
+    struct st_sample *dst;
 #ifndef FLOAT_MIXENG
 #ifdef RECIPROCAL
     const float scale = 1.f / UINT_MAX;
@@ -718,7 +718,7 @@ coreaudio_read (SWVoiceIn *sw, void *buf, int len)
 }
 
 static int
-coreaudio_init_in (HWVoiceIn *hw, audsettings_t *as)
+coreaudio_init_in (HWVoiceIn *hw, struct audsettings *as)
 {
     coreaudioVoice*  core = CORE_IN(hw);
     int              err;

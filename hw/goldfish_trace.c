@@ -42,7 +42,6 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
 {
     trace_dev_state *s = (trace_dev_state *)opaque;
 
-    offset -= s->dev.base;
     switch (offset >> 2) {
     case TRACE_DEV_REG_SWITCH:  // context switch, switch to pid
         trace_switch(value);
@@ -89,7 +88,7 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
         cmdlen = value;
         break;
     case TRACE_DEV_REG_CMDLINE:         // execve, process cmdline
-        vmemcpy(value, arg, cmdlen);
+        cpu_memory_rw_debug(cpu_single_env, value, arg, cmdlen, 0);
         trace_execve(arg, cmdlen);
 #ifdef DEBUG
         {
@@ -227,7 +226,6 @@ static uint32_t trace_dev_read(void *opaque, target_phys_addr_t offset)
 {
     trace_dev_state *s = (trace_dev_state *)opaque;
 
-    offset -= s->dev.base;
     switch (offset >> 2) {
     case TRACE_DEV_REG_ENABLE:          // tracing enable
         return tracing;

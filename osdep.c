@@ -67,14 +67,16 @@ void qemu_vfree(void *ptr)
 
 #else
 
-#if defined(USE_KQEMU)
+#if defined(CONFIG_KQEMU)
 
 #ifdef __OpenBSD__
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/mount.h>
 #else
+#ifndef __FreeBSD__
 #include <sys/vfs.h>
+#endif
 #endif
 
 #include <sys/mman.h>
@@ -86,7 +88,8 @@ static void *kqemu_vmalloc(size_t size)
     static int phys_ram_size = 0;
     void *ptr;
 
-#ifdef __OpenBSD__ /* no need (?) for a dummy file on OpenBSD */
+/* no need (?) for a dummy file on OpenBSD/FreeBSD */
+#if defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
     int map_anon = MAP_ANON;
 #else
     int map_anon = 0;
@@ -153,7 +156,7 @@ static void *kqemu_vmalloc(size_t size)
     }
     size = (size + 4095) & ~4095;
     ftruncate(phys_ram_fd, phys_ram_size + size);
-#endif /* !__OpenBSD__ */
+#endif /* !(__OpenBSD__ || __FreeBSD__ || __DragonFly__) */
     ptr = mmap(NULL,
                size,
                PROT_WRITE | PROT_READ, map_anon | MAP_SHARED,
@@ -182,7 +185,7 @@ void *qemu_memalign(size_t alignment, size_t size)
     if (ret != 0)
         return NULL;
     return ptr;
-#elif defined(_BSD)
+#elif defined(HOST_BSD)
     return valloc(size);
 #else
     return memalign(alignment, size);
@@ -192,20 +195,16 @@ void *qemu_memalign(size_t alignment, size_t size)
 /* alloc shared memory pages */
 void *qemu_vmalloc(size_t size)
 {
-#if defined(USE_KQEMU)
+#if defined(CONFIG_KQEMU)
     if (kqemu_allowed)
         return kqemu_vmalloc(size);
 #endif
-#ifdef _BSD
-    return valloc(size);
-#else
-    return memalign(4096, size);
-#endif
+    return qemu_memalign(getpagesize(), size);
 }
 
 void qemu_vfree(void *ptr)
 {
-#if defined(USE_KQEMU)
+#if defined(CONFIG_KQEMU)
     if (kqemu_allowed)
         kqemu_vfree(ptr);
 #endif
@@ -283,6 +282,18 @@ int qemu_gettimeofday(qemu_timeval *tp)
      Do not set errno on error.  */
   return 0;
 }
+
+int  ffs(int  val)
+{
+	int  nn;
+	
+	for (nn = 0; nn < sizeof(int)*8; nn++)
+		if (val & (1 << nn))
+			return nn+1;
+
+	return 0;
+}
+
 #endif /* _WIN32 */
 
 

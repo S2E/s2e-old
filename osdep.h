@@ -7,17 +7,15 @@
 #include <sys/signal.h>
 #endif
 
+#ifndef _WIN32
+#include <sys/time.h>
+#endif
+
 #ifndef glue
 #define xglue(x, y) x ## y
 #define glue(x, y) xglue(x, y)
 #define stringify(s)	tostring(s)
 #define tostring(s)	#s
-#endif
-
-#ifndef container_of
-#define container_of(ptr, type, member) ({                      \
-        const typeof(((type *) 0)->member) *__mptr = (ptr);     \
-        (type *) ((char *) __mptr - offsetof(type, member));})
 #endif
 
 #ifndef likely
@@ -54,7 +52,9 @@
 #define always_inline inline
 #else
 #define always_inline __attribute__ (( always_inline )) __inline__
+#ifdef __OPTIMIZE__
 #define inline always_inline
+#endif
 #endif
 #else
 #define inline always_inline
@@ -67,6 +67,13 @@
 #endif
 
 #define qemu_printf printf
+
+#if defined (__GNUC__) && defined (__GNUC_MINOR__)
+# define QEMU_GNUC_PREREQ(maj, min) \
+         ((__GNUC__ << 16) + __GNUC_MINOR__ >= ((maj) << 16) + (min))
+#else
+# define QEMU_GNUC_PREREQ(maj, min) 0
+#endif
 
 void *qemu_memalign(size_t alignment, size_t size);
 void *qemu_vmalloc(size_t size);

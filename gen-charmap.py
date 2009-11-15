@@ -56,8 +56,12 @@ specials = { 'COMMA': 'Comma',
              'SEMICOLON': 'Semicolon',
              'APOSTROPHE': 'Apostrophe',
              'SPACE': 'Space',
-             'ENTER': 'Enter',
-             'TAB': 'Tab'
+             'ENTER': 'Newline',
+             'TAB': 'Tab',
+             'STAR': 'Star',
+             'POUND': 'Pound',
+             'PLUS': 'Plus',
+             'DEL': 'Del'
            }
 
 entries = []
@@ -86,6 +90,18 @@ def process_line(line,result):
     if not m:
         print "character expected in: " + line
         return -1
+    disp = quote(m.group(1))
+    line = m.group(2)
+    m = match_char_or_hex(line)
+    if not m:
+        print "character expected in: " + line
+        return -1
+    number = quote(m.group(1))
+    line = m.group(2)
+    m = match_char_or_hex(line)
+    if not m:
+        print "character expected in: " + line
+        return -1
     base = quote(m.group(1))
     line = m.group(2)
     m = match_char_or_hex(line)
@@ -105,12 +121,6 @@ def process_line(line,result):
         print "character expected in: " + line
         return -1
     caps_fn = quote(m.group(1))
-    line = m.group(2)
-    m = match_char_or_hex(line)
-    if not m:
-        print "character expected in: " + line
-        return -1
-    number = quote(m.group(1))
 
     if specials.has_key(keycode):
         keycode = specials[keycode]

@@ -578,35 +578,28 @@ skin_keyboard_process_event( SkinKeyboard*  kb, SDL_Event*  ev, int  down )
     }
 }
 
-
-SkinKeyboard*
-skin_keyboard_create_from_aconfig( AConfig*  aconfig, int  use_raw_keys )
+static SkinKeyboard*
+skin_keyboard_create_from_charmap_name(const char*  charmap_name,
+                                       int  use_raw_keys)
 {
     SkinKeyboard*  kb;
-    const char*    charmap_name = "qwerty";
-    AConfig*       node;
+    int  nn;
 
     ANEW0(kb);
 
-    node = aconfig_find( aconfig, "keyboard" );
-    if (node != NULL)
-        charmap_name = aconfig_str(node, "charmap", charmap_name);
-
-    {
-        int  nn;
-
-        for (nn = 0; nn < android_charmap_count; nn++) {
-            if ( !strcmp(android_charmaps[nn]->name, charmap_name) ) {
-                kb->charmap = android_charmaps[nn];
-                break;
-            }
+    // Find charmap by its name in the array of available charmaps.
+    for (nn = 0; nn < android_charmap_count; nn++) {
+        if (!strcmp(android_charmaps[nn]->name, charmap_name)) {
+            kb->charmap = android_charmaps[nn];
+            break;
         }
+    }
 
-        if (!kb->charmap) {
-            fprintf(stderr, "### warning, skin requires unknown '%s' charmap, reverting to '%s'\n",
-                    charmap_name, android_charmaps[0]->name );
-            kb->charmap = android_charmaps[0];
-        }
+    if (!kb->charmap) {
+        // Charmap name was not found. Default to the first charmap in the array.
+        fprintf(stderr, "### warning, skin requires unknown '%s' charmap, reverting to '%s'\n",
+                charmap_name, android_charmaps[0]->name );
+        kb->charmap = android_charmaps[0];
     }
     kb->raw_keys = use_raw_keys;
     kb->enabled  = 0;
@@ -618,6 +611,26 @@ skin_keyboard_create_from_aconfig( AConfig*  aconfig, int  use_raw_keys )
         kb->kset = skin_keyset_new_from_text( skin_keyset_get_default() );
 
     return kb;
+}
+
+SkinKeyboard*
+skin_keyboard_create_from_aconfig( AConfig*  aconfig, int  use_raw_keys )
+{
+    const char*    charmap_name = "qwerty";
+    AConfig*       node = aconfig_find( aconfig, "keyboard" );
+    if (node != NULL) {
+        charmap_name = aconfig_str(node, "charmap", charmap_name);
+    }
+    return skin_keyboard_create_from_charmap_name(charmap_name, use_raw_keys);
+}
+
+SkinKeyboard*
+skin_keyboard_create_from_kcm( const char*  kcm_file_path, int  use_raw_keys )
+{
+    char charmap_name[AKEYCHARMAP_NAME_SIZE];
+    kcm_extract_charmap_name(kcm_file_path, charmap_name,
+                             sizeof(charmap_name));
+    return skin_keyboard_create_from_charmap_name(charmap_name, use_raw_keys);
 }
 
 void

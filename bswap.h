@@ -5,6 +5,12 @@
 
 #include <inttypes.h>
 
+#ifdef HAVE_MACHINE_BSWAP_H
+#include <sys/endian.h>
+#include <sys/types.h>
+#include <machine/bswap.h>
+#else
+
 #ifdef HAVE_BYTESWAP_H
 #include <byteswap.h>
 #else
@@ -57,6 +63,8 @@ static inline uint64_t bswap64(uint64_t x)
 {
     return bswap_64(x);
 }
+
+#endif /* ! HAVE_MACHINE_BSWAP_H */
 
 static inline void bswap16s(uint16_t *s)
 {
@@ -126,7 +134,7 @@ CPU_CONVERT(le, 64, uint64_t)
 
 /* unaligned versions (optimized for frequent unaligned accesses)*/
 
-#if defined(__i386__) || defined(__powerpc__)
+#if defined(__i386__) || defined(_ARCH_PPC)
 
 #define cpu_to_le16wu(p, v) cpu_to_le16w(p, v)
 #define cpu_to_le32wu(p, v) cpu_to_le32w(p, v)
@@ -143,7 +151,7 @@ static inline void cpu_to_le16wu(uint16_t *p, uint16_t v)
 {
     uint8_t *p1 = (uint8_t *)p;
 
-    p1[0] = v;
+    p1[0] = v & 0xff;
     p1[1] = v >> 8;
 }
 
@@ -151,7 +159,7 @@ static inline void cpu_to_le32wu(uint32_t *p, uint32_t v)
 {
     uint8_t *p1 = (uint8_t *)p;
 
-    p1[0] = v;
+    p1[0] = v & 0xff;
     p1[1] = v >> 8;
     p1[2] = v >> 16;
     p1[3] = v >> 24;
@@ -180,7 +188,7 @@ static inline void cpu_to_be16wu(uint16_t *p, uint16_t v)
     uint8_t *p1 = (uint8_t *)p;
 
     p1[0] = v >> 8;
-    p1[1] = v;
+    p1[1] = v & 0xff;
 }
 
 static inline void cpu_to_be32wu(uint32_t *p, uint32_t v)
@@ -190,7 +198,7 @@ static inline void cpu_to_be32wu(uint32_t *p, uint32_t v)
     p1[0] = v >> 24;
     p1[1] = v >> 16;
     p1[2] = v >> 8;
-    p1[3] = v;
+    p1[3] = v & 0xff;
 }
 
 #endif
