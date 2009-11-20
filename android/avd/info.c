@@ -1279,7 +1279,7 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
 
     if (!skinDir) {
 
-#define  PREBUILT_SKINS_DIR  "development/emulator/skins"
+#define  PREBUILT_SKINS_DIR  "sdk/emulator/skins"
 
         do {
             /* try in <sysdir>/../skins first */
