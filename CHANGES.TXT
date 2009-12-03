@@ -17,10 +17,20 @@ Versions:
    1.11 => SDK 1.6_r1
    1.12 => SDK 2.0
    1.13 => SDK 2.0.1 (but wrongly tagged 1.12)
-   1.14 => current
+   5.0  => current
 
 ==============================================================================
-Changes between 1.14 and 1.13
+Changes between 5.0 and 1.13
+
+IMPORTANT CHANGES:
+
+- Starting from this release, the emulator's version number will match the
+  corresponding Android SDK Tools package revision number. The exact number
+  is extracted at build time from the Android source tree.
+
+  The minor number will now be stuck to 0 since each official emulator
+  release is supposed to match a corresponding SDK Tools release.
+
 
 OTHER:
 

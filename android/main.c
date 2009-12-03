@@ -76,7 +76,11 @@ AndroidRotation  android_framebuffer_rotation;
 #define  STRINGIFY(x)   _STRINGIFY(x)
 #define  _STRINGIFY(x)  #x
 
-#define  VERSION_STRING  STRINGIFY(ANDROID_VERSION_MAJOR)"."STRINGIFY(ANDROID_VERSION_MINOR)
+#ifdef ANDROID_SDK_TOOLS_REVISION
+#  define  VERSION_STRING  STRINGIFY(ANDROID_SDK_TOOLS_REVISION)".0"
+#else
+#  define  VERSION_STRING  "standalone"
+#endif
 
 #define  KEYSET_FILE    "default.keyset"
 SkinKeyset*      android_keyset;
