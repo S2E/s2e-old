@@ -2478,8 +2478,11 @@ int main(int argc, char **argv)
         uint64_t  size;
         if (path_get_size(opts->sdcard, &size) == 0) {
             /* see if we have an sdcard image.  get its size if it exists */
-            if (size < 8*1024*1024ULL) {
-                fprintf(stderr, "### WARNING: SD Card files must be at least 8 MB, ignoring '%s'\n", opts->sdcard);
+            /* due to what looks like limitations of the MMC protocol, one has
+             * to use an SD Card image that is equal or larger than 9 MB
+             */
+            if (size < 9*1024*1024ULL) {
+                fprintf(stderr, "### WARNING: SD Card files must be at least 9MB, ignoring '%s'\n", opts->sdcard);
             } else {
                 args[n++] = "-hda";
                 args[n++] = opts->sdcard;
