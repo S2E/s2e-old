@@ -149,6 +149,15 @@ if [ "$IN_ANDROID_BUILD" = "yes" ] ; then
         OPTION_TARGETS="$OPTION_TARGETS $HOST_BIN/emulator$EXE"
         log "Targets    : TARGETS=$OPTION_TARGETS"
     fi
+
+    # find the Android SDK Tools revision number
+    TOOLS_PROPS=$ANDROID_TOP/sdk/files/tools_source.properties
+    if [ -f $TOOLS_PROPS ] ; then
+        ANDROID_SDK_TOOLS_REVISION=`awk -F= '/Pkg.Revision/ { print $2; }' $TOOLS_PROPS 2> /dev/null`
+        log "Tools      : Found tools revision number $ANDROID_SDK_TOOLS_REVISION"
+    else
+        log "Tools      : Could not locate $TOOLS_PROPS !?"
+    fi
 fi  # IN_ANDROID_BUILD = no
 
 
@@ -384,6 +393,9 @@ echo "CONFIG_OSS        := $PROBE_OSS" >> $config_mk
 echo "BUILD_STANDALONE_EMULATOR := true" >> $config_mk
 if [ $OPTION_DEBUG = yes ] ; then
     echo "BUILD_DEBUG_EMULATOR := true" >> $config_mk
+fi
+if [ -n "$ANDROID_SDK_TOOLS_REVISION" ] ; then
+    echo "ANDROID_SDK_TOOLS_REVISION := $ANDROID_SDK_TOOLS_REVISION" >> $config_mk
 fi
 
 # Build the config-host.h file

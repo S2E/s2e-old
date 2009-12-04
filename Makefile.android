@@ -365,6 +365,17 @@ LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
 # add the build ID to the default macro definitions
 LOCAL_CFLAGS += -DANDROID_BUILD_ID="$(strip $(BUILD_ID))-$(strip $(BUILD_NUMBER))"
 
+# For non-standalone builds, extract the major version number from the Android SDK
+# tools revision number.
+ifneq ($(BUILD_STANDALONE_EMULATOR),true)
+    ANDROID_SDK_TOOLS_REVISION := $(shell awk -F= '/Pkg.Revision/ { print $$2; }' sdk/files/tools_source.properties)
+endif
+
+ANDROID_SDK_TOOLS_REVISION := $(strip $(ANDROID_SDK_TOOLS_REVISION))
+ifdef ANDROID_SDK_TOOLS_REVISION
+    LOCAL_CFLAGS += -DANDROID_SDK_TOOLS_REVISION=$(ANDROID_SDK_TOOLS_REVISION)
+endif
+
 # include the Zlib sources
 #
 LOCAL_SRC_FILES += $(ZLIB_SOURCES)
