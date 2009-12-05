@@ -76,6 +76,7 @@ CFG_PARAM( cache,    "<file>", "cache partition image (default is temporary file
 CFG_FLAG ( no_cache, "disable the cache partition" )
 CFG_FLAG ( nocache,  "same as -no-cache" )
 OPT_PARAM( sdcard, "<file>", "SD card image (default <system>/sdcard.img")
+OPT_PARAM( sdcard2, "<file>", "SD card 2 image (default <system>/sdcard2.img")
 OPT_FLAG ( wipe_data, "reset the use data image (copy it from initdata)" )
 CFG_PARAM( avd, "<name>", "use a specific android virtual device" )
 CFG_PARAM( skindir, "<dir>", "search skins in <dir> (default <system>/skins)" )
