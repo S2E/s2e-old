@@ -2223,6 +2223,41 @@ static int drive_get_free_idx(void)
     return -1;
 }
 
+int drive_swap(BlockDriverState *bdrv, const char *file)
+{
+    int index = drive_get_index_by_bdrv(bdrv);
+    int unit = drives_table[index].unit;
+    int opt_idx;
+
+    bdrv_close(bdrv);
+    drive_uninit(bdrv);
+    bdrv_delete(bdrv);
+
+    opt_idx = drive_add(file, HD_ALIAS, unit);
+    return drive_init(&drives_opt[opt_idx], 0, current_machine);
+}
+
+int drive_hotadd(const char *file, const char *fmt, ...)
+{
+    va_list ap;
+    int index = drive_opt_get_free_idx();
+
+    if (nb_drives_opt >= MAX_DRIVES || index == -1) {
+        fprintf(stderr, "qemu: too many drives\n");
+        return -1;
+    }
+
+    drives_opt[index].file = file;
+    va_start(ap, fmt);
+    vsnprintf(drives_opt[index].opt,
+              sizeof(drives_opt[0].opt), fmt, ap);
+    va_end(ap);
+    nb_drives_opt++;
+    if (drive_init(&drives_opt[index], 0, current_machine) < 0)
+        return -1;
+    return index;
+}
+
 int drive_add(const char *file, const char *fmt, ...)
 {
     va_list ap;
@@ -2238,7 +2273,6 @@ int drive_add(const char *file, const char *fmt, ...)
     vsnprintf(drives_opt[index].opt,
               sizeof(drives_opt[0].opt), fmt, ap);
     va_end(ap);
-
     nb_drives_opt++;
     return index;
 }
@@ -2249,6 +2283,15 @@ void drive_remove(int index)
     nb_drives_opt--;
 }
 
+int drive_get_index_by_bdrv(BlockDriverState *bdrv)
+{
+    int index;
+
+    for (index = 0; index < MAX_DRIVES; index++)
+        if (drives_table[index].bdrv == bdrv)
+            return index;
+    return -1;
+}
 int drive_get_index(BlockInterfaceType type, int bus, int unit)
 {
     int index;
