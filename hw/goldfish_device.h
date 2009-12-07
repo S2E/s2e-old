@@ -49,7 +49,8 @@ void goldfish_battery_display(void (* callback)(void *data, const char* string),
 
 void goldfish_mmc_init(uint32_t base, int id);
 void goldfish_mmc_insert(int id, BlockDriverState* bs);
-void goldfish_mmc_remove(int id, BlockDriverState *bs);
+void goldfish_mmc_remove(int id);
+int goldfish_mmc_is_media_inserted(int id);
 
 void *goldfish_switch_add(char *name, uint32_t (*writefn)(void *opaque, uint32_t state), void *writeopaque, int id);
 void goldfish_switch_set_state(void *opaque, uint32_t state);

@@ -560,18 +560,25 @@ static void goldfish_mmc_setbs(struct goldfish_mmc_state* s, BlockDriverState* b
 void goldfish_mmc_insert(int id, BlockDriverState* bs)
 {
     if (id >= GOLDFISH_MMC_MAX) {
-        fprintf(stderr, "mmc controller %d out of range\n", id);
-        return;
+        return -1;
     }
 
     goldfish_mmc_setbs(gDrvState[id], bs);
 }
 
-void goldfish_mmc_remove(int id, BlockDriverState* bs)
+int goldfish_mmc_is_media_inserted(int id)
+{
+    if (id > GOLDFISH_MMC_MAX) {
+        return -1;
+    }
+
+    return (gDrvState[id]->bs != NULL);
+}
+
+void goldfish_mmc_remove(int id)
 {
     if (id >= GOLDFISH_MMC_MAX) {
-        fprintf(stderr, "mmc controller %d out of range\n", id);
-        return;
+        return -1;
     }
 
     goldfish_mmc_setbs(gDrvState[id], NULL);
