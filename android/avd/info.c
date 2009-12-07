@@ -92,6 +92,12 @@ AvdInfo*        android_avdInfo;
  */
 #define  SDCARD_PATH     "sdcard.path"
 
+/* the config.ini key that is used to indicate the absolute path
+ * to the second SD Card image file, if you don't want to place it in
+ * the content directory.
+ */
+#define  SDCARD2_PATH     "sdcard2.path"
+
 /* certain disk image files are mounted read/write by the emulator
  * to ensure that several emulators referencing the same files
  * do not corrupt these files, we need to lock them and respond
@@ -675,7 +681,26 @@ EXIT:
     return l->pPath[0];
 }
 
+static void _sdcardLoadImages(ImageLoader* l, AvdInfo* i, AvdInfoParams* params, AvdImageType sdcardImage)
+{
+    imageLoader_set(l, sdcardImage);
+    imageLoader_load(l, IMAGE_OPTIONAL |
+                        IMAGE_IGNORE_IF_LOCKED);
 
+    /* if the file was not found, ignore it */
+    if (l->pPath[0] && !path_exists(l->pPath[0]))
+    {
+        D("ignoring non-existing %s at %s: %s",
+          l->imageText, l->pPath[0], strerror(errno));
+
+        /* if the user provided the SD Card path by hand,
+         * warn him. */
+        if (params->forcePaths[sdcardImage] != NULL)
+            dwarning("ignoring non-existing SD Card image");
+
+        imageLoader_setPath(l, NULL);
+    }
+}
 
 /* find the correct path of all image files we're going to need
  * and lock the files that need it.
@@ -772,23 +797,8 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
      * already used, we must ignore it.
      */
     if (!noSdCard) {
-        imageLoader_set (l, AVD_IMAGE_SDCARD);
-        imageLoader_load(l, IMAGE_OPTIONAL |
-                            IMAGE_IGNORE_IF_LOCKED);
-
-        /* if the file was not found, ignore it */
-        if (l->pPath[0] && !path_exists(l->pPath[0])) 
-        {
-            D("ignoring non-existing %s at %s: %s",
-              l->imageText, l->pPath[0], strerror(errno));
-
-            /* if the user provided the SD Card path by hand,
-             * warn him. */
-            if (params->forcePaths[AVD_IMAGE_SDCARD] != NULL)
-                dwarning("ignoring non-existing SD Card image");
-
-            imageLoader_setPath(l, NULL);
-        }
+        _sdcardLoadImages(l, i, params, AVD_IMAGE_SDCARD);
+        _sdcardLoadImages(l, i, params, AVD_IMAGE_SDCARD2);
     }
 
     return 0;
@@ -1043,22 +1053,24 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
 }
 
 /* If the user didn't explicitely provide an SD Card path,
- * check the SDCARD_PATH key in config.ini and use that if
+ * check the specfied key in config.ini and use that if
  * available.
  */
 static void
-_getSDCardPath( AvdInfo*  i, AvdInfoParams*  params )
+_getSDCardPath(AvdInfo*  i, AvdInfoParams*  params, AvdImageType sdcardImage,
+               const char* iniKey )
 {
     const char*  path;
 
-    if (params->forcePaths[AVD_IMAGE_SDCARD] != NULL)
+    if (params->forcePaths[sdcardImage] != NULL) {
         return;
+    }
 
-    path = iniFile_getString(i->configIni, SDCARD_PATH);
+    path = iniFile_getString(i->configIni, iniKey);
     if (path == NULL)
         return;
 
-    params->forcePaths[AVD_IMAGE_SDCARD] = path;
+    params->forcePaths[sdcardImage] = path;
 }
 
 AvdInfo*
@@ -1087,7 +1099,8 @@ avdInfo_new( const char*  name, AvdInfoParams*  params )
      * obsolete SDKs.
      */
     _getSearchPaths(i);
-    _getSDCardPath(i, params);
+    _getSDCardPath(i, params, AVD_IMAGE_SDCARD, SDCARD_PATH);
+    _getSDCardPath(i, params, AVD_IMAGE_SDCARD2, SDCARD2_PATH);
 
     /* don't need this anymore */
     iniFile_free(i->rootIni);
@@ -1254,6 +1267,9 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
      **/
     if (!noSdCard) {
         imageLoader_set (l, AVD_IMAGE_SDCARD);
+        imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
+
+        imageLoader_set (l, AVD_IMAGE_SDCARD2);
         imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
     }
 
