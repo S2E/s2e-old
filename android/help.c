@@ -120,8 +120,8 @@ help_build_images( stralloc_t*  out )
 
     "  You can use the -sysdir, -system, -kernel, -ramdisk, -datadir, -data options\n"
     "  to specify different search directories or specific image files. You can\n"
-    "  also use the -cache and -sdcard options to indicate specific cache partition\n"
-    "  and SD Card image files.\n\n"
+    "  also use the -cache, -sdcard, and -sdcard2 options to indicate specific \n"
+    "  cache partition and SD Card image files.\n\n"
 
     "  For more details, see the corresponding -help-<option> section.\n\n"
 
@@ -166,6 +166,7 @@ help_disk_images( stralloc_t*  out )
     "    system-qemu.img    an *optional* persistent system image\n"
     "    cache.img          an *optional* cache partition image\n"
     "    sdcard.img         an *optional* SD Card partition image\n\n"
+    "    sdcard2.img        an *optional* second SD Card partition image\n\n"
 
     "  If you use a virtual device, its content directory should store\n"
     "  all writable images, and read-only ones will be found from the\n"
@@ -181,7 +182,7 @@ help_disk_images( stralloc_t*  out )
     "  can still run the emulator by explicitely providing the paths to\n"
     "  *all* required disk images through a combination of the following\n"
     "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data, -cache\n"
-    "  and -sdcard\n\n"
+    "  -sdcard, and -sdcard2\n\n"
 
     "  The actual logic being that the emulator should be able to find all\n"
     "  images from the options you give it.\n\n"
@@ -615,6 +616,21 @@ help_sdcard(stralloc_t*  out)
 
     "  if the file does not exist, the emulator will still start, but without an\n"
     "  attached SD Card.\n\n"
+
+    "  see '-help-disk-images' for more information about disk image files\n\n"
+    );
+}
+
+static void
+help_sdcard2(stralloc_t*  out)
+{
+    PRINTF(
+    "  use '-sdcard2 <file>' to specify a second SD Card image file that will be attached\n"
+    "  to the emulator. By default, the 'sdcard.img' file is searched in the data\n"
+    "  directory.\n\n"
+
+    "  if the file does not exist, the emulator will still start, but without a\n"
+    "  second SD Card attached.\n\n"
 
     "  see '-help-disk-images' for more information about disk image files\n\n"
     );
