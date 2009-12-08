@@ -15,37 +15,7 @@
 #include <stdint.h>
 
 /* the emulator supports a simple .ini file format for its configuration
- * files. Here's the BNF for it:
- *
- *  file             := <line>*
- *  line             := <comment> | <LF> | <assignment>
- *  comment          := (';'|'#') <noLF>* <LF>
- *  assignment       := <space>* <keyName> <space>* '=' <space>* <valueString> <space>* <LF>
- *  keyName          := <keyNameStartChar> <keyNameChar>*
- *  keyNameStartChar := [A-Za-z_]
- *  keyNameChar      := [A-Za-z0-9_.-]
- *  valueString      := <noLF>*
- *  space            := ' ' | '\t'
- *  LF               := '\r\n' | '\n' | '\r'
- *  noLF             := [^<LF>]
- *
- * Or, in English:
- *
- * - no support for sections
- * - empty lines are ignored, as well as lines beginning with ';' or '#'
- * - lines must be of the form: "<keyName> = <value>"
- * - key names must start with a letter or an underscore
- * - other key name characters can be letters, digits, underscores, dots or dashes
- *
- * - leading and trailing space are allowed and ignored before/after the key name
- *   and before/after the value
- *
- * - there is no restriction on the value, except that it can't contain
- *   leading/trailing space/tab characters or newline/charfeed characters
- *
- * - empty values are possible, and will be stored as an empty string.
- * - any badly formatted line is discarded (and will print a warning)
- *
+ * files. See docs/ANDROID-CONFIG-FILES.TXT for details.
  */
 
 /* an opaque structure used to model an .ini configuration file */
