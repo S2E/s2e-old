@@ -173,6 +173,7 @@ extern int nb_drives;
 extern DriveInfo drives_table[MAX_DRIVES+1];
 
 extern int drive_get_index(BlockInterfaceType type, int bus, int unit);
+extern int drive_get_index_by_bdrv(BlockDriverState *bdrv);
 extern int drive_get_max_bus(BlockInterfaceType type);
 extern void drive_uninit(BlockDriverState *bdrv);
 extern void drive_remove(int index);
@@ -192,6 +193,8 @@ extern int nb_drives_opt;
 
 extern int drive_add(const char *file, const char *fmt, ...);
 extern int drive_init(struct drive_opt *arg, int snapshot, void *machine);
+extern int drive_swap(struct BlockDriverState *bdrv, const char *file);
+extern int drive_hotadd(const char *file, const char *fmt, ...);
 
 /* acpi */
 void qemu_system_hot_add_init(void);
