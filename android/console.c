@@ -31,6 +31,8 @@
 #include "hw/power_supply.h"
 #include "shaper.h"
 #include "modem_driver.h"
+#include "block.h"
+#include "block_int.h"
 #include "android/gps.h"
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
@@ -2066,6 +2068,135 @@ static const CommandDefRec  geo_commands[] =
 /********************************************************************************************/
 /********************************************************************************************/
 /*****                                                                                 ******/
+/*****                       S D C A R D   C O M M A N D S                             ******/
+/*****                                                                                 ******/
+/********************************************************************************************/
+/********************************************************************************************/
+
+static int
+do_sdcard_insert( ControlClient  client, char*  args )
+{
+    char img[255];
+    char *p;
+    int n;
+    int drv_idx;
+
+    if (!args) {
+        control_write( client, "K0: argument missing, try 'sdcard insert <slot #> [imagefile]'\r\n" );
+        return -1;
+    }
+
+    memset(img, 0, sizeof(img));
+
+    n = strtoul(args, &p, 0);
+    if (n > 2) {
+        control_write( client, "K0: argument out of range\r\n" );
+        return -1;
+    }
+
+    if (p) {
+        p++;
+        strncpy(img, p, sizeof(img) -1);
+    }
+
+    if (goldfish_mmc_is_media_inserted(n)) {
+        control_write( client, "K0: Slot %d already has media inserted\r\n", n );
+        return -1;
+    }
+
+    drv_idx = drive_get_index( IF_IDE, 0, n);
+    if (drv_idx >= 0) {
+        if (img[0] != '\0' && strcmp(img, drives_table[drv_idx].bdrv->filename)) {
+            if (drive_swap(drives_table[drv_idx].bdrv, img)) {
+                control_write (client, "K0: Drive swap failed\r\n");
+                return -1;
+            }
+        }
+    } else {
+        drv_idx = drive_hotadd(img, "index=%d,media=disk", n);
+        if (drv_idx < 0) {
+                control_write (client, "K0: Drive hot-add failed\r\n");
+                return -1;
+        }
+    }
+
+    goldfish_mmc_insert(n, drives_table[drv_idx].bdrv);
+
+    return 0;
+}
+
+static int
+do_sdcard_remove( ControlClient  client, char*  args )
+{
+    int n;
+    int ins;
+
+    if (!args) {
+        control_write( client, "K0: argument missing, try 'sdcard remove <slot #>'\r\n" );
+        return -1;
+    }
+
+    n = atoi(args);
+
+    if ((ins = goldfish_mmc_is_media_inserted(n)) < 0) {
+        control_write( client, "K0: Slot %d is invalid\r\n", n );
+    } else if (!ins) {
+        control_write( client, "K0: Slot %d has no media\r\n", n );
+        return -1;
+    }
+
+    goldfish_mmc_remove(n);
+    return 0;
+}
+
+static int
+do_sdcard_status( ControlClient  client, char*  args )
+{
+    int i;
+    control_write( client, "Current SD card status:\r\n" );
+
+    for (i = 0; i < 2; i++) {
+        int drv_idx = drive_get_index( IF_IDE, 0, i);
+
+        control_write( client,
+                       "  Slot %d, image %s, inserted %d\r\n", i,
+                       (drv_idx >=0 ? drives_table[drv_idx].bdrv->filename : "none"),
+                       goldfish_mmc_is_media_inserted(i));
+    }
+    return 0;
+}
+
+static int
+do_sdcard_fail( ControlClient  client, char*  args )
+{
+	return -ENOSYS;
+}
+
+static const CommandDefRec  sdcard_commands[] =
+{
+    { "insert", "hot-insert a virtual sdcard",
+    "'sdcard insert <slot #> [imagefile]'\r\n",
+    NULL, do_sdcard_insert, NULL },
+
+    { "remove", "hot-remove a virtual sdcard",
+    "'sdcard remove <slot #>'\r\n",
+    NULL, do_sdcard_remove, NULL },
+
+    { "status", "query virtual device status",
+    "'sdcard status'\r\n",
+    NULL, do_sdcard_status, NULL },
+
+    { "fail", "simulate an sdcard failure",
+    "'sdcard fail <read|write>'\r\n",
+    NULL, do_sdcard_fail, NULL },
+
+    { NULL, NULL, NULL, NULL, NULL, NULL }
+};
+
+
+/********************************************************************************************/
+/********************************************************************************************/
+/*****                                                                                 ******/
 /*****                           M A I N   C O M M A N D S                             ******/
 /*****                                                                                 ******/
 /********************************************************************************************/
@@ -2175,6 +2306,10 @@ static const CommandDefRec   main_commands[] =
     { "window", "manage emulator window",
     "allows you to modify the emulator window\r\n", NULL,
     NULL, window_commands },
+
+    { "sdcard", "manage emulator sdcards",
+    "allows you to modify the emulator sdcard configuration\r\n", NULL,
+    NULL, sdcard_commands },
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };
