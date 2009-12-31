@@ -1592,8 +1592,7 @@ static ssize_t net_socket_receive_dgram(VLANClientState *vc, const uint8_t *buf,
 {
     NetSocketState *s = vc->opaque;
 
-    return sendto(s->fd, (const void *)buf, size, 0,
-                  (struct sockaddr *)&s->dgram_dst, sizeof(s->dgram_dst));
+    return socket_sendto(s->fd, buf, size, &s->dgram_dst);
 }
 
 static void net_socket_send(void *opaque)
