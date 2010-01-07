@@ -96,7 +96,7 @@ bufprint_zoneinfo_timezone( char*  p, char*  end )
 /* on OS X, the timezone directory is always /usr/share/zoneinfo
  * this makes things easy.
  */
-#ifdef __APPLE__
+#if defined(__APPLE__)
 
 #include <unistd.h>
 #include <limits.h>
@@ -149,7 +149,7 @@ get_zoneinfo_timezone( void )
  * the original timezone file. the only way to know which zoneinfo name to retrieve is to compare
  * it with all files in $TZDIR (at least those that match Area/Location or Area/Location/SubLocation
  */
-#ifdef __linux__
+#if defined(__linux__) || defined (__FreeBSD__)
 
 #include <unistd.h>
 #include <limits.h>

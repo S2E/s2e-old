@@ -52,6 +52,7 @@ enum {
     MMC_STAT_END_OF_CMD     = 1U << 0,
     MMC_STAT_END_OF_DATA    = 1U << 1,
     MMC_STAT_STATE_CHANGE   = 1U << 2,
+    MMC_STAT_CMD_TIMEOUT    = 1U << 3,
 
     /* MMC_STATE bits */
     MMC_STATE_INSERTED     = 1U << 0,
@@ -81,6 +82,9 @@ struct goldfish_mmc_state {
 
     uint8_t* buf;
 };
+
+#define GOLDFISH_MMC_MAX 2
+static struct goldfish_mmc_state *gDrvState[GOLDFISH_MMC_MAX];
 
 #define  GOLDFISH_MMC_SAVE_VERSION  2
 #define  QFIELD_STRUCT  struct goldfish_mmc_state
@@ -218,12 +222,23 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
     int new_status = MMC_STAT_END_OF_CMD;
     int opcode = cmd & 63;
 
-// fprintf(stderr, "goldfish_mmc_do_command opcode: %s (0x%04X), arg: %d\n", get_command_name(opcode), cmd, arg);
-
+ //fprintf(stderr, "goldfish_mmc_do_command opcode: %s (0x%04X), arg: %d\n", get_command_name(opcode), cmd, arg);
     s->resp[0] = 0;
     s->resp[1] = 0;
     s->resp[2] = 0;
     s->resp[3] = 0;
+
+    if (!s->bs) {
+        /*
+         * No backing store available. Signal a command timeout
+         * to the host. If the command timeout irq enable is set
+         * then also set the status bit - otherwise we're assuming
+         * a legacy driver which doesnt support timeouts.
+         */
+        if (s->int_enable & MMC_STAT_CMD_TIMEOUT)
+            new_status |= MMC_STAT_CMD_TIMEOUT;
+        goto skip;
+    }
 
 #define SET_R1_CURRENT_STATE(s)    ((s << 9) & 0x00001E00) /* sx, b (4 bits) */
 
@@ -405,6 +420,7 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
             break;
      }
 
+ skip:
     s->int_status |= new_status;
 
     if ((s->int_status & s->int_enable)) {
@@ -414,7 +430,7 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
 
 static uint32_t goldfish_mmc_read(void *opaque, target_phys_addr_t offset)
 {
-    uint32_t ret;
+    uint32_t ret = 0;
     struct goldfish_mmc_state *s = opaque;
 
     switch(offset) {
@@ -430,9 +446,11 @@ static uint32_t goldfish_mmc_read(void *opaque, target_phys_addr_t offset)
         case MMC_RESP_3:
             return s->resp[3];
         case MMC_STATE: {
-            ret = MMC_STATE_INSERTED;
-            if (bdrv_is_read_only(s->bs)) {
-                ret |= MMC_STATE_READ_ONLY;
+            if (s->bs) {
+                ret = MMC_STATE_INSERTED;
+                if (bdrv_is_read_only(s->bs)) {
+                    ret |= MMC_STATE_READ_ONLY;
+                }
             }
             return ret;
         }
@@ -499,9 +517,14 @@ static CPUWriteMemoryFunc *goldfish_mmc_writefn[] = {
    goldfish_mmc_write
 };
 
-void goldfish_mmc_init(uint32_t base, int id, BlockDriverState* bs)
+void goldfish_mmc_init(uint32_t base, int id)
 {
     struct goldfish_mmc_state *s;
+
+    if (id >= GOLDFISH_MMC_MAX) {
+        fprintf(stderr, "mmc controller %d out of range\n", id);
+        return;
+    }
 
     s = (struct goldfish_mmc_state *)qemu_mallocz(sizeof(*s));
     s->dev.name = "goldfish_mmc";
@@ -509,12 +532,56 @@ void goldfish_mmc_init(uint32_t base, int id, BlockDriverState* bs)
     s->dev.base = base;
     s->dev.size = 0x1000;
     s->dev.irq_count = 1;
-    s->bs = bs;
+    s->bs = NULL;
     s->buf = qemu_memalign(512,512);
+
+    gDrvState[id] = s;
 
     goldfish_device_add(&s->dev, goldfish_mmc_readfn, goldfish_mmc_writefn, s);
 
-    register_savevm( "goldfish_mmc", 0, GOLDFISH_MMC_SAVE_VERSION,
+    register_savevm( (!id ? "goldfish_mmc0" : "goldfish_mmc1"),
+                     id, GOLDFISH_MMC_SAVE_VERSION,
                      goldfish_mmc_save, goldfish_mmc_load, s);
 }
+
+static void goldfish_mmc_setbs(struct goldfish_mmc_state* s, BlockDriverState* bs)
+{
+    s->bs = bs;
+    s->int_status |= MMC_STAT_STATE_CHANGE;
+
+    /*
+     * Legacy - only send state change irq if
+     * the driver has the CMD_TIMEOUT irq enabled.
+     */
+    if (s->int_enable & MMC_STAT_CMD_TIMEOUT)
+        goldfish_device_set_irq(&s->dev, 0, (s->int_status & s->int_enable));
+}
+
+void goldfish_mmc_insert(int id, BlockDriverState* bs)
+{
+    if (id >= GOLDFISH_MMC_MAX) {
+        return -1;
+    }
+
+    goldfish_mmc_setbs(gDrvState[id], bs);
+}
+
+int goldfish_mmc_is_media_inserted(int id)
+{
+    if (id > GOLDFISH_MMC_MAX) {
+        return -1;
+    }
+
+    return (gDrvState[id]->bs != NULL);
+}
+
+void goldfish_mmc_remove(int id)
+{
+    if (id >= GOLDFISH_MMC_MAX) {
+        return -1;
+    }
+
+    goldfish_mmc_setbs(gDrvState[id], NULL);
+}
+
 
