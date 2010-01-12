@@ -15,7 +15,43 @@ Versions:
    1.9 => SDK 1.5_r1 (and SDK 1.5_r2)
    1.10 => SDK 1.5_r3
    1.11 => SDK 1.6_r1
-   1.12 => current
+   1.12 => SDK 2.0
+   1.13 => SDK 2.0.1 (but wrongly tagged 1.12)
+   5.0  => current
+
+==============================================================================
+Changes between 5.0 and 1.13
+
+IMPORTANT CHANGES:
+
+- Starting from this release, the emulator's version number will match the
+  corresponding Android SDK Tools package revision number. The exact number
+  is extracted at build time from the Android source tree.
+
+  The minor number will now be stuck to 0 since each official emulator
+  release is supposed to match a corresponding SDK Tools release.
+
+
+OTHER:
+
+- Fixed a bug that crashed the emulator when the SD Card image size was exactly
+  8 MB. Now, the minimum supported size is 9 MB, and the emulator will complain
+  with a human-friendly message if this is not the case, and ignore the SD Card
+  file.
+
+==============================================================================
+Changes between 1.13 and 1.12
+
+IMPORTANT BUG FIXES:
+
+- Fix D-Pad rotation issues in the skins. The problem being that switching
+  the emulator window to landscape mode resulted in incorrectly rotated
+  D-Pad events. The fix allows for a new 'dpad-rotation' field for each
+  layout.
+
+- Fixed a bug in Thumb2 emulation (not used by typical SDK images yet though)
+  that resulted incorrect behaviour / crashes, especially in single-stepping
+  mode.
 
 ==============================================================================
 Changes between 1.12 and 1.11

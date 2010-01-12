@@ -287,9 +287,13 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
                     capacity >>= 1;
                 }
                 capacity -= 1;
+                if (exponent < 2) {
+                    cpu_abort(cpu_single_env, "SDCard too small, must be at least 9MB\n");
+                }
                 exponent -= 2;
-                if (exponent > 7)
-                    cpu_abort(cpu_single_env, "exponent %d too big\n", exponent);
+                if (exponent > 7) {
+                    cpu_abort(cpu_single_env, "SDCard too large.\n");
+                }
 
                 s->resp[2] |= (((uint32_t)capacity >> 2) & 0x3FF);  // high 10 bits to bottom of resp[2]
                 s->resp[1] |= (((uint32_t)capacity & 3) << 30);    // low 2 bits to top of resp[1]

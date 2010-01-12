@@ -12,9 +12,6 @@
 #ifndef  _qemu_android_h
 #define  _qemu_android_h
 
-#define  ANDROID_VERSION_MAJOR  1
-#define  ANDROID_VERSION_MINOR  12
-
 #define  CONFIG_SHAPER  1
 
 #include <stdlib.h>
