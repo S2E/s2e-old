@@ -10,4 +10,4 @@
 #define CONFIG_SKINS 1
 #define CONFIG_UNAME_RELEASE ""
 #define CONFIG_IOTHREAD 1
-#define HAVE_IOVEC 1
+#define CONFIG_IOVEC 1

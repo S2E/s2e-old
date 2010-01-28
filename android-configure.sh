@@ -458,7 +458,7 @@ fi
 
 case $OS in
     linux-*|darwin-*)
-        echo "#define HAVE_IOVEC 1" >> $config_h
+        echo "#define CONFIG_IOVEC 1" >> $config_h
         ;;
 esac
 
