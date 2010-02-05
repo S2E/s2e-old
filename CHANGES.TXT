@@ -31,9 +31,6 @@ IMPORTANT CHANGES:
   The minor number will now be stuck to 0 since each official emulator
   release is supposed to match a corresponding SDK Tools release.
 
-- Added a new option -sdcard2 <file> to be able to use two SD Card images
-  at once. Note that this requires an updated emulator-specific kernel
-  and system image. It will thus be ignored by older emulated platforms.
 
 OTHER:
 

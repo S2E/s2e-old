@@ -42,18 +42,7 @@ static struct goldfish_device nand_device = {
 
 /* Board init.  */
 
-static void goldfish_sdcard_init(int n, unsigned base)
-{
-    int idx = drive_get_index( IF_IDE, 0, n );
-
-    goldfish_mmc_init(base, n);
-
-    if (idx >= 0) {
-        goldfish_mmc_insert(n, drives_table[idx].bdrv);
-    }
-}
-
-// #define TEST_SWITCH 1
+#define TEST_SWITCH 1
 #if TEST_SWITCH
 uint32_t switch_test_write(void *opaque, uint32_t state)
 {
@@ -124,9 +113,11 @@ static void android_arm_init_(ram_addr_t ram_size,
 #ifdef HAS_AUDIO
     goldfish_audio_init(0xff004000, 0, audio_input_source);
 #endif
-
-    goldfish_sdcard_init(0, 0xff005000);
-    goldfish_sdcard_init(1, 0xff007000);
+    {
+        int  idx = drive_get_index( IF_IDE, 0, 0 );
+        if (idx >= 0)
+            goldfish_mmc_init(0xff005000, 0, drives_table[idx].bdrv);
+    }
 
     goldfish_memlog_init(0xff006000);
 

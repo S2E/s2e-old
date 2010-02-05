@@ -1795,7 +1795,6 @@ int main(int argc, char **argv)
     int    n;
     char*  opt;
     int    use_sdcard_img = 0;
-    int    use_sdcard2_img = 0;
     int    serial = 0;
     int    gps_serial = 0;
     int    radio_serial = 0;
@@ -2060,14 +2059,6 @@ int main(int argc, char **argv)
                 D("autoconfig: -sdcard %s", opts->sdcard);
             }
         }
-
-        if (!opts->sdcard2 && opts->datadir) {
-            bufprint(tmp, tmpend, "%s/sdcard2.img", opts->datadir);
-            if (path_exists(tmp)) {
-                opts->sdcard2 = qemu_strdup(tmp);
-                D("autoconfig: -sdcard2 %s", opts->sdcard2);
-            }
-        }
     }
 
     /* setup the virtual device parameters from our options
@@ -2088,7 +2079,6 @@ int main(int argc, char **argv)
     _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,   "user data", 0);
     _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,  "cache", 0);
     _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard, "SD Card", 0);
-    _forceAvdImagePath(AVD_IMAGE_SDCARD2,    opts->sdcard2, "SD Card 2", 0);
 
     /* we don't accept -skindir without -skin now
      * to simplify the autoconfig stuff with virtual devices
@@ -2481,14 +2471,11 @@ int main(int argc, char **argv)
         args[n++] = strdup(tmp);
     }
 
-    if (hw->hw_sdCard != 0) {
+    if (hw->hw_sdCard != 0)
         opts->sdcard = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SDCARD);
-        opts->sdcard2 = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SDCARD2);
-
-    } else if (opts->sdcard || opts->sdcard2) {
+    else if (opts->sdcard) {
         dwarning( "Emulated hardware doesn't support SD Cards" );
         opts->sdcard = NULL;
-        opts->sdcard2 = NULL;
     }
 
     if(opts->sdcard) {
@@ -2507,25 +2494,6 @@ int main(int argc, char **argv)
             }
         } else {
             D("no SD Card image at '%s'", opts->sdcard);
-        }
-    }
-
-    if(opts->sdcard2) {
-        uint64_t  size;
-        if (path_get_size(opts->sdcard2, &size) == 0) {
-            /* see if we have an sdcard image.  get its size if it exists */
-            /* due to what looks like limitations of the MMC protocol, one has
-             * to use an SD Card image that is equal or larger than 9 MB
-             */
-            if (size < 9*1024*1024ULL) {
-                fprintf(stderr, "### WARNING: SD Card files must be at least 9MB, ignoring '%s'\n", opts->sdcard2);
-            } else {
-                args[n++] = "-hdb";
-                args[n++] = opts->sdcard2;
-                use_sdcard2_img = 1;
-            }
-        } else {
-            D("no SD Card image at '%s'", opts->sdcard2);
         }
     }
 
