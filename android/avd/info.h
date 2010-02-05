@@ -58,7 +58,6 @@
     _AVD_IMG(USERDATA,"userdata-qemu.img", "user data") \
     _AVD_IMG(CACHE,"cache.img","cache") \
     _AVD_IMG(SDCARD,"sdcard.img","SD Card") \
-    _AVD_IMG(SDCARD2,"sdcard2.img","SD Card 2") \
 
 /* define the enumared values corresponding to each AVD image type
  * examples are: AVD_IMAGE_KERNEL, AVD_IMAGE_SYSTEM, etc..
