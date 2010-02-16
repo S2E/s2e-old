@@ -65,6 +65,9 @@ typedef struct DisasContext {
 #if !defined(CONFIG_USER_ONLY)
     int user;
 #endif
+#ifdef CONFIG_MEMCHECK
+    int search_pc;
+#endif  // CONFIG_MEMCHECK
 } DisasContext;
 
 #if defined(CONFIG_USER_ONLY)
@@ -76,6 +79,26 @@ typedef struct DisasContext {
 #ifdef CONFIG_TRACE
 #include "helpers.h"
 #endif /* CONFIG_TRACE */
+
+#ifdef CONFIG_MEMCHECK
+/*
+ * Memchecker addition in this module is intended to inject qemu callback into
+ * translated code for each BL/BLX, as well as BL/BLX returns. These callbacks
+ * are used to build calling stack of the thread in order to provide better
+ * reporting on memory access violations. Although this may seem as something
+ * that may gratly impact the performance, in reality it doesn't. Overhead that
+ * is added by setting up callbacks and by callbacks themselves is neglectable.
+ * On the other hand, maintaining calling stack can indeed add some perf.
+ * overhead (TODO: provide solid numbers here).
+ * One of the things to watch out with regards to injecting callbacks, is
+ * consistency between intermediate code generated for execution, and for guest
+ * PC address calculation. If code doesn't match, a segmentation fault is
+ * guaranteed.
+ */
+
+#include "memcheck/memcheck_proc_management.h"
+#include "memcheck_arm_helpers.h"
+#endif  // CONFIG_MEMCHECK
 
 /* These instructions trap after executing, so defer them until after the
    conditional executions state has been updated.  */
@@ -5783,8 +5806,22 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     TCGv tmp3;
     TCGv addr;
     TCGv_i64 tmp64;
-
     insn = ldl_code(s->pc);
+
+#ifdef CONFIG_MEMCHECK
+    if (watch_call_stack(s)) {
+        if (is_ret_address(s->pc)) {
+            set_on_ret(s->pc);
+        }
+        if (is_arm_bl_or_blx(insn)) {
+            set_on_call(s->pc, s->pc + 4);
+            if (!s->search_pc) {
+                register_ret_address(env, s->pc + 4);
+            }
+        }
+    }
+#endif  // CONFIG_MEMCHECK
+
 #ifdef CONFIG_TRACE
     if (tracing) {
         trace_add_insn(insn, 0);
@@ -5792,6 +5829,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         gen_traceInsn();
     }
 #endif
+
     s->pc += 4;
 
     /* M variants do not implement ARM mode.  */
@@ -6985,7 +7023,6 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         case 0xb:
             {
                 int32_t offset;
-
                 /* branch (and link) */
                 val = (int32_t)s->pc;
                 if (insn & (1 << 24)) {
@@ -7170,8 +7207,10 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
         gen_traceTicks(ticks);
     }
 #endif
-    s->pc += 2;
+
     insn |= (uint32_t)insn_hw1 << 16;
+
+    s->pc += 2;
 
     if ((insn & 0xf800e800) != 0xf000e800) {
         ARCH(6T2);
@@ -8149,6 +8188,22 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
     }
 
     insn = lduw_code(s->pc);
+
+#ifdef CONFIG_MEMCHECK
+    if (watch_call_stack(s)) {
+        target_ulong ret_off;
+        if (is_ret_address(s->pc)) {
+            set_on_ret(s->pc);
+        }
+        if (is_thumb_bl_or_blx(insn, &ret_off)) {
+            set_on_call(s->pc, s->pc + ret_off);
+            if (!s->search_pc) {
+                register_ret_address(env, s->pc + ret_off);
+            }
+        }
+    }
+#endif  // CONFIG_MEMCHECK
+
 #ifdef CONFIG_TRACE
     if (tracing) {
         int  ticks = get_insn_ticks_thumb(insn);
@@ -8834,6 +8889,9 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         dc->user = (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_USR;
     }
 #endif
+#ifdef CONFIG_MEMCHECK
+    dc->search_pc = search_pc;
+#endif  // CONFIG_MEMCHECK
     cpu_F0s = tcg_temp_new_i32();
     cpu_F1s = tcg_temp_new_i32();
     cpu_F0d = tcg_temp_new_i64();
@@ -8892,7 +8950,15 @@ static inline void gen_intermediate_code_internal(CPUState *env,
                 }
             }
         }
+
+#ifdef CONFIG_MEMCHECK
+        /* When memchecker is enabled, we need to keep a match between
+         * translated PC and guest PCs, so memchecker can quickly covert
+         * one to another. Note that we do that only for user mode. */
+        if (search_pc || (memcheck_enabled && dc->user)) {
+#else   // CONFIG_MEMCHECK
         if (search_pc) {
+#endif  // CONFIG_MEMCHECK
             j = gen_opc_ptr - gen_opc_buf;
             if (lj < j) {
                 lj++;
@@ -9039,6 +9105,14 @@ done_generating:
         while (lj <= j)
             gen_opc_instr_start[lj++] = 0;
     } else {
+#ifdef CONFIG_MEMCHECK
+        if (memcheck_enabled && dc->user) {
+            j = gen_opc_ptr - gen_opc_buf;
+            lj++;
+            while (lj <= j)
+                gen_opc_instr_start[lj++] = 0;
+        }
+#endif  // CONFIG_MEMCHECK
         tb->size = dc->pc - pc_start;
         tb->icount = num_insns;
     }

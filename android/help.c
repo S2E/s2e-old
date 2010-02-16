@@ -78,7 +78,7 @@ help_sdk_images( stralloc_t*  out )
     "  Before using the SDK, you need to create an Android Virtual Device (AVD)\n"
     "  (see -help-virtual-device for details). Each AVD is created in reference\n"
     "  to a given SDK platform *or* add-on, and will search the corresponding\n"
-    "  directories for system image files, in the following order:\n\n" 
+    "  directories for system image files, in the following order:\n\n"
 
     "    - in the AVD's content directory.\n"
     "    - in the AVD's SDK add-on directory, if any.\n"
@@ -885,6 +885,45 @@ help_trace(stralloc_t*  out)
     );
 }
 
+#ifdef CONFIG_MEMCHECK
+static void
+help_memcheck(stralloc_t*  out)
+{
+    PRINTF(
+    "  use '-memcheck <flags>' to start the emulator with memory access checking\n"
+    "  support.\n\n"
+
+    "  <flags> enables, or disables memory access checking, and also controls\n"
+    "  what events are going to be logged by the memory access checker.\n"
+    "  <flags> can be one of the following:\n"
+    "  1 - Enables memory access checking with default logging (\"LIRW\"), or\n"
+    "  0 - Disables memory access checking, or\n"
+    "  A combination (in no particular order) of the following:\n"
+    "     L - Logs memory leaks on process exit.\n"
+    "     I - Logs attempts to use invalid pointers in free, or realloc routines.\n"
+    "     R - Logs memory access violation on read operations.\n"
+    "     W - Logs memory access violation on write operations.\n"
+    "     N - Logs new process ID allocation.\n"
+    "     F - Logs guest's process forking.\n"
+    "     S - Logs guest's process starting.\n"
+    "     E - Logs guest's process exiting.\n"
+    "     C - Logs guest's thread creation (clone).\n"
+    "     B - Logs libc.so initialization in the guest system.\n"
+    "     M - Logs module mapping and unmapping in the guest system.\n"
+    "     A - Logs all emulator events. Equala to \"LIRWFSECANBM\" combination.\n"
+    "     e - Logs error messages, received from the guest system.\n"
+    "     d - Logs debug messages, received from the guest system.\n"
+    "     i - Logs information messages, received from the guest system.\n"
+    "     a - Logs all messages, received from the guest system.\n"
+    "         This is equal to \"edi\" combination.\n\n"
+
+    "  note that execution might be significantly slower when enabling memory access\n"
+    "  checking, this is a necessary requirement of the operations being performed\n"
+    "  to analyze memory allocations and memory access.\n\n"
+    );
+}
+#endif  // CONFIG_MEMCHECK
+
 static void
 help_show_kernel(stralloc_t*  out)
 {
@@ -1416,7 +1455,7 @@ android_help_for_topic( const char*  topic, stralloc_t*  out )
 }
 
 
-extern void  
+extern void
 android_help_list_options( stralloc_t*  out )
 {
     const OptionHelp*  oo;

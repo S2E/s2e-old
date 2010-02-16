@@ -63,6 +63,9 @@
 #include "android/cmdline-option.h"
 #include "android/help.h"
 #include "hw/goldfish_nand.h"
+#ifdef CONFIG_MEMCHECK
+#include "memcheck/memcheck.h"
+#endif  // CONFIG_MEMCHECK
 
 #include "android/globals.h"
 #include "tcpdump.h"
@@ -1054,7 +1057,7 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
             if(x && isdigit(x[1])) {
                 int width = atoi(name);
                 int height = atoi(x + 1);
-                sprintf(tmp,"display {\n  width %d\n  height %d\n}\n", 
+                sprintf(tmp,"display {\n  width %d\n  height %d\n}\n",
                         width, height);
                 aconfig_load(root, strdup(tmp));
                 path = ":";
@@ -1075,7 +1078,7 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
             path = tmp;
             goto found_a_skin;
         } else {
-            dwarning("could not load skin file '%s', using built-in one\n", 
+            dwarning("could not load skin file '%s', using built-in one\n",
                      tmp);
         }
     }
@@ -1215,7 +1218,7 @@ android_parse_network_speed(const char*  speed)
     }
 
     if (android_modem)
-        amodem_set_data_network_type( android_modem, 
+        amodem_set_data_network_type( android_modem,
                                       android_parse_network_type(speed) );
     return 0;
 }
@@ -1739,8 +1742,8 @@ _getSdkSystemImage( const char*  path, const char*  optionName, const char*  fil
 }
 
 static void
-_forceAvdImagePath( AvdImageType  imageType, 
-                   const char*   path, 
+_forceAvdImagePath( AvdImageType  imageType,
+                   const char*   path,
                    const char*   description,
                    int           required )
 {
@@ -1993,7 +1996,7 @@ int main(int argc, char **argv)
      * Android build system, we'll need to perform some auto-detection
      * magic :-)
      */
-    if (opts->avd == NULL && !android_build_out) 
+    if (opts->avd == NULL && !android_build_out)
     {
         char   dataDirIsSystem = 0;
 
@@ -2296,6 +2299,12 @@ int main(int argc, char **argv)
         }
         opts->trace = tracePath;
     }
+
+#ifdef CONFIG_MEMCHECK
+    if (opts->memcheck) {
+        memcheck_init(opts->memcheck);
+    }
+#endif  // CONFIG_MEMCHECK
 
     if (opts->tcpdump) {
         if (qemu_tcpdump_start(opts->tcpdump) < 0) {
@@ -2704,6 +2713,14 @@ int main(int argc, char **argv)
         if (opts->trace) {
             p = bufprint(p, end, " android.tracing=1");
         }
+
+#ifdef CONFIG_MEMCHECK
+        if (opts->memcheck) {
+            /* This will set ro.kernel.memcheck system property
+             * to memcheck's tracing flags. */
+            p = bufprint(p, end, " memcheck=%s", opts->memcheck);
+        }
+#endif  // CONFIG_MEMCHECK
 
         if (!opts->no_jni) {
             p = bufprint(p, end, " android.checkjni=1");

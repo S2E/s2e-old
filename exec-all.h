@@ -76,7 +76,7 @@ int cpu_restore_state_copy(struct TranslationBlock *tb,
                            void *puc);
 void cpu_resume_from_signal(CPUState *env1, void *puc);
 void cpu_io_recompile(CPUState *env, void *retaddr);
-TranslationBlock *tb_gen_code(CPUState *env, 
+TranslationBlock *tb_gen_code(CPUState *env,
                               target_ulong pc, target_ulong cs_base, int flags,
                               int cflags);
 void cpu_exec_init(CPUState *env);
@@ -154,11 +154,23 @@ struct TranslationBlock {
        jmp_first */
     struct TranslationBlock *jmp_next[2];
     struct TranslationBlock *jmp_first;
-
 #ifdef CONFIG_TRACE
     struct BBRec *bb_rec;
     uint64_t prev_time;
 #endif
+
+#ifdef CONFIG_MEMCHECK
+    /* Maps PCs in this translation block to corresponding PCs in guest address
+     * space. The array is arranged in such way, that every even entry contains
+     * PC in the translation block, followed by an odd entry that contains
+     * guest PC corresponding to that PC in the translation block. This
+     * arrangement is set by tcg_gen_code_common that initializes this array
+     * when performing guest code translation. */
+    target_ulong*   tpc2gpc;
+    /* Number of pairs (pc_tb, pc_guest) in tpc2gpc array. */
+    unsigned int    tpc2gpc_pairs;
+#endif  // CONFIG_MEMCHECK
+
     uint32_t icount;
 };
 
@@ -181,6 +193,60 @@ static inline unsigned int tb_phys_hash_func(unsigned long pc)
 {
     return pc & (CODE_GEN_PHYS_HASH_SIZE - 1);
 }
+
+#ifdef CONFIG_MEMCHECK
+/* Gets translated PC for a given (translated PC, guest PC) pair.
+ * Return:
+ *  Translated PC, or NULL if pair index was too large.
+ */
+static inline target_ulong
+tb_get_tb_pc(const TranslationBlock* tb, unsigned int pair)
+{
+    return (tb->tpc2gpc != NULL && pair < tb->tpc2gpc_pairs) ?
+                                                    tb->tpc2gpc[pair * 2] : 0;
+}
+
+/* Gets guest PC for a given (translated PC, guest PC) pair.
+ * Return:
+ *  Guest PC, or NULL if pair index was too large.
+ */
+static inline target_ulong
+tb_get_guest_pc(const TranslationBlock* tb, unsigned int pair)
+{
+    return (tb->tpc2gpc != NULL && pair < tb->tpc2gpc_pairs) ?
+            tb->tpc2gpc[pair * 2 + 1] : 0;
+}
+
+/* Gets guest PC for a given translated PC.
+ * Return:
+ *  Guest PC for a given translated PC, or NULL if there was no pair, matching
+ *  translated PC in tb's tpc2gpc array.
+ */
+static inline target_ulong
+tb_search_guest_pc_from_tb_pc(const TranslationBlock* tb, target_ulong tb_pc)
+{
+    if (tb->tpc2gpc != NULL && tb->tpc2gpc_pairs != 0) {
+        unsigned int m_min = 0;
+        unsigned int m_max = (tb->tpc2gpc_pairs - 1) << 1;
+        /* Make sure that tb_pc is within TB array. */
+        if (tb_pc < tb->tpc2gpc[0]) {
+            return 0;
+        }
+        while (m_min <= m_max) {
+            const unsigned int m = ((m_min + m_max) >> 1) & ~1;
+            if (tb_pc < tb->tpc2gpc[m]) {
+                m_max = m - 2;
+            } else if (m == m_max || tb_pc < tb->tpc2gpc[m + 2]) {
+                return tb->tpc2gpc[m + 1];
+            } else {
+                m_min = m + 2;
+            }
+        }
+        return tb->tpc2gpc[m_max + 1];
+    }
+    return 0;
+}
+#endif  // CONFIG_MEMCHECK
 
 TranslationBlock *tb_alloc(target_ulong pc);
 void tb_free(TranslationBlock *tb);
@@ -368,7 +434,7 @@ void kqemu_flush_page(CPUState *env, target_ulong addr);
 void kqemu_flush(CPUState *env, int global);
 void kqemu_set_notdirty(CPUState *env, ram_addr_t ram_addr);
 void kqemu_modify_page(CPUState *env, ram_addr_t ram_addr);
-void kqemu_set_phys_mem(uint64_t start_addr, ram_addr_t size, 
+void kqemu_set_phys_mem(uint64_t start_addr, ram_addr_t size,
                         ram_addr_t phys_offset);
 void kqemu_cpu_interrupt(CPUState *env);
 void kqemu_record_dump(void);

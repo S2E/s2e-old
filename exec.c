@@ -43,6 +43,9 @@
 #if defined(CONFIG_USER_ONLY)
 #include <qemu.h>
 #endif
+#ifdef CONFIG_MEMCHECK
+#include "memcheck/memcheck_api.h"
+#endif  // CONFIG_MEMCHECK
 
 //#define DEBUG_TB_INVALIDATE
 //#define DEBUG_FLUSH
@@ -216,21 +219,21 @@ static void map_exec(void *addr, long size)
     DWORD old_protect;
     VirtualProtect(addr, size,
                    PAGE_EXECUTE_READWRITE, &old_protect);
-    
+
 }
 #else
 static void map_exec(void *addr, long size)
 {
     unsigned long start, end, page_size;
-    
+
     page_size = getpagesize();
     start = (unsigned long)addr;
     start &= ~(page_size - 1);
-    
+
     end = (unsigned long)addr + size;
     end += page_size - 1;
     end &= ~(page_size - 1);
-    
+
     mprotect((void *)start, end - start,
              PROT_READ | PROT_WRITE | PROT_EXEC);
 }
@@ -280,7 +283,7 @@ static void page_init(void)
                                     (1ULL << TARGET_PHYS_ADDR_SPACE_BITS) - 1);
                     page_set_flags(startaddr & TARGET_PAGE_MASK,
                                    TARGET_PAGE_ALIGN(endaddr),
-                                   PAGE_RESERVED); 
+                                   PAGE_RESERVED);
                 }
             } while (!feof(f));
             fclose(f);
@@ -321,7 +324,7 @@ static inline PageDesc *page_find_alloc(target_ulong index)
             unsigned long addr = h2g(p);
             page_set_flags(addr & TARGET_PAGE_MASK,
                            TARGET_PAGE_ALIGN(addr + len),
-                           PAGE_RESERVED); 
+                           PAGE_RESERVED);
         }
 #else
         p = qemu_mallocz(sizeof(PageDesc) * L2_SIZE);
@@ -429,7 +432,7 @@ static void code_gen_alloc(unsigned long tb_size)
         code_gen_buffer_size = MIN_CODE_GEN_BUFFER_SIZE;
     /* The code gen buffer location may have constraints depending on
        the host cpu and OS */
-#if defined(__linux__) 
+#if defined(__linux__)
     {
         int flags;
         void *start = NULL;
@@ -476,7 +479,7 @@ static void code_gen_alloc(unsigned long tb_size)
             code_gen_buffer_size = (800 * 1024 * 1024);
 #endif
         code_gen_buffer = mmap(addr, code_gen_buffer_size,
-                               PROT_WRITE | PROT_READ | PROT_EXEC, 
+                               PROT_WRITE | PROT_READ | PROT_EXEC,
                                flags, -1, 0);
         if (code_gen_buffer == MAP_FAILED) {
             fprintf(stderr, "Could not allocate dynamic translator buffer\n");
@@ -489,7 +492,7 @@ static void code_gen_alloc(unsigned long tb_size)
 #endif
 #endif /* !USE_STATIC_CODE_GEN_BUFFER */
     map_exec(code_gen_prologue, sizeof(code_gen_prologue));
-    code_gen_buffer_max_size = code_gen_buffer_size - 
+    code_gen_buffer_max_size = code_gen_buffer_size -
         code_gen_max_block_size();
     code_gen_max_blocks = code_gen_buffer_size / CODE_GEN_AVG_BLOCK_SIZE;
     tbs = qemu_malloc(code_gen_max_blocks * sizeof(TranslationBlock));
@@ -630,6 +633,17 @@ void tb_flush(CPUState *env1)
     nb_tbs = 0;
 
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
+#ifdef CONFIG_MEMCHECK
+        int tb_to_clean;
+        for (tb_to_clean = 0; tb_to_clean < TB_JMP_CACHE_SIZE; tb_to_clean++) {
+            if (env->tb_jmp_cache[tb_to_clean] != NULL &&
+                env->tb_jmp_cache[tb_to_clean]->tpc2gpc != NULL) {
+                qemu_free(env->tb_jmp_cache[tb_to_clean]->tpc2gpc);
+                env->tb_jmp_cache[tb_to_clean]->tpc2gpc = NULL;
+                env->tb_jmp_cache[tb_to_clean]->tpc2gpc_pairs = 0;
+            }
+        }
+#endif  // CONFIG_MEMCHECK
         memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
     }
 
@@ -819,6 +833,14 @@ void tb_phys_invalidate(TranslationBlock *tb, target_ulong page_addr)
         tb1 = tb2;
     }
     tb->jmp_first = (TranslationBlock *)((long)tb | 2); /* fail safe */
+
+#ifdef CONFIG_MEMCHECK
+    if (tb->tpc2gpc != NULL) {
+        qemu_free(tb->tpc2gpc);
+        tb->tpc2gpc = NULL;
+        tb->tpc2gpc_pairs = 0;
+    }
+#endif  // CONFIG_MEMCHECK
 
     tb_phys_invalidate_count++;
 }
@@ -1185,6 +1207,10 @@ TranslationBlock *tb_alloc(target_ulong pc)
     tb = &tbs[nb_tbs++];
     tb->pc = pc;
     tb->cflags = 0;
+#ifdef CONFIG_MEMCHECK
+    tb->tpc2gpc = NULL;
+    tb->tpc2gpc_pairs = 0;
+#endif  // CONFIG_MEMCHECK
     return tb;
 }
 
@@ -1745,11 +1771,11 @@ static inline void tlb_flush_jmp_cache(CPUState *env, target_ulong addr)
     /* Discard jump cache entries for any tb which might potentially
        overlap the flushed page.  */
     i = tb_jmp_cache_hash_page(addr - TARGET_PAGE_SIZE);
-    memset (&env->tb_jmp_cache[i], 0, 
+    memset (&env->tb_jmp_cache[i], 0,
 	    TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
 
     i = tb_jmp_cache_hash_page(addr);
-    memset (&env->tb_jmp_cache[i], 0, 
+    memset (&env->tb_jmp_cache[i], 0,
 	    TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
 }
 
@@ -2076,6 +2102,37 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     } else {
         te->addr_write = -1;
     }
+
+#ifdef CONFIG_MEMCHECK
+    /*
+     * If we have memchecker running, we need to make sure that page, cached
+     * into TLB as the result of this operation will comply with our requirement
+     * to cause __ld/__stx_mmu being called for memory access on the pages
+     * containing memory blocks that require access violation checks.
+     *
+     * We need to check with memory checker if we should invalidate this page
+     * iff:
+     *  - Memchecking is enabled.
+     *  - Page that's been cached belongs to the user space.
+     *  - Request to cache this page didn't come from softmmu. We're covered
+     *    there, because after page was cached here we will invalidate it in
+     *    the __ld/__stx_mmu wrapper.
+     *  - Cached page belongs to RAM, not I/O area.
+     *  - Page is cached for read, or write access.
+     */
+    if (memcheck_instrument_mmu && mmu_idx == 1 && !is_softmmu &&
+        (pd & ~TARGET_PAGE_MASK) == IO_MEM_RAM &&
+        (prot & (PAGE_READ | PAGE_WRITE)) &&
+        memcheck_is_checked(vaddr & TARGET_PAGE_MASK, TARGET_PAGE_SIZE)) {
+        if (prot & PAGE_READ) {
+            te->addr_read ^= TARGET_PAGE_MASK;
+        }
+        if (prot & PAGE_WRITE) {
+            te->addr_write ^= TARGET_PAGE_MASK;
+        }
+    }
+#endif  // CONFIG_MEMCHECK
+
     return ret;
 }
 
@@ -3651,7 +3708,7 @@ void cpu_io_recompile(CPUState *env, void *retaddr)
 
     tb = tb_find_pc((unsigned long)retaddr);
     if (!tb) {
-        cpu_abort(env, "cpu_io_recompile: could not find TB for pc=%p", 
+        cpu_abort(env, "cpu_io_recompile: could not find TB for pc=%p",
                   retaddr);
     }
     n = env->icount_decr.u16.low + tb->icount;
@@ -3729,7 +3786,7 @@ void dump_exec_info(FILE *f,
     cpu_fprintf(f, "Translation buffer state:\n");
     cpu_fprintf(f, "gen code size       %ld/%ld\n",
                 code_gen_ptr - code_gen_buffer, code_gen_buffer_max_size);
-    cpu_fprintf(f, "TB count            %d/%d\n", 
+    cpu_fprintf(f, "TB count            %d/%d\n",
                 nb_tbs, code_gen_max_blocks);
     cpu_fprintf(f, "TB avg target size  %d max=%d bytes\n",
                 nb_tbs ? target_code_size / nb_tbs : 0,

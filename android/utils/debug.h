@@ -34,6 +34,7 @@
     _VERBOSE_TAG(hw_control,   "emulated power/flashlight/led/vibrator") \
     _VERBOSE_TAG(avd_config,   "android virtual device configuration") \
     _VERBOSE_TAG(sensors,      "emulated sensors") \
+    _VERBOSE_TAG(memcheck,     "memory checker") \
 
 #define  _VERBOSE_TAG(x,y)  VERBOSE_##x,
 typedef enum {

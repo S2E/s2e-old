@@ -47,6 +47,20 @@
 #define ADDR_READ addr_read
 #endif
 
+#if defined(CONFIG_MEMCHECK) && !defined(OUTSIDE_JIT) && !defined(SOFTMMU_CODE_ACCESS)
+/*
+ * Support for memory access checker.
+ * We need to instrument __ldx/__stx_mmu routines implemented in this file with
+ * callbacks to access validation routines implemented by the memory checker.
+ * Note that (at least for now) we don't do that instrumentation for memory
+ * addressing the code (SOFTMMU_CODE_ACCESS controls that). Also, we don't want
+ * to instrument code that is used by emulator itself (OUTSIDE_JIT controls
+ * that).
+ */
+#define CONFIG_MEMCHECK_MMU
+#include "memcheck/memcheck_api.h"
+#endif  // CONFIG_MEMCHECK && !OUTSIDE_JIT && !SOFTMMU_CODE_ACCESS
+
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
                                                         void *retaddr);
@@ -91,6 +105,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_ulong tlb_addr;
     target_phys_addr_t addend;
     void *retaddr;
+#ifdef CONFIG_MEMCHECK_MMU
+    int invalidate_cache = 0;
+#endif  // CONFIG_MEMCHECK_MMU
 
     /* test if there is match for unaligned or IO access */
     /* XXX: could done more in memory macro in a non portable way */
@@ -106,6 +123,17 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->iotlb[mmu_idx][index];
             res = glue(io_read, SUFFIX)(addend, addr, retaddr);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
+            /* This is not I/O access: do access verification. */
+#ifdef CONFIG_MEMCHECK_MMU
+            /* We only validate access to the guest's user space, for which
+             * mmu_idx is set to 1. */
+            if (memcheck_instrument_mmu && mmu_idx == 1 &&
+                memcheck_validate_ld(addr, DATA_SIZE, (target_ulong)GETPC())) {
+                /* Memory read breaks page boundary. So, if required, we
+                 * must invalidate two caches in TLB. */
+                invalidate_cache = 2;
+            }
+#endif  // CONFIG_MEMCHECK_MMU
             /* slow unaligned access (it spans two pages or IO) */
         do_unaligned_access:
             retaddr = GETPC();
@@ -115,6 +143,14 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             res = glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(addr,
                                                          mmu_idx, retaddr);
         } else {
+#ifdef CONFIG_MEMCHECK_MMU
+            /* We only validate access to the guest's user space, for which
+             * mmu_idx is set to 1. */
+            if (memcheck_instrument_mmu && mmu_idx == 1) {
+                invalidate_cache = memcheck_validate_ld(addr, DATA_SIZE,
+                                                        (target_ulong)GETPC());
+            }
+#endif  // CONFIG_MEMCHECK_MMU
             /* unaligned/aligned access in the same page */
 #ifdef ALIGNED_ONLY
             if ((addr & (DATA_SIZE - 1)) != 0) {
@@ -125,6 +161,20 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
         }
+#ifdef CONFIG_MEMCHECK_MMU
+        if (invalidate_cache) {
+            /* Accessed memory is under memchecker control. We must invalidate
+             * containing page(s) in order to make sure that next access to them
+             * will invoke _ld/_st_mmu. */
+            env->tlb_table[mmu_idx][index].addr_read ^= TARGET_PAGE_MASK;
+            env->tlb_table[mmu_idx][index].addr_write ^= TARGET_PAGE_MASK;
+            if ((invalidate_cache == 2) && (index < CPU_TLB_SIZE)) {
+                // Read crossed page boundaris. Invalidate second cache too.
+                env->tlb_table[mmu_idx][index + 1].addr_read ^= TARGET_PAGE_MASK;
+                env->tlb_table[mmu_idx][index + 1].addr_write ^= TARGET_PAGE_MASK;
+            }
+        }
+#endif  // CONFIG_MEMCHECK_MMU
     } else {
         /* the page is not in the TLB : fill it */
         retaddr = GETPC();
@@ -234,6 +284,9 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_ulong tlb_addr;
     void *retaddr;
     int index;
+#ifdef CONFIG_MEMCHECK_MMU
+    int invalidate_cache = 0;
+#endif  // CONFIG_MEMCHECK_MMU
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
  redo:
@@ -247,6 +300,18 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->iotlb[mmu_idx][index];
             glue(io_write, SUFFIX)(addend, val, addr, retaddr);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
+            /* This is not I/O access: do access verification. */
+#ifdef CONFIG_MEMCHECK_MMU
+            /* We only validate access to the guest's user space, for which
+             * mmu_idx is set to 1. */
+            if (memcheck_instrument_mmu && mmu_idx == 1 &&
+                memcheck_validate_st(addr, DATA_SIZE, (uint64_t)val,
+                                     (target_ulong)GETPC())) {
+                /* Memory write breaks page boundary. So, if required, we
+                 * must invalidate two caches in TLB. */
+                invalidate_cache = 2;
+            }
+#endif  // CONFIG_MEMCHECK_MMU
         do_unaligned_access:
             retaddr = GETPC();
 #ifdef ALIGNED_ONLY
@@ -255,6 +320,15 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             glue(glue(slow_st, SUFFIX), MMUSUFFIX)(addr, val,
                                                    mmu_idx, retaddr);
         } else {
+#ifdef CONFIG_MEMCHECK_MMU
+            /* We only validate access to the guest's user space, for which
+             * mmu_idx is set to 1. */
+            if (memcheck_instrument_mmu && mmu_idx == 1) {
+                invalidate_cache = memcheck_validate_st(addr, DATA_SIZE,
+                                                        (uint64_t)val,
+                                                        (target_ulong)GETPC());
+            }
+#endif  // CONFIG_MEMCHECK_MMU
             /* aligned/unaligned access in the same page */
 #ifdef ALIGNED_ONLY
             if ((addr & (DATA_SIZE - 1)) != 0) {
@@ -265,6 +339,20 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
         }
+#ifdef CONFIG_MEMCHECK_MMU
+        if (invalidate_cache) {
+            /* Accessed memory is under memchecker control. We must invalidate
+             * containing page(s) in order to make sure that next access to them
+             * will invoke _ld/_st_mmu. */
+            env->tlb_table[mmu_idx][index].addr_read ^= TARGET_PAGE_MASK;
+            env->tlb_table[mmu_idx][index].addr_write ^= TARGET_PAGE_MASK;
+            if ((invalidate_cache == 2) && (index < CPU_TLB_SIZE)) {
+                // Write crossed page boundaris. Invalidate second cache too.
+                env->tlb_table[mmu_idx][index + 1].addr_read ^= TARGET_PAGE_MASK;
+                env->tlb_table[mmu_idx][index + 1].addr_write ^= TARGET_PAGE_MASK;
+            }
+        }
+#endif  // CONFIG_MEMCHECK_MMU
     } else {
         /* the page is not in the TLB : fill it */
         retaddr = GETPC();

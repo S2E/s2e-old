@@ -41,8 +41,16 @@
 
 #if ACCESS_TYPE < (NB_MMU_MODES)
 
-#define CPU_MMU_INDEX ACCESS_TYPE
+#if defined(OUTSIDE_JIT)
+/* Dispatch calls to __ldx_outside_jit / __stx_outside_jit, which don't
+ * expect CPU environment. to be cached in ebp register, but rather uses
+ * cpu_single_env variable for that purpose.
+ */
+#define MMUSUFFIX _outside_jit
+#else   // OUTSIDE_JIT
 #define MMUSUFFIX _mmu
+#endif  // OUTSIDE_JIT
+#define CPU_MMU_INDEX ACCESS_TYPE
 
 #elif ACCESS_TYPE == (NB_MMU_MODES)
 

@@ -28,8 +28,10 @@
 /* define  PATH_SEP as a string containing the directory separateor */
 #ifdef _WIN32
 #  define  PATH_SEP   "\\"
+#  define  PATH_SEP_C '\\'
 #else
 #  define  PATH_SEP   "/"
+#  define  PATH_SEP_C '/'
 #endif
 
 /* get MAX_PATH, note that PATH_MAX is set to 260 on Windows for
@@ -65,7 +67,7 @@ extern ABool  path_can_write( const char*  path );
 /* try to make a directory */
 extern APosixStatus   path_mkdir( const char*  path, int  mode );
 
-/* ensure that a given directory exists, create it if not, 
+/* ensure that a given directory exists, create it if not,
    0 on success, -1 on error */
 extern APosixStatus   path_mkdir_if_needed( const char*  path, int  mode );
 

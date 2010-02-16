@@ -49,6 +49,22 @@ target_ulong gen_opc_jump_pc[2];
 uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 #endif
 
+#ifdef CONFIG_MEMCHECK
+/*
+ * Memchecker code in this module copies TB PC <-> Guest PC map to the TB
+ * descriptor after guest code has been translated in cpu_gen_init routine.
+ */
+#include "memcheck/memcheck_api.h"
+
+/* Array of (tb_pc, guest_pc) pairs, big enough for all translations. This
+ * array is used to obtain guest PC address from a translated PC address.
+ * tcg_gen_code_common will fill it up when memchecker is enabled. */
+static target_ulong gen_opc_tpc2gpc[OPC_BUF_SIZE * 2];
+target_ulong* gen_opc_tpc2gpc_ptr = &gen_opc_tpc2gpc[0];
+/* Number of (tb_pc, guest_pc) pairs stored in gen_opc_tpc2gpc array. */
+unsigned int gen_opc_tpc2gpc_pairs;
+#endif  // CONFIG_MEMCHECK
+
 /* XXX: suppress that */
 unsigned long code_gen_max_block_size(void)
 {
@@ -67,7 +83,7 @@ unsigned long code_gen_max_block_size(void)
 
 void cpu_gen_init(void)
 {
-    tcg_context_init(&tcg_ctx); 
+    tcg_context_init(&tcg_ctx);
     tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
                   CPU_TEMP_BUF_NLONGS * sizeof(long));
 }
@@ -125,6 +141,19 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     s->code_in_len += tb->size;
     s->code_out_len += gen_code_size;
 #endif
+
+#ifdef CONFIG_MEMCHECK
+    /* Save translated PC -> guest PC map into TB. */
+    if (memcheck_enabled && gen_opc_tpc2gpc_pairs && is_cpu_user(env)) {
+        tb->tpc2gpc =
+                qemu_malloc(gen_opc_tpc2gpc_pairs * 2 * sizeof(target_ulong));
+        if (tb->tpc2gpc != NULL) {
+            memcpy(tb->tpc2gpc, gen_opc_tpc2gpc_ptr,
+                   gen_opc_tpc2gpc_pairs * 2 * sizeof(target_ulong));
+            tb->tpc2gpc_pairs = gen_opc_tpc2gpc_pairs;
+        }
+    }
+#endif  // CONFIG_MEMCHECK
 
 #ifdef DEBUG_DISAS
     if (qemu_loglevel_mask(CPU_LOG_TB_OUT_ASM)) {

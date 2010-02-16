@@ -20,6 +20,9 @@
 #include "audio/audio.h"
 #include "arm-misc.h"
 #include "console.h"
+#ifdef CONFIG_MEMCHECK
+#include "memcheck/memcheck_api.h"
+#endif  // CONFIG_MEMCHECK
 
 #define ARM_CPU_SAVE_VERSION  1
 
@@ -63,7 +66,7 @@ uint32_t switch_test_write(void *opaque, uint32_t state)
 #endif
 static void android_arm_init_(ram_addr_t ram_size,
     const char *boot_device,
-    const char *kernel_filename, 
+    const char *kernel_filename,
     const char *kernel_cmdline,
     const char *initrd_filename,
     const char *cpu_model)
@@ -142,8 +145,18 @@ static void android_arm_init_(ram_addr_t ram_size,
 #endif
 #ifdef CONFIG_TRACE
     extern const char *trace_filename;
-    if (trace_filename != NULL) {
+    /* Init trace device if either tracing, or memory checking is enabled. */
+    if (trace_filename != NULL
+#ifdef CONFIG_MEMCHECK
+        || memcheck_enabled
+#endif  // CONFIG_MEMCHECK
+       ) {
         trace_dev_init();
+    }
+    if (trace_filename != NULL) {
+        dprint( "Trace file name is set to %s\n", trace_filename );
+    } else  {
+        dprint("Trace file name is not set\n");
     }
 #endif
 

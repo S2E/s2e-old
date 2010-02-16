@@ -16,7 +16,7 @@ ifeq ($(BUILD_DEBUG_EMULATOR),true)
     MY_OPTIM := -O0 -g
 endif
 
-MY_CFLAGS := $(CONFIG_INCLUDES) $(MY_OPTIM)
+MY_CFLAGS := $(CONFIG_INCLUDES) $(MY_OPTIM) -DCONFIG_MEMCHECK
 
 # Overwrite configuration for debug builds.
 #
@@ -193,6 +193,71 @@ LOCAL_SRC_FILES += $(HW_SOURCES:%=hw/%)
 include $(BUILD_HOST_STATIC_LIBRARY)
 
 ##############################################################################
+# build the ELF/DWARF stuff
+# This library is used by emulator's memory checker to extract debug information
+# from the symbol files when reporting memory allocation violations. In
+# particular, this library is used to extract routine name and source file
+# location for the code address where violation has been detected.
+#
+include $(CLEAR_VARS)
+
+LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
+LOCAL_CC                        := $(MY_CC)
+LOCAL_MODULE                    := emulator-elff
+LOCAL_CPP_EXTENSION             := .cc
+
+ELFF_CFLAGS    := -I$(LOCAL_PATH)/elff
+
+LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
+LOCAL_CFLAGS += -I$(LOCAL_PATH)/target-arm -I$(LOCAL_PATH)/fpu $(ELFF_CFLAGS)
+LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
+
+ELFF_SOURCES := \
+    dwarf_cu.cc \
+    dwarf_die.cc \
+    dwarf_utils.cc \
+    elf_alloc.cc \
+    elf_file.cc \
+    elf_mapped_section.cc \
+    elff_api.cc \
+
+LOCAL_SRC_FILES += $(ELFF_SOURCES:%=elff/%)
+ELFF_LDLIBS := -lstdc++
+
+include $(BUILD_HOST_STATIC_LIBRARY)
+
+##############################################################################
+# build the memory access checking support
+# Memory access checker uses information collected by instrumented code in
+# libc.so in order to keep track of memory blocks allocated from heap. Memory
+# checker then uses this information to make sure that every access to allocated
+# memory is within allocated block. This information also allows detecting
+# memory leaks and attempts to free/realloc invalid pointers.
+#
+include $(CLEAR_VARS)
+
+LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
+LOCAL_CC                        := $(MY_CC)
+LOCAL_MODULE                    := emulator-memcheck
+
+MCHK_CFLAGS    := -I$(LOCAL_PATH)/memcheck -I$(LOCAL_PATH)/elff
+
+LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
+LOCAL_CFLAGS += -I$(LOCAL_PATH)/target-arm -I$(LOCAL_PATH)/fpu $(MCHK_CFLAGS)
+LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
+
+MCHK_SOURCES := \
+    memcheck.c \
+    memcheck_proc_management.c \
+    memcheck_malloc_map.c \
+    memcheck_mmrange_map.c \
+    memcheck_util.c \
+
+LOCAL_SRC_FILES += $(MCHK_SOURCES:%=memcheck/%)
+
+include $(BUILD_HOST_STATIC_LIBRARY)
+
+##############################################################################
 # build the ARM-specific emulation engine sources
 #
 include $(CLEAR_VARS)
@@ -231,6 +296,7 @@ LOCAL_SRC_FILES += exec.c cpu-exec.c  \
                    trace.c \
                    varint.c \
                    dcache.c \
+                   softmmu_outside_jit.c \
 
 LOCAL_SRC_FILES += fpu/softfloat.c
 
@@ -360,7 +426,8 @@ include $(CLEAR_VARS)
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := emulator
-LOCAL_STATIC_LIBRARIES          := emulator-hw emulator-arm emulator-tcg
+LOCAL_STATIC_LIBRARIES          := emulator-memcheck emulator-hw emulator-arm emulator-tcg
+LOCAL_STATIC_LIBRARIES          += emulator-elff
 LOCAL_LDLIBS                    := $(MY_LDLIBS)
 
 # don't remove the -fno-strict-aliasing, or you'll break things
@@ -593,6 +660,10 @@ LOCAL_LDLIBS += $(SDL_LDLIBS)
 LOCAL_STATIC_LIBRARIES += libSDL libSDLmain
 LOCAL_STATIC_LIBRARIES += libSDL libSDLmain
 
+# add ELFF-specific flags
+#
+LOCAL_LDLIBS += $(ELFF_LDLIBS)
+
 # on Windows, link the icon file as well into the executable
 # unfortunately, our build system doesn't help us much, so we need
 # to use some weird pathnames to make this work...
@@ -688,6 +759,7 @@ endif
 # other flags
 LOCAL_CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 LOCAL_LDLIBS += -lm -lpthread
+
 
 ifeq ($(HOST_OS),windows)
     LOCAL_LDLIBS += -lwinmm -lws2_32 -liphlpapi

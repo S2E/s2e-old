@@ -140,6 +140,9 @@ OPT_LIST(  prop, "<name>=<value>", "set system property on boot")
 OPT_PARAM( nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds" )
 #endif
 
+#ifdef CONFIG_MEMCHECK
+OPT_PARAM( memcheck, "<flags>", "enable memory access checking" )
+#endif  // CONFIG_MEMCHECK
 
 #undef CFG_FLAG
 #undef CFG_PARAM

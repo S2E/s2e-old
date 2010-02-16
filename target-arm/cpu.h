@@ -417,6 +417,15 @@ static inline int cpu_mmu_index (CPUState *env)
     return (env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR ? 1 : 0;
 }
 
+static inline int is_cpu_user (CPUState *env)
+{
+#ifdef CONFIG_USER_ONLY
+    return 1;
+#else
+    return (env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR;
+#endif  // CONFIG_USER_ONLY
+}
+
 #if defined(CONFIG_USER_ONLY)
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 {
