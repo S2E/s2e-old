@@ -1548,7 +1548,7 @@ static int win32_start_timer(struct qemu_alarm_timer *t)
     data->timerId = timeSetEvent(1,         // interval (ms)
                         data->period,       // resolution
                         host_alarm_handler, // function
-                        (DWORD)t,           // parameter
+                        (DWORD_PTR)t,           // parameter
                         flags);
 
     if (!data->timerId) {
@@ -1583,7 +1583,7 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t)
     data->timerId = timeSetEvent(1,
                         data->period,
                         host_alarm_handler,
-                        (DWORD)t,
+                        (DWORD_PTR)t,
                         TIME_ONESHOT | TIME_PERIODIC);
 
     if (!data->timerId) {
@@ -4884,6 +4884,12 @@ int main(int argc, char **argv, char **envp)
     qemu_cache_utils_init(envp);
 
     QLIST_INIT (&vm_change_state_head);
+
+    #ifdef _WIN32
+    socket_init();
+    #endif
+
+
 #ifndef _WIN32
     {
         struct sigaction act;
@@ -4898,10 +4904,10 @@ int main(int argc, char **argv, char **envp)
        QEMU to run on a single CPU */
     {
         HANDLE h;
-        DWORD mask, smask;
+        DWORD_PTR mask, smask;
         int i;
         h = GetCurrentProcess();
-        if (GetProcessAffinityMask(h, &mask, &smask)) {
+        if (GetProcessAffinityMask(h, (PDWORD_PTR)&mask, (PDWORD_PTR)&smask)) {
             for(i = 0; i < 32; i++) {
                 if (mask & (1 << i))
                     break;
@@ -5826,9 +5832,6 @@ int main(int argc, char **argv, char **envp)
         init_icount_adjust();
     }
 
-#ifdef _WIN32
-    socket_init();
-#endif
 
     if (net_init_clients() < 0) {
         exit(1);

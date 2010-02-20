@@ -76,7 +76,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     int page_index;
     RES_TYPE res;
     target_ulong addr;
-    unsigned long physaddr;
+    target_phys_addr_t physaddr;
     int mmu_idx;
 
     addr = ptr;
@@ -97,7 +97,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
 {
     int res, page_index;
     target_ulong addr;
-    unsigned long physaddr;
+    target_phys_addr_t physaddr;
     int mmu_idx;
 
     addr = ptr;
@@ -122,7 +122,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 {
     int page_index;
     target_ulong addr;
-    unsigned long physaddr;
+    target_phys_addr_t physaddr;
     int mmu_idx;
 
     addr = ptr;

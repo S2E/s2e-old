@@ -141,7 +141,7 @@ typedef struct CPUWatchpoint {
     /* in order to avoid passing too many arguments to the MMIO         \
        helpers, we store some rarely used information in the CPU        \
        context) */                                                      \
-    unsigned long mem_io_pc; /* host pc at which the memory was         \
+    uintptr_t mem_io_pc; /* host pc at which the memory was             \
                                 accessed */                             \
     target_ulong mem_io_vaddr; /* target virtual addr at which the      \
                                      memory was accessed */             \

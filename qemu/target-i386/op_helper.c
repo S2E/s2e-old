@@ -2874,7 +2874,7 @@ void helper_movl_drN_T0(int reg, target_ulong t0)
 target_ulong helper_read_crN(int reg)
 {
     target_ulong val;
-
+    
     helper_svm_check_intercept_param(SVM_EXIT_READ_CR0 + reg, 0);
     switch(reg) {
     default:
@@ -4822,7 +4822,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     if (ret) {
         if (retaddr) {
             /* now we have a real cpu fault */
-            pc = (unsigned long)retaddr;
+            pc = (uintptr_t)retaddr;
             tb = tb_find_pc(pc);
             if (tb) {
                 /* the PC is inside the translated code. It means that we have
