@@ -1977,9 +1977,9 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
            vaddr, (int)paddr, prot, mmu_idx, is_softmmu, pd);
 #endif
 
-    if (vaddr == 0xfc633000) {
+    /*if (vaddr == 0xfc633000) {
       asm("int $3");
-    }
+    }*/
 
     ret = 0;
     address = vaddr;
