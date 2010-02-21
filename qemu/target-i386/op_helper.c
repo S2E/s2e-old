@@ -2874,7 +2874,7 @@ void helper_movl_drN_T0(int reg, target_ulong t0)
 target_ulong helper_read_crN(int reg)
 {
     target_ulong val;
-    
+
     helper_svm_check_intercept_param(SVM_EXIT_READ_CR0 + reg, 0);
     switch(reg) {
     default:
@@ -4810,7 +4810,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
     int ret;
-    unsigned long pc;
+    uintptr_t pc;
     CPUX86State *saved_env;
 
     /* XXX: hack to restore env in all cases, even if not called from

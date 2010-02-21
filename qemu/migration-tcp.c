@@ -141,7 +141,7 @@ static void tcp_accept_incoming_migration(void *opaque)
 {
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(addr);
-    intptr_t s = (uintptr_t)opaque;
+    uintptr_t s = (uintptr_t)opaque;
     QEMUFile *f;
     int c, ret;
 

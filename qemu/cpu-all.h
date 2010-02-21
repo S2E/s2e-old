@@ -651,8 +651,8 @@ extern int have_guest_base;
 #else /* !CONFIG_USER_ONLY */
 /* NOTE: we use double casts if pointers and target_ulong have
    different sizes */
-#define saddr(x) (uint8_t *)(uintptr_t)(x)
-#define laddr(x) (uint8_t *)(uintptr_t)(x)
+#define saddr(x) (uint8_t *)(intptr_t)(x)
+#define laddr(x) (uint8_t *)(intptr_t)(x)
 #endif
 
 #define ldub_raw(p) ldub_p(laddr((p)))
@@ -720,10 +720,10 @@ extern int have_guest_base;
 #define TARGET_PAGE_ALIGN(addr) (((addr) + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK)
 
 /* ??? These should be the larger of unsigned long and target_ulong.  */
-extern unsigned long qemu_real_host_page_size;
-extern unsigned long qemu_host_page_bits;
-extern unsigned long qemu_host_page_size;
-extern unsigned long qemu_host_page_mask;
+extern uintptr_t qemu_real_host_page_size;
+extern uintptr_t qemu_host_page_bits;
+extern uintptr_t qemu_host_page_size;
+extern uintptr_t qemu_host_page_mask;
 
 #define HOST_PAGE_ALIGN(addr) (((addr) + qemu_host_page_size - 1) & qemu_host_page_mask)
 
@@ -745,7 +745,7 @@ int page_get_flags(target_ulong address);
 void page_set_flags(target_ulong start, target_ulong end, int flags);
 int page_check_range(target_ulong start, target_ulong len, int flags);
 
-void cpu_exec_init_all(unsigned long tb_size);
+void cpu_exec_init_all(uintptr_t tb_size);
 CPUState *cpu_copy(CPUState *env);
 CPUState *qemu_get_cpu(int cpu);
 

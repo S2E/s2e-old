@@ -49,9 +49,9 @@ uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 #endif
 
 /* XXX: suppress that */
-unsigned long code_gen_max_block_size(void)
+uintptr_t code_gen_max_block_size(void)
 {
-    static unsigned long max;
+    static uintptr_t max;
 
     if (max == 0) {
         max = TCG_MAX_OP_SIZE;
@@ -68,7 +68,7 @@ void cpu_gen_init(void)
 {
     tcg_context_init(&tcg_ctx); 
     tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
-                  CPU_TEMP_BUF_NLONGS * sizeof(long));
+                  CPU_TEMP_BUF_NLONGS * sizeof(intptr_t));
 }
 
 /* return non zero if the very first instruction is invalid so that

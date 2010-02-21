@@ -100,7 +100,7 @@ static inline void tcg_out32(TCGContext *s, uint32_t v)
 /* label relocation processing */
 
 void tcg_out_reloc(TCGContext *s, uint8_t *code_ptr, int type, 
-                   int label_index, long addend)
+                   int label_index, tcg_target_long addend)
 {
     TCGLabel *l;
     TCGRelocation *r;
@@ -1879,7 +1879,7 @@ static void dump_op_count(void)
 
 
 static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
-                                      long search_pc)
+                                      intptr_t search_pc)
 {
     int opc, op_index;
     const TCGOpDef *def;
@@ -2026,7 +2026,7 @@ int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
    offset bytes from the start of the TB.  The contents of gen_code_buf must
    not be changed, though writing the same values is ok.
    Return -1 if not found. */
-int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, long offset)
+int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, intptr_t offset)
 {
     return tcg_gen_code_common(s, gen_code_buf, offset);
 }

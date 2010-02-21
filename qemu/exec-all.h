@@ -63,7 +63,7 @@ void gen_intermediate_code_pc(CPUState *env, struct TranslationBlock *tb);
 void gen_pc_load(CPUState *env, struct TranslationBlock *tb,
                  uintptr_t searched_pc, int pc_pos, void *puc);
 
-unsigned long code_gen_max_block_size(void);
+uintptr_t code_gen_max_block_size(void);
 void cpu_gen_init(void);
 int cpu_gen_code(CPUState *env, struct TranslationBlock *tb,
                  int *gen_code_size_ptr);

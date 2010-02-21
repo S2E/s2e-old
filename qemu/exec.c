@@ -103,9 +103,9 @@ spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 
 uint8_t code_gen_prologue[1024] code_gen_section;
 static uint8_t *code_gen_buffer;
-static unsigned long code_gen_buffer_size;
+static uintptr_t code_gen_buffer_size;
 /* threshold to flush the translated code buffer */
-static unsigned long code_gen_buffer_max_size;
+static uintptr_t code_gen_buffer_max_size;
 uint8_t *code_gen_ptr;
 
 #if !defined(CONFIG_USER_ONLY)
@@ -171,10 +171,10 @@ typedef struct PhysPageDesc {
 #define L1_SIZE (1 << L1_BITS)
 #define L2_SIZE (1 << L2_BITS)
 
-unsigned long qemu_real_host_page_size;
-unsigned long qemu_host_page_bits;
-unsigned long qemu_host_page_size;
-unsigned long qemu_host_page_mask;
+uintptr_t qemu_real_host_page_size;
+uintptr_t qemu_host_page_bits;
+uintptr_t qemu_host_page_size;
+uintptr_t qemu_host_page_mask;
 
 /* XXX: for system emulation, it could just be an array */
 static PageDesc *l1_map[L1_SIZE];
@@ -212,7 +212,7 @@ typedef struct subpage_t {
 } subpage_t;
 
 #ifdef _WIN32
-static void map_exec(void *addr, long size)
+static void map_exec(void *addr, intptr_t size)
 {
     DWORD old_protect;
     VirtualProtect(addr, size,
@@ -410,7 +410,7 @@ static void tlb_unprotect_code_phys(CPUState *env, ram_addr_t ram_addr,
 static uint8_t static_code_gen_buffer[DEFAULT_CODE_GEN_BUFFER_SIZE];
 #endif
 
-static void code_gen_alloc(unsigned long tb_size)
+static void code_gen_alloc(uintptr_t tb_size)
 {
 #ifdef USE_STATIC_CODE_GEN_BUFFER
     code_gen_buffer = static_code_gen_buffer;
@@ -424,7 +424,7 @@ static void code_gen_alloc(unsigned long tb_size)
         code_gen_buffer_size = DEFAULT_CODE_GEN_BUFFER_SIZE;
 #else
         /* XXX: needs adjustments */
-        code_gen_buffer_size = (unsigned long)(ram_size / 4);
+        code_gen_buffer_size = (uintptr_t)(ram_size / 4);
 #endif
     }
     if (code_gen_buffer_size < MIN_CODE_GEN_BUFFER_SIZE)
@@ -500,7 +500,7 @@ static void code_gen_alloc(unsigned long tb_size)
 /* Must be called before using the QEMU cpus. 'tb_size' is the size
    (in bytes) allocated to the translation buffer. Zero means default
    size. */
-void cpu_exec_init_all(unsigned long tb_size)
+void cpu_exec_init_all(uintptr_t tb_size)
 {
     cpu_gen_init();
     code_gen_alloc(tb_size);
@@ -737,7 +737,7 @@ static inline void tb_jmp_remove(TranslationBlock *tb, int n)
         /* find tb(n) in circular list */
         for(;;) {
             tb1 = *ptb;
-            n1 = (intptr_t)tb1 & 3;
+            n1 = (uintptr_t)tb1 & 3;
             tb1 = (TranslationBlock *)((intptr_t)tb1 & ~3);
             if (n1 == n && tb1 == tb)
                 break;
@@ -1977,6 +1977,10 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
            vaddr, (int)paddr, prot, mmu_idx, is_softmmu, pd);
 #endif
 
+    if (vaddr == 0xfc633000) {
+      asm("int $3");
+    }
+
     ret = 0;
     address = vaddr;
     if ((pd & ~TARGET_PAGE_MASK) > IO_MEM_ROM && !(pd & IO_MEM_ROMD)) {
@@ -2022,6 +2026,7 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     env->iotlb[mmu_idx][index] = iotlb - vaddr;
     te = &env->tlb_table[mmu_idx][index];
     te->addend = addend - vaddr;
+    
     if (prot & PAGE_READ) {
         te->addr_read = address;
     } else {
