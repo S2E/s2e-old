@@ -12,19 +12,30 @@ else
 fi
 
 TMPC="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.c"
+TMPCXX="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.cpp"
 TMPO="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.o"
 TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.exe"
 
-trap "rm -f $TMPC $TMPO $TMPE ; exit" 0 2 3 15
+trap "rm -f $TMPC $TMPCXX $TMPO $TMPE ; exit" 0 2 3 15
 
 compile_object() {
   $cc $QEMU_CFLAGS -c -o $TMPO $TMPC > /dev/null 2> /dev/null
+}
+
+compile_object_cxx() {
+  $cxx $QEMU_CFLAGS -c -o $TMPO $TMPCXX > /dev/null 2> /dev/null
 }
 
 compile_prog() {
   local_cflags="$1"
   local_ldflags="$2"
   $cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
+}
+
+compile_prog_cxx() {
+  local_cxxflags="$1"
+  local_ldflags="$2"
+  $cxx $QEMU_CFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
 }
 
 # default parameters
@@ -35,6 +46,7 @@ static="no"
 sparc_cpu=""
 cross_prefix=""
 cc="gcc"
+cxx="g++"
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16"
 audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus"
@@ -58,6 +70,8 @@ for opt do
   --cross-prefix=*) cross_prefix="$optarg"
   ;;
   --cc=*) cc="$optarg"
+  ;;
+  --cxx=*) cxx="$optarg"
   ;;
   --cpu=*) cpu="$optarg"
   ;;
@@ -87,6 +101,7 @@ done
 # we can eliminate it's usage altogether
 
 cc="${cross_prefix}${cc}"
+cxx="${cross_prefix}${cxx}"
 ar="${cross_prefix}${ar}"
 objcopy="${cross_prefix}${objcopy}"
 ld="${cross_prefix}${ld}"
@@ -215,6 +230,7 @@ curl=""
 curses=""
 docs=""
 fdt=""
+llvm=""
 kvm=""
 nptl=""
 sdl=""
@@ -434,6 +450,8 @@ for opt do
   ;;
   --cc=*)
   ;;
+  --cxx=*)
+  ;;
   --host-cc=*) host_cc="$optarg"
   ;;
   --make=*) make="$optarg"
@@ -513,6 +531,10 @@ for opt do
   --disable-bluez) bluez="no"
   ;;
   --enable-bluez) bluez="yes"
+  ;;
+  --disable-llvm) llvm="no"
+  ;;
+  --enable-llvm) llvm="yes"
   ;;
   --disable-kvm) kvm="no"
   ;;
@@ -679,6 +701,7 @@ echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
+echo "  --cxx=CXX                use C++ compiler CXX [$cxx]"
 echo "  --host-cc=CC             use C compiler CC [$host_cc] for dyngen etc."
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
@@ -720,6 +743,8 @@ echo "  --disable-check-utests   disable check unit-tests"
 echo "  --enable-check-utests    enable check unit-tests"
 echo "  --disable-bluez          disable bluez stack connectivity"
 echo "  --enable-bluez           enable bluez stack connectivity"
+echo "  --disable-llvm           disable LLVM support"
+echo "  --enable-llvm            enable LLVM support"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -1353,6 +1378,43 @@ EOF
 fi
 
 ##########################################
+# llvm support probe
+
+# check that the CXX compiler works.
+cat > $TMPCXX <<EOF
+int main(void) {}
+EOF
+
+if compile_object_cxx ; then
+  : CXX compiler works ok
+else
+  if test "$llvm" != "no" ; then
+    echo "ERROR: \"$cxx\" (required for LLVM) either does not exist or does not work"
+    exit 1
+  fi
+  llvm="no"
+fi
+
+if test "$llvm" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <llvm/LLVMContext.h>
+int main(void) { llvm::LLVMContext& c = llvm::getGlobalContext(); return 0; }
+EOF
+  llvm_cxxflags=`llvm-config --cflags 2> /dev/null`
+  llvm_ldflags=`llvm-config --ldflags 2> /dev/null`
+  llvm_libs=`llvm-config --libs 2> /dev/null`
+  if compile_prog_cxx "$llvm_cxxflags" "$llvm_ldflags $llvm_libs" ; then
+    llvm=yes
+    libs_softmmu="$llvm_ldflags $llvm_libs $libs_softmmu"
+  else
+    if test "$llvm" = "yes" ; then
+      feature_not_found "llvm"
+    fi
+    llvm="no"
+  fi
+fi
+
+##########################################
 # kvm probe
 if test "$kvm" != "no" ; then
     cat > $TMPC <<EOF
@@ -1851,6 +1913,7 @@ echo "ELF interp prefix $interp_prefix"
 fi
 echo "Source path       $source_path"
 echo "C compiler        $cc"
+echo "C++ compiler      $cxx"
 echo "Host C compiler   $host_cc"
 echo "CFLAGS            $CFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
@@ -1897,6 +1960,7 @@ echo "vde support       $vde"
 echo "IO thread         $io_thread"
 echo "Linux AIO support $linux_aio"
 echo "Install blobs     $blobs"
+echo "LLVM support      $llvm"
 echo "KVM support       $kvm"
 echo "fdt support       $fdt"
 echo "preadv support    $preadv"
@@ -2083,6 +2147,10 @@ if test "$bluez" = "yes" ; then
   echo "CONFIG_BLUEZ=y" >> $config_host_mak
   echo "BLUEZ_CFLAGS=$bluez_cflags" >> $config_host_mak
 fi
+if test "$llvm" = "yes" ; then
+  echo "CONFIG_LLVM=y" >> $config_host_mak
+  echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_host_mak
+fi
 if test "$xen" = "yes" ; then
   echo "CONFIG_XEN=y" >> $config_host_mak
 fi
@@ -2171,6 +2239,7 @@ echo "INSTALL_DIR=$install -d -m0755 -p" >> $config_host_mak
 echo "INSTALL_DATA=$install -m0644 -p" >> $config_host_mak
 echo "INSTALL_PROG=$install -m0755 -p" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
+echo "CXX=$cxx" >> $config_host_mak
 echo "HOST_CC=$host_cc" >> $config_host_mak
 if test "$sparse" = "yes" ; then
   echo "CC      := REAL_CC=\"\$(CC)\" cgcc"       >> $config_host_mak
@@ -2631,6 +2700,7 @@ for rom in seabios vgabios ; do
     echo "# Automatically generated by configure - do not modify" >> $config_mak
     echo "SRC_PATH=$source_path/roms/$rom" >> $config_mak
     echo "CC=$cc" >> $config_mak
+    echo "CXX=$cxx" >> $config_mak
     echo "BCC=bcc" >> $config_mak
     echo "CPP=${cross_prefix}cpp" >> $config_mak
     echo "OBJCOPY=objcopy" >> $config_mak
