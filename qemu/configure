@@ -19,23 +19,23 @@ TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.exe"
 trap "rm -f $TMPC $TMPCXX $TMPO $TMPE ; exit" 0 2 3 15
 
 compile_object() {
-  $cc $QEMU_CFLAGS -c -o $TMPO $TMPC > /dev/null 2> /dev/null
+  $cc $QEMU_CFLAGS $QEMU_CCFLAGS -c -o $TMPO $TMPC > /dev/null 2> /dev/null
 }
 
 compile_object_cxx() {
-  $cxx $QEMU_CFLAGS -c -o $TMPO $TMPCXX > /dev/null 2> /dev/null
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS -c -o $TMPO $TMPCXX > /dev/null 2> /dev/null
 }
 
 compile_prog() {
   local_cflags="$1"
   local_ldflags="$2"
-  $cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
+  $cc $QEMU_CFLAGS $QEMU_CCFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
 }
 
 compile_prog_cxx() {
   local_cxxflags="$1"
   local_ldflags="$2"
-  $cxx $QEMU_CFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
 }
 
 # default parameters
@@ -75,7 +75,9 @@ for opt do
   ;;
   --cpu=*) cpu="$optarg"
   ;;
-  --extra-cflags=*) QEMU_CFLAGS="$optarg $QEMU_CFLAGS"
+  --extra-cflags=*) QEMU_CCFLAGS="$optarg $QEMU_CCFLAGS"
+  ;;
+  --extra-cxxflags=*) QEMU_CXXFLAGS="$optarg $QEMU_CXXFLAGS"
   ;;
   --extra-ldflags=*) LDFLAGS="$optarg $LDFLAGS"
   ;;
@@ -107,22 +109,26 @@ objcopy="${cross_prefix}${objcopy}"
 ld="${cross_prefix}${ld}"
 
 # default flags for all hosts
-QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
 CFLAGS="-g $CFLAGS"
-QEMU_CFLAGS="-Wall -Wundef -Wendif-labels -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
-QEMU_CFLAGS="-Wstrict-prototypes -Wredundant-decls $QEMU_CFLAGS"
+CXXFLAGS="-g $CXXFLAGS"
+LDFLAGS="-g $LDFLAGS"
+
+QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
+QEMU_CFLAGS="-Wall -Wundef -Wendif-labels -Wwrite-strings $QEMU_CFLAGS"
+QEMU_CFLAGS="-Wredundant-decls $QEMU_CFLAGS"
 QEMU_CFLAGS="-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE $QEMU_CFLAGS"
 QEMU_CFLAGS="-U_FORTIFY_SOURCE $QEMU_CFLAGS"
 QEMU_CFLAGS="-I. -I\$(SRC_PATH) $QEMU_CFLAGS"
-LDFLAGS="-g $LDFLAGS"
+
+QEMU_CCFLAGS="-Wmissing-prototypes -Wstrict-prototypes $QEMU_CCFLAGS"
 
 gcc_flags="-Wold-style-declaration -Wold-style-definition"
 cat > $TMPC << EOF
 int main(void) { }
 EOF
 for flag in $gcc_flags; do
-    if compile_prog "$QEMU_CFLAGS" "$flag" ; then
-	QEMU_CFLAGS="$flag $QEMU_CFLAGS"
+    if compile_prog "$QEMU_CFLAGS $QEMU_CCFLAGS" "$flag" ; then
+	QEMU_CCFLAGS="$flag $QEMU_CCFLAGS"
     fi
 done
 
@@ -389,7 +395,7 @@ SunOS)
   QEMU_CFLAGS="-D_XOPEN_SOURCE=600 $QEMU_CFLAGS"
 # needed for TIOCWIN* defines in termios.h
   QEMU_CFLAGS="-D__EXTENSIONS__ $QEMU_CFLAGS"
-  QEMU_CFLAGS="-std=gnu99 $QEMU_CFLAGS"
+  QEMU_CCFLAGS="-std=gnu99 $QEMU_CCFLAGS"
   LIBS="-lsocket -lnsl -lresolv $LIBS"
 ;;
 AIX)
@@ -703,7 +709,8 @@ echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --cxx=CXX                use C++ compiler CXX [$cxx]"
 echo "  --host-cc=CC             use C compiler CC [$host_cc] for dyngen etc."
-echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
+echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CCFLAGS"
+echo "  --extra-cxxflags=CXXFLAGS append extra CXX compiler flags QEMU_CXXFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
@@ -1454,7 +1461,7 @@ EOF
     if test "$kvm" = "yes" ; then
       if [ -x "`which awk 2>/dev/null`" ] && \
          [ -x "`which grep 2>/dev/null`" ]; then
-        kvmerr=`LANG=C $cc $QEMU_CFLAGS -o $TMPE $kvm_cflags $TMPC 2>&1 \
+        kvmerr=`LANG=C $cc $QEMU_CFLAGS $QEMU_CCFLAGS -o $TMPE $kvm_cflags $TMPC 2>&1 \
 	| grep "error: " \
 	| awk -F "error: " '{if (NR>1) printf(", "); printf("%s",$2);}'`
         if test "$kvmerr" != "" ; then
@@ -1701,7 +1708,7 @@ int main(void)
     return 0;
 }
 EOF
-if compile_prog "$ARCH_CFLAGS" "" ; then
+if compile_prog "$ARCH_CFLAGS $QEMU_CCFLAGS" "" ; then
   fallocate=yes
 fi
 
@@ -1851,6 +1858,7 @@ fi
 
 if test "$debug" = "no" ; then
   CFLAGS="-O2 $CFLAGS"
+  CXXFLAGS="-O2 $CXXFLAGS"
 fi
 
 # Consult white-list to determine whether to enable werror
@@ -1916,7 +1924,10 @@ echo "C compiler        $cc"
 echo "C++ compiler      $cxx"
 echo "Host C compiler   $host_cc"
 echo "CFLAGS            $CFLAGS"
+echo "CXXFLAGS          $CXXFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
+echo "QEMU_CCFLAGS      $QEMU_CCFLAGS"
+echo "QEMU_CXXFLAGS     $QEMU_CXXFLAGS"
 echo "LDFLAGS           $LDFLAGS"
 echo "make              $make"
 echo "install           $install"
@@ -2250,7 +2261,10 @@ echo "AR=$ar" >> $config_host_mak
 echo "OBJCOPY=$objcopy" >> $config_host_mak
 echo "LD=$ld" >> $config_host_mak
 echo "CFLAGS=$CFLAGS" >> $config_host_mak
+echo "CXXFLAGS=$CXXFLAGS" >> $config_host_mak
 echo "QEMU_CFLAGS=$QEMU_CFLAGS" >> $config_host_mak
+echo "QEMU_CCFLAGS=$QEMU_CCFLAGS" >> $config_host_mak
+echo "QEMU_CXXFLAGS=$QEMU_CXXFLAGS" >> $config_host_mak
 echo "HELPER_CFLAGS=$helper_cflags" >> $config_host_mak
 echo "LDFLAGS=$LDFLAGS" >> $config_host_mak
 echo "ARLIBS_BEGIN=$arlibs_begin" >> $config_host_mak
