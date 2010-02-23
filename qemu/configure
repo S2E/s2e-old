@@ -107,6 +107,7 @@ cxx="${cross_prefix}${cxx}"
 ar="${cross_prefix}${ar}"
 objcopy="${cross_prefix}${objcopy}"
 ld="${cross_prefix}${ld}"
+linker="$cc"
 
 # default flags for all hosts
 CFLAGS="-g $CFLAGS"
@@ -121,6 +122,7 @@ QEMU_CFLAGS="-U_FORTIFY_SOURCE $QEMU_CFLAGS"
 QEMU_CFLAGS="-I. -I\$(SRC_PATH) $QEMU_CFLAGS"
 
 QEMU_CCFLAGS="-Wmissing-prototypes -Wstrict-prototypes $QEMU_CCFLAGS"
+QEMU_CXXFLAGS="-D__STDC_FORMAT_MACROS"
 
 gcc_flags="-Wold-style-declaration -Wold-style-definition"
 cat > $TMPC << EOF
@@ -1412,7 +1414,8 @@ EOF
   llvm_libs=`llvm-config --libs 2> /dev/null`
   if compile_prog_cxx "$llvm_cxxflags" "$llvm_ldflags $llvm_libs" ; then
     llvm=yes
-    libs_softmmu="$llvm_ldflags $llvm_libs $libs_softmmu"
+    LIBS="$llvm_ldflags $llvm_libs $LIBS"
+    linker="$cxx"
   else
     if test "$llvm" = "yes" ; then
       feature_not_found "llvm"
@@ -2251,6 +2254,7 @@ echo "INSTALL_DATA=$install -m0644 -p" >> $config_host_mak
 echo "INSTALL_PROG=$install -m0755 -p" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
 echo "CXX=$cxx" >> $config_host_mak
+echo "LINKER=$linker" >> $config_host_mak
 echo "HOST_CC=$host_cc" >> $config_host_mak
 if test "$sparse" = "yes" ; then
   echo "CC      := REAL_CC=\"\$(CC)\" cgcc"       >> $config_host_mak
@@ -2715,6 +2719,7 @@ for rom in seabios vgabios ; do
     echo "SRC_PATH=$source_path/roms/$rom" >> $config_mak
     echo "CC=$cc" >> $config_mak
     echo "CXX=$cxx" >> $config_mak
+    echo "LINKER=$linker" >> $config_mak
     echo "BCC=bcc" >> $config_mak
     echo "CPP=${cross_prefix}cpp" >> $config_mak
     echo "OBJCOPY=objcopy" >> $config_mak
