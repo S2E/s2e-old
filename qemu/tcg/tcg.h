@@ -21,6 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef TCG_H
+#define TCG_H
+
 #include "qemu-common.h"
 #include "tcg-target.h"
 #include "tcg-runtime.h"
@@ -401,6 +404,8 @@ typedef struct TCGTargetOpDef {
     const char *args_ct_str[TCG_MAX_OP_ARGS];
 } TCGTargetOpDef;
 
+extern TCGOpDef tcg_op_defs[];
+
 void tcg_target_init(TCGContext *s);
 void tcg_target_qemu_prologue(TCGContext *s);
 
@@ -461,3 +466,6 @@ extern uint8_t code_gen_prologue[];
 #else
 #define tcg_qemu_tb_exec(tb_ptr) ((long REGPARM (*)(void *))code_gen_prologue)(tb_ptr)
 #endif
+
+#endif
+
