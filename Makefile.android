@@ -16,7 +16,7 @@ ifeq ($(BUILD_DEBUG_EMULATOR),true)
     MY_OPTIM := -O0 -g
 endif
 
-MY_CFLAGS := $(CONFIG_INCLUDES) $(MY_OPTIM) -DCONFIG_MEMCHECK
+MY_CFLAGS := $(CONFIG_INCLUDES) $(MY_OPTIM)
 
 # Overwrite configuration for debug builds.
 #
@@ -24,6 +24,8 @@ ifeq ($(BUILD_DEBUG_EMULATOR),true)
     MY_CFLAGS := $(CONFIG_INCLUDES) -O0 -g \
                  -fno-PIC -falign-functions=0
 endif
+
+MY_CFLAGS += -DCONFIG_MEMCHECK
 
 MY_LDLIBS :=
 
