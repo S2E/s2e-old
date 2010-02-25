@@ -118,6 +118,10 @@ static inline int tlb_set_page(CPUState *env1, target_ulong vaddr,
 #define USE_DIRECT_JUMP
 #endif
 
+#ifdef CONFIG_LLVM
+struct TCGLLVMTranslationBlock;
+#endif
+
 struct TranslationBlock {
     target_ulong pc;   /* simulated PC corresponding to this block (EIP + CS base) */
     target_ulong cs_base; /* CS base for this block */
@@ -151,6 +155,11 @@ struct TranslationBlock {
     struct TranslationBlock *jmp_next[2];
     struct TranslationBlock *jmp_first;
     uint32_t icount;
+
+#ifdef CONFIG_LLVM
+    /* pointer to LLVM translated code */
+    struct TCGLLVMTranslationBlock* llvm_tb;
+#endif
 };
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)

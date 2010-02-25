@@ -30,6 +30,11 @@
 #include "disas.h"
 #include "tcg.h"
 
+#ifdef CONFIG_LLVM
+#include "tcg-llvm.h"
+TCGLLVMContext *tcg_llvm_ctx;
+#endif
+
 /* code generation context */
 TCGContext tcg_ctx;
 
@@ -69,6 +74,10 @@ void cpu_gen_init(void)
     tcg_context_init(&tcg_ctx); 
     tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
                   CPU_TEMP_BUF_NLONGS * sizeof(long));
+
+#ifdef CONFIG_LLVM
+    tcg_llvm_ctx = tcg_llvm_context_new(&tcg_ctx);
+#endif
 }
 
 /* return non zero if the very first instruction is invalid so that
@@ -119,6 +128,11 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif
     gen_code_size = tcg_gen_code(s, gen_code_buf);
     *gen_code_size_ptr = gen_code_size;
+
+#ifdef CONFIG_LLVM
+    tb->llvm_tb = tcg_llvm_gen_code(tcg_llvm_ctx);
+#endif
+
 #ifdef CONFIG_PROFILER
     s->code_time += profile_getclock();
     s->code_in_len += tb->size;

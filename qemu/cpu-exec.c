@@ -22,6 +22,10 @@
 #include "tcg.h"
 #include "kvm.h"
 
+#ifdef CONFIG_LLVM
+#include "tcg-llvm.h"
+#endif
+
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
 #undef ECX
@@ -618,7 +622,20 @@ int cpu_exec(CPUState *env1)
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
+
+#ifdef CONFIG_LLVM
+                    if(tb->llvm_tb) {
+#define SAVE_HOST_REGS 1
+#include "hostregs_helper.h"
+                        next_tb = tcg_llvm_qemu_tb_exec(tb->llvm_tb, saved_AREG);
+// restore host regs
+#include "hostregs_helper.h"
+                    } else {
+                        next_tb = tcg_qemu_tb_exec(tc_ptr);
+                    }
+#else
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
+#endif
                     env->current_tb = NULL;
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
