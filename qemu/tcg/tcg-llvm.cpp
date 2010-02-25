@@ -220,6 +220,8 @@ inline void del_val(TCGLLVMContext *l, int idx)
 
 inline void del_ptr_for_global(TCGLLVMContext *l, int idx)
 {
+    assert(idx < l->tcgContext->nb_globals);
+
     if(l->globalsPtr[idx] && l->globalsPtr[idx]->use_empty())
         delete l->globalsPtr[idx];
     l->globalsPtr[idx] = NULL;
@@ -451,14 +453,11 @@ TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l)
         l->builder.CreateRet(ConstantInt::get(l->wordTy, 0));
 
     /* Clean up unused values */
-    /*
     for(int i=0; i<TCG_MAX_TEMPS; ++i) {
-        if(l->values[i] && l->values[i]->use_empty())
-            delete l->values[i];
-        if(l->globalsPtr[i] && l->globalsPtr[i]->use_empty())
-            delete l->globalsPtr[i];
+        del_val(l, i);
+        if(i < l->tcgContext->nb_globals)
+            del_ptr_for_global(l, i);
     }
-    */
 
 #ifndef NDEBUG
     verifyFunction(*l->tbFunction);
