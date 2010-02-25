@@ -368,19 +368,21 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         setValue(args[0], ConstantInt::get(intType(32), args[1]));
         break;
 
-    case INDEX_op_movi_i64:
-        setValue(args[0], ConstantInt::get(intType(64), args[1]));
-        break;
-
     case INDEX_op_mov_i32:
         assert(getValue(args[1])->getType() == intType(32));
         setValue(args[0], getValue(args[1]));
+        break;
+
+#if TCG_TARGET_REG_BITS == 64
+    case INDEX_op_movi_i64:
+        setValue(args[0], ConstantInt::get(intType(64), args[1]));
         break;
 
     case INDEX_op_mov_i64:
         assert(getValue(args[1])->getType() == intType(64));
         setValue(args[0], getValue(args[1]));
         break;
+#endif
 
     /* load/store */
 #define __LD_OP(op_name, srcBits, dstBits, signE)                   \
@@ -394,21 +396,6 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                     v, intPtrType(dstBits)));                       \
         break;
 
-    __LD_OP(INDEX_op_ld8u_i32,   8, 32, Z)
-    __LD_OP(INDEX_op_ld8s_i32,   8, 32, S)
-    __LD_OP(INDEX_op_ld16u_i32, 16, 32, Z)
-    __LD_OP(INDEX_op_ld16s_i32, 16, 32, S)
-    __LD_OP(INDEX_op_ld8u_i64,   8, 64, Z)
-    __LD_OP(INDEX_op_ld8s_i64,   8, 64, S)
-    __LD_OP(INDEX_op_ld16u_i64, 16, 64, Z)
-    __LD_OP(INDEX_op_ld16s_i64, 16, 64, S)
-    __LD_OP(INDEX_op_ld32u_i64, 32, 64, Z)
-    __LD_OP(INDEX_op_ld32s_i64, 32, 64, S)
-    __LD_OP(INDEX_op_ld_i32,    32, 32, Z)
-    __LD_OP(INDEX_op_ld_i64,    64, 64, Z)
-
-#undef __LD_OP
-
 #define __ST_OP(op_name, srcBits, dstBits)                          \
     case op_name:                                                   \
         assert(getValue(args[0])->getType() == intType(srcBits));   \
@@ -420,14 +407,32 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                 getValue(args[0]), intType(dstBits)), v);           \
         break;
 
+    __LD_OP(INDEX_op_ld8u_i32,   8, 32, Z)
+    __LD_OP(INDEX_op_ld8s_i32,   8, 32, S)
+    __LD_OP(INDEX_op_ld16u_i32, 16, 32, Z)
+    __LD_OP(INDEX_op_ld16s_i32, 16, 32, S)
+    __LD_OP(INDEX_op_ld_i32,    32, 32, Z)
+
     __ST_OP(INDEX_op_st8_i32,   8, 32)
     __ST_OP(INDEX_op_st16_i32, 16, 32)
+    __ST_OP(INDEX_op_st_i32,   32, 32)
+
+#if TCG_TARGET_REG_BITS == 64
+    __LD_OP(INDEX_op_ld8u_i64,   8, 64, Z)
+    __LD_OP(INDEX_op_ld8s_i64,   8, 64, S)
+    __LD_OP(INDEX_op_ld16u_i64, 16, 64, Z)
+    __LD_OP(INDEX_op_ld16s_i64, 16, 64, S)
+    __LD_OP(INDEX_op_ld32u_i64, 32, 64, Z)
+    __LD_OP(INDEX_op_ld32s_i64, 32, 64, S)
+    __LD_OP(INDEX_op_ld_i64,    64, 64, Z)
+
     __ST_OP(INDEX_op_st8_i64,   8, 64)
     __ST_OP(INDEX_op_st16_i64, 16, 64)
     __ST_OP(INDEX_op_st32_i64, 32, 64)
-    __ST_OP(INDEX_op_st_i32,   32, 32)
     __ST_OP(INDEX_op_st_i64,   64, 64)
+#endif
 
+#undef __LD_OP
 #undef __ST_OP
 
     case INDEX_op_exit_tb:
