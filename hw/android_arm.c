@@ -24,6 +24,10 @@
 #include "memcheck/memcheck_api.h"
 #endif  // CONFIG_MEMCHECK
 
+#include "android/utils/debug.h"
+
+#define  D(...)  VERBOSE_PRINT(init,__VA_ARGS__)
+
 #define ARM_CPU_SAVE_VERSION  1
 
 char* audio_input_source = NULL;
@@ -154,9 +158,9 @@ static void android_arm_init_(ram_addr_t ram_size,
         trace_dev_init();
     }
     if (trace_filename != NULL) {
-        dprint( "Trace file name is set to %s\n", trace_filename );
+        D( "Trace file name is set to %s\n", trace_filename );
     } else  {
-        dprint("Trace file name is not set\n");
+        D("Trace file name is not set\n");
     }
 #endif
 
