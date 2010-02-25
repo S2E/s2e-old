@@ -272,11 +272,15 @@ inline void set_val(TCGLLVMContext *l, int idx, Value *v)
 
 inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
 {
+    Value *v, *v2;
     TCGOpDef &def = tcg_op_defs[opc];
     int nb_args = def.nb_args;
 
     switch(opc) {
     case INDEX_op_debug_insn_start:
+        break;
+
+    /* predefined ops */
     case INDEX_op_nop:
     case INDEX_op_nop1:
     case INDEX_op_nop2:
@@ -285,6 +289,10 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
 
     case INDEX_op_nopn:
         nb_args += args[0];
+        break;
+
+    case INDEX_op_discard:
+        del_val(l, args[0]);
         break;
 
     case INDEX_op_call:
@@ -333,10 +341,6 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
         }
         break;
 
-    case INDEX_op_exit_tb:
-        l->builder.CreateRet(ConstantInt::get(l->wordTy, args[0]));
-        break;
-
     case INDEX_op_movi_i32:
         set_val(l, args[0], ConstantInt::get(l->i32Ty, args[1]));
         break;
@@ -355,17 +359,59 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
         set_val(l, args[0], get_val(l, args[1]));
         break;
 
-    case INDEX_op_st_i64:
-        assert(get_val(l, args[0])->getType() == l->i64Ty);
-        assert(get_val(l, args[1])->getType() == l->wordTy);
+    /* load/store */
+#define __LD_OP(op_name, srcBits, dstBits, signE)               \
+    case op_name:                                               \
+        assert(get_val(l, args[1])->getType() == l->wordTy);    \
+        v = l->builder.CreateAdd(get_val(l, args[1]),           \
+                    ConstantInt::get(l->wordTy, args[2]));      \
+        v = l->builder.CreateIntToPtr(v, PointerType::get(      \
+                    IntegerType::get(l->context, srcBits), 0)); \
+        v = l->builder.CreateLoad(v);                           \
+        set_val(l, args[0], l->builder.Create ## signE ## Ext(  \
+                    v, IntegerType::get(l->context, dstBits))); \
+        break;
 
-        {
-            Value *addr = get_val(l, args[1]);
-            addr = l->builder.CreateAdd(addr,
-                        ConstantInt::get(l->wordTy, args[2]));
-            addr = l->builder.CreateIntToPtr(addr, l->i64PtrTy);
-            l->builder.CreateStore(get_val(l, args[0]), addr);
-        }
+    __LD_OP(INDEX_op_ld8u_i32,   8, 32, Z)
+    __LD_OP(INDEX_op_ld8s_i32,   8, 32, S)
+    __LD_OP(INDEX_op_ld16u_i32, 16, 32, Z)
+    __LD_OP(INDEX_op_ld16s_i32, 16, 32, S)
+    __LD_OP(INDEX_op_ld8u_i64,   8, 64, Z)
+    __LD_OP(INDEX_op_ld8s_i64,   8, 64, S)
+    __LD_OP(INDEX_op_ld16u_i64, 16, 64, Z)
+    __LD_OP(INDEX_op_ld16s_i64, 16, 64, S)
+    __LD_OP(INDEX_op_ld32u_i64, 32, 64, Z)
+    __LD_OP(INDEX_op_ld32s_i64, 32, 64, S)
+    __LD_OP(INDEX_op_ld_i32,    32, 32, Z)
+    __LD_OP(INDEX_op_ld_i64,    64, 64, Z)
+
+#undef __LD_OP
+
+#define __ST_OP(op_name, srcBits, dstBits)                      \
+    case op_name:                                               \
+        assert(get_val(l, args[0])->getType() ==                \
+                IntegerType::get(l->context, srcBits));         \
+        assert(get_val(l, args[1])->getType() == l->wordTy);    \
+        v = l->builder.CreateAdd(get_val(l, args[1]),           \
+                    ConstantInt::get(l->wordTy, args[2]));      \
+        v = l->builder.CreateIntToPtr(v, PointerType::get(      \
+                    IntegerType::get(l->context, dstBits), 0)); \
+        v2 = l->builder.CreateTrunc(get_val(l, args[0]),        \
+                    IntegerType::get(l->context, dstBits));     \
+        l->builder.CreateStore(v2, v);                          \
+        break;
+
+    __ST_OP(INDEX_op_st8_i32,   8, 32)
+    __ST_OP(INDEX_op_st16_i32, 16, 32)
+    __ST_OP(INDEX_op_st8_i64,   8, 64)
+    __ST_OP(INDEX_op_st16_i64, 16, 64)
+    __ST_OP(INDEX_op_st32_i64, 32, 64)
+    __ST_OP(INDEX_op_st_i32,   32, 32)
+    __ST_OP(INDEX_op_st_i64,   64, 64)
+
+#undef __ST_OP
+    case INDEX_op_exit_tb:
+        l->builder.CreateRet(ConstantInt::get(l->wordTy, args[0]));
         break;
 
     default:
