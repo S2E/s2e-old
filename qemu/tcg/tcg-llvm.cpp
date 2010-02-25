@@ -48,231 +48,254 @@ extern "C" {
 
 using namespace llvm;
 
+struct TCGLLVMTranslationBlock {
+    TCGLLVMContext *tcgLLVMContext;
+    Function *m_tbFunction;
+
+    TCGLLVMTranslationBlock(
+        TCGLLVMContext *_tcgLLVMContext, Function *_tbFunction);
+    ~TCGLLVMTranslationBlock();
+};
+
 struct TCGLLVMContext {
-    TCGContext* tcgContext;
-    LLVMContext context;
-    IRBuilder<> builder;
+    TCGContext* m_tcgContext;
+    LLVMContext m_context;
+    IRBuilder<> m_builder;
 
-    /* Shortcuts */
-    const Type *i32Ty, *i32PtrTy;
-    const Type *i64Ty, *i64PtrTy;
-    const Type *wordTy, *wordPtrTy;
-
-    /* Current module */
-    Module *module;
+    /* Current m_module */
+    Module *m_module;
     ModuleProvider *moduleProvider;
 
     /* Function for current translation block */
-    Function *tbFunction;
+    Function *m_tbFunction;
 
-    /* Current temp values */
-    Value* values[TCG_MAX_TEMPS];
+    /* Current temp m_values */
+    Value* m_values[TCG_MAX_TEMPS];
 
     /* Pointers to in-memory versions of globals */
-    Value* globalsPtr[TCG_MAX_TEMPS];
+    Value* m_globalsPtr[TCG_MAX_TEMPS];
 
     /* For reg-based globals, store argument number,
      * for mem-based globals, store base value index */
-    int globalsIdx[TCG_MAX_TEMPS];
-
-    /* Count of generated translation blocks */
-    int tbCount;
+    int m_globalsIdx[TCG_MAX_TEMPS];
 
     /* Function pass manager (used for optimizing the code) */
-    FunctionPassManager *functionPassManager;
+    FunctionPassManager *m_functionPassManager;
 
     /* JIT engine */
-    ExecutionEngine *executionEngine;
+    ExecutionEngine *m_executionEngine;
 
-    TCGLLVMContext(TCGContext* _tcgContext):
-        tcgContext(_tcgContext),
-        context(),
-        builder(context),
-        i32Ty   (Type::getInt32Ty(context)),
-        i32PtrTy(PointerType::get(i32Ty, 0)),
-        i64Ty   (Type::getInt64Ty(context)),
-        i64PtrTy(PointerType::get(i64Ty, 0)),
-        wordTy     (TCG_TARGET_REG_BITS == 64 ? i64Ty : i32Ty),
-        wordPtrTy  (TCG_TARGET_REG_BITS == 64 ? i64PtrTy : i32PtrTy),
-        tbFunction(NULL),
-        tbCount(0)
-    {
-        std::memset(values, 0, sizeof(values));
-        std::memset(globalsPtr, 0, sizeof(globalsPtr));
-        std::memset(globalsIdx, 0, sizeof(globalsIdx));
+    /* Count of generated translation blocks */
+    int m_tbCount;
 
-        InitializeNativeTarget();
+public:
+    TCGLLVMContext(TCGContext* _tcgContext);
+    ~TCGLLVMContext();
 
-        module = new Module("tcg-llvm", context);
-        executionEngine = EngineBuilder(module).create();
-        assert(executionEngine != NULL);
+    /* Shortcuts */
+    const Type* intType(int w) { return IntegerType::get(m_context, w); }
+    const Type* intPtrType(int w) { return PointerType::get(intType(w), 0); }
+    const Type* wordType() { return intType(TCG_TARGET_REG_BITS); }
+    const Type* wordPtrType() { return intPtrType(TCG_TARGET_REG_BITS); }
 
-        moduleProvider = new ExistingModuleProvider(module);
-        functionPassManager = new FunctionPassManager(moduleProvider);
-        functionPassManager->add(
-                new TargetData(*executionEngine->getTargetData()));
-        /*
-        functionPassManager->add(createInstructionCombiningPass());
-        functionPassManager->add(createReassociatePass());
-        functionPassManager->add(createGVNPass());
-        functionPassManager->add(createCFGSimplificationPass());
-        */
-
-	functionPassManager->add(createReassociatePass());
-	functionPassManager->add(createConstantPropagationPass());
-	functionPassManager->add(createInstructionCombiningPass());
-	functionPassManager->add(createGVNPass());
-	functionPassManager->add(createDeadStoreEliminationPass());
-	functionPassManager->add(createCFGSimplificationPass());
-	functionPassManager->add(createPromoteMemoryToRegisterPass());
-
-        functionPassManager->doInitialization();
+    const Type* tcgType(int type) {
+        return type == TCG_TYPE_I64 ? intType(64) : intType(32);
     }
 
-    ~TCGLLVMContext()
-    {
-        delete functionPassManager;
-        delete moduleProvider;
-
-        // the following line will also delete module and all its functions
-        delete executionEngine;
+    const Type* tcgPtrType(int type) {
+        return type == TCG_TYPE_I64 ? intPtrType(64) : intPtrType(32);
     }
+
+    /* Helpers */
+    Value* getValue(int idx);
+    void setValue(int idx, Value *v);
+    void delValue(int idx);
+
+    Value* getPtrForGlobal(int idx);
+    void delPtrForGlobal(int idx);
+
+    void initGlobals();
+
+    /* Code generation */
+    int generateOperation(int opc, const TCGArg *args);
+    TCGLLVMTranslationBlock* generateCode();
 };
 
-struct TCGLLVMTranslationBlock {
-    TCGLLVMContext *tcgLLVMContext;
-    Function *tbFunction;
-
-    TCGLLVMTranslationBlock(TCGLLVMContext *_tcgLLVMContext,
-                                Function *_tbFunction)
-        : tcgLLVMContext(_tcgLLVMContext), tbFunction(_tbFunction)
-    {
-    }
-
-    ~TCGLLVMTranslationBlock()
-    {
-        tbFunction->eraseFromParent();
-    }
-};
-
-TCGLLVMContext* tcg_llvm_context_new(TCGContext *s)
+inline TCGLLVMTranslationBlock::TCGLLVMTranslationBlock(
+        TCGLLVMContext *_tcgLLVMContext, Function *_tbFunction)
+    : tcgLLVMContext(_tcgLLVMContext), m_tbFunction(_tbFunction)
 {
-    return new TCGLLVMContext(s);
 }
 
-void tcg_llvm_context_free(TCGLLVMContext *l)
+inline TCGLLVMTranslationBlock::~TCGLLVMTranslationBlock()
 {
-    delete l;
+    m_tbFunction->eraseFromParent();
 }
 
-namespace {
-
-inline const Type* get_type(TCGLLVMContext *l, int type)
+inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
+    : m_tcgContext(_tcgContext), m_context(), m_builder(m_context),
+      m_tbFunction(NULL), m_tbCount(0)
 {
-    return type == TCG_TYPE_I64 ? l->i64Ty : l->i32Ty;
+    std::memset(m_values, 0, sizeof(m_values));
+    std::memset(m_globalsPtr, 0, sizeof(m_globalsPtr));
+    std::memset(m_globalsIdx, 0, sizeof(m_globalsIdx));
+
+    InitializeNativeTarget();
+
+    m_module = new Module("tcg-llvm", m_context);
+    m_executionEngine = EngineBuilder(m_module).create();
+    assert(m_executionEngine != NULL);
+
+    moduleProvider = new ExistingModuleProvider(m_module);
+    m_functionPassManager = new FunctionPassManager(moduleProvider);
+    m_functionPassManager->add(
+            new TargetData(*m_executionEngine->getTargetData()));
+
+    m_functionPassManager->add(createReassociatePass());
+    m_functionPassManager->add(createConstantPropagationPass());
+    m_functionPassManager->add(createInstructionCombiningPass());
+    m_functionPassManager->add(createGVNPass());
+    m_functionPassManager->add(createDeadStoreEliminationPass());
+    m_functionPassManager->add(createCFGSimplificationPass());
+    m_functionPassManager->add(createPromoteMemoryToRegisterPass());
+
+    m_functionPassManager->doInitialization();
 }
 
-inline const Type* get_ptr_type(TCGLLVMContext *l, int type)
+inline TCGLLVMContext::~TCGLLVMContext()
 {
-    return type == TCG_TYPE_I64 ? l->i64PtrTy : l->i32PtrTy;
+    delete m_functionPassManager;
+    delete moduleProvider;
+
+    // the following line will also delete
+    // m_module and all its functions
+    delete m_executionEngine;
 }
 
-inline Value* get_val(TCGLLVMContext *l, int idx);
-inline void set_val(TCGLLVMContext *l, int idx, Value *v);
-
-inline Value* get_ptr_for_global(TCGLLVMContext *l, int idx)
+inline Value* TCGLLVMContext::getPtrForGlobal(int idx)
 {
-    TCGContext *s = l->tcgContext;
+    TCGContext *s = m_tcgContext;
     TCGTemp &temp = s->temps[idx];
 
     assert(idx < s->nb_globals);
     
-    if(l->globalsPtr[idx] == NULL) {
+    if(m_globalsPtr[idx] == NULL) {
         if(temp.fixed_reg) {
-            Value *v = l->builder.CreateConstGEP1_32(
-                    l->tbFunction->arg_begin(), l->globalsIdx[idx]);
-            l->globalsPtr[idx] = l->builder.CreatePointerCast(
-                    v, get_ptr_type(l, temp.type),
+            Value *v = m_builder.CreateConstGEP1_32(
+                    m_tbFunction->arg_begin(), m_globalsIdx[idx]);
+            m_globalsPtr[idx] = m_builder.CreatePointerCast(
+                    v, tcgPtrType(temp.type),
                     StringRef(temp.name) + "_ptr");
 
         } else {
-            Value *v = get_val(l, l->globalsIdx[idx]);
-            assert(v->getType() == l->wordTy);
+            Value *v = getValue(m_globalsIdx[idx]);
+            assert(v->getType() == wordType());
 
-            v = l->builder.CreateAdd(v, ConstantInt::get(
-                            l->wordTy, temp.mem_offset));
-            l->globalsPtr[idx] =
-                l->builder.CreateIntToPtr(v,
-                        get_ptr_type(l, temp.type),
+            v = m_builder.CreateAdd(v, ConstantInt::get(
+                            wordType(), temp.mem_offset));
+            m_globalsPtr[idx] =
+                m_builder.CreateIntToPtr(v, tcgPtrType(temp.type),
                         StringRef(temp.name) + "_ptr");
         }
     }
 
-    return l->globalsPtr[idx];
+    return m_globalsPtr[idx];
 }
 
-inline void del_val(TCGLLVMContext *l, int idx)
+inline void TCGLLVMContext::delValue(int idx)
 {
-    if(l->values[idx] && l->values[idx]->use_empty())
-        delete l->values[idx];
-    l->values[idx] = NULL;
+    if(m_values[idx] && m_values[idx]->use_empty())
+        delete m_values[idx];
+    m_values[idx] = NULL;
 }
 
-inline void del_ptr_for_global(TCGLLVMContext *l, int idx)
+inline void TCGLLVMContext::delPtrForGlobal(int idx)
 {
-    assert(idx < l->tcgContext->nb_globals);
+    assert(idx < m_tcgContext->nb_globals);
 
-    if(l->globalsPtr[idx] && l->globalsPtr[idx]->use_empty())
-        delete l->globalsPtr[idx];
-    l->globalsPtr[idx] = NULL;
+    if(m_globalsPtr[idx] && m_globalsPtr[idx]->use_empty())
+        delete m_globalsPtr[idx];
+    m_globalsPtr[idx] = NULL;
 }
 
-inline Value* get_val(TCGLLVMContext *l, int idx)
+inline Value* TCGLLVMContext::getValue(int idx)
 {
-    if(l->values[idx] == NULL) {
-        if(idx < l->tcgContext->nb_globals) {
-            l->values[idx] = l->builder.CreateLoad(
-                    get_ptr_for_global(l, idx),
-                    l->tcgContext->temps[idx].name);
+    if(m_values[idx] == NULL) {
+        if(idx < m_tcgContext->nb_globals) {
+            m_values[idx] = m_builder.CreateLoad(
+                    getPtrForGlobal(idx),
+                    m_tcgContext->temps[idx].name);
         } else {
             // Temp value was not previousely assigned
             assert(false); // XXX: or return zero constant ?
         }
     }
 
-    return l->values[idx];
+    return m_values[idx];
 }
 
-inline void set_val(TCGLLVMContext *l, int idx, Value *v)
+inline void TCGLLVMContext::setValue(int idx, Value *v)
 {
-    del_val(l, idx);
-    l->values[idx] = v;
+    delValue(idx);
+    m_values[idx] = v;
 
     if(!v->hasName()) {
-        if(idx < l->tcgContext->nb_globals)
-            v->setName(l->tcgContext->temps[idx].name);
+        if(idx < m_tcgContext->nb_globals)
+            v->setName(m_tcgContext->temps[idx].name);
     }
 
-    if(idx < l->tcgContext->nb_globals) {
+    if(idx < m_tcgContext->nb_globals) {
         // We need to save a global copy of a value
-        l->builder.CreateStore(v, get_ptr_for_global(l, idx));
+        m_builder.CreateStore(v, getPtrForGlobal(idx));
 
-        if(l->tcgContext->temps[idx].fixed_reg) {
+        if(m_tcgContext->temps[idx].fixed_reg) {
             /* Invalidate all dependent global vals and pointers */
-            for(int i=0; i<l->tcgContext->nb_globals; ++i) {
-                if(i != idx && !l->tcgContext->temps[idx].fixed_reg &&
-                                    l->globalsIdx[i] == idx) {
-                    del_val(l, i);
-                    del_ptr_for_global(l, i);
+            for(int i=0; i<m_tcgContext->nb_globals; ++i) {
+                if(i != idx && !m_tcgContext->temps[idx].fixed_reg &&
+                                    m_globalsIdx[i] == idx) {
+                    delValue(i);
+                    delPtrForGlobal(i);
                 }
             }
         }
     }
 }
 
-inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
+inline void TCGLLVMContext::initGlobals()
 {
-    Value *v, *v2;
+    TCGContext *s = m_tcgContext;
+
+    int reg_to_idx[TCG_TARGET_NB_REGS];
+    for(int i=0; i<TCG_TARGET_NB_REGS; ++i)
+        reg_to_idx[i] = -1;
+
+    int argNumber = 0;
+    for(int i=0; i<s->nb_globals; ++i) {
+        if(s->temps[i].fixed_reg) {
+            // This global is in fixed host register. We are
+            // mapping such registers to function arguments
+            m_globalsIdx[i] = argNumber++;
+            reg_to_idx[s->temps[i].reg] = i;
+
+        } else {
+            // This global is in memory at (mem_reg + mem_offset).
+            // Base value is not known yet, so just store mem_reg
+            m_globalsIdx[i] = s->temps[i].mem_reg;
+        }
+    }
+
+    // Map mem_reg to index for memory-based globals
+    for(int i=0; i<s->nb_globals; ++i) {
+        if(!s->temps[i].fixed_reg) {
+            assert(reg_to_idx[m_globalsIdx[i]] >= 0);
+            m_globalsIdx[i] = reg_to_idx[m_globalsIdx[i]];
+        }
+    }
+}
+
+inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
+{
+    Value *v;
     TCGOpDef &def = tcg_op_defs[opc];
     int nb_args = def.nb_args;
 
@@ -292,7 +315,7 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
         break;
 
     case INDEX_op_discard:
-        del_val(l, args[0]);
+        delValue(args[0]);
         break;
 
     case INDEX_op_call:
@@ -311,7 +334,7 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
             for(int i=0; i < nb_iargs-1; ++i) {
                 TCGArg arg = args[nb_oargs + i + 1];
                 if(arg != TCG_CALL_DUMMY_ARG) {
-                    Value *v = get_val(l, arg);
+                    Value *v = getValue(arg);
                     argValues.push_back(v);
                     argTypes.push_back(v->getType());
                 }
@@ -319,57 +342,56 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
 
             assert(nb_oargs == 0 || nb_oargs == 1);
             const Type* retType = nb_oargs == 0 ?
-                Type::getVoidTy(l->context) : l->wordTy; // XXX?
+                Type::getVoidTy(m_context) : wordType(); // XXX?
 
-            Value* funcAddr = get_val(l, args[nb_oargs + nb_iargs]);
-            funcAddr = l->builder.CreateIntToPtr(funcAddr, 
+            Value* funcAddr = getValue(args[nb_oargs + nb_iargs]);
+            funcAddr = m_builder.CreateIntToPtr(funcAddr, 
                     PointerType::get(
                         FunctionType::get(retType, argTypes, false), 0));
 
-            Value* result = l->builder.CreateCall(funcAddr,
+            Value* result = m_builder.CreateCall(funcAddr,
                                 argValues.begin(), argValues.end());
 
             /* Invalidate all globals since call might have changed them */
-            for(int i=0; i<l->tcgContext->nb_globals; ++i) {
-                del_val(l, i);
-                if(!l->tcgContext->temps[i].fixed_reg)
-                    del_ptr_for_global(l, i);
+            for(int i=0; i<m_tcgContext->nb_globals; ++i) {
+                delValue(i);
+                if(!m_tcgContext->temps[i].fixed_reg)
+                    delPtrForGlobal(i);
             }
 
             if(nb_oargs == 1)
-                set_val(l, args[1], result);
+                setValue(args[1], result);
         }
         break;
 
     case INDEX_op_movi_i32:
-        set_val(l, args[0], ConstantInt::get(l->i32Ty, args[1]));
+        setValue(args[0], ConstantInt::get(intType(32), args[1]));
         break;
 
     case INDEX_op_movi_i64:
-        set_val(l, args[0], ConstantInt::get(l->i64Ty, args[1]));
+        setValue(args[0], ConstantInt::get(intType(64), args[1]));
         break;
 
     case INDEX_op_mov_i32:
-        assert(get_val(l, args[1])->getType() == l->i32Ty);
-        set_val(l, args[0], get_val(l, args[1]));
+        assert(getValue(args[1])->getType() == intType(32));
+        setValue(args[0], getValue(args[1]));
         break;
 
     case INDEX_op_mov_i64:
-        assert(get_val(l, args[1])->getType() == l->i64Ty);
-        set_val(l, args[0], get_val(l, args[1]));
+        assert(getValue(args[1])->getType() == intType(64));
+        setValue(args[0], getValue(args[1]));
         break;
 
     /* load/store */
-#define __LD_OP(op_name, srcBits, dstBits, signE)               \
-    case op_name:                                               \
-        assert(get_val(l, args[1])->getType() == l->wordTy);    \
-        v = l->builder.CreateAdd(get_val(l, args[1]),           \
-                    ConstantInt::get(l->wordTy, args[2]));      \
-        v = l->builder.CreateIntToPtr(v, PointerType::get(      \
-                    IntegerType::get(l->context, srcBits), 0)); \
-        v = l->builder.CreateLoad(v);                           \
-        set_val(l, args[0], l->builder.Create ## signE ## Ext(  \
-                    v, IntegerType::get(l->context, dstBits))); \
+#define __LD_OP(op_name, srcBits, dstBits, signE)                   \
+    case op_name:                                                   \
+        assert(getValue(args[1])->getType() == wordType());         \
+        v = m_builder.CreateAdd(getValue(args[1]),                  \
+                    ConstantInt::get(wordType(), args[2]));         \
+        v = m_builder.CreateIntToPtr(v, intPtrType(srcBits));       \
+        v = m_builder.CreateLoad(v);                                \
+        setValue(args[0], m_builder.Create ## signE ## Ext(         \
+                    v, intPtrType(dstBits)));                       \
         break;
 
     __LD_OP(INDEX_op_ld8u_i32,   8, 32, Z)
@@ -387,18 +409,15 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
 
 #undef __LD_OP
 
-#define __ST_OP(op_name, srcBits, dstBits)                      \
-    case op_name:                                               \
-        assert(get_val(l, args[0])->getType() ==                \
-                IntegerType::get(l->context, srcBits));         \
-        assert(get_val(l, args[1])->getType() == l->wordTy);    \
-        v = l->builder.CreateAdd(get_val(l, args[1]),           \
-                    ConstantInt::get(l->wordTy, args[2]));      \
-        v = l->builder.CreateIntToPtr(v, PointerType::get(      \
-                    IntegerType::get(l->context, dstBits), 0)); \
-        v2 = l->builder.CreateTrunc(get_val(l, args[0]),        \
-                    IntegerType::get(l->context, dstBits));     \
-        l->builder.CreateStore(v2, v);                          \
+#define __ST_OP(op_name, srcBits, dstBits)                          \
+    case op_name:                                                   \
+        assert(getValue(args[0])->getType() == intType(srcBits));   \
+        assert(getValue(args[1])->getType() == wordType());         \
+        v = m_builder.CreateAdd(getValue(args[1]),                  \
+                    ConstantInt::get(wordType(), args[2]));         \
+        v = m_builder.CreateIntToPtr(v, intPtrType(dstBits));       \
+        m_builder.CreateStore(m_builder.CreateTrunc(                \
+                getValue(args[0]), intType(dstBits)), v);           \
         break;
 
     __ST_OP(INDEX_op_st8_i32,   8, 32)
@@ -410,8 +429,9 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
     __ST_OP(INDEX_op_st_i64,   64, 64)
 
 #undef __ST_OP
+
     case INDEX_op_exit_tb:
-        l->builder.CreateRet(ConstantInt::get(l->wordTy, args[0]));
+        m_builder.CreateRet(ConstantInt::get(wordType(), args[0]));
         break;
 
     default:
@@ -424,63 +444,30 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
     return nb_args;
 }
 
-inline void tcg_llvm_init_globals(TCGLLVMContext *l)
-{
-    TCGContext *s = l->tcgContext;
-
-    int reg_to_idx[TCG_TARGET_NB_REGS];
-    for(int i=0; i<TCG_TARGET_NB_REGS; ++i)
-        reg_to_idx[i] = -1;
-
-    int argNumber = 0;
-    for(int i=0; i<s->nb_globals; ++i) {
-        if(s->temps[i].fixed_reg) {
-            // This global is in fixed host register. We are
-            // mapping such registers to function arguments
-            l->globalsIdx[i] = argNumber++;
-            reg_to_idx[s->temps[i].reg] = i;
-
-        } else {
-            // This global is in memory at (mem_reg + mem_offset).
-            // Base value is not known yet, so just store mem_reg
-            l->globalsIdx[i] = s->temps[i].mem_reg;
-        }
-    }
-
-    // Map mem_reg to index for memory-based globals
-    for(int i=0; i<s->nb_globals; ++i) {
-        if(!s->temps[i].fixed_reg) {
-            assert(reg_to_idx[l->globalsIdx[i]] >= 0);
-            l->globalsIdx[i] = reg_to_idx[l->globalsIdx[i]];
-        }
-    }
-}
-
-} // namespace
-
-TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l)
+inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
 {
     /* Prepare globals and temps information */
-    std::memset(l->values, 0, sizeof(l->values));
-    std::memset(l->globalsPtr, 0, sizeof(l->globalsPtr));
-    tcg_llvm_init_globals(l);
+    std::memset(m_values, 0, sizeof(m_values));
+    std::memset(m_globalsPtr, 0, sizeof(m_globalsPtr));
+    initGlobals();
 
     /* Create new function for current translation block */
     std::ostringstream fName;
-    fName << "tcg-llvm-tb-" << (l->tbCount++);
+    fName << "tcg-llvm-tb-" << (m_tbCount++);
 
     /*
-    if(l->tbFunction)
-        l->tbFunction->eraseFromParent();
+    if(m_tbFunction)
+        m_tbFunction->eraseFromParent();
     */
 
     FunctionType *tbFunctionType = FunctionType::get(
-            l->wordTy, std::vector<const Type*>(1, l->i64PtrTy), false);
-    l->tbFunction = Function::Create(tbFunctionType,
-            Function::PrivateLinkage, fName.str(), l->module);
-    BasicBlock *basicBlock = BasicBlock::Create(l->context,
-            "entry", l->tbFunction);
-    l->builder.SetInsertPoint(basicBlock);
+            wordType(),
+            std::vector<const Type*>(1, intPtrType(64)), false);
+    m_tbFunction = Function::Create(tbFunctionType,
+            Function::PrivateLinkage, fName.str(), m_module);
+    BasicBlock *basicBlock = BasicBlock::Create(m_context,
+            "entry", m_tbFunction);
+    m_builder.SetInsertPoint(basicBlock);
 
 
     /* Generate code for each opc */
@@ -491,29 +478,44 @@ TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l)
         if(opc == INDEX_op_end)
             break;
 
-        args += tcg_llvm_out_op(l, opc, args);
+        args += generateOperation(opc, args);
     }
 
     /* Finalize function */
-    if(!isa<ReturnInst>(l->tbFunction->back().back()))
-        l->builder.CreateRet(ConstantInt::get(l->wordTy, 0));
+    if(!isa<ReturnInst>(m_tbFunction->back().back()))
+        m_builder.CreateRet(ConstantInt::get(wordType(), 0));
 
-    /* Clean up unused values */
+    /* Clean up unused m_values */
     for(int i=0; i<TCG_MAX_TEMPS; ++i) {
-        del_val(l, i);
-        if(i < l->tcgContext->nb_globals)
-            del_ptr_for_global(l, i);
+        delValue(i);
+        if(i < m_tcgContext->nb_globals)
+            delPtrForGlobal(i);
     }
 
 #ifndef NDEBUG
-    verifyFunction(*l->tbFunction);
+    verifyFunction(*m_tbFunction);
 #endif
 
-    l->functionPassManager->run(*l->tbFunction);
+    m_functionPassManager->run(*m_tbFunction);
 
-    std::cout << *l->tbFunction << std::endl;
+    std::cout << *m_tbFunction << std::endl;
 
-    return new TCGLLVMTranslationBlock(l, l->tbFunction);
+    return new TCGLLVMTranslationBlock(this, m_tbFunction);
+}
+
+TCGLLVMContext* tcg_llvm_context_new(TCGContext *s)
+{
+    return new TCGLLVMContext(s);
+}
+
+void tcg_llvm_context_free(TCGLLVMContext *l)
+{
+    delete l;
+}
+
+TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l)
+{
+    return l->generateCode();
 }
 
 void tcg_llvm_tb_free(TCGLLVMTranslationBlock *tb)
@@ -521,11 +523,12 @@ void tcg_llvm_tb_free(TCGLLVMTranslationBlock *tb)
     delete tb;
 }
 
-uintptr_t tcg_llvm_qemu_tb_exec(TCGLLVMTranslationBlock *tb, void* volatile *args)
+uintptr_t tcg_llvm_qemu_tb_exec(
+        TCGLLVMTranslationBlock *tb, void* volatile *args)
 {
     TCGLLVMContext *l = tb->tcgLLVMContext;
     uintptr_t (*fPtr)(void* volatile*) = (uintptr_t (*)(void* volatile*))
-        l->executionEngine->getPointerToFunction(tb->tbFunction);
+        l->m_executionEngine->getPointerToFunction(tb->m_tbFunction);
     
     qemu_log("OUT(LLVM):\n");
     log_disas((void*)fPtr, 0x100);
