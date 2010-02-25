@@ -211,6 +211,20 @@ inline Value* get_ptr_for_global(TCGLLVMContext *l, int idx)
     return l->globalsPtr[idx];
 }
 
+inline void del_val(TCGLLVMContext *l, int idx)
+{
+    if(l->values[idx] && l->values[idx]->use_empty())
+        delete l->values[idx];
+    l->values[idx] = NULL;
+}
+
+inline void del_ptr_for_global(TCGLLVMContext *l, int idx)
+{
+    if(l->globalsPtr[idx] && l->globalsPtr[idx]->use_empty())
+        delete l->globalsPtr[idx];
+    l->globalsPtr[idx] = NULL;
+}
+
 inline Value* get_val(TCGLLVMContext *l, int idx)
 {
     if(l->values[idx] == NULL) {
@@ -229,19 +243,28 @@ inline Value* get_val(TCGLLVMContext *l, int idx)
 
 inline void set_val(TCGLLVMContext *l, int idx, Value *v)
 {
-    if(l->values[idx] && l->values[idx]->use_empty())
-        delete l->values[idx];
+    del_val(l, idx);
+    l->values[idx] = v;
 
     if(!v->hasName()) {
         if(idx < l->tcgContext->nb_globals)
             v->setName(l->tcgContext->temps[idx].name);
     }
 
-    l->values[idx] = v;
-
     if(idx < l->tcgContext->nb_globals) {
         // We need to save a global copy of a value
         l->builder.CreateStore(v, get_ptr_for_global(l, idx));
+
+        if(l->tcgContext->temps[idx].fixed_reg) {
+            /* Invalidate all dependent global vals and pointers */
+            for(int i=0; i<l->tcgContext->nb_globals; ++i) {
+                if(i != idx && !l->tcgContext->temps[idx].fixed_reg &&
+                                    l->globalsIdx[i] == idx) {
+                    del_val(l, i);
+                    del_ptr_for_global(l, i);
+                }
+            }
+        }
     }
 }
 
@@ -295,6 +318,13 @@ inline int tcg_llvm_out_op(TCGLLVMContext *l, int opc, const TCGArg *args)
 
             Value* result = l->builder.CreateCall(funcAddr,
                                 argValues.begin(), argValues.end());
+
+            /* Invalidate all globals since call might have changed them */
+            for(int i=0; i<l->tcgContext->nb_globals; ++i) {
+                del_val(l, i);
+                if(!l->tcgContext->temps[i].fixed_reg)
+                    del_ptr_for_global(l, i);
+            }
 
             if(nb_oargs == 1)
                 set_val(l, args[1], result);
