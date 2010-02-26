@@ -435,6 +435,28 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #undef __LD_OP
 #undef __ST_OP
 
+    /* arith */
+#define __ARITH_OP(op_name, op, bits)                               \
+    case op_name:                                                   \
+        assert(getValue(args[1])->getType() == intType(bits));      \
+        assert(getValue(args[2])->getType() == intType(bits));      \
+        setValue(args[0], m_builder.Create ## op(                   \
+                getValue(args[1]), getValue(args[2])));             \
+        break;
+
+    __ARITH_OP(INDEX_op_add_i32, Add, 32);
+    __ARITH_OP(INDEX_op_sub_i32, Sub, 32);
+    __ARITH_OP(INDEX_op_mul_i32, Mul, 32);
+
+#if TCG_TARGET_REG_BITS == 64
+    __ARITH_OP(INDEX_op_add_i64, Add, 64);
+    __ARITH_OP(INDEX_op_sub_i64, Sub, 64);
+    __ARITH_OP(INDEX_op_mul_i64, Mul, 64);
+#endif
+
+#undef __ARITH_OP
+
+
     case INDEX_op_exit_tb:
         m_builder.CreateRet(ConstantInt::get(wordType(), args[0]));
         break;
