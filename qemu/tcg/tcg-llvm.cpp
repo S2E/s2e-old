@@ -511,6 +511,14 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                     getValue(args[1]), v)));                        \
         break;
 
+#define __ARITH_OP_I(opc_name, op, i, bits)                         \
+    case opc_name:                                                  \
+        assert(getValue(args[1])->getType() == intType(bits));      \
+        setValue(args[0], m_builder.Create ## op(                   \
+                    ConstantInt::get(intType(bits), i),             \
+                    getValue(args[1])));                            \
+        break;
+
     __ARITH_OP(INDEX_op_add_i32, Add, 32)
     __ARITH_OP(INDEX_op_sub_i32, Sub, 32)
     __ARITH_OP(INDEX_op_mul_i32, Mul, 32)
@@ -535,6 +543,9 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
     __ARITH_OP_ROT(INDEX_op_rotl_i32, Shl, LShr, 32)
     __ARITH_OP_ROT(INDEX_op_rotr_i32, LShr, Shl, 32)
+
+    __ARITH_OP_I(INDEX_op_not_i32, Xor, (uint64_t) -1, 32)
+    __ARITH_OP_I(INDEX_op_neg_i32, Sub, 0, 32)
 
 #if TCG_TARGET_REG_BITS == 64
     __ARITH_OP(INDEX_op_add_i64, Add, 64)
@@ -561,6 +572,9 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
     __ARITH_OP_ROT(INDEX_op_rotl_i64, Shl, LShr, 64)
     __ARITH_OP_ROT(INDEX_op_rotr_i64, LShr, Shl, 64)
+
+    __ARITH_OP_I(INDEX_op_not_i64, Xor, (uint64_t) -1, 64)
+    __ARITH_OP_I(INDEX_op_neg_i64, Sub, 0, 64)
 #endif
 
 #undef __ARITH_OP_ROT
