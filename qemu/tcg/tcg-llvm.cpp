@@ -204,8 +204,11 @@ inline Value* TCGLLVMContext::getPtrForGlobal(int idx)
 
 inline void TCGLLVMContext::delValue(int idx)
 {
-    if(m_values[idx] && m_values[idx]->use_empty())
-        delete m_values[idx];
+    if(m_values[idx] && m_values[idx]->use_empty()) {
+        if(!isa<Instruction>(m_values[idx]) ||
+                !cast<Instruction>(m_values[idx])->getParent())
+            delete m_values[idx];
+    }
     m_values[idx] = NULL;
 }
 
@@ -213,8 +216,11 @@ inline void TCGLLVMContext::delPtrForGlobal(int idx)
 {
     assert(idx < m_tcgContext->nb_globals);
 
-    if(m_globalsPtr[idx] && m_globalsPtr[idx]->use_empty())
-        delete m_globalsPtr[idx];
+    if(m_globalsPtr[idx] && m_globalsPtr[idx]->use_empty()) {
+        if(!isa<Instruction>(m_globalsPtr[idx]) ||
+                !cast<Instruction>(m_globalsPtr[idx])->getParent())
+            delete m_globalsPtr[idx];
+    }
     m_globalsPtr[idx] = NULL;
 }
 
@@ -453,13 +459,27 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                 m_builder.CreateZExt(                               \
                     getValue(args[3]), intType(bits*2)),            \
                 ConstantInt::get(intType(bits*2), bits));           \
-        v = m_builder.CreateAdd(v,                                  \
+        v = m_builder.CreateOr(v,                                   \
                 m_builder.CreateZExt(                               \
                     getValue(args[2]), intType(bits*2)));           \
         setValue(args[0], m_builder.Create ## signE ## Div(         \
                 v, getValue(args[4])));                             \
         setValue(args[1], m_builder.Create ## signE ## Rem(         \
                 v, getValue(args[4])));                             \
+        break;
+
+#define __ARITH_OP_ROT(opc_name, op1, op2, bits)                    \
+    case opc_name:                                                  \
+        assert(getValue(args[1])->getType() == intType(bits));      \
+        assert(getValue(args[2])->getType() == intType(bits));      \
+        v = m_builder.CreateSub(                                    \
+                ConstantInt::get(intType(bits), bits),              \
+                getValue(args[2]));                                 \
+        setValue(args[0], m_builder.CreateOr(                       \
+                m_builder.Create ## op1 (                           \
+                    getValue(args[1]), getValue(args[2])),          \
+                m_builder.Create ## op2 (                           \
+                    getValue(args[1]), v)));                        \
         break;
 
     __ARITH_OP(INDEX_op_add_i32, Add, 32)
@@ -484,6 +504,9 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     __ARITH_OP(INDEX_op_shr_i32, LShr, 32)
     __ARITH_OP(INDEX_op_sar_i32, AShr, 32)
 
+    __ARITH_OP_ROT(INDEX_op_rotl_i32, Shl, LShr, 32)
+    __ARITH_OP_ROT(INDEX_op_rotr_i32, LShr, Shl, 32)
+
 #if TCG_TARGET_REG_BITS == 64
     __ARITH_OP(INDEX_op_add_i64, Add, 64)
     __ARITH_OP(INDEX_op_sub_i64, Sub, 64)
@@ -507,6 +530,8 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     __ARITH_OP(INDEX_op_shr_i64, LShr, 64)
     __ARITH_OP(INDEX_op_sar_i64, AShr, 64)
 
+    __ARITH_OP_ROT(INDEX_op_rotl_i64, Shl, LShr, 64)
+    __ARITH_OP_ROT(INDEX_op_rotr_i64, LShr, Shl, 64)
 #endif
 
 #undef __ARITH_OP
