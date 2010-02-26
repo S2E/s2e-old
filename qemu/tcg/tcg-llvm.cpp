@@ -412,10 +412,45 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         break;
 
     case INDEX_op_br:
-        /* XXX: save local globals */
         m_builder.CreateBr(getLabel(args[0]));
         startNewBasicBlock();
         break;
+
+#define __OP_BRCOND_C(tcg_cond, cond)                               \
+            case tcg_cond:                                          \
+                v = m_builder.CreateICmp ## cond(                   \
+                        getValue(args[1]), getValue(args[2]));      \
+            break;
+
+#define __OP_BRCOND(opc_name, bits)                                 \
+    case opc_name: {                                                \
+        assert(getValue(args[1])->getType() == intType(bits));      \
+        assert(getValue(args[2])->getType() == intType(bits));      \
+        switch(args[0]) {                                           \
+            __OP_BRCOND_C(TCG_COND_EQ,   EQ)                        \
+            __OP_BRCOND_C(TCG_COND_NE,   NE)                        \
+            __OP_BRCOND_C(TCG_COND_LT,  SLT)                        \
+            __OP_BRCOND_C(TCG_COND_GE,  SGE)                        \
+            __OP_BRCOND_C(TCG_COND_LE,  SLE)                        \
+            __OP_BRCOND_C(TCG_COND_GT,  SGT)                        \
+            __OP_BRCOND_C(TCG_COND_LTU, ULT)                        \
+            __OP_BRCOND_C(TCG_COND_GEU, UGE)                        \
+            __OP_BRCOND_C(TCG_COND_LEU, ULE)                        \
+            __OP_BRCOND_C(TCG_COND_GTU, UGT)                        \
+        }                                                           \
+        BasicBlock* bb = BasicBlock::Create(m_context);             \
+        m_builder.CreateCondBr(v, getLabel(args[3]), bb);           \
+        startNewBasicBlock(bb);                                     \
+    } break;
+
+    __OP_BRCOND(INDEX_op_brcond_i32, 32)
+
+#if TCG_TARGET_REG_BITS == 64
+    __OP_BRCOND(INDEX_op_brcond_i64, 64)
+#endif
+
+#undef __OP_BRCOND_C
+#undef __OP_BRCOND
 
     case INDEX_op_set_label:
         startNewBasicBlock(getLabel(args[0]));
