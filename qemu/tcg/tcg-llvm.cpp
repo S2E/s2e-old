@@ -375,7 +375,9 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         break;
 
     case INDEX_op_mov_i32:
-        assert(getValue(args[1])->getType() == intType(32));
+        // Truncation is silently accepted
+        assert(getValue(args[1])->getType() == intType(32) ||
+                getValue(args[1])->getType() == intType(64));
         setValue(args[0], getValue(args[1]));
         break;
 
@@ -389,6 +391,33 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         setValue(args[0], getValue(args[1]));
         break;
 #endif
+
+    /* size extensions */
+#define __EXT_OP(opc_name, truncBits, opBits, signE )               \
+    case opc_name:                                                  \
+        assert(getValue(args[1])->getType() == intType(opBits) ||   \
+               getValue(args[1])->getType() == intType(truncBits)); \
+        setValue(args[0], m_builder.Create ## signE ## Ext(         \
+                m_builder.CreateTrunc(                              \
+                    getValue(args[1]), intType(truncBits)),         \
+                intType(opBits)));                                  \
+        break;
+
+    __EXT_OP(INDEX_op_ext8s_i32,   8, 32, S)
+    __EXT_OP(INDEX_op_ext8u_i32,   8, 32, Z)
+    __EXT_OP(INDEX_op_ext16s_i32, 16, 32, S)
+    __EXT_OP(INDEX_op_ext16u_i32, 16, 32, Z)
+
+#if TCG_TARGET_REG_BITS == 64
+    __EXT_OP(INDEX_op_ext8s_i64,   8, 64, S)
+    __EXT_OP(INDEX_op_ext8u_i64,   8, 64, Z)
+    __EXT_OP(INDEX_op_ext16s_i64, 16, 64, S)
+    __EXT_OP(INDEX_op_ext16u_i64, 16, 64, Z)
+    __EXT_OP(INDEX_op_ext32s_i64, 32, 64, S)
+    __EXT_OP(INDEX_op_ext32u_i64, 32, 64, Z)
+#endif
+
+#undef __EXT_OP
 
     /* load/store */
 #define __LD_OP(opc_name, srcBits, dstBits, signE)                  \
@@ -534,6 +563,8 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     __ARITH_OP_ROT(INDEX_op_rotr_i64, LShr, Shl, 64)
 #endif
 
+#undef __ARITH_OP_ROT
+#undef __ARITH_OP_DIV2
 #undef __ARITH_OP
 
     case INDEX_op_exit_tb:
