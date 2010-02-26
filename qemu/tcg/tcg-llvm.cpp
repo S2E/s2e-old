@@ -37,6 +37,7 @@ extern "C" {
 #include <llvm/Module.h>
 #include <llvm/ModuleProvider.h>
 #include <llvm/PassManager.h>
+#include <llvm/Intrinsics.h>
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/Target/TargetSelect.h>
@@ -519,6 +520,18 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                     getValue(args[1])));                            \
         break;
 
+#define __ARITH_OP_BSWAP(opc_name, sBits, bits)                     \
+    case opc_name: {                                                \
+        assert(getValue(args[1])->getType() == intType(bits));      \
+        const Type* Tys[] = { intType(sBits) };                     \
+        Function *bswap = Intrinsic::getDeclaration(m_module,       \
+                Intrinsic::bswap, Tys, 1);                          \
+        v = m_builder.CreateTrunc(getValue(args[1]),intType(sBits));\
+        setValue(args[0], m_builder.CreateZExt(                     \
+                m_builder.CreateCall(bswap, v), intType(bits)));    \
+        } break;
+
+
     __ARITH_OP(INDEX_op_add_i32, Add, 32)
     __ARITH_OP(INDEX_op_sub_i32, Sub, 32)
     __ARITH_OP(INDEX_op_mul_i32, Mul, 32)
@@ -546,6 +559,9 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
     __ARITH_OP_I(INDEX_op_not_i32, Xor, (uint64_t) -1, 32)
     __ARITH_OP_I(INDEX_op_neg_i32, Sub, 0, 32)
+
+    __ARITH_OP_BSWAP(INDEX_op_bswap16_i32, 16, 32)
+    __ARITH_OP_BSWAP(INDEX_op_bswap32_i32, 32, 32)
 
 #if TCG_TARGET_REG_BITS == 64
     __ARITH_OP(INDEX_op_add_i64, Add, 64)
@@ -575,8 +591,14 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
     __ARITH_OP_I(INDEX_op_not_i64, Xor, (uint64_t) -1, 64)
     __ARITH_OP_I(INDEX_op_neg_i64, Sub, 0, 64)
+
+    __ARITH_OP_BSWAP(INDEX_op_bswap16_i64, 16, 64)
+    __ARITH_OP_BSWAP(INDEX_op_bswap32_i64, 32, 64)
+    __ARITH_OP_BSWAP(INDEX_op_bswap64_i64, 64, 64)
 #endif
 
+#undef __ARITH_OP_BSWAP
+#undef __ARITH_OP_I
 #undef __ARITH_OP_ROT
 #undef __ARITH_OP_DIV2
 #undef __ARITH_OP
