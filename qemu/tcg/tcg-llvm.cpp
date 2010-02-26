@@ -80,6 +80,8 @@ struct TCGLLVMContext {
      * for mem-based globals, store base value index */
     int m_globalsIdx[TCG_MAX_TEMPS];
 
+    BasicBlock* m_labels[TCG_MAX_LABELS];
+
     /* Function pass manager (used for optimizing the code) */
     FunctionPassManager *m_functionPassManager;
 
@@ -114,8 +116,13 @@ public:
 
     Value* getPtrForGlobal(int idx);
     void delPtrForGlobal(int idx);
-
     void initGlobals();
+
+    void invalidateCachedMemory();
+
+    BasicBlock* getLabel(int idx);
+    void delLabel(int idx);
+    void startNewBasicBlock(BasicBlock *bb = NULL);
 
     /* Code generation */
     int generateOperation(int opc, const TCGArg *args);
@@ -140,6 +147,7 @@ inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
     std::memset(m_values, 0, sizeof(m_values));
     std::memset(m_globalsPtr, 0, sizeof(m_globalsPtr));
     std::memset(m_globalsIdx, 0, sizeof(m_globalsIdx));
+    std::memset(m_labels, 0, sizeof(m_labels));
 
     InitializeNativeTarget();
 
@@ -215,8 +223,6 @@ inline void TCGLLVMContext::delValue(int idx)
 
 inline void TCGLLVMContext::delPtrForGlobal(int idx)
 {
-    assert(idx < m_tcgContext->nb_globals);
-
     if(m_globalsPtr[idx] && m_globalsPtr[idx]->use_empty()) {
         if(!isa<Instruction>(m_globalsPtr[idx]) ||
                 !cast<Instruction>(m_globalsPtr[idx])->getParent())
@@ -300,6 +306,45 @@ inline void TCGLLVMContext::initGlobals()
     }
 }
 
+inline BasicBlock* TCGLLVMContext::getLabel(int idx)
+{
+    if(!m_labels[idx]) {
+        std::ostringstream bbName;
+        bbName << "label_" << idx;
+        m_labels[idx] = BasicBlock::Create(m_context, bbName.str());
+    }
+    return m_labels[idx];
+}
+
+inline void TCGLLVMContext::delLabel(int idx)
+{
+    if(m_labels[idx] && m_labels[idx]->use_empty() &&
+            !m_labels[idx]->getParent())
+        delete m_labels[idx];
+}
+
+void TCGLLVMContext::startNewBasicBlock(BasicBlock *bb)
+{
+    if(!bb)
+        bb = BasicBlock::Create(m_context);
+    else
+        assert(bb->getParent() == 0);
+
+    if(!m_builder.GetInsertBlock()->getTerminator())
+        m_builder.CreateBr(bb);
+
+    m_tbFunction->getBasicBlockList().push_back(bb);
+    m_builder.SetInsertPoint(bb);
+
+    /* Invalidate all temps */
+    /* XXX: store local temps */
+    for(int i=0; i<TCG_MAX_TEMPS; ++i) {
+        /* NOTE: globals will be re-read on demand */
+        delValue(i);
+        delPtrForGlobal(i);
+    }
+}
+
 inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 {
     Value *v;
@@ -359,16 +404,21 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
             Value* result = m_builder.CreateCall(funcAddr,
                                 argValues.begin(), argValues.end());
 
-            /* Invalidate all globals since call might have changed them */
-            for(int i=0; i<m_tcgContext->nb_globals; ++i) {
-                delValue(i);
-                if(!m_tcgContext->temps[i].fixed_reg)
-                    delPtrForGlobal(i);
-            }
+            startNewBasicBlock();
 
             if(nb_oargs == 1)
                 setValue(args[1], result);
         }
+        break;
+
+    case INDEX_op_br:
+        /* XXX: save local globals */
+        m_builder.CreateBr(getLabel(args[0]));
+        startNewBasicBlock();
+        break;
+
+    case INDEX_op_set_label:
+        startNewBasicBlock(getLabel(args[0]));
         break;
 
     case INDEX_op_movi_i32:
@@ -653,7 +703,7 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
 #endif
 #endif
-        
+
     default:
         std::cerr << "ERROR: unknown TCG micro operation '"
                   << def.name << "'" << std::endl;
@@ -667,8 +717,6 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
 {
     /* Prepare globals and temps information */
-    std::memset(m_values, 0, sizeof(m_values));
-    std::memset(m_globalsPtr, 0, sizeof(m_globalsPtr));
     initGlobals();
 
     /* Create new function for current translation block */
@@ -708,8 +756,11 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
     /* Clean up unused m_values */
     for(int i=0; i<TCG_MAX_TEMPS; ++i) {
         delValue(i);
-        if(i < m_tcgContext->nb_globals)
-            delPtrForGlobal(i);
+        delPtrForGlobal(i);
+    }
+
+    for(int i=0; i<TCG_MAX_LABELS; ++i) {
+        delLabel(i);
     }
 
 #ifndef NDEBUG
