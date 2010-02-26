@@ -476,6 +476,14 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     __ARITH_OP_DIV2(INDEX_op_divu2_i32, U, 32);
 #endif
 
+    __ARITH_OP(INDEX_op_and_i32, And, 32);
+    __ARITH_OP(INDEX_op_or_i32,   Or, 32);
+    __ARITH_OP(INDEX_op_xor_i32, Xor, 32);
+
+    __ARITH_OP(INDEX_op_shl_i32,  Shl, 32);
+    __ARITH_OP(INDEX_op_shr_i32, LShr, 32);
+    __ARITH_OP(INDEX_op_sar_i32, AShr, 32);
+
 #if TCG_TARGET_REG_BITS == 64
     __ARITH_OP(INDEX_op_add_i64, Add, 64);
     __ARITH_OP(INDEX_op_sub_i64, Sub, 64);
@@ -490,6 +498,14 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     __ARITH_OP_DIV2(INDEX_op_div2_i64,  S, 64);
     __ARITH_OP_DIV2(INDEX_op_divu2_i64, U, 64);
 #endif
+
+    __ARITH_OP(INDEX_op_and_i64, And, 64);
+    __ARITH_OP(INDEX_op_or_i64,   Or, 64);
+    __ARITH_OP(INDEX_op_xor_i64, Xor, 64);
+
+    __ARITH_OP(INDEX_op_shl_i64,  Shl, 64);
+    __ARITH_OP(INDEX_op_shr_i64, LShr, 64);
+    __ARITH_OP(INDEX_op_sar_i64, AShr, 64);
 
 #endif
 
