@@ -462,55 +462,54 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                 v, getValue(args[4])));                             \
         break;
 
-    __ARITH_OP(INDEX_op_add_i32, Add, 32);
-    __ARITH_OP(INDEX_op_sub_i32, Sub, 32);
-    __ARITH_OP(INDEX_op_mul_i32, Mul, 32);
+    __ARITH_OP(INDEX_op_add_i32, Add, 32)
+    __ARITH_OP(INDEX_op_sub_i32, Sub, 32)
+    __ARITH_OP(INDEX_op_mul_i32, Mul, 32)
 
 #ifdef TCG_TARGET_HAS_div_i32
-    __ARITH_OP(INDEX_op_div_i32,  SDiv, 32);
-    __ARITH_OP(INDEX_op_divu_i32, UDiv, 32);
-    __ARITH_OP(INDEX_op_rem_i32,  SRem, 32);
-    __ARITH_OP(INDEX_op_remu_i32, URem, 32);
+    __ARITH_OP(INDEX_op_div_i32,  SDiv, 32)
+    __ARITH_OP(INDEX_op_divu_i32, UDiv, 32)
+    __ARITH_OP(INDEX_op_rem_i32,  SRem, 32)
+    __ARITH_OP(INDEX_op_remu_i32, URem, 32)
 #else
-    __ARITH_OP_DIV2(INDEX_op_div2_i32,  S, 32);
-    __ARITH_OP_DIV2(INDEX_op_divu2_i32, U, 32);
+    __ARITH_OP_DIV2(INDEX_op_div2_i32,  S, 32)
+    __ARITH_OP_DIV2(INDEX_op_divu2_i32, U, 32)
 #endif
 
-    __ARITH_OP(INDEX_op_and_i32, And, 32);
-    __ARITH_OP(INDEX_op_or_i32,   Or, 32);
-    __ARITH_OP(INDEX_op_xor_i32, Xor, 32);
+    __ARITH_OP(INDEX_op_and_i32, And, 32)
+    __ARITH_OP(INDEX_op_or_i32,   Or, 32)
+    __ARITH_OP(INDEX_op_xor_i32, Xor, 32)
 
-    __ARITH_OP(INDEX_op_shl_i32,  Shl, 32);
-    __ARITH_OP(INDEX_op_shr_i32, LShr, 32);
-    __ARITH_OP(INDEX_op_sar_i32, AShr, 32);
+    __ARITH_OP(INDEX_op_shl_i32,  Shl, 32)
+    __ARITH_OP(INDEX_op_shr_i32, LShr, 32)
+    __ARITH_OP(INDEX_op_sar_i32, AShr, 32)
 
 #if TCG_TARGET_REG_BITS == 64
-    __ARITH_OP(INDEX_op_add_i64, Add, 64);
-    __ARITH_OP(INDEX_op_sub_i64, Sub, 64);
-    __ARITH_OP(INDEX_op_mul_i64, Mul, 64);
+    __ARITH_OP(INDEX_op_add_i64, Add, 64)
+    __ARITH_OP(INDEX_op_sub_i64, Sub, 64)
+    __ARITH_OP(INDEX_op_mul_i64, Mul, 64)
 
 #ifdef TCG_TARGET_HAS_div_i64
-    __ARITH_OP(INDEX_op_div_i64,  SDiv, 64);
-    __ARITH_OP(INDEX_op_divu_i64, UDiv, 64);
-    __ARITH_OP(INDEX_op_rem_i64,  SRem, 64);
-    __ARITH_OP(INDEX_op_remu_i64, URem, 64);
+    __ARITH_OP(INDEX_op_div_i64,  SDiv, 64)
+    __ARITH_OP(INDEX_op_divu_i64, UDiv, 64)
+    __ARITH_OP(INDEX_op_rem_i64,  SRem, 64)
+    __ARITH_OP(INDEX_op_remu_i64, URem, 64)
 #else
-    __ARITH_OP_DIV2(INDEX_op_div2_i64,  S, 64);
-    __ARITH_OP_DIV2(INDEX_op_divu2_i64, U, 64);
+    __ARITH_OP_DIV2(INDEX_op_div2_i64,  S, 64)
+    __ARITH_OP_DIV2(INDEX_op_divu2_i64, U, 64)
 #endif
 
-    __ARITH_OP(INDEX_op_and_i64, And, 64);
-    __ARITH_OP(INDEX_op_or_i64,   Or, 64);
-    __ARITH_OP(INDEX_op_xor_i64, Xor, 64);
+    __ARITH_OP(INDEX_op_and_i64, And, 64)
+    __ARITH_OP(INDEX_op_or_i64,   Or, 64)
+    __ARITH_OP(INDEX_op_xor_i64, Xor, 64)
 
-    __ARITH_OP(INDEX_op_shl_i64,  Shl, 64);
-    __ARITH_OP(INDEX_op_shr_i64, LShr, 64);
-    __ARITH_OP(INDEX_op_sar_i64, AShr, 64);
+    __ARITH_OP(INDEX_op_shl_i64,  Shl, 64)
+    __ARITH_OP(INDEX_op_shr_i64, LShr, 64)
+    __ARITH_OP(INDEX_op_sar_i64, AShr, 64)
 
 #endif
 
 #undef __ARITH_OP
-
 
     case INDEX_op_exit_tb:
         m_builder.CreateRet(ConstantInt::get(wordType(), args[0]));
