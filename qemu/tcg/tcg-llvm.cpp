@@ -311,7 +311,7 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         break;
 
     case INDEX_op_nopn:
-        nb_args += args[0];
+        nb_args = args[0];
         break;
 
     case INDEX_op_discard:
