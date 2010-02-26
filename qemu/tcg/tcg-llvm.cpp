@@ -385,8 +385,8 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #endif
 
     /* load/store */
-#define __LD_OP(op_name, srcBits, dstBits, signE)                   \
-    case op_name:                                                   \
+#define __LD_OP(opc_name, srcBits, dstBits, signE)                  \
+    case opc_name:                                                  \
         assert(getValue(args[1])->getType() == wordType());         \
         v = m_builder.CreateAdd(getValue(args[1]),                  \
                     ConstantInt::get(wordType(), args[2]));         \
@@ -396,8 +396,8 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                     v, intPtrType(dstBits)));                       \
         break;
 
-#define __ST_OP(op_name, srcBits, dstBits)                          \
-    case op_name:                                                   \
+#define __ST_OP(opc_name, srcBits, dstBits)                         \
+    case opc_name:                                                  \
         assert(getValue(args[0])->getType() == intType(srcBits));   \
         assert(getValue(args[1])->getType() == wordType());         \
         v = m_builder.CreateAdd(getValue(args[1]),                  \
@@ -436,22 +436,61 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #undef __ST_OP
 
     /* arith */
-#define __ARITH_OP(op_name, op, bits)                               \
-    case op_name:                                                   \
+#define __ARITH_OP(opc_name, op, bits)                              \
+    case opc_name:                                                  \
         assert(getValue(args[1])->getType() == intType(bits));      \
         assert(getValue(args[2])->getType() == intType(bits));      \
         setValue(args[0], m_builder.Create ## op(                   \
                 getValue(args[1]), getValue(args[2])));             \
         break;
 
+#define __ARITH_OP_DIV2(opc_name, signE, bits)                      \
+    case opc_name:                                                  \
+        assert(getValue(args[2])->getType() == intType(bits));      \
+        assert(getValue(args[3])->getType() == intType(bits));      \
+        assert(getValue(args[4])->getType() == intType(bits));      \
+        v = m_builder.CreateShl(                                    \
+                m_builder.CreateZExt(                               \
+                    getValue(args[3]), intType(bits*2)),            \
+                ConstantInt::get(intType(bits*2), bits));           \
+        v = m_builder.CreateAdd(v,                                  \
+                m_builder.CreateZExt(                               \
+                    getValue(args[2]), intType(bits*2)));           \
+        setValue(args[0], m_builder.Create ## signE ## Div(         \
+                v, getValue(args[4])));                             \
+        setValue(args[1], m_builder.Create ## signE ## Rem(         \
+                v, getValue(args[4])));                             \
+        break;
+
     __ARITH_OP(INDEX_op_add_i32, Add, 32);
     __ARITH_OP(INDEX_op_sub_i32, Sub, 32);
     __ARITH_OP(INDEX_op_mul_i32, Mul, 32);
+
+#ifdef TCG_TARGET_HAS_div_i32
+    __ARITH_OP(INDEX_op_div_i32,  SDiv, 32);
+    __ARITH_OP(INDEX_op_divu_i32, UDiv, 32);
+    __ARITH_OP(INDEX_op_rem_i32,  SRem, 32);
+    __ARITH_OP(INDEX_op_remu_i32, URem, 32);
+#else
+    __ARITH_OP_DIV2(INDEX_op_div2_i32,  S, 32);
+    __ARITH_OP_DIV2(INDEX_op_divu2_i32, U, 32);
+#endif
 
 #if TCG_TARGET_REG_BITS == 64
     __ARITH_OP(INDEX_op_add_i64, Add, 64);
     __ARITH_OP(INDEX_op_sub_i64, Sub, 64);
     __ARITH_OP(INDEX_op_mul_i64, Mul, 64);
+
+#ifdef TCG_TARGET_HAS_div_i64
+    __ARITH_OP(INDEX_op_div_i64,  SDiv, 64);
+    __ARITH_OP(INDEX_op_divu_i64, UDiv, 64);
+    __ARITH_OP(INDEX_op_rem_i64,  SRem, 64);
+    __ARITH_OP(INDEX_op_remu_i64, URem, 64);
+#else
+    __ARITH_OP_DIV2(INDEX_op_div2_i64,  S, 64);
+    __ARITH_OP_DIV2(INDEX_op_divu2_i64, U, 64);
+#endif
+
 #endif
 
 #undef __ARITH_OP
