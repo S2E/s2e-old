@@ -607,6 +607,53 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         m_builder.CreateRet(ConstantInt::get(wordType(), args[0]));
         break;
 
+    /* QEMU specific */
+#if TCG_TARGET_REG_BITS == 64
+#ifndef CONFIG_SOFTMMU
+
+#define __OP_QEMU_ST(opc_name, bits)                                \
+    case opc_name:                                                  \
+        v = m_builder.CreateIntCast(                                \
+                getValue(args[1]), wordType(), false);              \
+        v = m_builder.CreateAdd(v,                                  \
+                ConstantInt::get(wordType(), GUEST_BASE));          \
+        m_builder.CreateStore(                                      \
+                m_builder.CreateTrunc(                              \
+                    getValue(args[0]), intType(bits)),              \
+                m_builder.CreateIntToPtr(v, intPtrType(bits)));     \
+        break;
+
+#define __OP_QEMU_LD(opc_name, bits, signE)                         \
+    case opc_name:                                                  \
+        v = m_builder.CreateIntCast(                                \
+                getValue(args[1]), wordType(), false);              \
+        v = m_builder.CreateAdd(v,                                  \
+                ConstantInt::get(wordType(), GUEST_BASE));          \
+        v = m_builder.CreateLoad(                                   \
+                m_builder.CreateIntToPtr(v, intPtrType(bits)));     \
+        setValue(args[0], m_builder.Create ## signE ## Ext(         \
+                v, intType(64)));                                   \
+        break;
+
+    __OP_QEMU_ST(INDEX_op_qemu_st8,   8)
+    __OP_QEMU_ST(INDEX_op_qemu_st16, 16)
+    __OP_QEMU_ST(INDEX_op_qemu_st32, 32)
+    __OP_QEMU_ST(INDEX_op_qemu_st64, 64)
+
+    __OP_QEMU_LD(INDEX_op_qemu_ld8s,   8, S)
+    __OP_QEMU_LD(INDEX_op_qemu_ld8u,   8, Z)
+    __OP_QEMU_LD(INDEX_op_qemu_ld16s, 16, S)
+    __OP_QEMU_LD(INDEX_op_qemu_ld16u, 16, Z)
+    __OP_QEMU_LD(INDEX_op_qemu_ld32s, 32, S)
+    __OP_QEMU_LD(INDEX_op_qemu_ld32u, 32, Z)
+    __OP_QEMU_LD(INDEX_op_qemu_ld64,  64, Z)
+
+#undef __OP_QEMU_LD
+#undef __OP_QEMU_ST
+
+#endif
+#endif
+        
     default:
         std::cerr << "ERROR: unknown TCG micro operation '"
                   << def.name << "'" << std::endl;
