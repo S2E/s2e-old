@@ -73,8 +73,8 @@ struct TCGLLVMContext {
     /* Current temp m_values */
     Value* m_values[TCG_MAX_TEMPS];
 
-    /* Pointers to in-memory versions of globals */
-    Value* m_globalsPtr[TCG_MAX_TEMPS];
+    /* Pointers to in-memory versions of globals or local temps */
+    Value* m_memValuesPtr[TCG_MAX_TEMPS];
 
     /* For reg-based globals, store argument number,
      * for mem-based globals, store base value index */
@@ -114,9 +114,9 @@ public:
     void setValue(int idx, Value *v);
     void delValue(int idx);
 
-    Value* getPtrForGlobal(int idx);
-    void delPtrForGlobal(int idx);
-    void initGlobals();
+    Value* getPtrForValue(int idx);
+    void delPtrForValue(int idx);
+    void initGlobalsAndLocalTemps();
 
     void invalidateCachedMemory();
 
@@ -145,7 +145,7 @@ inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
       m_tbFunction(NULL), m_tbCount(0)
 {
     std::memset(m_values, 0, sizeof(m_values));
-    std::memset(m_globalsPtr, 0, sizeof(m_globalsPtr));
+    std::memset(m_memValuesPtr, 0, sizeof(m_memValuesPtr));
     std::memset(m_globalsIdx, 0, sizeof(m_globalsIdx));
     std::memset(m_labels, 0, sizeof(m_labels));
 
@@ -181,18 +181,20 @@ inline TCGLLVMContext::~TCGLLVMContext()
     delete m_executionEngine;
 }
 
-inline Value* TCGLLVMContext::getPtrForGlobal(int idx)
+inline Value* TCGLLVMContext::getPtrForValue(int idx)
 {
     TCGContext *s = m_tcgContext;
     TCGTemp &temp = s->temps[idx];
 
-    assert(idx < s->nb_globals);
+    assert(idx < s->nb_globals || s->temps[idx].temp_local);
     
-    if(m_globalsPtr[idx] == NULL) {
+    if(m_memValuesPtr[idx] == NULL) {
+        assert(idx < s->nb_globals);
+
         if(temp.fixed_reg) {
             Value *v = m_builder.CreateConstGEP1_32(
                     m_tbFunction->arg_begin(), m_globalsIdx[idx]);
-            m_globalsPtr[idx] = m_builder.CreatePointerCast(
+            m_memValuesPtr[idx] = m_builder.CreatePointerCast(
                     v, tcgPtrType(temp.type),
                     StringRef(temp.name) + "_ptr");
 
@@ -202,13 +204,13 @@ inline Value* TCGLLVMContext::getPtrForGlobal(int idx)
 
             v = m_builder.CreateAdd(v, ConstantInt::get(
                             wordType(), temp.mem_offset));
-            m_globalsPtr[idx] =
+            m_memValuesPtr[idx] =
                 m_builder.CreateIntToPtr(v, tcgPtrType(temp.type),
                         StringRef(temp.name) + "_ptr");
         }
     }
 
-    return m_globalsPtr[idx];
+    return m_memValuesPtr[idx];
 }
 
 inline void TCGLLVMContext::delValue(int idx)
@@ -221,23 +223,29 @@ inline void TCGLLVMContext::delValue(int idx)
     m_values[idx] = NULL;
 }
 
-inline void TCGLLVMContext::delPtrForGlobal(int idx)
+inline void TCGLLVMContext::delPtrForValue(int idx)
 {
-    if(m_globalsPtr[idx] && m_globalsPtr[idx]->use_empty()) {
-        if(!isa<Instruction>(m_globalsPtr[idx]) ||
-                !cast<Instruction>(m_globalsPtr[idx])->getParent())
-            delete m_globalsPtr[idx];
+    if(m_memValuesPtr[idx] && m_memValuesPtr[idx]->use_empty()) {
+        if(!isa<Instruction>(m_memValuesPtr[idx]) ||
+                !cast<Instruction>(m_memValuesPtr[idx])->getParent())
+            delete m_memValuesPtr[idx];
     }
-    m_globalsPtr[idx] = NULL;
+    m_memValuesPtr[idx] = NULL;
 }
 
 inline Value* TCGLLVMContext::getValue(int idx)
 {
     if(m_values[idx] == NULL) {
         if(idx < m_tcgContext->nb_globals) {
-            m_values[idx] = m_builder.CreateLoad(
-                    getPtrForGlobal(idx),
-                    m_tcgContext->temps[idx].name);
+            m_values[idx] = m_builder.CreateLoad(getPtrForValue(idx),
+                    StringRef(m_tcgContext->temps[idx].name) + "_v");
+        } else if(m_tcgContext->temps[idx].temp_local) {
+            m_values[idx] = m_builder.CreateLoad(getPtrForValue(idx));
+#ifndef NDEBUG
+            std::ostringstream name;
+            name << "loc" << (idx - m_tcgContext->nb_globals) << "_v";
+            m_values[idx]->setName(name.str());
+#endif
         } else {
             // Temp value was not previousely assigned
             assert(false); // XXX: or return zero constant ?
@@ -254,12 +262,23 @@ inline void TCGLLVMContext::setValue(int idx, Value *v)
 
     if(!v->hasName()) {
         if(idx < m_tcgContext->nb_globals)
-            v->setName(m_tcgContext->temps[idx].name);
+            v->setName(StringRef(m_tcgContext->temps[idx].name) + "_v");
+#ifndef NDEBUG
+        if(m_tcgContext->temps[idx].temp_local) {
+            std::ostringstream name;
+            name << "loc" << (idx - m_tcgContext->nb_globals) << "_v";
+            v->setName(name.str());
+        } else {
+            std::ostringstream name;
+            name << "tmp" << (idx - m_tcgContext->nb_globals) << "_v";
+            v->setName(name.str());
+        }
+#endif
     }
 
     if(idx < m_tcgContext->nb_globals) {
         // We need to save a global copy of a value
-        m_builder.CreateStore(v, getPtrForGlobal(idx));
+        m_builder.CreateStore(v, getPtrForValue(idx));
 
         if(m_tcgContext->temps[idx].fixed_reg) {
             /* Invalidate all dependent global vals and pointers */
@@ -267,14 +286,17 @@ inline void TCGLLVMContext::setValue(int idx, Value *v)
                 if(i != idx && !m_tcgContext->temps[idx].fixed_reg &&
                                     m_globalsIdx[i] == idx) {
                     delValue(i);
-                    delPtrForGlobal(i);
+                    delPtrForValue(i);
                 }
             }
         }
+    } else if(m_tcgContext->temps[idx].temp_local) {
+        // We need to save an in-memory copy of a value
+        m_builder.CreateStore(v, getPtrForValue(idx));
     }
 }
 
-inline void TCGLLVMContext::initGlobals()
+inline void TCGLLVMContext::initGlobalsAndLocalTemps()
 {
     TCGContext *s = m_tcgContext;
 
@@ -304,6 +326,16 @@ inline void TCGLLVMContext::initGlobals()
             m_globalsIdx[i] = reg_to_idx[m_globalsIdx[i]];
         }
     }
+
+    // Allocate local temps
+    for(int i=s->nb_globals; i<TCG_MAX_TEMPS; ++i) {
+        if(s->temps[i].temp_local) {
+            std::ostringstream pName;
+            pName << "loc_" << (i - s->nb_globals) << "ptr";
+            m_memValuesPtr[i] = m_builder.CreateAlloca(
+                tcgType(s->temps[i].type), 0, pName.str());
+        }
+    }
 }
 
 inline BasicBlock* TCGLLVMContext::getLabel(int idx)
@@ -321,6 +353,7 @@ inline void TCGLLVMContext::delLabel(int idx)
     if(m_labels[idx] && m_labels[idx]->use_empty() &&
             !m_labels[idx]->getParent())
         delete m_labels[idx];
+    m_labels[idx] = NULL;
 }
 
 void TCGLLVMContext::startNewBasicBlock(BasicBlock *bb)
@@ -337,12 +370,12 @@ void TCGLLVMContext::startNewBasicBlock(BasicBlock *bb)
     m_builder.SetInsertPoint(bb);
 
     /* Invalidate all temps */
-    /* XXX: store local temps */
-    for(int i=0; i<TCG_MAX_TEMPS; ++i) {
-        /* NOTE: globals will be re-read on demand */
+    for(int i=0; i<TCG_MAX_TEMPS; ++i)
         delValue(i);
-        delPtrForGlobal(i);
-    }
+
+    /* Invalidate all pointers to globals */
+    for(int i=0; i<m_tcgContext->nb_globals; ++i)
+        delPtrForValue(i);
 }
 
 inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
@@ -404,7 +437,18 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
             Value* result = m_builder.CreateCall(funcAddr,
                                 argValues.begin(), argValues.end());
 
-            startNewBasicBlock();
+            /* Invalidate in-memory values because
+             * function might have changed them */
+            for(int i=0; i<m_tcgContext->nb_globals; ++i)
+                delValue(i);
+
+            for(int i=m_tcgContext->nb_globals; i<TCG_MAX_TEMPS; ++i)
+                if(m_tcgContext->temps[i].temp_local)
+                    delValue(i);
+
+            /* Invalidate all pointers to globals */
+            for(int i=0; i<m_tcgContext->nb_globals; ++i)
+                delPtrForValue(i);
 
             if(nb_oargs == 1)
                 setValue(args[1], result);
@@ -419,14 +463,14 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #define __OP_BRCOND_C(tcg_cond, cond)                               \
             case tcg_cond:                                          \
                 v = m_builder.CreateICmp ## cond(                   \
-                        getValue(args[1]), getValue(args[2]));      \
+                        getValue(args[0]), getValue(args[1]));      \
             break;
 
 #define __OP_BRCOND(opc_name, bits)                                 \
     case opc_name: {                                                \
+        assert(getValue(args[0])->getType() == intType(bits));      \
         assert(getValue(args[1])->getType() == intType(bits));      \
-        assert(getValue(args[2])->getType() == intType(bits));      \
-        switch(args[0]) {                                           \
+        switch(args[2]) {                                           \
             __OP_BRCOND_C(TCG_COND_EQ,   EQ)                        \
             __OP_BRCOND_C(TCG_COND_NE,   NE)                        \
             __OP_BRCOND_C(TCG_COND_LT,  SLT)                        \
@@ -437,6 +481,8 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
             __OP_BRCOND_C(TCG_COND_GEU, UGE)                        \
             __OP_BRCOND_C(TCG_COND_LEU, ULE)                        \
             __OP_BRCOND_C(TCG_COND_GTU, UGT)                        \
+            default:                                                \
+                tcg_abort();                                        \
         }                                                           \
         BasicBlock* bb = BasicBlock::Create(m_context);             \
         m_builder.CreateCondBr(v, getLabel(args[3]), bb);           \
@@ -453,6 +499,7 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #undef __OP_BRCOND
 
     case INDEX_op_set_label:
+        assert(getLabel(args[0])->getParent() == 0);
         startNewBasicBlock(getLabel(args[0]));
         break;
 
@@ -461,10 +508,11 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         break;
 
     case INDEX_op_mov_i32:
-        // Truncation is silently accepted
+        // Move operation may perform truncation of the value
         assert(getValue(args[1])->getType() == intType(32) ||
                 getValue(args[1])->getType() == intType(64));
-        setValue(args[0], getValue(args[1]));
+        setValue(args[0],
+                m_builder.CreateTrunc(getValue(args[1]), intType(32)));
         break;
 
 #if TCG_TARGET_REG_BITS == 64
@@ -506,26 +554,26 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #undef __EXT_OP
 
     /* load/store */
-#define __LD_OP(opc_name, srcBits, dstBits, signE)                  \
+#define __LD_OP(opc_name, memBits, regBits, signE)                  \
     case opc_name:                                                  \
         assert(getValue(args[1])->getType() == wordType());         \
         v = m_builder.CreateAdd(getValue(args[1]),                  \
                     ConstantInt::get(wordType(), args[2]));         \
-        v = m_builder.CreateIntToPtr(v, intPtrType(srcBits));       \
+        v = m_builder.CreateIntToPtr(v, intPtrType(memBits));       \
         v = m_builder.CreateLoad(v);                                \
         setValue(args[0], m_builder.Create ## signE ## Ext(         \
-                    v, intPtrType(dstBits)));                       \
+                    v, intType(regBits)));                          \
         break;
 
-#define __ST_OP(opc_name, srcBits, dstBits)                         \
+#define __ST_OP(opc_name, memBits, regBits)                         \
     case opc_name:                                                  \
-        assert(getValue(args[0])->getType() == intType(srcBits));   \
+        assert(getValue(args[0])->getType() == intType(regBits));   \
         assert(getValue(args[1])->getType() == wordType());         \
         v = m_builder.CreateAdd(getValue(args[1]),                  \
                     ConstantInt::get(wordType(), args[2]));         \
-        v = m_builder.CreateIntToPtr(v, intPtrType(dstBits));       \
+        v = m_builder.CreateIntToPtr(v, intPtrType(memBits));       \
         m_builder.CreateStore(m_builder.CreateTrunc(                \
-                getValue(args[0]), intType(dstBits)), v);           \
+                getValue(args[0]), intType(memBits)), v);           \
         break;
 
     __LD_OP(INDEX_op_ld8u_i32,   8, 32, Z)
@@ -573,7 +621,9 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         v = m_builder.CreateShl(                                    \
                 m_builder.CreateZExt(                               \
                     getValue(args[3]), intType(bits*2)),            \
-                ConstantInt::get(intType(bits*2), bits));           \
+                m_builder.CreateZExt(                               \
+                    ConstantInt::get(intType(bits), bits),          \
+                    intType(bits*2)));                              \
         v = m_builder.CreateOr(v,                                   \
                 m_builder.CreateZExt(                               \
                     getValue(args[2]), intType(bits*2)));           \
@@ -688,10 +738,6 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #undef __ARITH_OP_DIV2
 #undef __ARITH_OP
 
-    case INDEX_op_exit_tb:
-        m_builder.CreateRet(ConstantInt::get(wordType(), args[0]));
-        break;
-
     /* QEMU specific */
 #if TCG_TARGET_REG_BITS == 64
 #ifndef CONFIG_SOFTMMU
@@ -739,6 +785,14 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #endif
 #endif
 
+    case INDEX_op_exit_tb:
+        m_builder.CreateRet(ConstantInt::get(wordType(), args[0]));
+        break;
+
+    case INDEX_op_goto_tb:
+        /* XXX */
+        break;
+
     default:
         std::cerr << "ERROR: unknown TCG micro operation '"
                   << def.name << "'" << std::endl;
@@ -751,9 +805,6 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
 inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
 {
-    /* Prepare globals and temps information */
-    initGlobals();
-
     /* Create new function for current translation block */
     std::ostringstream fName;
     fName << "tcg-llvm-tb-" << (m_tbCount++);
@@ -772,6 +823,8 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
             "entry", m_tbFunction);
     m_builder.SetInsertPoint(basicBlock);
 
+    /* Prepare globals and temps information */
+    initGlobalsAndLocalTemps();
 
     /* Generate code for each opc */
     const TCGArg *args = gen_opparam_buf;
@@ -789,22 +842,21 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
         m_builder.CreateRet(ConstantInt::get(wordType(), 0));
 
     /* Clean up unused m_values */
-    for(int i=0; i<TCG_MAX_TEMPS; ++i) {
+    for(int i=0; i<TCG_MAX_TEMPS; ++i)
         delValue(i);
-        delPtrForGlobal(i);
-    }
 
-    for(int i=0; i<TCG_MAX_LABELS; ++i) {
+    /* Delete pointers after deleting values */
+    for(int i=0; i<TCG_MAX_TEMPS; ++i)
+        delPtrForValue(i);
+
+    for(int i=0; i<TCG_MAX_LABELS; ++i)
         delLabel(i);
-    }
 
 #ifndef NDEBUG
     verifyFunction(*m_tbFunction);
 #endif
 
     m_functionPassManager->run(*m_tbFunction);
-
-    std::cout << *m_tbFunction << std::endl;
 
     return new TCGLLVMTranslationBlock(this, m_tbFunction);
 }
