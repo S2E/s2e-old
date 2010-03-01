@@ -26,8 +26,6 @@
 
 #if defined(DECLARE_HOST_REGS)
 
-volatile host_reg_t saved_AREG[3];
-
 #define DO_REG(REG)					\
     register host_reg_t reg_AREG##REG asm(AREG##REG);
 
@@ -35,12 +33,12 @@ volatile host_reg_t saved_AREG[3];
 
 #define DO_REG(REG)					\
     __asm__ __volatile__ ("" : "=r" (reg_AREG##REG));	\
-    saved_AREG[REG] = reg_AREG##REG;
+    saved_AREGs[REG] = reg_AREG##REG;
 
 #else
 
 #define DO_REG(REG)                                     \
-    reg_AREG##REG = saved_AREG[REG];		        \
+    reg_AREG##REG = saved_AREGs[REG];		        \
     __asm__ __volatile__ ("" : : "r" (reg_AREG##REG));
 
 #endif

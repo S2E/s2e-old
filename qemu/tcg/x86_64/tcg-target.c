@@ -1287,6 +1287,25 @@ void tcg_target_qemu_prologue(TCGContext *s)
     tcg_out8(s, 0xc3); /* ret */
 }
 
+__asm__(
+    ".global tcg_llvm_helper_wrapper            \n"
+    "tcg_llvm_helper_wrapper:                   \n"
+    "   movq %r14, (tcg_llvm_helper_buf + 2*8)  \n"
+    "   movq (saved_AREGs), %r14                \n"
+    "   movq (%rsp), %r11                       \n"
+    "   movq %r11, (tcg_llvm_helper_buf + 1*8)  \n"
+    "   movq $tcg_llvm_helper_ret, %r11         \n"
+    "   movq %r11, (%rsp)                       \n"
+    "   movq (tcg_llvm_helper_buf), %r11        \n"
+    "   jmp *%r11                               \n"
+    "                                           \n"
+    "tcg_llvm_helper_ret:                       \n"
+    "   movq %r14, (saved_AREGs)                \n"
+    "   movq (tcg_llvm_helper_buf + 2*8), %r14  \n"
+    "   movq (tcg_llvm_helper_buf + 1*8), %r11  \n"
+    "   jmp *%r11                               \n"
+);
+
 static const TCGTargetOpDef x86_64_op_defs[] = {
     { INDEX_op_exit_tb, { } },
     { INDEX_op_goto_tb, { } },

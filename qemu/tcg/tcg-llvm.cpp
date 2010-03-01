@@ -47,6 +47,11 @@ extern "C" {
 #include <iostream>
 #include <sstream>
 
+extern "C" {
+    uint64_t tcg_llvm_helper_buf[8];
+    void tcg_llvm_helper_wrapper(void);
+}
+
 using namespace llvm;
 
 struct TCGLLVMTranslationBlock {
@@ -430,7 +435,12 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
                 Type::getVoidTy(m_context) : wordType(); // XXX?
 
             Value* funcAddr = getValue(args[nb_oargs + nb_iargs]);
-            funcAddr = m_builder.CreateIntToPtr(funcAddr, 
+            m_builder.CreateStore(funcAddr, m_builder.CreateIntToPtr(
+                        ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_buf),
+                        wordPtrType()));
+
+            funcAddr = m_builder.CreateIntToPtr(
+                    ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
                     PointerType::get(
                         FunctionType::get(retType, argTypes, false), 0));
 
