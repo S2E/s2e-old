@@ -76,7 +76,8 @@ void cpu_gen_init(void)
                   CPU_TEMP_BUF_NLONGS * sizeof(long));
 
 #ifdef CONFIG_LLVM
-    tcg_llvm_ctx = tcg_llvm_context_new(&tcg_ctx);
+    if(generate_llvm)
+        tcg_llvm_ctx = tcg_llvm_context_new(&tcg_ctx);
 #endif
 }
 
@@ -130,7 +131,10 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     *gen_code_size_ptr = gen_code_size;
 
 #ifdef CONFIG_LLVM
-    tb->llvm_tb = tcg_llvm_gen_code(tcg_llvm_ctx);
+    if(generate_llvm)
+        tb->llvm_tb = tcg_llvm_gen_code(tcg_llvm_ctx);
+    else
+        tb->llvm_tb = NULL;
 #endif
 
 #ifdef CONFIG_PROFILER

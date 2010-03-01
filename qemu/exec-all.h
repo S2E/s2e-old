@@ -366,4 +366,7 @@ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler);
 /* vl.c */
 extern int singlestep;
 
+extern int generate_llvm;
+extern int execute_llvm;
+
 #endif

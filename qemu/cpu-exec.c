@@ -50,6 +50,9 @@
 
 volatile host_reg_t saved_AREGs[3];
 
+int generate_llvm = 0;
+int execute_llvm = 0;
+
 int tb_invalidated_flag;
 
 //#define CONFIG_DEBUG_EXEC
@@ -626,10 +629,11 @@ int cpu_exec(CPUState *env1)
 #endif
 
 #ifdef CONFIG_LLVM
-                    if(tb->llvm_tb) {
+                    if(execute_llvm) {
 #define SAVE_HOST_REGS 1
 #include "hostregs_helper.h"
-                        next_tb = tcg_llvm_qemu_tb_exec(tb->llvm_tb, saved_AREGs);
+                        next_tb = tcg_llvm_qemu_tb_exec(
+                                tb, tb->llvm_tb, saved_AREGs);
 // restore host regs
 #include "hostregs_helper.h"
                     } else {

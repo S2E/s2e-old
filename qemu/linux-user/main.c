@@ -2638,6 +2638,11 @@ int main(int argc, char **argv, char **envp)
             singlestep = 1;
         } else if (!strcmp(r, "strace")) {
             do_strace = 1;
+        } else if (!strcmp(r, "generate-llvm")) {
+            generate_llvm = 1;
+        } else if (!strcmp(r, "llvm")) {
+            generate_llvm = 1;
+            execute_llvm = 1;
         } else
         {
             usage();
