@@ -218,7 +218,8 @@ inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
     m_module = new Module("tcg-llvm", m_context);
     m_jitMemoryManager = new TJITMemoryManager();
     m_executionEngine = EngineBuilder(m_module)
-        .setJITMemoryManager(m_jitMemoryManager).create();
+        .setJITMemoryManager(m_jitMemoryManager)
+        .create();
     assert(m_executionEngine != NULL);
 
     moduleProvider = new ExistingModuleProvider(m_module);
@@ -281,21 +282,25 @@ inline Value* TCGLLVMContext::getPtrForValue(int idx)
 
 inline void TCGLLVMContext::delValue(int idx)
 {
+    /* XXX
     if(m_values[idx] && m_values[idx]->use_empty()) {
         if(!isa<Instruction>(m_values[idx]) ||
                 !cast<Instruction>(m_values[idx])->getParent())
             delete m_values[idx];
     }
+    */
     m_values[idx] = NULL;
 }
 
 inline void TCGLLVMContext::delPtrForValue(int idx)
 {
+    /* XXX
     if(m_memValuesPtr[idx] && m_memValuesPtr[idx]->use_empty()) {
         if(!isa<Instruction>(m_memValuesPtr[idx]) ||
                 !cast<Instruction>(m_memValuesPtr[idx])->getParent())
             delete m_memValuesPtr[idx];
     }
+    */
     m_memValuesPtr[idx] = NULL;
 }
 
@@ -326,7 +331,7 @@ inline void TCGLLVMContext::setValue(int idx, Value *v)
     delValue(idx);
     m_values[idx] = v;
 
-    if(!v->hasName()) {
+    if(!v->hasName() && !isa<Constant>(v)) {
         if(idx < m_tcgContext->nb_globals)
             v->setName(StringRef(m_tcgContext->temps[idx].name) + "_v");
 #ifndef NDEBUG
@@ -416,9 +421,11 @@ inline BasicBlock* TCGLLVMContext::getLabel(int idx)
 
 inline void TCGLLVMContext::delLabel(int idx)
 {
+    /* XXX
     if(m_labels[idx] && m_labels[idx]->use_empty() &&
             !m_labels[idx]->getParent())
         delete m_labels[idx];
+    */
     m_labels[idx] = NULL;
 }
 
