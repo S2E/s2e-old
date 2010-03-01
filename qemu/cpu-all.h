@@ -826,6 +826,8 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr);
 #define CPU_LOG_IOPORT     (1 << 7)
 #define CPU_LOG_TB_CPU     (1 << 8)
 #define CPU_LOG_RESET      (1 << 9)
+#define CPU_LOG_LLVM_IR    (1 << 10)
+#define CPU_LOG_LLVM_ASM   (1 << 11)
 
 /* define log items */
 typedef struct CPULogItem {

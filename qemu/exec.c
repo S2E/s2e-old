@@ -1618,6 +1618,12 @@ const CPULogItem cpu_log_items[] = {
     { CPU_LOG_IOPORT, "ioport",
       "show all i/o ports accesses" },
 #endif
+#ifdef CONFIG_LLVM
+    { CPU_LOG_LLVM_IR, "llvm_ir",
+      "show generated LLVM IR code" },
+    { CPU_LOG_LLVM_ASM, "llvm_asm",
+      "show LLVM-generated assembly code" },
+#endif
     { 0, NULL, NULL },
 };
 

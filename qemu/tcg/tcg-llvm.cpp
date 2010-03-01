@@ -868,6 +868,25 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
 
     m_functionPassManager->run(*m_tbFunction);
 
+    if(qemu_loglevel_mask(CPU_LOG_LLVM_IR)) {
+        std::ostringstream s;
+        s << *m_tbFunction;
+        qemu_log("OUT (LLVM IR):\n");
+        qemu_log("%s", s.str().c_str());
+        qemu_log("\n");
+        qemu_log_flush();
+    }
+
+    if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
+        uintptr_t (*fPtr)(void* volatile*) = (uintptr_t (*)(void* volatile*))
+            m_executionEngine->getPointerToFunction(m_tbFunction);
+        
+        qemu_log("OUT (LLVM ASM):\n");
+        log_disas((void*)fPtr, 0x100);
+        qemu_log("\n");
+        qemu_log_flush();
+    }
+
     return new TCGLLVMTranslationBlock(this, m_tbFunction);
 }
 
@@ -898,12 +917,8 @@ uintptr_t tcg_llvm_qemu_tb_exec(
     uintptr_t (*fPtr)(void* volatile*) = (uintptr_t (*)(void* volatile*))
         l->m_executionEngine->getPointerToFunction(tb->m_tbFunction);
     
-    qemu_log("OUT(LLVM):\n");
-    log_disas((void*)fPtr, 0x100);
-    qemu_log("\n");
-    qemu_log_flush();
-
-    std::cerr << "Executing JITed code..." << std::endl;
+    std::cerr << "Executing JITed code for "
+              << tb->m_tbFunction->getNameStr() << "..." << std::endl;
     return fPtr(args);
 }
 
