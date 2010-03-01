@@ -32,6 +32,7 @@ extern "C" {
 
 #include <llvm/DerivedTypes.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/JITMemoryManager.h>
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Module.h>
@@ -54,13 +55,14 @@ extern "C" {
 
 using namespace llvm;
 
+class TJITMemoryManager;
+
 struct TCGLLVMTranslationBlock {
     TCGLLVMContext *tcgLLVMContext;
     Function *m_tbFunction;
 
-    TCGLLVMTranslationBlock(
-        TCGLLVMContext *_tcgLLVMContext, Function *_tbFunction);
-    ~TCGLLVMTranslationBlock();
+    TCGLLVMTBFunctionPointer m_tbFunctionPointer;
+    ptrdiff_t m_tbFunctionSize;
 };
 
 struct TCGLLVMContext {
@@ -91,6 +93,7 @@ struct TCGLLVMContext {
     FunctionPassManager *m_functionPassManager;
 
     /* JIT engine */
+    TJITMemoryManager *m_jitMemoryManager;
     ExecutionEngine *m_executionEngine;
 
     /* Count of generated translation blocks */
@@ -134,16 +137,72 @@ public:
     TCGLLVMTranslationBlock* generateCode();
 };
 
-inline TCGLLVMTranslationBlock::TCGLLVMTranslationBlock(
-        TCGLLVMContext *_tcgLLVMContext, Function *_tbFunction)
-    : tcgLLVMContext(_tcgLLVMContext), m_tbFunction(_tbFunction)
-{
-}
+/* Custom JITMemoryManager in order to capture the size of
+ * the last generated function */
+class TJITMemoryManager: public JITMemoryManager {
+    JITMemoryManager* m_base;
+    ptrdiff_t m_lastFunctionSize;
+public:
+    TJITMemoryManager():
+        m_base(JITMemoryManager::CreateDefaultMemManager()),
+        m_lastFunctionSize(0) {}
+    ~TJITMemoryManager() { delete m_base; }
 
-inline TCGLLVMTranslationBlock::~TCGLLVMTranslationBlock()
-{
-    m_tbFunction->eraseFromParent();
-}
+    ptrdiff_t getLastFunctionSize() const { return m_lastFunctionSize; }
+
+    uint8_t *startFunctionBody(const Function *F, uintptr_t &ActualSize) {
+        m_lastFunctionSize = 0;
+        return m_base->startFunctionBody(F, ActualSize);
+    }
+    void endFunctionBody(const Function *F, uint8_t *FunctionStart,
+                                uint8_t *FunctionEnd) {
+        m_lastFunctionSize = FunctionEnd - FunctionStart;
+        m_base->endFunctionBody(F, FunctionStart, FunctionEnd);
+    }
+
+    void setMemoryWritable() { m_base->setMemoryWritable(); }
+    void setMemoryExecutable() { m_base->setMemoryExecutable(); }
+    void setPoisonMemory(bool poison) { m_base->setPoisonMemory(poison); }
+    void AllocateGOT() { m_base->AllocateGOT(); }
+    uint8_t *getGOTBase() const { return m_base->getGOTBase(); }
+    void SetDlsymTable(void *ptr) { m_base->SetDlsymTable(ptr); }
+    void *getDlsymTable() const { return m_base->getDlsymTable(); }
+    uint8_t *allocateStub(const GlobalValue* F, unsigned StubSize,
+                                unsigned Alignment) {
+        return m_base->allocateStub(F, StubSize, Alignment);
+    }
+    uint8_t *allocateSpace(intptr_t Size, unsigned Alignment) {
+        return m_base->allocateSpace(Size, Alignment);
+    }
+    uint8_t *allocateGlobal(uintptr_t Size, unsigned Alignment) {
+        return m_base->allocateGlobal(Size, Alignment);
+    }
+    void deallocateMemForFunction(const Function *F) {
+        m_base->deallocateMemForFunction(F);
+    }
+    uint8_t* startExceptionTable(const Function* F, uintptr_t &ActualSize) {
+        return m_base->startExceptionTable(F, ActualSize);
+    }
+    void endExceptionTable(const Function *F, uint8_t *TableStart,
+                                 uint8_t *TableEnd, uint8_t* FrameRegister) {
+        m_base->endExceptionTable(F, TableStart, TableEnd, FrameRegister);
+    }
+    bool CheckInvariants(std::string &ErrorStr) {
+        return m_base->CheckInvariants(ErrorStr);
+    }
+    size_t GetDefaultCodeSlabSize() {
+        return m_base->GetDefaultCodeSlabSize();
+    }
+    size_t GetDefaultDataSlabSize() {
+        return m_base->GetDefaultDataSlabSize();
+    }
+    size_t GetDefaultStubSlabSize() {
+        return m_base->GetDefaultStubSlabSize();
+    }
+    unsigned GetNumCodeSlabs() { return m_base->GetNumCodeSlabs(); }
+    unsigned GetNumDataSlabs() { return m_base->GetNumDataSlabs(); }
+    unsigned GetNumStubSlabs() { return m_base->GetNumStubSlabs(); }
+};
 
 inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
     : m_tcgContext(_tcgContext), m_context(), m_builder(m_context),
@@ -157,7 +216,9 @@ inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
     InitializeNativeTarget();
 
     m_module = new Module("tcg-llvm", m_context);
-    m_executionEngine = EngineBuilder(m_module).create();
+    m_jitMemoryManager = new TJITMemoryManager();
+    m_executionEngine = EngineBuilder(m_module)
+        .setJITMemoryManager(m_jitMemoryManager).create();
     assert(m_executionEngine != NULL);
 
     moduleProvider = new ExistingModuleProvider(m_module);
@@ -868,6 +929,12 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
 
     m_functionPassManager->run(*m_tbFunction);
 
+    TCGLLVMTranslationBlock *llvm_tb = new TCGLLVMTranslationBlock;
+    llvm_tb->m_tbFunction = m_tbFunction;
+    llvm_tb->m_tbFunctionPointer = (TCGLLVMTBFunctionPointer) 
+        m_executionEngine->getPointerToFunction(m_tbFunction);
+    llvm_tb->m_tbFunctionSize = m_jitMemoryManager->getLastFunctionSize();
+
     if(qemu_loglevel_mask(CPU_LOG_LLVM_IR)) {
         std::ostringstream s;
         s << *m_tbFunction;
@@ -878,16 +945,14 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
     }
 
     if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
-        uintptr_t (*fPtr)(void* volatile*) = (uintptr_t (*)(void* volatile*))
-            m_executionEngine->getPointerToFunction(m_tbFunction);
-        
-        qemu_log("OUT (LLVM ASM):\n");
-        log_disas((void*)fPtr, 0x100);
+        qemu_log("OUT (LLVM ASM) [size=%ld]:\n", llvm_tb->m_tbFunctionSize);
+        log_disas((void*)llvm_tb->m_tbFunctionPointer,
+                            llvm_tb->m_tbFunctionSize);
         qemu_log("\n");
         qemu_log_flush();
     }
 
-    return new TCGLLVMTranslationBlock(this, m_tbFunction);
+    return llvm_tb;
 }
 
 TCGLLVMContext* tcg_llvm_context_new(TCGContext *s)
@@ -905,20 +970,23 @@ TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l)
     return l->generateCode();
 }
 
-void tcg_llvm_tb_free(TCGLLVMTranslationBlock *tb)
+void tcg_llvm_tb_free(TCGLLVMTranslationBlock *llvm_tb)
 {
-    delete tb;
+    llvm_tb->m_tbFunction->eraseFromParent();
+    delete llvm_tb;
 }
 
-uintptr_t tcg_llvm_qemu_tb_exec(
-        TCGLLVMTranslationBlock *tb, void* volatile *args)
+uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
+        TCGLLVMTranslationBlock *llvm_tb, void* volatile *args)
 {
-    TCGLLVMContext *l = tb->tcgLLVMContext;
-    uintptr_t (*fPtr)(void* volatile*) = (uintptr_t (*)(void* volatile*))
-        l->m_executionEngine->getPointerToFunction(tb->m_tbFunction);
-    
-    std::cerr << "Executing JITed code for "
-              << tb->m_tbFunction->getNameStr() << "..." << std::endl;
-    return fPtr(args);
+#ifdef CONFIG_DEBUG_EXEC
+    if(qemu_loglevel_mask(CPU_LOG_EXEC)) {
+        qemu_log("LLVMTrace 0x%08lx [" TARGET_FMT_lx "] %s (%s)\n",
+            (long)llvm_tb->m_tbFunctionPointer, tb->pc,
+            lookup_symbol(tb->pc),
+            llvm_tb->m_tbFunction->getNameStr().c_str());
+    }
+#endif
+    return llvm_tb->m_tbFunctionPointer(args);
 }
 

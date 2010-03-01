@@ -37,13 +37,16 @@ typedef struct TCGLLVMContext TCGLLVMContext;
 struct TCGLLVMTranslationBlock;
 typedef struct TCGLLVMTranslationBlock TCGLLVMTranslationBlock;
 
+typedef uintptr_t (*TCGLLVMTBFunctionPointer)(void* volatile*);
+
 TCGLLVMContext* tcg_llvm_context_new(TCGContext *s);
 void tcg_llvm_context_free(TCGLLVMContext *l);
 
 TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l);
-void tcg_llvm_tb_free(TCGLLVMTranslationBlock *tb);
+void tcg_llvm_tb_free(TCGLLVMTranslationBlock *llvm_tb);
 
-uintptr_t tcg_llvm_qemu_tb_exec(TCGLLVMTranslationBlock *tb, void* volatile *args);
+uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
+        TCGLLVMTranslationBlock *llvm_tb, void* volatile *args);
 
 #ifdef __cplusplus
 }
