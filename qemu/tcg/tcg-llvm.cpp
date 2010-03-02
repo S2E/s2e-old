@@ -28,6 +28,25 @@ extern "C" {
 #include "config.h"
 #include "qemu-common.h"
 #include "disas.h"
+
+#if defined(CONFIG_SOFTMMU)
+
+#include "../../softmmu_defs.h"
+
+static void *qemu_ld_helpers[4] = {
+    (void*) __ldb_mmu,
+    (void*) __ldw_mmu,
+    (void*) __ldl_mmu,
+    (void*) __ldq_mmu,
+};
+
+static void *qemu_st_helpers[4] = {
+    (void*) __stb_mmu,
+    (void*) __stw_mmu,
+    (void*) __stl_mmu,
+    (void*) __stq_mmu,
+};
+#endif
 }
 
 #include <llvm/DerivedTypes.h>
@@ -131,6 +150,9 @@ public:
     BasicBlock* getLabel(int idx);
     void delLabel(int idx);
     void startNewBasicBlock(BasicBlock *bb = NULL);
+
+    Value* generateQemuMemOp(bool ld, Value* value, Value *addr,
+                                int mem_index, int bits);
 
     /* Code generation */
     int generateOperation(int opc, const TCGArg *args);
@@ -449,6 +471,125 @@ void TCGLLVMContext::startNewBasicBlock(BasicBlock *bb)
     /* Invalidate all pointers to globals */
     for(int i=0; i<m_tcgContext->nb_globals; ++i)
         delPtrForValue(i);
+}
+
+Value* TCGLLVMContext::generateQemuMemOp(bool ld,
+        Value *value, Value *addr, int mem_index, int bits)
+{
+    assert(addr->getType() == intType(TARGET_LONG_BITS));
+    assert(ld || value->getType() == intType(bits));
+    assert(TCG_TARGET_REG_BITS == 64); //XXX
+
+#ifdef CONFIG_SOFTMMU
+
+#define __x_offsetof(TYPE, MEMBER) ((size_t) &((TYPE *) 0)->MEMBER)
+
+    BasicBlock *bb_1 = BasicBlock::Create(m_context);
+    BasicBlock *bb_2 = BasicBlock::Create(m_context);
+    BasicBlock *bb_m = BasicBlock::Create(m_context);
+
+    Value *v, *v1, *v2;
+
+    Value *addrw = m_builder.CreateZExt(addr, wordType());
+    v = m_builder.CreateLShr(addrw, ConstantInt::get(wordType(),
+                (TARGET_PAGE_BITS - CPU_TLB_ENTRY_BITS)));
+    v = m_builder.CreateAnd(v, ConstantInt::get(wordType(),
+            ((CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS)));
+    assert(m_tcgContext->temps[0].reg == TCG_AREG0);
+    assert(getValue(0)->getType() == wordType());
+
+    v = m_builder.CreateAdd(v, getValue(0)); // XXX
+
+    v1 = m_builder.CreateAdd(v, ConstantInt::get(wordType(),
+            ld ?
+                __x_offsetof(CPUState, tlb_table[mem_index][0].addr_read):
+                __x_offsetof(CPUState, tlb_table[mem_index][0].addr_write)));
+
+    v1 = m_builder.CreateLoad(
+            m_builder.CreateIntToPtr(v1, intPtrType(TARGET_LONG_BITS)));
+    v2 = m_builder.CreateAnd(addrw, ConstantInt::get(wordType(),
+            (TARGET_PAGE_MASK | ((bits>>3) - 1))));
+    v2 = m_builder.CreateTrunc(v2, intType(TARGET_LONG_BITS));
+
+    m_builder.CreateCondBr(m_builder.CreateICmpEQ(v1, v2), bb_1, bb_2);
+
+    /* TLB miss: call qemu helper */
+    m_tbFunction->getBasicBlockList().push_back(bb_2);
+    m_builder.SetInsertPoint(bb_2);
+
+    m_builder.CreateStore(
+        ConstantInt::get(wordType(),
+                ld ? (uint64_t) qemu_ld_helpers[bits>>4]:
+                     (uint64_t) qemu_st_helpers[bits>>4]),
+        m_builder.CreateIntToPtr(
+            ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_buf),
+            wordPtrType()));
+
+    std::vector<Value*> argValues; argValues.reserve(3);
+    argValues.push_back(addr);
+    if(!ld)
+        argValues.push_back(value);
+    argValues.push_back(ConstantInt::get(intType(8*sizeof(int)), mem_index));
+
+    std::vector<const Type*> argTypes; argTypes.reserve(3);
+    for(int i=0; i<(ld?2:3); ++i)
+        argTypes.push_back(argValues[i]->getType());
+
+    Value* funcAddr = m_builder.CreateIntToPtr(
+            ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
+            PointerType::get(FunctionType::get(
+                    ld ? intType(bits) : Type::getVoidTy(m_context),
+                    argTypes, false), 0));
+    v2 = m_builder.CreateCall(funcAddr, argValues.begin(), argValues.end());
+
+    m_builder.CreateBr(bb_m);
+
+    /* TLB hit: load or store value directly */
+    m_tbFunction->getBasicBlockList().push_back(bb_1);
+    m_builder.SetInsertPoint(bb_1);
+
+    v = m_builder.CreateAdd(v, ConstantInt::get(wordType(),
+            __x_offsetof(CPUState, tlb_table[mem_index][0].addend)));
+    v1 = m_builder.CreateLoad(
+            m_builder.CreateIntToPtr(v, intPtrType(TARGET_PHYS_ADDR_BITS)));
+    addrw = m_builder.CreateAdd(addrw,
+            m_builder.CreateIntCast(v1, wordType(), false));
+    addrw = m_builder.CreateIntToPtr(addrw, intPtrType(bits));
+
+    if(ld)
+        v1 = m_builder.CreateLoad(addrw);
+    else
+        m_builder.CreateStore(value, addrw);
+
+    m_builder.CreateBr(bb_m);
+
+    /* end */
+    m_tbFunction->getBasicBlockList().push_back(bb_m);
+    m_builder.SetInsertPoint(bb_m);
+
+    if(ld) {
+        PHINode *phi = m_builder.CreatePHI(intType(bits));
+        phi->addIncoming(v1, bb_1);
+        phi->addIncoming(v2, bb_2);
+        return phi;
+    } else {
+        return NULL;
+    }
+
+#undef __x_offsetof
+
+#else
+    addr = m_builder.CreateZExt(addr, wordType());
+    addr = m_builder.CreateAdd(addr,
+        ConstantInt::get(wordType(), GUEST_BASE));
+    addr = m_builder.CreateIntToPtr(addr, intPtrType(bits));
+    if(ld) {
+        return m_builder.CreateLoad(addr);
+    } else {
+        m_builder.CreateStore(value, addr);
+        return NULL;
+    }
+#endif
 }
 
 inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
@@ -818,30 +959,21 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
     /* QEMU specific */
 #if TCG_TARGET_REG_BITS == 64
-#ifndef CONFIG_SOFTMMU
 
 #define __OP_QEMU_ST(opc_name, bits)                                \
     case opc_name:                                                  \
-        v = m_builder.CreateIntCast(                                \
-                getValue(args[1]), wordType(), false);              \
-        v = m_builder.CreateAdd(v,                                  \
-                ConstantInt::get(wordType(), GUEST_BASE));          \
-        m_builder.CreateStore(                                      \
-                m_builder.CreateTrunc(                              \
-                    getValue(args[0]), intType(bits)),              \
-                m_builder.CreateIntToPtr(v, intPtrType(bits)));     \
+        generateQemuMemOp(false,                                    \
+            m_builder.CreateIntCast(                                \
+                getValue(args[0]), intType(bits), false),           \
+            getValue(args[1]), args[2], bits);                      \
         break;
 
 #define __OP_QEMU_LD(opc_name, bits, signE)                         \
     case opc_name:                                                  \
-        v = m_builder.CreateIntCast(                                \
-                getValue(args[1]), wordType(), false);              \
-        v = m_builder.CreateAdd(v,                                  \
-                ConstantInt::get(wordType(), GUEST_BASE));          \
-        v = m_builder.CreateLoad(                                   \
-                m_builder.CreateIntToPtr(v, intPtrType(bits)));     \
+        v = generateQemuMemOp(true, NULL,                           \
+            getValue(args[1]), args[2], bits);                      \
         setValue(args[0], m_builder.Create ## signE ## Ext(         \
-                v, intType(64)));                                   \
+            v, intType(64)));                                       \
         break;
 
     __OP_QEMU_ST(INDEX_op_qemu_st8,   8)
@@ -860,7 +992,6 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 #undef __OP_QEMU_LD
 #undef __OP_QEMU_ST
 
-#endif
 #endif
 
     case INDEX_op_exit_tb:
