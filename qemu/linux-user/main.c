@@ -2452,6 +2452,10 @@ static void usage(void)
 #if defined(CONFIG_USE_GUEST_BASE)
            "-B address        set guest_base address to address\n"
 #endif
+#if defined(CONFIG_LLVM)
+           "-llvm             execute code using LLVM JIT\n"
+           "-generate-llvm    translate code into LLVM but don't execute it\n"
+#endif
            "\n"
            "Debug options:\n"
            "-d options   activate log (logfile=%s)\n"

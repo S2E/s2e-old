@@ -5641,6 +5641,13 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+            case QEMU_OPTION_execute_llvm:
+                generate_llvm = 1;
+                execute_llvm = 1;
+                break;
+            case QEMU_OPTION_generate_llvm:
+                generate_llvm = 1;
+                break;
             }
         }
     }
