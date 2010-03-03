@@ -4083,7 +4083,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     target_ulong next_eip, tval;
     int rex_w, rex_r;
 
+#ifdef CONFIG_LLVM
+    if (generate_llvm || unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP)))
+#else
     if (unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP)))
+#endif
         tcg_gen_debug_insn_start(pc_start);
     s->pc = pc_start;
     prefixes = 0;

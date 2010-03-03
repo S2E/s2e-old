@@ -33,17 +33,19 @@ extern "C" {
 
 #include "../../softmmu_defs.h"
 
-static void *qemu_ld_helpers[4] = {
+static void *qemu_ld_helpers[5] = {
     (void*) __ldb_mmu,
     (void*) __ldw_mmu,
     (void*) __ldl_mmu,
     (void*) __ldq_mmu,
+    (void*) __ldq_mmu,
 };
 
-static void *qemu_st_helpers[4] = {
+static void *qemu_st_helpers[5] = {
     (void*) __stb_mmu,
     (void*) __stw_mmu,
     (void*) __stl_mmu,
+    (void*) __stq_mmu,
     (void*) __stq_mmu,
 };
 #endif
@@ -68,7 +70,15 @@ static void *qemu_st_helpers[4] = {
 #include <sstream>
 
 extern "C" {
-    uint64_t tcg_llvm_helper_buf[8];
+    TranslationBlock *tcg_llvm_last_tb = 0;
+    TCGLLVMTranslationBlock *tcg_llvm_last_llvm_tb = 0;
+    uint64_t tcg_llvm_last_opc_index = 0;
+    uint64_t tcg_llvm_last_pc = 0;
+
+    uint64_t tcg_llvm_helper_call_addr;
+    uint64_t tcg_llvm_helper_ret_addr;
+    uint64_t tcg_llvm_helper_regs[3];
+
     void tcg_llvm_helper_wrapper(void);
 }
 
@@ -284,8 +294,11 @@ inline Value* TCGLLVMContext::getPtrForValue(int idx)
             Value *v = m_builder.CreateConstGEP1_32(
                     m_tbFunction->arg_begin(), m_globalsIdx[idx]);
             m_memValuesPtr[idx] = m_builder.CreatePointerCast(
-                    v, tcgPtrType(temp.type),
-                    StringRef(temp.name) + "_ptr");
+                    v, tcgPtrType(temp.type)
+#ifndef NDEBUG
+                    , StringRef(temp.name) + "_ptr"
+#endif
+                    );
 
         } else {
             Value *v = getValue(m_globalsIdx[idx]);
@@ -294,8 +307,11 @@ inline Value* TCGLLVMContext::getPtrForValue(int idx)
             v = m_builder.CreateAdd(v, ConstantInt::get(
                             wordType(), temp.mem_offset));
             m_memValuesPtr[idx] =
-                m_builder.CreateIntToPtr(v, tcgPtrType(temp.type),
-                        StringRef(temp.name) + "_ptr");
+                m_builder.CreateIntToPtr(v, tcgPtrType(temp.type)
+#ifndef NDEBUG
+                        , StringRef(temp.name) + "_ptr"
+#endif
+                        );
         }
     }
 
@@ -330,8 +346,11 @@ inline Value* TCGLLVMContext::getValue(int idx)
 {
     if(m_values[idx] == NULL) {
         if(idx < m_tcgContext->nb_globals) {
-            m_values[idx] = m_builder.CreateLoad(getPtrForValue(idx),
-                    StringRef(m_tcgContext->temps[idx].name) + "_v");
+            m_values[idx] = m_builder.CreateLoad(getPtrForValue(idx)
+#ifndef NDEBUG
+                    , StringRef(m_tcgContext->temps[idx].name) + "_v"
+#endif
+                    );
         } else if(m_tcgContext->temps[idx].temp_local) {
             m_values[idx] = m_builder.CreateLoad(getPtrForValue(idx));
 #ifndef NDEBUG
@@ -354,9 +373,9 @@ inline void TCGLLVMContext::setValue(int idx, Value *v)
     m_values[idx] = v;
 
     if(!v->hasName() && !isa<Constant>(v)) {
+#ifndef NDEBUG
         if(idx < m_tcgContext->nb_globals)
             v->setName(StringRef(m_tcgContext->temps[idx].name) + "_v");
-#ifndef NDEBUG
         if(m_tcgContext->temps[idx].temp_local) {
             std::ostringstream name;
             name << "loc" << (idx - m_tcgContext->nb_globals) << "_v";
@@ -490,26 +509,27 @@ Value* TCGLLVMContext::generateQemuMemOp(bool ld,
 
     Value *v, *v1, *v2;
 
-    Value *addrw = m_builder.CreateZExt(addr, wordType());
-    v = m_builder.CreateLShr(addrw, ConstantInt::get(wordType(),
+    v = m_builder.CreateLShr(addr, ConstantInt::get(addr->getType(),
                 (TARGET_PAGE_BITS - CPU_TLB_ENTRY_BITS)));
-    v = m_builder.CreateAnd(v, ConstantInt::get(wordType(),
+    v = m_builder.CreateAnd(v, ConstantInt::get(addr->getType(),
             ((CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS)));
+
     assert(m_tcgContext->temps[0].reg == TCG_AREG0);
     assert(getValue(0)->getType() == wordType());
-
-    v = m_builder.CreateAdd(v, getValue(0)); // XXX
+    v = m_builder.CreateAdd(
+            m_builder.CreateZExt(v, wordType()),
+            getValue(0)); // XXX
 
     v1 = m_builder.CreateAdd(v, ConstantInt::get(wordType(),
             ld ?
-                __x_offsetof(CPUState, tlb_table[mem_index][0].addr_read):
+                __x_offsetof(CPUState, tlb_table[mem_index][0].addr_read) :
                 __x_offsetof(CPUState, tlb_table[mem_index][0].addr_write)));
 
     v1 = m_builder.CreateLoad(
             m_builder.CreateIntToPtr(v1, intPtrType(TARGET_LONG_BITS)));
-    v2 = m_builder.CreateAnd(addrw, ConstantInt::get(wordType(),
+
+    v2 = m_builder.CreateAnd(addr, ConstantInt::get(addr->getType(),
             (TARGET_PAGE_MASK | ((bits>>3) - 1))));
-    v2 = m_builder.CreateTrunc(v2, intType(TARGET_LONG_BITS));
 
     m_builder.CreateCondBr(m_builder.CreateICmpEQ(v1, v2), bb_1, bb_2);
 
@@ -522,7 +542,8 @@ Value* TCGLLVMContext::generateQemuMemOp(bool ld,
                 ld ? (uint64_t) qemu_ld_helpers[bits>>4]:
                      (uint64_t) qemu_st_helpers[bits>>4]),
         m_builder.CreateIntToPtr(
-            ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_buf),
+            ConstantInt::get(wordType(),
+                (uint64_t) &tcg_llvm_helper_call_addr),
             wordPtrType()));
 
     std::vector<Value*> argValues; argValues.reserve(3);
@@ -551,15 +572,17 @@ Value* TCGLLVMContext::generateQemuMemOp(bool ld,
     v = m_builder.CreateAdd(v, ConstantInt::get(wordType(),
             __x_offsetof(CPUState, tlb_table[mem_index][0].addend)));
     v1 = m_builder.CreateLoad(
-            m_builder.CreateIntToPtr(v, intPtrType(TARGET_PHYS_ADDR_BITS)));
-    addrw = m_builder.CreateAdd(addrw,
-            m_builder.CreateIntCast(v1, wordType(), false));
-    addrw = m_builder.CreateIntToPtr(addrw, intPtrType(bits));
+            m_builder.CreateIntToPtr(v,
+                intPtrType(8*sizeof(target_phys_addr_t))));
+    addr = m_builder.CreateAdd(
+            m_builder.CreateZExt(addr, wordType()),
+            m_builder.CreateZExt(v1, wordType()));
+    addr = m_builder.CreateIntToPtr(addr, intPtrType(bits));
 
     if(ld)
-        v1 = m_builder.CreateLoad(addrw);
+        v1 = m_builder.CreateLoad(addr);
     else
-        m_builder.CreateStore(value, addrw);
+        m_builder.CreateStore(value, addr);
 
     m_builder.CreateBr(bb_m);
 
@@ -645,7 +668,8 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 
             Value* funcAddr = getValue(args[nb_oargs + nb_iargs]);
             m_builder.CreateStore(funcAddr, m_builder.CreateIntToPtr(
-                        ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_buf),
+                        ConstantInt::get(wordType(),
+                            (uint64_t) &tcg_llvm_helper_call_addr),
                         wordPtrType()));
 
             funcAddr = m_builder.CreateIntToPtr(
@@ -1037,11 +1061,28 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
 
     /* Generate code for each opc */
     const TCGArg *args = gen_opparam_buf;
-    for(int op_index=0; ;++op_index) {
-        int opc = gen_opc_buf[op_index];
+    for(int opc_index=0; ;++opc_index) {
+        int opc = gen_opc_buf[opc_index];
 
         if(opc == INDEX_op_end)
             break;
+
+        if(opc == INDEX_op_debug_insn_start) {
+            // volatile store of current OPC index
+            m_builder.CreateStore(ConstantInt::get(wordType(), opc_index),
+                m_builder.CreateIntToPtr(
+                    ConstantInt::get(wordType(),
+                        (uint64_t) &tcg_llvm_last_opc_index),
+                    wordPtrType()),
+                true);
+            // volatile store of current PC
+            m_builder.CreateStore(ConstantInt::get(wordType(), args[0]),
+                m_builder.CreateIntToPtr(
+                    ConstantInt::get(wordType(),
+                        (uint64_t) &tcg_llvm_last_pc),
+                    wordPtrType()),
+                true);
+        }
 
         args += generateOperation(opc, args);
     }
@@ -1082,14 +1123,6 @@ inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
         qemu_log_flush();
     }
 
-    if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
-        qemu_log("OUT (LLVM ASM) [size=%ld]:\n", llvm_tb->m_tbFunctionSize);
-        log_disas((void*)llvm_tb->m_tbFunctionPointer,
-                            llvm_tb->m_tbFunctionSize);
-        qemu_log("\n");
-        qemu_log_flush();
-    }
-
     return llvm_tb;
 }
 
@@ -1114,17 +1147,34 @@ void tcg_llvm_tb_free(TCGLLVMTranslationBlock *llvm_tb)
     delete llvm_tb;
 }
 
-uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
-        TCGLLVMTranslationBlock *llvm_tb, void* volatile *args)
+int tcg_llvm_search_last_pc(TCGLLVMTranslationBlock *llvm_tb,
+                                uintptr_t searched_pc)
 {
-#ifdef CONFIG_DEBUG_EXEC
-    if(qemu_loglevel_mask(CPU_LOG_EXEC)) {
-        qemu_log("LLVMTrace 0x%08lx [" TARGET_FMT_lx "] %s (%s)\n",
-            (long)llvm_tb->m_tbFunctionPointer, tb->pc,
-            lookup_symbol(tb->pc),
-            llvm_tb->m_tbFunction->getNameStr().c_str());
-    }
-#endif
-    return llvm_tb->m_tbFunctionPointer(args);
+    assert(tcg_llvm_last_llvm_tb == llvm_tb);
+    return tcg_llvm_last_opc_index;
+}
+
+uint8_t* tcg_llvm_get_tc_ptr(TCGLLVMTranslationBlock *llvm_tb)
+{
+    return (uint8_t*) llvm_tb->m_tbFunctionPointer;
+}
+
+uint8_t* tcg_llvm_get_tc_end(TCGLLVMTranslationBlock *llvm_tb)
+{
+    return ((uint8_t*) llvm_tb->m_tbFunctionPointer)
+                + llvm_tb->m_tbFunctionSize;
+}
+
+const char* tcg_llvm_get_fname(TCGLLVMTranslationBlock *llvm_tb)
+{
+    return llvm_tb->m_tbFunction->getNameStr().c_str();
+}
+
+uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
+                            void* volatile* saved_AREGs)
+{
+    tcg_llvm_last_tb = tb;
+    tcg_llvm_last_llvm_tb = tb->llvm_tb;
+    return tb->llvm_tb->m_tbFunctionPointer(saved_AREGs);
 }
 

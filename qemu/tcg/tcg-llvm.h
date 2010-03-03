@@ -39,14 +39,26 @@ typedef struct TCGLLVMTranslationBlock TCGLLVMTranslationBlock;
 
 typedef uintptr_t (*TCGLLVMTBFunctionPointer)(void* volatile*);
 
+extern TranslationBlock *tcg_llvm_last_tb;
+extern TCGLLVMTranslationBlock *tcg_llvm_last_llvm_tb;
+extern uint64_t tcg_llvm_last_opc_index;
+extern uint64_t tcg_llvm_last_pc;
+
 TCGLLVMContext* tcg_llvm_context_new(TCGContext *s);
 void tcg_llvm_context_free(TCGLLVMContext *l);
 
 TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l);
 void tcg_llvm_tb_free(TCGLLVMTranslationBlock *llvm_tb);
 
+uint8_t* tcg_llvm_get_tc_ptr(TCGLLVMTranslationBlock *llvm_tb);
+uint8_t* tcg_llvm_get_tc_end(TCGLLVMTranslationBlock *llvm_tb);
+const char* tcg_llvm_get_fname(TCGLLVMTranslationBlock *llvm_tb);
+
+int tcg_llvm_search_last_pc(TCGLLVMTranslationBlock *llvm_tb,
+                                uintptr_t searched_pc);
+
 uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
-        TCGLLVMTranslationBlock *llvm_tb, void* volatile *args);
+                            void* volatile* saved_AREGs);
 
 #ifdef __cplusplus
 }

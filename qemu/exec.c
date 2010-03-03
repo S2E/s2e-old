@@ -1239,6 +1239,21 @@ TranslationBlock *tb_find_pc(unsigned long tc_ptr)
 
     if (nb_tbs <= 0)
         return NULL;
+
+#ifdef CONFIG_LLVM
+    if(execute_llvm) {
+        for(m=0; m<nb_tbs; m++) {
+            tb = &tbs[m];
+            if(tb->llvm_tb) {
+                if(tc_ptr >= (uintptr_t) tb->llvm_tc_ptr &&
+                   tc_ptr <  (uintptr_t) tb->llvm_tc_end)
+                    return tb;
+            }
+        }
+        return NULL;
+    }
+#endif
+
     if (tc_ptr < (unsigned long)code_gen_buffer ||
         tc_ptr >= (unsigned long)code_gen_ptr)
         return NULL;

@@ -26,6 +26,8 @@
 #include "tcg-llvm.h"
 #endif
 
+#include <assert.h>
+
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
 #undef ECX
@@ -108,6 +110,10 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
 {
     unsigned long next_tb;
     TranslationBlock *tb;
+
+#ifdef CONFIG_LLVM
+    assert(execute_llvm == 0);
+#endif
 
     /* Should never happen.
        We only end up here when an existing TB is too long.  */
@@ -597,9 +603,24 @@ int cpu_exec(CPUState *env1)
                     tb_invalidated_flag = 0;
                 }
 #ifdef CONFIG_DEBUG_EXEC
+#ifdef CONFIG_LLVM
+                if(execute_llvm) {
+                    qemu_log_mask(CPU_LOG_EXEC,
+                            "Trace (LLVM) 0x%08lx [" TARGET_FMT_lx "] %s (LLVM: %s)\n",
+                                 (long)tb->llvm_tc_ptr, tb->pc,
+                                 lookup_symbol(tb->pc),
+                                 tcg_llvm_get_fname(tb->llvm_tb)
+                                 );
+                } else {
+                    qemu_log_mask(CPU_LOG_EXEC, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
+                                 (long)tb->tc_ptr, tb->pc,
+                                 lookup_symbol(tb->pc));
+                }
+#else
                 qemu_log_mask(CPU_LOG_EXEC, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
                              (long)tb->tc_ptr, tb->pc,
                              lookup_symbol(tb->pc));
+#endif
 #endif
                 /* see if we can patch the calling TB. When the TB
                    spans two pages, we cannot safely do a direct
@@ -632,8 +653,7 @@ int cpu_exec(CPUState *env1)
                     if(execute_llvm) {
 #define SAVE_HOST_REGS 1
 #include "hostregs_helper.h"
-                        next_tb = tcg_llvm_qemu_tb_exec(
-                                tb, tb->llvm_tb, saved_AREGs);
+                        next_tb = tcg_llvm_qemu_tb_exec(tb, saved_AREGs);
 // restore host regs
 #include "hostregs_helper.h"
                     } else {

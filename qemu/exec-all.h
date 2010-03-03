@@ -159,6 +159,8 @@ struct TranslationBlock {
 #ifdef CONFIG_LLVM
     /* pointer to LLVM translated code */
     struct TCGLLVMTranslationBlock* llvm_tb;
+    uint8_t *llvm_tc_ptr;   /* pointer to the translated code */
+    uint8_t *llvm_tc_end;
 #endif
 };
 

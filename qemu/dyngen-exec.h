@@ -118,13 +118,20 @@ extern int printf(const char *, ...);
 /* The return address may point to the start of the next instruction.
    Subtracting one gets us the call instruction itself.  */
 #if defined(__s390__) && !defined(__s390x__)
-# define GETPC() ((void*)(((unsigned long)__builtin_return_address(0) & 0x7fffffffUL) - 1))
+# define _GETPC() ((void*)(((unsigned long)__builtin_return_address(0) & 0x7fffffffUL) - 1))
 #elif defined(__arm__)
 /* Thumb return addresses have the low bit set, so we need to subtract two.
    This is still safe in ARM mode because instructions are 4 bytes.  */
-# define GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 2))
+# define _GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 2))
 #else
-# define GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 1))
+# define _GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 1))
+#endif
+
+#ifdef CONFIG_LLVM
+extern uint64_t tcg_llvm_helper_ret_addr;
+#define GETPC() (execute_llvm ? (void*) tcg_llvm_helper_ret_addr : _GETPC())
+#else
+#define GETPC() _GETPC()
 #endif
 
 #endif /* !defined(__DYNGEN_EXEC_H__) */
