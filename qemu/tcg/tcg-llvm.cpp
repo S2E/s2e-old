@@ -997,7 +997,7 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
         v = generateQemuMemOp(true, NULL,                           \
             getValue(args[1]), args[2], bits);                      \
         setValue(args[0], m_builder.Create ## signE ## Ext(         \
-            v, intType(64)));                                       \
+            v, intType(std::max(TARGET_LONG_BITS, bits))));         \
         break;
 
     __OP_QEMU_ST(INDEX_op_qemu_st8,   8)
