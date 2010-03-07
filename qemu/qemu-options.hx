@@ -24,6 +24,33 @@ STEXI
 Display version information and exit
 ETEXI
 
+#ifdef CONFIG_S2E
+DEF("os-type", HAS_ARG, QEMU_OPTION_ostype,
+    "-os-type os_name      Specifies the running guest OS (e.g., WINDOWS, LINUX)\n")
+#endif
+STEXI
+
+ETEXI
+
+#ifdef CONFIG_S2E
+DEF("os-subtype", HAS_ARG, QEMU_OPTION_ossubtype,
+    "-ostype os_name      Specifies the running guest OS subtype (e.g., XPSP1, XPSP2, XPSP3)\n")
+#endif
+STEXI
+
+ETEXI
+
+
+#ifdef CONFIG_S2E
+DEF("s2e-plugin-path", HAS_ARG, QEMU_OPTION_s2e_plugin_path,
+    "-s2e-plugin-path path      Specifies the path to S2E plugins\n")
+#endif
+STEXI
+
+ETEXI
+
+
+
 DEF("M", HAS_ARG, QEMU_OPTION_M,
     "-M machine      select emulated machine (-M ? for list)\n")
 STEXI

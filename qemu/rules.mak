@@ -8,11 +8,25 @@ MAKEFLAGS += -rR
 %.d:
 %.h:
 %.c:
+%.cpp:
 %.m:
 %.mak:
 
 # Flags for dependency generation
 QEMU_DGFLAGS += -MMD -MP -MT $@
+
+#Hack to avoid complaints from the C++ compiler
+QEMU_CPPFLAGS := $(QEMU_CFLAGS:-Wold-style-definition=)
+QEMU_CPPFLAGS := $(QEMU_CPPFLAGS:-Wold-style-declaration=)
+QEMU_CPPFLAGS := $(QEMU_CPPFLAGS:-Wstrict-prototypes=)
+QEMU_CPPFLAGS := $(QEMU_CPPFLAGS:-Wmissing-prototypes=)
+
+S2E_TARGET_PATH := $(SRC_PATH)/target-i386
+QEMU_CPPFLAGS +=  -I$(SRC_PATH)/fpu -I$(SRC_PATH)/tcg -I$(SRC_PATH)/tcg/i386  -I.. -I$(S2E_TARGET_PATH) -DNEED_CPU_H
+
+
+%.o: %.cpp $(GENERATED_HEADERS)
+	$(call quiet-command,$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CPP   $(TARGET_DIR)$@")
 
 %.o: %.c $(GENERATED_HEADERS)
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
@@ -23,7 +37,7 @@ QEMU_DGFLAGS += -MMD -MP -MT $@
 %.o: %.m
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  OBJC  $(TARGET_DIR)$@")
 
-LINK = $(call quiet-command,$(CC) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(1) $(ARLIBS_BEGIN) $(ARLIBS) $(ARLIBS_END) $(LIBS),"  LINK  $(TARGET_DIR)$@")
+LINK = $(call quiet-command,$(CC) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(1) $(ARLIBS_BEGIN) $(ARLIBS) $(ARLIBS_END) $(LIBS) -lstdc++,"  LINK  $(TARGET_DIR)$@")
 
 %$(EXESUF): %.o
 	$(call LINK,$^)

@@ -1345,6 +1345,12 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
     return 1;
 }
 
+target_phys_addr_t cpu_get_phys_page_debug_se(target_ulong addr);
+target_phys_addr_t cpu_get_phys_page_debug_se(target_ulong addr)
+{
+  return cpu_get_phys_page_debug(cpu_single_env, addr);
+}
+
 target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
 {
     target_ulong pde_addr, pte_addr;

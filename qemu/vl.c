@@ -4845,6 +4845,10 @@ static int virtcon_parse(const char *devname)
     return 0;
 }
 
+#ifdef CONFIG_S2E
+#include <S2E/s2e.h>
+#endif
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -4863,6 +4867,10 @@ int main(int argc, char **argv, char **envp)
     const char *loadvm = NULL;
     QEMUMachine *machine;
     const char *cpu_model;
+#ifdef CONFIG_S2E
+    const char *s2e_os_type=NULL, *s2e_os_subtype=NULL;
+#endif
+
 #ifndef _WIN32
     int fds[2];
 #endif
@@ -5007,6 +5015,21 @@ int main(int argc, char **argv, char **envp)
                     cpu_model = optarg;
                 }
                 break;
+#ifdef CONFIG_S2E
+            case QEMU_OPTION_ostype:
+              s2e_os_type = optarg;
+              break;
+
+            case QEMU_OPTION_ossubtype:
+              s2e_os_subtype = optarg;
+              break;
+
+            case QEMU_OPTION_s2e_plugin_path:
+              S2ESetConfigOption(S2E_OPT_PLUGIN_PATH, optarg);
+              break;
+
+#endif
+
             case QEMU_OPTION_initrd:
                 initrd_filename = optarg;
                 break;
@@ -5650,6 +5673,15 @@ int main(int argc, char **argv, char **envp)
             }
         }
     }
+
+#ifdef CONFIG_S2E
+    if (S2EInitOperatingSystem(s2e_os_type, s2e_os_subtype) < 0) {
+      printf("Could not initialize OS type\n");
+      fflush(stderr);
+      fflush(stdout);
+      exit(-1);
+    }
+#endif
 
     /* If no data_dir is specified then try to find it relative to the
        executable path.  */

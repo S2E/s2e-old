@@ -3533,6 +3533,15 @@ void stq_phys(target_phys_addr_t addr, uint64_t val)
 
 #endif
 
+int cpu_memory_rw_debug_se(target_ulong addr,
+                        uint8_t *buf, int len, int is_write);
+
+int cpu_memory_rw_debug_se(target_ulong addr,
+                        uint8_t *buf, int len, int is_write)
+{
+  return cpu_memory_rw_debug(cpu_single_env, addr, buf, len, is_write);
+}
+
 /* virtual memory access for debug (includes writing to ROM) */
 int cpu_memory_rw_debug(CPUState *env, target_ulong addr,
                         uint8_t *buf, int len, int is_write)

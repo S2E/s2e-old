@@ -228,6 +228,7 @@ linux_aio=""
 
 gprof="no"
 debug_tcg="no"
+s2e="no"
 debug="no"
 strip_opt="yes"
 bigendian="no"
@@ -471,6 +472,10 @@ for opt do
   --enable-debug-tcg) debug_tcg="yes"
   ;;
   --disable-debug-tcg) debug_tcg="no"
+  ;;
+  --enable-s2e) s2e="yes"
+  ;;
+  --disable-s2e) s2e="no"
   ;;
   --enable-debug)
       # Enable debugging options that aren't excessively noisy
@@ -1861,6 +1866,7 @@ echo "host CPU          $cpu"
 echo "host big endian   $bigendian"
 echo "target list       $target_list"
 echo "tcg debug enabled $debug_tcg"
+echo "s2e enabled       $s2e"
 echo "gprof enabled     $gprof"
 echo "sparse enabled    $sparse"
 echo "strip binaries    $strip_opt"
@@ -1932,6 +1938,9 @@ esac
 echo "ARCH=$ARCH" >> $config_host_mak
 if test "$debug_tcg" = "yes" ; then
   echo "CONFIG_DEBUG_TCG=y" >> $config_host_mak
+fi
+if test "$s2e" = "yes" ; then
+  echo "CONFIG_S2E=y" >> $config_host_mak
 fi
 if test "$debug" = "yes" ; then
   echo "CONFIG_DEBUG_EXEC=y" >> $config_host_mak
@@ -2607,6 +2616,9 @@ done # for target in $targets
 if test "$source_path_used" = "yes" ; then
     DIRS="tests tests/cris slirp audio block net pc-bios/optionrom"
     DIRS="$DIRS roms/seabios roms/vgabios"
+	if test "$s2e" = "yes" ; then
+		DIRS="$DIRS s2e s2e/Interceptor s2e/Plugins"
+	fi
     FILES="Makefile tests/Makefile"
     FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
     FILES="$FILES tests/test-mmap.c"
