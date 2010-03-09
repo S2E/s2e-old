@@ -20,6 +20,7 @@ public:
   virtual bool CheckDriverLoad(uint64_t eip) = 0;
   virtual bool CheckPanic(uint64_t eip) const = 0;
   virtual IInterceptor* GetNewInterceptor(const std::string &ModuleName) = 0;
+  virtual ~IOperatingSystem()=0;
 };
 
 typedef IOperatingSystem * (*OSPLUGIN_GETINSTANCE)(const char *OsType, const char *OsVer, const S2E_PLUGIN_API *Api);

@@ -5679,7 +5679,7 @@ int main(int argc, char **argv, char **envp)
       printf("Could not initialize OS type\n");
       fflush(stderr);
       fflush(stdout);
-      exit(-1);
+      //exit(-1);
     }
 #endif
 

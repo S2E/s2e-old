@@ -4,7 +4,6 @@
 
 #include <inttypes.h>
 #include <string>
-#include <cstring>
 
 /**
  *  Characterizes whatever module can be loaded in the memory.
@@ -31,7 +30,7 @@ struct ModuleDescriptor
   }
 
   bool EqualInsensitive(const char *Name) const{
-    return stricmp(this->Name.c_str(), Name) == 0;
+	return strcasecmp(this->Name.c_str(), Name) == 0;
   }
 };
 

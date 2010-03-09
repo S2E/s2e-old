@@ -25,7 +25,7 @@ public:
   virtual bool DecideSymbExec(uint64_t cr3, uint64_t Pc)=0;
   virtual void DumpInfo(std::ostream &os)=0;
   virtual bool GetModule(ModuleDescriptor &Desc)=0;
-  
+  virtual ~IInterceptor()=0;
 };
 
 #endif

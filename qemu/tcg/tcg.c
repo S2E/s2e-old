@@ -100,7 +100,7 @@ static inline void tcg_out32(TCGContext *s, uint32_t v)
 /* label relocation processing */
 
 void tcg_out_reloc(TCGContext *s, uint8_t *code_ptr, int type, 
-                   int label_index, tcg_target_long addend)
+                   int label_index, intptr_t addend)
 {
     TCGLabel *l;
     TCGRelocation *r;
