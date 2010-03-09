@@ -625,7 +625,6 @@ endif
 ifeq ($(HOST_OS),linux)
     VL_SOURCES += usb-linux.c \
                   qemu-thread.c
-    LOCAL_LDLIBS += -lX11
 else
     VL_SOURCES += usb-dummy-android.c
 endif
@@ -768,6 +767,14 @@ ifeq ($(HOST_OS),windows)
 endif
 
 LOCAL_LDLIBS += $(QEMU_AUDIO_LIB)
+
+# Generate a completely static executable if needed.
+# Note that this means no sound and graphics on Linux.
+#
+ifeq ($(CONFIG_STATIC_EXECUTABLE),true)
+    LOCAL_SRC_FILES += dynlink-static.c
+    LOCAL_LDLIBS    += -static
+endif
 
 LOCAL_MODULE := emulator
 

@@ -28,6 +28,7 @@ OPTION_NO_PREBUILTS=no
 OPTION_TRY_64=no
 OPTION_HELP=no
 OPTION_DEBUG=no
+OPTION_STATIC=no
 
 if [ -z "$CC" ] ; then
   CC=gcc
@@ -63,6 +64,8 @@ for opt do
   ;;
   --try-64) OPTION_TRY_64=yes
   ;;
+  --static) OPTION_STATIC=yes
+  ;;
   *)
     echo "unknown option '$opt', use --help"
     exit 1
@@ -87,6 +90,7 @@ EOF
     echo "  --ignore-audio           ignore audio messages (may build sound-less emulator)"
     echo "  --no-prebuilts           do not use prebuilt libraries and compiler"
     echo "  --try-64                 try to build a 64-bit executable (may crash)"
+    echo "  --static                 build a completely static executable"
     echo "  --verbose                verbose configuration"
     echo "  --debug                  build debug version of the emulator"
     echo ""
@@ -394,6 +398,10 @@ echo "BUILD_STANDALONE_EMULATOR := true" >> $config_mk
 if [ $OPTION_DEBUG = yes ] ; then
     echo "BUILD_DEBUG_EMULATOR := true" >> $config_mk
 fi
+if [ $OPTION_STATIC = yes ] ; then
+    echo "CONFIG_STATIC_EXECUTABLE := true" >> $config_mk
+fi
+
 if [ -n "$ANDROID_SDK_TOOLS_REVISION" ] ; then
     echo "ANDROID_SDK_TOOLS_REVISION := $ANDROID_SDK_TOOLS_REVISION" >> $config_mk
 fi
@@ -442,6 +450,11 @@ case "$OS" in
     ;;
     *) CONFIG_OS=$OS
 esac
+
+if [ "$OPTION_STATIC" = "yes" ] ; then
+    echo "CONFIG_STATIC_EXECUTABLE := true" >> $config_mk
+    echo "#define CONFIG_STATIC_EXECUTABLE  1" >> $config_h
+fi
 
 case $OS in
     linux-*|darwin-*)
