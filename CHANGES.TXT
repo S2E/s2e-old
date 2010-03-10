@@ -20,6 +20,22 @@ Versions:
    5.0  => current
 
 ==============================================================================
+Changes between 6.0 and 5.0
+
+IMPORTANT CHANGES:
+
+- Add a '-memcheck' option to instrument memory reads/writes at runtime in
+  order to detect buffer under/overflows. This requires a new version of the
+  C library that is only available in Froyo and above.
+
+OTHER:
+
+- Add a '--static' option to both android-configure.sh and android-rebuild.sh
+  in order to build a completely static executable. This is required to run
+  the emulator in restricted environments. No audio and graphics in this mode
+  so using '-no-window' is required.
+
+==============================================================================
 Changes between 5.0 and 1.13
 
 IMPORTANT CHANGES:
