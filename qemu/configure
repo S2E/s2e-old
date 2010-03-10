@@ -2169,6 +2169,7 @@ if test \( "$cpu" = "i386" -o "$cpu" = "x86_64" \) -a \
 fi
 echo "ROMS=$roms" >> $config_host_mak
 
+echo "builddir=$PWD" >> $config_host_mak
 echo "prefix=$prefix" >> $config_host_mak
 echo "bindir=\${prefix}$binsuffix" >> $config_host_mak
 echo "mandir=\${prefix}$mansuffix" >> $config_host_mak

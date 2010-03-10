@@ -7,6 +7,12 @@ extern "C"
   int cpu_memory_rw_debug_se(uint64_t addr,
                         uint8_t *buf, int len, int is_write);
   uint64_t cpu_get_phys_page_debug_se(uint64_t addr);
+
+#include "config.h"
+#include "cpu.h"
+#include "exec-all.h"
+#include "qemu-common.h"
+
 }
 
 using namespace std;
@@ -15,7 +21,7 @@ void QEMU::DumpVirtualMemory(uint64_t Addr, unsigned Length)
 {
  unsigned int i, j;
  uint8_t Data;
-	
+ 
 	for (i=0; i<Length; i++)
 	{
 		if (!(i % 16)) {

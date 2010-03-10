@@ -21,12 +21,16 @@ QEMU_CPPFLAGS := $(QEMU_CPPFLAGS:-Wold-style-declaration=)
 QEMU_CPPFLAGS := $(QEMU_CPPFLAGS:-Wstrict-prototypes=)
 QEMU_CPPFLAGS := $(QEMU_CPPFLAGS:-Wmissing-prototypes=)
 
+#Hack to access CPU state from the S2E subdirectory.
+#Will have to fix it to use S2E on all guest platforms.
 S2E_TARGET_PATH := $(SRC_PATH)/target-i386
-QEMU_CPPFLAGS +=  -I$(SRC_PATH)/fpu -I$(SRC_PATH)/tcg -I$(SRC_PATH)/tcg/i386  -I.. -I$(S2E_TARGET_PATH) -DNEED_CPU_H
+QEMU_CPPFLAGS +=  -I$(SRC_PATH)/fpu -I$(SRC_PATH)/tcg   -I.. -I$(S2E_TARGET_PATH) -DNEED_CPU_H
+QEMU_CPPFLAGS += -I$(builddir)/i386-softmmu
 
 
 %.o: %.cpp $(GENERATED_HEADERS)
-	$(call quiet-command,$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CPP   $(TARGET_DIR)$@")
+	$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<
+	#$(call quiet-command,$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CPP   $(TARGET_DIR)$@")
 
 %.o: %.c $(GENERATED_HEADERS)
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")

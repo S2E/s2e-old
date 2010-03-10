@@ -11,11 +11,17 @@ class COperatingSystem {
 protected:
   static COperatingSystem *s_Instance;
   IOperatingSystem *m_Interface;
-
-  COperatingSystem();
+  void *m_Plugin;
+  std::string m_OsType;
+  std::string m_OsVer;
+  
+  COperatingSystem(const char *OsType, const char *OsVer);
+  bool Load();
+  
 public:
 
-  static COperatingSystem *GetInstance();
+  ~COperatingSystem();
+  static COperatingSystem *GetInstance(const char *OsType, const char *OsVer);
 
   void SetInterface(IOperatingSystem *OS) {
     m_Interface = OS;

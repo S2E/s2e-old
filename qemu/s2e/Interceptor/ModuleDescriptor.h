@@ -5,6 +5,10 @@
 #include <inttypes.h>
 #include <string>
 
+#ifdef __MINGW32__
+#include <cstring>
+#endif
+
 /**
  *  Characterizes whatever module can be loaded in the memory.
  *  This can be a user-mode library, or a kernel-mode driver.

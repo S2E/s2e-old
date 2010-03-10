@@ -7,11 +7,10 @@
 #include "ModuleDescriptor.h"
 
 /** 
- *  Interface for intercepting the load one type of module
+ *  Interface for intercepting the load of a module
  */
-class IInterceptor
+struct IInterceptor
 {
-public:
   virtual bool OnTbEnter(void *CpuState, bool Translation)=0;
   virtual bool OnTbExit(void *CpuState, bool Translation)=0;
   
@@ -25,7 +24,12 @@ public:
   virtual bool DecideSymbExec(uint64_t cr3, uint64_t Pc)=0;
   virtual void DumpInfo(std::ostream &os)=0;
   virtual bool GetModule(ModuleDescriptor &Desc)=0;
-  virtual ~IInterceptor()=0;
+  
+  //Process to intercept
+  virtual bool SetModule(const std::string &Name)=0;
+  
+  //Library name to intercept
+  virtual bool SetSubModule(const std::string &Name)=0;
 };
 
 #endif

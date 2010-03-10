@@ -410,7 +410,7 @@ static inline int lduw_be_p(const void *ptr)
                   : "m" (*(uint16_t *)ptr));
     return val;
 #else
-    const uint8_t *b = ptr;
+    const uint8_t *b = (const uint8_t *)ptr;
     return ((b[0] << 8) | b[1]);
 #endif
 }
@@ -425,7 +425,7 @@ static inline int ldsw_be_p(const void *ptr)
                   : "m" (*(uint16_t *)ptr));
     return (int16_t)val;
 #else
-    const uint8_t *b = ptr;
+    const uint8_t *b = (const uint8_t *)ptr;
     return (int16_t)((b[0] << 8) | b[1]);
 #endif
 }
