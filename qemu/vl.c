@@ -5641,6 +5641,7 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+#ifdef CONFIG_LLVM
             case QEMU_OPTION_execute_llvm:
                 generate_llvm = 1;
                 execute_llvm = 1;
@@ -5648,6 +5649,7 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_generate_llvm:
                 generate_llvm = 1;
                 break;
+#endif
             }
         }
     }

@@ -1287,6 +1287,7 @@ void tcg_target_qemu_prologue(TCGContext *s)
     tcg_out8(s, 0xc3); /* ret */
 }
 
+#ifdef CONFIG_LLVM
 __asm__(
     ".global tcg_llvm_helper_wrapper            \n"
     "tcg_llvm_helper_wrapper:                   \n"
@@ -1305,6 +1306,7 @@ __asm__(
     "   movq (tcg_llvm_helper_ret_addr), %r11   \n"
     "   jmp *%r11                               \n"
 );
+#endif
 
 static const TCGTargetOpDef x86_64_op_defs[] = {
     { INDEX_op_exit_tb, { } },

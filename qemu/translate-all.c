@@ -154,6 +154,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
         qemu_log_flush();
     }
 
+#ifdef CONFIG_LLVM
     if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
         ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
         qemu_log("OUT (LLVM ASM) [size=%ld] (%s)\n", size,
@@ -162,6 +163,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
         qemu_log("\n");
         qemu_log_flush();
     }
+#endif
 #endif
     return 0;
 }
