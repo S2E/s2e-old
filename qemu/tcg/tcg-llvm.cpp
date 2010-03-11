@@ -772,8 +772,10 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     /* size extensions */
 #define __EXT_OP(opc_name, truncBits, opBits, signE )               \
     case opc_name:                                                  \
+        /*                                                          \
         assert(getValue(args[1])->getType() == intType(opBits) ||   \
                getValue(args[1])->getType() == intType(truncBits)); \
+        */                                                          \
         setValue(args[0], m_builder.Create ## signE ## Ext(         \
                 m_builder.CreateTrunc(                              \
                     getValue(args[1]), intType(truncBits)),         \
