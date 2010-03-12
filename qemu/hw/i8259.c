@@ -167,11 +167,11 @@ void pic_update_irq(PicState2 *s)
     }
 
 /* all targets should do this rather than acking the IRQ in the cpu */
-#if defined(TARGET_MIPS) || defined(TARGET_PPC) || defined(TARGET_ALPHA)
+//#if defined(TARGET_MIPS) || defined(TARGET_PPC) || defined(TARGET_ALPHA)
     else {
         qemu_irq_lower(s->parent_irq);
     }
-#endif
+//#endif
 }
 
 #ifdef DEBUG_IRQ_LATENCY
