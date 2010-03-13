@@ -117,4 +117,46 @@ uint64_t QEMU::GetPhysAddr(uint64_t va)
   return a;
 }
 
+/** 
+ *  Reads an integer from the guest's VM.
+ *  XXX:Take into account the indianness of the host and of the target.
+ */
+bool QEMU::ReadInteger(uint64_t Addr, unsigned Size, uint64_t &Result)
+{
+  bool Status;
 
+  switch(Size) {
+    case 1:
+      {
+        uint8_t Val;
+        Status = ReadVirtualMemory(Addr, &Val, Size);
+        Result = Val;
+        break;
+      }
+    case 2:
+      {
+        uint16_t Val;
+        Status = ReadVirtualMemory(Addr, &Val, Size);
+        Result = Val;
+        break;
+      }
+    case 4:
+      {
+        uint32_t Val;
+        Status = ReadVirtualMemory(Addr, &Val, Size);
+        Result = Val;
+        break;
+      }
+    case 8:
+      {
+        uint64_t Val;
+        Status = ReadVirtualMemory(Addr, &Val, Size);
+        Result = Val;
+        break;
+      }
+  }
+
+
+  
+  return Status;
+}

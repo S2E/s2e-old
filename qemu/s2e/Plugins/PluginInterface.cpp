@@ -1,6 +1,6 @@
 #include "config-host.h"
 #include "PluginInterface.h"
-#include "s2e/ConfigurationManager.h"
+#include <s2e/Configuration/ConfigurationManager.h>
 
 #include <s2e/QemuKleeGlue.h>
 #include <sstream>
@@ -21,6 +21,20 @@ void PluginInterface::PluginApiInit(S2E_PLUGIN_API &Out)
   Out.GetUnicode = &QEMU::GetUnicode;
   Out.GetAsciiz = &QEMU::GetAsciiz;
   Out.DumpVirtualMemory = &QEMU::DumpVirtualMemory;
+}
+
+std::string PluginInterface::ConvertToFileName(const std::string &Path, 
+                                                      const std::string &PluginName)
+{
+  stringstream s;
+  
+#ifdef CONFIG_WIN32
+  s << Path << "\\" << PluginName << ".dll";
+#else
+  s << Path << "/" << PluginName << ".so";
+#endif
+  
+  return s.str();
 }
 
 #ifdef CONFIG_WIN32
@@ -70,55 +84,8 @@ void *PluginInterface::GetEntryPoint(void *Opaque, const std::string &FunctionNa
   return ret;
 }
 
+
+
+
 #endif
 
-
-bool PluginInterface::GetPluginNameList(PluginNameList &List, std::string &Prefix)
-{
-  string FileName;
-  
-  string s2e_root = CConfigurationManager::GetInstance()->GetS2ERoot();
-
-  FileName = s2e_root;
-  FileName += "\\*.dll";
-
-#ifdef CONFIG_WIN32
-
-  WIN32_FIND_DATA ffd;
-  HANDLE hHandle;
-  hHandle = FindFirstFile(FileName.c_str(), &ffd);
-  if (hHandle == INVALID_HANDLE_VALUE) {
-    return (GetLastError() == ERROR_FILE_NOT_FOUND);
-  }
-
-  do {
-    if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-      FileName = ffd.cFileName;
-      if (FileName.find(Prefix) == 0) {
-        stringstream Path;
-        Path << s2e_root << "\\" << ffd.cFileName;
-        List.push_back(Path.str());
-      }
-    }
-  }while(FindNextFile(hHandle, &ffd) != 0);
-  
-  FindClose(hHandle);
-  
-#else
-  std::cout << "Implement plugins for Linux" << std::endl;
-  return false;
-#endif
-  return true;
-}
-
-bool PluginInterface::GetOSPluginNameList(PluginNameList &List)
-{
-  string p = "osplg_";
-  return GetPluginNameList(List, p);
-}
-
-bool PluginInterface::GetHandlerPluginNameList(PluginNameList &List)
-{
-  string p = "hdlrplg_";
-  return GetPluginNameList(List, p);
-}

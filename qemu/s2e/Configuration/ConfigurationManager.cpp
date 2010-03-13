@@ -1,4 +1,5 @@
 #include "ConfigurationManager.h"
+#include <s2e/Plugins/PluginInterface.h>
 #include "config-host.h"
 
 #include <iostream>
@@ -10,18 +11,36 @@
 
 using namespace std;
 
-CConfigurationManager* CConfigurationManager::s_Instance = NULL;
+#define S2E_ENV_ROOTDIR "S2E_ROOT_DIR"
+#define S2E_ENV_PLUGINPATH "S2E_PLUGIN_PATH"
 
-CConfigurationManager::CConfigurationManager()
+
+CConfigurationManager::CConfigurationManager(const char *CfgFileName)
 {
+  const char *e;
+
   m_CurrentDir = getcwd(NULL, 0);
+  
   m_S2ERoot = getcwd(NULL, 0);
+  if (!(e = getenv(S2E_ENV_ROOTDIR))) {
+    std::cout << S2E_ENV_ROOTDIR << " not specified. Using current directory." << std::endl;
+  }else {
+    m_S2ERoot = e;
+  }
+  
   m_PluginPath = getcwd(NULL, 0);
+  if (!(e = getenv(S2E_ENV_PLUGINPATH))) {
+    std::cout << S2E_ENV_PLUGINPATH << " not specified. Using current directory." << std::endl;
+  }else {
+    m_PluginPath = e;
+  }
+  
+  m_Cfg = new ConfigurationFile(string(CfgFileName));
 }
 
 CConfigurationManager::~CConfigurationManager()
 {
-
+  delete m_Cfg;
 }
 
 const std::string& CConfigurationManager::GetS2ERoot() const
@@ -29,30 +48,17 @@ const std::string& CConfigurationManager::GetS2ERoot() const
   return m_S2ERoot;
 }
 
-void CConfigurationManager::SetS2ERoot(const string &Path)
-{
-  m_S2ERoot = Path;
-}
 
 const std::string& CConfigurationManager::GetPluginPath() const
 {
   return m_S2ERoot;
 }
 
-void CConfigurationManager::SetPluginPath(const string &Path)
+
+const std::string& CConfigurationManager::GetConfigFile() const
 {
-  m_PluginPath = Path;
+  return m_ConfigFile;
 }
-
-
-CConfigurationManager* CConfigurationManager::GetInstance()
-{
-  if (!s_Instance) {
-    s_Instance = new CConfigurationManager();
-  }
-  return s_Instance;
-}
-
 
 
 
@@ -99,9 +105,32 @@ void CConfigurationManager::ParseModuleList(const string &Buffer,
 }
 
 
+std::string CConfigurationManager::GetCfgOsPluginPath()
+{
+  string val;
+  m_Cfg->GetValue(S2E_CFGMGR_CONFIGURATION, S2E_CFGMGR_CFG_OSPLUGIN, val);
+  
+  return PluginInterface::ConvertToFileName(GetPluginPath(), val);
+}
+
+std::string CConfigurationManager::GetCfgOsType()
+{
+  string val;
+  m_Cfg->GetValue(S2E_CFGMGR_CONFIGURATION, S2E_CFGMGR_CFG_OSTYPE, val);
+  return val;
+}
+
+std::string CConfigurationManager::GetCfgOsVersion()
+{
+  string val;
+  m_Cfg->GetValue(S2E_CFGMGR_CONFIGURATION, S2E_CFGMGR_CFG_OSVERSION, val);
+  return val;
+}
+
 extern "C"
 {
-void S2ESetConfigOption(enum ES2EOption Opt, const char *Value)
+#if 0
+  void S2ESetConfigOption(enum ES2EOption Opt, const char *Value)
 {
   CConfigurationManager *Cfg = CConfigurationManager::GetInstance();
   switch(Opt)
@@ -119,4 +148,5 @@ void S2ESetConfigOption(enum ES2EOption Opt, const char *Value)
     exit(-1);
   }
 }
+#endif
 }

@@ -1,5 +1,5 @@
 #include "OperatingSystem.h"
-#include <s2e/ConfigurationManager.h>
+#include <s2e/Configuration/ConfigurationManager.h>
 #include <s2e/Plugins/PluginInterface.h>
 #include <s2e/s2e.h>
 
@@ -8,20 +8,6 @@
 
 using namespace std;
 
-
-/////////////////////////////////////////////////////
-extern "C" {
-
-int S2EInitOperatingSystem(const char *OsType, const char *OsVer)
-{
-  COperatingSystem *OS = COperatingSystem::GetInstance(OsType, OsVer);
-  if (!OS) {
-    return -1;
-  }
-  return 0;
-}
-
-}
 
 
 bool COperatingSystem::LoadModuleInterceptors(const char *ModStr)
@@ -42,6 +28,7 @@ bool COperatingSystem::LoadModuleInterceptors(const char *ModStr)
       std::cout << "Could not create interceptor for " << Module << std::endl;
     }
     I->SetModule(Module);
+
   }
 
   return true;
@@ -51,11 +38,11 @@ bool COperatingSystem::LoadModuleInterceptors(const char *ModStr)
 
 COperatingSystem *COperatingSystem::s_Instance = NULL;
 
-COperatingSystem::COperatingSystem(const char *OsType, const char* OsVer)
+COperatingSystem::COperatingSystem(CConfigurationManager *Cfg)
 {
   m_Interface = NULL;
-  m_OsType = OsType;
-  m_OsVer = OsVer;
+  m_CfgMgr = Cfg;
+  m_Loaded = Load();
 }
 
 COperatingSystem::~COperatingSystem()
@@ -64,79 +51,48 @@ COperatingSystem::~COperatingSystem()
     m_Plugin, "Release"); 
   
   if (!Inst) {
-    std::cout << "Could not relase the plugin " << m_OsType << " " << m_OsVer << std::endl;
+    std::cout << "Could not relase the OS plugin " << std::endl;
+    return;
   }
   Inst(m_Interface);
 }
 
-COperatingSystem *COperatingSystem::GetInstance(const char *OsType, const char *OsVer)
-{
-  if (!s_Instance) {
-    s_Instance = new COperatingSystem(OsType, OsVer);
-    if (!s_Instance->Load()) {
-      delete s_Instance;
-      s_Instance = NULL;
-    }
-  }
-  return s_Instance;
-}
-
-bool COperatingSystem::CheckDriverLoad(uintptr_t eip)
-{
-  if (!m_Interface){
-    return false;
-  }
-  return m_Interface->CheckDriverLoad(eip);
-}
-
-bool COperatingSystem::CheckPanic(uintptr_t eip) const
-{
-  return m_Interface->CheckPanic(eip);
-}
 
 bool COperatingSystem::Load()
 {
-  PluginInterface::PluginNameList OSPlugins;
+  string Plugin = m_CfgMgr->GetCfgOsPluginPath();
 
-  if (!PluginInterface::GetOSPluginNameList(OSPlugins)) {
-    std::cout << "Could not get a list of OS plugins" << std::endl << std::flush;
+  void *LibHandle = PluginInterface::LoadPlugin(Plugin);
+  if (!LibHandle) {
+    std::cout << "Could not load " << Plugin << std::endl;
     return false;
   }
 
-  if (OSPlugins.empty()) {
-    std::cout << "There are no OS plugins available" << std::endl;
+  OSPLUGIN_GETINSTANCE Inst = (OSPLUGIN_GETINSTANCE)PluginInterface::GetEntryPoint(
+    LibHandle, "GetInstance");
+
+  if (!Inst) {
+    std::cout << "Could not find GetInstance entry point in " << Plugin << std::endl; 
     return false;
   }
 
-  PluginInterface::PluginNameList::iterator it;
-  for(it = OSPlugins.begin(); it != OSPlugins.end(); ++it) {
-    void *LibHandle = PluginInterface::LoadPlugin(*it);
-    if (!LibHandle) {
-      std::cout << "Could not load " << *it << std::endl;
-    }
-
-    OSPLUGIN_GETINSTANCE Inst = (OSPLUGIN_GETINSTANCE)PluginInterface::GetEntryPoint(
-      LibHandle, "GetInstance");
-
-    if (!Inst) {
-      std::cout << "Could not find GetInstance entry point in " << *it << std::endl; 
-      continue;
-    }
-
-    S2E_PLUGIN_API API;
-    PluginInterface::PluginApiInit(API);
-    if (IOperatingSystem *IOS = Inst(m_OsType.c_str(), m_OsVer.c_str(), &API)) {
-      m_Interface = IOS;
-      m_Plugin = LibHandle;
-      std::cout << "Loaded plugin for " << m_OsType << " " << m_OsVer << " - " << *it
-        << std::endl;
-      return true;
-    }
-    
-    PluginInterface::UnloadPlugin(LibHandle);
+  S2E_PLUGIN_API API;
+  PluginInterface::PluginApiInit(API);
+  
+  IOperatingSystem *IOS = Inst(m_CfgMgr->GetCfgOsType().c_str(), 
+    m_CfgMgr->GetCfgOsVersion().c_str(), &API);
+  
+  if (IOS) {
+    m_Interface = IOS;
+    m_Plugin = LibHandle;
+    std::cout << "Loaded plugin for " << m_CfgMgr->GetCfgOsType() 
+      << " " << m_CfgMgr->GetCfgOsVersion() << " - " << Plugin
+      << std::endl;
+    return true;
   }
 
-  std::cout << "No valid OS plugin libraries were found" << std::endl;
+  PluginInterface::UnloadPlugin(LibHandle);
+
   return false;
 }
 

@@ -5,6 +5,21 @@
 #include <iostream>
 #include <inttypes.h>
 #include "ModuleDescriptor.h"
+#include "ExecutableImage.h"
+
+struct IInterceptorEvent
+{
+  virtual void OnProcessLoad(
+    struct IInterceptor *Interceptor,
+    const ModuleDescriptor &Desc
+  ) = 0;
+
+  virtual void OnLibraryLoad(
+    struct IInterceptor *Interceptor,
+    const ModuleDescriptor &Desc,
+    const IExecutableImage::ImportedFunctions &Imports,
+    const IExecutableImage::Exports &Exports) = 0;
+};
 
 /** 
  *  Interface for intercepting the load of a module
@@ -21,15 +36,21 @@ struct IInterceptor
    *  The basic block is characterized by the page directory pointer
    *  (which usually identifies the process) and the program counter.
    */
-  virtual bool DecideSymbExec(uint64_t cr3, uint64_t Pc)=0;
+  /**
+   *  XXX: This should be moved to the policy module.
+   *  The IInterceptor interface defines an interface for mechanisms.
+   */
+  //virtual bool DecideSymbExec(uint64_t cr3, uint64_t Pc)=0;
+  
+  
   virtual void DumpInfo(std::ostream &os)=0;
   virtual bool GetModule(ModuleDescriptor &Desc)=0;
   
   //Process to intercept
   virtual bool SetModule(const std::string &Name)=0;
   
-  //Library name to intercept
-  virtual bool SetSubModule(const std::string &Name)=0;
+  virtual void SetEventHandler(struct IInterceptorEvent *Hdlr) = 0;
 };
+
 
 #endif

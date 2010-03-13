@@ -5,32 +5,31 @@
 #include <inttypes.h>
 #include "Interceptor.h"
 #include <s2e/Plugins/PluginInterface.h>
-
+#include <s2e/Configuration/ConfigurationManager.h>
 
 class COperatingSystem {
 protected:
   static COperatingSystem *s_Instance;
   IOperatingSystem *m_Interface;
   void *m_Plugin;
-  std::string m_OsType;
-  std::string m_OsVer;
+  bool m_Loaded;
   
-  COperatingSystem(const char *OsType, const char *OsVer);
   bool Load();
+
+  CConfigurationManager *m_CfgMgr;
   
 public:
-
+  COperatingSystem(CConfigurationManager *Cfg);
   ~COperatingSystem();
-  static COperatingSystem *GetInstance(const char *OsType, const char *OsVer);
 
   void SetInterface(IOperatingSystem *OS) {
     m_Interface = OS;
   }
 
-  bool CheckDriverLoad(uintptr_t eip);
-  bool CheckPanic(uintptr_t eip) const;
-
   bool LoadModuleInterceptors(const char *ModStr);
+  bool IsLoaded() const {
+    return m_Loaded;
+  }
 };
 
 

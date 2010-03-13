@@ -6,6 +6,13 @@
 #include <vector>
 #include <map>
 
+#include "ConfigurationFile.h"
+
+#define S2E_CFGMGR_CONFIGURATION "CONFIGURATION"
+#define S2E_CFGMGR_CFG_OSPLUGIN "OsPlugin"
+#define S2E_CFGMGR_CFG_OSTYPE "OsType"
+#define S2E_CFGMGR_CFG_OSVERSION "OsVersion"
+
 /**
  *  Centralizes all configuration parameters
  */
@@ -14,29 +21,31 @@ public:
   typedef std::map<std::string, std::vector<std::string> > HookedModules;
 
 private:
-  static CConfigurationManager *s_Instance;
 
   std::string m_S2ERoot;
   std::string m_PluginPath;
   std::string m_CurrentDir;
+  std::string m_ConfigFile;
 
   
 
-  CConfigurationManager();
-  ~CConfigurationManager();
+  ConfigurationFile *m_Cfg;
+  std::string m_CfgFile;
 public:
-  
+  CConfigurationManager(const char *CfgFileName);
+  ~CConfigurationManager();
+
   const std::string& GetS2ERoot() const;
-  void SetS2ERoot(const std::string& S);
   const std::string& GetPluginPath() const;
-  void SetPluginPath(const std::string& S);
-
-
-  static CConfigurationManager* GetInstance();
-
+  const std::string& GetConfigFile() const;
+  
   
   static void ParseModuleList(const std::string &Buffer, 
                               HookedModules &Modules);
+
+  std::string GetCfgOsPluginPath();
+  std::string GetCfgOsType();
+  std::string GetCfgOsVersion();
 };
 
 #endif

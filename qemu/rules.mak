@@ -28,9 +28,9 @@ QEMU_CPPFLAGS +=  -I$(SRC_PATH)/fpu -I$(SRC_PATH)/tcg   -I.. -I$(S2E_TARGET_PATH
 QEMU_CPPFLAGS += -I$(builddir)/i386-softmmu
 
 
+#$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<
 %.o: %.cpp $(GENERATED_HEADERS)
-	$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<
-	#$(call quiet-command,$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CPP   $(TARGET_DIR)$@")
+	$(call quiet-command,$(CC) $(QEMU_CPPFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CPP   $(TARGET_DIR)$@")
 
 %.o: %.c $(GENERATED_HEADERS)
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")

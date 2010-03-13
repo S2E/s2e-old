@@ -4868,7 +4868,7 @@ int main(int argc, char **argv, char **envp)
     QEMUMachine *machine;
     const char *cpu_model;
 #ifdef CONFIG_S2E
-    const char *s2e_os_type=NULL, *s2e_os_subtype=NULL;
+    const char *s2e_config_file=NULL;
 #endif
 
 #ifndef _WIN32
@@ -5016,18 +5016,9 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
 #ifdef CONFIG_S2E
-            case QEMU_OPTION_ostype:
-              s2e_os_type = optarg;
+            case QEMU_OPTION_cfgfile:
+              s2e_config_file = optarg;
               break;
-
-            case QEMU_OPTION_ossubtype:
-              s2e_os_subtype = optarg;
-              break;
-
-            case QEMU_OPTION_s2e_plugin_path:
-              S2ESetConfigOption(S2E_OPT_PLUGIN_PATH, optarg);
-              break;
-
 #endif
 
             case QEMU_OPTION_initrd:
@@ -5675,11 +5666,10 @@ int main(int argc, char **argv, char **envp)
     }
 
 #ifdef CONFIG_S2E
-    if (S2EInitOperatingSystem(s2e_os_type, s2e_os_subtype) < 0) {
-      printf("Could not initialize OS type\n");
-      fflush(stderr);
-      fflush(stdout);
-      //exit(-1);
+    if (s2e_config_file) {
+      S2EInit(s2e_config_file);
+    }else{
+      printf("Please specify the S2E configuration file\n");
     }
 #endif
 
