@@ -46,9 +46,6 @@ struct IInterceptor
   virtual void DumpInfo(std::ostream &os)=0;
   virtual bool GetModule(ModuleDescriptor &Desc)=0;
   
-  //Process to intercept
-  virtual bool SetModule(const std::string &Name)=0;
-  
   virtual void SetEventHandler(struct IInterceptorEvent *Hdlr) = 0;
 };
 

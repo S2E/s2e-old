@@ -151,6 +151,10 @@ struct TranslationBlock {
     struct TranslationBlock *jmp_next[2];
     struct TranslationBlock *jmp_first;
     uint32_t icount;
+
+#ifdef CONFIG_S2E
+    unsigned s2e_tb_enter, s2e_tb_exit;
+#endif
 };
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)

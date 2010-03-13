@@ -620,8 +620,19 @@ int cpu_exec(CPUState *env1)
 #endif 
                     //static uintptr_t prevpc=0;
                     //printf("eip=%lx\n", tb->pc);
-                    
+#ifdef CONFIG_S2E
+                    if (tb->s2e_tb_enter) {
+                      S2EOnTbEnter(env, 0);
+                    }
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
+                    if (tb->s2e_tb_exit) {
+                      S2EOnTbExit(env, 0);
+                    }
+#else
+
+                    next_tb = tcg_qemu_tb_exec(tc_ptr);
+#endif
+
                     env->current_tb = NULL;
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */

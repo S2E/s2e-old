@@ -61,7 +61,7 @@ const std::string& CConfigurationManager::GetConfigFile() const
 }
 
 
-
+#if 0
 /**
  *  Buffer has the following format:
  *  DRIVER1.SYS=[LIB1,LIB2,..,LIBN]\n
@@ -104,6 +104,7 @@ void CConfigurationManager::ParseModuleList(const string &Buffer,
   Modules[CurMod] = Libs;
 }
 
+#endif
 
 std::string CConfigurationManager::GetCfgOsPluginPath()
 {
@@ -127,26 +128,28 @@ std::string CConfigurationManager::GetCfgOsVersion()
   return val;
 }
 
-extern "C"
+void CConfigurationManager::GetCfgInterceptors(CgfInterceptors &I)
 {
-#if 0
-  void S2ESetConfigOption(enum ES2EOption Opt, const char *Value)
-{
-  CConfigurationManager *Cfg = CConfigurationManager::GetInstance();
-  switch(Opt)
-  {
-  case S2E_OPT_ROOT_PATH:
-    Cfg->SetS2ERoot(Value);
-    break;
+  unsigned i=0;
 
-  case S2E_OPT_PLUGIN_PATH:
-    Cfg->SetPluginPath(Value);
-    break;
+  do {
+    stringstream InterceptorName;
+    string Value;
+    struct CfgInterceptor Ci;
 
-  default:
-    std::cout << "Invalid S2ESetConfigOption option " << std::dec << Opt << std::endl;
-    exit(-1);
-  }
-}
-#endif
+    InterceptorName << "INTERCEPTOR" << std::dec << i;
+    
+    if (!m_Cfg->GetValue(InterceptorName.str(), "Type", Value)) {
+      break;
+    }
+    Ci.UserMode = !Value.compare("USER");
+    
+    if (!m_Cfg->GetValue(InterceptorName.str(), "Module", Value)) {
+      break;
+    }
+    Ci.ModuleName = Value;
+    I.insert(I.end(), Ci);
+    i++;
+  }while(true);
+
 }

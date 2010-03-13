@@ -15,12 +15,6 @@ typedef struct _S2E_PLUGIN_API {
   void (*DumpVirtualMemory)(uint64_t Addr, unsigned Length);
 }S2E_PLUGIN_API;
 
-struct IOperatingSystem {
-  virtual IInterceptor* GetNewInterceptor(const std::string &ModuleName) = 0;
-};
-
-typedef IOperatingSystem * (*OSPLUGIN_GETINSTANCE)(const char *OsType, const char *OsVer, const S2E_PLUGIN_API *Api);
-typedef void (*OSPLUGIN_RELEASE)(IOperatingSystem *OS);
 
 void PluginApiInit(S2E_PLUGIN_API &Out);
 

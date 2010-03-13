@@ -13,12 +13,20 @@
 #define S2E_CFGMGR_CFG_OSTYPE "OsType"
 #define S2E_CFGMGR_CFG_OSVERSION "OsVersion"
 
+struct CfgInterceptor
+{
+  std::string ModuleName;
+  bool UserMode;
+};
+
+typedef std::vector<struct CfgInterceptor> CgfInterceptors; 
+
 /**
  *  Centralizes all configuration parameters
  */
 class CConfigurationManager {
 public:
-  typedef std::map<std::string, std::vector<std::string> > HookedModules;
+  //typedef std::map<std::string, std::vector<std::string> > HookedModules;
 
 private:
 
@@ -40,12 +48,13 @@ public:
   const std::string& GetConfigFile() const;
   
   
-  static void ParseModuleList(const std::string &Buffer, 
-                              HookedModules &Modules);
+  //static void ParseModuleList(const std::string &Buffer, 
+  //                            HookedModules &Modules);
 
   std::string GetCfgOsPluginPath();
   std::string GetCfgOsType();
   std::string GetCfgOsVersion();
+  void GetCfgInterceptors(CgfInterceptors &I);
 };
 
 #endif

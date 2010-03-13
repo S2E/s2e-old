@@ -7732,6 +7732,10 @@ void optimize_flags_init(void)
 #include "helper.h"
 }
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e.h>
+#endif
+
 /* generate intermediate code in gen_opc_buf and gen_opparam_buf for
    basic block 'tb'. If search_pc is TRUE, also generate PC
    information for each intermediate instruction. */
@@ -7755,6 +7759,10 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     cs_base = tb->cs_base;
     flags = tb->flags;
     cflags = tb->cflags;
+
+    #ifdef CONFIG_S2E
+    tb->s2e_tb_enter = S2EOnTbEnter(env, 1);
+    #endif
 
     dc->pe = (flags >> HF_PE_SHIFT) & 1;
     dc->code32 = (flags >> HF_CS32_SHIFT) & 1;
@@ -7907,6 +7915,10 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         qemu_log("\n");
     }
 #endif
+
+    #ifdef CONFIG_S2E
+    tb->s2e_tb_exit = S2EOnTbExit(env, 1);
+    #endif
 
     if (!search_pc) {
         tb->size = pc_ptr - pc_start;

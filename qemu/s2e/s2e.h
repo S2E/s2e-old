@@ -29,12 +29,16 @@ public:
 
   static S2E* GetInstance(const char *CfgFile);
   static S2E* GetInstance();
+
+  COperatingSystem *GetOS() const;
 };
 
 
 #else
 
 int S2EInit(const char *CfgFile);
+int S2EOnTbEnter(void *CpuState, int Translation);
+int S2EOnTbExit(void *CpuState, int Translation);
 
 #endif
 

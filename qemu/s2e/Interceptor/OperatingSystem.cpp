@@ -10,25 +10,24 @@ using namespace std;
 
 
 
-bool COperatingSystem::LoadModuleInterceptors(const char *ModStr)
+bool COperatingSystem::LoadModuleInterceptors()
 {
+  CgfInterceptors Ci;
   if (!m_Interface) {
-    std::cout << "An OS type and version has to be set before setting module interceptors!" << std::endl;
+    std::cout << "An OS plugin must be loaded setting module interceptors!" << std::endl;
     return false;
   }
 
-  CConfigurationManager::HookedModules Hm;
-  CConfigurationManager::ParseModuleList(ModStr, Hm);
+  m_CfgMgr->GetCfgInterceptors(Ci);
 
-  CConfigurationManager::HookedModules::iterator it;
-  for (it = Hm.begin(); it != Hm.end(); ++it) {
-    std::string Module = (*it).first;
-    IInterceptor *I = m_Interface->GetNewInterceptor(Module);
+  foreach(it, Ci.begin(), Ci.end()) {
+    const CfgInterceptor &Cfg = *it;
+    IInterceptor *I = m_Interface->GetNewInterceptor(Cfg.ModuleName, Cfg.UserMode);
     if (!I) {
-      std::cout << "Could not create interceptor for " << Module << std::endl;
+      std::cout << "Could not create interceptor for " << Cfg.ModuleName << std::endl;
     }
-    I->SetModule(Module);
-
+  
+    m_Interceptors.push_back(I);
   }
 
   return true;
@@ -97,3 +96,22 @@ bool COperatingSystem::Load()
 }
 
 
+bool COperatingSystem::OnTbEnter(void *CpuState, bool Translation)
+{
+  foreach(it, m_Interceptors.begin(), m_Interceptors.end()) {
+    if ((*it)->OnTbEnter(CpuState, Translation)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool COperatingSystem::OnTbExit(void *CpuState, bool Translation)
+{
+  foreach(it, m_Interceptors.begin(), m_Interceptors.end()) {
+    if ((*it)->OnTbExit(CpuState, Translation)) {
+      return true;
+    }
+  }
+  return false;
+}
