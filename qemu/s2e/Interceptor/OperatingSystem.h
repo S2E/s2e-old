@@ -14,11 +14,13 @@ struct IOperatingSystem {
 typedef IOperatingSystem * (*OSPLUGIN_GETINSTANCE)(const char *OsType, const char *OsVer, const S2E_PLUGIN_API *Api);
 typedef void (*OSPLUGIN_RELEASE)(IOperatingSystem *OS);
 
+class COSEvents;
 
 class COperatingSystem {
 protected:
   static COperatingSystem *s_Instance;
   IOperatingSystem *m_Interface;
+  COSEvents *m_Events;
   void *m_Plugin;
   bool m_Loaded;
   
@@ -32,19 +34,33 @@ public:
   COperatingSystem(CConfigurationManager *Cfg);
   ~COperatingSystem();
 
-  void SetInterface(IOperatingSystem *OS) {
-    m_Interface = OS;
-  }
+  void SetInterface(IOperatingSystem *OS);
 
   bool LoadModuleInterceptors();
-  bool IsLoaded() const {
-    return m_Loaded;
-  }
+  bool IsLoaded() const;
 
   virtual bool OnTbEnter(void *CpuState, bool Translation);
   virtual bool OnTbExit(void *CpuState, bool Translation);
 };
 
+class COSEvents:public IInterceptorEvent
+{
+private:
+  COperatingSystem *m_Os;
+public:
+  COSEvents(COperatingSystem *Os);
+  ~COSEvents();
+  virtual void OnProcessLoad(
+    struct IInterceptor *Interceptor,
+    const ModuleDescriptor &Desc
+  );
+
+  virtual void OnLibraryLoad(
+    struct IInterceptor *Interceptor,
+    const ModuleDescriptor &Desc,
+    const IExecutableImage::Imports &Imports,
+    const IExecutableImage::Exports &Exports);
+};
 
 extern "C"
 {

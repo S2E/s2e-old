@@ -4,6 +4,8 @@
 
 #include <inttypes.h>
 #include <string>
+#include <set>
+#include <ostream>
 
 #ifdef __MINGW32__
 #include <cstring>
@@ -36,6 +38,22 @@ struct ModuleDescriptor
   bool EqualInsensitive(const char *Name) const{
 	return strcasecmp(this->Name.c_str(), Name) == 0;
   }
+
+  struct ModuleByLoadBase {
+    bool operator()(const struct ModuleDescriptor& s1, 
+      const struct ModuleDescriptor& s2) const {
+      return s1.LoadBase < s2.LoadBase;
+    }
+  };
+
+  void Print(std::ostream &os) const {
+    std::cout << "Name=" << Name << std::hex <<
+      " NativeBase=0x" << NativeBase << " LoadBase=0x" << LoadBase <<
+      " Size=0x" << Size << std::endl;
+  };
+
+
+  typedef std::set<struct ModuleDescriptor, ModuleByLoadBase> MDSet;
 };
 
 #endif

@@ -1,6 +1,7 @@
 #include "QemuKleeGlue.h"
 
 #include <s2e/s2e.h>
+#include <sstream>
 
 extern "C"
 {
@@ -82,6 +83,36 @@ bool QEMU::GetAsciiz(uint64_t base, std::string &ret)
 
 	return true;
 }
+
+char *QEMU::GetAsciiz(uint64_t base)
+{
+	char c;
+	unsigned i=0;
+
+  stringstream s;
+
+	do {
+		if (cpu_memory_rw_debug_se(base+i, (uint8_t*)&c, sizeof(char), 0)<0) {
+			DPRINTF("Could not load asciiz at %#I64x\n", base+i);
+			return NULL;
+		}
+		if (c) {
+			s << c;
+		}else {
+			break;
+		}
+		i++;
+	}while(i<256);
+
+  char *ret = (char*)malloc(s.str().size() + 1);
+  if (!ret) {
+    return NULL;
+  }
+  strcpy(ret, s.str().c_str());
+	return ret;
+}
+
+
 
 std::string QEMU::GetUnicode(uint64_t base, unsigned size)
 {

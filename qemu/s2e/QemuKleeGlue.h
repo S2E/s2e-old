@@ -14,6 +14,7 @@ public:
   static uint64_t GetPhysAddr(uint64_t va);
   static void DumpVirtualMemory(uint64_t Addr, unsigned Length);
   static bool ReadInteger(uint64_t Addr, unsigned Size, uint64_t &Result);
+  static char *GetAsciiz(uint64_t base);
 };
 
 

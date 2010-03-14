@@ -17,9 +17,12 @@ struct IInterceptorEvent
   virtual void OnLibraryLoad(
     struct IInterceptor *Interceptor,
     const ModuleDescriptor &Desc,
-    const IExecutableImage::ImportedFunctions &Imports,
+    const IExecutableImage::Imports &Imports,
     const IExecutableImage::Exports &Exports) = 0;
 };
+
+
+
 
 /** 
  *  Interface for intercepting the load of a module

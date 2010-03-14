@@ -32,7 +32,7 @@ struct IDataStructureSpy
   /*********************************************/
 
 public:
-  typedef std::set<SProcessDescriptor, ProcessByName> ProcessesByName;
+  typedef std::multiset<SProcessDescriptor, ProcessByName> ProcessesByName;
   typedef std::set<SProcessDescriptor, ProcessByDir> ProcessesByDir;
 
   typedef struct _Processes {

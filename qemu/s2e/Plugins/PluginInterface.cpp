@@ -21,6 +21,10 @@ void PluginInterface::PluginApiInit(S2E_PLUGIN_API &Out)
   Out.GetUnicode = &QEMU::GetUnicode;
   Out.GetAsciiz = &QEMU::GetAsciiz;
   Out.DumpVirtualMemory = &QEMU::DumpVirtualMemory;
+
+  Out.malloc = &malloc;
+  Out.free = &free;
+
 }
 
 std::string PluginInterface::ConvertToFileName(const std::string &Path, 

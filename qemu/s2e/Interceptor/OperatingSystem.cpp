@@ -26,12 +26,23 @@ bool COperatingSystem::LoadModuleInterceptors()
     if (!I) {
       std::cout << "Could not create interceptor for " << Cfg.ModuleName << std::endl;
     }
+
+    I->SetEventHandler(m_Events);
   
     m_Interceptors.push_back(I);
   }
 
   return true;
 }
+
+bool COperatingSystem::IsLoaded() const
+ {
+    return m_Loaded;
+  }
+
+void COperatingSystem::SetInterface(IOperatingSystem *OS) {
+    m_Interface = OS;
+  }
 
 /////////////////////////////////////////////////////
 
@@ -42,6 +53,7 @@ COperatingSystem::COperatingSystem(CConfigurationManager *Cfg)
   m_Interface = NULL;
   m_CfgMgr = Cfg;
   m_Loaded = Load();
+  m_Events = new COSEvents(this);
 }
 
 COperatingSystem::~COperatingSystem()
@@ -53,7 +65,10 @@ COperatingSystem::~COperatingSystem()
     std::cout << "Could not relase the OS plugin " << std::endl;
     return;
   }
-  Inst(m_Interface);
+  if (m_Interface) {
+    Inst(m_Interface);
+  }
+  delete m_Events;
 }
 
 
@@ -87,6 +102,7 @@ bool COperatingSystem::Load()
     std::cout << "Loaded plugin for " << m_CfgMgr->GetCfgOsType() 
       << " " << m_CfgMgr->GetCfgOsVersion() << " - " << Plugin
       << std::endl;
+
     return true;
   }
 
@@ -114,4 +130,35 @@ bool COperatingSystem::OnTbExit(void *CpuState, bool Translation)
     }
   }
   return false;
+}
+
+
+COSEvents::COSEvents(COperatingSystem *Os)
+{
+
+}
+
+COSEvents::~COSEvents()
+{
+
+}
+
+void COSEvents::OnProcessLoad(
+  struct IInterceptor *Interceptor,
+  const ModuleDescriptor &Desc
+)
+{
+  std::cout << "PROCESS LOAD ";
+  Desc.Print(std::cout);
+}
+
+void COSEvents::OnLibraryLoad(
+  struct IInterceptor *Interceptor,
+  const ModuleDescriptor &Desc,
+  const IExecutableImage::Imports &Imports,
+  const IExecutableImage::Exports &Export
+)
+{
+  std::cout << "LIBRARY LOAD ";
+  Desc.Print(std::cout);
 }

@@ -11,8 +11,13 @@ typedef struct _S2E_PLUGIN_API {
   bool (*ReadVirtualMemory)(uint64_t Addr, void *Buffer, unsigned Length);
   uint64_t (*GetPhysAddr)(uint64_t va);
   std::string (*GetUnicode)(uint64_t base, unsigned size);
-  bool (*GetAsciiz)(uint64_t base, std::string &ret);
+  char* (*GetAsciiz)(uint64_t base);
   void (*DumpVirtualMemory)(uint64_t Addr, unsigned Length);
+  
+  //This is to be used by the plugins when they wish to allocate
+  //memory on the s2e's heap.
+  void (*free)(void *mem);
+  void *(*malloc)(size_t size);
 }S2E_PLUGIN_API;
 
 
