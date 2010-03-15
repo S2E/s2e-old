@@ -196,6 +196,12 @@ obj-i386-y += usb-uhci.o vmmouse.o vmport.o vmware_vga.o hpet.o
 obj-i386-y += device-hotplug.o pci-hotplug.o smbios.o wdt_ib700.o
 obj-i386-y += ne2000-isa.o
 
+obj-i386-$(CONFIG_S2E) += ../s2e/Configuration/ConfigurationManager.o ../s2e/Configuration/ConfigurationFile.o
+obj-i386-$(CONFIG_S2E) += ../s2e/Interceptor/OperatingSystem.o
+obj-i386-$(CONFIG_S2E) += ../s2e/QemuKleeGlue.o
+obj-i386-$(CONFIG_S2E) += ../s2e/s2e.o
+obj-i386-$(CONFIG_S2E) += ../s2e/Plugins/PluginInterface.o
+
 # shared objects
 obj-ppc-y = ppc.o ide/core.o ide/qdev.o ide/isa.o ide/pci.o ide/macio.o
 obj-ppc-y += ide/cmd646.o
