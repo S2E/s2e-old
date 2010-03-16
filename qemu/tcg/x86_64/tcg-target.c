@@ -1288,24 +1288,38 @@ void tcg_target_qemu_prologue(TCGContext *s)
 }
 
 #ifdef CONFIG_LLVM
+#ifdef __linux__
+#define _S(x) #x
+#else
+#define _S(x) "_" #x
+#endif
+
+#define _D(x) _S(x) "(%rip)"
+
 __asm__(
-    ".global tcg_llvm_helper_wrapper            \n"
-    "tcg_llvm_helper_wrapper:                   \n"
-    "   movq %r14, (tcg_llvm_helper_regs)       \n"
-    "   movq (saved_AREGs), %r14                \n"
-    "   movq (%rsp), %r11                       \n"
-    "   movq %r11, (tcg_llvm_helper_ret_addr)   \n"
-    "   movq $tcg_llvm_helper_ret, %r11         \n"
-    "   movq %r11, (%rsp)                       \n"
-    "   movq (tcg_llvm_helper_call_addr), %r11  \n"
-    "   jmp *%r11                               \n"
-    "                                           \n"
-    "tcg_llvm_helper_ret:                       \n"
-    "   movq %r14, (saved_AREGs)                \n"
-    "   movq (tcg_llvm_helper_regs), %r14       \n"
-    "   movq (tcg_llvm_helper_ret_addr), %r11   \n"
-    "   jmp *%r11                               \n"
+    ".text                                              \n"
+    ".globl " _S(tcg_llvm_helper_wrapper) "             \n"
+    ".globl " _S(tcg_llvm_helper_ret) "                 \n"
+    _S(tcg_llvm_helper_wrapper) ":                      \n"
+    "   movq %r14, " _D(tcg_llvm_helper_regs) "         \n"
+    "   movq " _D(saved_AREGs) ", %r14                  \n"
+    "   movq (%rsp), %r11                               \n"
+    "   movq %r11, " _D(tcg_llvm_helper_ret_addr) "     \n"
+    "   leaq " _D(tcg_llvm_helper_ret) ", %r11          \n"
+    "   movq %r11, (%rsp)                               \n"
+    "   movq " _D(tcg_llvm_helper_call_addr) ", %r11    \n"
+    "   jmp *%r11                                       \n"
+    "                                                   \n"
+    _S(tcg_llvm_helper_ret) ":                          \n"
+    "   movq %r14, " _D(saved_AREGs) "                  \n"
+    "   movq " _D(tcg_llvm_helper_regs) ", %r14         \n"
+    "   movq " _D(tcg_llvm_helper_ret_addr) ", %r11     \n"
+    "   jmp *%r11                                       \n"
 );
+
+#undef _S
+#undef _D
+
 #endif
 
 static const TCGTargetOpDef x86_64_op_defs[] = {
