@@ -238,7 +238,7 @@ curl=""
 curses=""
 docs=""
 fdt=""
-llvm=""
+llvm="no"
 kvm=""
 nptl=""
 sdl=""
@@ -540,8 +540,6 @@ for opt do
   ;;
   --enable-bluez) bluez="yes"
   ;;
-  --disable-llvm) llvm="no"
-  ;;
   --enable-llvm) llvm="yes"
   ;;
   --disable-kvm) kvm="no"
@@ -752,7 +750,6 @@ echo "  --disable-check-utests   disable check unit-tests"
 echo "  --enable-check-utests    enable check unit-tests"
 echo "  --disable-bluez          disable bluez stack connectivity"
 echo "  --enable-bluez           enable bluez stack connectivity"
-echo "  --disable-llvm           disable LLVM support"
 echo "  --enable-llvm            enable LLVM support"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
