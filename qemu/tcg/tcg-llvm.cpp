@@ -236,7 +236,7 @@ public:
     unsigned GetNumStubSlabs() { return m_base->GetNumStubSlabs(); }
 };
 
-inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
+TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
     : m_tcgContext(_tcgContext), m_context(), m_builder(m_context),
       m_tbFunction(NULL), m_tbCount(0)
 {
@@ -270,7 +270,7 @@ inline TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
     m_functionPassManager->doInitialization();
 }
 
-inline TCGLLVMContext::~TCGLLVMContext()
+TCGLLVMContext::~TCGLLVMContext()
 {
     delete m_functionPassManager;
     delete moduleProvider;
@@ -280,7 +280,7 @@ inline TCGLLVMContext::~TCGLLVMContext()
     delete m_executionEngine;
 }
 
-inline Value* TCGLLVMContext::getPtrForValue(int idx)
+Value* TCGLLVMContext::getPtrForValue(int idx)
 {
     TCGContext *s = m_tcgContext;
     TCGTemp &temp = s->temps[idx];
@@ -342,7 +342,7 @@ inline void TCGLLVMContext::delPtrForValue(int idx)
     m_memValuesPtr[idx] = NULL;
 }
 
-inline Value* TCGLLVMContext::getValue(int idx)
+Value* TCGLLVMContext::getValue(int idx)
 {
     if(m_values[idx] == NULL) {
         if(idx < m_tcgContext->nb_globals) {
@@ -367,7 +367,7 @@ inline Value* TCGLLVMContext::getValue(int idx)
     return m_values[idx];
 }
 
-inline void TCGLLVMContext::setValue(int idx, Value *v)
+void TCGLLVMContext::setValue(int idx, Value *v)
 {
     delValue(idx);
     m_values[idx] = v;
@@ -408,7 +408,7 @@ inline void TCGLLVMContext::setValue(int idx, Value *v)
     }
 }
 
-inline void TCGLLVMContext::initGlobalsAndLocalTemps()
+void TCGLLVMContext::initGlobalsAndLocalTemps()
 {
     TCGContext *s = m_tcgContext;
 
@@ -615,7 +615,7 @@ Value* TCGLLVMContext::generateQemuMemOp(bool ld,
 #endif
 }
 
-inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
+int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
 {
     Value *v;
     TCGOpDef &def = tcg_op_defs[opc];
@@ -1038,7 +1038,7 @@ inline int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     return nb_args;
 }
 
-inline TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
+TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
 {
     /* Create new function for current translation block */
     std::ostringstream fName;
