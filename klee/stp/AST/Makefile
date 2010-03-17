@@ -17,6 +17,7 @@ CompileCommonOpts:=$(filter-out -pedantic, $(CompileCommonOpts))
 # ASTKind.h and ASTKind.cpp are automatically generated
 $(ObjDir)/ASTKind.h $(ObjDir)/ASTKind.cpp: ASTKind.kinds genkinds.pl
 	$(Echo) "Generating ASTKind.h and ASTKind.cpp for $(BuildMode) build " $(PIC_FLAG)
+	$(Verb) mkdir -p $(ObjDir)
 	$(Verb) ln -sf $(PROJ_SRC_DIR)/ASTKind.kinds $(ObjDir)/ASTKind.kinds
 	$(Verb) cd $(ObjDir) && $(PROJ_SRC_DIR)/genkinds.pl
 
