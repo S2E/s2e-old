@@ -2,6 +2,7 @@ LEVEL=../..
 
 LIBRARYNAME=ast
 BUILD_ARCHIVE=1
+NO_INSTALL=1
 
 SOURCES=AST.cpp ASTUtil.cpp BitBlast.cpp SimpBool.cpp ToCNF.cpp ToSAT.cpp Transform.cpp
 

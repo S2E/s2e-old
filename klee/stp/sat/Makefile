@@ -2,6 +2,7 @@ LEVEL=../..
 
 LIBRARYNAME=satsolver
 BUILD_ARCHIVE=1
+NO_INSTALL=1
 
 SOURCES=Solver.C Simplifier.C
 

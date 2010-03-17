@@ -2,6 +2,7 @@ LEVEL=../..
 
 LIBRARYNAME=constantbv
 BUILD_ARCHIVE=1
+NO_INSTALL=1
 
 include $(LEVEL)/Makefile.common
 
