@@ -1,11 +1,10 @@
-include ../Makefile.common
+LEVEL=../..
 
-SRCS = simplifier.cpp bvsolver.cpp
-OBJS = $(SRCS:.cpp=.o)
+LIBRARYNAME=simplifier
+BUILD_ARCHIVE=1
 
-libsimplifier.a: $(OBJS)
-	$(AR) rc $@ $^
-	$(RANLIB) $@
+include $(LEVEL)/Makefile.common
 
-clean:	
-	rm -rf *.o *~ *.a .#*
+CXXFLAGS+=-I$(ObjDir)/../../AST/$(BuildMode) -DEXT_HASH_MAP
+CompileCommonOpts:=$(filter-out -pedantic, $(CompileCommonOpts))
+

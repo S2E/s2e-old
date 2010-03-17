@@ -14,3 +14,6 @@ DONT_BUILD_RELINKED=1
 BUILD_ARCHIVE=1
 
 include $(LEVEL)/Makefile.common
+
+CPPFLAGS+=-I$(PROJ_SRC_ROOT)/stp/c_interface
+

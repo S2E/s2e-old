@@ -42,16 +42,16 @@ cscope.files:
           -name \*.inc -or \
           -name \*.h | sort > cscope.files
 
-test::
-	-(cd test/ && make)
-
-.PHONY: klee-cov
-klee-cov:
-	rm -rf klee-cov
-	zcov-scan --look-up-dirs=1 klee.zcov .
-	zcov-genhtml --root $$(pwd) klee.zcov klee-cov
-
-clean::
-	$(MAKE) -C test clean 
-	$(MAKE) -C unittests clean
-	rm -rf docs/doxygen
+#test::
+#	-(cd test/ && make)
+#
+#.PHONY: klee-cov
+#klee-cov:
+#	rm -rf klee-cov
+#	zcov-scan --look-up-dirs=1 klee.zcov .
+#	zcov-genhtml --root $$(pwd) klee.zcov klee-cov
+#
+#clean::
+#	$(MAKE) -C test clean 
+#	$(MAKE) -C unittests clean
+#	rm -rf docs/doxygen

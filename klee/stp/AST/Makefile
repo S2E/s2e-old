@@ -1,54 +1,26 @@
-include ../Makefile.common
+LEVEL=../..
 
-SRCS = AST.cpp ASTKind.cpp  ASTUtil.cpp BitBlast.cpp SimpBool.cpp  ToCNF.cpp ToSAT.cpp Transform.cpp
-OBJS = $(SRCS:.cpp=.o)
+LIBRARYNAME=ast
+BUILD_ARCHIVE=1
 
-#Make the ast library for use by other modules
-libast.a:	$(OBJS)
-	-rm -rf $@
-	$(AR) rc libast.a $(OBJS)
-	$(RANLIB) libast.a
+SOURCES=AST.cpp ASTUtil.cpp BitBlast.cpp SimpBool.cpp ToCNF.cpp ToSAT.cpp Transform.cpp
 
-ASTKind.o: ASTKind.h ASTKind.cpp
-	$(CXX) $(CXXFLAGS)   -c -o ASTKind.o ASTKind.cpp
+include $(LEVEL)/Makefile.common
+
+ObjectsO+=$(ObjDir)/ASTKind.o
+$(LibName.A): $(ObjDir)/ASTKind.o
+$(addprefix $(ObjDir)/, $(SOURCES:.cpp=.o)): $(ObjDir)/ASTKind.h
+
+CXXFLAGS+=-I$(ObjDir) -DEXT_HASH_MAP
+CompileCommonOpts:=$(filter-out -pedantic, $(CompileCommonOpts))
 
 # ASTKind.h and ASTKind.cpp are automatically generated
-ASTKind.h ASTKind.cpp:	ASTKind.kinds genkinds.pl
-	./genkinds.pl
+$(ObjDir)/ASTKind.h $(ObjDir)/ASTKind.cpp: ASTKind.kinds genkinds.pl
+	$(Echo) "Generating ASTKind.h and ASTKind.cpp for $(BuildMode) build " $(PIC_FLAG)
+	$(Verb) ln -sf $(PROJ_SRC_DIR)/ASTKind.kinds $(ObjDir)/ASTKind.kinds
+	$(Verb) cd $(ObjDir) && $(PROJ_SRC_DIR)/genkinds.pl
 
-# cnftest:	cnftest.o ToCNF.o AST.o ASTUtil.o ASTKind.o BitBlast.o AST.h
-#	$(CC) $(LDFLAGS) ToCNF.o BitBlast.o ASTKind.o  ASTUtil.o AST.o  cnftest.o  -o cnftest 
+$(ObjDir)/ASTKind.o: $(ObjDir)/ASTKind.cpp $(ObjDir)/ASTKind.h
+	$(Echo) "Compiling ASTKind.cpp for $(BuildMode) build " $(PIC_FLAG)
+	$(Verb) $(Compile.CXX) $< -o $@
 
-# bbtest: $(OBJS)
-#	$(CC) $(LDFLAGS) BitBlast.o ASTKind.o  ASTUtil.o AST.o  bbtest.o -o bbtest 
-
-# asttest: $(OBJS)
-#	$(CC) $(LDFLAGS) ASTKind.o  ASTUtil.o AST.o asttest.o  -lstdc++ -o asttest
-
-clean:
-	rm -rf *.o *~ bbtest asttest cnftest *.a  ASTKind.h ASTKind.cpp .#*
-
-depend:
-	makedepend -Y -- $(CFLAGS) -- $(SRCS)
-# DO NOT DELETE
-
-AST.o: AST.h ASTUtil.h ASTKind.h ../sat/Solver.h ../sat/SolverTypes.h
-AST.o: ../sat/Global.h ../sat/VarOrder.h ../sat/Solver.h ../sat/Heap.h
-AST.o: ../AST/ASTUtil.h ../sat/SolverTypes.h ../constantbv/constantbv.h
-ASTUtil.o: ASTUtil.h
-BitBlast.o: AST.h ASTUtil.h ASTKind.h ../sat/Solver.h ../sat/SolverTypes.h
-BitBlast.o: ../sat/Global.h ../sat/VarOrder.h ../sat/Solver.h ../sat/Heap.h
-BitBlast.o: ../AST/ASTUtil.h ../sat/SolverTypes.h ../constantbv/constantbv.h
-SimpBool.o: AST.h ASTUtil.h ASTKind.h ../sat/Solver.h ../sat/SolverTypes.h
-SimpBool.o: ../sat/Global.h ../sat/VarOrder.h ../sat/Solver.h ../sat/Heap.h
-SimpBool.o: ../AST/ASTUtil.h ../sat/SolverTypes.h ../constantbv/constantbv.h
-ToCNF.o: AST.h ASTUtil.h ASTKind.h ../sat/Solver.h ../sat/SolverTypes.h
-ToCNF.o: ../sat/Global.h ../sat/VarOrder.h ../sat/Solver.h ../sat/Heap.h
-ToCNF.o: ../AST/ASTUtil.h ../sat/SolverTypes.h ../constantbv/constantbv.h
-ToSAT.o: AST.h ASTUtil.h ASTKind.h ../sat/Solver.h ../sat/SolverTypes.h
-ToSAT.o: ../sat/Global.h ../sat/VarOrder.h ../sat/Solver.h ../sat/Heap.h
-ToSAT.o: ../AST/ASTUtil.h ../sat/SolverTypes.h ../constantbv/constantbv.h
-ToSAT.o: ../simplifier/bvsolver.h ../AST/AST.h
-Transform.o: AST.h ASTUtil.h ASTKind.h ../sat/Solver.h ../sat/SolverTypes.h
-Transform.o: ../sat/Global.h ../sat/VarOrder.h ../sat/Solver.h ../sat/Heap.h
-Transform.o: ../AST/ASTUtil.h ../sat/SolverTypes.h ../constantbv/constantbv.h

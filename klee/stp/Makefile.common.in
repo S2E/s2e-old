@@ -1,8 +1,10 @@
 # -*- Makefile -*-
 
-CFLAGS := @CFLAGS@
-CXXFLAGS := @CXXFLAGS@ -O2
-LDFLAGS := @LDFLAGS@ -lstdc++
+include $(LEVEL)/Makefile.common
+
+CFLAGS += @CFLAGS@
+CXXFLAGS += @CXXFLAGS@ -O2
+LDFLAGS += @LDFLAGS@ -lstdc++
 
 # use the darmin test as a proxy for detecting Mac OS X
 ifneq ($(shell uname -s), Darwin)
@@ -14,3 +16,4 @@ CXXFLAGS += -Wall -DEXT_HASH_MAP
 LEX := flex
 YACC := bison -d -y --debug -v
 RANLIB := ranlib
+

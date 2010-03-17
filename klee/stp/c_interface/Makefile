@@ -1,13 +1,10 @@
-include ../Makefile.common
+LEVEL=../..
 
-SRCS = c_interface.cpp
-OBJS = $(SRCS:.cpp=.o)
+LIBRARYNAME=cinterface
+BUILD_ARCHIVE=1
 
-libcinterface.a: $(OBJS)
-	$(AR) rc $@ $^
-	$(RANLIB) $@
+include $(LEVEL)/Makefile.common
 
-clean:	
-	rm -rf *.o *~ *.a .#*
+CXXFLAGS+=-I$(ObjDir)/../../AST/$(BuildMode) -DEXT_HASH_MAP
+CompileCommonOpts:=$(filter-out -pedantic, $(CompileCommonOpts))
 
-c_interface.o: c_interface.h

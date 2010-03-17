@@ -1,13 +1,9 @@
-include ../Makefile.common
+LEVEL=../..
 
-SRCS = constantbv.cpp
-OBJS = $(SRCS:.cpp=.o)
+LIBRARYNAME=constantbv
+BUILD_ARCHIVE=1
 
-libconstantbv.a: $(OBJS)
-	$(AR) rc $@ $^
-	$(RANLIB) $@
+include $(LEVEL)/Makefile.common
 
-clean:	
-	rm -rf *.o *~ *.a .#*
-
-constantbv.o: constantbv.h
+CXXFLAGS+=-I$(ObjDir)/../../AST/$(BuildMode) -DEXT_HASH_MAP
+CompileCommonOpts:=$(filter-out -pedantic, $(CompileCommonOpts))

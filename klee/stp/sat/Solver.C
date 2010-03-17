@@ -316,7 +316,7 @@ void Solver::analyze(Clause* confl, vec<Lit>& out_learnt, int& out_btlevel)
         }
 
         // Select next clause to look at:
-        while (!seen[var(trail[index--])]);
+        while (!seen[var(trail[index--])]) ;
         p     = trail[index+1];
         confl = reason[var(p)];
         seen[var(p)] = 0;

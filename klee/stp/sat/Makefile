@@ -1,16 +1,27 @@
-include ../Makefile.common
+LEVEL=../..
 
-SRCS = Solver.C Simplifier.C
-OBJS = $(SRCS:.C=.o)
+LIBRARYNAME=satsolver
+BUILD_ARCHIVE=1
 
-libsatsolver.a: $(OBJS)
-	$(AR) rc $@ $^
-	$(RANLIB) $@
+SOURCES=Solver.C Simplifier.C
 
-Solver.o: Solver.C Solver.h Sort.h SolverTypes.h VarOrder.h Global.h Heap.h
-Simplifier.o: Simplifier.C Solver.h Sort.h SolverTypes.h VarOrder.h Global.h Heap.h
+include $(LEVEL)/Makefile.common
 
-clean:
-	rm -rf *.o *~  *.a  depend.mak .#*
-depend:
-	makedepend -- $(CFLAGS) -- $(SRCS)
+CXXFLAGS+=-DEXT_HASH_MAP
+CompileCommonOpts:=$(filter-out -pedantic, $(CompileCommonOpts))
+
+ifndef DISABLE_AUTO_DEPENDENCIES
+
+$(ObjDir)/%.o: %.C $(ObjDir)/.dir $(BUILT_SOURCES)
+	$(Echo) "Compiling $*.C for $(BuildMode) build" $(PIC_FLAG)
+	$(Verb) if $(Compile.CXX) $(DEPEND_OPTIONS) $< -o $(ObjDir)/$*.o ; \
+	        $(DEPEND_MOVEFILE)
+
+else
+
+$(ObjDir)/%.o: %.C $(ObjDir)/.dir $(BUILT_SOURCES)
+	$(Echo) "Compiling $*.C for $(BuildMode) build" $(PIC_FLAG)
+	$(Compile.CXX) $< -o $@
+
+endif
+

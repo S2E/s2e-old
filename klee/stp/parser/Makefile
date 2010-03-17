@@ -1,27 +1,40 @@
-include ../Makefile.common
+LEVEL=../..
 
-SRCS = lexPL.cpp parsePL.cpp let-funcs.cpp main.cpp
-OBJS = $(SRCS:.cpp=.o)
-LIBS = -L../AST -last -L../sat -lsatsolver -L../simplifier -lsimplifier -L../bitvec -lconsteval -L../constantbv -lconstantbv
+TOOLNAME=parser
+BUILD_ARCHIVE=1
 
-all: parser 
+include $(LEVEL)/Makefile.common
 
-parser: lexPL.o parsePL.o let-funcs.o main.o 
-		$(CXX) $(CFLAGS) $(LDFLAGS) lexPL.o parsePL.o main.o let-funcs.o $(LIBS) -o parser
+LIBS+=-last -lsatsolver -lsimplifier -lconsteval -lconstantbv
 
-main.o: parsePL_defs.h
+CXXFLAGS+=-I$(ObjDir) -I$(PROJ_SRC_DIR) -I$(ObjDir)/../../AST/$(BuildMode) -DEXT_HASH_MAP
+CompileCommonOpts:=$(filter-out -pedantic, $(CompileCommonOpts))
 
-lexPL.cpp:	PL.lex parsePL_defs.h ../AST/AST.h
-		$(LEX) -olexPL.cpp PL.lex
+ObjectsO+=$(addprefix $(ObjDir)/, lexPL.o parsePL.o)
+$(ToolBuildPath): $(addprefix $(ObjDir)/, lexPL.o parsePL.o)
 
-parsePL_defs.h: y.tab.h
-		@cp y.tab.h parsePL_defs.h
-parsePL.cpp: y.tab.c
-		@cp y.tab.c parsePL.cpp
+LEX := flex
+YACC := bison -d -y --debug -v
 
-y.tab.c y.tab.h:	PL.y
-		$(YACC) PL.y
+$(ObjDir)/main.o: $(ObjDir)/parsePL_defs.h
 
+$(ObjDir)/lexPL.o: $(ObjDir)/lexPL.cpp
+	$(Echo) "Compiling lexPL.cpp for $(BuildMode) build " $(PIC_FLAG)
+	$(Verb) $(Compile.CXX) $< -o $@
 
-clean:	
-		rm -rf *.o parsePL_defs.h *~ lexPL.cpp parsePL.cpp *.output parser y.tab.* lex.yy.c .#*
+$(ObjDir)/parsePL.o: $(ObjDir)/parsePL.cpp
+	$(Echo) "Compiling parsePL.cpp for $(BuildMode) build " $(PIC_FLAG)
+	$(Verb) $(Compile.CXX) $< -o $@
+
+$(ObjDir)/lexPL.cpp: PL.lex $(ObjDir)/parsePL_defs.h ../AST/AST.h
+	$(LEX) -o$(ObjDir)/lexPL.cpp $(PROJ_SRC_DIR)/PL.lex
+
+$(ObjDir)/parsePL_defs.h: $(ObjDir)/y.tab.h
+	@cp $(ObjDir)/y.tab.h $(ObjDir)/parsePL_defs.h
+
+$(ObjDir)/parsePL.cpp: $(ObjDir)/y.tab.c
+	@cp $(ObjDir)/y.tab.c $(ObjDir)/parsePL.cpp
+
+$(ObjDir)/y.tab.c $(ObjDir)/y.tab.h: PL.y
+	$(YACC) $(PROJ_SRC_DIR)/PL.y -o$(ObjDir)/y.tab.c
+
