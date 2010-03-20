@@ -12,7 +12,7 @@
 #
 LEVEL = .
 
-DIRS = stp lib tools runtime
+DIRS = stp lib runtime tools
 EXTRA_DIST = include
 
 # Only build support directories when building unittests.

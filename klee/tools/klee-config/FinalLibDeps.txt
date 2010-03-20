@@ -1,0 +1,3 @@
+libkleeBasic.a:
+libkleeCore.a libkleeModule.a: libkleeBasic.a libkleeSupport.a
+libkleeSupport.a:

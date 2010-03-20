@@ -30,6 +30,9 @@ dnl FIXME: Make out of tree builds work.
 AC_CONFIG_MAKEFILE(Makefile)
 AC_CONFIG_MAKEFILE(Makefile.common)
 
+dnl Do the first stage of configuration for klee-config.in.
+AC_CONFIG_FILES([tools/klee-config/klee-config.in])
+
 AC_LANG([C++])
 
 dnl **************************************************************************
@@ -141,6 +144,16 @@ AC_DEFINE_UNQUOTED(LLVM_VERSION_MINOR, $llvm_version_minor, [LLVM minor version 
 AC_SUBST(LLVM_VERSION_MINOR,$llvm_version_minor)
 AC_DEFINE_UNQUOTED(LLVM_IS_RELEASE, $llvm_is_release, [LLVM version is release (instead of development)])
 AC_SUBST(LLVM_IS_RELEASE,$llvm_is_release)
+
+dnl Look for a sufficiently recent version of Perl.
+LLVM_PROG_PERL([5.006])
+AC_SUBST(PERL)
+if test x"$PERL" = xnone; then
+  AC_SUBST(HAVE_PERL,0)
+  AC_MSG_ERROR([perl is required but was not found, please install it])
+else
+  AC_SUBST(HAVE_PERL,1)
+fi
 
 dnl **************************************************************************
 dnl User option to enable uClibc support.
@@ -277,6 +290,17 @@ else
   AC_SUBST(ENABLE_STPLOG,[[0]])
 fi
 AC_DEFINE_UNQUOTED([ENABLE_STPLOG],$ENABLE_STPLOG,[Define if stplog enabled])
+
+# Translate the various configuration directories and other basic
+# information into substitutions that will end up in Makefile.config.in
+# that these configured values can be used by the makefiles
+if test "${prefix}" = "NONE" ; then
+      prefix="/usr/local"
+fi
+eval KLEE_PREFIX="${prefix}";
+KLEE_CONFIGTIME=`date`
+AC_SUBST(KLEE_PREFIX)
+AC_SUBST(KLEE_CONFIGTIME)
 
 dnl **************************************************************************
 dnl * Create the output files
