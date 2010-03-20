@@ -2720,7 +2720,7 @@ fi
 
 if test "$target_s2e" = "yes" ; then
   echo "LINKER=$cxx" >> $config_target_mak
-  echo "LIBS+=$llvm_ldflags $llvm_libs" >> $config_target_mak
+  echo "LIBS+=$llvm_ldflags $llvm_libs $klee_ldflags $klee_libs" >> $config_target_mak
 fi
 
 if test "$gprof" = "yes" ; then
