@@ -239,6 +239,9 @@ curses=""
 docs=""
 fdt=""
 llvm="no"
+llvmdir=""
+s2e="no"
+kleedir=""
 kvm=""
 nptl=""
 sdl=""
@@ -542,6 +545,12 @@ for opt do
   ;;
   --enable-llvm) llvm="yes"
   ;;
+  --with-llvm=*) llvmdir="$optarg"
+  ;;
+  --enable-s2e) s2e="yes"
+  ;;
+  --with-klee=*) kleedir="$optarg"
+  ;;
   --disable-kvm) kvm="no"
   ;;
   --enable-kvm) kvm="yes"
@@ -750,7 +759,10 @@ echo "  --disable-check-utests   disable check unit-tests"
 echo "  --enable-check-utests    enable check unit-tests"
 echo "  --disable-bluez          disable bluez stack connectivity"
 echo "  --enable-bluez           enable bluez stack connectivity"
-echo "  --enable-llvm            enable LLVM support"
+echo "  --enable-llvm            enable LLVM support (for all targets)"
+echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
+echo "  --enable-s2e             enable S2E"
+echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -1384,7 +1396,9 @@ EOF
 fi
 
 ##########################################
-# llvm support probe
+# C++ support probe
+
+if test "$llvm" != "no" -o "$s2e" != "no" ; then
 
 # check that the CXX compiler works.
 cat > $TMPCXX <<EOF
@@ -1394,30 +1408,64 @@ EOF
 if compile_object_cxx ; then
   : CXX compiler works ok
 else
-  if test "$llvm" != "no" ; then
-    echo "ERROR: \"$cxx\" (required for LLVM) either does not exist or does not work"
-    exit 1
-  fi
-  llvm="no"
+  echo "ERROR: \"$cxx\" (required for --enable-llvm and --enable-s2e) either does not exist or does not work"
+  exit 1
 fi
 
-if test "$llvm" != "no" ; then
+fi
+
+##########################################
+# llvm support probe
+
+if test "$llvm" != "no" -o "$s2e" != "no" ; then
   cat > $TMPCXX << EOF
 #include <llvm/LLVMContext.h>
 int main(void) { llvm::LLVMContext& c = llvm::getGlobalContext(); return 0; }
 EOF
-  llvm_cxxflags=`llvm-config --cflags 2> /dev/null`
-  llvm_ldflags=`llvm-config --ldflags 2> /dev/null`
-  llvm_libs=`llvm-config --libs 2> /dev/null`
-  if compile_prog_cxx "$llvm_cxxflags" "$llvm_ldflags $llvm_libs" ; then
-    llvm=yes
-    LIBS="$llvm_ldflags $llvm_libs $LIBS"
-    linker="$cxx"
+  if test "$llvmdir" != ""; then
+      llvm_config="$llvmdir/bin/llvm-config"
   else
-    if test "$llvm" = "yes" ; then
-      feature_not_found "llvm"
-    fi
-    llvm="no"
+      llvm_config="llvm-config"
+  fi
+  llvm_cxxflags=`$llvm_config --cflags 2> /dev/null`
+  llvm_ldflags=`$llvm_config --ldflags 2> /dev/null`
+  llvm_libs=`$llvm_config --libs 2> /dev/null`
+  if compile_prog_cxx "$llvm_cxxflags" "$llvm_ldflags $llvm_libs" ; then
+    : LLVM found
+  else
+    feature_not_found "llvm (required for --enable-llvm and --enable-s2e)"
+    exit 1
+  fi
+fi
+
+if test "$llvm" != "no" ; then
+  llvm="yes"
+  LIBS="$llvm_ldflags $llvm_libs $LIBS"
+  linker="$cxx"
+fi
+
+##########################################
+# s2e probe
+
+if test "s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <llvm/LLVMContext.h>
+#include <klee/Common.h>
+int main(void) { llvm::LLVMContext& c = llvm::getGlobalContext(); klee::klee_message("a"); return 0; }
+EOF
+  if test "$kleedir" != ""; then
+      klee_config="$kleedir/bin/klee-config"
+  else
+      klee_config="klee-config"
+  fi
+  klee_cxxflags=`$klee_config --cflags 2> /dev/null`
+  klee_ldflags=`$klee_config --ldflags 2> /dev/null`
+  klee_libs=`$klee_config --libs 2> /dev/null`
+  if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_ldflags $llvm_libs" ; then
+    s2e="yes"
+  else
+    feature_not_found "klee (required for s2e)"
+    exit 1
   fi
 fi
 
@@ -1861,6 +1909,7 @@ if test "$debug" = "no" ; then
   CXXFLAGS="-O2 $CXXFLAGS"
 else
   llvm_cxxflags=`echo ${llvm_cxxflags} | sed 's/\-O2//'`
+  klee_cxxflags=`echo ${klee_cxxflags} | sed 's/\-O2//'`
 fi
 
 # Consult white-list to determine whether to enable werror
@@ -1974,6 +2023,7 @@ echo "IO thread         $io_thread"
 echo "Linux AIO support $linux_aio"
 echo "Install blobs     $blobs"
 echo "LLVM support      $llvm"
+echo "S2E targets       $s2e"
 echo "KVM support       $kvm"
 echo "fdt support       $fdt"
 echo "preadv support    $preadv"
@@ -2332,6 +2382,19 @@ case "$target" in
     target_user_only="yes"
     target_bsd_user="yes"
     ;;
+  ${target_arch2}-s2e-linux-user)
+    if test "$s2e" != "yes" ; then
+      echo "ERROR: Target '$target' is only available with --enable-s2e"
+      exit 1
+    fi
+    if test "$linux" != "yes" ; then
+      echo "ERROR: Target '$target' is only available on a Linux host"
+      exit 1
+    fi
+    target_user_only="yes"
+    target_linux_user="yes"
+    target_s2e="yes"
+    ;;
   *)
     echo "ERROR: Target '$target' not recognised"
     exit 1
@@ -2525,6 +2588,12 @@ fi
 if test "$target_darwin_user" = "yes" ; then
   echo "CONFIG_DARWIN_USER=y" >> $config_target_mak
 fi
+if test "$target_s2e" = "yes" ; then
+  echo "CONFIG_S2E=y" >> $config_target_mak
+  echo "KLEE_CXXFLAGS=$klee_cxxflags" >> $config_target_mak
+  echo "CONFIG_LLVM=y" >> $config_target_mak
+  echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_target_mak
+fi
 list=""
 if test ! -z "$gdb_xml_files" ; then
   for x in $gdb_xml_files; do
@@ -2647,6 +2716,11 @@ if test "$target_softmmu" = "yes" -a \( \
         "$TARGET_ARCH" = "microblaze" -o \
         "$TARGET_ARCH" = "cris" \) ; then
   echo "CONFIG_NEED_MMU=y" >> $config_target_mak
+fi
+
+if test "$target_s2e" = "yes" ; then
+  echo "LINKER=$cxx" >> $config_target_mak
+  echo "LIBS+=$llvm_ldflags $llvm_libs" >> $config_target_mak
 fi
 
 if test "$gprof" = "yes" ; then
