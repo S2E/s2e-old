@@ -2409,6 +2409,10 @@ if test "$target" = "arm-linux-user" -o "$target" = "armeb-linux-user" -o "$targ
   mkdir -p $target_dir/nwfpe
 fi
 
+if test "$target_s2e" = "yes"; then
+  mkdir -p $target_dir/s2e
+fi
+
 #
 # don't use ln -sf as not all "ln -sf" over write the file/link
 #
