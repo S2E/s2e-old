@@ -1,7 +1,7 @@
 /* -*- mode: c++; c-basic-offset: 2; -*- */
 
 // FIXME: This does not belong here.
-#include "../lib/Core/Common.h"
+#include "klee/Common.h"
 
 #include "klee/ExecutionState.h"
 #include "klee/Expr.h"

@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Common.h"
+#include "klee/Common.h"
 
 #include "Memory.h"
 #include "SpecialFunctionHandler.h"

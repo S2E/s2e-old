@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Common.h"
+#include "klee/Common.h"
 
 #include "CoreStats.h"
 #include "Executor.h"

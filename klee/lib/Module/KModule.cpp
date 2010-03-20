@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 // FIXME: This does not belong here.
-#include "../Core/Common.h"
+#include "klee/Common.h"
 
 #include "klee/Internal/Module/KModule.h"
 
