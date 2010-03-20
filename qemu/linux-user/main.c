@@ -53,6 +53,10 @@ const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
    by remapping the process stack directly at the right place */
 unsigned long x86_stack_size = 512 * 1024;
 
+#ifdef CONFIG_S2E
+extern const char* s2e_output_dir;
+#endif
+
 void gemu_log(const char *fmt, ...)
 {
     va_list ap;
@@ -2456,6 +2460,9 @@ static void usage(void)
            "-llvm             execute code using LLVM JIT\n"
            "-generate-llvm    translate code into LLVM but don't execute it\n"
 #endif
+#if defined(CONFIG_S2E)
+           "-s2e-output-dir DIR    directory for S2E files\n"
+#endif
            "\n"
            "Debug options:\n"
            "-d options   activate log (logfile=%s)\n"
@@ -2642,11 +2649,17 @@ int main(int argc, char **argv, char **envp)
             singlestep = 1;
         } else if (!strcmp(r, "strace")) {
             do_strace = 1;
+#ifdef CONFIG_LLVM
         } else if (!strcmp(r, "generate-llvm")) {
             generate_llvm = 1;
         } else if (!strcmp(r, "llvm")) {
             generate_llvm = 1;
             execute_llvm = 1;
+#endif
+#ifdef CONFIG_S2E
+        } else if(!strcmp(r, "s2e-output-dir")) {
+            s2e_output_dir = argv[optind++];
+#endif
         } else
         {
             usage();
