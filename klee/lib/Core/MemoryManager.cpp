@@ -38,7 +38,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     klee_warning_once(0, "failing large alloc: %u bytes", (unsigned) size);
     return 0;
   }
-  uint64_t address = (uint64_t) (unsigned long) malloc((unsigned) size);
+  uintptr_t address = (uintptr_t) malloc((unsigned) size);
   if (!address)
     return 0;
   

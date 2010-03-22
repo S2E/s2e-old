@@ -197,6 +197,18 @@ static void forceImport(Module *m, const char *name, const Type *retType, ...) {
   }
 }
 
+#ifdef __MINGW32__
+static const char *index(const char *str, char c) {
+  while(*str) {
+    if (*str == c) {
+      return str;
+    }
+    ++str;
+  }
+  return NULL;
+}
+#endif
+
 void KModule::prepare(const Interpreter::ModuleOptions &opts,
                       InterpreterHandler *ih) {
   if (!MergeAtExit.empty()) {

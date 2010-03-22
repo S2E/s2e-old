@@ -69,8 +69,11 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <stdlib.h>
 
+#ifndef __MINGW32__
 #include <sys/mman.h>
+#endif
 
 #include <errno.h>
 #include <cxxabi.h>
@@ -410,7 +413,7 @@ void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
 MemoryObject * Executor::addExternalObject(ExecutionState &state, 
                                            void *addr, unsigned size, 
                                            bool isReadOnly) {
-  MemoryObject *mo = memory->allocateFixed((uint64_t) (unsigned long) addr, 
+  MemoryObject *mo = memory->allocateFixed((uint64_t) addr,
                                            size, 0);
   ObjectState *os = bindObjectInState(state, mo, false);
   for(unsigned i = 0; i < size; i++)
@@ -444,8 +447,8 @@ void Executor::initializeGlobals(ExecutionState &state) {
         !externalDispatcher->resolveSymbol(f->getNameStr())) {
       addr = Expr::createPointer(0);
     } else {
-      addr = Expr::createPointer((unsigned long) (void*) f);
-      legalFunctions.insert((uint64_t) (unsigned long) (void*) f);
+      addr = Expr::createPointer((uintptr_t) (void*) f);
+      legalFunctions.insert((uint64_t) (uintptr_t) (void*) f);
     }
     
     globalAddresses.insert(std::make_pair(f, addr));
@@ -2638,8 +2641,13 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   if (!isa<ConstantExpr>(e))
     return e;
 
+#ifdef __MINGW32__
+  if (n != 1 && rand() %  n)
+    return e;
+#else
   if (n != 1 && random() %  n)
     return e;
+#endif
 
   // create a new fresh location, assert it is equal to concrete value in e
   // and return it.
@@ -3052,7 +3060,9 @@ void Executor::runFunctionAsMain(Function *f,
 
   // force deterministic initialization of memory objects
   srand(1);
+#ifndef __MINGW32__
   srandom(1);
+#endif
   
   MemoryObject *argvMO = 0;
 
@@ -3147,8 +3157,12 @@ void Executor::runFunctionAsMain(Function *f,
     statsTracker->done();
 
   if (theMMap) {
+#ifdef __MINGW32__
+    assert(false && "cannot munmap on windows");
+#else
     munmap(theMMap, theMMapSize);
     theMMap = 0;
+#endif
   }
 }
 

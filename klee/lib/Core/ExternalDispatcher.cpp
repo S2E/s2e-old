@@ -46,9 +46,15 @@ static jmp_buf escapeCallJmpBuf;
 
 extern "C" {
 
+#ifdef _WIN32
+static void sigsegv_handler(int signal)
+{
+}
+#else
 static void sigsegv_handler(int signal, siginfo_t *info, void *context) {
   longjmp(escapeCallJmpBuf, 1);
 }
+#endif
 
 }
 
@@ -160,7 +166,9 @@ bool ExternalDispatcher::executeCall(Function *f, Instruction *i, uint64_t *args
 static uint64_t *gTheArgsP;
 
 bool ExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
+#ifndef _WIN32
   struct sigaction segvAction, segvActionOld;
+#endif
   bool res;
   
   if (!f)
@@ -169,11 +177,15 @@ bool ExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
   std::vector<GenericValue> gvArgs;
   gTheArgsP = args;
 
+#ifdef _WIN32
+  signal(SIGSEGV, ::sigsegv_handler);
+#else
   segvAction.sa_handler = 0;
   memset(&segvAction.sa_mask, 0, sizeof(segvAction.sa_mask));
   segvAction.sa_flags = SA_SIGINFO;
   segvAction.sa_sigaction = ::sigsegv_handler;
   sigaction(SIGSEGV, &segvAction, &segvActionOld);
+#endif
 
   if (setjmp(escapeCallJmpBuf)) {
     res = false;
@@ -182,7 +194,12 @@ bool ExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
     res = true;
   }
 
+#ifdef _WIN32
+#warning Implement more robust signal handling on windows
+  signal(SIGSEGV, SIG_IGN);
+#else
   sigaction(SIGSEGV, &segvActionOld, 0);
+#endif
   return res;
 }
 

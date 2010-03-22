@@ -28,6 +28,9 @@
 #include <sys/time.h>
 #include <math.h>
 
+#ifdef __MINGW32__
+#include <windows.h>
+#endif
 
 using namespace llvm;
 using namespace klee;
@@ -61,12 +64,28 @@ static volatile unsigned timerTicks = 0;
 extern "C" unsigned dumpStates, dumpPTree;
 unsigned dumpStates = 0, dumpPTree = 0;
 
+#ifdef __MINGW32__
+VOID CALLBACK TimerProc(
+    HWND hwnd,
+    UINT uMsg,
+    UINT_PTR idEvent,
+    DWORD dwTime
+)
+{
+  ++timerTicks;
+}
+#else
 static void onAlarm(int) {
   ++timerTicks;
 }
+#endif
 
 // oooogalay
 static void setupHandler() {
+#ifdef __MINGW32__
+  HANDLE hTimer;
+  SetTimer(0, 0, 1000, TimerProc);
+#else
   struct itimerval t;
   struct timeval tv;
   
@@ -77,6 +96,7 @@ static void setupHandler() {
   
   ::setitimer(ITIMER_REAL, &t, 0);
   ::signal(SIGALRM, onAlarm);
+#endif
 }
 
 void Executor::initTimers() {

@@ -30,9 +30,12 @@
 
 #include <errno.h>
 #include <signal.h>
+
+#ifndef __MINGW32__
 #include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#endif
 
 using namespace klee;
 
@@ -456,11 +459,15 @@ STPSolverImpl::STPSolverImpl(STPSolver *_solver, bool _useForkedSTP)
   vc_registerErrorHandler(::stp_error_handler);
 
   if (useForkedSTP) {
+#ifdef __MINGW32__
+    assert(false && "Cannot use forked stp solver on Windows");
+#else
     shared_memory_id = shmget(IPC_PRIVATE, shared_memory_size, IPC_CREAT | 0700);
     assert(shared_memory_id>=0 && "shmget failed");
     shared_memory_ptr = (unsigned char*) shmat(shared_memory_id, NULL, 0);
     assert(shared_memory_ptr!=(void*)-1 && "shmat failed");
     shmctl(shared_memory_id, IPC_RMID, NULL);
+#endif
   }
 }
 
@@ -576,6 +583,10 @@ static bool runAndGetCexForked(::VC vc,
                                  &values,
                                bool &hasSolution,
                                double timeout) {
+#ifdef __MINGW32__
+  assert(false && "Cannot run runAndGetCexForked on Windows");
+#else
+
   unsigned char *pos = shared_memory_ptr;
   unsigned sum = 0;
   for (std::vector<const Array*>::const_iterator
@@ -658,6 +669,7 @@ static bool runAndGetCexForked(::VC vc,
 
     return true;
   }
+#endif
 }
 
 bool
