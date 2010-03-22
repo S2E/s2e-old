@@ -410,7 +410,7 @@ static inline int lduw_be_p(const void *ptr)
                   : "m" (*(uint16_t *)ptr));
     return val;
 #else
-    const uint8_t *b = ptr;
+    const uint8_t *b = (const uint8_t*) ptr;
     return ((b[0] << 8) | b[1]);
 #endif
 }
@@ -425,7 +425,7 @@ static inline int ldsw_be_p(const void *ptr)
                   : "m" (*(uint16_t *)ptr));
     return (int16_t)val;
 #else
-    const uint8_t *b = ptr;
+    const uint8_t *b = (const uint8_t*) ptr;
     return (int16_t)((b[0] << 8) | b[1]);
 #endif
 }
@@ -651,8 +651,8 @@ extern int have_guest_base;
 #else /* !CONFIG_USER_ONLY */
 /* NOTE: we use double casts if pointers and target_ulong have
    different sizes */
-#define saddr(x) (uint8_t *)(long)(x)
-#define laddr(x) (uint8_t *)(long)(x)
+#define saddr(x) (uint8_t *)(intptr_t)(x)
+#define laddr(x) (uint8_t *)(intptr_t)(x)
 #endif
 
 #define ldub_raw(p) ldub_p(laddr((p)))
@@ -720,10 +720,10 @@ extern int have_guest_base;
 #define TARGET_PAGE_ALIGN(addr) (((addr) + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK)
 
 /* ??? These should be the larger of unsigned long and target_ulong.  */
-extern unsigned long qemu_real_host_page_size;
-extern unsigned long qemu_host_page_bits;
-extern unsigned long qemu_host_page_size;
-extern unsigned long qemu_host_page_mask;
+extern uintptr_t qemu_real_host_page_size;
+extern uintptr_t qemu_host_page_bits;
+extern uintptr_t qemu_host_page_size;
+extern uintptr_t qemu_host_page_mask;
 
 #define HOST_PAGE_ALIGN(addr) (((addr) + qemu_host_page_size - 1) & qemu_host_page_mask)
 
@@ -745,7 +745,7 @@ int page_get_flags(target_ulong address);
 void page_set_flags(target_ulong start, target_ulong end, int flags);
 int page_check_range(target_ulong start, target_ulong len, int flags);
 
-void cpu_exec_init_all(unsigned long tb_size);
+void cpu_exec_init_all(uintptr_t tb_size);
 CPUState *cpu_copy(CPUState *env);
 CPUState *qemu_get_cpu(int cpu);
 
@@ -826,6 +826,8 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr);
 #define CPU_LOG_IOPORT     (1 << 7)
 #define CPU_LOG_TB_CPU     (1 << 8)
 #define CPU_LOG_RESET      (1 << 9)
+#define CPU_LOG_LLVM_IR    (1 << 10)
+#define CPU_LOG_LLVM_ASM   (1 << 11)
 
 /* define log items */
 typedef struct CPULogItem {

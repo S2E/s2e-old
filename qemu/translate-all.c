@@ -30,6 +30,11 @@
 #include "disas.h"
 #include "tcg.h"
 
+#ifdef CONFIG_LLVM
+#include "tcg-llvm.h"
+TCGLLVMContext *tcg_llvm_ctx;
+#endif
+
 /* code generation context */
 TCGContext tcg_ctx;
 
@@ -49,9 +54,9 @@ uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 #endif
 
 /* XXX: suppress that */
-unsigned long code_gen_max_block_size(void)
+uintptr_t code_gen_max_block_size(void)
 {
-    static unsigned long max;
+    static uintptr_t max;
 
     if (max == 0) {
         max = TCG_MAX_OP_SIZE;
@@ -68,7 +73,12 @@ void cpu_gen_init(void)
 {
     tcg_context_init(&tcg_ctx); 
     tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
-                  CPU_TEMP_BUF_NLONGS * sizeof(long));
+                  CPU_TEMP_BUF_NLONGS * sizeof(intptr_t));
+
+#ifdef CONFIG_LLVM
+    if(generate_llvm)
+        tcg_llvm_ctx = tcg_llvm_context_new(&tcg_ctx);
+#endif
 }
 
 /* return non zero if the very first instruction is invalid so that
@@ -119,6 +129,17 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif
     gen_code_size = tcg_gen_code(s, gen_code_buf);
     *gen_code_size_ptr = gen_code_size;
+
+#ifdef CONFIG_LLVM
+    if(generate_llvm) {
+        tb->llvm_tb = tcg_llvm_gen_code(tcg_llvm_ctx);
+        tb->llvm_tc_ptr = tcg_llvm_get_tc_ptr(tb->llvm_tb);
+        tb->llvm_tc_end = tcg_llvm_get_tc_end(tb->llvm_tb);
+    } else {
+        tb->llvm_tb = NULL;
+    }
+#endif
+
 #ifdef CONFIG_PROFILER
     s->code_time += profile_getclock();
     s->code_in_len += tb->size;
@@ -132,6 +153,17 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
         qemu_log("\n");
         qemu_log_flush();
     }
+
+#ifdef CONFIG_LLVM
+    if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
+        ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
+        qemu_log("OUT (LLVM ASM) [size=%ld] (%s)\n", size,
+                    tcg_llvm_get_fname(tb->llvm_tb));
+        log_disas((void*) tb->llvm_tc_ptr, size);
+        qemu_log("\n");
+        qemu_log_flush();
+    }
+#endif
 #endif
     return 0;
 }
@@ -139,12 +171,12 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 /* The cpu state corresponding to 'searched_pc' is restored.
  */
 int cpu_restore_state(TranslationBlock *tb,
-                      CPUState *env, unsigned long searched_pc,
+                      CPUState *env, uintptr_t searched_pc,
                       void *puc)
 {
     TCGContext *s = &tcg_ctx;
     int j;
-    unsigned long tc_ptr;
+    uintptr_t tc_ptr;
 #ifdef CONFIG_PROFILER
     int64_t ti;
 #endif
@@ -163,11 +195,6 @@ int cpu_restore_state(TranslationBlock *tb,
         env->can_do_io = 0;
     }
 
-    /* find opc index corresponding to search_pc */
-    tc_ptr = (unsigned long)tb->tc_ptr;
-    if (searched_pc < tc_ptr)
-        return -1;
-
     s->tb_next_offset = tb->tb_next_offset;
 #ifdef USE_DIRECT_JUMP
     s->tb_jmp_offset = tb->tb_jmp_offset;
@@ -176,12 +203,28 @@ int cpu_restore_state(TranslationBlock *tb,
     s->tb_jmp_offset = NULL;
     s->tb_next = tb->tb_next;
 #endif
+
+#ifdef CONFIG_LLVM
+    if(execute_llvm) {
+        assert(tb->llvm_tb != NULL);
+        j = tcg_llvm_search_last_pc(tb->llvm_tb, searched_pc);
+    } else {
+#endif
+    /* find opc index corresponding to search_pc */
+    tc_ptr = (uintptr_t)tb->tc_ptr;
+    if (searched_pc < tc_ptr)
+        return -1;
+
     j = tcg_gen_code_search_pc(s, (uint8_t *)tc_ptr, searched_pc - tc_ptr);
     if (j < 0)
         return -1;
     /* now find start of instruction before */
     while (gen_opc_instr_start[j] == 0)
         j--;
+#ifdef CONFIG_LLVM
+    }
+#endif
+
     env->icount_decr.u16.low -= gen_opc_icount[j];
 
     gen_pc_load(env, tb, searched_pc, j, puc);

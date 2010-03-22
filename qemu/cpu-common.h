@@ -10,7 +10,7 @@
 #include "bswap.h"
 
 /* address in the RAM (different from a physical address) */
-typedef unsigned long ram_addr_t;
+typedef uintptr_t ram_addr_t;
 
 /* memory API */
 

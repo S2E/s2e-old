@@ -2297,7 +2297,7 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
         /* jump to same page: we can use a direct jump */
         tcg_gen_goto_tb(tb_num);
         gen_jmp_im(eip);
-        tcg_gen_exit_tb((long)tb + tb_num);
+        tcg_gen_exit_tb((intptr_t)tb + tb_num);
     } else {
         /* jump to another page: currently not optimized */
         gen_jmp_im(eip);
@@ -4083,7 +4083,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     target_ulong next_eip, tval;
     int rex_w, rex_r;
 
+#ifdef CONFIG_LLVM
+    if (generate_llvm || unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP)))
+#else
     if (unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP)))
+#endif
         tcg_gen_debug_insn_start(pc_start);
     s->pc = pc_start;
     prefixes = 0;
@@ -7925,7 +7929,7 @@ void gen_intermediate_code_pc(CPUState *env, TranslationBlock *tb)
 }
 
 void gen_pc_load(CPUState *env, TranslationBlock *tb,
-                unsigned long searched_pc, int pc_pos, void *puc)
+                uintptr_t searched_pc, int pc_pos, void *puc)
 {
     int cc_op;
 #ifdef DEBUG_DISAS

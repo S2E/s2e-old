@@ -24,6 +24,11 @@ STEXI
 Display version information and exit
 ETEXI
 
+#ifdef CONFIG_S2E
+DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
+    "s2e-config-file file      Path to S2E configuration file\n")
+#endif
+
 DEF("M", HAS_ARG, QEMU_OPTION_M,
     "-M machine      select emulated machine (-M ? for list)\n")
 STEXI
@@ -1937,3 +1942,11 @@ DEF("readconfig", HAS_ARG, QEMU_OPTION_readconfig,
 DEF("writeconfig", HAS_ARG, QEMU_OPTION_writeconfig,
     "-writeconfig <file>\n"
     "                read/write config file\n")
+
+#if defined(CONFIG_LLVM)
+DEF("llvm", 0, QEMU_OPTION_execute_llvm,
+    "-llvm           execute code using LLVM JIT\n")
+DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
+    "-generate-llvm  translate code into LLVM but don't execute it\n")
+#endif
+

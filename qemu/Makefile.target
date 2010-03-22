@@ -30,6 +30,8 @@ LIBS+=-lm
 
 kvm.o kvm-all.o: QEMU_CFLAGS+=$(KVM_CFLAGS)
 
+tcg/tcg-llvm.o: QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS)
+
 config-target.h: config-target.h-timestamp
 config-target.h-timestamp: config-target.mak
 
@@ -42,6 +44,7 @@ all: $(PROGS)
 # cpu emulator library
 libobj-y = exec.o translate-all.o cpu-exec.o translate.o
 libobj-y += tcg/tcg.o
+libobj-$(CONFIG_LLVM) += tcg/tcg-llvm.o
 libobj-$(CONFIG_SOFTFLOAT) += fpu/softfloat.o
 libobj-$(CONFIG_NOSOFTFLOAT) += fpu/softfloat-native.o
 libobj-y += op_helper.o helper.o
@@ -306,6 +309,27 @@ monitor.o: qemu-monitor.h
 ARLIBS=../libqemu_common.a libqemu.a $(HWLIB)
 
 endif # CONFIG_SOFTMMU
+
+#########################################################
+# S2E library
+
+ifdef CONFIG_S2E
+
+s2eobj-y = s2e/Base.o
+
+s2eobj-y += s2e/Configuration/ConfigurationManager.o s2e/Configuration/ConfigurationFile.o
+s2eobj-y += s2e/Interceptor/OperatingSystem.o
+s2eobj-y += s2e/QemuKleeGlue.o
+s2eobj-y += s2e/s2e.o
+s2eobj-y += s2e/Plugins/PluginInterface.o
+
+libs2e.a: $(s2eobj-y)
+
+$(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(KLEE_CXXFLAGS)
+
+ARLIBS += libs2e.a
+
+endif
 
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
 

@@ -243,7 +243,7 @@ void disas(FILE *out, void *code, unsigned long size)
     INIT_DISASSEMBLE_INFO(disasm_info, out, fprintf);
 
     disasm_info.buffer = code;
-    disasm_info.buffer_vma = (unsigned long)code;
+    disasm_info.buffer_vma = (uintptr_t)code;
     disasm_info.buffer_length = size;
 
 #ifdef HOST_WORDS_BIGENDIAN
@@ -283,7 +283,7 @@ void disas(FILE *out, void *code, unsigned long size)
 	    (long) code);
     return;
 #endif
-    for (pc = (unsigned long)code; size > 0; pc += count, size -= count) {
+    for (pc = (uintptr_t)code; size > 0; pc += count, size -= count) {
 	fprintf(out, "0x%08lx:  ", pc);
 #ifdef __arm__
         /* since data is included in the code, it is better to
