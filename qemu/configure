@@ -2359,6 +2359,14 @@ case "$target" in
   ${target_arch2}-softmmu)
     target_softmmu="yes"
     ;;
+  ${target_arch2}-s2e-softmmu)
+    if test "$s2e" != "yes" ; then
+      echo "ERROR: Target '$target' is only available with --enable-s2e"
+      exit 1
+    fi
+    target_softmmu="yes"
+    target_s2e="yes"
+    ;;
   ${target_arch2}-linux-user)
     if test "$linux" != "yes" ; then
       echo "ERROR: Target '$target' is only available on a Linux host"
