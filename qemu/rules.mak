@@ -8,6 +8,7 @@ MAKEFLAGS += -rR
 %.d:
 %.h:
 %.c:
+%.cpp:
 %.m:
 %.mak:
 

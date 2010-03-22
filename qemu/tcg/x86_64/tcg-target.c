@@ -61,6 +61,19 @@ static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_RAX,
 };
 
+#ifdef __MINGW64__
+static const int tcg_target_call_iarg_regs[4] = {
+    TCG_REG_RCX,
+    TCG_REG_RDX,
+    TCG_REG_R8,
+    TCG_REG_R9
+};
+
+static const int tcg_target_call_oarg_regs[2] = {
+    TCG_REG_RAX, 
+    TCG_REG_RDX 
+};
+#else
 static const int tcg_target_call_iarg_regs[6] = {
     TCG_REG_RDI,
     TCG_REG_RSI,
@@ -74,6 +87,7 @@ static const int tcg_target_call_oarg_regs[2] = {
     TCG_REG_RAX, 
     TCG_REG_RDX 
 };
+#endif
 
 static uint8_t *tb_ret_addr;
 
@@ -93,7 +107,7 @@ static void patch_reloc(uint8_t *code_ptr, int type,
         *(uint32_t *)code_ptr = value;
         break;
     case R_386_PC32:
-        value -= (long)code_ptr;
+        value -= (intptr_t)code_ptr;
         if (value != (int32_t)value)
             tcg_abort();
         *(uint32_t *)code_ptr = value;
@@ -106,7 +120,11 @@ static void patch_reloc(uint8_t *code_ptr, int type,
 /* maximum number of register used for input function arguments */
 static inline int tcg_target_get_call_iarg_regs_count(int flags)
 {
-    return 6;
+#ifdef __MINGW64__
+  return 4;
+#else
+  return 6;
+#endif
 }
 
 /* parse target specific constraints */
@@ -363,18 +381,33 @@ static inline void tcg_out_movi(TCGContext *s, TCGType type,
     }
 }
 
+static void tcg_out_subi(TCGContext *s, int reg, tcg_target_long val);
+static void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val);
+
 static void tcg_out_goto(TCGContext *s, int call, uint8_t *target)
 {
     int32_t disp;
 
+#ifdef __MINGW64__
+      if (call) {
+        tcg_out_subi(s, TCG_REG_RSP, 32);
+      }
+#endif
+
     disp = target - s->code_ptr - 5;
     if (disp == (target - s->code_ptr - 5)) {
-        tcg_out8(s, call ? 0xe8 : 0xe9);
-        tcg_out32(s, disp);
+      tcg_out8(s, call ? 0xe8 : 0xe9);
+      tcg_out32(s, disp);
     } else {
-        tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_R10, (tcg_target_long) target);
-        tcg_out_modrm(s, 0xff, call ? 2 : 4, TCG_REG_R10);
+      tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_R10, (tcg_target_long) target);
+      tcg_out_modrm(s, 0xff, call ? 2 : 4, TCG_REG_R10);
     }
+
+#ifdef __MINGW64__
+    if (call) {
+      tcg_out_addi(s, TCG_REG_RSP, 32);
+    }
+#endif
 }
 
 static inline void tcg_out_ld(TCGContext *s, TCGType type, int ret,
@@ -454,6 +487,11 @@ static void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val)
     if (val != 0)
         tgen_arithi64(s, ARITH_ADD, reg, val);
 }
+static void tcg_out_subi(TCGContext *s, int reg, tcg_target_long val)
+{
+    if (val != 0)
+        tgen_arithi64(s, ARITH_SUB, reg, val);
+}
 
 static void tcg_out_jxx(TCGContext *s, int opc, int label_index)
 {
@@ -530,6 +568,9 @@ static void *qemu_st_helpers[4] = {
 };
 #endif
 
+static inline void tcg_out_push(TCGContext *s, int reg);
+static inline void tcg_out_pop(TCGContext *s, int reg);
+
 static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
                             int opc)
 {
@@ -543,6 +584,11 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     addr_reg = *args++;
     mem_index = *args;
     s_bits = opc & 3;
+
+#ifdef __MINGW64__
+    tcg_out_push(s, TCG_REG_RDI);
+    tcg_out_push(s, TCG_REG_RSI);
+#endif
 
     r0 = TCG_REG_RDI;
     r1 = TCG_REG_RSI;
@@ -584,7 +630,14 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     s->code_ptr++;
 
     /* XXX: move that code at the end of the TB */
+    
+#ifdef __MINGW64__
+    tcg_out_mov(s, TCG_REG_RCX, addr_reg);
+    tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RDX, mem_index);
+#else
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RSI, mem_index);
+#endif
+
     tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
 
     switch(opc) {
@@ -618,6 +671,12 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         break;
     }
 
+    #ifdef __MINGW64__
+    tcg_out_pop(s, TCG_REG_RSI);
+    tcg_out_pop(s, TCG_REG_RDI);
+    #endif
+
+    
     /* jmp label2 */
     tcg_out8(s, 0xeb);
     label2_ptr = s->code_ptr;
@@ -718,6 +777,12 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_abort();
     }
 
+#ifdef __MINGW64__
+    tcg_out_pop(s, TCG_REG_RSI);
+    tcg_out_pop(s, TCG_REG_RDI);
+#endif
+
+
 #if defined(CONFIG_SOFTMMU)
     /* label2: */
     *label2_ptr = s->code_ptr - label2_ptr - 1;
@@ -738,6 +803,12 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     mem_index = *args;
 
     s_bits = opc;
+
+#ifdef __MINGW64__
+    tcg_out_push(s, TCG_REG_RDI);
+    tcg_out_push(s, TCG_REG_RSI);
+    
+#endif
 
     r0 = TCG_REG_RDI;
     r1 = TCG_REG_RSI;
@@ -779,6 +850,28 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     s->code_ptr++;
 
     /* XXX: move that code at the end of the TB */
+#ifdef __MINGW64__
+    tcg_out_modrm(s, 0x8b | rexw, TCG_REG_RCX, addr_reg);
+    switch(opc) {
+    case 0:
+        /* movzbl */
+        tcg_out_modrm(s, 0xb6 | P_EXT | P_REXB, TCG_REG_RDX, data_reg);
+        break;
+    case 1:
+        /* movzwl */
+        tcg_out_modrm(s, 0xb7 | P_EXT, TCG_REG_RDX, data_reg);
+        break;
+    case 2:
+        /* movl */
+        tcg_out_modrm(s, 0x8b, TCG_REG_RDX, data_reg);
+        break;
+    default:
+    case 3:
+        tcg_out_mov(s, TCG_REG_RDX, data_reg);
+        break;
+    }
+    tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_R8, mem_index);
+#else
     switch(opc) {
     case 0:
         /* movzbl */
@@ -797,8 +890,18 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         tcg_out_mov(s, TCG_REG_RSI, data_reg);
         break;
     }
+    
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RDX, mem_index);
+#endif
+
+    
     tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
+
+    #ifdef __MINGW64__
+    tcg_out_pop(s, TCG_REG_RSI);
+    tcg_out_pop(s, TCG_REG_RDI);
+    #endif
+
 
     /* jmp label2 */
     tcg_out8(s, 0xeb);
@@ -872,6 +975,11 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     default:
         tcg_abort();
     }
+
+    #ifdef __MINGW64__
+    tcg_out_pop(s, TCG_REG_RSI);
+    tcg_out_pop(s, TCG_REG_RDI);
+    #endif
 
 #if defined(CONFIG_SOFTMMU)
     /* label2: */
@@ -1237,6 +1345,19 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
     }
 }
 
+#ifdef __MINGW64__
+static int tcg_target_callee_save_regs[] = {
+    TCG_REG_RBP,
+    TCG_REG_RBX,
+    TCG_REG_RDI,
+    TCG_REG_RSI,
+    TCG_REG_R12,
+    TCG_REG_R13,
+    /*    TCG_REG_R14, */ /* currently used for the global env, so no
+                             need to save */
+    TCG_REG_R15,
+};
+#else
 static int tcg_target_callee_save_regs[] = {
     TCG_REG_RBP,
     TCG_REG_RBX,
@@ -1246,6 +1367,7 @@ static int tcg_target_callee_save_regs[] = {
                              need to save */
     TCG_REG_R15,
 };
+#endif
 
 static inline void tcg_out_push(TCGContext *s, int reg)
 {
@@ -1276,8 +1398,13 @@ void tcg_target_qemu_prologue(TCGContext *s)
     stack_addend = frame_size - push_size;
     tcg_out_addi(s, TCG_REG_RSP, -stack_addend);
 
+
+#ifdef __MINGW64__
+    tcg_out_modrm(s, 0xff, 4, TCG_REG_RCX); /* jmp *%rcx */
+#else
     tcg_out_modrm(s, 0xff, 4, TCG_REG_RDI); /* jmp *%rdi */
-    
+#endif
+
     /* TB epilogue */
     tb_ret_addr = s->code_ptr;
     tcg_out_addi(s, TCG_REG_RSP, stack_addend);

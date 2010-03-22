@@ -168,6 +168,10 @@ int main(int argc, char **argv)
 
 #include "qemu-queue.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e.h>
+#endif
+
 //#define DEBUG_NET
 //#define DEBUG_SLIRP
 
@@ -1548,7 +1552,7 @@ static int win32_start_timer(struct qemu_alarm_timer *t)
     data->timerId = timeSetEvent(1,         // interval (ms)
                         data->period,       // resolution
                         host_alarm_handler, // function
-                        (DWORD)t,           // parameter
+                        (DWORD_PTR)t,           // parameter
                         flags);
 
     if (!data->timerId) {
@@ -1583,7 +1587,7 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t)
     data->timerId = timeSetEvent(1,
                         data->period,
                         host_alarm_handler,
-                        (DWORD)t,
+                        (DWORD_PTR)t,
                         TIME_ONESHOT | TIME_PERIODIC);
 
     if (!data->timerId) {
@@ -4863,6 +4867,11 @@ int main(int argc, char **argv, char **envp)
     const char *loadvm = NULL;
     QEMUMachine *machine;
     const char *cpu_model;
+
+#ifdef CONFIG_S2E
+    const char *s2e_config_file=NULL;
+#endif
+
 #ifndef _WIN32
     int fds[2];
 #endif
@@ -4884,6 +4893,12 @@ int main(int argc, char **argv, char **envp)
     qemu_cache_utils_init(envp);
 
     QLIST_INIT (&vm_change_state_head);
+
+    #ifdef _WIN32
+    socket_init();
+    #endif
+
+
 #ifndef _WIN32
     {
         struct sigaction act;
@@ -4898,10 +4913,10 @@ int main(int argc, char **argv, char **envp)
        QEMU to run on a single CPU */
     {
         HANDLE h;
-        DWORD mask, smask;
+        DWORD_PTR mask, smask;
         int i;
         h = GetCurrentProcess();
-        if (GetProcessAffinityMask(h, &mask, &smask)) {
+        if (GetProcessAffinityMask(h, (PDWORD_PTR)&mask, (PDWORD_PTR)&smask)) {
             for(i = 0; i < 32; i++) {
                 if (mask & (1 << i))
                     break;
@@ -5001,6 +5016,12 @@ int main(int argc, char **argv, char **envp)
                     cpu_model = optarg;
                 }
                 break;
+#ifdef CONFIG_S2E
+            case QEMU_OPTION_s2e_config_file:
+              s2e_config_file = optarg;
+              break;
+#endif
+
             case QEMU_OPTION_initrd:
                 initrd_filename = optarg;
                 break;
@@ -5654,6 +5675,14 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+#ifdef CONFIG_S2E
+    if (s2e_config_file) {
+      S2EInit(s2e_config_file);
+    }else{
+      printf("Please specify the S2E configuration file\n");
+    }
+#endif
+
     /* If no data_dir is specified then try to find it relative to the
        executable path.  */
     if (!data_dir) {
@@ -5835,9 +5864,6 @@ int main(int argc, char **argv, char **envp)
         init_icount_adjust();
     }
 
-#ifdef _WIN32
-    socket_init();
-#endif
 
     if (net_init_clients() < 0) {
         exit(1);

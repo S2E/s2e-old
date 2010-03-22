@@ -4810,7 +4810,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
     int ret;
-    unsigned long pc;
+    uintptr_t pc;
     CPUX86State *saved_env;
 
     /* XXX: hack to restore env in all cases, even if not called from
@@ -4822,7 +4822,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     if (ret) {
         if (retaddr) {
             /* now we have a real cpu fault */
-            pc = (unsigned long)retaddr;
+            pc = (uintptr_t)retaddr;
             tb = tb_find_pc(pc);
             if (tb) {
                 /* the PC is inside the translated code. It means that we have

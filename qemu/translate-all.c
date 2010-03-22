@@ -54,9 +54,9 @@ uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 #endif
 
 /* XXX: suppress that */
-unsigned long code_gen_max_block_size(void)
+uintptr_t code_gen_max_block_size(void)
 {
-    static unsigned long max;
+    static uintptr_t max;
 
     if (max == 0) {
         max = TCG_MAX_OP_SIZE;
@@ -73,7 +73,7 @@ void cpu_gen_init(void)
 {
     tcg_context_init(&tcg_ctx); 
     tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
-                  CPU_TEMP_BUF_NLONGS * sizeof(long));
+                  CPU_TEMP_BUF_NLONGS * sizeof(intptr_t));
 
 #ifdef CONFIG_LLVM
     if(generate_llvm)
@@ -171,12 +171,12 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 /* The cpu state corresponding to 'searched_pc' is restored.
  */
 int cpu_restore_state(TranslationBlock *tb,
-                      CPUState *env, unsigned long searched_pc,
+                      CPUState *env, uintptr_t searched_pc,
                       void *puc)
 {
     TCGContext *s = &tcg_ctx;
     int j;
-    unsigned long tc_ptr;
+    uintptr_t tc_ptr;
 #ifdef CONFIG_PROFILER
     int64_t ti;
 #endif
@@ -211,7 +211,7 @@ int cpu_restore_state(TranslationBlock *tb,
     } else {
 #endif
     /* find opc index corresponding to search_pc */
-    tc_ptr = (unsigned long)tb->tc_ptr;
+    tc_ptr = (uintptr_t)tb->tc_ptr;
     if (searched_pc < tc_ptr)
         return -1;
 

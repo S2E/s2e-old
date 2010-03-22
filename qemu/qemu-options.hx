@@ -24,6 +24,11 @@ STEXI
 Display version information and exit
 ETEXI
 
+#ifdef CONFIG_S2E
+DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
+    "s2e-config-file file      Path to S2E configuration file\n")
+#endif
+
 DEF("M", HAS_ARG, QEMU_OPTION_M,
     "-M machine      select emulated machine (-M ? for list)\n")
 STEXI

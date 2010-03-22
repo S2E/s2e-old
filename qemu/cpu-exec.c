@@ -233,7 +233,7 @@ int cpu_exec(CPUState *env1)
     int ret, interrupt_request;
     TranslationBlock *tb;
     uint8_t *tc_ptr;
-    unsigned long next_tb;
+    uintptr_t next_tb;
 
     if (cpu_halted(env1) == EXCP_HALTED)
         return EXCP_HALTED;
@@ -607,18 +607,18 @@ int cpu_exec(CPUState *env1)
                 if(execute_llvm) {
                     qemu_log_mask(CPU_LOG_EXEC,
                             "Trace (LLVM) 0x%08lx [" TARGET_FMT_lx "] %s (LLVM: %s)\n",
-                                 (long)tb->llvm_tc_ptr, tb->pc,
+                                 tb->llvm_tc_ptr, tb->pc,
                                  lookup_symbol(tb->pc),
                                  tcg_llvm_get_fname(tb->llvm_tb)
                                  );
                 } else {
                     qemu_log_mask(CPU_LOG_EXEC, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
-                                 (long)tb->tc_ptr, tb->pc,
+                                 tb->tc_ptr, tb->pc,
                                  lookup_symbol(tb->pc));
                 }
 #else
                 qemu_log_mask(CPU_LOG_EXEC, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
-                             (long)tb->tc_ptr, tb->pc,
+                             tb->tc_ptr, tb->pc,
                              lookup_symbol(tb->pc));
 #endif
 #endif
@@ -666,7 +666,7 @@ int cpu_exec(CPUState *env1)
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;
-                        tb = (TranslationBlock *)(long)(next_tb & ~3);
+                        tb = (TranslationBlock *)(intptr_t)(next_tb & ~3);
                         /* Restore PC.  */
                         cpu_pc_from_tb(env, tb);
                         insns_left = env->icount_decr.u32;

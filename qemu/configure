@@ -2411,7 +2411,10 @@ if test "$target" = "arm-linux-user" -o "$target" = "armeb-linux-user" -o "$targ
 fi
 
 if test "$target_s2e" = "yes"; then
-  mkdir -p $target_dir/s2e
+  S2E_DIRS="s2e s2e/Interceptor s2e/Plugins s2e/Configuration"
+  for dir in $S2E_DIRS ; do
+    mkdir -p $target_dir/$dir
+  done
 fi
 
 #

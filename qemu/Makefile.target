@@ -317,6 +317,12 @@ ifdef CONFIG_S2E
 
 s2eobj-y = s2e/Base.o
 
+s2eobj-y += s2e/Configuration/ConfigurationManager.o s2e/Configuration/ConfigurationFile.o
+s2eobj-y += s2e/Interceptor/OperatingSystem.o
+s2eobj-y += s2e/QemuKleeGlue.o
+s2eobj-y += s2e/s2e.o
+s2eobj-y += s2e/Plugins/PluginInterface.o
+
 libs2e.a: $(s2eobj-y)
 
 $(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(KLEE_CXXFLAGS)
