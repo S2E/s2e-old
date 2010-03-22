@@ -35,6 +35,10 @@
 TCGLLVMContext *tcg_llvm_ctx;
 #endif
 
+#ifdef CONFIG_S2E
+#include "s2e/s2e.h"
+#endif
+
 /* code generation context */
 TCGContext tcg_ctx;
 
@@ -102,6 +106,11 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     ti = profile_getclock();
 #endif
     tcg_func_start(s);
+
+#ifdef CONFIG_S2E
+    tb->s2e_check_on_tb_enter = S2EOnTbEnter(env, 1);
+    tb->s2e_check_on_tb_exit = S2EOnTbExit(env, 1);
+#endif
 
     gen_intermediate_code(env, tb);
 

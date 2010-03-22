@@ -162,6 +162,10 @@ struct TranslationBlock {
     uint8_t *llvm_tc_ptr;   /* pointer to the translated code */
     uint8_t *llvm_tc_end;
 #endif
+#ifdef CONFIG_S2E
+    unsigned s2e_check_on_tb_enter;
+    unsigned s2e_check_on_tb_exit;
+#endif
 };
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)
