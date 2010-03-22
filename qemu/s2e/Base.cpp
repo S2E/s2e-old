@@ -3,6 +3,7 @@
 #include <llvm/System/Path.h>
 
 #include <klee/Common.h>
+#include <klee/ExecutionState.h>
 
 #include <iostream>
 #include <fstream>
