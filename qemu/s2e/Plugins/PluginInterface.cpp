@@ -10,6 +10,7 @@
 #else
 #include <dlfcn.h>
 #include <unistd.h>
+#include <stdlib.h>
 #endif
 
 using namespace std;

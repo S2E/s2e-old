@@ -1,5 +1,7 @@
 #include "s2e.h"
 
+#include <stdlib.h>
+
 S2E *S2E::s_S2E = NULL;
 
 extern "C"

@@ -3,17 +3,18 @@
 #include <s2e/s2e.h>
 #include <sstream>
 
+#include <inttypes.h>
+
 extern "C"
 {
-  int cpu_memory_rw_debug_se(uint64_t addr,
-                        uint8_t *buf, int len, int is_write);
-  uint64_t cpu_get_phys_page_debug_se(uint64_t addr);
-
 #include "config.h"
 #include "cpu.h"
 #include "exec-all.h"
 #include "qemu-common.h"
 
+  int cpu_memory_rw_debug_se(uint64_t addr,
+                        uint8_t *buf, int len, int is_write);
+  target_phys_addr_t cpu_get_phys_page_debug_se(target_ulong addr);
 }
 
 using namespace std;
@@ -26,8 +27,8 @@ void QEMU::DumpVirtualMemory(uint64_t Addr, unsigned Length)
 	for (i=0; i<Length; i++)
 	{
 		if (!(i % 16)) {
-			printf("\n");
-      printf("%I64x ", Addr + i);
+            printf("\n");
+            printf("%" PRIx64 " ", Addr + i);
 		}
 
     bool IsValid = ReadVirtualMemory(Addr + i, &Data, 1);
@@ -70,7 +71,7 @@ bool QEMU::GetAsciiz(uint64_t base, std::string &ret)
   ret = "";
 	do {
 		if (cpu_memory_rw_debug_se(base+i, (uint8_t*)&c, sizeof(char), 0)<0) {
-			DPRINTF("Could not load asciiz at %#I64x\n", base+i);
+            DPRINTF("Could not load asciiz at %#" PRIx64 "\n", base+i);
 			return false;
 		}
 		if (c) {
@@ -93,7 +94,7 @@ char *QEMU::GetAsciiz(uint64_t base)
 
 	do {
 		if (cpu_memory_rw_debug_se(base+i, (uint8_t*)&c, sizeof(char), 0)<0) {
-			DPRINTF("Could not load asciiz at %#I64x\n", base+i);
+            DPRINTF("Could not load asciiz at %#" PRIx64 "\n", base+i);
 			return NULL;
 		}
 		if (c) {
@@ -120,7 +121,7 @@ std::string QEMU::GetUnicode(uint64_t base, unsigned size)
 	uint16_t c;
 	for (unsigned i=0; i<size; i++) {
 		if (cpu_memory_rw_debug_se(base+i*sizeof(c), (uint8_t*)&c, sizeof(c), 0)<0) {
-			DPRINTF("Could not load unicode char at %#I64x\n", base+i);
+            DPRINTF("Could not load unicode char at %#" PRIx64 "\n", base+i);
 			break;
 		}
 		if (c) {
@@ -185,9 +186,10 @@ bool QEMU::ReadInteger(uint64_t Addr, unsigned Size, uint64_t &Result)
         Result = Val;
         break;
       }
+    default:
+      Status = false; // Make gcc happy
   }
 
 
-  
   return Status;
 }

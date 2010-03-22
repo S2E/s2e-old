@@ -7,9 +7,7 @@
 #include <set>
 #include <ostream>
 
-#ifdef __MINGW32__
 #include <cstring>
-#endif
 
 /**
  *  Characterizes whatever module can be loaded in the memory.

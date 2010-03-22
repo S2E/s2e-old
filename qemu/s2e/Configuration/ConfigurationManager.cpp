@@ -6,8 +6,8 @@
 #include <sstream>
 #include <s2e/s2e.h>
 
-
 #include <unistd.h>
+#include <stdlib.h>
 
 using namespace std;
 
