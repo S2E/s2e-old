@@ -35,7 +35,6 @@ compile_prog() {
 compile_prog_cxx() {
   local_cxxflags="$1"
   local_ldflags="$2"
-	#echo $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags
   $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
 }
 
@@ -1431,10 +1430,10 @@ EOF
   llvm_components="jit bitreader bitwriter ipo linker engine"
   llvm_cxxflags=`$llvm_config $llvm_components --cflags 2> /dev/null`
   
-	llvm_ldflags=`$llvm_config $llvm_components --ldflags 2> /dev/null`
+  llvm_ldflags=`$llvm_config $llvm_components --ldflags 2> /dev/null`
   llvm_libs=`$llvm_config $llvm_components --libs 2> /dev/null`
-	
-	if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags" ; then
+
+  if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags" ; then
     : LLVM found
   else
     feature_not_found "llvm (required for --enable-llvm and --enable-s2e)"
@@ -1465,6 +1464,7 @@ EOF
   klee_cxxflags=`$klee_config --cflags 2> /dev/null`
   klee_ldflags=`$klee_config --ldflags 2> /dev/null`
   klee_libs=`$klee_config --libs 2> /dev/null`
+
   if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags" ; then
     s2e="yes"
   else
@@ -2609,7 +2609,7 @@ if test "$target_darwin_user" = "yes" ; then
 fi
 if test "$target_s2e" = "yes" ; then
   echo "CONFIG_S2E=y" >> $config_target_mak
-  echo "KLEE_CXXFLAGS=$klee_cxxflags" >> $config_target_mak
+  echo "KLEE_CXXFLAGS=\$(filter-out $llvm_cxxflags, $klee_cxxflags)" >> $config_target_mak
   echo "CONFIG_LLVM=y" >> $config_target_mak
   echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_target_mak
 fi
@@ -2739,7 +2739,8 @@ fi
 
 if test "$target_s2e" = "yes" ; then
   echo "LINKER=$cxx" >> $config_target_mak
-  echo "LIBS+=$llvm_libs $klee_ldflags $klee_libs $llvm_ldflags" >> $config_target_mak
+  echo "LIBS+=$llvm_libs $klee_libs" >> $config_target_mak
+  echo "LIBS+=\$(filter-out $llvm_ldflags, $klee_ldflags) $llvm_ldflags" >> $config_target_mak
 fi
 
 if test "$gprof" = "yes" ; then
