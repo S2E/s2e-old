@@ -30,6 +30,7 @@
 #include "disas.h"
 #include "tcg-op.h"
 #include "qemu-log.h"
+#include "it_helper.h"
 
 #ifdef CONFIG_TRACE
 #include "trace.h"
@@ -57,8 +58,15 @@ typedef struct DisasContext {
     int condlabel;
     /* Thumb-2 condtional execution bits.  */
     int condexec_mask;
-    int condexec_cond;
-    int condexec_mask_prev;  /* mask at start of instruction/block */
+    /* Set to 1 iff currently translated instruction is IT instruction.
+     * This flag is then used to properly adjust condexec_mask field after
+     * instruction has been translated*/
+    int is_it_insn;
+    /* Set to 1 iff condexec_mask should be updated to CPU's condexec_bits.
+     * This flag is set to 1 if condexec_mask field has changed as the result
+     * of an instruction translation, so it must be saved to CPU's condexec_bits
+     * field after translated instruction has been executed. */
+    int save_condexec_mask;
     struct TranslationBlock *tb;
     int singlestep_enabled;
     int thumb;
@@ -3524,16 +3532,11 @@ static void gen_rfe(DisasContext *s, TCGv pc, TCGv cpsr)
 static inline void
 gen_set_condexec (DisasContext *s)
 {
-    if (s->condexec_mask) {
-        uint32_t val = (s->condexec_cond << 4) | (s->condexec_mask >> 1);
+    if (s->save_condexec_mask) {
         TCGv tmp = new_tmp();
-        tcg_gen_movi_i32(tmp, val);
+        tcg_gen_movi_i32(tmp, s->condexec_mask);
         store_cpu_field(tmp, condexec_bits);
-    }
-    else if (s->condexec_mask_prev != 0) {
-        TCGv tmp = new_tmp();
-        tcg_gen_movi_i32(tmp, 0);
-        store_cpu_field(tmp, condexec_bits);
+        s->save_condexec_mask = 0;
     }
 }
 
@@ -8180,10 +8183,12 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
     TCGv tmp2;
     TCGv addr;
 
-    if (s->condexec_mask) {
-        cond = s->condexec_cond;
+    if (itstate_is_in_it_block(s->condexec_mask)) {
+        /* We're translating an IT block instruction. Make it branch as
+         * requried by the current ITSTATE. */
+        const uint32_t it_cond = itstate_cond(s->condexec_mask);
         s->condlabel = gen_new_label();
-        gen_test_cc(cond ^ 1, s->condlabel);
+        gen_test_cc(it_cond ^ 1, s->condlabel);
         s->condjmp = 1;
     }
 
@@ -8702,8 +8707,9 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
                 break;
             }
             /* If Then.  */
-            s->condexec_cond = (insn >> 4) & 0xe;
-            s->condexec_mask = insn & 0x1f;
+            s->condexec_mask = insn & 0xff;
+            /* Let the translator know that this was an IT instruction. */
+            s->is_it_insn = 1;
             /* No actual code generated for this insn, just setup state.  */
             break;
 
@@ -8879,9 +8885,11 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     dc->singlestep_enabled = env->singlestep_enabled;
     dc->condjmp = 0;
     dc->thumb = env->thumb;
-    dc->condexec_mask = (env->condexec_bits & 0xf) << 1;
-    dc->condexec_mask_prev = dc->condexec_mask;
-    dc->condexec_cond = env->condexec_bits >> 4;
+    if (!search_pc) {
+        /* Store current ITSTATE value. */
+        tb->itstate = env->condexec_bits;
+    }
+    dc->condexec_mask = tb->itstate;
 #if !defined(CONFIG_USER_ONLY)
     if (IS_M(env)) {
         dc->user = ((env->v7m.exception == 0) && (env->v7m.control & 1));
@@ -8916,6 +8924,9 @@ static inline void gen_intermediate_code_internal(CPUState *env,
 #endif
 
     do {
+        /* Clear IT related flags at the beginning of insn translation. */
+        dc->save_condexec_mask = 0;
+        dc->is_it_insn = 0;
 #ifdef CONFIG_USER_ONLY
         /* Intercept jump to the magic kernel page.  */
         if (dc->pc >= 0xffff0000) {
@@ -8975,13 +8986,13 @@ static inline void gen_intermediate_code_internal(CPUState *env,
 
         if (env->thumb) {
             disas_thumb_insn(env, dc);
-            dc->condexec_mask_prev = dc->condexec_mask;
             if (dc->condexec_mask) {
-                dc->condexec_cond = (dc->condexec_cond & 0xe)
-                                   | ((dc->condexec_mask >> 4) & 1);
-                dc->condexec_mask = (dc->condexec_mask << 1) & 0x1f;
-                if (dc->condexec_mask == 0) {
-                    dc->condexec_cond = 0;
+                /* We just translated an IT-related instruction. We must save
+                 * updated ITSTATE into CPU's condexec_bits field at the end
+                 * this instruction translation. */
+                dc->save_condexec_mask = 1;
+                if (!dc->is_it_insn) {
+                    dc->condexec_mask = itstate_advance(dc->condexec_mask);
                 }
             }
         } else {
@@ -8997,6 +9008,11 @@ static inline void gen_intermediate_code_internal(CPUState *env,
             gen_set_label(dc->condlabel);
             dc->condjmp = 0;
         }
+
+        /* Update CPU's condexec_bits after we've moved beyond executed
+         * command for both, "fall through" and "branch" cases. */
+         gen_set_condexec(dc);
+
         /* Translation stops when a conditional branch is encountered.
          * Otherwise the subsequent code could get translated several times.
          * Also stop translation when a page boundary is reached.  This

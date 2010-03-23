@@ -172,6 +172,14 @@ struct TranslationBlock {
 #endif  // CONFIG_MEMCHECK
 
     uint32_t icount;
+
+    /* ITSTATE at the beginning of the translated block.
+     * This field is set to CPU's condexec_bits value when this TB is first
+     * translating. This field is then used to properly calculate ITSTATE when
+     * this TB gets "retranslated" because of an exception, or other
+     * conditions that cause gen_intermediate_code_pc to be called for this TB.
+     */
+    uint8_t itstate;
 };
 
 static inline unsigned int tb_jmp_cache_hash_page(target_ulong pc)
