@@ -35,13 +35,18 @@ public:
   COperatingSystem *GetOS() const;
 };
 
+#endif
 
-#else
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int S2EInit(const char *CfgFile);
 int S2EOnTbEnter(void *CpuState, int Translation);
 int S2EOnTbExit(void *CpuState, int Translation);
 
+#ifdef __cplusplus
+}
 #endif
 
 #endif
