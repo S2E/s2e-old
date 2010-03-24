@@ -5813,7 +5813,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
 
 #ifdef CONFIG_MEMCHECK
     if (watch_call_stack(s)) {
-        if (is_ret_address(s->pc)) {
+        if (is_ret_address(env, s->pc)) {
             set_on_ret(s->pc);
         }
         if (is_arm_bl_or_blx(insn)) {
@@ -8197,10 +8197,10 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
 #ifdef CONFIG_MEMCHECK
     if (watch_call_stack(s)) {
         target_ulong ret_off;
-        if (is_ret_address(s->pc)) {
+        if (is_ret_address(env, s->pc)) {
             set_on_ret(s->pc);
         }
-        if (is_thumb_bl_or_blx(insn, &ret_off)) {
+        if (is_thumb_bl_or_blx(insn, s->pc, &ret_off)) {
             set_on_call(s->pc, s->pc + ret_off);
             if (!s->search_pc) {
                 register_ret_address(env, s->pc + ret_off);

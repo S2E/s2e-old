@@ -83,6 +83,7 @@ is_arm_bl_or_blx(uint32_t insn)
 /* Checks if given THUMB instruction is BL, or BLX.
  * Param:
  *  insn - THUMB instruction to check.
+ *  pc - Emulated PC address for the instruction.
  *  ret_off - If insn is BL, or BLX, upon return ret_off contains
  *      instruction's byte size. If instruction is not BL, or BLX, content of
  *      this parameter is undefined on return.
@@ -90,7 +91,7 @@ is_arm_bl_or_blx(uint32_t insn)
  *  boolean: 1 if THUMB instruction is BL/BLX, or 0 if it's not.
  */
 static inline int
-is_thumb_bl_or_blx(uint16_t insn, target_ulong* ret_off)
+is_thumb_bl_or_blx(uint16_t insn, target_ulong pc, target_ulong* ret_off)
 {
     /* THUMB BLX(register):      0100 0111 1xxx xxxx
      * THUMB BL(1-stimmediate):  1111 0xxx xxxx xxxx
@@ -100,8 +101,12 @@ is_thumb_bl_or_blx(uint16_t insn, target_ulong* ret_off)
         *ret_off = 2;
         return 1;
     } else if ((insn & 0xF800) == 0xF000) {     // THUMB BL(X)(imm)
-        *ret_off = 4;
-        return 1;
+        // This is a 32-bit THUMB. Get the second half of the instuction.
+        insn = lduw_code(pc + 2);
+        if ((insn & 0xC000) == 0xC000) {
+            *ret_off = 4;
+            return 1;
+        }
     }
     return 0;
 }
@@ -110,6 +115,9 @@ is_thumb_bl_or_blx(uint16_t insn, target_ulong* ret_off)
  * NOTE: If return address has been registered as new in this routine, this will
  * cause invalidation of all existing TBs that contain translated code for that
  * address.
+ * NOTE: Before storing PC address in the array, we convert it from emulated
+ * address to a physical address. This way we deal with emulated addresses
+ * overlapping for different processes.
  * Param:
  *  env - CPU state environment.
  *  addr - Return address to register.
@@ -125,11 +133,9 @@ register_ret_address(CPUState* env, target_ulong addr)
     if ((0x90000000 <= addr && addr <= 0xBFFFFFFF)) {
         /* Address belongs to a module that always loads at this fixed address.
          * So, we can keep this address in the global array. */
-        ret = addrarray_add(&ret_addresses, addr);
+        ret = addrarray_add(&ret_addresses, get_phys_addr_code(env, addr));
     } else {
-        /* TODO: Figure out how to move "floating" part to the process
-         * descriptor. */
-        ret = addrarray_add(&ret_addresses, addr);
+        ret = addrarray_add(&ret_addresses, get_phys_addr_code(env, addr));
     }
     assert(ret != 0);
 
@@ -164,12 +170,12 @@ register_ret_address(CPUState* env, target_ulong addr)
  *  or 0 if it's not.
  */
 static inline int
-is_ret_address(target_ulong addr)
+is_ret_address(CPUState* env, target_ulong addr)
 {
     if ((0x90000000 <= addr && addr <= 0xBFFFFFFF)) {
-        return addrarray_check(&ret_addresses, addr);
+        return addrarray_check(&ret_addresses, get_phys_addr_code(env, addr));
     } else {
-        return addrarray_check(&ret_addresses, addr);
+        return addrarray_check(&ret_addresses, get_phys_addr_code(env, addr));
     }
 }
 
