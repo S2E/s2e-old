@@ -325,7 +325,7 @@ s2eobj-y += s2e/Plugins/PluginInterface.o
 
 libs2e.a: $(s2eobj-y)
 
-$(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(KLEE_CXXFLAGS)
+$(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(S2E_CXXFLAGS)
 
 ARLIBS += libs2e.a
 
