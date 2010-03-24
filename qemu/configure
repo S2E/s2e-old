@@ -1485,11 +1485,11 @@ extern "C" {
 }
 int main(void) { lua_State *L = lua_open(); lua_close(L); return 0; }
 EOF
-  if [ "x$mingw32" == "xyes" ]; then
-	lua_libs="-llua"
-	else
-	lua_cxxflags=`pkg-config lua --cflags 2> /dev/null`
-  lua_libs=`pkg-config lua --libs 2> /dev/null`
+  if [ "$mingw32" = "yes" ]; then
+    lua_libs="-llua"
+  else
+    lua_cxxflags=`pkg-config lua --cflags 2> /dev/null`
+    lua_libs=`pkg-config lua --libs 2> /dev/null`
   fi
 	
   if compile_prog_cxx "$lua_cxxflags" "$lua_libs" ; then
@@ -1508,12 +1508,12 @@ if test "$s2e" != "no" ; then
 #include <sigc++/sigc++.h>>
 int main(void) { sigc::signal<void, int> s; s.emit(1); return 0; }
 EOF
-  if [ "x$mingw32" == "xyes" ]; then
-	sigcxx2_libs="-lsigc-2.0.dll"
-	else
-	sigcxx2_cxxflags=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
-  sigcxx2_libs=`pkg-config sigc++-2.0 --libs 2> /dev/null`
-	fi
+  if [ "$mingw32" = "yes" ]; then
+    sigcxx2_libs="-lsigc-2.0.dll"
+  else
+    sigcxx2_cxxflags=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
+    sigcxx2_libs=`pkg-config sigc++-2.0 --libs 2> /dev/null`
+  fi
 	
   if compile_prog_cxx "$sigcxx2_cxxflags" "$sigcxx2_libs" ; then
     : libsigc++-2.0 found
