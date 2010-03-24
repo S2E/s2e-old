@@ -7,9 +7,14 @@ namespace klee {
   class ExecutionState;
 }
 
+namespace s2e {
+
+/* Main S2E handler class */
 class BaseHandler : public klee::InterpreterHandler
 {
 private:
+  static BaseHandler* s_self;
+
   klee::Interpreter *m_interpreter;
   std::ostream *m_infoFile;
 
@@ -36,5 +41,7 @@ public:
                                const char *err,
                                const char *suffix);
 };
+
+} // namespace s2e
 
 #endif // __S2E_BASE_H

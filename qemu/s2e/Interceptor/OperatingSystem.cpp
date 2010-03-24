@@ -1,7 +1,7 @@
 #include "OperatingSystem.h"
 #include <s2e/Configuration/ConfigurationManager.h>
 #include <s2e/Plugins/PluginInterface.h>
-#include <s2e/s2e.h>
+#include <s2e/Utils.h>
 
 #include <iostream>
 #include <stdlib.h>

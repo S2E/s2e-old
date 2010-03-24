@@ -43,6 +43,7 @@ BaseHandler::BaseHandler()
 
     std::cerr << "S2E: output directory = \"" << dirname << "\"\n";
 
+#ifndef _WIN32
     llvm::sys::Path s2e_last(directory);
     s2e_last.appendComponent("s2e-last");
 
@@ -55,6 +56,8 @@ BaseHandler::BaseHandler()
       perror("Cannot make symlink");
       assert(0 && "exiting.");
     }
+#endif
+
   } else {
     theDir = s2e_output_dir;
   }

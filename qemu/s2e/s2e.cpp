@@ -1,11 +1,15 @@
-#include "s2e.h"
+#include "S2E.h"
 
 #include <stdlib.h>
 
 S2E *S2E::s_S2E = NULL;
 
+/**********************************/
+/* Function declarations for QEMU */
+
 extern "C"
 {
+
 int S2EInit(const char *CfgFile)
 {
   S2E::GetInstance(CfgFile);
@@ -33,6 +37,8 @@ int S2EOnTbExit(void *CpuState, int Translation)
 }
 
 }
+
+/**********************************/
 
 S2E* S2E::GetInstance(const char *CfgFile)
 {

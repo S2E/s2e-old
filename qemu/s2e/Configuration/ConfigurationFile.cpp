@@ -6,15 +6,11 @@
  *  [SECTION2]
  */
 
-
-
+#include "ConfigurationFile.h"
+#include <s2e/Utils.h>
 #include <ctype.h>
 
-#include "ConfigurationFile.h"
-#include <s2e/s2e.h>
-
 using namespace std;
-
 
 
 ConfigurationFile::ConfigurationFile(const std::string &File)

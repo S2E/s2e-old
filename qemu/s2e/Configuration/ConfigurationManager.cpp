@@ -1,10 +1,11 @@
 #include "ConfigurationManager.h"
+
 #include <s2e/Plugins/PluginInterface.h>
 #include "config-host.h"
 
 #include <iostream>
 #include <sstream>
-#include <s2e/s2e.h>
+#include <s2e/Utils.h>
 
 #include <unistd.h>
 #include <stdlib.h>
