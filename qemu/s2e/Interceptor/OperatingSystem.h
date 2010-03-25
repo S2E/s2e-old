@@ -5,7 +5,9 @@
 #include <inttypes.h>
 #include "Interceptor.h"
 #include <s2e/Plugins/PluginInterface.h>
-#include <s2e/Configuration/ConfigurationManager.h>
+#include <s2e/ConfigFile.h>
+
+class S2E;
 
 struct IOperatingSystem {
   virtual IInterceptor* GetNewInterceptor(const std::string &ModuleName, bool UserMode)=0;
@@ -26,12 +28,12 @@ protected:
   
   bool Load();
 
-  CConfigurationManager *m_CfgMgr;
+  S2E *m_s2e;
 
   std::vector<IInterceptor*> m_Interceptors;
   
 public:
-  COperatingSystem(CConfigurationManager *Cfg);
+  COperatingSystem(S2E *s2e);
   ~COperatingSystem();
 
   void SetInterface(IOperatingSystem *OS);

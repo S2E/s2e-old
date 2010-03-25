@@ -1962,8 +1962,8 @@ if test "$debug" = "no" ; then
   CFLAGS="-O2 $CFLAGS"
   CXXFLAGS="-O2 $CXXFLAGS"
 else
-  llvm_cxxflags=`echo ${llvm_cxxflags} | sed 's/\-O2//'`
-  klee_cxxflags=`echo ${klee_cxxflags} | sed 's/\-O2//'`
+  llvm_cxxflags=`echo ${llvm_cxxflags} | sed 's/\-O[23]//'`
+  klee_cxxflags=`echo ${klee_cxxflags} | sed 's/\-O[23]//'`
 fi
 
 # Consult white-list to determine whether to enable werror

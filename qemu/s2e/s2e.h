@@ -3,14 +3,14 @@
 
 #ifdef __cplusplus
 
-#include "Configuration/ConfigurationManager.h"
+#include <s2e/ConfigFile.h>
 #include "Interceptor/OperatingSystem.h"
 
 class S2E
 {
 private:
   static S2E *s_S2E;
-  CConfigurationManager *m_CfgMgr;
+  ConfigFile *m_configFile;
   COperatingSystem *m_Os;
 
   S2E(const char *CfgFile);
@@ -21,6 +21,10 @@ public:
   static S2E* GetInstance();
 
   COperatingSystem *GetOS() const;
+
+  ConfigFile* config() const {
+    return m_configFile;
+  }
 };
 
 #endif

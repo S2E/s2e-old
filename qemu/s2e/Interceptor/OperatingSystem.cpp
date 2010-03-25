@@ -1,5 +1,5 @@
 #include "OperatingSystem.h"
-#include <s2e/Configuration/ConfigurationManager.h>
+#include <s2e/S2E.h>
 #include <s2e/Plugins/PluginInterface.h>
 #include <s2e/Utils.h>
 
@@ -12,23 +12,32 @@ using namespace std;
 
 bool COperatingSystem::LoadModuleInterceptors()
 {
-    CgfInterceptors Ci;
     if (!m_Interface) {
         std::cout << "An OS plugin must be loaded setting module interceptors!" << std::endl;
         return false;
     }
 
-    m_CfgMgr->GetCfgInterceptors(Ci);
-
-    foreach(it, Ci.begin(), Ci.end()) {
-        const CfgInterceptor &Cfg = *it;
-        IInterceptor *I = m_Interface->GetNewInterceptor(Cfg.ModuleName, Cfg.UserMode);
+    vector<string> kernelInterceptors =
+        m_s2e->config()->getStringList("interceptors.kernelMode");
+    foreach(it, kernelInterceptors.begin(), kernelInterceptors.end()) {
+        IInterceptor *I = m_Interface->GetNewInterceptor(*it, false);
         if (!I) {
-            std::cout << "Could not create interceptor for " << Cfg.ModuleName << std::endl;
+            std::cout << "Could not create interceptor for " << (*it) << std::endl;
         }
 
         I->SetEventHandler(m_Events);
+        m_Interceptors.push_back(I);
+    }
 
+    vector<string> userInterceptors =
+        m_s2e->config()->getStringList("interceptors.userMode");
+    foreach(it, userInterceptors.begin(), userInterceptors.end()) {
+        IInterceptor *I = m_Interface->GetNewInterceptor(*it, true);
+        if (!I) {
+            std::cout << "Could not create interceptor for " << (*it) << std::endl;
+        }
+
+        I->SetEventHandler(m_Events);
         m_Interceptors.push_back(I);
     }
 
@@ -48,10 +57,10 @@ void COperatingSystem::SetInterface(IOperatingSystem *OS) {
 
 COperatingSystem *COperatingSystem::s_Instance = NULL;
 
-COperatingSystem::COperatingSystem(CConfigurationManager *Cfg)
+COperatingSystem::COperatingSystem(S2E *s2e)
 {
+    m_s2e = s2e;
     m_Interface = NULL;
-    m_CfgMgr = Cfg;
     m_Loaded = Load();
     m_Events = new COSEvents(this);
 }
@@ -74,7 +83,12 @@ COperatingSystem::~COperatingSystem()
 
 bool COperatingSystem::Load()
 {
-    string Plugin = m_CfgMgr->GetCfgOsPluginPath();
+    string pluginPath;
+    if(getenv("S2E_PLUGINPATH"))
+        pluginPath = getenv("S2E_PLUGINPATH");
+    string Plugin = PluginInterface::ConvertToFileName(
+        pluginPath,
+        m_s2e->config()->getString("guestOS.plugin"));
 
     void *LibHandle = PluginInterface::LoadPlugin(Plugin);
     if (!LibHandle) {
@@ -93,14 +107,16 @@ bool COperatingSystem::Load()
     S2E_PLUGIN_API API;
     PluginInterface::PluginApiInit(API);
 
-    IOperatingSystem *IOS = Inst(m_CfgMgr->GetCfgOsType().c_str(), 
-        m_CfgMgr->GetCfgOsVersion().c_str(), &API);
+    string osType = m_s2e->config()->getString("guestOS.type");
+    string osVersion = m_s2e->config()->getString("guestOS.version");
+
+    IOperatingSystem *IOS = Inst(osType.c_str(), osVersion.c_str(), &API);
 
     if (IOS) {
         m_Interface = IOS;
         m_Plugin = LibHandle;
-        std::cout << "Loaded plugin for " << m_CfgMgr->GetCfgOsType() 
-            << " " << m_CfgMgr->GetCfgOsVersion() << " - " << Plugin
+        std::cout << "Loaded plugin for " << osType
+            << " " << osVersion << " - " << Plugin
             << std::endl;
 
         return true;

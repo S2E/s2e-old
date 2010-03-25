@@ -55,11 +55,11 @@ S2E* S2E::GetInstance()
 
 S2E::S2E(const char *CfgFile)
 {
-  m_CfgMgr = new CConfigurationManager(CfgFile);
-  m_Os = new COperatingSystem(m_CfgMgr);
+  m_configFile = new ConfigFile(CfgFile);
+  m_Os = new COperatingSystem(this);
   if (!m_Os->IsLoaded()) {
     delete m_Os;
-    delete m_CfgMgr;
+    delete m_configFile;
     exit(-1);
   }
 
