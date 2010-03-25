@@ -104,7 +104,7 @@ bool ConfigFile::getLuaValue(string_list* res, const string_list& def, int index
 template<typename T> inline
 T ConfigFile::getValueT(const std::string& name, const T& def, bool *ok)
 {
-    assert(expr.size() != 0);
+	assert(name.size() != 0);    
     string expr = "return " + name;
   
     if(luaL_loadstring(m_luaState, expr.c_str()) ||

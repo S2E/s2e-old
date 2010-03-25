@@ -17,6 +17,7 @@ bool COperatingSystem::LoadModuleInterceptors()
         return false;
     }
 
+#if 0
     vector<string> kernelInterceptors =
         m_s2e->config()->getStringList("interceptors.kernelMode");
     foreach(it, kernelInterceptors.begin(), kernelInterceptors.end()) {
@@ -40,6 +41,16 @@ bool COperatingSystem::LoadModuleInterceptors()
         I->SetEventHandler(m_Events);
         m_Interceptors.push_back(I);
     }
+#endif
+
+    string Module = m_s2e->config()->getString("interceptors[1].name");
+    IInterceptor *I = m_Interface->GetNewInterceptor(Module, true);
+    if (!I) {
+        std::cout << "Could not create interceptor for " << Module << std::endl;
+    }
+
+    I->SetEventHandler(m_Events);
+    m_Interceptors.push_back(I);
 
     return true;
 }
