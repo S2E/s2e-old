@@ -19,6 +19,7 @@
 #define ELFF_ELF_MAPPED_SECTION_H_
 
 #include "elf_defs.h"
+#include "android/utils/mapfile.h"
 
 /* Encapsulates a section of an ELF file, mapped to memory. */
 class ElfMappedSection {
@@ -45,7 +46,7 @@ class ElfMappedSection {
    *  NOTE: if section has already been mapped, this method immediately
    *  returns with success.
    */
-  bool map(ELF_FILE_HANDLE handle, Elf_Xword offset, Elf_Word size);
+  bool map(MapFile* handle, Elf_Xword offset, Elf_Word size);
 
   /* Checks if section has been mapped. */
   bool is_mapped() const {

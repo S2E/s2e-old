@@ -26,70 +26,23 @@ ElfMappedSection::ElfMappedSection()
 
 ElfMappedSection::~ElfMappedSection() {
   if (mapped_at_ != NULL) {
-#ifdef WIN32
-    UnmapViewOfFile(mapped_at_);
-#else   // WIN32
-    munmap(mapped_at_, diff_ptr(mapped_at_, data_) + size_);
-#endif  // WIN32
+    mapfile_unmap(mapped_at_, diff_ptr(mapped_at_, data_) + size_);
   }
 }
 
-bool ElfMappedSection::map(ELF_FILE_HANDLE handle,
+bool ElfMappedSection::map(MapFile* handle,
                            Elf_Xword offset,
                            Elf_Word size) {
-  /* Get the mask for mapping offset alignment. */
-#ifdef  WIN32
-  SYSTEM_INFO sys_info;
-  GetSystemInfo(&sys_info);
-  const Elf_Xword align_mask = sys_info.dwAllocationGranularity - 1;
-#else   // WIN32
-  const Elf_Xword align_mask = getpagesize() - 1;
-#endif  // WIN32
+    void* section_ptr;
+    size_t mapped_bytes;
+    mapped_at_ = mapfile_map(handle, offset, size, PROT_READ,
+                             &section_ptr, &mapped_bytes);
+    if (mapped_at_ == NULL) {
+        return false;
+    }
 
-  /* Adjust mapping offset and mapping size accordingly to
-   * the mapping alignment requirements. */
-  const Elf_Xword map_offset = offset & ~align_mask;
-  const Elf_Word map_size = static_cast<Elf_Word>(offset - map_offset + size);
+    data_ = section_ptr;
+    size_ = (Elf_Word)mapped_bytes;
 
-  /* Make sure mapping size doesn't exceed 4G: may happen on 64-bit ELFs, if
-   * section size is close to 4G, while section offset is badly misaligned. */
-  assert(map_size >= size);
-  if (map_size < size) {
-    _set_errno(EFBIG);
-    return false;
-  }
-
-  /* Map the section. */
-#ifdef  WIN32
-  LARGE_INTEGER converter;
-  converter.QuadPart = map_offset + map_size;
-  HANDLE map_handle = CreateFileMapping(handle, NULL, PAGE_READONLY,
-                                        converter.HighPart, converter.LowPart,
-                                        NULL);
-  assert(map_handle != NULL);
-  if (map_handle != NULL) {
-    converter.QuadPart = map_offset;
-    mapped_at_ = MapViewOfFile(map_handle, FILE_MAP_READ, converter.HighPart,
-                               converter.LowPart, map_size);
-    assert(mapped_at_ != NULL);
-    /* Memory mapping (if successful) will hold extra references to the
-     * mapping, so we can close it right after we mapped file view. */
-    CloseHandle(map_handle);
-  }
-  if (mapped_at_ == NULL) {
-    _set_errno(GetLastError());
-    return false;
-  }
-#else   // WIN32
-  mapped_at_ = mmap(0, map_size, PROT_READ, MAP_SHARED, handle, map_offset);
-  assert(mapped_at_ != MAP_FAILED);
-  if (mapped_at_ == MAP_FAILED) {
-    return false;
-  }
-#endif  // WIN32
-
-  data_ = INC_CPTR(mapped_at_, offset - map_offset);
-  size_ = size;
-
-  return true;
+    return true;
 }

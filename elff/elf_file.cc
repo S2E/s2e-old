@@ -43,7 +43,7 @@ ElfFile::ElfFile()
       allocator_(NULL),
       fixed_base_address_(0),
       is_exec_(0),
-      elf_handle_(INVALID_ELF_FILE_HANDLE),
+      elf_handle_((MapFile*)-1),
       sec_entry_size_(0) {
 }
 
@@ -55,8 +55,8 @@ ElfFile::~ElfFile() {
     cu_to_del = next_cu_to_del;
   }
 
-  if (elfhandle_is_valid(elf_handle_)) {
-    close_elf_file_handle(elf_handle_);
+  if (mapfile_is_valid(elf_handle_)) {
+    mapfile_close(elf_handle_);
   }
 
   if (elf_file_path_ != NULL) {
@@ -88,33 +88,12 @@ ElfFile* ElfFile::Create(const char* path) {
   /*
    * Open ELF file, and read its header (the largest one possible).
    */
-
-#ifdef WIN32
-  HANDLE file_handle = CreateFile(path, GENERIC_READ,
-                                  FILE_SHARE_READ, NULL, OPEN_EXISTING,
-                                  FILE_FLAG_RANDOM_ACCESS, NULL);
-  assert(file_handle != INVALID_HANDLE_VALUE);
-  if (file_handle == INVALID_HANDLE_VALUE) {
-    _set_errno(GetLastError());
+  MapFile* file_handle = mapfile_open(path, O_RDONLY | O_BINARY, 0);
+  if (!mapfile_is_valid(file_handle)) {
     return NULL;
   }
-
-  DWORD read_bytes;
-  BOOL res = ReadFile(file_handle, &header, sizeof(header), &read_bytes, NULL);
-  CloseHandle(file_handle);
-  assert(res && read_bytes == sizeof(header));
-  if (!res || read_bytes != sizeof(header)) {
-    _set_errno(GetLastError());
-    return NULL;
-  }
-#else // WIN32
-  int file_handle = open(path, O_RDONLY | O_BINARY, 0);
-  assert(file_handle >= 0);
-  if (file_handle < 0) {
-    return NULL;
-  }
-  const ssize_t read_bytes = read(file_handle, &header, sizeof(header));
-  close(file_handle);
+  const ssize_t read_bytes = mapfile_read(file_handle, &header, sizeof(header));
+  mapfile_close(file_handle);
   assert(read_bytes != -1 && read_bytes == sizeof(header));
   if (read_bytes == -1 || read_bytes != sizeof(header)) {
     if (read_bytes != -1) {
@@ -122,7 +101,6 @@ ElfFile* ElfFile::Create(const char* path) {
     }
     return NULL;
   }
-#endif  // WIN32
 
   /* Lets see if this is an ELF file at all. */
   if (memcmp(elf_hdr->e_ident, ELFMAG, SELFMAG) != 0) {
@@ -186,25 +164,8 @@ bool ElfFile::initialize(const Elf_CommonHdr* elf_hdr, const char* path) {
   is_exec_ = elf_hdr->e_type == 2;
 
   /* Reopen file for further reads and mappings. */
-#ifdef WIN32
-  elf_handle_ = CreateFile(elf_file_path_, GENERIC_READ,
-                           FILE_SHARE_READ, NULL, OPEN_EXISTING,
-                           FILE_FLAG_RANDOM_ACCESS, NULL);
-  assert(elf_handle_ != INVALID_HANDLE_VALUE);
-  if (elf_handle_ == INVALID_HANDLE_VALUE) {
-    _set_errno(GetLastError());
-    return false;
-  }
-#else // WIN32
-  elf_handle_ = open(elf_file_path_, O_RDONLY | O_BINARY, 0);
-  assert(elf_handle_ >= 0);
-  if (elf_handle_ < 0) {
-    elf_handle_ = INVALID_ELF_FILE_HANDLE;
-    return false;
-  }
-#endif  // WIN32
-
-  return true;
+  elf_handle_ = mapfile_open(elf_file_path_, O_RDONLY | O_BINARY, 0);
+  return mapfile_is_valid(elf_handle_);
 }
 
 bool ElfFile::get_pc_address_info(Elf_Xword address,
@@ -386,39 +347,10 @@ bool ElfFileImpl<Elf_Addr, Elf_Off>::initialize(const Elf_CommonHdr* elf_hdr,
     _set_errno(ENOMEM);
     return false;
   }
-#ifdef  WIN32
-  LARGE_INTEGER convert;
-  convert.QuadPart = sec_table_off;
-  if ((SetFilePointer(elf_handle_, convert.LowPart,
-                      &convert.HighPart,
-                      FILE_BEGIN) == INVALID_SET_FILE_POINTER) &&
-      (GetLastError() != NO_ERROR)) {
-    _set_errno(GetLastError());
-    return false;
+  if (mapfile_read_at(elf_handle_, sec_table_off, sec_table_,
+                      sec_table_size) < 0) {
+      return false;
   }
-  DWORD read_bytes;
-  BOOL res =
-      ReadFile(elf_handle_, sec_table_, sec_table_size, &read_bytes, NULL);
-  assert(res && read_bytes == sec_table_size);
-  if (!res || read_bytes != sec_table_size) {
-    _set_errno(GetLastError());
-    return false;
-  }
-#else   // WIN32
-  ssize_t res = lseek(elf_handle_, sec_table_off, SEEK_SET);
-  assert(res != -1);
-  if (res == -1) {
-    return false;
-  }
-  res = read(elf_handle_, sec_table_, sec_table_size);
-  assert(res != -1 && res == sec_table_size);
-  if (res == -1 || res != sec_table_size) {
-    if (res != -1) {
-      _set_errno(EINVAL);
-    }
-    return false;
-  }
-#endif  // WIN32
 
   /* Map ELF's string section (must have one!). */
   const Elf_Half str_sec_index = pull_val(header->e_shstrndx);
