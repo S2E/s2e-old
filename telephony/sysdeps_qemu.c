@@ -248,7 +248,7 @@ sys_channel_read( SysChannel  channel, void*  buffer, int  size )
         if (ret < 0) {
             if (errno == EINTR)
                 continue;
-            if (errno == EWOULDBLOCK)
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
                 break;
             D( "%s: after reading %d bytes, recv() returned error %d: %s\n",
                 __FUNCTION__, size - len, errno, errno_str);
@@ -275,7 +275,7 @@ sys_channel_write( SysChannel  channel, const void*  buffer, int  size )
         if (ret < 0) {
             if (errno == EINTR)
                 continue;
-            if (errno == EWOULDBLOCK)
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
                 break;
             D( "%s: send() returned error %d: %s\n",
                 __FUNCTION__, errno, errno_str);

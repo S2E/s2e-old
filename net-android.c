@@ -1607,7 +1607,7 @@ static void net_socket_send(void *opaque)
     size = recv(s->fd, (void *)buf1, sizeof(buf1), 0);
     if (size < 0) {
         err = socket_error();
-        if (err != EWOULDBLOCK)
+        if (err != EWOULDBLOCK && err != EAGAIN)
             goto eoc;
     } else if (size == 0) {
         /* end of connection */

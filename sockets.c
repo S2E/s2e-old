@@ -14,10 +14,12 @@
 #include <fcntl.h>
 #include <stddef.h>
 #include "qemu_debug.h"
+#include "qemu-char.h"
 #include <stdlib.h>
 #include <string.h>
 #include "android/utils/path.h"
 #include "android/utils/debug.h"
+#include "android/utils/misc.h"
 
 #define  D(...) VERBOSE_PRINT(socket,__VA_ARGS__)
 
@@ -74,14 +76,14 @@ static int  winsock_error;
     EE(WSA_NOT_ENOUGH_MEMORY,ENOMEM,"not enough memory") \
     EE(WSA_INVALID_PARAMETER,EINVAL,"invalid parameter") \
     EE(WSAEINTR,EINTR,"interrupted function call") \
-	EE(WSAEALREADY,EALREADY,"operation already in progress") \
+    EE(WSAEALREADY,EALREADY,"operation already in progress") \
     EE(WSAEBADF,EBADF,"bad file descriptor") \
     EE(WSAEACCES,EACCES,"permission denied") \
     EE(WSAEFAULT,EFAULT,"bad address") \
     EE(WSAEINVAL,EINVAL,"invalid argument") \
     EE(WSAEMFILE,EMFILE,"too many opened files") \
-    EE(WSAEWOULDBLOCK,EAGAIN,"resource temporarily unavailable") \
-    EE(WSAEINPROGRESS,EAGAIN,"operation now in progress") \
+    EE(WSAEWOULDBLOCK,EWOULDBLOCK,"resource temporarily unavailable") \
+    EE(WSAEINPROGRESS,EINPROGRESS,"operation now in progress") \
     EE(WSAEALREADY,EAGAIN,"operation already in progress") \
     EE(WSAENOTSOCK,EBADF,"socket operation not on socket") \
     EE(WSAEDESTADDRREQ,EDESTADDRREQ,"destination address required") \
@@ -130,6 +132,8 @@ _fix_errno( void )
     const WinsockError*  werr = _winsock_errors;
     int                  unix = EINVAL;  /* generic error code */
 
+	winsock_error = WSAGetLastError();
+	
     for ( ; werr->string != NULL; werr++ ) {
         if (werr->winsock == winsock_error) {
             unix = werr->unix;
@@ -153,7 +157,7 @@ const char*
 _errno_str(void)
 {
     const WinsockError*  werr   = _winsock_errors;
-    const char*          result = "<unknown error>";
+    const char*          result = NULL;
 
     for ( ; werr->string; werr++ ) {
         if (werr->winsock == winsock_error) {
@@ -162,9 +166,11 @@ _errno_str(void)
         }
     }
 
-    if (result == NULL)
-        result = strerror(errno);
-
+    if (result == NULL) {
+        result = tempstr_format(
+                    "Unkown socket error (Winsock=0x%08x) errno=%d: %s",
+                    winsock_error, errno, strerror(errno));
+    }
     return result;
 }
 #else

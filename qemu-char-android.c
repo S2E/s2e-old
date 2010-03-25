@@ -494,7 +494,7 @@ int send_all(int fd, const void *buf, int len1)
         ret = send(fd, buf, len, 0);
         if (ret < 0) {
             errno = WSAGetLastError();
-            if (errno != WSAEWOULDBLOCK) {
+            if (errno != WSAEWOULDBLOCK && errno != WSAEAGAIN) {
                 return -1;
             }
         } else if (ret == 0) {

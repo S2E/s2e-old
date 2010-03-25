@@ -381,7 +381,7 @@ rewrite_connection_init( RewriteConnection*   conn )
     conn->state    = STATE_CONNECTING;
 
     if (socket_connect( root->socket, &service->server_addr ) < 0) {
-        if (errno == EINPROGRESS || errno == EWOULDBLOCK) {
+        if (errno == EINPROGRESS || errno == EWOULDBLOCK || errno == EAGAIN) {
             PROXY_LOG("%s: connecting", conn->root->name);
         }
         else {

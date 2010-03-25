@@ -107,11 +107,11 @@ MigrationState *tcp_start_outgoing_migration(const char *host_port,
         if (ret == -1)
             ret = -(s->get_error(s));
 
-        if (ret == -EINPROGRESS || ret == -EWOULDBLOCK)
+        if (ret == -EINPROGRESS || ret == -EWOULDBLOCK || ret == -EAGAIN)
             qemu_set_fd_handler2(s->fd, NULL, NULL, tcp_wait_for_connect, s);
     } while (ret == -EINTR);
 
-    if (ret < 0 && ret != -EINPROGRESS && ret != -EWOULDBLOCK) {
+    if (ret < 0 && ret != -EINPROGRESS && ret != -EWOULDBLOCK && ret != -EAGAIN) {
         dprintf("connect failed\n");
         socket_close(s->fd);
         qemu_free(s);
