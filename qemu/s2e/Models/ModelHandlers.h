@@ -132,4 +132,37 @@ public:
 
 };
 
+
+class CModels
+{
+public:
+  typedef std::map<SProcessHookPoint, SModelDescriptor> ModelMap;
+  
+}
+
+
+class IModels
+{
+public:
+  
+}
+
+class CNDISModels:public IModels
+{
+public:
+  typedef void (CNDISModels::*Model)(bool IsEntry);
+
+ 
+  bool MiniportInitialize(bool IsEntry);
+
+  bool NdisAllocateWithTag(bool IsEntry);
+};
+
+
+class CRTL8139Models:public IModels
+{
+  //This class should be able to register for events from
+  //CNDISModels
+};
+
 #endif

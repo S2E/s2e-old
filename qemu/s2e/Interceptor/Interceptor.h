@@ -11,7 +11,9 @@ struct IInterceptorEvent
 {
   virtual void OnProcessLoad(
     struct IInterceptor *Interceptor,
-    const ModuleDescriptor &Desc
+    const ModuleDescriptor &Desc,
+    const IExecutableImage::Imports &Imports,
+    const IExecutableImage::Exports &Exports
   ) = 0;
 
   virtual void OnLibraryLoad(

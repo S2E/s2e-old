@@ -52,7 +52,9 @@ public:
   ~COSEvents();
   virtual void OnProcessLoad(
     struct IInterceptor *Interceptor,
-    const ModuleDescriptor &Desc
+    const ModuleDescriptor &Desc,
+    const IExecutableImage::Imports &Imports,
+    const IExecutableImage::Exports &Exports
   );
 
   virtual void OnLibraryLoad(

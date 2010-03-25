@@ -145,7 +145,9 @@ COSEvents::~COSEvents()
 
 void COSEvents::OnProcessLoad(
 struct IInterceptor *Interceptor,
-    const ModuleDescriptor &Desc
+    const ModuleDescriptor &Desc,
+    const IExecutableImage::Imports &Imports,
+    const IExecutableImage::Exports &Export
     )
 {
     std::cout << "PROCESS LOAD ";
