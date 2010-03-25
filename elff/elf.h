@@ -27,22 +27,6 @@ extern "C" {
 // ELF file definitions
 //=============================================================================
 
-#ifdef  WIN32
-typedef HANDLE                    ELF_FILE_HANDLE;
-#define INVALID_ELF_FILE_HANDLE   INVALID_HANDLE_VALUE
-#define close_elf_file_handle     CloseHandle
-#else   // WIN32
-typedef int                       ELF_FILE_HANDLE;
-#define INVALID_ELF_FILE_HANDLE   -1
-#define close_elf_file_handle     close
-#endif  // WIN32
-
-/* Checks if ELF file handle is valid. */
-static inline bool
-elfhandle_is_valid(ELF_FILE_HANDLE handle) {
-  return handle != INVALID_ELF_FILE_HANDLE;
-}
-
 /*
  * ELF format documentation uses Elf##_Xxx notation for data types, where
  * ## stands for CPU architecture (32, or 64 bit), and Xxx stands for a

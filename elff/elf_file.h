@@ -20,6 +20,7 @@
 #include "dwarf_die.h"
 #include "elf_mapped_section.h"
 #include "elff_api.h"
+#include "android/utils/mapfile.h"
 
 /* Encapsulates architecture-independent functionality of an ELF file.
  *
@@ -510,7 +511,7 @@ class ElfFile {
   Elf_Xword           fixed_base_address_;
 
   /* Handle to the ELF file represented with this instance. */
-  ELF_FILE_HANDLE     elf_handle_;
+  MapFile*            elf_handle_;
 
   /* Path to the ELF file represented with this instance. */
   char*               elf_file_path_;

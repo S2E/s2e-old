@@ -604,6 +604,7 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               android/utils/system.c \
               android/utils/tempfile.c \
               android/utils/timezone.c \
+              android/utils/mapfile.c \
               android/avd/hw-config.c \
               android/avd/info.c \
 
