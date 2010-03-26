@@ -4,11 +4,10 @@
 #include <s2e/Utils.h>
 
 #include <iostream>
+#include <sstream>
 #include <stdlib.h>
 
 using namespace std;
-
-
 
 bool COperatingSystem::LoadModuleInterceptors()
 {
@@ -17,40 +16,22 @@ bool COperatingSystem::LoadModuleInterceptors()
         return false;
     }
 
-#if 0
-    vector<string> kernelInterceptors =
-        m_s2e->config()->getStringList("interceptors.kernelMode");
-    foreach(it, kernelInterceptors.begin(), kernelInterceptors.end()) {
-        IInterceptor *I = m_Interface->GetNewInterceptor(*it, false);
+    int count = m_s2e->config()->getListSize("interceptors");
+
+    for(int i=1; i<=count; ++i) {
+        ostringstream os; os << "interceptors[" << i << "]";
+        string s = os.str();
+
+        string module = m_s2e->config()->getString(s + ".name");
+        bool kernel = m_s2e->config()->getBool(s + ".kernelMode");
+        IInterceptor *I = m_Interface->GetNewInterceptor(module, !kernel);
         if (!I) {
-            std::cout << "Could not create interceptor for " << (*it) << std::endl;
+            std::cout << "Could not create interceptor for " << module << std::endl;
         }
 
         I->SetEventHandler(m_Events);
         m_Interceptors.push_back(I);
     }
-
-    vector<string> userInterceptors =
-        m_s2e->config()->getStringList("interceptors.userMode");
-    foreach(it, userInterceptors.begin(), userInterceptors.end()) {
-        IInterceptor *I = m_Interface->GetNewInterceptor(*it, true);
-        if (!I) {
-            std::cout << "Could not create interceptor for " << (*it) << std::endl;
-        }
-
-        I->SetEventHandler(m_Events);
-        m_Interceptors.push_back(I);
-    }
-#endif
-
-    string Module = m_s2e->config()->getString("interceptors[1].name");
-    IInterceptor *I = m_Interface->GetNewInterceptor(Module, true);
-    if (!I) {
-        std::cout << "Could not create interceptor for " << Module << std::endl;
-    }
-
-    I->SetEventHandler(m_Events);
-    m_Interceptors.push_back(I);
 
     return true;
 }

@@ -18,17 +18,23 @@ private:
     /* Called on errors that can be ignored */
     void luaWarning(const char *fmt, ...);
 
+    /* Fake data type for list size */
+    struct _list_size { int size; };
+
+    /* Helper to get C++ type name */
     template<typename T>
     const char* getTypeName();
 
+    /* Helper to get topmost value of lua stack as a C++ value */
     template<typename T>
     bool getLuaValue(T* res, const T& def, int index = -1);
 
+    /* Universal implementation for getXXX functions */
     template<typename T>
     T getValueT(const std::string& expr, const T& def, bool *ok);
 
 public:
-    ConfigFile(const std::string &ConfigFile);
+    ConfigFile(const std::string &configFileName);
     ~ConfigFile();
 
     /* Return value from configuration file.
@@ -52,6 +58,10 @@ public:
     typedef std::vector<std::string> string_list;
     string_list getStringList(const std::string& name,
                     const string_list& def = string_list(), bool *ok = NULL);
+
+    /* Return the size of the list. Works for all types of
+       lua lists just like '#' operator in lua. */
+    int getListSize(const std::string& name, bool *ok = NULL);
 };
 
 #endif

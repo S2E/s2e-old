@@ -12,12 +12,12 @@ extern "C" {
 
 using namespace std;
 
-ConfigFile::ConfigFile(const std::string &File)
+ConfigFile::ConfigFile(const std::string &configFileName)
 {
     m_luaState = lua_open();
     luaL_openlibs(m_luaState);
   
-    if(luaL_loadfile(m_luaState, File.c_str()) ||
+    if(luaL_loadfile(m_luaState, configFileName.c_str()) ||
                 lua_pcall(m_luaState, 0, 0, 0)) {
         luaError("Can not run configuration file:\n    %s\n",
                 lua_tostring(m_luaState, -1));
@@ -44,6 +44,11 @@ const char* ConfigFile::getTypeName<string>() { return "string"; }
 template<> inline
 const char* ConfigFile::getTypeName<ConfigFile::string_list>() {
   return "string_list";
+}
+
+template<> inline
+const char* ConfigFile::getTypeName<ConfigFile::_list_size>() {
+  return "lua_table";
 }
 
 template<> inline
@@ -101,6 +106,26 @@ bool ConfigFile::getLuaValue(string_list* res, const string_list& def, int index
     return true;
 }
 
+template<> inline
+bool ConfigFile::getLuaValue(_list_size* res, const _list_size& def, int index) {
+    bool ok = lua_istable(m_luaState, index);
+    if(!ok) { *res = def; return ok; }
+
+    /* read table as array */
+    res->size = 0;
+    for(int i=1; ; ++i) {
+        lua_rawgeti(m_luaState, index, i);
+        if(lua_isnil(m_luaState, -1)) {
+            lua_pop(m_luaState, 1);
+            break;
+        }
+        res->size += 1;
+        lua_pop(m_luaState, 1);
+    }
+
+    return true;
+}
+
 template<typename T> inline
 T ConfigFile::getValueT(const std::string& name, const T& def, bool *ok)
 {
@@ -152,6 +177,12 @@ ConfigFile::string_list ConfigFile::getStringList(
             const std::string& name, const string_list& def, bool *ok)
 {
     return getValueT(name, def, ok);
+}
+
+int ConfigFile::getListSize(const std::string& name, bool *ok)
+{
+    static const _list_size l = { 0 };
+    return getValueT(name, l, ok).size;
 }
 
 void ConfigFile::luaError(const char *fmt, ...)
