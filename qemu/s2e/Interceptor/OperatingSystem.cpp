@@ -76,8 +76,12 @@ COperatingSystem::~COperatingSystem()
 bool COperatingSystem::Load()
 {
     string pluginPath;
-    if(getenv("S2E_PLUGINPATH"))
-        pluginPath = getenv("S2E_PLUGINPATH");
+    if(getenv("S2E_PLUGIN_PATH")) {
+      pluginPath = getenv("S2E_PLUGIN_PATH");
+    }else {
+      std::cout << "Please set S2E_PLUGIN_PATH" << std::endl;
+    }
+
     string Plugin = PluginInterface::ConvertToFileName(
         pluginPath,
         m_s2e->config()->getString("guestOS.plugin"));
