@@ -1,8 +1,11 @@
 #include "S2E.h"
 
+#include <s2e/Plugin.h>
+#include <s2e/CorePlugin.h>
+
 #include <stdlib.h>
 
-S2E *S2E::s_S2E = NULL;
+S2E* s2e = NULL;
 
 /**********************************/
 /* Function declarations for QEMU */
@@ -10,10 +13,14 @@ S2E *S2E::s_S2E = NULL;
 extern "C"
 {
 
-int S2EInit(const char *CfgFile)
+S2E* s2e_initialize(const char *s2e_config_file)
 {
-  S2E::GetInstance(CfgFile);
-  return 0;
+    return new S2E(s2e_config_file);
+}
+
+void s2e_close(S2E *s2e)
+{
+    delete s2e;
 }
 
 int S2EOnTbEnter(void *CpuState, int Translation)
@@ -40,17 +47,9 @@ int S2EOnTbExit(void *CpuState, int Translation)
 
 /**********************************/
 
-S2E* S2E::GetInstance(const char *CfgFile)
-{
-  if (!s_S2E) {
-    s_S2E = new S2E(CfgFile);
-  }
-  return s_S2E;
-}
-
 S2E* S2E::GetInstance()
 {
-  return s_S2E;
+  return s2e;
 }
 
 S2E::S2E(const char *CfgFile)
@@ -64,6 +63,13 @@ S2E::S2E(const char *CfgFile)
   }
 
   m_Os->LoadModuleInterceptors();
+
+  m_pluginsFactory = new PluginsFactory();
+  m_corePlugin = dynamic_cast<CorePlugin*>(
+          m_pluginsFactory->createPlugin(this, "CorePlugin"));
+
+  Plugin* examplePlugin = m_pluginsFactory->createPlugin(this, "ExamplePlugin");
+  examplePlugin->initialize();
 }
 
 COperatingSystem *S2E::GetOS() const

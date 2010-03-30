@@ -5677,8 +5677,8 @@ int main(int argc, char **argv, char **envp)
 
 #ifdef CONFIG_S2E
     if (s2e_config_file) {
-      S2EInit(s2e_config_file);
-    }else{
+      s2e = s2e_initialize(s2e_config_file);
+    } else {
       printf("Please specify the S2E configuration file\n");
     }
 #endif

@@ -6,6 +6,9 @@
 #include <s2e/ConfigFile.h>
 #include "Interceptor/OperatingSystem.h"
 
+class CorePlugin;
+class PluginsFactory;
+
 class S2E
 {
 private:
@@ -13,17 +16,23 @@ private:
   ConfigFile *m_configFile;
   COperatingSystem *m_Os;
 
-  S2E(const char *CfgFile);
+  PluginsFactory *m_pluginsFactory;
+  CorePlugin *m_corePlugin;
+
   
 public:
+  explicit S2E(const char *s2e_config_file);
 
-  static S2E* GetInstance(const char *CfgFile);
   static S2E* GetInstance();
 
   COperatingSystem *GetOS() const;
 
-  ConfigFile* config() const {
+  ConfigFile* getConfig() const {
     return m_configFile;
+  }
+
+  CorePlugin *getCorePlugin() const {
+      return m_corePlugin;
   }
 };
 
@@ -33,9 +42,17 @@ public:
 extern "C" {
 #endif
 
+#ifndef __cplusplus
+/* Global S2E instance. Should only be used in QEMU code */
+struct S2E;
+extern struct S2E* s2e;
+#endif
+
 /* Function declarations for QEMU */
 
-int S2EInit(const char *CfgFile);
+struct S2E* s2e_initialize(const char *s2e_config_file);
+void s2e_close(struct S2E* s2e);
+
 int S2EOnTbEnter(void *CpuState, int Translation);
 int S2EOnTbExit(void *CpuState, int Translation);
 

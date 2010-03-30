@@ -24,7 +24,7 @@ public:
 
     /** Initialize plugin. This function is called on initialization
         after all plugin instances have already be instantied */
-    virtual void initialize() = 0;
+    virtual void initialize();
 };
 
 struct PluginInfo {
@@ -33,6 +33,8 @@ struct PluginInfo {
 
     /** Human-readable description of the plugin */
     std::string description;
+
+    /** TODO: Dependencies */
 
     /** A function to create a plugin instance */
     Plugin* (*instanceCreator)(S2E*);
@@ -51,7 +53,7 @@ public:
     const std::vector<const PluginInfo*> &getPluginInfoList() const;
     const PluginInfo* getPluginInfo(const std::string& name) const;
 
-    Plugin* createPlugin(const std::string& name, S2E* s2e) const;
+    Plugin* createPlugin(S2E* s2e, const std::string& name) const;
 };
 
 /** Should be put at the begining of any S2E plugin */
@@ -64,7 +66,7 @@ public:
     private:
 
 #define S2E_DEFINE_PLUGIN(className, description)                                  \
-    const className::s_pluginInfo = {                                              \
+    const PluginInfo className::s_pluginInfo = {                                   \
         #className, description, _pluginCreatorHelper<className>                   \
     }
 

@@ -317,6 +317,7 @@ ifdef CONFIG_S2E
 
 #s2eobj-y = s2e/Base.o
 s2eobj-y =
+s2eobj-y += s2e/Plugin.o s2e/CorePlugin.o s2e/Plugins/ExamplePlugin.o
 s2eobj-y += s2e/ConfigFile.o
 s2eobj-y += s2e/Interceptor/OperatingSystem.o
 s2eobj-y += s2e/QemuKleeGlue.o

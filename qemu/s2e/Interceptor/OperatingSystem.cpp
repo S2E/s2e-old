@@ -16,14 +16,14 @@ bool COperatingSystem::LoadModuleInterceptors()
         return false;
     }
 
-    int count = m_s2e->config()->getListSize("interceptors");
+    int count = m_s2e->getConfig()->getListSize("interceptors");
 
     for(int i=1; i<=count; ++i) {
         ostringstream os; os << "interceptors[" << i << "]";
         string s = os.str();
 
-        string module = m_s2e->config()->getString(s + ".name");
-        bool kernel = m_s2e->config()->getBool(s + ".kernelMode");
+        string module = m_s2e->getConfig()->getString(s + ".name");
+        bool kernel = m_s2e->getConfig()->getBool(s + ".kernelMode");
         IInterceptor *I = m_Interface->GetNewInterceptor(module, !kernel);
         if (!I) {
             std::cout << "Could not create interceptor for " << module << std::endl;
@@ -84,7 +84,7 @@ bool COperatingSystem::Load()
 
     string Plugin = PluginInterface::ConvertToFileName(
         pluginPath,
-        m_s2e->config()->getString("guestOS.plugin"));
+        m_s2e->getConfig()->getString("guestOS.plugin"));
 
     void *LibHandle = PluginInterface::LoadPlugin(Plugin);
     if (!LibHandle) {
@@ -103,8 +103,8 @@ bool COperatingSystem::Load()
     S2E_PLUGIN_API API;
     PluginInterface::PluginApiInit(API);
 
-    string osType = m_s2e->config()->getString("guestOS.type");
-    string osVersion = m_s2e->config()->getString("guestOS.version");
+    string osType = m_s2e->getConfig()->getString("guestOS.type");
+    string osVersion = m_s2e->getConfig()->getString("guestOS.version");
 
     IOperatingSystem *IOS = Inst(osType.c_str(), osVersion.c_str(), &API);
 
@@ -126,8 +126,8 @@ bool COperatingSystem::Load()
 
 bool COperatingSystem::OnTbEnter(void *CpuState, bool Translation)
 {
-    foreach(it, m_Interceptors.begin(), m_Interceptors.end()) {
-        if ((*it)->OnTbEnter(CpuState, Translation)) {
+    foreach(IInterceptor* i, m_Interceptors) {
+        if (i->OnTbEnter(CpuState, Translation)) {
             return true;
         }
     }
@@ -136,8 +136,8 @@ bool COperatingSystem::OnTbEnter(void *CpuState, bool Translation)
 
 bool COperatingSystem::OnTbExit(void *CpuState, bool Translation)
 {
-    foreach(it, m_Interceptors.begin(), m_Interceptors.end()) {
-        if ((*it)->OnTbExit(CpuState, Translation)) {
+    foreach(IInterceptor *i, m_Interceptors) {
+        if (i->OnTbExit(CpuState, Translation)) {
             return true;
         }
     }

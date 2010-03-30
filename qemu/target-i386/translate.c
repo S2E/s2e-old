@@ -32,6 +32,11 @@
 #define GEN_HELPER 1
 #include "helper.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/S2E.h>
+#include <s2e/CorePlugin.h>
+#endif
+
 #define PREFIX_REPZ   0x01
 #define PREFIX_REPNZ  0x02
 #define PREFIX_LOCK   0x04
@@ -7744,7 +7749,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
                                                   int search_pc)
 {
     DisasContext dc1, *dc = &dc1;
-    target_ulong pc_ptr;
+    target_ulong pc_ptr, new_pc_ptr;
     uint16_t *gen_opc_end;
     CPUBreakpoint *bp;
     int j, lj, cflags;
@@ -7827,6 +7832,10 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     if (max_insns == 0)
         max_insns = CF_COUNT_MASK;
 
+#ifdef CONFIG_S2E
+    s2e_on_translate_start(s2e, pc_start);
+#endif
+
     gen_icount_start();
     for(;;) {
         if (unlikely(!QTAILQ_EMPTY(&env->breakpoints))) {
@@ -7853,7 +7862,14 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         if (num_insns + 1 == max_insns && (tb->cflags & CF_LAST_IO))
             gen_io_start();
 
-        pc_ptr = disas_insn(dc, pc_ptr);
+#ifdef CONFIG_S2E
+        s2e_on_translate_instruction_start(s2e, pc_ptr);
+#endif
+        new_pc_ptr = disas_insn(dc, pc_ptr);
+#ifdef CONFIG_S2E
+        s2e_on_translate_instruction_end(s2e, pc_ptr);
+#endif
+        pc_ptr = new_pc_ptr;
         num_insns++;
         /* stop translation if indicated */
         if (dc->is_jmp)
