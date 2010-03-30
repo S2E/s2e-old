@@ -1,4 +1,4 @@
-#ifndef S2E_CORE_PLUGIN_H
+#ifndef S2E_CORE_PLUGIN_H*
 #define S2E_CORE_PLUGIN_H
 
 struct CPUState;
@@ -30,6 +30,20 @@ public:
     sigc::signal<execution_handler,
         uint64_t /* cr3 */, uint64_t /* PC */>
             onTBTranslateInstruction;
+
+    /** Signals that we will need */
+    sigc::signal<execution_handler, uint64_t /* cr3 */, uint64_t /* startPC */, bool /* blockEntry */> onBlockExecution;
+    sigc::signal<execution_handler, bool /* instrEntry */> onInstructionExecution;
+    sigc::signal<execution_handler, uint64_t /* cr3 */, uint64_t /*callerPc*/, uint64_t /* calleePc */> onFunctionCall;
+    sigc::signal<execution_handler, uint64_t /* cr3 */, uint64_t /*jumpPc*/, uint64_t /* targetPc */, JumpType > onJump;
+    sigc::signal<execution_handler, ModuleDescriptor /* source */, ModuleDescriptor /* target */> onModuleTransition;
+    sigc::signal<execution_handler, QEMUExecutionState /*parent*/, QEMUExecutionState /*new*/,
+        uint64_t Pc, llvm::Instruction /*Instr*/> onFork;
+
+    /** Triggered when a bug condition is detected (assert violation, blue screen) **/
+    /* can be used to dump execution path in a file, etc. */
+    sigc::signal<execution_handler, QEMUExecutionState /* state */, uint64_t Pc> onBug;
+    
 };
 
 #endif // __cplusplus

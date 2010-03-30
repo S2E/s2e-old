@@ -48,7 +48,7 @@ public:
 
     void registerPlugin(const PluginInfo* pluginInfo);
 
-    const std::vector<const PluginInfo*> getPluginInfoList() const;
+    const std::vector<const PluginInfo*> &getPluginInfoList() const;
     const PluginInfo* getPluginInfo(const std::string& name) const;
 
     Plugin* createPlugin(const std::string& name, S2E* s2e) const;
