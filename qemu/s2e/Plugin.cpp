@@ -25,8 +25,8 @@ PluginsFactory::PluginsFactory()
 void PluginsFactory::registerPlugin(const PluginInfo* pluginInfo)
 {
     assert(m_pluginsMap.find(pluginInfo->name) == m_pluginsMap.end());
-    assert(std::find(m_pluginsList.begin(), m_pluginsList.end()) ==
-                                                    m_plugins.end());
+    //assert(std::find(pluginInfo, m_pluginsList.begin(), m_pluginsList.end()) ==
+      //                                              m_pluginsList.end());
 
     m_pluginsList.push_back(pluginInfo);
     m_pluginsMap.insert(std::make_pair(pluginInfo->name, pluginInfo));
