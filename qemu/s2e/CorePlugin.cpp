@@ -45,19 +45,22 @@ void s2e_on_translate_start(S2E* s2e, uint64_t pc)
 {
     vector<ExecutionHandler> handlers;
     s2e->getCorePlugin()->onTranslateStart.emit(&handlers, pc);
-    s2e_tcg_instrument_code(handlers, pc);
+    if(!handlers.empty())
+        s2e_tcg_instrument_code(handlers, pc);
 }
 
 void s2e_on_translate_instruction_start(S2E* s2e, uint64_t pc)
 {
     vector<ExecutionHandler> handlers;
     s2e->getCorePlugin()->onTranslateInstructionStart.emit(&handlers, pc);
-    s2e_tcg_instrument_code(handlers, pc);
+    if(!handlers.empty())
+        s2e_tcg_instrument_code(handlers, pc);
 }
 
 void s2e_on_translate_instruction_end(S2E* s2e, uint64_t pc)
 {
     vector<ExecutionHandler> handlers;
     s2e->getCorePlugin()->onTranslateInstructionEnd.emit(&handlers, pc);
-    s2e_tcg_instrument_code(handlers, pc);
+    if(!handlers.empty())
+        s2e_tcg_instrument_code(handlers, pc);
 }
