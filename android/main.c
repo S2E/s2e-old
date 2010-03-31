@@ -2810,11 +2810,24 @@ void  android_emulation_setup( void )
 {
     int   tries     = 16;
     int   base_port = 5554;
+    int   adb_host_port = 5037; // adb's default
     int   success   = 0;
     int   s;
     uint32_t  guest_ip;
 
-    AndroidOptions*  opts = qemulator->opts;
+        /* Set the port where the emulator expects adb to run on the host
+         * machine */
+    char* adb_host_port_str = getenv( "ANDROID_ADB_SERVER_PORT" );
+    if ( adb_host_port_str && strlen( adb_host_port_str ) > 0 ) {
+        adb_host_port = (int) strtol( adb_host_port_str, NULL, 0 );
+        if ( adb_host_port <= 0 ) {
+            derror( "env var ANDROID_ADB_SERVER_PORT must be a number > 0. Got \"%s\"\n",
+                    adb_host_port_str );
+            exit(1);
+        }
+    }
+
+    AndroidOptions* opts = qemulator->opts;
 
     inet_strtoip("10.0.2.15", &guest_ip);
 
@@ -2852,6 +2865,8 @@ void  android_emulation_setup( void )
             exit(1);
         }
 
+        // Set up redirect from host to guest system. adbd on the guest listens
+        // on 5555.
         slirp_redir( 0, adb_port, guest_ip, 5555 );
         if ( control_console_start( console_port ) < 0 ) {
             slirp_unredir( 0, adb_port );
@@ -2921,7 +2936,7 @@ void  android_emulation_setup( void )
             break;
         }
 
-        sock_address_init_inet( &addr, SOCK_ADDRESS_INET_LOOPBACK, 5037 );
+        sock_address_init_inet( &addr, SOCK_ADDRESS_INET_LOOPBACK, adb_host_port );
         if (socket_connect( s, &addr ) < 0) {
             D("can't connect to ADB server: %s", errno_str );
             break;
