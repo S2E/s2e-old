@@ -55,9 +55,6 @@ extern struct S2E* s2e;
 struct S2E* s2e_initialize(const char *s2e_config_file);
 void s2e_close(struct S2E* s2e);
 
-int S2EOnTbEnter(void *CpuState, int Translation);
-int S2EOnTbExit(void *CpuState, int Translation);
-
 #ifdef __cplusplus
 }
 #endif

@@ -25,30 +25,6 @@ void s2e_close(S2E *s2e)
     delete s2e;
 }
 
-int S2EOnTbEnter(void *CpuState, int Translation)
-{
-#if 0
-  S2E *I = S2E::GetInstance();
-  if (!I) {
-    return 0;
-  }
-
-  return I->GetOS()->OnTbEnter(CpuState, Translation);
-#endif
-}
-
-int S2EOnTbExit(void *CpuState, int Translation)
-{
-#if 0
-  S2E *I = S2E::GetInstance();
-  if (!I) {
-    return 0;
-  }
-
-  return I->GetOS()->OnTbExit(CpuState, Translation);
-#endif
-}
-
 }
 
 /**********************************/
@@ -61,17 +37,6 @@ S2E* S2E::GetInstance()
 S2E::S2E(const string& configFileName)
 {
   m_configFile = new ConfigFile(configFileName);
-
-#if 0
-  m_Os = new COperatingSystem(this);
-  if (!m_Os->IsLoaded()) {
-    delete m_Os;
-    delete m_configFile;
-    exit(-1);
-  }
-
-  m_Os->LoadModuleInterceptors();
-#endif
 
   m_pluginsFactory = new PluginsFactory();
   m_corePlugin = dynamic_cast<CorePlugin*>(

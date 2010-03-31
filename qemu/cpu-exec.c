@@ -653,12 +653,6 @@ int cpu_exec(CPUState *env1)
 #define env cpu_single_env
 #endif
 
-#ifdef CONFIG_S2E
-                    if(tb->s2e_check_on_tb_enter) {
-                        S2EOnTbEnter(env, 0);
-                    }
-#endif
-
 #ifdef CONFIG_LLVM
                     if(execute_llvm) {
 #define SAVE_HOST_REGS 1
@@ -671,12 +665,6 @@ int cpu_exec(CPUState *env1)
                     }
 #else
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
-#endif
-
-#ifdef CONFIG_S2E
-                    if(tb->s2e_check_on_tb_exit) {
-                        S2EOnTbExit(env, 0);
-                    }
 #endif
 
                     env->current_tb = NULL;
