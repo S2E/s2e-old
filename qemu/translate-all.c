@@ -140,13 +140,8 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     *gen_code_size_ptr = gen_code_size;
 
 #ifdef CONFIG_LLVM
-    if(generate_llvm) {
-        tb->llvm_tb = tcg_llvm_gen_code(tcg_llvm_ctx);
-        tb->llvm_tc_ptr = tcg_llvm_get_tc_ptr(tb->llvm_tb);
-        tb->llvm_tc_end = tcg_llvm_get_tc_end(tb->llvm_tb);
-    } else {
-        tb->llvm_tb = NULL;
-    }
+    if(generate_llvm)
+        tcg_llvm_gen_code(tcg_llvm_ctx, tb);
 #endif
 
 #ifdef CONFIG_PROFILER
@@ -167,7 +162,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
         ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
         qemu_log("OUT (LLVM ASM) [size=%ld] (%s)\n", size,
-                    tcg_llvm_get_fname(tb->llvm_tb));
+                    tcg_llvm_get_func_name(tb));
         log_disas((void*) tb->llvm_tc_ptr, size);
         qemu_log("\n");
         qemu_log_flush();
@@ -216,7 +211,7 @@ int cpu_restore_state(TranslationBlock *tb,
 #ifdef CONFIG_LLVM
     if(execute_llvm) {
         assert(tb->llvm_tb != NULL);
-        j = tcg_llvm_search_last_pc(tb->llvm_tb, searched_pc);
+        j = tcg_llvm_search_last_pc(tb, searched_pc);
     } else {
 #endif
     /* find opc index corresponding to search_pc */

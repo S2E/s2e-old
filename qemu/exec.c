@@ -42,6 +42,10 @@
 #include <qemu.h>
 #endif
 
+#ifdef CONFIG_LLVM
+#include "tcg-llvm.h"
+#endif
+
 //#define DEBUG_TB_INVALIDATE
 //#define DEBUG_FLUSH
 //#define DEBUG_TLB
@@ -644,6 +648,12 @@ void tb_flush(CPUState *env1)
     if ((uintptr_t)(code_gen_ptr - code_gen_buffer) > code_gen_buffer_size)
         cpu_abort(env1, "Internal error: code buffer overflow\n");
 
+#ifdef CONFIG_LLVM
+    int i2;
+    for(i2 = 0; i2 < nb_tbs; ++i2)
+        tcg_llvm_tb_free(&tbs[i2]);
+#endif
+
     nb_tbs = 0;
 
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
@@ -1179,6 +1189,11 @@ TranslationBlock *tb_alloc(target_ulong pc)
     tb = &tbs[nb_tbs++];
     tb->pc = pc;
     tb->cflags = 0;
+
+#ifdef CONFIG_LLVM
+    tcg_llvm_tb_alloc(tb);
+#endif
+
     return tb;
 }
 
@@ -1189,6 +1204,10 @@ void tb_free(TranslationBlock *tb)
        be the last one generated.  */
     if (nb_tbs > 0 && tb == &tbs[nb_tbs - 1]) {
         code_gen_ptr = tb->tc_ptr;
+
+#ifdef CONFIG_LLVM
+        tcg_llvm_tb_free(tb);
+#endif
         nb_tbs--;
     }
 }

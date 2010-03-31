@@ -1138,38 +1138,39 @@ void tcg_llvm_context_free(TCGLLVMContext *l)
     delete l;
 }
 
-TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l)
+void tcg_llvm_gen_code(TCGLLVMContext *l, TranslationBlock *tb)
 {
-    return l->generateCode();
+    assert(tb->llvm_tb == NULL);
+    tb->llvm_tb = l->generateCode();
+    tb->llvm_tc_ptr = (uint8_t*) tb->llvm_tb->m_tbFunctionPointer;
+    tb->llvm_tc_end = tb->llvm_tc_ptr + tb->llvm_tb->m_tbFunctionSize;
 }
 
-void tcg_llvm_tb_free(TCGLLVMTranslationBlock *llvm_tb)
+void tcg_llvm_tb_alloc(TranslationBlock *tb)
 {
-    llvm_tb->m_tbFunction->eraseFromParent();
-    delete llvm_tb;
+    tb->llvm_tb = NULL;
 }
 
-int tcg_llvm_search_last_pc(TCGLLVMTranslationBlock *llvm_tb,
-                                uintptr_t searched_pc)
+void tcg_llvm_tb_free(TranslationBlock *tb)
 {
-    assert(tcg_llvm_last_llvm_tb == llvm_tb);
+    /*
+    if(tb->llvm_tb) {
+        tb->llvm_tb->m_tbFunction->eraseFromParent();
+        delete tb->llvm_tb;
+    }
+    */
+}
+
+int tcg_llvm_search_last_pc(TranslationBlock *tb, uintptr_t searched_pc)
+{
+    assert(tb->llvm_tb && tb->llvm_tb == tcg_llvm_last_llvm_tb);
     return tcg_llvm_last_opc_index;
 }
 
-uint8_t* tcg_llvm_get_tc_ptr(TCGLLVMTranslationBlock *llvm_tb)
+const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 {
-    return (uint8_t*) llvm_tb->m_tbFunctionPointer;
-}
-
-uint8_t* tcg_llvm_get_tc_end(TCGLLVMTranslationBlock *llvm_tb)
-{
-    return ((uint8_t*) llvm_tb->m_tbFunctionPointer)
-                + llvm_tb->m_tbFunctionSize;
-}
-
-const char* tcg_llvm_get_fname(TCGLLVMTranslationBlock *llvm_tb)
-{
-    return llvm_tb->m_tbFunction->getNameStr().c_str();
+    assert(tb->llvm_tb);
+    return tb->llvm_tb->m_tbFunction->getNameStr().c_str();
 }
 
 uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,

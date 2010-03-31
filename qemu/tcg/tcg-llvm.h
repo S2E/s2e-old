@@ -47,15 +47,13 @@ extern uint64_t tcg_llvm_last_pc;
 TCGLLVMContext* tcg_llvm_context_new(TCGContext *s);
 void tcg_llvm_context_free(TCGLLVMContext *l);
 
-TCGLLVMTranslationBlock* tcg_llvm_gen_code(TCGLLVMContext *l);
-void tcg_llvm_tb_free(TCGLLVMTranslationBlock *llvm_tb);
+void tcg_llvm_tb_alloc(TranslationBlock *tb);
+void tcg_llvm_tb_free(TranslationBlock *tb);
 
-uint8_t* tcg_llvm_get_tc_ptr(TCGLLVMTranslationBlock *llvm_tb);
-uint8_t* tcg_llvm_get_tc_end(TCGLLVMTranslationBlock *llvm_tb);
-const char* tcg_llvm_get_fname(TCGLLVMTranslationBlock *llvm_tb);
+void tcg_llvm_gen_code(TCGLLVMContext *l, TranslationBlock *tb);
+const char* tcg_llvm_get_func_name(TranslationBlock *tb);
 
-int tcg_llvm_search_last_pc(TCGLLVMTranslationBlock *llvm_tb,
-                                uintptr_t searched_pc);
+int tcg_llvm_search_last_pc(TranslationBlock *tb, uintptr_t searched_pc);
 
 uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
                             void* volatile* saved_AREGs);

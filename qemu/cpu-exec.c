@@ -613,7 +613,7 @@ int cpu_exec(CPUState *env1)
                             "Trace (LLVM) 0x%08lx [" TARGET_FMT_lx "] %s (LLVM: %s)\n",
                                  tb->llvm_tc_ptr, tb->pc,
                                  lookup_symbol(tb->pc),
-                                 tcg_llvm_get_fname(tb->llvm_tb)
+                                 tcg_llvm_get_func_name(tb)
                                  );
                 } else {
                     qemu_log_mask(CPU_LOG_EXEC, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
