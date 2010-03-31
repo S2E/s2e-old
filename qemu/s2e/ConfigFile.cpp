@@ -17,10 +17,12 @@ ConfigFile::ConfigFile(const std::string &configFileName)
     m_luaState = lua_open();
     luaL_openlibs(m_luaState);
   
-    if(luaL_loadfile(m_luaState, configFileName.c_str()) ||
-                lua_pcall(m_luaState, 0, 0, 0)) {
-        luaError("Can not run configuration file:\n    %s\n",
-                lua_tostring(m_luaState, -1));
+    if(!configFileName.empty()) {
+        if(luaL_loadfile(m_luaState, configFileName.c_str()) ||
+                    lua_pcall(m_luaState, 0, 0, 0)) {
+            luaError("Can not run configuration file:\n    %s\n",
+                    lua_tostring(m_luaState, -1));
+        }
     }
 }
 

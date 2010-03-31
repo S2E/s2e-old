@@ -6,6 +6,8 @@
 #include <s2e/ConfigFile.h>
 #include "Interceptor/OperatingSystem.h"
 
+#include <string>
+
 class CorePlugin;
 class PluginsFactory;
 
@@ -21,7 +23,7 @@ private:
 
   
 public:
-  explicit S2E(const char *s2e_config_file);
+  explicit S2E(const std::string& configFileName);
 
   static S2E* GetInstance();
 

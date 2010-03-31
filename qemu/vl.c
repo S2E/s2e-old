@@ -4869,7 +4869,7 @@ int main(int argc, char **argv, char **envp)
     const char *cpu_model;
 
 #ifdef CONFIG_S2E
-    const char *s2e_config_file=NULL;
+    const char *s2e_config_file = NULL;
 #endif
 
 #ifndef _WIN32
@@ -5676,11 +5676,11 @@ int main(int argc, char **argv, char **envp)
     }
 
 #ifdef CONFIG_S2E
-    if (s2e_config_file) {
-      s2e = s2e_initialize(s2e_config_file);
-    } else {
-      printf("Please specify the S2E configuration file\n");
+    if (!s2e_config_file) {
+      fprintf(stderr, "Warning: S2E configuration file was not specified, "
+                        "using the default (empty) file\n");
     }
+    s2e = s2e_initialize(s2e_config_file);
 #endif
 
     /* If no data_dir is specified then try to find it relative to the
