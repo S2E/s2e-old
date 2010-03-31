@@ -19,17 +19,24 @@ public:
     /** Return assosiated S2E instance */
     S2E* s2e() { return m_s2e; }
 
-    /** Return PluginInfo for this class. Defined by S2E_PLUGIN macro */
-    virtual const PluginInfo* getPluginInfo() const = 0;
-
     /** Initialize plugin. This function is called on initialization
         after all plugin instances have already be instantied */
     virtual void initialize();
+
+    /** Return PluginInfo for this class. Defined by S2E_PLUGIN macro */
+    virtual const PluginInfo* getPluginInfo() const = 0;
+
+    /** Return configuration key for this plugin */
+    const std::string& getConfigKey() const;
+
 };
 
 struct PluginInfo {
     /** Unique name of the plugin */
     std::string name;
+
+    /** Configuration key for this plugin */
+    std::string configKey;
 
     /** Human-readable description of the plugin */
     std::string description;
@@ -67,10 +74,15 @@ public:
 
 #define S2E_DEFINE_PLUGIN(className, description)                                  \
     const PluginInfo className::s_pluginInfo = {                                   \
-        #className, description, _pluginCreatorHelper<className>                   \
+        #className, "pluginsConfig['" #className "']", description,                \
+        _pluginCreatorHelper<className>                                            \
     }
 
 template<class C>
 Plugin* _pluginCreatorHelper(S2E* s2e) { return new C(s2e); }
+
+inline const std::string& Plugin::getConfigKey() const {
+    return getPluginInfo()->configKey;
+}
 
 #endif // S2E_PLUGIN_H

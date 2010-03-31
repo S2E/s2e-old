@@ -8,6 +8,7 @@
 
 #include <string>
 
+class Plugin;
 class CorePlugin;
 class PluginsFactory;
 
@@ -19,8 +20,9 @@ private:
   COperatingSystem *m_Os;
 
   PluginsFactory *m_pluginsFactory;
-  CorePlugin *m_corePlugin;
 
+  CorePlugin* m_corePlugin;
+  std::map<std::string, Plugin*> m_activePlugins;
   
 public:
   explicit S2E(const std::string& configFileName);
@@ -33,9 +35,8 @@ public:
     return m_configFile;
   }
 
-  CorePlugin *getCorePlugin() const {
-      return m_corePlugin;
-  }
+  Plugin* getPlugin(const std::string& name) const;
+  CorePlugin* getCorePlugin() const { return m_corePlugin; }
 };
 
 #endif

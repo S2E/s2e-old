@@ -13,6 +13,10 @@ public:
     void initialize();
     void slotTranslateBlockStart(ExecutionSignal*, uint64_t pc);
     void slotExecuteBlockStart(uint64_t pc);
+
+private:
+    bool m_traceBlockTranslation;
+    bool m_traceBlockExecution;
 };
 
 #endif // S2E_EXAMPLE_PLUGIN_H

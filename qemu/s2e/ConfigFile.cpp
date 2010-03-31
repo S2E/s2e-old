@@ -189,6 +189,7 @@ int ConfigFile::getListSize(const std::string& name, bool *ok)
 
 void ConfigFile::luaError(const char *fmt, ...)
 {
+    fprintf(stderr, "ERROR: ");
     va_list v;
     va_start(v, fmt);
     vfprintf(stderr, fmt, v);
@@ -199,6 +200,7 @@ void ConfigFile::luaError(const char *fmt, ...)
 
 void ConfigFile::luaWarning(const char *fmt, ...)
 {
+    fprintf(stderr, "WARNING: ");
     va_list v;
     va_start(v, fmt);
     vfprintf(stderr, fmt, v);
