@@ -9,18 +9,9 @@
 #include <sigc++/sigc++.h>
 #include <vector>
 
-/* This is something like a clousure, but callable
-   from generated code (so no member functions) */
-struct ExecutionHandler {
-    typedef void (*HandlerFunction)(Plugin* plugin, uint64_t arg, uint64_t pc);
-
-    HandlerFunction function;
-    Plugin*  plugin;
-    uint64_t arg;
-
-    ExecutionHandler(HandlerFunction _function, Plugin* _plugin, uint64_t _arg)
-            : function(_function), plugin(_plugin), arg(_arg) {}
-};
+/** A type of a signal emited on instruction execution. Instances of this signal
+    will be dynamically created and destroyed on demand during translation. */
+typedef sigc::signal<void, uint64_t /* pc */> ExecutionSignal;
 
 class CorePlugin : public Plugin {
     S2E_PLUGIN
@@ -32,11 +23,11 @@ public:
     /** Signal that is emitted on begining and end of code generation
         for each QEMU translation block.
     */
-    sigc::signal<void, std::vector<ExecutionHandler>*, uint64_t /* block PC */>
-            onTranslateStart;
+    sigc::signal<void, ExecutionSignal*, uint64_t /* block PC */>
+            onTranslateBlockStart;
 
     /** Signal that is emitted on code generation for each instruction */
-    sigc::signal<void, std::vector<ExecutionHandler>*, uint64_t /* instruction PC */>
+    sigc::signal<void, ExecutionSignal*, uint64_t /* instruction PC */>
             onTranslateInstructionStart, onTranslateInstructionEnd;
 
     /** Signals that we will need */
@@ -55,6 +46,14 @@ public:
 #endif
 };
 
+struct S2ETranslationBlock
+{
+    /** A list of all instruction execution signals associated with
+        this basic block. All signals in the list will be deleted
+        when this translation block will be flushed */
+    std::vector<ExecutionSignal*> executionSignals;
+};
+
 #endif // __cplusplus
 
 #ifdef __cplusplus
@@ -64,10 +63,17 @@ extern "C" {
 /* Hooks for QEMU */
 
 struct S2E;
+struct S2ETranslationBlock;
+struct TranslationBlock;
 
-void s2e_on_translate_start(struct S2E* s2e, uint64_t pc);
-void s2e_on_translate_instruction_start(struct S2E* s2e, uint64_t pc);
-void s2e_on_translate_instruction_end(struct S2E* s2e, uint64_t pc);
+void s2e_on_translate_block_start(struct S2E* s2e, TranslationBlock *tb, uint64_t pc);
+void s2e_on_translate_instruction_start(
+            struct S2E* s2e, TranslationBlock* tb, uint64_t pc);
+void s2e_on_translate_instruction_end(
+            struct S2E* s2e, TranslationBlock* tb, uint64_t pc);
+
+void s2e_tb_alloc(struct TranslationBlock *tb);
+void s2e_tb_free(struct TranslationBlock *tb);
 
 #ifdef __cplusplus
 }

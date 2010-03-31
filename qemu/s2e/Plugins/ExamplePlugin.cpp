@@ -7,11 +7,17 @@ S2E_DEFINE_PLUGIN(ExamplePlugin, "Example S2E plugin");
 
 void ExamplePlugin::initialize()
 {
-    s2e()->getCorePlugin()->onTranslateStart.connect(
-            sigc::mem_fun(*this, &ExamplePlugin::slotTranslateBlock));
+    s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+            sigc::mem_fun(*this, &ExamplePlugin::slotTranslateBlockStart));
 }
 
-void ExamplePlugin::slotTranslateBlock(std::vector<ExecutionHandler>*, uint64_t pc)
+void ExamplePlugin::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc)
 {
     std::cout << "Translating block at " << std::hex << pc << std::dec << std::endl;
+    signal->connect(sigc::mem_fun(*this, &ExamplePlugin::slotExecuteBlockStart));
+}
+
+void ExamplePlugin::slotExecuteBlockStart(uint64_t pc)
+{
+    std::cout << "Executing block at " << std::hex << pc << std::dec << std::endl;
 }

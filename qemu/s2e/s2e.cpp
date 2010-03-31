@@ -27,22 +27,26 @@ void s2e_close(S2E *s2e)
 
 int S2EOnTbEnter(void *CpuState, int Translation)
 {
+#if 0
   S2E *I = S2E::GetInstance();
   if (!I) {
     return 0;
   }
 
   return I->GetOS()->OnTbEnter(CpuState, Translation);
+#endif
 }
 
 int S2EOnTbExit(void *CpuState, int Translation)
 {
+#if 0
   S2E *I = S2E::GetInstance();
   if (!I) {
     return 0;
   }
 
   return I->GetOS()->OnTbExit(CpuState, Translation);
+#endif
 }
 
 }
@@ -73,8 +77,8 @@ S2E::S2E(const string& configFileName)
   m_corePlugin = dynamic_cast<CorePlugin*>(
           m_pluginsFactory->createPlugin(this, "CorePlugin"));
 
-  //Plugin* examplePlugin = m_pluginsFactory->createPlugin(this, "ExamplePlugin");
-  //examplePlugin->initialize();
+  Plugin* examplePlugin = m_pluginsFactory->createPlugin(this, "ExamplePlugin");
+  examplePlugin->initialize();
 }
 
 COperatingSystem *S2E::GetOS() const

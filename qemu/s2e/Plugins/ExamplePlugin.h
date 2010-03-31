@@ -11,7 +11,8 @@ public:
     ExamplePlugin(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
-    void slotTranslateBlock(std::vector<ExecutionHandler>*, uint64_t pc);
+    void slotTranslateBlockStart(ExecutionSignal*, uint64_t pc);
+    void slotExecuteBlockStart(uint64_t pc);
 };
 
 #endif // S2E_EXAMPLE_PLUGIN_H

@@ -46,6 +46,11 @@
 #include "tcg-llvm.h"
 #endif
 
+#ifdef CONFIG_S2E
+#include <s2e/S2E.h>
+#include <s2e/CorePlugin.h>
+#endif
+
 //#define DEBUG_TB_INVALIDATE
 //#define DEBUG_FLUSH
 //#define DEBUG_TLB
@@ -648,6 +653,11 @@ void tb_flush(CPUState *env1)
     if ((uintptr_t)(code_gen_ptr - code_gen_buffer) > code_gen_buffer_size)
         cpu_abort(env1, "Internal error: code buffer overflow\n");
 
+#ifdef CONFIG_S2E
+    int i1;
+    for(i1 = 0; i1 < nb_tbs; ++i1)
+        s2e_tb_free(&tbs[i1]);
+#endif
 #ifdef CONFIG_LLVM
     int i2;
     for(i2 = 0; i2 < nb_tbs; ++i2)
@@ -1190,6 +1200,9 @@ TranslationBlock *tb_alloc(target_ulong pc)
     tb->pc = pc;
     tb->cflags = 0;
 
+#ifdef CONFIG_S2E
+    s2e_tb_alloc(tb);
+#endif
 #ifdef CONFIG_LLVM
     tcg_llvm_tb_alloc(tb);
 #endif
@@ -1205,6 +1218,9 @@ void tb_free(TranslationBlock *tb)
     if (nb_tbs > 0 && tb == &tbs[nb_tbs - 1]) {
         code_gen_ptr = tb->tc_ptr;
 
+#ifdef CONFIG_S2E
+        s2e_tb_free(tb);
+#endif
 #ifdef CONFIG_LLVM
         tcg_llvm_tb_free(tb);
 #endif
