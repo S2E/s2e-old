@@ -19,6 +19,9 @@
 namespace s2e {
 namespace plugins {
 
+class WindowsUmInterceptor;
+class WindowsSpy;
+
 class WindowsMonitor:public OSMonitor
 {
     S2E_PLUGIN
@@ -33,6 +36,8 @@ private:
     bool m_UserMode, m_KernelMode;
     unsigned m_PointerSize;
     uint64_t m_KernelBase;
+
+    WindowsUmInterceptor *m_UserModeInterceptor;
 public:
     WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
     void initialize();
@@ -47,52 +52,13 @@ public:
     bool CheckDriverLoad(uint64_t eip) const;
     bool CheckPanic(uint64_t eip) const;
     unsigned GetPointerSize() const;
+
+    WindowsSpy *getSpy() const {
+        return NULL;
+    }
     
 };
 
-#if 0
-
-class WindowsPlugin:public Plugin
-{
-  S2E_PLUGIN
-
-public:
-  typedef enum EWinVer {
-    SP2, SP3
-  }EWinVer;
-
-protected:
-  WindowsPlugin(S2E* s2e);
-  ~CWindowsOS();
-
-  WindowsSpy *m_Spy;
-
-  unsigned m_PointerSize;
-
-private:
-  EWinVer m_Version;
-  uintptr_t m_KernelBase;
-public:
-  CWindowsOS(EWinVer WinVer);
-  
-  virtual IInterceptor* GetNewInterceptor(const std::string &ModuleName, bool UserMode);
-//  uintptr_t GetDriverObject(void *CpuState);
-
-  uint64_t GetUserAddressSpaceSize() const;
-  uint64_t GetKernelStart() const;
-  uint64_t GetLdrpCallInitRoutine() const;
-  bool CheckDriverLoad(uintptr_t eip) const;
-  bool CheckPanic(uintptr_t eip) const;
-
-  unsigned GetPointerSize() const;
-
-  WindowsSpy *GetSpy() const;
-
-  friend void Release(IOperatingSystem *OS);
-
-};
-
-#endif
 
 } // namespace plugins
 } // namespace s2e

@@ -4,9 +4,13 @@
 
 #include <s2e/Interceptor/DataStructureSpy.h>
 
-class CWindowsOS;
 
-class WindowsSpy: public IDataStructureSpy
+namespace s2e {
+namespace plugins {
+
+class WindowsMonitor;
+
+class WindowsSpy: public s2e::IDataStructureSpy
 {
 protected:
 
@@ -15,10 +19,10 @@ protected:
 
   static void ClearProcesses(Processes &P);
 
-  CWindowsOS *m_OS;
+  WindowsMonitor *m_OS;
 public:
 
-  WindowsSpy(CWindowsOS *OS);
+  WindowsSpy(WindowsMonitor *OS);
 
   typedef enum _EWindowsVersion {
     UNKNOWN, SP1, SP2, SP3
@@ -39,6 +43,9 @@ public:
   bool ReadUnicodeString(std::string &Result,uint64_t Offset);
   static EWindowsVersion GetVersion();
 };
+
+}
+}
 
 #endif
 

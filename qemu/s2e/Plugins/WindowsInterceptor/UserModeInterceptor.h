@@ -2,19 +2,23 @@
 
 #define __WINDOWS_UM_INTERCEPTOR_H__
 
+#include <s2e/Interceptor/ModuleDescriptor.h>
+#include <s2e/Plugins/PluginInterface.h>
+
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/Plugins/OSMonitor.h>
 
 
-#include "WindowsOS.h"
+#include "WindowsMonitor.h"
 
-class WindowsUmInterceptorPlugin: public Plugin, public sigc::trackable
+namespace s2e {
+namespace plugins {
+
+class WindowsUmInterceptor
 {
-public:
-  S2E_PLUGIN
-
 private:
-  CWindowsOS *m_Os;
+  WindowsMonitor *m_Os;
 
   typedef std::set<ModuleDescriptor*> HookedLibrarySet;
   typedef std::set<std::string> StringSet;
@@ -28,8 +32,6 @@ private:
     WAIT_LIBRARY_LOAD,
     LOAD_DONE
   };
-
-  IInterceptorEvent *m_Events;
 
   enum EUmTracingState m_TracingState;
 
@@ -54,29 +56,17 @@ private:
   void NotifyLibraryLoad(const ModuleDescriptor &Library);
 
 public:
-  WindowsUmInterceptorPlugin(S2E* s2e): Plugin(s2e) {}
-  virtual ~WindowsUmInterceptorPlugin();
+  WindowsUmInterceptor(WindowsMonitor *Monitor);
+  virtual ~WindowsUmInterceptor();
 
   virtual bool OnTbEnter(void *CpuState, bool Translation);
-  virtual bool OnTbExit(void *CpuState, bool Translation);
   
-  /**
-   *  Called by the code translator module of the VM
-   *  to see whether it has to translate the basic block to LLVM
-   *  or to native binary code.
-   *  The basic block is characterized by the page directory pointer
-   *  (which usually identifies the process) and the program counter.
-   */
-  //virtual bool DecideSymbExec(uint64_t cr3, uint64_t Pc);
-  virtual void DumpInfo(std::ostream &os);
-  virtual bool GetModule(ModuleDescriptor &Desc);
-
-  virtual void SetEventHandler(struct IInterceptorEvent *Hdlr);
-
-  bool SetModule(const std::string &Name);
+  
+  
 };
 
 
-
+}
+}
 
 #endif

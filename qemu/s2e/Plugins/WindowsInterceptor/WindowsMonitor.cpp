@@ -42,7 +42,7 @@ void WindowsMonitor::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t p
         if (pc != GetLdrpCallInitRoutine()) {
             return;
         }
-        std::cout << "Basic block for LdrpCallInitRoutine" << std::hex << pc << std::dec << std::endl;
+        std::cout << "Basic block for LdrpCallInitRoutine " << std::hex << pc << std::dec << std::endl;
         signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmExecuteBlockStart));
     }
     

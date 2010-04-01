@@ -7,6 +7,7 @@
 #include "ModuleDescriptor.h"
 #include "ExecutableImage.h"
 
+#if 0
 struct IInterceptorEvent
 {
   virtual void OnProcessLoad(
@@ -54,5 +55,6 @@ struct IInterceptor
   virtual void SetEventHandler(struct IInterceptorEvent *Hdlr) = 0;
 };
 
+#endif
 
 #endif

@@ -11,7 +11,8 @@
 #include <map>
 #include <string>
 
-namespace reveng_windows {
+namespace s2e {
+namespace windows {
 
 #define IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
 #define IMAGE_NT_SIGNATURE                  0x00004550  // PE00
@@ -494,7 +495,8 @@ typedef struct _KPRCB32 {
 
 } KPRCB32;
 
-}
+} //namespace windows
+} //namespace s2e
 
 /****************************************************************/
 /****************************************************************/
@@ -502,12 +504,17 @@ typedef struct _KPRCB32 {
 
 #include <s2e/interceptor/ExecutableImage.h>
 
+namespace s2e
+{
+namespace plugins
+{
+
 class WindowsImage:IExecutableImage
 {
 
 private:
-  reveng_windows::IMAGE_DOS_HEADER DosHeader;
-	reveng_windows::IMAGE_NT_HEADERS NtHeader;
+  s2e::windows::IMAGE_DOS_HEADER DosHeader;
+  s2e::windows::IMAGE_NT_HEADERS NtHeader;
   
   uint64_t m_Base;
   uint64_t m_ImageBase;
@@ -565,4 +572,7 @@ public:
   
 };
 
+}
+
+}
 #endif

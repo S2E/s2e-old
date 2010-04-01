@@ -1,11 +1,12 @@
-#include "WindowsOS.h"
+#include "WindowsMonitor.h"
 #include "WindowsImage.h"
 
 #include <s2e/Utils.h>
 #include <s2e/QemuKleeGlue.h>
 
 using namespace std;
-using namespace reveng_windows;
+using namespace s2e;
+using namespace plugins;
 
 bool WindowsImage::IsValidString(const char *str)
 {
@@ -53,11 +54,11 @@ WindowsImage::WindowsImage(uint64_t Base)
 int WindowsImage::InitExports()
 {
   
-  PIMAGE_DATA_DIRECTORY ExportDataDir;
+    s2e::windows::PIMAGE_DATA_DIRECTORY ExportDataDir;
 	uint32_t ExportTableAddress;
 	uint32_t ExportTableSize;
 
-	PIMAGE_EXPORT_DIRECTORY ExportDir;
+	s2e::windows::PIMAGE_EXPORT_DIRECTORY ExportDir;
 
 	unsigned i;
   int res = 0;
@@ -74,7 +75,7 @@ int WindowsImage::InitExports()
     return -1;
   }
 
-  ExportDir = (PIMAGE_EXPORT_DIRECTORY)malloc(ExportTableSize);
+  ExportDir = (s2e::windows::PIMAGE_EXPORT_DIRECTORY)malloc(ExportTableSize);
 
   if (QEMU::ReadVirtualMemory(ExportTableAddress, (uint8_t*)ExportDir, ExportTableSize)<0) {
 		DPRINTF("Could not load PIMAGE_EXPORT_DIRECTORY structures (m_Base=%#x)\n", ExportTableAddress);
@@ -135,14 +136,14 @@ err2: free(ExportDir);
 
 int WindowsImage::InitImports()
 {
-	PIMAGE_DATA_DIRECTORY ImportDir;
+	s2e::windows::PIMAGE_DATA_DIRECTORY ImportDir;
 	uint64_t ImportTableAddress;
 	uint32_t ImportTableSize;
 
 	uint64_t ImportNameTable;
 	uint64_t ImportAddressTable;
 
-	PIMAGE_IMPORT_DESCRIPTOR ImportDescriptors;
+	s2e::windows::PIMAGE_IMPORT_DESCRIPTOR ImportDescriptors;
 	unsigned ImportDescCount;
 	unsigned i, j;
 
@@ -154,8 +155,8 @@ int WindowsImage::InitImports()
     return -1;
   }
 
-	ImportDescCount = ImportTableSize / sizeof(IMAGE_IMPORT_DESCRIPTOR);
-	ImportDescriptors = (PIMAGE_IMPORT_DESCRIPTOR)malloc(ImportTableSize);
+	ImportDescCount = ImportTableSize / sizeof(s2e::windows::IMAGE_IMPORT_DESCRIPTOR);
+	ImportDescriptors = (s2e::windows::PIMAGE_IMPORT_DESCRIPTOR)malloc(ImportTableSize);
 	if (!ImportDescriptors) {
 		DPRINTF("Could not allocate memory for import descriptors\n");
 		return -5;
@@ -168,7 +169,7 @@ int WindowsImage::InitImports()
 	}
 
 	for (i=0; ImportDescriptors[i].Characteristics && i<ImportDescCount; i++) {
-		IMAGE_THUNK_DATA32 INaT;
+		s2e::windows::IMAGE_THUNK_DATA32 INaT;
 		char *CDllName;
     if (!(CDllName = QEMU::GetAsciiz(ImportDescriptors[i].Name + m_Base))) {
       continue;
@@ -187,12 +188,12 @@ int WindowsImage::InitImports()
 
 		j=0;
 		do {
-			IMAGE_THUNK_DATA32 IAT;
+			s2e::windows::IMAGE_THUNK_DATA32 IAT;
 			uint32_t Name;
 			int res1, res2;
-			res1 = QEMU::ReadVirtualMemory(ImportAddressTable+j*sizeof(IMAGE_THUNK_DATA32), 
+			res1 = QEMU::ReadVirtualMemory(ImportAddressTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32), 
 				&IAT, sizeof(IAT));
-			res2 = QEMU::ReadVirtualMemory(ImportNameTable+j*sizeof(IMAGE_THUNK_DATA32), 
+			res2 = QEMU::ReadVirtualMemory(ImportNameTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32), 
 				&INaT, sizeof(INaT));
 			
 			if (res1 < 0 || res2 < 0) {
@@ -251,7 +252,7 @@ int WindowsImage::InitImports()
 void WindowsImage::DumpInfo(std::iostream &os) const
 {
   /* Printing info about all imported functions */
-  foreach(Imports::value_type &it, m_Imports) {
+  foreach2(it, m_Imports.begin(), m_Imports.end()) {
     const IExecutableImage::ImportedFunctions &f = (*it).second;
     foreach2(it2, f.begin(), f.end()) {
       os << "IMP " << (*it2).first << " " 

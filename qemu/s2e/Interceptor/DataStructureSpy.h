@@ -6,6 +6,9 @@
 #include <set>
 #include <inttypes.h>
 
+namespace s2e
+{
+
 typedef struct _SProcessDescriptor
 {
   uint64_t PageDirectory;
@@ -53,6 +56,6 @@ public:
     uint64_t *StackTop, uint64_t *StackBottom)=0;
 };
 
-
+}
 
 #endif

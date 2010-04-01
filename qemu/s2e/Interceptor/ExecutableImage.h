@@ -5,6 +5,8 @@
 #include <map>
 #include <iostream>
 
+namespace s2e {
+
 /**
  *  This class models an executable image loaded in
  *  virtual memory.
@@ -39,5 +41,7 @@ public:
   virtual void DumpInfo(std::iostream &os) const = 0;
 
 };
+
+}
 
 #endif

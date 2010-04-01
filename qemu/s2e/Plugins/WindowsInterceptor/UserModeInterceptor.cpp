@@ -2,6 +2,8 @@
 #include "WindowsImage.h"
 
 #include <s2e/Utils.h>
+#include <s2e/QemuKleeGlue.h>
+#include <s2e/Interceptor/ExecutableImage.h>
 
 #include <string>
 
@@ -12,9 +14,11 @@ extern "C" {
 #include "qemu-common.h"
 }
 
-using namespace std;
 
-CUserModeInterceptor::CUserModeInterceptor(CWindowsOS *Os):IInterceptor()
+using namespace s2e;
+using namespace plugins;
+
+WindowsUmInterceptor::WindowsUmInterceptor(WindowsMonitor *Os)
 {
   
   m_Os = Os;
@@ -23,39 +27,38 @@ CUserModeInterceptor::CUserModeInterceptor(CWindowsOS *Os):IInterceptor()
 
   m_ASBase = 0;
   m_ASSize = Os->GetUserAddressSpaceSize();
-  m_Events = NULL;
 }
 
 
-CUserModeInterceptor::~CUserModeInterceptor()
+WindowsUmInterceptor::~WindowsUmInterceptor()
 {
 
 }
 
-int CUserModeInterceptor::FindModules()
+int WindowsUmInterceptor::FindModules()
 {
-  reveng_windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
-  reveng_windows::PEB_LDR_DATA32 LdrData;
+  s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
+  s2e::windows::PEB_LDR_DATA32 LdrData;
   int Result = 0;
 
-  if (s_Api.ReadVirtualMemory(m_LdrAddr, &LdrData, sizeof(reveng_windows::PEB_LDR_DATA32)) < 0) {
+  if (QEMU::ReadVirtualMemory(m_LdrAddr, &LdrData, sizeof(s2e::windows::PEB_LDR_DATA32)) < 0) {
     return -1;
   }
 
   uint32_t CurLib = CONTAINING_RECORD32(LdrData.InLoadOrderModuleList.Flink, 
-    reveng_windows::LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks);
+    s2e::windows::LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks);
 
-  uint32_t HeadOffset = m_LdrAddr + offsetof(reveng_windows::PEB_LDR_DATA32, InLoadOrderModuleList);
+  uint32_t HeadOffset = m_LdrAddr + offsetof(s2e::windows::PEB_LDR_DATA32, InLoadOrderModuleList);
   if (LdrData.InLoadOrderModuleList.Flink == HeadOffset)
     return -1;
 
   do {
-    if (s_Api.ReadVirtualMemory(CurLib, &LdrEntry, sizeof(reveng_windows::LDR_DATA_TABLE_ENTRY32)) < 0 ) {
+    if (QEMU::ReadVirtualMemory(CurLib, &LdrEntry, sizeof(s2e::windows::LDR_DATA_TABLE_ENTRY32)) < 0 ) {
       DPRINTF("Could not read LDR_DATA_TABLE_ENTRY (%#x)\n", CurLib);
       return Result;
     }
 
-    string s = s_Api.GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);
+    std::string s = QEMU::GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);
 
     //if (m_SearchedModules.find(s) != m_SearchedModules.end()) {
       DPRINTF("  Dll %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
@@ -74,26 +77,26 @@ int CUserModeInterceptor::FindModules()
       }
       
     CurLib = CONTAINING_RECORD32(LdrEntry.InLoadOrderLinks.Flink, 
-      reveng_windows::LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks);
+      s2e::windows::LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks);
   }while(LdrEntry.InLoadOrderLinks.Flink != HeadOffset);
 
   return Result;
 }
 
 
-bool CUserModeInterceptor::WaitForProcessInit(void *CpuState)
+bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
 {
   CPUState *state = (CPUState *)CpuState;
-  reveng_windows::PEB_LDR_DATA32 LdrData;
-  reveng_windows::PEB32 PebBlock;
+  s2e::windows::PEB_LDR_DATA32 LdrData;
+  s2e::windows::PEB32 PebBlock;
   uint32_t Peb = (uint32_t)-1;
   
 
-  if (s_Api.ReadVirtualMemory(state->segs[R_FS].base + 0x18, &Peb, 4) < 0) {
+  if (QEMU::ReadVirtualMemory(state->segs[R_FS].base + 0x18, &Peb, 4) < 0) {
     return false;
   }
   
-  if (s_Api.ReadVirtualMemory(Peb+0x30, &Peb, 4) < 0) {
+  if (QEMU::ReadVirtualMemory(Peb+0x30, &Peb, 4) < 0) {
     return false;
   }
 
@@ -103,13 +106,13 @@ bool CUserModeInterceptor::WaitForProcessInit(void *CpuState)
     else
       return false;
   
-  if (!s_Api.ReadVirtualMemory(Peb, &PebBlock, sizeof(PebBlock))) {
+  if (!QEMU::ReadVirtualMemory(Peb, &PebBlock, sizeof(PebBlock))) {
       return false;
   }
 
   /* Check that the entries are inited */
-  if (!s_Api.ReadVirtualMemory(PebBlock.Ldr, &LdrData, 
-    sizeof(reveng_windows::PEB_LDR_DATA32))) {
+  if (!QEMU::ReadVirtualMemory(PebBlock.Ldr, &LdrData, 
+    sizeof(s2e::windows::PEB_LDR_DATA32))) {
     return false;
   }
 
@@ -132,11 +135,8 @@ bool CUserModeInterceptor::WaitForProcessInit(void *CpuState)
 }
 
 
-void CUserModeInterceptor::NotifyProcessLoad()
+void WindowsUmInterceptor::NotifyProcessLoad()
 {
-  if (!m_Events) {
-    return;
-  }
 
   WindowsImage Image(m_ProcBase);
 
@@ -149,14 +149,11 @@ void CUserModeInterceptor::NotifyProcessLoad()
   const IExecutableImage::Imports &I = Image.GetImports();
   const IExecutableImage::Exports &E = Image.GetExports();
 
-  m_Events->OnProcessLoad(this, Desc, I, E);
+//  m_Events->OnProcessLoad(this, Desc, I, E);
 }
 
-void CUserModeInterceptor::NotifyLibraryLoad(const ModuleDescriptor &Library)
+void WindowsUmInterceptor::NotifyLibraryLoad(const ModuleDescriptor &Library)
 {
-  if (!m_Events) {
-    return;
-  }
 
   ModuleDescriptor MD = Library;
   
@@ -165,10 +162,10 @@ void CUserModeInterceptor::NotifyLibraryLoad(const ModuleDescriptor &Library)
   const IExecutableImage::Imports &I = Image.GetImports();
   const IExecutableImage::Exports &E = Image.GetExports();
 
-  m_Events->OnLibraryLoad(this, MD, I, E);
+//  m_Events->OnLibraryLoad(this, MD, I, E);
 }
 
-bool CUserModeInterceptor::OnTbEnter(void *CpuState, bool Translation)
+bool WindowsUmInterceptor::OnTbEnter(void *CpuState, bool Translation)
 {
   CPUState *state = (CPUState *)CpuState;
 
@@ -194,7 +191,7 @@ again:
   
   /******************************************/
   if (m_TracingState == SEARCH_PROCESS) {
-    WindowsSpy &Spy = *m_Os->GetSpy();
+    WindowsSpy &Spy = *m_Os->getSpy();
     SProcessDescriptor PDesc;
     if (Spy.FindProcess(state->cr[3], m_ProcList, PDesc)) {
       /* Already seen that process, don't care about it */
@@ -219,36 +216,4 @@ again:
   }
 
   return false;
-}
-
-bool CUserModeInterceptor::OnTbExit(void *CpuState, bool Translation)
-{
-  return false;
-}
-
-
-/*bool CUserModeInterceptor::DecideSymbExec(uint64_t cr3, uint64_t Pc)
-{
-  return false;
-}*/
-
-void CUserModeInterceptor::DumpInfo(std::ostream &os)
-{
-  
-}
-bool CUserModeInterceptor::GetModule(ModuleDescriptor &Desc)
-{
-  return false;
-}
-
-
-bool CUserModeInterceptor::SetModule(const std::string &Name)
-{
-  m_ProcessName = Name;
-  return true;
-}
-
-void CUserModeInterceptor::SetEventHandler(struct IInterceptorEvent *Hdlr)
-{
-  m_Events = Hdlr;
 }
