@@ -3,6 +3,7 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/S2EExecutionState.h>
 
 namespace s2e {
 namespace plugins {
@@ -15,7 +16,7 @@ public:
 
     void initialize();
     void slotTranslateBlockStart(ExecutionSignal*, uint64_t pc);
-    void slotExecuteBlockStart(uint64_t pc);
+    void slotExecuteBlockStart(S2EExecutionState* state, uint64_t pc);
 
 private:
     bool m_traceBlockTranslation;

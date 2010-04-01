@@ -7,6 +7,7 @@
 extern "C" {
 #include <tcg.h>
 #include <tcg-op.h>
+#include <exec.h>
 }
 
 using namespace std;
@@ -40,7 +41,8 @@ void s2e_tb_free(TranslationBlock *tb)
 
 void s2e_tcg_execution_handler(ExecutionSignal* signal, uint64_t pc)
 {
-    signal->emit(pc);
+    S2EExecutionState state(env);
+    signal->emit(&state, pc);
 }
 
 /* Instrument generated code to emit signal on execution */

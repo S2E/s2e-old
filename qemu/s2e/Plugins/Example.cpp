@@ -28,7 +28,7 @@ void Example::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc)
         signal->connect(sigc::mem_fun(*this, &Example::slotExecuteBlockStart));
 }
 
-void Example::slotExecuteBlockStart(uint64_t pc)
+void Example::slotExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
 {
     std::cout << "Executing block at " << std::hex << pc << std::dec << std::endl;
 }

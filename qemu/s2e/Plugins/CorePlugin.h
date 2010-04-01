@@ -2,6 +2,7 @@
 #define S2E_CORE_PLUGIN_H
 
 #include <s2e/Plugin.h>
+#include <s2e/S2EExecutionState.h>
 
 #include <sigc++/sigc++.h>
 #include <vector>
@@ -11,7 +12,7 @@ namespace s2e {
 
 /** A type of a signal emited on instruction execution. Instances of this signal
     will be dynamically created and destroyed on demand during translation. */
-typedef sigc::signal<void, uint64_t /* pc */> ExecutionSignal;
+typedef sigc::signal<void, S2EExecutionState*, uint64_t /* pc */> ExecutionSignal;
 
 class CorePlugin : public Plugin {
     S2E_PLUGIN
