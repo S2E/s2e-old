@@ -48,6 +48,7 @@ extern int fprintf(FILE *, const char *, ...);
 extern int fputs(const char *, FILE *);
 extern int printf(const char *, ...);
 
+
 #if defined(__i386__)
 #define AREG0 "ebp"
 #define AREG1 "ebx"

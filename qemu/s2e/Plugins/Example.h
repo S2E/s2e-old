@@ -8,7 +8,7 @@
 namespace s2e {
 namespace plugins {
 
-class Example : public Plugin, public sigc::trackable
+class Example : public Plugin
 {
     S2E_PLUGIN
 public:

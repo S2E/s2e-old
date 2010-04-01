@@ -5,12 +5,14 @@
 #include <vector>
 #include <map>
 
+#include <sigc++/sigc++.h>
+
 namespace s2e {
 
 class S2E;
 struct PluginInfo;
 
-class Plugin {
+class Plugin : public sigc::trackable{
 private:
     S2E* m_s2e;
 
@@ -81,8 +83,8 @@ public:
 
 /** Defines an S2E plugin. Should be put in a cpp file.
     NOTE: use S2E_NOOP from Utils.h to pass multiple dependencies */
-#define S2E_DEFINE_PLUGIN(className, description, functionName, dependencies)      \
-    const char className::s_pluginDeps[][64] = { dependencies };                   \
+#define S2E_DEFINE_PLUGIN(className, description, functionName, ...)      \
+    const char className::s_pluginDeps[][64] = { __VA_ARGS__ };                   \
     const PluginInfo className::s_pluginInfo = {                                   \
         #className, description, functionName,                                     \
         std::vector<std::string>(className::s_pluginDeps, className::s_pluginDeps  \

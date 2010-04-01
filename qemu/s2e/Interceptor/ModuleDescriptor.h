@@ -6,6 +6,7 @@
 #include <string>
 #include <set>
 #include <ostream>
+#include <iostream>
 
 #include <cstring>
 

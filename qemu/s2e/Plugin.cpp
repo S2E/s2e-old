@@ -3,6 +3,7 @@
 // XXX: hack: for now we include and register all plugins right there
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/Example.h>
+#include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -21,6 +22,7 @@ PluginsFactory::PluginsFactory()
     registerPlugin(className::getPluginInfoStatic())
 
     __S2E_REGISTER_PLUGIN(CorePlugin);
+    __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 
 #undef __S2E_REGISTER_PLUGIN

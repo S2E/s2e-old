@@ -251,7 +251,7 @@ int WindowsImage::InitImports()
 void WindowsImage::DumpInfo(std::iostream &os) const
 {
   /* Printing info about all imported functions */
-  foreach2(it, m_Imports.begin(), m_Imports.end()) {
+  foreach(Imports::value_type &it, m_Imports) {
     const IExecutableImage::ImportedFunctions &f = (*it).second;
     foreach2(it2, f.begin(), f.end()) {
       os << "IMP " << (*it2).first << " " 

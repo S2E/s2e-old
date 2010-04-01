@@ -319,7 +319,7 @@ ifdef CONFIG_S2E
 s2eobj-y =
 s2eobj-y += s2e/Plugin.o s2e/Plugins/CorePlugin.o s2e/Plugins/Example.o
 s2eobj-y += s2e/Plugins/PluginInterface.o
-#s2eobj-y += s2e/Plugins/WindowsInterceptor/UserModeInterceptor.o
+s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsMonitor.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsPlugin.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
