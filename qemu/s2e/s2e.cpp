@@ -2,7 +2,10 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+
+#include <s2e/s2e_qemu.h>
 
 #include <iostream>
 #include <stdlib.h>
@@ -58,8 +61,8 @@ Plugin* S2E::getPlugin(const std::string& name) const
 
 } // namespace s2e
 
-/*************************/
-/* Declarations for QEMU */
+/******************************/
+/* Functions called from QEMU */
 
 extern "C" {
 

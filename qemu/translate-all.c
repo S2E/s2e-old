@@ -36,7 +36,7 @@ TCGLLVMContext *tcg_llvm_ctx;
 #endif
 
 #ifdef CONFIG_S2E
-#include "s2e/S2E.h"
+#include "s2e/s2e_qemu.h"
 #endif
 
 /* code generation context */

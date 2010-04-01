@@ -1,13 +1,11 @@
 #ifndef S2E_CORE_PLUGIN_H
 #define S2E_CORE_PLUGIN_H
 
-#include <inttypes.h>
-
-#ifdef __cplusplus
-
 #include <s2e/Plugin.h>
+
 #include <sigc++/sigc++.h>
 #include <vector>
+#include <inttypes.h>
 
 namespace s2e {
 
@@ -57,34 +55,5 @@ struct S2ETranslationBlock
 };
 
 } // namespace s2e
-
-#endif // __cplusplus
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef __cplusplus
-using s2e::S2E;
-using s2e::S2ETranslationBlock;
-struct TranslationBlock;
-#else
-struct S2E;
-struct S2ETranslationBlock;
-struct TranslationBlock;
-#endif
-
-/* Hooks for QEMU */
-
-void s2e_on_translate_block_start(struct S2E* s2e, struct TranslationBlock *tb, uint64_t pc);
-void s2e_on_translate_instruction_start(struct S2E* s2e, struct TranslationBlock* tb, uint64_t pc);
-void s2e_on_translate_instruction_end(struct S2E* s2e, struct TranslationBlock* tb, uint64_t pc);
-
-void s2e_tb_alloc(struct TranslationBlock *tb);
-void s2e_tb_free(struct TranslationBlock *tb);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // S2E_CORE_PLUGIN_H

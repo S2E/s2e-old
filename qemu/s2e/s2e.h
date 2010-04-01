@@ -1,9 +1,6 @@
 #ifndef S2E_H
 #define S2E_H
 
-#ifdef __cplusplus
-
-#include <s2e/ConfigFile.h>
 #include <string>
 #include <map>
 
@@ -11,6 +8,7 @@ namespace s2e {
 
 class Plugin;
 class CorePlugin;
+class ConfigFile;
 class PluginsFactory;
 
 class S2E
@@ -34,31 +32,5 @@ public:
 };
 
 } // namespace s2e
-
-using s2e::S2E;
-
-#endif // __cplusplus
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifndef __cplusplus
-
-struct S2E;
-
-/* Global S2E instance. Should only be used in QEMU code */
-extern struct S2E* g_s2e;
-
-#endif
-
-/* Function declarations for QEMU */
-
-struct S2E* s2e_initialize(const char *s2e_config_file);
-void s2e_close(struct S2E* s2e);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // S2E_H

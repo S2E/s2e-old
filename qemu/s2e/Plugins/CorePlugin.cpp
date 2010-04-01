@@ -2,15 +2,23 @@
 #include <s2e/S2E.h>
 #include <s2e/Utils.h>
 
+#include <s2e/s2e_qemu.h>
+
 extern "C" {
 #include <tcg.h>
 #include <tcg-op.h>
 }
 
 using namespace std;
+
+namespace s2e {
+S2E_DEFINE_PLUGIN(CorePlugin, "S2E core functionality");
+} // namespace s2e
+
 using namespace s2e;
 
-S2E_DEFINE_PLUGIN(CorePlugin, "S2E core functionality");
+/******************************/
+/* Functions called from QEMU */
 
 void s2e_tb_alloc(TranslationBlock *tb)
 {

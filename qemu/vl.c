@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 #include "qemu-queue.h"
 
 #ifdef CONFIG_S2E
-#include <s2e/S2E.h>
+#include <s2e/s2e_qemu.h>
 #endif
 
 //#define DEBUG_NET

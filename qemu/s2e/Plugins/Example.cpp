@@ -1,5 +1,6 @@
 #include "Example.h"
 #include <s2e/S2E.h>
+#include <s2e/ConfigFile.h>
 
 #include <iostream>
 
