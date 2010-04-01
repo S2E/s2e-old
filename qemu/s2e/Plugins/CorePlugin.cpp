@@ -7,7 +7,6 @@
 extern "C" {
 #include <tcg.h>
 #include <tcg-op.h>
-#include <exec.h>
 }
 
 using namespace std;
@@ -39,8 +38,10 @@ void s2e_tb_free(TranslationBlock *tb)
     }
 }
 
-void s2e_tcg_execution_handler(ExecutionSignal* signal, uint64_t pc)
+void s2e_tcg_execution_handler(
+        ExecutionSignal* signal, CPUX86State *env, uint64_t pc)
 {
+    fprintf(stderr, "env=%p\n", env);
     S2EExecutionState state(env);
     signal->emit(&state, pc);
 }
@@ -51,22 +52,24 @@ void s2e_tcg_instrument_code(ExecutionSignal* signal, uint64_t pc)
     TCGv_ptr t0 = tcg_temp_new_ptr();
     TCGv_i64 t1 = tcg_temp_new_i64();
 
-    TCGArg args[2];
+    // XXX: here we relay on CPUState being the first tcg global temp
+    TCGArg args[3];
     args[0] = GET_TCGV_PTR(t0);
-    args[1] = GET_TCGV_I64(t1);
+    args[1] = 0;
+    args[2] = GET_TCGV_I64(t1);
 
 #if TCG_TARGET_REG_BITS == 64
-    const int sizemask = 4 | 2;
+    const int sizemask = 8 | 4 | 2;
     tcg_gen_movi_i64(t0, (tcg_target_ulong) signal);
 #else
-    const int sizemask = 4;
+    const int sizemask = 8;
     tcg_gen_movi_i32(t0, (tcg_target_ulong) signal);
 #endif
 
     tcg_gen_movi_i64(t1, pc);
 
     tcg_gen_helperN((void*) s2e_tcg_execution_handler,
-                0, sizemask, TCG_CALL_DUMMY_ARG, 2, args);
+                0, sizemask, TCG_CALL_DUMMY_ARG, 3, args);
 
     tcg_temp_free_i64(t1);
     tcg_temp_free_ptr(t0);
