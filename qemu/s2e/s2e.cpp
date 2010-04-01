@@ -28,19 +28,23 @@ S2E::S2E(const string& configFileName)
 
   vector<string> pluginNames = getConfig()->getStringList("plugins");
   foreach(const string& pluginName, pluginNames) {
-    if(m_activePlugins.find(pluginName) != m_activePlugins.end()) {
-        std::cerr << "WARNING: plugin '" << pluginName
-                  << "' was already loaded "
-                  << "(is it enabled multiple times ?)" << std::endl;
-        continue;
-    }
-
-    Plugin* plugin = m_pluginsFactory->createPlugin(this, pluginName);
-    if(plugin) {
-        m_activePlugins.insert(make_pair(pluginName, plugin));
-    } else {
+     const PluginInfo* pluginInfo = m_pluginsFactory->getPluginInfo(pluginName);
+     if(!pluginInfo) {
         std::cerr << "WARNING: plugin '" << pluginName
                   << "' does not exists in this S2E installation" << std::endl;
+    } else if(m_activePlugins.find(pluginInfo->name) != m_activePlugins.end()) {
+        std::cerr << "WARNING: plugin '" << pluginInfo->name
+                  << "' was already loaded "
+                  << "(is it enabled multiple times ?)" << std::endl;
+    } else if(m_activePlugins.find(pluginInfo->type) != m_activePlugins.end()) {
+        std::cerr << "WARNING: plugin of type '" << pluginInfo->type
+                  << "' was already loaded "
+                  << "(are several plugins of this type enabled ?)" << std::endl;
+    } else {
+        Plugin* plugin = m_pluginsFactory->createPlugin(this, pluginName);
+        assert(plugin);
+
+        m_activePlugins.insert(make_pair(pluginName, plugin));
     }
   }
 

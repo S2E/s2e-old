@@ -37,6 +37,9 @@ struct PluginInfo {
     /** Unique name of the plugin */
     std::string name;
 
+    /** Plugin type (only one plugin of each type is allowed) */
+    std::string type;
+
     /** Configuration key for this plugin */
     std::string configKey;
 
@@ -74,9 +77,9 @@ public:
         static  const PluginInfo* getPluginInfoStatic() { return &s_pluginInfo; }  \
     private:
 
-#define S2E_DEFINE_PLUGIN(className, description)                                  \
+#define S2E_DEFINE_PLUGIN(className, type, description)                            \
     const PluginInfo className::s_pluginInfo = {                                   \
-        #className, "pluginsConfig['" #className "']", description,                \
+        #className, #type, "pluginsConfig['" #className "']", description,         \
         _pluginCreatorHelper<className>                                            \
     }
 
