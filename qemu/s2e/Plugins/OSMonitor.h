@@ -16,13 +16,7 @@ public:
     const ModuleDescriptor,
     const IExecutableImage::Imports,
     const IExecutableImage::Exports
-  >onProcessLoad;
-
-  sigc::signal<void, 
-    const ModuleDescriptor,
-    const IExecutableImage::Imports,
-    const IExecutableImage::Exports
-  >onLibraryLoad;
+  >onModuleLoad;
 
 protected:
   OSMonitor(S2E* s2e): Plugin(s2e) {}

@@ -1,6 +1,7 @@
 #include <s2e/s2e.h>
 #include <s2e/ConfigFile.h>
 #include "WindowsMonitor.h"
+#include "UserModeInterceptor.h"
 
 #include <string>
 #include <cstring>
@@ -10,9 +11,16 @@
 using namespace std;
 
 using namespace s2e;
-using namespace plugins;
+using namespace s2e::plugins;
 
 S2E_DEFINE_PLUGIN(WindowsMonitor, "Plugin for monitoring Windows kernel/user-mode events", "Interceptor");
+
+WindowsMonitor::~WindowsMonitor()
+{
+  if (m_UserModeInterceptor) {
+    delete m_UserModeInterceptor;
+  }
+}
 
 void WindowsMonitor::initialize()
 {
@@ -30,6 +38,11 @@ void WindowsMonitor::initialize()
     }else {
         std::cout << "Unsupported of invalid Windows version " << Version << std::endl;
         exit(-1);
+    }
+
+    m_UserModeInterceptor = NULL;
+    if (m_UserMode) {
+      m_UserModeInterceptor = new WindowsUmInterceptor(this);
     }
 
     s2e()->getCorePlugin()->onTranslateBlockStart.connect(
@@ -56,6 +69,8 @@ void WindowsMonitor::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t p
 void WindowsMonitor::slotUmExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
 {
     std::cout << "User mode module load at " << std::hex << pc << std::dec << std::endl;
+    //m_UserModeInterceptor->OnTbEnter(state->getCpuState());
+    m_UserModeInterceptor->CatchLibraryLoad(state->getCpuState());
 }
 
 void WindowsMonitor::slotKmExecuteBlockStart(S2EExecutionState *state, uint64_t pc)

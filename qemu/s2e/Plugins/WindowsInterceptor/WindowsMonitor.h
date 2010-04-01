@@ -40,6 +40,7 @@ private:
     WindowsUmInterceptor *m_UserModeInterceptor;
 public:
     WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
+    virtual ~WindowsMonitor();
     void initialize();
 
     void slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc);

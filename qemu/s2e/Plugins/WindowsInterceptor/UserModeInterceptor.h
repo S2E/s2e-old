@@ -49,7 +49,7 @@ private:
   std::map<std::string, ModuleDescriptor> m_Modules;
 
   bool WaitForProcessInit(void *CpuState);
-  int FindModules();
+  int FindModules(void *CpuState);
   bool InitImports();
 
   void NotifyProcessLoad();
@@ -59,7 +59,10 @@ public:
   WindowsUmInterceptor(WindowsMonitor *Monitor);
   virtual ~WindowsUmInterceptor();
 
-  virtual bool OnTbEnter(void *CpuState, bool Translation);
+  bool CatchLibraryLoad(void *CpuState);
+  bool CatchProcessLoad(void *CpuState);
+  
+  bool OnTbEnter(void *CpuState, bool Translation);
   
   
   

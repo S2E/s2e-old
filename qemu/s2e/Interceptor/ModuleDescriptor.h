@@ -16,6 +16,8 @@
  */
 struct ModuleDescriptor
 {
+  uint64_t Pid;
+  
   //The name of the module (eg. MYAPP.EXE or DRIVER.SYS)
   std::string Name;
   
@@ -41,7 +43,10 @@ struct ModuleDescriptor
   struct ModuleByLoadBase {
     bool operator()(const struct ModuleDescriptor& s1, 
       const struct ModuleDescriptor& s2) const {
-      return s1.LoadBase < s2.LoadBase;
+        if (s1.Pid == s2.Pid) {
+          return s1.LoadBase < s2.LoadBase;
+        }
+        return s1.Pid < s2.Pid;
     }
   };
 

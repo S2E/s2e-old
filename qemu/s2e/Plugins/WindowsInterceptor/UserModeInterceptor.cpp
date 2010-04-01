@@ -35,11 +35,16 @@ WindowsUmInterceptor::~WindowsUmInterceptor()
 
 }
 
-int WindowsUmInterceptor::FindModules()
+int WindowsUmInterceptor::FindModules(void *CpuState)
 {
   s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
   s2e::windows::PEB_LDR_DATA32 LdrData;
+  CPUState *State = (CPUState*)CpuState;
   int Result = 0;
+
+  if (!WaitForProcessInit(CpuState)) {
+    return -1;
+  }
 
   if (QEMU::ReadVirtualMemory(m_LdrAddr, &LdrData, sizeof(s2e::windows::PEB_LDR_DATA32)) < 0) {
     return -1;
@@ -61,10 +66,9 @@ int WindowsUmInterceptor::FindModules()
     std::string s = QEMU::GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);
 
     //if (m_SearchedModules.find(s) != m_SearchedModules.end()) {
-      DPRINTF("  Dll %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
-      
       //Update the information about the library
       ModuleDescriptor Desc; 
+      Desc.Pid = State->cr[3];
       Desc.Name = s;
       Desc.LoadBase = LdrEntry.DllBase;
       Desc.Size = LdrEntry.SizeOfImage;
@@ -72,6 +76,7 @@ int WindowsUmInterceptor::FindModules()
       Result = 1;
       
       if (m_LoadedLibraries.find(Desc) == m_LoadedLibraries.end()) {
+        DPRINTF("  MODULE %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
         m_LoadedLibraries.insert(Desc);
         NotifyLibraryLoad(Desc);
       }
@@ -137,7 +142,7 @@ bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
 
 void WindowsUmInterceptor::NotifyProcessLoad()
 {
-
+#if 0
   WindowsImage Image(m_ProcBase);
 
   ModuleDescriptor Desc;
@@ -149,7 +154,8 @@ void WindowsUmInterceptor::NotifyProcessLoad()
   const IExecutableImage::Imports &I = Image.GetImports();
   const IExecutableImage::Exports &E = Image.GetExports();
 
-//  m_Events->OnProcessLoad(this, Desc, I, E);
+  m_Os->onProcessLoad.emit(Desc, I, E);
+#endif
 }
 
 void WindowsUmInterceptor::NotifyLibraryLoad(const ModuleDescriptor &Library)
@@ -162,8 +168,21 @@ void WindowsUmInterceptor::NotifyLibraryLoad(const ModuleDescriptor &Library)
   const IExecutableImage::Imports &I = Image.GetImports();
   const IExecutableImage::Exports &E = Image.GetExports();
 
-//  m_Events->OnLibraryLoad(this, MD, I, E);
+  m_Os->onModuleLoad.emit(MD, I, E);
+
 }
+
+bool WindowsUmInterceptor::CatchLibraryLoad(void *CpuState)
+{
+  FindModules(CpuState);
+  return true;
+}
+
+bool WindowsUmInterceptor::CatchProcessLoad(void *CpuState)
+{
+  return false;
+}
+
 
 bool WindowsUmInterceptor::OnTbEnter(void *CpuState, bool Translation)
 {
@@ -176,7 +195,7 @@ again:
     if (state->eip != m_Os->GetLdrpCallInitRoutine()) {
       return false;
     }
-    FindModules();
+    FindModules(state);
     return false;
   }
 
