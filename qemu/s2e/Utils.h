@@ -30,6 +30,9 @@ for (_S2EForeachContainer<__typeof__(container)> _container_(container); \
      __extension__  ({ ++_container_.brk; ++_container_.i; })) \
     for (variable = *_container_.i;; __extension__ ({--_container_.brk; break;}))
 
+#define foreach2(_i, _b, _e) \
+      for(typeof(_b) _i = _b, _i ## end = _e; _i != _i ## end;  ++ _i) 
+
 } // namespace s2e
 
 #endif // S2E_UTILS_H

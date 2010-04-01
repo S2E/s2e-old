@@ -1,6 +1,5 @@
 #include "config-host.h"
 #include "PluginInterface.h"
-#include <s2e/Configuration/ConfigurationManager.h>
 
 #include <s2e/QemuKleeGlue.h>
 #include <sstream>
@@ -14,6 +13,7 @@
 #endif
 
 using namespace std;
+using namespace s2e;
 
 void PluginInterface::PluginApiInit(S2E_PLUGIN_API &Out)
 {

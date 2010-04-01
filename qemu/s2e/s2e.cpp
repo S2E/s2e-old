@@ -1,7 +1,7 @@
 #include "S2E.h"
 
 #include <s2e/Plugin.h>
-#include <s2e/CorePlugin.h>
+#include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Utils.h>
 
 #include <iostream>

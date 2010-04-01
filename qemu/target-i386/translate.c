@@ -34,7 +34,7 @@
 
 #ifdef CONFIG_S2E
 #include <s2e/S2E.h>
-#include <s2e/CorePlugin.h>
+#include <s2e/Plugins/CorePlugin.h>
 #endif
 
 #define PREFIX_REPZ   0x01

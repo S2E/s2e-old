@@ -317,13 +317,17 @@ ifdef CONFIG_S2E
 
 #s2eobj-y = s2e/Base.o
 s2eobj-y =
-s2eobj-y += s2e/Plugin.o s2e/CorePlugin.o
+s2eobj-y += s2e/Plugins/Plugin.o s2e/Plugins/CorePlugin.o s2e/Plugins/Example.o
+s2eobj-y += s2e/Plugins/PluginInterface.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/UserModeInterceptor.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsPlugin.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
 s2eobj-y += s2e/ConfigFile.o
-#s2eobj-y += s2e/Interceptor/OperatingSystem.o
 s2eobj-y += s2e/QemuKleeGlue.o
 s2eobj-y += s2e/s2e.o
-s2eobj-y += s2e/Plugins/Example.o
 #s2eobj-y += s2e/Plugins/PluginInterface.o
+
 
 libs2e.a: $(s2eobj-y)
 

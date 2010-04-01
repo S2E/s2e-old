@@ -2,7 +2,7 @@
 #define S2E_PLUGINS_EXAMPLE_H
 
 #include <s2e/Plugin.h>
-#include <s2e/CorePlugin.h>
+#include <s2e/Plugins/CorePlugin.h>
 
 namespace s2e {
 namespace plugins {

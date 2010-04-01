@@ -1,7 +1,7 @@
 #include <s2e/Plugin.h>
 
 // XXX: hack: for now we include and register all plugins right there
-#include <s2e/CorePlugin.h>
+#include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/Example.h>
 
 #include <algorithm>
