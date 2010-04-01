@@ -41,7 +41,6 @@ void s2e_tb_free(TranslationBlock *tb)
 void s2e_tcg_execution_handler(
         ExecutionSignal* signal, CPUX86State *env, uint64_t pc)
 {
-    fprintf(stderr, "env=%p\n", env);
     S2EExecutionState state(env);
     signal->emit(&state, pc);
 }
