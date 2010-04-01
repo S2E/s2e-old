@@ -12,7 +12,7 @@ extern "C" {
 using namespace std;
 
 namespace s2e {
-S2E_DEFINE_PLUGIN(CorePlugin, "S2E core functionality", "",);
+S2E_DEFINE_PLUGIN(CorePlugin, "S2E core functionality", "Core",);
 } // namespace s2e
 
 using namespace s2e;

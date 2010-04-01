@@ -8,7 +8,7 @@
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(Example, "Example S2E plugin", "Core",);
+S2E_DEFINE_PLUGIN(Example, "Example S2E plugin", "",);
 
 void Example::initialize()
 {
