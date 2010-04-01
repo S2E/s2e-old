@@ -4,41 +4,17 @@
 #include <s2e/CorePlugin.h>
 #include <s2e/Utils.h>
 
+#include <iostream>
 #include <stdlib.h>
 #include <assert.h>
 
+namespace s2e {
+
 using namespace std;
-
-S2E* s2e = NULL;
-
-/**********************************/
-/* Function declarations for QEMU */
-
-extern "C"
-{
-
-S2E* s2e_initialize(const char *s2e_config_file)
-{
-    return new S2E(s2e_config_file ? s2e_config_file : "");
-}
-
-void s2e_close(S2E *s2e)
-{
-    delete s2e;
-}
-
-}
-
-/**********************************/
-
-S2E* S2E::GetInstance()
-{
-  return s2e;
-}
 
 S2E::S2E(const string& configFileName)
 {
-  m_configFile = new ConfigFile(configFileName);
+  m_configFile = new s2e::ConfigFile(configFileName);
 
   m_pluginsFactory = new PluginsFactory();
 
@@ -80,7 +56,23 @@ Plugin* S2E::getPlugin(const std::string& name) const
         return NULL;
 }
 
-COperatingSystem *S2E::GetOS() const
+} // namespace s2e
+
+/*************************/
+/* Declarations for QEMU */
+
+extern "C" {
+
+S2E* g_s2e = NULL;
+
+S2E* s2e_initialize(const char *s2e_config_file)
 {
-  return m_Os;
+    return new S2E(s2e_config_file ? s2e_config_file : "");
 }
+
+void s2e_close(S2E *s2e)
+{
+    delete s2e;
+}
+
+} // extern "C"

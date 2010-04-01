@@ -1,12 +1,13 @@
-#ifndef _S2E_H_
-#define _S2E_H_
+#ifndef S2E_H
+#define S2E_H
 
 #ifdef __cplusplus
 
 #include <s2e/ConfigFile.h>
-#include "Interceptor/OperatingSystem.h"
-
 #include <string>
+#include <map>
+
+namespace s2e {
 
 class Plugin;
 class CorePlugin;
@@ -17,7 +18,6 @@ class S2E
 private:
   static S2E *s_S2E;
   ConfigFile *m_configFile;
-  COperatingSystem *m_Os;
 
   PluginsFactory *m_pluginsFactory;
 
@@ -27,28 +27,29 @@ private:
 public:
   explicit S2E(const std::string& configFileName);
 
-  static S2E* GetInstance();
-
-  COperatingSystem *GetOS() const;
-
-  ConfigFile* getConfig() const {
-    return m_configFile;
-  }
+  ConfigFile* getConfig() const { return m_configFile; }
 
   Plugin* getPlugin(const std::string& name) const;
   CorePlugin* getCorePlugin() const { return m_corePlugin; }
 };
 
-#endif
+} // namespace s2e
+
+using s2e::S2E;
+
+#endif // __cplusplus
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #ifndef __cplusplus
-/* Global S2E instance. Should only be used in QEMU code */
+
 struct S2E;
-extern struct S2E* s2e;
+
+/* Global S2E instance. Should only be used in QEMU code */
+extern struct S2E* g_s2e;
+
 #endif
 
 /* Function declarations for QEMU */
@@ -60,4 +61,4 @@ void s2e_close(struct S2E* s2e);
 }
 #endif
 
-#endif
+#endif // S2E_H

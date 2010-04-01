@@ -8,6 +8,7 @@ extern "C" {
 }
 
 using namespace std;
+using namespace s2e;
 
 S2E_DEFINE_PLUGIN(CorePlugin, "S2E core functionality");
 

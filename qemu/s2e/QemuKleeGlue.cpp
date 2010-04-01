@@ -17,6 +17,8 @@ extern "C"
   target_phys_addr_t cpu_get_phys_page_debug_se(target_ulong addr);
 }
 
+namespace s2e {
+
 using namespace std;
 
 void QEMU::DumpVirtualMemory(uint64_t Addr, unsigned Length)
@@ -193,3 +195,5 @@ bool QEMU::ReadInteger(uint64_t Addr, unsigned Size, uint64_t &Result)
 
   return Status;
 }
+
+} // namespace s2e

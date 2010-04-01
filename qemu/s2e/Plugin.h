@@ -5,6 +5,8 @@
 #include <vector>
 #include <map>
 
+namespace s2e {
+
 class S2E;
 struct PluginInfo;
 
@@ -84,5 +86,7 @@ Plugin* _pluginCreatorHelper(S2E* s2e) { return new C(s2e); }
 inline const std::string& Plugin::getConfigKey() const {
     return getPluginInfo()->configKey;
 }
+
+} // namespace s2e
 
 #endif // S2E_PLUGIN_H

@@ -10,11 +10,9 @@ namespace klee {
 namespace s2e {
 
 /* Main S2E handler class */
-class BaseHandler : public klee::InterpreterHandler
+class KleeHandler : public klee::InterpreterHandler
 {
 private:
-  static BaseHandler* s_self;
-
   klee::Interpreter *m_interpreter;
   std::ostream *m_infoFile;
 
@@ -27,8 +25,8 @@ private:
   char **m_argv;
 
 public:
-  BaseHandler();
-  ~BaseHandler();
+  KleeHandler();
+  ~KleeHandler();
 
   std::ostream &getInfoStream() const { return *m_infoFile; }
 

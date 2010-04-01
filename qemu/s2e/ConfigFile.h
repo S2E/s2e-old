@@ -5,7 +5,9 @@
 #include <string>
 #include <inttypes.h>
 
-typedef struct lua_State lua_State;
+struct lua_State;
+
+namespace s2e {
 
 class ConfigFile
 {
@@ -63,5 +65,7 @@ public:
        lua lists just like '#' operator in lua. */
     int getListSize(const std::string& name, bool *ok = NULL);
 };
+
+} // namespace s2e
 
 #endif

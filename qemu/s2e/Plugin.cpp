@@ -2,10 +2,14 @@
 
 // XXX: hack: for now we include and register all plugins right there
 #include <s2e/CorePlugin.h>
-#include <s2e/Plugins/ExamplePlugin.h>
+#include <s2e/Plugins/Example.h>
 
 #include <algorithm>
 #include <assert.h>
+
+namespace s2e {
+
+using namespace std;
 
 void Plugin::initialize()
 {
@@ -17,7 +21,7 @@ PluginsFactory::PluginsFactory()
     registerPlugin(className::getPluginInfoStatic())
 
     __S2E_REGISTER_PLUGIN(CorePlugin);
-    __S2E_REGISTER_PLUGIN(ExamplePlugin);
+    __S2E_REGISTER_PLUGIN(plugins::Example);
 
 #undef __S2E_REGISTER_PLUGIN
 }
@@ -25,21 +29,21 @@ PluginsFactory::PluginsFactory()
 void PluginsFactory::registerPlugin(const PluginInfo* pluginInfo)
 {
     assert(m_pluginsMap.find(pluginInfo->name) == m_pluginsMap.end());
-    //assert(std::find(pluginInfo, m_pluginsList.begin(), m_pluginsList.end()) ==
+    //assert(find(pluginInfo, m_pluginsList.begin(), m_pluginsList.end()) ==
       //                                              m_pluginsList.end());
 
     m_pluginsList.push_back(pluginInfo);
-    m_pluginsMap.insert(std::make_pair(pluginInfo->name, pluginInfo));
+    m_pluginsMap.insert(make_pair(pluginInfo->name, pluginInfo));
 }
 
-const std::vector<const PluginInfo*>& PluginsFactory::getPluginInfoList() const
+const vector<const PluginInfo*>& PluginsFactory::getPluginInfoList() const
 {
     return m_pluginsList;
 }
 
-const PluginInfo* PluginsFactory::getPluginInfo(const std::string& name) const
+const PluginInfo* PluginsFactory::getPluginInfo(const string& name) const
 {
-    std::map<std::string, const PluginInfo*>::const_iterator it =
+    map<string, const PluginInfo*>::const_iterator it =
                                 m_pluginsMap.find(name);
 
     if(it != m_pluginsMap.end())
@@ -48,7 +52,7 @@ const PluginInfo* PluginsFactory::getPluginInfo(const std::string& name) const
         return NULL;
 }
 
-Plugin* PluginsFactory::createPlugin(S2E* s2e, const std::string& name) const
+Plugin* PluginsFactory::createPlugin(S2E* s2e, const string& name) const
 {
     const PluginInfo* pluginInfo = getPluginInfo(name);
     if(pluginInfo)
@@ -56,3 +60,5 @@ Plugin* PluginsFactory::createPlugin(S2E* s2e, const std::string& name) const
     else
         return NULL;
 }
+
+} // namespace s2e

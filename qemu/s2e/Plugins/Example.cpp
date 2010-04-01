@@ -1,11 +1,14 @@
-#include "ExamplePlugin.h"
+#include "Example.h"
 #include <s2e/S2E.h>
 
 #include <iostream>
 
-S2E_DEFINE_PLUGIN(ExamplePlugin, "Example S2E plugin");
+namespace s2e {
+namespace plugins {
 
-void ExamplePlugin::initialize()
+S2E_DEFINE_PLUGIN(Example, "Example S2E plugin");
+
+void Example::initialize()
 {
     m_traceBlockTranslation = s2e()->getConfig()->getBool(
                         getConfigKey() + ".traceBlockTranslation");
@@ -13,18 +16,21 @@ void ExamplePlugin::initialize()
                         getConfigKey() + ".traceBlockExecution");
 
     s2e()->getCorePlugin()->onTranslateBlockStart.connect(
-            sigc::mem_fun(*this, &ExamplePlugin::slotTranslateBlockStart));
+            sigc::mem_fun(*this, &Example::slotTranslateBlockStart));
 }
 
-void ExamplePlugin::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc)
+void Example::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc)
 {
     if(m_traceBlockTranslation)
         std::cout << "Translating block at " << std::hex << pc << std::dec << std::endl;
     if(m_traceBlockExecution)
-        signal->connect(sigc::mem_fun(*this, &ExamplePlugin::slotExecuteBlockStart));
+        signal->connect(sigc::mem_fun(*this, &Example::slotExecuteBlockStart));
 }
 
-void ExamplePlugin::slotExecuteBlockStart(uint64_t pc)
+void Example::slotExecuteBlockStart(uint64_t pc)
 {
     std::cout << "Executing block at " << std::hex << pc << std::dec << std::endl;
 }
+
+} // namespace plugins
+} // namespace s2e

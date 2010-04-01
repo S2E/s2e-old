@@ -1,4 +1,4 @@
-#include <s2e/Base.h>
+#include <s2e/KleeHandler.h>
 
 #include <llvm/System/Path.h>
 
@@ -16,10 +16,12 @@ extern "C" {
   const char* s2e_output_dir = NULL;
 };
 
+namespace s2e {
+
 using namespace llvm;
 using namespace klee;
 
-BaseHandler::BaseHandler()
+KleeHandler::KleeHandler()
 {
   std::string theDir;
 
@@ -89,18 +91,18 @@ BaseHandler::BaseHandler()
   m_infoFile = openOutputFile("info");
 }
 
-BaseHandler::~BaseHandler()
+KleeHandler::~KleeHandler()
 {
   delete m_infoFile;
 }
 
-std::string BaseHandler::getOutputFilename(const std::string &filename) {
+std::string KleeHandler::getOutputFilename(const std::string &filename) {
   char outfile[1024];
   sprintf(outfile, "%s/%s", m_outputDirectory, filename.c_str());
   return outfile;
 }
 
-std::ostream *BaseHandler::openOutputFile(const std::string &filename) {
+std::ostream *KleeHandler::openOutputFile(const std::string &filename) {
   std::ios::openmode io_mode = std::ios::out | std::ios::trunc
                              | std::ios::binary;
   std::ostream *f;
@@ -118,9 +120,11 @@ std::ostream *BaseHandler::openOutputFile(const std::string &filename) {
 }
 
 /* Outputs all files (.ktest, .pc, .cov etc.) describing a test case */
-void BaseHandler::processTestCase(const ExecutionState &state,
+void KleeHandler::processTestCase(const ExecutionState &state,
                                   const char *errorMessage,
                                   const char *errorSuffix) {
   klee_warning("Terminating state %p with error message '%s'",
                 &state, errorMessage ? errorMessage : "");
 }
+
+} // namespace s2e

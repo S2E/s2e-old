@@ -1,9 +1,12 @@
 #ifndef QEMU_KLEE_GLUE_H
+#define QEMU_KLEE_GLUE_H
 
 #include <string>
 #include <inttypes.h>
 
-#define QEMU_KLEE_GLUE_H
+namespace s2e {
+
+// XXX: all of the following will be in S2EExecutionState
 
 class QEMU
 {
@@ -17,5 +20,6 @@ public:
   static char *GetAsciiz(uint64_t base);
 };
 
+} // namespace s2e
 
 #endif

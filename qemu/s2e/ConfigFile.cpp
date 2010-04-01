@@ -10,6 +10,7 @@ extern "C" {
 #include <lualib.h>
 }
 
+namespace s2e {
 using namespace std;
 
 ConfigFile::ConfigFile(const std::string &configFileName)
@@ -206,4 +207,6 @@ void ConfigFile::luaWarning(const char *fmt, ...)
     vfprintf(stderr, fmt, v);
     va_end(v);
 }
+
+} // namespace s2e
 

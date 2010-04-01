@@ -9,6 +9,8 @@
 #include <sigc++/sigc++.h>
 #include <vector>
 
+namespace s2e {
+
 /** A type of a signal emited on instruction execution. Instances of this signal
     will be dynamically created and destroyed on demand during translation. */
 typedef sigc::signal<void, uint64_t /* pc */> ExecutionSignal;
@@ -54,23 +56,29 @@ struct S2ETranslationBlock
     std::vector<ExecutionSignal*> executionSignals;
 };
 
+} // namespace s2e
+
 #endif // __cplusplus
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Hooks for QEMU */
-
+#ifdef __cplusplus
+using s2e::S2E;
+using s2e::S2ETranslationBlock;
+struct TranslationBlock;
+#else
 struct S2E;
 struct S2ETranslationBlock;
 struct TranslationBlock;
+#endif
 
-void s2e_on_translate_block_start(struct S2E* s2e, TranslationBlock *tb, uint64_t pc);
-void s2e_on_translate_instruction_start(
-            struct S2E* s2e, TranslationBlock* tb, uint64_t pc);
-void s2e_on_translate_instruction_end(
-            struct S2E* s2e, TranslationBlock* tb, uint64_t pc);
+/* Hooks for QEMU */
+
+void s2e_on_translate_block_start(struct S2E* s2e, struct TranslationBlock *tb, uint64_t pc);
+void s2e_on_translate_instruction_start(struct S2E* s2e, struct TranslationBlock* tb, uint64_t pc);
+void s2e_on_translate_instruction_end(struct S2E* s2e, struct TranslationBlock* tb, uint64_t pc);
 
 void s2e_tb_alloc(struct TranslationBlock *tb);
 void s2e_tb_free(struct TranslationBlock *tb);

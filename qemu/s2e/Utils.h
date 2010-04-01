@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cassert>
 
+namespace s2e {
+
 #ifdef NDEBUG
 #define DPRINTF(...)
 #else
@@ -27,5 +29,7 @@ for (_S2EForeachContainer<__typeof__(container)> _container_(container); \
      !_container_.brk && _container_.i != _container_.e; \
      __extension__  ({ ++_container_.brk; ++_container_.i; })) \
     for (variable = *_container_.i;; __extension__ ({--_container_.brk; break;}))
+
+} // namespace s2e
 
 #endif // S2E_UTILS_H

@@ -5680,7 +5680,7 @@ int main(int argc, char **argv, char **envp)
       fprintf(stderr, "Warning: S2E configuration file was not specified, "
                         "using the default (empty) file\n");
     }
-    s2e = s2e_initialize(s2e_config_file);
+    g_s2e = s2e_initialize(s2e_config_file);
 #endif
 
     /* If no data_dir is specified then try to find it relative to the
