@@ -6,6 +6,9 @@
 
 namespace s2e {
 
+/** A macro used to escape "," in an argument to another macro */
+#define S2E_NOOP(...) __VA_ARGS__
+
 #ifdef NDEBUG
 #define DPRINTF(...)
 #else

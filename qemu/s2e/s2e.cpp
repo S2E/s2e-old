@@ -24,32 +24,62 @@ S2E::S2E(const string& configFileName)
   m_corePlugin = dynamic_cast<CorePlugin*>(
           m_pluginsFactory->createPlugin(this, "CorePlugin"));
   assert(m_corePlugin);
-  m_activePlugins.insert(make_pair(string("CorePlugin"), m_corePlugin));
+
+  m_activePlugins.insert(
+          make_pair(m_corePlugin->getPluginInfo()->name, m_corePlugin));
+  if(!m_corePlugin->getPluginInfo()->functionName.empty())
+      m_activePlugins.insert(
+          make_pair(m_corePlugin->getPluginInfo()->functionName, m_corePlugin));
 
   vector<string> pluginNames = getConfig()->getStringList("plugins");
+
+  /* Check and load plugins */
   foreach(const string& pluginName, pluginNames) {
      const PluginInfo* pluginInfo = m_pluginsFactory->getPluginInfo(pluginName);
      if(!pluginInfo) {
-        std::cerr << "WARNING: plugin '" << pluginName
+        std::cerr << "ERROR: plugin '" << pluginName
                   << "' does not exists in this S2E installation" << std::endl;
-    } else if(m_activePlugins.find(pluginInfo->name) != m_activePlugins.end()) {
-        std::cerr << "WARNING: plugin '" << pluginInfo->name
+        exit(1);
+    } else if(getPlugin(pluginInfo->name)) {
+        std::cerr << "ERROR: plugin '" << pluginInfo->name
                   << "' was already loaded "
                   << "(is it enabled multiple times ?)" << std::endl;
-    } else if(m_activePlugins.find(pluginInfo->type) != m_activePlugins.end()) {
-        std::cerr << "WARNING: plugin of type '" << pluginInfo->type
-                  << "' was already loaded "
-                  << "(are several plugins of this type enabled ?)" << std::endl;
+        exit(1);
+    } else if(!pluginInfo->functionName.empty() &&
+                getPlugin(pluginInfo->functionName)) {
+        std::cerr << "ERROR: plugin '" << pluginInfo->name
+                  << "' with function '" << pluginInfo->functionName
+                  << "' can not be loaded because" << std::endl
+                  << "    this function is already provided by '"
+                  << getPlugin(pluginInfo->functionName)->getPluginInfo()->name
+                  << "' plugin" << std::endl;
+        exit(1);
     } else {
         Plugin* plugin = m_pluginsFactory->createPlugin(this, pluginName);
         assert(plugin);
 
-        m_activePlugins.insert(make_pair(pluginName, plugin));
+        m_activePlugins.insert(make_pair(plugin->getPluginInfo()->name, plugin));
+        if(!plugin->getPluginInfo()->functionName.empty())
+            m_activePlugins.insert(
+                make_pair(plugin->getPluginInfo()->functionName, plugin));
     }
   }
 
-  typedef pair<string, Plugin*> PluginPair;
-  foreach(const PluginPair& p, m_activePlugins) {
+  /* Check dependencies */
+  typedef pair<string, Plugin*> PluginItem;
+  foreach(const PluginItem& p, m_activePlugins) {
+    foreach(const string& name, p.second->getPluginInfo()->dependencies) {
+        if(!getPlugin(name)) {
+            std::cerr << "ERROR: plugin '" << p.second->getPluginInfo()->name
+                      << "' depends on plugin '" << name
+                      << "' which is not enabled in config" << std::endl;
+            exit(1);
+        }
+    }
+  }
+
+  /* Initialize plugins */
+  foreach(const PluginItem& p, m_activePlugins) {
       p.second->initialize();
   }
 }

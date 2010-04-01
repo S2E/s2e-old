@@ -37,16 +37,17 @@ struct PluginInfo {
     /** Unique name of the plugin */
     std::string name;
 
-    /** Plugin type (only one plugin of each type is allowed) */
-    std::string type;
-
-    /** Configuration key for this plugin */
-    std::string configKey;
-
     /** Human-readable description of the plugin */
     std::string description;
 
-    /** TODO: Dependencies */
+    /** Name of a plugin function (only one plugin is allowed for each function) */
+    std::string functionName;
+
+    /** Dependencies of this plugin */
+    std::vector<std::string> dependencies;
+
+    /** Configuration key for this plugin */
+    std::string configKey;
 
     /** A function to create a plugin instance */
     Plugin* (*instanceCreator)(S2E*);
@@ -71,15 +72,22 @@ public:
 /** Should be put at the begining of any S2E plugin */
 #define S2E_PLUGIN                                                                 \
     private:                                                                       \
+        static const char s_pluginDeps[][64];                                      \
         static const PluginInfo s_pluginInfo;                                      \
     public:                                                                        \
         virtual const PluginInfo* getPluginInfo() const { return &s_pluginInfo; }  \
         static  const PluginInfo* getPluginInfoStatic() { return &s_pluginInfo; }  \
     private:
 
-#define S2E_DEFINE_PLUGIN(className, type, description)                            \
+/** Defines an S2E plugin. Should be put in a cpp file.
+    NOTE: use S2E_NOOP from Utils.h to pass multiple dependencies */
+#define S2E_DEFINE_PLUGIN(className, description, functionName, dependencies)      \
+    const char className::s_pluginDeps[][64] = { dependencies };                   \
     const PluginInfo className::s_pluginInfo = {                                   \
-        #className, #type, "pluginsConfig['" #className "']", description,         \
+        #className, description, functionName,                                     \
+        std::vector<std::string>(className::s_pluginDeps, className::s_pluginDeps  \
+            + sizeof(className::s_pluginDeps)/sizeof(className::s_pluginDeps[0])), \
+         "pluginsConfig['" #className "']",                                        \
         _pluginCreatorHelper<className>                                            \
     }
 

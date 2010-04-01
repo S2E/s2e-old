@@ -1,13 +1,14 @@
 #include "Example.h"
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
+#include <s2e/Utils.h>
 
 #include <iostream>
 
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(Example, , "Example S2E plugin");
+S2E_DEFINE_PLUGIN(Example, "Example S2E plugin", "Core",);
 
 void Example::initialize()
 {
