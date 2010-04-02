@@ -205,7 +205,7 @@ int cpu_restore_state(TranslationBlock *tb,
 
 #ifdef CONFIG_LLVM
     if(execute_llvm) {
-        assert(tb->llvm_tb != NULL);
+        assert(tb->llvm_function != NULL);
         j = tcg_llvm_search_last_pc(tb, searched_pc);
     } else {
 #endif

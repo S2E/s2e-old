@@ -120,6 +120,13 @@ static inline int tlb_set_page(CPUState *env1, target_ulong vaddr,
 
 #ifdef CONFIG_LLVM
 struct TCGLLVMTranslationBlock;
+struct TCGLLVMContext;
+#ifdef __cplusplus
+namespace llvm { class Function; }
+using llvm::Function;
+#else
+struct Function;
+#endif
 #endif
 
 struct TranslationBlock {
@@ -158,8 +165,9 @@ struct TranslationBlock {
 
 #ifdef CONFIG_LLVM
     /* pointer to LLVM translated code */
-    struct TCGLLVMTranslationBlock* llvm_tb;
-    uint8_t *llvm_tc_ptr;   /* pointer to the translated code */
+    struct TCGLLVMContext *tcg_llvm_context;
+    struct Function *llvm_function;
+    uint8_t *llvm_tc_ptr;
     uint8_t *llvm_tc_end;
 #endif
 

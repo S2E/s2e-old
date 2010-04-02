@@ -36,12 +36,8 @@ extern "C" {
 
 struct TranslationBlock;
 struct TCGLLVMContext;
-struct TCGLLVMTranslationBlock;
-
-typedef uintptr_t (*TCGLLVMTBFunctionPointer)(void* volatile*);
 
 extern struct TranslationBlock *tcg_llvm_last_tb;
-extern struct TCGLLVMTranslationBlock *tcg_llvm_last_llvm_tb;
 extern uint64_t tcg_llvm_last_opc_index;
 extern uint64_t tcg_llvm_last_pc;
 
@@ -73,15 +69,6 @@ namespace llvm {
     class LLVMContext;
     class Module;
 }
-
-struct TCGLLVMTranslationBlock
-{
-    TCGLLVMContext *tcgLLVMContext;
-    llvm::Function *m_tbFunction;
-
-    TCGLLVMTBFunctionPointer m_tbFunctionPointer;
-    ptrdiff_t m_tbFunctionSize;
-};
 
 class TCGLLVMContextPrivate;
 class TCGLLVMContext

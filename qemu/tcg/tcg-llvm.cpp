@@ -71,7 +71,6 @@ static void *qemu_st_helpers[5] = {
 
 extern "C" {
     TranslationBlock *tcg_llvm_last_tb = 0;
-    TCGLLVMTranslationBlock *tcg_llvm_last_llvm_tb = 0;
     uint64_t tcg_llvm_last_opc_index = 0;
     uint64_t tcg_llvm_last_pc = 0;
 
@@ -158,7 +157,7 @@ public:
 
     /* Code generation */
     int generateOperation(int opc, const TCGArg *args);
-    TCGLLVMTranslationBlock* generateCode();
+    void generateCode(TranslationBlock *tb);
 };
 
 /* Custom JITMemoryManager in order to capture the size of
@@ -1030,7 +1029,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
     return nb_args;
 }
 
-TCGLLVMTranslationBlock* TCGLLVMContextPrivate::generateCode()
+void TCGLLVMContextPrivate::generateCode(TranslationBlock *tb)
 {
     /* Create new function for current translation block */
     std::ostringstream fName;
@@ -1102,11 +1101,11 @@ TCGLLVMTranslationBlock* TCGLLVMContextPrivate::generateCode()
 
     m_functionPassManager->run(*m_tbFunction);
 
-    TCGLLVMTranslationBlock *llvm_tb = new TCGLLVMTranslationBlock;
-    llvm_tb->m_tbFunction = m_tbFunction;
-    llvm_tb->m_tbFunctionPointer = (TCGLLVMTBFunctionPointer) 
-        m_executionEngine->getPointerToFunction(m_tbFunction);
-    llvm_tb->m_tbFunctionSize = m_jitMemoryManager->getLastFunctionSize();
+    tb->llvm_function = m_tbFunction;
+    tb->llvm_tc_ptr = (uint8_t*)
+            m_executionEngine->getPointerToFunction(m_tbFunction);
+    tb->llvm_tc_end = tb->llvm_tc_ptr +
+            m_jitMemoryManager->getLastFunctionSize();
 
     if(qemu_loglevel_mask(CPU_LOG_LLVM_IR)) {
         std::ostringstream s;
@@ -1116,8 +1115,6 @@ TCGLLVMTranslationBlock* TCGLLVMContextPrivate::generateCode()
         qemu_log("\n");
         qemu_log_flush();
     }
-
-    return llvm_tb;
 }
 
 /***********************************/
@@ -1145,10 +1142,11 @@ Module* TCGLLVMContext::getModule()
 
 void TCGLLVMContext::generateCode(TranslationBlock *tb)
 {
-    assert(tb->llvm_tb == NULL);
-    tb->llvm_tb = m_private->generateCode();
-    tb->llvm_tc_ptr = (uint8_t*) tb->llvm_tb->m_tbFunctionPointer;
-    tb->llvm_tc_end = tb->llvm_tc_ptr + tb->llvm_tb->m_tbFunctionSize;
+    assert(tb->tcg_llvm_context == NULL);
+    assert(tb->llvm_function == NULL);
+
+    tb->tcg_llvm_context = this;
+    m_private->generateCode(tb);
 }
 
 /*****************************/
@@ -1171,35 +1169,32 @@ void tcg_llvm_gen_code(TCGLLVMContext *l, TranslationBlock *tb)
 
 void tcg_llvm_tb_alloc(TranslationBlock *tb)
 {
-    tb->llvm_tb = NULL;
+    tb->tcg_llvm_context = NULL;
+    tb->llvm_function = NULL;
 }
 
 void tcg_llvm_tb_free(TranslationBlock *tb)
 {
-    /*
-    if(tb->llvm_tb) {
-        tb->llvm_tb->m_tbFunction->eraseFromParent();
-        delete tb->llvm_tb;
+    if(tb->llvm_function) {
+        tb->llvm_function->eraseFromParent();
     }
-    */
 }
 
 int tcg_llvm_search_last_pc(TranslationBlock *tb, uintptr_t searched_pc)
 {
-    assert(tb->llvm_tb && tb->llvm_tb == tcg_llvm_last_llvm_tb);
+    assert(tb->llvm_function && tb == tcg_llvm_last_tb);
     return tcg_llvm_last_opc_index;
 }
 
 const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 {
-    assert(tb->llvm_tb);
-    return tb->llvm_tb->m_tbFunction->getNameStr().c_str();
+    assert(tb->llvm_function);
+    return tb->llvm_function->getNameStr().c_str();
 }
 
 uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
                             void* volatile* saved_AREGs)
 {
     tcg_llvm_last_tb = tb;
-    tcg_llvm_last_llvm_tb = tb->llvm_tb;
-    return tb->llvm_tb->m_tbFunctionPointer(saved_AREGs);
+    return ((uintptr_t (*)(void* volatile*)) tb->llvm_tc_ptr)(saved_AREGs);
 }

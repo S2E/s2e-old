@@ -1282,7 +1282,7 @@ TranslationBlock *tb_find_pc(uintptr_t tc_ptr)
     if(execute_llvm) {
         for(m=0; m<nb_tbs; m++) {
             tb = &tbs[m];
-            if(tb->llvm_tb) {
+            if(tb->llvm_function) {
                 if(tc_ptr >= (uintptr_t) tb->llvm_tc_ptr &&
                    tc_ptr <  (uintptr_t) tb->llvm_tc_end)
                     return tb;
