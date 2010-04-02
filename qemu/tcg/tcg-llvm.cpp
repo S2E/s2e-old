@@ -86,15 +86,7 @@ using namespace llvm;
 
 class TJITMemoryManager;
 
-struct TCGLLVMTranslationBlock {
-    TCGLLVMContext *tcgLLVMContext;
-    Function *m_tbFunction;
-
-    TCGLLVMTBFunctionPointer m_tbFunctionPointer;
-    ptrdiff_t m_tbFunctionSize;
-};
-
-struct TCGLLVMContext {
+struct TCGLLVMContextPrivate {
     TCGContext* m_tcgContext;
     LLVMContext m_context;
     IRBuilder<> m_builder;
@@ -129,8 +121,8 @@ struct TCGLLVMContext {
     int m_tbCount;
 
 public:
-    TCGLLVMContext(TCGContext* _tcgContext);
-    ~TCGLLVMContext();
+    TCGLLVMContextPrivate(TCGContext* _tcgContext);
+    ~TCGLLVMContextPrivate();
 
     /* Shortcuts */
     const Type* intType(int w) { return IntegerType::get(m_context, w); }
@@ -236,7 +228,7 @@ public:
     unsigned GetNumStubSlabs() { return m_base->GetNumStubSlabs(); }
 };
 
-TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
+TCGLLVMContextPrivate::TCGLLVMContextPrivate(TCGContext* _tcgContext)
     : m_tcgContext(_tcgContext), m_context(), m_builder(m_context),
       m_tbFunction(NULL), m_tbCount(0)
 {
@@ -270,7 +262,7 @@ TCGLLVMContext::TCGLLVMContext(TCGContext* _tcgContext)
     m_functionPassManager->doInitialization();
 }
 
-TCGLLVMContext::~TCGLLVMContext()
+TCGLLVMContextPrivate::~TCGLLVMContextPrivate()
 {
     delete m_functionPassManager;
     delete moduleProvider;
@@ -280,7 +272,7 @@ TCGLLVMContext::~TCGLLVMContext()
     delete m_executionEngine;
 }
 
-Value* TCGLLVMContext::getPtrForValue(int idx)
+Value* TCGLLVMContextPrivate::getPtrForValue(int idx)
 {
     TCGContext *s = m_tcgContext;
     TCGTemp &temp = s->temps[idx];
@@ -318,7 +310,7 @@ Value* TCGLLVMContext::getPtrForValue(int idx)
     return m_memValuesPtr[idx];
 }
 
-inline void TCGLLVMContext::delValue(int idx)
+inline void TCGLLVMContextPrivate::delValue(int idx)
 {
     /* XXX
     if(m_values[idx] && m_values[idx]->use_empty()) {
@@ -330,7 +322,7 @@ inline void TCGLLVMContext::delValue(int idx)
     m_values[idx] = NULL;
 }
 
-inline void TCGLLVMContext::delPtrForValue(int idx)
+inline void TCGLLVMContextPrivate::delPtrForValue(int idx)
 {
     /* XXX
     if(m_memValuesPtr[idx] && m_memValuesPtr[idx]->use_empty()) {
@@ -342,7 +334,7 @@ inline void TCGLLVMContext::delPtrForValue(int idx)
     m_memValuesPtr[idx] = NULL;
 }
 
-Value* TCGLLVMContext::getValue(int idx)
+Value* TCGLLVMContextPrivate::getValue(int idx)
 {
     if(m_values[idx] == NULL) {
         if(idx < m_tcgContext->nb_globals) {
@@ -367,7 +359,7 @@ Value* TCGLLVMContext::getValue(int idx)
     return m_values[idx];
 }
 
-void TCGLLVMContext::setValue(int idx, Value *v)
+void TCGLLVMContextPrivate::setValue(int idx, Value *v)
 {
     delValue(idx);
     m_values[idx] = v;
@@ -408,7 +400,7 @@ void TCGLLVMContext::setValue(int idx, Value *v)
     }
 }
 
-void TCGLLVMContext::initGlobalsAndLocalTemps()
+void TCGLLVMContextPrivate::initGlobalsAndLocalTemps()
 {
     TCGContext *s = m_tcgContext;
 
@@ -450,7 +442,7 @@ void TCGLLVMContext::initGlobalsAndLocalTemps()
     }
 }
 
-inline BasicBlock* TCGLLVMContext::getLabel(int idx)
+inline BasicBlock* TCGLLVMContextPrivate::getLabel(int idx)
 {
     if(!m_labels[idx]) {
         std::ostringstream bbName;
@@ -460,7 +452,7 @@ inline BasicBlock* TCGLLVMContext::getLabel(int idx)
     return m_labels[idx];
 }
 
-inline void TCGLLVMContext::delLabel(int idx)
+inline void TCGLLVMContextPrivate::delLabel(int idx)
 {
     /* XXX
     if(m_labels[idx] && m_labels[idx]->use_empty() &&
@@ -470,7 +462,7 @@ inline void TCGLLVMContext::delLabel(int idx)
     m_labels[idx] = NULL;
 }
 
-void TCGLLVMContext::startNewBasicBlock(BasicBlock *bb)
+void TCGLLVMContextPrivate::startNewBasicBlock(BasicBlock *bb)
 {
     if(!bb)
         bb = BasicBlock::Create(m_context);
@@ -492,7 +484,7 @@ void TCGLLVMContext::startNewBasicBlock(BasicBlock *bb)
         delPtrForValue(i);
 }
 
-Value* TCGLLVMContext::generateQemuMemOp(bool ld,
+Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
         Value *value, Value *addr, int mem_index, int bits)
 {
     assert(addr->getType() == intType(TARGET_LONG_BITS));
@@ -615,7 +607,7 @@ Value* TCGLLVMContext::generateQemuMemOp(bool ld,
 #endif
 }
 
-int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
+int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 {
     Value *v;
     TCGOpDef &def = tcg_op_defs[opc];
@@ -1038,7 +1030,7 @@ int TCGLLVMContext::generateOperation(int opc, const TCGArg *args)
     return nb_args;
 }
 
-TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
+TCGLLVMTranslationBlock* TCGLLVMContextPrivate::generateCode()
 {
     /* Create new function for current translation block */
     std::ostringstream fName;
@@ -1128,6 +1120,40 @@ TCGLLVMTranslationBlock* TCGLLVMContext::generateCode()
     return llvm_tb;
 }
 
+/***********************************/
+/* External interface for C++ code */
+
+TCGLLVMContext::TCGLLVMContext(TCGContext *s)
+        : m_private(new TCGLLVMContextPrivate(s))
+{
+}
+
+TCGLLVMContext::~TCGLLVMContext()
+{
+    delete m_private;
+}
+
+LLVMContext* TCGLLVMContext::getLLVMContext()
+{
+    return &m_private->m_context;
+}
+
+Module* TCGLLVMContext::getModule()
+{
+    return m_private->m_module;
+}
+
+void TCGLLVMContext::generateCode(TranslationBlock *tb)
+{
+    assert(tb->llvm_tb == NULL);
+    tb->llvm_tb = m_private->generateCode();
+    tb->llvm_tc_ptr = (uint8_t*) tb->llvm_tb->m_tbFunctionPointer;
+    tb->llvm_tc_end = tb->llvm_tc_ptr + tb->llvm_tb->m_tbFunctionSize;
+}
+
+/*****************************/
+/* Functions for QEMU c code */
+
 TCGLLVMContext* tcg_llvm_context_new(TCGContext *s)
 {
     return new TCGLLVMContext(s);
@@ -1140,10 +1166,7 @@ void tcg_llvm_context_free(TCGLLVMContext *l)
 
 void tcg_llvm_gen_code(TCGLLVMContext *l, TranslationBlock *tb)
 {
-    assert(tb->llvm_tb == NULL);
-    tb->llvm_tb = l->generateCode();
-    tb->llvm_tc_ptr = (uint8_t*) tb->llvm_tb->m_tbFunctionPointer;
-    tb->llvm_tc_end = tb->llvm_tc_ptr + tb->llvm_tb->m_tbFunctionSize;
+    l->generateCode(tb);
 }
 
 void tcg_llvm_tb_alloc(TranslationBlock *tb)
@@ -1180,4 +1203,3 @@ uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
     tcg_llvm_last_llvm_tb = tb->llvm_tb;
     return tb->llvm_tb->m_tbFunctionPointer(saved_AREGs);
 }
-
