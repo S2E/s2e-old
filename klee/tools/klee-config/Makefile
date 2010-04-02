@@ -90,9 +90,16 @@ $(ToolDir)/klee-config:
 endif
 # Hook into the standard Makefile rules.
 all-local:: $(ToolDir)/klee-config
+# XXX
+ifeq (0,1)
 clean-local::
 	$(Verb) $(RM) -f $(ToolDir)/klee-config klee-config.in $(FinalLibDeps) \
 	  $(LibDeps) GenLibDeps.out
+else
+clean-local::
+	$(Verb) $(RM) -f $(ToolDir)/klee-config klee-config.in \
+	  $(LibDeps) GenLibDeps.out
+endif
 install-local:: all-local
 	$(Echo) Installing klee-config
 	$(Verb) $(MKDIR) $(PROJ_bindir)
