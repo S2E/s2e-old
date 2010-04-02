@@ -27,6 +27,8 @@ ETEXI
 #ifdef CONFIG_S2E
 DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
     "s2e-config-file file      Path to S2E configuration file\n")
+DEF("s2e-output-dir", HAS_ARG, QEMU_OPTION_s2e_output_dir,
+    "s2e-output-dir dir        Path to S2E output directory\n")
 #endif
 
 DEF("M", HAS_ARG, QEMU_OPTION_M,

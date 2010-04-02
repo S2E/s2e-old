@@ -27,7 +27,8 @@ extern struct S2E* g_s2e;
 /* Functions from S2E.cpp */
 
 /** Initialize S2E instance. Called by main() */
-struct S2E* s2e_initialize(const char *s2e_config_file);
+struct S2E* s2e_initialize(const char *s2e_config_file,
+                           const char *s2e_output_dir);
 
 /** Relese S2E instance and all S2E-related objects. Called by main() */
 void s2e_close(struct S2E* s2e);

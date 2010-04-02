@@ -1464,6 +1464,7 @@ EOF
   klee_cxxflags=`$klee_config --cflags 2> /dev/null`
   klee_ldflags=`$klee_config --ldflags 2> /dev/null`
   klee_libs=`$klee_config --libs 2> /dev/null`
+  klee_libdir=`$klee_config --libdir 2> /dev/null`
 
   if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags" ; then
     s2e="yes"
@@ -2663,6 +2664,7 @@ if test "$target_s2e" = "yes" ; then
   echo "LLVM_CXXFLAGS:=$llvm_cxxflags" >> $config_target_mak
   echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags, $klee_cxxflags)" >> $config_target_mak
   echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
+  echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
 fi
 list=""
 if test ! -z "$gdb_xml_files" ; then

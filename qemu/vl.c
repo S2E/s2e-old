@@ -4870,6 +4870,7 @@ int main(int argc, char **argv, char **envp)
 
 #ifdef CONFIG_S2E
     const char *s2e_config_file = NULL;
+    const char *s2e_output_dir = NULL;
 #endif
 
 #ifndef _WIN32
@@ -5019,6 +5020,9 @@ int main(int argc, char **argv, char **envp)
 #ifdef CONFIG_S2E
             case QEMU_OPTION_s2e_config_file:
               s2e_config_file = optarg;
+              break;
+            case QEMU_OPTION_s2e_output_dir:
+              s2e_output_dir = optarg;
               break;
 #endif
 
@@ -5680,7 +5684,7 @@ int main(int argc, char **argv, char **envp)
       fprintf(stderr, "Warning: S2E configuration file was not specified, "
                         "using the default (empty) file\n");
     }
-    g_s2e = s2e_initialize(s2e_config_file);
+    g_s2e = s2e_initialize(s2e_config_file, s2e_output_dir);
 #endif
 
     /* If no data_dir is specified then try to find it relative to the
