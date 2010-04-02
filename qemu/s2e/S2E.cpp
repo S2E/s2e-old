@@ -81,7 +81,7 @@ S2E::S2E(const std::string &configFileName, const std::string &outputDirectory)
     initOutputDirectory(outputDirectory);
 
     /* Parse configuration file */
-    m_configFile = auto_ptr<ConfigFile>(new s2e::ConfigFile(configFileName));
+    m_configFile = new s2e::ConfigFile(configFileName);
 
     /* Initialize KLEE objects */
     initKlee();
@@ -92,17 +92,26 @@ S2E::S2E(const std::string &configFileName, const std::string &outputDirectory)
 
 S2E::~S2E()
 {
-    for(map<string, Plugin*>::iterator it = m_activePlugins.begin(),
-            end = m_activePlugins.end(); it != end; ++it) {
-        delete it->second;
-        it->second = NULL;
-    }
+    foreach(Plugin* p, m_activePluginsList)
+        delete p;
+
+    delete m_pluginsFactory;
+
+    //delete m_kleeInterpreter;
+    //delete m_kleeHandler;
+
+    delete m_configFile;
+
+    delete m_infoFile;
+    delete m_messagesFile;
+    delete m_warningsFile;
+    delete m_warningsStreamBuf;
 }
 
 Plugin* S2E::getPlugin(const std::string& name) const
 {
-    map<string, Plugin*>::const_iterator it = m_activePlugins.find(name);
-    if(it != m_activePlugins.end())
+    map<string, Plugin*>::const_iterator it = m_activePluginsMap.find(name);
+    if(it != m_activePluginsMap.end())
         return const_cast<Plugin*>(it->second);
     else
         return NULL;
@@ -177,19 +186,20 @@ void S2E::initOutputDirectory(const string& outputDirectory)
         exit(1);
     }
 
-    m_infoFile = auto_ptr<ostream>(openOutputFile("info"));
-    m_messagesFile = auto_ptr<ostream>(openOutputFile("messages.txt"));
-    m_warningsFile = auto_ptr<ostream>(openOutputFile("warnings.txt"));
-    m_warningsFile->rdbuf(new WarningsStreamBuf(m_warningsFile->rdbuf()));
+    m_infoFile = openOutputFile("info");
+    m_messagesFile = openOutputFile("messages.txt");
+    m_warningsFile = openOutputFile("warnings.txt");
+
+    m_warningsStreamBuf = new WarningsStreamBuf(m_warningsFile->rdbuf());
+    m_warningsFile->rdbuf(m_warningsStreamBuf);
 }
 
 void S2E::initKlee()
 {
 #if 0
-    m_kleeHandler = auto_ptr<KleeHandler>(new KleeHandler(this));
+    m_kleeHandler = new KleeHandler(this);
     klee::Interpreter::InterpreterOptions IOpts;
-    m_kleeInterpreter = auto_ptr<klee::Interpreter>(
-          klee::Interpreter::create(IOpts, m_kleeHandler.get()));
+    m_kleeInterpreter = klee::Interpreter::create(IOpts, m_kleeHandler.get());
 
     klee::Interpreter::ModuleOptions MOpts(KLEE_LIBRARY_DIR,
                         /* Optimize= */ false, /* CheckDivZero= */ false);
@@ -198,16 +208,17 @@ void S2E::initKlee()
 
 void S2E::initPlugins()
 {
-    m_pluginsFactory = auto_ptr<PluginsFactory>(new PluginsFactory());
+    m_pluginsFactory = new PluginsFactory();
 
     m_corePlugin = dynamic_cast<CorePlugin*>(
             m_pluginsFactory->createPlugin(this, "CorePlugin"));
     assert(m_corePlugin);
 
-    m_activePlugins.insert(
+    m_activePluginsList.push_back(m_corePlugin);
+    m_activePluginsMap.insert(
             make_pair(m_corePlugin->getPluginInfo()->name, m_corePlugin));
     if(!m_corePlugin->getPluginInfo()->functionName.empty())
-        m_activePlugins.insert(
+        m_activePluginsMap.insert(
             make_pair(m_corePlugin->getPluginInfo()->functionName, m_corePlugin));
 
     vector<string> pluginNames = getConfig()->getStringList("plugins");
@@ -237,19 +248,20 @@ void S2E::initPlugins()
             Plugin* plugin = m_pluginsFactory->createPlugin(this, pluginName);
             assert(plugin);
 
-            m_activePlugins.insert(make_pair(plugin->getPluginInfo()->name, plugin));
+            m_activePluginsList.push_back(plugin);
+            m_activePluginsMap.insert(
+                    make_pair(plugin->getPluginInfo()->name, plugin));
             if(!plugin->getPluginInfo()->functionName.empty())
-                m_activePlugins.insert(
+                m_activePluginsMap.insert(
                     make_pair(plugin->getPluginInfo()->functionName, plugin));
         }
     }
 
     /* Check dependencies */
-    typedef pair<string, Plugin*> PluginItem;
-    foreach(const PluginItem& p, m_activePlugins) {
-        foreach(const string& name, p.second->getPluginInfo()->dependencies) {
+    foreach(Plugin* p, m_activePluginsList) {
+        foreach(const string& name, p->getPluginInfo()->dependencies) {
             if(!getPlugin(name)) {
-                std::cerr << "ERROR: plugin '" << p.second->getPluginInfo()->name
+                std::cerr << "ERROR: plugin '" << p->getPluginInfo()->name
                           << "' depends on plugin '" << name
                           << "' which is not enabled in config" << std::endl;
                 exit(1);
@@ -258,8 +270,8 @@ void S2E::initPlugins()
     }
 
     /* Initialize plugins */
-    foreach(const PluginItem& p, m_activePlugins) {
-        p.second->initialize();
+    foreach(Plugin* p, m_activePluginsList) {
+        p->initialize();
     }
 }
 

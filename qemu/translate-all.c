@@ -78,11 +78,6 @@ void cpu_gen_init(void)
     tcg_context_init(&tcg_ctx); 
     tcg_set_frame(&tcg_ctx, TCG_AREG0, offsetof(CPUState, temp_buf),
                   CPU_TEMP_BUF_NLONGS * sizeof(intptr_t));
-
-#ifdef CONFIG_LLVM
-    if(generate_llvm)
-        tcg_llvm_ctx = tcg_llvm_context_new(&tcg_ctx);
-#endif
 }
 
 /* return non zero if the very first instruction is invalid so that
@@ -136,7 +131,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 
 #ifdef CONFIG_LLVM
     if(generate_llvm)
-        tcg_llvm_gen_code(tcg_llvm_ctx, tb);
+        tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
 #endif
 
 #ifdef CONFIG_PROFILER

@@ -70,6 +70,8 @@ static void *qemu_st_helpers[5] = {
 #include <sstream>
 
 extern "C" {
+    TCGLLVMContext* tcg_llvm_ctx = 0;
+
     TranslationBlock *tcg_llvm_last_tb = 0;
     uint64_t tcg_llvm_last_opc_index = 0;
     uint64_t tcg_llvm_last_pc = 0;
@@ -86,13 +88,27 @@ using namespace llvm;
 class TJITMemoryManager;
 
 struct TCGLLVMContextPrivate {
-    TCGContext* m_tcgContext;
     LLVMContext m_context;
     IRBuilder<> m_builder;
 
     /* Current m_module */
     Module *m_module;
     ModuleProvider *moduleProvider;
+
+    /* JIT engine */
+    TJITMemoryManager *m_jitMemoryManager;
+    ExecutionEngine *m_executionEngine;
+
+    /* Function pass manager (used for optimizing the code) */
+    FunctionPassManager *m_functionPassManager;
+
+    /* Count of generated translation blocks */
+    int m_tbCount;
+
+    /* XXX: The following members are "local" to generateCode method */
+
+    /* TCGContext for current translation block */
+    TCGContext* m_tcgContext;
 
     /* Function for current translation block */
     Function *m_tbFunction;
@@ -109,18 +125,8 @@ struct TCGLLVMContextPrivate {
 
     BasicBlock* m_labels[TCG_MAX_LABELS];
 
-    /* Function pass manager (used for optimizing the code) */
-    FunctionPassManager *m_functionPassManager;
-
-    /* JIT engine */
-    TJITMemoryManager *m_jitMemoryManager;
-    ExecutionEngine *m_executionEngine;
-
-    /* Count of generated translation blocks */
-    int m_tbCount;
-
 public:
-    TCGLLVMContextPrivate(TCGContext* _tcgContext);
+    TCGLLVMContextPrivate();
     ~TCGLLVMContextPrivate();
 
     /* Shortcuts */
@@ -157,7 +163,7 @@ public:
 
     /* Code generation */
     int generateOperation(int opc, const TCGArg *args);
-    void generateCode(TranslationBlock *tb);
+    void generateCode(TCGContext *s, TranslationBlock *tb);
 };
 
 /* Custom JITMemoryManager in order to capture the size of
@@ -227,9 +233,9 @@ public:
     unsigned GetNumStubSlabs() { return m_base->GetNumStubSlabs(); }
 };
 
-TCGLLVMContextPrivate::TCGLLVMContextPrivate(TCGContext* _tcgContext)
-    : m_tcgContext(_tcgContext), m_context(), m_builder(m_context),
-      m_tbFunction(NULL), m_tbCount(0)
+TCGLLVMContextPrivate::TCGLLVMContextPrivate()
+    : m_context(), m_builder(m_context), m_tbCount(0),
+      m_tcgContext(NULL), m_tbFunction(NULL)
 {
     std::memset(m_values, 0, sizeof(m_values));
     std::memset(m_memValuesPtr, 0, sizeof(m_memValuesPtr));
@@ -264,10 +270,9 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate(TCGContext* _tcgContext)
 TCGLLVMContextPrivate::~TCGLLVMContextPrivate()
 {
     delete m_functionPassManager;
-    delete moduleProvider;
 
     // the following line will also delete
-    // m_module and all its functions
+    // m_moduleProvider, m_module and all its functions
     delete m_executionEngine;
 }
 
@@ -1029,7 +1034,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
     return nb_args;
 }
 
-void TCGLLVMContextPrivate::generateCode(TranslationBlock *tb)
+void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
 {
     /* Create new function for current translation block */
     std::ostringstream fName;
@@ -1048,6 +1053,8 @@ void TCGLLVMContextPrivate::generateCode(TranslationBlock *tb)
     BasicBlock *basicBlock = BasicBlock::Create(m_context,
             "entry", m_tbFunction);
     m_builder.SetInsertPoint(basicBlock);
+
+    m_tcgContext = s;
 
     /* Prepare globals and temps information */
     initGlobalsAndLocalTemps();
@@ -1120,8 +1127,8 @@ void TCGLLVMContextPrivate::generateCode(TranslationBlock *tb)
 /***********************************/
 /* External interface for C++ code */
 
-TCGLLVMContext::TCGLLVMContext(TCGContext *s)
-        : m_private(new TCGLLVMContextPrivate(s))
+TCGLLVMContext::TCGLLVMContext()
+        : m_private(new TCGLLVMContextPrivate)
 {
 }
 
@@ -1140,31 +1147,31 @@ Module* TCGLLVMContext::getModule()
     return m_private->m_module;
 }
 
-void TCGLLVMContext::generateCode(TranslationBlock *tb)
+void TCGLLVMContext::generateCode(TCGContext *s, TranslationBlock *tb)
 {
     assert(tb->tcg_llvm_context == NULL);
     assert(tb->llvm_function == NULL);
 
     tb->tcg_llvm_context = this;
-    m_private->generateCode(tb);
+    m_private->generateCode(s, tb);
 }
 
 /*****************************/
 /* Functions for QEMU c code */
 
-TCGLLVMContext* tcg_llvm_context_new(TCGContext *s)
+TCGLLVMContext* tcg_llvm_initizlize()
 {
-    return new TCGLLVMContext(s);
+    return new TCGLLVMContext;
 }
 
-void tcg_llvm_context_free(TCGLLVMContext *l)
+void tcg_llvm_close(TCGLLVMContext *l)
 {
     delete l;
 }
 
-void tcg_llvm_gen_code(TCGLLVMContext *l, TranslationBlock *tb)
+void tcg_llvm_gen_code(TCGLLVMContext *l, TCGContext *s, TranslationBlock *tb)
 {
-    l->generateCode(tb);
+    l->generateCode(s, tb);
 }
 
 void tcg_llvm_tb_alloc(TranslationBlock *tb)

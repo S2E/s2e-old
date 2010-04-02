@@ -37,17 +37,20 @@ extern "C" {
 struct TranslationBlock;
 struct TCGLLVMContext;
 
+extern struct TCGLLVMContext* tcg_llvm_ctx;
+
 extern struct TranslationBlock *tcg_llvm_last_tb;
 extern uint64_t tcg_llvm_last_opc_index;
 extern uint64_t tcg_llvm_last_pc;
 
-struct TCGLLVMContext* tcg_llvm_context_new(struct TCGContext *s);
-void tcg_llvm_context_free(struct TCGLLVMContext *l);
+struct TCGLLVMContext* tcg_llvm_initizlize(void);
+void tcg_llvm_close(struct TCGLLVMContext *l);
 
 void tcg_llvm_tb_alloc(struct TranslationBlock *tb);
 void tcg_llvm_tb_free(struct TranslationBlock *tb);
 
-void tcg_llvm_gen_code(struct TCGLLVMContext *l, struct TranslationBlock *tb);
+void tcg_llvm_gen_code(struct TCGLLVMContext *l, struct TCGContext *s,
+                       struct TranslationBlock *tb);
 const char* tcg_llvm_get_func_name(struct TranslationBlock *tb);
 
 int tcg_llvm_search_last_pc(struct TranslationBlock *tb, uintptr_t searched_pc);
@@ -77,13 +80,14 @@ private:
     TCGLLVMContextPrivate* m_private;
 
 public:
-    TCGLLVMContext(TCGContext *s);
+    TCGLLVMContext();
     ~TCGLLVMContext();
 
     llvm::LLVMContext* getLLVMContext();
     llvm::Module* getModule();
 
-    void generateCode(struct TranslationBlock *tb);
+    void generateCode(struct TCGContext *s,
+                      struct TranslationBlock *tb);
 };
 
 #endif

@@ -168,6 +168,10 @@ int main(int argc, char **argv)
 
 #include "qemu-queue.h"
 
+#ifdef CONFIG_LLVM
+#include <tcg-llvm.h>
+#endif
+
 #ifdef CONFIG_S2E
 #include <s2e/s2e_qemu.h>
 #endif
@@ -5679,6 +5683,10 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+#ifdef CONFIG_LLVM
+    tcg_llvm_ctx = tcg_llvm_initizlize();
+#endif
+
 #ifdef CONFIG_S2E
     if (!s2e_config_file) {
       fprintf(stderr, "Warning: S2E configuration file was not specified, "
@@ -6161,6 +6169,14 @@ int main(int argc, char **argv, char **envp)
     main_loop();
     quit_timers();
     net_cleanup();
+
+#ifdef CONFIG_S2E
+    s2e_close(g_s2e);
+#endif
+
+#ifdef CONFIG_LLVM
+    tcg_llvm_close(tcg_llvm_ctx);
+#endif
 
     return 0;
 }

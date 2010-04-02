@@ -1,9 +1,9 @@
 #ifndef S2E_H
 #define S2E_H
 
-#include <memory>
 #include <fstream>
 #include <string>
+#include <vector>
 #include <map>
 
 namespace klee {
@@ -23,20 +23,22 @@ using klee::Interpreter;
 class S2E
 {
 private:
-  std::auto_ptr<ConfigFile> m_configFile;
-  std::auto_ptr<PluginsFactory> m_pluginsFactory;
+  ConfigFile* m_configFile;
+  PluginsFactory* m_pluginsFactory;
 
   CorePlugin* m_corePlugin;
-  std::map<std::string, Plugin*> m_activePlugins;
+  std::vector<Plugin*> m_activePluginsList;
+  std::map<std::string, Plugin*> m_activePluginsMap;
 
   std::string m_outputDirectory;
 
-  std::auto_ptr<std::ostream> m_infoFile;
-  std::auto_ptr<std::ostream> m_messagesFile;
-  std::auto_ptr<std::ostream> m_warningsFile;
+  std::ostream* m_infoFile;
+  std::ostream* m_messagesFile;
+  std::ostream* m_warningsFile;
+  std::streambuf* m_warningsStreamBuf;
 
-  std::auto_ptr<KleeHandler> m_kleeHandler;
-  std::auto_ptr<Interpreter> m_kleeInterpreter;
+  KleeHandler* m_kleeHandler;
+  Interpreter* m_kleeInterpreter;
 
   void initOutputDirectory(const std::string& outputDirectory);
   void initKlee();
@@ -49,7 +51,7 @@ public:
   ~S2E();
 
   /** Get configuration file */
-  ConfigFile* getConfig() const { return m_configFile.get(); }
+  ConfigFile* getConfig() const { return m_configFile; }
 
   /** Get plugin by name of functionName */
   Plugin* getPlugin(const std::string& name) const;
