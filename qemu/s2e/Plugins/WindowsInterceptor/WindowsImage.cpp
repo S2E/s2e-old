@@ -23,7 +23,7 @@ WindowsImage::WindowsImage(uint64_t Base)
 {
   m_Base = Base;
   
-  if (QEMU::ReadVirtualMemory(m_Base, &DosHeader, sizeof(DosHeader))<0) {
+  if (!QEMU::ReadVirtualMemory(m_Base, &DosHeader, sizeof(DosHeader))) {
 		DPRINTF("Could not load IMAGE_DOS_HEADER structure (m_Base=%#"PRIx64")\n", m_Base);
     return;
 	}
@@ -33,7 +33,7 @@ WindowsImage::WindowsImage(uint64_t Base)
     return;
 	}
 
-	if (QEMU::ReadVirtualMemory(m_Base+DosHeader.e_lfanew, &NtHeader, sizeof(NtHeader))<0) {
+	if (!QEMU::ReadVirtualMemory(m_Base+DosHeader.e_lfanew, &NtHeader, sizeof(NtHeader))) {
 		DPRINTF("Could not load IMAGE_NT_HEADER structure (m_Base=%#"PRIx64")\n", m_Base+(unsigned)DosHeader.e_lfanew);
     return;
 	}
@@ -77,7 +77,7 @@ int WindowsImage::InitExports()
 
   ExportDir = (s2e::windows::PIMAGE_EXPORT_DIRECTORY)malloc(ExportTableSize);
 
-  if (QEMU::ReadVirtualMemory(ExportTableAddress, (uint8_t*)ExportDir, ExportTableSize)<0) {
+  if (!QEMU::ReadVirtualMemory(ExportTableAddress, (uint8_t*)ExportDir, ExportTableSize)) {
 		DPRINTF("Could not load PIMAGE_EXPORT_DIRECTORY structures (m_Base=%#x)\n", ExportTableAddress);
 		res = -5;
     goto err2;
@@ -95,13 +95,13 @@ int WindowsImage::InitExports()
     return -1;
   }
   
-  if (QEMU::ReadVirtualMemory(m_Base + ExportDir->AddressOfNames, Names, TblSz)<0) {
+  if (!QEMU::ReadVirtualMemory(m_Base + ExportDir->AddressOfNames, Names, TblSz)) {
 		DPRINTF("Could not load names of exported functions");
 		res = -6;
     goto err2;
 	}
 
-  if (QEMU::ReadVirtualMemory(m_Base + ExportDir->AddressOfFunctions, FcnPtrs, TblSz)<0) {
+  if (!QEMU::ReadVirtualMemory(m_Base + ExportDir->AddressOfFunctions, FcnPtrs, TblSz)) {
 		DPRINTF("Could not load addresses of  exported functions");
 		res = -7;
     goto err3;
@@ -162,7 +162,7 @@ int WindowsImage::InitImports()
 		return -5;
 	}
 
-	if (QEMU::ReadVirtualMemory(ImportTableAddress, ImportDescriptors, ImportTableSize)<0) {
+	if (!QEMU::ReadVirtualMemory(ImportTableAddress, ImportDescriptors, ImportTableSize)) {
 		DPRINTF("Could not load IMAGE_IMPORT_DESCRIPTOR structures (base=%#"PRIx64")\n", ImportTableAddress);
 		free(ImportDescriptors);
 		return -6;
@@ -190,13 +190,13 @@ int WindowsImage::InitImports()
 		do {
 			s2e::windows::IMAGE_THUNK_DATA32 IAT;
 			uint32_t Name;
-			int res1, res2;
+			bool res1, res2;
 			res1 = QEMU::ReadVirtualMemory(ImportAddressTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32), 
 				&IAT, sizeof(IAT));
 			res2 = QEMU::ReadVirtualMemory(ImportNameTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32), 
 				&INaT, sizeof(INaT));
 			
-			if (res1 < 0 || res2 < 0) {
+			if (!res1 || !res2) {
 				DPRINTF("Could not load IAT entries\n");
 				free(ImportDescriptors);
 				return -7;
