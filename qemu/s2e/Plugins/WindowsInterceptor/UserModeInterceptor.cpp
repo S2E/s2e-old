@@ -134,7 +134,7 @@ bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
   m_LdrAddr = PebBlock.Ldr;
   m_ProcBase = PebBlock.ImageBaseAddress;
 
-  DPRINTF("Process %#I64x %#x %#x\n", m_ProcBase, LdrData.Initialized, LdrData.EntryInProgress);
+  DPRINTF("Process %#"PRIx64" %#x %#x\n", m_ProcBase, LdrData.Initialized, LdrData.EntryInProgress);
   return true;
 
 }

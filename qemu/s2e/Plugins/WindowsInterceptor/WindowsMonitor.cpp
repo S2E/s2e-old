@@ -29,10 +29,10 @@ void WindowsMonitor::initialize()
     m_KernelMode = s2e()->getConfig()->getBool(getConfigKey() + ".kernelMode");
     m_KernelBase = 0x80000000;
 
-    if (!stricmp(Version.c_str(), "SP2")) {
+    if (!strcasecmp(Version.c_str(), "SP2")) {
         m_Version = WindowsMonitor::SP2;
         m_PointerSize = 4;
-    }else if (!stricmp(Version.c_str(), "SP3")) {
+    }else if (!strcasecmp(Version.c_str(), "SP3")) {
         m_Version = WindowsMonitor::SP3;
         m_PointerSize = 4;
     }else {

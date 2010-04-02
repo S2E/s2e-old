@@ -11,7 +11,7 @@ using namespace plugins;
 bool WindowsImage::IsValidString(const char *str)
 {
   for (unsigned i=0; str[i]; i++) {
-    if (str[i] > 0x20 && str[i] < 0x80) {
+    if (str[i] > 0x20 && (unsigned)str[i] < 0x80) {
       continue;
     }
     return false;
@@ -24,7 +24,7 @@ WindowsImage::WindowsImage(uint64_t Base)
   m_Base = Base;
   
   if (QEMU::ReadVirtualMemory(m_Base, &DosHeader, sizeof(DosHeader))<0) {
-		DPRINTF("Could not load IMAGE_DOS_HEADER structure (m_Base=%#I64x)\n", m_Base);
+		DPRINTF("Could not load IMAGE_DOS_HEADER structure (m_Base=%#"PRIx64")\n", m_Base);
     return;
 	}
 
@@ -34,7 +34,7 @@ WindowsImage::WindowsImage(uint64_t Base)
 	}
 
 	if (QEMU::ReadVirtualMemory(m_Base+DosHeader.e_lfanew, &NtHeader, sizeof(NtHeader))<0) {
-		DPRINTF("Could not load IMAGE_NT_HEADER structure (m_Base=%#I64x)\n", m_Base+(unsigned)DosHeader.e_lfanew);
+		DPRINTF("Could not load IMAGE_NT_HEADER structure (m_Base=%#"PRIx64")\n", m_Base+(unsigned)DosHeader.e_lfanew);
     return;
 	}
 
@@ -123,7 +123,7 @@ int WindowsImage::InitExports()
     FunctionName = CFcnName;
     free(CFcnName);
 
-    DPRINTF("Export %s @%#I64x\n", FunctionName.c_str(), FcnPtrs[i]+m_Base);
+    DPRINTF("Export %s @%#"PRIx64"\n", FunctionName.c_str(), FcnPtrs[i]+m_Base);
     m_Exports[FunctionName] = FcnPtrs[i];
   }
 
@@ -163,7 +163,7 @@ int WindowsImage::InitImports()
 	}
 
 	if (QEMU::ReadVirtualMemory(ImportTableAddress, ImportDescriptors, ImportTableSize)<0) {
-		DPRINTF("Could not load IMAGE_IMPORT_DESCRIPTOR structures (base=%#I64x)\n", ImportTableAddress);
+		DPRINTF("Could not load IMAGE_IMPORT_DESCRIPTOR structures (base=%#"PRIx64")\n", ImportTableAddress);
 		free(ImportDescriptors);
 		return -6;
 	}
