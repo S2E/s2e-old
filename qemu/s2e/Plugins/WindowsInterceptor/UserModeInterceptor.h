@@ -60,6 +60,7 @@ public:
   virtual ~WindowsUmInterceptor();
 
   bool CatchModuleLoad(void *CpuState);
+  bool CatchProcessTermination(void *CpuState);
   
 };
 

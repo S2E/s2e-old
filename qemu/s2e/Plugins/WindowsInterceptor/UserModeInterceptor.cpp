@@ -178,3 +178,20 @@ bool WindowsUmInterceptor::CatchModuleLoad(void *CpuState)
   return true;
 }
 
+bool WindowsUmInterceptor::CatchProcessTermination(void *CpuState)
+{
+   CPUState *state = (CPUState *)CpuState;
+
+   uint64_t pEProcess = state->regs[R_EBX];
+   s2e::windows::EPROCESS32 EProcess;
+
+   if (!QEMU::ReadVirtualMemory(pEProcess, &EProcess, sizeof(EProcess))) {
+      return false;
+   }
+
+   DPRINTF("Process %#"PRIx32" %16s unloaded\n", EProcess.Pcb.DirectoryTableBase,
+      EProcess.ImageFileName);
+   m_Os->onProcessUnload.emit(EProcess.Pcb.DirectoryTableBase);
+    
+   return true;  
+}

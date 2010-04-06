@@ -37,6 +37,9 @@ private:
     unsigned m_PointerSize;
     uint64_t m_KernelBase;
 
+    bool m_MonitorModuleLoad;
+    bool m_MonitorProcessUnload;
+
     WindowsUmInterceptor *m_UserModeInterceptor;
 public:
     WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
@@ -44,12 +47,14 @@ public:
     void initialize();
 
     void slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc);
-    void slotUmExecuteBlockStart(S2EExecutionState *state, uint64_t pc);
+    void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);
+    void slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc);
     void slotKmExecuteBlockStart(S2EExecutionState *state, uint64_t pc);
 
     uint64_t GetUserAddressSpaceSize() const;
     uint64_t GetKernelStart() const;
     uint64_t GetLdrpCallInitRoutine() const;
+    uint64_t GetNtTerminateProcessEProcessPoint() const;
     bool CheckDriverLoad(uint64_t eip) const;
     bool CheckPanic(uint64_t eip) const;
     unsigned GetPointerSize() const;

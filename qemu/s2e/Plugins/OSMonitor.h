@@ -9,22 +9,24 @@
 namespace s2e {
 namespace plugins {
 
-class OSMonitor:public Plugin
-{
-public:
-  sigc::signal<void, 
-    const ModuleDescriptor,
-    const IExecutableImage::Imports,
-    const IExecutableImage::Exports
-  >onModuleLoad;
+   class OSMonitor:public Plugin
+   {
+   public:
+      sigc::signal<void, 
+         const ModuleDescriptor,
+         const IExecutableImage::Imports,
+         const IExecutableImage::Exports
+      >onModuleLoad;
 
-protected:
-  OSMonitor(S2E* s2e): Plugin(s2e) {}
+      sigc::signal<void, const ModuleDescriptor> onModuleUnload;
+      sigc::signal<void, uint64_t> onProcessUnload;
+   protected:
+      OSMonitor(S2E* s2e): Plugin(s2e) {}
 
-public:
+   public:
 
 
-};
+   };
 
 } // namespace plugins
 } // namespace s2e
