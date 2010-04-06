@@ -172,67 +172,9 @@ void WindowsUmInterceptor::NotifyLibraryLoad(const ModuleDescriptor &Library)
 
 }
 
-bool WindowsUmInterceptor::CatchLibraryLoad(void *CpuState)
+bool WindowsUmInterceptor::CatchModuleLoad(void *CpuState)
 {
   FindModules(CpuState);
   return true;
 }
 
-bool WindowsUmInterceptor::CatchProcessLoad(void *CpuState)
-{
-  return false;
-}
-
-
-bool WindowsUmInterceptor::OnTbEnter(void *CpuState, bool Translation)
-{
-  CPUState *state = (CPUState *)CpuState;
-
-  /******************************************/
-  /* Update the list of libraries as they get loaded */
-again:
-  if (m_TracingState == WAIT_LIBRARY_LOAD && m_HookedCr3 == state->cr[3]) {
-    if (state->eip != m_Os->GetLdrpCallInitRoutine()) {
-      return false;
-    }
-    FindModules(state);
-    return false;
-  }
-
-  /******************************************/
-  if (state->cr[3] == m_PrevCr3 && m_TracingState != WAIT_PROCESS_INIT
-    && m_TracingState != WAIT_LIBRARY_LOAD) 
-  {
-    return false;
-  }
-  
-  m_PrevCr3 = state->cr[3];
-  
-  /******************************************/
-  if (m_TracingState == SEARCH_PROCESS) {
-    WindowsSpy &Spy = *m_Os->getSpy();
-    SProcessDescriptor PDesc;
-    if (Spy.FindProcess(state->cr[3], m_ProcList, PDesc)) {
-      /* Already seen that process, don't care about it */
-      return false;
-    }
-    Spy.ScanProcesses(m_ProcList);
-    if (Spy.FindProcess(m_ProcessName, m_ProcList, PDesc)) {
-      m_TracingState = WAIT_PROCESS_INIT;
-      m_HookedCr3 = PDesc.PageDirectory;
-    }
-  }
-  
-  /******************************************/
-  if (m_TracingState == WAIT_PROCESS_INIT && state->cr[3] == m_HookedCr3) {
-    if (!WaitForProcessInit(state)) {
-      return false;
-    }
-    /* It is loaded! */
-    NotifyProcessLoad();
-    m_TracingState = WAIT_LIBRARY_LOAD;
-    goto again;
-  }
-
-  return false;
-}

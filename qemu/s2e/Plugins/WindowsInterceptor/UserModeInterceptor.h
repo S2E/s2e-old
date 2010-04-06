@@ -59,12 +59,7 @@ public:
   WindowsUmInterceptor(WindowsMonitor *Monitor);
   virtual ~WindowsUmInterceptor();
 
-  bool CatchLibraryLoad(void *CpuState);
-  bool CatchProcessLoad(void *CpuState);
-  
-  bool OnTbEnter(void *CpuState, bool Translation);
-  
-  
+  bool CatchModuleLoad(void *CpuState);
   
 };
 

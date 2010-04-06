@@ -70,7 +70,7 @@ void WindowsMonitor::slotUmExecuteBlockStart(S2EExecutionState *state, uint64_t 
 {
     std::cout << "User mode module load at " << std::hex << pc << std::dec << std::endl;
     //m_UserModeInterceptor->OnTbEnter(state->getCpuState());
-    m_UserModeInterceptor->CatchLibraryLoad(state->getCpuState());
+    m_UserModeInterceptor->CatchModuleLoad(state->getCpuState());
 }
 
 void WindowsMonitor::slotKmExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
@@ -127,64 +127,4 @@ unsigned WindowsMonitor::GetPointerSize() const
 }
 
 
-#if 0
 
-WindowsPlugin::WindowsPlugin(S2E* s2e) : Plugin(s2e)
-{
-  std::string OS = s2e->getConfig()->getString("guestOS.type");
-  if (stricmp(OS.c_str(), "WINDOWS")) {
-    std::cout << "Invalid guest type (" << OS << "). Must be Windows." << std::endl;
-    exit(-1);
-  }
-
-  std::string Version = s2e->getConfig()->getString("guestOS.version");
-  if (!stricmp(Version.c_str(), "SP2")) {
-    m_Version = CWindowsOS::SP2;
-  }else if (!stricmp(Version.c_str(), "SP3")) {
-    m_Version = CWindowsOS::SP3;
-  }else {
-    std::cout << "Unsupported of invalid Windows version " << Version << std::endl;
-  }
-
-  switch(m_Version) {
-    case SP2: m_KernelBase = 0x800d7000; break;
-    case SP3: m_KernelBase = 0x800d7000; break;
-    default: break;
-  }
-  m_PointerSize = 4;
-  m_Spy = new WindowsSpy(this);
-}
-
-
-WindowsPlugin::~WindowsPlugin()
-{
-  delete m_Spy;
-}
-
-
-
-#if 0
-uintptr_t CWindowsOS::GetDriverObject(void *cpu)
-{
-  target_uintptr_t StackPtr, ptr;
-
-  switch(m_Version) {
-    case SP2: StackPtr =  ((CPUState*)cpu)->regs[R_EBP] - 0x80; break;
-    case SP3: StackPtr = ((CPUState*)cpu)->regs[R_EBP] - 0x80; break;
-    default: assert(false && "Unknown OS"); break;
-  }
- 
-  if (!QEMU::ReadVirtualMemory(StackPtr, &ptr, sizeof(ptr))) 
-    return 0;
-  return ptr;
-}
-#endif
-
-
-
-WindowsSpy *WindowsPlugin::GetSpy() const
-{
-  return m_Spy;
-}
-
-#endif
