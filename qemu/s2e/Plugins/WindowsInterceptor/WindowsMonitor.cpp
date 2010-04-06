@@ -30,6 +30,7 @@ void WindowsMonitor::initialize()
    
    //For debug purposes
    m_MonitorModuleLoad = s2e()->getConfig()->getBool(getConfigKey() + ".monitorModuleLoad");
+   m_MonitorModuleUnload = s2e()->getConfig()->getBool(getConfigKey() + ".monitorModuleUnload");
    m_MonitorProcessUnload = s2e()->getConfig()->getBool(getConfigKey() + ".monitorProcessUnload");
    
    m_KernelBase = 0x80000000;
@@ -63,6 +64,9 @@ void WindowsMonitor::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t p
       }else if (pc == GetNtTerminateProcessEProcessPoint() && m_MonitorProcessUnload) {
          std::cout << "Basic block for NtTerminateProcess " << std::hex << pc << std::dec << std::endl;
          signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchProcessTermination));
+      }else if (pc == GetDllUnloadPc() && m_MonitorModuleUnload) {
+         std::cout << "Basic block for dll unload " << std::hex << pc << std::dec << std::endl;
+         signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchModuleUnload));
       }
    }
 
@@ -76,8 +80,13 @@ void WindowsMonitor::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t p
 void WindowsMonitor::slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc)
 {
    std::cout << "User mode module load at " << std::hex << pc << std::dec << std::endl;
-   //m_UserModeInterceptor->OnTbEnter(state->getCpuState());
    m_UserModeInterceptor->CatchModuleLoad(state->getCpuState());
+}
+
+void WindowsMonitor::slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc)
+{
+   std::cout << "User mode module unload at " << std::hex << pc << std::dec << std::endl;
+   m_UserModeInterceptor->CatchModuleUnload(state->getCpuState());
 }
 
 void WindowsMonitor::slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc)
@@ -150,3 +159,14 @@ uint64_t WindowsMonitor::GetNtTerminateProcessEProcessPoint() const
    assert(false && "Unknown OS version\n");
    return 0;
 }
+
+uint64_t WindowsMonitor::GetDllUnloadPc() const
+{
+   switch(m_Version) {
+    case SP2: assert (false && "Not implemented");
+    case SP3: return 0x7c91dfb3; //LdrDllUnload
+   }
+   assert(false && "Unknown OS version\n");
+   return 0;
+}
+

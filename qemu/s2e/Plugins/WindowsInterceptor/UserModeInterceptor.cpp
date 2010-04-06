@@ -195,3 +195,27 @@ bool WindowsUmInterceptor::CatchProcessTermination(void *CpuState)
     
    return true;  
 }
+
+bool WindowsUmInterceptor::CatchModuleUnload(void *CpuState)
+{
+   CPUState *state = (CPUState *)CpuState;
+
+   uint64_t pLdrEntry = state->regs[R_EBX];
+   s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
+
+   if (!QEMU::ReadVirtualMemory(pLdrEntry, &LdrEntry, sizeof(LdrEntry))) {
+      return false;
+   }
+
+  
+   ModuleDescriptor Desc; 
+   Desc.Pid = state->cr[3];
+   Desc.Name = QEMU::GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);;
+   Desc.LoadBase = LdrEntry.DllBase;
+   Desc.Size = LdrEntry.SizeOfImage;
+
+   DPRINTF("Detected module unload %s pid=%#"PRIx64" LoadBase=%#"PRIx64"\n",
+      Desc.Name.c_str(), Desc.Pid, Desc.LoadBase);
+
+   return true;
+}

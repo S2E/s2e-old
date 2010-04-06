@@ -61,6 +61,7 @@ public:
 
   bool CatchModuleLoad(void *CpuState);
   bool CatchProcessTermination(void *CpuState);
+  bool CatchModuleUnload(void *CpuState);
   
 };
 

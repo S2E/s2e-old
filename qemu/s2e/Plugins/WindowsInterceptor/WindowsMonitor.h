@@ -38,6 +38,7 @@ private:
     uint64_t m_KernelBase;
 
     bool m_MonitorModuleLoad;
+    bool m_MonitorModuleUnload;
     bool m_MonitorProcessUnload;
 
     WindowsUmInterceptor *m_UserModeInterceptor;
@@ -48,6 +49,7 @@ public:
 
     void slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc);
     void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);
+    void slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc);
     void slotKmExecuteBlockStart(S2EExecutionState *state, uint64_t pc);
 
@@ -55,6 +57,7 @@ public:
     uint64_t GetKernelStart() const;
     uint64_t GetLdrpCallInitRoutine() const;
     uint64_t GetNtTerminateProcessEProcessPoint() const;
+    uint64_t GetDllUnloadPc() const;
     bool CheckDriverLoad(uint64_t eip) const;
     bool CheckPanic(uint64_t eip) const;
     unsigned GetPointerSize() const;
