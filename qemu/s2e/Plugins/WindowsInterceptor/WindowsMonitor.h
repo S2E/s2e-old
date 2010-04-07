@@ -20,6 +20,7 @@ namespace s2e {
 namespace plugins {
 
 class WindowsUmInterceptor;
+class WindowsKmInterceptor;
 class WindowsSpy;
 
 class WindowsMonitor:public OSMonitor
@@ -42,25 +43,34 @@ private:
     bool m_MonitorProcessUnload;
 
     WindowsUmInterceptor *m_UserModeInterceptor;
+    WindowsKmInterceptor *m_KernelModeInterceptor;
 public:
     WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
     virtual ~WindowsMonitor();
     void initialize();
 
-    void slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc);
+    void slotTranslateInstructionStart(ExecutionSignal *signal, uint64_t pc);
     void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc);
-    void slotKmExecuteBlockStart(S2EExecutionState *state, uint64_t pc);
+    
+    void slotKmModuleLoad(S2EExecutionState *state, uint64_t pc);
+    void slotKmModuleUnload(S2EExecutionState *state, uint64_t pc);
 
     uint64_t GetUserAddressSpaceSize() const;
     uint64_t GetKernelStart() const;
     uint64_t GetLdrpCallInitRoutine() const;
     uint64_t GetNtTerminateProcessEProcessPoint() const;
     uint64_t GetDllUnloadPc() const;
-    bool CheckDriverLoad(uint64_t eip) const;
+    uint64_t GetDeleteDriverPc() const;
+    uint64_t GetDriverLoadPc() const;
+    
     bool CheckPanic(uint64_t eip) const;
     unsigned GetPointerSize() const;
+
+    EWinVer GetVersion() const {
+        return m_Version;
+    }
 
     WindowsSpy *getSpy() const {
         return NULL;

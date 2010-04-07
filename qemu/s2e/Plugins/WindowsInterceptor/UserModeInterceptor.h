@@ -52,8 +52,7 @@ private:
   int FindModules(void *CpuState);
   bool InitImports();
 
-  void NotifyProcessLoad();
-  void NotifyLibraryLoad(const ModuleDescriptor &Library);
+  void NotifyModuleLoad(const ModuleDescriptor &Library);
 
 public:
   WindowsUmInterceptor(WindowsMonitor *Monitor);

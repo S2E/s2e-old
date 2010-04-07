@@ -78,7 +78,7 @@ int WindowsUmInterceptor::FindModules(void *CpuState)
       if (m_LoadedLibraries.find(Desc) == m_LoadedLibraries.end()) {
         DPRINTF("  MODULE %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
         m_LoadedLibraries.insert(Desc);
-        NotifyLibraryLoad(Desc);
+        NotifyModuleLoad(Desc);
       }
       
     CurLib = CONTAINING_RECORD32(LdrEntry.InLoadOrderLinks.Flink, 
@@ -140,25 +140,7 @@ bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
 }
 
 
-void WindowsUmInterceptor::NotifyProcessLoad()
-{
-#if 0
-  WindowsImage Image(m_ProcBase);
-
-  ModuleDescriptor Desc;
-  Desc.Name = m_ProcessName;
-  Desc.NativeBase = Image.GetImageBase();
-  Desc.LoadBase = m_ProcBase;
-  Desc.Size = Image.GetImageSize();
-
-  const IExecutableImage::Imports &I = Image.GetImports();
-  const IExecutableImage::Exports &E = Image.GetExports();
-
-  m_Os->onProcessLoad.emit(Desc, I, E);
-#endif
-}
-
-void WindowsUmInterceptor::NotifyLibraryLoad(const ModuleDescriptor &Library)
+void WindowsUmInterceptor::NotifyModuleLoad(const ModuleDescriptor &Library)
 {
 
   ModuleDescriptor MD = Library;
@@ -180,9 +162,13 @@ bool WindowsUmInterceptor::CatchModuleLoad(void *CpuState)
 
 bool WindowsUmInterceptor::CatchProcessTermination(void *CpuState)
 {
-   CPUState *state = (CPUState *)CpuState;
+    uint64_t pEProcess;
+    CPUState *state = (CPUState *)CpuState;
 
-   uint64_t pEProcess = state->regs[R_EBX];
+   
+   assert(m_Os->GetVersion() == WindowsMonitor::SP3);
+   
+   pEProcess = state->regs[R_EBX];
    s2e::windows::EPROCESS32 EProcess;
 
    if (!QEMU::ReadVirtualMemory(pEProcess, &EProcess, sizeof(EProcess))) {
@@ -200,6 +186,8 @@ bool WindowsUmInterceptor::CatchModuleUnload(void *CpuState)
 {
    CPUState *state = (CPUState *)CpuState;
 
+   //XXX: This register is hard coded for XP SP3
+   assert(m_Os->GetVersion() == WindowsMonitor::SP3);
    uint64_t pLdrEntry = state->regs[R_ESI];
    s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
 
