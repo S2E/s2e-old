@@ -164,7 +164,7 @@ uint64_t WindowsMonitor::GetDllUnloadPc() const
 {
    switch(m_Version) {
     case SP2: assert (false && "Not implemented");
-    case SP3: return 0x7c91dfb3; //LdrDllUnload
+    case SP3: return 0x7c91e12a; //0x7c91dfb3; //LdrUnloadDll
    }
    assert(false && "Unknown OS version\n");
    return 0;

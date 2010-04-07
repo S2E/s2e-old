@@ -200,7 +200,7 @@ bool WindowsUmInterceptor::CatchModuleUnload(void *CpuState)
 {
    CPUState *state = (CPUState *)CpuState;
 
-   uint64_t pLdrEntry = state->regs[R_EBX];
+   uint64_t pLdrEntry = state->regs[R_ESI];
    s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
 
    if (!QEMU::ReadVirtualMemory(pLdrEntry, &LdrEntry, sizeof(LdrEntry))) {
@@ -216,6 +216,8 @@ bool WindowsUmInterceptor::CatchModuleUnload(void *CpuState)
 
    DPRINTF("Detected module unload %s pid=%#"PRIx64" LoadBase=%#"PRIx64"\n",
       Desc.Name.c_str(), Desc.Pid, Desc.LoadBase);
+
+   m_Os->onModuleUnload.emit(Desc);
 
    return true;
 }
