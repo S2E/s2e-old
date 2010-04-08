@@ -42,8 +42,12 @@ private:
     bool m_MonitorModuleUnload;
     bool m_MonitorProcessUnload;
 
+    bool m_FirstTime;
+
     WindowsUmInterceptor *m_UserModeInterceptor;
     WindowsKmInterceptor *m_KernelModeInterceptor;
+
+    sigc::connection m_SyscallConnection;
 public:
     WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
     virtual ~WindowsMonitor();
@@ -54,6 +58,7 @@ public:
     void slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc);
     
+    void slotKmUpdateModuleList(S2EExecutionState *state, uint64_t pc);
     void slotKmModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotKmModuleUnload(S2EExecutionState *state, uint64_t pc);
 
@@ -64,6 +69,8 @@ public:
     uint64_t GetDllUnloadPc() const;
     uint64_t GetDeleteDriverPc() const;
     uint64_t GetDriverLoadPc() const;
+    uint64_t GetSystemServicePc() const;
+    uint64_t GetPsActiveProcessListPtr() const;
     
     bool CheckPanic(uint64_t eip) const;
     unsigned GetPointerSize() const;

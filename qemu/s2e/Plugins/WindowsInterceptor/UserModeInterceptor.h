@@ -49,18 +49,19 @@ private:
   std::map<std::string, ModuleDescriptor> m_Modules;
 
   bool WaitForProcessInit(void *CpuState);
-  int FindModules(void *CpuState);
+  bool FindModules(S2EExecutionState *State);
   bool InitImports();
 
-  void NotifyModuleLoad(const ModuleDescriptor &Library);
+  void NotifyLoadedProcesses(S2EExecutionState *state);
+  void NotifyModuleLoad(S2EExecutionState *state, const ModuleDescriptor &Library);
 
 public:
   WindowsUmInterceptor(WindowsMonitor *Monitor);
   virtual ~WindowsUmInterceptor();
 
-  bool CatchModuleLoad(void *CpuState);
-  bool CatchProcessTermination(void *CpuState);
-  bool CatchModuleUnload(void *CpuState);
+  bool CatchModuleLoad(S2EExecutionState *State);
+  bool CatchProcessTermination(S2EExecutionState *State);
+  bool CatchModuleUnload(S2EExecutionState *State);
   
 };
 

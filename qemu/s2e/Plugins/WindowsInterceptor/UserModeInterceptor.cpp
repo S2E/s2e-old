@@ -1,3 +1,5 @@
+#define NDEBUG
+
 #include "UserModeInterceptor.h"
 #include "WindowsImage.h"
 
@@ -35,32 +37,66 @@ WindowsUmInterceptor::~WindowsUmInterceptor()
 
 }
 
-int WindowsUmInterceptor::FindModules(void *CpuState)
+#if 0
+/**
+ *  Cycle through the list of all loaded processes and notify the listeners
+ */
+bool WindowsUmInterceptor::NotifyLoadedProcesses(S2EExecutionState *state)
+{
+    s2e::windows::LIST_ENTRY32 ListHead;
+    uint64_t ActiveProcessList = m_Os->GetPsActiveProcessListPtr();
+    CPUState *cpuState = (CPUState *)state->getCpuState();
+
+    uint64_t pListHead = PsLoadedModuleList;
+    if (!QEMU::ReadVirtualMemory(ActiveProcessList, &ListHead, sizeof(ListHead))) {
+        return false;
+    }
+
+    for (pItem = ListHead.Flink; pItem != pListHead; ) {
+        uint32_t pProcessEntry = CONTAINING_RECORD32(pItem, s2e::windows::EPROCESS32, ActiveProcessLinks);
+        s2e::windows::EPROCESS32 ProcessEntry;
+
+        if (!QEMU::ReadVirtualMemory(pProcessEntry, &ProcessEntry, sizeof(ProcessEntry))) {
+            return false;
+        }
+
+        ModuleDescriptor desc;
+        QEMU::GetAsciiz(ProcessEntry.ImageFileName, desc.Name, sizeof(ProcessEntry.ImageFileName));
+        desc.Pid = ProcessEntry.Pcb.DirectoryTableBase;
+        desc.LoadBase = ProcessEntry.Pcb. LdrEntry.DllBase;
+        desc.Size = LdrEntry.SizeOfImage;
+
+
+    }
+}
+#endif
+
+bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
 {
   s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
   s2e::windows::PEB_LDR_DATA32 LdrData;
-  CPUState *State = (CPUState*)CpuState;
-  int Result = 0;
+  CPUState *cpuState = (CPUState*)state->getCpuState();
 
-  if (!WaitForProcessInit(CpuState)) {
-    return -1;
+  if (!WaitForProcessInit(cpuState)) {
+    return false;
   }
 
   if (QEMU::ReadVirtualMemory(m_LdrAddr, &LdrData, sizeof(s2e::windows::PEB_LDR_DATA32)) < 0) {
-    return -1;
+    return false;
   }
 
   uint32_t CurLib = CONTAINING_RECORD32(LdrData.InLoadOrderModuleList.Flink, 
     s2e::windows::LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks);
 
   uint32_t HeadOffset = m_LdrAddr + offsetof(s2e::windows::PEB_LDR_DATA32, InLoadOrderModuleList);
-  if (LdrData.InLoadOrderModuleList.Flink == HeadOffset)
-    return -1;
+  if (LdrData.InLoadOrderModuleList.Flink == HeadOffset) {
+    return false;
+  }
 
   do {
     if (QEMU::ReadVirtualMemory(CurLib, &LdrEntry, sizeof(s2e::windows::LDR_DATA_TABLE_ENTRY32)) < 0 ) {
       DPRINTF("Could not read LDR_DATA_TABLE_ENTRY (%#x)\n", CurLib);
-      return Result;
+      return false;
     }
 
     std::string s = QEMU::GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);
@@ -68,24 +104,22 @@ int WindowsUmInterceptor::FindModules(void *CpuState)
     //if (m_SearchedModules.find(s) != m_SearchedModules.end()) {
       //Update the information about the library
       ModuleDescriptor Desc; 
-      Desc.Pid = State->cr[3];
+      Desc.Pid = cpuState->cr[3];
       Desc.Name = s;
       Desc.LoadBase = LdrEntry.DllBase;
       Desc.Size = LdrEntry.SizeOfImage;
       
-      Result = 1;
-      
       if (m_LoadedLibraries.find(Desc) == m_LoadedLibraries.end()) {
         DPRINTF("  MODULE %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
         m_LoadedLibraries.insert(Desc);
-        NotifyModuleLoad(Desc);
+        NotifyModuleLoad(state, Desc);
       }
       
     CurLib = CONTAINING_RECORD32(LdrEntry.InLoadOrderLinks.Flink, 
       s2e::windows::LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks);
   }while(LdrEntry.InLoadOrderLinks.Flink != HeadOffset);
 
-  return Result;
+  return true;
 }
 
 
@@ -140,35 +174,34 @@ bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
 }
 
 
-void WindowsUmInterceptor::NotifyModuleLoad(const ModuleDescriptor &Library)
+void WindowsUmInterceptor::NotifyModuleLoad(S2EExecutionState *state, const ModuleDescriptor &Library)
 {
 
   ModuleDescriptor MD = Library;
   
   WindowsImage Image(MD.LoadBase);
   MD.NativeBase = Image.GetImageBase();
-  const IExecutableImage::Imports &I = Image.GetImports();
-  const IExecutableImage::Exports &E = Image.GetExports();
-
-  m_Os->onModuleLoad.emit(MD, I, E);
+  MD.I = Image.GetImports();
+  MD.E = Image.GetExports();
+  m_Os->onModuleLoad.emit(state, MD);
 
 }
 
-bool WindowsUmInterceptor::CatchModuleLoad(void *CpuState)
+bool WindowsUmInterceptor::CatchModuleLoad(S2EExecutionState *State)
 {
-  FindModules(CpuState);
+  FindModules(State);
   return true;
 }
 
-bool WindowsUmInterceptor::CatchProcessTermination(void *CpuState)
+bool WindowsUmInterceptor::CatchProcessTermination(S2EExecutionState *State)
 {
     uint64_t pEProcess;
-    CPUState *state = (CPUState *)CpuState;
+    CPUState *cpuState = (CPUState *)State->getCpuState();
 
    
    assert(m_Os->GetVersion() == WindowsMonitor::SP3);
    
-   pEProcess = state->regs[R_EBX];
+   pEProcess = cpuState->regs[R_EBX];
    s2e::windows::EPROCESS32 EProcess;
 
    if (!QEMU::ReadVirtualMemory(pEProcess, &EProcess, sizeof(EProcess))) {
@@ -177,18 +210,18 @@ bool WindowsUmInterceptor::CatchProcessTermination(void *CpuState)
 
    DPRINTF("Process %#"PRIx32" %16s unloaded\n", EProcess.Pcb.DirectoryTableBase,
       EProcess.ImageFileName);
-   m_Os->onProcessUnload.emit(EProcess.Pcb.DirectoryTableBase);
+   m_Os->onProcessUnload.emit(State, EProcess.Pcb.DirectoryTableBase);
     
    return true;  
 }
 
-bool WindowsUmInterceptor::CatchModuleUnload(void *CpuState)
+bool WindowsUmInterceptor::CatchModuleUnload(S2EExecutionState *State)
 {
-   CPUState *state = (CPUState *)CpuState;
+   CPUState *cpuState = (CPUState *)State->getCpuState();
 
    //XXX: This register is hard coded for XP SP3
    assert(m_Os->GetVersion() == WindowsMonitor::SP3);
-   uint64_t pLdrEntry = state->regs[R_ESI];
+   uint64_t pLdrEntry = cpuState->regs[R_ESI];
    s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
 
    if (!QEMU::ReadVirtualMemory(pLdrEntry, &LdrEntry, sizeof(LdrEntry))) {
@@ -197,7 +230,7 @@ bool WindowsUmInterceptor::CatchModuleUnload(void *CpuState)
 
   
    ModuleDescriptor Desc; 
-   Desc.Pid = state->cr[3];
+   Desc.Pid = cpuState->cr[3];
    Desc.Name = QEMU::GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);;
    Desc.LoadBase = LdrEntry.DllBase;
    Desc.Size = LdrEntry.SizeOfImage;
@@ -205,7 +238,7 @@ bool WindowsUmInterceptor::CatchModuleUnload(void *CpuState)
    DPRINTF("Detected module unload %s pid=%#"PRIx64" LoadBase=%#"PRIx64"\n",
       Desc.Name.c_str(), Desc.Pid, Desc.LoadBase);
 
-   m_Os->onModuleUnload.emit(Desc);
+   m_Os->onModuleUnload.emit(State, Desc);
 
    return true;
 }

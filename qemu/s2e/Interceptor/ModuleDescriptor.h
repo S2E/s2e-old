@@ -5,10 +5,22 @@
 #include <inttypes.h>
 #include <string>
 #include <set>
+#include <map>
 #include <ostream>
 #include <iostream>
 
 #include <cstring>
+
+namespace s2e {
+
+//Maps the name of the exported function to its actual address
+typedef std::map<std::string,uint64_t> Exports;
+  
+//Maps the name of the function to its actual address
+typedef std::map<std::string, uint64_t> ImportedFunctions;
+  
+//Maps the library name to the set of functions it exports
+typedef std::map<std::string, ImportedFunctions > Imports;
 
 /**
  *  Characterizes whatever module can be loaded in the memory.
@@ -16,7 +28,7 @@
  */
 struct ModuleDescriptor
 {
-  uint64_t Pid;
+  uint64_t  Pid;
   
   //The name of the module (eg. MYAPP.EXE or DRIVER.SYS)
   std::string Name;
@@ -30,6 +42,9 @@ struct ModuleDescriptor
   
   //The size of the image of the module
   uint64_t Size;
+
+  Imports I;
+  Exports E;
 
   bool Contains(uint64_t RunTimeAddress) const {
     uint64_t RVA = RunTimeAddress - LoadBase;
@@ -59,5 +74,7 @@ struct ModuleDescriptor
 
   typedef std::set<struct ModuleDescriptor, ModuleByLoadBase> MDSet;
 };
+
+}
 
 #endif

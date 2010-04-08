@@ -21,14 +21,16 @@ private:
   WindowsMonitor *m_Os;
 
   bool GetDriverDescriptor(uint64_t pDriverObject, ModuleDescriptor &Desc);
-  void NotifyDriverLoad(ModuleDescriptor &Desc);
-  void NotifyDriverUnload(const ModuleDescriptor &Desc);
+  void NotifyDriverLoad(S2EExecutionState *state, ModuleDescriptor &Desc);
+  void NotifyDriverUnload(S2EExecutionState *state, const ModuleDescriptor &Desc);
 public:
   WindowsKmInterceptor(WindowsMonitor *Monitor);
   virtual ~WindowsKmInterceptor();
 
-  bool CatchModuleLoad(void *CpuState);
-  bool CatchModuleUnload(void *CpuState);
+  bool CatchModuleLoad(S2EExecutionState *state);
+  bool CatchModuleUnload(S2EExecutionState *state);
+  bool ReadModuleList(S2EExecutionState *state);
+
   
 };
 

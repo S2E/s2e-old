@@ -380,7 +380,9 @@ typedef struct _DRIVER_OBJECT32
   UNICODE_STRING32 DriverName;
 }DRIVER_OBJECT32, *PDRIVER_OBJECT32;
 
-
+#define KPCR_OFFSET 0xFFDFF000
+#define KD_VERSION_BLOCK (KPCR_OFFSET + 0x34)
+#define PS_LOADED_MODULE_LIST_OFFSET 0x70 //Inside the kd version block
 #define KPRCB_OFFSET 0xFFDFF120
 #define IRQL_OFFSET 0xFFDFF124
 #define PEB_OFFSET 0x7FFDF000
@@ -495,6 +497,9 @@ typedef struct _KPRCB32 {
 
 } KPRCB32;
 
+
+
+
 } //namespace windows
 } //namespace s2e
 
@@ -502,7 +507,8 @@ typedef struct _KPRCB32 {
 /****************************************************************/
 /****************************************************************/
 
-#include <s2e/interceptor/ExecutableImage.h>
+#include <s2e/Interceptor/ExecutableImage.h>
+#include <s2e/Interceptor/ModuleDescriptor.h>
 
 namespace s2e
 {

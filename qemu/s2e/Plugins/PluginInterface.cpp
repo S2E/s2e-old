@@ -3,6 +3,7 @@
 
 #include <s2e/QemuKleeGlue.h>
 #include <sstream>
+#include <iostream>
 
 #ifdef CONFIG_WIN32
 #include <windows.h>

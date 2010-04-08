@@ -2,8 +2,10 @@
 
 #define _IMAGE_H_
 
+
 #include <map>
 #include <iostream>
+
 
 namespace s2e {
 
@@ -16,14 +18,6 @@ namespace s2e {
 struct IExecutableImage
 {
 public:
-  //Maps the name of the exported function to its actual address
-  typedef std::map<std::string,uint64_t> Exports;
-  
-  //Maps the name of the function to its actual address
-  typedef std::map<std::string, uint64_t> ImportedFunctions;
-  
-  //Maps the library name to the set of functions it exports
-  typedef std::map<std::string, ImportedFunctions > Imports;
 
 
 public:
@@ -42,6 +36,9 @@ public:
 
 };
 
-}
 
+
+}
 #endif
+
+

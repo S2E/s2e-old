@@ -4,6 +4,7 @@
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/Example.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
+#include <s2e/Plugins/ModuleTransitionDetector.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -23,6 +24,7 @@ PluginsFactory::PluginsFactory()
 
     __S2E_REGISTER_PLUGIN(CorePlugin);
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
+    __S2E_REGISTER_PLUGIN(plugins::ModuleTransitionDetector);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 
 #undef __S2E_REGISTER_PLUGIN

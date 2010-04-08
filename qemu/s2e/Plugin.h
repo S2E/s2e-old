@@ -35,6 +35,17 @@ public:
 
 };
 
+#define DECLARE_PLUGINSTATE(c, execstate) \
+    c *plgState = (c*)(execstate->getPluginState(this, &c::factory))
+
+class PluginState
+{
+public:
+    virtual ~PluginState() {};
+    virtual PluginState *clone() const = 0;
+};
+
+
 struct PluginInfo {
     /** Unique name of the plugin */
     std::string name;

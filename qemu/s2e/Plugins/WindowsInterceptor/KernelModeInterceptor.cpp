@@ -1,3 +1,5 @@
+#define NDEBUG
+
 #include "KernelModeInterceptor.h"
 #include "WindowsImage.h"
 
@@ -30,22 +32,75 @@ WindowsKmInterceptor::~WindowsKmInterceptor()
 
 }
 
-void WindowsKmInterceptor::NotifyDriverLoad(ModuleDescriptor &Desc)
+void WindowsKmInterceptor::NotifyDriverLoad(S2EExecutionState *State, ModuleDescriptor &Desc)
 {
     WindowsImage Image(Desc.LoadBase);
 
     Desc.Pid = 0;
     Desc.NativeBase = Image.GetImageBase();
+    Desc.Size = Image.GetImageSize();
 
-    const IExecutableImage::Imports &I = Image.GetImports();
-    const IExecutableImage::Exports &E = Image.GetExports();
+    Desc.I = Image.GetImports();
+    Desc.E = Image.GetExports();
 
-    m_Os->onModuleLoad.emit(Desc, I, E);
+    m_Os->onModuleLoad.emit(State, Desc);
 }
 
-void WindowsKmInterceptor::NotifyDriverUnload(const ModuleDescriptor &Desc)
+void WindowsKmInterceptor::NotifyDriverUnload(S2EExecutionState *State, const ModuleDescriptor &Desc)
 {
-    m_Os->onModuleUnload.emit(Desc);
+    m_Os->onModuleUnload.emit(State, Desc);
+}
+
+bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
+{
+    uint32_t pListHead, pItem, pModuleEntry;
+    uint32_t PsLoadedModuleList;
+    s2e::windows::LIST_ENTRY32 ListHead;
+    s2e::windows::MODULE_ENTRY32 ModuleEntry;
+    uint32_t KdVersionBlock;
+
+    if (!QEMU::ReadVirtualMemory(KD_VERSION_BLOCK, &KdVersionBlock, sizeof(KdVersionBlock))) {
+        return false;
+    }
+
+    //PsLoadedModuleList = KdVersionBlock + PS_LOADED_MODULE_LIST_OFFSET;
+    if (!QEMU::ReadVirtualMemory(KdVersionBlock + PS_LOADED_MODULE_LIST_OFFSET, &PsLoadedModuleList, sizeof(PsLoadedModuleList))) {
+        return false;
+    }
+
+    pListHead = PsLoadedModuleList;
+    if (!QEMU::ReadVirtualMemory(PsLoadedModuleList, &ListHead, sizeof(ListHead))) {
+        return false;
+    }
+
+    
+    for (pItem = ListHead.Flink; pItem != pListHead; ) {
+        pModuleEntry = pItem;
+        
+        if (QEMU::ReadVirtualMemory(pModuleEntry, &ModuleEntry, sizeof(ModuleEntry)) < 0) {
+            std::cout << "Could not load MODULE_ENTRY" << std::endl;
+            return false;
+        }
+
+        DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base, 
+            0, ModuleName.c_str());
+
+        ModuleDescriptor desc;
+        desc.Pid = 0;
+        desc.Name = QEMU::GetUnicode(ModuleEntry.driver_Name.Buffer, ModuleEntry.driver_Name.Length);
+        desc.NativeBase = 0; // Image.GetImageBase();
+        desc.LoadBase = ModuleEntry.driver_start; 
+
+        NotifyDriverLoad(state, desc);
+
+        pItem = ListHead.Flink;
+        if (!QEMU::ReadVirtualMemory(ListHead.Flink, &ListHead, sizeof(ListHead))) {
+            return false;
+        }
+    }
+
+    return true;
+
 }
 
 bool WindowsKmInterceptor::GetDriverDescriptor(uint64_t pDriverObject, ModuleDescriptor &Desc)
@@ -92,14 +147,14 @@ bool WindowsKmInterceptor::GetDriverDescriptor(uint64_t pDriverObject, ModuleDes
     return true;
 }
 
-bool WindowsKmInterceptor::CatchModuleLoad(void *CpuState)
+bool WindowsKmInterceptor::CatchModuleLoad(S2EExecutionState *state)
 {
-    CPUState *state = (CPUState *)CpuState;
+   CPUState *cpuState = (CPUState *)state->getCpuState();
     assert(m_Os->GetVersion() == WindowsMonitor::SP3);
 
     uint64_t pDriverObject;
 
-    if (!QEMU::ReadVirtualMemory(state->regs[R_ESP], &pDriverObject, m_Os->GetPointerSize())) {
+    if (!QEMU::ReadVirtualMemory(cpuState->regs[R_ESP], &pDriverObject, m_Os->GetPointerSize())) {
         return false;
     }
 
@@ -108,22 +163,22 @@ bool WindowsKmInterceptor::CatchModuleLoad(void *CpuState)
         return false;
     }
 
-    ModuleDescriptor Desc;
-    if (!GetDriverDescriptor(pDriverObject, Desc)) {
+    ModuleDescriptor desc;
+    if (!GetDriverDescriptor(pDriverObject, desc)) {
         return false;
     }
 
-    NotifyDriverLoad(Desc);
+    NotifyDriverLoad(state, desc);
     return true;
 }
 
-bool WindowsKmInterceptor::CatchModuleUnload(void *CpuState)
+bool WindowsKmInterceptor::CatchModuleUnload(S2EExecutionState *state)
 {
-    CPUState *state = (CPUState *)CpuState;
+    CPUState *cpuState = (CPUState *)state->getCpuState();
 
     uint64_t pDriverObject;
 
-    if (!QEMU::ReadVirtualMemory(state->regs[R_ESP] + 4, &pDriverObject, m_Os->GetPointerSize())) {
+    if (!QEMU::ReadVirtualMemory(cpuState->regs[R_ESP] + 4, &pDriverObject, m_Os->GetPointerSize())) {
         return false;
     }
 
@@ -132,12 +187,12 @@ bool WindowsKmInterceptor::CatchModuleUnload(void *CpuState)
         return false;
     }
 
-    ModuleDescriptor Desc;
-    if (!GetDriverDescriptor(pDriverObject, Desc)) {
+    ModuleDescriptor desc;
+    if (!GetDriverDescriptor(pDriverObject, desc)) {
         return false;
     }
 
-    NotifyDriverUnload(Desc);
+    NotifyDriverUnload(state, desc);
     
     return true;
 }

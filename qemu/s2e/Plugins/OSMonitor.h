@@ -3,8 +3,9 @@
 #define __MODULE_MONITOR_PLUGIN_H__
 
 #include <s2e/Plugin.h>
+#include <s2e/S2EExecutionState.h>
 
-#include <s2e/Interceptor/ExecutableImage.h>
+
 
 namespace s2e {
 namespace plugins {
@@ -13,13 +14,12 @@ namespace plugins {
    {
    public:
       sigc::signal<void, 
-         const ModuleDescriptor,
-         const IExecutableImage::Imports,
-         const IExecutableImage::Exports
+         S2EExecutionState*,
+         const ModuleDescriptor &
       >onModuleLoad;
 
-      sigc::signal<void, const ModuleDescriptor> onModuleUnload;
-      sigc::signal<void, uint64_t> onProcessUnload;
+      sigc::signal<void, S2EExecutionState*, const ModuleDescriptor &> onModuleUnload;
+      sigc::signal<void, S2EExecutionState*, uint64_t> onProcessUnload;
    protected:
       OSMonitor(S2E* s2e): Plugin(s2e) {}
 

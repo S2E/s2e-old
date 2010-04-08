@@ -38,10 +38,11 @@ void s2e_tb_free(TranslationBlock *tb)
     }
 }
 
+static S2EExecutionState state;
 void s2e_tcg_execution_handler(
         ExecutionSignal* signal, CPUX86State *env, uint64_t pc)
 {
-    S2EExecutionState state(env);
+    state.setCpuState(env);
     signal->emit(&state, pc);
 }
 

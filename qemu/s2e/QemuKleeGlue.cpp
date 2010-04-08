@@ -1,3 +1,5 @@
+#define NDEBUG
+
 #include "QemuKleeGlue.h"
 
 #include <s2e/Utils.h>
@@ -65,7 +67,7 @@ void QEMU::DumpVirtualMemory(uint64_t Addr, unsigned Length)
 
 }
 
-bool QEMU::GetAsciiz(uint64_t base, std::string &ret)
+bool QEMU::GetAsciiz(uint64_t base, std::string &ret, unsigned MaxLen)
 {
 	char c;
 	unsigned i=0;
@@ -82,7 +84,7 @@ bool QEMU::GetAsciiz(uint64_t base, std::string &ret)
 			break;
 		}
 		i++;
-	}while(i<256);
+	}while(i<MaxLen);
 
 	return true;
 }
@@ -153,7 +155,7 @@ uint64_t QEMU::GetPhysAddr(uint64_t va)
 
 /** 
  *  Reads an integer from the guest's VM.
- *  XXX:Take into account the indianness of the host and of the target.
+ *  XXX:Take into account the endianness of the host and of the target.
  */
 bool QEMU::ReadInteger(uint64_t Addr, unsigned Size, uint64_t &Result)
 {

@@ -11,7 +11,7 @@ namespace s2e {
 class QEMU
 {
 public:
-  static bool GetAsciiz(uint64_t Addr, std::string &Ret);
+  static bool GetAsciiz(uint64_t Addr, std::string &Ret, unsigned MaxLen=256);
   static std::string GetUnicode(uint64_t Addr, unsigned Length);
   static bool ReadVirtualMemory(uint64_t Addr, void *Buffer, unsigned Length);
   static uint64_t GetPhysAddr(uint64_t va);

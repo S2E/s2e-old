@@ -1,4 +1,7 @@
+#define NDEBUG
+
 #include <s2e/s2e.h>
+#include <s2e/Utils.h>
 #include <s2e/ConfigFile.h>
 #include "WindowsMonitor.h"
 #include "UserModeInterceptor.h"
@@ -38,7 +41,8 @@ void WindowsMonitor::initialize()
     m_MonitorModuleUnload = s2e()->getConfig()->getBool(getConfigKey() + ".monitorModuleUnload");
     m_MonitorProcessUnload = s2e()->getConfig()->getBool(getConfigKey() + ".monitorProcessUnload");
 
-    m_KernelBase = 0x80000000;
+    m_KernelBase = GetKernelStart();
+    m_FirstTime = true;
 
     if (!strcasecmp(Version.c_str(), "SP2")) {
         m_Version = WindowsMonitor::SP2;
@@ -70,19 +74,21 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal, uint
 {
     if(m_UserMode) {
         if (pc == GetLdrpCallInitRoutine() && m_MonitorModuleLoad) {
-            std::cout << "Basic block for LdrpCallInitRoutine " << std::hex << pc << std::dec << std::endl;
+            DPRINTF("Basic block for LdrpCallInitRoutine %#"PRIx64"\n", pc);
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchModuleLoad));
         }else if (pc == GetNtTerminateProcessEProcessPoint() && m_MonitorProcessUnload) {
-            std::cout << "Basic block for NtTerminateProcess " << std::hex << pc << std::dec << std::endl;
+            DPRINTF("Basic block for NtTerminateProcess %#"PRIx64"\n", pc);
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchProcessTermination));
         }else if (pc == GetDllUnloadPc() && m_MonitorModuleUnload) {
-            std::cout << "Basic block for dll unload " << std::hex << pc << std::dec << std::endl;
+            DPRINTF("Basic block for Dll unload %#"PRIx64"\n", pc);
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchModuleUnload));
         }
     }
 
     if(m_KernelMode) {
-        if (pc == GetDriverLoadPc()) {
+        if (pc == GetSystemServicePc() && m_FirstTime) {
+            m_SyscallConnection = signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmUpdateModuleList));
+        }if (pc == GetDriverLoadPc()) {
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmModuleLoad));
         }else if (pc == GetDeleteDriverPc()) {
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmModuleUnload));
@@ -92,32 +98,47 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal, uint
 
 void WindowsMonitor::slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc)
 {
-    std::cout << "User mode module load at " << std::hex << pc << std::dec << std::endl;
-    m_UserModeInterceptor->CatchModuleLoad(state->getCpuState());
+    DPRINTF("User mode module load at %#"PRIx64"\n", pc);
+    m_UserModeInterceptor->CatchModuleLoad(state);
 }
 
 void WindowsMonitor::slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc)
 {
-    std::cout << "User mode module unload at " << std::hex << pc << std::dec << std::endl;
-    m_UserModeInterceptor->CatchModuleUnload(state->getCpuState());
+    DPRINTF("User mode module unload at %#"PRIx64"\n", pc);
+    m_UserModeInterceptor->CatchModuleUnload(state);
 }
 
 void WindowsMonitor::slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc)
 {
-    std::cout << "Caught process termination" << std::endl;
-    m_UserModeInterceptor->CatchProcessTermination(state->getCpuState());
+    DPRINTF("Caught process termination\n");
+    m_UserModeInterceptor->CatchProcessTermination(state);
 }
 
 void WindowsMonitor::slotKmModuleLoad(S2EExecutionState *state, uint64_t pc)
 {
-    std::cout << "Kernel mode module load at " << std::hex << pc << std::endl;
-    m_KernelModeInterceptor->CatchModuleLoad(state->getCpuState());
+    DPRINTF("Kernel mode module load at %#"PRIx64"\n", pc);
+    m_KernelModeInterceptor->CatchModuleLoad(state);
 }
 
 void WindowsMonitor::slotKmModuleUnload(S2EExecutionState *state, uint64_t pc)
 {
-    std::cout << "Kernel mode module unload" << std::endl;
-    m_KernelModeInterceptor->CatchModuleUnload(state->getCpuState());
+    DPRINTF("Kernel mode module unload at %#"PRIx64"\n", pc);
+    m_KernelModeInterceptor->CatchModuleUnload(state);
+}
+
+/**
+ *  Scans the list of kernel modules and registers each entry.
+ *  This is useful in case the VM snapshot was resumed (and all
+ *  the modules are already loaded, but not registered with S2E).
+ */
+void WindowsMonitor::slotKmUpdateModuleList(S2EExecutionState *state, uint64_t pc)
+{
+    DPRINTF("Kernel mode module update at %#"PRIx64"\n", pc);
+    if (m_KernelModeInterceptor->ReadModuleList(state)) {
+        //List updated, unregister
+        m_SyscallConnection.disconnect();
+        m_FirstTime = false;
+    }
 }
 
 uint64_t WindowsMonitor::GetDriverLoadPc() const
@@ -193,6 +214,16 @@ uint64_t WindowsMonitor::GetDeleteDriverPc() const
     return 0;
 }
 
+uint64_t WindowsMonitor::GetSystemServicePc() const
+{
+    switch(m_Version) {
+    case SP2: assert (false && "Not implemented");
+    case SP3: return (0x00407631 - 0x400000 + 0x804d7000);
+    }
+    assert(false && "Unknown OS version\n");
+    return 0;
+}
+
 uint64_t WindowsMonitor::GetDllUnloadPc() const
 {
     switch(m_Version) {
@@ -203,3 +234,12 @@ uint64_t WindowsMonitor::GetDllUnloadPc() const
     return 0;
 }
 
+uint64_t WindowsMonitor::GetPsActiveProcessListPtr() const
+{
+    switch(m_Version) {
+    case SP2: assert (false && "Not implemented");
+    case SP3: return (0x0048A358 - 0x400000 + 0x804d7000);
+    }
+    assert(false && "Unknown OS version\n");
+    return 0;
+}
