@@ -62,6 +62,10 @@ public:
     void slotKmModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotKmModuleUnload(S2EExecutionState *state, uint64_t pc);
 
+    virtual bool getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I);
+    virtual bool getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E);
+
+
     uint64_t GetUserAddressSpaceSize() const;
     uint64_t GetKernelStart() const;
     uint64_t GetLdrpCallInitRoutine() const;

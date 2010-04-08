@@ -529,10 +529,12 @@ private:
 
   /* Stores the relative addresses of all exported functions */
   Exports m_Exports;
+  bool m_ExportsInited;
   
   /* We assume for now that there are no name collisions between
    * function with the same name in different libraries */
   Imports m_Imports;
+  bool m_ImportsInited;
 
   int InitImports();
   int InitExports();
@@ -565,12 +567,20 @@ public:
   }
 
 
-  virtual const Exports& GetExports() const {
-    return m_Exports; 
+  virtual const Exports& GetExports() {
+      if (!m_ExportsInited) {
+          InitExports();
+          m_ExportsInited = true;
+      }
+      return m_Exports; 
   }
 
-  virtual const Imports& GetImports() const {
-    return m_Imports;
+  virtual const Imports& GetImports() {
+      if (!m_ImportsInited) {
+        InitImports();
+        m_ImportsInited = true;
+      }
+      return m_Imports;
   }
   
   virtual void DumpInfo(std::iostream &os) const;

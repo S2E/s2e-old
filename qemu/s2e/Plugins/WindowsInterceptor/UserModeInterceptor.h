@@ -53,7 +53,7 @@ private:
   bool InitImports();
 
   void NotifyLoadedProcesses(S2EExecutionState *state);
-  void NotifyModuleLoad(S2EExecutionState *state, const ModuleDescriptor &Library);
+  void NotifyModuleLoad(S2EExecutionState *state, ModuleDescriptor &Library);
 
 public:
   WindowsUmInterceptor(WindowsMonitor *Monitor);

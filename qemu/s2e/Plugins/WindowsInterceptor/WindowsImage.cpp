@@ -50,8 +50,8 @@ WindowsImage::WindowsImage(uint64_t Base)
     m_ImageBase = NtHeader.OptionalHeader.ImageBase;
     m_EntryPoint = NtHeader.OptionalHeader.AddressOfEntryPoint;
 
-    InitExports();
-    InitImports();
+    m_ImportsInited = false;
+    m_ExportsInited = false;
 }
 
 int WindowsImage::InitExports()

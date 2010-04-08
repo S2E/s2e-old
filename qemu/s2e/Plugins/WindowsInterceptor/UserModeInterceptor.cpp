@@ -174,17 +174,11 @@ bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
 }
 
 
-void WindowsUmInterceptor::NotifyModuleLoad(S2EExecutionState *state, const ModuleDescriptor &Library)
+void WindowsUmInterceptor::NotifyModuleLoad(S2EExecutionState *state, ModuleDescriptor &Library)
 {
-
-  ModuleDescriptor MD = Library;
-  
-  WindowsImage Image(MD.LoadBase);
-  MD.NativeBase = Image.GetImageBase();
-  MD.I = Image.GetImports();
-  MD.E = Image.GetExports();
-  m_Os->onModuleLoad.emit(state, MD);
-
+  WindowsImage Image(Library.LoadBase);
+  Library.NativeBase = Image.GetImageBase();
+  m_Os->onModuleLoad.emit(state, Library);
 }
 
 bool WindowsUmInterceptor::CatchModuleLoad(S2EExecutionState *State)

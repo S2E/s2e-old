@@ -4,6 +4,7 @@
 #include <s2e/Utils.h>
 #include <s2e/ConfigFile.h>
 #include "WindowsMonitor.h"
+#include "WindowsImage.h"
 #include "UserModeInterceptor.h"
 #include "KernelModeInterceptor.h"
 
@@ -11,6 +12,13 @@
 #include <cstring>
 #include <iostream>
 #include <assert.h>
+
+extern "C" {
+#include "config.h"
+#include "cpu.h"
+#include "exec-all.h"
+#include "qemu-common.h"
+}
 
 using namespace std;
 
@@ -141,6 +149,31 @@ void WindowsMonitor::slotKmUpdateModuleList(S2EExecutionState *state, uint64_t p
     }
 }
 
+bool WindowsMonitor::getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I)
+{
+    CPUState *cpuState = (CPUState *)s->getCpuState();
+    if (desc.Pid && cpuState->cr[3] != desc.Pid) {
+        return false;
+    }
+
+    WindowsImage Img(desc.LoadBase);
+    I = Img.GetImports();
+    return true;
+}
+
+bool WindowsMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E)
+{
+    CPUState *cpuState = (CPUState *)s->getCpuState();
+    if (desc.Pid && cpuState->cr[3] != desc.Pid) {
+        return false;
+    }
+
+    WindowsImage Img(desc.LoadBase);
+    E = Img.GetExports();
+    return true;
+}
+
+
 uint64_t WindowsMonitor::GetDriverLoadPc() const
 {
     switch(m_Version) {
@@ -243,3 +276,4 @@ uint64_t WindowsMonitor::GetPsActiveProcessListPtr() const
     assert(false && "Unknown OS version\n");
     return 0;
 }
+

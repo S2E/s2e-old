@@ -33,6 +33,41 @@ void ModuleTransitionDetector::initialize()
     m_Monitor->onProcessUnload.connect(
         sigc::mem_fun(*this, 
         &ModuleTransitionDetector::processUnloadListener));
+
+    s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+        sigc::mem_fun(*this, 
+        &ModuleTransitionDetector::slotTranslateBlockStart));
+}
+
+void ModuleTransitionDetector::slotTranslateBlockStart(
+    ExecutionSignal *signal, uint64_t pc)
+{
+    signal->connect(sigc::mem_fun(*this, 
+        &ModuleTransitionDetector::slotTbExecStart));
+}
+
+void ModuleTransitionDetector::slotTbExecStart(
+    S2EExecutionState *state, uint64_t pc)
+{
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+
+    //Get the module descriptor
+    if (plgState->m_PreviousModule) {
+        uint64_t prevModStart = plgState->m_PreviousModule->LoadBase;
+        uint64_t prevModSize = plgState->m_PreviousModule->Size;
+        if (pc >= prevModStart && pc < prevModStart + prevModSize) {
+            //We stayed in the same module
+            return;
+        }
+    }
+
+    const ModuleDescriptor *currentModule = NULL;
+
+    if (plgState->m_PreviousModule != currentModule) {
+        //onModuleTransition.emit(state, plgState->m_PreviousModule,
+          //  currentModule);
+        plgState->m_PreviousModule = currentModule;
+    }
 }
 
 void ModuleTransitionDetector::moduleLoadListener(
@@ -73,16 +108,17 @@ void ModuleTransitionDetector::processUnloadListener(
 
 ModuleTransitionState::ModuleTransitionState()
 {
-
+    m_PreviousModule = NULL;
 }
 
 ModuleTransitionState::~ModuleTransitionState()
 {
-
+    assert(false && "Not implemented");
 }
 
 ModuleTransitionState* ModuleTransitionState::clone() const
 {
+    assert(false && "Not implemented");
     return NULL;
 }
 

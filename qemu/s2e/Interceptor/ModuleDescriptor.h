@@ -43,9 +43,7 @@ struct ModuleDescriptor
   //The size of the image of the module
   uint64_t Size;
 
-  Imports I;
-  Exports E;
-
+  
   bool Contains(uint64_t RunTimeAddress) const {
     uint64_t RVA = RunTimeAddress - LoadBase;
     return RVA < Size;

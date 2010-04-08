@@ -28,9 +28,9 @@ public:
   virtual uint64_t GetEntryPoint() const = 0; 
   virtual uint64_t GetRoundedImageSize() const = 0;
 
-  virtual const Exports& GetExports() const = 0;
+  virtual const Exports& GetExports() = 0;
 
-  virtual const Imports& GetImports() const = 0;
+  virtual const Imports& GetImports() = 0;
   
   virtual void DumpInfo(std::iostream &os) const = 0;
 

@@ -10,23 +10,24 @@
 namespace s2e {
 namespace plugins {
 
-   class OSMonitor:public Plugin
-   {
-   public:
-      sigc::signal<void, 
-         S2EExecutionState*,
-         const ModuleDescriptor &
-      >onModuleLoad;
+class OSMonitor:public Plugin
+{
+public:
+   sigc::signal<void, 
+      S2EExecutionState*,
+      const ModuleDescriptor &
+   >onModuleLoad;
 
-      sigc::signal<void, S2EExecutionState*, const ModuleDescriptor &> onModuleUnload;
-      sigc::signal<void, S2EExecutionState*, uint64_t> onProcessUnload;
-   protected:
-      OSMonitor(S2E* s2e): Plugin(s2e) {}
+   sigc::signal<void, S2EExecutionState*, const ModuleDescriptor &> onModuleUnload;
+   sigc::signal<void, S2EExecutionState*, uint64_t> onProcessUnload;
+protected:
+   OSMonitor(S2E* s2e): Plugin(s2e) {}
 
-   public:
+public:
+   virtual bool getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I) = 0;
+   virtual bool getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E) = 0;
 
-
-   };
+};
 
 } // namespace plugins
 } // namespace s2e

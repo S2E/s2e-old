@@ -31,6 +31,9 @@ public:
     virtual ~ModuleTransitionDetector();
     void initialize();
 
+    void slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc);
+    void slotTbExecStart(S2EExecutionState *state, uint64_t pc);
+
     void moduleLoadListener(
         S2EExecutionState* state,
         const ModuleDescriptor &module
@@ -50,8 +53,14 @@ class ModuleTransitionState:public PluginState
 {
 private:
     ModuleDescriptor::MDSet m_LoadedModules;
-    
+    const ModuleDescriptor *m_PreviousModule;
 public:
+    sigc::signal<void, 
+      S2EExecutionState*,
+      const ModuleDescriptor*, //PreviousModule
+      const ModuleDescriptor*  //NewModule
+    >onModuleTransition;
+
     ModuleTransitionState();
     virtual ~ModuleTransitionState();
     virtual ModuleTransitionState* clone() const;
