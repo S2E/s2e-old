@@ -139,6 +139,7 @@ struct AvdInfo {
     char*     contentPath;
     IniFile*  rootIni;      /* root <foo>.ini file */
     IniFile*  configIni;    /* virtual device's config.ini */
+    IniFile*  hardwareIni;  /* skin-specific hardware.ini */
 
     /* for both */
     char*     skinName;     /* skin name */
@@ -170,6 +171,11 @@ avdInfo_free( AvdInfo*  i )
         if (i->configIni) {
             iniFile_free(i->configIni);
             i->configIni = NULL;
+        }
+
+        if (i->hardwareIni) {
+            iniFile_free(i->hardwareIni);
+            i->hardwareIni = NULL;
         }
 
         if (i->rootIni) {
@@ -1328,6 +1334,30 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
     return 0;
 }
 
+/* Read a hardware.ini if it is located in the skin directory */
+static int
+_getBuildHardwareIni( AvdInfo*  i )
+{
+    char  temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+
+    if (i->skinDirPath == NULL || i->skinName == NULL)
+        return 0;
+
+    p = bufprint(temp, end, "%s/%s/hardware.ini", i->skinDirPath, i->skinName);
+    if (p >= end || !path_exists(temp)) {
+        DD("no skin-specific hardware.ini in %s", i->skinDirPath);
+        return 0;
+    }
+
+    D("found skin-specific hardware.ini: %s", temp);
+    i->hardwareIni = iniFile_newFromFile(temp);
+    if (i->hardwareIni == NULL)
+        return -1;
+
+    return 0;
+}
+
+
 AvdInfo*
 avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
                             const char*     androidOut,
@@ -1351,6 +1381,7 @@ avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
 
     /* we don't need to fail if there is no valid skin */
     _getBuildSkin(i, params);
+    _getBuildHardwareIni(i);
 
     return i;
 
@@ -1423,6 +1454,10 @@ avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw )
 
     if (ini != i->configIni)
         iniFile_free(ini);
+
+    if (ret == 0 && i->hardwareIni != NULL) {
+        ret = androidHwConfig_read(hw, i->hardwareIni);
+    }
 
     /* special product-specific hardware configuration */
     if (i->androidOut != NULL)
