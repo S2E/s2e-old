@@ -23,6 +23,9 @@ private:
     /* Fake data type for list size */
     struct _list_size { int size; };
 
+    struct _key_list { std::vector<std::string> keys; };
+
+
     /* Helper to get C++ type name */
     template<typename T>
     const char* getTypeName();
@@ -61,6 +64,9 @@ public:
     string_list getStringList(const std::string& name,
                     const string_list& def = string_list(), bool *ok = NULL);
 
+    string_list getKeyList(const std::string& name, 
+        const string_list& def = string_list(), bool *ok = NULL);
+    
     /* Return the size of the list. Works for all types of
        lua lists just like '#' operator in lua. */
     int getListSize(const std::string& name, bool *ok = NULL);

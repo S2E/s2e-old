@@ -277,3 +277,17 @@ uint64_t WindowsMonitor::GetPsActiveProcessListPtr() const
     return 0;
 }
 
+bool WindowsMonitor::isKernelAddress(uint64_t pc) const
+{
+    //XXX: deal with large address space awareness
+    return pc >= GetKernelStart();
+}
+
+uint64_t WindowsMonitor::getPid(S2EExecutionState *s, uint64_t pc)
+{
+    CPUState *cpuState = (CPUState *)s->getCpuState();
+    if (pc >= GetKernelStart()) {
+        return 0;
+    }
+    return cpuState->cr[3];
+}

@@ -11,13 +11,20 @@ namespace s2e {
 
 class S2E;
 struct PluginInfo;
+class PluginState;
+class S2EExecutionState;
 
 class Plugin : public sigc::trackable{
 private:
     S2E* m_s2e;
+protected:
+    PluginState *m_CachedPluginState;
+    S2EExecutionState *m_CachedPluginS2EState;
 
 public:
-    Plugin(S2E* s2e) : m_s2e(s2e) {}
+    Plugin(S2E* s2e) : m_s2e(s2e),m_CachedPluginState(NULL),
+        m_CachedPluginS2EState(NULL) {}
+
     virtual ~Plugin() {}
 
     /** Return assosiated S2E instance */
@@ -33,10 +40,12 @@ public:
     /** Return configuration key for this plugin */
     const std::string& getConfigKey() const;
 
+    PluginState *getPluginState(S2EExecutionState *s, PluginState* (*f)());
+
 };
 
 #define DECLARE_PLUGINSTATE(c, execstate) \
-    c *plgState = (c*)(execstate->getPluginState(this, &c::factory))
+    c *plgState = (c*)getPluginState(execstate, &c::factory)
 
 class PluginState
 {

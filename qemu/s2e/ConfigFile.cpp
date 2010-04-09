@@ -50,6 +50,11 @@ const char* ConfigFile::getTypeName<ConfigFile::string_list>() {
 }
 
 template<> inline
+const char* ConfigFile::getTypeName<ConfigFile::_key_list>() {
+  return "_key_list";
+}
+
+template<> inline
 const char* ConfigFile::getTypeName<ConfigFile::_list_size>() {
   return "lua_table";
 }
@@ -129,6 +134,31 @@ bool ConfigFile::getLuaValue(_list_size* res, const _list_size& def, int index) 
     return true;
 }
 
+template<> inline
+bool ConfigFile::getLuaValue(_key_list* res, const _key_list& def, int index) {
+    bool ok = lua_istable(m_luaState, index);
+    if(!ok) { *res = def; return ok; }
+
+    /* table is in the stack at index 't' */
+    lua_pushnil(m_luaState);  /* first key */
+    while (lua_next(m_luaState, index-1) != 0) {
+        /* uses 'key' (at index -2) and 'value' (at index -1) */
+        if (!lua_isstring(m_luaState, -2)) {
+            return false;
+        }
+
+       /* printf("%s - %s\n",
+            lua_tostring(m_luaState, -2),
+            lua_typename(m_luaState, lua_type(m_luaState, -1)));*/
+        
+        res->keys.push_back(lua_tostring(m_luaState, -2));
+        /* removes 'value'; keeps 'key' for next iteration */
+        lua_pop(m_luaState, 1);
+    }
+
+    return true;
+}
+
 template<typename T> inline
 T ConfigFile::getValueT(const std::string& name, const T& def, bool *ok)
 {
@@ -186,6 +216,13 @@ int ConfigFile::getListSize(const std::string& name, bool *ok)
 {
     static const _list_size l = { 0 };
     return getValueT(name, l, ok).size;
+}
+
+ConfigFile::string_list ConfigFile::getKeyList(const std::string& name, 
+        const string_list& def, bool *ok)
+{
+    static const _key_list l = {def};
+    return getValueT(name, l, ok).keys;
 }
 
 void ConfigFile::luaError(const char *fmt, ...)
