@@ -21,7 +21,9 @@ void Example::initialize()
             sigc::mem_fun(*this, &Example::slotTranslateBlockStart));
 }
 
-void Example::slotTranslateBlockStart(ExecutionSignal *signal, uint64_t pc)
+void Example::slotTranslateBlockStart(ExecutionSignal *signal, 
+                                      S2EExecutionState *state,
+                                      uint64_t pc)
 {
     if(m_traceBlockTranslation)
         std::cout << "Translating block at " << std::hex << pc << std::dec << std::endl;

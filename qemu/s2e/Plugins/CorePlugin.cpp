@@ -12,7 +12,7 @@ extern "C" {
 using namespace std;
 
 namespace s2e {
-S2E_DEFINE_PLUGIN(CorePlugin, "S2E core functionality", "Core",);
+    S2E_DEFINE_PLUGIN(CorePlugin, "S2E core functionality", "Core",);
 } // namespace s2e
 
 using namespace s2e;
@@ -40,7 +40,7 @@ void s2e_tb_free(TranslationBlock *tb)
 
 static S2EExecutionState state;
 void s2e_tcg_execution_handler(
-        ExecutionSignal* signal, CPUX86State *env, uint64_t pc)
+                               ExecutionSignal* signal, CPUX86State *env, uint64_t pc)
 {
     state.setCpuState(env);
     signal->emit(&state, pc);
@@ -69,42 +69,51 @@ void s2e_tcg_instrument_code(ExecutionSignal* signal, uint64_t pc)
     tcg_gen_movi_i64(t1, pc);
 
     tcg_gen_helperN((void*) s2e_tcg_execution_handler,
-                0, sizemask, TCG_CALL_DUMMY_ARG, 3, args);
+        0, sizemask, TCG_CALL_DUMMY_ARG, 3, args);
 
     tcg_temp_free_i64(t1);
     tcg_temp_free_ptr(t0);
 }
 
-void s2e_on_translate_block_start(S2E* s2e, TranslationBlock *tb, uint64_t pc)
+void s2e_on_translate_block_start(S2E* s2e, 
+                                  CPUX86State *env,
+                                  TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getCorePlugin()->onTranslateBlockStart.emit(signal, pc);
+    state.setCpuState(env);
+    s2e->getCorePlugin()->onTranslateBlockStart.emit(signal, &state, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
     }
 }
 
-void s2e_on_translate_instruction_start(S2E* s2e, TranslationBlock *tb, uint64_t pc)
+void s2e_on_translate_instruction_start(S2E* s2e, 
+                                        CPUX86State *env,
+                                        TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getCorePlugin()->onTranslateInstructionStart.emit(signal, pc);
+    state.setCpuState(env);  
+    s2e->getCorePlugin()->onTranslateInstructionStart.emit(signal, &state, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
     }
 }
 
-void s2e_on_translate_instruction_end(S2E* s2e, TranslationBlock *tb, uint64_t pc)
+void s2e_on_translate_instruction_end(S2E* s2e, 
+                                      CPUX86State *env,
+                                      TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getCorePlugin()->onTranslateInstructionEnd.emit(signal, pc);
+    state.setCpuState(env);  
+    s2e->getCorePlugin()->onTranslateInstructionEnd.emit(signal, &state, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);

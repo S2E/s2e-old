@@ -15,7 +15,7 @@ public:
     Example(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
-    void slotTranslateBlockStart(ExecutionSignal*, uint64_t pc);
+    void slotTranslateBlockStart(ExecutionSignal*, S2EExecutionState *state, uint64_t pc);
     void slotExecuteBlockStart(S2EExecutionState* state, uint64_t pc);
 
 private:

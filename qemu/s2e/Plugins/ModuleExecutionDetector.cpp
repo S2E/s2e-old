@@ -63,10 +63,22 @@ void ModuleExecutionDetector::initializeConfiguration()
 
 
 void ModuleExecutionDetector::slotTranslateBlockStart(
-    ExecutionSignal *signal, uint64_t pc)
+    ExecutionSignal *signal, 
+    S2EExecutionState *state,
+    uint64_t pc)
 {
-    //signal->connect(sigc::mem_fun(*this, 
-    //    &ModuleExecutionDetector::slotTbExecStart));
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+    
+    uint64_t pid = m_Monitor->getPid(state, pc);
+    
+    const ModuleDescriptor *currentModule = 
+        plgState->findCurrentModule(pid, pc);
+    
+    if (currentModule) {
+        //std::cout << "Translating block belonging to " << currentModule->Name << std::endl;
+        signal->connect(sigc::mem_fun(*this, 
+            &ModuleExecutionDetector::slotTbExecStart));
+    }
 }
 
 void ModuleExecutionDetector::slotTbExecStart(
@@ -178,6 +190,7 @@ void ModuleTransitionState::activateModule(
     foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
         if (!(*it).isActive && !(*it).imageName.compare(desc.Name)) {
             if (desc.Pid || (*it).kernelMode) {
+                std::cout << "ModuleTransitionState - Module " << desc.Name << " activated" << std::endl;
                 (*it).isActive = true;
                 (*it).descriptor = desc;
             }
@@ -190,6 +203,7 @@ void ModuleTransitionState::deactivateModule(
 {
     foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
         if ((*it).isActive && !(*it).imageName.compare(desc.Name)) {
+            std::cout << "ModuleTransitionState - Module " << desc.Name << " deactivated" << std::endl;
             (*it).isActive = false;
         }
     }
@@ -197,7 +211,6 @@ void ModuleTransitionState::deactivateModule(
 
 const ModuleDescriptor *ModuleTransitionState::findCurrentModule(uint64_t pid, uint64_t pc)
 {
-    return NULL;
     foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
         if (!(*it).isActive) {
             continue;
@@ -218,6 +231,7 @@ void ModuleTransitionState::deactivatePid(uint64_t pid)
         }
 
         if ((*it).descriptor.Pid == pid) {
+            std::cout << "ModuleTransitionState - Process " << (*it).descriptor.Name << " deactivated" << std::endl;
             (*it).isActive = false;
         }
     }

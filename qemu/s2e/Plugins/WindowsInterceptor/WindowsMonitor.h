@@ -53,7 +53,10 @@ public:
     virtual ~WindowsMonitor();
     void initialize();
 
-    void slotTranslateInstructionStart(ExecutionSignal *signal, uint64_t pc);
+    void slotTranslateInstructionStart(ExecutionSignal *signal, 
+        S2EExecutionState *state,
+        uint64_t pc);
+    
     void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc);

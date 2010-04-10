@@ -78,7 +78,9 @@ void WindowsMonitor::initialize()
         sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionStart));
 }
 
-void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal, uint64_t pc)
+void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal, 
+                                                   S2EExecutionState *state,
+                                                   uint64_t pc)
 {
     if(m_UserMode) {
         if (pc == GetLdrpCallInitRoutine() && m_MonitorModuleLoad) {
