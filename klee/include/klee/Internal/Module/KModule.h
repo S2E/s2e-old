@@ -99,7 +99,7 @@ namespace klee {
     std::map<llvm::Constant*, KConstant*> constantMap;
     KConstant* getKConstant(llvm::Constant *c);
 
-    Cell *constantTable;
+    std::vector<Cell> constantTable;
 
   public:
     KModule(llvm::Module *_module);

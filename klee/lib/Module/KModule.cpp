@@ -87,12 +87,10 @@ KModule::KModule(Module *_module)
     targetData(new TargetData(module)),
     dbgStopPointFn(0),
     kleeMergeFn(0),
-    infos(0),
-    constantTable(0) {
+    infos(0) {
 }
 
 KModule::~KModule() {
-  delete[] constantTable;
   delete infos;
 
   for (std::vector<KFunction*>::iterator it = functions.begin(), 

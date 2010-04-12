@@ -2236,7 +2236,7 @@ void Executor::bindModuleConstants() {
       bindInstructionConstants(kf->instructions[i]);
   }
 
-  kmodule->constantTable = new Cell[kmodule->constants.size()];
+  kmodule->constantTable.resize(kmodule->constants.size());
   for (unsigned i=0; i<kmodule->constants.size(); ++i) {
     Cell &c = kmodule->constantTable[i];
     c.value = evalConstant(kmodule->constants[i]);
