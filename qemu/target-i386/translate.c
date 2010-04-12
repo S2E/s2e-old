@@ -7832,7 +7832,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         max_insns = CF_COUNT_MASK;
 
 #ifdef CONFIG_S2E
-    s2e_on_translate_block_start(g_s2e, env, tb, pc_start);
+    s2e_on_translate_block_start(g_s2e, tb, pc_start);
 #endif
 
     gen_icount_start();
@@ -7862,11 +7862,11 @@ static inline void gen_intermediate_code_internal(CPUState *env,
             gen_io_start();
 
 #ifdef CONFIG_S2E
-        s2e_on_translate_instruction_start(g_s2e, env, tb, pc_ptr);
+        s2e_on_translate_instruction_start(g_s2e, tb, pc_ptr);
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);
 #ifdef CONFIG_S2E
-        s2e_on_translate_instruction_end(g_s2e, env, tb, pc_ptr);
+        s2e_on_translate_instruction_end(g_s2e, tb, pc_ptr);
 #endif
         pc_ptr = new_pc_ptr;
         num_insns++;
