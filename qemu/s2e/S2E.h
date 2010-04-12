@@ -10,6 +10,8 @@ namespace klee {
     class Interpreter;
 }
 
+class TCGLLVMContext;
+
 namespace s2e {
 
 class Plugin;
@@ -37,6 +39,7 @@ private:
   std::ostream* m_warningsFile;
   std::streambuf* m_warningsStreamBuf;
 
+  TCGLLVMContext *m_tcgLLVMContext;
   KleeHandler* m_kleeHandler;
   Interpreter* m_kleeInterpreter;
 
@@ -46,7 +49,8 @@ private:
   
 public:
   /** Constructs S2E */
-  explicit S2E(const std::string& configFileName,
+  explicit S2E(TCGLLVMContext* tcgLLVMContext,
+               const std::string& configFileName,
                const std::string& outputDirectory);
   ~S2E();
 

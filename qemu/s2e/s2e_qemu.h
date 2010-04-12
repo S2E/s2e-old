@@ -10,12 +10,13 @@ namespace s2e {
 }
 using s2e::S2E;
 using s2e::S2ETranslationBlock;
-struct TranslationBlock;
 #else
 struct S2E;
 struct S2ETranslationBlock;
-struct TranslationBlock;
 #endif
+
+struct TranslationBlock;
+struct TCGLLVMContext;
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +28,8 @@ extern struct S2E* g_s2e;
 /* Functions from S2E.cpp */
 
 /** Initialize S2E instance. Called by main() */
-struct S2E* s2e_initialize(const char *s2e_config_file,
+struct S2E* s2e_initialize(struct TCGLLVMContext *tcgLLVMContext,
+                           const char *s2e_config_file,
                            const char *s2e_output_dir);
 
 /** Relese S2E instance and all S2E-related objects. Called by main() */

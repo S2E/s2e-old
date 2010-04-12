@@ -7,6 +7,8 @@
 
 #include <s2e/s2e_qemu.h>
 
+#include <tcg-llvm.h>
+
 #include <llvm/System/Path.h>
 
 #include <klee/Interpreter.h>
@@ -74,7 +76,9 @@ public:
     }
 };
 
-S2E::S2E(const std::string &configFileName, const std::string &outputDirectory)
+S2E::S2E(TCGLLVMContext *tcgLLVMContext,
+    const std::string &configFileName, const std::string &outputDirectory)
+        : m_tcgLLVMContext(tcgLLVMContext)
 {
     /* Open output directory. Do it at the very begining so that
        other init* functions can use it. */
@@ -204,10 +208,12 @@ void S2E::initKlee()
 #if 0
     m_kleeHandler = new KleeHandler(this);
     klee::Interpreter::InterpreterOptions IOpts;
-    m_kleeInterpreter = klee::Interpreter::create(IOpts, m_kleeHandler.get());
+    m_kleeInterpreter = klee::Interpreter::create(IOpts, m_kleeHandler);
 
     klee::Interpreter::ModuleOptions MOpts(KLEE_LIBRARY_DIR,
                         /* Optimize= */ false, /* CheckDivZero= */ false);
+
+    m_kleeInterpreter->setModule(m_tcgLLVMContext->getModule(), MOpts);
 #endif
 }
 
@@ -289,9 +295,11 @@ extern "C" {
 
 S2E* g_s2e = NULL;
 
-S2E* s2e_initialize(const char* s2e_config_file,  const char* s2e_output_dir)
+S2E* s2e_initialize(TCGLLVMContext* tcgLLVMContext,
+            const char* s2e_config_file,  const char* s2e_output_dir)
 {
-    return new S2E(s2e_config_file ? s2e_config_file : "",
+    return new S2E(tcgLLVMContext,
+                   s2e_config_file ? s2e_config_file : "",
                    s2e_output_dir  ? s2e_output_dir  : "");
 }
 

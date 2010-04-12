@@ -93,7 +93,7 @@ struct TCGLLVMContextPrivate {
 
     /* Current m_module */
     Module *m_module;
-    ModuleProvider *moduleProvider;
+    ModuleProvider *m_moduleProvider;
 
     /* JIT engine */
     TJITMemoryManager *m_jitMemoryManager;
@@ -245,14 +245,19 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     InitializeNativeTarget();
 
     m_module = new Module("tcg-llvm", m_context);
-    m_jitMemoryManager = new TJITMemoryManager();
-    m_executionEngine = EngineBuilder(m_module)
-        .setJITMemoryManager(m_jitMemoryManager)
-        .create();
-    assert(m_executionEngine != NULL);
+    m_moduleProvider = new ExistingModuleProvider(m_module);
 
-    moduleProvider = new ExistingModuleProvider(m_module);
-    m_functionPassManager = new FunctionPassManager(moduleProvider);
+    m_jitMemoryManager = new TJITMemoryManager();
+
+    std::string error;
+    m_executionEngine = ExecutionEngine::createJIT(
+            m_moduleProvider, &error, m_jitMemoryManager);
+    if(m_executionEngine == NULL) {
+        std::cerr << "Unable to create LLVM JIT: " << error << std::endl;
+        exit(1);
+    }
+
+    m_functionPassManager = new FunctionPassManager(m_moduleProvider);
     m_functionPassManager->add(
             new TargetData(*m_executionEngine->getTargetData()));
 
