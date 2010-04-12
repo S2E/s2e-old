@@ -5,12 +5,13 @@
 
 class TCGLLVMContext;
 
+struct TranslationBlock;
+struct CPUX86State;
+
 namespace s2e {
 
 class S2E;
 class S2EExecutionState;
-
-struct TranslationBlock;
 
 /** Handler required for KLEE interpreter */
 class S2EHandler : public klee::InterpreterHandler
@@ -38,23 +39,12 @@ public:
 
 class S2EExecutor : public klee::Executor
 {
-private:
-  void callExternalFunction(klee::ExecutionState &state,
-                            klee::KInstruction *target,
-                            llvm::Function *function,
-                            std::vector< klee::ref<klee::Expr> > &arguments);
-  virtual void runFunctionAsMain(llvm::Function *f,
-                                 int argc,
-                                 char **argv,
-                                 char **envp);
-
 protected:
     S2E* m_s2e;
     TCGLLVMContext* m_tcgLLVMContext;
 
     S2EExecutionState* m_currentState;
-
-    //void updateCurrentState(CPUState* cpuState, uint64_t pc);
+    klee::KFunction* m_dummyMain;
 
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
@@ -62,6 +52,10 @@ public:
                 klee::InterpreterHandler *ie);
 
     S2EExecutionState* getCurrentState() { return m_currentState; }
+
+    void updateCurrentState(CPUX86State* cpuState, uint64_t pc);
+    uintptr_t executeTranslationBlock(
+            TranslationBlock *tb, void* volatile* saved_AREGs);
 };
 
 } // namespace s2e

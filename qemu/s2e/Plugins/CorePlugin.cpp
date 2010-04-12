@@ -11,6 +11,7 @@ extern "C" {
 }
 
 #include <s2e/S2EExecutionState.h>
+#include <s2e/S2EExecutor.h>
 
 using namespace std;
 
@@ -44,12 +45,8 @@ void s2e_tb_free(TranslationBlock *tb)
 void s2e_tcg_execution_handler(
         S2E* s2e, ExecutionSignal* signal, CPUState *env, uint64_t pc)
 {
-    S2EExecutionState* state = s2e->getCurrentState();
-    assert(state);
-
-    state->cpuState = env;
-    state->cpuPC = pc;
-    signal->emit(state, pc);
+    s2e->getExecutor()->updateCurrentState(env, pc);
+    signal->emit(s2e->getExecutor()->getCurrentState(), pc);
 }
 
 /* Instrument generated code to emit signal on execution */

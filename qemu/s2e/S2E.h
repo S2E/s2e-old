@@ -95,7 +95,7 @@ public:
 
   /***********************/
   /* Runtime information */
-  S2EExecutionState* getCurrentState();
+  S2EExecutor* getExecutor() { return m_s2eExecutor; }
 };
 
 } // namespace s2e

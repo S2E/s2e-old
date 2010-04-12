@@ -68,6 +68,11 @@ void s2e_on_translate_instruction_end(
 
 void s2e_on_exception(struct S2E *s2e, struct CPUX86State *env, unsigned intNb);
 
+/**********************************/
+/* Functions from S2EExecutor.cpp */
+uintptr_t s2e_qemu_tb_exec(struct S2E* s2e, struct TranslationBlock* tb,
+                           void* volatile* saved_AREGs);
+
 #ifdef __cplusplus
 }
 #endif

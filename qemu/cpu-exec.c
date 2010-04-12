@@ -654,7 +654,17 @@ int cpu_exec(CPUState *env1)
 #define env cpu_single_env
 #endif
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_S2E)
+                    if(execute_llvm) {
+#define SAVE_HOST_REGS 1
+#include "hostregs_helper.h"
+                        next_tb = s2e_qemu_tb_exec(g_s2e, tb, saved_AREGs);
+// restore host regs
+#include "hostregs_helper.h"
+                    } else {
+                        next_tb = tcg_qemu_tb_exec(tc_ptr);
+                    }
+#elif defined(CONFIG_LLVM)
                     if(execute_llvm) {
 #define SAVE_HOST_REGS 1
 #include "hostregs_helper.h"

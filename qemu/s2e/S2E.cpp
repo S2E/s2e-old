@@ -255,13 +255,6 @@ void S2E::initializeSymbolicExecution()
     m_s2eExecutor = new S2EExecutor(this, m_tcgLLVMContext, IOpts, m_s2eHandler);
 }
 
-S2EExecutionState* S2E::getCurrentState()
-{
-    assert(m_s2eExecutor &&
-        "Can not call Executor functions before initializeSymbolicExecution");
-    return m_s2eExecutor->getCurrentState();
-}
-
 } // namespace s2e
 
 /******************************/
