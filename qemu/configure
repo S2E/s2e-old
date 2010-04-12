@@ -1489,8 +1489,13 @@ EOF
   if [ "$mingw32" = "yes" ]; then
     lua_libs="-llua"
   else
-    lua_cxxflags=`pkg-config lua --cflags 2> /dev/null`
-    lua_libs=`pkg-config lua --libs 2> /dev/null`
+    if pkg-config --exists lua5.1 ; then
+        lua_pkg="lua5.1"
+    else
+        lua_pkg="lua"
+    fi
+    lua_cxxflags=`pkg-config $lua_pkg --cflags 2> /dev/null`
+    lua_libs=`pkg-config $lua_pkg --libs 2> /dev/null`
   fi
 	
   if compile_prog_cxx "$lua_cxxflags" "$lua_libs" ; then
