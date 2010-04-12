@@ -50,6 +50,7 @@ public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
                 klee::InterpreterHandler *ie);
+    ~S2EExecutor();
 
     S2EExecutionState* getCurrentState() { return m_currentState; }
 

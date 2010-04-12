@@ -144,9 +144,26 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
         addExternalObject(*m_currentState, env, sizeof(*env), false);
     }
 
+    /* Map physical memory */
+    int i = 0;
+#define S2E_RAM_BLOCK_SIZE (TARGET_PAGE_SIZE*16)
+    std::cout << "Going to add " << (last_ram_offset/S2E_RAM_BLOCK_SIZE)
+              << " ram blocks" << std::endl;
+    for(ram_addr_t addr = 0; addr < last_ram_offset; addr += S2E_RAM_BLOCK_SIZE) {
+        addExternalObject(*m_currentState, qemu_get_ram_ptr(addr),
+                min<ram_addr_t>(S2E_RAM_BLOCK_SIZE, last_ram_offset-addr), false);
+        ++i;
+    }
+    std::cout << "Added " << i << " RAM blocks" << std::endl;
 
     initializeGlobals(*m_currentState);
     bindModuleConstants();
+}
+
+S2EExecutor::~S2EExecutor()
+{
+    if(statsTracker)
+        statsTracker->done();
 }
 
 void S2EExecutor::updateCurrentState(
