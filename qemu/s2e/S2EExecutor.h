@@ -10,6 +10,8 @@ namespace s2e {
 class S2E;
 class S2EExecutionState;
 
+struct TranslationBlock;
+
 /** Handler required for KLEE interpreter */
 class S2EHandler : public klee::InterpreterHandler
 {
@@ -51,6 +53,8 @@ protected:
     TCGLLVMContext* m_tcgLLVMContext;
 
     S2EExecutionState* m_currentState;
+
+    //void updateCurrentState(CPUState* cpuState, uint64_t pc);
 
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,

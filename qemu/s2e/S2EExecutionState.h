@@ -3,6 +3,7 @@
 
 #include <klee/ExecutionState.h>
 
+// XXX
 struct CPUX86State;
 
 #include <map>
@@ -16,12 +17,14 @@ typedef PluginState* (*PluginStateFactory)();
 class S2EExecutionState : public klee::ExecutionState
 {
 protected:
-    CPUX86State* m_cpuState;
+    CPUX86State* cpuState;
+    uint64_t     cpuPC;
+
     PluginStateMap m_PluginState;
 
 public:
     S2EExecutionState(klee::KFunction *kf)
-            : klee::ExecutionState(kf) {}
+            : klee::ExecutionState(kf), cpuState(NULL), cpuPC(0) {}
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);
     CPUX86State* getCpuState() { return m_cpuState; }

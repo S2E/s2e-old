@@ -42,10 +42,14 @@ void s2e_tb_free(TranslationBlock *tb)
 }
 
 void s2e_tcg_execution_handler(
-        S2E* s2e, ExecutionSignal* signal, CPUX86State *env, uint64_t pc)
+        S2E* s2e, ExecutionSignal* signal, CPUState *env, uint64_t pc)
 {
-    s2e->getCurrentState()->selectState(env, NULL);
-    signal->emit(s2e->getCurrentState(), pc);
+    S2EExecutionState* state = s2e->getCurrentState();
+    assert(state);
+
+    state->cpuState = env;
+    state->cpuPC = pc;
+    signal->emit(state, pc);
 }
 
 /* Instrument generated code to emit signal on execution */

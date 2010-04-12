@@ -25,7 +25,7 @@ class S2EExecutionState;
 
 class S2E
 {
-private:
+protected:
   ConfigFile* m_configFile;
   PluginsFactory* m_pluginsFactory;
 
@@ -48,9 +48,8 @@ private:
   S2EExecutor* m_s2eExecutor;
 
   void initOutputDirectory(const std::string& outputDirectory);
-  void initKlee();
   void initPlugins();
-  
+
 public:
   /** Construct S2E */
   explicit S2E(TCGLLVMContext* tcgLLVMContext,

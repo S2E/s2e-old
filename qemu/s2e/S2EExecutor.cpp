@@ -105,4 +105,17 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     m_currentState = state;
 }
 
+/*
+void S2EExecutor::updateCurrentState(
+        CPUState* cpuState, uint64_t pc)
+{
+    assert(m_currentState);
+
+    m_currentState->cpuState = cpuState;
+    m_currectState->cpuPC = pc;
+
+    // TODO: update KFunction and instruction iterator
+}
+*/
+
 } // namespace s2e
