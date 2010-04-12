@@ -3,7 +3,7 @@
 
 #include <string>
 #include <vector>
-#include <map>
+#include <tr1/unordered_map>
 
 #include <sigc++/sigc++.h>
 
@@ -77,7 +77,7 @@ struct PluginInfo {
 
 class PluginsFactory {
 private:
-    std::map<std::string, const PluginInfo*> m_pluginsMap;
+    std::tr1::unordered_map<std::string, const PluginInfo*> m_pluginsMap;
     std::vector<const PluginInfo*> m_pluginsList;
 
 public:

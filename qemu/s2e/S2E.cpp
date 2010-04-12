@@ -90,7 +90,8 @@ S2E::~S2E()
 
 Plugin* S2E::getPlugin(const std::string& name) const
 {
-    map<string, Plugin*>::const_iterator it = m_activePluginsMap.find(name);
+    tr1::unordered_map<string, Plugin*>::const_iterator it =
+            m_activePluginsMap.find(name);
     if(it != m_activePluginsMap.end())
         return const_cast<Plugin*>(it->second);
     else
