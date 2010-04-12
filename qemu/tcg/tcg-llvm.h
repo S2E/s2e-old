@@ -39,9 +39,19 @@ struct TCGLLVMContext;
 
 extern struct TCGLLVMContext* tcg_llvm_ctx;
 
-extern struct TranslationBlock *tcg_llvm_last_tb;
-extern uint64_t tcg_llvm_last_opc_index;
-extern uint64_t tcg_llvm_last_pc;
+struct TCGLLVMRuntime {
+    // NOTE: The order of these are fixed !
+    uint64_t helper_ret_addr;
+    uint64_t helper_call_addr;
+    uint64_t helper_regs[3];
+    // END of fixed block
+
+    TranslationBlock *last_tb;
+    uint64_t last_opc_index;
+    uint64_t last_pc;
+};
+
+extern struct TCGLLVMRuntime tcg_llvm_runtime;
 
 struct TCGLLVMContext* tcg_llvm_initizlize(void);
 void tcg_llvm_close(struct TCGLLVMContext *l);

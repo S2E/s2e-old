@@ -1428,19 +1428,19 @@ __asm__(
     ".globl " _S(tcg_llvm_helper_wrapper) "             \n"
     ".globl " _S(tcg_llvm_helper_ret) "                 \n"
     _S(tcg_llvm_helper_wrapper) ":                      \n"
-    "   movq %r14, " _D(tcg_llvm_helper_regs) "         \n"
+    "   movq %r14, " _D(tcg_llvm_runtime + 2*8) "       \n" // helper_regs
     "   movq " _D(saved_AREGs) ", %r14                  \n"
     "   movq (%rsp), %r11                               \n"
-    "   movq %r11, " _D(tcg_llvm_helper_ret_addr) "     \n"
+    "   movq %r11, " _D(tcg_llvm_runtime + 0*8) "       \n" // helper_ret_addr
     "   leaq " _D(tcg_llvm_helper_ret) ", %r11          \n"
     "   movq %r11, (%rsp)                               \n"
-    "   movq " _D(tcg_llvm_helper_call_addr) ", %r11    \n"
+    "   movq " _D(tcg_llvm_runtime + 1*8) ", %r11       \n" // helper_call_addr
     "   jmp *%r11                                       \n"
     "                                                   \n"
     _S(tcg_llvm_helper_ret) ":                          \n"
     "   movq %r14, " _D(saved_AREGs) "                  \n"
-    "   movq " _D(tcg_llvm_helper_regs) ", %r14         \n"
-    "   movq " _D(tcg_llvm_helper_ret_addr) ", %r11     \n"
+    "   movq " _D(tcg_llvm_runtime + 2*8) ", %r14       \n" // helper_regs
+    "   movq " _D(tcg_llvm_runtime + 0*8) ", %r11       \n" // helper_ret_addr
     "   jmp *%r11                                       \n"
 );
 

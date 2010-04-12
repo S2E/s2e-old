@@ -129,7 +129,11 @@ extern int printf(const char *, ...);
 #endif
 
 #ifdef CONFIG_LLVM
-extern uint64_t tcg_llvm_helper_ret_addr;
+#ifdef __linux__
+extern uint64_t tcg_llvm_helper_ret_addr asm("tcg_llvm_runtime"); // XXX
+#else
+extern uint64_t tcg_llvm_helper_ret_addr asm("_tcg_llvm_runtime"); // XXX
+#endif
 #define GETPC() (execute_llvm ? (void*) tcg_llvm_helper_ret_addr : _GETPC())
 #else
 #define GETPC() _GETPC()

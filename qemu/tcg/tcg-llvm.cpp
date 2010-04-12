@@ -72,13 +72,8 @@ static void *qemu_st_helpers[5] = {
 extern "C" {
     TCGLLVMContext* tcg_llvm_ctx = 0;
 
-    TranslationBlock *tcg_llvm_last_tb = 0;
-    uint64_t tcg_llvm_last_opc_index = 0;
-    uint64_t tcg_llvm_last_pc = 0;
-
-    uint64_t tcg_llvm_helper_call_addr;
-    uint64_t tcg_llvm_helper_ret_addr;
-    uint64_t tcg_llvm_helper_regs[3];
+    /* These data is accessible from generated code */
+    TCGLLVMRuntime tcg_llvm_runtime = { 0, 0, {0,0,0}, 0, 0, 0 };
 
     void tcg_llvm_helper_wrapper(void);
 }
@@ -544,7 +539,7 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
                      (uint64_t) qemu_st_helpers[bits>>4]),
         m_builder.CreateIntToPtr(
             ConstantInt::get(wordType(),
-                (uint64_t) &tcg_llvm_helper_call_addr),
+                (uint64_t) &tcg_llvm_runtime.helper_call_addr),
             wordPtrType()));
 
     std::vector<Value*> argValues; argValues.reserve(3);
@@ -670,7 +665,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             Value* funcAddr = getValue(args[nb_oargs + nb_iargs]);
             m_builder.CreateStore(funcAddr, m_builder.CreateIntToPtr(
                         ConstantInt::get(wordType(),
-                            (uint64_t) &tcg_llvm_helper_call_addr),
+                            (uint64_t) &tcg_llvm_runtime.helper_call_addr),
                         wordPtrType()));
 
             funcAddr = m_builder.CreateIntToPtr(
@@ -1077,14 +1072,14 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
             m_builder.CreateStore(ConstantInt::get(wordType(), opc_index),
                 m_builder.CreateIntToPtr(
                     ConstantInt::get(wordType(),
-                        (uint64_t) &tcg_llvm_last_opc_index),
+                        (uint64_t) &tcg_llvm_runtime.last_opc_index),
                     wordPtrType()),
                 true);
             // volatile store of current PC
             m_builder.CreateStore(ConstantInt::get(wordType(), args[0]),
                 m_builder.CreateIntToPtr(
                     ConstantInt::get(wordType(),
-                        (uint64_t) &tcg_llvm_last_pc),
+                        (uint64_t) &tcg_llvm_runtime.last_pc),
                     wordPtrType()),
                 true);
         }
@@ -1199,8 +1194,8 @@ void tcg_llvm_tb_free(TranslationBlock *tb)
 
 int tcg_llvm_search_last_pc(TranslationBlock *tb, uintptr_t searched_pc)
 {
-    assert(tb->llvm_function && tb == tcg_llvm_last_tb);
-    return tcg_llvm_last_opc_index;
+    assert(tb->llvm_function && tb == tcg_llvm_runtime.last_tb);
+    return tcg_llvm_runtime.last_opc_index;
 }
 
 const char* tcg_llvm_get_func_name(TranslationBlock *tb)
@@ -1212,6 +1207,6 @@ const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
                             void* volatile* saved_AREGs)
 {
-    tcg_llvm_last_tb = tb;
+    tcg_llvm_runtime.last_tb = tb;
     return ((uintptr_t (*)(void* volatile*)) tb->llvm_tc_ptr)(saved_AREGs);
 }
