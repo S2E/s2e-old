@@ -331,7 +331,6 @@ s2eobj-y += s2e/S2EExecutor.o s2e/S2EExecutionState.o
 s2eobj-y += s2e/S2E.o
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 
-
 libs2e.a: $(s2eobj-y)
 
 $(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(S2E_CXXFLAGS)
@@ -341,6 +340,8 @@ ARLIBS += libs2e.a
 endif
 
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
+
+$(QEMU_PROG): $(KLEE_LIBFILES)
 
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(ARLIBS)
 	$(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y))
