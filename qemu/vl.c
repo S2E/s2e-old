@@ -6166,6 +6166,10 @@ int main(int argc, char **argv, char **envp)
     }
 #endif
 
+#ifdef CONFIG_S2E
+    s2e_initialize_symbolic_execution(g_s2e);
+#endif
+
     main_loop();
     quit_timers();
     net_cleanup();

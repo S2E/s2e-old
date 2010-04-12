@@ -35,6 +35,10 @@ struct S2E* s2e_initialize(struct TCGLLVMContext *tcgLLVMContext,
 /** Relese S2E instance and all S2E-related objects. Called by main() */
 void s2e_close(struct S2E* s2e);
 
+/** Initialize symbolic execution machinery. Should be called after
+    QEMU pc is completely constructed */
+void s2e_initialize_symbolic_execution(struct S2E *s2e);
+
 /*********************************/
 /* Functions from CorePlugin.cpp */
 

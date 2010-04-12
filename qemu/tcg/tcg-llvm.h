@@ -84,7 +84,8 @@ public:
     TCGLLVMContext();
     ~TCGLLVMContext();
 
-    llvm::LLVMContext* getLLVMContext();
+    llvm::LLVMContext& getLLVMContext();
+
     llvm::Module* getModule();
     llvm::ModuleProvider* getModuleProvider();
 

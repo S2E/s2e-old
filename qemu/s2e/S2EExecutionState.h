@@ -13,18 +13,18 @@ typedef std::map <const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)();
 
 /** Dummy implementation, just to make events work */
-class S2EExecutionState
+class S2EExecutionState : public klee::ExecutionState
 {
 protected:
     CPUX86State* m_cpuState;
     PluginStateMap m_PluginState;
 
 public:
-    S2EExecutionState(CPUX86State *cpuState) : m_cpuState(cpuState) {}
-    S2EExecutionState() {}
+    S2EExecutionState(klee::KFunction *kf)
+            : klee::ExecutionState(kf) {}
 
+    void selectState(CPUX86State* cpuState, klee::KFunction *kf);
     CPUX86State* getCpuState() { return m_cpuState; }
-    void setCpuState(CPUX86State* state) { m_cpuState = state; }
     
     PluginState* getPluginState(const Plugin *plugin, PluginStateFactory factory) {
         PluginStateMap::iterator it = m_PluginState.find(plugin);

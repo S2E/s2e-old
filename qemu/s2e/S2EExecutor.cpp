@@ -1,6 +1,22 @@
+extern "C" {
+#include <qemu-common.h>
+#include <cpu-all.h>
+#include <tcg-llvm.h>
+}
+
 #include "S2EExecutor.h"
 #include <s2e/S2E.h>
+#include <s2e/S2EExecutionState.h>
 
+#include <llvm/Module.h>
+#include <llvm/Function.h>
+#include <llvm/DerivedTypes.h>
+#include <llvm/Instructions.h>
+
+#include <vector>
+
+using namespace std;
+using namespace llvm;
 using namespace klee;
 
 namespace s2e {
@@ -39,11 +55,6 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
            << "with error message '" << (err ? err : "") << "'" << std::endl;
 }
 
-S2EExecutor::S2EExecutor(const InterpreterOptions &opts, InterpreterHandler *ie)
-        : Executor(opts, ie)
-{
-}
-
 void S2EExecutor::callExternalFunction(ExecutionState &state,
                             KInstruction *target,
                             llvm::Function *function,
@@ -58,6 +69,40 @@ void S2EExecutor::runFunctionAsMain(llvm::Function *f,
                                  char **envp)
 {
     assert(0);
+}
+
+S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
+                    const InterpreterOptions &opts,
+                            InterpreterHandler *ie)
+        : Executor(opts, ie),
+          m_s2e(s2e), m_tcgLLVMContext(tcgLLVMContext)
+{
+    /* Add dummy main function for a module */
+    const Type* voidTy = Type::getVoidTy(
+            m_tcgLLVMContext->getLLVMContext());
+    Function* dummyMain = Function::Create(
+            FunctionType::get(voidTy, vector<const Type*>(), false),
+            Function::PrivateLinkage, "s2e_dummyMainFunction",
+            m_tcgLLVMContext->getModule());
+    ReturnInst::Create(m_tcgLLVMContext->getLLVMContext(), BasicBlock::Create(
+            m_tcgLLVMContext->getLLVMContext(), "entry", dummyMain));
+
+    /* Set module for the executor */
+    ModuleOptions MOpts(KLEE_LIBRARY_DIR,
+                    /* Optimize= */ false, /* CheckDivZero= */ false);
+    setModule(m_tcgLLVMContext->getModule(), MOpts);
+
+    /* Create initial execution state */
+    S2EExecutionState *state = new S2EExecutionState(
+            kmodule->functionMap[dummyMain]);
+
+    /* Make CPUState instances accessible: generated code uses them as globals */
+    for(CPUState *env = first_cpu; env != NULL; env = env->next_cpu) {
+        addExternalObject(*state, env, sizeof(*env), false);
+    }
+
+    states.insert(state);
+    m_currentState = state;
 }
 
 } // namespace s2e

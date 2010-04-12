@@ -21,6 +21,7 @@ class PluginsFactory;
 
 class S2EHandler;
 class S2EExecutor;
+class S2EExecutionState;
 
 class S2E
 {
@@ -40,6 +41,9 @@ private:
   std::streambuf* m_warningsStreamBuf;
 
   TCGLLVMContext *m_tcgLLVMContext;
+
+  /* The following members are late-initialized when
+     QEMU pc creation is complete */
   S2EHandler* m_s2eHandler;
   S2EExecutor* m_s2eExecutor;
 
@@ -48,11 +52,17 @@ private:
   void initPlugins();
   
 public:
-  /** Constructs S2E */
+  /** Construct S2E */
   explicit S2E(TCGLLVMContext* tcgLLVMContext,
                const std::string& configFileName,
                const std::string& outputDirectory);
   ~S2E();
+
+  /** Initialize symbolic execution machinery */
+  void initializeSymbolicExecution();
+
+  /*****************************/
+  /* Configuration and plugins */
 
   /** Get configuration file */
   ConfigFile* getConfig() const { return m_configFile; }
@@ -62,6 +72,9 @@ public:
 
   /** Get Core plugin */
   CorePlugin* getCorePlugin() const { return m_corePlugin; }
+
+  /*************************/
+  /* Directories and files */
 
   /** Get output directory name */
   const std::string& getOutputDirectory() const { return m_outputDirectory; }
@@ -81,6 +94,9 @@ public:
   /** Get warnings stream (used for warnings, duplicated on the screen) */
   std::ostream& getWarningsStream() const { return *m_warningsFile; }
 
+  /***********************/
+  /* Runtime information */
+  S2EExecutionState* getCurrentState();
 };
 
 } // namespace s2e

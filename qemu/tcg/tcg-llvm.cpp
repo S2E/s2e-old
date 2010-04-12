@@ -1142,9 +1142,9 @@ TCGLLVMContext::~TCGLLVMContext()
     delete m_private;
 }
 
-LLVMContext* TCGLLVMContext::getLLVMContext()
+LLVMContext& TCGLLVMContext::getLLVMContext()
 {
-    return &m_private->m_context;
+    return m_private->m_context;
 }
 
 Module* TCGLLVMContext::getModule()

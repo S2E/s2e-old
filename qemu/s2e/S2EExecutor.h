@@ -3,9 +3,12 @@
 
 #include <klee/Executor.h>
 
+class TCGLLVMContext;
+
 namespace s2e {
 
 class S2E;
+class S2EExecutionState;
 
 /** Handler required for KLEE interpreter */
 class S2EHandler : public klee::InterpreterHandler
@@ -42,8 +45,19 @@ private:
                                  int argc,
                                  char **argv,
                                  char **envp);
+
+protected:
+    S2E* m_s2e;
+    TCGLLVMContext* m_tcgLLVMContext;
+
+    S2EExecutionState* m_currentState;
+
 public:
-    S2EExecutor(const InterpreterOptions &opts, klee::InterpreterHandler *ie);
+    S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
+                const InterpreterOptions &opts,
+                klee::InterpreterHandler *ie);
+
+    S2EExecutionState* getCurrentState() { return m_currentState; }
 };
 
 } // namespace s2e

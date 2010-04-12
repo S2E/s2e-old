@@ -62,9 +62,6 @@ S2E::S2E(TCGLLVMContext *tcgLLVMContext,
     /* Parse configuration file */
     m_configFile = new s2e::ConfigFile(configFileName);
 
-    /* Initialize KLEE objects */
-    initKlee();
-
     /* Load and initialize plugins */
     initPlugins();
 }
@@ -182,18 +179,6 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     m_warningsFile->rdbuf(m_warningsStreamBuf);
 }
 
-void S2E::initKlee()
-{
-    m_s2eHandler = new S2EHandler(this);
-    S2EExecutor::InterpreterOptions IOpts;
-    m_s2eExecutor = new S2EExecutor(IOpts, m_s2eHandler);
-
-    S2EExecutor::ModuleOptions MOpts(KLEE_LIBRARY_DIR,
-                    /* Optimize= */ false, /* CheckDivZero= */ false);
-
-    m_s2eExecutor->setModule(m_tcgLLVMContext->getModule(), MOpts);
-}
-
 void S2E::initPlugins()
 {
     m_pluginsFactory = new PluginsFactory();
@@ -263,6 +248,20 @@ void S2E::initPlugins()
     }
 }
 
+void S2E::initializeSymbolicExecution()
+{
+    m_s2eHandler = new S2EHandler(this);
+    S2EExecutor::InterpreterOptions IOpts;
+    m_s2eExecutor = new S2EExecutor(this, m_tcgLLVMContext, IOpts, m_s2eHandler);
+}
+
+S2EExecutionState* S2E::getCurrentState()
+{
+    assert(m_s2eExecutor &&
+        "Can not call Executor functions before initializeSymbolicExecution");
+    return m_s2eExecutor->getCurrentState();
+}
+
 } // namespace s2e
 
 /******************************/
@@ -283,6 +282,11 @@ S2E* s2e_initialize(TCGLLVMContext* tcgLLVMContext,
 void s2e_close(S2E *s2e)
 {
     delete s2e;
+}
+
+void s2e_initialize_symbolic_execution(S2E *s2e)
+{
+    s2e->initializeSymbolicExecution();
 }
 
 } // extern "C"
