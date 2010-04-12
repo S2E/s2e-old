@@ -9,7 +9,7 @@
 
 #include "klee/Common.h"
 
-#include "StatsTracker.h"
+#include "klee/StatsTracker.h"
 
 #include "klee/ExecutionState.h"
 #include "klee/Statistics.h"
@@ -19,7 +19,7 @@
 #include "klee/Internal/Support/ModuleUtil.h"
 #include "klee/Internal/System/Time.h"
 
-#include "CallPathManager.h"
+#include "klee/CallPathManager.h"
 #include "CoreStats.h"
 #include "klee/Executor.h"
 #include "MemoryManager.h"

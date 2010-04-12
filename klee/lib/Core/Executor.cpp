@@ -21,7 +21,7 @@
 #include "Searcher.h"
 #include "SeedInfo.h"
 #include "SpecialFunctionHandler.h"
-#include "StatsTracker.h"
+#include "klee/StatsTracker.h"
 #include "TimingSolver.h"
 #include "UserSearcher.h"
 #include "../Solver/SolverStats.h"
