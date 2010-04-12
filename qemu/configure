@@ -1464,7 +1464,7 @@ EOF
   klee_cxxflags=`$klee_config --cflags 2> /dev/null`
   klee_ldflags=`$klee_config --ldflags 2> /dev/null`
   klee_libs=`$klee_config --libs 2> /dev/null`
-  klee_libdir=`$klee_config --libdir 2> /dev/null`
+  klee_libdir=`$klee_config --libdir 2> /dev/null | sed s:Debug/lib$:Release/lib:`
   klee_libfiles=`$klee_config --libfiles 2> /dev/null`
 
   if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags" ; then
