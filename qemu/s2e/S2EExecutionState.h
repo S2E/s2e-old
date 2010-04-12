@@ -30,7 +30,7 @@ public:
             : klee::ExecutionState(kf), cpuState(NULL), cpuPC(0) {}
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);
-    CPUX86State* getCpuState() { return m_cpuState; }
+    CPUX86State* getCpuState() { return cpuState; }
     
     PluginState* getPluginState(const Plugin *plugin, PluginStateFactory factory) {
         PluginStateMap::iterator it = m_PluginState.find(plugin);

@@ -1,17 +1,17 @@
-#include "CorePlugin.h"
-#include <s2e/S2E.h>
-#include <s2e/Utils.h>
-
-#include <s2e/s2e_qemu.h>
-
 // XXX: tcg stuff should be included before anything from KLEE or LLVM !
 extern "C" {
 #include <tcg.h>
 #include <tcg-op.h>
 }
 
+#include "CorePlugin.h"
+#include <s2e/S2E.h>
+#include <s2e/Utils.h>
+
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
+
+#include <s2e/s2e_qemu.h>
 
 using namespace std;
 
@@ -83,36 +83,42 @@ void s2e_tcg_instrument_code(S2E* s2e, ExecutionSignal* signal, uint64_t pc)
     tcg_temp_free_ptr(t0);
 }
 
-void s2e_on_translate_block_start(S2E* s2e, TranslationBlock *tb, uint64_t pc)
+void s2e_on_translate_block_start(
+        S2E* s2e, CPUState *env, TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getCorePlugin()->onTranslateBlockStart.emit(signal, pc);
+    s2e->getCorePlugin()->onTranslateBlockStart.emit(
+            signal, s2e->getExecutor()->getCurrentState(), pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
     }
 }
 
-void s2e_on_translate_instruction_start(S2E* s2e, TranslationBlock *tb, uint64_t pc)
+void s2e_on_translate_instruction_start(
+        S2E* s2e, CPUState *env, TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getCorePlugin()->onTranslateInstructionStart.emit(signal, pc);
+    s2e->getCorePlugin()->onTranslateInstructionStart.emit(
+            signal, s2e->getExecutor()->getCurrentState(), pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
     }
 }
 
-void s2e_on_translate_instruction_end(S2E* s2e, TranslationBlock *tb, uint64_t pc)
+void s2e_on_translate_instruction_end(
+        S2E* s2e, CPUState *env, TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getCorePlugin()->onTranslateInstructionEnd.emit(signal, pc);
+    s2e->getCorePlugin()->onTranslateInstructionEnd.emit(
+            signal, s2e->getExecutor()->getCurrentState(), pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);

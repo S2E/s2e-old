@@ -18,6 +18,9 @@ struct S2ETranslationBlock;
 struct TranslationBlock;
 struct TCGLLVMContext;
 
+// XXX
+struct CPUX86State;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,19 +53,19 @@ void s2e_tb_free(struct TranslationBlock *tb);
 
 /** Called by cpu_gen_code() at the beginning of translation process */
 void s2e_on_translate_block_start(
-        struct S2E* s2e, 
+        struct S2E* s2e,
         struct CPUX86State *env,
         struct TranslationBlock *tb, uint64_t pc);
 
 /** Called by cpu_gen_code() before translation of each instruction */
 void s2e_on_translate_instruction_start(
-        struct S2E* s2e, 
+        struct S2E* s2e,
         struct CPUX86State *env,
         struct TranslationBlock* tb, uint64_t pc);
 
 /** Called by cpu_gen_code() after translation of each instruction */
 void s2e_on_translate_instruction_end(
-        struct S2E* s2e, 
+        struct S2E* s2e,
         struct CPUX86State *env,
         struct TranslationBlock* tb, uint64_t pc);
 
