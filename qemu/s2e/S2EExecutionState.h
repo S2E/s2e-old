@@ -19,11 +19,12 @@ typedef PluginState* (*PluginStateFactory)();
 /** Dummy implementation, just to make events work */
 class S2EExecutionState : public klee::ExecutionState
 {
+protected:
+    PluginStateMap m_PluginState;
+
 public:
     CPUX86State* cpuState;
     uint64_t     cpuPC;
-
-    PluginStateMap m_PluginState;
 
 public:
     S2EExecutionState(klee::KFunction *kf)
