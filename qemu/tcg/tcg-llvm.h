@@ -71,6 +71,7 @@ namespace llvm {
     class Function;
     class LLVMContext;
     class Module;
+    class ModuleProvider;
 }
 
 class TCGLLVMContextPrivate;
@@ -85,6 +86,7 @@ public:
 
     llvm::LLVMContext* getLLVMContext();
     llvm::Module* getModule();
+    llvm::ModuleProvider* getModuleProvider();
 
     void generateCode(struct TCGContext *s,
                       struct TranslationBlock *tb);

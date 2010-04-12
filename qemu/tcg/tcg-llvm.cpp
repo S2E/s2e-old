@@ -1152,6 +1152,11 @@ Module* TCGLLVMContext::getModule()
     return m_private->m_module;
 }
 
+ModuleProvider* TCGLLVMContext::getModuleProvider()
+{
+    return m_private->m_moduleProvider;
+}
+
 void TCGLLVMContext::generateCode(TCGContext *s, TranslationBlock *tb)
 {
     assert(tb->tcg_llvm_context == NULL);

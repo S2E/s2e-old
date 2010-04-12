@@ -13,6 +13,7 @@
 #include <s2e/S2EExecutor.h>
 
 #include <llvm/System/Path.h>
+#include <llvm/ModuleProvider.h>
 
 #include <klee/Interpreter.h>
 
@@ -74,6 +75,10 @@ S2E::~S2E()
         delete p;
 
     delete m_pluginsFactory;
+
+    // KModule wants to delete the llvm::Module in destroyer.
+    // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
+    m_tcgLLVMContext->getModuleProvider()->releaseModule();
 
     delete m_s2eExecutor;
     delete m_s2eHandler;
@@ -186,7 +191,7 @@ void S2E::initKlee()
     S2EExecutor::ModuleOptions MOpts(KLEE_LIBRARY_DIR,
                     /* Optimize= */ false, /* CheckDivZero= */ false);
 
-    //m_s2eExecutor->setModule(m_tcgLLVMContext->getModule(), MOpts);
+    m_s2eExecutor->setModule(m_tcgLLVMContext->getModule(), MOpts);
 }
 
 void S2E::initPlugins()
