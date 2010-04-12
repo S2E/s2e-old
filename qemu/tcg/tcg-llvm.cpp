@@ -83,7 +83,7 @@ using namespace llvm;
 class TJITMemoryManager;
 
 struct TCGLLVMContextPrivate {
-    LLVMContext m_context;
+    LLVMContext& m_context;
     IRBuilder<> m_builder;
 
     /* Current m_module */
@@ -96,6 +96,11 @@ struct TCGLLVMContextPrivate {
 
     /* Function pass manager (used for optimizing the code) */
     FunctionPassManager *m_functionPassManager;
+
+#ifdef CONFIG_S2E
+    /* Declaration of a wrapper function for helpers */
+    Function *m_helperWrapperFunction;
+#endif
 
     /* Count of generated translation blocks */
     int m_tbCount;
@@ -229,7 +234,7 @@ public:
 };
 
 TCGLLVMContextPrivate::TCGLLVMContextPrivate()
-    : m_context(), m_builder(m_context), m_tbCount(0),
+    : m_context(getGlobalContext()), m_builder(m_context), m_tbCount(0),
       m_tcgContext(NULL), m_tbFunction(NULL)
 {
     std::memset(m_values, 0, sizeof(m_values));
@@ -265,6 +270,14 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     m_functionPassManager->add(createPromoteMemoryToRegisterPass());
 
     m_functionPassManager->doInitialization();
+
+#ifdef CONFIG_S2E
+    // XXX: uint64_t func()
+    m_helperWrapperFunction = Function::Create(
+            FunctionType::get(intType(64), false),
+            Function::PrivateLinkage,
+            "tcg_llvm_helper_wrapper", m_module);
+#endif
 }
 
 TCGLLVMContextPrivate::~TCGLLVMContextPrivate()
@@ -552,11 +565,20 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     for(int i=0; i<(ld?2:3); ++i)
         argTypes.push_back(argValues[i]->getType());
 
+    const Type* helperFunctionPtrTy = PointerType::get(
+            FunctionType::get(
+                    ld ? intType(bits) : Type::getVoidTy(m_context),
+                    argTypes, false),
+            0);
+
+#ifdef CONFIG_S2E
+    Value* funcAddr = m_builder.CreateBitCast(
+            m_helperWrapperFunction, helperFunctionPtrTy);
+#else
     Value* funcAddr = m_builder.CreateIntToPtr(
             ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
-            PointerType::get(FunctionType::get(
-                    ld ? intType(bits) : Type::getVoidTy(m_context),
-                    argTypes, false), 0));
+            helperFunctionPtrTy);
+#endif
     v2 = m_builder.CreateCall(funcAddr, argValues.begin(), argValues.end());
 
     m_builder.CreateBr(bb_m);
@@ -662,16 +684,23 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             const Type* retType = nb_oargs == 0 ?
                 Type::getVoidTy(m_context) : wordType(); // XXX?
 
-            Value* funcAddr = getValue(args[nb_oargs + nb_iargs]);
-            m_builder.CreateStore(funcAddr, m_builder.CreateIntToPtr(
+            Value* helperAddr = getValue(args[nb_oargs + nb_iargs]);
+            m_builder.CreateStore(helperAddr, m_builder.CreateIntToPtr(
                         ConstantInt::get(wordType(),
                             (uint64_t) &tcg_llvm_runtime.helper_call_addr),
                         wordPtrType()));
 
-            funcAddr = m_builder.CreateIntToPtr(
+            const Type* helperFunctionPtrTy = PointerType::get(
+                    FunctionType::get(retType, argTypes, false), 0);
+
+#ifdef CONFIG_S2E
+            Value* funcAddr = m_builder.CreateBitCast(
+                    m_helperWrapperFunction, helperFunctionPtrTy);
+#else
+            Value* funcAddr = m_builder.CreateIntToPtr(
                     ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
-                    PointerType::get(
-                        FunctionType::get(retType, argTypes, false), 0));
+                    helperFunctionPtrTy);
+#endif
 
             Value* result = m_builder.CreateCall(funcAddr,
                                 argValues.begin(), argValues.end());
