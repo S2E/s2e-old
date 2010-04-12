@@ -19,8 +19,8 @@ class CorePlugin;
 class ConfigFile;
 class PluginsFactory;
 
-class KleeHandler;
-using klee::Interpreter;
+class S2EHandler;
+class S2EExecutor;
 
 class S2E
 {
@@ -40,8 +40,8 @@ private:
   std::streambuf* m_warningsStreamBuf;
 
   TCGLLVMContext *m_tcgLLVMContext;
-  KleeHandler* m_kleeHandler;
-  Interpreter* m_kleeInterpreter;
+  S2EHandler* m_s2eHandler;
+  S2EExecutor* m_s2eExecutor;
 
   void initOutputDirectory(const std::string& outputDirectory);
   void initKlee();

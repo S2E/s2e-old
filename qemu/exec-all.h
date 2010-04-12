@@ -123,9 +123,12 @@ struct TCGLLVMTranslationBlock;
 struct TCGLLVMContext;
 #ifdef __cplusplus
 namespace llvm { class Function; }
+namespace s2e { class S2ETranslationBlock; }
 using llvm::Function;
+using s2e::S2ETranslationBlock;
 #else
 struct Function;
+struct S2ETranslationBlock;
 #endif
 #endif
 

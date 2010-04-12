@@ -7,7 +7,10 @@
 
 #include <s2e/s2e_qemu.h>
 
+// XXX: tcg stuff should be included before anything from KLEE or LLVM !
 #include <tcg-llvm.h>
+
+#include <s2e/S2EExecutor.h>
 
 #include <llvm/System/Path.h>
 
@@ -20,6 +23,7 @@
 #include <errno.h>
 
 #include <sys/stat.h>
+
 
 namespace s2e {
 
@@ -43,36 +47,6 @@ public:
     int sync() {
         cerr.rdbuf()->pubsync();
         return m_parent->pubsync();
-    }
-};
-
-/** Handler required for KLEE interpreter */
-class KleeHandler : public klee::InterpreterHandler
-{
-private:
-    S2E* m_s2e;
-    unsigned m_testIndex;  // number of tests written so far
-    unsigned m_pathsExplored; // number of paths explored so far
-
-public:
-    KleeHandler(S2E* s2e) : m_s2e(s2e) {}
-
-    std::ostream &getInfoStream() const { return m_s2e->getInfoStream(); }
-    std::string getOutputFilename(const std::string &fileName) {
-        return m_s2e->getOutputFilename(fileName);
-    }
-    std::ostream *openOutputFile(const std::string &fileName) {
-        return m_s2e->openOutputFile(fileName);
-    }
-
-    /* klee-related function */
-    void incPathsExplored() { m_pathsExplored++; }
-
-    /* klee-related function */
-    void processTestCase(const klee::ExecutionState &state,
-                         const char *err, const char *suffix) {
-        m_s2e->getWarningsStream() << "Terminating state '" << (&state)
-               << "with error message '" << (err ? err : "") << "'" << std::endl;
     }
 };
 
@@ -101,8 +75,8 @@ S2E::~S2E()
 
     delete m_pluginsFactory;
 
-    //delete m_kleeInterpreter;
-    //delete m_kleeHandler;
+    delete m_s2eExecutor;
+    delete m_s2eHandler;
 
     delete m_configFile;
 
@@ -205,16 +179,14 @@ void S2E::initOutputDirectory(const string& outputDirectory)
 
 void S2E::initKlee()
 {
-#if 0
-    m_kleeHandler = new KleeHandler(this);
-    klee::Interpreter::InterpreterOptions IOpts;
-    m_kleeInterpreter = klee::Interpreter::create(IOpts, m_kleeHandler);
+    m_s2eHandler = new S2EHandler(this);
+    S2EExecutor::InterpreterOptions IOpts;
+    m_s2eExecutor = NULL;//new S2EExecutor(IOpts, m_s2eHandler);
 
-    klee::Interpreter::ModuleOptions MOpts(KLEE_LIBRARY_DIR,
-                        /* Optimize= */ false, /* CheckDivZero= */ false);
+    S2EExecutor::ModuleOptions MOpts(KLEE_LIBRARY_DIR,
+                    /* Optimize= */ false, /* CheckDivZero= */ false);
 
-    m_kleeInterpreter->setModule(m_tcgLLVMContext->getModule(), MOpts);
-#endif
+    //m_s2eExecutor->setModule(m_tcgLLVMContext->getModule(), MOpts);
 }
 
 void S2E::initPlugins()

@@ -4,10 +4,13 @@
 
 #include <s2e/s2e_qemu.h>
 
+// XXX: tcg stuff should be included before anything from KLEE or LLVM !
 extern "C" {
 #include <tcg.h>
 #include <tcg-op.h>
 }
+
+#include <s2e/S2EExecutionState.h>
 
 using namespace std;
 

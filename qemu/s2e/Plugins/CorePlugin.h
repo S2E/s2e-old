@@ -2,13 +2,14 @@
 #define S2E_CORE_PLUGIN_H
 
 #include <s2e/Plugin.h>
-#include <s2e/S2EExecutionState.h>
 
 #include <sigc++/sigc++.h>
 #include <vector>
 #include <inttypes.h>
 
 namespace s2e {
+
+class S2EExecutionState;
 
 /** A type of a signal emited on instruction execution. Instances of this signal
     will be dynamically created and destroyed on demand during translation. */

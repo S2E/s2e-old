@@ -1,5 +1,7 @@
-#ifndef S2E_EXECUTION_STATE_H
-#define S2E_EXECUTION_STATE_H
+#ifndef S2E_EXECUTIONSTATE_H
+#define S2E_EXECUTIONSTATE_H
+
+#include <klee/ExecutionState.h>
 
 struct CPUX86State;
 
@@ -37,4 +39,4 @@ public:
 
 }
 
-#endif // S2E_EXECUTION_STATE_H
+#endif // S2E_EXECUTIONSTATE_H

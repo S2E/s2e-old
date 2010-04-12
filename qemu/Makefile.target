@@ -327,6 +327,7 @@ s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
 s2eobj-y += s2e/ConfigFile.o
 s2eobj-y += s2e/QemuKleeGlue.o
+s2eobj-y += s2e/S2EExecutor.o
 s2eobj-y += s2e/S2E.o
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 
