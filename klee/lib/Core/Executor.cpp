@@ -17,7 +17,7 @@
 #include "ImpliedValue.h"
 #include "Memory.h"
 #include "MemoryManager.h"
-#include "PTree.h"
+#include "klee/PTree.h"
 #include "Searcher.h"
 #include "SeedInfo.h"
 #include "SpecialFunctionHandler.h"

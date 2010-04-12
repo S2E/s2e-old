@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PTree.h"
+#include "klee/PTree.h"
 
 #include <klee/Expr.h>
 #include <klee/util/ExprPPrinter.h>

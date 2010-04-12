@@ -13,7 +13,7 @@
 
 #include "CoreStats.h"
 #include "klee/Executor.h"
-#include "PTree.h"
+#include "klee/PTree.h"
 #include "klee/StatsTracker.h"
 
 #include "klee/ExecutionState.h"
