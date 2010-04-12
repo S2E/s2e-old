@@ -256,3 +256,4 @@ void WindowsImage::DumpInfo(std::iostream &os) const
 {
 
 }
+
