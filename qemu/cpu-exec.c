@@ -238,6 +238,7 @@ int cpu_exec(CPUState *env1)
     TranslationBlock *tb;
     uint8_t *tc_ptr;
     uintptr_t next_tb;
+    unsigned intNb=-1;
 
     if (cpu_halted(env1) == EXCP_HALTED)
         return EXCP_HALTED;
@@ -394,7 +395,7 @@ int cpu_exec(CPUState *env1)
                             env->hflags2 |= HF2_NMI_MASK;
                             do_interrupt(EXCP02_NMI, 0, 0, 0, 1);
                             next_tb = 0;
-			} else if (interrupt_request & CPU_INTERRUPT_MCE) {
+                        } else if (interrupt_request & CPU_INTERRUPT_MCE) {
                             env->interrupt_request &= ~CPU_INTERRUPT_MCE;
                             do_interrupt(EXCP12_MCHK, 0, 0, 0, 0);
                             next_tb = 0;

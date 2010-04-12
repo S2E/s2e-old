@@ -119,3 +119,10 @@ void s2e_on_translate_instruction_end(S2E* s2e,
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
     }
 }
+
+void s2e_on_exception(S2E *s2e, CPUX86State *env, unsigned intNb)
+{
+    state.setCpuState(env);
+    s2e->getCorePlugin()->onException.emit(&state, intNb);
+
+}

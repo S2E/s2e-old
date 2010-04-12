@@ -35,6 +35,10 @@ public:
             uint64_t /* instruction PC */>
             onTranslateInstructionStart, onTranslateInstructionEnd;
 
+    /** Signal that is emitted upon exception */
+    sigc::signal<void, S2EExecutionState*, unsigned /* Exception Index */>
+        onException;
+
     /** Signals that we will need */
 #if 0
     sigc::signal<execution_handler, uint64_t /* cr3 */, uint64_t /* startPC */, bool /* blockEntry */> onBlockExecution;
