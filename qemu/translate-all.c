@@ -32,7 +32,6 @@
 
 #ifdef CONFIG_LLVM
 #include "tcg-llvm.h"
-struct TCGLLVMContext *tcg_llvm_ctx;
 #endif
 
 #ifdef CONFIG_S2E
