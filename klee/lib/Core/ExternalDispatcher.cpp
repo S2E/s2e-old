@@ -85,26 +85,37 @@ void *ExternalDispatcher::resolveSymbol(const std::string &name) {
   return addr;
 }
 
-ExternalDispatcher::ExternalDispatcher() {
+ExternalDispatcher::ExternalDispatcher(ExecutionEngine* engine) {
   dispatchModule = new Module("ExternalDispatcher", getGlobalContext());
+
 #if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
   ExistingModuleProvider* MP = new ExistingModuleProvider(dispatchModule);
 #endif
 
-  std::string error;
+  originalEngine = engine;
+  if(engine) {
+    executionEngine = engine;
 #if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
-  executionEngine = ExecutionEngine::createJIT(MP, &error);
+    executionEngine->addModuleProvider(MP);
 #else
-  executionEngine = ExecutionEngine::createJIT(dispatchModule, &error);
+    executionEngine->addModule(dispatchModule);
 #endif
-  if (!executionEngine) {
-    std::cerr << "unable to make jit: " << error << "\n";
-    abort();
-  }
+  } else {
+    std::string error;
+#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
+    executionEngine = ExecutionEngine::createJIT(MP, &error);
+#else
+    executionEngine = ExecutionEngine::createJIT(dispatchModule, &error);
+#endif
+    if (!executionEngine) {
+      std::cerr << "unable to make jit: " << error << "\n";
+      abort();
+    }
 
-  // If we have a native target, initialize it to ensure it is linked in and
-  // usable by the JIT.
-  llvm::InitializeNativeTarget();
+    // If we have a native target, initialize it to ensure it is linked in and
+    // usable by the JIT.
+    llvm::InitializeNativeTarget();
+  }
 
   // from ExecutionEngine::create
   if (executionEngine) {
@@ -123,7 +134,8 @@ ExternalDispatcher::ExternalDispatcher() {
 }
 
 ExternalDispatcher::~ExternalDispatcher() {
-  delete executionEngine;
+  if(!originalEngine)
+    delete executionEngine;
 }
 
 bool ExternalDispatcher::executeCall(Function *f, Instruction *i, uint64_t *args) {

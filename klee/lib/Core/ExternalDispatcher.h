@@ -28,6 +28,7 @@ namespace klee {
     typedef std::map<const llvm::Instruction*,llvm::Function*> dispatchers_ty;
     dispatchers_ty dispatchers;
     llvm::Module *dispatchModule;
+    llvm::ExecutionEngine *originalEngine;
     llvm::ExecutionEngine *executionEngine;
     std::map<std::string, void*> preboundFunctions;
     
@@ -35,7 +36,7 @@ namespace klee {
     bool runProtectedCall(llvm::Function *f, uint64_t *args);
     
   public:
-    ExternalDispatcher();
+    ExternalDispatcher(llvm::ExecutionEngine* engine = NULL);
     ~ExternalDispatcher();
 
     /* Call the given function using the parameter passing convention of

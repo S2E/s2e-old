@@ -296,12 +296,12 @@ Solver *constructSolverChain(STPSolver *stpSolver,
 }
 
 Executor::Executor(const InterpreterOptions &opts,
-                   InterpreterHandler *ih) 
+                   InterpreterHandler *ih, ExecutionEngine *engine)
   : Interpreter(opts),
     kmodule(0),
     interpreterHandler(ih),
     searcher(0),
-    externalDispatcher(new ExternalDispatcher()),
+    externalDispatcher(new ExternalDispatcher(engine)),
     statsTracker(0),
     pathWriter(0),
     symPathWriter(0),

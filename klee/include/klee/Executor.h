@@ -40,6 +40,7 @@ namespace llvm {
   class TargetData;
   class Twine;
   class Value;
+  class ExecutionEngine;
 }
 
 namespace klee {  
@@ -378,7 +379,8 @@ protected:
                      double maxInstTime);
                 
 public:
-  Executor(const InterpreterOptions &opts, InterpreterHandler *ie);
+  Executor(const InterpreterOptions &opts, InterpreterHandler *ie,
+           llvm::ExecutionEngine *engine = NULL);
   virtual ~Executor();
 
   const InterpreterHandler& getHandler() {
