@@ -1,16 +1,15 @@
+// XXX: qemu stuff should be included before anything from KLEE or LLVM !
+#include <tcg-llvm.h>
+
 #include "S2E.h"
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/S2EExecutor.h>
 
 #include <s2e/s2e_qemu.h>
-
-// XXX: tcg stuff should be included before anything from KLEE or LLVM !
-#include <tcg-llvm.h>
-
-#include <s2e/S2EExecutor.h>
 
 #include <llvm/System/Path.h>
 #include <llvm/ModuleProvider.h>

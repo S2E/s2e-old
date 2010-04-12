@@ -1,5 +1,13 @@
 #define NDEBUG
 
+// XXX: qemu stuff should be included before anything from KLEE or LLVM !
+extern "C" {
+#include "config.h"
+//#include "cpu.h"
+//#include "exec-all.h"
+#include "qemu-common.h"
+}
+
 #include <s2e/s2e.h>
 #include <s2e/Utils.h>
 #include <s2e/ConfigFile.h>
@@ -12,13 +20,6 @@
 #include <cstring>
 #include <iostream>
 #include <assert.h>
-
-extern "C" {
-#include "config.h"
-#include "cpu.h"
-#include "exec-all.h"
-#include "qemu-common.h"
-}
 
 using namespace std;
 

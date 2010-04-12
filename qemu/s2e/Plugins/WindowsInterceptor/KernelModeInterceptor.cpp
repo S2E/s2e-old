@@ -1,5 +1,13 @@
 #define NDEBUG
 
+// XXX: qemu stuff should be included before anything from KLEE or LLVM !
+extern "C" {
+#include "config.h"
+//#include "cpu.h"
+//#include "exec-all.h"
+#include "qemu-common.h"
+}
+
 #include "KernelModeInterceptor.h"
 #include "WindowsImage.h"
 
@@ -8,14 +16,6 @@
 #include <s2e/Interceptor/ExecutableImage.h>
 
 #include <string>
-
-extern "C" {
-#include "config.h"
-#include "cpu.h"
-#include "exec-all.h"
-#include "qemu-common.h"
-}
-
 
 using namespace s2e;
 using namespace plugins;

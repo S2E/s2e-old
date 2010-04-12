@@ -1,4 +1,4 @@
-// XXX: tcg stuff should be included before anything from KLEE or LLVM !
+// XXX: qemu stuff should be included before anything from KLEE or LLVM !
 extern "C" {
 #include <tcg.h>
 #include <tcg-op.h>
