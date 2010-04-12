@@ -2797,7 +2797,7 @@ fi
 
 if test "$target_s2e" = "yes" ; then
   echo "LINKER=$cxx" >> $config_target_mak
-  echo "LIBS+=$llvm_libs $klee_libs" >> $config_target_mak
+  echo "LIBS+=$klee_libs $llvm_libs" >> $config_target_mak
   echo "LIBS+=$lua_libs $sigcxx2_libs" >> $config_target_mak
   echo "LIBS+=\$(filter-out $llvm_ldflags, $klee_ldflags) $llvm_ldflags" >> $config_target_mak
 fi
