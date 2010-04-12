@@ -1,6 +1,8 @@
 #include "S2EExecutor.h"
 #include <s2e/S2E.h>
 
+using namespace klee;
+
 namespace s2e {
 
 S2EHandler::S2EHandler(S2E* s2e)
@@ -37,9 +39,25 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
            << "with error message '" << (err ? err : "") << "'" << std::endl;
 }
 
-S2EExecutor::S2EExecutor(const InterpreterOptions &opts, klee::InterpreterHandler *ie)
+S2EExecutor::S2EExecutor(const InterpreterOptions &opts, InterpreterHandler *ie)
         : Executor(opts, ie)
 {
+}
+
+void S2EExecutor::callExternalFunction(ExecutionState &state,
+                            KInstruction *target,
+                            llvm::Function *function,
+                            std::vector< ref<Expr> > &arguments)
+{
+    assert(0);
+}
+
+void S2EExecutor::runFunctionAsMain(llvm::Function *f,
+                                 int argc,
+                                 char **argv,
+                                 char **envp)
+{
+    assert(0);
 }
 
 } // namespace s2e

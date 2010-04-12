@@ -181,7 +181,7 @@ void S2E::initKlee()
 {
     m_s2eHandler = new S2EHandler(this);
     S2EExecutor::InterpreterOptions IOpts;
-    m_s2eExecutor = NULL;//new S2EExecutor(IOpts, m_s2eHandler);
+    m_s2eExecutor = new S2EExecutor(IOpts, m_s2eHandler);
 
     S2EExecutor::ModuleOptions MOpts(KLEE_LIBRARY_DIR,
                     /* Optimize= */ false, /* CheckDivZero= */ false);

@@ -33,6 +33,15 @@ public:
 
 class S2EExecutor : public klee::Executor
 {
+private:
+  void callExternalFunction(klee::ExecutionState &state,
+                            klee::KInstruction *target,
+                            llvm::Function *function,
+                            std::vector< klee::ref<klee::Expr> > &arguments);
+  virtual void runFunctionAsMain(llvm::Function *f,
+                                 int argc,
+                                 char **argv,
+                                 char **envp);
 public:
     S2EExecutor(const InterpreterOptions &opts, klee::InterpreterHandler *ie);
 };
