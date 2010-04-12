@@ -167,7 +167,7 @@ T ConfigFile::getValueT(const std::string& name, const T& def, bool *ok)
   
     if(luaL_loadstring(m_luaState, expr.c_str()) ||
                     lua_pcall(m_luaState, 0, 1, 0)) {
-        luaWarning("Can not get configuration value %s:\n    %s\n",
+        luaWarning("Can not get configuration value '%s':\n    %s\n",
                     name.c_str(), lua_tostring(m_luaState, -1));
         lua_pop(m_luaState, 1);
         if(ok) *ok = false;
@@ -179,7 +179,7 @@ T ConfigFile::getValueT(const std::string& name, const T& def, bool *ok)
     if(ok) *ok = _ok;
   
     if(!_ok) {
-        luaWarning("Can not get configuration value %s:\n    "
+        luaWarning("Can not get configuration value '%s':\n    "
                 "value of type %s can not be converted to %s\n",
                 name.c_str(), lua_typename(m_luaState,
                     lua_type(m_luaState, -1)),
