@@ -113,6 +113,9 @@ namespace klee {
 
     /// Return an id for the given constant, creating a new one if necessary.
     unsigned getConstantID(llvm::Constant *c, KInstruction* ki);
+
+    /// Update shadow structures for newly added function
+    KFunction* updateModuleWithFunction(llvm::Function *f);
   };
 } // End klee namespace
 

@@ -464,6 +464,27 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   }
 }
 
+KFunction* KModule::updateModuleWithFunction(llvm::Function *f)
+{
+    assert(functionMap.find(f) == functionMap.end());
+
+    KFunction *kf = new KFunction(f, this);
+
+    /* TODO: update InstructionInfoTable here */
+    for (unsigned i=0; i<kf->numInstructions; ++i) {
+      KInstruction *ki = kf->instructions[i];
+      ki->info = &infos->getInfo(ki->inst);
+    }
+
+    functions.push_back(kf);
+    functionMap.insert(std::make_pair(f, kf));
+
+    if (functionEscapes(kf->function))
+      escapingFunctions.insert(kf->function);
+
+    return kf;
+}
+
 KConstant* KModule::getKConstant(Constant *c) {
   std::map<llvm::Constant*, KConstant*>::iterator it = constantMap.find(c);
   if (it != constantMap.end())
