@@ -1272,7 +1272,7 @@ int main(int argc, char **argv, char **envp) {
   IOpts.MakeConcreteSymbolic = MakeConcreteSymbolic;
   KleeHandler *handler = new KleeHandler(pArgc, pArgv);
   Interpreter *interpreter = 
-    theInterpreter = Interpreter::create(IOpts, handler);
+    theInterpreter = Interpreter::createKleeExecutor(IOpts, handler);
   handler->setInterpreter(interpreter);
   
   std::ostream &infoFile = handler->getInfoStream();

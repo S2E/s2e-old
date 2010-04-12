@@ -81,7 +81,7 @@ protected:
 public:
   virtual ~Interpreter() {};
 
-  static Interpreter *create(const InterpreterOptions &_interpreterOpts,
+  static Interpreter *createKleeExecutor(const InterpreterOptions &_interpreterOpts,
                              InterpreterHandler *ih);
 
   /// Register the module to be executed.  

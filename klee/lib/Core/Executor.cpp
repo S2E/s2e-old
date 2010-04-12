@@ -9,7 +9,7 @@
 
 #include "klee/Common.h"
 
-#include "Executor.h"
+#include "klee/Executor.h"
  
 #include "Context.h"
 #include "CoreStats.h"
@@ -3271,11 +3271,4 @@ void Executor::doImpliedValueConcretization(ExecutionState &state,
       }
     }
   }
-}
-
-///
-
-Interpreter *Interpreter::create(const InterpreterOptions &opts,
-                                 InterpreterHandler *ih) {
-  return new Executor(opts, ih);
 }
