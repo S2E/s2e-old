@@ -48,7 +48,7 @@ void ModuleExecutionDetector::initializeConfiguration()
 {
     ConfigFile *cfg = s2e()->getConfig();
 
-    ConfigFile::string_list keyList = cfg->getKeyList("moduleExecutionDetector");
+    ConfigFile::string_list keyList = cfg->getListKeys("moduleExecutionDetector");
 
     foreach2(it, keyList.begin(), keyList.end()) {
         ModuleExecutionDesc d;

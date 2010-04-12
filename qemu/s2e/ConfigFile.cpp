@@ -46,12 +46,12 @@ const char* ConfigFile::getTypeName<string>() { return "string"; }
 
 template<> inline
 const char* ConfigFile::getTypeName<ConfigFile::string_list>() {
-  return "string_list";
+  return "lua_list with only string values";
 }
 
 template<> inline
 const char* ConfigFile::getTypeName<ConfigFile::_key_list>() {
-  return "_key_list";
+  return "lua_table with only string keys";
 }
 
 template<> inline
@@ -93,7 +93,6 @@ bool ConfigFile::getLuaValue(string_list* res, const string_list& def, int index
     if(!ok) { *res = def; return ok; }
   
     /* read table as array */
-    string_list _res;
     for(int i=1; ; ++i) {
         lua_rawgeti(m_luaState, index, i);
         if(lua_isnil(m_luaState, -1)) {
@@ -101,7 +100,7 @@ bool ConfigFile::getLuaValue(string_list* res, const string_list& def, int index
             break;
         }
         if(lua_isstring(m_luaState, -1)) {
-            _res.push_back(lua_tostring(m_luaState, -1));
+            res->push_back(lua_tostring(m_luaState, -1));
             lua_pop(m_luaState, 1);
         } else {
             lua_pop(m_luaState, 1);
@@ -110,7 +109,6 @@ bool ConfigFile::getLuaValue(string_list* res, const string_list& def, int index
         }
     }
   
-    *res = _res;
     return true;
 }
 
@@ -139,19 +137,19 @@ bool ConfigFile::getLuaValue(_key_list* res, const _key_list& def, int index) {
     bool ok = lua_istable(m_luaState, index);
     if(!ok) { *res = def; return ok; }
 
-    /* table is in the stack at index 't' */
     lua_pushnil(m_luaState);  /* first key */
-    while (lua_next(m_luaState, index-1) != 0) {
+
+    /* table is in the stack at index-1 */
+    while(lua_next(m_luaState, index-1) != 0) {
         /* uses 'key' (at index -2) and 'value' (at index -1) */
+
         if (!lua_isstring(m_luaState, -2)) {
+            *res = def;
             return false;
         }
 
-       /* printf("%s - %s\n",
-            lua_tostring(m_luaState, -2),
-            lua_typename(m_luaState, lua_type(m_luaState, -1)));*/
-        
         res->keys.push_back(lua_tostring(m_luaState, -2));
+
         /* removes 'value'; keeps 'key' for next iteration */
         lua_pop(m_luaState, 1);
     }
@@ -218,10 +216,9 @@ int ConfigFile::getListSize(const std::string& name, bool *ok)
     return getValueT(name, l, ok).size;
 }
 
-ConfigFile::string_list ConfigFile::getKeyList(const std::string& name, 
-        const string_list& def, bool *ok)
+ConfigFile::string_list ConfigFile::getListKeys(const std::string& name, bool *ok)
 {
-    static const _key_list l = {def};
+    static const _key_list l;
     return getValueT(name, l, ok).keys;
 }
 
