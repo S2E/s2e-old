@@ -57,7 +57,7 @@ const vector<const PluginInfo*>& PluginsFactory::getPluginInfoList() const
 
 const PluginInfo* PluginsFactory::getPluginInfo(const string& name) const
 {
-    tr1::unordered_map<string, const PluginInfo*>::const_iterator it =
+    PluginInfoMap::const_iterator it =
                                 m_pluginsMap.find(name);
 
     if(it != m_pluginsMap.end())

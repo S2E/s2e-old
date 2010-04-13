@@ -6,14 +6,15 @@
 // XXX
 struct CPUX86State;
 
-#include <tr1/unordered_map>
+//#include <tr1/unordered_map>
 
 namespace s2e {
 
 class Plugin;
 class PluginState;
 
-typedef std::tr1::unordered_map<const Plugin*, PluginState*> PluginStateMap;
+//typedef std::tr1::unordered_map<const Plugin*, PluginState*> PluginStateMap;
+typedef std::map<const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)();
 
 /** Dummy implementation, just to make events work */

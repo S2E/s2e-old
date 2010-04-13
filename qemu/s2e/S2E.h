@@ -4,7 +4,10 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include <tr1/unordered_map>
+//#include <tr1/unordered_map>
+#include <map>
+
+#include "Plugin.h"
 
 namespace klee {
     class Interpreter;
@@ -31,7 +34,7 @@ protected:
 
   CorePlugin* m_corePlugin;
   std::vector<Plugin*> m_activePluginsList;
-  std::tr1::unordered_map<std::string, Plugin*> m_activePluginsMap;
+  ActivePluginMap m_activePluginsMap;
 
   std::string m_outputDirectory;
 

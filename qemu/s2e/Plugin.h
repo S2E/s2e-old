@@ -3,8 +3,8 @@
 
 #include <string>
 #include <vector>
-#include <tr1/unordered_map>
-
+//#include <tr1/unordered_map>
+#include <map>
 #include <sigc++/sigc++.h>
 
 namespace s2e {
@@ -75,9 +75,13 @@ struct PluginInfo {
     Plugin* (*instanceCreator)(S2E*);
 };
 
+//typedef std::tr1::unordered_map<std::string, const PluginInfo*> PluginMap;
+typedef std::map<std::string, const PluginInfo*> PluginInfoMap;
+typedef std::map<std::string, Plugin*> ActivePluginMap;
+
 class PluginsFactory {
 private:
-    std::tr1::unordered_map<std::string, const PluginInfo*> m_pluginsMap;
+    PluginInfoMap m_pluginsMap;
     std::vector<const PluginInfo*> m_pluginsList;
 
 public:
