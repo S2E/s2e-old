@@ -34,7 +34,9 @@ protected:
 
   CorePlugin* m_corePlugin;
   std::vector<Plugin*> m_activePluginsList;
-  ActivePluginMap m_activePluginsMap;
+
+  typedef std::map<std::string, Plugin*> ActivePluginsMap;
+  ActivePluginsMap m_activePluginsMap;
 
   std::string m_outputDirectory;
 

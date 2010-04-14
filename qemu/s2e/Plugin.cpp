@@ -57,8 +57,7 @@ const vector<const PluginInfo*>& PluginsFactory::getPluginInfoList() const
 
 const PluginInfo* PluginsFactory::getPluginInfo(const string& name) const
 {
-    PluginInfoMap::const_iterator it =
-                                m_pluginsMap.find(name);
+    PluginsMap::const_iterator it = m_pluginsMap.find(name);
 
     if(it != m_pluginsMap.end())
         return it->second;

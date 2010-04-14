@@ -76,12 +76,12 @@ struct PluginInfo {
 };
 
 //typedef std::tr1::unordered_map<std::string, const PluginInfo*> PluginMap;
-typedef std::map<std::string, const PluginInfo*> PluginInfoMap;
-typedef std::map<std::string, Plugin*> ActivePluginMap;
 
 class PluginsFactory {
 private:
-    PluginInfoMap m_pluginsMap;
+    typedef std::map<std::string, const PluginInfo*> PluginsMap;
+    PluginsMap m_pluginsMap;
+
     std::vector<const PluginInfo*> m_pluginsList;
 
 public:
