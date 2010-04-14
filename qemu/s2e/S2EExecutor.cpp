@@ -166,13 +166,21 @@ S2EExecutor::~S2EExecutor()
         statsTracker->done();
 }
 
-void S2EExecutor::updateCurrentState(
-        CPUState* cpuState, uint64_t pc)
+void S2EExecutor::updateCurrentState(CPUState* cpuState, uint64_t pc)
 {
     assert(m_currentState);
 
     m_currentState->cpuState = cpuState;
     m_currentState->cpuPC = pc;
+
+    // TODO: update KFunction and instruction iterator
+}
+
+void S2EExecutor::updateCurrentState(CPUState* cpuState)
+{
+    assert(m_currentState);
+
+    m_currentState->cpuState = cpuState;
 
     // TODO: update KFunction and instruction iterator
 }

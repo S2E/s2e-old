@@ -89,6 +89,7 @@ void s2e_on_translate_block_start(
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
+    s2e->getExecutor()->updateCurrentState(env);
     s2e->getCorePlugin()->onTranslateBlockStart.emit(
             signal, s2e->getExecutor()->getCurrentState(), pc);
     if(!signal->empty()) {
@@ -103,6 +104,7 @@ void s2e_on_translate_instruction_start(
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
+    s2e->getExecutor()->updateCurrentState(env);
     s2e->getCorePlugin()->onTranslateInstructionStart.emit(
             signal, s2e->getExecutor()->getCurrentState(), pc);
     if(!signal->empty()) {
@@ -117,6 +119,7 @@ void s2e_on_translate_instruction_end(
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
+    s2e->getExecutor()->updateCurrentState(env);
     s2e->getCorePlugin()->onTranslateInstructionEnd.emit(
             signal, s2e->getExecutor()->getCurrentState(), pc);
     if(!signal->empty()) {
@@ -125,9 +128,9 @@ void s2e_on_translate_instruction_end(
     }
 }
 
-void s2e_on_exception(S2E *s2e, CPUX86State *env, unsigned intNb)
+void s2e_on_exception(S2E *s2e, CPUState *env, unsigned intNb)
 {
-    state.setCpuState(env);
-    s2e->getCorePlugin()->onException.emit(&state, intNb);
-
+    s2e->getExecutor()->updateCurrentState(env);
+    s2e->getCorePlugin()->onException.emit(
+            s2e->getExecutor()->getCurrentState(), intNb);
 }

@@ -54,7 +54,11 @@ public:
 
     S2EExecutionState* getCurrentState() { return m_currentState; }
 
+    /** Called when by QEMU-related code when cpuState or PC
+       of the current state might have changed */
     void updateCurrentState(CPUX86State* cpuState, uint64_t pc);
+    void updateCurrentState(CPUX86State* cpuState);
+
     uintptr_t executeTranslationBlock(
             TranslationBlock *tb, void* volatile* saved_AREGs);
 };
