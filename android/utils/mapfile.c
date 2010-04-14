@@ -19,7 +19,7 @@
 #include "sys/types.h"
 #include "errno.h"
 #ifdef  WIN32
-#include "Windows.h"
+#include "windows.h"
 #else   // WIN32
 #include <sys/mman.h>
 #endif  // WIN32

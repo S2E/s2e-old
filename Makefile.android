@@ -659,6 +659,8 @@ endif
 #
 LOCAL_CFLAGS += $(SDL_CFLAGS)
 LOCAL_LDLIBS += $(SDL_LDLIBS)
+# Circular dependencies between libSDL and libSDLmain;
+# We repeat the libraries in the final link to work around it.
 LOCAL_STATIC_LIBRARIES += libSDL libSDLmain
 LOCAL_STATIC_LIBRARIES += libSDL libSDLmain
 
@@ -671,11 +673,19 @@ LOCAL_LDLIBS += $(ELFF_LDLIBS)
 # to use some weird pathnames to make this work...
 #
 ifeq ($(HOST_OS),windows)
+
+# Locate windres executable
+WINDRES := windres
+ifneq ($(USE_MINGW),)
+  # When building the Windows emulator under Linux, use the MinGW one
+  WINDRES := i586-mingw32msvc-windres
+endif
+
 INTERMEDIATE     := $(call intermediates-dir-for,EXECUTABLES,$(LOCAL_MODULE),true)
 ANDROID_ICON_OBJ := android_icon.o
 ANDROID_ICON_PATH := $(LOCAL_PATH)/images
 $(ANDROID_ICON_PATH)/$(ANDROID_ICON_OBJ): $(ANDROID_ICON_PATH)/android_icon.rc
-	windres $< -I $(ANDROID_ICON_PATH) -o $@
+	$(WINDRES) $< -I $(ANDROID_ICON_PATH) -o $@
 
 # seems to be the only way to add an object file that was not generated from
 # a C/C++/Java source file to our build system. and very unfortunately,
@@ -760,11 +770,12 @@ endif
 
 # other flags
 LOCAL_CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-LOCAL_LDLIBS += -lm -lpthread
-
+LOCAL_LDLIBS += -lm
 
 ifeq ($(HOST_OS),windows)
     LOCAL_LDLIBS += -lwinmm -lws2_32 -liphlpapi
+else
+    LOCAL_LDLIBS += -lpthread
 endif
 
 LOCAL_LDLIBS += $(QEMU_AUDIO_LIB)

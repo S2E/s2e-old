@@ -23,7 +23,7 @@
 #include "memory.h"
 #include "errno.h"
 #ifdef  WIN32
-#include "Windows.h"
+#include "windows.h"
 #else   // WIN32
 #include <sys/mman.h>
 #include <sys/stat.h>
