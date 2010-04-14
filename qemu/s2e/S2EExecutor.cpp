@@ -117,6 +117,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     /* Create initial execution state */
     m_currentState = new S2EExecutionState(kmodule->functionMap[dummyMain]);
+    m_currentState->cpuState = first_cpu;
 
     if(pathWriter)
         m_currentState->pathOS = pathWriter->open();
