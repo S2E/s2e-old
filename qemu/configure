@@ -1512,7 +1512,7 @@ fi
 
 if test "$s2e" != "no" ; then
   cat > $TMPCXX << EOF
-#include <sigc++/sigc++.h>>
+#include <sigc++/sigc++.h>
 int main(void) { sigc::signal<void, int> s; s.emit(1); return 0; }
 EOF
   if [ "$mingw32" = "yes" ]; then
