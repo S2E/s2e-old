@@ -317,6 +317,7 @@ int cpu_exec(CPUState *env1)
                                  env->exception_is_int,
                                  env->error_code,
                                  env->exception_next_eip, 0);
+                    intNb = env->exception_index;
                     /* successfully delivered */
                     env->old_exception = -1;
 #elif defined(TARGET_PPC)
@@ -394,10 +395,12 @@ int cpu_exec(CPUState *env1)
                             env->interrupt_request &= ~CPU_INTERRUPT_NMI;
                             env->hflags2 |= HF2_NMI_MASK;
                             do_interrupt(EXCP02_NMI, 0, 0, 0, 1);
+                            intNb = EXCP02_NMI;
                             next_tb = 0;
                         } else if (interrupt_request & CPU_INTERRUPT_MCE) {
                             env->interrupt_request &= ~CPU_INTERRUPT_MCE;
                             do_interrupt(EXCP12_MCHK, 0, 0, 0, 0);
+                            intNb = EXCP12_MCHK;
                             next_tb = 0;
                         } else if ((interrupt_request & CPU_INTERRUPT_HARD) &&
                                    (((env->hflags2 & HF2_VINTR_MASK) && 
@@ -415,6 +418,7 @@ int cpu_exec(CPUState *env1)
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
+                            intNb = intno;  
                             do_interrupt(intno, 0, 0, 0, 1);
                             /* ensure that no TB jump will be modified as
                                the program flow was changed */
@@ -428,6 +432,7 @@ int cpu_exec(CPUState *env1)
                             svm_check_intercept(SVM_EXIT_VINTR);
                             intno = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.int_vector));
                             qemu_log_mask(CPU_LOG_TB_IN_ASM, "Servicing virtual hardware INT=0x%02x\n", intno);
+                            intNb = intno;
                             do_interrupt(intno, 0, 0, 0, 1);
                             env->interrupt_request &= ~CPU_INTERRUPT_VIRQ;
                             next_tb = 0;
@@ -597,6 +602,12 @@ int cpu_exec(CPUState *env1)
                 }
 #endif
                 spin_lock(&tb_lock);
+
+                if (intNb != -1) {
+                    s2e_on_exception(g_s2e, env, intNb);
+                    intNb = -1;
+                }
+
                 tb = tb_find_fast();
                 /* Note: we do it here to avoid a gcc bug on Mac OS X when
                    doing it in tb_find_slow */

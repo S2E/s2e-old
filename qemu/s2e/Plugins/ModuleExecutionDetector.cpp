@@ -39,8 +39,18 @@ void ModuleExecutionDetector::initialize()
 
     s2e()->getCorePlugin()->onTranslateBlockStart.connect(
         sigc::mem_fun(*this, 
-        &ModuleExecutionDetector::slotTranslateBlockStart));
+        &ModuleExecutionDetector::onTranslateBlockStart));
 
+    s2e()->getCorePlugin()->onTranslateBlockEnd.connect(
+        sigc::mem_fun(*this, 
+        &ModuleExecutionDetector::onTranslateBlockEnd));
+
+    
+    s2e()->getCorePlugin()->onException.connect(
+        sigc::mem_fun(*this, 
+        &ModuleExecutionDetector::exceptionListener));
+
+    
     initializeConfiguration();
 }
 
@@ -61,8 +71,60 @@ void ModuleExecutionDetector::initializeConfiguration()
 }
 
 
+void ModuleExecutionDetector::onTranslateBlockEnd(
+        ExecutionSignal *signal,     
+        S2EExecutionState* state,
+        uint64_t endPc,
+        bool staticTarget,
+        uint64_t targetPc)
+{
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+    
+    uint64_t pid = m_Monitor->getPid(state, endPc);
+    
+    const ModuleDescriptor *currentModule = 
+        plgState->findCurrentModule(pid, endPc);
+    
+    if (!currentModule) {
+        // Outside of any module, do not need
+        // to instrument tb exits.
+        return;
+    }
 
-void ModuleExecutionDetector::slotTranslateBlockStart(
+    if (staticTarget) {
+        const ModuleDescriptor *targetModule =
+            plgState->findCurrentModule(pid, targetPc);
+    
+        if (targetModule != currentModule) {
+            //Only instrument in case there is a module change
+            DPRINTF("Static transition from %#"PRIx64" to %#"PRIx64"\n",
+                endPc, targetPc);
+            signal->connect(sigc::mem_fun(*this, 
+                &ModuleExecutionDetector::onExecution));   
+        }
+    }else {
+        DPRINTF("Dynamic transition from %#"PRIx64" to %#"PRIx64"\n",
+                endPc, targetPc);
+        //In case of dynamic targets, conservatively
+        //instrument code.
+        signal->connect(sigc::mem_fun(*this, 
+                &ModuleExecutionDetector::onExecution));   
+
+    }
+
+}
+
+void ModuleExecutionDetector::exceptionListener(
+                       S2EExecutionState* state,
+                       unsigned intNb,
+                       uint64_t pc
+                       )
+{
+    //std::cout << "Exception index " << intNb << std::endl;
+    onExecution(state, pc);
+}
+
+void ModuleExecutionDetector::onTranslateBlockStart(
     ExecutionSignal *signal, 
     S2EExecutionState *state,
     uint64_t pc)
@@ -77,11 +139,11 @@ void ModuleExecutionDetector::slotTranslateBlockStart(
     if (currentModule) {
         //std::cout << "Translating block belonging to " << currentModule->Name << std::endl;
         signal->connect(sigc::mem_fun(*this, 
-            &ModuleExecutionDetector::slotTbExecStart));
+            &ModuleExecutionDetector::onExecution));
     }
 }
 
-void ModuleExecutionDetector::slotTbExecStart(
+void ModuleExecutionDetector::onExecution(
     S2EExecutionState *state, uint64_t pc)
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);

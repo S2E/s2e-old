@@ -43,11 +43,24 @@ public:
     virtual ~ModuleExecutionDetector();
     void initialize();
 
-    void slotTranslateBlockStart(ExecutionSignal *signal, 
+    void onTranslateBlockStart(ExecutionSignal *signal, 
         S2EExecutionState *state,
         uint64_t pc);
     
-    void slotTbExecStart(S2EExecutionState *state, uint64_t pc);
+    void onTranslateBlockEnd(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        uint64_t endPc,
+        bool staticTarget,
+        uint64_t targetPc);
+
+    void onExecution(S2EExecutionState *state, uint64_t pc);
+
+    void exceptionListener(
+        S2EExecutionState* state,
+        unsigned intNb,
+        uint64_t pc
+    );
 
     void moduleLoadListener(
         S2EExecutionState* state,

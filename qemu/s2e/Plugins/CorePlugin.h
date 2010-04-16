@@ -30,6 +30,15 @@ public:
             uint64_t /* block PC */>
             onTranslateBlockStart;
 
+    /** Signal that is emitted upon end of translation block */
+    sigc::signal<void, ExecutionSignal*, 
+            S2EExecutionState*,
+            uint64_t /* ending instruction pc */,
+            bool /* static target is valid */,
+            uint64_t /* static target pc */>
+            onTranslateBlockEnd;
+
+    
     /** Signal that is emitted on code generation for each instruction */
     sigc::signal<void, ExecutionSignal*, 
             S2EExecutionState*,
@@ -37,8 +46,12 @@ public:
             onTranslateInstructionStart, onTranslateInstructionEnd;
 
     /** Signal that is emitted upon exception */
-    sigc::signal<void, S2EExecutionState*, unsigned /* Exception Index */>
-        onException;
+    sigc::signal<void, S2EExecutionState*, 
+            unsigned /* Exception Index */,
+            uint64_t /* pc */>
+            onException;
+
+    
 
     /** Signals that we will need */
 #if 0

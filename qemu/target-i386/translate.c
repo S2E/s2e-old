@@ -118,6 +118,12 @@ typedef struct DisasContext {
     int cpuid_ext_features;
     int cpuid_ext2_features;
     int cpuid_ext3_features;
+
+#ifdef CONFIG_S2E
+    void *cpuState;
+    target_ulong insPc; /* pc of the instrucition being translated */
+    int enable_jmp_im;
+#endif
 } DisasContext;
 
 static void gen_eob(DisasContext *s);
@@ -407,8 +413,12 @@ static inline void gen_op_addl_T0_T1(void)
     tcg_gen_add_tl(cpu_T[0], cpu_T[0], cpu_T[1]);
 }
 
-static inline void gen_op_jmp_T0(void)
+static inline void gen_op_jmp_T0(DisasContext *s)
 {
+#ifdef CONFIG_S2E
+    s2e_on_translate_block_end(g_s2e, s->cpuState, s->tb, s->insPc,
+        0, 0);
+#endif
     tcg_gen_st_tl(cpu_T[0], cpu_env, offsetof(CPUState, eip));
 }
 
@@ -605,10 +615,13 @@ static inline void gen_op_st_T1_A0(int idx)
     gen_op_st_v(idx, cpu_T[1], cpu_A0);
 }
 
-static inline void gen_jmp_im(target_ulong pc)
+static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
 {
     tcg_gen_movi_tl(cpu_tmp0, pc);
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
+    #ifdef CONFIG_S2E
+    s2e_on_translate_block_end(g_s2e, s->cpuState, s->tb, s->insPc, 1, pc);
+    #endif
 }
 
 static inline void gen_string_movl_A0_ESI(DisasContext *s)
@@ -751,7 +764,7 @@ static void gen_check_io(DisasContext *s, int ot, target_ulong cur_eip,
     if (s->pe && (s->cpl > s->iopl || s->vm86)) {
         if (s->cc_op != CC_OP_DYNAMIC)
             gen_op_set_cc_op(s->cc_op);
-        gen_jmp_im(cur_eip);
+        gen_jmp_im(s, cur_eip);
         state_saved = 1;
         tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
         switch (ot) {
@@ -764,7 +777,7 @@ static void gen_check_io(DisasContext *s, int ot, target_ulong cur_eip,
         if (!state_saved) {
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(cur_eip);
+            gen_jmp_im(s, cur_eip);
             state_saved = 1;
         }
         svm_flags |= (1 << (4 + ot));
@@ -2299,12 +2312,22 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
     if ((pc & TARGET_PAGE_MASK) == (tb->pc & TARGET_PAGE_MASK) ||
         (pc & TARGET_PAGE_MASK) == ((s->pc - 1) & TARGET_PAGE_MASK))  {
         /* jump to same page: we can use a direct jump */
+#ifdef CONFIG_S2E
+        s->enable_jmp_im = 0;
         tcg_gen_goto_tb(tb_num);
-        gen_jmp_im(eip);
+        s2e_on_translate_block_end(g_s2e, s->cpuState, s->tb, 
+            s->insPc, 1, eip);
+        tcg_gen_goto_tb(tb_num);
+        gen_jmp_im(s, eip);
+        s->enable_jmp_im = 1;
+#else
+        tcg_gen_goto_tb(tb_num);
+        gen_jmp_im(s, eip);
+#endif
         tcg_gen_exit_tb((intptr_t)tb + tb_num);
     } else {
         /* jump to another page: currently not optimized */
-        gen_jmp_im(eip);
+        gen_jmp_im(s, eip);
         gen_eob(s);
     }
 }
@@ -2334,11 +2357,11 @@ static inline void gen_jcc(DisasContext *s, int b,
         l2 = gen_new_label();
         gen_jcc1(s, cc_op, b, l1);
 
-        gen_jmp_im(next_eip);
+        gen_jmp_im(s, next_eip);
         tcg_gen_br(l2);
 
         gen_set_label(l1);
-        gen_jmp_im(val);
+        gen_jmp_im(s, val);
         gen_set_label(l2);
         gen_eob(s);
     }
@@ -2397,7 +2420,7 @@ static void gen_movl_seg_T0(DisasContext *s, int seg_reg, target_ulong cur_eip)
         /* XXX: optimize by finding processor state dynamically */
         if (s->cc_op != CC_OP_DYNAMIC)
             gen_op_set_cc_op(s->cc_op);
-        gen_jmp_im(cur_eip);
+        gen_jmp_im(s, cur_eip);
         tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
         gen_helper_load_seg(tcg_const_i32(seg_reg), cpu_tmp2_i32);
         /* abort translation because the addseg value may change or
@@ -2427,7 +2450,7 @@ gen_svm_check_intercept_param(DisasContext *s, target_ulong pc_start,
         return;
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
-    gen_jmp_im(pc_start - s->cs_base);
+    gen_jmp_im(s, pc_start - s->cs_base);
     gen_helper_svm_check_intercept_param(tcg_const_i32(type),
                                          tcg_const_i64(param));
 }
@@ -2675,7 +2698,7 @@ static void gen_exception(DisasContext *s, int trapno, target_ulong cur_eip)
 {
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
-    gen_jmp_im(cur_eip);
+    gen_jmp_im(s, cur_eip);
     gen_helper_raise_exception(tcg_const_i32(trapno));
     s->is_jmp = 3;
 }
@@ -2687,7 +2710,7 @@ static void gen_interrupt(DisasContext *s, int intno,
 {
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
-    gen_jmp_im(cur_eip);
+    gen_jmp_im(s, cur_eip);
     gen_helper_raise_interrupt(tcg_const_i32(intno), 
                                tcg_const_i32(next_eip - cur_eip));
     s->is_jmp = 3;
@@ -2697,7 +2720,7 @@ static void gen_debug(DisasContext *s, target_ulong cur_eip)
 {
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
-    gen_jmp_im(cur_eip);
+    gen_jmp_im(s, cur_eip);
     gen_helper_debug();
     s->is_jmp = 3;
 }
@@ -2736,7 +2759,7 @@ static void gen_jmp_tb(DisasContext *s, target_ulong eip, int tb_num)
         gen_goto_tb(s, tb_num, eip);
         s->is_jmp = 3;
     } else {
-        gen_jmp_im(eip);
+        gen_jmp_im(s, eip);
         gen_eob(s);
     }
 }
@@ -4532,21 +4555,21 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         case 6: /* div */
             switch(ot) {
             case OT_BYTE:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_divb_AL(cpu_T[0]);
                 break;
             case OT_WORD:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_divw_AX(cpu_T[0]);
                 break;
             default:
             case OT_LONG:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_divl_EAX(cpu_T[0]);
                 break;
 #ifdef TARGET_X86_64
             case OT_QUAD:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_divq_EAX(cpu_T[0]);
                 break;
 #endif
@@ -4555,21 +4578,21 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         case 7: /* idiv */
             switch(ot) {
             case OT_BYTE:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_idivb_AL(cpu_T[0]);
                 break;
             case OT_WORD:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_idivw_AX(cpu_T[0]);
                 break;
             default:
             case OT_LONG:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_idivl_EAX(cpu_T[0]);
                 break;
 #ifdef TARGET_X86_64
             case OT_QUAD:
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_idivq_EAX(cpu_T[0]);
                 break;
 #endif
@@ -4637,7 +4660,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             next_eip = s->pc - s->cs_base;
             gen_movtl_T1_im(next_eip);
             gen_push_T1(s);
-            gen_op_jmp_T0();
+            gen_op_jmp_T0(s);
             gen_eob(s);
             break;
         case 3: /* lcall Ev */
@@ -4648,7 +4671,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (s->pe && !s->vm86) {
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
                 gen_helper_lcall_protected(cpu_tmp2_i32, cpu_T[1],
                                            tcg_const_i32(dflag), 
@@ -4664,7 +4687,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         case 4: /* jmp Ev */
             if (s->dflag == 0)
                 gen_op_andl_T0_ffff();
-            gen_op_jmp_T0();
+            gen_op_jmp_T0(s);
             gen_eob(s);
             break;
         case 5: /* ljmp Ev */
@@ -4675,14 +4698,14 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (s->pe && !s->vm86) {
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
                 gen_helper_ljmp_protected(cpu_tmp2_i32, cpu_T[1],
                                           tcg_const_i32(s->pc - pc_start));
             } else {
                 gen_op_movl_seg_T0_vm(R_CS);
                 gen_op_movl_T0_T1();
-                gen_op_jmp_T0();
+                gen_op_jmp_T0(s);
             }
             gen_eob(s);
             break;
@@ -4916,7 +4939,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         if (dflag == 2) {
             if (!(s->cpuid_ext_features & CPUID_EXT_CX16))
                 goto illegal_op;
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
@@ -4926,7 +4949,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         {
             if (!(s->cpuid_features & CPUID_CX8))
                 goto illegal_op;
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
@@ -5060,7 +5083,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             s->tf = 0;
         }
         if (s->is_jmp) {
-            gen_jmp_im(s->pc - s->cs_base);
+            gen_jmp_im(s, s->pc - s->cs_base);
             gen_eob(s);
         }
         break;
@@ -5070,7 +5093,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         gen_movl_seg_T0(s, (b >> 3) & 7, pc_start - s->cs_base);
         gen_pop_update(s);
         if (s->is_jmp) {
-            gen_jmp_im(s->pc - s->cs_base);
+            gen_jmp_im(s, s->pc - s->cs_base);
             gen_eob(s);
         }
         break;
@@ -5136,7 +5159,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             s->tf = 0;
         }
         if (s->is_jmp) {
-            gen_jmp_im(s->pc - s->cs_base);
+            gen_jmp_im(s, s->pc - s->cs_base);
             gen_eob(s);
         }
         break;
@@ -5368,7 +5391,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         /* then put the data */
         gen_op_mov_reg_T1(ot, reg);
         if (s->is_jmp) {
-            gen_jmp_im(s->pc - s->cs_base);
+            gen_jmp_im(s, s->pc - s->cs_base);
             gen_eob(s);
         }
         break;
@@ -5602,7 +5625,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             case 0x0c: /* fldenv mem */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_fldenv(
                                    cpu_A0, tcg_const_i32(s->dflag));
                 break;
@@ -5614,7 +5637,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             case 0x0e: /* fnstenv mem */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_fstenv(cpu_A0, tcg_const_i32(s->dflag));
                 break;
             case 0x0f: /* fnstcw mem */
@@ -5625,26 +5648,26 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             case 0x1d: /* fldt mem */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_fldt_ST0(cpu_A0);
                 break;
             case 0x1f: /* fstpt mem */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_fstt_ST0(cpu_A0);
                 gen_helper_fpop();
                 break;
             case 0x2c: /* frstor mem */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_frstor(cpu_A0, tcg_const_i32(s->dflag));
                 break;
             case 0x2e: /* fnsave mem */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_fsave(cpu_A0, tcg_const_i32(s->dflag));
                 break;
             case 0x2f: /* fnstsw mem */
@@ -5655,13 +5678,13 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             case 0x3c: /* fbld */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_fbld_ST0(cpu_A0);
                 break;
             case 0x3e: /* fbstp */
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 gen_helper_fbst_ST0(cpu_A0);
                 gen_helper_fpop();
                 break;
@@ -5699,7 +5722,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                     /* check exceptions (FreeBSD FPU probe) */
                     if (s->cc_op != CC_OP_DYNAMIC)
                         gen_op_set_cc_op(s->cc_op);
-                    gen_jmp_im(pc_start - s->cs_base);
+                    gen_jmp_im(s, pc_start - s->cs_base);
                     gen_helper_fwait();
                     break;
                 default:
@@ -6192,7 +6215,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         gen_stack_update(s, val + (2 << s->dflag));
         if (s->dflag == 0)
             gen_op_andl_T0_ffff();
-        gen_op_jmp_T0();
+        gen_op_jmp_T0(s);
         gen_eob(s);
         break;
     case 0xc3: /* ret */
@@ -6200,7 +6223,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         gen_pop_update(s);
         if (s->dflag == 0)
             gen_op_andl_T0_ffff();
-        gen_op_jmp_T0();
+        gen_op_jmp_T0(s);
         gen_eob(s);
         break;
     case 0xca: /* lret im */
@@ -6210,7 +6233,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         if (s->pe && !s->vm86) {
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_lret_protected(tcg_const_i32(s->dflag),
                                       tcg_const_i32(val));
         } else {
@@ -6221,7 +6244,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_op_andl_T0_ffff();
             /* NOTE: keeping EIP updated is not a problem in case of
                exception */
-            gen_op_jmp_T0();
+            gen_op_jmp_T0(s);
             /* pop selector */
             gen_op_addl_A0_im(2 << s->dflag);
             gen_op_ld_T0_A0(1 + s->dflag + s->mem_index);
@@ -6250,7 +6273,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         } else {
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_iret_protected(tcg_const_i32(s->dflag), 
                                       tcg_const_i32(s->pc - s->cs_base));
             s->cc_op = CC_OP_EFLAGS;
@@ -6429,7 +6452,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_pop_update(s);
             s->cc_op = CC_OP_EFLAGS;
             /* abort translation because TF flag may change */
-            gen_jmp_im(s->pc - s->cs_base);
+            gen_jmp_im(s, s->pc - s->cs_base);
             gen_eob(s);
         }
         break;
@@ -6686,7 +6709,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         } else {
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_fwait();
         }
         break;
@@ -6706,7 +6729,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             goto illegal_op;
         if (s->cc_op != CC_OP_DYNAMIC)
             gen_op_set_cc_op(s->cc_op);
-        gen_jmp_im(pc_start - s->cs_base);
+        gen_jmp_im(s, pc_start - s->cs_base);
         gen_helper_into(tcg_const_i32(s->pc - pc_start));
         break;
 #ifdef WANT_ICEBP
@@ -6747,7 +6770,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 if (!(s->tb->flags & HF_INHIBIT_IRQ_MASK))
                     gen_helper_set_inhibit_irq();
                 /* give a chance to handle pending irqs */
-                gen_jmp_im(s->pc - s->cs_base);
+                gen_jmp_im(s, s->pc - s->cs_base);
                 gen_eob(s);
             } else {
                 gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
@@ -6771,7 +6794,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             goto illegal_op;
         gen_op_mov_TN_reg(ot, 0, reg);
         gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
-        gen_jmp_im(pc_start - s->cs_base);
+        gen_jmp_im(s, pc_start - s->cs_base);
         tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
         if (ot == OT_WORD)
             gen_helper_boundw(cpu_A0, cpu_tmp2_i32);
@@ -6846,11 +6869,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             }
 
             gen_set_label(l3);
-            gen_jmp_im(next_eip);
+            gen_jmp_im(s, next_eip);
             tcg_gen_br(l2);
 
             gen_set_label(l1);
-            gen_jmp_im(tval);
+            gen_jmp_im(s, tval);
             gen_set_label(l2);
             gen_eob(s);
         }
@@ -6862,7 +6885,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         } else {
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             if (b & 2) {
                 gen_helper_rdmsr();
             } else {
@@ -6873,7 +6896,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     case 0x131: /* rdtsc */
         if (s->cc_op != CC_OP_DYNAMIC)
             gen_op_set_cc_op(s->cc_op);
-        gen_jmp_im(pc_start - s->cs_base);
+        gen_jmp_im(s, pc_start - s->cs_base);
         if (use_icount)
             gen_io_start();
         gen_helper_rdtsc();
@@ -6885,7 +6908,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     case 0x133: /* rdpmc */
         if (s->cc_op != CC_OP_DYNAMIC)
             gen_op_set_cc_op(s->cc_op);
-        gen_jmp_im(pc_start - s->cs_base);
+        gen_jmp_im(s, pc_start - s->cs_base);
         gen_helper_rdpmc();
         break;
     case 0x134: /* sysenter */
@@ -6899,7 +6922,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_op_set_cc_op(s->cc_op);
                 s->cc_op = CC_OP_DYNAMIC;
             }
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_sysenter();
             gen_eob(s);
         }
@@ -6915,7 +6938,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_op_set_cc_op(s->cc_op);
                 s->cc_op = CC_OP_DYNAMIC;
             }
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_sysexit(tcg_const_i32(dflag));
             gen_eob(s);
         }
@@ -6927,7 +6950,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_op_set_cc_op(s->cc_op);
             s->cc_op = CC_OP_DYNAMIC;
         }
-        gen_jmp_im(pc_start - s->cs_base);
+        gen_jmp_im(s, pc_start - s->cs_base);
         gen_helper_syscall(tcg_const_i32(s->pc - pc_start));
         gen_eob(s);
         break;
@@ -6939,7 +6962,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_op_set_cc_op(s->cc_op);
                 s->cc_op = CC_OP_DYNAMIC;
             }
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_sysret(tcg_const_i32(s->dflag));
             /* condition codes are modified only in long mode */
             if (s->lma)
@@ -6951,7 +6974,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     case 0x1a2: /* cpuid */
         if (s->cc_op != CC_OP_DYNAMIC)
             gen_op_set_cc_op(s->cc_op);
-        gen_jmp_im(pc_start - s->cs_base);
+        gen_jmp_im(s, pc_start - s->cs_base);
         gen_helper_cpuid();
         break;
     case 0xf4: /* hlt */
@@ -6960,7 +6983,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         } else {
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_hlt(tcg_const_i32(s->pc - pc_start));
             s->is_jmp = 3;
         }
@@ -6988,7 +7011,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             } else {
                 gen_svm_check_intercept(s, pc_start, SVM_EXIT_LDTR_WRITE);
                 gen_ldst_modrm(s, modrm, OT_WORD, OR_TMP0, 0);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
                 gen_helper_lldt(cpu_tmp2_i32);
             }
@@ -7011,7 +7034,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             } else {
                 gen_svm_check_intercept(s, pc_start, SVM_EXIT_TR_WRITE);
                 gen_ldst_modrm(s, modrm, OT_WORD, OR_TMP0, 0);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
                 gen_helper_ltr(cpu_tmp2_i32);
             }
@@ -7061,7 +7084,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                         goto illegal_op;
                     if (s->cc_op != CC_OP_DYNAMIC)
                         gen_op_set_cc_op(s->cc_op);
-                    gen_jmp_im(pc_start - s->cs_base);
+                    gen_jmp_im(s, pc_start - s->cs_base);
 #ifdef TARGET_X86_64
                     if (s->aflag == 2) {
                         gen_op_movq_A0_reg(R_EAX);
@@ -7083,7 +7106,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                         gen_op_set_cc_op(s->cc_op);
                         s->cc_op = CC_OP_DYNAMIC;
                     }
-                    gen_jmp_im(pc_start - s->cs_base);
+                    gen_jmp_im(s, pc_start - s->cs_base);
                     gen_helper_mwait(tcg_const_i32(s->pc - pc_start));
                     gen_eob(s);
                     break;
@@ -7107,7 +7130,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (mod == 3) {
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 switch(rm) {
                 case 0: /* VMRUN */
                     if (!(s->flags & HF_SVME_MASK) || !s->pe)
@@ -7225,7 +7248,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_svm_check_intercept(s, pc_start, SVM_EXIT_WRITE_CR0);
                 gen_ldst_modrm(s, modrm, OT_WORD, OR_TMP0, 0);
                 gen_helper_lmsw(cpu_T[0]);
-                gen_jmp_im(s->pc - s->cs_base);
+                gen_jmp_im(s, s->pc - s->cs_base);
                 gen_eob(s);
             }
             break;
@@ -7236,10 +7259,10 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 } else {
                     if (s->cc_op != CC_OP_DYNAMIC)
                         gen_op_set_cc_op(s->cc_op);
-                    gen_jmp_im(pc_start - s->cs_base);
+                    gen_jmp_im(s, pc_start - s->cs_base);
                     gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
                     gen_helper_invlpg(cpu_A0);
-                    gen_jmp_im(s->pc - s->cs_base);
+                    gen_jmp_im(s, s->pc - s->cs_base);
                     gen_eob(s);
                 }
             } else {
@@ -7270,7 +7293,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                         goto illegal_op;
                     if (s->cc_op != CC_OP_DYNAMIC)
                         gen_op_set_cc_op(s->cc_op);
-                    gen_jmp_im(pc_start - s->cs_base);
+                    gen_jmp_im(s, pc_start - s->cs_base);
                     if (use_icount)
                         gen_io_start();
                     gen_helper_rdtscp();
@@ -7452,11 +7475,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             case 8:
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 if (b & 2) {
                     gen_op_mov_TN_reg(ot, 0, rm);
                     gen_helper_write_crN(tcg_const_i32(reg), cpu_T[0]);
-                    gen_jmp_im(s->pc - s->cs_base);
+                    gen_jmp_im(s, s->pc - s->cs_base);
                     gen_eob(s);
                 } else {
                     gen_helper_read_crN(cpu_T[0], tcg_const_i32(reg));
@@ -7489,7 +7512,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_svm_check_intercept(s, pc_start, SVM_EXIT_WRITE_DR0 + reg);
                 gen_op_mov_TN_reg(ot, 0, rm);
                 gen_helper_movl_drN_T0(tcg_const_i32(reg), cpu_T[0]);
-                gen_jmp_im(s->pc - s->cs_base);
+                gen_jmp_im(s, s->pc - s->cs_base);
                 gen_eob(s);
             } else {
                 gen_svm_check_intercept(s, pc_start, SVM_EXIT_READ_DR0 + reg);
@@ -7505,7 +7528,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_svm_check_intercept(s, pc_start, SVM_EXIT_WRITE_CR0);
             gen_helper_clts();
             /* abort block because static cpu state changed */
-            gen_jmp_im(s->pc - s->cs_base);
+            gen_jmp_im(s, s->pc - s->cs_base);
             gen_eob(s);
         }
         break;
@@ -7538,7 +7561,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_fxsave(cpu_A0, tcg_const_i32((s->dflag == 2)));
             break;
         case 1: /* fxrstor */
@@ -7552,7 +7575,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
             if (s->cc_op != CC_OP_DYNAMIC)
                 gen_op_set_cc_op(s->cc_op);
-            gen_jmp_im(pc_start - s->cs_base);
+            gen_jmp_im(s, pc_start - s->cs_base);
             gen_helper_fxrstor(cpu_A0, tcg_const_i32((s->dflag == 2)));
             break;
         case 2: /* ldmxcsr */
@@ -7611,7 +7634,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_op_set_cc_op(s->cc_op);
             s->cc_op = CC_OP_DYNAMIC;
         }
-        gen_jmp_im(s->pc - s->cs_base);
+        gen_jmp_im(s, s->pc - s->cs_base);
         gen_helper_rsm();
         gen_eob(s);
         break;
@@ -7832,6 +7855,9 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         max_insns = CF_COUNT_MASK;
 
 #ifdef CONFIG_S2E
+    dc->enable_jmp_im = 1;
+    dc->cpuState = env;
+
     s2e_on_translate_block_start(g_s2e, env, tb, pc_start);
 #endif
 
@@ -7862,6 +7888,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
             gen_io_start();
 
 #ifdef CONFIG_S2E
+        dc->insPc = pc_ptr;
         s2e_on_translate_instruction_start(g_s2e, env, tb, pc_ptr);
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);
@@ -7880,7 +7907,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
            change to be happen */
         if (dc->tf || dc->singlestep_enabled ||
             (flags & HF_INHIBIT_IRQ_MASK)) {
-            gen_jmp_im(pc_ptr - dc->cs_base);
+            gen_jmp_im(dc, pc_ptr - dc->cs_base);
             gen_eob(dc);
             break;
         }
@@ -7888,12 +7915,12 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         if (gen_opc_ptr >= gen_opc_end ||
             (pc_ptr - pc_start) >= (TARGET_PAGE_SIZE - 32) ||
             num_insns >= max_insns) {
-            gen_jmp_im(pc_ptr - dc->cs_base);
+            gen_jmp_im(dc, pc_ptr - dc->cs_base);
             gen_eob(dc);
             break;
         }
         if (singlestep) {
-            gen_jmp_im(pc_ptr - dc->cs_base);
+            gen_jmp_im(dc, pc_ptr - dc->cs_base);
             gen_eob(dc);
             break;
         }

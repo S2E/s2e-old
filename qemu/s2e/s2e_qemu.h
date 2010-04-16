@@ -57,6 +57,15 @@ void s2e_on_translate_block_start(
         struct CPUX86State *env,
         struct TranslationBlock *tb, uint64_t pc);
 
+/** Called by cpu_gen_code() before the execution would leave the tb.
+    staticTarget is 1 when the target pc at the end of the tb is known */
+void s2e_on_translate_block_end(
+        struct S2E* s2e, 
+        struct CPUX86State *env, 
+        struct TranslationBlock *tb, uint64_t insPc, 
+        int staticTarget, uint64_t targetPc);
+
+
 /** Called by cpu_gen_code() before translation of each instruction */
 void s2e_on_translate_instruction_start(
         struct S2E* s2e,
