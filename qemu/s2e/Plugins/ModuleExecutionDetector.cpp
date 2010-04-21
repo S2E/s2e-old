@@ -61,7 +61,7 @@ void ModuleExecutionDetector::initializeConfiguration()
     ConfigFile::string_list keyList = cfg->getListKeys("moduleExecutionDetector");
 
     foreach2(it, keyList.begin(), keyList.end()) {
-        ModuleExecutionDesc d;
+        ModuleExecutionCfg d;
         std::stringstream s;
         s << "moduleExecutionDetector." << *it << ".";
         d.moduleName = cfg->getString(s.str() + "moduleName");
@@ -71,9 +71,33 @@ void ModuleExecutionDetector::initializeConfiguration()
 }
 
 
+void ModuleExecutionDetector::onTranslateBlockStart(
+    ExecutionSignal *signal, 
+    S2EExecutionState *state,
+    TranslationBlock *tb,
+    uint64_t pc)
+{
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+    
+    uint64_t pid = m_Monitor->getPid(state, pc);
+    
+    const ModuleExecutionDesc *currentModule = 
+        plgState->findCurrentModule(pid, pc);
+    
+    if (currentModule) {
+        //std::cout << "Translating block belonging to " << currentModule->Name << std::endl;
+        onModuleTranslateBlockStart.emit(signal, state, currentModule, tb, pc);
+
+        signal->connect(sigc::mem_fun(*this, 
+            &ModuleExecutionDetector::onExecution));
+    }
+}
+
+
 void ModuleExecutionDetector::onTranslateBlockEnd(
         ExecutionSignal *signal,     
         S2EExecutionState* state,
+        TranslationBlock *tb,
         uint64_t endPc,
         bool staticTarget,
         uint64_t targetPc)
@@ -82,7 +106,7 @@ void ModuleExecutionDetector::onTranslateBlockEnd(
     
     uint64_t pid = m_Monitor->getPid(state, endPc);
     
-    const ModuleDescriptor *currentModule = 
+    const ModuleExecutionDesc *currentModule = 
         plgState->findCurrentModule(pid, endPc);
     
     if (!currentModule) {
@@ -91,8 +115,11 @@ void ModuleExecutionDetector::onTranslateBlockEnd(
         return;
     }
 
+    onModuleTranslateBlockEnd.emit(signal, state, currentModule, tb, endPc,
+        staticTarget, targetPc);
+
     if (staticTarget) {
-        const ModuleDescriptor *targetModule =
+        const ModuleExecutionDesc *targetModule =
             plgState->findCurrentModule(pid, targetPc);
     
         if (targetModule != currentModule) {
@@ -124,24 +151,6 @@ void ModuleExecutionDetector::exceptionListener(
     onExecution(state, pc);
 }
 
-void ModuleExecutionDetector::onTranslateBlockStart(
-    ExecutionSignal *signal, 
-    S2EExecutionState *state,
-    uint64_t pc)
-{
-    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
-    
-    uint64_t pid = m_Monitor->getPid(state, pc);
-    
-    const ModuleDescriptor *currentModule = 
-        plgState->findCurrentModule(pid, pc);
-    
-    if (currentModule) {
-        //std::cout << "Translating block belonging to " << currentModule->Name << std::endl;
-        signal->connect(sigc::mem_fun(*this, 
-            &ModuleExecutionDetector::onExecution));
-    }
-}
 
 void ModuleExecutionDetector::onExecution(
     S2EExecutionState *state, uint64_t pc)
@@ -152,9 +161,10 @@ void ModuleExecutionDetector::onExecution(
     
     //Get the module descriptor
     if (plgState->m_PreviousModule) {
-        uint64_t prevModStart = plgState->m_PreviousModule->LoadBase;
-        uint64_t prevModSize = plgState->m_PreviousModule->Size;
-        uint64_t prevModPid = plgState->m_PreviousModule->Pid;
+        const ModuleDescriptor &md = plgState->m_PreviousModule->descriptor;
+        uint64_t prevModStart = md.LoadBase;
+        uint64_t prevModSize = md.Size;
+        uint64_t prevModPid = md.Pid;
         if (pid == prevModPid && pc >= prevModStart && pc < prevModStart + prevModSize) {
             //We stayed in the same module
             return;
@@ -162,14 +172,14 @@ void ModuleExecutionDetector::onExecution(
     }
 
     
-    const ModuleDescriptor *currentModule = 
+    const ModuleExecutionDesc *currentModule = 
         plgState->findCurrentModule(pid, pc);
 
     if (plgState->m_PreviousModule != currentModule) {
         onModuleTransition.emit(state, plgState->m_PreviousModule,
             currentModule);
         if (currentModule) {
-            std::cout << "Entered module " << currentModule->Name << std::endl;
+            std::cout << "Entered module " << currentModule->descriptor.Name << std::endl;
         }else {
             std::cout << "Entered unknown module " << std::endl;
         }
@@ -235,7 +245,7 @@ PluginState* ModuleTransitionState::factory()
     ModuleExecutionDetector *d = (ModuleExecutionDetector*)g_s2e->getPlugin("ModuleExecutionDetector");
 
     foreach2(it, d->m_ConfiguredModules.begin(), d->m_ConfiguredModules.end()) {
-        ModuleExecStateDesc StateDesc;
+        ModuleExecutionDesc StateDesc;
         StateDesc.id = (*it).first;
         StateDesc.isActive = false;
         StateDesc.imageName = (*it).second.moduleName;
@@ -255,6 +265,8 @@ void ModuleTransitionState::activateModule(
                 std::cout << "ModuleTransitionState - Module " << desc.Name << " activated" << std::endl;
                 (*it).isActive = true;
                 (*it).descriptor = desc;
+                //Modules are activated in their declaration order
+                return;
             }
         }
     }
@@ -263,15 +275,19 @@ void ModuleTransitionState::activateModule(
 void ModuleTransitionState::deactivateModule(
      const ModuleDescriptor &desc)
 {
+    bool onlyOnce = false;
+
     foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
-        if ((*it).isActive && !(*it).imageName.compare(desc.Name)) {
+        if ((*it).isActive && (*it).descriptor.Pid == desc.Pid) {
+            assert(!onlyOnce);
             std::cout << "ModuleTransitionState - Module " << desc.Name << " deactivated" << std::endl;
             (*it).isActive = false;
+            onlyOnce = true;
         }
     }
 }
 
-const ModuleDescriptor *ModuleTransitionState::findCurrentModule(uint64_t pid, uint64_t pc)
+const ModuleExecutionDesc *ModuleTransitionState::findCurrentModule(uint64_t pid, uint64_t pc) const
 {
     foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
         if (!(*it).isActive) {
@@ -279,7 +295,7 @@ const ModuleDescriptor *ModuleTransitionState::findCurrentModule(uint64_t pid, u
         }
 
         if ((*it).descriptor.Pid == pid && (*it).descriptor.Contains(pc)) {
-            return &(*it).descriptor;
+            return &(*it);
         }
     }
     return NULL;

@@ -182,9 +182,11 @@ void S2EExecutor::updateCurrentState(CPUState* cpuState)
     assert(m_currentState);
 
     m_currentState->cpuState = cpuState;
-
+  
     // TODO: update KFunction and instruction iterator
 }
+
+
 
 inline uintptr_t S2EExecutor::executeTranslationBlock(
         TranslationBlock *tb, void* volatile* saved_AREGs)

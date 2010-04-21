@@ -49,6 +49,11 @@ struct ModuleDescriptor
     return RVA < Size;
   }
 
+  uint64_t ToRelative(uint64_t RunTimeAddress) const {
+    uint64_t RVA = RunTimeAddress - LoadBase;
+    return RVA;
+  }
+
   bool EqualInsensitive(const char *Name) const{
 	return strcasecmp(this->Name.c_str(), Name) == 0;
   }

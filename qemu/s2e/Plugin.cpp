@@ -5,6 +5,7 @@
 #include <s2e/Plugins/Example.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
+#include <s2e/Plugins/CodeSelector.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -35,6 +36,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(CorePlugin);
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::ModuleExecutionDetector);
+    __S2E_REGISTER_PLUGIN(plugins::CodeSelector);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 
 #undef __S2E_REGISTER_PLUGIN

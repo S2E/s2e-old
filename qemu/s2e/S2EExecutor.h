@@ -58,6 +58,7 @@ public:
        of the current state might have changed */
     void updateCurrentState(CPUX86State* cpuState, uint64_t pc);
     void updateCurrentState(CPUX86State* cpuState);
+   
 
     uintptr_t executeTranslationBlock(
             TranslationBlock *tb, void* volatile* saved_AREGs);

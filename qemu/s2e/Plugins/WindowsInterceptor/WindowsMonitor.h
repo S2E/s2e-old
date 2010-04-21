@@ -55,6 +55,7 @@ public:
 
     void slotTranslateInstructionStart(ExecutionSignal *signal, 
         S2EExecutionState *state,
+        TranslationBlock *tb,
         uint64_t pc);
     
     void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);

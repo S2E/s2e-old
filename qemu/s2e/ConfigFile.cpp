@@ -50,6 +50,11 @@ const char* ConfigFile::getTypeName<ConfigFile::string_list>() {
 }
 
 template<> inline
+const char* ConfigFile::getTypeName<ConfigFile::integer_list>() {
+  return "lua_list with only integer values";
+}
+
+template<> inline
 const char* ConfigFile::getTypeName<ConfigFile::_key_list>() {
   return "lua_table with only string keys";
 }
@@ -101,6 +106,32 @@ bool ConfigFile::getLuaValue(string_list* res, const string_list& def, int index
         }
         if(lua_isstring(m_luaState, -1)) {
             res->push_back(lua_tostring(m_luaState, -1));
+            lua_pop(m_luaState, 1);
+        } else {
+            lua_pop(m_luaState, 1);
+            *res = def;
+            return false;
+        }
+    }
+  
+    return true;
+}
+
+template<> inline
+bool ConfigFile::getLuaValue(integer_list* res, 
+                             const integer_list& def, int index) {
+    bool ok = lua_istable(m_luaState, index);
+    if(!ok) { *res = def; return ok; }
+  
+    /* read table as array */
+    for(int i=1; ; ++i) {
+        lua_rawgeti(m_luaState, index, i);
+        if(lua_isnil(m_luaState, -1)) {
+            lua_pop(m_luaState, 1);
+            break;
+        }
+        if(lua_isstring(m_luaState, -1)) {
+            res->push_back(lua_tointeger(m_luaState, -1));
             lua_pop(m_luaState, 1);
         } else {
             lua_pop(m_luaState, 1);
@@ -206,6 +237,12 @@ string ConfigFile::getString(
 
 ConfigFile::string_list ConfigFile::getStringList(
             const std::string& name, const string_list& def, bool *ok)
+{
+    return getValueT(name, def, ok);
+}
+
+ConfigFile::integer_list ConfigFile::getIntegerList(
+            const std::string& name, const integer_list& def, bool *ok)
 {
     return getValueT(name, def, ok);
 }

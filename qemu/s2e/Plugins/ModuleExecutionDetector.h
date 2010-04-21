@@ -16,10 +16,29 @@ namespace s2e {
 namespace plugins {
 
 
-struct ModuleExecutionDesc
+/**
+ *  Module description from configuration file
+ */
+struct ModuleExecutionCfg
 {
     std::string moduleName;
     bool kernelMode;
+};
+
+/**
+ *  Per-state description of active modules
+ */
+struct ModuleExecutionDesc {
+    std::string id;
+    std::string imageName;
+    bool kernelMode;
+    bool isActive;
+    ModuleDescriptor descriptor;
+
+    bool operator()(const ModuleExecutionDesc &d1,
+        const ModuleExecutionDesc &d2) {
+        return d1.id.compare(d2.id) == 0;
+    }
 };
 
 class ModuleExecutionDetector:public Plugin
@@ -29,13 +48,32 @@ class ModuleExecutionDetector:public Plugin
 public:
     sigc::signal<
         void, S2EExecutionState *,
-        const ModuleDescriptor*, 
-        const ModuleDescriptor*> onModuleTransition;
+        const ModuleExecutionDesc*, 
+        const ModuleExecutionDesc*> onModuleTransition;
 
+    /** Signal that is emitted on begining and end of code generation
+        for each translation block belonging to the module.
+    */
+    sigc::signal<void, ExecutionSignal*, 
+            S2EExecutionState*,
+            const ModuleExecutionDesc*,
+            TranslationBlock*,
+            uint64_t /* block PC */>
+            onModuleTranslateBlockStart;
+
+    /** Signal that is emitted upon end of translation block of the module */
+    sigc::signal<void, ExecutionSignal*, 
+            S2EExecutionState*,
+            const ModuleExecutionDesc*,
+            TranslationBlock*,
+            uint64_t /* ending instruction pc */,
+            bool /* static target is valid */,
+            uint64_t /* static target pc */>
+            onModuleTranslateBlockEnd;
 private:
     OSMonitor *m_Monitor;
 
-    std::map<std::string, ModuleExecutionDesc> m_ConfiguredModules;
+    std::map<std::string, ModuleExecutionCfg> m_ConfiguredModules;
 
     void initializeConfiguration();
 public:
@@ -45,11 +83,13 @@ public:
 
     void onTranslateBlockStart(ExecutionSignal *signal, 
         S2EExecutionState *state,
+        TranslationBlock *tb,
         uint64_t pc);
     
     void onTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
+        TranslationBlock *tb,
         uint64_t endPc,
         bool staticTarget,
         uint64_t targetPc);
@@ -78,25 +118,18 @@ public:
     friend class ModuleTransitionState;
 };
 
-struct ModuleExecStateDesc {
-    std::string id;
-    std::string imageName;
-    bool kernelMode;
-    bool isActive;
-    ModuleDescriptor descriptor;
-};
 
 class ModuleTransitionState:public PluginState
 {
 private:
-    const ModuleDescriptor *m_PreviousModule;
+    const ModuleExecutionDesc *m_PreviousModule;
 
-    std::vector<ModuleExecStateDesc> m_ActiveDescriptors;
+    std::vector<ModuleExecutionDesc> m_ActiveDescriptors;
 
     void activateModule(const ModuleDescriptor &desc);
     void deactivateModule(const ModuleDescriptor &desc);
     void deactivatePid(uint64_t pid);
-    const ModuleDescriptor *findCurrentModule(uint64_t pid, uint64_t pc);
+    const ModuleExecutionDesc *findCurrentModule(uint64_t pid, uint64_t pc) const;
 
 public:
     sigc::signal<void, 

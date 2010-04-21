@@ -78,7 +78,8 @@ void s2e_on_translate_instruction_end(
         struct CPUX86State *env,
         struct TranslationBlock* tb, uint64_t pc);
 
-void s2e_on_exception(struct S2E *s2e, struct CPUX86State *env, unsigned intNb);
+void s2e_on_exception(struct S2E *s2e, struct CPUX86State *env, 
+                      unsigned intNb);
 
 /**********************************/
 /* Functions from S2EExecutor.cpp */

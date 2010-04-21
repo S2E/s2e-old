@@ -64,6 +64,11 @@ public:
     string_list getStringList(const std::string& name,
                     const string_list& def = string_list(), bool *ok = NULL);
 
+    typedef std::vector<uint64_t> integer_list;
+    integer_list getIntegerList(
+            const std::string& name, const integer_list& def = integer_list(), bool *ok = NULL);
+
+
     /* Return all string keys for a given table.
        Fails if some keys are not strings. */
     string_list getListKeys(const std::string& name, bool *ok = NULL);

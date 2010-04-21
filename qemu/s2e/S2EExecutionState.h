@@ -25,6 +25,7 @@ protected:
 
 public:
     CPUX86State* cpuState;
+    TranslationBlock *tb;
     uint64_t     cpuPC;
 
 public:
@@ -32,8 +33,9 @@ public:
             : klee::ExecutionState(kf), cpuState(NULL), cpuPC(0) {}
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);
-    CPUX86State* getCpuState() { return cpuState; }
-    
+    CPUX86State* getCpuState() const { return cpuState; }
+    TranslationBlock *getTb() const { return tb; }
+
     PluginState* getPluginState(const Plugin *plugin, PluginStateFactory factory) {
         PluginStateMap::iterator it = m_PluginState.find(plugin);
         if (it == m_PluginState.end()) {
@@ -43,6 +45,11 @@ public:
         }
         return (*it).second;
     }
+
+    uint64_t getPc() const;
+
+    void disableSymbExec();
+    void enableSymbExec();
 };
 
 }

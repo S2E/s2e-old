@@ -23,6 +23,7 @@ void Example::initialize()
 
 void Example::slotTranslateBlockStart(ExecutionSignal *signal, 
                                       S2EExecutionState *state,
+                                      TranslationBlock *tb,
                                       uint64_t pc)
 {
     if(m_traceBlockTranslation)

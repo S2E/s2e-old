@@ -81,6 +81,7 @@ void WindowsMonitor::initialize()
 
 void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal, 
                                                    S2EExecutionState *state,
+                                                   TranslationBlock *tb,
                                                    uint64_t pc)
 {
     if(m_UserMode) {
