@@ -37,7 +37,7 @@ struct ModuleExecutionDesc {
 
     bool operator()(const ModuleExecutionDesc &d1,
         const ModuleExecutionDesc &d2) {
-        return d1.id.compare(d2.id) == 0;
+        return d1.id.compare(d2.id) < 0;
     }
 };
 

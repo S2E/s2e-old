@@ -415,11 +415,11 @@ static inline void gen_op_addl_T0_T1(void)
 
 static inline void gen_op_jmp_T0(DisasContext *s)
 {
-#ifdef CONFIG_S2E
+    tcg_gen_st_tl(cpu_T[0], cpu_env, offsetof(CPUState, eip));
+    #ifdef CONFIG_S2E
     s2e_on_translate_block_end(g_s2e, s->cpuState, s->tb, s->insPc,
         0, 0);
-#endif
-    tcg_gen_st_tl(cpu_T[0], cpu_env, offsetof(CPUState, eip));
+    #endif
 }
 
 static inline void gen_op_add_reg_im(int size, int reg, int32_t val)

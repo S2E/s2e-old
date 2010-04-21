@@ -15,9 +15,11 @@ S2E_DEFINE_PLUGIN(CodeSelector,
                   "CodeSelector",
                   "ModuleExecutionDetector");
 
-/**
- - When execution leaves all code regions
- */
+
+CodeSelector::CodeSelector(S2E *s2e) : Plugin(s2e) {
+    m_Tb = NULL;
+}
+
 
 CodeSelector::~CodeSelector()
 {
@@ -45,6 +47,9 @@ void CodeSelector::initialize()
     foreach2(it, moduleIds.begin(), moduleIds.end()) {
         m_ConfiguredModuleIds.insert(*it);
     }
+
+    m_ExecutionDetector->onModuleTransition.connect(
+        sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
 
     m_ExecutionDetector->onModuleTranslateBlockStart.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTranslateBlockStart));
@@ -89,6 +94,7 @@ void CodeSelector::onTranslateInstructionStart(
         }else {
             signal->connect(sigc::mem_fun(*this, &CodeSelector::disableSymbexSignal));
         }
+        m_TbSymbexEnabled = s;
     }
      
 }
@@ -147,7 +153,7 @@ bool CodeSelector::getRanges(const std::string &key, CodeSelector::Ranges &R)
 
    for (unsigned i=0; i<listSize; i++) {
        std::stringstream path;
-       path << key << "[" << std::dec << i << "]";
+       path << key << "[" << std::dec << (i+1) << "]";
        std::vector<uint64_t> range;
        range = cfg->getIntegerList(path.str(), range, &ok);
        if (!ok) {
@@ -169,9 +175,10 @@ bool CodeSelector::validateRanges(const ModuleExecutionDesc &Desc, const Ranges 
     bool allValid = true;
     foreach2(it, R.begin(), R.end()) {
         const Range &r = *it;
-        if ((r.first + r.second < r.first)||
-            (r.first + r.second > Desc.descriptor.Size)) {
-            std::cout << "Range (" << r.first << ", " << r.second <<
+        if ((r.first > r.second)||
+            (r.second > Desc.descriptor.NativeBase + Desc.descriptor.Size) ||
+            (r.first < Desc.descriptor.NativeBase)) {
+                std::cout << "Range (0x" << std::hex << r.first << ", 0x" << r.second <<
                 ") is invalid" << std::endl;
             allValid = false;
         }
@@ -183,7 +190,7 @@ void CodeSelector::getRanges(const ModuleExecutionDesc &Desc,
                              Ranges &include, Ranges &exclude)
 {
     std::stringstream includeKey, excludeKey;
-    bool ok;
+    bool ok = false;
     ConfigFile *cfg = s2e()->getConfig();
 
     include.clear();
@@ -242,17 +249,17 @@ uint8_t *CodeSelector::initializeBitmap(const ModuleExecutionDesc &Desc)
     memset(Bmp, 0x00, Desc.descriptor.Size/8);
 
     foreach2(it, include.begin(), include.end()) {
-        uint64_t start = (*it).first;
-        uint64_t size = (*it).second;
-        for (unsigned i=start; i<size; i++) {
+        uint64_t start = (*it).first -Desc.descriptor.NativeBase;
+        uint64_t end = (*it).second -Desc.descriptor.NativeBase;
+        for (unsigned i=start; i<end; i++) {
             Bmp[i/8] |= 1 << (i % 8);
         }
     }
     
     foreach2(it, exclude.begin(), exclude.end()) {
-        uint64_t start = (*it).first;
-        uint64_t size = (*it).second;
-        for (unsigned i=start; i<size; i++) {
+        uint64_t start = (*it).first -Desc.descriptor.NativeBase;
+        uint64_t end = (*it).second -Desc.descriptor.NativeBase;
+        for (unsigned i=start; i<end; i++) {
             Bmp[i/8] &= ~(1 << (i % 8));
         }
     }

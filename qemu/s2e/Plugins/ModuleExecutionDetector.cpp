@@ -157,7 +157,10 @@ void ModuleExecutionDetector::onExecution(
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
 
-    uint64_t pid = m_Monitor->getPid(state, pc);
+    //Get the real pc, not the one of the instruction being executed.
+    pc = state->getPc();
+
+    uint64_t pid = m_Monitor->getPid(state, state->getPc());
     
     //Get the module descriptor
     if (plgState->m_PreviousModule) {

@@ -57,7 +57,8 @@ private:
     bool isSymbolic(const ModuleExecutionDesc &Desc, uint64_t absolutePc);
 
 public:
-    CodeSelector(S2E* s2e): Plugin(s2e) {}
+    CodeSelector(S2E* s2e);
+
     virtual ~CodeSelector();
     void initialize();
 
