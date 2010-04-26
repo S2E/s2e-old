@@ -1198,7 +1198,7 @@ void TCGLLVMContext::generateCode(TCGContext *s, TranslationBlock *tb)
 /*****************************/
 /* Functions for QEMU c code */
 
-TCGLLVMContext* tcg_llvm_initizlize()
+TCGLLVMContext* tcg_llvm_initialize()
 {
     return new TCGLLVMContext;
 }

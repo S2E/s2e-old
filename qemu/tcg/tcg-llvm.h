@@ -53,7 +53,7 @@ struct TCGLLVMRuntime {
 
 extern struct TCGLLVMRuntime tcg_llvm_runtime;
 
-struct TCGLLVMContext* tcg_llvm_initizlize(void);
+struct TCGLLVMContext* tcg_llvm_initialize(void);
 void tcg_llvm_close(struct TCGLLVMContext *l);
 
 void tcg_llvm_tb_alloc(struct TranslationBlock *tb);

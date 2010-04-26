@@ -45,6 +45,10 @@
 #include "loader.h"
 #include "elf.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 /* output Bochs bios info messages */
 //#define DEBUG_BIOS
 
@@ -1017,6 +1021,7 @@ static void pc_init1(ram_addr_t ram_size,
 
     for (i = 0; i < smp_cpus; i++) {
         env = pc_new_cpu(cpu_model);
+        s2e_register_cpu(g_s2e, g_s2e_state, env);
     }
 
     vmport_init();
@@ -1024,6 +1029,8 @@ static void pc_init1(ram_addr_t ram_size,
     /* allocate RAM */
     ram_addr = qemu_ram_alloc(0xa0000);
     cpu_register_physical_memory(0, 0xa0000, ram_addr);
+    s2e_register_memory(g_s2e, g_s2e_state, 0, 0xa0000,
+                        qemu_get_ram_ptr(ram_addr), 1);
 
     /* Allocate, even though we won't register, so we don't break the
      * phys_ram_base + PA assumption. This range includes vga (0xa0000 - 0xc0000),
@@ -1034,6 +1041,9 @@ static void pc_init1(ram_addr_t ram_size,
     cpu_register_physical_memory(0x100000,
                  below_4g_mem_size - 0x100000,
                  ram_addr);
+    s2e_register_memory(g_s2e, g_s2e_state,
+                  0x100000, below_4g_mem_size - 0x100000,
+                  qemu_get_ram_ptr(ram_addr), 1);
 
     /* above 4giga memory allocation */
     if (above_4g_mem_size > 0) {
@@ -1044,6 +1054,9 @@ static void pc_init1(ram_addr_t ram_size,
         cpu_register_physical_memory(0x100000000ULL,
                                      above_4g_mem_size,
                                      ram_addr);
+        s2e_register_memory(g_s2e, g_s2e_state,
+                  0x100000000ULL, above_4g_mem_size,
+                  qemu_get_ram_ptr(ram_addr), 1);
 #endif
     }
 

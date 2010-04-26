@@ -7,6 +7,7 @@ extern "C" {
 #include "S2EExecutor.h"
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
+#include <s2e/Utils.h>
 
 #include <s2e/s2e_qemu.h>
 
@@ -117,11 +118,24 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     setModule(m_tcgLLVMContext->getModule(), MOpts);
 
     m_dummyMain = kmodule->functionMap[dummyMain];
+}
+
+S2EExecutor::~S2EExecutor()
+{
+    if(statsTracker)
+        statsTracker->done();
+}
+
+S2EExecutionState* S2EExecutor::createInitialState()
+{
+    assert(!processTree);
 
     /* Create initial execution state */
     S2EExecutionState *state =
-        new S2EExecutionState(kmodule->functionMap[dummyMain]);
-    state->cpuState = first_cpu;
+        new S2EExecutionState(m_dummyMain);
+
+    state->cpuState = NULL;
+    state->cpuPC = 0;
 
     if(pathWriter)
         state->pathOS = pathWriter->open();
@@ -137,11 +151,13 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     state->ptreeNode = processTree->root;
 
     /* Externally accessible global vars */
+    /* XXX move away */
     addExternalObject(*state, &tcg_llvm_runtime,
                       sizeof(tcg_llvm_runtime), false);
     addExternalObject(*state, saved_AREGs,
                       sizeof(saved_AREGs), false);
 
+#if 0
     /* Make CPUState instances accessible: generated code uses them as globals */
     for(CPUState *env = first_cpu; env != NULL; env = env->next_cpu) {
         std::cout << "Adding KLEE CPU (addr = " << env
@@ -166,17 +182,66 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
         munmap(p, TARGET_PAGE_SIZE);
     }
     std::cout << "...done" << std::endl;
+#endif
 
+    return state;
+}
+
+void S2EExecutor::initializeExecution(S2EExecutionState* state)
+{
+    typedef std::pair<uint64_t, uint64_t> _UnusedMemoryRegion;
+    foreach(_UnusedMemoryRegion p, m_unusedMemoryRegions) {
+        /* XXX */
+        /* XXX : use qemu_virtual* */
+        munmap((void*) p.first, p.second);
+    }
+
+    state->cpuState = first_cpu;
     initializeGlobals(*state);
     bindModuleConstants();
 
-    g_s2e_state = state;
 }
 
-S2EExecutor::~S2EExecutor()
+void S2EExecutor::registerCpu(S2EExecutionState *initialState,
+                              CPUX86State *cpuEnv)
 {
-    if(statsTracker)
-        statsTracker->done();
+    std::cout << std::hex
+              << "Adding CPU (addr = 0x" << cpuEnv
+              << ", size = 0x" << sizeof(*cpuEnv) << ")"
+              << std::dec << std::endl;
+    addExternalObject(*initialState, cpuEnv, sizeof(*cpuEnv), false);
+    if(!initialState->cpuState) initialState->cpuState = cpuEnv;
+}
+
+void S2EExecutor::registerMemory(S2EExecutionState *initialState,
+                        uint64_t startAddr, uint64_t size,
+                        uint64_t hostAddr, bool isStateLocal)
+{
+    assert((hostAddr & ~TARGET_PAGE_MASK) == 0);
+    assert((startAddr & ~TARGET_PAGE_MASK) == 0);
+    assert((size & ~TARGET_PAGE_MASK) == 0);
+
+    std::cout << std::hex
+              << "Adding memory block (startAddr = 0x" << startAddr
+              << ", size = 0x" << size << ", hostAddr = 0x" << hostAddr
+              << ")" << std::dec << std::endl;
+
+    if(isStateLocal) {
+        for(uint64_t addr = hostAddr; addr < hostAddr+size;
+                     addr += TARGET_PAGE_SIZE) {
+            MemoryObject* mo = addExternalObject(
+                    *initialState, (void*) addr, TARGET_PAGE_SIZE, false);
+            mo->isUserSpecified = true; // XXX hack
+
+            /* XXX */
+            /* XXX : use qemu_mprotect */
+            mprotect((void*) addr, TARGET_PAGE_SIZE, PROT_NONE);
+        }
+
+        m_unusedMemoryRegions.push_back(make_pair(hostAddr, size));
+    } else {
+        /* TODO */
+    }
 }
 
 inline uintptr_t S2EExecutor::executeTranslationBlock(
@@ -269,64 +334,102 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 void S2EExecutor::readMemoryConcrete(S2EExecutionState *state,
                     uint64_t address, uint8_t* buf, uint64_t size)
 {
-    int pd = cpu_get_physical_page_desc(address & TARGET_PAGE_MASK)
-                                        & ~TARGET_PAGE_MASK;
-    if(!(pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD))) {
-        ObjectPair op;
-        bool ok = state->addressSpace.resolveOne(address, op);
+    uint64_t page_offset = address & ~TARGET_PAGE_MASK;
+    if(page_offset + size <= TARGET_PAGE_SIZE) {
+        /* Single-page access */
 
-        if(ok) {
-            assert(address - op.first->address + size <= op.first->size);
+        ObjectPair op =
+            state->addressSpace.findObject(address & TARGET_PAGE_MASK);
 
-            ObjectState* os = NULL;
-            uint64_t offset = address - op.first->address;
+        if(op.first) {
+            /* KLEE-owned memory */
+
+            assert(op.first->isUserSpecified);
+
+            ObjectState *wos = NULL;
             for(uint64_t i=0; i<size; ++i) {
-                if(!op.second->readConcrete8(offset+i, buf+i)) {
-                    if(!os) {
-                        os = state->addressSpace.getWriteable(
-                                op.first, op.second);
-                        op.second = os;
+                if(!op.second->readConcrete8(page_offset+i, buf+i)) {
+                    if(!wos) {
+                        op.second = wos = state->addressSpace.getWriteable(
+                                                        op.first, op.second);
                     }
-                    buf[i] = toConstant(*state, os->read8(offset+i),
+                    buf[i] = toConstant(*state, wos->read8(page_offset+i),
                                    "concrete memory access")->getZExtValue(8);
-                    os->write8(offset+i, buf[i]);
+                    wos->write8(page_offset+i, buf[i]);
                 }
             }
-            return;
+        } else {
+            /* QEMU-owned memory */
+            memcpy(buf, (void*) address, size);
         }
+    } else {
+        /* Access spans multiple pages */
+        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        readMemoryConcrete(state, address, buf, size1);
+        readMemoryConcrete(state, address, buf + size1, size - size1);
     }
-    // The memory is not mapped to KLEE
-    memcpy(buf, (void*) address, size);
 }
 
 void S2EExecutor::writeMemoryConcrete(S2EExecutionState *state,
             uint64_t address, const uint8_t* buf, uint64_t size)
 {
-    int pd = cpu_get_physical_page_desc(address) & ~TARGET_PAGE_MASK;
-    if(!(pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD))) {
-        ObjectPair op;
-        bool ok = state->addressSpace.resolveOne(address, op);
+    uint64_t page_offset = address & ~TARGET_PAGE_MASK;
+    if(page_offset + size <= TARGET_PAGE_SIZE) {
+        /* Single-page access */
 
-        if(ok) {
-            assert(address - op.first->address + size <= op.first->size);
+        ObjectPair op =
+            state->addressSpace.findObject(address & TARGET_PAGE_MASK);
 
-            ObjectState* os = state->addressSpace.getWriteable(op.first, op.second);
-            uint32_t offset = address - op.first->address;
+        if(op.first) {
+            /* KLEE-owned memory */
+
+            assert(op.first->isUserSpecified);
+
+            ObjectState* wos =
+                    state->addressSpace.getWriteable(op.first, op.second);
             for(uint64_t i=0; i<size; ++i) {
-                os->write8(offset+i, buf[i]);
+                wos->write8(page_offset+i, buf[i]);
             }
-            return;
+        } else {
+            /* QEMU-owned memory */
+            memcpy((void*) address, buf, size);
         }
+    } else {
+        /* Access spans multiple pages */
+        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        writeMemoryConcrete(state, address, buf, size1);
+        writeMemoryConcrete(state, address, buf + size1, size - size1);
     }
-
-    // The memory is not mapped to KLEE
-    memcpy((void*) address, buf, size);
 }
 
 } // namespace s2e
 
 /******************************/
 /* Functions called from QEMU */
+
+S2EExecutionState* s2e_create_initial_state(S2E *s2e)
+{
+    return s2e->getExecutor()->createInitialState();
+}
+
+void s2e_initialize_execution(S2E *s2e, S2EExecutionState *initial_state)
+{
+    s2e->getExecutor()->initializeExecution(initial_state);
+}
+
+void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
+                      CPUX86State *cpu_env)
+{
+    s2e->getExecutor()->registerCpu(initial_state, cpu_env);
+}
+
+void s2e_register_memory(S2E* s2e, S2EExecutionState *initial_state,
+        uint64_t start_addr, uint64_t size,
+        uint64_t host_addr, int is_state_local)
+{
+    s2e->getExecutor()->registerMemory(initial_state,
+        start_addr, size, host_addr, is_state_local);
+}
 
 uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            struct TranslationBlock* tb,

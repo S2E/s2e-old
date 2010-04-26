@@ -5684,7 +5684,7 @@ int main(int argc, char **argv, char **envp)
     }
 
 #ifdef CONFIG_LLVM
-    tcg_llvm_ctx = tcg_llvm_initizlize();
+    tcg_llvm_ctx = tcg_llvm_initialize();
 #endif
 
 #ifdef CONFIG_S2E
@@ -5693,6 +5693,7 @@ int main(int argc, char **argv, char **envp)
                         "using the default (empty) file\n");
     }
     g_s2e = s2e_initialize(tcg_llvm_ctx, s2e_config_file, s2e_output_dir);
+    g_s2e_state = s2e_create_initial_state(g_s2e);
 #endif
 
     /* If no data_dir is specified then try to find it relative to the
@@ -6167,7 +6168,7 @@ int main(int argc, char **argv, char **envp)
 #endif
 
 #ifdef CONFIG_S2E
-    s2e_initialize_symbolic_execution(g_s2e);
+    s2e_initialize_execution(g_s2e, g_s2e_state);
 #endif
 
     main_loop();

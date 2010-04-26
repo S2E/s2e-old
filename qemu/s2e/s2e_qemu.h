@@ -28,7 +28,10 @@ struct CPUX86State;
 extern "C" {
 #endif
 
+/* This should never be accessed from C++ code */
 extern struct S2E* g_s2e;
+
+/* This should never be accessed from C++ code */
 extern struct S2EExecutionState* g_s2e_state;
 
 /**************************/
@@ -41,10 +44,6 @@ struct S2E* s2e_initialize(struct TCGLLVMContext *tcgLLVMContext,
 
 /** Relese S2E instance and all S2E-related objects. Called by main() */
 void s2e_close(struct S2E* s2e);
-
-/** Initialize symbolic execution machinery. Should be called after
-    QEMU pc is completely constructed */
-void s2e_initialize_symbolic_execution(struct S2E *s2e);
 
 /*********************************/
 /* Functions from CorePlugin.cpp */
@@ -98,6 +97,23 @@ void s2e_update_state_env_pc(
 
 /**********************************/
 /* Functions from S2EExecutor.cpp */
+
+/** Create initial S2E execution state */
+struct S2EExecutionState* s2e_create_initial_state(struct S2E *s2e);
+
+/** Initialize symbolic execution machinery. Should be called after
+    QEMU pc is completely constructed */
+void s2e_initialize_execution(struct S2E *s2e,
+                              struct S2EExecutionState *initial_state);
+
+void s2e_register_cpu(struct S2E* s2e,
+                      struct S2EExecutionState *initial_state,
+                      CPUX86State* cpu_env);
+
+void s2e_register_memory(struct S2E* s2e,
+                         struct S2EExecutionState *initial_state,
+                         uint64_t start_addr, uint64_t size,
+                         uint64_t host_addr, int is_state_local);
 
 uintptr_t s2e_qemu_tb_exec(
         struct S2E* s2e,

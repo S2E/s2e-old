@@ -61,6 +61,9 @@ S2E::S2E(TCGLLVMContext *tcgLLVMContext,
     /* Parse configuration file */
     m_configFile = new s2e::ConfigFile(configFileName);
 
+    /* Initialize S2EExecutor */
+    initExecutor();
+
     /* Load and initialize plugins */
     initPlugins();
 }
@@ -247,7 +250,7 @@ void S2E::initPlugins()
     }
 }
 
-void S2E::initializeSymbolicExecution()
+void S2E::initExecutor()
 {
     m_s2eHandler = new S2EHandler(this);
     S2EExecutor::InterpreterOptions IOpts;
@@ -274,11 +277,6 @@ S2E* s2e_initialize(TCGLLVMContext* tcgLLVMContext,
 void s2e_close(S2E *s2e)
 {
     delete s2e;
-}
-
-void s2e_initialize_symbolic_execution(S2E *s2e)
-{
-    s2e->initializeSymbolicExecution();
 }
 
 } // extern "C"

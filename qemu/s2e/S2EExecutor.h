@@ -45,11 +45,27 @@ protected:
 
     klee::KFunction* m_dummyMain;
 
+    /* Unused memory regions that should be unmapped.
+       Copy-then-unmap is used in order to catch possible
+       direct memory accesses from QEMU code. */
+    std::vector< std::pair<uint64_t, uint64_t> > m_unusedMemoryRegions;
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
                 klee::InterpreterHandler *ie);
     ~S2EExecutor();
+
+    /** Create initial execution state */
+    S2EExecutionState* createInitialState();
+
+    /** Called from QEMU before entering main loop */
+    void initializeExecution(S2EExecutionState *initialState);
+
+    void registerCpu(S2EExecutionState *initialState, CPUX86State *cpuEnv);
+    void registerMemory(S2EExecutionState *initialState,
+                        uint64_t startAddr, uint64_t size,
+                        uint64_t hostAddr, bool isStateLocal);
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);

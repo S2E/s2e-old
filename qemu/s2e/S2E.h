@@ -53,6 +53,7 @@ protected:
   S2EExecutor* m_s2eExecutor;
 
   void initOutputDirectory(const std::string& outputDirectory);
+  void initExecutor();
   void initPlugins();
 
 public:
@@ -61,9 +62,6 @@ public:
                const std::string& configFileName,
                const std::string& outputDirectory);
   ~S2E();
-
-  /** Initialize symbolic execution machinery */
-  void initializeSymbolicExecution();
 
   /*****************************/
   /* Configuration and plugins */
