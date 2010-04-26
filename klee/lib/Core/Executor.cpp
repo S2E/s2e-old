@@ -11,11 +11,11 @@
 
 #include "klee/Executor.h"
  
-#include "Context.h"
+#include "klee/Context.h"
 #include "CoreStats.h"
 #include "ExternalDispatcher.h"
 #include "ImpliedValue.h"
-#include "Memory.h"
+#include "klee/Memory.h"
 #include "MemoryManager.h"
 #include "klee/PTree.h"
 #include "Searcher.h"

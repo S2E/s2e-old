@@ -16,7 +16,7 @@
 
 #include "klee/Expr.h"
 
-#include "Memory.h"
+#include "klee/Memory.h"
 
 #include "llvm/Function.h"
 #include "llvm/Support/CommandLine.h"

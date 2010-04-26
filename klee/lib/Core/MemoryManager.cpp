@@ -10,7 +10,7 @@
 #include "klee/Common.h"
 
 #include "CoreStats.h"
-#include "Memory.h"
+#include "klee/Memory.h"
 #include "MemoryManager.h"
 
 #include "klee/ExecutionState.h"

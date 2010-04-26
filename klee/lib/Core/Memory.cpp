@@ -9,9 +9,9 @@
 
 #include "klee/Common.h"
 
-#include "Memory.h"
+#include "klee/Memory.h"
 
-#include "Context.h"
+#include "klee/Context.h"
 #include "klee/Expr.h"
 #include "klee/Solver.h"
 #include "klee/util/BitArray.h"

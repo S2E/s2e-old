@@ -188,6 +188,15 @@ public:
   ref<Expr> read(unsigned offset, Expr::Width width) const;
   ref<Expr> read8(unsigned offset) const;
 
+  // fast-path to get concrete values
+  bool readConcrete8(unsigned offset, uint8_t* v) const {
+    if(isByteConcrete(offset)) {
+      *v = concreteStore[offset]; return true;
+    } else {
+      return false;
+    }
+  }
+
   // return bytes written.
   void write(unsigned offset, ref<Expr> value);
   void write(ref<Expr> offset, ref<Expr> value);
