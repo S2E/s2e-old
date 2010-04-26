@@ -144,27 +144,28 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     /* Make CPUState instances accessible: generated code uses them as globals */
     for(CPUState *env = first_cpu; env != NULL; env = env->next_cpu) {
-        std::cout << "Adding CPU addr = " << env
-                  << " size = " << sizeof(*env) << std::endl;
+        std::cout << "Adding KLEE CPU (addr = " << env
+                  << " size = " << sizeof(*env) << ")" << std::endl;
         addExternalObject(*state, env, sizeof(*env), false);
     }
 
     /* Map physical memory */
-    int i = 0;
-#define S2E_RAM_BLOCK_SIZE (TARGET_PAGE_SIZE*16)
-    std::cout << "Going to add " << (last_ram_offset/S2E_RAM_BLOCK_SIZE)
-              << " ram blocks" << std::endl;
-    for(ram_addr_t addr = 0; addr < last_ram_offset; addr += S2E_RAM_BLOCK_SIZE) {
-        MemoryObject* mo = addExternalObject(*state, qemu_get_ram_ptr(addr),
-                min<ram_addr_t>(S2E_RAM_BLOCK_SIZE, last_ram_offset-addr), false);
+    std::cout << "Populating KLEE memory..." << std::endl;
+
+    for(ram_addr_t addr = 0; addr < last_ram_offset; addr += TARGET_PAGE_SIZE) {
+        int pd = cpu_get_physical_page_desc(addr) & ~TARGET_PAGE_MASK;
+        if(pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD))
+            continue;
+
+        void* p = qemu_get_ram_ptr(addr);
+        MemoryObject* mo = addExternalObject(
+                *state, p, TARGET_PAGE_SIZE, false);
         mo->isUserSpecified = true; // XXX hack
 
         /* XXX */
-        //munmap(qemu_get_ram_ptr(addr), S2E_RAM_BLOCK_SIZE);
-
-        ++i;
+        munmap(p, TARGET_PAGE_SIZE);
     }
-    std::cout << "Added " << i << " RAM blocks" << std::endl;
+    std::cout << "...done" << std::endl;
 
     initializeGlobals(*state);
     bindModuleConstants();
@@ -268,41 +269,58 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 void S2EExecutor::readMemoryConcrete(S2EExecutionState *state,
                     uint64_t address, uint8_t* buf, uint64_t size)
 {
-    ObjectPair op;
-    bool ok = state->addressSpace.resolveOne(address, op);
+    int pd = cpu_get_physical_page_desc(address & TARGET_PAGE_MASK)
+                                        & ~TARGET_PAGE_MASK;
+    if(!(pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD))) {
+        ObjectPair op;
+        bool ok = state->addressSpace.resolveOne(address, op);
 
-    // XXX
-    assert(ok && address - op.first->address + size <= op.first->size);
+        if(ok) {
+            assert(address - op.first->address + size <= op.first->size);
 
-    ObjectState* os = NULL;
-    uint64_t offset = address - op.first->address;
-    for(uint64_t i=0; i<size; ++i) {
-        if(!op.second->readConcrete8(offset+i, buf+i)) {
-            if(!os) {
-                os = state->addressSpace.getWriteable(op.first, op.second);
-                op.second = os;
+            ObjectState* os = NULL;
+            uint64_t offset = address - op.first->address;
+            for(uint64_t i=0; i<size; ++i) {
+                if(!op.second->readConcrete8(offset+i, buf+i)) {
+                    if(!os) {
+                        os = state->addressSpace.getWriteable(
+                                op.first, op.second);
+                        op.second = os;
+                    }
+                    buf[i] = toConstant(*state, os->read8(offset+i),
+                                   "concrete memory access")->getZExtValue(8);
+                    os->write8(offset+i, buf[i]);
+                }
             }
-            buf[i] = toConstant(*state, os->read8(offset+i),
-                           "concrete memory access")->getZExtValue(8);
-            os->write8(offset+i, buf[i]);
+            return;
         }
     }
+    // The memory is not mapped to KLEE
+    memcpy(buf, (void*) address, size);
 }
 
 void S2EExecutor::writeMemoryConcrete(S2EExecutionState *state,
             uint64_t address, const uint8_t* buf, uint64_t size)
 {
-    ObjectPair op;
-    bool ok = state->addressSpace.resolveOne(address, op);
+    int pd = cpu_get_physical_page_desc(address) & ~TARGET_PAGE_MASK;
+    if(!(pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD))) {
+        ObjectPair op;
+        bool ok = state->addressSpace.resolveOne(address, op);
 
-    // XXX
-    assert(ok && address - op.first->address + size <= op.first->size);
+        if(ok) {
+            assert(address - op.first->address + size <= op.first->size);
 
-    ObjectState* os = state->addressSpace.getWriteable(op.first, op.second);
-    uint32_t offset = address - op.first->address;
-    for(uint64_t i=0; i<size; ++i) {
-        os->write8(offset+i, buf[i]);
+            ObjectState* os = state->addressSpace.getWriteable(op.first, op.second);
+            uint32_t offset = address - op.first->address;
+            for(uint64_t i=0; i<size; ++i) {
+                os->write8(offset+i, buf[i]);
+            }
+            return;
+        }
     }
+
+    // The memory is not mapped to KLEE
+    memcpy((void*) address, buf, size);
 }
 
 } // namespace s2e

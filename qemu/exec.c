@@ -3303,6 +3303,7 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
                               target_phys_addr_t *plen,
                               int is_write)
 {
+#ifndef CONFIG_S2E
     target_phys_addr_t len = *plen;
     target_phys_addr_t done = 0;
     int l;
@@ -3352,6 +3353,18 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
     }
     *plen = done;
     return ret;
+#else
+    // In S2E memory should always be copied
+    if(bounce.buffer)
+        return NULL;
+    bounce.buffer = qemu_memalign(TARGET_PAGE_SIZE, *plen);
+    bounce.addr = addr;
+    bounce.len = *plen;
+    if (!is_write) {
+        cpu_physical_memory_rw(addr, bounce.buffer, *plen, 0);
+    }
+    return bounce.buffer;
+#endif
 }
 
 /* Unmaps a memory region previously mapped by cpu_physical_memory_map().
