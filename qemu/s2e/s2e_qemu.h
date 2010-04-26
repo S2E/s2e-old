@@ -6,12 +6,15 @@
 #ifdef __cplusplus
 namespace s2e {
     struct S2E;
+    struct S2EExecutionState;
     struct S2ETranslationBlock;
 }
 using s2e::S2E;
+using s2e::S2EExecutionState;
 using s2e::S2ETranslationBlock;
 #else
 struct S2E;
+struct S2EExecutionState;
 struct S2ETranslationBlock;
 #endif
 
@@ -26,6 +29,7 @@ extern "C" {
 #endif
 
 extern struct S2E* g_s2e;
+extern struct S2EExecutionState* g_s2e_state;
 
 /**************************/
 /* Functions from S2E.cpp */
@@ -42,6 +46,15 @@ void s2e_close(struct S2E* s2e);
     QEMU pc is completely constructed */
 void s2e_initialize_symbolic_execution(struct S2E *s2e);
 
+/****************************************/
+/* Functions from S2EExecutionState.cpp */
+
+void s2e_update_state_env(
+        struct S2EExecutionState* state, CPUX86State* env);
+
+void s2e_update_state_env_pc(
+        struct S2EExecutionState* state, CPUX86State* env, uint64_t pc);
+
 /*********************************/
 /* Functions from CorePlugin.cpp */
 
@@ -54,14 +67,14 @@ void s2e_tb_free(struct TranslationBlock *tb);
 /** Called by cpu_gen_code() at the beginning of translation process */
 void s2e_on_translate_block_start(
         struct S2E* s2e,
-        struct CPUX86State *env,
+        struct S2EExecutionState* state,
         struct TranslationBlock *tb, uint64_t pc);
 
 /** Called by cpu_gen_code() before the execution would leave the tb.
     staticTarget is 1 when the target pc at the end of the tb is known */
 void s2e_on_translate_block_end(
         struct S2E* s2e, 
-        struct CPUX86State *env, 
+        struct S2EExecutionState *state, 
         struct TranslationBlock *tb, uint64_t insPc, 
         int staticTarget, uint64_t targetPc);
 
@@ -69,22 +82,28 @@ void s2e_on_translate_block_end(
 /** Called by cpu_gen_code() before translation of each instruction */
 void s2e_on_translate_instruction_start(
         struct S2E* s2e,
-        struct CPUX86State *env,
+        struct S2EExecutionState* state,
         struct TranslationBlock* tb, uint64_t pc);
 
 /** Called by cpu_gen_code() after translation of each instruction */
 void s2e_on_translate_instruction_end(
         struct S2E* s2e,
-        struct CPUX86State *env,
+        struct S2EExecutionState* state,
         struct TranslationBlock* tb, uint64_t pc);
 
-void s2e_on_exception(struct S2E *s2e, struct CPUX86State *env, 
-                      unsigned intNb);
+void s2e_on_exception(
+        struct S2E *s2e,
+        struct S2EExecutionState* state,
+        unsigned intNb);
 
 /**********************************/
 /* Functions from S2EExecutor.cpp */
-uintptr_t s2e_qemu_tb_exec(struct S2E* s2e, struct TranslationBlock* tb,
-                           void* volatile* saved_AREGs);
+
+uintptr_t s2e_qemu_tb_exec(
+        struct S2E* s2e,
+        struct S2EExecutionState* state,
+        struct TranslationBlock* tb,
+        void* volatile* saved_AREGs);
 
 #ifdef __cplusplus
 }

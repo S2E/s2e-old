@@ -7858,7 +7858,8 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     dc->enable_jmp_im = 1;
     dc->cpuState = env;
 
-    s2e_on_translate_block_start(g_s2e, env, tb, pc_start);
+    s2e_update_state_env(g_s2e_state, env);
+    s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
 #endif
 
     gen_icount_start();
@@ -7889,11 +7890,11 @@ static inline void gen_intermediate_code_internal(CPUState *env,
 
 #ifdef CONFIG_S2E
         dc->insPc = pc_ptr;
-        s2e_on_translate_instruction_start(g_s2e, env, tb, pc_ptr);
+        s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);
 #ifdef CONFIG_S2E
-        s2e_on_translate_instruction_end(g_s2e, env, tb, pc_ptr);
+        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, tb, pc_ptr);
 #endif
         pc_ptr = new_pc_ptr;
         num_insns++;

@@ -669,7 +669,9 @@ int cpu_exec(CPUState *env1)
                     if(execute_llvm) {
 #define SAVE_HOST_REGS 1
 #include "hostregs_helper.h"
-                        next_tb = s2e_qemu_tb_exec(g_s2e, tb, saved_AREGs);
+                        s2e_update_state_env_pc(g_s2e_state, env, tb->pc);
+                        next_tb = s2e_qemu_tb_exec(
+                                g_s2e, g_s2e_state, tb, saved_AREGs);
 // restore host regs
 #include "hostregs_helper.h"
                     } else {

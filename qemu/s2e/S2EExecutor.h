@@ -43,7 +43,6 @@ protected:
     S2E* m_s2e;
     TCGLLVMContext* m_tcgLLVMContext;
 
-    S2EExecutionState* m_currentState;
     klee::KFunction* m_dummyMain;
 
 public:
@@ -52,15 +51,7 @@ public:
                 klee::InterpreterHandler *ie);
     ~S2EExecutor();
 
-    S2EExecutionState* getCurrentState() { return m_currentState; }
-
-    /** Called when by QEMU-related code when cpuState or PC
-       of the current state might have changed */
-    void updateCurrentState(CPUX86State* cpuState, uint64_t pc);
-    void updateCurrentState(CPUX86State* cpuState);
-   
-
-    uintptr_t executeTranslationBlock(
+    uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
 };
 

@@ -5,6 +5,7 @@ extern "C" {
 
 
 #include "S2EExecutionState.h"
+#include <s2e/s2e_qemu.h>
 
 namespace s2e {
 
@@ -30,3 +31,25 @@ void S2EExecutionState::enableSymbExec()
 
 
 } // namespace s2e
+
+/******************************/
+/* Functions called from QEMU */
+
+extern "C" {
+
+S2EExecutionState* g_s2e_state = NULL;
+
+void s2e_update_state_env(
+        struct S2EExecutionState* state, CPUX86State* env)
+{
+	state->cpuState = env;
+}
+
+void s2e_update_state_env_pc(
+        struct S2EExecutionState* state, CPUX86State* env, uint64_t pc)
+{
+    state->cpuState = env;
+    state->cpuPC = pc;
+}
+
+} // extern "C"

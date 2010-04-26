@@ -45,8 +45,8 @@ void s2e_tb_free(TranslationBlock *tb)
 void s2e_tcg_execution_handler(
         S2E* s2e, ExecutionSignal* signal, CPUState *env, uint64_t pc)
 {
-    s2e->getExecutor()->updateCurrentState(env, pc);
-    signal->emit(s2e->getExecutor()->getCurrentState(), pc);
+    s2e_update_state_env_pc(g_s2e_state, env, pc);
+    signal->emit(g_s2e_state, pc);
 }
 
 /* Instrument generated code to emit signal on execution */
@@ -84,14 +84,12 @@ void s2e_tcg_instrument_code(S2E* s2e, ExecutionSignal* signal, uint64_t pc)
 }
 
 void s2e_on_translate_block_start(
-        S2E* s2e, CPUState *env, TranslationBlock *tb, uint64_t pc)
+        S2E* s2e, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getExecutor()->updateCurrentState(env);
-    s2e->getCorePlugin()->onTranslateBlockStart.emit(
-            signal, s2e->getExecutor()->getCurrentState(), tb, pc);
+    s2e->getCorePlugin()->onTranslateBlockStart.emit(signal, state, tb, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
@@ -99,15 +97,14 @@ void s2e_on_translate_block_start(
 }
 
 void s2e_on_translate_block_end(
-        S2E* s2e, CPUState *env, TranslationBlock *tb, 
+        S2E* s2e, S2EExecutionState *state, TranslationBlock *tb, 
         uint64_t insPc, int staticTarget, uint64_t targetPc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getExecutor()->updateCurrentState(env);
     s2e->getCorePlugin()->onTranslateBlockEnd.emit(
-            signal, s2e->getExecutor()->getCurrentState(), tb, insPc, 
+            signal, state, tb, insPc, 
             staticTarget, targetPc);
 
     if(!signal->empty()) {
@@ -117,14 +114,12 @@ void s2e_on_translate_block_end(
 }
 
 void s2e_on_translate_instruction_start(
-        S2E* s2e, CPUState *env, TranslationBlock *tb, uint64_t pc)
+        S2E* s2e, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getExecutor()->updateCurrentState(env);
-    s2e->getCorePlugin()->onTranslateInstructionStart.emit(
-            signal, s2e->getExecutor()->getCurrentState(), tb, pc);
+    s2e->getCorePlugin()->onTranslateInstructionStart.emit(signal, state, tb, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
@@ -132,24 +127,19 @@ void s2e_on_translate_instruction_start(
 }
 
 void s2e_on_translate_instruction_end(
-        S2E* s2e, CPUState *env, TranslationBlock *tb, uint64_t pc)
+        S2E* s2e, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
-    s2e->getExecutor()->updateCurrentState(env);
-    s2e->getCorePlugin()->onTranslateInstructionEnd.emit(
-            signal, s2e->getExecutor()->getCurrentState(), tb, pc);
+    s2e->getCorePlugin()->onTranslateInstructionEnd.emit(signal, state, tb, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
         tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
     }
 }
 
-void s2e_on_exception(S2E *s2e, CPUState *env, 
-                      unsigned intNb)
+void s2e_on_exception(S2E *s2e, S2EExecutionState* state, unsigned intNb)
 {
-    s2e->getExecutor()->updateCurrentState(env);
-    s2e->getCorePlugin()->onException.emit(
-            s2e->getExecutor()->getCurrentState(), intNb, env->eip);
+    s2e->getCorePlugin()->onException.emit(state, intNb, state->cpuState->eip);
 }
