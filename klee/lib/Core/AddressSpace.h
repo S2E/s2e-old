@@ -58,11 +58,6 @@ namespace klee {
 
     /// Resolve address to an ObjectPair in result.
     /// \return true iff an object was found.
-    bool resolveOne(uint64_t address,
-                    ObjectPair &result);
-
-    /// Resolve address to an ObjectPair in result.
-    /// \return true iff an object was found.
     bool resolveOne(const ref<ConstantExpr> &address, 
                     ObjectPair &result);
 
@@ -104,6 +99,9 @@ namespace klee {
 
     /// Lookup a binding from a MemoryObject.
     const ObjectState *findObject(const MemoryObject *mo) const;
+
+    /// Lookup a binding from a MemoryObject address.
+    ObjectPair findObject(uint64_t address) const;
 
     /// \brief Obtain an ObjectState suitable for writing.
     ///

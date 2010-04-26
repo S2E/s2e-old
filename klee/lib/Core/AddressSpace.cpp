@@ -35,6 +35,12 @@ const ObjectState *AddressSpace::findObject(const MemoryObject *mo) const {
   return res ? res->second : 0;
 }
 
+ObjectPair AddressSpace::findObject(uint64_t address) const {
+  MemoryObject hack(address);
+  const MemoryMap::value_type *res = objects.lookup(&hack);
+  return res ? ObjectPair(*res) : ObjectPair(NULL, NULL);
+}
+
 ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
                                         const ObjectState *os) {
   assert(!os->readOnly);
@@ -50,22 +56,6 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
 }
 
 /// 
-
-bool AddressSpace::resolveOne(uint64_t address,
-                              ObjectPair &result) {
-  MemoryObject hack(address);
-
-  if (const MemoryMap::value_type *res = objects.lookup_previous(&hack)) {
-    const MemoryObject *mo = res->first;
-    if ((mo->size==0 && address==mo->address) ||
-        (address - mo->address < mo->size)) {
-      result = *res;
-      return true;
-    }
-  }
-
-  return false;
-}
 
 bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr, 
                               ObjectPair &result) {
