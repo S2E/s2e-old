@@ -604,7 +604,7 @@ int cpu_exec(CPUState *env1)
                 spin_lock(&tb_lock);
 
                 if (intNb != -1) {
-                    s2e_on_exception(g_s2e, env, intNb);
+                    s2e_on_exception(g_s2e, g_s2e_state, env, intNb);
                     intNb = -1;
                 }
 

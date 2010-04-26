@@ -84,11 +84,13 @@ void s2e_tcg_instrument_code(S2E* s2e, ExecutionSignal* signal, uint64_t pc)
 }
 
 void s2e_on_translate_block_start(
-        S2E* s2e, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc)
+        S2E* s2e, S2EExecutionState* state, CPUX86State* env,
+        TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
+    state->cpuState = env;
     s2e->getCorePlugin()->onTranslateBlockStart.emit(signal, state, tb, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
@@ -97,12 +99,14 @@ void s2e_on_translate_block_start(
 }
 
 void s2e_on_translate_block_end(
-        S2E* s2e, S2EExecutionState *state, TranslationBlock *tb, 
+        S2E* s2e, S2EExecutionState *state,
+        CPUX86State *env, TranslationBlock *tb,
         uint64_t insPc, int staticTarget, uint64_t targetPc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
+    state->cpuState = env;
     s2e->getCorePlugin()->onTranslateBlockEnd.emit(
             signal, state, tb, insPc, 
             staticTarget, targetPc);
@@ -114,11 +118,13 @@ void s2e_on_translate_block_end(
 }
 
 void s2e_on_translate_instruction_start(
-        S2E* s2e, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc)
+        S2E* s2e, S2EExecutionState* state, CPUX86State *env,
+        TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
+    state->cpuState = env;
     s2e->getCorePlugin()->onTranslateInstructionStart.emit(signal, state, tb, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
@@ -127,11 +133,13 @@ void s2e_on_translate_instruction_start(
 }
 
 void s2e_on_translate_instruction_end(
-        S2E* s2e, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc)
+        S2E* s2e, S2EExecutionState* state, CPUX86State *env,
+        TranslationBlock *tb, uint64_t pc)
 {
     ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
     assert(signal->empty());
 
+    state->cpuState = env;
     s2e->getCorePlugin()->onTranslateInstructionEnd.emit(signal, state, tb, pc);
     if(!signal->empty()) {
         s2e_tcg_instrument_code(s2e, signal, pc);
@@ -139,7 +147,9 @@ void s2e_on_translate_instruction_end(
     }
 }
 
-void s2e_on_exception(S2E *s2e, S2EExecutionState* state, unsigned intNb)
+void s2e_on_exception(S2E *s2e, S2EExecutionState* state,
+                      CPUX86State *env, unsigned intNb)
 {
+    state->cpuState = env;
     s2e->getCorePlugin()->onException.emit(state, intNb, state->cpuState->eip);
 }

@@ -417,8 +417,8 @@ static inline void gen_op_jmp_T0(DisasContext *s)
 {
     tcg_gen_st_tl(cpu_T[0], cpu_env, offsetof(CPUState, eip));
     #ifdef CONFIG_S2E
-    s2e_on_translate_block_end(g_s2e, s->cpuState, s->tb, s->insPc,
-        0, 0);
+    s2e_on_translate_block_end(g_s2e, g_s2e_state,
+                               s->cpuState, s->tb, s->insPc, 0, 0);
     #endif
 }
 
@@ -620,7 +620,8 @@ static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
     tcg_gen_movi_tl(cpu_tmp0, pc);
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
     #ifdef CONFIG_S2E
-    s2e_on_translate_block_end(g_s2e, s->cpuState, s->tb, s->insPc, 1, pc);
+    s2e_on_translate_block_end(g_s2e, g_s2e_state,
+                               s->cpuState, s->tb, s->insPc, 1, pc);
     #endif
 }
 
@@ -2315,8 +2316,8 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
 #ifdef CONFIG_S2E
         s->enable_jmp_im = 0;
         tcg_gen_goto_tb(tb_num);
-        s2e_on_translate_block_end(g_s2e, s->cpuState, s->tb, 
-            s->insPc, 1, eip);
+        s2e_on_translate_block_end(g_s2e, g_s2e_state,
+                                   s->cpuState, s->tb, s->insPc, 1, eip);
         tcg_gen_goto_tb(tb_num);
         gen_jmp_im(s, eip);
         s->enable_jmp_im = 1;
@@ -7858,8 +7859,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     dc->enable_jmp_im = 1;
     dc->cpuState = env;
 
-    s2e_update_state_env(g_s2e_state, env);
-    s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
+    s2e_on_translate_block_start(g_s2e, g_s2e_state, env, tb, pc_start);
 #endif
 
     gen_icount_start();
@@ -7890,11 +7890,11 @@ static inline void gen_intermediate_code_internal(CPUState *env,
 
 #ifdef CONFIG_S2E
         dc->insPc = pc_ptr;
-        s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);
+        s2e_on_translate_instruction_start(g_s2e, g_s2e_state, env, tb, pc_ptr);
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);
 #ifdef CONFIG_S2E
-        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, tb, pc_ptr);
+        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, env, tb, pc_ptr);
 #endif
         pc_ptr = new_pc_ptr;
         num_insns++;

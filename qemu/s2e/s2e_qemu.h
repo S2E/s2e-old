@@ -58,6 +58,7 @@ void s2e_tb_free(struct TranslationBlock *tb);
 void s2e_on_translate_block_start(
         struct S2E* s2e,
         struct S2EExecutionState* state,
+        CPUX86State* cpu_state,
         struct TranslationBlock *tb, uint64_t pc);
 
 /** Called by cpu_gen_code() before the execution would leave the tb.
@@ -65,7 +66,8 @@ void s2e_on_translate_block_start(
 void s2e_on_translate_block_end(
         struct S2E* s2e, 
         struct S2EExecutionState *state, 
-        struct TranslationBlock *tb, uint64_t insPc, 
+        CPUX86State* cpu_state,
+        struct TranslationBlock *tb, uint64_t insPc,
         int staticTarget, uint64_t targetPc);
 
 
@@ -73,17 +75,20 @@ void s2e_on_translate_block_end(
 void s2e_on_translate_instruction_start(
         struct S2E* s2e,
         struct S2EExecutionState* state,
+        CPUX86State* cpu_state,
         struct TranslationBlock* tb, uint64_t pc);
 
 /** Called by cpu_gen_code() after translation of each instruction */
 void s2e_on_translate_instruction_end(
         struct S2E* s2e,
         struct S2EExecutionState* state,
+        CPUX86State* cpu_state,
         struct TranslationBlock* tb, uint64_t pc);
 
 void s2e_on_exception(
         struct S2E *s2e,
         struct S2EExecutionState* state,
+        CPUX86State* cpu_state,
         unsigned intNb);
 
 /****************************************/
