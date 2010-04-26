@@ -574,9 +574,14 @@ static inline void tcg_out_pop(TCGContext *s, int reg);
 static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
                             int opc)
 {
+    /* S2E note: we do not generate inlined fast-path
+       when compiling with CONFIG_S2E and always revert to
+       calling external helper. Memory should never be accessed
+       directly in S2E */
+
     int addr_reg, data_reg, r0, r1, mem_index, s_bits, bswap, rexw;
     int32_t offset;
-#if defined(CONFIG_SOFTMMU)
+#if defined(CONFIG_SOFTMMU) && !defined(CONFIG_S2E)
     uint8_t *label1_ptr, *label2_ptr;
 #endif
 
@@ -599,6 +604,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     rexw = P_REXW;
 #endif
 #if defined(CONFIG_SOFTMMU)
+#if !defined(CONFIG_SOFTMMU)
     /* mov */
     tcg_out_modrm(s, 0x8b | rexw, r1, addr_reg);
 
@@ -628,6 +634,10 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out8(s, 0x70 + JCC_JE);
     label1_ptr = s->code_ptr;
     s->code_ptr++;
+#else
+    /* mov */
+    tcg_out_modrm(s, 0x8b | rexw, r0, addr_reg);
+#endif
 
     /* XXX: move that code at the end of the TB */
     
@@ -676,7 +686,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_pop(s, TCG_REG_RDI);
     #endif
 
-    
+#if !defined(CONFIG_S2E)
     /* jmp label2 */
     tcg_out8(s, 0xeb);
     label2_ptr = s->code_ptr;
@@ -689,6 +699,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_modrm_offset(s, 0x03 | P_REXW, r0, r1, offsetof(CPUTLBEntry, addend) - 
                          offsetof(CPUTLBEntry, addr_read));
     offset = 0;
+#endif
 #else
     if (GUEST_BASE == (int32_t)GUEST_BASE) {
         r0 = addr_reg;
@@ -704,6 +715,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     }
 #endif    
 
+#if !defined(CONFIG_S2E)
 #ifdef TARGET_WORDS_BIGENDIAN
     bswap = 1;
 #else
@@ -787,14 +799,20 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     /* label2: */
     *label2_ptr = s->code_ptr - label2_ptr - 1;
 #endif
+#endif
 }
 
 static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
                             int opc)
 {
+    /* S2E note: we do not generate inlined fast-path
+       when compiling with CONFIG_S2E and always revert to
+       calling external helper. Memory should never be accessed
+       directly in S2E */
+
     int addr_reg, data_reg, r0, r1, mem_index, s_bits, bswap, rexw;
     int32_t offset;
-#if defined(CONFIG_SOFTMMU)
+#if defined(CONFIG_SOFTMMU) && !defined(CONFIG_S2E)
     uint8_t *label1_ptr, *label2_ptr;
 #endif
 
@@ -819,6 +837,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     rexw = P_REXW;
 #endif
 #if defined(CONFIG_SOFTMMU)
+#if !defined(CONFIG_S2E)
     /* mov */
     tcg_out_modrm(s, 0x8b | rexw, r1, addr_reg);
 
@@ -848,6 +867,11 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out8(s, 0x70 + JCC_JE);
     label1_ptr = s->code_ptr;
     s->code_ptr++;
+
+#else
+    /* mov */
+    tcg_out_modrm(s, 0x8b | rexw, r0, addr_reg);
+#endif
 
     /* XXX: move that code at the end of the TB */
 #ifdef __MINGW64__
@@ -902,7 +926,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_pop(s, TCG_REG_RDI);
     #endif
 
-
+#if !defined(CONFIG_S2E)
     /* jmp label2 */
     tcg_out8(s, 0xeb);
     label2_ptr = s->code_ptr;
@@ -915,6 +939,8 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_modrm_offset(s, 0x03 | P_REXW, r0, r1, offsetof(CPUTLBEntry, addend) - 
                          offsetof(CPUTLBEntry, addr_write));
     offset = 0;
+#endif
+
 #else
     if (GUEST_BASE == (int32_t)GUEST_BASE) {
         r0 = addr_reg;
@@ -930,6 +956,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     }
 #endif
 
+#if !defined(CONFIG_S2E)
 #ifdef TARGET_WORDS_BIGENDIAN
     bswap = 1;
 #else
@@ -984,6 +1011,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 #if defined(CONFIG_SOFTMMU)
     /* label2: */
     *label2_ptr = s->code_ptr - label2_ptr - 1;
+#endif
 #endif
 }
 

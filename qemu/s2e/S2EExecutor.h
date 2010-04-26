@@ -53,6 +53,12 @@ public:
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
+
+    void readMemoryConcrete(S2EExecutionState *state,
+            uint64_t address, uint8_t* buf, uint64_t size);
+    void writeMemoryConcrete(S2EExecutionState *state,
+            uint64_t address, const uint8_t* buf, uint64_t size);
+
 };
 
 } // namespace s2e

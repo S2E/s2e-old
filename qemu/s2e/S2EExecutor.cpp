@@ -19,8 +19,11 @@ extern "C" {
 
 #include <klee/StatsTracker.h>
 #include <klee/PTree.h>
+#include <klee/Memory.h>
 
 #include <vector>
+
+#include <sys/mman.h>
 
 using namespace std;
 using namespace llvm;
@@ -152,8 +155,13 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     std::cout << "Going to add " << (last_ram_offset/S2E_RAM_BLOCK_SIZE)
               << " ram blocks" << std::endl;
     for(ram_addr_t addr = 0; addr < last_ram_offset; addr += S2E_RAM_BLOCK_SIZE) {
-        addExternalObject(*state, qemu_get_ram_ptr(addr),
+        MemoryObject* mo = addExternalObject(*state, qemu_get_ram_ptr(addr),
                 min<ram_addr_t>(S2E_RAM_BLOCK_SIZE, last_ram_offset-addr), false);
+        mo->isUserSpecified = true; // XXX hack
+
+        /* XXX */
+        //munmap(qemu_get_ram_ptr(addr), S2E_RAM_BLOCK_SIZE);
+
         ++i;
     }
     std::cout << "Added " << i << " RAM blocks" << std::endl;
@@ -257,6 +265,46 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 #endif
 }
 
+void S2EExecutor::readMemoryConcrete(S2EExecutionState *state,
+                    uint64_t address, uint8_t* buf, uint64_t size)
+{
+    ObjectPair op;
+    bool ok = state->addressSpace.resolveOne(address, op);
+
+    // XXX
+    assert(ok && address - op.first->address + size <= op.first->size);
+
+    ObjectState* os = NULL;
+    uint64_t offset = address - op.first->address;
+    for(uint64_t i=0; i<size; ++i) {
+        if(!op.second->readConcrete8(offset+i, buf+i)) {
+            if(!os) {
+                os = state->addressSpace.getWriteable(op.first, op.second);
+                op.second = os;
+            }
+            buf[i] = toConstant(*state, os->read8(offset+i),
+                           "concrete memory access")->getZExtValue(8);
+            os->write8(offset+i, buf[i]);
+        }
+    }
+}
+
+void S2EExecutor::writeMemoryConcrete(S2EExecutionState *state,
+            uint64_t address, const uint8_t* buf, uint64_t size)
+{
+    ObjectPair op;
+    bool ok = state->addressSpace.resolveOne(address, op);
+
+    // XXX
+    assert(ok && address - op.first->address + size <= op.first->size);
+
+    ObjectState* os = state->addressSpace.getWriteable(op.first, op.second);
+    uint32_t offset = address - op.first->address;
+    for(uint64_t i=0; i<size; ++i) {
+        os->write8(offset+i, buf[i]);
+    }
+}
+
 } // namespace s2e
 
 /******************************/
@@ -267,4 +315,16 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            void* volatile* saved_AREGs)
 {
     return s2e->getExecutor()->executeTranslationBlock(state, tb, saved_AREGs);
+}
+
+void s2e_read_memory_concrete(S2E *s2e, S2EExecutionState *state,
+                        uint64_t address, uint8_t* buf, uint64_t size)
+{
+    s2e->getExecutor()->readMemoryConcrete(state, address, buf, size);
+}
+
+void s2e_write_memory_concrete(S2E *s2e, S2EExecutionState *state,
+                        uint64_t address, const uint8_t* buf, uint64_t size)
+{
+    s2e->getExecutor()->writeMemoryConcrete(state, address, buf, size);
 }

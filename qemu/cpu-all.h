@@ -22,6 +22,10 @@
 #include "qemu-common.h"
 #include "cpu-common.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 /* some important defines:
  *
  * WORDS_ALIGNED : if defined, the host cpu can only make word aligned
@@ -655,6 +659,8 @@ extern int have_guest_base;
 #define laddr(x) (uint8_t *)(intptr_t)(x)
 #endif
 
+#ifndef CONFIG_S2E
+
 #define ldub_raw(p) ldub_p(laddr((p)))
 #define ldsb_raw(p) ldsb_p(laddr((p)))
 #define lduw_raw(p) lduw_p(laddr((p)))
@@ -669,6 +675,44 @@ extern int have_guest_base;
 #define stq_raw(p, v) stq_p(saddr((p)), v)
 #define stfl_raw(p, v) stfl_p(saddr((p)), v)
 #define stfq_raw(p, v) stfq_p(saddr((p)), v)
+
+#else /* CONFIG_S2E */
+
+#define _s2e_define_ld_raw(ct, t, s) \
+    static inline ct ld ## t ## _raw(const void* p) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+          uint8_t buf[s]; \
+          s2e_read_memory_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+          return ld ## t ## _p(buf); \
+      } else return ld ## t ## _p(p); \
+    }
+
+#define _s2e_define_st_raw(ct, t, s) \
+    static inline void st ## t ## _raw(void* p, ct v) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+          uint8_t buf[s]; \
+          st ## t ## _p(buf, v); \
+          s2e_write_memory_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+      } else st ## t ## _p(p, v); \
+    }
+
+_s2e_define_ld_raw(int, ub, 1)
+_s2e_define_ld_raw(int, sb, 1)
+_s2e_define_ld_raw(int, uw, 2)
+_s2e_define_ld_raw(int, sw, 2)
+_s2e_define_ld_raw(int,  l, 4)
+_s2e_define_ld_raw(uint64_t,  q, 8)
+_s2e_define_ld_raw(float32,  fl, 4)
+_s2e_define_ld_raw(float64,  fq, 8)
+
+_s2e_define_st_raw(int, b, 1)
+_s2e_define_st_raw(int, w, 2)
+_s2e_define_st_raw(int, l, 4)
+_s2e_define_st_raw(uint64_t,  q, 8)
+_s2e_define_st_raw(float32,  fl, 4)
+_s2e_define_st_raw(float64,  fq, 8)
+
+#endif
 
 
 #if defined(CONFIG_USER_ONLY)

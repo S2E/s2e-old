@@ -46,6 +46,12 @@ public:
         return (*it).second;
     }
 
+    /** Read value from memory concretizing it if necessary */
+    uint64_t readMemoryConcrete(uint64_t address, char size);
+
+    /** Write concrete value to memory */
+    void writeMemoryConcrete(uint64_t address, uint64_t value, char size);
+
     uint64_t getPc() const;
 
     void disableSymbExec();

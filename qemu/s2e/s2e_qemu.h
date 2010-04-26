@@ -46,15 +46,6 @@ void s2e_close(struct S2E* s2e);
     QEMU pc is completely constructed */
 void s2e_initialize_symbolic_execution(struct S2E *s2e);
 
-/****************************************/
-/* Functions from S2EExecutionState.cpp */
-
-void s2e_update_state_env(
-        struct S2EExecutionState* state, CPUX86State* env);
-
-void s2e_update_state_env_pc(
-        struct S2EExecutionState* state, CPUX86State* env, uint64_t pc);
-
 /*********************************/
 /* Functions from CorePlugin.cpp */
 
@@ -96,6 +87,15 @@ void s2e_on_exception(
         struct S2EExecutionState* state,
         unsigned intNb);
 
+/****************************************/
+/* Functions from S2EExecutionState.cpp */
+
+void s2e_update_state_env(
+        struct S2EExecutionState* state, CPUX86State* env);
+
+void s2e_update_state_env_pc(
+        struct S2EExecutionState* state, CPUX86State* env, uint64_t pc);
+
 /**********************************/
 /* Functions from S2EExecutor.cpp */
 
@@ -104,6 +104,15 @@ uintptr_t s2e_qemu_tb_exec(
         struct S2EExecutionState* state,
         struct TranslationBlock* tb,
         void* volatile* saved_AREGs);
+
+void s2e_read_memory_concrete(struct S2E* s2e,
+        struct S2EExecutionState* state,
+        uint64_t address, uint8_t* buf, uint64_t size);
+
+void s2e_write_memory_concrete(struct S2E* s2e,
+        struct S2EExecutionState* state,
+        uint64_t offset, const uint8_t* buf, uint64_t size);
+
 
 #ifdef __cplusplus
 }
