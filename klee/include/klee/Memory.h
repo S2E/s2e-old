@@ -48,7 +48,19 @@ public:
 
   /// true if created by us.
   bool fake_object;
+
+  /// User-specified object will not be concretized/restored
+  /// when switching to/from concrete execution. That is,
+  /// copy(In|Out)Concretes ignores this object.
   bool isUserSpecified;
+
+  /// True if this object should always be accessed directly
+  /// by its address (i.e., baypassing all ObjectStates).
+  /// This means that the object will always contain concrete
+  /// values and its conctent will be shared across all states
+  /// (unless explicitly saved/restored on state switches -
+  /// ObjectState will still be allocated for this purpose).
+  bool isSharedConcrete;
 
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object
@@ -190,7 +202,9 @@ public:
 
   // fast-path to get concrete values
   bool readConcrete8(unsigned offset, uint8_t* v) const {
-    if(isByteConcrete(offset)) {
+    if(object->isSharedConcrete) {
+      *v = ((uint8_t*) object->address)[offset];
+    } else if(isByteConcrete(offset)) {
       *v = concreteStore[offset]; return true;
     } else {
       return false;

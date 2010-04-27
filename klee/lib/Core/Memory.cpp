@@ -360,20 +360,26 @@ void ObjectState::setKnownSymbolic(unsigned offset,
 /***/
 
 ref<Expr> ObjectState::read8(unsigned offset) const {
-  if (isByteConcrete(offset)) {
-    return ConstantExpr::create(concreteStore[offset], Expr::Int8);
-  } else if (isByteKnownSymbolic(offset)) {
-    return knownSymbolics[offset];
-  } else {
-    assert(isByteFlushed(offset) && "unflushed byte without cache value");
+  if (!object->isSharedConcrete) {
+    if (isByteConcrete(offset)) {
+      return ConstantExpr::create(concreteStore[offset], Expr::Int8);
+    } else if (isByteKnownSymbolic(offset)) {
+      return knownSymbolics[offset];
+    } else {
+      assert(isByteFlushed(offset) && "unflushed byte without cache value");
     
-    return ReadExpr::create(getUpdates(), 
-                            ConstantExpr::create(offset, Expr::Int32));
-  }    
+      return ReadExpr::create(getUpdates(),
+                              ConstantExpr::create(offset, Expr::Int32));
+    }
+  } else {
+    return ConstantExpr::create(((uint8_t*)object->address)[offset], Expr::Int8);
+  }
 }
 
 ref<Expr> ObjectState::read8(ref<Expr> offset) const {
   assert(!isa<ConstantExpr>(offset) && "constant offset passed to symbolic read8");
+  assert(!object->isSharedConcrete &&
+         "read at non-constant offset for shared concrete object");
   unsigned base, size;
   fastRangeCheckOffset(offset, &base, &size);
   flushRangeForRead(base, size);
@@ -391,11 +397,15 @@ ref<Expr> ObjectState::read8(ref<Expr> offset) const {
 
 void ObjectState::write8(unsigned offset, uint8_t value) {
   //assert(read_only == false && "writing to read-only object!");
-  concreteStore[offset] = value;
-  setKnownSymbolic(offset, 0);
+  if(!object->isSharedConcrete) {
+    concreteStore[offset] = value;
+    setKnownSymbolic(offset, 0);
 
-  markByteConcrete(offset);
-  markByteUnflushed(offset);
+    markByteConcrete(offset);
+    markByteUnflushed(offset);
+  } else {
+    ((uint8_t*)object->address)[offset] = value;
+  }
 }
 
 void ObjectState::write8(unsigned offset, ref<Expr> value) {
@@ -403,6 +413,8 @@ void ObjectState::write8(unsigned offset, ref<Expr> value) {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(value)) {
     write8(offset, (uint8_t) CE->getZExtValue(8));
   } else {
+    assert(!object->isSharedConcrete &&
+         "write of non-constant value to shared concrete object");
     setKnownSymbolic(offset, value.get());
       
     markByteSymbolic(offset);
@@ -412,6 +424,8 @@ void ObjectState::write8(unsigned offset, ref<Expr> value) {
 
 void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
   assert(!isa<ConstantExpr>(offset) && "constant offset passed to symbolic write8");
+  assert(!object->isSharedConcrete &&
+         "write at non-constant offset for shared concrete object");
   unsigned base, size;
   fastRangeCheckOffset(offset, &base, &size);
   flushRangeForWrite(base, size);
