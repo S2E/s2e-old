@@ -1281,14 +1281,27 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
         D("selecting default skin name '%s'", skinName);
     }
 
-    i->skinName = ASTRDUP(skinName);
-
     if (!skinDir) {
 
 #define  PREBUILT_SKINS_DIR  "sdk/emulator/skins"
+#define  PRODUCT_SKIN_DIR "skin"
 
         do {
-            /* try in <sysdir>/../skins first */
+            /* look for the product skin in $ANDROID_PRODUCT_OUT/skin if no skin name is defined */
+            if (!params->skinName) {
+                /* look for <product_out>/skin first */
+                p = bufprint( temp, end, "%s/skin",
+                              i->androidOut );
+                if (path_exists(temp)) {
+                    p = bufprint( temp, end, "%s",
+                                  i->androidOut );
+                    skinName = PRODUCT_SKIN_DIR;
+                    D("selecting default product skin at '%s/%s'", temp, skinName);
+                    break;
+                }
+            }
+
+            /* next try in <sysdir>/../skins */
             p = bufprint( temp, end, "%s/../skins",
                           i->androidBuildRoot );
             if (path_exists(temp))
@@ -1302,6 +1315,8 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
     } else {
         p = bufprint( temp, end, "%s", skinDir );
     }
+
+    i->skinName = ASTRDUP(skinName);
 
     q  = bufprint(p, end, "/%s/layout", skinName);
     if (q >= end || !path_exists(temp)) {
