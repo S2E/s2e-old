@@ -100,6 +100,7 @@ public:
       isFixed(_isFixed),
       fake_object(false),
       isUserSpecified(false),
+      isSharedConcrete(false),
       allocSite(_allocSite) {
   }
 
@@ -203,7 +204,7 @@ public:
   // fast-path to get concrete values
   bool readConcrete8(unsigned offset, uint8_t* v) const {
     if(object->isSharedConcrete) {
-      *v = ((uint8_t*) object->address)[offset];
+      *v = ((uint8_t*) object->address)[offset]; return true;
     } else if(isByteConcrete(offset)) {
       *v = concreteStore[offset]; return true;
     } else {
