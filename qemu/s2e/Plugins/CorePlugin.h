@@ -60,8 +60,8 @@ public:
 
     /** Signal that is emitted when custom opcode is detected */
     sigc::signal<void, S2EExecutionState*, 
-            unsigned /* Exception Index */,
-            uint8_t* /* pc */>
+            uint64_t  /* opcode */
+            >
             onCustomInstruction;
 };
 

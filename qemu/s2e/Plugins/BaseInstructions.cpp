@@ -12,13 +12,14 @@ S2E_DEFINE_PLUGIN(BaseInstructions, "Default set of custom instructions plugin",
 
 void BaseInstructions::initialize()
 {
-
+    s2e()->getCorePlugin()->onCustomInstruction.connect(
+            sigc::mem_fun(*this, &BaseInstructions::onCustomInstruction));
 }
 
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
-        unsigned length, const uint8_t *code)
+        uint64_t opcode)
 {
-    TRACE("Custom instructions of length %d\n", length);
+    TRACE("Custom instructions %#"PRIx64"\n", opcode);
 }
 
 }

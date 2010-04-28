@@ -49,6 +49,31 @@ void s2e_tcg_execution_handler(
     signal->emit(g_s2e_state, pc);
 }
 
+void s2e_tcg_custom_instr_handler(uint64_t opcode)
+{
+    g_s2e->getCorePlugin()->onCustomInstruction(g_s2e_state, opcode);
+}
+
+void s2e_tcg_emit_custom_instr(S2E* s2e, uint64_t pc, uint64_t val)
+{
+    TCGv_ptr t0 = tcg_temp_new_i64();
+    TCGArg args[1];
+    args[0] = GET_TCGV_I64(t0);
+
+#if TCG_TARGET_REG_BITS == 64
+    const int sizemask = 16 | 8 | 4 | 2;
+    tcg_gen_movi_i64(t0, (tcg_target_ulong) val);
+#else
+    const int sizemask = 16;
+    tcg_gen_movi_i64(t0, (tcg_target_ulong) val);
+#endif
+    tcg_gen_helperN((void*) s2e_tcg_custom_instr_handler,
+                0, sizemask, TCG_CALL_DUMMY_ARG, 1, args);
+
+    tcg_temp_free_i64(t0);
+ 
+}
+
 /* Instrument generated code to emit signal on execution */
 void s2e_tcg_instrument_code(S2E* s2e, ExecutionSignal* signal, uint64_t pc)
 {

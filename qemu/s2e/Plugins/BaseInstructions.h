@@ -19,7 +19,7 @@ public:
    
 private:
     void onCustomInstruction(S2EExecutionState* state, 
-        unsigned length, const uint8_t *code);
+        uint64_t opcode);
 
 };
 

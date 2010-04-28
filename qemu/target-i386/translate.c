@@ -4255,6 +4255,16 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     /* now check op code */
  reswitch:
     switch(b) {
+#ifdef CONFIG_S2E
+    case 0xf1: /* s2e prefix */
+        {
+        uint64_t custom = ldq_code(s->pc);
+        s2e_tcg_emit_custom_instr(g_s2e, pc_start, custom);
+        s->pc+=8;
+        break;
+        }
+#endif
+
     case 0x0f:
         /**************************/
         /* extended op code */
