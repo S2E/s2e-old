@@ -17,6 +17,9 @@ public:
 
     void initialize();
    
+    void handleBuiltInOps(S2EExecutionState* state, 
+        uint64_t opcode);
+
 private:
     void onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode);
