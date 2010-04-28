@@ -182,7 +182,9 @@ protected:
   // Given a concrete object in our [klee's] address space, add it to 
   // objects checked code can reference.
   MemoryObject *addExternalObject(ExecutionState &state, void *addr, 
-                                  unsigned size, bool isReadOnly);
+                                  unsigned size, bool isReadOnly,
+                                  bool isUserSpecified = false,
+                                  bool isSharedConcrete = false);
 
   void initializeGlobalObject(ExecutionState &state, ObjectState *os, 
 			      llvm::Constant *c,

@@ -23,10 +23,17 @@ void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
   assert(os->copyOnWriteOwner==0 && "object already has owner");
   os->copyOnWriteOwner = cowKey;
   objects = objects.replace(std::make_pair(mo, os));
+
+  if(mo->isUserSpecified)
+      nonUserSpecifiedObjects = nonUserSpecifiedObjects.remove(mo);
+  else
+      nonUserSpecifiedObjects = nonUserSpecifiedObjects.replace(
+                                      std::make_pair(mo, os));
 }
 
 void AddressSpace::unbindObject(const MemoryObject *mo) {
   objects = objects.remove(mo);
+  nonUserSpecifiedObjects = nonUserSpecifiedObjects.remove(mo);
 }
 
 const ObjectState *AddressSpace::findObject(const MemoryObject *mo) const {
@@ -296,37 +303,34 @@ bool AddressSpace::resolve(ExecutionState &state,
 // then its concrete cache byte isn't being used) but is just a hack.
 
 void AddressSpace::copyOutConcretes() {
-  for (MemoryMap::iterator it = objects.begin(), ie = objects.end(); 
-       it != ie; ++it) {
+  for (MemoryMap::iterator it = nonUserSpecifiedObjects.begin(),
+            ie = nonUserSpecifiedObjects.end(); it != ie; ++it) {
     const MemoryObject *mo = it->first;
+    assert(!mo->isUserSpecified);
 
-    if (!mo->isUserSpecified) {
-      ObjectState *os = it->second;
-      uint8_t *address = (uint8_t*) (unsigned long) mo->address;
+    const ObjectState *os = it->second;
+    uint8_t *address = (uint8_t*) (unsigned long) mo->address;
 
-      if (!os->readOnly)
-        memcpy(address, os->concreteStore, mo->size);
-    }
+    if (!os->readOnly)
+      memcpy(address, os->concreteStore, mo->size);
   }
 }
 
 bool AddressSpace::copyInConcretes() {
-  for (MemoryMap::iterator it = objects.begin(), ie = objects.end(); 
-       it != ie; ++it) {
+  for (MemoryMap::iterator it = nonUserSpecifiedObjects.begin(),
+            ie = nonUserSpecifiedObjects.end(); it != ie; ++it) {
     const MemoryObject *mo = it->first;
+    assert(!mo->isUserSpecified);
 
-    if (!mo->isUserSpecified) {
-      const ObjectState *os = it->second;
-      uint8_t *address = (uint8_t*) (unsigned long) mo->address;
+    const ObjectState *os = it->second;
+    uint8_t *address = (uint8_t*) (unsigned long) mo->address;
 
-      if (memcmp(address, os->concreteStore, mo->size)!=0) {
-        if (os->readOnly) {
-          return false;
-        } else {
-          ObjectState *wos = getWriteable(mo, os);
-          memcpy(wos->concreteStore, address, mo->size);
-        }
-      }
+    if (os->readOnly) {
+      if (memcmp(address, os->concreteStore, mo->size)!=0)
+        return false;
+    } else {
+      ObjectState *wos = getWriteable(mo, os);
+      memcpy(wos->concreteStore, address, mo->size);
     }
   }
 

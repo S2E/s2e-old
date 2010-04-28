@@ -412,12 +412,18 @@ void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
 
 MemoryObject * Executor::addExternalObject(ExecutionState &state, 
                                            void *addr, unsigned size, 
-                                           bool isReadOnly) {
+                                           bool isReadOnly,
+                                           bool isUserSpecified,
+                                           bool isSharedConcrete) {
   MemoryObject *mo = memory->allocateFixed((uint64_t) addr,
                                            size, 0);
+  mo->isUserSpecified = isUserSpecified;
+  mo->isSharedConcrete = isSharedConcrete;
   ObjectState *os = bindObjectInState(state, mo, false);
-  for(unsigned i = 0; i < size; i++)
-    os->write8(i, ((uint8_t*)addr)[i]);
+  if(!isSharedConcrete) {
+    for(unsigned i = 0; i < size; i++)
+      os->write8(i, ((uint8_t*)addr)[i]);
+  }
   if(isReadOnly)
     os->setReadOnly(true);  
   return mo;
