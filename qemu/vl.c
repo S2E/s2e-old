@@ -2990,6 +2990,12 @@ static int ram_save_block(QEMUFile *f)
 
             p = qemu_get_ram_ptr(current_addr);
 
+#ifdef CONFIG_S2E
+            uint8_t buf[TARGET_PAGE_SIZE];
+            s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p,
+                                  buf, TARGET_PAGE_SIZE);
+            p = buf;
+#endif
             if (is_dup_page(p, *p)) {
                 qemu_put_be64(f, current_addr | RAM_SAVE_FLAG_COMPRESS);
                 qemu_put_byte(f, *p);
@@ -3127,7 +3133,14 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 
         if (flags & RAM_SAVE_FLAG_COMPRESS) {
             uint8_t ch = qemu_get_byte(f);
+#ifndef CONFIG_S2E
             memset(qemu_get_ram_ptr(addr), ch, TARGET_PAGE_SIZE);
+#else
+            int i;
+            uint64_t vaddr = (uint64_t) qemu_get_ram_ptr(addr);
+            for(i = 0; i < TARGET_PAGE_SIZE; i++)
+                s2e_write_ram_concrete(g_s2e, g_s2e_state, vaddr+i, &ch, 1);
+#endif
 #ifndef _WIN32
             if (ch == 0 &&
                 (!kvm_enabled() || kvm_has_sync_mmu())) {
@@ -3135,7 +3148,16 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
             }
 #endif
         } else if (flags & RAM_SAVE_FLAG_PAGE) {
+#ifndef CONFIG_S2E
             qemu_get_buffer(f, qemu_get_ram_ptr(addr), TARGET_PAGE_SIZE);
+#else
+            uint8_t buf[TARGET_PAGE_SIZE];
+            qemu_get_buffer(f, buf, TARGET_PAGE_SIZE);
+
+            s2e_write_ram_concrete(g_s2e, g_s2e_state,
+                                   (uint64_t) qemu_get_ram_ptr(addr),
+                                   buf, TARGET_PAGE_SIZE);
+#endif
         }
         if (qemu_file_has_error(f)) {
             return -EIO;
