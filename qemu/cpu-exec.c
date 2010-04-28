@@ -610,14 +610,13 @@ int cpu_exec(CPUState *env1)
 #ifdef CONFIG_LLVM
                 if(execute_llvm) {
                     qemu_log_mask(CPU_LOG_EXEC,
-                            "Trace (LLVM) %p [" TARGET_FMT_lx "] %s (LLVM: %s)\n",
-                                 tb->llvm_tc_ptr, tb->pc,
-                                 lookup_symbol(tb->pc),
-                                 tcg_llvm_get_func_name(tb)
-                                 );
+                            "Trace [" TARGET_FMT_lx "] %p (LLVM: %s) %s\n",
+                                 tb->pc, tb->llvm_tc_ptr,
+                                 tcg_llvm_get_func_name(tb),
+                                 lookup_symbol(tb->pc));
                 } else {
-                    qemu_log_mask(CPU_LOG_EXEC, "Trace %p [" TARGET_FMT_lx "] %s\n",
-                                 tb->tc_ptr, tb->pc,
+                    qemu_log_mask(CPU_LOG_EXEC, "Trace [" TARGET_FMT_lx "] %p %s\n",
+                                 tb->pc, tb->tc_ptr,
                                  lookup_symbol(tb->pc));
                 }
 #else
