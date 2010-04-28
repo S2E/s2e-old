@@ -6,7 +6,7 @@
 #include "CodeSelector.h"
 #include "ModuleExecutionDetector.h"
 
-#include <s2e/s2e.h>
+#include <s2e/S2E.h>
 #include <s2e/Utils.h>
 
 

@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <map>
 
-#include <s2e/s2e.h>
+#include <s2e/S2E.h>
 #include <s2e/Configuration/ConfigurationManager.h>
 
 typedef bool (*FunctionHookHandler)(S2E &sd, bool isEntry);
