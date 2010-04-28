@@ -604,6 +604,8 @@ int cpu_exec(CPUState *env1)
                 spin_lock(&tb_lock);
 
                 if (intNb != -1) {
+                    qemu_log_mask(CPU_LOG_INT,
+                                  "CPU interrupt, vector=0x%x\n", intNb);
                     s2e_on_exception(g_s2e, g_s2e_state, env, intNb);
                     intNb = -1;
                 }
