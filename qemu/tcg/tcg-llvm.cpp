@@ -1099,7 +1099,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
             break;
 
         if(opc == INDEX_op_debug_insn_start) {
-#if 0           
+#ifndef CONFIG_S2E
             // volatile store of current OPC index
             m_builder.CreateStore(ConstantInt::get(wordType(), opc_index),
                 m_builder.CreateIntToPtr(

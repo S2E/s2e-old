@@ -1998,7 +1998,7 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     return -1;
 }
 
-#include <sys/mman.h>
+//#include <sys/mman.h>
 
 int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
 {
