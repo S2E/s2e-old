@@ -672,6 +672,7 @@ void tb_flush(CPUState *env1)
     memset (tb_phys_hash, 0, CODE_GEN_PHYS_HASH_SIZE * sizeof (void *));
     page_flush_tb();
 
+//    assert(!mprotect(code_gen_buffer, code_gen_buffer_size, PROT_WRITE|PROT_READ|PROT_EXEC));
     code_gen_ptr = code_gen_buffer;
     /* XXX: flush processor icache at this point if cache flush is
        expensive */

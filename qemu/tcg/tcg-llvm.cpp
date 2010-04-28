@@ -1097,6 +1097,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
             break;
 
         if(opc == INDEX_op_debug_insn_start) {
+#if 0           
             // volatile store of current OPC index
             m_builder.CreateStore(ConstantInt::get(wordType(), opc_index),
                 m_builder.CreateIntToPtr(
@@ -1111,6 +1112,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
                         (uint64_t) &tcg_llvm_runtime.last_pc),
                     wordPtrType()),
                 true);
+#endif
         }
 
         args += generateOperation(opc, args);

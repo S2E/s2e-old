@@ -620,8 +620,10 @@ static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
     tcg_gen_movi_tl(cpu_tmp0, pc);
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
     #ifdef CONFIG_S2E
-    s2e_on_translate_block_end(g_s2e, g_s2e_state,
+    if (s->enable_jmp_im) {
+        s2e_on_translate_block_end(g_s2e, g_s2e_state,
                                s->cpuState, s->tb, s->insPc, 1, pc);
+    }
     #endif
 }
 
@@ -2316,10 +2318,12 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
 #ifdef CONFIG_S2E
         s->enable_jmp_im = 0;
         tcg_gen_goto_tb(tb_num);
+        
         s2e_on_translate_block_end(g_s2e, g_s2e_state,
                                    s->cpuState, s->tb, s->insPc, 1, eip);
-        tcg_gen_goto_tb(tb_num);
+        
         gen_jmp_im(s, eip);
+        
         s->enable_jmp_im = 1;
 #else
         tcg_gen_goto_tb(tb_num);
@@ -4117,6 +4121,14 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     if (unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP)))
 #endif
         tcg_gen_debug_insn_start(pc_start);
+
+#ifdef CONFIG_S2E
+    tcg_gen_movi_tl(cpu_tmp0, pc_start - s->cs_base);
+    tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
+    if (s->cc_op != CC_OP_DYNAMIC)
+        gen_op_set_cc_op(s->cc_op);
+#endif
+
     s->pc = pc_start;
     prefixes = 0;
     aflag = s->code32;
@@ -7899,8 +7911,9 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         pc_ptr = new_pc_ptr;
         num_insns++;
         /* stop translation if indicated */
-        if (dc->is_jmp)
+        if (dc->is_jmp) {
             break;
+        }
         /* if single step mode, we generate only one instruction and
            generate an exception */
         /* if irq were inhibited with HF_INHIBIT_IRQ_MASK, we clear

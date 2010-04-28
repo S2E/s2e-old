@@ -11,8 +11,10 @@ namespace s2e {
 
 #ifdef NDEBUG
 #define DPRINTF(...)
+#define TRACE(...) 
 #else
 #define DPRINTF(...) printf(__VA_ARGS__)
+#define TRACE(...) { printf("%s - ", __FUNCTION__); printf(__VA_ARGS__); }
 #endif
 
 /* The following is GCC-specific implementation of foreach.

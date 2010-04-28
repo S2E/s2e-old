@@ -1,3 +1,5 @@
+//#define NDEBUG
+
 #include <s2e/s2e.h>
 #include <s2e/s2e_qemu.h>
 #include <s2e/ConfigFile.h>
@@ -42,8 +44,8 @@ void ModuleExecutionDetector::initialize()
         &ModuleExecutionDetector::onTranslateBlockStart));
 
     s2e()->getCorePlugin()->onTranslateBlockEnd.connect(
-        sigc::mem_fun(*this, 
-        &ModuleExecutionDetector::onTranslateBlockEnd));
+            sigc::mem_fun(*this, 
+            &ModuleExecutionDetector::onTranslateBlockEnd));
 
     
     s2e()->getCorePlugin()->onException.connect(
@@ -64,9 +66,13 @@ void ModuleExecutionDetector::initializeConfiguration()
         ModuleExecutionCfg d;
         std::stringstream s;
         s << "moduleExecutionDetector." << *it << ".";
+        d.id = *it;
         d.moduleName = cfg->getString(s.str() + "moduleName");
         d.kernelMode = cfg->getBool(s.str() + "kernelMode");
-        m_ConfiguredModules[*it] = d;
+        TRACE("moduleName=%s kernelMode=%d context=%s\n",
+            d.moduleName.c_str(), d.kernelMode, d.context.c_str());
+        m_ConfiguredModulesId.insert(d);
+        m_ConfiguredModulesName.insert(d);
     }
 }
 
@@ -81,15 +87,17 @@ void ModuleExecutionDetector::onTranslateBlockStart(
     
     uint64_t pid = m_Monitor->getPid(state, pc);
     
+    //XXX: might translate a block without instrumentation
+    //and reuse it in instrumented part...
     const ModuleExecutionDesc *currentModule = 
         plgState->findCurrentModule(pid, pc);
     
     if (currentModule) {
-        //std::cout << "Translating block belonging to " << currentModule->Name << std::endl;
-        onModuleTranslateBlockStart.emit(signal, state, currentModule, tb, pc);
-
+        TRACE("Translating block %#"PRIx64" belonging to %s\n",pc, currentModule->descriptor.Name.c_str());
         signal->connect(sigc::mem_fun(*this, 
             &ModuleExecutionDetector::onExecution));
+
+        onModuleTranslateBlockStart.emit(signal, state, currentModule, tb, pc);
     }
 }
 
@@ -115,29 +123,31 @@ void ModuleExecutionDetector::onTranslateBlockEnd(
         return;
     }
 
-    onModuleTranslateBlockEnd.emit(signal, state, currentModule, tb, endPc,
-        staticTarget, targetPc);
-
+  
     if (staticTarget) {
         const ModuleExecutionDesc *targetModule =
             plgState->findCurrentModule(pid, targetPc);
     
         if (targetModule != currentModule) {
             //Only instrument in case there is a module change
-            DPRINTF("Static transition from %#"PRIx64" to %#"PRIx64"\n",
-                endPc, targetPc);
+            //TRACE("Static transition from %#"PRIx64" to %#"PRIx64"\n",
+            //    endPc, targetPc);
             signal->connect(sigc::mem_fun(*this, 
                 &ModuleExecutionDetector::onExecution));   
         }
     }else {
-        DPRINTF("Dynamic transition from %#"PRIx64" to %#"PRIx64"\n",
-                endPc, targetPc);
+        //TRACE("Dynamic transition from %#"PRIx64" to %#"PRIx64"\n",
+        //        endPc, targetPc);
         //In case of dynamic targets, conservatively
         //instrument code.
         signal->connect(sigc::mem_fun(*this, 
                 &ModuleExecutionDetector::onExecution));   
 
     }
+
+     onModuleTranslateBlockEnd.emit(signal, state, currentModule, tb, endPc,
+        staticTarget, targetPc);
+
 
 }
 
@@ -178,14 +188,16 @@ void ModuleExecutionDetector::onExecution(
     const ModuleExecutionDesc *currentModule = 
         plgState->findCurrentModule(pid, pc);
 
+    //gTRACE("pid=%#"PRIx64" pc=%#"PRIx64"\n", pid, pc);
     if (plgState->m_PreviousModule != currentModule) {
-        onModuleTransition.emit(state, plgState->m_PreviousModule,
-            currentModule);
         if (currentModule) {
             std::cout << "Entered module " << currentModule->descriptor.Name << std::endl;
         }else {
             std::cout << "Entered unknown module " << std::endl;
         }
+        onModuleTransition.emit(state, plgState->m_PreviousModule,
+            currentModule);
+        
         plgState->m_PreviousModule = currentModule;
     }
 }
@@ -196,8 +208,20 @@ void ModuleExecutionDetector::moduleLoadListener(
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
 
+    //if module name matches the configured ones, then
+    //activate.
     std::cout << "ModuleExecutionDetector - " << module.Name << " loaded" << std::endl;
-    plgState->activateModule(module);
+    
+    ModuleExecutionCfg cfg;
+    cfg.moduleName = module.Name;
+    std::set<ModuleExecutionCfg, ModuleExecCfgByName>::iterator it;
+
+    it = m_ConfiguredModulesName.find(cfg);
+    if (it == m_ConfiguredModulesName.end()) {
+        return;
+    } 
+    
+    plgState->activateModule(module, *it);
   
 }
 
@@ -207,6 +231,16 @@ void ModuleExecutionDetector::moduleUnloadListener(
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
 
     std::cout << "ModuleExecutionDetector - " << module.Name << " unloaded" << std::endl;
+
+    std::set<ModuleExecutionCfg, ModuleExecCfgByName>::iterator it;
+
+    ModuleExecutionCfg cfg;
+    cfg.moduleName = module.Name;
+    it = m_ConfiguredModulesName.find(cfg);
+    if (it == m_ConfiguredModulesName.end()) {
+        return;
+    } 
+
     plgState->deactivateModule(module);
  
 }
@@ -245,58 +279,42 @@ ModuleTransitionState* ModuleTransitionState::clone() const
 PluginState* ModuleTransitionState::factory()
 {
     ModuleTransitionState *s = new ModuleTransitionState();
-    ModuleExecutionDetector *d = (ModuleExecutionDetector*)g_s2e->getPlugin("ModuleExecutionDetector");
-
-    foreach2(it, d->m_ConfiguredModules.begin(), d->m_ConfiguredModules.end()) {
-        ModuleExecutionDesc StateDesc;
-        StateDesc.id = (*it).first;
-        StateDesc.isActive = false;
-        StateDesc.imageName = (*it).second.moduleName;
-        StateDesc.kernelMode = (*it).second.kernelMode;
-        s->m_ActiveDescriptors.push_back(StateDesc);
-    }
+   
+    TRACE("Creating initial module transition state\n");
 
     return s;
 }
 
 void ModuleTransitionState::activateModule(
-    const ModuleDescriptor &desc)
+    const ModuleDescriptor &desc, const ModuleExecutionCfg &cfg)
 {
-    foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
-        if (!(*it).isActive && !(*it).imageName.compare(desc.Name)) {
-            if (desc.Pid || (*it).kernelMode) {
-                std::cout << "ModuleTransitionState - Module " << desc.Name << " activated" << std::endl;
-                (*it).isActive = true;
-                (*it).descriptor = desc;
-                //Modules are activated in their declaration order
-                return;
-            }
-        }
-    }
+    ModuleExecutionDesc med;
+    TRACE("Activating %s/%s (pid=%#"PRIx64")\n", cfg.id.c_str(), desc.Name.c_str(),
+        desc.Pid);
+    med.id = cfg.id;
+    med.kernelMode = cfg.kernelMode;
+    med.descriptor = desc;
+    
+    m_ActiveDescriptors.insert(med);
+    
 }
 
 void ModuleTransitionState::deactivateModule(
      const ModuleDescriptor &desc)
 {
-    bool onlyOnce = false;
+    TRACE("Deactivating %s\n", desc.Name.c_str());
+    
+    ModuleExecutionDesc med;
+    med.descriptor = desc;
 
-    foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
-        if ((*it).isActive && (*it).descriptor.Pid == desc.Pid) {
-            assert(!onlyOnce);
-            std::cout << "ModuleTransitionState - Module " << desc.Name << " deactivated" << std::endl;
-            (*it).isActive = false;
-            onlyOnce = true;
-        }
-    }
+    int b = m_ActiveDescriptors.erase(med);
+    assert(b);
+    
 }
 
 const ModuleExecutionDesc *ModuleTransitionState::findCurrentModule(uint64_t pid, uint64_t pc) const
 {
     foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
-        if (!(*it).isActive) {
-            continue;
-        }
-
         if ((*it).descriptor.Pid == pid && (*it).descriptor.Contains(pc)) {
             return &(*it);
         }
@@ -306,14 +324,18 @@ const ModuleExecutionDesc *ModuleTransitionState::findCurrentModule(uint64_t pid
 
 void ModuleTransitionState::deactivatePid(uint64_t pid)
 {
-    foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
-        if (!(*it).isActive) {
-            continue;
-        }
+    std::set<ModuleExecutionDesc>::iterator it, it1;
 
+    for(it = m_ActiveDescriptors.begin(); it != m_ActiveDescriptors.end(); )
+    {
         if ((*it).descriptor.Pid == pid) {
             std::cout << "ModuleTransitionState - Process " << (*it).descriptor.Name << " deactivated" << std::endl;
-            (*it).isActive = false;
+            it1 = it;
+            ++it1;
+            m_ActiveDescriptors.erase(*it);
+            it = it1;
+        }else {
+            ++it;
         }
     }
 

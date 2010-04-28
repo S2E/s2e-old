@@ -1,3 +1,5 @@
+//#define NDEBUG
+
 #include <sstream>
 #include <s2e/ConfigFile.h>
 
@@ -6,6 +8,7 @@
 
 #include <s2e/s2e.h>
 #include <s2e/Utils.h>
+
 
 using namespace s2e;
 using namespace plugins;
@@ -23,8 +26,12 @@ CodeSelector::CodeSelector(S2E *s2e) : Plugin(s2e) {
 
 CodeSelector::~CodeSelector()
 {
-    foreach2(it, m_Bitmap.begin(), m_Bitmap.end()) {
-        uint8_t *Bmp = (*it).second;
+    foreach2(it, m_CodeSelDesc.begin(), m_CodeSelDesc.end()) {
+        delete *it;
+    }
+    
+    foreach2(it, m_AggregatedBitmap.begin(), m_AggregatedBitmap.end()) {
+        uint8_t *Bmp = (*it).second.first;
         if (Bmp) {
             delete [] Bmp;
         }
@@ -41,11 +48,21 @@ void CodeSelector::initialize()
     m_ExecutionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
     assert(m_ExecutionDetector);
 
-    std::vector<std::string> moduleIds;
+    ConfigFile *cfg = s2e()->getConfig();
 
-    moduleIds = s2e()->getConfig()->getListKeys("codeSelector");
-    foreach2(it, moduleIds.begin(), moduleIds.end()) {
-        m_ConfiguredModuleIds.insert(*it);
+    std::vector<std::string> keyList;
+    std::set<std::string> ModuleIds;
+
+    //Find out about the modules we are interested in
+    keyList = cfg->getListKeys("codeSelector");
+    foreach2(it, keyList.begin(), keyList.end()) {
+        CodeSelDesc *csd = new CodeSelDesc(s2e());
+
+        if (!csd->initialize(*it)) {
+            std::cout << "Could not initialize code descriptor for " << *it << std::endl;
+            exit(-1);
+        }
+        m_CodeSelDesc.insert(csd);
     }
 
     m_ExecutionDetector->onModuleTransition.connect(
@@ -58,15 +75,63 @@ void CodeSelector::initialize()
         sigc::mem_fun(*this, &CodeSelector::onModuleTranslateBlockEnd));
 }
 
+bool CodeSelector::instrumentationNeeded(const ModuleExecutionDesc &desc,
+                                         uint64_t pc)
+{
+    ModuleToBitmap::iterator it = m_AggregatedBitmap.find(desc.descriptor.Name);
+    if (it != m_AggregatedBitmap.end()) {
+        const BitmapDesc &bd = (*it).second;
+        uint64_t offset = desc.descriptor.ToRelative(pc);
+        if (offset >= bd.second) {
+            std::cout << "Warning: descriptor size does not match the registered size. "
+                "Maybe another module with same name was loaded." << std::endl;
+            return false;
+        }
+        return bd.first[offset/8] & (1<<(offset&7));
+    }
+
+    //There is no cached bitmap, read out all code selector descriptors that
+    //match the given module name and build the aggregated bitmap.
+    BitmapDesc newBmp(NULL, 0);
+
+    foreach2(it, m_CodeSelDesc.begin(), m_CodeSelDesc.end()) {
+        CodeSelDesc *cd = *it;
+        if (cd->getModuleId() == desc.id) {
+            cd->initializeBitmap(cd->getId(), 
+                desc.descriptor.NativeBase, desc.descriptor.Size);
+        }
+
+        if(!newBmp.first) {
+            newBmp.first = new uint8_t[desc.descriptor.Size/8];
+            newBmp.second = desc.descriptor.Size;
+        }
+
+        for (unsigned i=0; i<desc.descriptor.Size/8; i++) {
+            newBmp.first[i] |= cd->getBitmap()[i];
+        }
+    }
+
+    m_AggregatedBitmap[desc.descriptor.Name] = newBmp;
+
+    uint64_t offset = desc.descriptor.ToRelative(pc);
+    return newBmp.first[offset/8] & (1<<(offset&7));
+}
+
 void CodeSelector::onModuleTranslateBlockStart(ExecutionSignal *signal, 
         S2EExecutionState *state,
         const ModuleExecutionDesc* desc,
         TranslationBlock *tb,
         uint64_t pc)
 {
-    assert(!m_Tb);
+    TRACE("%"PRIx64"\n", pc);
+    
+    //Translation may have been interrupted because of an error
+    if (m_Tb) {
+        m_TbConnection.disconnect();
+    }
+    
     m_Tb = tb;
-    m_TbSymbexEnabled = !isSymbolic(*desc, pc); //!whatever is in bitmap for that PC
+    m_TbSymbexEnabled = !instrumentationNeeded(*desc, pc); //!whatever is in bitmap for that PC
     m_TbMod = desc;
     
     //register instruction translator now
@@ -83,17 +148,18 @@ void CodeSelector::onTranslateInstructionStart(
     uint64_t pc
     )
 {
-    assert(tb == m_Tb);
+    if (tb != m_Tb) {
+        TRACE("%"PRIx64"\n", pc);
+        std::cout << std::flush;
+        assert(tb == m_Tb);
+    }
 
     //if current pc is symbexecable
-    bool s = isSymbolic(*m_TbMod, pc);
+    bool s = instrumentationNeeded(*m_TbMod, pc);
 
     if (s != m_TbSymbexEnabled) {
-        if (s) {
-            signal->connect(sigc::mem_fun(*this, &CodeSelector::enableSymbexSignal));
-        }else {
-            signal->connect(sigc::mem_fun(*this, &CodeSelector::disableSymbexSignal));
-        }
+        TRACE("Connecting symbex\n");
+        signal->connect(sigc::mem_fun(*this, &CodeSelector::symbexSignal));
         m_TbSymbexEnabled = s;
     }
      
@@ -109,42 +175,206 @@ void CodeSelector::onModuleTranslateBlockEnd(
         bool staticTarget,
         uint64_t targetPc)
 {
+    TRACE("%"PRIx64" StaticTarget=%d TargetPc=%"PRIx64"\n", endPc, staticTarget, targetPc);
     m_Tb = NULL;
     m_TbConnection.disconnect();
 }
 
-void CodeSelector::disableSymbexSignal(S2EExecutionState *state, uint64_t pc)
+void CodeSelector::symbexSignal(S2EExecutionState *state, uint64_t pc)
 {
-    state->disableSymbExec();
+    DECLARE_PLUGINSTATE(CodeSelectorState, state);
+    TRACE("%p\n", plgState->m_CurrentModule);
+    if (plgState->m_CurrentModule) {
+        if (plgState->isSymbolic(pc)) {
+            state->disableSymbExec();
+        }else {
+            state->enableSymbExec();
+        }
+    }
 }
 
-void CodeSelector::enableSymbexSignal(S2EExecutionState *state, uint64_t pc)
+
+
+
+
+void CodeSelector::onModuleTransition(
+        S2EExecutionState *state,
+        const ModuleExecutionDesc *prevModule, 
+        const ModuleExecutionDesc *currentModule
+        )
 {
-    state->enableSymbExec();
+    DECLARE_PLUGINSTATE(CodeSelectorState, state);
+
+    //The module was not declared, disable symbexec in it
+    if (currentModule == NULL) {
+        plgState->m_CurrentModule = NULL;
+        state->disableSymbExec();
+        return;
+    }
+
+    //Check that we are inside an interesting module
+    //This is not the same as the previous NULL check
+    //(users might want to disable temporarily some declared modules)
+    const CodeSelDesc *activeDesc = plgState->activateModule(this, currentModule);
+    if (!activeDesc) {
+        plgState->m_CurrentModule = NULL;
+        state->disableSymbExec();
+        return;
+    }
+ 
+    plgState->m_CurrentModule = currentModule;
 }
 
-bool CodeSelector::isSymbolic(const ModuleExecutionDesc &Desc, uint64_t absolutePc)
+CodeSelectorState::CodeSelectorState()
 {
-    assert(Desc.descriptor.Contains(absolutePc));
-    uint8_t *bmp = getBitmap(Desc);
+    m_CurrentModule = NULL;
+}
+
+CodeSelectorState::~CodeSelectorState()
+{
+
+}
+
+CodeSelectorState* CodeSelectorState::clone() const
+{
+    assert(false && "Not implemented");
+    return NULL;
+}
+
+PluginState *CodeSelectorState::factory()
+{
+    return new CodeSelectorState();
+}
+
+/**
+ *  Return the active module, NULL if no module could be activated
+ */
+const CodeSelDesc* CodeSelectorState::activateModule(CodeSelector *plugin, const ModuleExecutionDesc* mod)
+{
+    if (m_ActiveModDesc == mod) {
+        return m_ActiveSelDesc;
+    }
     
-    if (!bmp) {
+    ActiveModules::iterator amit = m_ActiveModules.find(*mod);
+    if (amit != m_ActiveModules.end()) {
+        //Do some caching first...
+        m_ActiveModDesc = mod;
+        m_ActiveSelDesc = (*amit).second;
+        return (*amit).second;
+    }
+
+    //Active module not found.
+
+    //1. Find the configured code selection descriptor
+    const CodeSelDesc *foundDesc = NULL;
+    const CodeSelector::ConfiguredCodeSelDesc &ccsd = plugin->getConfiguredDescriptors();
+    foreach2(it, ccsd.begin(), ccsd.end()) {
+        const CodeSelDesc *csd = *it;
+        bool skip = false;
+
+        if (csd->getModuleId() == mod->id) {
+            //Check that this module is not already active
+            foreach2(ait, m_ActiveModules.begin(), m_ActiveModules.end()) {
+                if (*(*ait).second == *csd) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (skip) {
+                continue;
+            }
+            foundDesc = csd;
+            break;
+        }
+    }
+
+    if (!foundDesc) {
+        m_ActiveModDesc = mod;
+        m_ActiveSelDesc = NULL;
+        return m_ActiveSelDesc;
+    }
+
+    //2. If descriptor has no context, create an active descriptor
+    //and return.
+    if (foundDesc->getContextId().size() == 0) {
+        m_ActiveModDesc = mod;
+        m_ActiveSelDesc = foundDesc;
+        m_ActiveModules[*mod] = foundDesc;
+        return foundDesc;
+    }
+
+    //3. Otherwise, look for parent context.
+    foundDesc = NULL;
+    foreach2(it, m_ActiveModules.begin(), m_ActiveModules.end()) {
+        if ((*it).second->getId() != foundDesc->getContextId()) {
+            continue;
+        }
+        if ((*it).first.descriptor.Pid != mod->descriptor.Pid) {
+            continue;
+        }
+        foundDesc = (*it).second;
+    }
+
+    //If not found, return NULL (and cache the value)
+    if (!foundDesc) {
+        m_ActiveModDesc = mod;
+        m_ActiveSelDesc = NULL;
+        return NULL;
+    }
+
+    //4. Else, create the new active descriptor
+    m_ActiveModDesc = mod;
+    m_ActiveSelDesc = foundDesc;
+    m_ActiveModules[*mod] = foundDesc;
+    return foundDesc;
+}
+
+bool CodeSelectorState::isSymbolic(uint64_t absolutePc)
+{
+    if (!m_CurrentModule) {
         return false;
     }
 
-    uint64_t offset = Desc.descriptor.ToRelative(absolutePc);
-    return bmp[offset/8] & (1<<(offset&7));
+    assert(m_ActiveModDesc);
+    assert(m_ActiveSelDesc);
+    
+    assert(m_ActiveModDesc->descriptor.Contains(absolutePc));
+    uint8_t *bmp = m_ActiveSelDesc->getBitmap();
+    
+    
 
+    uint64_t offset = m_ActiveModDesc->descriptor.ToRelative(absolutePc);
+    return bmp[offset/8] & (1<<(offset&7));
 }
+
+
+
+/////////////////
+
+CodeSelDesc::CodeSelDesc(S2E *s2e)
+{
+    m_Context = NULL;
+    m_Bitmap = NULL;
+    m_ModuleSize = 0;
+    m_s2e = s2e;
+}
+
+CodeSelDesc::~CodeSelDesc()
+{
+    if (m_Context) {
+        delete [] m_Context;
+    }
+}
+
 
 //XXX: might want to move to ConfigFile.cpp if lists of pairs turn out
 //to be common.
-bool CodeSelector::getRanges(const std::string &key, CodeSelector::Ranges &R)
+bool CodeSelDesc::getRanges(const std::string &key, CodeSelDesc::Ranges &ranges)
 {
    unsigned listSize;
    bool ok;
 
-   ConfigFile *cfg = s2e()->getConfig();
+   ConfigFile *cfg = m_s2e->getConfig();
    
    listSize = cfg->getListSize(key, &ok);
    if (!ok) {
@@ -164,44 +394,47 @@ bool CodeSelector::getRanges(const std::string &key, CodeSelector::Ranges &R)
            return false;
        }
 
-       R.push_back(Range(range[0], range[1]));
+       ranges.push_back(Range(range[0], range[1]));
    }
 
    return true;
 }
 
-bool CodeSelector::validateRanges(const ModuleExecutionDesc &Desc, const Ranges &R) const
+bool CodeSelDesc::validateRanges(const Ranges &R, uint64_t nativeBase, uint64_t size) const
 {
     bool allValid = true;
     foreach2(it, R.begin(), R.end()) {
         const Range &r = *it;
         if ((r.first > r.second)||
-            (r.second > Desc.descriptor.NativeBase + Desc.descriptor.Size) ||
-            (r.first < Desc.descriptor.NativeBase)) {
+            (r.second > nativeBase + size) ||
+            (r.first < nativeBase)) {
                 std::cout << "Range (0x" << std::hex << r.first << ", 0x" << r.second <<
                 ") is invalid" << std::endl;
             allValid = false;
         }
+        TRACE("Range (%#"PRIx64", %#"PRIx64") is valid\n", r.first, r.second);
     }
     return allValid;
 }
 
-void CodeSelector::getRanges(const ModuleExecutionDesc &Desc, 
-                             Ranges &include, Ranges &exclude)
+void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &exclude,
+                             const std::string &id, 
+                             uint64_t nativeBase, uint64_t size)
 {
     std::stringstream includeKey, excludeKey;
     bool ok = false;
-    ConfigFile *cfg = s2e()->getConfig();
+    ConfigFile *cfg = m_s2e->getConfig();
 
     include.clear();
     exclude.clear();
-        
-    includeKey << "codeSelector." << Desc.id << ".includeRange";
+    
+    TRACE("Reading include ranges for %s...\n", id.c_str());
+    includeKey << "codeSelector." << id << ".includeRange";
     
     std::string fk = cfg->getString(includeKey.str(), "", &ok);
     if (ok) {
         if (fk.compare("full") == 0) {
-            include.push_back(Range(0, Desc.descriptor.Size));
+            include.push_back(Range(0, size));
         }else {
             std::cout << "Invalid range " << fk << ". Must be 'full' or a list of "
                 "pairs of ranges" << std::endl;
@@ -210,21 +443,22 @@ void CodeSelector::getRanges(const ModuleExecutionDesc &Desc,
 
         ok = getRanges(includeKey.str(), include);
         if (!ok) {
-            std::cout << "No include ranges or invalid ranges specified for " << Desc.id << 
+            std::cout << "No include ranges or invalid ranges specified for " << id << 
                 ". Symbolic execution will be disabled." << std::endl;
         }
-        if (!validateRanges(Desc, include)) {
+        if (!validateRanges(include, nativeBase, size)) {
             std::cout << "Clearing include ranges" << std::endl;
             include.clear();
         }
     }
 
-    excludeKey << "codeSelector." << Desc.id << ".excludeRange";
+    TRACE("Reading exclude ranges for %s...\n", id.c_str());
+    excludeKey << "codeSelector." << id << ".excludeRange";
     ok = getRanges(excludeKey.str(), exclude);
     if (!ok) {
-        std::cout << "No exclude ranges or invalid ranges specified for " << Desc.id << std::endl;
+        std::cout << "No exclude ranges or invalid ranges specified for " << id << std::endl;
     }
-    if (!validateRanges(Desc, exclude)) {
+    if (!validateRanges(exclude, nativeBase, size)) {
         std::cout << "Clearing exclude ranges" << std::endl;
         exclude.clear();
     }
@@ -234,74 +468,73 @@ void CodeSelector::getRanges(const ModuleExecutionDesc &Desc,
 //Reads the cfg file to decide what part of the module
 //should be symbexec'd.
 //XXX: check syntax on initialize()?
-uint8_t *CodeSelector::initializeBitmap(const ModuleExecutionDesc &Desc)
+void CodeSelDesc::initializeBitmap(const std::string &id,
+                                   uint64_t nativeBase, uint64_t size)
 {
     Ranges include, exclude;
-
-    getRanges(Desc, include, exclude);
     
-    uint8_t *Bmp = new uint8_t[Desc.descriptor.Size/8];
-    assert(Bmp);
+    assert(!m_Bitmap);
+    
+    TRACE("Initing bitmap for %s\n", id.c_str());
+    getRanges(include, exclude, id, nativeBase, size);
+    
+    assert(!m_Bitmap);
+    m_Bitmap = new uint8_t[size/8];
+    
 
-    m_Bitmap[Desc] = Bmp;
-
+    TRACE("Bitmap @%p size=%#"PRIx64"\n", m_Bitmap, size/8);
+    
     //By default, symbolic execution is disabled for the entire module
-    memset(Bmp, 0x00, Desc.descriptor.Size/8);
+    memset(m_Bitmap, 0x00, size/8);
 
     foreach2(it, include.begin(), include.end()) {
-        uint64_t start = (*it).first -Desc.descriptor.NativeBase;
-        uint64_t end = (*it).second -Desc.descriptor.NativeBase;
+        uint64_t start = (*it).first - nativeBase;
+        uint64_t end = (*it).second - nativeBase;
         for (unsigned i=start; i<end; i++) {
-            Bmp[i/8] |= 1 << (i % 8);
+            m_Bitmap[i/8] |= 1 << (i % 8);
         }
     }
     
     foreach2(it, exclude.begin(), exclude.end()) {
-        uint64_t start = (*it).first -Desc.descriptor.NativeBase;
-        uint64_t end = (*it).second -Desc.descriptor.NativeBase;
+        uint64_t start = (*it).first - nativeBase;
+        uint64_t end = (*it).second - nativeBase;
         for (unsigned i=start; i<end; i++) {
-            Bmp[i/8] &= ~(1 << (i % 8));
+            m_Bitmap[i/8] &= ~(1 << (i % 8));
         }
     }
-
-    return Bmp;
 }
 
-uint8_t *CodeSelector::getBitmap(const ModuleExecutionDesc &Desc)
+bool CodeSelDesc::initialize(const std::string &key)
 {
-    Bitmap::iterator it = m_Bitmap.find(Desc);
-    if (it != m_Bitmap.end()) {
-        return (*it).second;
-    }
-    
-    return initializeBitmap(Desc);
-}
+     std::stringstream ss;
+     bool ok;
+     
+    ModuleExecutionDetector *executionDetector = (ModuleExecutionDetector*)m_s2e->getPlugin("ModuleExecutionDetector");
+    assert(executionDetector);
 
-void CodeSelector::onModuleTransition(
-        S2EExecutionState *state,
-        const ModuleExecutionDesc *prevModule, 
-        const ModuleExecutionDesc *currentModule
-        )
-{
-    //The module was not declared, disable symbexec in it
-    if (currentModule == NULL) {
-        state->disableSymbExec();
-        return;
-    }
+    ConfigFile *cfg = m_s2e->getConfig();
 
-    //Check that we are inside an interesting module
-    //This is not the same as the previous NULL check
-    //(users might want to disable temporarily some declared modules)
-    if (m_ConfiguredModuleIds.find(currentModule->id) == m_ConfiguredModuleIds.end()) {
-        state->disableSymbExec();
-        return;
-    }
- 
-    //If the module is declared for full symbex, enable it here.
-    //...
+     //Fetch the module id
+     ss << "codeSelector." << key << ".module";
+     const std::string &moduleId =  cfg->getString(ss.str(), "", &ok);
+     if (!ok) {
+         std::cout << ss.str() << " does not exist!" << std::endl;
+         return false;
+     }
 
-    
-    //Otherwise, no need to check when to enable symbexec, because
-    //all interesting basic blocks will have a call to enable symbexec
-    //at their beginning.
+     const ConfiguredModulesById &CfgModules = 
+         executionDetector->getConfiguredModulesById();
+
+     //Convert the module id into a module name
+     ConfiguredModulesById::iterator it;
+     ModuleExecutionCfg tmp;
+     tmp.id = moduleId;
+     it = CfgModules.find(tmp);
+     if (it == CfgModules.end()) {
+         std::cout << "Module id " << moduleId << " is not configured but is "
+             "referenced in " << ss.str() << std::endl;
+         return false;
+     }
+
+     return true;
 }

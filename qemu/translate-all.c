@@ -167,6 +167,14 @@ int cpu_restore_state(TranslationBlock *tb,
                       CPUState *env, uintptr_t searched_pc,
                       void *puc)
 {
+
+    //printf("searched_pc=%"PRIx64" pc=%"PRIx64"\n", searched_pc, (uint64_t)env->eip);
+/**
+ *  The retranslation mechanism interferes with S2E's instrumentation.
+ *  We get rid of the retranslation by saving the pc and flags explicitely
+ *  before each instruction.
+ */
+#ifndef CONFIG_S2E
     TCGContext *s = &tcg_ctx;
     int j;
     uintptr_t tc_ptr;
@@ -225,6 +233,8 @@ int cpu_restore_state(TranslationBlock *tb,
 #ifdef CONFIG_PROFILER
     s->restore_time += profile_getclock() - ti;
     s->restore_count++;
+#endif
+
 #endif
     return 0;
 }

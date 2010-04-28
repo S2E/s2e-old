@@ -62,7 +62,7 @@ struct ModuleDescriptor
     bool operator()(const struct ModuleDescriptor& s1, 
       const struct ModuleDescriptor& s2) const {
         if (s1.Pid == s2.Pid) {
-          return s1.LoadBase < s2.LoadBase;
+            return s1.LoadBase + s1.Size < s2.LoadBase;
         }
         return s1.Pid < s2.Pid;
     }

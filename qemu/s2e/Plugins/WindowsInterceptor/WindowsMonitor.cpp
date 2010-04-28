@@ -84,6 +84,8 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
                                                    TranslationBlock *tb,
                                                    uint64_t pc)
 {
+    //XXX: on resume vm snapshot, the init routines may not be called.
+    //However, when it is called, it will automatically scan all loaded modules.
     if(m_UserMode) {
         if (pc == GetLdrpCallInitRoutine() && m_MonitorModuleLoad) {
             DPRINTF("Basic block for LdrpCallInitRoutine %#"PRIx64"\n", pc);

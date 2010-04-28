@@ -1998,6 +1998,8 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     return -1;
 }
 
+#include <sys/mman.h>
+
 int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
 {
 #ifdef CONFIG_PROFILER
@@ -2016,9 +2018,18 @@ int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
 
     tcg_gen_code_common(s, gen_code_buf, -1);
 
+    /*assert(!((uintptr_t)gen_code_buf & 0xFFF));
+    (uintptr_t)s->code_ptr &= ~0xFFF;
+    (uintptr_t)s->code_ptr += 0x1000;*/
+
     /* flush instruction cache */
     flush_icache_range((uintptr_t)gen_code_buf, 
                        (uintptr_t)s->code_ptr);
+    
+    
+   /* assert((uintptr_t)(s->code_ptr -  gen_code_buf) <= 0x1000);
+    assert(!mprotect(gen_code_buf, 0x1000, PROT_READ|PROT_EXEC));
+    */
     return s->code_ptr -  gen_code_buf;
 }
 
