@@ -1029,21 +1029,33 @@ static void pc_init1(ram_addr_t ram_size,
     /* allocate RAM */
     ram_addr = qemu_ram_alloc(0xa0000);
     cpu_register_physical_memory(0, 0xa0000, ram_addr);
+
+#ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state, 0, 0xa0000,
-                        (uint64_t) qemu_get_ram_ptr(ram_addr), 1);
+                        (uint64_t) qemu_get_ram_ptr(ram_addr), 0);
+#endif
 
     /* Allocate, even though we won't register, so we don't break the
      * phys_ram_base + PA assumption. This range includes vga (0xa0000 - 0xc0000),
      * and some bios areas, which will be registered later
      */
     ram_addr = qemu_ram_alloc(0x100000 - 0xa0000);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, 0xa0000, 0x100000 - 0xa0000,
+                        (uint64_t) qemu_get_ram_ptr(ram_addr), 1);
+#endif
+
     ram_addr = qemu_ram_alloc(below_4g_mem_size - 0x100000);
     cpu_register_physical_memory(0x100000,
                  below_4g_mem_size - 0x100000,
                  ram_addr);
+
+#ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state,
                   0x100000, below_4g_mem_size - 0x100000,
-                  (uint64_t) qemu_get_ram_ptr(ram_addr), 1);
+                  (uint64_t) qemu_get_ram_ptr(ram_addr), 0);
+#endif
 
     /* above 4giga memory allocation */
     if (above_4g_mem_size > 0) {
@@ -1054,9 +1066,13 @@ static void pc_init1(ram_addr_t ram_size,
         cpu_register_physical_memory(0x100000000ULL,
                                      above_4g_mem_size,
                                      ram_addr);
+
+#ifdef CONFIG_S2E
         s2e_register_ram(g_s2e, g_s2e_state,
                   0x100000000ULL, above_4g_mem_size,
-                  (uint64_t) qemu_get_ram_ptr(ram_addr), 1);
+                  (uint64_t) qemu_get_ram_ptr(ram_addr), 0);
+#endif
+
 #endif
     }
 
@@ -1075,6 +1091,7 @@ static void pc_init1(ram_addr_t ram_size,
         goto bios_error;
     }
     bios_offset = qemu_ram_alloc(bios_size);
+
     ret = rom_add_file_fixed(bios_name, (uint32_t)(-bios_size));
     if (ret != 0) {
     bios_error:
@@ -1093,7 +1110,6 @@ static void pc_init1(ram_addr_t ram_size,
                                  (bios_offset + bios_size - isa_bios_size) | IO_MEM_ROM);
 
 
-
     rom_enable_driver_roms = 1;
     option_rom_offset = qemu_ram_alloc(PC_ROM_SIZE);
     cpu_register_physical_memory(PC_ROM_MIN_VGA, PC_ROM_SIZE, option_rom_offset);
@@ -1104,6 +1120,15 @@ static void pc_init1(ram_addr_t ram_size,
 
     fw_cfg = bochs_bios_init();
     rom_set_fw(fw_cfg);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state,
+            -1, bios_size,
+            (uint64_t) qemu_get_ram_ptr(bios_offset), 1);
+    s2e_register_ram(g_s2e, g_s2e_state,
+            PC_ROM_MIN_VGA, PC_ROM_SIZE,
+            (uint64_t) qemu_get_ram_ptr(option_rom_offset), 1);
+#endif
 
     if (linux_boot) {
         load_linux(fw_cfg, kernel_filename, initrd_filename, kernel_cmdline, below_4g_mem_size);

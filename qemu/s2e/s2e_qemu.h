@@ -118,9 +118,13 @@ void s2e_register_cpu(struct S2E* s2e,
 void s2e_register_ram(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
                       uint64_t start_address, uint64_t size,
-                      uint64_t host_address, int is_state_local);
+                      uint64_t host_address, int is_shared_concrete);
 
 int s2e_is_ram_registered(struct S2E* s2e,
+                          struct S2EExecutionState *state,
+                          uint64_t host_address);
+
+int s2e_is_ram_shared_concrete(struct S2E* s2e,
                           struct S2EExecutionState *state,
                           uint64_t host_address);
 

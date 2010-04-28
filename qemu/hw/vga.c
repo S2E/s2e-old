@@ -30,6 +30,10 @@
 #include "qemu-timer.h"
 #include "kvm.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 //#define DEBUG_VGA
 //#define DEBUG_VGA_MEM
 //#define DEBUG_VGA_REG
@@ -949,41 +953,6 @@ static void vga_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
     vga_mem_writeb(opaque, addr + 3, (val >> 24) & 0xff);
 #endif
 }
-
-#ifdef CONFIG_S2E
-
-/* called for accesses to video RAM */
-static uint32_t vga_ram_readb(void *opaque, target_phys_addr_t addr)
-{
-    return *(uint8_t*) qemu_get_ram_ptr(addr);
-}
-
-static uint32_t vga_ram_readw(void *opaque, target_phys_addr_t addr)
-{
-    return *(uint16_t*) qemu_get_ram_ptr(addr);
-}
-
-static uint32_t vga_ram_readl(void *opaque, target_phys_addr_t addr)
-{
-    return *(uint32_t*) qemu_get_ram_ptr(addr);
-}
-
-static void vga_ram_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    *(uint8_t*) qemu_get_ram_ptr(addr) = val;
-}
-
-static void vga_ram_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    *(uint16_t*) qemu_get_ram_ptr(addr) = val;
-}
-
-static void vga_ram_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    *(uint32_t*) qemu_get_ram_ptr(addr) = val;
-}
-
-#endif
 
 typedef void vga_draw_glyph8_func(uint8_t *d, int linesize,
                              const uint8_t *font_ptr, int h,
@@ -2209,22 +2178,6 @@ CPUWriteMemoryFunc * const vga_mem_write[3] = {
     vga_mem_writel,
 };
 
-#ifdef CONFIG_S2E
-
-CPUReadMemoryFunc * const vga_ram_read[3] = {
-    vga_ram_readb,
-    vga_ram_readw,
-    vga_ram_readl,
-};
-
-CPUWriteMemoryFunc * const vga_ram_write[3] = {
-    vga_ram_writeb,
-    vga_ram_writew,
-    vga_ram_writel,
-};
-
-#endif
-
 static int vga_common_post_load(void *opaque, int version_id)
 {
     VGACommonState *s = opaque;
@@ -2311,9 +2264,8 @@ void vga_common_init(VGACommonState *s, int vga_ram_size)
     s->vram_offset = qemu_ram_alloc(vga_ram_size);
 
 #ifdef CONFIG_S2E
-    int io_mem = cpu_register_io_memory(vga_ram_read, vga_ram_write, 0);
-    cpu_register_physical_memory(s->vram_offset, vga_ram_size, io_mem);
-    qemu_register_coalesced_mmio(s->vram_offset, vga_ram_size);
+    s2e_register_ram(g_s2e, g_s2e_state, -1, vga_ram_size,
+            (uint64_t) qemu_get_ram_ptr(s->vram_offset), 1);
 #endif
 
     s->vram_ptr = qemu_get_ram_ptr(s->vram_offset);

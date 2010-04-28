@@ -70,6 +70,9 @@ public:
     /** Return true if hostAddr is registered as a RAM with KLEE */
     bool isRamRegistered(S2EExecutionState *state, uint64_t hostAddress);
 
+    /** Return true if hostAddr is registered as a RAM with KLEE */
+    bool isRamSharedConcrete(S2EExecutionState *state, uint64_t hostAddress);
+
     /** Read from physical memory, concretizing if nessecary */
     void readRamConcrete(S2EExecutionState *state,
             uint64_t hostAddress, uint8_t* buf, uint64_t size);

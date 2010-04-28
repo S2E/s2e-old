@@ -215,32 +215,31 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
 
 void S2EExecutor::registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
-                        uint64_t hostAddress, bool isStateLocal)
+                        uint64_t hostAddress, bool isSharedConcrete)
 {
-    assert((hostAddress & ~TARGET_PAGE_MASK) == 0);
-    assert((startAddress & ~TARGET_PAGE_MASK) == 0);
+    assert(startAddress == (uint64_t) -1 ||
+           (startAddress & ~TARGET_PAGE_MASK) == 0);
     assert((size & ~TARGET_PAGE_MASK) == 0);
+    assert((hostAddress & ~TARGET_PAGE_MASK) == 0);
 
     std::cout << std::hex
               << "Adding memory block (startAddr = 0x" << startAddress
               << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
               << ")" << std::dec << std::endl;
 
-    if(isStateLocal) {
-        for(uint64_t addr = hostAddress; addr < hostAddress+size;
-                     addr += TARGET_PAGE_SIZE) {
-            MemoryObject* mo = addExternalObject(
-                    *initialState, (void*) addr, TARGET_PAGE_SIZE, false);
-            mo->isUserSpecified = true; // XXX hack
+    for(uint64_t addr = hostAddress; addr < hostAddress+size;
+                 addr += TARGET_PAGE_SIZE) {
+        MemoryObject* mo = addExternalObject(
+                *initialState, (void*) addr, TARGET_PAGE_SIZE, false);
+        mo->isUserSpecified = true; // XXX hack
+        mo->isSharedConcrete = isSharedConcrete;
+    }
 
-            /* XXX */
-            /* XXX : use qemu_mprotect */
-            mprotect((void*) addr, TARGET_PAGE_SIZE, PROT_NONE);
-        }
-
+    if(!isSharedConcrete) {
+        /* XXX */
+        /* XXX : use qemu_mprotect */
+        mprotect((void*) hostAddress, size, PROT_NONE);
         m_unusedMemoryRegions.push_back(make_pair(hostAddress, size));
-    } else {
-        /* TODO */
     }
 }
 
@@ -249,6 +248,14 @@ bool S2EExecutor::isRamRegistered(S2EExecutionState *state,
 {
     ObjectPair op = state->addressSpace.findObject(hostAddress);
     return op.first != NULL && op.first->isUserSpecified;
+}
+
+bool S2EExecutor::isRamSharedConcrete(S2EExecutionState *state,
+                                      uint64_t hostAddress)
+{
+    ObjectPair op = state->addressSpace.findObject(hostAddress);
+    assert(op.first);
+    return op.first->isSharedConcrete;
 }
 
 void S2EExecutor::readRamConcrete(S2EExecutionState *state,
@@ -261,26 +268,19 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
         ObjectPair op =
             state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
 
-        if(op.first) {
-            /* KLEE-owned memory */
+        assert(op.first && op.first->isUserSpecified);
 
-            assert(op.first->isUserSpecified);
-
-            ObjectState *wos = NULL;
-            for(uint64_t i=0; i<size; ++i) {
-                if(!op.second->readConcrete8(page_offset+i, buf+i)) {
-                    if(!wos) {
-                        op.second = wos = state->addressSpace.getWriteable(
-                                                        op.first, op.second);
-                    }
-                    buf[i] = toConstant(*state, wos->read8(page_offset+i),
-                                   "concrete memory access")->getZExtValue(8);
-                    wos->write8(page_offset+i, buf[i]);
+        ObjectState *wos = NULL;
+        for(uint64_t i=0; i<size; ++i) {
+            if(!op.second->readConcrete8(page_offset+i, buf+i)) {
+                if(!wos) {
+                    op.second = wos = state->addressSpace.getWriteable(
+                                                    op.first, op.second);
                 }
+                buf[i] = toConstant(*state, wos->read8(page_offset+i),
+                               "concrete memory access")->getZExtValue(8);
+                wos->write8(page_offset+i, buf[i]);
             }
-        } else {
-            /* QEMU-owned memory */
-            memcpy(buf, (void*) hostAddress, size);
         }
     } else {
         /* Access spans multiple pages */
@@ -300,19 +300,12 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
         ObjectPair op =
             state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
 
-        if(op.first) {
-            /* KLEE-owned memory */
+        assert(op.first && op.first->isUserSpecified);
 
-            assert(op.first->isUserSpecified);
-
-            ObjectState* wos =
-                    state->addressSpace.getWriteable(op.first, op.second);
-            for(uint64_t i=0; i<size; ++i) {
-                wos->write8(page_offset+i, buf[i]);
-            }
-        } else {
-            /* QEMU-owned memory */
-            memcpy((void*) hostAddress, buf, size);
+        ObjectState* wos =
+                state->addressSpace.getWriteable(op.first, op.second);
+        for(uint64_t i=0; i<size; ++i) {
+            wos->write8(page_offset+i, buf[i]);
         }
     } else {
         /* Access spans multiple pages */
@@ -432,16 +425,22 @@ void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
 
 void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
         uint64_t start_address, uint64_t size,
-        uint64_t host_address, int is_state_local)
+        uint64_t host_address, int is_shared_concrete)
 {
     s2e->getExecutor()->registerRam(initial_state,
-        start_address, size, host_address, is_state_local);
+        start_address, size, host_address, is_shared_concrete);
 }
 
 int s2e_is_ram_registered(S2E *s2e, S2EExecutionState *state,
                                uint64_t host_address)
 {
     return s2e->getExecutor()->isRamRegistered(state, host_address);
+}
+
+int s2e_is_ram_shared_concrete(S2E *s2e, S2EExecutionState *state,
+                               uint64_t host_address)
+{
+    return s2e->getExecutor()->isRamSharedConcrete(state, host_address);
 }
 
 void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,

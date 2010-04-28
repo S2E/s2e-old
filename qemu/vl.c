@@ -6168,6 +6168,18 @@ int main(int argc, char **argv, char **envp)
 #endif
 
 #ifdef CONFIG_S2E
+    /** Normal memory was registered by pc.c. Here we want to
+        register all other memory as a shared concrete memory */
+    /*
+    ram_addr_t addr;
+    for(addr = 0; addr < last_ram_offset; addr += TARGET_PAGE_SIZE) {
+        uint64_t host_address = (uint64_t) qemu_get_ram_ptr(addr);
+        if(!s2e_is_ram_registered(g_s2e, g_s2e_state, host_address)) {
+            s2e_register_ram(g_s2e, g_s2e_state, addr, TARGET_PAGE_SIZE,
+                             host_address, 1);
+        }
+    }
+    */
     s2e_initialize_execution(g_s2e, g_s2e_state);
 #endif
 
