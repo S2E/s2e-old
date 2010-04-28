@@ -58,7 +58,11 @@ public:
             uint64_t /* pc */>
             onException;
 
-    
+    /** Signal that is emitted when custom opcode is detected */
+    sigc::signal<void, S2EExecutionState*, 
+            unsigned /* Exception Index */,
+            uint8_t* /* pc */>
+            onCustomInstruction;
 };
 
 struct S2ETranslationBlock
