@@ -277,6 +277,8 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
             FunctionType::get(intType(64), false),
             Function::PrivateLinkage,
             "tcg_llvm_helper_wrapper", m_module);
+    m_executionEngine->addGlobalMapping(m_helperWrapperFunction,
+            (void*) tcg_llvm_helper_wrapper);
 #endif
 }
 
