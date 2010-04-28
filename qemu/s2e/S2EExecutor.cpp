@@ -230,9 +230,8 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += TARGET_PAGE_SIZE) {
         MemoryObject* mo = addExternalObject(
-                *initialState, (void*) addr, TARGET_PAGE_SIZE, false);
-        mo->isUserSpecified = true; // XXX hack
-        mo->isSharedConcrete = isSharedConcrete;
+                *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
+                /* isUserSpecified = */ true, isSharedConcrete);
     }
 
     if(!isSharedConcrete) {
@@ -381,8 +380,9 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
         /* TODO: MaxMemory */
 
         updateStates(state);
-        if(states.find(state) == states.end()) {
-            std::cerr << "The state was killed !" << std::endl;
+        if(!removedStates.empty() && removedStates.find(state) !=
+                                     removedStates.end()) {
+            std::cerr << "The current state was killed inside KLEE !" << std::endl;
             std::cerr << "Last executed instruction was:" << std::endl;
             ki->inst->dump();
             exit(1);

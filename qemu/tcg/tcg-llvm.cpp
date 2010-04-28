@@ -1142,10 +1142,20 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
     m_functionPassManager->run(*m_tbFunction);
 
     tb->llvm_function = m_tbFunction;
+
+#ifdef CONFIG_S2E
+    if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
+#endif
     tb->llvm_tc_ptr = (uint8_t*)
             m_executionEngine->getPointerToFunction(m_tbFunction);
     tb->llvm_tc_end = tb->llvm_tc_ptr +
             m_jitMemoryManager->getLastFunctionSize();
+#ifdef CONFIG_S2E
+    } else {
+    tb->llvm_tc_ptr = 0;
+    tb->llvm_tc_end = 0;
+    }
+#endif
 
     if(qemu_loglevel_mask(CPU_LOG_LLVM_IR)) {
         std::ostringstream s;
