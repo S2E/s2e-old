@@ -566,6 +566,67 @@ int cpu_exec(CPUState *env1)
                     env->exception_index = EXCP_INTERRUPT;
                     cpu_loop_exit();
                 }
+                spin_lock(&tb_lock);
+
+                if (intNb != -1) {
+                    qemu_log_mask(CPU_LOG_INT,
+                                  "CPU interrupt, vector=0x%x\n", intNb);
+                    s2e_on_exception(g_s2e, g_s2e_state, env, intNb);
+                    intNb = -1;
+                }
+
+                tb = tb_find_fast();
+                /* Note: we do it here to avoid a gcc bug on Mac OS X when
+                   doing it in tb_find_slow */
+                if (tb_invalidated_flag) {
+                    /* as some TB could have been invalidated because
+                       of memory exceptions while generating the code, we
+                       must recompute the hash index here */
+                    next_tb = 0;
+                    tb_invalidated_flag = 0;
+                }
+
+                /* see if we can patch the calling TB. When the TB
+                   spans two pages, we cannot safely do a direct
+                   jump. */
+                {
+                    if (next_tb != 0 && tb->page_addr[1] == -1) {
+                    tb_add_jump((TranslationBlock *)(next_tb & ~3), next_tb & 3, tb);
+                }
+                }
+                spin_unlock(&tb_lock);
+                env->current_tb = tb;
+
+                /* cpu_interrupt might be called while translating the
+                   TB, but before it is linked into a potentially
+                   infinite loop and becomes env->current_tb. Avoid
+                   starting execution if there is a pending interrupt. */
+                if (unlikely (env->exit_request))
+                    env->current_tb = NULL;
+
+                while (env->current_tb) {
+
+#ifdef CONFIG_DEBUG_EXEC
+#ifdef CONFIG_LLVM
+                if(execute_llvm) {
+                    qemu_log_mask(CPU_LOG_EXEC,
+                            "Trace (LLVM) %p [" TARGET_FMT_lx "] %s (LLVM: %s)\n",
+                                 tb->llvm_tc_ptr, tb->pc,
+                                 lookup_symbol(tb->pc),
+                                 tcg_llvm_get_func_name(tb)
+                                 );
+                } else {
+                    qemu_log_mask(CPU_LOG_EXEC, "Trace %p [" TARGET_FMT_lx "] %s\n",
+                                 tb->tc_ptr, tb->pc,
+                                 lookup_symbol(tb->pc));
+                }
+#else
+                qemu_log_mask(CPU_LOG_EXEC, "Trace %p [" TARGET_FMT_lx "] %s\n",
+                             tb->tc_ptr, tb->pc,
+                             lookup_symbol(tb->pc));
+#endif
+#endif
+
 #ifdef CONFIG_DEBUG_EXEC
                 if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
                     /* restore flags in standard format */
@@ -601,64 +662,7 @@ int cpu_exec(CPUState *env1)
 #endif
                 }
 #endif
-                spin_lock(&tb_lock);
 
-                if (intNb != -1) {
-                    qemu_log_mask(CPU_LOG_INT,
-                                  "CPU interrupt, vector=0x%x\n", intNb);
-                    s2e_on_exception(g_s2e, g_s2e_state, env, intNb);
-                    intNb = -1;
-                }
-
-                tb = tb_find_fast();
-                /* Note: we do it here to avoid a gcc bug on Mac OS X when
-                   doing it in tb_find_slow */
-                if (tb_invalidated_flag) {
-                    /* as some TB could have been invalidated because
-                       of memory exceptions while generating the code, we
-                       must recompute the hash index here */
-                    next_tb = 0;
-                    tb_invalidated_flag = 0;
-                }
-#ifdef CONFIG_DEBUG_EXEC
-#ifdef CONFIG_LLVM
-                if(execute_llvm) {
-                    qemu_log_mask(CPU_LOG_EXEC,
-                            "Trace (LLVM) %p [" TARGET_FMT_lx "] %s (LLVM: %s)\n",
-                                 tb->llvm_tc_ptr, tb->pc,
-                                 lookup_symbol(tb->pc),
-                                 tcg_llvm_get_func_name(tb)
-                                 );
-                } else {
-                    qemu_log_mask(CPU_LOG_EXEC, "Trace %p [" TARGET_FMT_lx "] %s\n",
-                                 tb->tc_ptr, tb->pc,
-                                 lookup_symbol(tb->pc));
-                }
-#else
-                qemu_log_mask(CPU_LOG_EXEC, "Trace %p [" TARGET_FMT_lx "] %s\n",
-                             tb->tc_ptr, tb->pc,
-                             lookup_symbol(tb->pc));
-#endif
-#endif
-                /* see if we can patch the calling TB. When the TB
-                   spans two pages, we cannot safely do a direct
-                   jump. */
-                {
-                    if (next_tb != 0 && tb->page_addr[1] == -1) {
-                    tb_add_jump((TranslationBlock *)(next_tb & ~3), next_tb & 3, tb);
-                }
-                }
-                spin_unlock(&tb_lock);
-                env->current_tb = tb;
-
-                /* cpu_interrupt might be called while translating the
-                   TB, but before it is linked into a potentially
-                   infinite loop and becomes env->current_tb. Avoid
-                   starting execution if there is a pending interrupt. */
-                if (unlikely (env->exit_request))
-                    env->current_tb = NULL;
-
-                while (env->current_tb) {
                     tc_ptr = tb->tc_ptr;
                 /* execute the generated code */
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
