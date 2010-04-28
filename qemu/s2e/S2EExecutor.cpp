@@ -229,7 +229,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += TARGET_PAGE_SIZE) {
-        MemoryObject* mo = addExternalObject(
+        addExternalObject(
                 *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
     }

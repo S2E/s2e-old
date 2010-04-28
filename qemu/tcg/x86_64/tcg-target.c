@@ -579,8 +579,11 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
        calling external helper. Memory should never be accessed
        directly in S2E */
 
-    int addr_reg, data_reg, r0, r1, mem_index, s_bits, bswap, rexw;
+    int addr_reg, data_reg, r0, r1, mem_index, s_bits, rexw;
+#ifndef CONFIG_S2E
+    int bswap;
     int32_t offset;
+#endif
 #if defined(CONFIG_SOFTMMU) && !defined(CONFIG_S2E)
     uint8_t *label1_ptr, *label2_ptr;
 #endif
@@ -810,8 +813,11 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
        calling external helper. Memory should never be accessed
        directly in S2E */
 
-    int addr_reg, data_reg, r0, r1, mem_index, s_bits, bswap, rexw;
+    int addr_reg, data_reg, r0, r1, mem_index, s_bits, rexw;
+#ifndef CONFIG_S2E
+    int bswap;
     int32_t offset;
+#endif
 #if defined(CONFIG_SOFTMMU) && !defined(CONFIG_S2E)
     uint8_t *label1_ptr, *label2_ptr;
 #endif
