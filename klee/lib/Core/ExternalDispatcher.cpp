@@ -277,9 +277,11 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
     args[i] = new LoadInst(argp, "", dBB);
   }
 
-  Constant *dispatchTarget =
-    dispatchModule->getOrInsertFunction(target->getName(), FTy,
-                                        target->getAttributes());
+  Instruction *dispatchTarget = new BitCastInst(
+        dispatchModule->getOrInsertFunction(target->getName(), FTy,
+                                        target->getAttributes()),
+        cs.getCalledValue()->getType(), "", dBB);
+
   Instruction *result = CallInst::Create(dispatchTarget, args, args+i, "", dBB);
   if (result->getType() != Type::getVoidTy(getGlobalContext())) {
     Instruction *resp = 
