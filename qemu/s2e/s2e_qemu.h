@@ -115,25 +115,28 @@ void s2e_register_cpu(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
                       CPUX86State* cpu_env);
 
-void s2e_register_memory(struct S2E* s2e,
-                         struct S2EExecutionState *initial_state,
-                         uint64_t start_addr, uint64_t size,
-                         uint64_t host_addr, int is_state_local);
+void s2e_register_ram(struct S2E* s2e,
+                      struct S2EExecutionState *initial_state,
+                      uint64_t start_address, uint64_t size,
+                      uint64_t host_address, int is_state_local);
+
+int s2e_is_ram_registered(struct S2E* s2e,
+                          struct S2EExecutionState *state,
+                          uint64_t host_address);
+
+void s2e_read_ram_concrete(struct S2E* s2e,
+        struct S2EExecutionState* state,
+        uint64_t host_address, uint8_t* buf, uint64_t size);
+
+void s2e_write_ram_concrete(struct S2E* s2e,
+        struct S2EExecutionState* state,
+        uint64_t host_address, const uint8_t* buf, uint64_t size);
 
 uintptr_t s2e_qemu_tb_exec(
         struct S2E* s2e,
         struct S2EExecutionState* state,
         struct TranslationBlock* tb,
         void* volatile* saved_AREGs);
-
-void s2e_read_memory_concrete(struct S2E* s2e,
-        struct S2EExecutionState* state,
-        uint64_t address, uint8_t* buf, uint64_t size);
-
-void s2e_write_memory_concrete(struct S2E* s2e,
-        struct S2EExecutionState* state,
-        uint64_t offset, const uint8_t* buf, uint64_t size);
-
 
 #ifdef __cplusplus
 }

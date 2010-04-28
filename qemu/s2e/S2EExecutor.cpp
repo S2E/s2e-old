@@ -213,21 +213,21 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
     if(!initialState->cpuState) initialState->cpuState = cpuEnv;
 }
 
-void S2EExecutor::registerMemory(S2EExecutionState *initialState,
-                        uint64_t startAddr, uint64_t size,
-                        uint64_t hostAddr, bool isStateLocal)
+void S2EExecutor::registerRam(S2EExecutionState *initialState,
+                        uint64_t startAddress, uint64_t size,
+                        uint64_t hostAddress, bool isStateLocal)
 {
-    assert((hostAddr & ~TARGET_PAGE_MASK) == 0);
-    assert((startAddr & ~TARGET_PAGE_MASK) == 0);
+    assert((hostAddress & ~TARGET_PAGE_MASK) == 0);
+    assert((startAddress & ~TARGET_PAGE_MASK) == 0);
     assert((size & ~TARGET_PAGE_MASK) == 0);
 
     std::cout << std::hex
-              << "Adding memory block (startAddr = 0x" << startAddr
-              << ", size = 0x" << size << ", hostAddr = 0x" << hostAddr
+              << "Adding memory block (startAddr = 0x" << startAddress
+              << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
               << ")" << std::dec << std::endl;
 
     if(isStateLocal) {
-        for(uint64_t addr = hostAddr; addr < hostAddr+size;
+        for(uint64_t addr = hostAddress; addr < hostAddress+size;
                      addr += TARGET_PAGE_SIZE) {
             MemoryObject* mo = addExternalObject(
                     *initialState, (void*) addr, TARGET_PAGE_SIZE, false);
@@ -238,9 +238,87 @@ void S2EExecutor::registerMemory(S2EExecutionState *initialState,
             mprotect((void*) addr, TARGET_PAGE_SIZE, PROT_NONE);
         }
 
-        m_unusedMemoryRegions.push_back(make_pair(hostAddr, size));
+        m_unusedMemoryRegions.push_back(make_pair(hostAddress, size));
     } else {
         /* TODO */
+    }
+}
+
+bool S2EExecutor::isRamRegistered(S2EExecutionState *state,
+                                      uint64_t hostAddress)
+{
+    ObjectPair op = state->addressSpace.findObject(hostAddress);
+    return op.first != NULL && op.first->isUserSpecified;
+}
+
+void S2EExecutor::readRamConcrete(S2EExecutionState *state,
+                    uint64_t hostAddress, uint8_t* buf, uint64_t size)
+{
+    uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
+    if(page_offset + size <= TARGET_PAGE_SIZE) {
+        /* Single-page access */
+
+        ObjectPair op =
+            state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+
+        if(op.first) {
+            /* KLEE-owned memory */
+
+            assert(op.first->isUserSpecified);
+
+            ObjectState *wos = NULL;
+            for(uint64_t i=0; i<size; ++i) {
+                if(!op.second->readConcrete8(page_offset+i, buf+i)) {
+                    if(!wos) {
+                        op.second = wos = state->addressSpace.getWriteable(
+                                                        op.first, op.second);
+                    }
+                    buf[i] = toConstant(*state, wos->read8(page_offset+i),
+                                   "concrete memory access")->getZExtValue(8);
+                    wos->write8(page_offset+i, buf[i]);
+                }
+            }
+        } else {
+            /* QEMU-owned memory */
+            memcpy(buf, (void*) hostAddress, size);
+        }
+    } else {
+        /* Access spans multiple pages */
+        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        readRamConcrete(state, hostAddress, buf, size1);
+        readRamConcrete(state, hostAddress, buf + size1, size - size1);
+    }
+}
+
+void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
+                       uint64_t hostAddress, const uint8_t* buf, uint64_t size)
+{
+    uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
+    if(page_offset + size <= TARGET_PAGE_SIZE) {
+        /* Single-page access */
+
+        ObjectPair op =
+            state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+
+        if(op.first) {
+            /* KLEE-owned memory */
+
+            assert(op.first->isUserSpecified);
+
+            ObjectState* wos =
+                    state->addressSpace.getWriteable(op.first, op.second);
+            for(uint64_t i=0; i<size; ++i) {
+                wos->write8(page_offset+i, buf[i]);
+            }
+        } else {
+            /* QEMU-owned memory */
+            memcpy((void*) hostAddress, buf, size);
+        }
+    } else {
+        /* Access spans multiple pages */
+        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        writeRamConcrete(state, hostAddress, buf, size1);
+        writeRamConcrete(state, hostAddress, buf + size1, size - size1);
     }
 }
 
@@ -331,77 +409,6 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 #endif
 }
 
-void S2EExecutor::readMemoryConcrete(S2EExecutionState *state,
-                    uint64_t address, uint8_t* buf, uint64_t size)
-{
-    uint64_t page_offset = address & ~TARGET_PAGE_MASK;
-    if(page_offset + size <= TARGET_PAGE_SIZE) {
-        /* Single-page access */
-
-        ObjectPair op =
-            state->addressSpace.findObject(address & TARGET_PAGE_MASK);
-
-        if(op.first) {
-            /* KLEE-owned memory */
-
-            assert(op.first->isUserSpecified);
-
-            ObjectState *wos = NULL;
-            for(uint64_t i=0; i<size; ++i) {
-                if(!op.second->readConcrete8(page_offset+i, buf+i)) {
-                    if(!wos) {
-                        op.second = wos = state->addressSpace.getWriteable(
-                                                        op.first, op.second);
-                    }
-                    buf[i] = toConstant(*state, wos->read8(page_offset+i),
-                                   "concrete memory access")->getZExtValue(8);
-                    wos->write8(page_offset+i, buf[i]);
-                }
-            }
-        } else {
-            /* QEMU-owned memory */
-            memcpy(buf, (void*) address, size);
-        }
-    } else {
-        /* Access spans multiple pages */
-        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
-        readMemoryConcrete(state, address, buf, size1);
-        readMemoryConcrete(state, address, buf + size1, size - size1);
-    }
-}
-
-void S2EExecutor::writeMemoryConcrete(S2EExecutionState *state,
-            uint64_t address, const uint8_t* buf, uint64_t size)
-{
-    uint64_t page_offset = address & ~TARGET_PAGE_MASK;
-    if(page_offset + size <= TARGET_PAGE_SIZE) {
-        /* Single-page access */
-
-        ObjectPair op =
-            state->addressSpace.findObject(address & TARGET_PAGE_MASK);
-
-        if(op.first) {
-            /* KLEE-owned memory */
-
-            assert(op.first->isUserSpecified);
-
-            ObjectState* wos =
-                    state->addressSpace.getWriteable(op.first, op.second);
-            for(uint64_t i=0; i<size; ++i) {
-                wos->write8(page_offset+i, buf[i]);
-            }
-        } else {
-            /* QEMU-owned memory */
-            memcpy((void*) address, buf, size);
-        }
-    } else {
-        /* Access spans multiple pages */
-        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
-        writeMemoryConcrete(state, address, buf, size1);
-        writeMemoryConcrete(state, address, buf + size1, size - size1);
-    }
-}
-
 } // namespace s2e
 
 /******************************/
@@ -423,12 +430,30 @@ void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
     s2e->getExecutor()->registerCpu(initial_state, cpu_env);
 }
 
-void s2e_register_memory(S2E* s2e, S2EExecutionState *initial_state,
-        uint64_t start_addr, uint64_t size,
-        uint64_t host_addr, int is_state_local)
+void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
+        uint64_t start_address, uint64_t size,
+        uint64_t host_address, int is_state_local)
 {
-    s2e->getExecutor()->registerMemory(initial_state,
-        start_addr, size, host_addr, is_state_local);
+    s2e->getExecutor()->registerRam(initial_state,
+        start_address, size, host_address, is_state_local);
+}
+
+int s2e_is_ram_registered(S2E *s2e, S2EExecutionState *state,
+                               uint64_t host_address)
+{
+    return s2e->getExecutor()->isRamRegistered(state, host_address);
+}
+
+void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,
+                        uint64_t host_address, uint8_t* buf, uint64_t size)
+{
+    s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
+}
+
+void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
+                    uint64_t host_address, const uint8_t* buf, uint64_t size)
+{
+    s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
 }
 
 uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
@@ -436,16 +461,4 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            void* volatile* saved_AREGs)
 {
     return s2e->getExecutor()->executeTranslationBlock(state, tb, saved_AREGs);
-}
-
-void s2e_read_memory_concrete(S2E *s2e, S2EExecutionState *state,
-                        uint64_t address, uint8_t* buf, uint64_t size)
-{
-    s2e->getExecutor()->readMemoryConcrete(state, address, buf, size);
-}
-
-void s2e_write_memory_concrete(S2E *s2e, S2EExecutionState *state,
-                        uint64_t address, const uint8_t* buf, uint64_t size)
-{
-    s2e->getExecutor()->writeMemoryConcrete(state, address, buf, size);
 }

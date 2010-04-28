@@ -63,18 +63,23 @@ public:
     void initializeExecution(S2EExecutionState *initialState);
 
     void registerCpu(S2EExecutionState *initialState, CPUX86State *cpuEnv);
-    void registerMemory(S2EExecutionState *initialState,
-                        uint64_t startAddr, uint64_t size,
-                        uint64_t hostAddr, bool isStateLocal);
+    void registerRam(S2EExecutionState *initialState,
+                        uint64_t startAddress, uint64_t size,
+                        uint64_t hostAddress, bool isStateLocal);
+
+    /** Return true if hostAddr is registered as a RAM with KLEE */
+    bool isRamRegistered(S2EExecutionState *state, uint64_t hostAddress);
+
+    /** Read from physical memory, concretizing if nessecary */
+    void readRamConcrete(S2EExecutionState *state,
+            uint64_t hostAddress, uint8_t* buf, uint64_t size);
+
+    /** Write concrete value to physical memory */
+    void writeRamConcrete(S2EExecutionState *state,
+            uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
-
-    void readMemoryConcrete(S2EExecutionState *state,
-            uint64_t address, uint8_t* buf, uint64_t size);
-    void writeMemoryConcrete(S2EExecutionState *state,
-            uint64_t address, const uint8_t* buf, uint64_t size);
-
 };
 
 } // namespace s2e
