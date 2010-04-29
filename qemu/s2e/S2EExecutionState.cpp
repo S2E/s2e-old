@@ -20,12 +20,12 @@ uint64_t S2EExecutionState::getPc() const
 
 void S2EExecutionState::disableSymbExec() 
 {
-    std::cout << "DISABLE symbexec at 0x" << std::hex << getPc() << std::endl;
+    printf("DISABLE symbexec at %#"PRIx64"\n", getPc());
 }
 
 void S2EExecutionState::enableSymbExec()
 {
-    std::cout << "ENABLE  symbexec at 0x" << std::hex << getPc() << std::endl;
+    printf("ENABLE symbexec at %#"PRIx64"\n", getPc());
 }
 
 

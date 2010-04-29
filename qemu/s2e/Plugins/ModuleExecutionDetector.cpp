@@ -93,7 +93,7 @@ void ModuleExecutionDetector::onTranslateBlockStart(
         plgState->findCurrentModule(pid, pc);
     
     if (currentModule) {
-        TRACE("Translating block %#"PRIx64" belonging to %s\n",pc, currentModule->descriptor.Name.c_str());
+        //TRACE("Translating block %#"PRIx64" belonging to %s\n",pc, currentModule->descriptor.Name.c_str());
         signal->connect(sigc::mem_fun(*this, 
             &ModuleExecutionDetector::onExecution));
 
@@ -191,9 +191,9 @@ void ModuleExecutionDetector::onExecution(
     //gTRACE("pid=%#"PRIx64" pc=%#"PRIx64"\n", pid, pc);
     if (plgState->m_PreviousModule != currentModule) {
         if (currentModule) {
-            std::cout << "Entered module " << currentModule->descriptor.Name << std::endl;
+            DPRINTF("Entered module %s\n", currentModule->descriptor.Name.c_str());
         }else {
-            std::cout << "Entered unknown module " << std::endl;
+            DPRINTF("Entered unknown module\n");
         }
         onModuleTransition.emit(state, plgState->m_PreviousModule,
             currentModule);
@@ -210,8 +210,7 @@ void ModuleExecutionDetector::moduleLoadListener(
 
     //if module name matches the configured ones, then
     //activate.
-    std::cout << "ModuleExecutionDetector - " << module.Name << " loaded" << std::endl;
-    
+    DPRINTF("Module %s loaded\n", module.Name.c_str());
     ModuleExecutionCfg cfg;
     cfg.moduleName = module.Name;
     std::set<ModuleExecutionCfg, ModuleExecCfgByName>::iterator it;
@@ -230,8 +229,8 @@ void ModuleExecutionDetector::moduleUnloadListener(
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
 
-    std::cout << "ModuleExecutionDetector - " << module.Name << " unloaded" << std::endl;
-
+    DPRINTF("Module %s unloaded\n", module.Name.c_str());
+    
     std::set<ModuleExecutionCfg, ModuleExecCfgByName>::iterator it;
 
     ModuleExecutionCfg cfg;
@@ -245,14 +244,16 @@ void ModuleExecutionDetector::moduleUnloadListener(
  
 }
 
+
+
 void ModuleExecutionDetector::processUnloadListener(
     S2EExecutionState* state, uint64_t pid)
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
-
-    std::cout << "ModuleExecutionDetector - process " << pid << " killed" << std::endl;
+    
+    DPRINTF("Process %#"PRIx64" unloaded\n", pid);
+    
     plgState->deactivatePid(pid);
-  
 }
 
 
@@ -280,7 +281,7 @@ PluginState* ModuleTransitionState::factory()
 {
     ModuleTransitionState *s = new ModuleTransitionState();
    
-    TRACE("Creating initial module transition state\n");
+    DPRINTF("Creating initial module transition state\n");
 
     return s;
 }
@@ -289,7 +290,7 @@ void ModuleTransitionState::activateModule(
     const ModuleDescriptor &desc, const ModuleExecutionCfg &cfg)
 {
     ModuleExecutionDesc med;
-    TRACE("Activating %s/%s (pid=%#"PRIx64")\n", cfg.id.c_str(), desc.Name.c_str(),
+    DPRINTF("Activating %s/%s (pid=%#"PRIx64")\n", cfg.id.c_str(), desc.Name.c_str(),
         desc.Pid);
     med.id = cfg.id;
     med.kernelMode = cfg.kernelMode;
@@ -302,7 +303,7 @@ void ModuleTransitionState::activateModule(
 void ModuleTransitionState::deactivateModule(
      const ModuleDescriptor &desc)
 {
-    TRACE("Deactivating %s\n", desc.Name.c_str());
+    DPRINTF("Deactivating %s\n", desc.Name.c_str());
     
     ModuleExecutionDesc med;
     med.descriptor = desc;
@@ -329,7 +330,7 @@ void ModuleTransitionState::deactivatePid(uint64_t pid)
     for(it = m_ActiveDescriptors.begin(); it != m_ActiveDescriptors.end(); )
     {
         if ((*it).descriptor.Pid == pid) {
-            std::cout << "ModuleTransitionState - Process " << (*it).descriptor.Name << " deactivated" << std::endl;
+            DPRINTF("Module %s deactivated\n",  (*it).descriptor.Name.c_str());
             it1 = it;
             ++it1;
             m_ActiveDescriptors.erase(*it);

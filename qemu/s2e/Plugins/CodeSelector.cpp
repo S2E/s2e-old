@@ -59,7 +59,7 @@ void CodeSelector::initialize()
         CodeSelDesc *csd = new CodeSelDesc(s2e());
 
         if (!csd->initialize(*it)) {
-            std::cout << "Could not initialize code descriptor for " << *it << std::endl;
+            printf("Could not initialize code descriptor for %s\n", (*it).c_str());
             exit(-1);
         }
         m_CodeSelDesc.insert(csd);
@@ -83,8 +83,8 @@ bool CodeSelector::instrumentationNeeded(const ModuleExecutionDesc &desc,
         const BitmapDesc &bd = (*it).second;
         uint64_t offset = desc.descriptor.ToRelative(pc);
         if (offset >= bd.second) {
-            std::cout << "Warning: descriptor size does not match the registered size. "
-                "Maybe another module with same name was loaded." << std::endl;
+            printf("Warning: descriptor size does not match the registered size. "
+                "Maybe another module with same name was loaded.\n");
             return false;
         }
         return bd.first[offset/8] & (1<<(offset&7));
@@ -96,10 +96,12 @@ bool CodeSelector::instrumentationNeeded(const ModuleExecutionDesc &desc,
 
     foreach2(it, m_CodeSelDesc.begin(), m_CodeSelDesc.end()) {
         CodeSelDesc *cd = *it;
-        if (cd->getModuleId() == desc.id) {
-            cd->initializeBitmap(cd->getId(), 
-                desc.descriptor.NativeBase, desc.descriptor.Size);
+        if (cd->getModuleId() != desc.id) {
+            continue;
         }
+
+        cd->initializeBitmap(cd->getId(), 
+                desc.descriptor.NativeBase, desc.descriptor.Size);
 
         if(!newBmp.first) {
             newBmp.first = new uint8_t[desc.descriptor.Size/8];
@@ -150,7 +152,6 @@ void CodeSelector::onTranslateInstructionStart(
 {
     if (tb != m_Tb) {
         TRACE("%"PRIx64"\n", pc);
-        std::cout << std::flush;
         assert(tb == m_Tb);
     }
 
@@ -185,7 +186,7 @@ void CodeSelector::symbexSignal(S2EExecutionState *state, uint64_t pc)
     DECLARE_PLUGINSTATE(CodeSelectorState, state);
     TRACE("%p\n", plgState->m_CurrentModule);
     if (plgState->m_CurrentModule) {
-        if (plgState->isSymbolic(pc)) {
+        if (!plgState->isSymbolic(pc)) {
             state->disableSymbExec();
         }else {
             state->enableSymbExec();
@@ -211,7 +212,7 @@ void CodeSelector::onModuleTransition(
         state->disableSymbExec();
         return;
     }
-
+    TRACE("Activating module...\n");
     //Check that we are inside an interesting module
     //This is not the same as the previous NULL check
     //(users might want to disable temporarily some declared modules)
@@ -221,7 +222,6 @@ void CodeSelector::onModuleTransition(
         state->disableSymbExec();
         return;
     }
- 
     plgState->m_CurrentModule = currentModule;
 }
 
@@ -288,11 +288,17 @@ const CodeSelDesc* CodeSelectorState::activateModule(CodeSelector *plugin, const
         }
     }
 
+
     if (!foundDesc) {
+        TRACE("Did not find descriptor for %s\n", mod->id.c_str());
         m_ActiveModDesc = mod;
         m_ActiveSelDesc = NULL;
         return m_ActiveSelDesc;
     }
+
+    TRACE("Found configured descriptor %s for %s\n", foundDesc->getId().c_str(),
+            mod->id.c_str());
+        
 
     //2. If descriptor has no context, create an active descriptor
     //and return.
@@ -303,8 +309,9 @@ const CodeSelDesc* CodeSelectorState::activateModule(CodeSelector *plugin, const
         return foundDesc;
     }
 
+    TRACE("Looking for context...\n");
+    const CodeSelDesc *foundCtxDesc = NULL;
     //3. Otherwise, look for parent context.
-    foundDesc = NULL;
     foreach2(it, m_ActiveModules.begin(), m_ActiveModules.end()) {
         if ((*it).second->getId() != foundDesc->getContextId()) {
             continue;
@@ -312,11 +319,13 @@ const CodeSelDesc* CodeSelectorState::activateModule(CodeSelector *plugin, const
         if ((*it).first.descriptor.Pid != mod->descriptor.Pid) {
             continue;
         }
-        foundDesc = (*it).second;
+        foundCtxDesc = (*it).second;
+        TRACE("Context found (%s)\n", foundDesc->getId().c_str());
+        break;
     }
 
     //If not found, return NULL (and cache the value)
-    if (!foundDesc) {
+    if (!foundCtxDesc) {
         m_ActiveModDesc = mod;
         m_ActiveSelDesc = NULL;
         return NULL;
@@ -390,7 +399,7 @@ bool CodeSelDesc::getRanges(const std::string &key, CodeSelDesc::Ranges &ranges)
             return false;
        }
        if (range.size() != 2) {
-           std::cout << path.str() << " must be of (start,size) format" << std::endl;
+           printf("%s must be of (start,size) format\n", path.str().c_str());
            return false;
        }
 
@@ -408,8 +417,8 @@ bool CodeSelDesc::validateRanges(const Ranges &R, uint64_t nativeBase, uint64_t 
         if ((r.first > r.second)||
             (r.second > nativeBase + size) ||
             (r.first < nativeBase)) {
-                std::cout << "Range (0x" << std::hex << r.first << ", 0x" << r.second <<
-                ") is invalid" << std::endl;
+                printf("Range (%#"PRIx64", %#"PRIx64") is invalid!\n",
+                    r.first, r.second);
             allValid = false;
         }
         TRACE("Range (%#"PRIx64", %#"PRIx64") is valid\n", r.first, r.second);
@@ -434,20 +443,20 @@ void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &e
     std::string fk = cfg->getString(includeKey.str(), "", &ok);
     if (ok) {
         if (fk.compare("full") == 0) {
-            include.push_back(Range(0, size));
+            include.push_back(Range(nativeBase, nativeBase+size-1));
         }else {
-            std::cout << "Invalid range " << fk << ". Must be 'full' or a list of "
-                "pairs of ranges" << std::endl;
+            printf("Invalid range %s. Must be 'full' or"
+                " a list of pairs of ranges\n", fk.c_str());
         }
     }else {
 
         ok = getRanges(includeKey.str(), include);
         if (!ok) {
-            std::cout << "No include ranges or invalid ranges specified for " << id << 
-                ". Symbolic execution will be disabled." << std::endl;
+            printf("No include ranges or invalid ranges specified for %s. " 
+                "Symbolic execution will be disabled.\n", id.c_str());
         }
         if (!validateRanges(include, nativeBase, size)) {
-            std::cout << "Clearing include ranges" << std::endl;
+            printf("Clearing include ranges\n");
             include.clear();
         }
     }
@@ -456,10 +465,11 @@ void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &e
     excludeKey << "codeSelector." << id << ".excludeRange";
     ok = getRanges(excludeKey.str(), exclude);
     if (!ok) {
-        std::cout << "No exclude ranges or invalid ranges specified for " << id << std::endl;
+        printf("No exclude ranges or invalid ranges specified for %s\n", id.c_str());
     }
+
     if (!validateRanges(exclude, nativeBase, size)) {
-        std::cout << "Clearing exclude ranges" << std::endl;
+        printf("Clearing exclude ranges\n");
         exclude.clear();
     }
 }
@@ -488,6 +498,7 @@ void CodeSelDesc::initializeBitmap(const std::string &id,
     memset(m_Bitmap, 0x00, size/8);
 
     foreach2(it, include.begin(), include.end()) {
+        TRACE("Include start=%#"PRIx64" end=%#"PRIx64"\n", (*it).first, (*it).second);
         uint64_t start = (*it).first - nativeBase;
         uint64_t end = (*it).second - nativeBase;
         for (unsigned i=start; i<end; i++) {
@@ -496,6 +507,7 @@ void CodeSelDesc::initializeBitmap(const std::string &id,
     }
     
     foreach2(it, exclude.begin(), exclude.end()) {
+        TRACE("Exclude start=%#"PRIx64" end=%#"PRIx64"\n", (*it).first, (*it).second);
         uint64_t start = (*it).first - nativeBase;
         uint64_t end = (*it).second - nativeBase;
         for (unsigned i=start; i<end; i++) {
@@ -514,27 +526,38 @@ bool CodeSelDesc::initialize(const std::string &key)
 
     ConfigFile *cfg = m_s2e->getConfig();
 
+    m_Id = key;
+
      //Fetch the module id
      ss << "codeSelector." << key << ".module";
-     const std::string &moduleId =  cfg->getString(ss.str(), "", &ok);
+     m_ModuleId =  cfg->getString(ss.str(), "", &ok);
      if (!ok) {
-         std::cout << ss.str() << " does not exist!" << std::endl;
+         printf("%s does not exist!\n", ss.str().c_str());
          return false;
+     }
+
+     //Retrive the context
+     ss.str("");
+     ss << "codeSelector." << key << ".context";
+     m_ContextId =  cfg->getString(ss.str(), "", &ok);
+     if (!ok) {
+         printf("%s not configured!\n", ss.str().c_str());
      }
 
      const ConfiguredModulesById &CfgModules = 
          executionDetector->getConfiguredModulesById();
 
-     //Convert the module id into a module name
      ConfiguredModulesById::iterator it;
      ModuleExecutionCfg tmp;
-     tmp.id = moduleId;
+     tmp.id = m_ModuleId;
      it = CfgModules.find(tmp);
      if (it == CfgModules.end()) {
-         std::cout << "Module id " << moduleId << " is not configured but is "
-             "referenced in " << ss.str() << std::endl;
+         printf("Module id %s not configured but is referenced in %s\n.",
+             m_ModuleId.c_str(), ss.str().c_str());
          return false;
      }
+
+     
 
      return true;
 }
