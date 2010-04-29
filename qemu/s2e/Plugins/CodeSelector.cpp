@@ -54,7 +54,7 @@ void CodeSelector::initialize()
     std::set<std::string> ModuleIds;
 
     //Find out about the modules we are interested in
-    keyList = cfg->getListKeys("codeSelector");
+    keyList = cfg->getListKeys(getConfigKey());
     foreach2(it, keyList.begin(), keyList.end()) {
         CodeSelDesc *csd = new CodeSelDesc(s2e());
 

@@ -24,7 +24,11 @@ extern "C" {
 
 #include <vector>
 
+#ifdef WIN32
+#include <windows.h>
+#else
 #include <sys/mman.h>
+#endif
 
 using namespace std;
 using namespace llvm;
@@ -197,7 +201,11 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state)
     foreach(_UnusedMemoryRegion p, m_unusedMemoryRegions) {
         /* XXX */
         /* XXX : use qemu_virtual* */
+#ifdef WIN32
+        VirtualFree((void*) p.first, p.second, MEM_FREE);
+#else
         munmap((void*) p.first, p.second);
+#endif
     }
 
     state->cpuState = first_cpu;
@@ -241,7 +249,14 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
     if(!isSharedConcrete) {
         /* XXX */
         /* XXX : use qemu_mprotect */
+#ifdef WIN32
+        DWORD OldProtect;
+        if (!VirtualProtect((void*) hostAddress, size, PAGE_NOACCESS, &OldProtect)) {
+            assert(false);
+        }
+#else
         mprotect((void*) hostAddress, size, PROT_NONE);
+#endif
         m_unusedMemoryRegions.push_back(make_pair(hostAddress, size));
     }
 }

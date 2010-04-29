@@ -134,8 +134,19 @@ typedef struct CPUWatchpoint {
     QTAILQ_ENTRY(CPUWatchpoint) entry;
 } CPUWatchpoint;
 
+#ifdef CONFIG_S2E
+enum ETranslationBlockType
+{
+    TB_DEFAULT,
+    TB_JMP, TB_JMP_IND,
+    TB_COND_JMP, TB_COND_JMP_IND,
+    TB_CALL, TB_CALL_IND, TB_REP, TB_RET
+};
+#endif
+
 #define CPU_TEMP_BUF_NLONGS 128
 #define CPU_COMMON                                                      \
+    uint32_t    tbType;\
     struct TranslationBlock *current_tb; /* currently executing TB  */  \
     /* soft mmu support */                                              \
     /* in order to avoid passing too many arguments to the MMIO         \

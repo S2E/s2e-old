@@ -69,6 +69,9 @@ public:
 
 };
 
+/**
+ *  TBD: remove descritptors when modules are unloaded.
+ */
 class CodeSelector:public Plugin
 {
     S2E_PLUGIN

@@ -60,12 +60,12 @@ void ModuleExecutionDetector::initializeConfiguration()
 {
     ConfigFile *cfg = s2e()->getConfig();
 
-    ConfigFile::string_list keyList = cfg->getListKeys("moduleExecutionDetector");
+    ConfigFile::string_list keyList = cfg->getListKeys(getConfigKey());
 
     foreach2(it, keyList.begin(), keyList.end()) {
         ModuleExecutionCfg d;
         std::stringstream s;
-        s << "moduleExecutionDetector." << *it << ".";
+        s << getConfigKey() << "." << *it << ".";
         d.id = *it;
         d.moduleName = cfg->getString(s.str() + "moduleName");
         d.kernelMode = cfg->getBool(s.str() + "kernelMode");

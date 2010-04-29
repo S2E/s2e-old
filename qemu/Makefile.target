@@ -322,6 +322,7 @@ s2eobj-y += s2e/Plugins/PluginInterface.o
 s2eobj-y += s2e/Plugins/ModuleExecutionDetector.o
 s2eobj-y += s2e/Plugins/CodeSelector.o
 s2eobj-y += s2e/Plugins/BaseInstructions.o
+s2eobj-y += s2e/Plugins/BranchCoverage.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsMonitor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/UserModeInterceptor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/KernelModeInterceptor.o

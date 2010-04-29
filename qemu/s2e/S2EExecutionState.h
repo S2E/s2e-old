@@ -53,6 +53,7 @@ public:
     void writeMemoryConcrete(uint64_t address, uint64_t value, char size);
 
     uint64_t getPc() const;
+    uint64_t getPid() const;
 
     void disableSymbExec();
     void enableSymbExec();

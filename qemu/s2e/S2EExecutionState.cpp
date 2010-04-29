@@ -18,6 +18,11 @@ uint64_t S2EExecutionState::getPc() const
     return cpuState->eip;
 }
 
+uint64_t S2EExecutionState::getPid() const
+{
+    return cpuState->cr[3];
+}
+
 void S2EExecutionState::disableSymbExec() 
 {
     printf("DISABLE symbexec at %#"PRIx64"\n", getPc());
