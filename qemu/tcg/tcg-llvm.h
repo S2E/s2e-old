@@ -46,9 +46,17 @@ struct TCGLLVMRuntime {
     uint64_t helper_regs[3];
     // END of fixed block
 
+#ifdef CONFIG_S2E
+    /* run-time tb linking mechanism */
+    uint8_t tb_next_valid[2];
+    uint8_t tb_next;
+#endif
+
+#ifndef CONFIG_S2E
     TranslationBlock *last_tb;
     uint64_t last_opc_index;
     uint64_t last_pc;
+#endif
 };
 
 extern struct TCGLLVMRuntime tcg_llvm_runtime;
@@ -63,10 +71,12 @@ void tcg_llvm_gen_code(struct TCGLLVMContext *l, struct TCGContext *s,
                        struct TranslationBlock *tb);
 const char* tcg_llvm_get_func_name(struct TranslationBlock *tb);
 
-int tcg_llvm_search_last_pc(struct TranslationBlock *tb, uintptr_t searched_pc);
-
 uintptr_t tcg_llvm_qemu_tb_exec(struct TranslationBlock *tb,
                             void* volatile* saved_AREGs);
+
+#ifndef CONFIG_S2E
+int tcg_llvm_search_last_pc(struct TranslationBlock *tb, uintptr_t searched_pc);
+#endif
 
 #ifdef __cplusplus
 }

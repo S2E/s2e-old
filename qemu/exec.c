@@ -783,6 +783,9 @@ static inline void tb_jmp_remove(TranslationBlock *tb, int n)
 static inline void tb_reset_jump(TranslationBlock *tb, int n)
 {
     tb_set_jmp_target(tb, n, (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[n]));
+#ifdef CONFIG_S2E
+    tb->s2e_tb_next[n] = NULL;
+#endif
 }
 
 void tb_phys_invalidate(TranslationBlock *tb, target_ulong page_addr)

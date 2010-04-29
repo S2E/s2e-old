@@ -176,6 +176,7 @@ struct TranslationBlock {
 
 #ifdef CONFIG_S2E
     struct S2ETranslationBlock* s2e_tb;
+    struct TranslationBlock* s2e_tb_next[2];
 #endif
 };
 
@@ -284,6 +285,10 @@ static inline void tb_add_jump(TranslationBlock *tb, int n,
         /* add in TB jmp circular list */
         tb->jmp_next[n] = tb_next->jmp_first;
         tb_next->jmp_first = (TranslationBlock *)((intptr_t)(tb) | (n));
+
+#ifdef CONFIG_S2E
+        tb->s2e_tb_next[n] = tb_next;
+#endif
     }
 }
 

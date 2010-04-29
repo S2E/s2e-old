@@ -30,6 +30,9 @@ void s2e_tb_alloc(TranslationBlock *tb)
 
     /* Push one copy of a signal to use it as a cache */
     tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
+
+    tb->s2e_tb_next[0] = 0;
+    tb->s2e_tb_next[1] = 0;
 }
 
 void s2e_tb_free(TranslationBlock *tb)

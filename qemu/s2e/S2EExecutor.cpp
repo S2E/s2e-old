@@ -153,9 +153,13 @@ S2EExecutionState* S2EExecutor::createInitialState()
     /* Externally accessible global vars */
     /* XXX move away */
     addExternalObject(*state, &tcg_llvm_runtime,
-                      sizeof(tcg_llvm_runtime), false);
+                      sizeof(tcg_llvm_runtime), false,
+                      /* isUserSpecified = */ true,
+                      /* isSharedConcrete = */ true);
     addExternalObject(*state, saved_AREGs,
-                      sizeof(saved_AREGs), false);
+                      sizeof(saved_AREGs), false,
+                      /* isUserSpecified = */ true,
+                      /* isSharedConcrete = */ true);
 
 #if 0
     /* Make CPUState instances accessible: generated code uses them as globals */
@@ -319,78 +323,94 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
         TranslationBlock* tb,
         void* volatile* saved_AREGs)
 {
-    tcg_llvm_runtime.last_tb = tb;
 #if 0
     return ((uintptr_t (*)(void* volatile*)) tb->llvm_tc_ptr)(saved_AREGs);
 #else
-    KFunction *kf;
-    typeof(kmodule->functionMap.begin()) it =
-            kmodule->functionMap.find(tb->llvm_function);
-    if(it != kmodule->functionMap.end()) {
-        kf = it->second;
-    } else {
-        unsigned cIndex = kmodule->constants.size();
-        kf = kmodule->updateModuleWithFunction(tb->llvm_function);
-
-        for(unsigned i = 0; i < kf->numInstructions; ++i)
-            bindInstructionConstants(kf->instructions[i]);
-
-        kmodule->constantTable.resize(kmodule->constants.size());
-        for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
-            Cell &c = kmodule->constantTable[i];
-            c.value = evalConstant(kmodule->constants[i]);
-        }
-    }
-
-    /* Update state */
-    state->cpuState = (CPUX86State*) saved_AREGs[0];
-    state->cpuPC = tb->pc;
 
     assert(state->stack.size() == 1);
     assert(state->pc == m_dummyMain->instructions);
-
-    /* Emulate call to a TB function */
-    state->prevPC = state->pc;
-
-    state->pushFrame(state->pc, kf);
-    state->pc = kf->instructions;
-
-    if(statsTracker)
-        statsTracker->framePushed(*state,
-            &state->stack[state->stack.size()-2]);
-
-    /* Pass argument */
-    bindArgument(kf, 0, *state,
-                 Expr::createPointer((uint64_t) saved_AREGs));
 
     if (!state->addressSpace.copyInConcretes()) {
         std::cerr << "external modified read-only object" << std::endl;
         exit(1);
     }
 
-    /* Execute */
-    while(state->stack.size() != 1) {
-        /* XXX: update cpuPC */
+    /* loop until TB chain is not broken */
+    while(true) {
+        KFunction *kf;
+        typeof(kmodule->functionMap.begin()) it =
+                kmodule->functionMap.find(tb->llvm_function);
+        if(it != kmodule->functionMap.end()) {
+            kf = it->second;
+        } else {
+            unsigned cIndex = kmodule->constants.size();
+            kf = kmodule->updateModuleWithFunction(tb->llvm_function);
 
-        KInstruction *ki = state->pc;
-        stepInstruction(*state);
-        executeInstruction(*state, ki);
+            for(unsigned i = 0; i < kf->numInstructions; ++i)
+                bindInstructionConstants(kf->instructions[i]);
 
-        /* TODO: timers */
-        /* TODO: MaxMemory */
-
-        updateStates(state);
-        if(!removedStates.empty() && removedStates.find(state) !=
-                                     removedStates.end()) {
-            std::cerr << "The current state was killed inside KLEE !" << std::endl;
-            std::cerr << "Last executed instruction was:" << std::endl;
-            ki->inst->dump();
-            exit(1);
+            kmodule->constantTable.resize(kmodule->constants.size());
+            for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
+                Cell &c = kmodule->constantTable[i];
+                c.value = evalConstant(kmodule->constants[i]);
+            }
         }
-    }
 
-    state->prevPC = 0;
-    state->pc = m_dummyMain->instructions;
+        /* Update state */
+        state->cpuState = (CPUX86State*) saved_AREGs[0];
+        state->cpuPC = tb->pc;
+
+        /* Emulate call to a TB function */
+        state->prevPC = state->pc;
+
+        state->pushFrame(state->pc, kf);
+        state->pc = kf->instructions;
+
+        if(statsTracker)
+            statsTracker->framePushed(*state,
+                &state->stack[state->stack.size()-2]);
+
+        /* Pass argument */
+        bindArgument(kf, 0, *state,
+                     Expr::createPointer((uint64_t) saved_AREGs));
+
+        /* tcg_llvm_runtime is shared concrete, so can access it directly */
+        tcg_llvm_runtime.tb_next = 0xff;
+
+        /* Execute */
+        while(state->stack.size() != 1) {
+            /* XXX: update cpuPC */
+
+            /* block pointers could potentially be changed by helpers */
+            tcg_llvm_runtime.tb_next_valid[0] = tb->s2e_tb_next[0] ? 1 : 0;
+            tcg_llvm_runtime.tb_next_valid[1] = tb->s2e_tb_next[1] ? 1 : 0;
+
+            KInstruction *ki = state->pc;
+            stepInstruction(*state);
+            executeInstruction(*state, ki);
+
+            /* TODO: timers */
+            /* TODO: MaxMemory */
+
+            updateStates(state);
+            if(!removedStates.empty() && removedStates.find(state) !=
+                                         removedStates.end()) {
+                std::cerr << "The current state was killed inside KLEE !" << std::endl;
+                std::cerr << "Last executed instruction was:" << std::endl;
+                ki->inst->dump();
+                exit(1);
+            }
+        }
+
+        state->prevPC = 0;
+        state->pc = m_dummyMain->instructions;
+
+        if(tcg_llvm_runtime.tb_next == 0xff)
+            break;
+
+        assert(tcg_llvm_runtime.tb_next < 2);
+        tb = tb->s2e_tb_next[tcg_llvm_runtime.tb_next];
+    }
 
     ref<Expr> resExpr =
             getDestCell(*state, state->pc).value;

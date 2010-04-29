@@ -73,7 +73,15 @@ extern "C" {
     TCGLLVMContext* tcg_llvm_ctx = 0;
 
     /* These data is accessible from generated code */
-    TCGLLVMRuntime tcg_llvm_runtime = { 0, 0, {0,0,0}, 0, 0, 0 };
+    TCGLLVMRuntime tcg_llvm_runtime = {
+        0, 0, {0,0,0}
+#ifdef CONFIG_S2E
+        , {0,0}
+#endif
+#ifndef CONFIG_S2E
+        , 0, 0, 0
+#endif
+    };
 
     void tcg_llvm_helper_wrapper(void);
 }
@@ -1052,7 +1060,34 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         break;
 
     case INDEX_op_goto_tb:
-        /* XXX */
+#ifdef CONFIG_S2E
+        {
+            BasicBlock *bb_1 = BasicBlock::Create(m_context);
+            BasicBlock *bb_2 = BasicBlock::Create(m_context);
+
+            v = m_builder.CreateLoad(m_builder.CreateIntToPtr(
+                    ConstantInt::get(wordType(),
+                        (uint64_t) &tcg_llvm_runtime.tb_next_valid[args[0]]),
+                    intPtrType(8)));
+            m_builder.CreateCondBr(m_builder.CreateICmpNE(v,
+                    ConstantInt::get(intType(8), 0)), bb_1, bb_2);
+
+            /* link is active - store it and return zero */
+            m_tbFunction->getBasicBlockList().push_back(bb_1);
+            m_builder.SetInsertPoint(bb_1);
+
+            m_builder.CreateStore(ConstantInt::get(intType(8), args[0]),
+                    m_builder.CreateIntToPtr(ConstantInt::get(wordType(),
+                        (uint64_t) &tcg_llvm_runtime.tb_next),
+                    intPtrType(8)));
+            m_builder.CreateRet(ConstantInt::get(wordType(), 0));
+
+            /* link is inactive - continue execution */
+            m_tbFunction->getBasicBlockList().push_back(bb_2);
+            m_builder.SetInsertPoint(bb_2);
+        }
+#endif
+        /* XXX: tb linking is disabled */
         break;
 
     default:
@@ -1240,11 +1275,13 @@ void tcg_llvm_tb_free(TranslationBlock *tb)
     }
 }
 
+#ifndef CONFIG_S2E
 int tcg_llvm_search_last_pc(TranslationBlock *tb, uintptr_t searched_pc)
 {
     assert(tb->llvm_function && tb == tcg_llvm_runtime.last_tb);
     return tcg_llvm_runtime.last_opc_index;
 }
+#endif
 
 const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 {
@@ -1255,6 +1292,8 @@ const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
                             void* volatile* saved_AREGs)
 {
+#ifndef CONFIG_S2E
     tcg_llvm_runtime.last_tb = tb;
+#endif
     return ((uintptr_t (*)(void* volatile*)) tb->llvm_tc_ptr)(saved_AREGs);
 }
