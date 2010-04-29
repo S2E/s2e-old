@@ -3,8 +3,28 @@
 
 #include <cstdio>
 #include <cassert>
+#include <ostream>
+#include <iomanip>
 
 namespace s2e {
+
+class hexval {
+public:
+    hexval(uint64_t value, int width=0) : _value(value), _width(width) {}
+    std::ostream &operator()(std::ostream &out) const {
+        std::ios_base::fmtflags oldf = out.flags(); out.setf(std::ios::hex);
+        std::streamsize oldw = out.width(); out.width(_width);
+        char oldfill = out.fill(); out.fill('0');
+
+        out << "0x" << _value;
+
+        out.flags(oldf); out.width(oldw); out.fill(oldfill);
+        return out;
+    }
+private:
+    uint64_t _value;
+    int _width;
+};
 
 /** A macro used to escape "," in an argument to another macro */
 #define S2E_NOOP(...) __VA_ARGS__
