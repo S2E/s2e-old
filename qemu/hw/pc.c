@@ -1021,7 +1021,9 @@ static void pc_init1(ram_addr_t ram_size,
 
     for (i = 0; i < smp_cpus; i++) {
         env = pc_new_cpu(cpu_model);
+#ifdef CONFIG_S2E
         s2e_register_cpu(g_s2e, g_s2e_state, env);
+#endif
     }
 
     vmport_init();

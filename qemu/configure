@@ -2415,6 +2415,7 @@ target_user_only="no"
 target_linux_user="no"
 target_darwin_user="no"
 target_bsd_user="no"
+target_s2e="no"
 case "$target" in
   ${target_arch2}-softmmu)
     target_softmmu="yes"

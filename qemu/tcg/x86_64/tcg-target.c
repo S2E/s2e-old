@@ -607,7 +607,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     rexw = P_REXW;
 #endif
 #if defined(CONFIG_SOFTMMU)
-#if !defined(CONFIG_SOFTMMU)
+#if !defined(CONFIG_S2E)
     /* mov */
     tcg_out_modrm(s, 0x8b | rexw, r1, addr_reg);
 

@@ -1282,7 +1282,7 @@ TranslationBlock *tb_find_pc(uintptr_t tc_ptr)
     if (nb_tbs <= 0)
         return NULL;
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
     if(execute_llvm) {
         for(m=0; m<nb_tbs; m++) {
             tb = &tbs[m];
