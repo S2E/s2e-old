@@ -730,6 +730,7 @@ int cpu_exec(CPUState *env1)
                    only be set by a memory fault) */
             } /* for(;;) */
         } else {
+            s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, tb);
             env_to_regs();
         }
     } /* for(;;) */
