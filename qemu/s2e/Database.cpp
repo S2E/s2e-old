@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "Database.h"
+#include <stdlib.h>
 
 using namespace s2e;
 

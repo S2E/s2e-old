@@ -336,6 +336,8 @@ s2eobj-y += s2e/S2EExecutor.o s2e/S2EExecutionState.o
 s2eobj-y += s2e/S2E.o
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 
+s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QEMU_CXXFLAGS+=-fno-inline
+
 libs2e.a: $(s2eobj-y)
 
 $(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(S2E_CXXFLAGS)
