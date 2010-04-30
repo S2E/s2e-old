@@ -132,6 +132,16 @@ struct S2ETranslationBlock;
 #endif
 #endif
 
+#ifdef CONFIG_S2E
+enum ETranslationBlockType
+{
+    TB_DEFAULT,
+    TB_JMP, TB_JMP_IND,
+    TB_COND_JMP, TB_COND_JMP_IND,
+    TB_CALL, TB_CALL_IND, TB_REP, TB_RET
+};
+#endif
+
 
 
 struct TranslationBlock {
@@ -177,6 +187,7 @@ struct TranslationBlock {
 #endif
 
 #ifdef CONFIG_S2E
+    enum ETranslationBlockType s2e_tb_type;
     struct S2ETranslationBlock* s2e_tb;
     struct TranslationBlock* s2e_tb_next[2];
 #endif

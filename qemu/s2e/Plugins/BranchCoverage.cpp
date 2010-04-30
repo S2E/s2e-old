@@ -138,7 +138,6 @@ void BranchCoverage::onTranslateBlockEnd(
 
 void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc)
 {
-#if 0 
     ETranslationBlockType TbType = state->getTb()->s2e_tb_type;
 
     if (TbType == TB_JMP || TbType == TB_JMP_IND ||
@@ -146,7 +145,6 @@ void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc)
             m_Out << "BRANCH FROM 0x" << std::hex << pc << " to 0x" << state->getPc()  
             << " in process 0x" << state->getPid() << std::endl ;
     }
-#endif
 }
 
 } // namespace plugins

@@ -25,7 +25,6 @@ protected:
 
 public:
     CPUX86State* cpuState;
-    TranslationBlock *tb;
     uint64_t     cpuPC;
 
 public:
@@ -34,7 +33,7 @@ public:
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);
     CPUX86State* getCpuState() const { return cpuState; }
-    TranslationBlock *getTb() const { return tb; }
+    TranslationBlock *getTb() const;
 
     PluginState* getPluginState(const Plugin *plugin, PluginStateFactory factory) {
         PluginStateMap::iterator it = m_PluginState.find(plugin);

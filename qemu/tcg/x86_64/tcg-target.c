@@ -1032,6 +1032,22 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
         tcg_out_goto(s, 0, tb_ret_addr);
         break;
     case INDEX_op_goto_tb:
+
+#ifdef CONFIG_S2E
+        /* mov rax, [state + current_tb] */
+        tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_REG_RAX, TCG_AREG0, -1, 0,
+            offsetof(CPUState, s2e_current_tb));
+        
+        
+        /* mov rax, [rax + s2e_tb_next+..] */
+        tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_REG_RAX, TCG_REG_RAX, -1, 0,
+            offsetof(TranslationBlock, s2e_tb_next[args[0]]));
+        
+        /* mov [state + current_tb], rax */
+        tcg_out_modrm_offset2(s, 0x89 | P_REXW, TCG_REG_RAX, TCG_AREG0, -1, 0,
+            offsetof(CPUState, s2e_current_tb));
+#endif
+
         if (s->tb_jmp_offset) {
             /* direct jump method */
             tcg_out8(s, 0xe9); /* jmp im */

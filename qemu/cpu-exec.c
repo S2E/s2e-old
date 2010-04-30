@@ -671,6 +671,7 @@ int cpu_exec(CPUState *env1)
 #endif
 
 #if defined(CONFIG_S2E)
+                    env->s2e_current_tb = tb;
                     if(execute_llvm) {
 #define SAVE_HOST_REGS 1
 #include "hostregs_helper.h"

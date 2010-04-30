@@ -8005,7 +8005,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         qemu_log("\n");
     }
 #endif
-
+    tb->s2e_tb_type = dc->tb_type;
 
     if (!search_pc) {
         tb->size = pc_ptr - pc_start;

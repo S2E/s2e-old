@@ -18,8 +18,13 @@ uint64_t S2EExecutionState::getPc() const
     return cpuState->eip;
 }
 
-uint64_t S2EExecutionState::getPid() const
+TranslationBlock *S2EExecutionState::getTb() const
 {
+    return cpuState->s2e_current_tb; 
+}
+
+uint64_t S2EExecutionState::getPid() const
+{ 
     return cpuState->cr[3];
 }
 
