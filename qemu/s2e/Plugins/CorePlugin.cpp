@@ -37,6 +37,7 @@ void s2e_tb_alloc(TranslationBlock *tb)
 
 void s2e_tb_free(TranslationBlock *tb)
 {
+    assert(0 && "NOT IMPLEMENTED");
     if(tb->s2e_tb) {
         foreach(ExecutionSignal* s, tb->s2e_tb->executionSignals) {
             delete s;
