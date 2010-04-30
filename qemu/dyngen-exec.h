@@ -128,7 +128,9 @@ extern int printf(const char *, ...);
 # define _GETPC() ((void *)((uintptr_t)__builtin_return_address(0) - 1))
 #endif
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_S2E)
+#define GETPC() (execute_llvm ? (void*) env->s2e_current_tb->tc_ptr : _GETPC())
+#elif defined(CONFIG_LLVM)
 #ifdef __linux__
 extern uint64_t tcg_llvm_helper_ret_addr asm("tcg_llvm_runtime"); // XXX
 #else
