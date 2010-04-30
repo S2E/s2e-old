@@ -1034,18 +1034,30 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
     case INDEX_op_goto_tb:
 
 #ifdef CONFIG_S2E
+        tcg_out_push(s, TCG_REG_RAX);
+        tcg_out_push(s, TCG_REG_RBX);
+
         /* mov rax, [state + current_tb] */
         tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_REG_RAX, TCG_AREG0, -1, 0,
             offsetof(CPUState, s2e_current_tb));
         
+        /* mov rbx, 0 */
+        tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RBX, 0);
         
-        /* mov rax, [rax + s2e_tb_next+..] */
-        tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_REG_RAX, TCG_REG_RAX, -1, 0,
+        /* add rbx, [rax + s2e_tb_next+..] */
+        tcg_out_modrm_offset2(s, 0x3 | P_REXW, TCG_REG_RBX, TCG_REG_RAX, -1, 0,
             offsetof(TranslationBlock, s2e_tb_next[args[0]]));
-        
+
+        /* cmovnz rax, rbx */
+        tcg_out_modrm(s, 0x45 | P_REXW | P_EXT, TCG_REG_RAX, TCG_REG_RBX);
+
         /* mov [state + current_tb], rax */
         tcg_out_modrm_offset2(s, 0x89 | P_REXW, TCG_REG_RAX, TCG_AREG0, -1, 0,
             offsetof(CPUState, s2e_current_tb));
+
+        tcg_out_pop(s, TCG_REG_RBX);
+        tcg_out_pop(s, TCG_REG_RAX);
+
 #endif
 
         if (s->tb_jmp_offset) {
