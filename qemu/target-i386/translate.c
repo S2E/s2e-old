@@ -127,8 +127,8 @@ typedef struct DisasContext {
     void *cpuState;
     target_ulong insPc; /* pc of the instrucition being translated */
     int enable_jmp_im;
-    enum ETranslationBlockType tb_type;
 #endif
+    enum ETranslationBlockType tb_type;
 } DisasContext;
 
 static void gen_eob(DisasContext *s);
@@ -8004,7 +8004,10 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         qemu_log("\n");
     }
 #endif
+
+#ifdef CONFIG_S2E
     tb->s2e_tb_type = dc->tb_type;
+#endif
 
     if (!search_pc) {
         tb->size = pc_ptr - pc_start;

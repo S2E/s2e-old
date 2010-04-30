@@ -132,7 +132,6 @@ struct S2ETranslationBlock;
 #endif
 #endif
 
-#ifdef CONFIG_S2E
 enum ETranslationBlockType
 {
     TB_DEFAULT,
@@ -140,9 +139,6 @@ enum ETranslationBlockType
     TB_COND_JMP, TB_COND_JMP_IND,
     TB_CALL, TB_CALL_IND, TB_REP, TB_RET
 };
-#endif
-
-
 
 struct TranslationBlock {
     target_ulong pc;   /* simulated PC corresponding to this block (EIP + CS base) */
