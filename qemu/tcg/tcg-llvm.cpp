@@ -1174,7 +1174,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
     verifyFunction(*m_tbFunction);
 #endif
 
-    m_functionPassManager->run(*m_tbFunction);
+    //m_functionPassManager->run(*m_tbFunction);
 
     tb->llvm_function = m_tbFunction;
 
