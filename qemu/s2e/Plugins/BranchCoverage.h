@@ -28,7 +28,7 @@ private:
     bool initSection(const std::string &cfgKey);
     bool initAggregatedCoverage(const std::string &cfgKey);
 
-    void onExecution(S2EExecutionState *state, uint64_t pc);
+    void onExecution(S2EExecutionState *state, uint64_t pc, void* arg);
 
     void onTranslateBlockEnd(
         ExecutionSignal *signal,

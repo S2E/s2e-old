@@ -132,11 +132,12 @@ void BranchCoverage::onTranslateBlockEnd(
     }
 
     signal->connect(
-        sigc::mem_fun(*this, &BranchCoverage::onExecution)
+        sigc::bind(sigc::mem_fun(*this, &BranchCoverage::onExecution),
+                   (void*) desc)
     );
 }
 
-void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc)
+void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc, void* arg)
 {
     ETranslationBlockType TbType = state->getTb()->s2e_tb_type;
 
