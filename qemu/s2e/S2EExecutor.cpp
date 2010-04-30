@@ -333,74 +333,6 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
     }
 }
 
-inline void S2EExecutor::executeTBFunction(
-        S2EExecutionState *state,
-        TranslationBlock *tb,
-        void *volatile* saved_AREGs)
-{
-    /* Create a KLEE shadow structs */
-    KFunction *kf;
-    typeof(kmodule->functionMap.begin()) it =
-            kmodule->functionMap.find(tb->llvm_function);
-    if(it != kmodule->functionMap.end()) {
-        kf = it->second;
-    } else {
-        unsigned cIndex = kmodule->constants.size();
-        kf = kmodule->updateModuleWithFunction(tb->llvm_function);
-
-        for(unsigned i = 0; i < kf->numInstructions; ++i)
-            bindInstructionConstants(kf->instructions[i]);
-
-        kmodule->constantTable.resize(kmodule->constants.size());
-        for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
-            Cell &c = kmodule->constantTable[i];
-            c.value = evalConstant(kmodule->constants[i]);
-        }
-    }
-
-    /* Emulate call to a TB function */
-    state->prevPC = state->pc;
-
-    state->pushFrame(state->pc, kf);
-    state->pc = kf->instructions;
-
-    if(statsTracker)
-        statsTracker->framePushed(*state,
-            &state->stack[state->stack.size()-2]);
-
-    /* Pass argument */
-    bindArgument(kf, 0, *state,
-                 Expr::createPointer((uint64_t) saved_AREGs));
-
-    /* Execute */
-    while(state->stack.size() != 1) {
-        /* XXX: update cpuPC */
-
-        /* block pointers could potentially be changed by helpers */
-        tcg_llvm_runtime.tb_next_valid[0] = tb->s2e_tb_next[0] ? 1 : 0;
-        tcg_llvm_runtime.tb_next_valid[1] = tb->s2e_tb_next[1] ? 1 : 0;
-
-        KInstruction *ki = state->pc;
-        stepInstruction(*state);
-        executeInstruction(*state, ki);
-
-        /* TODO: timers */
-        /* TODO: MaxMemory */
-
-        updateStates(state);
-        if(!removedStates.empty() && removedStates.find(state) !=
-                                     removedStates.end()) {
-            std::cerr << "The current state was killed inside KLEE !" << std::endl;
-            std::cerr << "Last executed instruction was:" << std::endl;
-            ki->inst->dump();
-            exit(1);
-        }
-    }
-
-    state->prevPC = 0;
-    state->pc = m_dummyMain->instructions;
-}
-
 inline uintptr_t S2EExecutor::executeTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb,
@@ -413,20 +345,80 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
     assert(state->stack.size() == 1);
     assert(state->pc == m_dummyMain->instructions);
 
-    /* Update state */
-    state->cpuState = (CPUX86State*) saved_AREGs[0];
-    state->cpuPC = tb->pc;
-
     if (!state->addressSpace.copyInConcretes()) {
         std::cerr << "external modified read-only object" << std::endl;
         exit(1);
     }
 
     /* loop until TB chain is not broken */
-    for(;;) {
+    while(true) {
+        KFunction *kf;
+        typeof(kmodule->functionMap.begin()) it =
+                kmodule->functionMap.find(tb->llvm_function);
+        if(it != kmodule->functionMap.end()) {
+            kf = it->second;
+        } else {
+            unsigned cIndex = kmodule->constants.size();
+            kf = kmodule->updateModuleWithFunction(tb->llvm_function);
+
+            for(unsigned i = 0; i < kf->numInstructions; ++i)
+                bindInstructionConstants(kf->instructions[i]);
+
+            kmodule->constantTable.resize(kmodule->constants.size());
+            for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
+                Cell &c = kmodule->constantTable[i];
+                c.value = evalConstant(kmodule->constants[i]);
+            }
+        }
+
+        /* Update state */
+        state->cpuState = (CPUX86State*) saved_AREGs[0];
+        state->cpuPC = tb->pc;
+
+        /* Emulate call to a TB function */
+        state->prevPC = state->pc;
+
+        state->pushFrame(state->pc, kf);
+        state->pc = kf->instructions;
+
+        if(statsTracker)
+            statsTracker->framePushed(*state,
+                &state->stack[state->stack.size()-2]);
+
+        /* Pass argument */
+        bindArgument(kf, 0, *state,
+                     Expr::createPointer((uint64_t) saved_AREGs));
+
+        /* tcg_llvm_runtime is shared concrete, so can access it directly */
         tcg_llvm_runtime.tb_next = 0xff;
 
-        executeTBFunction(state, tb, saved_AREGs);
+        /* Execute */
+        while(state->stack.size() != 1) {
+            /* XXX: update cpuPC */
+
+            /* block pointers could potentially be changed by helpers */
+            tcg_llvm_runtime.tb_next_valid[0] = tb->s2e_tb_next[0] ? 1 : 0;
+            tcg_llvm_runtime.tb_next_valid[1] = tb->s2e_tb_next[1] ? 1 : 0;
+
+            KInstruction *ki = state->pc;
+            stepInstruction(*state);
+            executeInstruction(*state, ki);
+
+            /* TODO: timers */
+            /* TODO: MaxMemory */
+
+            updateStates(state);
+            if(!removedStates.empty() && removedStates.find(state) !=
+                                         removedStates.end()) {
+                std::cerr << "The current state was killed inside KLEE !" << std::endl;
+                std::cerr << "Last executed instruction was:" << std::endl;
+                ki->inst->dump();
+                exit(1);
+            }
+        }
+
+        state->prevPC = 0;
+        state->pc = m_dummyMain->instructions;
 
         if(tcg_llvm_runtime.tb_next == 0xff)
             break;
@@ -435,7 +427,6 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
         tb = tb->s2e_tb_next[tcg_llvm_runtime.tb_next];
     }
 
-    /* Get return value */
     ref<Expr> resExpr =
             getDestCell(*state, state->pc).value;
     assert(isa<klee::ConstantExpr>(resExpr));
@@ -444,17 +435,6 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 #endif
-}
-
-inline void S2EExecutor::cleanupTranslationBlock(
-        S2EExecutionState* state,
-        TranslationBlock* tb)
-{
-    while(state->stack.size() != 1)
-        state->stack.pop_back();
-
-    state->prevPC = 0;
-    state->pc = m_dummyMain->instructions;
 }
 
 } // namespace s2e
@@ -515,10 +495,4 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            void* volatile* saved_AREGs)
 {
     return s2e->getExecutor()->executeTranslationBlock(state, tb, saved_AREGs);
-}
-
-void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
-                           struct TranslationBlock* tb)
-{
-    return s2e->getExecutor()->cleanupTranslationBlock(state, tb);
 }
