@@ -182,4 +182,3 @@ void s2e_on_exception(S2E *s2e, S2EExecutionState* state,
     state->cpuState = env;
     s2e->getCorePlugin()->onException.emit(state, intNb, state->cpuState->eip);
 }
-
