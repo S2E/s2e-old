@@ -50,6 +50,9 @@ protected:
        direct memory accesses from QEMU code. */
     std::vector< std::pair<uint64_t, uint64_t> > m_unusedMemoryRegions;
 
+    void executeTBFunction(S2EExecutionState *state,
+            TranslationBlock *tb, void* volatile* saved_AREGs);
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
@@ -83,6 +86,9 @@ public:
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
+
+    void cleanupTranslationBlock(S2EExecutionState *state,
+            TranslationBlock *tb);
 };
 
 } // namespace s2e

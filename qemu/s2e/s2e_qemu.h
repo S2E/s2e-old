@@ -145,6 +145,12 @@ uintptr_t s2e_qemu_tb_exec(
         struct TranslationBlock* tb,
         void* volatile* saved_AREGs);
 
+/* Called by QEMU when execution is aborted using longjmp */
+void s2e_qemu_cleanup_tb_exec(
+        struct S2E* s2e,
+        struct S2EExecutionState* state,
+        struct TranslationBlock* tb);
+
 #ifdef __cplusplus
 }
 #endif
