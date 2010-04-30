@@ -25,10 +25,12 @@ public:
     void initialize();
     
 private:
+    bool createTable();
     bool initSection(const std::string &cfgKey);
     bool initAggregatedCoverage(const std::string &cfgKey);
 
-    void onExecution(S2EExecutionState *state, uint64_t pc, void* arg);
+    void onExecution(S2EExecutionState *state, uint64_t pc,
+        const ModuleExecutionDesc*);
 
     void onTranslateBlockEnd(
         ExecutionSignal *signal,

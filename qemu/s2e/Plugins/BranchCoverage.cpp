@@ -9,6 +9,9 @@ extern "C" {
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/Database.h>
+
+#include <llvm/System/TimeValue.h>
 
 #include <iostream>
 #include <sstream>
@@ -25,6 +28,7 @@ void BranchCoverage::initialize()
     std::stringstream ss;
     std::string file;
 
+#if 0
     bool ok=false;
     file = s2e()->getConfig()->getString(getConfigKey() + ".file", "coverage.dat", &ok);
     if (!ok) {
@@ -39,6 +43,11 @@ void BranchCoverage::initialize()
     if (!m_Out.is_open()) {
         s2e()->getWarningsStream() << "Could not open branch coverage file "
             << ss.str() << std::endl;
+        exit(-1);
+    }
+#endif
+
+    if (!createTable()) {
         exit(-1);
     }
 
@@ -76,6 +85,20 @@ bool BranchCoverage::initSection(const std::string &cfgKey)
             << covType << std::endl;
         return false;
     }
+}
+
+bool BranchCoverage::createTable()
+{
+    const char *query = "create table BranchCoverage(" 
+          "'timestamp' unsigned big int,"  
+          "'moduleId' varchar(30),"
+          "'sourceBr' unsigned big int,"
+          "'destBr' unsigned big int,"
+          "'pid' unsigned big int"
+          ");";
+    
+    Database *db = s2e()->getDb();
+    return db->executeQuery(query);
 }
 
 bool BranchCoverage::initAggregatedCoverage(const std::string &cfgKey)
@@ -133,18 +156,29 @@ void BranchCoverage::onTranslateBlockEnd(
 
     signal->connect(
         sigc::bind(sigc::mem_fun(*this, &BranchCoverage::onExecution),
-                   (void*) desc)
+                   (const ModuleExecutionDesc*) desc)
     );
 }
 
-void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc, void* arg)
+void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc, const ModuleExecutionDesc* desc)
 {
     ETranslationBlockType TbType = state->getTb()->s2e_tb_type;
 
     if (TbType == TB_JMP || TbType == TB_JMP_IND ||
         TbType == TB_COND_JMP || TbType == TB_COND_JMP_IND) {
-            m_Out << "BRANCH FROM 0x" << std::hex << pc << " to 0x" << state->getPc()  
-            << " in process 0x" << state->getPid() << std::endl ;
+            llvm::sys::TimeValue timeStamp = llvm::sys::TimeValue::now();
+            std::stringstream ss;
+            ss << "insert into BranchCoverage values(" 
+                   << timeStamp.msec() << ",'" <<
+                   desc->id << "'," <<
+                   pc << "," << state->getPc() << "," <<
+                   state->getPid() << ");";
+            s2e()->getDb()->executeQuery(ss.str().c_str());
+/*
+                << desc->id <<
+                " 0x" << std::hex << pc << " 0x" << state->getPc()  
+            << " 0x" << state->getPid() << std::endl ;
+            */
     }
 }
 

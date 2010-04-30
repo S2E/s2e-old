@@ -2323,14 +2323,15 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
         (pc & TARGET_PAGE_MASK) == ((s->pc - 1) & TARGET_PAGE_MASK))  {
         /* jump to same page: we can use a direct jump */
 #ifdef CONFIG_S2E
-        s->enable_jmp_im = 0;
-        s2e_on_translate_block_end(g_s2e, g_s2e_state,
-                                   s->cpuState, s->tb, s->insPc, 1, eip);
+        //s->enable_jmp_im = 0;
+        gen_jmp_im(s, eip);
+        //s2e_on_translate_block_end(g_s2e, g_s2e_state,
+        //                           s->cpuState, s->tb, s->insPc, 1, eip);
 
         tcg_gen_goto_tb(tb_num);
-        gen_jmp_im(s, eip);
         
-        s->enable_jmp_im = 1;
+        
+        //s->enable_jmp_im = 1;
 #else
         tcg_gen_goto_tb(tb_num);
         gen_jmp_im(s, eip);

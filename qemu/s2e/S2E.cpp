@@ -8,6 +8,7 @@
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 #include <s2e/S2EExecutor.h>
+#include <s2e/Database.h>
 
 #include <s2e/s2e_qemu.h>
 
@@ -58,6 +59,9 @@ S2E::S2E(TCGLLVMContext *tcgLLVMContext,
        other init* functions can use it. */
     initOutputDirectory(outputDirectory);
 
+    /* Init the data base */
+    m_database = new s2e::Database(m_outputDirectory + "/s2e.db");
+
     /* Parse configuration file */
     m_configFile = new s2e::ConfigFile(configFileName);
 
@@ -74,7 +78,7 @@ S2E::~S2E()
         delete p;
 
     delete m_pluginsFactory;
-
+    delete m_database;
     // KModule wants to delete the llvm::Module in destroyer.
     // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
     m_tcgLLVMContext->getModuleProvider()->releaseModule();
