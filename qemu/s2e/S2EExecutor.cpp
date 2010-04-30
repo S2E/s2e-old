@@ -338,67 +338,6 @@ inline void S2EExecutor::executeTBFunction(
         TranslationBlock *tb,
         void *volatile* saved_AREGs)
 {
-    /* Create a KLEE shadow structs */
-    KFunction *kf;
-    typeof(kmodule->functionMap.begin()) it =
-            kmodule->functionMap.find(tb->llvm_function);
-    if(it != kmodule->functionMap.end()) {
-        kf = it->second;
-    } else {
-        unsigned cIndex = kmodule->constants.size();
-        kf = kmodule->updateModuleWithFunction(tb->llvm_function);
-
-        for(unsigned i = 0; i < kf->numInstructions; ++i)
-            bindInstructionConstants(kf->instructions[i]);
-
-        kmodule->constantTable.resize(kmodule->constants.size());
-        for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
-            Cell &c = kmodule->constantTable[i];
-            c.value = evalConstant(kmodule->constants[i]);
-        }
-    }
-
-    /* Emulate call to a TB function */
-    state->prevPC = state->pc;
-
-    state->pushFrame(state->pc, kf);
-    state->pc = kf->instructions;
-
-    if(statsTracker)
-        statsTracker->framePushed(*state,
-            &state->stack[state->stack.size()-2]);
-
-    /* Pass argument */
-    bindArgument(kf, 0, *state,
-                 Expr::createPointer((uint64_t) saved_AREGs));
-
-    /* Execute */
-    while(state->stack.size() != 1) {
-        /* XXX: update cpuPC */
-
-        /* block pointers could potentially be changed by helpers */
-        tcg_llvm_runtime.tb_next_valid[0] = tb->s2e_tb_next[0] ? 1 : 0;
-        tcg_llvm_runtime.tb_next_valid[1] = tb->s2e_tb_next[1] ? 1 : 0;
-
-        KInstruction *ki = state->pc;
-        stepInstruction(*state);
-        executeInstruction(*state, ki);
-
-        /* TODO: timers */
-        /* TODO: MaxMemory */
-
-        updateStates(state);
-        if(!removedStates.empty() && removedStates.find(state) !=
-                                     removedStates.end()) {
-            std::cerr << "The current state was killed inside KLEE !" << std::endl;
-            std::cerr << "Last executed instruction was:" << std::endl;
-            ki->inst->dump();
-            exit(1);
-        }
-    }
-
-    state->prevPC = 0;
-    state->pc = m_dummyMain->instructions;
 }
 
 inline uintptr_t S2EExecutor::executeTranslationBlock(
@@ -423,17 +362,102 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
     }
 
     /* loop until TB chain is not broken */
-    for(;;) {
-        tcg_llvm_runtime.tb_next = 0xff;
+    do {
+        /* Make sure to init tb_next value */
+        tcg_llvm_runtime.goto_tb = 0xff;
 
-        executeTBFunction(state, tb, saved_AREGs);
+        /* Create a KLEE shadow structs */
+        KFunction *kf;
+        typeof(kmodule->functionMap.begin()) it =
+                kmodule->functionMap.find(tb->llvm_function);
+        if(it != kmodule->functionMap.end()) {
+            kf = it->second;
+        } else {
+            unsigned cIndex = kmodule->constants.size();
+            kf = kmodule->updateModuleWithFunction(tb->llvm_function);
 
-        if(tcg_llvm_runtime.tb_next == 0xff)
-            break;
+            for(unsigned i = 0; i < kf->numInstructions; ++i)
+                bindInstructionConstants(kf->instructions[i]);
 
-        assert(tcg_llvm_runtime.tb_next < 2);
-        tb = tb->s2e_tb_next[tcg_llvm_runtime.tb_next];
-    }
+            kmodule->constantTable.resize(kmodule->constants.size());
+            for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
+                Cell &c = kmodule->constantTable[i];
+                c.value = evalConstant(kmodule->constants[i]);
+            }
+        }
+
+        /* Emulate call to a TB function */
+        state->prevPC = state->pc;
+
+        state->pushFrame(state->pc, kf);
+        state->pc = kf->instructions;
+
+        if(statsTracker)
+            statsTracker->framePushed(*state,
+                &state->stack[state->stack.size()-2]);
+
+        /* Pass argument */
+        bindArgument(kf, 0, *state,
+                     Expr::createPointer((uint64_t) saved_AREGs));
+
+        /* Execute */
+        while(state->stack.size() != 1) {
+            KInstruction *ki = state->pc;
+            stepInstruction(*state);
+            executeInstruction(*state, ki);
+
+            /* TODO: timers */
+            /* TODO: MaxMemory */
+
+            updateStates(state);
+            if(!removedStates.empty() && removedStates.find(state) !=
+                                         removedStates.end()) {
+                std::cerr << "The current state was killed inside KLEE !" << std::endl;
+                std::cerr << "Last executed instruction was:" << std::endl;
+                ki->inst->dump();
+                exit(1);
+            }
+
+            /* Check to goto_tb request */
+            if(tcg_llvm_runtime.goto_tb != 0xff) {
+                assert(tcg_llvm_runtime.goto_tb < 2);
+
+                /* The next should be atomic with respect to signals */
+                /* XXX: what else should we block ? */
+                sigset_t set, oldset;
+                sigfillset(&set);
+                sigprocmask(SIG_BLOCK, &set, &oldset);
+
+                TranslationBlock* next_tb =
+                        tb->s2e_tb_next[tcg_llvm_runtime.goto_tb];
+
+                if(next_tb) {
+#ifndef NDEBUG
+                    TranslationBlock* old_tb = tb;
+#endif
+
+                    cleanupTranslationBlock(state, tb);
+
+                    tb = next_tb;
+                    state->cpuState->s2e_current_tb = tb;
+
+                    /* assert that blocking works */
+                    assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
+
+                    sigprocmask(SIG_SETMASK, &oldset, NULL);
+                    break;
+                }
+
+                /* the block was unchained by signal handler */
+                tcg_llvm_runtime.goto_tb = 0xff;
+                sigprocmask(SIG_SETMASK, &oldset, NULL);
+            }
+        }
+
+        state->prevPC = 0;
+        state->pc = m_dummyMain->instructions;
+
+    } while(tcg_llvm_runtime.goto_tb != 0xff);
 
     /* Get return value */
     ref<Expr> resExpr =

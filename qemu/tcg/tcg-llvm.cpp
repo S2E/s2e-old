@@ -76,7 +76,7 @@ extern "C" {
     TCGLLVMRuntime tcg_llvm_runtime = {
         0, 0, {0,0,0}
 #ifdef CONFIG_S2E
-        , {0,0}
+        , 0
 #endif
 #ifndef CONFIG_S2E
         , 0, 0, 0
@@ -1061,31 +1061,10 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
     case INDEX_op_goto_tb:
 #ifdef CONFIG_S2E
-        {
-            BasicBlock *bb_1 = BasicBlock::Create(m_context);
-            BasicBlock *bb_2 = BasicBlock::Create(m_context);
-
-            v = m_builder.CreateLoad(m_builder.CreateIntToPtr(
-                    ConstantInt::get(wordType(),
-                        (uint64_t) &tcg_llvm_runtime.tb_next_valid[args[0]]),
-                    intPtrType(8)));
-            m_builder.CreateCondBr(m_builder.CreateICmpNE(v,
-                    ConstantInt::get(intType(8), 0)), bb_1, bb_2);
-
-            /* link is active - store it and return zero */
-            m_tbFunction->getBasicBlockList().push_back(bb_1);
-            m_builder.SetInsertPoint(bb_1);
-
-            m_builder.CreateStore(ConstantInt::get(intType(8), args[0]),
-                    m_builder.CreateIntToPtr(ConstantInt::get(wordType(),
-                        (uint64_t) &tcg_llvm_runtime.tb_next),
-                    intPtrType(8)));
-            m_builder.CreateRet(ConstantInt::get(wordType(), 0));
-
-            /* link is inactive - continue execution */
-            m_tbFunction->getBasicBlockList().push_back(bb_2);
-            m_builder.SetInsertPoint(bb_2);
-        }
+        m_builder.CreateStore(ConstantInt::get(intType(8), args[0]),
+                m_builder.CreateIntToPtr(ConstantInt::get(wordType(),
+                    (uint64_t) &tcg_llvm_runtime.goto_tb),
+                intPtrType(8)));
 #endif
         /* XXX: tb linking is disabled */
         break;

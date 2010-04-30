@@ -48,8 +48,7 @@ struct TCGLLVMRuntime {
 
 #ifdef CONFIG_S2E
     /* run-time tb linking mechanism */
-    uint8_t tb_next_valid[2];
-    uint8_t tb_next;
+    uint8_t goto_tb;
 #endif
 
 #ifndef CONFIG_S2E
