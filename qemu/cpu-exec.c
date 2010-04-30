@@ -1282,3 +1282,4 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 #endif
 
 #endif /* !defined(CONFIG_SOFTMMU) */
+
