@@ -1285,8 +1285,10 @@ int tcg_llvm_search_last_pc(TranslationBlock *tb, uintptr_t searched_pc)
 
 const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 {
+    static char buf[64];
     assert(tb->llvm_function);
-    return tb->llvm_function->getNameStr().c_str();
+    strncpy(buf, tb->llvm_function->getNameStr().c_str(), sizeof(buf));
+    return buf;
 }
 
 uintptr_t tcg_llvm_qemu_tb_exec(TranslationBlock *tb,
