@@ -197,6 +197,7 @@ S2EExecutionState* S2EExecutor::createInitialState()
 
 void S2EExecutor::initializeExecution(S2EExecutionState* state)
 {
+#if 0
     typedef std::pair<uint64_t, uint64_t> _UnusedMemoryRegion;
     foreach(_UnusedMemoryRegion p, m_unusedMemoryRegions) {
         /* XXX */
@@ -207,11 +208,11 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state)
         munmap((void*) p.first, p.second);
 #endif
     }
+#endif
 
     state->cpuState = first_cpu;
     initializeGlobals(*state);
     bindModuleConstants();
-
 }
 
 void S2EExecutor::registerCpu(S2EExecutionState *initialState,
@@ -283,8 +284,8 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
     if(page_offset + size <= TARGET_PAGE_SIZE) {
         /* Single-page access */
 
-        ObjectPair op =
-            state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+        uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
+        ObjectPair op = state->addressSpace.findObject(page_addr);
 
         assert(op.first && op.first->isUserSpecified);
 
@@ -315,8 +316,8 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
     if(page_offset + size <= TARGET_PAGE_SIZE) {
         /* Single-page access */
 
-        ObjectPair op =
-            state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+        uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
+        ObjectPair op = state->addressSpace.findObject(page_addr);
 
         assert(op.first && op.first->isUserSpecified);
 
