@@ -56,20 +56,37 @@ public:
     void disableSymbExec();
     void enableSymbExec();
 
-    /** Access to physical memory. */
-#if 0
-    ref<Expr> readMemory(uint64_t physAddress, Expr::Width width) const;
-    ref<Expr> readMemory8(uint64_t physAddress) const;
+    /** Virtual address translation (debug mode). Return -1 on failure. */
+    uint64_t getPhysicalAddress(uint64_t virtualAddress) const;
 
-    void writeMemory(unsigned physAddress, ref<Expr> value);
-    void writeMemory8(unsigned physAddress, uint8_t value);
-    void writeMemory16(unsigned physAddress, uint16_t value);
-    void writeMemory32(unsigned physAddress, uint32_t value);
-    void writeMemory64(unsigned physAddress, uint64_t value);
+    /** Access to state's memory. Address is virtual or physical,
+        depending on 'physical' argument. Returns NULL or false in
+        case of failure (can't resolve virtual address or physical
+        address is invalid) */
+    klee::ref<klee::Expr> readMemory(uint64_t address,
+                                     klee::Expr::Width width,
+                                     bool physical = false) const;
+    klee::ref<klee::Expr> readMemory8(uint64_t address,
+                                      bool physical = false) const;
 
-    /** Access to virtual memory */
-#endif
+    bool writeMemory(uint64_t address,
+                     klee::ref<klee::Expr> value,
+                     bool physical = false);
+    bool writeMemory(uint64_t address,
+                     uint8_t* buf,
+                     klee::Expr::Width width,
+                     bool physical = false);
 
+    bool writeMemory8(uint64_t address,
+                      klee::ref<klee::Expr> value, bool physical);
+    bool writeMemory8 (uint64_t address, uint8_t  value, bool physical);
+    bool writeMemory16(uint64_t address, uint16_t value, bool physical);
+    bool writeMemory32(uint64_t address, uint32_t value, bool physical);
+    bool writeMemory64(uint64_t address, uint64_t value, bool physical);
+
+    /** Creates new unconstrained symbolic value */
+    klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
+                              const std::string& name = std::string()) const;
 };
 
 }

@@ -287,7 +287,8 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
         uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
         ObjectPair op = state->addressSpace.findObject(page_addr);
 
-        assert(op.first && op.first->isUserSpecified);
+        assert(op.first && op.first->isUserSpecified &&
+               op.first->size == TARGET_PAGE_SIZE);
 
         ObjectState *wos = NULL;
         for(uint64_t i=0; i<size; ++i) {
@@ -305,7 +306,7 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
         /* Access spans multiple pages */
         uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
         readRamConcrete(state, hostAddress, buf, size1);
-        readRamConcrete(state, hostAddress, buf + size1, size - size1);
+        readRamConcrete(state, hostAddress + size1, buf + size1, size - size1);
     }
 }
 
@@ -319,7 +320,8 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
         uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
         ObjectPair op = state->addressSpace.findObject(page_addr);
 
-        assert(op.first && op.first->isUserSpecified);
+        assert(op.first && op.first->isUserSpecified &&
+               op.first->size == TARGET_PAGE_SIZE);
 
         ObjectState* wos =
                 state->addressSpace.getWriteable(op.first, op.second);
@@ -330,7 +332,7 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
         /* Access spans multiple pages */
         uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
         writeRamConcrete(state, hostAddress, buf, size1);
-        writeRamConcrete(state, hostAddress, buf + size1, size - size1);
+        writeRamConcrete(state, hostAddress + size1, buf + size1, size - size1);
     }
 }
 
