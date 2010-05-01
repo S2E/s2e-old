@@ -88,10 +88,14 @@ ExecutionState::~ExecutionState() {
   while (!stack.empty()) popFrame();
 }
 
+ExecutionState* ExecutionState::clone() {
+  return new ExecutionState(*this);
+}
+
 ExecutionState *ExecutionState::branch() {
   depth++;
 
-  ExecutionState *falseState = new ExecutionState(*this);
+  ExecutionState *falseState = clone();
   falseState->coveredNew = false;
   falseState->coveredLines.clear();
 

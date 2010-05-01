@@ -112,6 +112,9 @@ public:
 private:
   ExecutionState() : fakeState(false), underConstrained(0), ptreeNode(0) {};
 
+protected:
+  virtual ExecutionState* clone();
+
 public:
   ExecutionState(KFunction *kf);
 
@@ -119,7 +122,7 @@ public:
   // use on structure
   ExecutionState(const std::vector<ref<Expr> > &assumptions);
 
-  ~ExecutionState();
+  virtual ~ExecutionState();
   
   ExecutionState *branch();
 
