@@ -103,6 +103,10 @@ void s2e_update_state_env(
 /**********************************/
 /* Functions from S2EExecutor.cpp */
 
+/** Variable that holds the latest return address when
+    executiong helper code from KLEE */
+extern void* g_s2e_exec_ret_addr;
+
 /** Create initial S2E execution state */
 struct S2EExecutionState* s2e_create_initial_state(struct S2E *s2e);
 

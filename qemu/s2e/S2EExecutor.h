@@ -76,11 +76,15 @@ public:
     /** Return true if hostAddr is registered as a RAM with KLEE */
     bool isRamSharedConcrete(S2EExecutionState *state, uint64_t hostAddress);
 
-    /** Read from physical memory, concretizing if nessecary */
+    /** Read from physical memory, concretizing if nessecary.
+        Note: this function accepts host address (as returned
+        by qemu_get_ram_ptr */
     void readRamConcrete(S2EExecutionState *state,
             uint64_t hostAddress, uint8_t* buf, uint64_t size);
 
-    /** Write concrete value to physical memory */
+    /** Write concrete value to physical memory.
+        Note: this function accepts host address (as returned
+        by qemu_get_ram_ptr */
     void writeRamConcrete(S2EExecutionState *state,
             uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 

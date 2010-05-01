@@ -37,6 +37,7 @@ using namespace klee;
 extern "C" {
     // XXX
     extern volatile void* saved_AREGs[3];
+    void* g_s2e_exec_ret_addr = 0;
 }
 
 namespace s2e {
@@ -157,6 +158,8 @@ S2EExecutionState* S2EExecutor::createInitialState()
                       sizeof(tcg_llvm_runtime), false,
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
+
+    /* XXX: is this really required ? */
     addExternalObject(*state, saved_AREGs,
                       sizeof(saved_AREGs), false,
                       /* isUserSpecified = */ true,
@@ -396,6 +399,9 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
         bindArgument(kf, 0, *state,
                      Expr::createPointer((uint64_t) saved_AREGs));
 
+        /* Information for GETPC() macro */
+        g_s2e_exec_ret_addr = tb->tc_ptr;
+
         /* Execute */
         while(state->stack.size() != 1) {
             KInstruction *ki = state->pc;
@@ -432,10 +438,12 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
                     TranslationBlock* old_tb = tb;
 #endif
 
-                    cleanupTranslationBlock(state, tb);
+                    assert(state->stack.size() == 2);
+                    state->popFrame();
 
                     tb = next_tb;
                     state->cpuState->s2e_current_tb = tb;
+                    g_s2e_exec_ret_addr = tb->tc_ptr;
 
                     /* assert that blocking works */
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
@@ -455,6 +463,8 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
     } while(tcg_llvm_runtime.goto_tb != 0xff);
 
+    g_s2e_exec_ret_addr = 0;
+
     /* Get return value */
     ref<Expr> resExpr =
             getDestCell(*state, state->pc).value;
@@ -470,8 +480,10 @@ inline void S2EExecutor::cleanupTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
+    g_s2e_exec_ret_addr = 0;
+
     while(state->stack.size() != 1)
-        state->stack.pop_back();
+        state->popFrame();
 
     state->prevPC = 0;
     state->pc = m_dummyMain->instructions;

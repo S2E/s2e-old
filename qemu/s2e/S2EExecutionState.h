@@ -55,6 +55,21 @@ public:
 
     void disableSymbExec();
     void enableSymbExec();
+
+    /** Access to physical memory. */
+#if 0
+    ref<Expr> readMemory(uint64_t physAddress, Expr::Width width) const;
+    ref<Expr> readMemory8(uint64_t physAddress) const;
+
+    void writeMemory(unsigned physAddress, ref<Expr> value);
+    void writeMemory8(unsigned physAddress, uint8_t value);
+    void writeMemory16(unsigned physAddress, uint16_t value);
+    void writeMemory32(unsigned physAddress, uint32_t value);
+    void writeMemory64(unsigned physAddress, uint64_t value);
+
+    /** Access to virtual memory */
+#endif
+
 };
 
 }
