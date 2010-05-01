@@ -49,7 +49,7 @@ void s2e_tb_free(TranslationBlock *tb)
 void s2e_tcg_execution_handler(
         S2E* s2e, ExecutionSignal* signal, CPUState *env, uint64_t pc)
 {
-    s2e_update_state_env_pc(g_s2e_state, env, pc);
+    s2e_update_state_env(g_s2e_state, env);
     signal->emit(g_s2e_state, pc);
 }
 

@@ -25,11 +25,10 @@ protected:
 
 public:
     CPUX86State* cpuState;
-    uint64_t     cpuPC;
 
 public:
     S2EExecutionState(klee::KFunction *kf)
-            : klee::ExecutionState(kf), cpuState(NULL), cpuPC(0) {}
+            : klee::ExecutionState(kf), cpuState(NULL) {}
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);
     CPUX86State* getCpuState() const { return cpuState; }

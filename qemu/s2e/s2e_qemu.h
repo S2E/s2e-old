@@ -100,9 +100,6 @@ void s2e_on_exception(
 void s2e_update_state_env(
         struct S2EExecutionState* state, CPUX86State* env);
 
-void s2e_update_state_env_pc(
-        struct S2EExecutionState* state, CPUX86State* env, uint64_t pc);
-
 /**********************************/
 /* Functions from S2EExecutor.cpp */
 

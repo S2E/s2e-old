@@ -138,9 +138,6 @@ S2EExecutionState* S2EExecutor::createInitialState()
     S2EExecutionState *state =
         new S2EExecutionState(m_dummyMain);
 
-    state->cpuState = NULL;
-    state->cpuPC = 0;
-
     if(pathWriter)
         state->pathOS = pathWriter->open();
     if(symPathWriter)
@@ -354,7 +351,6 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
     /* Update state */
     state->cpuState = (CPUX86State*) saved_AREGs[0];
-    state->cpuPC = tb->pc;
 
     if (!state->addressSpace.copyInConcretes()) {
         std::cerr << "external modified read-only object" << std::endl;
