@@ -2,7 +2,8 @@ extern "C" {
 #include "config.h"
 #include "qemu-common.h"
 
-target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr);
+int cpu_memory_rw_debug_se(uint64_t addr, uint8_t *buf, int len, int is_write);
+//target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr);
 }
 
 #include "S2EExecutionState.h"
@@ -21,6 +22,11 @@ using namespace klee;
 uint64_t S2EExecutionState::getPc() const
 { 
     return cpuState->eip;
+}
+
+uint64_t S2EExecutionState::getSp() const
+{
+    return cpuState->regs[R_ESP];
 }
 
 TranslationBlock *S2EExecutionState::getTb() const
@@ -43,6 +49,12 @@ void S2EExecutionState::enableSymbExec()
     printf("ENABLE symbexec at %#"PRIx64"\n", getPc());
 }
 
+
+bool S2EExecutionState::readMemoryConcrete(uint64_t address, void *dest, char size)
+{
+    return cpu_memory_rw_debug_se(address, (uint8_t*)dest, size, 0 ) == 0;
+}
+
 uint64_t S2EExecutionState::getPhysicalAddress(uint64_t virtualAddress) const
 {
     target_phys_addr_t physicalAddress =
@@ -51,6 +63,41 @@ uint64_t S2EExecutionState::getPhysicalAddress(uint64_t virtualAddress) const
         return (uint64_t) -1;
 
     return physicalAddress | (virtualAddress & ~TARGET_PAGE_MASK);
+}
+
+bool S2EExecutionState::readString(uint64_t address, std::string &s, unsigned maxLen)
+{
+    do {
+        uint8_t c;
+        SREADR(this, address, c);
+        
+        if (c) {
+            s = s + (char)c;
+        }else {
+            return true;
+        }
+        address++;
+        maxLen--;
+    }while(maxLen>=0);
+    return true;
+}
+
+bool S2EExecutionState::readUnicodeString(uint64_t address, std::string &s, unsigned maxLen)
+{
+    do {
+        uint16_t c;
+        SREADR(this, address, c);
+        
+        if (c) {
+            s = s + (char)c;
+        }else {
+            return true;
+        }
+
+        address+=2;
+        maxLen--;
+    }while(maxLen>=0);
+    return true;
 }
 
 ref<Expr> S2EExecutionState::readMemory(uint64_t address,

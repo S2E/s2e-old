@@ -127,7 +127,7 @@ int WindowsImage::InitExports()
         free(CFcnName);
 
         //DPRINTF("Export %s @%#"PRIx64"\n", FunctionName.c_str(), FcnPtrs[i]+m_Base);
-        m_Exports[FunctionName] = FcnPtrs[i];
+        m_Exports[FunctionName] = FcnPtrs[i] + m_Base;
     }
 
     free(FcnPtrs);

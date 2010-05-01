@@ -257,6 +257,15 @@ void ModuleExecutionDetector::processUnloadListener(
 }
 
 
+//Check that the module id is valid
+bool ModuleExecutionDetector::isModuleConfigured(const std::string &moduleId) const
+{
+    ModuleExecutionCfg cfg;
+    cfg.id = moduleId;
+
+    return m_ConfiguredModulesId.find(cfg) != m_ConfiguredModulesId.end();
+}
+
 /*****************************************************************************/
 /*****************************************************************************/
 /*****************************************************************************/

@@ -46,12 +46,18 @@ public:
 
     /** Read value from memory concretizing it if necessary */
     uint64_t readMemoryConcrete(uint64_t address, char size);
+    bool readMemoryConcrete(uint64_t address, void *dest, char size);
 
     /** Write concrete value to memory */
     void writeMemoryConcrete(uint64_t address, uint64_t value, char size);
 
+    /** Read an ASCIIZ string from memory */
+    bool readString(uint64_t address, std::string &s, unsigned maxLen=256);
+    bool readUnicodeString(uint64_t address, std::string &s, unsigned maxLen=256);
+
     uint64_t getPc() const;
     uint64_t getPid() const;
+    uint64_t getSp() const;
 
     void disableSymbExec();
     void enableSymbExec();
@@ -88,6 +94,10 @@ public:
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
                               const std::string& name = std::string()) const;
 };
+
+//Some convenience macros
+#define SREAD(state, addr, val) if (!state->readMemoryConcrete(addr, &val, sizeof(val))) { return; }
+#define SREADR(state, addr, val) if (!state->readMemoryConcrete(addr, &val, sizeof(val))) { return false; }
 
 }
 

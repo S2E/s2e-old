@@ -140,6 +140,8 @@ public:
         S2EExecutionState* state, 
         uint64_t pid);
 
+    bool isModuleConfigured(const std::string &moduleId) const;
+
     friend class ModuleTransitionState;
 };
 

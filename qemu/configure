@@ -2481,6 +2481,7 @@ fi
 
 if test "$target_s2e" = "yes"; then
   S2E_DIRS="s2e s2e/Interceptor s2e/Plugins s2e/Plugins/WindowsInterceptor s2e/Configuration"
+  S2E_DIRS+=" s2e/Plugins/DataSelectors"
   for dir in $S2E_DIRS ; do
     mkdir -p $target_dir/$dir
   done

@@ -55,14 +55,12 @@ void BranchCoverage::initialize()
     keyList = s2e()->getConfig()->getListKeys(getConfigKey());
     bool noErrors = true;
     foreach2(it, keyList.begin(), keyList.end()) {
-        if (*it == "file") {
-            continue;
-        }
-
-        s2e()->getMessagesStream() << "Scanning key " << getConfigKey() << "." << *it << std::endl;
+        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
-        noErrors = initSection(sk.str());
+        if (!initSection(sk.str())) {
+            noErrors = false;
+        }
     }
 
     if (!noErrors) {
@@ -120,11 +118,7 @@ bool BranchCoverage::initAggregatedCoverage(const std::string &cfgKey)
     }
 
     //Check that the module id is valid
-    const ConfiguredModulesById &mods = executionDetector->getConfiguredModulesById();
-    ModuleExecutionCfg cfg;
-    cfg.id = moduleId;
-
-    if (mods.find(cfg) == mods.end()) {
+    if (!executionDetector->isModuleConfigured(moduleId)) {
         s2e()->getWarningsStream() << 
             moduleId << " not configured in the execution detector! " << std::endl;
         return false;
@@ -168,17 +162,16 @@ void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
         TbType == TB_COND_JMP || TbType == TB_COND_JMP_IND) {
             llvm::sys::TimeValue timeStamp = llvm::sys::TimeValue::now();
             std::stringstream ss;
+            uint64_t instrPc = desc->descriptor.ToRelative(pc);
+            uint64_t destPc = desc->descriptor.ToRelative(state->getPc());
+            
             ss << "insert into BranchCoverage values(" 
                    << timeStamp.msec() << ",'" <<
                    desc->id << "'," <<
-                   pc << "," << state->getPc() << "," <<
+                   instrPc << "," << destPc << "," <<
                    state->getPid() << ");";
             s2e()->getDb()->executeQuery(ss.str().c_str());
-/*
-                << desc->id <<
-                " 0x" << std::hex << pc << " 0x" << state->getPc()  
-            << " 0x" << state->getPid() << std::endl ;
-            */
+
     }
 }
 
