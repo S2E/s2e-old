@@ -337,6 +337,7 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
     }
 }
 
+/*
 void S2EExecutor::copyOutConcretes() {
   for (MemoryMap::iterator it = nonUserSpecifiedObjects.begin(),
             ie = nonUserSpecifiedObjects.end(); it != ie; ++it) {
@@ -371,6 +372,7 @@ bool S2EExecutor::copyInConcretes() {
 
   return true;
 }
+*/
 
 
 inline void S2EExecutor::executeTBFunction(
