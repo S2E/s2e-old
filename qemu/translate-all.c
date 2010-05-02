@@ -148,7 +148,8 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     }
 
 #ifdef CONFIG_LLVM
-    if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)) {
+    if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)
+            && tb->llvm_tc_ptr) {
         ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
         qemu_log("OUT (LLVM ASM) [size=%ld] (%s)\n", size,
                     tcg_llvm_get_func_name(tb));
@@ -238,3 +239,29 @@ int cpu_restore_state(TranslationBlock *tb,
 #endif
     return 0;
 }
+
+#ifdef CONFIG_S2E
+
+/** Generates LLVM code for already translated TB */
+int cpu_gen_llvm(CPUState *env, TranslationBlock *tb)
+{
+    TCGContext *s = &tcg_ctx;
+    assert(tb->llvm_function == NULL);
+
+    tcg_func_start(s);
+    gen_intermediate_code_pc(env, tb);
+    tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
+
+    if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM) && tb->llvm_tc_ptr) {
+        ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
+        qemu_log("OUT (LLVM ASM) [size=%ld] (%s)\n", size,
+                    tcg_llvm_get_func_name(tb));
+        log_disas((void*) tb->llvm_tc_ptr, size);
+        qemu_log("\n");
+        qemu_log_flush();
+    }
+
+    return 0;
+}
+
+#endif

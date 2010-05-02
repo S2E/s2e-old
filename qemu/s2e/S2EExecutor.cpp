@@ -2,6 +2,7 @@ extern "C" {
 #include <qemu-common.h>
 #include <cpu-all.h>
 #include <tcg-llvm.h>
+#include <exec-all.h>
 }
 
 #include "S2EExecutor.h"
@@ -396,6 +397,12 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
     /* Update state */
     state->cpuState = (CPUX86State*) saved_AREGs[0];
+
+    /* Generate LLVM code if nesessary */
+    if(!tb->llvm_function) {
+        cpu_gen_llvm(state->cpuState, tb);
+        assert(tb->llvm_function);
+    }
 
     if (!state->addressSpace.copyInConcretes()) {
         std::cerr << "external modified read-only object" << std::endl;
