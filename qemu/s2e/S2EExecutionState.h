@@ -23,6 +23,8 @@ class S2EExecutionState : public klee::ExecutionState
 protected:
     PluginStateMap m_PluginState;
 
+    ExecutionState* clone();
+
 public:
     CPUX86State* cpuState;
 

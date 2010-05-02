@@ -17,6 +17,11 @@ namespace s2e {
 
 using namespace klee;
 
+ExecutionState* S2EExecutionState::clone()
+{
+    return new S2EExecutionState(*this);
+}
+
 //Get the program counter in the current state.
 //Allows plugins to retrieve it in a hardware-independent manner.
 uint64_t S2EExecutionState::getPc() const
