@@ -441,7 +441,7 @@ void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &e
     exclude.clear();
     
     TRACE("Reading include ranges for %s...\n", id.c_str());
-    includeKey << "codeSelector." << id << ".includeRange";
+    includeKey << id << ".includeRange";
     
     std::string fk = cfg->getString(includeKey.str(), "", &ok);
     if (ok) {
@@ -466,7 +466,7 @@ void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &e
     }
 
     TRACE("Reading exclude ranges for %s...\n", id.c_str());
-    excludeKey << "codeSelector." << id << ".excludeRange";
+    excludeKey << id << ".excludeRange";
     ok = getRanges(excludeKey.str(), exclude);
     if (!ok) {
         printf("No exclude ranges or invalid ranges specified for %s\n", id.c_str());

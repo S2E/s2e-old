@@ -475,9 +475,13 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
                 /* The next should be atomic with respect to signals */
                 /* XXX: what else should we block ? */
+#ifdef _WIN32
+
+#else
                 sigset_t set, oldset;
                 sigfillset(&set);
                 sigprocmask(SIG_BLOCK, &set, &oldset);
+#endif
 
                 TranslationBlock* next_tb =
                         tb->s2e_tb_next[tcg_llvm_runtime.goto_tb];
@@ -497,13 +501,20 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
                     /* assert that blocking works */
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
 
+#ifdef _WIN32      
+#else
                     sigprocmask(SIG_SETMASK, &oldset, NULL);
+#endif
+
                     break;
                 }
 
                 /* the block was unchained by signal handler */
                 tcg_llvm_runtime.goto_tb = 0xff;
+#ifdef _WIN32
+#else
                 sigprocmask(SIG_SETMASK, &oldset, NULL);
+#endif
             }
         }
 
