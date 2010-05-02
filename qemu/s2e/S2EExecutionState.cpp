@@ -47,7 +47,18 @@ uint64_t S2EExecutionState::getPid() const
 /* XXX: this function belongs to S2EExecutor */
 bool S2EExecutionState::readMemoryConcrete(uint64_t address, void *dest, char size)
 {
-    return cpu_memory_rw_debug_se(address, (uint8_t*)dest, size, 0 ) == 0;
+    uint8_t *d = (uint8_t*)dest;
+    while (size>0) {
+        ref<Expr> v = readMemory(address, Expr::Int8, false);
+        if (v.isNull() || !isa<ConstantExpr>(v)) {
+            return false;
+        }
+        *d = (uint8_t)cast<ConstantExpr>(v)->getZExtValue(8);
+        size--;
+        d++;
+        address++;
+    }
+    return true;
 }
 
 uint64_t S2EExecutionState::getPhysicalAddress(uint64_t virtualAddress) const
@@ -299,7 +310,7 @@ bool S2EExecutionState::writeMemory64(uint64_t address,
 }
 
 ref<Expr> S2EExecutionState::createSymbolicValue(
-            Expr::Width width, const std::string& name) const
+            Expr::Width width, const std::string& name)
 {
     static int lastId = 0;
 

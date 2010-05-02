@@ -58,8 +58,10 @@ void CodeSelector::initialize()
     keyList = cfg->getListKeys(getConfigKey());
     foreach2(it, keyList.begin(), keyList.end()) {
         CodeSelDesc *csd = new CodeSelDesc(s2e());
-
-        if (!csd->initialize(*it)) {
+        
+        std::stringstream sk;
+        sk << getConfigKey() << "." << *it;
+        if (!csd->initialize(sk.str())) {
             printf("Could not initialize code descriptor for %s\n", (*it).c_str());
             exit(-1);
         }
@@ -444,6 +446,7 @@ void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &e
     std::string fk = cfg->getString(includeKey.str(), "", &ok);
     if (ok) {
         if (fk.compare("full") == 0) {
+            printf("doing full symbex on %s\n", id.c_str());
             include.push_back(Range(nativeBase, nativeBase+size-1));
         }else {
             printf("Invalid range %s. Must be 'full' or"
@@ -530,7 +533,7 @@ bool CodeSelDesc::initialize(const std::string &key)
     m_Id = key;
 
      //Fetch the module id
-     ss << "codeSelector." << key << ".module";
+     ss << key << ".module";
      m_ModuleId =  cfg->getString(ss.str(), "", &ok);
      if (!ok) {
          printf("%s does not exist!\n", ss.str().c_str());
@@ -539,7 +542,7 @@ bool CodeSelDesc::initialize(const std::string &key)
 
      //Retrive the context
      ss.str("");
-     ss << "codeSelector." << key << ".context";
+     ss << key << ".context";
      m_ContextId =  cfg->getString(ss.str(), "", &ok);
      if (!ok) {
          printf("%s not configured!\n", ss.str().c_str());

@@ -6,11 +6,18 @@
 #include <s2e/S2EExecutionState.h>
 
 #include "DataSelector.h"
-#include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 
 namespace s2e {
 namespace plugins {
+
+struct WindowsServiceCfg
+{
+    std::string serviceId;
+    std::string moduleId;
+    bool makeParamCountSymbolic;
+    bool makeParamsSymbolic;
+};
 
 class WindowsService : public DataSelector
 {
@@ -22,16 +29,21 @@ public:
     void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState *state, 
         const ModuleExecutionDesc*desc,
         TranslationBlock *tb, uint64_t pc);
-    void onExecution(S2EExecutionState* state, uint64_t pc);
+    
+    void onExecution(S2EExecutionState *state, uint64_t pc,
+                                 const ModuleExecutionDesc* desc);
 
 private:
+    //Handle only one service for now
+    WindowsServiceCfg m_ServiceCfg;
+
+    WindowsMonitor *m_WindowsMonitor;
     std::set<std::string> m_Modules;
     sigc::connection m_TbConnection;
 
-    bool initSection(const std::string &cfgKey);
+    virtual bool initSection(const std::string &cfgKey, const std::string &svcId);
     
-    ModuleExecutionDetector *m_ExecDetector;
-    WindowsMonitor *m_WindowsMonitor;
+    
 };
 
 } // namespace plugins

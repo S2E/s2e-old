@@ -13,42 +13,17 @@ namespace plugins {
 S2E_DEFINE_PLUGIN(WindowsService, "Selecting symbolic data for Windows services", 
                   "WindowsService", "WindowsMonitor", );
 
+//WindowsService-specific initialization here
 void WindowsService::initialize()
 {
-    //Check that the interceptor is there
-    m_ExecDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    assert(m_ExecDetector);
-
     m_WindowsMonitor = (WindowsMonitor*)s2e()->getPlugin("WindowsMonitor");
     assert(m_WindowsMonitor);
 
-    std::vector<std::string> Sections;
-    Sections = s2e()->getConfig()->getListKeys(getConfigKey());
-    bool noErrors = true;
-
-    if (Sections.size() > 1) {
-        s2e()->getWarningsStream() << "Only one service can be handled currently..." << std::endl;
-        exit(-1);
-    }
-
-    foreach2(it, Sections.begin(), Sections.end()) {
-        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
-        std::stringstream sk;
-        sk << getConfigKey() << "." << *it;
-        if (!initSection(sk.str())) {
-            noErrors = false;
-        }
-    }
-
-    if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the WindowsService sections"
-            <<std::endl;
-        exit(-1);
-    }
-    
+    //Read the cfg file and call init sections
+    DataSelector::initialize();
 }
 
-bool WindowsService::initSection(const std::string &cfgKey)
+bool WindowsService::initSection(const std::string &cfgKey, const std::string &svcId)
 {
     bool ok;
     std::string moduleId = s2e()->getConfig()->getString(cfgKey + ".module", "", &ok);
@@ -61,6 +36,11 @@ bool WindowsService::initSection(const std::string &cfgKey)
         s2e()->getWarningsStream() << moduleId << " is not configured in the execution detector!" << std::endl;   
         return false;
     }
+
+    m_ServiceCfg.serviceId = svcId;
+    m_ServiceCfg.moduleId = moduleId;
+    m_ServiceCfg.makeParamsSymbolic = s2e()->getConfig()->getBool(cfgKey + ".makeParamsSymbolic");
+    m_ServiceCfg.makeParamCountSymbolic = s2e()->getConfig()->getBool(cfgKey + ".makeParamCountSymbolic");
 
     m_Modules.insert(moduleId);
 
@@ -111,8 +91,10 @@ void WindowsService::onTranslateBlockStart(ExecutionSignal *signal,
     s2e()->getMessagesStream() << 
             std::hex << "Found ServiceMain for "<< desc->id << " "  << pc << " " << (*eit).second << std::endl;
 
+    
     signal->connect(
-        sigc::mem_fun(*this, &WindowsService::onExecution)
+        sigc::bind(sigc::mem_fun(*this, &WindowsService::onExecution),
+                   (const ModuleExecutionDesc*) desc)
     );
 
     //Must handle multiple services for generality.
@@ -121,12 +103,14 @@ void WindowsService::onTranslateBlockStart(ExecutionSignal *signal,
 
 }
 
-void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc)
+void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc,
+                                 const ModuleExecutionDesc* desc)
 {
     //Parse the arguments here
     uint32_t paramCount;
     uint32_t paramsArray;
     
+    s2e()->getMessagesStream() << "WindowsService entered" << std::endl;
     //XXX: hard-coded pointer size assumptions
     SREAD(state, state->getSp()+sizeof(uint32_t), paramCount);
     SREAD(state, state->getSp()+2*sizeof(uint32_t), paramsArray);
@@ -143,6 +127,17 @@ void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc)
         }
         s2e()->getMessagesStream() << "WindowsService param" << i << " - " <<
             param << std::endl;
+
+        if (m_ServiceCfg.makeParamsSymbolic) {
+            makeUnicodeStringSymbolic(state, paramPtr);
+        }
+    }
+
+    //Make number of params symbolic
+    if (m_ServiceCfg.makeParamCountSymbolic) {
+        klee::ref<klee::Expr> v = getUpperBound(paramCount, klee::Expr::Int32);
+        s2e()->getMessagesStream() << "ParamCount is now " << v << std::endl; 
+        state->writeMemory(state->getSp()+sizeof(uint32_t), v);
     }
 }
 
