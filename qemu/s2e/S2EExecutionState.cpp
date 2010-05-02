@@ -7,6 +7,7 @@ int cpu_memory_rw_debug_se(uint64_t addr, uint8_t *buf, int len, int is_write);
 }
 
 #include "S2EExecutionState.h"
+#include "S2EDeviceState.h"
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
@@ -19,8 +20,11 @@ using namespace klee;
 
 ExecutionState* S2EExecutionState::clone()
 {
-    return new S2EExecutionState(*this);
+    S2EExecutionState *ret = new S2EExecutionState(*this);
+    ret->m_deviceState = m_deviceState->clone();
+    return ret;
 }
+
 
 //Get the program counter in the current state.
 //Allows plugins to retrieve it in a hardware-independent manner.

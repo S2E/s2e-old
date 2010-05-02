@@ -12,6 +12,7 @@ namespace s2e {
 
 class Plugin;
 class PluginState;
+class S2EDeviceState;
 
 //typedef std::tr1::unordered_map<const Plugin*, PluginState*> PluginStateMap;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
@@ -28,15 +29,24 @@ protected:
 
     ExecutionState* clone();
 
+    S2EDeviceState *m_deviceState;
 public:
     CPUX86State* cpuState;
+    
 
 public:
     S2EExecutionState(klee::KFunction *kf)
-        : klee::ExecutionState(kf), m_symbexEnabled(false), cpuState(NULL) {}
+        : klee::ExecutionState(kf), m_symbexEnabled(false),
+    m_deviceState(NULL), cpuState(NULL){}
+
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);
     CPUX86State* getCpuState() const { return cpuState; }
+    
+    S2EDeviceState *getDeviceState() const {
+        return m_deviceState;
+    }
+
     TranslationBlock *getTb() const;
 
     PluginState* getPluginState(const Plugin *plugin, PluginStateFactory factory) {

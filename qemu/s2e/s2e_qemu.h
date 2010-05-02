@@ -152,6 +152,14 @@ void s2e_qemu_cleanup_tb_exec(
         struct S2EExecutionState* state,
         struct TranslationBlock* tb);
 
+
+/* Called by the load/savevm functions to restore/save the state of the vm */
+void s2e_qemu_put_byte(struct S2EExecutionState *s, int v);
+int s2e_qemu_get_byte(struct S2EExecutionState *s);
+int s2e_qemu_get_buffer(struct S2EExecutionState *s, uint8_t *buf, int size1);
+void s2e_qemu_put_buffer(struct S2EExecutionState *s, const uint8_t *buf, int size);
+
+
 #ifdef __cplusplus
 }
 #endif
