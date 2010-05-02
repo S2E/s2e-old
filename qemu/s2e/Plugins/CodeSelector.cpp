@@ -8,6 +8,7 @@
 
 #include <s2e/S2E.h>
 #include <s2e/Utils.h>
+#include <s2e/S2EExecutor.h>
 
 
 using namespace s2e;
@@ -187,9 +188,9 @@ void CodeSelector::symbexSignal(S2EExecutionState *state, uint64_t pc)
     TRACE("%p\n", plgState->m_CurrentModule);
     if (plgState->m_CurrentModule) {
         if (!plgState->isSymbolic(pc)) {
-            state->disableSymbExec();
+            s2e()->getExecutor()->disableSymbolicExecution(state);
         }else {
-            state->enableSymbExec();
+            s2e()->getExecutor()->enableSymbolicExecution(state);
         }
     }
 }
@@ -209,7 +210,7 @@ void CodeSelector::onModuleTransition(
     //The module was not declared, disable symbexec in it
     if (currentModule == NULL) {
         plgState->m_CurrentModule = NULL;
-        state->disableSymbExec();
+        s2e()->getExecutor()->disableSymbolicExecution(state);
         return;
     }
     TRACE("Activating module...\n");
@@ -219,7 +220,7 @@ void CodeSelector::onModuleTransition(
     const CodeSelDesc *activeDesc = plgState->activateModule(this, currentModule);
     if (!activeDesc) {
         plgState->m_CurrentModule = NULL;
-        state->disableSymbExec();
+        s2e()->getExecutor()->disableSymbolicExecution(state);
         return;
     }
     plgState->m_CurrentModule = currentModule;

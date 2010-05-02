@@ -88,11 +88,24 @@ public:
     void writeRamConcrete(S2EExecutionState *state,
             uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
+    /** Copy concrete values to their proper location, concretizing
+        if necessary (will not touch RAM) */
+    void copyOutConcretes();
+
+    /** Copy concrete values to MemoryObjects */
+    void copyInConcretes();
+
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
 
     void cleanupTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb);
+
+    /** Enable symbolic execution for a given state */
+    void enableSymbolicExecution(S2EExecutionState* state);
+
+    /** Disable symbolic execution for a given state */
+    void disableSymbolicExecution(S2EExecutionState* state);
 };
 
 } // namespace s2e

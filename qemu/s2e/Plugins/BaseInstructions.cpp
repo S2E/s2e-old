@@ -1,5 +1,6 @@
 #include "BaseInstructions.h"
 #include <s2e/S2E.h>
+#include <s2e/S2EExecutor.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 
@@ -20,8 +21,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
         uint64_t opcode)
 {
     switch(opcode & 0xFF) {
-        case 1: state->enableSymbExec(); break;
-        case 2: state->disableSymbExec(); break;
+        case 1: s2e()->getExecutor()->enableSymbolicExecution(state); break;
+        case 2: s2e()->getExecutor()->disableSymbolicExecution(state); break;
         case 3:
             {
                 opcode >>= 8;

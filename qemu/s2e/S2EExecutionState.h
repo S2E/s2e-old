@@ -21,7 +21,10 @@ typedef PluginState* (*PluginStateFactory)();
 class S2EExecutionState : public klee::ExecutionState
 {
 protected:
+    friend class S2EExecutor;
+
     PluginStateMap m_PluginState;
+    bool m_symbexEnabled;
 
     ExecutionState* clone();
 
@@ -30,7 +33,7 @@ public:
 
 public:
     S2EExecutionState(klee::KFunction *kf)
-            : klee::ExecutionState(kf), cpuState(NULL) {}
+        : klee::ExecutionState(kf), m_symbexEnabled(false), cpuState(NULL) {}
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);
     CPUX86State* getCpuState() const { return cpuState; }
@@ -60,9 +63,6 @@ public:
     uint64_t getPc() const;
     uint64_t getPid() const;
     uint64_t getSp() const;
-
-    void disableSymbExec();
-    void enableSymbExec();
 
     /** Virtual address translation (debug mode). Return -1 on failure. */
     uint64_t getPhysicalAddress(uint64_t virtualAddress) const;

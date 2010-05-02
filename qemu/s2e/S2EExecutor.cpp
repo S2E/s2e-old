@@ -336,6 +336,42 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
     }
 }
 
+void S2EExecutor::copyOutConcretes() {
+  for (MemoryMap::iterator it = nonUserSpecifiedObjects.begin(),
+            ie = nonUserSpecifiedObjects.end(); it != ie; ++it) {
+    const MemoryObject *mo = it->first;
+    assert(!mo->isUserSpecified);
+
+    const ObjectState *os = it->second;
+    uint8_t *address = (uint8_t*) (unsigned long) mo->address;
+
+    if (!os->readOnly)
+      memcpy(address, os->concreteStore, mo->size);
+  }
+}
+
+bool S2EExecutor::copyInConcretes() {
+  for (MemoryMap::iterator it = nonUserSpecifiedObjects.begin(),
+            ie = nonUserSpecifiedObjects.end(); it != ie; ++it) {
+    const MemoryObject *mo = it->first;
+    assert(!mo->isUserSpecified);
+
+    const ObjectState *os = it->second;
+    uint8_t *address = (uint8_t*) (unsigned long) mo->address;
+
+    if (os->readOnly) {
+      if (memcmp(address, os->concreteStore, mo->size)!=0)
+        return false;
+    } else {
+      ObjectState *wos = getWriteable(mo, os);
+      memcpy(wos->concreteStore, address, mo->size);
+    }
+  }
+
+  return true;
+}
+
+
 inline void S2EExecutor::executeTBFunction(
         S2EExecutionState *state,
         TranslationBlock *tb,
@@ -490,6 +526,33 @@ inline void S2EExecutor::cleanupTranslationBlock(
 
     state->prevPC = 0;
     state->pc = m_dummyMain->instructions;
+}
+
+void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
+{
+    state->m_symbexEnabled = true;
+    m_s2e->getMessagesStream() << "Enabled symbex for state 0x" << state
+            << " at pc = 0x" << (void*) state->getPc() << std::endl;
+
+    if(g_s2e_state == state) {
+        execute_llvm = 1;
+    }
+
+    // XXX TODO: retranslate current TB
+}
+
+void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
+{
+    state->m_symbexEnabled = false;
+    m_s2e->getMessagesStream() << "Disabled symbex for state 0x" << state
+            << " at pc = 0x" << (void*) state->getPc() << std::endl;
+
+    if(g_s2e_state == state) {
+        execute_llvm = 0;
+    }
+
+    // TODO: switch to concrete execution immediately
+    // (not important - but can at least unlink next tb)
 }
 
 } // namespace s2e

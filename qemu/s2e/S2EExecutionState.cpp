@@ -44,17 +44,7 @@ uint64_t S2EExecutionState::getPid() const
     return cpuState->cr[3];
 }
 
-void S2EExecutionState::disableSymbExec() 
-{
-    printf("DISABLE symbexec at %#"PRIx64"\n", getPc());
-}
-
-void S2EExecutionState::enableSymbExec()
-{
-    printf("ENABLE symbexec at %#"PRIx64"\n", getPc());
-}
-
-
+/* XXX: this function belongs to S2EExecutor */
 bool S2EExecutionState::readMemoryConcrete(uint64_t address, void *dest, char size)
 {
     return cpu_memory_rw_debug_se(address, (uint8_t*)dest, size, 0 ) == 0;
