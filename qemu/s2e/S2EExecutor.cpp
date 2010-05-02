@@ -8,6 +8,7 @@ extern "C" {
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
+#include <s2e/Plugins/CorePlugin.h>
 
 #include <s2e/s2e_qemu.h>
 
@@ -599,12 +600,14 @@ int s2e_is_ram_shared_concrete(S2E *s2e, S2EExecutionState *state,
 void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,
                         uint64_t host_address, uint8_t* buf, uint64_t size)
 {
+    s2e->getCorePlugin()->onReadRam.emit(state, host_address, buf, size);
     s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
 }
 
 void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
                     uint64_t host_address, const uint8_t* buf, uint64_t size)
 {
+    s2e->getCorePlugin()->onWriteRam.emit(state, host_address, buf, size);
     s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
 }
 

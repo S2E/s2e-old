@@ -63,6 +63,15 @@ public:
             uint64_t  /* opcode */
             >
             onCustomInstruction;
+
+    /** Signal that is emitted on each memory access */
+    sigc::signal<void, S2EExecutionState*, uint64_t /* hostAddress */,
+            uint8_t* /* buf */, uint64_t /* size */>
+            onReadRam;
+
+    sigc::signal<void, S2EExecutionState*, uint64_t /* hostAddress */,
+            const uint8_t* /* buf */, uint64_t /* size */>
+            onWriteRam;
 };
 
 struct S2ETranslationBlock
