@@ -3,44 +3,65 @@
 #define _S2E_DEVICE_STATE_H_
 
 #include <vector>
+#include <map>
+#include <stdint.h>
+
+#include "s2e_block.h"
 
 namespace s2e {
 
+class S2EExecutionState;
+
 class S2EDeviceState {
 private:
-  static std::vector<void *> s_Devices;
-  static bool s_DevicesInited;
+    typedef std::map<int64_t, uint8_t *> SectorMap;
+    typedef std::map<BlockDriverState *, SectorMap> BlockDeviceToSectorMap;
 
-  unsigned char *m_State;
-  unsigned int m_StateSize;
-  unsigned int m_Offset;
+    static std::vector<void *> s_Devices;
+    static bool s_DevicesInited;
 
-  static unsigned int s_PreferedStateSize;
+    unsigned char *m_State;
+    unsigned int m_StateSize;
+    unsigned int m_Offset;
 
+    static unsigned int s_PreferedStateSize;
 
-  void AllocateBuffer(unsigned int Sz);
-  void ShrinkBuffer();
+    S2EDeviceState *m_Parent;
+    BlockDeviceToSectorMap m_BlockDevices;
+    bool  m_canTransferSector;
+    
+
+    void AllocateBuffer(unsigned int Sz);
+    void ShrinkBuffer();
+
 
 public:
 
-  S2EDeviceState();
-  S2EDeviceState *clone();
-  ~S2EDeviceState();
+    bool canTransferSector() const;
 
-  void SaveDeviceState();
-  void RestoreDeviceState();
+    S2EDeviceState();
+    S2EDeviceState *clone();
+    ~S2EDeviceState();
 
-  static void ScheduleInterrupt(bool set);
-  static void SchedulePicInterrupt(bool set);
+    //From QEMU to KLEE
+    void SaveDeviceState();
+    
+    //From KLEE to QEMU
+    void RestoreDeviceState();
 
-  void PutByte(int v);
-  void PutBuffer(const uint8_t *buf, int size1);
-  int GetByte();
-  int GetBuffer(uint8_t *buf, int size1);
+    void PutByte(int v);
+    void PutBuffer(const uint8_t *buf, int size1);
+    int GetByte();
+    int GetBuffer(uint8_t *buf, int size1);
 
-  void initDeviceState();
-  void restoreDeviceState();
-  void saveDeviceState();
+    int writeSector(struct BlockDriverState *bs, int64_t sector, const uint8_t *buf, int nb_sectors);
+    int readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors,
+        s2e_raw_read fb);
+
+
+    void initDeviceState();
+    void restoreDeviceState();
+    void saveDeviceState();
 };
 
 }

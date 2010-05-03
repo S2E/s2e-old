@@ -2265,7 +2265,7 @@ void vga_common_init(VGACommonState *s, int vga_ram_size)
 
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state, -1, vga_ram_size,
-            (uint64_t) qemu_get_ram_ptr(s->vram_offset), 1);
+            (uint64_t) qemu_get_ram_ptr(s->vram_offset), 1, 0);
 #endif
 
     s->vram_ptr = qemu_get_ram_ptr(s->vram_offset);

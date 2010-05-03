@@ -21,12 +21,15 @@ struct S2ETranslationBlock;
 struct TranslationBlock;
 struct TCGLLVMContext;
 
+
 // XXX
 struct CPUX86State;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
 
 /* This should never be accessed from C++ code */
 extern struct S2E* g_s2e;
@@ -122,7 +125,8 @@ void s2e_register_cpu(struct S2E* s2e,
 void s2e_register_ram(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
                       uint64_t start_address, uint64_t size,
-                      uint64_t host_address, int is_shared_concrete);
+                      uint64_t host_address, int is_shared_concrete,
+                      int save_on_context_switch);
 
 int s2e_is_ram_registered(struct S2E* s2e,
                           struct S2EExecutionState *state,
@@ -154,7 +158,6 @@ void s2e_qemu_cleanup_tb_exec(
 
 
 /* Called by the load/savevm functions to restore/save the state of the vm */
-
 extern int s2e_dev_snapshot_enable;        
 void s2e_init_device_state(struct S2EExecutionState *s);
 void *s2e_qemu_get_first_se(void);

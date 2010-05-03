@@ -1,11 +1,14 @@
 extern "C" {
 #include <qemu-common.h>
+#include <block.h>
 
     void vm_stop(int reason);
     void vm_start(void);
 
     int s2e_dev_snapshot_enable = 0;
 }
+
+#include "s2e_block.h"
 
 #include <iostream>
 #include <s2e/Utils.h>
@@ -29,13 +32,15 @@ bool S2EDeviceState::s_DevicesInited=false;
 S2EDeviceState* S2EDeviceState::clone()
 {
     S2EDeviceState* ret = new S2EDeviceState(*this);
+    ret->m_Parent = this;
     ret->saveDeviceState();
     return ret;
 }
 
 S2EDeviceState::S2EDeviceState()
 {
-
+    m_Parent = NULL;
+    m_canTransferSector = true;
 }
 
 void S2EDeviceState::initDeviceState()
@@ -70,8 +75,12 @@ void S2EDeviceState::initDeviceState()
         s_DevicesInited = true;
     }
 
-    saveDeviceState();
-    restoreDeviceState();
+    __s2e_bdrv_read = s2e_bdrv_read;
+    __s2e_bdrv_write = s2e_bdrv_write;
+    g_block_s2e_state = &g_s2e_state;
+
+    //saveDeviceState();
+    //restoreDeviceState();
 }
 
 void S2EDeviceState::saveDeviceState()
@@ -119,6 +128,11 @@ void S2EDeviceState::restoreDeviceState()
     vm_start();
 }
 
+
+bool S2EDeviceState::canTransferSector() const
+{
+    return m_canTransferSector;
+}
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -191,6 +205,63 @@ int S2EDeviceState::GetBuffer(uint8_t *buf, int size1)
     return size1;
 }
 
+/*****************************************************************************/
+/*****************************************************************************/
+/*****************************************************************************/
+
+int S2EDeviceState::writeSector(struct BlockDriverState *bs, int64_t sector, const uint8_t *buf, int nb_sectors)
+{
+    SectorMap &dev = m_BlockDevices[bs];
+    //DPRINTF("writeSector %#"PRIx64" count=%d\n", sector, nb_sectors);
+    for (int64_t i = sector; i<sector+nb_sectors; i++) {
+        SectorMap::iterator it = dev.find(i);
+        uint8_t *secbuf;
+        
+        if (it == dev.end()) {
+            secbuf = new uint8_t[512];
+            dev[i] = secbuf;            
+        }else {
+            secbuf = (*it).second;
+        }
+
+        memcpy(secbuf, buf, 512);
+        buf+=512;
+    }
+    return 0;
+}
+
+
+int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors,
+                               s2e_raw_read fb)
+{
+    bool hasRead = false;
+    //DPRINTF("readSector %#"PRIx64" count=%d\n", sector, nb_sectors);
+    for (int64_t i = sector; i<sector+nb_sectors; i++) {
+        for (S2EDeviceState *curState = this; curState; curState = curState->m_Parent) {
+            SectorMap &dev = curState->m_BlockDevices[bs];
+            SectorMap::iterator it = dev.find(i);
+            
+            if (it != dev.end()) {
+                memcpy(buf, (*it).second, 512);
+                buf+=512;
+                hasRead = true;
+                break;
+            }
+        }
+        //Did not find any written sector, read from the original disk
+        if (!hasRead) {
+            m_canTransferSector = false;
+            int ret = fb(bs, i, buf, 1);
+            m_canTransferSector = true;
+            if(ret < 0) {
+                return ret;
+            }
+            buf+=512;
+            hasRead = false;
+        }
+    }
+    return 0;
+}
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -226,6 +297,68 @@ void s2e_qemu_put_buffer(S2EExecutionState *s, const uint8_t *buf, int size)
 void s2e_init_device_state(S2EExecutionState *s)
 {
     s->getDeviceState()->initDeviceState();
+}
+
+
+int s2e_bdrv_read(S2EExecutionState *s,
+                  BlockDriverState *bs, int64_t sector_num,
+                  uint8_t *buf, int nb_sectors, int *fallback,
+                  s2e_raw_read fb)
+{
+    S2EDeviceState *devState = s->getDeviceState();
+    if (devState->canTransferSector()) {
+        *fallback = 0;
+        return devState->readSector(bs, sector_num, buf, nb_sectors, fb);
+    }else {
+        *fallback = 1;
+        return 0;
+    }
+}
+
+int s2e_bdrv_write(S2EExecutionState *s,
+                   BlockDriverState *bs, int64_t sector_num,
+                   const uint8_t *buf, int nb_sectors
+                   )
+{
+    S2EDeviceState *devState = s->getDeviceState();
+    
+    return devState->writeSector(bs, sector_num, buf, nb_sectors);
+
+}
+
+BlockDriverAIOCB *s2e_bdrv_aio_read(S2EExecutionState *s,
+                                    BlockDriverState *bs, int64_t sector_num,
+                                    uint8_t *buf, int nb_sectors,
+                                    BlockDriverCompletionFunc *cb, void *opaque)
+{
+#if 0
+    int ret;
+    S2EDeviceState *devState = s->getDeviceState();
+    
+    ret = devState->readSector(bs, sector_num, buf, nb_sectors);
+    cb(opaque, ret);
+#endif
+    return NULL;
+}
+
+BlockDriverAIOCB *s2e_bdrv_aio_write(S2EExecutionState *s,
+                                     BlockDriverState *bs, int64_t sector_num,
+                                     const uint8_t *buf, int nb_sectors,
+                                     BlockDriverCompletionFunc *cb, void *opaque)
+{
+#if 0 
+    int ret;
+    S2EDeviceState *devState = s->getDeviceState();
+
+    ret = devState->writeSector(bs, sector_num, (uint8_t*)buf, nb_sectors);
+    cb(opaque, ret);
+#endif
+    return NULL;
+}
+
+void s2e_bdrv_aio_cancel(BlockDriverAIOCB *acb)
+{
+
 }
 
 }

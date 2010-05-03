@@ -53,6 +53,8 @@ protected:
     void executeTBFunction(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
 
+    std::vector<klee::MemoryObject*> m_saveOnContextSwitch;
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
@@ -68,7 +70,8 @@ public:
     void registerCpu(S2EExecutionState *initialState, CPUX86State *cpuEnv);
     void registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
-                        uint64_t hostAddress, bool isStateLocal);
+                        uint64_t hostAddress, bool isSharedConcrete,
+                        bool saveOnContextSwitch=true);
 
     /** Return true if hostAddr is registered as a RAM with KLEE */
     bool isRamRegistered(S2EExecutionState *state, uint64_t hostAddress);
@@ -103,6 +106,10 @@ public:
 
     /** Disable symbolic execution for a given state */
     void disableSymbolicExecution(S2EExecutionState* state);
+
+    /** Context switch-related function **/
+    void synchronizeMemoryObjects(S2EExecutionState *state,
+                                           bool fromNativeToKlee);
 };
 
 } // namespace s2e

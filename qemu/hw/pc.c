@@ -1034,7 +1034,7 @@ static void pc_init1(ram_addr_t ram_size,
 
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state, 0, 0xa0000,
-                        (uint64_t) qemu_get_ram_ptr(ram_addr), 0);
+                        (uint64_t) qemu_get_ram_ptr(ram_addr), 0, 0);
 #endif
 
     /* Allocate, even though we won't register, so we don't break the
@@ -1045,7 +1045,7 @@ static void pc_init1(ram_addr_t ram_size,
 
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state, 0xa0000, 0x100000 - 0xa0000,
-                        (uint64_t) qemu_get_ram_ptr(ram_addr), 1);
+                        (uint64_t) qemu_get_ram_ptr(ram_addr), 1, 0);
 #endif
 
     ram_addr = qemu_ram_alloc(below_4g_mem_size - 0x100000);
@@ -1056,7 +1056,7 @@ static void pc_init1(ram_addr_t ram_size,
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state,
                   0x100000, below_4g_mem_size - 0x100000,
-                  (uint64_t) qemu_get_ram_ptr(ram_addr), 0);
+                  (uint64_t) qemu_get_ram_ptr(ram_addr), 0, 0);
 #endif
 
     /* above 4giga memory allocation */
@@ -1072,7 +1072,7 @@ static void pc_init1(ram_addr_t ram_size,
 #ifdef CONFIG_S2E
         s2e_register_ram(g_s2e, g_s2e_state,
                   0x100000000ULL, above_4g_mem_size,
-                  (uint64_t) qemu_get_ram_ptr(ram_addr), 0);
+                  (uint64_t) qemu_get_ram_ptr(ram_addr), 0, 0);
 #endif
 
 #endif
@@ -1126,10 +1126,10 @@ static void pc_init1(ram_addr_t ram_size,
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state,
             -1, bios_size,
-            (uint64_t) qemu_get_ram_ptr(bios_offset), 1);
+            (uint64_t) qemu_get_ram_ptr(bios_offset), 1, 0);
     s2e_register_ram(g_s2e, g_s2e_state,
             PC_ROM_MIN_VGA, PC_ROM_SIZE,
-            (uint64_t) qemu_get_ram_ptr(option_rom_offset), 1);
+            (uint64_t) qemu_get_ram_ptr(option_rom_offset), 1, 0);
 #endif
 
     if (linux_boot) {

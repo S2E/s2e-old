@@ -230,8 +230,10 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
 
 void S2EExecutor::registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
-                        uint64_t hostAddress, bool isSharedConcrete)
+                        uint64_t hostAddress, bool isSharedConcrete,
+                        bool saveOnContextSwitch)
 {
+    assert(isSharedConcrete || !saveOnContextSwitch);
     assert(startAddress == (uint64_t) -1 ||
            (startAddress & ~TARGET_PAGE_MASK) == 0);
     assert((size & ~TARGET_PAGE_MASK) == 0);
@@ -240,13 +242,17 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
     std::cout << std::hex
               << "Adding memory block (startAddr = 0x" << startAddress
               << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
-              << ")" << std::dec << std::endl;
+              << ", isSharedConcrete=" << isSharedConcrete << ")" << std::dec << std::endl;
 
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += TARGET_PAGE_SIZE) {
-        addExternalObject(
+        MemoryObject *mo = addExternalObject(
                 *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
+
+        if (isSharedConcrete && saveOnContextSwitch) {
+            m_saveOnContextSwitch.push_back(mo);
+        }
     }
 
     if(!isSharedConcrete) {
@@ -566,6 +572,27 @@ void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
     // (not important - but can at least unlink next tb)
 }
 
+
+void S2EExecutor::synchronizeMemoryObjects(S2EExecutionState *state,
+                                           bool fromNativeToKlee)
+{
+    foreach2(it, m_saveOnContextSwitch.begin(), m_saveOnContextSwitch.end()) {
+        const ObjectState *os = state->addressSpace.findObject(*it);
+        uint8_t *address = (uint8_t*) (uintptr_t) (*it)->address;
+
+        if (fromNativeToKlee) {
+            ObjectState *wos = state->addressSpace.getWriteable(*it, os);
+            uint8_t *store = wos->getConcreteStore();
+            assert(store);
+            memcpy(store, address, (*it)->size);
+        }else {
+            uint8_t *store = os->getConcreteStore();
+            assert(store);
+            memcpy(address, store, (*it)->size);            
+        }
+    }
+}
+
 } // namespace s2e
 
 /******************************/
@@ -589,10 +616,12 @@ void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
 
 void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
         uint64_t start_address, uint64_t size,
-        uint64_t host_address, int is_shared_concrete)
+        uint64_t host_address, int is_shared_concrete,
+        int save_on_context_switch)
 {
     s2e->getExecutor()->registerRam(initial_state,
-        start_address, size, host_address, is_shared_concrete);
+        start_address, size, host_address, is_shared_concrete,
+        save_on_context_switch);
 }
 
 int s2e_is_ram_registered(S2E *s2e, S2EExecutionState *state,
@@ -633,3 +662,4 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
 {
     return s2e->getExecutor()->cleanupTranslationBlock(state, tb);
 }
+

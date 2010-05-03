@@ -1499,7 +1499,7 @@ static int pci_add_option_rom(PCIDevice *pdev)
     ptr = qemu_get_ram_ptr(pdev->rom_offset);
 
 #ifdef CONFIG_S2E
-    s2e_register_ram(g_s2e, g_s2e_state, -1, size, (uint64_t) ptr, 1);
+    s2e_register_ram(g_s2e, g_s2e_state, -1, size, (uint64_t) ptr, 1, 0);
 #endif
 
     load_image(path, ptr);
