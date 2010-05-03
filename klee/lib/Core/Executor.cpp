@@ -2596,7 +2596,7 @@ void Executor::callExternalFunction(ExecutionState &state,
     }
   }
 
-  state.addressSpace.copyOutConcretes();
+  copyOutConcretes(state);
 
   if (!SuppressExternalWarnings) {
     std::ostringstream os;
@@ -2621,7 +2621,7 @@ void Executor::callExternalFunction(ExecutionState &state,
     return;
   }
 
-  if (!state.addressSpace.copyInConcretes()) {
+  if (!copyInConcretes(state)) {
     terminateStateOnError(state, "external modified read-only object",
                           "external.err");
     return;
@@ -3294,4 +3294,14 @@ void Executor::doImpliedValueConcretization(ExecutionState &state,
       }
     }
   }
+}
+
+void Executor::copyOutConcretes(ExecutionState &state)
+{
+    state.addressSpace.copyOutConcretes();
+}
+
+bool Executor::copyInConcretes(ExecutionState &state)
+{
+    return state.addressSpace.copyInConcretes();
 }

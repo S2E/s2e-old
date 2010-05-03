@@ -451,6 +451,9 @@ public:
 
   virtual void getCoveredLines(const ExecutionState &state,
                                std::map<const std::string*, std::set<unsigned> > &res);
+
+  virtual void copyOutConcretes(ExecutionState &state);
+  virtual bool copyInConcretes(ExecutionState &state);
 };
   
 } // End klee namespace

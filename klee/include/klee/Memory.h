@@ -221,6 +221,8 @@ public:
   void write32(unsigned offset, uint32_t value);
   void write64(unsigned offset, uint64_t value);
 
+  bool isAllConcrete() const;
+
 private:
   const UpdateList &getUpdates() const;
 

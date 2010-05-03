@@ -35,6 +35,22 @@ public:
   void set(unsigned idx) { bits[idx/32] |= 1<<(idx&0x1F); }
   void unset(unsigned idx) { bits[idx/32] &= ~(1<<(idx&0x1F)); }
   void set(unsigned idx, bool value) { if (value) set(idx); else unset(idx); }
+
+  bool isAllZeros(unsigned size) {
+    for(unsigned i = 0; i < size/32; ++i)
+      if(bits[i] != 0)
+        return false;
+    uint32_t mask = (1 << (size&0x1F)) - 1;
+    return (bits[size/32] & mask) == 0;
+  }
+
+  bool isAllOnes(unsigned size) {
+    for(unsigned i = 0; i < size/32; ++i)
+      if(bits[i] != 0xffffffff)
+        return false;
+    uint32_t mask = (1 << (size&0x1F)) - 1;
+    return (bits[size/32] & mask) == mask;
+  }
 };
 
 } // End klee namespace
