@@ -1584,7 +1584,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
             // Don't give warning on unique resolution
             if (res.second || !first)
-              klee_warning_once((void*) (unsigned long) addr, 
+              klee_warning_once((void*) (uintptr_t) addr, 
                                 "resolved symbolic function pointer to: %s",
                                 f->getName().data());
 

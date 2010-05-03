@@ -125,11 +125,11 @@ ExternalDispatcher::ExternalDispatcher(ExecutionEngine* engine) {
   }
 
 #ifdef WINDOWS
-  preboundFunctions["getpid"] = (void*) (long) getpid;
-  preboundFunctions["putchar"] = (void*) (long) putchar;
-  preboundFunctions["printf"] = (void*) (long) printf;
-  preboundFunctions["fprintf"] = (void*) (long) fprintf;
-  preboundFunctions["sprintf"] = (void*) (long) sprintf;
+  preboundFunctions["getpid"] = (void*) (uintptr_t) getpid;
+  preboundFunctions["putchar"] = (void*) (uintptr_t) putchar;
+  preboundFunctions["printf"] = (void*) (uintptr_t) printf;
+  preboundFunctions["fprintf"] = (void*) (uintptr_t) fprintf;
+  preboundFunctions["sprintf"] = (void*) (uintptr_t) sprintf;
 #endif
 }
 
