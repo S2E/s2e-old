@@ -38,6 +38,9 @@ public:
   int GetByte();
   int GetBuffer(uint8_t *buf, int size1);
 
+  void initDeviceState();
+  void restoreDeviceState();
+  void saveDeviceState();
 };
 
 }

@@ -35,9 +35,7 @@ public:
     
 
 public:
-    S2EExecutionState(klee::KFunction *kf)
-        : klee::ExecutionState(kf), m_symbexEnabled(false),
-    m_deviceState(NULL), cpuState(NULL){}
+    S2EExecutionState(klee::KFunction *kf);
 
 
     void selectState(CPUX86State* cpuState, klee::KFunction *kf);

@@ -61,7 +61,7 @@ void s2e_tcg_emit_custom_instr(struct S2E* s2e, uint64_t pc, uint64_t val);
 void s2e_on_translate_block_start(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        CPUX86State* cpu_state,
+        struct CPUX86State* cpu_state,
         struct TranslationBlock *tb, uint64_t pc);
 
 /** Called by cpu_gen_code() before the execution would leave the tb.
@@ -69,7 +69,7 @@ void s2e_on_translate_block_start(
 void s2e_on_translate_block_end(
         struct S2E* s2e, 
         struct S2EExecutionState *state, 
-        CPUX86State* cpu_state,
+        struct CPUX86State* cpu_state,
         struct TranslationBlock *tb, uint64_t insPc,
         int staticTarget, uint64_t targetPc);
 
@@ -78,27 +78,27 @@ void s2e_on_translate_block_end(
 void s2e_on_translate_instruction_start(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        CPUX86State* cpu_state,
+        struct CPUX86State* cpu_state,
         struct TranslationBlock* tb, uint64_t pc);
 
 /** Called by cpu_gen_code() after translation of each instruction */
 void s2e_on_translate_instruction_end(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        CPUX86State* cpu_state,
+        struct CPUX86State* cpu_state,
         struct TranslationBlock* tb, uint64_t pc);
 
 void s2e_on_exception(
         struct S2E *s2e,
         struct S2EExecutionState* state,
-        CPUX86State* cpu_state,
+        struct CPUX86State* cpu_state,
         unsigned intNb);
 
 /****************************************/
 /* Functions from S2EExecutionState.cpp */
 
 void s2e_update_state_env(
-        struct S2EExecutionState* state, CPUX86State* env);
+        struct S2EExecutionState* state, struct CPUX86State* env);
 
 /**********************************/
 /* Functions from S2EExecutor.cpp */
@@ -117,7 +117,7 @@ void s2e_initialize_execution(struct S2E *s2e,
 
 void s2e_register_cpu(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
-                      CPUX86State* cpu_env);
+                      struct CPUX86State* cpu_env);
 
 void s2e_register_ram(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
@@ -154,10 +154,20 @@ void s2e_qemu_cleanup_tb_exec(
 
 
 /* Called by the load/savevm functions to restore/save the state of the vm */
+
+extern int s2e_dev_snapshot_enable;        
+void s2e_init_device_state(struct S2EExecutionState *s);
+void *s2e_qemu_get_first_se(void);
+void *s2e_qemu_get_next_se(void *se);
+const char *s2e_qemu_get_se_idstr(void *se);
+void s2e_qemu_save_state(void *se);
+void s2e_qemu_load_state(void *se);
+
 void s2e_qemu_put_byte(struct S2EExecutionState *s, int v);
 int s2e_qemu_get_byte(struct S2EExecutionState *s);
 int s2e_qemu_get_buffer(struct S2EExecutionState *s, uint8_t *buf, int size1);
 void s2e_qemu_put_buffer(struct S2EExecutionState *s, const uint8_t *buf, int size);
+
 
 
 #ifdef __cplusplus

@@ -18,6 +18,12 @@ namespace s2e {
 
 using namespace klee;
 
+
+S2EExecutionState::S2EExecutionState(klee::KFunction *kf) : klee::ExecutionState(kf), m_symbexEnabled(false),
+cpuState(NULL){
+    m_deviceState = new S2EDeviceState();
+}
+
 ExecutionState* S2EExecutionState::clone()
 {
     S2EExecutionState *ret = new S2EExecutionState(*this);

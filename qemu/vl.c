@@ -6124,6 +6124,10 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+#ifdef CONFIG_S2E
+   s2e_init_device_state(g_s2e_state);
+#endif
+
     if (incoming) {
         qemu_start_incoming_migration(incoming);
     } else if (autostart) {
