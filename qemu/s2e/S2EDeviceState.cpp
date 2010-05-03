@@ -75,9 +75,8 @@ void S2EDeviceState::initDeviceState()
         s_DevicesInited = true;
     }
 
-    __s2e_bdrv_read = s2e_bdrv_read;
-    __s2e_bdrv_write = s2e_bdrv_write;
-    g_block_s2e_state = &g_s2e_state;
+    __hook_bdrv_read = s2e_bdrv_read;
+    __hook_bdrv_write = s2e_bdrv_write;
 
     //saveDeviceState();
     //restoreDeviceState();
@@ -300,12 +299,11 @@ void s2e_init_device_state(S2EExecutionState *s)
 }
 
 
-int s2e_bdrv_read(S2EExecutionState *s,
-                  BlockDriverState *bs, int64_t sector_num,
+int s2e_bdrv_read(BlockDriverState *bs, int64_t sector_num,
                   uint8_t *buf, int nb_sectors, int *fallback,
                   s2e_raw_read fb)
 {
-    S2EDeviceState *devState = s->getDeviceState();
+    S2EDeviceState *devState = g_s2e_state->getDeviceState();
     if (devState->canTransferSector()) {
         *fallback = 0;
         return devState->readSector(bs, sector_num, buf, nb_sectors, fb);
@@ -315,12 +313,11 @@ int s2e_bdrv_read(S2EExecutionState *s,
     }
 }
 
-int s2e_bdrv_write(S2EExecutionState *s,
-                   BlockDriverState *bs, int64_t sector_num,
+int s2e_bdrv_write(BlockDriverState *bs, int64_t sector_num,
                    const uint8_t *buf, int nb_sectors
                    )
 {
-    S2EDeviceState *devState = s->getDeviceState();
+    S2EDeviceState *devState = g_s2e_state->getDeviceState();
     
     return devState->writeSector(bs, sector_num, buf, nb_sectors);
 
