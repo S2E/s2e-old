@@ -89,11 +89,8 @@ public:
             uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
     /** Copy concrete values to their proper location, concretizing
-        if necessary (will not touch RAM) */
-    void copyOutConcretes();
-
-    /** Copy concrete values to MemoryObjects */
-    void copyInConcretes();
+        if necessary (will not touch RAM - it is always symbolic) */
+    void copyOutConcretes(klee::ExecutionState &state);
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);

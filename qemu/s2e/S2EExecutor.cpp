@@ -338,43 +338,33 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
     }
 }
 
-/*
-void S2EExecutor::copyOutConcretes() {
-  for (MemoryMap::iterator it = nonUserSpecifiedObjects.begin(),
-            ie = nonUserSpecifiedObjects.end(); it != ie; ++it) {
-    const MemoryObject *mo = it->first;
-    assert(!mo->isUserSpecified);
+void S2EExecutor::copyOutConcretes(ExecutionState &state) {
+    /* Concretize any symbolic values */
+    for (MemoryMap::iterator
+            it = state.addressSpace.nonUserSpecifiedObjects.begin(),
+            ie = state.addressSpace.nonUserSpecifiedObjects.end();
+            it != ie; ++it) {
+        const MemoryObject* mo = it->first;
+        const ObjectState* os = it->second;
 
-    const ObjectState *os = it->second;
-    uint8_t *address = (uint8_t*) (unsigned long) mo->address;
+        assert(!mo->isUserSpecified);
 
-    if (!os->readOnly)
-      memcpy(address, os->concreteStore, mo->size);
-  }
-}
-
-bool S2EExecutor::copyInConcretes() {
-  for (MemoryMap::iterator it = nonUserSpecifiedObjects.begin(),
-            ie = nonUserSpecifiedObjects.end(); it != ie; ++it) {
-    const MemoryObject *mo = it->first;
-    assert(!mo->isUserSpecified);
-
-    const ObjectState *os = it->second;
-    uint8_t *address = (uint8_t*) (unsigned long) mo->address;
-
-    if (os->readOnly) {
-      if (memcmp(address, os->concreteStore, mo->size)!=0)
-        return false;
-    } else {
-      ObjectState *wos = getWriteable(mo, os);
-      memcpy(wos->concreteStore, address, mo->size);
+        if(!os->isAllConcrete()) {
+            /* The object contains symbolic values. We have to
+               concretize it */
+            ObjectState *wos = state.addressSpace.getWriteable(mo, os);
+            for(unsigned i = 0; i < wos->size; ++i) {
+                ref<Expr> e = wos->read8(i);
+                if(!isa<klee::ConstantExpr>(e)) {
+                    uint8_t ch = toConstant(state, e,
+                            "calling external helper")->getZExtValue(8);
+                    wos->write8(i, ch);
+                }
+            }
+        }
     }
-  }
-
-  return true;
+    Executor::copyOutConcretes(state);
 }
-*/
-
 
 inline void S2EExecutor::executeTBFunction(
         S2EExecutionState *state,
@@ -404,7 +394,7 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
         assert(tb->llvm_function);
     }
 
-    if (!state->addressSpace.copyInConcretes()) {
+    if (!copyInConcretes(*state)) {
         std::cerr << "external modified read-only object" << std::endl;
         exit(1);
     }
@@ -530,7 +520,7 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
             getDestCell(*state, state->pc).value;
     assert(isa<klee::ConstantExpr>(resExpr));
 
-    state->addressSpace.copyOutConcretes();
+    copyOutConcretes(*state);
 
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 #endif
