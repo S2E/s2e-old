@@ -4799,6 +4799,30 @@ static float approx_rcp(float a)
 #define SHIFT 3
 #include "softmmu_template.h"
 
+#ifdef CONFIG_S2E
+#undef MMUSUFFIX
+#define MMUSUFFIX _mmu_check
+#define io_read _check_io_read
+#define io_write _check_io_write
+#define _raw _raw_check
+
+#define SHIFT 0
+#include "softmmu_template.h"
+
+#define SHIFT 1
+#include "softmmu_template.h"
+
+#define SHIFT 2
+#include "softmmu_template.h"
+
+#define SHIFT 3
+#include "softmmu_template.h"
+
+#undef _raw
+#undef io_read
+#undef io_write
+#endif
+
 #endif
 
 #if !defined(CONFIG_USER_ONLY)

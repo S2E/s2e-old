@@ -553,12 +553,22 @@ static void tcg_out_brcond(TCGContext *s, int cond,
 
 #include "../../softmmu_defs.h"
 
+#ifndef CONFIG_S2E
 static void *qemu_ld_helpers[4] = {
     __ldb_mmu,
     __ldw_mmu,
     __ldl_mmu,
     __ldq_mmu,
 };
+#else
+static void *qemu_ld_helpers[5] = {
+    __ldb_mmu_check,
+    __ldw_mmu_check,
+    __ldl_mmu_check,
+    __ldq_mmu_check,
+    __ldq_mmu_check,
+};
+#endif
 
 static void *qemu_st_helpers[4] = {
     __stb_mmu,

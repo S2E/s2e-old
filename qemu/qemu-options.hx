@@ -1946,8 +1946,13 @@ DEF("writeconfig", HAS_ARG, QEMU_OPTION_writeconfig,
     "                read/write config file\n")
 
 #if defined(CONFIG_LLVM)
+#if defined(CONFIG_S2E)
+DEF("always-klee", 0, QEMU_OPTION_always_klee,
+    "-always-klee    execute everything using KLEE interpreter\n")
+#else
 DEF("llvm", 0, QEMU_OPTION_execute_llvm,
     "-llvm           execute code using LLVM JIT\n")
+#endif
 DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
     "-generate-llvm  translate code into LLVM but don't execute it\n")
 #endif

@@ -144,6 +144,14 @@ void s2e_write_ram_concrete(struct S2E* s2e,
         struct S2EExecutionState* state,
         uint64_t host_address, const uint8_t* buf, uint64_t size);
 
+/** This function is called when RAM is read by concretely executed
+    generated code. If the memory location turns out to be symbolic,
+    this function will either concretize it of switch to execution
+    in KLEE */
+void s2e_read_ram_concrete_check(struct S2E* s2e,
+        struct S2EExecutionState* state,
+        uint64_t host_address, uint8_t* buf, uint64_t size);
+
 uintptr_t s2e_qemu_tb_exec(
         struct S2E* s2e,
         struct S2EExecutionState* state,
@@ -158,7 +166,7 @@ void s2e_qemu_cleanup_tb_exec(
 
 
 /* Called by the load/savevm functions to restore/save the state of the vm */
-extern int s2e_dev_snapshot_enable;        
+extern int s2e_dev_snapshot_enable;
 void s2e_init_device_state(struct S2EExecutionState *s);
 void *s2e_qemu_get_first_se(void);
 void *s2e_qemu_get_next_se(void *se);

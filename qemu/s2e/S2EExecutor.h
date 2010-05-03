@@ -79,6 +79,12 @@ public:
     /** Return true if hostAddr is registered as a RAM with KLEE */
     bool isRamSharedConcrete(S2EExecutionState *state, uint64_t hostAddress);
 
+    /** Read from physical memory, switching to symbex if
+        the memory contains symbolic value. Note: this
+        function will use longjmp to qemu cpu loop */
+    void readRamConcreteCheck(S2EExecutionState *state,
+            uint64_t hostAddress, uint8_t* buf, uint64_t size);
+
     /** Read from physical memory, concretizing if nessecary.
         Note: this function accepts host address (as returned
         by qemu_get_ram_ptr */

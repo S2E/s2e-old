@@ -285,6 +285,33 @@ bool S2EExecutor::isRamSharedConcrete(S2EExecutionState *state,
     return op.first->isSharedConcrete;
 }
 
+void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
+                    uint64_t hostAddress, uint8_t* buf, uint64_t size)
+{
+    uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
+    if(page_offset + size <= TARGET_PAGE_SIZE) {
+        /* Single-page access */
+
+        uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
+        ObjectPair op = state->addressSpace.findObject(page_addr);
+
+        assert(op.first && op.first->isUserSpecified &&
+               op.first->size == TARGET_PAGE_SIZE);
+
+        for(uint64_t i=0; i<size; ++i) {
+            if(!op.second->readConcrete8(page_offset+i, buf+i)) {
+                execute_s2e_at = state->getPc();
+                cpu_loop_exit();
+            }
+        }
+    } else {
+        /* Access spans multiple pages */
+        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        readRamConcreteCheck(state, hostAddress, buf, size1);
+        readRamConcreteCheck(state, hostAddress + size1, buf + size1, size - size1);
+    }
+}
+
 void S2EExecutor::readRamConcrete(S2EExecutionState *state,
                     uint64_t hostAddress, uint8_t* buf, uint64_t size)
 {
@@ -550,12 +577,6 @@ void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
     state->m_symbexEnabled = true;
     m_s2e->getMessagesStream() << "Enabled symbex for state 0x" << state
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
-
-    if(g_s2e_state == state) {
-        execute_llvm = 1;
-    }
-
-    // XXX TODO: retranslate current TB
 }
 
 void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
@@ -563,13 +584,6 @@ void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
     state->m_symbexEnabled = false;
     m_s2e->getMessagesStream() << "Disabled symbex for state 0x" << state
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
-
-    if(g_s2e_state == state) {
-        execute_llvm = 0;
-    }
-
-    // TODO: switch to concrete execution immediately
-    // (not important - but can at least unlink next tb)
 }
 
 
@@ -636,11 +650,21 @@ int s2e_is_ram_shared_concrete(S2E *s2e, S2EExecutionState *state,
     return s2e->getExecutor()->isRamSharedConcrete(state, host_address);
 }
 
+void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
+                        uint64_t host_address, uint8_t* buf, uint64_t size)
+{
+    if(state->isSymbolicExecutionEnabled())
+        s2e->getExecutor()->readRamConcreteCheck(state, host_address, buf, size);
+    else
+        s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
+    s2e->getCorePlugin()->onReadRam.emit(state, host_address, buf, size);
+}
+
 void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,
                         uint64_t host_address, uint8_t* buf, uint64_t size)
 {
-    s2e->getCorePlugin()->onReadRam.emit(state, host_address, buf, size);
     s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
+    s2e->getCorePlugin()->onReadRam.emit(state, host_address, buf, size);
 }
 
 void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,

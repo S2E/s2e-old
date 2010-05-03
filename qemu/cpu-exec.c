@@ -56,8 +56,13 @@
 
 volatile host_reg_t saved_AREGs[3];
 
+#ifdef CONFIG_LLVM
 int generate_llvm = 0;
 int execute_llvm = 0;
+#ifdef CONFIG_S2E
+uint64_t execute_s2e_at = EXECUTE_S2E_NONE;
+#endif
+#endif
 
 int tb_invalidated_flag;
 
@@ -117,6 +122,9 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
 
 #ifdef CONFIG_LLVM
     assert(execute_llvm == 0);
+#endif
+#ifdef CONFIG_S2E
+    assert(0 && "cpu_exec_nocache should not be called in s2e!");
 #endif
 
     /* Should never happen.
@@ -608,60 +616,76 @@ int cpu_exec(CPUState *env1)
 
                 while (env->current_tb) {
 
+#ifdef CONFIG_S2E
+                    if(execute_s2e_at == env->eip) {
+                        execute_llvm = 1;
+                        execute_s2e_at = EXECUTE_S2E_NONE;
+                        /* If we got interrupted here, the
+                           execute_llvm will be set incorrectly and
+                           execute_s2e_at request will be lost.
+                           But this shouldn't hurt correctness - execute_s2e_at
+                           request will be re-made later */
+                    } else if(execute_s2e_at == EXECUTE_S2E_ALWAYS) {
+                        execute_llvm = 1;
+                    } else {
+                        execute_llvm = 0;
+                    }
+#endif
+
 #ifdef CONFIG_DEBUG_EXEC
 #ifdef CONFIG_LLVM
-                if(execute_llvm) {
-                    qemu_log_mask(CPU_LOG_EXEC,
-                            "Trace [" TARGET_FMT_lx "] %p (LLVM: %s) %s\n",
-                                 tb->pc, tb->llvm_tc_ptr,
-                                 tcg_llvm_get_func_name(tb),
-                                 lookup_symbol(tb->pc));
-                } else {
-                    qemu_log_mask(CPU_LOG_EXEC, "Trace [" TARGET_FMT_lx "] %p %s\n",
-                                 tb->pc, tb->tc_ptr,
-                                 lookup_symbol(tb->pc));
-                }
+                    if(execute_llvm) {
+                        qemu_log_mask(CPU_LOG_EXEC,
+                                "Trace [" TARGET_FMT_lx "] %p (LLVM: %s) %s\n",
+                                     tb->pc, tb->llvm_tc_ptr,
+                                     tcg_llvm_get_func_name(tb),
+                                     lookup_symbol(tb->pc));
+                    } else {
+                        qemu_log_mask(CPU_LOG_EXEC, "Trace [" TARGET_FMT_lx "] %p %s\n",
+                                     tb->pc, tb->tc_ptr,
+                                     lookup_symbol(tb->pc));
+                    }
 #else
-                qemu_log_mask(CPU_LOG_EXEC, "Trace %p [" TARGET_FMT_lx "] %s\n",
-                             tb->tc_ptr, tb->pc,
-                             lookup_symbol(tb->pc));
+                    qemu_log_mask(CPU_LOG_EXEC, "Trace %p [" TARGET_FMT_lx "] %s\n",
+                                 tb->tc_ptr, tb->pc,
+                                 lookup_symbol(tb->pc));
 #endif
 #endif
 
 #ifdef CONFIG_DEBUG_EXEC
-                if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
-                    /* restore flags in standard format */
-                    regs_to_env();
+                    if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
+                        /* restore flags in standard format */
+                        regs_to_env();
 #if defined(TARGET_I386)
-                    env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
-                    log_cpu_state(env, X86_DUMP_CCOP);
-                    env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
+                        env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+                        log_cpu_state(env, X86_DUMP_CCOP);
+                        env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
 #elif defined(TARGET_ARM)
-                    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_SPARC)
-                    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_PPC)
-                    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_M68K)
-                    cpu_m68k_flush_flags(env, env->cc_op);
-                    env->cc_op = CC_OP_FLAGS;
-                    env->sr = (env->sr & 0xffe0)
-                              | env->cc_dest | (env->cc_x << 4);
-                    log_cpu_state(env, 0);
+                        cpu_m68k_flush_flags(env, env->cc_op);
+                        env->cc_op = CC_OP_FLAGS;
+                        env->sr = (env->sr & 0xffe0)
+                                  | env->cc_dest | (env->cc_x << 4);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_MICROBLAZE)
-                    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_MIPS)
-                    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_SH4)
-		    log_cpu_state(env, 0);
+    		    log_cpu_state(env, 0);
 #elif defined(TARGET_ALPHA)
-                    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_CRIS)
-                    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #else
 #error unsupported target CPU
 #endif
-                }
+                    }
 #endif
 
                     tc_ptr = tb->tc_ptr;

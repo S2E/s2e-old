@@ -57,6 +57,9 @@ public:
         return (*it).second;
     }
 
+    /** Returns true if symbex is currently enabled for this state */
+    bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
+
     /** Read value from memory concretizing it if necessary */
     uint64_t readMemoryConcrete(uint64_t address, char size);
     bool readMemoryConcrete(uint64_t address, void *dest, char size);

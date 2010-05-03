@@ -5693,10 +5693,15 @@ int main(int argc, char **argv, char **envp)
                     break;
                 }
 #ifdef CONFIG_LLVM
+#ifndef CONFIG_S2E
             case QEMU_OPTION_execute_llvm:
                 generate_llvm = 1;
                 execute_llvm = 1;
                 break;
+#else
+            case QEMU_OPTION_always_klee:
+                execute_s2e_at = EXECUTE_S2E_ALWAYS;
+#endif
             case QEMU_OPTION_generate_llvm:
                 generate_llvm = 1;
                 break;

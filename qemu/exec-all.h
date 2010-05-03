@@ -404,6 +404,12 @@ extern int singlestep;
 #ifdef CONFIG_LLVM
 extern int generate_llvm;
 extern int execute_llvm;
+
+#ifdef CONFIG_S2E
+#define EXECUTE_S2E_ALWAYS ((uint64_t) -1)
+#define EXECUTE_S2E_NONE   ((uint64_t) -2)
+extern uint64_t execute_s2e_at;
+#endif
 #endif
 
 #endif

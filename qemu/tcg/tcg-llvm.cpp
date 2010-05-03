@@ -48,7 +48,9 @@ static void *qemu_st_helpers[5] = {
     (void*) __stq_mmu,
     (void*) __stq_mmu,
 };
+
 #endif
+
 }
 
 #include <llvm/DerivedTypes.h>
