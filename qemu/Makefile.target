@@ -350,6 +350,8 @@ endif
 
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
 
+obj-y += savevm.o
+
 $(QEMU_PROG): $(KLEE_LIBFILES)
 
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(ARLIBS)
