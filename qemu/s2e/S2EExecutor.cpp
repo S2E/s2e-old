@@ -394,12 +394,6 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
     /* Update state */
     state->cpuState = (CPUX86State*) saved_AREGs[0];
 
-    /* Generate LLVM code if nesessary */
-    if(!tb->llvm_function) {
-        cpu_gen_llvm(state->cpuState, tb);
-        assert(tb->llvm_function);
-    }
-
     if (!copyInConcretes(*state)) {
         std::cerr << "external modified read-only object" << std::endl;
         exit(1);
@@ -409,6 +403,12 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
     do {
         /* Make sure to init tb_next value */
         tcg_llvm_runtime.goto_tb = 0xff;
+
+        /* Generate LLVM code if nesessary */
+        if(!tb->llvm_function) {
+            cpu_gen_llvm(state->cpuState, tb);
+            assert(tb->llvm_function);
+        }
 
         /* Create a KLEE shadow structs */
         KFunction *kf;
