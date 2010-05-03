@@ -12,6 +12,7 @@ extern "C" {
 
 #include <iostream>
 #include <s2e/Utils.h>
+#include <s2e/S2E.h>
 #include "S2EDeviceState.h"
 #include "S2EExecutionState.h"
 
@@ -50,6 +51,9 @@ void S2EDeviceState::initDeviceState()
     
     assert(!s_DevicesInited);
 
+    g_s2e->getMessagesStream() << "Initing initial device state." << std::endl <<
+        "WARNING!!! All writes to disk will be lost after shutdown." << std::endl;
+
     if (!s_DevicesInited) {
         void *se;
         cout << "Looking for relevant virtual devices..." << endl;
@@ -58,25 +62,32 @@ void S2EDeviceState::initDeviceState()
             se != NULL; se = s2e_qemu_get_next_se(se)) {
                 cout << "State ID=" << s2e_qemu_get_se_idstr(se) << endl;
                 REGISTER_DEVICE("i8259")
-                    REGISTER_DEVICE("PCIBUS")
-                    REGISTER_DEVICE("I440FX")
-                    REGISTER_DEVICE("PIIX3")
-                    REGISTER_DEVICE("ioapic")
-                    REGISTER_DEVICE("apic")
-                    REGISTER_DEVICE("mc146818rtc")
-                    REGISTER_DEVICE("i8254")
-                    REGISTER_DEVICE("hpet")
-                    REGISTER_DEVICE("dma")
-                    REGISTER_DEVICE("piix4_pm")
+                REGISTER_DEVICE("PCIBUS")
+                REGISTER_DEVICE("I440FX")
+                REGISTER_DEVICE("PIIX3")
+                REGISTER_DEVICE("ioapic")
+                REGISTER_DEVICE("apic")
+                REGISTER_DEVICE("mc146818rtc")
+                REGISTER_DEVICE("i8254")
+                REGISTER_DEVICE("hpet")
+                REGISTER_DEVICE("dma")
+                REGISTER_DEVICE("piix4_pm")
+                REGISTER_DEVICE("ps2kbd")
+                REGISTER_DEVICE("ps2mouse")
+                REGISTER_DEVICE("i2c_bus")
+                REGISTER_DEVICE("timer")
+                REGISTER_DEVICE("ide")
 
-                    //XXX:Check for ps2kbd, ps2mouse, i2c_bus, timer
-                    //ide
+                //XXX:Check for ps2kbd, ps2mouse, i2c_bus, timer
+                //ide
         }
         s_DevicesInited = true;
     }
 
     __hook_bdrv_read = s2e_bdrv_read;
     __hook_bdrv_write = s2e_bdrv_write;
+    __hook_bdrv_aio_read = s2e_bdrv_aio_read;
+    __hook_bdrv_aio_write = s2e_bdrv_aio_write;
 
     //saveDeviceState();
     //restoreDeviceState();
@@ -211,7 +222,7 @@ int S2EDeviceState::GetBuffer(uint8_t *buf, int size1)
 int S2EDeviceState::writeSector(struct BlockDriverState *bs, int64_t sector, const uint8_t *buf, int nb_sectors)
 {
     SectorMap &dev = m_BlockDevices[bs];
-    //DPRINTF("writeSector %#"PRIx64" count=%d\n", sector, nb_sectors);
+ //   DPRINTF("writeSector %#"PRIx64" count=%d\n", sector, nb_sectors);
     for (int64_t i = sector; i<sector+nb_sectors; i++) {
         SectorMap::iterator it = dev.find(i);
         uint8_t *secbuf;
@@ -234,7 +245,7 @@ int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint
                                s2e_raw_read fb)
 {
     bool hasRead = false;
-    //DPRINTF("readSector %#"PRIx64" count=%d\n", sector, nb_sectors);
+  //  DPRINTF("readSector %#"PRIx64" count=%d\n", sector, nb_sectors);
     for (int64_t i = sector; i<sector+nb_sectors; i++) {
         for (S2EDeviceState *curState = this; curState; curState = curState->m_Parent) {
             SectorMap &dev = curState->m_BlockDevices[bs];
@@ -323,35 +334,36 @@ int s2e_bdrv_write(BlockDriverState *bs, int64_t sector_num,
 
 }
 
-BlockDriverAIOCB *s2e_bdrv_aio_read(S2EExecutionState *s,
+BlockDriverAIOCB *s2e_bdrv_aio_read(
                                     BlockDriverState *bs, int64_t sector_num,
                                     uint8_t *buf, int nb_sectors,
-                                    BlockDriverCompletionFunc *cb, void *opaque)
+                                    BlockDriverCompletionFunc *cb, void *opaque,
+                                    int *fallback, s2e_raw_read fb)
 {
-#if 0
-    int ret;
-    S2EDeviceState *devState = s->getDeviceState();
-    
-    ret = devState->readSector(bs, sector_num, buf, nb_sectors);
-    cb(opaque, ret);
-#endif
-    return NULL;
+    S2EDeviceState *devState = g_s2e_state->getDeviceState();
+    if (devState->canTransferSector()) {
+        *fallback = 0;
+        int ret = devState->readSector(bs, sector_num, buf, nb_sectors, fb);
+        cb(opaque, ret);
+        return NULL;
+    }else {
+        *fallback = 1;
+        return NULL;
+    }
 }
 
-BlockDriverAIOCB *s2e_bdrv_aio_write(S2EExecutionState *s,
+BlockDriverAIOCB *s2e_bdrv_aio_write(
                                      BlockDriverState *bs, int64_t sector_num,
                                      const uint8_t *buf, int nb_sectors,
                                      BlockDriverCompletionFunc *cb, void *opaque)
 {
-#if 0 
     int ret;
-    S2EDeviceState *devState = s->getDeviceState();
-
+    S2EDeviceState *devState = g_s2e_state->getDeviceState();
     ret = devState->writeSector(bs, sector_num, (uint8_t*)buf, nb_sectors);
     cb(opaque, ret);
-#endif
     return NULL;
 }
+
 
 void s2e_bdrv_aio_cancel(BlockDriverAIOCB *acb)
 {

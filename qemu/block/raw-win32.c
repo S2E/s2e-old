@@ -28,21 +28,15 @@
 #include <windows.h>
 #include <winioctl.h>
 
-#ifdef CONFIG_S2E
-#include <s2e/s2e_qemu.h>
-#include <s2e/s2e_block.h>
-
-struct S2EExecutionState **g_block_s2e_state = NULL;
-int (*__s2e_bdrv_read)(struct S2EExecutionState *s,
+int (*__hook_bdrv_read)(
                   struct BlockDriverState *bs, int64_t sector_num,
                   uint8_t *buf, int nb_sectors,
                   int *fallback,
                   s2e_raw_read fb);
 
-int (*__s2e_bdrv_write)(struct S2EExecutionState *s,
+int (*__hook_bdrv_write)(
                    struct BlockDriverState *bs, int64_t sector_num,
                    const uint8_t *buf, int nb_sectors);
-#endif
 
 #define FTYPE_FILE 0
 #define FTYPE_CD     1
@@ -135,15 +129,14 @@ static int raw_read(BlockDriverState *bs, int64_t sector_num,
     int64_t offset = sector_num * 512;
     int count = nb_sectors * 512;
 
-#ifdef CONFIG_S2E
-    if (g_block_s2e_state && __s2e_bdrv_read) {
+    if (__hook_bdrv_read) {
         int fallback;
-        ret = __s2e_bdrv_read(*g_block_s2e_state, bs, sector_num, buf, nb_sectors, &fallback, &raw_read);
+        ret = __s2e_bdrv_read(bs, sector_num, buf, nb_sectors, &fallback, &raw_read);
         if (!fallback) {
             return ret;
         }
     }
-#endif
+
     
     memset(&ov, 0, sizeof(ov));
     ov.Offset = offset;
@@ -166,13 +159,10 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
     int64_t offset = sector_num * 512;
     int count = nb_sectors * 512;
 
-#ifdef CONFIG_S2E
-    if (g_block_s2e_state) {
-    ///XXX: only do when s2e is running
+    if (__s2e_bdrv_write) {
+        ///XXX: only do when s2e is running
         return __s2e_bdrv_write(*g_block_s2e_state, bs, sector_num, buf, nb_sectors);
     }
-    
-#endif
 
     memset(&ov, 0, sizeof(ov));
     ov.Offset = offset;
