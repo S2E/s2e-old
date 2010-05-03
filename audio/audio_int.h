@@ -203,7 +203,6 @@ struct AudioState {
 
 extern struct audio_driver no_audio_driver;
 extern struct audio_driver oss_audio_driver;
-extern struct audio_driver sdl_audio_driver;
 extern struct audio_driver win_audio_driver;
 extern struct audio_driver wav_audio_driver;
 extern struct audio_driver fmod_audio_driver;

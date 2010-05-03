@@ -324,7 +324,7 @@ SDL_LDLIBS := $(filter-out %.a %.lib,$(shell $(SDL_CONFIG) --static-libs))
 
 # determine AUDIO sources based on current configuration
 #
-AUDIO_SOURCES := audio.c noaudio.c wavaudio.c sdlaudio.c wavcapture.c mixeng.c
+AUDIO_SOURCES := audio.c noaudio.c wavaudio.c wavcapture.c mixeng.c
 AUDIO_CFLAGS  := -I$(LOCAL_PATH)/audio -DHAS_AUDIO
 AUDIO_LDLIBS  :=
 

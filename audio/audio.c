@@ -60,9 +60,6 @@ static struct audio_driver *drvtab[] = {
 #ifdef CONFIG_WINAUDIO
     &win_audio_driver,
 #endif
-#ifdef CONFIG_SDL
-    &sdl_audio_driver,
-#endif
 #ifdef CONFIG_OSS
     &oss_audio_driver,
 #endif

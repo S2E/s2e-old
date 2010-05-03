@@ -23,7 +23,17 @@ Versions:
 
    5.0  => SDK Tools release 5
    6.0  => SDK Tools release 6
+   7.0  => SDK Tools release 7
    etc...
+
+==============================================================================
+Changes between 7.0 and 6.0
+
+IMPORTANT CHANGES:
+
+OTHER:
+
+- Removed audio stack SDL dependency.
 
 ==============================================================================
 Changes between 6.0 and 5.0
