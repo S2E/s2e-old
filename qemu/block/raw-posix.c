@@ -29,6 +29,23 @@
 #include "module.h"
 #include "block/raw-posix-aio.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#include <s2e/s2e_block.h>
+
+struct S2EExecutionState **g_block_s2e_state = NULL;
+int (*__s2e_bdrv_read)(struct S2EExecutionState *s,
+                  struct BlockDriverState *bs, int64_t sector_num,
+                  uint8_t *buf, int nb_sectors,
+                  int *fallback,
+                  s2e_raw_read fb);
+
+int (*__s2e_bdrv_write)(struct S2EExecutionState *s,
+                   struct BlockDriverState *bs, int64_t sector_num,
+                   const uint8_t *buf, int nb_sectors);
+#endif
+
+
 #ifdef CONFIG_COCOA
 #include <paths.h>
 #include <sys/param.h>
