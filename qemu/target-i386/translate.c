@@ -4269,7 +4269,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         {
         uint64_t v0 = ldq_code(s->pc);
         uint64_t v1 = ldq_code(s->pc+8);
-        s2e_tcg_emit_custom_instruction(g_s2e, pc_start, v0, v1);
+        s2e_tcg_emit_custom_instruction(g_s2e, v0, v1);
         s->pc+=16;
         break;
         }

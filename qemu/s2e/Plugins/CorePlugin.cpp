@@ -59,10 +59,8 @@ void s2e_tb_free(TranslationBlock *tb)
     }
 }
 
-void s2e_tcg_execution_handler(
-        S2E* s2e, ExecutionSignal* signal, CPUState *env, uint64_t pc)
+void s2e_tcg_execution_handler(ExecutionSignal* signal, uint64_t pc)
 {
-    s2e_update_state_env(g_s2e_state, env);
     signal->emit(g_s2e_state, pc);
 }
 
@@ -71,8 +69,7 @@ void s2e_tcg_custom_instruction_handler(uint64_t value0, uint64_t value1)
     g_s2e->getCorePlugin()->onCustomInstruction(g_s2e_state, value0, value1);
 }
 
-void s2e_tcg_emit_custom_instruction(S2E* s2e, uint64_t pc,
-                                     uint64_t value0, uint64_t value1)
+void s2e_tcg_emit_custom_instruction(S2E*, uint64_t value0, uint64_t value1)
 {
     TCGv_ptr t0 = tcg_temp_new_i64();
     TCGv_ptr t1 = tcg_temp_new_i64();
@@ -90,36 +87,30 @@ void s2e_tcg_emit_custom_instruction(S2E* s2e, uint64_t pc,
 }
 
 /* Instrument generated code to emit signal on execution */
-void s2e_tcg_instrument_code(S2E* s2e, ExecutionSignal* signal, uint64_t pc)
+void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
-    TCGv_ptr t1 = tcg_temp_new_ptr();
-    TCGv_i64 t3 = tcg_temp_new_i64();
+    TCGv_i64 t1 = tcg_temp_new_i64();
 
     // XXX: here we relay on CPUState being the first tcg global temp
-    TCGArg args[4];
+    TCGArg args[2];
     args[0] = GET_TCGV_PTR(t0);
-    args[1] = GET_TCGV_PTR(t1);
-    args[2] = 0;
-    args[3] = GET_TCGV_I64(t3);
+    args[1] = GET_TCGV_I64(t1);
 
 #if TCG_TARGET_REG_BITS == 64
-    const int sizemask = 16 | 8 | 4 | 2;
-    tcg_gen_movi_i64(t0, (tcg_target_ulong) s2e);
-    tcg_gen_movi_i64(t1, (tcg_target_ulong) signal);
+    const int sizemask = 4 | 2;
+    tcg_gen_movi_i64(t0, (tcg_target_ulong) signal);
 #else
-    const int sizemask = 16;
-    tcg_gen_movi_i32(t0, (tcg_target_ulong) s2e);
-    tcg_gen_movi_i32(t1, (tcg_target_ulong) signal);
+    const int sizemask = 4;
+    tcg_gen_movi_i32(t0, (tcg_target_ulong) signal);
 #endif
 
-    tcg_gen_movi_i64(t3, pc);
+    tcg_gen_movi_i64(t1, pc);
 
     tcg_gen_helperN((void*) s2e_tcg_execution_handler,
-                0, sizemask, TCG_CALL_DUMMY_ARG, 4, args);
+                0, sizemask, TCG_CALL_DUMMY_ARG, 2, args);
 
-    tcg_temp_free_i64(t3);
-    tcg_temp_free_ptr(t1);
+    tcg_temp_free_i64(t1);
     tcg_temp_free_ptr(t0);
 }
 

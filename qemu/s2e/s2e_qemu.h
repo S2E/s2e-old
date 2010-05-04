@@ -58,7 +58,7 @@ void s2e_tb_alloc(struct TranslationBlock *tb);
 void s2e_tb_free(struct TranslationBlock *tb);
 
 /** Called by the translator when a custom instruction is detected */
-void s2e_tcg_emit_custom_instruction(struct S2E* s2e, uint64_t pc,
+void s2e_tcg_emit_custom_instruction(struct S2E* s2e,
                                      uint64_t value0, uint64_t value1);
 
 /** Called by cpu_gen_code() at the beginning of translation process */
