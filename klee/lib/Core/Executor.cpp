@@ -18,7 +18,7 @@
 #include "klee/Memory.h"
 #include "MemoryManager.h"
 #include "klee/PTree.h"
-#include "Searcher.h"
+#include "klee/Searcher.h"
 #include "SeedInfo.h"
 #include "SpecialFunctionHandler.h"
 #include "klee/StatsTracker.h"

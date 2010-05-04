@@ -11,7 +11,7 @@
 
 #include "UserSearcher.h"
 
-#include "Searcher.h"
+#include "klee/Searcher.h"
 #include "klee/Executor.h"
 
 #include "llvm/Support/CommandLine.h"
