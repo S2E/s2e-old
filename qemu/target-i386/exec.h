@@ -28,7 +28,11 @@
 
 #include "cpu-defs.h"
 
+#ifdef CONFIG_S2E
+extern struct CPUX86State *env;
+#else
 register struct CPUX86State *env asm(AREG0);
+#endif
 
 #include "qemu-common.h"
 #include "qemu-log.h"

@@ -240,8 +240,12 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 int cpu_exec(CPUState *env1)
 {
+#ifndef CONFIG_S2E
 #define DECLARE_HOST_REGS 1
 #include "hostregs_helper.h"
+#else
+    register host_reg_t env_reg asm(AREG0);
+#endif
     int ret, interrupt_request;
     TranslationBlock *tb;
     uint8_t *tc_ptr;
@@ -254,8 +258,10 @@ int cpu_exec(CPUState *env1)
     cpu_single_env = env1;
 
     /* first we save global registers */
+#ifndef CONFIG_S2E
 #define SAVE_HOST_REGS 1
 #include "hostregs_helper.h"
+#endif
     env = env1;
 
     env_to_regs();
@@ -699,14 +705,11 @@ int cpu_exec(CPUState *env1)
 #if defined(CONFIG_S2E)
                     env->s2e_current_tb = tb;
                     if(execute_llvm) {
-#define SAVE_HOST_REGS 1
-#include "hostregs_helper.h"
                         s2e_update_state_env(g_s2e_state, env);
                         next_tb = s2e_qemu_tb_exec(
                                 g_s2e, g_s2e_state, tb, saved_AREGs);
-// restore host regs
-#include "hostregs_helper.h"
                     } else {
+                        env_reg = env;
                         next_tb = tcg_qemu_tb_exec(tc_ptr);
                     }
 #elif defined(CONFIG_LLVM)
@@ -787,8 +790,10 @@ int cpu_exec(CPUState *env1)
 #error unsupported target CPU
 #endif
 
+#ifndef CONFIG_S2E
     /* restore global registers */
 #include "hostregs_helper.h"
+#endif
 
     /* fail safe : never use cpu_single_env outside cpu_exec() */
     cpu_single_env = NULL;

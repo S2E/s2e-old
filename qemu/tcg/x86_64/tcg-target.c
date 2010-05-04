@@ -661,7 +661,13 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RSI, mem_index);
 #endif
 
+#ifdef CONFIG_S2E
+    tcg_out_push(s, TCG_AREG0);
     tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
+    tcg_out_pop(s, TCG_AREG0);
+#else
+    tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
+#endif
 
     switch(opc) {
     case 0 | 4:
@@ -934,8 +940,13 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RDX, mem_index);
 #endif
 
-    
+#ifdef CONFIG_S2E
+    tcg_out_push(s, TCG_AREG0);
     tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
+    tcg_out_pop(s, TCG_AREG0);
+#else
+    tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
+#endif
 
     #ifdef __MINGW64__
     tcg_out_pop(s, TCG_REG_RSI);
@@ -1085,11 +1096,17 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
         s->tb_next_offset[args[0]] = s->code_ptr - s->code_buf;
         break;
     case INDEX_op_call:
+#ifdef CONFIG_S2E
+        tcg_out_push(s, TCG_AREG0);
+#endif
         if (const_args[0]) {
             tcg_out_goto(s, 1, (void *) args[0]);
         } else {
             tcg_out_modrm(s, 0xff, 2, args[0]);
         }
+#ifdef CONFIG_S2E
+        tcg_out_pop(s, TCG_AREG0);
+#endif
         break;
     case INDEX_op_jmp:
         if (const_args[0]) {

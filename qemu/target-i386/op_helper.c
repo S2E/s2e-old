@@ -23,6 +23,9 @@
 
 //#define DEBUG_PCALL
 
+#ifdef CONFIG_S2E
+struct CPUX86State* env = 0;
+#endif
 
 #ifdef DEBUG_PCALL
 #  define LOG_PCALL(...) qemu_log_mask(CPU_LOG_PCALL, ## __VA_ARGS__)
