@@ -666,7 +666,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
 #ifdef CONFIG_S2E
     /* mov r14, $env */
-    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_ulong) &env);
     /* mov r14, [r14] */
     tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
 #endif
@@ -945,7 +945,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
 #ifdef CONFIG_S2E
     /* mov r14, $env */
-    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_ulong) &env);
     /* mov r14, [r14] */
     tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
 #endif
@@ -1105,7 +1105,7 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
         }
 #ifdef CONFIG_S2E
         /* mov r14, $env */
-        tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_ulong) &env);
         /* mov r14, [r14] */
         tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
 #endif
