@@ -165,6 +165,8 @@ void s2e_qemu_cleanup_tb_exec(
         struct S2EExecutionState* state,
         struct TranslationBlock* tb);
 
+void s2e_init_timers(void);
+
 
 /* Called by the load/savevm functions to restore/save the state of the vm */
 extern int s2e_dev_snapshot_enable;

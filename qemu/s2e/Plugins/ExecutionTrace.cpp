@@ -34,6 +34,10 @@ void ExecutionTrace::initialize()
     keyList = s2e()->getConfig()->getListKeys(getConfigKey());
     bool noErrors = true;
     foreach2(it, keyList.begin(), keyList.end()) {
+        if (*it == "triggerAfter") {
+            continue;
+        }
+
         s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
@@ -48,7 +52,14 @@ void ExecutionTrace::initialize()
         exit(-1);
     }
 
-    
+    m_Ticks = 0;
+    m_StartTick = s2e()->getConfig()->getInt(getConfigKey() + ".triggerAfter");
+    s2e()->getMessagesStream() << "Triggering execution trace after " << m_StartTick << 
+        " seconds" << std::endl;
+
+    m_TimerConnection = s2e()->getCorePlugin()->onTimer.connect(
+        sigc::mem_fun(*this, &ExecutionTrace::onTimer)
+    );
 }
 
 bool ExecutionTrace::initSection(const std::string &cfgKey)
@@ -90,28 +101,41 @@ bool ExecutionTrace::initTbTrace(const std::string &cfgKey)
     }
 
     //Check that the interceptor is there
-    ModuleExecutionDetector *executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    if(!executionDetector) {
+     m_ExecutionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    if(!m_ExecutionDetector) {
         s2e()->getWarningsStream() << "You must configure the moduleExecutionDetector plugin! " << std::endl;
         return false;
     }
 
     //Check that the module id is valid
-    if (!executionDetector->isModuleConfigured(moduleId)) {
+    if (!m_ExecutionDetector->isModuleConfigured(moduleId)) {
         s2e()->getWarningsStream() << 
             moduleId << " not configured in the execution detector! " << std::endl;
         return false;
     }
     
-    //Registering listener
-    executionDetector->onModuleTranslateBlockStart.connect(
-        sigc::mem_fun(*this, &ExecutionTrace::onTranslateBlockStart)
-    );
 
     m_Modules.insert(moduleId);
 
 
     return true;
+}
+
+void ExecutionTrace::onTimer()
+{
+    m_Ticks++;
+    if (m_Ticks < m_StartTick) {
+        return;
+    }
+
+    s2e()->getMessagesStream() << "Starting tracing" << std::endl;
+    
+    //Registering listener
+    m_ExecutionDetector->onModuleTranslateBlockStart.connect(
+        sigc::mem_fun(*this, &ExecutionTrace::onTranslateBlockStart)
+    );
+
+    m_TimerConnection.disconnect();
 }
 
 void ExecutionTrace::onTranslateBlockStart(
@@ -121,9 +145,9 @@ void ExecutionTrace::onTranslateBlockStart(
         TranslationBlock *tb,
         uint64_t pc)
 {
-    if (m_Modules.find(desc->id) == m_Modules.end()) {
+    /*if (m_Modules.find(desc->id) == m_Modules.end()) {
         return;
-    }
+    }*/
 
     signal->connect(
         sigc::bind(sigc::mem_fun(*this, &ExecutionTrace::onExecution),
@@ -133,10 +157,10 @@ void ExecutionTrace::onTranslateBlockStart(
 
 void ExecutionTrace::flushTable()
 {
-    if (m_Trace.size() < 100) {
+    if (m_Trace.size() < 10) {
         return;
     }
-    std::cout << "Flushing trace" << std::endl;
+    //std::cout << "Flushing trace" << std::endl;
     foreach2(it, m_Trace.begin(), m_Trace.end()) {
         const TraceEntry &te = *it;
         std::stringstream ss;
@@ -154,12 +178,14 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
 {
     ETranslationBlockType TbType = state->getTb()->s2e_tb_type;
 
+    
+    //Do not trace everything for performance reasons
+    //if (TbType == TB_CALL || TbType == TB_RET) 
+    {
+
     llvm::sys::TimeValue timeStamp = llvm::sys::TimeValue::now();
     std::stringstream ss;
     uint64_t relPc = desc->descriptor.ToNativeBase(pc);
-
-    //Do not trace everything for performance reasons
-    if (TbType == TB_CALL || TbType == TB_RET) {
 
     TraceEntry te;
     te.desc = desc;
@@ -168,8 +194,22 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
     te.pc = relPc;
     te.pid = state->getPid();
     
-    m_Trace.push_back(te);
-    flushTable();
+#if 1  
+    ss << "insert into ExecutionTrace values(" 
+            << te.timestamp << ",'" <<
+            te.desc->id << "'," <<
+            te.pc << "," << te.tbType << "," <<
+            te.pid << ");";
+        s2e()->getDb()->executeQuery(ss.str().c_str());
+
+#else
+    s2e()->getDebugStream() << "TR " << te.timestamp << " " <<
+            te.desc->id << " " <<
+            te.pc << " " << te.tbType << " " <<
+            te.pid << std::endl;
+    //m_Trace.push_back(te);
+    //flushTable();
+#endif
     }
 }
 

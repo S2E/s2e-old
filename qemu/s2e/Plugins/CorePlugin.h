@@ -31,6 +31,11 @@ public:
     CorePlugin(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
+    void initializeTimers();
+
+    struct QEMUTimer *getTimer() {
+        return m_Timer;
+    }
 
     /** Signal that is emitted on begining and end of code generation
         for each QEMU translation block.

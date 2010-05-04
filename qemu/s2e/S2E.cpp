@@ -92,6 +92,7 @@ S2E::~S2E()
     delete m_messagesFile;
     delete m_warningsFile;
     delete m_warningsStreamBuf;
+    delete m_debugFile;
 }
 
 Plugin* S2E::getPlugin(const std::string& name) const
@@ -180,6 +181,7 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     m_infoFile = openOutputFile("info");
     m_messagesFile = openOutputFile("messages.txt");
     m_warningsFile = openOutputFile("warnings.txt");
+    m_debugFile = openOutputFile("debug.txt");
 
     m_warningsStreamBuf = new WarningsStreamBuf(m_warningsFile->rdbuf());
     m_warningsFile->rdbuf(m_warningsStreamBuf);

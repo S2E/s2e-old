@@ -47,6 +47,8 @@ protected:
     std::ostream* m_warningsFile;
     std::streambuf* m_warningsStreamBuf;
 
+    std::ostream* m_debugFile;
+
     Database *m_database;
 
     TCGLLVMContext *m_tcgLLVMContext;
@@ -104,6 +106,8 @@ public:
 
     /** Get warnings stream (used for warnings, duplicated on the screen) */
     std::ostream& getWarningsStream() const { return *m_warningsFile; }
+
+    std::ostream& getDebugStream() const { return *m_debugFile; }
 
     /***********************/
     /* Runtime information */

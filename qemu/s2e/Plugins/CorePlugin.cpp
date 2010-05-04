@@ -26,12 +26,22 @@ static void s2e_timer_cb(void *opaque)
 {
     CorePlugin *c = (CorePlugin*)opaque;
     c->onTimer.emit();
+    qemu_mod_timer(c->getTimer(), qemu_get_clock(vm_clock) + 
+        get_ticks_per_sec());
+}
+
+void CorePlugin::initializeTimers()
+{
+    /* Initialize the timer handler */
+    m_Timer = qemu_new_timer(vm_clock, s2e_timer_cb, this);
+    qemu_mod_timer(m_Timer, qemu_get_clock(vm_clock) + 
+        get_ticks_per_sec());
+
 }
 
 void CorePlugin::initialize()
 {
-    /* Initialize the timer handler */
-    m_Timer = qemu_new_timer(vm_clock, s2e_timer_cb, this);
+
 }
 
 /******************************/
@@ -184,4 +194,9 @@ void s2e_on_exception(S2E *s2e, S2EExecutionState* state,
 {
     state->cpuState = env;
     s2e->getCorePlugin()->onException.emit(state, intNb, state->cpuState->eip);
+}
+
+void s2e_init_timers()
+{
+    g_s2e->getCorePlugin()->initializeTimers();
 }

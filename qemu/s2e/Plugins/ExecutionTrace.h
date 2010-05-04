@@ -24,6 +24,10 @@ class ExecutionTrace : public Plugin
 private:
     std::set<std::string> m_Modules;
     std::vector<TraceEntry> m_Trace;
+    ModuleExecutionDetector *m_ExecutionDetector;
+    uint64_t m_Ticks;
+    uint64_t m_StartTick;
+    sigc::connection m_TimerConnection;
 public:
     ExecutionTrace(S2E* s2e): Plugin(s2e) {}
 
@@ -34,6 +38,8 @@ private:
     bool initSection(const std::string &cfgKey);
     bool initTbTrace(const std::string &cfgKey);
     void flushTable();
+
+    void onTimer();
 
     void onExecution(S2EExecutionState *state, uint64_t pc,
         const ModuleExecutionDesc*);
