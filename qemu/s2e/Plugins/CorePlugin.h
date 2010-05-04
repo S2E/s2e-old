@@ -9,6 +9,7 @@
 
 extern "C" {
 typedef struct TranslationBlock TranslationBlock;
+struct QEMUTimer;
 }
 
 namespace s2e {
@@ -21,10 +22,14 @@ typedef sigc::signal<void, S2EExecutionState*, uint64_t /* pc */> ExecutionSigna
 
 class CorePlugin : public Plugin {
     S2E_PLUGIN
+
+private:
+    struct QEMUTimer *m_Timer;
+
 public:
     CorePlugin(S2E* s2e): Plugin(s2e) {}
 
-    void initialize() {}
+    void initialize();
 
     /** Signal that is emitted on begining and end of code generation
         for each QEMU translation block.
@@ -74,6 +79,9 @@ public:
     sigc::signal<void, S2EExecutionState*, uint64_t /* hostAddress */,
             const uint8_t* /* buf */, uint64_t /* size */>
             onWriteRam;
+
+    
+    sigc::signal<void> onTimer;
 };
 
 struct S2ETranslationBlock

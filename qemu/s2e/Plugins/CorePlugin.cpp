@@ -2,6 +2,7 @@
 extern "C" {
 #include <tcg.h>
 #include <tcg-op.h>
+#include <qemu-timer.h>
 }
 
 #include "CorePlugin.h"
@@ -20,6 +21,18 @@ namespace s2e {
 } // namespace s2e
 
 using namespace s2e;
+
+static void s2e_timer_cb(void *opaque)
+{
+    CorePlugin *c = (CorePlugin*)opaque;
+    c->onTimer.emit();
+}
+
+void CorePlugin::initialize()
+{
+    /* Initialize the timer handler */
+    m_Timer = qemu_new_timer(vm_clock, s2e_timer_cb, this);
+}
 
 /******************************/
 /* Functions called from QEMU */
