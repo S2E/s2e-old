@@ -54,6 +54,11 @@ struct ModuleDescriptor
     return RVA;
   }
 
+  uint64_t ToNativeBase(uint64_t RunTimeAddress) const {
+    uint64_t RVA = RunTimeAddress - LoadBase + NativeBase;
+    return RVA;
+  }
+
   bool EqualInsensitive(const char *Name) const{
 	return strcasecmp(this->Name.c_str(), Name) == 0;
   }

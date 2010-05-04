@@ -138,7 +138,7 @@ struct S2ETranslationBlock;
 
 enum ETranslationBlockType
 {
-    TB_DEFAULT,
+    TB_DEFAULT=0,
     TB_JMP, TB_JMP_IND,
     TB_COND_JMP, TB_COND_JMP_IND,
     TB_CALL, TB_CALL_IND, TB_REP, TB_RET

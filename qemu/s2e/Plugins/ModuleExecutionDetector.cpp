@@ -190,11 +190,13 @@ void ModuleExecutionDetector::onExecution(
 
     //gTRACE("pid=%#"PRIx64" pc=%#"PRIx64"\n", pid, pc);
     if (plgState->m_PreviousModule != currentModule) {
+#if 0
         if (currentModule) {
             DPRINTF("Entered module %s\n", currentModule->descriptor.Name.c_str());
         }else {
             DPRINTF("Entered unknown module\n");
         }
+#endif
         onModuleTransition.emit(state, plgState->m_PreviousModule,
             currentModule);
         

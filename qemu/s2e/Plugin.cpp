@@ -8,6 +8,7 @@
 #include <s2e/Plugins/CodeSelector.h>
 #include <s2e/Plugins/BaseInstructions.h>
 #include <s2e/Plugins/BranchCoverage.h>
+#include <s2e/Plugins/ExecutionTrace.h>
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
 
 #include <algorithm>
@@ -42,6 +43,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::CodeSelector);
     __S2E_REGISTER_PLUGIN(plugins::BaseInstructions);
     __S2E_REGISTER_PLUGIN(plugins::BranchCoverage);
+    __S2E_REGISTER_PLUGIN(plugins::ExecutionTrace);
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 
