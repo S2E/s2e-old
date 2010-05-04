@@ -4265,7 +4265,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     switch(b) {
 
 #ifdef CONFIG_S2E
-    case 0xf1: /* s2e prefix */
+    case 0x13f: /* s2e prefix */
         {
         uint64_t v0 = ldq_code(s->pc);
         uint64_t v1 = ldq_code(s->pc+8);

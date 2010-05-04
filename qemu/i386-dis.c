@@ -145,7 +145,7 @@
 #define MAX_MEMORY_OPERANDS 2
 
 /* max size of insn mnemonics.  */
-#define MAX_MNEM_SIZE 16
+#define MAX_MNEM_SIZE 18
 
 /* max size of register name in insn mnemonics.  */
 #define MAX_REG_NAME_SIZE 8
@@ -179,6 +179,7 @@ static void OP_REG (int, int);
 static void OP_IMREG (int, int);
 static void OP_I (int, int);
 static void OP_I64 (int, int);
+static void OP_I64q (int, int);
 static void OP_sI (int, int);
 static void OP_J (int, int);
 static void OP_SEG (int, int);
@@ -1081,7 +1082,11 @@ static const struct dis386 dis386_twobyte[] = {
   { "(bad)",		{ XX } },
   { "(bad)",		{ XX } },
   { "(bad)",		{ XX } },
+#ifdef CONFIG_S2E
+  { "s2e_op",		{ { OP_I64q, 0}, { OP_I64q, 0} } },
+#else
   { "(bad)",		{ XX } },
+#endif
   /* 40 */
   { "cmovo",		{ Gv, Ev } },
   { "cmovno",		{ Gv, Ev } },
@@ -5510,6 +5515,17 @@ OP_I64 (int bytemode, int sizeflag)
     }
 
   op &= mask;
+  scratchbuf[0] = '$';
+  print_operand_value (scratchbuf + 1, sizeof(scratchbuf) - 1, 1, op);
+  oappend (scratchbuf + intel_syntax);
+  scratchbuf[0] = '\0';
+}
+
+static void
+OP_I64q (int bytemode, int sizeflag)
+{
+  bfd_signed_vma op;
+  op = get64();
   scratchbuf[0] = '$';
   print_operand_value (scratchbuf + 1, sizeof(scratchbuf) - 1, 1, op);
   oappend (scratchbuf + intel_syntax);
