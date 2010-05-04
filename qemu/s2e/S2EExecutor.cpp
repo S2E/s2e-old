@@ -300,8 +300,12 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
 
         for(uint64_t i=0; i<size; ++i) {
             if(!op.second->readConcrete8(page_offset+i, buf+i)) {
+                m_s2e->getMessagesStream()
+                        << "Switching to KLEE executor at address "
+                        << hexval(state->getPc()) << std::endl;
                 execute_s2e_at = state->getPc();
-                cpu_loop_exit();
+                // XXX: what about regs_to_env ?
+                longjmp(state->cpuState->jmp_env, 1);
             }
         }
     } else {

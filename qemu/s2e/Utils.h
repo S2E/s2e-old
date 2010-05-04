@@ -26,6 +26,11 @@ private:
     int _width;
 };
 
+inline std::ostream& operator<<(std::ostream& os, hexval h)
+{
+    return h(os);
+}
+
 /** A macro used to escape "," in an argument to another macro */
 #define S2E_NOOP(...) __VA_ARGS__
 

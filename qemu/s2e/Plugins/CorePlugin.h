@@ -60,11 +60,13 @@ public:
 
     /** Signal that is emitted when custom opcode is detected */
     sigc::signal<void, S2EExecutionState*, 
-            uint64_t  /* opcode */
+            uint64_t,  /* opcode */
+            uint64_t   /* value1 */
             >
             onCustomInstruction;
 
     /** Signal that is emitted on each memory access */
+    /* XXX: this signals is not currently emmited when executing in KLEE! */
     sigc::signal<void, S2EExecutionState*, uint64_t /* hostAddress */,
             uint8_t* /* buf */, uint64_t /* size */>
             onReadRam;
