@@ -706,6 +706,7 @@ int cpu_exec(CPUState *env1)
                     env->s2e_current_tb = tb;
                     if(execute_llvm) {
                         s2e_update_state_env(g_s2e_state, env);
+                        saved_AREGs[0] = env;
                         next_tb = s2e_qemu_tb_exec(
                                 g_s2e, g_s2e_state, tb, saved_AREGs);
                     } else {
