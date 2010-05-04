@@ -97,10 +97,6 @@ public:
     void writeRamConcrete(S2EExecutionState *state,
             uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
-    /** Copy concrete values to their proper location, concretizing
-        if necessary (will not touch RAM - it is always symbolic) */
-    void copyOutConcretes(klee::ExecutionState &state);
-
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
 
@@ -116,6 +112,24 @@ public:
     /** Context switch-related function **/
     void synchronizeMemoryObjects(S2EExecutionState *state,
                                            bool fromNativeToKlee);
+
+protected:
+    void traceStateFork(S2EExecutionState *originalState,
+                     const std::vector<S2EExecutionState*>& newStates,
+                     const std::vector<klee::ref<klee::Expr> >& conditions);
+
+    /** Copy concrete values to their proper location, concretizing
+        if necessary (will not touch RAM - it is always symbolic) */
+    void copyOutConcretes(klee::ExecutionState &state);
+
+    /** Called on fork, used to trace forks */
+    StatePair fork(klee::ExecutionState &current,
+                   klee::ref<klee::Expr> condition, bool isInternal);
+
+    /** Called on branches, used to trace forks */
+    void branch(klee::ExecutionState &state,
+              const std::vector< klee::ref<klee::Expr> > &conditions,
+              std::vector<klee::ExecutionState*> &result);
 };
 
 } // namespace s2e

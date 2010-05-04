@@ -33,11 +33,20 @@ dq 0x100 ; address
 mov eax, [0x100]
 add eax, 2
 
+cmp eax, 10
+jz branch1
+
 _stop:
 cli
 hlt
 jmp _stop
 
+branch1
+_stop1:
+cli
+hlt
+inc ecx
+jmp _stop1
 
 mov ebx, eax
 add ebx, 2

@@ -2,6 +2,7 @@
 #define S2E_CORE_PLUGIN_H
 
 #include <s2e/Plugin.h>
+#include <klee/Expr.h>
 
 #include <sigc++/sigc++.h>
 #include <vector>
@@ -80,8 +81,14 @@ public:
             const uint8_t* /* buf */, uint64_t /* size */>
             onWriteRam;
 
-    
     sigc::signal<void> onTimer;
+
+    /** Signal emited when the state is forked */
+    sigc::signal<void, S2EExecutionState* /* originalState */,
+                 const std::vector<S2EExecutionState*>& /* newStates */,
+                 const std::vector<klee::ref<klee::Expr> >& /* newConditions */>
+            onStateFork;
+
 };
 
 struct S2ETranslationBlock

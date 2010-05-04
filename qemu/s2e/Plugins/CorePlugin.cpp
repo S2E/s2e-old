@@ -66,6 +66,7 @@ void s2e_tcg_execution_handler(ExecutionSignal* signal, uint64_t pc)
 
 void s2e_tcg_custom_instruction_handler(uint64_t value0, uint64_t value1)
 {
+    assert(!g_s2e->getCorePlugin()->onCustomInstruction.empty());
     g_s2e->getCorePlugin()->onCustomInstruction(g_s2e_state, value0, value1);
 }
 

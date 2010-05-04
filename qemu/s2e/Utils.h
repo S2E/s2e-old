@@ -11,6 +11,9 @@ namespace s2e {
 class hexval {
 public:
     hexval(uint64_t value, int width=0) : _value(value), _width(width) {}
+    hexval(void* value):
+            _value(uintptr_t(value)), _width(sizeof(uintptr_t)/4) {}
+
     std::ostream &operator()(std::ostream &out) const {
         std::ios_base::fmtflags oldf = out.flags(); out.setf(std::ios::hex);
         std::streamsize oldw = out.width(); out.width(_width);

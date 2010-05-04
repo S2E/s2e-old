@@ -301,7 +301,7 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
         for(uint64_t i=0; i<size; ++i) {
             if(!op.second->readConcrete8(page_offset+i, buf+i)) {
                 m_s2e->getMessagesStream()
-                        << "Switching to KLEE executor at address "
+                        << "Switching to KLEE executor at pc = "
                         << hexval(state->getPc()) << std::endl;
                 execute_s2e_at = state->getPc();
                 // XXX: what about regs_to_env ?
@@ -609,6 +609,73 @@ void S2EExecutor::synchronizeMemoryObjects(S2EExecutionState *state,
             memcpy(address, store, (*it)->size);            
         }
     }
+}
+
+void S2EExecutor::traceStateFork(S2EExecutionState *originalState,
+                 const vector<S2EExecutionState*>& newStates,
+                 const vector<ref<Expr> >& newConditions)
+{
+    m_s2e->getMessagesStream()
+        << "Forking state " << hexval(originalState)
+        << " into states:" << std::endl;
+    for(unsigned i = 0; i < newStates.size(); ++i) {
+        m_s2e->getMessagesStream()
+            << "    " << hexval(newStates[i]) << " with condition "
+            << *newConditions[i].get() << std::endl;
+    }
+
+    m_s2e->getCorePlugin()->onStateFork.emit(originalState,
+                                             newStates, newConditions);
+}
+
+S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
+                            ref<Expr> condition, bool isInternal)
+{
+    StatePair res = Executor::fork(current, condition, isInternal);
+    if(res.first && res.second) {
+        assert(dynamic_cast<S2EExecutionState*>(res.first));
+        assert(dynamic_cast<S2EExecutionState*>(res.second));
+
+        std::vector<S2EExecutionState*> newStates(2);
+        std::vector<ref<Expr> > newConditions(2);
+
+        newStates[0] = static_cast<S2EExecutionState*>(res.second);
+        newStates[1] = static_cast<S2EExecutionState*>(res.first);
+
+        newConditions[0] = condition;
+        newConditions[1] = klee::NotExpr::create(condition);
+
+        traceStateFork(static_cast<S2EExecutionState*>(&current),
+                       newStates, newConditions);
+    }
+    return res;
+}
+
+void S2EExecutor::branch(klee::ExecutionState &state,
+          const vector<ref<Expr> > &conditions,
+          vector<ExecutionState*> &result)
+{
+    Executor::branch(state, conditions, result);
+
+    unsigned n = conditions.size();
+
+    vector<S2EExecutionState*> newStates;
+    vector<ref<Expr> > newConditions;
+
+    newStates.reserve(n);
+    newConditions.reserve(n);
+
+    for(unsigned i = 0; i < n; ++i) {
+        if(result[i]) {
+            assert(dynamic_cast<S2EExecutionState*>(result[i]));
+            newStates.push_back(static_cast<S2EExecutionState*>(result[i]));
+            newConditions.push_back(conditions[i]);
+        }
+    }
+
+    if(newStates.size() > 1)
+        traceStateFork(static_cast<S2EExecutionState*>(&state),
+                       newStates, newConditions);
 }
 
 } // namespace s2e
