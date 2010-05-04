@@ -50,9 +50,6 @@ protected:
        direct memory accesses from QEMU code. */
     std::vector< std::pair<uint64_t, uint64_t> > m_unusedMemoryRegions;
 
-    void executeTBFunction(S2EExecutionState *state,
-            TranslationBlock *tb, void* volatile* saved_AREGs);
-
     std::vector<klee::MemoryObject*> m_saveOnContextSwitch;
 
 public:
@@ -97,6 +94,8 @@ public:
     void writeRamConcrete(S2EExecutionState *state,
             uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
+    S2EExecutionState* selectNextState(S2EExecutionState* state);
+
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
             TranslationBlock *tb, void* volatile* saved_AREGs);
 
@@ -114,7 +113,10 @@ public:
                                            bool fromNativeToKlee);
 
 protected:
-    void traceStateFork(S2EExecutionState *originalState,
+    void doStateSwitch(S2EExecutionState* oldState,
+                       S2EExecutionState* newState);
+
+    void doStateFork(S2EExecutionState *originalState,
                      const std::vector<S2EExecutionState*>& newStates,
                      const std::vector<klee::ref<klee::Expr> >& conditions);
 

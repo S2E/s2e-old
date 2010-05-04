@@ -153,6 +153,9 @@ void s2e_read_ram_concrete_check(struct S2E* s2e,
         struct S2EExecutionState* state,
         uint64_t host_address, uint8_t* buf, uint64_t size);
 
+struct S2EExecutionState* s2e_select_next_state(
+        struct S2E* s2e, struct S2EExecutionState* state);
+
 uintptr_t s2e_qemu_tb_exec(
         struct S2E* s2e,
         struct S2EExecutionState* state,

@@ -4193,13 +4193,20 @@ static void main_loop(void)
 #ifdef CONFIG_PROFILER
             int64_t ti;
 #endif
+#ifdef CONFIG_S2E
+            g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
+#endif
 #ifndef CONFIG_IOTHREAD
             tcg_cpu_exec();
 #endif
 #ifdef CONFIG_PROFILER
             ti = profile_getclock();
 #endif
+#ifdef CONFIG_S2E
+            main_loop_wait(0);
+#else
             main_loop_wait(qemu_calculate_timeout());
+#endif
 #ifdef CONFIG_PROFILER
             dev_time += profile_getclock() - ti;
 #endif

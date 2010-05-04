@@ -10,6 +10,7 @@ extern "C" {
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/S2EDeviceState.h>
 
 #include <s2e/s2e_qemu.h>
 
@@ -23,6 +24,7 @@ extern "C" {
 #include <klee/StatsTracker.h>
 #include <klee/PTree.h>
 #include <klee/Memory.h>
+#include <klee/Searcher.h>
 
 #include <vector>
 
@@ -125,6 +127,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     setModule(m_tcgLLVMContext->getModule(), MOpts);
 
     m_dummyMain = kmodule->functionMap[dummyMain];
+
+    searcher = new RandomSearcher();
 }
 
 S2EExecutor::~S2EExecutor()
@@ -150,6 +154,7 @@ S2EExecutionState* S2EExecutor::createInitialState()
         statsTracker->framePushed(*state, 0);
 
     states.insert(state);
+    searcher->update(0, states, std::set<ExecutionState*>());
 
     processTree = new PTree(state);
     state->ptreeNode = processTree->root;
@@ -403,11 +408,48 @@ void S2EExecutor::copyOutConcretes(ExecutionState &state) {
     Executor::copyOutConcretes(state);
 }
 
-inline void S2EExecutor::executeTBFunction(
-        S2EExecutionState *state,
-        TranslationBlock *tb,
-        void *volatile* saved_AREGs)
+void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
+                                S2EExecutionState* newState)
 {
+    m_s2e->getMessagesStream()
+            << "Switching from state " << hexval(oldState)
+            << " to state " << hexval(newState) << std::endl;
+
+    copyInConcretes(*oldState);
+    oldState->getDeviceState()->saveDeviceState();
+
+    foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+        const ObjectState *oldOS = oldState->addressSpace.findObject(mo);
+        const ObjectState *newOS = newState->addressSpace.findObject(mo);
+        ObjectState *oldWOS = oldState->addressSpace.getWriteable(mo, oldOS);
+
+        uint8_t *oldStore = oldWOS->getConcreteStore();
+        uint8_t *newStore = newOS->getConcreteStore();
+
+        assert(oldStore);
+        assert(newStore);
+
+        memcpy(oldStore, (uint8_t*) mo->address, mo->size);
+        memcpy((uint8_t*) mo->address, newStore, mo->size);
+    }
+
+    newState->getDeviceState()->restoreDeviceState();
+    copyOutConcretes(*newState);
+
+    //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
+}
+
+S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
+{
+    ExecutionState& newKleeState = searcher->selectState();
+    assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
+
+    S2EExecutionState* newState =
+            static_cast<S2EExecutionState*>(&newKleeState);
+    if(newState != state) {
+        doStateSwitch(state, newState);
+    }
+    return newState;
 }
 
 inline uintptr_t S2EExecutor::executeTranslationBlock(
@@ -611,10 +653,10 @@ void S2EExecutor::synchronizeMemoryObjects(S2EExecutionState *state,
     }
 }
 
-void S2EExecutor::traceStateFork(S2EExecutionState *originalState,
+void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                  const vector<S2EExecutionState*>& newStates,
                  const vector<ref<Expr> >& newConditions)
-{
+{   
     m_s2e->getMessagesStream()
         << "Forking state " << hexval(originalState)
         << " into states:" << std::endl;
@@ -622,6 +664,17 @@ void S2EExecutor::traceStateFork(S2EExecutionState *originalState,
         m_s2e->getMessagesStream()
             << "    " << hexval(newStates[i]) << " with condition "
             << *newConditions[i].get() << std::endl;
+
+        newStates[i]->getDeviceState()->saveDeviceState();
+
+        foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+            const ObjectState *os = newStates[i]->addressSpace.findObject(mo);
+            ObjectState *wos = newStates[i]->addressSpace.getWriteable(mo, os);
+            uint8_t *store = wos->getConcreteStore();
+
+            assert(store);
+            memcpy(store, (uint8_t*) mo->address, mo->size);
+        }
     }
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,
@@ -645,7 +698,7 @@ S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
         newConditions[0] = condition;
         newConditions[1] = klee::NotExpr::create(condition);
 
-        traceStateFork(static_cast<S2EExecutionState*>(&current),
+        doStateFork(static_cast<S2EExecutionState*>(&current),
                        newStates, newConditions);
     }
     return res;
@@ -674,7 +727,7 @@ void S2EExecutor::branch(klee::ExecutionState &state,
     }
 
     if(newStates.size() > 1)
-        traceStateFork(static_cast<S2EExecutionState*>(&state),
+        doStateFork(static_cast<S2EExecutionState*>(&state),
                        newStates, newConditions);
 }
 
@@ -743,6 +796,11 @@ void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
 {
     s2e->getCorePlugin()->onWriteRam.emit(state, host_address, buf, size);
     s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
+}
+
+S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
+{
+    return s2e->getExecutor()->selectNextState(state);
 }
 
 uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,

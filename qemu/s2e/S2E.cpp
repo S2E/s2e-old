@@ -180,7 +180,10 @@ void S2E::initOutputDirectory(const string& outputDirectory)
 
     m_infoFile = openOutputFile("info");
     m_messagesFile = openOutputFile("messages.txt");
+    m_messagesFile->setf(ios_base::unitbuf);
+
     m_warningsFile = openOutputFile("warnings.txt");
+    m_warningsFile->setf(ios_base::unitbuf);
     m_debugFile = openOutputFile("debug.txt");
 
     m_warningsStreamBuf = new WarningsStreamBuf(m_warningsFile->rdbuf());

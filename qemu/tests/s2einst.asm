@@ -37,14 +37,15 @@ cmp eax, 10
 jz branch1
 
 _stop:
-cli
-hlt
+;cli
+;hlt
+inc edx
 jmp _stop
 
 branch1
 _stop1:
-cli
-hlt
+;cli
+;hlt
 inc ecx
 jmp _stop1
 
