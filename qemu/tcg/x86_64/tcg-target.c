@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 
+extern struct CPUX86State* env;
+
 #ifndef NDEBUG
 static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {
     "%rax",
@@ -661,12 +663,12 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RSI, mem_index);
 #endif
 
+    tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
 #ifdef CONFIG_S2E
-    tcg_out_push(s, TCG_AREG0);
-    tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
-    tcg_out_pop(s, TCG_AREG0);
-#else
-    tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
+    /* mov r14, $env */
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+    /* mov r14, [r14] */
+    tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
 #endif
 
     switch(opc) {
@@ -877,7 +879,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
 
     /* lea offset(r1, env), r1 */
     tcg_out_modrm_offset2(s, 0x8d | P_REXW, r1, r1, TCG_AREG0, 0,
-                          offsetof(CPUState, tlb_table[mem_index][0].addr_write));
+                              offsetof(CPUState, tlb_table[mem_index][0].addr_write));
 
     /* cmp 0(r1), r0 */
     tcg_out_modrm_offset(s, 0x3b | rexw, r0, r1, 0);
@@ -940,12 +942,12 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RDX, mem_index);
 #endif
 
+    tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
 #ifdef CONFIG_S2E
-    tcg_out_push(s, TCG_AREG0);
-    tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
-    tcg_out_pop(s, TCG_AREG0);
-#else
-    tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
+    /* mov r14, $env */
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+    /* mov r14, [r14] */
+    tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
 #endif
 
     #ifdef __MINGW64__
@@ -1096,16 +1098,16 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
         s->tb_next_offset[args[0]] = s->code_ptr - s->code_buf;
         break;
     case INDEX_op_call:
-#ifdef CONFIG_S2E
-        tcg_out_push(s, TCG_AREG0);
-#endif
         if (const_args[0]) {
             tcg_out_goto(s, 1, (void *) args[0]);
         } else {
             tcg_out_modrm(s, 0xff, 2, args[0]);
         }
 #ifdef CONFIG_S2E
-        tcg_out_pop(s, TCG_AREG0);
+        /* mov r14, $env */
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+        /* mov r14, [r14] */
+        tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
 #endif
         break;
     case INDEX_op_jmp:
