@@ -243,8 +243,6 @@ int cpu_exec(CPUState *env1)
 #ifndef CONFIG_S2E
 #define DECLARE_HOST_REGS 1
 #include "hostregs_helper.h"
-#else
-    register host_reg_t env_reg asm(AREG0);
 #endif
     int ret, interrupt_request;
     TranslationBlock *tb;
@@ -710,7 +708,9 @@ int cpu_exec(CPUState *env1)
                         next_tb = s2e_qemu_tb_exec(
                                 g_s2e, g_s2e_state, tb, saved_AREGs);
                     } else {
-                        env_reg = env;
+                        __asm__ __volatile__("movq %0, %%r14"
+                                             : /* no input */
+                                             : "g" (env));
                         next_tb = tcg_qemu_tb_exec(tc_ptr);
                     }
 #elif defined(CONFIG_LLVM)

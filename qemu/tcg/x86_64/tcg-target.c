@@ -1489,6 +1489,14 @@ void tcg_target_qemu_prologue(TCGContext *s)
     stack_addend = frame_size - push_size;
     tcg_out_addi(s, TCG_REG_RSP, -stack_addend);
 
+#ifdef CONFIG_S2E
+    /* will TCG_AREG0 */
+
+    /* mov r14, $env */
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+    /* mov r14, [r14] */
+    tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
+#endif
 
 #ifdef __MINGW64__
     tcg_out_modrm(s, 0xff, 4, TCG_REG_RCX); /* jmp *%rcx */
