@@ -42,7 +42,7 @@ _stop:
 inc edx
 jmp _stop
 
-branch1
+branch1:
 _stop1:
 ;cli
 ;hlt

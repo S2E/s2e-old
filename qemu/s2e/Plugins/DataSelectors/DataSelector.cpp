@@ -72,3 +72,16 @@ bool DataSelector::makeUnicodeStringSymbolic(S2EExecutionState *s, uint64_t addr
     return true;
 }
 
+klee::ref<klee::Expr> DataSelector::getOddValue(klee::Expr::Width w)
+{
+    ref<Expr> symbVal = S2EExecutionState::createSymbolicValue(w);
+    ref<Expr> e1 = MulExpr::create(ConstantExpr::create(2,w), symbVal);
+    ref<Expr> e2 = AddExpr::create(e1, ConstantExpr::create(1,w));
+    return e2;
+}
+
+klee::ref<klee::Expr> DataSelector::getOddValue(klee::Expr::Width w, uint64_t upperBound)
+{
+    ref<Expr> e1 = getOddValue(w);
+    return UltExpr::create(e1, ConstantExpr::create(upperBound,w));
+}

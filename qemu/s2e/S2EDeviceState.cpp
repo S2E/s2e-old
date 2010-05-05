@@ -99,7 +99,7 @@ void S2EDeviceState::saveDeviceState()
     vm_stop(0);
     m_Offset = 0;
 
-    DPRINTF("Saving device state 0x%lx\n", this);
+    DPRINTF("Saving device state %p\n", this);
     /* Iterate through all device descritors and call
     * their snapshot function */
     for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
@@ -124,7 +124,7 @@ void S2EDeviceState::restoreDeviceState()
 
     m_Offset = 0;
 
-    DPRINTF("Restoring device state 0x%lx\n", this);
+    DPRINTF("Restoring device state %p\n", this);
     for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
         unsigned o = m_Offset;
         void *se = *it;

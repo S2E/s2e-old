@@ -1,4 +1,5 @@
 #include <s2e/Plugin.h>
+#include <s2e/S2E.h>
 
 // XXX: hack: for now we include and register all plugins right there
 #include <s2e/Plugins/CorePlugin.h>
@@ -10,6 +11,7 @@
 #include <s2e/Plugins/BranchCoverage.h>
 #include <s2e/Plugins/ExecutionTrace.h>
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
+#include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -45,6 +47,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::BranchCoverage);
     __S2E_REGISTER_PLUGIN(plugins::ExecutionTrace);
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
+    __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 
 #undef __S2E_REGISTER_PLUGIN
@@ -78,6 +81,7 @@ const PluginInfo* PluginsFactory::getPluginInfo(const string& name) const
 Plugin* PluginsFactory::createPlugin(S2E* s2e, const string& name) const
 {
     const PluginInfo* pluginInfo = getPluginInfo(name);
+    s2e->getMessagesStream() << "Creating plugin " << name << std::endl;
     if(pluginInfo)
         return pluginInfo->instanceCreator(s2e);
     else
