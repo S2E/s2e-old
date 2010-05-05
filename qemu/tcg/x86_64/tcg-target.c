@@ -1522,6 +1522,7 @@ void tcg_target_qemu_prologue(TCGContext *s)
 
 #define _D(x) _S(x) "(%rip)"
 
+#ifndef CONFIG_S2E
 __asm__(
     ".text                                              \n"
     ".globl " _S(tcg_llvm_helper_wrapper) "             \n"
@@ -1542,6 +1543,16 @@ __asm__(
     "   movq " _D(tcg_llvm_runtime + 0*8) ", %r11       \n" // helper_ret_addr
     "   jmp *%r11                                       \n"
 );
+
+#else
+__asm__(
+    ".text                                              \n"
+    ".globl " _S(tcg_llvm_helper_wrapper) "             \n"
+    _S(tcg_llvm_helper_wrapper) ":                      \n"
+    "   movq " _D(tcg_llvm_runtime + 1*8) ", %r11       \n" // helper_call_addr
+    "   jmp *%r11                                       \n"
+);
+#endif
 
 #undef _S
 #undef _D

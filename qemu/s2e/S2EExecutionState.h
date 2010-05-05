@@ -5,6 +5,7 @@
 
 // XXX
 struct CPUX86State;
+#define CPU_OFFSET(field) offsetof(CPUX86State, field)
 
 //#include <tr1/unordered_map>
 
@@ -27,20 +28,18 @@ protected:
     PluginStateMap m_PluginState;
     bool m_symbexEnabled;
 
+    bool m_active;
+    bool m_runningConcrete;
+
+    klee::MemoryObject* m_cpuRegistersState;
+    klee::MemoryObject* m_cpuSystemState;
+
     ExecutionState* clone();
 
     S2EDeviceState *m_deviceState;
 public:
-    CPUX86State* cpuState;
-    
-
-public:
     S2EExecutionState(klee::KFunction *kf);
 
-
-    void selectState(CPUX86State* cpuState, klee::KFunction *kf);
-    CPUX86State* getCpuState() const { return cpuState; }
-    
     S2EDeviceState *getDeviceState() const {
         return m_deviceState;
     }
@@ -57,23 +56,43 @@ public:
         return (*it).second;
     }
 
-    /** Returns true if symbex is currently enabled for this state */
-    bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
+    /** Returns true is this is the active state */
+    bool isActive() const { return m_active; }
 
-    /** Read value from memory concretizing it if necessary */
-    uint64_t readMemoryConcrete(uint64_t address, char size);
-    bool readMemoryConcrete(uint64_t address, void *dest, char size);
+    /** Returns true if this state is currently running in concrete mode.
+        That means that either current TB is executed entirely concrete,
+        or that symbolically running TB code have called concrete helper */
+    bool isRunningConcrete() const { return m_runningConcrete; }
 
-    /** Write concrete value to memory */
-    void writeMemoryConcrete(uint64_t address, uint64_t value, char size);
+    /** Read CPU general purpose register */
+    klee::ref<klee::Expr> readCpuRegister(unsigned offset,
+                                          klee::Expr::Width width) const;
 
-    /** Read an ASCIIZ string from memory */
-    bool readString(uint64_t address, std::string &s, unsigned maxLen=256);
-    bool readUnicodeString(uint64_t address, std::string &s, unsigned maxLen=256);
+    /** Write CPU general purpose register */
+    void writeCpuRegister(unsigned offset, klee::ref<klee::Expr> value);
+
+    /** Read CPU system state */
+    uint64_t readCpuState(unsigned offset, unsigned width) const;
+
+    /** Write CPU system state */
+    void writeCpuState(unsigned offset, uint64_t value, unsigned width);
 
     uint64_t getPc() const;
     uint64_t getPid() const;
     uint64_t getSp() const;
+
+    /** Returns true if symbex is currently enabled for this state */
+    bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
+
+    /** Read value from memory, returning false if the value is symbolic */
+    bool readMemoryConcrete(uint64_t address, void *dest, uint64_t size);
+
+    /** Write concrete value to memory */
+    void writeMemoryConcrete(uint64_t address, uint64_t value, uint64_t size);
+
+    /** Read an ASCIIZ string from memory */
+    bool readString(uint64_t address, std::string &s, unsigned maxLen=256);
+    bool readUnicodeString(uint64_t address, std::string &s, unsigned maxLen=256);
 
     /** Virtual address translation (debug mode). Return -1 on failure. */
     uint64_t getPhysicalAddress(uint64_t virtualAddress) const;

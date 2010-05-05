@@ -157,8 +157,7 @@ void WindowsMonitor::slotKmUpdateModuleList(S2EExecutionState *state, uint64_t p
 
 bool WindowsMonitor::getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I)
 {
-    CPUState *cpuState = (CPUState *)s->getCpuState();
-    if (desc.Pid && cpuState->cr[3] != desc.Pid) {
+    if (desc.Pid && s->getPid() != desc.Pid) {
         return false;
     }
 
@@ -169,8 +168,7 @@ bool WindowsMonitor::getImports(S2EExecutionState *s, const ModuleDescriptor &de
 
 bool WindowsMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E)
 {
-    CPUState *cpuState = (CPUState *)s->getCpuState();
-    if (desc.Pid && cpuState->cr[3] != desc.Pid) {
+    if (desc.Pid && s->getPid() != desc.Pid) {
         return false;
     }
 
@@ -291,9 +289,8 @@ bool WindowsMonitor::isKernelAddress(uint64_t pc) const
 
 uint64_t WindowsMonitor::getPid(S2EExecutionState *s, uint64_t pc)
 {
-    CPUState *cpuState = (CPUState *)s->getCpuState();
     if (pc >= GetKernelStart()) {
         return 0;
     }
-    return cpuState->cr[3];
+    return s->getPid();
 }

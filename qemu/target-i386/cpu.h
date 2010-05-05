@@ -584,7 +584,6 @@ typedef struct {
 typedef struct CPUX86State {
     /* standard registers */
     target_ulong regs[CPU_NB_REGS];
-    target_ulong eip;
     target_ulong eflags; /* eflags register. During CPU emulation, CC
                         flags and DF are set to zero because they are
                         stored elsewhere */
@@ -594,6 +593,14 @@ typedef struct CPUX86State {
     target_ulong cc_dst;
     uint32_t cc_op;
     int32_t df; /* D flag : 1 if D = 0, -1 if D = 1 */
+
+    /* S2E note: the contents of the structure from this point
+       can never be symbolic. The content up to this point can
+       not be easily accessible from concrete code */
+    /* S2E note: XXX: what about FPU ? */
+
+    target_ulong eip;
+
     uint32_t hflags; /* TB flags, see HF_xxx constants. These flags
                         are known at translation time. */
     uint32_t hflags2; /* various other flags, see HF2_xxx constants. */

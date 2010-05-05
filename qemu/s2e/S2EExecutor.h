@@ -97,20 +97,16 @@ public:
     S2EExecutionState* selectNextState(S2EExecutionState* state);
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
-            TranslationBlock *tb, void* volatile* saved_AREGs);
+                                      TranslationBlock *tb);
 
     void cleanupTranslationBlock(S2EExecutionState *state,
-            TranslationBlock *tb);
+                                 TranslationBlock *tb);
 
     /** Enable symbolic execution for a given state */
     void enableSymbolicExecution(S2EExecutionState* state);
 
     /** Disable symbolic execution for a given state */
     void disableSymbolicExecution(S2EExecutionState* state);
-
-    /** Context switch-related function **/
-    void synchronizeMemoryObjects(S2EExecutionState *state,
-                                           bool fromNativeToKlee);
 
 protected:
     void doStateSwitch(S2EExecutionState* oldState,
@@ -123,6 +119,9 @@ protected:
     /** Copy concrete values to their proper location, concretizing
         if necessary (will not touch RAM - it is always symbolic) */
     void copyOutConcretes(klee::ExecutionState &state);
+
+    /** Copy values from their proper location to the state */
+    bool copyInConcretes(klee::ExecutionState &state);
 
     /** Called on fork, used to trace forks */
     StatePair fork(klee::ExecutionState &current,

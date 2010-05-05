@@ -146,12 +146,11 @@ bool WindowsKmInterceptor::GetDriverDescriptor(uint64_t pDriverObject, ModuleDes
 
 bool WindowsKmInterceptor::CatchModuleLoad(S2EExecutionState *state)
 {
-   CPUState *cpuState = (CPUState *)state->getCpuState();
     assert(m_Os->GetVersion() == WindowsMonitor::SP3);
 
     uint64_t pDriverObject;
 
-    if (!QEMU::ReadVirtualMemory(cpuState->regs[R_ESP], &pDriverObject, m_Os->GetPointerSize())) {
+    if (!state->readMemoryConcrete(state->getSp(), &pDriverObject, m_Os->GetPointerSize())) {
         return false;
     }
 
@@ -171,11 +170,9 @@ bool WindowsKmInterceptor::CatchModuleLoad(S2EExecutionState *state)
 
 bool WindowsKmInterceptor::CatchModuleUnload(S2EExecutionState *state)
 {
-    CPUState *cpuState = (CPUState *)state->getCpuState();
-
     uint64_t pDriverObject;
 
-    if (!QEMU::ReadVirtualMemory(cpuState->regs[R_ESP] + 4, &pDriverObject, m_Os->GetPointerSize())) {
+    if (!state->readMemoryConcrete(state->getSp() + 4, &pDriverObject, m_Os->GetPointerSize())) {
         return false;
     }
 

@@ -2,12 +2,13 @@ extern "C" {
 #include "config.h"
 #include "qemu-common.h"
 
+extern struct CPUX86State *env;
 int cpu_memory_rw_debug_se(uint64_t addr, uint8_t *buf, int len, int is_write);
 //target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr);
 }
 
 #include "S2EExecutionState.h"
-#include "S2EDeviceState.h"
+#include <s2e/S2EDeviceState.h>
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
@@ -18,9 +19,11 @@ namespace s2e {
 
 using namespace klee;
 
-
-S2EExecutionState::S2EExecutionState(klee::KFunction *kf) : klee::ExecutionState(kf), m_symbexEnabled(false),
-cpuState(NULL){
+S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
+        klee::ExecutionState(kf), m_symbexEnabled(false),
+        m_active(true), m_runningConcrete(true),
+        m_cpuRegistersState(NULL), m_cpuSystemState(NULL)
+{
     m_deviceState = new S2EDeviceState();
 }
 
@@ -31,31 +34,125 @@ ExecutionState* S2EExecutionState::clone()
     return ret;
 }
 
+ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
+                                             Expr::Width width) const
+{
+    assert(width == 1 || (width&7) == 0);
+    assert(offset + Expr::getMinBytesForWidth(width)
+                    <= offsetof(CPUX86State, eip));
+
+    if(!m_runningConcrete) {
+        const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
+        assert(os);
+        return os->read(offset, width);
+    } else {
+        uint64_t ret = 0;
+        memcpy((void*) &ret, (void*) (m_cpuRegistersState->address + offset),
+                       Expr::getMinBytesForWidth(width));
+        return ConstantExpr::create(ret, width);
+    }
+}
+
+void S2EExecutionState::writeCpuRegister(unsigned offset,
+                                         klee::ref<klee::Expr> value)
+{
+    assert(offset + Expr::getMinBytesForWidth(value->getWidth())
+                    <= offsetof(CPUX86State, eip));
+
+    if(!m_runningConcrete) {
+        const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
+        assert(os);
+        ObjectState *wos = addressSpace.getWriteable(m_cpuRegistersState, os);
+        wos->write(offset - offsetof(CPUX86State, eip), value);
+    } else {
+        assert(isa<ConstantExpr>(value) &&
+               "Can not write symbolic values to registers while executing"
+               " in concrete mode. TODO: fix it by longjmping to main loop");
+        ConstantExpr* ce = cast<ConstantExpr>(value);
+        uint64_t v = ce->getZExtValue(64);
+        memcpy((void*) (m_cpuRegistersState->address + offset), (void*) &v,
+                    Expr::getMinBytesForWidth(ce->getWidth()));
+    }
+}
+
+uint64_t S2EExecutionState::readCpuState(unsigned offset,
+                                         unsigned width) const
+{
+    assert(width == 1 || (width&7) == 0);
+    assert(offset >= offsetof(CPUX86State, eip));
+    assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
+
+    uint8_t* address;
+    if(m_active) {
+        address = (uint8_t*) m_cpuSystemState->address;
+    } else {
+        const ObjectState* os = addressSpace.findObject(m_cpuSystemState);
+        assert(os);
+        address = os->getConcreteStore();
+        assert(address);
+    }
+
+    uint64_t ret = 0;
+    memcpy((void*) &ret, address + offset - offsetof(CPUX86State, eip),
+                        Expr::getMinBytesForWidth(width));
+
+    if(width == 1)
+        ret &= 1;
+
+    return ret;
+}
+
+void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
+                                      unsigned width)
+{
+    assert(width == 1 || (width&7) == 0);
+    assert(offset >= offsetof(CPUX86State, eip));
+    assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
+
+    uint8_t* address;
+    if(m_active) {
+        address = (uint8_t*) m_cpuSystemState->address;
+    } else {
+        const ObjectState* os = addressSpace.findObject(m_cpuSystemState);
+        assert(os);
+        ObjectState *wos = addressSpace.getWriteable(m_cpuRegistersState, os);
+        address = wos->getConcreteStore();
+        assert(address);
+    }
+
+    if(width == 1)
+        value &= 1;
+    memcpy(address + offset - offsetof(CPUX86State, eip), (void*) &value,
+                        Expr::getMinBytesForWidth(width));
+}
 
 //Get the program counter in the current state.
 //Allows plugins to retrieve it in a hardware-independent manner.
 uint64_t S2EExecutionState::getPc() const
 { 
-    return cpuState->eip;
+    return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
 }
 
 uint64_t S2EExecutionState::getSp() const
 {
-    return cpuState->regs[R_ESP];
+    ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[R_ESP]),
+                                  8*sizeof(target_ulong));
+    return cast<ConstantExpr>(e)->getZExtValue(64);
 }
 
 TranslationBlock *S2EExecutionState::getTb() const
 {
-    return cpuState->s2e_current_tb; 
+    return (TranslationBlock*)
+            readCpuState(CPU_OFFSET(s2e_current_tb), 8*sizeof(void*));
 }
 
 uint64_t S2EExecutionState::getPid() const
 { 
-    return cpuState->cr[3];
+    return readCpuState(offsetof(CPUX86State, cr[3]), sizeof(target_ulong));
 }
 
 /* XXX: this function belongs to S2EExecutor */
-bool S2EExecutionState::readMemoryConcrete(uint64_t address, void *dest, char size)
+bool S2EExecutionState::readMemoryConcrete(uint64_t address, void *dest, uint64_t size)
 {
     uint8_t *d = (uint8_t*)dest;
     while (size>0) {
@@ -73,8 +170,10 @@ bool S2EExecutionState::readMemoryConcrete(uint64_t address, void *dest, char si
 
 uint64_t S2EExecutionState::getPhysicalAddress(uint64_t virtualAddress) const
 {
+    assert(m_active && "Can not use getPhysicalAddress when the state"
+                       " is not active (TODO: fix it)");
     target_phys_addr_t physicalAddress =
-        cpu_get_phys_page_debug(cpuState, virtualAddress & TARGET_PAGE_MASK);
+        cpu_get_phys_page_debug(env, virtualAddress & TARGET_PAGE_MASK);
     if(physicalAddress == (target_phys_addr_t) -1)
         return (uint64_t) -1;
 
@@ -338,11 +437,5 @@ ref<Expr> S2EExecutionState::createSymbolicValue(
 extern "C" {
 
 S2EExecutionState* g_s2e_state = NULL;
-
-void s2e_update_state_env(
-        struct S2EExecutionState* state, CPUX86State* env)
-{
-	state->cpuState = env;
-}
 
 } // extern "C"

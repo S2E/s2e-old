@@ -3,6 +3,7 @@ extern "C" {
 #include <cpu-all.h>
 #include <tcg-llvm.h>
 #include <exec-all.h>
+extern struct CPUX86State *env;
 }
 
 #include "S2EExecutor.h"
@@ -40,7 +41,6 @@ using namespace klee;
 
 extern "C" {
     // XXX
-    extern volatile void* saved_AREGs[3];
     void* g_s2e_exec_ret_addr = 0;
 }
 
@@ -145,6 +145,9 @@ S2EExecutionState* S2EExecutor::createInitialState()
     S2EExecutionState *state =
         new S2EExecutionState(m_dummyMain);
 
+    state->m_runningConcrete = true;
+    state->m_active = true;
+
     if(pathWriter)
         state->pathOS = pathWriter->open();
     if(symPathWriter)
@@ -166,39 +169,6 @@ S2EExecutionState* S2EExecutor::createInitialState()
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
 
-    /* XXX: is this really required ? */
-    addExternalObject(*state, saved_AREGs,
-                      sizeof(saved_AREGs), false,
-                      /* isUserSpecified = */ true,
-                      /* isSharedConcrete = */ true);
-
-#if 0
-    /* Make CPUState instances accessible: generated code uses them as globals */
-    for(CPUState *env = first_cpu; env != NULL; env = env->next_cpu) {
-        std::cout << "Adding KLEE CPU (addr = " << env
-                  << " size = " << sizeof(*env) << ")" << std::endl;
-        addExternalObject(*state, env, sizeof(*env), false);
-    }
-
-    /* Map physical memory */
-    std::cout << "Populating KLEE memory..." << std::endl;
-
-    for(ram_addr_t addr = 0; addr < last_ram_offset; addr += TARGET_PAGE_SIZE) {
-        int pd = cpu_get_physical_page_desc(addr) & ~TARGET_PAGE_MASK;
-        if(pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD))
-            continue;
-
-        void* p = qemu_get_ram_ptr(addr);
-        MemoryObject* mo = addExternalObject(
-                *state, p, TARGET_PAGE_SIZE, false);
-        mo->isUserSpecified = true; // XXX hack
-
-        /* XXX */
-        munmap(p, TARGET_PAGE_SIZE);
-    }
-    std::cout << "...done" << std::endl;
-#endif
-
     return state;
 }
 
@@ -217,7 +187,6 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state)
     }
 #endif
 
-    state->cpuState = first_cpu;
     initializeGlobals(*state);
     bindModuleConstants();
 }
@@ -229,8 +198,23 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
               << "Adding CPU (addr = 0x" << cpuEnv
               << ", size = 0x" << sizeof(*cpuEnv) << ")"
               << std::dec << std::endl;
-    addExternalObject(*initialState, cpuEnv, sizeof(*cpuEnv), false);
-    if(!initialState->cpuState) initialState->cpuState = cpuEnv;
+
+    /* Add registers and eflags area as a true symbolic area */
+    initialState->m_cpuRegistersState =
+        addExternalObject(*initialState, cpuEnv,
+                      offsetof(CPUX86State, eip),
+                      /* isReadOnly = */ false,
+                      /* isUserSpecified = */ false,
+                      /* isSharedConcrete = */ false);
+
+    /* Add the rest of the structure as concrete-only area */
+    initialState->m_cpuSystemState =
+        addExternalObject(*initialState, cpuEnv + offsetof(CPUX86State, eip),
+                      sizeof(CPUX86State) - offsetof(CPUX86State, eip),
+                      /* isReadOnly = */ false,
+                      /* isUserSpecified = */ true,
+                      /* isSharedConcrete = */ true);
+    m_saveOnContextSwitch.push_back(initialState->m_cpuSystemState);
 }
 
 void S2EExecutor::registerRam(S2EExecutionState *initialState,
@@ -293,6 +277,7 @@ bool S2EExecutor::isRamSharedConcrete(S2EExecutionState *state,
 void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
                     uint64_t hostAddress, uint8_t* buf, uint64_t size)
 {
+    assert(state->m_active && state->m_runningConcrete);
     uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
     if(page_offset + size <= TARGET_PAGE_SIZE) {
         /* Single-page access */
@@ -310,7 +295,7 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
                         << hexval(state->getPc()) << std::endl;
                 execute_s2e_at = state->getPc();
                 // XXX: what about regs_to_env ?
-                longjmp(state->cpuState->jmp_env, 1);
+                longjmp(env->jmp_env, 1);
             }
         }
     } else {
@@ -324,6 +309,7 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
 void S2EExecutor::readRamConcrete(S2EExecutionState *state,
                     uint64_t hostAddress, uint8_t* buf, uint64_t size)
 {
+    assert(state->m_active);
     uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
     if(page_offset + size <= TARGET_PAGE_SIZE) {
         /* Single-page access */
@@ -357,6 +343,7 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
 void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
                        uint64_t hostAddress, const uint8_t* buf, uint64_t size)
 {
+    assert(state->m_active);
     uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
     if(page_offset + size <= TARGET_PAGE_SIZE) {
         /* Single-page access */
@@ -381,6 +368,11 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
 }
 
 void S2EExecutor::copyOutConcretes(ExecutionState &state) {
+
+    assert(dynamic_cast<S2EExecutionState*>(&state));
+    assert(!static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
+    static_cast<S2EExecutionState*>(&state)->m_runningConcrete = true;
+
     /* Concretize any symbolic values */
     for (MemoryMap::iterator
             it = state.addressSpace.nonUserSpecifiedObjects.begin(),
@@ -408,12 +400,23 @@ void S2EExecutor::copyOutConcretes(ExecutionState &state) {
     Executor::copyOutConcretes(state);
 }
 
+bool S2EExecutor::copyInConcretes(klee::ExecutionState &state)
+{
+    assert(dynamic_cast<S2EExecutionState*>(&state));
+    assert(static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
+    static_cast<S2EExecutionState*>(&state)->m_runningConcrete = false;
+    return Executor::copyInConcretes(state);
+}
+
 void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
                                 S2EExecutionState* newState)
 {
     m_s2e->getMessagesStream()
             << "Switching from state " << hexval(oldState)
             << " to state " << hexval(newState) << std::endl;
+
+    assert(oldState->m_active && !newState->m_active);
+    oldState->m_active = false;
 
     copyInConcretes(*oldState);
     oldState->getDeviceState()->saveDeviceState();
@@ -435,6 +438,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     newState->getDeviceState()->restoreDeviceState();
     copyOutConcretes(*newState);
+    newState->m_active = true;
 
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
 }
@@ -454,19 +458,13 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 
 inline uintptr_t S2EExecutor::executeTranslationBlock(
         S2EExecutionState* state,
-        TranslationBlock* tb,
-        void* volatile* saved_AREGs)
+        TranslationBlock* tb)
 {
-#if 0
-    return ((uintptr_t (*)(void* volatile*)) tb->llvm_tc_ptr)(saved_AREGs);
-#else
-
+    assert(state->m_active);
     assert(state->stack.size() == 1);
     assert(state->pc == m_dummyMain->instructions);
 
     /* Update state */
-    state->cpuState = (CPUX86State*) saved_AREGs[0];
-
     if (!copyInConcretes(*state)) {
         std::cerr << "external modified read-only object" << std::endl;
         exit(1);
@@ -479,7 +477,7 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
         /* Generate LLVM code if nesessary */
         if(!tb->llvm_function) {
-            cpu_gen_llvm(state->cpuState, tb);
+            cpu_gen_llvm(env, tb);
             assert(tb->llvm_function);
         }
 
@@ -515,7 +513,7 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
         /* Pass argument */
         bindArgument(kf, 0, *state,
-                     Expr::createPointer((uint64_t) saved_AREGs));
+                     Expr::createPointer((uint64_t) env));
 
         /* Information for GETPC() macro */
         g_s2e_exec_ret_addr = tb->tc_ptr;
@@ -564,7 +562,7 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
                     state->popFrame();
 
                     tb = next_tb;
-                    state->cpuState->s2e_current_tb = tb;
+                    env->s2e_current_tb = tb;
                     g_s2e_exec_ret_addr = tb->tc_ptr;
 
                     /* assert that blocking works */
@@ -602,13 +600,14 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
     copyOutConcretes(*state);
 
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
-#endif
 }
 
 inline void S2EExecutor::cleanupTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
+    assert(state->m_active);
+
     g_s2e_exec_ret_addr = 0;
 
     while(state->stack.size() != 1)
@@ -616,6 +615,12 @@ inline void S2EExecutor::cleanupTranslationBlock(
 
     state->prevPC = 0;
     state->pc = m_dummyMain->instructions;
+
+    if(!state->m_runningConcrete) {
+        /* If we was interupted while symbexing, we can be resumed
+           for concrete execution */
+        copyOutConcretes(*state);
+    }
 }
 
 void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
@@ -632,48 +637,41 @@ void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
 }
 
-
-void S2EExecutor::synchronizeMemoryObjects(S2EExecutionState *state,
-                                           bool fromNativeToKlee)
-{
-    foreach2(it, m_saveOnContextSwitch.begin(), m_saveOnContextSwitch.end()) {
-        const ObjectState *os = state->addressSpace.findObject(*it);
-        uint8_t *address = (uint8_t*) (uintptr_t) (*it)->address;
-
-        if (fromNativeToKlee) {
-            ObjectState *wos = state->addressSpace.getWriteable(*it, os);
-            uint8_t *store = wos->getConcreteStore();
-            assert(store);
-            memcpy(store, address, (*it)->size);
-        }else {
-            uint8_t *store = os->getConcreteStore();
-            assert(store);
-            memcpy(address, store, (*it)->size);            
-        }
-    }
-}
-
 void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                  const vector<S2EExecutionState*>& newStates,
                  const vector<ref<Expr> >& newConditions)
 {   
+    assert(originalState->m_active);
+
     m_s2e->getMessagesStream()
         << "Forking state " << hexval(originalState)
         << " into states:" << std::endl;
+
     for(unsigned i = 0; i < newStates.size(); ++i) {
+        S2EExecutionState* newState = newStates[i];
+
         m_s2e->getMessagesStream()
-            << "    " << hexval(newStates[i]) << " with condition "
+            << "    " << hexval(newState) << " with condition "
             << *newConditions[i].get() << std::endl;
 
-        newStates[i]->getDeviceState()->saveDeviceState();
+        if(newState != originalState) {
+            newState->getDeviceState()->saveDeviceState();
 
-        foreach(MemoryObject* mo, m_saveOnContextSwitch) {
-            const ObjectState *os = newStates[i]->addressSpace.findObject(mo);
-            ObjectState *wos = newStates[i]->addressSpace.getWriteable(mo, os);
-            uint8_t *store = wos->getConcreteStore();
+            foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+                const ObjectState *os = newState->addressSpace.findObject(mo);
+                ObjectState *wos = newState->addressSpace.getWriteable(mo, os);
+                uint8_t *store = wos->getConcreteStore();
 
-            assert(store);
-            memcpy(store, (uint8_t*) mo->address, mo->size);
+                assert(store);
+                memcpy(store, (uint8_t*) mo->address, mo->size);
+            }
+
+            newState->m_active = false;
+            if(newState->m_runningConcrete) {
+                /* Forking while running concretely is unlikely, but still
+                   might happen, for example, due to instrumentation */
+                copyInConcretes(*newState);
+            }
         }
     }
 
@@ -804,10 +802,9 @@ S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
 }
 
 uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
-                           struct TranslationBlock* tb,
-                           void* volatile* saved_AREGs)
+                           struct TranslationBlock* tb)
 {
-    return s2e->getExecutor()->executeTranslationBlock(state, tb, saved_AREGs);
+    return s2e->getExecutor()->executeTranslationBlock(state, tb);
 }
 
 void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,

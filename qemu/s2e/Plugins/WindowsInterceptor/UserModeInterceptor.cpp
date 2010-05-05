@@ -73,13 +73,12 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
 {
     s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
     s2e::windows::PEB_LDR_DATA32 LdrData;
-    CPUState *cpuState = (CPUState*)state->getCpuState();
 
-    if (!WaitForProcessInit(cpuState)) {
+    if (!WaitForProcessInit(state)) {
         return false;
     }
 
-    if (QEMU::ReadVirtualMemory(m_LdrAddr, &LdrData, sizeof(s2e::windows::PEB_LDR_DATA32)) < 0) {
+    if (!state->readMemoryConcrete(m_LdrAddr, &LdrData, sizeof(s2e::windows::PEB_LDR_DATA32))) {
         return false;
     }
 
@@ -102,7 +101,7 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
         //if (m_SearchedModules.find(s) != m_SearchedModules.end()) {
         //Update the information about the library
         ModuleDescriptor Desc; 
-        Desc.Pid = cpuState->cr[3];
+        Desc.Pid = state->getPid();
         Desc.Name = s;
         Desc.LoadBase = LdrEntry.DllBase;
         Desc.Size = LdrEntry.SizeOfImage;
@@ -121,19 +120,18 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
 }
 
 
-bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
+bool WindowsUmInterceptor::WaitForProcessInit(S2EExecutionState* state)
 {
-    CPUState *state = (CPUState *)CpuState;
     s2e::windows::PEB_LDR_DATA32 LdrData;
     s2e::windows::PEB32 PebBlock;
     uint32_t Peb = (uint32_t)-1;
 
 
-    if (!QEMU::ReadVirtualMemory(state->segs[R_FS].base + 0x18, &Peb, 4)) {
+    if(!state->readMemoryConcrete(CPU_OFFSET(segs[R_FS].base) + 0x18, &Peb, 4)) {
         return false;
     }
 
-    if (!QEMU::ReadVirtualMemory(Peb+0x30, &Peb, 4)) {
+    if(!state->readMemoryConcrete(Peb+0x30, &Peb, 4)) {
         return false;
     }
 
@@ -143,12 +141,12 @@ bool WindowsUmInterceptor::WaitForProcessInit(void *CpuState)
     else
         return false;
 
-    if (!QEMU::ReadVirtualMemory(Peb, &PebBlock, sizeof(PebBlock))) {
+    if (!state->readMemoryConcrete(Peb, &PebBlock, sizeof(PebBlock))) {
         return false;
     }
 
     /* Check that the entries are inited */
-    if (!QEMU::ReadVirtualMemory(PebBlock.Ldr, &LdrData, 
+    if (!state->readMemoryConcrete(PebBlock.Ldr, &LdrData,
         sizeof(s2e::windows::PEB_LDR_DATA32))) {
             return false;
     }
@@ -188,15 +186,15 @@ bool WindowsUmInterceptor::CatchModuleLoad(S2EExecutionState *State)
 bool WindowsUmInterceptor::CatchProcessTermination(S2EExecutionState *State)
 {
     uint64_t pEProcess;
-    CPUState *cpuState = (CPUState *)State->getCpuState();
-
 
     assert(m_Os->GetVersion() == WindowsMonitor::SP3);
 
-    pEProcess = cpuState->regs[R_EBX];
+    pEProcess = cast<klee::ConstantExpr>(
+        State->readCpuRegister(CPU_OFFSET(regs[R_EBX]), 8*sizeof(target_ulong)))
+            ->getZExtValue();
     s2e::windows::EPROCESS32 EProcess;
 
-    if (!QEMU::ReadVirtualMemory(pEProcess, &EProcess, sizeof(EProcess))) {
+    if (!State->readMemoryConcrete(pEProcess, &EProcess, sizeof(EProcess))) {
         TRACE("Could not read EProcess data structure at %#"PRIx64"!\n", pEProcess);
         return false;
     }
@@ -210,21 +208,21 @@ bool WindowsUmInterceptor::CatchProcessTermination(S2EExecutionState *State)
 
 bool WindowsUmInterceptor::CatchModuleUnload(S2EExecutionState *State)
 {
-    CPUState *cpuState = (CPUState *)State->getCpuState();
-
     //XXX: This register is hard coded for XP SP3
     assert(m_Os->GetVersion() == WindowsMonitor::SP3);
-    uint64_t pLdrEntry = cpuState->regs[R_ESI];
+    uint64_t pLdrEntry = cast<klee::ConstantExpr>(
+        State->readCpuRegister(CPU_OFFSET(regs[R_ESI]), 8*sizeof(target_ulong)))
+            ->getZExtValue();
     s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
 
-    if (!QEMU::ReadVirtualMemory(pLdrEntry, &LdrEntry, sizeof(LdrEntry))) {
+    if (!State->readMemoryConcrete(pLdrEntry, &LdrEntry, sizeof(LdrEntry))) {
         TRACE("Could not read pLdrEntry data structure at %#"PRIx64"!\n", pLdrEntry);
         return false;
     }
 
 
     ModuleDescriptor Desc; 
-    Desc.Pid = cpuState->cr[3];
+    Desc.Pid = State->getPc();
     Desc.Name = QEMU::GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);;
     Desc.LoadBase = LdrEntry.DllBase;
     Desc.Size = LdrEntry.SizeOfImage;

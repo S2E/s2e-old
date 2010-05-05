@@ -65,7 +65,6 @@ void s2e_tcg_emit_custom_instruction(struct S2E* s2e,
 void s2e_on_translate_block_start(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        struct CPUX86State* cpu_state,
         struct TranslationBlock *tb, uint64_t pc);
 
 /** Called by cpu_gen_code() before the execution would leave the tb.
@@ -73,7 +72,6 @@ void s2e_on_translate_block_start(
 void s2e_on_translate_block_end(
         struct S2E* s2e, 
         struct S2EExecutionState *state, 
-        struct CPUX86State* cpu_state,
         struct TranslationBlock *tb, uint64_t insPc,
         int staticTarget, uint64_t targetPc);
 
@@ -82,27 +80,18 @@ void s2e_on_translate_block_end(
 void s2e_on_translate_instruction_start(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        struct CPUX86State* cpu_state,
         struct TranslationBlock* tb, uint64_t pc);
 
 /** Called by cpu_gen_code() after translation of each instruction */
 void s2e_on_translate_instruction_end(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        struct CPUX86State* cpu_state,
         struct TranslationBlock* tb, uint64_t pc);
 
 void s2e_on_exception(
         struct S2E *s2e,
         struct S2EExecutionState* state,
-        struct CPUX86State* cpu_state,
         unsigned intNb);
-
-/****************************************/
-/* Functions from S2EExecutionState.cpp */
-
-void s2e_update_state_env(
-        struct S2EExecutionState* state, struct CPUX86State* env);
 
 /**********************************/
 /* Functions from S2EExecutor.cpp */
@@ -159,8 +148,7 @@ struct S2EExecutionState* s2e_select_next_state(
 uintptr_t s2e_qemu_tb_exec(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        struct TranslationBlock* tb,
-        void* volatile* saved_AREGs);
+        struct TranslationBlock* tb);
 
 /* Called by QEMU when execution is aborted using longjmp */
 void s2e_qemu_cleanup_tb_exec(

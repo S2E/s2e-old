@@ -54,7 +54,9 @@
 #define env cpu_single_env
 #endif
 
+#ifndef CONFIG_S2E
 volatile host_reg_t saved_AREGs[3];
+#endif
 
 #ifdef CONFIG_LLVM
 int generate_llvm = 0;
@@ -584,7 +586,7 @@ int cpu_exec(CPUState *env1)
                     qemu_log_mask(CPU_LOG_INT,
                                   "CPU interrupt, vector=0x%x\n", intNb);
 #ifdef CONFIG_S2E
-                    s2e_on_exception(g_s2e, g_s2e_state, env, intNb);
+                    s2e_on_exception(g_s2e, g_s2e_state, intNb);
 #endif
                     intNb = -1;
                 }
@@ -703,14 +705,9 @@ int cpu_exec(CPUState *env1)
 #if defined(CONFIG_S2E)
                     env->s2e_current_tb = tb;
                     if(execute_llvm) {
-                        s2e_update_state_env(g_s2e_state, env);
-                        saved_AREGs[0] = env;
                         next_tb = s2e_qemu_tb_exec(
-                                g_s2e, g_s2e_state, tb, saved_AREGs);
+                                g_s2e, g_s2e_state, tb);
                     } else {
-                        __asm__ __volatile__("movq %0, %%r14"
-                                             : /* no input */
-                                             : "g" (env));
                         next_tb = tcg_qemu_tb_exec(tc_ptr);
                     }
 #elif defined(CONFIG_LLVM)

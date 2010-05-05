@@ -48,7 +48,7 @@ private:
   std::string m_ProcessName;
   std::map<std::string, ModuleDescriptor> m_Modules;
 
-  bool WaitForProcessInit(void *CpuState);
+  bool WaitForProcessInit(S2EExecutionState *state);
   bool FindModules(S2EExecutionState *State);
   bool InitImports();
 
