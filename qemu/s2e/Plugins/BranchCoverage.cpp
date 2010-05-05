@@ -50,6 +50,7 @@ void BranchCoverage::initialize()
         exit(-1);
     }
 
+    m_Trace.reserve(1000);
     
 }
 
@@ -74,7 +75,7 @@ bool BranchCoverage::createTable()
           "'sourceBr' unsigned big int,"
           "'destBr' unsigned big int,"
           "'pid' unsigned big int"
-          ");";
+          "); create index if not exists branchcoverageidx on branchcoverage (moduleId,sourceBr);";
     
     Database *db = s2e()->getDb();
     return db->executeQuery(query);
@@ -135,24 +136,44 @@ void BranchCoverage::onTranslateBlockEnd(
     );
 }
 
+void BranchCoverage::flushTrace()
+{
+    if (m_Trace.size() < 1000) {
+        return;
+    }
+
+    s2e()->getDb()->executeQuery("begin transaction;");
+    foreach2(it, m_Trace.begin(), m_Trace.end()) {
+        const CoverageEntry &te = *it;
+
+        char buffer[512];
+        sprintf(buffer, "insert into branchcoverage values(%"PRIu64",'%s',%"PRIu64",%"PRIu64","
+            "%"PRIu64");", te.timestamp, te.desc->id.c_str(), te.instrPc, te.destPc, te.pid);
+        s2e()->getDb()->executeQuery(buffer);
+
+
+    }
+    s2e()->getDb()->executeQuery("end transaction;");
+
+    m_Trace.clear();
+}
+
 void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc, const ModuleExecutionDesc* desc)
 {
     ETranslationBlockType TbType = state->getTb()->s2e_tb_type;
 
     if (TbType == TB_JMP || TbType == TB_JMP_IND ||
         TbType == TB_COND_JMP || TbType == TB_COND_JMP_IND) {
-            llvm::sys::TimeValue timeStamp = llvm::sys::TimeValue::now();
-            std::stringstream ss;
-            uint64_t instrPc = desc->descriptor.ToNativeBase(pc);
-            uint64_t destPc = desc->descriptor.ToNativeBase(state->getPc());
+            CoverageEntry te;
             
-            ss << "insert into BranchCoverage values(" 
-                   << timeStamp.msec() << ",'" <<
-                   desc->id << "'," <<
-                   instrPc << "," << destPc << "," <<
-                   state->getPid() << ");";
-            s2e()->getDb()->executeQuery(ss.str().c_str());
+            te.timestamp = llvm::sys::TimeValue::now().msec();
+            te.instrPc = desc->descriptor.ToNativeBase(pc);
+            te.destPc = desc->descriptor.ToNativeBase(state->getPc());
+            te.pid = state->getPid();
+            te.desc = desc;
+            m_Trace.push_back(te);
 
+            flushTrace();
     }
 }
 

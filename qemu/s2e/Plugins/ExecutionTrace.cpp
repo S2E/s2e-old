@@ -52,6 +52,7 @@ void ExecutionTrace::initialize()
         exit(-1);
     }
 
+    m_Trace.reserve(10000);
     m_Ticks = 0;
     m_StartTick = s2e()->getConfig()->getInt(getConfigKey() + ".triggerAfter");
     s2e()->getMessagesStream() << "Triggering execution trace after " << m_StartTick << 
@@ -83,7 +84,7 @@ bool ExecutionTrace::createTable()
           "'tbpc' unsigned big int,"
           "'tbtype' tinyint," 
           "'pid' unsigned big int"
-          ");";
+          "); create index if not exists executiontraceidx on executiontrace(moduleid, tbpc);";
     
     Database *db = s2e()->getDb();
     return db->executeQuery(query);
@@ -157,20 +158,21 @@ void ExecutionTrace::onTranslateBlockStart(
 
 void ExecutionTrace::flushTable()
 {
-    if (m_Trace.size() < 10) {
+    if (m_Trace.size()<10000) {
         return;
     }
-    //std::cout << "Flushing trace" << std::endl;
+
+    s2e()->getDb()->executeQuery("begin transaction;");
     foreach2(it, m_Trace.begin(), m_Trace.end()) {
         const TraceEntry &te = *it;
-        std::stringstream ss;
-        ss << "insert into ExecutionTrace values(" 
-            << te.timestamp << ",'" <<
-            te.desc->id << "'," <<
-            te.pc << "," << te.tbType << "," <<
-            te.pid << ");";
-        s2e()->getDb()->executeQuery(ss.str().c_str());
+        char buffer[512];
+        sprintf(buffer, "insert into executiontrace values(%"PRIu64",'%s',%"PRIu64",%d,"
+            "%"PRIu64");", te.timestamp, te.desc->id.c_str(), te.pc, te.tbType, te.pid);
+
+        s2e()->getDb()->executeQuery(buffer);
     }
+    s2e()->getDb()->executeQuery("end transaction;");
+    
     m_Trace.clear();
 }
 
@@ -190,11 +192,24 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
     TraceEntry te;
     te.desc = desc;
     te.tbType = (unsigned)TbType;
-    te.timestamp = timeStamp.msec();
+    te.timestamp = timeStamp.usec();
     te.pc = relPc;
     te.pid = state->getPid();
     
-#if 1  
+    if (m_Trace.size() > 0) {
+        //Do not save duplicates (should be configurable)
+        const TraceEntry &b = m_Trace.back();
+        if (b.pc == te.pc) {
+            return;
+        }
+    }
+    
+    m_Trace.push_back(te);
+
+    flushTable();
+
+
+#if 0 
     ss << "insert into ExecutionTrace values(" 
             << te.timestamp << ",'" <<
             te.desc->id << "'," <<
@@ -203,14 +218,18 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
         s2e()->getDb()->executeQuery(ss.str().c_str());
 
 #else
+#if 0
     s2e()->getDebugStream() << "TR " << te.timestamp << " " <<
             te.desc->id << " " <<
             te.pc << " " << te.tbType << " " <<
             te.pid << std::endl;
+#endif
     //m_Trace.push_back(te);
     //flushTable();
 #endif
+
     }
+
 }
 
 } // namespace plugins

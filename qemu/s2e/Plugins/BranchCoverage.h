@@ -11,6 +11,12 @@
 namespace s2e {
 namespace plugins {
 
+struct CoverageEntry {
+    uint64_t timestamp;
+    const ModuleExecutionDesc* desc;
+    uint64_t instrPc, destPc, pid;
+};
+
 class BranchCoverage : public Plugin
 {
     S2E_PLUGIN
@@ -18,6 +24,7 @@ private:
     std::string m_FileName;
     std::ofstream m_Out;
     std::set<std::string> m_Modules;
+    std::vector<CoverageEntry> m_Trace;
 
 public:
     BranchCoverage(S2E* s2e): Plugin(s2e) {}
@@ -28,6 +35,7 @@ private:
     bool createTable();
     bool initSection(const std::string &cfgKey);
     bool initAggregatedCoverage(const std::string &cfgKey);
+    void flushTrace();
 
     void onExecution(S2EExecutionState *state, uint64_t pc,
         const ModuleExecutionDesc*);
