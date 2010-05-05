@@ -14,7 +14,7 @@ struct hexval {
     int width;
 
     hexval(uint64_t _value, int _width=0) : value(_value), width(_width) {}
-    hexval(void* _value): value((uint64_t)_value), width(sizeof(uintptr_t)*2) {}
+    hexval(void* _value, int _width=0): value((uint64_t)_value), width(_width) {}
 };
 
 inline std::ostream& operator<<(std::ostream& out, const hexval& h)

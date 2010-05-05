@@ -34,7 +34,7 @@ S2EDeviceState* S2EDeviceState::clone()
 {
     S2EDeviceState* ret = new S2EDeviceState(*this);
     ret->m_Parent = this;
-    ret->saveDeviceState();
+    //ret->saveDeviceState();
     return ret;
 }
 

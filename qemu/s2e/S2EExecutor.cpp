@@ -177,6 +177,9 @@ S2EExecutionState* S2EExecutor::createInitialState()
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
 
+    m_s2e->getMessagesStream()
+            << "Created initial state 0x" << hexval(state) << std::endl;
+
     return state;
 }
 
