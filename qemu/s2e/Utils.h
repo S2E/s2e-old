@@ -5,33 +5,31 @@
 #include <cassert>
 #include <ostream>
 #include <iomanip>
+#include <inttypes.h>
 
 namespace s2e {
 
-class hexval {
-public:
-    hexval(uint64_t value, int width=0) : _value(value), _width(width) {}
-    hexval(void* value):
-            _value(uintptr_t(value)), _width(sizeof(uintptr_t)/4) {}
+struct hexval {
+    uint64_t value;
+    int width;
 
-    std::ostream &operator()(std::ostream &out) const {
-        std::ios_base::fmtflags oldf = out.flags(); out.setf(std::ios::hex);
-        std::streamsize oldw = out.width(); out.width(_width);
-        char oldfill = out.fill(); out.fill('0');
-
-        out << "0x" << _value;
-
-        out.flags(oldf); out.width(oldw); out.fill(oldfill);
-        return out;
-    }
-private:
-    uint64_t _value;
-    int _width;
+    hexval(uint64_t _value, int _width=0) : value(_value), width(_width) {}
+    hexval(void* _value): value((uint64_t)_value), width(sizeof(uintptr_t)*2) {}
 };
 
-inline std::ostream& operator<<(std::ostream& os, hexval h)
+inline std::ostream& operator<<(std::ostream& out, const hexval& h)
 {
-    return h(os);
+    out << "0x";
+
+    std::ios_base::fmtflags oldf = out.flags();
+    out.setf(std::ios::hex, std::ios_base::basefield);
+    std::streamsize oldw = out.width(); out.width(h.width);
+    char oldfill = out.fill(); out.fill('0');
+
+    out << h.value;
+
+    out.flags(oldf); out.width(oldw); out.fill(oldfill);
+    return out;
 }
 
 /** A macro used to escape "," in an argument to another macro */

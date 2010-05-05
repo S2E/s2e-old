@@ -46,6 +46,9 @@ extern "C" {
 
 namespace s2e {
 
+/* Global array to hold tb function arguments */
+volatile void* tb_function_args[3];
+
 S2EHandler::S2EHandler(S2E* s2e)
         : m_s2e(s2e)
 {
@@ -169,6 +172,11 @@ S2EExecutionState* S2EExecutor::createInitialState()
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
 
+    addExternalObject(*state, (void*) tb_function_args,
+                      sizeof(tb_function_args), false,
+                      /* isUserSpecified = */ true,
+                      /* isSharedConcrete = */ true);
+
     return state;
 }
 
@@ -209,7 +217,8 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
 
     /* Add the rest of the structure as concrete-only area */
     initialState->m_cpuSystemState =
-        addExternalObject(*initialState, cpuEnv + offsetof(CPUX86State, eip),
+        addExternalObject(*initialState,
+                      ((uint8_t*)cpuEnv) + offsetof(CPUX86State, eip),
                       sizeof(CPUX86State) - offsetof(CPUX86State, eip),
                       /* isReadOnly = */ false,
                       /* isUserSpecified = */ true,
@@ -456,10 +465,14 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     return newState;
 }
 
-inline uintptr_t S2EExecutor::executeTranslationBlock(
+uintptr_t S2EExecutor::executeTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
+    tb_function_args[0] = env;
+    tb_function_args[1] = 0;
+    tb_function_args[2] = 0;
+
     assert(state->m_active);
     assert(state->stack.size() == 1);
     assert(state->pc == m_dummyMain->instructions);
@@ -513,7 +526,7 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
 
         /* Pass argument */
         bindArgument(kf, 0, *state,
-                     Expr::createPointer((uint64_t) env));
+                     Expr::createPointer((uint64_t) tb_function_args));
 
         /* Information for GETPC() macro */
         g_s2e_exec_ret_addr = tb->tc_ptr;
@@ -527,7 +540,6 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
             /* TODO: timers */
             /* TODO: MaxMemory */
 
-            updateStates(state);
             if(!removedStates.empty() && removedStates.find(state) !=
                                          removedStates.end()) {
                 std::cerr << "The current state was killed inside KLEE !" << std::endl;
@@ -535,6 +547,8 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
                 ki->inst->dump();
                 exit(1);
             }
+
+            updateStates(state);
 
             /* Check to goto_tb request */
             if(tcg_llvm_runtime.goto_tb != 0xff) {
@@ -602,7 +616,7 @@ inline uintptr_t S2EExecutor::executeTranslationBlock(
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 }
 
-inline void S2EExecutor::cleanupTranslationBlock(
+void S2EExecutor::cleanupTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
