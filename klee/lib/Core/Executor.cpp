@@ -2394,19 +2394,21 @@ void Executor::run(ExecutionState &initialState) {
 std::string Executor::getAddressInfo(ExecutionState &state, 
                                      ref<Expr> address) const{
   std::ostringstream info;
-  info << "\taddress: " << address << "\n";
   uint64_t example;
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(address)) {
     example = CE->getZExtValue();
+    info << "\taddress: 0x" << std::hex << example << std::dec << "\n";
   } else {
+    info << "\taddress: " << example << "\n";
     ref<ConstantExpr> value;
     bool success = solver->getValue(state, address, value);
     assert(success && "FIXME: Unhandled solver failure");
     (void) success;
     example = value->getZExtValue();
-    info << "\texample: " << example << "\n";
+    info << "\texample: 0x" << std::hex << example << std::dec << "\n";
     std::pair< ref<Expr>, ref<Expr> > res = solver->getRange(state, address);
-    info << "\trange: [" << res.first << ", " << res.second <<"]\n";
+    info << "\trange: [0x" << std::hex << res.first << ", 0x"
+         << res.second << std::dec << "]\n";
   }
   
   MemoryObject hack((unsigned) example);    
@@ -2418,8 +2420,8 @@ std::string Executor::getAddressInfo(ExecutionState &state,
     const MemoryObject *mo = lower->first;
     std::string alloc_info;
     mo->getAllocInfo(alloc_info);
-    info << "object at " << mo->address
-         << " of size " << mo->size << "\n"
+    info << "object at 0x" << std::hex << mo->address
+         << " of size 0x" << mo->size << std::dec << "\n"
          << "\t\t" << alloc_info << "\n";
   }
   if (lower!=state.addressSpace.objects.begin()) {
@@ -2431,8 +2433,8 @@ std::string Executor::getAddressInfo(ExecutionState &state,
       const MemoryObject *mo = lower->first;
       std::string alloc_info;
       mo->getAllocInfo(alloc_info);
-      info << "object at " << mo->address 
-           << " of size " << mo->size << "\n"
+      info << "object at 0x" << std::hex << mo->address
+           << " of size 0x" << mo->size << std::dec << "\n"
            << "\t\t" << alloc_info << "\n";
     }
   }
