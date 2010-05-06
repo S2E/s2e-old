@@ -146,7 +146,7 @@ TranslationBlock *S2EExecutionState::getTb() const
 
 uint64_t S2EExecutionState::getPid() const
 { 
-    return readCpuState(offsetof(CPUX86State, cr[3]), sizeof(target_ulong));
+    return readCpuState(offsetof(CPUX86State, cr[3]), 8*sizeof(target_ulong));
 }
 
 /* XXX: this function belongs to S2EExecutor */

@@ -127,7 +127,7 @@ bool WindowsUmInterceptor::WaitForProcessInit(S2EExecutionState* state)
     uint32_t Peb = (uint32_t)-1;
 
 
-    uint64_t fsBase = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 4);
+    uint64_t fsBase = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 8*sizeof(target_ulong));
     if(!state->readMemoryConcrete(fsBase + 0x18, &Peb, 4)) {
         return false;
     }

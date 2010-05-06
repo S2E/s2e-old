@@ -47,13 +47,15 @@ void ExecutionTrace::initialize()
     }
 
     if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the branch coverage sections"
+        s2e()->getWarningsStream() << "Errors while scanning the execution trace sections"
             <<std::endl;
         exit(-1);
     }
 
     m_Trace.reserve(10000);
     m_Ticks = 0;
+    m_StartedTrace = false;
+
     m_StartTick = s2e()->getConfig()->getInt(getConfigKey() + ".triggerAfter");
     s2e()->getMessagesStream() << "Triggering execution trace after " << m_StartTick << 
         " seconds" << std::endl;
@@ -124,7 +126,13 @@ bool ExecutionTrace::initTbTrace(const std::string &cfgKey)
 
 void ExecutionTrace::onTimer()
 {
+    flushTable();
     m_Ticks++;
+    
+    if (m_StartedTrace) {
+        return;
+    }
+    
     if (m_Ticks < m_StartTick) {
         return;
     }
@@ -136,7 +144,7 @@ void ExecutionTrace::onTimer()
         sigc::mem_fun(*this, &ExecutionTrace::onTranslateBlockStart)
     );
 
-    m_TimerConnection.disconnect();
+    m_StartedTrace = true;
 }
 
 void ExecutionTrace::onTranslateBlockStart(
@@ -158,9 +166,7 @@ void ExecutionTrace::onTranslateBlockStart(
 
 void ExecutionTrace::flushTable()
 {
-    if (m_Trace.size()<10000) {
-        return;
-    }
+    s2e()->getDebugStream() << "Flushing execution trace..." << std::endl;
 
     s2e()->getDb()->executeQuery("begin transaction;");
     foreach2(it, m_Trace.begin(), m_Trace.end()) {
@@ -205,6 +211,10 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
     }
     
     m_Trace.push_back(te);
+
+    if (m_Trace.size()<10000) {
+        return;
+    }
 
     flushTable();
 

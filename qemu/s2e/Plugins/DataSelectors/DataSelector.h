@@ -24,6 +24,7 @@ protected:
     static klee::ref<klee::Expr> getOddValue(klee::Expr::Width w);
     static klee::ref<klee::Expr> getOddValue(klee::Expr::Width w, uint64_t upperBound);
     bool makeUnicodeStringSymbolic(S2EExecutionState *s, uint64_t address);
+    bool makeStringSymbolic(S2EExecutionState *s, uint64_t address);
 
     virtual bool initSection(const std::string &cfgKey, const std::string &svcId) = 0;
 

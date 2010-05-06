@@ -27,6 +27,7 @@ private:
     ModuleExecutionDetector *m_ExecutionDetector;
     uint64_t m_Ticks;
     uint64_t m_StartTick;
+    bool m_StartedTrace;
     sigc::connection m_TimerConnection;
 public:
     ExecutionTrace(S2E* s2e): Plugin(s2e) {}

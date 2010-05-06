@@ -147,7 +147,7 @@ void BranchCoverage::flushTrace()
         const CoverageEntry &te = *it;
 
         char buffer[512];
-        sprintf(buffer, "insert into branchcoverage values(%"PRIu64",'%s',%"PRIu64",%"PRIu64","
+        snprintf(buffer, sizeof(buffer), "insert into branchcoverage values(%"PRIu64",'%s',%"PRIu64",%"PRIu64","
             "%"PRIu64");", te.timestamp, te.desc->id.c_str(), te.instrPc, te.destPc, te.pid);
         s2e()->getDb()->executeQuery(buffer);
 

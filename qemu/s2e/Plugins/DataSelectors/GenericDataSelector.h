@@ -16,6 +16,9 @@ struct RuleCfg
     std::string moduleId;
     std::string rule;
     uint64_t pc;
+    unsigned reg;
+    bool makeParamCountSymbolic;
+    bool makeParamsSymbolic;
 };
 
 class GenericDataSelector : public DataSelector
@@ -29,6 +32,15 @@ public:
         const ModuleExecutionDesc*desc,
         TranslationBlock *tb, uint64_t pc);
     
+  void onTranslateBlockEnd(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        const ModuleExecutionDesc*desc,
+        TranslationBlock *tb,
+        uint64_t endPc,
+        bool staticTarget,
+        uint64_t targetPc);
+
     void onExecution(S2EExecutionState *state, uint64_t pc,
                                 unsigned idx);
 
@@ -40,8 +52,14 @@ private:
     sigc::connection m_TbConnection;
 
     virtual bool initSection(const std::string &cfgKey, const std::string &svcId);
+    void activateRule(
+        ExecutionSignal* signal,
+        S2EExecutionState *state,
+        const ModuleExecutionDesc*desc,
+        TranslationBlock *tb, uint64_t pc);
     void injectRsaGenKey(S2EExecutionState *state);  
-    
+    void injectRegister(S2EExecutionState *state, unsigned reg);
+    void injectMainArgs(S2EExecutionState *state, const RuleCfg *rule);
 };
 
 } // namespace plugins

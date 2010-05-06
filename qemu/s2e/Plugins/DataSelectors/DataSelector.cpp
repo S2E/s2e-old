@@ -72,6 +72,25 @@ bool DataSelector::makeUnicodeStringSymbolic(S2EExecutionState *s, uint64_t addr
     return true;
 }
 
+bool DataSelector::makeStringSymbolic(S2EExecutionState *s, uint64_t address)
+{
+    do {
+        uint8_t car;
+        SREADR(s,address,car);
+
+        if (!car) {
+            return true;
+        }
+
+        ref<Expr> v = getNonNullCharacter(Expr::Int8);
+        s2e()->getMessagesStream() << v << std::endl;
+        s->writeMemory(address, v); 
+        address+=sizeof(car);
+    }while(1);
+    
+    return true;
+}
+
 klee::ref<klee::Expr> DataSelector::getOddValue(klee::Expr::Width w)
 {
     ref<Expr> symbVal = S2EExecutionState::createSymbolicValue(w);
