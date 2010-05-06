@@ -3,6 +3,7 @@
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/Plugins/CorePlugin.h>
 
 #include <iostream>
 #include <stdlib.h>
@@ -161,14 +162,37 @@ void CacheSim::initialize()
         m_d1 = getCache(conf->getString(getConfigKey() + ".d1"));
 
     s2e()->getMessagesStream() << "Instruction cache hierarchy:";
-    for(Cache* c = m_i1; c != NULL; c = c->getUpperCache())
+    for(Cache* c = m_i1; c != NULL; c = c->getUpperCache()) {
+        m_i1_length += 1;
         s2e()->getMessagesStream() << " -> " << c->getName();
+    }
     s2e()->getMessagesStream() << " -> memory" << std::endl;
 
     s2e()->getMessagesStream() << "Data cache hierarchy:";
-    for(Cache* c = m_d1; c != NULL; c = c->getUpperCache())
+    for(Cache* c = m_d1; c != NULL; c = c->getUpperCache()) {
+        m_d1_length += 1;
         s2e()->getMessagesStream() << " -> " << c->getName();
+    }
     s2e()->getMessagesStream() << " -> memory" << std::endl;
+
+    s2e()->getCorePlugin()->onMemoryAccess.connect(
+            sigc::mem_fun(*this, &CacheSim::onMemoryAccess));
+}
+
+void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
+               const uint8_t* buf, uint64_t size, bool isWrite)
+{
+    if(!m_d1)
+        return;
+
+    unsigned missCount[m_d1_length];
+    memset(missCount, 0, sizeof(missCount));
+    m_d1->access(hostAddress, size, isWrite, missCount, m_d1_length);
+
+    unsigned i = 0;
+    for(Cache* c = m_d1; c != NULL; c = c->getUpperCache(), ++i) {
+        std::cout << c->getName() << ": " << missCount[i] << std::endl;
+    }
 }
 
 } // namespace plugins
