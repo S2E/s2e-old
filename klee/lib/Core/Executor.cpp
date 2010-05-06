@@ -497,7 +497,14 @@ void Executor::initializeGlobals(ExecutionState &state) {
   for (Module::const_global_iterator i = m->global_begin(),
          e = m->global_end();
        i != e; ++i) {
-    if (i->isDeclaration()) {
+    std::map<std::string, void*>::iterator po =
+            predefinedSymbols.find(i->getName());
+    if(po != predefinedSymbols.end()) {
+      // This object was externally defined
+      globalAddresses.insert(std::make_pair(i,
+            ConstantExpr::create((uint64_t) po->second, sizeof(void*)*8)));
+
+    } else if(i->isDeclaration()) {
       // FIXME: We have no general way of handling unknown external
       // symbols. If we really cared about making external stuff work
       // better we could support user definition, or use the EXE style
