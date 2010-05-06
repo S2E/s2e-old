@@ -5,6 +5,7 @@ extern "C" {
 #include <exec-all.h>
 #include <sysemu.h>
 extern struct CPUX86State *env;
+void QEMU_NORETURN raise_exception(int exception_index);
 }
 
 #include "S2EExecutor.h"
@@ -154,7 +155,12 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 #define __DEFINE_EXT_FUNCTION(name) \
     llvm::sys::DynamicLibrary::AddSymbol(#name, (void*) name);
 
-    __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
+    __DEFINE_EXT_FUNCTION(raise_exception)
+    __DEFINE_EXT_FUNCTION(tlb_fill)
+    __DEFINE_EXT_FUNCTION(cpu_io_recompile)
+    __DEFINE_EXT_FUNCTION(s2e_read_ram_concrete_check)
+    __DEFINE_EXT_FUNCTION(s2e_read_ram_concrete)
+    __DEFINE_EXT_FUNCTION(s2e_write_ram_concrete)
 
     /* Set module for the executor */
 #if 1
@@ -233,6 +239,14 @@ S2EExecutionState* S2EExecutor::createInitialState()
                       false, true, true);
 
     __DEFINE_EXT_OBJECT(env)
+    __DEFINE_EXT_OBJECT(g_s2e)
+    __DEFINE_EXT_OBJECT(g_s2e_state) 
+    __DEFINE_EXT_OBJECT(execute_llvm)
+    __DEFINE_EXT_OBJECT(g_s2e_exec_ret_addr)
+    __DEFINE_EXT_OBJECT(io_mem_read)
+    __DEFINE_EXT_OBJECT(io_mem_write)
+    __DEFINE_EXT_OBJECT(io_mem_opaque)
+    __DEFINE_EXT_OBJECT(use_icount)
 
     m_s2e->getMessagesStream()
             << "Created initial state 0x" << hexval(state) << std::endl;
