@@ -42,12 +42,15 @@ protected:
 
     std::string m_outputDirectory;
 
-    std::ostream* m_infoFile;
-    std::ostream* m_messagesFile;
-    std::ostream* m_warningsFile;
-    std::streambuf* m_warningsStreamBuf;
+    std::ostream*   m_infoFile;
 
-    std::ostream* m_debugFile;
+    std::ostream*   m_debugFile;
+
+    std::ostream*   m_messagesFile;
+    std::streambuf* m_messagesStreamBuf;
+
+    std::ostream*   m_warningsFile;
+    std::streambuf* m_warningsStreamBuf;
 
     Database *m_database;
 
@@ -98,16 +101,17 @@ public:
     /** Create output file in an output directory */
     std::ostream* openOutputFile(const std::string &filename);
 
-    /** Get info stream (used by KLEE internals) */
+    /** Get info stream (used only by KLEE internals) */
     std::ostream& getInfoStream() const { return *m_infoFile; }
+
+    /** Get debug stream (used for non-important debug info) */
+    std::ostream& getDebugStream() const { return *m_debugFile; }
 
     /** Get messages stream (used for non-critical information) */
     std::ostream& getMessagesStream() const { return *m_messagesFile; }
 
     /** Get warnings stream (used for warnings, duplicated on the screen) */
     std::ostream& getWarningsStream() const { return *m_warningsFile; }
-
-    std::ostream& getDebugStream() const { return *m_debugFile; }
 
     /***********************/
     /* Runtime information */

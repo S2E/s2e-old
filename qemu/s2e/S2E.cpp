@@ -19,35 +19,41 @@
 
 #include <iostream>
 #include <sstream>
+#include <deque>
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
 
 #include <sys/stat.h>
 
-
 namespace s2e {
 
 using namespace std;
 
 /** A streambuf that writes both to parent streambuf and cerr */
-class WarningsStreamBuf : public streambuf
+class TeeStreamBuf : public streambuf
 {
-    streambuf* m_parent;
+    deque<streambuf*> m_parentBufs;
 public:
-    WarningsStreamBuf(streambuf* parent): m_parent(parent) {}
+    TeeStreamBuf(streambuf* master): m_parentBufs(1, master) {}
+    void addParentBuf(streambuf* buf) { m_parentBufs.push_front(buf); }
+
     streamsize xsputn(const char* s, streamsize n) {
-        cerr.rdbuf()->sputn(s, n);
-        return m_parent->sputn(s, n);
+        streamsize res = 0;
+        foreach(streambuf* buf, m_parentBufs)
+            res = buf->sputn(s, n);
+        return res;
     }
     int overflow(int c = EOF ) {
-        cerr.rdbuf()->sputc(c);
-        m_parent->sputc(c);
+        foreach(streambuf* buf, m_parentBufs)
+            buf->sputc(c);
         return 1;
     }
     int sync() {
-        cerr.rdbuf()->pubsync();
-        return m_parent->pubsync();
+        int res = 0;
+        foreach(streambuf* buf, m_parentBufs)
+            buf->pubsync();
+        return res;
     }
 };
 
@@ -89,9 +95,13 @@ S2E::~S2E()
     delete m_configFile;
 
     delete m_infoFile;
-    delete m_messagesFile;
+
     delete m_warningsFile;
     delete m_warningsStreamBuf;
+
+    delete m_messagesFile;
+    delete m_messagesStreamBuf;
+
     delete m_debugFile;
 }
 
@@ -179,14 +189,23 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     }
 
     m_infoFile = openOutputFile("info");
+
+    m_debugFile = openOutputFile("debug.txt");
+
     m_messagesFile = openOutputFile("messages.txt");
-    m_messagesFile->setf(ios_base::unitbuf);
+    m_messagesStreamBuf = new TeeStreamBuf(m_messagesFile->rdbuf());
+    static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(
+                                            m_debugFile->rdbuf());
+    m_messagesFile->rdbuf(m_messagesStreamBuf);
 
     m_warningsFile = openOutputFile("warnings.txt");
     m_warningsFile->setf(ios_base::unitbuf);
-    m_debugFile = openOutputFile("debug.txt");
 
-    m_warningsStreamBuf = new WarningsStreamBuf(m_warningsFile->rdbuf());
+    m_warningsStreamBuf = new TeeStreamBuf(m_warningsFile->rdbuf());
+    static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
+                                            m_messagesFile->rdbuf());
+    static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
+                                            cerr.rdbuf());
     m_warningsFile->rdbuf(m_warningsStreamBuf);
 }
 
