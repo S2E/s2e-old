@@ -12,6 +12,7 @@
 #include <s2e/Plugins/ExecutionTrace.h>
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
 #include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
+#include <s2e/Plugins/CacheSim.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -48,6 +49,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::ExecutionTrace);
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
+    __S2E_REGISTER_PLUGIN(plugins::CacheSim);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 
 #undef __S2E_REGISTER_PLUGIN

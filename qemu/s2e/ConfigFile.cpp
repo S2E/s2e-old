@@ -259,6 +259,21 @@ ConfigFile::string_list ConfigFile::getListKeys(const std::string& name, bool *o
     return getValueT(name, l, ok).keys;
 }
 
+bool ConfigFile::hasKey(const std::string& name)
+{
+	assert(name.size() != 0);
+    string expr = "return " + name;
+
+    if(luaL_loadstring(m_luaState, expr.c_str()) ||
+                    lua_pcall(m_luaState, 0, 1, 0))
+        return false;
+
+    bool ok = !lua_isnil(m_luaState, -1);
+    lua_pop(m_luaState, 1);
+
+    return ok;
+}
+
 void ConfigFile::luaError(const char *fmt, ...)
 {
     fprintf(stderr, "ERROR: ");

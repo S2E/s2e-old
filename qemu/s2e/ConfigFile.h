@@ -76,6 +76,9 @@ public:
     /* Return the size of the list. Works for all types of
        lua lists just like '#' operator in lua. */
     int getListSize(const std::string& name, bool *ok = NULL);
+
+    /* Returns true if a config key exists */
+    bool hasKey(const std::string& name);
 };
 
 } // namespace s2e
