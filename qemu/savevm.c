@@ -1486,7 +1486,7 @@ typedef struct LoadStateEntry {
 
 #ifdef CONFIG_S2E
 
-void *s2e_qemu_get_first_se()
+void *s2e_qemu_get_first_se(void)
 {
     return savevm_handlers.tqh_first;
 }

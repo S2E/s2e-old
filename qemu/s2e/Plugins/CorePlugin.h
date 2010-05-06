@@ -78,9 +78,15 @@ public:
 
     /** Signal that is emitted on each memory access */
     /* XXX: this signals is not currently emmited when executing in KLEE! */
-    sigc::signal<void, S2EExecutionState*, uint64_t /* hostAddress */,
-            const uint8_t* /* buf */, uint64_t /* size */, bool /* isWrite */>
+    sigc::signal<void, S2EExecutionState*, uint64_t /* virtualAddress */,
+            uint8_t* /* buf */, unsigned /* size */,
+            bool /* isWrite */, bool /* isCode */, bool /* isIO */>
             onMemoryAccess;
+
+    sigc::signal<void, S2EExecutionState*, klee::ref<klee::Expr> /* address */,
+                 klee::ref<klee::Expr> /* value */,
+                 bool /* isWrite */, bool /* isCode */>
+            onMemoryAccess1;
 
     sigc::signal<void> onTimer;
 

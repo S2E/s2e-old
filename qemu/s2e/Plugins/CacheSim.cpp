@@ -190,7 +190,7 @@ void CacheSim::initialize()
           "'timestamp' unsigned big int, "
           "'pc' unsigned big int, "
           "'address' unsigned bit int, "
-          "'size' unsigned big int, "
+          "'size' unsigned int, "
           "'isWrite' boolean, "
           "'isCode' boolean, "
           "'cacheName' varchar(30), "
@@ -222,15 +222,19 @@ void CacheSim::flushLogEntries()
     m_cacheLog.resize(0);
 }
 
-void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
-               const uint8_t* buf, uint64_t size, bool isWrite)
+void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t virtualAddress,
+               uint8_t* buf, unsigned size, bool isWrite, bool isCode, bool isIO)
 {
-    if(!m_d1)
+    if(isIO) /* this is only an estimation - should look at registers! */
+        return;
+
+    Cache* cache = isCode ? m_i1 : m_d1;
+    if(!cache)
         return;
 
     unsigned missCount[m_d1_length];
     memset(missCount, 0, sizeof(missCount));
-    m_d1->access(hostAddress, size, isWrite, missCount, m_d1_length);
+    m_d1->access(virtualAddress, size, isWrite, missCount, m_d1_length);
 
     char query[512];
     unsigned i = 0;
@@ -242,7 +246,7 @@ void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
         CacheLogEntry& ce = m_cacheLog.back();
         ce.timestamp = llvm::sys::TimeValue::now().msec();
         ce.pc = state->getPc();
-        ce.address = hostAddress;
+        ce.address = virtualAddress;
         ce.size = size;
         ce.isWrite = isWrite;
         ce.isCode = false;

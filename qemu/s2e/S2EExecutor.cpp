@@ -796,23 +796,23 @@ void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
         s2e->getExecutor()->readRamConcreteCheck(state, host_address, buf, size);
     else
         s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
-    s2e->getCorePlugin()->onMemoryAccess.emit(
-                        state, host_address, buf, size, false);
+    //s2e->getCorePlugin()->onMemoryAccess.emit(
+    //                    state, host_address, buf, size, false);
 }
 
 void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,
                         uint64_t host_address, uint8_t* buf, uint64_t size)
 {
     s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
-    s2e->getCorePlugin()->onMemoryAccess.emit(
-                            state, host_address, buf, size, false);
+    //s2e->getCorePlugin()->onMemoryAccess.emit(
+    //                        state, host_address, buf, size, false);
 }
 
 void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
                     uint64_t host_address, const uint8_t* buf, uint64_t size)
 {
-    s2e->getCorePlugin()->onMemoryAccess.emit(
-                            state, host_address, buf, size, true);
+    //s2e->getCorePlugin()->onMemoryAccess.emit(
+    //                        state, host_address, buf, size, true);
     s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
 }
 

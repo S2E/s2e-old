@@ -93,6 +93,11 @@ void s2e_on_exception(
         struct S2EExecutionState* state,
         unsigned intNb);
 
+/** Called on memory accesses from generated code */
+void s2e_trace_memory_access(
+        struct S2E *s2e, struct S2EExecutionState* state,
+        uint64_t addr, uint8_t* buf, unsigned size, int isWrite, int isIO);
+
 /**********************************/
 /* Functions from S2EExecutor.cpp */
 
@@ -156,7 +161,7 @@ void s2e_qemu_cleanup_tb_exec(
         struct S2EExecutionState* state,
         struct TranslationBlock* tb);
 
-void s2e_init_timers(void);
+void s2e_init_timers(struct S2E* s2e);
 
 
 /* Called by the load/savevm functions to restore/save the state of the vm */

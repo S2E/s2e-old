@@ -201,7 +201,15 @@ void s2e_on_exception(S2E *s2e, S2EExecutionState* state,
     s2e->getCorePlugin()->onException.emit(state, intNb, state->getPc());
 }
 
-void s2e_init_timers()
+void s2e_init_timers(S2E* s2e)
 {
-    g_s2e->getCorePlugin()->initializeTimers();
+    s2e->getCorePlugin()->initializeTimers();
+}
+
+void s2e_trace_memory_access(
+        struct S2E *s2e, struct S2EExecutionState* state,
+        uint64_t addr, uint8_t* buf, unsigned size, int isWrite, int isIO)
+{
+    s2e->getCorePlugin()->onMemoryAccess.emit(
+            state, addr, buf, size, isWrite, false, isIO);
 }

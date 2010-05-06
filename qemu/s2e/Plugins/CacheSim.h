@@ -25,7 +25,7 @@ protected:
         uint64_t timestamp;
         uint64_t pc;
         uint64_t address;
-        uint64_t size;
+        unsigned size;
         bool     isWrite;
         bool     isCode;
         const char* cacheName;
@@ -47,8 +47,9 @@ protected:
 
     void flushLogEntries();
 
-    void onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
-                   const uint8_t* buf, uint64_t size, bool isWrite);
+    void onMemoryAccess(S2EExecutionState* state, uint64_t virtualAddress,
+                        uint8_t* buf, unsigned size, bool isWrite,
+                        bool isCode, bool isIO);
 
 public:
     CacheSim(S2E* s2e): Plugin(s2e), m_i1(0), m_d1(0),

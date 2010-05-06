@@ -562,6 +562,12 @@ static void *qemu_ld_helpers[4] = {
     __ldl_mmu,
     __ldq_mmu,
 };
+static void *qemu_st_helpers[4] = {
+    __stb_mmu,
+    __stw_mmu,
+    __stl_mmu,
+    __stq_mmu,
+};
 #else
 static void *qemu_ld_helpers[5] = {
     __ldb_mmu_check,
@@ -570,14 +576,14 @@ static void *qemu_ld_helpers[5] = {
     __ldq_mmu_check,
     __ldq_mmu_check,
 };
+static void *qemu_st_helpers[4] = {
+    __stb_mmu_check,
+    __stw_mmu_check,
+    __stl_mmu_check,
+    __stq_mmu_check,
+};
 #endif
 
-static void *qemu_st_helpers[4] = {
-    __stb_mmu,
-    __stw_mmu,
-    __stl_mmu,
-    __stq_mmu,
-};
 #endif
 
 static inline void tcg_out_push(TCGContext *s, int reg);
