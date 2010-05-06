@@ -16,6 +16,7 @@
 #include <llvm/ModuleProvider.h>
 
 #include <klee/Interpreter.h>
+#include <klee/Common.h>
 
 #include <iostream>
 #include <sstream>
@@ -207,6 +208,9 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
                                             cerr.rdbuf());
     m_warningsFile->rdbuf(m_warningsStreamBuf);
+
+    klee::klee_message_stream = m_messagesFile;
+    klee::klee_warning_stream = m_warningsFile;
 }
 
 void S2E::initPlugins()

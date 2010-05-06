@@ -763,6 +763,12 @@ static TCGHelperInfo *tcg_find_helper(TCGContext *s, tcg_target_ulong val)
     return NULL;
 }
 
+const char *tcg_helper_get_name(TCGContext *s, void *func)
+{
+    TCGHelperInfo *info = tcg_find_helper(s, (tcg_target_ulong) func);
+    return info->name;
+}
+
 static const char * const cond_name[] =
 {
     [TCG_COND_EQ] = "eq",
