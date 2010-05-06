@@ -161,6 +161,27 @@ void ModuleExecutionDetector::exceptionListener(
     onExecution(state, pc);
 }
 
+const ModuleExecutionDesc *ModuleExecutionDetector::getCurrentModule(S2EExecutionState* state)
+{
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+    //Get the module descriptor
+    uint32_t pc = state->getPc();
+    uint64_t pid = m_Monitor->getPid(state, state->getPc());
+    
+    if (plgState->m_PreviousModule) {
+        const ModuleDescriptor &md = plgState->m_PreviousModule->descriptor;
+        uint64_t prevModStart = md.LoadBase;
+        uint64_t prevModSize = md.Size;
+        uint64_t prevModPid = md.Pid;
+        if (pid == prevModPid && pc >= prevModStart && pc < prevModStart + prevModSize) {
+            //We stayed in the same module
+            return plgState->m_PreviousModule;
+        }
+    }
+
+    return plgState->findCurrentModule(pid, pc);
+}
+
 
 void ModuleExecutionDetector::onExecution(
     S2EExecutionState *state, uint64_t pc)

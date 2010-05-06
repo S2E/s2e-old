@@ -102,6 +102,8 @@ public:
     virtual ~ModuleExecutionDetector();
     void initialize();
 
+    const ModuleExecutionDesc *getCurrentModule(S2EExecutionState* state);
+
     const ConfiguredModulesById &getConfiguredModulesById() const {
         return m_ConfiguredModulesId;
     }

@@ -152,6 +152,13 @@ void CacheSim::initialize()
 {
     ConfigFile* conf = s2e()->getConfig();
 
+    //This is optional
+    m_execDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+
+    if (!m_execDetector) {
+        s2e()->getMessagesStream() << "ModuleExecutionDetector not found, will profile the whole system" << std::endl;
+    }
+
     vector<string> caches = conf->getListKeys(getConfigKey() + ".caches");
     foreach(const string& cacheName, caches) {
         string key = getConfigKey() + ".caches." + cacheName;
@@ -212,6 +219,16 @@ void CacheSim::initialize()
     assert(ok && "create table failed");
 
     m_cacheLog.reserve(CACHESIM_LOG_SIZE);
+
+    s2e()->getCorePlugin()->onTimer.connect(
+        sigc::mem_fun(*this, &CacheSim::onTimer)
+    );
+}
+
+//Periodically flush the cache
+void CacheSim::onTimer()
+{
+    flushLogEntries();
 }
 
 void CacheSim::flushLogEntries()
@@ -221,7 +238,7 @@ void CacheSim::flushLogEntries()
     assert(ok && "Can not execute database query");
     foreach(const CacheLogEntry& ce, m_cacheLog) {
         snprintf(query, sizeof(query),
-             "insert into CacheSim values(%lu,%lu,%lu,%u,%u,%u,'%s',%u);",
+             "insert into CacheSim values(%"PRIu64",%"PRIu64",%"PRIu64",%u,%u,%u,'%s',%u);",
              ce.timestamp, ce.pc, ce.address, ce.size,
              ce.isWrite, ce.isCode,
              ce.cacheName, ce.missCount);
@@ -249,6 +266,24 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
     memset(missCount, 0, sizeof(missCount));
     cache->access(address, size, isWrite, missCount, missCountLength);
 
+    //Decide whether to log the access in the database
+    bool doLog = false;
+    if (m_execDetector) {
+        const ModuleExecutionDesc *md;
+        md = m_execDetector->getCurrentModule(state);
+        if (!md) {
+            doLog = false;
+        }else {
+            doLog = true;
+        }
+    }else {
+        doLog = true;
+    }
+
+    if (!doLog) {
+        return;
+    }
+
     unsigned i = 0;
     for(Cache* c = cache; c != NULL; c = c->getUpperCache(), ++i) {
         if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
@@ -258,7 +293,7 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
 
         m_cacheLog.resize(m_cacheLog.size()+1);
         CacheLogEntry& ce = m_cacheLog.back();
-        ce.timestamp = llvm::sys::TimeValue::now().msec();
+        ce.timestamp = llvm::sys::TimeValue::now().usec();
         ce.pc = state->getPc();
         ce.address = address;
         ce.size = size;

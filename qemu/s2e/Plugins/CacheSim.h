@@ -4,6 +4,8 @@
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 
+#include "ModuleExecutionDetector.h"
+
 #include <klee/Expr.h>
 
 #include <string>
@@ -46,6 +48,8 @@ protected:
     unsigned m_i1_length;
     unsigned m_d1_length;
 
+    ModuleExecutionDetector *m_execDetector;
+
     Cache* getCache(const std::string& name);
 
     void flushLogEntries();
@@ -66,6 +70,8 @@ protected:
 
     void onExecuteBlockStart(S2EExecutionState* state, uint64_t pc,
                              TranslationBlock* tb);
+
+    void onTimer();
 
 public:
     CacheSim(S2E* s2e): Plugin(s2e), m_i1(0), m_d1(0),
