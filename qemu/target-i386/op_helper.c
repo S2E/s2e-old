@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+#define S2E_LLVM_LIB
 #define CPU_NO_GLOBAL_REGS
 #include "exec.h"
 #include "exec-all.h"
@@ -23,10 +25,9 @@
 
 //#define DEBUG_PCALL
 
-#ifdef CONFIG_S2E
 #ifndef S2E_LLVM_LIB
+#ifdef CONFIG_S2E
 struct CPUX86State* env = 0;
-#endif
 #endif
 
 #ifdef DEBUG_PCALL
@@ -38,13 +39,14 @@ struct CPUX86State* env = 0;
 #  define LOG_PCALL_STATE(env) do { } while (0)
 #endif
 
-
 #if 0
 #define raise_exception_err(a, b)\
 do {\
     qemu_log("raise_exception line=%d\n", __LINE__);\
     (raise_exception_err)(a, b);\
 } while (0)
+#endif
+
 #endif
 
 static const uint8_t parity_table[256] = {
@@ -111,6 +113,7 @@ static const CPU86_LDouble f15rk[7] =
 
 /* broken thread support */
 
+#ifndef S2E_LLVM_LIB
 static spinlock_t global_cpu_lock = SPIN_LOCK_UNLOCKED;
 
 void helper_lock(void)
@@ -122,6 +125,7 @@ void helper_unlock(void)
 {
     spin_unlock(&global_cpu_lock);
 }
+#endif /* S2E_LLVM_LIB */
 
 void helper_write_eflags(target_ulong t0, uint32_t update_mask)
 {
@@ -137,6 +141,7 @@ target_ulong helper_read_eflags(void)
     return eflags;
 }
 
+#ifndef S2E_LLVM_LIB
 /* return non zero if error */
 static inline int load_segment(uint32_t *e1_ptr, uint32_t *e2_ptr,
                                int selector)
@@ -1629,6 +1634,7 @@ void helper_rsm(void)
 
 #endif /* !CONFIG_USER_ONLY */
 
+#endif /* S2E_LLVM_LIB */
 
 /* division, flags are undefined */
 
@@ -1866,6 +1872,7 @@ void helper_das(void)
     CC_SRC = eflags;
 }
 
+#ifndef S2E_LLVM_LIB
 void helper_into(int next_eip_addend)
 {
     int eflags;
@@ -1874,6 +1881,7 @@ void helper_into(int next_eip_addend)
         raise_interrupt(EXCP04_INTO, 1, 0, next_eip_addend);
     }
 }
+#endif
 
 void helper_cmpxchg8b(target_ulong a0)
 {
@@ -1922,6 +1930,8 @@ void helper_cmpxchg16b(target_ulong a0)
 }
 #endif
 
+#ifndef S2E_LLVM_LIB
+
 void helper_single_step(void)
 {
 #ifndef CONFIG_USER_ONLY
@@ -1944,6 +1954,9 @@ void helper_cpuid(void)
     EDX = edx;
 }
 
+#endif /* S2E_LLVM_LIB */
+
+#ifndef S2E_LLVM_LIB
 void helper_enter_level(int level, int data32, target_ulong t1)
 {
     target_ulong ssp;
@@ -1975,6 +1988,7 @@ void helper_enter_level(int level, int data32, target_ulong t1)
         stw(ssp + (esp & esp_mask), t1);
     }
 }
+#endif
 
 #ifdef TARGET_X86_64
 void helper_enter64_level(int level, int data64, target_ulong t1)
@@ -2007,6 +2021,7 @@ void helper_enter64_level(int level, int data64, target_ulong t1)
 }
 #endif
 
+#ifndef S2E_LLVM_LIB
 void helper_lldt(int selector)
 {
     SegmentCache *dt;
@@ -4516,6 +4531,8 @@ CPU86_LDouble cpu_set_fp80(uint64_t mant, uint16_t upper)
 }
 #endif
 
+#endif /* S2E_LLVM_LIB */
+
 #ifdef TARGET_X86_64
 
 //#define DEBUG_MULDIV
@@ -4573,6 +4590,7 @@ static int div64(uint64_t *plow, uint64_t *phigh, uint64_t b)
     }
     return 0;
 }
+
 
 /* return TRUE if overflow */
 static int idiv64(uint64_t *plow, uint64_t *phigh, int64_t b)
@@ -4660,6 +4678,7 @@ void helper_idivq_EAX(target_ulong t0)
 }
 #endif
 
+#ifndef S2E_LLVM_LIB
 static void do_hlt(void)
 {
     env->hflags &= ~HF_INHIBIT_IRQ_MASK; /* needed if sti is just before */
@@ -4788,6 +4807,8 @@ static float approx_rcp(float a)
     return 1.0 / a;
 }
 
+#endif
+
 #if !defined(CONFIG_USER_ONLY)
 
 #define MMUSUFFIX _mmu
@@ -4831,6 +4852,7 @@ static float approx_rcp(float a)
 #endif
 
 #if !defined(CONFIG_USER_ONLY)
+#ifndef S2E_LLVM_LIB
 /* try to fill the TLB and return an exception if error. If retaddr is
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
@@ -4863,6 +4885,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     }
     env = saved_env;
 }
+#endif
 #endif
 
 /* Secure Virtual Machine helpers */
@@ -4906,6 +4929,7 @@ void helper_svm_check_io(uint32_t port, uint32_t param,
 }
 #else
 
+#ifndef S2E_LLVM_LIB
 static inline void svm_save_seg(target_phys_addr_t addr,
                                 const SegmentCache *sc)
 {
@@ -5444,6 +5468,7 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
 }
 
 #endif
+#endif
 
 /* MMX/SSE */
 /* XXX: optimize by storing fptt and fptags in the static cpu state */
@@ -5467,11 +5492,13 @@ void helper_movq(void *d, void *s)
     *(uint64_t *)d = *(uint64_t *)s;
 }
 
+#ifndef S2E_LLVM_LIB
 #define SHIFT 0
 #include "ops_sse.h"
 
 #define SHIFT 1
 #include "ops_sse.h"
+#endif
 
 #define SHIFT 0
 #include "helper_template.h"

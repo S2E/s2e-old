@@ -129,17 +129,27 @@ extern int printf(const char *, ...);
 #endif
 
 #if defined(CONFIG_S2E)
+
 extern void* g_s2e_exec_ret_addr;
+#ifdef S2E_LLVM_LIB
+#define GETPC() (g_s2e_exec_ret_addr)
+#else
 #define GETPC() (execute_llvm ? g_s2e_exec_ret_addr : _GETPC())
+#endif
+
 #elif defined(CONFIG_LLVM)
+
 #ifdef __linux__
 extern uint64_t tcg_llvm_helper_ret_addr asm("tcg_llvm_runtime"); // XXX
 #else
 extern uint64_t tcg_llvm_helper_ret_addr asm("_tcg_llvm_runtime"); // XXX
 #endif
 #define GETPC() (execute_llvm ? (void*) tcg_llvm_helper_ret_addr : _GETPC())
+
 #else
+
 #define GETPC() _GETPC()
+
 #endif
 
 #endif /* !defined(__DYNGEN_EXEC_H__) */
