@@ -20,7 +20,7 @@ using namespace s2e;
 using namespace std;
 
 unsigned int S2EDeviceState::s_PreferedStateSize = 0x1000;
-
+S2EDeviceState *S2EDeviceState::s_CurrentState = NULL;
 std::vector<void *> S2EDeviceState::s_Devices;
 bool S2EDeviceState::s_DevicesInited=false;
 
@@ -98,43 +98,50 @@ void S2EDeviceState::saveDeviceState()
     s2e_dev_snapshot_enable = 1;
     vm_stop(0);
     m_Offset = 0;
+    assert(s_CurrentState == NULL);
+    s_CurrentState = this;
 
-    DPRINTF("Saving device state %p\n", this);
+    //DPRINTF("Saving device state %p\n", this);
     /* Iterate through all device descritors and call
     * their snapshot function */
     for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
         unsigned o = m_Offset;
         void *se = *it;
-        DPRINTF("%s ", s2e_qemu_get_se_idstr(se));
+        //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));
         s2e_qemu_save_state(se);
-        DPRINTF("sz=%d - ", m_Offset - o);
+        //DPRINTF("sz=%d - ", m_Offset - o);
     }
-    DPRINTF("\n");
+    //DPRINTF("\n");
 
     ShrinkBuffer();
     s2e_dev_snapshot_enable = 0;
+    s_CurrentState = NULL;
     vm_start();
 }
 
 
 void S2EDeviceState::restoreDeviceState()
 {
+    assert(s_CurrentState == NULL);
+    s_CurrentState = this;
+
     vm_stop(0);
     s2e_dev_snapshot_enable = 1;
 
     m_Offset = 0;
 
-    DPRINTF("Restoring device state %p\n", this);
+    //DPRINTF("Restoring device state %p\n", this);
     for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
         unsigned o = m_Offset;
         void *se = *it;
-        DPRINTF("%s ", s2e_qemu_get_se_idstr(se));  
+        //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));  
         s2e_qemu_load_state(se);
-        DPRINTF("sz=%d - ", m_Offset - o);
+        //DPRINTF("sz=%d - ", m_Offset - o);
     }
     //DPRINTF("\n");
 
     s2e_dev_snapshot_enable = 0;
+    s_CurrentState = NULL;
     vm_start();
 }
 
@@ -286,22 +293,22 @@ extern "C" {
 
 void s2e_qemu_put_byte(S2EExecutionState *s, int v)
 {
-    s->getDeviceState()->PutByte(v);
+    S2EDeviceState::getCurrentVmState()->PutByte(v);
 }
 
 int s2e_qemu_get_byte(S2EExecutionState *s)
 {
-    return s->getDeviceState()->GetByte();
+    return S2EDeviceState::getCurrentVmState()->GetByte();
 }
 
 int s2e_qemu_get_buffer(S2EExecutionState *s, uint8_t *buf, int size1)
 {
-    return s->getDeviceState()->GetBuffer(buf, size1);
+    return S2EDeviceState::getCurrentVmState()->GetBuffer(buf, size1);
 }
 
 void s2e_qemu_put_buffer(S2EExecutionState *s, const uint8_t *buf, int size)
 {
-    s->getDeviceState()->PutBuffer(buf, size);
+    S2EDeviceState::getCurrentVmState()->PutBuffer(buf, size);
 }
 
 void s2e_init_device_state(S2EExecutionState *s)

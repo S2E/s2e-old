@@ -28,15 +28,26 @@
 #include <windows.h>
 #include <winioctl.h>
 
-int (*__hook_bdrv_read)(
-                  struct BlockDriverState *bs, int64_t sector_num,
+typedef int (*__hook_raw_read)(struct BlockDriverState *bs, int64_t sector_num,
+                    uint8_t *buf, int nb_sectors);
+int (*__hook_bdrv_read)(struct BlockDriverState *bs, int64_t sector_num,
                   uint8_t *buf, int nb_sectors,
                   int *fallback,
-                  s2e_raw_read fb);
+                  __hook_raw_read fb);
 
-int (*__hook_bdrv_write)(
-                   struct BlockDriverState *bs, int64_t sector_num,
+int (*__hook_bdrv_write)(struct BlockDriverState *bs, int64_t sector_num,
                    const uint8_t *buf, int nb_sectors);
+
+struct BlockDriverAIOCB* (*__hook_bdrv_aio_read)(
+    struct BlockDriverState *bs, int64_t sector_num,
+   uint8_t *buf, int nb_sectors,
+   BlockDriverCompletionFunc *cb, void *opaque,
+   int *fallback, __hook_raw_read fb);
+
+struct BlockDriverAIOCB* (*__hook_bdrv_aio_write)(
+   BlockDriverState *bs, int64_t sector_num,
+   const uint8_t *buf, int nb_sectors,
+   BlockDriverCompletionFunc *cb, void *opaque);
 
 #define FTYPE_FILE 0
 #define FTYPE_CD     1
@@ -131,12 +142,13 @@ static int raw_read(BlockDriverState *bs, int64_t sector_num,
 
     if (__hook_bdrv_read) {
         int fallback;
-        ret = __s2e_bdrv_read(bs, sector_num, buf, nb_sectors, &fallback, &raw_read);
+        ret = __hook_bdrv_read(bs, sector_num, buf, nb_sectors, &fallback, &raw_read);
         if (!fallback) {
             return ret;
         }
     }
 
+    
     
     memset(&ov, 0, sizeof(ov));
     ov.Offset = offset;
@@ -159,9 +171,9 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
     int64_t offset = sector_num * 512;
     int count = nb_sectors * 512;
 
-    if (__s2e_bdrv_write) {
+    if (__hook_bdrv_write) {
         ///XXX: only do when s2e is running
-        return __s2e_bdrv_write(*g_block_s2e_state, bs, sector_num, buf, nb_sectors);
+        return __hook_bdrv_write(bs, sector_num, buf, nb_sectors);
     }
 
     memset(&ov, 0, sizeof(ov));

@@ -673,7 +673,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         if(newState != originalState) {
             newState->getDeviceState()->saveDeviceState();
-
+           
             foreach(MemoryObject* mo, m_saveOnContextSwitch) {
                 const ObjectState *os = newState->addressSpace.findObject(mo);
                 ObjectState *wos = newState->addressSpace.getWriteable(mo, os);

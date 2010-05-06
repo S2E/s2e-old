@@ -19,10 +19,12 @@ private:
 
     static std::vector<void *> s_Devices;
     static bool s_DevicesInited;
+    static S2EDeviceState *s_CurrentState;
 
     unsigned char *m_State;
     unsigned int m_StateSize;
     unsigned int m_Offset;
+
 
     static unsigned int s_PreferedStateSize;
 
@@ -36,6 +38,10 @@ private:
 
 
 public:
+
+    static S2EDeviceState *getCurrentVmState() {
+        return s_CurrentState;
+    }
 
     bool canTransferSector() const;
 
