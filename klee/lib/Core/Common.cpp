@@ -16,22 +16,30 @@
 #include <string.h>
 
 #include <set>
+#include <iostream>
 
 using namespace klee;
 
+/*
 FILE* klee::klee_warning_file = NULL;
 FILE* klee::klee_message_file = NULL;
+*/
 
-static void klee_vfmessage(FILE *fp, const char *pfx, const char *msg, 
+std::ostream* klee::klee_warning_stream = NULL;
+std::ostream* klee::klee_message_stream = NULL;
+
+static void klee_vfmessage(std::ostream *os, const char *pfx, const char *msg,
                            va_list ap) {
-  if (!fp)
+  if (!os)
     return;
 
-  fprintf(fp, "KLEE: ");
-  if (pfx) fprintf(fp, "%s: ", pfx);
-  vfprintf(fp, msg, ap);
-  fprintf(fp, "\n");
-  fflush(fp);
+  (*os) << "KLEE: ";
+  if (pfx)
+      (*os) << pfx << ": ";
+
+  char buf[1024];
+  vsnprintf(buf, sizeof(buf), msg, ap);
+  (*os) << buf << std::endl;
 }
 
 /* Prints a message/warning.
@@ -47,11 +55,11 @@ static void klee_vmessage(const char *pfx, bool onlyToFile, const char *msg,
   if (!onlyToFile) {
     va_list ap2;
     va_copy(ap2, ap);
-    klee_vfmessage(stderr, pfx, msg, ap2);
+    klee_vfmessage(&std::cerr, pfx, msg, ap2);
     va_end(ap2);
   }
 
-  klee_vfmessage(pfx ? klee_message_file : klee_warning_file, pfx, msg, ap);
+  klee_vfmessage(pfx ? klee_message_stream : klee_warning_stream, pfx, msg, ap);
 }
 
 

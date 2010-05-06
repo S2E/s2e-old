@@ -390,6 +390,8 @@ protected:
   /// Add a special function handler
   void addSpecialFunctionHandler(llvm::Function* function,
                                  FunctionHandler handler);
+
+  void setAllExternalWarnings(bool value);
                 
 public:
   Executor(const InterpreterOptions &opts, InterpreterHandler *ie,

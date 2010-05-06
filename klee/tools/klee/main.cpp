@@ -308,12 +308,14 @@ KleeHandler::KleeHandler(int argc, char **argv)
 
   char fname[1024];
   snprintf(fname, sizeof(fname), "%s/warnings.txt", m_outputDirectory);
-  klee_warning_file = fopen(fname, "w");
-  assert(klee_warning_file);
+  klee_warning_stream = new std::ofstream(fname);
+  //klee_warning_file = fopen(fname, "w");
+  //assert(klee_warning_file);
 
   snprintf(fname, sizeof(fname), "%s/messages.txt", m_outputDirectory);
-  klee_message_file = fopen(fname, "w");
-  assert(klee_message_file);
+  klee_message_stream = new std::ofstream(fname);
+  //klee_message_file = fopen(fname, "w");
+  //assert(klee_message_file);
 
   m_infoFile = openOutputFile("info");
 }
