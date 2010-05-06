@@ -36,7 +36,7 @@ LINK = $(call quiet-command,$(LINKER) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ 
 	$(call quiet-command,rm -f $@ && $(AR) rcs $@ $^,"  AR    $(TARGET_DIR)$@")
 
 %.bc: %.c $(GENERATED_HEADERS)
-	$(call quiet-command,$(LLVMCC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -DS2E_LLVM_LIB -emit-llvm -o $@ $<,"  LLVMCC    $(TARGET_DIR)$@")
+	$(call quiet-command,$(LLVMCC) $(QEMU_CFLAGS) $(filter-out -Wold-style-declaration,$(QEMU_CCFLAGS)) $(QEMU_DGFLAGS) $(CFLAGS) -c -DS2E_LLVM_LIB -emit-llvm -o $@ $<,"  LLVMCC    $(TARGET_DIR)$@")
 
 %.bca:
 	$(call quiet-command,rm -f $@ && $(LLVMAR) rcs $@ $^,"  LLVMAR    $(TARGET_DIR)$@")
