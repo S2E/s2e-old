@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define CACHESIM_LOG_SIZE 4096
+
 namespace s2e {
 namespace plugins {
 
@@ -126,6 +128,7 @@ S2E_DEFINE_PLUGIN(CacheSim, "Cache simulator", "",);
 
 CacheSim::~CacheSim()
 {
+    flushLogEntries();
     foreach(const CachesMap::value_type& ci, m_caches)
         delete ci.second;
 }
@@ -187,13 +190,36 @@ void CacheSim::initialize()
           "'timestamp' unsigned big int, "
           "'pc' unsigned big int, "
           "'address' unsigned bit int, "
-          "'size' unsigned int, "
+          "'size' unsigned big int, "
+          "'isWrite' boolean, "
+          "'isCode' boolean, "
           "'cacheName' varchar(30), "
           "'missCount' unsigned int"
           "); create index if not exists CacheSimIdx on CacheSim (pc);";
 
     bool ok = s2e()->getDb()->executeQuery(query);
     assert(ok && "create table failed");
+
+    m_cacheLog.reserve(CACHESIM_LOG_SIZE);
+}
+
+void CacheSim::flushLogEntries()
+{
+    char query[512];
+    bool ok = s2e()->getDb()->executeQuery("begin transaction;");
+    assert(ok && "Can not execute database query");
+    foreach(const CacheLogEntry& ce, m_cacheLog) {
+        snprintf(query, sizeof(query),
+             "insert into CacheSim values(%lu,%lu,%lu,%u,%u,%u,'%s',%u);",
+             ce.timestamp, ce.pc, ce.address, ce.size,
+             ce.isWrite, ce.isCode,
+             ce.cacheName, ce.missCount);
+        ok = s2e()->getDb()->executeQuery(query);
+        assert(ok && "Can not execute database query");
+    }
+    ok = s2e()->getDb()->executeQuery("end transaction;");
+    assert(ok && "Can not execute database query");
+    m_cacheLog.resize(0);
 }
 
 void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
@@ -209,13 +235,22 @@ void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
     char query[512];
     unsigned i = 0;
     for(Cache* c = m_d1; c != NULL; c = c->getUpperCache(), ++i) {
-        snprintf(query, sizeof(query),
-                 "insert into CacheSim values(%lu,%lu,%lu,%u,'%s',%u);",
-                 llvm::sys::TimeValue::now().msec(),
-                 state->getPc(), hostAddress, unsigned(size),
-                 c->getName().c_str(), missCount[i]);
-        bool ok = s2e()->getDb()->executeQuery(query);
-        assert(ok && "Can not execute database query");
+        if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
+            flushLogEntries();
+
+        m_cacheLog.resize(m_cacheLog.size()+1);
+        CacheLogEntry& ce = m_cacheLog.back();
+        ce.timestamp = llvm::sys::TimeValue::now().msec();
+        ce.pc = state->getPc();
+        ce.address = hostAddress;
+        ce.size = size;
+        ce.isWrite = isWrite;
+        ce.isCode = false;
+        ce.cacheName = c->getName().c_str();
+        ce.missCount = missCount[i];
+
+        if(missCount[i] == 0)
+            break;
     }
 }
 

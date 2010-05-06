@@ -18,18 +18,34 @@ class Cache;
 class CacheSim : public Plugin
 {
     S2E_PLUGIN
-
 protected:
+
+    struct CacheLogEntry
+    {
+        uint64_t timestamp;
+        uint64_t pc;
+        uint64_t address;
+        uint64_t size;
+        bool     isWrite;
+        bool     isCode;
+        const char* cacheName;
+        uint32_t missCount;
+    };
+
     typedef std::map<std::string, Cache*> CachesMap;
     CachesMap m_caches;
 
     Cache* m_i1;
     Cache* m_d1;
 
+    std::vector<CacheLogEntry> m_cacheLog;
+
     unsigned m_i1_length;
     unsigned m_d1_length;
 
     Cache* getCache(const std::string& name);
+
+    void flushLogEntries();
 
     void onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
                    const uint8_t* buf, uint64_t size, bool isWrite);
