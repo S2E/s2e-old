@@ -91,7 +91,7 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
     }
 
     do {
-        if (!QEMU::ReadVirtualMemory(CurLib, &LdrEntry, sizeof(s2e::windows::LDR_DATA_TABLE_ENTRY32))) {
+        if (!state->readMemoryConcrete(CurLib, &LdrEntry, sizeof(s2e::windows::LDR_DATA_TABLE_ENTRY32))) {
             DPRINTF("Could not read LDR_DATA_TABLE_ENTRY (%#x)\n", CurLib);
             return false;
         }
@@ -127,7 +127,8 @@ bool WindowsUmInterceptor::WaitForProcessInit(S2EExecutionState* state)
     uint32_t Peb = (uint32_t)-1;
 
 
-    if(!state->readMemoryConcrete(CPU_OFFSET(segs[R_FS].base) + 0x18, &Peb, 4)) {
+    uint64_t fsBase = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 4);
+    if(!state->readMemoryConcrete(fsBase + 0x18, &Peb, 4)) {
         return false;
     }
 

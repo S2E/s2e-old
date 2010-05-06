@@ -78,7 +78,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
 uint64_t S2EExecutionState::readCpuState(unsigned offset,
                                          unsigned width) const
 {
-    assert(width == 1 || (width&7) == 0);
+    assert(width == 1 || (width&3) == 0);
     assert(offset >= offsetof(CPUX86State, eip));
     assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
 
