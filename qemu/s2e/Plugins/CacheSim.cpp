@@ -209,16 +209,13 @@ void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
     char query[512];
     unsigned i = 0;
     for(Cache* c = m_d1; c != NULL; c = c->getUpperCache(), ++i) {
-        uint64_t pc = state->getPc();
         snprintf(query, sizeof(query),
-                 "insert into CacheSim values(" PRIu64 "," PRIu64
-                     "," PRIu64 ",%u,'%s'%u",
-                 llvm::sys::TimeValue::now().msec(), pc, 0, 0, "", 0);
-                 //llvm::sys::TimeValue::now().msec(),
-                 //state->getPc(), hostAddress, (unsigned) size,
-                 //c->getName(), missCount[i]);
-        //bool ok = s2e()->getDb()->executeQuery(str);
-        //assert(ok && "Can not execute database query");
+                 "insert into CacheSim values(%lu,%lu,%lu,%u,'%s',%u);",
+                 llvm::sys::TimeValue::now().msec(),
+                 state->getPc(), hostAddress, unsigned(size),
+                 c->getName().c_str(), missCount[i]);
+        bool ok = s2e()->getDb()->executeQuery(query);
+        assert(ok && "Can not execute database query");
     }
 }
 

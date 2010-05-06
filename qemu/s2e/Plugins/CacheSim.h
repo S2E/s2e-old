@@ -5,6 +5,7 @@
 
 #include <string>
 #include <map>
+#include <inttypes.h>
 
 namespace s2e {
 
