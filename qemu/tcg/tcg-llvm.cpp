@@ -831,15 +831,16 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
                                                          (void*) helperAddrC);
             assert(helperName);
 
-            Function* helperFunc = m_module->getFunction(helperName);
+            std::string funcName = std::string("helper_") + helperName;
+            Function* helperFunc = m_module->getFunction(funcName);
             if(!helperFunc) {
                 helperFunc = Function::Create(
                         FunctionType::get(retType, argTypes, false),
-                        Function::PrivateLinkage, helperName, m_module);
+                        Function::PrivateLinkage, funcName, m_module);
                 m_executionEngine->addGlobalMapping(helperFunc,
                                                     (void*) helperAddrC);
                 /* XXX: Why do we need this ? */
-                sys::DynamicLibrary::AddSymbol(helperName, (void*) helperAddrC);
+                sys::DynamicLibrary::AddSymbol(funcName, (void*) helperAddrC);
             }
 
             Value* result = m_builder.CreateCall(helperFunc,

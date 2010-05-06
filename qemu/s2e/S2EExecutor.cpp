@@ -251,6 +251,10 @@ S2EExecutionState* S2EExecutor::createInitialState()
     m_s2e->getMessagesStream()
             << "Created initial state 0x" << hexval(state) << std::endl;
 
+    std::cerr << kmodule->module->getFunction("cc_compute_c") << std::endl;
+    std::cerr << kmodule->module->getFunction("__ldb_mmu_s2e_trace") << std::endl;
+    std::cerr << m_tcgLLVMContext->getModule()->getFunction("cc_compute_c") << std::endl;
+
     return state;
 }
 
@@ -474,7 +478,7 @@ void S2EExecutor::copyOutConcretes(ExecutionState &state) {
                 ref<Expr> e = wos->read8(i);
                 if(!isa<klee::ConstantExpr>(e)) {
                     uint8_t ch = toConstant(state, e,
-                            "calling external helper")->getZExtValue(8);
+                            "copyOutConcretes")->getZExtValue(8);
                     wos->write8(i, ch);
                 }
             }
@@ -608,7 +612,8 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         /* Execute */
         while(state->stack.size() != 1) {
             KInstruction *ki = state->pc;
-            std::cout << *ki->inst << std::endl;
+            //std::cout << *ki->inst << std::endl;
+
             stepInstruction(*state);
             executeInstruction(*state, ki);
 
