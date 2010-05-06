@@ -2,6 +2,8 @@
 #define S2E_PLUGINS_CACHESIM_H
 
 #include <s2e/Plugin.h>
+#include <s2e/Plugins/CorePlugin.h>
+
 #include <klee/Expr.h>
 
 #include <string>
@@ -49,9 +51,21 @@ protected:
     void flushLogEntries();
 
     void onMemoryAccess(S2EExecutionState* state,
+                        uint64_t address, unsigned size,
+                        bool isWrite, bool isIO, bool isCode);
+
+    void onDataMemoryAccess(S2EExecutionState* state,
                         klee::ref<klee::Expr> address,
                         klee::ref<klee::Expr> value,
-                        bool isWrite, bool isCode, bool isIO);
+                        bool isWrite, bool isIO);
+
+    void onTranslateBlockStart(ExecutionSignal* signal,
+                        S2EExecutionState*,
+                        TranslationBlock*,
+                        uint64_t);
+
+    void onExecuteBlockStart(S2EExecutionState* state, uint64_t pc,
+                             TranslationBlock* tb);
 
 public:
     CacheSim(S2E* s2e): Plugin(s2e), m_i1(0), m_d1(0),

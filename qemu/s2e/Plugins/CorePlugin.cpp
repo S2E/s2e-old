@@ -212,12 +212,12 @@ void s2e_trace_memory_access(
         struct S2E *s2e, struct S2EExecutionState* state,
         uint64_t addr, uint8_t* buf, unsigned size, int isWrite, int isIO)
 {
-    if(!s2e->getCorePlugin()->onMemoryAccess.empty()) {
+    if(!s2e->getCorePlugin()->onDataMemoryAccess.empty()) {
         uint64_t value = 0;
         memcpy((void*) &value, buf, size);
-        s2e->getCorePlugin()->onMemoryAccess.emit(state,
+        s2e->getCorePlugin()->onDataMemoryAccess.emit(state,
             klee::ConstantExpr::create(addr, 64),
             klee::ConstantExpr::create(value, size*8),
-            isWrite, false, isIO);
+            isWrite, isIO);
     }
 }

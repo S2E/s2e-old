@@ -91,7 +91,7 @@ void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
     assert(dynamic_cast<S2EExecutor*>(executor));
 
     S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
-    if(!s2eExecutor->m_s2e->getCorePlugin()->onMemoryAccess.empty()) {
+    if(!s2eExecutor->m_s2e->getCorePlugin()->onDataMemoryAccess.empty()) {
         assert(dynamic_cast<S2EExecutionState*>(state));
         S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
 
@@ -102,8 +102,8 @@ void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
 
         ref<Expr> value = klee::ExtractExpr::create(args[1], 0, width);
 
-        s2eExecutor->m_s2e->getCorePlugin()->onMemoryAccess.emit(
-                s2eState, args[0], value, isWrite, false, false);
+        s2eExecutor->m_s2e->getCorePlugin()->onDataMemoryAccess.emit(
+                s2eState, args[0], value, isWrite, false);
     }
 }
 
@@ -825,23 +825,17 @@ void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
         s2e->getExecutor()->readRamConcreteCheck(state, host_address, buf, size);
     else
         s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
-    //s2e->getCorePlugin()->onMemoryAccess.emit(
-    //                    state, host_address, buf, size, false);
 }
 
 void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,
                         uint64_t host_address, uint8_t* buf, uint64_t size)
 {
     s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
-    //s2e->getCorePlugin()->onMemoryAccess.emit(
-    //                        state, host_address, buf, size, false);
 }
 
 void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
                     uint64_t host_address, const uint8_t* buf, uint64_t size)
 {
-    //s2e->getCorePlugin()->onMemoryAccess.emit(
-    //                        state, host_address, buf, size, true);
     s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
 }
 

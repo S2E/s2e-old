@@ -1,3 +1,8 @@
+extern "C" {
+#include <qemu-common.h>
+#include <exec-all.h>
+}
+
 #include "CacheSim.h"
 
 #include <s2e/S2E.h>
@@ -5,7 +10,6 @@
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
 #include <s2e/Database.h>
-#include <s2e/Plugins/CorePlugin.h>
 
 #include <llvm/System/TimeValue.h>
 
@@ -185,8 +189,13 @@ void CacheSim::initialize()
     }
     s2e()->getMessagesStream() << " -> memory" << std::endl;
 
-    s2e()->getCorePlugin()->onMemoryAccess.connect(
-            sigc::mem_fun(*this, &CacheSim::onMemoryAccess));
+    if(m_d1)
+        s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+            sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
+
+    if(m_i1)
+        s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+            sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
 
     const char *query = "create table CacheSim("
           "'timestamp' unsigned big int, "
@@ -225,9 +234,8 @@ void CacheSim::flushLogEntries()
 }
 
 void CacheSim::onMemoryAccess(S2EExecutionState *state,
-                              klee::ref<klee::Expr> address,
-                              klee::ref<klee::Expr> value,
-                              bool isWrite, bool isCode, bool isIO)
+                              uint64_t address, unsigned size,
+                              bool isWrite, bool isIO, bool isCode)
 {
     if(isIO) /* this is only an estimation - should look at registers! */
         return;
@@ -236,30 +244,23 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
     if(!cache)
         return;
 
-    if(!isa<ConstantExpr>(address)) {
-        s2e()->getWarningsStream()
-                << "Warning: CacheSim do not supports symbolic addresses"
-                << std::endl;
-        return;
-    }
-
-    uint64_t constAddress = cast<ConstantExpr>(address)->getZExtValue(64);
-    unsigned size = Expr::getMinBytesForWidth(value->getWidth());
-
-    unsigned missCount[m_d1_length];
+    unsigned missCountLength = isCode ? m_i1_length : m_d1_length;
+    unsigned missCount[missCountLength];
     memset(missCount, 0, sizeof(missCount));
-    m_d1->access(constAddress, size, isWrite, missCount, m_d1_length);
+    cache->access(address, size, isWrite, missCount, missCountLength);
 
     unsigned i = 0;
-    for(Cache* c = m_d1; c != NULL; c = c->getUpperCache(), ++i) {
+    for(Cache* c = cache; c != NULL; c = c->getUpperCache(), ++i) {
         if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
             flushLogEntries();
+
+        std::cout << c->getName() << ": " << missCount[i] << std::endl;
 
         m_cacheLog.resize(m_cacheLog.size()+1);
         CacheLogEntry& ce = m_cacheLog.back();
         ce.timestamp = llvm::sys::TimeValue::now().msec();
         ce.pc = state->getPc();
-        ce.address = constAddress;
+        ce.address = address;
         ce.size = size;
         ce.isWrite = isWrite;
         ce.isCode = false;
@@ -270,6 +271,39 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
             break;
     }
 }
+
+void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
+                              klee::ref<klee::Expr> address,
+                              klee::ref<klee::Expr> value,
+                              bool isWrite, bool isIO)
+{
+    if(!isa<ConstantExpr>(address)) {
+        s2e()->getWarningsStream()
+                << "Warning: CacheSim do not supports symbolic addresses"
+                << std::endl;
+        return;
+    }
+
+    uint64_t constAddress = cast<ConstantExpr>(address)->getZExtValue(64);
+    unsigned size = Expr::getMinBytesForWidth(value->getWidth());
+
+    onMemoryAccess(state, constAddress, size, isWrite, isIO, false);
+}
+
+void CacheSim::onExecuteBlockStart(S2EExecutionState *state, uint64_t pc,
+                                   TranslationBlock *tb)
+{
+    onMemoryAccess(state, tb->pc, tb->size, false, false, true);
+}
+
+void CacheSim::onTranslateBlockStart(ExecutionSignal *signal,
+                                     S2EExecutionState *, TranslationBlock *tb,
+                                     uint64_t)
+{
+    signal->connect(sigc::bind(
+            sigc::mem_fun(*this, &CacheSim::onExecuteBlockStart), tb));
+}
+
 
 } // namespace plugins
 } // namespace s2e

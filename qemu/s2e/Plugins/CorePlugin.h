@@ -81,8 +81,8 @@ public:
     sigc::signal<void, S2EExecutionState*,
                  klee::ref<klee::Expr> /* address */,
                  klee::ref<klee::Expr> /* value */,
-                 bool /* isWrite */, bool /* isCode */, bool /* isIO */>
-            onMemoryAccess;
+                 bool /* isWrite */, bool /* isIO */>
+            onDataMemoryAccess;
 
     sigc::signal<void> onTimer;
 
