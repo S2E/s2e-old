@@ -66,6 +66,7 @@ static void *qemu_st_helpers[5] = {
     (void*) __stq_mmu_s2e_trace,
 };
 
+/*
 const char* qemu_ld_helper_names[5] = {
     "__ldb_mmu_s2e_trace",
     "__ldw_mmu_s2e_trace",
@@ -80,6 +81,7 @@ const char* qemu_st_helper_names[5] = {
     "__stq_mmu_s2e_trace",
     "__stq_mmu_s2e_trace",
 };
+*/
 #endif
 
 #endif
@@ -345,7 +347,6 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     sys::DynamicLibrary::AddSymbol("tcg_llvm_trace_memory_access",
             (void*) tcg_llvm_trace_memory_access);
 
-    /*
     createQemuMemoryHelper("__ldb_mmu_s2e_trace", true,   8);
     createQemuMemoryHelper("__ldw_mmu_s2e_trace", true,  16);
     createQemuMemoryHelper("__ldl_mmu_s2e_trace", true,  32);
@@ -354,13 +355,6 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     createQemuMemoryHelper("__stw_mmu_s2e_trace", false, 16);
     createQemuMemoryHelper("__stl_mmu_s2e_trace", false, 32);
     createQemuMemoryHelper("__stq_mmu_s2e_trace", false, 64);
-    */
-
-    //GlobalVariable* genv = new GlobalVariable(m_module, wordPtrType(),
-    //                      false, GlobalVariable::ExternalLinkage, 0,
-    //                      "env");
-    //m_executionEngine->addGlobalMapping(genv, &env);
-    //sys::DynamicLibrary::AddSymbol("env", &env);
 #endif
 }
 
@@ -391,11 +385,9 @@ void TCGLLVMContextPrivate::createQemuMemoryHelper(const char* name,
             FunctionType::get(retType, args, false),
             Function::PrivateLinkage, name, m_module);
 
-    /*
     void* ptr = ld ? qemu_ld_helpers[bits>>4] : qemu_st_helpers[bits>>4];
     m_executionEngine->addGlobalMapping(func, ptr);
     sys::DynamicLibrary::AddSymbol(name, ptr);
-    */
 
     if(ld)
         m_qemu_ld_helpers[bits>>4] = func;
@@ -668,13 +660,13 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     argValues.push_back(ConstantInt::get(intType(8*sizeof(int)), mem_index));
 
 #ifdef CONFIG_S2E
-    /*
     Function* funcAddr = ld ? m_qemu_ld_helpers[bits>>4] :
                               m_qemu_st_helpers[bits>>4];
-                              */
+    /*
     Function* funcAddr = m_module->getFunction(ld ?
                                                qemu_ld_helper_names[bits>>4] :
                                                qemu_st_helper_names[bits>>4]);
+                                               */
     assert(funcAddr);
     v2 = m_builder.CreateCall(funcAddr, argValues.begin(), argValues.end());
 

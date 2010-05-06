@@ -1880,7 +1880,6 @@ void helper_into(int next_eip_addend)
         raise_interrupt(EXCP04_INTO, 1, 0, next_eip_addend);
     }
 }
-#endif
 
 void helper_cmpxchg8b(target_ulong a0)
 {
@@ -1901,6 +1900,8 @@ void helper_cmpxchg8b(target_ulong a0)
     }
     CC_SRC = eflags;
 }
+
+#endif
 
 #ifdef TARGET_X86_64
 void helper_cmpxchg16b(target_ulong a0)
@@ -4810,6 +4811,8 @@ static float approx_rcp(float a)
 
 #if !defined(CONFIG_USER_ONLY)
 
+#ifndef S2E_LLVM_LIB
+
 #define MMUSUFFIX _mmu
 
 #define SHIFT 0
@@ -4848,6 +4851,7 @@ static float approx_rcp(float a)
 #undef io_write
 #endif
 
+#endif
 #endif
 
 #if !defined(CONFIG_USER_ONLY)
