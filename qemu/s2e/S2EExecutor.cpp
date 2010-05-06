@@ -150,9 +150,14 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
             m_tcgLLVMContext->getExecutionEngine()
                 ->getTargetData()->getStringRepresentation());
 
+    /* Define globally accessible functions */
+#define __DEFINE_EXT_FUNCTION(name) \
+    llvm::sys::DynamicLibrary::AddSymbol(#name, (void*) name);
+
+    __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
+
     /* Set module for the executor */
 #if 1
-    //sys::DynamicLibrary::AddSymbol("env", &env);
     char* filename = qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
     assert(filename);
     ModuleOptions MOpts(vector<string>(1, filename),
@@ -221,6 +226,13 @@ S2EExecutionState* S2EExecutor::createInitialState()
                       sizeof(tb_function_args), false,
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
+
+#define __DEFINE_EXT_OBJECT(name) \
+    predefinedSymbols.insert(std::make_pair(#name, (void*) &name)); \
+    addExternalObject(*state, (void*) &name, sizeof(name), \
+                      false, true, true);
+
+    __DEFINE_EXT_OBJECT(env)
 
     m_s2e->getMessagesStream()
             << "Created initial state 0x" << hexval(state) << std::endl;

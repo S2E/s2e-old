@@ -24,7 +24,9 @@
 //#define DEBUG_PCALL
 
 #ifdef CONFIG_S2E
+#ifndef S2E_LLVM_LIB
 struct CPUX86State* env = 0;
+#endif
 #endif
 
 #ifdef DEBUG_PCALL
