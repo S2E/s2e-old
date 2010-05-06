@@ -48,14 +48,14 @@ public:
   /// ModuleOptions - Module level options which can be set when
   /// registering a module with the interpreter.
   struct ModuleOptions {
-    std::string LibraryDir;
+    std::vector<std::string> ExtraLibraries;
     bool Optimize;
     bool CheckDivZero;
 
-    ModuleOptions(const std::string& _LibraryDir, 
+    ModuleOptions(const std::vector<std::string>& _ExtraLibraries,
                   bool _Optimize, bool _CheckDivZero)
-      : LibraryDir(_LibraryDir), Optimize(_Optimize), 
-        CheckDivZero(_CheckDivZero) {}
+      : ExtraLibraries(_ExtraLibraries),
+        Optimize(_Optimize), CheckDivZero(_CheckDivZero) {}
   };
 
   /// InterpreterOptions - Options varying the runtime behavior during

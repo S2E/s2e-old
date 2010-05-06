@@ -2399,7 +2399,7 @@ std::string Executor::getAddressInfo(ExecutionState &state,
     example = CE->getZExtValue();
     info << "\taddress: 0x" << std::hex << example << std::dec << "\n";
   } else {
-    info << "\taddress: " << example << "\n";
+    info << "\taddress: " << address << "\n";
     ref<ConstantExpr> value;
     bool success = solver->getValue(state, address, value);
     assert(success && "FIXME: Unhandled solver failure");

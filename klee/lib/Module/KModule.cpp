@@ -299,9 +299,10 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // FIXME: Find a way that we can test programs without requiring
   // this to be linked in, it makes low level debugging much more
   // annoying.
-  llvm::sys::Path path(opts.LibraryDir);
-  path.appendComponent("libkleeRuntimeIntrinsic.bca");
-  module = linkWithLibrary(module, path.c_str());
+  for(std::vector<std::string>::const_iterator it = opts.ExtraLibraries.begin(),
+             ie = opts.ExtraLibraries.end(); it != ie; ++it) {
+      module = linkWithLibrary(module, *it);
+  }
 
   // Needs to happen after linking (since ctors/dtors can be modified)
   // and optimization (since global optimization can rewrite lists).

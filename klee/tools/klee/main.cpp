@@ -1186,10 +1186,13 @@ int main(int argc, char **argv, char **envp) {
       return r;
   }
 
-  llvm::sys::Path LibraryDir(KLEE_DIR "/" RUNTIME_CONFIGURATION "/lib");
-  Interpreter::ModuleOptions Opts(LibraryDir.c_str(),
-                                  /*Optimize=*/OptimizeModule, 
-                                  /*CheckDivZero=*/CheckDivZero);
+  std::string LibraryDir(KLEE_DIR "/" RUNTIME_CONFIGURATION " /lib");
+
+  std::string RuntimeLibPath = LibraryDir + "/libkleeRuntimeIntrinsic.bca";
+  Interpreter::ModuleOptions Opts(
+                std::vector<std::string>(1, RuntimeLibPath.c_str()),
+                /*Optimize=*/OptimizeModule,
+                /*CheckDivZero=*/CheckDivZero);
   
   switch (Libc) {
   case NoLibc: /* silence compiler warning */
@@ -1197,7 +1200,7 @@ int main(int argc, char **argv, char **envp) {
 
   case KleeLibc: {
     // FIXME: Find a reasonable solution for this.
-    llvm::sys::Path Path(Opts.LibraryDir);
+    llvm::sys::Path Path(LibraryDir);
     Path.appendComponent("libklee-libc.bca");
     mainModule = klee::linkWithLibrary(mainModule, Path.c_str());
     assert(mainModule && "unable to link with klee-libc");
@@ -1210,7 +1213,7 @@ int main(int argc, char **argv, char **envp) {
   }
 
   if (WithPOSIXRuntime) {
-    llvm::sys::Path Path(Opts.LibraryDir);
+    llvm::sys::Path Path(LibraryDir);
     Path.appendComponent("libkleeRuntimePOSIX.bca");
     klee_message("NOTE: Using model: %s", Path.c_str());
     mainModule = klee::linkWithLibrary(mainModule, Path.c_str());
