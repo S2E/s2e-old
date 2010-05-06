@@ -3,6 +3,10 @@
 
 #include <klee/ExecutionState.h>
 
+extern "C" {
+    struct TranslationBlock;
+}
+
 // XXX
 struct CPUX86State;
 #define CPU_OFFSET(field) offsetof(CPUX86State, field)

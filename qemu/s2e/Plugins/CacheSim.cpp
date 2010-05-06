@@ -2,11 +2,16 @@
 
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
+#include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
+#include <s2e/Database.h>
 #include <s2e/Plugins/CorePlugin.h>
+
+#include <llvm/System/TimeValue.h>
 
 #include <iostream>
 #include <stdlib.h>
+#include <stdio.h>
 
 namespace s2e {
 namespace plugins {
@@ -177,6 +182,18 @@ void CacheSim::initialize()
 
     s2e()->getCorePlugin()->onMemoryAccess.connect(
             sigc::mem_fun(*this, &CacheSim::onMemoryAccess));
+
+    const char *query = "create table CacheSim("
+          "'timestamp' unsigned big int, "
+          "'pc' unsigned big int, "
+          "'address' unsigned bit int, "
+          "'size' unsigned int, "
+          "'cacheName' varchar(30), "
+          "'missCount' unsigned int"
+          "); create index if not exists CacheSimIdx on CacheSim (pc);";
+
+    bool ok = s2e()->getDb()->executeQuery(query);
+    assert(ok && "create table failed");
 }
 
 void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
@@ -189,9 +206,19 @@ void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t hostAddress,
     memset(missCount, 0, sizeof(missCount));
     m_d1->access(hostAddress, size, isWrite, missCount, m_d1_length);
 
+    char query[512];
     unsigned i = 0;
     for(Cache* c = m_d1; c != NULL; c = c->getUpperCache(), ++i) {
-        std::cout << c->getName() << ": " << missCount[i] << std::endl;
+        uint64_t pc = state->getPc();
+        snprintf(query, sizeof(query),
+                 "insert into CacheSim values(" PRIu64 "," PRIu64
+                     "," PRIu64 ",%u,'%s'%u",
+                 llvm::sys::TimeValue::now().msec(), pc, 0, 0, "", 0);
+                 //llvm::sys::TimeValue::now().msec(),
+                 //state->getPc(), hostAddress, (unsigned) size,
+                 //c->getName(), missCount[i]);
+        //bool ok = s2e()->getDb()->executeQuery(str);
+        //assert(ok && "Can not execute database query");
     }
 }
 
