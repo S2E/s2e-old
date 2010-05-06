@@ -18,6 +18,7 @@ extern const char *bios_name;
 
 #define QEMU_FILE_TYPE_BIOS   0
 #define QEMU_FILE_TYPE_KEYMAP 1
+#define QEMU_FILE_TYPE_LIB    3
 char *qemu_find_file(int type, const char *name);
 
 extern int vm_running;

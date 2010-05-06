@@ -349,6 +349,16 @@ $(s2eobj-y): QEMU_CXXFLAGS+=$(LLVM_CXXFLAGS) $(S2E_CXXFLAGS)
 
 ARLIBS += libs2e.a
 
+#########################################################
+# S2E-llvm library
+
+s2e_llvmobj-y =
+s2e_llvmobj-y += op_helper.bc
+
+libs2e_llvm.bca: $(s2e_llvmobj-y)
+
+all: libs2e_llvm.bca
+
 endif
 
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o

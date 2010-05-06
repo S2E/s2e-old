@@ -4668,6 +4668,10 @@ char *qemu_find_file(int type, const char *name)
         return qemu_strdup(name);
     }
     switch (type) {
+    case QEMU_FILE_TYPE_LIB:
+        /* XXX: Terrible hack. Redo it after deadline! */
+        subdir="../i386-s2e-softmmu/";
+        break;
     case QEMU_FILE_TYPE_BIOS:
         subdir = "";
         break;
@@ -5717,6 +5721,16 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+    /* If no data_dir is specified then try to find it relative to the
+       executable path.  */
+    if (!data_dir) {
+        data_dir = find_datadir(argv[0]);
+    }
+    /* If all else fails use the install patch specified when building.  */
+    if (!data_dir) {
+        data_dir = CONFIG_QEMU_SHAREDIR;
+    }
+
 #ifdef CONFIG_LLVM
     tcg_llvm_ctx = tcg_llvm_initialize();
 #endif
@@ -5729,16 +5743,6 @@ int main(int argc, char **argv, char **envp)
     g_s2e = s2e_initialize(tcg_llvm_ctx, s2e_config_file, s2e_output_dir);
     g_s2e_state = s2e_create_initial_state(g_s2e);
 #endif
-
-    /* If no data_dir is specified then try to find it relative to the
-       executable path.  */
-    if (!data_dir) {
-        data_dir = find_datadir(argv[0]);
-    }
-    /* If all else fails use the install patch specified when building.  */
-    if (!data_dir) {
-        data_dir = CONFIG_QEMU_SHAREDIR;
-    }
 
     /*
      * Default to max_cpus = smp_cpus, in case the user doesn't

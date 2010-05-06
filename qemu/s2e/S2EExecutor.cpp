@@ -3,6 +3,7 @@ extern "C" {
 #include <cpu-all.h>
 #include <tcg-llvm.h>
 #include <exec-all.h>
+#include <sysemu.h>
 extern struct CPUX86State *env;
 }
 
@@ -21,6 +22,7 @@ extern struct CPUX86State *env;
 #include <llvm/Instructions.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/System/DynamicLibrary.h>
 
 #include <klee/StatsTracker.h>
 #include <klee/PTree.h>
@@ -149,8 +151,20 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                 ->getTargetData()->getStringRepresentation());
 
     /* Set module for the executor */
-    ModuleOptions MOpts(KLEE_LIBRARY_DIR,
-                    /* Optimize= */ false, /* CheckDivZero= */ false);
+#if 1
+    //sys::DynamicLibrary::AddSymbol("env", &env);
+    char* filename = qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
+    assert(filename);
+    ModuleOptions MOpts(vector<string>(1, filename),
+            /* Optimize= */ false, /* CheckDivZero= */ false);
+
+    qemu_free(filename);
+
+#else
+    ModuleOptions MOpts(vector<string>(),
+            /* Optimize= */ false, /* CheckDivZero= */ false);
+#endif
+
     setModule(m_tcgLLVMContext->getModule(), MOpts);
 
     m_dummyMain = kmodule->functionMap[dummyMain];
@@ -568,6 +582,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         /* Execute */
         while(state->stack.size() != 1) {
             KInstruction *ki = state->pc;
+            std::cout << *ki->inst << std::endl;
             stepInstruction(*state);
             executeInstruction(*state, ki);
 

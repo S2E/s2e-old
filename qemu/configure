@@ -242,6 +242,7 @@ llvm="no"
 llvmdir=""
 s2e="no"
 kleedir=""
+llvmgcc=""
 kvm=""
 nptl=""
 sdl=""
@@ -551,6 +552,8 @@ for opt do
   ;;
   --with-klee=*) kleedir="$optarg"
   ;;
+  --with-llvmgcc=*) llvmgcc="$optarg"
+  ;;
   --disable-kvm) kvm="no"
   ;;
   --enable-kvm) kvm="yes"
@@ -763,6 +766,7 @@ echo "  --enable-llvm            enable LLVM support (for all targets)"
 echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
 echo "  --enable-s2e             enable S2E"
 echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
+echo "  --with-llvmgcc=PATH      path to llvm-gcc"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -1527,6 +1531,27 @@ EOF
   else
     feature_not_found "libsigc++ (required for s2e)"
     exit 1
+  fi
+fi
+
+##########################################
+# s2e probe: llvmgcc
+
+if test "$s2e" != "no" ; then
+  if test -z "$llvmgcc"; then
+    llvmgcc=`which llvm-gcc`
+  fi
+  if [ -x "$llvmgcc" ]; then
+    : llvm-gcc found
+  else
+    feature_not_found "llvmgcc (required for s2e)"
+    exit 1
+  fi
+
+  if test "$llvmdir" != ""; then
+      llvmar="$llvmdir/bin/llvm-ar"
+  else
+      llvmar="llvm-ar"
   fi
 fi
 
@@ -2673,6 +2698,8 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags, $klee_cxxflags)" >> $config_target_mak
   echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
+  echo "LLVMCC:=$llvmgcc" >> $config_target_mak
+  echo "LLVMAR:=$llvmar" >> $config_target_mak
 fi
 list=""
 if test ! -z "$gdb_xml_files" ; then
