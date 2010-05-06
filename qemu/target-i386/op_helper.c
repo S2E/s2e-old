@@ -4804,10 +4804,10 @@ static float approx_rcp(float a)
 
 #ifdef CONFIG_S2E
 #undef MMUSUFFIX
-#define MMUSUFFIX _mmu_check
-#define io_read _check_io_read
-#define io_write _check_io_write
-#define _raw _raw_check
+#define MMUSUFFIX _mmu_s2e_trace
+#define io_read _s2e_trace_io_read
+#define io_write _s2e_trace_io_write
+#define _raw _raw_s2e_trace
 
 #define SHIFT 0
 #include "softmmu_template.h"

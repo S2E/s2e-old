@@ -20,14 +20,14 @@ uint64_t REGPARM __ldq_cmmu(target_ulong addr, int mmu_idx);
 void REGPARM __stq_cmmu(target_ulong addr, uint64_t val, int mmu_idx);
 
 #ifdef CONFIG_S2E
-uint8_t REGPARM __ldb_mmu_check(target_ulong addr, int mmu_idx);
-void REGPARM __stb_mmu_check(target_ulong addr, uint8_t val, int mmu_idx);
-uint16_t REGPARM __ldw_mmu_check(target_ulong addr, int mmu_idx);
-void REGPARM __stw_mmu_check(target_ulong addr, uint16_t val, int mmu_idx);
-uint32_t REGPARM __ldl_mmu_check(target_ulong addr, int mmu_idx);
-void REGPARM __stl_mmu_check(target_ulong addr, uint32_t val, int mmu_idx);
-uint64_t REGPARM __ldq_mmu_check(target_ulong addr, int mmu_idx);
-void REGPARM __stq_mmu_check(target_ulong addr, uint64_t val, int mmu_idx);
+uint8_t REGPARM __ldb_mmu_s2e_trace(target_ulong addr, int mmu_idx);
+void REGPARM __stb_mmu_s2e_trace(target_ulong addr, uint8_t val, int mmu_idx);
+uint16_t REGPARM __ldw_mmu_s2e_trace(target_ulong addr, int mmu_idx);
+void REGPARM __stw_mmu_s2e_trace(target_ulong addr, uint16_t val, int mmu_idx);
+uint32_t REGPARM __ldl_mmu_s2e_trace(target_ulong addr, int mmu_idx);
+void REGPARM __stl_mmu_s2e_trace(target_ulong addr, uint32_t val, int mmu_idx);
+uint64_t REGPARM __ldq_mmu_s2e_trace(target_ulong addr, int mmu_idx);
+void REGPARM __stq_mmu_s2e_trace(target_ulong addr, uint64_t val, int mmu_idx);
 #endif
 
 #endif

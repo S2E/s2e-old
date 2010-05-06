@@ -569,18 +569,17 @@ static void *qemu_st_helpers[4] = {
     __stq_mmu,
 };
 #else
-static void *qemu_ld_helpers[5] = {
-    __ldb_mmu_check,
-    __ldw_mmu_check,
-    __ldl_mmu_check,
-    __ldq_mmu_check,
-    __ldq_mmu_check,
+static void *qemu_ld_helpers[4] = {
+    __ldb_mmu_s2e_trace,
+    __ldw_mmu_s2e_trace,
+    __ldl_mmu_s2e_trace,
+    __ldq_mmu_s2e_trace,
 };
 static void *qemu_st_helpers[4] = {
-    __stb_mmu_check,
-    __stw_mmu_check,
-    __stl_mmu_check,
-    __stq_mmu_check,
+    __stb_mmu_s2e_trace,
+    __stw_mmu_s2e_trace,
+    __stl_mmu_s2e_trace,
+    __stq_mmu_s2e_trace,
 };
 #endif
 

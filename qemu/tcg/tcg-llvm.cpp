@@ -33,6 +33,7 @@ extern "C" {
 
 #include "../../softmmu_defs.h"
 
+#ifndef CONFIG_S2E
 static void *qemu_ld_helpers[5] = {
     (void*) __ldb_mmu,
     (void*) __ldw_mmu,
@@ -48,6 +49,23 @@ static void *qemu_st_helpers[5] = {
     (void*) __stq_mmu,
     (void*) __stq_mmu,
 };
+#else
+static void *qemu_ld_helpers[5] = {
+    (void*) __ldb_mmu_s2e_trace,
+    (void*) __ldw_mmu_s2e_trace,
+    (void*) __ldl_mmu_s2e_trace,
+    (void*) __ldq_mmu_s2e_trace,
+    (void*) __ldq_mmu_s2e_trace,
+};
+
+static void *qemu_st_helpers[5] = {
+    (void*) __stb_mmu_s2e_trace,
+    (void*) __stw_mmu_s2e_trace,
+    (void*) __stl_mmu_s2e_trace,
+    (void*) __stq_mmu_s2e_trace,
+    (void*) __stq_mmu_s2e_trace,
+};
+#endif
 
 #endif
 
@@ -86,6 +104,7 @@ extern "C" {
     };
 
     void tcg_llvm_helper_wrapper(void);
+    void tcg_llvm_trace_memory_access(void) {}
 }
 
 using namespace llvm;
@@ -110,6 +129,7 @@ struct TCGLLVMContextPrivate {
 #ifdef CONFIG_S2E
     /* Declaration of a wrapper function for helpers */
     Function *m_helperWrapperFunction;
+    Function *m_helperTraceMemoryAccess;
 #endif
 
     /* Count of generated translation blocks */
@@ -289,6 +309,18 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
             "tcg_llvm_helper_wrapper", m_module);
     m_executionEngine->addGlobalMapping(m_helperWrapperFunction,
             (void*) tcg_llvm_helper_wrapper);
+
+    std::vector<const Type*> traceArgs;
+    traceArgs.push_back(intType(64)); // address
+    traceArgs.push_back(intType(64)); // value
+    traceArgs.push_back(intType(32)); // width of the value
+    traceArgs.push_back(intType(1));  // isWrite
+    m_helperTraceMemoryAccess = Function::Create(
+            FunctionType::get(Type::getVoidTy(m_context), traceArgs, false),
+            Function::PrivateLinkage,
+            "tcg_llvm_trace_memory_access", m_module);
+    m_executionEngine->addGlobalMapping(m_helperTraceMemoryAccess,
+            (void*) tcg_llvm_trace_memory_access);
 #endif
 }
 
@@ -604,15 +636,24 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     v1 = m_builder.CreateLoad(
             m_builder.CreateIntToPtr(v,
                 intPtrType(8*sizeof(target_phys_addr_t))));
-    addr = m_builder.CreateAdd(
+    v1 = m_builder.CreateAdd(
             m_builder.CreateZExt(addr, wordType()),
             m_builder.CreateZExt(v1, wordType()));
-    addr = m_builder.CreateIntToPtr(addr, intPtrType(bits));
+    v1 = m_builder.CreateIntToPtr(v1, intPtrType(bits));
 
     if(ld)
-        v1 = m_builder.CreateLoad(addr);
+        v1 = m_builder.CreateLoad(v1);
     else
-        m_builder.CreateStore(value, addr);
+        m_builder.CreateStore(value, v1);
+
+#ifdef CONFIG_S2E
+    /* Call memory trace function */
+    m_builder.CreateCall4(m_helperTraceMemoryAccess,
+                          m_builder.CreateZExt(addr, intType(64)),
+                          m_builder.CreateZExt(ld ? v1 : value, intType(64)),
+                          ConstantInt::get(intType(32), bits),
+                          ConstantInt::get(intType(1), ld ? 0 : 1));
+#endif
 
     m_builder.CreateBr(bb_m);
 

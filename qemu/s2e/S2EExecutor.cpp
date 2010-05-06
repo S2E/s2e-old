@@ -792,7 +792,7 @@ int s2e_is_ram_shared_concrete(S2E *s2e, S2EExecutionState *state,
 void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
                         uint64_t host_address, uint8_t* buf, uint64_t size)
 {
-    if(state->isSymbolicExecutionEnabled())
+    if(!execute_llvm && state->isSymbolicExecutionEnabled())
         s2e->getExecutor()->readRamConcreteCheck(state, host_address, buf, size);
     else
         s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);

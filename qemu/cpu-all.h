@@ -686,7 +686,7 @@ extern int have_guest_base;
           return ld ## t ## _p(buf); \
       } else return ld ## t ## _p(p); \
     } \
-    static inline ct ld ## t ## _raw_check(const void* p) { \
+    static inline ct ld ## t ## _raw_s2e_trace(const void* p) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
           uint8_t buf[s]; \
           s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
@@ -702,7 +702,7 @@ extern int have_guest_base;
           s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
       } else st ## t ## _p(p, v); \
     } \
-    static inline void st ## t ## _raw_check(void* p, ct v) { \
+    static inline void st ## t ## _raw_s2e_trace(void* p, ct v) { \
         st ## t ## _raw(p, v); \
     }
 
