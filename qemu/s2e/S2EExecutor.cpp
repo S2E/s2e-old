@@ -83,6 +83,30 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
            << "with error message '" << (err ? err : "") << "'" << std::endl;
 }
 
+void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector<klee::ref<klee::Expr> > &args)
+{
+    assert(dynamic_cast<S2EExecutor*>(executor));
+
+    S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+    if(!s2eExecutor->m_s2e->getCorePlugin()->onMemoryAccess.empty()) {
+        assert(dynamic_cast<S2EExecutionState*>(state));
+        S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
+
+        assert(args.size() == 4);
+
+        Expr::Width width = cast<klee::ConstantExpr>(args[2])->getZExtValue(32);
+        bool isWrite = cast<klee::ConstantExpr>(args[3])->getZExtValue(1);
+
+        ref<Expr> value = klee::ExtractExpr::create(args[1], 0, width);
+
+        s2eExecutor->m_s2e->getCorePlugin()->onMemoryAccess.emit(
+                s2eState, args[0], value, isWrite, false, false);
+    }
+}
+
 S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                     const InterpreterOptions &opts,
                             InterpreterHandler *ie)
@@ -130,6 +154,11 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     setModule(m_tcgLLVMContext->getModule(), MOpts);
 
     m_dummyMain = kmodule->functionMap[dummyMain];
+
+    Function* traceFunction =
+            kmodule->module->getFunction("tcg_llvm_trace_memory_access");
+    assert(traceFunction);
+    addSpecialFunctionHandler(traceFunction, handlerTraceMemoryAccess);
 
     searcher = new RandomSearcher();
 }

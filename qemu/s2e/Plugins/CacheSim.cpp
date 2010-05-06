@@ -19,6 +19,7 @@ namespace s2e {
 namespace plugins {
 
 using namespace std;
+using namespace klee;
 
 /** Returns the floor form of binary logarithm for a 32 bit integer.
     (unsigned) -1 is returned if n is 0. */
@@ -81,7 +82,8 @@ public:
         passed to the upper caches), misCountSize is its size. Array
         must be zero-initialized. */
     void access(uint64_t address, unsigned size,
-            bool isWrite, unsigned* misCount, unsigned misCountSize) {
+            bool isWrite, unsigned* misCount, unsigned misCountSize)
+    {
 
         uint64_t s1 = address >> m_indexShift;
         uint64_t s2 = (address+size-1) >> m_indexShift;
@@ -121,7 +123,6 @@ public:
                                  misCount+1, misCountSize-1);
         }
     }
-
 };
 
 S2E_DEFINE_PLUGIN(CacheSim, "Cache simulator", "",);
@@ -152,8 +153,9 @@ void CacheSim::initialize()
         string key = getConfigKey() + ".caches." + cacheName;
         Cache* cache = new Cache(cacheName,
                                  conf->getInt(key + ".size"),
-                                 conf->getInt(key + ".lineSize"),
-                                 conf->getInt(key + ".associativity"));
+                                 conf->getInt(key + ".associativity"),
+                                 conf->getInt(key + ".lineSize"));
+
         m_caches.insert(make_pair(cacheName, cache));
     }
 
@@ -222,8 +224,10 @@ void CacheSim::flushLogEntries()
     m_cacheLog.resize(0);
 }
 
-void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t virtualAddress,
-               uint8_t* buf, unsigned size, bool isWrite, bool isCode, bool isIO)
+void CacheSim::onMemoryAccess(S2EExecutionState *state,
+                              klee::ref<klee::Expr> address,
+                              klee::ref<klee::Expr> value,
+                              bool isWrite, bool isCode, bool isIO)
 {
     if(isIO) /* this is only an estimation - should look at registers! */
         return;
@@ -232,11 +236,20 @@ void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t virtualAddress,
     if(!cache)
         return;
 
+    if(!isa<ConstantExpr>(address)) {
+        s2e()->getWarningsStream()
+                << "Warning: CacheSim do not supports symbolic addresses"
+                << std::endl;
+        return;
+    }
+
+    uint64_t constAddress = cast<ConstantExpr>(address)->getZExtValue(64);
+    unsigned size = Expr::getMinBytesForWidth(value->getWidth());
+
     unsigned missCount[m_d1_length];
     memset(missCount, 0, sizeof(missCount));
-    m_d1->access(virtualAddress, size, isWrite, missCount, m_d1_length);
+    m_d1->access(constAddress, size, isWrite, missCount, m_d1_length);
 
-    char query[512];
     unsigned i = 0;
     for(Cache* c = m_d1; c != NULL; c = c->getUpperCache(), ++i) {
         if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
@@ -246,7 +259,7 @@ void CacheSim::onMemoryAccess(S2EExecutionState* state, uint64_t virtualAddress,
         CacheLogEntry& ce = m_cacheLog.back();
         ce.timestamp = llvm::sys::TimeValue::now().msec();
         ce.pc = state->getPc();
-        ce.address = virtualAddress;
+        ce.address = constAddress;
         ce.size = size;
         ce.isWrite = isWrite;
         ce.isCode = false;

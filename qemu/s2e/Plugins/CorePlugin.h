@@ -77,16 +77,12 @@ public:
             onCustomInstruction;
 
     /** Signal that is emitted on each memory access */
-    /* XXX: this signals is not currently emmited when executing in KLEE! */
-    sigc::signal<void, S2EExecutionState*, uint64_t /* virtualAddress */,
-            uint8_t* /* buf */, unsigned /* size */,
-            bool /* isWrite */, bool /* isCode */, bool /* isIO */>
-            onMemoryAccess;
-
-    sigc::signal<void, S2EExecutionState*, klee::ref<klee::Expr> /* address */,
+    /* XXX: this signal is still not emmited for code */
+    sigc::signal<void, S2EExecutionState*,
+                 klee::ref<klee::Expr> /* address */,
                  klee::ref<klee::Expr> /* value */,
-                 bool /* isWrite */, bool /* isCode */>
-            onMemoryAccess1;
+                 bool /* isWrite */, bool /* isCode */, bool /* isIO */>
+            onMemoryAccess;
 
     sigc::signal<void> onTimer;
 

@@ -52,6 +52,11 @@ protected:
 
     std::vector<klee::MemoryObject*> m_saveOnContextSwitch;
 
+    static void handlerTraceMemoryAccess(klee::Executor* executor,
+                                    klee::ExecutionState* state,
+                                    klee::KInstruction* target,
+                                    std::vector<klee::ref<klee::Expr> > &args);
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
