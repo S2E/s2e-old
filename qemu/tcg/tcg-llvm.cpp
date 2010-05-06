@@ -1308,8 +1308,11 @@ int tcg_llvm_search_last_pc(TranslationBlock *tb, uintptr_t searched_pc)
 const char* tcg_llvm_get_func_name(TranslationBlock *tb)
 {
     static char buf[64];
-    assert(tb->llvm_function);
-    strncpy(buf, tb->llvm_function->getNameStr().c_str(), sizeof(buf));
+    if(tb->llvm_function) {
+        strncpy(buf, tb->llvm_function->getNameStr().c_str(), sizeof(buf));
+    } else {
+        buf[0] = 0;
+    }
     return buf;
 }
 
