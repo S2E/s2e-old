@@ -37,9 +37,8 @@ ExecutionState* S2EExecutionState::clone()
 ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
                                              Expr::Width width) const
 {
-    assert(width == 1 || (width&7) == 0);
-    assert(offset + Expr::getMinBytesForWidth(width)
-                    <= offsetof(CPUX86State, eip));
+    assert((width == 1 || (width&7) == 0) && width <= 64);
+    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
 
     if(!m_runningConcrete) {
         const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
@@ -56,14 +55,15 @@ ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
 void S2EExecutionState::writeCpuRegister(unsigned offset,
                                          klee::ref<klee::Expr> value)
 {
-    assert(offset + Expr::getMinBytesForWidth(value->getWidth())
-                    <= offsetof(CPUX86State, eip));
+    unsigned width = value->getWidth();
+    assert((width == 1 || (width&7) == 0) && width <= 64);
+    assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
 
     if(!m_runningConcrete) {
         const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
         assert(os);
         ObjectState *wos = addressSpace.getWriteable(m_cpuRegistersState, os);
-        wos->write(offset - offsetof(CPUX86State, eip), value);
+        wos->write(offset, value);
     } else {
         assert(isa<ConstantExpr>(value) &&
                "Can not write symbolic values to registers while executing"
@@ -78,23 +78,22 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
 uint64_t S2EExecutionState::readCpuState(unsigned offset,
                                          unsigned width) const
 {
-    assert(width == 1 || (width&3) == 0);
+    assert((width == 1 || (width&7) == 0) && width <= 64);
     assert(offset >= offsetof(CPUX86State, eip));
     assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
 
     uint8_t* address;
     if(m_active) {
-        address = (uint8_t*) m_cpuSystemState->address;
+        address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
     } else {
         const ObjectState* os = addressSpace.findObject(m_cpuSystemState);
         assert(os);
-        address = os->getConcreteStore();
-        assert(address);
+        address = os->getConcreteStore(); assert(address);
+        address -= CPU_OFFSET(eip);
     }
 
     uint64_t ret = 0;
-    memcpy((void*) &ret, address + offset - offsetof(CPUX86State, eip),
-                        Expr::getMinBytesForWidth(width));
+    memcpy((void*) &ret, address + offset, Expr::getMinBytesForWidth(width));
 
     if(width == 1)
         ret &= 1;
@@ -105,25 +104,24 @@ uint64_t S2EExecutionState::readCpuState(unsigned offset,
 void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
                                       unsigned width)
 {
-    assert(width == 1 || (width&7) == 0);
+    assert((width == 1 || (width&7) == 0) && width <= 64);
     assert(offset >= offsetof(CPUX86State, eip));
     assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
 
     uint8_t* address;
     if(m_active) {
-        address = (uint8_t*) m_cpuSystemState->address;
+        address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
     } else {
         const ObjectState* os = addressSpace.findObject(m_cpuSystemState);
         assert(os);
         ObjectState *wos = addressSpace.getWriteable(m_cpuRegistersState, os);
-        address = wos->getConcreteStore();
-        assert(address);
+        address = wos->getConcreteStore(); assert(address);
+        address -= CPU_OFFSET(eip);
     }
 
     if(width == 1)
         value &= 1;
-    memcpy(address + offset - offsetof(CPUX86State, eip), (void*) &value,
-                        Expr::getMinBytesForWidth(width));
+    memcpy(address + offset, (void*) &value, Expr::getMinBytesForWidth(width));
 }
 
 //Get the program counter in the current state.
