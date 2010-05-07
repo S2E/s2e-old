@@ -355,6 +355,8 @@ ARLIBS += libs2e.a
 s2e_llvmobj-y =
 s2e_llvmobj-y += op_helper.bc
 
+$(s2e_llvmobj-y): %.bc: %.c %.o $(GENERATED_HEADERS)
+
 libs2e_llvm.bca: $(s2e_llvmobj-y)
 
 all: libs2e_llvm.bca
@@ -393,4 +395,4 @@ ifneq ($(PROGS),)
 endif
 
 # Include automatically generated dependency files
--include $(wildcard *.d */*.d)
+-include $(wildcard *.d */*.d s2e/*/*.d s2e/*/*/*.d)
