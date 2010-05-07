@@ -65,19 +65,6 @@ void ExecutionTrace::initialize()
     );
 }
 
-bool ExecutionTrace::initSection(const std::string &cfgKey)
-{
-    //Fetch the coverage type
-    std::string covType = s2e()->getConfig()->getString(cfgKey + ".tracetype");
-    if (covType.compare("translationblocks") == 0) {
-        return initTbTrace(cfgKey);
-    }else {
-        s2e()->getWarningsStream() << "Unsupported type of tracing "
-            << covType << std::endl;
-        return false;
-    }
-}
-
 bool ExecutionTrace::createTable()
 {
     const char *query = "create table ExecutionTrace(" 
@@ -90,6 +77,34 @@ bool ExecutionTrace::createTable()
     
     Database *db = s2e()->getDb();
     return db->executeQuery(query);
+}
+
+
+bool ExecutionTrace::initSection(const std::string &cfgKey)
+{
+    //Fetch the coverage type
+    std::string covType = s2e()->getConfig()->getString(cfgKey + ".tracetype");
+    if (covType.compare("translationblocks") == 0) {
+        m_TraceType = TRACE_TYPE_TB;
+        return initTbTrace(cfgKey);
+    }else if (covType.compare("instructioncount") == 0) {
+        m_TraceType = TRACE_TYPE_INSTR;
+        return initInstrCount(cfgKey);
+    }else
+    {
+        s2e()->getWarningsStream() << "Unsupported type of tracing "
+            << covType << std::endl;
+        return false;
+    }
+}
+
+bool ExecutionTrace::initInstrCount(const std::string &cfgKey)
+{
+    if (!initTbTrace(cfgKey)) {
+        return false;
+    }
+    m_TotalExecutedInstrCount = 0;
+    return true;
 }
 
 bool ExecutionTrace::initTbTrace(const std::string &cfgKey)
@@ -127,6 +142,7 @@ bool ExecutionTrace::initTbTrace(const std::string &cfgKey)
 void ExecutionTrace::onTimer()
 {
     flushTable();
+    flushInstrCount();
     m_Ticks++;
     
     if (m_StartedTrace) {
@@ -139,13 +155,67 @@ void ExecutionTrace::onTimer()
 
     s2e()->getMessagesStream() << "Starting tracing" << std::endl;
     
-    //Registering listener
+    if (m_TraceType == TRACE_TYPE_TB) {
     m_ExecutionDetector->onModuleTranslateBlockStart.connect(
-        sigc::mem_fun(*this, &ExecutionTrace::onTranslateBlockStart)
-    );
+            sigc::mem_fun(*this, &ExecutionTrace::onTranslateBlockStart)
+        );
+    }else{
 
+      s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
+            sigc::mem_fun(*this, &ExecutionTrace::onTranslateInstructionStart)
+        );
+    }
+
+    
+    m_DetectedModule = false;
     m_StartedTrace = true;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////
+void ExecutionTrace::onTranslateInstructionStart(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        TranslationBlock *tb,
+        uint64_t pc)
+{
+
+    if (!m_DetectedModule) {
+        const ModuleExecutionDesc *md;
+        md = m_ExecutionDetector->getCurrentModule(state);
+        if (!md) {
+            return;
+        }
+
+
+        s2e()->getDebugStream() << md->id << std::endl;
+        if (m_Modules.find(md->id) == m_Modules.end()) {
+            return;
+        }
+        m_DetectedModule = true;
+    }
+    //s2e()->getDebugStream() << "Translating "<< std::hex << pc << std::endl;
+    
+    signal->connect(
+        sigc::mem_fun(*this, &ExecutionTrace::onTraceInstruction)
+    );
+   
+}
+
+void ExecutionTrace::onTraceInstruction(S2EExecutionState* state, uint64_t pc)
+{
+    //s2e()->getDebugStream() << "Executing "<< std::hex << pc << std::endl;
+    ++m_TotalExecutedInstrCount;
+}
+
+void ExecutionTrace::flushInstrCount()
+{
+    if (m_TraceType == TRACE_TYPE_INSTR) {
+        s2e()->getMessagesStream() << "EXECTRACE " << std::dec <<
+            m_TotalExecutedInstrCount << " instructions " << std::endl ;
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionTrace::onTranslateBlockStart(
         ExecutionSignal *signal,
@@ -158,11 +228,15 @@ void ExecutionTrace::onTranslateBlockStart(
         return;
     }*/
 
+      
+
     signal->connect(
         sigc::bind(sigc::mem_fun(*this, &ExecutionTrace::onExecution),
                    (const ModuleExecutionDesc*) desc)
    );
 }
+
+
 
 void ExecutionTrace::flushTable()
 {
