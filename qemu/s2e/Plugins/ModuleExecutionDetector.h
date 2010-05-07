@@ -159,6 +159,7 @@ private:
     void deactivateModule(const ModuleDescriptor &desc);
     void deactivatePid(uint64_t pid);
     const ModuleExecutionDesc *findCurrentModule(uint64_t pid, uint64_t pc) const;
+    bool isModuleActive(const std::string &s);
 
 public:
     sigc::signal<void, 

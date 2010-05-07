@@ -234,16 +234,18 @@ void ModuleExecutionDetector::moduleLoadListener(
     //if module name matches the configured ones, then
     //activate.
     DPRINTF("Module %s loaded\n", module.Name.c_str());
-    ModuleExecutionCfg cfg;
-    cfg.moduleName = module.Name;
-    std::set<ModuleExecutionCfg, ModuleExecCfgByName>::iterator it;
 
-    it = m_ConfiguredModulesName.find(cfg);
-    if (it == m_ConfiguredModulesName.end()) {
-        return;
-    } 
-    
-    plgState->activateModule(module, *it);
+    foreach2(it, m_ConfiguredModulesId.begin(), m_ConfiguredModulesId.end()) {
+        if ((*it).moduleName != module.Name) {
+            continue;
+        }
+        DPRINTF("Found potential moduleid %s with name %s\n",
+            (*it).id.c_str(), (*it).moduleName.c_str());
+        if (!plgState->isModuleActive((*it).id)) {
+            plgState->activateModule(module, *it);    
+            return;
+        }
+    }
   
 }
 
@@ -256,13 +258,7 @@ void ModuleExecutionDetector::moduleUnloadListener(
     
     std::set<ModuleExecutionCfg, ModuleExecCfgByName>::iterator it;
 
-    ModuleExecutionCfg cfg;
-    cfg.moduleName = module.Name;
-    it = m_ConfiguredModulesName.find(cfg);
-    if (it == m_ConfiguredModulesName.end()) {
-        return;
-    } 
-
+    
     plgState->deactivateModule(module);
  
 }
@@ -316,6 +312,16 @@ PluginState* ModuleTransitionState::factory()
     DPRINTF("Creating initial module transition state\n");
 
     return s;
+}
+
+bool ModuleTransitionState::isModuleActive(const std::string &s)
+{
+    foreach2(it, m_ActiveDescriptors.begin(), m_ActiveDescriptors.end()) {
+        if ((*it).id == s){
+            return true;
+        }
+    }
+    return false;
 }
 
 void ModuleTransitionState::activateModule(

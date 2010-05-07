@@ -244,6 +244,8 @@ void CacheSim::onModuleTranslateBlockStart(
     TranslationBlock *tb, uint64_t pc)
 {
     
+    s2e()->getDebugStream() << "Module translation CacheSim " << desc->id << "  " << 
+        pc <<std::endl;
     if(m_d1)
         s2e()->getCorePlugin()->onDataMemoryAccess.connect(
             sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
@@ -253,6 +255,7 @@ void CacheSim::onModuleTranslateBlockStart(
             sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
 
     //We connected ourselves, do not need to monitor modules anymore.
+    s2e()->getDebugStream()  << "Disconnecting module translation cache sim" << std::endl;
     m_ModuleConnection.disconnect();
 }
 
@@ -329,7 +332,7 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
         if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
             flushLogEntries();
 
-        //std::cout << c->getName() << ": " << missCount[i] << std::endl;
+       // std::cout << state->getPc() << " "  << c->getName() << ": " << missCount[i] << std::endl;
 
         if (m_reportZeroMisses || missCount[i]) {
             m_cacheLog.resize(m_cacheLog.size()+1);
