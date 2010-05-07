@@ -275,6 +275,9 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state)
 
     initializeGlobals(*state);
     bindModuleConstants();
+
+    /* XXX */
+    enableSymbolicExecution(state);
 }
 
 void S2EExecutor::registerCpu(S2EExecutionState *initialState,
@@ -552,6 +555,11 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
             << "Switching from state " << hexval(oldState)
             << " to state " << hexval(newState) << std::endl;
 
+    if(oldState->m_runningConcrete) {
+        oldState->addressSpace.copyInConcretes();
+        oldState->m_runningConcrete = false;
+    }
+
     assert(oldState->m_active && !newState->m_active);
     oldState->m_active = false;
 
@@ -756,15 +764,17 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         execute_llvm = 1;
 
     if(execute_llvm) {
-        if(state->m_runningConcrete)
+        if(state->m_runningConcrete) {
             state->addressSpace.copyInConcretes();
-        state->m_runningConcrete = false;
+            state->m_runningConcrete = false;
+        }
         return executeTranslationBlockKlee(state, tb);
 
     } else {
-        if(!state->m_runningConcrete)
+        if(!state->m_runningConcrete) {
             state->addressSpace.copyOutConcretes();
-        state->m_runningConcrete = true;
+            state->m_runningConcrete = true;
+        }
         return tcg_qemu_tb_exec(tb->tc_ptr);
     }
 }
@@ -783,11 +793,13 @@ void S2EExecutor::cleanupTranslationBlock(
     state->prevPC = 0;
     state->pc = m_dummyMain->instructions;
 
+#if 0
     if(!state->m_runningConcrete) {
         /* If we was interupted while symbexing, we can be resumed
            for concrete execution */
         copyOutConcretes(*state);
     }
+#endif
 }
 
 void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
@@ -834,11 +846,6 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
             }
 
             newState->m_active = false;
-            if(newState->m_runningConcrete) {
-                /* Forking while running concretely is unlikely, but still
-                   might happen, for example, due to instrumentation */
-                copyInConcretes(*newState);
-            }
         }
     }
 
@@ -849,6 +856,9 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
                             ref<Expr> condition, bool isInternal)
 {
+    assert(dynamic_cast<S2EExecutionState*>(&current));
+    assert(!static_cast<S2EExecutionState*>(&current)->m_runningConcrete);
+
     StatePair res = Executor::fork(current, condition, isInternal);
     if(res.first && res.second) {
         assert(dynamic_cast<S2EExecutionState*>(res.first));
@@ -873,6 +883,9 @@ void S2EExecutor::branch(klee::ExecutionState &state,
           const vector<ref<Expr> > &conditions,
           vector<ExecutionState*> &result)
 {
+    assert(dynamic_cast<S2EExecutionState*>(&state));
+    assert(!static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
+
     Executor::branch(state, conditions, result);
 
     unsigned n = conditions.size();

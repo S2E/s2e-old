@@ -19,6 +19,9 @@ extern "C" {
 namespace s2e {
 namespace plugins {
 
+using namespace std;
+using namespace klee;
+
 S2E_DEFINE_PLUGIN(BaseInstructions, "Default set of custom instructions plugin", "",);
 
 void BaseInstructions::initialize()
@@ -58,21 +61,16 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
         case 1: s2e()->getExecutor()->enableSymbolicExecution(state); break;
         case 2: s2e()->getExecutor()->disableSymbolicExecution(state); break;
         case 3: {
-            int width = (opcode >> 8) & 0xff;
-            if(width != 1 && width != 8 && width != 16
-                    && width != 32 && width != 64) {
-                s2e()->getWarningsStream()
-                        << "Guest requested insertion of symbolic value"
-                        << " of incorrect width " << width << std::endl;
-            } else {
-                s2e()->getMessagesStream()
-                        << "Inserting symbolic value of width " << width
-                        << " at " << hexval(value1) << std::endl;
-                if(!state->writeMemory(value1,
-                                       state->createSymbolicValue(width))) {
+            unsigned size = (opcode >> (32-8));
+            s2e()->getMessagesStream()
+                    << "Inserting symbolic data at " << hexval(value1)
+                    << " of size " << hexval(size) << std::endl;
+            vector<ref<Expr> > symb = state->createSymbolicArray(size);
+            for(unsigned i = 0; i < size; ++i) {
+                if(!state->writeMemory8(value1 + i, symb[i])) {
                     s2e()->getWarningsStream()
-                        << "Can not insert symbolic value of width " << width
-                        << " at " << hexval(value1)
+                        << "Can not insert symbolic value"
+                        << " at " << hexval(value1 + i)
                         << ": can not write to memory" << std::endl;
                 }
             }

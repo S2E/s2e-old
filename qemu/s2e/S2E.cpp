@@ -194,6 +194,8 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     m_debugFile = openOutputFile("debug.txt");
 
     m_messagesFile = openOutputFile("messages.txt");
+    m_messagesFile->setf(ios_base::unitbuf);
+
     m_messagesStreamBuf = new TeeStreamBuf(m_messagesFile->rdbuf());
     static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(
                                             m_debugFile->rdbuf());

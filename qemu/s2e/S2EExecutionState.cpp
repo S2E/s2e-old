@@ -416,15 +416,36 @@ bool S2EExecutionState::writeMemory64(uint64_t address,
     return writeMemory(address, (uint8_t*) &value, 64, physical);
 }
 
+namespace {
+static int _lastSymbolicId = 0;
+}
+
 ref<Expr> S2EExecutionState::createSymbolicValue(
             Expr::Width width, const std::string& name)
 {
-    static int lastId = 0;
 
     const Array *array = new Array(
-            !name.empty() ? name : "symb_" + llvm::utostr(++lastId),
+            !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId),
             Expr::getMinBytesForWidth(width));
     return Expr::createTempRead(array, width);
+}
+
+std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
+            unsigned size, const std::string& name)
+{
+    const Array *array = new Array(
+            !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId),
+            size);
+
+    UpdateList ul(array, 0);
+
+    std::vector<ref<Expr> > result; result.reserve(size);
+    for(unsigned i = 0; i < size; ++i) {
+        result.push_back(ReadExpr::create(ul,
+                    ConstantExpr::alloc(0,Expr::Int32)));
+    }
+
+    return result;
 }
 
 } // namespace s2e
