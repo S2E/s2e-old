@@ -49,7 +49,7 @@
 #if defined(CONFIG_S2E) && defined(_raw) && !defined(S2E_LLVM_LIB)
 #define S2E_TRACE_MEMORY(addr, value, isWrite, isIO) \
         s2e_trace_memory_access(g_s2e, g_s2e_state, addr, \
-                            (uint8_t*) &value, sizeof(value), 0, 1);
+                            (uint8_t*) &value, sizeof(value), isWrite, isIO);
 #elif defined(S2E_LLVM_LIB)
 #define S2E_TRACE_MEMORY(addr, value, isWrite, isIO) \
     tcg_llvm_trace_memory_access(addr, value, 8*sizeof(value), isWrite, isIO);
