@@ -747,7 +747,7 @@ static inline void __WR_env_raw(CPUX86State* cpuState, unsigned offset,
 #define RR_cpu(cpu, reg) ((typeof(cpu->reg)) \
             __RR_env_raw(cpu, offsetof(CPUX86State, reg), sizeof(cpu->reg)))
 #define WR_cpu(cpu, reg, value) __WR_env_raw(cpu, offsetof(CPUX86State, reg), \
-            (target_ulong) value, sizeof(env->reg))
+            (target_ulong) value, sizeof(cpu->reg))
 #else
 #define RR_cpu(cpu, reg) cpu->reg
 #define WR_cpu(cpu, reg, value) cpu->reg = value

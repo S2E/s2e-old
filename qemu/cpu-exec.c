@@ -707,12 +707,7 @@ int cpu_exec(CPUState *env1)
 
 #if defined(CONFIG_S2E)
                     env->s2e_current_tb = tb;
-                    if(execute_llvm) {
-                        next_tb = s2e_qemu_tb_exec(
-                                g_s2e, g_s2e_state, tb);
-                    } else {
-                        next_tb = tcg_qemu_tb_exec(tc_ptr);
-                    }
+                    next_tb = s2e_qemu_tb_exec(g_s2e, g_s2e_state, tb);
 #elif defined(CONFIG_LLVM)
                     if(execute_llvm) {
 #define SAVE_HOST_REGS 1

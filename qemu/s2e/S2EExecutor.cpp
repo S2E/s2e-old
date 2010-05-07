@@ -190,7 +190,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     searcher = new RandomSearcher();
 
-    setAllExternalWarnings(true);
+    //setAllExternalWarnings(true);
 }
 
 S2EExecutor::~S2EExecutor()
@@ -254,10 +254,6 @@ S2EExecutionState* S2EExecutor::createInitialState()
 
     m_s2e->getMessagesStream()
             << "Created initial state 0x" << hexval(state) << std::endl;
-
-    std::cerr << kmodule->module->getFunction("cc_compute_c") << std::endl;
-    std::cerr << kmodule->module->getFunction("__ldb_mmu_s2e_trace") << std::endl;
-    std::cerr << m_tcgLLVMContext->getModule()->getFunction("cc_compute_c") << std::endl;
 
     return state;
 }
@@ -461,6 +457,7 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
 void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
         CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
+    assert(state->m_active);
     assert(offset + size <= CPU_OFFSET(eip));
 
     if(state->m_runningConcrete) {
@@ -485,6 +482,7 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
 void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         CPUX86State *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
 {
+    assert(state->m_active);
     assert(offset + size <= CPU_OFFSET(eip));
 
     if(state->m_runningConcrete) {
@@ -494,17 +492,20 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         const ObjectState* os = state->addressSpace.findObject(mo);
         ObjectState* wos = state->addressSpace.getWriteable(mo, os);
 
-        for(unsigned i = 0; i < size; ++i)
+        for(unsigned i = 0; i < size; ++i) {
             wos->write8(offset+i, buf[i]);
+        }
     }
 }
 
 void S2EExecutor::copyOutConcretes(ExecutionState &state) {
+    return;
 
     assert(dynamic_cast<S2EExecutionState*>(&state));
     assert(!static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
     static_cast<S2EExecutionState*>(&state)->m_runningConcrete = true;
 
+#if 0
     /* Concretize any symbolic values */
     for (MemoryMap::iterator
             it = state.addressSpace.nonUserSpecifiedObjects.begin(),
@@ -529,14 +530,18 @@ void S2EExecutor::copyOutConcretes(ExecutionState &state) {
             }
         }
     }
+#endif
     Executor::copyOutConcretes(state);
 }
 
 bool S2EExecutor::copyInConcretes(klee::ExecutionState &state)
 {
+    return true;
+
     assert(dynamic_cast<S2EExecutionState*>(&state));
     assert(static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
     static_cast<S2EExecutionState*>(&state)->m_runningConcrete = false;
+
     return Executor::copyInConcretes(state);
 }
 
@@ -588,7 +593,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     return newState;
 }
 
-uintptr_t S2EExecutor::executeTranslationBlock(
+uintptr_t S2EExecutor::executeTranslationBlockKlee(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
@@ -739,6 +744,29 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     copyOutConcretes(*state);
 
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
+}
+
+uintptr_t S2EExecutor::executeTranslationBlock(
+        S2EExecutionState* state,
+        TranslationBlock* tb)
+{
+    const ObjectState* os = state->addressSpace.findObject(
+                                    state->m_cpuRegistersState);
+    if(!os->isAllConcrete())
+        execute_llvm = 1;
+
+    if(execute_llvm) {
+        if(state->m_runningConcrete)
+            state->addressSpace.copyInConcretes();
+        state->m_runningConcrete = false;
+        return executeTranslationBlockKlee(state, tb);
+
+    } else {
+        if(!state->m_runningConcrete)
+            state->addressSpace.copyOutConcretes();
+        state->m_runningConcrete = true;
+        return tcg_qemu_tb_exec(tb->tc_ptr);
+    }
 }
 
 void S2EExecutor::cleanupTranslationBlock(
@@ -962,4 +990,3 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
 {
     return s2e->getExecutor()->cleanupTranslationBlock(state, tb);
 }
-

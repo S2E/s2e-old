@@ -57,6 +57,9 @@ protected:
                                     klee::KInstruction* target,
                                     std::vector<klee::ref<klee::Expr> > &args);
 
+    uintptr_t executeTranslationBlockKlee(S2EExecutionState *state,
+                                          TranslationBlock *tb);
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
