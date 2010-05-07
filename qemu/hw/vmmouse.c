@@ -170,9 +170,9 @@ static void vmmouse_get_data(uint32_t *data)
 {
     CPUState *env = cpu_single_env;
 
-    data[0] = env->regs[R_EAX]; data[1] = env->regs[R_EBX];
-    data[2] = env->regs[R_ECX]; data[3] = env->regs[R_EDX];
-    data[4] = env->regs[R_ESI]; data[5] = env->regs[R_EDI];
+    data[0] = RR_cpu(env, regs[R_EAX]); data[1] = RR_cpu(env, regs[R_EBX]);
+    data[2] = RR_cpu(env, regs[R_ECX]); data[3] = RR_cpu(env, regs[R_EDX]);
+    data[4] = RR_cpu(env, regs[R_ESI]); data[5] = RR_cpu(env, regs[R_EDI]);
 
     DPRINTF("get_data = {%x, %x, %x, %x, %x, %x}\n",
             data[0], data[1], data[2], data[3], data[4], data[5]);
@@ -185,9 +185,9 @@ static void vmmouse_set_data(const uint32_t *data)
     DPRINTF("set_data = {%x, %x, %x, %x, %x, %x}\n",
             data[0], data[1], data[2], data[3], data[4], data[5]);
 
-    env->regs[R_EAX] = data[0]; env->regs[R_EBX] = data[1];
-    env->regs[R_ECX] = data[2]; env->regs[R_EDX] = data[3];
-    env->regs[R_ESI] = data[4]; env->regs[R_EDI] = data[5];
+    WR_cpu(env, regs[R_EAX], data[0]); WR_cpu(env, regs[R_EBX], data[1]);
+    WR_cpu(env, regs[R_ECX], data[2]); WR_cpu(env, regs[R_EDX], data[3]);
+    WR_cpu(env, regs[R_ESI], data[4]); WR_cpu(env, regs[R_EDI], data[5]);
 }
 
 static uint32_t vmmouse_ioport_read(void *opaque, uint32_t addr)

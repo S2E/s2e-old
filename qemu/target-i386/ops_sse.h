@@ -949,7 +949,7 @@ void helper_ucomiss(Reg *d, Reg *s)
     s0 = d->XMM_S(0);
     s1 = s->XMM_S(0);
     ret = float32_compare_quiet(s0, s1, &env->sse_status);
-    CC_SRC = comis_eflags[ret + 1];
+    CC_SRC_W(comis_eflags[ret + 1]);
 }
 
 void helper_comiss(Reg *d, Reg *s)
@@ -960,7 +960,7 @@ void helper_comiss(Reg *d, Reg *s)
     s0 = d->XMM_S(0);
     s1 = s->XMM_S(0);
     ret = float32_compare(s0, s1, &env->sse_status);
-    CC_SRC = comis_eflags[ret + 1];
+    CC_SRC_W(comis_eflags[ret + 1]);
 }
 
 void helper_ucomisd(Reg *d, Reg *s)
@@ -971,7 +971,7 @@ void helper_ucomisd(Reg *d, Reg *s)
     d0 = d->XMM_D(0);
     d1 = s->XMM_D(0);
     ret = float64_compare_quiet(d0, d1, &env->sse_status);
-    CC_SRC = comis_eflags[ret + 1];
+    CC_SRC_W(comis_eflags[ret + 1]);
 }
 
 void helper_comisd(Reg *d, Reg *s)
@@ -982,7 +982,7 @@ void helper_comisd(Reg *d, Reg *s)
     d0 = d->XMM_D(0);
     d1 = s->XMM_D(0);
     ret = float64_compare(d0, d1, &env->sse_status);
-    CC_SRC = comis_eflags[ret + 1];
+    CC_SRC_W(comis_eflags[ret + 1]);
 }
 
 uint32_t helper_movmskps(Reg *s)
@@ -1520,7 +1520,7 @@ void glue(helper_ptest, SUFFIX) (Reg *d, Reg *s)
     uint64_t zf = (s->Q(0) &  d->Q(0)) | (s->Q(1) &  d->Q(1));
     uint64_t cf = (s->Q(0) & ~d->Q(0)) | (s->Q(1) & ~d->Q(1));
 
-    CC_SRC = (zf ? 0 : CC_Z) | (cf ? 0 : CC_C);
+    CC_SRC_W((zf ? 0 : CC_Z) | (cf ? 0 : CC_C));
 }
 
 #define SSE_HELPER_F(name, elem, num, F)\
@@ -1827,9 +1827,9 @@ static inline int pcmp_elen(int reg, uint32_t ctrl)
 
     /* Presence of REX.W is indicated by a bit higher than 7 set */
     if (ctrl >> 8)
-        val = abs1((int64_t) env->regs[reg]);
+        val = abs1((int64_t) RR_cpu(env, regs[reg]));
     else
-        val = abs1((int32_t) env->regs[reg]);
+        val = abs1((int32_t) RR_cpu(env, regs[reg]));
 
     if (ctrl & 1) {
         if (val > 8)
@@ -1881,7 +1881,7 @@ static inline unsigned pcmpxstrx(Reg *d, Reg *s,
     valids--;
     validd--;
 
-    CC_SRC = (valids < upper ? CC_Z : 0) | (validd < upper ? CC_S : 0);
+    CC_SRC_W((valids < upper ? CC_Z : 0) | (validd < upper ? CC_S : 0));
 
     switch ((ctrl >> 2) & 3) {
     case 0:
@@ -1930,9 +1930,9 @@ static inline unsigned pcmpxstrx(Reg *d, Reg *s,
     }
 
     if (res)
-       CC_SRC |= CC_C;
+       CC_SRC_W(CC_SRC | CC_C);
     if (res & 1)
-       CC_SRC |= CC_O;
+       CC_SRC_W(CC_SRC | CC_O);
 
     return res;
 }
@@ -1970,9 +1970,9 @@ void glue(helper_pcmpestri, SUFFIX) (Reg *d, Reg *s, uint32_t ctrl)
                     pcmp_elen(R_EAX, ctrl));
 
     if (res)
-        env->regs[R_ECX] = ((ctrl & (1 << 6)) ? rffs1 : ffs1)(res) - 1;
+        WR_cpu(env, regs[R_ECX], ((ctrl & (1 << 6)) ? rffs1 : ffs1)(res) - 1);
     else
-        env->regs[R_ECX] = 16 >> (ctrl & (1 << 0));
+        WR_cpu(env, regs[R_ECX], 16 >> (ctrl & (1 << 0)));
 }
 
 void glue(helper_pcmpestrm, SUFFIX) (Reg *d, Reg *s, uint32_t ctrl)
@@ -2002,9 +2002,9 @@ void glue(helper_pcmpistri, SUFFIX) (Reg *d, Reg *s, uint32_t ctrl)
                     pcmp_ilen(d, ctrl));
 
     if (res)
-        env->regs[R_ECX] = ((ctrl & (1 << 6)) ? rffs1 : ffs1)(res) - 1;
+        WR_cpu(env, regs[R_ECX], ((ctrl & (1 << 6)) ? rffs1 : ffs1)(res) - 1);
     else
-        env->regs[R_ECX] = 16 >> (ctrl & (1 << 0));
+        WR_cpu(env, regs[R_ECX], 16 >> (ctrl & (1 << 0)));
 }
 
 void glue(helper_pcmpistrm, SUFFIX) (Reg *d, Reg *s, uint32_t ctrl)
@@ -2044,7 +2044,7 @@ target_ulong helper_crc32(uint32_t crc1, target_ulong msg, uint32_t len)
 #define POPCOUNT(n, i) (n & POPMASK(i)) + ((n >> (1 << i)) & POPMASK(i))
 target_ulong helper_popcnt(target_ulong n, uint32_t type)
 {
-    CC_SRC = n ? 0 : CC_Z;
+    CC_SRC_W(n ? 0 : CC_Z);
 
     n = POPCOUNT(n, 0);
     n = POPCOUNT(n, 1);

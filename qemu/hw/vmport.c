@@ -58,11 +58,11 @@ static uint32_t vmport_ioport_read(void *opaque, uint32_t addr)
     unsigned char command;
     uint32_t eax;
 
-    eax = env->regs[R_EAX];
+    eax = RR_cpu(env, regs[R_EAX]);
     if (eax != VMPORT_MAGIC)
         return eax;
 
-    command = env->regs[R_ECX];
+    command = RR_cpu(env, regs[R_ECX]);
     if (command >= VMPORT_ENTRIES)
         return eax;
     if (!s->func[command])
@@ -80,20 +80,20 @@ static void vmport_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 {
     CPUState *env = cpu_single_env;
 
-    env->regs[R_EAX] = vmport_ioport_read(opaque, addr);
+    WR_cpu(env, regs[R_EAX], vmport_ioport_read(opaque, addr));
 }
 
 static uint32_t vmport_cmd_get_version(void *opaque, uint32_t addr)
 {
     CPUState *env = cpu_single_env;
-    env->regs[R_EBX] = VMPORT_MAGIC;
+    WR_cpu(env, regs[R_EBX], VMPORT_MAGIC);
     return 6;
 }
 
 static uint32_t vmport_cmd_ram_size(void *opaque, uint32_t addr)
 {
     CPUState *env = cpu_single_env;
-    env->regs[R_EBX] = 0x1177;
+    WR_cpu(env, regs[R_EBX], 0x1177);
     return ram_size;
 }
 

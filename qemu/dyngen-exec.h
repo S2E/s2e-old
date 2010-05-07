@@ -130,7 +130,7 @@ extern int printf(const char *, ...);
 
 #if defined(CONFIG_S2E)
 
-extern void* g_s2e_exec_ret_addr;
+//extern void* g_s2e_exec_ret_addr;
 #ifdef S2E_LLVM_LIB
 #define GETPC() (g_s2e_exec_ret_addr)
 #else

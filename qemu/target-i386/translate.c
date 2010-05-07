@@ -8049,5 +8049,5 @@ void gen_pc_load(CPUState *env, TranslationBlock *tb,
     env->eip = gen_opc_pc[pc_pos] - tb->cs_base;
     cc_op = gen_opc_cc_op[pc_pos];
     if (cc_op != CC_OP_DYNAMIC)
-        env->cc_op = cc_op;
+        WR_cpu(env, cc_op, cc_op);
 }

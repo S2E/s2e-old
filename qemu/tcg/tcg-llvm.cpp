@@ -49,39 +49,6 @@ static void *qemu_st_helpers[5] = {
     (void*) __stq_mmu,
     (void*) __stq_mmu,
 };
-#else
-static void *qemu_ld_helpers[5] = {
-    (void*) __ldb_mmu_s2e_trace,
-    (void*) __ldw_mmu_s2e_trace,
-    (void*) __ldl_mmu_s2e_trace,
-    (void*) __ldq_mmu_s2e_trace,
-    (void*) __ldq_mmu_s2e_trace,
-};
-
-static void *qemu_st_helpers[5] = {
-    (void*) __stb_mmu_s2e_trace,
-    (void*) __stw_mmu_s2e_trace,
-    (void*) __stl_mmu_s2e_trace,
-    (void*) __stq_mmu_s2e_trace,
-    (void*) __stq_mmu_s2e_trace,
-};
-
-/*
-const char* qemu_ld_helper_names[5] = {
-    "__ldb_mmu_s2e_trace",
-    "__ldw_mmu_s2e_trace",
-    "__ldl_mmu_s2e_trace",
-    "__ldq_mmu_s2e_trace",
-    "__ldq_mmu_s2e_trace",
-};
-const char* qemu_st_helper_names[5] = {
-    "__stb_mmu_s2e_trace",
-    "__stw_mmu_s2e_trace",
-    "__stl_mmu_s2e_trace",
-    "__stq_mmu_s2e_trace",
-    "__stq_mmu_s2e_trace",
-};
-*/
 #endif
 
 #endif
@@ -150,8 +117,9 @@ struct TCGLLVMContextPrivate {
 
 #ifdef CONFIG_S2E
     /* Declaration of a wrapper function for helpers */
-    Function *m_helperWrapperFunction;
     Function *m_helperTraceMemoryAccess;
+    Function* m_qemu_ld_helpers[5];
+    Function* m_qemu_st_helpers[5];
 #endif
 
     /* Count of generated translation blocks */
@@ -176,11 +144,6 @@ struct TCGLLVMContextPrivate {
     int m_globalsIdx[TCG_MAX_TEMPS];
 
     BasicBlock* m_labels[TCG_MAX_LABELS];
-
-#ifdef CONFIG_S2E
-    Function* m_qemu_ld_helpers[5];
-    Function* m_qemu_st_helpers[5];
-#endif
 
 public:
     TCGLLVMContextPrivate();
@@ -212,18 +175,19 @@ public:
     void invalidateCachedMemory();
 
 #ifdef CONFIG_S2E
-    void createQemuMemoryHelper(const char* name, bool ld, int bits);
+    void initializeHelpers();
 #endif
 
     BasicBlock* getLabel(int idx);
     void delLabel(int idx);
     void startNewBasicBlock(BasicBlock *bb = NULL);
 
-    Value* generateQemuMemOp(bool ld, Value* value, Value *addr,
-                                int mem_index, int bits);
-
     /* Code generation */
+    Value* generateQemuMemOp(bool ld, Value *value, Value *addr,
+                             int mem_index, int bits);
+
     int generateOperation(int opc, const TCGArg *args);
+
     void generateCode(TCGContext *s, TranslationBlock *tb);
 };
 
@@ -331,31 +295,6 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     m_functionPassManager->add(createPromoteMemoryToRegisterPass());
 
     m_functionPassManager->doInitialization();
-
-#ifdef CONFIG_S2E
-    std::vector<const Type*> traceArgs;
-    traceArgs.push_back(intType(64)); // address
-    traceArgs.push_back(intType(64)); // value
-    traceArgs.push_back(intType(32)); // width of the value
-    traceArgs.push_back(intType(1));  // isWrite
-    m_helperTraceMemoryAccess = Function::Create(
-            FunctionType::get(Type::getVoidTy(m_context), traceArgs, false),
-            Function::PrivateLinkage,
-            "tcg_llvm_trace_memory_access", m_module);
-    m_executionEngine->addGlobalMapping(m_helperTraceMemoryAccess,
-            (void*) tcg_llvm_trace_memory_access);
-    sys::DynamicLibrary::AddSymbol("tcg_llvm_trace_memory_access",
-            (void*) tcg_llvm_trace_memory_access);
-
-    createQemuMemoryHelper("__ldb_mmu_s2e_trace", true,   8);
-    createQemuMemoryHelper("__ldw_mmu_s2e_trace", true,  16);
-    createQemuMemoryHelper("__ldl_mmu_s2e_trace", true,  32);
-    createQemuMemoryHelper("__ldq_mmu_s2e_trace", true,  64);
-    createQemuMemoryHelper("__stb_mmu_s2e_trace", false,  8);
-    createQemuMemoryHelper("__stw_mmu_s2e_trace", false, 16);
-    createQemuMemoryHelper("__stl_mmu_s2e_trace", false, 32);
-    createQemuMemoryHelper("__stq_mmu_s2e_trace", false, 64);
-#endif
 }
 
 TCGLLVMContextPrivate::~TCGLLVMContextPrivate()
@@ -368,31 +307,28 @@ TCGLLVMContextPrivate::~TCGLLVMContextPrivate()
 }
 
 #ifdef CONFIG_S2E
-void TCGLLVMContextPrivate::createQemuMemoryHelper(const char* name,
-                                                   bool ld, int bits)
+void TCGLLVMContextPrivate::initializeHelpers()
 {
-    assert(!m_module->getFunction(name));
+    m_helperTraceMemoryAccess =
+            m_module->getFunction("tcg_llvm_trace_memory_access");
 
-    std::vector<const Type*> args;
-    args.push_back(intType(TARGET_LONG_BITS));
-    if(!ld)
-        args.push_back(intType(bits));
-    args.push_back(intType(8*sizeof(int)));
+    m_qemu_ld_helpers[0] = m_module->getFunction("__ldb_mmu");
+    m_qemu_ld_helpers[1] = m_module->getFunction("__ldw_mmu");
+    m_qemu_ld_helpers[2] = m_module->getFunction("__ldl_mmu");
+    m_qemu_ld_helpers[3] = m_module->getFunction("__ldq_mmu");
+    m_qemu_ld_helpers[4] = m_module->getFunction("__ldq_mmu");
 
-    const Type* retType = ld ? intType(bits) : Type::getVoidTy(m_context);
+    m_qemu_st_helpers[0] = m_module->getFunction("__stb_mmu");
+    m_qemu_st_helpers[1] = m_module->getFunction("__stw_mmu");
+    m_qemu_st_helpers[2] = m_module->getFunction("__stl_mmu");
+    m_qemu_st_helpers[3] = m_module->getFunction("__stq_mmu");
+    m_qemu_st_helpers[4] = m_module->getFunction("__stq_mmu");
 
-    Function *func = Function::Create(
-            FunctionType::get(retType, args, false),
-            Function::PrivateLinkage, name, m_module);
-
-    void* ptr = ld ? qemu_ld_helpers[bits>>4] : qemu_st_helpers[bits>>4];
-    m_executionEngine->addGlobalMapping(func, ptr);
-    sys::DynamicLibrary::AddSymbol(name, ptr);
-
-    if(ld)
-        m_qemu_ld_helpers[bits>>4] = func;
-    else
-        m_qemu_st_helpers[bits>>4] = func;
+    assert(m_helperTraceMemoryAccess);
+    for(int i = 0; i < 5; ++i) {
+        assert(m_qemu_ld_helpers[i]);
+        assert(m_qemu_st_helpers[i]);
+    }
 }
 #endif
 
@@ -662,11 +598,6 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
 #ifdef CONFIG_S2E
     Function* funcAddr = ld ? m_qemu_ld_helpers[bits>>4] :
                               m_qemu_st_helpers[bits>>4];
-    /*
-    Function* funcAddr = m_module->getFunction(ld ?
-                                               qemu_ld_helper_names[bits>>4] :
-                                               qemu_st_helper_names[bits>>4]);
-                                               */
     assert(funcAddr);
     v2 = m_builder.CreateCall(funcAddr, argValues.begin(), argValues.end());
 
@@ -724,11 +655,15 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
 
 #ifdef CONFIG_S2E
     /* Call memory trace function */
-    m_builder.CreateCall4(m_helperTraceMemoryAccess,
-                          m_builder.CreateZExt(addr, intType(64)),
-                          m_builder.CreateZExt(ld ? v1 : value, intType(64)),
-                          ConstantInt::get(intType(32), bits),
-                          ConstantInt::get(intType(1), ld ? 0 : 1));
+    std::vector<Value*> traceArgs;
+    traceArgs.push_back(m_builder.CreateZExt(addr, intType(64)));
+    traceArgs.push_back(m_builder.CreateZExt(ld ? v1 : value, intType(64)));
+    traceArgs.push_back(ConstantInt::get(intType(32), bits));
+    traceArgs.push_back(ConstantInt::get(intType(8), ld ? 0 : 1));
+    traceArgs.push_back(ConstantInt::get(intType(8), 0));
+
+    m_builder.CreateCall(m_helperTraceMemoryAccess,
+                         traceArgs.begin(), traceArgs.end());
 #endif
 
     m_builder.CreateBr(bb_m);
@@ -1358,6 +1293,13 @@ ExecutionEngine* TCGLLVMContext::getExecutionEngine()
 {
     return m_private->m_executionEngine;
 }
+
+#ifdef CONFIG_S2E
+void TCGLLVMContext::initializeHelpers()
+{
+    return m_private->initializeHelpers();
+}
+#endif
 
 void TCGLLVMContext::generateCode(TCGContext *s, TranslationBlock *tb)
 {

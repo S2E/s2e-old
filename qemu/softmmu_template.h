@@ -46,8 +46,15 @@
 #define ADDR_READ addr_read
 #endif
 
-#if !defined(CONFIG_S2E) || !defined(_raw)
-#define s2e_trace_memory_access(...)
+#if defined(CONFIG_S2E) && defined(_raw) && !defined(S2E_LLVM_LIB)
+#define S2E_TRACE_MEMORY(addr, value, isWrite, isIO) \
+        s2e_trace_memory_access(g_s2e, g_s2e_state, addr, \
+                            (uint8_t*) &value, sizeof(value), 0, 1);
+#elif defined(S2E_LLVM_LIB)
+#define S2E_TRACE_MEMORY(addr, value, isWrite, isIO) \
+    tcg_llvm_trace_memory_access(addr, value, 8*sizeof(value), isWrite, isIO);
+#else
+#define S2E_TRACE_MEMORY(...)
 #endif
 
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
@@ -106,8 +113,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->iotlb[mmu_idx][index];
             res = glue(io_read, SUFFIX)(addend, addr, retaddr);
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                            (uint8_t*) &res, sizeof(res), 0, 1);
+            S2E_TRACE_MEMORY(addr, res, 0, 1);
 
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
             /* slow unaligned access (it spans two pages or IO) */
@@ -129,8 +135,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                            (uint8_t*) &res, sizeof(res), 0, 0);
+            S2E_TRACE_MEMORY(addr, res, 0, 0);
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -168,8 +173,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->iotlb[mmu_idx][index];
             res = glue(io_read, SUFFIX)(addend, addr, retaddr);
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                            (uint8_t*) &res, sizeof(res), 0, 1);
+            S2E_TRACE_MEMORY(addr, res, 0, 1);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
         do_unaligned_access:
             /* slow unaligned access (it spans two pages) */
@@ -191,8 +195,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                            (uint8_t*) &res, sizeof(res), 0, 0);
+            S2E_TRACE_MEMORY(addr, res, 0, 0);
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -258,8 +261,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->iotlb[mmu_idx][index];
             glue(io_write, SUFFIX)(addend, val, addr, retaddr);
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                                    (uint8_t*) &val, sizeof(val), 1, 1);
+            S2E_TRACE_MEMORY(addr, val, 1, 1);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
         do_unaligned_access:
             retaddr = GETPC();
@@ -279,8 +281,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                                    (uint8_t*) &val, sizeof(val), 1, 0);
+            S2E_TRACE_MEMORY(addr, val, 1, 0);
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -315,8 +316,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->iotlb[mmu_idx][index];
             glue(io_write, SUFFIX)(addend, val, addr, retaddr);
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                                    (uint8_t*) &val, sizeof(val), 1, 1);
+            S2E_TRACE_MEMORY(addr, val, 1, 1);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
         do_unaligned_access:
             /* XXX: not efficient, but simple */
@@ -336,8 +336,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);
 
-            s2e_trace_memory_access(g_s2e, g_s2e_state, addr,
-                                    (uint8_t*) &val, sizeof(val), 1, 0);
+            S2E_TRACE_MEMORY(addr, val, 1, 0);
         }
     } else {
         /* the page is not in the TLB : fill it */
@@ -348,7 +347,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 
 #endif /* !defined(SOFTMMU_CODE_ACCESS) */
 
-#undef s2e_trace_memory_access
+#undef S2E_TRACE_MEMORY
 #undef READ_ACCESS_TYPE
 #undef SHIFT
 #undef DATA_TYPE

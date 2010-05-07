@@ -111,6 +111,11 @@ public:
 
     llvm::ExecutionEngine* getExecutionEngine();
 
+#ifdef CONFIG_S2E
+    /** Called after linking all helper libraries */
+    void initializeHelpers();
+#endif
+
     void generateCode(struct TCGContext *s,
                       struct TranslationBlock *tb);
 };

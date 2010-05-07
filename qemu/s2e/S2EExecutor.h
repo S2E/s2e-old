@@ -99,6 +99,14 @@ public:
     void writeRamConcrete(S2EExecutionState *state,
             uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
+    /** Read from register, concretizing if nessecary. */
+    void readRegisterConcrete(S2EExecutionState *state, CPUX86State* cpuState,
+            unsigned offset, uint8_t* buf, unsigned size);
+
+    /** Write concrete value to register. */
+    void writeRegisterConcrete(S2EExecutionState *state, CPUX86State* cpuState,
+            unsigned offset, const uint8_t* buf, unsigned size);
+
     S2EExecutionState* selectNextState(S2EExecutionState* state);
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,

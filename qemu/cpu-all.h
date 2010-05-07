@@ -659,7 +659,7 @@ extern int have_guest_base;
 #define laddr(x) (uint8_t *)(intptr_t)(x)
 #endif
 
-#ifndef CONFIG_S2E
+#if !defined(CONFIG_S2E) || defined(S2E_LLVM_LIB)
 
 #define ldub_raw(p) ldub_p(laddr((p)))
 #define ldsb_raw(p) ldsb_p(laddr((p)))

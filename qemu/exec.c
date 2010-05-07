@@ -47,6 +47,7 @@
 #endif
 
 #ifdef CONFIG_S2E
+#include <cpu-all.h>
 #include <s2e/s2e_qemu.h>
 #endif
 

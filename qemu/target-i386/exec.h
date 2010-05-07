@@ -19,6 +19,10 @@
 #include "config.h"
 #include "dyngen-exec.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 /* XXX: factorize this mess */
 #ifdef TARGET_X86_64
 #define TARGET_LONG_BITS 64
@@ -30,42 +34,103 @@
 
 #ifdef CONFIG_S2E
 extern struct CPUX86State *env;
-#else
-register struct CPUX86State *env asm(AREG0);
-#endif
-
-#include "qemu-common.h"
-#include "qemu-log.h"
 
 #undef EAX
-#define EAX (env->regs[R_EAX])
+#define EAX (RR_cpu(env, regs[R_EAX]))
+#define EAX_W(v) (WR_cpu(env, regs[R_EAX], v))
 #undef ECX
-#define ECX (env->regs[R_ECX])
+#define ECX (RR_cpu(env, regs[R_ECX]))
+#define ECX_W(v) (WR_cpu(env, regs[R_ECX], v))
 #undef EDX
-#define EDX (env->regs[R_EDX])
+#define EDX (RR_cpu(env, regs[R_EDX]))
+#define EDX_W(v) (WR_cpu(env, regs[R_EDX], v))
 #undef EBX
-#define EBX (env->regs[R_EBX])
+#define EBX (RR_cpu(env, regs[R_EBX]))
+#define EBX_W(v) (WR_cpu(env, regs[R_EBX], v))
 #undef ESP
-#define ESP (env->regs[R_ESP])
+#define ESP (RR_cpu(env, regs[R_ESP]))
+#define ESP_W(v) (WR_cpu(env, regs[R_ESP], v))
 #undef EBP
-#define EBP (env->regs[R_EBP])
+#define EBP (RR_cpu(env, regs[R_EBP]))
+#define EBP_W(v) (WR_cpu(env, regs[R_EBP], v))
 #undef ESI
-#define ESI (env->regs[R_ESI])
+#define ESI (RR_cpu(env, regs[R_ESI]))
+#define ESI_W(v) (WR_cpu(env, regs[R_ESI], v))
 #undef EDI
-#define EDI (env->regs[R_EDI])
+#define EDI (RR_cpu(env, regs[R_EDI]))
+#define EDI_W(v) (WR_cpu(env, regs[R_EDI], v))
+
+#define DF  (RR_cpu(env, df))
+#define CC_SRC (RR_cpu(env, cc_src))
+#define CC_DST (RR_cpu(env, cc_dst))
+#define CC_OP  (RR_cpu(env, cc_op))
+
+#define DF_W(v)  (WR_cpu(env, df, v))
+#define CC_SRC_W(v) (WR_cpu(env, cc_src, v))
+#define CC_DST_W(v) (WR_cpu(env, cc_dst, v))
+#define CC_OP_W(v)  (WR_cpu(env, cc_op, v))
+
 #undef EIP
 #define EIP (env->eip)
-#define DF  (env->df)
-
-#define CC_SRC (env->cc_src)
-#define CC_DST (env->cc_dst)
-#define CC_OP  (env->cc_op)
 
 /* float macros */
 #define FT0    (env->ft0)
 #define ST0    (env->fpregs[env->fpstt].d)
 #define ST(n)  (env->fpregs[(env->fpstt + (n)) & 7].d)
 #define ST1    ST(1)
+
+#else /* CONFIG_S2E */
+
+register struct CPUX86State *env asm(AREG0);
+
+#undef EAX
+#define EAX (env->regs[R_EAX])
+#define EAX_W(v) (env->regs[R_EAX] = v)
+#undef ECX
+#define ECX (env->regs[R_ECX])
+#define ECX_W(v) (env->regs[R_ECX] = v)
+#undef EDX
+#define EDX (env->regs[R_EDX])
+#define EDX_W(v) (env->regs[R_EDX] = v)
+#undef EBX
+#define EBX (env->regs[R_EBX])
+#define EBX_W(v) (env->regs[R_EBX] = v)
+#undef ESP
+#define ESP (env->regs[R_ESP])
+#define ESP_W(v) (env->regs[R_ESP] = v)
+#undef EBP
+#define EBP (env->regs[R_EBP])
+#define EBP_W(v) (env->regs[R_EBP] = v)
+#undef ESI
+#define ESI (env->regs[R_ESI])
+#define ESI_W(v) (env->regs[R_ESI] = v)
+#undef EDI
+#define EDI (env->regs[R_EDI])
+#define EDI_W(v) (env->regs[R_EDI] = v)
+
+#define DF  (env->df)
+#define CC_SRC (env->cc_src)
+#define CC_DST (env->cc_dst)
+#define CC_OP  (env->cc_op)
+
+#define DF_W(v) (env->df = v)
+#define CC_SRC_W(v) (env->cc_src = v)
+#define CC_DST_W(v) (env->cc_dst = v)
+#define CC_OP_W(v) (env->cc_op = v)
+
+#undef EIP
+#define EIP (env->eip)
+
+/* float macros */
+#define FT0    (env->ft0)
+#define ST0    (env->fpregs[env->fpstt].d)
+#define ST(n)  (env->fpregs[(env->fpstt + (n)) & 7].d)
+#define ST1    ST(1)
+
+#endif
+
+#include "qemu-common.h"
+#include "qemu-log.h"
 
 #include "cpu.h"
 #include "exec-all.h"
@@ -282,16 +347,16 @@ static inline void helper_fstt(CPU86_LDouble f, target_ulong ptr)
 
 static inline uint32_t compute_eflags(void)
 {
-    return env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+    return RR_cpu(env, eflags) | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
 }
 
 /* NOTE: CC_OP must be modified manually to CC_OP_EFLAGS */
 static inline void load_eflags(int eflags, int update_mask)
 {
-    CC_SRC = eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-    DF = 1 - (2 * ((eflags >> 10) & 1));
-    env->eflags = (env->eflags & ~update_mask) |
-        (eflags & update_mask) | 0x2;
+    CC_SRC_W(eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
+    DF_W(1 - (2 * ((eflags >> 10) & 1)));
+    WR_cpu(env, eflags, (RR_cpu(env, eflags) & ~update_mask) |
+        (eflags & update_mask) | 0x2);
 }
 
 static inline void env_to_regs(void)
@@ -355,7 +420,7 @@ static inline int cpu_has_work(CPUState *env)
     int work;
 
     work = (env->interrupt_request & CPU_INTERRUPT_HARD) &&
-           (env->eflags & IF_MASK);
+           (RR_cpu(env, eflags) & IF_MASK);
     work |= env->interrupt_request & CPU_INTERRUPT_NMI;
     work |= env->interrupt_request & CPU_INTERRUPT_INIT;
     work |= env->interrupt_request & CPU_INTERRUPT_SIPI;

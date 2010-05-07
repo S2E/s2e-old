@@ -6,6 +6,7 @@ extern "C" {
 #include <sysemu.h>
 extern struct CPUX86State *env;
 void QEMU_NORETURN raise_exception(int exception_index);
+void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
 }
 
 #include "S2EExecutor.h"
@@ -98,15 +99,16 @@ void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
         assert(dynamic_cast<S2EExecutionState*>(state));
         S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
 
-        assert(args.size() == 4);
+        assert(args.size() == 5);
 
-        Expr::Width width = cast<klee::ConstantExpr>(args[2])->getZExtValue(32);
-        bool isWrite = cast<klee::ConstantExpr>(args[3])->getZExtValue(1);
+        Expr::Width width = cast<klee::ConstantExpr>(args[2])->getZExtValue();
+        bool isWrite = cast<klee::ConstantExpr>(args[3])->getZExtValue();
+        bool isIO    = cast<klee::ConstantExpr>(args[4])->getZExtValue();
 
         ref<Expr> value = klee::ExtractExpr::create(args[1], 0, width);
 
         s2eExecutor->m_s2e->getCorePlugin()->onDataMemoryAccess.emit(
-                s2eState, args[0], value, isWrite, false);
+                s2eState, args[0], value, isWrite, isIO);
     }
 }
 
@@ -156,13 +158,10 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     llvm::sys::DynamicLibrary::AddSymbol(#name, (void*) name);
 
     __DEFINE_EXT_FUNCTION(raise_exception)
-    /*
-    __DEFINE_EXT_FUNCTION(tlb_fill)
+    __DEFINE_EXT_FUNCTION(raise_exception_err)
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
-    __DEFINE_EXT_FUNCTION(s2e_read_ram_concrete_check)
-    __DEFINE_EXT_FUNCTION(s2e_read_ram_concrete)
-    __DEFINE_EXT_FUNCTION(s2e_write_ram_concrete)
-    */
+    __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
+    __DEFINE_EXT_FUNCTION(cpu_restore_state)
 
     /* Set module for the executor */
 #if 1
@@ -180,6 +179,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     setModule(m_tcgLLVMContext->getModule(), MOpts);
 
+    m_tcgLLVMContext->initializeHelpers();
+
     m_dummyMain = kmodule->functionMap[dummyMain];
 
     Function* traceFunction =
@@ -189,7 +190,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     searcher = new RandomSearcher();
 
-    //setAllExternalWarnings(true);
+    setAllExternalWarnings(true);
 }
 
 S2EExecutor::~S2EExecutor()
@@ -241,7 +242,6 @@ S2EExecutionState* S2EExecutor::createInitialState()
                       false, true, true);
 
     __DEFINE_EXT_OBJECT(env)
-    /*
     __DEFINE_EXT_OBJECT(g_s2e)
     __DEFINE_EXT_OBJECT(g_s2e_state) 
     __DEFINE_EXT_OBJECT(execute_llvm)
@@ -250,7 +250,7 @@ S2EExecutionState* S2EExecutor::createInitialState()
     __DEFINE_EXT_OBJECT(io_mem_write)
     __DEFINE_EXT_OBJECT(io_mem_opaque)
     __DEFINE_EXT_OBJECT(use_icount)
-    */
+    __DEFINE_EXT_OBJECT(cpu_single_env)
 
     m_s2e->getMessagesStream()
             << "Created initial state 0x" << hexval(state) << std::endl;
@@ -419,7 +419,7 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
                                                     op.first, op.second);
                 }
                 buf[i] = toConstant(*state, wos->read8(page_offset+i),
-                               "concrete memory access")->getZExtValue(8);
+                       "memory access from concrete code")->getZExtValue(8);
                 wos->write8(page_offset+i, buf[i]);
             }
         }
@@ -455,6 +455,47 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
         uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
         writeRamConcrete(state, hostAddress, buf, size1);
         writeRamConcrete(state, hostAddress + size1, buf + size1, size - size1);
+    }
+}
+
+void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
+        CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size)
+{
+    assert(offset + size <= CPU_OFFSET(eip));
+
+    if(state->m_runningConcrete) {
+        memcpy(buf, ((uint8_t*)cpuState)+offset, size);
+    } else {
+        MemoryObject* mo = state->m_cpuRegistersState;
+        const ObjectState* os = state->addressSpace.findObject(mo);
+        ObjectState* wos = 0;
+
+        for(unsigned i = 0; i < size; ++i) {
+            if(!os->readConcrete8(offset+i, buf+i)) {
+                if(!wos)
+                    os = wos = state->addressSpace.getWriteable(mo, os);
+                buf[i] = toConstant(*state, wos->read8(offset+i),
+                            "register access from QEMU helper")->getZExtValue(8);
+                wos->write8(offset+i, buf[i]);
+            }
+        }
+    }
+}
+
+void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
+        CPUX86State *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
+{
+    assert(offset + size <= CPU_OFFSET(eip));
+
+    if(state->m_runningConcrete) {
+        memcpy(((uint8_t*)cpuState)+offset, buf, size);
+    } else {
+        MemoryObject* mo = state->m_cpuRegistersState;
+        const ObjectState* os = state->addressSpace.findObject(mo);
+        ObjectState* wos = state->addressSpace.getWriteable(mo, os);
+
+        for(unsigned i = 0; i < size; ++i)
+            wos->write8(offset+i, buf[i]);
     }
 }
 
@@ -889,6 +930,20 @@ void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
                     uint64_t host_address, const uint8_t* buf, uint64_t size)
 {
     s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
+}
+
+void s2e_read_register_concrete(S2E* s2e, S2EExecutionState* state,
+        CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
+{
+    /** XXX: use cpuState */
+    s2e->getExecutor()->readRegisterConcrete(state, cpuState, offset, buf, size);
+}
+
+void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
+        CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
+{
+    /** XXX: use cpuState */
+    s2e->getExecutor()->writeRegisterConcrete(state, cpuState, offset, buf, size);
 }
 
 S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)

@@ -267,10 +267,11 @@ int cpu_exec(CPUState *env1)
     env_to_regs();
 #if defined(TARGET_I386)
     /* put eflags in CPU temporary format */
-    CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-    DF = 1 - (2 * ((env->eflags >> 10) & 1));
-    CC_OP = CC_OP_EFLAGS;
-    env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
+    CC_SRC_W(RR_cpu(env, eflags) & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
+    DF_W(1 - (2 * ((RR_cpu(env, eflags) >> 10) & 1)));
+    CC_OP_W(CC_OP_EFLAGS);
+    WR_cpu(env, eflags,
+           RR_cpu(env, eflags) & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
 #elif defined(TARGET_SPARC)
 #elif defined(TARGET_M68K)
     env->cc_op = CC_OP_FLAGS;
@@ -420,7 +421,7 @@ int cpu_exec(CPUState *env1)
                                    (((env->hflags2 & HF2_VINTR_MASK) && 
                                      (env->hflags2 & HF2_HIF_MASK)) ||
                                     (!(env->hflags2 & HF2_VINTR_MASK) && 
-                                     (env->eflags & IF_MASK && 
+                                     (RR_cpu(env, eflags) & IF_MASK &&
                                       !(env->hflags & HF_INHIBIT_IRQ_MASK))))) {
                             int intno;
                             svm_check_intercept(SVM_EXIT_INTR);
@@ -439,7 +440,7 @@ int cpu_exec(CPUState *env1)
                             next_tb = 0;
 #if !defined(CONFIG_USER_ONLY)
                         } else if ((interrupt_request & CPU_INTERRUPT_VIRQ) &&
-                                   (env->eflags & IF_MASK) && 
+                                   (RR_cpu(env, eflags) & IF_MASK) &&
                                    !(env->hflags & HF_INHIBIT_IRQ_MASK)) {
                             int intno;
                             /* FIXME: this should respect TPR */
@@ -523,7 +524,7 @@ int cpu_exec(CPUState *env1)
                        We avoid this by disabling interrupts when
                        pc contains a magic address.  */
                     if (interrupt_request & CPU_INTERRUPT_HARD
-                        && ((IS_M(env) && env->regs[15] < 0xfffffff0)
+                        && ((IS_M(env) && RR_cpu(env, regs[15]) < 0xfffffff0)
                             || !(env->uncached_cpsr & CPSR_I))) {
                         env->exception_index = EXCP_IRQ;
                         do_interrupt(env);
@@ -663,9 +664,11 @@ int cpu_exec(CPUState *env1)
                         /* restore flags in standard format */
                         regs_to_env();
 #if defined(TARGET_I386)
-                        env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+                        WR_cpu(env, eflags, RR_cpu(env, eflags)
+                               | helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
                         log_cpu_state(env, X86_DUMP_CCOP);
-                        env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
+                        WR_cpu(env, eflags, RR_cpu(env, eflags)
+                               & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
 #elif defined(TARGET_ARM)
                         log_cpu_state(env, 0);
 #elif defined(TARGET_SPARC)
@@ -767,7 +770,8 @@ int cpu_exec(CPUState *env1)
 
 #if defined(TARGET_I386)
     /* restore flags in standard format */
-    env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+    WR_cpu(env, eflags, RR_cpu(env, eflags) |
+           helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
 #elif defined(TARGET_ARM)
     /* XXX: Save/restore host fpu exception state?.  */
 #elif defined(TARGET_SPARC)
@@ -819,7 +823,7 @@ void cpu_x86_load_seg(CPUX86State *s, int seg_reg, int selector)
 
     saved_env = env;
     env = s;
-    if (!(env->cr[0] & CR0_PE_MASK) || (env->eflags & VM_MASK)) {
+    if (!(env->cr[0] & CR0_PE_MASK) || (RR_cpu(env, eflags) & VM_MASK)) {
         selector &= 0xffff;
         cpu_x86_load_seg_cache(env, seg_reg, selector,
                                (selector << 4), 0xffff, 0);

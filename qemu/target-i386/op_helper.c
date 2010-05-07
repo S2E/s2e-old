@@ -136,7 +136,7 @@ target_ulong helper_read_eflags(void)
     uint32_t eflags;
     eflags = helper_cc_compute_all(CC_OP);
     eflags |= (DF & DF_MASK);
-    eflags |= env->eflags & ~(VM_MASK | RF_MASK);
+    eflags |= RR_cpu(env, eflags) & ~(VM_MASK | RF_MASK);
     return eflags;
 }
 
@@ -452,14 +452,14 @@ static void switch_tss(int tss_selector,
         eflags_mask &= 0xffff;
     load_eflags(new_eflags, eflags_mask);
     /* XXX: what to do in 16 bit case ? */
-    EAX = new_regs[0];
-    ECX = new_regs[1];
-    EDX = new_regs[2];
-    EBX = new_regs[3];
-    ESP = new_regs[4];
-    EBP = new_regs[5];
-    ESI = new_regs[6];
-    EDI = new_regs[7];
+    EAX_W(new_regs[0]);
+    ECX_W(new_regs[1]);
+    EDX_W(new_regs[2]);
+    EBX_W(new_regs[3]);
+    ESP_W(new_regs[4]);
+    EBP_W(new_regs[5]);
+    ESI_W(new_regs[6]);
+    EDI_W(new_regs[7]);
     if (new_eflags & VM_MASK) {
         for(i = 0; i < 6; i++)
             load_seg_vm(i, new_segs[i]);
@@ -629,7 +629,7 @@ do {\
         ESP = (val);\
 } while (0)
 #else
-#define SET_ESP(val, sp_mask) ESP = (ESP & ~(sp_mask)) | ((val) & (sp_mask))
+#define SET_ESP(val, sp_mask) ESP_W((ESP & ~(sp_mask)) | ((val) & (sp_mask)))
 #endif
 
 /* in 64-bit machines, this can overflow. So this segment addition macro
@@ -767,7 +767,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
         ssp = get_seg_base(ss_e1, ss_e2);
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
         /* to same privilege */
-        if (env->eflags & VM_MASK)
+        if (RR_cpu(env, eflags) & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
         sp_mask = get_sp_mask(env->segs[R_SS].flags);
@@ -787,13 +787,13 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 #if 0
     /* XXX: check that enough room is available */
     push_size = 6 + (new_stack << 2) + (has_error_code << 1);
-    if (env->eflags & VM_MASK)
+    if (RR_cpu(env, eflags) & VM_MASK)
         push_size += 8;
     push_size <<= shift;
 #endif
     if (shift == 1) {
         if (new_stack) {
-            if (env->eflags & VM_MASK) {
+            if (RR_cpu(env, eflags) & VM_MASK) {
                 PUSHL(ssp, esp, sp_mask, env->segs[R_GS].selector);
                 PUSHL(ssp, esp, sp_mask, env->segs[R_FS].selector);
                 PUSHL(ssp, esp, sp_mask, env->segs[R_DS].selector);
@@ -810,7 +810,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
         }
     } else {
         if (new_stack) {
-            if (env->eflags & VM_MASK) {
+            if (RR_cpu(env, eflags) & VM_MASK) {
                 PUSHW(ssp, esp, sp_mask, env->segs[R_GS].selector);
                 PUSHW(ssp, esp, sp_mask, env->segs[R_FS].selector);
                 PUSHW(ssp, esp, sp_mask, env->segs[R_DS].selector);
@@ -828,7 +828,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     }
 
     if (new_stack) {
-        if (env->eflags & VM_MASK) {
+        if (RR_cpu(env, eflags) & VM_MASK) {
             cpu_x86_load_seg_cache(env, R_ES, 0, 0, 0, 0);
             cpu_x86_load_seg_cache(env, R_DS, 0, 0, 0, 0);
             cpu_x86_load_seg_cache(env, R_FS, 0, 0, 0, 0);
@@ -850,9 +850,9 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 
     /* interrupt gate clear IF mask */
     if ((type & 1) == 0) {
-        env->eflags &= ~IF_MASK;
+        WR_cpu(env, eflags, RR_cpu(env, eflags) & ~IF_MASK);
     }
-    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK));
 }
 
 #ifdef TARGET_X86_64
@@ -958,7 +958,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
         new_stack = 1;
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
         /* to same privilege */
-        if (env->eflags & VM_MASK)
+        if (WR_cpu(env, eflags) & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
         if (ist != 0)
@@ -998,9 +998,9 @@ static void do_interrupt64(int intno, int is_int, int error_code,
 
     /* interrupt gate clear IF mask */
     if ((type & 1) == 0) {
-        env->eflags &= ~IF_MASK;
+        WR_cpu(env, eflags, RR_cpu(env, eflags) & ~IF_MASK);
     }
-    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK));
 }
 #endif
 
@@ -1024,8 +1024,8 @@ void helper_syscall(int next_eip_addend)
     if (env->hflags & HF_LMA_MASK) {
         int code64;
 
-        ECX = env->eip + next_eip_addend;
-        env->regs[11] = compute_eflags();
+        ECX_W = env->eip + next_eip_addend;
+        WR_cpu(env, regs[11], compute_eflags());
 
         code64 = env->hflags & HF_CS64_MASK;
 
@@ -1040,8 +1040,8 @@ void helper_syscall(int next_eip_addend)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags &= ~env->fmask;
-        load_eflags(env->eflags, 0);
+        WR_cpu(env, eflags, RR_cpu(env, eflags) & ~env->fmask);
+        load_eflags(RR_cpu(env, eflags), 0);
         if (code64)
             env->eip = env->lstar;
         else
@@ -1060,7 +1060,7 @@ void helper_syscall(int next_eip_addend)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags &= ~(IF_MASK | RF_MASK | VM_MASK);
+        WR_cpu(env, eflags, RR_cpu(env, eflags) & ~(IF_MASK | RF_MASK | VM_MASK));
         env->eip = (uint32_t)env->star;
     }
 }
@@ -1102,7 +1102,7 @@ void helper_sysret(int dflag)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK | (3 << DESC_DPL_SHIFT) |
                                DESC_W_MASK | DESC_A_MASK);
-        load_eflags((uint32_t)(env->regs[11]), TF_MASK | AC_MASK | ID_MASK |
+        load_eflags((uint32_t)(RR_cpu(env, regs[11])), TF_MASK | AC_MASK | ID_MASK |
                     IF_MASK | IOPL_MASK | VM_MASK | RF_MASK | NT_MASK);
         cpu_x86_set_cpl(env, 3);
     } else {
@@ -1117,7 +1117,7 @@ void helper_sysret(int dflag)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK | (3 << DESC_DPL_SHIFT) |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags |= IF_MASK;
+        WR_cpu(env, eflags, RR_cpu(env, eflags) | IF_MASK);
         cpu_x86_set_cpl(env, 3);
     }
 }
@@ -1153,11 +1153,11 @@ static void do_interrupt_real(int intno, int is_int, int error_code,
     PUSHW(ssp, esp, 0xffff, old_eip);
 
     /* update processor state */
-    ESP = (ESP & ~0xffff) | (esp & 0xffff);
+    ESP_W((ESP & ~0xffff) | (esp & 0xffff));
     env->eip = offset;
     env->segs[R_CS].selector = selector;
     env->segs[R_CS].base = (selector << 4);
-    env->eflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK));
 }
 
 /* fake user mode interrupt */
@@ -1431,7 +1431,7 @@ void do_smm_enter(void)
     stq_phys(sm_state + 0x7fc8, ESI);
     stq_phys(sm_state + 0x7fc0, EDI);
     for(i = 8; i < 16; i++)
-        stq_phys(sm_state + 0x7ff8 - i * 8, env->regs[i]);
+        stq_phys(sm_state + 0x7ff8 - i * 8, RR_cpu(env, regs[i]));
     stq_phys(sm_state + 0x7f78, env->eip);
     stl_phys(sm_state + 0x7f70, compute_eflags());
     stl_phys(sm_state + 0x7f68, env->dr[6]);
@@ -1510,7 +1510,7 @@ void do_smm_enter(void)
                        env->cr[0] & ~(CR0_PE_MASK | CR0_EM_MASK | CR0_TS_MASK | CR0_PG_MASK));
     cpu_x86_update_cr4(env, 0);
     env->dr[7] = 0x00000400;
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
 }
 
 void helper_rsm(void)
@@ -1557,7 +1557,7 @@ void helper_rsm(void)
     ESI = ldq_phys(sm_state + 0x7fc8);
     EDI = ldq_phys(sm_state + 0x7fc0);
     for(i = 8; i < 16; i++)
-        env->regs[i] = ldq_phys(sm_state + 0x7ff8 - i * 8);
+        WR_cpu(env, regs[i], ldq_phys(sm_state + 0x7ff8 - i * 8));
     env->eip = ldq_phys(sm_state + 0x7f78);
     load_eflags(ldl_phys(sm_state + 0x7f70),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
@@ -1578,14 +1578,14 @@ void helper_rsm(void)
     load_eflags(ldl_phys(sm_state + 0x7ff4),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
     env->eip = ldl_phys(sm_state + 0x7ff0);
-    EDI = ldl_phys(sm_state + 0x7fec);
-    ESI = ldl_phys(sm_state + 0x7fe8);
-    EBP = ldl_phys(sm_state + 0x7fe4);
-    ESP = ldl_phys(sm_state + 0x7fe0);
-    EBX = ldl_phys(sm_state + 0x7fdc);
-    EDX = ldl_phys(sm_state + 0x7fd8);
-    ECX = ldl_phys(sm_state + 0x7fd4);
-    EAX = ldl_phys(sm_state + 0x7fd0);
+    EDI_W(ldl_phys(sm_state + 0x7fec));
+    ESI_W(ldl_phys(sm_state + 0x7fe8));
+    EBP_W(ldl_phys(sm_state + 0x7fe4));
+    ESP_W(ldl_phys(sm_state + 0x7fe0));
+    EBX_W(ldl_phys(sm_state + 0x7fdc));
+    EDX_W(ldl_phys(sm_state + 0x7fd8));
+    ECX_W(ldl_phys(sm_state + 0x7fd4));
+    EAX_W(ldl_phys(sm_state + 0x7fd0));
     env->dr[6] = ldl_phys(sm_state + 0x7fcc);
     env->dr[7] = ldl_phys(sm_state + 0x7fc8);
 
@@ -1623,7 +1623,7 @@ void helper_rsm(void)
         env->smbase = ldl_phys(sm_state + 0x7ef8) & ~0x7fff;
     }
 #endif
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
     env->hflags &= ~HF_SMM_MASK;
     cpu_smm_update(env);
 
@@ -1651,7 +1651,7 @@ void helper_divb_AL(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xff;
     r = (num % den) & 0xff;
-    EAX = (EAX & ~0xffff) | (r << 8) | q;
+    EAX_W((EAX & ~0xffff) | (r << 8) | q);
 }
 
 void helper_idivb_AL(target_ulong t0)
@@ -1668,7 +1668,7 @@ void helper_idivb_AL(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xff;
     r = (num % den) & 0xff;
-    EAX = (EAX & ~0xffff) | (r << 8) | q;
+    EAX_W((EAX & ~0xffff) | (r << 8) | q);
 }
 
 void helper_divw_AX(target_ulong t0)
@@ -1685,8 +1685,8 @@ void helper_divw_AX(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xffff;
     r = (num % den) & 0xffff;
-    EAX = (EAX & ~0xffff) | q;
-    EDX = (EDX & ~0xffff) | r;
+    EAX_W((EAX & ~0xffff) | q);
+    EDX_W((EDX & ~0xffff) | r);
 }
 
 void helper_idivw_AX(target_ulong t0)
@@ -1703,8 +1703,8 @@ void helper_idivw_AX(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xffff;
     r = (num % den) & 0xffff;
-    EAX = (EAX & ~0xffff) | q;
-    EDX = (EDX & ~0xffff) | r;
+    EAX_W((EAX & ~0xffff) | q);
+    EDX_W((EDX & ~0xffff) | r);
 }
 
 void helper_divl_EAX(target_ulong t0)
@@ -1721,8 +1721,8 @@ void helper_divl_EAX(target_ulong t0)
     r = (num % den);
     if (q > 0xffffffff)
         raise_exception(EXCP00_DIVZ);
-    EAX = (uint32_t)q;
-    EDX = (uint32_t)r;
+    EAX_W((uint32_t)q);
+    EDX_W((uint32_t)r);
 }
 
 void helper_idivl_EAX(target_ulong t0)
@@ -1739,8 +1739,8 @@ void helper_idivl_EAX(target_ulong t0)
     r = (num % den);
     if (q != (int32_t)q)
         raise_exception(EXCP00_DIVZ);
-    EAX = (uint32_t)q;
-    EDX = (uint32_t)r;
+    EAX_W((uint32_t)q);
+    EDX_W((uint32_t)r);
 }
 
 /* bcd */
@@ -1752,8 +1752,8 @@ void helper_aam(int base)
     al = EAX & 0xff;
     ah = al / base;
     al = al % base;
-    EAX = (EAX & ~0xffff) | al | (ah << 8);
-    CC_DST = al;
+    EAX_W((EAX & ~0xffff) | al | (ah << 8));
+    CC_DST_W(al);
 }
 
 void helper_aad(int base)
@@ -1762,8 +1762,8 @@ void helper_aad(int base)
     al = EAX & 0xff;
     ah = (EAX >> 8) & 0xff;
     al = ((ah * base) + al) & 0xff;
-    EAX = (EAX & ~0xffff) | al;
-    CC_DST = al;
+    EAX_W((EAX & ~0xffff) | al);
+    CC_DST_W(al);
 }
 
 void helper_aaa(void)
@@ -1786,8 +1786,8 @@ void helper_aaa(void)
         eflags &= ~(CC_C | CC_A);
         al &= 0x0f;
     }
-    EAX = (EAX & ~0xffff) | al | (ah << 8);
-    CC_SRC = eflags;
+    EAX_W((EAX & ~0xffff) | al | (ah << 8));
+    CC_SRC_W(eflags);
 }
 
 void helper_aas(void)
@@ -1810,8 +1810,8 @@ void helper_aas(void)
         eflags &= ~(CC_C | CC_A);
         al &= 0x0f;
     }
-    EAX = (EAX & ~0xffff) | al | (ah << 8);
-    CC_SRC = eflags;
+    EAX_W((EAX & ~0xffff) | al | (ah << 8));
+    CC_SRC_W(eflags);
 }
 
 void helper_daa(void)
@@ -1833,12 +1833,12 @@ void helper_daa(void)
         al = (al + 0x60) & 0xff;
         eflags |= CC_C;
     }
-    EAX = (EAX & ~0xff) | al;
+    EAX_W((EAX & ~0xff) | al);
     /* well, speed is not an issue here, so we compute the flags by hand */
     eflags |= (al == 0) << 6; /* zf */
     eflags |= parity_table[al]; /* pf */
     eflags |= (al & 0x80); /* sf */
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 void helper_das(void)
@@ -1863,12 +1863,12 @@ void helper_das(void)
         al = (al - 0x60) & 0xff;
         eflags |= CC_C;
     }
-    EAX = (EAX & ~0xff) | al;
+    EAX_W((EAX & ~0xff) | al);
     /* well, speed is not an issue here, so we compute the flags by hand */
     eflags |= (al == 0) << 6; /* zf */
     eflags |= parity_table[al]; /* pf */
     eflags |= (al & 0x80); /* sf */
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 #ifndef S2E_LLVM_LIB
@@ -1894,11 +1894,11 @@ void helper_cmpxchg8b(target_ulong a0)
     } else {
         /* always do the store */
         stq(a0, d); 
-        EDX = (uint32_t)(d >> 32);
-        EAX = (uint32_t)d;
+        EDX_W((uint32_t)(d >> 32));
+        EAX_W((uint32_t)d);
         eflags &= ~CC_Z;
     }
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 #endif
@@ -1948,10 +1948,10 @@ void helper_cpuid(void)
     helper_svm_check_intercept_param(SVM_EXIT_CPUID, 0);
 
     cpu_x86_cpuid(env, (uint32_t)EAX, (uint32_t)ECX, &eax, &ebx, &ecx, &edx);
-    EAX = eax;
-    EBX = ebx;
-    ECX = ecx;
-    EDX = edx;
+    EAX_W(eax);
+    EBX_W(ebx);
+    ECX_W(ecx);
+    EDX_W(edx);
 }
 
 #endif /* S2E_LLVM_LIB */
@@ -2255,7 +2255,7 @@ void helper_ljmp_protected(int new_cs, target_ulong new_eip,
                 raise_exception_err(EXCP0D_GPF, new_cs & 0xfffc);
             next_eip = env->eip + next_eip_addend;
             switch_tss(new_cs, e1, e2, SWITCH_TSS_JMP, next_eip);
-            CC_OP = CC_OP_EFLAGS;
+            CC_OP_W(CC_OP_EFLAGS);
             break;
         case 4: /* 286 call gate */
         case 12: /* 386 call gate */
@@ -2406,7 +2406,7 @@ void helper_lcall_protected(int new_cs, target_ulong new_eip,
             if (dpl < cpl || dpl < rpl)
                 raise_exception_err(EXCP0D_GPF, new_cs & 0xfffc);
             switch_tss(new_cs, e1, e2, SWITCH_TSS_CALL, next_eip);
-            CC_OP = CC_OP_EFLAGS;
+            CC_OP_W(CC_OP_EFLAGS);
             return;
         case 4: /* 286 call gate */
         case 12: /* 386 call gate */
@@ -2542,11 +2542,11 @@ void helper_iret_real(int shift)
         POPW(ssp, sp, sp_mask, new_cs);
         POPW(ssp, sp, sp_mask, new_eflags);
     }
-    ESP = (ESP & ~sp_mask) | (sp & sp_mask);
+    ESP_W((ESP & ~sp_mask) | (sp & sp_mask));
     env->segs[R_CS].selector = new_cs;
     env->segs[R_CS].base = (new_cs << 4);
     env->eip = new_eip;
-    if (env->eflags & VM_MASK)
+    if (RR_cpu(env, eflags) & VM_MASK)
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | IF_MASK | RF_MASK | NT_MASK;
     else
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | IF_MASK | IOPL_MASK | RF_MASK | NT_MASK;
@@ -2741,7 +2741,7 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | RF_MASK | NT_MASK;
         if (cpl == 0)
             eflags_mask |= IOPL_MASK;
-        iopl = (env->eflags >> IOPL_SHIFT) & 3;
+        iopl = (RR_cpu(env, eflags) >> IOPL_SHIFT) & 3;
         if (cpl <= iopl)
             eflags_mask |= IF_MASK;
         if (shift == 0)
@@ -2770,7 +2770,7 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
     load_seg_vm(R_GS, new_gs & 0xffff);
 
     env->eip = new_eip & 0xffff;
-    ESP = new_esp;
+    ESP_W(new_esp);
 }
 
 void helper_iret_protected(int shift, int next_eip)
@@ -2779,7 +2779,7 @@ void helper_iret_protected(int shift, int next_eip)
     uint32_t e1, e2;
 
     /* specific case for TSS */
-    if (env->eflags & NT_MASK) {
+    if (RR_cpu(env, eflags) & NT_MASK) {
 #ifdef TARGET_X86_64
         if (env->hflags & HF_LMA_MASK)
             raise_exception_err(EXCP0D_GPF, 0);
@@ -2810,7 +2810,7 @@ void helper_sysenter(void)
     if (env->sysenter_cs == 0) {
         raise_exception_err(EXCP0D_GPF, 0);
     }
-    env->eflags &= ~(VM_MASK | IF_MASK | RF_MASK);
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~(VM_MASK | IF_MASK | RF_MASK));
     cpu_x86_set_cpl(env, 0);
 
 #ifdef TARGET_X86_64
@@ -2834,7 +2834,7 @@ void helper_sysenter(void)
                            DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                            DESC_S_MASK |
                            DESC_W_MASK | DESC_A_MASK);
-    ESP = env->sysenter_esp;
+    ESP_W(env->sysenter_esp);
     EIP = env->sysenter_eip;
 }
 
@@ -2873,7 +2873,7 @@ void helper_sysexit(int dflag)
                                DESC_S_MASK | (3 << DESC_DPL_SHIFT) |
                                DESC_W_MASK | DESC_A_MASK);
     }
-    ESP = ECX;
+    ESP_W(ECX);
     EIP = EDX;
 }
 
@@ -2985,14 +2985,14 @@ void helper_rdtsc(void)
     helper_svm_check_intercept_param(SVM_EXIT_RDTSC, 0);
 
     val = cpu_get_tsc(env) + env->tsc_offset;
-    EAX = (uint32_t)(val);
-    EDX = (uint32_t)(val >> 32);
+    EAX_W((uint32_t)(val));
+    EDX_W((uint32_t)(val >> 32));
 }
 
 void helper_rdtscp(void)
 {
     helper_rdtsc();
-    ECX = (uint32_t)(env->tsc_aux);
+    ECX_W((uint32_t)(env->tsc_aux));
 }
 
 void helper_rdpmc(void)
@@ -3280,8 +3280,8 @@ void helper_rdmsr(void)
         val = 0;
         break;
     }
-    EAX = (uint32_t)(val);
-    EDX = (uint32_t)(val >> 32);
+    EAX_W((uint32_t)(val));
+    EDX_W((uint32_t)(val >> 32));
 }
 #endif
 
@@ -3321,12 +3321,12 @@ target_ulong helper_lsl(target_ulong selector1)
         }
         if (dpl < cpl || dpl < rpl) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+            CC_SRC_W(eflags & ~CC_Z);
             return 0;
         }
     }
     limit = get_seg_limit(e1, e2);
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
     return limit;
 }
 
@@ -3368,11 +3368,11 @@ target_ulong helper_lar(target_ulong selector1)
         }
         if (dpl < cpl || dpl < rpl) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+            CC_SRC_W(eflags & ~CC_Z);
             return 0;
         }
     }
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
     return e2 & 0x00f0ff00;
 }
 
@@ -3402,11 +3402,11 @@ void helper_verr(target_ulong selector1)
     } else {
         if (dpl < cpl || dpl < rpl) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+            CC_SRC_W(eflags & ~CC_Z);
             return;
         }
     }
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
 }
 
 void helper_verw(target_ulong selector1)
@@ -3432,11 +3432,11 @@ void helper_verw(target_ulong selector1)
             goto fail;
         if (!(e2 & DESC_W_MASK)) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+            CC_SRC_W(eflags & ~CC_Z);
             return;
         }
     }
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
 }
 
 /* x87 FPU helpers */
@@ -3705,7 +3705,7 @@ void helper_fcomi_ST0_FT0(void)
     ret = floatx_compare(ST0, FT0, &env->fp_status);
     eflags = helper_cc_compute_all(CC_OP);
     eflags = (eflags & ~(CC_Z | CC_P | CC_C)) | fcomi_ccval[ret + 1];
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 void helper_fucomi_ST0_FT0(void)
@@ -3716,7 +3716,7 @@ void helper_fucomi_ST0_FT0(void)
     ret = floatx_compare_quiet(ST0, FT0, &env->fp_status);
     eflags = helper_cc_compute_all(CC_OP);
     eflags = (eflags & ~(CC_Z | CC_P | CC_C)) | fcomi_ccval[ret + 1];
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 void helper_fadd_ST0_FT0(void)
@@ -4727,7 +4727,7 @@ void helper_debug(void)
 
 void helper_reset_rf(void)
 {
-    env->eflags &= ~RF_MASK;
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~RF_MASK);
 }
 
 void helper_raise_interrupt(int intno, int next_eip_addend)
@@ -4742,25 +4742,25 @@ void helper_raise_exception(int exception_index)
 
 void helper_cli(void)
 {
-    env->eflags &= ~IF_MASK;
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~IF_MASK);
 }
 
 void helper_sti(void)
 {
-    env->eflags |= IF_MASK;
+    WR_cpu(env, eflags, RR_cpu(env, eflags) | IF_MASK);
 }
 
 #if 0
 /* vm86plus instructions */
 void helper_cli_vm(void)
 {
-    env->eflags &= ~VIF_MASK;
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~VIF_MASK;
 }
 
 void helper_sti_vm(void)
 {
-    env->eflags |= VIF_MASK;
-    if (env->eflags & VIP_MASK) {
+    WR_cpu(env, eflags, RR_cpu(env, eflags) | VIF_MASK);
+    if (RR_cpu(env, eflags) & VIP_MASK) {
         raise_exception(EXCP0D_GPF);
     }
 }
@@ -4811,7 +4811,10 @@ static float approx_rcp(float a)
 
 #if !defined(CONFIG_USER_ONLY)
 
-#ifndef S2E_LLVM_LIB
+#ifdef S2E_LLVM_LIB
+void tcg_llvm_trace_memory_access(uint64_t, uint64_t, uint32_t,
+                                  uint8_t, uint8_t);
+#endif
 
 #define MMUSUFFIX _mmu
 
@@ -4827,7 +4830,7 @@ static float approx_rcp(float a)
 #define SHIFT 3
 #include "softmmu_template.h"
 
-#ifdef CONFIG_S2E
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
 #undef MMUSUFFIX
 #define MMUSUFFIX _mmu_s2e_trace
 #define io_read _s2e_trace_io_read
@@ -4852,10 +4855,8 @@ static float approx_rcp(float a)
 #endif
 
 #endif
-#endif
 
 #if !defined(CONFIG_USER_ONLY)
-#ifndef S2E_LLVM_LIB
 /* try to fill the TLB and return an exception if error. If retaddr is
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
@@ -4888,7 +4889,6 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     }
     env = saved_env;
 }
-#endif
 #endif
 
 /* Secure Virtual Machine helpers */
@@ -5046,16 +5046,16 @@ void helper_vmrun(int aflag, int next_eip_addend)
     if (int_ctl & V_INTR_MASKING_MASK) {
         env->v_tpr = int_ctl & V_TPR_MASK;
         env->hflags2 |= HF2_VINTR_MASK;
-        if (env->eflags & IF_MASK)
+        if (RR_cpu(env, eflags) & IF_MASK)
             env->hflags2 |= HF2_HIF_MASK;
     }
 
     cpu_load_efer(env, 
                   ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.efer)));
-    env->eflags = 0;
+    WR_cpu(env, eflags, 0);
     load_eflags(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rflags)),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
 
     svm_load_seg_cache(env->vm_vmcb + offsetof(struct vmcb, save.es),
                        env, R_ES);
@@ -5068,8 +5068,8 @@ void helper_vmrun(int aflag, int next_eip_addend)
 
     EIP = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rip));
     env->eip = EIP;
-    ESP = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rsp));
-    EAX = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rax));
+    ESP_W(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rsp)));
+    EAX_W(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rax)));
     env->dr[7] = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.dr7));
     env->dr[6] = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.dr6));
     cpu_x86_set_cpl(env, ldub_phys(env->vm_vmcb + offsetof(struct vmcb, save.cpl)));
@@ -5408,10 +5408,10 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
        set properly */
     cpu_load_efer(env, 
                   ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.efer)));
-    env->eflags = 0;
+    WR_cpu(env, eflags, 0);
     load_eflags(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rflags)),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
 
     svm_load_seg_cache(env->vm_hsave + offsetof(struct vmcb, save.es),
                        env, R_ES);
@@ -5423,8 +5423,8 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
                        env, R_DS);
 
     EIP = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rip));
-    ESP = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rsp));
-    EAX = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rax));
+    ESP_W(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rsp)));
+    EAX_W(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rax)));
 
     env->dr[6] = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.dr6));
     env->dr[7] = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.dr7));
@@ -5452,7 +5452,7 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
 
     /* Forces CR0.PE = 1, RFLAGS.VM = 0. */
     env->cr[0] |= CR0_PE_MASK;
-    env->eflags &= ~VM_MASK;
+    WR_cpu(env, eflags, RR_cpu(env, eflags) & ~VM_MASK);
 
     /* Disables all breakpoints in the host DR7 register. */
 

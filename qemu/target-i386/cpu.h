@@ -47,6 +47,10 @@
 
 #include "softfloat.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 #define R_EAX 0
 #define R_ECX 1
 #define R_EDX 2
@@ -726,6 +730,29 @@ typedef struct CPUX86State {
     uint16_t fpregs_format_vmstate;
 } CPUX86State;
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+/* Macros to access registers */
+static inline target_ulong __RR_env_raw(CPUX86State* cpuState,
+                                        unsigned offset, unsigned size) {
+    target_ulong result;
+    s2e_read_register_concrete(g_s2e, g_s2e_state, cpuState,
+                               offset, (uint8_t*) &result, size);
+    return result;
+}
+static inline void __WR_env_raw(CPUX86State* cpuState, unsigned offset,
+                                target_ulong value, unsigned size) {
+    s2e_write_register_concrete(g_s2e, g_s2e_state, cpuState,
+                                offset, (uint8_t*) &value, size);
+}
+#define RR_cpu(cpu, reg) ((typeof(cpu->reg)) \
+            __RR_env_raw(cpu, offsetof(CPUX86State, reg), sizeof(cpu->reg)))
+#define WR_cpu(cpu, reg, value) __WR_env_raw(cpu, offsetof(CPUX86State, reg), \
+            (target_ulong) value, sizeof(env->reg))
+#else
+#define RR_cpu(cpu, reg) cpu->reg
+#define WR_cpu(cpu, reg, value) cpu->reg = value
+#endif
+
 CPUX86State *cpu_x86_init(const char *cpu_model);
 int cpu_x86_exec(CPUX86State *s);
 void cpu_x86_close(CPUX86State *s);
@@ -775,7 +802,7 @@ static inline void cpu_x86_load_seg_cache(CPUX86State *env,
         if (env->hflags & HF_CS64_MASK) {
             /* zero base assumed for DS, ES and SS in long mode */
         } else if (!(env->cr[0] & CR0_PE_MASK) ||
-                   (env->eflags & VM_MASK) ||
+                   (RR_cpu(env, eflags) & VM_MASK) ||
                    !(env->hflags & HF_CS32_MASK)) {
             /* XXX: try to avoid this test. The problem comes from the
                fact that is real mode or vm86 mode we only modify the
@@ -907,8 +934,8 @@ typedef struct CCTable {
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 {
     if (newsp)
-        env->regs[R_ESP] = newsp;
-    env->regs[R_EAX] = 0;
+        WR_cpu(env, regs[R_ESP], newsp);
+    WR_cpu(env, regs[R_EAX], 0);
 }
 #endif
 
@@ -928,7 +955,7 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
     *cs_base = env->segs[R_CS].base;
     *pc = *cs_base + env->eip;
     *flags = env->hflags |
-        (env->eflags & (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK));
+        (RR_cpu(env, eflags) & (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK));
 }
 
 void apic_init_reset(CPUState *env);
