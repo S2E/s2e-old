@@ -2923,17 +2923,16 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                 "readonly.err");
         } else {
           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-          if(!mo->isSharedConcrete) {
-              wos->write(offset, value);
-          } else {
-              // SharedConcrete objects can only be written by
-              // concrete address with concrete value
-              wos->write(
-                  toConstant(state, offset, "write to shared concrete memory"),
-                  toConstant(state, value, "write to shared concrete memory"));
+          if(mo->isSharedConcrete) {
+              offset = toConstant(state, offset, "write to always concrete memory");
+              value  = toConstant(state,  value, "write to always concrete memory");
           }
+          wos->write(offset, value);
         }          
       } else {
+        if(mo->isSharedConcrete) {
+            offset = toConstant(state, offset, "read from always concrete memory");
+        }
         ref<Expr> result = os->read(offset, type);
         
         if (interpreterOpts.MakeConcreteSymbolic)
@@ -2976,18 +2975,18 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         } else {
           ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
           ref<Expr> offset = mo->getOffsetExpr(address);
-          if(!mo->isSharedConcrete) {
-              wos->write(offset, value);
-          } else {
-              // SharedConcrete objects can only be written by
-              // concrete address with concrete value
-              wos->write(
-                  toConstant(state, offset, "write to shared concrete memory"),
-                  toConstant(state, value, "write to shared concrete memory"));
+          if(mo->isSharedConcrete) {
+              offset = toConstant(state, offset, "write to always concrete memory");
+              value  = toConstant(state,  value, "write to always concrete memory");
           }
+          wos->write(offset, value);
         }
       } else {
-        ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+        ref<Expr> offset = mo->getOffsetExpr(address);
+        if(mo->isSharedConcrete) {
+            offset = toConstant(state, offset, "read from always concrete memory");
+        }
+        ref<Expr> result = os->read(offset, type);
         bindLocal(target, *bound, result);
       }
     }
