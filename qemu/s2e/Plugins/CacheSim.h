@@ -50,6 +50,7 @@ protected:
 
     ModuleExecutionDetector *m_execDetector;
     bool m_reportZeroMisses;
+    bool m_profileModulesOnly;
     sigc::connection m_ModuleConnection;
 
     Cache* getCache(const std::string& name);

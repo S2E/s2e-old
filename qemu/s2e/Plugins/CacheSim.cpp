@@ -161,6 +161,7 @@ void CacheSim::initialize()
 
     //Option to write only those instructions that cause misses
     m_reportZeroMisses = conf->getBool(getConfigKey() + ".reportZeroMisses");
+    m_profileModulesOnly = conf->getBool(getConfigKey() + ".reportZeroMisses");
     bool startOnModuleLoad = conf->getBool(getConfigKey() + ".startOnModuleLoad");
 
     vector<string> caches = conf->getListKeys(getConfigKey() + ".caches");
@@ -291,6 +292,15 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
     if(!cache)
         return;
 
+    //Check whether to profile only known modules
+    if (m_execDetector && m_profileModulesOnly) {
+        const ModuleExecutionDesc *md;
+        md = m_execDetector->getCurrentModule(state);
+        if (!md) {
+            return;
+        }
+    }
+    
     unsigned missCountLength = isCode ? m_i1_length : m_d1_length;
     unsigned missCount[missCountLength];
     memset(missCount, 0, sizeof(missCount));
