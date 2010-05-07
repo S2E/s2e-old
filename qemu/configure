@@ -352,8 +352,8 @@ Darwin)
     [ "$is_x86_64" = "1" ] && cpu=x86_64
   fi
   if [ "$cpu" = "x86_64" ] ; then
-    QEMU_CFLAGS="-arch x86_64 $QEMU_CFLAGS"
-    LDFLAGS="-arch x86_64 $LDFLAGS"
+    QEMU_CFLAGS="-m64 $QEMU_CFLAGS"
+    LDFLAGS="-m64 $LDFLAGS"
   else
     QEMU_CFLAGS="-mdynamic-no-pic $QEMU_CFLAGS"
   fi

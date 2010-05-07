@@ -166,7 +166,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     /* Set module for the executor */
 #if 1
-    char* filename = qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
+    char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
     assert(filename);
     ModuleOptions MOpts(vector<string>(1, filename),
             /* Optimize= */ false, /* CheckDivZero= */ false);

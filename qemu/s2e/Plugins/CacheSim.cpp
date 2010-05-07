@@ -159,6 +159,10 @@ void CacheSim::initialize()
         s2e()->getMessagesStream() << "ModuleExecutionDetector not found, will profile the whole system" << std::endl;
     }
 
+    //Option to write only those instructions that cause misses
+    m_reportZeroMisses = conf->getBool(getConfigKey() + ".reportZeroMisses");
+    bool startOnModuleLoad = conf->getBool(getConfigKey() + ".startOnModuleLoad");
+
     vector<string> caches = conf->getListKeys(getConfigKey() + ".caches");
     foreach(const string& cacheName, caches) {
         string key = getConfigKey() + ".caches." + cacheName;
@@ -196,13 +200,19 @@ void CacheSim::initialize()
     }
     s2e()->getMessagesStream() << " -> memory" << std::endl;
 
-    if(m_d1)
-        s2e()->getCorePlugin()->onDataMemoryAccess.connect(
-            sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
+    if (m_execDetector && startOnModuleLoad){
+        m_ModuleConnection = m_execDetector->onModuleTranslateBlockStart.connect(
+                sigc::mem_fun(*this, &CacheSim::onModuleTranslateBlockStart));
 
-    if(m_i1)
-        s2e()->getCorePlugin()->onTranslateBlockStart.connect(
-            sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
+    }else {
+        if(m_d1)
+            s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
+
+        if(m_i1)
+            s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+             sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
+    }
 
     const char *query = "create table CacheSim("
           "'timestamp' unsigned big int, "
@@ -223,6 +233,26 @@ void CacheSim::initialize()
     s2e()->getCorePlugin()->onTimer.connect(
         sigc::mem_fun(*this, &CacheSim::onTimer)
     );
+}
+
+//Connect the tracing when the first module is loaded
+void CacheSim::onModuleTranslateBlockStart(
+    ExecutionSignal* signal, 
+    S2EExecutionState *state, 
+    const ModuleExecutionDesc*desc,
+    TranslationBlock *tb, uint64_t pc)
+{
+    
+    if(m_d1)
+        s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+            sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
+
+    if(m_i1)
+        s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+            sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
+
+    //We connected ourselves, do not need to monitor modules anymore.
+    m_ModuleConnection.disconnect();
 }
 
 //Periodically flush the cache
@@ -289,18 +319,20 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
         if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
             flushLogEntries();
 
-        std::cout << c->getName() << ": " << missCount[i] << std::endl;
+        //std::cout << c->getName() << ": " << missCount[i] << std::endl;
 
-        m_cacheLog.resize(m_cacheLog.size()+1);
-        CacheLogEntry& ce = m_cacheLog.back();
-        ce.timestamp = llvm::sys::TimeValue::now().usec();
-        ce.pc = state->getPc();
-        ce.address = address;
-        ce.size = size;
-        ce.isWrite = isWrite;
-        ce.isCode = false;
-        ce.cacheName = c->getName().c_str();
-        ce.missCount = missCount[i];
+        if (m_reportZeroMisses || missCount[i]) {
+            m_cacheLog.resize(m_cacheLog.size()+1);
+            CacheLogEntry& ce = m_cacheLog.back();
+            ce.timestamp = llvm::sys::TimeValue::now().usec();
+            ce.pc = state->getPc();
+            ce.address = address;
+            ce.size = size;
+            ce.isWrite = isWrite;
+            ce.isCode = false;
+            ce.cacheName = c->getName().c_str();
+            ce.missCount = missCount[i];
+        }
 
         if(missCount[i] == 0)
             break;

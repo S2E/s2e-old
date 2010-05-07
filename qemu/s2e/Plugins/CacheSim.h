@@ -49,10 +49,19 @@ protected:
     unsigned m_d1_length;
 
     ModuleExecutionDetector *m_execDetector;
+    bool m_reportZeroMisses;
+    sigc::connection m_ModuleConnection;
 
     Cache* getCache(const std::string& name);
 
     void flushLogEntries();
+    
+    void onModuleTranslateBlockStart(
+        ExecutionSignal* signal, 
+        S2EExecutionState *state, 
+        const ModuleExecutionDesc*desc,
+        TranslationBlock *tb, uint64_t pc);
+
 
     void onMemoryAccess(S2EExecutionState* state,
                         uint64_t address, unsigned size,
