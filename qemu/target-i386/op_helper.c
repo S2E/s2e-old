@@ -4861,6 +4861,8 @@ void tcg_llvm_trace_memory_access(uint64_t, uint64_t, uint32_t,
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
+//void tlb_miss_increment(void);
+//void page_fault_increment(void);
 void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
@@ -4872,7 +4874,8 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
        generated code */
     saved_env = env;
     env = cpu_single_env;
-
+    //XXX: do it properly
+    //tlb_miss_increment();
     ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx, 1);
     if (ret) {
         if (retaddr) {
@@ -4885,6 +4888,8 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
                 cpu_restore_state(tb, env, pc, NULL);
             }
         }
+        //XXX: do it properly
+        //page_fault_increment();
         raise_exception_err(env->exception_index, env->error_code);
     }
     env = saved_env;
