@@ -464,7 +464,7 @@ esac
 
 echo "#define CONFIG_$CONFIG_OS   1" >> $config_h
 if [ $BSD = 1 ] ; then
-    echo "#define _BSD             1" >> $config_h
+    echo "#define CONFIG_BSD       1" >> $config_h
     echo "#define O_LARGEFILE      0" >> $config_h
     echo "#define MAP_ANONYMOUS    MAP_ANON" >> $config_h
 fi

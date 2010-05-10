@@ -8,6 +8,6 @@
 #define QEMU_VERSION "0.8.2"
 #define O_LARGEFILE 0
 #define MAP_ANONYMOUS MAP_ANON
-#define _BSD 1
+#define CONFIG_BSD 1
 #define CONFIG_SKINS 1
 #define CONFIG_UNAME_RELEASE ""

@@ -28,7 +28,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
 #include <sys/types.h>
 #include <sys/statvfs.h>
 #endif
@@ -39,7 +39,7 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#elif defined(_BSD)
+#elif defined(CONFIG_BSD)
 #include <stdlib.h>
 #else
 #include <malloc.h>
@@ -95,7 +95,7 @@ static void *kqemu_vmalloc(size_t size)
     int map_anon = 0;
     const char *tmpdir;
     char phys_ram_file[1024];
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
     struct statvfs stfs;
 #else
     struct statfs stfs;
@@ -104,7 +104,7 @@ static void *kqemu_vmalloc(size_t size)
     if (phys_ram_fd < 0) {
         tmpdir = getenv("QEMU_TMPDIR");
         if (!tmpdir)
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
             tmpdir = "/tmp";
         if (statvfs(tmpdir, &stfs) == 0) {
 #else
@@ -185,7 +185,7 @@ void *qemu_memalign(size_t alignment, size_t size)
     if (ret != 0)
         return NULL;
     return ptr;
-#elif defined(HOST_BSD)
+#elif defined(CONFIG_BSD)
     return valloc(size);
 #else
     return memalign(alignment, size);
