@@ -92,6 +92,13 @@ public:
                  const std::vector<klee::ref<klee::Expr> >& /* newConditions */>
             onStateFork;
 
+    /** Signal that is emitted upon TLB miss */
+    sigc::signal<void, S2EExecutionState*, uint64_t, bool> onTlbMiss;
+
+    /** Signal that is emitted upon page fault */
+    sigc::signal<void, S2EExecutionState*, uint64_t, bool> onPageFault;
+
+
 };
 
 struct S2ETranslationBlock

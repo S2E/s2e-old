@@ -62,7 +62,13 @@ void ModuleExecutionDetector::initializeConfiguration()
 
     ConfigFile::string_list keyList = cfg->getListKeys(getConfigKey());
 
+    m_TrackAllModules = cfg->getBool(getConfigKey() + ".trackAllModules");
+
     foreach2(it, keyList.begin(), keyList.end()) {
+        if (*it == "trackAllModules") {
+            continue;
+        }
+        
         ModuleExecutionCfg d;
         std::stringstream s;
         s << getConfigKey() << "." << *it << ".";
@@ -182,6 +188,15 @@ const ModuleExecutionDesc *ModuleExecutionDetector::getCurrentModule(S2EExecutio
     return plgState->findCurrentModule(pid, pc);
 }
 
+const ModuleDescriptor *ModuleExecutionDetector::getCurrentDescriptor(S2EExecutionState* state)
+{
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+
+    uint32_t pc = state->getPc();
+    uint64_t pid = m_Monitor->getPid(state, state->getPc());
+ 
+    return plgState->getDescriptor(pid, pc);
+}
 
 void ModuleExecutionDetector::onExecution(
     S2EExecutionState *state, uint64_t pc)
@@ -246,7 +261,12 @@ void ModuleExecutionDetector::moduleLoadListener(
             return;
         }
     }
+
+    if (m_TrackAllModules) {
+        plgState->loadDescriptor(&module);
+    }
   
+        
 }
 
 void ModuleExecutionDetector::moduleUnloadListener(
@@ -260,7 +280,10 @@ void ModuleExecutionDetector::moduleUnloadListener(
 
     
     plgState->deactivateModule(module);
- 
+
+    if (m_TrackAllModules) {
+        plgState->unloadDescriptor(&module);
+    }
 }
 
 
@@ -273,6 +296,10 @@ void ModuleExecutionDetector::processUnloadListener(
     DPRINTF("Process %#"PRIx64" unloaded\n", pid);
     
     plgState->deactivatePid(pid);
+
+    if (m_TrackAllModules) {
+        plgState->unloadDescriptorsWithPid(pid);
+    }
 }
 
 
@@ -312,6 +339,44 @@ PluginState* ModuleTransitionState::factory()
     DPRINTF("Creating initial module transition state\n");
 
     return s;
+}
+
+const ModuleDescriptor *ModuleTransitionState::getDescriptor(uint64_t pid, uint64_t pc) const
+{
+    ModuleDescriptor d;
+    d.Pid = pid;
+    d.LoadBase = pc;
+    DescriptorSet::iterator it = m_AllDescriptors.find(d);
+    if (it != m_AllDescriptors.end()) {
+        return &*it;
+    }
+    return NULL;
+}
+  
+void ModuleTransitionState::loadDescriptor(const ModuleDescriptor *desc)
+{
+    m_AllDescriptors.insert(*desc);
+}
+    
+void ModuleTransitionState::unloadDescriptor(const ModuleDescriptor *desc)
+{
+    m_AllDescriptors.erase(*desc);
+}
+
+void ModuleTransitionState::unloadDescriptorsWithPid(uint64_t pid)
+{
+    DescriptorSet::iterator it, it1;
+
+    for (it = m_AllDescriptors.begin(); it != m_AllDescriptors.end(); ) {
+        if ((*it).Pid != pid) {
+            ++it;
+        }else {
+            it1 = it;
+            ++it1;
+            m_AllDescriptors.erase(*it);
+            it = it1;
+        }
+    }
 }
 
 bool ModuleTransitionState::isModuleActive(const std::string &s)

@@ -98,6 +98,9 @@ void s2e_trace_memory_access(
         struct S2E *s2e, struct S2EExecutionState* state,
         uint64_t addr, uint8_t* buf, unsigned size, int isWrite, int isIO);
 
+void s2e_on_page_fault(struct S2E *s2e, struct S2EExecutionState* state, uint64_t addr, int is_write);
+void s2e_on_tlb_miss(struct S2E *s2e, struct S2EExecutionState* state, uint64_t addr, int is_write);
+
 /**********************************/
 /* Functions from S2EExecutor.cpp */
 

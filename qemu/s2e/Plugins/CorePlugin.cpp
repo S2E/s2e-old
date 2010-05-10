@@ -64,7 +64,6 @@ void s2e_tb_alloc(TranslationBlock *tb)
 
 void s2e_tb_free(TranslationBlock *tb)
 {
-    return; /* XXX */
 //    assert(0 && "NOT IMPLEMENTED");
     if(tb->s2e_tb) {
         foreach(ExecutionSignal* s, tb->s2e_tb->executionSignals) {
@@ -223,4 +222,14 @@ void s2e_trace_memory_access(
             klee::ConstantExpr::create(value, size*8),
             isWrite, isIO);
     }
+}
+
+void s2e_on_page_fault(S2E *s2e, S2EExecutionState* state, uint64_t addr, int is_write)
+{
+    s2e->getCorePlugin()->onPageFault.emit(state, addr, (bool)is_write);
+}
+
+void s2e_on_tlb_miss(S2E *s2e, S2EExecutionState* state, uint64_t addr, int is_write)
+{
+    s2e->getCorePlugin()->onTlbMiss.emit(state, addr, (bool)is_write);
 }

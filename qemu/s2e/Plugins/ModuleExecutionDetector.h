@@ -96,6 +96,8 @@ private:
     ConfiguredModulesById m_ConfiguredModulesId;
     ConfiguredModulesByName m_ConfiguredModulesName;
 
+    bool m_TrackAllModules;
+
     void initializeConfiguration();
 public:
     ModuleExecutionDetector(S2E* s2e): Plugin(s2e) {}
@@ -103,6 +105,8 @@ public:
     void initialize();
 
     const ModuleExecutionDesc *getCurrentModule(S2EExecutionState* state);
+    //Only when tracking all modules!
+    const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state);
 
     const ConfiguredModulesById &getConfiguredModulesById() const {
         return m_ConfiguredModulesId;
@@ -151,15 +155,27 @@ public:
 class ModuleTransitionState:public PluginState
 {
 private:
+    typedef std::set<ModuleDescriptor, ModuleDescriptor::ModuleByLoadBase> DescriptorSet;
+    
     const ModuleExecutionDesc *m_PreviousModule;
-
+    
+    //XXX: probably should unify the two following structures.
+    //Set of configured descriptors (those we want to track)
     std::set<ModuleExecutionDesc,ModuleExecutionDesc> m_ActiveDescriptors;
+
+    //Set of all loaded descriptors
+    DescriptorSet m_AllDescriptors; 
 
     void activateModule(const ModuleDescriptor &desc,const ModuleExecutionCfg &cfg);
     void deactivateModule(const ModuleDescriptor &desc);
     void deactivatePid(uint64_t pid);
     const ModuleExecutionDesc *findCurrentModule(uint64_t pid, uint64_t pc) const;
     bool isModuleActive(const std::string &s);
+
+    const ModuleDescriptor *getDescriptor(uint64_t pid, uint64_t pc) const;
+    void loadDescriptor(const ModuleDescriptor *desc);
+    void unloadDescriptor(const ModuleDescriptor *desc);
+    void unloadDescriptorsWithPid(uint64_t pid);
 
 public:
     sigc::signal<void, 
