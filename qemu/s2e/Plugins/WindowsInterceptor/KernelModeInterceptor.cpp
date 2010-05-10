@@ -38,6 +38,7 @@ void WindowsKmInterceptor::NotifyDriverLoad(S2EExecutionState *State, ModuleDesc
 
     Desc.Pid = 0;
     Desc.NativeBase = Image.GetImageBase();
+    assert(Desc.NativeBase < 0x100000000);
     Desc.Size = Image.GetImageSize();
 
     m_Os->onModuleLoad.emit(State, Desc);

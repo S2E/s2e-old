@@ -25,6 +25,8 @@ bool WindowsImage::IsValidString(const char *str)
 WindowsImage::WindowsImage(uint64_t Base)
 {
     m_Base = Base;
+    m_ImageSize = 0;
+    m_ImageBase = 0;
 
     if (!QEMU::ReadVirtualMemory(m_Base, &DosHeader, sizeof(DosHeader))) {
         DPRINTF("Could not load IMAGE_DOS_HEADER structure (m_Base=%#"PRIx64")\n", m_Base);
@@ -48,6 +50,7 @@ WindowsImage::WindowsImage(uint64_t Base)
 
     m_ImageSize = NtHeader.OptionalHeader.SizeOfImage;
     m_ImageBase = NtHeader.OptionalHeader.ImageBase;
+    assert(m_ImageBase < 0x100000000);
     m_EntryPoint = NtHeader.OptionalHeader.AddressOfEntryPoint;
 
     m_ImportsInited = false;

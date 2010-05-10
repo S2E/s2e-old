@@ -4,6 +4,7 @@
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
+#include "ModuleExecutionDetector.h"
 
 namespace s2e {
 namespace plugins {
@@ -11,7 +12,7 @@ namespace plugins {
 struct PfProfilerEntry
 {
     uint64_t ts, pc, pid;
-    std::string moduleId;
+    char moduleId[20];
     int isTlbMiss;
     uint64_t addr;
     int isWrite;
@@ -29,6 +30,9 @@ public:
     bool m_TrackTlbMisses;
     bool m_TrackPageFaults;
 private:
+    std::vector<PfProfilerEntry> m_PfProfilerEntries;
+    ModuleExecutionDetector *m_execDetector;
+
     void flushTable();
     void missFaultHandler(S2EExecutionState *state, bool isTlbMiss, uint64_t addr, bool is_write);
     void onTlbMiss(S2EExecutionState *state, uint64_t addr, bool is_write);

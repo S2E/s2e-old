@@ -22,6 +22,12 @@ WindowsSpy::WindowsSpy(CWindowsOS *OS)
   m_OS = OS;
 }
 
+WindowsSpy::~WindowsSpy()
+{
+
+}
+
+
 bool WindowsSpy::AddProcess(const SProcessDescriptor &ProcessOrig,
                             IDataStructureSpy::Processes &P)
 {

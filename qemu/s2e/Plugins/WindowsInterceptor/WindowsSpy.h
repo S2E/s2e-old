@@ -23,6 +23,7 @@ protected:
 public:
 
   WindowsSpy(WindowsMonitor *OS);
+  virtual ~WindowsSpy();
 
   typedef enum _EWindowsVersion {
     UNKNOWN, SP1, SP2, SP3

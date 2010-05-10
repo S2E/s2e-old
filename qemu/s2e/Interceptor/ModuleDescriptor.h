@@ -43,6 +43,12 @@ struct ModuleDescriptor
   //The size of the image of the module
   uint64_t Size;
 
+  ModuleDescriptor() {
+    Pid = 0;
+    NativeBase = 0;
+    LoadBase = 0;
+    Size = 0;
+  }
   
   bool Contains(uint64_t RunTimeAddress) const {
     uint64_t RVA = RunTimeAddress - LoadBase;

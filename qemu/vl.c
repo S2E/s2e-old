@@ -4684,6 +4684,7 @@ char *qemu_find_file(int type, const char *name)
     len = strlen(data_dir) + strlen(name) + strlen(subdir) + 2;
     buf = qemu_mallocz(len);
     snprintf(buf, len, "%s/%s%s", data_dir, subdir, name);
+    printf("%s\n", buf);
     if (access(buf, R_OK)) {
         qemu_free(buf);
         return NULL;
