@@ -419,6 +419,14 @@ echo "#define CONFIG_GDBSTUB  1" >> $config_h
 echo "#define CONFIG_SLIRP    1" >> $config_h
 echo "#define CONFIG_SKINS    1" >> $config_h
 echo "#define CONFIG_TRACE    1" >> $config_h
+
+# only Linux has fdatasync()
+case "$OS" in
+    linux-*)
+        echo "#define CONFIG_FDATASYNC    1" >> $config_h
+        ;;
+esac
+
 # the -nand-limits options can only work on non-windows systems
 if [ "$OS" != "windows" ] ; then
     echo "#define CONFIG_NAND_LIMITS  1" >> $config_h
