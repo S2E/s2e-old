@@ -70,6 +70,8 @@
 #include "android/globals.h"
 #include "tcpdump.h"
 
+#include "android/qemulator.h"
+
 /* in vl.c */
 extern void  qemu_help(int  code);
 
@@ -299,255 +301,6 @@ void send_key_event(unsigned code, unsigned down)
     kbd_put_keycode((code & 0x1ff) | (down ? 0x200 : 0));
 }
 
-
-
-typedef struct {
-    AConfig*       aconfig;
-    SkinFile*      layout_file;
-    SkinLayout*    layout;
-    SkinKeyboard*  keyboard;
-    SkinWindow*    window;
-    int            win_x;
-    int            win_y;
-    int            show_trackball;
-    SkinTrackBall* trackball;
-    int            lcd_brightness;
-    SkinImage*     onion;
-    SkinRotation   onion_rotation;
-    int            onion_alpha;
-
-    AndroidOptions  opts[1];  /* copy of options */
-} QEmulator;
-
-static QEmulator   qemulator[1];
-
-static void
-qemulator_done( QEmulator*  emulator )
-{
-    if (emulator->window) {
-        skin_window_free(emulator->window);
-        emulator->window = NULL;
-    }
-    if (emulator->trackball) {
-        skin_trackball_destroy(emulator->trackball);
-        emulator->trackball = NULL;
-    }
-    if (emulator->keyboard) {
-        skin_keyboard_free(emulator->keyboard);
-        emulator->keyboard = NULL;
-    }
-    emulator->layout = NULL;
-    if (emulator->layout_file) {
-        skin_file_free(emulator->layout_file);
-        emulator->layout_file = NULL;
-    }
-}
-
-
-static void
-qemulator_setup( QEmulator*  emulator );
-
-static void
-qemulator_fb_update( void*   _emulator, int  x, int  y, int  w, int  h )
-{
-    QEmulator*  emulator = _emulator;
-
-    if (emulator->window)
-        skin_window_update_display( emulator->window, x, y, w, h );
-}
-
-static void
-qemulator_fb_rotate( void*  _emulator, int  rotation )
-{
-    QEmulator*     emulator = _emulator;
-
-    qemulator_setup( emulator );
-}
-
-
-
-static int
-qemulator_init( QEmulator*       emulator,
-                AConfig*         aconfig,
-                const char*      basepath,
-                int              x,
-                int              y,
-                AndroidOptions*  opts )
-{
-    emulator->aconfig     = aconfig;
-    emulator->layout_file = skin_file_create_from_aconfig(aconfig, basepath);
-    emulator->layout      = emulator->layout_file->layouts;
-    // If we have a custom charmap use it to initialize keyboard.
-    // Otherwise initialize keyboard from configuration settings.
-    // Another way to configure keyboard to use a custom charmap would
-    // be saving a custom charmap name into AConfig's keyboard->charmap
-    // property, and calling single skin_keyboard_create_from_aconfig
-    // routine to initialize keyboard.
-    if (NULL != opts->charmap) {
-        emulator->keyboard = skin_keyboard_create_from_kcm(opts->charmap, opts->raw_keys);
-    } else {
-        emulator->keyboard = skin_keyboard_create_from_aconfig(aconfig, opts->raw_keys);
-    }
-    emulator->window      = NULL;
-    emulator->win_x       = x;
-    emulator->win_y       = y;
-    emulator->opts[0]     = opts[0];
-
-    /* register as a framebuffer clients for all displays defined in the skin file */
-    SKIN_FILE_LOOP_PARTS( emulator->layout_file, part )
-        SkinDisplay*  disp = part->display;
-        if (disp->valid) {
-            qframebuffer_add_client( disp->qfbuff,
-                                        emulator,
-                                        qemulator_fb_update,
-                                        qemulator_fb_rotate,
-                                        NULL );
-        }
-    SKIN_FILE_LOOP_END_PARTS
-    return 0;
-}
-
-
-static AndroidKeyCode
-qemulator_rotate_keycode( QEmulator*      emulator,
-                          AndroidKeyCode  sym )
-{
-    return android_keycode_rotate( sym,
-                                   skin_layout_get_dpad_rotation(emulator->layout) );
-}
-
-static int
-get_device_dpi( AndroidOptions*  opts )
-{
-    int    dpi_device  = android_hw->hw_lcd_density;
-
-    if (opts->dpi_device != NULL) {
-        char*  end;
-        dpi_device = strtol( opts->dpi_device, &end, 0 );
-        if (end == NULL || *end != 0 || dpi_device <= 0) {
-            fprintf(stderr, "argument for -dpi-device must be a positive integer. Aborting\n" );
-            exit(1);
-        }
-    }
-    return  dpi_device;
-}
-
-static double
-get_default_scale( AndroidOptions*  opts )
-{
-    int     dpi_device  = get_device_dpi( opts );
-    int     dpi_monitor = -1;
-    double  scale       = 0.0;
-
-    /* possible values for the 'scale' option are
-     *   'auto'        : try to determine the scale automatically
-     *   '<number>dpi' : indicates the host monitor dpi, compute scale accordingly
-     *   '<fraction>'  : use direct scale coefficient
-     */
-
-    if (opts->scale) {
-        if (!strcmp(opts->scale, "auto"))
-        {
-            /* we need to get the host dpi resolution ? */
-            int   xdpi, ydpi;
-
-            if ( SDL_WM_GetMonitorDPI( &xdpi, &ydpi ) < 0 ) {
-                fprintf(stderr, "could not get monitor DPI resolution from system. please use -dpi-monitor to specify one\n" );
-                exit(1);
-            }
-            D( "system reported monitor resolutions: xdpi=%d ydpi=%d\n", xdpi, ydpi);
-            dpi_monitor = (xdpi + ydpi+1)/2;
-        }
-        else
-        {
-            char*   end;
-            scale = strtod( opts->scale, &end );
-
-            if (end && end[0] == 'd' && end[1] == 'p' && end[2] == 'i' && end[3] == 0) {
-                if ( scale < 20 || scale > 1000 ) {
-                    fprintf(stderr, "emulator: ignoring bad -scale argument '%s': %s\n", opts->scale,
-                            "host dpi number must be between 20 and 1000" );
-                    exit(1);
-                }
-                dpi_monitor = scale;
-                scale       = 0.0;
-            }
-            else if (end == NULL || *end != 0) {
-                fprintf(stderr, "emulator: ignoring bad -scale argument '%s': %s\n", opts->scale,
-                        "not a number or the 'auto' keyword" );
-                exit(1);
-            }
-            else if ( scale < 0.1 || scale > 3. ) {
-                fprintf(stderr, "emulator: ignoring bad -window-scale argument '%s': %s\n", opts->scale,
-                        "must be between 0.1 and 3.0" );
-                exit(1);
-            }
-        }
-    }
-
-    if (scale == 0.0 && dpi_monitor > 0)
-        scale = dpi_monitor*1.0/dpi_device;
-
-    if (scale == 0.0)
-        scale = 1.0;
-
-    return scale;
-}
-
-void
-android_emulator_set_window_scale( double  scale, int  is_dpi )
-{
-    QEmulator*  emulator = qemulator;
-
-    if (is_dpi)
-        scale /= get_device_dpi( emulator->opts );
-
-    if (emulator->window)
-        skin_window_set_scale( emulator->window, scale );
-}
-
-
-static void
-qemulator_set_title( QEmulator*  emulator )
-{
-    char  temp[128], *p=temp, *end=p+sizeof temp;;
-
-    if (emulator->window == NULL)
-        return;
-
-    if (emulator->show_trackball) {
-        SkinKeyBinding  bindings[ SKIN_KEY_COMMAND_MAX_BINDINGS ];
-        int             count;
-
-        count = skin_keyset_get_bindings( android_keyset,
-                                          SKIN_KEY_COMMAND_TOGGLE_TRACKBALL,
-                                          bindings );
-
-        if (count > 0) {
-            int  nn;
-            p = bufprint( p, end, "Press " );
-            for (nn = 0; nn < count; nn++) {
-                if (nn > 0) {
-                    if (nn < count-1)
-                        p = bufprint(p, end, ", ");
-                    else
-                        p = bufprint(p, end, " or ");
-                }
-                p = bufprint(p, end, "%s",
-                             skin_key_symmod_to_str( bindings[nn].sym,
-                                                     bindings[nn].mod ) );
-            }
-            p = bufprint(p, end, " to leave trackball mode. ");
-        }
-    }
-
-    p = bufprint(p, end, "%d:%s",
-                 android_base_port,
-                 avdInfo_getName( android_avdInfo ));
-
-    skin_window_set_title( emulator->window, temp );
-}
-
 /* called by the emulated framebuffer device each time the content of the
  * framebuffer has changed. the rectangle is the bounding box of all changes
  */
@@ -565,75 +318,6 @@ sdl_update(DisplayState *ds, int x, int y, int w, int h)
 }
 
 
-
-static void
-qemulator_light_brightness( void* opaque, const char*  light, int  value )
-{
-    QEmulator*  emulator = opaque;
-
-    VERBOSE_PRINT(hw_control,"%s: light='%s' value=%d window=%p", __FUNCTION__, light, value, emulator->window);
-    if ( !strcmp(light, "lcd_backlight") ) {
-        emulator->lcd_brightness = value;
-        if (emulator->window)
-            skin_window_set_lcd_brightness( emulator->window, value );
-        return;
-    }
-}
-
-
-static void
-qemulator_setup( QEmulator*  emulator )
-{
-    AndroidOptions*  opts = emulator->opts;
-
-    if ( !emulator->window && !opts->no_window ) {
-        SkinLayout*  layout = emulator->layout;
-        double       scale  = get_default_scale(emulator->opts);
-
-        emulator->window = skin_window_create( layout, emulator->win_x, emulator->win_y, scale, 0);
-        if (emulator->window == NULL)
-            return;
-
-        {
-            SkinTrackBall*           ball;
-            SkinTrackBallParameters  params;
-
-            params.diameter   = 30;
-            params.ring       = 2;
-            params.ball_color = 0xffe0e0e0;
-            params.dot_color  = 0xff202020;
-            params.ring_color = 0xff000000;
-
-            ball = skin_trackball_create( &params );
-            emulator->trackball = ball;
-            skin_window_set_trackball( emulator->window, ball );
-
-            emulator->lcd_brightness = 128;  /* 50% */
-            skin_window_set_lcd_brightness( emulator->window, emulator->lcd_brightness );
-        }
-
-        if ( emulator->onion != NULL )
-            skin_window_set_onion( emulator->window,
-                                   emulator->onion,
-                                   emulator->onion_rotation,
-                                   emulator->onion_alpha );
-
-        qemulator_set_title( emulator );
-
-        skin_window_enable_touch ( emulator->window, android_hw->hw_touchScreen != 0 );
-        skin_window_enable_dpad  ( emulator->window, android_hw->hw_dPad != 0 );
-        skin_window_enable_qwerty( emulator->window, android_hw->hw_keyboard != 0 );
-        skin_window_enable_trackball( emulator->window, android_hw->hw_trackBall != 0 );
-    }
-
-    /* initialize hardware control support */
-    {
-        AndroidHwControlFuncs  funcs;
-
-        funcs.light_brightness = qemulator_light_brightness;
-        android_hw_control_init( emulator, &funcs );
-    }
-}
 
 
 /* called by the emulated framebuffer device each time the framebuffer
@@ -702,7 +386,9 @@ static void sdl_refresh(DisplayState *ds)
                     /* scroll-wheel simulates DPad up */
                     AndroidKeyCode  kcode;
 
-                    kcode = qemulator_rotate_keycode(emulator, kKeyCodeDpadUp);
+                    kcode = // qemulator_rotate_keycode(kKeyCodeDpadUp);
+                        android_keycode_rotate(kKeyCodeDpadUp,
+                            skin_layout_get_dpad_rotation(qemulator_get_layout(qemulator_get())));
                     send_key_event( kcode, down );
                 }
                 else if (ev.button.button == 5)
@@ -710,7 +396,9 @@ static void sdl_refresh(DisplayState *ds)
                     /* scroll-wheel simulates DPad down */
                     AndroidKeyCode  kcode;
 
-                    kcode = qemulator_rotate_keycode(emulator, kKeyCodeDpadDown);
+                    kcode = // qemulator_rotate_keycode(kKeyCodeDpadDown);
+                        android_keycode_rotate(kKeyCodeDpadDown,
+                            skin_layout_get_dpad_rotation(qemulator_get_layout(qemulator_get())));
                     send_key_event( kcode, down );
                 }
                 else if (ev.button.button == SDL_BUTTON_LEFT) {
@@ -731,7 +419,7 @@ static void sdl_refresh(DisplayState *ds)
         CleanExit:
 #endif
             /* only save emulator config through clean exit */
-            qemulator_done( emulator );
+            qemulator_done(qemulator_get());
             qemu_system_shutdown_request();
             return;
         }
@@ -831,7 +519,7 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
     case SKIN_KEY_COMMAND_TOGGLE_TRACKBALL:
         emulator->show_trackball = !emulator->show_trackball;
         skin_window_show_trackball( emulator->window, emulator->show_trackball );
-        qemulator_set_title( emulator );
+        qemulator_set_title(emulator);
         break;
 
     case SKIN_KEY_COMMAND_ONION_ALPHA_UP:
@@ -907,14 +595,14 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
 static void sdl_at_exit(void)
 {
     emulator_config_done();
-    qemulator_done( qemulator );
+    qemulator_done(qemulator_get());
     SDL_Quit();
 }
 
 
 void sdl_display_init(DisplayState *ds, int full_screen, int  no_frame)
 {
-    QEmulator*    emulator = qemulator;
+    QEmulator*    emulator = qemulator_get();
     SkinDisplay*  disp     = skin_layout_get_display(emulator->layout);
     DisplayChangeListener*  dcl;
     int           width, height;
@@ -945,11 +633,6 @@ void sdl_display_init(DisplayState *ds, int full_screen, int  no_frame)
     skin_keyboard_on_command( emulator->keyboard, handle_key_command, emulator );
 }
 
-
-extern SkinKeyboard*  android_emulator_get_keyboard(void)
-{
-    return qemulator->keyboard;
-}
 
 static const char*  skin_network_speed = NULL;
 static const char*  skin_network_delay = NULL;
@@ -1113,12 +796,12 @@ found_a_skin:
             auserConfig_getWindowPos(userConfig, &win_x, &win_y);
     }
 
-    if ( qemulator_init( qemulator, root, path, win_x, win_y, opts ) < 0 ) {
+    if ( qemulator_init(qemulator_get(), root, path, win_x, win_y, opts ) < 0 ) {
         fprintf(stderr, "### Error: could not load emulator skin '%s'\n", name);
         exit(1);
     }
 
-    android_skin_keycharmap = skin_keyboard_charmap_name(qemulator->keyboard);
+    android_skin_keycharmap = skin_keyboard_charmap_name(qemulator_get()->keyboard);
 
     /* the default network speed and latency can now be specified by the device skin */
     n = aconfig_find(root, "network");
@@ -1162,9 +845,9 @@ found_a_skin:
         } else
             rotate = SKIN_ROTATION_0;
 
-        qemulator->onion          = onion;
-        qemulator->onion_alpha    = alpha;
-        qemulator->onion_rotation = rotate;
+        qemulator_get()->onion          = onion;
+        qemulator_get()->onion_alpha    = alpha;
+        qemulator_get()->onion_rotation = rotate;
     }
 }
 
@@ -2795,7 +2478,7 @@ void  android_emulation_setup( void )
         }
     }
 
-    AndroidOptions* opts = qemulator->opts;
+    AndroidOptions* opts = qemulator_get()->opts;
 
     inet_strtoip("10.0.2.15", &guest_ip);
 

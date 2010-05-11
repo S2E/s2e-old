@@ -590,6 +590,7 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               android/hw-sensors.c \
               android/keycode.c \
               android/main.c \
+              android/qemulator.c \
               android/resource.c \
               android/user-config.c \
               android/utils/bufprint.c \
