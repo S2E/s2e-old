@@ -28,7 +28,7 @@
 #if defined(__x86_64__)
 #define __HAVE_FAST_MULU64__
 static inline void mulu64(uint64_t *plow, uint64_t *phigh,
-                                  uint64_t a, uint64_t b)
+                          uint64_t a, uint64_t b)
 {
     __asm__ ("mul %0\n\t"
              : "=d" (*phigh), "=a" (*plow)
@@ -36,7 +36,7 @@ static inline void mulu64(uint64_t *plow, uint64_t *phigh,
 }
 #define __HAVE_FAST_MULS64__
 static inline void muls64(uint64_t *plow, uint64_t *phigh,
-                                  int64_t a, int64_t b)
+                          int64_t a, int64_t b)
 {
     __asm__ ("imul %0\n\t"
              : "=d" (*phigh), "=a" (*plow)

@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef CPU_DEFS_H
 #define CPU_DEFS_H
@@ -200,6 +199,7 @@ typedef struct CPUWatchpoint {
     const char *cpu_model_str;                                          \
     struct KVMState *kvm_state;                                         \
     struct kvm_run *kvm_run;                                            \
-    int kvm_fd;
+    int kvm_fd;                                                         \
+    int kvm_vcpu_dirty;
 
 #endif
