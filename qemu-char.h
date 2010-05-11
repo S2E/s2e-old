@@ -2,15 +2,16 @@
 #define QEMU_CHAR_H
 
 #include "qemu-common.h"
-#include "sys-queue.h"
+#include "qemu-queue.h"
 
 /* character device */
 
 #define CHR_EVENT_BREAK   0 /* serial break char */
 #define CHR_EVENT_FOCUS   1 /* focus to this terminal (modal input needed) */
-#define CHR_EVENT_RESET   2 /* new connection established */
+#define CHR_EVENT_OPENED  2 /* new connection established */
 #define CHR_EVENT_MUX_IN  3 /* mux-focus was set to this terminal */
 #define CHR_EVENT_MUX_OUT 4 /* mux-focus will move on */
+#define CHR_EVENT_CLOSED  5 /* connection closed */
 
 
 #define CHR_IOCTL_SERIAL_SET_PARAMS   1
@@ -63,7 +64,7 @@ struct CharDriverState {
     QEMUBH *bh;
     char *label;
     char *filename;
-    TAILQ_ENTRY(CharDriverState) next;
+    QTAILQ_ENTRY(CharDriverState) next;
 };
 
 CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s));

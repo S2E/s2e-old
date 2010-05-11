@@ -114,8 +114,8 @@
 /***********************************************************/
 /* character device */
 
-static TAILQ_HEAD(CharDriverStateHead, CharDriverState) chardevs =
-    TAILQ_HEAD_INITIALIZER(chardevs);
+static QTAILQ_HEAD(CharDriverStateHead, CharDriverState) chardevs =
+    QTAILQ_HEAD_INITIALIZER(chardevs);
 static int initial_reset_issued;
 
 static void qemu_chr_event(CharDriverState *s, int event)
@@ -128,7 +128,7 @@ static void qemu_chr_event(CharDriverState *s, int event)
 static void qemu_chr_reset_bh(void *opaque)
 {
     CharDriverState *s = opaque;
-    qemu_chr_event(s, CHR_EVENT_RESET);
+    qemu_chr_event(s, CHR_EVENT_OPENED);
     qemu_bh_delete(s->bh);
     s->bh = NULL;
 }
@@ -147,7 +147,7 @@ void qemu_chr_initial_reset(void)
 
     initial_reset_issued = 1;
 
-    TAILQ_FOREACH(chr, &chardevs, next) {
+    QTAILQ_FOREACH(chr, &chardevs, next) {
         qemu_chr_reset(chr);
     }
 }
@@ -2243,14 +2243,14 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*i
             chr->filename = qemu_strdup(filename);
         chr->init = init;
         chr->label = qemu_strdup(label);
-        TAILQ_INSERT_TAIL(&chardevs, chr, next);
+        QTAILQ_INSERT_TAIL(&chardevs, chr, next);
     }
     return chr;
 }
 
 void qemu_chr_close(CharDriverState *chr)
 {
-    TAILQ_REMOVE(&chardevs, chr, next);
+    QTAILQ_REMOVE(&chardevs, chr, next);
     if (chr->chr_close)
         chr->chr_close(chr);
     qemu_free(chr->filename);
@@ -2262,7 +2262,7 @@ void qemu_chr_info(Monitor *mon)
 {
     CharDriverState *chr;
 
-    TAILQ_FOREACH(chr, &chardevs, next) {
+    QTAILQ_FOREACH(chr, &chardevs, next) {
         monitor_printf(mon, "%s: filename=%s\n", chr->label, chr->filename);
     }
 }

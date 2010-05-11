@@ -2,7 +2,7 @@
 #define QDEV_H
 
 #include "hw.h"
-#include "sys-queue.h"
+#include "qemu-queue.h"
 
 typedef struct DeviceType DeviceType;
 
@@ -20,9 +20,9 @@ struct DeviceState {
     qemu_irq *gpio_out;
     int num_gpio_in;
     qemu_irq *gpio_in;
-    LIST_HEAD(, BusState) child_bus;
+    QLIST_HEAD(, BusState) child_bus;
     NICInfo *nd;
-    LIST_ENTRY(DeviceState) sibling;
+    QLIST_ENTRY(DeviceState) sibling;
 };
 
 typedef enum {
@@ -37,8 +37,8 @@ struct BusState {
     DeviceState *parent;
     const char *name;
     BusType type;
-    LIST_HEAD(, DeviceState) children;
-    LIST_ENTRY(BusState) sibling;
+    QLIST_HEAD(, DeviceState) children;
+    QLIST_ENTRY(BusState) sibling;
 };
 
 /*** Board API.  This should go away once we have a machine config file.  ***/

@@ -36,7 +36,7 @@ extern void wdt_ib700_init(void);
 #define WDT_NONE         6	/* Do nothing. */
 
 struct WatchdogTimerModel {
-    LIST_ENTRY(WatchdogTimerModel) entry;
+    QLIST_ENTRY(WatchdogTimerModel) entry;
 
     /* Short name of the device - used to select it on the command line. */
     const char *wdt_name;

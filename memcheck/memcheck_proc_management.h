@@ -24,7 +24,7 @@
 #error CONFIG_MEMCHECK is not defined.
 #endif  // CONFIG_MEMCHECK
 
-#include "sys-queue.h"
+#include "qemu-queue.h"
 #include "memcheck_common.h"
 #include "memcheck_malloc_map.h"
 #include "memcheck_mmrange_map.h"
@@ -46,10 +46,10 @@ typedef struct ProcDesc {
     MMRangeMap                                  mmrange_map;
 
     /* Descriptor's entry in the global process list. */
-    LIST_ENTRY(ProcDesc)                        global_entry;
+    QLIST_ENTRY(ProcDesc)                        global_entry;
 
     /* List of threads running in context of this process. */
-    LIST_HEAD(threads, ThreadDesc)              threads;
+    QLIST_HEAD(threads, ThreadDesc)              threads;
 
     /* Path to the process' image file. */
     char*                                       image_path;
@@ -92,10 +92,10 @@ typedef struct ThreadCallStackEntry {
 /* Describes a thread that is monitored by memchecker framework. */
 typedef struct ThreadDesc {
     /* Descriptor's entry in the global thread list. */
-    LIST_ENTRY(ThreadDesc)  global_entry;
+    QLIST_ENTRY(ThreadDesc)  global_entry;
 
     /* Descriptor's entry in the process' thread list. */
-    LIST_ENTRY(ThreadDesc)  proc_entry;
+    QLIST_ENTRY(ThreadDesc)  proc_entry;
 
     /* Descriptor of the process this thread belongs to. */
     ProcDesc*               process;

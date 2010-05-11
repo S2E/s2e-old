@@ -80,10 +80,10 @@ struct Monitor {
     CPUState *mon_cpu;
     BlockDriverCompletionFunc *password_completion_cb;
     void *password_opaque;
-    LIST_ENTRY(Monitor) entry;
+    QLIST_ENTRY(Monitor) entry;
 };
 
-static LIST_HEAD(mon_list, Monitor) mon_list;
+static QLIST_HEAD(mon_list, Monitor) mon_list;
 
 static const mon_cmd_t mon_cmds[];
 static const mon_cmd_t info_cmds[];
@@ -1483,7 +1483,7 @@ static void do_info_profile(Monitor *mon)
 #endif
 
 /* Capture support */
-static LIST_HEAD (capture_list_head, CaptureState) capture_head;
+static QLIST_HEAD (capture_list_head, CaptureState) capture_head;
 
 static void do_info_capture(Monitor *mon)
 {
@@ -1505,7 +1505,7 @@ static void do_stop_capture(Monitor *mon, int n)
     for (s = capture_head.lh_first, i = 0; s; s = s->entries.le_next, ++i) {
         if (i == n) {
             s->ops.destroy (s->opaque);
-            LIST_REMOVE (s, entries);
+            QLIST_REMOVE (s, entries);
             qemu_free (s);
             return;
         }
@@ -1529,7 +1529,7 @@ static void do_wav_capture(Monitor *mon, const char *path,
         monitor_printf(mon, "Faied to add wave capture\n");
         qemu_free (s);
     }
-    LIST_INSERT_HEAD (&capture_head, s, entries);
+    QLIST_INSERT_HEAD (&capture_head, s, entries);
 }
 #endif
 
@@ -1599,7 +1599,7 @@ static void do_acl(Monitor *mon,
         qemu_acl_entry *entry;
         monitor_printf(mon, "policy: %s\n",
                        acl->defaultDeny ? "deny" : "allow");
-        TAILQ_FOREACH(entry, &acl->entries, next) {
+        QTAILQ_FOREACH(entry, &acl->entries, next) {
             i++;
             monitor_printf(mon, "%d: %s %s\n", i,
                            entry->deny ? "deny" : "allow",
@@ -2999,7 +2999,7 @@ static void monitor_event(void *opaque, int event)
         monitor_suspend(mon);
         break;
 
-    case CHR_EVENT_RESET:
+    case CHR_EVENT_OPENED:
         monitor_printf(mon, "QEMU %s monitor - type 'help' for more "
                        "information\n", QEMU_VERSION);
         if (mon->chr->focus == 0)
@@ -3041,7 +3041,7 @@ void monitor_init(CharDriverState *chr, int flags)
     qemu_chr_add_handlers(chr, monitor_can_read, monitor_read, monitor_event,
                           mon);
 
-    LIST_INSERT_HEAD(&mon_list, mon, entry);
+    QLIST_INSERT_HEAD(&mon_list, mon, entry);
     if (!cur_mon || (flags & MONITOR_IS_DEFAULT))
         cur_mon = mon;
 }

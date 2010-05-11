@@ -14,23 +14,21 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
- * USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  * By Richard W.M. Jones (rjones@redhat.com).
  */
 
 #include "qemu-common.h"
-#include "sys-queue.h"
+#include "qemu-queue.h"
 #include "sysemu.h"
 #include "hw/watchdog.h"
 
-static LIST_HEAD(watchdog_list, WatchdogTimerModel) watchdog_list;
+static QLIST_HEAD(watchdog_list, WatchdogTimerModel) watchdog_list;
 
 void watchdog_add_model(WatchdogTimerModel *model)
 {
-    LIST_INSERT_HEAD(&watchdog_list, model, entry);
+    QLIST_INSERT_HEAD(&watchdog_list, model, entry);
 }
 
 /* Returns:
@@ -50,14 +48,14 @@ int select_watchdog(const char *p)
 
     /* -watchdog ? lists available devices and exits cleanly. */
     if (strcmp(p, "?") == 0) {
-        LIST_FOREACH(model, &watchdog_list, entry) {
+        QLIST_FOREACH(model, &watchdog_list, entry) {
             fprintf(stderr, "\t%s\t%s\n",
                      model->wdt_name, model->wdt_description);
         }
         return 2;
     }
 
-    LIST_FOREACH(model, &watchdog_list, entry) {
+    QLIST_FOREACH(model, &watchdog_list, entry) {
         if (strcasecmp(model->wdt_name, p) == 0) {
             watchdog = model;
             return 0;
@@ -65,7 +63,7 @@ int select_watchdog(const char *p)
     }
 
     fprintf(stderr, "Unknown -watchdog device. Supported devices are:\n");
-    LIST_FOREACH(model, &watchdog_list, entry) {
+    QLIST_FOREACH(model, &watchdog_list, entry) {
         fprintf(stderr, "\t%s\t%s\n",
                  model->wdt_name, model->wdt_description);
     }

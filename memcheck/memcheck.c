@@ -20,7 +20,7 @@
 #error CONFIG_MEMCHECK is not defined.
 #endif  // CONFIG_MEMCHECK
 
-#include "sys-queue.h"
+#include "qemu-queue.h"
 #include "qemu_file.h"
 #include "elff_api.h"
 #include "memcheck.h"

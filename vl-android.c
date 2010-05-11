@@ -3662,10 +3662,10 @@ static void nographic_update(void *opaque)
 struct vm_change_state_entry {
     VMChangeStateHandler *cb;
     void *opaque;
-    LIST_ENTRY (vm_change_state_entry) entries;
+    QLIST_ENTRY (vm_change_state_entry) entries;
 };
 
-static LIST_HEAD(vm_change_state_head, vm_change_state_entry) vm_change_state_head;
+static QLIST_HEAD(vm_change_state_head, vm_change_state_entry) vm_change_state_head;
 
 VMChangeStateEntry *qemu_add_vm_change_state_handler(VMChangeStateHandler *cb,
                                                      void *opaque)
@@ -3676,13 +3676,13 @@ VMChangeStateEntry *qemu_add_vm_change_state_handler(VMChangeStateHandler *cb,
 
     e->cb = cb;
     e->opaque = opaque;
-    LIST_INSERT_HEAD(&vm_change_state_head, e, entries);
+    QLIST_INSERT_HEAD(&vm_change_state_head, e, entries);
     return e;
 }
 
 void qemu_del_vm_change_state_handler(VMChangeStateEntry *e)
 {
-    LIST_REMOVE (e, entries);
+    QLIST_REMOVE (e, entries);
     qemu_free (e);
 }
 
@@ -5125,7 +5125,7 @@ int main(int argc, char **argv, char **envp)
 
     qemu_cache_utils_init(envp);
 
-    LIST_INIT (&vm_change_state_head);
+    QLIST_INIT (&vm_change_state_head);
 #ifndef _WIN32
     {
         struct sigaction act;

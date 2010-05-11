@@ -98,7 +98,7 @@ DeviceState *qdev_create(BusState *bus, const char *name)
                  t->info->bus_type, bus->type);
     }
     dev->parent_bus = bus;
-    LIST_INSERT_HEAD(&bus->children, dev, sibling);
+    QLIST_INSERT_HEAD(&bus->children, dev, sibling);
     return dev;
 }
 
@@ -113,8 +113,8 @@ void qdev_init(DeviceState *dev)
 /* Unlink device from bus and free the structure.  */
 void qdev_free(DeviceState *dev)
 {
-    LIST_REMOVE(dev, sibling);
-    free(dev);
+    QLIST_REMOVE(dev, sibling);
+    qemu_free(dev);
 }
 
 static DeviceProperty *create_prop(DeviceState *dev, const char *name,
@@ -293,7 +293,7 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
 {
     BusState *bus;
 
-    LIST_FOREACH(bus, &dev->child_bus, sibling) {
+    QLIST_FOREACH(bus, &dev->child_bus, sibling) {
         if (strcmp(name, bus->name) == 0) {
             return bus;
         }
@@ -329,9 +329,9 @@ BusState *qbus_create(BusType type, size_t size,
     bus->type = type;
     bus->parent = parent;
     bus->name = qemu_strdup(name);
-    LIST_INIT(&bus->children);
+    QLIST_INIT(&bus->children);
     if (parent) {
-        LIST_INSERT_HEAD(&parent->child_bus, bus, sibling);
+        QLIST_INSERT_HEAD(&parent->child_bus, bus, sibling);
     }
     return bus;
 }
@@ -384,7 +384,7 @@ static void qdev_print(Monitor *mon, DeviceState *dev, int indent)
     default:
         break;
     }
-    LIST_FOREACH(child, &dev->child_bus, sibling) {
+    QLIST_FOREACH(child, &dev->child_bus, sibling) {
         qbus_print(mon, child, indent);
     }
 }
@@ -396,7 +396,7 @@ static void qbus_print(Monitor *mon, BusState *bus, int indent)
     qdev_printf("bus: %s\n", bus->name);
     indent += 2;
     qdev_printf("type %s\n", bus_type_names[bus->type]);
-    LIST_FOREACH(dev, &bus->children, sibling) {
+    QLIST_FOREACH(dev, &bus->children, sibling) {
         qdev_print(mon, dev, indent);
     }
 }

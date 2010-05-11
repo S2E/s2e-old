@@ -120,7 +120,7 @@ static void qemu_chr_event(CharDriverState *s, int event)
 static void qemu_chr_reset_bh(void *opaque)
 {
     CharDriverState *s = opaque;
-    qemu_chr_event(s, CHR_EVENT_RESET);
+    qemu_chr_event(s, CHR_EVENT_OPENED);
     qemu_bh_delete(s->bh);
     s->bh = NULL;
 }
@@ -139,7 +139,7 @@ void qemu_chr_initial_reset(void)
 
     initial_reset_issued = 1;
 
-    TAILQ_FOREACH(chr, &chardevs, next) {
+    QTAILQ_FOREACH(chr, &chardevs, next) {
         qemu_chr_reset(chr);
     }
 }
@@ -2238,7 +2238,7 @@ void qemu_chr_info(Monitor *mon)
 {
     CharDriverState *chr;
 
-    TAILQ_FOREACH(chr, &chardevs, next) {
+    QTAILQ_FOREACH(chr, &chardevs, next) {
         monitor_printf(mon, "%s: filename=%s\n", chr->label, chr->filename);
     }
 }

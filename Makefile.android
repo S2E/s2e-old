@@ -134,7 +134,6 @@ LOCAL_CFLAGS += $(TCG_CFLAGS) \
 
 LOCAL_SRC_FILES := \
     tcg/tcg.c \
-    tcg/tcg-runtime.c \
 
 include $(BUILD_HOST_STATIC_LIBRARY)
 

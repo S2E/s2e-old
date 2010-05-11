@@ -24,11 +24,10 @@
 #ifndef QEMU_AUDIO_H
 #define QEMU_AUDIO_H
 
-#include "config.h"
-#include "qemu-common.h"
-#include "sys-queue.h"
+#include "config-host.h"
+#include "qemu-queue.h"
 
-typedef void (*audio_callback_fn_t) (void *opaque, int avail);
+typedef void (*audio_callback_fn) (void *opaque, int avail);
 
 typedef enum {
     AUD_FMT_U8,
@@ -71,7 +70,7 @@ struct capture_ops {
 typedef struct CaptureState {
     void *opaque;
     struct capture_ops ops;
-    LIST_ENTRY (CaptureState) entries;
+    QLIST_ENTRY (CaptureState) entries;
 } CaptureState;
 
 typedef struct SWVoiceOut SWVoiceOut;
@@ -80,7 +79,7 @@ typedef struct SWVoiceIn SWVoiceIn;
 
 typedef struct QEMUSoundCard {
     char *name;
-    LIST_ENTRY (QEMUSoundCard) entries;
+    QLIST_ENTRY (QEMUSoundCard) entries;
 } QEMUSoundCard;
 
 typedef struct QEMUAudioTimeStamp {
@@ -109,7 +108,7 @@ SWVoiceOut *AUD_open_out (
     SWVoiceOut *sw,
     const char *name,
     void *callback_opaque,
-    audio_callback_fn_t callback_fn,
+    audio_callback_fn callback_fn,
     struct audsettings *settings
     );
 
@@ -130,7 +129,7 @@ SWVoiceIn *AUD_open_in (
     SWVoiceIn *sw,
     const char *name,
     void *callback_opaque,
-    audio_callback_fn_t callback_fn,
+    audio_callback_fn callback_fn,
     struct audsettings *settings
     );
 
@@ -147,9 +146,6 @@ static inline void *advance (void *p, int incr)
     uint8_t *d = p;
     return (d + incr);
 }
-
-uint32_t popcount (uint32_t u);
-uint32_t lsbindex (uint32_t u);
 
 #ifdef __GNUC__
 #define audio_MIN(a, b) ( __extension__ ({      \

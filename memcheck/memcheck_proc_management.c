@@ -49,10 +49,10 @@ static ThreadDesc* current_thread = NULL;
 static ProcDesc*    current_process = NULL;
 
 /* List of running processes. */
-static LIST_HEAD(proc_list, ProcDesc) proc_list;
+static QLIST_HEAD(proc_list, ProcDesc) proc_list;
 
 /* List of running threads. */
-static LIST_HEAD(thread_list, ThreadDesc) thread_list;
+static QLIST_HEAD(thread_list, ThreadDesc) thread_list;
 
 // =============================================================================
 // Static routines
@@ -83,8 +83,8 @@ create_new_thread(ProcDesc* proc, uint32_t tid)
     new_thread->call_stack = NULL;
     new_thread->call_stack_count = 0;
     new_thread->call_stack_max = 0;
-    LIST_INSERT_HEAD(&thread_list, new_thread, global_entry);
-    LIST_INSERT_HEAD(&proc->threads, new_thread, proc_entry);
+    QLIST_INSERT_HEAD(&thread_list, new_thread, global_entry);
+    QLIST_INSERT_HEAD(&proc->threads, new_thread, proc_entry);
     return new_thread;
 }
 
@@ -108,7 +108,7 @@ create_new_process(uint32_t pid, uint32_t parent_pid)
         ME("memcheck: Unable to allocate new process descriptor");
         return NULL;
     }
-    LIST_INIT(&new_proc->threads);
+    QLIST_INIT(&new_proc->threads);
     allocmap_init(&new_proc->alloc_map);
     mmrangemap_init(&new_proc->mmrange_map);
     new_proc->pid = pid;
@@ -164,7 +164,7 @@ create_new_process(uint32_t pid, uint32_t parent_pid)
     }
 
     // List new process.
-    LIST_INSERT_HEAD(&proc_list, new_proc, global_entry);
+    QLIST_INSERT_HEAD(&proc_list, new_proc, global_entry);
 
     return new_proc;
 }
@@ -188,7 +188,7 @@ get_thread_from_tid(uint32_t tid)
         return current_thread;
     }
 
-    LIST_FOREACH(thread, &thread_list, global_entry) {
+    QLIST_FOREACH(thread, &thread_list, global_entry) {
         if (tid == thread->tid) {
             if (tid == current_tid) {
                 current_thread = thread;
@@ -213,7 +213,7 @@ get_current_thread(void)
          * optimize this code for performance, as this routine is called from
          * the performance sensitive path. */
         ThreadDesc* thread;
-        LIST_FOREACH(thread, &thread_list, global_entry) {
+        QLIST_FOREACH(thread, &thread_list, global_entry) {
             if (current_tid == thread->tid) {
                 current_thread = thread;
                 return current_thread;
@@ -313,8 +313,8 @@ threaddesc_free(ThreadDesc* thread)
 void
 memcheck_init_proc_management(void)
 {
-    LIST_INIT(&proc_list);
-    LIST_INIT(&thread_list);
+    QLIST_INIT(&proc_list);
+    QLIST_INIT(&thread_list);
 }
 
 ProcDesc*
@@ -329,7 +329,7 @@ get_process_from_pid(uint32_t pid)
         return current_process;
     }
 
-    LIST_FOREACH(proc, &proc_list, global_entry) {
+    QLIST_FOREACH(proc, &proc_list, global_entry) {
         if (pid == proc->pid) {
             break;
         }
@@ -597,13 +597,13 @@ memcheck_exit(uint32_t exit_code)
     current_thread = NULL;
 
     // Unlist the thread from its process as well as global lists.
-    LIST_REMOVE(thread, proc_entry);
-    LIST_REMOVE(thread, global_entry);
+    QLIST_REMOVE(thread, proc_entry);
+    QLIST_REMOVE(thread, global_entry);
     threaddesc_free(thread);
 
     /* Lets see if this was last process thread, which would indicate
      * process termination. */
-    if (!LIST_EMPTY(&proc->threads)) {
+    if (!QLIST_EMPTY(&proc->threads)) {
         return;
     }
 
@@ -686,7 +686,7 @@ memcheck_exit(uint32_t exit_code)
     /* Since current process is exiting, we need to NULL its cached descriptor,
      * and unlist it from the list of running processes. */
     current_process = NULL;
-    LIST_REMOVE(proc, global_entry);
+    QLIST_REMOVE(proc, global_entry);
 
     // Empty process' mmapings map.
     mmrangemap_empty(&proc->mmrange_map);

@@ -1,3 +1,4 @@
+#include "qemu-common.h"
 #include "audio.h"
 
 #define AUDIO_CAP "audio-pt"

@@ -23,7 +23,7 @@
  */
 #include "config-host.h"
 #ifdef CONFIG_BSD
-/* include native header before sys-queue.h */
+/* include native header before qemu-queue.h */
 #include <sys/queue.h>
 #endif
 

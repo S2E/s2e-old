@@ -31,7 +31,7 @@
 #include <inttypes.h>
 #include <signal.h>
 #include "osdep.h"
-#include "sys-queue.h"
+#include "qemu-queue.h"
 #include "targphys.h"
 
 #ifndef TARGET_LONG_BITS
@@ -127,14 +127,14 @@ struct KVMState;
 typedef struct CPUBreakpoint {
     target_ulong pc;
     int flags; /* BP_* */
-    TAILQ_ENTRY(CPUBreakpoint) entry;
+    QTAILQ_ENTRY(CPUBreakpoint) entry;
 } CPUBreakpoint;
 
 typedef struct CPUWatchpoint {
     target_ulong vaddr;
     target_ulong len_mask;
     int flags; /* BP_* */
-    TAILQ_ENTRY(CPUWatchpoint) entry;
+    QTAILQ_ENTRY(CPUWatchpoint) entry;
 } CPUWatchpoint;
 
 #define CPU_TEMP_BUF_NLONGS 128
@@ -172,10 +172,10 @@ typedef struct CPUWatchpoint {
                                                                         \
     /* from this point: preserved by CPU reset */                       \
     /* ice debug support */                                             \
-    TAILQ_HEAD(breakpoints_head, CPUBreakpoint) breakpoints;            \
+    QTAILQ_HEAD(breakpoints_head, CPUBreakpoint) breakpoints;            \
     int singlestep_enabled;                                             \
                                                                         \
-    TAILQ_HEAD(watchpoints_head, CPUWatchpoint) watchpoints;            \
+    QTAILQ_HEAD(watchpoints_head, CPUWatchpoint) watchpoints;            \
     CPUWatchpoint *watchpoint_hit;                                      \
                                                                         \
     struct GDBRegisterState *gdb_regs;                                  \
@@ -188,6 +188,8 @@ typedef struct CPUWatchpoint {
     int cpu_index; /* CPU index (informative) */                        \
     uint32_t host_tid; /* host thread ID */                             \
     int numa_node; /* NUMA node this cpu is belonging to  */            \
+    int nr_cores;  /* number of cores within this CPU package */        \
+    int nr_threads;/* number of threads within this CPU */              \
     int running; /* Nonzero if cpu is currently running(usermode).  */  \
     /* user data */                                                     \
     void *opaque;                                                       \

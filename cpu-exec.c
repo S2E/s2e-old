@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "config.h"
 #include "exec.h"
@@ -47,7 +46,7 @@
 
 int tb_invalidated_flag;
 
-//#define DEBUG_EXEC
+//#define CONFIG_DEBUG_EXEC
 //#define DEBUG_SIGNAL
 
 int qemu_cpu_has_work(CPUState *env)
@@ -203,7 +202,7 @@ static void cpu_handle_debug_exception(CPUState *env)
     CPUWatchpoint *wp;
 
     if (!env->watchpoint_hit)
-        TAILQ_FOREACH(wp, &env->watchpoints, entry)
+        QTAILQ_FOREACH(wp, &env->watchpoints, entry)
             wp->flags &= ~BP_WATCHPOINT_HIT;
 
     if (debug_excp_handler)
@@ -250,6 +249,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_MIPS)
 #elif defined(TARGET_SH4)
 #elif defined(TARGET_CRIS)
+#elif defined(TARGET_S390X)
     /* XXXXX */
 #else
 #error unsupported target CPU
@@ -318,35 +318,10 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_M68K)
                     do_interrupt(0);
 #endif
+                    env->exception_index = -1;
 #endif
                 }
-                env->exception_index = -1;
             }
-#ifdef CONFIG_KQEMU
-            if (kqemu_is_ok(env) && env->interrupt_request == 0 && env->exit_request == 0) {
-                int ret;
-                env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
-                ret = kqemu_cpu_exec(env);
-                /* put eflags in CPU temporary format */
-                CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-                DF = 1 - (2 * ((env->eflags >> 10) & 1));
-                CC_OP = CC_OP_EFLAGS;
-                env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-                if (ret == 1) {
-                    /* exception */
-                    longjmp(env->jmp_env, 1);
-                } else if (ret == 2) {
-                    /* softmmu execution needed */
-                } else {
-                    if (env->interrupt_request != 0 || env->exit_request != 0) {
-                        /* hardware interrupt will be executed just after */
-                    } else {
-                        /* otherwise, we restart */
-                        longjmp(env->jmp_env, 1);
-                    }
-                }
-            }
-#endif
 
             if (kvm_enabled()) {
                 kvm_cpu_exec(env);
@@ -380,7 +355,14 @@ int cpu_exec(CPUState *env1)
                     }
 #endif
 #if defined(TARGET_I386)
-                    if (env->hflags2 & HF2_GIF_MASK) {
+                    if (interrupt_request & CPU_INTERRUPT_INIT) {
+                            svm_check_intercept(SVM_EXIT_INIT);
+                            do_cpu_init(env);
+                            env->exception_index = EXCP_HALTED;
+                            cpu_loop_exit();
+                    } else if (interrupt_request & CPU_INTERRUPT_SIPI) {
+                            do_cpu_sipi(env);
+                    } else if (env->hflags2 & HF2_GIF_MASK) {
                         if ((interrupt_request & CPU_INTERRUPT_SMI) &&
                             !(env->hflags & HF_SMM_MASK)) {
                             svm_check_intercept(SVM_EXIT_SMI);
@@ -392,6 +374,10 @@ int cpu_exec(CPUState *env1)
                             env->interrupt_request &= ~CPU_INTERRUPT_NMI;
                             env->hflags2 |= HF2_NMI_MASK;
                             do_interrupt(EXCP02_NMI, 0, 0, 0, 1);
+                            next_tb = 0;
+			} else if (interrupt_request & CPU_INTERRUPT_MCE) {
+                            env->interrupt_request &= ~CPU_INTERRUPT_MCE;
+                            do_interrupt(EXCP12_MCHK, 0, 0, 0, 0);
                             next_tb = 0;
                         } else if ((interrupt_request & CPU_INTERRUPT_HARD) &&
                                    (((env->hflags2 & HF2_VINTR_MASK) && 
@@ -431,7 +417,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_PPC)
 #if 0
                     if ((interrupt_request & CPU_INTERRUPT_RESET)) {
-                        cpu_ppc_reset(env);
+                        cpu_reset(env);
                     }
 #endif
                     if (interrupt_request & CPU_INTERRUPT_HARD) {
