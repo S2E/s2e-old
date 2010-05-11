@@ -2,6 +2,7 @@
 #define QEMU_OSDEP_H
 
 #include <stdarg.h>
+#include <stddef.h>
 #ifdef __OpenBSD__
 #include <sys/types.h>
 #include <sys/signal.h>
@@ -36,6 +37,19 @@
         (type *) ((char *) __mptr - offsetof(type, member));})
 #endif
 
+/* Convert from a base type to a parent type, with compile time checking.  */
+#ifdef __GNUC__
+#define DO_UPCAST(type, field, dev) ( __extension__ ( { \
+    char __attribute__((unused)) offset_must_be_zero[ \
+        -offsetof(type, field)]; \
+    container_of(dev, type, field);}))
+#else
+#define DO_UPCAST(type, field, dev) container_of(dev, type, field)
+#endif
+
+#define typeof_field(type, field) typeof(((type *)0)->field)
+#define type_check(t1,t2) ((t1*)0 - (t2*)0)
+
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
@@ -48,12 +62,9 @@
 #endif
 
 #ifndef always_inline
-#if (__GNUC__ < 3) || defined(__APPLE__)
-#define always_inline inline
-#else
-#define always_inline __attribute__ (( always_inline )) __inline__
+#if !((__GNUC__ < 3) || defined(__APPLE__))
 #ifdef __OPTIMIZE__
-#define inline always_inline
+#define inline __attribute__ (( always_inline )) __inline__
 #endif
 #endif
 #else

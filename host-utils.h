@@ -27,7 +27,7 @@
 
 #if defined(__x86_64__)
 #define __HAVE_FAST_MULU64__
-static always_inline void mulu64 (uint64_t *plow, uint64_t *phigh,
+static inline void mulu64(uint64_t *plow, uint64_t *phigh,
                                   uint64_t a, uint64_t b)
 {
     __asm__ ("mul %0\n\t"
@@ -35,7 +35,7 @@ static always_inline void mulu64 (uint64_t *plow, uint64_t *phigh,
              : "a" (a), "0" (b));
 }
 #define __HAVE_FAST_MULS64__
-static always_inline void muls64 (uint64_t *plow, uint64_t *phigh,
+static inline void muls64(uint64_t *plow, uint64_t *phigh,
                                   int64_t a, int64_t b)
 {
     __asm__ ("imul %0\n\t"
@@ -49,7 +49,7 @@ void mulu64(uint64_t *phigh, uint64_t *plow, uint64_t a, uint64_t b);
 
 /* Binary search for leading zeros.  */
 
-static always_inline int clz32(uint32_t val)
+static inline int clz32(uint32_t val)
 {
 #if QEMU_GNUC_PREREQ(3, 4)
     if (val)
@@ -86,12 +86,12 @@ static always_inline int clz32(uint32_t val)
 #endif
 }
 
-static always_inline int clo32(uint32_t val)
+static inline int clo32(uint32_t val)
 {
     return clz32(~val);
 }
 
-static always_inline int clz64(uint64_t val)
+static inline int clz64(uint64_t val)
 {
 #if QEMU_GNUC_PREREQ(3, 4)
     if (val)
@@ -111,12 +111,12 @@ static always_inline int clz64(uint64_t val)
 #endif
 }
 
-static always_inline int clo64(uint64_t val)
+static inline int clo64(uint64_t val)
 {
     return clz64(~val);
 }
 
-static always_inline int ctz32(uint32_t val)
+static inline int ctz32(uint32_t val)
 {
 #if QEMU_GNUC_PREREQ(3, 4)
     if (val)
@@ -155,16 +155,16 @@ static always_inline int ctz32(uint32_t val)
 #endif
 }
 
-static always_inline int cto32(uint32_t val)
+static inline int cto32(uint32_t val)
 {
     return ctz32(~val);
 }
 
-static always_inline int ctz64(uint64_t val)
+static inline int ctz64(uint64_t val)
 {
 #if QEMU_GNUC_PREREQ(3, 4)
     if (val)
-        return __builtin_ctz(val);
+        return __builtin_ctzll(val);
     else
         return 64;
 #else
@@ -180,12 +180,12 @@ static always_inline int ctz64(uint64_t val)
 #endif
 }
 
-static always_inline int cto64(uint64_t val)
+static inline int cto64(uint64_t val)
 {
     return ctz64(~val);
 }
 
-static always_inline int ctpop8(uint8_t val)
+static inline int ctpop8(uint8_t val)
 {
     val = (val & 0x55) + ((val >> 1) & 0x55);
     val = (val & 0x33) + ((val >> 2) & 0x33);
@@ -194,7 +194,7 @@ static always_inline int ctpop8(uint8_t val)
     return val;
 }
 
-static always_inline int ctpop16(uint16_t val)
+static inline int ctpop16(uint16_t val)
 {
     val = (val & 0x5555) + ((val >> 1) & 0x5555);
     val = (val & 0x3333) + ((val >> 2) & 0x3333);
@@ -204,7 +204,7 @@ static always_inline int ctpop16(uint16_t val)
     return val;
 }
 
-static always_inline int ctpop32(uint32_t val)
+static inline int ctpop32(uint32_t val)
 {
 #if QEMU_GNUC_PREREQ(3, 4)
     return __builtin_popcount(val);
@@ -219,7 +219,7 @@ static always_inline int ctpop32(uint32_t val)
 #endif
 }
 
-static always_inline int ctpop64(uint64_t val)
+static inline int ctpop64(uint64_t val)
 {
 #if QEMU_GNUC_PREREQ(3, 4)
     return __builtin_popcountll(val);

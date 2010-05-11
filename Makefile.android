@@ -49,7 +49,7 @@ ifeq ($(HOST_ARCH),ppc)
 endif
 
 ifeq ($(HOST_OS),darwin)
-    MY_CFLAGS += -mdynamic-no-pic -fno-exceptions
+    MY_CFLAGS += -mdynamic-no-pic
 
     # When building on Leopard or above, we need to use the 10.4 SDK
     # or the generated binary will not run on Tiger.
@@ -575,6 +575,16 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               bt-host.c \
               bt-vhci.c \
               module.c \
+              json-lexer.c \
+              json-parser.c \
+              json-streamer.c \
+              qbool.c \
+              qdict.c \
+              qfloat.c \
+              qint.c \
+              qjson.c \
+              qlist.c \
+              qstring.c \
               android/boot-properties.c \
               android/charmap.c \
               android/cmdline-option.c \

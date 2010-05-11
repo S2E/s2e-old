@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #if !defined(__DYNGEN_EXEC_H__)
 #define __DYNGEN_EXEC_H__
@@ -48,8 +47,6 @@ typedef struct FILE FILE;
 extern int fprintf(FILE *, const char *, ...);
 extern int fputs(const char *, FILE *);
 extern int printf(const char *, ...);
-#undef NULL
-#define NULL 0
 
 #if defined(__i386__)
 #define AREG0 "ebp"
@@ -120,7 +117,7 @@ extern int printf(const char *, ...);
 
 /* The return address may point to the start of the next instruction.
    Subtracting one gets us the call instruction itself.  */
-#if defined(__s390__)
+#if defined(__s390__) && !defined(__s390x__)
 # define GETPC() ((void*)(((unsigned long)__builtin_return_address(0) & 0x7fffffffUL) - 1))
 #elif defined(__arm__)
 /* Thumb return addresses have the low bit set, so we need to subtract two.

@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef _EXEC_ALL_H_
@@ -35,17 +34,17 @@
 typedef struct TranslationBlock TranslationBlock;
 
 /* XXX: make safe guess about sizes */
-#define MAX_OP_PER_INSTR 64
+#define MAX_OP_PER_INSTR 96
 /* A Call op needs up to 6 + 2N parameters (N = number of arguments).  */
 #define MAX_OPC_PARAM 10
 #define OPC_BUF_SIZE 2048
 #define OPC_MAX_SIZE (OPC_BUF_SIZE - MAX_OP_PER_INSTR)
 
 /* Maximum size a TCG op can expand to.  This is complicated because a
-   single op may require several host instructions and regirster reloads.
-   For now take a wild guess at 128 bytes, which should allow at least
+   single op may require several host instructions and register reloads.
+   For now take a wild guess at 192 bytes, which should allow at least
    a couple of fixup instructions per argument.  */
-#define TCG_MAX_OP_SIZE 128
+#define TCG_MAX_OP_SIZE 192
 
 #define OPPARAM_BUF_SIZE (OPC_BUF_SIZE * MAX_OPC_PARAM)
 
@@ -115,10 +114,7 @@ static inline int tlb_set_page(CPUState *env1, target_ulong vaddr,
 #define CODE_GEN_AVG_BLOCK_SIZE 64
 #endif
 
-#if defined(_ARCH_PPC) || defined(__x86_64__) || defined(__arm__)
-#define USE_DIRECT_JUMP
-#endif
-#if defined(__i386__) && !defined(_WIN32)
+#if defined(_ARCH_PPC) || defined(__x86_64__) || defined(__arm__) || defined(__i386__)
 #define USE_DIRECT_JUMP
 #endif
 
@@ -283,7 +279,9 @@ static inline void tb_set_jmp_target1(unsigned long jmp_addr, unsigned long addr
 #endif
 
     /* we could use a ldr pc, [pc, #-4] kind of branch and avoid the flush */
-    *(uint32_t *)jmp_addr |= ((addr - (jmp_addr + 8)) >> 2) & 0xffffff;
+    *(uint32_t *)jmp_addr =
+        (*(uint32_t *)jmp_addr & ~0xffffff)
+        | (((addr - (jmp_addr + 8)) >> 2) & 0xffffff);
 
 #if QEMU_GNUC_PREREQ(4, 1)
     __clear_cache((char *) jmp_addr, (char *) jmp_addr + 4);

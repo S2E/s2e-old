@@ -72,7 +72,7 @@ static void CONCAT(send_hextile_tile_, NAME)(VncState *vs,
 	*last_bg = bg;
     }
 
-    if (!*has_fg || *last_fg != fg) {
+    if (n_colors < 3 && (!*has_fg || *last_fg != fg)) {
 	flags |= 0x04;
 	*has_fg = 1;
 	*last_fg = fg;

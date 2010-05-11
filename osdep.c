@@ -33,6 +33,17 @@
 #include <sys/statvfs.h>
 #endif
 
+/* Needed early for CONFIG_BSD etc. */
+#include "config-host.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(CONFIG_BSD)
+#include <stdlib.h>
+#else
+#include <malloc.h>
+#endif
+
 #include "qemu-common.h"
 #include "sysemu.h"
 
