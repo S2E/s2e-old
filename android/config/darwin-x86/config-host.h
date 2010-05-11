@@ -10,6 +10,6 @@
 #define O_LARGEFILE 0
 #define MAP_ANONYMOUS MAP_ANON
 #define HAVE_IOVEC 1
-#define _BSD 1
+#define CONFIG_BSD 1
 #define CONFIG_SKINS 1
 #define CONFIG_UNAME_RELEASE ""
