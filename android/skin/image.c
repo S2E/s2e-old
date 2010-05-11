@@ -41,7 +41,7 @@ sdl_surface_from_argb32( void*  base, int  w, int  h )
 {
     return SDL_CreateRGBSurfaceFrom(
                         base, w, h, 32, w*4,
-#if WORDS_BIGENDIAN
+#if HOST_WORDS_BIGENDIAN
                         0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000
 #else
                         0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000
@@ -315,7 +315,7 @@ skin_image_load( SkinImage*  image )
 
         for ( ; d < d_end; d++ ) {
             unsigned  pix = d[0];
-#if WORDS_BIGENDIAN
+#if HOST_WORDS_BIGENDIAN
             /* R,G,B,A read as RGBA => ARGB */
             pix = ((pix >> 8) & 0xffffff) | (pix << 24);
 #else

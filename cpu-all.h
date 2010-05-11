@@ -28,7 +28,7 @@
  * WORDS_ALIGNED : if defined, the host cpu can only make word aligned
  * memory accesses.
  *
- * WORDS_BIGENDIAN : if defined, the host cpu is big endian and
+ * HOST_WORDS_BIGENDIAN : if defined, the host cpu is big endian and
  * otherwise little endian.
  *
  * (TARGET_WORDS_ALIGNED : same for target cpu (not supported yet))
@@ -38,7 +38,7 @@
 
 #include "softfloat.h"
 
-#if defined(WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
 #define BSWAP_NEEDED
 #endif
 
@@ -124,7 +124,7 @@ typedef union {
    endian ! */
 typedef union {
     float64 d;
-#if defined(WORDS_BIGENDIAN) \
+#if defined(HOST_WORDS_BIGENDIAN) \
     || (defined(__arm__) && !defined(__VFP_FP__) && !defined(CONFIG_SOFTFLOAT))
     struct {
         uint32_t upper;
@@ -142,7 +142,7 @@ typedef union {
 #ifdef TARGET_SPARC
 typedef union {
     float128 q;
-#if defined(WORDS_BIGENDIAN) \
+#if defined(HOST_WORDS_BIGENDIAN) \
     || (defined(__arm__) && !defined(__VFP_FP__) && !defined(CONFIG_SOFTFLOAT))
     struct {
         uint32_t upmost;
@@ -222,7 +222,7 @@ static inline void stb_p(void *ptr, int v)
 /* NOTE: on arm, putting 2 in /proc/sys/debug/alignment so that the
    kernel handles unaligned load/stores may give better results, but
    it is a system wide setting : bad */
-#if defined(WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
+#if defined(HOST_WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
 
 /* conservative code for little endian unaligned accesses */
 static inline int lduw_le_p(const void *ptr)
@@ -399,7 +399,7 @@ static inline void stfq_le_p(void *ptr, float64 v)
 }
 #endif
 
-#if !defined(WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
+#if !defined(HOST_WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
 
 static inline int lduw_be_p(const void *ptr)
 {

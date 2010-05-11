@@ -217,7 +217,7 @@ sdl_set_window_icon( void )
 
             for ( ; d < d_end; d++ ) {
                 unsigned  pix = d[0];
-#if WORDS_BIGENDIAN
+#if HOST_WORDS_BIGENDIAN
                 /* R,G,B,A read as RGBA => ARGB */
                 pix = ((pix >> 8) & 0xffffff) | (pix << 24);
 #else
