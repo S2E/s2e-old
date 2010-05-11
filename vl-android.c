@@ -223,7 +223,6 @@
 #define MAX_BT_CMDLINE 10
 
 /* XXX: use a two level table to limit memory usage */
-#define MAX_IOPORTS 65536
 
 static const char *data_dir;
 const char *bios_name = NULL;
@@ -410,141 +409,6 @@ static void default_ioport_writel(void *opaque, uint32_t address, uint32_t data)
 #ifdef DEBUG_UNUSED_IOPORT
     fprintf(stderr, "unused outl: port=0x%04x data=0x%02x\n", address, data);
 #endif
-}
-
-/* size is the word size in byte */
-int register_ioport_read(int start, int length, int size,
-                         IOPortReadFunc *func, void *opaque)
-{
-    int i, bsize;
-
-    if (size == 1) {
-        bsize = 0;
-    } else if (size == 2) {
-        bsize = 1;
-    } else if (size == 4) {
-        bsize = 2;
-    } else {
-        hw_error("register_ioport_read: invalid size");
-        return -1;
-    }
-    for(i = start; i < start + length; i += size) {
-        ioport_read_table[bsize][i] = func;
-        if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
-            hw_error("register_ioport_read: invalid opaque");
-        ioport_opaque[i] = opaque;
-    }
-    return 0;
-}
-
-/* size is the word size in byte */
-int register_ioport_write(int start, int length, int size,
-                          IOPortWriteFunc *func, void *opaque)
-{
-    int i, bsize;
-
-    if (size == 1) {
-        bsize = 0;
-    } else if (size == 2) {
-        bsize = 1;
-    } else if (size == 4) {
-        bsize = 2;
-    } else {
-        hw_error("register_ioport_write: invalid size");
-        return -1;
-    }
-    for(i = start; i < start + length; i += size) {
-        ioport_write_table[bsize][i] = func;
-        if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
-            hw_error("register_ioport_write: invalid opaque");
-        ioport_opaque[i] = opaque;
-    }
-    return 0;
-}
-
-void isa_unassign_ioport(int start, int length)
-{
-    int i;
-
-    for(i = start; i < start + length; i++) {
-        ioport_read_table[0][i] = default_ioport_readb;
-        ioport_read_table[1][i] = default_ioport_readw;
-        ioport_read_table[2][i] = default_ioport_readl;
-
-        ioport_write_table[0][i] = default_ioport_writeb;
-        ioport_write_table[1][i] = default_ioport_writew;
-        ioport_write_table[2][i] = default_ioport_writel;
-
-        ioport_opaque[i] = NULL;
-    }
-}
-
-/***********************************************************/
-
-void cpu_outb(CPUState *env, int addr, int val)
-{
-    LOG_IOPORT("outb: %04x %02x\n", addr, val);
-    ioport_write(0, addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-}
-
-void cpu_outw(CPUState *env, int addr, int val)
-{
-    LOG_IOPORT("outw: %04x %04x\n", addr, val);
-    ioport_write(1, addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-}
-
-void cpu_outl(CPUState *env, int addr, int val)
-{
-    LOG_IOPORT("outl: %04x %08x\n", addr, val);
-    ioport_write(2, addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-}
-
-int cpu_inb(CPUState *env, int addr)
-{
-    int val;
-    val = ioport_read(0, addr);
-    LOG_IOPORT("inb : %04x %02x\n", addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-    return val;
-}
-
-int cpu_inw(CPUState *env, int addr)
-{
-    int val;
-    val = ioport_read(1, addr);
-    LOG_IOPORT("inw : %04x %04x\n", addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-    return val;
-}
-
-int cpu_inl(CPUState *env, int addr)
-{
-    int val;
-    val = ioport_read(2, addr);
-    LOG_IOPORT("inl : %04x %08x\n", addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-    return val;
 }
 
 /***********************************************************/
@@ -2777,6 +2641,7 @@ int usb_device_add_dev(USBDevice *dev)
     return 0;
 }
 
+#if 0
 static void usb_msd_password_cb(void *opaque, int err)
 {
     USBDevice *dev = opaque;
@@ -2786,6 +2651,7 @@ static void usb_msd_password_cb(void *opaque, int err)
     else
         dev->handle_destroy(dev);
 }
+#endif
 
 static int usb_device_add(const char *devname, int is_hotplug)
 {

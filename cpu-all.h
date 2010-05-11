@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef CPU_ALL_H
 #define CPU_ALL_H
@@ -625,8 +624,13 @@ static inline void stfq_be_p(void *ptr, float64 v)
 /* On some host systems the guest address space is reserved on the host.
  * This allows the guest address space to be offset to a convenient location.
  */
-//#define GUEST_BASE 0x20000000
-#define GUEST_BASE 0
+#if defined(CONFIG_USE_GUEST_BASE)
+extern unsigned long guest_base;
+extern int have_guest_base;
+#define GUEST_BASE guest_base
+#else
+#define GUEST_BASE 0ul
+#endif
 
 /* All direct uses of g2h and h2g need to go away for usermode softmmu.  */
 #define g2h(x) ((void *)((unsigned long)(x) + GUEST_BASE))
@@ -768,6 +772,9 @@ extern int use_icount;
 #define CPU_INTERRUPT_DEBUG  0x80 /* Debug event occured.  */
 #define CPU_INTERRUPT_VIRQ   0x100 /* virtual interrupt pending.  */
 #define CPU_INTERRUPT_NMI    0x200 /* NMI pending. */
+#define CPU_INTERRUPT_INIT   0x400 /* INIT pending. */
+#define CPU_INTERRUPT_SIPI   0x800 /* SIPI pending. */
+#define CPU_INTERRUPT_MCE    0x1000 /* (x86 only) MCE pending. */
 
 void cpu_interrupt(CPUState *s, int mask);
 void cpu_reset_interrupt(CPUState *env, int mask);
@@ -834,17 +841,7 @@ void cpu_set_log_filename(const char *filename);
 int cpu_str_to_log_mask(const char *str);
 
 /* IO ports API */
-
-/* NOTE: as these functions may be even used when there is an isa
-   brige on non x86 targets, we always defined them */
-#ifndef NO_CPU_IO_DEFS
-void cpu_outb(CPUState *env, int addr, int val);
-void cpu_outw(CPUState *env, int addr, int val);
-void cpu_outl(CPUState *env, int addr, int val);
-int cpu_inb(CPUState *env, int addr);
-int cpu_inw(CPUState *env, int addr);
-int cpu_inl(CPUState *env, int addr);
-#endif
+#include "ioport.h"
 
 /* memory API */
 
@@ -876,7 +873,6 @@ int cpu_memory_rw_debug(CPUState *env, target_ulong addr,
 
 #define VGA_DIRTY_FLAG       0x01
 #define CODE_DIRTY_FLAG      0x02
-#define KQEMU_DIRTY_FLAG     0x04
 #define MIGRATION_DIRTY_FLAG 0x08
 
 /* read dirty bit (return 0 or 1) */
@@ -1021,24 +1017,34 @@ static inline int64_t cpu_get_real_ticks (void)
 #endif
 }
 
-#elif defined(__mips__)
+#elif defined(__mips__) && \
+      ((defined(__mips_isa_rev) && __mips_isa_rev >= 2) || defined(__linux__))
+/*
+ * binutils wants to use rdhwr only on mips32r2
+ * but as linux kernel emulate it, it's fine
+ * to use it.
+ *
+ */
+#define MIPS_RDHWR(rd, value) {                 \
+    __asm__ __volatile__ (                      \
+                          ".set   push\n\t"     \
+                          ".set mips32r2\n\t"   \
+                          "rdhwr  %0, "rd"\n\t" \
+                          ".set   pop"          \
+                          : "=r" (value));      \
+}
 
 static inline int64_t cpu_get_real_ticks(void)
 {
-#if __mips_isa_rev >= 2
+/* On kernels >= 2.6.25 rdhwr <reg>, $2 and $3 are emulated */
     uint32_t count;
     static uint32_t cyc_per_count = 0;
 
     if (!cyc_per_count)
-        __asm__ __volatile__("rdhwr %0, $3" : "=r" (cyc_per_count));
+        MIPS_RDHWR("$3", cyc_per_count);
 
-    __asm__ __volatile__("rdhwr %1, $2" : "=r" (count));
+    MIPS_RDHWR("$2", count);
     return (int64_t)(count * cyc_per_count);
-#else
-    /* FIXME */
-    static int64_t ticks = 0;
-    return ticks++;
-#endif
 }
 
 #else
@@ -1059,14 +1065,12 @@ static inline int64_t profile_getclock(void)
     return cpu_get_real_ticks();
 }
 
-extern int64_t kqemu_time, kqemu_time_start;
 extern int64_t qemu_time, qemu_time_start;
 extern int64_t tlb_flush_time;
-extern int64_t kqemu_exec_count;
 extern int64_t dev_time;
-extern int64_t kqemu_ret_int_count;
-extern int64_t kqemu_ret_excp_count;
-extern int64_t kqemu_ret_intr_count;
 #endif
+
+void cpu_inject_x86_mce(CPUState *cenv, int bank, uint64_t status,
+                        uint64_t mcg_status, uint64_t addr, uint64_t misc);
 
 #endif /* CPU_ALL_H */

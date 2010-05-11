@@ -35,6 +35,7 @@ typedef int (QEMUFileRateLimit)(void *opaque);
  * the old rate otherwise
  */
 typedef size_t (QEMUFileSetRateLimit)(void *opaque, size_t new_rate);
+typedef size_t (QEMUFileGetRateLimit)(void *opaque);
 
 QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
                          QEMUFileGetBufferFunc *get_buffer,
@@ -259,9 +260,5 @@ void qemu_register_reset(QEMUResetHandler *func, int order, void *opaque);
 /* return 0 if success */
 typedef int QEMUBootSetHandler(void *opaque, const char *boot_device);
 void qemu_register_boot_set(QEMUBootSetHandler *func, void *opaque);
-
-/* These should really be in isa.h, but are here to make pc.h happy.  */
-typedef void (IOPortWriteFunc)(void *opaque, uint32_t address, uint32_t data);
-typedef uint32_t (IOPortReadFunc)(void *opaque, uint32_t address);
 
 #endif

@@ -1161,7 +1161,7 @@ static void do_ioport_read(Monitor *mon, int count, int format, int size,
     int suffix;
 
     if (has_index) {
-        cpu_outb(NULL, addr & 0xffff, index & 0xff);
+        cpu_outb(addr & 0xffff, index & 0xff);
         addr++;
     }
     addr &= 0xffff;
@@ -1169,15 +1169,15 @@ static void do_ioport_read(Monitor *mon, int count, int format, int size,
     switch(size) {
     default:
     case 1:
-        val = cpu_inb(NULL, addr);
+        val = cpu_inb(addr);
         suffix = 'b';
         break;
     case 2:
-        val = cpu_inw(NULL, addr);
+        val = cpu_inw(addr);
         suffix = 'w';
         break;
     case 4:
-        val = cpu_inl(NULL, addr);
+        val = cpu_inl(addr);
         suffix = 'l';
         break;
     }

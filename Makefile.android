@@ -557,6 +557,7 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               buffered_file.c \
               cbuffer.c \
               gdbstub.c \
+              ioport.c \
               vnc-android.c disas.c arm-dis.c \
               shaper.c charpipe.c loadpng.c \
               framebuffer.c \
