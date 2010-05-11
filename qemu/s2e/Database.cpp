@@ -37,6 +37,13 @@ int Database::callback(void *db,int nbColumns,char**,char**)
     return 0;
 }
 
+//Returns the number of rows that where changed by the
+//last insert, delete, or update operation.
+int Database::getCountOfChanges()
+{
+    return sqlite3_changes(m_Handle);
+}
+
 bool Database::executeQuery(const char *query)
 {
     int res;

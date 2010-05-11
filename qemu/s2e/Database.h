@@ -20,6 +20,7 @@ public:
     ~Database();
     void *getDb() const;
     bool executeQuery(const char *query);
+    int getCountOfChanges();
 };
 
 } //namespace s2e
