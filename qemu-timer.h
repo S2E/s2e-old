@@ -1,8 +1,6 @@
 #ifndef QEMU_TIMER_H
 #define QEMU_TIMER_H
 
-#include "qemu-common.h"
-
 /* timers */
 
 typedef struct QEMUClock QEMUClock;
@@ -19,15 +17,27 @@ extern QEMUClock *rt_clock;
    precision clock, usually cpu cycles (use ticks_per_sec). */
 extern QEMUClock *vm_clock;
 
+/* The host clock should be use for device models that emulate accurate
+   real time sources. It will continue to run when the virtual machine
+   is suspended, and it will reflect system time changes the host may
+   undergo (e.g. due to NTP). The host clock has the same precision as
+   the virtual clock. */
+extern QEMUClock *host_clock;
+
 int64_t qemu_get_clock(QEMUClock *clock);
+int64_t qemu_get_clock_ns(QEMUClock *clock);
 
 QEMUTimer *qemu_new_timer(QEMUClock *clock, QEMUTimerCB *cb, void *opaque);
 void qemu_free_timer(QEMUTimer *ts);
 void qemu_del_timer(QEMUTimer *ts);
 void qemu_mod_timer(QEMUTimer *ts, int64_t expire_time);
 int qemu_timer_pending(QEMUTimer *ts);
+int qemu_timer_expired(QEMUTimer *timer_head, int64_t current_time);
 
-extern int64_t ticks_per_sec;
+static inline int64_t get_ticks_per_sec(void)
+{
+    return 1000000000LL;
+}
 
 void qemu_get_timer(QEMUFile *f, QEMUTimer *ts);
 void qemu_put_timer(QEMUFile *f, QEMUTimer *ts);

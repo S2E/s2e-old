@@ -15,8 +15,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  *
  * TODO:
  *  o Isochronous transfers
@@ -1668,12 +1667,12 @@ static void usb_ohci_init(OHCIState *ohci, int num_ports, int devfn,
 
     if (usb_frame_time == 0) {
 #ifdef OHCI_TIME_WARP
-        usb_frame_time = ticks_per_sec;
-        usb_bit_time = muldiv64(1, ticks_per_sec, USB_HZ/1000);
+        usb_frame_time = get_ticks_per_sec();
+        usb_bit_time = muldiv64(1, get_ticks_per_sec(), USB_HZ/1000);
 #else
-        usb_frame_time = muldiv64(1, ticks_per_sec, 1000);
-        if (ticks_per_sec >= USB_HZ) {
-            usb_bit_time = muldiv64(1, ticks_per_sec, USB_HZ);
+        usb_frame_time = muldiv64(1, get_ticks_per_sec(), 1000);
+        if (get_ticks_per_sec() >= USB_HZ) {
+            usb_bit_time = muldiv64(1, get_ticks_per_sec(), USB_HZ);
         } else {
             usb_bit_time = 1;
         }

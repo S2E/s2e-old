@@ -11,6 +11,7 @@
 */
 #include "sockets.h"
 #include "sysdeps.h"
+#include "qemu-common.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
 #ifdef _WIN32

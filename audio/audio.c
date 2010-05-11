@@ -1990,7 +1990,8 @@ static void audio_init (void)
         }
         conf.period.ticks = 1;
     } else {
-        conf.period.ticks = ticks_per_sec / conf.period.hertz;
+        conf.period.ticks =
+            muldiv64 (1, get_ticks_per_sec (), conf.period.hertz);
     }
 
     e = qemu_add_vm_change_state_handler (audio_vm_change_state_handler, s);

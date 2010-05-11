@@ -9,6 +9,7 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
+#include "qemu-common.h"
 #include "qemu-timer.h"
 #include "cpu.h"
 #include "arm_pic.h"
@@ -42,7 +43,7 @@ static void  goldfish_timer_save(QEMUFile*  f, void*  opaque)
     qemu_put_byte(f, s->armed);
     if (s->armed) {
         int64_t  now   = qemu_get_clock(vm_clock);
-        int64_t  alarm = muldiv64(s->alarm_low | (int64_t)s->alarm_high << 32, ticks_per_sec, 1000000000);
+        int64_t  alarm = muldiv64(s->alarm_low | (int64_t)s->alarm_high << 32, get_ticks_per_sec(), 1000000000);
         qemu_put_be64(f, alarm-now);
     }
 }
@@ -76,7 +77,7 @@ static uint32_t goldfish_timer_read(void *opaque, target_phys_addr_t offset)
     struct timer_state *s = (struct timer_state *)opaque;
     switch(offset) {
         case TIMER_TIME_LOW:
-            s->now = muldiv64(qemu_get_clock(vm_clock), 1000000000, ticks_per_sec);
+            s->now = muldiv64(qemu_get_clock(vm_clock), 1000000000, get_ticks_per_sec());
             return s->now;
         case TIMER_TIME_HIGH:
             return s->now >> 32;
@@ -93,7 +94,7 @@ static void goldfish_timer_write(void *opaque, target_phys_addr_t offset, uint32
     switch(offset) {
         case TIMER_ALARM_LOW:
             s->alarm_low = value;
-            alarm = muldiv64(s->alarm_low | (int64_t)s->alarm_high << 32, ticks_per_sec, 1000000000);
+            alarm = muldiv64(s->alarm_low | (int64_t)s->alarm_high << 32, get_ticks_per_sec(), 1000000000);
             now   = qemu_get_clock(vm_clock);
             if (alarm <= now) {
                 goldfish_device_set_irq(&s->dev, 0, 1);
