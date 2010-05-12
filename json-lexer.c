@@ -27,6 +27,8 @@
  *
  */
 
+#undef ERROR
+
 enum json_lexer_state {
     ERROR = 0,
     IN_DONE_STRING,
