@@ -25,9 +25,9 @@ db 0x0f
 db 0x3f ; s2e prefix
 db 0x00 ; build-in opcode
 db 0x03 ; insert symbolic value
-db 0x08 ; width
 db 0x00 ; not used
-dd 0x0  ; not used
+db 0x00 ; not used
+dd 0x04  ; size
 dq 0x100 ; address
 
 mov eax, [0x100]

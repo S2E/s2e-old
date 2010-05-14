@@ -199,6 +199,8 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     m_messagesStreamBuf = new TeeStreamBuf(m_messagesFile->rdbuf());
     static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(
                                             m_debugFile->rdbuf());
+    static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(
+                                            cerr.rdbuf());
     m_messagesFile->rdbuf(m_messagesStreamBuf);
 
     m_warningsFile = openOutputFile("warnings.txt");
@@ -207,8 +209,8 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     m_warningsStreamBuf = new TeeStreamBuf(m_warningsFile->rdbuf());
     static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
                                             m_messagesFile->rdbuf());
-    static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
-                                            cerr.rdbuf());
+    //static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
+    //                                        cerr.rdbuf());
     m_warningsFile->rdbuf(m_warningsStreamBuf);
 
     klee::klee_message_stream = m_messagesFile;

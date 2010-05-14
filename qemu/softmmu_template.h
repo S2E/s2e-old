@@ -60,7 +60,10 @@
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
                                                         void *retaddr);
-static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
+
+#ifndef S2E_LLVM_LIB
+
+inline DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                               target_ulong addr,
                                               void *retaddr)
 {
@@ -89,6 +92,8 @@ static inline DATA_TYPE glue(io_read, SUFFIX)(target_phys_addr_t physaddr,
     return res;
 }
 
+#endif
+
 /* handle all cases except unaligned access which span two pages */
 DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                       int mmu_idx)
@@ -111,7 +116,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 goto do_unaligned_access;
             retaddr = GETPC();
             addend = env->iotlb[mmu_idx][index];
-            res = glue(io_read, SUFFIX)(addend, addr, retaddr);
+            res = glue(glue(io_read, SUFFIX), MMUSUFFIX)(addend, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, res, 0, 1);
 
@@ -171,7 +176,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 goto do_unaligned_access;
             retaddr = GETPC();
             addend = env->iotlb[mmu_idx][index];
-            res = glue(io_read, SUFFIX)(addend, addr, retaddr);
+            res = glue(glue(io_read, SUFFIX), MMUSUFFIX)(addend, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, res, 0, 1);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
@@ -212,7 +217,9 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                    int mmu_idx,
                                                    void *retaddr);
 
-static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
+#ifndef S2E_LLVM_LIB
+
+inline void glue(glue(io_write, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                           DATA_TYPE val,
                                           target_ulong addr,
                                           void *retaddr)
@@ -240,6 +247,8 @@ static inline void glue(io_write, SUFFIX)(target_phys_addr_t physaddr,
 #endif /* SHIFT > 2 */
 }
 
+#endif
+
 void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                  DATA_TYPE val,
                                                  int mmu_idx)
@@ -259,7 +268,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 goto do_unaligned_access;
             retaddr = GETPC();
             addend = env->iotlb[mmu_idx][index];
-            glue(io_write, SUFFIX)(addend, val, addr, retaddr);
+            glue(glue(io_write, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, val, 1, 1);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
@@ -314,7 +323,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
             addend = env->iotlb[mmu_idx][index];
-            glue(io_write, SUFFIX)(addend, val, addr, retaddr);
+            glue(glue(io_write, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, val, 1, 1);
         } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {

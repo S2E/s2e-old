@@ -46,9 +46,7 @@ do {\
 } while (0)
 #endif
 
-#endif
-
-static const uint8_t parity_table[256] = {
+const uint8_t parity_table[256] = {
     CC_P, 0, 0, CC_P, 0, CC_P, CC_P, 0,
     0, CC_P, CC_P, 0, CC_P, 0, 0, CC_P,
     0, CC_P, CC_P, 0, CC_P, 0, 0, CC_P,
@@ -84,7 +82,7 @@ static const uint8_t parity_table[256] = {
 };
 
 /* modulo 17 table */
-static const uint8_t rclw_table[32] = {
+const uint8_t rclw_table[32] = {
     0, 1, 2, 3, 4, 5, 6, 7,
     8, 9,10,11,12,13,14,15,
    16, 0, 1, 2, 3, 4, 5, 6,
@@ -92,14 +90,14 @@ static const uint8_t rclw_table[32] = {
 };
 
 /* modulo 9 table */
-static const uint8_t rclb_table[32] = {
+const uint8_t rclb_table[32] = {
     0, 1, 2, 3, 4, 5, 6, 7,
     8, 0, 1, 2, 3, 4, 5, 6,
     7, 8, 0, 1, 2, 3, 4, 5,
     6, 7, 8, 0, 1, 2, 3, 4,
 };
 
-static const CPU86_LDouble f15rk[7] =
+const CPU86_LDouble f15rk[7] =
 {
     0.00000000000000000000L,
     1.00000000000000000000L,
@@ -109,6 +107,11 @@ static const CPU86_LDouble f15rk[7] =
     1.44269504088896340739L,  /*l2e*/
     3.32192809488736234781L,  /*l2t*/
 };
+#else
+extern const uint8_t parity_table[256];
+extern const uint8_t rclw_table[32];
+extern const uint8_t rclb_table[32];
+#endif
 
 /* broken thread support */
 
@@ -4833,8 +4836,6 @@ void tcg_llvm_trace_memory_access(uint64_t, uint64_t, uint32_t,
 #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
 #undef MMUSUFFIX
 #define MMUSUFFIX _mmu_s2e_trace
-#define io_read _s2e_trace_io_read
-#define io_write _s2e_trace_io_write
 #define _raw _raw_s2e_trace
 
 #define SHIFT 0
@@ -4850,8 +4851,6 @@ void tcg_llvm_trace_memory_access(uint64_t, uint64_t, uint32_t,
 #include "softmmu_template.h"
 
 #undef _raw
-#undef io_read
-#undef io_write
 #endif
 
 #endif

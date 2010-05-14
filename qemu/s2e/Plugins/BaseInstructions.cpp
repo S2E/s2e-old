@@ -57,11 +57,11 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, 
         uint64_t opcode, uint64_t value1)
 {
-    switch(opcode & 0xFF) {
+    switch((opcode>>8) & 0xFF) {
         case 1: s2e()->getExecutor()->enableSymbolicExecution(state); break;
         case 2: s2e()->getExecutor()->disableSymbolicExecution(state); break;
-        case 3: {
-            unsigned size = (opcode >> (32-8));
+        case 3: { /* make_symbolic */
+            unsigned size = (opcode >> 32);
             s2e()->getMessagesStream()
                     << "Inserting symbolic data at " << hexval(value1)
                     << " of size " << hexval(size) << std::endl;
@@ -90,6 +90,22 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
                 state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                     klee::ConstantExpr::create(123, klee::Expr::Int32));
             }
+#if 0
+        case 0x10: { /* print message */
+            unsigned size = (opcode >> 32);
+
+
+
+
+            ostream *stream;
+            if(opcode >> 16))
+                stream = &s2e()->getWarningsStream();
+            else
+                stream = &s2e()->getMessagesStream()
+            (*stream) << "Message from guest: " << str << std::endl;
+            break;
+        }
+#endif
         default:
             s2e()->getWarningsStream()
                 << "Invalid built-in opcode " << hexval(opcode) << std::endl;
@@ -104,7 +120,7 @@ void BaseInstructions::onCustomInstruction(S2EExecutionState* state,
 
     switch(opcode & 0xFF) {
         case 0x00:
-            handleBuiltInOps(state, opcode>>8, value1);
+            handleBuiltInOps(state, opcode, value1);
             break;
         default:
             std::cout << "Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" << 

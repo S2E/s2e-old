@@ -734,7 +734,7 @@ typedef struct CPUX86State {
 /* Macros to access registers */
 static inline target_ulong __RR_env_raw(CPUX86State* cpuState,
                                         unsigned offset, unsigned size) {
-    target_ulong result;
+    target_ulong result = 0;
     s2e_read_register_concrete(g_s2e, g_s2e_state, cpuState,
                                offset, (uint8_t*) &result, size);
     return result;

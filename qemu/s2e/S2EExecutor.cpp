@@ -7,6 +7,9 @@ extern "C" {
 extern struct CPUX86State *env;
 void QEMU_NORETURN raise_exception(int exception_index);
 void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
+extern const uint8_t parity_table[256];
+extern const uint8_t rclw_table[32];
+extern const uint8_t rclb_table[32];
 }
 
 #include "S2EExecutor.h"
@@ -163,6 +166,16 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
 
+    __DEFINE_EXT_FUNCTION(io_readb_mmu)
+    __DEFINE_EXT_FUNCTION(io_readw_mmu)
+    __DEFINE_EXT_FUNCTION(io_readl_mmu)
+    __DEFINE_EXT_FUNCTION(io_readq_mmu)
+
+    __DEFINE_EXT_FUNCTION(io_writeb_mmu)
+    __DEFINE_EXT_FUNCTION(io_writew_mmu)
+    __DEFINE_EXT_FUNCTION(io_writel_mmu)
+    __DEFINE_EXT_FUNCTION(io_writeq_mmu)
+
     /* Set module for the executor */
 #if 1
     char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
@@ -251,6 +264,9 @@ S2EExecutionState* S2EExecutor::createInitialState()
     __DEFINE_EXT_OBJECT(io_mem_opaque)
     __DEFINE_EXT_OBJECT(use_icount)
     __DEFINE_EXT_OBJECT(cpu_single_env)
+    __DEFINE_EXT_OBJECT(parity_table)
+    __DEFINE_EXT_OBJECT(rclw_table)
+    __DEFINE_EXT_OBJECT(rclb_table)
 
     m_s2e->getMessagesStream()
             << "Created initial state 0x" << hexval(state) << std::endl;
@@ -461,6 +477,7 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
         CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
     assert(state->m_active);
+    assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
     assert(offset + size <= CPU_OFFSET(eip));
 
     if(state->m_runningConcrete) {
@@ -474,8 +491,29 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
             if(!os->readConcrete8(offset+i, buf+i)) {
                 if(!wos)
                     os = wos = state->addressSpace.getWriteable(mo, os);
+                const char* reg;
+                switch(offset) {
+                    case 0x00: reg = "eax"; break;
+                    case 0x04: reg = "ecx"; break;
+                    case 0x08: reg = "edx"; break;
+                    case 0x0c: reg = "ebx"; break;
+                    case 0x10: reg = "esp"; break;
+                    case 0x14: reg = "ebp"; break;
+                    case 0x18: reg = "esi"; break;
+                    case 0x1c: reg = "edi"; break;
+
+                    case 0x20: reg = "eflags"; break;
+
+                    case 0x24: reg = "cc_src"; break;
+                    case 0x28: reg = "cc_dst"; break;
+                    case 0x2c: reg = "cc_op"; break;
+                    case 0x30: reg = "df"; break;
+                    default: reg = "unknown"; break;
+                }
+                std::string reason = std::string("access to ") + reg +
+                                     " register from QEMU helper";
                 buf[i] = toConstant(*state, wos->read8(offset+i),
-                            "register access from QEMU helper")->getZExtValue(8);
+                                    reason.c_str())->getZExtValue(8);
                 wos->write8(offset+i, buf[i]);
             }
         }
@@ -486,6 +524,7 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         CPUX86State *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
 {
     assert(state->m_active);
+    assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
     assert(offset + size <= CPU_OFFSET(eip));
 
     if(state->m_runningConcrete) {
