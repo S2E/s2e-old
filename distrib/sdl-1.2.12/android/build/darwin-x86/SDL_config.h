@@ -89,7 +89,7 @@
 #endif /* HAVE_LIBC */
 
 /* Allow disabling of core subsystems */
-/* #undef SDL_AUDIO_DISABLED */
+#define SDL_AUDIO_DISABLED 1
 #define SDL_CDROM_DISABLED 1
 /* #undef SDL_CPUINFO_DISABLED */
 /* #undef SDL_EVENTS_DISABLED */

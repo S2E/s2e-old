@@ -212,10 +212,10 @@ config_add_macro ()
 }
 
 # used to add host-os-specific driver macros to the config file
-# $1 : driver prefix, e.g. DRIVERS_AUDIO
+# $1 : driver prefix, e.g. DRIVERS_VIDEO
 # $2 : macro prefix
-# this will look for DRIVERS_AUDIO_${HOST_OS}, and, if it is not
-# defined in DRIVERS_AUDIO_default
+# this will look for DRIVERS_VIDEO_${HOST_OS}, and, if it is not
+# defined in DRIVERS_VIDEO_default
 #
 # then this will call 'config_add ${2}_${driver}' for each driver listed
 #
@@ -378,7 +378,7 @@ generate_SDL_config_h ()
 
     config_add "/* Allow disabling of core subsystems */"
 
-    config_add_macro SDL_AUDIO_DISABLED no
+    config_add_macro SDL_AUDIO_DISABLED yes
     config_add_macro SDL_CDROM_DISABLED yes
     config_add_macro SDL_CPUINFO_DISABLED no
     config_add_macro SDL_EVENTS_DISABLED no
@@ -388,11 +388,6 @@ generate_SDL_config_h ()
     config_add_macro SDL_THREADS_DISABLED no
     config_add_macro SDL_TIMERS_DISABLED no
     config_add_macro SDL_VIDEO_DISABLED no
-
-    config_add ""
-    config_add "/* Enable various audio drivers */"
-
-    config_add_driver_macros DRIVERS_AUDIO SDL_AUDIO_DRIVER
 
     config_add ""
     config_add "/* Enable various shared object loading systems */"
@@ -462,7 +457,6 @@ generate_sdl_config_mk ()
     make_add "CONFIG_LIBC := $CONFIG_LIBC"
     make_add "CONFIG_CPUINFO := yes"
 
-    make_add_driver_macros DRIVERS_AUDIO  CONFIG_AUDIO
     make_add_driver_macros DRIVERS_LOADSO CONFIG_LOADSO
     make_add_driver_macros DRIVERS_THREAD CONFIG_THREAD
     make_add_driver_macros DRIVERS_TIMER  CONFIG_TIMER
@@ -534,11 +528,6 @@ generate_all ()
   generate_sdl_config_mk
   copy_or_autodetect sdl-config generate_sdl_config
 }
-
-DRIVERS_AUDIO_default="OSS"
-DRIVERS_AUDIO_linux="ALSA ALSA_DYNAMIC OSS ESD_DYNAMIC ESD"
-DRIVERS_AUDIO_darwin="COREAUDIO"
-DRIVERS_AUDIO_windows="WAVEOUT"
 
 DRIVERS_LOADSO_default=DLOPEN
 DRIVERS_LOADSO_darwin=DLCOMPAT
