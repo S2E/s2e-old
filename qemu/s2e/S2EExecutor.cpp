@@ -177,6 +177,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writel_mmu)
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
 
+    __DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
+
     /* Set module for the executor */
 #if 1
     char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
@@ -204,7 +206,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     searcher = new RandomSearcher();
 
-    setAllExternalWarnings(true);
+    //setAllExternalWarnings(true);
 }
 
 S2EExecutor::~S2EExecutor()
