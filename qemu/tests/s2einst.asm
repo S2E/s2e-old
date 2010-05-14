@@ -5,6 +5,8 @@ zerobuf: times 0x10000 db 0
 [org 0xf0000]
 start:
 
+cli
+
 ;This is the custom instruction
 ;db 0xf1
 ;dq 0xbadf00ddeadbeef
@@ -30,11 +32,14 @@ db 0x00 ; not used
 dd 0x04  ; size
 dq 0x100 ; address
 
-mov eax, [0x100]
-add eax, 2
 
-cmp eax, 10
-jz branch1
+_loop1:
+    mov eax, [0x100]
+    add eax, 2
+    mov [0x100], eax
+
+    cmp eax, 1000
+    ja _loop1
 
 _stop:
 ;cli

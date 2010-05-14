@@ -165,6 +165,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
     __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
+    __DEFINE_EXT_FUNCTION(tb_find_pc)
 
     __DEFINE_EXT_FUNCTION(io_readb_mmu)
     __DEFINE_EXT_FUNCTION(io_readw_mmu)
@@ -203,7 +204,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     searcher = new RandomSearcher();
 
-    //setAllExternalWarnings(true);
+    setAllExternalWarnings(true);
 }
 
 S2EExecutor::~S2EExecutor()
@@ -648,6 +649,12 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     tb_function_args[1] = 0;
     tb_function_args[2] = 0;
 
+    if(state->stack.size() != 1) {
+        foreach(const StackFrame& fr, state->stack) {
+            std::cout << fr.kf->function->getNameStr() << std::endl;
+        }
+    }
+
     assert(state->m_active);
     assert(state->stack.size() == 1);
     assert(state->pc == m_dummyMain->instructions);
@@ -758,6 +765,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
                     /* assert that blocking works */
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
+
+                    cleanupTranslationBlock(state, tb);
 
 #ifdef _WIN32      
 #else

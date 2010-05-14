@@ -90,22 +90,22 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
                 state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                     klee::ConstantExpr::create(123, klee::Expr::Int32));
             }
-#if 0
         case 0x10: { /* print message */
-            unsigned size = (opcode >> 32);
-
-
-
-
-            ostream *stream;
-            if(opcode >> 16))
-                stream = &s2e()->getWarningsStream();
-            else
-                stream = &s2e()->getMessagesStream()
-            (*stream) << "Message from guest: " << str << std::endl;
+            std::string str;
+            if(!state->readString(value1, str)) {
+                s2e()->getWarningsStream()
+                        << "Error reading string message from the guest"
+                        << std::endl;
+            } else {
+                ostream *stream;
+                if(opcode >> 16)
+                    stream = &s2e()->getWarningsStream();
+                else
+                    stream = &s2e()->getMessagesStream();
+                (*stream) << "Message from guest: " << str << std::endl;
+            }
             break;
         }
-#endif
         default:
             s2e()->getWarningsStream()
                 << "Invalid built-in opcode " << hexval(opcode) << std::endl;
