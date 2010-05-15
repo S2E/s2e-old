@@ -35,6 +35,10 @@ OTHER:
 
 - Removed audio stack SDL dependency.
 
+- Add a '-shared-net-id' option which allows emulators to join a shared network.
+  This allows testing situations where emulators need to communicate directly
+  with each other. See '-help-shared-net-id' for more details.
+
 ==============================================================================
 Changes between 6.0 and 5.0
 

@@ -1348,6 +1348,23 @@ help_prop(stralloc_t  *out)
     );
 }
 
+static void
+help_shared_net_id(stralloc_t*  out)
+{
+    PRINTF(
+    "  Normally, Android instances running in the emulator cannot talk to each other\n"
+    "  directly, because each instance is behind a virtual router. However, sometimes\n"
+    "  it is necessary to test the behaviour of applications if they are directly\n"
+    "  exposed to the network.\n\n"
+
+    "  This option instructs the emulator to join a virtual network shared with\n"
+    "  emulators also using this option. The number given is used to construct\n"
+    "  the IP address 10.1.2.<number>, which is bound to a second interface on\n"
+    "  the emulator. Each emulator must use a different number.\n\n"
+    );
+}
+
+
 #define  help_no_skin   NULL
 #define  help_netspeed  help_shaper
 #define  help_netdelay  help_shaper
