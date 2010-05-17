@@ -1952,8 +1952,8 @@ DEF("always-klee", 0, QEMU_OPTION_always_klee,
 #else
 DEF("llvm", 0, QEMU_OPTION_execute_llvm,
     "-llvm           execute code using LLVM JIT\n")
-#endif
 DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
     "-generate-llvm  translate code into LLVM but don't execute it\n")
+#endif
 #endif
 

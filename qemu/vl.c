@@ -4909,6 +4909,7 @@ int main(int argc, char **argv, char **envp)
 #ifdef CONFIG_S2E
     const char *s2e_config_file = NULL;
     const char *s2e_output_dir = NULL;
+    int execute_always_klee = 0;
 #endif
 
 #ifndef _WIN32
@@ -5704,19 +5705,18 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
-#ifdef CONFIG_LLVM
-#ifndef CONFIG_S2E
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
             case QEMU_OPTION_execute_llvm:
                 generate_llvm = 1;
                 execute_llvm = 1;
                 break;
-#else
-            case QEMU_OPTION_always_klee:
-                execute_s2e_at = EXECUTE_S2E_ALWAYS;
-#endif
             case QEMU_OPTION_generate_llvm:
                 generate_llvm = 1;
                 break;
+#endif
+#ifdef CONFIG_S2E
+            case QEMU_OPTION_always_klee:
+                execute_always_klee = 1;
 #endif
             }
         }
@@ -6224,7 +6224,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
     */
-    s2e_initialize_execution(g_s2e, g_s2e_state);
+    s2e_initialize_execution(g_s2e, g_s2e_state, execute_always_klee);
 #endif
 
     main_loop();

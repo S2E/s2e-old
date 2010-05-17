@@ -128,7 +128,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     gen_code_size = tcg_gen_code(s, gen_code_buf);
     *gen_code_size_ptr = gen_code_size;
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
     if(generate_llvm)
         tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
 #endif
@@ -147,7 +147,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
         qemu_log_flush();
     }
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
     if(generate_llvm && qemu_loglevel_mask(CPU_LOG_LLVM_ASM)
             && tb->llvm_tc_ptr) {
         ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;
@@ -206,7 +206,7 @@ int cpu_restore_state(TranslationBlock *tb,
     s->tb_next = tb->tb_next;
 #endif
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
     if(execute_llvm) {
         assert(tb->llvm_function != NULL);
         j = tcg_llvm_search_last_pc(tb, searched_pc);

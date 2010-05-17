@@ -134,7 +134,7 @@ extern int printf(const char *, ...);
 #ifdef S2E_LLVM_LIB
 #define GETPC() (g_s2e_exec_ret_addr)
 #else
-#define GETPC() (execute_llvm ? g_s2e_exec_ret_addr : _GETPC())
+#define GETPC() (g_s2e_exec_ret_addr ? g_s2e_exec_ret_addr : _GETPC())
 #endif
 
 #elif defined(CONFIG_LLVM)

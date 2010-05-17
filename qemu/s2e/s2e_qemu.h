@@ -114,7 +114,8 @@ struct S2EExecutionState* s2e_create_initial_state(struct S2E *s2e);
 /** Initialize symbolic execution machinery. Should be called after
     QEMU pc is completely constructed */
 void s2e_initialize_execution(struct S2E *s2e,
-                              struct S2EExecutionState *initial_state);
+                              struct S2EExecutionState *initial_state,
+                              int execute_always_klee);
 
 void s2e_register_cpu(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,

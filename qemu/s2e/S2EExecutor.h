@@ -52,6 +52,8 @@ protected:
 
     std::vector<klee::MemoryObject*> m_saveOnContextSwitch;
 
+    bool m_executeAlwaysKlee;
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
@@ -62,7 +64,8 @@ public:
     S2EExecutionState* createInitialState();
 
     /** Called from QEMU before entering main loop */
-    void initializeExecution(S2EExecutionState *initialState);
+    void initializeExecution(S2EExecutionState *initialState,
+                             bool executeAlwaysKlee);
 
     void registerCpu(S2EExecutionState *initialState, CPUX86State *cpuEnv);
     void registerRam(S2EExecutionState *initialState,

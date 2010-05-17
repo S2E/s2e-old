@@ -58,12 +58,9 @@
 volatile host_reg_t saved_AREGs[3];
 #endif
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
 int generate_llvm = 0;
 int execute_llvm = 0;
-#ifdef CONFIG_S2E
-uint64_t execute_s2e_at = EXECUTE_S2E_NONE;
-#endif
 #endif
 
 int tb_invalidated_flag;
@@ -122,7 +119,7 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     unsigned long next_tb;
     TranslationBlock *tb;
 
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
     assert(execute_llvm == 0);
 #endif
 #ifdef CONFIG_S2E
@@ -627,24 +624,8 @@ int cpu_exec(CPUState *env1)
 
                 while (env->current_tb) {
 
-#ifdef CONFIG_S2E
-                    if(execute_s2e_at == env->eip) {
-                        execute_llvm = 1;
-                        execute_s2e_at = EXECUTE_S2E_NONE;
-                        /* If we got interrupted here, the
-                           execute_llvm will be set incorrectly and
-                           execute_s2e_at request will be lost.
-                           But this shouldn't hurt correctness - execute_s2e_at
-                           request will be re-made later */
-                    } else if(execute_s2e_at == EXECUTE_S2E_ALWAYS) {
-                        execute_llvm = 1;
-                    } else {
-                        execute_llvm = 0;
-                    }
-#endif
-
 #ifdef CONFIG_DEBUG_EXEC
-#ifdef CONFIG_LLVM
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
                     if(execute_llvm) {
                         qemu_log_mask(CPU_LOG_EXEC,
                                 "Trace [" TARGET_FMT_lx "] %p (LLVM: %s) %s\n",

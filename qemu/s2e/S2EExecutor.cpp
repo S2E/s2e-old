@@ -122,7 +122,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                     const InterpreterOptions &opts,
                             InterpreterHandler *ie)
         : Executor(opts, ie, tcgLLVMContext->getExecutionEngine()),
-          m_s2e(s2e), m_tcgLLVMContext(tcgLLVMContext)
+          m_s2e(s2e), m_tcgLLVMContext(tcgLLVMContext),
+          m_executeAlwaysKlee(false)
 {
     LLVMContext& ctx = m_tcgLLVMContext->getLLVMContext();
 
@@ -263,7 +264,6 @@ S2EExecutionState* S2EExecutor::createInitialState()
     __DEFINE_EXT_OBJECT(env)
     __DEFINE_EXT_OBJECT(g_s2e)
     __DEFINE_EXT_OBJECT(g_s2e_state) 
-    __DEFINE_EXT_OBJECT(execute_llvm)
     __DEFINE_EXT_OBJECT(g_s2e_exec_ret_addr)
     __DEFINE_EXT_OBJECT(io_mem_read)
     __DEFINE_EXT_OBJECT(io_mem_write)
@@ -280,7 +280,8 @@ S2EExecutionState* S2EExecutor::createInitialState()
     return state;
 }
 
-void S2EExecutor::initializeExecution(S2EExecutionState* state)
+void S2EExecutor::initializeExecution(S2EExecutionState* state,
+                                      bool executeAlwaysKlee)
 {
 #if 0
     typedef std::pair<uint64_t, uint64_t> _UnusedMemoryRegion;
@@ -295,11 +296,10 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state)
     }
 #endif
 
+    m_executeAlwaysKlee = executeAlwaysKlee;
+
     initializeGlobals(*state);
     bindModuleConstants();
-
-    /* XXX */
-    enableSymbolicExecution(state);
 }
 
 void S2EExecutor::registerCpu(S2EExecutionState *initialState,
@@ -405,7 +405,8 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
                 m_s2e->getMessagesStream()
                         << "Switching to KLEE executor at pc = "
                         << hexval(state->getPc()) << std::endl;
-                execute_s2e_at = state->getPc();
+                assert(0);
+                //execute_s2e_at = state->getPc();
                 // XXX: what about regs_to_env ?
                 longjmp(env->jmp_env, 1);
             }
@@ -824,10 +825,10 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     assert(state->isActive());
     const ObjectState* os = state->addressSpace.findObject(
                                     state->m_cpuRegistersState);
-    if(!os->isAllConcrete())
-        execute_llvm = 1;
 
-    if(execute_llvm) {
+    bool executeKlee = m_executeAlwaysKlee || !os->isAllConcrete();
+
+    if(executeKlee) {
         if(state->m_runningConcrete) {
             state->addressSpace.copyInConcretes();
             state->m_runningConcrete = false;
@@ -839,6 +840,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             state->addressSpace.copyOutConcretes();
             state->m_runningConcrete = true;
         }
+        g_s2e_exec_ret_addr = 0;
         return tcg_qemu_tb_exec(tb->tc_ptr);
     }
 }
@@ -1059,9 +1061,10 @@ S2EExecutionState* s2e_create_initial_state(S2E *s2e)
     return s2e->getExecutor()->createInitialState();
 }
 
-void s2e_initialize_execution(S2E *s2e, S2EExecutionState *initial_state)
+void s2e_initialize_execution(S2E *s2e, S2EExecutionState *initial_state,
+                              int execute_always_klee)
 {
-    s2e->getExecutor()->initializeExecution(initial_state);
+    s2e->getExecutor()->initializeExecution(initial_state, execute_always_klee);
 }
 
 void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
@@ -1095,9 +1098,10 @@ int s2e_is_ram_shared_concrete(S2E *s2e, S2EExecutionState *state,
 void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
                         uint64_t host_address, uint8_t* buf, uint64_t size)
 {
-    if(!execute_llvm && state->isSymbolicExecutionEnabled())
+    /*
+    if(state->isSymbolicExecutionEnabled() && state->isRunningConcrete())
         s2e->getExecutor()->readRamConcreteCheck(state, host_address, buf, size);
-    else
+    else */
         s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
 }
 
