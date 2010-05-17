@@ -32,9 +32,11 @@ protected:
     PluginStateMap m_PluginState;
     bool m_symbexEnabled;
 
+    /* Move the following to S2EExecutor */
     bool m_active;
     bool m_runningConcrete;
 
+    /* Move the following to S2EExecutor */
     klee::MemoryObject* m_cpuRegistersState;
     klee::MemoryObject* m_cpuSystemState;
 

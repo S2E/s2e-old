@@ -121,7 +121,6 @@ void S2EDeviceState::saveDeviceState()
     vm_start();
 }
 
-
 void S2EDeviceState::restoreDeviceState()
 {
     assert(s_CurrentState == NULL);

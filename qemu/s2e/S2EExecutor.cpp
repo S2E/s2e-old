@@ -10,6 +10,9 @@ void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
 extern const uint8_t parity_table[256];
 extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
+
+uint64_t helper_eflags_from_normal(void);
+uint64_t helper_eflags_to_normal(void);
 }
 
 #include "S2EExecutor.h"
@@ -643,6 +646,45 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     return newState;
 }
 
+/** Simulate start of function execution, creating KLEE structs of required */
+void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
+                            llvm::Function *function,
+                            const std::vector<klee::ref<klee::Expr> > &args)
+{
+    KFunction *kf;
+    typeof(kmodule->functionMap.begin()) it =
+            kmodule->functionMap.find(function);
+    if(it != kmodule->functionMap.end()) {
+        kf = it->second;
+    } else {
+        unsigned cIndex = kmodule->constants.size();
+        kf = kmodule->updateModuleWithFunction(function);
+
+        for(unsigned i = 0; i < kf->numInstructions; ++i)
+            bindInstructionConstants(kf->instructions[i]);
+
+        kmodule->constantTable.resize(kmodule->constants.size());
+        for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
+            Cell &c = kmodule->constantTable[i];
+            c.value = evalConstant(kmodule->constants[i]);
+        }
+    }
+
+    /* Emulate call to a TB function */
+    state->prevPC = state->pc;
+
+    state->pushFrame(state->pc, kf);
+    state->pc = kf->instructions;
+
+    if(statsTracker)
+        statsTracker->framePushed(*state,
+            &state->stack[state->stack.size()-2]);
+
+    /* Pass argument */
+    for(unsigned i = 0; i < args.size(); ++i)
+        bindArgument(kf, i, *state, args[i]);
+}
+
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
         S2EExecutionState* state,
         TranslationBlock* tb)
@@ -678,39 +720,10 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
             assert(tb->llvm_function);
         }
 
-        /* Create a KLEE shadow structs */
-        KFunction *kf;
-        typeof(kmodule->functionMap.begin()) it =
-                kmodule->functionMap.find(tb->llvm_function);
-        if(it != kmodule->functionMap.end()) {
-            kf = it->second;
-        } else {
-            unsigned cIndex = kmodule->constants.size();
-            kf = kmodule->updateModuleWithFunction(tb->llvm_function);
-
-            for(unsigned i = 0; i < kf->numInstructions; ++i)
-                bindInstructionConstants(kf->instructions[i]);
-
-            kmodule->constantTable.resize(kmodule->constants.size());
-            for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
-                Cell &c = kmodule->constantTable[i];
-                c.value = evalConstant(kmodule->constants[i]);
-            }
-        }
-
-        /* Emulate call to a TB function */
-        state->prevPC = state->pc;
-
-        state->pushFrame(state->pc, kf);
-        state->pc = kf->instructions;
-
-        if(statsTracker)
-            statsTracker->framePushed(*state,
-                &state->stack[state->stack.size()-2]);
-
-        /* Pass argument */
-        bindArgument(kf, 0, *state,
-                     Expr::createPointer((uint64_t) tb_function_args));
+        /* Prepare function execution */
+        prepareFunctionExecution(state,
+                tb->llvm_function, std::vector<ref<Expr> >(1,
+                    Expr::createPointer((uint64_t) tb_function_args)));
 
         /* Information for GETPC() macro */
         g_s2e_exec_ret_addr = tb->tc_ptr;
@@ -808,6 +821,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
+    assert(state->isActive());
     const ObjectState* os = state->addressSpace.findObject(
                                     state->m_cpuRegistersState);
     if(!os->isAllConcrete())
@@ -828,6 +842,32 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         return tcg_qemu_tb_exec(tb->tc_ptr);
     }
 }
+
+void S2EExecutor::convertEflags(S2EExecutionState *state, bool fromNormal)
+{
+#if 1
+        if(fromNormal)
+            helper_eflags_from_normal();
+        else
+            helper_eflags_to_normal();
+#else
+    assert(state->isActive());
+    const ObjectState* os = state->addressSpace.findObject(
+                                    state->m_cpuRegistersState);
+    if(os->isAllConcrete()) {
+        if(fromNormal)
+            helper_eflags_from_normal();
+        else
+            helper_eflags_to_normal();
+    } else {
+        Function* function = fromNormal ?
+                 kmodule->module->getFunction("helper_eflags_from_normal") :
+                 kmodule->module->getFunction("helper_eflags_to_normal");
+        executeFunction(state, function);
+    }
+#endif
+}
+
 
 void S2EExecutor::cleanupTranslationBlock(
         S2EExecutionState* state,
@@ -850,6 +890,56 @@ void S2EExecutor::cleanupTranslationBlock(
         copyOutConcretes(*state);
     }
 #endif
+}
+
+klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
+                            llvm::Function *function,
+                            const std::vector<klee::ref<klee::Expr> >& args)
+{
+    /* Update state */
+    if (!copyInConcretes(*state)) {
+        std::cerr << "external modified read-only object" << std::endl;
+        exit(1);
+    }
+
+    KInstIterator callerPC = state->pc;
+    uint32_t callerStackSize = state->stack.size();
+
+    /* Prepare function execution */
+    prepareFunctionExecution(state, function, args);
+
+    /* Execute */
+    while(state->stack.size() != callerStackSize) {
+        KInstruction *ki = state->pc;
+        //std::cout << *ki->inst << std::endl;
+
+        stepInstruction(*state);
+        executeInstruction(*state, ki);
+
+        if(!removedStates.empty() && removedStates.find(state) !=
+                                     removedStates.end()) {
+            std::cerr << "The current state was killed inside KLEE !" << std::endl;
+            std::cerr << "Last executed instruction was:" << std::endl;
+            ki->inst->dump();
+            exit(1);
+        }
+
+        updateStates(state);
+    }
+
+    if(callerPC == m_dummyMain->instructions) {
+        assert(state->stack.size() == 1);
+        state->prevPC = 0;
+        state->pc = callerPC;
+    }
+
+    ref<Expr> resExpr(0);
+    if(function->getReturnType()->getTypeID() != Type::VoidTyID)
+        resExpr = getDestCell(*state, state->pc).value;
+
+    copyOutConcretes(*state);
+
+    return resExpr;
 }
 
 void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
@@ -1052,4 +1142,11 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
                            struct TranslationBlock* tb)
 {
     return s2e->getExecutor()->cleanupTranslationBlock(state, tb);
+}
+
+void s2e_convert_eflags(struct S2E* s2e,
+                        struct S2EExecutionState* state,
+                        int fromNormal)
+{
+    s2e->getExecutor()->convertEflags(state, fromNormal);
 }

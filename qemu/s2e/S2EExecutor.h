@@ -52,14 +52,6 @@ protected:
 
     std::vector<klee::MemoryObject*> m_saveOnContextSwitch;
 
-    static void handlerTraceMemoryAccess(klee::Executor* executor,
-                                    klee::ExecutionState* state,
-                                    klee::KInstruction* target,
-                                    std::vector<klee::ref<klee::Expr> > &args);
-
-    uintptr_t executeTranslationBlockKlee(S2EExecutionState *state,
-                                          TranslationBlock *tb);
-
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
@@ -77,6 +69,20 @@ public:
                         uint64_t startAddress, uint64_t size,
                         uint64_t hostAddress, bool isSharedConcrete,
                         bool saveOnContextSwitch=true);
+
+    /* Execute llvm function in current context */
+    klee::ref<klee::Expr> executeFunction(S2EExecutionState *state,
+                            llvm::Function *function,
+                            const std::vector<klee::ref<klee::Expr> >& args
+                                = std::vector<klee::ref<klee::Expr> >());
+
+    /** Enable symbolic execution for a given state */
+    void enableSymbolicExecution(S2EExecutionState* state);
+
+    /** Disable symbolic execution for a given state */
+    void disableSymbolicExecution(S2EExecutionState* state);
+
+    /* Functions to be called mainly from QEMU */
 
     /** Return true if hostAddr is registered as a RAM with KLEE */
     bool isRamRegistered(S2EExecutionState *state, uint64_t hostAddress);
@@ -118,13 +124,20 @@ public:
     void cleanupTranslationBlock(S2EExecutionState *state,
                                  TranslationBlock *tb);
 
-    /** Enable symbolic execution for a given state */
-    void enableSymbolicExecution(S2EExecutionState* state);
-
-    /** Disable symbolic execution for a given state */
-    void disableSymbolicExecution(S2EExecutionState* state);
+    void convertEflags(S2EExecutionState *state, bool fromNormal);
 
 protected:
+    static void handlerTraceMemoryAccess(klee::Executor* executor,
+                                    klee::ExecutionState* state,
+                                    klee::KInstruction* target,
+                                    std::vector<klee::ref<klee::Expr> > &args);
+
+    void prepareFunctionExecution(S2EExecutionState *state,
+                           llvm::Function* function,
+                           const std::vector<klee::ref<klee::Expr> >& args);
+    uintptr_t executeTranslationBlockKlee(S2EExecutionState *state,
+                                          TranslationBlock *tb);
+
     void doStateSwitch(S2EExecutionState* oldState,
                        S2EExecutionState* newState);
 
