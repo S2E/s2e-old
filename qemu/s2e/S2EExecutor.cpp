@@ -547,51 +547,58 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
     }
 }
 
-void S2EExecutor::copyOutConcretes(ExecutionState &state) {
-    return;
+void S2EExecutor::switchToConcrete(S2EExecutionState *state)
+{
+    assert(!state->m_runningConcrete);
 
-    assert(dynamic_cast<S2EExecutionState*>(&state));
-    assert(!static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
-    static_cast<S2EExecutionState*>(&state)->m_runningConcrete = true;
+    /* Concretize any symbolic registers */
+    const MemoryObject* mo = state->m_cpuRegistersState;
+    const ObjectState* os = state->addressSpace.findObject(mo);
 
-#if 0
-    /* Concretize any symbolic values */
-    for (MemoryMap::iterator
-            it = state.addressSpace.nonUserSpecifiedObjects.begin(),
-            ie = state.addressSpace.nonUserSpecifiedObjects.end();
-            it != ie; ++it) {
-        const MemoryObject* mo = it->first;
-        const ObjectState* os = it->second;
+    assert(os);
 
-        assert(!mo->isUserSpecified);
-
-        if(!os->isAllConcrete()) {
-            /* The object contains symbolic values. We have to
-               concretize it */
-            ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-            for(unsigned i = 0; i < wos->size; ++i) {
-                ref<Expr> e = wos->read8(i);
-                if(!isa<klee::ConstantExpr>(e)) {
-                    uint8_t ch = toConstant(state, e,
-                            "copyOutConcretes")->getZExtValue(8);
-                    wos->write8(i, ch);
-                }
+    if(!os->isAllConcrete()) {
+        /* The object contains symbolic values. We have to
+           concretize it */
+        ObjectState *wos;
+        os = wos = state->addressSpace.getWriteable(mo, os);
+        for(unsigned i = 0; i < wos->size; ++i) {
+            ref<Expr> e = wos->read8(i);
+            if(!isa<klee::ConstantExpr>(e)) {
+                uint8_t ch = toConstant(*state, e,
+                        "copyOutConcretes")->getZExtValue(8);
+                wos->write8(i, ch);
             }
         }
     }
-#endif
-    Executor::copyOutConcretes(state);
+
+    assert(os->isAllConcrete());
+    memcpy((void*) mo->address, os->getConcreteStore(), mo->size);
+    static_cast<S2EExecutionState*>(state)->m_runningConcrete = true;
+}
+
+void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
+{
+    assert(state->m_runningConcrete);
+
+    const MemoryObject* mo = state->m_cpuRegistersState;
+    const ObjectState* os = state->addressSpace.findObject(mo);
+
+    assert(os && os->isAllConcrete());
+
+    ObjectState *wos = state->addressSpace.getWriteable(mo, os);
+    memcpy(wos->getConcreteStore(), (void*) mo->address, mo->size);
+    state->m_runningConcrete = false;
+}
+
+void S2EExecutor::copyOutConcretes(ExecutionState &state)
+{
+    return;
 }
 
 bool S2EExecutor::copyInConcretes(klee::ExecutionState &state)
 {
     return true;
-
-    assert(dynamic_cast<S2EExecutionState*>(&state));
-    assert(static_cast<S2EExecutionState*>(&state)->m_runningConcrete);
-    static_cast<S2EExecutionState*>(&state)->m_runningConcrete = false;
-
-    return Executor::copyInConcretes(state);
 }
 
 void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
@@ -602,8 +609,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
             << " to state " << hexval(newState) << std::endl;
 
     if(oldState->m_runningConcrete) {
-        oldState->addressSpace.copyInConcretes();
-        oldState->m_runningConcrete = false;
+        switchToSymbolic(oldState);
     }
 
     assert(oldState->m_active && !newState->m_active);
@@ -700,7 +706,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
         }
     }
 
-    assert(state->m_active);
+    assert(state->m_active && !state->m_runningConcrete);
     assert(state->stack.size() == 1);
     assert(state->pc == m_dummyMain->instructions);
 
@@ -829,18 +835,14 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     bool executeKlee = m_executeAlwaysKlee || !os->isAllConcrete();
 
     if(executeKlee) {
-        if(state->m_runningConcrete) {
-            state->addressSpace.copyInConcretes();
-            state->m_runningConcrete = false;
-        }
+        if(state->m_runningConcrete)
+            switchToSymbolic(state);
         return executeTranslationBlockKlee(state, tb);
 
     } else {
-        if(!state->m_runningConcrete) {
-            state->addressSpace.copyOutConcretes();
-            state->m_runningConcrete = true;
-        }
         g_s2e_exec_ret_addr = 0;
+        if(!state->m_runningConcrete)
+            switchToConcrete(state);
         return tcg_qemu_tb_exec(tb->tc_ptr);
     }
 }

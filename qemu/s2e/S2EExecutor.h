@@ -149,10 +149,23 @@ protected:
                      const std::vector<klee::ref<klee::Expr> >& conditions);
 
     /** Copy concrete values to their proper location, concretizing
-        if necessary (will not touch RAM - it is always symbolic) */
+        if necessary (most importantly it will concretize CPU registers.
+        Note: this is required only to execute generated code,
+        other QEMU components access all registers through wrappers. */
+    void switchToConcrete(S2EExecutionState *state);
+
+    /** Copy concrete values to the execution state storage */
+    void switchToSymbolic(S2EExecutionState *state);
+
+
+    /** Implementation that does nothing. We do not need to concretize
+        when calling externals, because all of them access data only
+        through wrappers. */
     void copyOutConcretes(klee::ExecutionState &state);
 
-    /** Copy values from their proper location to the state */
+    /** Implementation that does nothing. We do not need to concretize
+        when calling externals, because all of them access data only
+        through wrappers. */
     bool copyInConcretes(klee::ExecutionState &state);
 
     /** Called on fork, used to trace forks */
