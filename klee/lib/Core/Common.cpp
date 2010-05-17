@@ -52,12 +52,14 @@ static void klee_vfmessage(std::ostream *os, const char *pfx, const char *msg,
 */
 static void klee_vmessage(const char *pfx, bool onlyToFile, const char *msg, 
                           va_list ap) {
+    /* XXX
   if (!onlyToFile) {
     va_list ap2;
     va_copy(ap2, ap);
     klee_vfmessage(&std::cerr, pfx, msg, ap2);
     va_end(ap2);
   }
+  */
 
   klee_vfmessage(pfx ? klee_message_stream : klee_warning_stream, pfx, msg, ap);
 }
