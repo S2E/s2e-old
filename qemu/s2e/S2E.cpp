@@ -8,6 +8,7 @@
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 #include <s2e/S2EExecutor.h>
+#include <s2e/S2EExecutionState.h>
 #include <s2e/Database.h>
 
 #include <s2e/s2e_qemu.h>
@@ -291,6 +292,15 @@ void S2E::initExecutor()
     m_s2eHandler = new S2EHandler(this);
     S2EExecutor::InterpreterOptions IOpts;
     m_s2eExecutor = new S2EExecutor(this, m_tcgLLVMContext, IOpts, m_s2eHandler);
+}
+
+std::ostream& S2E::getStream(std::ostream& stream,
+                             const S2EExecutionState* state) const
+{
+    if(state) {
+        stream << "[State " << state->getID() << "] ";
+    }
+    return stream;
 }
 
 } // namespace s2e

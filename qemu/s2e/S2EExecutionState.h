@@ -29,6 +29,9 @@ class S2EExecutionState : public klee::ExecutionState
 protected:
     friend class S2EExecutor;
 
+    static int s_lastStateID;
+    int m_stateID;
+
     PluginStateMap m_PluginState;
 
     bool m_symbexEnabled;
@@ -45,8 +48,11 @@ protected:
     ExecutionState* clone();
 
     S2EDeviceState *m_deviceState;
+
 public:
     S2EExecutionState(klee::KFunction *kf);
+
+    int getID() const { return m_stateID; }
 
     S2EDeviceState *getDeviceState() const {
         return m_deviceState;

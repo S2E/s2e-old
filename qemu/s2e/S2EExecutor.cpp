@@ -89,7 +89,10 @@ void S2EHandler::incPathsExplored()
 void S2EHandler::processTestCase(const klee::ExecutionState &state,
                      const char *err, const char *suffix)
 {
-    m_s2e->getWarningsStream() << "Terminating state '" << (&state)
+    assert(dynamic_cast<const S2EExecutionState*>(&state) != 0);
+    const S2EExecutionState* s = static_cast<const S2EExecutionState*>(&state);
+    m_s2e->getWarningsStream(s)
+           << "Terminating state '" << s->getID()
            << "with error message '" << (err ? err : "") << "'" << std::endl;
 }
 
@@ -274,8 +277,8 @@ S2EExecutionState* S2EExecutor::createInitialState()
     __DEFINE_EXT_OBJECT(rclw_table)
     __DEFINE_EXT_OBJECT(rclb_table)
 
-    m_s2e->getMessagesStream()
-            << "Created initial state 0x" << hexval(state) << std::endl;
+    m_s2e->getMessagesStream(state)
+            << "Created initial state" << std::endl;
 
     return state;
 }
@@ -402,7 +405,7 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
 
         for(uint64_t i=0; i<size; ++i) {
             if(!op.second->readConcrete8(page_offset+i, buf+i)) {
-                m_s2e->getMessagesStream()
+                m_s2e->getMessagesStream(state)
                         << "Switching to KLEE executor at pc = "
                         << hexval(state->getPc()) << std::endl;
                 state->m_startSymbexAtPC = state->getPc();
@@ -603,15 +606,17 @@ bool S2EExecutor::copyInConcretes(klee::ExecutionState &state)
 void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
                                 S2EExecutionState* newState)
 {
-    m_s2e->getMessagesStream()
-            << "Switching from state " << hexval(oldState)
-            << " to state " << hexval(newState) << std::endl;
+    assert(oldState->m_active && !newState->m_active);
+    assert(!newState->m_runningConcrete);
+
+    m_s2e->getMessagesStream(oldState)
+            << "Switching from state " << oldState->getID()
+            << " to state " << newState->getID() << std::endl;
 
     if(oldState->m_runningConcrete) {
         switchToSymbolic(oldState);
     }
 
-    assert(oldState->m_active && !newState->m_active);
     oldState->m_active = false;
 
     copyInConcretes(*oldState);
@@ -831,8 +836,14 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     const ObjectState* os = state->addressSpace.findObject(
                                     state->m_cpuRegistersState);
 
-    bool executeKlee = m_executeAlwaysKlee || //!os->isAllConcrete() ||
-                       state->getPc() == state->m_startSymbexAtPC;
+    bool executeKlee = m_executeAlwaysKlee;
+    if(state->m_symbexEnabled) {
+        executeKlee |= !os->isAllConcrete();
+        if(state->m_startSymbexAtPC != (uint64_t) -1) {
+            executeKlee |= (state->getPc() == state->m_startSymbexAtPC);
+            state->m_startSymbexAtPC = (uint64_t) -1;
+        }
+    }
 
     if(executeKlee) {
         if(state->m_runningConcrete)
@@ -949,14 +960,14 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
 void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
 {
     state->m_symbexEnabled = true;
-    m_s2e->getMessagesStream() << "Enabled symbex for state 0x" << state
+    m_s2e->getMessagesStream(state) << "Enabled symbex"
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
 }
 
 void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
 {
     state->m_symbexEnabled = false;
-    m_s2e->getMessagesStream() << "Disabled symbex for state 0x" << state
+    m_s2e->getMessagesStream(state) << "Disabled symbex"
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
 }
 
@@ -964,17 +975,16 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                  const vector<S2EExecutionState*>& newStates,
                  const vector<ref<Expr> >& newConditions)
 {   
-    assert(originalState->m_active);
+    assert(originalState->m_active && !originalState->m_runningConcrete);
 
-    m_s2e->getMessagesStream()
-        << "Forking state " << hexval(originalState)
+    std::ostream& out = m_s2e->getMessagesStream(originalState);
+    out << "Forking state " << originalState->getID()
         << " into states:" << std::endl;
 
     for(unsigned i = 0; i < newStates.size(); ++i) {
         S2EExecutionState* newState = newStates[i];
 
-        m_s2e->getMessagesStream()
-            << "    " << hexval(newState) << " with condition "
+        out << "    state " << newState->getID() << " with condition "
             << *newConditions[i].get() << std::endl;
 
         if(newState != originalState) {

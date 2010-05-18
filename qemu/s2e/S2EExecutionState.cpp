@@ -19,8 +19,10 @@ namespace s2e {
 
 using namespace klee;
 
+int S2EExecutionState::s_lastStateID = 0;
+
 S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
-        klee::ExecutionState(kf),
+        klee::ExecutionState(kf), m_stateID(s_lastStateID++),
         m_symbexEnabled(false), m_startSymbexAtPC((uint64_t) -1),
         m_active(true), m_runningConcrete(true),
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL)
@@ -32,6 +34,7 @@ ExecutionState* S2EExecutionState::clone()
 {
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->m_deviceState = m_deviceState->clone();
+    ret->m_stateID = s_lastStateID++;
     return ret;
 }
 
@@ -443,7 +446,7 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
     std::vector<ref<Expr> > result; result.reserve(size);
     for(unsigned i = 0; i < size; ++i) {
         result.push_back(ReadExpr::create(ul,
-                    ConstantExpr::alloc(0,Expr::Int32)));
+                    ConstantExpr::alloc(i,Expr::Int32)));
     }
 
     return result;

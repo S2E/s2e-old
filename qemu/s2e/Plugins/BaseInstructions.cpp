@@ -62,13 +62,13 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
         case 2: s2e()->getExecutor()->disableSymbolicExecution(state); break;
         case 3: { /* make_symbolic */
             unsigned size = (opcode >> 32);
-            s2e()->getMessagesStream()
+            s2e()->getMessagesStream(state)
                     << "Inserting symbolic data at " << hexval(value1)
                     << " of size " << hexval(size) << std::endl;
             vector<ref<Expr> > symb = state->createSymbolicArray(size);
             for(unsigned i = 0; i < size; ++i) {
                 if(!state->writeMemory8(value1 + i, symb[i])) {
-                    s2e()->getWarningsStream()
+                    s2e()->getWarningsStream(state)
                         << "Can not insert symbolic value"
                         << " at " << hexval(value1 + i)
                         << ": can not write to memory" << std::endl;
@@ -93,21 +93,21 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
         case 0x10: { /* print message */
             std::string str;
             if(!state->readString(value1, str)) {
-                s2e()->getWarningsStream()
+                s2e()->getWarningsStream(state)
                         << "Error reading string message from the guest"
                         << std::endl;
             } else {
                 ostream *stream;
                 if(opcode >> 16)
-                    stream = &s2e()->getWarningsStream();
+                    stream = &s2e()->getWarningsStream(state);
                 else
-                    stream = &s2e()->getMessagesStream();
+                    stream = &s2e()->getMessagesStream(state);
                 (*stream) << "Message from guest: " << str << std::endl;
             }
             break;
         }
         default:
-            s2e()->getWarningsStream()
+            s2e()->getWarningsStream(state)
                 << "Invalid built-in opcode " << hexval(opcode) << std::endl;
             break;
     }

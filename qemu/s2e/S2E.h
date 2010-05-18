@@ -65,6 +65,9 @@ protected:
     void initExecutor();
     void initPlugins();
 
+    std::ostream& getStream(std::ostream& stream,
+                            const S2EExecutionState* state) const;
+
 public:
     /** Construct S2E */
     explicit S2E(TCGLLVMContext* tcgLLVMContext,
@@ -102,16 +105,24 @@ public:
     std::ostream* openOutputFile(const std::string &filename);
 
     /** Get info stream (used only by KLEE internals) */
-    std::ostream& getInfoStream() const { return *m_infoFile; }
+    std::ostream& getInfoStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_infoFile, state);
+    }
 
     /** Get debug stream (used for non-important debug info) */
-    std::ostream& getDebugStream() const { return *m_debugFile; }
+    std::ostream& getDebugStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_debugFile, state);
+    }
 
     /** Get messages stream (used for non-critical information) */
-    std::ostream& getMessagesStream() const { return *m_messagesFile; }
+    std::ostream& getMessagesStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_messagesFile, state);
+    }
 
     /** Get warnings stream (used for warnings, duplicated on the screen) */
-    std::ostream& getWarningsStream() const { return *m_warningsFile; }
+    std::ostream& getWarningsStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_warningsFile, state);
+    }
 
     /***********************/
     /* Runtime information */
