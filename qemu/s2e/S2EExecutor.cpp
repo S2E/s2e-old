@@ -354,7 +354,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
                 *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
 
-        if (isSharedConcrete && saveOnContextSwitch) {
+        if (isSharedConcrete /*&& saveOnContextSwitch*/) {
             m_saveOnContextSwitch.push_back(mo);
         }
     }
@@ -979,6 +979,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
     std::ostream& out = m_s2e->getMessagesStream(originalState);
     out << "Forking state " << originalState->getID()
+        << " at pc = 0x" << hexval(originalState->getPc())
         << " into states:" << std::endl;
 
     for(unsigned i = 0; i < newStates.size(); ++i) {

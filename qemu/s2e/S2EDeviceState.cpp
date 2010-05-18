@@ -79,6 +79,7 @@ void S2EDeviceState::initDeviceState()
                 REGISTER_DEVICE("i2c_bus")
                 REGISTER_DEVICE("timer")
                 REGISTER_DEVICE("ide")
+                REGISTER_DEVICE("cirrus_vga")
 
                 //XXX:Check for ps2kbd, ps2mouse, i2c_bus, timer
                 //ide
