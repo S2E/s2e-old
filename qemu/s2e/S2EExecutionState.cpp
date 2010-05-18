@@ -20,7 +20,8 @@ namespace s2e {
 using namespace klee;
 
 S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
-        klee::ExecutionState(kf), m_symbexEnabled(false),
+        klee::ExecutionState(kf),
+        m_symbexEnabled(false), m_startSymbexAtPC((uint64_t) -1),
         m_active(true), m_runningConcrete(true),
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL)
 {

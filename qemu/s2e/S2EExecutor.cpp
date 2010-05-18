@@ -405,8 +405,7 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
                 m_s2e->getMessagesStream()
                         << "Switching to KLEE executor at pc = "
                         << hexval(state->getPc()) << std::endl;
-                assert(0);
-                //execute_s2e_at = state->getPc();
+                state->m_startSymbexAtPC = state->getPc();
                 // XXX: what about regs_to_env ?
                 longjmp(env->jmp_env, 1);
             }
@@ -566,7 +565,7 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
             ref<Expr> e = wos->read8(i);
             if(!isa<klee::ConstantExpr>(e)) {
                 uint8_t ch = toConstant(*state, e,
-                        "copyOutConcretes")->getZExtValue(8);
+                    "switching to concrete execution")->getZExtValue(8);
                 wos->write8(i, ch);
             }
         }
@@ -832,7 +831,8 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     const ObjectState* os = state->addressSpace.findObject(
                                     state->m_cpuRegistersState);
 
-    bool executeKlee = m_executeAlwaysKlee || !os->isAllConcrete();
+    bool executeKlee = m_executeAlwaysKlee || //!os->isAllConcrete() ||
+                       state->getPc() == state->m_startSymbexAtPC;
 
     if(executeKlee) {
         if(state->m_runningConcrete)
@@ -1100,10 +1100,10 @@ int s2e_is_ram_shared_concrete(S2E *s2e, S2EExecutionState *state,
 void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
                         uint64_t host_address, uint8_t* buf, uint64_t size)
 {
-    /*
-    if(state->isSymbolicExecutionEnabled() && state->isRunningConcrete())
+    assert(state->isRunningConcrete());
+    if(state->isSymbolicExecutionEnabled())
         s2e->getExecutor()->readRamConcreteCheck(state, host_address, buf, size);
-    else */
+    else
         s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
 }
 

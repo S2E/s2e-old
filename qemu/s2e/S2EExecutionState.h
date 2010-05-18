@@ -30,7 +30,9 @@ protected:
     friend class S2EExecutor;
 
     PluginStateMap m_PluginState;
+
     bool m_symbexEnabled;
+    uint64_t m_startSymbexAtPC;
 
     /* Move the following to S2EExecutor */
     bool m_active;
