@@ -79,6 +79,26 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
     }
 }
 
+bool S2EExecutionState::readCpuRegisterConcrete(unsigned offset,
+                                                void* buf, unsigned size)
+{
+    assert(size < 8);
+    ref<Expr> expr = readCpuRegister(offset, size*8);
+    if(!isa<ConstantExpr>(expr))
+        return false;
+    uint64_t value = cast<ConstantExpr>(expr)->getZExtValue();
+    memcpy(buf, &value, size);
+    return true;
+}
+
+void S2EExecutionState::writeCpuRegisterConcrete(unsigned offset,
+                                                 const void* buf, unsigned size)
+{
+    uint64_t value = 0;
+    memcpy(&value, buf, size);
+    writeCpuRegister(offset, ConstantExpr::create(value, size*8));
+}
+
 uint64_t S2EExecutionState::readCpuState(unsigned offset,
                                          unsigned width) const
 {

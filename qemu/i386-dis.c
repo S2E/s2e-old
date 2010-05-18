@@ -1083,7 +1083,7 @@ static const struct dis386 dis386_twobyte[] = {
   { "(bad)",		{ XX } },
   { "(bad)",		{ XX } },
 #ifdef CONFIG_S2E
-  { "s2e_op",		{ { OP_I64q, 0}, { OP_I64q, 0} } },
+  { "s2e_op",		{ { OP_I64q, 0} } },
 #else
   { "(bad)",		{ XX } },
 #endif

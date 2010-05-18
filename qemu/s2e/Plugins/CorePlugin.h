@@ -71,8 +71,7 @@ public:
 
     /** Signal that is emitted when custom opcode is detected */
     sigc::signal<void, S2EExecutionState*, 
-            uint64_t,  /* opcode */
-            uint64_t   /* value1 */
+            uint64_t  /* arg */
             >
             onCustomInstruction;
 

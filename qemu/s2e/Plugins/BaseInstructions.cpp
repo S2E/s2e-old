@@ -54,23 +54,55 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
     return db->executeQuery(buf);
 }
 
-void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, 
-        uint64_t opcode, uint64_t value1)
+/** Handle s2e_op instruction. Instructions:
+    0f 3f 00 01 - enable symbolic execution
+    0f 3f 00 02 - disable symbolic execution
+    0f 3f 00 03 - insert symbolic value at address pointed by eax
+                  with the size in ebx and name (asciiz) in ecx
+    0f 3f 00 10 00 - print message (asciiz) pointed by eax
+    0f 3f 00 10 01 - print warning (asciiz) pointed by eax
+ */
+void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
     switch((opcode>>8) & 0xFF) {
         case 1: s2e()->getExecutor()->enableSymbolicExecution(state); break;
         case 2: s2e()->getExecutor()->disableSymbolicExecution(state); break;
         case 3: { /* make_symbolic */
-            unsigned size = (opcode >> 32);
+            uint32_t address, size, name; // XXX
+            bool ok = true;
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                 &address, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                                 &size, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                                 &name, 4);
+
+            if(!ok) {
+                s2e()->getWarningsStream(state)
+                    << "ERROR: symbolic argument was passed to s2e_op "
+                       " insert_symbolic opcode" << std::endl;
+                break;
+            }
+
+            std::string nameStr;
+            if(!state->readString(name, nameStr)) {
+                s2e()->getWarningsStream(state)
+                        << "Error reading string from the guest"
+                        << std::endl;
+                break;
+            }
+
             s2e()->getMessagesStream(state)
-                    << "Inserting symbolic data at " << hexval(value1)
-                    << " of size " << hexval(size) << std::endl;
-            vector<ref<Expr> > symb = state->createSymbolicArray(size);
+                    << "Inserting symbolic data at " << hexval(address)
+                    << " of size " << hexval(size)
+                    << " with name '" << nameStr << "'" << std::endl;
+
+            vector<ref<Expr> > symb = state->createSymbolicArray(size, nameStr);
             for(unsigned i = 0; i < size; ++i) {
-                if(!state->writeMemory8(value1 + i, symb[i])) {
+                if(!state->writeMemory8(address + i, symb[i])) {
                     s2e()->getWarningsStream(state)
                         << "Can not insert symbolic value"
-                        << " at " << hexval(value1 + i)
+                        << " at " << hexval(address + i)
                         << ": can not write to memory" << std::endl;
                 }
             }
@@ -91,8 +123,18 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
                     klee::ConstantExpr::create(123, klee::Expr::Int32));
             }
         case 0x10: { /* print message */
+            uint32_t address; //XXX
+            bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                        &address, 4);
+            if(!ok) {
+                s2e()->getWarningsStream(state)
+                    << "ERROR: symbolic argument was passed to s2e_op "
+                       " message opcode" << std::endl;
+                break;
+            }
+
             std::string str;
-            if(!state->readString(value1, str)) {
+            if(!state->readString(address, str)) {
                 s2e()->getWarningsStream(state)
                         << "Error reading string message from the guest"
                         << std::endl;
@@ -114,13 +156,13 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state,
 }
 
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
-        uint64_t opcode, uint64_t value1)
+        uint64_t opcode)
 {
-    TRACE("Custom instructions %#"PRIx64" %#"PRIx64"\n", opcode, value1);
+    TRACE("Custom instruction %#"PRIx64"\n", opcode);
 
     switch(opcode & 0xFF) {
         case 0x00:
-            handleBuiltInOps(state, opcode, value1);
+            handleBuiltInOps(state, opcode);
             break;
         default:
             std::cout << "Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" << 

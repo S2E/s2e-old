@@ -78,26 +78,22 @@ void s2e_tcg_execution_handler(ExecutionSignal* signal, uint64_t pc)
     signal->emit(g_s2e_state, pc);
 }
 
-void s2e_tcg_custom_instruction_handler(uint64_t value0, uint64_t value1)
+void s2e_tcg_custom_instruction_handler(uint64_t arg)
 {
     assert(!g_s2e->getCorePlugin()->onCustomInstruction.empty());
-    g_s2e->getCorePlugin()->onCustomInstruction(g_s2e_state, value0, value1);
+    g_s2e->getCorePlugin()->onCustomInstruction(g_s2e_state, arg);
 }
 
-void s2e_tcg_emit_custom_instruction(S2E*, uint64_t value0, uint64_t value1)
+void s2e_tcg_emit_custom_instruction(S2E*, uint64_t arg)
 {
     TCGv_ptr t0 = tcg_temp_new_i64();
-    TCGv_ptr t1 = tcg_temp_new_i64();
-    tcg_gen_movi_i64(t0, value0);
-    tcg_gen_movi_i64(t1, value1);
+    tcg_gen_movi_i64(t0, arg);
 
-    TCGArg args[2];
+    TCGArg args[1];
     args[0] = GET_TCGV_I64(t0);
-    args[1] = GET_TCGV_I64(t1);
     tcg_gen_helperN((void*) s2e_tcg_custom_instruction_handler,
-                0, 2|4, TCG_CALL_DUMMY_ARG, 2, args);
+                0, 2, TCG_CALL_DUMMY_ARG, 1, args);
 
-    tcg_temp_free_i64(t1);
     tcg_temp_free_i64(t0);
 }
 

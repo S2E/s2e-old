@@ -766,7 +766,7 @@ static TCGHelperInfo *tcg_find_helper(TCGContext *s, tcg_target_ulong val)
 const char *tcg_helper_get_name(TCGContext *s, void *func)
 {
     TCGHelperInfo *info = tcg_find_helper(s, (tcg_target_ulong) func);
-    return info->name;
+    return info ? info->name : "";
 }
 
 static const char * const cond_name[] =

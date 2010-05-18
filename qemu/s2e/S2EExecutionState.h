@@ -85,6 +85,12 @@ public:
     /** Write CPU general purpose register */
     void writeCpuRegister(unsigned offset, klee::ref<klee::Expr> value);
 
+    /** Read concrete value from general purpose CPU register */
+    bool readCpuRegisterConcrete(unsigned offset, void* buf, unsigned size);
+
+    /** Write concrete value to general purpose CPU register */
+    void writeCpuRegisterConcrete(unsigned offset, const void* buf, unsigned size);
+
     /** Read CPU system state */
     uint64_t readCpuState(unsigned offset, unsigned width) const;
 

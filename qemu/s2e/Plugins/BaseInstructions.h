@@ -18,11 +18,11 @@ public:
     void initialize();
    
     void handleBuiltInOps(S2EExecutionState* state, 
-        uint64_t opcode, uint64_t value1);
+        uint64_t opcode);
 
 private:
     void onCustomInstruction(S2EExecutionState* state, 
-        uint64_t opcode, uint64_t value1);
+        uint64_t opcode);
 
     bool createTables();
     bool insertTiming(S2EExecutionState *state, uint64_t id);
