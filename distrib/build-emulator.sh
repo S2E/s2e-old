@@ -26,13 +26,8 @@ fi
 # directory where we'll place the temporary SDL binaries
 LOCAL=$CURDIR/local
 
-cd $CURDIR/sdl
-if ! (ANDROID_QEMU_PATH=$CURDIR/qemu ./android-configure.sh --prefix=$LOCAL && make && make install); then
-    echo "ERROR: could not build SDL library, please check their sources"
-fi
-
 cd $CURDIR/qemu
-if ! (./android-rebuild.sh --sdl-config=$LOCAL/bin/sdl-config); then
+if ! (./android-rebuild.sh); then
     echo "ERROR: could not build the emulator, please check the sources"
 fi
 

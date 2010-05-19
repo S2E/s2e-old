@@ -1301,9 +1301,6 @@ _adjustPartitionSize( const char*  description,
     return convertMBToBytes(imageMB);
 }
 
-#ifdef _WIN32
-#undef main  /* we don't want SDL to define main */
-#endif
 
 int main(int argc, char **argv)
 {

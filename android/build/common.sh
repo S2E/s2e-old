@@ -134,6 +134,21 @@ esac
 # define HOST_ARCH as the $CPU
 HOST_ARCH=$CPU
 
+# define HOST_TAG
+# special case: windows-x86 => windows
+compute_host_tag ()
+{
+    case $HOST_OS-$HOST_ARCH in
+        cygwin-x86|windows-x86)
+            HOST_TAG=windows
+            ;;
+        *)
+            HOST_TAG=$HOST_OS-$HOST_ARCH
+            ;;
+    esac
+}
+compute_host_tag
+
 #### Toolchain support
 ####
 
@@ -170,6 +185,7 @@ force_32bit_binaries ()
         esac
         HOST_ARCH=x86
         CPU=x86
+        compute_host_tag
         log "Check32Bits: Forcing generation of 32-bit binaries (--try-64 to disable)"
     fi
 }
@@ -504,6 +520,6 @@ add_android_config_mk ()
 {
     echo "" >> $config_mk
     echo "TARGET_ARCH       := arm" >> $config_mk
-    echo "HOST_PREBUILT_TAG := $ANDROID_PREBUILT_HOST_TAG" >> $config_mk
+    echo "HOST_PREBUILT_TAG := $HOST_TAG" >> $config_mk
     echo "PREBUILT          := $ANDROID_PREBUILT" >> $config_mk
 }

@@ -46,11 +46,12 @@ all: libraries executables
 EXECUTABLES :=
 LIBRARIES   :=
 
-SDL_CONFIG ?= $(PREBUILT)/sdl/bin/sdl-config
+ifneq ($(SDL_CONFIG),)
 SDL_LIBS   := $(filter %.a,$(shell $(SDL_CONFIG) --static-libs))
 $(foreach lib,$(SDL_LIBS), \
     $(eval $(call copy-prebuilt-lib,$(lib))) \
 )
+endif
 
 clean: clean-intermediates
 

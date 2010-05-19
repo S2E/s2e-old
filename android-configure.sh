@@ -4,11 +4,6 @@
 # in the current directory. It also contains logic to speed up the
 # rebuild if it detects that you're using the Android build system
 #
-# in this case, it will use prebuilt binaries for the compiler,
-# the audio library and the SDL library. You can disable this
-# by using the --no-prebuilt-libs and --cc=<compiler> options
-#
-#
 # here's the list of environment variables you can define before
 # calling this script to control it (besides options):
 #
@@ -139,13 +134,6 @@ if [ "$IN_ANDROID_BUILD" = "yes" ] ; then
         log "Prebuilt   : CCACHE=$CCACHE"
     fi
 
-    # if the user didn't specify an sdl-config script, get the prebuilt one
-    if [ -z "$SDL_CONFIG" -a "$OPTION_NO_PREBUILTS" = "no" ] ; then
-        # always use our own static libSDL by default
-        SDL_CONFIG=$ANDROID_PREBUILT/sdl/bin/sdl-config
-        log "Prebuilt   : SDL_CONFIG=$SDL_CONFIG"
-    fi
-
     # finally ensure that our new binary is copied to the 'out'
     # subdirectory as 'emulator'
     HOST_BIN=$(get_android_abs_build_var HOST_OUT_EXECUTABLES)
@@ -174,105 +162,82 @@ setup_toolchain
 ###  SDL Probe
 ###
 
-# if the user didn't specify a sdl-config script, get the prebuilt one
-if [ -z "$SDL_CONFIG" -a "$OPTION_NO_PREBUILTS" = "no" ] ; then
-    #  try to find one from our git repository
-    SDL_CONFIG=../sdl/out/$OS/bin/sdl-config
-    if [ -f $SDL_CONFIG ] ; then
-        log "Prebuilt   : SDL_CONFIG=$SDL_CONFIG"
-    else
-        echo "WARNING: YOU SHOULD USE THE --sdl-config OPTION"
-        SDL_CONFIG=
-    fi
-fi
+if [ -n "$SDL_CONFIG" ] ; then
 
-# For now, we require an external libSDL library, if SDL_CONFIG is not
-# defined, try to grab it from the environment
-#
-if [ -z "$SDL_CONFIG" ] ; then
-    SDL_CONFIG=`which sdl-config`
-    if [ $? != 0 ] ; then
-        echo "Please ensure that you have the emulator's patched libSDL"
-        echo "built somewhere and point to its sdl-config script either"
-        echo "with the SDL_CONFIG env. variable, or the --sdl-config=<script>"
-        echo "option."
-        clean_exit
-    fi
-fi
+	# check that we can link statically with the library.
+	#
+	SDL_CFLAGS=`$SDL_CONFIG --cflags`
+	SDL_LIBS=`$SDL_CONFIG --static-libs`
 
-# check that we can link statically with the library.
-#
-SDL_CFLAGS=`$SDL_CONFIG --cflags`
-SDL_LIBS=`$SDL_CONFIG --static-libs`
+	# quick hack, remove the -D_GNU_SOURCE=1 of some SDL Cflags
+	# since they break recent Mingw releases
+	SDL_CFLAGS=`echo $SDL_CFLAGS | sed -e s/-D_GNU_SOURCE=1//g`
 
-# quick hack, remove the -D_GNU_SOURCE=1 of some SDL Cflags
-# since they break recent Mingw releases
-SDL_CFLAGS=`echo $SDL_CFLAGS | sed -e s/-D_GNU_SOURCE=1//g`
-
-log "SDL-probe  : SDL_CFLAGS = $SDL_CFLAGS"
-log "SDL-probe  : SDL_LIBS   = $SDL_LIBS"
+	log "SDL-probe  : SDL_CFLAGS = $SDL_CFLAGS"
+	log "SDL-probe  : SDL_LIBS   = $SDL_LIBS"
 
 
-EXTRA_CFLAGS="$SDL_CFLAGS"
-EXTRA_LDFLAGS="$SDL_LIBS"
+	EXTRA_CFLAGS="$SDL_CFLAGS"
+	EXTRA_LDFLAGS="$SDL_LIBS"
 
-case "$OS" in
-    freebsd-*)
-    EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lm -lpthread"
-    ;;
-esac
+	case "$OS" in
+		freebsd-*)
+		EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lm -lpthread"
+		;;
+	esac
 
-cat > $TMPC << EOF
+	cat > $TMPC << EOF
 #include <SDL.h>
 #undef main
 int main( int argc, char** argv ) {
    return SDL_Init (SDL_INIT_VIDEO); 
 }
 EOF
-feature_check_link  SDL_LINKING
+	feature_check_link  SDL_LINKING
 
-if [ $SDL_LINKING != "yes" ] ; then
-    echo "You provided an explicit sdl-config script, but the corresponding library"
-    echo "cannot be statically linked with the Android emulator directly."
-    echo "Error message:"
-    cat $TMPL
-    clean_exit
-fi
-log "SDL-probe  : static linking ok"
+	if [ $SDL_LINKING != "yes" ] ; then
+		echo "You provided an explicit sdl-config script, but the corresponding library"
+		echo "cannot be statically linked with the Android emulator directly."
+		echo "Error message:"
+		cat $TMPL
+		clean_exit
+	fi
+	log "SDL-probe  : static linking ok"
 
-# now, let's check that the SDL library has the special functions
-# we added to our own sources
-#
-cat > $TMPC << EOF
+	# now, let's check that the SDL library has the special functions
+	# we added to our own sources
+	#
+	cat > $TMPC << EOF
 #include <SDL.h>
 #undef main
 int main( int argc, char** argv ) {
-    int  x, y;
-    SDL_Rect  r;
-    SDL_WM_GetPos(&x, &y);
-    SDL_WM_SetPos(x, y);
-    SDL_WM_GetMonitorDPI(&x, &y);
-    SDL_WM_GetMonitorRect(&r);
-    return SDL_Init (SDL_INIT_VIDEO); 
+	int  x, y;
+	SDL_Rect  r;
+	SDL_WM_GetPos(&x, &y);
+	SDL_WM_SetPos(x, y);
+	SDL_WM_GetMonitorDPI(&x, &y);
+	SDL_WM_GetMonitorRect(&r);
+	return SDL_Init (SDL_INIT_VIDEO); 
 }
 EOF
-feature_check_link  SDL_LINKING
+	feature_check_link  SDL_LINKING
 
-if [ $SDL_LINKING != "yes" ] ; then
-    echo "You provided an explicit sdl-config script in SDL_CONFIG, but the"
-    echo "corresponding library doesn't have the patches required to link"
-    echo "with the Android emulator. Unsetting SDL_CONFIG will use the"
-    echo "sources bundled with the emulator instead"
-    echo "Error:"
-    cat $TMPL
-    clean_exit
+	if [ $SDL_LINKING != "yes" ] ; then
+		echo "You provided an explicit sdl-config script in SDL_CONFIG, but the"
+		echo "corresponding library doesn't have the patches required to link"
+		echo "with the Android emulator. Unsetting SDL_CONFIG will use the"
+		echo "sources bundled with the emulator instead"
+		echo "Error:"
+		cat $TMPL
+		clean_exit
+	fi
+
+	log "SDL-probe  : extra features ok"
+	clean_temp
+
+	EXTRA_CFLAGS=
+	EXTRA_LDFLAGS=
 fi
-
-log "SDL-probe  : extra features ok"
-clean_temp
-
-EXTRA_CFLAGS=
-EXTRA_LDFLAGS=
 
 ###
 ###  Audio subsystems probes
@@ -384,11 +349,14 @@ feature_check_header HAVE_BYTESWAP_H "<byteswap.h>"
 #
 
 create_config_mk
+add_android_config_mk
 
 PWD=`pwd`
 echo "TARGET_ARCH := arm" >> $config_mk
 echo "SRC_PATH          := $PWD" >> $config_mk
+if [ -n "$SDL_CONFIG" ] ; then
 echo "SDL_CONFIG         := $SDL_CONFIG" >> $config_mk
+fi
 echo "CONFIG_COREAUDIO  := $PROBE_COREAUDIO" >> $config_mk
 echo "CONFIG_WINAUDIO   := $PROBE_WINAUDIO" >> $config_mk
 echo "CONFIG_ESD        := $PROBE_ESD" >> $config_mk

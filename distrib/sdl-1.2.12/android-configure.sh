@@ -157,7 +157,7 @@ case "$HOST_OS" in
         ;;
     darwin)
         SDL_CFLAGS="-D_GNU_SOURCE=1 -D_THREAD_SAFE"
-        SDL_STATIC_LIBS="-Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,QuickTime -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,AudioToolbox -Wl,-framework,AudioUnit -Wl,-framework,IOKit"
+        SDL_STATIC_LIBS="-Wl,-framework,OpenGL -Wl,-framework,Cocoa -Wl,-framework,QuickTime -Wl,-framework,ApplicationServices -Wl,-framework,Carbon -Wl,-framework,IOKit"
         ;;
     windows)
         SDL_CFLAGS="-D_GNU_SOURCE=1 -Dmain=SDL_main"
@@ -439,7 +439,7 @@ make_add_driver_macros ()
         driver_list="`var_value ${1}_default`"
     fi
     for driver_name in $driver_list; do
-        make_add "$2_${driver_name} := yes"
+        make_add "SDL_$2_${driver_name} := yes"
     done
 }
 
@@ -454,8 +454,8 @@ generate_sdl_config_mk ()
     make_add "SRC_PATH=$PWD"
     make_add "BUILD_SYSTEM=$ANDROID_QEMU_PATH/android/build"
 
-    make_add "CONFIG_LIBC := $CONFIG_LIBC"
-    make_add "CONFIG_CPUINFO := yes"
+    make_add "SDL_CONFIG_LIBC := $CONFIG_LIBC"
+    make_add "SDL_CONFIG_CPUINFO := yes"
 
     make_add_driver_macros DRIVERS_LOADSO CONFIG_LOADSO
     make_add_driver_macros DRIVERS_THREAD CONFIG_THREAD

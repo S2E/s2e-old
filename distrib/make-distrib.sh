@@ -29,11 +29,6 @@ if [ $? != 0 ] ; then
     echo "Could not clone sources"
 fi
 
-# move the SDL sources
-SDLDIR=$TMPDIR/sdl
-echo "Moving SDL sources to $SDLDIR"
-mv $TMPDIR/qemu/distrib/sdl-1.2.12 $SDLDIR
-
 echo "copying control scripts"
 mv $QEMUDIR/distrib/build-emulator.sh $TMPDIR/build-emulator.sh
 mv $QEMUDIR/distrib/README $TMPDIR/README
