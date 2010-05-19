@@ -507,8 +507,8 @@ typedef struct _KPRCB32 {
 /****************************************************************/
 /****************************************************************/
 
-#include <s2e/Interceptor/ExecutableImage.h>
-#include <s2e/Interceptor/ModuleDescriptor.h>
+#include <s2e/Plugins/ExecutableImage.h>
+#include <s2e/Plugins/ModuleDescriptor.h>
 
 namespace s2e
 {

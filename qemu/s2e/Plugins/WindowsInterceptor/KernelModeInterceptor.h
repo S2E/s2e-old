@@ -2,8 +2,7 @@
 
 #define __WINDOWS_KM_INTERCEPTOR_H__
 
-#include <s2e/Interceptor/ModuleDescriptor.h>
-#include <s2e/Plugins/PluginInterface.h>
+#include <s2e/Plugins/ModuleDescriptor.h>
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>

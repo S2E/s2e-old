@@ -2,14 +2,13 @@
 
 #define _WINDOWS_PLUGIN_H_
 
-#include <s2e/Interceptor/ModuleDescriptor.h>
-#include <s2e/Plugins/PluginInterface.h>
+#include <s2e/Plugins/ModuleDescriptor.h>
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/OSMonitor.h>
 
-#include "WindowsSpy.h"
+//#include "WindowsSpy.h"
 
 #include <inttypes.h>
 #include <set>

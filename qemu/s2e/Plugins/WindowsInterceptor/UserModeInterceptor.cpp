@@ -11,7 +11,6 @@ extern "C" {
 
 #include <s2e/Utils.h>
 #include <s2e/QemuKleeGlue.h>
-#include <s2e/Interceptor/ExecutableImage.h>
 
 #include <string>
 

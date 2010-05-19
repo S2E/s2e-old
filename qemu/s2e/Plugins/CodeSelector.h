@@ -2,8 +2,7 @@
 
 #define CODE_SELECTOR_PLUGIN_H
 
-#include <s2e/Interceptor/ModuleDescriptor.h>
-#include <s2e/Plugins/PluginInterface.h>
+#include <s2e/Plugins/ModuleDescriptor.h>
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>

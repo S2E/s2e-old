@@ -2,8 +2,7 @@
 
 #define __WINDOWS_UM_INTERCEPTOR_H__
 
-#include <s2e/Interceptor/ModuleDescriptor.h>
-#include <s2e/Plugins/PluginInterface.h>
+#include <s2e/Plugins/ModuleDescriptor.h>
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
@@ -43,7 +42,7 @@ private:
   
   ModuleDescriptor::MDSet m_LoadedLibraries;
 
-  IDataStructureSpy::Processes m_ProcList;
+  //IDataStructureSpy::Processes m_ProcList;
 
   std::string m_ProcessName;
   std::map<std::string, ModuleDescriptor> m_Modules;
