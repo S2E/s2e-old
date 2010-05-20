@@ -190,6 +190,34 @@ force_32bit_binaries ()
     fi
 }
 
+# Enable linux-mingw32 compilation. This allows you to build
+# windows executables on a Linux machine, which is considerably
+# faster than using Cygwin / MSys to do the same job.
+#
+enable_linux_mingw ()
+{
+    # Are we on Linux ?
+    log "Mingw      : Checking for Linux host"
+    if [ "$HOST_OS" != "linux" ] ; then
+        echo "Sorry, but mingw compilation is only supported on Linux !"
+        exit 1
+    fi
+    # Do we have the binaries installed
+    log "Mingw      : Checking for mingw32 installation"
+    MINGW32_PREFIX=i586-mingw32msvc
+    find_program MINGW32_CC $MINGW32_PREFIX-gcc
+    if [ -z "$MINGW32_CC" ] ; then
+        echo "ERROR: It looks like $MINGW32_PREFIX-gcc is not in your path"
+        echo "Please install the mingw32 package !"
+        exit 1
+    fi
+    log2 "Mingw      : Found $MINGW32_CC"
+    CC=$MINGW32_CC
+    LD=$MINGW32_CC
+    AR=$MINGW32_PREFIX-ar
+    FORCE_32BIT=no
+}
+
 # Cygwin is normally not supported, unless you call this function
 #
 enable_cygwin ()
@@ -265,6 +293,11 @@ EOF
         fi
     fi
     log "LD         : linker check ok ($LD)"
+
+    if [ -z "$AR" ]; then
+        AR=ar
+    fi
+    log "AR         : archiver ($AR)"
 }
 
 # try to compile the current source file in $TMPC into an object
@@ -512,6 +545,7 @@ create_config_mk ()
     echo "CC          := $CC" >> $config_mk
     echo "HOST_CC     := $CC" >> $config_mk
     echo "LD          := $LD" >> $config_mk
+    echo "AR          := $AR" >> $config_mk
     echo "CFLAGS      := $CFLAGS" >> $config_mk
     echo "LDFLAGS     := $LDFLAGS" >> $config_mk
 }
@@ -522,4 +556,40 @@ add_android_config_mk ()
     echo "TARGET_ARCH       := arm" >> $config_mk
     echo "HOST_PREBUILT_TAG := $HOST_TAG" >> $config_mk
     echo "PREBUILT          := $ANDROID_PREBUILT" >> $config_mk
+}
+
+# Find pattern $1 in string $2
+# This is to be used in if statements as in:
+#
+#    if pattern_match <pattern> <string>; then
+#       ...
+#    fi
+#
+pattern_match ()
+{
+    echo "$2" | grep -q -E -e "$1"
+}
+
+# Find if a given shell program is available.
+# We need to take care of the fact that the 'which <foo>' command
+# may return either an empty string (Linux) or something like
+# "no <foo> in ..." (Darwin). Also, we need to redirect stderr
+# to /dev/null for Cygwin
+#
+# $1: variable name
+# $2: program name
+#
+# Result: set $1 to the full path of the corresponding command
+#         or to the empty/undefined string if not available
+#
+find_program ()
+{
+    local PROG
+    PROG=`which $2 2>/dev/null`
+    if [ -n "$PROG" ] ; then
+        if pattern_match '^no ' "$PROG"; then
+            PROG=
+        fi
+    fi
+    eval $1="$PROG"
 }

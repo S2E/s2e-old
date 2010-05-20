@@ -24,6 +24,7 @@ OPTION_TRY_64=no
 OPTION_HELP=no
 OPTION_DEBUG=no
 OPTION_STATIC=no
+OPTION_MINGW=no
 
 if [ -z "$CC" ] ; then
   CC=gcc
@@ -46,6 +47,8 @@ for opt do
   --install=*) OPTION_TARGETS="$OPTION_TARGETS $optarg";
   ;;
   --sdl-config=*) SDL_CONFIG=$optarg
+  ;;
+  --mingw) OPTION_MINGW=yes
   ;;
   --cc=*) CC="$optarg" ; HOSTCC=$CC
   ;;
@@ -85,6 +88,7 @@ EOF
     echo "  --ignore-audio           ignore audio messages (may build sound-less emulator)"
     echo "  --no-prebuilts           do not use prebuilt libraries and compiler"
     echo "  --try-64                 try to build a 64-bit executable (may crash)"
+    echo "  --mingw                  build Windows executable on Linux"
     echo "  --static                 build a completely static executable"
     echo "  --verbose                verbose configuration"
     echo "  --debug                  build debug version of the emulator"
@@ -98,6 +102,14 @@ fi
 #
 if [ "$OPTION_TRY_64" != "yes" ] ; then
     force_32bit_binaries
+fi
+
+TARGET_OS=$OS
+if [ "$OPTION_MINGW" == "yes" ] ; then
+    enable_linux_mingw
+    TARGET_OS=windows
+else
+    enable_cygwin
 fi
 
 # Are we running in the Android build system ?
@@ -248,7 +260,7 @@ PROBE_OSS=no
 PROBE_ESD=no
 PROBE_WINAUDIO=no
 
-case "$OS" in
+case "$TARGET_OS" in
     darwin*) PROBE_COREAUDIO=yes;
     ;;
     linux-*) PROBE_ALSA=yes; PROBE_OSS=yes; PROBE_ESD=yes;
@@ -324,6 +336,7 @@ rm -f $TMPC
 # check host endianess
 #
 HOST_BIGENDIAN=no
+if [ "$TARGET_OS" = "$OS" ] ; then
 cat > $TMPC << EOF
 #include <inttypes.h>
 int main(int argc, char ** argv){
@@ -332,14 +345,18 @@ int main(int argc, char ** argv){
 }
 EOF
 feature_run_exec HOST_BIGENDIAN
+fi
 
 # check size of host long bits
+HOST_LONGBITS=32
+if [ "$TARGET_OS" = "$OS" ] ; then
 cat > $TMPC << EOF
 int main(void) {
         return sizeof(void*)*8;
 }
 EOF
 feature_run_exec HOST_LONGBITS
+fi
 
 # check whether we have <byteswap.h>
 #
@@ -349,10 +366,12 @@ feature_check_header HAVE_BYTESWAP_H "<byteswap.h>"
 #
 
 create_config_mk
-add_android_config_mk
+echo "" >> $config_mk
+echo "TARGET_ARCH       := arm" >> $config_mk
+echo "HOST_PREBUILT_TAG := $TARGET_OS" >> $config_mk
+echo "PREBUILT          := $ANDROID_PREBUILT" >> $config_mk
 
 PWD=`pwd`
-echo "TARGET_ARCH := arm" >> $config_mk
 echo "SRC_PATH          := $PWD" >> $config_mk
 if [ -n "$SDL_CONFIG" ] ; then
 echo "SDL_CONFIG         := $SDL_CONFIG" >> $config_mk
@@ -374,6 +393,12 @@ if [ -n "$ANDROID_SDK_TOOLS_REVISION" ] ; then
     echo "ANDROID_SDK_TOOLS_REVISION := $ANDROID_SDK_TOOLS_REVISION" >> $config_mk
 fi
 
+if [ "$OPTION_MINGW" = "yes" ] ; then
+    echo "" >> $config_mk
+    echo "USE_MINGW := 1" >> $config_mk
+    echo "HOST_OS   := windows" >> $config_mk
+fi
+
 # Build the config-host.h file
 #
 config_h=objs/config-host.h
@@ -389,14 +414,14 @@ echo "#define CONFIG_SKINS    1" >> $config_h
 echo "#define CONFIG_TRACE    1" >> $config_h
 
 # only Linux has fdatasync()
-case "$OS" in
+case "$TARGET_OS" in
     linux-*)
         echo "#define CONFIG_FDATASYNC    1" >> $config_h
         ;;
 esac
 
 # the -nand-limits options can only work on non-windows systems
-if [ "$OS" != "windows" ] ; then
+if [ "$TARGET_OS" != "windows" ] ; then
     echo "#define CONFIG_NAND_LIMITS  1" >> $config_h
 fi
 echo "#define QEMU_VERSION    \"0.10.50\"" >> $config_h
@@ -413,7 +438,7 @@ case "$CPU" in
 esac
 echo "#define HOST_$CONFIG_CPU    1" >> $config_h
 BSD=0
-case "$OS" in
+case "$TARGET_OS" in
     linux-*) CONFIG_OS=LINUX
     ;;
     darwin-*) CONFIG_OS=DARWIN
@@ -432,7 +457,7 @@ if [ "$OPTION_STATIC" = "yes" ] ; then
     echo "#define CONFIG_STATIC_EXECUTABLE  1" >> $config_h
 fi
 
-case $OS in
+case $TARGET_OS in
     linux-*|darwin-*)
         echo "#define CONFIG_IOVEC 1" >> $config_h
         ;;
