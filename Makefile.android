@@ -324,6 +324,9 @@ BUILD_SDL_FROM_SOURCES := true
 ifeq ($(QEMU_HOST_TAG),linux-x86)
     BUILD_SDL_FROM_SOURCES := false
 endif
+ifeq ($(QEMU_HOST_TAG),darwin-x86)
+    BUILD_SDL_FROM_SOURCES := false
+endif
 ifneq ($(SDL_CONFIG),)
     BUILD_SDL_FROM_SOURCES := false
 endif
