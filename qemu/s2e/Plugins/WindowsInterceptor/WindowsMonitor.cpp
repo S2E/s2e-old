@@ -52,6 +52,8 @@ void WindowsMonitor::initialize()
 
     m_KernelBase = GetKernelStart();
     m_FirstTime = true;
+    //XXX: do it only when resuming a snapshot.
+    m_TrackPidSet = true;
 
     if (!strcasecmp(Version.c_str(), "SP2")) {
         m_Version = WindowsMonitor::SP2;
@@ -77,6 +79,9 @@ void WindowsMonitor::initialize()
 
     s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
         sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionStart));
+
+    s2e()->getCorePlugin()->onTranslateInstructionEnd.connect(
+        sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionEnd));
 }
 
 void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal, 
@@ -87,6 +92,12 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
     //XXX: on resume vm snapshot, the init routines may not be called.
     //However, when it is called, it will automatically scan all loaded modules.
     if(m_UserMode) {
+        if (m_FirstTime) {
+            m_UserModeInterceptor->GetPids(state, m_PidSet);
+            m_UserModeInterceptor->CatchModuleLoad(state);
+            m_PidSet.erase(state->getPid());
+        }
+
         if (pc == GetLdrpCallInitRoutine() && m_MonitorModuleLoad) {
             DPRINTF("Basic block for LdrpCallInitRoutine %#"PRIx64"\n", pc);
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotUmCatchModuleLoad));
@@ -100,12 +111,64 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
     }
 
     if(m_KernelMode) {
-        if (pc == GetSystemServicePc() && m_FirstTime) {
+        if (m_FirstTime) {
+            slotKmUpdateModuleList(state, pc);
+        }
+
+        /*if (pc == GetSystemServicePc() && m_FirstTime) {
             m_SyscallConnection = signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmUpdateModuleList));
-        }if (pc == GetDriverLoadPc()) {
+        }*/
+        if (pc == GetDriverLoadPc()) {
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmModuleLoad));
         }else if (pc == GetDeleteDriverPc()) {
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmModuleUnload));
+        }
+    }
+
+    m_FirstTime = false;
+}
+
+void WindowsMonitor::slotTranslateInstructionEnd(ExecutionSignal *signal,
+    S2EExecutionState *state,
+    TranslationBlock *tb,
+    uint64_t pc)
+{
+    if (!m_TrackPidSet) {
+        return;
+    }
+
+    if (!isTaskSwitch(state, pc)) {
+        return;
+    }
+
+   signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotMonitorProcessSwitch));
+}
+
+void WindowsMonitor::slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t pc)
+{
+    DECLARE_PLUGINSTATE(WindowsMonitorState, state);
+
+    if (m_PidSet.size() == 0) {
+        m_TrackPidSet = false;
+        return;
+    }
+
+
+    if (state->getPid() != plgState->m_CurrentPid) {
+        plgState->m_CurrentPid = state->getPid();
+        if (m_PidSet.find(state->getPid()) != m_PidSet.end()) {
+            if (!m_UserModeInterceptor->CatchModuleLoad(state)) {
+                //XXX: This is an ugly hack to force loading ntdll in all processes
+                //ntdll.dll has a fixed addresse and used by all processes anyway.
+                ModuleDescriptor ntdll;
+                ntdll.Pid = state->getPid();
+                ntdll.Name = "ntdll.dll";
+                ntdll.NativeBase = 0x7c900000;
+                ntdll.LoadBase = 0x7c900000;
+                ntdll.Size = 0x7a000;
+                onModuleLoad.emit(state, ntdll);
+            }
+            m_PidSet.erase(state->getPid());
         }
     }
 }
@@ -177,6 +240,47 @@ bool WindowsMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &de
     return true;
 }
 
+
+//XXX: put in an appropriate place to share between different OSes.
+//Detects whether the current instruction is a write to the Cr3 register
+bool WindowsMonitor::isTaskSwitch(S2EExecutionState *state, uint64_t pc)
+{
+    uint64_t oldpc  = pc;
+    uint8_t pref, reg;
+    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
+        goto failure;
+    }
+
+    if (pref != 0x0F) {
+        goto failure;
+    }
+
+    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
+        goto failure;
+    }
+
+    if (pref != 0x22) {
+        goto failure;
+    }
+
+    if (!state->readMemoryConcrete(pc++, &pref, 1)) {
+        goto failure;
+    }
+
+    reg = ((pref >> 3) & 7);
+    if (reg != 3) {
+        goto failure;
+    }
+
+    //We have got a task switch!
+    s2e()->getDebugStream() << "Detected task switch at 0x" << oldpc << std::endl;
+
+    return true;
+
+failure:
+    s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::endl;
+    return false;
+}
 
 uint64_t WindowsMonitor::GetDriverLoadPc() const
 {
@@ -293,4 +397,28 @@ uint64_t WindowsMonitor::getPid(S2EExecutionState *s, uint64_t pc)
         return 0;
     }
     return s->getPid();
+}
+
+
+///////////////////////////////////////////////////////////////////////
+
+WindowsMonitorState::WindowsMonitorState()
+{
+    m_CurrentPid = -1;
+}
+
+WindowsMonitorState::~WindowsMonitorState()
+{
+
+}
+
+WindowsMonitorState* WindowsMonitorState::clone() const
+{
+    assert(false && "Not implemented");
+    return NULL;
+}
+
+PluginState *WindowsMonitorState::factory()
+{
+    return new WindowsMonitorState();
 }

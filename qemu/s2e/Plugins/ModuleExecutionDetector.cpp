@@ -248,7 +248,8 @@ void ModuleExecutionDetector::moduleLoadListener(
 
     //if module name matches the configured ones, then
     //activate.
-    DPRINTF("Module %s loaded\n", module.Name.c_str());
+    DPRINTF("Module %-20s loaded - Base=%#"PRIx64" Size=%#"PRIx64"\n", module.Name.c_str(),
+            module.LoadBase, module.Size);
 
     foreach2(it, m_ConfiguredModulesId.begin(), m_ConfiguredModulesId.end()) {
         if ((*it).moduleName != module.Name) {

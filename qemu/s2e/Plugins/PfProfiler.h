@@ -13,7 +13,9 @@ namespace plugins {
 
 struct PfProfilerEntry
 {
-    uint64_t ts, pc, pid;
+    uint64_t ts, pid;
+    uint64_t pc;    //Absolute pc
+    uint64_t relPc; //Pc relative to the start of the module
     uint64_t addr;
     char moduleId[20];
     char isTlbMiss;

@@ -383,6 +383,7 @@ typedef struct _DRIVER_OBJECT32
 #define KPCR_OFFSET 0xFFDFF000
 #define KD_VERSION_BLOCK (KPCR_OFFSET + 0x34)
 #define PS_LOADED_MODULE_LIST_OFFSET 0x70 //Inside the kd version block
+#define KPCR_EPROCESS 0x44
 #define KPRCB_OFFSET 0xFFDFF120
 #define IRQL_OFFSET 0xFFDFF124
 #define PEB_OFFSET 0x7FFDF000
@@ -449,6 +450,8 @@ typedef struct _EPROCESS32 {
   LIST_ENTRY32 ActiveProcessLinks;
   uint8_t Unk2[0xE4];
   uint8_t ImageFileName[16]; //offset 0x174
+  uint32_t Unk3[11];
+  uint32_t Peb;
 }EPROCESS32;
 
 typedef struct _KAPC_STATE32 {

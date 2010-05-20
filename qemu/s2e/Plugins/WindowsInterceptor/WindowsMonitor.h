@@ -22,6 +22,8 @@ class WindowsUmInterceptor;
 class WindowsKmInterceptor;
 class WindowsSpy;
 
+typedef std::set<uint64_t> PidSet;
+
 class WindowsMonitor:public OSMonitor
 {
     S2E_PLUGIN
@@ -42,6 +44,8 @@ private:
     bool m_MonitorProcessUnload;
 
     bool m_FirstTime;
+    bool m_TrackPidSet;
+    PidSet m_PidSet;
 
     WindowsUmInterceptor *m_UserModeInterceptor;
     WindowsKmInterceptor *m_KernelModeInterceptor;
@@ -56,7 +60,13 @@ public:
         S2EExecutionState *state,
         TranslationBlock *tb,
         uint64_t pc);
+
+    void slotTranslateInstructionEnd(ExecutionSignal *signal,
+        S2EExecutionState *state,
+        TranslationBlock *tb,
+        uint64_t pc);
     
+    void slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc);
@@ -68,6 +78,7 @@ public:
     virtual bool getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I);
     virtual bool getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E);
 
+    bool isTaskSwitch(S2EExecutionState *state, uint64_t pc);
 
     uint64_t GetUserAddressSpaceSize() const;
     uint64_t GetKernelStart() const;
@@ -95,6 +106,19 @@ public:
     
 };
 
+class WindowsMonitorState:public PluginState
+{
+private:
+    uint64_t m_CurrentPid;
+
+public:
+    WindowsMonitorState();
+    virtual ~WindowsMonitorState();
+    virtual WindowsMonitorState* clone() const;
+    static PluginState *factory();
+
+    friend class WindowsMonitor;
+};
 
 } // namespace plugins
 } // namespace s2e

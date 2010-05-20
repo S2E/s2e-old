@@ -86,7 +86,8 @@ bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
         desc.Pid = 0;
         desc.Name = QEMU::GetUnicode(ModuleEntry.driver_Name.Buffer, ModuleEntry.driver_Name.Length);
         desc.NativeBase = 0; // Image.GetImageBase();
-        desc.LoadBase = ModuleEntry.driver_start; 
+        desc.LoadBase = ModuleEntry.base;
+
 
         NotifyDriverLoad(state, desc);
 

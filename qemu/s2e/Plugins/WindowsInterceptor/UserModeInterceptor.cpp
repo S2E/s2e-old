@@ -97,6 +97,15 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
 
         std::string s = QEMU::GetUnicode(LdrEntry.BaseDllName.Buffer, LdrEntry.BaseDllName.Length);
 
+        if (s.length() == 0) {
+            if (LdrEntry.DllBase == 0x7c900000) {
+                //XXX
+                s = "ntdll.dll";
+            }else {
+                s = "<unnamed>";
+            }
+        }
+
         //if (m_SearchedModules.find(s) != m_SearchedModules.end()) {
         //Update the information about the library
         ModuleDescriptor Desc; 
@@ -105,6 +114,7 @@ bool WindowsUmInterceptor::FindModules(S2EExecutionState *state)
         Desc.LoadBase = LdrEntry.DllBase;
         Desc.Size = LdrEntry.SizeOfImage;
 
+        //XXX: this must be state-local
         if (m_LoadedLibraries.find(Desc) == m_LoadedLibraries.end()) {
             DPRINTF("  MODULE %s Base=%#x Size=%#x\n", s.c_str(), LdrEntry.DllBase, LdrEntry.SizeOfImage);
             m_LoadedLibraries.insert(Desc);
@@ -127,19 +137,41 @@ bool WindowsUmInterceptor::WaitForProcessInit(S2EExecutionState* state)
 
 
     uint64_t fsBase = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 8*sizeof(target_ulong));
-    if(!state->readMemoryConcrete(fsBase + 0x18, &Peb, 4)) {
-        return false;
+
+
+    if (state->getPc() < 0x80000000) {
+        if(!state->readMemoryConcrete(fsBase + 0x18, &Peb, 4)) {
+            return false;
+        }
+
+        if(!state->readMemoryConcrete(Peb+0x30, &Peb, 4)) {
+            return false;
+        }
+    }else {
+        //We are in kernel mode, do it by reading kernel-mode struc
+        uint32_t v, curProcess = -1;
+        if(!state->readMemoryConcrete(fsBase + 0x124, &v, (sizeof(v)))) {
+            return false;
+        }
+
+        if(!state->readMemoryConcrete(v + KPCR_EPROCESS, &curProcess, (sizeof(curProcess)))) {
+            return false;
+        }
+
+        /*s2e::windows::EPROCESS32 epr;
+
+        if(!state->readMemoryConcrete(curProcess, &epr, (sizeof(epr)))) {
+            return false;
+        }*/
+
+        if(!state->readMemoryConcrete(curProcess + offsetof(s2e::windows::EPROCESS32,Peb), &Peb, (sizeof(Peb)))) {
+            return false;
+        }
     }
 
-    if(!state->readMemoryConcrete(Peb+0x30, &Peb, 4)) {
+    if (Peb == 0xFFFFFFFF) {
         return false;
     }
-
-    if (Peb != 0xFFFFFFFF) {
-        //      DPRINTF("peb=%x eip=%x cr3=%x\n", Peb, state->eip, state->cr[3] );
-    }
-    else
-        return false;
 
     if (!state->readMemoryConcrete(Peb, &PebBlock, sizeof(PebBlock))) {
         return false;
@@ -234,3 +266,38 @@ bool WindowsUmInterceptor::CatchModuleUnload(S2EExecutionState *State)
 
     return true;
 }
+
+bool WindowsUmInterceptor::GetPids(S2EExecutionState *State, PidSet &out)
+{
+    s2e::windows::LIST_ENTRY32 ListHead;
+    uint64_t ActiveProcessList = m_Os->GetPsActiveProcessListPtr();
+    uint64_t pItem;
+
+    //Read the head of the list
+    if (!State->readMemoryConcrete(ActiveProcessList, &ListHead, sizeof(ListHead))) {
+        return false;
+    }
+
+    //Check for empty list
+    if (ListHead.Flink == ActiveProcessList) {
+        return true;
+    }
+
+    for (pItem = ListHead.Flink; pItem != ActiveProcessList; pItem = ListHead.Flink) {
+        if (!State->readMemoryConcrete(pItem, &ListHead, sizeof(ListHead))) {
+            return false;
+        }
+
+        uint32_t pProcessEntry = CONTAINING_RECORD32(pItem, s2e::windows::EPROCESS32, ActiveProcessLinks);
+        s2e::windows::EPROCESS32 ProcessEntry;
+
+        if (!State->readMemoryConcrete(pProcessEntry, &ProcessEntry, sizeof(ProcessEntry))) {
+            return false;
+        }
+
+        out.insert(ProcessEntry.Pcb.DirectoryTableBase);
+    }
+    return true;
+}
+
+

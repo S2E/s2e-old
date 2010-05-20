@@ -22,6 +22,7 @@ private:
   typedef std::set<ModuleDescriptor*> HookedLibrarySet;
   typedef std::set<std::string> StringSet;
 
+
   uint64_t m_ASBase;
   uint64_t m_ASSize;
   
@@ -62,6 +63,7 @@ public:
   bool CatchProcessTermination(S2EExecutionState *State);
   bool CatchModuleUnload(S2EExecutionState *State);
   
+  bool GetPids(S2EExecutionState *State, PidSet &out);
 };
 
 

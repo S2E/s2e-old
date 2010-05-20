@@ -247,9 +247,9 @@ void PfProfiler::missFaultHandler(S2EExecutionState *state, bool isTlbMiss, uint
 
     PfProfilerEntry e;
     e.ts = ts;
+    e.pc = state->getPc();
     assert(e.pc < 0x100000000);
-    e.pc = desc ? desc->ToNativeBase(state->getPc()): state->getPc();
-    assert(e.pc < 0x100000000);
+    e.relPc = desc ? desc->ToRelative(state->getPc()): 0;
     e.pid = state->getPid();
     strncpy(e.moduleId,  desc ? desc->Name.c_str() : "", sizeof(e.moduleId)-1);
     e.isTlbMiss = isTlbMiss;

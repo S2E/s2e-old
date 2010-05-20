@@ -127,6 +127,7 @@ typedef struct DisasContext {
     void *cpuState;
     target_ulong insPc; /* pc of the instrucition being translated */
     int enable_jmp_im;
+    int done_instr_end; //1 when onTranslateInstructionEnd was called
 #endif
     enum ETranslationBlockType tb_type;
 } DisasContext;
@@ -283,6 +284,17 @@ static inline void gen_op_andl_A0_ffff(void)
 #define REG_W_OFFSET 0
 #define REG_L_OFFSET 0
 #define REG_LH_OFFSET 4
+#endif
+
+#ifdef CONFIG_S2E
+static inline void gen_instr_end(DisasContext *s)
+{
+    if (!s->done_instr_end) {
+        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, s->tb, s->insPc);
+        s->done_instr_end = 1;
+    }
+}
+
 #endif
 
 static inline void gen_op_mov_reg_v(int ot, int reg, TCGv t0)
@@ -2328,9 +2340,11 @@ static inline void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
         //s2e_on_translate_block_end(g_s2e, g_s2e_state,
         //                           s->cpuState, s->tb, s->insPc, 1, eip);
 
+        gen_instr_end(s);
+
         tcg_gen_goto_tb(tb_num);
         
-        
+
         //s->enable_jmp_im = 1;
 #else
         tcg_gen_goto_tb(tb_num);
@@ -2741,6 +2755,11 @@ static void gen_debug(DisasContext *s, target_ulong cur_eip)
    if needed */
 static void gen_eob(DisasContext *s)
 {
+
+#ifdef CONFIG_S2E
+    gen_instr_end(s);
+#endif
+
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
     if (s->tb->flags & HF_INHIBIT_IRQ_MASK) {
@@ -7941,11 +7960,12 @@ static inline void gen_intermediate_code_internal(CPUState *env,
 
 #ifdef CONFIG_S2E
         dc->insPc = pc_ptr;
+        dc->done_instr_end = 0;
         s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);
 #ifdef CONFIG_S2E
-        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, tb, pc_ptr);
+        gen_instr_end(dc);
 #endif
         pc_ptr = new_pc_ptr;
         num_insns++;
