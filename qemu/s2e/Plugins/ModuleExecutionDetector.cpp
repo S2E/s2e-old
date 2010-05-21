@@ -1,3 +1,17 @@
+/**
+ *  This plugin tracks the modules which are being executed at any given point.
+ *  A module is a piece of code defined by a name. Currently the pieces of code
+ *  are derived from the actual executable files reported by the OS monitor.
+ *  TODO: allow specifying any kind of regions.
+ *
+ *  NOTE: it is not possible to track relationships between modules here.
+ *  For example, tracking of a library of a particular process. Instead, the
+ *  plugin tracks all libraries in all processes. This is because the instrumented
+ *  code can be shared between different processes. We have to conservatively instrument
+ *  all code, otherwise if some interesting code is translated first within the context
+ *  of an irrelevant process, there would be no detection instrumentation, and when the
+ *  code is executed in the relevant process, the module execution detection would fail.
+ */
 //#define NDEBUG
 
 #include <s2e/S2E.h>
@@ -78,7 +92,6 @@ void ModuleExecutionDetector::initializeConfiguration()
         TRACE("moduleName=%s kernelMode=%d context=%s\n",
             d.moduleName.c_str(), d.kernelMode, d.context.c_str());
         m_ConfiguredModulesId.insert(d);
-        m_ConfiguredModulesName.insert(d);
     }
 }
 
@@ -188,6 +201,10 @@ const ModuleExecutionDesc *ModuleExecutionDetector::getCurrentModule(S2EExecutio
     return plgState->findCurrentModule(pid, pc);
 }
 
+/**
+ *  This returns the descriptor of the module that is currently being executed.
+ *  This works only when tracking of all modules is activated.
+ */
 const ModuleDescriptor *ModuleExecutionDetector::getCurrentDescriptor(S2EExecutionState* state)
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);

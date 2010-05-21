@@ -58,7 +58,6 @@ struct ModuleExecutionDesc {
 };
 
 typedef std::set<ModuleExecutionCfg, ModuleExecCfgById> ConfiguredModulesById;
-typedef std::set<ModuleExecutionCfg, ModuleExecCfgByName> ConfiguredModulesByName;
 
 class ModuleExecutionDetector:public Plugin
 {
@@ -93,7 +92,6 @@ private:
     OSMonitor *m_Monitor;
 
     ConfiguredModulesById m_ConfiguredModulesId;
-    ConfiguredModulesByName m_ConfiguredModulesName;
 
     bool m_TrackAllModules;
 
