@@ -267,11 +267,14 @@ int cpu_exec(CPUState *env1)
     s2e_convert_eflags(g_s2e, g_s2e_state, 1);
 #else
     /* put eflags in CPU temporary format */
+    /* We no longer need this - eflags is always in that format */
+    /*
     CC_SRC_W(RR_cpu(env, eflags) & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
     DF_W(1 - (2 * ((RR_cpu(env, eflags) >> 10) & 1)));
     CC_OP_W(CC_OP_EFLAGS);
     WR_cpu(env, eflags,
            RR_cpu(env, eflags) & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
+    */
 #endif
 #elif defined(TARGET_SPARC)
 #elif defined(TARGET_M68K)
@@ -422,7 +425,7 @@ int cpu_exec(CPUState *env1)
                                    (((env->hflags2 & HF2_VINTR_MASK) && 
                                      (env->hflags2 & HF2_HIF_MASK)) ||
                                     (!(env->hflags2 & HF2_VINTR_MASK) && 
-                                     (RR_cpu(env, eflags) & IF_MASK &&
+                                     (env->mflags & IF_MASK &&
                                       !(env->hflags & HF_INHIBIT_IRQ_MASK))))) {
                             int intno;
                             svm_check_intercept(SVM_EXIT_INTR);
@@ -441,7 +444,7 @@ int cpu_exec(CPUState *env1)
                             next_tb = 0;
 #if !defined(CONFIG_USER_ONLY)
                         } else if ((interrupt_request & CPU_INTERRUPT_VIRQ) &&
-                                   (RR_cpu(env, eflags) & IF_MASK) &&
+                                   (env->mflags & IF_MASK) &&
                                    !(env->hflags & HF_INHIBIT_IRQ_MASK)) {
                             int intno;
                             /* FIXME: this should respect TPR */
@@ -649,17 +652,11 @@ int cpu_exec(CPUState *env1)
                         /* restore flags in standard format */
                         regs_to_env();
 #if defined(TARGET_I386)
-#ifdef CONFIG_S2E
-                        s2e_convert_eflags(g_s2e, g_s2e_state, 0);
+                        /* WR_cpu(env, eflags, RR_cpu(env, eflags)
+                               | helper_cc_compute_all(CC_OP) | (DF & DF_MASK)); */
                         log_cpu_state(env, X86_DUMP_CCOP);
-                        s2e_convert_eflags(g_s2e, g_s2e_state, 1);
-#else
-                        WR_cpu(env, eflags, RR_cpu(env, eflags)
-                               | helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
-                        log_cpu_state(env, X86_DUMP_CCOP);
-                        WR_cpu(env, eflags, RR_cpu(env, eflags)
-                               & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
-#endif
+                        /* WR_cpu(env, eflags, RR_cpu(env, eflags)
+                               & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C)); */
 #elif defined(TARGET_ARM)
                         log_cpu_state(env, 0);
 #elif defined(TARGET_SPARC)
@@ -759,8 +756,10 @@ int cpu_exec(CPUState *env1)
     s2e_convert_eflags(g_s2e, g_s2e_state, 0);
 #else
     /* restore flags in standard format */
-    WR_cpu(env, eflags, RR_cpu(env, eflags) |
-           helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
+    WR_cpu(env, cc_src, helper_cc_compute_all(CC_OP));
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    //WR_cpu(env, eflags, RR_cpu(env, eflags) |
+    //       helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
 #endif
 #elif defined(TARGET_ARM)
     /* XXX: Save/restore host fpu exception state?.  */
@@ -813,7 +812,7 @@ void cpu_x86_load_seg(CPUX86State *s, int seg_reg, int selector)
 
     saved_env = env;
     env = s;
-    if (!(env->cr[0] & CR0_PE_MASK) || (RR_cpu(env, eflags) & VM_MASK)) {
+    if (!(env->cr[0] & CR0_PE_MASK) || (env->mflags & VM_MASK)) {
         selector &= 0xffff;
         cpu_x86_load_seg_cache(env, seg_reg, selector,
                                (selector << 4), 0xffff, 0);

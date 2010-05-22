@@ -388,7 +388,12 @@ static int kvm_getput_regs(CPUState *env, int set)
     kvm_getput_reg(&regs.r15, &env->regs[15], set);
 #endif
 
-    kvm_getput_reg(&regs.rflags, &env->eflags, set);
+    target_ulong eflags;
+    if(set)
+        eflags = cpu_get_eflags(env);
+    kvm_getput_reg(&regs.rflags, &eflags, set);
+    if(!set)
+        cpu_set_eflags(env, eflags);
     kvm_getput_reg(&regs.rip, &env->eip, set);
 
     if (set)
@@ -425,7 +430,7 @@ static int kvm_put_sregs(CPUState *env)
                 (uint64_t)1 << (env->interrupt_injected % 64);
     }
 
-    if ((env->eflags & VM_MASK)) {
+    if ((env->mflags & VM_MASK)) {
 	    set_v8086_seg(&sregs.cs, &env->segs[R_CS]);
 	    set_v8086_seg(&sregs.ds, &env->segs[R_DS]);
 	    set_v8086_seg(&sregs.es, &env->segs[R_ES]);
@@ -587,7 +592,7 @@ static int kvm_get_sregs(CPUState *env)
     hflags |= (env->cr[0] & CR0_PE_MASK) << (HF_PE_SHIFT - CR0_PE_SHIFT);
     hflags |= (env->cr[0] << (HF_MP_SHIFT - CR0_MP_SHIFT)) &
 	    (HF_MP_MASK | HF_EM_MASK | HF_TS_MASK);
-    hflags |= (env->eflags & (HF_TF_MASK | HF_VM_MASK | HF_IOPL_MASK));
+    hflags |= (env->mflags & (HF_TF_MASK | HF_VM_MASK | HF_IOPL_MASK));
     hflags |= (env->cr[4] & CR4_OSFXSR_MASK) <<
 	    (HF_OSFXSR_SHIFT - CR4_OSFXSR_SHIFT);
 
@@ -603,7 +608,7 @@ static int kvm_get_sregs(CPUState *env)
         hflags |= (env->segs[R_SS].flags & DESC_B_MASK) >>
 		(DESC_B_SHIFT - HF_SS32_SHIFT);
         if (!(env->cr[0] & CR0_PE_MASK) ||
-                   (env->eflags & VM_MASK) ||
+                   (env->mflags & VM_MASK) ||
                    !(hflags & HF_CS32_MASK)) {
                 hflags |= HF_ADDSEG_MASK;
             } else {
@@ -846,7 +851,7 @@ int kvm_arch_pre_run(CPUState *env, struct kvm_run *run)
     /* Try to inject an interrupt if the guest can accept it */
     if (run->ready_for_interrupt_injection &&
         (env->interrupt_request & CPU_INTERRUPT_HARD) &&
-        (env->eflags & IF_MASK)) {
+        (env->mflags & IF_MASK)) {
         int irq;
 
         env->interrupt_request &= ~CPU_INTERRUPT_HARD;
@@ -878,9 +883,9 @@ int kvm_arch_pre_run(CPUState *env, struct kvm_run *run)
 int kvm_arch_post_run(CPUState *env, struct kvm_run *run)
 {
     if (run->if_flag)
-        env->eflags |= IF_MASK;
+        env->mflags |= IF_MASK;
     else
-        env->eflags &= ~IF_MASK;
+        env->mflags &= ~IF_MASK;
     
     cpu_set_apic_tpr(env, run->cr8);
     cpu_set_apic_base(env, run->apic_base);
@@ -891,7 +896,7 @@ int kvm_arch_post_run(CPUState *env, struct kvm_run *run)
 static int kvm_handle_halt(CPUState *env)
 {
     if (!((env->interrupt_request & CPU_INTERRUPT_HARD) &&
-          (env->eflags & IF_MASK)) &&
+          (env->mflags & IF_MASK)) &&
         !(env->interrupt_request & CPU_INTERRUPT_NMI)) {
         env->halted = 1;
         env->exception_index = EXCP_HLT;

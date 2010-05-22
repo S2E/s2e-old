@@ -20,6 +20,7 @@
 #define CPU_I386_H
 
 #include "config.h"
+#include <assert.h>
 
 #ifdef TARGET_X86_64
 #define TARGET_LONG_BITS 64
@@ -123,6 +124,10 @@
 #define VIF_MASK                0x00080000
 #define VIP_MASK                0x00100000
 #define ID_MASK                 0x00200000
+
+/* mflags - mode and control part of eflags */
+#define CFLAGS_MASK (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C)
+#define MFLAGS_MASK ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK)
 
 /* hidden flags - used internally by qemu to represent additional cpu
    states. Only the CPL, INHIBIT_IRQ, SMM and SVMI are not
@@ -588,14 +593,16 @@ typedef struct {
 typedef struct CPUX86State {
     /* standard registers */
     target_ulong regs[CPU_NB_REGS];
+#if 0
     target_ulong eflags; /* eflags register. During CPU emulation, CC
                         flags and DF are set to zero because they are
                         stored elsewhere */
+#endif
 
     /* emulator internal eflags handling */
     target_ulong cc_src;
     target_ulong cc_dst;
-    uint32_t cc_op;
+    uint32_t cc_op; /* outside of cpu loop, CC_OP is always CC_OP_EFLAGS */
     int32_t df; /* D flag : 1 if D = 0, -1 if D = 1 */
 
     /* S2E note: the contents of the structure from this point
@@ -604,6 +611,8 @@ typedef struct CPUX86State {
     /* S2E note: XXX: what about FPU ? */
 
     target_ulong eip;
+
+    target_ulong mflags; /* Mode and control flags from eflags */
 
     uint32_t hflags; /* TB flags, see HF_xxx constants. These flags
                         are known at translation time. */
@@ -753,6 +762,20 @@ static inline void __WR_env_raw(CPUX86State* cpuState, unsigned offset,
 #define WR_cpu(cpu, reg, value) cpu->reg = value
 #endif
 
+static inline target_ulong cpu_get_eflags(CPUX86State* env)
+{
+    assert(RR_cpu(env, cc_op) == CC_OP_EFLAGS);
+    return env->mflags | RR_cpu(env, cc_src) | (RR_cpu(env, df) & DF_MASK) | 0x2;
+}
+
+static inline void cpu_set_eflags(CPUX86State* env, target_ulong eflags)
+{
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    WR_cpu(env, cc_src, eflags & CFLAGS_MASK);
+    WR_cpu(env, df, (eflags & DF_MASK) ? -1 : 1);
+    env->mflags = eflags & MFLAGS_MASK;
+}
+
 CPUX86State *cpu_x86_init(const char *cpu_model);
 int cpu_x86_exec(CPUX86State *s);
 void cpu_x86_close(CPUX86State *s);
@@ -802,7 +825,7 @@ static inline void cpu_x86_load_seg_cache(CPUX86State *env,
         if (env->hflags & HF_CS64_MASK) {
             /* zero base assumed for DS, ES and SS in long mode */
         } else if (!(env->cr[0] & CR0_PE_MASK) ||
-                   (RR_cpu(env, eflags) & VM_MASK) ||
+                   (env->mflags & VM_MASK) ||
                    !(env->hflags & HF_CS32_MASK)) {
             /* XXX: try to avoid this test. The problem comes from the
                fact that is real mode or vm86 mode we only modify the
@@ -955,7 +978,7 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
     *cs_base = env->segs[R_CS].base;
     *pc = *cs_base + env->eip;
     *flags = env->hflags |
-        (RR_cpu(env, eflags) & (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK));
+        (env->mflags & (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK));
 }
 
 void apic_init_reset(CPUState *env);

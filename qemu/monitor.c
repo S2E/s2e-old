@@ -2653,6 +2653,13 @@ static target_long monitor_get_pc (const struct MonitorDef *md, int val)
         return 0;
     return env->eip + env->segs[R_CS].base;
 }
+static target_long monitor_get_eflags (const struct MonitorDef *md, int val)
+{
+    CPUState *env = mon_get_cpu();
+    if (!env)
+        return 0;
+    return cpu_get_eflags(env);
+}
 #endif
 
 #if defined(TARGET_PPC)
@@ -2759,7 +2766,8 @@ static const MonitorDef monitor_defs[] = {
     { "r14", offsetof(CPUState, regs[14]) },
     { "r15", offsetof(CPUState, regs[15]) },
 #endif
-    { "eflags", offsetof(CPUState, eflags) },
+    //{ "eflags", offsetof(CPUState, eflags) },
+    { "eflags", 0, monitor_get_eflags, },
     { "eip", offsetof(CPUState, eip) },
     SEG("cs", R_CS)
     SEG("ds", R_DS)

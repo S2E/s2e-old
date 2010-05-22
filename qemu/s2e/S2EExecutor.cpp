@@ -861,10 +861,12 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 void S2EExecutor::convertEflags(S2EExecutionState *state, bool fromNormal)
 {
 #if 1
+    /*
         if(fromNormal)
             helper_eflags_from_normal();
         else
             helper_eflags_to_normal();
+    */
 #else
     assert(state->isActive());
     const ObjectState* os = state->addressSpace.findObject(

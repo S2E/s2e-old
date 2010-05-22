@@ -637,6 +637,7 @@ static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
     tcg_gen_movi_tl(cpu_tmp0, pc);
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
     #ifdef CONFIG_S2E
+    /* XXX: this is not always the case! Move this to gen_eob() ! */
     if (s->enable_jmp_im) {
         s2e_on_translate_block_end(g_s2e, g_s2e_state,
                                    s->tb, s->insPc, 1, pc);

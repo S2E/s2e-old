@@ -2857,7 +2857,7 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     /* flags setup : we activate the IRQs by default as in user mode */
-    env->eflags |= IF_MASK;
+    env->mflags |= IF_MASK;
 
     /* linux register setup */
 #ifndef TARGET_ABI32

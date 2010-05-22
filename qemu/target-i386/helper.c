@@ -603,7 +603,11 @@ void cpu_reset(CPUX86State *env)
     env->eip = 0xfff0;
     WR_cpu(env, regs[R_EDX], env->cpuid_version);
 
-    WR_cpu(env, eflags, 0x2);
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    WR_cpu(env, cc_src, 0);
+    WR_cpu(env, df, 1); /* this means df flag = 0 */
+    env->mflags = 0;
+    //WR_cpu(env, eflags, 0x2);
 
     /* FPU init */
     for(i = 0;i < 8; i++)
@@ -749,7 +753,7 @@ void cpu_dump_state(CPUState *env, FILE *f,
 
     cpu_synchronize_state(env);
 
-    eflags = RR_cpu(env, eflags);
+    eflags = cpu_get_eflags(env);
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) {
         cpu_fprintf(f,

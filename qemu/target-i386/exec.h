@@ -347,16 +347,20 @@ static inline void helper_fstt(CPU86_LDouble f, target_ulong ptr)
 
 static inline uint32_t compute_eflags(void)
 {
-    return RR_cpu(env, eflags) | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+    return env->mflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
 }
 
 /* NOTE: CC_OP must be modified manually to CC_OP_EFLAGS */
 static inline void load_eflags(int eflags, int update_mask)
 {
-    CC_SRC_W(eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
-    DF_W(1 - (2 * ((eflags >> 10) & 1)));
+    CC_SRC_W(eflags & CFLAGS_MASK);
+    DF_W((eflags & DF_MASK) ? -1 : 1);
+    /*
     WR_cpu(env, eflags, (RR_cpu(env, eflags) & ~update_mask) |
         (eflags & update_mask) | 0x2);
+    */
+    env->mflags = (env->mflags & ~update_mask) |
+                    (eflags & MFLAGS_MASK & update_mask);
 }
 
 static inline void env_to_regs(void)
@@ -420,7 +424,7 @@ static inline int cpu_has_work(CPUState *env)
     int work;
 
     work = (env->interrupt_request & CPU_INTERRUPT_HARD) &&
-           (RR_cpu(env, eflags) & IF_MASK);
+           (env->mflags & IF_MASK);
     work |= env->interrupt_request & CPU_INTERRUPT_NMI;
     work |= env->interrupt_request & CPU_INTERRUPT_INIT;
     work |= env->interrupt_request & CPU_INTERRUPT_SIPI;
