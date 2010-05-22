@@ -11,8 +11,7 @@ extern const uint8_t parity_table[256];
 extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
-uint64_t helper_eflags_from_normal(void);
-uint64_t helper_eflags_to_normal(void);
+uint64_t helper_set_cc_op_eflags(void);
 }
 
 #include "S2EExecutor.h"
@@ -44,6 +43,8 @@ uint64_t helper_eflags_to_normal(void);
 #else
 #include <sys/mman.h>
 #endif
+
+//#define S2E_DEBUG_INSTRUCTIONS
 
 using namespace std;
 using namespace llvm;
@@ -264,6 +265,11 @@ S2EExecutionState* S2EExecutor::createInitialState()
     addExternalObject(*state, (void*) &name, sizeof(name), \
                       false, true, true);
 
+#define __DEFINE_EXT_OBJECT_RO_SYMB(name) \
+    predefinedSymbols.insert(std::make_pair(#name, (void*) &name)); \
+    addExternalObject(*state, (void*) &name, sizeof(name), \
+                      true, true, false);
+
     __DEFINE_EXT_OBJECT(env)
     __DEFINE_EXT_OBJECT(g_s2e)
     __DEFINE_EXT_OBJECT(g_s2e_state) 
@@ -273,9 +279,9 @@ S2EExecutionState* S2EExecutor::createInitialState()
     __DEFINE_EXT_OBJECT(io_mem_opaque)
     __DEFINE_EXT_OBJECT(use_icount)
     __DEFINE_EXT_OBJECT(cpu_single_env)
-    __DEFINE_EXT_OBJECT(parity_table)
-    __DEFINE_EXT_OBJECT(rclw_table)
-    __DEFINE_EXT_OBJECT(rclb_table)
+    __DEFINE_EXT_OBJECT_RO_SYMB(parity_table)
+    __DEFINE_EXT_OBJECT_RO_SYMB(rclw_table)
+    __DEFINE_EXT_OBJECT_RO_SYMB(rclb_table)
 
     m_s2e->getMessagesStream(state)
             << "Created initial state" << std::endl;
@@ -511,12 +517,11 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
                     case 0x18: reg = "esi"; break;
                     case 0x1c: reg = "edi"; break;
 
-                    case 0x20: reg = "eflags"; break;
+                    case 0x20: reg = "cc_src"; break;
+                    case 0x24: reg = "cc_dst"; break;
+                    case 0x28: reg = "cc_op"; break;
+                    case 0x3c: reg = "df"; break;
 
-                    case 0x24: reg = "cc_src"; break;
-                    case 0x28: reg = "cc_dst"; break;
-                    case 0x2c: reg = "cc_op"; break;
-                    case 0x30: reg = "df"; break;
                     default: reg = "unknown"; break;
                 }
                 std::string reason = std::string("access to ") + reg +
@@ -742,7 +747,12 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
         /* Execute */
         while(state->stack.size() != 1) {
             KInstruction *ki = state->pc;
-            //std::cout << *ki->inst << std::endl;
+
+#ifdef S2E_DEBUG_INSTRUCTIONS
+            m_s2e->getDebugStream(state) << "executing "
+                      << ki->inst->getParent()->getParent()->getNameStr()
+                      << ": " << *ki->inst << std::endl;
+#endif
 
             stepInstruction(*state);
             executeInstruction(*state, ki);
@@ -858,34 +868,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     }
 }
 
-void S2EExecutor::convertEflags(S2EExecutionState *state, bool fromNormal)
-{
-#if 1
-    /*
-        if(fromNormal)
-            helper_eflags_from_normal();
-        else
-            helper_eflags_to_normal();
-    */
-#else
-    assert(state->isActive());
-    const ObjectState* os = state->addressSpace.findObject(
-                                    state->m_cpuRegistersState);
-    if(os->isAllConcrete()) {
-        if(fromNormal)
-            helper_eflags_from_normal();
-        else
-            helper_eflags_to_normal();
-    } else {
-        Function* function = fromNormal ?
-                 kmodule->module->getFunction("helper_eflags_from_normal") :
-                 kmodule->module->getFunction("helper_eflags_to_normal");
-        executeFunction(state, function);
-    }
-#endif
-}
-
-
 void S2EExecutor::cleanupTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
@@ -928,7 +910,12 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
     /* Execute */
     while(state->stack.size() != callerStackSize) {
         KInstruction *ki = state->pc;
-        //std::cout << *ki->inst << std::endl;
+
+#ifdef S2E_DEBUG_INSTRUCTIONS
+        m_s2e->getDebugStream(state) << "executing "
+                      << ki->inst->getParent()->getParent()->getNameStr()
+                      << ": " << *ki->inst << std::endl;
+#endif
 
         stepInstruction(*state);
         executeInstruction(*state, ki);
@@ -957,6 +944,15 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
     copyOutConcretes(*state);
 
     return resExpr;
+}
+
+klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
+                            const std::string& functionName,
+                            const std::vector<klee::ref<klee::Expr> >& args)
+{
+    llvm::Function *function = kmodule->module->getFunction(functionName);
+    assert(function && "function with given name do not exists in LLVM module");
+    return executeFunction(state, function, args);
 }
 
 void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
@@ -1163,9 +1159,12 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
     return s2e->getExecutor()->cleanupTranslationBlock(state, tb);
 }
 
-void s2e_convert_eflags(struct S2E* s2e,
-                        struct S2EExecutionState* state,
-                        int fromNormal)
+void s2e_set_cc_op_eflags(struct S2E* s2e,
+                        struct S2EExecutionState* state)
 {
-    s2e->getExecutor()->convertEflags(state, fromNormal);
+    if(state->isRunningConcrete())
+        helper_set_cc_op_eflags();
+    else
+        s2e->getExecutor()->executeFunction(state, "helper_set_cc_op_eflags");
 }
+

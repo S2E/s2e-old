@@ -5726,21 +5726,9 @@ uint32_t helper_cc_compute_c(int op)
     }
 }
 
-#if 0
-uint64_t helper_eflags_from_normal(void)
+uint64_t helper_set_cc_op_eflags(void)
 {
-    CC_SRC_W(RR_cpu(env, eflags) & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
-    DF_W(1 - (2 * ((RR_cpu(env, eflags) >> 10) & 1)));
-    CC_OP_W(CC_OP_EFLAGS);
-    WR_cpu(env, eflags,
-           RR_cpu(env, eflags) & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
+    WR_cpu(env, cc_src, helper_cc_compute_all(CC_OP));
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
     return 0;
 }
-
-uint64_t helper_eflags_to_normal(void)
-{
-    WR_cpu(env, eflags, RR_cpu(env, eflags) |
-           helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
-    return 0;
-}
-#endif

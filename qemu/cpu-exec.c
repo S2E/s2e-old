@@ -263,9 +263,6 @@ int cpu_exec(CPUState *env1)
 
     env_to_regs();
 #if defined(TARGET_I386)
-#ifdef CONFIG_S2E
-    s2e_convert_eflags(g_s2e, g_s2e_state, 1);
-#else
     /* put eflags in CPU temporary format */
     /* We no longer need this - eflags is always in that format */
     /*
@@ -275,7 +272,6 @@ int cpu_exec(CPUState *env1)
     WR_cpu(env, eflags,
            RR_cpu(env, eflags) & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
     */
-#endif
 #elif defined(TARGET_SPARC)
 #elif defined(TARGET_M68K)
     env->cc_op = CC_OP_FLAGS;
@@ -753,7 +749,7 @@ int cpu_exec(CPUState *env1)
 
 #if defined(TARGET_I386)
 #ifdef CONFIG_S2E
-    s2e_convert_eflags(g_s2e, g_s2e_state, 0);
+    s2e_set_cc_op_eflags(g_s2e, g_s2e_state);
 #else
     /* restore flags in standard format */
     WR_cpu(env, cc_src, helper_cc_compute_all(CC_OP));

@@ -79,6 +79,11 @@ public:
                             const std::vector<klee::ref<klee::Expr> >& args
                                 = std::vector<klee::ref<klee::Expr> >());
 
+    klee::ref<klee::Expr> executeFunction(S2EExecutionState *state,
+                            const std::string& functionName,
+                            const std::vector<klee::ref<klee::Expr> >& args
+                                = std::vector<klee::ref<klee::Expr> >());
+
     /** Enable symbolic execution for a given state */
     void enableSymbolicExecution(S2EExecutionState* state);
 
@@ -126,8 +131,6 @@ public:
 
     void cleanupTranslationBlock(S2EExecutionState *state,
                                  TranslationBlock *tb);
-
-    void convertEflags(S2EExecutionState *state, bool fromNormal);
 
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,

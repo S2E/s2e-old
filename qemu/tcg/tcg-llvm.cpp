@@ -1163,7 +1163,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
 {
     /* Create new function for current translation block */
     std::ostringstream fName;
-    fName << "tcg-llvm-tb-" << (m_tbCount++);
+    fName << "tcg-llvm-tb-" << (m_tbCount++) << "-" << std::hex << tb->pc;
 
     /*
     if(m_tbFunction)

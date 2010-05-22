@@ -150,9 +150,9 @@ void s2e_write_register_concrete(struct S2E* s2e,
         struct S2EExecutionState* state, struct CPUX86State* cpuState,
         unsigned offset, uint8_t* buf, unsigned size);
 
-void s2e_convert_eflags(struct S2E* s2e,
-                        struct S2EExecutionState* state,
-                        int fromNormal);
+/* helpers that should be run as LLVM functions */
+void s2e_set_cc_op_eflags(struct S2E* s2e,
+                          struct S2EExecutionState* state);
 
 /** This function is called when RAM is read by concretely executed
     generated code. If the memory location turns out to be symbolic,
