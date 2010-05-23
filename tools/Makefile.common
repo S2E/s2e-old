@@ -26,5 +26,4 @@ LLVMCC := $(LLVMGCC)
 LLVMCXX := $(LLVMGXX)
 endif
 
-CXX.Flags += -I$(PROJ_SRC_ROOT)/stp/include
-CXX.Flags += -DKLEE_DIR=\"$(PROJ_OBJ_ROOT)\"
+CXX.Flags += -I$(S2E_SRC_ROOT)/ -I$(PROJ_SRC_ROOT)/

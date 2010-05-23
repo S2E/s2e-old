@@ -10,10 +10,10 @@
 LEVEL=../..
 TOOLNAME = pfprofiler
 USEDLIBS = executiontracer.a
-LINK_COMPONENTS = 
+LINK_COMPONENTS = support system
 
 include $(LEVEL)/Makefile.common
 
 
-LIBS += 
+LIBS += -lsigc-2.0
 #-ltcmalloc

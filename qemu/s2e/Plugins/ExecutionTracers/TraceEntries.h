@@ -22,7 +22,7 @@ struct ExecutionTraceItemHeader{
     uint8_t  type;
     uint32_t stateId;
     uint64_t pid;
-    uint8_t  payload[];
+    //uint8_t  payload[];
 };
 
 struct ExecutionTraceModuleLoad {
@@ -44,10 +44,19 @@ struct ExecutionTraceCall {
     uint64_t source, target;
 };
 
-struct ExecTraceRet {
-
+struct ExecutionTraceReturn {
+    uint32_t moduleId;
+    //These are absolute addresses
+    uint64_t source, target;
 };
 
+
+union ExecutionTraceAll {
+    ExecutionTraceModuleLoad moduleLoad;
+    ExecutionTraceModuleUnload moduleUnload;
+    ExecutionTraceCall call;
+    ExecutionTraceReturn ret;
+};
 
 }
 }
