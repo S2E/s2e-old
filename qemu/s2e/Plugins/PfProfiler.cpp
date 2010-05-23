@@ -23,10 +23,10 @@ void PfProfiler::initialize()
     m_TrackPageFaults = cfg->getBool(getConfigKey() + ".trackPageFaults");
     m_Aggregated = cfg->getBool(getConfigKey() + ".aggregated");
     m_FlushPeriod = cfg->getInt(getConfigKey() + ".flushPeriod");
-    
+
     s2e()->getMessagesStream() << "Tracking TLB misses: " << m_TrackTlbMisses <<
         " Tracking page faults: " << m_TrackPageFaults << std::endl;
-    
+
 
     bool useBinaryLogFile = cfg->getBool(getConfigKey() + ".useBinaryLogFile");
 
@@ -81,8 +81,8 @@ void PfProfiler::initialize()
 
 bool PfProfiler::createTable()
 {
-    const char *query = "create table PfProfiler(" 
-          "'timestamp' unsigned big int,"  
+    const char *query = "create table PfProfiler("
+          "'timestamp' unsigned big int,"
           "'moduleId' varchar(30),"
           "'pid' unsigned big int,"
           "'istlbmiss' boolean,"
@@ -90,7 +90,7 @@ bool PfProfiler::createTable()
           "'pc' unsigned big int,"
           "'addr' unsigned big int"
           "); create index if not exists pfprofileridx on pfprofiler(pc);";
-    
+
     Database *db = s2e()->getDb();
     return db->executeQuery(query);
 }
@@ -170,7 +170,7 @@ void PfProfiler::flushTable()
     unsigned current = 0;
 
     s2e()->getDb()->executeQuery("begin transaction;");
-    
+
     Database *db = s2e()->getDb();
 
     foreach2(it, m_PfProfilerEntries.begin(), m_PfProfilerEntries.end()) {
@@ -242,13 +242,13 @@ void PfProfiler::missFaultHandlerAggregated(S2EExecutionState *state, bool isTlb
 void PfProfiler::missFaultHandler(S2EExecutionState *state, bool isTlbMiss, uint64_t addr, bool is_write)
 {
     const ModuleDescriptor *desc = m_execDetector->getCurrentDescriptor(state);
-   
+
     uint64_t ts = llvm::sys::TimeValue::now().usec();
 
     PfProfilerEntry e;
     e.ts = ts;
     e.pc = state->getPc();
-    assert(e.pc < 0x100000000);
+    assert(e.pc < 0x100000000LL);
     e.relPc = desc ? desc->ToRelative(state->getPc()): 0;
     e.pid = state->getPid();
     strncpy(e.moduleId,  desc ? desc->Name.c_str() : "", sizeof(e.moduleId)-1);

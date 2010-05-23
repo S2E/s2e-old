@@ -1498,7 +1498,7 @@ void tcg_target_qemu_prologue(TCGContext *s)
     /* will TCG_AREG0 */
 
     /* mov r14, $env */
-    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, &env);
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_long)&env);
     /* mov r14, [r14] */
     tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
 #endif

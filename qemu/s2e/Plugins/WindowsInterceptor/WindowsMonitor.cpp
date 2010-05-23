@@ -84,7 +84,7 @@ void WindowsMonitor::initialize()
         sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionEnd));
 }
 
-void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal, 
+void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
                                                    S2EExecutionState *state,
                                                    TranslationBlock *tb,
                                                    uint64_t pc)
@@ -224,8 +224,8 @@ bool WindowsMonitor::getImports(S2EExecutionState *s, const ModuleDescriptor &de
         return false;
     }
 
-    WindowsImage Img(desc.LoadBase);
-    I = Img.GetImports();
+    WindowsImage Img(s, desc.LoadBase);
+    I = Img.GetImports(s);
     return true;
 }
 
@@ -235,8 +235,8 @@ bool WindowsMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &de
         return false;
     }
 
-    WindowsImage Img(desc.LoadBase);
-    E = Img.GetExports();
+    WindowsImage Img(s, desc.LoadBase);
+    E = Img.GetExports(s);
     return true;
 }
 
@@ -278,14 +278,14 @@ bool WindowsMonitor::isTaskSwitch(S2EExecutionState *state, uint64_t pc)
     return true;
 
 failure:
-    s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::endl;
+    //s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::endl;
     return false;
 }
 
 uint64_t WindowsMonitor::GetDriverLoadPc() const
 {
     switch(m_Version) {
-    case SP2: assert(false && "Not implemented"); 
+    case SP2: assert(false && "Not implemented");
         //return eip >= 0x805A078C && eip <= 0x805A0796;
     case SP3: return 0x004cc99a - 0x400000 + 0x804d7000;
     default: return 0;

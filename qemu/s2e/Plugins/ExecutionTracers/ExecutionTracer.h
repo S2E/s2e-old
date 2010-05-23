@@ -3,17 +3,18 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/Plugins/OSMonitor.h>
 #include <s2e/S2EExecutionState.h>
+
+#include <stdio.h>
+
+#include "TraceEntries.h"
 
 namespace s2e {
 namespace plugins {
 
-struct ExecutionTraceItem{
-    uint64_t timeStamp;
-    uint8_t  size;  //Size of the payload
-    uint8_t  type;
-    uint8_t  payload[];
-};
+//Maps a module descriptor to an id, for compression purposes
+typedef std::multimap<ModuleDescriptor, uint16_t, ModuleDescriptor::ModuleByLoadBase> ExecTracerModules;
 
 /**
  *  This plugin manages the binary execution trace file.
@@ -24,87 +25,27 @@ struct ExecutionTraceItem{
 class ExecutionTracer : public Plugin
 {
     S2E_PLUGIN
+
+    FILE* m_LogFile;
+    uint32_t m_CurrentIndex;
+    OSMonitor *m_Monitor;
+    ExecTracerModules m_Modules;
+
+    uint16_t getCompressedId(const ModuleDescriptor *desc);
+
 public:
     ExecutionTracer(S2E* s2e): Plugin(s2e) {}
-
+    ~ExecutionTracer();
     void initialize();
 
-    void writeData(void *data, unsigned size);
+    uint32_t writeData(
+            S2EExecutionState *state,
+            void *data, unsigned size, ExecTraceEntryType type);
 private:
 
-};
-
-/**
- *  Base class for all types of tracers.
- *  Handles the basic boilerplate (e.g., common config options).
- */
-class EventTracer : public Plugin
-{
-    S2E_PLUGIN
-protected:
-    EventTracer(S2E* s2e): Plugin(s2e) {}
-
-    virtual void initialize();
-
-private:
 
 };
 
-
-class CallRetTracer : public EventTracer
-{
-public:
-    virtual void initialize();
-};
-
-
-enum ExecTraceEntryType {
-    TRACE_CALL=0, TRACE_RET,
-    TRACE_TB_START,
-    TRACE_TB_END,
-    TRACE_MODULE_DESC
-};
-
-struct ExecTraceModuleDesc {
-    char Name[32];
-    uint64_t LoadBase;
-    uint64_t
-};
-
-struct ExecTraceCall {
-
-};
-
-struct ExecTraceRet {
-
-};
-
-struct ExecTraceTbStart {
-
-};
-
-struct ExecTraceTbEnd {
-
-};
-
-struct ExecTraceJump {
-
-};
-
-struct ExecTraceMemory {
-
-};
-
-
-struct ExecutionTraceEntry {
-    ExecTraceEntryType type;
-    uint32_t stateId;
-};
-
-enum TraceType {
-    TRACE_TYPE_TB,
-    TRACE_TYPE_INSTR
-};
 
 } // namespace plugins
 } // namespace s2e

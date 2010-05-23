@@ -12,9 +12,9 @@ extern "C" {
 #include "WindowsImage.h"
 
 #include <s2e/Utils.h>
-#include <s2e/QemuKleeGlue.h>
 
 #include <string>
+#include <algorithm>
 
 using namespace s2e;
 using namespace plugins;
@@ -22,7 +22,7 @@ using namespace plugins;
 WindowsKmInterceptor::WindowsKmInterceptor(WindowsMonitor *Os)
 {
   m_Os = Os;
-  
+
 }
 
 
@@ -33,7 +33,7 @@ WindowsKmInterceptor::~WindowsKmInterceptor()
 
 void WindowsKmInterceptor::NotifyDriverLoad(S2EExecutionState *State, ModuleDescriptor &Desc)
 {
-    WindowsImage Image(Desc.LoadBase);
+    WindowsImage Image(State, Desc.LoadBase);
 
     Desc.Pid = 0;
     Desc.NativeBase = Image.GetImageBase();
@@ -56,35 +56,39 @@ bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
     s2e::windows::MODULE_ENTRY32 ModuleEntry;
     uint32_t KdVersionBlock;
 
-    if (!QEMU::ReadVirtualMemory(KD_VERSION_BLOCK, &KdVersionBlock, sizeof(KdVersionBlock))) {
+    if (!state->readMemoryConcrete(KD_VERSION_BLOCK, &KdVersionBlock, sizeof(KdVersionBlock))) {
         return false;
     }
 
     //PsLoadedModuleList = KdVersionBlock + PS_LOADED_MODULE_LIST_OFFSET;
-    if (!QEMU::ReadVirtualMemory(KdVersionBlock + PS_LOADED_MODULE_LIST_OFFSET, &PsLoadedModuleList, sizeof(PsLoadedModuleList))) {
+    if (!state->readMemoryConcrete(KdVersionBlock + PS_LOADED_MODULE_LIST_OFFSET, &PsLoadedModuleList, sizeof(PsLoadedModuleList))) {
         return false;
     }
 
     pListHead = PsLoadedModuleList;
-    if (!QEMU::ReadVirtualMemory(PsLoadedModuleList, &ListHead, sizeof(ListHead))) {
+    if (!state->readMemoryConcrete(PsLoadedModuleList, &ListHead, sizeof(ListHead))) {
         return false;
     }
 
-    
+
     for (pItem = ListHead.Flink; pItem != pListHead; ) {
         pModuleEntry = pItem;
-        
-        if (QEMU::ReadVirtualMemory(pModuleEntry, &ModuleEntry, sizeof(ModuleEntry)) < 0) {
+
+        if (state->readMemoryConcrete(pModuleEntry, &ModuleEntry, sizeof(ModuleEntry)) < 0) {
             std::cout << "Could not load MODULE_ENTRY" << std::endl;
             return false;
         }
 
-        DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base, 
+        DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base,
             0, ModuleName.c_str());
 
         ModuleDescriptor desc;
+
         desc.Pid = 0;
-        desc.Name = QEMU::GetUnicode(ModuleEntry.driver_Name.Buffer, ModuleEntry.driver_Name.Length);
+
+        state->readUnicodeString(ModuleEntry.driver_Name.Buffer, desc.Name, ModuleEntry.driver_Name.Length);
+        std::transform(desc.Name.begin(), desc.Name.end(), desc.Name.begin(), ::tolower);
+
         desc.NativeBase = 0; // Image.GetImageBase();
         desc.LoadBase = ModuleEntry.base;
 
@@ -92,7 +96,7 @@ bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
         NotifyDriverLoad(state, desc);
 
         pItem = ListHead.Flink;
-        if (!QEMU::ReadVirtualMemory(ListHead.Flink, &ListHead, sizeof(ListHead))) {
+        if (!state->readMemoryConcrete(ListHead.Flink, &ListHead, sizeof(ListHead))) {
             return false;
         }
     }
@@ -101,19 +105,20 @@ bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
 
 }
 
-bool WindowsKmInterceptor::GetDriverDescriptor(uint64_t pDriverObject, ModuleDescriptor &Desc)
+bool WindowsKmInterceptor::GetDriverDescriptor(S2EExecutionState *state,
+                                               uint64_t pDriverObject, ModuleDescriptor &Desc)
 {
     s2e::windows::DRIVER_OBJECT32 DrvObject;
     s2e::windows::MODULE_ENTRY32 Me;
     std::string ModuleName;
 
-    if (!QEMU::ReadVirtualMemory(pDriverObject, 
+    if (!state->readMemoryConcrete(pDriverObject,
         &DrvObject, sizeof(DrvObject))) {
             DPRINTF("Could not load DRIVER_OBJECT\n");
             return false;
     }
 
-    DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x\n", DrvObject.DriverStart, 
+    DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x\n", DrvObject.DriverStart,
         DrvObject.DriverSize);
 
     if (DrvObject.DriverStart & 0xFFF) {
@@ -127,13 +132,15 @@ bool WindowsKmInterceptor::GetDriverDescriptor(uint64_t pDriverObject, ModuleDes
         return false;
     }
 
-    if (QEMU::ReadVirtualMemory(DrvObject.DriverSection, &Me, sizeof(Me)) < 0) {
+    if (state->readMemoryConcrete(DrvObject.DriverSection, &Me, sizeof(Me)) < 0) {
         std::cout << "Could not load MODULE_ENTRY" << std::endl;
         return false;
     }
 
-    ModuleName = QEMU::GetUnicode(Me.driver_Name.Buffer, Me.driver_Name.Length);
-    DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base, 
+    state->readUnicodeString(Me.driver_Name.Buffer, ModuleName, Me.driver_Name.Length);
+    std::transform(ModuleName.begin(), ModuleName.end(), ModuleName.begin(), ::tolower);
+
+    DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base,
         0, ModuleName.c_str());
 
     Desc.Pid = 0;
@@ -161,7 +168,7 @@ bool WindowsKmInterceptor::CatchModuleLoad(S2EExecutionState *state)
     }
 
     ModuleDescriptor desc;
-    if (!GetDriverDescriptor(pDriverObject, desc)) {
+    if (!GetDriverDescriptor(state, pDriverObject, desc)) {
         return false;
     }
 
@@ -183,11 +190,11 @@ bool WindowsKmInterceptor::CatchModuleUnload(S2EExecutionState *state)
     }
 
     ModuleDescriptor desc;
-    if (!GetDriverDescriptor(pDriverObject, desc)) {
+    if (!GetDriverDescriptor(state, pDriverObject, desc)) {
         return false;
     }
 
     NotifyDriverUnload(state, desc);
-    
+
     return true;
 }

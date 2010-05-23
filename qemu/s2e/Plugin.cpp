@@ -12,6 +12,9 @@
 #include <s2e/Plugins/ExecutionTrace.h>
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
 #include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
+#include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
+#include <s2e/Plugins/ExecutionTracers/CallRetTracer.h>
+#include <s2e/Plugins/ExecutionTracers/ModuleTracer.h>
 #include <s2e/Plugins/CacheSim.h>
 #include <s2e/Plugins/PfProfiler.h>
 
@@ -52,6 +55,9 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);
     __S2E_REGISTER_PLUGIN(plugins::PfProfiler);
+    __S2E_REGISTER_PLUGIN(plugins::ExecutionTracer);
+    __S2E_REGISTER_PLUGIN(plugins::CallRetTracer);
+    __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 
 #undef __S2E_REGISTER_PLUGIN

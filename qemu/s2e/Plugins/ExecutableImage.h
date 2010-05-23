@@ -6,6 +6,7 @@
 #include <map>
 #include <iostream>
 
+#include <s2e/S2EExecutionState.h>
 
 namespace s2e {
 
@@ -25,13 +26,13 @@ public:
   virtual uint64_t GetBase() const = 0;
   virtual uint64_t GetImageBase() const = 0;
   virtual uint64_t GetImageSize() const = 0;
-  virtual uint64_t GetEntryPoint() const = 0; 
+  virtual uint64_t GetEntryPoint() const = 0;
   virtual uint64_t GetRoundedImageSize() const = 0;
 
-  virtual const Exports& GetExports() = 0;
+  virtual const Exports& GetExports(S2EExecutionState *s) = 0;
 
-  virtual const Imports& GetImports() = 0;
-  
+  virtual const Imports& GetImports(S2EExecutionState *s) = 0;
+
   virtual void DumpInfo(std::iostream &os) const = 0;
 
 };

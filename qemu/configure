@@ -130,7 +130,7 @@ int main(void) { }
 EOF
 for flag in $gcc_flags; do
     if compile_prog "$QEMU_CFLAGS $QEMU_CCFLAGS" "$flag" ; then
-	QEMU_CCFLAGS="$flag $QEMU_CCFLAGS"
+    QEMU_CCFLAGS="$flag $QEMU_CCFLAGS"
     fi
 done
 
@@ -430,6 +430,12 @@ fi
 if test "$mingw32" = "yes" ; then
   EXESUF=".exe"
   QEMU_CFLAGS="-DWIN32_LEAN_AND_MEAN -DWINVER=0x501 $QEMU_CFLAGS"
+
+  if test "$cpu" = "x86_64"; then
+    #To make clang work on Win64
+    QEMU_CFLAGS="-D_WIN32 -D_WIN64 $QEMU_CFLAGS"
+  fi
+
   LIBS="-lwinmm -lws2_32 -liphlpapi $LIBS"
 fi
 
@@ -1055,7 +1061,7 @@ EOF
          sdl_cflags="$sd_cflags `aalib-config --cflags >2 /dev/null`"
       fi
       if compile_prog "$sdl_cflags" "$sdl_libs" ; then
-	:
+    :
       else
         sdl=no
       fi
@@ -1433,7 +1439,7 @@ EOF
   fi
   llvm_components="jit bitreader bitwriter ipo linker engine"
   llvm_cxxflags=`$llvm_config $llvm_components --cflags 2> /dev/null`
-  
+
   llvm_ldflags=`$llvm_config $llvm_components --ldflags 2> /dev/null`
   llvm_libs=`$llvm_config $llvm_components --libs 2> /dev/null`
 
@@ -1502,7 +1508,7 @@ EOF
     lua_cxxflags=`pkg-config $lua_pkg --cflags 2> /dev/null`
     lua_libs=`pkg-config $lua_pkg --libs 2> /dev/null`
   fi
-	
+
   if compile_prog_cxx "$lua_cxxflags" "$lua_libs" ; then
     : LUA found
   else
@@ -1525,7 +1531,7 @@ EOF
     sigcxx2_cxxflags=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
     sigcxx2_libs=`pkg-config sigc++-2.0 --libs 2> /dev/null`
   fi
-	
+
   if compile_prog_cxx "$sigcxx2_cxxflags" "$sigcxx2_libs" ; then
     : libsigc++-2.0 found
   else
@@ -1579,10 +1585,10 @@ EOF
       if test \( "$cpu" = "i386" -o "$cpu" = "x86_64" \) \
          -a -d "$kerneldir/arch/x86/include" ; then
             kvm_cflags="$kvm_cflags -I$kerneldir/arch/x86/include"
-	elif test "$cpu" = "ppc" -a -d "$kerneldir/arch/powerpc/include" ; then
-	    kvm_cflags="$kvm_cflags -I$kerneldir/arch/powerpc/include"
-	elif test "$cpu" = "s390x" -a -d "$kerneldir/arch/s390/include" ; then
-	    kvm_cflags="$kvm_cflags -I$kerneldir/arch/s390/include"
+    elif test "$cpu" = "ppc" -a -d "$kerneldir/arch/powerpc/include" ; then
+        kvm_cflags="$kvm_cflags -I$kerneldir/arch/powerpc/include"
+    elif test "$cpu" = "s390x" -a -d "$kerneldir/arch/s390/include" ; then
+        kvm_cflags="$kvm_cflags -I$kerneldir/arch/s390/include"
         elif test -d "$kerneldir/arch/$cpu/include" ; then
             kvm_cflags="$kvm_cflags -I$kerneldir/arch/$cpu/include"
       fi
@@ -1596,8 +1602,8 @@ EOF
       if [ -x "`which awk 2>/dev/null`" ] && \
          [ -x "`which grep 2>/dev/null`" ]; then
         kvmerr=`LANG=C $cc $QEMU_CFLAGS $QEMU_CCFLAGS -o $TMPE $kvm_cflags $TMPC 2>&1 \
-	| grep "error: " \
-	| awk -F "error: " '{if (NR>1) printf(", "); printf("%s",$2);}'`
+    | grep "error: " \
+    | awk -F "error: " '{if (NR>1) printf(", "); printf("%s",$2);}'`
         if test "$kvmerr" != "" ; then
           echo -e "${kvmerr}\n\
       NOTE: To enable KVM support, update your kernel to 2.6.29+ or install \
@@ -1714,8 +1720,8 @@ cat > $TMPC << EOF
 int
 main(void)
 {
-	/* try to unlink nonexisting file */
-	return (unlinkat(AT_FDCWD, "nonexistent_file", 0));
+    /* try to unlink nonexisting file */
+    return (unlinkat(AT_FDCWD, "nonexistent_file", 0));
 }
 EOF
 if compile_prog "" "" ; then
@@ -1734,8 +1740,8 @@ cat > $TMPC << EOF
 int
 main(void)
 {
-	/* try to start inotify */
-	return inotify_init();
+    /* try to start inotify */
+    return inotify_init();
 }
 EOF
 if compile_prog "" "" ; then
@@ -1915,7 +1921,7 @@ check_linker_flags()
 {
     w2=
     if test "$2" ; then
-	w2=-Wl,$2
+    w2=-Wl,$2
     fi
     compile_prog "" "-Wl,$1 ${w2}"
 }
@@ -2015,9 +2021,9 @@ fi
 # enable/disable
 if test -z "$zero_malloc" ; then
     if test "$z_version" = "50" ; then
-	zero_malloc="no"
+    zero_malloc="no"
     else
-	zero_malloc="yes"
+    zero_malloc="yes"
     fi
 fi
 
@@ -2506,7 +2512,7 @@ fi
 
 if test "$target_s2e" = "yes"; then
   S2E_DIRS="s2e s2e/Interceptor s2e/Plugins s2e/Plugins/WindowsInterceptor s2e/Configuration"
-  S2E_DIRS="$S2E_DIRS s2e/Plugins/DataSelectors"
+  S2E_DIRS="$S2E_DIRS s2e/Plugins/DataSelectors s2e/Plugins/ExecutionTracers"
   for dir in $S2E_DIRS ; do
     mkdir -p $target_dir/$dir
   done
@@ -2814,7 +2820,7 @@ if test "$target_softmmu" = "yes" ; then
 fi
 
 if test "$target_user_only" = "yes" -a "$static" = "no" -a \
-	"$user_pie" = "yes" ; then
+    "$user_pie" = "yes" ; then
   cflags="-fpie $cflags"
   ldflags="-pie $ldflags"
 fi

@@ -49,7 +49,7 @@ struct ModuleExecutionDesc {
     std::string id;
     bool kernelMode;
     ModuleDescriptor descriptor;
-    
+
     bool operator()(const ModuleExecutionDesc &d1,
         const ModuleExecutionDesc &d2) {
             ModuleDescriptor::ModuleByLoadBase cmp;
@@ -58,6 +58,7 @@ struct ModuleExecutionDesc {
 };
 
 typedef std::set<ModuleExecutionCfg, ModuleExecCfgById> ConfiguredModulesById;
+typedef std::set<ModuleExecutionCfg, ModuleExecCfgByName> ConfiguredModulesByName;
 
 class ModuleExecutionDetector:public Plugin
 {
@@ -66,13 +67,13 @@ class ModuleExecutionDetector:public Plugin
 public:
     sigc::signal<
         void, S2EExecutionState *,
-        const ModuleExecutionDesc*, 
+        const ModuleExecutionDesc*,
         const ModuleExecutionDesc*> onModuleTransition;
 
     /** Signal that is emitted on begining and end of code generation
         for each translation block belonging to the module.
     */
-    sigc::signal<void, ExecutionSignal*, 
+    sigc::signal<void, ExecutionSignal*,
             S2EExecutionState*,
             const ModuleExecutionDesc*,
             TranslationBlock*,
@@ -80,7 +81,7 @@ public:
             onModuleTranslateBlockStart;
 
     /** Signal that is emitted upon end of translation block of the module */
-    sigc::signal<void, ExecutionSignal*, 
+    sigc::signal<void, ExecutionSignal*,
             S2EExecutionState*,
             const ModuleExecutionDesc*,
             TranslationBlock*,
@@ -92,6 +93,7 @@ private:
     OSMonitor *m_Monitor;
 
     ConfiguredModulesById m_ConfiguredModulesId;
+    ConfiguredModulesByName m_ConfiguredModulesName;
 
     bool m_TrackAllModules;
 
@@ -99,21 +101,26 @@ private:
 public:
     ModuleExecutionDetector(S2E* s2e): Plugin(s2e) {}
     virtual ~ModuleExecutionDetector();
+
     void initialize();
 
-    const ModuleExecutionDesc *getCurrentModule(S2EExecutionState* state);
-    //Only when tracking all modules!
+    bool getCurrentModule(
+            S2EExecutionState* state,
+            ModuleExecutionDesc *desc);
+
+
+    bool toExecutionDesc(ModuleExecutionDesc *desc, const ModuleDescriptor *md);
     const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state);
 
     const ConfiguredModulesById &getConfiguredModulesById() const {
         return m_ConfiguredModulesId;
     }
 
-    void onTranslateBlockStart(ExecutionSignal *signal, 
+    void onTranslateBlockStart(ExecutionSignal *signal,
         S2EExecutionState *state,
         TranslationBlock *tb,
         uint64_t pc);
-    
+
     void onTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
@@ -134,13 +141,13 @@ public:
         S2EExecutionState* state,
         const ModuleDescriptor &module
     );
-    
+
     void moduleUnloadListener(
-        S2EExecutionState* state, 
+        S2EExecutionState* state,
         const ModuleDescriptor &desc);
 
     void processUnloadListener(
-        S2EExecutionState* state, 
+        S2EExecutionState* state,
         uint64_t pid);
 
     bool isModuleConfigured(const std::string &moduleId) const;
@@ -153,21 +160,19 @@ class ModuleTransitionState:public PluginState
 {
 private:
     typedef std::set<ModuleDescriptor, ModuleDescriptor::ModuleByLoadBase> DescriptorSet;
-    
-    const ModuleExecutionDesc *m_PreviousModule;
-    
-    //XXX: probably should unify the two following structures.
-    //Set of configured descriptors (those we want to track)
-    std::set<ModuleExecutionDesc,ModuleExecutionDesc> m_ActiveDescriptors;
 
-    //Set of all loaded descriptors
-    DescriptorSet m_AllDescriptors; 
+    const ModuleDescriptor *m_PreviousModule;
+    mutable const ModuleDescriptor *m_CachedModule;
 
+    DescriptorSet m_Descriptors;
+
+#if 0
     void activateModule(const ModuleDescriptor &desc,const ModuleExecutionCfg &cfg);
     void deactivateModule(const ModuleDescriptor &desc);
     void deactivatePid(uint64_t pid);
     const ModuleExecutionDesc *findCurrentModule(uint64_t pid, uint64_t pc) const;
     bool isModuleActive(const std::string &s);
+#endif
 
     const ModuleDescriptor *getDescriptor(uint64_t pid, uint64_t pc) const;
     void loadDescriptor(const ModuleDescriptor *desc);
@@ -175,7 +180,7 @@ private:
     void unloadDescriptorsWithPid(uint64_t pid);
 
 public:
-    sigc::signal<void, 
+    sigc::signal<void,
       S2EExecutionState*,
       const ModuleDescriptor*, //PreviousModule
       const ModuleDescriptor*  //NewModule

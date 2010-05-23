@@ -4,7 +4,7 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/S2EExecutionState.h>
-
+#include "ModuleDescriptor.h"
 
 
 namespace s2e {
@@ -13,7 +13,7 @@ namespace plugins {
 class OSMonitor:public Plugin
 {
 public:
-   sigc::signal<void, 
+   sigc::signal<void,
       S2EExecutionState*,
       const ModuleDescriptor &
    >onModuleLoad;

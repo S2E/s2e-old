@@ -57,7 +57,7 @@ void ExecutionTrace::initialize()
     m_StartedTrace = false;
 
     m_StartTick = s2e()->getConfig()->getInt(getConfigKey() + ".triggerAfter");
-    s2e()->getMessagesStream() << "Triggering execution trace after " << m_StartTick << 
+    s2e()->getMessagesStream() << "Triggering execution trace after " << m_StartTick <<
         " seconds" << std::endl;
 
     m_TimerConnection = s2e()->getCorePlugin()->onTimer.connect(
@@ -67,14 +67,14 @@ void ExecutionTrace::initialize()
 
 bool ExecutionTrace::createTable()
 {
-    const char *query = "create table ExecutionTrace(" 
-          "'timestamp' unsigned big int,"  
+    const char *query = "create table ExecutionTrace("
+          "'timestamp' unsigned big int,"
           "'moduleId' varchar(30),"
           "'tbpc' unsigned big int,"
-          "'tbtype' tinyint," 
+          "'tbtype' tinyint,"
           "'pid' unsigned big int"
           "); create index if not exists executiontraceidx on executiontrace(moduleid, tbpc);";
-    
+
     Database *db = s2e()->getDb();
     return db->executeQuery(query);
 }
@@ -127,11 +127,11 @@ bool ExecutionTrace::initTbTrace(const std::string &cfgKey)
 
     //Check that the module id is valid
     if (!m_ExecutionDetector->isModuleConfigured(moduleId)) {
-        s2e()->getWarningsStream() << 
+        s2e()->getWarningsStream() <<
             moduleId << " not configured in the execution detector! " << std::endl;
         return false;
     }
-    
+
 
     m_Modules.insert(moduleId);
 
@@ -144,17 +144,17 @@ void ExecutionTrace::onTimer()
     flushTable();
     flushInstrCount();
     m_Ticks++;
-    
+
     if (m_StartedTrace) {
         return;
     }
-    
+
     if (m_Ticks < m_StartTick) {
         return;
     }
 
     s2e()->getMessagesStream() << "Starting tracing" << std::endl;
-    
+
     if (m_TraceType == TRACE_TYPE_TB) {
     m_ExecutionDetector->onModuleTranslateBlockStart.connect(
             sigc::mem_fun(*this, &ExecutionTrace::onTranslateBlockStart)
@@ -166,7 +166,7 @@ void ExecutionTrace::onTimer()
         );
     }
 
-    
+
     m_DetectedModule = false;
     m_StartedTrace = true;
 }
@@ -180,25 +180,24 @@ void ExecutionTrace::onTranslateInstructionStart(
 {
 
     if (!m_DetectedModule) {
-        const ModuleExecutionDesc *md;
-        md = m_ExecutionDetector->getCurrentModule(state);
-        if (!md) {
+        ModuleExecutionDesc md;
+        if (!m_ExecutionDetector->getCurrentModule(state, &md)) {
             return;
         }
 
 
-        s2e()->getDebugStream() << md->id << std::endl;
-        if (m_Modules.find(md->id) == m_Modules.end()) {
+        s2e()->getDebugStream() << md.id << std::endl;
+        if (m_Modules.find(md.id) == m_Modules.end()) {
             return;
         }
         m_DetectedModule = true;
     }
     //s2e()->getDebugStream() << "Translating "<< std::hex << pc << std::endl;
-    
+
     signal->connect(
         sigc::mem_fun(*this, &ExecutionTrace::onTraceInstruction)
     );
-   
+
 }
 
 void ExecutionTrace::onTraceInstruction(S2EExecutionState* state, uint64_t pc)
@@ -228,7 +227,7 @@ void ExecutionTrace::onTranslateBlockStart(
         return;
     }*/
 
-      
+
 
     signal->connect(
         sigc::bind(sigc::mem_fun(*this, &ExecutionTrace::onExecution),
@@ -252,7 +251,7 @@ void ExecutionTrace::flushTable()
         s2e()->getDb()->executeQuery(buffer);
     }
     s2e()->getDb()->executeQuery("end transaction;");
-    
+
     m_Trace.clear();
 }
 
@@ -260,9 +259,9 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
 {
     ETranslationBlockType TbType = state->getTb()->s2e_tb_type;
 
-    
+
     //Do not trace everything for performance reasons
-    //if (TbType == TB_CALL || TbType == TB_RET) 
+    //if (TbType == TB_CALL || TbType == TB_RET)
     {
 
     llvm::sys::TimeValue timeStamp = llvm::sys::TimeValue::now();
@@ -275,7 +274,7 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
     te.timestamp = timeStamp.usec();
     te.pc = relPc;
     te.pid = state->getPid();
-    
+
     if (m_Trace.size() > 0) {
         //Do not save duplicates (should be configurable)
         const TraceEntry &b = m_Trace.back();
@@ -283,7 +282,7 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
             return;
         }
     }
-    
+
     m_Trace.push_back(te);
 
     if (m_Trace.size()<10000) {
@@ -293,8 +292,8 @@ void ExecutionTrace::onExecution(S2EExecutionState *state, uint64_t pc, const Mo
     flushTable();
 
 
-#if 0 
-    ss << "insert into ExecutionTrace values(" 
+#if 0
+    ss << "insert into ExecutionTrace values("
             << te.timestamp << ",'" <<
             te.desc->id << "'," <<
             te.pc << "," << te.tbType << "," <<

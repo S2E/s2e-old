@@ -19,7 +19,7 @@ class WindowsKmInterceptor
 private:
   WindowsMonitor *m_Os;
 
-  bool GetDriverDescriptor(uint64_t pDriverObject, ModuleDescriptor &Desc);
+  bool GetDriverDescriptor(S2EExecutionState *state, uint64_t pDriverObject, ModuleDescriptor &Desc);
   void NotifyDriverLoad(S2EExecutionState *state, ModuleDescriptor &Desc);
   void NotifyDriverUnload(S2EExecutionState *state, const ModuleDescriptor &Desc);
 public:
@@ -30,7 +30,7 @@ public:
   bool CatchModuleUnload(S2EExecutionState *state);
   bool ReadModuleList(S2EExecutionState *state);
 
-  
+
 };
 
 

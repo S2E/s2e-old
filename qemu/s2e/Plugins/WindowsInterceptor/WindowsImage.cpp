@@ -4,7 +4,6 @@
 #include "WindowsImage.h"
 
 #include <s2e/Utils.h>
-#include <s2e/QemuKleeGlue.h>
 
 using namespace std;
 using namespace s2e;
@@ -22,13 +21,13 @@ bool WindowsImage::IsValidString(const char *str)
     return true;
 }
 
-WindowsImage::WindowsImage(uint64_t Base)
+WindowsImage::WindowsImage(S2EExecutionState *state, uint64_t Base)
 {
     m_Base = Base;
     m_ImageSize = 0;
     m_ImageBase = 0;
 
-    if (!QEMU::ReadVirtualMemory(m_Base, &DosHeader, sizeof(DosHeader))) {
+    if (!state->readMemoryConcrete(m_Base, &DosHeader, sizeof(DosHeader))) {
         DPRINTF("Could not load IMAGE_DOS_HEADER structure (m_Base=%#"PRIx64")\n", m_Base);
         return;
     }
@@ -38,7 +37,7 @@ WindowsImage::WindowsImage(uint64_t Base)
         return;
     }
 
-    if (!QEMU::ReadVirtualMemory(m_Base+DosHeader.e_lfanew, &NtHeader, sizeof(NtHeader))) {
+    if (!state->readMemoryConcrete(m_Base+DosHeader.e_lfanew, &NtHeader, sizeof(NtHeader))) {
         DPRINTF("Could not load IMAGE_NT_HEADER structure (m_Base=%#"PRIx64")\n", m_Base+(unsigned)DosHeader.e_lfanew);
         return;
     }
@@ -57,7 +56,7 @@ WindowsImage::WindowsImage(uint64_t Base)
     m_ExportsInited = false;
 }
 
-int WindowsImage::InitExports()
+int WindowsImage::InitExports(S2EExecutionState *state)
 {
 
     s2e::windows::PIMAGE_DATA_DIRECTORY ExportDataDir;
@@ -83,7 +82,7 @@ int WindowsImage::InitExports()
 
     ExportDir = (s2e::windows::PIMAGE_EXPORT_DIRECTORY)malloc(ExportTableSize);
 
-    if (!QEMU::ReadVirtualMemory(ExportTableAddress, (uint8_t*)ExportDir, ExportTableSize)) {
+    if (!state->readMemoryConcrete(ExportTableAddress, (uint8_t*)ExportDir, ExportTableSize)) {
         DPRINTF("Could not load PIMAGE_EXPORT_DIRECTORY structures (m_Base=%#x)\n", ExportTableAddress);
         res = -5;
         goto err2;
@@ -101,13 +100,13 @@ int WindowsImage::InitExports()
         return -1;
     }
 
-    if (!QEMU::ReadVirtualMemory(m_Base + ExportDir->AddressOfNames, Names, TblSz)) {
+    if (!state->readMemoryConcrete(m_Base + ExportDir->AddressOfNames, Names, TblSz)) {
         DPRINTF("Could not load names of exported functions");
         res = -6;
         goto err2;
     }
 
-    if (!QEMU::ReadVirtualMemory(m_Base + ExportDir->AddressOfFunctions, FcnPtrs, TblSz)) {
+    if (!state->readMemoryConcrete(m_Base + ExportDir->AddressOfFunctions, FcnPtrs, TblSz)) {
         DPRINTF("Could not load addresses of  exported functions");
         res = -7;
         goto err3;
@@ -115,19 +114,16 @@ int WindowsImage::InitExports()
 
     for (i=0; i<ExportDir->NumberOfFunctions; i++) {
         string FunctionName;
-        char *CFcnName;
 
         uint32_t EffAddr = Names[i] + m_Base;
         if (EffAddr < m_Base || EffAddr >= m_Base + m_ImageSize) {
             continue;
         }
 
-        CFcnName = QEMU::GetAsciiz(Names[i] + m_Base);
-        if (!CFcnName || !IsValidString(CFcnName)) {
+        state->readString(Names[i] + m_Base, FunctionName);
+        if (!IsValidString(FunctionName.c_str())) {
             continue;
         }
-        FunctionName = CFcnName;
-        free(CFcnName);
 
         //DPRINTF("Export %s @%#"PRIx64"\n", FunctionName.c_str(), FcnPtrs[i]+m_Base);
         m_Exports[FunctionName] = FcnPtrs[i] + m_Base;
@@ -136,11 +132,11 @@ int WindowsImage::InitExports()
     free(FcnPtrs);
 err3: free(Names);
 err2: free(ExportDir);
-    //err1: 
+    //err1:
     return res;
 }
 
-int WindowsImage::InitImports()
+int WindowsImage::InitImports(S2EExecutionState *state)
 {
     s2e::windows::PIMAGE_DATA_DIRECTORY ImportDir;
     uint64_t ImportTableAddress;
@@ -168,7 +164,7 @@ int WindowsImage::InitImports()
         return -5;
     }
 
-    if (!QEMU::ReadVirtualMemory(ImportTableAddress, ImportDescriptors, ImportTableSize)) {
+    if (!state->readMemoryConcrete(ImportTableAddress, ImportDescriptors, ImportTableSize)) {
         DPRINTF("Could not load IMAGE_IMPORT_DESCRIPTOR structures (base=%#"PRIx64")\n", ImportTableAddress);
         free(ImportDescriptors);
         return -6;
@@ -176,18 +172,16 @@ int WindowsImage::InitImports()
 
     for (i=0; ImportDescriptors[i].Characteristics && i<ImportDescCount; i++) {
         s2e::windows::IMAGE_THUNK_DATA32 INaT;
-        char *CDllName;
-        if (!(CDllName = QEMU::GetAsciiz(ImportDescriptors[i].Name + m_Base))) {
+        string DllName;
+
+        if (!state->readString(ImportDescriptors[i].Name + m_Base, DllName)) {
             continue;
         }
-        if (!IsValidString(CDllName)) {
+        if (!IsValidString(DllName.c_str())) {
             continue;
         }
 
-        DPRINTF("%s\n", CDllName);
-
-        string DllName = CDllName;
-        free(CDllName);
+        DPRINTF("%s\n", DllName.c_str());
 
         ImportAddressTable = m_Base + ImportDescriptors[i].FirstThunk;
         ImportNameTable = m_Base + ImportDescriptors[i].OriginalFirstThunk;
@@ -197,9 +191,9 @@ int WindowsImage::InitImports()
             s2e::windows::IMAGE_THUNK_DATA32 IAT;
             uint32_t Name;
             bool res1, res2;
-            res1 = QEMU::ReadVirtualMemory(ImportAddressTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32), 
+            res1 = state->readMemoryConcrete(ImportAddressTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32),
                 &IAT, sizeof(IAT));
-            res2 = QEMU::ReadVirtualMemory(ImportNameTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32), 
+            res2 = state->readMemoryConcrete(ImportNameTable+j*sizeof(s2e::windows::IMAGE_THUNK_DATA32),
                 &INaT, sizeof(INaT));
 
             if (!res1 || !res2) {
@@ -223,7 +217,6 @@ int WindowsImage::InitImports()
             }
 
             string FunctionName;
-            char *CFcnName;
             Name = INaT.u1.AddressOfData;
 
             if (Name < m_Base || Name >= m_Base + m_ImageSize) {
@@ -231,13 +224,14 @@ int WindowsImage::InitImports()
                 continue;
             }
 
-            CFcnName = QEMU::GetAsciiz(Name+2);
-            if (!CFcnName || !IsValidString(CFcnName)) {
+            if (!state->readString(Name+2, FunctionName)) {
+                continue;
+            }
+
+            if (!IsValidString(FunctionName.c_str())) {
                 j++;
                 continue;
             }
-            FunctionName = CFcnName;
-            free(CFcnName);
             //DPRINTF("  %s @%#x\n", FunctionName.c_str(), IAT.u1.Function);
 
             ImportedFunctions &ImpFcnIt = m_Imports[DllName];
@@ -260,3 +254,28 @@ void WindowsImage::DumpInfo(std::iostream &os) const
 
 }
 
+uint64_t WindowsImage::GetRoundedImageSize() const {
+  if (m_ImageSize & 0xFFF)
+    return (m_ImageSize & ~0xFFF) + 0x1000;
+  else
+    return m_ImageSize;
+}
+
+
+const Exports& WindowsImage::GetExports(S2EExecutionState *s)
+{
+    if (!m_ExportsInited) {
+        InitExports(s);
+        m_ExportsInited = true;
+    }
+    return m_Exports;
+}
+
+const Imports& WindowsImage::GetImports(S2EExecutionState *s)
+{
+    if (!m_ImportsInited) {
+      InitImports(s);
+      m_ImportsInited = true;
+    }
+    return m_Imports;
+}

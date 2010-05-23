@@ -317,8 +317,8 @@ typedef IMAGE_BASE_RELOCATION * PIMAGE_BASE_RELOCATION;
 
 typedef struct IMAGE_RELOC_TYPE
 {
-	unsigned offset:12;
-	unsigned type:4;
+    unsigned offset:12;
+    unsigned type:4;
 
 
 }__attribute__((packed))IMAGE_RELOC_TYPE;
@@ -357,13 +357,13 @@ typedef int32_t NTSTATUS; //MUST BE SIGNED
 
 typedef struct _MODULE_ENTRY32
 {
-	LIST_ENTRY32 le_mod;
-	uint32_t  unknown[4];
-	uint32_t  base;
-	uint32_t  driver_start;
-	uint32_t  unk1;
-	UNICODE_STRING32 driver_Path;
-	UNICODE_STRING32 driver_Name;
+    LIST_ENTRY32 le_mod;
+    uint32_t  unknown[4];
+    uint32_t  base;
+    uint32_t  driver_start;
+    uint32_t  unk1;
+    UNICODE_STRING32 driver_Path;
+    UNICODE_STRING32 driver_Name;
 } MODULE_ENTRY32, *PMODULE_ENTRY32;
 
 typedef struct _DRIVER_OBJECT32
@@ -524,7 +524,7 @@ class WindowsImage:IExecutableImage
 private:
   s2e::windows::IMAGE_DOS_HEADER DosHeader;
   s2e::windows::IMAGE_NT_HEADERS NtHeader;
-  
+
   uint64_t m_Base;
   uint64_t m_ImageBase;
   uint64_t m_EntryPoint;
@@ -533,20 +533,20 @@ private:
   /* Stores the relative addresses of all exported functions */
   Exports m_Exports;
   bool m_ExportsInited;
-  
+
   /* We assume for now that there are no name collisions between
    * function with the same name in different libraries */
   Imports m_Imports;
   bool m_ImportsInited;
 
-  int InitImports();
-  int InitExports();
+  int InitImports(S2EExecutionState *s);
+  int InitExports(S2EExecutionState *s);
 
   static bool IsValidString(const char *str);
 public:
-  WindowsImage(uint64_t Base);
+  WindowsImage(S2EExecutionState *s, uint64_t Base);
 
-  virtual uint64_t GetBase() const { 
+  virtual uint64_t GetBase() const {
     return m_Base;
   }
 
@@ -562,33 +562,12 @@ public:
     return m_EntryPoint;
   }
 
-  virtual uint64_t GetRoundedImageSize() const {
-    if (m_ImageSize & 0xFFF)
-      return (m_ImageSize & ~0xFFF) + 0x1000;
-    else
-      return m_ImageSize;
-  }
-
-
-  virtual const Exports& GetExports() {
-      if (!m_ExportsInited) {
-          InitExports();
-          m_ExportsInited = true;
-      }
-      return m_Exports; 
-  }
-
-  virtual const Imports& GetImports() {
-      if (!m_ImportsInited) {
-        InitImports();
-        m_ImportsInited = true;
-      }
-      return m_Imports;
-  }
-  
+  virtual uint64_t GetRoundedImageSize() const;
+  virtual const Exports& GetExports(S2EExecutionState *s);
+  virtual const Imports& GetImports(S2EExecutionState *s);
   virtual void DumpInfo(std::iostream &os) const;
 
-  
+
 };
 
 }

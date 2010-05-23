@@ -181,9 +181,9 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     std::cout << "S2E: output directory = \"" << m_outputDirectory << "\"\n";
 
 #ifdef _WIN32
-    if(mkdir(m_outputDirectory.c_str()) < 0) 
+    if(mkdir(m_outputDirectory.c_str()) < 0)
 #else
-    if(mkdir(m_outputDirectory.c_str(), 0775) < 0) 
+    if(mkdir(m_outputDirectory.c_str(), 0775) < 0)
 #endif
     {
         perror("ERROR: Unable to create output directory");

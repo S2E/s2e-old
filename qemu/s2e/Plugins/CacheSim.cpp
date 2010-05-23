@@ -238,13 +238,13 @@ void CacheSim::initialize()
 
 //Connect the tracing when the first module is loaded
 void CacheSim::onModuleTranslateBlockStart(
-    ExecutionSignal* signal, 
-    S2EExecutionState *state, 
+    ExecutionSignal* signal,
+    S2EExecutionState *state,
     const ModuleExecutionDesc*desc,
     TranslationBlock *tb, uint64_t pc)
 {
-    
-    s2e()->getDebugStream() << "Module translation CacheSim " << desc->id << "  " << 
+
+    s2e()->getDebugStream() << "Module translation CacheSim " << desc->id << "  " <<
         pc <<std::endl;
     if(m_d1)
         s2e()->getCorePlugin()->onDataMemoryAccess.connect(
@@ -297,13 +297,11 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
 
     //Check whether to profile only known modules
     if (m_execDetector && m_profileModulesOnly) {
-        const ModuleExecutionDesc *md;
-        md = m_execDetector->getCurrentModule(state);
-        if (!md) {
+        if (!m_execDetector->getCurrentDescriptor(state)) {
             return;
         }
     }
-    
+
     unsigned missCountLength = isCode ? m_i1_length : m_d1_length;
     unsigned missCount[missCountLength];
     memset(missCount, 0, sizeof(missCount));
@@ -312,9 +310,7 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
     //Decide whether to log the access in the database
     bool doLog = false;
     if (m_execDetector) {
-        const ModuleExecutionDesc *md;
-        md = m_execDetector->getCurrentModule(state);
-        if (!md) {
+        if (!m_execDetector->getCurrentDescriptor(state)) {
             doLog = false;
         }else {
             doLog = true;
