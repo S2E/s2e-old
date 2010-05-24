@@ -45,8 +45,10 @@ uint32_t ExecutionTracer::writeData(
         return 0;
     }
 
-    if (fwrite(data, size, 1, m_LogFile) != 1) {
-        return 0;
+    if (size) {
+        if (fwrite(data, size, 1, m_LogFile) != 1) {
+            return 0;
+        }
     }
 
     return ++m_CurrentIndex;

@@ -24,10 +24,11 @@ public:
     virtual ~ModuleTracer();
     void initialize();
 
+#if 0
     bool getCurrentModule(S2EExecutionState *s,
                           ModuleDescriptor *desc,
                           uint32_t *index);
-
+#endif
 
 protected:
     virtual bool initSection(

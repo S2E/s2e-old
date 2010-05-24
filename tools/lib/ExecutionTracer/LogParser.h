@@ -10,6 +10,15 @@
 namespace s2etools
 {
 
+/**
+ * Questions:
+ *
+ * How to represent forks ?
+ * fork = progcnt + list of new ids?
+ *
+ */
+
+
 class LogParser
 {
 private:

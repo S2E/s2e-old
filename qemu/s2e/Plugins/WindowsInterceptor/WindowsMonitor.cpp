@@ -18,6 +18,7 @@ extern "C" {
 
 #include <string>
 #include <cstring>
+#include <sstream>
 #include <iostream>
 #include <assert.h>
 
@@ -82,6 +83,23 @@ void WindowsMonitor::initialize()
 
     s2e()->getCorePlugin()->onTranslateInstructionEnd.connect(
         sigc::mem_fun(*this, &WindowsMonitor::slotTranslateInstructionEnd));
+
+    readModuleCfg();
+}
+
+void WindowsMonitor::readModuleCfg()
+{
+    std::vector<std::string> Sections;
+    Sections = s2e()->getConfig()->getListKeys(getConfigKey() + ".modules");
+
+    for (unsigned i=0; i<Sections.size(); i++) {
+        std::stringstream sk;
+        sk << getConfigKey() << ".modules." << Sections[i];
+
+        std::string moduleName = s2e()->getConfig()->getString(sk.str() + ".name");
+        uint64_t moduleSize = s2e()->getConfig()->getInt(sk.str() + ".size");
+        m_ModuleInfo[moduleName] = moduleSize;
+    }
 }
 
 void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
@@ -399,6 +417,17 @@ uint64_t WindowsMonitor::getPid(S2EExecutionState *s, uint64_t pc)
     return s->getPid();
 }
 
+
+uint64_t WindowsMonitor::getModuleSizeFromCfg(const std::string &module) const
+{
+
+    ModuleSizeMap::const_iterator it;
+    it = m_ModuleInfo.find(module);
+    if (it == m_ModuleInfo.end()) {
+        return 0;
+    }
+    return (*it).second;
+}
 
 ///////////////////////////////////////////////////////////////////////
 

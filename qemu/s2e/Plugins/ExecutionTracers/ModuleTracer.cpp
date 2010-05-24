@@ -62,30 +62,37 @@ void ModuleTracer::moduleLoadListener(
     const ModuleDescriptor &module
 )
 {
-    DECLARE_PLUGINSTATE(ModuleTracerState, state);
+    ExecutionTraceModuleLoad te;
+    strncpy(te.name, module.Name.c_str(), sizeof(te.name));
+    te.loadBase = module.LoadBase;
+    te.nativeBase = module.NativeBase;
+    te.size = module.Size;
 
-    plgState->addModule(state, &module, m_Tracer);
+    m_Tracer->writeData(state, &te, sizeof(te), TRACE_MOD_LOAD);
+
 }
 
 void ModuleTracer::moduleUnloadListener(
     S2EExecutionState* state,
     const ModuleDescriptor &desc)
 {
-    DECLARE_PLUGINSTATE(ModuleTracerState, state);
+    ExecutionTraceModuleUnload te;
+    te.loadBase = desc.LoadBase;
 
-    plgState->delModule(state, &desc, m_Tracer);
+    m_Tracer->writeData(state, &te, sizeof(te), TRACE_MOD_UNLOAD);
 }
 
 void ModuleTracer::processUnloadListener(
     S2EExecutionState* state,
     uint64_t pid)
 {
-
-    DECLARE_PLUGINSTATE(ModuleTracerState, state);
-
-    plgState->delProcess(state, pid, m_Tracer);
+    m_Tracer->writeData(state, NULL, 0, TRACE_PROC_UNLOAD);
 }
 
+
+#if 0
+//The following is not necessary, as it is possible to rebuild
+//that information offline.
 
 bool ModuleTracer::getCurrentModule(S2EExecutionState *state,
                                     ModuleDescriptor *desc,
@@ -182,7 +189,7 @@ bool ModuleTracerState::getCurrentModule(S2EExecutionState *state,
         uint64_t ModSize = m_CachedDesc->Size;
         uint64_t ModPid = m_CachedDesc->Pid;
 
-        if (pid == ModPid && pc >= ModStart && pc < ModStart + ModSize) {
+        if ((!ModPid || pid == ModPid) && pc >= ModStart && pc < ModStart + ModSize) {
             //We stayed in the same module
             *index = m_CachedTraceIndex;
             if (desc)
@@ -233,6 +240,6 @@ PluginState *ModuleTracerState::factory()
     return new ModuleTracerState();
 }
 
-
+#endif
 }
 }

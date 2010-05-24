@@ -9,6 +9,7 @@ namespace plugins {
 enum ExecTraceEntryType {
     TRACE_MOD_LOAD = 0,
     TRACE_MOD_UNLOAD,
+    TRACE_PROC_UNLOAD,
     TRACE_CALL, TRACE_RET,
     TRACE_TB_START,
     TRACE_TB_END,
@@ -33,19 +34,20 @@ struct ExecutionTraceModuleLoad {
 };
 
 struct ExecutionTraceModuleUnload {
-    uint32_t traceEntry;
+    uint64_t loadBase;
+};
+
+struct ExecutionTraceProcessUnload {
+
 };
 
 
 struct ExecutionTraceCall {
-    uint32_t moduleId;
-
     //These are absolute addresses
     uint64_t source, target;
 };
 
 struct ExecutionTraceReturn {
-    uint32_t moduleId;
     //These are absolute addresses
     uint64_t source, target;
 };

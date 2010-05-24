@@ -135,10 +135,6 @@ void CallRetTracer::traceCall(S2EExecutionState *state, uint64_t pc)
     te.source = pc;
     te.target = state->getPc();
 
-    if (!m_ModTracer->getCurrentModule(state, NULL, &te.moduleId)) {
-        te.moduleId = (uint32_t)-1;
-    }
-
     m_Tracer->writeData(state, &te, sizeof(te), TRACE_CALL);
 }
 
@@ -147,10 +143,6 @@ void CallRetTracer::traceReturn(S2EExecutionState *state, uint64_t pc)
     ExecutionTraceCall te;
     te.source = pc;
     te.target = state->getPc();
-
-    if (!m_ModTracer->getCurrentModule(state, NULL, &te.moduleId)) {
-        te.moduleId = (uint32_t)-1;
-    }
 
     m_Tracer->writeData(state, &te, sizeof(te), TRACE_RET);
 }

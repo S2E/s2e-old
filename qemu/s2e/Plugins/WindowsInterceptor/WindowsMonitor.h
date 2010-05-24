@@ -23,6 +23,7 @@ class WindowsKmInterceptor;
 class WindowsSpy;
 
 typedef std::set<uint64_t> PidSet;
+typedef std::map<std::string, uint64_t> ModuleSizeMap;
 
 class WindowsMonitor:public OSMonitor
 {
@@ -51,12 +52,16 @@ private:
     WindowsKmInterceptor *m_KernelModeInterceptor;
 
     sigc::connection m_SyscallConnection;
+
+    ModuleSizeMap m_ModuleInfo;
+
+    void readModuleCfg();
 public:
     WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
     virtual ~WindowsMonitor();
     void initialize();
 
-    void slotTranslateInstructionStart(ExecutionSignal *signal, 
+    void slotTranslateInstructionStart(ExecutionSignal *signal,
         S2EExecutionState *state,
         TranslationBlock *tb,
         uint64_t pc);
@@ -65,12 +70,12 @@ public:
         S2EExecutionState *state,
         TranslationBlock *tb,
         uint64_t pc);
-    
+
     void slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchModuleUnload(S2EExecutionState *state, uint64_t pc);
     void slotUmCatchProcessTermination(S2EExecutionState *state, uint64_t pc);
-    
+
     void slotKmUpdateModuleList(S2EExecutionState *state, uint64_t pc);
     void slotKmModuleLoad(S2EExecutionState *state, uint64_t pc);
     void slotKmModuleUnload(S2EExecutionState *state, uint64_t pc);
@@ -89,7 +94,9 @@ public:
     uint64_t GetDriverLoadPc() const;
     uint64_t GetSystemServicePc() const;
     uint64_t GetPsActiveProcessListPtr() const;
-    
+
+    uint64_t getModuleSizeFromCfg(const std::string &module) const;
+
     bool CheckPanic(uint64_t eip) const;
     unsigned GetPointerSize() const;
 
@@ -103,7 +110,7 @@ public:
 
     virtual bool isKernelAddress(uint64_t pc) const;
     virtual uint64_t getPid(S2EExecutionState *s, uint64_t pc);
-    
+
 };
 
 class WindowsMonitorState:public PluginState
