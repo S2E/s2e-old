@@ -6,6 +6,7 @@
 #include <set>
 #include <inttypes.h>
 #include <ostream>
+#include <cassert>
 
 namespace s2etools
 {
@@ -108,22 +109,31 @@ public:
     ~ModuleLibrary();
     bool addModule(const Module *m);
     const Module *get(const std::string &name) const;
+    uint64_t translatePid(uint64_t pid, uint64_t pc) const;
 };
 
 struct ModuleInstance
 {
     uint64_t Pid;
     uint64_t LoadBase;
+    uint64_t Size; //Used only for lookup
     const Module *Mod;
 
-    ModuleInstance(uint64_t pid, uint64_t base, const Module *m)  {
-        Pid = pid;
-        LoadBase = base;
-        Mod = m;
-    }
+    ModuleInstance(
+            ModuleLibrary *lib,
+            uint64_t pid, uint64_t base, uint64_t size, const Module *m);
+
+    ModuleInstance(
+            ModuleLibrary *lib,
+            const std::string &name, uint64_t pid, uint64_t loadBase, uint64_t size, uint64_t imageBase);
 
     bool operator<(const ModuleInstance& s) const {
         if (Pid == s.Pid) {
+            if (Size) {
+                assert(!Mod);
+                return LoadBase + Size < s.LoadBase;
+            }
+            assert(Mod);
             return LoadBase + Mod->getImageSize() < s.LoadBase;
         }
         return Pid < s.Pid;
@@ -136,6 +146,11 @@ struct ModuleInstance
 struct ModuleInstanceCmp {
     bool operator()(const ModuleInstance *s1, const ModuleInstance *s2) const {
         if (s1->Pid == s2->Pid) {
+            if (s1->Size) {
+                assert(!s1->Mod);
+                return s1->LoadBase + s1->Size < s2->LoadBase;
+            }
+            assert(s1->Mod);
             return s1->LoadBase + s1->Mod->getImageSize() < s2->LoadBase;
         }
         return s1->Pid < s2->Pid;
@@ -148,12 +163,13 @@ typedef std::set<ModuleInstance*, ModuleInstanceCmp> ModuleInstanceSet;
 class ModuleCache
 {
 private:
-    const ModuleLibrary *m_Library;
+    ModuleLibrary *m_Library;
     ModuleInstanceSet m_Instances;
 
 public:
-    ModuleCache(const ModuleLibrary *Library);
-    bool loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase);
+    ModuleCache(ModuleLibrary *Library);
+    bool loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,
+                    uint64_t imageBase, uint64_t size);
     bool unloadDriver(uint64_t pid, uint64_t loadBase);
 
     const ModuleInstance *getInstance(uint64_t pid, uint64_t pc) const;

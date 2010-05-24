@@ -82,24 +82,44 @@ const Module *ModuleLibrary::get(const std::string &name) const
     return NULL;
 }
 
+//XXX: hard-coded for Windows
+uint64_t ModuleLibrary::translatePid(uint64_t pid, uint64_t pc) const
+{
+    if (pc < 0x80000000) {
+        return pid;
+    }
+    return 0;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 
-ModuleCache::ModuleCache(const ModuleLibrary *Library)
+ModuleCache::ModuleCache(ModuleLibrary *Library)
 {
     m_Library = Library;
 }
 
-bool ModuleCache::loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase)
+bool ModuleCache::loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,
+                             uint64_t imageBase, uint64_t size)
 {
     const Module *m = m_Library->get(name);
-    if (!m) {
+    if (!m && !size) {
         return false;
     }
 
-    ModuleInstance *mi = new ModuleInstance(pid, loadBase, m);
+    ModuleInstance *mi;
+    if (m) {
+        if(m->getImageSize() != size) {
+            std::cerr << "Attempt to load " << name << " with mismatching size. Check for name collisions." << std::endl;
+            std::cerr << std::hex << m->getImageSize() << " " << size << std::endl << std::flush;
+            return false;
+        }
+        mi = new ModuleInstance(m_Library, pid, loadBase, size, m);
+    }else {
+        mi = new ModuleInstance(m_Library, name, pid, loadBase, size, imageBase);
+    }
     m_Instances.insert(mi);
 
     return true;
@@ -107,7 +127,7 @@ bool ModuleCache::loadDriver(const std::string &name, uint64_t pid, uint64_t loa
 
 bool ModuleCache::unloadDriver(uint64_t pid, uint64_t loadBase)
 {
-    ModuleInstance mi(pid, loadBase, NULL);
+    ModuleInstance mi(m_Library, pid, loadBase, 1, NULL);
     return m_Instances.erase(&mi);
 }
 
@@ -116,9 +136,38 @@ bool ModuleCache::unloadDriver(uint64_t pid, uint64_t loadBase)
 ///////////////////////////////////////////////////////////////////////////////
 
 
+ModuleInstance::ModuleInstance(
+        ModuleLibrary *lib,
+        uint64_t pid, uint64_t loadBase, uint64_t size, const Module *m)
+{
+
+    //assert(m);
+    Pid = lib->translatePid(pid, loadBase);
+    LoadBase = loadBase;
+    Mod = m;
+    Size = 0;
+    if (!m) {
+        Size = size;
+    }
+
+}
+
+ModuleInstance::ModuleInstance(
+        ModuleLibrary *lib,
+        const std::string &name, uint64_t pid, uint64_t loadBase, uint64_t size, uint64_t imageBase)
+{
+    Mod = new Module(imageBase, size, name);
+    lib->addModule(Mod);
+
+    Pid = lib->translatePid(pid, loadBase);
+    LoadBase = loadBase;
+
+    Size = 0;
+}
+
 const ModuleInstance *ModuleCache::getInstance(uint64_t pid, uint64_t pc) const
 {
-    ModuleInstance mi(pid, pc, NULL);
+    ModuleInstance mi(m_Library, pid, pc, 1, NULL);
     ModuleInstanceSet::const_iterator it = m_Instances.find(&mi);
     if (it == m_Instances.end()) {
         return NULL;
@@ -129,6 +178,7 @@ const ModuleInstance *ModuleCache::getInstance(uint64_t pid, uint64_t pc) const
 
 void ModuleInstance::print(std::ostream &os) const
 {
+    assert(Mod);
     os << "Instance of " << Mod->getModuleName() <<
             " Pid=0x" << std::hex << Pid <<
             " LoadBase=0x" << LoadBase << std::endl;
