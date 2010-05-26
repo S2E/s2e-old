@@ -17,9 +17,7 @@
 #endif
 
 typedef void QEMUPutKBDEvent(void *opaque, int keycode);
-typedef void QEMUPutKBDEventN(void *opaque, int*  keycodes, int  count);
 typedef void QEMUPutMouseEvent(void *opaque, int dx, int dy, int dz, int buttons_state);
-typedef void QEMUPutGenericEvent(void*  opaque, int  type, int  code, int  value);
 
 typedef struct QEMUPutMouseEntry {
     QEMUPutMouseEvent *qemu_put_mouse_event;
@@ -38,8 +36,6 @@ QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
 void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry);
 
 void kbd_put_keycode(int keycode);
-void kbd_put_keycodes(int*  keycodes, int  count);
-void  kbd_generic_event(int  type, int code, int  value);
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state);
 int kbd_mouse_is_absolute(void);
 

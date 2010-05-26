@@ -24,6 +24,7 @@
 #include "qemu-common.h"
 #include "sysemu.h"
 #include "console.h"
+#include "user-events.h"
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -275,16 +276,6 @@ uint64_t  convertMBToBytes( unsigned  megaBytes )
 /***********************************************************************/
 /***********************************************************************/
 
-void send_key_event(unsigned code, unsigned down)
-{
-    if(code == 0) {
-        return;
-    }
-    if (VERBOSE_CHECK(keys))
-        printf(">> KEY [0x%03x,%s]\n", (code & 0x1ff), down ? "down" : " up " );
-    kbd_put_keycode((code & 0x1ff) | (down ? 0x200 : 0));
-}
-
 /* called by the emulated framebuffer device each time the content of the
  * framebuffer has changed. the rectangle is the bounding box of all changes
  */
@@ -373,7 +364,7 @@ static void sdl_refresh(DisplayState *ds)
                     kcode = // qemulator_rotate_keycode(kKeyCodeDpadUp);
                         android_keycode_rotate(kKeyCodeDpadUp,
                             skin_layout_get_dpad_rotation(qemulator_get_layout(qemulator_get())));
-                    send_key_event( kcode, down );
+                    user_event_key( kcode, down );
                 }
                 else if (ev.button.button == 5)
                 {
@@ -383,7 +374,7 @@ static void sdl_refresh(DisplayState *ds)
                     kcode = // qemulator_rotate_keycode(kKeyCodeDpadDown);
                         android_keycode_rotate(kKeyCodeDpadDown,
                             skin_layout_get_dpad_rotation(qemulator_get_layout(qemulator_get())));
-                    send_key_event( kcode, down );
+                    user_event_key( kcode, down );
                 }
                 else if (ev.button.button == SDL_BUTTON_LEFT) {
                     skin_window_process_event( window, &ev );

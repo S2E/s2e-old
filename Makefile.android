@@ -327,6 +327,10 @@ endif
 ifeq ($(QEMU_HOST_TAG),darwin-x86)
     BUILD_SDL_FROM_SOURCES := false
 endif
+ifeq ($(BUILD_STANDALONE_EMULATOR),true)
+    BUILD_SDL_FROM_SOURCES := true
+endif
+
 ifneq ($(SDL_CONFIG),)
     BUILD_SDL_FROM_SOURCES := false
 endif
@@ -627,6 +631,7 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               qjson.c \
               qlist.c \
               qstring.c \
+              user-events-qemu.c \
               android/boot-properties.c \
               android/charmap.c \
               android/cmdline-option.c \

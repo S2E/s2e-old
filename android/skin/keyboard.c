@@ -14,6 +14,7 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/system.h"
 #include "android/android.h"
+#include "user-events.h"
 
 #define  DEBUG  1
 
@@ -125,7 +126,7 @@ skin_keyboard_flush( SkinKeyboard*  kb )
             }
             printf( "\n" );
         }
-        kbd_put_keycodes(kb->keycodes, kb->keycode_count);
+        user_event_keycodes(kb->keycodes, kb->keycode_count);
         kb->keycode_count = 0;
     }
 }

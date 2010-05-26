@@ -17,7 +17,7 @@
 #include "android/utils/system.h"
 #include "android/hw-sensors.h"
 #include <SDL_syswm.h>
-#include "qemu-common.h"
+#include "user-events.h"
 #include <math.h>
 
 #include "framebuffer.h"
@@ -855,7 +855,7 @@ add_finger_event(unsigned x, unsigned y, unsigned state)
     /* NOTE: the 0 is used in hw/goldfish_events.c to differentiate
      * between a touch-screen and a trackball event
      */
-    kbd_mouse_event(x, y, 0, state);
+    user_event_mouse(x, y, 0, state);
 }
 
 static void
@@ -984,7 +984,7 @@ skin_window_move_mouse( SkinWindow*  window,
 static void
 skin_window_trackball_press( SkinWindow*  window, int  down )
 {
-    send_key_event(  BTN_MOUSE, down );
+    user_event_key( BTN_MOUSE, down );
 }
 
 static void
@@ -1221,7 +1221,7 @@ skin_window_reset_internal ( SkinWindow*  window, SkinLayout*  slayout )
     skin_window_redraw( window, NULL );
 
     if (slayout->event_type != 0) {
-        kbd_generic_event( slayout->event_type, slayout->event_code, slayout->event_value );
+        user_event_generic( slayout->event_type, slayout->event_code, slayout->event_value );
         /* XXX: hack, replace by better code here */
         if (slayout->event_value != 0)
             android_sensors_set_coarse_orientation( ANDROID_COARSE_PORTRAIT );
@@ -1457,7 +1457,7 @@ skin_window_process_event( SkinWindow*  window, SDL_Event*  ev )
                 skin_window_redraw( window, &button->rect );
                 window->button.pressed = button;
                 if(button->keycode) {
-                    send_key_event(button->keycode, 1);
+                    user_event_key(button->keycode, 1);
                 }
             }
         }
@@ -1477,7 +1477,7 @@ skin_window_process_event( SkinWindow*  window, SDL_Event*  ev )
             button->down = 0;
             skin_window_redraw( window, &button->rect );
             if(button->keycode) {
-                send_key_event(button->keycode, 0);
+                user_event_key(button->keycode, 0);
             }
             window->button.pressed = NULL;
             window->button.hover   = NULL;

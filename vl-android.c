@@ -479,13 +479,6 @@ ram_addr_t qemu_balloon_status(void)
 static QEMUPutKBDEvent*  qemu_put_kbd_event;
 static void*             qemu_put_kbd_event_opaque;
 
-static QEMUPutKBDEventN*  qemu_put_kbd_event_n;
-static void*              qemu_put_kbd_event_n_opaque;
-
-
-static QEMUPutGenericEvent*  qemu_put_generic_event;
-static void*                 qemu_put_generic_event_opaque;
-
 static QEMUPutMouseEntry *qemu_put_mouse_event_head;
 static QEMUPutMouseEntry *qemu_put_mouse_event_current;
 
@@ -493,12 +486,6 @@ void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
 {
     qemu_put_kbd_event_opaque = opaque;
     qemu_put_kbd_event = func;
-}
-
-void qemu_add_kbd_event_n_handler(QEMUPutKBDEventN *func, void *opaque)
-{
-    qemu_put_kbd_event_n_opaque = opaque;
-    qemu_put_kbd_event_n = func;
 }
 
 #if 0
@@ -574,41 +561,12 @@ void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry)
 }
 #endif
 
-void qemu_add_generic_event_handler(QEMUPutGenericEvent *func, void*  opaque)
-{
-    qemu_put_generic_event = func;
-    qemu_put_generic_event_opaque = opaque;
-}
-
 void kbd_put_keycode(int keycode)
 {
     if (qemu_put_kbd_event) {
         qemu_put_kbd_event(qemu_put_kbd_event_opaque, keycode);
     }
 }
-
-void kbd_put_keycodes(int*  keycodes, int  count)
-{
-    if (qemu_put_kbd_event_n)
-    {
-        qemu_put_kbd_event_n(qemu_put_kbd_event_n_opaque, keycodes, count);
-    }
-    else if (qemu_put_kbd_event)
-    {
-        int  nn;
-
-        for (nn = 0; nn < count; nn++)
-            qemu_put_kbd_event(qemu_put_kbd_event_opaque, keycodes[nn]);
-    }
-}
-
-
-void  kbd_generic_event(int  type, int code, int  value)
-{
-    if (qemu_put_generic_event)
-        qemu_put_generic_event(qemu_put_generic_event_opaque, type, code, value);
-}
-
 
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state)
 {

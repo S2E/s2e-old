@@ -47,6 +47,7 @@
 #include <fcntl.h>
 #include "android/hw-events.h"
 #include "android/skin/keyboard.h"
+#include "user-events.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
@@ -1701,7 +1702,7 @@ do_event_send( ControlClient  client, char*  args )
             return -1;
         }
 
-        kbd_generic_event( type, code, value );
+        user_event_generic( type, code, value );
         p = q;
     }
     return 0;

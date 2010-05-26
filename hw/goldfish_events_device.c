@@ -14,6 +14,7 @@
 #include "android/charmap.h"
 #include "android/globals.h"  /* for android_hw */
 #include "irq.h"
+#include "user-events.h"
 
 #define MAX_EVENTS 256*4
 
@@ -385,7 +386,7 @@ void events_dev_init(uint32_t base, qemu_irq irq)
 
     qemu_add_kbd_event_handler(events_put_keycode, s);
     qemu_add_mouse_event_handler(events_put_mouse, s, 1, "goldfish-events");
-    qemu_add_generic_event_handler(events_put_generic, s);
+    user_event_register_generic(s, events_put_generic);
 
     s->base = base;
     s->irq = irq;
