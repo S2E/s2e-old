@@ -338,6 +338,9 @@ protected:
   /// Get textual information regarding a memory address.
   std::string getAddressInfo(ExecutionState &state, ref<Expr> address) const;
 
+  // delete the state (called internally by terminateState and updateStates)
+  virtual void deleteState(ExecutionState *state);
+
   // remove state from queue and delete
   void terminateState(ExecutionState &state);
   // call exit handler and terminate state
