@@ -39,6 +39,8 @@ OTHER:
   This allows testing situations where emulators need to communicate directly
   with each other. See '-help-shared-net-id' for more details.
 
+- Fix net shaping regression: -netspeed and -netdelay did not work anymore.
+
 ==============================================================================
 Changes between 6.0 and 5.0
 

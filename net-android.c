@@ -750,7 +750,13 @@ slirp_init_shapers( void )
 
 int slirp_can_output(void)
 {
+#ifdef CONFIG_SHAPER
+    return !slirp_vc ||
+           ( netshaper_can_send(slirp_shaper_out) &&
+             qemu_can_send_packet(slirp_vc) );
+#else
     return !slirp_vc || qemu_can_send_packet(slirp_vc);
+#endif
 }
 
 void slirp_output(const uint8_t *pkt, int pkt_len)
@@ -764,7 +770,12 @@ void slirp_output(const uint8_t *pkt, int pkt_len)
 
     if (!slirp_vc)
         return;
+
+#ifdef CONFIG_SHAPER
+    netshaper_send(slirp_shaper_out, (void*)pkt, pkt_len);
+#else
     qemu_send_packet(slirp_vc, pkt, pkt_len);
+#endif
 }
 
 int slirp_is_inited(void)
@@ -781,7 +792,11 @@ static ssize_t slirp_receive(VLANClientState *vc, const uint8_t *buf, size_t siz
     if (qemu_tcpdump_active)
         qemu_tcpdump_packet(buf, size);
 
+#ifdef CONFIG_SHAPER
+    netshaper_send(slirp_shaper_in, (char*)buf, size);
+#else
     slirp_input(buf, size);
+#endif
     return size;
 }
 
