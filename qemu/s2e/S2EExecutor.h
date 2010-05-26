@@ -52,6 +52,8 @@ protected:
 
     std::vector<klee::MemoryObject*> m_saveOnContextSwitch;
 
+    std::vector<S2EExecutionState*> m_deletedStates;
+
     bool m_executeAlwaysKlee;
 
 public:
@@ -143,6 +145,8 @@ protected:
                            const std::vector<klee::ref<klee::Expr> >& args);
     uintptr_t executeTranslationBlockKlee(S2EExecutionState *state,
                                           TranslationBlock *tb);
+
+    void deleteState(klee::ExecutionState *state);
 
     void doStateSwitch(S2EExecutionState* oldState,
                        S2EExecutionState* newState);

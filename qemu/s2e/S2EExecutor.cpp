@@ -652,6 +652,11 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
 S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
+    if(states.empty()) {
+        m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
+        exit(0);
+    }
+
     ExecutionState& newKleeState = searcher->selectState();
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
 
@@ -942,14 +947,6 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
         stepInstruction(*state);
         executeInstruction(*state, ki);
 
-        if(!removedStates.empty() && removedStates.find(state) !=
-                                     removedStates.end()) {
-            std::cerr << "The current state was killed inside KLEE !" << std::endl;
-            std::cerr << "Last executed instruction was:" << std::endl;
-            ki->inst->dump();
-            exit(1);
-        }
-
         updateStates(state);
     }
 
@@ -989,6 +986,12 @@ void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
     state->m_symbexEnabled = false;
     m_s2e->getMessagesStream(state) << "Disabled symbex"
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
+}
+
+void S2EExecutor::deleteState(klee::ExecutionState *state)
+{
+    assert(dynamic_cast<S2EExecutionState*>(state));
+    m_deletedStates.push_back(static_cast<S2EExecutionState*>(state));
 }
 
 void S2EExecutor::doStateFork(S2EExecutionState *originalState,
