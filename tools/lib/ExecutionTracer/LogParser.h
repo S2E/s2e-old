@@ -10,25 +10,10 @@
 namespace s2etools
 {
 
-/**
- * Questions:
- *
- * How to represent forks ?
- * fork = progcnt + list of new ids?
- *
- */
 
-
-class LogParser
+class LogEvents
 {
-private:
-
-    std::vector<uint64_t> m_ItemOffsets;
-
 public:
-    LogParser();
-    ~LogParser();
-
     sigc::signal<void,
         unsigned,
         const s2e::plugins::ExecutionTraceItemHeader &,
@@ -63,7 +48,28 @@ public:
             const s2e::plugins::ExecutionTraceReturn &
     >onReturnItem;
 
+protected:
+    virtual void processItem(unsigned itemEntry,
+                             const s2e::plugins::ExecutionTraceItemHeader &hdr,
+                             void *data);
+};
+
+
+class LogParser: public LogEvents
+{
+private:
+
+    FILE *m_File;
+    std::vector<uint64_t> m_ItemOffsets;
+
+
+public:
+    LogParser();
+    ~LogParser();
+
     bool parse(const std::string &file);
+    bool getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &hdr, void *data);
+
 };
 
 }

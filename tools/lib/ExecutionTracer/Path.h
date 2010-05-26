@@ -76,17 +76,19 @@ typedef std::map<uint32_t, PathSegmentList> StateToSegments;
 typedef std::vector<uint32_t> ExecutionPath;
 typedef std::vector<ExecutionPath> ExecutionPaths;
 
-class PathBuilder
+class PathBuilder: public LogEvents
 {
 private:
     PathSegment *m_Root;
     PathSegment *m_CurrentSegment;
     StateToSegments m_Leaves;
+    LogParser *m_Parser;
 
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
                 void *item);
 
+    void processSegment(PathSegment *seg);
 public:
     PathBuilder(LogParser *log);
 
@@ -95,6 +97,8 @@ public:
 
     static void printPath(const ExecutionPath &p, std::ostream &os);
     static void printPaths(const ExecutionPaths &p, std::ostream &os);
+
+    void processPath(const ExecutionPath &p);
 };
 
 }

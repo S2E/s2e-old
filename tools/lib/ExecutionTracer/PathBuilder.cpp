@@ -50,6 +50,8 @@ unsigned PathSegment::getIndexInParent() const
 
 PathBuilder::PathBuilder(LogParser *log)
 {
+    m_Parser = log;
+
     log->onEachItem.connect(
             sigc::mem_fun(*this, &PathBuilder::onItem)
     );
@@ -134,6 +136,44 @@ void PathBuilder::printPaths(const ExecutionPaths &p, std::ostream &os)
     for (it = p.begin(); it!=p.end(); ++it) {
         printPath(*it, os);
     }
+}
+
+void PathBuilder::processSegment(PathSegment *seg)
+{
+    const PathFragmentList &fra = seg->getFragmentList();
+    PathFragmentList::const_iterator it;
+    s2e::plugins::ExecutionTraceItemHeader hdr;
+    uint8_t data[256];
+
+    for (it = fra.begin(); it != fra.end(); ++it) {
+        const PathFragment &f = (*it);
+        for (uint32_t s = f.startIndex; s <= f.endIndex; ++s) {
+            m_Parser->getItem(s, hdr, data);
+            processItem(s, hdr, data);
+        }
+    }
+}
+
+void PathBuilder::processPath(const ExecutionPath &p)
+{
+    ExecutionPath::const_reverse_iterator it;
+    PathSegment *curSeg = m_Root;
+
+    it = p.rbegin();
+
+    do {
+        processSegment(curSeg);
+
+        if (it == p.rend()) {
+            break;
+        }
+
+        const PathSegmentList &ps = curSeg->getChildren();
+        assert(*it < ps.size());
+
+        curSeg = ps[*it];
+        ++it;
+    }while(true);
 }
 
 }

@@ -52,9 +52,31 @@ protected:
     std::vector<uint64_t> m_lines;
 
     std::string m_name;
+    uint8_t m_cacheId;
+
     Cache* m_upperCache;
 
 public:
+    uint64_t getSize() const {
+        return m_size;
+    }
+
+    unsigned getAssociativity() const {
+        return m_associativity;
+    }
+
+    unsigned getLineSize() const {
+        return m_lineSize;
+    }
+
+    uint8_t getId() const {
+        return m_cacheId;
+    }
+
+    void setId(uint8_t id) {
+        m_cacheId = id;
+    }
+
     Cache(const std::string& name,
           unsigned size, unsigned associativity,
           unsigned lineSize, unsigned cost = 1, Cache* upperCache = NULL)
@@ -154,6 +176,7 @@ void CacheSim::initialize()
 
     //This is optional
     m_execDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    m_Tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
 
     if (!m_execDetector) {
         s2e()->getMessagesStream() << "ModuleExecutionDetector not found, will profile the whole system" << std::endl;
@@ -162,7 +185,14 @@ void CacheSim::initialize()
     //Option to write only those instructions that cause misses
     m_reportZeroMisses = conf->getBool(getConfigKey() + ".reportZeroMisses");
     m_profileModulesOnly = conf->getBool(getConfigKey() + ".reportZeroMisses");
+    m_useBinaryLogFile = conf->getBool(getConfigKey() + ".useBinaryLogFile");
     bool startOnModuleLoad = conf->getBool(getConfigKey() + ".startOnModuleLoad");
+
+    m_cacheStructureWrittenToLog = false;
+    if (m_useBinaryLogFile && !m_Tracer) {
+        s2e()->getWarningsStream() << "ExecutionTracer is required when useBinaryLogFile is set!" << std::endl;
+        exit(-1);
+    }
 
     vector<string> caches = conf->getListKeys(getConfigKey() + ".caches");
     foreach(const string& cacheName, caches) {
@@ -236,6 +266,39 @@ void CacheSim::initialize()
     );
 }
 
+void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
+{
+    if (!m_useBinaryLogFile || m_cacheStructureWrittenToLog) {
+        return;
+    }
+
+    //Output the names of the caches
+    uint8_t cacheId = 0;
+    foreach2(it, m_caches.begin(), m_caches.end()) {
+        (*it).second->setId(cacheId++);
+        uint32_t retsize;
+        ExecutionTraceCacheSimName *n = ExecutionTraceCacheSimName::allocate((*it).second->getId(),
+                                                                             (*it).first, &retsize);
+
+        m_Tracer->writeData(state, n, retsize, TRACE_CACHESIM);
+        ExecutionTraceCacheSimName::deallocate(n);
+    }
+
+    //Output the configuration of the caches
+    foreach2(it, m_caches.begin(), m_caches.end()) {
+        ExecutionTraceCacheSimParams p;
+        p.type = CACHE_PARAMS;
+        p.size = (*it).second->getSize();
+        p.associativity = (*it).second->getAssociativity();
+        p.lineSize = (*it).second->getLineSize();
+        p.upperCacheId = (*it).second->getUpperCache()->getId();
+        p.cacheId = (*it).second->getId();
+        m_Tracer->writeData(state, &p, sizeof(p), TRACE_CACHESIM);
+    }
+
+    m_cacheStructureWrittenToLog = true;
+}
+
 //Connect the tracing when the first module is loaded
 void CacheSim::onModuleTranslateBlockStart(
     ExecutionSignal* signal,
@@ -267,6 +330,10 @@ void CacheSim::onTimer()
 
 void CacheSim::flushLogEntries()
 {
+    if (m_useBinaryLogFile) {
+        return;
+    }
+
     char query[512];
     bool ok = s2e()->getDb()->executeQuery("begin transaction;");
     assert(ok && "Can not execute database query");
@@ -302,6 +369,9 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
         }
     }
 
+    //Done only on the first invocation
+    writeCacheDescriptionToLog(state);
+
     unsigned missCountLength = isCode ? m_i1_length : m_d1_length;
     unsigned missCount[missCountLength];
     memset(missCount, 0, sizeof(missCount));
@@ -331,16 +401,29 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
        // std::cout << state->getPc() << " "  << c->getName() << ": " << missCount[i] << std::endl;
 
         if (m_reportZeroMisses || missCount[i]) {
-            m_cacheLog.resize(m_cacheLog.size()+1);
-            CacheLogEntry& ce = m_cacheLog.back();
-            ce.timestamp = llvm::sys::TimeValue::now().usec();
-            ce.pc = state->getPc();
-            ce.address = address;
-            ce.size = size;
-            ce.isWrite = isWrite;
-            ce.isCode = false;
-            ce.cacheName = c->getName().c_str();
-            ce.missCount = missCount[i];
+            if (m_useBinaryLogFile) {
+                ExecutionTraceCacheSimEntry e;
+                e.type = CACHE_ENTRY;
+                e.cacheId = c->getId();
+                e.pc = state->getPc();
+                e.address = address;
+                e.size = size;
+                e.isWrite = isWrite;
+                e.isCode = isCode;
+                e.missCount = missCount[i];
+                m_Tracer->writeData(state, &e, sizeof(e), TRACE_CACHESIM);
+            }else {
+                m_cacheLog.resize(m_cacheLog.size()+1);
+                CacheLogEntry& ce = m_cacheLog.back();
+                ce.timestamp = llvm::sys::TimeValue::now().usec();
+                ce.pc = state->getPc();
+                ce.address = address;
+                ce.size = size;
+                ce.isWrite = isWrite;
+                ce.isCode = false;
+                ce.cacheName = c->getName().c_str();
+                ce.missCount = missCount[i];
+            }
         }
 
         if(missCount[i] == 0)

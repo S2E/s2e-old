@@ -15,6 +15,7 @@
 
 using namespace llvm;
 using namespace s2etools;
+using namespace s2e::plugins;
 
 namespace {
 
@@ -24,6 +25,101 @@ cl::opt<std::string>
 cl::opt<std::string>
         ModPath("modpath", cl::desc("Path to module descriptors"), cl::init("."));
 }
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+void CacheParameters::print(std::ostream &os)
+{
+    os << std::dec;
+    os << "Cache " << m_name << " - Statistics" << std::endl;
+    os << "Total Read  Misses: " << m_TotalMissesOnRead << std::endl;
+    os << "Total Write Misses: " << m_TotalMissesOnWrite << std::endl;
+    os << "Total       Misses: " << m_TotalMissesOnRead + m_TotalMissesOnWrite << std::endl;
+}
+
+CacheProfiler::CacheProfiler(LogEvents *events)
+{
+    m_Events = events;
+    onEachItem.connect(
+            sigc::mem_fun(*this, &CacheProfiler::onItem)
+            );
+}
+
+CacheProfiler::~CacheProfiler()
+{
+    Caches::iterator it;
+    for (it = m_caches.begin(); it != m_caches.end(); ++it) {
+        delete (*it).second;
+    }
+}
+
+void CacheProfiler::processCacheItem(const ExecutionTraceCacheSimEntry *e)
+{
+    Caches::iterator it = m_caches.find(e->cacheId);
+    assert(it != m_caches.end());
+
+    CacheParameters *c = (*it).second;
+
+    if (e->missCount > 0) {
+        if (e->isWrite) {
+            c->m_TotalMissesOnWrite += e->missCount;
+        }else {
+            c->m_TotalMissesOnRead += e->missCount;
+        }
+    }
+}
+
+void CacheProfiler::onItem(unsigned traceIndex,
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            void *item)
+{
+    if (hdr.type != TRACE_CACHESIM) {
+        return;
+    }
+
+    ExecutionTraceCache *e = (ExecutionTraceCache*)item;
+    if (e->type == CACHE_NAME) {
+        std::string s((const char*)e->name.name, e->name.length);
+        m_cacheIds[e->name.id] = s;
+    }else if (e->type == CACHE_PARAMS) {
+        CacheIdToName::iterator it = m_cacheIds.find(e->params.cacheId);
+        assert(it != m_cacheIds.end());
+
+        CacheParameters *params = new CacheParameters((*it).second, e->params.lineSize, e->params.size,
+                                                      e->params.associativity);
+
+        m_caches[e->params.cacheId] = params;
+        //XXX: fix that when needed
+        //params->setUpperCache(NULL);
+    }else if (e->type == CACHE_ENTRY) {
+        const ExecutionTraceCacheSimEntry *se = &e->entry;
+        processCacheItem(se);
+    }else {
+        assert(false && "Unknown cache trace entry");
+    }
+}
+
+void CacheProfiler::printAggregatedStatistics(std::ostream &os) const
+{
+    Caches::const_iterator it;
+
+    for(it = m_caches.begin(); it != m_caches.end(); ++it) {
+        (*it).second->print(os);
+        os << "-------------------------------------" << std::endl;
+    }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+
 
 PfProfiler::PfProfiler(const std::string &file)
 {
@@ -100,6 +196,18 @@ void PfProfiler::process()
     m_Parser.parse(m_FileName);
 
     pb.enumeratePaths(paths);
+
+    unsigned pathNum = 0;
+    ExecutionPaths::iterator pit;
+    for(pit = paths.begin(); pit != paths.end(); ++pit) {
+        CacheProfiler cp(&pb);
+        pb.processPath(*pit);
+        std::cout << "========== Path " << pathNum << std::endl;
+        cp.printAggregatedStatistics(std::cout);
+        ++pathNum;
+        std::cout << std::endl;
+    }
+
     PathBuilder::printPaths(paths, std::cout);
 
     return;

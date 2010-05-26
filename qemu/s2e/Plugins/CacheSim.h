@@ -6,6 +6,8 @@
 
 #include "ModuleExecutionDetector.h"
 
+#include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
+
 #include <klee/Expr.h>
 
 #include <string>
@@ -40,6 +42,7 @@ protected:
     typedef std::map<std::string, Cache*> CachesMap;
     CachesMap m_caches;
 
+
     Cache* m_i1;
     Cache* m_d1;
 
@@ -49,8 +52,12 @@ protected:
     unsigned m_d1_length;
 
     ModuleExecutionDetector *m_execDetector;
+    ExecutionTracer *m_Tracer;
+
     bool m_reportZeroMisses;
     bool m_profileModulesOnly;
+    bool m_useBinaryLogFile;
+    bool m_cacheStructureWrittenToLog;
     sigc::connection m_ModuleConnection;
 
     Cache* getCache(const std::string& name);
@@ -82,6 +89,8 @@ protected:
                              TranslationBlock* tb);
 
     void onTimer();
+
+    void writeCacheDescriptionToLog(S2EExecutionState *state);
 
 public:
     CacheSim(S2E* s2e): Plugin(s2e), m_i1(0), m_d1(0),
