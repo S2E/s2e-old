@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ExternalDispatcher.h"
+#include "klee/ExternalDispatcher.h"
 #include "klee/Config/config.h"
 
 // Ugh.

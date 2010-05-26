@@ -13,7 +13,7 @@
  
 #include "klee/Context.h"
 #include "CoreStats.h"
-#include "ExternalDispatcher.h"
+#include "klee/ExternalDispatcher.h"
 #include "ImpliedValue.h"
 #include "klee/Memory.h"
 #include "MemoryManager.h"
