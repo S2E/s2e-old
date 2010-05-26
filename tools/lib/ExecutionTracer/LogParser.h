@@ -29,6 +29,12 @@ public:
     LogParser();
     ~LogParser();
 
+    sigc::signal<void,
+        unsigned,
+        const s2e::plugins::ExecutionTraceItemHeader &,
+        void *
+    >onEachItem;
+
     sigc::signal<
             void,
             unsigned,

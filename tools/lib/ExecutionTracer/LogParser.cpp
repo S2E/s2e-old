@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cassert>
 #include "LogParser.h"
 
 using namespace s2e::plugins;
@@ -48,6 +49,8 @@ bool LogParser::parse(const std::string &fileName)
 
         m_ItemOffsets.push_back(currentOffset);
         currentOffset += sizeof(hdr)  + hdr.size;
+
+        onEachItem.emit(currentItem, hdr, (void*)item);
 
         switch(hdr.type) {
             case TRACE_MOD_LOAD:

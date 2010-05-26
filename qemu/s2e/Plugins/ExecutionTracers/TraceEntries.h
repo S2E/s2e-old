@@ -13,7 +13,8 @@ enum ExecTraceEntryType {
     TRACE_CALL, TRACE_RET,
     TRACE_TB_START,
     TRACE_TB_END,
-    TRACE_MODULE_DESC
+    TRACE_MODULE_DESC,
+    TRACE_FORK
 };
 
 
@@ -50,6 +51,13 @@ struct ExecutionTraceCall {
 struct ExecutionTraceReturn {
     //These are absolute addresses
     uint64_t source, target;
+};
+
+struct ExecutionTraceFork {
+    uint32_t pc;
+    uint32_t stateCount;
+    //Array of states (uint32_t)...
+    uint32_t children[1];
 };
 
 

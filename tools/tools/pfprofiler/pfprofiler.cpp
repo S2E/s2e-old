@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include <lib/ExecutionTracer/ModuleParser.h>
+#include <lib/ExecutionTracer/Path.h>
 
 #include "pfprofiler.h"
 
@@ -93,6 +94,16 @@ void PfProfiler::processCallItem(unsigned traceIndex,
 
 void PfProfiler::process()
 {
+
+    ExecutionPaths paths;
+    PathBuilder pb(&m_Parser);
+    m_Parser.parse(m_FileName);
+
+    pb.enumeratePaths(paths);
+    PathBuilder::printPaths(paths, std::cout);
+
+    return;
+
     m_ModuleCache = new ModuleCache(&m_Library);
 
     m_Parser.onCallItem.connect(

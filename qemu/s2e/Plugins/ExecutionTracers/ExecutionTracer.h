@@ -43,6 +43,12 @@ public:
             void *data, unsigned size, ExecTraceEntryType type);
 private:
 
+    void onFork(S2EExecutionState *state,
+                const std::vector<S2EExecutionState*>& newStates,
+                const std::vector<klee::ref<klee::Expr> >& newConditions
+                );
+
+
 
 };
 

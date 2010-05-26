@@ -20,6 +20,9 @@ void ExecutionTracer::initialize()
     assert(m_LogFile);
     m_CurrentIndex = 0;
 
+    s2e()->getCorePlugin()->onStateFork.connect(
+            sigc::mem_fun(*this, &ExecutionTracer::onFork));
+
 }
 
 ExecutionTracer::~ExecutionTracer()
@@ -47,13 +50,39 @@ uint32_t ExecutionTracer::writeData(
 
     if (size) {
         if (fwrite(data, size, 1, m_LogFile) != 1) {
-            return 0;
+            //at this point the log is corrupted.
+            assert(false);
         }
     }
 
     return ++m_CurrentIndex;
 }
 
+void ExecutionTracer::onFork(S2EExecutionState *state,
+            const std::vector<S2EExecutionState*>& newStates,
+            const std::vector<klee::ref<klee::Expr> >& newConditions
+            )
+{
+    assert(newStates.size() > 0);
+
+    unsigned itemSize = sizeof(ExecutionTraceFork) +
+                        (newStates.size()-1) * sizeof(uint32_t);
+
+    uint8_t *itemBytes = new uint8_t[itemSize];
+    ExecutionTraceFork *itemFork = reinterpret_cast<ExecutionTraceFork*>(itemBytes);
+
+    itemFork->pc = state->getPc();
+    itemFork->stateCount = newStates.size();
+
+
+    for (unsigned i=0; i<newStates.size(); i++) {
+        itemFork->children[i] = newStates[i]->getID();
+    }
+
+    writeData(state, itemFork, itemSize, TRACE_FORK);
+
+    delete [] itemBytes;
+}
 
 
 } // namespace plugins
