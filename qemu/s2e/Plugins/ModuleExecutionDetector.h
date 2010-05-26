@@ -55,6 +55,10 @@ struct ModuleExecutionDesc {
             ModuleDescriptor::ModuleByLoadBase cmp;
             return cmp(d1.descriptor, d2.descriptor);
     }
+
+    bool operator==(const ModuleExecutionDesc &d1) {
+        return id == d1.id;
+    }
 };
 
 typedef std::set<ModuleExecutionCfg, ModuleExecCfgById> ConfiguredModulesById;

@@ -42,12 +42,14 @@ struct AddressRange
 };
 
 typedef std::map<AddressRange, std::string> RangeToNameMap;
+typedef std::multimap<std::string, AddressRange> FunctionNameToAddressesMap;
 
 class Module
 {
 private:
     std::string m_ModuleName;
     RangeToNameMap m_ObjectNames;
+    FunctionNameToAddressesMap m_Functions;
     uint64_t m_ImageBase;
     uint64_t m_ImageSize;
 public:
@@ -87,6 +89,11 @@ public:
         return m_ModuleName < m.m_ModuleName;
     }
 
+    const FunctionNameToAddressesMap &getFunctionMap() const {
+        return m_Functions;
+    }
+
+    bool getSymbol(std::string &out, uint64_t relPc) const;
 
 };
 
@@ -110,6 +117,7 @@ public:
     bool addModule(const Module *m);
     const Module *get(const std::string &name) const;
     uint64_t translatePid(uint64_t pid, uint64_t pc) const;
+    void print(std::ostream &o) const;
 };
 
 struct ModuleInstance
@@ -140,6 +148,8 @@ struct ModuleInstance
     }
 
     void print(std::ostream &os) const;
+
+    bool getSymbol(std::string &out, uint64_t absPc) const;
 
 };
 

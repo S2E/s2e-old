@@ -213,7 +213,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     assert(traceFunction);
     addSpecialFunctionHandler(traceFunction, handlerTraceMemoryAccess);
 
-    searcher = new RandomSearcher();
+//    searcher = new RandomSearcher();
+    searcher = new DFSSearcher();
 
     //setAllExternalWarnings(true);
 }
@@ -652,6 +653,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
 S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
+    updateStates(state);
     if(states.empty()) {
         m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
         exit(0);
@@ -661,7 +663,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
 
     S2EExecutionState* newState =
-            static_cast<S2EExecutionState*>(&newKleeState);
+            static_cast<S2EExecutionState*  >(&newKleeState);
     if(newState != state) {
         doStateSwitch(state, newState);
     }
@@ -707,6 +709,7 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
         }
 
         kmodule->constantTable.resize(kmodule->constants.size());
+
         for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
             Cell &c = kmodule->constantTable[i];
             c.value = evalConstant(kmodule->constants[i]);
@@ -726,6 +729,10 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
     /* Pass argument */
     for(unsigned i = 0; i < args.size(); ++i)
         bindArgument(kf, i, *state, args[i]);
+}
+
+extern "C" {
+    extern spinlock_t interrupt_lock;
 }
 
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
@@ -804,7 +811,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* The next should be atomic with respect to signals */
                 /* XXX: what else should we block ? */
 #ifdef _WIN32
-
+             //   spin_lock(&interrupt_lock);
 #else
                 sigset_t set, oldset;
                 sigfillset(&set);
@@ -827,21 +834,26 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                     g_s2e_exec_ret_addr = tb->tc_ptr;
 
                     /* assert that blocking works */
-                    assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
-
-                    cleanupTranslationBlock(state, tb);
-
-#ifdef _WIN32      
+#ifdef _WIN32
+                    if (old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] != tb) {
+                        env->s2e_current_tb = old_tb;
+                        g_s2e_exec_ret_addr = old_tb->tc_ptr;
+                    }else {
+                        cleanupTranslationBlock(state, tb);
+                        break;
+                    }
 #else
+                    assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
+                    cleanupTranslationBlock(state, tb);
                     sigprocmask(SIG_SETMASK, &oldset, NULL);
-#endif
-
                     break;
+#endif
                 }
 
                 /* the block was unchained by signal handler */
                 tcg_llvm_runtime.goto_tb = 0xff;
 #ifdef _WIN32
+                //spin_unlock(&interrupt_lock);
 #else
                 sigprocmask(SIG_SETMASK, &oldset, NULL);
 #endif

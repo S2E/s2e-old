@@ -15,6 +15,7 @@ extern "C" {
 #include <iostream>
 
 #include <llvm/System/TimeValue.h>
+#include <klee/Searcher.h>
 
 namespace s2e {
 namespace plugins {
@@ -59,6 +60,7 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
     0f 3f 00 02 - disable symbolic execution
     0f 3f 00 03 - insert symbolic value at address pointed by eax
                   with the size in ebx and name (asciiz) in ecx
+    0f 3f 00 04 - kill the current state
     0f 3f 00 10 00 - print message (asciiz) pointed by eax
     0f 3f 00 10 01 - print warning (asciiz) pointed by eax
  */
@@ -114,6 +116,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 uint64_t low = state->readCpuState(offsetof(CPUX86State, regs[R_EAX]), sizeof(uint32_t));
                 uint64_t high = state->readCpuState(offsetof(CPUX86State, regs[R_EDX]), sizeof(uint32_t));
                 insertTiming(state, (high << 32LL) | low);
+                break;
             }
 
         case 5:
@@ -121,7 +124,17 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 //Get current path
                 state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
                     klee::ConstantExpr::create(123, klee::Expr::Int32));
+                break;
             }
+
+        case 6:
+            {
+                //Kill the current state
+                s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << std::endl;
+                s2e()->getExecutor()->terminateState(*state);
+                break;
+            }
+
         case 0x10: { /* print message */
             uint32_t address; //XXX
             bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),

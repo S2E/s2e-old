@@ -44,6 +44,19 @@ void PfProfiler::processModuleLoadItem(unsigned traceIndex,
     //printf("Processing entry %d - %s %#"PRIx64"  %#"PRIx64"\n", traceIndex,
     //       load.name, load.loadBase, load.size);
 
+    if (!m_Library.get(load.name)) {
+        std::string modFile = ModPath + "/";
+        modFile += load.name;
+        modFile += ".fcn";
+        Module *mod = ModuleParser::parseTextDescription(modFile);
+        if (mod) {
+            mod->print(std::cout);
+            m_Library.addModule(mod);
+            assert(m_Library.get(load.name));
+        }
+    }
+
+
     if (!m_ModuleCache->loadDriver(load.name, hdr.pid, load.loadBase, load.nativeBase, load.size)) {
         std::cout << "Could not load driver " << load.name << std::endl;
     }
@@ -58,14 +71,17 @@ void PfProfiler::processCallItem(unsigned traceIndex,
     const ModuleInstance *mdest = m_ModuleCache->getInstance(hdr.pid, call.target);
 
     std::cout << "Processing entry " << std::dec << traceIndex << " - ";
+    std::string fcnName;
     if (msource) {
-        std::cout << msource->Mod->getModuleName() << " ";
+        msource->getSymbol(fcnName, call.source);
+        std::cout << msource->Mod->getModuleName() << " [" << fcnName << "] " ;
     }else {
         std::cout << "<unknown> ";
     }
     std::cout << std::hex << call.source << " -> " << call.target;
     if (mdest) {
-        std::cout << " " << mdest->Mod->getModuleName();
+        mdest->getSymbol(fcnName, call.target);
+        std::cout << " " << mdest->Mod->getModuleName() << " [" << fcnName << "] " ;
     }else {
         std::cout << " <unknown>";
     }
@@ -77,13 +93,6 @@ void PfProfiler::processCallItem(unsigned traceIndex,
 
 void PfProfiler::process()
 {
-    Module *mod = ModuleParser::parseTextDescription(ModPath + "pcntpci5.sys.fcn");
-    mod->print(std::cout);
-
-    m_Library.addModule(mod);
-
-    assert(m_Library.get("pcntpci5.sys"));
-
     m_ModuleCache = new ModuleCache(&m_Library);
 
     m_Parser.onCallItem.connect(
@@ -95,6 +104,8 @@ void PfProfiler::process()
     );
 
     m_Parser.parse(m_FileName);
+
+    m_Library.print(std::cout);
 }
 
 int main(int argc, char **argv)

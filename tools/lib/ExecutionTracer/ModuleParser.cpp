@@ -31,6 +31,19 @@ void Module::addRange(uint64_t start, uint64_t end, const std::string &rangeName
 {
     AddressRange ar(start, end);
     m_ObjectNames[ar] = rangeName;
+
+    m_Functions.insert(std::pair<std::string, AddressRange>(rangeName, ar));
+}
+
+bool Module::getSymbol(std::string &out, uint64_t relPc) const
+{
+    AddressRange ar(relPc, relPc + 1);
+    RangeToNameMap::const_iterator it = m_ObjectNames.find(ar);
+    if (it == m_ObjectNames.end()) {
+        return false;
+    }
+    out = (*it).second;
+    return true;
 }
 
 
@@ -63,6 +76,7 @@ ModuleLibrary::~ModuleLibrary()
 
 bool ModuleLibrary::addModule(const Module *m)
 {
+    assert(m);
     ModuleSet::iterator it = m_Modules.find(m);
     if (it != m_Modules.end()) {
         return false;
@@ -89,6 +103,17 @@ uint64_t ModuleLibrary::translatePid(uint64_t pid, uint64_t pc) const
         return pid;
     }
     return 0;
+}
+
+void ModuleLibrary::print(std::ostream &o) const
+{
+    ModuleSet::iterator it;
+    o << "#Available modules in the library:" << std::endl;
+    for (it = m_Modules.begin(); it != m_Modules.end(); ++it) {
+        const Module *m = (*it);
+        const FunctionNameToAddressesMap &fcnMap = m->getFunctionMap();
+        o << m->getModuleName() << " - Functions: " << fcnMap.size() << std::endl;
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -174,6 +199,13 @@ const ModuleInstance *ModuleCache::getInstance(uint64_t pid, uint64_t pc) const
     }
 
     return (*it);
+}
+
+bool ModuleInstance::getSymbol(std::string &out, uint64_t absPc) const
+{
+    assert(Mod);
+    uint64_t relPc = absPc - LoadBase  + Mod->getImageBase();
+    return Mod->getSymbol(out, relPc);
 }
 
 void ModuleInstance::print(std::ostream &os) const

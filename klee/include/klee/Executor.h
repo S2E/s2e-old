@@ -341,8 +341,6 @@ protected:
   // delete the state (called internally by terminateState and updateStates)
   virtual void deleteState(ExecutionState *state);
 
-  // remove state from queue and delete
-  void terminateState(ExecutionState &state);
   // call exit handler and terminate state
   void terminateStateEarly(ExecutionState &state, const llvm::Twine &message);
   // call exit handler and terminate state
@@ -407,6 +405,10 @@ public:
   const InterpreterHandler& getHandler() {
     return *interpreterHandler;
   }
+
+  // remove state from queue and delete
+  void terminateState(ExecutionState &state);
+
 
   // XXX should just be moved out to utility module
   ref<klee::ConstantExpr> evalConstant(llvm::Constant *c);
