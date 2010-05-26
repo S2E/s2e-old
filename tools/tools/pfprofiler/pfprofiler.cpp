@@ -44,7 +44,7 @@ void CacheParameters::print(std::ostream &os)
 CacheProfiler::CacheProfiler(LogEvents *events)
 {
     m_Events = events;
-    onEachItem.connect(
+    events->onEachItem.connect(
             sigc::mem_fun(*this, &CacheProfiler::onItem)
             );
 }
@@ -77,9 +77,12 @@ void CacheProfiler::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
             void *item)
 {
+    //std::cout << "Processing entry " << std::dec << traceIndex << " - " << (int)hdr.type << std::endl;
+
     if (hdr.type != TRACE_CACHESIM) {
         return;
     }
+    std::cout << "Processing entry " << std::dec << traceIndex << " - " << (int)hdr.type << std::endl;
 
     ExecutionTraceCache *e = (ExecutionTraceCache*)item;
     if (e->type == CACHE_NAME) {
@@ -200,15 +203,19 @@ void PfProfiler::process()
     unsigned pathNum = 0;
     ExecutionPaths::iterator pit;
     for(pit = paths.begin(); pit != paths.end(); ++pit) {
-        CacheProfiler cp(&pb);
-        pb.processPath(*pit);
         std::cout << "========== Path " << pathNum << std::endl;
+        PathBuilder::printPath(*pit, std::cout);
+
+        CacheProfiler cp(&pb);
+
+        pb.processPath(*pit);
+
         cp.printAggregatedStatistics(std::cout);
         ++pathNum;
         std::cout << std::endl;
     }
 
-    PathBuilder::printPaths(paths, std::cout);
+
 
     return;
 

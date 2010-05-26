@@ -282,6 +282,7 @@ void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
 
         m_Tracer->writeData(state, n, retsize, TRACE_CACHESIM);
         ExecutionTraceCacheSimName::deallocate(n);
+        m_Tracer->flush();
     }
 
     //Output the configuration of the caches
@@ -291,11 +292,19 @@ void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
         p.size = (*it).second->getSize();
         p.associativity = (*it).second->getAssociativity();
         p.lineSize = (*it).second->getLineSize();
-        p.upperCacheId = (*it).second->getUpperCache()->getId();
+
+        if ((*it).second->getUpperCache()) {
+            p.upperCacheId = (*it).second->getUpperCache()->getId();
+        }else {
+            p.upperCacheId = (unsigned)-1;
+        }
+
         p.cacheId = (*it).second->getId();
         m_Tracer->writeData(state, &p, sizeof(p), TRACE_CACHESIM);
+        m_Tracer->flush();
     }
 
+    m_Tracer->flush();
     m_cacheStructureWrittenToLog = true;
 }
 

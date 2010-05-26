@@ -2,6 +2,7 @@
 #include <cassert>
 #include <stack>
 #include <ostream>
+#include <iostream>
 #include "Path.h"
 
 namespace s2etools
@@ -70,7 +71,10 @@ void PathBuilder::onItem(unsigned traceIndex,
         //Lookup the current state
         StateToSegments::iterator it = m_Leaves.find(hdr.stateId);
         //There must have been a fork that generated the state
-        assert(it != m_Leaves.end());
+        if (it == m_Leaves.end()) {
+            std::cerr << (int) hdr.stateId << std::endl;
+            assert(false);
+        }
         assert((*it).second.size() > 0);
         m_CurrentSegment = (*it).second.back();
     }
@@ -113,7 +117,9 @@ void PathBuilder::enumeratePaths(ExecutionPaths &paths)
             //We have finished traversing one path, build it.
             paths.push_back(ExecutionPath());
             ExecutionPath &curPath = paths.back();
-            while(curSeg != 0) {
+
+            //curSeg = curSeg->getParent();
+            while(curSeg->getParent() != 0) {
                 curPath.push_back(curSeg->getIndexInParent());
                 curSeg = curSeg->getParent();
             }
@@ -147,6 +153,7 @@ void PathBuilder::processSegment(PathSegment *seg)
 
     for (it = fra.begin(); it != fra.end(); ++it) {
         const PathFragment &f = (*it);
+        std::cout << "frag(" << f.startIndex << "," << f.endIndex << ")"<< std::endl;
         for (uint32_t s = f.startIndex; s <= f.endIndex; ++s) {
             m_Parser->getItem(s, hdr, data);
             processItem(s, hdr, data);
@@ -169,7 +176,10 @@ void PathBuilder::processPath(const ExecutionPath &p)
         }
 
         const PathSegmentList &ps = curSeg->getChildren();
-        assert(*it < ps.size());
+        if (!(*it < ps.size())) {
+            std::cerr << *it << " - " << ps.size() << std::endl;
+            assert(false);
+        }
 
         curSeg = ps[*it];
         ++it;

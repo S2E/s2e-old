@@ -41,6 +41,8 @@ public:
     uint32_t writeData(
             S2EExecutionState *state,
             void *data, unsigned size, ExecTraceEntryType type);
+
+    void flush();
 private:
 
     void onFork(S2EExecutionState *state,

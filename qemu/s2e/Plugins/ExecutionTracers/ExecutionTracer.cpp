@@ -58,6 +58,13 @@ uint32_t ExecutionTracer::writeData(
     return ++m_CurrentIndex;
 }
 
+void ExecutionTracer::flush()
+{
+    if (m_LogFile) {
+        fflush(m_LogFile);
+    }
+}
+
 void ExecutionTracer::onFork(S2EExecutionState *state,
             const std::vector<S2EExecutionState*>& newStates,
             const std::vector<klee::ref<klee::Expr> >& newConditions
@@ -80,6 +87,10 @@ void ExecutionTracer::onFork(S2EExecutionState *state,
     }
 
     writeData(state, itemFork, itemSize, TRACE_FORK);
+
+    if (m_LogFile) {
+        fflush(m_LogFile);
+    }
 
     delete [] itemBytes;
 }
