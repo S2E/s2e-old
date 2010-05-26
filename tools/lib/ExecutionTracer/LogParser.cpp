@@ -124,13 +124,13 @@ bool LogParser::getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &
         return false;
     }
 
-    if (!fread(&hdr, sizeof(hdr), 1, m_File)) {
+    if (!fread(&hdr, sizeof(s2e::plugins::ExecutionTraceItemHeader), 1, m_File)) {
         std::cerr << "LogParser: Could not read header " << std::endl;
         assert(false);
         return false;
     }
 
-    if (!fread(&data, hdr.size, 1, m_File)) {
+    if (!fread(data, hdr.size, 1, m_File)) {
         std::cerr << "LogParser: Could not read payload " << std::endl;
         assert(false);
         return false;

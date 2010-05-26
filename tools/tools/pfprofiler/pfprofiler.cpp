@@ -82,7 +82,7 @@ void CacheProfiler::onItem(unsigned traceIndex,
     if (hdr.type != TRACE_CACHESIM) {
         return;
     }
-    std::cout << "Processing entry " << std::dec << traceIndex << " - " << (int)hdr.type << std::endl;
+    //std::cout << "Processing entry " << std::dec << traceIndex << " - " << (int)hdr.type << std::endl;
 
     ExecutionTraceCache *e = (ExecutionTraceCache*)item;
     if (e->type == CACHE_NAME) {
@@ -203,8 +203,8 @@ void PfProfiler::process()
     unsigned pathNum = 0;
     ExecutionPaths::iterator pit;
     for(pit = paths.begin(); pit != paths.end(); ++pit) {
-        std::cout << "========== Path " << pathNum << std::endl;
-        PathBuilder::printPath(*pit, std::cout);
+        std::cout << "========== Path " << pathNum << " ========== "<<std::endl;
+        //PathBuilder::printPath(*pit, std::cout);
 
         CacheProfiler cp(&pb);
 

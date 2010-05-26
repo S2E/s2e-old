@@ -153,7 +153,7 @@ void PathBuilder::processSegment(PathSegment *seg)
 
     for (it = fra.begin(); it != fra.end(); ++it) {
         const PathFragment &f = (*it);
-        std::cout << "frag(" << f.startIndex << "," << f.endIndex << ")"<< std::endl;
+        //std::cout << "frag(" << f.startIndex << "," << f.endIndex << ")"<< std::endl;
         for (uint32_t s = f.startIndex; s <= f.endIndex; ++s) {
             m_Parser->getItem(s, hdr, data);
             processItem(s, hdr, data);
