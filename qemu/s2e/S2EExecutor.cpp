@@ -35,6 +35,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <klee/PTree.h>
 #include <klee/Memory.h>
 #include <klee/Searcher.h>
+#include <klee/ExternalDispatcher.h>
 
 #include <vector>
 
@@ -678,6 +679,27 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
 
         for(unsigned i = 0; i < kf->numInstructions; ++i)
             bindInstructionConstants(kf->instructions[i]);
+
+        /* Update global functions (new functions can be added
+           while creating added function) */
+        for (Module::iterator i = kmodule->module->begin(),
+                              ie = kmodule->module->end(); i != ie; ++i) {
+            Function *f = i;
+            ref<klee::ConstantExpr> addr(0);
+
+            // If the symbol has external weak linkage then it is implicitly
+            // not defined in this module; if it isn't resolvable then it
+            // should be null.
+            if (f->hasExternalWeakLinkage() &&
+                    !externalDispatcher->resolveSymbol(f->getNameStr())) {
+                addr = Expr::createPointer(0);
+            } else {
+                addr = Expr::createPointer((uintptr_t) (void*) f);
+                legalFunctions.insert((uint64_t) (uintptr_t) (void*) f);
+            }
+
+            globalAddresses.insert(std::make_pair(f, addr));
+        }
 
         kmodule->constantTable.resize(kmodule->constants.size());
         for(unsigned i = cIndex; i < kmodule->constants.size(); ++i) {
