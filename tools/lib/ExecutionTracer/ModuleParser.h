@@ -8,6 +8,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "LogParser.h"
+
 namespace s2etools
 {
 
@@ -111,13 +113,19 @@ class ModuleLibrary
 {
 private:
     ModuleSet m_Modules;
+    std::string m_Path;
 public:
+    ModuleLibrary(const std::string &path);
     ModuleLibrary();
     ~ModuleLibrary();
     bool addModule(const Module *m);
-    const Module *get(const std::string &name) const;
+    const Module *get(const std::string &name);
     uint64_t translatePid(uint64_t pid, uint64_t pc) const;
     void print(std::ostream &o) const;
+
+    void setPath(const std::string &s) {
+        m_Path = s;
+    }
 };
 
 struct ModuleInstance
@@ -176,8 +184,12 @@ private:
     ModuleLibrary *m_Library;
     ModuleInstanceSet m_Instances;
 
+    void onItem(unsigned traceIndex,
+                const s2e::plugins::ExecutionTraceItemHeader &hdr,
+                void *item);
+
 public:
-    ModuleCache(ModuleLibrary *Library);
+    ModuleCache(LogEvents *Events, ModuleLibrary *Library);
     bool loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,
                     uint64_t imageBase, uint64_t size);
     bool unloadDriver(uint64_t pid, uint64_t loadBase);
@@ -199,6 +211,20 @@ public:
     static Module* parseTextDescription(const std::string &fileName);
 };
 
+
+struct InstructionDescriptor
+{
+    const Module *m;
+    uint64_t loadBase; //xxx: fixme
+    uint64_t pid, pc;
+
+    bool operator < (const InstructionDescriptor &s) const {
+        if (pid == s.pid) {
+            return pc < s.pc;
+        }
+        return pid < s.pid;
+    }
+};
 
 }
 

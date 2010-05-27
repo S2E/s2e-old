@@ -69,6 +69,11 @@ ModuleLibrary::ModuleLibrary()
 
 }
 
+ModuleLibrary::ModuleLibrary(const std::string &path)
+{
+    m_Path = path;
+}
+
 ModuleLibrary::~ModuleLibrary()
 {
     //Delete module descriptors?
@@ -86,14 +91,24 @@ bool ModuleLibrary::addModule(const Module *m)
     return true;
 }
 
-const Module *ModuleLibrary::get(const std::string &name) const
+const Module *ModuleLibrary::get(const std::string &name)
 {
     Module m(0,0,name);
     ModuleSet::const_iterator it = m_Modules.find(&m);
     if (it != m_Modules.end()) {
         return *it;
     }
-    return NULL;
+
+    //Try to load the library from the file
+    std::string modFile = m_Path + "/";
+    modFile += name;
+    modFile += ".fcn";
+    Module *mod = ModuleParser::parseTextDescription(modFile);
+    if (mod) {
+        bool b = addModule(mod);
+        assert(b);
+    }
+    return mod;
 }
 
 //XXX: hard-coded for Windows
@@ -121,9 +136,32 @@ void ModuleLibrary::print(std::ostream &o) const
 ///////////////////////////////////////////////////////////////////////////////
 
 
-ModuleCache::ModuleCache(ModuleLibrary *Library)
+ModuleCache::ModuleCache(LogEvents *Events, ModuleLibrary *Library)
 {
     m_Library = Library;
+    Events->onEachItem.connect(
+            sigc::mem_fun(*this, &ModuleCache::onItem)
+            );
+}
+
+void ModuleCache::onItem(unsigned traceIndex,
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            void *item)
+{
+
+    const s2e::plugins::ExecutionTraceModuleLoad &load = *(s2e::plugins::ExecutionTraceModuleLoad*)item;
+
+    if (hdr.type == s2e::plugins::TRACE_MOD_LOAD) {
+        if (!loadDriver(load.name, hdr.pid, load.loadBase, load.nativeBase, load.size)) {
+            std::cout << "Could not load driver " << load.name << std::endl;
+        }
+    }else if (hdr.type == s2e::plugins::TRACE_MOD_UNLOAD) {
+        assert(false && "not implemented");
+    }else if (hdr.type == s2e::plugins::TRACE_PROC_UNLOAD) {
+        assert(false && "not implemented");
+    }else {
+        return;
+    }
 }
 
 bool ModuleCache::loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,

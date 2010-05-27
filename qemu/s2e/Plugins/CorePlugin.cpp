@@ -73,9 +73,10 @@ void s2e_tb_free(TranslationBlock *tb)
     }
 }
 
-void s2e_tcg_execution_handler(ExecutionSignal* signal, uint64_t pc)
+void s2e_tcg_execution_handler(void* signal, uint64_t pc)
 {
-    signal->emit(g_s2e_state, pc);
+    ExecutionSignal *s = (ExecutionSignal*)signal;
+    s->emit(g_s2e_state, pc);
 }
 
 void s2e_tcg_custom_instruction_handler(uint64_t arg)

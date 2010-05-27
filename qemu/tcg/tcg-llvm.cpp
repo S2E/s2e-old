@@ -756,7 +756,11 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
             const char *helperName = tcg_helper_get_name(m_tcgContext,
                                                          (void*) helperAddrC);
-            assert(helperName);
+            if (!helperName) {
+                std::cerr << helperName << " not found" << std::endl;
+                asm("int $3");
+            }
+            //assert(helperName);
 
             std::string funcName = std::string("helper_") + helperName;
             Function* helperFunc = m_module->getFunction(funcName);

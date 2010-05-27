@@ -57,6 +57,9 @@ void s2e_tb_alloc(struct TranslationBlock *tb);
 /** Free S2E parts of the translation block. Called from tb_flush() and tb_free() */
 void s2e_tb_free(struct TranslationBlock *tb);
 
+void s2e_tcg_execution_handler(void* signal, uint64_t pc);
+void s2e_tcg_custom_instruction_handler(uint64_t arg);
+
 /** Called by the translator when a custom instruction is detected */
 void s2e_tcg_emit_custom_instruction(struct S2E* s2e, uint64_t arg);
 

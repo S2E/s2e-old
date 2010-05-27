@@ -85,13 +85,13 @@ struct ExecutionTraceCacheSimName {
     uint32_t id;
     //XXX: make sure it does not overflow the overall entry size
     uint32_t length;
-    uint8_t  name[0];
+    uint8_t  name[1];
 
     //XXX: should use placement new operator instead
     static ExecutionTraceCacheSimName *allocate(
             uint32_t id, const std::string &str, uint32_t *retsize) {
         unsigned size = sizeof(ExecutionTraceCacheSimName) +
-                        str.size() + 1;
+                        str.size();
         uint8_t *a = new uint8_t[size];
         ExecutionTraceCacheSimName *ret = (ExecutionTraceCacheSimName*)a;
         strcpy((char*)ret->name, str.c_str());

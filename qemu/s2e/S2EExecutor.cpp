@@ -1113,6 +1113,9 @@ void s2e_initialize_execution(S2E *s2e, S2EExecutionState *initial_state,
                               int execute_always_klee)
 {
     s2e->getExecutor()->initializeExecution(initial_state, execute_always_klee);
+    //XXX: move it to better place (signal handler for this?)
+    tcg_register_helper((void*)&s2e_tcg_execution_handler, "s2e_tcg_execution_handler");
+    tcg_register_helper((void*)&s2e_tcg_custom_instruction_handler, "s2e_tcg_custom_instruction_handler");
 }
 
 void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
