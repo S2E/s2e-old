@@ -64,26 +64,18 @@ ifeq ($(HOST_OS),darwin)
     # When building on Leopard or above, we need to use the 10.4 SDK
     # or the generated binary will not run on Tiger.
     DARWIN_VERSION := $(strip $(shell sw_vers -productVersion))
-    ifneq ($(filter 10.1 10.2 10.3 10.1.% 10.2.% 10.3.%,$(DARWIN_VERSION)),)
-        $(error Building the Android emulator requires OS X 10.4 or above)
+    ifneq ($(filter 10.1 10.2 10.3 10.1.% 10.2.% 10.3.% 10.4 10.4.%,$(DARWIN_VERSION)),)
+        $(error Building the Android emulator requires OS X 10.5 or above)
     endif
-    ifeq ($(filter 10.4 10.4.%,$(DARWIN_VERSION)),)
-        # We are on Leopard or above
-        TIGER_SDK := /Developer/SDKs/MacOSX10.4u.sdk
-        ifeq ($(strip $(wildcard $(TIGER_SDK))),)
-            $(info  Please install the 10.4 SDK on this machine at $(TIGER_SDK))
+    ifeq ($(filter 10.5 10.5.%,$(DARWIN_VERSION)),)
+        # We are on Snow Leopard or above
+        LEOPARD_SDK := /Developer/SDKs/MacOSX10.5.sdk
+        ifeq ($(strip $(wildcard $(LEOPARD_SDK))),)
+            $(info  Please install the 10.5 SDK on this machine at $(LEOPARD_SDK))
             $(error Aborting the build.)
         endif
-        MY_CFLAGS += -isysroot $(TIGER_SDK) -mmacosx-version-min=10.4 -DMACOSX_DEPLOYMENT_TARGET=10.4
-        MY_LDLIBS += -isysroot $(TIGER_SDK) -Wl,-syslibroot,$(TIGER_SDK) -mmacosx-version-min=10.4
-
-        # Beginning with Snow Leopard, the default compiler is GCC 4.2
-        # which is incompatible with the 10.4 SDK, so we must
-        # specify the use of GCC 4.0.
-        ifeq ($(filter 10.5 10.5.%,$(DARWIN_VERSION)),)
-            # We are on Snow Leopard or above
-            MY_CC := gcc-4.0
-        endif
+        MY_CFLAGS += -isysroot $(LEOPARD_SDK) -mmacosx-version-min=10.5 -DMACOSX_DEPLOYMENT_TARGET=10.5
+        MY_LDLIBS += -isysroot $(LEOPARD_SDK) -Wl,-syslibroot,$(LEOPARD_SDK) -mmacosx-version-min=10.5
     endif
 endif
 
@@ -154,6 +146,7 @@ include $(CLEAR_VARS)
 
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
+LOCAL_LDLIBS                    := $(MY_LDLIBS)
 LOCAL_MODULE                    := emulator-hw
 
 HW_CFLAGS    := -I$(LOCAL_PATH)/hw
@@ -214,6 +207,7 @@ include $(CLEAR_VARS)
 
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
+LOCAL_LDLIBS                    := $(MY_LDLIBS)
 LOCAL_MODULE                    := emulator-elff
 LOCAL_CPP_EXTENSION             := .cc
 
@@ -249,6 +243,7 @@ include $(CLEAR_VARS)
 
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
+LOCAL_LDLIBS                    := $(MY_LDLIBS)
 LOCAL_MODULE                    := emulator-memcheck
 
 MCHK_CFLAGS    := -I$(LOCAL_PATH)/memcheck -I$(LOCAL_PATH)/elff
