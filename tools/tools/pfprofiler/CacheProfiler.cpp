@@ -1,4 +1,5 @@
 #include <iomanip>
+#include <iostream>
 #include "CacheProfiler.h"
 #include <lib/BinaryReaders/BFDInterface.h>
 
@@ -19,7 +20,7 @@ CacheProfiler::CacheProfiler(ModuleCache *modCache, LogEvents *events)
 {
     m_moduleCache = modCache;
     m_Events = events;
-    events->onEachItem.connect(
+    m_connection = events->onEachItem.connect(
             sigc::mem_fun(*this, &CacheProfiler::onItem)
             );
 }
@@ -27,6 +28,7 @@ CacheProfiler::CacheProfiler(ModuleCache *modCache, LogEvents *events)
 CacheProfiler::~CacheProfiler()
 {
     Caches::iterator it;
+    m_connection.disconnect();
     for (it = m_caches.begin(); it != m_caches.end(); ++it) {
         delete (*it).second;
     }
@@ -83,9 +85,12 @@ void CacheProfiler::onItem(unsigned traceIndex,
     if (hdr.type != s2e::plugins::TRACE_CACHESIM) {
         return;
     }
-    //std::cout << "Processing entry " << std::dec << traceIndex << " - " << (int)hdr.type << std::endl;
+
+
 
     ExecutionTraceCache *e = (ExecutionTraceCache*)item;
+
+
     if (e->type == s2e::plugins::CACHE_NAME) {
         std::string s((const char*)e->name.name, e->name.length);
         m_cacheIds[e->name.id] = s;
@@ -101,6 +106,10 @@ void CacheProfiler::onItem(unsigned traceIndex,
         //params->setUpperCache(NULL);
     }else if (e->type == s2e::plugins::CACHE_ENTRY) {
         const ExecutionTraceCacheSimEntry *se = &e->entry;
+        if (se->pc == 0x401215) {
+            std::cout << "Processing entry " << std::dec << traceIndex << " - " << (int)hdr.type << std::endl;
+        }
+
         processCacheItem(hdr.pid, se);
     }else {
         assert(false && "Unknown cache trace entry");
@@ -164,7 +173,7 @@ void TopMissesPerModule::print(std::ostream &os, const std::string libpath)
     for (sit = sorted.rbegin(); sit != sorted.rend(); ++sit) {
         const CacheStatisticsEx &s = (*sit);
         if (s.stats.readMissCount + s.stats.writeMissCount < 10) {
-            continue;
+            //continue;
         }
 
         os << std::setw(10) << s.instr.m->getModuleName() << std::hex

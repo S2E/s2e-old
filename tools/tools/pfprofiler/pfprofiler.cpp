@@ -116,6 +116,7 @@ void PfProfiler::process()
 
         ++pathNum;
         statsFile << std::endl;
+        std::cout << "---------" << std::endl;
     }
 
 

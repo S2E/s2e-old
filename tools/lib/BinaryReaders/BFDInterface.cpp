@@ -100,8 +100,8 @@ bool BFDInterface::getInfo(uint64_t addr, std::string &source, uint64_t &line, s
 
     asection *section = (*it).second;
 
-    std::cout << "Section " << section->name << " " << std::hex << section->vma << " - size=0x"  << section->size <<
-            " for address " << addr << std::endl;
+    //std::cout << "Section " << section->name << " " << std::hex << section->vma << " - size=0x"  << section->size <<
+    //        " for address " << addr << std::endl;
 
     const char *filename;
     const char *funcname;
@@ -110,9 +110,9 @@ bool BFDInterface::getInfo(uint64_t addr, std::string &source, uint64_t &line, s
     if (bfd_find_nearest_line(m_bfd, section, m_symbolTable, addr - section->vma,
         &filename, &funcname, &sourceline)) {
 
-        source = filename;
+        source = filename ? filename : "<unknown source>" ;
         line = sourceline;
-        function = funcname;
+        function = funcname ? funcname:"<unknown function>";
         return true;
 
     }

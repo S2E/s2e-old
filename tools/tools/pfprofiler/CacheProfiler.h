@@ -73,6 +73,7 @@ private:
     s2etools::LogEvents *m_Events;
     s2etools::ModuleCache *m_moduleCache;
 
+    sigc::connection m_connection;
     Caches m_caches;
     CacheIdToName m_cacheIds;
     CacheStatisticsMap m_statistics;
