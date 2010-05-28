@@ -19,6 +19,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/S2EDeviceState.h>
 
 #include <s2e/s2e_qemu.h>
@@ -96,6 +97,12 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
     m_s2e->getWarningsStream(s)
            << "Terminating state '" << s->getID()
            << "with error message '" << (err ? err : "") << "'" << std::endl;
+
+    s2e::plugins::TestCaseGenerator *tc =
+            dynamic_cast<s2e::plugins::TestCaseGenerator*>(m_s2e->getPlugin("TestCaseGenerator"));
+    if (tc) {
+        tc->processTestCase(*s, err, suffix);
+    }
 }
 
 void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,

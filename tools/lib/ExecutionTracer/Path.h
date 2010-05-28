@@ -83,6 +83,7 @@ private:
     PathSegment *m_CurrentSegment;
     StateToSegments m_Leaves;
     LogParser *m_Parser;
+    sigc::connection m_connection;
 
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
@@ -91,6 +92,7 @@ private:
     void processSegment(PathSegment *seg);
 public:
     PathBuilder(LogParser *log);
+    ~PathBuilder();
 
     //The paths are inverted!
     void enumeratePaths(ExecutionPaths &paths);

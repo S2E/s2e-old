@@ -40,9 +40,24 @@ public:
     }
 
     void print(std::ostream &os);
+
+    std::string getName() const {
+        return m_name;
+    }
+
+    uint64_t getTotalWriteMisses()const {
+        return m_TotalMissesOnWrite;
+    }
+
+    uint64_t getTotalReadMisses()const {
+        return m_TotalMissesOnRead;
+    }
 };
 
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 
 struct CacheStatistics
@@ -55,6 +70,21 @@ struct CacheStatistics
         c = NULL;
         readMissCount = writeMissCount = 0;
     }
+
+    CacheStatistics operator +(const CacheStatistics&r) {
+        CacheStatistics ret;
+        ret.readMissCount = readMissCount + r.readMissCount;
+        ret.writeMissCount = writeMissCount + r.writeMissCount;
+        return ret;
+    }
+
+    CacheStatistics& operator +=(const CacheStatistics&r) {
+        readMissCount += r.readMissCount;
+        writeMissCount += r.writeMissCount;
+        return *this;
+    }
+
+    void printHtml(std::ostream &os) const;
 };
 
 struct CacheStatisticsEx
@@ -63,9 +93,15 @@ struct CacheStatisticsEx
     CacheStatistics stats;
 };
 
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
 typedef std::map<uint32_t, Cache *> Caches;
 typedef std::map<uint32_t, std::string> CacheIdToName;
-typedef std::map<s2etools::InstructionDescriptor, CacheStatistics> CacheStatisticsMap;
+typedef std::pair<s2etools::InstructionDescriptor, Cache*> InstrCachePair;
+typedef std::map<InstrCachePair, CacheStatistics> CacheStatisticsMap;
 
 class CacheProfiler: public s2etools::LogEvents
 {
@@ -89,26 +125,16 @@ public:
     ~CacheProfiler();
 
     void printAggregatedStatistics(std::ostream &os) const;
+    void printAggregatedStatisticsHtml(std::ostream &os) const;
 
     const CacheStatisticsMap &getStats() const {
         return m_statistics;
     }
 };
 
-
-//Should eventually extend the event counter interface
-class CacheMissCounter
-{
-    std::set<CacheStatistics> m_perModuleStats;
-    std::map<Cache *, uint64_t> m_readMissCount;
-};
-
-class Aggregator
-{
-public:
-    virtual void processCacheItem(const s2e::plugins::ExecutionTraceCacheSimEntry *e) = 0;
-    virtual void print(std::ostream &os) = 0;
-};
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 
 class TopMissesPerModule
@@ -116,11 +142,16 @@ class TopMissesPerModule
 public:
     struct SortByTopMissesByModule{
         bool operator () (const CacheStatisticsEx &s1, const CacheStatisticsEx &s2) const {
-            if (s1.stats.writeMissCount+s1.stats.readMissCount !=
-                s2.stats.writeMissCount+s2.stats.readMissCount) {
-                return s1.stats.writeMissCount+s1.stats.readMissCount <
-                        s2.stats.writeMissCount+s2.stats.readMissCount;
+            if ((s1.stats.writeMissCount+s1.stats.readMissCount) !=
+                (s2.stats.writeMissCount+s2.stats.readMissCount)) {
+                return (s1.stats.writeMissCount+s1.stats.readMissCount) <
+                        (s2.stats.writeMissCount+s2.stats.readMissCount);
             }
+
+            if (s1.stats.c != s2.stats.c) {
+                return s1.stats.c < s2.stats.c;
+            }
+
 
             return s1.instr < s2.instr;
         }
@@ -130,12 +161,38 @@ public:
 
 private:
     CacheProfiler *m_Profiler;
+    std::string m_filteredProcess;
+    std::string m_filteredModule;
+    uint64_t m_minCacheMissThreshold;
+    bool m_html;
 
+    TopMissesPerModuleSet m_stats;
 public:
     TopMissesPerModule(CacheProfiler *prof);
 
+    void setFilteredProcess(const std::string &proc) {
+        m_filteredProcess = proc;
+    }
+
+
+    void setFilteredModule(const std::string &proc) {
+        m_filteredModule = proc;
+    }
+
+    void setMinMissThreshold(uint64_t v) {
+        m_minCacheMissThreshold = v;
+    }
+
+    void setHtml(bool b) {
+        m_html = b;
+    }
+
+
+    void computeStats();
+
     //void processCacheItem(const s2e::plugins::ExecutionTraceCacheSimEntry *e);
     void print(std::ostream &os, const std::string libpath);
+    void printAggregatedStatistics(std::ostream &os) const;
 
 };
 

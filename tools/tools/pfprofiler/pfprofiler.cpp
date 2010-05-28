@@ -34,6 +34,27 @@ cl::opt<std::string>
 
 cl::opt<std::string>
         OutFile("outfile", cl::desc("Output file"), cl::init("stats.dat"));
+
+cl::opt<unsigned>
+        CPMinMissCountFilter("cpminmisscount", cl::desc("CacheProfiler: minimum miss count to report"),
+                                cl::init(0));
+
+cl::opt<std::string>
+        CPFilterProcess("cpfilterprocess", cl::desc("CacheProfiler: Report modules from this address space"),
+                        cl::init(""));
+
+cl::opt<std::string>
+        CPFilterModule("cpfiltermodule", cl::desc("CacheProfiler: Report only this module"),
+                        cl::init(""));
+
+cl::opt<std::string>
+        CpOutFile("cpoutfile", cl::desc("CacheProfiler: output file"),
+                        cl::init("stats.dat"));
+
+cl::opt<int>
+        HtmlOutput("html", cl::desc("HTML output"),
+                        cl::init(0));
+
 }
 
 
@@ -88,7 +109,7 @@ void PfProfiler::process()
 
 
     std::ofstream statsFile;
-    statsFile.open(OutFile.c_str());
+    statsFile.open(CpOutFile.c_str());
 
     ExecutionPaths paths;
     PathBuilder pb(&m_Parser);
@@ -111,7 +132,18 @@ void PfProfiler::process()
 
         TopMissesPerModule tmpm(&cp);
 
-        cp.printAggregatedStatistics(statsFile);
+        tmpm.setHtml(HtmlOutput != 0);
+        tmpm.setFilteredProcess(CPFilterProcess);
+        tmpm.setFilteredModule(CPFilterModule);
+        tmpm.setMinMissThreshold(CPMinMissCountFilter);
+
+        if (HtmlOutput) {
+            cp.printAggregatedStatisticsHtml(statsFile);
+        }else {
+            cp.printAggregatedStatistics(statsFile);
+        }
+        tmpm.computeStats();
+        tmpm.printAggregatedStatistics(statsFile);
         tmpm.print(statsFile, ModPath);
 
         ++pathNum;

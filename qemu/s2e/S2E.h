@@ -11,6 +11,7 @@
 
 namespace klee {
     class Interpreter;
+    class InterpreterHandler;
 }
 
 class TCGLLVMContext;

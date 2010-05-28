@@ -183,6 +183,7 @@ void CacheSim::initialize()
     }
 
     //Option to write only those instructions that cause misses
+    m_reportWholeSystem = conf->getBool(getConfigKey() + ".reportWholeSystem");
     m_reportZeroMisses = conf->getBool(getConfigKey() + ".reportZeroMisses");
     m_profileModulesOnly = conf->getBool(getConfigKey() + ".reportZeroMisses");
     m_useBinaryLogFile = conf->getBool(getConfigKey() + ".useBinaryLogFile");
@@ -372,9 +373,11 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
         return;
 
     //Check whether to profile only known modules
-    if (m_execDetector && m_profileModulesOnly) {
-        if (!m_execDetector->getCurrentDescriptor(state)) {
-            return;
+    if (!m_reportWholeSystem) {
+        if (m_execDetector && m_profileModulesOnly) {
+            if (!m_execDetector->getCurrentDescriptor(state)) {
+                return;
+            }
         }
     }
 
@@ -387,15 +390,14 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
     cache->access(address, size, isWrite, missCount, missCountLength);
 
     //Decide whether to log the access in the database
-    bool doLog = false;
-    if (m_execDetector) {
-        if (!m_execDetector->getCurrentDescriptor(state)) {
-            doLog = false;
+    bool doLog = m_reportWholeSystem;
+
+    if (!m_reportWholeSystem) {
+        if (m_execDetector) {
+            doLog = m_execDetector->getCurrentDescriptor(state);
         }else {
             doLog = true;
         }
-    }else {
-        doLog = true;
     }
 
     if (!doLog) {

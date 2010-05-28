@@ -29,6 +29,7 @@ public:
 
     /** Return assosiated S2E instance */
     S2E* s2e() { return m_s2e; }
+    const S2E* s2e() const { return m_s2e; }
 
     /** Initialize plugin. This function is called on initialization
         after all plugin instances have already be instantied */

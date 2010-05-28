@@ -23,11 +23,21 @@ void ExecutionTracer::initialize()
     s2e()->getCorePlugin()->onStateFork.connect(
             sigc::mem_fun(*this, &ExecutionTracer::onFork));
 
+    s2e()->getCorePlugin()->onTimer.connect(
+        sigc::mem_fun(*this, &ExecutionTracer::onTimer)
+    );
 }
 
 ExecutionTracer::~ExecutionTracer()
 {
     fclose(m_LogFile);
+}
+
+void ExecutionTracer::onTimer()
+{
+    if (m_LogFile) {
+        fflush(m_LogFile);
+    }
 }
 
 uint32_t ExecutionTracer::writeData(

@@ -33,6 +33,7 @@ class ExecutionTracer : public Plugin
 
     uint16_t getCompressedId(const ModuleDescriptor *desc);
 
+    void onTimer();
 public:
     ExecutionTracer(S2E* s2e): Plugin(s2e) {}
     ~ExecutionTracer();

@@ -131,7 +131,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             {
                 //Kill the current state
                 s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << std::endl;
-                s2e()->getExecutor()->terminateState(*state);
+                s2e()->getExecutor()->terminateStateOnExit(*state);
                 break;
             }
 

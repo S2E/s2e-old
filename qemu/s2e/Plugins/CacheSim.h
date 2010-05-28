@@ -54,6 +54,7 @@ protected:
     ModuleExecutionDetector *m_execDetector;
     ExecutionTracer *m_Tracer;
 
+    bool m_reportWholeSystem;
     bool m_reportZeroMisses;
     bool m_profileModulesOnly;
     bool m_useBinaryLogFile;

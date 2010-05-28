@@ -53,13 +53,18 @@ PathBuilder::PathBuilder(LogParser *log)
 {
     m_Parser = log;
 
-    log->onEachItem.connect(
+    m_connection = log->onEachItem.connect(
             sigc::mem_fun(*this, &PathBuilder::onItem)
     );
 
     m_Root = new PathSegment(NULL, 0, 0);
     m_CurrentSegment = m_Root;
     m_Leaves[0].push_back(m_CurrentSegment);
+}
+
+PathBuilder::~PathBuilder()
+{
+    m_connection.disconnect();
 }
 
 void PathBuilder::onItem(unsigned traceIndex,
