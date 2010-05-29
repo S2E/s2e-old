@@ -30,7 +30,8 @@ struct ModuleExecCfgById
 {
     bool operator()(const ModuleExecutionCfg &d1,
         const ModuleExecutionCfg &d2) const {
-        return d1.id.compare(d2.id) < 0;
+        //return d1.compare(d2.id) < 0;
+        return d1.id < d2.id;
     }
 };
 
@@ -38,7 +39,7 @@ struct ModuleExecCfgByName
 {
     bool operator()(const ModuleExecutionCfg &d1,
         const ModuleExecutionCfg &d2) const {
-        return d1.moduleName.compare(d2.moduleName) < 0;
+        return d1.moduleName < d2.moduleName;
     }
 };
 
@@ -52,8 +53,9 @@ struct ModuleExecutionDesc {
 
     bool operator()(const ModuleExecutionDesc &d1,
         const ModuleExecutionDesc &d2) {
-            ModuleDescriptor::ModuleByLoadBase cmp;
-            return cmp(d1.descriptor, d2.descriptor);
+            //ModuleDescriptor::ModuleByLoadBase cmp;
+            //return cmp(d1.descriptor, d2.descriptor);
+            return d1.id < d2.id;
     }
 
     bool operator==(const ModuleExecutionDesc &d1) {
@@ -163,24 +165,16 @@ public:
 class ModuleTransitionState:public PluginState
 {
 private:
-    typedef std::set<ModuleDescriptor, ModuleDescriptor::ModuleByLoadBase> DescriptorSet;
+    typedef std::set<ModuleDescriptor*, ModuleDescriptor::ModuleByLoadBase> DescriptorSet;
 
     const ModuleDescriptor *m_PreviousModule;
     mutable const ModuleDescriptor *m_CachedModule;
 
     DescriptorSet m_Descriptors;
 
-#if 0
-    void activateModule(const ModuleDescriptor &desc,const ModuleExecutionCfg &cfg);
-    void deactivateModule(const ModuleDescriptor &desc);
-    void deactivatePid(uint64_t pid);
-    const ModuleExecutionDesc *findCurrentModule(uint64_t pid, uint64_t pc) const;
-    bool isModuleActive(const std::string &s);
-#endif
-
     const ModuleDescriptor *getDescriptor(uint64_t pid, uint64_t pc) const;
-    void loadDescriptor(const ModuleDescriptor *desc);
-    void unloadDescriptor(const ModuleDescriptor *desc);
+    void loadDescriptor(const ModuleDescriptor &desc);
+    void unloadDescriptor(const ModuleDescriptor &desc);
     void unloadDescriptorsWithPid(uint64_t pid);
 
 public:

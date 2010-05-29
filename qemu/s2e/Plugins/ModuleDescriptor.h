@@ -49,7 +49,7 @@ struct ModuleDescriptor
     LoadBase = 0;
     Size = 0;
   }
-  
+
   bool Contains(uint64_t RunTimeAddress) const {
     uint64_t RVA = RunTimeAddress - LoadBase;
     return RVA < Size;
@@ -76,6 +76,14 @@ struct ModuleDescriptor
             return s1.LoadBase + s1.Size < s2.LoadBase;
         }
         return s1.Pid < s2.Pid;
+    }
+
+    bool operator()(const struct ModuleDescriptor* s1,
+      const struct ModuleDescriptor* s2) const {
+        if (s1->Pid == s2->Pid) {
+            return s1->LoadBase + s1->Size < s2->LoadBase;
+        }
+        return s1->Pid < s2->Pid;
     }
   };
 

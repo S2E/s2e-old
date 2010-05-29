@@ -50,8 +50,6 @@ void CallRetTracer::initialize()
     }else {
         m_Detector->onModuleTranslateBlockEnd.connect(
                 sigc::mem_fun(*this, &CallRetTracer::onTbEnd));
-
-
     }
 }
 
@@ -125,7 +123,6 @@ void CallRetTracer::onTbEnd(ExecutionSignal *signal,
                     sigc::mem_fun(*this, &CallRetTracer::traceReturn)
             );
         }
-
 
 }
 

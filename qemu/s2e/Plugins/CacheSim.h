@@ -55,6 +55,8 @@ protected:
     bool m_startOnModuleLoad;
     sigc::connection m_ModuleConnection;
 
+    sigc::connection m_d1_connection;
+    sigc::connection m_i1_connection;
 
     void flushLogEntries();
 

@@ -172,6 +172,15 @@ CacheSimState::CacheSimState(S2EExecutionState *s, Plugin *p)
     const std::string &cfgKey = p->getConfigKey();
     ConfigFile* conf = s2e->getConfig();
 
+    if (csp->m_d1_connection.connected()) {
+        csp->m_d1_connection.disconnect();
+    }
+
+    if (csp->m_i1_connection.connected()) {
+        csp->m_i1_connection.disconnect();
+    }
+
+
     //Initialize the cache configuration
     vector<string> caches = conf->getListKeys(cfgKey + ".caches");
     foreach(const string& cacheName, caches) {
@@ -196,6 +205,10 @@ CacheSimState::CacheSimState(S2EExecutionState *s, Plugin *p)
     if(conf->hasKey(cfgKey + ".d1"))
         m_d1 = getCache(conf->getString(cfgKey + ".d1"));
 
+    m_i1_length = 0;
+    m_d1_length = 0;
+
+
     s2e->getMessagesStream() << "Instruction cache hierarchy:";
     for(Cache* c = m_i1; c != NULL; c = c->getUpperCache()) {
         m_i1_length += 1;
@@ -212,16 +225,19 @@ CacheSimState::CacheSimState(S2EExecutionState *s, Plugin *p)
 
 
     if (csp->m_execDetector && csp->m_startOnModuleLoad){
+        s2e->getDebugStream()  << "Connecting to onModuleTranslateBlockStart" << std::endl;
         csp->m_ModuleConnection = csp->m_execDetector->onModuleTranslateBlockStart.connect(
                 sigc::mem_fun(*csp, &CacheSim::onModuleTranslateBlockStart));
 
     }else {
         if(m_d1) {
+            s2e->getDebugStream()  << "CacheSim: connecting to onDataMemoryAccess" << std::endl;
             s2e->getCorePlugin()->onDataMemoryAccess.connect(
                 sigc::mem_fun(*csp, &CacheSim::onDataMemoryAccess));
         }
 
         if(m_i1) {
+            s2e->getDebugStream()  << "CacheSim: connecting to onTranslateBlockStart" << std::endl;
             s2e->getCorePlugin()->onTranslateBlockStart.connect(
              sigc::mem_fun(*csp, &CacheSim::onTranslateBlockStart));
         }
@@ -241,6 +257,7 @@ CacheSimState::~CacheSimState()
 
 PluginState *CacheSimState::factory(Plugin *p, S2EExecutionState *s)
 {
+    p->s2e()->getDebugStream() << "Creating initial CacheSimState" << std::endl;
     CacheSimState *ret = new CacheSimState(s, p);
     return ret;
 
@@ -335,8 +352,14 @@ void CacheSim::initialize()
     }
 
     ////////////////////
+    //XXX: trick to force the initialization of the cache upon first memory access.
+    m_d1_connection = s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+         sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
 
+    m_i1_connection = s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+         sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
 
+    ////////////////////
     const char *query = "create table CacheSim("
           "'timestamp' unsigned big int, "
           "'pc' unsigned big int, "
@@ -412,6 +435,7 @@ void CacheSim::onModuleTranslateBlockStart(
 
     s2e()->getDebugStream() << "Module translation CacheSim " << desc->id << "  " <<
         pc <<std::endl;
+
     if(plgState->m_d1)
         s2e()->getCorePlugin()->onDataMemoryAccess.connect(
             sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
@@ -487,18 +511,21 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
                               uint64_t address, unsigned size,
                               bool isWrite, bool isIO, bool isCode)
 {
-    DECLARE_PLUGINSTATE(CacheSimState, state);
-
     if(isIO) /* this is only an estimation - should look at registers! */
         return;
 
-    Cache* cache = isCode ? plgState->m_i1 : plgState->m_d1;
-    if(!cache)
-        return;
+    DECLARE_PLUGINSTATE(CacheSimState, state);
 
     if (!profileAccess(state)) {
         return;
     }
+
+
+
+
+    Cache* cache = isCode ? plgState->m_i1 : plgState->m_d1;
+    if(!cache)
+        return;
 
     //Done only on the first invocation
     writeCacheDescriptionToLog(state);
