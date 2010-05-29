@@ -21,7 +21,7 @@ class S2EDeviceState;
 
 //typedef std::tr1::unordered_map<const Plugin*, PluginState*> PluginStateMap;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
-typedef PluginState* (*PluginStateFactory)();
+typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 
 /** Dummy implementation, just to make events work */
 class S2EExecutionState : public klee::ExecutionState
@@ -60,10 +60,10 @@ public:
 
     TranslationBlock *getTb() const;
 
-    PluginState* getPluginState(const Plugin *plugin, PluginStateFactory factory) {
+    PluginState* getPluginState(Plugin *plugin, PluginStateFactory factory) {
         PluginStateMap::iterator it = m_PluginState.find(plugin);
         if (it == m_PluginState.end()) {
-            PluginState *ret = factory();
+            PluginState *ret = factory(plugin, this);
             m_PluginState[plugin] = ret;
             return ret;
         }

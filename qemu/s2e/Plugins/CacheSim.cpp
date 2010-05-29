@@ -77,6 +77,7 @@ public:
         m_cacheId = id;
     }
 
+
     Cache(const std::string& name,
           unsigned size, unsigned associativity,
           unsigned lineSize, unsigned cost = 1, Cache* upperCache = NULL)
@@ -99,7 +100,7 @@ public:
         m_lines.resize(setsCount * associativity, (uint64_t) -1);
     }
 
-    const std::string getName() const { return m_name; }
+    const std::string& getName() const { return m_name; }
 
     Cache* getUpperCache() { return m_upperCache; }
     void setUpperCache(Cache* cache) { m_upperCache = cache; }
@@ -151,53 +152,30 @@ public:
     }
 };
 
-S2E_DEFINE_PLUGIN(CacheSim, "Cache simulator", "",);
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
-CacheSim::~CacheSim()
+CacheSimState::CacheSimState()
 {
-    flushLogEntries();
-    foreach(const CachesMap::value_type& ci, m_caches)
-        delete ci.second;
+    m_i1_length = 0;
+    m_d1_length = 0;
+    m_i1 = NULL;
+    m_d1 = NULL;
 }
 
-inline Cache* CacheSim::getCache(const string& name)
+CacheSimState::CacheSimState(S2EExecutionState *s, Plugin *p)
 {
-    CachesMap::iterator it = m_caches.find(name);
-    if(it == m_caches.end()) {
-        cerr << "ERROR: cache " << name << " undefined" << endl;
-        exit(1);
-    }
-    return it->second;
-}
+    CacheSim *csp = dynamic_cast<CacheSim*>(p);
+    S2E *s2e = csp->s2e();
 
-void CacheSim::initialize()
-{
-    ConfigFile* conf = s2e()->getConfig();
+    const std::string &cfgKey = p->getConfigKey();
+    ConfigFile* conf = s2e->getConfig();
 
-    //This is optional
-    m_execDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    m_Tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
-
-    if (!m_execDetector) {
-        s2e()->getMessagesStream() << "ModuleExecutionDetector not found, will profile the whole system" << std::endl;
-    }
-
-    //Option to write only those instructions that cause misses
-    m_reportWholeSystem = conf->getBool(getConfigKey() + ".reportWholeSystem");
-    m_reportZeroMisses = conf->getBool(getConfigKey() + ".reportZeroMisses");
-    m_profileModulesOnly = conf->getBool(getConfigKey() + ".reportZeroMisses");
-    m_useBinaryLogFile = conf->getBool(getConfigKey() + ".useBinaryLogFile");
-    bool startOnModuleLoad = conf->getBool(getConfigKey() + ".startOnModuleLoad");
-
-    m_cacheStructureWrittenToLog = false;
-    if (m_useBinaryLogFile && !m_Tracer) {
-        s2e()->getWarningsStream() << "ExecutionTracer is required when useBinaryLogFile is set!" << std::endl;
-        exit(-1);
-    }
-
-    vector<string> caches = conf->getListKeys(getConfigKey() + ".caches");
+    //Initialize the cache configuration
+    vector<string> caches = conf->getListKeys(cfgKey + ".caches");
     foreach(const string& cacheName, caches) {
-        string key = getConfigKey() + ".caches." + cacheName;
+        string key = cfgKey + ".caches." + cacheName;
         Cache* cache = new Cache(cacheName,
                                  conf->getInt(key + ".size"),
                                  conf->getInt(key + ".associativity"),
@@ -207,44 +185,157 @@ void CacheSim::initialize()
     }
 
     foreach(const CachesMap::value_type& ci, m_caches) {
-        string key = getConfigKey() + ".caches." + ci.first + ".upper";
+        string key = cfgKey + ".caches." + ci.first + ".upper";
         if(conf->hasKey(key))
             ci.second->setUpperCache(getCache(conf->getString(key)));
     }
 
-    if(conf->hasKey(getConfigKey() + ".i1"))
-        m_i1 = getCache(conf->getString(getConfigKey() + ".i1"));
+    if(conf->hasKey(cfgKey + ".i1"))
+        m_i1 = getCache(conf->getString(cfgKey + ".i1"));
 
-    if(conf->hasKey(getConfigKey() + ".d1"))
-        m_d1 = getCache(conf->getString(getConfigKey() + ".d1"));
+    if(conf->hasKey(cfgKey + ".d1"))
+        m_d1 = getCache(conf->getString(cfgKey + ".d1"));
 
-    s2e()->getMessagesStream() << "Instruction cache hierarchy:";
+    s2e->getMessagesStream() << "Instruction cache hierarchy:";
     for(Cache* c = m_i1; c != NULL; c = c->getUpperCache()) {
         m_i1_length += 1;
-        s2e()->getMessagesStream() << " -> " << c->getName();
+        s2e->getMessagesStream() << " -> " << c->getName();
     }
-    s2e()->getMessagesStream() << " -> memory" << std::endl;
+    s2e->getMessagesStream() << " -> memory" << std::endl;
 
-    s2e()->getMessagesStream() << "Data cache hierarchy:";
+    s2e->getMessagesStream() << "Data cache hierarchy:";
     for(Cache* c = m_d1; c != NULL; c = c->getUpperCache()) {
         m_d1_length += 1;
-        s2e()->getMessagesStream() << " -> " << c->getName();
+        s2e->getMessagesStream() << " -> " << c->getName();
     }
-    s2e()->getMessagesStream() << " -> memory" << std::endl;
+    s2e->getMessagesStream() << " -> memory" << std::endl;
 
-    if (m_execDetector && startOnModuleLoad){
-        m_ModuleConnection = m_execDetector->onModuleTranslateBlockStart.connect(
-                sigc::mem_fun(*this, &CacheSim::onModuleTranslateBlockStart));
+
+    if (csp->m_execDetector && csp->m_startOnModuleLoad){
+        csp->m_ModuleConnection = csp->m_execDetector->onModuleTranslateBlockStart.connect(
+                sigc::mem_fun(*csp, &CacheSim::onModuleTranslateBlockStart));
 
     }else {
-        if(m_d1)
-            s2e()->getCorePlugin()->onDataMemoryAccess.connect(
-                sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
+        if(m_d1) {
+            s2e->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*csp, &CacheSim::onDataMemoryAccess));
+        }
 
-        if(m_i1)
-            s2e()->getCorePlugin()->onTranslateBlockStart.connect(
-             sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
+        if(m_i1) {
+            s2e->getCorePlugin()->onTranslateBlockStart.connect(
+             sigc::mem_fun(*csp, &CacheSim::onTranslateBlockStart));
+        }
     }
+
+    s2e->getCorePlugin()->onTimer.connect(
+        sigc::mem_fun(*csp, &CacheSim::onTimer)
+    );
+
+}
+
+CacheSimState::~CacheSimState()
+{
+    foreach(const CachesMap::value_type& ci, m_caches)
+        delete ci.second;
+}
+
+PluginState *CacheSimState::factory(Plugin *p, S2EExecutionState *s)
+{
+    CacheSimState *ret = new CacheSimState(s, p);
+    return ret;
+
+}
+
+PluginState *CacheSimState::clone() const
+{
+    CacheSimState *ret = new CacheSimState(*this);
+
+    //Clone the caches first
+    CachesMap::iterator newCaches;
+    for (newCaches = ret->m_caches.begin(); newCaches != ret->m_caches.end(); ++newCaches) {
+        (*newCaches).second = new Cache(*(*newCaches).second);
+    }
+
+    //Update the upper cache mappings
+    CachesMap::const_iterator oldCaches;
+    for (oldCaches = m_caches.begin(); oldCaches != m_caches.end(); ++oldCaches) {
+        Cache *u;
+        if (!(u = (*oldCaches).second->getUpperCache())) {
+            continue;
+        }
+
+        CachesMap::iterator newCache = ret->m_caches.find(u->getName());
+        assert(newCache != ret->m_caches.end());
+        (*newCache).second->setUpperCache((*newCache).second);
+    }
+
+    ret->m_d1 = ret->m_caches[m_d1->getName()];
+    assert(ret->m_d1);
+
+    ret->m_i1 = ret->m_caches[m_i1->getName()];
+    assert(ret->m_i1);
+
+    return ret;
+}
+
+inline Cache* CacheSimState::getCache(const std::string& name)
+{
+    CachesMap::iterator it = m_caches.find(name);
+    if(it == m_caches.end()) {
+        cerr << "ERROR: cache " << name << " undefined" << endl;
+        exit(1);
+    }
+    return it->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+S2E_DEFINE_PLUGIN(CacheSim, "Cache simulator", "",);
+
+CacheSim::~CacheSim()
+{
+    flushLogEntries();
+
+}
+
+
+void CacheSim::initialize()
+{
+    ConfigFile* conf = s2e()->getConfig();
+
+    m_execDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    m_Tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
+
+    if (!m_execDetector) {
+        s2e()->getMessagesStream() << "ModuleExecutionDetector not found, will profile the whole system" << std::endl;
+    }
+
+    //Report misses form the entire system
+    m_reportWholeSystem = conf->getBool(getConfigKey() + ".reportWholeSystem");
+
+    //Option to write only those instructions that cause misses
+    m_reportZeroMisses = conf->getBool(getConfigKey() + ".reportZeroMisses");
+
+    //Profile only for the selected modules
+    m_profileModulesOnly = conf->getBool(getConfigKey() + ".profileModulesOnly");
+
+    //Write to the binary log instead of the sql db.
+    m_useBinaryLogFile = conf->getBool(getConfigKey() + ".useBinaryLogFile");
+
+    //Start cache profiling when the first configured module is loaded
+    m_startOnModuleLoad = conf->getBool(getConfigKey() + ".startOnModuleLoad");
+
+    m_cacheStructureWrittenToLog = false;
+    if (m_useBinaryLogFile && !m_Tracer) {
+        s2e()->getWarningsStream() << "ExecutionTracer is required when useBinaryLogFile is set!" << std::endl;
+        exit(-1);
+    }
+
+    ////////////////////
+
 
     const char *query = "create table CacheSim("
           "'timestamp' unsigned big int, "
@@ -262,9 +353,7 @@ void CacheSim::initialize()
 
     m_cacheLog.reserve(CACHESIM_LOG_SIZE);
 
-    s2e()->getCorePlugin()->onTimer.connect(
-        sigc::mem_fun(*this, &CacheSim::onTimer)
-    );
+
 }
 
 void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
@@ -273,9 +362,11 @@ void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
         return;
     }
 
+    DECLARE_PLUGINSTATE(CacheSimState, state);
+
     //Output the names of the caches
     uint8_t cacheId = 0;
-    foreach2(it, m_caches.begin(), m_caches.end()) {
+    foreach2(it, plgState->m_caches.begin(), plgState->m_caches.end()) {
         (*it).second->setId(cacheId++);
         uint32_t retsize;
         ExecutionTraceCacheSimName *n = ExecutionTraceCacheSimName::allocate((*it).second->getId(),
@@ -287,7 +378,7 @@ void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
     }
 
     //Output the configuration of the caches
-    foreach2(it, m_caches.begin(), m_caches.end()) {
+    foreach2(it, plgState->m_caches.begin(), plgState->m_caches.end()) {
         ExecutionTraceCacheSimParams p;
         p.type = CACHE_PARAMS;
         p.size = (*it).second->getSize();
@@ -317,13 +408,15 @@ void CacheSim::onModuleTranslateBlockStart(
     TranslationBlock *tb, uint64_t pc)
 {
 
+    DECLARE_PLUGINSTATE(CacheSimState, state);
+
     s2e()->getDebugStream() << "Module translation CacheSim " << desc->id << "  " <<
         pc <<std::endl;
-    if(m_d1)
+    if(plgState->m_d1)
         s2e()->getCorePlugin()->onDataMemoryAccess.connect(
             sigc::mem_fun(*this, &CacheSim::onDataMemoryAccess));
 
-    if(m_i1)
+    if(plgState->m_i1)
         s2e()->getCorePlugin()->onTranslateBlockStart.connect(
             sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
 
@@ -361,46 +454,62 @@ void CacheSim::flushLogEntries()
     m_cacheLog.resize(0);
 }
 
-void CacheSim::onMemoryAccess(S2EExecutionState *state,
-                              uint64_t address, unsigned size,
-                              bool isWrite, bool isIO, bool isCode)
+bool CacheSim::profileAccess(S2EExecutionState *state) const
 {
-    if(isIO) /* this is only an estimation - should look at registers! */
-        return;
-
-    Cache* cache = isCode ? m_i1 : m_d1;
-    if(!cache)
-        return;
-
     //Check whether to profile only known modules
     if (!m_reportWholeSystem) {
         if (m_execDetector && m_profileModulesOnly) {
             if (!m_execDetector->getCurrentDescriptor(state)) {
-                return;
+                return false;
             }
         }
+    }
+
+    return true;
+}
+
+bool CacheSim::reportAccess(S2EExecutionState *state) const
+{
+    bool doLog = m_reportWholeSystem;
+
+    if (!m_reportWholeSystem) {
+        if (m_execDetector) {
+            return (m_execDetector->getCurrentDescriptor(state) != NULL);
+        }else {
+            return false;
+        }
+    }
+
+    return doLog;
+}
+
+void CacheSim::onMemoryAccess(S2EExecutionState *state,
+                              uint64_t address, unsigned size,
+                              bool isWrite, bool isIO, bool isCode)
+{
+    DECLARE_PLUGINSTATE(CacheSimState, state);
+
+    if(isIO) /* this is only an estimation - should look at registers! */
+        return;
+
+    Cache* cache = isCode ? plgState->m_i1 : plgState->m_d1;
+    if(!cache)
+        return;
+
+    if (!profileAccess(state)) {
+        return;
     }
 
     //Done only on the first invocation
     writeCacheDescriptionToLog(state);
 
-    unsigned missCountLength = isCode ? m_i1_length : m_d1_length;
+    unsigned missCountLength = isCode ? plgState->m_i1_length : plgState->m_d1_length;
     unsigned missCount[missCountLength];
     memset(missCount, 0, sizeof(missCount));
     cache->access(address, size, isWrite, missCount, missCountLength);
 
     //Decide whether to log the access in the database
-    bool doLog = m_reportWholeSystem;
-
-    if (!m_reportWholeSystem) {
-        if (m_execDetector) {
-            doLog = m_execDetector->getCurrentDescriptor(state);
-        }else {
-            doLog = true;
-        }
-    }
-
-    if (!doLog) {
+    if (!reportAccess(state)) {
         return;
     }
 

@@ -423,7 +423,7 @@ ModuleTransitionState* ModuleTransitionState::clone() const
     return NULL;
 }
 
-PluginState* ModuleTransitionState::factory()
+PluginState* ModuleTransitionState::factory(Plugin *p, S2EExecutionState *state)
 {
     ModuleTransitionState *s = new ModuleTransitionState();
 

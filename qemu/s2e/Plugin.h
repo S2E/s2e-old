@@ -41,7 +41,7 @@ public:
     /** Return configuration key for this plugin */
     const std::string& getConfigKey() const;
 
-    PluginState *getPluginState(S2EExecutionState *s, PluginState* (*f)());
+    PluginState *getPluginState(S2EExecutionState *s, PluginState* (*f)(Plugin *, S2EExecutionState *));
 
 };
 

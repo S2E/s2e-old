@@ -193,7 +193,7 @@ public:
     ModuleTransitionState();
     virtual ~ModuleTransitionState();
     virtual ModuleTransitionState* clone() const;
-    static PluginState *factory();
+    static PluginState *factory(Plugin *p, S2EExecutionState *s);
 
     friend class ModuleExecutionDetector;
 };

@@ -122,7 +122,7 @@ public:
     WindowsMonitorState();
     virtual ~WindowsMonitorState();
     virtual WindowsMonitorState* clone() const;
-    static PluginState *factory();
+    static PluginState *factory(Plugin *p, S2EExecutionState *state);
 
     friend class WindowsMonitor;
 };

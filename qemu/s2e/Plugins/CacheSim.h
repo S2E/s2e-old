@@ -21,6 +21,7 @@ class S2EExecutionState;
 namespace plugins {
 
 class Cache;
+class CacheSimState;
 
 class CacheSim : public Plugin
 {
@@ -39,17 +40,9 @@ protected:
         uint32_t missCount;
     };
 
-    typedef std::map<std::string, Cache*> CachesMap;
-    CachesMap m_caches;
-
-
-    Cache* m_i1;
-    Cache* m_d1;
 
     std::vector<CacheLogEntry> m_cacheLog;
 
-    unsigned m_i1_length;
-    unsigned m_d1_length;
 
     ModuleExecutionDetector *m_execDetector;
     ExecutionTracer *m_Tracer;
@@ -59,15 +52,15 @@ protected:
     bool m_profileModulesOnly;
     bool m_useBinaryLogFile;
     bool m_cacheStructureWrittenToLog;
+    bool m_startOnModuleLoad;
     sigc::connection m_ModuleConnection;
 
-    Cache* getCache(const std::string& name);
 
     void flushLogEntries();
-    
+
     void onModuleTranslateBlockStart(
-        ExecutionSignal* signal, 
-        S2EExecutionState *state, 
+        ExecutionSignal* signal,
+        S2EExecutionState *state,
         const ModuleExecutionDesc*desc,
         TranslationBlock *tb, uint64_t pc);
 
@@ -93,12 +86,39 @@ protected:
 
     void writeCacheDescriptionToLog(S2EExecutionState *state);
 
+    bool profileAccess(S2EExecutionState *state) const;
+    bool reportAccess(S2EExecutionState *state) const;
 public:
-    CacheSim(S2E* s2e): Plugin(s2e), m_i1(0), m_d1(0),
-                        m_i1_length(0), m_d1_length(0) {}
+    CacheSim(S2E* s2e): Plugin(s2e) {}
     ~CacheSim();
 
     void initialize();
+
+    friend class CacheSimState;
+};
+
+class CacheSimState: public PluginState
+{
+private:
+    typedef std::map<std::string, Cache*> CachesMap;
+    CachesMap m_caches;
+
+    unsigned m_i1_length;
+    unsigned m_d1_length;
+
+    Cache* m_i1;
+    Cache* m_d1;
+
+public:
+    CacheSimState();
+    CacheSimState(S2EExecutionState *s, Plugin *p);
+    virtual ~CacheSimState();
+    virtual PluginState *clone() const;
+    static PluginState *factory(Plugin *p, S2EExecutionState *s);
+
+    Cache* getCache(const std::string& name);
+
+    friend class CacheSim;
 };
 
 } // namespace plugins

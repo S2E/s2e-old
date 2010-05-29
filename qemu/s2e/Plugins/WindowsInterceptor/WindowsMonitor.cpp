@@ -447,7 +447,7 @@ WindowsMonitorState* WindowsMonitorState::clone() const
     return NULL;
 }
 
-PluginState *WindowsMonitorState::factory()
+PluginState *WindowsMonitorState::factory(Plugin *p, S2EExecutionState *state)
 {
     return new WindowsMonitorState();
 }

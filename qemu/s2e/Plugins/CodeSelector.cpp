@@ -14,8 +14,8 @@
 using namespace s2e;
 using namespace plugins;
 
-S2E_DEFINE_PLUGIN(CodeSelector, 
-                  "Plugin for monitoring module execution", 
+S2E_DEFINE_PLUGIN(CodeSelector,
+                  "Plugin for monitoring module execution",
                   "CodeSelector",
                   "ModuleExecutionDetector");
 
@@ -30,7 +30,7 @@ CodeSelector::~CodeSelector()
     foreach2(it, m_CodeSelDesc.begin(), m_CodeSelDesc.end()) {
         delete *it;
     }
-    
+
     foreach2(it, m_AggregatedBitmap.begin(), m_AggregatedBitmap.end()) {
         uint8_t *Bmp = (*it).second.first;
         if (Bmp) {
@@ -58,7 +58,7 @@ void CodeSelector::initialize()
     keyList = cfg->getListKeys(getConfigKey());
     foreach2(it, keyList.begin(), keyList.end()) {
         CodeSelDesc *csd = new CodeSelDesc(s2e());
-        
+
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
         if (!csd->initialize(sk.str())) {
@@ -103,7 +103,7 @@ bool CodeSelector::instrumentationNeeded(const ModuleExecutionDesc &desc,
             continue;
         }
 
-        cd->initializeBitmap(cd->getId(), 
+        cd->initializeBitmap(cd->getId(),
                 desc.descriptor.NativeBase, desc.descriptor.Size);
 
         if(!newBmp.first) {
@@ -122,23 +122,23 @@ bool CodeSelector::instrumentationNeeded(const ModuleExecutionDesc &desc,
     return newBmp.first[offset/8] & (1<<(offset&7));
 }
 
-void CodeSelector::onModuleTranslateBlockStart(ExecutionSignal *signal, 
+void CodeSelector::onModuleTranslateBlockStart(ExecutionSignal *signal,
         S2EExecutionState *state,
         const ModuleExecutionDesc* desc,
         TranslationBlock *tb,
         uint64_t pc)
 {
     TRACE("%"PRIx64"\n", pc);
-    
+
     //Translation may have been interrupted because of an error
     if (m_Tb) {
         m_TbConnection.disconnect();
     }
-    
+
     m_Tb = tb;
     m_TbSymbexEnabled = !instrumentationNeeded(*desc, pc); //!whatever is in bitmap for that PC
     m_TbMod = desc;
-    
+
     //register instruction translator now
     CorePlugin *plg = s2e()->getCorePlugin();
     m_TbConnection = plg->onTranslateInstructionStart.connect(
@@ -147,7 +147,7 @@ void CodeSelector::onModuleTranslateBlockStart(ExecutionSignal *signal,
 }
 
 void CodeSelector::onTranslateInstructionStart(
-    ExecutionSignal *signal, 
+    ExecutionSignal *signal,
     S2EExecutionState *state,
     TranslationBlock *tb,
     uint64_t pc
@@ -166,10 +166,10 @@ void CodeSelector::onTranslateInstructionStart(
         signal->connect(sigc::mem_fun(*this, &CodeSelector::symbexSignal));
         m_TbSymbexEnabled = s;
     }
-     
+
 }
 
-    
+
 void CodeSelector::onModuleTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
@@ -203,7 +203,7 @@ void CodeSelector::symbexSignal(S2EExecutionState *state, uint64_t pc)
 
 void CodeSelector::onModuleTransition(
         S2EExecutionState *state,
-        const ModuleExecutionDesc *prevModule, 
+        const ModuleExecutionDesc *prevModule,
         const ModuleExecutionDesc *currentModule
         )
 {
@@ -244,7 +244,7 @@ CodeSelectorState* CodeSelectorState::clone() const
     return NULL;
 }
 
-PluginState *CodeSelectorState::factory()
+PluginState *CodeSelectorState::factory(Plugin *p, S2EExecutionState *state)
 {
     return new CodeSelectorState();
 }
@@ -257,7 +257,7 @@ const CodeSelDesc* CodeSelectorState::activateModule(CodeSelector *plugin, const
     if (m_ActiveModDesc == mod) {
         return m_ActiveSelDesc;
     }
-    
+
     ActiveModules::iterator amit = m_ActiveModules.find(*mod);
     if (amit != m_ActiveModules.end()) {
         //Do some caching first...
@@ -301,7 +301,7 @@ const CodeSelDesc* CodeSelectorState::activateModule(CodeSelector *plugin, const
 
     TRACE("Found configured descriptor %s for %s\n", foundDesc->getId().c_str(),
             mod->id.c_str());
-        
+
 
     //2. If descriptor has no context, create an active descriptor
     //and return.
@@ -349,11 +349,11 @@ bool CodeSelectorState::isSymbolic(uint64_t absolutePc)
 
     assert(m_ActiveModDesc);
     assert(m_ActiveSelDesc);
-    
+
     assert(m_ActiveModDesc->descriptor.Contains(absolutePc));
     uint8_t *bmp = m_ActiveSelDesc->getBitmap();
-    
-    
+
+
 
     uint64_t offset = m_ActiveModDesc->descriptor.ToRelative(absolutePc);
     return bmp[offset/8] & (1<<(offset&7));
@@ -387,7 +387,7 @@ bool CodeSelDesc::getRanges(const std::string &key, CodeSelDesc::Ranges &ranges)
    bool ok;
 
    ConfigFile *cfg = m_s2e->getConfig();
-   
+
    listSize = cfg->getListSize(key, &ok);
    if (!ok) {
        return false;
@@ -430,7 +430,7 @@ bool CodeSelDesc::validateRanges(const Ranges &R, uint64_t nativeBase, uint64_t 
 }
 
 void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &exclude,
-                             const std::string &id, 
+                             const std::string &id,
                              uint64_t nativeBase, uint64_t size)
 {
     std::stringstream includeKey, excludeKey;
@@ -439,10 +439,10 @@ void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &e
 
     include.clear();
     exclude.clear();
-    
+
     TRACE("Reading include ranges for %s...\n", id.c_str());
     includeKey << id << ".includeRange";
-    
+
     std::string fk = cfg->getString(includeKey.str(), "", &ok);
     if (ok) {
         if (fk.compare("full") == 0) {
@@ -456,7 +456,7 @@ void CodeSelDesc::getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &e
 
         ok = getRanges(includeKey.str(), include);
         if (!ok) {
-            printf("No include ranges or invalid ranges specified for %s. " 
+            printf("No include ranges or invalid ranges specified for %s. "
                 "Symbolic execution will be disabled.\n", id.c_str());
         }
         if (!validateRanges(include, nativeBase, size)) {
@@ -486,18 +486,18 @@ void CodeSelDesc::initializeBitmap(const std::string &id,
                                    uint64_t nativeBase, uint64_t size)
 {
     Ranges include, exclude;
-    
+
     assert(!m_Bitmap);
-    
+
     TRACE("Initing bitmap for %s\n", id.c_str());
     getRanges(include, exclude, id, nativeBase, size);
-    
+
     assert(!m_Bitmap);
     m_Bitmap = new uint8_t[size/8];
-    
+
 
     TRACE("Bitmap @%p size=%#"PRIx64"\n", m_Bitmap, size/8);
-    
+
     //By default, symbolic execution is disabled for the entire module
     memset(m_Bitmap, 0x00, size/8);
 
@@ -509,7 +509,7 @@ void CodeSelDesc::initializeBitmap(const std::string &id,
             m_Bitmap[i/8] |= 1 << (i % 8);
         }
     }
-    
+
     foreach2(it, exclude.begin(), exclude.end()) {
         TRACE("Exclude start=%#"PRIx64" end=%#"PRIx64"\n", (*it).first, (*it).second);
         uint64_t start = (*it).first - nativeBase;
@@ -524,7 +524,7 @@ bool CodeSelDesc::initialize(const std::string &key)
 {
      std::stringstream ss;
      bool ok;
-     
+
     ModuleExecutionDetector *executionDetector = (ModuleExecutionDetector*)m_s2e->getPlugin("ModuleExecutionDetector");
     assert(executionDetector);
 
@@ -548,7 +548,7 @@ bool CodeSelDesc::initialize(const std::string &key)
          printf("%s not configured!\n", ss.str().c_str());
      }
 
-     const ConfiguredModulesById &CfgModules = 
+     const ConfiguredModulesById &CfgModules =
          executionDetector->getConfiguredModulesById();
 
      ConfiguredModulesById::iterator it;
@@ -561,7 +561,7 @@ bool CodeSelDesc::initialize(const std::string &key)
          return false;
      }
 
-     
+
 
      return true;
 }

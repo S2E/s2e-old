@@ -9,6 +9,7 @@ int cpu_memory_rw_debug_se(uint64_t addr, uint8_t *buf, int len, int is_write);
 
 #include "S2EExecutionState.h"
 #include <s2e/S2EDeviceState.h>
+#include <s2e/Plugin.h>
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
@@ -35,6 +36,13 @@ ExecutionState* S2EExecutionState::clone()
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->m_deviceState = m_deviceState->clone();
     ret->m_stateID = s_lastStateID++;
+
+    //Clone the plugins
+    PluginStateMap::iterator it;
+    for(it = ret->m_PluginState.begin(); it != ret->m_PluginState.end(); ++it) {
+        (*it).second = (*it).second->clone();
+    }
+
     return ret;
 }
 
@@ -151,7 +159,7 @@ void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
 //Get the program counter in the current state.
 //Allows plugins to retrieve it in a hardware-independent manner.
 uint64_t S2EExecutionState::getPc() const
-{ 
+{
     return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
 }
 
@@ -169,7 +177,7 @@ TranslationBlock *S2EExecutionState::getTb() const
 }
 
 uint64_t S2EExecutionState::getPid() const
-{ 
+{
     return readCpuState(offsetof(CPUX86State, cr[3]), 8*sizeof(target_ulong));
 }
 
@@ -207,7 +215,7 @@ bool S2EExecutionState::readString(uint64_t address, std::string &s, unsigned ma
     do {
         uint8_t c;
         SREADR(this, address, c);
-        
+
         if (c) {
             s = s + (char)c;
         }else {
@@ -224,7 +232,7 @@ bool S2EExecutionState::readUnicodeString(uint64_t address, std::string &s, unsi
     do {
         uint16_t c;
         SREADR(this, address, c);
-        
+
         if (c) {
             s = s + (char)c;
         }else {

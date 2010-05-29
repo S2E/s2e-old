@@ -38,7 +38,7 @@ public:
     bool getRanges(const std::string &key, Ranges &R);
     bool validateRanges(const Ranges &R, uint64_t NativeBase, uint64_t Size) const;
     void getRanges(CodeSelDesc::Ranges &include, CodeSelDesc::Ranges &exclude,
-                             const std::string &id, 
+                             const std::string &id,
                              uint64_t nativeBase, uint64_t size);
     bool initialize(const std::string &key);
 
@@ -56,8 +56,8 @@ public:
     uint8_t *getBitmap() const {
         return m_Bitmap;
     }
-    
-    
+
+
     const std::string& getContextId() const {
         return m_ContextId;
     }
@@ -82,7 +82,7 @@ public:
 
 private:
     ModuleExecutionDetector *m_ExecutionDetector;
-    
+
     ConfiguredCodeSelDesc m_CodeSelDesc;
 
     //Keep state accross tb translation signals
@@ -92,7 +92,7 @@ private:
     const ModuleExecutionDesc* m_TbMod;
     sigc::connection m_TbConnection;
 
-    
+
     //It may happen that a module is instrumented in one process,
     //and not in the others, yet they share the same code.
     //The bitmap aggregates all the points where instrumentation
@@ -100,38 +100,38 @@ private:
     //Disambiguation is done at runtime.
     //Maps a module name to its bitmap.
     ModuleToBitmap m_AggregatedBitmap;
-    
-    
+
+
     void onModuleTransition(
         S2EExecutionState *state,
-        const ModuleExecutionDesc *prevModule, 
+        const ModuleExecutionDesc *prevModule,
         const ModuleExecutionDesc *currentModule
      );
 
-   
+
     bool instrumentationNeeded(const ModuleExecutionDesc &desc,
                                          uint64_t pc);
 
-   
-   
+
+
 public:
     CodeSelector(S2E* s2e);
 
     virtual ~CodeSelector();
-    void initialize(); 
+    void initialize();
     const ConfiguredCodeSelDesc& getConfiguredDescriptors() const {
-        return m_CodeSelDesc;   
+        return m_CodeSelDesc;
     }
 
 private:
 
     void onModuleTranslateBlockStart(
-        ExecutionSignal *signal, 
+        ExecutionSignal *signal,
         S2EExecutionState *state,
         const ModuleExecutionDesc*,
         TranslationBlock *tb,
         uint64_t pc);
-    
+
     void onModuleTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
@@ -142,14 +142,14 @@ private:
         uint64_t targetPc);
 
     void onTranslateInstructionStart(
-            ExecutionSignal *signal, 
+            ExecutionSignal *signal,
             S2EExecutionState *state,
             TranslationBlock *tb,
             uint64_t pc
         );
 
     void symbexSignal(S2EExecutionState *state, uint64_t pc);
-  
+
 };
 
 class CodeSelectorState : public PluginState
@@ -157,11 +157,11 @@ class CodeSelectorState : public PluginState
 public:
     typedef std::map<ModuleExecutionDesc, const CodeSelDesc*, ModuleExecutionDesc> ActiveModules;
 private:
-    
+
     //Null when execution is outside of any symbexcable module.
     //This takes into account shared libraries
     const ModuleExecutionDesc *m_CurrentModule;
-    
+
     ActiveModules m_ActiveModules;
     const ModuleExecutionDesc *m_ActiveModDesc;
     const CodeSelDesc *m_ActiveSelDesc;
@@ -171,7 +171,7 @@ public:
     CodeSelectorState();
     virtual ~CodeSelectorState();
     virtual CodeSelectorState* clone() const;
-    static PluginState *factory();
+    static PluginState *factory(Plugin *p, S2EExecutionState *state);
 
     bool isSymbolic(uint64_t absolutePc);
 
