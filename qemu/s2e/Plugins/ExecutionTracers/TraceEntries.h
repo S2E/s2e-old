@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <string>
+#include <vector>
 
 namespace s2e {
 namespace plugins {
@@ -18,6 +19,7 @@ enum ExecTraceEntryType {
     TRACE_MODULE_DESC,
     TRACE_FORK,
     TRACE_CACHESIM,
+    TRACE_TESTCASE,
     TRACE_MAX
 };
 
@@ -122,6 +124,62 @@ union ExecutionTraceCache {
     ExecutionTraceCacheSimName name;
     ExecutionTraceCacheSimEntry entry;
 }__attribute__((packed));
+
+struct ExecutionTraceTestCase {
+    struct Header {
+        uint32_t nameSize;
+        uint32_t dataSize;
+    }__attribute__((packed));
+
+    typedef std::pair<std::string, std::vector<unsigned char> > VarValuePair;
+    typedef std::vector<VarValuePair> ConcreteInputs;
+    static ExecutionTraceTestCase *serialize(unsigned *size, const ConcreteInputs &inputs) {
+        unsigned bufsize=0;
+        ConcreteInputs::const_iterator it;
+        for(it = inputs.begin(); it != inputs.end(); ++it) {
+            bufsize += sizeof(Header) + (*it).first.size() + (*it).second.size();
+        }
+
+        uint8_t *a = new uint8_t[bufsize];
+        ExecutionTraceTestCase *ret = (ExecutionTraceTestCase*)a;
+
+        for(it = inputs.begin(); it != inputs.end(); ++it) {
+            Header hdr = {(*it).first.size(), (*it).second.size()};
+            memcpy(a, &hdr, sizeof(hdr));
+            a+=sizeof(hdr);
+            memcpy(a, (*it).first.c_str(), (*it).first.size());
+            a+=(*it).first.size();
+            for (unsigned i=0; i<(*it).second.size(); ++i, ++a) {
+                *a = (*it).second[i];
+            }
+        }
+        *size = bufsize;
+        return ret;
+    }
+
+    static void deserialize(void *buf, size_t buflen, ConcreteInputs &out) {
+        uint8_t *a = (uint8_t*)buf;
+        while(buflen > 0) {
+            Header *hdr = (Header*)a;
+            a+=sizeof(*hdr);
+            buflen -= sizeof(*hdr);
+            out.push_back(VarValuePair("", std::vector<unsigned char>()));
+            VarValuePair &vp = out.back();
+            for (unsigned i=0; i<hdr->nameSize; ++i, a++, --buflen) {
+                vp.first += (char) *a;
+            }
+            for (unsigned i=0; i<hdr->dataSize; ++i, a++, --buflen) {
+                vp.second.push_back((char) *a);
+            }
+        }
+    }
+
+    static void deallocate(ExecutionTraceTestCase *o) {
+        delete [] (uint8_t *)o;
+    }
+
+
+};
 
 union ExecutionTraceAll {
     ExecutionTraceModuleLoad moduleLoad;

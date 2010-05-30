@@ -143,10 +143,10 @@ public:
     bool writeMemory64(uint64_t address, uint64_t value, bool physical = false);
 
     /** Creates new unconstrained symbolic value */
-    static klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
+    klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
                               const std::string& name = std::string());
 
-    static std::vector<klee::ref<klee::Expr> > createSymbolicArray(
+    std::vector<klee::ref<klee::Expr> > createSymbolicArray(
             unsigned size, const std::string& name = std::string());
 };
 

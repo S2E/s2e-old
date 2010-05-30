@@ -135,7 +135,7 @@ void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc,
 
     //Make number of params symbolic
     if (m_ServiceCfg.makeParamCountSymbolic) {
-        klee::ref<klee::Expr> v = getUpperBound(paramCount, klee::Expr::Int32);
+        klee::ref<klee::Expr> v = getUpperBound(state, paramCount, klee::Expr::Int32);
         s2e()->getMessagesStream() << "ParamCount is now " << v << std::endl; 
         state->writeMemory(state->getSp()+sizeof(uint32_t), v);
     }

@@ -41,15 +41,15 @@ void DataSelector::initialize()
 
 }
 
-ref<Expr> DataSelector::getNonNullCharacter(Expr::Width w)
+ref<Expr> DataSelector::getNonNullCharacter(S2EExecutionState *s, Expr::Width w)
 {
-    ref<Expr> symbVal = S2EExecutionState::createSymbolicValue(w);
+    ref<Expr> symbVal = s->createSymbolicValue(w);
     return NeExpr::create(symbVal, ConstantExpr::create(0,w));
 }
 
-ref<Expr> DataSelector::getUpperBound(uint64_t upperBound, Expr::Width w)
+ref<Expr> DataSelector::getUpperBound(S2EExecutionState *s, uint64_t upperBound, Expr::Width w)
 {
-    ref<Expr> symbVal = S2EExecutionState::createSymbolicValue(w);
+    ref<Expr> symbVal = s->createSymbolicValue(w);
     return UltExpr::create(symbVal, ConstantExpr::create(upperBound,w));
 }
 
@@ -63,7 +63,7 @@ bool DataSelector::makeUnicodeStringSymbolic(S2EExecutionState *s, uint64_t addr
             return true;
         }
 
-        ref<Expr> v = getNonNullCharacter(Expr::Int16);
+        ref<Expr> v = getNonNullCharacter(s, Expr::Int16);
         s2e()->getMessagesStream() << v << std::endl;
         s->writeMemory(address, v); 
         address+=sizeof(car);
@@ -82,7 +82,7 @@ bool DataSelector::makeStringSymbolic(S2EExecutionState *s, uint64_t address)
             return true;
         }
 
-        ref<Expr> v = getNonNullCharacter(Expr::Int8);
+        ref<Expr> v = getNonNullCharacter(s, Expr::Int8);
         s2e()->getMessagesStream() << v << std::endl;
         s->writeMemory(address, v); 
         address+=sizeof(car);
@@ -91,16 +91,16 @@ bool DataSelector::makeStringSymbolic(S2EExecutionState *s, uint64_t address)
     return true;
 }
 
-klee::ref<klee::Expr> DataSelector::getOddValue(klee::Expr::Width w)
+klee::ref<klee::Expr> DataSelector::getOddValue(S2EExecutionState *s, klee::Expr::Width w)
 {
-    ref<Expr> symbVal = S2EExecutionState::createSymbolicValue(w);
+    ref<Expr> symbVal = s->createSymbolicValue(w);
     ref<Expr> e1 = MulExpr::create(ConstantExpr::create(2,w), symbVal);
     ref<Expr> e2 = AddExpr::create(e1, ConstantExpr::create(1,w));
     return e2;
 }
 
-klee::ref<klee::Expr> DataSelector::getOddValue(klee::Expr::Width w, uint64_t upperBound)
+klee::ref<klee::Expr> DataSelector::getOddValue(S2EExecutionState *s, klee::Expr::Width w, uint64_t upperBound)
 {
-    ref<Expr> e1 = getOddValue(w);
+    ref<Expr> e1 = getOddValue(s, w);
     return UltExpr::create(e1, ConstantExpr::create(upperBound,w));
 }

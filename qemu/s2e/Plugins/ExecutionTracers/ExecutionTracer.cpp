@@ -41,7 +41,7 @@ void ExecutionTracer::onTimer()
 }
 
 uint32_t ExecutionTracer::writeData(
-        S2EExecutionState *state,
+        const S2EExecutionState *state,
         void *data, unsigned size, ExecTraceEntryType type)
 {
     ExecutionTraceItemHeader item;

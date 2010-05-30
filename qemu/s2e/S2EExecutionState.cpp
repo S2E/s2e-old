@@ -456,18 +456,26 @@ ref<Expr> S2EExecutionState::createSymbolicValue(
             Expr::Width width, const std::string& name)
 {
 
-    const Array *array = new Array(
-            !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId),
-            Expr::getMinBytesForWidth(width));
-    return Expr::createTempRead(array, width);
+    std::string sname = !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId);
+
+    const Array *array = new Array(sname, Expr::getMinBytesForWidth(width));
+
+    //Add it to the set of symbolic expressions, to be able to generate
+    //test cases later.
+    //Dummy memory object
+    MemoryObject *mo = new MemoryObject(0, Expr::getMinBytesForWidth(width), false, false, false, NULL);
+    mo->setName(sname);
+
+    symbolics.push_back(std::make_pair(mo, array));
+
+    return  Expr::createTempRead(array, width);
 }
 
 std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
             unsigned size, const std::string& name)
 {
-    const Array *array = new Array(
-            !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId),
-            size);
+    std::string sname = !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId);
+    const Array *array = new Array(sname, size);
 
     UpdateList ul(array, 0);
 
@@ -476,6 +484,14 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
         result.push_back(ReadExpr::create(ul,
                     ConstantExpr::alloc(i,Expr::Int32)));
     }
+
+    //Add it to the set of symbolic expressions, to be able to generate
+    //test cases later.
+    //Dummy memory object
+    MemoryObject *mo = new MemoryObject(0, size, false, false, false, NULL);
+    mo->setName(sname);
+
+    symbolics.push_back(std::make_pair(mo, array));
 
     return result;
 }

@@ -161,7 +161,7 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const RuleCfg
 
     //Make number of params symbolic
     if (rule->makeParamCountSymbolic) {
-        klee::ref<klee::Expr> v = getUpperBound(paramCount, klee::Expr::Int32);
+        klee::ref<klee::Expr> v = getUpperBound(state, paramCount, klee::Expr::Int32);
         s2e()->getMessagesStream() << "ParamCount is now " << v << std::endl; 
         state->writeMemory(state->getSp()+sizeof(uint32_t), v);
     }
@@ -170,7 +170,7 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const RuleCfg
 void GenericDataSelector::injectRegister(S2EExecutionState *state, unsigned reg)
 {
     s2e()->getDebugStream() << "Injecting symbolic value in register " << reg << std::endl;
-    klee::ref<klee::Expr> symb = S2EExecutionState::createSymbolicValue(klee::Expr::Int32);
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32);
     if (reg < 8) {
         state->writeCpuRegister(CPU_OFFSET(regs) + reg * sizeof(target_ulong), symb);
     }
@@ -192,8 +192,8 @@ void GenericDataSelector::injectRsaGenKey(S2EExecutionState *state)
         " origCallBack=" << std::hex << origCallBack << std::endl;
 
     //Now we replace the arguments with properly constrained symbolic values
-    klee::ref<klee::Expr> newKeySize = getUpperBound(2048, klee::Expr::Int32);
-    klee::ref<klee::Expr> newExponent = getOddValue(klee::Expr::Int32, 65537);
+    klee::ref<klee::Expr> newKeySize = getUpperBound(state, 2048, klee::Expr::Int32);
+    klee::ref<klee::Expr> newExponent = getOddValue(state, klee::Expr::Int32, 65537);
 
     s2e()->getMessagesStream() << "newKeySize=" << newKeySize << std::endl;
     s2e()->getMessagesStream() << "newExponent=" << newExponent << std::endl;

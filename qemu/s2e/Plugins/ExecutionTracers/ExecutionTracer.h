@@ -40,7 +40,7 @@ public:
     void initialize();
 
     uint32_t writeData(
-            S2EExecutionState *state,
+            const S2EExecutionState *state,
             void *data, unsigned size, ExecTraceEntryType type);
 
     void flush();

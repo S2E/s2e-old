@@ -11,6 +11,7 @@
 
 #include <lib/ExecutionTracer/ModuleParser.h>
 #include <lib/ExecutionTracer/Path.h>
+#include <lib/ExecutionTracer/TestCase.h>
 #include <lib/BinaryReaders/BFDInterface.h>
 
 #include "pfprofiler.h"
@@ -125,10 +126,12 @@ void PfProfiler::process()
 
         ModuleCache mc(&pb, &m_Library);
         CacheProfiler cp(&mc, &pb);
-
+        TestCase tc(&pb);
         //Process all the items of the path
         //This will automatically maintain all the module info
         pb.processPath(*pit);
+
+        tc.printInputs(statsFile);
 
         TopMissesPerModule tmpm(&cp);
 
