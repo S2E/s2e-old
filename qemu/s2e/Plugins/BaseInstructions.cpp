@@ -135,6 +135,79 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 break;
             }
 
+        case 7:
+            {
+                //Print the expression
+                uint32_t name; //xxx
+                bool ok = true;
+                ref<Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                                     &name, 4);
+
+                if(!ok) {
+                    s2e()->getWarningsStream(state)
+                        << "ERROR: symbolic argument was passed to s2e_op "
+                           "print_expression opcode" << std::endl;
+                    break;
+                }
+
+                std::string nameStr;
+                if(!state->readString(name, nameStr)) {
+                    s2e()->getWarningsStream(state)
+                            << "Error reading string from the guest"
+                            << std::endl;
+                    break;
+                }
+
+
+                s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - "
+                        <<val << std::endl;
+                break;
+            }
+
+        case 8:
+            {
+                //Print memory contents
+                uint32_t address, size, name; // XXX should account for 64 bits archs
+                bool ok = true;
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                     &address, 4);
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                                     &size, 4);
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                                     &name, 4);
+
+                if(!ok) {
+                    s2e()->getWarningsStream(state)
+                        << "ERROR: symbolic argument was passed to s2e_op "
+                           "print_expression opcode" << std::endl;
+                    break;
+                }
+
+                std::string nameStr;
+                if(!state->readString(name, nameStr)) {
+                    s2e()->getWarningsStream(state)
+                            << "Error reading string from the guest"
+                            << std::endl;
+                    break;
+                }
+
+                s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << std::endl;
+
+                for (uint32_t i=0; i<size; ++i) {
+
+                    s2e()->getMessagesStream() << std::hex << "0x" << std::setw(8) << (address+i) << ": ";
+                    ref<Expr> res = state->readMemory8(address+i, false);
+                    if (res == 0) {
+                        s2e()->getMessagesStream() << "Invalid pointer" << std::endl;
+                    }else {
+                        s2e()->getMessagesStream() << res << std::endl;
+                    }
+                }
+
+                break;
+            }
+
         case 0x10: { /* print message */
             uint32_t address; //XXX
             bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
@@ -171,14 +244,14 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode)
 {
-    TRACE("Custom instruction %#"PRIx64"\n", opcode);
+    s2e()->getDebugStream() << "Custom instruction 0x" << std::hex <<   opcode << std::endl;
 
     switch(opcode & 0xFF) {
         case 0x00:
             handleBuiltInOps(state, opcode);
             break;
         default:
-            std::cout << "Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" << 
+            s2e()->getWarningsStream() << "Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" <<
                 state->getPc() << std::endl;
     }
 }
