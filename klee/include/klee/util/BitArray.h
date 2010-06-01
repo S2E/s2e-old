@@ -31,10 +31,10 @@ public:
   }
   ~BitArray() { delete[] bits; }
 
-  bool get(unsigned idx) { return (bool) ((bits[idx/32]>>(idx&0x1F))&1); }
-  void set(unsigned idx) { bits[idx/32] |= 1<<(idx&0x1F); }
-  void unset(unsigned idx) { bits[idx/32] &= ~(1<<(idx&0x1F)); }
-  void set(unsigned idx, bool value) { if (value) set(idx); else unset(idx); }
+  inline bool get(unsigned idx) { return (bool) ((bits[idx/32]>>(idx&0x1F))&1); }
+  inline void set(unsigned idx) { bits[idx/32] |= 1<<(idx&0x1F); }
+  inline void unset(unsigned idx) { bits[idx/32] &= ~(1<<(idx&0x1F)); }
+  inline void set(unsigned idx, bool value) { if (value) set(idx); else unset(idx); }
 
   bool isAllZeros(unsigned size) {
     for(unsigned i = 0; i < size/32; ++i)

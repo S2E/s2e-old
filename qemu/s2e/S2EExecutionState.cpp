@@ -76,6 +76,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
         assert(os);
         ObjectState *wos = addressSpace.getWriteable(m_cpuRegistersState, os);
         wos->write(offset, value);
+
     } else {
         assert(isa<ConstantExpr>(value) &&
                "Can not write symbolic values to registers while executing"
@@ -146,7 +147,7 @@ void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
     } else {
         const ObjectState* os = addressSpace.findObject(m_cpuSystemState);
         assert(os);
-        ObjectState *wos = addressSpace.getWriteable(m_cpuRegistersState, os);
+        ObjectState *wos = addressSpace.getWriteable(m_cpuSystemState, os);
         address = wos->getConcreteStore(); assert(address);
         address -= CPU_OFFSET(eip);
     }
@@ -264,7 +265,9 @@ ref<Expr> S2EExecutionState::readMemory(uint64_t address,
         if(!hostAddress)
             return ref<Expr>(0);
 
-        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+
+        ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+
         assert(op.first && op.first->isUserSpecified
                && op.first->size == TARGET_PAGE_SIZE);
 
@@ -295,7 +298,8 @@ ref<Expr> S2EExecutionState::readMemory8(uint64_t address, bool physical) const
     if(!hostAddress)
         return ref<Expr>(0);
 
-    ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+    ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+
     assert(op.first && op.first->isUserSpecified
            && op.first->size == TARGET_PAGE_SIZE);
 
@@ -308,7 +312,6 @@ bool S2EExecutionState::writeMemory(uint64_t address,
 {
     Expr::Width width = value->getWidth();
     assert(width == 1 || (width & 7) == 0);
-
     ConstantExpr *constantExpr = dyn_cast<ConstantExpr>(value);
     if(constantExpr && width <= 64) {
         // Concrete write of supported width
@@ -341,11 +344,12 @@ bool S2EExecutionState::writeMemory(uint64_t address,
         if(!hostAddress)
             return false;
 
-        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+        ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+
         assert(op.first && op.first->isUserSpecified
                && op.first->size == TARGET_PAGE_SIZE);
 
-        ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
+        ObjectState *wos = fetchObjectStateMemWritable(op.first, op.second);
         wos->write(hostAddress & ~TARGET_PAGE_MASK, value);
     } else {
         // Slowest case (TODO: could optimize it)
@@ -366,7 +370,6 @@ bool S2EExecutionState::writeMemory8(uint64_t address,
                                      ref<Expr> value, bool physical)
 {
     assert(value->getWidth() == 8);
-
     if(!physical) {
         address = getPhysicalAddress(address);
         if(address == (uint64_t) -1)
@@ -377,11 +380,12 @@ bool S2EExecutionState::writeMemory8(uint64_t address,
     if(!hostAddress)
         return false;
 
-    ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+    ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+
     assert(op.first && op.first->isUserSpecified
            && op.first->size == TARGET_PAGE_SIZE);
 
-    ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
+    ObjectState *wos = fetchObjectStateMemWritable(op.first, op.second);
     wos->write(hostAddress & ~TARGET_PAGE_MASK, value);
     return true;
 }
@@ -406,13 +410,16 @@ bool S2EExecutionState::writeMemory(uint64_t address,
         if(!hostAddress)
             return false;
 
-        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+        ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+
         assert(op.first && op.first->isUserSpecified
                && op.first->size == TARGET_PAGE_SIZE);
 
-        ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
+        ObjectState *wos = fetchObjectStateMemWritable(op.first, op.second);
         for(uint64_t i = 0; i < width / 8; ++i)
             wos->write8(pageOffset + i, buf[i]);
+
+        m_memCache.update(hostAddress & TARGET_PAGE_MASK, ObjectPair(op.first, wos));
     } else {
         /* Access spawns multiple pages */
         uint64_t size1 = TARGET_PAGE_SIZE - pageOffset;

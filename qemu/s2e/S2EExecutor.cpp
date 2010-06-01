@@ -345,6 +345,12 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
     m_saveOnContextSwitch.push_back(initialState->m_cpuSystemState);
+
+    const ObjectState *cpuSystemObject = initialState->addressSpace.findObject(initialState->m_cpuSystemState);
+    const ObjectState *cpuRegistersObject = initialState->addressSpace.findObject(initialState->m_cpuRegistersState);
+
+    initialState->m_cpuRegistersObject = initialState->addressSpace.getWriteable(initialState->m_cpuRegistersState, cpuRegistersObject);
+    initialState->m_cpuSystemObject = initialState->addressSpace.getWriteable(initialState->m_cpuSystemState, cpuSystemObject);
 }
 
 void S2EExecutor::registerRam(S2EExecutionState *initialState,
@@ -392,14 +398,14 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 bool S2EExecutor::isRamRegistered(S2EExecutionState *state,
                                       uint64_t hostAddress)
 {
-    ObjectPair op = state->addressSpace.findObject(hostAddress);
+    ObjectPair op = state->fetchObjectStateMem(hostAddress, TARGET_PAGE_MASK);
     return op.first != NULL && op.first->isUserSpecified;
 }
 
 bool S2EExecutor::isRamSharedConcrete(S2EExecutionState *state,
                                       uint64_t hostAddress)
 {
-    ObjectPair op = state->addressSpace.findObject(hostAddress);
+    ObjectPair op = state->fetchObjectStateMem(hostAddress, TARGET_PAGE_MASK);
     assert(op.first);
     return op.first->isSharedConcrete;
 }
@@ -413,7 +419,7 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
         /* Single-page access */
 
         uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
-        ObjectPair op = state->addressSpace.findObject(page_addr);
+        ObjectPair op = state->fetchObjectStateMem(page_addr, TARGET_PAGE_MASK);
 
         assert(op.first && op.first->isUserSpecified &&
                op.first->size == TARGET_PAGE_SIZE);
@@ -445,7 +451,7 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
         /* Single-page access */
 
         uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
-        ObjectPair op = state->addressSpace.findObject(page_addr);
+        ObjectPair op = state->fetchObjectStateMem(page_addr, TARGET_PAGE_MASK);
 
         assert(op.first && op.first->isUserSpecified &&
                op.first->size == TARGET_PAGE_SIZE);
@@ -454,7 +460,7 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
         for(uint64_t i=0; i<size; ++i) {
             if(!op.second->readConcrete8(page_offset+i, buf+i)) {
                 if(!wos) {
-                    op.second = wos = state->addressSpace.getWriteable(
+                    op.second = wos = state->fetchObjectStateMemWritable(
                                                     op.first, op.second);
                 }
                 buf[i] = toConstant(*state, wos->read8(page_offset+i),
@@ -479,16 +485,17 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
         /* Single-page access */
 
         uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
-        ObjectPair op = state->addressSpace.findObject(page_addr);
+        ObjectPair op = state->fetchObjectStateMem(page_addr, TARGET_PAGE_MASK);
 
         assert(op.first && op.first->isUserSpecified &&
                op.first->size == TARGET_PAGE_SIZE);
 
         ObjectState* wos =
-                state->addressSpace.getWriteable(op.first, op.second);
+                state->fetchObjectStateMemWritable(op.first, op.second);
         for(uint64_t i=0; i<size; ++i) {
             wos->write8(page_offset+i, buf[i]);
         }
+
     } else {
         /* Access spans multiple pages */
         uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
@@ -507,14 +514,17 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
     if(state->m_runningConcrete) {
         memcpy(buf, ((uint8_t*)cpuState)+offset, size);
     } else {
-        MemoryObject* mo = state->m_cpuRegistersState;
+        const MemoryObject* mo = state->m_cpuRegistersState;
         const ObjectState* os = state->addressSpace.findObject(mo);
+
         ObjectState* wos = 0;
 
         for(unsigned i = 0; i < size; ++i) {
             if(!os->readConcrete8(offset+i, buf+i)) {
-                if(!wos)
-                    os = wos = state->addressSpace.getWriteable(mo, os);
+                if(!wos){
+                    wos = state->addressSpace.getWriteable(mo, os);
+                    os = wos;
+                }
                 const char* reg;
                 switch(offset) {
                     case 0x00: reg = "eax"; break;
@@ -555,7 +565,8 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
     } else {
         MemoryObject* mo = state->m_cpuRegistersState;
         const ObjectState* os = state->addressSpace.findObject(mo);
-        ObjectState* wos = state->addressSpace.getWriteable(mo, os);
+
+        ObjectState* wos = state->addressSpace.getWriteable(mo,os);
 
         for(unsigned i = 0; i < size; ++i) {
             wos->write8(offset+i, buf[i]);
@@ -577,7 +588,8 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
         /* The object contains symbolic values. We have to
            concretize it */
         ObjectState *wos;
-        os = wos = state->addressSpace.getWriteable(mo, os);
+        os = wos = state->addressSpace.getWriteable(mo,os);
+
         for(unsigned i = 0; i < wos->size; ++i) {
             ref<Expr> e = wos->read8(i);
             if(!isa<klee::ConstantExpr>(e)) {
@@ -602,7 +614,8 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
 
     assert(os && os->isAllConcrete());
 
-    ObjectState *wos = state->addressSpace.getWriteable(mo, os);
+    ObjectState *wos = state->addressSpace.getWriteable(mo,os);
+
     memcpy(wos->getConcreteStore(), (void*) mo->address, mo->size);
     state->m_runningConcrete = false;
 }
@@ -636,10 +649,11 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     copyInConcretes(*oldState);
     oldState->getDeviceState()->saveDeviceState();
 
+    //xxx: implement caching here
     foreach(MemoryObject* mo, m_saveOnContextSwitch) {
-        const ObjectState *oldOS = oldState->addressSpace.findObject(mo);
-        const ObjectState *newOS = newState->addressSpace.findObject(mo);
-        ObjectState *oldWOS = oldState->addressSpace.getWriteable(mo, oldOS);
+        const ObjectState *oldOS = oldState->fetchObjectState(mo, TARGET_PAGE_MASK);
+        const ObjectState *newOS = newState->fetchObjectState(mo, TARGET_PAGE_MASK);
+        ObjectState *oldWOS = oldState->fetchObjectStateWritable(mo, oldOS);
 
         uint8_t *oldStore = oldWOS->getConcreteStore();
         uint8_t *newStore = newOS->getConcreteStore();
@@ -889,8 +903,10 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         TranslationBlock* tb)
 {
     assert(state->isActive());
-    const ObjectState* os = state->addressSpace.findObject(
-                                    state->m_cpuRegistersState);
+
+
+    //const ObjectState* os = state->addressSpace.findObject(state->m_cpuRegistersState);
+    const ObjectState* os = state->m_cpuRegistersObject;
 
     bool executeKlee = m_executeAlwaysKlee;
     if(state->m_symbexEnabled) {
@@ -1034,8 +1050,8 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
             newState->getDeviceState()->saveDeviceState();
            
             foreach(MemoryObject* mo, m_saveOnContextSwitch) {
-                const ObjectState *os = newState->addressSpace.findObject(mo);
-                ObjectState *wos = newState->addressSpace.getWriteable(mo, os);
+                const ObjectState *os = newState->fetchObjectState(mo, TARGET_PAGE_MASK);
+                ObjectState *wos = newState->fetchObjectStateWritable(mo, os);
                 uint8_t *store = wos->getConcreteStore();
 
                 assert(store);
@@ -1044,6 +1060,12 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
             newState->m_active = false;
         }
+
+        const ObjectState *cpuSystemObject = newState->addressSpace.findObject(newState->m_cpuSystemState);
+        const ObjectState *cpuRegistersObject = newState->addressSpace.findObject(newState->m_cpuRegistersState);
+
+        newState->m_cpuRegistersObject = newState->addressSpace.getWriteable(newState->m_cpuRegistersState, cpuRegistersObject);
+        newState->m_cpuSystemObject = newState->addressSpace.getWriteable(newState->m_cpuSystemState, cpuSystemObject);
     }
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,

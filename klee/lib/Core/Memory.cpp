@@ -321,22 +321,6 @@ uint8_t *ObjectState::getConcreteStore() const
     return concreteStore;
 }
 
-bool ObjectState::isByteConcrete(unsigned offset) const {
-  return !concreteMask || concreteMask->get(offset);
-}
-
-bool ObjectState::isByteFlushed(unsigned offset) const {
-  return flushMask && !flushMask->get(offset);
-}
-
-bool ObjectState::isByteKnownSymbolic(unsigned offset) const {
-  return knownSymbolics && knownSymbolics[offset].get();
-}
-
-void ObjectState::markByteConcrete(unsigned offset) {
-  if (concreteMask)
-    concreteMask->set(offset);
-}
 
 void ObjectState::markByteSymbolic(unsigned offset) {
   if (!concreteMask)
@@ -344,10 +328,6 @@ void ObjectState::markByteSymbolic(unsigned offset) {
   concreteMask->unset(offset);
 }
 
-void ObjectState::markByteUnflushed(unsigned offset) {
-  if (flushMask)
-    flushMask->set(offset);
-}
 
 void ObjectState::markByteFlushed(unsigned offset) {
   if (!flushMask) {
@@ -357,7 +337,7 @@ void ObjectState::markByteFlushed(unsigned offset) {
   }
 }
 
-void ObjectState::setKnownSymbolic(unsigned offset, 
+inline void ObjectState::setKnownSymbolic(unsigned offset,
                                    Expr *value /* can be null */) {
   if (knownSymbolics) {
     knownSymbolics[offset] = value;

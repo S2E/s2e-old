@@ -14,6 +14,7 @@
 #include "klee/Expr.h"
 
 #include "llvm/ADT/StringExtras.h"
+#include "klee/util/BitArray.h"
 
 #include <vector>
 #include <string>
@@ -241,14 +242,32 @@ private:
   void flushRangeForRead(unsigned rangeBase, unsigned rangeSize) const;
   void flushRangeForWrite(unsigned rangeBase, unsigned rangeSize);
 
-  bool isByteConcrete(unsigned offset) const;
-  bool isByteFlushed(unsigned offset) const;
-  bool isByteKnownSymbolic(unsigned offset) const;
+  inline bool isByteConcrete(unsigned offset) const {
+    return !concreteMask || concreteMask->get(offset);
+  }
 
-  void markByteConcrete(unsigned offset);
+  inline bool isByteFlushed(unsigned offset) const {
+      return flushMask && !flushMask->get(offset);
+  }
+
+  inline bool isByteKnownSymbolic(unsigned offset) const {
+      return knownSymbolics && knownSymbolics[offset].get();
+  }
+
+  inline void markByteConcrete(unsigned offset) {
+      if (concreteMask)
+        concreteMask->set(offset);
+  }
+
   void markByteSymbolic(unsigned offset);
+
   void markByteFlushed(unsigned offset);
-  void markByteUnflushed(unsigned offset);
+
+  void markByteUnflushed(unsigned offset) {
+      if (flushMask)
+        flushMask->set(offset);
+  }
+
   void setKnownSymbolic(unsigned offset, Expr *value);
 
   void print();

@@ -2536,7 +2536,8 @@ void *qemu_get_ram_ptr(ram_addr_t addr)
     }
     if (!block) {
         fprintf(stderr, "Bad ram offset %" PRIx64 "\n", (uint64_t)addr);
-        abort();
+        //abort();
+        return NULL;
     }
     /* Move this entry to to start of the list.  */
     if (prev) {
