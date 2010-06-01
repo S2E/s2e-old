@@ -92,13 +92,11 @@ public:
         return klee::ObjectPair(NULL, NULL);
     }
 
-
-
     inline void update(uint64_t address, const klee::ObjectPair &p) {
         unsigned ha = hash(address);
         m_entries[ha].address = address;
         m_entries[ha].objPair = p;
-        //assert(p.second && p.first);
+        assert(p.second && p.first);
     }
 
 
@@ -186,7 +184,7 @@ public:
 
     /** Universal access **/
     inline const klee::ObjectState* fetchObjectState(const klee::MemoryObject *mo, uint64_t tpm) const {
-        if (mo == m_cpuRegistersState || m_cpuSystemState) {
+        if (mo == m_cpuRegistersState || mo == m_cpuSystemState) {
             return addressSpace.findObject(mo);
         }else {
             return fetchObjectStateMem(mo->address, tpm).second;
@@ -194,7 +192,7 @@ public:
     }
 
     inline klee::ObjectState* fetchObjectStateWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        if (mo == m_cpuRegistersState || m_cpuSystemState) {
+        if (mo == m_cpuRegistersState || mo == m_cpuSystemState) {
             //return fetchObjectStateRegWritable(mo, os);
             return addressSpace.getWriteable(mo, os);
         }else {

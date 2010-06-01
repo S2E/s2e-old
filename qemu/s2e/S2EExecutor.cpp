@@ -649,7 +649,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     copyInConcretes(*oldState);
     oldState->getDeviceState()->saveDeviceState();
 
-    //xxx: implement caching here
     foreach(MemoryObject* mo, m_saveOnContextSwitch) {
         const ObjectState *oldOS = oldState->fetchObjectState(mo, TARGET_PAGE_MASK);
         const ObjectState *newOS = newState->fetchObjectState(mo, TARGET_PAGE_MASK);
