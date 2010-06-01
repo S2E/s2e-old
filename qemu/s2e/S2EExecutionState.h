@@ -169,7 +169,8 @@ public:
     /** Accesses to memory objects through the cache **/
     inline klee::ObjectPair fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
         klee::ObjectPair op;
-        if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL) {
+        if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL)
+        {
             op = addressSpace.findObject(hostAddress);
             m_memCache.update(hostAddress & tpm, op);
         }

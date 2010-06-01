@@ -1,71 +1,269 @@
 ;Assemble this file to a raw binary, and specify it as the BIOS
 
+org 0xe0000
 zerobuf: times 0x10000 db 0
 
-[org 0xf0000]
-start:
 
-cli
 
-;This is the custom instruction
-;db 0xf1
-;dq 0xbadf00ddeadbeef
-;dq 0x0
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+[bits 32]
+s2e_timing:
+push ebp
+mov ebp, esp
+
+mov eax, [ebp - 4]
+mov edx, [ebp - 8]
+
 db 0x0f
 db 0x3f ; S2EOP
 
 db 0x00 ; Built-in instructions
-db 0x01 ; enable s2e
+db 0x04 ; Insert timing
 db 0x00
 db 0x00
-
 dd 0x0
-dq 0x0
+
+leave
+ret
+
+s2e_get_path_id:
+push ebp
+mov ebp, esp
 
 db 0x0f
-db 0x3f ; s2e prefix
-db 0x00 ; build-in opcode
-db 0x03 ; insert symbolic value
-db 0x00 ; not used
-db 0x00 ; not used
-dd 0x04  ; size
-dq 0x100 ; address
+db 0x3f ; S2EOP
 
-
-_loop1:
-    mov eax, [0x100]
-    add eax, 2
-    mov [0x100], eax
-
-    cmp eax, 1000
-    ja _loop1
-
-_stop:
-;cli
-;hlt
-inc edx
-jmp _stop
-
-branch1:
-_stop1:
-;cli
-;hlt
-inc ecx
-jmp _stop1
-
-mov ebx, eax
-add ebx, 2
-
-
-db 0xf1
+db 0x00 ; Built-in instructions
+db 0x04 ; Get path id
 db 0x00
-db 0x02 ; disable s2e
-dw 0x00
-dd 0x00
+db 0x00
+dd 0x0
 
-cli
-hlt
+leave
+ret
+
+s2e_enable:
+push ebp
+mov ebp, esp
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x01 ; Enable symbex
+db 0x00
+db 0x00
+dd 0x0
+
+leave
+ret
+
+s2e_disable:
+push ebp
+mov ebp, esp
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x02 ; Disable symbex
+db 0x00
+db 0x00
+dd 0x0
+
+leave
+ret
+
+s2e_make_symbolic:
+push ebp
+mov ebp, esp
+push ebx
+
+mov eax, [ebp + 0x8] ;address
+mov ebx, [ebp + 0xC] ;size
+mov ecx, [ebp + 0x10] ;asciiz
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x03 ; Make symbolic
+db 0x00
+db 0x00
+dd 0x0
+
+pop ebx
+leave
+ret
+
+
+s2e_kill_state:
+push ebp
+mov ebp, esp
+push ebx
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x06 ; Kill the current state
+db 0x00
+db 0x00
+dd 0x0
+
+pop ebx
+leave
+ret
+
+
+_s2e_print_expression:
+push ebp
+mov ebp, esp
+
+mov eax, [ebp + 0x8] ;expression
+mov ecx, [ebp + 0xC] ;message
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x07 ; print expression
+db 0x00
+db 0x00
+dd 0x0
+
+leave
+ret
+
+s2e_print_memory:
+push ebp
+mov ebp, esp
+push ebx
+
+mov eax, [ebp + 0x8] ;addr
+mov ebx, [ebp + 0xC] ;size
+mov ecx, [ebp + 0xC] ;message
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x08 ; print memory
+db 0x00
+db 0x00
+dd 0x0
+
+pop ebx
+leave
+ret
+
+s2e_int:
+push ebp
+mov ebp, esp
+sub esp, 4
+
+push 0
+push 4
+lea eax, [ebp-4]
+push eax
+call s2e_make_symbolic
+add esp, 4*3
+mov eax, [ebp-4]
+
+leave
+ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+[bits 16]
+
+;Quick and dirty pmode init
+%define SEGMENT_COUNT 3
+%define OSDATA32_SEL  0x08
+%define OSCODE32_SEL  0x10
+
+pm_nullseg:
+        dd 0
+        dd 0
+pm_dataseg:
+        dw 0xFFFF	;Seg limit
+        dw 0x0000	;Base
+        db 0x0	;base
+        db 0x80 + 0x10 + 2 ;Present+code or data + RW data
+        db 0x80 + 0x40 + 0xF; Granularity+32bits + limit
+        db 0
+
+pm_codeseg:
+        dw 0xFFFF	;Seg limit
+        dw 0	;Base
+        db 0x0	;base
+        db 0x80 + 0x10 + 10 ;Present+code or data + Exec/RO
+        db 0x80 + 0x40 + 0xF; Granularity+32bits + limit
+        db 0
+
+;GDTR value
+pm_gdtr:
+        dw 0x8*SEGMENT_COUNT
+pm_gdtraddr	dd pm_nullseg
+
+init_pmode:
+
+    cli
+    lgdt [pm_gdtr]
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+    db 66h
+    db 67h
+    db 0xEA
+    dd s2e_test
+    dw OSCODE32_SEL
+    hlt
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;S2E test - this runs in protected mode
+[bits 32]
+s2e_test:
+
+    mov eax, OSDATA32_SEL
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov esp, 0x80000
+
+    call s2e_enable
+
+    call s2e_int
+    cmp eax, 1
+    jz lbl1
+    call s2e_kill_state
+
+    lbl1:
+    call s2e_kill_state
+
+
+    call s2e_disable
+    hlt
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+[bits 16]
+start:
+    cli
+    mov ax, cs
+    mov ds, ax
+    mov ax, 0x8000
+    mov ss, ax
+    mov sp, 0
+    call init_pmode
+
+    cli
+    hlt
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 times 0x20000 - 16 - ($-$$) db 0
 
