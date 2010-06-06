@@ -184,6 +184,8 @@ protected:
     void branch(klee::ExecutionState &state,
               const std::vector< klee::ref<klee::Expr> > &conditions,
               std::vector<klee::ExecutionState*> &result);
+
+    virtual void invalidateCache(klee::ExecutionState &state, const klee::MemoryObject *mo);
 };
 
 } // namespace s2e

@@ -136,6 +136,8 @@ typedef struct CPUWatchpoint {
 
 #define CPU_TEMP_BUF_NLONGS 128
 #define CPU_COMMON                                                      \
+    uint64_t s2e_tb_icount;                                             \
+    uint64_t s2e_total_icount;                                          \
     struct TranslationBlock *current_tb; /* currently executing TB  */  \
     struct TranslationBlock *s2e_current_tb; /* currently executing TB  */  \
     /* soft mmu support */                                              \

@@ -378,7 +378,10 @@ protected:
                                  FunctionHandler handler);
 
   void setAllExternalWarnings(bool value);
-                
+
+  //Invalidate object cache
+  virtual void invalidateCache(ExecutionState &state, const MemoryObject *mo);
+
 public:
   Executor(const InterpreterOptions &opts, InterpreterHandler *ie,
            llvm::ExecutionEngine *engine = NULL);
@@ -387,6 +390,7 @@ public:
   const InterpreterHandler& getHandler() {
     return *interpreterHandler;
   }
+
 
   // remove state from queue and delete
   void terminateState(ExecutionState &state);

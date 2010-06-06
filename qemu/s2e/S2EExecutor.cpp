@@ -46,7 +46,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <sys/mman.h>
 #endif
 
-//#define S2E_DEBUG_INSTRUCTIONS
+#define S2E_DEBUG_INSTRUCTIONS
 
 using namespace std;
 using namespace llvm;
@@ -220,8 +220,11 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     assert(traceFunction);
     addSpecialFunctionHandler(traceFunction, handlerTraceMemoryAccess);
 
-//    searcher = new RandomSearcher();
-    searcher = new DFSSearcher();
+    searcher = new RandomSearcher();
+
+    //searcher = new RandomPathSearcher(*this);
+
+//    searcher = new DFSSearcher();
 
     //setAllExternalWarnings(true);
 }
@@ -375,7 +378,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
                 *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
 
-        if (isSharedConcrete /*&& saveOnContextSwitch*/) {
+        if (isSharedConcrete && saveOnContextSwitch) {
             m_saveOnContextSwitch.push_back(mo);
         }
     }
@@ -649,6 +652,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     copyInConcretes(*oldState);
     oldState->getDeviceState()->saveDeviceState();
 
+    uint64_t totalCopied = 0;
+    uint64_t objectsCopied = 0;
     foreach(MemoryObject* mo, m_saveOnContextSwitch) {
         const ObjectState *oldOS = oldState->fetchObjectState(mo, TARGET_PAGE_MASK);
         const ObjectState *newOS = newState->fetchObjectState(mo, TARGET_PAGE_MASK);
@@ -660,10 +665,15 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         assert(oldStore);
         assert(newStore);
 
+
+
         memcpy(oldStore, (uint8_t*) mo->address, mo->size);
         memcpy((uint8_t*) mo->address, newStore, mo->size);
+        totalCopied += mo->size;
+        objectsCopied++;
     }
 
+    s2e_debug_print("Copying %d (count=%d)\n", totalCopied, objectsCopied);
     newState->getDeviceState()->restoreDeviceState();
     copyOutConcretes(*newState);
     newState->m_active = true;
@@ -903,9 +913,10 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 {
     assert(state->isActive());
 
-
-    //const ObjectState* os = state->addressSpace.findObject(state->m_cpuRegistersState);
     const ObjectState* os = state->m_cpuRegistersObject;
+
+    state->setTbInstructionCount(tb->icount);
+    state->setFlags(true);
 
     bool executeKlee = m_executeAlwaysKlee;
     if(state->m_symbexEnabled) {
@@ -1127,6 +1138,15 @@ void S2EExecutor::branch(klee::ExecutionState &state,
                        newStates, newConditions);
 }
 
+void S2EExecutor::invalidateCache(klee::ExecutionState &state, const klee::MemoryObject *mo)
+{
+    S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
+    assert(s);
+    if (mo->size == TARGET_PAGE_SIZE) {
+        s->m_memCache.invalidate(mo->address);
+    }
+}
+
 } // namespace s2e
 
 /******************************/
@@ -1218,6 +1238,9 @@ S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
 uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            struct TranslationBlock* tb)
 {
+    /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
+            << " pc=0x" << std::hex << state->getPc()
+            << std::endl;   */
     return s2e->getExecutor()->executeTranslationBlock(state, tb);
 }
 
@@ -1230,9 +1253,15 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
 void s2e_set_cc_op_eflags(struct S2E* s2e,
                         struct S2EExecutionState* state)
 {
+    if (state->getFlags()) {
+        //for debug purposes, avoid calling flags synchronization when no code has been executed
+        return;
+    }
     if(state->isRunningConcrete())
         helper_set_cc_op_eflags();
     else
         s2e->getExecutor()->executeFunction(state, "helper_set_cc_op_eflags");
+
+    state->setFlags(true);
 }
 

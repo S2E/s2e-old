@@ -104,7 +104,8 @@ namespace {
 
   cl::opt<bool>
   DebugPrintInstructions("debug-print-instructions", 
-                         cl::desc("Print instructions during execution."));
+                         cl::desc("Print instructions during execution."),
+                         cl::init(false));
 
   cl::opt<bool>
   DebugCheckForImpliedValues("debug-check-for-implied-values");
@@ -138,7 +139,7 @@ namespace {
 
   cl::opt<bool>
   UseFastCexSolver("use-fast-cex-solver",
-		   cl::init(false));
+                   cl::init(true));
 
   cl::opt<bool>
   UseIndependentSolver("use-independent-solver",
@@ -595,7 +596,8 @@ void Executor::initializeGlobals(ExecutionState &state) {
          e = m->global_end();
        i != e; ++i) {
     if (i->hasInitializer()) {
-      MemoryObject *mo = globalObjects.find(i)->second;
+      const MemoryObject *mo = globalObjects.find(i)->second;
+      invalidateCache(state, mo);
       const ObjectState *os = state.addressSpace.findObject(mo);
       assert(os);
       ObjectState *wos = state.addressSpace.getWriteable(mo, os);
@@ -1091,7 +1093,7 @@ void Executor::stepInstruction(ExecutionState &state) {
   if (DebugPrintInstructions) {
     printFileLine(state, state.pc);
     std::cerr << std::setw(10) << stats::instructions << " ";
-    llvm::errs() << *(state.pc->inst);
+    llvm::errs() << *(state.pc->inst)  << "\n";
   }
 
   if (statsTracker)
@@ -2875,6 +2877,11 @@ void Executor::resolveExact(ExecutionState &state,
   }
 }
 
+void Executor::invalidateCache(ExecutionState &state, const MemoryObject *mo)
+{
+
+}
+
 void Executor::executeMemoryOperation(ExecutionState &state,
                                       bool isWrite,
                                       ref<Expr> address,
@@ -2930,6 +2937,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                 "memory error: object read only",
                                 "readonly.err");
         } else {
+          invalidateCache(state, mo);
           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
           if(mo->isSharedConcrete) {
               offset = toConstant(state, offset, "write to always concrete memory");
@@ -2981,6 +2989,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                 "memory error: object read only",
                                 "readonly.err");
         } else {
+          invalidateCache(state, mo);
           ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
           ref<Expr> offset = mo->getOffsetExpr(address);
           if(mo->isSharedConcrete) {
@@ -3305,6 +3314,7 @@ void Executor::doImpliedValueConcretization(ExecutionState &state,
       } else {
         assert(!os->readOnly && 
                "not possible? read only object with static read?");
+        invalidateCache(state, mo);
         ObjectState *wos = state.addressSpace.getWriteable(mo, os);
         wos->write(CE, it->second);
       }

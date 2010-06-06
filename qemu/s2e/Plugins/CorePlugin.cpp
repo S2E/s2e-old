@@ -29,7 +29,7 @@ static void s2e_timer_cb(void *opaque)
     CorePlugin *c = (CorePlugin*)opaque;
     g_s2e->getDebugStream() << "Firing timer event" << std::endl;
     c->onTimer.emit();
-    qemu_mod_timer(c->getTimer(), qemu_get_clock(vm_clock) + 
+    qemu_mod_timer(c->getTimer(), qemu_get_clock(host_clock) +
         get_ticks_per_sec());
 }
 

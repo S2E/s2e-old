@@ -33,8 +33,15 @@ void qemu_mod_timer(QEMUTimer *ts, int64_t expire_time);
 int qemu_timer_pending(QEMUTimer *ts);
 int qemu_timer_expired(QEMUTimer *timer_head, int64_t current_time);
 
+
 static inline int64_t get_ticks_per_sec(void)
 {
+//#ifdef CONFIG_S2E$
+#if 0
+    if (s2e_icount_factor) {
+        return s2e_icount_factor;
+    }
+#endif
     return 1000000000LL;
 }
 

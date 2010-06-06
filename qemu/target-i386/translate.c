@@ -7967,6 +7967,15 @@ static inline void gen_intermediate_code_internal(CPUState *env,
             gen_io_start();
 
 #ifdef CONFIG_S2E
+        TCGv_i64 t0 = tcg_temp_new_i64();
+        TCGv_i64 t1 = tcg_temp_new_i64();
+        TCGv_i64 t2 = tcg_temp_new_i64();
+
+        tcg_gen_ld_i64(t0, cpu_env, offsetof(CPUState, s2e_tb_icount));
+        tcg_gen_ld_i64(t1, cpu_env, offsetof(CPUState, s2e_total_icount));
+        tcg_gen_add_i64(t2, t0, t1);
+        tcg_gen_st_i64(t2, cpu_env, offsetof(CPUState, s2e_total_icount));
+
         dc->insPc = pc_ptr;
         dc->done_instr_end = 0;
         s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);

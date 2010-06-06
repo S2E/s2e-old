@@ -26,6 +26,9 @@
 #include <assert.h>
 #include <errno.h>
 
+#include <stdarg.h>
+#include <stdio.h>
+
 #include <sys/stat.h>
 
 namespace s2e {
@@ -323,6 +326,22 @@ S2E* s2e_initialize(TCGLLVMContext* tcgLLVMContext,
 void s2e_close(S2E *s2e)
 {
     delete s2e;
+}
+
+void s2e_debug_print(const char *fmtstr, ...)
+{
+    if (!g_s2e) {
+        return;
+    }
+
+
+    va_list vl;
+    va_start(vl,fmtstr);
+
+    char str[512];
+    vsnprintf(str, sizeof(str), fmtstr, vl);
+    g_s2e->getDebugStream() << str;
+
 }
 
 } // extern "C"

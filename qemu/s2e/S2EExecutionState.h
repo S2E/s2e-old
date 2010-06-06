@@ -96,7 +96,16 @@ public:
         unsigned ha = hash(address);
         m_entries[ha].address = address;
         m_entries[ha].objPair = p;
+        assert(p.first == p.second->getObject());
         assert(p.second && p.first);
+    }
+
+    inline void invalidate(uint64_t address) {
+        unsigned ha = hash(address);
+        if (m_entries[ha].address == address) {
+            m_entries[ha].address = (uint64_t)-1;
+            m_entries[ha].objPair = klee::ObjectPair(NULL, NULL);
+        }
     }
 
 
@@ -136,6 +145,8 @@ protected:
 
     S2EDeviceState *m_deviceState;
 
+    bool m_flagsSet;
+
 public:
     S2EExecutionState(klee::KFunction *kf);
 
@@ -146,6 +157,19 @@ public:
     }
 
     TranslationBlock *getTb() const;
+
+
+    uint64_t getTotalInstructionCount();
+    void setTbInstructionCount(uint64_t count);
+    void setTotalInstructionCount(uint64_t count);
+
+    void setFlags(bool b) {
+        m_flagsSet = b;
+    }
+
+    bool getFlags() const {
+        return m_flagsSet;
+    }
 
     /*************************************************/
 #if 0
@@ -172,13 +196,22 @@ public:
         if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL)
         {
             op = addressSpace.findObject(hostAddress);
+            if (op.second->getObject() != op.first) {
+                asm("int $3");
+            }
             m_memCache.update(hostAddress & tpm, op);
+        }
+        if(op.first != op.second->getObject()) {
+            asm("int $3");
         }
         return op;
     }
 
     inline klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
         klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
+        if (wos->getObject() != mo) {
+            asm("int $3");
+        }
         m_memCache.update(mo->address, klee::ObjectPair(mo,wos));
         return wos;
     }

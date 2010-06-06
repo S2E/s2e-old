@@ -29,6 +29,11 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL)
 {
     m_deviceState = new S2EDeviceState();
+    m_flagsSet = false;
+    m_cpuRegistersObject = NULL;
+    m_cpuSystemObject = NULL;
+    m_cpuSystemState = NULL;
+    m_cpuRegistersState = NULL;
 }
 
 ExecutionState* S2EExecutionState::clone()
@@ -91,7 +96,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
 bool S2EExecutionState::readCpuRegisterConcrete(unsigned offset,
                                                 void* buf, unsigned size)
 {
-    assert(size < 8);
+    assert(size <= 8);
     ref<Expr> expr = readCpuRegister(offset, size*8);
     if(!isa<ConstantExpr>(expr))
         return false;
@@ -119,7 +124,7 @@ uint64_t S2EExecutionState::readCpuState(unsigned offset,
     if(m_active) {
         address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
     } else {
-        const ObjectState* os = addressSpace.findObject(m_cpuSystemState);
+        const ObjectState* os = m_cpuSystemObject; //addressSpace.findObject(m_cpuSystemState);
         assert(os);
         address = os->getConcreteStore(); assert(address);
         address -= CPU_OFFSET(eip);
@@ -145,7 +150,7 @@ void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
     if(m_active) {
         address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
     } else {
-        const ObjectState* os = addressSpace.findObject(m_cpuSystemState);
+        const ObjectState* os = m_cpuSystemObject; //addressSpace.findObject(m_cpuSystemState);
         assert(os);
         ObjectState *wos = addressSpace.getWriteable(m_cpuSystemState, os);
         address = wos->getConcreteStore(); assert(address);
@@ -163,6 +168,31 @@ uint64_t S2EExecutionState::getPc() const
 {
     return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
 }
+
+uint64_t S2EExecutionState::getTotalInstructionCount()
+{
+    if (!m_cpuSystemState) {
+        return 0;
+    }
+    return readCpuState(CPU_OFFSET(s2e_total_icount), 8*sizeof(uint64_t));
+}
+
+void S2EExecutionState::setTbInstructionCount(uint64_t count)
+{
+    if (!m_cpuSystemState) {
+        return;
+    }
+    writeCpuState(CPU_OFFSET(s2e_tb_icount), count, 8*sizeof(count));
+}
+
+void S2EExecutionState::setTotalInstructionCount(uint64_t count)
+{
+    if (!m_cpuSystemState) {
+        return;
+    }
+    writeCpuState(CPU_OFFSET(s2e_total_icount), count, 8*sizeof(count));
+}
+
 
 uint64_t S2EExecutionState::getSp() const
 {
@@ -419,7 +449,6 @@ bool S2EExecutionState::writeMemory(uint64_t address,
         for(uint64_t i = 0; i < width / 8; ++i)
             wos->write8(pageOffset + i, buf[i]);
 
-        m_memCache.update(hostAddress & TARGET_PAGE_MASK, ObjectPair(op.first, wos));
     } else {
         /* Access spawns multiple pages */
         uint64_t size1 = TARGET_PAGE_SIZE - pageOffset;
@@ -511,5 +540,17 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
 extern "C" {
 
 S2EExecutionState* g_s2e_state = NULL;
+
+void s2e_increment_executed_instructions(uint64_t incr)
+{
+    uint64_t i = g_s2e_state->getTotalInstructionCount();
+    g_s2e_state->setTotalInstructionCount(i + incr);
+}
+
+
+uint64_t s2e_get_executed_instructions()
+{
+    return g_s2e_state->getTotalInstructionCount();
+}
 
 } // extern "C"

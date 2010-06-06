@@ -249,8 +249,12 @@ int cpu_exec(CPUState *env1)
     uintptr_t next_tb;
     unsigned intNb=-1;
 
-    if (cpu_halted(env1) == EXCP_HALTED)
+    if (cpu_halted(env1) == EXCP_HALTED) {
+        if (s2e_icount_factor) {
+            s2e_increment_executed_instructions(s2e_icount_factor);
+        }
         return EXCP_HALTED;
+    }
 
     cpu_single_env = env1;
 

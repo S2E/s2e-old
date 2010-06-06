@@ -920,8 +920,10 @@ static void init_icount_adjust(void)
 static struct qemu_alarm_timer alarm_timers[] = {
 #ifndef _WIN32
 #ifdef __linux__
+#ifndef CONFIG_S2E
     {"dynticks", ALARM_FLAG_DYNTICKS, dynticks_start_timer,
      dynticks_stop_timer, dynticks_rearm_timer, NULL},
+#endif
     /* HPET - if available - is preferred */
     {"hpet", 0, hpet_start_timer, hpet_stop_timer, NULL, NULL},
     /* ...otherwise try RTC */
@@ -929,8 +931,10 @@ static struct qemu_alarm_timer alarm_timers[] = {
 #endif
     {"unix", 0, unix_start_timer, unix_stop_timer, NULL, NULL},
 #else
+#ifndef CONFIG_S2E
     {"dynticks", ALARM_FLAG_DYNTICKS, win32_start_timer,
      win32_stop_timer, win32_rearm_timer, &alarm_win32_data},
+#endif
     {"win32", 0, win32_start_timer,
      win32_stop_timer, NULL, &alarm_win32_data},
 #endif
@@ -1092,8 +1096,9 @@ int qemu_timer_pending(QEMUTimer *ts)
 {
     QEMUTimer *t;
     for(t = active_timers[ts->clock->type]; t != NULL; t = t->next) {
-        if (t == ts)
+        if (t == ts) {
             return 1;
+        }
     }
     return 0;
 }
@@ -1102,7 +1107,13 @@ int qemu_timer_expired(QEMUTimer *timer_head, int64_t current_time)
 {
     if (!timer_head)
         return 0;
-    return (timer_head->expire_time <= current_time);
+
+    int exp = (timer_head->expire_time <= current_time);
+    /*if (exp) {
+        s2e_debug_print("Timer interrupt icount=%"PRIu64" ct=%"PRIu64" et=%"PRIu64"\n", s2e_get_executed_instructions(),
+                        current_time, timer_head->expire_time);
+    }*/
+    return exp;
 }
 
 static void qemu_run_timers(QEMUTimer **ptimer_head, int64_t current_time)
@@ -1118,17 +1129,29 @@ static void qemu_run_timers(QEMUTimer **ptimer_head, int64_t current_time)
         ts->next = NULL;
 
         /* run the callback (the timer list can be modified) */
+        s2e_debug_print("Running timer %p\n", ts->cb);
         ts->cb(ts->opaque);
     }
 }
+
+#ifdef CONFIG_S2E
+uint64_t s2e_icount_factor = 0;
+#endif
 
 int64_t qemu_get_clock(QEMUClock *clock)
 {
     switch(clock->type) {
     case QEMU_CLOCK_REALTIME:
+
         return get_clock() / 1000000;
     default:
     case QEMU_CLOCK_VIRTUAL:
+#ifdef CONFIG_S2E
+        if (s2e_icount_factor) {
+            return s2e_get_executed_instructions()*s2e_icount_factor;
+        }
+#endif
+
         if (use_icount) {
             return cpu_get_icount();
         } else {
@@ -5062,6 +5085,10 @@ int main(int argc, char **argv, char **envp)
               break;
             case QEMU_OPTION_s2e_output_dir:
               s2e_output_dir = optarg;
+              break;
+
+            case QEMU_OPTION_s2e_icount:
+              s2e_icount_factor = atoll(optarg);
               break;
 #endif
 

@@ -48,6 +48,8 @@ struct S2E* s2e_initialize(struct TCGLLVMContext *tcgLLVMContext,
 /** Relese S2E instance and all S2E-related objects. Called by main() */
 void s2e_close(struct S2E* s2e);
 
+void s2e_debug_print(const char *fmtstr, ...);
+
 /*********************************/
 /* Functions from CorePlugin.cpp */
 
@@ -196,7 +198,12 @@ int s2e_qemu_get_byte(struct S2EExecutionState *s);
 int s2e_qemu_get_buffer(struct S2EExecutionState *s, uint8_t *buf, int size1);
 void s2e_qemu_put_buffer(struct S2EExecutionState *s, const uint8_t *buf, int size);
 
-
+/* Timer-related functions */
+extern uint64_t s2e_icount_factor;
+uint64_t s2e_get_elapsed_instructions(void);
+uint64_t s2e_get_executed_instructions(void);
+void s2e_set_elapsed_instructions(uint64_t newCount);
+void s2e_increment_executed_instructions(uint64_t incr);
 
 #ifdef __cplusplus
 }
