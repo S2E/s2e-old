@@ -135,11 +135,11 @@ namespace {
 
   cl::opt<bool>
   AlwaysOutputSeeds("always-output-seeds",
-                              cl::init(true));
+                              cl::init(false));
 
   cl::opt<bool>
   UseFastCexSolver("use-fast-cex-solver",
-                   cl::init(true));
+                   cl::init(false));
 
   cl::opt<bool>
   UseIndependentSolver("use-independent-solver",
@@ -154,7 +154,7 @@ namespace {
 
   cl::opt<bool>
   UseCexCache("use-cex-cache",
-              cl::init(true),
+              cl::init(false),
 	      cl::desc("Use counterexample caching"));
 
   cl::opt<bool>
@@ -175,7 +175,7 @@ namespace {
 
   cl::opt<bool>
   UseCache("use-cache",
-	   cl::init(true),
+           cl::init(false),
 	   cl::desc("Use validity caching"));
 
   cl::opt<bool>

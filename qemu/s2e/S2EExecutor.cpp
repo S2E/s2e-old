@@ -46,7 +46,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <sys/mman.h>
 #endif
 
-#define S2E_DEBUG_INSTRUCTIONS
+//#define S2E_DEBUG_INSTRUCTIONS
 
 using namespace std;
 using namespace llvm;
@@ -778,6 +778,9 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
             std::cout << fr.kf->function->getNameStr() << std::endl;
         }
     }
+
+    //XXX: hack to clean interrupted translation blocks (that forked)
+    cleanupTranslationBlock(state, tb);
 
     assert(state->m_active && !state->m_runningConcrete);
     assert(state->stack.size() == 1);
