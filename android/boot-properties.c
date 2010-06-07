@@ -134,6 +134,10 @@ boot_property_client_recv( void*         opaque,
         for (prop = _boot_properties; prop != NULL; prop = prop->next) {
             qemud_client_send(client, (uint8_t*)prop->property, prop->length);
         }
+
+        /* Send a NUL to signal the end of the list. */
+        qemud_client_send(client, (uint8_t*)"", 1);
+
         qemud_client_close(client);
         return;
     }
