@@ -618,7 +618,7 @@ static int exeption_has_error_code(int intno)
         case 17:
             return 1;
         }
-	return 0;
+    return 0;
 }
 
 #ifdef TARGET_X86_64
@@ -1198,21 +1198,21 @@ void do_interrupt_user(int intno, int is_int, int error_code,
 
 #if !defined(CONFIG_USER_ONLY)
 static void handle_even_inj(int intno, int is_int, int error_code,
-		int is_hw, int rm)
+        int is_hw, int rm)
 {
     uint32_t event_inj = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj));
     if (!(event_inj & SVM_EVTINJ_VALID)) {
-	    int type;
-	    if (is_int)
-		    type = SVM_EVTINJ_TYPE_SOFT;
-	    else
-		    type = SVM_EVTINJ_TYPE_EXEPT;
-	    event_inj = intno | type | SVM_EVTINJ_VALID;
-	    if (!rm && exeption_has_error_code(intno)) {
-		    event_inj |= SVM_EVTINJ_VALID_ERR;
-		    stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj_err), error_code);
-	    }
-	    stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj);
+        int type;
+        if (is_int)
+            type = SVM_EVTINJ_TYPE_SOFT;
+        else
+            type = SVM_EVTINJ_TYPE_EXEPT;
+        event_inj = intno | type | SVM_EVTINJ_VALID;
+        if (!rm && exeption_has_error_code(intno)) {
+            event_inj |= SVM_EVTINJ_VALID_ERR;
+            stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj_err), error_code);
+        }
+        stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj);
     }
 }
 #endif
@@ -1279,8 +1279,8 @@ void do_interrupt(int intno, int is_int, int error_code,
 
 #if !defined(CONFIG_USER_ONLY)
     if (env->hflags & HF_SVMI_MASK) {
-	    uint32_t event_inj = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj));
-	    stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj & ~SVM_EVTINJ_VALID);
+        uint32_t event_inj = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj));
+        stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj & ~SVM_EVTINJ_VALID);
     }
 #endif
 }
@@ -1898,7 +1898,7 @@ void helper_cmpxchg8b(target_ulong a0)
         eflags |= CC_Z;
     } else {
         /* always do the store */
-        stq(a0, d); 
+        stq(a0, d);
         EDX_W((uint32_t)(d >> 32));
         EAX_W((uint32_t)d);
         eflags &= ~CC_Z;
@@ -1925,8 +1925,8 @@ void helper_cmpxchg16b(target_ulong a0)
         eflags |= CC_Z;
     } else {
         /* always do the store */
-        stq(a0, d0); 
-        stq(a0 + 8, d1); 
+        stq(a0, d0);
+        stq(a0 + 8, d1);
         EDX = d1;
         EAX = d0;
         eflags &= ~CC_Z;
@@ -2325,7 +2325,7 @@ void helper_lcall_real(int new_cs, target_ulong new_eip1,
 }
 
 /* protected mode call */
-void helper_lcall_protected(int new_cs, target_ulong new_eip, 
+void helper_lcall_protected(int new_cs, target_ulong new_eip,
                             int shift, int next_eip_addend)
 {
     int new_stack, i;
@@ -3006,7 +3006,7 @@ void helper_rdpmc(void)
         raise_exception(EXCP0D_GPF);
     }
     helper_svm_check_intercept_param(SVM_EXIT_RDPMC, 0);
-    
+
     /* currently unimplemented */
     raise_exception_err(EXCP06_ILLOP, 0);
 }
@@ -4263,17 +4263,17 @@ void helper_fstenv(target_ulong ptr, int data32)
     fpus = (env->fpus & ~0x3800) | (env->fpstt & 0x7) << 11;
     fptag = 0;
     for (i=7; i>=0; i--) {
-	fptag <<= 2;
-	if (env->fptags[i]) {
+    fptag <<= 2;
+    if (env->fptags[i]) {
             fptag |= 3;
-	} else {
+    } else {
             tmp.d = env->fpregs[i].d;
             exp = EXPD(tmp);
             mant = MANTD(tmp);
             if (exp == 0 && mant == 0) {
                 /* zero */
-	        fptag |= 1;
-	    } else if (exp == 0 || exp == MAXEXPD
+            fptag |= 1;
+        } else if (exp == 0 || exp == MAXEXPD
 #ifdef USE_X86LDOUBLE
                        || (mant & (1LL << 63)) == 0
 #endif
@@ -4309,12 +4309,12 @@ void helper_fldenv(target_ulong ptr, int data32)
     int i, fpus, fptag;
 
     if (data32) {
-	env->fpuc = lduw(ptr);
+    env->fpuc = lduw(ptr);
         fpus = lduw(ptr + 4);
         fptag = lduw(ptr + 8);
     }
     else {
-	env->fpuc = lduw(ptr);
+    env->fpuc = lduw(ptr);
         fpus = lduw(ptr + 2);
         fptag = lduw(ptr + 4);
     }
@@ -4392,7 +4392,7 @@ void helper_fxsave(target_ulong ptr, int data64)
     if (data64) {
         stq(ptr + 0x08, 0); /* rip */
         stq(ptr + 0x10, 0); /* rdp */
-    } else 
+    } else
 #endif
     {
         stl(ptr + 0x08, 0); /* eip */
@@ -4696,7 +4696,7 @@ void helper_hlt(int next_eip_addend)
 {
     helper_svm_check_intercept_param(SVM_EXIT_HLT, 0);
     EIP += next_eip_addend;
-    
+
     do_hlt();
 }
 
@@ -4817,8 +4817,8 @@ static float approx_rcp(float a)
 #if !defined(CONFIG_USER_ONLY)
 
 #ifdef S2E_LLVM_LIB
-void tcg_llvm_trace_memory_access(uint64_t, uint64_t, uint32_t,
-                                  uint8_t, uint8_t);
+void tcg_llvm_trace_memory_access(uint64_t a, uint64_t b, uint32_t c,
+                                  uint8_t d, uint8_t e){};
 #endif
 
 #define MMUSUFFIX _mmu
@@ -4906,16 +4906,16 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 #if defined(CONFIG_USER_ONLY)
 
 void helper_vmrun(int aflag, int next_eip_addend)
-{ 
+{
 }
-void helper_vmmcall(void) 
-{ 
+void helper_vmmcall(void)
+{
 }
 void helper_vmload(int aflag)
-{ 
+{
 }
 void helper_vmsave(int aflag)
-{ 
+{
 }
 void helper_stgi(void)
 {
@@ -4923,20 +4923,20 @@ void helper_stgi(void)
 void helper_clgi(void)
 {
 }
-void helper_skinit(void) 
-{ 
+void helper_skinit(void)
+{
 }
 void helper_invlpga(int aflag)
-{ 
+{
 }
-void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1) 
-{ 
+void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
+{
 }
 void helper_svm_check_intercept_param(uint32_t type, uint64_t param)
 {
 }
 
-void helper_svm_check_io(uint32_t port, uint32_t param, 
+void helper_svm_check_io(uint32_t port, uint32_t param,
                          uint32_t next_eip_addend)
 {
 }
@@ -4946,16 +4946,16 @@ void helper_svm_check_io(uint32_t port, uint32_t param,
 static inline void svm_save_seg(target_phys_addr_t addr,
                                 const SegmentCache *sc)
 {
-    stw_phys(addr + offsetof(struct vmcb_seg, selector), 
+    stw_phys(addr + offsetof(struct vmcb_seg, selector),
              sc->selector);
-    stq_phys(addr + offsetof(struct vmcb_seg, base), 
+    stq_phys(addr + offsetof(struct vmcb_seg, base),
              sc->base);
-    stl_phys(addr + offsetof(struct vmcb_seg, limit), 
+    stl_phys(addr + offsetof(struct vmcb_seg, limit),
              sc->limit);
-    stw_phys(addr + offsetof(struct vmcb_seg, attrib), 
+    stw_phys(addr + offsetof(struct vmcb_seg, attrib),
              ((sc->flags >> 8) & 0xff) | ((sc->flags >> 12) & 0x0f00));
 }
-                                
+
 static inline void svm_load_seg(target_phys_addr_t addr, SegmentCache *sc)
 {
     unsigned int flags;
@@ -4967,7 +4967,7 @@ static inline void svm_load_seg(target_phys_addr_t addr, SegmentCache *sc)
     sc->flags = ((flags & 0xff) << 8) | ((flags & 0x0f00) << 12);
 }
 
-static inline void svm_load_seg_cache(target_phys_addr_t addr, 
+static inline void svm_load_seg_cache(target_phys_addr_t addr,
                                       CPUState *env, int seg_reg)
 {
     SegmentCache sc1, *sc = &sc1;
@@ -5010,13 +5010,13 @@ void helper_vmrun(int aflag, int next_eip_addend)
     stq_phys(env->vm_hsave + offsetof(struct vmcb, save.efer), env->efer);
     stq_phys(env->vm_hsave + offsetof(struct vmcb, save.rflags), compute_eflags());
 
-    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.es), 
+    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.es),
                   &env->segs[R_ES]);
-    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.cs), 
+    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.cs),
                  &env->segs[R_CS]);
-    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.ss), 
+    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.ss),
                  &env->segs[R_SS]);
-    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.ds), 
+    svm_save_seg(env->vm_hsave + offsetof(struct vmcb, save.ds),
                  &env->segs[R_DS]);
 
     stq_phys(env->vm_hsave + offsetof(struct vmcb, save.rip),
@@ -5060,7 +5060,7 @@ void helper_vmrun(int aflag, int next_eip_addend)
             env->hflags2 |= HF2_HIF_MASK;
     }
 
-    cpu_load_efer(env, 
+    cpu_load_efer(env,
                   ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.efer)));
     env->mflags = 0;
     load_eflags(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rflags)),
@@ -5204,13 +5204,13 @@ void helper_vmsave(int aflag)
                 addr, ldq_phys(addr + offsetof(struct vmcb, save.fs.base)),
                 env->segs[R_FS].base);
 
-    svm_save_seg(addr + offsetof(struct vmcb, save.fs), 
+    svm_save_seg(addr + offsetof(struct vmcb, save.fs),
                  &env->segs[R_FS]);
-    svm_save_seg(addr + offsetof(struct vmcb, save.gs), 
+    svm_save_seg(addr + offsetof(struct vmcb, save.gs),
                  &env->segs[R_GS]);
-    svm_save_seg(addr + offsetof(struct vmcb, save.tr), 
+    svm_save_seg(addr + offsetof(struct vmcb, save.tr),
                  &env->tr);
-    svm_save_seg(addr + offsetof(struct vmcb, save.ldtr), 
+    svm_save_seg(addr + offsetof(struct vmcb, save.ldtr),
                  &env->ldt);
 
 #ifdef TARGET_X86_64
@@ -5248,7 +5248,7 @@ void helper_invlpga(int aflag)
 {
     target_ulong addr;
     helper_svm_check_intercept_param(SVM_EXIT_INVLPGA, 0);
-    
+
     if (aflag == 2)
         addr = EAX;
     else
@@ -5327,7 +5327,7 @@ void helper_svm_check_intercept_param(uint32_t type, uint64_t param)
     }
 }
 
-void helper_svm_check_io(uint32_t port, uint32_t param, 
+void helper_svm_check_io(uint32_t port, uint32_t param,
                          uint32_t next_eip_addend)
 {
     if (env->intercept & (1ULL << (SVM_EXIT_IOIO - SVM_EXIT_INTR))) {
@@ -5336,7 +5336,7 @@ void helper_svm_check_io(uint32_t port, uint32_t param,
         uint16_t mask = (1 << ((param >> 4) & 7)) - 1;
         if(lduw_phys(addr + port / 8) & (mask << (port & 7))) {
             /* next EIP */
-            stq_phys(env->vm_vmcb + offsetof(struct vmcb, control.exit_info_2), 
+            stq_phys(env->vm_vmcb + offsetof(struct vmcb, control.exit_info_2),
                      env->eip + next_eip_addend);
             helper_vmexit(SVM_EXIT_IOIO, param | (port << 16));
         }
@@ -5361,13 +5361,13 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
     }
 
     /* Save the VM state in the vmcb */
-    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.es), 
+    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.es),
                  &env->segs[R_ES]);
-    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.cs), 
+    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.cs),
                  &env->segs[R_CS]);
-    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.ss), 
+    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.ss),
                  &env->segs[R_SS]);
-    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.ds), 
+    svm_save_seg(env->vm_vmcb + offsetof(struct vmcb, save.ds),
                  &env->segs[R_DS]);
 
     stq_phys(env->vm_vmcb + offsetof(struct vmcb, save.gdtr.base), env->gdt.base);
@@ -5416,7 +5416,7 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
     cpu_x86_update_cr3(env, ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.cr3)));
     /* we need to set the efer after the crs so the hidden flags get
        set properly */
-    cpu_load_efer(env, 
+    cpu_load_efer(env,
                   ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.efer)));
     env->mflags = 0;
     load_eflags(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rflags)),
@@ -5571,7 +5571,7 @@ target_ulong helper_lzcnt(target_ulong t0, int wordsize)
 
 target_ulong helper_bsr(target_ulong t0)
 {
-	return helper_lzcnt(t0, 0);
+    return helper_lzcnt(t0, 0);
 }
 
 static int compute_all_eflags(void)

@@ -81,6 +81,10 @@ S2E::S2E(TCGLLVMContext *tcgLLVMContext,
 
     /* Load and initialize plugins */
     initPlugins();
+
+    /* Init the custom memory allocator */
+    void slab_init();
+    slab_init();
 }
 
 S2E::~S2E()

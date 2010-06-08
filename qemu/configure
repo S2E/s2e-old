@@ -13,6 +13,7 @@ fi
 
 TMPC="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.c"
 TMPCXX="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.cpp"
+TMPASM="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.asm"
 TMPO="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.o"
 TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.exe"
 
@@ -25,6 +26,11 @@ compile_object() {
 compile_object_cxx() {
   $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS -c -o $TMPO $TMPCXX > /dev/null 2> /dev/null
 }
+
+assemble_object_asm() {
+  $asm -o $TMPO $TMPASM > /dev/null 2> /dev/null
+}
+
 
 compile_prog() {
   local_cflags="$1"
@@ -47,6 +53,7 @@ sparc_cpu=""
 cross_prefix=""
 cc="gcc"
 cxx="g++"
+asm="nasm"
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16"
 audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus"
@@ -299,6 +306,13 @@ else
   targetos=`uname -s`
 fi
 
+if [ "$cpu" = "i386" ]; then
+  QEMU_ASMFLAGS="-f elf32"
+elif [ "$cpu" = "x86_64" ] ; then
+  QEMU_ASMFLAGS="-f elf64"
+fi
+
+
 case $targetos in
 CYGWIN*)
   mingw32="yes"
@@ -307,6 +321,12 @@ CYGWIN*)
   audio_drv_list="winwave"
 ;;
 MINGW32*)
+  if [ "$cpu" = "i386" ]; then
+	QEMU_ASMFLAGS="-f win32"
+  elif [ "$cpu" = "x86_64" ] ; then
+	QEMU_ASMFLAGS="-f win64"
+  fi
+  
   mingw32="yes"
   audio_possible_drivers="winwave dsound sdl fmod"
   audio_drv_list="winwave"
@@ -357,6 +377,8 @@ Darwin)
   else
     QEMU_CFLAGS="-mdynamic-no-pic $QEMU_CFLAGS"
   fi
+  
+  QEMU_ASMFLAGS="-f macho"
   darwin_user="yes"
   cocoa="yes"
   audio_drv_list="coreaudio"
@@ -426,6 +448,7 @@ if [ "$bsd" = "yes" ] ; then
   fi
   bsd_user="yes"
 fi
+
 
 if test "$mingw32" = "yes" ; then
   EXESUF=".exe"
@@ -1403,6 +1426,20 @@ EOF
     fi
     bluez="no"
   fi
+fi
+
+##########################################
+# asm support probe
+
+cat > $TMPASM <<EOF
+mov eax, 1
+EOF
+
+if assemble_object_asm ; then
+  :  assembler works ok
+else
+  echo "ERROR: \"$asm\" either does not exist or does not work"
+  exit 1
 fi
 
 ##########################################
@@ -2395,6 +2432,7 @@ echo "INSTALL_DATA=$install -m0644 -p" >> $config_host_mak
 echo "INSTALL_PROG=$install -m0755 -p" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
 echo "CXX=$cxx" >> $config_host_mak
+echo "ASM=$asm" >> $config_host_mak
 echo "LINKER=$linker" >> $config_host_mak
 echo "HOST_CC=$host_cc" >> $config_host_mak
 if test "$sparse" = "yes" ; then
@@ -2407,6 +2445,7 @@ echo "OBJCOPY=$objcopy" >> $config_host_mak
 echo "LD=$ld" >> $config_host_mak
 echo "CFLAGS=$CFLAGS" >> $config_host_mak
 echo "CXXFLAGS=$CXXFLAGS" >> $config_host_mak
+echo "QEMU_ASMFLAGS=$QEMU_ASMFLAGS" >> $config_host_mak
 echo "QEMU_CFLAGS=$QEMU_CFLAGS" >> $config_host_mak
 echo "QEMU_CCFLAGS=$QEMU_CCFLAGS" >> $config_host_mak
 echo "QEMU_CXXFLAGS=$QEMU_CXXFLAGS" >> $config_host_mak
