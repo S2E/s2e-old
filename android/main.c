@@ -2276,16 +2276,17 @@ int main(int argc, char **argv)
     if (opts->shared_net_id) {
         unsigned int shared_net_id = atoi(opts->shared_net_id);
         char nic[37];
-        args[n++] = "-net";
-        snprintf(nic, 37, "nic,vlan=1,macaddr=52:54:00:12:34:%02x", shared_net_id);
-        args[n++] = strdup(nic);
-        args[n++] = "-net";
-        args[n++] = "socket,vlan=1,mcast=230.0.0.10:1234";
 
         args[n++] = "-net";
         args[n++] = "nic,vlan=0";
         args[n++] = "-net";
         args[n++] = "user,vlan=0";
+
+        args[n++] = "-net";
+        snprintf(nic, sizeof nic, "nic,vlan=1,macaddr=52:54:00:12:34:%02x", shared_net_id);
+        args[n++] = strdup(nic);
+        args[n++] = "-net";
+        args[n++] = "socket,vlan=1,mcast=230.0.0.10:1234";
     }
 
     while(argc-- > 0) {
