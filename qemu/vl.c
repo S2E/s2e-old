@@ -1129,7 +1129,7 @@ static void qemu_run_timers(QEMUTimer **ptimer_head, int64_t current_time)
         ts->next = NULL;
 
         /* run the callback (the timer list can be modified) */
-        s2e_debug_print("Running timer %p\n", ts->cb);
+        //s2e_debug_print("Running timer %p\n", ts->cb);
         ts->cb(ts->opaque);
     }
 }

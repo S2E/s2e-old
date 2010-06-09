@@ -10,6 +10,11 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 
 #endif
 
@@ -40,8 +45,10 @@ uintptr_t PageAllocator::osAlloc()
 {
 #ifdef _WIN32
     return(uintptr_t) VirtualAlloc(NULL, getRegionSize(), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+#elif defined(__APPLE__)
+    return (uintptr_t) mmap(NULL, getRegionSize(), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
 #else
-#error Not implemented
+    return (uintptr_t) mmap(NULL, getRegionSize(), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 #endif
 }
 
@@ -51,7 +58,7 @@ void PageAllocator::osFree(uintptr_t region)
     BOOL b = VirtualFree((PVOID)region, 0, MEM_RELEASE);
     assert(b);
 #else
-#error Not implemented
+    munmap((void*)region, getRegionSize());
 #endif
 }
 

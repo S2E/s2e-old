@@ -38,7 +38,10 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <klee/Searcher.h>
 #include <klee/ExternalDispatcher.h>
 
+#include <llvm/System/TimeValue.h>
+
 #include <vector>
+
 
 #ifdef WIN32
 #include <windows.h>
@@ -56,6 +59,86 @@ extern "C" {
     // XXX
     void* g_s2e_exec_ret_addr = 0;
 }
+
+#if 0
+static uint64_t s_newtime = 0, s_newcnt = 0;
+static uint64_t s_deltime = 0, s_delcnt = 0;
+static uint64_t s_inittime = 0;
+static uint64_t s_prevchk = 0;
+
+static std::map<size_t, unsigned> *s_allocsizes;
+
+
+void* operator new (size_t size)
+{
+    static bool inmalloc = false;
+    static bool inited = false;
+
+
+    if (inmalloc) {
+        return malloc(size);
+    }
+
+    inmalloc = true;
+
+    if (!inited) {
+        inited = true;
+        s_allocsizes = new std::map<size_t, unsigned>();
+    }
+
+
+
+    (*s_allocsizes)[size]++;
+
+    uint64_t st = llvm::sys::TimeValue::now().usec();
+     if (s_inittime == 0) {
+         s_inittime = st;
+     }
+     void *p=malloc(size);
+
+     if (p==0) // did malloc succeed?
+        throw std::bad_alloc(); // ANSI/ISO compliant behavior
+
+     uint64_t now = llvm::sys::TimeValue::now().usec();
+     s_newtime += now - st;
+
+     ++s_newcnt;
+
+     if ((s_newcnt % 100000) == 0) {
+            uint64_t total = s_newtime + s_deltime;
+         if (g_s2e) {
+
+             g_s2e->getDebugStream() << "Calls to new " << std::dec << s_newcnt <<
+                     " time=" << (total)/1000 <<  " ratio=" << (total * 100 / (now-s_inittime)) <<
+                     " aldelta=" << (total - s_prevchk) << std::endl;
+
+         g_s2e->getDebugStream() << std::endl;
+
+         foreach2(it, s_allocsizes->begin(), s_allocsizes->end()) {
+             g_s2e->getDebugStream() << "Size=" << (*it).first << " count=" << (*it).second << std::endl;
+         }
+
+     }
+
+         s_prevchk = total;
+
+     }
+
+     inmalloc = false;
+     return p;
+}
+
+void operator delete (void *p)
+{
+    uint64_t st = llvm::sys::TimeValue::now().usec();
+    free(p);
+    s_deltime += llvm::sys::TimeValue::now().usec() - st;
+    ++s_delcnt;
+
+
+}
+
+#endif
 
 namespace s2e {
 

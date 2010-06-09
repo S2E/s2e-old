@@ -112,7 +112,7 @@ public:
     uintptr_t allocPage();
     void freePage(uintptr_t page);
 
-    unsigned getPageSize() const {
+    uintptr_t getPageSize() const {
         return 0x1000;
     }
 };
@@ -194,9 +194,9 @@ private:
     list_t m_busyList;
 
     PageAllocator *m_pa;
-    unsigned m_pageSize;
-    unsigned m_blockSize;
-    unsigned m_blocksPerPage;
+    uintptr_t m_pageSize;
+    uintptr_t m_blockSize;
+    uintptr_t m_blocksPerPage;
 
     uint64_t m_freePagesCount;
     uint64_t m_busyPagesCount;
