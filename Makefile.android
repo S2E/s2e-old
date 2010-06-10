@@ -527,7 +527,14 @@ EMULATOR_UI_CFLAGS :=
 
 # include the SDL sources
 #
-LOCAL_SRC_FILES += $(SDL_SOURCES) $(SDLMAIN_SOURCES)
+
+# IMPORTANT: Normally, we should add SDLMAIN_SOURCES here, however this breaks
+#            the Linux mingw32 build. Apparently, the i586-mingw32-ld wants the
+#            implementation of _WinMain@16 to be in an object file on the final
+#            link command used to generate the executable, and will not search
+#            in the static libraries that are used to build it.
+#
+LOCAL_SRC_FILES += $(SDL_SOURCES) #$(SDLMAIN_SOURCES)
 EMULATOR_UI_CFLAGS += $(SDL_CFLAGS) -I$(LOCAL_PATH)/$(SDL_DIR)/include
 
 # the skin support sources
@@ -750,6 +757,9 @@ LOCAL_CFLAGS += $(SDL_CFLAGS)
 LOCAL_LDLIBS += $(SDL_LDLIBS)
 LOCAL_STATIC_LIBRARIES += $(SDL_STATIC_LIBRARIES)
 
+$(info LOCAL_LDLIBS=$(LOCAL_LDLIBS))
+$(info LOCAL_STATIC_LIBRARIES=$(LOCAL_STATIC_LIBRARIES))
+
 # add ELFF-specific flags
 #
 LOCAL_LDLIBS += $(ELFF_LDLIBS)
@@ -875,6 +885,9 @@ ifeq ($(CONFIG_STATIC_EXECUTABLE),true)
 endif
 
 LOCAL_MODULE := emulator
+
+# See comment about SDLMAIN_SOURCES in the 'emulator-ui' module declarations.
+LOCAL_SRC_FILES += $(SDLMAIN_SOURCES)
 
 include $(BUILD_HOST_EXECUTABLE)
 
