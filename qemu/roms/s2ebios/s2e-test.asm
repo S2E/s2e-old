@@ -4,8 +4,24 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_test1
+    call s2e_test2
+    cli
+    hlt
 
+;Infinite loop, without state killing
+s2e_test2:
+    call s2e_enable
+
+s2etest2_1:
+    call s2e_int
+    cmp eax, 0
+    jz __a
+__a:
+    jmp s2etest2_1
+    
+    ret
+
+;Loop that creates symbolic values on each iteration
 s2e_test1:
 
     call s2e_enable
@@ -55,4 +71,4 @@ a:
     call s2e_kill_state
 
 
-    hlt
+    ret

@@ -1454,12 +1454,14 @@ namespace BEEV {
     _bvconst_unique_table.clear();
   }
 
+#if 0
   extern "C" {
       void s2e_debug_print(const char *fmtstr, ...);
   }
+#endif
 
   void BeevMgr::ClearAllCaches(void) {
-
+#if 0
       s2e_debug_print("%d - %d\n", __LINE__, BBTermMemo.size());
       s2e_debug_print("%d - %d\n", __LINE__, BBFormMemo.size());
       s2e_debug_print("%d - %d\n", __LINE__, NodeLetVarMap.size());
@@ -1483,7 +1485,7 @@ namespace BEEV {
       s2e_debug_print("%d - %d\n", __LINE__, CounterExampleMap.size());
       s2e_debug_print("%d - %d\n", __LINE__, ComputeFormulaMap.size());
       s2e_debug_print("%d - %d\n", __LINE__, StatInfoSet.size());
-
+#endif
       //clear all tables before calling toplevelsat
     _ASTNode_to_SATVar.clear();
     _SATVar_to_AST.clear();
