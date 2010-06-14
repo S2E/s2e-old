@@ -7,6 +7,7 @@
 
 #include "Slab.h"
 
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -15,7 +16,6 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-
 #endif
 
 namespace s2e
@@ -135,6 +135,12 @@ void PageAllocator::freePage(uintptr_t page)
     return;
 }
 
+bool PageAllocator::belongsToUs(uintptr_t addr) const
+{
+    return (m_regions.find(addr) != m_regions.end()) ||
+            (m_busyRegions.find(addr) != m_busyRegions.end());
+}
+
 
 BlockAllocator::BlockAllocator(PageAllocator *pa, unsigned blockSizePo2, uint8_t magic)
 {
@@ -147,6 +153,8 @@ BlockAllocator::BlockAllocator(PageAllocator *pa, unsigned blockSizePo2, uint8_t
     m_freePagesCount = 0;
     m_busyPagesCount = 0;
     m_freeBlocksCount = 0;
+
+    m_allocatedBlocksCount = 0;
 
     m_pa = pa;
 
@@ -234,6 +242,8 @@ uintptr_t BlockAllocator::alloc()
         m_busyPagesCount++;
     }
 
+    m_allocatedBlocksCount++;
+
     uintptr_t ret = ((uintptr_t)page) + sizeof(BlockAllocatorHdr) + fb * m_blockSize;
     memset((void*)ret, 0xEB, m_blockSize);
     return ret;
@@ -254,18 +264,21 @@ void BlockAllocator::free(uintptr_t b)
 
     hdr->free(index);
     m_freeBlocksCount++;
+    m_allocatedBlocksCount--;
 
     if (hdr->freeCount == 1) {
         list_remove_entry(&hdr->link);
         list_insert_head(&m_freeList, &hdr->link);
         m_freePagesCount++;
         m_busyPagesCount--;
-      }
+    }
 
-      if (hdr->freeCount == m_blocksPerPage) {
-        list_remove_entry(&hdr->link);
-        list_insert_head(&m_totallyFreeList, &hdr->link);
-      }
+    if (hdr->freeCount == m_blocksPerPage) {
+      list_remove_entry(&hdr->link);
+      list_insert_head(&m_totallyFreeList, &hdr->link);
+    }
+
+
 }
 
 SlabAllocator::SlabAllocator(unsigned minPo2, unsigned maxPo2)
@@ -335,7 +348,9 @@ uintptr_t SlabAllocator::alloc(size_t size)
         return 0;
     }
 
-    return m_bas[i - m_minPo2]->alloc();
+    uintptr_t ret = m_bas[i - m_minPo2]->alloc();
+
+    return ret;
 }
 
 bool SlabAllocator::free(uintptr_t addr)
@@ -345,6 +360,8 @@ bool SlabAllocator::free(uintptr_t addr)
         //std::cerr << "Invalid addr " << std::hex << addr <<std::endl;
         return false;
     }
+    assert(m_pa->belongsToUs(addr));
+
     b->free(addr);
     return true;
 }
@@ -352,6 +369,18 @@ bool SlabAllocator::free(uintptr_t addr)
 bool SlabAllocator::isValid(uintptr_t addr) const
 {
     return getSlab(addr) != NULL;
+}
+
+void SlabAllocator::printStats(std::ostream &os) const
+{
+    uint64_t totalSize = 0;
+
+    os << std::dec << "Allocator statistics" << std::endl;
+    for (unsigned i=m_minPo2; i<= m_maxPo2; ++i) {
+        totalSize += (1<<i) * m_bas[i-m_minPo2]->getAllocatedBlocksCount();
+        os << "[" << (1<<i) <<  "] allocatedBlocks:" << m_bas[i-m_minPo2]->getAllocatedBlocksCount() << std::endl;
+    }
+    os << "Total size:" << totalSize << std::endl;
 }
 
 static SlabAllocator *s_slab = NULL;
@@ -363,6 +392,15 @@ void slab_init()
     }
 
     s_slab = new SlabAllocator(3, 8);
+}
+
+void slab_print_stats(std::ostream &os)
+{
+    if (!s_slab) {
+        return;
+    }
+
+    s_slab->printStats(os);
 }
 
 }
@@ -384,9 +422,6 @@ void* operator new (size_t size)
     uintptr_t pr = s2e::s_slab->alloc(size);
     if (pr) {
         s_inalloc = false;
-        if (!pr) {
-            throw new std::bad_alloc();
-        }
         return (void*)pr;
     }
 
@@ -410,6 +445,7 @@ void operator delete (void *p)
     s_inalloc = true;
 
     if (!s2e::s_slab->free((uintptr_t)p)) {
+        assert(!s2e::s_slab->getPageAllocator()->belongsToUs((uintptr_t)p));
         free(p);
     }
 

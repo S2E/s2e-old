@@ -753,7 +753,7 @@ void cpu_dump_state(CPUState *env, FILE *f,
 
     cpu_synchronize_state(env);
 
-    eflags = cpu_get_eflags(env);
+    eflags = cpu_get_eflags_dirty(env);
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) {
         cpu_fprintf(f,

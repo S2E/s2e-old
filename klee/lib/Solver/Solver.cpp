@@ -519,7 +519,7 @@ bool STPSolverImpl::computeTruth(const Query& query,
 
   if (!computeInitialValues(query, objects, values, hasSolution))
     return false;
-
+  
   isValid = !hasSolution;
   return true;
 }
@@ -681,6 +681,11 @@ STPSolverImpl::computeInitialValues(const Query &query,
                                     bool &hasSolution) {
   TimerStatIncrementer t(stats::queryTime);
 
+  delete builder;
+  vc_Destroy(vc);
+  vc = vc_createValidityChecker();
+  builder = new STPBuilder(vc);
+
   vc_push(vc);
 
   for (ConstraintManager::const_iterator it = query.constraints.begin(), 
@@ -716,6 +721,9 @@ STPSolverImpl::computeInitialValues(const Query &query,
   }
   
   vc_pop(vc);
+
+
+
   
   return success;
 }

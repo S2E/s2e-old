@@ -7,6 +7,8 @@
  ********************************************************************/
 // -*- c++ -*-
 
+#include <iostream>
+
 #include "AST.h"
 namespace BEEV {
   //some global variables that are set through commandline options. it
@@ -1452,8 +1454,37 @@ namespace BEEV {
     _bvconst_unique_table.clear();
   }
 
+  extern "C" {
+      void s2e_debug_print(const char *fmtstr, ...);
+  }
+
   void BeevMgr::ClearAllCaches(void) {
-    //clear all tables before calling toplevelsat
+
+      s2e_debug_print("%d - %d\n", __LINE__, BBTermMemo.size());
+      s2e_debug_print("%d - %d\n", __LINE__, BBFormMemo.size());
+      s2e_debug_print("%d - %d\n", __LINE__, NodeLetVarMap.size());
+      s2e_debug_print("%d - %d\n", __LINE__, NodeLetVarMap1.size());
+      s2e_debug_print("%d - %d\n", __LINE__, PLPrintNodeSet.size());
+      s2e_debug_print("%d - %d\n", __LINE__, AlreadyPrintedSet.size());
+      
+      s2e_debug_print("%d - %d\n", __LINE__, SimplifyMap.size());
+      s2e_debug_print("%d - %d\n", __LINE__, SimplifyNegMap.size());
+      s2e_debug_print("%d - %d\n", __LINE__, SolverMap.size());
+      s2e_debug_print("%d - %d\n", __LINE__, AlwaysTrueFormMap.size());
+      //--missing
+
+
+      
+      s2e_debug_print("%d - %d\n", __LINE__, _arrayread_ite.size());
+      s2e_debug_print("%d - %d\n", __LINE__, _arrayread_symbol.size());
+      s2e_debug_print("%d - %d\n", __LINE__, _introduced_symbols.size());
+      s2e_debug_print("%d - %d\n", __LINE__, TransformMap.size());
+      s2e_debug_print("%d - %d\n", __LINE__, _letid_expr_map.size());
+      s2e_debug_print("%d - %d\n", __LINE__, CounterExampleMap.size());
+      s2e_debug_print("%d - %d\n", __LINE__, ComputeFormulaMap.size());
+      s2e_debug_print("%d - %d\n", __LINE__, StatInfoSet.size());
+
+      //clear all tables before calling toplevelsat
     _ASTNode_to_SATVar.clear();
     _SATVar_to_AST.clear();
 

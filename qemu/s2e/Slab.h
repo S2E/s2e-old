@@ -115,6 +115,8 @@ public:
     uintptr_t getPageSize() const {
         return 0x1000;
     }
+
+    bool belongsToUs(uintptr_t addr) const;
 };
 
 
@@ -202,6 +204,7 @@ private:
     uint64_t m_busyPagesCount;
     uint64_t m_freeBlocksCount;
 
+    uint64_t m_allocatedBlocksCount;
     uint8_t m_magic;
 
 public:
@@ -217,6 +220,10 @@ public:
 
     uintptr_t alloc();
     void free(uintptr_t b);
+
+    uint64_t getAllocatedBlocksCount() const {
+        return m_allocatedBlocksCount;
+    }
 };
 
 
@@ -237,6 +244,12 @@ public:
     uintptr_t alloc(size_t s);
     bool free(uintptr_t addr);
     bool isValid(uintptr_t addr) const;
+
+    void printStats(std::ostream &os) const;
+
+    const PageAllocator *getPageAllocator() const {
+        return m_pa;
+    }
 };
 }
 

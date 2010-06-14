@@ -2658,7 +2658,7 @@ static target_long monitor_get_eflags (const struct MonitorDef *md, int val)
     CPUState *env = mon_get_cpu();
     if (!env)
         return 0;
-    return cpu_get_eflags(env);
+    return cpu_get_eflags_dirty(env);
 }
 #endif
 
