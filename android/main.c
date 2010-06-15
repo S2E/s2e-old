@@ -2259,6 +2259,26 @@ int main(int argc, char **argv)
         args[n++] = strdup(params);
     }
 
+    if (opts->ports) {
+        args[n++] = "-android-ports";
+        args[n++] = opts->ports;
+    }
+
+    if (opts->port) {
+        args[n++] = "-android-port";
+        args[n++] = opts->port;
+    }
+
+    if (opts->report_console) {
+        args[n++] = "-android-report-console";
+        args[n++] = opts->report_console;
+    }
+
+    if (opts->http_proxy) {
+        args[n++] = "-http-proxy";
+        args[n++] = opts->http_proxy;
+    }
+
     /* physical memory */
     args[n++] = "-m";
     args[n++] = opts->memory;

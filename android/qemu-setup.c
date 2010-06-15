@@ -16,7 +16,6 @@
 #include "modem_driver.h"
 #include "proxy_http.h"
 
-#include "android/qemulator.h"
 #include "android/android.h"
 #include "android/globals.h"
 #include "android/hw-sensors.h"
@@ -34,6 +33,16 @@
 #endif
 
 extern int  control_console_start( int  port );  /* in control.c */
+
+/* Contains arguments for -android-ports option. */
+char* android_op_ports = NULL;
+/* Contains arguments for -android-port option. */
+char* android_op_port = NULL;
+/* Contains arguments for -android-report-console option. */
+char* android_op_report_console = NULL;
+/* Contains arguments for -http-proxy option. */
+char* op_http_proxy = NULL;
+
 
 /*** APPLICATION DIRECTORY
  *** Where are we ?
@@ -228,8 +237,6 @@ void  android_emulation_setup( void )
         }
     }
 
-    AndroidOptions* opts = qemulator_get()->opts;
-
     inet_strtoip("10.0.2.15", &guest_ip);
 
 #if 0
@@ -239,15 +246,15 @@ void  android_emulation_setup( void )
     }
 #endif
 
-    if (opts->port && opts->ports) {
+    if (android_op_port && android_op_ports) {
         fprintf( stderr, "options -port and -ports cannot be used together.\n");
         exit(1);
     }
 
-    if (opts->ports) {
+    if (android_op_ports) {
         char* comma_location;
         char* end;
-        int console_port = strtol( opts->ports, &comma_location, 0 );
+        int console_port = strtol( android_op_ports, &comma_location, 0 );
 
         if ( comma_location == NULL || *comma_location != ',' ) {
             derror( "option -ports must be followed by two comma separated positive integer numbers" );
@@ -275,9 +282,9 @@ void  android_emulation_setup( void )
 
         base_port = console_port;
     } else {
-        if (opts->port) {
+        if (android_op_port) {
             char*  end;
-            int    port = strtol( opts->port, &end, 0 );
+            int    port = strtol( android_op_port, &end, 0 );
             if ( end == NULL || *end ||
                 (unsigned)((port - base_port) >> 1) >= (unsigned)tries ) {
                 derror( "option -port must be followed by an even integer number between %d and %d\n",
@@ -316,8 +323,8 @@ void  android_emulation_setup( void )
         }
     }
 
-    if (opts->report_console) {
-        report_console(opts->report_console, base_port);
+    if (android_op_report_console) {
+        report_console(android_op_report_console, base_port);
     }
 
     android_modem_init( base_port );
@@ -356,13 +363,13 @@ void  android_emulation_setup( void )
     if (VERBOSE_CHECK(proxy))
         proxy_set_verbose(1);
 
-    if (!opts->http_proxy) {
-        opts->http_proxy = getenv("http_proxy");
+    if (!op_http_proxy) {
+        op_http_proxy = getenv("http_proxy");
     }
 
     do
     {
-        const char*  env = opts->http_proxy;
+        const char*  env = op_http_proxy;
         int          envlen;
         ProxyOption  option_tab[4];
         ProxyOption* option = option_tab;

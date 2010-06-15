@@ -508,6 +508,11 @@ TELEPHONY_SOURCES := android_modem.c modem_driver.c gsm.c sim_card.c sysdeps_qem
 LOCAL_SRC_FILES += $(TELEPHONY_SOURCES:%=telephony/%)
 EMULATOR_CORE_CFLAGS += -I$(LOCAL_PATH)/telephony
 
+# include android related stuff
+#
+ANDROID_SOURCES := qemu-setup.c
+LOCAL_SRC_FILES += $(ANDROID_SOURCES:%=android/%)
+
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS)
 
 include $(BUILD_HOST_STATIC_LIBRARY)
@@ -684,7 +689,6 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               android/hw-sensors.c \
               android/keycode.c \
               android/main.c \
-              android/qemu-setup.c \
               android/qemulator.c \
               android/resource.c \
               android/user-config.c \

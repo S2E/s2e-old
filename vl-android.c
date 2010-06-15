@@ -326,6 +326,11 @@ uint8_t qemu_uuid[16];
 extern int   qemu_cpu_delay;
 extern char* audio_input_source;
 
+extern char* android_op_ports;
+extern char* android_op_port;
+extern char* android_op_report_console;
+extern char* op_http_proxy;
+
 extern void  dprint( const char* format, ... );
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
@@ -433,7 +438,7 @@ void hw_error(const char *fmt, ...)
     va_end(ap);
     abort();
 }
- 
+
 static void set_proc_name(const char *s)
 {
 #if defined(__linux__) && defined(PR_SET_NAME)
@@ -445,9 +450,9 @@ static void set_proc_name(const char *s)
     /* Could rewrite argv[0] too, but that's a bit more complicated.
        This simple way is enough for `top'. */
     prctl(PR_SET_NAME, name);
-#endif    	
+#endif
 }
- 
+
 /***************/
 /* ballooning */
 
@@ -1513,7 +1518,7 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
 
     sigaction(SIGALRM, &act, NULL);
 
-    /* 
+    /*
      * Initialize ev struct to 0 to avoid valgrind complaining
      * about uninitialized data in timer_create call
      */
@@ -3294,7 +3299,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
             if (ram_load_dead(f, opaque) < 0)
                 return -EINVAL;
         }
-        
+
         if (flags & RAM_SAVE_FLAG_COMPRESS) {
             uint8_t ch = qemu_get_byte(f);
             memset(qemu_get_ram_ptr(addr), ch, TARGET_PAGE_SIZE);
@@ -5205,7 +5210,7 @@ int main(int argc, char **argv, char **envp)
                 {
                     /* Could easily be extended to 64 devices if needed */
                     const char *p;
-                    
+
                     boot_devices_bitmap = 0;
                     for (p = boot_devices; *p != '\0'; p++) {
                         /* Allowed boot devices are:
@@ -5716,6 +5721,21 @@ int main(int argc, char **argv, char **envp)
                 nand_add_dev(optarg);
                 break;
 #endif
+            case QEMU_OPTION_android_ports:
+                android_op_ports = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_android_port:
+                android_op_port = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_android_report_console:
+                android_op_report_console = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_http_proxy:
+                op_http_proxy = (char*)optarg;
+                break;
             }
         }
     }
@@ -6140,7 +6160,7 @@ int main(int argc, char **argv, char **envp)
         show_vnc_port = 1;
 #endif
     }
-        
+
 
     switch (display_type) {
     case DT_NOGRAPHIC:
