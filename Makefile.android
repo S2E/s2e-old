@@ -157,7 +157,6 @@ LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
 
 HW_SOURCES := \
     android_arm.c \
-    arm_boot.c \
     arm_pic.c \
     bt.c \
     bt-hci.c \
@@ -509,29 +508,6 @@ TELEPHONY_SOURCES := android_modem.c modem_driver.c gsm.c sim_card.c sysdeps_qem
 LOCAL_SRC_FILES += $(TELEPHONY_SOURCES:%=telephony/%)
 EMULATOR_CORE_CFLAGS += -I$(LOCAL_PATH)/telephony
 
-# include block sources
-#
-BLOCK_SOURCES := \
-    block.c \
-    block/qcow.c \
-    block/qcow2.c \
-    block/qcow2-refcount.c \
-    block/qcow2-snapshot.c \
-    block/qcow2-cluster.c \
-    block/cloop.c \
-    block/dmg.c \
-    block/vvfat.c \
-
-ifeq ($(HOST_OS),windows)
-  BLOCK_SOURCES += block/raw-win32.c
-else
-  BLOCK_SOURCES += block/raw-posix.c
-endif
-
-# ZLIB is required by "block" on Windows
-LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
-LOCAL_SRC_FILES += $(BLOCK_SOURCES)
-
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS)
 
 include $(BUILD_HOST_STATIC_LIBRARY)
@@ -651,8 +627,16 @@ endif
 # include other sources
 #
 VL_SOURCES := vl-android.c osdep.c cutils.c \
-              readline.c monitor.c console.c loader.c sockets.c \
+              block.c readline.c monitor.c console.c loader.c sockets.c \
               aes.c d3des.c \
+              block/qcow.c \
+              block/qcow2.c \
+              block/qcow2-refcount.c \
+              block/qcow2-snapshot.c \
+              block/qcow2-cluster.c \
+              block/cloop.c \
+              block/dmg.c \
+              block/vvfat.c \
               buffered_file.c \
               cbuffer.c \
               gdbstub.c \
@@ -720,11 +704,16 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               android/avd/hw-config.c \
               android/avd/info.c \
 
+VL_SOURCES += hw/arm_boot.c \
+              hw/android_arm.c \
+
 ifeq ($(HOST_OS),windows)
-  VL_SOURCES += migration-dummy-android.c \
+  VL_SOURCES += block/raw-win32.c \
+                migration-dummy-android.c \
                 iolooper-select.c
 else
-  VL_SOURCES += migration.c \
+  VL_SOURCES += block/raw-posix.c \
+                migration.c \
                 migration-exec.c \
                 migration-tcp-android.c \
                 iolooper-select.c
