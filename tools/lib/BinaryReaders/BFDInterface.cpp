@@ -64,18 +64,21 @@ bool BFDInterface::initialize()
 
     if (storage_needed < 0) {
         std::cerr << "Failed to determine needed storage" << std::endl;
-        return 0;
+        bfd_close(m_bfd);
+        m_bfd = NULL;
+        return false;
     }
 
     m_symbolTable = (asymbol**)malloc (storage_needed);
     number_of_symbols = bfd_canonicalize_symtab (m_bfd, m_symbolTable);
     if (number_of_symbols < 0) {
         std::cerr << "Failed to determine number of symbols" << std::endl;
-        return 0;
+        bfd_close(m_bfd);
+        m_bfd = NULL;
+        return false;
     }
 
     bfd_map_over_sections(m_bfd, initSections, this);
-
 
     return true;
 }

@@ -368,17 +368,18 @@ Darwin)
   # on Leopard most of the system is 32-bit, so we have to ask the kernel it if we can
   # run 64-bit userspace code
   if [ "$cpu" = "i386" ] ; then
+    QEMU_ASMFLAGS="-f macho32"
     is_x86_64=`sysctl -n hw.optional.x86_64`
     [ "$is_x86_64" = "1" ] && cpu=x86_64
   fi
   if [ "$cpu" = "x86_64" ] ; then
+    QEMU_ASMFLAGS="-f macho64"
     QEMU_CFLAGS="-m64 $QEMU_CFLAGS"
     LDFLAGS="-m64 $LDFLAGS"
   else
     QEMU_CFLAGS="-mdynamic-no-pic $QEMU_CFLAGS"
   fi
-  
-  QEMU_ASMFLAGS="-f macho"
+    
   darwin_user="yes"
   cocoa="yes"
   audio_drv_list="coreaudio"

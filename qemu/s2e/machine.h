@@ -14,7 +14,7 @@ extern "C" {
 //XXX: ugly hack to support underscores
 #ifndef _WIN32
 #define bit_scan_forward_64 bit_scan_forward_64_posix
-int bit_scan_forward_64_posix(uint64_t *SetIndex, uint64_t Mask);
+int bit_scan_forward_64_posix(uint64_t *SetIndex, uint64_t Mask)  asm ("bit_scan_forward_64_posix");
 
 #else
 

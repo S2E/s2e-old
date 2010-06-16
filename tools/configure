@@ -618,6 +618,9 @@ PERL
 LLVM_IS_RELEASE
 LLVM_VERSION_MINOR
 LLVM_VERSION_MAJOR
+SIGCPP_INC
+SIGCPP_LIB
+TOOL_LIBS
 S2E_OBJ
 S2E_SRC
 target_os
@@ -2369,6 +2372,12 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $s2etools_cv_os_type" >&5
 $as_echo "$s2etools_cv_os_type" >&6; }
 
+OS=`uname -a`
+case $OS in
+  mingw*) OS=mingw ;;
+  *) ;;
+esac
+
 
 
 # Check whether --with-s2esrc was given.
@@ -2400,6 +2409,31 @@ $as_echo "$s2e_obj" >&6; }
 S2E_SRC=$s2e_src
 
 S2E_OBJ=$s2e_obj
+
+
+
+if  "x$OS" = "mingw" ; then
+tool_libs="-lbfd -lintl -liberty -lz"
+else
+tool_libs="-lbfd -lintl -liberty -lz -lgettextpo"
+fi
+
+TOOL_LIBS=$tool_libs
+
+
+
+
+if  "x$OS" = "mingw" ; then
+sigcpp_lib="-lsigc-2.0.dll"
+sigcpp_inc=
+else
+sigcpp_lib=`pkg-config sigc++-2.0 --libs 2> /dev/null`
+sigcpp_inc=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
+fi
+
+SIGCPP_LIB=$sigcpp_lib
+
+SIGCPP_INC=$sigcpp_inc
 
 
 

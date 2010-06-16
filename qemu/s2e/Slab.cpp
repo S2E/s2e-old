@@ -1,6 +1,5 @@
 #include <iostream>
 #include <exception>
-#include <malloc.h>
 
 //#define DEBUG_ALLOC
 //#define TESTSUITE_ALLOC

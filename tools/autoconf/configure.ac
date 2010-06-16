@@ -47,8 +47,14 @@ AC_CACHE_CHECK([type of operating system we're going to host on],
   *-*-linux*)
     host_supports_posix_runtime=yes ;;
   *)
-    host_supports_posix_runtime=no ;;
+    host_supports_posix_runtime=no ;;    
 esac])
+
+OS=`uname -a`
+case $OS in
+  mingw*) OS=mingw ;;
+  *) ;;
+esac
 
 dnl **************************************************************************
 dnl Verify that we can find s2e
@@ -75,6 +81,32 @@ AC_MSG_RESULT([$s2e_obj])
 
 AC_SUBST(S2E_SRC,$s2e_src)
 AC_SUBST(S2E_OBJ,$s2e_obj)
+
+dnl **************************************************************************
+dnl Add OS-specific libraries
+
+if [ "x$OS" = "mingw" ]; then
+tool_libs="-lbfd -lintl -liberty -lz"
+else
+tool_libs="-lbfd -lintl -liberty -lz -lgettextpo"
+fi
+
+AC_SUBST(TOOL_LIBS,$tool_libs)
+
+
+dnl **************************************************************************
+dnl Verify that we can find libsigc++
+
+if [ "x$OS" = "mingw" ]; then
+sigcpp_lib="-lsigc-2.0.dll"
+sigcpp_inc=
+else
+sigcpp_lib=`pkg-config sigc++-2.0 --libs 2> /dev/null`
+sigcpp_inc=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
+fi
+
+AC_SUBST(SIGCPP_LIB,$sigcpp_lib)
+AC_SUBST(SIGCPP_INC,$sigcpp_inc)
 
 	
 dnl **************************************************************************
