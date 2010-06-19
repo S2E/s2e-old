@@ -15,6 +15,9 @@
 
 #include <llvm/System/Path.h>
 #include <llvm/ModuleProvider.h>
+#include <llvm/Module.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+
 
 #include <klee/Interpreter.h>
 #include <klee/Common.h>
@@ -94,9 +97,14 @@ S2E::~S2E()
 
     delete m_pluginsFactory;
     delete m_database;
+
+
     // KModule wants to delete the llvm::Module in destroyer.
     // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
     m_tcgLLVMContext->getModuleProvider()->releaseModule();
+
+    //This is necessary, as the execution engine uses the module.
+    m_tcgLLVMContext->deleteExecutionEngine();
 
     delete m_s2eExecutor;
     delete m_s2eHandler;

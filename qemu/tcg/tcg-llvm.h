@@ -111,6 +111,8 @@ public:
 
     llvm::ExecutionEngine* getExecutionEngine();
 
+    void deleteExecutionEngine();
+
 #ifdef CONFIG_S2E
     /** Called after linking all helper libraries */
     void initializeHelpers();

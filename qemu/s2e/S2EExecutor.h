@@ -60,7 +60,7 @@ public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
                 klee::InterpreterHandler *ie);
-    ~S2EExecutor();
+    virtual ~S2EExecutor();
 
     /** Create initial execution state */
     S2EExecutionState* createInitialState();

@@ -149,6 +149,13 @@ public:
     TCGLLVMContextPrivate();
     ~TCGLLVMContextPrivate();
 
+    void deleteExecutionEngine() {
+        if (m_executionEngine) {
+            delete m_executionEngine;
+            m_executionEngine = NULL;
+        }
+    }
+
     /* Shortcuts */
     const Type* intType(int w) { return IntegerType::get(m_context, w); }
     const Type* intPtrType(int w) { return PointerType::get(intType(w), 0); }
@@ -303,7 +310,9 @@ TCGLLVMContextPrivate::~TCGLLVMContextPrivate()
 
     // the following line will also delete
     // m_moduleProvider, m_module and all its functions
-    delete m_executionEngine;
+    if (m_executionEngine) {
+        delete m_executionEngine;
+    }
 }
 
 #ifdef CONFIG_S2E
@@ -1276,6 +1285,11 @@ TCGLLVMContext::TCGLLVMContext()
 TCGLLVMContext::~TCGLLVMContext()
 {
     delete m_private;
+}
+
+void TCGLLVMContext::deleteExecutionEngine()
+{
+    m_private->deleteExecutionEngine();
 }
 
 LLVMContext& TCGLLVMContext::getLLVMContext()
