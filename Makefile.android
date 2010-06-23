@@ -602,7 +602,9 @@ endif
 
 # misc. sources
 #
-CORE_MISC_SOURCES =
+CORE_MISC_SOURCES = android/boot-properties.c \
+                    android/hw-kmsg.c \
+
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
 endif
@@ -626,6 +628,17 @@ endif
 
 CORE_SOURCES = $(CORE_BLOCK_SOURCES) $(CORE_HW_SOURCES)
 CORE_SOURCES += $(CORE_MIGRATION_SOURCES) $(CORE_MISC_SOURCES)
+
+##############################################################################
+# lists of source files used to build the emulator UI
+#
+
+UI_SOURCES = android/user-config.c \
+             android/resource.c \
+             android/charmap.c \
+             android/qemulator.c \
+             android/keycode.c \
+             android/hw-lcd.c \
 
 ##############################################################################
 # now build the emulator itself
@@ -729,8 +742,6 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               qlist.c \
               qstring.c \
               user-events-qemu.c \
-              android/boot-properties.c \
-              android/charmap.c \
               android/cmdline-option.c \
               android/config.c \
               android/console.c \
@@ -738,15 +749,9 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               android/help.c \
               android/hw-control.c \
               android/hw-events.c \
-              android/hw-kmsg.c \
-              android/hw-lcd.c \
               android/hw-qemud.c \
               android/hw-sensors.c \
-              android/keycode.c \
               android/main.c \
-              android/qemulator.c \
-              android/resource.c \
-              android/user-config.c \
               android/utils/bufprint.c \
               android/utils/debug.c \
               android/utils/dirscanner.c \
@@ -771,7 +776,7 @@ ifeq ($(HOST_OS),freebsd)
     LOCAL_LDLIBS += -L/usr/local/lib -lpthread -lX11 -lutil
 endif
 
-LOCAL_SRC_FILES += $(VL_SOURCES) $(CORE_SOURCES)
+LOCAL_SRC_FILES += $(VL_SOURCES) $(CORE_SOURCES) $(UI_SOURCES)
 
 ifeq ($(HOST_OS),linux)
   LOCAL_LDLIBS += -lutil -lrt
