@@ -573,6 +573,8 @@ qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
 #endif
 
     while (msglen > 0) {
+        uint8_t *data;
+
         /* read the header */
         if (c->need_header) {
             int       frame_size;
@@ -603,13 +605,16 @@ qemud_client_recv( void*  opaque, uint8_t*  msg, int  msglen )
             break;
 
         c->payload->buff[c->payload->size] = 0;
+        c->need_header = 1;
+        data = c->payload->buff;
 
-
+        /* Technically, calling 'clie_recv' can destroy client object 'c'
+         * if it decides to close the connection, so ensure we don't
+         * use/dereference it after the call. */
         if (c->clie_recv)
             c->clie_recv( c->clie_opaque, c->payload->buff, c->payload->size, c );
 
-        AFREE(c->payload->buff);
-        c->need_header = 1;
+        AFREE(data);
     }
 }
 
