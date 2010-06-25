@@ -951,11 +951,10 @@ ref<klee::ConstantExpr> Executor::evalConstant(Constant *c) {
     } else if (const ConstantFP *cf = dyn_cast<ConstantFP>(c)) {      
       return ConstantExpr::alloc(cf->getValueAPF().bitcastToAPInt());
     } else if (const GlobalValue *gv = dyn_cast<GlobalValue>(c)) {
-        if(globalAddresses.find(gv) == globalAddresses.end()) {
-            std::cerr << "gv " << *gv << std::endl;
-            asm("int $3");
-        }
-        return globalAddresses.find(gv)->second;
+        std::map<const llvm::GlobalValue*, ref<ConstantExpr> >::iterator
+                it = globalAddresses.find(gv);
+        assert(it != globalAddresses.end());
+        return it->second;
     } else if (isa<ConstantPointerNull>(c)) {
       return Expr::createPointer(0);
     } else if (isa<UndefValue>(c)) {
