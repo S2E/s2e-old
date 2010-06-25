@@ -196,22 +196,16 @@ public:
         if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL)
         {
             op = addressSpace.findObject(hostAddress);
-            if (op.second->getObject() != op.first) {
-                asm("int $3");
-            }
+            assert(op.second->getObject() == op.first);
             m_memCache.update(hostAddress & tpm, op);
         }
-        if(op.first != op.second->getObject()) {
-            asm("int $3");
-        }
+        assert(op.first == op.second->getObject());
         return op;
     }
 
     inline klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
         klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
-        if (wos->getObject() != mo) {
-            asm("int $3");
-        }
+        assert(wos->getObject() == mo);
         m_memCache.update(mo->address, klee::ObjectPair(mo,wos));
         return wos;
     }

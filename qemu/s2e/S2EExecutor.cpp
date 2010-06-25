@@ -844,10 +844,6 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
         bindArgument(kf, i, *state, args[i]);
 }
 
-extern "C" {
-    extern spinlock_t interrupt_lock;
-}
-
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
         S2EExecutionState* state,
         TranslationBlock* tb)
@@ -927,7 +923,6 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* The next should be atomic with respect to signals */
                 /* XXX: what else should we block ? */
 #ifdef _WIN32
-             //   spin_lock(&interrupt_lock);
 #else
                 sigset_t set, oldset;
                 sigfillset(&set);
@@ -969,7 +964,6 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* the block was unchained by signal handler */
                 tcg_llvm_runtime.goto_tb = 0xff;
 #ifdef _WIN32
-                //spin_unlock(&interrupt_lock);
 #else
                 sigprocmask(SIG_SETMASK, &oldset, NULL);
 #endif
