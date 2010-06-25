@@ -497,10 +497,7 @@ static inline IDEState *idebus_active_if(IDEBus *bus)
 
 static inline IDEState *bmdma_active_if(BMDMAState *bmdma)
 {
-    //assert(bmdma->unit != (uint8_t)-1);
-    if (bmdma->unit == (uint8_t)-1) {
-        asm("int $3");
-    }
+    assert(bmdma->unit != (uint8_t)-1);
     return bmdma->bus->ifs + bmdma->unit;
 }
 
