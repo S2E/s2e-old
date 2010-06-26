@@ -344,7 +344,7 @@ s2eobj-y += s2e/Database.o
 s2eobj-y += s2e/ConfigFile.o
 s2eobj-y += s2e/S2EExecutor.o s2e/S2EExecutionState.o s2e/S2EDeviceState.o
 s2eobj-y += s2e/S2E.o
-s2eobj-y += s2e/Slab.o s2e/x64.o #XXX: should also fix for 32 bits archs.
+#s2eobj-y += s2e/Slab.o s2e/x64.o #XXX: should also fix for 32 bits archs.
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 
 s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QEMU_CXXFLAGS+=-fno-inline
