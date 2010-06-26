@@ -996,7 +996,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     const ObjectState* os = state->m_cpuRegistersObject;
 
     state->setTbInstructionCount(tb->icount);
-    state->setFlags(true);
 
     bool executeKlee = m_executeAlwaysKlee;
     if(state->m_symbexEnabled) {
@@ -1338,15 +1337,16 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
 void s2e_set_cc_op_eflags(struct S2E* s2e,
                         struct S2EExecutionState* state)
 {
-    if (state->getFlags()) {
-        //for debug purposes, avoid calling flags synchronization when no code has been executed
-        return;
-    }
-    if(state->isRunningConcrete())
+    if(state->isRunningConcrete()) {
         helper_set_cc_op_eflags();
-    else
-        s2e->getExecutor()->executeFunction(state, "helper_set_cc_op_eflags");
+    } else {
+        uint32_t cc_op;
+        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
+                                                 &cc_op, sizeof(cc_op));
+        if(!ok || cc_op != CC_OP_EFLAGS)
+            s2e->getExecutor()->executeFunction(state,
+                                                "helper_set_cc_op_eflags");
+    }
 
-    state->setFlags(true);
 }
 

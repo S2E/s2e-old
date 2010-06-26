@@ -141,11 +141,9 @@ protected:
     klee::ObjectState *m_cpuRegistersObject;
     klee::ObjectState *m_cpuSystemObject;
 
-    ExecutionState* clone();
-
     S2EDeviceState *m_deviceState;
 
-    bool m_flagsSet;
+    ExecutionState* clone();
 
 public:
     S2EExecutionState(klee::KFunction *kf);
@@ -162,14 +160,6 @@ public:
     uint64_t getTotalInstructionCount();
     void setTbInstructionCount(uint64_t count);
     void setTotalInstructionCount(uint64_t count);
-
-    void setFlags(bool b) {
-        m_flagsSet = b;
-    }
-
-    bool getFlags() const {
-        return m_flagsSet;
-    }
 
     /*************************************************/
 #if 0

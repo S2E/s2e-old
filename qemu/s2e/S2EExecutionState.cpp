@@ -29,7 +29,6 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL)
 {
     m_deviceState = new S2EDeviceState();
-    m_flagsSet = false;
     m_cpuRegistersObject = NULL;
     m_cpuSystemObject = NULL;
     m_cpuSystemState = NULL;
