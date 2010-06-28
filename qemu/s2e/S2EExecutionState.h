@@ -146,6 +146,10 @@ protected:
     ExecutionState* clone();
 
 public:
+    enum AddressType {
+        VirtualAddress, PhysicalAddress, HostAddress
+    };
+
     S2EExecutionState(klee::KFunction *kf);
 
     int getID() const { return m_stateID; }
@@ -265,7 +269,8 @@ public:
     bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
 
     /** Read value from memory, returning false if the value is symbolic */
-    bool readMemoryConcrete(uint64_t address, void *dest, uint64_t size);
+    bool readMemoryConcrete(uint64_t address, void *buf, uint64_t size,
+                            AddressType addressType = VirtualAddress);
 
     /** Write concrete value to memory */
     void writeMemoryConcrete(uint64_t address, uint64_t value, uint64_t size);
@@ -274,33 +279,41 @@ public:
     bool readString(uint64_t address, std::string &s, unsigned maxLen=256);
     bool readUnicodeString(uint64_t address, std::string &s, unsigned maxLen=256);
 
-    /** Virtual address translation (debug mode). Return -1 on failure. */
+    /** Virtual address translation (debug mode). Returns -1 on failure. */
     uint64_t getPhysicalAddress(uint64_t virtualAddress) const;
+
+    /** Address translation (debug mode). Returns host address or -1 on failure */
+    uint64_t getHostAddress(uint64_t address, AddressType addressType) const;
 
     /** Access to state's memory. Address is virtual or physical,
         depending on 'physical' argument. Returns NULL or false in
         case of failure (can't resolve virtual address or physical
         address is invalid) */
     klee::ref<klee::Expr> readMemory(uint64_t address,
-                                     klee::Expr::Width width,
-                                     bool physical = false) const;
+                             klee::Expr::Width width,
+                             AddressType addressType = VirtualAddress) const;
     klee::ref<klee::Expr> readMemory8(uint64_t address,
-                                      bool physical = false) const;
+                              AddressType addressType = VirtualAddress) const;
 
     bool writeMemory(uint64_t address,
                      klee::ref<klee::Expr> value,
-                     bool physical = false);
+                     AddressType addressType = VirtualAddress);
     bool writeMemory(uint64_t address,
                      uint8_t* buf,
                      klee::Expr::Width width,
-                     bool physical = false);
+                     AddressType addressType = VirtualAddress);
 
     bool writeMemory8(uint64_t address,
-                      klee::ref<klee::Expr> value, bool physical = false);
-    bool writeMemory8 (uint64_t address, uint8_t  value, bool physical = false);
-    bool writeMemory16(uint64_t address, uint16_t value, bool physical = false);
-    bool writeMemory32(uint64_t address, uint32_t value, bool physical = false);
-    bool writeMemory64(uint64_t address, uint64_t value, bool physical = false);
+                      klee::ref<klee::Expr> value,
+                      AddressType addressType = VirtualAddress);
+    bool writeMemory8 (uint64_t address, uint8_t  value,
+                       AddressType addressType = VirtualAddress);
+    bool writeMemory16(uint64_t address, uint16_t value,
+                       AddressType addressType = VirtualAddress);
+    bool writeMemory32(uint64_t address, uint32_t value,
+                       AddressType addressType = VirtualAddress);
+    bool writeMemory64(uint64_t address, uint64_t value,
+                       AddressType addressType = VirtualAddress);
 
     /** Creates new unconstrained symbolic value */
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
