@@ -63,6 +63,11 @@ int generate_llvm = 0;
 int execute_llvm = 0;
 #endif
 
+#ifdef CONFIG_S2E
+#define do_interrupt(intno, is_int, error_code, next_eip, is_hw) \
+    s2e_do_interrupt(g_s2e, g_s2e_state, intno, is_int, error_code, next_eip, is_hw)
+#endif
+
 int tb_invalidated_flag;
 
 //#define CONFIG_DEBUG_EXEC

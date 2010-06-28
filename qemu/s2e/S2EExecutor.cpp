@@ -12,6 +12,8 @@ extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
 uint64_t helper_set_cc_op_eflags(void);
+uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
+                  target_ulong next_eip, int is_hw);
 }
 
 #include "S2EExecutor.h"
@@ -259,12 +261,38 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 #define __DEFINE_EXT_FUNCTION(name) \
     llvm::sys::DynamicLibrary::AddSymbol(#name, (void*) name);
 
-    __DEFINE_EXT_FUNCTION(raise_exception)
-    __DEFINE_EXT_FUNCTION(raise_exception_err)
+    //__DEFINE_EXT_FUNCTION(raise_exception)
+    //__DEFINE_EXT_FUNCTION(raise_exception_err)
+
+    __DEFINE_EXT_FUNCTION(fprintf)
+    __DEFINE_EXT_FUNCTION(fputc)
+    __DEFINE_EXT_FUNCTION(fwrite)
+
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
     __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
+    __DEFINE_EXT_FUNCTION(cpu_x86_update_cr0)
+    __DEFINE_EXT_FUNCTION(cpu_x86_update_cr3)
+    __DEFINE_EXT_FUNCTION(cpu_x86_update_cr4)
+    __DEFINE_EXT_FUNCTION(cpu_x86_cpuid)
+    __DEFINE_EXT_FUNCTION(cpu_get_tsc)
+    __DEFINE_EXT_FUNCTION(cpu_get_apic_base)
+    __DEFINE_EXT_FUNCTION(cpu_set_apic_base)
+    __DEFINE_EXT_FUNCTION(cpu_get_apic_tpr)
+    __DEFINE_EXT_FUNCTION(cpu_set_apic_tpr)
+    __DEFINE_EXT_FUNCTION(cpu_smm_update)
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
+    __DEFINE_EXT_FUNCTION(cpu_abort)
+    __DEFINE_EXT_FUNCTION(cpu_loop_exit)
     __DEFINE_EXT_FUNCTION(tb_find_pc)
+
+    __DEFINE_EXT_FUNCTION(qemu_system_reset_request)
+
+    __DEFINE_EXT_FUNCTION(hw_breakpoint_insert)
+    __DEFINE_EXT_FUNCTION(hw_breakpoint_remove)
+    __DEFINE_EXT_FUNCTION(check_hw_breakpoints)
+
+    __DEFINE_EXT_FUNCTION(tlb_flush_page)
+    __DEFINE_EXT_FUNCTION(tlb_flush)
 
     __DEFINE_EXT_FUNCTION(io_readb_mmu)
     __DEFINE_EXT_FUNCTION(io_readw_mmu)
@@ -277,6 +305,19 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
 
     __DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
+
+    /* XXX */
+    __DEFINE_EXT_FUNCTION(ldub_phys)
+    __DEFINE_EXT_FUNCTION(stb_phys)
+
+    __DEFINE_EXT_FUNCTION(lduw_phys)
+    __DEFINE_EXT_FUNCTION(stw_phys)
+
+    __DEFINE_EXT_FUNCTION(ldl_phys)
+    __DEFINE_EXT_FUNCTION(stl_phys)
+
+    __DEFINE_EXT_FUNCTION(ldq_phys)
+    __DEFINE_EXT_FUNCTION(stq_phys)
 
     /* Set module for the executor */
 #if 1
@@ -1446,3 +1487,19 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
 
 }
 
+void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
+                      int intno, int is_int, int error_code,
+                      uint64_t next_eip, int is_hw)
+{
+    if(state->isRunningConcrete()) {
+        helper_do_interrupt(intno, is_int, error_code, next_eip, is_hw);
+    } else {
+        std::vector<klee::ref<klee::Expr> > args(5);
+        args[0] = klee::ConstantExpr::create(intno, sizeof(int)*8);
+        args[1] = klee::ConstantExpr::create(is_int, sizeof(int)*8);
+        args[2] = klee::ConstantExpr::create(error_code, sizeof(int)*8);
+        args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
+        args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
+        s2e->getExecutor()->executeFunction(state, "helper_do_interrupt", args);
+    }
+}

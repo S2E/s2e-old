@@ -28,6 +28,7 @@
 #ifdef CONFIG_S2E
 struct CPUX86State* env = 0;
 #endif
+#endif
 
 #ifdef DEBUG_PCALL
 #  define LOG_PCALL(...) qemu_log_mask(CPU_LOG_PCALL, ## __VA_ARGS__)
@@ -37,6 +38,8 @@ struct CPUX86State* env = 0;
 #  define LOG_PCALL(...) do { } while (0)
 #  define LOG_PCALL_STATE(env) do { } while (0)
 #endif
+
+#ifndef S2E_LLVM_LIB
 
 #if 0
 #define raise_exception_err(a, b)\
@@ -143,7 +146,6 @@ target_ulong helper_read_eflags(void)
     return eflags;
 }
 
-#ifndef S2E_LLVM_LIB
 /* return non zero if error */
 static inline int load_segment(uint32_t *e1_ptr, uint32_t *e2_ptr,
                                int selector)
@@ -568,6 +570,7 @@ void helper_check_iol(uint32_t t0)
     check_io(t0, 4);
 }
 
+#ifndef S2E_LLVM_LIB
 void helper_outb(uint32_t port, uint32_t data)
 {
     cpu_outb(port, data & 0xff);
@@ -597,6 +600,8 @@ target_ulong helper_inl(uint32_t port)
 {
     return cpu_inl(port);
 }
+
+#endif
 
 static inline unsigned int get_sp_mask(unsigned int e2)
 {
@@ -1001,9 +1006,9 @@ static void do_interrupt64(int intno, int is_int, int error_code,
 
     /* interrupt gate clear IF mask */
     if ((type & 1) == 0) {
-        env->mflags &= ~IF_MASK);
+        env->mflags &= ~IF_MASK;
     }
-    env->mflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK));
+    env->mflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
 }
 #endif
 
@@ -1065,7 +1070,7 @@ void helper_syscall(int next_eip_addend)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_W_MASK | DESC_A_MASK);
-        env->mflags &= ~(IF_MASK | RF_MASK | VM_MASK));
+        env->mflags &= ~(IF_MASK | RF_MASK | VM_MASK);
         env->eip = (uint32_t)env->star;
     }
 }
@@ -1240,7 +1245,9 @@ void do_interrupt(int intno, int is_int, int error_code,
                 qemu_log(" EAX=" TARGET_FMT_lx, EAX);
             }
             qemu_log("\n");
+#ifndef S2E_LLVM_LIB
             log_cpu_state(env, X86_DUMP_CCOP);
+#endif
 #if 0
             {
                 int i;
@@ -1283,6 +1290,13 @@ void do_interrupt(int intno, int is_int, int error_code,
         stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj & ~SVM_EVTINJ_VALID);
     }
 #endif
+}
+
+uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
+                  target_ulong next_eip, int is_hw)
+{
+    do_interrupt(intno, is_int, error_code, next_eip, is_hw);
+    return 0;
 }
 
 /* This should come from sysemu.h - if we could include it here... */
@@ -1392,7 +1406,9 @@ void do_smm_enter(void)
     int i, offset;
 
     qemu_log_mask(CPU_LOG_INT, "SMM: enter\n");
+#ifndef S2E_LLVM_LIB
     log_cpu_state_mask(CPU_LOG_INT, env, X86_DUMP_CCOP);
+#endif
 
     env->hflags |= HF_SMM_MASK;
     cpu_smm_update(env);
@@ -1633,12 +1649,12 @@ void helper_rsm(void)
     cpu_smm_update(env);
 
     qemu_log_mask(CPU_LOG_INT, "SMM: after RSM\n");
+#ifndef S2E_LLVM_LIB
     log_cpu_state_mask(CPU_LOG_INT, env, X86_DUMP_CCOP);
+#endif
 }
 
 #endif /* !CONFIG_USER_ONLY */
-
-#endif /* S2E_LLVM_LIB */
 
 /* division, flags are undefined */
 
@@ -1876,7 +1892,6 @@ void helper_das(void)
     CC_SRC_W(eflags);
 }
 
-#ifndef S2E_LLVM_LIB
 void helper_into(int next_eip_addend)
 {
     int eflags;
@@ -1906,8 +1921,6 @@ void helper_cmpxchg8b(target_ulong a0)
     CC_SRC_W(eflags);
 }
 
-#endif
-
 #ifdef TARGET_X86_64
 void helper_cmpxchg16b(target_ulong a0)
 {
@@ -1935,8 +1948,6 @@ void helper_cmpxchg16b(target_ulong a0)
 }
 #endif
 
-#ifndef S2E_LLVM_LIB
-
 void helper_single_step(void)
 {
 #ifndef CONFIG_USER_ONLY
@@ -1959,9 +1970,6 @@ void helper_cpuid(void)
     EDX_W(edx);
 }
 
-#endif /* S2E_LLVM_LIB */
-
-#ifndef S2E_LLVM_LIB
 void helper_enter_level(int level, int data32, target_ulong t1)
 {
     target_ulong ssp;
@@ -1993,7 +2001,6 @@ void helper_enter_level(int level, int data32, target_ulong t1)
         stw(ssp + (esp & esp_mask), t1);
     }
 }
-#endif
 
 #ifdef TARGET_X86_64
 void helper_enter64_level(int level, int data64, target_ulong t1)
@@ -2026,7 +2033,6 @@ void helper_enter64_level(int level, int data64, target_ulong t1)
 }
 #endif
 
-#ifndef S2E_LLVM_LIB
 void helper_lldt(int selector)
 {
     SegmentCache *dt;
@@ -2336,7 +2342,9 @@ void helper_lcall_protected(int new_cs, target_ulong new_eip,
 
     next_eip = env->eip + next_eip_addend;
     LOG_PCALL("lcall %04x:%08x s=%d\n", new_cs, (uint32_t)new_eip, shift);
+#ifndef S2E_LLVM_LIB
     LOG_PCALL_STATE(env);
+#endif
     if ((new_cs & 0xfffc) == 0)
         raise_exception_err(EXCP0D_GPF, 0);
     if (load_segment(&e1, &e2, new_cs) != 0)
@@ -2630,7 +2638,9 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
     }
     LOG_PCALL("lret new %04x:" TARGET_FMT_lx " s=%d addend=0x%x\n",
               new_cs, new_eip, shift, addend);
+#ifndef S2E_LLVM_LIB
     LOG_PCALL_STATE(env);
+#endif
     if ((new_cs & 0xfffc) == 0)
         raise_exception_err(EXCP0D_GPF, new_cs & 0xfffc);
     if (load_segment(&e1, &e2, new_cs) != 0)
@@ -3444,6 +3454,7 @@ void helper_verw(target_ulong selector1)
     CC_SRC_W(eflags | CC_Z);
 }
 
+#ifndef S2E_LLVM_LIB
 /* x87 FPU helpers */
 
 static void fpu_set_exception(int mask)
@@ -4683,7 +4694,6 @@ void helper_idivq_EAX(target_ulong t0)
 }
 #endif
 
-#ifndef S2E_LLVM_LIB
 static void do_hlt(void)
 {
     env->hflags &= ~HF_INHIBIT_IRQ_MASK; /* needed if sti is just before */
@@ -4802,6 +4812,7 @@ void helper_boundl(target_ulong a0, int v)
     }
 }
 
+#ifndef S2E_LLVM_LIB
 static float approx_rsqrt(float a)
 {
     return 1.0 / sqrt(a);
@@ -4811,7 +4822,6 @@ static float approx_rcp(float a)
 {
     return 1.0 / a;
 }
-
 #endif
 
 #if !defined(CONFIG_USER_ONLY)
@@ -4942,7 +4952,6 @@ void helper_svm_check_io(uint32_t port, uint32_t param,
 }
 #else
 
-#ifndef S2E_LLVM_LIB
 static inline void svm_save_seg(target_phys_addr_t addr,
                                 const SegmentCache *sc)
 {
@@ -5480,7 +5489,6 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
     cpu_loop_exit();
 }
 
-#endif
 #endif
 
 /* MMX/SSE */
