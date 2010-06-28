@@ -41,9 +41,12 @@ uint64_t ram_bytes_remaining(void);
 uint64_t ram_bytes_transferred(void);
 uint64_t ram_bytes_total(void);
 
+int64_t get_clock(void);
+
 int64_t cpu_get_ticks(void);
 void cpu_enable_ticks(void);
 void cpu_disable_ticks(void);
+void cpu_adjust_clock(int64_t delta);
 
 void qemu_system_reset_request(void);
 void qemu_system_shutdown_request(void);
