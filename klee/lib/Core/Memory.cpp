@@ -322,17 +322,17 @@ bool ObjectState::isConcrete(unsigned offset, Expr::Width width) const {
   return true;
 }
 
-const uint8_t *ObjectState::getConcreteStore() const
+const uint8_t *ObjectState::getConcreteStore(bool allowSymbolic) const
 {
-    if (!isAllConcrete()) {
+    if (!allowSymbolic && !isAllConcrete()) {
         return NULL;
     }
     return concreteStore;
 }
 
-uint8_t *ObjectState::getConcreteStore()
+uint8_t *ObjectState::getConcreteStore(bool allowSymbolic)
 {
-    if (!isAllConcrete()) {
+    if (!allowSymbolic && !isAllConcrete()) {
         return NULL;
     }
     return concreteStore;

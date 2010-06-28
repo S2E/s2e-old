@@ -225,8 +225,8 @@ public:
   bool isAllConcrete() const;
   bool isConcrete(unsigned offset, Expr::Width width) const;
 
-  const uint8_t *getConcreteStore() const;
-  uint8_t *getConcreteStore();
+  const uint8_t *getConcreteStore(bool allowSymbolic = false) const;
+  uint8_t *getConcreteStore(bool allowSymolic = false);
 
 private:
   const UpdateList &getUpdates() const;
