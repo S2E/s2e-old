@@ -15,6 +15,7 @@
 #include "android/utils/bufprint.h"
 #include "android/globals.h"
 #include "android/qemulator.h"
+#include "android/ui_core_protocol.h"
 
 #define  D(...)  do {  if (VERBOSE_CHECK(init)) dprint(__VA_ARGS__); } while (0)
 static double get_default_scale( AndroidOptions*  opts );
@@ -230,7 +231,7 @@ qemulator_set_title(QEmulator* emulator)
 int
 get_device_dpi( AndroidOptions*  opts )
 {
-    int    dpi_device  = android_hw->hw_lcd_density;
+    int    dpi_device  = android_core_get_hw_lcd_density();
 
     if (opts->dpi_device != NULL) {
         char*  end;

@@ -604,6 +604,7 @@ endif
 #
 CORE_MISC_SOURCES = android/boot-properties.c \
                     android/hw-kmsg.c \
+                    android/hw-lcd.c \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -628,6 +629,8 @@ endif
 
 CORE_SOURCES = $(CORE_BLOCK_SOURCES) $(CORE_HW_SOURCES)
 CORE_SOURCES += $(CORE_MIGRATION_SOURCES) $(CORE_MISC_SOURCES)
+# temp file used to collect UI->Core exchange protocol.
+CORE_SOURCES += android/ui_core_protocol.c
 
 ##############################################################################
 # lists of source files used to build the emulator UI
@@ -638,7 +641,6 @@ UI_SOURCES = android/user-config.c \
              android/charmap.c \
              android/qemulator.c \
              android/keycode.c \
-             android/hw-lcd.c \
 
 ##############################################################################
 # now build the emulator itself
