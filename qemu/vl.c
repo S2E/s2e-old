@@ -670,7 +670,7 @@ static void init_get_clock(void)
 #endif
 }
 
-static int64_t get_clock(void)
+int64_t get_clock(void)
 {
 #if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000) \
 	|| defined(__DragonFly__) || defined(__FreeBSD_kernel__)
@@ -767,6 +767,11 @@ void cpu_disable_ticks(void)
         timers_state.cpu_clock_offset = cpu_get_clock();
         timers_state.cpu_ticks_enabled = 0;
     }
+}
+
+void cpu_adjust_clock(int64_t delta)
+{
+    timers_state.cpu_clock_offset += delta;
 }
 
 /***********************************************************/

@@ -553,7 +553,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
                 *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
 
-        if (isSharedConcrete && saveOnContextSwitch) {
+        if (isSharedConcrete /*&& saveOnContextSwitch*/) {
             m_saveOnContextSwitch.push_back(mo);
         }
     }
@@ -945,6 +945,39 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
         bindArgument(kf, i, *state, args[i]);
 }
 
+inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
+{
+    int64_t start_clock = get_clock();
+
+    KInstruction *ki = state->pc;
+
+#ifdef S2E_DEBUG_INSTRUCTIONS
+    m_s2e->getDebugStream(state) << "executing "
+              << ki->inst->getParent()->getParent()->getNameStr()
+              << ": " << *ki->inst << std::endl;
+#endif
+
+    stepInstruction(*state);
+    executeInstruction(*state, ki);
+
+    // assume that symbex is 50 times slower
+    int64_t inst_clock = get_clock() - start_clock;
+    cpu_adjust_clock(- inst_clock*(1-0.02));
+
+    /* TODO: timers */
+    /* TODO: MaxMemory */
+
+    if(!removedStates.empty() && removedStates.find(state) !=
+                                 removedStates.end()) {
+        std::cerr << "The current state was killed inside KLEE !" << std::endl;
+        std::cerr << "Last executed instruction was:" << std::endl;
+        ki->inst->dump();
+        exit(1);
+    }
+
+    updateStates(state);
+}
+
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
         S2EExecutionState* state,
         TranslationBlock* tb)
@@ -993,29 +1026,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
         /* Execute */
         while(state->stack.size() != 1) {
-            KInstruction *ki = state->pc;
-
-#ifdef S2E_DEBUG_INSTRUCTIONS
-            m_s2e->getDebugStream(state) << "executing "
-                      << ki->inst->getParent()->getParent()->getNameStr()
-                      << ": " << *ki->inst << std::endl;
-#endif
-
-            stepInstruction(*state);
-            executeInstruction(*state, ki);
-
-            /* TODO: timers */
-            /* TODO: MaxMemory */
-
-            if(!removedStates.empty() && removedStates.find(state) !=
-                                         removedStates.end()) {
-                std::cerr << "The current state was killed inside KLEE !" << std::endl;
-                std::cerr << "Last executed instruction was:" << std::endl;
-                ki->inst->dump();
-                exit(1);
-            }
-
-            updateStates(state);
+            executeOneInstruction(state);
 
             /* Check to goto_tb request */
             if(tcg_llvm_runtime.goto_tb != 0xff) {
@@ -1245,18 +1256,7 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
 
     /* Execute */
     while(state->stack.size() != callerStackSize) {
-        KInstruction *ki = state->pc;
-
-#ifdef S2E_DEBUG_INSTRUCTIONS
-        m_s2e->getDebugStream(state) << "executing "
-                      << ki->inst->getParent()->getParent()->getNameStr()
-                      << ": " << *ki->inst << std::endl;
-#endif
-
-        stepInstruction(*state);
-        executeInstruction(*state, ki);
-
-        updateStates(state);
+        executeOneInstruction(state);
     }
 
     if(callerPC == m_dummyMain->instructions) {

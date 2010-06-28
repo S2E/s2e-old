@@ -144,6 +144,8 @@ protected:
     void prepareFunctionExecution(S2EExecutionState *state,
                            llvm::Function* function,
                            const std::vector<klee::ref<klee::Expr> >& args);
+    void executeOneInstruction(S2EExecutionState *state);
+
     uintptr_t executeTranslationBlockKlee(S2EExecutionState *state,
                                           TranslationBlock *tb);
 
