@@ -60,15 +60,16 @@ extern struct CPUX86State *env;
 #define EDI (RR_cpu(env, regs[R_EDI]))
 #define EDI_W(v) (WR_cpu(env, regs[R_EDI], v))
 
-#define DF  (RR_cpu(env, df))
 #define CC_SRC (RR_cpu(env, cc_src))
 #define CC_DST (RR_cpu(env, cc_dst))
 #define CC_OP  (RR_cpu(env, cc_op))
 
-#define DF_W(v)  (WR_cpu(env, df, v))
 #define CC_SRC_W(v) (WR_cpu(env, cc_src, v))
 #define CC_DST_W(v) (WR_cpu(env, cc_dst, v))
 #define CC_OP_W(v)  (WR_cpu(env, cc_op, v))
+
+#define DF  (env->df)
+#define DF_W(v)  (env->df = (v))
 
 #undef EIP
 #define EIP (env->eip)

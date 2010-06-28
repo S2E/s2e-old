@@ -600,10 +600,10 @@ typedef struct CPUX86State {
 #endif
 
     /* emulator internal eflags handling */
+    uint32_t cc_op; /* outside of cpu loop, CC_OP is always CC_OP_EFLAGS */
     target_ulong cc_src;
     target_ulong cc_dst;
-    uint32_t cc_op; /* outside of cpu loop, CC_OP is always CC_OP_EFLAGS */
-    int32_t df; /* D flag : 1 if D = 0, -1 if D = 1 */
+    target_ulong cc_tmp; /* temporary for rcr/rcl */
 
     /* S2E note: the contents of the structure from this point
        can never be symbolic. The content up to this point can
@@ -612,6 +612,7 @@ typedef struct CPUX86State {
 
     target_ulong eip;
 
+    int32_t df; /* D flag : 1 if D = 0, -1 if D = 1 */
     target_ulong mflags; /* Mode and control flags from eflags */
 
     uint32_t hflags; /* TB flags, see HF_xxx constants. These flags
@@ -645,7 +646,6 @@ typedef struct CPUX86State {
     XMMReg xmm_regs[CPU_NB_REGS];
     XMMReg xmm_t0;
     MMXReg mmx_t0;
-    target_ulong cc_tmp; /* temporary for rcr/rcl */
 
     /* sysenter registers */
     uint32_t sysenter_cs;
@@ -765,7 +765,7 @@ static inline void __WR_env_raw(CPUX86State* cpuState, unsigned offset,
 static inline target_ulong cpu_get_eflags(CPUX86State* env)
 {
     assert(RR_cpu(env, cc_op) == CC_OP_EFLAGS);
-    return env->mflags | RR_cpu(env, cc_src) | (RR_cpu(env, df) & DF_MASK) | 0x2;
+    return env->mflags | RR_cpu(env, cc_src) | (env->df & DF_MASK) | 0x2;
 }
 
 //XXX: Temporary hack to dump cpu state without crashing
@@ -778,7 +778,7 @@ static inline void cpu_set_eflags(CPUX86State* env, target_ulong eflags)
 {
     WR_cpu(env, cc_op, CC_OP_EFLAGS);
     WR_cpu(env, cc_src, eflags & CFLAGS_MASK);
-    WR_cpu(env, df, (eflags & DF_MASK) ? -1 : 1);
+    env->df = (eflags & DF_MASK) ? -1 : 1;
     env->mflags = eflags & MFLAGS_MASK;
 }
 

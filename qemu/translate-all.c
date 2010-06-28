@@ -128,6 +128,10 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     gen_code_size = tcg_gen_code(s, gen_code_buf);
     *gen_code_size_ptr = gen_code_size;
 
+#ifdef CONFIG_S2E
+    tcg_calc_regmask(s, &tb->reg_rmask, &tb->reg_wmask);
+#endif
+
 #if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
     if(generate_llvm)
         tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);

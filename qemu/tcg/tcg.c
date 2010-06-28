@@ -921,6 +921,65 @@ void tcg_dump_ops(TCGContext *s, FILE *outfile)
     }
 }
 
+#ifdef CONFIG_S2E
+void tcg_calc_regmask(const TCGContext *s, uint64_t *rmask, uint64_t *wmask)
+{
+    const uint16_t *opc_ptr;
+    const TCGArg *args;
+    int c, i, nb_oargs, nb_iargs, nb_cargs;
+    const TCGOpDef *def;
+
+    *rmask = *wmask = 0;
+
+    opc_ptr = gen_opc_buf;
+    args = gen_opparam_buf;
+    while (opc_ptr < gen_opc_ptr) {
+        c = *opc_ptr++;
+        def = &tcg_op_defs[c];
+
+        if (c == INDEX_op_call) {
+            TCGArg arg_count;
+
+            /* variable number of arguments */
+            arg_count = *args++;
+            nb_oargs = arg_count >> 16;
+            nb_iargs = arg_count & 0xffff;
+            nb_cargs = def->nb_cargs;
+
+        } else if (c == INDEX_op_nopn) {
+
+            /* variable number of arguments */
+            nb_cargs = *args;
+            nb_oargs = 0;
+            nb_iargs = 0;
+
+        } else {
+
+            nb_oargs = def->nb_oargs;
+            nb_iargs = def->nb_iargs;
+            nb_cargs = def->nb_cargs;
+        }
+
+        for(i = 0; i < nb_iargs; i++) {
+            TCGArg idx = args[nb_oargs + i];
+            if (idx < s->nb_globals) {
+                if ((*wmask & (1<<idx)) == 0)
+                    *rmask |= (1<<idx);
+            }
+        }
+
+        for(i = 0; i < nb_oargs; i++) {
+            TCGArg idx = args[i];
+            if (idx < s->nb_globals) {
+                *wmask |= (1<<idx);
+            }
+        }
+
+        args += nb_iargs + nb_oargs + nb_cargs;
+    }
+}
+#endif
+
 /* we give more priority to constraints with less registers */
 static int get_constraint_priority(const TCGOpDef *def, int k)
 {

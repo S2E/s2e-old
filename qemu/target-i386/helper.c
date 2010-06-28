@@ -605,7 +605,7 @@ void cpu_reset(CPUX86State *env)
 
     WR_cpu(env, cc_op, CC_OP_EFLAGS);
     WR_cpu(env, cc_src, 0);
-    WR_cpu(env, df, 1); /* this means df flag = 0 */
+    env->df = 1; /* this means df flag = 0 */
     env->mflags = 0;
     //WR_cpu(env, eflags, 0x2);
 

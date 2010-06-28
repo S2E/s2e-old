@@ -999,10 +999,29 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 
     bool executeKlee = m_executeAlwaysKlee;
     if(state->m_symbexEnabled) {
-        executeKlee |= !os->isAllConcrete();
         if(state->m_startSymbexAtPC != (uint64_t) -1) {
             executeKlee |= (state->getPc() == state->m_startSymbexAtPC);
             state->m_startSymbexAtPC = (uint64_t) -1;
+        }
+        if(!executeKlee) {
+            /* We can not execute TB natively if it reads any symbolic regs */
+            if(!os->isAllConcrete()) {
+                uint64_t smask = state->getSymbolicRegistersMask();
+                if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
+                    /* TB reads symbolic variables */
+                    executeKlee = true;
+
+                } else {
+                    /* XXX: check whether we really have to unlink the block */
+                    tb_set_jmp_target(tb, 0,
+                              (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[0]));
+                    tb_set_jmp_target(tb, 1,
+                              (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[1]));
+                    tb->s2e_tb_next[0] = NULL;
+                    tb->s2e_tb_next[1] = NULL;
+                }
+            }
+            //executeKlee |= !os->isAllConcrete();
         }
     }
 
