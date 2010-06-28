@@ -1430,15 +1430,18 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
 void s2e_set_cc_op_eflags(struct S2E* s2e,
                         struct S2EExecutionState* state)
 {
-    if(state->isRunningConcrete()) {
-        helper_set_cc_op_eflags();
-    } else {
-        uint32_t cc_op;
+    // Check wether any of cc_op, cc_src, cc_dst or cc_tmp are symbolic
+    if(state->getSymbolicRegistersMask() & (0xf<<1)) {
+        // call set_cc_op_eflags only if cc_op is symbolic or cc_op != CC_OP_EFLAGS
+        uint32_t cc_op = 0;
         bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
                                                  &cc_op, sizeof(cc_op));
         if(!ok || cc_op != CC_OP_EFLAGS)
             s2e->getExecutor()->executeFunction(state,
                                                 "helper_set_cc_op_eflags");
+        s2e->getExecutor()->executeFunction(state, "helper_set_cc_op_eflags");
+    } else {
+        helper_set_cc_op_eflags();
     }
 
 }

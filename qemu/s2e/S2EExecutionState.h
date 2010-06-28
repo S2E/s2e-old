@@ -242,6 +242,9 @@ public:
         or that symbolically running TB code have called concrete helper */
     bool isRunningConcrete() const { return m_runningConcrete; }
 
+    /** Returns a mask of registers that contains symbolic values */
+    uint64_t getSymbolicRegistersMask() const;
+
     /** Read CPU general purpose register */
     klee::ref<klee::Expr> readCpuRegister(unsigned offset,
                                           klee::Expr::Width width) const;
