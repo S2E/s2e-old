@@ -10,6 +10,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
