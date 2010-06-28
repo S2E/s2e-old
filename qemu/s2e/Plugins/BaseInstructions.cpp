@@ -197,7 +197,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 for (uint32_t i=0; i<size; ++i) {
 
                     s2e()->getMessagesStream() << std::hex << "0x" << std::setw(8) << (address+i) << ": ";
-                    ref<Expr> res = state->readMemory8(address+i, false);
+                    ref<Expr> res = state->readMemory8(address+i);
                     if (res == 0) {
                         s2e()->getMessagesStream() << "Invalid pointer" << std::endl;
                     }else {
