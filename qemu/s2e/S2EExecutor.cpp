@@ -673,6 +673,7 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
     if(!os->isAllConcrete()) {
         /* The object contains symbolic values. We have to
            concretize it */
+        /*
         ObjectState *wos;
         os = wos = state->addressSpace.getWriteable(mo,os);
 
@@ -684,11 +685,16 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
                 wos->write8(i, ch);
             }
         }
+        */
     }
 
-    assert(os->isAllConcrete());
-    memcpy((void*) mo->address, os->getConcreteStore(), mo->size);
+    //assert(os->isAllConcrete());
+    memcpy((void*) mo->address, os->getConcreteStore(true), mo->size);
     static_cast<S2EExecutionState*>(state)->m_runningConcrete = true;
+
+    m_s2e->getMessagesStream(state)
+            << "Switched to concrete execution at pc = "
+            << hexval(state->getPc()) << std::endl;
 }
 
 void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
@@ -698,12 +704,15 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
     const MemoryObject* mo = state->m_cpuRegistersState;
     const ObjectState* os = state->addressSpace.findObject(mo);
 
-    assert(os && os->isAllConcrete());
+    //assert(os && os->isAllConcrete());
 
-    ObjectState *wos = state->addressSpace.getWriteable(mo,os);
-
-    memcpy(wos->getConcreteStore(), (void*) mo->address, mo->size);
+    ObjectState *wos = state->addressSpace.getWriteable(mo, os);
+    memcpy(wos->getConcreteStore(true), (void*) mo->address, mo->size);
     state->m_runningConcrete = false;
+
+    m_s2e->getMessagesStream(state)
+            << "Switched to symbolic execution at pc = "
+            << hexval(state->getPc()) << std::endl;
 }
 
 void S2EExecutor::copyOutConcretes(ExecutionState &state)
@@ -987,6 +996,56 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 }
 
+static inline void s2e_tb_reset_jump(TranslationBlock *tb, int n)
+{
+    TranslationBlock *tb1, *tb_next, **ptb;
+    unsigned int n1;
+
+    tb1 = tb->jmp_next[n];
+    if (tb1 != NULL) {
+        /* find head of list */
+        for(;;) {
+            n1 = (intptr_t)tb1 & 3;
+            tb1 = (TranslationBlock *)((intptr_t)tb1 & ~3);
+            if (n1 == 2)
+                break;
+            tb1 = tb1->jmp_next[n1];
+        }
+        /* we are now sure now that tb jumps to tb1 */
+        tb_next = tb1;
+
+        /* remove tb from the jmp_first list */
+        ptb = &tb_next->jmp_first;
+        for(;;) {
+            tb1 = *ptb;
+            n1 = (intptr_t)tb1 & 3;
+            tb1 = (TranslationBlock *)((intptr_t)tb1 & ~3);
+            if (n1 == n && tb1 == tb)
+                break;
+            ptb = &tb1->jmp_next[n1];
+        }
+        *ptb = tb->jmp_next[n];
+        tb->jmp_next[n] = NULL;
+
+        /* suppress the jump to next tb in generated code */
+        tb_set_jmp_target(tb, n, (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[n]));
+        tb->s2e_tb_next[n] = NULL;
+    }
+}
+
+static inline void s2e_tb_reset_jump_smask(TranslationBlock* tb, int n, uint64_t smask)
+{
+    TranslationBlock *tb1 = tb->s2e_tb_next[n];
+    if(tb1) {
+        if((smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
+            s2e_tb_reset_jump(tb, n);
+        } else {
+            s2e_tb_reset_jump_smask(tb1, 0, smask);
+            s2e_tb_reset_jump_smask(tb1, 1, smask);
+        }
+    }
+}
+
 uintptr_t S2EExecutor::executeTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
@@ -1004,24 +1063,39 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             state->m_startSymbexAtPC = (uint64_t) -1;
         }
         if(!executeKlee) {
+#if 1
             /* We can not execute TB natively if it reads any symbolic regs */
             if(!os->isAllConcrete()) {
                 uint64_t smask = state->getSymbolicRegistersMask();
+#if 1
                 if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
                     /* TB reads symbolic variables */
                     executeKlee = true;
 
                 } else {
+                    s2e_tb_reset_jump_smask(tb, 0, smask);
+                    s2e_tb_reset_jump_smask(tb, 1, smask);
+
                     /* XXX: check whether we really have to unlink the block */
-                    tb_set_jmp_target(tb, 0,
+                    /*
+                    tb->jmp_first = (TranslationBlock *)((intptr_t)tb | 2);
+                    tb->jmp_next[0] = NULL;
+                    tb->jmp_next[1] = NULL;
+                    if(tb->tb_next_offset[0] != 0xffff)
+                        tb_set_jmp_target(tb, 0,
                               (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[0]));
-                    tb_set_jmp_target(tb, 1,
+                    if(tb->tb_next_offset[1] != 0xffff)
+                        tb_set_jmp_target(tb, 1,
                               (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[1]));
                     tb->s2e_tb_next[0] = NULL;
                     tb->s2e_tb_next[1] = NULL;
+                    */
                 }
+#endif
             }
-            //executeKlee |= !os->isAllConcrete();
+#else
+            executeKlee |= !os->isAllConcrete();
+#endif
         }
     }
 
