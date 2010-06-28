@@ -313,7 +313,24 @@ bool ObjectState::isAllConcrete() const {
   return !concreteMask || concreteMask->isAllOnes(size);
 }
 
-uint8_t *ObjectState::getConcreteStore() const
+bool ObjectState::isConcrete(unsigned offset, Expr::Width width) const {
+  unsigned size = Expr::getMinBytesForWidth(width);
+  for(unsigned i = 0; i < size; ++i) {
+    if(!isByteConcrete(offset + i))
+      return false;
+  }
+  return true;
+}
+
+const uint8_t *ObjectState::getConcreteStore() const
+{
+    if (!isAllConcrete()) {
+        return NULL;
+    }
+    return concreteStore;
+}
+
+uint8_t *ObjectState::getConcreteStore()
 {
     if (!isAllConcrete()) {
         return NULL;

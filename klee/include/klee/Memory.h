@@ -223,8 +223,10 @@ public:
   void write64(unsigned offset, uint64_t value);
 
   bool isAllConcrete() const;
+  bool isConcrete(unsigned offset, Expr::Width width) const;
 
-  uint8_t *getConcreteStore() const;
+  const uint8_t *getConcreteStore() const;
+  uint8_t *getConcreteStore();
 
 private:
   const UpdateList &getUpdates() const;

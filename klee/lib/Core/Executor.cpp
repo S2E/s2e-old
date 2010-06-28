@@ -422,8 +422,11 @@ MemoryObject * Executor::addExternalObject(ExecutionState &state,
   mo->isSharedConcrete = isSharedConcrete;
   ObjectState *os = bindObjectInState(state, mo, false);
   if(!isSharedConcrete) {
+    memcpy(os->getConcreteStore(), addr, size);
+    /*
     for(unsigned i = 0; i < size; i++)
       os->write8(i, ((uint8_t*)addr)[i]);
+    */
   }
   if(isReadOnly)
     os->setReadOnly(true);  
