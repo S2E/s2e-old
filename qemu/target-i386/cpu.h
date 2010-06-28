@@ -771,7 +771,7 @@ static inline target_ulong cpu_get_eflags(CPUX86State* env)
 //XXX: Temporary hack to dump cpu state without crashing
 static inline target_ulong cpu_get_eflags_dirty(CPUX86State* env)
 {
-    return env->mflags | RR_cpu(env, cc_src) | (RR_cpu(env, df) & DF_MASK) | 0x2;
+    return env->mflags | RR_cpu(env, cc_src) | (env->df & DF_MASK) | 0x2;
 }
 
 static inline void cpu_set_eflags(CPUX86State* env, target_ulong eflags)
