@@ -119,7 +119,7 @@ uint64_t S2EExecutionState::readCpuState(unsigned offset,
     assert(offset >= offsetof(CPUX86State, eip));
     assert(offset + Expr::getMinBytesForWidth(width) <= sizeof(CPUX86State));
 
-    uint8_t* address;
+    const uint8_t* address;
     if(m_active) {
         address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
     } else {

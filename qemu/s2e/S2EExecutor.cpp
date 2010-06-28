@@ -743,7 +743,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         ObjectState *oldWOS = oldState->fetchObjectStateWritable(mo, oldOS);
 
         uint8_t *oldStore = oldWOS->getConcreteStore();
-        uint8_t *newStore = newOS->getConcreteStore();
+        const uint8_t *newStore = newOS->getConcreteStore();
 
         assert(oldStore);
         assert(newStore);
