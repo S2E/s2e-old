@@ -46,6 +46,11 @@ S2EDeviceState::S2EDeviceState()
     m_canTransferSector = true;
 }
 
+S2EDeviceState::~S2EDeviceState()
+{
+    /* TODO */
+}
+
 void S2EDeviceState::initDeviceState()
 {
     m_State = NULL;

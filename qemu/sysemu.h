@@ -43,6 +43,16 @@ uint64_t ram_bytes_total(void);
 
 int64_t get_clock(void);
 
+typedef struct TimersState {
+    int64_t cpu_ticks_prev;
+    int64_t cpu_ticks_offset;
+    int64_t cpu_clock_offset;
+    int32_t cpu_ticks_enabled;
+    int64_t dummy;
+} TimersState;
+
+extern TimersState timers_state;
+
 int64_t cpu_get_ticks(void);
 void cpu_enable_ticks(void);
 void cpu_disable_ticks(void);

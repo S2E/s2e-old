@@ -1,6 +1,7 @@
 extern "C" {
 #include "config.h"
 #include "qemu-common.h"
+#include "sysemu.h"
 
 extern struct CPUX86State *env;
 int cpu_memory_rw_debug_se(uint64_t addr, uint8_t *buf, int len, int is_write);
@@ -29,10 +30,17 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL)
 {
     m_deviceState = new S2EDeviceState();
+    m_timersState = new TimersState;
     m_cpuRegistersObject = NULL;
     m_cpuSystemObject = NULL;
     m_cpuSystemState = NULL;
     m_cpuRegistersState = NULL;
+}
+
+S2EExecutionState::~S2EExecutionState()
+{
+    delete m_deviceState;
+    delete m_timersState;
 }
 
 ExecutionState* S2EExecutionState::clone()
@@ -40,6 +48,9 @@ ExecutionState* S2EExecutionState::clone()
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->m_deviceState = m_deviceState->clone();
     ret->m_stateID = s_lastStateID++;
+
+    ret->m_timersState = new TimersState;
+    *ret->m_timersState = *m_timersState;
 
     //Clone the plugins
     PluginStateMap::iterator it;

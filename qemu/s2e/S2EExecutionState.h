@@ -6,6 +6,7 @@
 
 extern "C" {
     struct TranslationBlock;
+    struct TimersState;
 }
 
 // XXX
@@ -118,15 +119,23 @@ protected:
     friend class S2EExecutor;
 
     static int s_lastStateID;
+
+    /* Unique numeric ID for the state */
     int m_stateID;
 
     PluginStateMap m_PluginState;
 
+    /* True value means forking is enabled. */
     bool m_symbexEnabled;
+
+    /* Internal variable - set to PC where execution should be
+       switched to symbolic (e.g., due to access to symbolic memory */
     uint64_t m_startSymbexAtPC;
 
-    /* Move the following to S2EExecutor */
+    /* Set to true when the state is active (i.e., currently selected) */
     bool m_active;
+
+    /* Set to true when the CPU registers are in their concrete locations */
     bool m_runningConcrete;
 
     /* Move the following to S2EExecutor */
@@ -143,6 +152,10 @@ protected:
 
     S2EDeviceState *m_deviceState;
 
+    /* The following structure is used to store QEMU time accounting
+       variables while the state is inactive */
+    TimersState* m_timersState;
+
     ExecutionState* clone();
 
 public:
@@ -151,6 +164,7 @@ public:
     };
 
     S2EExecutionState(klee::KFunction *kf);
+    ~S2EExecutionState();
 
     int getID() const { return m_stateID; }
 

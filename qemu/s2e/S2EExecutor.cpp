@@ -823,6 +823,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     assert(oldState->m_active && !newState->m_active);
     assert(!newState->m_runningConcrete);
 
+    cpu_disable_ticks();
+
     m_s2e->getMessagesStream(oldState)
             << "Switching from state " << oldState->getID()
             << " to state " << newState->getID() << std::endl;
@@ -835,6 +837,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     copyInConcretes(*oldState);
     oldState->getDeviceState()->saveDeviceState();
+    *oldState->m_timersState = timers_state;
 
     uint64_t totalCopied = 0;
     uint64_t objectsCopied = 0;
@@ -849,8 +852,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         assert(oldStore);
         assert(newStore);
 
-
-
         memcpy(oldStore, (uint8_t*) mo->address, mo->size);
         memcpy((uint8_t*) mo->address, newStore, mo->size);
         totalCopied += mo->size;
@@ -858,10 +859,12 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     }
 
     s2e_debug_print("Copying %d (count=%d)\n", totalCopied, objectsCopied);
+    timers_state = *newState->m_timersState;
     newState->getDeviceState()->restoreDeviceState();
     copyOutConcretes(*newState);
     newState->m_active = true;
 
+    cpu_enable_ticks();
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
 }
 

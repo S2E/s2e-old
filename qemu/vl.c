@@ -705,14 +705,6 @@ static int64_t cpu_get_icount(void)
 /***********************************************************/
 /* guest cycle counter */
 
-typedef struct TimersState {
-    int64_t cpu_ticks_prev;
-    int64_t cpu_ticks_offset;
-    int64_t cpu_clock_offset;
-    int32_t cpu_ticks_enabled;
-    int64_t dummy;
-} TimersState;
-
 TimersState timers_state;
 
 /* return the host CPU cycle counter and handle stop/restart */
