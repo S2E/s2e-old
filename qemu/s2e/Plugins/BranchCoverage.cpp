@@ -21,16 +21,17 @@ extern "C" {
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(BranchCoverage, "Branch Coverage plugin", "",);
+S2E_DEFINE_PLUGIN(BranchCoverage, "Branch Coverage plugin", "BranchCoverage",
+                  "ExecutionTracer", "ModuleExecutionDetector");
 
 void BranchCoverage::initialize()
 {
     std::stringstream ss;
     std::string file;
 
-    if (!createTable()) {
-        exit(-1);
-    }
+    m_tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
+    assert(m_tracer);
+
 
     std::vector<std::string> keyList;
     keyList = s2e()->getConfig()->getListKeys(getConfigKey());
@@ -50,8 +51,16 @@ void BranchCoverage::initialize()
         exit(-1);
     }
 
-    m_Trace.reserve(1000);
-    
+    //Check that the interceptor is there
+    m_executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    assert(m_executionDetector);
+
+    //Registering listener
+    m_executionDetector->onModuleTranslateBlockEnd.connect(
+        sigc::mem_fun(*this, &BranchCoverage::onTranslateBlockEnd)
+    );
+
+
 }
 
 bool BranchCoverage::initSection(const std::string &cfgKey)
@@ -67,20 +76,11 @@ bool BranchCoverage::initSection(const std::string &cfgKey)
     }
 }
 
-bool BranchCoverage::createTable()
-{
-    const char *query = "create table BranchCoverage(" 
-          "'timestamp' unsigned big int,"  
-          "'moduleId' varchar(30),"
-          "'sourceBr' unsigned big int,"
-          "'destBr' unsigned big int,"
-          "'pid' unsigned big int"
-          "); create index if not exists branchcoverageidx on branchcoverage (moduleId,sourceBr);";
-    
-    Database *db = s2e()->getDb();
-    return db->executeQuery(query);
-}
-
+/**
+ *  Aggregated means that the coverage for all modules with
+ *  the same name will be merged together, no matter what context
+ *  the modules are running in.
+ */
 bool BranchCoverage::initAggregatedCoverage(const std::string &cfgKey)
 {
     bool ok;
@@ -92,27 +92,14 @@ bool BranchCoverage::initAggregatedCoverage(const std::string &cfgKey)
         return false;
     }
 
-    //Check that the interceptor is there
-    ModuleExecutionDetector *executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    if(!executionDetector) {
-        s2e()->getWarningsStream() << "You must configure the moduleExecutionDetector plugin! " << std::endl;
-        return false;
-    }
-
     //Check that the module id is valid
-    if (!executionDetector->isModuleConfigured(moduleId)) {
+    if (!m_executionDetector->isModuleConfigured(moduleId)) {
         s2e()->getWarningsStream() << 
             moduleId << " not configured in the execution detector! " << std::endl;
         return false;
     }
     
-    //Registering listener
-    executionDetector->onModuleTranslateBlockEnd.connect(
-        sigc::mem_fun(*this, &BranchCoverage::onTranslateBlockEnd)
-    );
-
-    m_Modules.insert(moduleId);
-
+    m_modules.insert(moduleId);
 
     return true;
 }
@@ -120,60 +107,38 @@ bool BranchCoverage::initAggregatedCoverage(const std::string &cfgKey)
 void BranchCoverage::onTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
-        const ModuleExecutionDesc* desc,
+        const ModuleDescriptor& desc,
         TranslationBlock *tb,
         uint64_t endPc,
         bool staticTarget,
         uint64_t targetPc)
 {
-    if (m_Modules.find(desc->id) == m_Modules.end()) {
+    const std::string *moduleId = m_executionDetector->getModuleId(desc);
+    if (moduleId == NULL) {
+        return;
+    }
+
+    if (m_modules.find(*moduleId) == m_modules.end()) {
         return;
     }
 
     signal->connect(
-        sigc::bind(sigc::mem_fun(*this, &BranchCoverage::onExecution),
-                   (const ModuleExecutionDesc*) desc)
+        sigc::mem_fun(*this, &BranchCoverage::onExecution)
     );
 }
 
-void BranchCoverage::flushTrace()
-{
-    if (m_Trace.size() < 1000) {
-        return;
-    }
 
-    s2e()->getDb()->executeQuery("begin transaction;");
-    foreach2(it, m_Trace.begin(), m_Trace.end()) {
-        const CoverageEntry &te = *it;
-
-        char buffer[512];
-        snprintf(buffer, sizeof(buffer), "insert into branchcoverage values(%"PRIu64",'%s',%"PRIu64",%"PRIu64","
-            "%"PRIu64");", te.timestamp, te.desc->id.c_str(), te.instrPc, te.destPc, te.pid);
-        s2e()->getDb()->executeQuery(buffer);
-
-
-    }
-    s2e()->getDb()->executeQuery("end transaction;");
-
-    m_Trace.clear();
-}
-
-void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc, const ModuleExecutionDesc* desc)
+void BranchCoverage::onExecution(S2EExecutionState *state, uint64_t pc)
 {
     ETranslationBlockType TbType = state->getTb()->s2e_tb_type;
 
     if (TbType == TB_JMP || TbType == TB_JMP_IND ||
         TbType == TB_COND_JMP || TbType == TB_COND_JMP_IND) {
-            CoverageEntry te;
-            
-            te.timestamp = llvm::sys::TimeValue::now().msec();
-            te.instrPc = desc->descriptor.ToNativeBase(pc);
-            te.destPc = desc->descriptor.ToNativeBase(state->getPc());
-            te.pid = state->getPid();
-            te.desc = desc;
-            m_Trace.push_back(te);
+        ExecutionTraceBranchCoverage e;
+        e.pc = pc;
+        e.destPc = state->getPc();
 
-            flushTrace();
+        m_tracer->writeData(state, &e, sizeof(ExecutionTraceBranchCoverage), TRACE_BRANCHCOV);
     }
 }
 

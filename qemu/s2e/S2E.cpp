@@ -318,6 +318,16 @@ std::ostream& S2E::getStream(std::ostream& stream,
     return stream;
 }
 
+void S2E::printf(std::ostream &os, const char *fmt, ...)
+{
+    va_list vl;
+    va_start(vl,fmt);
+
+    char str[512];
+    vsnprintf(str, sizeof(str), fmt, vl);
+    os << str;
+}
+
 } // namespace s2e
 
 /******************************/

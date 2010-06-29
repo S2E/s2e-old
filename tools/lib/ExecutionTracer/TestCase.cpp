@@ -26,8 +26,9 @@ void TestCase::onItem(unsigned traceIndex,
         return;
     }
 
+    std::cerr << "TestCase stateId=" << hdr.stateId << std::endl;
     if (m_foundInputs) {
-        std::cerr << "The execution trace has multiple input sets. Make sure you used the PathBuilder module."
+        std::cerr << "The execution trace has multiple input sets. Make sure you used the PathBuilder filter."
                 <<std::endl;
 
     }

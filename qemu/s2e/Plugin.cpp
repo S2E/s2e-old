@@ -4,12 +4,13 @@
 // XXX: hack: for now we include and register all plugins right there
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/Example.h>
+#include <s2e/Plugins/RawMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
-#include <s2e/Plugins/CodeSelector.h>
+//#include <s2e/Plugins/CodeSelector.h>
 #include <s2e/Plugins/BaseInstructions.h>
 #include <s2e/Plugins/BranchCoverage.h>
-#include <s2e/Plugins/ExecutionTrace.h>
+//#include <s2e/Plugins/ExecutionTrace.h>
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
 #include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
 #include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
@@ -30,12 +31,12 @@ void Plugin::initialize()
 {
 }
 
-PluginState *Plugin::getPluginState(S2EExecutionState *s, PluginStateFactory f)
+PluginState *Plugin::getPluginState(S2EExecutionState *s, PluginStateFactory f) const
 {
     if (m_CachedPluginS2EState == s) {
         return m_CachedPluginState;
     }
-    m_CachedPluginState = s->getPluginState(this, f);
+    m_CachedPluginState = s->getPluginState(const_cast<Plugin*>(this), f);
     m_CachedPluginS2EState = s;
     return m_CachedPluginState;
 }
@@ -46,12 +47,13 @@ PluginsFactory::PluginsFactory()
     registerPlugin(className::getPluginInfoStatic())
 
     __S2E_REGISTER_PLUGIN(CorePlugin);
+    __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::ModuleExecutionDetector);
-    __S2E_REGISTER_PLUGIN(plugins::CodeSelector);
+    //__S2E_REGISTER_PLUGIN(plugins::CodeSelector);
     __S2E_REGISTER_PLUGIN(plugins::BaseInstructions);
     __S2E_REGISTER_PLUGIN(plugins::BranchCoverage);
-    __S2E_REGISTER_PLUGIN(plugins::ExecutionTrace);
+    //__S2E_REGISTER_PLUGIN(plugins::ExecutionTrace);
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);

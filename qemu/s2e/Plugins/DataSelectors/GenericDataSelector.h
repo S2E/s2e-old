@@ -29,13 +29,13 @@ public:
 
     void initialize();
     void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState *state, 
-        const ModuleExecutionDesc*desc,
+        const ModuleDescriptor &desc,
         TranslationBlock *tb, uint64_t pc);
     
   void onTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
-        const ModuleExecutionDesc*desc,
+        const ModuleDescriptor &desc,
         TranslationBlock *tb,
         uint64_t endPc,
         bool staticTarget,
@@ -55,7 +55,7 @@ private:
     void activateRule(
         ExecutionSignal* signal,
         S2EExecutionState *state,
-        const ModuleExecutionDesc*desc,
+        const ModuleDescriptor &desc,
         TranslationBlock *tb, uint64_t pc);
     void injectRsaGenKey(S2EExecutionState *state);  
     void injectRegister(S2EExecutionState *state, unsigned reg);

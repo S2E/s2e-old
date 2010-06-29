@@ -68,7 +68,7 @@ public:
     ~LogParser();
 
     bool parse(const std::string &file);
-    bool getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &hdr, void *data);
+    bool getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &hdr, void **data);
 
 };
 

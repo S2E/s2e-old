@@ -99,13 +99,18 @@ void CallRetTracer::onTbEndAll(ExecutionSignal *signal,
 
 void CallRetTracer::onTbEnd(ExecutionSignal *signal,
                             S2EExecutionState* state,
-                            const ModuleExecutionDesc* desc,
+                            const ModuleDescriptor &desc,
                             TranslationBlock *tb,
                             uint64_t endPc,
                             bool staticTarget,
                             uint64_t targetPc)
 {
-        EventTracerCfgMap::iterator it = m_Modules.find(desc->id);
+    const std::string *moduleId = m_Detector->getModuleId(desc);
+    if (moduleId == NULL) {
+        return;
+    }
+
+    EventTracerCfgMap::iterator it = m_Modules.find(*moduleId);
         if (it == m_Modules.end()) {
             return;
         }

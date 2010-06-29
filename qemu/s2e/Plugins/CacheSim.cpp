@@ -427,13 +427,13 @@ void CacheSim::writeCacheDescriptionToLog(S2EExecutionState *state)
 void CacheSim::onModuleTranslateBlockStart(
     ExecutionSignal* signal,
     S2EExecutionState *state,
-    const ModuleExecutionDesc*desc,
+    const ModuleDescriptor &desc,
     TranslationBlock *tb, uint64_t pc)
 {
 
     DECLARE_PLUGINSTATE(CacheSimState, state);
 
-    s2e()->getDebugStream() << "Module translation CacheSim " << desc->id << "  " <<
+    s2e()->getDebugStream() << "Module translation CacheSim " << desc.Name << "  " <<
         pc <<std::endl;
 
     if(plgState->m_d1)
@@ -521,8 +521,6 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
     }
 
 
-
-
     Cache* cache = isCode ? plgState->m_i1 : plgState->m_d1;
     if(!cache)
         return;
@@ -585,7 +583,7 @@ void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
 {
     if(!isa<ConstantExpr>(address)) {
         s2e()->getWarningsStream()
-                << "Warning: CacheSim do not supports symbolic addresses"
+                << "Warning: CacheSim do not support symbolic addresses"
                 << std::endl;
         return;
     }

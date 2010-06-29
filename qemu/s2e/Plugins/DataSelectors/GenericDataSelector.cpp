@@ -17,7 +17,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(GenericDataSelector, "Generic symbolic injection framework", 
-                  "GenericDataSelector", "Interceptor", );
+                  "GenericDataSelector", "Interceptor", "ModuleExecutionDetector");
 
 //WindowsService-specific initialization here
 void GenericDataSelector::initialize()
@@ -76,7 +76,7 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
 
 
 void GenericDataSelector::onTranslateBlockStart(ExecutionSignal* signal, S2EExecutionState *state, 
-        const ModuleExecutionDesc*desc,
+        const ModuleDescriptor &desc,
         TranslationBlock *tb, uint64_t pc)
 {
     activateRule(signal, state, desc, tb, pc);
@@ -86,7 +86,7 @@ void GenericDataSelector::onTranslateBlockStart(ExecutionSignal* signal, S2EExec
 void GenericDataSelector::onTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
-        const ModuleExecutionDesc*desc,
+        const ModuleDescriptor &desc,
         TranslationBlock *tb,
         uint64_t endPc,
         bool staticTarget,
@@ -99,13 +99,18 @@ void GenericDataSelector::onTranslateBlockEnd(
 void GenericDataSelector::activateRule(
                                       ExecutionSignal* signal,
                                       S2EExecutionState *state,
-                                      const ModuleExecutionDesc*desc,
+                                      const ModuleDescriptor &desc,
                                        TranslationBlock *tb, uint64_t pc)
 {
     unsigned idx=0;
+    const std::string *moduleId = m_ExecDetector->getModuleId(desc);
+    if (moduleId == NULL) {
+        return;
+    }
+
     foreach2(it, m_Rules.begin(), m_Rules.end()) {
         const RuleCfg &r = *it;
-        if (r.moduleId == desc->id && r.pc == desc->descriptor.ToNativeBase(pc)) {
+        if (r.moduleId == *moduleId && r.pc == desc.ToNativeBase(pc)) {
             signal->connect(
                     sigc::bind(sigc::mem_fun(*this, &GenericDataSelector::onExecution),
                     (unsigned)idx)

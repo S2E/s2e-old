@@ -1,7 +1,7 @@
-#define __STDC_CONSTANT_MACROS 1
+/*#define __STDC_CONSTANT_MACROS 1
 #define __STDC_LIMIT_MACROS 1
 #define __STDC_FORMAT_MACROS 1
-
+*/
 
 #include "llvm/Support/CommandLine.h"
 #include <stdio.h>
@@ -34,6 +34,11 @@ cl::opt<std::string>
         ModPath("modpath", cl::desc("Path to module descriptors"), cl::init("."));
 
 cl::opt<std::string>
+        ModListRaw("modlist", cl::desc("Display debug info for the specified modules (all when empty)"), cl::init(""));
+std::vector<std::string> ModList;
+
+
+cl::opt<std::string>
         OutFile("outfile", cl::desc("Output file"), cl::init("stats.dat"));
 
 cl::opt<unsigned>
@@ -64,7 +69,6 @@ PfProfiler::PfProfiler(const std::string &file)
 {
     m_FileName = file;
     m_ModuleCache = NULL;
-
     m_Library.setPath(ModPath);
 }
 
@@ -106,9 +110,6 @@ void PfProfiler::processCallItem(unsigned traceIndex,
 
 void PfProfiler::process()
 {
-
-
-
     std::ofstream statsFile;
     statsFile.open(CpOutFile.c_str());
 
@@ -122,7 +123,7 @@ void PfProfiler::process()
     ExecutionPaths::iterator pit;
     for(pit = paths.begin(); pit != paths.end(); ++pit) {
         statsFile << "========== Path " << pathNum << " ========== "<<std::endl;
-        //PathBuilder::printPath(*pit, std::cout);
+        PathBuilder::printPath(*pit, std::cout);
 
         ModuleCache mc(&pb, &m_Library);
         CacheProfiler cp(&mc, &pb);
@@ -134,6 +135,12 @@ void PfProfiler::process()
         tc.printInputs(statsFile);
 
         TopMissesPerModule tmpm(&cp);
+        tmpm.setLibraryPath(ModPath);
+
+        for(unsigned i=0; i<ModList.size(); ++i) {
+            tmpm.addModuleToDisplay(ModList[i]);
+        }
+
 
         tmpm.setHtml(HtmlOutput != 0);
         tmpm.setFilteredProcess(CPFilterProcess);
@@ -147,7 +154,7 @@ void PfProfiler::process()
         }
         tmpm.computeStats();
         tmpm.printAggregatedStatistics(statsFile);
-        tmpm.print(statsFile, ModPath);
+        tmpm.print(statsFile);
 
         ++pathNum;
         statsFile << std::endl;
@@ -170,11 +177,24 @@ void PfProfiler::process()
     m_Library.print(std::cout);
 }
 
+static std::vector<std::string> split(const std::string &s)
+{
+    std::vector<std::string> ret;
+    size_t p, prevp = 0;
+    while ((p = s.find(' ')) != std::string::npos) {
+        ret.push_back(s.substr(prevp, p));
+        prevp = p;
+    }
+    return ret;
+}
+
 int main(int argc, char **argv)
 {
     cl::ParseCommandLineOptions(argc, (char**) argv, " pfprofiler\n");
     std::cout << TraceFile << std::endl;
     std::cout << ModPath << std::endl;
+
+    ModList = split(ModListRaw);
 
 
     PfProfiler pf(TraceFile.getValue());

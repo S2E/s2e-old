@@ -42,7 +42,9 @@ public:
     ~BFDInterface();
 
     bool getInfo(uint64_t addr, std::string &source, uint64_t &line, std::string &function);
-
+    bool inited() const {
+        return m_bfd != NULL;
+    }
 };
 
 }

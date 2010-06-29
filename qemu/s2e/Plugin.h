@@ -18,8 +18,8 @@ class Plugin : public sigc::trackable{
 private:
     S2E* m_s2e;
 protected:
-    PluginState *m_CachedPluginState;
-    S2EExecutionState *m_CachedPluginS2EState;
+    mutable PluginState *m_CachedPluginState;
+    mutable S2EExecutionState *m_CachedPluginS2EState;
 
 public:
     Plugin(S2E* s2e) : m_s2e(s2e),m_CachedPluginState(NULL),
@@ -41,12 +41,15 @@ public:
     /** Return configuration key for this plugin */
     const std::string& getConfigKey() const;
 
-    PluginState *getPluginState(S2EExecutionState *s, PluginState* (*f)(Plugin *, S2EExecutionState *));
+    PluginState *getPluginState(S2EExecutionState *s, PluginState* (*f)(Plugin *, S2EExecutionState *)) const;
 
 };
 
 #define DECLARE_PLUGINSTATE(c, execstate) \
     c *plgState = (c*)getPluginState(execstate, &c::factory)
+
+#define DECLARE_PLUGINSTATE_CONST(c, execstate) \
+    const c *plgState = (c*)getPluginState(execstate, &c::factory)
 
 class PluginState
 {

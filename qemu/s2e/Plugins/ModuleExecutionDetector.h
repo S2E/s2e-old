@@ -43,12 +43,9 @@ struct ModuleExecCfgByName
     }
 };
 
-/**
- *  Per-state description of active modules
- */
+#if 0
 struct ModuleExecutionDesc {
     std::string id;
-    bool kernelMode;
     ModuleDescriptor descriptor;
 
     bool operator()(const ModuleExecutionDesc &d1,
@@ -62,6 +59,7 @@ struct ModuleExecutionDesc {
         return id == d1.id;
     }
 };
+#endif
 
 typedef std::set<ModuleExecutionCfg, ModuleExecCfgById> ConfiguredModulesById;
 typedef std::set<ModuleExecutionCfg, ModuleExecCfgByName> ConfiguredModulesByName;
@@ -73,15 +71,15 @@ class ModuleExecutionDetector:public Plugin
 public:
     sigc::signal<
         void, S2EExecutionState *,
-        const ModuleExecutionDesc*,
-        const ModuleExecutionDesc*> onModuleTransition;
+        const ModuleDescriptor &,
+        const ModuleDescriptor &> onModuleTransition;
 
     /** Signal that is emitted on begining and end of code generation
         for each translation block belonging to the module.
     */
     sigc::signal<void, ExecutionSignal*,
             S2EExecutionState*,
-            const ModuleExecutionDesc*,
+            const ModuleDescriptor &,
             TranslationBlock*,
             uint64_t /* block PC */>
             onModuleTranslateBlockStart;
@@ -89,7 +87,7 @@ public:
     /** Signal that is emitted upon end of translation block of the module */
     sigc::signal<void, ExecutionSignal*,
             S2EExecutionState*,
-            const ModuleExecutionDesc*,
+            const ModuleDescriptor &,
             TranslationBlock*,
             uint64_t /* ending instruction pc */,
             bool /* static target is valid */,
@@ -110,13 +108,9 @@ public:
 
     void initialize();
 
-    bool getCurrentModule(
-            S2EExecutionState* state,
-            ModuleExecutionDesc *desc);
-
-
-    bool toExecutionDesc(ModuleExecutionDesc *desc, const ModuleDescriptor *md);
-    const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state);
+    //bool toExecutionDesc(ModuleExecutionDesc *desc, const ModuleDescriptor *md);
+    const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state) const;
+    const std::string *getModuleId(const ModuleDescriptor &desc) const;
 
     const ConfiguredModulesById &getConfiguredModulesById() const {
         return m_ConfiguredModulesId;
@@ -165,7 +159,7 @@ public:
 class ModuleTransitionState:public PluginState
 {
 private:
-    typedef std::set<ModuleDescriptor*, ModuleDescriptor::ModuleByLoadBase> DescriptorSet;
+    typedef std::set<const ModuleDescriptor*, ModuleDescriptor::ModuleByLoadBase> DescriptorSet;
 
     const ModuleDescriptor *m_PreviousModule;
     mutable const ModuleDescriptor *m_CachedModule;

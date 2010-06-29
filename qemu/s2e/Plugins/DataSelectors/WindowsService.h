@@ -27,18 +27,18 @@ public:
 
     void initialize();
     void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState *state, 
-        const ModuleExecutionDesc*desc,
+        const ModuleDescriptor &desc,
         TranslationBlock *tb, uint64_t pc);
     
-    void onExecution(S2EExecutionState *state, uint64_t pc,
-                                 const ModuleExecutionDesc* desc);
+    void onExecution(S2EExecutionState *state, uint64_t pc);
 
 private:
     //Handle only one service for now
     WindowsServiceCfg m_ServiceCfg;
 
     WindowsMonitor *m_WindowsMonitor;
-    std::set<std::string> m_Modules;
+    ModuleExecutionDetector *m_executionDetector;
+    std::set<std::string> m_modules;
     sigc::connection m_TbConnection;
 
     virtual bool initSection(const std::string &cfgKey, const std::string &svcId);

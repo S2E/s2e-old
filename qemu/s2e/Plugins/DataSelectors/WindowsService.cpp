@@ -11,13 +11,16 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(WindowsService, "Selecting symbolic data for Windows services", 
-                  "WindowsService", "WindowsMonitor", );
+                  "WindowsService", "WindowsMonitor", "ModuleExecutionDetector" );
 
 //WindowsService-specific initialization here
 void WindowsService::initialize()
 {
     m_WindowsMonitor = (WindowsMonitor*)s2e()->getPlugin("WindowsMonitor");
     assert(m_WindowsMonitor);
+
+    m_executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    assert(m_executionDetector);
 
     //Read the cfg file and call init sections
     DataSelector::initialize();
@@ -42,7 +45,7 @@ bool WindowsService::initSection(const std::string &cfgKey, const std::string &s
     m_ServiceCfg.makeParamsSymbolic = s2e()->getConfig()->getBool(cfgKey + ".makeParamsSymbolic");
     m_ServiceCfg.makeParamCountSymbolic = s2e()->getConfig()->getBool(cfgKey + ".makeParamCountSymbolic");
 
-    m_Modules.insert(moduleId);
+    m_modules.insert(moduleId);
 
     //Registering listener
     m_TbConnection = m_ExecDetector->onModuleTranslateBlockStart.connect(
@@ -54,27 +57,32 @@ bool WindowsService::initSection(const std::string &cfgKey, const std::string &s
 
 void WindowsService::onTranslateBlockStart(ExecutionSignal *signal, 
                                       S2EExecutionState *state,
-                                      const ModuleExecutionDesc*desc,
+                                      const ModuleDescriptor &desc,
                                       TranslationBlock *tb,
                                       uint64_t pc)
 {
     Exports E;
     Exports::iterator eit;
 
-    if (m_Modules.find(desc->id) == m_Modules.end()) {
+    const std::string *moduleId = m_executionDetector->getModuleId(desc);
+    if (moduleId == NULL) {
         return;
     }
 
-    if (!m_WindowsMonitor->getExports(state, desc->descriptor, E)) {
+    if (m_modules.find(*moduleId) == m_modules.end()) {
+        return;
+    }
+
+    if (!m_WindowsMonitor->getExports(state, desc, E)) {
         s2e()->getWarningsStream() << 
-            "Could not get exports for module " << desc->id << std::endl;   
+            "Could not get exports for module " << *moduleId << std::endl;
         return;
     }
 
     eit = E.find("ServiceMain");
     if (eit == E.end()) {
         s2e()->getMessagesStream() << 
-            "Could not find the ServiceMain entry point for " << desc->id << std::endl;   
+            "Could not find the ServiceMain entry point for " << *moduleId << std::endl;
         m_TbConnection.disconnect();
         return;
     }
@@ -89,12 +97,11 @@ void WindowsService::onTranslateBlockStart(ExecutionSignal *signal,
     }
 
     s2e()->getMessagesStream() << 
-            std::hex << "Found ServiceMain for "<< desc->id << " "  << pc << " " << (*eit).second << std::endl;
+            std::hex << "Found ServiceMain for "<< *moduleId << " "  << pc << " " << (*eit).second << std::endl;
 
     
     signal->connect(
-        sigc::bind(sigc::mem_fun(*this, &WindowsService::onExecution),
-                   (const ModuleExecutionDesc*) desc)
+        sigc::mem_fun(*this, &WindowsService::onExecution)
     );
 
     //Must handle multiple services for generality.
@@ -103,8 +110,7 @@ void WindowsService::onTranslateBlockStart(ExecutionSignal *signal,
 
 }
 
-void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc,
-                                 const ModuleExecutionDesc* desc)
+void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc)
 {
     //Parse the arguments here
     uint32_t paramCount;

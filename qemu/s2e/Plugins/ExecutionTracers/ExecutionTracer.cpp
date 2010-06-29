@@ -46,7 +46,6 @@ uint32_t ExecutionTracer::writeData(
 {
     ExecutionTraceItemHeader item;
 
-    assert(size < 256);
     assert(data);
     item.timeStamp = llvm::sys::TimeValue::now().usec();
     item.size = size;

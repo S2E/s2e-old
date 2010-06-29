@@ -128,14 +128,14 @@ private:
     void onModuleTranslateBlockStart(
         ExecutionSignal *signal,
         S2EExecutionState *state,
-        const ModuleExecutionDesc*,
+        const ModuleDescriptor &,
         TranslationBlock *tb,
         uint64_t pc);
 
     void onModuleTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
-        const ModuleExecutionDesc*,
+        const ModuleDescriptor &,
         TranslationBlock *tb,
         uint64_t endPc,
         bool staticTarget,
@@ -160,7 +160,7 @@ private:
 
     //Null when execution is outside of any symbexcable module.
     //This takes into account shared libraries
-    const ModuleExecutionDesc *m_CurrentModule;
+    const ModuleDescriptor *m_CurrentModule;
 
     ActiveModules m_ActiveModules;
     const ModuleExecutionDesc *m_ActiveModDesc;

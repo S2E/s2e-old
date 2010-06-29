@@ -57,7 +57,7 @@ protected:
 
     void onTbEnd(ExecutionSignal *signal,
                                 S2EExecutionState* state,
-                                const ModuleExecutionDesc* desc,
+                                const ModuleDescriptor & desc,
                                 TranslationBlock *tb,
                                 uint64_t endPc,
                                 bool staticTarget,

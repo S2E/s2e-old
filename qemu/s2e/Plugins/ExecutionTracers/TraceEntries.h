@@ -20,13 +20,14 @@ enum ExecTraceEntryType {
     TRACE_FORK,
     TRACE_CACHESIM,
     TRACE_TESTCASE,
+    TRACE_BRANCHCOV,
     TRACE_MAX
 };
 
 
 struct ExecutionTraceItemHeader{
     uint64_t timeStamp;
-    uint8_t  size;  //Size of the payload
+    uint32_t  size;  //Size of the payload
     uint8_t  type;
     uint32_t stateId;
     uint64_t pid;
@@ -66,6 +67,10 @@ struct ExecutionTraceFork {
     uint32_t children[1];
 }__attribute__((packed));
 
+struct ExecutionTraceBranchCoverage {
+    uint64_t pc;
+    uint64_t destPc;
+}__attribute((packed));
 
 enum CacheSimDescType{
     CACHE_PARAMS=0,

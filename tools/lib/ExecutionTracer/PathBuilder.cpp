@@ -45,6 +45,18 @@ unsigned PathSegment::getIndexInParent() const
     return 0;
 }
 
+void PathSegment::print(std::ostream &os) const
+{
+    os << "seg stateId=" << std::dec << m_StateId << " ";
+
+    PathFragmentList::const_iterator it;
+    for (it = m_FragmentList.begin(); it != m_FragmentList.end(); ++it) {
+        (*it).print(os);
+        os << " ";
+    }
+    os << std::endl;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -82,21 +94,31 @@ void PathBuilder::onItem(unsigned traceIndex,
         }
         assert((*it).second.size() > 0);
         m_CurrentSegment = (*it).second.back();
+        assert(m_CurrentSegment->getStateId() == hdr.stateId);
+            m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
+        m_CurrentSegment->print(std::cout);
     }
 
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         for(unsigned i = 0; i<f->stateCount; ++i) {
+            std::cerr << "Forking " << hdr.stateId << " to " << f->children[i] << std::endl;
             PathSegment *newSeg = new PathSegment(m_CurrentSegment, f->children[i], f->pc);
             m_Leaves[f->children[i]].push_back(newSeg);
+            if (m_CurrentSegment->getStateId() == f->children[i]) {
+                m_CurrentSegment = newSeg;
+            }
         }
     }else {
+        assert(m_CurrentSegment->getStateId() == hdr.stateId);
+
         //Simply extend the current segment with a fragment
         if (!m_CurrentSegment->hasFragments()) {
             m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
         }else {
             m_CurrentSegment->expandLastFragment(traceIndex);
         }
+        m_CurrentSegment->print(std::cout);
     }
 }
 
@@ -154,14 +176,16 @@ void PathBuilder::processSegment(PathSegment *seg)
     const PathFragmentList &fra = seg->getFragmentList();
     PathFragmentList::const_iterator it;
     s2e::plugins::ExecutionTraceItemHeader hdr;
-    uint8_t data[256];
+    uint8_t *data;
 
     for (it = fra.begin(); it != fra.end(); ++it) {
         const PathFragment &f = (*it);
         std::cout << std::dec << "sid=" << seg->getStateId() <<  " frag(" << f.startIndex << "," << f.endIndex << ")"<< std::endl;
         for (uint32_t s = f.startIndex; s <= f.endIndex; ++s) {
-            m_Parser->getItem(s, hdr, data);
+            m_Parser->getItem(s, hdr, (void**)&data);
+            assert(hdr.stateId == seg->getStateId());
             processItem(s, hdr, data);
+            delete [] data;
         }
     }
 }

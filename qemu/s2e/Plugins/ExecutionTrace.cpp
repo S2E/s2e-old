@@ -1,3 +1,5 @@
+///XXX: Do not use, deprecated
+
 extern "C" {
 #include "config.h"
 #include "qemu-common.h"

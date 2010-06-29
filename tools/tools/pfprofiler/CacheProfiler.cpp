@@ -2,7 +2,6 @@
 #include <iostream>
 #include <sstream>
 #include "CacheProfiler.h"
-#include <lib/BinaryReaders/BFDInterface.h>
 
 
 using namespace s2e::plugins;
@@ -173,6 +172,15 @@ TopMissesPerModule::TopMissesPerModule(CacheProfiler *prof)
 {
     m_Profiler = prof;
     m_html = false;
+    m_displayAllModules = true;
+}
+
+TopMissesPerModule::~TopMissesPerModule()
+{
+    ModuleNameToBfd::iterator it;
+    for(it = m_displayModules.begin(); it != m_displayModules.end(); ++it) {
+        delete (*it).second;
+    }
 }
 
 /*void TopMissesPerModule::processCacheItem(const s2e::plugins::ExecutionTraceCacheSimEntry *e)
@@ -255,7 +263,7 @@ void TopMissesPerModule::printAggregatedStatistics(std::ostream &os) const
         if (m_html) {
             (*it).second.printHtml(os);
         }else {
-            os << "-------------------------------------" << std::endl;
+            os << "------   -------------------------------" << std::endl;
 
             os << std::dec;
             os << "Cache " << c->getName() << " - Statistics" << std::endl;
@@ -273,14 +281,11 @@ void TopMissesPerModule::printAggregatedStatistics(std::ostream &os) const
 
 }
 
-void TopMissesPerModule::print(std::ostream &os, const std::string libpath)
+void TopMissesPerModule::print(std::ostream &os)
 {
     std::string source, func;
     uint64_t line;
 
-    std::string ProgFile = libpath + "/matrix.exe";
-    BFDInterface iface(ProgFile);
-    //iface.getInfo(0x004013D6, source, line, func);
 
     if (m_html) {
         os << "<PRE>" << std::endl;
@@ -308,9 +313,16 @@ void TopMissesPerModule::print(std::ostream &os, const std::string libpath)
         os << std::dec  << std::setw(13)<< s.stats.readMissCount
                  << " " << std::setw(14)<< s.stats.writeMissCount;
 
-        if (s.instr.m && s.instr.m->getModuleName()=="matrix.exe") {
+        ModuleNameToBfd::iterator iit = m_displayModules.find(s.instr.m->getModuleName());
+        if (iit == m_displayModules.end() && m_displayAllModules) {
+            if (s.instr.m) {
+                addModuleToDisplay(s.instr.m->getModuleName());
+            }
+        }
+
+        if (s.instr.m &&  (iit != m_displayModules.end())) {
             uint64_t reladdr = s.instr.pc - s.instr.loadBase + s.instr.m->getImageBase();
-            if (iface.getInfo(reladdr, source, line, func)) {
+            if ((*iit).second->getInfo(reladdr, source, line, func)) {
                 size_t last = source.rfind('/');
                 if (last != source.size())
                     source = source.substr(last+1, source.size());
@@ -324,4 +336,22 @@ void TopMissesPerModule::print(std::ostream &os, const std::string libpath)
     if (m_html) {
         os << "</PRE>" << std::endl;
     }
+}
+
+bool TopMissesPerModule::addModuleToDisplay(const std::string &s) {
+    if (m_displayModules.find(s) != m_displayModules.end()) {
+        return true;
+    }
+
+    std::string ProgFile = m_libpath + "/";
+    ProgFile += s;
+
+    s2etools::BFDInterface *bfd = new s2etools::BFDInterface(ProgFile);
+    if (!bfd->inited()) {
+        delete bfd;
+        return false;
+    }
+
+    m_displayModules[s] = bfd;
+    return true;
 }

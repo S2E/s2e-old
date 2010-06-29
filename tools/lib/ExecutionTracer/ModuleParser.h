@@ -147,10 +147,10 @@ struct ModuleInstance
         if (Pid == s.Pid) {
             if (Size) {
                 assert(!Mod);
-                return LoadBase + Size < s.LoadBase;
+                return LoadBase + Size <= s.LoadBase;
             }
             assert(Mod);
-            return LoadBase + Mod->getImageSize() < s.LoadBase;
+            return LoadBase + Mod->getImageSize() <= s.LoadBase;
         }
         return Pid < s.Pid;
     }
@@ -166,10 +166,10 @@ struct ModuleInstanceCmp {
         if (s1->Pid == s2->Pid) {
             if (s1->Size) {
                 assert(!s1->Mod);
-                return s1->LoadBase + s1->Size < s2->LoadBase;
+                return s1->LoadBase + s1->Size <= s2->LoadBase;
             }
             assert(s1->Mod);
-            return s1->LoadBase + s1->Mod->getImageSize() < s2->LoadBase;
+            return s1->LoadBase + s1->Mod->getImageSize() <= s2->LoadBase;
         }
         return s1->Pid < s2->Pid;
     }

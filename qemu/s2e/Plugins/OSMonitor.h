@@ -10,6 +10,15 @@
 namespace s2e {
 namespace plugins {
 
+/**
+ *  Base class for default OS actions.
+ *  It provides an interface for loading/unloading modules and processes.
+ *  If you wish to add support for a new OS, implement this interface.
+ *
+ *  Note: several events use ModuleDescriptor as a parameter.
+ *  The passed reference is valid only during the call. Do not store pointers
+ *  to such objects, but make a copy instead.
+ */
 class OSMonitor:public Plugin
 {
 public:

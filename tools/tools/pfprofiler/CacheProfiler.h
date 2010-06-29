@@ -3,6 +3,8 @@
 
 #include <lib/ExecutionTracer/LogParser.h>
 #include <lib/ExecutionTracer/ModuleParser.h>
+#include <lib/BinaryReaders/BFDInterface.h>
+
 
 #include <string>
 #include <set>
@@ -158,6 +160,7 @@ public:
     };
 
     typedef std::set<CacheStatisticsEx, SortByTopMissesByModule> TopMissesPerModuleSet;
+    typedef std::map<std::string, s2etools::BFDInterface*> ModuleNameToBfd;
 
 private:
     CacheProfiler *m_Profiler;
@@ -166,9 +169,19 @@ private:
     uint64_t m_minCacheMissThreshold;
     bool m_html;
 
+    //Where to look for the modules to display
+    std::string m_libpath;
+
+    //Will display the debug info for all the specified modules
+    ModuleNameToBfd m_displayModules;
+
+    //Display debug info for all modules in the trace
+    bool m_displayAllModules;
+
     TopMissesPerModuleSet m_stats;
 public:
     TopMissesPerModule(CacheProfiler *prof);
+    ~TopMissesPerModule();
 
     void setFilteredProcess(const std::string &proc) {
         m_filteredProcess = proc;
@@ -187,11 +200,19 @@ public:
         m_html = b;
     }
 
+    void setLibraryPath(const std::string &path) {
+        m_libpath = path;
+    }
+
+    bool addModuleToDisplay(const std::string &s);
+    void setDisplayAllModules(bool b) {
+        m_displayAllModules = true;
+    }
 
     void computeStats();
 
     //void processCacheItem(const s2e::plugins::ExecutionTraceCacheSimEntry *e);
-    void print(std::ostream &os, const std::string libpath);
+    void print(std::ostream &os);
     void printAggregatedStatistics(std::ostream &os) const;
 
 };

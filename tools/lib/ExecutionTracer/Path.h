@@ -18,6 +18,10 @@ struct PathFragment
         startIndex = s;
         endIndex = e;
     }
+
+    void print(std::ostream &os) const {
+        os << std::dec << "(" << startIndex << "," << endIndex << ")";
+    }
 };
 
 typedef std::vector<PathFragment> PathFragmentList;
@@ -46,7 +50,7 @@ public:
     }
 
     void expandLastFragment(uint32_t newEnd) {
-        assert(m_FragmentList.back().endIndex < newEnd);
+        assert(m_FragmentList.back().endIndex <= newEnd);
         m_FragmentList.back().endIndex = newEnd;
     }
 
@@ -67,6 +71,8 @@ public:
     PathSegment *getParent() const {
         return m_Parent;
     }
+
+    void print(std::ostream &os) const;
 
 };
 

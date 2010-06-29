@@ -114,7 +114,6 @@ void ModuleExecutionDetector::initializeConfiguration()
         s2e()->getDebugStream() << "ModuleExecutionDetector: " <<
                 "id=" << d.id << " " <<
                 "moduleName=" << d.moduleName << " " <<
-                "kernelMode=" << d.kernelMode << " " <<
                 "context=" << d.context  << std::endl;
 
         if (m_ConfiguredModulesName.find(d) != m_ConfiguredModulesName.end()) {
@@ -148,7 +147,7 @@ void ModuleExecutionDetector::moduleLoadListener(
     //if module name matches the configured ones, then
     //activate.
     s2e()->getDebugStream() << "ModuleExecutionDetector: " <<
-            "Module " << std::left << std::setw(20) << module.Name << " loaded -" <<
+            "Module " << std::left << std::setw(20) << module.Name << " loaded - " <<
             "Base=0x" << std::hex << module.LoadBase << " Size=0x" << module.Size;
 
     if (m_TrackAllModules) {
@@ -207,26 +206,16 @@ bool ModuleExecutionDetector::isModuleConfigured(const std::string &moduleId) co
 /*****************************************************************************/
 /*****************************************************************************/
 
-
-bool ModuleExecutionDetector::toExecutionDesc(
-        ModuleExecutionDesc *desc, const ModuleDescriptor *md)
+const std::string *ModuleExecutionDetector::getModuleId(const ModuleDescriptor &desc) const
 {
-    if (!md || !desc) {
-        return false;
-    }
-
     ModuleExecutionCfg cfg;
-    cfg.moduleName = md->Name;
+    cfg.moduleName = desc.Name;
 
     ConfiguredModulesByName::iterator it = m_ConfiguredModulesName.find(cfg);
     if (it == m_ConfiguredModulesName.end()) {
-        return false;
+        return NULL;
     }
-
-    desc->id = (*it).id;
-    desc->kernelMode = (*it).kernelMode;
-    desc->descriptor = *md;
-    return true;
+    return &(*it).id;
 }
 
 void ModuleExecutionDetector::onTranslateBlockStart(
@@ -239,24 +228,15 @@ void ModuleExecutionDetector::onTranslateBlockStart(
 
     uint64_t pid = m_Monitor->getPid(state, pc);
 
-    //XXX: might translate a block without instrumentation
-    //and reuse it in instrumented part...
-
-    //const ModuleExecutionDesc *currentModule =
-    //    plgState->findCurrent(pid, pc);
     const ModuleDescriptor *currentModule =
             plgState->getDescriptor(pid, pc);
 
     if (currentModule) {
-        //TRACE("Translating block %#"PRIx64" belonging to %s\n",pc, currentModule->descriptor.Name.c_str());
+        //S2E::printf(s2e()->getDebugStream(), "Translating block %#"PRIx64" belonging to %s\n",pc, currentModule->Name.c_str());
         signal->connect(sigc::mem_fun(*this,
             &ModuleExecutionDetector::onExecution));
 
-        ModuleExecutionDesc d;
-        bool b = toExecutionDesc(&d, currentModule);
-        if (b) {
-            onModuleTranslateBlockStart.emit(signal, state, &d, tb, pc);
-        }
+        onModuleTranslateBlockStart.emit(signal, state, *currentModule, tb, pc);
     }
 }
 
@@ -302,10 +282,8 @@ void ModuleExecutionDetector::onTranslateBlockEnd(
 
     }
 
-    ModuleExecutionDesc d;
-    bool b = toExecutionDesc(&d, currentModule);
-    if (b) {
-       onModuleTranslateBlockEnd.emit(signal, state, &d, tb, endPc,
+    if (currentModule) {
+       onModuleTranslateBlockEnd.emit(signal, state, *currentModule, tb, endPc,
         staticTarget, targetPc);
     }
 
@@ -321,25 +299,14 @@ void ModuleExecutionDetector::exceptionListener(
     onExecution(state, pc);
 }
 
-bool ModuleExecutionDetector::getCurrentModule(
-        S2EExecutionState* state,
-        ModuleExecutionDesc *desc)
-{
-    //Get the module descriptor
-    const ModuleDescriptor *d = getCurrentDescriptor(state);
-    if (!d) {
-        return false;
-    }
-    return toExecutionDesc(desc, d);
-}
 
 /**
  *  This returns the descriptor of the module that is currently being executed.
  *  This works only when tracking of all modules is activated.
  */
-const ModuleDescriptor *ModuleExecutionDetector::getCurrentDescriptor(S2EExecutionState* state)
+const ModuleDescriptor *ModuleExecutionDetector::getCurrentDescriptor(S2EExecutionState* state) const
 {
-    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+    DECLARE_PLUGINSTATE_CONST(ModuleTransitionState, state);
 
     uint32_t pc = state->getPc();
     uint64_t pid = m_Monitor->getPid(state, state->getPc());
@@ -363,20 +330,7 @@ void ModuleExecutionDetector::onExecution(
             DPRINTF("Entered unknown module\n");
         }
 #endif
-
-        ModuleExecutionDesc cur;
-        bool b1 = toExecutionDesc(&cur, currentModule);
-
-        ModuleExecutionDesc prev;
-        bool b2 = toExecutionDesc(&prev, plgState->m_PreviousModule);
-
-        if (b1 && b2) {
-            onModuleTransition.emit(state, &prev, &cur);
-        }else if (b1 && !b2) {
-            onModuleTransition.emit(state, &prev, NULL);
-        }else if (!b1 && b2) {
-            onModuleTransition.emit(state, NULL, &cur);
-        }
+        onModuleTransition.emit(state, *plgState->m_PreviousModule, *currentModule);
 
         plgState->m_PreviousModule = currentModule;
     }
@@ -407,11 +361,15 @@ ModuleTransitionState* ModuleTransitionState::clone() const
     }
 
     if (m_CachedModule) {
-        ret->m_CachedModule = new ModuleDescriptor(*m_CachedModule);
+        DescriptorSet::iterator it = ret->m_Descriptors.find(m_CachedModule);
+        assert(it != ret->m_Descriptors.end());
+        ret->m_CachedModule = *it;
     }
 
     if (m_PreviousModule) {
-        ret->m_PreviousModule = new ModuleDescriptor(*m_PreviousModule);
+        DescriptorSet::iterator it = ret->m_Descriptors.find(m_PreviousModule);
+        assert(it != ret->m_Descriptors.end());
+        ret->m_PreviousModule = *it;
     }
 
     return ret;

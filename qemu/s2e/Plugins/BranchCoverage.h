@@ -3,6 +3,7 @@
 
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
+#include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
 #include <s2e/S2EExecutionState.h>
 #include "ModuleExecutionDetector.h"
 #include <fstream>
@@ -11,39 +12,28 @@
 namespace s2e {
 namespace plugins {
 
-struct CoverageEntry {
-    uint64_t timestamp;
-    const ModuleExecutionDesc* desc;
-    uint64_t instrPc, destPc, pid;
-};
-
 class BranchCoverage : public Plugin
 {
     S2E_PLUGIN
 private:
-    std::string m_FileName;
-    std::ofstream m_Out;
-    std::set<std::string> m_Modules;
-    std::vector<CoverageEntry> m_Trace;
-
+    std::set<std::string> m_modules;
+    ExecutionTracer *m_tracer;
+    ModuleExecutionDetector *m_executionDetector;
 public:
     BranchCoverage(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
     
 private:
-    bool createTable();
     bool initSection(const std::string &cfgKey);
     bool initAggregatedCoverage(const std::string &cfgKey);
-    void flushTrace();
 
-    void onExecution(S2EExecutionState *state, uint64_t pc,
-        const ModuleExecutionDesc*);
+    void onExecution(S2EExecutionState *state, uint64_t pc);
 
     void onTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
-        const ModuleExecutionDesc*,
+        const ModuleDescriptor&,
         TranslationBlock *tb,
         uint64_t endPc,
         bool staticTarget,
