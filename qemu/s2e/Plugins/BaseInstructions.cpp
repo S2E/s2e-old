@@ -60,7 +60,7 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
     0f 3f 00 02 - disable symbolic execution
     0f 3f 00 03 - insert symbolic value at address pointed by eax
                   with the size in ebx and name (asciiz) in ecx
-    0f 3f 00 04 - kill the current state
+    0f 3f 00 06 - kill the current state
     0f 3f 00 10 00 - print message (asciiz) pointed by eax
     0f 3f 00 10 01 - print warning (asciiz) pointed by eax
  */
@@ -113,8 +113,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 4: 
             {
                 //Timing opcode
-                uint64_t low = state->readCpuState(offsetof(CPUX86State, regs[R_EAX]), sizeof(uint32_t));
-                uint64_t high = state->readCpuState(offsetof(CPUX86State, regs[R_EDX]), sizeof(uint32_t));
+                uint64_t low = state->readCpuState(offsetof(CPUX86State, regs[R_EAX]), 8*sizeof(uint32_t));
+                uint64_t high = state->readCpuState(offsetof(CPUX86State, regs[R_EDX]), 8*sizeof(uint32_t));
                 insertTiming(state, (high << 32LL) | low);
                 break;
             }

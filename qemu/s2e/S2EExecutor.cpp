@@ -147,6 +147,8 @@ namespace s2e {
 /* Global array to hold tb function arguments */
 volatile void* tb_function_args[3];
 
+/* DelayedSearcher ensures that each state are executed for at least
+   minStateTime time before switching to another state */
 class DelayedSearcher: public klee::Searcher
 {
     Searcher* m_baseSearcher;
@@ -965,11 +967,13 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 
     // assume that symbex is 50 times slower
     int64_t inst_clock = get_clock() - start_clock;
+    //m_s2e->getDebugStream(state) << "  inst_clock=" << inst_clock << std::endl;
     cpu_adjust_clock(- inst_clock*(1-0.02));
 
     /* TODO: timers */
     /* TODO: MaxMemory */
 
+#if 0
     if(!removedStates.empty() && removedStates.find(state) !=
                                  removedStates.end()) {
         std::cerr << "The current state was killed inside KLEE !" << std::endl;
@@ -977,6 +981,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         ki->inst->dump();
         exit(1);
     }
+#endif
 
     updateStates(state);
 }
@@ -1102,7 +1107,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 }
 
-static inline void s2e_tb_reset_jump(TranslationBlock *tb, int n)
+static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
 {
     TranslationBlock *tb1, *tb_next, **ptb;
     unsigned int n1;
@@ -1139,7 +1144,8 @@ static inline void s2e_tb_reset_jump(TranslationBlock *tb, int n)
     }
 }
 
-static inline void s2e_tb_reset_jump_smask(TranslationBlock* tb, int n, uint64_t smask)
+static inline void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
+                                           uint64_t smask)
 {
     TranslationBlock *tb1 = tb->s2e_tb_next[n];
     if(tb1) {
