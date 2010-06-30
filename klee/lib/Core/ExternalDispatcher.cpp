@@ -175,7 +175,7 @@ bool ExternalDispatcher::executeCall(Function *f, Instruction *i, uint64_t *args
 }
 
 // FIXME: This is not reentrant.
-static uint64_t *gTheArgsP;
+uint64_t *ExternalDispatcher::gTheArgsP;
 
 bool ExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
 #ifndef _WIN32
