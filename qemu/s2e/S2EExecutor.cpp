@@ -1241,7 +1241,7 @@ static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
     if(tb1) {
         if((smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
             s2e_tb_reset_jump(tb, n);
-        } else {
+        } else if(tb1 != tb) {
             s2e_tb_reset_jump_smask(tb1, 0, smask);
             s2e_tb_reset_jump_smask(tb1, 1, smask);
         }
