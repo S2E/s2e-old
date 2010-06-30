@@ -91,7 +91,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 s2e()->getWarningsStream(state)
                         << "Error reading string from the guest"
                         << std::endl;
-                break;
+                nameStr = "defstr";
             }
 
             s2e()->getMessagesStream(state)
@@ -151,12 +151,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                     break;
                 }
 
-                std::string nameStr;
+                std::string nameStr = "defstring";
                 if(!state->readString(name, nameStr)) {
                     s2e()->getWarningsStream(state)
                             << "Error reading string from the guest"
                             << std::endl;
-                    break;
                 }
 
 
@@ -184,12 +183,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                     break;
                 }
 
-                std::string nameStr;
+                std::string nameStr = "defstring";
                 if(!state->readString(name, nameStr)) {
                     s2e()->getWarningsStream(state)
                             << "Error reading string from the guest"
                             << std::endl;
-                    break;
                 }
 
                 s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << std::endl;

@@ -1144,7 +1144,8 @@ static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
     }
 }
 
-static inline void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
+//XXX: inline causes compiler internal errors
+static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
                                            uint64_t smask)
 {
     TranslationBlock *tb1 = tb->s2e_tb_next[n];
