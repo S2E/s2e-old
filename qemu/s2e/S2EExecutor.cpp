@@ -32,6 +32,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <llvm/Instructions.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/System/DynamicLibrary.h>
 
 #include <klee/StatsTracker.h>
@@ -199,6 +200,88 @@ public:
     }
 };
 
+class CpuExitException
+{
+};
+
+/* External dispatcher to convert QEMU longjmp's into C++ exceptions */
+class S2EExternalDispatcher: public klee::ExternalDispatcher
+{
+protected:
+    virtual bool runProtectedCall(llvm::Function *f, uint64_t *args);
+
+public:
+    S2EExternalDispatcher(ExecutionEngine* engine):
+            ExternalDispatcher(engine) {}
+};
+
+extern "C" {
+
+// FIXME: This is not reentrant.
+static jmp_buf s2e_escapeCallJmpBuf;
+static jmp_buf s2e_cpuExitJmpBuf;
+
+#ifdef _WIN32
+static void s2e_ext_sigsegv_handler(int signal)
+{
+}
+#else
+static void s2e_ext_sigsegv_handler(int signal, siginfo_t *info, void *context) {
+  longjmp(s2e_escapeCallJmpBuf, 1);
+}
+#endif
+
+}
+
+bool S2EExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
+
+  #ifndef _WIN32
+  struct sigaction segvAction, segvActionOld;
+  #endif
+  bool res;
+
+  if (!f)
+    return false;
+
+  std::vector<GenericValue> gvArgs;
+  gTheArgsP = args;
+
+  #ifdef _WIN32
+  signal(SIGSEGV, ::sigsegv_handler);
+  #else
+  segvAction.sa_handler = 0;
+  memset(&segvAction.sa_mask, 0, sizeof(segvAction.sa_mask));
+  segvAction.sa_flags = SA_SIGINFO;
+  segvAction.sa_sigaction = s2e_ext_sigsegv_handler;
+  sigaction(SIGSEGV, &segvAction, &segvActionOld);
+  #endif
+
+  memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
+
+  if(setjmp(env->jmp_env)) {
+      memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
+      throw CpuExitException();
+  } else {
+      if (setjmp(s2e_escapeCallJmpBuf)) {
+        res = false;
+      } else {
+
+        executionEngine->runFunction(f, gvArgs);
+        res = true;
+      }
+  }
+
+  memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
+
+  #ifdef _WIN32
+#warning Implement more robust signal handling on windows
+  signal(SIGSEGV, SIG_IGN);
+#else
+  sigaction(SIGSEGV, &segvActionOld, 0);
+#endif
+  return res;
+}
+
 S2EHandler::S2EHandler(S2E* s2e)
         : m_s2e(s2e)
 {
@@ -274,6 +357,10 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
           m_s2e(s2e), m_tcgLLVMContext(tcgLLVMContext),
           m_executeAlwaysKlee(false)
 {
+    delete externalDispatcher;
+    externalDispatcher = new S2EExternalDispatcher(
+            tcgLLVMContext->getExecutionEngine());
+
     LLVMContext& ctx = m_tcgLLVMContext->getLLVMContext();
 
     /* Add dummy TB function declaration */
@@ -963,27 +1050,26 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 #endif
 
     stepInstruction(*state);
-    executeInstruction(*state, ki);
+
+    bool shouldExitCpu = false;
+    try {
+        executeInstruction(*state, ki);
+    } catch(CpuExitException&) {
+        assert(addedStates.empty() && removedStates.empty());
+        shouldExitCpu = true;
+    }
 
     // assume that symbex is 50 times slower
     int64_t inst_clock = get_clock() - start_clock;
-    //m_s2e->getDebugStream(state) << "  inst_clock=" << inst_clock << std::endl;
     cpu_adjust_clock(- inst_clock*(1-0.02));
 
     /* TODO: timers */
     /* TODO: MaxMemory */
 
-#if 0
-    if(!removedStates.empty() && removedStates.find(state) !=
-                                 removedStates.end()) {
-        std::cerr << "The current state was killed inside KLEE !" << std::endl;
-        std::cerr << "Last executed instruction was:" << std::endl;
-        ki->inst->dump();
-        exit(1);
-    }
-#endif
-
     updateStates(state);
+
+    if(shouldExitCpu)
+        throw CpuExitException();
 }
 
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
@@ -1520,7 +1606,11 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc()
             << std::endl;   */
-    return s2e->getExecutor()->executeTranslationBlock(state, tb);
+    try {
+        return s2e->getExecutor()->executeTranslationBlock(state, tb);
+    } catch(s2e::CpuExitException&) {
+        longjmp(env->jmp_env, 1);
+    }
 }
 
 void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
@@ -1538,10 +1628,14 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
         uint32_t cc_op = 0;
         bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
                                                  &cc_op, sizeof(cc_op));
-        if(!ok || cc_op != CC_OP_EFLAGS)
-            s2e->getExecutor()->executeFunction(state,
+        if(!ok || cc_op != CC_OP_EFLAGS) {
+            try {
+                s2e->getExecutor()->executeFunction(state,
                                                 "helper_set_cc_op_eflags");
-        s2e->getExecutor()->executeFunction(state, "helper_set_cc_op_eflags");
+            } catch(s2e::CpuExitException&) {
+                longjmp(env->jmp_env, 1);
+            }
+        }
     } else {
         helper_set_cc_op_eflags();
     }
@@ -1561,6 +1655,11 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
         args[2] = klee::ConstantExpr::create(error_code, sizeof(int)*8);
         args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
         args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
-        s2e->getExecutor()->executeFunction(state, "helper_do_interrupt", args);
+        try {
+            s2e->getExecutor()->executeFunction(state,
+                                                "helper_do_interrupt", args);
+        } catch(s2e::CpuExitException&) {
+            longjmp(env->jmp_env, 1);
+        }
     }
 }
