@@ -1235,15 +1235,15 @@ static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
 
 //XXX: inline causes compiler internal errors
 static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
-                                           uint64_t smask)
+                                           uint64_t smask, int depth = 0)
 {
     TranslationBlock *tb1 = tb->s2e_tb_next[n];
     if(tb1) {
-        if((smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
+        if(depth > 16 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
             s2e_tb_reset_jump(tb, n);
         } else if(tb1 != tb) {
-            s2e_tb_reset_jump_smask(tb1, 0, smask);
-            s2e_tb_reset_jump_smask(tb1, 1, smask);
+            s2e_tb_reset_jump_smask(tb1, 0, smask, depth + 1);
+            s2e_tb_reset_jump_smask(tb1, 1, smask, depth + 1);
         }
     }
 }
