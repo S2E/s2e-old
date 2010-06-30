@@ -1166,7 +1166,11 @@ static void init_clocks(void)
     vm_clock = qemu_new_clock(QEMU_CLOCK_VIRTUAL);
     host_clock = qemu_new_clock(QEMU_CLOCK_HOST);
 
+#ifdef CONFIG_S2E
+    rtc_clock = vm_clock;
+#else
     rtc_clock = host_clock;
+#endif
 }
 
 /* save a timer */
