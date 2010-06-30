@@ -1039,7 +1039,8 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
 
 inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 {
-    int64_t start_clock = get_clock();
+    //int64_t start_clock = get_clock();
+    cpu_disable_ticks();
 
     KInstruction *ki = state->pc;
 
@@ -1059,14 +1060,16 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         shouldExitCpu = true;
     }
 
-    // assume that symbex is 50 times slower
-    int64_t inst_clock = get_clock() - start_clock;
-    cpu_adjust_clock(- inst_clock*(1-0.02));
-
     /* TODO: timers */
     /* TODO: MaxMemory */
 
     updateStates(state);
+
+    // assume that symbex is 50 times slower
+    cpu_enable_ticks();
+
+    //int64_t inst_clock = get_clock() - start_clock;
+    //cpu_adjust_clock(- inst_clock*(1-0.02));
 
     if(shouldExitCpu)
         throw CpuExitException();
