@@ -19,7 +19,7 @@ QEMU_DGFLAGS += -MMD -MP -MT $@
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
 
 %.o: %.cpp $(GENERATED_HEADERS)
-    $(call quiet-command,$(CXX) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) -c -o $@ $<,"  CXX   $(TARGET_DIR)$@")
+	$(call quiet-command,$(CXX) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) -c -o $@ $<,"  CXX   $(TARGET_DIR)$@")
 
 %.o: %.S
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  AS    $(TARGET_DIR)$@")
