@@ -139,7 +139,7 @@ namespace {
 
   cl::opt<bool>
   UseFastCexSolver("use-fast-cex-solver",
-                   cl::init(false));
+                   cl::init(true));
 
   cl::opt<bool>
   UseIndependentSolver("use-independent-solver",
@@ -154,20 +154,20 @@ namespace {
 
   cl::opt<bool>
   UseCexCache("use-cex-cache",
-              cl::init(false),
+              cl::init(true),
 	      cl::desc("Use counterexample caching"));
 
   cl::opt<bool>
   UseQueryLog("use-query-log",
-              cl::init(false));
+              cl::init(true));
 
   cl::opt<bool>
   UseQueryPCLog("use-query-pc-log",
-                cl::init(false));
+                cl::init(true));
   
   cl::opt<bool>
   UseSTPQueryPCLog("use-stp-query-pc-log",
-                   cl::init(false));
+                   cl::init(true));
 
   cl::opt<bool>
   NoExternals("no-externals", 
@@ -175,7 +175,7 @@ namespace {
 
   cl::opt<bool>
   UseCache("use-cache",
-           cl::init(false),
+           cl::init(true),
 	   cl::desc("Use validity caching"));
 
   cl::opt<bool>
