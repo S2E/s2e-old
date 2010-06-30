@@ -291,6 +291,18 @@ else
 fi
 AC_DEFINE_UNQUOTED([ENABLE_STPLOG],$ENABLE_STPLOG,[Define if stplog enabled])
 
+dnl User option to enable exceptions in KLEE
+
+AC_ARG_ENABLE(exceptions,
+              AS_HELP_STRING([--enable-exceptions],
+                             [Compile with exceptons support [[disabled]]]),
+                             ,enableval=no)
+if test ${enableval} = "yes" ; then
+  AC_SUBST(REQUIRES_EH,[[1]])
+else
+  AC_SUBST(REQUIRES_EH,[[0]])
+fi
+
 # Translate the various configuration directories and other basic
 # information into substitutions that will end up in Makefile.config.in
 # that these configured values can be used by the makefiles

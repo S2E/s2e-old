@@ -43,3 +43,9 @@ endif
 CFLAGS := @CFLAGS@
 CXXFLAGS := @CXXFLAGS@
 LDFLAGS := @LDFLAGS@
+
+# Enable exceptions
+ifeq (@REQUIRES_EH@,1)
+    REQUIRES_EH := 1
+endif
+

@@ -598,6 +598,7 @@ ac_subst_vars='LTLIBOBJS
 LIBOBJS
 KLEE_CONFIGTIME
 KLEE_PREFIX
+REQUIRES_EH
 ENABLE_STPLOG
 CXXCPP
 ac_ct_CXX
@@ -686,6 +687,7 @@ with_uclibc
 enable_posix_runtime
 with_runtime
 enable_stplog
+enable_exceptions
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1317,6 +1319,7 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-posix-runtime  Enable the POSIX runtime
   --enable-stplog         Compile with the stplog library [[disabled]]
+  --enable-exceptions     Compile with exceptons support [[disabled]]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -4347,6 +4350,22 @@ cat >>confdefs.h <<_ACEOF
 #define ENABLE_STPLOG $ENABLE_STPLOG
 _ACEOF
 
+
+
+# Check whether --enable-exceptions was given.
+if test "${enable_exceptions+set}" = set; then :
+  enableval=$enable_exceptions;
+else
+  enableval=no
+fi
+
+if test ${enableval} = "yes" ; then
+  REQUIRES_EH=1
+
+else
+  REQUIRES_EH=0
+
+fi
 
 # Translate the various configuration directories and other basic
 # information into substitutions that will end up in Makefile.config.in
