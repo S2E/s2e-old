@@ -1067,6 +1067,9 @@ namespace BEEV {
       return res;
     }
 
+    //XXX: create a specific class for this
+    throw std::exception();
+
     FatalError("TopLevelSAT: reached the end without proper conclusion:" 
 	       "either a divide by zero in the input or a bug in STP");
     //bogus return to make the compiler shut up

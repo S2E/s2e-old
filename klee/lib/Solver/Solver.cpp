@@ -681,10 +681,12 @@ STPSolverImpl::computeInitialValues(const Query &query,
                                     bool &hasSolution) {
   TimerStatIncrementer t(stats::queryTime);
 
+#if 1
   delete builder;
   vc_Destroy(vc);
   vc = vc_createValidityChecker();
   builder = new STPBuilder(vc);
+#endif
 
   vc_push(vc);
 
@@ -709,8 +711,12 @@ STPSolverImpl::computeInitialValues(const Query &query,
     success = runAndGetCexForked(vc, builder, stp_e, objects, values, 
                                  hasSolution, timeout);
   } else {
-    runAndGetCex(vc, builder, stp_e, objects, values, hasSolution);
-    success = true;
+    try {
+        runAndGetCex(vc, builder, stp_e, objects, values, hasSolution);
+        success = true;
+    } catch(std::exception &) {
+        success = false;
+    }
   }
   
   if (success) {

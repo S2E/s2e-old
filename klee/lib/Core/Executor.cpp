@@ -159,15 +159,15 @@ namespace {
 
   cl::opt<bool>
   UseQueryLog("use-query-log",
-              cl::init(true));
+              cl::init(false));
 
   cl::opt<bool>
   UseQueryPCLog("use-query-pc-log",
-                cl::init(true));
+                cl::init(false));
   
   cl::opt<bool>
   UseSTPQueryPCLog("use-stp-query-pc-log",
-                   cl::init(true));
+                   cl::init(false));
 
   cl::opt<bool>
   NoExternals("no-externals", 

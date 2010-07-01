@@ -46,7 +46,7 @@ class PCLoggingSolver : public SolverImpl {
     printer->printQuery(os, query.constraints, query.expr,
                         evalExprsBegin, evalExprsEnd,
                         evalArraysBegin, evalArraysEnd);
-    
+    os << std::flush;
     startTime = getWallTime();
   }
 
@@ -54,6 +54,7 @@ class PCLoggingSolver : public SolverImpl {
     double delta = getWallTime() - startTime;
     os << "#   " << (success ? "OK" : "FAIL") << " -- "
        << "Elapsed: " << delta << "\n";
+    os << std::flush;
   }
   
 public:
@@ -75,6 +76,7 @@ public:
     if (success)
       os << "#   Is Valid: " << (isValid ? "true" : "false") << "\n";
     os << "\n";
+    os << std::flush;
     return success;
   }
 
@@ -85,6 +87,7 @@ public:
     if (success)
       os << "#   Validity: " << result << "\n";
     os << "\n";
+    os << std::flush;
     return success;
   }
 
@@ -96,6 +99,7 @@ public:
     if (success)
       os << "#   Result: " << result << "\n";
     os << "\n";
+    os << std::flush;
     return success;
   }
 

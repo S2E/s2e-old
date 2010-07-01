@@ -583,7 +583,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
                 *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
 
-        if (isSharedConcrete /*&& saveOnContextSwitch*/) {
+        if (isSharedConcrete && saveOnContextSwitch) {
             m_saveOnContextSwitch.push_back(mo);
         }
     }
@@ -1176,11 +1176,36 @@ static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
     }
 }
 
+#ifdef _WIN32
+
+#error Implement signal enabling/disabling...
+
+#else
+
+static void s2e_disable_signals(sigset_t *oldset)
+{
+    sigset_t set;
+    sigfillset(&set);
+    sigprocmask(SIG_BLOCK, &set, oldset);
+}
+
+static void s2e_enable_signals(sigset_t *oldset)
+{
+    sigprocmask(SIG_SETMASK, oldset, NULL);
+}
+
+#endif
+
 //XXX: inline causes compiler internal errors
 static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
                                            uint64_t smask, int depth = 0)
 {
     TranslationBlock *tb1 = tb->s2e_tb_next[n];
+    sigset_t oldset;
+    if (depth == 0) {
+        s2e_disable_signals(&oldset);
+    }
+
     if(tb1) {
         if(depth > 1 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
             s2e_tb_reset_jump(tb, n);
@@ -1188,6 +1213,10 @@ static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
             s2e_tb_reset_jump_smask(tb1, 0, smask, depth + 1);
             s2e_tb_reset_jump_smask(tb1, 1, smask, depth + 1);
         }
+    }
+
+    if (depth == 0) {
+        s2e_enable_signals(&oldset);
     }
 }
 
