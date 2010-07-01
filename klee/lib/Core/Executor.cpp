@@ -2567,8 +2567,8 @@ void Executor::terminateStateOnError(ExecutionState &state,
         msg << ai->getNameStr();
         // XXX should go through function
         ref<Expr> value = sf.locals[sf.kf->getArgRegister(index++)].value; 
-        if (isa<ConstantExpr>(value))
-          msg << "=" << value;
+        //if (isa<ConstantExpr>(value))
+        msg << "=" << value;
       }
       msg << ")";
       if (ii.file != "")
@@ -2629,9 +2629,11 @@ void Executor::callExternalFunction(ExecutionState &state,
         // XXX kick toMemory functions from here
         CE->toMemory((void*) &args[i]);
       } else {
-        terminateStateOnExecError(state, 
-                                  "external call with symbolic argument: " + 
-                                  function->getName());
+          std::stringstream ss;
+          ss << "external call with symbolic argument " << std::dec <<
+                  i << ": " << function->getNameStr() << " - ";
+            ss << arg;
+            terminateStateOnExecError(state, ss.str());
         return;
       }
     }

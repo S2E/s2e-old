@@ -13,6 +13,10 @@ namespace s2e {
 class S2E;
 class S2EExecutionState;
 
+class CpuExitException
+{
+};
+
 /** Handler required for KLEE interpreter */
 class S2EHandler : public klee::InterpreterHandler
 {
@@ -188,6 +192,9 @@ protected:
               std::vector<klee::ExecutionState*> &result);
 
     virtual void invalidateCache(klee::ExecutionState &state, const klee::MemoryObject *mo);
+
+    /** Kills the specified state and raises an exception to exit the cpu loop */
+    virtual void terminateState(klee::ExecutionState &state);
 };
 
 } // namespace s2e

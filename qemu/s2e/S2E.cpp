@@ -335,7 +335,7 @@ std::ostream& S2E::getStream(std::ostream& stream,
                              const S2EExecutionState* state) const
 {
     if(state) {
-        stream << "[State " << state->getID() << "] ";
+        stream << "[State " << std::dec << state->getID() << "] ";
     }
     return stream;
 }

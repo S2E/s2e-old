@@ -200,9 +200,7 @@ public:
     }
 };
 
-class CpuExitException
-{
-};
+
 
 /* External dispatcher to convert QEMU longjmp's into C++ exceptions */
 class S2EExternalDispatcher: public klee::ExternalDispatcher
@@ -315,8 +313,8 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
     assert(dynamic_cast<const S2EExecutionState*>(&state) != 0);
     const S2EExecutionState* s = static_cast<const S2EExecutionState*>(&state);
     m_s2e->getWarningsStream(s)
-           << "Terminating state '" << s->getID()
-           << "' with error message '" << (err ? err : "") << "'" << std::endl;
+           << "Terminating state " << s->getID()
+           << " with error message '" << (err ? err : "") << "'" << std::endl;
 
     s2e::plugins::TestCaseGenerator *tc =
             dynamic_cast<s2e::plugins::TestCaseGenerator*>(m_s2e->getPlugin("TestCaseGenerator"));
@@ -444,6 +442,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
 
     __DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
+    __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
 
     /* XXX */
     __DEFINE_EXT_FUNCTION(ldub_phys)
@@ -1059,7 +1058,6 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         // Instruction that forks should never be interrupted
         // (and, consequently, restarted)
         assert(addedStates.empty());
-
         shouldExitCpu = true;
     }
 
@@ -1413,7 +1411,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
     std::ostream& out = m_s2e->getMessagesStream(originalState);
     out << "Forking state " << originalState->getID()
-        << " at pc = 0x" << hexval(originalState->getPc())
+            << " at pc = " << hexval(originalState->getPc())
         << " into states:" << std::endl;
 
     for(unsigned i = 0; i < newStates.size(); ++i) {
@@ -1516,6 +1514,17 @@ void S2EExecutor::invalidateCache(klee::ExecutionState &state, const klee::Memor
     if (mo->size == TARGET_PAGE_SIZE) {
         s->m_memCache.invalidate(mo->address);
     }
+}
+
+void S2EExecutor::terminateState(ExecutionState &state)
+{
+    S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
+    assert(s);
+
+    Executor::terminateState(state);
+
+    s->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
+    throw CpuExitException();
 }
 
 } // namespace s2e

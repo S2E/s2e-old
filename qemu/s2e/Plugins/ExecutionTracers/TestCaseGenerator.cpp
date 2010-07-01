@@ -29,7 +29,9 @@ void TestCaseGenerator::processTestCase(const S2EExecutionState &state,
                      const char *err, const char *suffix)
 {
     s2e()->getMessagesStream()
-            << "TestCaseGenerator: processTestCase of state " << state.getID() << std::endl;
+            << "TestCaseGenerator: processTestCase of state " << state.getID()
+            << " at address 0x" << std::hex << state.getPc()
+            << std::endl;
 
     ConcreteInputs out;
     bool success = s2e()->getExecutor()->getSymbolicSolution(state, out);
