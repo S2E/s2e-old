@@ -40,6 +40,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <klee/Memory.h>
 #include <klee/Searcher.h>
 #include <klee/ExternalDispatcher.h>
+#include <klee/UserSearcher.h>
 
 #include <llvm/System/TimeValue.h>
 
@@ -147,60 +148,6 @@ namespace s2e {
 
 /* Global array to hold tb function arguments */
 volatile void* tb_function_args[3];
-
-/* DelayedSearcher ensures that each state are executed for at least
-   minStateTime time before switching to another state */
-class DelayedSearcher: public klee::Searcher
-{
-    Searcher* m_baseSearcher;
-    int64_t   m_minStateTime;
-
-    ExecutionState* m_currentState;
-    int64_t         m_currentStateTime;
-
-public:
-    DelayedSearcher(Searcher *baseSearcher, int64_t minStateTime)
-            : m_baseSearcher(baseSearcher), m_minStateTime(minStateTime),
-              m_currentState(0), m_currentStateTime(0) {}
-    ~DelayedSearcher() { delete m_baseSearcher; }
-
-    virtual void update(ExecutionState *current,
-                const std::set<ExecutionState*> &addedStates,
-                const std::set<ExecutionState*> &removedStates)
-    {
-        assert(m_currentState == NULL || m_currentState == current);
-        if(removedStates.find(m_currentState) != removedStates.end()) {
-            m_currentState = NULL;
-            m_currentStateTime = 0;
-        }
-        m_baseSearcher->update(current, addedStates, removedStates);
-    }
-
-    virtual bool empty() { return m_baseSearcher->empty(); }
-
-    virtual void printName(std::ostream &os) {
-        os << "DelayedSearcher using "; m_baseSearcher->printName(os);
-    }
-
-    virtual void activate() { m_baseSearcher->activate(); }
-    virtual void deactivate() { m_baseSearcher->deactivate(); }
-
-    virtual ExecutionState &selectState() {
-        if(m_currentState != NULL &&
-                get_clock() - m_currentStateTime < m_minStateTime) {
-            return *m_currentState;
-        } else {
-            ExecutionState& state = m_baseSearcher->selectState();
-            if(&state != m_currentState) {
-                m_currentState = &state;
-                m_currentStateTime = get_clock();
-            }
-            return state;
-        }
-    }
-};
-
-
 
 /* External dispatcher to convert QEMU longjmp's into C++ exceptions */
 class S2EExternalDispatcher: public klee::ExternalDispatcher
@@ -482,12 +429,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     assert(traceFunction);
     addSpecialFunctionHandler(traceFunction, handlerTraceMemoryAccess);
 
-    searcher = new RandomSearcher();
-    searcher = new DelayedSearcher(searcher, 1000000000LL);
-
-    //searcher = new RandomPathSearcher(*this);
-
-//    searcher = new DFSSearcher();
+    searcher = constructUserSearcher(*this);
 
     //setAllExternalWarnings(true);
 }
