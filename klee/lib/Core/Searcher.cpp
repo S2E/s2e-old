@@ -479,10 +479,13 @@ ExecutionState &BatchingSearcher::selectState() {
         timeBudget = delta;
       }
     }
-    lastState = &baseSearcher->selectState();
-    lastStartTime = util::getWallTime();
-    lastStartInstructions = stats::instructions;
-    return *lastState;
+    ExecutionState* newState = &baseSearcher->selectState();
+    if(newState != lastState) {
+        lastState = newState;
+        lastStartTime = util::getWallTime();
+        lastStartInstructions = stats::instructions;
+    }
+    return *newState;
   } else {
     return *lastState;
   }

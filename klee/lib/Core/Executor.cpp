@@ -23,7 +23,7 @@
 #include "SpecialFunctionHandler.h"
 #include "klee/StatsTracker.h"
 #include "TimingSolver.h"
-#include "UserSearcher.h"
+#include "klee/UserSearcher.h"
 #include "../Solver/SolverStats.h"
 
 #include "klee/ExecutionState.h"

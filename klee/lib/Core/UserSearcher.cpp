@@ -9,7 +9,7 @@
 
 #include "klee/Common.h"
 
-#include "UserSearcher.h"
+#include "klee/UserSearcher.h"
 
 #include "klee/Searcher.h"
 #include "klee/Executor.h"
@@ -21,7 +21,7 @@ using namespace klee;
 
 namespace {
   cl::opt<bool>
-  UseRandomSearch("use-random-search");
+  UseDfsSearch("use-dfs-search");
 
   cl::opt<bool>
   UseInterleavedRS("use-interleaved-RS");
@@ -84,7 +84,7 @@ namespace {
   cl::opt<double>
   BatchTime("batch-time",
             cl::desc("Amount of time to batch when using --use-batching-search"),
-            cl::init(5.0));
+            cl::init(1.0));
 }
 
 bool klee::userSearcherRequiresMD2U() {
@@ -109,10 +109,10 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
     searcher = new RandomPathSearcher(executor);
   } else if (UseNonUniformRandomSearch) {
     searcher = new WeightedRandomSearcher(executor, WeightType);
-  } else if (UseRandomSearch) {
-    searcher = new RandomSearcher();
-  } else {
+  } else if (UseDfsSearch) {
     searcher = new DFSSearcher();
+  } else {
+    searcher = new RandomSearcher();
   }
 
   if (UseInterleavedNURS || UseInterleavedMD2UNURS || UseInterleavedRS ||

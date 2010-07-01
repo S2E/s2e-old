@@ -23,7 +23,7 @@
 #include "CoreStats.h"
 #include "klee/Executor.h"
 #include "MemoryManager.h"
-#include "UserSearcher.h"
+#include "klee/UserSearcher.h"
 #include "../Solver/SolverStats.h"
 
 #include "llvm/BasicBlock.h"
