@@ -72,7 +72,7 @@ uintptr_t PageAllocator::allocPage()
         }
 
 #ifdef DEBUG_ALLOC
-        std::cout << "Allocating new region " << std::hex << region << std::endl;
+        std::cout << "Allocating new region " << std::hex << region << std::dec << std::endl;
 #endif
 
         m_regions[region] = ((uint64_t)-1) & ~1LL;
@@ -89,7 +89,7 @@ uintptr_t PageAllocator::allocPage()
     if ((*it).second == 0) {
 
 #ifdef DEBUG_ALLOC
-        std::cout << "Region " << std::hex << reg << " is full" << std::endl;
+        std::cout << "Region " << std::hex << reg << " is full" << std::dec << std::endl;
 #endif
 
         m_busyRegions.insert(reg);
@@ -106,7 +106,7 @@ void PageAllocator::freePage(uintptr_t page)
     if (it == m_regions.end()) {
 #ifdef DEBUG_ALLOC
         std::cout << "busy size " << std::dec << m_busyRegions.size() << std::endl;
-        std::cout << "freeing " << std::hex << page << std::endl;
+        std::cout << "freeing " << std::hex << page << std::dec << std::endl;
 #endif
 
         RegionSet::iterator itr = m_busyRegions.find(page);
@@ -125,7 +125,7 @@ void PageAllocator::freePage(uintptr_t page)
     (*it).second |= 1LL << index;
     if ((*it).second == (uint64_t)-1) {
 #ifdef DEBUG_ALLOC
-        std::cout << "Freeing empty region " << std::hex << (*it).first << std::endl;
+        std::cout << "Freeing empty region " << std::hex << (*it).first << std::dec << std::endl;
 #endif
 
         osFree((*it).first);
@@ -315,7 +315,7 @@ BlockAllocator *SlabAllocator::getSlab(uintptr_t addr) const
 
     uint8_t m = hdr->signature & 0xFF;
     if (!(m <= m_maxPo2 && m >= m_minPo2)) {
-        std::cerr << std::hex << "invalid signature " << hdr->signature << std::endl;
+        std::cerr << std::hex << "invalid signature " << hdr->signature << std::dec << std::endl;
         assert(false);
     }
 
@@ -357,7 +357,7 @@ bool SlabAllocator::free(uintptr_t addr)
 {
     BlockAllocator *b = getSlab(addr);
     if (!b) {
-        //std::cerr << "Invalid addr " << std::hex << addr <<std::endl;
+        //std::cerr << "Invalid addr " << std::hex << addr << std::dec << std::endl;
         return false;
     }
     assert(m_pa->belongsToUs(addr));
@@ -468,7 +468,7 @@ void testPageAllocator()
     uintptr_t p = 0;
     do {
         p = a.allocPage();
-        //std::cout << "Page 0x" << std::hex << p << std::endl;
+        //std::cout << "Page 0x" << std::hex << p << std::dec << std::endl;
         ++count;
         if (p) {
             allocated.insert(p);
@@ -496,7 +496,7 @@ void testBlockAllocator(unsigned blockSizePo2)
 
     do {
         p = ba.alloc();
-        //std::cout << "Block 0x" << std::hex << p << std::endl;
+        //std::cout << "Block 0x" << std::hex << p << std::dec << std::endl;
         ++count;
 
 
@@ -535,8 +535,8 @@ void test()
     uint8_t *v1 = new uint8_t;
     uint64_t *v2 = new uint64_t;
 
-    std::cout << "Allocated v1=" << std::hex << (uintptr_t)v1 << std::endl;
-    std::cout << "Allocated v2=" << std::hex << (uintptr_t)v2 << std::endl;
+    std::cout << "Allocated v1=" << std::hex << (uintptr_t)v1 << std::dec << std::endl;
+    std::cout << "Allocated v2=" << std::hex << (uintptr_t)v2 << std::dec << std::endl;
 }
 
 int main(int argc, char **argv)

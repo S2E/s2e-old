@@ -201,6 +201,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                     }else {
                         s2e()->getMessagesStream() << res << std::endl;
                     }
+                    s2e()->getMessagesStream() << std::dec << std::setw(0);
                 }
 
                 break;
@@ -242,7 +243,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode)
 {
-    s2e()->getDebugStream() << "Custom instruction 0x" << std::hex <<   opcode << std::endl;
+    s2e()->getDebugStream() << "Custom instruction 0x" << std::hex <<   opcode << std::dec << std::endl;
 
     switch(opcode & 0xFF) {
         case 0x00:
@@ -250,7 +251,7 @@ void BaseInstructions::onCustomInstruction(S2EExecutionState* state,
             break;
         default:
             s2e()->getWarningsStream() << "Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" <<
-                state->getPc() << std::endl;
+                state->getPc() << std::dec << std::endl;
     }
 }
 

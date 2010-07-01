@@ -296,7 +296,7 @@ bool WindowsMonitor::isTaskSwitch(S2EExecutionState *state, uint64_t pc)
     return true;
 
 failure:
-    //s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::endl;
+    //s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::dec << std::endl;
     return false;
 }
 

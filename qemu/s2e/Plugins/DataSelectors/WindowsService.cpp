@@ -87,17 +87,17 @@ void WindowsService::onTranslateBlockStart(ExecutionSignal *signal,
         return;
     }
 
-    s2e()->getWarningsStream() << "Found ServiceMain at 0x" << std::hex << (*eit).second << std::endl;
+    s2e()->getWarningsStream() << "Found ServiceMain at 0x" << std::hex << (*eit).second << std::dec << std::endl;
 
     //XXX: cache the export table for reuse.
     if (pc != (*eit).second) {
         s2e()->getMessagesStream() << 
-            std::hex << "ServiceMain " << pc << " " << (*eit).second << std::endl;
+            std::hex << "ServiceMain " << pc << " " << (*eit).second << std::dec << std::endl;
         return;
     }
 
     s2e()->getMessagesStream() << 
-            std::hex << "Found ServiceMain for "<< *moduleId << " "  << pc << " " << (*eit).second << std::endl;
+            std::hex << "Found ServiceMain for "<< *moduleId << " "  << pc << " " << (*eit).second << std::dec << std::endl;
 
     
     signal->connect(
@@ -122,7 +122,7 @@ void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc)
     SREAD(state, state->getSp()+2*sizeof(uint32_t), paramsArray);
     
     s2e()->getMessagesStream() << "WindowsService paramCount="  <<
-        paramCount << " - " << std::hex << paramsArray << "esp=" << state->getSp() <<std::endl;
+        paramCount << " - " << std::hex << paramsArray << "esp=" << state->getSp() << std::dec << std::endl;
 
     for(unsigned i=0; i<paramCount; i++) {
         uint32_t paramPtr;

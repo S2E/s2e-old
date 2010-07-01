@@ -194,7 +194,7 @@ void ExecutionTrace::onTranslateInstructionStart(
         }
         m_DetectedModule = true;
     }
-    //s2e()->getDebugStream() << "Translating "<< std::hex << pc << std::endl;
+    //s2e()->getDebugStream() << "Translating "<< std::hex << pc << std::dec << std::endl;
 
     signal->connect(
         sigc::mem_fun(*this, &ExecutionTrace::onTraceInstruction)
@@ -204,7 +204,7 @@ void ExecutionTrace::onTranslateInstructionStart(
 
 void ExecutionTrace::onTraceInstruction(S2EExecutionState* state, uint64_t pc)
 {
-    //s2e()->getDebugStream() << "Executing "<< std::hex << pc << std::endl;
+    //s2e()->getDebugStream() << "Executing "<< std::hex << pc << std::dec << std::endl;
     ++m_TotalExecutedInstrCount;
 }
 

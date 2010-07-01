@@ -90,7 +90,7 @@ struct ModuleDescriptor
   void Print(std::ostream &os) const {
     std::cout << "Name=" << Name << std::hex <<
       " NativeBase=0x" << NativeBase << " LoadBase=0x" << LoadBase <<
-      " Size=0x" << Size << std::endl;
+      " Size=0x" << Size << std::dec << std::endl;
   };
 
 

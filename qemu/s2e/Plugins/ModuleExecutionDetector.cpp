@@ -148,7 +148,7 @@ void ModuleExecutionDetector::moduleLoadListener(
     //activate.
     s2e()->getDebugStream() << "ModuleExecutionDetector: " <<
             "Module " << std::left << std::setw(20) << module.Name << " loaded - " <<
-            "Base=0x" << std::hex << module.LoadBase << " Size=0x" << module.Size;
+            "Base=0x" << std::hex << module.LoadBase << " Size=0x" << module.Size << std::dec;
 
     if (m_TrackAllModules) {
         s2e()->getDebugStream() << " [REGISTERING]" << std::endl;
@@ -187,7 +187,7 @@ void ModuleExecutionDetector::processUnloadListener(
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
 
-    s2e()->getDebugStream() << "Process 0x" << std::hex << pid << " is unloaded" << std::endl;
+    s2e()->getDebugStream() << "Process 0x" << std::hex << pid << " is unloaded" << std::dec << std::endl;
 
     plgState->unloadDescriptorsWithPid(pid);
 }

@@ -147,7 +147,7 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const RuleCfg
     SREAD(state, state->getSp()+2*sizeof(uint32_t), paramsArray);
     
     s2e()->getMessagesStream() << "main paramCount="  <<
-        paramCount << " - " << std::hex << paramsArray << "esp=" << state->getSp() <<std::endl;
+        paramCount << " - " << std::hex << paramsArray << "esp=" << state->getSp() << std::dec << std::endl;
 
     for(unsigned i=0; i<paramCount; i++) {
         uint32_t paramPtr;
@@ -194,7 +194,7 @@ void GenericDataSelector::injectRsaGenKey(S2EExecutionState *state)
 
     s2e()->getMessagesStream() << "Caught RSA_generate_key" << std::endl <<
         "origKeySize=" << origKeySize << " origExponent=" << origExponent <<
-        " origCallBack=" << std::hex << origCallBack << std::endl;
+        " origCallBack=" << std::hex << origCallBack << std::dec << std::endl;
 
     //Now we replace the arguments with properly constrained symbolic values
     klee::ref<klee::Expr> newKeySize = getUpperBound(state, 2048, klee::Expr::Int32);
