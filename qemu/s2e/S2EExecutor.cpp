@@ -1607,7 +1607,7 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            struct TranslationBlock* tb)
 {
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
-            << " pc=0x" << std::hex << state->getPc()
+            << " pc=0x" << std::hex << state->getPc() << std::dec
             << std::endl;   */
     try {
         return s2e->getExecutor()->executeTranslationBlock(state, tb);

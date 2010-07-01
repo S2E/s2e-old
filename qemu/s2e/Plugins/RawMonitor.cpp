@@ -93,7 +93,7 @@ void RawMonitor::onTranslateInstructionStart(ExecutionSignal *signal,
         md.Size = c.size;
 
         s2e()->getDebugStream() << "RawMonitor loaded " << c.name << " " <<
-                std::hex << "0x" << c.start << " 0x" << c.size << std::endl;
+                std::hex << "0x" << c.start << " 0x" << c.size << std::dec << std::endl;
         onModuleLoad.emit(state, md);
     }
 
