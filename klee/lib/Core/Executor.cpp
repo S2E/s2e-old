@@ -2472,7 +2472,8 @@ void Executor::terminateState(ExecutionState &state) {
 
   std::set<ExecutionState*>::iterator it = addedStates.find(&state);
   if (it==addedStates.end()) {
-    state.pc = state.prevPC;
+    // XXX: the following line makes delayed state termination impossible
+    //state.pc = state.prevPC;
 
     removedStates.insert(&state);
   } else {
