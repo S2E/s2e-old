@@ -2436,7 +2436,7 @@ std::string Executor::getAddressInfo(ExecutionState &state,
     mo->getAllocInfo(alloc_info);
     info << "object at 0x" << std::hex << mo->address
          << " of size 0x" << mo->size << std::dec << "\n"
-         << "\t\t" << alloc_info << "\n";
+         << "\t\t" << alloc_info << std::dec << "\n";
   }
   if (lower!=state.addressSpace.objects.begin()) {
     --lower;
@@ -2449,7 +2449,7 @@ std::string Executor::getAddressInfo(ExecutionState &state,
       mo->getAllocInfo(alloc_info);
       info << "object at 0x" << std::hex << mo->address
            << " of size 0x" << mo->size << std::dec << "\n"
-           << "\t\t" << alloc_info << "\n";
+           << "\t\t" << alloc_info << std::dec << "\n";
     }
   }
 
