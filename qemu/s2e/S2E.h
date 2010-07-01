@@ -63,6 +63,7 @@ protected:
     S2EExecutor* m_s2eExecutor;
 
     void initOutputDirectory(const std::string& outputDirectory);
+    void initKleeOptions();
     void initExecutor();
     void initPlugins();
 

@@ -17,7 +17,7 @@
 #include <llvm/ModuleProvider.h>
 #include <llvm/Module.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
-
+#include <llvm/Support/CommandLine.h>
 
 #include <klee/Interpreter.h>
 #include <klee/Common.h>
@@ -78,6 +78,9 @@ S2E::S2E(TCGLLVMContext *tcgLLVMContext,
 
     /* Parse configuration file */
     m_configFile = new s2e::ConfigFile(configFileName);
+
+    /* Initialize KLEE command line options */
+    initKleeOptions();
 
     /* Initialize S2EExecutor */
     initExecutor();
@@ -231,6 +234,25 @@ void S2E::initOutputDirectory(const string& outputDirectory)
 
     klee::klee_message_stream = m_messagesFile;
     klee::klee_warning_stream = m_warningsFile;
+}
+
+void S2E::initKleeOptions()
+{
+    std::vector<std::string> kleeOptions = getConfig()->getStringList("s2e.kleeArgs");
+    if(!kleeOptions.empty()) {
+        int numArgs = kleeOptions.size() + 1;
+        const char **kleeArgv = new const char*[numArgs + 1];
+
+        kleeArgv[0] = "s2e.kleeArgs";
+        kleeArgv[numArgs] = 0;
+
+        for(int i = 0; i < kleeOptions.size(); ++i)
+            kleeArgv[i+1] = kleeOptions[i].c_str();
+
+        llvm::cl::ParseCommandLineOptions(numArgs, (char**) kleeArgv);
+
+        delete[] kleeArgv;
+    }
 }
 
 void S2E::initPlugins()
