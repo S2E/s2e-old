@@ -1056,7 +1056,10 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
     try {
         executeInstruction(*state, ki);
     } catch(CpuExitException&) {
-        assert(addedStates.empty() && removedStates.empty());
+        // Instruction that forks should never be interrupted
+        // (and, consequently, restarted)
+        assert(addedStates.empty());
+
         shouldExitCpu = true;
     }
 
@@ -1239,7 +1242,7 @@ static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
 {
     TranslationBlock *tb1 = tb->s2e_tb_next[n];
     if(tb1) {
-        if(depth > 16 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
+        if(depth > 1 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
             s2e_tb_reset_jump(tb, n);
         } else if(tb1 != tb) {
             s2e_tb_reset_jump_smask(tb1, 0, smask, depth + 1);
