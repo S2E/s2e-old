@@ -316,7 +316,7 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
     const S2EExecutionState* s = static_cast<const S2EExecutionState*>(&state);
     m_s2e->getWarningsStream(s)
            << "Terminating state '" << s->getID()
-           << "with error message '" << (err ? err : "") << "'" << std::endl;
+           << "' with error message '" << (err ? err : "") << "'" << std::endl;
 
     s2e::plugins::TestCaseGenerator *tc =
             dynamic_cast<s2e::plugins::TestCaseGenerator*>(m_s2e->getPlugin("TestCaseGenerator"));
