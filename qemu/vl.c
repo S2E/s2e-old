@@ -5769,7 +5769,8 @@ int main(int argc, char **argv, char **envp)
       fprintf(stderr, "Warning: S2E configuration file was not specified, "
                         "using the default (empty) file\n");
     }
-    g_s2e = s2e_initialize(tcg_llvm_ctx, s2e_config_file, s2e_output_dir);
+    g_s2e = s2e_initialize(argc, argv, tcg_llvm_ctx,
+                           s2e_config_file, s2e_output_dir);
     g_s2e_state = s2e_create_initial_state(g_s2e);
 #endif
 

@@ -41,7 +41,8 @@ extern struct S2EExecutionState* g_s2e_state;
 /* Functions from S2E.cpp */
 
 /** Initialize S2E instance. Called by main() */
-struct S2E* s2e_initialize(struct TCGLLVMContext *tcgLLVMContext,
+struct S2E* s2e_initialize(int argc, char** argv,
+                           struct TCGLLVMContext *tcgLLVMContext,
                            const char *s2e_config_file,
                            const char *s2e_output_dir);
 

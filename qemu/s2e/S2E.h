@@ -72,9 +72,10 @@ protected:
 
 public:
     /** Construct S2E */
-    explicit S2E(TCGLLVMContext* tcgLLVMContext,
-        const std::string& configFileName,
-        const std::string& outputDirectory);
+    explicit S2E(int argc, char** argv,
+                 TCGLLVMContext* tcgLLVMContext,
+                 const std::string& configFileName,
+                 const std::string& outputDirectory);
     ~S2E();
 
     /*****************************/

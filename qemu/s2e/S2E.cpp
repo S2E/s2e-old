@@ -65,13 +65,34 @@ public:
     }
 };
 
-S2E::S2E(TCGLLVMContext *tcgLLVMContext,
+S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     const std::string &configFileName, const std::string &outputDirectory)
         : m_tcgLLVMContext(tcgLLVMContext)
 {
     /* Open output directory. Do it at the very begining so that
        other init* functions can use it. */
     initOutputDirectory(outputDirectory);
+
+    /* Copy the config file into the output directory */
+    {
+        ostream *out = openOutputFile("s2e.config.lua");
+        ifstream in(configFileName.c_str());
+        if(in.good()) {
+            (*out) << in.rdbuf();
+        }
+        delete out;
+    }
+
+    /* Save command line arguments */
+    {
+        ostream *out = openOutputFile("s2e.cmdline");
+        for(int i = 0; i < argc; ++i) {
+            if(i != 0)
+                (*out) << " ";
+            (*out) << "'" << argv[i] << "'";
+        }
+        delete out;
+    }
 
     /* Init the data base */
     m_database = new s2e::Database(m_outputDirectory + "/s2e.db");
@@ -359,10 +380,11 @@ extern "C" {
 
 S2E* g_s2e = NULL;
 
-S2E* s2e_initialize(TCGLLVMContext* tcgLLVMContext,
+S2E* s2e_initialize(int argc, char** argv,
+            TCGLLVMContext* tcgLLVMContext,
             const char* s2e_config_file,  const char* s2e_output_dir)
 {
-    return new S2E(tcgLLVMContext,
+    return new S2E(argc, argv, tcgLLVMContext,
                    s2e_config_file ? s2e_config_file : "",
                    s2e_output_dir  ? s2e_output_dir  : "");
 }
