@@ -472,6 +472,7 @@ ExecutionState &BatchingSearcher::selectState() {
   if (!lastState || 
       (util::getWallTime()-lastStartTime)>timeBudget ||
       (stats::instructions-lastStartInstructions)>instructionBudget) {
+    /*
     if (lastState) {
       double delta = util::getWallTime()-lastStartTime;
       if (delta>timeBudget*1.1) {
@@ -479,6 +480,7 @@ ExecutionState &BatchingSearcher::selectState() {
         timeBudget = delta;
       }
     }
+    */
     ExecutionState* newState = &baseSearcher->selectState();
     if(newState != lastState) {
         lastState = newState;
