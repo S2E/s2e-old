@@ -69,6 +69,17 @@
 #define ADDR_READ addr_read
 #endif
 
+#if defined(CONFIG_S2E) && defined(_raw) && !defined(S2E_LLVM_LIB)
+#define S2E_TRACE_MEMORY(addr, value, isWrite, isIO) \
+        s2e_trace_memory_access(g_s2e, g_s2e_state, addr, \
+                            (uint8_t*) &value, sizeof(value), isWrite, isIO);
+#elif defined(S2E_LLVM_LIB)
+#define S2E_TRACE_MEMORY(addr, value, isWrite, isIO) \
+    tcg_llvm_trace_memory_access(addr, value, 8*sizeof(value), isWrite, isIO);
+#else
+#define S2E_TRACE_MEMORY(...)
+#endif
+
 /* generic load/store macros */
 
 static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
@@ -88,6 +99,9 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
         res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
+
+        S2E_TRACE_MEMORY(addr, res, 0, 0);
+
     }
     return res;
 }
@@ -109,6 +123,8 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
         res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
+
+        S2E_TRACE_MEMORY(addr, res, 0, 0);
     }
     return res;
 }
@@ -134,6 +150,8 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
         glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
+
+        S2E_TRACE_MEMORY(addr, v, 1, 0);
     }
 }
 
