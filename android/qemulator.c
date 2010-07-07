@@ -15,7 +15,7 @@
 #include "android/utils/bufprint.h"
 #include "android/globals.h"
 #include "android/qemulator.h"
-#include "android/ui_core_protocol.h"
+#include "android/ui-core-protocol.h"
 
 #define  D(...)  do {  if (VERBOSE_CHECK(init)) dprint(__VA_ARGS__); } while (0)
 static double get_default_scale( AndroidOptions*  opts );

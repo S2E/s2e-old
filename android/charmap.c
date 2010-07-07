@@ -733,3 +733,90 @@ android_charmap_done(void) {
       qemu_free(android_charmaps);
   }
 }
+
+const AKeyCharmap*
+android_get_charmap_by_name(const char* name) {
+    int nn;
+
+    if (name != NULL) {
+        // Find charmap by its name in the array of available charmaps.
+        for (nn = 0; nn < android_charmap_count; nn++) {
+            if (!strcmp(android_charmaps[nn]->name, name)) {
+                return android_charmaps[nn];
+            }
+        }
+    }
+    return NULL;
+}
+
+const AKeyCharmap*
+android_get_charmap_by_index(unsigned int index) {
+    return index < android_charmap_count ? android_charmaps[index] : NULL;
+}
+
+int
+android_charmap_reverse_map_unicode(const AKeyCharmap* cmap,
+                                    unsigned int unicode,
+                                    int  down,
+                                    AKeycodeBuffer* keycodes)
+{
+    int                 n;
+
+    if (unicode == 0)
+        return 0;
+
+    /* check base keys */
+    for (n = 0; n < cmap->num_entries; n++) {
+        if (cmap->entries[n].base == unicode) {
+            android_keycodes_add_key_event(keycodes, cmap->entries[n].code, down);
+            return 1;
+        }
+    }
+
+    /* check caps + keys */
+    for (n = 0; n < cmap->num_entries; n++) {
+        if (cmap->entries[n].caps == unicode) {
+            if (down) {
+                android_keycodes_add_key_event(keycodes, kKeyCodeCapLeft, down);
+            }
+            android_keycodes_add_key_event(keycodes, cmap->entries[n].code, down);
+            if (!down) {
+                android_keycodes_add_key_event(keycodes, kKeyCodeCapLeft, down);
+            }
+            return 2;
+        }
+    }
+
+    /* check fn + keys */
+    for (n = 0; n < cmap->num_entries; n++) {
+        if (cmap->entries[n].fn == unicode) {
+            if (down) {
+                android_keycodes_add_key_event(keycodes, kKeyCodeAltLeft, down);
+            }
+            android_keycodes_add_key_event(keycodes, cmap->entries[n].code, down);
+            if (!down) {
+                android_keycodes_add_key_event(keycodes, kKeyCodeAltLeft, down);
+            }
+            return 2;
+        }
+    }
+
+    /* check caps + fn + keys */
+    for (n = 0; n < cmap->num_entries; n++) {
+        if (cmap->entries[n].caps_fn == unicode) {
+            if (down) {
+                android_keycodes_add_key_event(keycodes, kKeyCodeAltLeft, down);
+                android_keycodes_add_key_event(keycodes, kKeyCodeCapLeft, down);
+            }
+            android_keycodes_add_key_event(keycodes, cmap->entries[n].code, down);
+            if (!down) {
+                android_keycodes_add_key_event(keycodes, kKeyCodeCapLeft, down);
+                android_keycodes_add_key_event(keycodes, kKeyCodeAltLeft, down);
+            }
+            return 3;
+        }
+    }
+
+    /* no match */
+    return 0;
+}

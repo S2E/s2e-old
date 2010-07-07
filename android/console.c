@@ -46,8 +46,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "android/hw-events.h"
-#include "android/skin/keyboard.h"
 #include "user-events.h"
+#include "android/keycode-array.h"
+#include "android/charmap.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
@@ -701,7 +702,7 @@ do_network_speed( ControlClient  client, char*  args )
     netshaper_set_rate( slirp_shaper_out, qemu_net_upload_speed );
 
     if (android_modem) {
-        amodem_set_data_network_type( android_modem, 
+        amodem_set_data_network_type( android_modem,
                                     android_parse_network_type( args ) );
     }
     return 0;
@@ -1793,20 +1794,25 @@ utf8_next( unsigned char* *pp, unsigned char*  end )
 static int
 do_event_text( ControlClient  client, char*  args )
 {
-    SkinKeyboard*   keyboard;
+    AKeycodeBuffer keycodes;
     unsigned char*  p   = (unsigned char*) args;
     unsigned char*  end = p + strlen(args);
     int             textlen;
+    const AKeyCharmap* charmap;
 
     if (!args) {
         control_write( client, "KO: argument missing, try 'event text <message>'\r\n" );
         return -1;
     }
-    keyboard = android_emulator_get_keyboard();
-    if (keyboard == NULL) {
-        control_write( client, "KO: no keyboard active in current device layout/config\r\n" );
+
+    /* Get default charmap. */
+    charmap = android_get_charmap_by_index(0);
+    if (charmap == NULL) {
+        control_write( client, "KO: no character map active in current device layout/config\r\n" );
         return -1;
     }
+
+    keycodes.keycode_count = 0;
 
     /* un-secape message text into proper utf-8 (conversion happens in-site) */
     textlen = strlen((char*)p);
@@ -1828,9 +1834,9 @@ do_event_text( ControlClient  client, char*  args )
         if (c <= 0)
             break;
 
-        skin_keyboard_process_unicode_event( keyboard, (unsigned)c, 1 );
-        skin_keyboard_process_unicode_event( keyboard, (unsigned)c, 0 );
-        skin_keyboard_flush( keyboard );
+        android_charmap_reverse_map_unicode( NULL, (unsigned)c, 1, &keycodes );
+        android_charmap_reverse_map_unicode( NULL, (unsigned)c, 0, &keycodes );
+        android_keycodes_flush( &keycodes );
     }
 
     return 0;

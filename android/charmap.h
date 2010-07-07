@@ -13,6 +13,7 @@
 #define _android_charmap_h
 
 #include "android/keycode.h"
+#include "android/keycode-array.h"
 
 /* this defines a structure used to describe an Android keyboard charmap */
 typedef struct AKeyEntry {
@@ -32,12 +33,6 @@ typedef struct AKeyCharmap {
     int               num_entries;
     char              name[ AKEYCHARMAP_NAME_SIZE ];
 } AKeyCharmap;
-
-/* Array of charmaps available in the current emulator session. */
-extern const AKeyCharmap**  android_charmaps;
-
-/* Number of entries in android_charmaps array. */
-extern int                  android_charmap_count;
 
 /* Extracts charmap name from .kcm file name.
  * Charmap name, extracted by this routine is a name of the kcm file, trimmed
@@ -71,5 +66,28 @@ int android_charmap_setup(const char* kcm_file_path);
 
 /* Cleanups initialization performed in android_charmap_setup routine. */
 void android_charmap_done(void);
+
+/* Gets charmap descriptor by its name.
+ * This routine finds and returns pointer to a descriptor in the array of
+ * charmaps that matches given name. If no such descriptor has been found, this
+ * routine returns NULL.
+ */
+const AKeyCharmap* android_get_charmap_by_name(const char* name);
+
+/* Gets charmap descriptor by its index in the array of charmaps.
+ * If index is greater than charmap array size, this routine returns NULL.
+ */
+const AKeyCharmap* android_get_charmap_by_index(unsigned int index);
+
+/* Maps given unicode key character into a keycode and adds mapped keycode into
+ * keycode array. This routine uses charmap passed as cmap parameter to do the
+ * translation, and 'down' parameter to generate appropriate ('down' or 'up')
+ * keycode.
+ */
+int
+android_charmap_reverse_map_unicode(const AKeyCharmap* cmap,
+                                    unsigned int unicode,
+                                    int  down,
+                                    AKeycodeBuffer* keycodes);
 
 #endif /* _android_charmap_h */

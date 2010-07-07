@@ -20,7 +20,7 @@
  */
 
 #include "android/globals.h"
-#include "android/ui_core_protocol.h"
+#include "android/ui-core-protocol.h"
 
 int
 android_core_get_hw_lcd_density(void)

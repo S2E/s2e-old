@@ -14,7 +14,8 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/system.h"
 #include "android/android.h"
-#include "user-events.h"
+#include "android/keycode-array.h"
+#include "android/charmap.h"
 
 #define  DEBUG  1
 
@@ -37,7 +38,6 @@ typedef struct {
 } LastKey;
 
 #define  MAX_LAST_KEYS  16
-#define  MAX_KEYCODES   256*2
 
 struct SkinKeyboard {
     const AKeyCharmap*  charmap;
@@ -45,7 +45,6 @@ struct SkinKeyboard {
     char                enabled;
     char                raw_keys;
     char                last_count;
-    int                 keycode_count;
 
     SkinRotation        rotation;
 
@@ -55,7 +54,8 @@ struct SkinKeyboard {
     void*               press_opaque;
 
     LastKey             last_keys[ MAX_LAST_KEYS ];
-    int                 keycodes[ MAX_KEYCODES ];
+
+    AKeycodeBuffer      keycodes;
 };
 
 
@@ -106,29 +106,14 @@ skin_keyboard_add_key_event( SkinKeyboard*  kb,
                              unsigned       code,
                              unsigned       down )
 {
-    if (code != 0 && kb->keycode_count < MAX_KEYCODES) {
-        //dprint("add keycode %d, down %d\n", code % 0x1ff, down );
-        kb->keycodes[(int)kb->keycode_count++] = ( (code & 0x1ff) | (down ? 0x200 : 0) );
-    }
+    android_keycodes_add_key_event(&kb->keycodes, code, down);
 }
 
 
 void
 skin_keyboard_flush( SkinKeyboard*  kb )
 {
-    if (kb->keycode_count > 0) {
-        if (VERBOSE_CHECK(keys)) {
-            int  nn;
-            printf(">> KEY" );
-            for (nn = 0; nn < kb->keycode_count; nn++) {
-                int  code = kb->keycodes[nn];
-                printf(" [0x%03x,%s]", (code & 0x1ff), (code & 0x200) ? "down" : " up " );
-            }
-            printf( "\n" );
-        }
-        user_event_keycodes(kb->keycodes, kb->keycode_count);
-        kb->keycode_count = 0;
-    }
+    android_keycodes_flush(&kb->keycodes);
 }
 
 
@@ -428,62 +413,8 @@ skin_keyboard_do_key_event( SkinKeyboard*   kb,
 int
 skin_keyboard_process_unicode_event( SkinKeyboard*  kb,  unsigned int  unicode, int  down )
 {
-    const AKeyCharmap*  cmap = kb->charmap;
-    int                 n;
-
-    if (unicode == 0)
-        return 0;
-
-    /* check base keys */
-    for (n = 0; n < cmap->num_entries; n++) {
-        if (cmap->entries[n].base == unicode) {
-            skin_keyboard_add_key_event(kb, cmap->entries[n].code, down);
-            return 1;
-        }
-    }
-
-    /* check caps + keys */
-    for (n = 0; n < cmap->num_entries; n++) {
-        if (cmap->entries[n].caps == unicode) {
-            if (down)
-                skin_keyboard_add_key_event(kb, kKeyCodeCapLeft, down);
-            skin_keyboard_add_key_event(kb, cmap->entries[n].code, down);
-            if (!down)
-                skin_keyboard_add_key_event(kb, kKeyCodeCapLeft, down);
-            return 2;
-        }
-    }
-
-    /* check fn + keys */
-    for (n = 0; n < cmap->num_entries; n++) {
-        if (cmap->entries[n].fn == unicode) {
-            if (down)
-                skin_keyboard_add_key_event(kb, kKeyCodeAltLeft, down);
-            skin_keyboard_add_key_event(kb, cmap->entries[n].code, down);
-            if (!down)
-                skin_keyboard_add_key_event(kb, kKeyCodeAltLeft, down);
-            return 2;
-        }
-    }
-
-    /* check caps + fn + keys */
-    for (n = 0; n < cmap->num_entries; n++) {
-        if (cmap->entries[n].caps_fn == unicode) {
-            if (down) {
-                skin_keyboard_add_key_event(kb, kKeyCodeAltLeft, down);
-                skin_keyboard_add_key_event(kb, kKeyCodeCapLeft, down);
-            }
-            skin_keyboard_add_key_event(kb, cmap->entries[n].code, down);
-            if (!down) {
-                skin_keyboard_add_key_event(kb, kKeyCodeCapLeft, down);
-                skin_keyboard_add_key_event(kb, kKeyCodeAltLeft, down);
-            }
-            return 3;
-        }
-    }
-
-    /* no match */
-    return 0;
+    return android_charmap_reverse_map_unicode(kb->charmap, unicode, down,
+                                               &kb->keycodes);
 }
 
 
@@ -584,23 +515,15 @@ skin_keyboard_create_from_charmap_name(const char*  charmap_name,
                                        int  use_raw_keys)
 {
     SkinKeyboard*  kb;
-    int  nn;
 
     ANEW0(kb);
 
-    // Find charmap by its name in the array of available charmaps.
-    for (nn = 0; nn < android_charmap_count; nn++) {
-        if (!strcmp(android_charmaps[nn]->name, charmap_name)) {
-            kb->charmap = android_charmaps[nn];
-            break;
-        }
-    }
-
+    kb->charmap = android_get_charmap_by_name(charmap_name);
     if (!kb->charmap) {
         // Charmap name was not found. Default to the first charmap in the array.
+        kb->charmap = android_get_charmap_by_index(0);
         fprintf(stderr, "### warning, skin requires unknown '%s' charmap, reverting to '%s'\n",
-                charmap_name, android_charmaps[0]->name );
-        kb->charmap = android_charmaps[0];
+                charmap_name, kb->charmap->name );
     }
     kb->raw_keys = use_raw_keys;
     kb->enabled  = 0;
