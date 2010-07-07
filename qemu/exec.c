@@ -2115,6 +2115,14 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     return ret;
 }
 
+void* s2e_get_ram_ptr(target_phys_addr_t paddr)
+{
+    PhysPageDesc *p = phys_page_find(paddr >> TARGET_PAGE_BITS);
+    if(!p)
+        return NULL;
+    return qemu_get_ram_ptr(p->phys_offset & TARGET_PAGE_MASK);
+}
+
 #else
 
 void tlb_flush(CPUState *env, int flush_global)
