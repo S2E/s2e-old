@@ -341,7 +341,7 @@ ref<Expr> S2EExecutionState::readMemory(uint64_t address,
     assert(width == 1 || (width & 7) == 0);
     uint64_t size = width / 8;
 
-    uint64_t pageOffset = address & ~TARGET_PAGE_SIZE;
+    uint64_t pageOffset = address & ~TARGET_PAGE_MASK;
     if(pageOffset + size <= TARGET_PAGE_SIZE) {
         /* Fast path: read belongs to one physical page */
         uint64_t hostAddress = getHostAddress(address, addressType);
@@ -463,7 +463,7 @@ bool S2EExecutionState::writeMemory(uint64_t address,
     assert((width & ~7) == 0);
     uint64_t size = width / 8;
 
-    uint64_t pageOffset = address & ~TARGET_PAGE_SIZE;
+    uint64_t pageOffset = address & ~TARGET_PAGE_MASK;
     if(pageOffset + size <= TARGET_PAGE_SIZE) {
         /* Fast path: write belongs to one physical page */
 
