@@ -73,6 +73,7 @@ protected:
 
     void onDataMemoryAccess(S2EExecutionState* state,
                         klee::ref<klee::Expr> address,
+                        klee::ref<klee::Expr> hostAddress,
                         klee::ref<klee::Expr> value,
                         bool isWrite, bool isIO);
 
@@ -82,7 +83,7 @@ protected:
                         uint64_t);
 
     void onExecuteBlockStart(S2EExecutionState* state, uint64_t pc,
-                             TranslationBlock* tb);
+                             TranslationBlock* tb, uint64_t hostAddress);
 
     void onTimer();
 

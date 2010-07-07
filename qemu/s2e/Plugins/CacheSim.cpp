@@ -578,34 +578,37 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
 
 void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
                               klee::ref<klee::Expr> address,
+                              klee::ref<klee::Expr> hostAddress,
                               klee::ref<klee::Expr> value,
                               bool isWrite, bool isIO)
 {
-    if(!isa<ConstantExpr>(address)) {
+    if(!isa<ConstantExpr>(hostAddress)) {
         s2e()->getWarningsStream()
                 << "Warning: CacheSim do not support symbolic addresses"
                 << std::endl;
         return;
     }
 
-    uint64_t constAddress = cast<ConstantExpr>(address)->getZExtValue(64);
+    uint64_t constAddress = cast<ConstantExpr>(hostAddress)->getZExtValue(64);
     unsigned size = Expr::getMinBytesForWidth(value->getWidth());
 
     onMemoryAccess(state, constAddress, size, isWrite, isIO, false);
 }
 
 void CacheSim::onExecuteBlockStart(S2EExecutionState *state, uint64_t pc,
-                                   TranslationBlock *tb)
+                                   TranslationBlock *tb, uint64_t hostAddress)
 {
-    onMemoryAccess(state, tb->pc, tb->size, false, false, true);
+    onMemoryAccess(state, hostAddress, tb->size, false, false, true);
 }
 
 void CacheSim::onTranslateBlockStart(ExecutionSignal *signal,
-                                     S2EExecutionState *, TranslationBlock *tb,
+                                     S2EExecutionState *state,
+                                     TranslationBlock *tb,
                                      uint64_t)
 {
+    uint64_t hostAddress = state->getHostAddress(tb->pc);
     signal->connect(sigc::bind(
-            sigc::mem_fun(*this, &CacheSim::onExecuteBlockStart), tb));
+            sigc::mem_fun(*this, &CacheSim::onExecuteBlockStart), tb, hostAddress));
 }
 
 

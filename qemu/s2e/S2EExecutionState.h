@@ -300,7 +300,8 @@ public:
     uint64_t getPhysicalAddress(uint64_t virtualAddress) const;
 
     /** Address translation (debug mode). Returns host address or -1 on failure */
-    uint64_t getHostAddress(uint64_t address, AddressType addressType) const;
+    uint64_t getHostAddress(uint64_t address,
+                            AddressType addressType = VirtualAddress) const;
 
     /** Access to state's memory. Address is virtual or physical,
         depending on 'physical' argument. Returns NULL or false in

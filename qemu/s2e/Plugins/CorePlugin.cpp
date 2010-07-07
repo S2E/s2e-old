@@ -241,7 +241,8 @@ void s2e_init_timers(S2E* s2e)
 
 void s2e_trace_memory_access(
         struct S2E *s2e, struct S2EExecutionState* state,
-        uint64_t addr, uint8_t* buf, unsigned size, int isWrite, int isIO)
+        uint64_t vaddr, uint64_t haddr, uint8_t* buf, unsigned size,
+        int isWrite, int isIO)
 {
     if(!s2e->getCorePlugin()->onDataMemoryAccess.empty()) {
         uint64_t value = 0;
@@ -249,7 +250,8 @@ void s2e_trace_memory_access(
 
         try {
             s2e->getCorePlugin()->onDataMemoryAccess.emit(state,
-                klee::ConstantExpr::create(addr, 64),
+                klee::ConstantExpr::create(vaddr, 64),
+                klee::ConstantExpr::create(haddr, 64),
                 klee::ConstantExpr::create(value, size*8),
                 isWrite, isIO);
         } catch(s2e::CpuExitException&) {

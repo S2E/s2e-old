@@ -652,10 +652,10 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     v1 = m_builder.CreateLoad(
             m_builder.CreateIntToPtr(v,
                 intPtrType(8*sizeof(target_phys_addr_t))));
-    v1 = m_builder.CreateAdd(
+    Value* haddr = m_builder.CreateAdd(
             m_builder.CreateZExt(addr, wordType()),
             m_builder.CreateZExt(v1, wordType()));
-    v1 = m_builder.CreateIntToPtr(v1, intPtrType(bits));
+    v1 = m_builder.CreateIntToPtr(haddr, intPtrType(bits));
 
     if(ld)
         v1 = m_builder.CreateLoad(v1);
@@ -666,6 +666,7 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     /* Call memory trace function */
     std::vector<Value*> traceArgs;
     traceArgs.push_back(m_builder.CreateZExt(addr, intType(64)));
+    traceArgs.push_back(m_builder.CreateZExt(haddr, intType(64)));
     traceArgs.push_back(m_builder.CreateZExt(ld ? v1 : value, intType(64)));
     traceArgs.push_back(ConstantInt::get(intType(32), bits));
     traceArgs.push_back(ConstantInt::get(intType(8), ld ? 0 : 1));

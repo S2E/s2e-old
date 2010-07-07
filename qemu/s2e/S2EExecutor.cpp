@@ -282,16 +282,16 @@ void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
         assert(dynamic_cast<S2EExecutionState*>(state));
         S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
 
-        assert(args.size() == 5);
+        assert(args.size() == 6);
 
-        Expr::Width width = cast<klee::ConstantExpr>(args[2])->getZExtValue();
-        bool isWrite = cast<klee::ConstantExpr>(args[3])->getZExtValue();
-        bool isIO    = cast<klee::ConstantExpr>(args[4])->getZExtValue();
+        Expr::Width width = cast<klee::ConstantExpr>(args[3])->getZExtValue();
+        bool isWrite = cast<klee::ConstantExpr>(args[4])->getZExtValue();
+        bool isIO    = cast<klee::ConstantExpr>(args[5])->getZExtValue();
 
-        ref<Expr> value = klee::ExtractExpr::create(args[1], 0, width);
+        ref<Expr> value = klee::ExtractExpr::create(args[2], 0, width);
 
         s2eExecutor->m_s2e->getCorePlugin()->onDataMemoryAccess.emit(
-                s2eState, args[0], value, isWrite, isIO);
+                s2eState, args[0], args[1], value, isWrite, isIO);
     }
 }
 

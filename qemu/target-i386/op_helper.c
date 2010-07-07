@@ -4827,8 +4827,11 @@ static float approx_rcp(float a)
 #if !defined(CONFIG_USER_ONLY)
 
 #ifdef S2E_LLVM_LIB
-void tcg_llvm_trace_memory_access(uint64_t a, uint64_t b, uint32_t c,
-                                  uint8_t d, uint8_t e){};
+void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
+                                  uint64_t value, uint32_t bits,
+                                  uint8_t isWrite, uint8_t isIo)
+{
+}
 #endif
 
 #define MMUSUFFIX _mmu

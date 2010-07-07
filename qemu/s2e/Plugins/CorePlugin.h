@@ -78,7 +78,8 @@ public:
     /** Signal that is emitted on each memory access */
     /* XXX: this signal is still not emmited for code */
     sigc::signal<void, S2EExecutionState*,
-                 klee::ref<klee::Expr> /* address */,
+                 klee::ref<klee::Expr> /* virtualAddress */,
+                 klee::ref<klee::Expr> /* hostAddress */,
                  klee::ref<klee::Expr> /* value */,
                  bool /* isWrite */, bool /* isIO */>
             onDataMemoryAccess;
