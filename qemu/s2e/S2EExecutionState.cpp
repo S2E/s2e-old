@@ -290,6 +290,10 @@ uint64_t S2EExecutionState::getHostAddress(uint64_t address,
             if(hostAddress == (uint64_t) -1)
                 return (uint64_t) -1;
         }
+
+        /* We can not use qemu_get_ram_ptr directly. Mapping of IO memory
+           can be modified after memory registration and qemu_get_ram_ptr will
+           return incorrect values in such cases */
         hostAddress = (uint64_t) s2e_get_ram_ptr(hostAddress);
         if(!hostAddress)
             return (uint64_t) -1;
