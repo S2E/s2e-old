@@ -46,7 +46,7 @@ bool BFDInterface::initialize()
         return true;
     }
 
-    m_bfd = bfd_fopen(m_fileName.c_str(), "pei-i386", "rb", -1);
+    m_bfd = bfd_fopen(m_fileName.c_str(), NULL, "rb", -1);
     if (!m_bfd) {
         std::cerr << "Could not open bfd file " << m_fileName << std::endl;
         return false;

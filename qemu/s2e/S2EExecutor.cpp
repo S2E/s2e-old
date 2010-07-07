@@ -54,6 +54,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #endif
 
 //#define S2E_DEBUG_INSTRUCTIONS
+//#define S2E_TRACE_EFLAGS
 
 using namespace std;
 using namespace llvm;
@@ -759,6 +760,13 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
             }
         }
     }
+
+#ifdef S2E_TRACE_EFLAGS
+    if (offsetof(CPUState, cc_src) == offset) {
+        m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
+                "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
+    }
+#endif
 }
 
 void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
@@ -780,6 +788,14 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
             wos->write8(offset+i, buf[i]);
         }
     }
+
+#ifdef S2E_TRACE_EFLAGS
+    if (offsetof(CPUState, cc_src) == offset) {
+        m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
+                "write conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
+    }
+#endif
+
 }
 
 void S2EExecutor::switchToConcrete(S2EExecutionState *state)
@@ -911,6 +927,8 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 
     S2EExecutionState* newState =
             static_cast<S2EExecutionState*  >(&newKleeState);
+    assert(states.find(newState) != states.end());
+
     if(newState != state) {
         doStateSwitch(state, newState);
     }
@@ -995,7 +1013,14 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 
     bool shouldExitCpu = false;
     try {
+
         executeInstruction(*state, ki);
+
+#ifdef S2E_TRACE_EFLAGS
+        ref<Expr> efl = state->readCpuRegister(offsetof(CPUState, cc_src), klee::Expr::Int32);
+        m_s2e->getDebugStream() << std::hex << state->getPc() << "  CC_SRC " << efl << std::endl;
+#endif
+
     } catch(CpuExitException&) {
         // Instruction that forks should never be interrupted
         // (and, consequently, restarted)
@@ -1226,6 +1251,9 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 {
     assert(state->isActive());
 
+#warning TODO: remove after debugging
+    assert(states.find(state) != states.end());
+
     const ObjectState* os = state->m_cpuRegistersObject;
 
     state->setTbInstructionCount(tb->icount);
@@ -1237,7 +1265,9 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             state->m_startSymbexAtPC = (uint64_t) -1;
         }
         if(!executeKlee) {
-#if 1
+            //XXX: This should be fixed to make sure that helpers do not read/write corrupted data
+            //because they think that execution is concrete while it should be symbolic (see issue #30).
+#if 0
             /* We can not execute TB natively if it reads any symbolic regs */
             if(!os->isAllConcrete()) {
                 uint64_t smask = state->getSymbolicRegistersMask();
@@ -1313,6 +1343,8 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
                             llvm::Function *function,
                             const std::vector<klee::ref<klee::Expr> >& args)
 {
+#warning remove this after debug
+    assert(states.find(state) != states.end());
     /* Update state */
     if (!copyInConcretes(*state)) {
         std::cerr << "external modified read-only object" << std::endl;
@@ -1595,6 +1627,7 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
     try {
         return s2e->getExecutor()->executeTranslationBlock(state, tb);
     } catch(s2e::CpuExitException&) {
+        s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);
     }
 }
@@ -1619,6 +1652,7 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
                 s2e->getExecutor()->executeFunction(state,
                                                 "helper_set_cc_op_eflags");
             } catch(s2e::CpuExitException&) {
+                s2e->getExecutor()->updateStates(state);
                 longjmp(env->jmp_env, 1);
             }
         }
@@ -1645,6 +1679,7 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
             s2e->getExecutor()->executeFunction(state,
                                                 "helper_do_interrupt", args);
         } catch(s2e::CpuExitException&) {
+            s2e->getExecutor()->updateStates(state);
             longjmp(env->jmp_env, 1);
         }
     }

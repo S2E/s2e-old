@@ -1,9 +1,7 @@
 ##===- tools/s2etools-config/Makefile --------------------------*- Makefile -*-===##
 #
-#                     The KLEE Compiler Infrastructure
 #
-# This file is distributed under the University of Illinois Open Source
-# License. See LICENSE.TXT for details.
+#  Inspired from the KLEE symbolic execution engine
 # 
 ##===----------------------------------------------------------------------===##
 

@@ -139,7 +139,7 @@ push ebx
 
 mov eax, [ebp + 0x8] ;addr
 mov ebx, [ebp + 0xC] ;size
-mov ecx, [ebp + 0xC] ;message
+mov ecx, [ebp + 0x10] ;message
 
 db 0x0f
 db 0x3f ; S2EOP
@@ -166,6 +166,24 @@ push eax
 call s2e_make_symbolic
 add esp, 4*3
 mov eax, [ebp-4]
+
+leave
+ret
+
+s2e_print_message:
+push ebp
+mov ebp, esp
+
+mov eax, [ebp+8] ; message
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x10 ; print message
+db 0x00
+db 0x00
+dd 0x0
 
 leave
 ret

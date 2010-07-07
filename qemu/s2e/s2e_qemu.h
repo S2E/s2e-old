@@ -211,6 +211,8 @@ uint64_t s2e_get_executed_instructions(void);
 void s2e_set_elapsed_instructions(uint64_t newCount);
 void s2e_increment_executed_instructions(uint64_t incr);
 
+void s2e_dump_state(void);
+
 #ifdef __cplusplus
 }
 #endif

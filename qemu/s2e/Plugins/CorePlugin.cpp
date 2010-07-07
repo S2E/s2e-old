@@ -39,8 +39,8 @@ void CorePlugin::initializeTimers()
 {
     s2e()->getDebugStream() << "Initializing periodic timer" << std::endl;
     /* Initialize the timer handler */
-    m_Timer = qemu_new_timer(vm_clock, s2e_timer_cb, this);
-    qemu_mod_timer(m_Timer, qemu_get_clock(vm_clock) + 
+    m_Timer = qemu_new_timer(host_clock, s2e_timer_cb, this);
+    qemu_mod_timer(m_Timer, qemu_get_clock(host_clock) +
         get_ticks_per_sec());
 
 }

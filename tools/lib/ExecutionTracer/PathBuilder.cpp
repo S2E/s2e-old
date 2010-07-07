@@ -1,4 +1,4 @@
-#include <s2e/plugins/ExecutionTracers/TraceEntries.h>
+#include <s2e/Plugins/ExecutionTracers/TraceEntries.h>
 #include <cassert>
 #include <stack>
 #include <ostream>
@@ -47,7 +47,7 @@ unsigned PathSegment::getIndexInParent() const
 
 void PathSegment::print(std::ostream &os) const
 {
-    os << "seg stateId=" << std::dec << m_StateId << " ";
+ //   os << "seg stateId=" << std::dec << m_StateId << " ";
 
     PathFragmentList::const_iterator it;
     for (it = m_FragmentList.begin(); it != m_FragmentList.end(); ++it) {
@@ -96,7 +96,7 @@ void PathBuilder::onItem(unsigned traceIndex,
         m_CurrentSegment = (*it).second.back();
         assert(m_CurrentSegment->getStateId() == hdr.stateId);
             m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
-        m_CurrentSegment->print(std::cout);
+        //m_CurrentSegment->print(std::cout);
     }
 
     if (hdr.type == s2e::plugins::TRACE_FORK) {
@@ -118,7 +118,7 @@ void PathBuilder::onItem(unsigned traceIndex,
         }else {
             m_CurrentSegment->expandLastFragment(traceIndex);
         }
-        m_CurrentSegment->print(std::cout);
+        //m_CurrentSegment->print(std::cout);
     }
 }
 

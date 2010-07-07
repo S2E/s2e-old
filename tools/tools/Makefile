@@ -1,6 +1,6 @@
 ##===- tools/Makefile ---------------*- Makefile -*-===##
 # 
-# Klee
+# S2E
 #
 ##===-----------------------------------------------===##
 
@@ -12,6 +12,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-PARALLEL_DIRS=pfprofiler s2etools-config
+PARALLEL_DIRS=debugger pfprofiler s2etools-config
 
 include $(LEVEL)/Makefile.common

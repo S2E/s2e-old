@@ -5,7 +5,7 @@
 #===------------------------------------------------------------------------===#
 
 LEVEL=../..
-TOOLNAME = pfprofiler
+TOOLNAME = debugger
 USEDLIBS = executiontracer.a binaryreaders.a
 LINK_COMPONENTS = support system
 

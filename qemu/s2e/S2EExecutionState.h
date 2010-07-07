@@ -339,6 +339,9 @@ public:
 
     std::vector<klee::ref<klee::Expr> > createSymbolicArray(
             unsigned size, const std::string& name = std::string());
+
+    /** Debug functions **/
+    void dumpX86State(std::ostream &os) const;
 };
 
 //Some convenience macros

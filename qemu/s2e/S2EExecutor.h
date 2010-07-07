@@ -138,6 +138,9 @@ public:
     void cleanupTranslationBlock(S2EExecutionState *state,
                                  TranslationBlock *tb);
 
+    void updateStates(klee::ExecutionState *current) {
+        klee::Executor::updateStates(current);
+    }
 
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,

@@ -74,9 +74,14 @@ public:
   template <typename T>
   PrintContext &operator<<(T elt) {
     ss.str("");
+    ss.setf(os.flags(), std::ios::basefield);
     ss << elt;
     write(ss.str());
     return *this;
+  }
+
+  const std::ostream &getOutputStream() const {
+      return os;
   }
 };
 
@@ -386,7 +391,14 @@ public:
         PC << e->getZExtValue();
       } else {
         std::string S;
-        e->toString(S);
+
+        int base;
+        std::ostream::fmtflags flags;
+        flags = PC.getOutputStream().flags();
+        if (flags & std::ios_base::hex)
+            base = 16;
+
+        e->toString(S, 16);
         PC << S;
       }
 

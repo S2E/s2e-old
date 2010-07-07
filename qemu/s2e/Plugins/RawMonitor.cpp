@@ -47,6 +47,12 @@ bool RawMonitor::initSection(const std::string &cfgKey, const std::string &svcId
         return false;
     }
 
+    cfg.nativebase = s2e()->getConfig()->getInt(cfgKey + ".nativebase", 0, &ok);
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".nativebase" << std::endl;
+        return false;
+    }
+
     m_cfg.push_back(cfg);
     return true;
 }
@@ -88,7 +94,7 @@ void RawMonitor::onTranslateInstructionStart(ExecutionSignal *signal,
         ModuleDescriptor md;
         const Cfg &c = *it;
         md.Name = c.name;
-        md.NativeBase = c.start;
+        md.NativeBase = c.nativebase;
         md.LoadBase = c.start;
         md.Size = c.size;
 

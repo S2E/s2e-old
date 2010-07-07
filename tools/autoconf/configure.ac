@@ -53,6 +53,7 @@ esac])
 OS=`uname -a`
 case $OS in
   mingw*) OS=mingw ;;
+  linux*) OS=linux ;;
   *) ;;
 esac
 
@@ -87,6 +88,8 @@ dnl Add OS-specific libraries
 
 if [ "x$OS" = "mingw" ]; then
 tool_libs="-lbfd -lintl -liberty -lz"
+elif [ "x$OS" = "linux" ]; then
+tool_libs="-lbfd -liberty -lz -lgettextpo"
 else
 tool_libs="-lbfd -lintl -liberty -lz -lgettextpo"
 fi

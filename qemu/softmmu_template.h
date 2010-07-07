@@ -46,7 +46,7 @@
 #define ADDR_READ addr_read
 #endif
 
-#if defined(CONFIG_S2E) && defined(_raw) && !defined(S2E_LLVM_LIB)
+#if defined(CONFIG_S2E) &&  !defined(S2E_LLVM_LIB)
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
         s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
                             (uint8_t*) &value, sizeof(value), isWrite, isIO);

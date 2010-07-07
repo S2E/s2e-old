@@ -1,7 +1,7 @@
 #ifndef S2ETOOLS_EXECTRACER_TESTCASE_H
 #define S2ETOOLS_EXECTRACER_TESTCASE_H
 
-#include <s2e/plugins/ExecutionTracers/TraceEntries.h>
+#include <s2e/Plugins/ExecutionTracers/TraceEntries.h>
 #include "LogParser.h"
 
 namespace s2etools {

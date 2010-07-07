@@ -87,7 +87,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             }
 
             std::string nameStr;
-            if(!state->readString(name, nameStr)) {
+            if(!name || !state->readString(name, nameStr)) {
                 s2e()->getWarningsStream(state)
                         << "Error reading string from the guest"
                         << std::endl;
@@ -152,7 +152,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 }
 
                 std::string nameStr = "defstring";
-                if(!state->readString(name, nameStr)) {
+                if(!name || !state->readString(name, nameStr)) {
                     s2e()->getWarningsStream(state)
                             << "Error reading string from the guest"
                             << std::endl;
@@ -184,7 +184,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 }
 
                 std::string nameStr = "defstring";
-                if(!state->readString(name, nameStr)) {
+                if(!name || !state->readString(name, nameStr)) {
                     s2e()->getWarningsStream(state)
                             << "Error reading string from the guest"
                             << std::endl;
@@ -196,7 +196,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
                     s2e()->getMessagesStream() << std::hex << "0x" << std::setw(8) << (address+i) << ": " << std::dec;
                     ref<Expr> res = state->readMemory8(address+i);
-                    if (res == 0) {
+                    if (res.isNull()) {
                         s2e()->getMessagesStream() << "Invalid pointer" << std::endl;
                     }else {
                         s2e()->getMessagesStream() << res << std::endl;
@@ -217,10 +217,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 break;
             }
 
-            std::string str;
+            std::string str="";
             if(!state->readString(address, str)) {
                 s2e()->getWarningsStream(state)
-                        << "Error reading string message from the guest"
+                        << "Error reading string message from the guest at address 0x"
+                        << std::hex << address
                         << std::endl;
             } else {
                 ostream *stream;
@@ -228,7 +229,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                     stream = &s2e()->getWarningsStream(state);
                 else
                     stream = &s2e()->getMessagesStream(state);
-                (*stream) << "Message from guest: " << str << std::endl;
+                (*stream) << "Message from guest (0x" << std::hex << address <<
+                        "): " <<  str << std::endl;
             }
             break;
         }

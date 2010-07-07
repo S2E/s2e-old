@@ -15,8 +15,9 @@ void* s2e_get_ram_ptr(target_phys_addr_t addr);
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
-
+#include <s2e/S2E.h>
 #include <s2e/s2e_qemu.h>
+
 
 namespace s2e {
 
@@ -307,6 +308,7 @@ uint64_t S2EExecutionState::getHostAddress(uint64_t address,
 
 bool S2EExecutionState::readString(uint64_t address, std::string &s, unsigned maxLen)
 {
+    s = "";
     do {
         uint8_t c;
         SREADR(this, address, c);
@@ -324,6 +326,7 @@ bool S2EExecutionState::readString(uint64_t address, std::string &s, unsigned ma
 
 bool S2EExecutionState::readUnicodeString(uint64_t address, std::string &s, unsigned maxLen)
 {
+    s = "";
     do {
         uint16_t c;
         SREADR(this, address, c);
@@ -568,6 +571,23 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
     return result;
 }
 
+void S2EExecutionState::dumpX86State(std::ostream &os) const
+{
+
+    os << "[State " << std::dec << m_stateID << "] CPU dump" << std::endl;
+    os << "EAX=0x" << std::hex << readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32) << std::endl;
+    os << "EBX=0x" << readCpuRegister(offsetof(CPUState, regs[R_EBX]), klee::Expr::Int32) << std::endl;
+    os << "ECX=0x" << readCpuRegister(offsetof(CPUState, regs[R_ECX]), klee::Expr::Int32) << std::endl;
+    os << "EDX=0x" << readCpuRegister(offsetof(CPUState, regs[R_EDX]), klee::Expr::Int32) << std::endl;
+    os << "ESI=0x" << readCpuRegister(offsetof(CPUState, regs[R_ESI]), klee::Expr::Int32) << std::endl;
+    os << "EDI=0x" << readCpuRegister(offsetof(CPUState, regs[R_EDI]), klee::Expr::Int32) << std::endl;
+    os << "EBP=0x" << readCpuRegister(offsetof(CPUState, regs[R_EBP]), klee::Expr::Int32) << std::endl;
+    os << "ESP=0x" << readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32) << std::endl;
+    os << "EIP=0x" << readCpuState(offsetof(CPUState, eip), 32) << std::endl;
+    os << "CR2=0x" << readCpuState(offsetof(CPUState, cr[2]), 32) << std::endl;
+    os << std::dec;
+}
+
 } // namespace s2e
 
 /******************************/
@@ -587,6 +607,11 @@ void s2e_increment_executed_instructions(uint64_t incr)
 uint64_t s2e_get_executed_instructions()
 {
     return g_s2e_state->getTotalInstructionCount();
+}
+
+void s2e_dump_state()
+{
+    g_s2e_state->dumpX86State(g_s2e->getDebugStream());
 }
 
 } // extern "C"

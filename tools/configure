@@ -2375,6 +2375,7 @@ $as_echo "$s2etools_cv_os_type" >&6; }
 OS=`uname -a`
 case $OS in
   mingw*) OS=mingw ;;
+  linux*) OS=linux ;;
   *) ;;
 esac
 
@@ -2414,6 +2415,8 @@ S2E_OBJ=$s2e_obj
 
 if  "x$OS" = "mingw" ; then
 tool_libs="-lbfd -lintl -liberty -lz"
+elif  "x$OS" = "linux" ; then
+tool_libs="-lbfd -liberty -lz -lgettextpo"
 else
 tool_libs="-lbfd -lintl -liberty -lz -lgettextpo"
 fi

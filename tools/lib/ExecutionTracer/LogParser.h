@@ -3,7 +3,7 @@
 
 #include <string>
 #include <sigc++/sigc++.h>
-#include <s2e/plugins/ExecutionTracers/TraceEntries.h>
+#include <s2e/Plugins/ExecutionTracers/TraceEntries.h>
 #include <stdio.h>
 #include <vector>
 

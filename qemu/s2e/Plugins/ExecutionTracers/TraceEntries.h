@@ -21,6 +21,9 @@ enum ExecTraceEntryType {
     TRACE_CACHESIM,
     TRACE_TESTCASE,
     TRACE_BRANCHCOV,
+    TRACE_MEMORY,
+    TRACE_PAGEFAULT,
+    TRACE_TLBMISS,
     TRACE_MAX
 };
 
@@ -185,6 +188,33 @@ struct ExecutionTraceTestCase {
 
 
 };
+
+#define EXECTRACE_MEM_WRITE 1
+#define EXECTRACE_MEM_IO    2
+#define EXECTRACE_MEM_SYMBVAL 4
+#define EXECTRACE_MEM_SYMBADDR 8
+struct ExecutionTraceMemory
+{
+    uint64_t pc;
+    uint64_t address;
+    uint64_t value;
+    uint8_t  size;
+    uint8_t  flags;
+}__attribute__((packed));
+
+struct ExecutionTracePageFault
+{
+    uint64_t pc;
+    uint64_t address;
+    uint8_t isWrite;
+}__attribute__((packed));
+
+struct ExecutionTraceTlbMiss
+{
+    uint64_t pc;
+    uint64_t address;
+    uint8_t isWrite;
+}__attribute__((packed));
 
 union ExecutionTraceAll {
     ExecutionTraceModuleLoad moduleLoad;

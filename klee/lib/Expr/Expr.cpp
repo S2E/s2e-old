@@ -321,8 +321,8 @@ void ConstantExpr::toMemory(void *address) {
   }
 }
 
-void ConstantExpr::toString(std::string &Res) const {
-  Res = value.toString(10, false);
+void ConstantExpr::toString(std::string &Res, int Base) const {
+  Res = value.toString(Base, false);
 }
 
 ref<ConstantExpr> ConstantExpr::Concat(const ref<ConstantExpr> &RHS) {
