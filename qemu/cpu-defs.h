@@ -182,6 +182,7 @@ typedef struct CPUWatchpoint {
                                                                         \
     /* Core interrupt code */                                           \
     jmp_buf jmp_env;                                                    \
+    jmp_buf jmp_env_s2e;  /* Used by S2E to handle state termination */ \
     int exception_index;                                                \
                                                                         \
     CPUState *next_cpu; /* next CPU sharing TB cache */                 \

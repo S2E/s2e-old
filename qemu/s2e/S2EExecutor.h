@@ -17,6 +17,10 @@ class CpuExitException
 {
 };
 
+class StateTerminatedException
+{
+};
+
 /** Handler required for KLEE interpreter */
 class S2EHandler : public klee::InterpreterHandler
 {
