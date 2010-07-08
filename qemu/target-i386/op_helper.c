@@ -4827,11 +4827,13 @@ static float approx_rcp(float a)
 #if !defined(CONFIG_USER_ONLY)
 
 #ifdef S2E_LLVM_LIB
+/**
+ *  This function must not be defined.
+ * It is implemented by a special function handler in KLEE.
+ */
 void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
                                   uint64_t value, uint32_t bits,
-                                  uint8_t isWrite, uint8_t isIo)
-{
-}
+                                  uint8_t isWrite, uint8_t isIo);
 #endif
 
 #define MMUSUFFIX _mmu

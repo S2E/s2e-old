@@ -90,7 +90,9 @@ extern "C" {
     };
 
 #ifdef CONFIG_S2E
-    void tcg_llvm_trace_memory_access(void) {}
+    void tcg_llvm_trace_memory_access(void) {
+        assert("This must never be called" && false);
+    }
 #else
     void tcg_llvm_helper_wrapper(void);
 #endif
