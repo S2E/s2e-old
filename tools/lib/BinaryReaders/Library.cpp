@@ -65,18 +65,17 @@ BFDInterface *BFDLibrary::get(const std::string &name)
 }
 
 //Helper function to quickly print debug info
-bool BFDLibrary::print(const ModuleInstance *mi, uint64_t pc, std::string &out, bool file, bool line, bool func)
+bool BFDLibrary::print(
+        const std::string &modName, uint64_t loadBase, uint64_t imageBase,
+        uint64_t pc, std::string &out, bool file, bool line, bool func)
 {
-    if (!mi || !mi->Mod) {
-        return false;
-    }
 
-    BFDInterface *bfd = get(mi->Mod->getModuleName());
+    BFDInterface *bfd = get(modName);
     if (!bfd) {
         return false;
     }
 
-    uint64_t reladdr = pc - mi->LoadBase + mi->Mod->getImageBase();
+    uint64_t reladdr = pc - loadBase + imageBase;
     std::string source, function;
     uint64_t ln;
     if (!bfd->getInfo(reladdr, source, ln, function)) {
@@ -100,6 +99,17 @@ bool BFDLibrary::print(const ModuleInstance *mi, uint64_t pc, std::string &out, 
     out = ss.str();
 
     return true;
+}
+
+bool BFDLibrary::print(const ModuleInstance *mi, uint64_t pc, std::string &out, bool file, bool line, bool func)
+{
+    if (!mi || !mi->Mod) {
+        return false;
+    }
+
+    return print(mi->Mod->getModuleName(),
+                 mi->LoadBase, mi->Mod->getImageBase(),
+                 pc, out, file, line, func);
 }
 
 }

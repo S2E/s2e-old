@@ -242,6 +242,7 @@ public:
         PluginStateMap::iterator it = m_PluginState.find(plugin);
         if (it == m_PluginState.end()) {
             PluginState *ret = factory(plugin, this);
+            assert(ret);
             m_PluginState[plugin] = ret;
             return ret;
         }

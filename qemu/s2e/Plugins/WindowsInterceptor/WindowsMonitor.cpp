@@ -443,8 +443,7 @@ WindowsMonitorState::~WindowsMonitorState()
 
 WindowsMonitorState* WindowsMonitorState::clone() const
 {
-    assert(false && "Not implemented");
-    return NULL;
+    return new WindowsMonitorState(*this);
 }
 
 PluginState *WindowsMonitorState::factory(Plugin *p, S2EExecutionState *state)

@@ -6,6 +6,10 @@
 
 #include <ostream>
 
+#include <lib/BinaryReaders/Library.h>
+
+namespace s2etools
+{
 
 class PfProfiler
 {
@@ -14,6 +18,8 @@ private:
     s2etools::LogParser m_Parser;
 
     s2etools::ModuleLibrary m_Library;
+    BFDLibrary m_binaries;
+
     s2etools::ModuleCache *m_ModuleCache;
 
 
@@ -30,5 +36,7 @@ public:
 
     void process();
 };
+
+}
 
 #endif

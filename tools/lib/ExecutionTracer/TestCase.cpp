@@ -30,6 +30,7 @@ void TestCase::onItem(unsigned traceIndex,
     if (m_foundInputs) {
         std::cerr << "The execution trace has multiple input sets. Make sure you used the PathBuilder filter."
                 <<std::endl;
+        assert(false);
 
     }
     ExecutionTraceTestCase::deserialize(item, hdr.size, m_inputs);

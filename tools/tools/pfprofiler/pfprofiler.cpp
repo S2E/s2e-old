@@ -64,12 +64,15 @@ cl::opt<int>
 }
 
 
+namespace s2etools
+{
 
 PfProfiler::PfProfiler(const std::string &file)
 {
     m_FileName = file;
     m_ModuleCache = NULL;
     m_Library.setPath(ModPath);
+    m_binaries.setPath(ModPath);
 }
 
 PfProfiler::~PfProfiler()
@@ -134,12 +137,8 @@ void PfProfiler::process()
 
         tc.printInputs(statsFile);
 
-        TopMissesPerModule tmpm(&cp);
-        tmpm.setLibraryPath(ModPath);
+        TopMissesPerModule tmpm(&m_binaries, &cp);
 
-        for(unsigned i=0; i<ModList.size(); ++i) {
-            tmpm.addModuleToDisplay(ModList[i]);
-        }
 
 
         tmpm.setHtml(HtmlOutput != 0);
@@ -175,6 +174,8 @@ void PfProfiler::process()
     m_Parser.parse(m_FileName);
 
     m_Library.print(std::cout);
+}
+
 }
 
 static std::vector<std::string> split(const std::string &s)

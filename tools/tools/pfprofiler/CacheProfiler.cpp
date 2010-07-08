@@ -5,7 +5,10 @@
 
 
 using namespace s2e::plugins;
-using namespace s2etools;
+
+
+namespace s2etools
+{
 
 //XXX: this should go to a statistics class
 void Cache::print(std::ostream &os)
@@ -168,19 +171,17 @@ void CacheStatistics::printHtml(std::ostream &os) const
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-TopMissesPerModule::TopMissesPerModule(CacheProfiler *prof)
+TopMissesPerModule::TopMissesPerModule(BFDLibrary *library, CacheProfiler *prof)
 {
     m_Profiler = prof;
     m_html = false;
     m_displayAllModules = true;
+    m_library = library;
 }
 
 TopMissesPerModule::~TopMissesPerModule()
 {
-    ModuleNameToBfd::iterator it;
-    for(it = m_displayModules.begin(); it != m_displayModules.end(); ++it) {
-        delete (*it).second;
-    }
+
 }
 
 /*void TopMissesPerModule::processCacheItem(const s2e::plugins::ExecutionTraceCacheSimEntry *e)
@@ -283,8 +284,7 @@ void TopMissesPerModule::printAggregatedStatistics(std::ostream &os) const
 
 void TopMissesPerModule::print(std::ostream &os)
 {
-    std::string source, func;
-    uint64_t line;
+
 
 
     if (m_html) {
@@ -313,23 +313,13 @@ void TopMissesPerModule::print(std::ostream &os)
         os << std::dec  << std::setw(13)<< s.stats.readMissCount
                  << " " << std::setw(14)<< s.stats.writeMissCount;
 
-        ModuleNameToBfd::iterator iit = m_displayModules.find(s.instr.m->getModuleName());
-        if (iit == m_displayModules.end() && m_displayAllModules) {
-            if (s.instr.m) {
-                addModuleToDisplay(s.instr.m->getModuleName());
+        if (s.instr.m) {
+            std::string dbg;
+            if (m_library->print(modName, s.instr.loadBase, s.instr.m->getImageBase(),
+                                 s.instr.pc, dbg, true, true, true)) {
+                os << " - " << dbg;
             }
-        }
-
-        if (s.instr.m &&  (iit != m_displayModules.end())) {
-            uint64_t reladdr = s.instr.pc - s.instr.loadBase + s.instr.m->getImageBase();
-            if ((*iit).second->getInfo(reladdr, source, line, func)) {
-                size_t last = source.rfind('/');
-                if (last != source.size())
-                    source = source.substr(last+1, source.size());
-
-                os << " - " << source << ":" << line << " - " << func;
-            }
-        }
+    }
         os << std::endl;
     }
 
@@ -338,20 +328,6 @@ void TopMissesPerModule::print(std::ostream &os)
     }
 }
 
-bool TopMissesPerModule::addModuleToDisplay(const std::string &s) {
-    if (m_displayModules.find(s) != m_displayModules.end()) {
-        return true;
-    }
 
-    std::string ProgFile = m_libpath + "/";
-    ProgFile += s;
 
-    s2etools::BFDInterface *bfd = new s2etools::BFDInterface(ProgFile);
-    if (!bfd->inited()) {
-        delete bfd;
-        return false;
-    }
-
-    m_displayModules[s] = bfd;
-    return true;
 }

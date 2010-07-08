@@ -28,6 +28,10 @@ public:
         m_libpath = s;
     }
 
+    bool print(
+            const std::string &modName, uint64_t loadBase, uint64_t imageBase,
+            uint64_t pc, std::string &out, bool file, bool line, bool func);
+
     bool print(const ModuleInstance *ni, uint64_t pc, std::string &out, bool file, bool line, bool func);
 
 private:
