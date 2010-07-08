@@ -14,6 +14,14 @@
 
 #include "android/utils/stralloc.h"
 
+/* these values give the maximum length of system property
+ * names and values. They must match the definitions for PROPERTY_MAX_NAME and
+ * PROPERTY_MAX_VALUE in the Android source tree
+ * (in system/core/include/cutils/properties.h)
+ */
+#define  BOOT_PROPERTY_MAX_NAME    32
+#define  BOOT_PROPERTY_MAX_VALUE   92
+
 /* appends the list of options with a small description to a dynamic string */
 extern void  android_help_list_options( stralloc_t*  out );
 

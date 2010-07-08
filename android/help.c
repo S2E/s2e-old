@@ -5,7 +5,6 @@
 #include "android/utils/debug.h"
 #include "android/utils/misc.h"
 #include "android/skin/keyset.h"
-#include "android/boot-properties.h"
 #include "android/android.h"
 #include <stdint.h>
 #include "audio/audio.h"
@@ -1337,7 +1336,7 @@ help_prop(stralloc_t  *out)
     "  use '-prop <name>=<value>' to set a boot-time system property.\n"
     "  <name> must be a property name of at most %d characters, without any\n"
     "  space in it, and <value> must be a string of at most %d characters.\n\n",
-    PROPERTY_MAX_NAME, PROPERTY_MAX_VALUE );
+    BOOT_PROPERTY_MAX_NAME, BOOT_PROPERTY_MAX_VALUE );
 
     PRINTF(
     "  the corresponding system property will be set at boot time in the\n"
