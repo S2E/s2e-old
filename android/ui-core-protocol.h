@@ -24,4 +24,17 @@
 /* Gets LCD density property from the core properties. */
 int android_core_get_hw_lcd_density(void);
 
+/* This is temporary redeclaration for AndroidHwLightBrightnessFunc declared
+ * in android/hw-control.h We redeclare it here in order to keep type
+ * consistency between android_core_set_brightness_change_callback and
+ * light_brightness field of AndroidHwControlFuncs structure.
+ */
+typedef void  (*AndroidHwLightBrightnessCallback)( void*       opaque,
+                                               const char* light,
+                                               int         brightness );
+
+/* Registers a UI callback to be called when brightness is changed by the core. */
+void android_core_set_brightness_change_callback(AndroidHwLightBrightnessCallback callback,
+                                                 void* opaque);
+
 #endif  // QEMU_ANDROID_UI_CORE_PROTOCOL_H

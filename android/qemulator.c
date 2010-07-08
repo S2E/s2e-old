@@ -10,7 +10,6 @@
 ** GNU General Public License for more details.
 */
 
-#include "android/hw-control.h"
 #include "android/utils/debug.h"
 #include "android/utils/bufprint.h"
 #include "android/globals.h"
@@ -83,12 +82,8 @@ qemulator_setup( QEmulator*  emulator )
     }
 
     /* initialize hardware control support */
-    {
-        AndroidHwControlFuncs  funcs;
-
-        funcs.light_brightness = qemulator_light_brightness;
-        android_hw_control_init( emulator, &funcs );
-    }
+    android_core_set_brightness_change_callback(qemulator_light_brightness,
+                                                emulator);
 }
 
 static void

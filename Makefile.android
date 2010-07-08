@@ -605,6 +605,9 @@ endif
 CORE_MISC_SOURCES = android/boot-properties.c \
                     android/hw-kmsg.c \
                     android/hw-lcd.c \
+                    android/gps.c \
+                    android/hw-events.c \
+                    android/hw-control.c \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -640,6 +643,7 @@ UI_SOURCES = android/user-config.c \
              android/resource.c \
              android/qemulator.c \
              android/keycode.c \
+             android/help.c \
 
 ##############################################################################
 # lists of source files used by both, emulator UI and emulator core
@@ -647,6 +651,7 @@ UI_SOURCES = android/user-config.c \
 
 UI_AND_CORE_SOURCES = android/keycode-array.c \
                       android/charmap.c \
+                      android/hw-qemud.c \
 
 ##############################################################################
 # now build the emulator itself
@@ -753,11 +758,6 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               android/cmdline-option.c \
               android/config.c \
               android/console.c \
-              android/gps.c \
-              android/help.c \
-              android/hw-control.c \
-              android/hw-events.c \
-              android/hw-qemud.c \
               android/hw-sensors.c \
               android/main.c \
               android/utils/bufprint.c \

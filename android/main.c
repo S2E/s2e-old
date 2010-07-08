@@ -52,7 +52,6 @@
 #include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
 #include "android/hw-lcd.h"
-#include "android/hw-control.h"
 #include "android/hw-sensors.h"
 #include "android/boot-properties.h"
 #include "android/user-config.h"
