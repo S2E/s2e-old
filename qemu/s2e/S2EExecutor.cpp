@@ -1549,7 +1549,7 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException) {
+    } catch(s2e::StateTerminatedException&) {
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env_s2e, 1);
     }
@@ -1577,7 +1577,7 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
             } catch(s2e::CpuExitException&) {
                 s2e->getExecutor()->updateStates(state);
                 longjmp(env->jmp_env, 1);
-            } catch(s2e::StateTerminatedException) {
+            } catch(s2e::StateTerminatedException&) {
                 s2e->getExecutor()->updateStates(state);
                 longjmp(env->jmp_env_s2e, 1);
             }
@@ -1607,7 +1607,7 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
         } catch(s2e::CpuExitException&) {
             s2e->getExecutor()->updateStates(state);
             longjmp(env->jmp_env, 1);
-        } catch(s2e::StateTerminatedException) {
+        } catch(s2e::StateTerminatedException&) {
             s2e->getExecutor()->updateStates(state);
             longjmp(env->jmp_env_s2e, 1);
         }
