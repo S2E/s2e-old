@@ -602,12 +602,22 @@ endif
 
 # misc. sources
 #
-CORE_MISC_SOURCES = android/boot-properties.c \
+CORE_MISC_SOURCES = console.c \
+                    loader.c \
+                    monitor.c \
+                    readline.c \
+                    qemu-char-android.c \
+                    disas.c \
+                    arm-dis.c \
+                    android/boot-properties.c \
                     android/hw-kmsg.c \
                     android/hw-lcd.c \
                     android/gps.c \
                     android/hw-events.c \
                     android/hw-control.c \
+                    android/avd/hw-config.c \
+                    android/avd/info.c \
+                    android/utils/ini.c \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -649,9 +659,24 @@ UI_SOURCES = android/user-config.c \
 # lists of source files used by both, emulator UI and emulator core
 #
 
-UI_AND_CORE_SOURCES = android/keycode-array.c \
+UI_AND_CORE_SOURCES = osdep.c \
+                      cutils.c \
+                      sockets.c \
+                      android/keycode-array.c \
                       android/charmap.c \
                       android/hw-qemud.c \
+                      android/utils/bufprint.c \
+                      android/utils/debug.c \
+                      android/utils/path.c \
+                      android/utils/dirscanner.c \
+                      android/utils/filelock.c \
+                      android/utils/misc.c \
+                      android/utils/reflist.c \
+                      android/utils/stralloc.c \
+                      android/utils/system.c \
+                      android/utils/tempfile.c \
+                      android/utils/timezone.c \
+                      android/utils/mapfile.c \
 
 ##############################################################################
 # now build the emulator itself
@@ -720,18 +745,16 @@ endif
 
 # include other sources
 #
-VL_SOURCES := vl-android.c osdep.c cutils.c \
-              readline.c monitor.c console.c loader.c sockets.c \
+VL_SOURCES := vl-android.c \
               aes.c d3des.c \
               buffered_file.c \
               cbuffer.c \
               gdbstub.c \
               ioport.c \
-              vnc-android.c disas.c arm-dis.c \
+              vnc-android.c \
               shaper.c charpipe.c loadpng.c \
               framebuffer.c \
               tcpdump.c \
-              qemu-char-android.c \
               qemu-malloc.c \
               qemu-option.c \
               savevm.c \
@@ -760,21 +783,6 @@ VL_SOURCES := vl-android.c osdep.c cutils.c \
               android/console.c \
               android/hw-sensors.c \
               android/main.c \
-              android/utils/bufprint.c \
-              android/utils/debug.c \
-              android/utils/dirscanner.c \
-              android/utils/ini.c \
-              android/utils/filelock.c \
-              android/utils/misc.c \
-              android/utils/path.c \
-              android/utils/reflist.c \
-              android/utils/stralloc.c \
-              android/utils/system.c \
-              android/utils/tempfile.c \
-              android/utils/timezone.c \
-              android/utils/mapfile.c \
-              android/avd/hw-config.c \
-              android/avd/info.c \
 
 ifeq ($(HOST_OS),windows)
   LOCAL_LDLIBS += -mno-cygwin -mwindows -mconsole
