@@ -347,8 +347,9 @@ namespace BEEV {
 
     if(!bm->UserFlags.num_absrefine_flag)
       {
-	FatalError("TopLevelSTPAux: reached the end without proper conclusion:"
-		   "either a divide by zero in the input or a bug in STP");
+        //XXX S2E: we do not want STP to crash
+	//FatalError("TopLevelSTPAux: reached the end without proper conclusion:"
+	//	   "either a divide by zero in the input or a bug in STP");
 	//bogus return to make the compiler shut up
 	return SOLVER_ERROR;
       }
