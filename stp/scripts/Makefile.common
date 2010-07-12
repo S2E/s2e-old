@@ -1,0 +1,98 @@
+# This is a -*- makefile -*-, Emacs
+#
+#/********************************************************************
+# * AUTHORS: Vijay Ganesh
+# *
+# * BEGIN DATE: November, 2005
+# *
+# * LICENSE: Please view LICENSE file in the home dir of this Program
+# ********************************************************************/
+
+-include $(TOP)/scripts/config.info
+
+#OPTIMIZE     = -g -pg            # Debugging and gprof-style profiling
+#OPTIMIZE      = -g                # Debugging
+#OPTIMIZE      = -O3 -fPIC         # Maximum optimization
+#OPTIMIZE      = -O3 -march=native -fomit-frame-pointer # Maximum optimization
+#OPTIMIZE      = -O3 -march=native -DNDEBUG -DLESSBYTES_PERNODE
+OPTIMIZE      = -O3  -g            # Maximum optimization
+CFLAGS_M32   = -m32
+
+#-fno-inline
+CFLAGS_BASE   = $(OPTIMIZE)
+
+# OPTION to compile CRYPTOMiniSAT version 2.x
+ifeq ($(SAT),cryptominisat2)
+  CRYPTOMINISAT2 = true
+  CFLAGS_BASE    = $(OPTIMIZE) -DCRYPTOMINISAT2 -I$(TOP)/src/
+  MTL            = $(TOP)/src/sat/cryptominisat2/mtl
+  SOLVER_INCLUDE = $(TOP)/src/sat/cryptominisat2
+endif
+
+# OPTION to compile MiniSAT
+ifeq ($(SAT),minisat)
+  CORE           = true
+  CFLAGS_BASE    = $(OPTIMIZE) -DCORE
+  MTL            = $(TOP)/src/sat/mtl
+  SOLVER_INCLUDE = $(TOP)/src/sat/core
+endif
+
+ifeq ($(WITHCBITP),yes)
+	CFLAGS_BASE += -DWITHCBITP
+endif
+
+# todo: These should be set by the config script of course..
+TEST_PREFIX=../../stp-tests/
+SHELL=/bin/bash
+
+
+# You can compile using make STATIC=true to compile a statically
+# linked executable Note that you should execute liblinks.sh first.
+#STATIC=true
+
+ifdef STATIC
+    LDFLAGS_BASE = -static-libgcc -static
+else
+    LDFLAGS_BASE = -lstdc++ 
+endif
+
+# PKT: support for universal binaries
+# NB: static libraries are poorly supported in Mac OS X. More
+# specifically -static has different semantics than on ELF based
+# systems Also, building mac os x universal binaries is a tad tricky
+# 1. you cannot use ar on a library after calling ranlib 2. -MM
+# dependency tracking does not work
+
+# the architectures to compile for
+UNIVERSAL_ARCH = -arch i386 -arch ppc -arch ppc64
+
+# the system root (SDK), needed for cross architecture builds
+UNIVERSAL_SDK = /Developer/SDKs/MacOSX10.4u.sdk
+
+
+# use the darmin test as a proxy for detecting Mac OS X
+ifeq ($(shell uname -s), DarwinX)
+  LDFLAGS = -Wl,-syslibroot,$(UNIVERSAL_SDK) $(UNIVERSAL_ARCH) $(LDFLAGS_BASE)
+  CFLAGS = -isysroot $(UNIVERSAL_SDK) $(UNIVERSAL_ARCH) $(CFLAGS_BASE)
+else
+  LDFLAGS = $(LDFLAGS_BASE)
+  CFLAGS = $(CFLAGS_BASE)		
+  CFLAGS = $(CFLAGS_BASE) $(CFLAGS_M32) -I../AST
+endif
+
+CFLAGS += -DONLY_MSPACES -DMSPACES
+
+#CXXFLAGS = $(CFLAGS) -Wall -Wextra -DEXT_HASH_MAP -Wno-deprecated
+#CXXFLAGS = $(CFLAGS) -Wextra -DEXT_HASH_MAP -Wno-deprecated
+CXXFLAGS = $(CFLAGS) -DEXT_HASH_MAP -Wno-deprecated
+#CXXFLAGS = $(CFLAGS) -Wall -DTR1_UNORDERED_MAP -Wno-deprecated
+#CXXFLAGS = $(CFLAGS) -Wall 
+#LDFLAGS= -lstdc++
+#LDFLAGS= -lstdc++ -pg
+#LDFLAGS= -lstlport_gcc_stldebug
+#LDFLAGS= -L/home/vganesh/STLport/lib -lstlport
+# quantify $(CXX) $(CFLAGS) $(LDFLAGS) lexPL.o parsePL.o main.o $(LIBS) -o parser	
+
+LEX = flex
+YACC = bison -d -y --debug -v
+RANLIB = ranlib

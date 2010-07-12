@@ -1,0 +1,240 @@
+ # STP (Simple Theorem Prover) top level makefile
+ #
+ # To make in debug mode, type 'make "OPTIMIZE=-g"
+ # To make in optimized mode, type 'make "OPTIMIZE=-O3" 
+ #
+ # If you modify this file, be sure you're changing the version in
+ # scripts/Makefile.in. The version at the top level stp directory
+ # is automatically copied from there.
+
+TOP=.
+include  $(TOP)/scripts/Makefile.common
+
+BIN_DIR=$(PREFIX)/bin
+LIB_DIR=$(PREFIX)/lib
+INCLUDE_DIR=$(PREFIX)/include/stp
+
+SRC=src
+BINARIES=bin/stp
+LIBRARIES=lib/libstp.a
+HEADERS=$(SRC)/c_interface/*.h
+
+.PHONY: all
+all: AST STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv extlib-abc
+
+ifdef CRYPTOMINISAT2
+	$(MAKE) -C $(SRC)/sat cryptominisat2
+endif
+ifdef CORE
+	$(MAKE) -C $(SRC)/sat core
+endif
+ifdef SIMP
+	$(MAKE) -C $(SRC)/sat simp
+endif
+
+	$(MAKE) -C $(SRC)/parser
+	$(MAKE) -C $(SRC)/main
+	$(AR) rc libstp.a  $(SRC)/AST/*.o \
+			   $(SRC)/AST/NodeFactory/*.o \
+			   $(SRC)/STPManager/*.o \
+			   $(SRC)/printer/*.o \
+		           $(SRC)/absrefine_counterexample/*.o \
+			   $(SRC)/to-sat/*.o \
+		       $(SRC)/to-sat/AIG/*.o  \
+			   $(SRC)/sat/*.o \
+			   $(SRC)/simplifier/*.o  \
+		       $(SRC)/simplifier/constantBitP/*.o  \
+			   $(SRC)/extlib-constbv/*.o \
+			   $(SRC)/extlib-abc/*/*/*.o \
+			   $(SRC)/c_interface/*.o \
+			   $(SRC)/parser/LetMgr.o  \
+			   $(SRC)/parser/parseCVC.o  \
+			   $(SRC)/parser/lexCVC.o \
+			   $(SRC)/parser/parseSMT.o \
+			   $(SRC)/parser/lexSMT.o \
+			   $(SRC)/main/Globals.o \
+			   $(SRC)/main/versionString.o
+			   @# N.B.: don't put main/main.o in the library.
+	$(RANLIB) libstp.a
+	@mkdir -p lib
+	@mv libstp.a lib/
+	@echo ""
+	@echo "Compilation successful."
+	@echo "Type 'make install' to install STP."
+
+# During the build of AST some classes are built that most of the other
+# classes depend upon. So in a parallel make, AST should be made first.
+
+.PHONY: AST
+AST: 
+	$(MAKE) -C $(SRC)/$@
+
+STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv extlib-abc: AST
+	$(MAKE) -C $(SRC)/$@
+
+####
+
+.PHONY: install
+install: all
+	@cp -f $(BINARIES) $(BIN_DIR)
+	@cp -f $(LIBRARIES) $(LIB_DIR)
+	@cp -f $(HEADERS) $(INCLUDE_DIR)
+	@echo "STP installed successfully."
+
+.PHONY: clean
+clean:
+	rm -rf *~ scripts/*~
+	rm -rf *.a
+	rm -rf lib/*.a
+	rm -rf test/*~
+	rm -rf bin/*~
+	rm -rf bin/stp
+	rm -rf *.log
+	rm -f TAGS
+	$(MAKE) clean -C $(SRC)/AST
+	$(MAKE) clean -C $(SRC)/STPManager	
+	$(MAKE) clean -C $(SRC)/printer
+	$(MAKE) clean -C $(SRC)/extlib-constbv
+	$(MAKE) clean -C $(SRC)/extlib-abc
+	$(MAKE) clean -C $(SRC)/simplifier
+	$(MAKE) clean -C $(SRC)/absrefine_counterexample
+	$(MAKE) clean -C $(SRC)/to-sat
+	$(MAKE) clean -C $(SRC)/sat
+	$(MAKE) clean -C $(SRC)/c_interface	
+	$(MAKE) clean -C $(SRC)/parser
+	$(MAKE) clean -C $(SRC)/main
+	$(MAKE) clean -C tests/c-api-tests
+
+.PHONY: configclean
+configclean:
+	rm -rf scripts/config.info
+
+.PHONY: regressall
+regressall: all
+	$(MAKE) check
+	$(MAKE) regresscvc
+	$(MAKE) regresssmt
+	$(MAKE) regresssyn 
+	$(MAKE) regressbigarray
+	$(MAKE) regressstp
+	$(MAKE) regressbio
+	$(MAKE) regresseric
+	$(MAKE) regresshistar
+	$(MAKE) regresscrypto
+	$(MAKE) unit_test
+	$(MAKE) regresscapi
+	
+
+# Checks that simplifications are working.
+.PHONY: unit_test
+unit_test:
+	cd unit_test ; ./unit_test.sh
+
+# Runs the basic tests in tests/
+.PHONY: check
+check:
+	$(MAKE) regresscvcbasic && $(MAKE) regresssmtbasic
+
+#A generic test target called by the other tests.
+.PHONY: baseTest
+baseTest:
+	@echo "*********************************************************" \
+          | tee -a $(REGRESS_LOG)
+	@echo "Starting tests at" `date` | tee -a $(REGRESS_LOG)
+	@echo "*********************************************************" \
+          | tee -a $(REGRESS_LOG)
+	$(TO_RUN) 2>&1 | tee -a $(REGRESS_LOG); [ $${PIPESTATUS[0]} -eq 0 ]
+	@echo "*********************************************************" \
+          | tee -a $(REGRESS_LOG)
+	@echo "Output is saved in $(REGRESS_LOG)" | tee -a $(REGRESS_LOG)
+	@echo "*********************************************************" \
+          | tee -a $(REGRESS_LOG)
+
+
+.PHONY: regresscvc
+regresscvc: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)test/
+regresscvc: REGRESS_LOG=`date +%Y-%m-%d`"-regress-cvc.log"
+regresscvc: baseTest
+
+.PHONY: regressbio
+regressbio: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)bio-tests/
+regressbio: REGRESS_LOG=`date +%Y-%m-%d`"-regress-bio.log"
+regressbio: baseTest
+
+.PHONY: regresscrypto
+regresscrypto: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)crypto-tests/
+regresscrypto: REGRESS_LOG=`date +%Y-%m-%d`"-regress-crypto.log"
+regresscrypto: baseTest
+
+.PHONY: regresssyn
+regresssyn: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)synthesis-tests/
+regresssyn: REGRESS_LOG = `date +%Y-%m-%d`"-regress-syn.log"
+regresssyn: baseTest
+
+.PHONY: regresseric
+regresseric: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)eric-test/
+regresseric: REGRESS_LOG = `date +%Y-%m-%d`"-regress-eric.log"
+regresseric: baseTest
+
+.PHONY: regresshistar
+regresshistar: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)histar-big-tests/
+regresshistar: REGRESS_LOG = `date +%Y-%m-%d`"-regress-histar-big-tests.log"
+regresshistar: baseTest
+
+
+.PHONY: regressbigarray
+regressbigarray: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)bigarray-test/
+regressbigarray: REGRESS_LOG = `date +%Y-%m-%d`"-regress-bigarray.log"
+regressbigarray: baseTest
+
+.PHONY: regresssmt
+regresssmt: TO_RUN=scripts/run_tests.pl --td=$(TEST_PREFIX)smt-test/
+regresssmt: REGRESS_LOG = `date +%Y-%m-%d`"-regress-smt.log"
+regresssmt: baseTest
+
+.PHONY: regresscapi
+regresscapi: TO_RUN=$(MAKE) -C tests/c-api-tests
+regresscapi: REGRESS_LOG = `date +%Y-%m-%d`"-regress-c-api.log"
+regresscapi: baseTest
+
+.PHONY: regressstp
+regressstp: TO_RUN=scripts/run_tests.pl --td=tests/big-test
+regressstp: REGRESS_LOG = `date +%Y-%m-%d`"-regress-stp.log"
+regressstp: baseTest
+
+.PHONY: regresscvcbasic
+regresscvcbasic: TO_RUN=scripts/run_tests.pl --td=tests/sample-tests
+regresscvcbasic: REGRESS_LOG = `date +%Y-%m-%d`"-regress-cvcbasic.log"
+regresscvcbasic: baseTest
+
+.PHONY: regresssmtbasic
+regresssmtbasic: TO_RUN=scripts/run_tests.pl --td=tests/sample-smt-tests
+regresssmtbasic: REGRESS_LOG = `date +%Y-%m-%d`"-regress-smtbasic.log"
+regresssmtbasic: baseTest
+
+
+# The higher the level, the more tests are run (3 = all)
+REGRESS_LEVEL=4
+REGRESS_TESTS=$(REGRESS_TESTS0)
+PROGNAME=bin/stp
+ALL_OPTIONS= -l $(REGRESS_LEVEL) $(PROGNAME) $(REGRESS_TESTS)
+GRIND_LOG = `date +%Y-%m-%d`"-grind.log"
+GRINDPROG = valgrind --leak-check=full --undef-value-errors=no
+GRIND_TAR  = $(BIN_DIR)/stp -d
+GRIND_CALL = -vc "$(GRINDPROG) $(GRIND_TAR)" 
+GRIND_OPTIONS = -l $(REGRESS_LEVEL) -rt $(GRIND_CALL) $(REGRESS_TESTS)
+.PHONY: grind
+grind:
+
+	$(MAKE) install CFLAGS="-ggdb -pg -g"
+	@echo "*********************************************************" \
+          | tee -a $(GRIND_LOG)
+	@echo "Starting tests at" `date` | tee -a $(GRIND_LOG)
+	@echo "*********************************************************" \
+          | tee -a $(GRIND_LOG)
+	scripts/run_cvc_tests.pl $(GRIND_OPTIONS) 2>&1 | tee -a $(GRIND_LOG);eval [ $${PIPESTATUS[0]} -eq 0 ]
+	@echo "*********************************************************" \
+          | tee -a $(GRIND_LOG)
+	@echo "Output is saved in $(GRIND_LOG)" | tee -a $(GRIND_LOG)
+	@echo "*********************************************************" \
+          | tee -a $(GRIND_LOG)

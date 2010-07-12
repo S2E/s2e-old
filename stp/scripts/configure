@@ -1,0 +1,74 @@
+#!/bin/sh
+
+#********************************************************************
+# AUTHORS: Vijay Ganesh, David L. Dill
+#
+# BEGIN DATE: November, 2005
+#
+# LICENSE: Please view LICENSE file in the home dir of this Program
+#********************************************************************
+
+SAT=minisat
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+	--with-prefix=*)
+	    arg=`expr "x$1" : 'x[^=]*=\(.*\)'`
+	    PREFIX=$arg;;
+	--with-g++=*)
+	    arg=`expr "x$1" : 'x[^=]*=\(.*\)'`    
+	    CXX=$arg
+	    echo "Using g++ instead of gcc";;
+	--with-minisat-core)
+	    SAT=minisat;;
+	--with-cryptominisat2)
+	    SAT=cryptominisat2;;
+	*)
+	    echo "Usage: $0 [options]"
+	    echo "   --with-prefix=/prefix/path   Install STP at the specified path"
+	    echo "   --with-g++=/path/to/g++      Use g++ at the specified path"
+	    echo "   --with-minisat-core          Use core MiniSAT solver (default), runtime option to use simplifying"
+	    echo "   --with-cryptominisat2        Use CRYPTOMiniSAT 2.x solver"
+	    echo "$0 failed"
+	    exit 1;;
+    esac
+
+    shift
+done
+
+# check for an option --with-prefix=/path/to/prefix and use that as the 
+# prefix, otherwise use /usr/local
+PREFIX=${PREFIX:-/usr/local}
+
+echo "PREFIX=$PREFIX" > scripts/config.info
+echo "Setting prefix to... $PREFIX"
+if [ $CXX ]
+then echo "CXX=$CXX" >> scripts/config.info
+export CXX="$CXX"
+echo "Setting CXX to... $CXX"
+fi
+echo "SAT=$SAT" >> scripts/config.info
+echo "Using SAT solver: $SAT"
+
+if [ ! -d $PREFIX/include ]
+then mkdir -p $PREFIX/include
+fi
+
+if [ ! -d $PREFIX/bin ]
+then mkdir -p $PREFIX/bin
+fi
+
+if [ ! -d $PREFIX/lib ]
+then mkdir $PREFIX/lib
+fi
+
+if [ ! -d $PREFIX/include/stp ]
+then mkdir $PREFIX/include/stp
+fi
+
+echo "STP is configured successfully."
+cp scripts/Makefile.in Makefile
+
+echo
+echo "Type 'make' to compile STP."
+echo "Type 'make install' to compile & install STP."
