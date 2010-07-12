@@ -9,7 +9,7 @@
 
 #include "STP.h"
 #include "DifficultyScore.h"
-#include "../to-sat/AIG/ToSATAIG.h"
+//#include "../to-sat/AIG/ToSATAIG.h"
 #include "../simplifier/constantBitP/ConstantBitPropagation.h"
 #include "../simplifier/constantBitP/NodeToFixedBitsMap.h"
 
@@ -279,6 +279,7 @@ namespace BEEV {
       }
 #endif
 
+    /*
     ToSATAIG toSATAIG(bm,cb);
 
     res =
@@ -288,6 +289,7 @@ namespace BEEV {
                                        &toSATAIG
                                        );
 
+    */
     delete cb;
     }
     else

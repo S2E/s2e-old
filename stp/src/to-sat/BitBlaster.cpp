@@ -10,7 +10,7 @@
 #include <cmath>
 #include <cassert>
 #include "BitBlaster.h"
-#include "AIG/BBNodeManagerAIG.h"
+//#include "AIG/BBNodeManagerAIG.h"
 #include "BBNodeManagerASTNode.h"
 #include "../simplifier/constantBitP/FixedBits.h"
 #include "../simplifier/constantBitP/ConstantBitPropagation.h"
@@ -38,7 +38,7 @@ using simplifier::constantBitP::FixedBits;
 #define BBNodeVecMap map<ASTNode, vector<BBNode> >
 #define BBNodeSet set<BBNode>
 
-vector<BBNodeAIG> _empty_BBNodeAIGVec;
+//vector<BBNodeAIG> _empty_BBNodeAIGVec;
 
 // Bit blast a bitvector term.  The term must have a kind for a
 // bitvector term.  Result is a ref to a vector of formula nodes
@@ -1406,13 +1406,15 @@ BBNode BitBlaster<BBNode,BBNodeManagerT>::BBEQ(const BBNodeVec& left, const BBNo
 
 // This creates all the specialisations of the class that are ever needed.
 template class BitBlaster<ASTNode, BBNodeManagerASTNode>;
-template class BitBlaster<BBNodeAIG, BBNodeManagerAIG>;
+//template class BitBlaster<BBNodeAIG, BBNodeManagerAIG>;
 
+/*
 std::ostream& operator<<(std::ostream& output, const BBNodeAIG& h)
 {
   FatalError("This isn't implemented  yet sorry;");
   return output;
 }
+*/
 
 #undef BBNodeVec
 #undef BBNodeVecMap

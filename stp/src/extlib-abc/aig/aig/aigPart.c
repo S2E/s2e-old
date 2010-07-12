@@ -871,8 +871,10 @@ Vec_Ptr_t * Aig_ManMiterPartitioned( Aig_Man_t * p1, Aig_Man_t * p2, int nPartSi
 ***********************************************************************/
 Aig_Man_t * Aig_ManChoicePartitioned( Vec_Ptr_t * vAigs, int nPartSize )
 {
-    extern int Cmd_CommandExecute( void * pAbc, char * sCommand );
-    extern void * Abc_FrameGetGlobalFrame();
+    return NULL;
+#if 0
+    //extern int Cmd_CommandExecute( void * pAbc, char * sCommand );
+    //extern void * Abc_FrameGetGlobalFrame();
     extern Aig_Man_t * Fra_FraigChoice( Aig_Man_t * pManAig, int nConfMax );
 
     Vec_Ptr_t * vOutsTotal, * vOuts;
@@ -898,7 +900,7 @@ Aig_Man_t * Aig_ManChoicePartitioned( Vec_Ptr_t * vAigs, int nPartSize )
         Aig_ManForEachPi( pAig, pObj, k )
             pObj->pNext = (Aig_Obj_t *)(long)k;
 
-    Cmd_CommandExecute( Abc_FrameGetGlobalFrame(), "unset progressbar" );
+    //Cmd_CommandExecute( Abc_FrameGetGlobalFrame(), "unset progressbar" );
 
     // create the total fraiged AIG
     vPartSupp = Vec_IntAlloc( 100 ); // maps part PI num into total PI num
@@ -951,7 +953,7 @@ Aig_Man_t * Aig_ManChoicePartitioned( Vec_Ptr_t * vAigs, int nPartSize )
     Vec_VecFree( (Vec_Vec_t *)vParts );
     Vec_IntFree( vPartSupp );
 
-    Cmd_CommandExecute( Abc_FrameGetGlobalFrame(), "set progressbar" );
+    //Cmd_CommandExecute( Abc_FrameGetGlobalFrame(), "set progressbar" );
 
     // clear the PI numbers
     Vec_PtrForEachEntry( vAigs, pAig, i )
@@ -980,6 +982,7 @@ Aig_Man_t * Aig_ManChoicePartitioned( Vec_Ptr_t * vAigs, int nPartSize )
     // create the equivalent nodes lists
     Aig_ManMarkValidChoices( pAig );
     return pAig;
+#endif
 }
 
 

@@ -20,7 +20,7 @@ LIBRARIES=lib/libstp.a
 HEADERS=$(SRC)/c_interface/*.h
 
 .PHONY: all
-all: AST STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv extlib-abc
+all: AST STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv
 
 ifdef CRYPTOMINISAT2
 	$(MAKE) -C $(SRC)/sat cryptominisat2
@@ -40,12 +40,10 @@ endif
 			   $(SRC)/printer/*.o \
 		           $(SRC)/absrefine_counterexample/*.o \
 			   $(SRC)/to-sat/*.o \
-		       $(SRC)/to-sat/AIG/*.o  \
 			   $(SRC)/sat/*.o \
 			   $(SRC)/simplifier/*.o  \
 		       $(SRC)/simplifier/constantBitP/*.o  \
 			   $(SRC)/extlib-constbv/*.o \
-			   $(SRC)/extlib-abc/*/*/*.o \
 			   $(SRC)/c_interface/*.o \
 			   $(SRC)/parser/LetMgr.o  \
 			   $(SRC)/parser/parseCVC.o  \
@@ -69,7 +67,7 @@ endif
 AST: 
 	$(MAKE) -C $(SRC)/$@
 
-STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv extlib-abc: AST
+STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv: AST
 	$(MAKE) -C $(SRC)/$@
 
 ####
@@ -95,7 +93,6 @@ clean:
 	$(MAKE) clean -C $(SRC)/STPManager	
 	$(MAKE) clean -C $(SRC)/printer
 	$(MAKE) clean -C $(SRC)/extlib-constbv
-	$(MAKE) clean -C $(SRC)/extlib-abc
 	$(MAKE) clean -C $(SRC)/simplifier
 	$(MAKE) clean -C $(SRC)/absrefine_counterexample
 	$(MAKE) clean -C $(SRC)/to-sat

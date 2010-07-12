@@ -2,7 +2,7 @@ TOP = ../..
 include $(TOP)/scripts/Makefile.common
 
 SRCS = $(wildcard *.cpp)
-SRCS += $(wildcard AIG/*.cpp)
+#SRCS += $(wildcard AIG/*.cpp)
 OBJS = $(SRCS:.cpp=.o)
 
 CFLAGS += -I$(MTL) -I$(SOLVER_INCLUDE)
