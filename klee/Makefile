@@ -12,7 +12,13 @@
 #
 LEVEL = .
 
-DIRS = stp lib runtime tools
+include $(LEVEL)/Makefile.config
+
+DIRS = lib
+ifeq ($(ENABLE_EXT_STP),0)
+  DIRS += stp
+endif
+DIRS += tools runtime
 EXTRA_DIST = include
 
 # Only build support directories when building unittests.
@@ -42,16 +48,16 @@ cscope.files:
           -name \*.inc -or \
           -name \*.h | sort > cscope.files
 
-#test::
-#	-(cd test/ && make)
-#
-#.PHONY: klee-cov
-#klee-cov:
-#	rm -rf klee-cov
-#	zcov-scan --look-up-dirs=1 klee.zcov .
-#	zcov-genhtml --root $$(pwd) klee.zcov klee-cov
-#
-#clean::
-#	$(MAKE) -C test clean 
-#	$(MAKE) -C unittests clean
-#	rm -rf docs/doxygen
+test::
+	-(cd test/ && make)
+
+.PHONY: klee-cov
+klee-cov:
+	rm -rf klee-cov
+	zcov-scan --look-up-dirs=1 klee.zcov .
+	zcov-genhtml --root $$(pwd) klee.zcov klee-cov
+
+clean::
+	$(MAKE) -C test clean 
+	$(MAKE) -C unittests clean
+	rm -rf docs/doxygen

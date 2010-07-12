@@ -223,6 +223,7 @@ bool CexCachingSolver::getAssignment(const Query& query, Assignment *&result) {
       assert(binding->satisfies(key.begin(), key.end()));
   } else {
     binding = (Assignment*) 0;
+    //return false;
   }
   
   result = binding;
@@ -300,7 +301,8 @@ bool CexCachingSolver::computeValue(const Query& query,
   if (!getAssignment(query.withFalse(), a))
     return false;
   assert(a && "computeValue() must have assignment");
-  result = a->evaluate(query.expr);  
+
+  result = a->evaluate(query.expr);
   assert(isa<ConstantExpr>(result) && 
          "assignment evaluation did not result in constant");
   return true;

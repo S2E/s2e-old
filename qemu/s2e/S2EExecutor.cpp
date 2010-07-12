@@ -46,6 +46,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 
 #include <vector>
 
+#include <sstream>
 
 #ifdef WIN32
 #include <windows.h>
@@ -465,6 +466,8 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
                       /* isUserSpecified = */ false,
                       /* isSharedConcrete = */ false);
 
+    initialState->m_cpuRegistersState->setName("CpuRegistersState");
+
     /* Add the rest of the structure as concrete-only area */
     initialState->m_cpuSystemState =
         addExternalObject(*initialState,
@@ -473,6 +476,9 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
                       /* isReadOnly = */ false,
                       /* isUserSpecified = */ true,
                       /* isSharedConcrete = */ true);
+
+    initialState->m_cpuSystemState->setName("CpuSystemState");
+
     m_saveOnContextSwitch.push_back(initialState->m_cpuSystemState);
 
     const ObjectState *cpuSystemObject = initialState->addressSpace.findObject(initialState->m_cpuSystemState);
@@ -485,7 +491,7 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
 void S2EExecutor::registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
                         uint64_t hostAddress, bool isSharedConcrete,
-                        bool saveOnContextSwitch)
+                        bool saveOnContextSwitch, const char *name)
 {
     assert(isSharedConcrete || !saveOnContextSwitch);
     assert(startAddress == (uint64_t) -1 ||
@@ -500,9 +506,15 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += TARGET_PAGE_SIZE) {
+        std::stringstream ss;
+
+        ss << name << "_" << std::hex << (addr-hostAddress);
+
         MemoryObject *mo = addExternalObject(
                 *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
+
+        mo->setName(ss.str());
 
         if (isSharedConcrete && saveOnContextSwitch) {
             m_saveOnContextSwitch.push_back(mo);
@@ -1478,11 +1490,11 @@ void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
 void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
         uint64_t start_address, uint64_t size,
         uint64_t host_address, int is_shared_concrete,
-        int save_on_context_switch)
+        int save_on_context_switch, const char *name)
 {
     s2e->getExecutor()->registerRam(initial_state,
         start_address, size, host_address, is_shared_concrete,
-        save_on_context_switch);
+        save_on_context_switch, name);
 }
 
 int s2e_is_ram_registered(S2E *s2e, S2EExecutionState *state,

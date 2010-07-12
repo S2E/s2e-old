@@ -81,7 +81,7 @@ public:
     void registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
                         uint64_t hostAddress, bool isSharedConcrete,
-                        bool saveOnContextSwitch=true);
+                        bool saveOnContextSwitch=true, const char *name="");
 
     /* Execute llvm function in current context */
     klee::ref<klee::Expr> executeFunction(S2EExecutionState *state,

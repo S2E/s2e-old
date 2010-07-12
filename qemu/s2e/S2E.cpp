@@ -267,7 +267,7 @@ void S2E::initKleeOptions()
         kleeArgv[0] = "s2e.kleeArgs";
         kleeArgv[numArgs] = 0;
 
-        for(int i = 0; i < kleeOptions.size(); ++i)
+        for(unsigned int i = 0; i < kleeOptions.size(); ++i)
             kleeArgv[i+1] = kleeOptions[i].c_str();
 
         llvm::cl::ParseCommandLineOptions(numArgs, (char**) kleeArgv);

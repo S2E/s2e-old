@@ -139,7 +139,7 @@ namespace {
 
   cl::opt<bool>
   UseFastCexSolver("use-fast-cex-solver",
-                   cl::init(true));
+                   cl::init(false));
 
   cl::opt<bool>
   UseIndependentSolver("use-independent-solver",
@@ -730,7 +730,9 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
   solver->setTimeout(0);
   if (!success) {
     current.pc = current.prevPC;
-    terminateStateEarly(current, "query timed out");
+    std::stringstream ss;
+    ss << "Query timed out on condition " << condition;
+    terminateStateEarly(current, ss.str());
     return StatePair(0, 0);
   }
 
@@ -2949,7 +2951,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     solver->setTimeout(0);
     if (!success) {
       state.pc = state.prevPC;
-      terminateStateEarly(state, "query timed out");
+      std::stringstream ss;
+      ss << "Query timed out on symbolic address " << std::hex << address <<
+              " - offset " << offset;
+      terminateStateEarly(state, ss.str());
       return;
     }
 

@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Common.h"
 #include "klee/Solver.h"
 #include "klee/SolverImpl.h"
 
@@ -422,6 +423,8 @@ private:
   double timeout;
   bool useForkedSTP;
 
+  void reinstantiate();
+
 public:
   STPSolverImpl(STPSolver *_solver, bool _useForkedSTP);
   ~STPSolverImpl();
@@ -456,6 +459,10 @@ STPSolverImpl::STPSolverImpl(STPSolver *_solver, bool _useForkedSTP)
   assert(vc && "unable to create validity checker");
   assert(builder && "unable to create STPBuilder");
 
+#ifdef HAVE_EXT_STP
+  vc_setInterfaceFlags(vc, EXPRDELETE, 0);
+#endif
+
   vc_registerErrorHandler(::stp_error_handler);
 
   if (useForkedSTP) {
@@ -475,6 +482,14 @@ STPSolverImpl::~STPSolverImpl() {
   delete builder;
 
   vc_Destroy(vc);
+}
+
+void STPSolverImpl::reinstantiate()
+{
+    delete builder;
+    vc_Destroy(vc);
+    vc = vc_createValidityChecker();
+    builder = new STPBuilder(vc);
 }
 
 /***/
@@ -549,26 +564,34 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
                    std::vector< std::vector<unsigned char> > &values,
                    bool &hasSolution) {
   // XXX I want to be able to timeout here, safely
-  hasSolution = !vc_query(vc, q);
+    int result;
+    result = vc_query(vc, q);
 
-  if (hasSolution) {
-    values.reserve(objects.size());
-    for (std::vector<const Array*>::const_iterator
-           it = objects.begin(), ie = objects.end(); it != ie; ++it) {
-      const Array *array = *it;
-      std::vector<unsigned char> data;
-      
-      data.reserve(array->size);
-      for (unsigned offset = 0; offset < array->size; offset++) {
-        ExprHandle counter = 
-          vc_getCounterExample(vc, builder->getInitialRead(array, offset));
-        unsigned char val = getBVUnsigned(counter);
-        data.push_back(val);
-      }
-      
-      values.push_back(data);
+    if (result < 0) {
+        //Bug in stp
+        throw std::exception();
     }
-  }
+
+    hasSolution = !result;
+
+    if (hasSolution) {
+        values.reserve(objects.size());
+        for (std::vector<const Array*>::const_iterator
+             it = objects.begin(), ie = objects.end(); it != ie; ++it) {
+            const Array *array = *it;
+            std::vector<unsigned char> data;
+
+            data.reserve(array->size);
+            for (unsigned offset = 0; offset < array->size; offset++) {
+                ExprHandle counter =
+                        vc_getCounterExample(vc, builder->getInitialRead(array, offset));
+                unsigned char val = getBVUnsigned(counter);
+                data.push_back(val);
+            }
+
+            values.push_back(data);
+        }
+    }
 }
 
 static void stpTimeoutHandler(int x) {
@@ -681,12 +704,7 @@ STPSolverImpl::computeInitialValues(const Query &query,
                                     bool &hasSolution) {
   TimerStatIncrementer t(stats::queryTime);
 
-#if 1
-  delete builder;
-  vc_Destroy(vc);
-  vc = vc_createValidityChecker();
-  builder = new STPBuilder(vc);
-#endif
+  reinstantiate();
 
   vc_push(vc);
 
@@ -715,7 +733,11 @@ STPSolverImpl::computeInitialValues(const Query &query,
         runAndGetCex(vc, builder, stp_e, objects, values, hasSolution);
         success = true;
     } catch(std::exception &) {
+        klee::klee_warning("STP solver threw an exception");
+        vc_pop(vc);
+        reinstantiate();
         success = false;
+        return success;
     }
   }
   
@@ -727,8 +749,6 @@ STPSolverImpl::computeInitialValues(const Query &query,
   }
   
   vc_pop(vc);
-
-
 
   
   return success;

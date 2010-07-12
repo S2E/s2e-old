@@ -1,6 +1,7 @@
 #include <iomanip>
 
 #include <s2e/S2E.h>
+#include <s2e/Utils.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
 #include "TestCaseGenerator.h"
@@ -40,6 +41,12 @@ void TestCaseGenerator::processTestCase(const S2EExecutionState &state,
         s2e()->getWarningsStream() << "Could not get symbolic solutions" << std::endl;
         return;
     }
+
+    foreach2(it, state.constraints.begin(), state.constraints.end()) {
+        s2e()->getMessagesStream() << "Constraint: " << std::hex << *it << std::endl;
+    }
+
+    s2e()->getMessagesStream() << std::endl;
 
     ExecutionTracer *tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
     assert(tracer);

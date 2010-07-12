@@ -131,7 +131,7 @@ void s2e_register_ram(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
                       uint64_t start_address, uint64_t size,
                       uint64_t host_address, int is_shared_concrete,
-                      int save_on_context_switch);
+                      int save_on_context_switch, const char *name);
 
 int s2e_is_ram_registered(struct S2E* s2e,
                           struct S2EExecutionState *state,
