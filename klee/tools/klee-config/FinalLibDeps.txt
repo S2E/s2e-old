@@ -1,6 +1,5 @@
-libstp.a:
 libkleeBasic.a:
 libkleeSupport.a:
-libkleaverExpr.a: libstp.a
-libkleaverSolver.a: libkleaverExpr.a libstp.a
-libkleeCore.a libkleeModule.a: libkleeBasic.a libkleeSupport.a libkleaverSolver.a libkleaverExpr.a libstp.a
+libkleaverExpr.a:
+libkleaverSolver.a: libkleaverExpr.a
+libkleeCore.a libkleeModule.a: libkleeBasic.a libkleeSupport.a libkleaverSolver.a libkleaverExpr.a
