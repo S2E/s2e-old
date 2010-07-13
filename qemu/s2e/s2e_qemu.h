@@ -93,6 +93,13 @@ void s2e_on_translate_instruction_end(
         struct S2EExecutionState* state,
         struct TranslationBlock* tb, uint64_t pc);
 
+/** Called by cpu_gen_code() before translation of each jump instruction */
+void s2e_on_translate_jump_start(
+        struct S2E* s2e,
+        struct S2EExecutionState* state,
+        struct TranslationBlock* tb, uint64_t pc,
+        int jump_type);
+
 void s2e_on_exception(
         struct S2E *s2e,
         struct S2EExecutionState* state,

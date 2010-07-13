@@ -144,6 +144,13 @@ enum ETranslationBlockType
     TB_CALL, TB_CALL_IND, TB_REP, TB_RET
 };
 
+#ifdef CONFIG_S2E
+enum JumpType
+{
+    JT_RET, JT_LRET
+};
+#endif
+
 struct TranslationBlock {
     target_ulong pc;   /* simulated PC corresponding to this block (EIP + CS base) */
     target_ulong cs_base; /* CS base for this block */

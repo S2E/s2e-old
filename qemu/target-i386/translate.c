@@ -133,6 +133,7 @@ typedef struct DisasContext {
 #define SET_TB_TYPE(t) s->tb->s2e_tb_type = t
 #else
 #define SET_TB_TYPE(t)
+#define s2e_on_translate_jump_start(...)
 #endif
 
 
@@ -6272,6 +6273,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         /* control */
     case 0xc2: /* ret im */
         SET_TB_TYPE(TB_RET);
+        s2e_on_translate_jump_start(g_s2e, g_s2e_state, s->tb, s->pc, JT_RET);
         val = ldsw_code(s->pc);
         s->pc += 2;
         gen_pop_T0(s);
@@ -6285,6 +6287,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         break;
     case 0xc3: /* ret */
         SET_TB_TYPE(TB_RET);
+        s2e_on_translate_jump_start(g_s2e, g_s2e_state, s->tb, s->pc, JT_RET);
         gen_pop_T0(s);
         gen_pop_update(s);
         if (s->dflag == 0)
@@ -6294,6 +6297,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         break;
     case 0xca: /* lret im */
         SET_TB_TYPE(TB_RET);
+        s2e_on_translate_jump_start(g_s2e, g_s2e_state, s->tb, s->pc, JT_LRET);
         val = ldsw_code(s->pc);
         s->pc += 2;
     do_lret:
@@ -6322,6 +6326,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         gen_eob(s);
         break;
     case 0xcb: /* lret */
+        s2e_on_translate_jump_start(g_s2e, g_s2e_state, s->tb, s->pc, JT_LRET);
         SET_TB_TYPE(TB_RET);
         val = 0;
         goto do_lret;

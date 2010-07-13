@@ -209,7 +209,27 @@ void s2e_on_translate_instruction_start(
     } catch(s2e::StateTerminatedException&) {
         longjmp(env->jmp_env_s2e, 1);
     }
+}
 
+void s2e_on_translate_jump_start(
+        S2E* s2e, S2EExecutionState* state,
+        TranslationBlock *tb, uint64_t pc, int jump_type)
+{
+    assert(state->isActive());
+
+    ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
+    assert(signal->empty());
+
+    try {
+        s2e->getCorePlugin()->onTranslateJumpStart.emit(signal, state, tb,
+                                                        pc, jump_type);
+        if(!signal->empty()) {
+            s2e_tcg_instrument_code(s2e, signal, pc);
+            tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
+        }
+    } catch(s2e::CpuExitException&) {
+        longjmp(env->jmp_env, 1);
+    }
 }
 
 void s2e_on_translate_instruction_end(

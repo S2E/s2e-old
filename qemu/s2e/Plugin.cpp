@@ -5,6 +5,7 @@
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/Example.h>
 #include <s2e/Plugins/RawMonitor.h>
+#include <s2e/Plugins/FunctionMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 //#include <s2e/Plugins/CodeSelector.h>
@@ -50,6 +51,7 @@ PluginsFactory::PluginsFactory()
 
     __S2E_REGISTER_PLUGIN(CorePlugin);
     __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
+    __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::ModuleExecutionDetector);
     //__S2E_REGISTER_PLUGIN(plugins::CodeSelector);

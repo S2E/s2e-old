@@ -63,6 +63,14 @@ public:
             uint64_t /* instruction PC */>
             onTranslateInstructionStart, onTranslateInstructionEnd;
 
+    /** Signal that is emitted on code generation for each jump instruction */
+    sigc::signal<void, ExecutionSignal*,
+            S2EExecutionState*,
+            TranslationBlock*,
+            uint64_t /* instruction PC */,
+            int /* jump_type */>
+            onTranslateJumpStart;
+
     /** Signal that is emitted upon exception */
     sigc::signal<void, S2EExecutionState*, 
             unsigned /* Exception Index */,
