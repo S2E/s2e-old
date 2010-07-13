@@ -249,6 +249,7 @@ llvm="no"
 llvmdir=""
 s2e="no"
 kleedir=""
+stpdir=""
 llvmgcc=""
 kvm=""
 nptl=""
@@ -582,6 +583,8 @@ for opt do
   ;;
   --with-klee=*) kleedir="$optarg"
   ;;
+  --with-stp=*) stpdir="$optarg"
+  ;;
   --with-llvmgcc=*) llvmgcc="$optarg"
   ;;
   --disable-kvm) kvm="no"
@@ -796,6 +799,7 @@ echo "  --enable-llvm            enable LLVM support (for all targets)"
 echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
 echo "  --enable-s2e             enable S2E"
 echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
+echo "  --with-stp=PATH         STP path (PATH/lib/libstp.a must exist)"
 echo "  --with-llvmgcc=PATH      path to llvm-gcc"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
@@ -1514,6 +1518,11 @@ EOF
   klee_libs=`$klee_config --libs 2> /dev/null`
   klee_libdir=`$klee_config --libdir 2> /dev/null | sed s:Debug/lib$:Release/lib:`
   klee_libfiles=`$klee_config --libfiles 2> /dev/null`
+
+  if test "$stpdir" != ""; then
+    klee_ldflags="$klee_ldflags -L$stpdir/lib"
+    klee_libs="$klee_libs -lstp"
+  fi
 
   if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags" ; then
     s2e="yes"
