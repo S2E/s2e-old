@@ -98,6 +98,10 @@ void ModuleExecutionDetector::initializeConfiguration()
 
     ConfigFile::string_list keyList = cfg->getListKeys(getConfigKey());
 
+    if (keyList.size() == 0) {
+        s2e()->getWarningsStream() <<  "ModuleExecutionDetector: no configuration keys!" << std::endl;
+    }
+
     m_TrackAllModules = cfg->getBool(getConfigKey() + ".trackAllModules");
 
     foreach2(it, keyList.begin(), keyList.end()) {

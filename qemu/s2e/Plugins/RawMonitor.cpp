@@ -5,6 +5,12 @@
  *  This allows things like defining poritions of the BIOS.
  */
 
+extern "C" {
+#include "config.h"
+#include "qemu-common.h"
+}
+
+
 #include <s2e/S2E.h>
 #include <s2e/Utils.h>
 #include <s2e/ConfigFile.h>
@@ -53,6 +59,8 @@ bool RawMonitor::initSection(const std::string &cfgKey, const std::string &svcId
         return false;
     }
 
+    cfg.delayLoad = s2e()->getConfig()->getBool(cfgKey + ".delay");
+
     m_cfg.push_back(cfg);
     return true;
 }
@@ -81,6 +89,82 @@ void RawMonitor::initialize()
     m_onTranslateInstruction = s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
         sigc::mem_fun(*this, &RawMonitor::onTranslateInstructionStart));
 
+    s2e()->getCorePlugin()->onCustomInstruction.connect(
+            sigc::mem_fun(*this, &RawMonitor::onCustomInstruction));
+
+}
+
+void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
+{
+    //XXX: find a better way of allocating custom opcodes
+    if (!((opcode>>8) & 0xFF) == 0xAA) {
+        return;
+    }
+
+    opcode >>= 16;
+    uint8_t op = opcode & 0xFF;
+    opcode >>= 8;
+
+    switch(op) {
+    case 0:
+        {
+            //Module load
+            //eax = pointer to module name
+            //ebx = runtime load base
+            uint32_t rtloadbase, name;
+            bool ok = true;
+
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                 &name, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                                 &rtloadbase, 4);
+
+            if(!ok) {
+                s2e()->getWarningsStream(state)
+                    << "ERROR: symbolic argument was passed to s2e_op "
+                       "rawmonitor loadmodule" << std::endl;
+                break;
+            }
+
+            std::string nameStr;
+            if(!state->readString(name, nameStr)) {
+                s2e()->getWarningsStream(state)
+                        << "Error reading module name string from the guest" << std::endl;
+                return;
+            }
+
+            //Look for the module in the config section and update its load address
+            CfgList::iterator it;
+
+            for (it = m_cfg.begin(); it != m_cfg.end(); ++it) {
+                Cfg &c = *it;
+                if (c.name == nameStr) {
+                    c.start = rtloadbase;
+                    loadModule(state, c, false);
+                }
+            }
+        }
+        break;
+    default:
+        s2e()->getWarningsStream() << "Invalid RawMonitor opcode 0x" << std::hex << opcode << std::endl;
+        break;
+    }
+}
+
+void RawMonitor::loadModule(S2EExecutionState *state, const Cfg &c, bool skipIfDelay)
+{
+    ModuleDescriptor md;
+    if (c.delayLoad && skipIfDelay) {
+        return;
+    }
+    md.Name = c.name;
+    md.NativeBase = c.nativebase;
+    md.LoadBase = c.start;
+    md.Size = c.size;
+
+    s2e()->getDebugStream() << "RawMonitor loaded " << c.name << " " <<
+            std::hex << "0x" << c.start << " 0x" << c.size << std::dec << std::endl;
+    onModuleLoad.emit(state, md);
 }
 
 void RawMonitor::onTranslateInstructionStart(ExecutionSignal *signal,
@@ -91,16 +175,8 @@ void RawMonitor::onTranslateInstructionStart(ExecutionSignal *signal,
     CfgList::const_iterator it;
 
     for (it = m_cfg.begin(); it != m_cfg.end(); ++it) {
-        ModuleDescriptor md;
         const Cfg &c = *it;
-        md.Name = c.name;
-        md.NativeBase = c.nativebase;
-        md.LoadBase = c.start;
-        md.Size = c.size;
-
-        s2e()->getDebugStream() << "RawMonitor loaded " << c.name << " " <<
-                std::hex << "0x" << c.start << " 0x" << c.size << std::dec << std::endl;
-        onModuleLoad.emit(state, md);
+        loadModule(state, c, true);
     }
 
     m_onTranslateInstruction.disconnect();

@@ -23,6 +23,7 @@ public:
         uint64_t start;
         uint64_t size;
         uint64_t nativebase;
+        bool delayLoad;
     };
 
     typedef std::vector<Cfg> CfgList;
@@ -32,6 +33,9 @@ private:
 
     bool initSection(const std::string &cfgKey, const std::string &svcId);
 
+    void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
+
+    void loadModule(S2EExecutionState *state, const Cfg &c, bool delay);
 public:
     RawMonitor(S2E* s2e): OSMonitor(s2e) {}
     virtual ~RawMonitor();
