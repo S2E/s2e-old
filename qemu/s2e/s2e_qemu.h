@@ -220,6 +220,8 @@ void s2e_increment_executed_instructions(uint64_t incr);
 
 void s2e_dump_state(void);
 
+void s2e_execute_cmd(const char *cmd);
+
 #ifdef __cplusplus
 }
 #endif

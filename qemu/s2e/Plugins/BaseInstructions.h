@@ -26,6 +26,8 @@ private:
 
     bool createTables();
     bool insertTiming(S2EExecutionState *state, uint64_t id);
+
+    static int commandHandler(void *s);
 };
 
 } // namespace plugins

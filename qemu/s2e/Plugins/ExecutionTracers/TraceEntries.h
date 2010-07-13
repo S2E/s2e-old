@@ -24,6 +24,7 @@ enum ExecTraceEntryType {
     TRACE_MEMORY,
     TRACE_PAGEFAULT,
     TRACE_TLBMISS,
+    TRACE_ICOUNT,
     TRACE_MAX
 };
 
@@ -214,6 +215,12 @@ struct ExecutionTraceTlbMiss
     uint64_t pc;
     uint64_t address;
     uint8_t isWrite;
+}__attribute__((packed));
+
+struct ExecutionTraceICount
+{
+    //How many instructions where executed so far.
+    uint64_t count;
 }__attribute__((packed));
 
 union ExecutionTraceAll {

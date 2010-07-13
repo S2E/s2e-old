@@ -116,6 +116,10 @@ bool BFDInterface::getInfo(uint64_t addr, std::string &source, uint64_t &line, s
         source = filename ? filename : "<unknown source>" ;
         line = sourceline;
         function = funcname ? funcname:"<unknown function>";
+
+        if (!filename && !line && !funcname) {
+            return false;
+        }
         return true;
 
     }

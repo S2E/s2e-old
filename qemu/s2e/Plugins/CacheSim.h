@@ -53,6 +53,7 @@ protected:
     bool m_useBinaryLogFile;
     bool m_cacheStructureWrittenToLog;
     bool m_startOnModuleLoad;
+    bool m_physAddress;
     sigc::connection m_ModuleConnection;
 
     sigc::connection m_d1_connection;

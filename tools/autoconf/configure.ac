@@ -51,10 +51,13 @@ AC_CACHE_CHECK([type of operating system we're going to host on],
 esac])
 
 OS=`uname -a`
-case $OS in
-  mingw*) OS=mingw ;;
-  linux*) OS=linux ;;
-  *) ;;
+case "$OS" in
+  mingw*) OS=mingw
+  ;;
+  Linux*) OS=linux
+  ;;
+  *) OS=
+  ;;
 esac
 
 dnl **************************************************************************
@@ -86,9 +89,10 @@ AC_SUBST(S2E_OBJ,$s2e_obj)
 dnl **************************************************************************
 dnl Add OS-specific libraries
 
-if [ "x$OS" = "mingw" ]; then
+echo "$OS"
+if test "x$OS" = "xmingw" ; then
 tool_libs="-lbfd -lintl -liberty -lz"
-elif [ "x$OS" = "linux" ]; then
+elif test "x$OS" = "xlinux" ; then
 tool_libs="-lbfd -liberty -lz -lgettextpo"
 else
 tool_libs="-lbfd -lintl -liberty -lz -lgettextpo"
@@ -100,7 +104,7 @@ AC_SUBST(TOOL_LIBS,$tool_libs)
 dnl **************************************************************************
 dnl Verify that we can find libsigc++
 
-if [ "x$OS" = "mingw" ]; then
+if test "x$OS" = "xmingw" ; then
 sigcpp_lib="-lsigc-2.0.dll"
 sigcpp_inc=
 else

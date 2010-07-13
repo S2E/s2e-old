@@ -2373,10 +2373,13 @@ fi
 $as_echo "$s2etools_cv_os_type" >&6; }
 
 OS=`uname -a`
-case $OS in
-  mingw*) OS=mingw ;;
-  linux*) OS=linux ;;
-  *) ;;
+case "$OS" in
+  mingw*) OS=mingw
+  ;;
+  Linux*) OS=linux
+  ;;
+  *) OS=
+  ;;
 esac
 
 
@@ -2413,9 +2416,10 @@ S2E_OBJ=$s2e_obj
 
 
 
-if  "x$OS" = "mingw" ; then
+echo "$OS"
+if test "x$OS" = "xmingw" ; then
 tool_libs="-lbfd -lintl -liberty -lz"
-elif  "x$OS" = "linux" ; then
+elif test "x$OS" = "xlinux" ; then
 tool_libs="-lbfd -liberty -lz -lgettextpo"
 else
 tool_libs="-lbfd -lintl -liberty -lz -lgettextpo"
@@ -2426,7 +2430,7 @@ TOOL_LIBS=$tool_libs
 
 
 
-if  "x$OS" = "mingw" ; then
+if test "x$OS" = "xmingw" ; then
 sigcpp_lib="-lsigc-2.0.dll"
 sigcpp_inc=
 else

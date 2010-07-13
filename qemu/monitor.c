@@ -57,6 +57,10 @@
 #include "json-parser.h"
 #include "osdep.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/qemu_s2e.h>
+#endif
+
 //#define DEBUG
 //#define DEBUG_COMPLETION
 
@@ -501,6 +505,31 @@ static void do_info_version_print(Monitor *mon, const QObject *data)
     monitor_printf(mon, "%s%s\n", qdict_get_str(qdict, "qemu"),
                                   qdict_get_str(qdict, "package"));
 }
+
+#ifdef CONFIG_S2E
+static void do_s2e(Monitor *mon, const QDict *params, QObject **ret_data)
+{
+    const char *command = qdict_get_try_str(params, "command");
+    if (!command) {
+        assert(monitor_ctrl_mode(mon) == 0);
+        goto help;
+    }
+
+    monitor_printf(mon, "Executing S2E command %s\n", command);
+    
+    s2e_execute_cmd(command);
+
+    return;
+
+    help:
+        help_cmd(mon, "info");
+}
+
+static void do_s2e_info(Monitor *mon)
+{
+    monitor_printf(mon, "Execute S2E command\n");
+}
+#endif
 
 /**
  * do_info_version(): Show QEMU version
@@ -2350,6 +2379,15 @@ static const mon_cmd_t mon_cmds[] = {
 
 /* Please update qemu-monitor.hx when adding or changing commands */
 static const mon_cmd_t info_cmds[] = {
+#ifdef CONFIG_S2E
+    {
+        .name       = "s2e",
+        .args_type  = "command:s",
+        .params     = "command",
+        .help       = "Execute an S2E command",
+        .mhandler.info_new = do_s2e_info,
+    },
+#endif
     {
         .name       = "version",
         .args_type  = "",

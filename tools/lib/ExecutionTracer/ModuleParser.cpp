@@ -156,9 +156,9 @@ void ModuleCache::onItem(unsigned traceIndex,
             std::cout << "Could not load driver " << load.name << std::endl;
         }
     }else if (hdr.type == s2e::plugins::TRACE_MOD_UNLOAD) {
-        assert(false && "not implemented");
+        std::cerr << "Module unloading not implemented" << std::endl;
     }else if (hdr.type == s2e::plugins::TRACE_PROC_UNLOAD) {
-        assert(false && "not implemented");
+        std::cerr << "Process unloading not implemented" << std::endl;
     }else {
         return;
     }

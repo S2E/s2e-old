@@ -274,6 +274,54 @@ bool ConfigFile::hasKey(const std::string& name)
     return ok;
 }
 
+
+///////////////////////////////////////////////////////
+//XXX: Maybe find a better place for the next functions.
+//ConfigFile does not sound to be the right place
+
+//Register a C function that will be called by lua
+void ConfigFile::fcnRegister(const char *name, int (*callback)(void *), void *opaque)
+{
+    lua_pushinteger(m_luaState, (lua_Integer)opaque);
+    lua_pushcclosure(m_luaState, (lua_CFunction)callback, 1);
+    lua_setglobal(m_luaState, name);
+}
+
+int ConfigFile::fcnGetArgumentCount(void *s)
+{
+    lua_State *L = (lua_State *)s;
+    return lua_gettop(L);
+}
+
+void *ConfigFile::fcnGetContext(void *s)
+{
+    lua_State *L = (lua_State *)s;
+    bool ok = lua_isnumber(L, lua_upvalueindex(1));
+    if (!ok) { return NULL; }
+    return (void*)lua_tointeger(L, lua_upvalueindex(1));
+}
+
+bool ConfigFile::fcnGetStringArg(void *s, int index, std::string &ret)
+{
+    lua_State *L = (lua_State *)s;
+    const char *str = lua_tostring(L, index);
+    if (!str) {
+        return false;
+    }
+    ret = str;
+    return true;
+}
+
+void ConfigFile::fcnExecute(const char *cmd)
+{
+    if (luaL_dostring(m_luaState, cmd)) {
+        luaWarning("Could not run '%s':\n    %s\n",
+                    cmd, lua_tostring(m_luaState, -1));
+        //lua_pop(m_luaState, 1);
+    }
+}
+
+///////////////////////////////////////////////////////
 void ConfigFile::luaError(const char *fmt, ...)
 {
     fprintf(stderr, "ERROR: ");

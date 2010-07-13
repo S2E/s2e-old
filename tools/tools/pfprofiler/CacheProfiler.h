@@ -180,6 +180,8 @@ private:
     bool m_displayAllModules;
 
     TopMissesPerModuleSet m_stats;
+
+    uint64_t m_totalMisses;
 public:
     TopMissesPerModule(BFDLibrary *library, CacheProfiler *prof);
     ~TopMissesPerModule();
@@ -212,6 +214,9 @@ public:
     void print(std::ostream &os);
     void printAggregatedStatistics(std::ostream &os) const;
 
+    uint64_t getTotalMisses() const {
+        return m_totalMisses;
+    }
 };
 
 }

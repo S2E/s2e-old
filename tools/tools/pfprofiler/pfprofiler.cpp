@@ -7,11 +7,13 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 
 #include <lib/ExecutionTracer/ModuleParser.h>
 #include <lib/ExecutionTracer/Path.h>
 #include <lib/ExecutionTracer/TestCase.h>
+#include <lib/ExecutionTracer/InstructionCounter.h>
 #include <lib/BinaryReaders/BFDInterface.h>
 
 #include "pfprofiler.h"
@@ -113,6 +115,12 @@ void PfProfiler::processCallItem(unsigned traceIndex,
 
 void PfProfiler::process()
 {
+    uint64_t maxMissCount=0, maxMissPath=0;
+    uint64_t maxICount=0, maxICountPath=0;
+
+    uint64_t minMissCount=(uint64_t)-1, minMissPath=0;
+    uint64_t minICount=(uint64_t)-1, minICountPath=0;
+
     std::ofstream statsFile;
     statsFile.open(CpOutFile.c_str());
 
@@ -131,29 +139,56 @@ void PfProfiler::process()
         ModuleCache mc(&pb, &m_Library);
         CacheProfiler cp(&mc, &pb);
         TestCase tc(&pb);
+        InstructionCounter ic(&pb);
+
         //Process all the items of the path
         //This will automatically maintain all the module info
         pb.processPath(*pit);
 
+        ic.printCounter(statsFile);
         tc.printInputs(statsFile);
 
         TopMissesPerModule tmpm(&m_binaries, &cp);
-
-
 
         tmpm.setHtml(HtmlOutput != 0);
         tmpm.setFilteredProcess(CPFilterProcess);
         tmpm.setFilteredModule(CPFilterModule);
         tmpm.setMinMissThreshold(CPMinMissCountFilter);
 
+#if 0
         if (HtmlOutput) {
             cp.printAggregatedStatisticsHtml(statsFile);
         }else {
             cp.printAggregatedStatistics(statsFile);
         }
+#endif
+
         tmpm.computeStats();
+        statsFile << "Total misses on this path: " << std::dec << tmpm.getTotalMisses() << std::endl;
+
         tmpm.printAggregatedStatistics(statsFile);
         tmpm.print(statsFile);
+
+        if (ic.getCount() > maxICount) {
+            maxICount = ic.getCount();
+            maxICountPath = pathNum;
+        }
+
+        if (ic.getCount() < minICount) {
+            minICount = ic.getCount();
+            minICountPath = pathNum;
+        }
+
+        if (tmpm.getTotalMisses() > maxMissCount) {
+            maxMissCount = tmpm.getTotalMisses();
+            maxMissPath = pathNum;
+        }
+
+        if (tmpm.getTotalMisses() < minMissCount) {
+            minMissCount = tmpm.getTotalMisses();
+            minMissPath = pathNum;
+        }
+
 
         ++pathNum;
         statsFile << std::endl;
@@ -161,19 +196,15 @@ void PfProfiler::process()
     }
 
 
+    statsFile << "----------------------------------" << std::endl << std::dec;
+    statsFile << "Miss count        - Max:" << std::setw(10) << maxMissCount << " (path " << std::setw(10) << maxMissPath << ") ";
+    statsFile << "Min:" << std::setw(10)<< minMissCount << "(path " << std::setw(10) << minMissPath << ")" << std::endl;
+
+    statsFile << "Instruction count - Max:" << std::setw(10) << maxICount << " (path "<< std::setw(10) << maxICountPath << ") ";
+    statsFile << "Min:"<< std::setw(10) << minICount << "(path " << std::setw(10) << minICountPath << ")" << std::endl;
 
     return;
 
-    m_ModuleCache = new ModuleCache(&m_Parser, &m_Library);
-
-    m_Parser.onCallItem.connect(
-            sigc::mem_fun(*this, &PfProfiler::processCallItem)
-    );
-
-
-    m_Parser.parse(m_FileName);
-
-    m_Library.print(std::cout);
 }
 
 }

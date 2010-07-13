@@ -89,10 +89,12 @@ bool LogParser::parse(const std::string &fileName)
 
         uint8_t *buffer = new uint8_t [hdr.size];
 
-        if (!fread(buffer, hdr.size, 1, file)) {
-            std::cerr << "LogParser: Could not read payload " << std::endl;
-            //fclose(file);
-            return false;
+        if (hdr.size > 0) {
+            if (!fread(buffer, hdr.size, 1, file)) {
+                std::cerr << "LogParser: Could not read payload " << std::endl;
+                //fclose(file);
+                return false;
+            }
         }
 
         m_ItemOffsets.push_back(currentOffset);
@@ -134,10 +136,12 @@ bool LogParser::getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &
     }
 
     *data = new uint8_t[hdr.size];
-    if (!fread(*data, hdr.size, 1, m_File)) {
-        std::cerr << "LogParser: Could not read payload " << std::endl;
-        assert(false);
-        return false;
+    if (hdr.size > 0) {
+        if (!fread(*data, hdr.size, 1, m_File)) {
+            std::cerr << "LogParser: Could not read payload " << std::endl;
+            assert(false);
+            return false;
+        }
     }
 
     return true;

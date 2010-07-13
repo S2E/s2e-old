@@ -27,27 +27,27 @@ using namespace klee;
 
 /** Returns the floor form of binary logarithm for a 32 bit integer.
     (unsigned) -1 is returned if n is 0. */
-unsigned floorLog2(unsigned n) {
+uint64_t floorLog2(uint64_t n) {
     int pos = 0;
     if (n >= 1<<16) { n >>= 16; pos += 16; }
     if (n >= 1<< 8) { n >>=  8; pos +=  8; }
     if (n >= 1<< 4) { n >>=  4; pos +=  4; }
     if (n >= 1<< 2) { n >>=  2; pos +=  2; }
     if (n >= 1<< 1) {           pos +=  1; }
-    return ((n == 0) ? ((unsigned)-1) : pos);
+    return ((n == 0) ? ((uint64_t)-1) : pos);
 }
 
 /* Model of n-way accosiative write-through LRU cache */
 class Cache {
 protected:
     uint64_t m_size;
-    unsigned m_associativity;
-    unsigned m_lineSize;
+    uint64_t m_associativity;
+    uint64_t m_lineSize;
 
-    unsigned m_indexShift; // log2(m_lineSize)
-    unsigned m_indexMask;  // 1 - setsCount
+    uint64_t m_indexShift; // log2(m_lineSize)
+    uint64_t m_indexMask;  // 1 - setsCount
 
-    unsigned m_tagShift;   // m_indexShift + log2(setsCount)
+    uint64_t m_tagShift;   // m_indexShift + log2(setsCount)
 
     std::vector<uint64_t> m_lines;
 
@@ -61,11 +61,11 @@ public:
         return m_size;
     }
 
-    unsigned getAssociativity() const {
+    uint64_t getAssociativity() const {
         return m_associativity;
     }
 
-    unsigned getLineSize() const {
+    uint64_t getLineSize() const {
         return m_lineSize;
     }
 
@@ -79,18 +79,18 @@ public:
 
 
     Cache(const std::string& name,
-          unsigned size, unsigned associativity,
-          unsigned lineSize, unsigned cost = 1, Cache* upperCache = NULL)
+          uint64_t size, uint64_t associativity,
+          uint64_t lineSize, uint64_t cost = 1, Cache* upperCache = NULL)
         : m_size(size), m_associativity(associativity), m_lineSize(lineSize),
           m_name(name), m_upperCache(upperCache)
     {
         assert(size && associativity && lineSize);
 
-        assert(unsigned(1<<floorLog2(associativity)) == associativity);
-        assert(unsigned(1<<floorLog2(lineSize)) == lineSize);
+        assert(uint64_t(1LL<<floorLog2(associativity)) == associativity);
+        assert(uint64_t(1LL<<floorLog2(lineSize)) == lineSize);
 
-        unsigned setsCount = (size / lineSize) / associativity;
-        assert(setsCount && unsigned(1 << floorLog2(setsCount)) == setsCount);
+        uint64_t setsCount = (size / lineSize) / associativity;
+        assert(setsCount && uint64_t(1LL << floorLog2(setsCount)) == setsCount);
 
         m_indexShift = floorLog2(m_lineSize);
         m_indexMask = setsCount-1;
@@ -108,7 +108,7 @@ public:
     /** Models a cache access. A misCount is an array for miss counts (will be
         passed to the upper caches), misCountSize is its size. Array
         must be zero-initialized. */
-    void access(uint64_t address, unsigned size,
+    void access(uint64_t address, uint64_t size,
             bool isWrite, unsigned* misCount, unsigned misCountSize)
     {
 
@@ -117,15 +117,15 @@ public:
 
         if(s1 != s2) {
             /* Cache access spawns multiple lines */
-            unsigned size1 = m_lineSize - (address & (m_lineSize - 1));
+            uint64_t size1 = m_lineSize - (address & (m_lineSize - 1));
             access(address, size1, isWrite, misCount, misCountSize);
             access((address & ~(m_lineSize-1)) + m_lineSize, size-size1,
                                    isWrite, misCount, misCountSize);
             return;
         }
 
-        unsigned set = s1 & m_indexMask;
-        unsigned l = set * m_associativity;
+        uint64_t set = s1 & m_indexMask;
+        uint64_t l = set * m_associativity;
         uint64_t tag = address >> m_tagShift;
 
         for(unsigned i = 0; i < m_associativity; ++i) {
@@ -138,6 +138,7 @@ public:
             }
         }
 
+        //g_s2e->getDebugStream() << "Miss at 0x" << std::hex << address << std::endl;
         /* Cache miss. Install new tag as MRU */
         misCount[0] += 1;
         for(unsigned j = m_associativity-1; j > 0; --j)
@@ -344,6 +345,9 @@ void CacheSim::initialize()
 
     //Start cache profiling when the first configured module is loaded
     m_startOnModuleLoad = conf->getBool(getConfigKey() + ".startOnModuleLoad");
+
+    //Determines whether to address the cache physically of virtually
+    m_physAddress = conf->getBool(getConfigKey() + ".physicalAddressing");
 
     m_cacheStructureWrittenToLog = false;
     if (m_useBinaryLogFile && !m_Tracer) {
@@ -589,8 +593,15 @@ void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
         return;
     }
 
-    uint64_t constAddress = cast<ConstantExpr>(hostAddress)->getZExtValue(64);
+    uint64_t constAddress;
     unsigned size = Expr::getMinBytesForWidth(value->getWidth());
+
+    if (m_physAddress) {
+        constAddress = cast<ConstantExpr>(hostAddress)->getZExtValue(64);
+  //      s2e()->getDebugStream() << "acc pc=" << std::hex << state->getPc() << " ha=" << constAddress << std::endl;
+    }else {
+        constAddress = cast<ConstantExpr>(address)->getZExtValue(64);
+    }
 
     onMemoryAccess(state, constAddress, size, isWrite, isIO, false);
 }
@@ -598,7 +609,8 @@ void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
 void CacheSim::onExecuteBlockStart(S2EExecutionState *state, uint64_t pc,
                                    TranslationBlock *tb, uint64_t hostAddress)
 {
-    onMemoryAccess(state, hostAddress, tb->size, false, false, true);
+//    s2e()->getDebugStream() << "exec pc=" << std::hex << pc << " ha=" << hostAddress << std::endl;
+    onMemoryAccess(state, m_physAddress ? hostAddress : pc, tb->size, false, false, true);
 }
 
 void CacheSim::onTranslateBlockStart(ExecutionSignal *signal,
@@ -606,9 +618,17 @@ void CacheSim::onTranslateBlockStart(ExecutionSignal *signal,
                                      TranslationBlock *tb,
                                      uint64_t)
 {
-    uint64_t hostAddress = state->getHostAddress(tb->pc);
+    uint64_t newPc;
+
+    if (m_physAddress) {
+        newPc = state->getHostAddress(tb->pc);
+        //s2e()->getDebugStream() << "tb pc=" << std::hex << tb->pc << " ha=" << newPc << std::endl;
+    }else {
+        newPc = tb->pc;
+    }
+
     signal->connect(sigc::bind(
-            sigc::mem_fun(*this, &CacheSim::onExecuteBlockStart), tb, hostAddress));
+            sigc::mem_fun(*this, &CacheSim::onExecuteBlockStart), tb, newPc));
 }
 
 

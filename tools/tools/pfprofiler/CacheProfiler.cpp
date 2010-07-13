@@ -177,6 +177,7 @@ TopMissesPerModule::TopMissesPerModule(BFDLibrary *library, CacheProfiler *prof)
     m_html = false;
     m_displayAllModules = true;
     m_library = library;
+    m_totalMisses = 0;
 }
 
 TopMissesPerModule::~TopMissesPerModule()
@@ -221,6 +222,7 @@ void TopMissesPerModule::computeStats()
 
         if (!filteredPid || filteredPid == ex.instr.pid) {
             m_stats.insert(ex);
+            m_totalMisses += ex.stats.readMissCount + ex.stats.writeMissCount;
         }
     }
 }

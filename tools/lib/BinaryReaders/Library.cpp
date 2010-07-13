@@ -1,6 +1,8 @@
 #include "Library.h"
 
 #include <sstream>
+#include <fstream>
+#include <iostream>
 
 namespace s2etools {
 
@@ -17,11 +19,44 @@ BFDLibrary::~BFDLibrary()
     }
 }
 
+//Add a set of library paths, separated by a colon.
+void BFDLibrary::setPath(const std::string &s)
+{
+    std::string::size_type cur=0, prev=0;
+
+    do {
+        cur = s.find(':', prev);
+        m_libpath.push_back(s.substr(prev, cur));
+        std::cout << "Adding libpath " << s.substr(prev, cur) << std::endl;
+        prev = cur+1;
+    }while(cur != std::string::npos);
+}
+
+//Cycles through the list of paths and attempts to find the specified library
+bool BFDLibrary::findLibrary(const std::string &libName, std::string &abspath)
+{
+    PathList::const_iterator it;
+
+    for (it = m_libpath.begin(); it != m_libpath.end(); ++it) {
+        std::string s = *it + "/";
+        s+=libName;
+        std::ifstream ifs(s.c_str());
+        if (ifs.is_open()) {
+            abspath = s;
+            return true;
+        }
+    }
+    return false;
+}
+
 //Add a library using a relative path
 bool BFDLibrary::addLibrary(const std::string &libName)
 {
-    std::string s = m_libpath + "/";
-    s+=libName;
+    std::string s;
+
+    if (!findLibrary(libName, s)) {
+        return false;
+    }
     return addLibraryAbs(s);
 }
 
@@ -48,10 +83,12 @@ bool BFDLibrary::addLibraryAbs(const std::string &libName)
 //Get a library using a name
 BFDInterface *BFDLibrary::get(const std::string &name)
 {
-    std::string s = m_libpath + "/";
-    s+=name;
+    std::string s;
+    if (!findLibrary(name, s)) {
+        return NULL;
+    }
 
-    if (!addLibrary(name)) {
+    if (!addLibraryAbs(s)) {
         return NULL;
     }
 
@@ -85,15 +122,15 @@ bool BFDLibrary::print(
     std::stringstream ss;
 
     if (file) {
-        ss << source << " ";
+        ss << source;
     }
 
     if (line) {
-        ss << "[" << ln << "] ";
+        ss << ":" << ln;
     }
 
     if (func) {
-        ss << function;
+        ss << " - " << function;
     }
 
     out = ss.str();

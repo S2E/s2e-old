@@ -11,7 +11,7 @@
 //#include <s2e/Plugins/CodeSelector.h>
 #include <s2e/Plugins/BaseInstructions.h>
 #include <s2e/Plugins/BranchCoverage.h>
-//#include <s2e/Plugins/ExecutionTrace.h>
+
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
 #include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
 #include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
@@ -19,6 +19,7 @@
 #include <s2e/Plugins/ExecutionTracers/ModuleTracer.h>
 #include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/Plugins/ExecutionTracers/MemoryTracer.h>
+#include <s2e/Plugins/ExecutionTracers/InstructionCounter.h>
 #include <s2e/Plugins/CacheSim.h>
 #include <s2e/Plugins/PfProfiler.h>
 #include <s2e/Plugins/Debugger.h>
@@ -57,7 +58,6 @@ PluginsFactory::PluginsFactory()
     //__S2E_REGISTER_PLUGIN(plugins::CodeSelector);
     __S2E_REGISTER_PLUGIN(plugins::BaseInstructions);
     __S2E_REGISTER_PLUGIN(plugins::BranchCoverage);
-    //__S2E_REGISTER_PLUGIN(plugins::ExecutionTrace);
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);
@@ -67,6 +67,8 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);
     __S2E_REGISTER_PLUGIN(plugins::TestCaseGenerator);
     __S2E_REGISTER_PLUGIN(plugins::MemoryTracer);
+    __S2E_REGISTER_PLUGIN(plugins::InstructionCounter);
+
     __S2E_REGISTER_PLUGIN(plugins::Debugger);
     __S2E_REGISTER_PLUGIN(plugins::Example);
 

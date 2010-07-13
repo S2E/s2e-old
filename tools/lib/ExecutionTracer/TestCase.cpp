@@ -1,5 +1,6 @@
 #include <iomanip>
 #include <iostream>
+#include <cassert>
 #include "TestCase.h"
 
 using namespace s2e::plugins;

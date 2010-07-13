@@ -410,4 +410,13 @@ void s2e_debug_print(const char *fmtstr, ...)
 
 }
 
+extern "C"
+{
+void s2e_execute_cmd(const char *cmd)
+{
+    g_s2e->getConfig()->fcnExecute(cmd);
+}
+}
+
+
 } // extern "C"

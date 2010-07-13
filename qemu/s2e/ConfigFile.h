@@ -79,6 +79,13 @@ public:
 
     /* Returns true if a config key exists */
     bool hasKey(const std::string& name);
+
+
+    void fcnRegister(const char *name, int (*callback)(void *), void *context);
+    static int fcnGetArgumentCount(void *s);
+    static void *fcnGetContext(void *s);
+    static bool fcnGetStringArg(void *s, int index, std::string &ret);
+    void fcnExecute(const char *cmd);
 };
 
 } // namespace s2e

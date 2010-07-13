@@ -4,10 +4,26 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_test_int1
+    call s2e_symbmem1
     cli
     hlt
 
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Testing symbolic memory
+
+s2e_symbmem1:
+    mov ebx, [0]
+    call s2e_enable
+    call s2e_int
+    cmp dword [eax], 0x1000
+    jae sm1
+    mov ebx, [eax]
+    sm1:
+    call s2e_disable
+    call s2e_kill_state
+ret
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
