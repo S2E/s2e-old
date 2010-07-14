@@ -75,8 +75,13 @@
         s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
                             (uint8_t*) &value, sizeof(value), isWrite, isIO);
 #elif defined(S2E_LLVM_LIB)
+        void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
+                                          uint64_t value, uint32_t bits,
+                                          uint8_t isWrite, uint8_t isIo);
+
+
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
-    tcg_llvm_trace_memory_access(vaddr, haddr, \
+        tcg_llvm_trace_memory_access(vaddr, haddr, \
                                  value, 8*sizeof(value), isWrite, isIO);
 #else
 #define S2E_TRACE_MEMORY(...)

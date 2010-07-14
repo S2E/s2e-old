@@ -4,7 +4,7 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_symbmem1
+    call s2e_test1
     cli
     hlt
 
@@ -77,7 +77,7 @@ s2etest2_1:
     jz __a
 __a:
     jmp s2etest2_1
-    
+
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -114,7 +114,7 @@ bool S2EExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
   gTheArgsP = args;
 
   #ifdef _WIN32
-  signal(SIGSEGV, ::sigsegv_handler);
+  signal(SIGSEGV, s2e_ext_sigsegv_handler);
   #else
   segvAction.sa_handler = 0;
   memset(&segvAction.sa_mask, 0, sizeof(segvAction.sa_mask));
@@ -411,16 +411,19 @@ S2EExecutionState* S2EExecutor::createInitialState()
 
     __DEFINE_EXT_OBJECT(env)
     __DEFINE_EXT_OBJECT(g_s2e)
-    __DEFINE_EXT_OBJECT(g_s2e_state) 
+    __DEFINE_EXT_OBJECT(g_s2e_state)
     __DEFINE_EXT_OBJECT(g_s2e_exec_ret_addr)
     __DEFINE_EXT_OBJECT(io_mem_read)
     __DEFINE_EXT_OBJECT(io_mem_write)
     __DEFINE_EXT_OBJECT(io_mem_opaque)
     __DEFINE_EXT_OBJECT(use_icount)
     __DEFINE_EXT_OBJECT(cpu_single_env)
+    __DEFINE_EXT_OBJECT(loglevel)
+    __DEFINE_EXT_OBJECT(logfile)
     __DEFINE_EXT_OBJECT_RO_SYMB(parity_table)
     __DEFINE_EXT_OBJECT_RO_SYMB(rclw_table)
     __DEFINE_EXT_OBJECT_RO_SYMB(rclb_table)
+
 
     m_s2e->getMessagesStream(state)
             << "Created initial state" << std::endl;
@@ -1135,7 +1138,19 @@ static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
 
 #ifdef _WIN32
 
-#error Implement signal enabling/disabling...
+#warning Implement signal enabling/disabling...
+
+typedef int sigset_t;
+
+static void s2e_disable_signals(sigset_t *oldset)
+{
+
+}
+
+static void s2e_enable_signals(sigset_t *oldset)
+{
+
+}
 
 #else
 
@@ -1341,7 +1356,7 @@ void S2EExecutor::deleteState(klee::ExecutionState *state)
 void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                  const vector<S2EExecutionState*>& newStates,
                  const vector<ref<Expr> >& newConditions)
-{   
+{
     assert(originalState->m_active && !originalState->m_runningConcrete);
 
     std::ostream& out = m_s2e->getMessagesStream(originalState);
@@ -1357,7 +1372,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         if(newState != originalState) {
             newState->getDeviceState()->saveDeviceState();
-           
+
             foreach(MemoryObject* mo, m_saveOnContextSwitch) {
                 const ObjectState *os = newState->fetchObjectState(mo, TARGET_PAGE_MASK);
                 ObjectState *wos = newState->fetchObjectStateWritable(mo, os);

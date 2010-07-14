@@ -42,9 +42,11 @@ void TestCaseGenerator::processTestCase(const S2EExecutionState &state,
         return;
     }
 
+#if 0
     foreach2(it, state.constraints.begin(), state.constraints.end()) {
         s2e()->getMessagesStream() << "Constraint: " << std::hex << *it << std::endl;
     }
+#endif
 
     s2e()->getMessagesStream() << std::endl;
 
