@@ -357,7 +357,7 @@ amodem_create( int  base_port, AModemUnsolFunc  unsol_func, void*  unsol_opaque 
     modem->unsol_func   = unsol_func;
     modem->unsol_opaque = unsol_opaque;
 
-    modem->sim = asimcard_create();
+    modem->sim = asimcard_create(base_port);
 
     return  modem;
 }
@@ -1084,6 +1084,7 @@ handleSendSMSText( const char*  cmd, AModem  modem )
 {
 #if 1
     SmsAddressRec  address;
+    char           temp[16];
     char           number[16];
     int            numlen;
     int            len = strlen(cmd);
@@ -1107,11 +1108,29 @@ handleSendSMSText( const char*  cmd, AModem  modem )
     do {
         int  index;
 
-        numlen = sms_address_to_str( &address, number, sizeof(number) );
-        if (numlen > sizeof(number)-1)
+        numlen = sms_address_to_str( &address, temp, sizeof(temp) );
+        if (numlen > sizeof(temp)-1)
             break;
+        temp[numlen] = 0;
 
-        number[numlen] = 0;
+        /* Converts 4, 7, and 10 digits number to 11 digits */
+        if (numlen == 10 && !strncmp(temp, PHONE_PREFIX+1, 6)) {
+            memcpy( number, PHONE_PREFIX, 1 );
+            memcpy( number+1, temp, numlen );
+            number[numlen+1] = 0;
+        } else if (numlen == 7 && !strncmp(temp, PHONE_PREFIX+4, 3)) {
+            memcpy( number, PHONE_PREFIX, 4 );
+            memcpy( number+4, temp, numlen );
+            number[numlen+4] = 0;
+        } else if (numlen == 4) {
+            memcpy( number, PHONE_PREFIX, 7 );
+            memcpy( number+7, temp, numlen );
+            number[numlen+7] = 0;
+        } else {
+            memcpy( number, temp, numlen );
+            number[numlen] = 0;
+        }
+
         if ( remote_number_string_to_port( number ) < 0 )
             break;
 
@@ -1133,11 +1152,11 @@ handleSendSMSText( const char*  cmd, AModem  modem )
 
         if (index > 0) {
             SmsAddressRec  from[1];
-            char           temp[10];
+            char           temp[12];
             SmsPDU*        deliver;
             int            nn;
 
-            sprintf( temp, "%d", modem->base_port );
+            snprintf( temp, sizeof(temp), PHONE_PREFIX "%d", modem->base_port );
             sms_address_from_str( from, temp, strlen(temp) );
 
             deliver = sms_receiver_create_deliver( modem->sms_receiver, index, from );
@@ -1533,8 +1552,23 @@ handleDial( const char*  cmd, AModem  modem )
     if (len >= sizeof(call->number))
         len = sizeof(call->number)-1;
 
-    memcpy( call->number, cmd, len );
-    call->number[len] = 0;
+    /* Converts 4, 7, and 10 digits number to 11 digits */
+    if (len == 10 && !strncmp(cmd, PHONE_PREFIX+1, 6)) {
+        memcpy( call->number, PHONE_PREFIX, 1 );
+        memcpy( call->number+1, cmd, len );
+        call->number[len+1] = 0;
+    } else if (len == 7 && !strncmp(cmd, PHONE_PREFIX+4, 3)) {
+        memcpy( call->number, PHONE_PREFIX, 4 );
+        memcpy( call->number+4, cmd, len );
+        call->number[len+4] = 0;
+    } else if (len == 4) {
+        memcpy( call->number, PHONE_PREFIX, 7 );
+        memcpy( call->number+7, cmd, len );
+        call->number[len+7] = 0;
+    } else {
+        memcpy( call->number, cmd, len );
+        call->number[len] = 0;
+    }
 
     vcall->is_remote = (remote_number_string_to_port(call->number) > 0);
 

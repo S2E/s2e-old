@@ -78,7 +78,16 @@ int
 remote_number_string_to_port( const char*  number )
 {
     char*  end;
-    long   num = strtol( number, &end, 10 );
+    long   num;
+    char*  temp = number;
+    int    len;
+
+    len = strlen(number);
+    if (len > 0 && number[len-1] == ';')
+        len--;
+    if (len == 11 && !memcmp(number, PHONE_PREFIX, 7))
+        temp += 7;
+    num = strtol( temp, &end, 10 );
 
     if (end == NULL || *end || (int)num != num )
         return -1;
@@ -167,23 +176,23 @@ remote_call_alloc( RemoteCallType  type, int  to_port, int  from_port )
 
         switch (type) {
             case REMOTE_CALL_DIAL:
-                p = bufprint(p, end, "gsm call %d\n", from_num );
+                p = bufprint(p, end, "gsm call " PHONE_PREFIX "%d\n", from_num );
                 break;
 
             case REMOTE_CALL_BUSY:
-                p = bufprint(p, end, "gsm busy %d\n", from_num);
+                p = bufprint(p, end, "gsm busy " PHONE_PREFIX "%d\n", from_num);
                 break;
 
             case REMOTE_CALL_HOLD:
-                p = bufprint(p, end, "gsm hold %d\n", from_num);
+                p = bufprint(p, end, "gsm hold " PHONE_PREFIX "%d\n", from_num);
                 break;
 
             case REMOTE_CALL_ACCEPT:
-                p = bufprint(p, end, "gsm accept %d\n", from_num);
+                p = bufprint(p, end, "gsm accept " PHONE_PREFIX "%d\n", from_num);
                 break;
 
             case REMOTE_CALL_HANGUP:
-                p = bufprint(p, end, "gsm cancel %d\n", from_num );
+                p = bufprint(p, end, "gsm cancel " PHONE_PREFIX "%d\n", from_num );
                 break;
 
             default:

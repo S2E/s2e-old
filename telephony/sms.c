@@ -353,7 +353,8 @@ sms_address_to_str( SmsAddress address, char*  str, int  strlen )
 
         if (count < strlen)
             str[count] = dialdigits[(c >> 4) & 0xf];
-        count += 1;
+        if (str[count])
+            count += 1;
     }
     return count;
 }
