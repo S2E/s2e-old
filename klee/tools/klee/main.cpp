@@ -1186,7 +1186,7 @@ int main(int argc, char **argv, char **envp) {
       return r;
   }
 
-  std::string LibraryDir(KLEE_DIR "/" RUNTIME_CONFIGURATION " /lib");
+  std::string LibraryDir(KLEE_DIR "/" RUNTIME_CONFIGURATION "/lib");
 
   std::string RuntimeLibPath = LibraryDir + "/libkleeRuntimeIntrinsic.bca";
   Interpreter::ModuleOptions Opts(

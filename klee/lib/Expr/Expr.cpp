@@ -16,11 +16,15 @@
 
 #include "klee/util/ExprPPrinter.h"
 
+#include "BitfieldSimplifier.h"
+
 #include <iostream>
 #include <sstream>
 
 using namespace klee;
 using namespace llvm;
+
+using namespace BitfieldSimplifier;
 
 namespace {
   cl::opt<bool>
@@ -772,7 +776,7 @@ static ref<Expr> MulExpr_create(Expr *l, Expr *r) {
   Expr::Width type = l->getWidth();
   
   if (type == Expr::Bool) {
-    return AndExpr::alloc(l, r);
+    return simplifyBits(AndExpr::alloc(l, r));
   } else {
     return MulExpr::alloc(l, r);
   }
@@ -784,14 +788,14 @@ static ref<Expr> AndExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
   } else if (cr->isZero()) {
     return cr;
   } else {
-    return AndExpr::alloc(l, cr);
+    return simplifyBits(AndExpr::alloc(l, cr));
   }
 }
 static ref<Expr> AndExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
   return AndExpr_createPartial(r, cl);
 }
 static ref<Expr> AndExpr_create(Expr *l, Expr *r) {
-  return AndExpr::alloc(l, r);
+  return simplifyBits(AndExpr::alloc(l, r));
 }
 
 static ref<Expr> OrExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
@@ -800,14 +804,14 @@ static ref<Expr> OrExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
   } else if (cr->isZero()) {
     return l;
   } else {
-    return OrExpr::alloc(l, cr);
+    return simplifyBits(OrExpr::alloc(l, cr));
   }
 }
 static ref<Expr> OrExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
   return OrExpr_createPartial(r, cl);
 }
 static ref<Expr> OrExpr_create(Expr *l, Expr *r) {
-  return OrExpr::alloc(l, r);
+  return simplifyBits(OrExpr::alloc(l, r));
 }
 
 static ref<Expr> XorExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
@@ -863,7 +867,7 @@ static ref<Expr> ShlExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l->getWidth() == Expr::Bool) { // l & !r
     return AndExpr::create(l, Expr::createIsZero(r));
   } else{
-    return ShlExpr::alloc(l, r);
+    return simplifyBits(ShlExpr::alloc(l, r));
   }
 }
 
