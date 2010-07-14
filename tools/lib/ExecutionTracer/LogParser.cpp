@@ -2,6 +2,19 @@
 #include <cassert>
 #include "LogParser.h"
 
+#ifdef _WIN32
+
+#else
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+
+
+
+#endif
+
 using namespace s2e::plugins;
 
 namespace s2etools
@@ -13,37 +26,8 @@ void LogEvents::processItem(unsigned currentItem,
 {
     const ExecutionTraceAll *item = (ExecutionTraceAll*)data;
 
-    onEachItem.emit(currentItem, hdr, (void*)data);
-
-
     assert(hdr.type < TRACE_MAX);
-    switch(hdr.type) {
-        case TRACE_MOD_LOAD:
-            onModuleLoadItem.emit(currentItem, hdr, (*item).moduleLoad);
-            break;
-
-        case TRACE_MOD_UNLOAD:
-            onModuleUnloadItem.emit(currentItem, hdr, (*item).moduleUnload);
-            break;
-
-        case TRACE_CALL:
-            onCallItem.emit(currentItem, hdr, (*item).call);
-            break;
-
-        case TRACE_RET:
-            onReturnItem.emit(currentItem, hdr, (*item).ret);
-            break;
-
-        case TRACE_TB_START:
-
-        case TRACE_TB_END:
-
-        case TRACE_MODULE_DESC:
-
-        default:
-            
-            break;
-    }
+    onEachItem.emit(currentItem, hdr, (void*)data);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -53,12 +37,13 @@ void LogEvents::processItem(unsigned currentItem,
 LogParser::LogParser()
 {
     m_File = NULL;
+    m_size = 0;
 }
 
 LogParser::~LogParser()
 {
     if (m_File) {
-        fclose(m_File);
+        munmap(m_File, m_size);
     }
 }
 
@@ -66,43 +51,65 @@ LogParser::~LogParser()
 
 bool LogParser::parse(const std::string &fileName)
 {
-    FILE *file = fopen(fileName.c_str(), "rb");
-    if (!file) {
+#ifdef _WIN32
+#error Implement memory-mapped file support
+#else
+    int file = open(fileName.c_str(), O_RDONLY);
+    if (file<0) {
         std::cerr << "LogParser: Could not open " << fileName << std::endl;
         return false;
     }
-    m_File = file;
+
+    off_t fileSize = lseek(file, 0, SEEK_END);
+    if (fileSize == (off_t) -1) {
+        std::cerr << "Could not get log file size" << std::endl;
+        return false;
+    }
+
+    m_File = mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, file, 0);
+    if (!m_File) {
+        std::cerr << "Could not map the log file in memory" << std::endl;
+        close(file);
+        return false;
+    }
+
+    m_size = fileSize;
+
+#endif
+
 
     m_ItemOffsets.clear();
 
     uint64_t currentOffset = 0;
     unsigned currentItem = 0;
 
-    while(!feof(file)) {
-        s2e::plugins::ExecutionTraceItemHeader hdr;
-        if (!fread(&hdr, sizeof(hdr), 1, file)) {
+    uint8_t *buffer = (uint8_t*)m_File;
+
+    while(currentOffset < m_size) {
+
+        s2e::plugins::ExecutionTraceItemHeader *hdr =
+                (s2e::plugins::ExecutionTraceItemHeader *)(buffer);
+
+        if (currentOffset + sizeof(s2e::plugins::ExecutionTraceItemHeader) > m_size) {
             std::cerr << "LogParser: Could not read header " << std::endl;
-            //fclose(file);
             return false;
         }
 
+        buffer += sizeof(*hdr);
 
-        uint8_t *buffer = new uint8_t [hdr.size];
-
-        if (hdr.size > 0) {
-            if (!fread(buffer, hdr.size, 1, file)) {
+        if (hdr->size > 0) {
+            if (currentOffset + hdr->size > m_size) {
                 std::cerr << "LogParser: Could not read payload " << std::endl;
-                //fclose(file);
                 return false;
             }
         }
 
+        processItem(currentItem, *hdr, buffer);
+        buffer+=hdr->size;
+
         m_ItemOffsets.push_back(currentOffset);
-        currentOffset += sizeof(hdr)  + hdr.size;
 
-        processItem(currentItem, hdr, buffer);
-
-        delete [] buffer;
+        currentOffset += sizeof(s2e::plugins::ExecutionTraceItemHeader)  + hdr->size;
 
         ++currentItem;
     }
@@ -123,25 +130,13 @@ bool LogParser::getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &
         return false;
     }
 
-    if (fseek(m_File, m_ItemOffsets[index], SEEK_SET)) {
-        std::cerr << "LogParser: Could not seek to  " << m_ItemOffsets[index] << std::endl;
-        assert(false);
-        return false;
-    }
+    uint64_t offset = m_ItemOffsets[index];
+    uint8_t *buffer = (uint8_t*)m_File + offset;
+    hdr = *(s2e::plugins::ExecutionTraceItemHeader*)buffer;
 
-    if (!fread(&hdr, sizeof(s2e::plugins::ExecutionTraceItemHeader), 1, m_File)) {
-        std::cerr << "LogParser: Could not read header " << std::endl;
-        assert(false);
-        return false;
-    }
-
-    *data = new uint8_t[hdr.size];
+    *data = NULL;
     if (hdr.size > 0) {
-        if (!fread(*data, hdr.size, 1, m_File)) {
-            std::cerr << "LogParser: Could not read payload " << std::endl;
-            assert(false);
-            return false;
-        }
+        *data = buffer + sizeof(s2e::plugins::ExecutionTraceItemHeader);
     }
 
     return true;

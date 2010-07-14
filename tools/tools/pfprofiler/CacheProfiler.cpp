@@ -212,7 +212,7 @@ void TopMissesPerModule::computeStats()
         CacheStatisticsEx ex;
         ex.instr = (*it).first.first;
         ex.stats = (*it).second;
-        std::cout << ex.stats.c->getName();
+        //std::cout << ex.stats.c->getName();
 
         if (m_filteredModule.size() > 0) {
             if ((*it).first.first.m && (*it).first.first.m->getModuleName() != m_filteredModule) {

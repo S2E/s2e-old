@@ -19,35 +19,6 @@ public:
         const s2e::plugins::ExecutionTraceItemHeader &,
         void *
     >onEachItem;
-
-    sigc::signal<
-            void,
-            unsigned,
-            const s2e::plugins::ExecutionTraceItemHeader &,
-            const s2e::plugins::ExecutionTraceModuleLoad &
-    >onModuleLoadItem;
-
-    sigc::signal<
-            void,
-            unsigned,
-            const s2e::plugins::ExecutionTraceItemHeader &,
-            const s2e::plugins::ExecutionTraceModuleUnload &
-    >onModuleUnloadItem;
-
-    sigc::signal<
-            void,
-            unsigned,
-            const s2e::plugins::ExecutionTraceItemHeader &,
-            const s2e::plugins::ExecutionTraceCall &
-    >onCallItem;
-
-    sigc::signal<
-            void,
-            unsigned,
-            const s2e::plugins::ExecutionTraceItemHeader &,
-            const s2e::plugins::ExecutionTraceReturn &
-    >onReturnItem;
-
 protected:
     virtual void processItem(unsigned itemEntry,
                              const s2e::plugins::ExecutionTraceItemHeader &hdr,
@@ -59,7 +30,9 @@ class LogParser: public LogEvents
 {
 private:
 
-    FILE *m_File;
+    //FILE *m_File;
+    void *m_File;
+    uint64_t m_size;
     std::vector<uint64_t> m_ItemOffsets;
 
 

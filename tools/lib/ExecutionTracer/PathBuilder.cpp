@@ -185,7 +185,6 @@ void PathBuilder::processSegment(PathSegment *seg)
             m_Parser->getItem(s, hdr, (void**)&data);
             assert(hdr.stateId == seg->getStateId());
             processItem(s, hdr, data);
-            delete [] data;
         }
     }
 }

@@ -60,6 +60,7 @@ bool RawMonitor::initSection(const std::string &cfgKey, const std::string &svcId
     }
 
     cfg.delayLoad = s2e()->getConfig()->getBool(cfgKey + ".delay");
+    cfg.kernelMode = s2e()->getConfig()->getBool(cfgKey + ".kernelmode");
 
     m_cfg.push_back(cfg);
     return true;
@@ -71,7 +72,13 @@ void RawMonitor::initialize()
     Sections = s2e()->getConfig()->getListKeys(getConfigKey());
     bool noErrors = true;
 
+    m_kernelStart = s2e()->getConfig()->getInt(getConfigKey() + ".kernelStart");
+
     foreach2(it, Sections.begin(), Sections.end()) {
+        if (*it == "kernelStart") {
+            continue;
+        }
+
         s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
@@ -161,6 +168,7 @@ void RawMonitor::loadModule(S2EExecutionState *state, const Cfg &c, bool skipIfD
     md.NativeBase = c.nativebase;
     md.LoadBase = c.start;
     md.Size = c.size;
+    md.Pid = c.kernelMode ? 0 : state->getPid();
 
     s2e()->getDebugStream() << "RawMonitor loaded " << c.name << " " <<
             std::hex << "0x" << c.start << " 0x" << c.size << std::dec << std::endl;
@@ -200,5 +208,8 @@ bool RawMonitor::isKernelAddress(uint64_t pc) const
 
 uint64_t RawMonitor::getPid(S2EExecutionState *s, uint64_t pc)
 {
+    if (pc >= m_kernelStart) {
+        return 0;
+    }
     return s->getPid();
 }

@@ -94,10 +94,15 @@ bool BFDInterface::getInfo(uint64_t addr, std::string &source, uint64_t &line, s
     s.size = 1;
 
 
+    if (m_invalidAddresses.find(addr) != m_invalidAddresses.end()) {
+        return false;
+    }
 
     Sections::const_iterator it = m_sections.find(s);
     if (it == m_sections.end()) {
         std::cerr << "Could not find section at address 0x"  << std::hex << addr << " in file " << m_fileName << std::endl;
+        //Cache the value for speed  up
+        m_invalidAddresses.insert(addr);
         return false;
     }
 

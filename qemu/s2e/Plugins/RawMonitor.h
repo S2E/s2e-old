@@ -24,12 +24,15 @@ public:
         uint64_t size;
         uint64_t nativebase;
         bool delayLoad;
+        bool kernelMode;
     };
 
     typedef std::vector<Cfg> CfgList;
 private:
     CfgList m_cfg;
     sigc::connection m_onTranslateInstruction;
+
+    uint64_t m_kernelStart;
 
     bool initSection(const std::string &cfgKey, const std::string &svcId);
 

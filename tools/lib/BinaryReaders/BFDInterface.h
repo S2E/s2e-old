@@ -7,6 +7,7 @@ extern "C" {
 
 #include <string>
 #include <map>
+#include <set>
 #include <inttypes.h>
 
 namespace s2etools
@@ -25,12 +26,14 @@ class BFDInterface
 {
 private:
     typedef std::map<BFDSection, asection *> Sections;
+    typedef std::set<uint64_t> AddressSet;
 
     static bool s_bfdInited;
     bfd *m_bfd;
     asymbol **m_symbolTable;
     std::string m_fileName;
     Sections m_sections;
+    AddressSet m_invalidAddresses;
 
     static void initSections(bfd *abfd, asection *sect, void *obj);
 
