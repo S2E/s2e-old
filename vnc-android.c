@@ -1591,7 +1591,7 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
 static void set_pixel_conversion(VncState *vs)
 {
     if ((vs->clientds.flags & QEMU_BIG_ENDIAN_FLAG) ==
-        (vs->ds->surface->flags & QEMU_BIG_ENDIAN_FLAG) && 
+        (vs->ds->surface->flags & QEMU_BIG_ENDIAN_FLAG) &&
         !memcmp(&(vs->clientds.pf), &(vs->ds->surface->pf), sizeof(PixelFormat))) {
         vs->write_pixels = vnc_write_pixels_copy;
         switch (vs->ds->surface->pf.bits_per_pixel) {
@@ -1699,7 +1699,7 @@ static void vnc_colordepth(VncState *vs)
         vnc_write_u8(vs, 0);  /* msg id */
         vnc_write_u8(vs, 0);
         vnc_write_u16(vs, 1); /* number of rects */
-        vnc_framebuffer_update(vs, 0, 0, ds_get_width(vs->ds), 
+        vnc_framebuffer_update(vs, 0, 0, ds_get_width(vs->ds),
                                ds_get_height(vs->ds), VNC_ENCODING_WMVi);
         pixel_format_message(vs);
         vnc_flush(vs);
@@ -2179,7 +2179,7 @@ int vnc_display_password(DisplayState *ds, const char *password)
 char *vnc_display_local_addr(DisplayState *ds)
 {
     VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
-    
+
     return vnc_socket_local_addr("%s:%s", vs->lsock);
 }
 

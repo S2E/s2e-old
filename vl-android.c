@@ -49,12 +49,10 @@
 #include "qemu_file.h"
 #include "android/android.h"
 #include "charpipe.h"
-#include "shaper.h"
 #include "modem_driver.h"
 #include "android/gps.h"
 #include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
-#include "tcpdump.h"
 #include "targphys.h"
 
 #include <unistd.h>

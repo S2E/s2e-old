@@ -33,7 +33,6 @@
 
 #include "android/charmap.h"
 #include "modem_driver.h"
-#include "shaper.h"
 #include "proxy_http.h"
 
 #include "android/utils/debug.h"
