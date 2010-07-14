@@ -1520,6 +1520,7 @@ EOF
   klee_libfiles=`$klee_config --libfiles 2> /dev/null`
 
   if test "$stpdir" != ""; then
+    stpdir=$(cd $stpdir>/dev/null && pwd)
     klee_ldflags="$klee_ldflags -L$stpdir/lib"
     klee_libs="$klee_libs -lstp"
   fi
