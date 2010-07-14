@@ -10,7 +10,7 @@
 #include "../sat/sat.h"
 #include "AbsRefine_CounterExample.h"
 #include "../printer/printers.h"
-#include "../to-sat/AIG/ToSATAIG.h"
+//#include "../to-sat/AIG/ToSATAIG.h"
 
 const bool debug_counterexample =  false;
 

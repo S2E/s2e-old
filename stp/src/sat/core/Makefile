@@ -12,4 +12,4 @@ clean:
 	rm -f $(OBJECTS) $(LIB)
 
 .C.o:
-	$(CC) $(CFLAGS) $< -o $@
+	$(CXX) $(CFLAGS) $< -o $@

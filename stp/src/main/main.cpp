@@ -6,6 +6,14 @@
  * LICENSE: Please view LICENSE file in the home dir of this Program
  ********************************************************************/
 // -*- c++ -*-
+#ifdef __MINGW32__
+#include <stdio.h>
+int main(int argc, char ** argv) {
+    printf("Windows not supported\n");
+    return 0;
+}
+
+#else
 #include "../AST/AST.h"
 #include "../printer/AssortedPrinters.h"
 #include "../printer/printers.h"
@@ -546,3 +554,4 @@ helpstring +=
   delete AssertsQuery;
   return 0;
 }//end of Main
+#endif
