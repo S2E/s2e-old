@@ -223,30 +223,6 @@ sdl_set_window_icon( void )
     }
 }
 
-/* see http://en.wikipedia.org/wiki/List_of_device_bandwidths or a complete list */
-const NetworkSpeed  android_netspeeds[] = {
-    { "gsm", "GSM/CSD", 14400, 14400 },
-    { "hscsd", "HSCSD", 14400, 43200 },
-    { "gprs", "GPRS", 40000, 80000 },
-    { "edge", "EDGE/EGPRS", 118400, 236800 },
-    { "umts", "UMTS/3G", 128000, 1920000 },
-    { "hsdpa", "HSDPA", 348000, 14400000 },
-    { "full", "no limit", 0, 0 },
-    { NULL, NULL, 0, 0 }
-};
-
-const NetworkLatency  android_netdelays[] = {
-    /* FIXME: these numbers are totally imaginary */
-    { "gprs", "GPRS", 150, 550 },
-    { "edge", "EDGE/EGPRS", 80, 400 },
-    { "umts", "UMTS/3G", 35, 200 },
-    { "none", "no latency", 0, 0 },
-    { NULL, NULL, 0, 0 }
-};
-
-
-
-
 #define  ONE_MB  (1024*1024)
 
 unsigned convertBytesToMB( uint64_t  size )
@@ -838,83 +814,6 @@ verbose_options[] = {
     VERBOSE_TAG_LIST
     { 0, 0, 0 }
 };
-
-int
-android_parse_network_speed(const char*  speed)
-{
-    int          n;
-    char*  end;
-    double       sp;
-
-    if (speed == NULL || speed[0] == 0) {
-        speed = DEFAULT_NETSPEED;
-    }
-
-    for (n = 0; android_netspeeds[n].name != NULL; n++) {
-        if (!strcmp(android_netspeeds[n].name, speed)) {
-            qemu_net_download_speed = android_netspeeds[n].download;
-            qemu_net_upload_speed   = android_netspeeds[n].upload;
-            return 0;
-        }
-    }
-
-    /* is this a number ? */
-    sp = strtod(speed, &end);
-    if (end == speed) {
-        return -1;
-    }
-
-    qemu_net_download_speed = qemu_net_upload_speed = sp*1000.;
-    if (*end == ':') {
-        speed = end+1;
-        sp = strtod(speed, &end);
-        if (end > speed) {
-            qemu_net_download_speed = sp*1000.;
-        }
-    }
-
-    if (android_modem)
-        amodem_set_data_network_type( android_modem,
-                                      android_parse_network_type(speed) );
-    return 0;
-}
-
-
-int
-android_parse_network_latency(const char*  delay)
-{
-    int  n;
-    char*  end;
-    double  sp;
-
-    if (delay == NULL || delay[0] == 0)
-        delay = DEFAULT_NETDELAY;
-
-    for (n = 0; android_netdelays[n].name != NULL; n++) {
-        if ( !strcmp( android_netdelays[n].name, delay ) ) {
-            qemu_net_min_latency = android_netdelays[n].min_ms;
-            qemu_net_max_latency = android_netdelays[n].max_ms;
-            return 0;
-        }
-    }
-
-    /* is this a number ? */
-    sp = strtod(delay, &end);
-    if (end == delay) {
-        return -1;
-    }
-
-    qemu_net_min_latency = qemu_net_max_latency = (int)sp;
-    if (*end == ':') {
-        delay = (const char*)end+1;
-        sp = strtod(delay, &end);
-        if (end > delay) {
-            qemu_net_max_latency = (int)sp;
-        }
-    }
-    return 0;
-}
-
 
 static int
 load_keyset(const char*  path)
@@ -2319,9 +2218,4 @@ int main(int argc, char **argv)
         }
     }
     return qemu_main(n, args);
-}
-
-void  android_emulation_teardown( void )
-{
-    android_charmap_done();
 }

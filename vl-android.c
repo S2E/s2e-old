@@ -53,6 +53,7 @@
 #include "android/gps.h"
 #include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
+#include "android/charmap.h"
 #include "targphys.h"
 
 #include <unistd.h>
@@ -179,6 +180,11 @@
 #include "migration.h"
 #include "kvm.h"
 #include "balloon.h"
+
+#ifdef CONFIG_STANDALONE_CORE
+/* Verbose value used by the standalone emulator core (without UI) */
+unsigned long   android_verbose;
+#endif  // CONFIG_STANDALONE_CORE
 
 #ifdef CONFIG_SKINS
 #undef main
@@ -6168,7 +6174,7 @@ int main(int argc, char **argv, char **envp)
         curses_display_init(ds, full_screen);
         break;
 #endif
-#if defined(CONFIG_SDL)
+#if defined(CONFIG_SDL) && !defined(CONFIG_STANDALONE_CORE)
     case DT_SDL:
         sdl_display_init(ds, full_screen, no_frame);
         break;
@@ -6325,4 +6331,10 @@ int main(int argc, char **argv, char **envp)
     net_cleanup();
     android_emulation_teardown();
     return 0;
+}
+
+void
+android_emulation_teardown(void)
+{
+    android_charmap_done();
 }

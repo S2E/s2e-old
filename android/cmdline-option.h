@@ -43,8 +43,4 @@ android_parse_options( int  *pargc, char**  *pargv, AndroidOptions*  opt );
  */
 #define  DEFAULT_DEVICE_DPI  165
 
-/* default network settings for emulator */
-#define  DEFAULT_NETSPEED  "full"
-#define  DEFAULT_NETDELAY  "none"
-
 #endif /* _ANDROID_OPTION_H */

@@ -51,6 +51,10 @@ typedef struct {
 
 extern const NetworkLatency  android_netdelays[];
 
+/* default network settings for emulator */
+#define  DEFAULT_NETSPEED  "full"
+#define  DEFAULT_NETDELAY  "none"
+
 /* enable/disable interrupt polling mode. the emulator will always use 100%
  * of host CPU time, but will get high-quality time measurments. this is
  * required for the tracing mode unless you can bear 10ms granularities
