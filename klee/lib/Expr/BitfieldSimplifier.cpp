@@ -65,7 +65,7 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
     /* Apply kind-specific knowledge to obtain knownBits for e and
        ignoredBits for kids of e, then to optimize e */
     switch(e->getKind()) {
-    // TODO: Concat, Read, Shifts
+    // TODO: Concat, Read, AShr
 
     case Expr::And:
         rbits.knownOneBits = bits[0].knownOneBits & bits[1].knownOneBits;
@@ -115,8 +115,8 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         break;
 
     case Expr::Not:
-        rbits.knownOneBits = bits[0].knownZeroBits;
-        rbits.knownZeroBits = bits[0].knownOneBits;
+        rbits.knownOneBits = bits[0].knownZeroBits & ~zeroMask(e->getWidth());
+        rbits.knownZeroBits = bits[0].knownOneBits | zeroMask(e->getWidth());
 
         bits[0].ignoredBits = ignoredBits;
 
@@ -188,6 +188,23 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
             rbits.knownZeroBits = (bits[0].knownZeroBits << ee->offset) | ~mask;
 
             bits[0].ignoredBits = (ignoredBits << ee->offset) | ~mask;
+        }
+        break;
+
+    case Expr::Concat:
+        {
+            uint64_t shift = kids[1]->getWidth();
+            rbits.knownOneBits = ((bits[0].knownOneBits << shift) |
+                                  (bits[1].knownOneBits))
+                                 & ~zeroMask(e->getWidth());
+            rbits.knownZeroBits = (bits[0].knownZeroBits << shift)
+                                  | (bits[1].knownZeroBits)
+                                  | zeroMask(e->getWidth());
+
+            bits[0].ignoredBits = (ignoredBits >> shift)
+                                  | zeroMask(kids[0]->getWidth());
+            bits[1].ignoredBits = ignoredBits
+                                  | zeroMask(kids[1]->getWidth());
         }
         break;
 
