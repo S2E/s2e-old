@@ -1857,7 +1857,7 @@ void helper_daa(void)
     EAX_W((EAX & ~0xff) | al);
     /* well, speed is not an issue here, so we compute the flags by hand */
     eflags |= (al == 0) << 6; /* zf */
-    eflags |= parity_table[al]; /* pf */
+    eflags |= (parity_table[al] & CC_P); /* pf */
     eflags |= (al & 0x80); /* sf */
     CC_SRC_W(eflags);
 }
@@ -1887,7 +1887,7 @@ void helper_das(void)
     EAX_W((EAX & ~0xff) | al);
     /* well, speed is not an issue here, so we compute the flags by hand */
     eflags |= (al == 0) << 6; /* zf */
-    eflags |= parity_table[al]; /* pf */
+    eflags |= (parity_table[al] & CC_P); /* pf */
     eflags |= (al & 0x80); /* sf */
     CC_SRC_W(eflags);
 }
