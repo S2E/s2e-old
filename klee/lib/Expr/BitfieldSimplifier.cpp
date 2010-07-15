@@ -65,7 +65,7 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
     /* Apply kind-specific knowledge to obtain knownBits for e and
        ignoredBits for kids of e, then to optimize e */
     switch(e->getKind()) {
-    // TODO: Concat, Extract, Read, ZExt, SExt, And, Or, Xor, Not, Shifts
+    // TODO: Concat, Read, Shifts
 
     case Expr::And:
         rbits.knownOneBits = bits[0].knownOneBits & bits[1].knownOneBits;
@@ -103,19 +103,74 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
 
         break;
 
+    case Expr::Xor:
+        rbits.knownOneBits = (bits[0].knownZeroBits & bits[1].knownOneBits) |
+                             (bits[0].knownOneBits & bits[1].knownZeroBits);
+        rbits.knownZeroBits = (bits[0].knownOneBits & bits[1].knownOneBits) |
+                              (bits[0].knownZeroBits & bits[1].knownZeroBits);
+
+        bits[0].ignoredBits = ignoredBits;
+        bits[1].ignoredBits = ignoredBits;
+
+        break;
+
+    case Expr::Not:
+        rbits.knownOneBits = bits[0].knownZeroBits;
+        rbits.knownZeroBits = bits[0].knownOneBits;
+
+        bits[0].ignoredBits = ignoredBits;
+
+        break;
+
     case Expr::Shl:
         if(ConstantExpr *c1 = dyn_cast<ConstantExpr>(kids[1])) {
-            // We can simplify only is the shift is known
+            // We can simplify only if the shift is known
             uint64_t shift = c1->getZExtValue();
+            uint64_t width = e->getWidth();
+            assert(width == kids[0]->getWidth());
 
-            rbits.knownOneBits = (bits[0].knownOneBits << shift)
-                                  & ~zeroMask(e->getWidth());
-            rbits.knownZeroBits = (bits[0].knownZeroBits << shift)
-                                   | zeroMask(e->getWidth())
-                                   | ~zeroMask(shift);
+            if(shift < width) {
+                rbits.knownOneBits = (bits[0].knownOneBits << shift)
+                                      & ~zeroMask(width);
+                rbits.knownZeroBits = (bits[0].knownZeroBits << shift)
+                                       | zeroMask(width)
+                                       | ~zeroMask(shift);
 
-            bits[0].ignoredBits = (ignoredBits >> shift)
-                                  | zeroMask(64 - shift);
+                bits[0].ignoredBits =
+                        ((ignoredBits & ~zeroMask(width)) >> shift)
+                        | zeroMask(e->getWidth() - shift);
+            } else {
+                rbits.knownOneBits = 0;
+                rbits.knownZeroBits = (uint64_t) -1;
+                bits[0].ignoredBits = (uint64_t) -1;
+            }
+        } else {
+            // This is the most general assumption
+            rbits.knownOneBits = 0;
+            rbits.knownZeroBits = zeroMask(e->getWidth());
+        }
+        break;
+
+    case Expr::LShr:
+        if(ConstantExpr *c1 = dyn_cast<ConstantExpr>(kids[1])) {
+            // We can simplify only if the shift is known
+            uint64_t shift = c1->getZExtValue();
+            uint64_t width = e->getWidth();
+            assert(width == kids[0]->getWidth());
+
+            if(shift < width) {
+                rbits.knownOneBits = bits[0].knownOneBits >> shift;
+                rbits.knownZeroBits = (bits[0].knownZeroBits >> shift)
+                                       | zeroMask(width - shift);
+
+                bits[0].ignoredBits = (ignoredBits << shift)
+                                      | ~zeroMask(shift)
+                                      | zeroMask(width);
+            } else {
+                rbits.knownOneBits = 0;
+                rbits.knownZeroBits = (uint64_t) -1;
+                bits[0].ignoredBits = (uint64_t) -1;
+            }
         } else {
             // This is the most general assumption
             rbits.knownOneBits = 0;
