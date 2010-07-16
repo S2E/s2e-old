@@ -118,11 +118,11 @@ namespace BEEV
     ArrayTransformer(STPMgr * bm, Simplifier* s) : 
       Arrayread_SymbolMap(),
       Introduced_SymbolsSet(),
-      bm(bm), 
-      simp(s), 
-      debug_transform(0),
+      _symbol_count(0),
       TransformMap(NULL),
-      _symbol_count(0)
+      debug_transform(0),
+      simp(s),
+      bm(bm)
     {
       Arrayread_IteMap = new ASTNodeMap();
       Arrayname_ReadindicesMap = new ASTNodeToVecMap();

@@ -192,6 +192,15 @@ VC vc_createValidityChecker(void) {
   return (VC)stp;
 }
 
+void vc_printExprStream(void *stream, VC vc, Expr e)
+{
+    BEEV::ASTNode q = (*(nodestar)e);
+    //   b->Begin_RemoveWrites = true;
+    //   BEEV::ASTNode q = b->SimplifyFormula_TopLevel(*((nodestar)e),false);
+    //   b->Begin_RemoveWrites = false;
+    q.PL_Print(*(std::ostream*)(stream));
+}
+
 // Expr I/O
 void vc_printExpr(VC vc, Expr e) {
   //do not print in lisp mode
@@ -200,7 +209,7 @@ void vc_printExpr(VC vc, Expr e) {
   //   b->Begin_RemoveWrites = true;
   //   BEEV::ASTNode q = b->SimplifyFormula_TopLevel(*((nodestar)e),false);
   //   b->Begin_RemoveWrites = false;
-  q.PL_Print(cout);
+  q.PL_Print(cerr);
 }
 
 char * vc_printSMTLIB(VC vc, Expr e)

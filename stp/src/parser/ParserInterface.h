@@ -27,8 +27,8 @@ public:
 
 	ParserInterface(STPMgr &bm_, NodeFactory* factory)
 	: bm(bm_),
-	  nf(factory),
-	  letMgr(bm.ASTUndefined)
+         letMgr(bm.ASTUndefined),
+         nf(factory)
 	{
 		assert(nf != NULL);
 	}

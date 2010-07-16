@@ -50,7 +50,7 @@ namespace BEEV
         const ASTNode& symbol = it->first;
         const vector<unsigned>& v = it->second;
 
-        for (int index = 0; index < v.size(); index++)
+        for (unsigned index = 0; index < v.size(); index++)
           {
             const unsigned sat_variable_index = v[index];
 
@@ -479,7 +479,7 @@ namespace BEEV
   ASTNode
   AbsRefine_CounterExample::ComputeFormulaUsingModel(const ASTNode& form)
   {
-    const ASTNode& in = form;
+    //const ASTNode& in = form;
     const Kind k = form.GetKind();
     if (!(is_Form_kind(k) && BOOLEAN_TYPE == form.GetType()))
       {
@@ -875,7 +875,7 @@ namespace BEEV
       ASTNode symbol = it->first;
       vector<unsigned> v = it->second;
 
-      for (int i =0 ; i < v.size();i++)
+      for (unsigned i =0 ; i < v.size();i++)
         {
         if (v[i] == ~((unsigned)0)) // nb. special value.
           continue;

@@ -23,7 +23,7 @@ bool containsArrayOps(const ASTNode& n, ASTNodeSet& visited)
 	if (n.GetType() == ARRAY_TYPE)
 		return true;
 
-	for (int i =0; i < n.Degree();i++)
+       for (unsigned i =0; i < n.Degree();i++)
 		if (containsArrayOps(n[i],visited))
 			return true;
 

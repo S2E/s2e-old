@@ -1,7 +1,7 @@
 TOP = ../..
 include $(TOP)/scripts/Makefile.common
 
-SRCS=main.cpp versionString.cpp Globals.cpp
+SRCS=versionString.cpp Globals.cpp
 OBJS = $(SRCS:.cpp=.o)
 CFLAGS += -I$(MTL) -I$(SOLVER_INCLUDE)
 
@@ -19,8 +19,8 @@ LIBS = 	-L../STPManager -lstpmgr \
 # This rebuilds each time, because the target "parser" is not created
 # Until the dependencies on each of the libraries is included, that's safest.
 parser:  $(OBJS) depend
-	$(CXX) $(CXXFLAGS) -I$(MTL) $(LDFLAGS) $(OBJS) $(LIBS) -o stp
-	@mv stp ../../bin/stp
+#	$(CXX) $(CXXFLAGS) -I$(MTL) $(LDFLAGS) $(OBJS) $(LIBS) -o stp
+#	@mv stp ../../bin/stp
 
 #.PHONY: clean
 clean:	

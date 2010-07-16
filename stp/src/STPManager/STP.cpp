@@ -242,7 +242,7 @@ namespace BEEV {
 
 	bm->UserFlags.optimize_flag = optimize_enabled;
 
-    SOLVER_RETURN_TYPE res;
+    SOLVER_RETURN_TYPE res = SOLVER_INVALID;
     if (bm->UserFlags.arrayread_refinement_flag)
       {
         bm->counterexample_checking_during_refinement = true;

@@ -169,9 +169,9 @@ namespace BEEV
 
     // Constructor
     STPMgr() : 
+      _interior_unique_table(),
       _symbol_unique_table(),
       _bvconst_unique_table(),
-      _interior_unique_table(),
       UserFlags(),
       _symbol_count(0)
     {

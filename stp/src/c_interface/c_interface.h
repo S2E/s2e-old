@@ -139,6 +139,8 @@ extern "C" {
   //! Prints 'e' to stdout.
   void vc_printExpr(VC vc, Expr e);
 
+  void vc_printExprStream(void *stream, VC vc, Expr e);
+
   //! Prints 'e' to stdout as C code
   void vc_printExprCCode(VC vc, Expr e);
 

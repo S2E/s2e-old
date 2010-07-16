@@ -762,7 +762,7 @@ void convert(const BBNodeVec& v, BBNodeManagerT*nf, mult_type* result)
 	const BBNode& BBTrue = nf->getTrue();
 	const BBNode& BBFalse = nf->getFalse();
 
-	for (int i =0; i < v.size(); i++)
+       for (unsigned i =0; i < v.size(); i++)
 	{
 		if (v[i] == BBTrue)
 			result[i] = ONE_MT;
@@ -774,7 +774,7 @@ void convert(const BBNodeVec& v, BBNodeManagerT*nf, mult_type* result)
 
 	// find runs of ones.
 	int lastOne=-1;
-	for (int i =0; i < v.size(); i++)
+       for (unsigned i =0; i < v.size(); i++)
 	{
 		assert(result[i] != MINUS_ONE_MT);
 
@@ -927,7 +927,7 @@ void BitBlaster<BBNode,BBNodeManagerT>::mult_Booth(const BBNodeVec& x_i, const B
 	 }
 
 	 BBNodeVec notY;
-	 for (int i =0 ; i < y.size();i++)
+        for (unsigned i =0 ; i < y.size();i++)
 	 {
 		 notY.push_back(nf->CreateNode(NOT,y[i]));
 	 }
@@ -1079,7 +1079,7 @@ void BitBlaster<BBNode,BBNodeManagerT>::BBDivMod(const BBNodeVec &y, const BBNod
 
 	// check if y is already zero.
 	bool isZero=true;
-	for (int i =0; i < rwidth;i++)
+       for (unsigned i =0; i < rwidth;i++)
           if (y[i] != nf->getFalse())
           {
             isZero = false;

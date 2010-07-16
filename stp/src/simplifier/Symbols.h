@@ -5,7 +5,7 @@
 
 class Symbols {
 	private:
-		Symbols& operator =(const Symbols& other) { /*..*/}
+               Symbols& operator =(const Symbols& other) { return *this; }
 		Symbols(const Symbols& other) {/*..*/}
 
 	public:
