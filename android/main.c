@@ -99,8 +99,6 @@ extern int qemu_milli_needed;
  */
 #define  DEFAULT_DEVICE_DPI  165
 
-int    android_base_port;
-
 #if 0
 static int  opts->flashkeys;      /* forward */
 #endif

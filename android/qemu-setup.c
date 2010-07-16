@@ -42,7 +42,8 @@ char* android_op_port = NULL;
 char* android_op_report_console = NULL;
 /* Contains arguments for -http-proxy option. */
 char* op_http_proxy = NULL;
-
+/* Base port for the emulated system. */
+int    android_base_port;
 
 /*** APPLICATION DIRECTORY
  *** Where are we ?

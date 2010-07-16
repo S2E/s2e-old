@@ -37,4 +37,7 @@ typedef void  (*AndroidHwLightBrightnessCallback)( void*       opaque,
 void android_core_set_brightness_change_callback(AndroidHwLightBrightnessCallback callback,
                                                  void* opaque);
 
+/* Returns base port assigned for the emulated system. */
+int android_core_get_base_port(void);
+
 #endif  // QEMU_ANDROID_UI_CORE_PROTOCOL_H

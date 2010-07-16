@@ -19,6 +19,7 @@
  * means of interprocess communication.
  */
 
+#include "android/android.h"
 #include "android/globals.h"
 #include "android/hw-control.h"
 #include "android/ui-core-protocol.h"
@@ -37,4 +38,10 @@ android_core_set_brightness_change_callback(AndroidHwLightBrightnessCallback cal
 
     funcs.light_brightness = callback;
     android_hw_control_init( opaque, &funcs );
+}
+
+int
+android_core_get_base_port(void)
+{
+    return android_base_port;
 }

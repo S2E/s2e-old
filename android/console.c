@@ -49,6 +49,7 @@
 #include "user-events.h"
 #include "android/keycode-array.h"
 #include "android/charmap.h"
+#include "android/core-ui-protocol.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
@@ -2078,8 +2079,6 @@ static const CommandDefRec  geo_commands[] =
 /********************************************************************************************/
 /********************************************************************************************/
 
-extern void  android_emulator_set_window_scale( double, int );
-
 static int
 do_window_scale( ControlClient  client, char*  args )
 {
@@ -2104,7 +2103,7 @@ do_window_scale( ControlClient  client, char*  args )
         }
     }
 
-    android_emulator_set_window_scale( scale, is_dpi );
+    android_ui_set_window_scale( scale, is_dpi );
     return 0;
 }
 

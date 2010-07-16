@@ -681,8 +681,6 @@ CORE_UPSTREAM_SOURCES = json-lexer.c \
 CORE_SOURCES = $(CORE_BLOCK_SOURCES) $(CORE_HW_SOURCES)
 CORE_SOURCES += $(CORE_MIGRATION_SOURCES) $(CORE_MISC_SOURCES)
 CORE_SOURCES += $(CORE_UPSTREAM_SOURCES)
-# temp file used to collect UI->Core exchange protocol.
-CORE_SOURCES += android/ui-core-protocol.c
 
 ##############################################################################
 # lists of source files used to build the emulator UI
@@ -719,11 +717,15 @@ UI_AND_CORE_SOURCES = osdep.c \
                       android/utils/timezone.c \
                       android/utils/mapfile.c \
 
+# temp files used to collect UI->Core exchange protocol.
+UI_AND_CORE_SOURCES += android/ui-core-protocol.c android/core-ui-protocol.c
+
 ##############################################################################
 # now build the emulator itself
 #
 include $(CLEAR_VARS)
 
+LOCAL_GENERATED_SOURCES :=
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := emulator
