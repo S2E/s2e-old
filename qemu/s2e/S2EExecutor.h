@@ -146,6 +146,8 @@ public:
         klee::Executor::updateStates(current);
     }
 
+    void finalizeState(S2EExecutionState *state);
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,

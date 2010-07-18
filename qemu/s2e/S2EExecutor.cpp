@@ -981,6 +981,32 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         throw CpuExitException();
 }
 
+void S2EExecutor::finalizeState(S2EExecutionState *state)
+{
+    if(state->stack.size() == 1) {
+        //No need for finalization
+        return;
+    }
+
+    m_s2e->getDebugStream() << "Finalizing state " << std::dec << state->getID() << std::endl;
+    foreach(const StackFrame& fr, state->stack) {
+        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << std::endl;
+    }
+
+    /* Information for GETPC() macro */
+    g_s2e_exec_ret_addr = state->getTb()->tc_ptr;
+
+    while(state->stack.size() != 1) {
+        executeOneInstruction(state);
+    }
+
+    state->prevPC = 0;
+    state->pc = m_dummyMain->instructions;
+
+    copyOutConcretes(*state);
+
+}
+
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
         S2EExecutionState* state,
         TranslationBlock* tb)
@@ -989,11 +1015,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     tb_function_args[1] = 0;
     tb_function_args[2] = 0;
 
-    if(state->stack.size() != 1) {
-        foreach(const StackFrame& fr, state->stack) {
-            std::cout << fr.kf->function->getNameStr() << std::endl;
-        }
-    }
+
 
     //XXX: hack to clean interrupted translation blocks (that forked)
     cleanupTranslationBlock(state, tb);
@@ -1201,8 +1223,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 {
     assert(state->isActive());
 
-#warning TODO: remove after debugging
-    assert(states.find(state) != states.end());
 
     const ObjectState* os = state->m_cpuRegistersObject;
 
@@ -1293,8 +1313,6 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
                             llvm::Function *function,
                             const std::vector<klee::ref<klee::Expr> >& args)
 {
-#warning remove this after debug
-    assert(states.find(state) != states.end());
     /* Update state */
     if (!copyInConcretes(*state)) {
         std::cerr << "external modified read-only object" << std::endl;
@@ -1582,6 +1600,20 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
             << std::endl;   */
     try {
         return s2e->getExecutor()->executeTranslationBlock(state, tb);
+    } catch(s2e::CpuExitException&) {
+        s2e->getExecutor()->updateStates(state);
+        longjmp(env->jmp_env, 1);
+    } catch(s2e::StateTerminatedException&) {
+        s2e->getExecutor()->updateStates(state);
+        longjmp(env->jmp_env_s2e, 1);
+    }
+}
+
+void s2e_qemu_finalize_state(S2E *s2e, S2EExecutionState* state)
+{
+    return;
+    try {
+        s2e->getExecutor()->finalizeState(state);
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);

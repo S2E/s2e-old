@@ -4,7 +4,7 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_simplifier1
+    call s2e_test2
     cli
     hlt
 
