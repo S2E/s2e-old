@@ -106,6 +106,9 @@ public:
     /** Signal that is emitted upon page fault */
     sigc::signal<void, S2EExecutionState*, uint64_t, bool> onPageFault;
 
+    /** Signal emitted when QEMU is ready to accept registration of new devices */
+    sigc::signal<void> onDeviceRegistration;
+
 
 };
 

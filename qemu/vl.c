@@ -6042,7 +6042,12 @@ int main(int argc, char **argv, char **envp)
     if (foreach_device_config(DEV_VIRTCON, virtcon_parse) < 0)
         exit(1);
 
+#ifdef CONFIG_S2E
+    s2e_on_device_registration(g_s2e);
+#endif
+
     module_call_init(MODULE_INIT_DEVICE);
+
 
     if (watchdog) {
         i = select_watchdog(watchdog);

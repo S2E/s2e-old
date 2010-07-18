@@ -299,7 +299,7 @@ enum VMStateFlags {
     VMS_MULTIPLY         = 0x200,  /* multiply "size" field by field_size */
 };
 
-typedef struct {
+typedef struct _VMStateField {
     const char *name;
     size_t offset;
     size_t size;

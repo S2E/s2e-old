@@ -4,10 +4,21 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_test2
+    ;jmp s2e_test
+    ;call s2e_test2
+    call s2e_isa_dev
+    jmp s2e_test
     cli
     hlt
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Testing symbolic ISA devices
+s2e_isa_dev:
+    mov dx, 0x100
+    in  ax, dx
+    out dx, ax
+    ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Testing complicated symbolic expressions

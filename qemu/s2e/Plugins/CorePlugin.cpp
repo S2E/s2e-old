@@ -317,3 +317,8 @@ void s2e_on_tlb_miss(S2E *s2e, S2EExecutionState* state, uint64_t addr, int is_w
         longjmp(env->jmp_env_s2e, 1);
     }
 }
+
+void s2e_on_device_registration(S2E *s2e)
+{
+    s2e->getCorePlugin()->onDeviceRegistration();
+}
