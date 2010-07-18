@@ -373,7 +373,7 @@ pci_config_set_class(uint8_t *pci_config, uint16_t val)
 }
 
 typedef int (*pci_qdev_initfn)(PCIDevice *dev);
-typedef struct {
+typedef struct _PCIDeviceInfo{
     DeviceInfo qdev;
     pci_qdev_initfn init;
     PCIUnregisterFunc *exit;

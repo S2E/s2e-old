@@ -23,6 +23,7 @@
 #include <s2e/Plugins/CacheSim.h>
 #include <s2e/Plugins/PfProfiler.h>
 #include <s2e/Plugins/Debugger.h>
+#include <s2e/Plugins/SymbolicHardware.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -68,6 +69,8 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::TestCaseGenerator);
     __S2E_REGISTER_PLUGIN(plugins::MemoryTracer);
     __S2E_REGISTER_PLUGIN(plugins::InstructionCounter);
+
+    __S2E_REGISTER_PLUGIN(plugins::SymbolicHardware);
 
     __S2E_REGISTER_PLUGIN(plugins::Debugger);
     __S2E_REGISTER_PLUGIN(plugins::Example);

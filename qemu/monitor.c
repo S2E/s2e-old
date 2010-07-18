@@ -58,7 +58,7 @@
 #include "osdep.h"
 
 #ifdef CONFIG_S2E
-#include <s2e/qemu_s2e.h>
+#include <s2e/s2e_qemu.h>
 #endif
 
 //#define DEBUG
