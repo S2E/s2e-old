@@ -30,8 +30,8 @@ namespace {
     cl::opt<unsigned>
         MemoryValue("memval", cl::desc("Memory value to look for"), cl::init(0));
 
-    cl::opt<unsigned>
-        PathId("pathid", cl::desc("Which path to analyze"), cl::init(0));
+    cl::opt<int>
+        PathId("pathid", cl::desc("Which path to analyze (-1 for all)"), cl::init(0));
 
     cl::opt<std::string>
         ModPath("modpath", cl::desc("Path to module descriptors"), cl::init("."));
@@ -156,8 +156,10 @@ void Debugger::process()
 
     unsigned pathNum = 0;
     for(pit = paths.begin(); pit != paths.end(); ++pit) {
-        if (pathNum++ != PathId) {
-            continue;
+        if (PathId != -1) {
+            if (pathNum != (unsigned)PathId) {
+                continue;
+            }
         }
 
         std::cout << "Analyzing path " << pathNum << std::endl;
@@ -166,6 +168,7 @@ void Debugger::process()
 
         md.lookForValue(MemoryValue);
         pb.processPath(*pit);
+        ++pathNum;
     }
 }
 

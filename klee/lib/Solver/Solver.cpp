@@ -21,6 +21,7 @@
 #include "klee/util/ExprPPrinter.h"
 #include "klee/util/ExprUtil.h"
 #include "klee/Internal/Support/Timer.h"
+#include "llvm/Support/CommandLine.h"
 
 #define vc_bvBoolExtract IAMTHESPAWNOFSATAN
 
@@ -39,6 +40,12 @@
 #endif
 
 using namespace klee;
+
+namespace {
+  llvm::cl::opt<bool>
+  ReinstantiateSolver("reinstantiate-solver",
+                      llvm::cl::init(false));
+}
 
 /***/
 
@@ -488,12 +495,12 @@ void STPSolverImpl::reinstantiate()
 {
     //XXX: This seems to cause crashes.
     //Will have to find other ways of preventing slowdown
-#if 0
-    delete builder;
-    vc_Destroy(vc);
-    vc = vc_createValidityChecker();
-    builder = new STPBuilder(vc);
-#endif
+    if (ReinstantiateSolver) {
+        delete builder;
+        vc_Destroy(vc);
+        vc = vc_createValidityChecker();
+        builder = new STPBuilder(vc);
+    }
 }
 
 /***/
@@ -569,6 +576,11 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
                    bool &hasSolution) {
   // XXX I want to be able to timeout here, safely
     int result;
+
+    /*if (klee_message_stream) {
+        vc_printExprStream(klee_message_stream, vc, q);
+    }*/
+
     result = vc_query(vc, q);
 
     if (result < 0) {
@@ -576,6 +588,7 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
         throw std::exception();
     }
 
+//    klee_message_stream << "solver returned " << *result << std::endl;
     hasSolution = !result;
 
     if (hasSolution) {
@@ -679,7 +692,7 @@ static bool runAndGetCexForked(::VC vc,
       fprintf(stderr, "error: STP timed out");
       return false;
     } else {
-      fprintf(stderr, "error: STP did not return a recognized code");
+      fprintf(stderr, "error: STP did not return a recognized code (%d)", exitcode);
       return false;
     }
 

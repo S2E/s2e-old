@@ -1,6 +1,10 @@
 #include "BitfieldSimplifier.h"
 
+#include <klee/Common.h>
+#include "llvm/Support/CommandLine.h"
+
 using namespace klee;
+using namespace llvm;
 
 namespace {
     inline uint64_t zeroMask(uint64_t w) {
@@ -9,6 +13,14 @@ namespace {
         else
             return 0;
     }
+
+    cl::opt<bool>
+    DebugSimplifier("debug-expr-simplifier",
+                cl::init(false));
+
+    cl::opt<bool>
+    PrintSimplifier("print-expr-simplifier",
+                cl::init(false));
 }
 
 ref<Expr> BitfieldSimplifier::replaceWithConstant(ref<Expr> e, uint64_t value)
@@ -25,7 +37,7 @@ ref<Expr> BitfieldSimplifier::replaceWithConstant(ref<Expr> e, uint64_t value)
     // Remove e from cache
     m_bitsInfoCache.erase(e);
 
-    return ConstantExpr::create(value, e->getWidth());
+    return ConstantExpr::create(value & ~zeroMask(e->getWidth()), e->getWidth());
 }
 
 BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
@@ -62,10 +74,14 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         oldIgnoredBits[i] = bits[i].ignoredBits;
     }
 
+    if (DebugSimplifier)
+        *klee_message_stream << "Considering " << e << std::endl;
+
     /* Apply kind-specific knowledge to obtain knownBits for e and
        ignoredBits for kids of e, then to optimize e */
     switch(e->getKind()) {
     // TODO: Concat, Read, AShr
+
 
     case Expr::And:
         rbits.knownOneBits = bits[0].knownOneBits & bits[1].knownOneBits;
@@ -131,10 +147,10 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
 
             if(shift < width) {
                 rbits.knownOneBits = (bits[0].knownOneBits << shift)
-                                      & ~zeroMask(width);
+                                     & ~zeroMask(width);
                 rbits.knownZeroBits = (bits[0].knownZeroBits << shift)
-                                       | zeroMask(width)
-                                       | ~zeroMask(shift);
+                                      | zeroMask(width)
+                                      | ~zeroMask(shift);
 
                 bits[0].ignoredBits =
                         ((ignoredBits & ~zeroMask(width)) >> shift)
@@ -151,6 +167,8 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         }
         break;
 
+
+
     case Expr::LShr:
         if(ConstantExpr *c1 = dyn_cast<ConstantExpr>(kids[1])) {
             // We can simplify only if the shift is known
@@ -161,7 +179,7 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
             if(shift < width) {
                 rbits.knownOneBits = bits[0].knownOneBits >> shift;
                 rbits.knownZeroBits = (bits[0].knownZeroBits >> shift)
-                                       | zeroMask(width - shift);
+                                      | zeroMask(width - shift);
 
                 bits[0].ignoredBits = (ignoredBits << shift)
                                       | ~zeroMask(shift)
@@ -177,6 +195,7 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
             rbits.knownZeroBits = zeroMask(e->getWidth());
         }
         break;
+
 
     case Expr::Extract:
         {
@@ -209,13 +228,24 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         break;
 
     case Expr::Select:
+        //Select is a conditional statement, cannot throw it away in most of the cases,
+        //except when the truth value of the decision is known.
+        rbits.knownOneBits = 0;
+        rbits.knownZeroBits = zeroMask(e->getWidth());
+#if 0
         rbits.knownOneBits = bits[1].knownOneBits & bits[2].knownOneBits;
         rbits.knownZeroBits = (bits[1].knownZeroBits & bits[2].knownZeroBits)
                                | zeroMask(e->getWidth());
 
-        bits[0].ignoredBits = ignoredBits;
         bits[1].ignoredBits = ignoredBits;
+        bits[2].ignoredBits = ignoredBits;
 
+        if (DebugSimplifier) {
+            *klee_message_stream << "Select K1=0x" << std::hex <<  rbits.knownOneBits << " " <<
+                    "K0=0x" << rbits.knownZeroBits << " " <<
+                    "IGN=0x" << rbits.ignoredBits << std::endl;
+        }
+#endif
         break;
 
     case Expr::ZExt:
@@ -271,6 +301,11 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
 
     if(!isa<ConstantExpr>(e) &&
           (~(rbits.knownOneBits | rbits.knownZeroBits | ignoredBits)) == 0) {
+
+        if (DebugSimplifier) {
+            *klee_message_stream << "CS Replacing " << e << " with constant 0x" << std::hex << rbits.knownOneBits << std::endl;
+        }
+
         e = replaceWithConstant(e, rbits.knownOneBits);
     } else {
         // Check wether we want to reoptimize or replace kids
@@ -280,6 +315,10 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
                 // All bits are known or ignored, replace expression by const
                 // NOTE: we do it here on order to take into account
                 //       kind-specific adjustements to knownBits
+                if (DebugSimplifier) {
+                    *klee_message_stream << "NC Replacing " << kids[i] << " with constant 0x" << std::hex << bits[i].knownOneBits << std::endl;
+                }
+
                 kids[i] = replaceWithConstant(kids[i], bits[i].knownOneBits);
 
             } else if(bits[i].ignoredBits & ~oldIgnoredBits[i]) {
@@ -307,5 +346,14 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
 
 ref<Expr> BitfieldSimplifier::simplify(ref<Expr> e)
 {
-    return doSimplifyBits(e, 0).first;
+    bool cste = isa<ConstantExpr>(e);
+    if (PrintSimplifier && !cste && klee_message_stream)
+        *klee_message_stream << std::hex << "BEFORE SIMPL: " << e << std::endl;
+
+    ref<Expr> ret = doSimplifyBits(e, 0).first;
+
+    if (PrintSimplifier && !cste && klee_message_stream)
+        *klee_message_stream << std::hex << "AFTER  SIMPL: " << ret << std::endl;
+
+    return ret;
 }

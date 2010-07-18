@@ -72,6 +72,8 @@ static void *qemu_st_helpers[5] = {
 
 #include <llvm/System/DynamicLibrary.h>
 
+#include "SelectRemovalPass.h"
+
 #include <iostream>
 #include <sstream>
 
@@ -156,6 +158,10 @@ public:
             delete m_executionEngine;
             m_executionEngine = NULL;
         }
+    }
+
+    FunctionPassManager *getFunctionPassManager() const {
+        return m_functionPassManager;
     }
 
     /* Shortcuts */
@@ -302,6 +308,8 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     m_functionPassManager->add(createDeadStoreEliminationPass());
     m_functionPassManager->add(createCFGSimplificationPass());
     m_functionPassManager->add(createPromoteMemoryToRegisterPass());
+
+    m_functionPassManager->add(new SelectRemovalPass());
 
     m_functionPassManager->doInitialization();
 }
@@ -1245,7 +1253,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
     verifyFunction(*m_tbFunction);
 #endif
 
-    //m_functionPassManager->run(*m_tbFunction);
+    m_functionPassManager->run(*m_tbFunction);
 
     tb->llvm_function = m_tbFunction;
 
@@ -1284,6 +1292,11 @@ TCGLLVMContext::TCGLLVMContext()
 TCGLLVMContext::~TCGLLVMContext()
 {
     delete m_private;
+}
+
+llvm::FunctionPassManager* TCGLLVMContext::getFunctionPassManager() const
+{
+    return m_private->getFunctionPassManager();
 }
 
 void TCGLLVMContext::deleteExecutionEngine()

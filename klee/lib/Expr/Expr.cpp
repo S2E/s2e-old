@@ -579,31 +579,48 @@ ref<Expr> ConcatExpr::create8(const ref<Expr> &kid1, const ref<Expr> &kid2,
 /***/
 
 ref<Expr> ExtractExpr::create(ref<Expr> expr, unsigned off, Width w) {
-  unsigned kw = expr->getWidth();
-  assert(w > 0 && off + w <= kw && "invalid extract");
-  
-  if (w == kw) {
-    return expr;
-  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
-    return CE->Extract(off, w);
-  } else {
-    // Extract(Concat)
-    if (ConcatExpr *ce = dyn_cast<ConcatExpr>(expr)) {
-      // if the extract skips the right side of the concat
-      if (off >= ce->getRight()->getWidth())
-	return ExtractExpr::create(ce->getLeft(), off - ce->getRight()->getWidth(), w);
-      
-      // if the extract skips the left side of the concat
-      if (off + w <= ce->getRight()->getWidth())
-	return ExtractExpr::create(ce->getRight(), off, w);
+    unsigned kw = expr->getWidth();
+    assert(w > 0 && off + w <= kw && "invalid extract");
 
-      // E(C(x,y)) = C(E(x), E(y))
-      return ConcatExpr::create(ExtractExpr::create(ce->getKid(0), 0, w - ce->getKid(1)->getWidth() + off),
-				ExtractExpr::create(ce->getKid(1), off, ce->getKid(1)->getWidth() - off));
+    if (w == kw) {
+        return expr;
+    } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
+        return CE->Extract(off, w);
+    } else {
+        //simplify E(Zext(x)) = x
+        if (ZExtExpr *ze = dyn_cast<ZExtExpr>(expr)) {
+            //Convenience variables
+            ref<Expr> x = ze->getKid(0);
+            Width xw = x->getWidth();
+            Width zew = ze->getWidth();
+            Width ew = w;
+
+            if (xw == w && off == 0) {
+                return x;
+            }
+            if (ew <= zew && ew >= xw && off == 0) {
+                return ZExtExpr::create(x, ew);
+            }
+        }
+
+        // Extract(Concat)
+        if (ConcatExpr *ce = dyn_cast<ConcatExpr>(expr)) {
+
+            // if the extract skips the right side of the concat
+            if (off >= ce->getRight()->getWidth())
+                return ExtractExpr::create(ce->getLeft(), off - ce->getRight()->getWidth(), w);
+
+            // if the extract skips the left side of the concat
+            if (off + w <= ce->getRight()->getWidth())
+                return ExtractExpr::create(ce->getRight(), off, w);
+
+            // E(C(x,y)) = C(E(x), E(y))
+            return ConcatExpr::create(ExtractExpr::create(ce->getKid(0), 0, w - ce->getKid(1)->getWidth() + off),
+                                      ExtractExpr::create(ce->getKid(1), off, ce->getKid(1)->getWidth() - off));
+        }
     }
-  }
-  
-  return ExtractExpr::alloc(expr, off, w);
+
+    return ExtractExpr::alloc(expr, off, w);
 }
 
 /***/
@@ -619,16 +636,23 @@ ref<Expr> NotExpr::create(const ref<Expr> &e) {
 /***/
 
 ref<Expr> ZExtExpr::create(const ref<Expr> &e, Width w) {
-  unsigned kBits = e->getWidth();
-  if (w == kBits) {
-    return e;
-  } else if (w < kBits) { // trunc
-    return ExtractExpr::create(e, 0, w);
-  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
-    return CE->ZExt(w);
-  } else {
-    return ZExtExpr::alloc(e, w);
-  }
+    unsigned kBits = e->getWidth();
+    if (w == kBits) {
+        return e;
+    } else if (w < kBits) { // trunc
+        return ExtractExpr::create(e, 0, w);
+    } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
+        return CE->ZExt(w);
+    } else if (ZExtExpr *ZE = dyn_cast<ZExtExpr>(e)){
+        if (ZE->getWidth() < w) {
+            return ZExtExpr::alloc(ZE->getKid(0), w);
+        }else {
+            return ZExtExpr::alloc(e, w);
+        }
+    } else {
+        return ZExtExpr::alloc(e, w);
+    }
+
 }
 
 ref<Expr> SExtExpr::create(const ref<Expr> &e, Width w) {

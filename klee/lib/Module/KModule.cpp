@@ -273,6 +273,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   if (opts.Optimize)
     Optimize(module);
 
+
   // Force importing functions required by intrinsic lowering. Kind of
   // unfortunate clutter when we don't need them but we won't know
   // that until after all linking and intrinsic lowering is
@@ -324,6 +325,14 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   pm3.add(new IntrinsicCleanerPass(*targetData));
   pm3.add(new PhiCleanerPass());
   pm3.run(*module);
+
+  if (opts.CustomPasses) {
+      Module::iterator it;
+      for(it = module->begin(); it != module->end(); ++it) {
+          opts.CustomPasses->run(*it);
+      }
+  }
+
 
   // For cleanliness see if we can discard any of the functions we
   // forced to import.

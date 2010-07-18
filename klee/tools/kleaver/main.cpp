@@ -164,14 +164,14 @@ static bool EvaluateInputAST(const char *Filename,
 
   // FIXME: Support choice of solver.
   Solver *S, *STP = S = 
-    UseDummySolver ? createDummySolver() : new STPSolver(true);
+    UseDummySolver ? createDummySolver() : new STPSolver(false);
   if (UseSTPQueryPCLog)
     S = createPCLoggingSolver(S, "stp-queries.pc");
   if (UseFastCexSolver)
     S = createFastCexSolver(S);
-  S = createCexCachingSolver(S);
-  S = createCachingSolver(S);
-  S = createIndependentSolver(S);
+  //S = createCexCachingSolver(S);
+  //S = createCachingSolver(S);
+  //S = createIndependentSolver(S);
   if (0)
     S = createValidatingSolver(S, STP);
 

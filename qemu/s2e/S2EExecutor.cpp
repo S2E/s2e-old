@@ -331,7 +331,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
     assert(filename);
     ModuleOptions MOpts(vector<string>(1, filename),
-            /* Optimize= */ false, /* CheckDivZero= */ false);
+            /* Optimize= */ false, /* CheckDivZero= */ false, m_tcgLLVMContext->getFunctionPassManager());
 
     qemu_free(filename);
 
@@ -339,6 +339,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     ModuleOptions MOpts(vector<string>(),
             /* Optimize= */ false, /* CheckDivZero= */ false);
 #endif
+
+
 
     setModule(m_tcgLLVMContext->getModule(), MOpts);
 
@@ -881,6 +883,7 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
     if(it != kmodule->functionMap.end()) {
         kf = it->second;
     } else {
+
         unsigned cIndex = kmodule->constants.size();
         kf = kmodule->updateModuleWithFunction(function);
 
@@ -1364,6 +1367,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
             << " at pc = " << hexval(originalState->getPc())
         << " into states:" << std::endl;
 
+
     for(unsigned i = 0; i < newStates.size(); ++i) {
         S2EExecutionState* newState = newStates[i];
 
@@ -1390,6 +1394,11 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         newState->m_cpuRegistersObject = newState->addressSpace.getWriteable(newState->m_cpuRegistersState, cpuRegistersObject);
         newState->m_cpuSystemObject = newState->addressSpace.getWriteable(newState->m_cpuSystemState, cpuSystemObject);
+    }
+
+    m_s2e->getDebugStream() << "Stack frame at fork:" << std::endl;
+    foreach(const StackFrame& fr, originalState->stack) {
+        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << std::endl;
     }
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,

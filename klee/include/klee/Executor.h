@@ -391,7 +391,7 @@ protected:
   //Invalidate object cache
   virtual void invalidateCache(ExecutionState &state, const MemoryObject *mo);
 
-  ref<Expr> simplifyExpr(ref<Expr> e);
+  ref<Expr> simplifyExpr(const ExecutionState &state, ref<Expr> e);
 
 public:
   Executor(const InterpreterOptions &opts, InterpreterHandler *ie,

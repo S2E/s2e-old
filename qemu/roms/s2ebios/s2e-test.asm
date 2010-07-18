@@ -4,9 +4,30 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_test1
+    call s2e_simplifier1
     cli
     hlt
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Testing complicated symbolic expressions
+s2e_simplifier1:
+    call s2e_enable
+    call s2e_int
+
+    ;Testing chains of Zexts
+    mov bl, al
+    movzx cx, bl
+    movzx edx, cx
+    cmp edx, 1
+    jae ss1
+
+ss1:
+
+    call s2e_disable
+    call s2e_kill_state
+
+    ret
 
 
 

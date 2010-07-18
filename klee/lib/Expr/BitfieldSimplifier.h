@@ -16,7 +16,7 @@ protected:
         uint64_t knownZeroBits; ///< Bits known to be zero (passed bottom-up)
     };
 
-    /// XXX: this cache will probably grew too large with time
+    /// XXX: this cache will probably grow too large with time
     ExprHashMap<BitsInfo> m_bitsInfoCache;
 
     ref<Expr> replaceWithConstant(ref<Expr> e, uint64_t value);
