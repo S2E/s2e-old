@@ -1291,6 +1291,10 @@ static void pc_init1(ram_addr_t ram_size,
             }
         }
     }
+
+#ifdef CONFIG_S2E
+    s2e_on_device_activation(g_s2e, pci_bus);
+#endif
 }
 
 static void pc_init_pci(ram_addr_t ram_size,

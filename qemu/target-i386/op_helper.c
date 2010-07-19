@@ -23,6 +23,15 @@
 #include "host-utils.h"
 
 //#define DEBUG_PCALL
+#ifdef S2E_LLVM_LIB
+void klee_make_symbolic(void *addr, unsigned nbytes, const char *name);
+int klee_int(const char *name);
+int klee_int(const char *name) {
+    int ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+#endif
 
 #ifndef S2E_LLVM_LIB
 #ifdef CONFIG_S2E
@@ -570,35 +579,132 @@ void helper_check_iol(uint32_t t0)
     check_io(t0, 4);
 }
 
-#ifndef S2E_LLVM_LIB
+#ifdef S2E_LLVM_LIB
+/**
+ *  We bypass the call to the handlers in case of writes to symbolic ports to
+ *  avoid concretizing data unnecessarily.
+ */
+
+void tcg_llvm_trace_port_access(
+        uint64_t port, uint64_t value, unsigned bits,
+        int isWrite);
+
 void helper_outb(uint32_t port, uint32_t data)
 {
+    tcg_llvm_trace_port_access(port, data, 8, 1);
+    if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        cpu_outb(port, data & 0xff);
+    }
+}
+
+target_ulong helper_inb(uint32_t port)
+{
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        uint8_t res = klee_int("inb");
+        tcg_llvm_trace_port_access(port, res, 8, 0);
+        return res;
+    }
+    target_ulong res = cpu_inb(port);
+    tcg_llvm_trace_port_access(port, res, 8, 0);
+    return res;
+}
+
+void helper_outw(uint32_t port, uint32_t data)
+{
+    tcg_llvm_trace_port_access(port, data, 16, 1);
+    if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        cpu_outw(port, data & 0xffff);
+    }
+}
+
+target_ulong helper_inw(uint32_t port)
+{
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        uint16_t res = klee_int("inw");
+        tcg_llvm_trace_port_access(port, res, 16, 0);
+        return res;
+    }
+    target_ulong res = cpu_inw(port);
+    tcg_llvm_trace_port_access(port, res, 16, 0);
+    return res;
+}
+
+void helper_outl(uint32_t port, uint32_t data)
+{
+    tcg_llvm_trace_port_access(port, data, 32, 1);
+    if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        cpu_outl(port, data);
+    }
+}
+
+target_ulong helper_inl(uint32_t port)
+{
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        uint32_t res = klee_int("inl");
+        tcg_llvm_trace_port_access(port, res, 32, 0);
+        return res;
+    }
+    target_ulong res = cpu_inl(port);
+    tcg_llvm_trace_port_access(port, res, 32, 0);
+    return res;
+}
+#else
+
+void helper_outb(uint32_t port, uint32_t data)
+{
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+    }
+    s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 8, 1);
     cpu_outb(port, data & 0xff);
 }
 
 target_ulong helper_inb(uint32_t port)
 {
-    return cpu_inb(port);
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+    }
+    target_ulong res = cpu_inb(port);
+    s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 8, 0);
+    return res;
 }
 
 void helper_outw(uint32_t port, uint32_t data)
 {
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+    }
+    s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 16, 1);
     cpu_outw(port, data & 0xffff);
 }
 
 target_ulong helper_inw(uint32_t port)
 {
-    return cpu_inw(port);
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+    }
+    target_ulong res = cpu_inw(port);
+    s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 16, 0);
+    return res;
 }
 
 void helper_outl(uint32_t port, uint32_t data)
 {
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+    }
+    s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 32, 1);
     cpu_outl(port, data);
 }
 
 target_ulong helper_inl(uint32_t port)
 {
-    return cpu_inl(port);
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+    }
+    target_ulong res = cpu_inl(port);
+    s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 32, 0);
+    return res;
 }
 
 #endif

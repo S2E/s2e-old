@@ -16,6 +16,7 @@ using s2e::S2ETranslationBlock;
 struct S2E;
 struct S2EExecutionState;
 struct S2ETranslationBlock;
+
 #endif
 
 struct TranslationBlock;
@@ -33,7 +34,7 @@ extern "C" {
 
 /* This should never be accessed from C++ code */
 extern struct S2E* g_s2e;
-
+struct PCIBus;
 /* This should never be accessed from C++ code */
 extern struct S2EExecutionState* g_s2e_state;
 
@@ -110,6 +111,12 @@ void s2e_trace_memory_access(
         struct S2E *s2e, struct S2EExecutionState* state,
         uint64_t vaddr, uint64_t haddr, uint8_t* buf, unsigned size,
         int isWrite, int isIO);
+
+/** Called on port access from helper code */
+void s2e_trace_port_access(
+        struct S2E *s2e, struct S2EExecutionState* state,
+        uint64_t port, uint64_t value, unsigned bits,
+        int isWrite);
 
 void s2e_on_page_fault(struct S2E *s2e, struct S2EExecutionState* state, uint64_t addr, int is_write);
 void s2e_on_tlb_miss(struct S2E *s2e, struct S2EExecutionState* state, uint64_t addr, int is_write);
@@ -225,6 +232,13 @@ void s2e_dump_state(void);
 void s2e_execute_cmd(const char *cmd);
 
 void s2e_on_device_registration(struct S2E *s2e);
+void s2e_on_device_activation(struct S2E *s2e, struct PCIBus *bus);
+
+
+//Used by port IO for now
+void s2e_switch_to_symbolic(struct S2E *s2e, struct S2EExecutionState *state);
+
+int s2e_is_port_symbolic(struct S2E *s2e, struct S2EExecutionState* state, uint64_t port);
 
 #ifdef __cplusplus
 }

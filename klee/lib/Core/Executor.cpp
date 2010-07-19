@@ -3127,7 +3127,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
   // Create a new object state for the memory object (instead of a copy).
   if (!replayOut) {
     static unsigned id = 0;
-    const Array *array = new Array("arr" + llvm::utostr(++id),
+    const Array *array = new Array("arr" + llvm::utostr(++id) + mo->name,
                                    mo->size);
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);

@@ -322,3 +322,33 @@ void s2e_on_device_registration(S2E *s2e)
 {
     s2e->getCorePlugin()->onDeviceRegistration();
 }
+
+void s2e_on_device_activation(S2E *s2e, struct PCIBus *bus)
+{
+    s2e->getCorePlugin()->onDeviceActivation(bus);
+}
+
+
+void s2e_trace_port_access(
+        S2E *s2e, S2EExecutionState* state,
+        uint64_t port, uint64_t value, unsigned size,
+        int isWrite)
+{
+    if(!s2e->getCorePlugin()->onPortAccess.empty()) {
+        try {
+            s2e->getCorePlugin()->onPortAccess.emit(state,
+                klee::ConstantExpr::create(port, 64),
+                klee::ConstantExpr::create(value, size),
+                isWrite);
+        } catch(s2e::CpuExitException&) {
+            longjmp(env->jmp_env, 1);
+        } catch(s2e::StateTerminatedException&) {
+            longjmp(env->jmp_env_s2e, 1);
+        }
+    }
+}
+
+int s2e_is_port_symbolic(struct S2E *s2e, struct S2EExecutionState* state, uint64_t port)
+{
+    return s2e->getCorePlugin()->isPortSymbolic(port);
+}

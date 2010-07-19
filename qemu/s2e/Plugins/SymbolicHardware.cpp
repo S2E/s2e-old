@@ -29,6 +29,8 @@ struct SymbolicIsaDeviceState {
 
 
 extern "C" {
+    static bool symbhw_is_symbolic(uint16_t port, void *opaque);
+
     static int pci_symbhw_init(PCIDevice *pci_dev);
     static int pci_symbhw_uninit(PCIDevice *pci_dev);
     static int isa_symbhw_init(ISADevice *dev);
@@ -82,6 +84,43 @@ void SymbolicHardware::initialize()
     s2e()->getCorePlugin()->onDeviceRegistration.connect(
         sigc::mem_fun(*this, &SymbolicHardware::onDeviceRegistration)
     );
+
+    s2e()->getCorePlugin()->onDeviceActivation.connect(
+        sigc::mem_fun(*this, &SymbolicHardware::onDeviceActivation)
+    );
+
+    //Reset all symbolic bits for now
+    memset(m_portMap, 0, sizeof(m_portMap));
+
+    s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic, this);
+}
+
+void SymbolicHardware::setSymbolicPortRange(uint16_t start, unsigned size, bool isSymbolic)
+{
+    assert(start + size <= 0x10000 && start+size>=start);
+    for(uint16_t i = start; i<start+size; i++) {
+        uint16_t idx = i/(sizeof(m_portMap[0])*8);
+        uint16_t mod = i%(sizeof(m_portMap[0])*8);
+
+        if (isSymbolic) {
+            m_portMap[idx] |= 1<<mod;
+        }else {
+            m_portMap[idx] &= ~(1<<mod);
+        }
+    }
+}
+
+bool SymbolicHardware::isSymbolic(uint16_t port)
+{
+    uint16_t idx = port/(sizeof(m_portMap[0])*8);
+    uint16_t mod = port%(sizeof(m_portMap[0])*8);
+    return m_portMap[idx] & (1<<mod);
+}
+
+static bool symbhw_is_symbolic(uint16_t port, void *opaque)
+{
+    SymbolicHardware *hw = static_cast<SymbolicHardware*>(opaque);
+    return hw->isSymbolic(port);
 }
 
 const DeviceDescriptor *SymbolicHardware::findDevice(const std::string &name) const
@@ -99,6 +138,14 @@ void SymbolicHardware::onDeviceRegistration()
     s2e()->getMessagesStream() << "Registering symbolic devices with QEMU..." << std::endl;
     foreach2(it, m_devices.begin(), m_devices.end()) {
         (*it)->initializeQemuDevice();
+    }
+}
+
+void SymbolicHardware::onDeviceActivation(struct PCIBus* pci)
+{
+    s2e()->getMessagesStream() << "Activating symbolic devices..." << std::endl;
+    foreach2(it, m_devices.begin(), m_devices.end()) {
+        (*it)->activateQemuDevice(pci);
     }
 }
 
@@ -164,6 +211,11 @@ void IsaDeviceDescriptor::initializeQemuDevice()
     m_isaInfo->qdev.props = m_isaProperties;
 
     isa_qdev_register(m_isaInfo);
+}
+
+void IsaDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
+{
+    isa_create_simple(m_id.c_str());
 }
 
 IsaDeviceDescriptor::~IsaDeviceDescriptor()
@@ -349,6 +401,11 @@ void PciDeviceDescriptor::initializeQemuDevice()
     pci_qdev_register(m_pciInfo);
 }
 
+void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
+{
+    pci_create_simple(bus, -1, m_id.c_str());
+}
+
 PciDeviceDescriptor::PciDeviceDescriptor(const std::string &id):DeviceDescriptor(id)
 {
     m_pciInfo = NULL;
@@ -386,66 +443,66 @@ void PciDeviceDescriptor::print(std::ostream &os) const
 /////////////////////////////////////////////////////////////////////
 /* Dummy I/O functions for symbolic devices. Unused for now. */
 static void symbhw_write8(void *opaque, uint32_t address, uint32_t data) {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
 }
 
 static void symbhw_write16(void *opaque, uint32_t address, uint32_t data) {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
 }
 
 static void symbhw_write32(void *opaque, uint32_t address, uint32_t data) {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
 }
 
 /* These will never be called */
 static uint32_t symbhw_read8(void *opaque, uint32_t address)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
     return 0;
 }
 
 static uint32_t symbhw_read16(void *opaque, uint32_t address)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
     return 0;
 }
 
 static uint32_t symbhw_read32(void *opaque, uint32_t address)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
     return 0;
 }
 
 static void symbhw_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
 }
 
 static void symbhw_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
 }
 
 static void symbhw_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
 }
 
 static uint32_t symbhw_mmio_readb(void *opaque, target_phys_addr_t addr)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
     return 0;
 }
 
 static uint32_t symbhw_mmio_readw(void *opaque, target_phys_addr_t addr)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
     return 0;
 }
 
 static uint32_t symbhw_mmio_readl(void *opaque, target_phys_addr_t addr)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
     return 0;
 }
 
@@ -477,6 +534,10 @@ static void pci_symbhw_map(PCIDevice *pci_dev, int region_num,
 
         register_ioport_write(addr, size, 4, symbhw_write32, s);
         register_ioport_read(addr, size, 4, symbhw_read32, s);
+
+        SymbolicHardware *hw = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
+        assert(hw);
+        hw->setSymbolicPortRange(addr, size, true);
     }
 
     if (type & PCI_BASE_ADDRESS_SPACE_MEMORY) {
@@ -490,6 +551,15 @@ static int isa_symbhw_init(ISADevice *dev)
     g_s2e->getDebugStream() << __FUNCTION__ << " called" << std::endl;
 
     SymbolicIsaDeviceState *isa = DO_UPCAST(SymbolicIsaDeviceState, dev, dev);
+
+    SymbolicHardware *hw = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
+    assert(hw);
+
+    IsaDeviceDescriptor *dd = (IsaDeviceDescriptor*)hw->findDevice(dev->qdev.info->name);
+    assert(dd);
+
+    isa->desc = dd;
+
     IsaDeviceDescriptor *s = isa->desc;
 
     uint32_t size = s->getResource().portSize;
@@ -504,6 +574,8 @@ static int isa_symbhw_init(ISADevice *dev)
 
     register_ioport_write(addr, size, 4, symbhw_write32, s);
     register_ioport_read(addr, size, 4, symbhw_read32, s);
+
+    hw->setSymbolicPortRange(addr, size, true);
 
     isa_init_irq(dev, &isa->qirq, irq);
 

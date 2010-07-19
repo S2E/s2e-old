@@ -21,17 +21,40 @@ class S2EExecutionState;
     will be dynamically created and destroyed on demand during translation. */
 typedef sigc::signal<void, S2EExecutionState*, uint64_t /* pc */> ExecutionSignal;
 
+/** This is a callback to check whether some port returns symbolic values.
+  * An interested plugin can use it. Only one plugin can use it at a time.
+  * This is necessary tp speedup checks (and avoid using signals) */
+typedef bool (*SYMB_PORT_CHECK)(uint16_t port, void *opaque);
+
 class CorePlugin : public Plugin {
     S2E_PLUGIN
 
 private:
     struct QEMUTimer *m_Timer;
+    SYMB_PORT_CHECK m_isPortSymbolicCb;
+    void *m_isPortSymbolicOpaque;
 
 public:
-    CorePlugin(S2E* s2e): Plugin(s2e) {}
+    CorePlugin(S2E* s2e): Plugin(s2e) {
+        m_Timer = NULL;
+        m_isPortSymbolicCb = NULL;
+        m_isPortSymbolicOpaque = NULL;
+    }
 
     void initialize();
     void initializeTimers();
+
+    void setPortCallback(SYMB_PORT_CHECK cb, void *opaque) {
+        m_isPortSymbolicCb = cb;
+        m_isPortSymbolicOpaque = opaque;
+    }
+
+    inline bool isPortSymbolic(uint16_t port) const {
+        if (m_isPortSymbolicCb) {
+            return m_isPortSymbolicCb(port, m_isPortSymbolicOpaque);
+        }
+        return false;
+    }
 
     struct QEMUTimer *getTimer() {
         return m_Timer;
@@ -92,6 +115,13 @@ public:
                  bool /* isWrite */, bool /* isIO */>
             onDataMemoryAccess;
 
+    /** Signal that is emitted on each port access */
+    sigc::signal<void, S2EExecutionState*,
+                 klee::ref<klee::Expr> /* port */,
+                 klee::ref<klee::Expr> /* value */,
+                 bool /* isWrite */>
+            onPortAccess;
+
     sigc::signal<void> onTimer;
 
     /** Signal emited when the state is forked */
@@ -109,6 +139,8 @@ public:
     /** Signal emitted when QEMU is ready to accept registration of new devices */
     sigc::signal<void> onDeviceRegistration;
 
+    /** Signal emitted when QEMU is ready to activate registered devices */
+    sigc::signal<void, struct PCIBus*> onDeviceActivation;
 
 };
 

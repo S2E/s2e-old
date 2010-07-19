@@ -108,6 +108,8 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
         res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
 
+        //XXX: Fix this to be on the dataflow
+        //res = S2E_TRACE_MEMORY(addr, physaddr, res, 0, 0);
         S2E_TRACE_MEMORY(addr, physaddr, res, 0, 0);
 
     }

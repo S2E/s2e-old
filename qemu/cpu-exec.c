@@ -764,7 +764,7 @@ int cpu_exec(CPUState *env1)
                 /* reset soft MMU for next block (it can currently
                    only be set by a memory fault) */
 #if 0
-#ifdef CONFIG_S2E
+               #ifdef CONFIG_S2E
                     /*
                      * Invoked upon state termination,
                      * to make sure that the state is not executed anymore

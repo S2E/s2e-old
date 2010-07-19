@@ -148,11 +148,17 @@ public:
 
     void finalizeState(S2EExecutionState *state);
 
+    void jumpToSymbolic(S2EExecutionState *state);
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,
                                     klee::KInstruction* target,
                                     std::vector<klee::ref<klee::Expr> > &args);
+
+    static void handlerTracePortAccess(klee::Executor* executor,
+                                         klee::ExecutionState* state,
+                                         klee::KInstruction* target,
+                                         std::vector<klee::ref<klee::Expr> > &args);
 
     void prepareFunctionExecution(S2EExecutionState *state,
                            llvm::Function* function,

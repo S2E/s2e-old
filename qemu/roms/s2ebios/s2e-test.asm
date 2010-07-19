@@ -15,9 +15,17 @@ s2e_test:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Testing symbolic ISA devices
 s2e_isa_dev:
+    call s2e_enable
+
+isadev1:
     mov dx, 0x100
-    in  ax, dx
-    out dx, ax
+    in  eax, dx
+    cmp eax, 0
+    ja isadev1
+
+    jmp isadev1
+    call s2e_disable
+    call s2e_kill_state
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

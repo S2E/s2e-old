@@ -26,12 +26,15 @@ public:
     static DeviceDescriptor *create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key);
     virtual ~DeviceDescriptor();
 
-    bool operator()(const DeviceDescriptor *dd) {
-        return m_id < dd->m_id;
+    struct comparator {
+    bool operator()(const DeviceDescriptor *dd1, const DeviceDescriptor *dd2) const {
+        return dd1->m_id < dd2->m_id;
     }
+    };
 
     virtual void print(std::ostream &os) const {}
     virtual void initializeQemuDevice() {assert(false);}
+    virtual void activateQemuDevice(struct PCIBus *bus) { assert(false);}
 };
 
 class IsaDeviceDescriptor:public DeviceDescriptor {
@@ -54,6 +57,7 @@ public:
     virtual ~IsaDeviceDescriptor();
     virtual void print(std::ostream &os) const;
     virtual void initializeQemuDevice();
+    virtual void activateQemuDevice(struct PCIBus *bus);
 
     const IsaResource& getResource() const {
         return m_isaResource;
@@ -98,6 +102,7 @@ public:
     static PciDeviceDescriptor* create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key);
 
     virtual void initializeQemuDevice();
+    virtual void activateQemuDevice(struct PCIBus *bus);
 
     virtual ~PciDeviceDescriptor();
 };
@@ -107,7 +112,7 @@ class SymbolicHardware : public Plugin
     S2E_PLUGIN
 public:
 
-    typedef std::set<DeviceDescriptor *> DeviceDescriptors;
+            typedef std::set<DeviceDescriptor *,DeviceDescriptor::comparator > DeviceDescriptors;
 
 
 public:
@@ -116,10 +121,15 @@ public:
     void initialize();
 
     const DeviceDescriptor *findDevice(const std::string &name) const;
+
+    void setSymbolicPortRange(uint16_t start, unsigned size, bool isSymbolic);
+    bool isSymbolic(uint16_t port);
 private:
+    uint32_t m_portMap[65536/(sizeof(uint32_t)*8)];
     DeviceDescriptors m_devices;
 
     void onDeviceRegistration();
+    void onDeviceActivation(struct PCIBus* pci);
 
 };
 

@@ -217,6 +217,31 @@ void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
     }
 }
 
+void S2EExecutor::handlerTracePortAccess(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector<klee::ref<klee::Expr> > &args)
+{
+    assert(dynamic_cast<S2EExecutor*>(executor));
+
+    S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+    if(!s2eExecutor->m_s2e->getCorePlugin()->onPortAccess.empty()) {
+        assert(dynamic_cast<S2EExecutionState*>(state));
+        S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
+
+        assert(args.size() == 4);
+
+        Expr::Width width = cast<klee::ConstantExpr>(args[2])->getZExtValue();
+        bool isWrite = cast<klee::ConstantExpr>(args[3])->getZExtValue();
+
+        ref<Expr> value = klee::ExtractExpr::create(args[1], 0, width);
+
+        s2eExecutor->m_s2e->getCorePlugin()->onPortAccess.emit(
+                s2eState, args[0], value, isWrite);
+    }
+}
+
+
 S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                     const InterpreterOptions &opts,
                             InterpreterHandler *ie)
@@ -312,6 +337,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     __DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
     __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
+    __DEFINE_EXT_FUNCTION(s2e_is_port_symbolic)
 
     /* XXX */
     __DEFINE_EXT_FUNCTION(ldub_phys)
@@ -352,6 +378,10 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
             kmodule->module->getFunction("tcg_llvm_trace_memory_access");
     assert(traceFunction);
     addSpecialFunctionHandler(traceFunction, handlerTraceMemoryAccess);
+
+    traceFunction = kmodule->module->getFunction("tcg_llvm_trace_port_access");
+    assert(traceFunction);
+    addSpecialFunctionHandler(traceFunction, handlerTracePortAccess);
 
     searcher = constructUserSearcher(*this);
 
@@ -789,6 +819,16 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
             << "Switched to symbolic execution at pc = "
             << hexval(state->getPc()) << std::endl;
 }
+
+void S2EExecutor::jumpToSymbolic(S2EExecutionState *state)
+{
+    assert(state->isRunningConcrete());
+
+    state->m_startSymbexAtPC = state->getPc();
+    // XXX: what about regs_to_env ?
+    longjmp(env->jmp_env, 1);
+}
+
 
 void S2EExecutor::copyOutConcretes(ExecutionState &state)
 {
@@ -1680,4 +1720,13 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
             longjmp(env->jmp_env_s2e, 1);
         }
     }
+}
+
+
+/**
+ *  Checks whether we are trying to access an I/O port that returns a symbolic value.
+ */
+void s2e_switch_to_symbolic(S2E *s2e, S2EExecutionState *state)
+{
+    s2e->getExecutor()->jumpToSymbolic(state);
 }
