@@ -174,3 +174,9 @@ iolooper_is_write( IoLooper*  iol, int  fd )
 {
     return FD_ISSET(fd, iol->writes_result);
 }
+
+int
+iolooper_has_operations( IoLooper* iol )
+{
+    return iolooper_fd_count(iol) > 0;
+}

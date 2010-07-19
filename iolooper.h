@@ -21,5 +21,7 @@ int        iolooper_wait( IoLooper*  iol, int64_t  duration );
 
 int        iolooper_is_read( IoLooper*  iol, int  fd );
 int        iolooper_is_write( IoLooper*  iol, int  fd );
+/* Returns 1 if this IoLooper has one or more file descriptor to interact with */
+int        iolooper_has_operations( IoLooper*  iol );
 
 #endif /* IOLOOPER_H */

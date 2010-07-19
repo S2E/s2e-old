@@ -151,6 +151,11 @@ void qemu_aio_wait(void)
 
         walking_handlers = 0;
 
+        /* No AIO operations? Get us out of here */
+        if (!iolooper_has_operations(looper)) {
+            break;
+        }
+
         /* wait until next event */
         ret = iolooper_wait(looper, -1);
 
