@@ -15,11 +15,11 @@
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
 #include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
 #include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
-#include <s2e/Plugins/ExecutionTracers/CallRetTracer.h>
 #include <s2e/Plugins/ExecutionTracers/ModuleTracer.h>
 #include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/Plugins/ExecutionTracers/MemoryTracer.h>
 #include <s2e/Plugins/ExecutionTracers/InstructionCounter.h>
+#include <s2e/Plugins/ExecutionTracers/TranslationBlockTracer.h>
 #include <s2e/Plugins/CacheSim.h>
 #include <s2e/Plugins/PfProfiler.h>
 #include <s2e/Plugins/Debugger.h>
@@ -64,11 +64,11 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);
     __S2E_REGISTER_PLUGIN(plugins::PfProfiler);
     __S2E_REGISTER_PLUGIN(plugins::ExecutionTracer);
-    __S2E_REGISTER_PLUGIN(plugins::CallRetTracer);
     __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);
     __S2E_REGISTER_PLUGIN(plugins::TestCaseGenerator);
     __S2E_REGISTER_PLUGIN(plugins::MemoryTracer);
     __S2E_REGISTER_PLUGIN(plugins::InstructionCounter);
+    __S2E_REGISTER_PLUGIN(plugins::TranslationBlockTracer);
 
     __S2E_REGISTER_PLUGIN(plugins::SymbolicHardware);
 

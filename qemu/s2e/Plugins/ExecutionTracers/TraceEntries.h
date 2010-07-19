@@ -223,6 +223,37 @@ struct ExecutionTraceICount
     uint64_t count;
 }__attribute__((packed));
 
+//XXX: Avoid hard-coded registers
+//XXX: Extend to other kinds of registers
+struct ExecutionTraceTb
+{
+    enum ETranslationBlockType
+    {
+        TB_DEFAULT=0,
+        TB_JMP, TB_JMP_IND,
+        TB_COND_JMP, TB_COND_JMP_IND,
+        TB_CALL, TB_CALL_IND, TB_REP, TB_RET
+    };
+
+    enum EX86Registers
+    {
+         EAX=0,
+         ECX=1,
+         EDX=2,
+         EBX=3,
+         ESP=4,
+         EBP=5,
+         ESI=6,
+         EDI=7
+    };
+
+    uint64_t pc, targetPc;
+    uint8_t tbType;
+
+    uint8_t symbMask;
+    uint32_t registers[8];
+}__attribute__((packed));
+
 union ExecutionTraceAll {
     ExecutionTraceModuleLoad moduleLoad;
     ExecutionTraceModuleUnload moduleUnload;

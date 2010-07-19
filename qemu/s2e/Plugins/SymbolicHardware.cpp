@@ -10,8 +10,17 @@ extern "C"
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 
+#include "llvm/Support/CommandLine.h"
+
 #include <sstream>
 
+namespace {
+    //Allows bypassing the symbolic value injection.
+    //All read accesses return concrete 0 values, and writes are ignored.
+    llvm::cl::opt<bool>
+    EnableSymbHw("s2e-enable-symbolic-hardware",
+                     llvm::cl::init(true));
+}
 
 namespace s2e {
 namespace plugins {
@@ -30,6 +39,7 @@ struct SymbolicIsaDeviceState {
 
 extern "C" {
     static bool symbhw_is_symbolic(uint16_t port, void *opaque);
+    static bool symbhw_is_symbolic_none(uint16_t port, void *opaque);
 
     static int pci_symbhw_init(PCIDevice *pci_dev);
     static int pci_symbhw_uninit(PCIDevice *pci_dev);
@@ -92,7 +102,11 @@ void SymbolicHardware::initialize()
     //Reset all symbolic bits for now
     memset(m_portMap, 0, sizeof(m_portMap));
 
-    s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic, this);
+    if (EnableSymbHw) {
+        s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic, this);
+    }else {
+        s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic_none, this);
+    }
 }
 
 void SymbolicHardware::setSymbolicPortRange(uint16_t start, unsigned size, bool isSymbolic)
@@ -121,6 +135,11 @@ static bool symbhw_is_symbolic(uint16_t port, void *opaque)
 {
     SymbolicHardware *hw = static_cast<SymbolicHardware*>(opaque);
     return hw->isSymbolic(port);
+}
+
+static bool symbhw_is_symbolic_none(uint16_t port, void *opaque)
+{
+    return false;
 }
 
 const DeviceDescriptor *SymbolicHardware::findDevice(const std::string &name) const

@@ -13,8 +13,18 @@ extern "C" {
 #include <iostream>
 #include <s2e/Utils.h>
 #include <s2e/S2E.h>
+#include "llvm/Support/CommandLine.h"
 #include "S2EDeviceState.h"
 #include "S2EExecutionState.h"
+
+namespace {
+    //Allows bypassing the symbolic value injection.
+    //All read accesses return concrete 0 values, and writes are ignored.
+    llvm::cl::opt<bool>
+    PersistentDiskWrites("s2e-persistent-disk-writes",
+                     llvm::cl::init(false));
+}
+
 
 using namespace s2e;
 using namespace std;
@@ -58,8 +68,7 @@ void S2EDeviceState::initDeviceState()
     
     assert(!s_DevicesInited);
 
-    g_s2e->getMessagesStream() << "Initing initial device state." << std::endl <<
-        "WARNING!!! All writes to disk will be lost after shutdown." << std::endl;
+    g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
 
     if (!s_DevicesInited) {
         void *se;
@@ -92,11 +101,17 @@ void S2EDeviceState::initDeviceState()
         s_DevicesInited = true;
     }
 
-    __hook_bdrv_read = s2e_bdrv_read;
-    __hook_bdrv_write = s2e_bdrv_write;
-    __hook_bdrv_aio_read = s2e_bdrv_aio_read;
-    __hook_bdrv_aio_write = s2e_bdrv_aio_write;
-
+    if (!PersistentDiskWrites) {
+        g_s2e->getMessagesStream() <<
+                "WARNING!!! All writes to disk will be lost after shutdown." << std::endl;
+        __hook_bdrv_read = s2e_bdrv_read;
+        __hook_bdrv_write = s2e_bdrv_write;
+        __hook_bdrv_aio_read = s2e_bdrv_aio_read;
+        __hook_bdrv_aio_write = s2e_bdrv_aio_write;
+    }else {
+        g_s2e->getMessagesStream() <<
+                "WARNING!!! All disk writes will be SHARED across states! BEWARE OF CORRUPTION!" << std::endl;
+    }
     //saveDeviceState();
     //restoreDeviceState();
 }
