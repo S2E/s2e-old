@@ -203,8 +203,8 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
 
             // Calculate mask - bits that are kept by Extract
             uint64_t mask = zeroMask(ee->width);
-            rbits.knownOneBits = bits[0].knownOneBits & ~mask;
-            rbits.knownZeroBits = bits[0].knownZeroBits | mask;
+            rbits.knownOneBits = (bits[0].knownOneBits >> ee->offset) & ~mask;
+            rbits.knownZeroBits = (bits[0].knownZeroBits >> ee->offset) | mask;
 
             bits[0].ignoredBits = (ignoredBits << ee->offset) |
                                   ~((~mask) << ee->offset);
@@ -214,12 +214,11 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
     case Expr::Concat:
         {
             uint64_t shift = kids[1]->getWidth();
-            rbits.knownOneBits = ((bits[0].knownOneBits << shift) |
-                                  (bits[1].knownOneBits))
-                                 & ~zeroMask(e->getWidth());
+            rbits.knownOneBits = (bits[0].knownOneBits << shift) |
+                                 bits[1].knownOneBits;
             rbits.knownZeroBits = (bits[0].knownZeroBits << shift)
-                                  | (bits[1].knownZeroBits)
-                                  | zeroMask(e->getWidth());
+                                  | (bits[1].knownZeroBits &
+                                     ~zeroMask(kids[1]->getWidth()));
 
             bits[0].ignoredBits = (ignoredBits >> shift)
                                   | zeroMask(kids[0]->getWidth());

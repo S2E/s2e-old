@@ -402,7 +402,10 @@ ref<Expr> Executor::simplifyExpr(const ExecutionState &s, ref<Expr> e)
             ref<Expr> eq = EqExpr::create(simplified, e);
             assert(solver->mustBeTrue(s, eq, isEqual));
             if(!isEqual) {
-                ref<Expr> simplified = exprSimplifier->simplify(e);
+                std::cerr << "Error in expression simplifier:" << std::endl;
+                e->dump();
+                std::cerr << "!=" << std::endl;
+                simplified->dump();
                 assert(false);
             }
         }
