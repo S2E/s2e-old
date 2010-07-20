@@ -652,58 +652,76 @@ target_ulong helper_inl(uint32_t port)
 
 void helper_outb(uint32_t port, uint32_t data)
 {
+#ifdef CONFIG_S2E
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
     s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 8, 1);
+#endif
     cpu_outb(port, data & 0xff);
 }
 
 target_ulong helper_inb(uint32_t port)
 {
+#ifdef CONFIG_S2E
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
+#endif
     target_ulong res = cpu_inb(port);
+#ifdef CONFIG_S2E
     s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 8, 0);
+#endif
     return res;
 }
 
 void helper_outw(uint32_t port, uint32_t data)
 {
+#ifdef CONFIG_S2E
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
     s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 16, 1);
+#endif
     cpu_outw(port, data & 0xffff);
 }
 
 target_ulong helper_inw(uint32_t port)
 {
+#ifdef CONFIG_S2E
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
+#endif
     target_ulong res = cpu_inw(port);
+#ifdef CONFIG_S2E
     s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 16, 0);
+#endif
     return res;
 }
 
 void helper_outl(uint32_t port, uint32_t data)
 {
+#ifdef CONFIG_S2E
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
     s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 32, 1);
+#endif
     cpu_outl(port, data);
 }
 
 target_ulong helper_inl(uint32_t port)
 {
+#ifdef CONFIG_S2E
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
+#endif
     target_ulong res = cpu_inl(port);
+#ifdef CONFIG_S2E
     s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 32, 0);
+#endif
     return res;
 }
 
