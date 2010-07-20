@@ -72,8 +72,6 @@ static void *qemu_st_helpers[5] = {
 
 #include <llvm/System/DynamicLibrary.h>
 
-#include "SelectRemovalPass.h"
-
 #include <iostream>
 #include <sstream>
 
@@ -309,7 +307,7 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     m_functionPassManager->add(createCFGSimplificationPass());
     m_functionPassManager->add(createPromoteMemoryToRegisterPass());
 
-    m_functionPassManager->add(new SelectRemovalPass());
+    //m_functionPassManager->add(new SelectRemovalPass());
 
     m_functionPassManager->doInitialization();
 }

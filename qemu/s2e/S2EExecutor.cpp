@@ -23,6 +23,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/S2EDeviceState.h>
+#include <s2e/SelectRemovalPass.h>
 
 #include <s2e/s2e_qemu.h>
 
@@ -30,10 +31,12 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <llvm/Function.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/Instructions.h>
+#include <llvm/PassManager.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/System/DynamicLibrary.h>
+#include <llvm/Support/CommandLine.h>
 
 #include <klee/StatsTracker.h>
 #include <klee/PTree.h>
@@ -64,6 +67,13 @@ using namespace klee;
 extern "C" {
     // XXX
     void* g_s2e_exec_ret_addr = 0;
+}
+
+namespace {
+    cl::opt<bool>
+    UseSelectCleaner("use-select-cleaner",
+            cl::desc("Remove Select statements from LLVM code"),
+            cl::init(false));
 }
 
 namespace s2e {
@@ -352,12 +362,18 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(ldq_phys)
     __DEFINE_EXT_FUNCTION(stq_phys)
 
+    if(UseSelectCleaner) {
+        m_tcgLLVMContext->getFunctionPassManager()->add(new SelectRemovalPass());
+        m_tcgLLVMContext->getFunctionPassManager()->doInitialization();
+    }
+
     /* Set module for the executor */
 #if 1
     char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
     assert(filename);
     ModuleOptions MOpts(vector<string>(1, filename),
-            /* Optimize= */ false, /* CheckDivZero= */ false, m_tcgLLVMContext->getFunctionPassManager());
+            /* Optimize= */ false, /* CheckDivZero= */ false,
+            m_tcgLLVMContext->getFunctionPassManager());
 
     qemu_free(filename);
 
