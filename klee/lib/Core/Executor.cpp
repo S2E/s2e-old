@@ -268,7 +268,7 @@ namespace {
   cl::opt<bool>
   ValidateSimplifier("validate-expr-simplifier",
             cl::desc("Checks that the simplification algorithm produced correct expressions"),
-            cl::init(true));
+            cl::init(false));
 }
 
 static void *theMMap = 0;
@@ -1698,7 +1698,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     // Special instructions
   case Instruction::Select: {
-          assert(false && "We do not want select instructions in S2E!");
     SelectInst *SI = cast<SelectInst>(ki->inst);
     assert(SI->getCondition() == SI->getOperand(0) &&
            "Wrong operand index!");

@@ -228,24 +228,12 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         break;
 
     case Expr::Select:
-        //Select is a conditional statement, cannot throw it away in most of the cases,
-        //except when the truth value of the decision is known.
-        rbits.knownOneBits = 0;
-        rbits.knownZeroBits = zeroMask(e->getWidth());
-#if 0
         rbits.knownOneBits = bits[1].knownOneBits & bits[2].knownOneBits;
         rbits.knownZeroBits = (bits[1].knownZeroBits & bits[2].knownZeroBits)
                                | zeroMask(e->getWidth());
 
         bits[1].ignoredBits = ignoredBits;
         bits[2].ignoredBits = ignoredBits;
-
-        if (DebugSimplifier) {
-            *klee_message_stream << "Select K1=0x" << std::hex <<  rbits.knownOneBits << " " <<
-                    "K0=0x" << rbits.knownZeroBits << " " <<
-                    "IGN=0x" << rbits.ignoredBits << std::endl;
-        }
-#endif
         break;
 
     case Expr::ZExt:
