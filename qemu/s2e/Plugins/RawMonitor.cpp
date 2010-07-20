@@ -104,7 +104,7 @@ void RawMonitor::initialize()
 void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
 {
     //XXX: find a better way of allocating custom opcodes
-    if (!((opcode>>8) & 0xFF) == 0xAA) {
+    if (!(((opcode>>8) & 0xFF) == 0xAA)) {
         return;
     }
 
