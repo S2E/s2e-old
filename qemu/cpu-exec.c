@@ -310,8 +310,8 @@ int cpu_exec(CPUState *env1)
     if (setjmp(env->jmp_env_s2e) != 0) {
         cpu_single_env = NULL;
         env->exception_index = -1;
-        //g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
-        //s2e_qemu_finalize_state(g_s2e, g_s2e_state);
+        g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
+        s2e_qemu_finalize_state(g_s2e, g_s2e_state);
         return -1;
     }
 #endif
@@ -763,30 +763,23 @@ int cpu_exec(CPUState *env1)
                 }
                 /* reset soft MMU for next block (it can currently
                    only be set by a memory fault) */
-#if 0
-               #ifdef CONFIG_S2E
-                    /*
-                     * Invoked upon state termination,
-                     * to make sure that the state is not executed anymore
-                     */
-                    if (setjmp(env->jmp_env_s2e) != 0) {
-                        cpu_single_env = NULL;
-                        env->exception_index = -1;
-                        g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
-                        s2e_qemu_finalize_state(g_s2e, g_s2e_state);
-                        return -1;
-                    }
-                #endif
 
+            } /* for(;;) */
+#if 1
                 #ifdef CONFIG_S2E
                 g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
                 s2e_qemu_finalize_state(g_s2e, g_s2e_state);
                 #endif
 #endif
-            } /* for(;;) */
         } else {
 #ifdef CONFIG_S2E
             s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, tb);
+#if 1
+                #ifdef CONFIG_S2E
+                g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
+                s2e_qemu_finalize_state(g_s2e, g_s2e_state);
+                #endif
+#endif
 #endif
             env_to_regs();
         }

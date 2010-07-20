@@ -1058,7 +1058,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
 
     //XXX: hack to clean interrupted translation blocks (that forked)
-    cleanupTranslationBlock(state, tb);
+    //cleanupTranslationBlock(state, tb);
 
     assert(state->m_active && !state->m_runningConcrete);
     assert(state->stack.size() == 1);
@@ -1353,6 +1353,9 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
                             llvm::Function *function,
                             const std::vector<klee::ref<klee::Expr> >& args)
 {
+    assert(!state->prevPC);
+    assert(state->stack.size() == 1);
+
     /* Update state */
     if (!copyInConcretes(*state)) {
         std::cerr << "external modified read-only object" << std::endl;
@@ -1651,7 +1654,6 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
 
 void s2e_qemu_finalize_state(S2E *s2e, S2EExecutionState* state)
 {
-    return;
     try {
         s2e->getExecutor()->finalizeState(state);
     } catch(s2e::CpuExitException&) {

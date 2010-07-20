@@ -26,6 +26,8 @@
 #include <map>
 #include <set>
 
+#include "klee/Common.h"
+
 struct KTest;
 
 namespace llvm {
@@ -303,12 +305,14 @@ protected:
   Cell& getArgumentCell(ExecutionState &state,
                         KFunction *kf,
                         unsigned index) {
-    return state.stack.back().locals[kf->getArgRegister(index)];
+      //*klee::klee_warning_stream << std::dec << "arg idx="<< index<< " "  << kf->getArgRegister(index) << std::endl;
+      return state.stack.back().locals[kf->getArgRegister(index)];
   }
 
   Cell& getDestCell(ExecutionState &state,
                     KInstruction *target) {
-    return state.stack.back().locals[target->dest];
+      //*klee_warning_stream << "dst Td="<< std::dec << target->dest << std::endl;
+      return state.stack.back().locals[target->dest];
   }
 
   void bindLocal(KInstruction *target, 

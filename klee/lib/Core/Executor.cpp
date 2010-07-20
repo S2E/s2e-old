@@ -396,10 +396,10 @@ ref<Expr> Executor::simplifyExpr(const ExecutionState &s, ref<Expr> e)
 {
     if(exprSimplifier) {
         ref<Expr> simplified = exprSimplifier->simplify(e);
-        ref<Expr> eq = EqExpr::create(simplified, e);
 
         if (ValidateSimplifier) {
             bool isEqual;
+            ref<Expr> eq = EqExpr::create(simplified, e);
             assert(solver->mustBeTrue(s, eq, isEqual));
             if(!isEqual) {
                 ref<Expr> simplified = exprSimplifier->simplify(e);
@@ -408,7 +408,6 @@ ref<Expr> Executor::simplifyExpr(const ExecutionState &s, ref<Expr> e)
         }
 
         return simplified;
-
 
     }else {
         return e;
@@ -1033,13 +1032,15 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
   } else {
     unsigned index = vnumber;
     StackFrame &sf = state.stack.back();
+    //*klee_warning_stream << "op idx=" << std::dec << index << std::endl;
     return sf.locals[index];
   }
 }
 
 void Executor::bindLocal(KInstruction *target, ExecutionState &state, 
                          ref<Expr> value) {
-  getDestCell(state, target).value = simplifyExpr(state, value);
+
+    getDestCell(state, target).value = simplifyExpr(state, value);
 }
 
 void Executor::bindArgument(KFunction *kf, unsigned index, 
