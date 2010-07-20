@@ -55,7 +55,8 @@ public:
     llvm::FunctionPassManager *CustomPasses;
 
     ModuleOptions(const std::vector<std::string>& _ExtraLibraries,
-                  bool _Optimize, bool _CheckDivZero,llvm::FunctionPassManager *_CustomPasses)
+                  bool _Optimize, bool _CheckDivZero,
+                  llvm::FunctionPassManager *_CustomPasses = NULL)
       : ExtraLibraries(_ExtraLibraries),
         Optimize(_Optimize), CheckDivZero(_CheckDivZero), CustomPasses(_CustomPasses) {}
   };
