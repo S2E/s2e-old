@@ -1302,7 +1302,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         if(!executeKlee) {
             //XXX: This should be fixed to make sure that helpers do not read/write corrupted data
             //because they think that execution is concrete while it should be symbolic (see issue #30).
-#if 0
+#if 1
             /* We can not execute TB natively if it reads any symbolic regs */
             if(!os->isAllConcrete()) {
                 uint64_t smask = state->getSymbolicRegistersMask();
