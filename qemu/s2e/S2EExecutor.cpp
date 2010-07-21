@@ -78,6 +78,17 @@ namespace {
 
 namespace s2e {
 
+namespace stats {
+    Statistic tbExecuted("TbBlocksExecuted", "TbExecuted");
+    Statistic tbExecutedInKlee("TbExecutedInKlee", "TbExecutedInKlee");
+    Statistic tbExecutedConcretely("TbExecutedConcretely", "TbExecutedConcretely");
+    /*
+    Statistic tbInterrupted("TbInterrupted", "TbInterrupted");
+    Statistic tbInterruptedInKlee("TbInterruptedInKlee", "TbInterruptedInKlee");
+    Statistic tbInterruptedConcretely("TbInterruptedConcretely", "TbInterruptedConcretely");
+    */
+} // namespace stats
+
 /* Global array to hold tb function arguments */
 volatile void* tb_function_args[3];
 
@@ -1332,12 +1343,16 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     if(executeKlee) {
         if(state->m_runningConcrete)
             switchToSymbolic(state);
+        ++stats::tbExecuted;
+        ++stats::tbExecutedInKlee;
         return executeTranslationBlockKlee(state, tb);
 
     } else {
         g_s2e_exec_ret_addr = 0;
         if(!state->m_runningConcrete)
             switchToConcrete(state);
+        ++stats::tbExecuted;
+        ++stats::tbExecutedConcretely;
         return tcg_qemu_tb_exec(tb->tc_ptr);
     }
 }

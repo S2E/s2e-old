@@ -2,6 +2,7 @@
 #define S2E_EXECUTOR_H
 
 #include <klee/Executor.h>
+#include <klee/Statistic.h>
 
 class TCGLLVMContext;
 
@@ -9,6 +10,12 @@ struct TranslationBlock;
 struct CPUX86State;
 
 namespace s2e {
+
+namespace stats {
+    extern klee::Statistic tbExecuted;
+    extern klee::Statistic tbExecutedInKlee;
+    extern klee::Statistic tbExecutedConcretely;
+}
 
 class S2E;
 class S2EExecutionState;
