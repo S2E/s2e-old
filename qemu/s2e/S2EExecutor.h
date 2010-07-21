@@ -156,6 +156,9 @@ public:
     void finalizeState(S2EExecutionState *state);
 
     void jumpToSymbolic(S2EExecutionState *state);
+
+    void setCCOpEflags(S2EExecutionState *state);
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,

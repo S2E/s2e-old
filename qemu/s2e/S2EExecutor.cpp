@@ -1055,6 +1055,8 @@ void S2EExecutor::finalizeState(S2EExecutionState *state)
         return;
     }
 
+    assert(!state->m_runningConcrete);
+
     m_s2e->getDebugStream() << "Finalizing state " << std::dec << state->getID() << std::endl;
     foreach(const StackFrame& fr, state->stack) {
         m_s2e->getDebugStream() << fr.kf->function->getNameStr() << std::endl;
@@ -1384,6 +1386,7 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
                             llvm::Function *function,
                             const std::vector<klee::ref<klee::Expr> >& args)
 {
+    assert(!state->m_runningConcrete);
     assert(!state->prevPC);
     assert(state->stack.size() == 1);
 
@@ -1578,6 +1581,40 @@ void S2EExecutor::terminateState(ExecutionState &state)
     throw StateTerminatedException();
 }
 
+inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
+{
+    uint32_t cc_op = 0;
+
+    // Check wether any of cc_op, cc_src, cc_dst or cc_tmp are symbolic
+    if(state->getSymbolicRegistersMask() & (0xf<<1)) {
+        // call set_cc_op_eflags only if cc_op is symbolic or cc_op != CC_OP_EFLAGS
+        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
+                                                 &cc_op, sizeof(cc_op));
+        if(!ok || cc_op != CC_OP_EFLAGS) {
+            try {
+                if(state->m_runningConcrete)
+                    switchToSymbolic(state);
+                executeFunction(state, "helper_set_cc_op_eflags");
+            } catch(s2e::CpuExitException&) {
+                updateStates(state);
+                longjmp(env->jmp_env, 1);
+            } catch(s2e::StateTerminatedException&) {
+                updateStates(state);
+                longjmp(env->jmp_env_s2e, 1);
+            }
+        }
+    } else {
+        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
+                                                 &cc_op, sizeof(cc_op));
+        assert(ok);
+        if(cc_op != CC_OP_EFLAGS) {
+            if(!state->m_runningConcrete)
+                switchToConcrete(state);
+            helper_set_cc_op_eflags();
+        }
+    }
+}
+
 } // namespace s2e
 
 /******************************/
@@ -1705,28 +1742,7 @@ void s2e_qemu_cleanup_tb_exec(S2E* s2e, S2EExecutionState* state,
 void s2e_set_cc_op_eflags(struct S2E* s2e,
                         struct S2EExecutionState* state)
 {
-    // Check wether any of cc_op, cc_src, cc_dst or cc_tmp are symbolic
-    if(state->getSymbolicRegistersMask() & (0xf<<1)) {
-        // call set_cc_op_eflags only if cc_op is symbolic or cc_op != CC_OP_EFLAGS
-        uint32_t cc_op = 0;
-        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
-                                                 &cc_op, sizeof(cc_op));
-        if(!ok || cc_op != CC_OP_EFLAGS) {
-            try {
-                s2e->getExecutor()->executeFunction(state,
-                                                "helper_set_cc_op_eflags");
-            } catch(s2e::CpuExitException&) {
-                s2e->getExecutor()->updateStates(state);
-                longjmp(env->jmp_env, 1);
-            } catch(s2e::StateTerminatedException&) {
-                s2e->getExecutor()->updateStates(state);
-                longjmp(env->jmp_env_s2e, 1);
-            }
-        }
-    } else {
-        helper_set_cc_op_eflags();
-    }
-
+    s2e->getExecutor()->setCCOpEflags(state);
 }
 
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
