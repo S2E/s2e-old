@@ -2,7 +2,6 @@
 #define S2E_EXECUTOR_H
 
 #include <klee/Executor.h>
-#include <klee/Statistic.h>
 
 class TCGLLVMContext;
 
@@ -10,12 +9,6 @@ struct TranslationBlock;
 struct CPUX86State;
 
 namespace s2e {
-
-namespace stats {
-    extern klee::Statistic tbExecuted;
-    extern klee::Statistic tbExecutedInKlee;
-    extern klee::Statistic tbExecutedConcretely;
-}
 
 class S2E;
 class S2EExecutionState;
@@ -220,6 +213,8 @@ protected:
 
     /** Kills the specified state and raises an exception to exit the cpu loop */
     virtual void terminateState(klee::ExecutionState &state);
+
+    void setupTimersHandler();
 };
 
 } // namespace s2e

@@ -24,6 +24,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/S2EDeviceState.h>
 #include <s2e/SelectRemovalPass.h>
+#include <s2e/S2EStatsTracker.h>
 
 #include <s2e/s2e_qemu.h>
 
@@ -38,7 +39,6 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <llvm/System/DynamicLibrary.h>
 #include <llvm/Support/CommandLine.h>
 
-#include <klee/StatsTracker.h>
 #include <klee/PTree.h>
 #include <klee/Memory.h>
 #include <klee/Searcher.h>
@@ -77,17 +77,6 @@ namespace {
 }
 
 namespace s2e {
-
-namespace stats {
-    Statistic tbExecuted("TbBlocksExecuted", "TbExecuted");
-    Statistic tbExecutedInKlee("TbExecutedInKlee", "TbExecutedInKlee");
-    Statistic tbExecutedConcretely("TbExecutedConcretely", "TbExecutedConcretely");
-    /*
-    Statistic tbInterrupted("TbInterrupted", "TbInterrupted");
-    Statistic tbInterruptedInKlee("TbInterruptedInKlee", "TbInterruptedInKlee");
-    Statistic tbInterruptedConcretely("TbInterruptedConcretely", "TbInterruptedConcretely");
-    */
-} // namespace stats
 
 /* Global array to hold tb function arguments */
 volatile void* tb_function_args[3];
@@ -393,9 +382,14 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
             /* Optimize= */ false, /* CheckDivZero= */ false);
 #endif
 
-
-
-    setModule(m_tcgLLVMContext->getModule(), MOpts);
+    setModule(m_tcgLLVMContext->getModule(), MOpts, false);
+    if(StatsTracker::useStatistics()) {
+        statsTracker =
+                new S2EStatsTracker(*this,
+                    interpreterHandler->getOutputFilename("assembly.ll"),
+                    userSearcherRequiresMD2U());
+        statsTracker->writeHeaders();
+    }
 
     m_tcgLLVMContext->initializeHelpers();
 
@@ -510,6 +504,8 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state,
 
     initializeGlobals(*state);
     bindModuleConstants();
+
+    initTimers();
 }
 
 void S2EExecutor::registerCpu(S2EExecutionState *initialState,
@@ -1341,21 +1337,22 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             executeKlee |= !os->isAllConcrete();
 #endif
         }
+        processTimers(state, 0);
     }
 
     if(executeKlee) {
         if(state->m_runningConcrete)
             switchToSymbolic(state);
-        ++stats::tbExecuted;
-        ++stats::tbExecutedInKlee;
+        ++stats::translationBlocks;
+        ++stats::translationBlocksKlee;
         return executeTranslationBlockKlee(state, tb);
 
     } else {
         g_s2e_exec_ret_addr = 0;
         if(!state->m_runningConcrete)
             switchToConcrete(state);
-        ++stats::tbExecuted;
-        ++stats::tbExecutedConcretely;
+        ++stats::translationBlocks;
+        ++stats::translationBlocksConcrete;
         return tcg_qemu_tb_exec(tb->tc_ptr);
     }
 }
@@ -1614,6 +1611,12 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
             helper_set_cc_op_eflags();
         }
     }
+}
+
+void S2EExecutor::setupTimersHandler()
+{
+    m_s2e->getCorePlugin()->onTimer.connect(
+            sigc::bind(sigc::ptr_fun(&onAlarm), 0));
 }
 
 } // namespace s2e
