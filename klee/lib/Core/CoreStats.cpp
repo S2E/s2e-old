@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 
 using namespace klee;
 

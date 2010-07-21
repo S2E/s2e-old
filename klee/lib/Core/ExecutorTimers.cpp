@@ -9,7 +9,7 @@
 
 #include "klee/Common.h"
 
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 #include "klee/Executor.h"
 #include "klee/PTree.h"
 #include "klee/StatsTracker.h"
@@ -64,6 +64,10 @@ static volatile unsigned timerTicks = 0;
 extern "C" unsigned dumpStates, dumpPTree;
 unsigned dumpStates = 0, dumpPTree = 0;
 
+void Executor::onAlarm(int) {
+  ++timerTicks;
+}
+
 #ifdef __MINGW32__
 VOID CALLBACK TimerProc(
     HWND hwnd,
@@ -72,16 +76,12 @@ VOID CALLBACK TimerProc(
     DWORD dwTime
 )
 {
-  ++timerTicks;
-}
-#else
-static void onAlarm(int) {
-  ++timerTicks;
+  onAlarm(0);
 }
 #endif
 
 // oooogalay
-static void setupHandler() {
+void Executor::setupTimersHandler() {
 #ifdef __MINGW32__
   HANDLE hTimer;
   SetTimer(0, 0, 1000, TimerProc);
@@ -104,7 +104,7 @@ void Executor::initTimers() {
 
   if (first) {
     first = false;
-    setupHandler();
+    setupTimersHandler();
   }
 
   if (MaxTime) {
@@ -145,7 +145,7 @@ void Executor::processTimers(ExecutionState *current,
   unsigned ticks = timerTicks;
 
   if (!ticks && ++callsWithoutCheck > 1000) {
-    setupHandler();
+    setupTimersHandler();
     ticks = 1;
   }
 

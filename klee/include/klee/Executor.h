@@ -376,6 +376,8 @@ protected:
   /// \param rate The approximate delay (in seconds) between firings.
   void addTimer(Timer *timer, double rate);
 
+  static void onAlarm(int);
+  virtual void setupTimersHandler();
   void initTimers();
   void processTimers(ExecutionState *current,
                      double maxInstTime);
@@ -453,7 +455,8 @@ public:
   }
 
   virtual const llvm::Module *
-  setModule(llvm::Module *module, const ModuleOptions &opts);
+  setModule(llvm::Module *module, const ModuleOptions &opts,
+            bool createStatsTracker = true);
 
   virtual void useSeeds(const std::vector<struct KTest *> *seeds) { 
     usingSeeds = seeds;
@@ -495,6 +498,8 @@ public:
 
   virtual void copyOutConcretes(ExecutionState &state);
   virtual bool copyInConcretes(ExecutionState &state);
+
+  size_t getStatesCount() { return states.size(); }
 };
   
 } // End klee namespace

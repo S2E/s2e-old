@@ -20,11 +20,11 @@
 #include "klee/Internal/System/Time.h"
 
 #include "klee/CallPathManager.h"
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 #include "klee/Executor.h"
 #include "MemoryManager.h"
 #include "klee/UserSearcher.h"
-#include "../Solver/SolverStats.h"
+#include "klee/SolverStats.h"
 
 #include "llvm/BasicBlock.h"
 #include "llvm/Function.h"
@@ -200,7 +200,10 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
       }
     }
   }
+}
 
+void StatsTracker::writeHeaders()
+{
   if (OutputStats) {
     statsFile = executor.interpreterHandler->openOutputFile("run.stats");
     assert(statsFile && "unable to open statistics trace file");

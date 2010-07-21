@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AddressSpace.h"
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 #include "klee/Memory.h"
 #include "TimingSolver.h"
 

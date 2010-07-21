@@ -9,7 +9,7 @@
 
 #include "klee/Common.h"
 
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 #include "klee/Memory.h"
 #include "MemoryManager.h"
 

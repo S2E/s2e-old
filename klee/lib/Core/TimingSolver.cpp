@@ -13,7 +13,7 @@
 #include "klee/Solver.h"
 #include "klee/Statistics.h"
 
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 
 #include "llvm/System/Process.h"
 

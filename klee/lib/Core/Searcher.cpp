@@ -11,7 +11,7 @@
 
 #include "klee/Searcher.h"
 
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 #include "klee/Executor.h"
 #include "klee/PTree.h"
 #include "klee/StatsTracker.h"

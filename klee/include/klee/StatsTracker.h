@@ -30,6 +30,7 @@ namespace klee {
   class StackFrame;
 
   class StatsTracker {
+  protected:
     friend class WriteStatsTimer;
     friend class WriteIStatsTimer;
 
@@ -49,16 +50,18 @@ namespace klee {
   public:
     static bool useStatistics();
 
-  private:
+  protected:
     void updateStateStatistics(uint64_t addend);
-    void writeStatsHeader();
-    void writeStatsLine();
-    void writeIStats();
+    virtual void writeStatsHeader();
+    virtual void writeStatsLine();
+    virtual void writeIStats();
 
   public:
     StatsTracker(Executor &_executor, std::string _objectFilename,
                  bool _updateMinDistToUncovered);
     ~StatsTracker();
+
+    void writeHeaders();
 
     // called after a new StackFrame has been pushed (for callpath tracing)
     void framePushed(ExecutionState &es, StackFrame *parentFrame);

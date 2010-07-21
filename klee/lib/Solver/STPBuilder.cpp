@@ -14,7 +14,7 @@
 #include "klee/util/Bits.h"
 
 #include "ConstantDivision.h"
-#include "SolverStats.h"
+#include "klee/SolverStats.h"
 
 #include "llvm/Support/CommandLine.h"
 

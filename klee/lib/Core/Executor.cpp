@@ -12,7 +12,7 @@
 #include "klee/Executor.h"
  
 #include "klee/Context.h"
-#include "CoreStats.h"
+#include "klee/CoreStats.h"
 #include "klee/ExternalDispatcher.h"
 #include "ImpliedValue.h"
 #include "klee/Memory.h"
@@ -24,7 +24,7 @@
 #include "klee/StatsTracker.h"
 #include "TimingSolver.h"
 #include "klee/UserSearcher.h"
-#include "../Solver/SolverStats.h"
+#include "klee/SolverStats.h"
 #include "../Expr/BitfieldSimplifier.h"
 
 #include "klee/ExecutionState.h"
@@ -351,7 +351,8 @@ Executor::Executor(const InterpreterOptions &opts,
 
 
 const Module *Executor::setModule(llvm::Module *module, 
-                                  const ModuleOptions &opts) {
+                                  const ModuleOptions &opts,
+                                  bool createStatsTracker) {
   assert(!kmodule && module && "can only register one module"); // XXX gross
   
   kmodule = new KModule(module);
@@ -367,11 +368,12 @@ const Module *Executor::setModule(llvm::Module *module,
   kmodule->prepare(opts, interpreterHandler);
   specialFunctionHandler->bind();
 
-  if (StatsTracker::useStatistics()) {
+  if (createStatsTracker && StatsTracker::useStatistics()) {
     statsTracker = 
       new StatsTracker(*this,
                        interpreterHandler->getOutputFilename("assembly.ll"),
                        userSearcherRequiresMD2U());
+    statsTracker->writeHeaders();
   }
   
   return module;
