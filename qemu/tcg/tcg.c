@@ -946,6 +946,10 @@ void tcg_calc_regmask(const TCGContext *s, uint64_t *rmask, uint64_t *wmask)
             nb_iargs = arg_count & 0xffff;
             nb_cargs = def->nb_cargs;
 
+            /* helpers can read and write to any registers */
+            *rmask |= (uint64_t) -1;
+            *wmask |= (uint64_t) -1;
+
         } else if (c == INDEX_op_nopn) {
 
             /* variable number of arguments */

@@ -1310,6 +1310,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             /* We can not execute TB natively if it reads any symbolic regs */
             if(!os->isAllConcrete()) {
                 uint64_t smask = state->getSymbolicRegistersMask();
+                assert(smask);
 #if 1
                 if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
                     /* TB reads symbolic variables */
