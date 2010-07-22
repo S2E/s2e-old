@@ -13,6 +13,9 @@ namespace stats {
     Statistic translationBlocks("TranslationBlocks", "TBs");
     Statistic translationBlocksConcrete("TranslationBlocksConcrete", "TBsConcrete");
     Statistic translationBlocksKlee("TranslationBlocksKlee", "TBsKlee");
+
+    Statistic concreteModeTime("ConcreteModeTime", "ConcModeTime");
+    Statistic symbolicModeTime("SymbolicModeTime", "SymbModeTime");
 } // namespace stats
 } // namespace klee
 
@@ -23,52 +26,56 @@ namespace s2e {
 
 void S2EStatsTracker::writeStatsHeader() {
   *statsFile << "('Instructions',"
-             << "'TranslationBlocks',"
-             << "'TranslationBlocksConcrete',"
-             << "'TranslationBlocksKlee',"
              << "'FullBranches',"
              << "'PartialBranches',"
              << "'NumBranches',"
-             << "'UserTime',"
              << "'NumStates',"
-             << "'MallocUsage',"
              << "'NumQueries',"
              << "'NumQueryConstructs',"
              << "'NumObjects',"
-             << "'WallTime',"
              << "'CoveredInstructions',"
              << "'UncoveredInstructions',"
+             << "'TranslationBlocks',"
+             << "'TranslationBlocksConcrete',"
+             << "'TranslationBlocksKlee',"
+             << "'ConcreteModeTime',"
+             << "'SymbolicModeTime',"
+             << "'UserTime',"
+             << "'WallTime',"
              << "'QueryTime',"
              << "'SolverTime',"
              << "'CexCacheTime',"
              << "'ForkTime',"
              << "'ResolveTime',"
+             << "'MemoryUsage',"
              << ")\n";
   statsFile->flush();
 }
 
 void S2EStatsTracker::writeStatsLine() {
   *statsFile << "(" << stats::instructions
-             << "," << stats::translationBlocks
-             << "," << stats::translationBlocksConcrete
-             << "," << stats::translationBlocksKlee
              << "," << fullBranches
              << "," << partialBranches
              << "," << numBranches
-             << "," << util::getUserTime()
              << "," << executor.getStatesCount()
-             << "," << sys::Process::GetTotalMemoryUsage()
              << "," << stats::queries
              << "," << stats::queryConstructs
              << "," << 0 // was numObjects
-             << "," << elapsed()
              << "," << stats::coveredInstructions
              << "," << stats::uncoveredInstructions
+             << "," << stats::translationBlocks
+             << "," << stats::translationBlocksConcrete
+             << "," << stats::translationBlocksKlee
+             << "," << stats::concreteModeTime / 1000000.
+             << "," << stats::symbolicModeTime / 1000000.
+             << "," << util::getUserTime()
+             << "," << elapsed()
              << "," << stats::queryTime / 1000000.
              << "," << stats::solverTime / 1000000.
              << "," << stats::cexCacheTime / 1000000.
              << "," << stats::forkTime / 1000000.
              << "," << stats::resolveTime / 1000000.
+             << "," << sys::Process::GetTotalMemoryUsage()
              << ")\n";
   statsFile->flush();
 }

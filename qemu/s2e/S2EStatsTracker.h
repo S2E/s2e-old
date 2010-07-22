@@ -9,6 +9,9 @@ namespace stats {
     extern klee::Statistic translationBlocks;
     extern klee::Statistic translationBlocksConcrete;
     extern klee::Statistic translationBlocksKlee;
+
+    extern klee::Statistic concreteModeTime;
+    extern klee::Statistic symbolicModeTime;
 } // namespace stats
 } // namespace klee
 

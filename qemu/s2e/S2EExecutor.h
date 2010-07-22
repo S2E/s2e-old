@@ -171,6 +171,9 @@ protected:
     uintptr_t executeTranslationBlockKlee(S2EExecutionState *state,
                                           TranslationBlock *tb);
 
+    uintptr_t executeTranslationBlockConcrete(S2EExecutionState *state,
+                                              TranslationBlock *tb);
+
     void deleteState(klee::ExecutionState *state);
 
     void doStateSwitch(S2EExecutionState* oldState,

@@ -46,6 +46,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <klee/ExternalDispatcher.h>
 #include <klee/UserSearcher.h>
 #include <klee/CoreStats.h>
+#include <klee/TimerStatIncrementer.h>
 
 #include <llvm/System/TimeValue.h>
 
@@ -1044,7 +1045,6 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         // is O(elts on freelist). This is really bad since we start
         // to pummel the freelist once we hit the memory cap.
         unsigned mbs = sys::Process::GetTotalMemoryUsage() >> 20;
-        std::cout << "MBs: " << mbs << std::endl;
 
         if (mbs > getMaxMemory()) {
           if (mbs > getMaxMemory() + 100) {
@@ -1236,6 +1236,23 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 }
 
+uintptr_t S2EExecutor::executeTranslationBlockConcrete(S2EExecutionState *state,
+                                                       TranslationBlock *tb)
+{
+    uintptr_t ret = 0;
+    memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
+
+    if(setjmp(env->jmp_env)) {
+        memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
+        throw CpuExitException();
+    } else {
+        ret = tcg_qemu_tb_exec(tb->tc_ptr);
+    }
+
+    memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
+    return ret;
+}
+
 static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
 {
     TranslationBlock *tb1, *tb_next, **ptb;
@@ -1392,6 +1409,9 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             switchToSymbolic(state);
         ++stats::translationBlocks;
         ++stats::translationBlocksKlee;
+
+        TimerStatIncrementer t(stats::symbolicModeTime);
+
         return executeTranslationBlockKlee(state, tb);
 
     } else {
@@ -1400,7 +1420,10 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             switchToConcrete(state);
         ++stats::translationBlocks;
         ++stats::translationBlocksConcrete;
-        return tcg_qemu_tb_exec(tb->tc_ptr);
+
+        TimerStatIncrementer t(stats::concreteModeTime);
+
+        return executeTranslationBlockConcrete(state, tb);
     }
 }
 
@@ -1641,6 +1664,7 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
             try {
                 if(state->m_runningConcrete)
                     switchToSymbolic(state);
+                TimerStatIncrementer t(stats::symbolicModeTime);
                 executeFunction(state, "helper_set_cc_op_eflags");
             } catch(s2e::CpuExitException&) {
                 updateStates(state);
@@ -1657,6 +1681,7 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
         if(cc_op != CC_OP_EFLAGS) {
             if(!state->m_runningConcrete)
                 switchToConcrete(state);
+            TimerStatIncrementer t(stats::concreteModeTime);
             helper_set_cc_op_eflags();
         }
     }
@@ -1803,6 +1828,7 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
                       uint64_t next_eip, int is_hw)
 {
     if(state->isRunningConcrete()) {
+        TimerStatIncrementer t(stats::concreteModeTime);
         helper_do_interrupt(intno, is_int, error_code, next_eip, is_hw);
     } else {
         std::vector<klee::ref<klee::Expr> > args(5);
@@ -1812,6 +1838,7 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
         args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
         args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
         try {
+            TimerStatIncrementer t(stats::symbolicModeTime);
             s2e->getExecutor()->executeFunction(state,
                                                 "helper_do_interrupt", args);
         } catch(s2e::CpuExitException&) {
