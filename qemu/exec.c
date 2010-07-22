@@ -1832,6 +1832,9 @@ void tlb_flush(CPUState *env, int flush_global)
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
             env->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
+#ifdef CONFIG_S2E
+            s2e_flush_tlb_entry(env, mmu_idx, i);
+#endif
         }
     }
 
@@ -1840,7 +1843,7 @@ void tlb_flush(CPUState *env, int flush_global)
     tlb_flush_count++;
 }
 
-static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
+static inline int tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
 {
     if (addr == (tlb_entry->addr_read &
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK)) ||
@@ -1849,7 +1852,9 @@ static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
         addr == (tlb_entry->addr_code &
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
         *tlb_entry = s_cputlb_empty_entry;
+        return 1;
     }
+    return 0;
 }
 
 void tlb_flush_page(CPUState *env, target_ulong addr)
@@ -1866,8 +1871,15 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
 
     addr &= TARGET_PAGE_MASK;
     i = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++)
+    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
         tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
+#ifdef CONFIG_S2E
+        if (tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr))
+            s2e_flush_tlb_entry(env, mmu_idx, i);
+#else
+        tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
+#endif
+    }
 
     tlb_flush_jmp_cache(env, addr);
 }
@@ -1935,9 +1947,10 @@ void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-            for(i = 0; i < CPU_TLB_SIZE; i++)
+            for(i = 0; i < CPU_TLB_SIZE; i++) {
                 tlb_reset_dirty_range(&env->tlb_table[mmu_idx][i],
                                       start1, length);
+            }
         }
     }
 }
@@ -1987,8 +2000,9 @@ void cpu_tlb_update_dirty(CPUState *env)
     int i;
     int mmu_idx;
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-        for(i = 0; i < CPU_TLB_SIZE; i++)
+        for(i = 0; i < CPU_TLB_SIZE; i++) {
             tlb_update_dirty(&env->tlb_table[mmu_idx][i]);
+        }
     }
 }
 
@@ -2007,8 +2021,9 @@ static inline void tlb_set_dirty(CPUState *env, target_ulong vaddr)
 
     vaddr &= TARGET_PAGE_MASK;
     i = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++)
+    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
         tlb_set_dirty1(&env->tlb_table[mmu_idx][i], vaddr);
+    }
 }
 
 /* add a new TLB entry. At most one entry for a given virtual address
@@ -2051,10 +2066,11 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     if ((pd & ~TARGET_PAGE_MASK) <= IO_MEM_ROM) {
         /* Normal RAM.  */
         iotlb = pd & TARGET_PAGE_MASK;
-        if ((pd & ~TARGET_PAGE_MASK) == IO_MEM_RAM)
+        if ((pd & ~TARGET_PAGE_MASK) == IO_MEM_RAM) {
             iotlb |= IO_MEM_NOTDIRTY;
-        else
+        }else {
             iotlb |= IO_MEM_ROM;
+        }
     } else {
         /* IO handlers are currently passed a physical address.
            It would be nice to pass an offset from the base address
@@ -2112,6 +2128,11 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     } else {
         te->addr_write = -1;
     }
+
+#ifdef CONFIG_S2E
+   s2e_update_tlb_entry(env, mmu_idx, index, addend);
+#endif
+
     return ret;
 }
 

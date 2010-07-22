@@ -92,19 +92,25 @@ void MemoryObject::getAllocInfo(std::string &result) const {
 ObjectState::ObjectState(const MemoryObject *mo)
   : copyOnWriteOwner(0),
     refCount(0),
+    size(mo->size),
+    readOnly(false),
     object(mo),
     concreteStore(new uint8_t[mo->size]),
     concreteMask(0),
     flushMask(0),
     knownSymbolics(0),
-    updates(0, 0),
-    size(mo->size),
-    readOnly(false) {
+    updates(0, 0)
+     {
   if (!UseConstantArrays) {
     // FIXME: Leaked.
     static unsigned id = 0;
     const Array *array = new Array("tmp_arr" + llvm::utostr(++id), size);
     updates = UpdateList(array, 0);
+  }
+  if (object->isSharedConcrete) {
+    actualStore = (uint8_t*)object->address;
+  }else {
+    actualStore = concreteStore;
   }
 }
 
@@ -112,28 +118,35 @@ ObjectState::ObjectState(const MemoryObject *mo)
 ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
   : copyOnWriteOwner(0),
     refCount(0),
+    size(mo->size),
+    readOnly(false),
     object(mo),
     concreteStore(new uint8_t[mo->size]),
     concreteMask(0),
     flushMask(0),
     knownSymbolics(0),
-    updates(array, 0),
-    size(mo->size),
-    readOnly(false) {
+    updates(array, 0)
+ {
   makeSymbolic();
+  if (object->isSharedConcrete) {
+    actualStore = (uint8_t*)object->address;
+  }else {
+    actualStore = concreteStore;
+  }
 }
 
 ObjectState::ObjectState(const ObjectState &os) 
   : copyOnWriteOwner(0),
     refCount(0),
+    size(os.size),
+    readOnly(false),
     object(os.object),
     concreteStore(new uint8_t[os.size]),
     concreteMask(os.concreteMask ? new BitArray(*os.concreteMask, os.size) : 0),
     flushMask(os.flushMask ? new BitArray(*os.flushMask, os.size) : 0),
     knownSymbolics(0),
-    updates(os.updates),
-    size(os.size),
-    readOnly(false) {
+    updates(os.updates)
+     {
   assert(!os.readOnly && "no need to copy read only object?");
 
   if (os.knownSymbolics) {
@@ -143,6 +156,12 @@ ObjectState::ObjectState(const ObjectState &os)
   }
 
   memcpy(concreteStore, os.concreteStore, size*sizeof(*concreteStore));
+  if (object->isSharedConcrete) {
+    actualStore = (uint8_t*)object->address;
+  }else {
+    actualStore = concreteStore;
+  }
+
 }
 
 ObjectState::~ObjectState() {
@@ -313,14 +332,7 @@ bool ObjectState::isAllConcrete() const {
   return !concreteMask || concreteMask->isAllOnes(size);
 }
 
-bool ObjectState::isConcrete(unsigned offset, Expr::Width width) const {
-  unsigned size = Expr::getMinBytesForWidth(width);
-  for(unsigned i = 0; i < size; ++i) {
-    if(!isByteConcrete(offset + i))
-      return false;
-  }
-  return true;
-}
+
 
 const uint8_t *ObjectState::getConcreteStore(bool allowSymbolic) const
 {

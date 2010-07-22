@@ -253,6 +253,7 @@ int cpu_exec(CPUState *env1)
     uint8_t *tc_ptr;
     uintptr_t next_tb;
     unsigned intNb=-1;
+    volatile unsigned i=0;
 
 #if 0
     if (cpu_halted(env1) == EXCP_HALTED) {

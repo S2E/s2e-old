@@ -25,58 +25,34 @@ class S2EDeviceState;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 
-class S2ECPUObjectCache {
-private:
-    const klee::MemoryObject *m_mo;
-    const klee::ObjectState *m_os;
-public:
-    S2ECPUObjectCache() {
-        m_mo = NULL;
-        m_os = NULL;
-    }
-
-    inline const klee::ObjectState *lookup(const klee::MemoryObject *mo) const {
-        if (mo == m_mo) {
-            return m_os;
-        }
-        return NULL;
-    }
-
-    inline void update(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        m_os = os;
-        m_mo = mo;
-    }
-
-};
 
 template <unsigned Size=101>
 class S2EMemObjectCache {
-private:
+public:
     struct CacheEntry {
         uint64_t address;
         klee::ObjectPair objPair;
+
+        CacheEntry() {
+            address = (uintptr_t)-1;
+            objPair = klee::ObjectPair(NULL, NULL);
+        }
     };
+
+private:
 
     CacheEntry m_entries[Size];
     mutable uint64_t m_hits, m_misses;
     mutable uint64_t m_cval, m_chash;
 
     inline uint64_t hash(uint64_t Val) const {
-        /*if (Val == m_cval) {
-            return m_chash;
-        }
-
-        m_cval = Val;
-        m_chash = Val % Size;
-        return m_chash;*/
         return Val % Size;
-
     }
+
 public:
     S2EMemObjectCache() {
         for (unsigned i=0; i<Size; ++i) {
-            m_entries[i].address = (uint64_t)-1;
-            m_entries[i].objPair = klee::ObjectPair(NULL, NULL);
+            m_entries[i] = CacheEntry();
         }
         m_hits = 0;
         m_misses = 0;
@@ -87,29 +63,30 @@ public:
     inline klee::ObjectPair lookup(uint64_t address) const{
 
         unsigned ha = hash(address);
-        if (address == m_entries[ha].address) {
-            return m_entries[ha].objPair;
+        const CacheEntry &ce = m_entries[ha];
+        if (address == ce.address) {
+            assert(ce.objPair.first == ce.objPair.second->getObject());
+            return ce.objPair;
         }
         return klee::ObjectPair(NULL, NULL);
     }
 
     inline void update(uint64_t address, const klee::ObjectPair &p) {
         unsigned ha = hash(address);
-        m_entries[ha].address = address;
-        m_entries[ha].objPair = p;
-        assert(p.first == p.second->getObject());
-        assert(p.second && p.first);
+        CacheEntry &ce = m_entries[ha];
+        ce.address = address;
+        ce.objPair = p;
+        assert(ce.objPair.first == ce.objPair.second->getObject());
+        assert(ce.objPair.second && ce.objPair.first);
     }
 
     inline void invalidate(uint64_t address) {
         unsigned ha = hash(address);
-        if (m_entries[ha].address == address) {
-            m_entries[ha].address = (uint64_t)-1;
-            m_entries[ha].objPair = klee::ObjectPair(NULL, NULL);
+        const CacheEntry &ce = m_entries[ha];
+        if (ce.address == address) {
+            m_entries[ha] = CacheEntry();
         }
     }
-
-
 };
 
 /** Dummy implementation, just to make events work */
@@ -180,43 +157,14 @@ public:
     void setTotalInstructionCount(uint64_t count);
 
     /*************************************************/
-#if 0
-    /** Accesses to register objects through the cache **/
-    inline const klee::ObjectState* fetchObjectStateReg(const klee::MemoryObject *mo) const {
-        const klee::ObjectState* os;
-        if (!(os = m_cpuCache.lookup(mo))) {
-            os = addressSpace.findObject(mo);
-            m_cpuCache.update(mo, os);
-        }
-        return os;
-    }
-
-    inline klee::ObjectState* fetchObjectStateRegWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
-        m_cpuCache.update(mo, wos);
-        return wos;
-    }
-#endif
 
     /** Accesses to memory objects through the cache **/
-    inline klee::ObjectPair fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
-        klee::ObjectPair op;
-        if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL)
-        {
-            op = addressSpace.findObject(hostAddress);
-            assert(op.second->getObject() == op.first);
-            m_memCache.update(hostAddress & tpm, op);
-        }
-        assert(op.first == op.second->getObject());
-        return op;
-    }
+    klee::ObjectPair fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const;
 
-    inline klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
-        assert(wos->getObject() == mo);
-        m_memCache.update(mo->address, klee::ObjectPair(mo,wos));
-        return wos;
-    }
+    klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os);
+
+    void invalidateObjectStateMem(uintptr_t moAddr);
+
 
     /** Universal access **/
     inline const klee::ObjectState* fetchObjectState(const klee::MemoryObject *mo, uint64_t tpm) const {
@@ -235,6 +183,8 @@ public:
             return fetchObjectStateMemWritable(mo, os);
         }
     }
+
+    void refreshTlb(klee::ObjectState *newObj);
 
     /*************************************************/
 

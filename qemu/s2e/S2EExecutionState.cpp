@@ -67,6 +67,59 @@ ExecutionState* S2EExecutionState::clone()
     return ret;
 }
 
+
+/** Accesses to memory objects through the cache **/
+klee::ObjectPair S2EExecutionState::fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
+    klee::ObjectPair op;
+    if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL)
+    {
+        op = addressSpace.findObject(hostAddress);
+        assert(op.second->getObject() == op.first);
+        //Do not need to update the TLB, since no one references this address.
+        m_memCache.update(hostAddress & tpm, op);
+    }
+    
+    assert(op.first == op.second->getObject());
+
+
+    return op;
+}
+
+klee::ObjectState* S2EExecutionState::fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os)
+{
+    klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
+    assert(wos->getObject() == mo);
+    if (wos != os) {
+        m_memCache.update(mo->address, klee::ObjectPair(mo,wos));
+        refreshTlb(wos);
+    }
+
+    return wos;
+}
+
+void S2EExecutionState::invalidateObjectStateMem(uintptr_t moAddr) {
+    m_memCache.invalidate(moAddr);
+}
+
+//Go through the TLB and update all references to newObj
+void S2EExecutionState::refreshTlb(ObjectState *newObj)
+{
+    CPUState *e, *f = NULL;
+    //XXX: not sure why we need to update both of these...
+    //XXX: remove the ugly subtraction
+    e = (CPUState*)(m_cpuSystemState->address - offsetof(CPUX86State, eip));
+    f = (CPUState*)(m_cpuSystemObject->getConcreteStore(false) - offsetof(CPUX86State, eip));
+
+    for (unsigned i=0; i<NB_MMU_MODES; ++i) {
+        for (unsigned j=0; j<CPU_TLB_SIZE; ++j) {
+            if (e->tlb_symb_table[i][j].hostAddr == (uintptr_t)newObj->object->address)
+                e->tlb_symb_table[i][j].objectState = newObj;
+            if (f->tlb_symb_table[i][j].hostAddr == (uintptr_t)newObj->object->address)
+                f->tlb_symb_table[i][j].objectState = newObj;
+        }
+    }
+}
+
 ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
                                              Expr::Width width) const
 {

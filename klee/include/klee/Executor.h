@@ -395,7 +395,7 @@ protected:
   void setAllExternalWarnings(bool value);
 
   //Invalidate object cache
-  virtual void invalidateCache(ExecutionState &state, const MemoryObject *mo);
+  virtual void invalidateCache(ExecutionState &state, const ObjectState *os, ObjectState *wo);
 
   ref<Expr> simplifyExpr(const ExecutionState &state, ref<Expr> e);
 

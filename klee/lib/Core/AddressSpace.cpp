@@ -62,6 +62,11 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
   }
 }
 
+bool AddressSpace::isOwnedByUs(const ObjectState *os) const
+{
+    return cowKey==os->copyOnWriteOwner;
+}
+
 /// 
 
 bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr, 

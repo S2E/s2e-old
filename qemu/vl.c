@@ -1131,24 +1131,14 @@ static void qemu_run_timers(QEMUTimer **ptimer_head, int64_t current_time)
     }
 }
 
-#ifdef CONFIG_S2E
-uint64_t s2e_icount_factor = 0;
-#endif
-
 int64_t qemu_get_clock(QEMUClock *clock)
 {
     switch(clock->type) {
     case QEMU_CLOCK_REALTIME:
-
         return get_clock() / 1000000;
+
     default:
     case QEMU_CLOCK_VIRTUAL:
-#ifdef CONFIG_S2E
-        if (s2e_icount_factor) {
-            return s2e_get_executed_instructions()*s2e_icount_factor;
-        }
-#endif
-
         if (use_icount) {
             return cpu_get_icount();
         } else {
@@ -5086,10 +5076,6 @@ int main(int argc, char **argv, char **envp)
               break;
             case QEMU_OPTION_s2e_output_dir:
               s2e_output_dir = optarg;
-              break;
-
-            case QEMU_OPTION_s2e_icount:
-              s2e_icount_factor = atoll(optarg);
               break;
 #endif
 

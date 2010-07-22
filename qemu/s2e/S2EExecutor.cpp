@@ -519,6 +519,8 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
               << ", size = 0x" << sizeof(*cpuEnv) << ")"
               << std::dec << std::endl;
 
+    memset(cpuEnv->tlb_symb_table, 0, sizeof(cpuEnv->tlb_symb_table));
+
     /* Add registers and eflags area as a true symbolic area */
     initialState->m_cpuRegistersState =
         addExternalObject(*initialState, cpuEnv,
@@ -1631,12 +1633,18 @@ void S2EExecutor::branch(klee::ExecutionState &state,
                        newStates, newConditions);
 }
 
-void S2EExecutor::invalidateCache(klee::ExecutionState &state, const klee::MemoryObject *mo)
+//Warning: os can be invalid!
+void S2EExecutor::invalidateCache(ExecutionState &state, const ObjectState *os, ObjectState *wo)
 {
     S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
     assert(s);
-    if (mo->size == TARGET_PAGE_SIZE) {
-        s->m_memCache.invalidate(mo->address);
+
+    //This is only for memory objects representing pages of physical memory.
+    if (wo->object->size == TARGET_PAGE_SIZE) {
+          if (os != wo) {
+            s->invalidateObjectStateMem(wo->object->address);
+            s->refreshTlb(wo);
+        }
     }
 }
 
@@ -1649,6 +1657,16 @@ void S2EExecutor::terminateState(ExecutionState &state)
 
     s->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
     throw StateTerminatedException();
+}
+
+void S2EExecutor::fetchObjectForTlb(S2EExecutionState *state, uintptr_t hostAddress, int mmu_idx, int index)
+{
+    uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
+    ObjectPair op = state->fetchObjectStateMem(page_addr, TARGET_PAGE_MASK);
+
+    assert(op.first && op.first->isUserSpecified &&
+           op.first->size == TARGET_PAGE_SIZE);
+
 }
 
 inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
@@ -1858,4 +1876,86 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
 void s2e_switch_to_symbolic(S2E *s2e, S2EExecutionState *state)
 {
     s2e->getExecutor()->jumpToSymbolic(state);
+}
+
+
+/** Tlb cache helpers */
+void* s2e_fetch_object_for_tlb(uintptr_t hostaddr, int mmu_idx, int index)
+{
+    assert((hostaddr & ~TARGET_PAGE_MASK) == 0);
+    //g_s2e->getDebugStream() << "Fetching " << std::dec << mmu_idx << " " << index << std::endl;
+
+    klee::ObjectPair op = g_s2e_state->fetchObjectStateMem(hostaddr, TARGET_PAGE_MASK);
+    return (void*)op.second;
+}
+
+void s2e_flush_tlb_entry(CPUState *env, int mmu_idx, int index)
+{
+    //g_s2e->getDebugStream() << "Flushing " << std::dec << mmu_idx << " " << index << std::endl;
+
+    CPUSymbCache *ce = &env->tlb_symb_table[mmu_idx][index];
+    ce->objectState = NULL;
+    ce->hostAddr = 0;
+}
+
+void s2e_update_tlb_entry(CPUState *env, int mmu_idx, int index, uintptr_t addend)
+{
+    assert( (addend & ~TARGET_PAGE_MASK) == 0);
+
+    CPUSymbCache *ce = &env->tlb_symb_table[mmu_idx][index];
+    klee::ObjectState *obs = (klee::ObjectState *)s2e_fetch_object_for_tlb(addend, mmu_idx, index);
+    assert(obs);
+
+    ce->objectState = obs;
+    ce->hostAddr = addend;
+}
+
+//hostaddr is the pointer to the host memory being accessed
+//Returns a pointer to the concrete store, where to read the data from.
+//Assumption: cannot overlap multiple pages.
+void* s2e_tlb_fast_check_read(uintptr_t hostaddr, CPUSymbCache *ce, int size)
+{
+
+    ObjectState *os = static_cast<ObjectState*>(ce->objectState);
+    uintptr_t addend = (hostaddr & ~TARGET_PAGE_MASK);
+
+    //Fast path: assume that most of the pages are completely concrete
+    if (!os->concreteMask) {
+        return os->actualStore + addend;
+    }
+
+    //Check that we are indeed concrete
+    //XXX: optimize this part
+    if (os->isConcrete(addend, size*8)) {
+        return os->actualStore + addend;
+    }
+
+    //Trigger the slow path
+    return NULL;
+}
+
+void* s2e_tlb_fast_check_write(uintptr_t hostaddr, CPUSymbCache *ce, int size)
+{
+    ObjectState *os = static_cast<ObjectState*>(ce->objectState);
+    uintptr_t addend = (hostaddr & ~TARGET_PAGE_MASK);
+
+    //Check whether we own the object
+    //if (!g_s2e_state->addressSpace.isOwnedByUs(os)) {
+    //XXX: this adds 15sec overhead to Windows boot
+    os = g_s2e_state->fetchObjectStateMemWritable(os->object, os);
+    ce->objectState = os;
+    //}
+
+    if (!os->concreteMask) {
+        return os->actualStore + addend;
+    }
+
+    //Check that we are indeed concrete
+    //XXX: optimize this part
+    if (os->isConcrete(addend, size*8)) {
+        return os->actualStore + addend;
+    }
+
+    //Trigger the slow path
+    return NULL;
 }

@@ -157,24 +157,29 @@ private:
   friend class ObjectHolder;
   unsigned refCount;
 
-  const MemoryObject *object;
 
-  uint8_t *concreteStore;
-  // XXX cleanup name of flushMask (its backwards or something)
-  BitArray *concreteMask;
-
-  // mutable because may need flushed during read of const
-  mutable BitArray *flushMask;
-
-  ref<Expr> *knownSymbolics;
-
-  // mutable because we may need flush during read of const
-  mutable UpdateList updates;
 
 public:
   unsigned size;
 
   bool readOnly;
+  // XXX cleanup name of flushMask (its backwards or something)
+  //XXX: made it public for fast access
+  const MemoryObject *object;
+  uint8_t *concreteStore;
+
+  //To speed concrete accesses
+  uint8_t *actualStore;
+
+  BitArray *concreteMask;
+
+private:
+  // mutable because may need flushed during read of const
+  mutable BitArray *flushMask;
+  ref<Expr> *knownSymbolics;
+  // mutable because we may need flush during read of const
+  mutable UpdateList updates;
+
 
 public:
   /// Create a new object state for the given memory object with concrete
@@ -189,7 +194,7 @@ public:
   ObjectState(const ObjectState &os);
   ~ObjectState();
 
-  const MemoryObject *getObject() const { return object; }
+  inline const MemoryObject *getObject() const { return object; }
 
   void setReadOnly(bool ro) { readOnly = ro; }
 
@@ -223,7 +228,18 @@ public:
   void write64(unsigned offset, uint64_t value);
 
   bool isAllConcrete() const;
-  bool isConcrete(unsigned offset, Expr::Width width) const;
+
+  inline bool isConcrete(unsigned offset, Expr::Width width) const {
+    if (!concreteMask)
+        return true;
+
+    unsigned size = Expr::getMinBytesForWidth(width);
+    for(unsigned i = 0; i < size; ++i) {
+      if(!isByteConcrete(offset + i))
+        return false;
+    }
+    return true;
+  }
 
   const uint8_t *getConcreteStore(bool allowSymbolic = false) const;
   uint8_t *getConcreteStore(bool allowSymolic = false);

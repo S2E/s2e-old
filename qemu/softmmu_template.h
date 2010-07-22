@@ -48,7 +48,7 @@
 
 #if defined(CONFIG_S2E) &&  !defined(S2E_LLVM_LIB)
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
-        s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
+s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
                             (uint8_t*) &value, sizeof(value), isWrite, isIO);
 #elif defined(S2E_LLVM_LIB)
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
@@ -104,6 +104,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_ulong tlb_addr;
     target_phys_addr_t addend;
     void *retaddr;
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+    void *db;
+#endif
 
     /* test if there is match for unaligned or IO access */
     /* XXX: could done more in memory macro in a non portable way */
@@ -139,7 +142,13 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
-            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+            if ((db = glue(s2e_tb_fc_ld_, USUFFIX) (env, addr + addend, mmu_idx, index))) {
+                res = glue(glue(ld, USUFFIX), _p)(db);
+            }else
+#endif
+                res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
 
             S2E_TRACE_MEMORY(addr, addr+addend, res, 0, 0);
         }
@@ -166,6 +175,9 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     int index, shift;
     target_phys_addr_t addend;
     target_ulong tlb_addr, addr1, addr2;
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+    void *db;
+#endif
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
  redo:
@@ -199,6 +211,12 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         } else {
             /* unaligned/aligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+            if ((db = glue(s2e_tb_fc_ld_, USUFFIX) (env, addr + addend, mmu_idx, index))) {
+                res = glue(glue(ld, USUFFIX), _p)(db);
+            }else
+#endif
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend));
 
             S2E_TRACE_MEMORY(addr, addr+addend, res, 0, 0);
@@ -258,6 +276,10 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_ulong tlb_addr;
     void *retaddr;
     int index;
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+    void *db;
+#endif
+
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
  redo:
@@ -289,6 +311,11 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             }
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+            if ((db = glue(s2e_tb_fc_st_, SUFFIX) (env, addr + addend, mmu_idx, index))) {
+                glue(glue(st, SUFFIX), _p)(db, val);
+            }else
+#endif
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);
 
             S2E_TRACE_MEMORY(addr, addr+addend, val, 1, 0);
@@ -314,6 +341,9 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_phys_addr_t addend;
     target_ulong tlb_addr;
     int index, i;
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+    void *db;
+#endif
 
     index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
  redo:
@@ -344,6 +374,12 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         } else {
             /* aligned/unaligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+            if ((db = glue(s2e_tb_fc_st_, SUFFIX) (env, addr + addend, mmu_idx, index))) {
+                glue(glue(st, SUFFIX), _p)(db, val);
+            }else
+#endif
+
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(addr+addend), val);
 
             S2E_TRACE_MEMORY(addr, addr+addend, val, 1, 0);

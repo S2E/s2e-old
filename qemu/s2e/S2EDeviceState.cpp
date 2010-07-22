@@ -18,8 +18,7 @@ extern "C" {
 #include "S2EExecutionState.h"
 
 namespace {
-    //Allows bypassing the symbolic value injection.
-    //All read accesses return concrete 0 values, and writes are ignored.
+    //Force writes to disk to be persistent (and disable copy on write)
     llvm::cl::opt<bool>
     PersistentDiskWrites("s2e-persistent-disk-writes",
                      llvm::cl::init(false));

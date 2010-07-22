@@ -29,8 +29,6 @@ DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
     "s2e-config-file file      Path to S2E configuration file\n")
 DEF("s2e-output-dir", HAS_ARG, QEMU_OPTION_s2e_output_dir,
     "s2e-output-dir dir        Path to S2E output directory\n")
-DEF("s2e-icount", HAS_ARG, QEMU_OPTION_s2e_icount,
-    "s2e-icount  n             1 ms of virtual time every n instructions\n")
 #endif
 
 DEF("M", HAS_ARG, QEMU_OPTION_M,

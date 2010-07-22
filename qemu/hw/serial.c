@@ -178,7 +178,7 @@ static int fifo_put(SerialState *s, int fifo, uint8_t chr)
     return 1;
 }
 
-static uint8_t fifo_get(SerialState *s, int fifo)
+static uint8_t fifo_get(SerialState *s, int fifo, int *left)
 {
     SerialFIFO *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
     uint8_t c;
@@ -190,6 +190,10 @@ static uint8_t fifo_get(SerialState *s, int fifo)
     if (f->tail == UART_FIFO_LENGTH)
         f->tail = 0;
     f->count--;
+
+    if (left) {
+        *left = f->count;
+    }
 
     return c;
 }
@@ -302,23 +306,39 @@ static void serial_update_msl(SerialState *s)
 static void serial_xmit(void *opaque)
 {
     SerialState *s = opaque;
+    uint8_t chars[UART_FIFO_LENGTH];
+    int chars_count=0;
+
     uint64_t new_xmit_ts = qemu_get_clock(vm_clock);
+
+    chars_count = 1;
+    chars[0] = s->tsr;
 
     if (s->tsr_retry <= 0) {
         if (s->fcr & UART_FCR_FE) {
-            s->tsr = fifo_get(s,XMIT_FIFO);
+            int left;
+            chars_count = 0;
+            do {
+                s->tsr = fifo_get(s,XMIT_FIFO, &left);
+                chars[chars_count++] = s->tsr;
+            }while(left>0);
+
             if (!s->xmit_fifo.count)
                 s->lsr |= UART_LSR_THRE;
         } else {
             s->tsr = s->thr;
             s->lsr |= UART_LSR_THRE;
+            chars_count = 1;
+            chars[0] = s->tsr;
         }
     }
 
     if (s->mcr & UART_MCR_LOOP) {
         /* in loopback mode, say that we just received a char */
-        serial_receive1(s, &s->tsr, 1);
-    } else if (qemu_chr_write(s->chr, &s->tsr, 1) != 1) {
+        //serial_receive1(s, &s->tsr, 1);
+        serial_receive1(s, chars, chars_count);
+    //} else if (qemu_chr_write(s->chr, &s->tsr, 1) != 1) {
+    } else if (qemu_chr_write(s->chr, chars, chars_count) != chars_count) {
         if ((s->tsr_retry > 0) && (s->tsr_retry <= MAX_XMIT_RETRY)) {
             s->tsr_retry++;
             qemu_mod_timer(s->transmit_timer,  new_xmit_ts + s->char_transmit_time);
@@ -507,7 +527,7 @@ static uint32_t serial_ioport_read(void *opaque, uint32_t addr)
             ret = s->divider & 0xff;
         } else {
             if(s->fcr & UART_FCR_FE) {
-                ret = fifo_get(s,RECV_FIFO);
+                ret = fifo_get(s,RECV_FIFO, NULL);
                 if (s->recv_fifo.count == 0)
                     s->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
                 else

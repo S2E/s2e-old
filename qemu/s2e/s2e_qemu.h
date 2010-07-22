@@ -21,6 +21,7 @@ struct S2ETranslationBlock;
 
 struct TranslationBlock;
 struct TCGLLVMContext;
+struct CPUSymbCache;
 
 
 // XXX
@@ -239,6 +240,13 @@ void s2e_on_device_activation(struct S2E *s2e, struct PCIBus *bus);
 void s2e_switch_to_symbolic(struct S2E *s2e, struct S2EExecutionState *state);
 
 int s2e_is_port_symbolic(struct S2E *s2e, struct S2EExecutionState* state, uint64_t port);
+
+void* s2e_fetch_object_for_tlb(uintptr_t hostaddr, int mmu_idx, int index);
+void s2e_flush_tlb_entry(struct CPUX86State *env, int mmu_idx, int index);
+void s2e_update_tlb_entry(struct CPUX86State *env, int mmu_idx, int index, uintptr_t page);
+void* s2e_tlb_fast_check_read(uintptr_t hostaddr, struct CPUSymbCache *ce, int size);
+
+void* s2e_tlb_fast_check_write(uintptr_t hostaddr, struct CPUSymbCache *ce, int size);
 
 #ifdef __cplusplus
 }

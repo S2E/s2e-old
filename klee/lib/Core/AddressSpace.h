@@ -120,6 +120,8 @@ namespace klee {
     /// \return A writeable ObjectState (\a os or a copy).
     ObjectState *getWriteable(const MemoryObject *mo, const ObjectState *os);
 
+    bool isOwnedByUs(const ObjectState *os) const;
+
     /// Copy the concrete values of all managed ObjectStates into the
     /// actual system memory location they were allocated at.
     void copyOutConcretes();

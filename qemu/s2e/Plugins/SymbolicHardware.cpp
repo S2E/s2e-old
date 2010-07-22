@@ -223,6 +223,7 @@ void IsaDeviceDescriptor::initializeQemuDevice()
 {
     m_isaInfo = new ISADeviceInfo();
     m_isaProperties = new Property[1];
+    memset(m_isaProperties, 0, sizeof(Property));
 
     m_isaInfo->qdev.name = m_id.c_str();
     m_isaInfo->qdev.size = sizeof(SymbolicIsaDeviceState);
