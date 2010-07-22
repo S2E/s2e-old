@@ -271,6 +271,9 @@ namespace {
             cl::init(false));
 }
 
+unsigned Executor::getMaxMemory() { return MaxMemory; }
+bool Executor::getMaxMemoryInhibit() { return MaxMemoryInhibit; }
+
 static void *theMMap = 0;
 static unsigned theMMapSize = 0;
 
