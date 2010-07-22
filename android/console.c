@@ -972,6 +972,85 @@ static const CommandDefRec  redir_commands[] =
 /********************************************************************************************/
 /********************************************************************************************/
 /*****                                                                                 ******/
+/*****                          C D M A   M O D E M                                    ******/
+/*****                                                                                 ******/
+/********************************************************************************************/
+/********************************************************************************************/
+
+static const struct {
+    const char *            name;
+    const char *            display;
+    ACdmaSubscriptionSource source;
+} _cdma_subscription_sources[] = {
+    { "nv",            "Read subscription from non-volatile RAM", A_SUBSCRIPTION_NVRAM },
+    { "ruim",          "Read subscription from RUIM", A_SUBSCRIPTION_RUIM },
+};
+
+static void
+dump_subscription_sources( ControlClient client )
+{
+    int i;
+    for (i = 0;
+         i < sizeof(_cdma_subscription_sources) / sizeof(_cdma_subscription_sources[0]);
+         i++) {
+        control_write( client, "    %s: %s\r\n",
+                       _cdma_subscription_sources[i].name,
+                       _cdma_subscription_sources[i].display );
+    }
+}
+
+static void
+describe_subscription_source( ControlClient client )
+{
+    control_write( client,
+                   "'cdma ssource <ssource>' allows you to specify where to read the subscription from\r\n" );
+    dump_subscription_sources( client );
+}
+
+static int
+do_cdma_ssource( ControlClient  client, char*  args )
+{
+    int nn;
+    if (!args) {
+        control_write( client, "KO: missing argument, try 'cdma ssource <source>'\r\n" );
+        return -1;
+    }
+
+    for (nn = 0; ; nn++) {
+        const char*         name    = _cdma_subscription_sources[nn].name;
+        ACdmaSubscriptionSource ssource = _cdma_subscription_sources[nn].source;
+
+        if (!name)
+            break;
+
+        if (!strcasecmp( args, name )) {
+            amodem_set_cdma_subscription_source( android_modem, ssource );
+            return 0;
+        }
+    }
+    control_write( client, "KO: Don't know source %s\r\n", args );
+    return -1;
+}
+
+static int
+do_cdma_prl_version( ControlClient client, char * args )
+{
+    int version = 0;
+    char *endptr;
+
+    if (!args) {
+        control_write( client, "KO: missing argument, try 'cdma prl_version <version>'\r\n");
+        return -1;
+    }
+
+    version = strtol(args, &endptr, 0);
+    if (endptr != args) {
+        amodem_set_cdma_prl_version( android_modem, version );
+    }
+}
+/********************************************************************************************/
+/********************************************************************************************/
+/*****                                                                                 ******/
 /*****                           G S M   M O D E M                                     ******/
 /*****                                                                                 ******/
 /********************************************************************************************/
@@ -1313,6 +1392,13 @@ static const CommandDefRec  gsm_in_commands[] =
 };
 #endif
 
+
+static const CommandDefRec  cdma_commands[] =
+{
+    { "ssource", "Set the current CDMA subscription source",
+      NULL, describe_subscription_source,
+      do_cdma_ssource, NULL },
+};
 
 static const CommandDefRec  gsm_commands[] =
 {
@@ -2193,6 +2279,10 @@ static const CommandDefRec   main_commands[] =
     { "gsm", "GSM related commands",
       "allows you to change GSM-related settings, or to make a new inbound phone call\r\n", NULL,
       NULL, gsm_commands },
+
+    { "cdma", "CDMA related commands",
+      "allows you to change CDMA-related settings\r\n", NULL,
+      NULL, cdma_commands },
 
     { "kill", "kill the emulator instance", NULL, NULL,
 	  do_kill, NULL },
