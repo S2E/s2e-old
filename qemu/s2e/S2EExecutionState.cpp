@@ -41,6 +41,10 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
 
 S2EExecutionState::~S2EExecutionState()
 {
+    PluginStateMap::iterator it;
+    for(it = m_PluginState.begin(); it != m_PluginState.end(); ++it)
+        delete it->second;
+
     delete m_deviceState;
     delete m_timersState;
 }

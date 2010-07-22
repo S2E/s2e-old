@@ -353,7 +353,7 @@ ModuleTransitionState::ModuleTransitionState()
 
 ModuleTransitionState::~ModuleTransitionState()
 {
-    assert(false && "Not implemented");
+    //assert(false && "Not implemented");
 }
 
 ModuleTransitionState* ModuleTransitionState::clone() const

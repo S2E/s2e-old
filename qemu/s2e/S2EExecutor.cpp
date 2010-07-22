@@ -37,6 +37,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/System/DynamicLibrary.h>
+#include <llvm/System/Process.h>
 #include <llvm/Support/CommandLine.h>
 
 #include <klee/PTree.h>
@@ -44,6 +45,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <klee/Searcher.h>
 #include <klee/ExternalDispatcher.h>
 #include <klee/UserSearcher.h>
+#include <klee/CoreStats.h>
 
 #include <llvm/System/TimeValue.h>
 
@@ -932,6 +934,13 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     if(newState != state) {
         doStateSwitch(state, newState);
     }
+
+    foreach(S2EExecutionState* s, m_deletedStates) {
+        assert(s != newState);
+        delete s;
+    }
+    m_deletedStates.clear();
+
     return newState;
 }
 
@@ -1027,6 +1036,44 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         // (and, consequently, restarted)
         assert(addedStates.empty());
         shouldExitCpu = true;
+    }
+
+    if (getMaxMemory()) {
+      if ((stats::instructions & 0xFFFF) == 0) {
+        // We need to avoid calling GetMallocUsage() often because it
+        // is O(elts on freelist). This is really bad since we start
+        // to pummel the freelist once we hit the memory cap.
+        unsigned mbs = sys::Process::GetTotalMemoryUsage() >> 20;
+        std::cout << "MBs: " << mbs << std::endl;
+
+        if (mbs > getMaxMemory()) {
+          if (mbs > getMaxMemory() + 100) {
+            // just guess at how many to kill
+            unsigned numStates = states.size();
+            unsigned toKill = std::max(1U, numStates - numStates*getMaxMemory()/mbs);
+
+            if (getMaxMemoryInhibit())
+              klee_warning("killing %d states (over memory cap)",
+                           toKill);
+
+            std::vector<ExecutionState*> arr(states.begin(), states.end());
+            for (unsigned i=0,N=arr.size(); N && i<toKill; ++i,--N) {
+              unsigned idx = rand() % N;
+
+              // Make two pulls to try and not hit a state that
+              // covered new code.
+              if (arr[idx]->coveredNew)
+                idx = rand() % N;
+
+              std::swap(arr[idx], arr[N-1]);
+              terminateStateEarly(*arr[N-1], "memory limit");
+            }
+          }
+          atMemoryLimit = true;
+        } else {
+          atMemoryLimit = false;
+        }
+      }
     }
 
     /* TODO: timers */
@@ -1432,6 +1479,7 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
 void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
 {
     state->m_symbexEnabled = true;
+    state->forkDisabled = false;
     m_s2e->getMessagesStream(state) << "Enabled symbex"
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
 }
@@ -1439,6 +1487,7 @@ void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
 void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
 {
     state->m_symbexEnabled = false;
+    state->forkDisabled = true;
     m_s2e->getMessagesStream(state) << "Disabled symbex"
             << " at pc = 0x" << (void*) state->getPc() << std::endl;
 }
