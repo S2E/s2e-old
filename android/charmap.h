@@ -90,4 +90,10 @@ android_charmap_reverse_map_unicode(const AKeyCharmap* cmap,
                                     int  down,
                                     AKeycodeBuffer* keycodes);
 
+/* Gets default charmap (index 0) */
+const AKeyCharmap* android_get_default_charmap(void);
+
+/* Gets name of the default charmap (index 0) */
+const char* android_get_default_charmap_name(void);
+
 #endif /* _android_charmap_h */

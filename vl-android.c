@@ -186,7 +186,7 @@
 unsigned long   android_verbose;
 #endif  // CONFIG_STANDALONE_CORE
 
-#ifdef CONFIG_SKINS
+#if defined(CONFIG_SKINS) && !defined(CONFIG_STANDALONE_CORE)
 #undef main
 #define main qemu_main
 #endif
@@ -334,6 +334,8 @@ extern char* android_op_ports;
 extern char* android_op_port;
 extern char* android_op_report_console;
 extern char* op_http_proxy;
+// Path to the file containing specific key character map.
+char* op_charmap_file = NULL;
 
 extern void  dprint( const char* format, ... );
 
@@ -5740,8 +5742,25 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_http_proxy:
                 op_http_proxy = (char*)optarg;
                 break;
+
+            case QEMU_OPTION_charmap:
+                op_charmap_file = (char*)optarg;
+                break;
             }
         }
+    }
+
+    /* Initialize character map. */
+    if (android_charmap_setup(op_charmap_file)) {
+        if (op_charmap_file) {
+            fprintf(stderr,
+                    "Unable to initialize character map from file %s.\n",
+                    op_charmap_file);
+        } else {
+            fprintf(stderr,
+                    "Unable to initialize default character map.\n");
+        }
+        exit(1);
     }
 
     /* If no data_dir is specified then try to find it relative to the

@@ -1807,7 +1807,7 @@ do_event_text( ControlClient  client, char*  args )
     }
 
     /* Get default charmap. */
-    charmap = android_get_charmap_by_index(0);
+    charmap = android_get_default_charmap();
     if (charmap == NULL) {
         control_write( client, "KO: no character map active in current device layout/config\r\n" );
         return -1;

@@ -274,7 +274,8 @@ void events_dev_init(uint32_t base, qemu_irq irq)
     AndroidHwConfig*  config = android_hw;
 
     s = (events_state *) qemu_mallocz(sizeof(events_state));
-    s->name = android_skin_keycharmap;
+    // Use name of the default charmap.
+    s->name = android_get_default_charmap_name();
 
     /* now set the events capability bits depending on hardware configuration */
     /* apparently, the EV_SYN array is used to indicate which other

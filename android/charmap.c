@@ -265,8 +265,8 @@ static const AKeyCharmap  _qwerty2_charmap =
 /* Custom character map created with -charmap option. */
 static AKeyCharmap android_custom_charmap = { 0 };
 
-const AKeyCharmap** android_charmaps = 0;
-int                 android_charmap_count = 0;
+static const AKeyCharmap** android_charmaps = 0;
+static int                 android_charmap_count = 0;
 
 /* Checks if a character represents an end of the line.
  * Returns a non-zero value if ch is an EOL character. Returns
@@ -693,6 +693,13 @@ parse_kcm_file(const char* kcm_file_path, AKeyCharmap* char_map) {
 
 int
 android_charmap_setup(const char* kcm_file_path) {
+    // android_charmap_count being non-zero is used here as a flag,
+    //  indicating that charmap has been initialized for the running
+    // executable.
+    if (android_charmap_count != 0) {
+        return 0;
+    }
+
     if (NULL != kcm_file_path) {
         if (!parse_kcm_file(kcm_file_path, &android_custom_charmap)) {
             // Here we have two default charmaps and the custom one.
@@ -819,4 +826,16 @@ android_charmap_reverse_map_unicode(const AKeyCharmap* cmap,
 
     /* no match */
     return 0;
+}
+
+const AKeyCharmap*
+android_get_default_charmap(void)
+{
+    return android_get_charmap_by_index(0);
+}
+
+const char*
+android_get_default_charmap_name(void)
+{
+    return android_get_default_charmap()->name;
 }

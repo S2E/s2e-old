@@ -2174,6 +2174,11 @@ int main(int argc, char **argv)
         args[n++] = opts->http_proxy;
     }
 
+    if (opts->charmap) {
+        args[n++] = "-charmap";
+        args[n++] = opts->charmap;
+    }
+
     /* physical memory */
     args[n++] = "-m";
     args[n++] = opts->memory;

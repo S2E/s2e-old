@@ -1619,4 +1619,8 @@ DEF("http-proxy", HAS_ARG, QEMU_OPTION_http_proxy, \
     "-http-proxy <proxy>"
     " make TCP connections through a HTTP/HTTPS proxy\n")
 
+DEF("charmap", HAS_ARG, QEMU_OPTION_charmap, \
+    "-charmap <file>"
+    " use specific key character map\n")
+
 #endif
