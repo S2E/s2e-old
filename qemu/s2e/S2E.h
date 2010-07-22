@@ -117,8 +117,6 @@ public:
         return getStream(*m_debugFile, state);
     }
 
-    static void printf(std::ostream &os, const char *fmt, ...);
-
     /** Get messages stream (used for non-critical information) */
     std::ostream& getMessagesStream(const S2EExecutionState* state = 0) const {
         return getStream(*m_messagesFile, state);
@@ -128,6 +126,8 @@ public:
     std::ostream& getWarningsStream(const S2EExecutionState* state = 0) const {
         return getStream(*m_warningsFile, state);
     }
+
+    static void printf(std::ostream &os, const char *fmt, ...);
 
     /***********************/
     /* Runtime information */

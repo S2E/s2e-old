@@ -60,7 +60,7 @@ public:
     int sync() {
         int res = 0;
         foreach(streambuf* buf, m_parentBufs)
-            buf->pubsync();
+            res = buf->pubsync();
         return res;
     }
 };
@@ -229,9 +229,15 @@ void S2E::initOutputDirectory(const string& outputDirectory)
         exit(1);
     }
 
+    ios_base::sync_with_stdio(true);
+    cout.setf(ios_base::unitbuf);
+    cerr.setf(ios_base::unitbuf);
+
     m_infoFile = openOutputFile("info");
+    m_infoFile->setf(ios_base::unitbuf);
 
     m_debugFile = openOutputFile("debug.txt");
+    m_debugFile->setf(ios_base::unitbuf);
 
     m_messagesFile = openOutputFile("messages.txt");
     m_messagesFile->setf(ios_base::unitbuf);
@@ -242,6 +248,7 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(
                                             cerr.rdbuf());
     m_messagesFile->rdbuf(m_messagesStreamBuf);
+    m_messagesFile->setf(ios_base::unitbuf);
 
     m_warningsFile = openOutputFile("warnings.txt");
     m_warningsFile->setf(ios_base::unitbuf);
@@ -252,6 +259,7 @@ void S2E::initOutputDirectory(const string& outputDirectory)
     //static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
     //                                        cerr.rdbuf());
     m_warningsFile->rdbuf(m_warningsStreamBuf);
+    m_warningsFile->setf(ios_base::unitbuf);
 
     klee::klee_message_stream = m_messagesFile;
     klee::klee_warning_stream = m_warningsFile;
@@ -355,6 +363,9 @@ void S2E::initExecutor()
 std::ostream& S2E::getStream(std::ostream& stream,
                              const S2EExecutionState* state) const
 {
+    fflush(stdout);
+    fflush(stderr);
+
     if(state) {
         stream << "[State " << std::dec << state->getID() << "] ";
     }
