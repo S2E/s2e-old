@@ -524,7 +524,8 @@ TCGv_i64 tcg_const_local_i64(int64_t val)
     return t0;
 }
 
-void tcg_register_helper(void *func, const char *name)
+void tcg_register_helper_with_reg_mask(void *func, const char *name,
+                                       uint64_t reg_rmask, uint64_t reg_wmask)
 {
     TCGContext *s = &tcg_ctx;
     int n;
@@ -540,7 +541,14 @@ void tcg_register_helper(void *func, const char *name)
     }
     s->helpers[s->nb_helpers].func = (tcg_target_ulong)func;
     s->helpers[s->nb_helpers].name = name;
+    s->helpers[s->nb_helpers].reg_rmask = reg_rmask;
+    s->helpers[s->nb_helpers].reg_wmask = reg_wmask;
     s->nb_helpers++;
+}
+
+void tcg_register_helper(void *func, const char *name)
+{
+    tcg_register_helper_with_reg_mask(func, name, (uint64_t) -1, (uint64_t) -1);
 }
 
 /* Note: we convert the 64 bit args to 32 bit and do some alignment
@@ -769,6 +777,20 @@ const char *tcg_helper_get_name(TCGContext *s, void *func)
     return info ? info->name : NULL;
 }
 
+void tcg_helper_get_reg_mask(TCGContext *s, void *func,
+                             uint64_t* reg_rmask, uint64_t* reg_wmask)
+{
+    TCGHelperInfo *info = tcg_find_helper(s, (tcg_target_ulong) func);
+    if(info) {
+        assert(func != NULL);
+        *reg_rmask = info->reg_rmask;
+        *reg_wmask = info->reg_wmask;
+    } else {
+        *reg_rmask = (uint64_t) -1;
+        *reg_wmask = (uint64_t) -1;
+    }
+}
+
 static const char * const cond_name[] =
 {
     [TCG_COND_EQ] = "eq",
@@ -922,12 +944,15 @@ void tcg_dump_ops(TCGContext *s, FILE *outfile)
 }
 
 #ifdef CONFIG_S2E
-void tcg_calc_regmask(const TCGContext *s, uint64_t *rmask, uint64_t *wmask)
+void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask)
 {
     const uint16_t *opc_ptr;
     const TCGArg *args;
     int c, i, nb_oargs, nb_iargs, nb_cargs;
     const TCGOpDef *def;
+
+    uint64_t temps[TCG_MAX_TEMPS];
+    memset(temps, 0, sizeof(temps[0])*(s->nb_globals + s->nb_temps));
 
     *rmask = *wmask = 0;
 
@@ -946,9 +971,18 @@ void tcg_calc_regmask(const TCGContext *s, uint64_t *rmask, uint64_t *wmask)
             nb_iargs = arg_count & 0xffff;
             nb_cargs = def->nb_cargs;
 
-            /* helpers can read and write to any registers */
-            *rmask |= (uint64_t) -1;
-            *wmask |= (uint64_t) -1;
+            /* get information about helper register access mask */
+            TCGArg func_arg = args[nb_oargs + nb_iargs - 1];
+            assert(func_arg < s->nb_globals + s->nb_temps);
+
+            uint64_t func_rmask, func_wmask;
+            tcg_helper_get_reg_mask(s, (void*) temps[func_arg],
+                                    &func_rmask, &func_wmask);
+
+            *rmask |= func_rmask;
+            *wmask |= func_wmask;
+
+            /* access mask of helper arguments will be added later */
 
         } else if (c == INDEX_op_nopn) {
 
@@ -962,6 +996,21 @@ void tcg_calc_regmask(const TCGContext *s, uint64_t *rmask, uint64_t *wmask)
             nb_oargs = def->nb_oargs;
             nb_iargs = def->nb_iargs;
             nb_cargs = def->nb_cargs;
+        }
+
+        /* We want to track movi assignments in order
+           to be able to determine target helper for call
+           instructions */
+        if (c == INDEX_op_movi_i32
+#if TCG_TARGET_REG_BITS == 64
+                   || c == INDEX_op_movi_i64
+#endif
+                   ) {
+            assert(args[0] < s->nb_globals + s->nb_temps);
+            temps[args[0]] = args[1];
+        } else {
+            for(i = 0; i < nb_oargs; i++)
+                temps[args[i]] = 0;
         }
 
         for(i = 0; i < nb_iargs; i++) {
