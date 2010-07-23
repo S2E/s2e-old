@@ -107,16 +107,20 @@ void klee::klee_warning(const char *msg, ...) {
 void klee::klee_warning_once(const void *id, const char *msg, ...) {
   static std::set< std::pair<const void*, const char*> > keys;
   std::pair<const void*, const char*> key;
-
+  bool external;
 
   /* "calling external" messages contain the actual arguments with
      which we called the external function, so we need to ignore them
      when computing the key. */
-  if (strncmp(msg, "calling external", strlen("calling external")) != 0)
+  if (strncmp(msg, "calling external", strlen("calling external")) != 0) {
     key = std::make_pair(id, msg);
-  else key = std::make_pair(id, "calling external");
+    external = false;
+  } else {
+    key = std::make_pair(id, "calling external");
+    external = true;
+  }
   
-  if (ShowRepeatedWarnings || !keys.count(key)) {
+  if ((ShowRepeatedWarnings && !external) || !keys.count(key)) {
     keys.insert(key);
     
     va_list ap;
