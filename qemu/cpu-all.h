@@ -718,7 +718,7 @@ _s2e_define_fc(w, 2)
         if(g_s2e_state) { /* XXX XXX XXX */ \
           uint8_t buf[s]; \
           s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-          return ld ## t ## _p(buf); /*XXX: Why do we do another read here???*/ \
+          return ld ## t ## _p(buf); /* read right type of value from buf */ \
       } else return ld ## t ## _p(p); \
     } \
     static inline ct ld ## t ## _raw_s2e_trace(const void* p) { \
