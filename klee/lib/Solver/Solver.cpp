@@ -637,6 +637,12 @@ static bool runAndGetCexForked(::VC vc,
 
   fflush(stdout);
   fflush(stderr);
+
+  sigset_t sig_mask, sig_mask_old;
+  sigfillset(&sig_mask);
+  sigemptyset(&sig_mask_old);
+  sigprocmask(SIG_SETMASK, &sig_mask, &sig_mask_old);
+
   int pid = fork();
   if (pid==-1) {
     fprintf(stderr, "error: fork failed (for STP)");
@@ -644,6 +650,7 @@ static bool runAndGetCexForked(::VC vc,
   }
 
   if (pid == 0) {
+    sigprocmask(SIG_SETMASK, &sig_mask_old, NULL);
     if (timeout) {
       ::alarm(0); /* Turn off alarm so we can safely set signal handler */
       ::signal(SIGALRM, stpTimeoutHandler);
@@ -665,6 +672,8 @@ static bool runAndGetCexForked(::VC vc,
   } else {
     int status;
     pid_t res;
+
+    sigprocmask(SIG_SETMASK, &sig_mask_old, NULL);
 
     do {
       res = waitpid(pid, &status, 0);
