@@ -716,6 +716,7 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
     assert(offset + size <= CPU_OFFSET(eip));
 
     if(state->m_runningConcrete) {
+        /* XXX: should we check getSymbolicRegisterMask ? */
         memcpy(buf, ((uint8_t*)cpuState)+offset, size);
     } else {
         const MemoryObject* mo = state->m_cpuRegistersState;
@@ -772,6 +773,7 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
     assert(offset + size <= CPU_OFFSET(eip));
 
     if(state->m_runningConcrete) {
+        /* XXX: should we check getSymbolicRegisterMask ? */
         memcpy(((uint8_t*)cpuState)+offset, buf, size);
     } else {
         MemoryObject* mo = state->m_cpuRegistersState;
@@ -1354,9 +1356,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 {
     assert(state->isActive());
 
-
-    const ObjectState* os = state->m_cpuRegistersObject;
-
     state->setTbInstructionCount(tb->icount);
 
     bool executeKlee = m_executeAlwaysKlee;
@@ -1370,10 +1369,8 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             //because they think that execution is concrete while it should be symbolic (see issue #30).
 #if 1
             /* We can not execute TB natively if it reads any symbolic regs */
-            if(!os->isAllConcrete()) {
-                uint64_t smask = state->getSymbolicRegistersMask();
-                assert(smask);
-#if 1
+            uint64_t smask = state->getSymbolicRegistersMask();
+            if(smask) {
                 if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
                     /* TB reads symbolic variables */
                     executeKlee = true;
@@ -1397,7 +1394,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
                     tb->s2e_tb_next[1] = NULL;
                     */
                 }
-#endif
             }
 #else
             executeKlee |= !os->isAllConcrete();

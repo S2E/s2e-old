@@ -131,6 +131,7 @@ ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
         assert(os);
         return os->read(offset, width);
     } else {
+        /* XXX: should we check getSymbolicRegisterMask ? */
         uint64_t ret = 0;
         memcpy((void*) &ret, (void*) (m_cpuRegistersState->address + offset),
                        Expr::getMinBytesForWidth(width));
@@ -152,6 +153,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
         wos->write(offset, value);
 
     } else {
+        /* XXX: should we check getSymbolicRegisterMask ? */
         assert(isa<ConstantExpr>(value) &&
                "Can not write symbolic values to registers while executing"
                " in concrete mode. TODO: fix it by longjmping to main loop");
@@ -283,29 +285,25 @@ uint64_t S2EExecutionState::getPid() const
 
 uint64_t S2EExecutionState::getSymbolicRegistersMask() const
 {
-    if(m_runningConcrete) {
+    const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
+    if(os->isAllConcrete())
         return 0;
-    } else {
-        const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
-        if(os->isAllConcrete())
-            return 0;
 
-        uint64_t mask = 0;
-        /* XXX: x86-specific */
-        for(int i = 0; i < 8; ++i) { /* regs */
-            if(os->isConcrete(i*4, 4))
-                mask |= (1 << (i+5));
-        }
-        if(os->isConcrete( 8*4, 4)) // cc_op
-            mask |= (1 << 1);
-        if(os->isConcrete( 9*4, 4)) // cc_src
-            mask |= (1 << 2);
-        if(os->isConcrete(10*4, 4)) // cc_dst
-            mask |= (1 << 3);
-        if(os->isConcrete(11*4, 4)) // cc_tmp
-            mask |= (1 << 4);
-        return mask;
+    uint64_t mask = 0;
+    /* XXX: x86-specific */
+    for(int i = 0; i < 8; ++i) { /* regs */
+        if(os->isConcrete(i*4, 4))
+            mask |= (1 << (i+5));
     }
+    if(os->isConcrete( 8*4, 4)) // cc_op
+        mask |= (1 << 1);
+    if(os->isConcrete( 9*4, 4)) // cc_src
+        mask |= (1 << 2);
+    if(os->isConcrete(10*4, 4)) // cc_dst
+        mask |= (1 << 3);
+    if(os->isConcrete(11*4, 4)) // cc_tmp
+        mask |= (1 << 4);
+    return mask;
 }
 
 /* XXX: this function belongs to S2EExecutor */
