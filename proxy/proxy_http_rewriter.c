@@ -751,6 +751,12 @@ rewrite_connection_read_body( RewriteConnection*  conn, int  fd )
                               root->name, length);
                     return DATA_ERROR;
                 }
+                /* proxy_connection_receive_line() did remove the
+                 * trailing \r\n, but we must preserve it when we
+                 * send the chunk size to the proxy.
+                 */
+                stralloc_add_str(root->str, "\r\n");
+
                 conn->chunk_length = length;
                 conn->chunk_total  = 0;
                 if (length == 0) {

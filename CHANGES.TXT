@@ -41,6 +41,9 @@ OTHER:
 
 - Fix net shaping regression: -netspeed and -netdelay did not work anymore.
 
+- Fix -http-proxy implementation to properly work with chunked encodings.
+  Also accept strings like "http://:8080" as a valid proxy address.
+
 ==============================================================================
 Changes between 6.0 and 5.0
 

@@ -422,6 +422,12 @@ void  android_emulation_setup( void )
         proxy_name_len = p - env;
         proxy_port     = atoi(p+1);
 
+        /* handle the rare case where the proxy name is omitted, e.g. "http://:8080" */
+        if (proxy_name_len == 0) {
+            proxy_name = "localhost";
+            proxy_name_len = strlen(proxy_name);
+        }
+
         D( "setting up http proxy:  server=%.*s port=%d",
                 proxy_name_len, proxy_name, proxy_port );
 
