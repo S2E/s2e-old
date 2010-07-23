@@ -18,7 +18,14 @@
 #include <set>
 #include <iostream>
 
+#include "llvm/Support/CommandLine.h"
+
 using namespace klee;
+
+namespace  {
+    llvm::cl::opt<bool>
+    ShowRepeatedWarnings("show-repeated-warnings", llvm::cl::init(false));
+}
 
 /*
 FILE* klee::klee_warning_file = NULL;
@@ -109,7 +116,7 @@ void klee::klee_warning_once(const void *id, const char *msg, ...) {
     key = std::make_pair(id, msg);
   else key = std::make_pair(id, "calling external");
   
-  if (!keys.count(key)) {
+  if (ShowRepeatedWarnings || !keys.count(key)) {
     keys.insert(key);
     
     va_list ap;
