@@ -1959,10 +1959,11 @@ do_geo_nmea( ControlClient  client, char*  args )
 static int
 do_geo_fix( ControlClient  client, char*  args )
 {
-#define  MAX_GEO_PARAMS  3
+#define  MAX_GEO_PARAMS  4
     char*   p = args;
     int     n_params = 0;
     double  params[ MAX_GEO_PARAMS ];
+    int     n_satellites = 1;
 
     static  int     last_time = 0;
     static  double  last_altitude = 0.;
@@ -1995,12 +1996,38 @@ do_geo_fix( ControlClient  client, char*  args )
         return -1;
     }
 
+    /* check number of satellites, must be between 1 and 12 */
+    if (n_params >= 4) {
+        n_satellites = (int) params[4];
+        if (n_satellites != params[4] || n_satellites < 1 || n_satellites > 12) {
+            control_write( client, "KO: invalid number of satellites. Must be an integer between 1 and 12\r\n");
+            return -1;
+        }
+    }
+
     /* generate an NMEA sentence for this fix */
     {
         STRALLOC_DEFINE(s);
         double   val;
         int      deg, min;
         char     hemi;
+
+        /* format overview:
+         *    time of fix      123519     12:35:19 UTC
+         *    latitude         4807.038   48 degrees, 07.038 minutes
+         *    north/south      N or S
+         *    longitude        01131.000  11 degrees, 31. minutes
+         *    east/west        E or W
+         *    fix quality      1          standard GPS fix
+         *    satellites       1 to 12    number of satellites being tracked
+         *    HDOP             <dontcare> horizontal dilution
+         *    altitude         546.       altitude above sea-level
+         *    altitude units   M          to indicate meters
+         *    diff             <dontcare> height of sea-level above ellipsoid
+         *    diff units       M          to indicate meters (should be <dontcare>)
+         *    dgps age         <dontcare> time in seconds since last DGPS fix
+         *    dgps sid         <dontcare> DGPS station id
+         */
 
         /* first, the time */
         stralloc_add_format( s, "$GPGGA,%06d", last_time );
@@ -2014,9 +2041,10 @@ do_geo_fix( ControlClient  client, char*  args )
             val  = -val;
         }
         deg = (int) val;
-        min = 60*(val - deg);
-        val = val - min/60.;
-        stralloc_add_format( s, ",%02d%02d.%04d,%c", deg, min, (int)(val * 10000), hemi );
+        val = 60*(val - deg);
+        min = (int) val;
+        val = 1000*(val - min);
+        stralloc_add_format( s, ",%02d%02d.%04d,%c", deg, min, (int)val, hemi );
 
         /* the longitude */
         hemi = 'E';
@@ -2026,19 +2054,20 @@ do_geo_fix( ControlClient  client, char*  args )
             val  = -val;
         }
         deg = (int) val;
-        min = 60*(val - deg);
-        val = val - min/60.;
-        stralloc_add_format( s, ",%02d%02d.%04d,%c", deg, min, (int)(val * 10000), hemi );
+        val = 60*(val - deg);
+        min = (int) val;
+        val = 1000*(val - min);
+        stralloc_add_format( s, ",%02d%02d.%04d,%c", deg, min, (int)val, hemi );
 
-        /* bogus fix quality, empty satellite count and dilutions */
-        stralloc_add_str( s, ",1,,,," );
+        /* bogus fix quality, satellite count and dilution */
+        stralloc_add_format( s, ",1,%02d,", n_satellites );
 
-        /* optional altitude */
+        /* optional altitude + bogus diff */
         if (n_params >= 3) {
-            stralloc_add_format( s, "%.1g", params[2] );
+            stralloc_add_format( s, ",%.1g,M,0.,M", params[2] );
             last_altitude = params[2];
         } else {
-            stralloc_add_str( s, "," );
+            stralloc_add_str( s, ",,,," );
         }
         /* bogus rest and checksum */
         stralloc_add_str( s, ",,,*47" );
@@ -2059,11 +2088,12 @@ static const CommandDefRec  geo_commands[] =
     NULL, do_geo_nmea, NULL },
 
     { "fix", "send a simple GPS fix",
-    "'geo fix <longitude> <latitude> [<altitude>]' allows you to send a\r\n"
+    "'geo fix <longitude> <latitude> [<altitude> [<satellites>]]' allows you to send a\r\n"
     "simple GPS fix to the emulated system. the parameters are:\r\n\r\n"
     "  <longitude>   longitude, in decimal degrees\r\n"
     "  <latitude>    latitude, in decimal degrees\r\n"
     "  <altitude>    optional altitude in meters\r\n"
+    "  <satellites>  number of satellites being tracked (1-12)\r\n"
     "\r\n",
     NULL, do_geo_fix, NULL },
 
