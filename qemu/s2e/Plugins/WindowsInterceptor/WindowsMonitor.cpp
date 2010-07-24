@@ -315,14 +315,20 @@ uint64_t WindowsMonitor::GetDriverLoadPc() const
 
 bool WindowsMonitor::CheckPanic(uint64_t eip) const
 {
-    eip -= m_KernelBase;
-
     switch(m_Version) {
-    case SP2: return eip == 0x0045B7BA  || eip == 0x0045C2DF || eip == 0x0045C303;
-    case SP3: return eip == 0x0045BCAA  || eip == 0x0045C7CD || eip == 0x0045C7F3;
-    default: return false;
+    case SP2:
+        assert(false && "Not implemented");
+        return (eip == 0x0045B7BA  || eip == 0x0045C2DF || eip == 0x0045C303);
+        break;
+    case SP3:
+        eip = eip - 0x804d7000 + 0x400000;
+        return (eip == 0x0045BCAA  || eip == 0x0045C7CD || eip == 0x0045C7F3);
+        break;
+    default:
+        return false;
     }
-    return true;
+
+    return false;
 }
 
 

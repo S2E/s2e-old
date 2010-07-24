@@ -166,8 +166,6 @@ void ModuleExecutionDetector::moduleLoadListener(
 
     ConfiguredModulesByName::iterator it = m_ConfiguredModulesName.find(cfg);
     if (it != m_ConfiguredModulesName.end()) {
-#warning hack
-        s2e()->getExecutor()->enableSymbolicExecution(state);
 
         s2e()->getDebugStream() << " [REGISTERING ID=" << (*it).id << "]" << std::endl;
         plgState->loadDescriptor(module);

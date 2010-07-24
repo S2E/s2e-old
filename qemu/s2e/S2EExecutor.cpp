@@ -1499,6 +1499,9 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
 
 void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
 {
+    if (state->m_symbexEnabled) {
+        return;
+    }
     state->m_symbexEnabled = true;
     state->forkDisabled = false;
     m_s2e->getMessagesStream(state) << "Enabled symbex"
@@ -1871,6 +1874,9 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
  */
 void s2e_switch_to_symbolic(S2E *s2e, S2EExecutionState *state)
 {
+    //XXX: For now, we assume that symbolic hardware, when triggered,
+    //will want to start symbexec.
+    s2e->getExecutor()->enableSymbolicExecution(state);
     s2e->getExecutor()->jumpToSymbolic(state);
 }
 

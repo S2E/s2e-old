@@ -22,12 +22,29 @@
 #include "exec-all.h"
 #include "host-utils.h"
 
+#include <inttypes.h>
+
 //#define DEBUG_PCALL
 #ifdef S2E_LLVM_LIB
 void klee_make_symbolic(void *addr, unsigned nbytes, const char *name);
-int klee_int(const char *name);
-int klee_int(const char *name) {
-    int ret;
+uint8_t klee_int8(const char *name);
+uint16_t klee_int16(const char *name);
+uint32_t klee_int32(const char *name);
+
+uint8_t klee_int8(const char *name) {
+    uint8_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+uint16_t klee_int16(const char *name) {
+    uint16_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+uint32_t klee_int32(const char *name) {
+    uint32_t ret;
     klee_make_symbolic(&ret, sizeof(ret), name);
     return ret;
 }
@@ -600,7 +617,7 @@ void helper_outb(uint32_t port, uint32_t data)
 target_ulong helper_inb(uint32_t port)
 {
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
-        uint8_t res = klee_int("inb");
+        uint8_t res = klee_int8("inb");
         tcg_llvm_trace_port_access(port, res, 8, 0);
         return res;
     }
@@ -620,7 +637,7 @@ void helper_outw(uint32_t port, uint32_t data)
 target_ulong helper_inw(uint32_t port)
 {
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
-        uint16_t res = klee_int("inw");
+        uint16_t res = klee_int16("inw");
         tcg_llvm_trace_port_access(port, res, 16, 0);
         return res;
     }
@@ -640,7 +657,7 @@ void helper_outl(uint32_t port, uint32_t data)
 target_ulong helper_inl(uint32_t port)
 {
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
-        uint32_t res = klee_int("inl");
+        uint32_t res = klee_int32("inl");
         tcg_llvm_trace_port_access(port, res, 32, 0);
         return res;
     }
@@ -2087,7 +2104,14 @@ void helper_cpuid(void)
 
     helper_svm_check_intercept_param(SVM_EXIT_CPUID, 0);
 
-    cpu_x86_cpuid(env, (uint32_t)EAX, (uint32_t)ECX, &eax, &ebx, &ecx, &edx);
+    uint32_t index = (uint32_t)EAX;
+
+    //XXX: workaround to avoid passing symbolic count information
+    if (index == 4) {
+        cpu_x86_cpuid(env, (uint32_t)EAX, (uint32_t)ECX, &eax, &ebx, &ecx, &edx);
+    }else {
+        cpu_x86_cpuid(env, (uint32_t)EAX, 0, &eax, &ebx, &ecx, &edx);
+    }
     EAX_W(eax);
     EBX_W(ebx);
     ECX_W(ecx);
