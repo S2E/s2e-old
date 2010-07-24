@@ -1710,6 +1710,26 @@ void S2EExecutor::setupTimersHandler()
             sigc::bind(sigc::ptr_fun(&onAlarm), 0));
 }
 
+/** Suspend the given state (does not kill it) */
+bool S2EExecutor::suspendState(S2EExecutionState *state)
+{
+    if (searcher)  {
+        searcher->removeState(state, NULL);
+        return true;
+    }
+    return false;
+}
+
+/** Puts back the previously suspended state in the queue */
+bool S2EExecutor::resumeState(S2EExecutionState *state)
+{
+    if (searcher)  {
+        searcher->addState(state, NULL);
+        return true;
+    }
+    return false;
+}
+
 } // namespace s2e
 
 /******************************/

@@ -154,6 +154,15 @@ public:
 
     void setCCOpEflags(S2EExecutionState *state);
 
+    /** Suspend the given state (does not kill it) */
+    bool suspendState(S2EExecutionState *state);
+
+    /** Puts back the previously suspended state in the queue */
+    bool resumeState(S2EExecutionState *state);
+
+    klee::Searcher *getSearcher() const {
+        return searcher;
+    }
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,

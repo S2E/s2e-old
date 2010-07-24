@@ -43,11 +43,15 @@ struct ModuleDescriptor
   //The size of the image of the module
   uint64_t Size;
 
+  //The entry point of the module
+  uint64_t EntryPoint;
+
   ModuleDescriptor() {
     Pid = 0;
     NativeBase = 0;
     LoadBase = 0;
     Size = 0;
+    EntryPoint = 0;
   }
 
   bool Contains(uint64_t RunTimeAddress) const {
@@ -93,7 +97,9 @@ struct ModuleDescriptor
   void Print(std::ostream &os) const {
     os << "Name=" << Name << std::hex <<
       " NativeBase=0x" << NativeBase << " LoadBase=0x" << LoadBase <<
-      " Size=0x" << Size << std::dec << std::endl;
+      " Size=0x" << Size <<
+      " EntryPoint=0x" << EntryPoint <<
+        std::dec << std::endl;
   };
 
 

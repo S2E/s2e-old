@@ -27,6 +27,8 @@
 #include <s2e/Plugins/SymbolicHardware.h>
 #include <s2e/Plugins/PollingLoopDetector.h>
 
+#include <s2e/Plugins/WindowsApi/NdisHandlers.h>
+
 #include <algorithm>
 #include <assert.h>
 
@@ -75,6 +77,8 @@ PluginsFactory::PluginsFactory()
 
     __S2E_REGISTER_PLUGIN(plugins::SymbolicHardware);
     __S2E_REGISTER_PLUGIN(plugins::PollingLoopDetector);
+
+    __S2E_REGISTER_PLUGIN(plugins::NdisHandlers);
 
     __S2E_REGISTER_PLUGIN(plugins::Debugger);
     __S2E_REGISTER_PLUGIN(plugins::Example);
