@@ -128,9 +128,6 @@ namespace {
   SuppressExternalWarnings("suppress-external-warnings");
 
   cl::opt<bool>
-  AllExternalWarnings("all-external-warnings");
-
-  cl::opt<bool>
   OnlyOutputStatesCoveringNew("only-output-states-covering-new",
                               cl::init(false));
 
@@ -1108,10 +1105,7 @@ Executor::toConstant(ExecutionState &state,
      << " to value " << value 
      << " (" << (*(state.pc)).info->file << ":" << (*(state.pc)).info->line << ")";
       
-  if (AllExternalWarnings)
-    klee_warning(reason, os.str().c_str());
-  else
-    klee_warning_once(reason, "%s", os.str().c_str());
+  klee_warning_external(reason, "%s", os.str().c_str());
 
   addConstraint(state, EqExpr::create(e, value));
     
@@ -2718,10 +2712,7 @@ void Executor::callExternalFunction(ExecutionState &state,
     }
     os << ")";
     
-    if (AllExternalWarnings)
-      klee_warning("%s", os.str().c_str());
-    else
-      klee_warning_once(function, "%s", os.str().c_str());
+    klee_warning_external(function, "%s", os.str().c_str());
   }
   
   bool success = externalDispatcher->executeCall(function, target->inst, args);
@@ -3449,9 +3440,4 @@ void Executor::addSpecialFunctionHandler(Function* function,
                                          FunctionHandler handler)
 {
     specialFunctionHandler->addUHandler(function, handler);
-}
-
-void Executor::setAllExternalWarnings(bool value)
-{
-    AllExternalWarnings.setValue(value);
 }

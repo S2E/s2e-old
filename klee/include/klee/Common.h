@@ -56,6 +56,14 @@ namespace klee {
   void klee_warning_once(const void *id,
                          const char *msg, ...)
     __attribute__ ((format (printf, 2, 3)));
+
+  /// Print "KLEE: WARNING" followed by the msg in printf format and a
+  /// newline on stderr and to warnings.txt. However, the warning is only
+  /// printed once for each unique (id, msg) pair (as pointers).
+  /// This function should be used for warnings about external function calls
+  void klee_warning_external(const void *id,
+                             const char *msg, ...)
+    __attribute__ ((format (printf, 2, 3)));
 }
 
 #endif /* __KLEE_COMMON_H__ */

@@ -24,7 +24,10 @@ using namespace klee;
 
 namespace  {
     llvm::cl::opt<bool>
-    ShowRepeatedWarnings("show-repeated-warnings", llvm::cl::init(false));
+    ShowRepeatedWarnings("show-repeated-warnings");
+
+    llvm::cl::opt<bool>
+    AllExternalWarnings("all-external-warnings");
 }
 
 /*
@@ -107,22 +110,41 @@ void klee::klee_warning(const char *msg, ...) {
 void klee::klee_warning_once(const void *id, const char *msg, ...) {
   static std::set< std::pair<const void*, const char*> > keys;
   std::pair<const void*, const char*> key;
-  bool external;
 
   /* "calling external" messages contain the actual arguments with
      which we called the external function, so we need to ignore them
      when computing the key. */
-  if (strncmp(msg, "calling external", strlen("calling external")) != 0) {
+  if (strncmp(msg, "calling external", strlen("calling external")) != 0)
     key = std::make_pair(id, msg);
-    external = false;
-  } else {
+  else
     key = std::make_pair(id, "calling external");
-    external = true;
-  }
   
-  if ((ShowRepeatedWarnings && !external) || !keys.count(key)) {
+  if (ShowRepeatedWarnings || !keys.count(key)) {
     keys.insert(key);
     
+    va_list ap;
+    va_start(ap, msg);
+    klee_vmessage("WARNING", false, msg, ap);
+    va_end(ap);
+  }
+}
+
+/* Prints a warning once per message. */
+void klee::klee_warning_external(const void *id, const char *msg, ...) {
+  static std::set< std::pair<const void*, const char*> > keys;
+  std::pair<const void*, const char*> key;
+
+  /* "calling external" messages contain the actual arguments with
+     which we called the external function, so we need to ignore them
+     when computing the key. */
+  if (strncmp(msg, "calling external", strlen("calling external")) != 0)
+    key = std::make_pair(id, msg);
+  else
+    key = std::make_pair(id, "calling external");
+
+  if (AllExternalWarnings || !keys.count(key)) {
+    keys.insert(key);
+
     va_list ap;
     va_start(ap, msg);
     klee_vmessage("WARNING", false, msg, ap);

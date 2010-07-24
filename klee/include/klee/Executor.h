@@ -392,8 +392,6 @@ protected:
   void addSpecialFunctionHandler(llvm::Function* function,
                                  FunctionHandler handler);
 
-  void setAllExternalWarnings(bool value);
-
   //Invalidate object cache
   virtual void invalidateCache(ExecutionState &state, const ObjectState *os, ObjectState *wo);
 
