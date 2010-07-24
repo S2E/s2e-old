@@ -1359,7 +1359,9 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     state->setTbInstructionCount(tb->icount);
 
     bool executeKlee = m_executeAlwaysKlee;
-    if(state->m_symbexEnabled) {
+
+    /* Think how can we optimize if symbex is disabled */
+    if(true/* state->m_symbexEnabled*/) {
         if(state->m_startSymbexAtPC != (uint64_t) -1) {
             executeKlee |= (state->getPc() == state->m_startSymbexAtPC);
             state->m_startSymbexAtPC = (uint64_t) -1;
