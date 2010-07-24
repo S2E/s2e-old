@@ -61,8 +61,11 @@ struct ModuleDescriptor
   }
 
   uint64_t ToNativeBase(uint64_t RunTimeAddress) const {
-    uint64_t RVA = RunTimeAddress - LoadBase + NativeBase;
-    return RVA;
+    return RunTimeAddress - LoadBase + NativeBase;
+  }
+
+  uint64_t ToRuntime(uint64_t NativeAddress) const {
+    return NativeAddress - NativeBase + LoadBase;
   }
 
   bool EqualInsensitive(const char *Name) const{
@@ -88,7 +91,7 @@ struct ModuleDescriptor
   };
 
   void Print(std::ostream &os) const {
-    std::cout << "Name=" << Name << std::hex <<
+    os << "Name=" << Name << std::hex <<
       " NativeBase=0x" << NativeBase << " LoadBase=0x" << LoadBase <<
       " Size=0x" << Size << std::dec << std::endl;
   };
