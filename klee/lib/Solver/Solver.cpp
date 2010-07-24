@@ -673,14 +673,15 @@ static bool runAndGetCexForked(::VC vc,
     int status;
     pid_t res;
 
-    sigprocmask(SIG_SETMASK, &sig_mask_old, NULL);
-
     do {
       res = waitpid(pid, &status, 0);
     } while (res < 0 && errno == EINTR);
 
+    sigprocmask(SIG_SETMASK, &sig_mask_old, NULL);
+
     if (res < 0) {
-      fprintf(stderr, "error: waitpid() for STP failed");
+      fprintf(stderr, "error: waitpid() for STP failed\n");
+      perror("waitpid()");
       return false;
     }
 
@@ -688,7 +689,7 @@ static bool runAndGetCexForked(::VC vc,
     // "occasion" return a status when the process was terminated by a
     // signal, so test signal first.
     if (WIFSIGNALED(status) || !WIFEXITED(status)) {
-      fprintf(stderr, "error: STP did not return successfully");
+      fprintf(stderr, "error: STP did not return successfully\n");
       return false;
     }
 
@@ -701,7 +702,7 @@ static bool runAndGetCexForked(::VC vc,
       fprintf(stderr, "error: STP timed out");
       return false;
     } else {
-      fprintf(stderr, "error: STP did not return a recognized code (%d)", exitcode);
+      fprintf(stderr, "error: STP did not return a recognized code (%d)\n", exitcode);
       return false;
     }
 
