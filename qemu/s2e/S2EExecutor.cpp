@@ -408,8 +408,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     addSpecialFunctionHandler(traceFunction, handlerTracePortAccess);
 
     searcher = constructUserSearcher(*this);
-
-    //setAllExternalWarnings(true);
 }
 
 S2EExecutor::~S2EExecutor()
