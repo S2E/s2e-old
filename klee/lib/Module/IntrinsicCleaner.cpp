@@ -25,10 +25,108 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Target/TargetData.h"
+#include "llvm/Support/IRBuilder.h"
 
 using namespace llvm;
 
 namespace klee {
+
+/* XXX: LLVM 2.7 have this built-in */
+/// LowerBSWAP - Emit the code to lower bswap of V before the specified
+/// instruction IP.
+static Value *LowerBSWAP(LLVMContext &Context, Value *V, Instruction *IP) {
+  assert(V->getType()->isInteger() && "Can't bswap a non-integer type!");
+
+  unsigned BitSize = V->getType()->getPrimitiveSizeInBits();
+
+  IRBuilder<> Builder(IP->getParent(), IP);
+
+  switch(BitSize) {
+  default: llvm_unreachable("Unhandled type size of value to byteswap!");
+  case 16: {
+    Value *Tmp1 = Builder.CreateShl(V, ConstantInt::get(V->getType(), 8),
+                                    "bswap.2");
+    Value *Tmp2 = Builder.CreateLShr(V, ConstantInt::get(V->getType(), 8),
+                                     "bswap.1");
+    V = Builder.CreateOr(Tmp1, Tmp2, "bswap.i16");
+    break;
+  }
+  case 32: {
+    Value *Tmp4 = Builder.CreateShl(V, ConstantInt::get(V->getType(), 24),
+                                    "bswap.4");
+    Value *Tmp3 = Builder.CreateShl(V, ConstantInt::get(V->getType(), 8),
+                                    "bswap.3");
+    Value *Tmp2 = Builder.CreateLShr(V, ConstantInt::get(V->getType(), 8),
+                                     "bswap.2");
+    Value *Tmp1 = Builder.CreateLShr(V,ConstantInt::get(V->getType(), 24),
+                                     "bswap.1");
+    Tmp3 = Builder.CreateAnd(Tmp3,
+                         ConstantInt::get(Type::getInt32Ty(Context), 0xFF0000),
+                             "bswap.and3");
+    Tmp2 = Builder.CreateAnd(Tmp2,
+                           ConstantInt::get(Type::getInt32Ty(Context), 0xFF00),
+                             "bswap.and2");
+    Tmp4 = Builder.CreateOr(Tmp4, Tmp3, "bswap.or1");
+    Tmp2 = Builder.CreateOr(Tmp2, Tmp1, "bswap.or2");
+    V = Builder.CreateOr(Tmp4, Tmp2, "bswap.i32");
+    break;
+  }
+  case 64: {
+    Value *Tmp8 = Builder.CreateShl(V, ConstantInt::get(V->getType(), 56),
+                                    "bswap.8");
+    Value *Tmp7 = Builder.CreateShl(V, ConstantInt::get(V->getType(), 40),
+                                    "bswap.7");
+    Value *Tmp6 = Builder.CreateShl(V, ConstantInt::get(V->getType(), 24),
+                                    "bswap.6");
+    Value *Tmp5 = Builder.CreateShl(V, ConstantInt::get(V->getType(), 8),
+                                    "bswap.5");
+    Value* Tmp4 = Builder.CreateLShr(V, ConstantInt::get(V->getType(), 8),
+                                     "bswap.4");
+    Value* Tmp3 = Builder.CreateLShr(V,
+                                     ConstantInt::get(V->getType(), 24),
+                                     "bswap.3");
+    Value* Tmp2 = Builder.CreateLShr(V,
+                                     ConstantInt::get(V->getType(), 40),
+                                     "bswap.2");
+    Value* Tmp1 = Builder.CreateLShr(V,
+                                     ConstantInt::get(V->getType(), 56),
+                                     "bswap.1");
+    Tmp7 = Builder.CreateAnd(Tmp7,
+                             ConstantInt::get(Type::getInt64Ty(Context),
+                                              0xFF000000000000ULL),
+                             "bswap.and7");
+    Tmp6 = Builder.CreateAnd(Tmp6,
+                             ConstantInt::get(Type::getInt64Ty(Context),
+                                              0xFF0000000000ULL),
+                             "bswap.and6");
+    Tmp5 = Builder.CreateAnd(Tmp5,
+                        ConstantInt::get(Type::getInt64Ty(Context),
+                             0xFF00000000ULL),
+                             "bswap.and5");
+    Tmp4 = Builder.CreateAnd(Tmp4,
+                        ConstantInt::get(Type::getInt64Ty(Context),
+                             0xFF000000ULL),
+                             "bswap.and4");
+    Tmp3 = Builder.CreateAnd(Tmp3,
+                             ConstantInt::get(Type::getInt64Ty(Context),
+                             0xFF0000ULL),
+                             "bswap.and3");
+    Tmp2 = Builder.CreateAnd(Tmp2,
+                             ConstantInt::get(Type::getInt64Ty(Context),
+                             0xFF00ULL),
+                             "bswap.and2");
+    Tmp8 = Builder.CreateOr(Tmp8, Tmp7, "bswap.or1");
+    Tmp6 = Builder.CreateOr(Tmp6, Tmp5, "bswap.or2");
+    Tmp4 = Builder.CreateOr(Tmp4, Tmp3, "bswap.or3");
+    Tmp2 = Builder.CreateOr(Tmp2, Tmp1, "bswap.or4");
+    Tmp8 = Builder.CreateOr(Tmp8, Tmp6, "bswap.or5");
+    Tmp4 = Builder.CreateOr(Tmp4, Tmp2, "bswap.or6");
+    V = Builder.CreateOr(Tmp8, Tmp4, "bswap.i64");
+    break;
+  }
+  }
+  return V;
+}
 
 char IntrinsicCleanerPass::ID;
 
@@ -128,6 +226,11 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b) {
         // caches.
         ii->eraseFromParent();
         dirty = true;
+        break;
+
+      case Intrinsic::bswap:
+        ii->replaceAllUsesWith(LowerBSWAP(getGlobalContext(), ii->getOperand(0), ii));
+        ii->eraseFromParent();
         break;
                     
       default:
