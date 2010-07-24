@@ -19,6 +19,7 @@
 //#define NDEBUG
 
 #include <s2e/S2E.h>
+#include <s2e/S2EExecutor.h>
 #include <s2e/s2e_qemu.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
@@ -165,6 +166,9 @@ void ModuleExecutionDetector::moduleLoadListener(
 
     ConfiguredModulesByName::iterator it = m_ConfiguredModulesName.find(cfg);
     if (it != m_ConfiguredModulesName.end()) {
+#warning hack
+        s2e()->getExecutor()->enableSymbolicExecution(state);
+
         s2e()->getDebugStream() << " [REGISTERING ID=" << (*it).id << "]" << std::endl;
         plgState->loadDescriptor(module);
         return;

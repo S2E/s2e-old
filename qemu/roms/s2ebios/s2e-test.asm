@@ -19,8 +19,8 @@ s2e_isa_dev:
 
 isadev1:
     mov dx, 0x100
-    in  eax, dx
-    cmp eax, 0
+    in  ax, dx
+    cmp ax, 0
     ja isadev1
 
     jmp isadev1

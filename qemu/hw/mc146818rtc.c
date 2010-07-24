@@ -177,7 +177,6 @@ static void rtc_timer_update(RTCState *s, int64_t current_time)
 static void rtc_periodic_timer(void *opaque)
 {
     RTCState *s = opaque;
-
     rtc_timer_update(s, s->next_periodic_time);
     if (s->cmos_data[RTC_REG_B] & REG_B_PIE) {
         s->cmos_data[RTC_REG_C] |= 0xc0;
@@ -529,6 +528,16 @@ static int rtc_post_load(void *opaque, int version_id)
             rtc_coalesced_timer_update(s);
         }
     }
+
+   // if (s->second_timer->expire_time > qemu_get_clock(rtc_clock) + get_ticks_per_sec()) {
+        s->next_second_time =
+            qemu_get_clock(rtc_clock) + (get_ticks_per_sec() * 99) / 100;
+
+        qemu_mod_timer(s->second_timer2, s->next_second_time);
+        qemu_mod_timer(s->second_timer, s->next_second_time);
+    //}
+
+
 #endif
     return 0;
 }
