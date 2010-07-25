@@ -15,7 +15,9 @@
 #include <ostream>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <inttypes.h>
+#include <iomanip>
 #include "Coverage.h"
 
 using namespace llvm;
@@ -29,7 +31,7 @@ cl::opt<std::string>
     TraceFile("trace", cl::desc("Input trace"), cl::init("ExecutionTracer.dat"));
 
 cl::opt<std::string>
-    LogFile("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
+    LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
 
 cl::opt<std::string>
     ModPath("modpath", cl::desc("Path to module descriptors"), cl::init("."));
@@ -55,12 +57,13 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
     while (fgets(buffer, sizeof(buffer), fp)) {
         uint64_t start, end;
         char name[512];
-        sscanf(buffer, "0x%"PRIx64" 0x%"PRIx64" %[^ ]s", &start, &end, buffer);
-        std::cout << "Read 0x" << std::hex << start << " 0x" << end << " " << name << std::endl;
+        sscanf(buffer, "0x%"PRIx64" 0x%"PRIx64" %[^\r\t\n]s", &start, &end, name);
+        //std::cout << "Read 0x" << std::hex << start << " 0x" << end << " " << name << std::endl;
 
         BasicBlocks &bbs = m_functions[name];
         bbs.insert(BasicBlock(start, end));
         m_allBbs.insert(BasicBlock(start, end));
+
     }
 
 
@@ -89,7 +92,30 @@ bool BasicBlockCoverage::addTranslationBlock(uint64_t ts, uint64_t start, uint64
 void BasicBlockCoverage::convertTbToBb()
 {
     BasicBlocks::iterator it;
+    Blocks::iterator tbit;
 
+    Blocks newBbList;
+
+    for(tbit = m_uniqueTbs.begin(); tbit != m_uniqueTbs.end(); ++tbit) {
+        const Block &tb = *tbit;
+
+        BasicBlock tbb(tb.start, tb.end);
+        it = m_allBbs.find(tbb);
+        assert(it != m_allBbs.end());
+
+        Block newBlock;
+        newBlock.timeStamp = tb.timeStamp;
+        newBlock.start = (*it).start;
+        newBlock.end = (*it).end;
+
+        if (newBbList.find(newBlock) == newBbList.end()) {
+                newBbList.insert(newBlock);
+        }
+    }
+
+    m_uniqueTbs = newBbList;
+
+#if 0
     for (it = m_allBbs.begin(); it != m_allBbs.end(); ++it) {
         const BasicBlock &bb = *it;
         Block ftb(0, bb.start, 0);
@@ -103,6 +129,15 @@ void BasicBlockCoverage::convertTbToBb()
         Block tb = *tbit;
         if (bb.start == tb.start && bb.end == tb.end) {
             //Basic block matches translation block
+            continue;
+        }
+
+        //Basic block is longer than the translation block
+        if (bb.start == tb.start && bb.end > tb.end) {
+            Block tb1(tb);
+            tb1.end = bb.end;
+            m_uniqueTbs.erase(tb);
+            m_uniqueTbs.insert(tb1);
             continue;
         }
 
@@ -120,6 +155,7 @@ void BasicBlockCoverage::convertTbToBb()
         m_uniqueTbs.insert(tb1);
         m_uniqueTbs.insert(tb2);
     }
+#endif
 }
 
 
@@ -128,6 +164,9 @@ void BasicBlockCoverage::printTimeCoverage(std::ostream &os) const
     BlocksByTime bbtime;
     BlocksByTime::const_iterator tit;
 
+    bool timeInited = false;
+    uint64_t firstTime;
+
     Blocks::const_iterator it;
     for (it = m_uniqueTbs.begin(); it != m_uniqueTbs.end(); ++it) {
         bbtime.insert(*it);
@@ -135,11 +174,79 @@ void BasicBlockCoverage::printTimeCoverage(std::ostream &os) const
 
     for (tit = bbtime.begin(); tit != bbtime.end(); ++tit) {
         const Block &b = *tit;
-        os << std::dec << b.timeStamp << std::hex << " 0x" << b.start << " 0x" << b.end << std::endl;
+
+        if (!timeInited) {
+            firstTime = b.timeStamp;
+            timeInited = true;
+        }
+
+        os << std::dec << (b.timeStamp - firstTime)/1000000 << std::hex << " 0x" << b.start << " 0x" << b.end << std::endl;
     }
 }
 
-Coverage::Coverage(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os) : m_os(os)
+void BasicBlockCoverage::printReport(std::ostream &os) const
+{
+    unsigned touchedFunctions = 0;
+    unsigned fullyCoveredFunctions = 0;
+    unsigned touchedFunctionsBb = 0;
+    unsigned touchedFunctionsTotalBb = 0;
+    Functions::const_iterator fit;
+
+    for(fit = m_functions.begin(); fit != m_functions.end(); ++fit) {
+        const BasicBlocks &fcnbb = (*fit).second;
+        BasicBlocks uncovered;
+        BasicBlocks::const_iterator bbit;
+        for (bbit = fcnbb.begin(); bbit != fcnbb.end(); ++bbit) {
+            Block b(0, (*bbit).start, 0);
+            if (m_uniqueTbs.find(b) == m_uniqueTbs.end()) {
+                uncovered.insert(*bbit);
+            }
+        }
+
+        unsigned coveredCount = (fcnbb.size() - uncovered.size());
+        os << std::dec << std::right <<
+                std::setw(3) << coveredCount << "/" <<
+                std::setw(3) << fcnbb.size() << " " <<
+                std::setw(40) << std::left << (*fit).first << "  ";
+
+        if (uncovered.size() == fcnbb.size()) {
+            os << "The function was not exercised";
+        }else {
+            if (uncovered.size() == 0) {
+                os << "Full coverage";
+                fullyCoveredFunctions++;
+            }else {
+                for (bbit = uncovered.begin(); bbit != uncovered.end(); ++bbit) {
+                    os << std::hex << "0x" << (*bbit).start << " ";
+                }
+            }
+            touchedFunctionsBb += fcnbb.size() - uncovered.size();
+            touchedFunctionsTotalBb += fcnbb.size();
+            touchedFunctions++;
+        }
+
+        os << std::endl;
+
+    }
+    os << std::endl;
+
+    os << "Basic block coverage:    " << std::dec << m_uniqueTbs.size() << "/" << m_allBbs.size() <<
+            "(" << (m_uniqueTbs.size()*100/m_allBbs.size()) << "%)"  << std::endl;
+
+
+    os << "Function block coverage: " << std::dec << touchedFunctionsBb << "/" << touchedFunctionsTotalBb <<
+            "(" << (touchedFunctionsBb*100/touchedFunctionsTotalBb) << "%)"  << std::endl;
+
+
+    os << "Total touched functions: " << std::dec << touchedFunctions << "/" << m_functions.size() <<
+            "(" << (touchedFunctions*100/m_functions.size()) << "%)"  << std::endl;
+
+    os << "Fully covered functions: " << std::dec << fullyCoveredFunctions << "/" << m_functions.size() <<
+            "(" << (fullyCoveredFunctions*100/m_functions.size()) << "%)"  << std::endl;
+
+}
+
+Coverage::Coverage(BFDLibrary *lib, ModuleCache *cache, LogEvents *events)
 {
     m_events = events;
     m_connection = events->onEachItem.connect(
@@ -190,7 +297,28 @@ void Coverage::onItem(unsigned traceIndex,
 
     assert(bbcov);
 
-    bbcov->addTranslationBlock(hdr.timeStamp, te->pc, te->pc+te->size-1);
+    uint64_t relPc = te->pc - mi->LoadBase + mi->Mod->getImageBase();
+
+    bbcov->addTranslationBlock(hdr.timeStamp, relPc, relPc+te->size-1);
+}
+
+void Coverage::outputCoverage(const std::string &path) const
+{
+    BbCoverageMap::const_iterator it;
+
+    for(it = m_bbCov.begin(); it != m_bbCov.end(); ++it) {
+        std::stringstream ss;
+        ss << path << "/" << (*it).first << ".timecov";
+        std::ofstream timecov(ss.str().c_str());
+
+        (*it).second->convertTbToBb();
+        (*it).second->printTimeCoverage(timecov);
+
+        std::stringstream ss1;
+        ss1 << path << "/" << (*it).first << ".repcov";
+        std::ofstream report(ss1.str().c_str());
+        (*it).second->printReport(report);
+    }
 }
 
 
@@ -240,17 +368,15 @@ void CoverageTool::process()
 
 void CoverageTool::flatTrace()
 {
-    std::ofstream logfile;
-    logfile.open(LogFile.c_str());
-
     ModuleCache mc(&m_parser, &m_library);
 
     //MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
     //md.lookForValue(MemoryValue);
 
-    Coverage cov(&m_binaries, &mc, &m_parser, logfile);
+    Coverage cov(&m_binaries, &mc, &m_parser);
 
     m_parser.parse(TraceFile);
+    cov.outputCoverage(LogDir);
 
 }
 

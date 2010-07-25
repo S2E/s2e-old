@@ -5,7 +5,7 @@
 #===------------------------------------------------------------------------===#
 
 LEVEL=../..
-TOOLNAME = debugger
+TOOLNAME = coverage
 USEDLIBS = executiontracer.a binaryreaders.a
 LINK_COMPONENTS = support system
 

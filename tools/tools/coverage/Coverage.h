@@ -92,6 +92,7 @@ public:
 
     void convertTbToBb();
     void printTimeCoverage(std::ostream &os) const;
+    void printReport(std::ostream &os) const;
 
 
 };
@@ -101,8 +102,6 @@ class Coverage: public LogEvents
 public:
 
 private:
-    std::ostream &m_os;
-
     LogEvents *m_events;
     ModuleCache *m_cache;
     BFDLibrary *m_library;
@@ -119,8 +118,10 @@ private:
                 void *item);
 
 public:
-    Coverage(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os);
+    Coverage(BFDLibrary *lib, ModuleCache *cache, LogEvents *events);
     virtual ~Coverage();
+
+    void outputCoverage(const std::string &Path) const;
 
 };
 
