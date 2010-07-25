@@ -77,6 +77,11 @@ namespace {
     UseSelectCleaner("use-select-cleaner",
             cl::desc("Remove Select statements from LLVM code"),
             cl::init(false));
+
+    cl::opt<bool>
+    StateSharedMemory("state-shared-memory",
+            cl::desc("Allow unimportant memory regions (like video RAM) to be shared between states"),
+            cl::init(true));
 }
 
 namespace s2e {
@@ -577,7 +582,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 
         mo->setName(ss.str());
 
-        if (isSharedConcrete && saveOnContextSwitch) {
+        if (isSharedConcrete && (saveOnContextSwitch || !StateSharedMemory)) {
             m_saveOnContextSwitch.push_back(mo);
         }
     }
