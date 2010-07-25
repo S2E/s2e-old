@@ -1354,8 +1354,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 {
     assert(state->isActive());
 
-    state->setTbInstructionCount(tb->icount);
-
     bool executeKlee = m_executeAlwaysKlee;
 
     /* Think how can we optimize if symbex is disabled */
@@ -1405,8 +1403,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     if(executeKlee) {
         if(state->m_runningConcrete)
             switchToSymbolic(state);
-        ++stats::translationBlocks;
-        ++stats::translationBlocksKlee;
 
         TimerStatIncrementer t(stats::symbolicModeTime);
 
@@ -1416,8 +1412,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         g_s2e_exec_ret_addr = 0;
         if(!state->m_runningConcrete)
             switchToConcrete(state);
-        ++stats::translationBlocks;
-        ++stats::translationBlocksConcrete;
 
         TimerStatIncrementer t(stats::concreteModeTime);
 
@@ -1818,18 +1812,38 @@ S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
     return s2e->getExecutor()->selectNextState(state);
 }
 
+static void s2e_update_execution_stats(S2EExecutionState* state,
+                                       uint64_t old_icount)
+{
+    ++stats::translationBlocks;
+    uint64_t icount = state->getTotalInstructionCount() - old_icount;
+    stats::cpuInstructions += icount;
+    if(state->isRunningConcrete()) {
+        ++stats::translationBlocksConcrete;
+        stats::cpuInstructionsConcrete += icount;
+    } else {
+        ++stats::translationBlocksKlee;
+        stats::cpuInstructionsKlee += icount;
+    }
+}
+
 uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            struct TranslationBlock* tb)
 {
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
             << std::endl;   */
+    uint64_t old_icount = state->getTotalInstructionCount();
     try {
-        return s2e->getExecutor()->executeTranslationBlock(state, tb);
+        uintptr_t ret = s2e->getExecutor()->executeTranslationBlock(state, tb);
+        s2e_update_execution_stats(state, old_icount);
+        return ret;
     } catch(s2e::CpuExitException&) {
+        s2e_update_execution_stats(state, old_icount);
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);
     } catch(s2e::StateTerminatedException&) {
+        s2e_update_execution_stats(state, old_icount);
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env_s2e, 1);
     }

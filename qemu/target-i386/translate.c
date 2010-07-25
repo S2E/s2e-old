@@ -4161,6 +4161,11 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
 #ifdef CONFIG_S2E
     tcg_gen_movi_tl(cpu_tmp0, pc_start - s->cs_base);
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
+
+    tcg_gen_ld_tl(cpu_tmp0, cpu_env, offsetof(CPUState, s2e_icount));
+    tcg_gen_addi_tl(cpu_tmp0, cpu_tmp0, 1);
+    tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, s2e_icount));
+
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
 #endif
@@ -7972,21 +7977,9 @@ static inline void gen_intermediate_code_internal(CPUState *env,
             gen_io_start();
 
 #ifdef CONFIG_S2E
-        TCGv_i64 t0 = tcg_temp_new_i64();
-        TCGv_i64 t1 = tcg_temp_new_i64();
-        TCGv_i64 t2 = tcg_temp_new_i64();
-
-        tcg_gen_ld_i64(t0, cpu_env, offsetof(CPUState, s2e_tb_icount));
-        tcg_gen_ld_i64(t1, cpu_env, offsetof(CPUState, s2e_total_icount));
-        tcg_gen_add_i64(t2, t0, t1);
-        tcg_gen_st_i64(t2, cpu_env, offsetof(CPUState, s2e_total_icount));
-
-        tcg_temp_free_i64(t2);
-        tcg_temp_free_i64(t1);
-        tcg_temp_free_i64(t0);
-
         dc->insPc = pc_ptr;
         dc->done_instr_end = 0;
+
         s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);

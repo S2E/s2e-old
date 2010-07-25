@@ -14,6 +14,10 @@ namespace stats {
     Statistic translationBlocksConcrete("TranslationBlocksConcrete", "TBsConcrete");
     Statistic translationBlocksKlee("TranslationBlocksKlee", "TBsKlee");
 
+    Statistic cpuInstructions("CpuInstructions", "CpuI");
+    Statistic cpuInstructionsConcrete("CpuInstructionsConcrete", "CpuIConcrete");
+    Statistic cpuInstructionsKlee("CpuInstructionsKlee", "CpuIKlee");
+
     Statistic concreteModeTime("ConcreteModeTime", "ConcModeTime");
     Statistic symbolicModeTime("SymbolicModeTime", "SymbModeTime");
 } // namespace stats
@@ -38,6 +42,9 @@ void S2EStatsTracker::writeStatsHeader() {
              << "'TranslationBlocks',"
              << "'TranslationBlocksConcrete',"
              << "'TranslationBlocksKlee',"
+             << "'CpuInstructions',"
+             << "'CpuInstructionsConcrete',"
+             << "'CpuInstructionsKlee',"
              << "'ConcreteModeTime',"
              << "'SymbolicModeTime',"
              << "'UserTime',"
@@ -66,6 +73,9 @@ void S2EStatsTracker::writeStatsLine() {
              << "," << stats::translationBlocks
              << "," << stats::translationBlocksConcrete
              << "," << stats::translationBlocksKlee
+             << "," << stats::cpuInstructions
+             << "," << stats::cpuInstructionsConcrete
+             << "," << stats::cpuInstructionsKlee
              << "," << stats::concreteModeTime / 1000000.
              << "," << stats::symbolicModeTime / 1000000.
              << "," << util::getUserTime()

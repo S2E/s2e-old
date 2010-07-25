@@ -151,10 +151,7 @@ public:
 
     TranslationBlock *getTb() const;
 
-
     uint64_t getTotalInstructionCount();
-    void setTbInstructionCount(uint64_t count);
-    void setTotalInstructionCount(uint64_t count);
 
     /*************************************************/
 

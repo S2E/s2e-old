@@ -221,13 +221,6 @@ int s2e_qemu_get_byte(struct S2EExecutionState *s);
 int s2e_qemu_get_buffer(struct S2EExecutionState *s, uint8_t *buf, int size1);
 void s2e_qemu_put_buffer(struct S2EExecutionState *s, const uint8_t *buf, int size);
 
-/* Timer-related functions */
-extern uint64_t s2e_icount_factor;
-uint64_t s2e_get_elapsed_instructions(void);
-uint64_t s2e_get_executed_instructions(void);
-void s2e_set_elapsed_instructions(uint64_t newCount);
-void s2e_increment_executed_instructions(uint64_t incr);
-
 void s2e_dump_state(void);
 
 void s2e_execute_cmd(const char *cmd);

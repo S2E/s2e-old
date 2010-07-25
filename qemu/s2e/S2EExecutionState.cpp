@@ -245,25 +245,8 @@ uint64_t S2EExecutionState::getTotalInstructionCount()
     if (!m_cpuSystemState) {
         return 0;
     }
-    return readCpuState(CPU_OFFSET(s2e_total_icount), 8*sizeof(uint64_t));
+    return readCpuState(CPU_OFFSET(s2e_icount), 8*sizeof(uint64_t));
 }
-
-void S2EExecutionState::setTbInstructionCount(uint64_t count)
-{
-    if (!m_cpuSystemState) {
-        return;
-    }
-    writeCpuState(CPU_OFFSET(s2e_tb_icount), count, 8*sizeof(count));
-}
-
-void S2EExecutionState::setTotalInstructionCount(uint64_t count)
-{
-    if (!m_cpuSystemState) {
-        return;
-    }
-    writeCpuState(CPU_OFFSET(s2e_total_icount), count, 8*sizeof(count));
-}
-
 
 uint64_t S2EExecutionState::getSp() const
 {
@@ -651,18 +634,6 @@ void S2EExecutionState::dumpX86State(std::ostream &os) const
 extern "C" {
 
 S2EExecutionState* g_s2e_state = NULL;
-
-void s2e_increment_executed_instructions(uint64_t incr)
-{
-    uint64_t i = g_s2e_state->getTotalInstructionCount();
-    g_s2e_state->setTotalInstructionCount(i + incr);
-}
-
-
-uint64_t s2e_get_executed_instructions()
-{
-    return g_s2e_state->getTotalInstructionCount();
-}
 
 void s2e_dump_state()
 {

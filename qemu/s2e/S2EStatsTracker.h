@@ -10,6 +10,10 @@ namespace stats {
     extern klee::Statistic translationBlocksConcrete;
     extern klee::Statistic translationBlocksKlee;
 
+    extern klee::Statistic cpuInstructions;
+    extern klee::Statistic cpuInstructionsConcrete;
+    extern klee::Statistic cpuInstructionsKlee;
+
     extern klee::Statistic concreteModeTime;
     extern klee::Statistic symbolicModeTime;
 } // namespace stats

@@ -141,8 +141,6 @@ typedef struct CPUWatchpoint {
 
 #define CPU_TEMP_BUF_NLONGS 128
 #define CPU_COMMON                                                      \
-    uint64_t s2e_tb_icount;                                             \
-    uint64_t s2e_total_icount;                                          \
     struct TranslationBlock *current_tb; /* currently executing TB  */  \
     struct TranslationBlock *s2e_current_tb; /* currently executing TB  */  \
     /* soft mmu support */                                              \
@@ -166,6 +164,7 @@ typedef struct CPUWatchpoint {
     /* buffer for temporaries in the code generator */                  \
     intptr_t temp_buf[CPU_TEMP_BUF_NLONGS];                                 \
                                                                         \
+    uint64_t s2e_icount;                                                \
     int64_t icount_extra; /* Instructions until next timer event.  */   \
     /* Number of cycles left, with interrupt flag in high bit.          \
        This allows a single read-compare-cbranch-write sequence to test \
