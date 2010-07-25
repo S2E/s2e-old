@@ -1518,6 +1518,7 @@ void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
 void S2EExecutor::deleteState(klee::ExecutionState *state)
 {
     assert(dynamic_cast<S2EExecutionState*>(state));
+    processTree->remove(state->ptreeNode);
     m_deletedStates.push_back(static_cast<S2EExecutionState*>(state));
 }
 
