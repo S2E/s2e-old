@@ -501,6 +501,9 @@ public:
   virtual bool copyInConcretes(ExecutionState &state);
 
   size_t getStatesCount() { return states.size(); }
+
+  Solver *getSolver() const;
+
 };
   
 } // End klee namespace

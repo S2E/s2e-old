@@ -13,6 +13,16 @@
 namespace s2e {
 namespace plugins {
 
+#define REGISTER_NDIS_ENTRY_POINT(cs, pc, name) \
+    if (pc) {\
+        s2e()->getMessagesStream() << "Registering " # name << std::endl; \
+        cs = m_functionMonitor->getCallSignal(state, pc, 0); \
+        cs->connect(sigc::mem_fun(*this, &NdisHandlers::name)); \
+    }
+
+#define DECLARE_NDIS_ENTRY_POINT(name) \
+    void name(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal); \
+    void name##Ret(S2EExecutionState* state)
 
 class NdisHandlers : public Plugin
 {
@@ -38,8 +48,23 @@ private:
             const ModuleDescriptor &module
             );
 
-    void entryPointCall(S2EExecutionState *state, FunctionMonitor::ReturnSignal *signal);
-    void entryPointRet(S2EExecutionState *state);
+    DECLARE_NDIS_ENTRY_POINT(entryPoint);
+
+    DECLARE_NDIS_ENTRY_POINT(NdisMRegisterMiniport);
+
+    DECLARE_NDIS_ENTRY_POINT(CheckForHang);
+    DECLARE_NDIS_ENTRY_POINT(InitializeHandler);
+    DECLARE_NDIS_ENTRY_POINT(DisableInterruptHandler);
+    DECLARE_NDIS_ENTRY_POINT(EnableInterruptHandler);
+    DECLARE_NDIS_ENTRY_POINT(HaltHandler);
+    DECLARE_NDIS_ENTRY_POINT(HandleInterruptHandler);
+    DECLARE_NDIS_ENTRY_POINT(ISRHandler);
+    DECLARE_NDIS_ENTRY_POINT(QueryInformationHandler);
+    DECLARE_NDIS_ENTRY_POINT(ReconfigureHandler);
+    DECLARE_NDIS_ENTRY_POINT(ResetHandler);
+    DECLARE_NDIS_ENTRY_POINT(SendPacketsHandler);
+    DECLARE_NDIS_ENTRY_POINT(SetInformationHandler);
+    DECLARE_NDIS_ENTRY_POINT(TransferDataHandler);
 };
 
 } // namespace plugins

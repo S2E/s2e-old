@@ -82,7 +82,11 @@ namespace {
     StateSharedMemory("state-shared-memory",
             cl::desc("Allow unimportant memory regions (like video RAM) to be shared between states"),
             cl::init(true));
+
+
 }
+
+static bool S2EDebugInstructions = false;
 
 namespace s2e {
 
@@ -329,6 +333,12 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_get_apic_tpr)
     __DEFINE_EXT_FUNCTION(cpu_set_apic_tpr)
     __DEFINE_EXT_FUNCTION(cpu_smm_update)
+    __DEFINE_EXT_FUNCTION(cpu_outb)
+    __DEFINE_EXT_FUNCTION(cpu_outw)
+    __DEFINE_EXT_FUNCTION(cpu_outl)
+    __DEFINE_EXT_FUNCTION(cpu_inb)
+    __DEFINE_EXT_FUNCTION(cpu_inw)
+    __DEFINE_EXT_FUNCTION(cpu_inl)
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
     __DEFINE_EXT_FUNCTION(cpu_abort)
     __DEFINE_EXT_FUNCTION(cpu_loop_exit)
@@ -357,7 +367,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
     __DEFINE_EXT_FUNCTION(s2e_is_port_symbolic)
 
-    /* XXX */
+
     __DEFINE_EXT_FUNCTION(ldub_phys)
     __DEFINE_EXT_FUNCTION(stb_phys)
 
@@ -862,6 +872,19 @@ void S2EExecutor::jumpToSymbolic(S2EExecutionState *state)
     longjmp(env->jmp_env, 1);
 }
 
+void S2EExecutor::jumpToSymbolicCpp(S2EExecutionState *state)
+{
+    if (state->m_symbexEnabled && !state->isRunningConcrete()) {
+        return;
+    }
+    assert(state->isRunningConcrete());
+
+    m_toRunSymbolically.insert(std::make_pair(state->getPc(), state->getPid()));
+    enableSymbolicExecution(state);
+    state->m_startSymbexAtPC = state->getPc();
+    // XXX: what about regs_to_env ?
+    throw CpuExitException();
+}
 
 void S2EExecutor::copyOutConcretes(ExecutionState &state)
 {
@@ -1021,11 +1044,11 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 
     KInstruction *ki = state->pc;
 
-#ifdef S2E_DEBUG_INSTRUCTIONS
+    if ( S2EDebugInstructions ) {
     m_s2e->getDebugStream(state) << "executing "
               << ki->inst->getParent()->getParent()->getNameStr()
               << ": " << *ki->inst << std::endl;
-#endif
+    }
 
     stepInstruction(*state);
 
@@ -1367,6 +1390,14 @@ uintptr_t S2EExecutor::executeTranslationBlock(
             executeKlee |= (state->getPc() == state->m_startSymbexAtPC);
             state->m_startSymbexAtPC = (uint64_t) -1;
         }
+
+        //XXX: hack to run code symbolically that may be delayed because of interrupts.
+        if (m_toRunSymbolically.find(std::make_pair(state->getPc(), state->getPid()))
+            != m_toRunSymbolically.end()) {
+            executeKlee = true;
+            m_toRunSymbolically.erase(std::make_pair(state->getPc(), state->getPid()));
+        }
+
         if(!executeKlee) {
             //XXX: This should be fixed to make sure that helpers do not read/write corrupted data
             //because they think that execution is concrete while it should be symbolic (see issue #30).
@@ -1654,8 +1685,11 @@ void S2EExecutor::terminateState(ExecutionState &state)
 
     Executor::terminateState(state);
 
-    s->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
-    throw StateTerminatedException();
+    //No need for exiting the loop if we kill another state.
+    if (s == g_s2e_state) {
+        s->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
+        throw StateTerminatedException();
+    }
 }
 
 void S2EExecutor::fetchObjectForTlb(S2EExecutionState *state, uintptr_t hostAddress, int mmu_idx, int index)
@@ -1729,6 +1763,10 @@ bool S2EExecutor::resumeState(S2EExecutionState *state)
     }
     return false;
 }
+
+
+
+
 
 } // namespace s2e
 
@@ -2001,3 +2039,4 @@ void* s2e_tlb_fast_check_write(uintptr_t hostaddr, CPUSymbCache *ce, int size)
     //Trigger the slow path
     return NULL;
 }
+

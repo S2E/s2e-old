@@ -23,16 +23,21 @@ bool StateManager::succeededState(S2EExecutionState *s)
 
 bool StateManager::killAllButOneSuccessful()
 {
-    assert(m_succeeded.size() > 1);
-    S2EExecutionState *one = *m_succeeded.begin();
-    m_succeeded.erase(one);
+    assert(m_succeeded.size() >= 1);
 
     foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
         m_executor->resumeState(*it);
-        m_executor->terminateStateOnExit(**it);
     }
 
-    m_executor->resumeState(one);
+    S2EExecutionState *one = NULL;
+    foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
+        if (!one) {
+            one = *it;
+        }else {
+            m_executor->terminateStateOnExit(**it);
+        }
+    }
+
     return true;
 }
 

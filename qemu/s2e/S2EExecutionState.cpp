@@ -240,6 +240,15 @@ uint64_t S2EExecutionState::getPc() const
     return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
 }
 
+uint64_t S2EExecutionState::getSp() const
+{
+    ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[R_ESP]),
+                                  8*sizeof(target_ulong));
+    return cast<ConstantExpr>(e)->getZExtValue(64);
+}
+
+
+
 uint64_t S2EExecutionState::getTotalInstructionCount()
 {
     if (!m_cpuSystemState) {
@@ -248,12 +257,6 @@ uint64_t S2EExecutionState::getTotalInstructionCount()
     return readCpuState(CPU_OFFSET(s2e_icount), 8*sizeof(uint64_t));
 }
 
-uint64_t S2EExecutionState::getSp() const
-{
-    ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[R_ESP]),
-                                  8*sizeof(target_ulong));
-    return cast<ConstantExpr>(e)->getZExtValue(64);
-}
 
 TranslationBlock *S2EExecutionState::getTb() const
 {

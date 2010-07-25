@@ -3441,3 +3441,8 @@ void Executor::addSpecialFunctionHandler(Function* function,
 {
     specialFunctionHandler->addUHandler(function, handler);
 }
+
+Solver *Executor::getSolver() const
+{
+    return solver->solver;
+}

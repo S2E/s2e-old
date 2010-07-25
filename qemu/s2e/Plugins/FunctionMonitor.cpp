@@ -27,23 +27,17 @@ void FunctionMonitor::initialize()
         getCallSignal(0, 0)->connect(sigc::mem_fun(*this,
                                      &FunctionMonitor::slotTraceCall));
     }
+
+    m_monitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
 }
 
 FunctionMonitor::CallSignal* FunctionMonitor::getCallSignal(
-                                uint64_t eip, uint64_t cr3)
+        S2EExecutionState *state,
+        uint64_t eip, uint64_t cr3)
 {
-    std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
-            range = m_callDescriptors.equal_range(eip);
+    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
 
-    for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-        if(it->second.cr3 == cr3)
-            return &it->second.signal;
-    }
-
-    CallDescriptor descriptor = { cr3, CallSignal() };
-    CallDescriptorsMap::iterator it =
-            m_callDescriptors.insert(std::make_pair(eip, descriptor));
-    return &it->second.signal;
+    return plgState->getCallSignal(eip, cr3);
 }
 
 void FunctionMonitor::slotTranslateBlockEnd(ExecutionSignal *signal,
@@ -71,14 +65,86 @@ void FunctionMonitor::slotTranslateJumpStart(ExecutionSignal *signal,
 
 void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
 {
-    target_ulong cr3 = state->getPc();
-    target_ulong eip = state->getPid();
+    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
 
+    return plgState->slotCall(state, pc);
+}
+
+
+
+void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
+{
+    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+
+    return plgState->slotRet(state, pc);
+}
+
+
+void FunctionMonitor::slotTraceCall(S2EExecutionState *state, ReturnSignal *signal)
+{
+    static int f = 0;
+    signal->connect(sigc::bind(sigc::mem_fun(*this, &FunctionMonitor::slotTraceRet), f));
+    s2e()->getMessagesStream(state) << "Calling function " << f
+                << " at " << hexval(state->getPc()) << std::endl;
+    ++f;
+}
+
+void FunctionMonitor::slotTraceRet(S2EExecutionState *state, int f)
+{
+    s2e()->getMessagesStream(state) << "Returning from function "
+                << f << std::endl;
+}
+
+
+FunctionMonitorState::FunctionMonitorState()
+{
+
+}
+
+FunctionMonitorState::~FunctionMonitorState()
+{
+
+}
+
+FunctionMonitorState* FunctionMonitorState::clone() const
+{
+    return new FunctionMonitorState(*this);
+}
+
+PluginState *FunctionMonitorState::factory(Plugin *p, S2EExecutionState *s)
+{
+    FunctionMonitorState *ret = new FunctionMonitorState();
+    ret->m_plugin = static_cast<FunctionMonitor*>(p);
+    return ret;
+}
+
+FunctionMonitor::CallSignal* FunctionMonitorState::getCallSignal(
+        uint64_t eip, uint64_t cr3)
+{
+    std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
+            range = m_callDescriptors.equal_range(eip);
+
+    for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+        if(it->second.cr3 == cr3)
+            return &it->second.signal;
+    }
+
+    CallDescriptor descriptor = { cr3, FunctionMonitor::CallSignal() };
+    CallDescriptorsMap::iterator it =
+            m_callDescriptors.insert(std::make_pair(eip, descriptor));
+    return &it->second.signal;
+}
+
+
+void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
+{
+    target_ulong cr3 = state->getPid();
+    target_ulong eip = state->getPc();
     target_ulong esp;
     bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
                                              &esp, sizeof(target_ulong));
     if(!ok) {
-        s2e()->getWarningsStream(state)
+        m_plugin->s2e()->getWarningsStream(state)
             << "Function call with symbolic ESP!" << std::endl
             << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << std::endl;
         return;
@@ -87,10 +153,10 @@ void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
     /* Issue signals attached to all calls (eip==-1 means catch-all) */
     if (!m_callDescriptors.empty()) {
         std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
-                range = m_callDescriptors.equal_range(0);
+                range = m_callDescriptors.equal_range((uint64_t)-1);
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-            if(it->second.cr3 == (uint64_t)0 || it->second.cr3 == cr3) {
-                ReturnDescriptor descriptor = { state, cr3, ReturnSignal() };
+            if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
+                ReturnDescriptor descriptor = {cr3, FunctionMonitor::ReturnSignal() };
                 it->second.signal.emit(state, &descriptor.signal);
                 if(!descriptor.signal.empty()) {
                     m_returnDescriptors.insert(std::make_pair(esp, descriptor));
@@ -107,7 +173,7 @@ void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
         range = m_callDescriptors.equal_range(eip);
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
             if(it->second.cr3 == (uint64_t)0 || it->second.cr3 == cr3) {
-                ReturnDescriptor descriptor = { state, cr3, ReturnSignal() };
+                ReturnDescriptor descriptor = { it->second.cr3 , FunctionMonitor::ReturnSignal() };
                 it->second.signal.emit(state, &descriptor.signal);
                 if(!descriptor.signal.empty()) {
                     m_returnDescriptors.insert(std::make_pair(esp, descriptor));
@@ -117,7 +183,7 @@ void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
     }
 }
 
-void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
+void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc)
 {
     target_ulong cr3 = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
 
@@ -127,7 +193,7 @@ void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
     if(!ok) {
         target_ulong eip = state->readCpuState(CPU_OFFSET(eip),
                                                8*sizeof(target_ulong));
-        s2e()->getWarningsStream(state)
+        m_plugin->s2e()->getWarningsStream(state)
             << "Function return with symbolic ESP!" << std::endl
             << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << std::endl;
         return;
@@ -137,14 +203,17 @@ void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
         return;
     }
 
-
     bool finished = true;
     do {
         finished = true;
         std::pair<ReturnDescriptorsMap::iterator, ReturnDescriptorsMap::iterator>
                 range = m_returnDescriptors.equal_range(esp);
         for(ReturnDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-            if(it->second.state == state && it->second.cr3 == cr3) {
+            if (m_plugin->m_monitor) {
+                cr3 = m_plugin->m_monitor->getPid(state, pc);
+            }
+
+            if(it->second.cr3 == cr3) {
                 it->second.signal.emit(state);
                 m_returnDescriptors.erase(it);
                 finished = false;
@@ -154,20 +223,6 @@ void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
     } while(!finished);
 }
 
-void FunctionMonitor::slotTraceCall(S2EExecutionState *state, ReturnSignal *signal)
-{
-    static int f = 0;
-    signal->connect(sigc::bind(sigc::mem_fun(*this, &FunctionMonitor::slotTraceRet), f));
-    s2e()->getMessagesStream(state) << "Calling function " << f
-                << " at " << hexval(state->getPc()) << std::endl;
-    ++f;
-}
-
-void FunctionMonitor::slotTraceRet(S2EExecutionState *state, int f)
-{
-    s2e()->getMessagesStream(state) << "Returning from function "
-                << f << std::endl;
-}
 
 } // namespace plugins
 } // namespace s2e

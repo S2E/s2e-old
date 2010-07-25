@@ -122,7 +122,8 @@ void PollingLoopDetector::onModuleUnload(
     while(it1 != entries.end()) {
         const PollingLoopDetectorState::PollingEntry &e = *it1;
         if (module.Contains(e.source)) {
-            it2 = ++it1;
+            it2 = it1;
+            ++it2;
             entries.erase(it1);
             it1 = it2;
         }else {

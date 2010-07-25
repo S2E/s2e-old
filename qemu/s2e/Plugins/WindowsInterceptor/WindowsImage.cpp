@@ -5,6 +5,8 @@
 
 #include <s2e/Utils.h>
 
+#include <algorithm>
+
 using namespace std;
 using namespace s2e;
 using namespace plugins;
@@ -234,6 +236,8 @@ int WindowsImage::InitImports(S2EExecutionState *state)
             }
             //DPRINTF("  %s @%#x\n", FunctionName.c_str(), IAT.u1.Function);
 
+            std::transform(DllName.begin(), DllName.end(), DllName.begin(),
+                           ::tolower);
             ImportedFunctions &ImpFcnIt = m_Imports[DllName];
             ImpFcnIt[FunctionName] = IAT.u1.Function;
 

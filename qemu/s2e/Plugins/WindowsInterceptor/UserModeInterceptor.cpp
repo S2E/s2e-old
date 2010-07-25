@@ -207,7 +207,7 @@ void WindowsUmInterceptor::NotifyModuleLoad(S2EExecutionState *state, ModuleDesc
 {
     WindowsImage Image(state, Library.LoadBase);
     Library.NativeBase = Image.GetImageBase();
-    Library.EntryPoint = Image.GetEntryPoint();
+    Library.EntryPoint = Image.GetEntryPoint() + Library.NativeBase;
     m_Os->onModuleLoad.emit(state, Library);
 }
 

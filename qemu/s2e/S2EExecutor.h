@@ -62,6 +62,9 @@ protected:
 
     std::vector<S2EExecutionState*> m_deletedStates;
 
+    typedef std::set<std::pair<uint64_t,uint64_t> > ToRunSymbolically;
+    ToRunSymbolically m_toRunSymbolically;
+
     bool m_executeAlwaysKlee;
 
 public:
@@ -69,6 +72,7 @@ public:
                 const InterpreterOptions &opts,
                 klee::InterpreterHandler *ie);
     virtual ~S2EExecutor();
+
 
     /** Create initial execution state */
     S2EExecutionState* createInitialState();
@@ -149,6 +153,7 @@ public:
     void finalizeState(S2EExecutionState *state);
 
     void jumpToSymbolic(S2EExecutionState *state);
+    void jumpToSymbolicCpp(S2EExecutionState *state);
 
     void fetchObjectForTlb(S2EExecutionState *state, uintptr_t hostaddr, int mmu_idx, int index);
 
