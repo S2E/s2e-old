@@ -19,22 +19,23 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(NdisHandlers, "Basic collection of NDIS API functions.", "NdisHandlers",
-                  "FunctionMonitor", "WindowsMonitor", "ModuleExecutionMonitor");
+                  "FunctionMonitor", "WindowsMonitor", "ModuleExecutionDetector");
 
 void NdisHandlers::initialize()
 {
 
     ConfigFile *cfg = s2e()->getConfig();
 
-    m_functionMonitor = (FunctionMonitor*)s2e()->getPlugin("FunctionMonitor");
-    m_windowsMonitor = (WindowsMonitor*)s2e()->getPlugin("WindowsMonitor");
-    m_detector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
+    m_windowsMonitor = static_cast<WindowsMonitor*>(s2e()->getPlugin("WindowsMonitor"));
+    m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
 
     ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
     if (mods.size() == 0) {
         s2e()->getWarningsStream() << "No modules to track configured for the NdisHandlers plugin" << std::endl;
+        return;
     }
-    return;
+
 
     foreach2(it, mods.begin(), mods.end()) {
         m_modules.insert(*it);
@@ -55,7 +56,7 @@ void NdisHandlers::onModuleLoad(
         )
 {
     const std::string *s = m_detector->getModuleId(module);
-    if (!s || m_modules.find(*s) == m_modules.end()) {
+    if (!s || (m_modules.find(*s) == m_modules.end())) {
         //Not the right module we want to intercept
         return;
     }

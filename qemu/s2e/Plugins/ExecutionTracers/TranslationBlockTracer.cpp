@@ -70,6 +70,7 @@ void TranslationBlockTracer::trace(S2EExecutionState *state, uint64_t pc, ExecTr
     tb.targetPc = state->getPc();
     tb.tbType = state->getTb()->s2e_tb_type;
     tb.symbMask = 0;
+    tb.size = state->getTb()->size;
 
     assert(sizeof(tb.symbMask)*8 >= sizeof(tb.registers)/sizeof(tb.registers[0]));
     for (unsigned i=0; i<sizeof(tb.registers)/sizeof(tb.registers[0]); ++i) {

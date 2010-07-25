@@ -19,6 +19,8 @@ public:
     void initialize();
 
 private:
+    sigc::connection m_connection;
+
 
     void onModuleLoad(
             S2EExecutionState* state,

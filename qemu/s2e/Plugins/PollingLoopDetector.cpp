@@ -28,10 +28,7 @@ void PollingLoopDetector::initialize()
                     &PollingLoopDetector::onModuleUnload)
             );
 
-    m_detector->onModuleTranslateBlockEnd.connect(
-            sigc::mem_fun(*this,
-                    &PollingLoopDetector::onModuleTranslateBlockEnd)
-            );
+
 }
 
 
@@ -96,6 +93,13 @@ void PollingLoopDetector::onModuleLoad(
 
         //Insert in the state
         plgState->addEntry(source, dest);
+    }
+
+    if (!m_connection.connected()) {
+        m_connection = m_detector->onModuleTranslateBlockEnd.connect(
+                sigc::mem_fun(*this,
+                        &PollingLoopDetector::onModuleTranslateBlockEnd)
+                );
     }
 
 

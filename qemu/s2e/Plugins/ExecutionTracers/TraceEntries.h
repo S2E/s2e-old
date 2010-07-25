@@ -248,6 +248,7 @@ struct ExecutionTraceTb
     };
 
     uint64_t pc, targetPc;
+    uint32_t size;
     uint8_t tbType;
 
     uint8_t symbMask;

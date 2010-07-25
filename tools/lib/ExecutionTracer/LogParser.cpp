@@ -24,8 +24,6 @@ void LogEvents::processItem(unsigned currentItem,
                          const s2e::plugins::ExecutionTraceItemHeader &hdr,
                          void *data)
 {
-    const ExecutionTraceAll *item = (ExecutionTraceAll*)data;
-
     assert(hdr.type < TRACE_MAX);
     onEachItem.emit(currentItem, hdr, (void*)data);
 }

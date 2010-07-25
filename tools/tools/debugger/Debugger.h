@@ -11,6 +11,28 @@
 namespace s2etools
 {
 
+class ExecutionDebugger: public LogEvents
+{
+private:
+    std::ostream &m_os;
+
+    LogEvents *m_events;
+    ModuleCache *m_cache;
+    BFDLibrary *m_library;
+
+    sigc::connection m_connection;
+
+
+    void onItem(unsigned traceIndex,
+                const s2e::plugins::ExecutionTraceItemHeader &hdr,
+                void *item);
+
+public:
+    ExecutionDebugger(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os);
+    ~ExecutionDebugger();
+
+};
+
 class MemoryDebugger : public LogEvents
 {
 private:

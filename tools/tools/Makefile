@@ -12,6 +12,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-PARALLEL_DIRS=debugger pfprofiler s2etools-config
+PARALLEL_DIRS=coverage debugger pfprofiler s2etools-config
 
 include $(LEVEL)/Makefile.common

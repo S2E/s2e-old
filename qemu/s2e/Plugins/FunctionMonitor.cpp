@@ -71,8 +71,8 @@ void FunctionMonitor::slotTranslateJumpStart(ExecutionSignal *signal,
 
 void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
 {
-    target_ulong cr3 = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
-    target_ulong eip = state->readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
+    target_ulong cr3 = state->getPc();
+    target_ulong eip = state->getPid();
 
     target_ulong esp;
     bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
@@ -84,27 +84,34 @@ void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
         return;
     }
 
-    /* Issue signals attached to all calls (eip==0 means catch-all) */
-    std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
-            range = m_callDescriptors.equal_range(0);
-    for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-        if(it->second.cr3 == 0 || it->second.cr3 == cr3) {
-            ReturnDescriptor descriptor = { state, cr3, ReturnSignal() };
-            it->second.signal.emit(state, &descriptor.signal);
-            if(!descriptor.signal.empty()) {
-                m_returnDescriptors.insert(std::make_pair(esp, descriptor));
+    /* Issue signals attached to all calls (eip==-1 means catch-all) */
+    if (!m_callDescriptors.empty()) {
+        std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
+                range = m_callDescriptors.equal_range(0);
+        for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+            if(it->second.cr3 == (uint64_t)0 || it->second.cr3 == cr3) {
+                ReturnDescriptor descriptor = { state, cr3, ReturnSignal() };
+                it->second.signal.emit(state, &descriptor.signal);
+                if(!descriptor.signal.empty()) {
+                    m_returnDescriptors.insert(std::make_pair(esp, descriptor));
+                }
             }
         }
     }
 
     /* Issue signals attached to specific calls */
-    range = m_callDescriptors.equal_range(eip);
-    for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-        if(it->second.cr3 == 0 || it->second.cr3 == cr3) {
-            ReturnDescriptor descriptor = { state, cr3, ReturnSignal() };
-            it->second.signal.emit(state, &descriptor.signal);
-            if(!descriptor.signal.empty()) {
-                m_returnDescriptors.insert(std::make_pair(esp, descriptor));
+    if (!m_callDescriptors.empty()) {
+        std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
+                range;
+
+        range = m_callDescriptors.equal_range(eip);
+        for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+            if(it->second.cr3 == (uint64_t)0 || it->second.cr3 == cr3) {
+                ReturnDescriptor descriptor = { state, cr3, ReturnSignal() };
+                it->second.signal.emit(state, &descriptor.signal);
+                if(!descriptor.signal.empty()) {
+                    m_returnDescriptors.insert(std::make_pair(esp, descriptor));
+                }
             }
         }
     }
@@ -125,6 +132,11 @@ void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
             << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << std::endl;
         return;
     }
+
+    if (m_returnDescriptors.empty()) {
+        return;
+    }
+
 
     bool finished = true;
     do {

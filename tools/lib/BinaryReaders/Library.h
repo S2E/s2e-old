@@ -33,12 +33,13 @@ public:
 
     bool print(const ModuleInstance *ni, uint64_t pc, std::string &out, bool file, bool line, bool func);
 
+    bool findLibrary(const std::string &libName, std::string &abspath);
 private:
     PathList m_libpath;
     //std::string m_libpath;
     ModuleNameToBfd m_libraries;
 
-    bool findLibrary(const std::string &libName, std::string &abspath);
+
 };
 
 }

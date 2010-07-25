@@ -40,6 +40,51 @@ namespace {
 
 namespace s2etools {
 
+ExecutionDebugger::ExecutionDebugger(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os) : m_os(os)
+{
+    m_events = events;
+    m_connection = events->onEachItem.connect(
+            sigc::mem_fun(*this, &ExecutionDebugger::onItem)
+            );
+    m_cache = cache;
+    m_library = lib;
+}
+
+ExecutionDebugger::~ExecutionDebugger()
+{
+    m_connection.disconnect();
+}
+
+void ExecutionDebugger::onItem(unsigned traceIndex,
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            void *item)
+{
+    if (hdr.type != TRACE_TB_START) {
+        return;
+    }
+
+    ExecutionTraceTb *tb = (ExecutionTraceTb*) item;
+
+    m_os << " pc=0x" << std::hex << tb->pc <<
+            " tpc=0x" << std::hex <<  tb->targetPc ;
+
+    const ModuleInstance *mi = m_cache->getInstance(hdr.pid, tb->pc);
+    std::string dbg;
+    if (m_library->print(mi, tb->pc, dbg, true, true, true)) {
+        m_os << " - " << dbg;
+    }
+
+     m_os << std::endl;
+
+}
+
+
+/********************************************************************************/
+/********************************************************************************/
+/********************************************************************************/
+
+
+
 MemoryDebugger::MemoryDebugger(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os) : m_os(os)
 {
     m_events = events;
@@ -164,9 +209,12 @@ void Debugger::process()
 
         std::cout << "Analyzing path " << pathNum << std::endl;
         ModuleCache mc(&pb, &m_library);
-        MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
 
-        md.lookForValue(MemoryValue);
+        //MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
+        //md.lookForValue(MemoryValue);
+
+        ExecutionDebugger ed(&m_binaries, &mc, &pb, logfile);
+
         pb.processPath(*pit);
         ++pathNum;
     }
