@@ -168,6 +168,11 @@ public:
     klee::Searcher *getSearcher() const {
         return searcher;
     }
+
+    /** Called on fork, used to trace forks */
+    StatePair fork(klee::ExecutionState &current,
+                   klee::ref<klee::Expr> condition, bool isInternal);
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,
@@ -219,9 +224,7 @@ protected:
         through wrappers. */
     bool copyInConcretes(klee::ExecutionState &state);
 
-    /** Called on fork, used to trace forks */
-    StatePair fork(klee::ExecutionState &current,
-                   klee::ref<klee::Expr> condition, bool isInternal);
+
 
     /** Called on branches, used to trace forks */
     void branch(klee::ExecutionState &state,

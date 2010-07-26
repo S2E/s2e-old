@@ -283,12 +283,6 @@ protected:
               const std::vector< ref<Expr> > &conditions,
               std::vector<ExecutionState*> &result);
 
-  // Fork current and return states in which condition holds / does
-  // not hold, respectively. One of the states is necessarily the
-  // current state, and one of the states may be null.
-  virtual StatePair fork(ExecutionState &current,
-                         ref<Expr> condition, bool isInternal);
-
   /// Add the given (boolean) condition as a constraint on state. This
   /// function is a wrapper around the state's addConstraint function
   /// which also manages manages propogation of implied values,
@@ -409,6 +403,11 @@ public:
     return *interpreterHandler;
   }
 
+  // Fork current and return states in which condition holds / does
+  // not hold, respectively. One of the states is necessarily the
+  // current state, and one of the states may be null.
+  virtual StatePair fork(ExecutionState &current,
+                         ref<Expr> condition, bool isInternal);
 
   // remove state from queue and delete
   virtual void terminateState(ExecutionState &state);

@@ -26,11 +26,15 @@ namespace plugins {
     void name(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal); \
     void name##Ret(S2EExecutionState* state)
 
+#define REGISTER_IMPORT(I, dll, name) \
+    registerImport(I, dll, #name, &NdisHandlers::name, state)
+
 class NdisHandlers : public Plugin
 {
     S2E_PLUGIN
 public:
     typedef std::set<std::string> StringSet;
+    typedef void (NdisHandlers::*FunctionHandler)( S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal );
 
     NdisHandlers(S2E* s2e): Plugin(s2e) {}
 
@@ -52,9 +56,20 @@ private:
             const ModuleDescriptor &module
             );
 
+    void registerImport(Imports &I, const std::string &dll, const std::string &name,
+                        FunctionHandler handler, S2EExecutionState *state);
+
+    //XXX: move this out to some other place
+    static bool bypassFunction(S2EExecutionState *s, unsigned paramCount);
+    static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
+
     DECLARE_NDIS_ENTRY_POINT(entryPoint);
 
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterMiniport);
+    DECLARE_NDIS_ENTRY_POINT(NdisAllocateMemory);
+    DECLARE_NDIS_ENTRY_POINT(RtlEqualUnicodeString);
+    DECLARE_NDIS_ENTRY_POINT(GetSystemUpTime);
+    DECLARE_NDIS_ENTRY_POINT(KeStallExecutionProcessor);
 
     DECLARE_NDIS_ENTRY_POINT(CheckForHang);
     DECLARE_NDIS_ENTRY_POINT(InitializeHandler);

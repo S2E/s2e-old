@@ -44,6 +44,7 @@ void StateManager::onNewBlockCovered(
         TranslationBlock *tb,
         uint64_t pc)
 {
+    s2e()->getDebugStream() << "New block " << std::hex << pc << " discovered" << std::endl;
     m_timerTicks = 0;
 }
 
@@ -53,6 +54,10 @@ void StateManager::onTimer()
     if (m_timerTicks < m_timeout) {
         return;
     }
+
+    s2e()->getDebugStream() << "No more blocks found in " <<
+            std::dec << m_timerTicks << " seconds, killing states."
+            << std::endl;
 
     if (!killAllButOneSuccessful()) {
         killAllButCurrent();
