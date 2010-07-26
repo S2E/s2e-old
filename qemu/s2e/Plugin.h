@@ -43,6 +43,10 @@ public:
 
     PluginState *getPluginState(S2EExecutionState *s, PluginState* (*f)(Plugin *, S2EExecutionState *)) const;
 
+    void refresh() {
+        m_CachedPluginS2EState = NULL;
+        m_CachedPluginState = NULL;
+    }
 };
 
 #define DECLARE_PLUGINSTATE(c, execstate) \

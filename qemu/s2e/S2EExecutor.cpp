@@ -15,6 +15,7 @@ uint64_t helper_set_cc_op_eflags(void);
 uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw);
 }
+#include <malloc.h>
 
 #include "S2EExecutor.h"
 #include <s2e/S2E.h>
@@ -2038,5 +2039,43 @@ void* s2e_tlb_fast_check_write(uintptr_t hostaddr, CPUSymbCache *ce, int size)
 
     //Trigger the slow path
     return NULL;
+}
+
+
+
+void *operator new(size_t s)
+{
+    void *ret = malloc(s);
+    if (!ret) {
+        throw std::bad_alloc();
+    }
+
+    memset(ret, 0xAA, s);
+    return ret;
+}
+
+void* operator new[](size_t s) {
+    void *ret = malloc(s);
+    if (!ret) {
+        throw std::bad_alloc();
+    }
+
+    memset(ret, 0xAA, s);
+    return ret;
+}
+
+
+
+void operator delete( void *pvMem )
+{
+   size_t s =  malloc_usable_size(pvMem);
+   memset(pvMem, 0xBB, s);
+   free(pvMem);
+}
+
+void operator delete[](void *pvMem) {
+    size_t s =  malloc_usable_size(pvMem);
+    memset(pvMem, 0xBB, s);
+    free(pvMem);
 }
 

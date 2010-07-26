@@ -9,7 +9,7 @@ extern "C" {
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
-#include <s2e/StateManager.h>
+
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
 #include <klee/Solver.h>
 
@@ -21,7 +21,8 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(NdisHandlers, "Basic collection of NDIS API functions.", "NdisHandlers",
-                  "FunctionMonitor", "WindowsMonitor", "ModuleExecutionDetector");
+                  "FunctionMonitor", "WindowsMonitor", "ModuleExecutionDetector", "StateManager");
+
 
 void NdisHandlers::initialize()
 {
@@ -31,6 +32,7 @@ void NdisHandlers::initialize()
     m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
     m_windowsMonitor = static_cast<WindowsMonitor*>(s2e()->getPlugin("WindowsMonitor"));
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
+    m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
 
     ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
     if (mods.size() == 0) {
@@ -100,6 +102,17 @@ void NdisHandlers::onModuleLoad(
 }
 
 
+bool NdisHandlers::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr)
+{
+    bool isTrue;
+    klee::ref<klee::Expr> eq = klee::SgeExpr::create(expr, klee::ConstantExpr::create(0, expr.get()->getWidth()));
+
+    if (s2e->getExecutor()->getSolver()->mustBeTrue(klee::Query(s->constraints, eq), isTrue)) {
+        return isTrue;
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::entryPoint(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
@@ -119,23 +132,17 @@ void NdisHandlers::entryPointRet(S2EExecutionState* state)
     //Check the success status
     klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
 
-    //XXX: do it better
-    klee::ref<klee::Expr> eq = klee::SgeExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
-    bool isTrue;
-    if (s2e()->getExecutor()->getSolver()->mustBeTrue(klee::Query(state->constraints, eq), isTrue)) {
-        if (!isTrue) {
-            s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
-                    " because EntryPoint failed with 0x" << std::hex << eax << std::endl;
-            s2e()->getExecutor()->terminateStateOnExit(*state);
-            return;
-        }
+    if (!NtSuccess(s2e(), state, eax)) {
+        s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
+                " because EntryPoint failed with 0x" << std::hex << eax << std::endl;
+        s2e()->getExecutor()->terminateStateOnExit(*state);
+        return;
     }
 
-    StateManager *mgr = StateManager::getManager(s2e());
-    mgr->succeededState(state);
 
-    if (mgr->empty()) {
-        mgr->killAllButOneSuccessful();
+    m_manager->succeededState(state);
+    if (m_manager->empty()) {
+        m_manager->killAllButOneSuccessful();
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -220,6 +227,22 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitor::
 void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    //Check the success status, kill if failure
+    klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
+
+    if (!NtSuccess(s2e(), state, eax)) {
+        s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
+                " because EntryPoint failed with 0x" << std::hex << eax << std::endl;
+        s2e()->getExecutor()->terminateStateOnExit(*state);
+        return;
+    }
+
+
+    m_manager->succeededState(state);
+    if (m_manager->empty()) {
+        m_manager->killAllButOneSuccessful();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -256,6 +279,10 @@ void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitor::Return
 void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    //There is nothing more to execute, kill the state
+    s2e()->getExecutor()->terminateStateOnExit(*state);
+
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
@@ -267,6 +294,11 @@ void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMoni
 void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    m_manager->succeededState(state);
+    if (m_manager->empty()) {
+        m_manager->killAllButOneSuccessful();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

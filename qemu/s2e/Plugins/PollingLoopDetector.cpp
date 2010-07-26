@@ -46,7 +46,7 @@ void PollingLoopDetector::onModuleLoad(
     const std::string *id = m_detector->getModuleId(module);
 
     if (!id) {
-        s2e()->getDebugStream() << "PollingLoopDetector could not figured out which "
+        s2e()->getDebugStream() << "PollingLoopDetector could not figure out which "
                 "module id was passed to onModuleLoad!" << std::endl;
         module.Print(s2e()->getDebugStream());
         return;

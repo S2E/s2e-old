@@ -42,9 +42,14 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
 S2EExecutionState::~S2EExecutionState()
 {
     PluginStateMap::iterator it;
-    for(it = m_PluginState.begin(); it != m_PluginState.end(); ++it)
+    g_s2e->getDebugStream() << "Deleting state " << std::dec <<
+            m_stateID << " 0x" << std::hex << this << std::endl;
+    for(it = m_PluginState.begin(); it != m_PluginState.end(); ++it) {
+        g_s2e->getDebugStream() << "Deleting state info 0x" << std::hex << it->second << std::endl;
         delete it->second;
+    }
 
+    g_s2e->refreshPlugins();
     delete m_deviceState;
     delete m_timersState;
 }
@@ -60,8 +65,9 @@ ExecutionState* S2EExecutionState::clone()
 
     //Clone the plugins
     PluginStateMap::iterator it;
-    for(it = ret->m_PluginState.begin(); it != ret->m_PluginState.end(); ++it) {
-        (*it).second = (*it).second->clone();
+    ret->m_PluginState.clear();
+    for(it = m_PluginState.begin(); it != m_PluginState.end(); ++it) {
+        ret->m_PluginState.insert(std::make_pair((*it).first, (*it).second->clone()));
     }
 
     return ret;

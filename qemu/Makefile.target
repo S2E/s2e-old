@@ -347,6 +347,7 @@ s2eobj-y += s2e/Plugins/PfProfiler.o
 s2eobj-y += s2e/Plugins/Debugger.o
 s2eobj-y += s2e/Plugins/SymbolicHardware.o
 s2eobj-y += s2e/Plugins/PollingLoopDetector.o
+s2eobj-y += s2e/Plugins/StateManager.o
 s2eobj-y += s2e/sqlite3.o
 s2eobj-y += s2e/Database.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o
@@ -356,7 +357,7 @@ s2eobj-y += s2e/S2EExecutor.o
 s2eobj-y += s2e/S2EExecutionState.o
 s2eobj-y += s2e/S2EDeviceState.o
 s2eobj-y += s2e/S2EStatsTracker.o
-s2eobj-y += s2e/StateManager.o
+
 s2eobj-y += s2e/S2E.o
 #s2eobj-y += s2e/Slab.o s2e/x64.o #XXX: should also fix for 32 bits archs.
 #s2eobj-y += s2e/Plugins/PluginInterface.o

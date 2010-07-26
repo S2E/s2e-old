@@ -155,6 +155,9 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
         std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
                 range = m_callDescriptors.equal_range((uint64_t)-1);
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+            if (m_plugin->m_monitor) {
+                cr3 = m_plugin->m_monitor->getPid(state, pc);
+            }
             if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
                 ReturnDescriptor descriptor = {cr3, FunctionMonitor::ReturnSignal() };
                 it->second.signal.emit(state, &descriptor.signal);
@@ -172,7 +175,10 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
 
         range = m_callDescriptors.equal_range(eip);
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-            if(it->second.cr3 == (uint64_t)0 || it->second.cr3 == cr3) {
+            if (m_plugin->m_monitor) {
+                cr3 = m_plugin->m_monitor->getPid(state, pc);
+            }
+            if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
                 ReturnDescriptor descriptor = { it->second.cr3 , FunctionMonitor::ReturnSignal() };
                 it->second.signal.emit(state, &descriptor.signal);
                 if(!descriptor.signal.empty()) {

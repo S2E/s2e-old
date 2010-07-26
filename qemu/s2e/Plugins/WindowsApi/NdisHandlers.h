@@ -10,12 +10,14 @@
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 
+#include <s2e/Plugins/StateManager.h>
+
 namespace s2e {
 namespace plugins {
 
 #define REGISTER_NDIS_ENTRY_POINT(cs, pc, name) \
     if (pc) {\
-        s2e()->getMessagesStream() << "Registering " # name << std::endl; \
+        s2e()->getMessagesStream() << "Registering " # name <<  " at 0x" << std::hex << pc << std::endl; \
         cs = m_functionMonitor->getCallSignal(state, pc, 0); \
         cs->connect(sigc::mem_fun(*this, &NdisHandlers::name)); \
     }
@@ -34,11 +36,13 @@ public:
 
     void initialize();
 
+    static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
 
 private:
     FunctionMonitor *m_functionMonitor;
     WindowsMonitor *m_windowsMonitor;
     ModuleExecutionDetector *m_detector;
+    StateManager *m_manager;
 
     //Modules we want to intercept
     StringSet m_modules;

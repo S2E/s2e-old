@@ -382,6 +382,13 @@ void S2E::printf(std::ostream &os, const char *fmt, ...)
     os << str;
 }
 
+void S2E::refreshPlugins()
+{
+    foreach2(it, m_activePluginsList.begin(), m_activePluginsList.end()) {
+        (*it)->refresh();
+    }
+}
+
 } // namespace s2e
 
 /******************************/

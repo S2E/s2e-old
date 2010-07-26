@@ -26,6 +26,7 @@
 #include <s2e/Plugins/Debugger.h>
 #include <s2e/Plugins/SymbolicHardware.h>
 #include <s2e/Plugins/PollingLoopDetector.h>
+#include <s2e/Plugins/StateManager.h>
 
 #include <s2e/Plugins/WindowsApi/NdisHandlers.h>
 
@@ -79,6 +80,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::PollingLoopDetector);
 
     __S2E_REGISTER_PLUGIN(plugins::NdisHandlers);
+    __S2E_REGISTER_PLUGIN(plugins::StateManager);
 
     __S2E_REGISTER_PLUGIN(plugins::Debugger);
     __S2E_REGISTER_PLUGIN(plugins::Example);
