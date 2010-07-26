@@ -35,6 +35,7 @@ public:
     ~PfProfiler();
 
     void process();
+    void icountStats();
 };
 
 }

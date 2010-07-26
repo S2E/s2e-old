@@ -2041,7 +2041,8 @@ void* s2e_tlb_fast_check_write(uintptr_t hostaddr, CPUSymbCache *ce, int size)
     return NULL;
 }
 
-
+#ifdef __linux__
+#warning Compiling with memory debugging support...
 
 void *operator new(size_t s)
 {
@@ -2079,3 +2080,4 @@ void operator delete[](void *pvMem) {
     free(pvMem);
 }
 
+#endif

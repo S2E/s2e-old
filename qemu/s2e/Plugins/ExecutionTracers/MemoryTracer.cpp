@@ -34,6 +34,7 @@ void MemoryTracer::initialize()
     m_timeTrigger = s2e()->getConfig()->getInt(getConfigKey() + ".timeTrigger");
     m_elapsedTics = 0;
 
+    m_monitorMemory = s2e()->getConfig()->getBool(getConfigKey() + ".monitorMemory");
     m_monitorPageFaults = s2e()->getConfig()->getBool(getConfigKey() + ".monitorPageFaults");
     m_monitorTlbMisses  = s2e()->getConfig()->getBool(getConfigKey() + ".monitorTlbMisses");
 
@@ -114,9 +115,11 @@ void MemoryTracer::onPageFault(S2EExecutionState *state, uint64_t addr, bool is_
 
 void MemoryTracer::enableTracing()
 {
-    s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling memory tracing" << std::endl;
-    s2e()->getCorePlugin()->onDataMemoryAccess.connect(
-            sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess));
+    if (m_monitorMemory) {
+        s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling memory tracing" << std::endl;
+        s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess));
+    }
 
     if (m_monitorPageFaults) {
         s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling page fault tracing" << std::endl;

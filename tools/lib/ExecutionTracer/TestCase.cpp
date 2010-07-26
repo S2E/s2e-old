@@ -39,6 +39,26 @@ void TestCase::onItem(unsigned traceIndex,
 
 }
 
+void TestCase::printInputsLine(std::ostream &os)
+{
+    if (!m_foundInputs) {
+        os << "No concrete inputs found in the trace. Make sure you used the TestCaseGenerator plugin.";
+        return;
+    }
+
+    ExecutionTraceTestCase::ConcreteInputs::iterator it;
+
+    for (it = m_inputs.begin(); it != m_inputs.end(); ++it) {
+        const ExecutionTraceTestCase::VarValuePair &vp = *it;
+        //os << vp.first << ": ";
+
+        for (unsigned i=0; i<vp.second.size(); ++i) {
+            os << std::hex << std::setw(2) << std::right << std::setfill('0') << (unsigned) vp.second[i] << ' ';
+        }
+
+    }
+}
+
 void TestCase::printInputs(std::ostream &os)
 {
     if (!m_foundInputs) {

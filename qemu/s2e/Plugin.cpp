@@ -22,7 +22,6 @@
 #include <s2e/Plugins/ExecutionTracers/InstructionCounter.h>
 #include <s2e/Plugins/ExecutionTracers/TranslationBlockTracer.h>
 #include <s2e/Plugins/CacheSim.h>
-#include <s2e/Plugins/PfProfiler.h>
 #include <s2e/Plugins/Debugger.h>
 #include <s2e/Plugins/SymbolicHardware.h>
 #include <s2e/Plugins/PollingLoopDetector.h>
@@ -68,7 +67,6 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);
-    __S2E_REGISTER_PLUGIN(plugins::PfProfiler);
     __S2E_REGISTER_PLUGIN(plugins::ExecutionTracer);
     __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);
     __S2E_REGISTER_PLUGIN(plugins::TestCaseGenerator);

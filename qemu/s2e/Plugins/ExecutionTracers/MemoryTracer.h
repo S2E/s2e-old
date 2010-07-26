@@ -22,6 +22,7 @@ public:
 private:
     bool m_monitorPageFaults;
     bool m_monitorTlbMisses;
+    bool m_monitorMemory;
 
     bool m_monitorStack;
     uint64_t m_catchAbove;

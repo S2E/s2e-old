@@ -42,12 +42,16 @@ std::vector<std::string> ModList;
 cl::opt<std::string>
         AnaType("type", cl::desc("Type of analysis (cache/icount)"), cl::init("cache"));
 
-cl::opt<std::bool>
-        TerminatedPaths("termpath", cl::desc("Show paths that have a test case"), cl::init(""));
+cl::opt<bool>
+        TerminatedPaths("termpath", cl::desc("Show paths that have a test case"), cl::init(true));
 
 
 cl::opt<std::string>
         OutFile("outfile", cl::desc("Output file"), cl::init("stats.dat"));
+
+cl::opt<std::string>
+        OutDir("outdir", cl::desc("Output directory"), cl::init("."));
+
 
 cl::opt<unsigned>
         CPMinMissCountFilter("cpminmisscount", cl::desc("CacheProfiler: minimum miss count to report"),
@@ -117,6 +121,45 @@ void PfProfiler::processCallItem(unsigned traceIndex,
 
 
 
+}
+
+void PfProfiler::icountStats()
+{
+    std::ofstream statsFile;
+    std::string sFile = OutDir + "/icount.stats";
+    statsFile.open(sFile.c_str());
+
+    statsFile << "#Each line represents execution path" << std::endl <<
+            "#The count represents takes into account all the modules analyzed during symbex" << std::endl;
+
+    if (TerminatedPaths) {
+        statsFile << "#This report shows data for paths that generated a test case" << std::endl;
+    }
+
+    statsFile << "#NumInstructions" << std::endl;
+
+
+    ExecutionPaths paths;
+    PathBuilder pb(&m_Parser);
+    m_Parser.parse(m_FileName);
+
+    pb.enumeratePaths(paths);
+
+
+    ExecutionPaths::iterator pit;
+    for(pit = paths.begin(); pit != paths.end(); ++pit) {
+        TestCase tc(&pb);
+        InstructionCounter ic(&pb);
+
+        pb.processPath(*pit);
+        if (TerminatedPaths && !tc.hasInputs()) {
+            continue;
+        }
+
+        statsFile << std::dec << ic.getCount() << "\t";
+        tc.printInputsLine(statsFile);
+        statsFile << std::endl;
+    }
 }
 
 void PfProfiler::process()
@@ -237,10 +280,12 @@ int main(int argc, char **argv)
     if (AnaType == "cache") {
        PfProfiler pf(TraceFile.getValue());
        pf.process();
-    }/*else if (AnaType == "icount") {
-       InstructionCounter ic();
-       ic.process();
-    }*/
+    }else if (AnaType == "icount") {
+       PfProfiler pf(TraceFile.getValue());
+       pf.icountStats();
+   }else {
+       std::cout << "Unknown analysis type " << AnaType << std::endl;
+   }
 
     return 0;
 }

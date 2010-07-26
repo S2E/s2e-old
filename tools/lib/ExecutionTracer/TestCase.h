@@ -22,7 +22,11 @@ public:
     ~TestCase();
 
     bool getInputs(const s2e::plugins::ExecutionTraceTestCase::ConcreteInputs &out) const;
+    bool hasInputs() const {
+        return m_foundInputs;
+    }
     void printInputs(std::ostream &os);
+    void printInputsLine(std::ostream &os);
 };
 
 }
