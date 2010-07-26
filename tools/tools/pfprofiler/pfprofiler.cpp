@@ -39,6 +39,12 @@ cl::opt<std::string>
         ModListRaw("modlist", cl::desc("Display debug info for the specified modules (all when empty)"), cl::init(""));
 std::vector<std::string> ModList;
 
+cl::opt<std::string>
+        AnaType("type", cl::desc("Type of analysis (cache/icount)"), cl::init("cache"));
+
+cl::opt<std::bool>
+        TerminatedPaths("termpath", cl::desc("Show paths that have a test case"), cl::init(""));
+
 
 cl::opt<std::string>
         OutFile("outfile", cl::desc("Output file"), cl::init("stats.dat"));
@@ -228,9 +234,13 @@ int main(int argc, char **argv)
 
     ModList = split(ModListRaw);
 
-
-    PfProfiler pf(TraceFile.getValue());
-    pf.process();
+    if (AnaType == "cache") {
+       PfProfiler pf(TraceFile.getValue());
+       pf.process();
+    }/*else if (AnaType == "icount") {
+       InstructionCounter ic();
+       ic.process();
+    }*/
 
     return 0;
 }
