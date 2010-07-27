@@ -13,6 +13,7 @@
 #include <lib/ExecutionTracer/ModuleParser.h>
 #include <lib/ExecutionTracer/Path.h>
 #include <lib/ExecutionTracer/TestCase.h>
+#include <lib/ExecutionTracer/PageFault.h>
 #include <lib/ExecutionTracer/InstructionCounter.h>
 #include <lib/BinaryReaders/BFDInterface.h>
 
@@ -40,7 +41,7 @@ cl::opt<std::string>
 std::vector<std::string> ModList;
 
 cl::opt<std::string>
-        AnaType("type", cl::desc("Type of analysis (cache/icount)"), cl::init("cache"));
+        AnaType("type", cl::desc("Type of analysis (cache/icount/pf)"), cl::init("cache"));
 
 cl::opt<bool>
         TerminatedPaths("termpath", cl::desc("Show paths that have a test case"), cl::init(true));
@@ -120,6 +121,51 @@ void PfProfiler::processCallItem(unsigned traceIndex,
     std::cout << std::endl;
 
 
+
+}
+
+void PfProfiler::pageFaults()
+{
+    std::ofstream statsFile;
+    std::string sFile = OutDir + "/pagefaults.stats";
+    statsFile.open(sFile.c_str());
+
+    if (TerminatedPaths) {
+        statsFile << "#This report shows data for paths that generated a test case" << std::endl;
+    }
+
+    if (CPFilterModule.size() > 0) {
+        statsFile << "#Showing data for module " << CPFilterModule << std::endl;
+    }
+
+    statsFile << "#PageFaults TlbMisses" << std::endl;
+
+    ExecutionPaths paths;
+    PathBuilder pb(&m_Parser);
+    m_Parser.parse(m_FileName);
+
+    pb.enumeratePaths(paths);
+
+
+    ExecutionPaths::iterator pit;
+    for(pit = paths.begin(); pit != paths.end(); ++pit) {
+        TestCase tc(&pb);
+        ModuleCache mc(&pb, &m_Library);
+        PageFault pf(&pb, &mc);
+
+         if (CPFilterModule.size() > 0) {
+             pf.setModule(CPFilterModule);
+         }
+
+        pb.processPath(*pit);
+        if (TerminatedPaths && !tc.hasInputs()) {
+            continue;
+        }
+
+        statsFile << std::dec << pf.getPageFaults() << "\t";
+        statsFile << pf.getTlbMisses();
+        statsFile << std::endl;
+    }
 
 }
 
@@ -283,6 +329,9 @@ int main(int argc, char **argv)
     }else if (AnaType == "icount") {
        PfProfiler pf(TraceFile.getValue());
        pf.icountStats();
+   }else  if (AnaType == "pf") {
+       PfProfiler pf(TraceFile.getValue());
+       pf.pageFaults();
    }else {
        std::cout << "Unknown analysis type " << AnaType << std::endl;
    }
