@@ -15,12 +15,16 @@
 #include "android/globals.h"
 #include "android/qemulator.h"
 #include "android/ui-core-protocol.h"
+#include "user-events.h"
 
 #define  D(...)  do {  if (VERBOSE_CHECK(init)) dprint(__VA_ARGS__); } while (0)
 static double get_default_scale( AndroidOptions*  opts );
 
 /* QEmulator structure instance. */
 static QEmulator   qemulator[1];
+
+static void handle_key_command( void*  opaque, SkinKeyCommand  command, int  param );
+static void qemulator_refresh(QEmulator* emulator);
 
 static void
 qemulator_light_brightness( void* opaque, const char*  light, int  value )
@@ -98,9 +102,16 @@ qemulator_fb_update( void*   _emulator, int  x, int  y, int  w, int  h )
 static void
 qemulator_fb_rotate( void*  _emulator, int  rotation )
 {
-    QEmulator*     emulator = _emulator;
+    QEmulator*  emulator = _emulator;
 
     qemulator_setup( emulator );
+}
+
+static void
+qemulator_fb_poll( void* _emulator )
+{
+    QEmulator* emulator = _emulator;
+    qemulator_refresh(emulator);
 }
 
 QEmulator*
@@ -141,12 +152,17 @@ qemulator_init( QEmulator*       emulator,
         SkinDisplay*  disp = part->display;
         if (disp->valid) {
             qframebuffer_add_client( disp->qfbuff,
-                                        emulator,
-                                        qemulator_fb_update,
-                                        qemulator_fb_rotate,
-                                        NULL );
+                                     emulator,
+                                     qemulator_fb_update,
+                                     qemulator_fb_rotate,
+                                     qemulator_fb_poll,
+                                     NULL );
         }
     SKIN_FILE_LOOP_END_PARTS
+
+    skin_keyboard_enable( emulator->keyboard, 1 );
+    skin_keyboard_on_command( emulator->keyboard, handle_key_command, emulator );
+
     return 0;
 }
 
@@ -299,6 +315,260 @@ get_default_scale( AndroidOptions*  opts )
         scale = 1.0;
 
     return scale;
+}
+
+/* used to respond to a given keyboard command shortcut
+ */
+static void
+handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
+{
+    static const struct { SkinKeyCommand  cmd; AndroidKeyCode  kcode; }  keycodes[] =
+    {
+        { SKIN_KEY_COMMAND_BUTTON_CALL,   kKeyCodeCall },
+        { SKIN_KEY_COMMAND_BUTTON_HOME,   kKeyCodeHome },
+        { SKIN_KEY_COMMAND_BUTTON_BACK,   kKeyCodeBack },
+        { SKIN_KEY_COMMAND_BUTTON_HANGUP, kKeyCodeEndCall },
+        { SKIN_KEY_COMMAND_BUTTON_POWER,  kKeyCodePower },
+        { SKIN_KEY_COMMAND_BUTTON_SEARCH,      kKeyCodeSearch },
+        { SKIN_KEY_COMMAND_BUTTON_MENU,        kKeyCodeMenu },
+        { SKIN_KEY_COMMAND_BUTTON_DPAD_UP,     kKeyCodeDpadUp },
+        { SKIN_KEY_COMMAND_BUTTON_DPAD_LEFT,   kKeyCodeDpadLeft },
+        { SKIN_KEY_COMMAND_BUTTON_DPAD_RIGHT,  kKeyCodeDpadRight },
+        { SKIN_KEY_COMMAND_BUTTON_DPAD_DOWN,   kKeyCodeDpadDown },
+        { SKIN_KEY_COMMAND_BUTTON_DPAD_CENTER, kKeyCodeDpadCenter },
+        { SKIN_KEY_COMMAND_BUTTON_VOLUME_UP,   kKeyCodeVolumeUp },
+        { SKIN_KEY_COMMAND_BUTTON_VOLUME_DOWN, kKeyCodeVolumeDown },
+        { SKIN_KEY_COMMAND_BUTTON_CAMERA,      kKeyCodeCamera },
+        { SKIN_KEY_COMMAND_NONE, 0 }
+    };
+    int          nn;
+#ifdef CONFIG_TRACE
+    static int   tracing = 0;
+#endif
+    QEmulator*   emulator = opaque;
+
+
+    for (nn = 0; keycodes[nn].kcode != 0; nn++) {
+        if (command == keycodes[nn].cmd) {
+            unsigned  code = keycodes[nn].kcode;
+            if (down)
+                code |= 0x200;
+            user_event_keycode( code );
+            return;
+        }
+    }
+
+    // for the show-trackball command, handle down events to enable, and
+    // up events to disable
+    if (command == SKIN_KEY_COMMAND_SHOW_TRACKBALL) {
+        emulator->show_trackball = (down != 0);
+        skin_window_show_trackball( emulator->window, emulator->show_trackball );
+        //qemulator_set_title( emulator );
+        return;
+    }
+
+    // only handle down events for the rest
+    if (down == 0)
+        return;
+
+    switch (command)
+    {
+    case SKIN_KEY_COMMAND_TOGGLE_NETWORK:
+        {
+            qemu_net_disable = !qemu_net_disable;
+            android_core_set_network_enabled(!qemu_net_disable);
+            D( "network is now %s", qemu_net_disable ? "disconnected" : "connected" );
+        }
+        break;
+
+    case SKIN_KEY_COMMAND_TOGGLE_FULLSCREEN:
+        if (emulator->window) {
+            skin_window_toggle_fullscreen(emulator->window);
+        }
+        break;
+
+    case SKIN_KEY_COMMAND_TOGGLE_TRACING:
+        {
+#ifdef CONFIG_TRACE
+            tracing = !tracing;
+            if (tracing)
+                android_core_tracing_start();
+            else
+                android_core_tracing_stop();
+#endif
+        }
+        break;
+
+    case SKIN_KEY_COMMAND_TOGGLE_TRACKBALL:
+        emulator->show_trackball = !emulator->show_trackball;
+        skin_window_show_trackball( emulator->window, emulator->show_trackball );
+        qemulator_set_title(emulator);
+        break;
+
+    case SKIN_KEY_COMMAND_ONION_ALPHA_UP:
+    case SKIN_KEY_COMMAND_ONION_ALPHA_DOWN:
+        if (emulator->onion)
+        {
+            int  alpha = emulator->onion_alpha;
+
+            if (command == SKIN_KEY_COMMAND_ONION_ALPHA_UP)
+                alpha += 16;
+            else
+                alpha -= 16;
+
+            if (alpha > 256)
+                alpha = 256;
+            else if (alpha < 0)
+                alpha = 0;
+
+            emulator->onion_alpha = alpha;
+            skin_window_set_onion( emulator->window, emulator->onion, emulator->onion_rotation, alpha );
+            skin_window_redraw( emulator->window, NULL );
+            //dprint( "onion alpha set to %d (%.f %%)", alpha, alpha/2.56 );
+        }
+        break;
+
+    case SKIN_KEY_COMMAND_CHANGE_LAYOUT_PREV:
+    case SKIN_KEY_COMMAND_CHANGE_LAYOUT_NEXT:
+        {
+            SkinLayout*  layout = NULL;
+
+            if (command == SKIN_KEY_COMMAND_CHANGE_LAYOUT_NEXT) {
+                layout = emulator->layout->next;
+                if (layout == NULL)
+                    layout = emulator->layout_file->layouts;
+            }
+            else if (command == SKIN_KEY_COMMAND_CHANGE_LAYOUT_PREV) {
+                layout = emulator->layout_file->layouts;
+                while (layout->next && layout->next != emulator->layout)
+                    layout = layout->next;
+            }
+            if (layout != NULL) {
+                SkinRotation  rotation;
+
+                emulator->layout = layout;
+                skin_window_reset( emulator->window, layout );
+
+                rotation = skin_layout_get_dpad_rotation( layout );
+
+                if (emulator->keyboard)
+                    skin_keyboard_set_rotation( emulator->keyboard, rotation );
+
+                if (emulator->trackball) {
+                    skin_trackball_set_rotation( emulator->trackball, rotation );
+                    skin_window_set_trackball( emulator->window, emulator->trackball );
+                    skin_window_show_trackball( emulator->window, emulator->show_trackball );
+                }
+
+                skin_window_set_lcd_brightness( emulator->window, emulator->lcd_brightness );
+
+                qframebuffer_invalidate_all();
+                qframebuffer_check_updates();
+            }
+        }
+        break;
+
+    default:
+        /* XXX: TODO ? */
+        ;
+    }
+}
+
+/* called periodically to poll for user input events */
+static void qemulator_refresh(QEmulator* emulator)
+{
+    SDL_Event      ev;
+    SkinWindow*    window   = emulator->window;
+    SkinKeyboard*  keyboard = emulator->keyboard;
+
+   /* this will eventually call sdl_update if the content of the VGA framebuffer
+    * has changed */
+    qframebuffer_check_updates();
+
+    if (window == NULL)
+        return;
+
+    while(SDL_PollEvent(&ev)){
+        switch(ev.type){
+        case SDL_VIDEOEXPOSE:
+            skin_window_redraw( window, NULL );
+            break;
+
+        case SDL_KEYDOWN:
+#ifdef _WIN32
+            /* special code to deal with Alt-F4 properly */
+            if (ev.key.keysym.sym == SDLK_F4 &&
+                ev.key.keysym.mod & KMOD_ALT) {
+              goto CleanExit;
+            }
+#endif
+#ifdef __APPLE__
+            /* special code to deal with Command-Q properly */
+            if (ev.key.keysym.sym == SDLK_q &&
+                ev.key.keysym.mod & KMOD_META) {
+              goto CleanExit;
+            }
+#endif
+            skin_keyboard_process_event( keyboard, &ev, 1 );
+            break;
+
+        case SDL_KEYUP:
+            skin_keyboard_process_event( keyboard, &ev, 0 );
+            break;
+
+        case SDL_MOUSEMOTION:
+            skin_window_process_event( window, &ev );
+            break;
+
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+            {
+                int  down = (ev.type == SDL_MOUSEBUTTONDOWN);
+                if (ev.button.button == 4)
+                {
+                    /* scroll-wheel simulates DPad up */
+                    AndroidKeyCode  kcode;
+
+                    kcode = // qemulator_rotate_keycode(kKeyCodeDpadUp);
+                        android_keycode_rotate(kKeyCodeDpadUp,
+                            skin_layout_get_dpad_rotation(qemulator_get_layout(qemulator_get())));
+                    user_event_key( kcode, down );
+                }
+                else if (ev.button.button == 5)
+                {
+                    /* scroll-wheel simulates DPad down */
+                    AndroidKeyCode  kcode;
+
+                    kcode = // qemulator_rotate_keycode(kKeyCodeDpadDown);
+                        android_keycode_rotate(kKeyCodeDpadDown,
+                            skin_layout_get_dpad_rotation(qemulator_get_layout(qemulator_get())));
+                    user_event_key( kcode, down );
+                }
+                else if (ev.button.button == SDL_BUTTON_LEFT) {
+                    skin_window_process_event( window, &ev );
+                }
+#if 0
+                else {
+                fprintf(stderr, "... mouse button %s: button=%d state=%04x x=%d y=%d\n",
+                                down ? "down" : "up  ",
+                                ev.button.button, ev.button.state, ev.button.x, ev.button.y);
+                }
+#endif
+            }
+            break;
+
+        case SDL_QUIT:
+#if defined _WIN32 || defined __APPLE__
+        CleanExit:
+#endif
+            /* only save emulator config through clean exit */
+            qemulator_done(qemulator_get());
+            qemu_system_shutdown_request();
+            return;
+        }
+    }
+
+    skin_keyboard_flush( keyboard );
 }
 
 /*

@@ -102,7 +102,7 @@ static void enqueue_event(events_state *s, unsigned int type, unsigned int code,
         return;
     }
 
-    if(s->first == s->last){
+    if(s->first == s->last) {
         qemu_irq_raise(s->irq);
     }
 

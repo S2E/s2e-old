@@ -23,6 +23,8 @@
 #include "android/globals.h"
 #include "android/hw-control.h"
 #include "android/ui-core-protocol.h"
+#include "telephony/modem_driver.h"
+#include "trace.h"
 
 int
 android_core_get_hw_lcd_density(void)
@@ -45,3 +47,25 @@ android_core_get_base_port(void)
 {
     return android_base_port;
 }
+
+void
+android_core_set_network_enabled(int enabled)
+{
+    if (android_modem) {
+        amodem_set_data_registration(
+                android_modem,
+        qemu_net_disable ? A_REGISTRATION_UNREGISTERED
+            : A_REGISTRATION_HOME);
+    }
+}
+
+void android_core_tracing_start(void)
+{
+    start_tracing();
+}
+
+void android_core_tracing_stop(void)
+{
+    stop_tracing();
+}
+

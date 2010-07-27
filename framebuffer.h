@@ -106,6 +106,13 @@ typedef void (*QFrameBufferUpdateFunc)( void*  opaque, int  x, int  y,
  */
 typedef void (*QFrameBufferRotateFunc)( void*  opaque, int  rotation );
 
+/* the Client::Poll method is called periodically to poll for input
+ * events and act on them. Putting this here is not 100% pure but
+ * make things simpler due to QEMU's weird architecture where the
+ * GUI timer drivers event polling.
+ */
+typedef void (*QFrameBufferPollFunc)( void* opaque );
+
 /* the Client::Done func tells a client that a framebuffer object was freed.
  * no more reference to its pixels should be done.
  */
@@ -121,6 +128,7 @@ qframebuffer_add_client( QFrameBuffer*           qfbuff,
                          void*                   fb_opaque,
                          QFrameBufferUpdateFunc  fb_update,
                          QFrameBufferRotateFunc  fb_rotate,
+                         QFrameBufferPollFunc    fb_poll,
                          QFrameBufferDoneFunc    fb_done );
 
 /* Producer::CheckUpdate is called to let the producer check the
@@ -160,6 +168,9 @@ qframebuffer_update( QFrameBuffer*  qfbuff, int  x, int  y, int  w, int  h );
  */
 extern void
 qframebuffer_rotate( QFrameBuffer*  qfbuff, int  rotation );
+
+extern void
+qframebuffer_poll( QFrameBuffer* qfbuff );
 
 /* finalize a framebuffer, release its pixel buffer. Should be called
  * from the framebuffer object's owner

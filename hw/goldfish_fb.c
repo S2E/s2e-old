@@ -12,7 +12,7 @@
 #include "qemu_file.h"
 #include "android/android.h"
 #include "goldfish_device.h"
-#include "framebuffer.h"
+#include "console.h"
 
 enum {
     FB_GET_WIDTH        = 0x00,
@@ -31,7 +31,7 @@ enum {
 
 struct goldfish_fb_state {
     struct goldfish_device dev;
-    QFrameBuffer*  qfbuff;
+    DisplayState*  ds;
     uint32_t fb_base;
     uint32_t base_valid : 1;
     uint32_t need_update : 1;
@@ -41,20 +41,21 @@ struct goldfish_fb_state {
     uint32_t int_status;
     uint32_t int_enable;
     int      rotation;   /* 0, 1, 2 or 3 */
+    int      dpi;
 };
 
-#define  GOLDFISH_FB_SAVE_VERSION  1
+#define  GOLDFISH_FB_SAVE_VERSION  2
 
 static void goldfish_fb_save(QEMUFile*  f, void*  opaque)
 {
     struct goldfish_fb_state*  s = opaque;
 
-    QFrameBuffer*  q = s->qfbuff;
+    DisplayState*  ds = s->ds;
 
-    qemu_put_be32(f, q->width);
-    qemu_put_be32(f, q->height);
-    qemu_put_be32(f, q->pitch);
-    qemu_put_byte(f, q->rotation);
+    qemu_put_be32(f, ds->surface->width);
+    qemu_put_be32(f, ds->surface->height);
+    qemu_put_be32(f, ds->surface->linesize);
+    qemu_put_byte(f, 0);
 
     qemu_put_be32(f, s->fb_base);
     qemu_put_byte(f, s->base_valid);
@@ -65,13 +66,12 @@ static void goldfish_fb_save(QEMUFile*  f, void*  opaque)
     qemu_put_be32(f, s->int_status);
     qemu_put_be32(f, s->int_enable);
     qemu_put_be32(f, s->rotation);
+    qemu_put_be32(f, s->dpi);
 }
 
 static int  goldfish_fb_load(QEMUFile*  f, void*  opaque, int  version_id)
 {
     struct goldfish_fb_state*  s   = opaque;
-
-    QFrameBuffer*              q   = s->qfbuff;
     int                        ret = -1;
     int                        ds_w, ds_h, ds_pitch, ds_rot;
 
@@ -83,10 +83,12 @@ static int  goldfish_fb_load(QEMUFile*  f, void*  opaque, int  version_id)
     ds_pitch = qemu_get_be32(f);
     ds_rot   = qemu_get_byte(f);
 
-    if (q->width != ds_w      ||
-        q->height != ds_h     ||
-        q->pitch != ds_pitch  ||
-        q->rotation != ds_rot )
+    DisplayState*  ds = s->ds;
+
+    if (ds->surface->width != ds_w ||
+        ds->surface->height != ds_h ||
+        ds->surface->linesize != ds_pitch ||
+        ds_rot != 0)
     {
         /* XXX: We should be able to force a resize/rotation from here ? */
         fprintf(stderr, "%s: framebuffer dimensions mismatch\n", __FUNCTION__);
@@ -102,6 +104,7 @@ static int  goldfish_fb_load(QEMUFile*  f, void*  opaque, int  version_id)
     s->int_status   = qemu_get_be32(f);
     s->int_enable   = qemu_get_be32(f);
     s->rotation     = qemu_get_be32(f);
+    s->dpi          = qemu_get_be32(f);
 
     /* force a refresh */
     s->need_update = 1;
@@ -109,6 +112,17 @@ static int  goldfish_fb_load(QEMUFile*  f, void*  opaque, int  version_id)
     ret = 0;
 Exit:
     return ret;
+}
+
+static int
+pixels_to_mm(int  pixels, int dpi)
+{
+    /* dpi = dots / inch
+    ** inch = dots / dpi
+    ** mm / 25.4 = dots / dpi
+    ** mm = (dots * 25.4)/dpi
+    */
+    return (int)(0.5 + 25.4 * pixels  / dpi);
 }
 
 
@@ -156,10 +170,11 @@ static void goldfish_fb_update_display(void *opaque)
     }
 
     src_line  = qemu_get_ram_ptr( base );
-    dst_line  = s->qfbuff->pixels;
-    pitch     = s->qfbuff->pitch;
-    width     = s->qfbuff->width;
-    height    = s->qfbuff->height;
+
+    dst_line  = s->ds->surface->data;
+    pitch     = s->ds->surface->linesize;
+    width     = s->ds->surface->width;
+    height    = s->ds->surface->height;
 
 #if STATS
     if (full_update)
@@ -272,7 +287,7 @@ static void goldfish_fb_update_display(void *opaque)
                                     base + y_last * width * 2,
                                     VGA_DIRTY_FLAG);
 
-    qframebuffer_update( s->qfbuff, 0, y_first, width, y_last-y_first );
+    dpy_update(s->ds, 0, y_first, width, y_last-y_first);
 }
 
 static void goldfish_fb_invalidate_display(void * opaque)
@@ -282,12 +297,6 @@ static void goldfish_fb_invalidate_display(void * opaque)
     s->need_update = 1;
 }
 
-static void  goldfish_fb_detach_display(void*  opaque)
-{
-    struct goldfish_fb_state *s = (struct goldfish_fb_state *)opaque;
-    s->qfbuff = NULL;
-}
-
 static uint32_t goldfish_fb_read(void *opaque, target_phys_addr_t offset)
 {
     uint32_t ret;
@@ -295,12 +304,12 @@ static uint32_t goldfish_fb_read(void *opaque, target_phys_addr_t offset)
 
     switch(offset) {
         case FB_GET_WIDTH:
-            ret = s->qfbuff->width;
+            ret = ds_get_width(s->ds);
             //printf("FB_GET_WIDTH => %d\n", ret);
             return ret;
 
         case FB_GET_HEIGHT:
-            ret = s->qfbuff->height;
+            ret = ds_get_height(s->ds);
             //printf( "FB_GET_HEIGHT = %d\n", ret);
             return ret;
 
@@ -313,12 +322,12 @@ static uint32_t goldfish_fb_read(void *opaque, target_phys_addr_t offset)
             return ret;
 
         case FB_GET_PHYS_WIDTH:
-            ret = s->qfbuff->phys_width_mm;
+            ret = pixels_to_mm( ds_get_width(s->ds), s->dpi );
             //printf( "FB_GET_PHYS_WIDTH => %d\n", ret );
             return ret;
 
         case FB_GET_PHYS_HEIGHT:
-            ret = s->qfbuff->phys_height_mm;
+            ret = pixels_to_mm( ds_get_height(s->ds), s->dpi );
             //printf( "FB_GET_PHYS_HEIGHT => %d\n", ret );
             return ret;
 
@@ -353,7 +362,7 @@ static void goldfish_fb_write(void *opaque, target_phys_addr_t offset,
             goldfish_device_set_irq(&s->dev, 0, (s->int_status & s->int_enable));
             if (need_resize) {
                 //printf("FB_SET_BASE: need resize (rotation=%d)\n", s->rotation );
-                qframebuffer_rotate( s->qfbuff, s->rotation );
+                dpy_resize(s->ds);
             }
             } break;
         case FB_SET_ROTATION:
@@ -381,7 +390,7 @@ static CPUWriteMemoryFunc *goldfish_fb_writefn[] = {
    goldfish_fb_write
 };
 
-void goldfish_fb_init(DisplayState *ds, int id)
+void goldfish_fb_init(int id)
 {
     struct goldfish_fb_state *s;
 
@@ -391,15 +400,16 @@ void goldfish_fb_init(DisplayState *ds, int id)
     s->dev.size = 0x1000;
     s->dev.irq_count = 1;
 
-    s->qfbuff = qframebuffer_fifo_get();
-    qframebuffer_set_producer( s->qfbuff, s,
-                               goldfish_fb_update_display,
-                               goldfish_fb_invalidate_display,
-                               goldfish_fb_detach_display );
+    s->ds = graphic_console_init(goldfish_fb_update_display,
+                                 goldfish_fb_invalidate_display,
+                                 NULL,
+                                 NULL,
+                                 s);
+
+    s->dpi = 165;  /* XXX: Find better way to get actual value ! */
 
     goldfish_device_add(&s->dev, goldfish_fb_readfn, goldfish_fb_writefn, s);
 
     register_savevm( "goldfish_fb", 0, GOLDFISH_FB_SAVE_VERSION,
                      goldfish_fb_save, goldfish_fb_load, s);
 }
-

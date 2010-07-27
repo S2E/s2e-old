@@ -632,6 +632,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     bt-vhci.c \
                     module.c \
                     android/boot-properties.c \
+                    android/display.c \
                     android/hw-kmsg.c \
                     android/hw-lcd.c \
                     android/gps.c \

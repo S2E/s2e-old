@@ -40,4 +40,11 @@ void android_core_set_brightness_change_callback(AndroidHwLightBrightnessCallbac
 /* Returns base port assigned for the emulated system. */
 int android_core_get_base_port(void);
 
+/* Sets/toggles the network state */
+void android_core_set_network_enabled(int enabled);
+
+/* Start/stop tracing in the guest system */
+void android_core_tracing_start(void);
+void android_core_tracing_stop(void);
+
 #endif  // QEMU_ANDROID_UI_CORE_PROTOCOL_H

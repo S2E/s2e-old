@@ -19,6 +19,7 @@ typedef struct {
     void*                        fb_opaque;
     QFrameBufferUpdateFunc       fb_update;
     QFrameBufferRotateFunc       fb_rotate;
+    QFrameBufferPollFunc         fb_poll;
     QFrameBufferDoneFunc         fb_done;
 
     void*                        pr_opaque;
@@ -122,6 +123,7 @@ qframebuffer_add_client( QFrameBuffer*           qfbuff,
                          void*                   fb_opaque,
                          QFrameBufferUpdateFunc  fb_update,
                          QFrameBufferRotateFunc  fb_rotate,
+                         QFrameBufferPollFunc    fb_poll,
                          QFrameBufferDoneFunc    fb_done )
 {
     QFrameBufferExtra*  extra = qfbuff->extra;
@@ -129,6 +131,7 @@ qframebuffer_add_client( QFrameBuffer*           qfbuff,
     extra->fb_opaque = fb_opaque;
     extra->fb_update = fb_update;
     extra->fb_rotate = fb_rotate;
+    extra->fb_poll   = fb_poll;
     extra->fb_done   = fb_done;
 }
 
@@ -168,6 +171,15 @@ qframebuffer_rotate( QFrameBuffer*  qfbuff, int  rotation )
 
     if (extra->fb_rotate)
         extra->fb_rotate( extra->fb_opaque, rotation );
+}
+
+void
+qframebuffer_poll( QFrameBuffer* qfbuff )
+{
+    QFrameBufferExtra*  extra = qfbuff->extra;
+
+    if (extra->fb_poll)
+        extra->fb_poll( extra->fb_opaque );
 }
 
 

@@ -70,7 +70,6 @@ static void android_arm_init_(ram_addr_t ram_size,
     int i;
     struct arm_boot_info  info;
     ram_addr_t ram_offset;
-    DisplayState*  ds = get_displaystate();
 
     if (!cpu_model)
         cpu_model = "arm926";
@@ -116,7 +115,7 @@ static void android_arm_init_(ram_addr_t ram_size,
         }
     }
 
-    goldfish_fb_init(ds, 0);
+    goldfish_fb_init(0);
 #ifdef HAS_AUDIO
     goldfish_audio_init(0xff004000, 0, audio_input_source);
 #endif
