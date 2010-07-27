@@ -131,7 +131,7 @@ FunctionMonitor::CallSignal* FunctionMonitorState::getCallSignal(
 
     CallDescriptor descriptor = { cr3, FunctionMonitor::CallSignal() };
     CallDescriptorsMap::iterator it =
-            m_callDescriptors.insert(std::make_pair(eip, descriptor));
+            m_newCallDescriptors.insert(std::make_pair(eip, descriptor));
     return &it->second.signal;
 }
 
@@ -150,21 +150,31 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
         return;
     }
 
+    if (!m_newCallDescriptors.empty()) {
+        m_callDescriptors.insert(m_newCallDescriptors.begin(), m_newCallDescriptors.end());
+        m_newCallDescriptors.clear();
+    }
+
     /* Issue signals attached to all calls (eip==-1 means catch-all) */
     if (!m_callDescriptors.empty()) {
         std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
                 range = m_callDescriptors.equal_range((uint64_t)-1);
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+            CallDescriptor cd = (*it).second;
             if (m_plugin->m_monitor) {
                 cr3 = m_plugin->m_monitor->getPid(state, pc);
             }
             if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
                 ReturnDescriptor descriptor = {cr3, FunctionMonitor::ReturnSignal() };
-                it->second.signal.emit(state, &descriptor.signal);
+                cd.signal.emit(state, &descriptor.signal);
                 if(!descriptor.signal.empty()) {
                     m_returnDescriptors.insert(std::make_pair(esp, descriptor));
                 }
             }
+        }
+        if (!m_newCallDescriptors.empty()) {
+            m_callDescriptors.insert(m_newCallDescriptors.begin(), m_newCallDescriptors.end());
+            m_newCallDescriptors.clear();
         }
     }
 
@@ -175,16 +185,21 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
 
         range = m_callDescriptors.equal_range(eip);
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+            CallDescriptor cd = (*it).second;
             if (m_plugin->m_monitor) {
                 cr3 = m_plugin->m_monitor->getPid(state, pc);
             }
             if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
                 ReturnDescriptor descriptor = { it->second.cr3 , FunctionMonitor::ReturnSignal() };
-                it->second.signal.emit(state, &descriptor.signal);
+                cd.signal.emit(state, &descriptor.signal);
                 if(!descriptor.signal.empty()) {
                     m_returnDescriptors.insert(std::make_pair(esp, descriptor));
                 }
             }
+        }
+        if (!m_newCallDescriptors.empty()) {
+            m_callDescriptors.insert(m_newCallDescriptors.begin(), m_newCallDescriptors.end());
+            m_newCallDescriptors.clear();
         }
     }
 }

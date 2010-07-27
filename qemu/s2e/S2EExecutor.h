@@ -45,6 +45,8 @@ public:
 };
 
 
+typedef void (*StateManagerCb)(void);
+
 class S2EExecutor : public klee::Executor
 {
 protected:
@@ -66,6 +68,8 @@ protected:
     ToRunSymbolically m_toRunSymbolically;
 
     bool m_executeAlwaysKlee;
+    StateManagerCb m_stateManager;
+
 
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
@@ -172,6 +176,10 @@ public:
     /** Called on fork, used to trace forks */
     StatePair fork(klee::ExecutionState &current,
                    klee::ref<klee::Expr> condition, bool isInternal);
+
+    void setStateManagerCb(StateManagerCb cb) {
+        m_stateManager = cb;
+    }
 
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,

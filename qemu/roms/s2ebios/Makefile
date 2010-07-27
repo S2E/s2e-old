@@ -4,7 +4,7 @@ include ../../config-host.mak
 include $(SRC_PATH)/rules.mak
 
 VPATH=$(SRC_PATH)/roms/s2ebios
-S2E_BIOS_SOURCE=$(VPATH)/s2e-inst.asm $(VPATH)/s2e-bios-low.asm $(VPATH)/s2e-bios-up.asm $(VPATH)/s2e-test.asm $(VPATH)/init.asm
+S2E_BIOS_SOURCE=$(VPATH)/s2e-inst.asm $(VPATH)/s2e-bios-low.asm $(VPATH)/s2e-bios-up.asm $(VPATH)/s2e-test.asm $(VPATH)/init.asm  $(VPATH)/s2e-ndis-test.asm
 
 .PHONY : all clean build-all
 

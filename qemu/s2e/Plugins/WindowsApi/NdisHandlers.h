@@ -44,7 +44,7 @@ public:
 
 private:
     FunctionMonitor *m_functionMonitor;
-    WindowsMonitor *m_windowsMonitor;
+    OSMonitor *m_windowsMonitor;
     ModuleExecutionDetector *m_detector;
     StateManager *m_manager;
 

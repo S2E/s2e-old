@@ -424,6 +424,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     addSpecialFunctionHandler(traceFunction, handlerTracePortAccess);
 
     searcher = constructUserSearcher(*this);
+
+    m_stateManager = NULL;
 }
 
 S2EExecutor::~S2EExecutor()
@@ -952,9 +954,20 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
     updateStates(state);
     if(states.empty()) {
-        m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
-        exit(0);
+        if (m_stateManager) {
+            //Check that there are actually no states to run.
+            m_stateManager();
+            if (states.empty()) {
+                m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
+                exit(0);
+            }
+        }else {
+            m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
+            exit(0);
+        }
     }
+
+
 
     ExecutionState& newKleeState = searcher->selectState();
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
@@ -1572,6 +1585,12 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
         out << "    state " << newState->getID() << " with condition "
             << *newConditions[i].get() << std::endl;
 
+        const ObjectState *cpuSystemObject = newState->addressSpace.findObject(newState->m_cpuSystemState);
+        const ObjectState *cpuRegistersObject = newState->addressSpace.findObject(newState->m_cpuRegistersState);
+
+        newState->m_cpuRegistersObject = newState->addressSpace.getWriteable(newState->m_cpuRegistersState, cpuRegistersObject);
+        newState->m_cpuSystemObject = newState->addressSpace.getWriteable(newState->m_cpuSystemState, cpuSystemObject);
+
         if(newState != originalState) {
             newState->getDeviceState()->saveDeviceState();
 
@@ -1586,12 +1605,6 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
             newState->m_active = false;
         }
-
-        const ObjectState *cpuSystemObject = newState->addressSpace.findObject(newState->m_cpuSystemState);
-        const ObjectState *cpuRegistersObject = newState->addressSpace.findObject(newState->m_cpuRegistersState);
-
-        newState->m_cpuRegistersObject = newState->addressSpace.getWriteable(newState->m_cpuRegistersState, cpuRegistersObject);
-        newState->m_cpuSystemObject = newState->addressSpace.getWriteable(newState->m_cpuSystemState, cpuSystemObject);
     }
 
     m_s2e->getDebugStream() << "Stack frame at fork:" << std::endl;
@@ -1750,6 +1763,7 @@ bool S2EExecutor::suspendState(S2EExecutionState *state)
 {
     if (searcher)  {
         searcher->removeState(state, NULL);
+        states.erase(state);
         return true;
     }
     return false;
@@ -1759,6 +1773,8 @@ bool S2EExecutor::suspendState(S2EExecutionState *state)
 bool S2EExecutor::resumeState(S2EExecutionState *state)
 {
     if (searcher)  {
+        assert(states.find(state) == states.end());
+        states.insert(state);
         searcher->addState(state, NULL);
         return true;
     }

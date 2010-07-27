@@ -70,6 +70,12 @@ ExecutionState* S2EExecutionState::clone()
         ret->m_PluginState.insert(std::make_pair((*it).first, (*it).second->clone()));
     }
 
+    const ObjectState *cpuSystemObject = ret->addressSpace.findObject(ret->m_cpuSystemState);
+    const ObjectState *cpuRegistersObject = ret->addressSpace.findObject(ret->m_cpuRegistersState);
+
+    ret->m_cpuRegistersObject = ret->addressSpace.getWriteable(ret->m_cpuRegistersState, cpuRegistersObject);
+    ret->m_cpuSystemObject = ret->addressSpace.getWriteable(ret->m_cpuSystemState, cpuSystemObject);
+
     return ret;
 }
 

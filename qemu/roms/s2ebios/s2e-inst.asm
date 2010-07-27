@@ -185,9 +185,49 @@ db 0x00
 db 0x00
 dd 0x0
 
+
+leave
+ret
+
+s2e_raw_load_import:
+push ebp
+mov ebp, esp
+
+mov eax, [ebp + 0x8] ;dllname
+mov ebx, [ebp + 0xC] ;funcName
+mov ecx, [ebp + 0x10] ;functionptr
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0xAA ; raw monitor
+db 0x01 ; load imports
+db 0x00
+dd 0x0
+
 leave
 ret
 
 
+s2e_raw_load_module:
+push ebp
+mov ebp, esp
+
+mov eax, [ebp + 0x8] ;name
+mov ebx, [ebp + 0xC] ;loadbase
+mov ecx, [ebp + 0x10] ;entrypoint
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0xAA ; raw monitor
+db 0x00 ; load module
+db 0x00
+dd 0x0
+
+leave
+ret
 
 

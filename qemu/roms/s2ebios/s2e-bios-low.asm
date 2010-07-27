@@ -79,6 +79,7 @@ start_1:
 
 %include "s2e-inst.asm"
 %include "s2e-test.asm"
+%include "s2e-test-ndis.asm"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Interrupt handlers
@@ -88,9 +89,11 @@ int_msg: db "Called interrupt", 0
 
 ; Default interrupt handler
 int_default:
+    pusha
     push int_msg_default
     call s2e_print_message
     add esp, 4
+    popa
     iret
 
 int80:

@@ -4,10 +4,11 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
+    call test_ndis
     ;jmp s2e_test
     ;call s2e_test2
-    call s2e_isa_dev
-    jmp s2e_test
+    ;call s2e_isa_dev
+    ;jmp s2e_test
     cli
     hlt
 
@@ -172,3 +173,5 @@ a:
 
 
     ret
+
+

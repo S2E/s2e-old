@@ -118,13 +118,16 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             //Module load
             //eax = pointer to module name
             //ebx = runtime load base
-            uint32_t rtloadbase, name;
+            //ecx = entry point
+            uint32_t rtloadbase, name, entrypoint;
             bool ok = true;
 
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
                                                  &name, 4);
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
                                                  &rtloadbase, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                                 &entrypoint, 4);
 
             if(!ok) {
                 s2e()->getWarningsStream(state)
@@ -146,12 +149,56 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             for (it = m_cfg.begin(); it != m_cfg.end(); ++it) {
                 Cfg &c = *it;
                 if (c.name == nameStr) {
+                    s2e()->getMessagesStream() << "RawMonitor: Registering " << nameStr << " "
+                            " @0x" << std::hex << rtloadbase << " ep=0x" << entrypoint  << std::endl;
                     c.start = rtloadbase;
+                    c.entrypoint = entrypoint;
                     loadModule(state, c, false);
                 }
             }
         }
         break;
+
+    case 1:
+        {
+            //Specifying a new import descriptor
+            uint32_t dllname, funcname, funcptr;
+            bool ok = true;
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                 &dllname, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                                 &funcname, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                                 &funcptr, 4);
+
+            if (!ok) {
+                s2e()->getWarningsStream(state)
+                    << "ERROR: symbolic argument was passed to s2e_op "
+                       "rawmonitor loadimportdescriptor" << std::endl;
+                break;
+            }
+
+            std::string dllnameStr;
+            if(!state->readString(dllname, dllnameStr)) {
+                s2e()->getWarningsStream(state)
+                        << "Error reading dll name string from the guest" << std::endl;
+                return;
+            }
+
+            std::string funcnameStr;
+            if(!state->readString(funcname, funcnameStr)) {
+                s2e()->getWarningsStream(state)
+                        << "Error reading function name string from the guest" << std::endl;
+                return;
+            }
+
+            s2e()->getMessagesStream() << "RawMonitor: Registering " << dllnameStr << " "
+                    << funcnameStr << " @0x" << std::hex << funcptr << std::endl;
+
+            m_imports[dllnameStr][funcnameStr] = funcptr;
+            break;
+        }
+
     default:
         s2e()->getWarningsStream() << "Invalid RawMonitor opcode 0x" << std::hex << opcode << std::endl;
         break;
@@ -169,6 +216,7 @@ void RawMonitor::loadModule(S2EExecutionState *state, const Cfg &c, bool skipIfD
     md.LoadBase = c.start;
     md.Size = c.size;
     md.Pid = c.kernelMode ? 0 : state->getPid();
+    md.EntryPoint = c.entrypoint;
 
     s2e()->getDebugStream() << "RawMonitor loaded " << c.name << " " <<
             std::hex << "0x" << c.start << " 0x" << c.size << std::dec << std::endl;
@@ -193,7 +241,8 @@ void RawMonitor::onTranslateInstructionStart(ExecutionSignal *signal,
 
 bool RawMonitor::getImports(S2EExecutionState *s, const ModuleDescriptor &desc, Imports &I)
 {
-    return false;
+    I = m_imports;
+    return true;
 }
 
 bool RawMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E)

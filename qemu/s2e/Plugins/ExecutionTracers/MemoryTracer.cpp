@@ -38,6 +38,9 @@ void MemoryTracer::initialize()
     m_monitorPageFaults = s2e()->getConfig()->getBool(getConfigKey() + ".monitorPageFaults");
     m_monitorTlbMisses  = s2e()->getConfig()->getBool(getConfigKey() + ".monitorTlbMisses");
 
+    s2e()->getDebugStream() << "MonitorMemory: " << m_monitorMemory << 
+    " PageFaults: " << m_monitorPageFaults << " TlbMisses: " << m_monitorTlbMisses << std::endl;
+
     if (!m_timeTrigger) {
         enableTracing();
     }else {

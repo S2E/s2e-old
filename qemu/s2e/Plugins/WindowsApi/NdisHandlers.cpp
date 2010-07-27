@@ -21,7 +21,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(NdisHandlers, "Basic collection of NDIS API functions.", "NdisHandlers",
-                  "FunctionMonitor", "WindowsMonitor", "ModuleExecutionDetector", "StateManager");
+                  "FunctionMonitor", "Interceptor", "ModuleExecutionDetector", "StateManager");
 
 
 void NdisHandlers::initialize()
@@ -30,7 +30,7 @@ void NdisHandlers::initialize()
     ConfigFile *cfg = s2e()->getConfig();
 
     m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
-    m_windowsMonitor = static_cast<WindowsMonitor*>(s2e()->getPlugin("WindowsMonitor"));
+    m_windowsMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
 
@@ -204,7 +204,7 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
         return;
     }
 
-    if (!eax) {
+    if (eax) {
         //The original function has failed
         return;
     }
@@ -273,6 +273,8 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
         s2e()->getMessagesStream() << "Could not read pMiniport address from the stack" << std::endl;
         return;
     }
+
+    s2e()->getMessagesStream() << "NDIS_MINIPORT_CHARACTERISTICS @0x" << pMiniport << std::endl;
 
     s2e::windows::NDIS_MINIPORT_CHARACTERISTICS32 Miniport;
     if (!state->readMemoryConcrete(pMiniport, &Miniport, sizeof(Miniport))) {

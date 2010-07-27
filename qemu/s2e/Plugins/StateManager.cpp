@@ -11,6 +11,13 @@ namespace plugins {
 S2E_DEFINE_PLUGIN(StateManager, "Control the deletion/suspension of states", "StateManager",
                   "ModuleExecutionDetector");
 
+static void sm_callback()
+{
+    StateManager *sm = static_cast<StateManager*>(g_s2e->getPlugin("StateManager"));
+    assert(sm);
+    sm->killAllButCurrent();
+}
+
 void StateManager::initialize()
 {
     ConfigFile *cfg = s2e()->getConfig();
@@ -33,6 +40,8 @@ void StateManager::initialize()
                         &StateManager::onTimer)
                 );
     }
+
+    s2e()->getExecutor()->setStateManagerCb(sm_callback);
 }
 
 //Reset the timeout every time a new block of the module is translated.
@@ -66,14 +75,21 @@ void StateManager::onTimer()
 
 bool StateManager::succeededState(S2EExecutionState *s)
 {
+    s2e()->getDebugStream() << "Succeeding state " << std::dec << s->getID() << std::endl;
     m_succeeded.insert(s);
     return s2e()->getExecutor()->suspendState(s);
 }
 
 bool StateManager::killAllButCurrent()
 {
+    s2e()->getDebugStream() << "Killing all but current " << std::dec << g_s2e_state->getID() << std::endl;
     const std::set<klee::ExecutionState*> &states = s2e()->getExecutor()->getStates();
     std::set<klee::ExecutionState*>::const_iterator it1, it2;
+
+    foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
+        m_executor->resumeState(*it);
+    }
+    m_succeeded.clear();
 
     it1 = states.begin();
     while(it1 != states.end()) {
@@ -91,9 +107,11 @@ bool StateManager::killAllButCurrent()
 
 bool StateManager::killAllButOneSuccessful()
 {
-    if (m_succeeded.size() < 1) {
+    if (m_succeeded.size() <= 1) {
         return false;
     }
+
+    s2e()->getDebugStream() << "Killing all but one successful " << std::endl;
 
     foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
         m_executor->resumeState(*it);

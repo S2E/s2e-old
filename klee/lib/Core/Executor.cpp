@@ -3085,7 +3085,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                 "readonly.err");
         } else {
           ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
-          invalidateCache(state, os, wos);
+          invalidateCache(*bound, os, wos);
           ref<Expr> offset = mo->getOffsetExpr(address);
           if(mo->isSharedConcrete) {
               if(IgnoreAlwaysConcrete) {

@@ -70,6 +70,7 @@ class FunctionMonitorState : public PluginState
     typedef std::tr1::unordered_multimap<uint64_t, ReturnDescriptor> ReturnDescriptorsMap;
 
     CallDescriptorsMap m_callDescriptors;
+    CallDescriptorsMap m_newCallDescriptors;
     ReturnDescriptorsMap m_returnDescriptors;
 
     FunctionMonitor *m_plugin;
