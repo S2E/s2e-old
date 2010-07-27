@@ -663,7 +663,8 @@ static void apic_timer(void *opaque)
 {
     APICState *s = opaque;
 
-    apic_local_deliver(s->cpu_env, APIC_LVT_TIMER);
+    if(!s->cpu_env->timer_interrupt_disabled)
+        apic_local_deliver(s->cpu_env, APIC_LVT_TIMER);
     apic_timer_update(s, s->next_time);
 }
 

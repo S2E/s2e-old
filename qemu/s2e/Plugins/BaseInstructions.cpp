@@ -78,6 +78,8 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
     0f 3f 00 06 - kill the current state
     0f 3f 00 10 00 - print message (asciiz) pointed by eax
     0f 3f 00 10 01 - print warning (asciiz) pointed by eax
+    0f 3f 00 50 00 - disable timer interrupt
+    0f 3f 00 50 01 - enable timer interrupt
  */
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
@@ -247,6 +249,16 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 (*stream) << "Message from guest (0x" << std::hex << address <<
                         "): " <<  str << std::endl;
             }
+            break;
+        }
+        case 0x50: { /* disable/enable timer interrupt */
+            uint64_t disabled = opcode >> 16;
+            if(disabled)
+                s2e()->getMessagesStream(state) << "Disabling timer interrupt" << std::endl;
+            else
+                s2e()->getMessagesStream(state) << "Enabling timer interrupt" << std::endl;
+            state->writeCpuState(CPU_OFFSET(timer_interrupt_disabled),
+                                 disabled, 8);
             break;
         }
         default:

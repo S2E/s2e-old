@@ -725,6 +725,7 @@ typedef struct CPUX86State {
     /* in order to simplify APIC support, we leave this pointer to the
        user */
     struct APICState *apic_state;
+    uint8_t timer_interrupt_disabled;
 
     uint64 mcg_cap;
     uint64 mcg_status;
