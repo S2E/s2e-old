@@ -15,7 +15,7 @@
 #include "android/charmap.h"
 #include "android/utils/debug.h"
 #include "android/utils/system.h"
-#include "android/hw-sensors.h"
+#include "android/ui-core-protocol.h"
 #include <SDL_syswm.h>
 #include "user-events.h"
 #include <math.h>
@@ -1236,9 +1236,9 @@ skin_window_reset ( SkinWindow*  window, SkinLayout*  slayout )
         user_event_generic( slayout->event_type, slayout->event_code, slayout->event_value );
         /* XXX: hack, replace by better code here */
         if (slayout->event_value != 0)
-            android_sensors_set_coarse_orientation( ANDROID_COARSE_PORTRAIT );
+            android_core_sensors_set_coarse_orientation( ANDROID_COARSE_PORTRAIT );
         else
-            android_sensors_set_coarse_orientation( ANDROID_COARSE_LANDSCAPE );
+            android_core_sensors_set_coarse_orientation( ANDROID_COARSE_LANDSCAPE );
     }
     return 0;
 }

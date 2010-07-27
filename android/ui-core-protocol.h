@@ -21,6 +21,8 @@
 #ifndef QEMU_ANDROID_UI_CORE_PROTOCOL_H
 #define QEMU_ANDROID_UI_CORE_PROTOCOL_H
 
+#include "android/hw-sensors.h"
+
 /* Gets LCD density property from the core properties. */
 int android_core_get_hw_lcd_density(void);
 
@@ -39,6 +41,9 @@ void android_core_set_brightness_change_callback(AndroidHwLightBrightnessCallbac
 
 /* Returns base port assigned for the emulated system. */
 int android_core_get_base_port(void);
+
+/* change the coarse orientation value */
+void  android_core_sensors_set_coarse_orientation( AndroidCoarseOrientation  orient );
 
 /* Sets/toggles the network state */
 void android_core_set_network_enabled(int enabled);

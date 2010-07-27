@@ -564,6 +564,25 @@ LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS) $(EMULATOR_
 include $(BUILD_HOST_STATIC_LIBRARY)
 
 ##############################################################################
+# Common CFLAGS for UI and Core builds
+
+# add the build ID to the default macro definitions
+UI_AND_CORE_CFLAGS = -DANDROID_BUILD_ID="$(strip $(BUILD_ID))-$(strip $(BUILD_NUMBER))"
+
+# For non-standalone builds, extract the major version number from the Android SDK
+# tools revision number.
+ifneq ($(BUILD_STANDALONE_EMULATOR),true)
+    ANDROID_SDK_TOOLS_REVISION := $(shell awk -F= '/Pkg.Revision/ { print $$2; }' sdk/files/tools_source.properties)
+endif
+
+ANDROID_SDK_TOOLS_REVISION := $(strip $(ANDROID_SDK_TOOLS_REVISION))
+ifdef ANDROID_SDK_TOOLS_REVISION
+    UI_AND_CORE_CFLAGS += -DANDROID_SDK_TOOLS_REVISION=$(ANDROID_SDK_TOOLS_REVISION)
+endif
+
+UI_AND_CORE_CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+
+##############################################################################
 # lists of source files used to build the emulator core
 #
 
@@ -642,6 +661,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     android/avd/hw-config.c \
                     android/avd/info.c \
                     android/utils/ini.c \
+                    android/hw-sensors.c \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -718,8 +738,41 @@ UI_AND_CORE_SOURCES = osdep.c \
                       android/utils/timezone.c \
                       android/utils/mapfile.c \
 
+# include the Zlib sources
+#
+UI_AND_CORE_SOURCES += $(ZLIB_SOURCES)
+UI_AND_CORE_CFLAGS  += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
+
+# include the Libpng sources
+#
+UI_AND_CORE_SOURCES += $(LIBPNG_SOURCES)
+UI_AND_CORE_CFLAGS  += $(LIBPNG_CFLAGS) -I$(LOCAL_PATH)/$(LIBPNG_DIR)
+
 # temp files used to collect UI->Core exchange protocol.
 UI_AND_CORE_SOURCES += android/ui-core-protocol.c android/core-ui-protocol.c
+
+# The common libraries
+#
+QEMU_SYSTEM_LDLIBS := -lm
+ifeq ($(HOST_OS),windows)
+  QEMU_SYSTEM_LDLIBS += -mno-cygwin -mwindows -mconsole
+endif
+
+ifeq ($(HOST_OS),freebsd)
+    QEMU_SYSTEM_LDLIBS += -L/usr/local/lib -lpthread -lX11 -lutil
+endif
+
+ifeq ($(HOST_OS),linux)
+  QEMU_SYSTEM_LDLIBS += -lutil -lrt
+endif
+
+ifeq ($(HOST_OS),windows)
+  QEMU_SYSTEM_LDLIBS += -lwinmm -lws2_32 -liphlpapi
+else
+  QEMU_SYSTEM_LDLIBS += -lpthread
+endif
+
+
 
 ##############################################################################
 # now build the emulator itself
@@ -738,28 +791,7 @@ LOCAL_LDLIBS                    := $(MY_LDLIBS)
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS) $(EMULATOR_UI_CFLAGS)
 
 # add the build ID to the default macro definitions
-LOCAL_CFLAGS += -DANDROID_BUILD_ID="$(strip $(BUILD_ID))-$(strip $(BUILD_NUMBER))"
-
-# For non-standalone builds, extract the major version number from the Android SDK
-# tools revision number.
-ifneq ($(BUILD_STANDALONE_EMULATOR),true)
-    ANDROID_SDK_TOOLS_REVISION := $(shell awk -F= '/Pkg.Revision/ { print $$2; }' sdk/files/tools_source.properties)
-endif
-
-ANDROID_SDK_TOOLS_REVISION := $(strip $(ANDROID_SDK_TOOLS_REVISION))
-ifdef ANDROID_SDK_TOOLS_REVISION
-    LOCAL_CFLAGS += -DANDROID_SDK_TOOLS_REVISION=$(ANDROID_SDK_TOOLS_REVISION)
-endif
-
-# include the Zlib sources
-#
-LOCAL_SRC_FILES += $(ZLIB_SOURCES)
-LOCAL_CFLAGS    += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
-
-# include the Libpng sources
-#
-LOCAL_SRC_FILES += $(LIBPNG_SOURCES)
-LOCAL_CFLAGS    += $(LIBPNG_CFLAGS) -I$(LOCAL_PATH)/$(LIBPNG_DIR)
+LOCAL_CFLAGS += $(UI_AND_CORE_CFLAGS)
 
 # include sound support source files. we first try to see if we have a prebuilt audio
 # library. if not, we build things the "hard" way.
@@ -793,22 +825,13 @@ VL_SOURCES := framebuffer.c \
               user-events-qemu.c \
               android/cmdline-option.c \
               android/config.c \
-              android/hw-sensors.c \
               android/main.c \
 
-ifeq ($(HOST_OS),windows)
-  LOCAL_LDLIBS += -mno-cygwin -mwindows -mconsole
-endif
-
-ifeq ($(HOST_OS),freebsd)
-    LOCAL_LDLIBS += -L/usr/local/lib -lpthread -lX11 -lutil
-endif
+# Add common system libraries
+#
+LOCAL_LDLIBS += $(QEMU_SYSTEM_LDLIBS)
 
 LOCAL_SRC_FILES += $(VL_SOURCES) $(CORE_SOURCES) $(UI_SOURCES) $(UI_AND_CORE_SOURCES)
-
-ifeq ($(HOST_OS),linux)
-  LOCAL_LDLIBS += -lutil -lrt
-endif
 
 # add SDL-specific flags
 #
@@ -918,18 +941,6 @@ ifeq ($(BUILD_STANDALONE_EMULATOR),true)
   LOCAL_CFLAGS += -I$(intermediates)
 endif
 
-
-
-# other flags
-LOCAL_CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-LOCAL_LDLIBS += -lm
-
-ifeq ($(HOST_OS),windows)
-    LOCAL_LDLIBS += -lwinmm -lws2_32 -liphlpapi
-else
-    LOCAL_LDLIBS += -lpthread
-endif
-
 LOCAL_LDLIBS += $(QEMU_AUDIO_LIB)
 
 # Generate a completely static executable if needed.
@@ -944,6 +955,176 @@ LOCAL_MODULE := emulator
 
 # See comment about SDLMAIN_SOURCES in the 'emulator-ui' module declarations.
 LOCAL_SRC_FILES += $(SDLMAIN_SOURCES)
+
+include $(BUILD_HOST_EXECUTABLE)
+
+##############################################################################
+# Build standalone emulator core.
+#
+include $(CLEAR_VARS)
+
+LOCAL_GENERATED_SOURCES :=
+LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
+LOCAL_CC                        := $(MY_CC)
+LOCAL_MODULE                    := qemu-android
+LOCAL_STATIC_LIBRARIES          := emulator-memcheck emulator-hw emulator-arm emulator-tcg
+LOCAL_STATIC_LIBRARIES          += emulator-elff
+LOCAL_STATIC_LIBRARIES          += emulator-core
+LOCAL_LDLIBS                    := $(MY_LDLIBS)
+
+LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS)
+LOCAL_CFLAGS += $(UI_AND_CORE_CFLAGS) -DCONFIG_STANDALONE_CORE
+
+# include sound support source files. we first try to see if we have a prebuilt audio
+# library. if not, we build things the "hard" way.
+#
+# note that to generate the prebuilt audio library, you should do the following:
+#
+#   cd tools/qemu
+#   ./android-rebuild.sh
+#   distrib/update-audio.sh
+#
+ifeq ($(QEMU_AUDIO_LIB),)
+  LOCAL_SRC_FILES += $(AUDIO_SOURCES)
+endif  # !QEMU_AUDIO_LIB
+
+LOCAL_CFLAGS  += $(AUDIO_CFLAGS)
+LOCAL_LDLIBS  += $(AUDIO_LDLIBS)
+
+# the linux-user sources, I doubt we really need these
+#
+#LINUX_SOURCES := main.c elfload.c mmap.c signal.c path.c syscall.c
+#LOCAL_SRC_FILES += $(LINUX_SOURCES:%=linux-user/%)
+
+# include other sources
+#
+VL_SOURCES := framebuffer.c \
+              user-events-qemu.c \
+
+# Add common system libraries
+#
+LOCAL_LDLIBS += $(QEMU_SYSTEM_LDLIBS)
+
+LOCAL_SRC_FILES += $(VL_SOURCES) $(CORE_SOURCES) $(UI_AND_CORE_SOURCES)
+
+# add ELFF-specific flags
+#
+LOCAL_LDLIBS += $(ELFF_LDLIBS)
+
+# on Windows, link the icon file as well into the executable
+# unfortunately, our build system doesn't help us much, so we need
+# to use some weird pathnames to make this work...
+#
+ifeq ($(HOST_OS),windows)
+
+# Locate windres executable
+WINDRES := windres
+ifneq ($(USE_MINGW),)
+  # When building the Windows emulator under Linux, use the MinGW one
+  WINDRES := i586-mingw32msvc-windres
+endif
+
+INTERMEDIATE     := $(call intermediates-dir-for,EXECUTABLES,$(LOCAL_MODULE),true)
+ANDROID_ICON_OBJ := android_icon.o
+ANDROID_ICON_PATH := $(LOCAL_PATH)/images
+$(ANDROID_ICON_PATH)/$(ANDROID_ICON_OBJ): $(ANDROID_ICON_PATH)/android_icon.rc
+	$(WINDRES) $< -I $(ANDROID_ICON_PATH) -o $@
+
+# seems to be the only way to add an object file that was not generated from
+# a C/C++/Java source file to our build system. and very unfortunately,
+# $(TOPDIR)/$(LOCALPATH) will always be prepended to this value, which forces
+# us to put the object file in the source directory...
+#
+LOCAL_PREBUILT_OBJ_FILES += images/$(ANDROID_ICON_OBJ)
+endif
+
+# qemu-options.h is generated from qemu-options.hx with the "hxtool" shell script
+#
+intermediates := $(call intermediates-dir-for,EXECUTABLES,$(LOCAL_MODULE),true)
+
+QEMU_OPTIONS_H := $(intermediates)/qemu-options.h
+$(QEMU_OPTIONS_H): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_OPTIONS_H): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/hxtool -h < $< > $@
+$(QEMU_OPTIONS_H): $(LOCAL_PATH)/qemu-options.hx $(LOCAL_PATH)/hxtool
+	$(transform-generated-source)
+
+$(intermediates)/vl-android.o: $(QEMU_OPTIONS_H)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_OPTIONS_H)
+
+# qemu-monitor.h is generated from qemu-monitor.hx with the "hxtool" shell script
+#
+intermediates := $(call intermediates-dir-for,EXECUTABLES,$(LOCAL_MODULE),true)
+
+QEMU_MONITOR_H := $(intermediates)/qemu-monitor.h
+$(QEMU_MONITOR_H): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_MONITOR_H): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/hxtool -h < $< > $@
+$(QEMU_MONITOR_H): $(LOCAL_PATH)/qemu-monitor.hx $(LOCAL_PATH)/hxtool
+	$(transform-generated-source)
+
+$(intermediates)/vl-android.o: $(QEMU_MONITOR_H)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_MONITOR_H)
+
+
+# gdbstub-xml.c contains C-compilable arrays corresponding to the content
+# of $(LOCAL_PATH)/gdb-xml/, and is generated with the 'feature_to_c.sh' script.
+#
+ifeq ($(QEMU_TARGET_XML_SOURCES),)
+    QEMU_TARGET_XML_SOURCES := arm-core arm-neon arm-vfp arm-vfp3
+    QEMU_TARGET_XML_SOURCES := $(QEMU_TARGET_XML_SOURCES:%=$(LOCAL_PATH)/gdb-xml/%.xml)
+endif
+
+QEMU_GDBSTUB_XML_C := $(intermediates)/gdbstub-xml.c
+$(QEMU_GDBSTUB_XML_C): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_GDBSTUB_XML_C): PRIVATE_SOURCES := $(TARGET_XML_SOURCES)
+$(QEMU_GDBSTUB_XML_C): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/feature_to_c.sh $@ $(QEMU_TARGET_XML_SOURCES)
+$(QEMU_GDBSTUB_XML_C): $(QEMU_TARGET_XML_SOURCES) $(LOCAL_PATH)/feature_to_c.sh
+	$(hide) rm -f $@
+	$(transform-generated-source)
+
+$(intermediates)/vl-android.o: $(QEMU_GDBSTUB_XML_C)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_GDBSTUB_XML_C)
+
+# hw-config-defs.h is generated from android/avd/hardware-properties.ini
+#
+QEMU_HARDWARE_PROPERTIES_INI := $(LOCAL_PATH)/android/avd/hardware-properties.ini
+QEMU_HW_CONFIG_DEFS_H := $(LOCAL_PATH)/android/avd/hw-config-defs.h
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_SOURCES := $(QEMU_HARDWARE_PROPERTIES_INI)
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/android/tools/gen-hw-config.py $(QEMU_HARDWARE_PROPERTIES_INI) $@
+$(QEMU_HW_CONFIG_DEFS_H): $(QEMU_HARDWARE_PROPERTIES_INI) $(LOCAL_PATH)/android/tools/gen-hw-config.py
+	$(hide) rm -f $@
+	$(transform-generated-source)
+
+$(LOCAL_PATH)/android/avd/hw-config.h: $(QEMU_HW_CONFIG_DEFS_H)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_HW_CONFIG_DEFS_H)
+
+# this is already done by the Android build system, but is done for the
+# benefit of the stand-alone one.
+#
+ifeq ($(BUILD_STANDALONE_EMULATOR),true)
+  LOCAL_CFLAGS += -I$(intermediates)
+endif
+
+# other flags
+ifneq ($(HOST_OS),windows)
+    LOCAL_LDLIBS += -ldl
+endif
+
+LOCAL_LDLIBS += $(QEMU_AUDIO_LIB)
+
+# Generate a completely static executable if needed.
+# Note that this means no sound and graphics on Linux.
+#
+ifeq ($(CONFIG_STATIC_EXECUTABLE),true)
+    LOCAL_SRC_FILES += dynlink-static.c
+    LOCAL_LDLIBS    += -static
+endif
+
+LOCAL_MODULE := qemu-android
 
 include $(BUILD_HOST_EXECUTABLE)
 
