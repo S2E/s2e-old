@@ -18,6 +18,7 @@ void* s2e_get_ram_ptr(target_phys_addr_t addr);
 #include <s2e/S2E.h>
 #include <s2e/s2e_qemu.h>
 
+#define S2E_ENABLEMEM_CACHE
 
 namespace s2e {
 
@@ -82,6 +83,7 @@ ExecutionState* S2EExecutionState::clone()
 
 /** Accesses to memory objects through the cache **/
 klee::ObjectPair S2EExecutionState::fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
+#ifdef S2E_ENABLEMEM_CACHE
     klee::ObjectPair op;
     if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL)
     {
@@ -92,13 +94,15 @@ klee::ObjectPair S2EExecutionState::fetchObjectStateMem(uint64_t hostAddress, ui
     }
     
     assert(op.first == op.second->getObject());
-
-
     return op;
+#else
+    return addressSpace.findObject(hostAddress);
+#endif
 }
 
 klee::ObjectState* S2EExecutionState::fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os)
 {
+#ifdef S2E_ENABLEMEM_CACHE
     klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
     assert(wos->getObject() == mo);
     if (wos != os) {
@@ -107,10 +111,16 @@ klee::ObjectState* S2EExecutionState::fetchObjectStateMemWritable(const klee::Me
     }
 
     return wos;
+#else
+    return addressSpace.getWriteable(mo, os);
+#endif
 }
 
 void S2EExecutionState::invalidateObjectStateMem(uintptr_t moAddr) {
+
+#ifdef S2E_ENABLEMEM_CACHE
     m_memCache.invalidate(moAddr);
+#endif
 }
 
 //Go through the TLB and update all references to newObj
@@ -119,6 +129,7 @@ void S2EExecutionState::refreshTlb(ObjectState *newObj)
     CPUState *e, *f = NULL;
     //XXX: not sure why we need to update both of these...
     //XXX: remove the ugly subtraction
+
     e = (CPUState*)(m_cpuSystemState->address - offsetof(CPUX86State, eip));
     f = (CPUState*)(m_cpuSystemObject->getConcreteStore(false) - offsetof(CPUX86State, eip));
 

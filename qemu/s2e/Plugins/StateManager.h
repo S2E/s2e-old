@@ -48,6 +48,7 @@ public:
 
     bool killAllButOneSuccessful();
     bool killAllButCurrent();
+    void resumeSucceeded();
 
     //Checks whether the search has no more states
     bool empty();

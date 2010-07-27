@@ -1683,6 +1683,12 @@ void S2EExecutor::invalidateCache(ExecutionState &state, const ObjectState *os, 
     S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
     assert(s);
 
+    const ObjectState *cpuSystemObject = state.addressSpace.findObject(s->m_cpuSystemState);
+    const ObjectState *cpuRegistersObject = state.addressSpace.findObject(s->m_cpuRegistersState);
+
+    s->m_cpuRegistersObject = s->addressSpace.getWriteable(s->m_cpuRegistersState, cpuRegistersObject);
+    s->m_cpuSystemObject = s->addressSpace.getWriteable(s->m_cpuSystemState, cpuSystemObject);
+
     //This is only for memory objects representing pages of physical memory.
     if (wo->object->size == TARGET_PAGE_SIZE) {
           if (os != wo) {

@@ -15,7 +15,17 @@ static void sm_callback()
 {
     StateManager *sm = static_cast<StateManager*>(g_s2e->getPlugin("StateManager"));
     assert(sm);
-    sm->killAllButCurrent();
+    //Cannot do killAllButCurrent because the current one might be in the process of being killed
+      sm->resumeSucceeded();
+
+}
+
+void StateManager::resumeSucceeded()
+{
+    foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
+        m_executor->resumeState(*it);
+    }
+    m_succeeded.clear();
 }
 
 void StateManager::initialize()
