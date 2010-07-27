@@ -101,7 +101,12 @@ void BasicBlockCoverage::convertTbToBb()
 
         BasicBlock tbb(tb.start, tb.end);
         it = m_allBbs.find(tbb);
-        assert(it != m_allBbs.end());
+        if(it == m_allBbs.end()) {
+            std::cerr << "Missing TB: " << std::hex << "0x"
+                << tb.start << ":0x" << tb.end << std::endl;
+            continue;
+        }
+        //assert(it != m_allBbs.end());
 
         Block newBlock;
         newBlock.timeStamp = tb.timeStamp;
@@ -246,6 +251,33 @@ void BasicBlockCoverage::printReport(std::ostream &os) const
 
 }
 
+void BasicBlockCoverage::printBBCov(std::ostream &os) const
+{
+    unsigned touchedFunctions = 0;
+    unsigned fullyCoveredFunctions = 0;
+    unsigned touchedFunctionsBb = 0;
+    unsigned touchedFunctionsTotalBb = 0;
+    Functions::const_iterator fit;
+
+    for(fit = m_functions.begin(); fit != m_functions.end(); ++fit) {
+        const BasicBlocks &fcnbb = (*fit).second;
+        BasicBlocks uncovered;
+        BasicBlocks::const_iterator bbit;
+        for (bbit = fcnbb.begin(); bbit != fcnbb.end(); ++bbit) {
+            Block b(0, (*bbit).start, 0);
+            if (m_uniqueTbs.find(b) == m_uniqueTbs.end())
+                os << std::setw(0) << "-";
+            else 
+                os << std::setw(0) << "+";
+
+            os << std::hex << "0x" << std::setfill('0') << std::setw(8) << (*bbit).start << std::setw(0)
+                   << ":0x" << std::setw(8) << (*bbit).end << std::endl;
+        }
+        os << std::endl;
+
+    }
+}
+
 Coverage::Coverage(BFDLibrary *lib, ModuleCache *cache, LogEvents *events)
 {
     m_events = events;
@@ -318,6 +350,11 @@ void Coverage::outputCoverage(const std::string &path) const
         ss1 << path << "/" << (*it).first << ".repcov";
         std::ofstream report(ss1.str().c_str());
         (*it).second->printReport(report);
+
+        std::stringstream ss2;
+        ss2 << path << "/" << (*it).first << ".bbcov";
+        std::ofstream bbcov(ss2.str().c_str());
+        (*it).second->printBBCov(bbcov);
     }
 }
 

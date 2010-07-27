@@ -93,6 +93,7 @@ public:
     void convertTbToBb();
     void printTimeCoverage(std::ostream &os) const;
     void printReport(std::ostream &os) const;
+    void printBBCov(std::ostream &os) const;
 
 
 };
