@@ -1681,6 +1681,7 @@ void S2EExecutor::branch(klee::ExecutionState &state,
 //Warning: os can be invalid!
 void S2EExecutor::invalidateCache(ExecutionState &state, const ObjectState *os, ObjectState *wo)
 {
+#if 0
     S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
     assert(s);
 
@@ -1697,6 +1698,7 @@ void S2EExecutor::invalidateCache(ExecutionState &state, const ObjectState *os, 
             s->refreshTlb(wo);
         }
     }
+#endif
 }
 
 void S2EExecutor::terminateState(ExecutionState &state)

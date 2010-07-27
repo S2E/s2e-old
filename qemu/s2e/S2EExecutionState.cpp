@@ -34,8 +34,10 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
+    /*
     m_cpuRegistersObject = NULL;
     m_cpuSystemObject = NULL;
+    */
     m_cpuSystemState = NULL;
     m_cpuRegistersState = NULL;
 }
@@ -71,16 +73,21 @@ ExecutionState* S2EExecutionState::clone()
         ret->m_PluginState.insert(std::make_pair((*it).first, (*it).second->clone()));
     }
 
+    /*
     const ObjectState *cpuSystemObject = ret->addressSpace.findObject(ret->m_cpuSystemState);
     const ObjectState *cpuRegistersObject = ret->addressSpace.findObject(ret->m_cpuRegistersState);
 
+    m_cpuRegistersObject = addressSpace.getWriteable(m_cpuRegistersState, cpuRegistersObject);
+    m_cpuSystemObject = addressSpace.getWriteable(m_cpuSystemState, cpuSystemObject);
+
     ret->m_cpuRegistersObject = ret->addressSpace.getWriteable(ret->m_cpuRegistersState, cpuRegistersObject);
     ret->m_cpuSystemObject = ret->addressSpace.getWriteable(ret->m_cpuSystemState, cpuSystemObject);
+    */
 
     return ret;
 }
 
-
+#if 0
 /** Accesses to memory objects through the cache **/
 klee::ObjectPair S2EExecutionState::fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
 #ifdef S2E_ENABLEMEM_CACHE
@@ -145,6 +152,7 @@ void S2EExecutionState::refreshTlb(ObjectState *newObj)
         }
     }
 }
+#endif
 
 ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
                                              Expr::Width width) const

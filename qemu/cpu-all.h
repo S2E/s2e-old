@@ -679,7 +679,7 @@ extern int have_guest_base;
 #else /* CONFIG_S2E */
 
 /* choose one to disable fast tlb lookup */
-#if 0
+#if 1
 #define _s2e_define_fc(t, s) \
 static inline void* s2e_tb_fc_ld_ ## t (CPUState *env, uintptr_t p, int mmu_idx, int tlb_idx) { \
     return NULL; \
