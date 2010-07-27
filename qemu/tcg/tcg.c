@@ -525,7 +525,8 @@ TCGv_i64 tcg_const_local_i64(int64_t val)
 }
 
 void tcg_register_helper_with_reg_mask(void *func, const char *name,
-                                       uint64_t reg_rmask, uint64_t reg_wmask)
+                                       uint64_t reg_rmask, uint64_t reg_wmask,
+                                       uint64_t accesses_mem)
 {
     TCGContext *s = &tcg_ctx;
     int n;
@@ -543,12 +544,13 @@ void tcg_register_helper_with_reg_mask(void *func, const char *name,
     s->helpers[s->nb_helpers].name = name;
     s->helpers[s->nb_helpers].reg_rmask = reg_rmask;
     s->helpers[s->nb_helpers].reg_wmask = reg_wmask;
+    s->helpers[s->nb_helpers].accesses_mem = accesses_mem;
     s->nb_helpers++;
 }
 
 void tcg_register_helper(void *func, const char *name)
 {
-    tcg_register_helper_with_reg_mask(func, name, (uint64_t) -1, (uint64_t) -1);
+    tcg_register_helper_with_reg_mask(func, name, (uint64_t) -1, (uint64_t) -1, 1);
 }
 
 /* Note: we convert the 64 bit args to 32 bit and do some alignment
@@ -778,16 +780,20 @@ const char *tcg_helper_get_name(TCGContext *s, void *func)
 }
 
 void tcg_helper_get_reg_mask(TCGContext *s, void *func,
-                             uint64_t* reg_rmask, uint64_t* reg_wmask)
+                             uint64_t* reg_rmask, uint64_t* reg_wmask,
+                             uint64_t* accesses_mem)
 {
     TCGHelperInfo *info = tcg_find_helper(s, (tcg_target_ulong) func);
     if(info) {
         assert(func != NULL);
         *reg_rmask = info->reg_rmask;
         *reg_wmask = info->reg_wmask;
+        *accesses_mem = info->accesses_mem;
     } else {
         *reg_rmask = (uint64_t) -1;
         *reg_wmask = (uint64_t) -1;
+#warning Change 0 to 1 here, but register S2E helpers before!
+        *accesses_mem = 0; /* XXX! */
     }
 }
 
@@ -944,7 +950,8 @@ void tcg_dump_ops(TCGContext *s, FILE *outfile)
 }
 
 #ifdef CONFIG_S2E
-void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask)
+void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
+                      uint64_t *accesses_mem)
 {
     const uint16_t *opc_ptr;
     const TCGArg *args;
@@ -954,7 +961,7 @@ void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask)
     uint64_t temps[TCG_MAX_TEMPS];
     memset(temps, 0, sizeof(temps[0])*(s->nb_globals + s->nb_temps));
 
-    *rmask = *wmask = 0;
+    *rmask = *wmask = *accesses_mem = 0;
 
     opc_ptr = gen_opc_buf;
     args = gen_opparam_buf;
@@ -975,12 +982,14 @@ void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask)
             TCGArg func_arg = args[nb_oargs + nb_iargs - 1];
             assert(func_arg < s->nb_globals + s->nb_temps);
 
-            uint64_t func_rmask, func_wmask;
+            uint64_t func_rmask, func_wmask, func_accesses_mem;
             tcg_helper_get_reg_mask(s, (void*) temps[func_arg],
-                                    &func_rmask, &func_wmask);
+                                    &func_rmask, &func_wmask,
+                                    &func_accesses_mem);
 
             *rmask |= func_rmask;
             *wmask |= func_wmask;
+            *accesses_mem |= func_accesses_mem;
 
             /* access mask of helper arguments will be added later */
 

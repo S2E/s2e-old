@@ -18,7 +18,7 @@ void* s2e_get_ram_ptr(target_phys_addr_t addr);
 #include <s2e/S2E.h>
 #include <s2e/s2e_qemu.h>
 
-#define S2E_ENABLEMEM_CACHE
+//#define S2E_ENABLEMEM_CACHE
 
 namespace s2e {
 
@@ -112,7 +112,10 @@ klee::ObjectState* S2EExecutionState::fetchObjectStateMemWritable(const klee::Me
 
     return wos;
 #else
-    return addressSpace.getWriteable(mo, os);
+    klee::ObjectState* wos = addressSpace.getWriteable(mo, os);
+    if(wos != os)
+        refreshTlb(wos);
+    return wos;
 #endif
 }
 

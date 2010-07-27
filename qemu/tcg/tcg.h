@@ -239,6 +239,7 @@ typedef struct TCGHelperInfo {
     const char *name;
     uint64_t reg_rmask;
     uint64_t reg_wmask;
+    uint64_t accesses_mem;
 } TCGHelperInfo;
 
 typedef struct TCGContext TCGContext;
@@ -447,13 +448,15 @@ void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
 void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
                         int c, int right, int arith);
 
-/* only used for debugging purposes */
+/* accesses_mem should be set to one if the helper can access symb memory */
 void tcg_register_helper_with_reg_mask(void *func, const char *name,
-                                   uint64_t reg_rmask, uint64_t reg_wmask);
+                                   uint64_t reg_rmask, uint64_t reg_wmask,
+                                   uint64_t accesses_mem);
 void tcg_register_helper(void *func, const char *name);
 const char *tcg_helper_get_name(TCGContext *s, void *func);
 void tcg_helper_get_reg_mask(TCGContext *s, void *func,
-                             uint64_t* reg_rmask, uint64_t* reg_wmask);
+                             uint64_t* reg_rmask, uint64_t* reg_wmask,
+                             uint64_t* accesses_mem);
 void tcg_dump_ops(TCGContext *s, FILE *outfile);
 
 void dump_ops(const uint16_t *opc_buf, const TCGArg *opparam_buf);
@@ -474,7 +477,8 @@ extern uint8_t code_gen_prologue[];
 #endif
 
 #ifdef CONFIG_S2E
-void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask);
+void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
+                      uint64_t *accesses_mem);
 #endif
 
 #endif

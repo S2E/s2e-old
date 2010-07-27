@@ -88,57 +88,57 @@
 #define dh_arg_decl(t, n) glue(TCGv_, dh_alias(t)) glue(arg, n)
 
 
-#define DEF_HELPER_0_M(name, ret, rm, wm) \
-    DEF_HELPER_FLAGS_0_M(name, 0, ret, rm, wm)
-#define DEF_HELPER_1_M(name, ret, t1, rm, wm) \
-    DEF_HELPER_FLAGS_1_M(name, 0, ret, t1, rm, wm)
-#define DEF_HELPER_2_M(name, ret, t1, t2, rm, wm) \
-    DEF_HELPER_FLAGS_2_M(name, 0, ret, t1, t2, rm, wm)
-#define DEF_HELPER_3_M(name, ret, t1, t2, t3, rm, wm) \
-    DEF_HELPER_FLAGS_3_M(name, 0, ret, t1, t2, t3, rm, wm)
-#define DEF_HELPER_4_M(name, ret, t1, t2, t3, t4, rm, wm) \
-    DEF_HELPER_FLAGS_4_M(name, 0, ret, t1, t2, t3, t4, rm, wm)
+#define DEF_HELPER_0_M(name, ret, rm, wm, m) \
+    DEF_HELPER_FLAGS_0_M(name, 0, ret, rm, wm, m)
+#define DEF_HELPER_1_M(name, ret, t1, rm, wm, m) \
+    DEF_HELPER_FLAGS_1_M(name, 0, ret, t1, rm, wm, m)
+#define DEF_HELPER_2_M(name, ret, t1, t2, rm, wm, m) \
+    DEF_HELPER_FLAGS_2_M(name, 0, ret, t1, t2, rm, wm, m)
+#define DEF_HELPER_3_M(name, ret, t1, t2, t3, rm, wm, m) \
+    DEF_HELPER_FLAGS_3_M(name, 0, ret, t1, t2, t3, rm, wm, m)
+#define DEF_HELPER_4_M(name, ret, t1, t2, t3, t4, rm, wm, m) \
+    DEF_HELPER_FLAGS_4_M(name, 0, ret, t1, t2, t3, t4, rm, wm, m)
 
 #define DEF_HELPER_0(name, ret) \
-    DEF_HELPER_0_M(name, ret, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_0_M(name, ret, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_1(name, ret, t1) \
-    DEF_HELPER_1_M(name, ret, t1, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_1_M(name, ret, t1, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_2(name, ret, t1, t2) \
-    DEF_HELPER_2_M(name, ret, t1, t2, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_2_M(name, ret, t1, t2, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_3(name, ret, t1, t2, t3) \
-    DEF_HELPER_3_M(name, ret, t1, t2, t3, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_3_M(name, ret, t1, t2, t3, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_4(name, ret, t1, t2, t3, t4) \
-    DEF_HELPER_4_M(name, ret, t1, t2, t3, t4, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_4_M(name, ret, t1, t2, t3, t4, (uint64_t) -1, (uint64_t) -1, 1)
 
 #define DEF_HELPER_FLAGS_0(name, flags, ret) \
-    DEF_HELPER_FLAGS_0_M(name, flags, ret, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_FLAGS_0_M(name, flags, ret, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_FLAGS_1(name, flags, ret, t1) \
-    DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_FLAGS_2(name, flags, ret, t1, t2) \
-    DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_FLAGS_3(name, flags, ret, t1, t2, t3) \
-    DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, (uint64_t) -1, (uint64_t) -1, 1)
 #define DEF_HELPER_FLAGS_4(name, flags, ret, t1, t2, t3, t4) \
-    DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, (uint64_t) -1, (uint64_t) -1)
+    DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, (uint64_t) -1, (uint64_t) -1, 1)
 
 #endif /* DEF_HELPER_H */
 
 #ifndef GEN_HELPER
 /* Function prototypes.  */
 
-#define DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm) \
+#define DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm, m) \
 dh_ctype(ret) HELPER(name) (void);
 
-#define DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, rm, wm) \
+#define DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, rm, wm, m) \
 dh_ctype(ret) HELPER(name) (dh_ctype(t1));
 
-#define DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, rm, wm) \
+#define DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, rm, wm, m) \
 dh_ctype(ret) HELPER(name) (dh_ctype(t1), dh_ctype(t2));
 
-#define DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, rm, wm) \
+#define DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, rm, wm, m) \
 dh_ctype(ret) HELPER(name) (dh_ctype(t1), dh_ctype(t2), dh_ctype(t3));
 
-#define DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, rm, wm) \
+#define DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, rm, wm, m) \
 dh_ctype(ret) HELPER(name) (dh_ctype(t1), dh_ctype(t2), dh_ctype(t3), \
                                    dh_ctype(t4));
 
@@ -148,7 +148,7 @@ dh_ctype(ret) HELPER(name) (dh_ctype(t1), dh_ctype(t2), dh_ctype(t3), \
 #elif GEN_HELPER == 1
 /* Gen functions.  */
 
-#define DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm) \
+#define DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm, m) \
 static inline void glue(gen_helper_, name)(dh_retvar_decl0(ret)) \
 { \
   int sizemask; \
@@ -156,7 +156,7 @@ static inline void glue(gen_helper_, name)(dh_retvar_decl0(ret)) \
   tcg_gen_helperN(HELPER(name), flags, sizemask, dh_retvar(ret), 0, NULL); \
 }
 
-#define DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, rm, wm) \
+#define DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, rm, wm, m) \
 static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1)) \
 { \
   TCGArg args[1]; \
@@ -166,7 +166,7 @@ static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1
   tcg_gen_helperN(HELPER(name), flags, sizemask, dh_retvar(ret), 1, args); \
 }
 
-#define DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, rm, wm) \
+#define DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, rm, wm, m) \
 static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1), \
     dh_arg_decl(t2, 2)) \
 { \
@@ -178,7 +178,7 @@ static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1
   tcg_gen_helperN(HELPER(name), flags, sizemask, dh_retvar(ret), 2, args); \
 }
 
-#define DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, rm, wm) \
+#define DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, rm, wm, m) \
 static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1), \
     dh_arg_decl(t2, 2), dh_arg_decl(t3, 3)) \
 { \
@@ -191,7 +191,7 @@ static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1
   tcg_gen_helperN(HELPER(name), flags, sizemask, dh_retvar(ret), 3, args); \
 }
 
-#define DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, rm, wm) \
+#define DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, rm, wm, m) \
 static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1), \
     dh_arg_decl(t2, 2), dh_arg_decl(t3, 3), dh_arg_decl(t4, 4)) \
 { \
@@ -211,20 +211,20 @@ static inline void glue(gen_helper_, name)(dh_retvar_decl(ret) dh_arg_decl(t1, 1
 #elif GEN_HELPER == 2
 /* Register helpers.  */
 
-#define DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm) \
-tcg_register_helper_with_reg_mask(HELPER(name), #name, rm, wm);
+#define DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm, m) \
+tcg_register_helper_with_reg_mask(HELPER(name), #name, rm, wm, m);
 
-#define DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, rm, wm) \
-DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm)
+#define DEF_HELPER_FLAGS_1_M(name, flags, ret, t1, rm, wm, m) \
+DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm, m)
 
-#define DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, rm, wm) \
-DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm)
+#define DEF_HELPER_FLAGS_2_M(name, flags, ret, t1, t2, rm, wm, m) \
+DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm, m)
 
-#define DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, rm, wm) \
-DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm)
+#define DEF_HELPER_FLAGS_3_M(name, flags, ret, t1, t2, t3, rm, wm, m) \
+DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm, m)
 
-#define DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, rm, wm) \
-DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm)
+#define DEF_HELPER_FLAGS_4_M(name, flags, ret, t1, t2, t3, t4, rm, wm, m) \
+DEF_HELPER_FLAGS_0_M(name, flags, ret, rm, wm, m)
 
 #undef GEN_HELPER
 #define GEN_HELPER -1

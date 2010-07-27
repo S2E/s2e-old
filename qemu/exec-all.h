@@ -196,6 +196,7 @@ struct TranslationBlock {
 #ifdef CONFIG_S2E
     uint64_t reg_rmask; /* Registers that TB reads (before overwritting) */
     uint64_t reg_wmask; /* Registers that TB writes */
+    uint64_t helper_accesses_mem; /* True if contains helpers that access mem */
 
     enum ETranslationBlockType s2e_tb_type;
     struct S2ETranslationBlock* s2e_tb;

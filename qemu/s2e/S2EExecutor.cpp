@@ -63,6 +63,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 
 //#define S2E_DEBUG_INSTRUCTIONS
 //#define S2E_TRACE_EFLAGS
+#define S2E_HELPER_MEM_LEVEL 5
 
 using namespace std;
 using namespace llvm;
@@ -1377,7 +1378,8 @@ static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
     }
 
     if(tb1) {
-        if(depth > 2 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
+        if(depth > 3 || (tb1->helper_accesses_mem >= S2E_HELPER_MEM_LEVEL) ||
+                (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
             s2e_tb_reset_jump(tb, n);
         } else if(tb1 != tb) {
             s2e_tb_reset_jump_smask(tb1, 0, smask, depth + 1);
@@ -1418,30 +1420,29 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 #if 1
             /* We can not execute TB natively if it reads any symbolic regs */
             uint64_t smask = state->getSymbolicRegistersMask();
-            if(smask) {
-                if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
-                    /* TB reads symbolic variables */
-                    executeKlee = true;
+            if((state->m_symbexEnabled && (tb->helper_accesses_mem >= S2E_HELPER_MEM_LEVEL)) ||
+                    (smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
+                /* TB reads symbolic variables */
+                executeKlee = true;
 
-                } else {
-                    s2e_tb_reset_jump_smask(tb, 0, smask);
-                    s2e_tb_reset_jump_smask(tb, 1, smask);
+            } else {
+                s2e_tb_reset_jump_smask(tb, 0, smask);
+                s2e_tb_reset_jump_smask(tb, 1, smask);
 
-                    /* XXX: check whether we really have to unlink the block */
-                    /*
-                    tb->jmp_first = (TranslationBlock *)((intptr_t)tb | 2);
-                    tb->jmp_next[0] = NULL;
-                    tb->jmp_next[1] = NULL;
-                    if(tb->tb_next_offset[0] != 0xffff)
-                        tb_set_jmp_target(tb, 0,
-                              (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[0]));
-                    if(tb->tb_next_offset[1] != 0xffff)
-                        tb_set_jmp_target(tb, 1,
-                              (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[1]));
-                    tb->s2e_tb_next[0] = NULL;
-                    tb->s2e_tb_next[1] = NULL;
-                    */
-                }
+                /* XXX: check whether we really have to unlink the block */
+                /*
+                tb->jmp_first = (TranslationBlock *)((intptr_t)tb | 2);
+                tb->jmp_next[0] = NULL;
+                tb->jmp_next[1] = NULL;
+                if(tb->tb_next_offset[0] != 0xffff)
+                    tb_set_jmp_target(tb, 0,
+                          (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[0]));
+                if(tb->tb_next_offset[1] != 0xffff)
+                    tb_set_jmp_target(tb, 1,
+                          (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[1]));
+                tb->s2e_tb_next[0] = NULL;
+                tb->s2e_tb_next[1] = NULL;
+                */
             }
 #else
             executeKlee |= !os->isAllConcrete();
