@@ -47,10 +47,6 @@
 #  define I(...)  ((void)0)
 #endif
 
-
-#define  STRINGIFY_(x)  #x
-#define  STRINGIFY(x)   STRINGIFY_(x)
-
 #define  DYNLINK_FUNCTIONS   \
     DYNLINK_FUNC(size_t,snd_pcm_sw_params_sizeof,(void))    \
     DYNLINK_FUNC(int,snd_pcm_hw_params_current,(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)) \

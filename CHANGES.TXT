@@ -59,6 +59,9 @@ OTHER:
     satellites to emulate. The number must be an integer between 1 and 12,
     (1 is the default).
 
+ - Add a PulseAudio audio backend on Linux. It will be used by default
+   unless it's impossible to connect to the PA daemon.
+
 ==============================================================================
 Changes between 7.0 and 6.0
 

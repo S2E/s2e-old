@@ -374,6 +374,7 @@ endif
 ifeq ($(HOST_OS),linux)
   CONFIG_OSS  ?= yes
   CONFIG_ALSA ?= yes
+  CONFIG_PULSEAUDIO ?= yes
   CONFIG_ESD  ?= yes
 endif
 
@@ -392,6 +393,11 @@ ifeq ($(CONFIG_WINAUDIO),yes)
   AUDIO_CFLAGS  += -DCONFIG_WINAUDIO
 endif
 
+ifeq ($(CONFIG_PULSEAUDIO),yes)
+  AUDIO_SOURCES += paaudio.c audio_pt_int.c
+  AUDIO_CFLAGS  += -DCONFIG_PULSEAUDIO
+endif
+
 ifeq ($(CONFIG_ALSA),yes)
   AUDIO_SOURCES += alsaaudio.c audio_pt_int.c
   AUDIO_CFLAGS  += -DCONFIG_ALSA
@@ -407,7 +413,7 @@ ifeq ($(CONFIG_OSS),yes)
   AUDIO_CFLAGS  += -DCONFIG_OSS
 endif
 
-AUDIO_SOURCES := $(AUDIO_SOURCES:%=audio/%)
+AUDIO_SOURCES := $(call sort,$(AUDIO_SOURCES:%=audio/%))
 
 # determine whether we're going to use the prebuilt
 # audio library (this is useful on Linux to avoid requiring
@@ -1118,6 +1124,11 @@ ifneq ($(HOST_OS),windows)
 endif
 
 LOCAL_LDLIBS += $(QEMU_AUDIO_LIB)
+
+ifeq ($(HOST_OS),darwin)
+    FRAMEWORKS := OpenGL Cocoa QuickTime ApplicationServices Carbon IOKit
+    LOCAL_LDLIBS += $(FRAMEWORKS:%=-Wl,-framework,%)
+endif
 
 # Generate a completely static executable if needed.
 # Note that this means no sound and graphics on Linux.

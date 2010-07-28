@@ -258,12 +258,13 @@ PROBE_COREAUDIO=no
 PROBE_ALSA=no
 PROBE_OSS=no
 PROBE_ESD=no
+PROBE_PULSEAUDIO=no
 PROBE_WINAUDIO=no
 
 case "$TARGET_OS" in
     darwin*) PROBE_COREAUDIO=yes;
     ;;
-    linux-*) PROBE_ALSA=yes; PROBE_OSS=yes; PROBE_ESD=yes;
+    linux-*) PROBE_ALSA=yes; PROBE_OSS=yes; PROBE_ESD=yes; PROBE_PULSEAUDIO=yes;
     ;;
     freebsd-*) PROBE_OSS=yes;
     ;;
@@ -274,45 +275,39 @@ esac
 ORG_CFLAGS=$CFLAGS
 ORG_LDFLAGS=$LDFLAGS
 
-if [ "$PROBE_ESD" = yes ] ; then
-    CFLAGS="$ORG_CFLAGS"
-    LDFLAGS="$ORG_LDFLAGS -ldl"
-    cp -f android/config/check-esd.c $TMPC
-    compile && link && $TMPE
-    if [ $? = 0 ] ; then
-        log "AudioProbe : ESD seems to be usable on this system"
-    else
-        if [ "$OPTION_IGNORE_AUDIO" = no ] ; then
-            echo "the EsounD development files do not seem to be installed on this system"
-            echo "Are you missing the libesd-dev package ?"
-            echo "Correct the errors below and try again:"
-            cat $TMPL
-            clean_exit
+# Probe a system library
+#
+# $1: Variable name (e.g. PROBE_ESD)
+# $2: Library name (e.g. "Alsa")
+# $3: Path to source file for probe program (e.g. android/config/check-alsa.c)
+# $4: Package name (e.g. libasound-dev)
+#
+probe_system_library ()
+{
+    if [ `var_value $1` = yes ] ; then
+        CFLAGS="$ORG_CFLAGS"
+        LDFLAGS="$ORG_LDFLAGS -ldl"
+        cp -f android/config/check-esd.c $TMPC
+        compile && link && $TMPE
+        if [ $? = 0 ] ; then
+            log "AudioProbe : $1 seems to be usable on this system"
+        else
+            if [ "$OPTION_IGNORE_AUDIO" = no ] ; then
+                echo "the $1 development files do not seem to be installed on this system"
+                echo "Are you missing the $3 package ?"
+                echo "Correct the errors below and try again:"
+                cat $TMPL
+                clean_exit
+            fi
+            eval $1=no
+            log "AudioProbe : $1 seems to be UNUSABLE on this system !!"
         fi
-        PROBE_ESD=no
-        log "AudioProbe : ESD seems to be UNUSABLE on this system !!"
     fi
-fi
+}
 
-if [ "$PROBE_ALSA" = yes ] ; then
-    CFLAGS="$ORG_CFLAGS"
-    LDFLAGS="$ORG_CFLAGS -ldl"
-    cp -f android/config/check-alsa.c $TMPC
-    compile && link && $TMPE
-    if [ $? = 0 ] ; then
-        log "AudioProbe : ALSA seems to be usable on this system"
-    else
-        if [ "$OPTION_IGNORE_AUDIO" = no ] ; then
-            echo "the ALSA development files do not seem to be installed on this system"
-            echo "Are you missing the libasound-dev package ?"
-            echo "Correct the erros below and try again"
-            cat $TMPL
-            clean_exit
-        fi
-        PROBE_ALSA=no
-        log "AudioProbe : ALSA seems to be UNUSABLE on this system !!"
-    fi
-fi
+probe_system_library PROBE_ESD        ESounD     android/config/check-esd.c libesd-dev
+probe_system_library PROBE_ALSA       Alsa       android/config/check-alsa.c libasound-dev
+probe_system_library PROBE_PULSEAUDIO PulseAudio android/config/check-pulseaudio.c libpulse-dev
 
 CFLAGS=$ORG_CFLAGS
 LDFLAGS=$ORG_LDFLAGS
@@ -381,6 +376,7 @@ echo "CONFIG_WINAUDIO   := $PROBE_WINAUDIO" >> $config_mk
 echo "CONFIG_ESD        := $PROBE_ESD" >> $config_mk
 echo "CONFIG_ALSA       := $PROBE_ALSA" >> $config_mk
 echo "CONFIG_OSS        := $PROBE_OSS" >> $config_mk
+echo "CONFIG_PULSEAUDIO := $PROBE_PULSEAUDIO" >> $config_mk
 echo "BUILD_STANDALONE_EMULATOR := true" >> $config_mk
 if [ $OPTION_DEBUG = yes ] ; then
     echo "BUILD_DEBUG_EMULATOR := true" >> $config_mk
