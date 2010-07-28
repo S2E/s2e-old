@@ -772,6 +772,9 @@ else
   QEMU_SYSTEM_LDLIBS += -lpthread
 endif
 
+ifeq ($(HOST_OS),darwin)
+  QEMU_SYSTEM_LDLIBS += -Wl,-framework,Cocoa
+endif
 
 
 ##############################################################################
