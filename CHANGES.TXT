@@ -27,6 +27,22 @@ Versions:
    etc...
 
 ==============================================================================
+Changes between 8.0 and 7.0
+
+IMPORTANT CHANGES:
+
+OTHER:
+
+- The phone can now be called with additional numbers, using the 1-555-521
+  prefix. I.e. you can now use all of the following numbers to call/sms an
+  emulator that runs on console port 5554:
+
+  5554
+  521 5554
+  555 521 5554
+  1 555 521 5554
+
+==============================================================================
 Changes between 7.0 and 6.0
 
 IMPORTANT CHANGES:
