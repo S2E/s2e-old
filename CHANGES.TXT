@@ -42,6 +42,20 @@ OTHER:
   555 521 5554
   1 555 521 5554
 
+- Fix -http-proxy implementation to properly work with chunked encodings.
+  Also accept strings like "http://:8080" as a valid proxy address.
+
+- The console's "geo fix" command was modified:
+
+  - a computational bug sent the wrong latitude/longitude to the emulated
+    system, resulting in coordinates that could be off from 500 to 1000 meters.
+
+  - fixed another bug that didn't report the altitude correctly.
+
+  - added a fourth, optional, parameter to indicate the number of tracked
+    satellites to emulate. The number must be an integer between 1 and 12,
+    (1 is the default).
+
 ==============================================================================
 Changes between 7.0 and 6.0
 
@@ -56,20 +70,6 @@ OTHER:
   with each other. See '-help-shared-net-id' for more details.
 
 - Fix net shaping regression: -netspeed and -netdelay did not work anymore.
-
-- Fix -http-proxy implementation to properly work with chunked encodings.
-  Also accept strings like "http://:8080" as a valid proxy address.
-
-- The console's "geo fix" command was modified:
-
-  - a computational bug sent the wrong latitude/longitude to the emulated
-    system, resulting in coordinates that could be off from 500 to 1000 meters.
-
-  - fixed another bug that didn't report the altitude correctly.
-
-  - added a fourth, optional, parameter to indicate the number of tracked
-    satellites to emulate. The number must be an integer between 1 and 12,
-    (1 is the default).
 
 ==============================================================================
 Changes between 6.0 and 5.0
