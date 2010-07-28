@@ -249,6 +249,9 @@ public:
     uint64_t getPid() const;
     uint64_t getSp() const;
 
+    void setPc(uint64_t pc);
+    void setSp(uint64_t sp);
+
     /** Returns true if symbex is currently enabled for this state */
     bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
 

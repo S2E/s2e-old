@@ -21,6 +21,29 @@ pm_idtr:
 %define IA32_IDT_TYPE_32BITS 0x0800
 %define IA32_IDT_PRESENT 0x8000
 
+;On initialise le PIC 8259A...
+pmode_initpic:
+MOV AL,00010001b
+OUT 0x20,AL                  ;ICW1 - MASTER
+OUT 0xA0,AL                  ;ICW1 - SLAVE
+MOV AL,20h
+OUT 0x21,AL                  ;ICW2 - MASTER
+MOV AL,28h
+OUT 0xa1,AL                  ;ICW2 - SLAVE
+MOV AL,00000100b
+OUT 0x21,AL                  ;ICW3 - MASTER
+MOV AL,00000010b
+OUT 0xa1,AL                  ;ICW3 - SLAVE
+MOV AL,00000001b
+OUT 0x21,AL                  ;ICW4 - MASTER
+OUT 0xa1,AL                  ;ICW4 - SLAVE
+MOV AL,11111011b			;Masked all but cascade/timer
+OUT 0x21,AL                  ;MASK - MASTER (0= Ints ON)
+MOV AL,11111111b
+OUT 0xa1,AL                  ;MASK - SLAVE
+RET
+
+
 ;eax: interrupt number
 ;edi: handler
 msg_add_idt: db "Adding interrupt vector ", 0
@@ -67,6 +90,9 @@ start_0:
 
 start_1:
     lidt [pm_idtr]
+
+    call pmode_initpic
+    sti
 
     ; Test an interrupt call
     ;int 0x80

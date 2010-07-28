@@ -9,6 +9,8 @@
 #include <s2e/Plugins/FunctionMonitor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
+#include <s2e/Plugins/SymbolicHardware.h>
+
 
 #include <s2e/Plugins/StateManager.h>
 
@@ -47,14 +49,21 @@ private:
     OSMonitor *m_windowsMonitor;
     ModuleExecutionDetector *m_detector;
     StateManager *m_manager;
+    SymbolicHardware *m_hw;
 
     //Modules we want to intercept
     StringSet m_modules;
+    StringSet m_loadedModules;
+    std::string m_hwId;
+    DeviceDescriptor *m_devDesc;
 
     void onModuleLoad(
             S2EExecutionState* state,
             const ModuleDescriptor &module
             );
+
+    bool calledFromModule(S2EExecutionState *s);
+    void undoCallAndJumpToSymbolic(S2EExecutionState *s);
 
     void registerImport(Imports &I, const std::string &dll, const std::string &name,
                         FunctionHandler handler, S2EExecutionState *state);
@@ -81,6 +90,7 @@ private:
     DECLARE_NDIS_ENTRY_POINT(QueryInformationHandler);
     DECLARE_NDIS_ENTRY_POINT(ReconfigureHandler);
     DECLARE_NDIS_ENTRY_POINT(ResetHandler);
+    DECLARE_NDIS_ENTRY_POINT(SendHandler);
     DECLARE_NDIS_ENTRY_POINT(SendPacketsHandler);
     DECLARE_NDIS_ENTRY_POINT(SetInformationHandler);
     DECLARE_NDIS_ENTRY_POINT(TransferDataHandler);

@@ -7981,6 +7981,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         dc->done_instr_end = 0;
 
         s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);
+        tb->pcOfLastInstr = pc_ptr;
 #endif
         new_pc_ptr = disas_insn(dc, pc_ptr);
 #ifdef CONFIG_S2E

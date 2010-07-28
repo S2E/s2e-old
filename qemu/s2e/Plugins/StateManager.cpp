@@ -11,12 +11,18 @@ namespace plugins {
 S2E_DEFINE_PLUGIN(StateManager, "Control the deletion/suspension of states", "StateManager",
                   "ModuleExecutionDetector");
 
-static void sm_callback()
+static void sm_callback(S2EExecutionState *s, bool killingState)
 {
     StateManager *sm = static_cast<StateManager*>(g_s2e->getPlugin("StateManager"));
     assert(sm);
+
+    if (killingState) {
+        assert(s);
+        sm->resumeSucceededState(s);
+    }
+
     //Cannot do killAllButCurrent because the current one might be in the process of being killed
-      sm->resumeSucceeded();
+    sm->resumeSucceeded();
 
 }
 
@@ -26,6 +32,17 @@ void StateManager::resumeSucceeded()
         m_executor->resumeState(*it);
     }
     m_succeeded.clear();
+}
+
+bool StateManager::resumeSucceededState(S2EExecutionState *s)
+{
+    if (m_succeeded.find(s) != m_succeeded.end()) {
+        m_succeeded.erase(s);
+        m_executor->resumeState(s);
+        return true;
+    }
+    return false;
+
 }
 
 void StateManager::initialize()
@@ -79,14 +96,21 @@ void StateManager::onTimer()
             << std::endl;
 
     if (!killAllButOneSuccessful()) {
-        killAllButCurrent();
+        s2e()->getDebugStream() << "There are no successful states to kill..."  << std::endl;
+        //killAllButCurrent();
     }
 }
 
-bool StateManager::succeededState(S2EExecutionState *s)
+bool StateManager::succeedState(S2EExecutionState *s)
 {
     s2e()->getDebugStream() << "Succeeding state " << std::dec << s->getID() << std::endl;
+
+    if (m_succeeded.find(s) != m_succeeded.end()) {
+        //Avoid suspending states that were consecutively succeeded.
+        return false;
+    }
     m_succeeded.insert(s);
+
     return s2e()->getExecutor()->suspendState(s);
 }
 
@@ -130,6 +154,7 @@ bool StateManager::killAllButOneSuccessful()
     S2EExecutionState *one =  *m_succeeded.begin();
     foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
         if (*it == one) {
+            s2e()->getDebugStream() << "Keeping all but one successful " << std::endl;
             continue;
         }else {
             if (*it != g_s2e_state) {

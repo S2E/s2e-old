@@ -109,6 +109,7 @@ public:
     void initialize();
 
     //bool toExecutionDesc(ModuleExecutionDesc *desc, const ModuleDescriptor *md);
+    const ModuleDescriptor *getModule(S2EExecutionState *state, uint64_t pc);
     const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state) const;
     const std::string *getModuleId(const ModuleDescriptor &desc) const;
 
@@ -170,6 +171,7 @@ private:
     void loadDescriptor(const ModuleDescriptor &desc);
     void unloadDescriptor(const ModuleDescriptor &desc);
     void unloadDescriptorsWithPid(uint64_t pid);
+    bool exists(const ModuleDescriptor *desc) const;
 
 public:
     sigc::signal<void,

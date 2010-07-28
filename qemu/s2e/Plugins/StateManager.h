@@ -44,7 +44,8 @@ private:
 
 public:
 
-    bool succeededState(S2EExecutionState *s);
+    bool succeedState(S2EExecutionState *s);
+    bool resumeSucceededState(S2EExecutionState *s);
 
     bool killAllButOneSuccessful();
     bool killAllButCurrent();

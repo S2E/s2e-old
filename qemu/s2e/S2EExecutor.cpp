@@ -204,10 +204,16 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
                      const char *err, const char *suffix)
 {
     assert(dynamic_cast<const S2EExecutionState*>(&state) != 0);
-    const S2EExecutionState* s = static_cast<const S2EExecutionState*>(&state);
+    const S2EExecutionState* s = dynamic_cast<const S2EExecutionState*>(&state);
+    S2EExecutionState* s1 = const_cast<S2EExecutionState*>(s);
+
     m_s2e->getWarningsStream(s)
            << "Terminating state " << s->getID()
            << " with error message '" << (err ? err : "") << "'" << std::endl;
+
+    if (m_s2e->getExecutor()->getStateManager()) {
+        m_s2e->getExecutor()->getStateManager()(s1, true);
+    }
 
     s2e::plugins::TestCaseGenerator *tc =
             dynamic_cast<s2e::plugins::TestCaseGenerator*>(m_s2e->getPlugin("TestCaseGenerator"));
@@ -876,6 +882,11 @@ void S2EExecutor::jumpToSymbolic(S2EExecutionState *state)
     longjmp(env->jmp_env, 1);
 }
 
+bool S2EExecutor::needToJumpToSymbolic(S2EExecutionState *state) const
+{
+    return !(state->m_symbexEnabled && !state->isRunningConcrete());
+}
+
 void S2EExecutor::jumpToSymbolicCpp(S2EExecutionState *state)
 {
     if (state->m_symbexEnabled && !state->isRunningConcrete()) {
@@ -957,7 +968,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     if(states.empty()) {
         if (m_stateManager) {
             //Check that there are actually no states to run.
-            m_stateManager();
+            m_stateManager(NULL, false);
             if (states.empty()) {
                 m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
                 exit(0);
@@ -1636,8 +1647,8 @@ S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
         std::vector<S2EExecutionState*> newStates(2);
         std::vector<ref<Expr> > newConditions(2);
 
-        newStates[0] = static_cast<S2EExecutionState*>(res.second);
-        newStates[1] = static_cast<S2EExecutionState*>(res.first);
+        newStates[0] = static_cast<S2EExecutionState*>(res.first);
+        newStates[1] = static_cast<S2EExecutionState*>(res.second);
 
         newConditions[0] = condition;
         newConditions[1] = klee::NotExpr::create(condition);

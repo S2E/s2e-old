@@ -201,6 +201,7 @@ struct TranslationBlock {
     enum ETranslationBlockType s2e_tb_type;
     struct S2ETranslationBlock* s2e_tb;
     struct TranslationBlock* s2e_tb_next[2];
+    uint64_t pcOfLastInstr; /* XXX: hack for call instructions */
 #endif
 };
 

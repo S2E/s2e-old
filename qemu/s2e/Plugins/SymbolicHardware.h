@@ -35,6 +35,8 @@ public:
     virtual void print(std::ostream &os) const {}
     virtual void initializeQemuDevice() {assert(false);}
     virtual void activateQemuDevice(struct PCIBus *bus) { assert(false);}
+    virtual void setInterrupt(bool state) {assert(false);};
+    virtual void assignIrq(void *irq) {assert(false);}
 };
 
 class IsaDeviceDescriptor:public DeviceDescriptor {
@@ -47,6 +49,7 @@ public:
 
 private:
     IsaResource m_isaResource;
+    void *m_qemuIrq;
 
     struct ISADeviceInfo *m_isaInfo;
     struct Property *m_isaProperties;
@@ -62,6 +65,9 @@ public:
     const IsaResource& getResource() const {
         return m_isaResource;
     }
+
+    virtual void setInterrupt(bool state);
+    virtual void assignIrq(void *irq);
 };
 
 class PciDeviceDescriptor:public DeviceDescriptor {
@@ -104,6 +110,9 @@ public:
     virtual void initializeQemuDevice();
     virtual void activateQemuDevice(struct PCIBus *bus);
 
+    virtual void setInterrupt(bool state);
+    virtual void assignIrq(void *irq);
+
     virtual ~PciDeviceDescriptor();
 };
 
@@ -120,7 +129,7 @@ public:
     virtual ~SymbolicHardware();
     void initialize();
 
-    const DeviceDescriptor *findDevice(const std::string &name) const;
+    DeviceDescriptor *findDevice(const std::string &name) const;
 
     void setSymbolicPortRange(uint16_t start, unsigned size, bool isSymbolic);
     bool isSymbolic(uint16_t port);

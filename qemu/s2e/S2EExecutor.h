@@ -45,7 +45,7 @@ public:
 };
 
 
-typedef void (*StateManagerCb)(void);
+typedef void (*StateManagerCb)(S2EExecutionState *s, bool killingState);
 
 class S2EExecutor : public klee::Executor
 {
@@ -158,6 +158,7 @@ public:
 
     void jumpToSymbolic(S2EExecutionState *state);
     void jumpToSymbolicCpp(S2EExecutionState *state);
+    bool needToJumpToSymbolic(S2EExecutionState *state) const;
 
     void fetchObjectForTlb(S2EExecutionState *state, uintptr_t hostaddr, int mmu_idx, int index);
 
@@ -179,6 +180,10 @@ public:
 
     void setStateManagerCb(StateManagerCb cb) {
         m_stateManager = cb;
+    }
+
+    StateManagerCb getStateManager() const {
+        return m_stateManager;
     }
 
 protected:

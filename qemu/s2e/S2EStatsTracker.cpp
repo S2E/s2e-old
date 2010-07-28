@@ -29,16 +29,16 @@ using namespace llvm;
 namespace s2e {
 
 void S2EStatsTracker::writeStatsHeader() {
-  *statsFile << "('Instructions',"
-             << "'FullBranches',"
-             << "'PartialBranches',"
-             << "'NumBranches',"
-             << "'NumStates',"
+  *statsFile //<< "('Instructions',"
+             //<< "'FullBranches',"
+             //<< "'PartialBranches',"
+             //<< "'NumBranches',"
+             << "('NumStates',"
              << "'NumQueries',"
              << "'NumQueryConstructs',"
              << "'NumObjects',"
-             << "'CoveredInstructions',"
-             << "'UncoveredInstructions',"
+             //<< "'CoveredInstructions',"
+             //<< "'UncoveredInstructions',"
              << "'TranslationBlocks',"
              << "'TranslationBlocksConcrete',"
              << "'TranslationBlocksKlee',"
@@ -60,16 +60,16 @@ void S2EStatsTracker::writeStatsHeader() {
 }
 
 void S2EStatsTracker::writeStatsLine() {
-  *statsFile << "(" << stats::instructions
-             << "," << fullBranches
-             << "," << partialBranches
-             << "," << numBranches
-             << "," << executor.getStatesCount()
+  *statsFile //<< "(" << stats::instructions
+             //<< "," << fullBranches
+             //<< "," << partialBranches
+             //<< "," << numBranches
+             << "(" << executor.getStatesCount()
              << "," << stats::queries
              << "," << stats::queryConstructs
              << "," << 0 // was numObjects
-             << "," << stats::coveredInstructions
-             << "," << stats::uncoveredInstructions
+             //<< "," << stats::coveredInstructions
+             //<< "," << stats::uncoveredInstructions
              << "," << stats::translationBlocks
              << "," << stats::translationBlocksConcrete
              << "," << stats::translationBlocksKlee

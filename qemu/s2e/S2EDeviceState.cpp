@@ -71,11 +71,14 @@ void S2EDeviceState::initDeviceState()
 
     if (!s_DevicesInited) {
         void *se;
-        cout << "Looking for relevant virtual devices..." << endl;
+        g_s2e->getDebugStream() << "Looking for relevant virtual devices..." << endl;
 
         for(se = s2e_qemu_get_first_se(); 
             se != NULL; se = s2e_qemu_get_next_se(se)) {
-                cout << "State ID=" << s2e_qemu_get_se_idstr(se) << endl;
+                g_s2e->getDebugStream() << "State ID=" << s2e_qemu_get_se_idstr(se) << endl;
+                //REGISTER_DEVICE("block")
+                REGISTER_DEVICE("fw_cfg")
+                REGISTER_DEVICE("timer")
                 REGISTER_DEVICE("i8259")
                 REGISTER_DEVICE("PCIBUS")
                 REGISTER_DEVICE("I440FX")
@@ -90,8 +93,9 @@ void S2EDeviceState::initDeviceState()
                 REGISTER_DEVICE("ps2kbd")
                 REGISTER_DEVICE("ps2mouse")
                 REGISTER_DEVICE("i2c_bus")
-                REGISTER_DEVICE("timer")
                 REGISTER_DEVICE("ide")
+                REGISTER_DEVICE("ide_drive")
+                REGISTER_DEVICE("ide_bus")
                 REGISTER_DEVICE("cirrus_vga")
 
                 //XXX:Check for ps2kbd, ps2mouse, i2c_bus, timer
@@ -122,6 +126,8 @@ void S2EDeviceState::saveDeviceState()
     m_Offset = 0;
     assert(s_CurrentState == NULL);
     s_CurrentState = this;
+
+    qemu_bh_poll();
 
     //DPRINTF("Saving device state %p\n", this);
     /* Iterate through all device descritors and call

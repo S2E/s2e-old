@@ -166,9 +166,12 @@ void ModuleExecutionDetector::moduleLoadListener(
 
     ConfiguredModulesByName::iterator it = m_ConfiguredModulesName.find(cfg);
     if (it != m_ConfiguredModulesName.end()) {
-
-        s2e()->getDebugStream() << " [REGISTERING ID=" << (*it).id << "]" << std::endl;
-        plgState->loadDescriptor(module);
+        if (plgState->exists(&module)) {
+            s2e()->getDebugStream() << " [ALREADY REGISTERED ID=" << (*it).id << "]" << std::endl;
+        }else {
+            s2e()->getDebugStream() << " [REGISTERING ID=" << (*it).id << "]" << std::endl;
+            plgState->loadDescriptor(module);
+        }
         return;
     }
 
@@ -211,6 +214,16 @@ bool ModuleExecutionDetector::isModuleConfigured(const std::string &moduleId) co
 /*****************************************************************************/
 /*****************************************************************************/
 /*****************************************************************************/
+
+const ModuleDescriptor *ModuleExecutionDetector::getModule(S2EExecutionState *state, uint64_t pc)
+{
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+    uint64_t pid = m_Monitor->getPid(state, pc);
+
+    const ModuleDescriptor *currentModule =
+            plgState->getDescriptor(pid, pc);
+    return currentModule;
+}
 
 const std::string *ModuleExecutionDetector::getModuleId(const ModuleDescriptor &desc) const
 {
@@ -449,3 +462,7 @@ void ModuleTransitionState::unloadDescriptorsWithPid(uint64_t pid)
     }
 }
 
+bool ModuleTransitionState::exists(const ModuleDescriptor *desc) const
+{
+    return m_Descriptors.find(desc) != m_Descriptors.end();
+}

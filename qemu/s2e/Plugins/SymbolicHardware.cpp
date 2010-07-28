@@ -142,7 +142,7 @@ static bool symbhw_is_symbolic_none(uint16_t port, void *opaque)
     return false;
 }
 
-const DeviceDescriptor *SymbolicHardware::findDevice(const std::string &name) const
+DeviceDescriptor *SymbolicHardware::findDevice(const std::string &name) const
 {
     DeviceDescriptor dd(name);
     DeviceDescriptors::const_iterator it = m_devices.find(&dd);
@@ -293,6 +293,20 @@ IsaDeviceDescriptor* IsaDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
     r.irq = irq;
 
     return new IsaDeviceDescriptor(id, r);
+}
+
+void IsaDeviceDescriptor::setInterrupt(bool state)
+{
+    if (state) {
+       qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
+    }else {
+       qemu_irq_lower(*(qemu_irq*)m_qemuIrq);
+    }
+}
+
+void IsaDeviceDescriptor::assignIrq(void *irq)
+{
+    m_qemuIrq = irq;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -460,6 +474,16 @@ void PciDeviceDescriptor::print(std::ostream &os) const
     os << std::endl;
 }
 
+void PciDeviceDescriptor::setInterrupt(bool state)
+{
+   assert(false && "Unimplemented");
+}
+
+void PciDeviceDescriptor::assignIrq(void *irq)
+{
+    assert(false && "Unimplemented");
+}
+
 /////////////////////////////////////////////////////////////////////
 /* Dummy I/O functions for symbolic devices. Unused for now. */
 static void symbhw_write8(void *opaque, uint32_t address, uint32_t data) {
@@ -598,7 +622,7 @@ static int isa_symbhw_init(ISADevice *dev)
     hw->setSymbolicPortRange(addr, size, true);
 
     isa_init_irq(dev, &isa->qirq, irq);
-
+    dd->assignIrq(&isa->qirq);
     return 0;
 }
 

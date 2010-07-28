@@ -119,9 +119,10 @@ klee::ObjectState* S2EExecutionState::fetchObjectStateMemWritable(const klee::Me
 
     return wos;
 #else
-    klee::ObjectState* wos = addressSpace.getWriteable(mo, os);
-    if(wos != os)
+    klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
+    if (wos != os) {
         refreshTlb(wos);
+    }
     return wos;
 #endif
 }
@@ -272,6 +273,16 @@ void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
 uint64_t S2EExecutionState::getPc() const
 {
     return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
+}
+
+void S2EExecutionState::setPc(uint64_t pc)
+{
+    writeCpuState(CPU_OFFSET(eip), pc, sizeof(target_ulong)*8);
+}
+
+void S2EExecutionState::setSp(uint64_t sp)
+{
+    writeCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &sp, sizeof(target_ulong));
 }
 
 uint64_t S2EExecutionState::getSp() const
