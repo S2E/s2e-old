@@ -49,6 +49,12 @@ android_core_get_base_port(void)
 }
 
 void
+android_core_sensors_set_coarse_orientation( AndroidCoarseOrientation  orient )
+{
+    android_sensors_set_coarse_orientation(orient);
+}
+
+void
 android_core_set_network_enabled(int enabled)
 {
     if (android_modem) {
@@ -68,4 +74,3 @@ void android_core_tracing_stop(void)
 {
     stop_tracing();
 }
-
