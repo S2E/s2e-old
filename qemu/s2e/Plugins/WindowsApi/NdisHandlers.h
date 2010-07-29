@@ -57,6 +57,8 @@ private:
     std::string m_hwId;
     DeviceDescriptor *m_devDesc;
 
+    std::string m_consistency;
+
     void onModuleLoad(
             S2EExecutionState* state,
             const ModuleDescriptor &module
@@ -71,11 +73,15 @@ private:
     //XXX: move this out to some other place
     static bool bypassFunction(S2EExecutionState *s, unsigned paramCount);
     static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
+    static bool writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val);
 
     DECLARE_NDIS_ENTRY_POINT(entryPoint);
 
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterMiniport);
     DECLARE_NDIS_ENTRY_POINT(NdisAllocateMemory);
+    DECLARE_NDIS_ENTRY_POINT(NdisMRegisterIoPortRange);
+
+
     DECLARE_NDIS_ENTRY_POINT(RtlEqualUnicodeString);
     DECLARE_NDIS_ENTRY_POINT(GetSystemUpTime);
     DECLARE_NDIS_ENTRY_POINT(KeStallExecutionProcessor);

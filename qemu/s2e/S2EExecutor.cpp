@@ -63,7 +63,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 
 //#define S2E_DEBUG_INSTRUCTIONS
 //#define S2E_TRACE_EFLAGS
-#define S2E_HELPER_MEM_LEVEL 5
+//#define FORCE_CONCRETIZATION
 
 using namespace std;
 using namespace llvm;
@@ -73,6 +73,7 @@ extern "C" {
     // XXX
     void* g_s2e_exec_ret_addr = 0;
 }
+
 
 namespace {
     cl::opt<bool>
@@ -828,10 +829,11 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
 
     assert(os);
 
+#ifdef FORCE_CONCRETIZATION
     if(!os->isAllConcrete()) {
         /* The object contains symbolic values. We have to
            concretize it */
-        /*
+
         ObjectState *wos;
         os = wos = state->addressSpace.getWriteable(mo,os);
 
@@ -843,8 +845,8 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
                 wos->write8(i, ch);
             }
         }
-        */
     }
+#endif
 
     //assert(os->isAllConcrete());
     memcpy((void*) mo->address, os->getConcreteStore(true), mo->size);
@@ -1389,8 +1391,7 @@ static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
     }
 
     if(tb1) {
-        if(depth > 3 || (tb1->helper_accesses_mem >= S2E_HELPER_MEM_LEVEL) ||
-                (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
+        if(depth > 2 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
             s2e_tb_reset_jump(tb, n);
         } else if(tb1 != tb) {
             s2e_tb_reset_jump_smask(tb1, 0, smask, depth + 1);
@@ -1428,35 +1429,38 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         if(!executeKlee) {
             //XXX: This should be fixed to make sure that helpers do not read/write corrupted data
             //because they think that execution is concrete while it should be symbolic (see issue #30).
+#if !defined(FORCE_CONCRETIZATION)
 #if 1
             /* We can not execute TB natively if it reads any symbolic regs */
             uint64_t smask = state->getSymbolicRegistersMask();
-            if((state->m_symbexEnabled && (tb->helper_accesses_mem >= S2E_HELPER_MEM_LEVEL)) ||
-                    (smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
-                /* TB reads symbolic variables */
-                executeKlee = true;
+            if(smask) {
+                if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
+                    /* TB reads symbolic variables */
+                    executeKlee = true;
 
-            } else {
-                s2e_tb_reset_jump_smask(tb, 0, smask);
-                s2e_tb_reset_jump_smask(tb, 1, smask);
+                } else {
+                    s2e_tb_reset_jump_smask(tb, 0, smask);
+                    s2e_tb_reset_jump_smask(tb, 1, smask);
 
-                /* XXX: check whether we really have to unlink the block */
-                /*
-                tb->jmp_first = (TranslationBlock *)((intptr_t)tb | 2);
-                tb->jmp_next[0] = NULL;
-                tb->jmp_next[1] = NULL;
-                if(tb->tb_next_offset[0] != 0xffff)
-                    tb_set_jmp_target(tb, 0,
-                          (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[0]));
-                if(tb->tb_next_offset[1] != 0xffff)
-                    tb_set_jmp_target(tb, 1,
-                          (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[1]));
-                tb->s2e_tb_next[0] = NULL;
-                tb->s2e_tb_next[1] = NULL;
-                */
+                    /* XXX: check whether we really have to unlink the block */
+                    /*
+                    tb->jmp_first = (TranslationBlock *)((intptr_t)tb | 2);
+                    tb->jmp_next[0] = NULL;
+                    tb->jmp_next[1] = NULL;
+                    if(tb->tb_next_offset[0] != 0xffff)
+                        tb_set_jmp_target(tb, 0,
+                              (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[0]));
+                    if(tb->tb_next_offset[1] != 0xffff)
+                        tb_set_jmp_target(tb, 1,
+                              (uintptr_t)(tb->tc_ptr + tb->tb_next_offset[1]));
+                    tb->s2e_tb_next[0] = NULL;
+                    tb->s2e_tb_next[1] = NULL;
+                    */
+                }
             }
 #else
             executeKlee |= !os->isAllConcrete();
+#endif
 #endif
         }
         processTimers(state, 0);
@@ -1692,7 +1696,6 @@ void S2EExecutor::branch(klee::ExecutionState &state,
 //Warning: os can be invalid!
 void S2EExecutor::invalidateCache(ExecutionState &state, const ObjectState *os, ObjectState *wo)
 {
-#if 0
     S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
     assert(s);
 
@@ -1709,7 +1712,6 @@ void S2EExecutor::invalidateCache(ExecutionState &state, const ObjectState *os, 
             s->refreshTlb(wo);
         }
     }
-#endif
 }
 
 void S2EExecutor::terminateState(ExecutionState &state)
@@ -1793,7 +1795,9 @@ bool S2EExecutor::suspendState(S2EExecutionState *state)
 bool S2EExecutor::resumeState(S2EExecutionState *state)
 {
     if (searcher)  {
-        assert(states.find(state) == states.end());
+        if (states.find(state) != states.end()) {
+            return false;
+        }
         states.insert(state);
         searcher->addState(state, NULL);
         return true;

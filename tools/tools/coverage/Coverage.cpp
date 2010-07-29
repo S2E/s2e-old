@@ -170,7 +170,7 @@ void BasicBlockCoverage::printTimeCoverage(std::ostream &os) const
     BlocksByTime::const_iterator tit;
 
     bool timeInited = false;
-    uint64_t firstTime;
+    uint64_t firstTime = 0;
 
     Blocks::const_iterator it;
     for (it = m_uniqueTbs.begin(); it != m_uniqueTbs.end(); ++it) {

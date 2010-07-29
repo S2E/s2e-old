@@ -55,6 +55,21 @@ private:
 
 };
 
+#if 0
+class ExecutionTracerState: public PluginState
+{
+private:
+    unsigned m_previousItemIndex;
+
+public:
+    ExecutionTracerState();
+    virtual ~ExecutionTracerState();
+    virtual ExecutionTracerState* clone() const;
+    static PluginState *factory();
+
+    friend class ExecutionTracer;
+};
+#endif
 
 } // namespace plugins
 } // namespace s2e

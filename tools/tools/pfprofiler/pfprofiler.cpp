@@ -20,6 +20,8 @@
 #include "pfprofiler.h"
 #include "CacheProfiler.h"
 
+#include <malloc.h>
+
 extern "C" {
 #include <bfd.h>
 }
@@ -340,3 +342,43 @@ int main(int argc, char **argv)
 }
 
 
+#ifdef afasfd
+#warning Compiling with memory debugging support...
+
+void *operator new(size_t s)
+{
+    void *ret = malloc(s);
+    if (!ret) {
+        return NULL;
+    }
+
+    memset(ret, 0xAA, s);
+    return ret;
+}
+
+void* operator new[](size_t s) {
+    void *ret = malloc(s);
+    if (!ret) {
+        return NULL;
+    }
+
+    memset(ret, 0xAA, s);
+    return ret;
+}
+
+
+
+void operator delete( void *pvMem )
+{
+   size_t s =  malloc_usable_size(pvMem);
+   memset(pvMem, 0xBB, s);
+   free(pvMem);
+}
+
+void operator delete[](void *pvMem) {
+    size_t s =  malloc_usable_size(pvMem);
+    memset(pvMem, 0xBB, s);
+    free(pvMem);
+}
+
+#endif

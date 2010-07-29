@@ -97,10 +97,6 @@ void ExecutionTracer::onFork(S2EExecutionState *state,
 
     writeData(state, itemFork, itemSize, TRACE_FORK);
 
-    if (m_LogFile) {
-        fflush(m_LogFile);
-    }
-
     delete [] itemBytes;
 }
 

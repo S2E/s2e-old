@@ -14,6 +14,7 @@ extern "C" {
 #include <klee/Solver.h>
 
 #include <iostream>
+#include <sstream>
 
 using namespace s2e::windows;
 
@@ -53,6 +54,18 @@ void NdisHandlers::initialize()
             s2e()->getWarningsStream() << "The specified hardware device id is invalid " << m_hwId << std::endl;
             exit(-1);
         }
+    }
+
+    m_consistency = cfg->getString(getConfigKey() + ".consistency", "", &ok);
+    if (m_consistency != "strict" && m_consistency != "local" && m_consistency != "overapproximate"
+        && m_consistency != "overconstrained") {
+        s2e()->getWarningsStream() << "Incorrect consistency " << m_hwId << std::endl;
+        exit(-1);
+    }
+
+    if (m_consistency == "overconstrained") {
+        //Make sure to enable the FORCE_CONCRETIZATION hack in S2EExecutor
+        m_consistency = "strict";
     }
 
 
@@ -153,8 +166,10 @@ void NdisHandlers::onModuleLoad(
 
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterMiniport);
 
-    //REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemory);
-    //REGISTER_IMPORT(I, "ntoskrnl.exe", RtlEqualUnicodeString);
+    REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemory);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterIoPortRange);
+
+    REGISTER_IMPORT(I, "ntoskrnl.exe", RtlEqualUnicodeString);
     //REGISTER_IMPORT(I, "ntoskrnl.exe", GetSystemUpTime);
     //REGISTER_IMPORT(I, "hal.dll", KeStallExecutionProcessor);
 
@@ -189,12 +204,20 @@ bool NdisHandlers::bypassFunction(S2EExecutionState *s, unsigned paramCount)
 
 bool NdisHandlers::readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val)
 {
-    uint32_t paramVal;
-    bool b = s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), &paramVal, sizeof(paramVal));
+    bool b = s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), val, sizeof(*val));
     if (!b) {
         return false;
     }
-    return paramVal;
+    return true;
+}
+
+bool NdisHandlers::writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val)
+{
+    bool b = s->writeMemory(s->getSp() + (param+1) * sizeof(uint32_t), val);
+    if (!b) {
+        return false;
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -231,12 +254,19 @@ void NdisHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonit
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
+    if (m_consistency == "strict") {
+        return;
+    }
+
     undoCallAndJumpToSymbolic(state);
 
-    klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
-    bypassFunction(state, 3);
-    throw CpuExitException();
+    //XXX: local assumes the stuff comes from the registry
+    if (m_consistency == "overapproximate" || m_consistency == "local") {
+        klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
+        bypassFunction(state, 3);
+        throw CpuExitException();
+    }
 }
 
 
@@ -244,6 +274,11 @@ void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitor:
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == "strict") {
+        return;
+    }
+
     signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisAllocateMemoryRet));
 }
 
@@ -264,23 +299,143 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
         return;
     }
 
-    /* Fork success and failure */
-    klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-    klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
+    if (m_consistency == "overapproximate") {
+        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+    }else
 
-    klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
+    //Consistency: LOCAL
+    if (m_consistency == "local") {
+        /* Fork success and failure */
+        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
 
-    S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
-    S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
 
-    /* Update each of the states */
-    uint32_t retVal = 0;
-    ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
 
-    retVal = 0xC0000001L;
-    fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+        /* Update each of the states */
+        uint32_t retVal = 0;
+        ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+
+        retVal = 0xC0000001L;
+        fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+    }
 }
 
+void NdisHandlers::NdisMRegisterIoPortRange(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == "strict") {
+        return;
+    }
+
+    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterIoPortRangeRet));
+}
+
+void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    //Get the return value
+    uint32_t eax;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        return;
+    }
+
+    if (eax) {
+        //The original function has failed
+        return;
+    }
+
+    if (m_consistency == "overapproximate") {
+        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+    }else
+
+    //Consistency: LOCAL
+    if (m_consistency == "local") {
+        /* Fork success and failure */
+        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        klee::ref<klee::Expr> cond = klee::NeExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
+
+        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
+        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+
+        /* Update each of the states */
+        //First state succeeded
+        uint32_t retVal = 0;
+        fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+
+        retVal = 0xc001001E;
+        ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+
+#if 0
+        //Second state: NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
+        klee::ref<klee::Expr> cond2 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc001001E, klee::Expr::Int32));
+        sp = s2e()->getExecutor()->fork(*ts, cond2, false);
+        S2EExecutionState *ts_1 = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs_1 = static_cast<S2EExecutionState *>(sp.second);
+
+        retVal = 0xc001001E;
+        fs_1->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+
+        //Third state: NDIS_STATUS_RESOURCES 0xc000009a
+        klee::ref<klee::Expr> cond3 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc000009a, klee::Expr::Int32));
+        sp = s2e()->getExecutor()->fork(*ts_1, cond3, false);
+        S2EExecutionState *ts_2 = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs_2 = static_cast<S2EExecutionState *>(sp.second);
+
+        retVal = 0xc000009a;
+        fs_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+
+        //Fourth state: NDIS_STATUS_FAILURE
+        retVal = 0xC0000001L;
+        ts_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+#endif
+    }
+
+}
+#if 0
+
+void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == "strict") {
+        return;
+    }
+
+    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisReadNetworkAddressRet));
+}
+
+void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    //Get the return value
+    uint32_t eax;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        return;
+    }
+
+    if (eax) {
+        //The original function has failed
+        return;
+    }
+
+
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -321,7 +476,10 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterMiniportRet));
+
+    if (m_consistency != "strict") {
+        signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterMiniportRet));
+    }
 
     //Extract the function pointers from the passed data structure
     uint32_t pMiniport;
@@ -370,12 +528,15 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
     }
 
 #if 0
-    //Replace the return value with a symbolic value
-    if ((int)eax>=0) {
-        klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), ret);
+    if (m_consistency == "overapproximate") {
+        //Replace the return value with a symbolic value
+        if ((int)eax>=0) {
+            klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+            state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), ret);
+        }
     }
 #endif
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -397,6 +558,45 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitor::
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     signal->connect(sigc::mem_fun(*this, &NdisHandlers::InitializeHandlerRet));
+
+    /* Make the medium array symbolic */
+    uint32_t pMediumArray, MediumArraySize;
+
+    if (!readConcreteParameter(state, 2, &pMediumArray)) {
+        s2e()->getDebugStream(state) << "Could not read pMediumArray" << std::endl;
+        return;
+    }
+
+    if (!readConcreteParameter(state, 3, &MediumArraySize)) {
+        s2e()->getDebugStream(state) << "Could not read MediumArraySize" << std::endl;
+        return;
+    }
+
+    if (m_consistency == "overapproximate") {
+        if (pMediumArray) {
+            for (unsigned i=0; i<MediumArraySize; i++) {
+                std::stringstream ss;
+                ss << "MediumArray" << std::dec << "_" << i;
+                state->writeMemory(pMediumArray + i * 4, state->createSymbolicValue(klee::Expr::Int32, ss.str()));
+            }
+            writeParameter(state, 3, state->createSymbolicValue(klee::Expr::Int32, "MediumArraySize"));
+        }
+    }else
+
+    if (m_consistency == "local") {
+        //Make size properly constrained
+        if (pMediumArray) {
+            for (unsigned i=0; i<MediumArraySize; i++) {
+                std::stringstream ss;
+                ss << "MediumArray" << std::dec << "_" << i;
+                state->writeMemory(pMediumArray + i * 4, state->createSymbolicValue(klee::Expr::Int32, ss.str()));
+            }
+
+            klee::ref<klee::Expr> SymbSize = klee::UleExpr::create(state->createSymbolicValue(klee::Expr::Int32, "MediumArraySize"),
+                                                               klee::ConstantExpr::create(MediumArraySize, klee::Expr::Int32));
+            writeParameter(state, 3, SymbSize);
+        }
+    }
 }
 
 void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)

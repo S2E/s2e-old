@@ -46,6 +46,7 @@ S2EDeviceState* S2EDeviceState::clone()
     ret->m_State = 0;
     ret->m_StateSize = 0;
     //ret->saveDeviceState();
+    ret->m_BlockDevices.clear();
     return ret;
 }
 

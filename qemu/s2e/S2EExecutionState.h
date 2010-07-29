@@ -167,7 +167,7 @@ public:
     inline const klee::ObjectState* fetchObjectState(const klee::MemoryObject *mo, uint64_t tpm) const {
         if (mo == m_cpuRegistersState || mo == m_cpuSystemState) {
             return addressSpace.findObject(mo);
-        } else {
+        }else {
             return fetchObjectStateMem(mo->address, tpm).second;
         }
     }
@@ -181,8 +181,6 @@ public:
     }
 
     void refreshTlb(klee::ObjectState *newObj);
-
-
 
     /*************************************************/
 

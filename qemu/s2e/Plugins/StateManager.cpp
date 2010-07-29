@@ -19,10 +19,13 @@ static void sm_callback(S2EExecutionState *s, bool killingState)
     if (killingState) {
         assert(s);
         sm->resumeSucceededState(s);
+        return;
     }
 
-    //Cannot do killAllButCurrent because the current one might be in the process of being killed
-    sm->resumeSucceeded();
+    if (!sm->killAllButOneSuccessful()) {
+        sm->killAllButCurrent();
+    }
+    //sm->resumeSucceeded();
 
 }
 
@@ -154,11 +157,14 @@ bool StateManager::killAllButOneSuccessful()
     S2EExecutionState *one =  *m_succeeded.begin();
     foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
         if (*it == one) {
-            s2e()->getDebugStream() << "Keeping all but one successful " << std::endl;
+            s2e()->getDebugStream() << "Keeping state " << std::dec << one->getID() << std::endl;
             continue;
         }else {
             if (*it != g_s2e_state) {
-                s2e()->getExecutor()->terminateStateOnExit(**it);
+                s2e()->getDebugStream() << "Killing state  " << std::dec << (*it)->getID() << std::endl;
+                //XXX: the state will be lost
+                m_executor->suspendState(*it);
+                //s2e()->getExecutor()->terminateStateOnExit(**it);
             }
         }
     }

@@ -14,6 +14,7 @@ PageFault::PageFault(LogEvents *events, ModuleCache *mc)
    m_totalPageFaults = 0;
    m_connection = events->onEachItem.connect(
            sigc::mem_fun(*this, &PageFault::onItem));
+   m_mc = mc;
 }
 
 PageFault::~PageFault()
