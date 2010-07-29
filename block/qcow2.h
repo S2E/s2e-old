@@ -94,6 +94,7 @@ typedef struct BDRVQcowState {
     uint8_t *cluster_cache;
     uint8_t *cluster_data;
     uint64_t cluster_cache_offset;
+    QLIST_HEAD(QCowClusterAlloc, QCowL2Meta) cluster_allocs;
 
     uint64_t *refcount_table;
     uint64_t refcount_table_offset;
@@ -131,6 +132,9 @@ typedef struct QCowL2Meta
     int n_start;
     int nb_available;
     int nb_clusters;
+    struct QCowL2Meta *depends_on;
+
+    QLIST_ENTRY(QCowL2Meta) next_in_flight;
 } QCowL2Meta;
 
 static inline int size_to_clusters(BDRVQcowState *s, int64_t size)
@@ -190,6 +194,9 @@ uint64_t qcow2_alloc_compressed_cluster_offset(BlockDriverState *bs,
 
 int qcow2_alloc_cluster_link_l2(BlockDriverState *bs, uint64_t cluster_offset,
     QCowL2Meta *m);
+
+int qcow2_read(BlockDriverState *bs, int64_t sector_num, uint8_t *buf,
+    int nb_sectors);
 
 /* qcow2-snapshot.c functions */
 int qcow2_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_info);

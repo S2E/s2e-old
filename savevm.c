@@ -631,12 +631,11 @@ void  qemu_put_struct(QEMUFile*  f, const QField*  fields, const void*  s)
 {
     const QField*  qf = fields;
 
-    for (;;) {
+    /* Iterate over struct fields */
+    while (qf->type != Q_FIELD_END) {
         uint8_t*  p = (uint8_t*)s + qf->offset;
 
         switch (qf->type) {
-            case Q_FIELD_END:
-                break;
             case Q_FIELD_BYTE:
                 qemu_put_byte(f, p[0]);
                 break;
@@ -650,8 +649,8 @@ void  qemu_put_struct(QEMUFile*  f, const QField*  fields, const void*  s)
                 qemu_put_be64(f, ((uint64_t*)p)[0]);
                 break;
             case Q_FIELD_BUFFER:
-                if (fields[1].type != Q_FIELD_BUFFER_SIZE ||
-                    fields[2].type != Q_FIELD_BUFFER_SIZE)
+                if (qf[1].type != Q_FIELD_BUFFER_SIZE ||
+                    qf[2].type != Q_FIELD_BUFFER_SIZE)
                 {
                     fprintf(stderr, "%s: invalid QFIELD_BUFFER item passed as argument. aborting\n",
                             __FUNCTION__ );
@@ -659,7 +658,7 @@ void  qemu_put_struct(QEMUFile*  f, const QField*  fields, const void*  s)
                 }
                 else
                 {
-                    uint32_t  size = ((uint32_t)fields[1].offset << 16) | (uint32_t)fields[2].offset;
+                    uint32_t  size = ((uint32_t)qf[1].offset << 16) | (uint32_t)qf[2].offset;
 
                     qemu_put_buffer(f, p, size);
                     qf += 2;
@@ -677,12 +676,11 @@ int   qemu_get_struct(QEMUFile*  f, const QField*  fields, void*  s)
 {
     const QField*  qf = fields;
 
-    for (;;) {
+    /* Iterate over struct fields */
+    while (qf->type != Q_FIELD_END) {
         uint8_t*  p = (uint8_t*)s + qf->offset;
 
         switch (qf->type) {
-            case Q_FIELD_END:
-                break;
             case Q_FIELD_BYTE:
                 p[0] = qemu_get_byte(f);
                 break;
@@ -696,8 +694,8 @@ int   qemu_get_struct(QEMUFile*  f, const QField*  fields, void*  s)
                 ((uint64_t*)p)[0] = qemu_get_be64(f);
                 break;
             case Q_FIELD_BUFFER:
-                if (fields[1].type != Q_FIELD_BUFFER_SIZE ||
-                    fields[2].type != Q_FIELD_BUFFER_SIZE)
+                if (qf[1].type != Q_FIELD_BUFFER_SIZE ||
+                        qf[2].type != Q_FIELD_BUFFER_SIZE)
                 {
                     fprintf(stderr, "%s: invalid QFIELD_BUFFER item passed as argument.\n",
                             __FUNCTION__ );
@@ -705,7 +703,7 @@ int   qemu_get_struct(QEMUFile*  f, const QField*  fields, void*  s)
                 }
                 else
                 {
-                    uint32_t  size = ((uint32_t)fields[1].offset << 16) | (uint32_t)fields[2].offset;
+                    uint32_t  size = ((uint32_t)qf[1].offset << 16) | (uint32_t)qf[2].offset;
                     int       ret  = qemu_get_buffer(f, p, size);
 
                     if (ret != size) {

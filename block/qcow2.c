@@ -230,6 +230,8 @@ static int qcow_open(BlockDriverState *bs, const char *filename, int flags)
     if (qcow2_refcount_init(bs) < 0)
         goto fail;
 
+    QLIST_INIT(&s->cluster_allocs);
+
     /* read qcow2 extensions */
     if (header.backing_file_offset)
         ext_end = header.backing_file_offset;
@@ -826,6 +828,54 @@ static int qcow_make_empty(BlockDriverState *bs)
     return 0;
 }
 
+/**
+ * Write data synchronously
+ */
+static int qcow2_write(BlockDriverState *bs, int64_t sector_num,
+                     const uint8_t *buf, int nb_sectors)
+{
+    BDRVQcowState *s = bs->opaque;
+    int ret, index_in_cluster, n;
+    uint64_t cluster_offset;
+    int n_end;
+    QCowL2Meta l2meta;
+
+    while (nb_sectors > 0) {
+        memset(&l2meta, 0, sizeof(l2meta));
+
+        index_in_cluster = sector_num & (s->cluster_sectors - 1);
+        n_end = index_in_cluster + nb_sectors;
+        if (s->crypt_method &&
+            n_end > QCOW_MAX_CRYPT_CLUSTERS * s->cluster_sectors)
+            n_end = QCOW_MAX_CRYPT_CLUSTERS * s->cluster_sectors;
+        cluster_offset = qcow2_alloc_cluster_offset(bs, sector_num << 9,
+                                              index_in_cluster,
+                                              n_end, &n, &l2meta);
+        if (!cluster_offset)
+            return -1;
+        if (s->crypt_method) {
+            qcow2_encrypt_sectors(s, sector_num, s->cluster_data, buf, n, 1,
+                            &s->aes_encrypt_key);
+            ret = bdrv_pwrite(s->hd, cluster_offset + index_in_cluster * 512,
+                              s->cluster_data, n * 512);
+        } else {
+            ret = bdrv_pwrite(s->hd, cluster_offset + index_in_cluster * 512, buf, n * 512);
+        }
+        if (ret != n * 512 || qcow2_alloc_cluster_link_l2(bs, cluster_offset, &l2meta) < 0) {
+            qcow2_free_any_clusters(bs, cluster_offset, l2meta.nb_clusters);
+            return -1;
+        }
+        nb_sectors -= n;
+        sector_num += n;
+        buf += n * 512;
+        if (l2meta.nb_clusters != 0) {
+            QLIST_REMOVE(&l2meta, next_in_flight);
+        }
+    }
+    s->cluster_cache_offset = -1; /* disable compressed cache */
+    return 0;
+}
+
 /* XXX: put compressed sectors first, then all the cluster aligned
    tables to avoid losing bytes in alignment */
 static int qcow_write_compressed(BlockDriverState *bs, int64_t sector_num,
@@ -901,12 +951,16 @@ static void qcow_flush(BlockDriverState *bs)
     bdrv_flush(s->hd);
 }
 
+static int64_t qcow_vm_state_offset(BDRVQcowState *s)
+{
+    return (int64_t)s->l1_vm_state_index << (s->cluster_bits + s->l2_bits);
+}
+
 static int qcow_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
 {
     BDRVQcowState *s = bs->opaque;
     bdi->cluster_size = s->cluster_size;
-    bdi->vm_state_offset = (int64_t)s->l1_vm_state_index <<
-        (s->cluster_bits + s->l2_bits);
+    bdi->vm_state_offset = qcow_vm_state_offset(s);
     return 0;
 }
 
@@ -939,10 +993,11 @@ static void dump_refcounts(BlockDriverState *bs)
 static int qcow_put_buffer(BlockDriverState *bs, const uint8_t *buf,
                            int64_t pos, int size)
 {
+    BDRVQcowState *s = bs->opaque;
     int growable = bs->growable;
 
     bs->growable = 1;
-    bdrv_pwrite(bs, pos, buf, size);
+    bdrv_pwrite(bs, qcow_vm_state_offset(s) + pos, buf, size);
     bs->growable = growable;
 
     return size;
@@ -951,11 +1006,12 @@ static int qcow_put_buffer(BlockDriverState *bs, const uint8_t *buf,
 static int qcow_get_buffer(BlockDriverState *bs, uint8_t *buf,
                            int64_t pos, int size)
 {
+    BDRVQcowState *s = bs->opaque;
     int growable = bs->growable;
     int ret;
 
     bs->growable = 1;
-    ret = bdrv_pread(bs, pos, buf, size);
+    ret = bdrv_pread(bs, qcow_vm_state_offset(s) + pos, buf, size);
     bs->growable = growable;
 
     return ret;
@@ -1002,8 +1058,10 @@ static BlockDriver bdrv_qcow2 = {
     .bdrv_set_key	= qcow_set_key,
     .bdrv_make_empty	= qcow_make_empty,
 
-    .bdrv_aio_readv	= qcow_aio_readv,
-    .bdrv_aio_writev	= qcow_aio_writev,
+    .bdrv_read          = qcow2_read,
+    .bdrv_write         = qcow2_write,
+    .bdrv_aio_readv     = qcow_aio_readv,
+    .bdrv_aio_writev    = qcow_aio_writev,
     .bdrv_write_compressed = qcow_write_compressed,
 
     .bdrv_snapshot_create   = qcow2_snapshot_create,
