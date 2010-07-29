@@ -153,7 +153,6 @@ public:
 
     uint64_t getTotalInstructionCount();
 
-#if 0
     /*************************************************/
 
     /** Accesses to memory objects through the cache **/
@@ -175,33 +174,16 @@ public:
 
     inline klee::ObjectState* fetchObjectStateWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
         if (mo == m_cpuRegistersState || mo == m_cpuSystemState) {
-            return fetchObjectStateRegWritable(mo, os);
+            return addressSpace.getWriteable(mo, os);
         } else {
             return fetchObjectStateMemWritable(mo, os);
         }
     }
 
     void refreshTlb(klee::ObjectState *newObj);
-#endif
 
-    klee::ObjectPair fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
-        return addressSpace.findObject(hostAddress);
-    }
 
-    klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        return addressSpace.getWriteable(mo, os);
-    }
 
-    void invalidateObjectStateMem(uintptr_t moAddr) {}
-
-    /** Universal access **/
-    inline const klee::ObjectState* fetchObjectState(const klee::MemoryObject *mo, uint64_t tpm) const {
-        return addressSpace.findObject(mo);
-    }
-
-    inline klee::ObjectState* fetchObjectStateWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        return addressSpace.getWriteable(mo, os);
-    }
     /*************************************************/
 
     PluginState* getPluginState(Plugin *plugin, PluginStateFactory factory) {
