@@ -593,3 +593,10 @@ android_emulator_set_window_scale( double  scale, int  is_dpi )
         skin_window_set_scale( emulator->window, scale );
 }
 
+
+void
+android_emulator_set_base_port( int  port )
+{
+    android_base_port = port;
+    qemulator_set_title(qemulator);
+}

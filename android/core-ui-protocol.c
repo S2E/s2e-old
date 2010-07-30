@@ -18,9 +18,14 @@
  */
 
 #include "android/globals.h"
+#include "android/android.h"
 #include "android/core-ui-protocol.h"
 
+#if !defined(CONFIG_STANDALONE_CORE)
+/* in android/qemulator.c */
 extern void  android_emulator_set_window_scale( double, int );
+extern void  android_emulator_set_base_port(int  port);
+#endif
 
 void
 android_ui_set_window_scale(double scale, int is_dpi)
@@ -29,3 +34,12 @@ android_ui_set_window_scale(double scale, int is_dpi)
     android_emulator_set_window_scale(scale, is_dpi);
 #endif
 }
+
+void
+android_ui_set_base_port(int  port)
+{
+#if !defined(CONFIG_STANDALONE_CORE)
+    android_emulator_set_base_port(port);
+#endif
+}
+

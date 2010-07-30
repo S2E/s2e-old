@@ -330,7 +330,8 @@ void  android_emulation_setup( void )
 
     android_modem_init( base_port );
 
-    android_base_port = base_port;
+    android_ui_set_base_port(base_port);
+
    /* send a simple message to the ADB host server to tell it we just started.
     * it should be listening on port 5037. if we can't reach it, don't bother
     */
