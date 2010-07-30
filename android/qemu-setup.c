@@ -422,19 +422,25 @@ void  android_emulation_setup( void )
         proxy_name_len = p - env;
         proxy_port     = atoi(p+1);
 
-        /* handle the rare case where the proxy name is omitted, e.g. "http://:8080" */
-        if (proxy_name_len == 0) {
-            proxy_name = "localhost";
-            proxy_name_len = strlen(proxy_name);
-        }
-
         D( "setting up http proxy:  server=%.*s port=%d",
                 proxy_name_len, proxy_name, proxy_port );
+
+        /* Check that we can connect to the proxy in the next second.
+         * If not, the proxy setting is probably garbage !!
+         */
+        if ( proxy_check_connection( proxy_name, proxy_name_len, proxy_port, 1000 ) < 0) {
+            dprint("Could not connect to proxy at %.*s:%d: %s !",
+                   proxy_name_len, proxy_name, proxy_port, errno_str);
+            dprint("Proxy will be ignored !");
+            break;
+        }
 
         if ( proxy_http_setup( proxy_name, proxy_name_len, proxy_port,
                                option - option_tab, option_tab ) < 0 )
         {
-            dprint( "http proxy setup failed, check your $http_proxy variable");
+            dprint( "Http proxy setup failed for '%.*s:%d': %s",
+                    proxy_name_len, proxy_name, proxy_port, errno_str);
+            dprint( "Proxy will be ignored !");
         }
     }
     while (0);

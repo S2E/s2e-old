@@ -17,6 +17,7 @@
 #include <errno.h>
 #include "android/utils/misc.h"
 #include "android/utils/system.h"
+#include "iolooper.h"
 #include <stdlib.h>
 
 int  proxy_log = 0;
@@ -530,3 +531,49 @@ Exit:
 }
 
 
+int
+proxy_check_connection( const char* proxyname,
+                        int         proxyname_len,
+                        int         proxyport,
+                        int         timeout_ms )
+{
+    SockAddress  addr;
+    int          sock;
+    IoLooper*    looper;
+    int          ret;
+
+    if (proxy_resolve_server(&addr, proxyname, proxyname_len, proxyport) < 0) {
+        return -1;
+    }
+
+    sock = socket_create(addr.family, SOCKET_STREAM);
+    if (sock < 0) {
+        PROXY_LOG("%s: Could not create socket !?: %s", __FUNCTION__, errno_str);
+        return -1;
+    }
+
+    socket_set_nonblock(sock);
+
+    /* An immediate connection is very unlikely, but deal with it, just in case */
+    if (socket_connect(sock, &addr) == 0) {
+        PROXY_LOG("%s: Immediate connection to %.*s:%d: %s !",
+                    __FUNCTION__, proxyname_len, proxyname, proxyport);
+        socket_close(sock);
+        return 0;
+    }
+
+    /* Ok, create an IoLooper object to wait for the connection */
+    looper = iolooper_new();
+    iolooper_add_write(looper, sock);
+
+    ret = iolooper_wait(looper, timeout_ms);
+
+    iolooper_free(looper);
+    socket_close(sock);
+
+    if (ret == 0) {
+        errno = ETIMEDOUT;
+        ret   = -1;
+    }
+    return ret;
+}

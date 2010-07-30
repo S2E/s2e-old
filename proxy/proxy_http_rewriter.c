@@ -1121,7 +1121,7 @@ http_rewriter_connect( HttpService*  service,
     RewriteConnection*  conn;
     int                 s;
 
-    s = socket_create_inet( SOCKET_STREAM );
+    s = socket_create(address->family, SOCKET_STREAM );
     if (s < 0)
         return NULL;
 

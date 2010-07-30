@@ -146,9 +146,18 @@ iolooper_wait( IoLooper*  iol, int64_t  duration )
     int     count = iolooper_fd_count(iol);
     int     ret;
     fd_set  errs;
+    struct timeval tm0, *tm = NULL;
 
     if (count == 0)
         return 0;
+
+    if (duration < 0)
+        tm = NULL;
+    else {
+        tm = &tm0;
+        tm->tv_sec  = duration / 1000;
+        tm->tv_usec = (duration - 1000*tm->tv_sec) * 1000;
+    }
 
     FD_ZERO(&errs);
 
@@ -156,7 +165,7 @@ iolooper_wait( IoLooper*  iol, int64_t  duration )
         iol->reads_result[0]  = iol->reads[0];
         iol->writes_result[0] = iol->writes[0];
 
-        ret = select( count, iol->reads_result, iol->writes_result, &errs, NULL);
+        ret = select( count, iol->reads_result, iol->writes_result, &errs, tm);
     } while (ret < 0 && errno == EINTR);
 
     return ret;

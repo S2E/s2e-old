@@ -85,4 +85,16 @@ extern void  proxy_manager_poll( fd_set*  read_fds,
                                  fd_set*  write_fds, 
                                  fd_set*  err_fds );
 
+/* this function checks that one can connect to a given proxy. It will simply try to connect()
+ * to it, for a specified timeout, in milliseconds, then close the connection.
+ *
+ * returns 0 in case of success, and -1 in case of error. errno will be set to ETIMEDOUT in
+ * case of timeout, or ECONNREFUSED if the connection is refused.
+ */
+
+extern int   proxy_check_connection( const char* proxyname,
+                                     int         proxyname_len,
+                                     int         proxyport,
+                                     int         timeout_ms );
+
 #endif /* END */

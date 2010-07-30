@@ -43,7 +43,10 @@ OTHER:
   1 555 521 5554
 
 - Fix -http-proxy implementation to properly work with chunked encodings.
-  Also accept strings like "http://:8080" as a valid proxy address.
+
+  Also try to connect to the proxy on startup to see if the host/port are
+  valid. If no connection succeeds after 1 second, dump a warning and
+  ignore the proxy for the session.
 
 - The console's "geo fix" command was modified:
 
