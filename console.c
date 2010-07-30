@@ -158,6 +158,13 @@ static TextConsole *active_console;
 static TextConsole *consoles[MAX_CONSOLES];
 static int nb_consoles = 0;
 
+/* Graphic console width, height and bits per pixel.
+ * These default values can be changed with the "-android-gui" option.
+ */
+int android_display_width   = 640;
+int android_display_height  = 480;
+int android_display_bpp     = 32;
+
 void vga_hw_update(void)
 {
     if (active_console && active_console->hw_update)
@@ -1275,8 +1282,8 @@ DisplayState *graphic_console_init(vga_hw_update_ptr update,
     DisplayState *ds;
 
     ds = (DisplayState *) qemu_mallocz(sizeof(DisplayState));
-    ds->allocator = &default_allocator; 
-    ds->surface = qemu_create_displaysurface(ds, 640, 480);
+    ds->allocator = &default_allocator;
+    ds->surface = qemu_create_displaysurface(ds, android_display_width, android_display_height);
 
     s = new_console(ds, GRAPHIC_CONSOLE);
     if (s == NULL) {
@@ -1557,8 +1564,8 @@ DisplaySurface* defaultallocator_create_displaysurface(int width, int height)
 
     surface->width = width;
     surface->height = height;
-    surface->linesize = width * 4;
-    surface->pf = qemu_default_pixelformat(32);
+    surface->pf = qemu_default_pixelformat(android_display_bpp);
+    surface->linesize = width * surface->pf.bytes_per_pixel;
 #ifdef HOST_WORDS_BIGENDIAN
     surface->flags = QEMU_ALLOCATED_FLAG | QEMU_BIG_ENDIAN_FLAG;
 #else
@@ -1570,12 +1577,12 @@ DisplaySurface* defaultallocator_create_displaysurface(int width, int height)
 }
 
 DisplaySurface* defaultallocator_resize_displaysurface(DisplaySurface *surface,
-                                          int width, int height)
+                                                       int width, int height)
 {
     surface->width = width;
     surface->height = height;
-    surface->linesize = width * 4;
-    surface->pf = qemu_default_pixelformat(32);
+    surface->pf = qemu_default_pixelformat(android_display_bpp);
+    surface->linesize = width * surface->pf.bytes_per_pixel;
     if (surface->flags & QEMU_ALLOCATED_FLAG)
         surface->data = (uint8_t*) qemu_realloc(surface->data, surface->linesize * surface->height);
     else
