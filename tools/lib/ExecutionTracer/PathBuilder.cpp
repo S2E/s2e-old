@@ -5,6 +5,8 @@
 #include <iostream>
 #include "Path.h"
 
+//#define DEBUG_PB
+
 namespace s2etools
 {
 
@@ -84,41 +86,72 @@ void PathBuilder::onItem(unsigned traceIndex,
             void *item)
 {
     assert(m_CurrentSegment);
+
     if (hdr.stateId != m_CurrentSegment->getStateId()) {
         //Lookup the current state
         StateToSegments::iterator it = m_Leaves.find(hdr.stateId);
+
         //There must have been a fork that generated the state
         if (it == m_Leaves.end()) {
-            std::cerr << (int) hdr.stateId << std::endl;
+            std::cerr << "Encountered a state id that was not forked before " <<
+                    (int) hdr.stateId << std::endl;
             assert(false);
         }
+
+
+        //A new segment must have been created when the state was forked
         assert((*it).second.size() > 0);
+
+        //Retrieve the latest segment to append new items to it.
         m_CurrentSegment = (*it).second.back();
+
+#ifdef DEBUG_PB
+        std::cerr << "Switching to new state in the trace - parent=" << m_CurrentSegment->getParent()->getStateId() << std::endl;
+#endif
+
+
+        //Check that the segment really belongs to us
         assert(m_CurrentSegment->getStateId() == hdr.stateId);
-            m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
+
+        //Since we have just switched to a new state, we must start a new fragment
+        m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
+
         //m_CurrentSegment->print(std::cout);
     }
 
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
+        assert(f->stateCount == 2);
         for(unsigned i = 0; i<f->stateCount; ++i) {
             std::cerr << "Forking " << hdr.stateId << " to " << f->children[i] << std::endl;
             PathSegment *newSeg = new PathSegment(m_CurrentSegment, f->children[i], f->pc);
             m_Leaves[f->children[i]].push_back(newSeg);
+        }
+
+        for(unsigned i = 0; i<f->stateCount; ++i) {
             if (m_CurrentSegment->getStateId() == f->children[i]) {
-                m_CurrentSegment = newSeg;
+                m_CurrentSegment = m_CurrentSegment->getChildren()[i];
+                break;
             }
         }
+
     }else {
         assert(m_CurrentSegment->getStateId() == hdr.stateId);
 
         //Simply extend the current segment with a fragment
         if (!m_CurrentSegment->hasFragments()) {
+            #ifdef DEBUG_PB
+            std::cerr << "Creating new fragment for segment " << m_CurrentSegment->getStateId() << std::endl;
+            #endif
             m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
-        }else {
+        }else
+        {
             m_CurrentSegment->expandLastFragment(traceIndex);
         }
-        //m_CurrentSegment->print(std::cout);
+
+        #ifdef DEBUG_PB
+        m_CurrentSegment->print(std::cerr);
+        #endif
     }
 }
 
@@ -134,13 +167,26 @@ void PathBuilder::enumeratePaths(ExecutionPaths &paths)
         PathSegment *curSeg = s.top();
         s.pop();
 
+#ifdef DEBUG_PB
+        std::cerr << "Poping " << curSeg->getStateId() << std::endl;
+#endif
+
         const PathSegmentList &children = curSeg->getChildren();
         PathSegmentList::const_iterator it;
+
+        assert(children.size() == 0 || children.size() == 2);
+
         if (children.size() > 0) {
             for (it = children.begin(); it != children.end(); ++it) {
+#ifdef DEBUG_PB
+                std::cerr << "Pushing children " << (*it)->getStateId() << std::endl;
+#endif
                 s.push(*it);
             }
         }else {
+#ifdef DEBUG_PB
+                std::cerr << ">Building path" << std::endl;
+#endif
             //We have finished traversing one path, build it.
             paths.push_back(ExecutionPath());
             ExecutionPath &curPath = paths.back();
@@ -178,9 +224,22 @@ void PathBuilder::processSegment(PathSegment *seg)
     s2e::plugins::ExecutionTraceItemHeader hdr;
     uint8_t *data;
 
+    #ifdef DEBUG_PB
+    std::cout << std::dec << "Processing segment of state " << seg->getStateId() << " ";
+    const PathSegmentList &ps = seg->getChildren();
+    PathSegmentList::const_iterator pit;
+    for (pit = ps.begin(); pit != ps.end(); ++pit) {
+        std::cout << "child=" << (*pit)->getStateId() << " ";
+    }
+    std::cout << std::endl;
+    #endif
+
+
     for (it = fra.begin(); it != fra.end(); ++it) {
         const PathFragment &f = (*it);
+        #ifdef DEBUG_PB
         std::cout << std::dec << "sid=" << seg->getStateId() <<  " frag(" << f.startIndex << "," << f.endIndex << ")"<< std::endl;
+        #endif
         for (uint32_t s = f.startIndex; s <= f.endIndex; ++s) {
             m_Parser->getItem(s, hdr, (void**)&data);
             assert(hdr.stateId == seg->getStateId());

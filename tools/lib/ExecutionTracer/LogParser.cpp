@@ -15,6 +15,8 @@
 
 #endif
 
+//#define DEBUG_LP
+
 using namespace s2e::plugins;
 
 namespace s2etools
@@ -25,6 +27,12 @@ void LogEvents::processItem(unsigned currentItem,
                          void *data)
 {
     assert(hdr.type < TRACE_MAX);
+
+#ifdef DEBUG_LP
+    std::cerr << "Item " << currentItem << " sid=" << (int)hdr.stateId <<
+            " type=" << (int) hdr.type << std::endl;
+#endif
+
     onEachItem.emit(currentItem, hdr, (void*)data);
 }
 

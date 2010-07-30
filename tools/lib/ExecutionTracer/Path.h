@@ -10,7 +10,9 @@
 namespace s2etools
 {
 
-
+/**
+ *  Represents a contiguous sequence of trace entries belonging to the same state.
+ */
 struct PathFragment
 {
     uint32_t startIndex, endIndex;
@@ -24,11 +26,17 @@ struct PathFragment
     }
 };
 
+/**
+ *  Represents a sequence of fragments between to fork point
+ */
 typedef std::vector<PathFragment> PathFragmentList;
 
 class PathSegment;
 typedef std::vector<PathSegment *>PathSegmentList;
 
+/**
+ *  A path segment is a sequence of fragments terminated by a fork point
+ */
 class PathSegment
 {
 private:
@@ -37,6 +45,8 @@ private:
     uint64_t m_ForkPc;
 
     PathFragmentList m_FragmentList;
+
+    /** Pointers to the forked children */
     PathSegmentList m_Children;
 
 public:
@@ -78,7 +88,7 @@ public:
 
 typedef std::map<uint32_t, PathSegmentList> StateToSegments;
 
-//Set of indexes in the children set
+//Sequence of indexes in the children set
 typedef std::vector<uint32_t> ExecutionPath;
 typedef std::vector<ExecutionPath> ExecutionPaths;
 

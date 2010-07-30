@@ -153,7 +153,7 @@ void ModuleCache::onItem(unsigned traceIndex,
 
     if (hdr.type == s2e::plugins::TRACE_MOD_LOAD) {
         if (!loadDriver(load.name, hdr.pid, load.loadBase, load.nativeBase, load.size)) {
-            std::cout << "Could not load driver " << load.name << std::endl;
+            //std::cout << "Could not load driver " << load.name << std::endl;
         }
     }else if (hdr.type == s2e::plugins::TRACE_MOD_UNLOAD) {
         std::cerr << "Module unloading not implemented" << std::endl;
@@ -175,8 +175,8 @@ bool ModuleCache::loadDriver(const std::string &name, uint64_t pid, uint64_t loa
     ModuleInstance *mi;
     if (m) {
         if(m->getImageSize() != size) {
-            std::cerr << "Attempt to load " << name << " with mismatching size. Check for name collisions." << std::endl;
-            std::cerr << std::hex << m->getImageSize() << " " << size << std::endl << std::flush;
+            /*std::cerr << "Attempt to load " << name << " with mismatching size. Check for name collisions." << std::endl;
+            std::cerr << std::hex << m->getImageSize() << " " << size << std::endl << std::flush;*/
             return false;
         }
         mi = new ModuleInstance(m_Library, pid, loadBase, size, m);

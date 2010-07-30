@@ -150,6 +150,7 @@ void PfProfiler::pageFaults()
 
 
     ExecutionPaths::iterator pit;
+
     for(pit = paths.begin(); pit != paths.end(); ++pit) {
         TestCase tc(&pb);
         ModuleCache mc(&pb, &m_Library);
