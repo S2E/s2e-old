@@ -38,49 +38,6 @@ CacheProfiler::~CacheProfiler()
     }
 }
 
-void CacheProfiler::processCacheItem(uint64_t pid, const ExecutionTraceCacheSimEntry *e)
-{
-    Caches::iterator it = m_caches.find(e->cacheId);
-    assert(it != m_caches.end());
-
-    Cache *c = (*it).second;
-    assert(c);
-
-    if (e->missCount > 0) {
-        if (e->isWrite) {
-            c->m_TotalMissesOnWrite += e->missCount;
-        }else {
-            c->m_TotalMissesOnRead += e->missCount;
-        }
-    }
-
-    CacheStatisticsEx s;
-    const ModuleInstance *modInst = m_moduleCache->getInstance(pid, e->pc);
-    s.instr.m = modInst ? modInst->Mod : NULL;
-    s.instr.loadBase = modInst ? modInst->LoadBase : 0;
-    s.instr.pid = pid;
-    s.instr.pc = e->pc;
-    s.stats.c = c;
-
-    if (e->isWrite) {
-        s.stats.writeMissCount = e->missCount;
-    }else {
-        s.stats.readMissCount = e->missCount;
-    }
-
-    //Update the per-instruction statistics
-    CacheStatisticsMap::iterator cssit = m_statistics.find(std::make_pair(s.instr, c));
-    if (cssit == m_statistics.end()) {
-        m_statistics[std::make_pair(s.instr, c)] = s.stats;
-    }else {
-        assert((*cssit).first.first.pid == pid && (*cssit).first.first.pc == e->pc);
-        if (e->isWrite) {
-            (*cssit).second.writeMissCount += e->missCount;
-        }else {
-            (*cssit).second.readMissCount += e->missCount;
-        }
-    }
-}
 
 void CacheProfiler::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
@@ -110,11 +67,9 @@ void CacheProfiler::onItem(unsigned traceIndex,
         //params->setUpperCache(NULL);
     }else if (e->type == s2e::plugins::CACHE_ENTRY) {
         const ExecutionTraceCacheSimEntry *se = &e->entry;
-        if (se->pc == 0x401215) {
-            std::cout << "Processing entry " << std::dec << traceIndex << " - " << (int)hdr.type << std::endl;
-        }
 
-        processCacheItem(hdr.pid, se);
+        CacheProfilerState *state = static_cast<CacheProfilerState*>(m_Events->getState(this, &CacheProfilerState::factory));
+        state->processCacheItem(this, hdr.pid, se);
     }else {
         assert(false && "Unknown cache trace entry");
     }
@@ -158,6 +113,80 @@ void CacheProfiler::printAggregatedStatisticsHtml(std::ostream &os) const
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+ItemProcessorState *CacheProfilerState::factory()
+{
+    return new CacheProfilerState();
+}
+
+CacheProfilerState::CacheProfilerState()
+{
+
+}
+
+CacheProfilerState::~CacheProfilerState()
+{
+
+}
+
+ItemProcessorState *CacheProfilerState::clone() const
+{
+    return new CacheProfilerState(*this);
+}
+
+void CacheProfilerState::processCacheItem(CacheProfiler *cp, uint64_t pid, const ExecutionTraceCacheSimEntry *e)
+{
+    Caches::iterator it = cp->m_caches.find(e->cacheId);
+    assert(it != cp->m_caches.end());
+
+    Cache *c = (*it).second;
+    assert(c);
+
+    if (e->missCount > 0) {
+        if (e->isWrite) {
+            c->m_TotalMissesOnWrite += e->missCount;
+        }else {
+            c->m_TotalMissesOnRead += e->missCount;
+        }
+    }
+
+    //Update the per-instruction statistics
+    ModuleCacheState *mcs = static_cast<ModuleCacheState*>(cp->m_Events->getState(cp->m_moduleCache, &ModuleCacheState::factory));
+    assert(mcs);
+
+    InstructionCacheStatistics s;
+    const ModuleInstance *modInst = mcs->getInstance(pid, e->pc);
+    s.instr.m = modInst;
+    s.instr.loadBase = modInst ? modInst->LoadBase : 0;
+    s.instr.pid = pid;
+    s.instr.pc = e->pc;
+    s.stats.c = c;
+
+    if (e->isWrite) {
+        s.stats.writeMissCount = e->missCount;
+    }else {
+        s.stats.readMissCount = e->missCount;
+    }
+
+    //Update the per-instruction statistics
+    CacheStatisticsMap::iterator cssit = m_statistics.find(std::make_pair(s.instr, c));
+    if (cssit == m_statistics.end()) {
+        m_statistics[std::make_pair(s.instr, c)] = s.stats;
+    }else {
+        assert((*cssit).first.first.pid == pid && (*cssit).first.first.pc == e->pc);
+        if (e->isWrite) {
+            (*cssit).second.writeMissCount += e->missCount;
+        }else {
+            (*cssit).second.readMissCount += e->missCount;
+        }
+    }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
 void CacheStatistics::printHtml(std::ostream &os) const
 {
 
@@ -171,10 +200,9 @@ void CacheStatistics::printHtml(std::ostream &os) const
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-TopMissesPerModule::TopMissesPerModule(BFDLibrary *library, CacheProfiler *prof)
+TopMissesPerModule::TopMissesPerModule(Library *library, CacheProfiler *prof)
 {
     m_Profiler = prof;
-    m_html = false;
     m_displayAllModules = true;
     m_library = library;
     m_totalMisses = 0;
@@ -185,14 +213,14 @@ TopMissesPerModule::~TopMissesPerModule()
 
 }
 
-/*void TopMissesPerModule::processCacheItem(const s2e::plugins::ExecutionTraceCacheSimEntry *e)
+void TopMissesPerModule::computeStats(uint32_t pathId)
 {
+    CacheProfilerState *state = static_cast<CacheProfilerState*>(m_Profiler->getEvents()->getState(m_Profiler, pathId));
+    if (!state) {
+        return;
+    }
 
-}*/
-
-void TopMissesPerModule::computeStats()
-{
-    const CacheStatisticsMap &stats = m_Profiler->getStats();
+    const CacheStatisticsMap &stats = state->getStats();
     CacheStatisticsMap::const_iterator it;
 
 
@@ -200,7 +228,7 @@ void TopMissesPerModule::computeStats()
     if (m_filteredProcess.size() > 0) {
         //look for the right process id
         for(it = stats.begin(); it != stats.end(); ++it) {
-            if ((*it).first.first.m && (*it).first.first.m->getModuleName() == m_filteredProcess) {
+            if ((*it).first.first.m && (*it).first.first.m->Name == m_filteredProcess) {
                 filteredPid = (*it).first.first.pid;
                 break;
             }
@@ -209,13 +237,13 @@ void TopMissesPerModule::computeStats()
 
     //Sort all the elements by total misses
     for(it = stats.begin(); it != stats.end(); ++it) {
-        CacheStatisticsEx ex;
+        InstructionCacheStatistics ex;
         ex.instr = (*it).first.first;
         ex.stats = (*it).second;
         //std::cout << ex.stats.c->getName();
 
         if (m_filteredModule.size() > 0) {
-            if ((*it).first.first.m && (*it).first.first.m->getModuleName() != m_filteredModule) {
+            if ((*it).first.first.m && (*it).first.first.m->Name != m_filteredModule) {
                 continue;
             }
         }
@@ -240,7 +268,7 @@ void TopMissesPerModule::printAggregatedStatistics(std::ostream &os) const
 
     TopMissesPerModuleSet::const_reverse_iterator sit;
     for (sit = m_stats.rbegin(); sit != m_stats.rend(); ++sit) {
-        const CacheStatisticsEx &s = (*sit);
+        const InstructionCacheStatistics &s = (*sit);
         assert(s.stats.c);
 
         std::map<Cache *, CacheStatistics>::iterator it = cacheStats.find(s.stats.c);
@@ -251,48 +279,25 @@ void TopMissesPerModule::printAggregatedStatistics(std::ostream &os) const
         }
     }
 
-    if (m_html) {
-        os << "<TABLE BORDER=1 CELLPADDING=5>" << std::endl;
-        os << "<TR><TH COLSPAN=4>" << title.str() << "</TH></TR>" << std::endl;
-        os << "<TR><TD>Cache</TD><TD>Read</TD><TD>Write</TD><TD>Total</TD></TR>" << std::endl;
-    }else {
-        os << title.str() << std::endl;
-    }
-
     std::map<Cache *, CacheStatistics>::iterator it;
     for(it = cacheStats.begin(); it != cacheStats.end(); ++it) {
         const Cache *c = (*it).first;
 
-        if (m_html) {
-            (*it).second.printHtml(os);
-        }else {
-            os << "------   -------------------------------" << std::endl;
+        os << "------   -------------------------------" << std::endl;
 
-            os << std::dec;
-            os << "Cache " << c->getName() << " - Statistics" << std::endl;
-            os << "Total Read  Misses: " << (*it).second.readMissCount << std::endl;
-            os << "Total Write Misses: " << (*it).second.writeMissCount << std::endl;
-            os << "Total       Misses: " << (*it).second.readMissCount + (*it).second.writeMissCount << std::endl;
-        }
+        os << std::dec;
+        os << "Cache " << c->getName() << " - Statistics" << std::endl;
+        os << "Total Read  Misses: " << (*it).second.readMissCount << std::endl;
+        os << "Total Write Misses: " << (*it).second.writeMissCount << std::endl;
+        os << "Total       Misses: " << (*it).second.readMissCount + (*it).second.writeMissCount << std::endl;
+
     }
 
-    if (m_html) {
-        os << "</TABLE>" << std::endl;
-    }else {
-        os << "-------------------------------------" << std::endl;
-    }
 
 }
 
 void TopMissesPerModule::print(std::ostream &os)
 {
-
-
-
-    if (m_html) {
-        os << "<PRE>" << std::endl;
-    }
-
     TopMissesPerModuleSet::const_reverse_iterator sit;
     os << std::setw(15) << std::left << "Module" << std::setw(10) << " PC" <<
             std::setw(6) << "       ReadMissCount" <<
@@ -300,12 +305,12 @@ void TopMissesPerModule::print(std::ostream &os)
             std::endl;
 
     for (sit = m_stats.rbegin(); sit != m_stats.rend(); ++sit) {
-        const CacheStatisticsEx &s = (*sit);
+        const InstructionCacheStatistics &s = (*sit);
         if (s.stats.readMissCount + s.stats.writeMissCount < m_minCacheMissThreshold) {
             continue;
         }
 
-        std::string modName = s.instr.m ? s.instr.m->getModuleName() : "<unknown>";
+        std::string modName = s.instr.m ? s.instr.m->Name : "<unknown>";
         os << std::setw(15) << modName << std::hex
                 << " 0x" << std::setw(8) << s.instr.pc << " - ";
         //os << std::hex << std::right << std::setfill('0') << "0x" << std::setw(8) << s.instr.pid
@@ -317,7 +322,7 @@ void TopMissesPerModule::print(std::ostream &os)
 
         if (s.instr.m) {
             std::string dbg;
-            if (m_library->print(modName, s.instr.loadBase, s.instr.m->getImageBase(),
+            if (m_library->print(modName, s.instr.loadBase, s.instr.m->ImageBase,
                                  s.instr.pc, dbg, true, true, true)) {
                 os << " - " << dbg;
             }
@@ -325,9 +330,6 @@ void TopMissesPerModule::print(std::ostream &os)
         os << std::endl;
     }
 
-    if (m_html) {
-        os << "</PRE>" << std::endl;
-    }
 }
 
 

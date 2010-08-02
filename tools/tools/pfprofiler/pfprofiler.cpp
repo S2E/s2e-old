@@ -43,7 +43,7 @@ cl::opt<std::string>
 std::vector<std::string> ModList;
 
 cl::opt<std::string>
-        AnaType("type", cl::desc("Type of analysis (cache/icount/pf)"), cl::init("cache"));
+        AnaType("type", cl::desc("Type of analysis (cache/aggregated)"), cl::init("cache"));
 
 cl::opt<bool>
         TerminatedPaths("termpath", cl::desc("Show paths that have a test case"), cl::init(true));
@@ -65,16 +65,13 @@ cl::opt<std::string>
                         cl::init(""));
 
 cl::opt<std::string>
-        CPFilterModule("cpfiltermodule", cl::desc("CacheProfiler: Report only this module"),
+        FilterModule("filtermodule", cl::desc("Report data for the specified modules (for tracers that collect system-wide data)"),
                         cl::init(""));
 
 cl::opt<std::string>
         CpOutFile("cpoutfile", cl::desc("CacheProfiler: output file"),
                         cl::init("stats.dat"));
 
-cl::opt<int>
-        HtmlOutput("html", cl::desc("HTML output"),
-                        cl::init(0));
 
 }
 
@@ -86,7 +83,6 @@ PfProfiler::PfProfiler(const std::string &file)
 {
     m_FileName = file;
     m_ModuleCache = NULL;
-    m_Library.setPath(ModPath);
     m_binaries.setPath(ModPath);
 }
 
@@ -97,117 +93,78 @@ PfProfiler::~PfProfiler()
 
 
 
-
-void PfProfiler::processCallItem(unsigned traceIndex,
-                     const s2e::plugins::ExecutionTraceItemHeader &hdr,
-                     const s2e::plugins::ExecutionTraceCall &call)
-{
-    const ModuleInstance *msource = m_ModuleCache->getInstance(hdr.pid, call.source);
-    const ModuleInstance *mdest = m_ModuleCache->getInstance(hdr.pid, call.target);
-
-    std::cout << "Processing entry " << std::dec << traceIndex << " - ";
-    std::string fcnName;
-    if (msource) {
-        msource->getSymbol(fcnName, call.source);
-        std::cout << msource->Mod->getModuleName() << " [" << fcnName << "] " ;
-    }else {
-        std::cout << "<unknown> ";
-    }
-    std::cout << std::hex << call.source << " -> " << call.target;
-    if (mdest) {
-        mdest->getSymbol(fcnName, call.target);
-        std::cout << " " << mdest->Mod->getModuleName() << " [" << fcnName << "] " ;
-    }else {
-        std::cout << " <unknown>";
-    }
-    std::cout << std::endl;
-
-
-
-}
-
-void PfProfiler::pageFaults()
+void PfProfiler::extractAggregatedData()
 {
     std::ofstream statsFile;
-    std::string sFile = OutDir + "/pagefaults.stats";
+    std::string sFile = OutDir + "/pf.stats";
     statsFile.open(sFile.c_str());
 
     if (TerminatedPaths) {
-        statsFile << "#This report shows data for paths that generated a test case" << std::endl;
+        statsFile << "#This report shows data for only those paths that generated a test case" << std::endl;
     }
 
-    if (CPFilterModule.size() > 0) {
-        statsFile << "#Showing data for module " << CPFilterModule << std::endl;
+    if (FilterModule.size() > 0) {
+        statsFile << "#PageFaults and TlbMisses for module " << FilterModule << std::endl;
     }
 
-    statsFile << "#PageFaults TlbMisses" << std::endl;
+    statsFile << "#Path TestCase PageFaults TlbMisses ICount" << std::endl;
 
-    ExecutionPaths paths;
     PathBuilder pb(&m_Parser);
     m_Parser.parse(m_FileName);
 
-    pb.enumeratePaths(paths);
+    TestCase tc(&pb);
+    ModuleCache mc(&pb);
+    InstructionCounter ic(&pb);
+    PageFault pf(&pb, &mc);
 
-
-    ExecutionPaths::iterator pit;
-
-    for(pit = paths.begin(); pit != paths.end(); ++pit) {
-        TestCase tc(&pb);
-        ModuleCache mc(&pb, &m_Library);
-        PageFault pf(&pb, &mc);
-
-         if (CPFilterModule.size() > 0) {
-             pf.setModule(CPFilterModule);
-         }
-
-        pb.processPath(*pit);
-        if (TerminatedPaths && !tc.hasInputs()) {
-            continue;
-        }
-
-        statsFile << std::dec << pf.getPageFaults() << "\t";
-        statsFile << pf.getTlbMisses();
-        statsFile << std::endl;
+    if (FilterModule.size() > 0) {
+        pf.setModule(FilterModule);
     }
 
-}
 
-void PfProfiler::icountStats()
-{
-    std::ofstream statsFile;
-    std::string sFile = OutDir + "/icount.stats";
-    statsFile.open(sFile.c_str());
+    pb.processTree();
 
-    statsFile << "#Each line represents execution path" << std::endl <<
-            "#The count represents takes into account all the modules analyzed during symbex" << std::endl;
+    PathSet paths;
+    pb.getPaths(paths);
 
-    if (TerminatedPaths) {
-        statsFile << "#This report shows data for paths that generated a test case" << std::endl;
-    }
+    PathSet::iterator pit;
 
-    statsFile << "#NumInstructions" << std::endl;
-
-
-    ExecutionPaths paths;
-    PathBuilder pb(&m_Parser);
-    m_Parser.parse(m_FileName);
-
-    pb.enumeratePaths(paths);
-
-
-    ExecutionPaths::iterator pit;
     for(pit = paths.begin(); pit != paths.end(); ++pit) {
-        TestCase tc(&pb);
-        InstructionCounter ic(&pb);
 
-        pb.processPath(*pit);
-        if (TerminatedPaths && !tc.hasInputs()) {
-            continue;
+        PageFaultState *pfs = static_cast<PageFaultState*>(pb.getState(&pf, *pit));
+        TestCaseState *tcs = static_cast<TestCaseState*>(pb.getState(&tc, *pit));
+        InstructionCounterState *ics = static_cast<InstructionCounterState*>(pb.getState(&ic, *pit));
+
+        if (TerminatedPaths) {
+            if (!tcs || !tcs->hasInputs()) {
+                continue;
+            }
         }
 
-        statsFile << std::dec << ic.getCount() << "\t";
-        tc.printInputsLine(statsFile);
+        statsFile << std::dec << *pit << "\t";
+
+        if (tcs) {
+            statsFile << "yes" << "\t";
+        }else {
+            statsFile << "no" << "\t";
+        }
+
+        if (!pfs) {
+            statsFile << std::dec << "-" << "\t";
+            statsFile << std::dec << "-" << "\t";
+        } else {
+            statsFile << std::dec << pfs->getPageFaults() << "\t";
+            statsFile << pfs->getTlbMisses() << "\t";
+        }
+
+        if (!ics) {
+            statsFile << std::dec << "-" << "\t";
+        } else {
+            statsFile << std::dec << ics->getCount() << "\t";
+        }
+
         statsFile << std::endl;
+
     }
 }
 
@@ -215,66 +172,82 @@ void PfProfiler::process()
 {
     uint64_t maxMissCount=0, maxMissPath=0;
     uint64_t maxICount=0, maxICountPath=0;
-
     uint64_t minMissCount=(uint64_t)-1, minMissPath=0;
     uint64_t minICount=(uint64_t)-1, minICountPath=0;
 
     std::ofstream statsFile;
     statsFile.open(CpOutFile.c_str());
 
-    ExecutionPaths paths;
+    if (TerminatedPaths) {
+        statsFile << "#This report shows data for only those paths that generated a test case" << std::endl;
+    }
+
+
     PathBuilder pb(&m_Parser);
     m_Parser.parse(m_FileName);
 
-    pb.enumeratePaths(paths);
+    ModuleCache mc(&pb);
+    CacheProfiler cp(&mc, &pb);
+    TestCase tc(&pb);
+    InstructionCounter ic(&pb);
+
+    pb.processTree();
 
     unsigned pathNum = 0;
-    ExecutionPaths::iterator pit;
+
+    PathSet paths;
+    pb.getPaths(paths);
+
+    PathSet::iterator pit;
     for(pit = paths.begin(); pit != paths.end(); ++pit) {
         statsFile << "========== Path " << pathNum << " ========== "<<std::endl;
-        PathBuilder::printPath(*pit, std::cout);
+        std::cout << std::dec << "Path " << pathNum << std::endl;
 
-        ModuleCache mc(&pb, &m_Library);
-        CacheProfiler cp(&mc, &pb);
-        TestCase tc(&pb);
-        InstructionCounter ic(&pb);
 
-        //Process all the items of the path
-        //This will automatically maintain all the module info
-        pb.processPath(*pit);
+        TestCaseState *tcs = static_cast<TestCaseState*>(pb.getState(&tc, *pit));
+        InstructionCounterState *ics = static_cast<InstructionCounterState*>(pb.getState(&ic, *pit));
 
-        ic.printCounter(statsFile);
-        tc.printInputs(statsFile);
+        if (TerminatedPaths) {
+            if (!tcs || !tcs->hasInputs()) {
+                pathNum++;
+                continue;
+            }
+        }
+
+        if (ics) {
+            ics->printCounter(statsFile);
+        }else {
+            statsFile << "No instruction count in the trace file for the current path" << std::endl;
+        }
+
+        if (tcs) {
+            tcs->printInputs(statsFile);
+        }else {
+            statsFile << "No test case in the trace file for the current path" << std::endl;
+        }
 
         TopMissesPerModule tmpm(&m_binaries, &cp);
 
-        tmpm.setHtml(HtmlOutput != 0);
         tmpm.setFilteredProcess(CPFilterProcess);
-        tmpm.setFilteredModule(CPFilterModule);
+        tmpm.setFilteredModule(FilterModule);
         tmpm.setMinMissThreshold(CPMinMissCountFilter);
 
-#if 0
-        if (HtmlOutput) {
-            cp.printAggregatedStatisticsHtml(statsFile);
-        }else {
-            cp.printAggregatedStatistics(statsFile);
-        }
-#endif
-
-        tmpm.computeStats();
+        tmpm.computeStats(*pit);
         statsFile << "Total misses on this path: " << std::dec << tmpm.getTotalMisses() << std::endl;
 
         tmpm.printAggregatedStatistics(statsFile);
         tmpm.print(statsFile);
 
-        if (ic.getCount() > maxICount) {
-            maxICount = ic.getCount();
-            maxICountPath = pathNum;
-        }
+        if (ics) {
+            if (ics->getCount() > maxICount) {
+                maxICount = ics->getCount();
+                maxICountPath = pathNum;
+            }
 
-        if (ic.getCount() < minICount) {
-            minICount = ic.getCount();
-            minICountPath = pathNum;
+            if (ics->getCount() < minICount) {
+                minICount = ics->getCount();
+                minICountPath = pathNum;
+            }
         }
 
         if (tmpm.getTotalMisses() > maxMissCount) {
@@ -290,7 +263,6 @@ void PfProfiler::process()
 
         ++pathNum;
         statsFile << std::endl;
-        std::cout << "---------" << std::endl;
     }
 
 
@@ -302,7 +274,6 @@ void PfProfiler::process()
     statsFile << "Min:"<< std::setw(10) << minICount << "(path " << std::setw(10) << minICountPath << ")" << std::endl;
 
     return;
-
 }
 
 }
@@ -329,12 +300,9 @@ int main(int argc, char **argv)
     if (AnaType == "cache") {
        PfProfiler pf(TraceFile.getValue());
        pf.process();
-    }else if (AnaType == "icount") {
+    }else if (AnaType == "aggregated") {
        PfProfiler pf(TraceFile.getValue());
-       pf.icountStats();
-   }else  if (AnaType == "pf") {
-       PfProfiler pf(TraceFile.getValue());
-       pf.pageFaults();
+       pf.extractAggregatedData();
    }else {
        std::cout << "Unknown analysis type " << AnaType << std::endl;
    }

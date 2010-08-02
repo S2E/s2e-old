@@ -33,6 +33,7 @@ typedef std::vector<PathFragment> PathFragmentList;
 
 class PathSegment;
 typedef std::vector<PathSegment *>PathSegmentList;
+typedef std::map<void *, ItemProcessorState*> PathSegmentStateMap;
 
 /**
  *  A path segment is a sequence of fragments terminated by a fork point
@@ -49,11 +50,15 @@ private:
     /** Pointers to the forked children */
     PathSegmentList m_Children;
 
+    /** Holds the per-trace processor state */
+    PathSegmentStateMap m_SegmentState;
 public:
     PathSegment(PathSegment *parent, uint32_t stateId, uint64_t forkPc);
     uint32_t getStateId() const {
         return m_StateId;
     }
+
+    ~PathSegment();
 
     void appendFragment(const PathFragment &f) {
         m_FragmentList.push_back(f);
@@ -76,6 +81,10 @@ public:
         return m_Children;
     }
 
+    PathSegmentStateMap& getStateMap() {
+        return m_SegmentState;
+    }
+
     unsigned getIndexInParent() const;
 
     PathSegment *getParent() const {
@@ -91,6 +100,9 @@ typedef std::map<uint32_t, PathSegmentList> StateToSegments;
 //Sequence of indexes in the children set
 typedef std::vector<uint32_t> ExecutionPath;
 typedef std::vector<ExecutionPath> ExecutionPaths;
+
+
+
 
 class PathBuilder: public LogEvents
 {
@@ -117,6 +129,12 @@ public:
     static void printPaths(const ExecutionPaths &p, std::ostream &os);
 
     void processPath(const ExecutionPath &p);
+
+    void processTree();
+
+    virtual ItemProcessorState* getState(void *processor, ItemProcessorStateFactory f);
+    virtual ItemProcessorState* getState(void *processor, uint32_t pathId);
+    virtual void getPaths(PathSet &s);
 };
 
 }

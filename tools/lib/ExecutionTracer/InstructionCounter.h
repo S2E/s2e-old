@@ -6,11 +6,11 @@
 
 namespace s2etools {
 
-class InstructionCounter:public LogEvents
+class InstructionCounter
 {
 private:
     sigc::connection m_connection;
-    uint64_t m_icount;
+    LogEvents *m_events;
 
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
@@ -20,11 +20,33 @@ public:
 
     ~InstructionCounter();
 
+
+};
+
+class InstructionCounterState : public ItemProcessorState
+{
+private:
+
+    uint64_t m_icount;
+
+public:
+
+    InstructionCounterState();
+    virtual ~InstructionCounterState();
+
+    static ItemProcessorState *factory();
+    virtual ItemProcessorState *clone() const;
+
+
+
     void printCounter(std::ostream &os);
     uint64_t getCount() const {
         return m_icount;
     }
+
+    friend class InstructionCounter;
 };
+
 
 }
 #endif

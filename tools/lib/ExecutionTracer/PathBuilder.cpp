@@ -28,6 +28,14 @@ PathSegment::PathSegment(PathSegment *parent, uint32_t stateId, uint64_t forkPc)
     }
 }
 
+PathSegment::~PathSegment()
+{
+    PathSegmentStateMap::iterator it;
+    for (it = m_SegmentState.begin(); it != m_SegmentState.end(); ++it){
+        delete (*it).second;
+    }
+}
+
 unsigned PathSegment::getIndexInParent() const
 {
     if (!m_Parent) {
@@ -253,9 +261,15 @@ void PathBuilder::processPath(const ExecutionPath &p)
     ExecutionPath::const_reverse_iterator it;
     PathSegment *curSeg = m_Root;
 
+    //XXX: It may be useful in the future to analyze particular states.
+    assert(false && "This should not be used anymore. Use processTree instead.");
+
     it = p.rbegin();
 
     do {
+        m_CurrentSegment = curSeg;
+
+
         processSegment(curSeg);
 
         if (it == p.rend()) {
@@ -271,6 +285,87 @@ void PathBuilder::processPath(const ExecutionPath &p)
         curSeg = ps[*it];
         ++it;
     }while(true);
+}
+
+void PathBuilder::processTree()
+{
+    ExecutionPath currentPath;
+    std::stack<PathSegment*> s;
+
+    s.push(m_Root);
+
+    while(s.size()>0) {
+        PathSegment *curSeg = s.top();
+        m_CurrentSegment = curSeg;
+        s.pop();
+
+        if (curSeg->getParent()) {
+            //Copy the trace analyzer's state from the parent
+            //to the current segment. This assumes that we process segments in
+            //depth-first order.
+            assert(curSeg->getStateMap().empty());
+            PathSegmentStateMap &pm = curSeg->getParent()->getStateMap();
+            PathSegmentStateMap &m = curSeg->getStateMap();
+
+            PathSegmentStateMap::iterator it;
+            for (it = pm.begin(); it != pm.end(); ++it) {
+                m[(*it).first] = (*it).second->clone();
+            }
+        }
+
+        processSegment(curSeg);
+
+        const PathSegmentList &children = curSeg->getChildren();
+        PathSegmentList::const_iterator it;
+
+        assert(children.size() == 0 || children.size() == 2);
+
+        if (children.size() > 0) {
+            for (it = children.begin(); it != children.end(); ++it) {
+                s.push(*it);
+            }
+        }
+    }
+}
+
+ItemProcessorState* PathBuilder::getState(void *processor, ItemProcessorStateFactory f)
+{
+    PathSegmentStateMap &m = m_CurrentSegment->getStateMap();
+    PathSegmentStateMap::iterator it = m.find(processor);
+    if (it != m.end()) {
+        return (*it).second;
+    }
+
+    ItemProcessorState *s = f();
+    m[processor] = s;
+    return s;
+}
+
+ItemProcessorState* PathBuilder::getState(void *processor, uint32_t pathId)
+{
+    StateToSegments::iterator it;
+    it = m_Leaves.find(pathId);
+    if (it == m_Leaves.end()) {
+        return NULL;
+    }
+
+    PathSegment *seg = (*it).second.back();
+    PathSegmentStateMap &m = seg->getStateMap();
+    PathSegmentStateMap::iterator sit = m.find(processor);
+    if (sit == m.end()) {
+        return NULL;
+    }
+    return (*sit).second;
+}
+
+void PathBuilder::getPaths(PathSet &s)
+{
+    StateToSegments::iterator it;
+
+    s.clear();
+    for (it = m_Leaves.begin(); it != m_Leaves.end(); ++it) {
+        s.insert((*it).first);
+    }
 }
 
 }

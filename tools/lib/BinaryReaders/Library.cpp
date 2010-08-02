@@ -6,21 +6,21 @@
 
 namespace s2etools {
 
-BFDLibrary::BFDLibrary()
+Library::Library()
 {
 
 }
 
-BFDLibrary::~BFDLibrary()
+Library::~Library()
 {
-    ModuleNameToBfd::iterator it;
+    ModuleNameToExec::iterator it;
     for(it = m_libraries.begin(); it != m_libraries.end(); ++it) {
         delete (*it).second;
     }
 }
 
 //Add a set of library paths, separated by a colon.
-void BFDLibrary::setPath(const std::string &s)
+void Library::setPath(const std::string &s)
 {
     std::string::size_type cur=0, prev=0;
 
@@ -33,7 +33,7 @@ void BFDLibrary::setPath(const std::string &s)
 }
 
 //Cycles through the list of paths and attempts to find the specified library
-bool BFDLibrary::findLibrary(const std::string &libName, std::string &abspath)
+bool Library::findLibrary(const std::string &libName, std::string &abspath)
 {
     PathList::const_iterator it;
 
@@ -50,7 +50,7 @@ bool BFDLibrary::findLibrary(const std::string &libName, std::string &abspath)
 }
 
 //Add a library using a relative path
-bool BFDLibrary::addLibrary(const std::string &libName)
+bool Library::addLibrary(const std::string &libName)
 {
     std::string s;
 
@@ -61,7 +61,7 @@ bool BFDLibrary::addLibrary(const std::string &libName)
 }
 
 //Add a library using an absolute path
-bool BFDLibrary::addLibraryAbs(const std::string &libName)
+bool Library::addLibraryAbs(const std::string &libName)
 {
     if (m_libraries.find(libName) != m_libraries.end()) {
         return true;
@@ -69,19 +69,17 @@ bool BFDLibrary::addLibraryAbs(const std::string &libName)
 
     std::string ProgFile = libName;
 
-    s2etools::BFDInterface *bfd = new s2etools::BFDInterface(ProgFile);
-    bfd->initialize();
-    if (!bfd->inited()) {
-        delete bfd;
+    s2etools::ExecutableFile *exec = s2etools::ExecutableFile::create(ProgFile);
+    if (!exec) {
         return false;
     }
 
-    m_libraries[libName] = bfd;
+    m_libraries[libName] = exec;
     return true;
 }
 
 //Get a library using a name
-BFDInterface *BFDLibrary::get(const std::string &name)
+ExecutableFile *Library::get(const std::string &name)
 {
     std::string s;
     if (!findLibrary(name, s)) {
@@ -92,7 +90,7 @@ BFDInterface *BFDLibrary::get(const std::string &name)
         return NULL;
     }
 
-    ModuleNameToBfd::const_iterator it = m_libraries.find(s);
+    ModuleNameToExec::const_iterator it = m_libraries.find(s);
     if (it == m_libraries.end()) {
 
         return NULL;
@@ -102,20 +100,20 @@ BFDInterface *BFDLibrary::get(const std::string &name)
 }
 
 //Helper function to quickly print debug info
-bool BFDLibrary::print(
+bool Library::print(
         const std::string &modName, uint64_t loadBase, uint64_t imageBase,
         uint64_t pc, std::string &out, bool file, bool line, bool func)
 {
 
-    BFDInterface *bfd = get(modName);
-    if (!bfd) {
+    ExecutableFile *exec = get(modName);
+    if (!exec) {
         return false;
     }
 
     uint64_t reladdr = pc - loadBase + imageBase;
     std::string source, function;
     uint64_t ln;
-    if (!bfd->getInfo(reladdr, source, ln, function)) {
+    if (!exec->getInfo(reladdr, source, ln, function)) {
         return false;
     }
 
@@ -138,14 +136,14 @@ bool BFDLibrary::print(
     return true;
 }
 
-bool BFDLibrary::print(const ModuleInstance *mi, uint64_t pc, std::string &out, bool file, bool line, bool func)
+bool Library::print(const ModuleInstance *mi, uint64_t pc, std::string &out, bool file, bool line, bool func)
 {
-    if (!mi || !mi->Mod) {
+    if (!mi) {
         return false;
     }
 
-    return print(mi->Mod->getModuleName(),
-                 mi->LoadBase, mi->Mod->getImageBase(),
+    return print(mi->Name,
+                 mi->LoadBase, mi->ImageBase,
                  pc, out, file, line, func);
 }
 

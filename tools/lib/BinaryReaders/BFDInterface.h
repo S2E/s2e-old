@@ -10,8 +10,11 @@ extern "C" {
 #include <set>
 #include <inttypes.h>
 
+#include "ExecutableFile.h"
+
 namespace s2etools
 {
+
 
 struct BFDSection
 {
@@ -22,7 +25,7 @@ struct BFDSection
     }
 };
 
-class BFDInterface
+class BFDInterface : public ExecutableFile
 {
 private:
     typedef std::map<BFDSection, asection *> Sections;
@@ -31,21 +34,27 @@ private:
     static bool s_bfdInited;
     bfd *m_bfd;
     asymbol **m_symbolTable;
-    std::string m_fileName;
+    std::string m_moduleName;
     Sections m_sections;
     AddressSet m_invalidAddresses;
+
+    uint64_t m_imageBase;
 
     static void initSections(bfd *abfd, asection *sect, void *obj);
 
 public:
     BFDInterface(const std::string &fileName);
-    ~BFDInterface();
+    virtual ~BFDInterface();
 
     bool initialize();
     bool getInfo(uint64_t addr, std::string &source, uint64_t &line, std::string &function);
     bool inited() const {
         return m_bfd != NULL;
     }
+
+    virtual bool getModuleName(std::string &name ) const;
+    virtual uint64_t getImageBase() const;
+    virtual uint64_t getImageSize() const;
 };
 
 }

@@ -9,7 +9,7 @@ namespace s2etools {
 
 InstructionCounter::InstructionCounter(LogEvents *events)
 {
-   m_icount = 0;
+   m_events = events;
    m_connection = events->onEachItem.connect(
            sigc::mem_fun(*this, &InstructionCounter::onItem));
 }
@@ -28,13 +28,36 @@ void InstructionCounter::onItem(unsigned traceIndex,
     }
 
     ExecutionTraceICount *e = static_cast<ExecutionTraceICount*>(item);
-    assert(e->count >= m_icount);
-    m_icount = e->count;
+    InstructionCounterState *state = static_cast<InstructionCounterState*>(m_events->getState(this, &InstructionCounterState::factory));
+
+
+    assert(e->count >= state->m_icount);
+    state->m_icount = e->count;
 }
 
-void InstructionCounter::printCounter(std::ostream &os)
+void InstructionCounterState::printCounter(std::ostream &os)
 {
     os << "Instruction count: " << std::dec << m_icount << std::endl;
+}
+
+ItemProcessorState *InstructionCounterState::factory()
+{
+    return new InstructionCounterState();
+}
+
+InstructionCounterState::InstructionCounterState()
+{
+   m_icount = 0;
+}
+
+InstructionCounterState::~InstructionCounterState()
+{
+
+}
+
+ItemProcessorState *InstructionCounterState::clone() const
+{
+    return new InstructionCounterState(*this);
 }
 
 }

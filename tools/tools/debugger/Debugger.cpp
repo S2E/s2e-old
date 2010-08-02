@@ -40,7 +40,7 @@ namespace {
 
 namespace s2etools {
 
-ExecutionDebugger::ExecutionDebugger(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os) : m_os(os)
+ExecutionDebugger::ExecutionDebugger(Library *lib, ModuleCache *cache, LogEvents *events, std::ostream &os) : m_os(os)
 {
     m_events = events;
     m_connection = events->onEachItem.connect(
@@ -68,7 +68,8 @@ void ExecutionDebugger::onItem(unsigned traceIndex,
     m_os << " pc=0x" << std::hex << tb->pc <<
             " tpc=0x" << std::hex <<  tb->targetPc ;
 
-    const ModuleInstance *mi = m_cache->getInstance(hdr.pid, tb->pc);
+    ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
+    const ModuleInstance *mi = mcs->getInstance(hdr.pid, tb->pc);
     std::string dbg;
     if (m_library->print(mi, tb->pc, dbg, true, true, true)) {
         m_os << " - " << dbg;
@@ -85,7 +86,7 @@ void ExecutionDebugger::onItem(unsigned traceIndex,
 
 
 
-MemoryDebugger::MemoryDebugger(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os) : m_os(os)
+MemoryDebugger::MemoryDebugger(Library *lib, ModuleCache *cache, LogEvents *events, std::ostream &os) : m_os(os)
 {
     m_events = events;
     m_connection = events->onEachItem.connect(
@@ -121,7 +122,8 @@ void MemoryDebugger::doLookForValue(const s2e::plugins::ExecutionTraceItemHeader
             " size=" << std::dec << (unsigned)item.size <<
             " iswrite=" << (item.flags & EXECTRACE_MEM_WRITE);
 
-    const ModuleInstance *mi = m_cache->getInstance(hdr.pid, item.pc);
+    ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
+    const ModuleInstance *mi = mcs->getInstance(hdr.pid, item.pc);
     std::string dbg;
     if (m_library->print(mi, item.pc, dbg, true, true, true)) {
         m_os << " - " << dbg;
@@ -139,7 +141,8 @@ void MemoryDebugger::doPageFault(const s2e::plugins::ExecutionTraceItemHeader &h
             " addr=0x" << item.address <<
             " iswrite=" << (bool)item.isWrite;
 
-    const ModuleInstance *mi = m_cache->getInstance(hdr.pid, item.pc);
+    ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
+    const ModuleInstance *mi = mcs->getInstance(hdr.pid, item.pc);
     std::string dbg;
     if (m_library->print(mi, item.pc, dbg, true, true, true)) {
         m_os << " - " << dbg;
@@ -175,7 +178,6 @@ void MemoryDebugger::onItem(unsigned traceIndex,
 Debugger::Debugger(const std::string &file)
 {
     m_fileName = file;
-    m_library.setPath(ModPath);
     m_binaries.setPath(ModPath);
 }
 
@@ -208,7 +210,7 @@ void Debugger::process()
         }
 
         std::cout << "Analyzing path " << pathNum << std::endl;
-        ModuleCache mc(&pb, &m_library);
+        ModuleCache mc(&pb);
 
         //MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
         //md.lookForValue(MemoryValue);

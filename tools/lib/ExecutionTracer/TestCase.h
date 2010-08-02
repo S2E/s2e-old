@@ -6,20 +6,35 @@
 
 namespace s2etools {
 
-class TestCase:public LogEvents
+class TestCase
 {
 private:
     sigc::connection m_connection;
-    s2e::plugins::ExecutionTraceTestCase::ConcreteInputs m_inputs;
-    bool m_foundInputs;
+    LogEvents *m_events;
 
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
                 void *item);
 public:
     TestCase(LogEvents *events);
-
     ~TestCase();
+
+};
+
+
+class TestCaseState : public ItemProcessorState
+{
+private:
+    s2e::plugins::ExecutionTraceTestCase::ConcreteInputs m_inputs;
+    bool m_foundInputs;
+
+public:
+
+    TestCaseState();
+    virtual ~TestCaseState();
+
+    static ItemProcessorState *factory();
+    virtual ItemProcessorState *clone() const;
 
     bool getInputs(const s2e::plugins::ExecutionTraceTestCase::ConcreteInputs &out) const;
     bool hasInputs() const {
@@ -27,6 +42,8 @@ public:
     }
     void printInputs(std::ostream &os);
     void printInputsLine(std::ostream &os);
+
+    friend class TestCase;
 };
 
 }

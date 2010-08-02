@@ -11,14 +11,14 @@
 namespace s2etools
 {
 
-class ExecutionDebugger: public LogEvents
+class ExecutionDebugger
 {
 private:
     std::ostream &m_os;
 
     LogEvents *m_events;
     ModuleCache *m_cache;
-    BFDLibrary *m_library;
+    Library *m_library;
 
     sigc::connection m_connection;
 
@@ -28,7 +28,7 @@ private:
                 void *item);
 
 public:
-    ExecutionDebugger(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os);
+    ExecutionDebugger(Library *lib, ModuleCache *cache, LogEvents *events, std::ostream &os);
     ~ExecutionDebugger();
 
 };
@@ -46,7 +46,7 @@ private:
 
     LogEvents *m_events;
     ModuleCache *m_cache;
-    BFDLibrary *m_library;
+    Library *m_library;
 
     sigc::connection m_connection;
 
@@ -68,7 +68,7 @@ private:
 
 public:
 
-    MemoryDebugger(BFDLibrary *lib, ModuleCache *cache, LogEvents *events, std::ostream &os);
+    MemoryDebugger(Library *lib, ModuleCache *cache, LogEvents *events, std::ostream &os);
     ~MemoryDebugger();
 
     void lookForValue(uint64_t value) {
@@ -89,9 +89,8 @@ private:
     std::string m_fileName;
     LogParser m_parser;
 
-    ModuleLibrary m_library;
     ModuleCache *m_ModuleCache;
-    BFDLibrary m_binaries;
+    Library m_binaries;
 
     void processCallItem(unsigned traceIndex,
                          const s2e::plugins::ExecutionTraceItemHeader &hdr,

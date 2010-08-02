@@ -3,7 +3,7 @@
 
 #include <lib/ExecutionTracer/LogParser.h>
 #include <lib/ExecutionTracer/ModuleParser.h>
-#include <lib/BinaryReaders/BFDInterface.h>
+#include <lib/BinaryReaders/ExecutableFile.h>
 
 #include <lib/BinaryReaders/Library.h>
 
@@ -94,7 +94,7 @@ struct CacheStatistics
     void printHtml(std::ostream &os) const;
 };
 
-struct CacheStatisticsEx
+struct InstructionCacheStatistics
 {
     s2etools::InstructionDescriptor instr;
     CacheStatistics stats;
@@ -110,7 +110,9 @@ typedef std::map<uint32_t, std::string> CacheIdToName;
 typedef std::pair<s2etools::InstructionDescriptor, Cache*> InstrCachePair;
 typedef std::map<InstrCachePair, CacheStatistics> CacheStatisticsMap;
 
-class CacheProfiler: public s2etools::LogEvents
+class CacheProfilerState;
+
+class CacheProfiler
 {
 private:
     s2etools::LogEvents *m_Events;
@@ -119,13 +121,12 @@ private:
     sigc::connection m_connection;
     Caches m_caches;
     CacheIdToName m_cacheIds;
-    CacheStatisticsMap m_statistics;
+
 
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
                 void *item);
 
-    void processCacheItem(uint64_t pid, const s2e::plugins::ExecutionTraceCacheSimEntry *e);
 public:
 
     CacheProfiler(s2etools::ModuleCache *modCache, s2etools::LogEvents *events);
@@ -134,9 +135,31 @@ public:
     void printAggregatedStatistics(std::ostream &os) const;
     void printAggregatedStatisticsHtml(std::ostream &os) const;
 
+    LogEvents *getEvents() const {
+        return m_Events;
+    }
+
+    friend class CacheProfilerState;
+};
+
+class CacheProfilerState: public ItemProcessorState
+{
+private:
+    CacheStatisticsMap m_statistics;
+
+    void processCacheItem(CacheProfiler *cp, uint64_t pid, const s2e::plugins::ExecutionTraceCacheSimEntry *e);
+public:
+    static ItemProcessorState *factory();
+    CacheProfilerState();
+    virtual ~CacheProfilerState();
+    virtual ItemProcessorState *clone() const;
+
     const CacheStatisticsMap &getStats() const {
         return m_statistics;
     }
+
+
+    friend class CacheProfiler;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -148,7 +171,7 @@ class TopMissesPerModule
 {
 public:
     struct SortByTopMissesByModule{
-        bool operator () (const CacheStatisticsEx &s1, const CacheStatisticsEx &s2) const {
+        bool operator () (const InstructionCacheStatistics &s1, const InstructionCacheStatistics &s2) const {
             if ((s1.stats.writeMissCount+s1.stats.readMissCount) !=
                 (s2.stats.writeMissCount+s2.stats.readMissCount)) {
                 return (s1.stats.writeMissCount+s1.stats.readMissCount) <
@@ -164,17 +187,15 @@ public:
         }
     };
 
-    typedef std::set<CacheStatisticsEx, SortByTopMissesByModule> TopMissesPerModuleSet;
+    typedef std::set<InstructionCacheStatistics, SortByTopMissesByModule> TopMissesPerModuleSet;
 
 private:
     CacheProfiler *m_Profiler;
-    BFDLibrary *m_library;
+    Library *m_library;
 
     std::string m_filteredProcess;
     std::string m_filteredModule;
     uint64_t m_minCacheMissThreshold;
-    bool m_html;
-
 
     //Display debug info for all modules in the trace
     bool m_displayAllModules;
@@ -183,7 +204,7 @@ private:
 
     uint64_t m_totalMisses;
 public:
-    TopMissesPerModule(BFDLibrary *library, CacheProfiler *prof);
+    TopMissesPerModule(Library *library, CacheProfiler *prof);
     ~TopMissesPerModule();
 
     void setFilteredProcess(const std::string &proc) {
@@ -199,16 +220,12 @@ public:
         m_minCacheMissThreshold = v;
     }
 
-    void setHtml(bool b) {
-        m_html = b;
-    }
-
 
     void setDisplayAllModules(bool b) {
         m_displayAllModules = true;
     }
 
-    void computeStats();
+    void computeStats(uint32_t pathId);
 
     //void processCacheItem(const s2e::plugins::ExecutionTraceCacheSimEntry *e);
     void print(std::ostream &os);

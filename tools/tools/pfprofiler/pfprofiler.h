@@ -17,15 +17,9 @@ private:
     std::string m_FileName;
     s2etools::LogParser m_Parser;
 
-    s2etools::ModuleLibrary m_Library;
-    BFDLibrary m_binaries;
+    Library m_binaries;
 
     s2etools::ModuleCache *m_ModuleCache;
-
-
-    void processCallItem(unsigned traceIndex,
-                         const s2e::plugins::ExecutionTraceItemHeader &hdr,
-                         const s2e::plugins::ExecutionTraceCall &call);
 
 
 
@@ -35,8 +29,7 @@ public:
     ~PfProfiler();
 
     void process();
-    void pageFaults();
-    void icountStats();
+    void extractAggregatedData();
 };
 
 }

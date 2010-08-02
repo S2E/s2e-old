@@ -9,9 +9,9 @@ namespace s2etools {
 
 TestCase::TestCase(LogEvents *events)
 {
-   m_foundInputs = false;
    m_connection = events->onEachItem.connect(
            sigc::mem_fun(*this, &TestCase::onItem));
+   m_events = events;
 }
 
 TestCase::~TestCase()
@@ -27,19 +27,21 @@ void TestCase::onItem(unsigned traceIndex,
         return;
     }
 
+    TestCaseState *state = static_cast<TestCaseState*>(m_events->getState(this, &TestCaseState::factory));
+
     std::cerr << "TestCase stateId=" << hdr.stateId << std::endl;
-    if (m_foundInputs) {
+    if (state->m_foundInputs) {
         std::cerr << "The execution trace has multiple input sets. Make sure you used the PathBuilder filter."
                 <<std::endl;
         assert(false);
 
     }
-    ExecutionTraceTestCase::deserialize(item, hdr.size, m_inputs);
-    m_foundInputs = true;
+    ExecutionTraceTestCase::deserialize(item, hdr.size, state->m_inputs);
+    state->m_foundInputs = true;
 
 }
 
-void TestCase::printInputsLine(std::ostream &os)
+void TestCaseState::printInputsLine(std::ostream &os)
 {
     if (!m_foundInputs) {
         os << "No concrete inputs found in the trace. Make sure you used the TestCaseGenerator plugin.";
@@ -59,7 +61,7 @@ void TestCase::printInputsLine(std::ostream &os)
     }
 }
 
-void TestCase::printInputs(std::ostream &os)
+void TestCaseState::printInputs(std::ostream &os)
 {
     if (!m_foundInputs) {
         os << "No concrete inputs found in the trace. Make sure you used the TestCaseGenerator plugin." <<
@@ -80,6 +82,26 @@ void TestCase::printInputs(std::ostream &os)
 
         os << std::setfill(' ')<< std::endl;
     }
+}
+
+ItemProcessorState *TestCaseState::factory()
+{
+    return new TestCaseState();
+}
+
+TestCaseState::TestCaseState()
+{
+    m_foundInputs = false;
+}
+
+TestCaseState::~TestCaseState()
+{
+
+}
+
+ItemProcessorState *TestCaseState::clone() const
+{
+    return new TestCaseState(*this);
 }
 
 }

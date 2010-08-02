@@ -10,10 +10,9 @@ namespace s2etools {
 PageFault::PageFault(LogEvents *events, ModuleCache *mc)
 {
    m_trackModule = false;
-   m_totalTlbMisses = 0;
-   m_totalPageFaults = 0;
    m_connection = events->onEachItem.connect(
            sigc::mem_fun(*this, &PageFault::onItem));
+   m_events = events;
    m_mc = mc;
 }
 
@@ -27,30 +26,58 @@ void PageFault::onItem(unsigned traceIndex,
         void *item)
 {
     if (hdr.type == s2e::plugins::TRACE_PAGEFAULT) {
+        PageFaultState *state = static_cast<PageFaultState*>(m_events->getState(this, &PageFaultState::factory));
+
         ExecutionTracePageFault *pageFault = (ExecutionTracePageFault*)item;
         if (m_trackModule) {
-            const ModuleInstance *mi = m_mc->getInstance(hdr.pid, pageFault->pc);
-            if (!mi || mi->Mod->getModuleName() != m_module) {
+            ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_mc, &ModuleCacheState::factory));
+            const ModuleInstance *mi = mcs->getInstance(hdr.pid, pageFault->pc);
+            if (!mi || mi->Name != m_module) {
                 return;
             }
-            m_totalPageFaults++;
+            state->m_totalPageFaults++;
+        }else {
+            state->m_totalPageFaults++;
         }
-    }
+    }else
 
     if (hdr.type == s2e::plugins::TRACE_TLBMISS) {
+        PageFaultState *state = static_cast<PageFaultState*>(m_events->getState(this, &PageFaultState::factory));
+
         ExecutionTracePageFault *tlbMiss = (ExecutionTracePageFault*)item;
         if (m_trackModule) {
-            const ModuleInstance *mi = m_mc->getInstance(hdr.pid, tlbMiss->pc);
-            if (!mi || mi->Mod->getModuleName() != m_module) {
+            ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_mc, &ModuleCacheState::factory));
+            const ModuleInstance *mi = mcs->getInstance(hdr.pid, tlbMiss->pc);
+            if (!mi || mi->Name != m_module) {
                 return;
             }
-            m_totalTlbMisses++;
+            state->m_totalTlbMisses++;
+        }else {
+            state->m_totalTlbMisses++;
         }
     }
+}
 
+ItemProcessorState *PageFaultState::factory()
+{
+    return new PageFaultState();
+}
+
+PageFaultState::PageFaultState()
+{
+    m_totalPageFaults = 0;
+    m_totalTlbMisses = 0;
+}
+
+PageFaultState::~PageFaultState()
+{
 
 }
 
+ItemProcessorState *PageFaultState::clone() const
+{
+    return new PageFaultState(*this);
+}
 
 
 }

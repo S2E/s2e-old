@@ -36,14 +36,27 @@ void LogEvents::processItem(unsigned currentItem,
     onEachItem.emit(currentItem, hdr, (void*)data);
 }
 
+LogEvents::LogEvents()
+{
+
+}
+
+LogEvents::~LogEvents()
+{
+
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-LogParser::LogParser()
+LogParser::LogParser():LogEvents()
 {
     m_File = NULL;
     m_size = 0;
+
+    m_cachedProcessor = NULL;
+    m_cachedState = NULL;
 }
 
 LogParser::~LogParser()
@@ -147,5 +160,44 @@ bool LogParser::getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &
 
     return true;
 }
+
+ItemProcessorState* LogParser::getState(void *processor, ItemProcessorStateFactory f)
+{
+    if (processor == m_cachedProcessor) {
+        return m_cachedState;
+    }
+
+    ItemProcessorState *ret;
+    ItemProcessors::const_iterator it = m_ItemProcessors.find(processor);
+    if (it == m_ItemProcessors.end()) {
+        ret = f();
+        m_ItemProcessors[processor] = ret;
+    } else {
+        ret = (*it).second;
+    }
+
+    m_cachedProcessor = processor;
+    m_cachedState = ret;
+    return ret;
+}
+
+ItemProcessorState* LogParser::getState(void *processor, uint32_t pathId)
+{
+    assert(pathId == 0);
+    ItemProcessors::const_iterator it = m_ItemProcessors.find(processor);
+    if (it == m_ItemProcessors.end()) {
+        return NULL;
+    } else {
+        return (*it).second;
+    }
+}
+
+//A flat trace has only one path
+void LogParser::getPaths(PathSet &s)
+{
+    s.clear();
+    s.insert(0);
+}
+
 
 }

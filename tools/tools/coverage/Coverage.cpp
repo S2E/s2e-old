@@ -278,7 +278,7 @@ void BasicBlockCoverage::printBBCov(std::ostream &os) const
     }
 }
 
-Coverage::Coverage(BFDLibrary *lib, ModuleCache *cache, LogEvents *events)
+Coverage::Coverage(Library *lib, ModuleCache *cache, LogEvents *events)
 {
     m_events = events;
     m_connection = events->onEachItem.connect(
@@ -309,18 +309,20 @@ void Coverage::onItem(unsigned traceIndex,
     const s2e::plugins::ExecutionTraceTb *te =
             (const s2e::plugins::ExecutionTraceTb*) item;
 
-    const ModuleInstance *mi = m_cache->getInstance(hdr.pid, te->pc);
+    ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
+
+    const ModuleInstance *mi = mcs->getInstance(hdr.pid, te->pc);
     assert(mi);
 
     BasicBlockCoverage *bbcov = NULL;
-    BbCoverageMap::iterator it = m_bbCov.find(mi->Mod->getModuleName());
+    BbCoverageMap::iterator it = m_bbCov.find(mi->Name);
     if (it == m_bbCov.end()) {
         //Look for the file containing the bbs.
-        std::string bblist = mi->Mod->getModuleName() + ".bblist";
+        std::string bblist = mi->Name + ".bblist";
         std::string path;
         if (m_library->findLibrary(bblist, path)) {
-            BasicBlockCoverage *bb = new BasicBlockCoverage(path, mi->Mod->getModuleName());
-            m_bbCov[mi->Mod->getModuleName()] = bb;
+            BasicBlockCoverage *bb = new BasicBlockCoverage(path, mi->Name);
+            m_bbCov[mi->Name] = bb;
             bbcov = bb;
         }
     }else {
@@ -329,7 +331,7 @@ void Coverage::onItem(unsigned traceIndex,
 
     assert(bbcov);
 
-    uint64_t relPc = te->pc - mi->LoadBase + mi->Mod->getImageBase();
+    uint64_t relPc = te->pc - mi->LoadBase + mi->ImageBase;
 
     bbcov->addTranslationBlock(hdr.timeStamp, relPc, relPc+te->size-1);
 }
@@ -361,7 +363,6 @@ void Coverage::outputCoverage(const std::string &path) const
 
 CoverageTool::CoverageTool()
 {
-    m_library.setPath(ModPath);
     m_binaries.setPath(ModPath);
 }
 
@@ -405,7 +406,7 @@ void CoverageTool::process()
 
 void CoverageTool::flatTrace()
 {
-    ModuleCache mc(&m_parser, &m_library);
+    ModuleCache mc(&m_parser);
 
     //MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
     //md.lookForValue(MemoryValue);

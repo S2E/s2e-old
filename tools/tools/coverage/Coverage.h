@@ -98,14 +98,14 @@ public:
 
 };
 
-class Coverage: public LogEvents
+class Coverage
 {
 public:
 
 private:
     LogEvents *m_events;
     ModuleCache *m_cache;
-    BFDLibrary *m_library;
+    Library *m_library;
 
     sigc::connection m_connection;
 
@@ -119,7 +119,7 @@ private:
                 void *item);
 
 public:
-    Coverage(BFDLibrary *lib, ModuleCache *cache, LogEvents *events);
+    Coverage(Library *lib, ModuleCache *cache, LogEvents *events);
     virtual ~Coverage();
 
     void outputCoverage(const std::string &Path) const;
@@ -131,10 +131,7 @@ class CoverageTool
 private:
     LogParser m_parser;
 
-    ModuleLibrary m_library;
-    BFDLibrary m_binaries;
-
-
+    Library m_binaries;
 
 public:
     CoverageTool();

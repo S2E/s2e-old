@@ -1,6 +1,7 @@
 #include "BFDInterface.h"
 
 #include <stdlib.h>
+#include <cassert>
 
 #include <iostream>
 
@@ -9,9 +10,8 @@ namespace s2etools
 
 bool BFDInterface::s_bfdInited = false;
 
-BFDInterface::BFDInterface(const std::string &fileName)
+BFDInterface::BFDInterface(const std::string &fileName):ExecutableFile(fileName)
 {
-    m_fileName = fileName;
     m_bfd = NULL;
     m_symbolTable = NULL;
 }
@@ -48,7 +48,8 @@ bool BFDInterface::initialize()
 
     m_bfd = bfd_fopen(m_fileName.c_str(), NULL, "rb", -1);
     if (!m_bfd) {
-        std::cerr << "Could not open bfd file " << m_fileName << std::endl;
+        std::cerr << "Could not open bfd file " << m_fileName << " - ";
+        std::cerr << bfd_errmsg(bfd_get_error()) << std::endl;
         return false;
     }
 
@@ -80,6 +81,27 @@ bool BFDInterface::initialize()
 
     bfd_map_over_sections(m_bfd, initSections, this);
 
+    //Compute image base
+    //XXX: Make sure it is correct
+    Sections::const_iterator it;
+    uint64_t vma=(uint64_t)-1;
+    for (it = m_sections.begin(); it != m_sections.end(); ++it) {
+        asection *section = (*it).second;
+        if (section->vma && (section->vma < vma)) {
+            vma = section->vma;
+        }
+    }
+    assert(vma);
+    m_imageBase = vma & (uint64_t)~0xFFF;
+
+    //Extract module name
+    size_t pos = m_fileName.find_last_of("\\/");
+    if (pos == std::string::npos) {
+        m_moduleName = m_fileName;
+    }else {
+        m_moduleName = m_fileName.substr(pos);
+    }
+
     return true;
 }
 
@@ -107,7 +129,6 @@ bool BFDInterface::getInfo(uint64_t addr, std::string &source, uint64_t &line, s
     }
 
     asection *section = (*it).second;
-
     //std::cout << "Section " << section->name << " " << std::hex << section->vma << " - size=0x"  << section->size <<
     //        " for address " << addr << std::endl;
 
@@ -131,6 +152,34 @@ bool BFDInterface::getInfo(uint64_t addr, std::string &source, uint64_t &line, s
 
     return false;
 
+}
+
+bool BFDInterface::getModuleName(std::string &name ) const
+{
+    if (!m_bfd) {
+        return false;
+    }
+
+    name = m_moduleName;
+    return true;
+}
+
+uint64_t BFDInterface::getImageBase() const
+{
+    if (!m_bfd) {
+        return false;
+    }
+
+    return m_imageBase;
+}
+
+uint64_t BFDInterface::getImageSize() const
+{
+    if (!m_bfd) {
+        return false;
+    }
+
+    return bfd_get_size(m_bfd);
 }
 
 }

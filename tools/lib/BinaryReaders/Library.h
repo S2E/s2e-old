@@ -2,7 +2,7 @@
 
 #define S2ETOOLS_LIBRARY_H
 
-#include "BFDInterface.h"
+#include "ExecutableFile.h"
 
 #include "lib/ExecutionTracer/ModuleParser.h"
 #include <string>
@@ -11,19 +11,19 @@
 namespace s2etools
 {
 
-class BFDLibrary
+class Library
 {
 public:
-    typedef std::map<std::string, s2etools::BFDInterface*> ModuleNameToBfd;
+    typedef std::map<std::string, s2etools::ExecutableFile*> ModuleNameToExec;
     typedef std::vector<std::string> PathList;
 
-    BFDLibrary();
-    virtual ~BFDLibrary();
+    Library();
+    virtual ~Library();
 
     bool addLibrary(const std::string &libName);
     bool addLibraryAbs(const std::string &libName);
 
-    BFDInterface *get(const std::string &name);
+    ExecutableFile *get(const std::string &name);
 
     void setPath(const std::string &s);
 
@@ -37,7 +37,7 @@ public:
 private:
     PathList m_libpath;
     //std::string m_libpath;
-    ModuleNameToBfd m_libraries;
+    ModuleNameToExec m_libraries;
 
 
 };

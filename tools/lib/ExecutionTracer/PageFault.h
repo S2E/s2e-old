@@ -17,9 +17,7 @@ private:
                 void *item);
 
     ModuleCache *m_mc;
-
-    uint64_t m_totalTlbMisses;
-    uint64_t m_totalPageFaults;
+    LogEvents *m_events;
 
     bool m_trackModule;
     std::string m_module;
@@ -32,6 +30,23 @@ public:
         m_module = s;
         m_trackModule = true;
     }
+
+};
+
+
+
+class PageFaultState : public ItemProcessorState
+{
+private:
+    uint64_t m_totalPageFaults;
+    uint64_t m_totalTlbMisses;
+
+public:
+    static ItemProcessorState *factory();
+    PageFaultState();
+    virtual ~PageFaultState();
+    virtual ItemProcessorState *clone() const;
+    friend class PageFault;
 
     uint64_t getPageFaults() const {
         return m_totalPageFaults;
