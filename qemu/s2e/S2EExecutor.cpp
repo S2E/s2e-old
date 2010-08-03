@@ -929,11 +929,11 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         switchToSymbolic(oldState);
     }
 
-    oldState->m_active = false;
-
     copyInConcretes(*oldState);
     oldState->getDeviceState()->saveDeviceState();
     *oldState->m_timersState = timers_state;
+
+    oldState->m_active = false;
 
     uint64_t totalCopied = 0;
     uint64_t objectsCopied = 0;
@@ -956,9 +956,12 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     s2e_debug_print("Copying %d (count=%d)\n", totalCopied, objectsCopied);
     timers_state = *newState->m_timersState;
+
+    newState->m_active = true;
+
     newState->getDeviceState()->restoreDeviceState();
     copyOutConcretes(*newState);
-    newState->m_active = true;
+
 
     cpu_enable_ticks();
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
