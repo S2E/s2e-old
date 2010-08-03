@@ -32,6 +32,7 @@ public:
             uint64_t pc, std::string &out, bool file, bool line, bool func);
 
     bool print(const ModuleInstance *ni, uint64_t pc, std::string &out, bool file, bool line, bool func);
+    bool getInfo(const ModuleInstance *ni, uint64_t pc, std::string &file, uint64_t &line, std::string &func);
 
     bool findLibrary(const std::string &libName, std::string &abspath);
 private:

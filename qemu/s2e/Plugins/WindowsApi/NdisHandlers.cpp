@@ -373,10 +373,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
         uint32_t retVal = 0;
         fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
 
-        retVal = 0xc001001E;
-        ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
 
-#if 0
         //Second state: NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
         klee::ref<klee::Expr> cond2 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc001001E, klee::Expr::Int32));
         sp = s2e()->getExecutor()->fork(*ts, cond2, false);
@@ -398,7 +395,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
         //Fourth state: NDIS_STATUS_FAILURE
         retVal = 0xC0000001L;
         ts_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-#endif
+
     }
 
 }

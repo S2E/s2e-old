@@ -99,6 +99,22 @@ ExecutableFile *Library::get(const std::string &name)
     return (*it).second;
 }
 
+bool Library::getInfo(const ModuleInstance *mi, uint64_t pc, std::string &file, uint64_t &line, std::string &func)
+{
+    assert(mi);
+    ExecutableFile *exec = get(mi->Name);
+    if (!exec) {
+        return false;
+    }
+
+    uint64_t reladdr = pc - mi->LoadBase + mi->ImageBase;
+    if (!exec->getInfo(reladdr, file, line, func)) {
+        return false;
+    }
+
+    return true;
+}
+
 //Helper function to quickly print debug info
 bool Library::print(
         const std::string &modName, uint64_t loadBase, uint64_t imageBase,

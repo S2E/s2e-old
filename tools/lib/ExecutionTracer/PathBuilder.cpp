@@ -127,6 +127,26 @@ void PathBuilder::onItem(unsigned traceIndex,
         //m_CurrentSegment->print(std::cout);
     }
 
+    ///////////////////////////
+    assert(m_CurrentSegment->getStateId() == hdr.stateId);
+
+    //Extend the current segment with a fragment
+    //Note that forks are the last items in each fragment
+    if (!m_CurrentSegment->hasFragments()) {
+        #ifdef DEBUG_PB
+        std::cerr << "Creating new fragment for segment " << m_CurrentSegment->getStateId() << std::endl;
+        #endif
+        m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
+    }else
+    {
+        m_CurrentSegment->expandLastFragment(traceIndex);
+    }
+
+    #ifdef DEBUG_PB
+    m_CurrentSegment->print(std::cerr);
+    #endif
+
+    ///////////////////////////
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         assert(f->stateCount == 2);
@@ -143,23 +163,6 @@ void PathBuilder::onItem(unsigned traceIndex,
             }
         }
 
-    }else {
-        assert(m_CurrentSegment->getStateId() == hdr.stateId);
-
-        //Simply extend the current segment with a fragment
-        if (!m_CurrentSegment->hasFragments()) {
-            #ifdef DEBUG_PB
-            std::cerr << "Creating new fragment for segment " << m_CurrentSegment->getStateId() << std::endl;
-            #endif
-            m_CurrentSegment->appendFragment(PathFragment(traceIndex, traceIndex));
-        }else
-        {
-            m_CurrentSegment->expandLastFragment(traceIndex);
-        }
-
-        #ifdef DEBUG_PB
-        m_CurrentSegment->print(std::cerr);
-        #endif
     }
 }
 
