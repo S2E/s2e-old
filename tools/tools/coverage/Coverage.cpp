@@ -406,14 +406,14 @@ void CoverageTool::process()
 
 void CoverageTool::flatTrace()
 {
-    ModuleCache mc(&m_parser);
-
-    //MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
-    //md.lookForValue(MemoryValue);
-
-    Coverage cov(&m_binaries, &mc, &m_parser);
-
+    PathBuilder pb(&m_parser);
     m_parser.parse(TraceFile);
+
+    ModuleCache mc(&pb);
+    Coverage cov(&m_binaries, &mc, &pb);
+
+    pb.processTree();
+
     cov.outputCoverage(LogDir);
 
 }

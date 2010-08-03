@@ -95,7 +95,10 @@ bool ModuleCacheState::loadDriver(const std::string &name, uint64_t pid, uint64_
                              uint64_t imageBase, uint64_t size)
 {
     ModuleInstance *mi = new ModuleInstance(name, pid, loadBase, size, imageBase);
-    assert(m_Instances.find(mi) == m_Instances.end());
+    if(m_Instances.find(mi) != m_Instances.end()) {
+        delete mi;
+        return false;
+    }
     m_Instances.insert(mi);
     return true;
 }
