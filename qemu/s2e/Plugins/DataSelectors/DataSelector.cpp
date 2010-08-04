@@ -19,10 +19,12 @@ void DataSelector::initialize()
     Sections = s2e()->getConfig()->getListKeys(getConfigKey());
     bool noErrors = true;
 
+#if 0
     if (Sections.size() > 1) {
         s2e()->getWarningsStream() << "Only one service can be handled currently..." << std::endl;
         exit(-1);
     }
+#endif
 
     foreach2(it, Sections.begin(), Sections.end()) {
         s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
@@ -34,8 +36,7 @@ void DataSelector::initialize()
     }
 
     if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the WindowsService sections"
-            <<std::endl;
+        s2e()->getWarningsStream() << "Errors while scanning the sections"  <<std::endl;
         exit(-1);
     }
 

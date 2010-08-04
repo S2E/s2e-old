@@ -232,6 +232,8 @@ public:
     void setPc(uint64_t pc);
     void setSp(uint64_t sp);
 
+    void dumpStack(unsigned count);
+
     /** Returns true if symbex is currently enabled for this state */
     bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
 

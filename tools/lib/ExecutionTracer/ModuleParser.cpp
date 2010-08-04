@@ -4,6 +4,7 @@
 
 
 #include "ModuleParser.h"
+#include <lib/BinaryReaders/Library.h>
 
 #include <stdio.h>
 #include <inttypes.h>
@@ -81,6 +82,8 @@ void ModuleCache::onItem(unsigned traceIndex,
 
 const ModuleInstance *ModuleCacheState::getInstance(uint64_t pid, uint64_t pc) const
 {
+    pid = Library::translatePid(pid, pc);
+
     ModuleInstance mi("", pid, pc, 1, 0);
     ModuleInstanceSet::const_iterator it = m_Instances.find(&mi);
     if (it == m_Instances.end()) {
@@ -94,6 +97,8 @@ const ModuleInstance *ModuleCacheState::getInstance(uint64_t pid, uint64_t pc) c
 bool ModuleCacheState::loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,
                              uint64_t imageBase, uint64_t size)
 {
+    pid = Library::translatePid(pid, loadBase);
+
     ModuleInstance *mi = new ModuleInstance(name, pid, loadBase, size, imageBase);
     if(m_Instances.find(mi) != m_Instances.end()) {
         delete mi;

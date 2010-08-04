@@ -109,7 +109,7 @@ public:
     void initialize();
 
     //bool toExecutionDesc(ModuleExecutionDesc *desc, const ModuleDescriptor *md);
-    const ModuleDescriptor *getModule(S2EExecutionState *state, uint64_t pc);
+    const ModuleDescriptor *getModule(S2EExecutionState *state, uint64_t pc, bool tracked=true);
     const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state) const;
     const std::string *getModuleId(const ModuleDescriptor &desc) const;
 
@@ -166,12 +166,13 @@ private:
     mutable const ModuleDescriptor *m_CachedModule;
 
     DescriptorSet m_Descriptors;
+    DescriptorSet m_NotTrackedDescriptors;
 
-    const ModuleDescriptor *getDescriptor(uint64_t pid, uint64_t pc) const;
-    void loadDescriptor(const ModuleDescriptor &desc);
+    const ModuleDescriptor *getDescriptor(uint64_t pid, uint64_t pc, bool tracked=true) const;
+    void loadDescriptor(const ModuleDescriptor &desc, bool track);
     void unloadDescriptor(const ModuleDescriptor &desc);
     void unloadDescriptorsWithPid(uint64_t pid);
-    bool exists(const ModuleDescriptor *desc) const;
+    bool exists(const ModuleDescriptor *desc, bool tracked) const;
 
 public:
     sigc::signal<void,

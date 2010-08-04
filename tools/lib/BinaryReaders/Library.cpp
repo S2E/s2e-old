@@ -4,7 +4,23 @@
 #include <fstream>
 #include <iostream>
 
+#include "llvm/Support/CommandLine.h"
+
+//XXX: Move this to a better place
+namespace {
+    llvm::cl::opt<uint64_t>
+            KernelStart("os", llvm::cl::desc("Start address of kernel space"),llvm::cl::init(0x80000000));
+}
+
 namespace s2etools {
+
+uint64_t Library::translatePid(uint64_t pid, uint64_t pc)
+{
+    if (pc >= KernelStart) {
+        return 0;
+    }
+    return pid;
+}
 
 Library::Library()
 {

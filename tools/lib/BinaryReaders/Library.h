@@ -35,6 +35,8 @@ public:
     bool getInfo(const ModuleInstance *ni, uint64_t pc, std::string &file, uint64_t &line, std::string &func);
 
     bool findLibrary(const std::string &libName, std::string &abspath);
+
+    static uint64_t translatePid(uint64_t pid, uint64_t pc);
 private:
     PathList m_libpath;
     //std::string m_libpath;

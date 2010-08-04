@@ -896,6 +896,7 @@ void S2EExecutor::jumpToSymbolicCpp(S2EExecutionState *state)
     }
     assert(state->isRunningConcrete());
 
+    //XXX: should be per-state
     m_toRunSymbolically.insert(std::make_pair(state->getPc(), state->getPid()));
     enableSymbolicExecution(state);
     state->m_startSymbexAtPC = state->getPc();

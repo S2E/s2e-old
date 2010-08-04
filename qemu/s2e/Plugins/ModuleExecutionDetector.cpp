@@ -155,27 +155,31 @@ void ModuleExecutionDetector::moduleLoadListener(
             "Module " << std::left << std::setw(20) << module.Name << " loaded - " <<
             "Base=0x" << std::hex << module.LoadBase << " Size=0x" << module.Size << std::dec;
 
-    if (m_TrackAllModules) {
-        s2e()->getDebugStream() << " [REGISTERING]" << std::endl;
-        plgState->loadDescriptor(module);
-        return;
-    }
 
     ModuleExecutionCfg cfg;
     cfg.moduleName = module.Name;
 
     ConfiguredModulesByName::iterator it = m_ConfiguredModulesName.find(cfg);
     if (it != m_ConfiguredModulesName.end()) {
-        if (plgState->exists(&module)) {
+        if (plgState->exists(&module, true)) {
             s2e()->getDebugStream() << " [ALREADY REGISTERED ID=" << (*it).id << "]" << std::endl;
         }else {
             s2e()->getDebugStream() << " [REGISTERING ID=" << (*it).id << "]" << std::endl;
-            plgState->loadDescriptor(module);
+            plgState->loadDescriptor(module, true);
         }
         return;
     }
 
     s2e()->getDebugStream() << std::endl;
+
+    if (m_TrackAllModules) {
+        s2e()->getDebugStream() << " [REGISTERING NOT TRACKED]" << std::endl;
+        plgState->loadDescriptor(module, false);
+        return;
+    }
+
+
+
 
 }
 
@@ -215,13 +219,13 @@ bool ModuleExecutionDetector::isModuleConfigured(const std::string &moduleId) co
 /*****************************************************************************/
 /*****************************************************************************/
 
-const ModuleDescriptor *ModuleExecutionDetector::getModule(S2EExecutionState *state, uint64_t pc)
+const ModuleDescriptor *ModuleExecutionDetector::getModule(S2EExecutionState *state, uint64_t pc, bool tracked)
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
     uint64_t pid = m_Monitor->getPid(state, pc);
 
     const ModuleDescriptor *currentModule =
-            plgState->getDescriptor(pid, pc);
+            plgState->getDescriptor(pid, pc, tracked);
     return currentModule;
 }
 
@@ -379,6 +383,10 @@ ModuleTransitionState* ModuleTransitionState::clone() const
         ret->m_Descriptors.insert(new ModuleDescriptor(**it));
     }
 
+    foreach2(it, m_NotTrackedDescriptors.begin(), m_NotTrackedDescriptors.end()) {
+        ret->m_NotTrackedDescriptors.insert(new ModuleDescriptor(**it));
+    }
+
     if (m_CachedModule) {
         DescriptorSet::iterator it = ret->m_Descriptors.find(m_CachedModule);
         assert(it != ret->m_Descriptors.end());
@@ -403,7 +411,7 @@ PluginState* ModuleTransitionState::factory(Plugin *p, S2EExecutionState *state)
     return s;
 }
 
-const ModuleDescriptor *ModuleTransitionState::getDescriptor(uint64_t pid, uint64_t pc) const
+const ModuleDescriptor *ModuleTransitionState::getDescriptor(uint64_t pid, uint64_t pc, bool tracked) const
 {
     if (m_CachedModule) {
         const ModuleDescriptor &md = *m_CachedModule;
@@ -426,12 +434,25 @@ const ModuleDescriptor *ModuleTransitionState::getDescriptor(uint64_t pid, uint6
     }
 
     m_CachedModule = NULL;
+
+    if (!tracked) {
+        it = m_NotTrackedDescriptors.find(&d);
+        if (it != m_NotTrackedDescriptors.end()) {
+            //XXX: implement proper caching
+            return *it;
+        }
+    }
+
     return NULL;
 }
 
-void ModuleTransitionState::loadDescriptor(const ModuleDescriptor &desc)
+void ModuleTransitionState::loadDescriptor(const ModuleDescriptor &desc, bool track)
 {
-    m_Descriptors.insert(new ModuleDescriptor(desc));
+    if (track) {
+        m_Descriptors.insert(new ModuleDescriptor(desc));
+    }else {
+        m_NotTrackedDescriptors.insert(new ModuleDescriptor(desc));
+    }
 }
 
 void ModuleTransitionState::unloadDescriptor(const ModuleDescriptor &desc)
@@ -441,7 +462,14 @@ void ModuleTransitionState::unloadDescriptor(const ModuleDescriptor &desc)
     d.Pid = desc.Pid;
     DescriptorSet::iterator it = m_Descriptors.find(&d);
     if (it != m_Descriptors.end()) {
+        delete *it;
         m_Descriptors.erase(it);
+    }
+
+    it = m_NotTrackedDescriptors.find(&d);
+    if (it != m_NotTrackedDescriptors.end()) {
+        delete *it;
+        m_NotTrackedDescriptors.erase(it);
     }
 }
 
@@ -460,9 +488,32 @@ void ModuleTransitionState::unloadDescriptorsWithPid(uint64_t pid)
             it = it1;
         }
     }
+
+    //XXX: avoid copy/paste
+    for (it = m_NotTrackedDescriptors.begin(); it != m_NotTrackedDescriptors.end(); ) {
+        if ((*it)->Pid != pid) {
+            ++it;
+        }else {
+            it1 = it;
+            ++it1;
+            delete *it;
+            m_NotTrackedDescriptors.erase(*it);
+            it = it1;
+        }
+    }
 }
 
-bool ModuleTransitionState::exists(const ModuleDescriptor *desc) const
+bool ModuleTransitionState::exists(const ModuleDescriptor *desc, bool tracked) const
 {
-    return m_Descriptors.find(desc) != m_Descriptors.end();
+    bool ret;
+    ret = m_Descriptors.find(desc) != m_Descriptors.end();
+    if (ret) {
+        return ret;
+    }
+
+    if (tracked) {
+        return false;
+    }
+
+    return m_NotTrackedDescriptors.find(desc) != m_NotTrackedDescriptors.end();
 }

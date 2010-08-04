@@ -13,12 +13,48 @@ namespace plugins {
 
 struct RuleCfg
 {
+    enum Rule {
+        RSAKEYGEN, INJECTREG, INJECTMAIN
+    };
+
     std::string moduleId;
-    std::string rule;
+    Rule rule;
     uint64_t pc;
     unsigned reg;
+    bool concrete;
+    uint32_t value;
     bool makeParamCountSymbolic;
     bool makeParamsSymbolic;
+};
+
+struct RuntimeRule
+{
+    uint64_t pc, pid;
+    RuleCfg::Rule rule;
+    unsigned reg;
+    bool concrete;
+    uint32_t value;
+    bool makeParamCountSymbolic;
+    bool makeParamsSymbolic;
+
+    bool operator()(const RuntimeRule &r1, const RuntimeRule &r2) const {
+        if (r1.pid == r2.pid) {
+            return r1.pc < r2.pc;
+        }else {
+            return r1.pid < r2.pid;
+        }
+    }
+};
+
+struct RuleCfgByAddr
+{
+    bool operator()(const RuleCfg &r1, const RuleCfg &r2) const {
+        if (r1.moduleId == r2.moduleId) {
+            return r1.pc < r2.pc;
+        }else {
+            return r1.moduleId < r2.moduleId;
+        }
+    }
 };
 
 class GenericDataSelector : public DataSelector
@@ -28,38 +64,73 @@ public:
     GenericDataSelector(S2E* s2e): DataSelector(s2e) {}
 
     void initialize();
-    void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState *state, 
-        const ModuleDescriptor &desc,
-        TranslationBlock *tb, uint64_t pc);
-    
-  void onTranslateBlockEnd(
-        ExecutionSignal *signal,
-        S2EExecutionState* state,
-        const ModuleDescriptor &desc,
-        TranslationBlock *tb,
-        uint64_t endPc,
-        bool staticTarget,
-        uint64_t targetPc);
 
-    void onExecution(S2EExecutionState *state, uint64_t pc,
-                                unsigned idx);
-
+    typedef std::set<RuleCfg, RuleCfgByAddr> Rules;
 private:
-    //Decide where and what to inject
-    std::vector<RuleCfg> m_Rules;
+
+    Rules m_Rules;
 
     OSMonitor *m_Monitor;
-    sigc::connection m_TbConnection;
+
+    TranslationBlock *m_tb;
+    sigc::connection m_tbConnection;
 
     virtual bool initSection(const std::string &cfgKey, const std::string &svcId);
-    void activateRule(
-        ExecutionSignal* signal,
-        S2EExecutionState *state,
-        const ModuleDescriptor &desc,
-        TranslationBlock *tb, uint64_t pc);
+
     void injectRsaGenKey(S2EExecutionState *state);  
-    void injectRegister(S2EExecutionState *state, unsigned reg);
-    void injectMainArgs(S2EExecutionState *state, const RuleCfg *rule);
+    void injectRegister(S2EExecutionState *state, uint64_t pc, unsigned reg, bool concrete, uint32_t val);
+    void injectMainArgs(S2EExecutionState *state, const RuntimeRule *rule);
+
+    void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState *state,
+                               const ModuleDescriptor &desc,
+                               TranslationBlock *tb, uint64_t pc);
+
+    void onTranslateBlockEnd(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            const ModuleDescriptor &desc,
+            TranslationBlock *tb,
+            uint64_t endPc,
+            bool staticTarget,
+            uint64_t targetPc);
+
+    void onProcessUnload(S2EExecutionState* state, uint64_t pid);
+    void onModuleLoad(S2EExecutionState* state, const ModuleDescriptor &module);
+    void onModuleUnload(S2EExecutionState* state, const ModuleDescriptor &module);
+
+    void onTranslateInstructionStart(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            TranslationBlock *tb,
+            uint64_t pc);
+
+    void onExecution(S2EExecutionState *state, uint64_t pc);
+};
+
+class GenericDataSelectorState: public PluginState
+{
+private:
+    typedef std::set<RuntimeRule, RuntimeRule> RuntimeRules;
+
+    RuntimeRules m_activeRules;
+
+public:
+
+
+    GenericDataSelectorState();
+    GenericDataSelectorState(S2EExecutionState *s, Plugin *p);
+    virtual ~GenericDataSelectorState();
+    virtual PluginState *clone() const;
+    static PluginState *factory(Plugin *p, S2EExecutionState *s);
+
+    bool activateRule(const RuleCfg &rule, const ModuleDescriptor &desc);
+    bool deactivateRule(const ModuleDescriptor &desc);
+    bool deactivateRule(uint64_t pid);
+
+    bool check(uint64_t pid, uint64_t pc) const;
+    const RuntimeRule &getRule(uint64_t pid, uint64_t pc) const;
+
+    friend class GenericDataSelector;
 };
 
 } // namespace plugins

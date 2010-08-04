@@ -157,7 +157,9 @@ public:
     void finalizeState(S2EExecutionState *state);
 
     void jumpToSymbolic(S2EExecutionState *state);
+
     void jumpToSymbolicCpp(S2EExecutionState *state);
+
     bool needToJumpToSymbolic(S2EExecutionState *state) const;
 
     void fetchObjectForTlb(S2EExecutionState *state, uintptr_t hostaddr, int mmu_idx, int index);

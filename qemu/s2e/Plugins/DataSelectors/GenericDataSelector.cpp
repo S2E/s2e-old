@@ -6,6 +6,7 @@ extern "C" {
 
 #include "GenericDataSelector.h"
 #include <s2e/S2E.h>
+#include <s2e/S2EExecutor.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 
@@ -24,12 +25,25 @@ void GenericDataSelector::initialize()
 {
     m_Monitor = (OSMonitor*)s2e()->getPlugin("Interceptor");
     assert(m_Monitor);
+    m_tb = NULL;
 
     //Read the cfg file and call init sections
     DataSelector::initialize();
 
+    m_Monitor->onModuleLoad.connect(
+            sigc::mem_fun(*this, &GenericDataSelector::onModuleLoad)
+            );
+
+    m_Monitor->onModuleUnload.connect(
+            sigc::mem_fun(*this, &GenericDataSelector::onModuleUnload)
+            );
+
+    m_Monitor->onProcessUnload.connect(
+            sigc::mem_fun(*this, &GenericDataSelector::onProcessUnload)
+            );
+
     //Registering listener
-    m_TbConnection = m_ExecDetector->onModuleTranslateBlockStart.connect(
+    m_ExecDetector->onModuleTranslateBlockStart.connect(
         sigc::mem_fun(*this, &GenericDataSelector::onTranslateBlockStart)
     );
 
@@ -43,45 +57,159 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
     RuleCfg cfg;
     
     bool ok;
-    cfg.moduleId = s2e()->getConfig()->getString(cfgKey + ".module", "", &ok);
+    cfg.moduleId = s2e()->getConfig()->getString(cfgKey + ".moduleId", "", &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".module" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".moduleId" << std::endl;
         return false;
     }
 
-    cfg.rule = s2e()->getConfig()->getString(cfgKey + ".rule", "", &ok);
+    if (!m_ExecDetector->isModuleConfigured(cfg.moduleId)) {
+        s2e()->getWarningsStream() << cfg.moduleId << " is not configured in " << cfgKey  << std::endl;
+        exit(-1);
+        return false;
+    }
+
+    std::string rule = s2e()->getConfig()->getString(cfgKey + ".rule", "", &ok);
     if (!ok) {
         s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".rule" << std::endl;
         return false;
     }
 
-    cfg.pc = s2e()->getConfig()->getInt(cfgKey + ".fcn", 0, &ok);
-    if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".function" << std::endl;
+    if (rule == "injectreg") {
+        cfg.rule = RuleCfg::INJECTREG;
+    }else if (rule == "injectmain") {
+        cfg.rule = RuleCfg::INJECTMAIN;
+    }else if (rule == "injectrsa") {
+        cfg.rule = RuleCfg::RSAKEYGEN;
+    }else {
+        s2e()->getWarningsStream() << "Invalid rule " << rule << std::endl;
+        exit(-1);
         return false;
+    }
+
+    cfg.pc = s2e()->getConfig()->getInt(cfgKey + ".pc", 0, &ok);
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".pc" << std::endl;
+        exit(-1);
+        return false;
+    }
+
+    cfg.concrete = s2e()->getConfig()->getBool(cfgKey + ".concrete");
+
+    cfg.value = s2e()->getConfig()->getInt(cfgKey + ".value", 0, &ok);
+    if (!ok) {
+        if (cfg.concrete) {
+            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".value when injecting concrete values." << std::endl;
+            exit(-1);
+            return false;
+        }
     }
 
     cfg.reg = s2e()->getConfig()->getInt(cfgKey + ".register", 0, &ok);
     if (!ok) {
         s2e()->getWarningsStream() << "You might have forgotten to specify " << cfgKey <<  ".register" << std::endl;
+        exit(-1);
+        return false;
     }
 
     cfg.makeParamsSymbolic = s2e()->getConfig()->getBool(cfgKey + ".makeParamsSymbolic");
     cfg.makeParamCountSymbolic = s2e()->getConfig()->getBool(cfgKey + ".makeParamCountSymbolic");
 
-
-    m_Rules.push_back(cfg);
+    m_Rules.insert(cfg);
     return true;
 }
 
+//Activate all the relevant rules for each module
+void GenericDataSelector::onModuleLoad(
+        S2EExecutionState* state,
+        const ModuleDescriptor &module
+        )
+{
+    foreach2(it, m_Rules.begin(), m_Rules.end()) {
+        const RuleCfg &cfg = *it;
+        const std::string *s = m_ExecDetector->getModuleId(module);
+        if (!s || (cfg.moduleId != *s)) {
+            continue;
+        }
 
-void GenericDataSelector::onTranslateBlockStart(ExecutionSignal* signal, S2EExecutionState *state, 
+        DECLARE_PLUGINSTATE(GenericDataSelectorState, state);
+
+        if (cfg.pc - module.NativeBase > module.Size) {
+            s2e()->getWarningsStream() << "Specified pc for rule exceeds the size of the loaded module" << std::endl;
+        }
+
+        plgState->activateRule(cfg, module);
+    }
+}
+
+//Deactivate irrelevant rules
+void GenericDataSelector::onModuleUnload(
+        S2EExecutionState* state,
+        const ModuleDescriptor &module
+        )
+{
+    DECLARE_PLUGINSTATE(GenericDataSelectorState, state);
+    plgState->deactivateRule(module);
+}
+
+void GenericDataSelector::onProcessUnload(
+        S2EExecutionState* state,
+        uint64_t pid
+        )
+{
+    DECLARE_PLUGINSTATE(GenericDataSelectorState, state);
+    plgState->deactivateRule(pid);
+}
+
+void GenericDataSelector::onTranslateBlockStart(
+        ExecutionSignal* signal,
+        S2EExecutionState *state,
         const ModuleDescriptor &desc,
         TranslationBlock *tb, uint64_t pc)
 {
-    activateRule(signal, state, desc, tb, pc);
+    //activateRule(signal, state, desc, tb, pc);
+
+    if (m_tb) {
+        m_tbConnection.disconnect();
+    }
+    m_tb = tb;
+
+    /*if (desc.ToNativeBase(pc) == 0x124f6) {
+        asm("int $3");
+    }*/
+
+    CorePlugin *plg = s2e()->getCorePlugin();
+    m_tbConnection = plg->onTranslateInstructionStart.connect(
+            sigc::mem_fun(*this, &GenericDataSelector::onTranslateInstructionStart)
+    );
+
 
 }
+
+void GenericDataSelector::onTranslateInstructionStart(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        TranslationBlock *tb,
+        uint64_t pc)
+{
+    if (tb != m_tb) {
+        //We've been suddenly interrupted by some other module
+        m_tb = NULL;
+        m_tbConnection.disconnect();
+        return;
+    }
+
+    DECLARE_PLUGINSTATE(GenericDataSelectorState, state);
+
+    //Connect if some injector is interested
+    if (plgState->check(m_Monitor->getPid(state, pc), pc)) {
+        signal->connect(
+            sigc::mem_fun(*this, &GenericDataSelector::onExecution)
+        );
+    }
+
+}
+
 
 void GenericDataSelector::onTranslateBlockEnd(
         ExecutionSignal *signal,
@@ -92,50 +220,27 @@ void GenericDataSelector::onTranslateBlockEnd(
         bool staticTarget,
         uint64_t targetPc)
 {
-    activateRule(signal, state, desc, tb, endPc);
+    //activateRule(signal, state, desc, tb, endPc);
+    m_tb = NULL;
+    m_tbConnection.disconnect();
 }
 
  
-void GenericDataSelector::activateRule(
-                                      ExecutionSignal* signal,
-                                      S2EExecutionState *state,
-                                      const ModuleDescriptor &desc,
-                                       TranslationBlock *tb, uint64_t pc)
+void GenericDataSelector::onExecution(S2EExecutionState *state, uint64_t pc)
 {
-    unsigned idx=0;
-    const std::string *moduleId = m_ExecDetector->getModuleId(desc);
-    if (moduleId == NULL) {
-        return;
-    }
+    DECLARE_PLUGINSTATE(GenericDataSelectorState, state);
+    const RuntimeRule &r = plgState->getRule(m_Monitor->getPid(state, pc), pc);
 
-    foreach2(it, m_Rules.begin(), m_Rules.end()) {
-        const RuleCfg &r = *it;
-        if (r.moduleId == *moduleId && r.pc == desc.ToNativeBase(pc)) {
-            signal->connect(
-                    sigc::bind(sigc::mem_fun(*this, &GenericDataSelector::onExecution),
-                    (unsigned)idx)
-                    );
-        }
-        idx++;
-    }
-    return;
-}
-
-void GenericDataSelector::onExecution(S2EExecutionState *state, uint64_t pc,
-                                 unsigned ruleIdx)
-{
-    const RuleCfg &r = m_Rules[ruleIdx];
-
-    if (r.rule == "rsagenkey") {
-        injectRsaGenKey(state);
-    }else if  (r.rule == "injectreg") {
-        injectRegister(state, r.reg);
-    }else if  (r.rule == "injectmain") {
-        injectMainArgs(state, &r);
+    switch(r.rule) {
+        case RuleCfg::INJECTMAIN: injectMainArgs(state, &r); break;
+        case RuleCfg::INJECTREG: injectRegister(state, pc, r.reg, r.concrete, r.value); break;
+        case RuleCfg::RSAKEYGEN: injectRsaGenKey(state); break;
+        default: s2e()->getWarningsStream() << "Invalid rule type " << r.rule << std::endl;
+            break;
     }
 }
 
-void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const RuleCfg *rule)
+void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const RuntimeRule *rule)
 {
     //Parse the arguments here
     uint32_t paramCount;
@@ -172,11 +277,29 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const RuleCfg
     }
 }
 
-void GenericDataSelector::injectRegister(S2EExecutionState *state, unsigned reg)
+void GenericDataSelector::injectRegister(S2EExecutionState *state, uint64_t pc, unsigned reg, bool concrete, uint32_t val)
 {
-    s2e()->getDebugStream() << "Injecting symbolic value in register " << reg << std::endl;
-    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32);
-    if (reg < 8) {
+    if (!concrete && s2e()->getExecutor()->needToJumpToSymbolic(state)) {
+        //We  must update the pc here, because instruction handlers are called before the
+        //program counter is updated by the generated code. Otherwise the previous instruction
+        //will be reexecuted twice.
+        state->setPc(pc);
+        s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    }
+
+    if (concrete) {
+        s2e()->getDebugStream() << "Injecting concrete value 0x" << std::hex << val << " in register " << reg
+                << " at pc 0x" << state->getPc() << std::endl;
+        //state->dumpStack(20);
+        assert (reg < 8);
+        state->writeCpuRegisterConcrete(CPU_OFFSET(regs) + reg * sizeof(target_ulong), &val, sizeof(val));
+    }else {
+        s2e()->getDebugStream() << "Injecting symbolic value in register " << reg
+                << " at pc 0x" << state->getPc() << std::endl;
+
+        assert (reg < 8);
+        //state->dumpStack(20);
+        klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(CPU_OFFSET(regs) + reg * sizeof(target_ulong), symb);
     }
 }
@@ -206,5 +329,107 @@ void GenericDataSelector::injectRsaGenKey(S2EExecutionState *state)
     state->writeMemory(state->getSp()+sizeof(uint32_t), newKeySize);
     state->writeMemory(state->getSp()+2*sizeof(uint32_t), newExponent);
 }
+
+
+
+GenericDataSelectorState::GenericDataSelectorState()
+{
+
+}
+
+GenericDataSelectorState::GenericDataSelectorState(S2EExecutionState *s, Plugin *p)
+{
+
+}
+
+GenericDataSelectorState::~GenericDataSelectorState()
+{
+
+}
+
+PluginState *GenericDataSelectorState::clone() const
+{
+    return new GenericDataSelectorState(*this);
+}
+
+PluginState *GenericDataSelectorState::factory(Plugin *p, S2EExecutionState *s)
+{
+    return new GenericDataSelectorState();
+}
+
+bool GenericDataSelectorState::activateRule(const RuleCfg &rule, const ModuleDescriptor &desc)
+{
+    RuntimeRule rtRule;
+    rtRule.pc = desc.ToRuntime(rule.pc);
+    rtRule.pid = desc.Pid;
+    rtRule.reg = rule.reg;
+    rtRule.rule = rule.rule;
+    rtRule.concrete = rule.concrete;
+    rtRule.value = rule.value;
+    rtRule.makeParamCountSymbolic = rule.makeParamCountSymbolic;
+    rtRule.makeParamsSymbolic = rule.makeParamsSymbolic;
+
+    m_activeRules.insert(rtRule);
+
+    return true;
+}
+
+bool GenericDataSelectorState::deactivateRule(const ModuleDescriptor &desc)
+{
+    RuntimeRules::iterator it1, it2;
+
+    it1 = m_activeRules.begin();
+    while(it1 != m_activeRules.end()) {
+        const RuntimeRule &rtr = *it1;
+        if (rtr.pc >= desc.LoadBase && rtr.pc < desc.LoadBase + desc.Size) {
+            it2 = it1;
+            ++it2;
+            m_activeRules.erase(*it1);
+            it1 = it2;
+        }else {
+            ++it1;
+        }
+    }
+    return true;
+}
+
+bool GenericDataSelectorState::deactivateRule(uint64_t pid)
+{
+    RuntimeRules::iterator it1, it2;
+
+    it1 = m_activeRules.begin();
+    while(it1 != m_activeRules.end()) {
+        const RuntimeRule &rtr = *it1;
+        if (rtr.pid == pid) {
+            it2 = it1;
+            ++it2;
+            m_activeRules.erase(*it1);
+            it1 = it2;
+        }else {
+            ++it1;
+        }
+    }
+    return true;
+}
+
+bool GenericDataSelectorState::check(uint64_t pid, uint64_t pc) const
+{
+    RuntimeRule rtRule;
+    rtRule.pc = pc;
+    rtRule.pid = pid;
+    return m_activeRules.find(rtRule) != m_activeRules.end();
+}
+
+const RuntimeRule &GenericDataSelectorState::getRule(uint64_t pid, uint64_t pc) const
+{
+    RuntimeRules::const_iterator it;
+    RuntimeRule rtRule;
+    rtRule.pc = pc;
+    rtRule.pid = pid;
+    it = m_activeRules.find(rtRule);
+    assert(it != m_activeRules.end());
+    return *it;
+}
+
 }
 }

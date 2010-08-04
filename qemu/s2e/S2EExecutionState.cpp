@@ -18,6 +18,8 @@ void* s2e_get_ram_ptr(target_phys_addr_t addr);
 #include <s2e/S2E.h>
 #include <s2e/s2e_qemu.h>
 
+#include <iomanip>
+
 //#define S2E_ENABLEMEM_CACHE
 
 namespace s2e {
@@ -287,6 +289,25 @@ uint64_t S2EExecutionState::getSp() const
     return cast<ConstantExpr>(e)->getZExtValue(64);
 }
 
+void S2EExecutionState::dumpStack(unsigned count)
+{
+    std::ostream &os = g_s2e->getDebugStream();
+    uint64_t sp = getSp();
+
+    os << "Dumping stack @0x" << std::hex << sp << std::endl;
+
+    for (unsigned i=0; i<count; ++i) {
+        klee::ref<klee::Expr> val = readMemory(sp + i * sizeof(uint32_t), klee::Expr::Int32);
+        klee::ConstantExpr *ce = dyn_cast<klee::ConstantExpr>(val);
+        if (ce) {
+            os << std::hex << "0x" << sp + i * sizeof(uint32_t) << " 0x" << std::setw(sizeof(uint32_t)*2) << std::setfill('0') << val;
+            os << std::setfill(' ');
+        }else {
+            os << std::hex << "0x" << sp + i * sizeof(uint32_t) << val;
+        }
+        os << std::endl;
+    }
+}
 
 
 uint64_t S2EExecutionState::getTotalInstructionCount()

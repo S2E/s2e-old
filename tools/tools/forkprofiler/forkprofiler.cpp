@@ -105,13 +105,13 @@ void ForkProfiler::outputProfile(const std::string &path) const
         fpCnt.insert(*it);
     }
 
-    forkProfile << "#Pc\tModule\tForkCnt\tSource\tFunction\tLine" << std::endl;
+    forkProfile << "#Pc      \tModule\tForkCnt\tSource\tFunction\tLine" << std::endl;
 
     ForkPointsByCount::const_iterator cit;
     for (cit = fpCnt.begin(); cit != fpCnt.end(); ++cit) {
         const ForkPoint &fp = *cit;
-        forkProfile << std::hex << "0x" << (fp.pc - fp.loadbase + fp.imagebase) << "\t";
-
+        forkProfile << std::hex << "0x" << std::setw(8) << std::setfill('0') << (fp.pc - fp.loadbase + fp.imagebase) << "\t";
+        forkProfile << std::setfill(' ');
         if (fp.module.size() > 0) {
             forkProfile << fp.module << "\t";
         }else {
