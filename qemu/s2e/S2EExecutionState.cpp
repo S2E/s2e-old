@@ -339,16 +339,16 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
     uint64_t mask = 0;
     /* XXX: x86-specific */
     for(int i = 0; i < 8; ++i) { /* regs */
-        if(os->isConcrete(i*4, 4))
+        if(os->isConcrete(i*4, 4*8))
             mask |= (1 << (i+5));
     }
-    if(os->isConcrete( 8*4, 4)) // cc_op
+    if(os->isConcrete( 8*4, 4*8)) // cc_op
         mask |= (1 << 1);
-    if(os->isConcrete( 9*4, 4)) // cc_src
+    if(os->isConcrete( 9*4, 4*8)) // cc_src
         mask |= (1 << 2);
-    if(os->isConcrete(10*4, 4)) // cc_dst
+    if(os->isConcrete(10*4, 4*8)) // cc_dst
         mask |= (1 << 3);
-    if(os->isConcrete(11*4, 4)) // cc_tmp
+    if(os->isConcrete(11*4, 4*8)) // cc_tmp
         mask |= (1 << 4);
     return mask;
 }
