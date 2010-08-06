@@ -35,6 +35,9 @@ namespace klee {
     void remove(Node *n);
 
     void dump(std::ostream &os);
+
+    void activate(Node *n);
+    void deactivate(Node *n);
   };
 
   class PTreeNode {
@@ -43,6 +46,7 @@ namespace klee {
     PTreeNode *parent, *left, *right;
     ExecutionState *data;
     ref<Expr> condition;
+    bool active;
 
   private:
     PTreeNode(PTreeNode *_parent, ExecutionState *_data);

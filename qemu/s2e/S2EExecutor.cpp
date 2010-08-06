@@ -1793,6 +1793,7 @@ bool S2EExecutor::suspendState(S2EExecutionState *state)
         searcher->removeState(state, NULL);
         size_t r = states.erase(state);
         assert(r == 1);
+        processTree->deactivate(state->ptreeNode);
         return true;
     }
     return false;
@@ -1805,6 +1806,7 @@ bool S2EExecutor::resumeState(S2EExecutionState *state)
         if (states.find(state) != states.end()) {
             return false;
         }
+        processTree->activate(state->ptreeNode);
         states.insert(state);
         searcher->addState(state, NULL);
         return true;

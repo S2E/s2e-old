@@ -29,6 +29,7 @@ PTree::split(Node *n,
              const data_type &leftData, 
              const data_type &rightData) {
   assert(n && !n->left && !n->right);
+  assert(n->active);
   n->left = new Node(n, leftData);
   n->right = new Node(n, rightData);
   return std::make_pair(n->left, n->right);
@@ -50,6 +51,40 @@ void PTree::remove(Node *n) {
     n = p;
   } while (n && !n->left && !n->right);
 }
+
+#if 1
+void PTree::deactivate(Node *n) {
+    assert(!n->left && !n->right);
+    do {
+      Node *p = n->parent;
+      n->active = false;
+      if (p) {
+          if (p->left && p->right) {
+              if (!p->left->active && !p->right->active) {
+                  p->active = false;
+              }else {
+                  break;
+              }
+          }else if (!p->left || !p->right) {
+             p->active = false;
+         }else {
+             assert(false);
+         }
+      }
+      n = p;
+    } while (n);
+}
+
+void PTree::activate(Node *n) {
+    assert(!n->left && !n->right);
+    n->active = true;
+    Node *p = n->parent;
+    while(p) {
+        p->active = true;
+        p = p->parent;
+    }
+}
+#endif
 
 void PTree::dump(std::ostream &os) {
   ExprPPrinter *pp = ExprPPrinter::create(os);
@@ -95,7 +130,9 @@ PTreeNode::PTreeNode(PTreeNode *_parent,
     left(0),
     right(0),
     data(_data),
-    condition(0) {
+    condition(0),
+    active(true)
+{
 }
 
 PTreeNode::~PTreeNode() {

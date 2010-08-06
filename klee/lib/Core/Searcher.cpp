@@ -215,27 +215,65 @@ RandomPathSearcher::RandomPathSearcher(Executor &_executor)
 RandomPathSearcher::~RandomPathSearcher() {
 }
 
+#if 1
 ExecutionState &RandomPathSearcher::selectState() {
-  unsigned flips=0, bits=0;
-  PTree::Node *n = executor.processTree->root;
-  
-  while (!n->data) {
-    if (!n->left) {
-      n = n->right;
-    } else if (!n->right) {
-      n = n->left;
-    } else {
-      if (bits==0) {
-        flips = theRNG.getInt32();
-        bits = 32;
-      }
-      --bits;
-      n = (flips&(1<<bits)) ? n->left : n->right;
-    }
-  }
+    unsigned flips=0, bits=0;
+    PTree::Node *n = executor.processTree->root;
 
-  return *n->data;
+    //There must be at least one leaf in the tree that is active
+    assert(n->active);
+
+    while (!n->data) {
+        if (!n->left) {
+            n = n->right;
+            assert(n->active);
+        } else if (!n->right) {
+            n = n->left;
+            assert(n->active);
+        } else {
+            if (!n->left->active) {
+                n = n->right;
+                assert(n->active);
+            }else if (!n->right->active) {
+                n = n->left;
+                assert(n->active);
+            }else {
+
+                if (bits==0) {
+                    flips = theRNG.getInt32();
+                    bits = 32;
+                }
+                --bits;
+                n = (flips&(1<<bits)) ? n->left : n->right;
+            }
+        }
+    }
+
+    return *n->data;
 }
+#else
+ExecutionState &RandomPathSearcher::selectState() {
+    unsigned flips=0, bits=0;
+    PTree::Node *n = executor.processTree->root;
+
+    while (!n->data) {
+        if (!n->left) {
+            n = n->right;
+        } else if (!n->right) {
+            n = n->left;
+        } else {
+                if (bits==0) {
+                    flips = theRNG.getInt32();
+                    bits = 32;
+                }
+                --bits;
+                n = (flips&(1<<bits)) ? n->left : n->right;
+        }
+    }
+
+    return *n->data;
+}
+#endif
 
 void RandomPathSearcher::update(ExecutionState *current,
                                 const std::set<ExecutionState*> &addedStates,

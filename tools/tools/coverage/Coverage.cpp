@@ -61,8 +61,10 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
         //std::cout << "Read 0x" << std::hex << start << " 0x" << end << " " << name << std::endl;
 
         BasicBlocks &bbs = m_functions[name];
-        bbs.insert(BasicBlock(start, end));
-        m_allBbs.insert(BasicBlock(start, end));
+        //XXX: the +1 is here to compensate the broken extraction script, which
+        //does not take into account the whole size of the last instruction.
+        bbs.insert(BasicBlock(start, end+1));
+        m_allBbs.insert(BasicBlock(start, end+1));
 
     }
 
