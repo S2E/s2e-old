@@ -28,6 +28,7 @@ public:
             S2EExecutionState *state,
             uint64_t eip, uint64_t cr3 = 0);
 
+    void eraseSp(S2EExecutionState *state, uint64_t pc);
 protected:
     void slotTranslateBlockEnd(ExecutionSignal*, S2EExecutionState *state,
                                TranslationBlock *tb, uint64_t pc,
@@ -80,7 +81,7 @@ class FunctionMonitorState : public PluginState
     FunctionMonitor::CallSignal* getCallSignal(uint64_t eip, uint64_t cr3 = 0);
 
     void slotCall(S2EExecutionState *state, uint64_t pc);
-    void slotRet(S2EExecutionState *state, uint64_t pc);
+    void slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal);
 public:
     FunctionMonitorState();
     virtual ~FunctionMonitorState();

@@ -372,7 +372,13 @@ ModuleTransitionState::ModuleTransitionState()
 
 ModuleTransitionState::~ModuleTransitionState()
 {
-    //assert(false && "Not implemented");
+    foreach2(it, m_Descriptors.begin(), m_Descriptors.end()) {
+        delete *it;
+    }
+
+    foreach2(it, m_NotTrackedDescriptors.begin(), m_NotTrackedDescriptors.end()) {
+        delete *it;
+    }
 }
 
 ModuleTransitionState* ModuleTransitionState::clone() const
@@ -384,6 +390,7 @@ ModuleTransitionState* ModuleTransitionState::clone() const
     }
 
     foreach2(it, m_NotTrackedDescriptors.begin(), m_NotTrackedDescriptors.end()) {
+        assert(*it != m_CachedModule && *it != m_PreviousModule);
         ret->m_NotTrackedDescriptors.insert(new ModuleDescriptor(**it));
     }
 
@@ -439,6 +446,7 @@ const ModuleDescriptor *ModuleTransitionState::getDescriptor(uint64_t pid, uint6
         it = m_NotTrackedDescriptors.find(&d);
         if (it != m_NotTrackedDescriptors.end()) {
             //XXX: implement proper caching
+            assert(*it != m_CachedModule && *it != m_PreviousModule);
             return *it;
         }
     }
@@ -462,14 +470,25 @@ void ModuleTransitionState::unloadDescriptor(const ModuleDescriptor &desc)
     d.Pid = desc.Pid;
     DescriptorSet::iterator it = m_Descriptors.find(&d);
     if (it != m_Descriptors.end()) {
+        if (m_CachedModule == *it) {
+            m_CachedModule = NULL;
+        }
+
+        if (m_PreviousModule == *it) {
+            m_PreviousModule = NULL;
+        }
+
+        size_t s = m_Descriptors.erase(*it);
+        assert(s == 1);
         delete *it;
-        m_Descriptors.erase(it);
     }
 
     it = m_NotTrackedDescriptors.find(&d);
     if (it != m_NotTrackedDescriptors.end()) {
+        assert(*it != m_CachedModule && *it != m_PreviousModule);
+        size_t s = m_NotTrackedDescriptors.erase(*it);
+        assert(s == 1);
         delete *it;
-        m_NotTrackedDescriptors.erase(it);
     }
 }
 
@@ -483,8 +502,18 @@ void ModuleTransitionState::unloadDescriptorsWithPid(uint64_t pid)
         }else {
             it1 = it;
             ++it1;
-            delete *it;
+
+            if (m_CachedModule == *it) {
+                m_CachedModule = NULL;
+            }
+
+            if (m_PreviousModule == *it) {
+                m_PreviousModule = NULL;
+            }
+
             m_Descriptors.erase(*it);
+            delete *it;
+
             it = it1;
         }
     }
@@ -496,8 +525,18 @@ void ModuleTransitionState::unloadDescriptorsWithPid(uint64_t pid)
         }else {
             it1 = it;
             ++it1;
-            delete *it;
+
+            if (m_CachedModule == *it) {
+                m_CachedModule = NULL;
+            }
+
+            if (m_PreviousModule == *it) {
+                m_PreviousModule = NULL;
+            }
+
             m_NotTrackedDescriptors.erase(*it);
+            delete *it;
+
             it = it1;
         }
     }

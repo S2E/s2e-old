@@ -70,13 +70,21 @@ void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
     return plgState->slotCall(state, pc);
 }
 
+//See notes for slotRet to see how to use this function.
+void FunctionMonitor::eraseSp(S2EExecutionState *state, uint64_t pc)
+{
+    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+
+    return plgState->slotRet(state, pc, false);
+}
+
 
 
 void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
 {
     DECLARE_PLUGINSTATE(FunctionMonitorState, state);
 
-    return plgState->slotRet(state, pc);
+    return plgState->slotRet(state, pc, true);
 }
 
 
@@ -204,7 +212,16 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
     }
 }
 
-void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc)
+/**
+ *  When emitSignal is false, this function simply removes all the return descriptors
+ * for the current stack pointer. This can be used when a return handler manually changes the
+ * program counter and/or wants to exit to the cpu loop and avoid being called again.
+ *
+ *  Note: all the return handlers will be erased if emitSignal is false, not just the one
+ * that issued the call. Also note that it not possible to return from the handler normally
+ * whenever this function is called from within a return handler.
+ */
+void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal)
 {
     target_ulong cr3 = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
 
@@ -235,7 +252,9 @@ void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc)
             }
 
             if(it->second.cr3 == cr3) {
-                it->second.signal.emit(state);
+                if (emitSignal) {
+                    it->second.signal.emit(state);
+                }
                 m_returnDescriptors.erase(it);
                 finished = false;
                 break;

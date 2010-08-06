@@ -16,17 +16,19 @@ static void sm_callback(S2EExecutionState *s, bool killingState)
     StateManager *sm = static_cast<StateManager*>(g_s2e->getPlugin("StateManager"));
     assert(sm);
 
-    if (killingState) {
-        assert(s);
+    if (killingState && s) {
         sm->resumeSucceededState(s);
         return;
     }
 
-    if (!sm->killAllButOneSuccessful()) {
-        sm->killAllButCurrent();
+    //If there are no states, try to resume some successful ones
+    if (g_s2e->getExecutor()->getStatesCount() == 0) {
+        sm->killAllButOneSuccessful(false);
+        return;
     }
-    //sm->resumeSucceeded();
 
+    //Check for timeout conditions
+    sm->killOnTimeOut();
 }
 
 void StateManager::resumeSucceeded()
@@ -87,9 +89,8 @@ void StateManager::onNewBlockCovered(
     m_timerTicks = 0;
 }
 
-void StateManager::onTimer()
+void StateManager::killOnTimeOut()
 {
-    ++m_timerTicks;
     if (m_timerTicks < m_timeout) {
         return;
     }
@@ -98,10 +99,20 @@ void StateManager::onTimer()
             std::dec << m_timerTicks << " seconds, killing states."
             << std::endl;
 
-    if (!killAllButOneSuccessful()) {
+    //Reset the counter here to avoid being called again
+    //(killAllButOneSuccessful will throw an exception if it deletes the current state).
+    m_timerTicks = 0;
+
+    if (!killAllButOneSuccessful(true)) {
         s2e()->getDebugStream() << "There are no successful states to kill..."  << std::endl;
         //killAllButCurrent();
     }
+
+}
+
+void StateManager::onTimer()
+{
+    ++m_timerTicks;
 }
 
 bool StateManager::succeedState(S2EExecutionState *s)
@@ -110,6 +121,8 @@ bool StateManager::succeedState(S2EExecutionState *s)
 
     if (m_succeeded.find(s) != m_succeeded.end()) {
         //Avoid suspending states that were consecutively succeeded.
+        s2e()->getDebugStream() << "State " << std::dec << s->getID() <<
+                " was already marked as succeeded" << std::endl;
         return false;
     }
     m_succeeded.insert(s);
@@ -142,9 +155,9 @@ bool StateManager::killAllButCurrent()
     return true;
 }
 
-bool StateManager::killAllButOneSuccessful()
+bool StateManager::killAllButOneSuccessful(bool killCurrent)
 {
-    if (m_succeeded.size() <= 1) {
+    if (m_succeeded.size() < 1) {
         return false;
     }
 
@@ -155,21 +168,35 @@ bool StateManager::killAllButOneSuccessful()
     }
 
     S2EExecutionState *one =  *m_succeeded.begin();
-    foreach2(it, m_succeeded.begin(), m_succeeded.end()) {
+    const std::set<klee::ExecutionState*> &states = m_executor->getStates();
+    m_succeeded.clear();
+
+    bool doKillCurrent = false;
+
+    foreach2(it, states.begin(), states.end()) {
         if (*it == one) {
             s2e()->getDebugStream() << "Keeping state " << std::dec << one->getID() << std::endl;
             continue;
         }else {
             if (*it != g_s2e_state) {
-                s2e()->getDebugStream() << "Killing state  " << std::dec << (*it)->getID() << std::endl;
+                S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(*it);
+                s2e()->getDebugStream() << "Killing state  " << std::dec << (s2eState)->getID() << std::endl;
                 //XXX: the state will be lost
-                m_executor->suspendState(*it);
-                //s2e()->getExecutor()->terminateStateOnExit(**it);
+                //m_executor->suspendState(*it);
+                s2e()->getExecutor()->terminateStateOnExit(**it);
+            }else {
+                if (killCurrent) {
+                    doKillCurrent = true;
+                }
             }
         }
     }
 
-    m_succeeded.clear();
+    //In case we need to kill the current state, do it last, because it will throw and exception
+    //and return to the state scheduler.
+    if (doKillCurrent) {
+        s2e()->getExecutor()->terminateStateOnExit(*g_s2e_state);
+    }
 
     return true;
 }

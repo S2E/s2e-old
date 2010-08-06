@@ -14,15 +14,15 @@ namespace plugins {
 struct RuleCfg
 {
     enum Rule {
-        RSAKEYGEN, INJECTREG, INJECTMAIN
+        RSAKEYGEN, INJECTREG, INJECTMAIN, INJECTMEM
     };
 
     std::string moduleId;
     Rule rule;
     uint64_t pc;
     unsigned reg;
-    bool concrete;
-    uint32_t value;
+    bool concrete, size;
+    uint32_t value, offset;
     bool makeParamCountSymbolic;
     bool makeParamsSymbolic;
 };
@@ -32,8 +32,8 @@ struct RuntimeRule
     uint64_t pc, pid;
     RuleCfg::Rule rule;
     unsigned reg;
-    bool concrete;
-    uint32_t value;
+    bool concrete, size;
+    uint32_t value, offset;
     bool makeParamCountSymbolic;
     bool makeParamsSymbolic;
 
@@ -80,6 +80,12 @@ private:
     void injectRsaGenKey(S2EExecutionState *state);  
     void injectRegister(S2EExecutionState *state, uint64_t pc, unsigned reg, bool concrete, uint32_t val);
     void injectMainArgs(S2EExecutionState *state, const RuntimeRule *rule);
+
+    void injectMemory(S2EExecutionState *state, uint64_t pc,
+                                           unsigned reg,
+                                           uint32_t offset,
+                                           unsigned size,
+                                           bool concrete, uint32_t val);
 
     void onTranslateBlockStart(ExecutionSignal*, S2EExecutionState *state,
                                const ModuleDescriptor &desc,

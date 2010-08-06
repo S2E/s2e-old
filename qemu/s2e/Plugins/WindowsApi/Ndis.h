@@ -54,6 +54,25 @@ typedef struct _NDIS_MINIPORT_CHARACTERISTICS32 {
     uint32_t AdapterShutdownHandler;
 } NDIS_MINIPORT_CHARACTERISTICS32, *PNDIS_MINIPORT_CHARACTERISTICS32;
 
+typedef s2e::windows::UNICODE_STRING32 NDIS_STRING, *PNDIS_STRING;
+
+typedef enum _NDIS_PARAMETER_TYPE {
+  NdisParameterInteger=0,
+  NdisParameterHexInteger,
+  NdisParameterString,
+  NdisParameterMultiString,
+  NdisParameterBinary,
+} NDIS_PARAMETER_TYPE, *PNDIS_PARAMETER_TYPE;
+
+
+typedef struct _NDIS_CONFIGURATION_PARAMETER {
+    NDIS_PARAMETER_TYPE ParameterType;
+    union {
+        uint32_t IntegerData;
+        NDIS_STRING StringData;
+    } ParameterData;
+} NDIS_CONFIGURATION_PARAMETER, *PNDIS_CONFIGURATION_PARAMETER;
+
 typedef enum _NDIS_MEDIUM {
   NdisMedium802_3,
   NdisMedium802_5,

@@ -61,6 +61,30 @@ NdisAllocateMemory:
 mov eax, 0
 ret 0x10
 
+
+rdnetaddr: db "Executing NdisReadNetworkAddress", 0
+
+NdisReadNetworkAddress:
+push ebp
+mov ebp, esp
+
+mov eax, [ebp + 0x8] ;Status
+mov dword [eax], 0
+
+mov eax, [ebp + 0xC] ;Network address
+mov dword [eax], 0x90000 ;This must be outside the bios, in ram
+
+mov eax, [ebp + 0x10] ;Network address size
+mov dword [eax], 16
+
+    push rdnetaddr
+    call s2e_print_message
+    add esp,4
+    xor eax, eax
+
+pop ebp
+ret 0x10
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 DrvStruc:
     istruc NDIS_MINIPORT_CHARACTERISTICS32
@@ -147,6 +171,7 @@ ndis_module: db "lan9000.sys", 0
 imp_ndis_dll: db "ndis.sys",0
 imp_NdisMRegisterMiniport: db "NdisMRegisterMiniport",0
 imp_NdisAllocateMemory: db "NdisAllocateMemory",0
+imp_NdisReadNetworkAddress: db "NdisReadNetworkAddress",0
 
 imp_ntoskrnl_exe: db "ntoskrnl.exe",0
 imp_GetSystemUpTime: db "GetSystemUpTime", 0
@@ -156,6 +181,10 @@ imp_hal_dll: db "hal.dll",0
 imp_KeStallExecutionProcessor: db "KeStallExecutionProcessor", 0
 
 test_ndis:
+    push ebp
+    mov ebp, esp
+    sub esp, 0x20
+
     push NdisMRegisterMiniport
     push imp_NdisMRegisterMiniport
     push imp_ndis_dll
@@ -164,6 +193,12 @@ test_ndis:
 
     push NdisAllocateMemory
     push imp_NdisAllocateMemory
+    push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisReadNetworkAddress
+    push imp_NdisReadNetworkAddress
     push imp_ndis_dll
     call s2e_raw_load_import
     add esp, 3*4
@@ -224,8 +259,30 @@ test_ndis:
     push 4
     call RtlEqualUnicodeString
 
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    push 0
+    lea eax, [ebp - 4]
+    push eax;pLength
+
+    lea eax, [ebp - 8]
+    push eax ;pAddress
+
+    lea eax, [ebp - 0xc]
+    push eax;pStatus
+    call NdisReadNetworkAddress
+
+    cmp dword [ebp - 0xc], 0
+    jz nrna_suc
+    call s2e_kill_state
+
+nrna_suc:
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
     call s2e_kill_state
 lp1:
+
+    leave
 
     cli
     hlt

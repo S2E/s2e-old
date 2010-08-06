@@ -81,10 +81,28 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
         cfg.rule = RuleCfg::INJECTMAIN;
     }else if (rule == "injectrsa") {
         cfg.rule = RuleCfg::RSAKEYGEN;
+    }else if (rule == "injectmem") {
+        cfg.rule = RuleCfg::INJECTMEM;
     }else {
         s2e()->getWarningsStream() << "Invalid rule " << rule << std::endl;
         exit(-1);
         return false;
+    }
+
+    if (cfg.rule == RuleCfg::INJECTMEM) {
+        cfg.size = s2e()->getConfig()->getInt(cfgKey + ".size", 0, &ok);
+        if (!ok || cfg.size > 8 || cfg.size < 1) {
+            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".size with injectmem (between 1 and 8)" << std::endl;
+            exit(-1);
+            return false;
+        }
+
+        cfg.offset = s2e()->getConfig()->getInt(cfgKey + ".offset", 0, &ok);
+        if (!ok) {
+            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".offset with injectmem" << std::endl;
+            exit(-1);
+            return false;
+        }
     }
 
     cfg.pc = s2e()->getConfig()->getInt(cfgKey + ".pc", 0, &ok);
@@ -108,6 +126,12 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
     cfg.reg = s2e()->getConfig()->getInt(cfgKey + ".register", 0, &ok);
     if (!ok) {
         s2e()->getWarningsStream() << "You might have forgotten to specify " << cfgKey <<  ".register" << std::endl;
+        exit(-1);
+        return false;
+    }
+
+    if (cfg.reg >= 8) {
+        s2e()->getWarningsStream() << "You must specifiy a register between 0 and 7 in " << cfgKey <<  ".register" << std::endl;
         exit(-1);
         return false;
     }
@@ -234,6 +258,7 @@ void GenericDataSelector::onExecution(S2EExecutionState *state, uint64_t pc)
     switch(r.rule) {
         case RuleCfg::INJECTMAIN: injectMainArgs(state, &r); break;
         case RuleCfg::INJECTREG: injectRegister(state, pc, r.reg, r.concrete, r.value); break;
+        case RuleCfg::INJECTMEM: injectMemory(state, pc, r.reg, r.offset, r.concrete, r.size, r.value); break;
         case RuleCfg::RSAKEYGEN: injectRsaGenKey(state); break;
         default: s2e()->getWarningsStream() << "Invalid rule type " << r.rule << std::endl;
             break;
@@ -304,6 +329,50 @@ void GenericDataSelector::injectRegister(S2EExecutionState *state, uint64_t pc, 
     }
 }
 
+void GenericDataSelector::injectMemory(S2EExecutionState *state, uint64_t pc,
+                                       unsigned reg,
+                                       uint32_t offset,
+                                       unsigned size,
+                                       bool concrete, uint32_t val)
+{
+    if (!concrete && s2e()->getExecutor()->needToJumpToSymbolic(state)) {
+        //We  must update the pc here, because instruction handlers are called before the
+        //program counter is updated by the generated code. Otherwise the previous instruction
+        //will be reexecuted twice.
+        state->setPc(pc);
+        s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    }
+
+    std::ostream &os = s2e()->getDebugStream();
+
+    //Fetch the specified base register
+    uint32_t base;
+    if (!state->readCpuRegisterConcrete(CPU_OFFSET(regs) + reg * sizeof(target_ulong), &base, sizeof(base))) {
+        os << "Failed to read base register " << std::dec << reg << ". Make sure it is concrete!" << std::endl;
+        return;
+    }
+
+    base += offset;
+    assert (size <= 8);
+
+    if (concrete) {
+        os << "Injecting concrete value 0x" << std::hex << val << " in memory 0x" << std::hex << base
+                << " at pc 0x" << state->getPc() << std::endl;
+        //state->dumpStack(20);
+        assert (reg < 8);
+        state->writeMemoryConcrete((uint64_t)base, &val, size);
+     }else {
+         s2e()->getDebugStream() << "Injecting symbolic value in memory 0x" << std::hex << base
+                << " at pc 0x" << state->getPc() << std::endl;
+
+        assert (reg < 8);
+        //state->dumpStack(20);
+        klee::ref<klee::Expr> symb = state->createSymbolicValue(size*8, __FUNCTION__);
+        state->writeMemory(base, symb);
+    }
+}
+
+
 //Adhoc injectors, should be replaced with KQuery expressions...
 void GenericDataSelector::injectRsaGenKey(S2EExecutionState *state)
 {
@@ -366,6 +435,8 @@ bool GenericDataSelectorState::activateRule(const RuleCfg &rule, const ModuleDes
     rtRule.rule = rule.rule;
     rtRule.concrete = rule.concrete;
     rtRule.value = rule.value;
+    rtRule.size = rule.size;
+    rtRule.offset = rule.offset;
     rtRule.makeParamCountSymbolic = rule.makeParamCountSymbolic;
     rtRule.makeParamsSymbolic = rule.makeParamsSymbolic;
 

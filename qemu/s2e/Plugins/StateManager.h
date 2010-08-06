@@ -35,6 +35,7 @@ private:
 
 
     void onTimer();
+
     void onNewBlockCovered(
             ExecutionSignal *signal,
             S2EExecutionState* state,
@@ -43,11 +44,11 @@ private:
             uint64_t pc);
 
 public:
-
+    void killOnTimeOut();
     bool succeedState(S2EExecutionState *s);
     bool resumeSucceededState(S2EExecutionState *s);
 
-    bool killAllButOneSuccessful();
+    bool killAllButOneSuccessful(bool killCurrent=false);
     bool killAllButCurrent();
     void resumeSucceeded();
 

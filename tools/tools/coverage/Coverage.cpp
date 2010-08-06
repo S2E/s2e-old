@@ -312,7 +312,10 @@ void Coverage::onItem(unsigned traceIndex,
     ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
 
     const ModuleInstance *mi = mcs->getInstance(hdr.pid, te->pc);
-    assert(mi);
+    if (!mi) {
+        std::cerr << "Could not find module for pc=0x" << std::hex << te->pc << std::endl;
+        return;
+    }
 
     BasicBlockCoverage *bbcov = NULL;
     BbCoverageMap::iterator it = m_bbCov.find(mi->Name);

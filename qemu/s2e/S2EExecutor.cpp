@@ -434,6 +434,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     searcher = constructUserSearcher(*this);
 
     m_stateManager = NULL;
+
+    m_forceConcretizations = false;
 }
 
 S2EExecutor::~S2EExecutor()
@@ -829,24 +831,24 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
 
     assert(os);
 
-#ifdef FORCE_CONCRETIZATION
-    if(!os->isAllConcrete()) {
-        /* The object contains symbolic values. We have to
-           concretize it */
+    if (m_forceConcretizations) {
+        if(!os->isAllConcrete()) {
+            /* The object contains symbolic values. We have to
+               concretize it */
 
-        ObjectState *wos;
-        os = wos = state->addressSpace.getWriteable(mo,os);
+            ObjectState *wos;
+            os = wos = state->addressSpace.getWriteable(mo,os);
 
-        for(unsigned i = 0; i < wos->size; ++i) {
-            ref<Expr> e = wos->read8(i);
-            if(!isa<klee::ConstantExpr>(e)) {
-                uint8_t ch = toConstant(*state, e,
-                    "switching to concrete execution")->getZExtValue(8);
-                wos->write8(i, ch);
+            for(unsigned i = 0; i < wos->size; ++i) {
+                ref<Expr> e = wos->read8(i);
+                if(!isa<klee::ConstantExpr>(e)) {
+                    uint8_t ch = toConstant(*state, e,
+                        "switching to concrete execution")->getZExtValue(8);
+                    wos->write8(i, ch);
+                }
             }
         }
     }
-#endif
 
     //assert(os->isAllConcrete());
     memcpy((void*) mo->address, os->getConcreteStore(true), mo->size);
@@ -970,19 +972,19 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
 S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
+    if (m_stateManager) {
+        //Try to kill the useless states. Even the current state can be killed at this point.
+        try {
+            m_stateManager(NULL, false);
+        }catch(StateTerminatedException &) {
+            m_s2e->getDebugStream() << "Attempted to kill current state, that's fine, we'll select another one." << std::endl;
+        }
+    }
+
     updateStates(state);
     if(states.empty()) {
-        if (m_stateManager) {
-            //Check that there are actually no states to run.
-            m_stateManager(NULL, false);
-            if (states.empty()) {
-                m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
-                exit(0);
-            }
-        }else {
-            m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
-            exit(0);
-        }
+        m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
+        exit(0);
     }
 
 
@@ -1433,7 +1435,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         if(!executeKlee) {
             //XXX: This should be fixed to make sure that helpers do not read/write corrupted data
             //because they think that execution is concrete while it should be symbolic (see issue #30).
-#if !defined(FORCE_CONCRETIZATION)
+            if (!m_forceConcretizations) {
 #if 1
             /* We can not execute TB natively if it reads any symbolic regs */
             uint64_t smask = state->getSymbolicRegistersMask();
@@ -1465,7 +1467,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 #else
             executeKlee |= !os->isAllConcrete();
 #endif
-#endif
+        } //forced concretizations
         }
         processTimers(state, 0);
     }
@@ -1789,7 +1791,8 @@ bool S2EExecutor::suspendState(S2EExecutionState *state)
 {
     if (searcher)  {
         searcher->removeState(state, NULL);
-        states.erase(state);
+        size_t r = states.erase(state);
+        assert(r == 1);
         return true;
     }
     return false;
@@ -2085,7 +2088,7 @@ void* s2e_tlb_fast_check_write(uintptr_t hostaddr, CPUSymbCache *ce, int size)
     return NULL;
 }
 
-#ifdef __linux__
+#ifdef __linux__s
 #warning Compiling with memory debugging support...
 
 void *operator new(size_t s)

@@ -371,6 +371,23 @@ bool S2EExecutionState::readMemoryConcrete(uint64_t address, void *buf,
     return true;
 }
 
+bool S2EExecutionState::writeMemoryConcrete(uint64_t address, void *buf,
+                                   uint64_t size, AddressType addressType)
+{
+    uint8_t *d = (uint8_t*)buf;
+    while (size>0) {
+        klee::ref<klee::ConstantExpr> val = klee::ConstantExpr::create(*d, klee::Expr::Int8);
+        bool b = writeMemory(address, val,  addressType);
+        if (!b) {
+            return false;
+        }
+        size--;
+        d++;
+        address++;
+    }
+    return true;
+}
+
 uint64_t S2EExecutionState::getPhysicalAddress(uint64_t virtualAddress) const
 {
     assert(m_active && "Can not use getPhysicalAddress when the state"
@@ -570,7 +587,7 @@ bool S2EExecutionState::writeMemory8(uint64_t address,
 bool S2EExecutionState::writeMemory(uint64_t address,
                     uint8_t* buf, Expr::Width width, AddressType addressType)
 {
-    assert((width & ~7) == 0);
+    assert((width & 7) == 0);
     uint64_t size = width / 8;
 
     uint64_t pageOffset = address & ~TARGET_PAGE_MASK;

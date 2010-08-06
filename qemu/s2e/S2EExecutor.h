@@ -70,6 +70,7 @@ protected:
     bool m_executeAlwaysKlee;
     StateManagerCb m_stateManager;
 
+    bool m_forceConcretizations;
 
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
@@ -186,6 +187,10 @@ public:
 
     StateManagerCb getStateManager() const {
         return m_stateManager;
+    }
+
+    void setForceConcretizations(bool b) {
+        m_forceConcretizations = true;
     }
 
 protected:

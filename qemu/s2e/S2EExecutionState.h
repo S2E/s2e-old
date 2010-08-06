@@ -242,7 +242,8 @@ public:
                             AddressType addressType = VirtualAddress);
 
     /** Write concrete value to memory */
-    void writeMemoryConcrete(uint64_t address, uint64_t value, uint64_t size);
+    bool writeMemoryConcrete(uint64_t address, void *buf,
+                             uint64_t size, AddressType addressType=VirtualAddress);
 
     /** Read an ASCIIZ string from memory */
     bool readString(uint64_t address, std::string &s, unsigned maxLen=256);

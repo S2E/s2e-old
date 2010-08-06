@@ -17,6 +17,11 @@
 namespace s2e {
 namespace plugins {
 
+#define NDIS_STATUS_SUCCESS 0
+#define NDIS_STATUS_FAILURE 0xC0000001L
+#define NDIS_STATUS_RESOURCES 0xc000009a
+#define NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
+
 #define REGISTER_NDIS_ENTRY_POINT(cs, pc, name) \
     if (pc) {\
         s2e()->getMessagesStream() << "Registering " # name <<  " at 0x" << std::hex << pc << std::endl; \
@@ -44,6 +49,10 @@ public:
 
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
 
+    enum Consistency {
+        STRICT, LOCAL, OVERAPPROX, OVERCONSTR
+    };
+
 private:
     FunctionMonitor *m_functionMonitor;
     OSMonitor *m_windowsMonitor;
@@ -57,7 +66,7 @@ private:
     std::string m_hwId;
     DeviceDescriptor *m_devDesc;
 
-    std::string m_consistency;
+    Consistency m_consistency;
 
     void onModuleLoad(
             S2EExecutionState* state,
@@ -70,6 +79,7 @@ private:
     void registerImport(Imports &I, const std::string &dll, const std::string &name,
                         FunctionHandler handler, S2EExecutionState *state);
 
+
     //XXX: move this out to some other place
     static bool bypassFunction(S2EExecutionState *s, unsigned paramCount);
     static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
@@ -79,7 +89,11 @@ private:
 
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterMiniport);
     DECLARE_NDIS_ENTRY_POINT(NdisAllocateMemory);
+    DECLARE_NDIS_ENTRY_POINT(NdisAllocateMemoryWithTag);
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterIoPortRange);
+    DECLARE_NDIS_ENTRY_POINT(NdisMRegisterInterrupt);
+    DECLARE_NDIS_ENTRY_POINT(NdisReadNetworkAddress);
+    DECLARE_NDIS_ENTRY_POINT(NdisReadConfiguration);
 
 
     DECLARE_NDIS_ENTRY_POINT(RtlEqualUnicodeString);
@@ -100,6 +114,24 @@ private:
     DECLARE_NDIS_ENTRY_POINT(SendPacketsHandler);
     DECLARE_NDIS_ENTRY_POINT(SetInformationHandler);
     DECLARE_NDIS_ENTRY_POINT(TransferDataHandler);
+};
+
+//XXX: We assume that we are testing only one driver at a time.
+//All the fields must also be per-driver for correctness in case multiple
+//NDIS drivers are tested.
+class NdisHandlersState: public PluginState
+{
+private:
+    uint32_t pStatus, pNetworkAddress, pNetworkAddressLength;
+    uint32_t pConfigParam;
+
+public:
+    NdisHandlersState();
+    virtual ~NdisHandlersState();
+    virtual NdisHandlersState* clone() const;
+    static PluginState *factory(Plugin *p, S2EExecutionState *s);
+
+    friend class NdisHandlers;
 };
 
 } // namespace plugins
