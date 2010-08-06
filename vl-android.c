@@ -54,6 +54,7 @@
 #include "android/hw-qemud.h"
 #include "android/hw-kmsg.h"
 #include "android/charmap.h"
+#include "android/globals.h"
 #include "targphys.h"
 
 #include <unistd.h>
@@ -339,6 +340,9 @@ char* op_charmap_file = NULL;
 
 /* Framebuffer dimensions, passed with -android-gui option. */
 char* android_op_gui = NULL;
+
+/* Path to hardware initialization file passed with -android-hw option. */
+char* android_op_hwini = NULL;
 
 extern int android_display_width;
 extern int android_display_height;
@@ -5010,6 +5014,9 @@ int main(int argc, char **argv, char **envp)
 #endif
     CPUState *env;
     int show_vnc_port = 0;
+#ifdef CONFIG_STANDALONE_CORE
+    IniFile*  hw_ini = NULL;
+#endif  // CONFIG_STANDALONE_CORE
 
     init_clocks();
 
@@ -5802,6 +5809,10 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_android_gui:
                 android_op_gui = (char*)optarg;
                 break;
+
+            case QEMU_OPTION_android_hw:
+                android_op_hwini = (char*)optarg;
+                break;
             }
         }
     }
@@ -5828,6 +5839,22 @@ int main(int argc, char **argv, char **envp)
     if (!data_dir) {
         data_dir = CONFIG_QEMU_SHAREDIR;
     }
+
+#ifdef CONFIG_STANDALONE_CORE
+    /* Initialize hardware configuration. */
+    if (android_op_hwini) {
+      hw_ini = iniFile_newFromFile(android_op_hwini);
+      if (hw_ini == NULL) {
+        fprintf(stderr, "Could not find %s file.\n", android_op_hwini);
+        exit(1);
+      }
+    } else {
+      hw_ini = iniFile_newFromMemory("", 0);
+    }
+
+    androidHwConfig_read(android_hw, hw_ini);
+    iniFile_free(hw_ini);
+#endif  // CONFIG_STANDALONE_CORE
 
 #if defined(CONFIG_KVM) && defined(CONFIG_KQEMU)
     if (kvm_allowed && kqemu_allowed) {

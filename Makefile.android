@@ -658,9 +658,6 @@ CORE_MISC_SOURCES = vl-android.c \
                     android/hw-events.c \
                     android/hw-control.c \
                     android/console.c \
-                    android/avd/hw-config.c \
-                    android/avd/info.c \
-                    android/utils/ini.c \
                     android/hw-sensors.c \
 
 ifeq ($(HOST_ARCH),x86)
@@ -737,6 +734,9 @@ UI_AND_CORE_SOURCES = osdep.c \
                       android/utils/tempfile.c \
                       android/utils/timezone.c \
                       android/utils/mapfile.c \
+                      android/avd/hw-config.c \
+                      android/avd/info.c \
+                      android/utils/ini.c \
 
 # include the Zlib sources
 #
