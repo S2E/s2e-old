@@ -63,8 +63,8 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
         BasicBlocks &bbs = m_functions[name];
         //XXX: the +1 is here to compensate the broken extraction script, which
         //does not take into account the whole size of the last instruction.
-        bbs.insert(BasicBlock(start, end+1));
-        m_allBbs.insert(BasicBlock(start, end+1));
+        bbs.insert(BasicBlock(start, end));
+        m_allBbs.insert(BasicBlock(start, end));
 
     }
 
@@ -101,23 +101,28 @@ void BasicBlockCoverage::convertTbToBb()
     for(tbit = m_uniqueTbs.begin(); tbit != m_uniqueTbs.end(); ++tbit) {
         const Block &tb = *tbit;
 
-        BasicBlock tbb(tb.start, tb.end);
-        it = m_allBbs.find(tbb);
-        if(it == m_allBbs.end()) {
-            std::cerr << "Missing TB: " << std::hex << "0x"
-                << tb.start << ":0x" << tb.end << std::endl;
-            continue;
-        }
-        //assert(it != m_allBbs.end());
+        for (uint64_t s = tb.start; s < tb.end; s++) {
 
-        Block newBlock;
-        newBlock.timeStamp = tb.timeStamp;
-        newBlock.start = (*it).start;
-        newBlock.end = (*it).end;
+            BasicBlock tbb(s, s+1);
+            it = m_allBbs.find(tbb);
+            if(it == m_allBbs.end()) {
+                std::cerr << "Missing TB: " << std::hex << "0x"
+                    << tb.start << ":0x" << tb.end << std::endl;
+                continue;
+            }
+            //assert(it != m_allBbs.end());
 
-        if (newBbList.find(newBlock) == newBbList.end()) {
-                newBbList.insert(newBlock);
+            Block newBlock;
+            newBlock.timeStamp = tb.timeStamp;
+            newBlock.start = (*it).start;
+            newBlock.end = (*it).end;
+
+            if (newBbList.find(newBlock) == newBbList.end()) {
+                    newBbList.insert(newBlock);
+            }
+
         }
+
     }
 
     m_uniqueTbs = newBbList;
