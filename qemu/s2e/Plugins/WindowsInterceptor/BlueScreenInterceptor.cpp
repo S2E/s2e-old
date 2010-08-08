@@ -48,6 +48,10 @@ void BlueScreenInterceptor::onBsod(
     uint64_t sp = state->getSp();
     for (unsigned i=0; i<512; ++i) {
         klee::ref<klee::Expr> val = state->readMemory(sp + i * sizeof(uint32_t), klee::Expr::Int32);
+        if (val.isNull()) {
+            continue;
+        }
+
         klee::ConstantExpr *ce = dyn_cast<klee::ConstantExpr>(val);
         if (ce) {
             os << std::hex << "0x" << sp + i * sizeof(uint32_t) << " 0x" << std::setw(sizeof(uint32_t)*2) << std::setfill('0') << val;

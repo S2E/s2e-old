@@ -124,7 +124,7 @@ class NdisHandlersState: public PluginState
 private:
     uint32_t pStatus, pNetworkAddress, pNetworkAddressLength;
     uint32_t pConfigParam;
-
+    bool hasIsrHandler;
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();

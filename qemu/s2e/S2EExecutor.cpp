@@ -22,10 +22,14 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
 #include <s2e/Plugins/CorePlugin.h>
-#include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
+
 #include <s2e/S2EDeviceState.h>
 #include <s2e/SelectRemovalPass.h>
 #include <s2e/S2EStatsTracker.h>
+
+//XXX: Remove this from executor
+#include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
+#include <s2e/Plugins/ModuleExecutionDetector.h>
 
 #include <s2e/s2e_qemu.h>
 
@@ -832,19 +836,26 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
     assert(os);
 
     if (m_forceConcretizations) {
-        if(!os->isAllConcrete()) {
-            /* The object contains symbolic values. We have to
+        //XXX: Find a adhoc dirty way to implement overconstrained consistency model
+        //There should be a consistency plugin somewhere else
+        s2e::plugins::ModuleExecutionDetector *md =
+                dynamic_cast<s2e::plugins::ModuleExecutionDetector*>(m_s2e->getPlugin("ModuleExecutionDetector"));
+        if (md && !md->getCurrentDescriptor(state)) {
+
+            if(!os->isAllConcrete()) {
+                /* The object contains symbolic values. We have to
                concretize it */
 
-            ObjectState *wos;
-            os = wos = state->addressSpace.getWriteable(mo,os);
+                ObjectState *wos;
+                os = wos = state->addressSpace.getWriteable(mo,os);
 
-            for(unsigned i = 0; i < wos->size; ++i) {
-                ref<Expr> e = wos->read8(i);
-                if(!isa<klee::ConstantExpr>(e)) {
-                    uint8_t ch = toConstant(*state, e,
-                        "switching to concrete execution")->getZExtValue(8);
-                    wos->write8(i, ch);
+                for(unsigned i = 0; i < wos->size; ++i) {
+                    ref<Expr> e = wos->read8(i);
+                    if(!isa<klee::ConstantExpr>(e)) {
+                        uint8_t ch = toConstant(*state, e,
+                                                "switching to concrete execution")->getZExtValue(8);
+                        wos->write8(i, ch);
+                    }
                 }
             }
         }

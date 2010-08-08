@@ -459,6 +459,18 @@ void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMoni
         return;
     }
 
+    if (m_consistency == OVERAPPROX) {
+        //Pretend the interrupt is shared, to force the ISR to be called.
+        //Make sure there is indeed a miniportisr registered
+        DECLARE_PLUGINSTATE(NdisHandlersState, state);
+        if (plgState->hasIsrHandler) {
+            s2e()->getDebugStream() << "Pretending that the interrupt is shared." << std::endl;
+            //Overwrite the parameter value here
+            klee::ref<klee::ConstantExpr> val = klee::ConstantExpr::create(1, klee::Expr::Int32);
+            writeParameter(state, 5, val);
+        }
+    }
+
     signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterInterruptRet));
 }
 
@@ -761,6 +773,10 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
     REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.SetInformationHandler, SetInformationHandler);
     REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.TransferDataHandler, TransferDataHandler);
 
+    if (Miniport.ISRHandler) {
+        DECLARE_PLUGINSTATE(NdisHandlersState, state);
+        plgState->hasIsrHandler = true;
+    }
 }
 
 void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
@@ -946,6 +962,18 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     signal->connect(sigc::mem_fun(*this, &NdisHandlers::QueryInformationHandlerRet));
+
+    if (m_consistency != OVERAPPROX) {
+        return;
+    }
+
+    //Overwrite OID with a symbolic value.
+    //TODO: adapt the buffer size to the OID value (by creating a fake stack frame, see previous s2e).
+
+    std::stringstream ss;
+    ss << __FUNCTION__ << "_OID";
+    klee::ref<klee::Expr> oid = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+    writeParameter(state, 1, oid);
 }
 
 void NdisHandlers::QueryInformationHandlerRet(S2EExecutionState* state)
@@ -1025,6 +1053,18 @@ void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonit
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     signal->connect(sigc::mem_fun(*this, &NdisHandlers::SetInformationHandlerRet));
+
+    if (m_consistency != OVERAPPROX) {
+        return;
+    }
+
+    //Overwrite OID with a symbolic value.
+    //TODO: adapt the buffer size to the OID value (by creating a fake stack frame, see previous s2e).
+
+    std::stringstream ss;
+    ss << __FUNCTION__ << "_OID";
+    klee::ref<klee::Expr> oid = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+    writeParameter(state, 1, oid);
 }
 
 void NdisHandlers::SetInformationHandlerRet(S2EExecutionState* state)
@@ -1055,6 +1095,7 @@ NdisHandlersState::NdisHandlersState()
     pStatus = 0;
     pNetworkAddress = 0;
     pNetworkAddressLength = 0;
+    hasIsrHandler = false;
 }
 
 NdisHandlersState::~NdisHandlersState()
