@@ -36,6 +36,10 @@ cl::opt<std::string>
 cl::opt<std::string>
     ModPath("modpath", cl::desc("Path to module descriptors"), cl::init("."));
 
+cl::opt<bool>
+    Compact("compact", cl::desc("Do not display non-covered blocks"), cl::init(false));
+
+
 //cl::opt<std::string>
 //    CovType("covtype", cl::desc("Coverage type"), cl::init("basicblock"));
 
@@ -68,6 +72,12 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
 
     }
 
+    Functions::iterator fit;
+    unsigned fcnBbCount = 0;
+    for (fit = m_functions.begin(); fit != m_functions.end() ; ++fit) {
+        fcnBbCount += (*fit).second.size();
+    }
+    assert(fcnBbCount == m_allBbs.size());
 
 }
 
@@ -96,8 +106,6 @@ void BasicBlockCoverage::convertTbToBb()
     BasicBlocks::iterator it;
     Blocks::iterator tbit;
 
-    Blocks newBbList;
-
     for(tbit = m_uniqueTbs.begin(); tbit != m_uniqueTbs.end(); ++tbit) {
         const Block &tb = *tbit;
 
@@ -112,62 +120,19 @@ void BasicBlockCoverage::convertTbToBb()
             }
             //assert(it != m_allBbs.end());
 
-            Block newBlock;
+            BasicBlock newBlock;
             newBlock.timeStamp = tb.timeStamp;
             newBlock.start = (*it).start;
             newBlock.end = (*it).end;
 
-            if (newBbList.find(newBlock) == newBbList.end()) {
-                    newBbList.insert(newBlock);
+            if (m_coveredBbs.find(newBlock) == m_coveredBbs.end()) {
+                    m_coveredBbs.insert(newBlock);
             }
 
         }
 
     }
 
-    m_uniqueTbs = newBbList;
-
-#if 0
-    for (it = m_allBbs.begin(); it != m_allBbs.end(); ++it) {
-        const BasicBlock &bb = *it;
-        Block ftb(0, bb.start, 0);
-
-        Blocks::iterator tbit = m_uniqueTbs.find(ftb);
-        //basic block was not covered
-        if (tbit == m_uniqueTbs.end()) {
-            continue;
-        }
-
-        Block tb = *tbit;
-        if (bb.start == tb.start && bb.end == tb.end) {
-            //Basic block matches translation block
-            continue;
-        }
-
-        //Basic block is longer than the translation block
-        if (bb.start == tb.start && bb.end > tb.end) {
-            Block tb1(tb);
-            tb1.end = bb.end;
-            m_uniqueTbs.erase(tb);
-            m_uniqueTbs.insert(tb1);
-            continue;
-        }
-
-        assert(tb.start == bb.start && tb.end > bb.end);
-
-        //Erase the tb, and split it
-        m_uniqueTbs.erase(tb);
-        Block tb1(tb);
-        Block tb2(tb);
-
-        //XXX: timestamps
-        tb1.end = bb.end;
-        tb2.start = bb.end + 1;
-
-        m_uniqueTbs.insert(tb1);
-        m_uniqueTbs.insert(tb2);
-    }
-#endif
 }
 
 
@@ -179,13 +144,13 @@ void BasicBlockCoverage::printTimeCoverage(std::ostream &os) const
     bool timeInited = false;
     uint64_t firstTime = 0;
 
-    Blocks::const_iterator it;
-    for (it = m_uniqueTbs.begin(); it != m_uniqueTbs.end(); ++it) {
+    BasicBlocks::const_iterator it;
+    for (it = m_coveredBbs.begin(); it != m_coveredBbs.end(); ++it) {
         bbtime.insert(*it);
     }
 
     for (tit = bbtime.begin(); tit != bbtime.end(); ++tit) {
-        const Block &b = *tit;
+        const BasicBlock &b = *tit;
 
         if (!timeInited) {
             firstTime = b.timeStamp;
@@ -209,17 +174,18 @@ void BasicBlockCoverage::printReport(std::ostream &os) const
         BasicBlocks uncovered;
         BasicBlocks::const_iterator bbit;
         for (bbit = fcnbb.begin(); bbit != fcnbb.end(); ++bbit) {
-            Block b(0, (*bbit).start, 0);
-            if (m_uniqueTbs.find(b) == m_uniqueTbs.end()) {
+            if (m_coveredBbs.find(*bbit) == m_coveredBbs.end()) {
                 uncovered.insert(*bbit);
             }
         }
 
-        unsigned coveredCount = (fcnbb.size() - uncovered.size());
-        os << std::dec << std::right <<
-                std::setw(3) << coveredCount << "/" <<
-                std::setw(3) << fcnbb.size() << " " <<
-                std::setw(40) << std::left << (*fit).first << "  ";
+        unsigned int coveredCount = (fcnbb.size() - uncovered.size());
+        char line[512];
+        snprintf(line, sizeof(line), "(%03u%%) %03u/%03u %-50s ",
+                 (unsigned)(coveredCount*100/fcnbb.size()), coveredCount, (unsigned)fcnbb.size(),
+                 (*fit).first.c_str());
+
+        os << line;
 
         if (uncovered.size() == fcnbb.size()) {
             os << "The function was not exercised";
@@ -228,11 +194,13 @@ void BasicBlockCoverage::printReport(std::ostream &os) const
                 os << "Full coverage";
                 fullyCoveredFunctions++;
             }else {
-                for (bbit = uncovered.begin(); bbit != uncovered.end(); ++bbit) {
-                    os << std::hex << "0x" << (*bbit).start << " ";
+                if (!Compact) {
+                    for (bbit = uncovered.begin(); bbit != uncovered.end(); ++bbit) {
+                        os << std::hex << "0x" << (*bbit).start << " ";
+                    }
                 }
             }
-            touchedFunctionsBb += fcnbb.size() - uncovered.size();
+            touchedFunctionsBb += coveredCount;
             touchedFunctionsTotalBb += fcnbb.size();
             touchedFunctions++;
         }
@@ -242,7 +210,7 @@ void BasicBlockCoverage::printReport(std::ostream &os) const
     }
     os << std::endl;
 
-    os << "Basic block coverage:    " << std::dec << m_uniqueTbs.size() << "/" << m_allBbs.size() <<
+    os << "Basic block coverage:    " << std::dec << m_coveredBbs.size() << "/" << m_allBbs.size() <<
             "(" << (m_uniqueTbs.size()*100/m_allBbs.size()) << "%)"  << std::endl;
 
 
