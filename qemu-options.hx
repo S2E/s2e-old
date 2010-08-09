@@ -1630,4 +1630,7 @@ DEF("android-gui", HAS_ARG, QEMU_OPTION_android_gui, \
 DEF("android-hw", HAS_ARG, QEMU_OPTION_android_hw, \
     "-android-hw <file> read hardware initialization from ini file\n")
 
+DEF("android-memcheck", HAS_ARG, QEMU_OPTION_android_memcheck, \
+    "-android-memcheck <options> enable memory access checking on the emulated system\n")
+
 #endif

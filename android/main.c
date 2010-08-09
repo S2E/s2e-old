@@ -62,9 +62,6 @@
 #include "android/cmdline-option.h"
 #include "android/help.h"
 #include "hw/goldfish_nand.h"
-#ifdef CONFIG_MEMCHECK
-#include "memcheck/memcheck.h"
-#endif  // CONFIG_MEMCHECK
 
 #include "android/globals.h"
 #include "tcpdump.h"
@@ -1395,12 +1392,6 @@ int main(int argc, char **argv)
         opts->trace = tracePath;
     }
 
-#ifdef CONFIG_MEMCHECK
-    if (opts->memcheck) {
-        memcheck_init(opts->memcheck);
-    }
-#endif  // CONFIG_MEMCHECK
-
     if (opts->tcpdump) {
         if (qemu_tcpdump_start(opts->tcpdump) < 0) {
             dwarning( "could not start packet capture: %s", strerror(errno));
@@ -1871,6 +1862,11 @@ int main(int argc, char **argv)
     if (opts->charmap) {
         args[n++] = "-charmap";
         args[n++] = opts->charmap;
+    }
+
+    if (opts->memcheck) {
+        args[n++] = "-android-memcheck";
+        args[n++] = opts->memcheck;
     }
 
     /* physical memory */

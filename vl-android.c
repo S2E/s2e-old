@@ -57,6 +57,10 @@
 #include "android/globals.h"
 #include "targphys.h"
 
+#ifdef CONFIG_MEMCHECK
+#include "memcheck/memcheck.h"
+#endif  // CONFIG_MEMCHECK
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -343,6 +347,9 @@ char* android_op_gui = NULL;
 
 /* Path to hardware initialization file passed with -android-hw option. */
 char* android_op_hwini = NULL;
+
+/* Memory checker options. */
+char* android_op_memcheck = NULL;
 
 extern int android_display_width;
 extern int android_display_height;
@@ -5813,6 +5820,11 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_android_hw:
                 android_op_hwini = (char*)optarg;
                 break;
+#ifdef CONFIG_MEMCHECK
+            case QEMU_OPTION_android_memcheck:
+                android_op_memcheck = (char*)optarg;
+                break;
+#endif // CONFIG_MEMCHECK
             }
         }
     }
@@ -5855,6 +5867,12 @@ int main(int argc, char **argv, char **envp)
     androidHwConfig_read(android_hw, hw_ini);
     iniFile_free(hw_ini);
 #endif  // CONFIG_STANDALONE_CORE
+
+#ifdef CONFIG_MEMCHECK
+    if (android_op_memcheck) {
+        memcheck_init(android_op_memcheck);
+    }
+#endif  // CONFIG_MEMCHECK
 
 #if defined(CONFIG_KVM) && defined(CONFIG_KQEMU)
     if (kvm_allowed && kqemu_allowed) {

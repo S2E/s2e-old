@@ -640,7 +640,6 @@ CORE_MISC_SOURCES = vl-android.c \
                     shaper.c \
                     charpipe.c \
                     tcpdump.c \
-                    qemu-malloc.c \
                     qemu-option.c \
                     savevm.c \
                     net-android.c \
@@ -719,6 +718,7 @@ UI_AND_CORE_SOURCES = osdep.c \
                       cutils.c \
                       sockets.c \
                       keymaps.c \
+                      qemu-malloc.c \
                       android/keycode-array.c \
                       android/charmap.c \
                       android/hw-qemud.c \
