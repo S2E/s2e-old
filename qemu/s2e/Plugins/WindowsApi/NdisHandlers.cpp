@@ -874,10 +874,9 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     if (!NtSuccess(s2e(), state, eax)) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
                 " because EntryPoint failed with 0x" << std::hex << eax << std::endl;
-        s2e()->getExecutor()->terminateStateOnExit(*state);
+        s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler failed");
         return;
     }
-
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
@@ -963,6 +962,14 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     signal->connect(sigc::mem_fun(*this, &NdisHandlers::QueryInformationHandlerRet));
 
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    plgState->oid = (uint32_t)-1;
+    plgState->pInformationBuffer = 0;
+
+    readConcreteParameter(state, 1, &plgState->oid);
+    readConcreteParameter(state, 2, &plgState->pInformationBuffer);
+
     if (m_consistency != OVERAPPROX) {
         return;
     }
@@ -979,6 +986,25 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
 void NdisHandlers::QueryInformationHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    //Keep only those states that have a connected cable
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
+        uint32_t status;
+        if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
+            s2e()->getDebugStream(state) << "OID_GEN_MEDIA_CONNECT_STATUS is " << status << std::endl;
+            if (status == 1) {
+               //Disconnected, kill the state
+               //XXX: For now, we force it to be connected, this is a problem for consistency !!!
+                //It must be connected, otherwise NDIS will not forward any packet to the driver!
+                status = 0;
+                state->writeMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status));
+              //s2e()->getExecutor()->terminateStateEarly(*state, "Media is disconnected");
+            }
+        }
+    }
+
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());

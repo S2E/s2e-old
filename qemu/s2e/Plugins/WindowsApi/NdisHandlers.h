@@ -22,6 +22,8 @@ namespace plugins {
 #define NDIS_STATUS_RESOURCES 0xc000009a
 #define NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
 
+#define OID_GEN_MEDIA_CONNECT_STATUS 0x00010114
+
 #define REGISTER_NDIS_ENTRY_POINT(cs, pc, name) \
     if (pc) {\
         s2e()->getMessagesStream() << "Registering " # name <<  " at 0x" << std::hex << pc << std::endl; \
@@ -125,6 +127,7 @@ private:
     uint32_t pStatus, pNetworkAddress, pNetworkAddressLength;
     uint32_t pConfigParam;
     bool hasIsrHandler;
+    uint32_t oid, pInformationBuffer;
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();

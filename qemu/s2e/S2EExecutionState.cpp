@@ -20,7 +20,7 @@ void* s2e_get_ram_ptr(target_phys_addr_t addr);
 
 #include <iomanip>
 
-//#define S2E_ENABLEMEM_CACHE
+#define S2E_ENABLEMEM_CACHE
 
 namespace s2e {
 
