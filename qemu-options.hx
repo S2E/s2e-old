@@ -1633,4 +1633,7 @@ DEF("android-hw", HAS_ARG, QEMU_OPTION_android_hw, \
 DEF("android-memcheck", HAS_ARG, QEMU_OPTION_android_memcheck, \
     "-android-memcheck <options> enable memory access checking on the emulated system\n")
 
+DEF("dns-server", HAS_ARG, QEMU_OPTION_dns_server, \
+    "-dns-server <servers> use this DNS server(s) in the emulated system\n")
+
 #endif
