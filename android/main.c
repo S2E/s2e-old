@@ -32,9 +32,6 @@
 #include "math.h"
 
 #include "android/charmap.h"
-#include "modem_driver.h"
-#include "proxy_http.h"
-
 #include "android/utils/debug.h"
 #include "android/resource.h"
 #include "android/config.h"
@@ -105,9 +102,6 @@ extern void  stop_tracing(void);
 #endif
 
 unsigned long   android_verbose;
-
-int   qemu_cpu_delay = 0;
-int   qemu_cpu_delay_count;
 
 /***********************************************************************/
 /***********************************************************************/
@@ -1228,73 +1222,6 @@ int main(int argc, char **argv)
         }
     }
 
-    /* the purpose of -no-audio is to disable sound output from the emulator,
-     * not to disable Audio emulation. So simply force the 'none' backends */
-    if (opts->no_audio)
-        opts->audio = "none";
-
-    if (opts->audio) {
-        if (opts->audio_in || opts->audio_out) {
-            derror( "you can't use -audio with -audio-in or -audio-out\n" );
-            exit(1);
-        }
-        if ( !audio_check_backend_name( 0, opts->audio ) ) {
-            derror( "'%s' is not a valid audio output backend. see -help-audio-out\n",
-                    opts->audio);
-            exit(1);
-        }
-        opts->audio_out = opts->audio;
-        opts->audio_in  = opts->audio;
-
-        if ( !audio_check_backend_name( 1, opts->audio ) ) {
-            fprintf(stderr,
-                    "emulator: warning: '%s' is not a valid audio input backend. audio record disabled\n",
-                    opts->audio);
-            opts->audio_in = "none";
-        }
-    }
-
-    if (opts->audio_in) {
-        static char  env[64]; /* note: putenv needs a static unique string buffer */
-        if ( !audio_check_backend_name( 1, opts->audio_in ) ) {
-            derror( "'%s' is not a valid audio input backend. see -help-audio-in\n",
-                    opts->audio_in);
-            exit(1);
-        }
-        bufprint( env, env+sizeof(env), "QEMU_AUDIO_IN_DRV=%s", opts->audio_in );
-        putenv( env );
-
-        if (!hw->hw_audioInput) {
-            dwarning( "Emulated hardware doesn't have audio input.");
-        }
-    }
-    if (opts->audio_out) {
-        static char  env[64]; /* note: putenv needs a static unique string buffer */
-        if ( !audio_check_backend_name( 0, opts->audio_out ) ) {
-            derror( "'%s' is not a valid audio output backend. see -help-audio-out\n",
-                    opts->audio_out);
-            exit(1);
-        }
-        bufprint( env, env+sizeof(env), "QEMU_AUDIO_OUT_DRV=%s", opts->audio_out );
-        putenv( env );
-        if (!hw->hw_audioOutput) {
-            dwarning( "Emulated hardware doesn't have audio output");
-        }
-    }
-
-    if (opts->cpu_delay) {
-        char*   end;
-        long    delay = strtol(opts->cpu_delay, &end, 0);
-        if (end == NULL || *end || delay < 0 || delay > 1000 ) {
-            fprintf(stderr, "option -cpu-delay must be an integer between 0 and 1000\n" );
-            exit(1);
-        }
-        if (delay > 0)
-            delay = (1000-delay);
-
-        qemu_cpu_delay = (int) delay;
-    }
-
     if (opts->shared_net_id) {
         char*  end;
         long   shared_net_id = strtol(opts->shared_net_id, &end, 0);
@@ -1390,6 +1317,30 @@ int main(int argc, char **argv)
             args[n++] = "-cpu";
             args[n++] = "cortex-a8";
          }
+    }
+
+    /* the purpose of -no-audio is to disable sound output from the emulator,
+     * not to disable Audio emulation. So simply force the 'none' backends */
+    if (opts->no_audio)
+        opts->audio = "none";
+
+    if (opts->audio) {
+        args[n++] = "-audio";
+        args[n++] = opts->audio;
+    }
+
+    if (opts->audio_in) {
+        args[n++] = "-audio-in";
+        args[n++] = opts->audio_in;
+    }
+    if (opts->audio_out) {
+        args[n++] = "-audio-out";
+        args[n++] = opts->audio_out;
+    }
+
+    if (opts->cpu_delay) {
+        args[n++] = "-cpu-delay";
+        args[n++] = opts->cpu_delay;
     }
 
     if (opts->dns_server) {
@@ -1603,35 +1554,13 @@ int main(int argc, char **argv)
         qemud_serial = serial++;
 
         if (opts->radio) {
-            CharDriverState*  cs = qemu_chr_open("radio",opts->radio,NULL);
-            if (cs == NULL) {
-                derror( "unsupported character device specification: %s\n"
-                        "used -help-char-devices for list of available formats\n", opts->radio );
-                exit(1);
-            }
-            android_qemud_set_channel( ANDROID_QEMUD_GSM, cs);
-        }
-        else if ( hw->hw_gsmModem != 0 ) {
-            if ( android_qemud_get_channel( ANDROID_QEMUD_GSM, &android_modem_cs ) < 0 ) {
-                derror( "could not initialize qemud 'gsm' channel" );
-                exit(1);
-            }
+            args[n++] = "-radio";
+            args[n++] = opts->radio;
         }
 
         if (opts->gps) {
-            CharDriverState*  cs = qemu_chr_open("gps",opts->gps,NULL);
-            if (cs == NULL) {
-                derror( "unsupported character device specification: %s\n"
-                        "used -help-char-devices for list of available formats\n", opts->gps );
-                exit(1);
-            }
-            android_qemud_set_channel( ANDROID_QEMUD_GPS, cs);
-        }
-        else if ( hw->hw_gps != 0 ) {
-            if ( android_qemud_get_channel( "gps", &android_gps_cs ) < 0 ) {
-                derror( "could not initialize qemud 'gps' channel" );
-                exit(1);
-            }
+            args[n++] = "-gps";
+            args[n++] = opts->gps;
         }
     }
 

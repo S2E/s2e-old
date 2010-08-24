@@ -1636,4 +1636,22 @@ DEF("android-memcheck", HAS_ARG, QEMU_OPTION_android_memcheck, \
 DEF("dns-server", HAS_ARG, QEMU_OPTION_dns_server, \
     "-dns-server <servers> use this DNS server(s) in the emulated system\n")
 
+DEF("radio", HAS_ARG, QEMU_OPTION_radio, \
+    "-radio <device> redirect radio modem interface to character device\n")
+
+DEF("gps", HAS_ARG, QEMU_OPTION_gps, \
+    "-gps <device> redirect NMEA GPS to character device\n")
+
+DEF("audio", HAS_ARG, QEMU_OPTION_audio, \
+    "-audio <backend> use specific audio backend\n")
+
+DEF("audio-in", HAS_ARG, QEMU_OPTION_audio_in, \
+    "-audio-in <backend> use specific audio input backend\n")
+
+DEF("audio-out", HAS_ARG, QEMU_OPTION_audio_out, \
+    "-audio-out <backend> use specific audio output backend\n")
+
+DEF("cpu-delay", HAS_ARG, QEMU_OPTION_cpu_delay, \
+    "-cpu-delay <cpudelay> throttle CPU emulation\n")
+
 #endif

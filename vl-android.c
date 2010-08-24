@@ -55,6 +55,7 @@
 #include "android/hw-kmsg.h"
 #include "android/charmap.h"
 #include "android/globals.h"
+#include "android/utils/bufprint.h"
 #include "targphys.h"
 
 #ifdef CONFIG_MEMCHECK
@@ -332,7 +333,7 @@ static QEMUTimer *nographic_timer;
 uint8_t qemu_uuid[16];
 
 
-extern int   qemu_cpu_delay;
+int   qemu_cpu_delay;
 extern char* audio_input_source;
 
 extern char* android_op_ports;
@@ -353,6 +354,23 @@ char* android_op_memcheck = NULL;
 
 /* -dns-server option value. */
 char* android_op_dns_server = NULL;
+
+char* android_op_radio = NULL;
+
+/* -gps option value. */
+char* android_op_gps = NULL;
+
+/* -audio option value. */
+char* android_op_audio = NULL;
+
+/* -audio-in option value. */
+char* android_op_audio_in = NULL;
+
+/* -audio-out option value. */
+char* android_op_audio_out = NULL;
+
+/* -cpu-delay option value. */
+char* android_op_cpu_delay = NULL;
 
 extern int android_display_width;
 extern int android_display_height;
@@ -5878,6 +5896,30 @@ int main(int argc, char **argv, char **envp)
                 android_op_dns_server = (char*)optarg;
                 break;
 
+            case QEMU_OPTION_radio:
+                android_op_radio = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_gps:
+                android_op_gps = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_audio:
+                android_op_audio = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_audio_in:
+                android_op_audio_in = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_audio_out:
+                android_op_audio_out = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_cpu_delay:
+                android_op_cpu_delay = (char*)optarg;
+                break;
+
 #ifdef CONFIG_MEMCHECK
             case QEMU_OPTION_android_memcheck:
                 android_op_memcheck = (char*)optarg;
@@ -5931,6 +5973,103 @@ int main(int argc, char **argv, char **envp)
     androidHwConfig_read(android_hw, hw_ini);
     iniFile_free(hw_ini);
 #endif  // CONFIG_STANDALONE_CORE
+
+    /* Initialize modem */
+    if (android_op_radio) {
+        CharDriverState*  cs = qemu_chr_open("radio", android_op_radio, NULL);
+        if (cs == NULL) {
+            fprintf(stderr, "unsupported character device specification: %s\n"
+                            "used -help-char-devices for list of available formats\n",
+                    android_op_radio);
+            exit(1);
+        }
+        android_qemud_set_channel( ANDROID_QEMUD_GSM, cs);
+    } else if (android_hw->hw_gsmModem != 0 ) {
+        if ( android_qemud_get_channel( ANDROID_QEMUD_GSM, &android_modem_cs ) < 0 ) {
+            fprintf(stderr, "could not initialize qemud 'gsm' channel");
+            exit(1);
+        }
+    }
+
+    /* Initialize GPS */
+    if (android_op_gps) {
+        CharDriverState*  cs = qemu_chr_open("gps", android_op_gps, NULL);
+        if (cs == NULL) {
+            fprintf(stderr, "unsupported character device specification: %s\n"
+                            "used -help-char-devices for list of available formats\n",
+                    android_op_gps);
+            exit(1);
+        }
+        android_qemud_set_channel( ANDROID_QEMUD_GPS, cs);
+    } else if (android_hw->hw_gps != 0) {
+        if ( android_qemud_get_channel( "gps", &android_gps_cs ) < 0 ) {
+            fprintf(stderr, "could not initialize qemud 'gps' channel" );
+            exit(1);
+        }
+    }
+
+    /* Initialize audio. */
+    if (android_op_audio) {
+        if (android_op_audio_in || android_op_audio_out) {
+            fprintf(stderr, "you can't use -audio with -audio-in or -audio-out\n" );
+            exit(1);
+        }
+        if ( !audio_check_backend_name( 0, android_op_audio ) ) {
+            fprintf(stderr, "'%s' is not a valid audio output backend. see -help-audio-out\n",
+                    android_op_audio);
+            exit(1);
+        }
+        android_op_audio_out = android_op_audio;
+        android_op_audio_in  = android_op_audio;
+
+        if ( !audio_check_backend_name( 1, android_op_audio ) ) {
+            fprintf(stdout,
+                    "emulator: warning: '%s' is not a valid audio input backend. audio record disabled\n",
+                    android_op_audio);
+            android_op_audio_in = "none";
+        }
+    }
+
+    if (android_op_audio_in) {
+        static char  env[64]; /* note: putenv needs a static unique string buffer */
+        if ( !audio_check_backend_name( 1, android_op_audio_in ) ) {
+            fprintf(stderr, "'%s' is not a valid audio input backend. see -help-audio-in\n",
+                    android_op_audio_in);
+            exit(1);
+        }
+        bufprint( env, env+sizeof(env), "QEMU_AUDIO_IN_DRV=%s", android_op_audio_in );
+        putenv( env );
+
+        if (!android_hw->hw_audioInput) {
+            fprintf(stdout, "Emulated hardware doesn't have audio input.\n");
+        }
+    }
+    if (android_op_audio_out) {
+        static char  env[64]; /* note: putenv needs a static unique string buffer */
+        if ( !audio_check_backend_name( 0, android_op_audio_out ) ) {
+            fprintf(stderr, "'%s' is not a valid audio output backend. see -help-audio-out\n",
+                    android_op_audio_out);
+            exit(1);
+        }
+        bufprint( env, env+sizeof(env), "QEMU_AUDIO_OUT_DRV=%s", android_op_audio_out );
+        putenv( env );
+        if (!android_hw->hw_audioOutput) {
+            fprintf(stdout, "Emulated hardware doesn't have audio output\n");
+        }
+    }
+
+    if (android_op_cpu_delay) {
+        char*   end;
+        long    delay = strtol(android_op_cpu_delay, &end, 0);
+        if (end == NULL || *end || delay < 0 || delay > 1000 ) {
+            fprintf(stderr, "option -cpu-delay must be an integer between 0 and 1000\n" );
+            exit(1);
+        }
+        if (delay > 0)
+            delay = (1000-delay);
+
+        qemu_cpu_delay = (int) delay;
+    }
 
     if (android_op_dns_server) {
         char*  x = strchr(android_op_dns_server, ',');
