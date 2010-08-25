@@ -1654,4 +1654,7 @@ DEF("audio-out", HAS_ARG, QEMU_OPTION_audio_out, \
 DEF("cpu-delay", HAS_ARG, QEMU_OPTION_cpu_delay, \
     "-cpu-delay <cpudelay> throttle CPU emulation\n")
 
+DEF("show-kernel", 0, QEMU_OPTION_show_kernel, \
+    "-show-kernel display kernel messages\n")
+
 #endif

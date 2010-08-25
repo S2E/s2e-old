@@ -355,6 +355,7 @@ char* android_op_memcheck = NULL;
 /* -dns-server option value. */
 char* android_op_dns_server = NULL;
 
+/* -radio option value. */
 char* android_op_radio = NULL;
 
 /* -gps option value. */
@@ -5892,6 +5893,7 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_android_hw:
                 android_op_hwini = (char*)optarg;
                 break;
+
             case QEMU_OPTION_dns_server:
                 android_op_dns_server = (char*)optarg;
                 break;
@@ -5918,6 +5920,10 @@ int main(int argc, char **argv, char **envp)
 
             case QEMU_OPTION_cpu_delay:
                 android_op_cpu_delay = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_show_kernel:
+                android_kmsg_init(ANDROID_KMSG_PRINT_MESSAGES);
                 break;
 
 #ifdef CONFIG_MEMCHECK
