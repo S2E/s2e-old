@@ -8,7 +8,7 @@ then:
 
 git clone git://android.git.kernel.org/kernel/common.git kernel-common
 cd kernel-common
-git checkout origin/android-goldfish-2.6.27
+git checkout origin/android-goldfish-2.6.29
 
 export CROSS_COMPILE=arm-eabi-
 export ARCH=arm
@@ -18,8 +18,24 @@ make -j2                   # build it
 
 => this generates a file named arch/arm/boot/zImage
 
+NOTE: Branch android-goldfish-2.6.27 is obsolete now. Do not use it.
+
 Now, you can use it with:
 
   emulator -kernel path/to/your/new/zImage <other-options>
+
+
+You can build an ARMv7-compatible kernel image by using goldfish_armv7_defconfg
+in the above instructions (instead of goldfish_defconfig). Note that you will
+need to enable ARMv7 emulation by using the -cpu cortex-a8 option, as in:
+
+  emulator -kernel path/to/your/new/zImage <other-options> -qemu -cpu cortex-a8
+
+As a special convenience, if the name of your kernel image ends in -armv7, then
+the emulator binary will automatically enable ARMv7 emulation for you, so doing
+the following should be equivalent
+
+  emulator -kernel path/to/your/kernel-armv7 <other-options>
+
 
 Voila !
