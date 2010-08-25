@@ -210,11 +210,6 @@ void  sock_address_done( SockAddress*  a );
 
 int   sock_address_equal( const SockAddress*  a, const SockAddress*  b );
 
-/* THIS SHOULD DISAPPEAR SOON - TRANSITIONAL HELPER */
-int   sock_address_to_bsd( const SockAddress*  a, void*  sa, size_t* salen );
-int   sock_address_from_bsd( SockAddress*  a, const void*  sa, size_t  salen );
-int   sock_address_to_inet( SockAddress*  a, int  *paddr_ip, int  *paddr_port );
-
 /* return a static string describing the address */
 const char*  sock_address_to_string( const SockAddress*  a );
 

@@ -231,6 +231,17 @@ socket_type_check( SocketType  type )
 }
 #endif
 
+typedef union {
+    struct sockaddr     sa[1];
+    struct sockaddr_in  in[1];
+#if HAVE_IN6_SOCKETS
+    struct sockaddr_in6 in6[1];
+#endif
+#if HAVE_UNIX_SOCKETS
+    struct sockaddr_un  un[1];
+#endif
+} sockaddr_storage;
+
 /* socket addresses */
 
 void
@@ -496,13 +507,13 @@ bufprint_sock_address( char*  p, char*  end, const SockAddress*  a )
 }
 #endif
 
-int
-sock_address_to_bsd( const SockAddress*  a, void*  paddress, size_t  *psize )
+static int
+sock_address_to_bsd( const SockAddress*  a, sockaddr_storage*  paddress, size_t  *psize )
 {
     switch (a->family) {
     case SOCKET_INET:
         {
-            struct sockaddr_in*  dst = (struct sockaddr_in*) paddress;
+            struct sockaddr_in*  dst = paddress->in;
 
             *psize = sizeof(*dst);
 
@@ -517,7 +528,7 @@ sock_address_to_bsd( const SockAddress*  a, void*  paddress, size_t  *psize )
 #if HAVE_IN6_SOCKETS
     case SOCKET_IN6:
         {
-            struct sockaddr_in6*  dst = (struct sockaddr_in6*) paddress;
+            struct sockaddr_in6*  dst = paddress->in6;
 
             *psize = sizeof(*dst);
 
@@ -534,12 +545,12 @@ sock_address_to_bsd( const SockAddress*  a, void*  paddress, size_t  *psize )
     case SOCKET_UNIX:
         {
             int                  slen = strlen(a->u._unix.path);
-            struct sockaddr_un*  dst = (struct sockaddr_un*) paddress;
+            struct sockaddr_un*  dst = paddress->un;
 
             if (slen >= UNIX_PATH_MAX)
                 return -1;
 
-            memset( paddress, 0, sizeof(*dst) );
+            memset( dst, 0, sizeof(*dst) );
 
             dst->sun_family = AF_LOCAL;
             memcpy( dst->sun_path, a->u._unix.path, slen );
@@ -557,32 +568,13 @@ sock_address_to_bsd( const SockAddress*  a, void*  paddress, size_t  *psize )
     return 0;
 }
 
-int
-sock_address_to_inet( SockAddress*  a, int  *paddr_ip, int  *paddr_port )
+static int
+sock_address_from_bsd( SockAddress*  a, const sockaddr_storage*  from, size_t  fromlen )
 {
-    struct sockaddr   addr;
-    socklen_t         addrlen;
-
-    if (a->family != SOCKET_INET) {
-        return _set_errno(EINVAL);
-    }
-
-    if (sock_address_to_bsd(a, &addr, &addrlen) < 0)
-        return -1;
-
-    *paddr_ip   = ntohl(((struct sockaddr_in*)&addr)->sin_addr.s_addr);
-    *paddr_port = ntohs(((struct sockaddr_in*)&addr)->sin_port);
-
-    return 0;
-}
-
-int
-sock_address_from_bsd( SockAddress*  a, const void*  from, size_t  fromlen )
-{
-    switch (((struct sockaddr*)from)->sa_family) {
+    switch (from->sa->sa_family) {
     case AF_INET:
         {
-            struct sockaddr_in*  src = (struct sockaddr_in*) from;
+            struct sockaddr_in*  src = from->in;
 
             if (fromlen < sizeof(*src))
                 return _set_errno(EINVAL);
@@ -596,7 +588,7 @@ sock_address_from_bsd( SockAddress*  a, const void*  from, size_t  fromlen )
 #ifdef HAVE_IN6_SOCKETS
     case AF_INET6:
         {
-            struct sockaddr_in6*  src = (struct sockaddr_in6*) from;
+            struct sockaddr_in6*  src = from->in6;
 
             if (fromlen < sizeof(*src))
                 return _set_errno(EINVAL);
@@ -611,7 +603,7 @@ sock_address_from_bsd( SockAddress*  a, const void*  from, size_t  fromlen )
 #ifdef HAVE_UNIX_SOCKETS
     case AF_LOCAL:
         {
-            struct sockaddr_un*  src = (struct sockaddr_un*) from;
+            struct sockaddr_un*  src = from->un;
             char*                end;
 
             if (fromlen < sizeof(*src))
@@ -954,13 +946,13 @@ socket_send_oob( int  fd, const void*  buf, int  buflen )
 int
 socket_sendto(int  fd, const void*  buf, int  buflen, const SockAddress*  to)
 {
-    struct sockaddr   sa;
+    sockaddr_storage  sa;
     socklen_t         salen;
 
     if (sock_address_to_bsd(to, &sa, &salen) < 0)
         return -1;
 
-    SOCKET_CALL(sendto(fd, buf, buflen, 0, &sa, salen));
+    SOCKET_CALL(sendto(fd, buf, buflen, 0, sa.sa, salen));
 }
 
 int
@@ -972,11 +964,11 @@ socket_recv(int  fd, void*  buf, int  len)
 int
 socket_recvfrom(int  fd, void*  buf, int  len, SockAddress*  from)
 {
-    struct sockaddr   sa;
+    sockaddr_storage  sa;
     socklen_t         salen = sizeof(sa);
     int               ret;
 
-    QSOCKET_CALL(ret,recvfrom(fd,buf,len,0,&sa,&salen));
+    QSOCKET_CALL(ret,recvfrom(fd,buf,len,0,sa.sa,&salen));
     if (ret < 0)
         return _fix_errno();
 
@@ -989,35 +981,35 @@ socket_recvfrom(int  fd, void*  buf, int  len, SockAddress*  from)
 int
 socket_connect( int  fd, const SockAddress*  address )
 {
-    struct sockaddr   addr;
+    sockaddr_storage  addr;
     socklen_t         addrlen;
 
     if (sock_address_to_bsd(address, &addr, &addrlen) < 0)
         return -1;
 
-    SOCKET_CALL(connect(fd,&addr,addrlen));
+    SOCKET_CALL(connect(fd,addr.sa,addrlen));
 }
 
 int
 socket_bind( int  fd, const SockAddress*  address )
 {
-    struct sockaddr  addr;
-    socklen_t        addrlen;
+    sockaddr_storage  addr;
+    socklen_t         addrlen;
 
     if (sock_address_to_bsd(address, &addr, &addrlen) < 0)
         return -1;
 
-    SOCKET_CALL(bind(fd, &addr, addrlen));
+    SOCKET_CALL(bind(fd, addr.sa, addrlen));
 }
 
 int
 socket_get_address( int  fd, SockAddress*  address )
 {
-    struct sockaddr   addr;
+    sockaddr_storage  addr;
     socklen_t         addrlen = sizeof(addr);
     int               ret;
 
-    QSOCKET_CALL(ret, getsockname(fd, &addr, &addrlen));
+    QSOCKET_CALL(ret, getsockname(fd, addr.sa, &addrlen));
     if (ret < 0)
         return _fix_errno();
 
@@ -1027,11 +1019,11 @@ socket_get_address( int  fd, SockAddress*  address )
 int
 socket_get_peer_address( int  fd, SockAddress*  address )
 {
-    struct sockaddr   addr;
+    sockaddr_storage  addr;
     socklen_t         addrlen = sizeof(addr);
     int               ret;
 
-    QSOCKET_CALL(ret, getpeername(fd, &addr, &addrlen));
+    QSOCKET_CALL(ret, getpeername(fd, addr.sa, &addrlen));
     if (ret < 0)
         return _fix_errno();
 
@@ -1047,11 +1039,11 @@ socket_listen( int  fd, int  backlog )
 int
 socket_accept( int  fd, SockAddress*  address )
 {
-    struct sockaddr   addr;
+    sockaddr_storage  addr;
     socklen_t         addrlen = sizeof(addr);
     int               ret;
 
-    QSOCKET_CALL(ret, accept(fd, &addr, &addrlen));
+    QSOCKET_CALL(ret, accept(fd, addr.sa, &addrlen));
     if (ret < 0)
         return _fix_errno();
 
