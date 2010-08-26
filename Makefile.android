@@ -966,7 +966,7 @@ include $(BUILD_HOST_EXECUTABLE)
 #
 include $(CLEAR_VARS)
 
-LOCAL_GENERATED_SOURCES         := $(QEMU_GDBSTUB_XML_C) $(QEMU_MONITOR_H) $(QEMU_HW_CONFIG_DEFS_H)
+LOCAL_GENERATED_SOURCES         :=
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := qemu-android
@@ -1040,6 +1040,70 @@ $(ANDROID_ICON_PATH)/$(ANDROID_ICON_OBJ): $(ANDROID_ICON_PATH)/android_icon.rc
 #
 LOCAL_PREBUILT_OBJ_FILES += images/$(ANDROID_ICON_OBJ)
 endif
+
+# qemu-options.h is generated from qemu-options.hx with the "hxtool" shell script
+#
+intermediates := $(call intermediates-dir-for,EXECUTABLES,$(LOCAL_MODULE),true)
+
+QEMU_OPTIONS_H := $(intermediates)/qemu-options.h
+$(QEMU_OPTIONS_H): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_OPTIONS_H): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/hxtool -h < $< > $@
+$(QEMU_OPTIONS_H): $(LOCAL_PATH)/qemu-options.hx $(LOCAL_PATH)/hxtool
+	$(transform-generated-source)
+
+$(intermediates)/vl-android.o: $(QEMU_OPTIONS_H)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_OPTIONS_H)
+
+# qemu-monitor.h is generated from qemu-monitor.hx with the "hxtool" shell script
+#
+intermediates := $(call intermediates-dir-for,EXECUTABLES,$(LOCAL_MODULE),true)
+
+QEMU_MONITOR_H := $(intermediates)/qemu-monitor.h
+$(QEMU_MONITOR_H): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_MONITOR_H): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/hxtool -h < $< > $@
+$(QEMU_MONITOR_H): $(LOCAL_PATH)/qemu-monitor.hx $(LOCAL_PATH)/hxtool
+	$(transform-generated-source)
+
+$(intermediates)/vl-android.o: $(QEMU_MONITOR_H)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_MONITOR_H)
+
+
+# gdbstub-xml.c contains C-compilable arrays corresponding to the content
+# of $(LOCAL_PATH)/gdb-xml/, and is generated with the 'feature_to_c.sh' script.
+#
+ifeq ($(QEMU_TARGET_XML_SOURCES),)
+    QEMU_TARGET_XML_SOURCES := arm-core arm-neon arm-vfp arm-vfp3
+    QEMU_TARGET_XML_SOURCES := $(QEMU_TARGET_XML_SOURCES:%=$(LOCAL_PATH)/gdb-xml/%.xml)
+endif
+
+QEMU_GDBSTUB_XML_C := $(intermediates)/gdbstub-xml.c
+$(QEMU_GDBSTUB_XML_C): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_GDBSTUB_XML_C): PRIVATE_SOURCES := $(TARGET_XML_SOURCES)
+$(QEMU_GDBSTUB_XML_C): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/feature_to_c.sh $@ $(QEMU_TARGET_XML_SOURCES)
+$(QEMU_GDBSTUB_XML_C): $(QEMU_TARGET_XML_SOURCES) $(LOCAL_PATH)/feature_to_c.sh
+	$(hide) rm -f $@
+	$(transform-generated-source)
+
+$(intermediates)/vl-android.o: $(QEMU_GDBSTUB_XML_C)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_GDBSTUB_XML_C)
+
+# hw-config-defs.h is generated from android/avd/hardware-properties.ini
+#
+QEMU_HARDWARE_PROPERTIES_INI := $(LOCAL_PATH)/android/avd/hardware-properties.ini
+QEMU_HW_CONFIG_DEFS_H := $(LOCAL_PATH)/android/avd/hw-config-defs.h
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_PATH := $(LOCAL_PATH)
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_SOURCES := $(QEMU_HARDWARE_PROPERTIES_INI)
+$(QEMU_HW_CONFIG_DEFS_H): PRIVATE_CUSTOM_TOOL = $(PRIVATE_PATH)/android/tools/gen-hw-config.py $(QEMU_HARDWARE_PROPERTIES_INI) $@
+$(QEMU_HW_CONFIG_DEFS_H): $(QEMU_HARDWARE_PROPERTIES_INI) $(LOCAL_PATH)/android/tools/gen-hw-config.py
+	$(hide) rm -f $@
+	$(transform-generated-source)
+
+$(LOCAL_PATH)/android/avd/hw-config.h: $(QEMU_HW_CONFIG_DEFS_H)
+
+LOCAL_GENERATED_SOURCES += $(QEMU_HW_CONFIG_DEFS_H)
 
 # this is already done by the Android build system, but is done for the
 # benefit of the stand-alone one.
