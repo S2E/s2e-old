@@ -14,6 +14,7 @@
 
 void nand_dev_init(uint32_t base);
 void nand_add_dev(const char *arg);
+void parse_nand_limits(char*  limits);
 
 typedef struct {
     uint64_t     limit;

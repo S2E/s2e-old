@@ -577,113 +577,6 @@ write_default_keyset( void )
     }
 }
 
-#ifdef CONFIG_NAND_LIMITS
-
-static uint64_t
-parse_nand_rw_limit( const char*  value )
-{
-    char*     end;
-    uint64_t  val = strtoul( value, &end, 0 );
-
-    if (end == value) {
-        derror( "bad parameter value '%s': expecting unsigned integer", value );
-        exit(1);
-    }
-
-    switch (end[0]) {
-        case 'K':  val <<= 10; break;
-        case 'M':  val <<= 20; break;
-        case 'G':  val <<= 30; break;
-        case 0: break;
-        default:
-            derror( "bad read/write limit suffix: use K, M or G" );
-            exit(1);
-    }
-    return val;
-}
-
-static void
-parse_nand_limits(char*  limits)
-{
-    int      pid = -1, signal = -1;
-    int64_t  reads = 0, writes = 0;
-    char*    item = limits;
-
-    /* parse over comma-separated items */
-    while (item && *item) {
-        char*  next = strchr(item, ',');
-        char*  end;
-
-        if (next == NULL) {
-            next = item + strlen(item);
-        } else {
-            *next++ = 0;
-        }
-
-        if ( !memcmp(item, "pid=", 4) ) {
-            pid = strtol(item+4, &end, 10);
-            if (end == NULL || *end) {
-                derror( "bad parameter, expecting pid=<number>, got '%s'",
-                        item );
-                exit(1);
-            }
-            if (pid <= 0) {
-                derror( "bad parameter: process identifier must be > 0" );
-                exit(1);
-            }
-        }
-        else if ( !memcmp(item, "signal=", 7) ) {
-            signal = strtol(item+7,&end, 10);
-            if (end == NULL || *end) {
-                derror( "bad parameter: expecting signal=<number>, got '%s'",
-                        item );
-                exit(1);
-            }
-            if (signal <= 0) {
-                derror( "bad parameter: signal number must be > 0" );
-                exit(1);
-            }
-        }
-        else if ( !memcmp(item, "reads=", 6) ) {
-            reads = parse_nand_rw_limit(item+6);
-        }
-        else if ( !memcmp(item, "writes=", 7) ) {
-            writes = parse_nand_rw_limit(item+7);
-        }
-        else {
-            derror( "bad parameter '%s' (see -help-nand-limits)", item );
-            exit(1);
-        }
-        item = next;
-    }
-    if (pid < 0) {
-        derror( "bad paramater: missing pid=<number>" );
-        exit(1);
-    }
-    else if (signal < 0) {
-        derror( "bad parameter: missing signal=<number>" );
-        exit(1);
-    }
-    else if (reads == 0 && writes == 0) {
-        dwarning( "no read or write limit specified. ignoring -nand-limits" );
-    } else {
-        nand_threshold*  t;
-
-        t  = &android_nand_read_threshold;
-        t->pid     = pid;
-        t->signal  = signal;
-        t->counter = 0;
-        t->limit   = reads;
-
-        t  = &android_nand_write_threshold;
-        t->pid     = pid;
-        t->signal  = signal;
-        t->counter = 0;
-        t->limit   = writes;
-    }
-}
-#endif /* CONFIG_NAND_LIMITS */
-
 void emulator_help( void )
 {
     STRALLOC_DEFINE(out);
@@ -1194,11 +1087,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-#ifdef CONFIG_NAND_LIMITS
-    if (opts->nand_limits)
-        parse_nand_limits(opts->nand_limits);
-#endif
-
     if (opts->keyset) {
         parse_keyset(opts->keyset, opts);
         if (!android_keyset) {
@@ -1247,23 +1135,6 @@ int main(int argc, char **argv)
         if (skin_network_delay)
             D("skin network delay: '%s'", skin_network_delay);
         opts->netdelay = (char*)skin_network_delay;
-    }
-
-    if ( android_parse_network_speed(opts->netspeed) < 0 ) {
-        fprintf(stderr, "invalid -netspeed parameter '%s', see emulator -usage\n", opts->netspeed);
-        emulator_help();
-    }
-
-    if ( android_parse_network_latency(opts->netdelay) < 0 ) {
-        fprintf(stderr, "invalid -netdelay parameter '%s', see emulator -usage\n", opts->netdelay);
-        emulator_help();
-    }
-
-    if (opts->netfast) {
-        qemu_net_download_speed = 0;
-        qemu_net_upload_speed = 0;
-        qemu_net_min_latency = 0;
-        qemu_net_max_latency = 0;
     }
 
     if (opts->trace) {
@@ -1317,6 +1188,25 @@ int main(int argc, char **argv)
             args[n++] = "-cpu";
             args[n++] = "cortex-a8";
          }
+    }
+
+#ifdef CONFIG_NAND_LIMITS
+    if (opts->nand_limits) {
+        args[n++] = "-nand-limits";
+        args[n++] = opts->nand_limits;
+    }
+#endif
+
+    if (opts->netspeed) {
+        args[n++] = "-netspeed";
+        args[n++] = opts->netspeed;
+    }
+    if (opts->netdelay) {
+        args[n++] = "-netdelay";
+        args[n++] = opts->netdelay;
+    }
+    if (opts->netfast) {
+        args[n++] = "-netfast";
     }
 
     /* the purpose of -no-audio is to disable sound output from the emulator,

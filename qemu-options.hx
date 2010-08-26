@@ -1657,4 +1657,18 @@ DEF("cpu-delay", HAS_ARG, QEMU_OPTION_cpu_delay, \
 DEF("show-kernel", 0, QEMU_OPTION_show_kernel, \
     "-show-kernel display kernel messages\n")
 
+#ifdef CONFIG_NAND_LIMITS
+DEF("nand-limits", HAS_ARG, QEMU_OPTION_nand_limits, \
+    "-nand-limits <nlimits> enforce NAND/Flash read/write thresholds\n")
+#endif  // CONFIG_NAND_LIMITS
+
+DEF("netspeed", HAS_ARG, QEMU_OPTION_netspeed, \
+    "-netspeed <speed> maximum network download/upload speeds\n")
+
+DEF("netdelay", HAS_ARG, QEMU_OPTION_netdelay, \
+    "-netdelay <delay> network latency emulation\n")
+
+DEF("netfast", 0, QEMU_OPTION_netfast, \
+    "-netfast disable network shaping\n")
+
 #endif

@@ -373,6 +373,20 @@ char* android_op_audio_out = NULL;
 /* -cpu-delay option value. */
 char* android_op_cpu_delay = NULL;
 
+#ifdef CONFIG_NAND_LIMITS
+/* -nand-limits option value. */
+char* android_op_nand_limits = NULL;
+#endif  // CONFIG_NAND_LIMITS
+
+/* -netspeed option value. */
+char* android_op_netspeed = NULL;
+
+/* -netdelay option value. */
+char* android_op_netdelay = NULL;
+
+/* -netfast option value. */
+int android_op_netfast = 0;
+
 extern int android_display_width;
 extern int android_display_height;
 extern int android_display_bpp;
@@ -5926,6 +5940,25 @@ int main(int argc, char **argv, char **envp)
                 android_kmsg_init(ANDROID_KMSG_PRINT_MESSAGES);
                 break;
 
+#ifdef CONFIG_NAND_LIMITS
+            case QEMU_OPTION_nand_limits:
+                android_op_nand_limits = (char*)optarg;
+                break;
+#endif  // CONFIG_NAND_LIMITS
+
+            case QEMU_OPTION_netspeed:
+                android_op_netspeed = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_netdelay:
+                android_op_netdelay = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_netfast:
+                android_op_netfast = 1;
+                break;
+
+
 #ifdef CONFIG_MEMCHECK
             case QEMU_OPTION_android_memcheck:
                 android_op_memcheck = (char*)optarg;
@@ -5979,6 +6012,33 @@ int main(int argc, char **argv, char **envp)
     androidHwConfig_read(android_hw, hw_ini);
     iniFile_free(hw_ini);
 #endif  // CONFIG_STANDALONE_CORE
+
+#ifdef CONFIG_NAND_LIMITS
+    /* Init nand stuff. */
+    if (android_op_nand_limits) {
+        parse_nand_limits(android_op_nand_limits);
+    }
+#endif  // CONFIG_NAND_LIMITS
+
+    /* Initialize net speed and delays stuff. */
+    if (android_parse_network_speed(android_op_netspeed) < 0 ) {
+        fprintf(stderr, "invalid -netspeed parameter '%s'\n",
+                android_op_netspeed);
+        exit(1);
+    }
+
+    if ( android_parse_network_latency(android_op_netdelay) < 0 ) {
+        fprintf(stderr, "invalid -netdelay parameter '%s'\n",
+                android_op_netdelay);
+        exit(1);
+    }
+
+    if (android_op_netfast) {
+        qemu_net_download_speed = 0;
+        qemu_net_upload_speed = 0;
+        qemu_net_min_latency = 0;
+        qemu_net_max_latency = 0;
+    }
 
     /* Initialize modem */
     if (android_op_radio) {
