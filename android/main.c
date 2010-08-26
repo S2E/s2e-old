@@ -1503,8 +1503,10 @@ int main(int argc, char **argv)
     {
         AndroidKmsgFlags  flags = 0;
 
-        if (opts->show_kernel)
+        if (opts->show_kernel) {
             flags |= ANDROID_KMSG_PRINT_MESSAGES;
+            args[n++] = "-show-kernel";
+        }
 
         android_kmsg_init( flags );
         args[n++] = "-serial";
