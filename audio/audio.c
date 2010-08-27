@@ -42,6 +42,9 @@
 #define SW_NAME(sw) (sw)->name ? (sw)->name : "unknown"
 
 static struct audio_driver *drvtab[] = {
+#ifdef CONFIG_PULSEAUDIO
+    &pa_audio_driver,
+#endif
 #ifdef CONFIG_ESD
     &esd_audio_driver,
 #endif
