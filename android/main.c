@@ -61,7 +61,6 @@
 #include "hw/goldfish_nand.h"
 
 #include "android/globals.h"
-#include "tcpdump.h"
 
 #include "android/qemulator.h"
 #include "android/display.h"
@@ -1153,12 +1152,6 @@ int main(int argc, char **argv)
         opts->trace = tracePath;
     }
 
-    if (opts->tcpdump) {
-        if (qemu_tcpdump_start(opts->tcpdump) < 0) {
-            dwarning( "could not start packet capture: %s", strerror(errno));
-        }
-    }
-
     if (opts->no_cache)
         opts->cache = 0;
 
@@ -1188,6 +1181,11 @@ int main(int argc, char **argv)
             args[n++] = "-cpu";
             args[n++] = "cortex-a8";
          }
+    }
+
+    if (opts->tcpdump) {
+        args[n++] = "-tcpdump";
+        args[n++] = opts->tcpdump;
     }
 
 #ifdef CONFIG_NAND_LIMITS

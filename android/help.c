@@ -10,6 +10,7 @@
 #include "audio/audio.h"
 #include <string.h>
 #include <stdlib.h>
+#include "android/ui-core-protocol.h"
 
 /* XXX: TODO: put most of the help stuff in auto-generated files */
 
@@ -653,7 +654,8 @@ static void
 help_shaper(stralloc_t*  out)
 {
     int  n;
-
+    NetworkSpeed android_netspeed;
+    NetworkLatency android_netdelay;
     PRINTF(
     "  the Android emulator supports network throttling, i.e. slower network\n"
     "  bandwidth as well as higher connection latencies. this is done either through\n"
@@ -661,22 +663,22 @@ help_shaper(stralloc_t*  out)
 
     "  the format of -netspeed is one of the following (numbers are kbits/s):\n\n" );
 
-    for (n = 0; android_netspeeds[n].name != NULL; n++) {
+    for (n = 0; !android_core_get_android_netspeed(n, &android_netspeed); n++) {
         PRINTF( "    -netspeed %-12s %-15s  (up: %.1f, down: %.1f)\n",
-                        android_netspeeds[n].name,
-                        android_netspeeds[n].display,
-                        android_netspeeds[n].upload/1000.,
-                        android_netspeeds[n].download/1000. );
+                        android_netspeed.name,
+                        android_netspeed.display,
+                        android_netspeed.upload/1000.,
+                        android_netspeed.download/1000. );
     }
     PRINTF( "\n" );
     PRINTF( "    -netspeed %-12s %s", "<num>", "select both upload and download speed\n");
     PRINTF( "    -netspeed %-12s %s", "<up>:<down>", "select individual up and down speed\n");
 
     PRINTF( "\n  The format of -netdelay is one of the following (numbers are msec):\n\n" );
-    for (n = 0; android_netdelays[n].name != NULL; n++) {
+    for (n = 0; !android_core_get_android_netdelay(n, &android_netdelay); n++) {
         PRINTF( "    -netdelay %-10s   %-15s  (min %d, max %d)\n",
-                        android_netdelays[n].name, android_netdelays[n].display,
-                        android_netdelays[n].min_ms, android_netdelays[n].max_ms );
+                        android_netdelay.name, android_netdelay.display,
+                        android_netdelay.min_ms, android_netdelay.max_ms );
     }
     PRINTF( "    -netdelay %-10s   %s", "<num>", "select exact latency\n");
     PRINTF( "    -netdelay %-10s   %s", "<min>:<max>", "select min and max latencies\n\n");
@@ -781,10 +783,12 @@ help_audio_out(stralloc_t*  out)
         "  on this system, output <backend> can be one of the following:\n\n"
     );
     for ( nn = 0; ; nn++ ) {
-        const char*  descr;
-        const char*  name = audio_get_backend_name( 0, nn, &descr );
-        if (name == NULL)
+        char  name[512];
+        char  descr[4096];
+        if (android_core_audio_get_backend_name(0, nn, name, sizeof(name),
+                                                descr, sizeof(descr))) {
             break;
+        }
         PRINTF( "    %-10s %s\n", name, descr );
     }
     PRINTF( "\n" );
@@ -809,10 +813,12 @@ help_audio_in(stralloc_t*  out)
         "  on this system, input <backend> can be one of:\n\n"
     );
     for ( nn = 0; ; nn++ ) {
-        const char*  descr;
-        const char*  name = audio_get_backend_name( 1, nn, &descr );
-        if (name == NULL)
+        char  name[512];
+        char  descr[4096];
+        if (android_core_audio_get_backend_name(1, nn, name, sizeof(name),
+                                                descr, sizeof(descr))) {
             break;
+        }
         PRINTF( "    %-10s %s\n", name, descr );
     }
     PRINTF( "\n" );

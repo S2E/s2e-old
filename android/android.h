@@ -40,6 +40,7 @@ typedef struct {
 } NetworkSpeed;
 
 extern const NetworkSpeed   android_netspeeds[];
+extern const size_t android_netspeeds_count;
 
 /* list of supported network latency names and min-max values in ms */
 typedef struct {
@@ -50,6 +51,7 @@ typedef struct {
 } NetworkLatency;
 
 extern const NetworkLatency  android_netdelays[];
+extern const size_t android_netdelays_count;
 
 /* default network settings for emulator */
 #define  DEFAULT_NETSPEED  "full"

@@ -57,6 +57,7 @@
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
 #include "targphys.h"
+#include "tcpdump.h"
 
 #ifdef CONFIG_MEMCHECK
 #include "memcheck/memcheck.h"
@@ -386,6 +387,9 @@ char* android_op_netdelay = NULL;
 
 /* -netfast option value. */
 int android_op_netfast = 0;
+
+/* -tcpdump option value. */
+char* android_op_tcpdump = NULL;
 
 extern int android_display_width;
 extern int android_display_height;
@@ -5958,6 +5962,9 @@ int main(int argc, char **argv, char **envp)
                 android_op_netfast = 1;
                 break;
 
+            case QEMU_OPTION_tcpdump:
+                android_op_tcpdump = (char*)optarg;
+                break;
 
 #ifdef CONFIG_MEMCHECK
             case QEMU_OPTION_android_memcheck:
@@ -6038,6 +6045,13 @@ int main(int argc, char **argv, char **envp)
         qemu_net_upload_speed = 0;
         qemu_net_min_latency = 0;
         qemu_net_max_latency = 0;
+    }
+
+    /* Initialize TCP dump */
+    if (android_op_tcpdump) {
+        if (qemu_tcpdump_start(android_op_tcpdump) < 0) {
+            fprintf(stdout, "could not start packet capture: %s\n", strerror(errno));
+        }
     }
 
     /* Initialize modem */

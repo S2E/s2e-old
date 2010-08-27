@@ -1671,4 +1671,7 @@ DEF("netdelay", HAS_ARG, QEMU_OPTION_netdelay, \
 DEF("netfast", 0, QEMU_OPTION_netfast, \
     "-netfast disable network shaping\n")
 
+DEF("tcpdump", HAS_ARG, QEMU_OPTION_tcpdump, \
+    "-tcpdump <file> capture network packets to file\n")
+
 #endif
