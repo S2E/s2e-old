@@ -23,6 +23,7 @@
 #include "android/utils/path.h"
 #include "android/utils/system.h"
 #include "android/utils/bufprint.h"
+#include "android/core-ui-protocol.h"
 
 #define  D(...)  do {  if (VERBOSE_CHECK(init)) dprint(__VA_ARGS__); } while (0)
 
@@ -330,6 +331,8 @@ void  android_emulation_setup( void )
 
     android_modem_init( base_port );
 
+    /* Save base port and call back to UI so it can properly set up its window title. */
+    android_base_port = base_port;
     android_ui_set_base_port(base_port);
 
    /* send a simple message to the ADB host server to tell it we just started.

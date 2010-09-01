@@ -375,9 +375,9 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
     {
     case SKIN_KEY_COMMAND_TOGGLE_NETWORK:
         {
-            qemu_net_disable = !qemu_net_disable;
-            android_core_set_network_enabled(!qemu_net_disable);
-            D( "network is now %s", qemu_net_disable ? "disconnected" : "connected" );
+            android_core_toggle_network();
+            D( "network is now %s", android_core_is_network_disabled() ?
+                                    "disconnected" : "connected" );
         }
         break;
 
@@ -563,7 +563,7 @@ static void qemulator_refresh(QEmulator* emulator)
 #endif
             /* only save emulator config through clean exit */
             qemulator_done(qemulator_get());
-            qemu_system_shutdown_request();
+            android_core_system_shutdown_request();
             return;
         }
     }
@@ -597,6 +597,6 @@ android_emulator_set_window_scale( double  scale, int  is_dpi )
 void
 android_emulator_set_base_port( int  port )
 {
-    android_base_port = port;
+    /* Base port is already set in the emulator's core. */
     qemulator_set_title(qemulator);
 }

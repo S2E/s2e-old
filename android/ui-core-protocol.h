@@ -45,8 +45,14 @@ int android_core_get_base_port(void);
 /* change the coarse orientation value */
 void  android_core_sensors_set_coarse_orientation( AndroidCoarseOrientation  orient );
 
-/* Sets/toggles the network state */
+/* Sets the network state */
 void android_core_set_network_enabled(int enabled);
+
+/* Toggles the network state */
+void android_core_toggle_network(void);
+
+/* Gets the network state */
+int android_core_is_network_disabled(void);
 
 /* Start/stop tracing in the guest system */
 void android_core_tracing_start(void);
@@ -85,5 +91,23 @@ int android_core_get_android_netdelay(int index, NetworkLatency* delay);
 int android_core_audio_get_backend_name(int is_input, int index,
                                         char* name, size_t name_buf_size,
                                         char* descr, size_t descr_buf_size);
+
+/* Notifies the core about system shutdown requested by the UI. */
+void android_core_system_shutdown_request(void);
+
+/* Builds a path to a file of the given type in the emulator's data directory.
+ * Param:
+ *  type - Type of the file to find. Only QEMU_FILE_TYPE_BIOS, and
+ *      QEMU_FILE_TYPE_KEYMAP are allowed for this value.
+ *  filename - Name of the file to build path for.
+ *  path - Upon success contains path to the requested file inside the
+ *      emulator's data directory.
+ *  path_buf_size Character size of the buffer addressed by the path parameter.
+ * Return:
+ *  0 on success, or -1 on an error.
+ */
+int
+android_core_qemu_find_file(int type, const char *filename,
+                            char* path, size_t path_buf_size);
 
 #endif  // QEMU_ANDROID_UI_CORE_PROTOCOL_H

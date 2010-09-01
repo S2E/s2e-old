@@ -44,11 +44,7 @@
 #include "android/skin/window.h"
 #include "android/skin/keyset.h"
 
-#include "android/gps.h"
-#include "android/hw-qemud.h"
-#include "android/hw-kmsg.h"
 #include "android/hw-lcd.h"
-#include "android/hw-sensors.h"
 #include "android/boot-properties.h"
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
@@ -1389,14 +1385,10 @@ int main(int argc, char **argv)
 
     /* we always send the kernel messages from ttyS0 to android_kmsg */
     {
-        AndroidKmsgFlags  flags = 0;
-
         if (opts->show_kernel) {
-            flags |= ANDROID_KMSG_PRINT_MESSAGES;
             args[n++] = "-show-kernel";
         }
 
-        android_kmsg_init( flags );
         args[n++] = "-serial";
         args[n++] = "android-kmsg";
         serial++;

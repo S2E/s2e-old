@@ -27,6 +27,8 @@
 #include "telephony/modem_driver.h"
 #include "trace.h"
 #include "audio/audio.h"
+extern void qemu_system_shutdown_request(void);
+extern char* qemu_find_file(int type, const char* filename);
 #endif  // CONFIG_STANDALONE_UI
 
 int
@@ -68,6 +70,7 @@ android_core_sensors_set_coarse_orientation( AndroidCoarseOrientation  orient )
 void
 android_core_set_network_enabled(int enabled)
 {
+    /* Temporary implementation for the monolitic (core + ui) builds. */
 #if !defined(CONFIG_STANDALONE_UI)
     if (android_modem) {
         amodem_set_data_registration(
@@ -75,6 +78,27 @@ android_core_set_network_enabled(int enabled)
         qemu_net_disable ? A_REGISTRATION_UNREGISTERED
             : A_REGISTRATION_HOME);
     }
+#endif  // CONFIG_STANDALONE_UI
+}
+
+void
+android_core_toggle_network(void)
+{
+    /* Temporary implementation for the monolitic (core + ui) builds. */
+#if !defined(CONFIG_STANDALONE_UI)
+    qemu_net_disable = !qemu_net_disable;
+    android_core_set_network_enabled(!qemu_net_disable);
+#endif  // CONFIG_STANDALONE_UI
+}
+
+int
+android_core_is_network_disabled(void)
+{
+    /* Temporary implementation for the monolitic (core + ui) builds. */
+#if !defined(CONFIG_STANDALONE_UI)
+    return qemu_net_disable;
+#else
+    return 0;
 #endif  // CONFIG_STANDALONE_UI
 }
 
@@ -151,6 +175,34 @@ android_core_audio_get_backend_name(int is_input, int index,
         strncpy(descr, descr_ptr, descr_buf_size);
         descr[descr_buf_size - 1] = '\0';
     }
+    return 0;
+#else
+    return -1;
+#endif  // !CONFIG_STANDALONE_UI
+}
+
+void
+android_core_system_shutdown_request(void)
+{
+    /* Temporary implementation for the monolitic (core + ui) builds. */
+#if !defined(CONFIG_STANDALONE_UI)
+    qemu_system_shutdown_request();
+#endif  // !CONFIG_STANDALONE_UI
+}
+
+int
+android_core_qemu_find_file(int type, const char *filename,
+                            char* path, size_t path_buf_size)
+{
+    /* Temporary implementation for the monolitic (core + ui) builds. */
+#if !defined(CONFIG_STANDALONE_UI)
+    char* filepath = qemu_find_file(type, filename);
+    if (filepath == NULL) {
+        return -1;
+    }
+    strncpy(path, filepath, path_buf_size);
+    filepath[path_buf_size - 1] = '\0';
+    qemu_free(filepath);
     return 0;
 #else
     return -1;

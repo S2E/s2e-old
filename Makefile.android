@@ -664,6 +664,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     android/hw-control.c \
                     android/console.c \
                     android/hw-sensors.c \
+                    android/hw-qemud.c \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -727,7 +728,6 @@ UI_AND_CORE_SOURCES = osdep.c \
                       qemu-malloc.c \
                       android/keycode-array.c \
                       android/charmap.c \
-                      android/hw-qemud.c \
                       android/utils/bufprint.c \
                       android/utils/debug.c \
                       android/utils/path.c \
