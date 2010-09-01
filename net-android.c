@@ -146,6 +146,8 @@ const NetworkSpeed  android_netspeeds[] = {
     { "full", "no limit", 0, 0 },
     { NULL, NULL, 0, 0 }
 };
+const size_t android_netspeeds_count =
+    sizeof(android_netspeeds) / sizeof(android_netspeeds[0]);
 
 const NetworkLatency  android_netdelays[] = {
     /* FIXME: these numbers are totally imaginary */
@@ -155,6 +157,8 @@ const NetworkLatency  android_netdelays[] = {
     { "none", "no latency", 0, 0 },
     { NULL, NULL, 0, 0 }
 };
+const size_t android_netdelays_count =
+    sizeof(android_netdelays) / sizeof(android_netdelays[0]);
 
 /***********************************************************/
 /* network device redirectors */
@@ -194,7 +198,7 @@ static int parse_macaddr(uint8_t *macaddr, const char *p)
     long int offset;
 
     errno = 0;
-    offset = strtol(p, &last_char, 0);    
+    offset = strtol(p, &last_char, 0);
     if (0 == errno && '\0' == *last_char &&
             offset >= 0 && offset <= 0xFFFFFF) {
         macaddr[3] = (offset & 0xFF0000) >> 16;
@@ -213,7 +217,7 @@ static int parse_macaddr(uint8_t *macaddr, const char *p)
                 p++;
             }
         }
-        return 0;    
+        return 0;
     }
 
     return -1;
