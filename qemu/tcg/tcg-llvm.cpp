@@ -120,6 +120,7 @@ struct TCGLLVMContextPrivate {
 #ifdef CONFIG_S2E
     /* Declaration of a wrapper function for helpers */
     Function *m_helperTraceMemoryAccess;
+    Function *m_helperForkAndConcretize;
     Function* m_qemu_ld_helpers[5];
     Function* m_qemu_st_helpers[5];
 #endif
@@ -328,6 +329,9 @@ void TCGLLVMContextPrivate::initializeHelpers()
 {
     m_helperTraceMemoryAccess =
             m_module->getFunction("tcg_llvm_trace_memory_access");
+
+    m_helperForkAndConcretize =
+            m_module->getFunction("tcg_llvm_fork_and_concretize");
 
     m_qemu_ld_helpers[0] = m_module->getFunction("__ldb_mmu");
     m_qemu_ld_helpers[1] = m_module->getFunction("__ldw_mmu");
@@ -578,10 +582,20 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
 
     Value *v, *v1, *v2;
 
+#ifdef CONFIG_S2E
+    /* Call function to concretize index */
+    addr = m_builder.CreateCall(m_helperForkAndConcretize, addr);
+#endif
+
     v = m_builder.CreateLShr(addr, ConstantInt::get(addr->getType(),
                 (TARGET_PAGE_BITS - CPU_TLB_ENTRY_BITS)));
     v = m_builder.CreateAnd(v, ConstantInt::get(addr->getType(),
             ((CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS)));
+
+#ifdef CONFIG_S2E
+    /* Call function to concretize index */
+    v = m_builder.CreateCall(m_helperForkAndConcretize, v);
+#endif
 
     assert(m_tcgContext->temps[0].reg == TCG_AREG0);
     assert(getValue(0)->getType() == wordType());
@@ -962,7 +976,24 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
     __ST_OP(INDEX_op_st8_i32,   8, 32)
     __ST_OP(INDEX_op_st16_i32, 16, 32)
-    __ST_OP(INDEX_op_st_i32,   32, 32)
+    //__ST_OP(INDEX_op_st_i32,   32, 32)
+
+    case INDEX_op_st_i32: {
+        assert(getValue(args[0])->getType() == intType(32));
+        assert(getValue(args[1])->getType() == wordType());
+
+        Value* valueToStore = getValue(args[0]);
+        if (args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) {
+            valueToStore = m_builder.CreateCall(m_helperForkAndConcretize, valueToStore);
+        }
+
+        v = m_builder.CreateAdd(getValue(args[1]),
+                    ConstantInt::get(wordType(), args[2]));
+        v = m_builder.CreateIntToPtr(v, intPtrType(32));
+        m_builder.CreateStore(m_builder.CreateTrunc(
+                    valueToStore, intType(32)), v);
+        }
+        break;
 
 #if TCG_TARGET_REG_BITS == 64
     __LD_OP(INDEX_op_ld8u_i64,   8, 64, Z)

@@ -20,7 +20,7 @@ public:
     FunctionMonitor(S2E* s2e): Plugin(s2e) {}
 
     typedef sigc::signal<void, S2EExecutionState*> ReturnSignal;
-    typedef sigc::signal<void, S2EExecutionState*, ReturnSignal*> CallSignal;
+    typedef sigc::signal<void, S2EExecutionState*, FunctionMonitorState*> CallSignal;
 
     void initialize();
     
@@ -42,7 +42,7 @@ protected:
     void slotCall(S2EExecutionState* state, uint64_t pc);
     void slotRet(S2EExecutionState* state, uint64_t pc);
 
-    void slotTraceCall(S2EExecutionState *state, ReturnSignal *signal);
+    void slotTraceCall(S2EExecutionState *state, FunctionMonitorState *fns);
     void slotTraceRet(S2EExecutionState *state, int f);
 
 protected:
@@ -88,10 +88,17 @@ public:
     virtual FunctionMonitorState* clone() const;
     static PluginState *factory(Plugin *p, S2EExecutionState *s);
 
-
+    void registerReturnSignal(S2EExecutionState *s, FunctionMonitor::ReturnSignal &sig);
 
     friend class FunctionMonitor;
 };
+
+#define FUNCMON_REGISTER_RETURN(state, fns, func) \
+{ \
+    FunctionMonitor::ReturnSignal returnSignal; \
+    returnSignal.connect(sigc::mem_fun(*this, &func)); \
+    fns->registerReturnSignal(state, returnSignal); \
+}
 
 } // namespace plugins
 } // namespace s2e

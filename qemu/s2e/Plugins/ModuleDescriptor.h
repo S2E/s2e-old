@@ -94,6 +94,18 @@ struct ModuleDescriptor
     }
   };
 
+  struct ModuleByName {
+    bool operator()(const struct ModuleDescriptor& s1,
+      const struct ModuleDescriptor& s2) const {
+        return s1.Name < s2.Name;
+    }
+
+    bool operator()(const struct ModuleDescriptor* s1,
+      const struct ModuleDescriptor* s2) const {
+        return s1->Name < s2->Name;
+    }
+  };
+
   void Print(std::ostream &os) const {
     os << "Name=" << Name << std::hex <<
       " NativeBase=0x" << NativeBase << " LoadBase=0x" << LoadBase <<

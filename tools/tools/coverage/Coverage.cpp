@@ -211,7 +211,7 @@ void BasicBlockCoverage::printReport(std::ostream &os) const
     os << std::endl;
 
     os << "Basic block coverage:    " << std::dec << m_coveredBbs.size() << "/" << m_allBbs.size() <<
-            "(" << (m_uniqueTbs.size()*100/m_allBbs.size()) << "%)"  << std::endl;
+            "(" << (m_coveredBbs.size()*100/m_allBbs.size()) << "%)"  << std::endl;
 
 
     os << "Function block coverage: " << std::dec << touchedFunctionsBb << "/" << touchedFunctionsTotalBb <<

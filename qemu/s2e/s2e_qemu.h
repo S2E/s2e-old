@@ -50,6 +50,8 @@ struct S2E* s2e_initialize(int argc, char** argv,
 
 /** Relese S2E instance and all S2E-related objects. Called by main() */
 void s2e_close(struct S2E* s2e);
+void s2e_close_arg(void);
+
 
 void s2e_debug_print(const char *fmtstr, ...);
 
@@ -240,6 +242,10 @@ void s2e_update_tlb_entry(struct CPUX86State *env, int mmu_idx, int index, uintp
 void* s2e_tlb_fast_check_read(uintptr_t hostaddr, struct CPUSymbCache *ce, int size);
 
 void* s2e_tlb_fast_check_write(uintptr_t hostaddr, struct CPUSymbCache *ce, int size);
+
+//Check that no asyc request are pending
+int qemu_bh_empty(void);
+void qemu_bh_clear(void);
 
 #ifdef __cplusplus
 }

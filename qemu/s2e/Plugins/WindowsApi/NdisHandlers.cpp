@@ -232,7 +232,7 @@ bool NdisHandlers::writeParameter(S2EExecutionState *s, unsigned param, klee::re
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
@@ -248,7 +248,7 @@ void NdisHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitor::Re
     }
 }
 
-void NdisHandlers::KeStallExecutionProcessor(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::KeStallExecutionProcessor(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
@@ -259,7 +259,7 @@ void NdisHandlers::KeStallExecutionProcessor(S2EExecutionState* state, FunctionM
 }
 
 
-void NdisHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
@@ -280,7 +280,7 @@ void NdisHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonit
 }
 
 
-void NdisHandlers::NdisAllocateMemoryWithTag(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::NdisAllocateMemoryWithTag(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
@@ -289,7 +289,7 @@ void NdisHandlers::NdisAllocateMemoryWithTag(S2EExecutionState* state, FunctionM
         return;
     }
 
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisAllocateMemoryWithTagRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisAllocateMemoryWithTagRet)
 }
 
 void NdisHandlers::NdisAllocateMemoryWithTagRet(S2EExecutionState* state)
@@ -298,7 +298,7 @@ void NdisHandlers::NdisAllocateMemoryWithTagRet(S2EExecutionState* state)
     NdisAllocateMemoryRet(state);
 }
 
-void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
@@ -307,7 +307,7 @@ void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitor:
         return;
     }
 
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisAllocateMemoryRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisAllocateMemoryRet)
 }
 
 void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
@@ -327,13 +327,14 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
         return;
     }
 
-    if (m_consistency == OVERAPPROX) {
+    //XXX: this causes problems and false crashes, too slow
+    /*if (m_consistency == OVERAPPROX) {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
-    }else
+    }else*/
 
     //Consistency: LOCAL
-    if (m_consistency == LOCAL) {
+    if (m_consistency == LOCAL || m_consistency == OVERAPPROX) {
         /* Fork success and failure */
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
@@ -352,7 +353,7 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
     }
 }
 
-void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
@@ -374,7 +375,7 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
         return;
     }
 
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisReadConfigurationRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisReadConfigurationRet)
 }
 
 void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
@@ -450,14 +451,10 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
 
 }
 
-void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-
-    if (m_consistency == STRICT) {
-        return;
-    }
 
     if (m_consistency == OVERAPPROX) {
         //Pretend the interrupt is shared, to force the ISR to be called.
@@ -471,7 +468,7 @@ void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMoni
         }
     }
 
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterInterruptRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterInterruptRet)
 }
 
 void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
@@ -489,6 +486,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
 
     if (eax) {
         //The original function has failed
+        s2e()->getDebugStream() << __FUNCTION__ << ": original function failed with 0x" << std::hex << eax << std::endl;
         return;
     }
 
@@ -538,7 +536,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
     }
 }
 
-void NdisHandlers::NdisMRegisterIoPortRange(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::NdisMRegisterIoPortRange(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
@@ -547,7 +545,7 @@ void NdisHandlers::NdisMRegisterIoPortRange(S2EExecutionState* state, FunctionMo
         return;
     }
 
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterIoPortRangeRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterIoPortRangeRet)
 }
 
 void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
@@ -614,10 +612,14 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
 
 }
 
-void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == STRICT) {
+        return;
+    }
 
     //Save parameter data that we will use on return
     //We need to put them in the state-local storage, as parameters can be mangled by the caller
@@ -633,7 +635,7 @@ void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMoni
         return;
     }
 
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisReadNetworkAddressRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisReadNetworkAddressRet)
 }
 
 void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
@@ -665,7 +667,7 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
         return;
     }
 
-    //In all cases, inject symbolic values in the returned buffer (strict consistency)
+    //In all cases, inject symbolic values in the returned buffer
     for (unsigned i=0; i<Length; ++i) {
         std::stringstream ss;
         ss << __FUNCTION__ << "_" << i;
@@ -700,13 +702,12 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::entryPoint(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::entryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling NDIS entry point "
                 << " at " << hexval(state->getPc()) << std::endl;
 
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::entryPointRet));
-
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::entryPointRet)
 }
 
 void NdisHandlers::entryPointRet(S2EExecutionState* state)
@@ -720,10 +721,9 @@ void NdisHandlers::entryPointRet(S2EExecutionState* state)
     if (!NtSuccess(s2e(), state, eax)) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
                 " because EntryPoint failed with 0x" << std::hex << eax << std::endl;
-        s2e()->getExecutor()->terminateStateOnExit(*state);
+        s2e()->getExecutor()->terminateStateEarly(*state, "EntryPoint failed");
         return;
     }
-
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
@@ -732,13 +732,13 @@ void NdisHandlers::entryPointRet(S2EExecutionState* state)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
     if (m_consistency != STRICT) {
-        signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterMiniportRet));
+        FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterMiniportRet)
     }
 
     //Extract the function pointers from the passed data structure
@@ -791,8 +791,6 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
         return;
     }
 
-    //XXX: Need to find a way to catch failure inside the kernel if we do this
-#if 0
     if (m_consistency == OVERAPPROX) {
         //Replace the return value with a symbolic value
         if ((int)eax>=0) {
@@ -800,29 +798,27 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
             state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), ret);
         }
     }
-#endif
 
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::CheckForHang(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::CheckForHang(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::NdisMRegisterMiniportRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::CheckForHangRet)
 }
 
 void NdisHandlers::CheckForHangRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::InitializeHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::InitializeHandlerRet)
 
     /* Make the medium array symbolic */
     uint32_t pMediumArray, MediumArraySize;
@@ -837,18 +833,12 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitor::
         return;
     }
 
-    if (m_consistency == OVERAPPROX) {
-        if (pMediumArray) {
-            for (unsigned i=0; i<MediumArraySize; i++) {
-                std::stringstream ss;
-                ss << "MediumArray" << std::dec << "_" << i;
-                state->writeMemory(pMediumArray + i * 4, state->createSymbolicValue(klee::Expr::Int32, ss.str()));
-            }
-            writeParameter(state, 3, state->createSymbolicValue(klee::Expr::Int32, "MediumArraySize"));
-        }
-    }else
+    if (m_consistency == STRICT) {
+        return;
+    }
 
-    if (m_consistency == LOCAL) {
+    //if (m_consistency == LOCAL)
+    {
         //Make size properly constrained
         if (pMediumArray) {
             for (unsigned i=0; i<MediumArraySize; i++) {
@@ -884,10 +874,10 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::DisableInterruptHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::DisableInterruptHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::DisableInterruptHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::DisableInterruptHandlerRet)
 }
 
 void NdisHandlers::DisableInterruptHandlerRet(S2EExecutionState* state)
@@ -896,10 +886,10 @@ void NdisHandlers::DisableInterruptHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::EnableInterruptHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::EnableInterruptHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::EnableInterruptHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::EnableInterruptHandlerRet)
 }
 
 void NdisHandlers::EnableInterruptHandlerRet(S2EExecutionState* state)
@@ -908,10 +898,10 @@ void NdisHandlers::EnableInterruptHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::HaltHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HaltHandlerRet)
 }
 
 void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
@@ -923,10 +913,10 @@ void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::HandleInterruptHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HandleInterruptHandlerRet)
 }
 
 void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
@@ -939,10 +929,10 @@ void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::ISRHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::ISRHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::ISRHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ISRHandlerRet)
     m_devDesc->setInterrupt(false);
 }
 
@@ -957,10 +947,77 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery)
 {
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    s2e()->getDebugStream() << "Called with OID=0x" << std::hex << plgState->oid << std::endl;
+
+    if (m_consistency != OVERAPPROX) {
+        return;
+    }
+
+    //Fork the current state. One will have the original request, the other the symbolic one.
+    std::stringstream ss;
+    ss << __FUNCTION__ << "_OID";
+    klee::ref<klee::Expr> symbOid = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+
+    klee::ref<klee::Expr> isFakeOid = state->createSymbolicValue(klee::Expr::Bool, "IsFakeOid");
+    klee::ref<klee::Expr> cond = klee::EqExpr::create(isFakeOid, klee::ConstantExpr::create(1, klee::Expr::Bool));
+    klee::ref<klee::Expr> outcome =
+            klee::SelectExpr::create(cond, symbOid,
+                                         klee::ConstantExpr::create(plgState->oid, klee::Expr::Int32));
+
+    writeParameter(state, 1, outcome);
+
+    klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
+
+    S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+    S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+
+    //Save which state is fake
+    DECLARE_PLUGINSTATE_N(NdisHandlersState, ht, ts);
+    DECLARE_PLUGINSTATE_N(NdisHandlersState, hf, fs);
+
+    ht->fakeoid = true;
+    hf->fakeoid = false;
+}
+
+void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery)
+{
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    if (plgState->fakeoid) {
+        //Stop inconsistent execution immediately
+        s2e()->getExecutor()->terminateStateEarly(*state, "Killing state with fake OID");
+    }
+
+    s2e()->getDebugStream(state) << "State is not fake, continuing..." << std::endl;
+
+    if (isQuery) {
+        //Keep only those states that have a connected cable
+        if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
+            uint32_t status;
+            if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
+                s2e()->getDebugStream(state) << "OID_GEN_MEDIA_CONNECT_STATUS is " << status << std::endl;
+                if (status == 1) {
+                   //Disconnected, kill the state
+                   //XXX: For now, we force it to be connected, this is a problem for consistency !!!
+                    //It must be connected, otherwise NDIS will not forward any packet to the driver!
+                    status = 0;
+                    state->writeMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status));
+                  //s2e()->getExecutor()->terminateStateEarly(*state, "Media is disconnected");
+                }
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    static bool alreadyExplored = false;
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::QueryInformationHandlerRet));
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
@@ -970,41 +1027,27 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
     readConcreteParameter(state, 1, &plgState->oid);
     readConcreteParameter(state, 2, &plgState->pInformationBuffer);
 
-    if (m_consistency != OVERAPPROX) {
+    if (alreadyExplored) {
+        FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::QueryInformationHandlerRet)
+        s2e()->getDebugStream(state) << "Already explored " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
         return;
     }
 
-    //Overwrite OID with a symbolic value.
-    //TODO: adapt the buffer size to the OID value (by creating a fake stack frame, see previous s2e).
+    undoCallAndJumpToSymbolic(state);
 
-    std::stringstream ss;
-    ss << __FUNCTION__ << "_OID";
-    klee::ref<klee::Expr> oid = state->createSymbolicValue(klee::Expr::Int32, ss.str());
-    writeParameter(state, 1, oid);
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::QueryInformationHandlerRet)
+
+    alreadyExplored = true;
+    QuerySetInformationHandler(state, fns, true);
+
 }
 
 void NdisHandlers::QueryInformationHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
 
-    //Keep only those states that have a connected cable
-    DECLARE_PLUGINSTATE(NdisHandlersState, state);
-
-    if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
-        uint32_t status;
-        if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
-            s2e()->getDebugStream(state) << "OID_GEN_MEDIA_CONNECT_STATUS is " << status << std::endl;
-            if (status == 1) {
-               //Disconnected, kill the state
-               //XXX: For now, we force it to be connected, this is a problem for consistency !!!
-                //It must be connected, otherwise NDIS will not forward any packet to the driver!
-                status = 0;
-                state->writeMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status));
-              //s2e()->getExecutor()->terminateStateEarly(*state, "Media is disconnected");
-            }
-        }
-    }
-
+    QuerySetInformationHandlerRet(state, true);
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
@@ -1012,10 +1055,49 @@ void NdisHandlers::QueryInformationHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::ReconfigureHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    static bool alreadyExplored = false;
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    plgState->oid = (uint32_t)-1;
+    plgState->pInformationBuffer = 0;
+
+    readConcreteParameter(state, 1, &plgState->oid);
+    readConcreteParameter(state, 2, &plgState->pInformationBuffer);
+
+    if (alreadyExplored) {
+        FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SetInformationHandlerRet)
+        s2e()->getDebugStream(state) << "Already explored " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+        return;
+    }
+
+    undoCallAndJumpToSymbolic(state);
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SetInformationHandlerRet)
+
+    alreadyExplored = true;
+    QuerySetInformationHandler(state, fns, false);
+}
+
+void NdisHandlers::SetInformationHandlerRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    QuerySetInformationHandlerRet(state, false);
+
+    m_manager->succeedState(state);
+    m_functionMonitor->eraseSp(state, state->getPc());
+    throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::ReconfigureHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::ReconfigureHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ReconfigureHandlerRet)
 }
 
 void NdisHandlers::ReconfigureHandlerRet(S2EExecutionState* state)
@@ -1024,10 +1106,10 @@ void NdisHandlers::ReconfigureHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::ResetHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::ResetHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::ResetHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ResetHandlerRet)
 }
 
 void NdisHandlers::ResetHandlerRet(S2EExecutionState* state)
@@ -1040,10 +1122,10 @@ void NdisHandlers::ResetHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::SendHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::SendHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::SendHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SendHandlerRet)
 }
 
 void NdisHandlers::SendHandlerRet(S2EExecutionState* state)
@@ -1059,10 +1141,10 @@ void NdisHandlers::SendHandlerRet(S2EExecutionState* state)
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::SendPacketsHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::SendPacketsHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::SendPacketsHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SendPacketsHandlerRet)
 }
 
 void NdisHandlers::SendPacketsHandlerRet(S2EExecutionState* state)
@@ -1075,35 +1157,10 @@ void NdisHandlers::SendPacketsHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
+void NdisHandlers::TransferDataHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::SetInformationHandlerRet));
-
-    if (m_consistency != OVERAPPROX) {
-        return;
-    }
-
-    //Overwrite OID with a symbolic value.
-    //TODO: adapt the buffer size to the OID value (by creating a fake stack frame, see previous s2e).
-
-    std::stringstream ss;
-    ss << __FUNCTION__ << "_OID";
-    klee::ref<klee::Expr> oid = state->createSymbolicValue(klee::Expr::Int32, ss.str());
-    writeParameter(state, 1, oid);
-}
-
-void NdisHandlers::SetInformationHandlerRet(S2EExecutionState* state)
-{
-    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-void NdisHandlers::TransferDataHandler(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal)
-{
-    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    signal->connect(sigc::mem_fun(*this, &NdisHandlers::TransferDataHandlerRet));
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::TransferDataHandlerRet)
 }
 
 void NdisHandlers::TransferDataHandlerRet(S2EExecutionState* state)
@@ -1122,6 +1179,7 @@ NdisHandlersState::NdisHandlersState()
     pNetworkAddress = 0;
     pNetworkAddressLength = 0;
     hasIsrHandler = false;
+    fakeoid = false;
 }
 
 NdisHandlersState::~NdisHandlersState()

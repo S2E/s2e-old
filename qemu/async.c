@@ -25,6 +25,10 @@
 #include "qemu-common.h"
 #include "qemu-aio.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 /*
  * An AsyncContext protects the callbacks of AIO requests and Bottom Halves
  * against interfering with each other. A typical example is qcow2 that accepts
@@ -164,6 +168,35 @@ int qemu_bh_poll(void)
 
     return ret;
 }
+
+#ifdef CONFIG_S2E
+int qemu_bh_empty(void)
+{
+    QEMUBH *bh;
+    int ret;
+
+    ret = 0;
+    for (bh = async_context->first_bh; bh; bh = bh->next) {
+        if (!bh->deleted) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+void qemu_bh_clear(void)
+{
+    QEMUBH *bh, **bhp;
+
+    bhp = &async_context->first_bh;
+    while (*bhp) {
+        bh = *bhp;
+        *bhp = bh->next;
+        qemu_free(bh);
+    }
+}
+
+#endif
 
 void qemu_bh_schedule_idle(QEMUBH *bh)
 {

@@ -136,6 +136,8 @@ public:
     //XXX: A plugin can hold cached state information. When a state is deleted,
     //remove all the cached info from all plugins.
     void refreshPlugins();
+
+    void writeBitCodeToFile();
 };
 
 } // namespace s2e

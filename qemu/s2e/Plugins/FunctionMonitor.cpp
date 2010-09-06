@@ -88,10 +88,14 @@ void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
 }
 
 
-void FunctionMonitor::slotTraceCall(S2EExecutionState *state, ReturnSignal *signal)
+void FunctionMonitor::slotTraceCall(S2EExecutionState *state, FunctionMonitorState *fns)
 {
     static int f = 0;
-    signal->connect(sigc::bind(sigc::mem_fun(*this, &FunctionMonitor::slotTraceRet), f));
+
+    FunctionMonitor::ReturnSignal returnSignal;
+    returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &FunctionMonitor::slotTraceRet), f));
+    fns->registerReturnSignal(state, returnSignal);
+
     s2e()->getMessagesStream(state) << "Calling function " << f
                 << " at " << hexval(state->getPc()) << std::endl;
     ++f;
@@ -116,7 +120,10 @@ FunctionMonitorState::~FunctionMonitorState()
 
 FunctionMonitorState* FunctionMonitorState::clone() const
 {
-    return new FunctionMonitorState(*this);
+    FunctionMonitorState *ret = new FunctionMonitorState(*this);
+    m_plugin->s2e()->getDebugStream() << "Forking FunctionMonitorState ret=" << std::hex << ret << std::endl;
+    assert(ret->m_returnDescriptors.size() == m_returnDescriptors.size());
+    return ret;
 }
 
 PluginState *FunctionMonitorState::factory(Plugin *p, S2EExecutionState *s)
@@ -148,15 +155,6 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
 {
     target_ulong cr3 = state->getPid();
     target_ulong eip = state->getPc();
-    target_ulong esp;
-    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
-                                             &esp, sizeof(target_ulong));
-    if(!ok) {
-        m_plugin->s2e()->getWarningsStream(state)
-            << "Function call with symbolic ESP!" << std::endl
-            << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << std::endl;
-        return;
-    }
 
     if (!m_newCallDescriptors.empty()) {
         m_callDescriptors.insert(m_newCallDescriptors.begin(), m_newCallDescriptors.end());
@@ -173,11 +171,7 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
                 cr3 = m_plugin->m_monitor->getPid(state, pc);
             }
             if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
-                ReturnDescriptor descriptor = {cr3, FunctionMonitor::ReturnSignal() };
-                cd.signal.emit(state, &descriptor.signal);
-                if(!descriptor.signal.empty()) {
-                    m_returnDescriptors.insert(std::make_pair(esp, descriptor));
-                }
+                cd.signal.emit(state, this);
             }
         }
         if (!m_newCallDescriptors.empty()) {
@@ -198,11 +192,7 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
                 cr3 = m_plugin->m_monitor->getPid(state, pc);
             }
             if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
-                ReturnDescriptor descriptor = { it->second.cr3 , FunctionMonitor::ReturnSignal() };
-                cd.signal.emit(state, &descriptor.signal);
-                if(!descriptor.signal.empty()) {
-                    m_returnDescriptors.insert(std::make_pair(esp, descriptor));
-                }
+                cd.signal.emit(state, this);
             }
         }
         if (!m_newCallDescriptors.empty()) {
@@ -210,6 +200,34 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
             m_newCallDescriptors.clear();
         }
     }
+}
+
+/**
+ *  A call handler can invoke this function to register a return handler.
+ */
+void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, FunctionMonitor::ReturnSignal &sig)
+{
+    if(sig.empty()) {
+        return;
+    }
+
+    uint32_t esp;
+
+    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
+                                             &esp, sizeof(target_ulong));
+    if(!ok) {
+        m_plugin->s2e()->getWarningsStream(state)
+            << "Function call with symbolic ESP!" << std::endl
+            << "  EIP=" << hexval(state->getPc()) << " CR3=" << hexval(state->getPid()) << std::endl;
+        return;
+    }
+
+    uint64_t pid = state->getPid();
+    if (m_plugin->m_monitor) {
+        pid = m_plugin->m_monitor->getPid(state, state->getPc());
+    }
+    ReturnDescriptor descriptor = {pid, sig };
+    m_returnDescriptors.insert(std::make_pair(esp, descriptor));
 }
 
 /**
@@ -236,6 +254,9 @@ void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool e
             << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << std::endl;
         return;
     }
+
+    //m_plugin->s2e()->getDebugStream() << "ESP AT RETURN 0x" << std::hex << esp <<
+    //        " plgstate=0x" << this << " EmitSignal=" << emitSignal <<  std::endl;
 
     if (m_returnDescriptors.empty()) {
         return;

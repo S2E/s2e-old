@@ -299,10 +299,10 @@ int cpu_exec(CPUState *env1)
      * to make sure that the state is not executed anymore
      */
     if (setjmp(env->jmp_env_s2e) != 0) {
-        cpu_single_env = NULL;
         env->exception_index = -1;
         g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
         s2e_qemu_finalize_state(g_s2e, g_s2e_state);
+        cpu_single_env = NULL;
         return -1;
     }
 #endif

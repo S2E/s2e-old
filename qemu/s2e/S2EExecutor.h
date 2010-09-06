@@ -177,6 +177,10 @@ public:
         return searcher;
     }
 
+    void setSearcher(klee::Searcher *s) {
+        searcher = s;
+    }
+
     /** Called on fork, used to trace forks */
     StatePair fork(klee::ExecutionState &current,
                    klee::ref<klee::Expr> condition, bool isInternal);
@@ -200,6 +204,16 @@ protected:
                                     std::vector<klee::ref<klee::Expr> > &args);
 
     static void handlerTracePortAccess(klee::Executor* executor,
+                                         klee::ExecutionState* state,
+                                         klee::KInstruction* target,
+                                         std::vector<klee::ref<klee::Expr> > &args);
+
+    static void handlerOnTlbMiss(klee::Executor* executor,
+                                         klee::ExecutionState* state,
+                                         klee::KInstruction* target,
+                                         std::vector<klee::ref<klee::Expr> > &args);
+
+    static void handleForkAndConcretize(klee::Executor* executor,
                                          klee::ExecutionState* state,
                                          klee::KInstruction* target,
                                          std::vector<klee::ref<klee::Expr> > &args);

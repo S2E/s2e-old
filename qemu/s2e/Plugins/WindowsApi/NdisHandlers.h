@@ -32,7 +32,7 @@ namespace plugins {
     }
 
 #define DECLARE_NDIS_ENTRY_POINT(name) \
-    void name(S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal); \
+    void name(S2EExecutionState* state, FunctionMonitorState *fns); \
     void name##Ret(S2EExecutionState* state)
 
 #define REGISTER_IMPORT(I, dll, name) \
@@ -43,7 +43,7 @@ class NdisHandlers : public Plugin
     S2E_PLUGIN
 public:
     typedef std::set<std::string> StringSet;
-    typedef void (NdisHandlers::*FunctionHandler)( S2EExecutionState* state, FunctionMonitor::ReturnSignal *signal );
+    typedef void (NdisHandlers::*FunctionHandler)( S2EExecutionState* state, FunctionMonitorState *fns );
 
     NdisHandlers(S2E* s2e): Plugin(s2e) {}
 
@@ -116,6 +116,9 @@ private:
     DECLARE_NDIS_ENTRY_POINT(SendPacketsHandler);
     DECLARE_NDIS_ENTRY_POINT(SetInformationHandler);
     DECLARE_NDIS_ENTRY_POINT(TransferDataHandler);
+
+    void QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery);
+    void QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery);
 };
 
 //XXX: We assume that we are testing only one driver at a time.
@@ -128,6 +131,7 @@ private:
     uint32_t pConfigParam;
     bool hasIsrHandler;
     uint32_t oid, pInformationBuffer;
+    bool fakeoid;
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();

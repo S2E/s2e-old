@@ -18,6 +18,7 @@
 #include <llvm/Module.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Bitcode/ReaderWriter.h>
 
 #include <klee/Interpreter.h>
 #include <klee/Common.h>
@@ -110,8 +111,25 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     initPlugins();
 
     /* Init the custom memory allocator */
-    void slab_init();
+    //void slab_init();
     //slab_init();
+
+    atexit(s2e_close_arg);
+}
+
+void S2E::writeBitCodeToFile()
+{
+    string execTraceFile = getOutputDirectory();
+    execTraceFile += "/";
+    execTraceFile += "module.bc";
+
+    ofstream o(execTraceFile.c_str(), ofstream::binary);
+
+    llvm::Module *module = m_tcgLLVMContext->getModule();
+
+    // Output the bitcode file to stdout
+    llvm::WriteBitcodeToFile(module, o);
+    o.close();
 }
 
 S2E::~S2E()
@@ -122,6 +140,7 @@ S2E::~S2E()
     delete m_pluginsFactory;
     delete m_database;
 
+    writeBitCodeToFile();
 
     // KModule wants to delete the llvm::Module in destroyer.
     // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
@@ -410,6 +429,11 @@ S2E* s2e_initialize(int argc, char** argv,
 void s2e_close(S2E *s2e)
 {
     delete s2e;
+}
+
+void s2e_close_arg()
+{
+    delete g_s2e;
 }
 
 void s2e_debug_print(const char *fmtstr, ...)

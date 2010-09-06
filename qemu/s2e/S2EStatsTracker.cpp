@@ -8,6 +8,11 @@
 
 #include <llvm/System/Process.h>
 
+#include <sstream>
+
+#include <stdio.h>
+#include <inttypes.h>
+
 namespace klee {
 namespace stats {
     Statistic translationBlocks("TranslationBlocks", "TBs");
@@ -27,6 +32,38 @@ using namespace klee;
 using namespace llvm;
 
 namespace s2e {
+
+/**
+ *  Replaces the broken LLVM functions
+ */
+uint64_t S2EStatsTracker::getProcessMemoryUsage()
+{
+#ifdef _WIN32
+#error Implement memory usage detection for Windows
+#else
+    pid_t myPid = getpid();
+    std::stringstream ss;
+    ss << "/proc/" << myPid << "/status";
+
+    FILE *fp = fopen(ss.str().c_str(), "r");
+    if (!fp) {
+        return 0;
+    }
+
+    uint64_t peakMem=0;
+
+    char buffer[512];
+    while(!peakMem && fgets(buffer, sizeof(buffer), fp)) {
+        if (sscanf(buffer, "VmSize: %" PRIu64, &peakMem)) {
+            break;
+        }
+    }
+
+    fclose(fp);
+
+    return peakMem * 1024;
+#endif
+}
 
 void S2EStatsTracker::writeStatsHeader() {
   *statsFile //<< "('Instructions',"
@@ -85,7 +122,7 @@ void S2EStatsTracker::writeStatsLine() {
              << "," << stats::cexCacheTime / 1000000.
              << "," << stats::forkTime / 1000000.
              << "," << stats::resolveTime / 1000000.
-             << "," << sys::Process::GetTotalMemoryUsage()
+             << "," << getProcessMemoryUsage() //sys::Process::GetTotalMemoryUsage()
              << ")\n";
   statsFile->flush();
 }

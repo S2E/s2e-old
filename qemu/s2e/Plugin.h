@@ -50,10 +50,16 @@ public:
 };
 
 #define DECLARE_PLUGINSTATE(c, execstate) \
-    c *plgState = (c*)getPluginState(execstate, &c::factory)
+    c *plgState = static_cast<c*>(getPluginState(execstate, &c::factory))
+
+#define DECLARE_PLUGINSTATE_N(c, name, execstate) \
+    c *name = static_cast<c*>(getPluginState(execstate, &c::factory))
 
 #define DECLARE_PLUGINSTATE_CONST(c, execstate) \
-    const c *plgState = (c*)getPluginState(execstate, &c::factory)
+    const c *plgState = static_cast<c*>(getPluginState(execstate, &c::factory))
+
+#define DECLARE_PLUGINSTATE_NCONST(c, name, execstate) \
+    const c *name = static_cast<c*>(getPluginState(execstate, &c::factory))
 
 class PluginState
 {

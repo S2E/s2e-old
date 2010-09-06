@@ -1,0 +1,339 @@
+extern "C" {
+#include "config.h"
+#include "qemu-common.h"
+}
+
+#include "MaxTbSearcher.h"
+#include <s2e/S2E.h>
+#include <s2e/ConfigFile.h>
+#include <s2e/Utils.h>
+#include <s2e/S2EExecutor.h>
+
+#include <iostream>
+
+#include <llvm/Instructions.h>
+#include <llvm/Constants.h>
+
+namespace s2e {
+namespace plugins {
+
+using namespace llvm;
+
+S2E_DEFINE_PLUGIN(MaxTbSearcher, "Prioritizes states that are about to execute unexplored translation blocks",
+                  "MaxTbSearcher", "ModuleExecutionDetector");
+
+void MaxTbSearcher::initialize()
+{
+
+    m_moduleExecutionDetector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
+    m_searcherInited = false;
+    m_parentSearcher = NULL;
+
+    m_sorter.p = this;
+    m_states = StateSet(m_sorter);
+
+    //XXX: Take care of module load/unload
+    m_moduleExecutionDetector->onModuleTranslateBlockEnd.connect(
+            sigc::mem_fun(*this, &MaxTbSearcher::onModuleTranslateBlockEnd)
+            );
+
+}
+
+void MaxTbSearcher::initializeSearcher()
+{
+    if (m_searcherInited) {
+        return;
+    }
+
+    m_parentSearcher = s2e()->getExecutor()->getSearcher();
+    assert(m_parentSearcher);
+    s2e()->getExecutor()->setSearcher(this);
+    m_searcherInited = true;
+
+}
+
+bool MaxTbSearcher::isExplored(S2EExecutionState *s, uint64_t absTargetPc)
+{
+    const ModuleDescriptor* md = m_moduleExecutionDetector->getCurrentDescriptor(s);
+    assert(md);
+
+    uint64_t targetPc = md->ToNativeBase(absTargetPc);
+    TbsByModule::iterator it = m_coveredTbs.find(*md);
+    if (it == m_coveredTbs.end()) {
+        return false;
+    }else {
+        if ((*it).second.find(targetPc) == (*it).second.end()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+#if 0
+void MaxTbSearcher::addTb(S2EExecutionState *s, uint64_t absTargetPc)
+{
+    const ModuleDescriptor* md = m_moduleExecutionDetector->getCurrentDescriptor(s);
+    assert(md);
+
+    uint64_t targetPc = md->ToNativeBase(absTargetPc);
+    m_coveredTbs[*md].insert(targetPc);
+}
+#endif
+
+static uint64_t GetPcAssignment(const BasicBlock *bb)
+{
+    const TerminatorInst *term = bb->getTerminator();
+    assert(term);
+
+    if (!dyn_cast<ReturnInst>(term)) {
+        return false;
+    }
+
+    //The store instruction changing the program counter must be the
+    //third instruction from the end of the block
+    unsigned Idx = 0;
+    const BasicBlock::InstListType &InstList = bb->getInstList();
+    foreach2(iit, InstList.rbegin(), InstList.rend()) {
+      if (const StoreInst *Store = dyn_cast<StoreInst>(&*iit)) {
+        if (Idx == 1) {
+          const Value *v = Store->getOperand(0);
+          if (const ConstantInt *Ci = dyn_cast<ConstantInt>(v)) {
+            const uint64_t* Int = Ci->getValue().getRawData();
+            return *Int;
+          }
+        }
+        Idx ++;
+      }
+    }
+    return 0;
+}
+
+uint64_t MaxTbSearcher::computeTargetPc(S2EExecutionState *state)
+{
+    const Instruction *instr = state->pc->inst;
+
+    //Check whether we are the first instruction of the block
+    const BasicBlock *BB = instr->getParent();
+    if (instr != &*BB->begin()) {
+        return 0;
+    }
+
+    //There can be only one predecessor jumping to the terminating block (xxx: check this)
+    const BasicBlock *PredBB = BB->getSinglePredecessor();
+    if (!PredBB) {
+        return 0;
+    }
+
+    const BranchInst *Bi = dyn_cast<BranchInst>(PredBB->getTerminator());
+    if (!Bi) {
+        return 0;
+    }
+
+    s2e()->getDebugStream() << "MaxTbSearcher: " << *instr << std::endl;
+    return GetPcAssignment(BB);
+}
+
+
+/**
+ *  Prioritize the current state while it keeps discovering new blocks.
+ *  XXX: the implementation can add the state even if the targetpc is not reachable
+ *  because of path constraints.
+ */
+void MaxTbSearcher::onModuleTranslateBlockEnd(
+    ExecutionSignal *signal,
+    S2EExecutionState* state,
+    const ModuleDescriptor &,
+    TranslationBlock *tb,
+    uint64_t endPc,
+    bool staticTarget,
+    uint64_t targetPc)
+{
+    initializeSearcher();
+
+    /*if (staticTarget) {
+        if (!isExplored(state, targetPc)) {
+            m_states.insert(state);
+        }
+    }*/
+    signal->connect(
+         sigc::mem_fun(*this, &MaxTbSearcher::onTraceTb)
+    );
+}
+
+
+
+//Update the metrics
+void MaxTbSearcher::onTraceTb(S2EExecutionState* state, uint64_t pc)
+{
+    //Increment the number of times the current tb is executed
+    const ModuleDescriptor *curModule = m_moduleExecutionDetector->getModule(state, pc);
+    assert(curModule);
+
+    const ModuleDescriptor *md = m_moduleExecutionDetector->getCurrentDescriptor(state);
+
+    uint64_t tbVa = curModule->ToRelative(state->getTb()->pc);
+
+    if (!md) {
+        m_states.erase(state);
+        m_coveredTbs[*curModule][tbVa]++;
+        DECLARE_PLUGINSTATE(MaxTbSearcherState, state);
+        plgState->m_metric = m_coveredTbs[*curModule][tbVa];
+        plgState->m_metric *= state->queryCost < 1 ? 1 : state->queryCost;
+        m_states.insert(state);
+        return;
+    }
+
+    uint64_t newPc = md->ToRelative(state->getPc());
+
+
+    TbMap &tbm = m_coveredTbs[*md];
+    TbMap::iterator NewTbIt = tbm.find(newPc);
+    TbMap::iterator CurTbIt = tbm.find(tbVa);
+
+    unsigned CurTbFreq = 0;
+    //unsigned NewTbFreq = 0;
+
+    bool NextTbIsNew = NewTbIt == tbm.end();
+    bool CurTbIsNew = CurTbIt == tbm.end();
+
+    m_states.erase(state);
+
+    /**
+     * Update the frequency of the current and next
+     * translation blocks
+     */
+    if (CurTbIsNew) {
+      tbm[tbVa] = 1;
+      CurTbFreq = 1;
+    }else {
+      CurTbFreq = (*CurTbIt).second + 1;
+      (*CurTbIt).second++;
+    }
+
+    if (NextTbIsNew && md) {
+      tbm[newPc] = 0;
+    }
+
+    if (NextTbIsNew) {
+      tbm[newPc] = 0;
+    }
+
+    DECLARE_PLUGINSTATE(MaxTbSearcherState, state);
+    plgState->m_metric = tbm[newPc];
+    plgState->m_metric *= state->queryCost < 1 ? 1 : state->queryCost;
+
+    m_states.insert(state);
+}
+
+klee::ExecutionState& MaxTbSearcher::selectState()
+{
+    //If there are no prioritized states, revert to the parent searcher
+    StateSet::iterator it;
+
+#if 0
+    uint64_t absNextPc = 0;
+    while((it = m_states.begin()) != m_states.end()) {
+        S2EExecutionState *es = dynamic_cast<S2EExecutionState*>(*it);
+        m_states.erase(es);
+        ++it;
+
+        //Get the program counter of the selected state, and add it
+        //to the list of explored translation blocks
+        absNextPc = computeTargetPc(es);
+        if(absNextPc != 0) {
+            s2e()->getDebugStream() << "MaxTbSearcher: selected state going to 0x" << std::hex << absNextPc << std::endl;
+            addTb(es, absNextPc);
+            return *es;
+        }
+    }while(absNextPc);
+#endif
+
+    if (m_states.size() > 0) {
+        return **m_states.begin();
+    }
+
+    return m_parentSearcher->selectState();
+
+}
+
+bool MaxTbSearcher::updatePc(S2EExecutionState *es)
+{
+    const ModuleDescriptor* md = m_moduleExecutionDetector->getCurrentDescriptor(es);
+    if (!md) {
+        return false;
+    }
+
+    //Retrieve the next program counter of the state
+    uint64_t absNextPc = computeTargetPc(es); //XXX: fix me
+
+    if (!absNextPc) {
+        //Could not determine next pc
+        return false;
+    }
+
+    DECLARE_PLUGINSTATE(MaxTbSearcherState, es);
+
+    //If not covered, add the forked state to the wait list
+    plgState->m_metric = m_coveredTbs[*md][md->ToRelative(absNextPc)];
+    m_states.insert(es);
+    return true;
+}
+
+void MaxTbSearcher::update(klee::ExecutionState *current,
+                    const std::set<klee::ExecutionState*> &addedStates,
+                    const std::set<klee::ExecutionState*> &removedStates)
+{
+    m_parentSearcher->update(current, addedStates, removedStates);
+
+    foreach2(it, removedStates.begin(), removedStates.end()) {
+        S2EExecutionState *es = dynamic_cast<S2EExecutionState*>(*it);
+        m_states.erase(es);
+    }
+
+    foreach2(it, addedStates.begin(), addedStates.end()) {
+        S2EExecutionState *es = dynamic_cast<S2EExecutionState*>(*it);
+        updatePc(es);
+    }
+}
+
+bool MaxTbSearcher::empty()
+{
+    if (!m_states.empty()) {
+        return false;
+    }
+
+    return m_parentSearcher->empty();
+}
+
+
+MaxTbSearcherState::MaxTbSearcherState()
+{
+
+}
+
+MaxTbSearcherState::MaxTbSearcherState(S2EExecutionState *s, Plugin *p)
+{
+    m_metric = 0;
+    m_plugin = static_cast<MaxTbSearcher*>(p);
+    m_state = s;
+}
+
+MaxTbSearcherState::~MaxTbSearcherState()
+{
+    //Notify the searcher that our state went away
+    m_plugin->m_states.erase(m_state);
+}
+
+PluginState *MaxTbSearcherState::clone() const
+{
+    return new MaxTbSearcherState(*this);
+}
+
+PluginState *MaxTbSearcherState::factory(Plugin *p, S2EExecutionState *s)
+{
+    MaxTbSearcherState *ret = new MaxTbSearcherState(s, p);
+    return ret;
+}
+
+} // namespace plugins
+} // namespace s2e

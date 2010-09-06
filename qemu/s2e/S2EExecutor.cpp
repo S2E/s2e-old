@@ -52,6 +52,7 @@ uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
 #include <klee/UserSearcher.h>
 #include <klee/CoreStats.h>
 #include <klee/TimerStatIncrementer.h>
+#include <klee/Solver.h>
 
 #include <llvm/System/TimeValue.h>
 
@@ -89,6 +90,12 @@ namespace {
     StateSharedMemory("state-shared-memory",
             cl::desc("Allow unimportant memory regions (like video RAM) to be shared between states"),
             cl::init(true));
+
+
+    cl::opt<unsigned>
+    ForkRange("fork-range",
+            cl::desc("How many concrete states to fork from symbolic values"),
+            cl::init(256));
 
 
 }
@@ -252,6 +259,32 @@ void S2EExecutor::handlerTraceMemoryAccess(Executor* executor,
     }
 }
 
+void S2EExecutor::handlerOnTlbMiss(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector<klee::ref<klee::Expr> > &args)
+{
+    assert(dynamic_cast<S2EExecutor*>(executor));
+
+    assert(args.size() == 4);
+
+    S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
+    ref<Expr> addr = args[2];
+    bool isWrite = cast<klee::ConstantExpr>(args[3])->getZExtValue();
+
+    if(!isa<klee::ConstantExpr>(addr)) {
+        g_s2e->getWarningsStream()
+                << "Warning: s2e_on_tlb_miss does not support symbolic addresses"
+                << std::endl;
+        return;
+    }
+
+    uint64_t constAddress;
+    constAddress = cast<klee::ConstantExpr>(addr)->getZExtValue(64);
+
+    s2e_on_tlb_miss(g_s2e, s2eState, constAddress, isWrite);
+}
+
 void S2EExecutor::handlerTracePortAccess(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
@@ -276,6 +309,70 @@ void S2EExecutor::handlerTracePortAccess(Executor* executor,
     }
 }
 
+void S2EExecutor::handleForkAndConcretize(Executor* executor,
+                                     ExecutionState* state,
+                                     klee::KInstruction* target,
+                                     std::vector<klee::ref<klee::Expr> > &args)
+{
+    assert(args.size() == 1);
+
+    klee::ref<klee::Expr> index = args[0];
+
+    S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+
+    if(isa<klee::ConstantExpr>(index)) {
+        s2eExecutor->bindLocal(target, *state, index);
+        return;
+    }
+
+    g_s2e->getDebugStream() << index << std::endl;
+
+    std::pair< ref<Expr>, ref<Expr> > res = s2eExecutor->getSolver()->
+                                            getRange(klee::Query(state->constraints, index));
+
+    assert (isa<klee::ConstantExpr>(res.first) && isa<klee::ConstantExpr>(res.second));
+
+    uint64_t a = cast<klee::ConstantExpr>(res.first)->getZExtValue(64);
+    uint64_t b = cast<klee::ConstantExpr>(res.second)->getZExtValue(64);
+
+    if (a > b) {
+      unsigned t;
+      t = b;
+      b = a;
+      a = t;
+    }
+
+    // Fork in the range
+    Executor::StatePair p(state, NULL);
+
+    std::vector<ref<Expr> > conditions;
+    unsigned total=0;
+    for (unsigned i=a; i<=b && total<ForkRange; i++, total++) {
+      ref<Expr> constr = klee::EqExpr::create(index, klee::ConstantExpr::create(i, index.get()->getWidth()));
+      klee::Query q(state->constraints, constr);
+      bool qres;
+      if (s2eExecutor->getSolver()->mayBeTrue(q, qres) && qres) {
+        conditions.push_back(constr);
+      }
+    }
+
+    std::vector<ExecutionState *> branches;
+    s2eExecutor->branch(*state, conditions, branches);
+
+    for (unsigned i=0; i<conditions.size(); i++) {
+        klee::ref<klee::ConstantExpr> value;
+
+      klee::Query q(branches[i]->constraints, index);
+      if (s2eExecutor->getSolver()->getValue(q, value)) {
+        s2eExecutor->bindLocal(target, *branches[i], value);
+      }else {
+        //This should not happen because of the mayBeTrue check above.
+        assert(false);
+        executor->terminateStateEarly(*state, "Could not concretize memory index, does not respect constraints.");
+      }
+
+  }
+}
 
 S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                     const InterpreterOptions &opts,
@@ -376,7 +473,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writel_mmu)
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
 
-    __DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
+    //__DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
     __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
     __DEFINE_EXT_FUNCTION(s2e_is_port_symbolic)
 
@@ -426,14 +523,23 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     m_dummyMain = kmodule->functionMap[dummyMain];
 
-    Function* traceFunction =
-            kmodule->module->getFunction("tcg_llvm_trace_memory_access");
+    Function* traceFunction;
+
+    traceFunction = kmodule->module->getFunction("tcg_llvm_trace_memory_access");
     assert(traceFunction);
     addSpecialFunctionHandler(traceFunction, handlerTraceMemoryAccess);
 
     traceFunction = kmodule->module->getFunction("tcg_llvm_trace_port_access");
     assert(traceFunction);
     addSpecialFunctionHandler(traceFunction, handlerTracePortAccess);
+
+    traceFunction = kmodule->module->getFunction("s2e_on_tlb_miss");
+    assert(traceFunction);
+    addSpecialFunctionHandler(traceFunction, handlerOnTlbMiss);
+
+    traceFunction = kmodule->module->getFunction("tcg_llvm_fork_and_concretize");
+    assert(traceFunction);
+    addSpecialFunctionHandler(traceFunction, handleForkAndConcretize);
 
     searcher = constructUserSearcher(*this);
 
@@ -983,6 +1089,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
 S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
+    updateStates(state);
+
     if (m_stateManager) {
         //Try to kill the useless states. Even the current state can be killed at this point.
         try {
@@ -992,13 +1100,21 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         }
     }
 
-    updateStates(state);
     if(states.empty()) {
         m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
         exit(0);
     }
 
-
+    //XXX: Do not switch states if the current one has uncompleted asynchronous requests
+    //because QEMU does not save such requests as part of the snapshot.
+    //(how does QEMU properly suspends/resumes snapshots then?)
+    
+    qemu_bh_poll(); //Try to flush as much as possible first
+    /*if (!qemu_bh_empty()) {
+	//XXX: If the current state is killed, we'd need to clear the queue manually
+	assert(states.find(state) != states.end());
+	return state;
+    }*/
 
     ExecutionState& newKleeState = searcher->selectState();
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
@@ -1008,6 +1124,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     assert(states.find(newState) != states.end());
 
     if(newState != state) {
+        qemu_bh_clear();
         doStateSwitch(state, newState);
     }
 
@@ -1478,7 +1595,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 #else
             executeKlee |= !os->isAllConcrete();
 #endif
-        } //forced concretizations
+            } //forced concretizations
         }
         processTimers(state, 0);
     }

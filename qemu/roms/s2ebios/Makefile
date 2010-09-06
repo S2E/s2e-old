@@ -14,10 +14,10 @@ build-all: s2e-bios.bin
 	
 
 s2e-bios-low.bin : $(S2E_BIOS_SOURCE)
-	$(call quiet-command,$(ASM) -i$(VPATH)/ -f bin -o $@ $(VPATH)/s2e-bios-low.asm,"  Building $(TARGET_DIR)$@")
+	$(call quiet-command,$(ASM) -O1 -i$(VPATH)/ -f bin -o $@ $(VPATH)/s2e-bios-low.asm,"  Building $(TARGET_DIR)$@")
 
 s2e-bios-up.bin : $(S2E_BIOS_SOURCE)
-	$(call quiet-command,$(ASM) -i$(VPATH)/ -f bin -o $@ $(VPATH)/s2e-bios-up.asm,"  Building $(TARGET_DIR)$@")
+	$(call quiet-command,$(ASM) -O1 -i$(VPATH)/ -f bin -o $@ $(VPATH)/s2e-bios-up.asm,"  Building $(TARGET_DIR)$@")
 
 s2e-bios.bin: s2e-bios-up.bin s2e-bios-low.bin
 	dd if=s2e-bios-low.bin of=$@ bs=65536 count=1

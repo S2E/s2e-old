@@ -99,15 +99,15 @@ DrvStruc:
         at HandleInterruptHandler,      dd        0
         at InitializeHandler,           dd        NdisInitializeHandler
         at ISRHandler,                  dd        0
-        at QueryInformationHandler,     dd        0
+        at QueryInformationHandler,     dd        NdisQueryInformationHandler
         at ReconfigureHandler,          dd        0
         at ResetHandler,                dd        0
         at SendHandler,                 dd        NdisSendHandler
         at SetInformationHandler,       dd        0
         at TransferDataHandler,         dd        0
-        at ReturnPacketHandler,                 dd        0
-        at SendPacketsHandler,       dd        0
-        at AllocateCompleteHandler,         dd        0
+        at ReturnPacketHandler,         dd        0
+        at SendPacketsHandler,          dd        0
+        at AllocateCompleteHandler,     dd        0
     iend
 
 
@@ -156,13 +156,31 @@ ok1:
 
 ret 4
 
+queryinfomsg: db "Calling QueryInformationHandler", 0
 NdisQueryInformationHandler:
+    push ebp
+    mov ebp, esp
+
+    push queryinfomsg
+    call s2e_print_message
+    add esp,4
+
+    mov eax, [ebp + 4 + 2*4]
+    cmp eax, 3
+    jz nqih3
+    mov eax, 1
+    jmp nqihe
+
+nqih3:
     xor eax, eax
-ret 6*4
+
+nqihe:
+    pop ebp
+    ret 6*4
 
 
 NdisSendHandler:
-    ret
+
 ret 3*4
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -179,6 +197,8 @@ imp_RtlEqualUnicodeString: db "RtlEqualUnicodeString", 0
 
 imp_hal_dll: db "hal.dll",0
 imp_KeStallExecutionProcessor: db "KeStallExecutionProcessor", 0
+
+tmp1: dd 0
 
 test_ndis:
     push ebp
@@ -276,6 +296,22 @@ test_ndis:
     call s2e_kill_state
 
 nrna_suc:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 3
+    push 5
+    call NdisQueryInformationHandler
+
+    mov eax, [esp - 5*4]
+    mov [0x90000], eax
+
+    push 0
+    push 4
+    push 0x90000
+    call s2e_print_memory
+    add esp, 3*4
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

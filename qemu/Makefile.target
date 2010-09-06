@@ -347,6 +347,8 @@ s2eobj-y += s2e/Plugins/Debugger.o
 s2eobj-y += s2e/Plugins/SymbolicHardware.o
 s2eobj-y += s2e/Plugins/PollingLoopDetector.o
 s2eobj-y += s2e/Plugins/StateManager.o
+s2eobj-y += s2e/Plugins/Searchers/MaxTbSearcher.o
+
 s2eobj-y += s2e/sqlite3.o
 s2eobj-y += s2e/Database.o
 #s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsSpy.o

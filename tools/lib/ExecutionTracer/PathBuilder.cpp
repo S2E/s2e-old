@@ -149,7 +149,7 @@ void PathBuilder::onItem(unsigned traceIndex,
     ///////////////////////////
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
-        assert(f->stateCount == 2);
+        //assert(f->stateCount == 2);
         for(unsigned i = 0; i<f->stateCount; ++i) {
             std::cerr << "Forking " << hdr.stateId << " to " << f->children[i] << std::endl;
             PathSegment *newSeg = new PathSegment(m_CurrentSegment, f->children[i], f->pc);
@@ -321,7 +321,7 @@ void PathBuilder::processTree()
         const PathSegmentList &children = curSeg->getChildren();
         PathSegmentList::const_iterator it;
 
-        assert(children.size() == 0 || children.size() == 2);
+        //assert(children.size() == 0 || children.size() == 2);
 
         if (children.size() > 0) {
             for (it = children.begin(); it != children.end(); ++it) {

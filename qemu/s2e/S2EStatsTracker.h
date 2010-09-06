@@ -28,6 +28,7 @@ public:
                     bool _updateMinDistToUncovered)
         : StatsTracker(_executor, _objectFilename, _updateMinDistToUncovered) {}
 
+    static uint64_t getProcessMemoryUsage();
 protected:
     void writeStatsHeader();
     void writeStatsLine();
