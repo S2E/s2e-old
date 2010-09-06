@@ -1351,30 +1351,30 @@ void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
 
 static void timer_save(QEMUFile *f, void *opaque)
 {
-#if 0
-    if (cpu_ticks_enabled) {
+    TimersState *s = opaque;
+
+    if (s->cpu_ticks_enabled) {
         hw_error("cannot save state if virtual timers are running");
     }
-    qemu_put_be64(f, cpu_ticks_offset);
+    qemu_put_be64(f, s->cpu_ticks_offset);
     qemu_put_be64(f, ticks_per_sec);
-    qemu_put_be64(f, cpu_clock_offset);
-#endif
+    qemu_put_be64(f, s->cpu_clock_offset);
 }
 
 static int timer_load(QEMUFile *f, void *opaque, int version_id)
 {
-#if 0
+    TimersState *s = opaque;
+
     if (version_id != 1 && version_id != 2)
         return -EINVAL;
-    if (cpu_ticks_enabled) {
+    if (s->cpu_ticks_enabled) {
         return -EINVAL;
     }
-    cpu_ticks_offset=qemu_get_be64(f);
-    ticks_per_sec=qemu_get_be64(f);
+    s->cpu_ticks_offset = qemu_get_be64(f);
+    ticks_per_sec = qemu_get_be64(f);
     if (version_id == 2) {
-        cpu_clock_offset=qemu_get_be64(f);
+        s->cpu_clock_offset = qemu_get_be64(f);
     }
-#endif
     return 0;
 }
 
@@ -6414,7 +6414,7 @@ int main(int argc, char **argv, char **envp)
         if (drive_init(&drives_opt[i], snapshot, machine) == -1)
 	    exit(1);
 
-    register_savevm("timer", 0, 2, timer_save, timer_load, NULL);
+    register_savevm("timer", 0, 2, timer_save, timer_load, &timers_state);
     register_savevm_live("ram", 0, 3, ram_save_live, NULL, ram_load, NULL);
 
 #ifndef _WIN32
