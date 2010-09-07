@@ -29,6 +29,41 @@ DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
     "s2e-config-file file      Path to S2E configuration file\n")
 DEF("s2e-output-dir", HAS_ARG, QEMU_OPTION_s2e_output_dir,
     "s2e-output-dir dir        Path to S2E output directory\n")
+#else
+DEF("fake-pci-name", HAS_ARG, QEMU_OPTION_fake_pci_name,
+    "fake-pci-name name        Name of the fake PCI device (used in snapshots)\n")
+
+DEF("fake-pci-vendor-id", HAS_ARG, QEMU_OPTION_fake_pci_vendor_id,
+    "fake-pci-vendor-id vendorid        Vendor ID\n")
+
+DEF("fake-pci-device-id", HAS_ARG, QEMU_OPTION_fake_pci_device_id,
+    "fake-pci-device-id deviceid        Device ID\n")
+
+DEF("fake-pci-revision-id", HAS_ARG, QEMU_OPTION_fake_pci_revision_id,
+    "fake-pci-revision-id revision        Revision ID\n")
+
+DEF("fake-pci-class-code", HAS_ARG, QEMU_OPTION_fake_pci_class_code,
+    "fake-pci-class-code code         Class code\n")
+
+DEF("fake-pci-ss-vendor-id", HAS_ARG, QEMU_OPTION_fake_pci_ss_vendor_id,
+    "fake-pci-ss-vendor-id vendorid       SS Vendor ID\n")
+
+DEF("fake-pci-ss-id", HAS_ARG, QEMU_OPTION_fake_pci_ss_id,
+    "fake-pci-ss-id ssid       SS ID\n")
+
+DEF("fake-pci-resource-io", HAS_ARG, QEMU_OPTION_fake_pci_resource_io,
+    "fake-pci-resource-io size  Size of the port range\n")
+
+DEF("fake-pci-resource-mem", HAS_ARG, QEMU_OPTION_fake_pci_resource_mem,
+    "fake-pci-resource-mem size  Size of the memory range\n")
+
+DEF("fake-pci-resource-mem-prefetch", HAS_ARG, QEMU_OPTION_fake_pci_resource_mem_prefetch,
+    "fake-pci-resource-mem-prefetch size  Size of the memory range\n")
+
+DEF("fake-pci-resource-rom", HAS_ARG, QEMU_OPTION_fake_pci_resource_rom,
+    "fake-pci-resource-rom\n")
+
+
 #endif
 
 DEF("M", HAS_ARG, QEMU_OPTION_M,

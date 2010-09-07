@@ -792,8 +792,10 @@ void tcg_helper_get_reg_mask(TCGContext *s, void *func,
     } else {
         *reg_rmask = (uint64_t) -1;
         *reg_wmask = (uint64_t) -1;
+#ifdef CONFIG_S2E
 #warning Change 0 to 1 here, but register S2E helpers before!
         *accesses_mem = 0; /* XXX! */
+#endif
     }
 }
 

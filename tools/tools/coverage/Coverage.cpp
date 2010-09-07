@@ -79,6 +79,10 @@ BasicBlockCoverage::BasicBlockCoverage(const std::string &basicBlockListFile,
     }
     assert(fcnBbCount == m_allBbs.size());
 
+    if (m_allBbs.size() == 0) {
+        std::cerr << "No basic blocks found in the list for " << moduleName << ". Check the format of the file." << std::endl;
+    }
+
 }
 
 //Start and end must be local to the modle
@@ -307,9 +311,13 @@ void Coverage::onItem(unsigned traceIndex,
         bbcov = (*it).second;
     }
 
-    assert(bbcov);
-
     uint64_t relPc = te->pc - mi->LoadBase + mi->ImageBase;
+
+    if (!bbcov) {
+        std::cerr << "The block 0x" << std::hex << relPc << " could not be found in any module. " <<
+                "Make sure the path to the lists of basic blocks for module " << mi->Name << " is correct." << std::endl;
+        return;
+    }
 
     bbcov->addTranslationBlock(hdr.timeStamp, relPc, relPc+te->size-1);
 }

@@ -108,7 +108,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     void *db;
 #endif
 
-    addr = S2E_FORK_AND_CONCRETIZE(addr);
+    ptr = S2E_FORK_AND_CONCRETIZE(ptr);
     addr = ptr;
     page_index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
     mmu_idx = CPU_MMU_INDEX;

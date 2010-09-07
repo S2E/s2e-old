@@ -406,6 +406,24 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 
 void PciDeviceDescriptor::initializeQemuDevice()
 {
+    m_vmStateFields = new VMStateField[2];
+    memset(m_vmStateFields, 0, sizeof(VMStateField)*2);
+    m_vmStateFields[0].name = "dev";
+    m_vmStateFields[0].size = sizeof(PCIDevice);
+    m_vmStateFields[0].vmsd = &vmstate_pci_device;
+    m_vmStateFields[0].flags = VMS_STRUCT;
+    m_vmStateFields[0].offset = vmstate_offset_value(SymbolicPciDeviceState, dev, PCIDevice);
+
+    m_vmState = new VMStateDescription();
+    memset(m_vmState, 0, sizeof(VMStateDescription));
+
+    m_vmState->name = m_id.c_str();
+    m_vmState->version_id = 3,
+    m_vmState->minimum_version_id = 3,
+    m_vmState->minimum_version_id_old = 3,
+    m_vmState->fields = m_vmStateFields;
+
+
     m_pciInfo = new PCIDeviceInfo();
     m_pciInfo->qdev.name = m_id.c_str();
     m_pciInfo->qdev.size = sizeof(SymbolicPciDeviceState);
@@ -417,21 +435,6 @@ void PciDeviceDescriptor::initializeQemuDevice()
     memset(m_pciInfoProperties, 0, sizeof(Property));
 
     m_pciInfo->qdev.props = m_pciInfoProperties;
-
-    m_vmState = new VMStateDescription();
-    m_vmState->name = m_id.c_str();
-    m_vmState->version_id = 3,
-    m_vmState->minimum_version_id = 3,
-    m_vmState->minimum_version_id_old = 3,
-
-    m_vmStateFields = new VMStateField[2];
-    memset(m_vmStateFields, 0, sizeof(m_vmStateFields)*2);
-    m_vmStateFields[0].name = "dev";
-    m_vmStateFields[0].size = sizeof(PCIDevice);
-    m_vmStateFields[0].vmsd = &vmstate_pci_device;
-    m_vmStateFields[0].flags = VMS_STRUCT;
-    m_vmStateFields[0].offset = vmstate_offset_value(SymbolicPciDeviceState, dev, PCIDevice);
-
     pci_qdev_register(m_pciInfo);
 }
 

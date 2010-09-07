@@ -435,4 +435,22 @@ static inline int ranges_overlap(uint64_t first1, uint64_t len1,
     return !(last2 < first1 || last1 < first2);
 }
 
+#ifndef CONFIG_S2E
+typedef struct {
+    const char *fake_pci_name;
+    int fake_pci_vendor_id;
+    int fake_pci_device_id;
+    int fake_pci_revision_id;
+    int fake_pci_class_code;
+    int fake_pci_ss_vendor_id;
+    int fake_pci_ss_id;
+    int fake_pci_num_resources;
+    PCIIORegion fake_pci_resources[PCI_NUM_REGIONS];
+    int mmioidx;
+}fake_pci_t;
+
+extern fake_pci_t g_fake_pci;
+
+#endif
+
 #endif

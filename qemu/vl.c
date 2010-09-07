@@ -129,6 +129,7 @@ int main(int argc, char **argv)
 #include "hw/pc.h"
 #include "hw/audiodev.h"
 #include "hw/isa.h"
+#include "hw/pci.h"
 #include "hw/baum.h"
 #include "hw/bt.h"
 #include "hw/watchdog.h"
@@ -254,6 +255,10 @@ unsigned int nb_prom_envs = 0;
 const char *prom_envs[MAX_PROM_ENVS];
 #endif
 int boot_menu;
+
+#if !defined(CONFIG_S2E)
+fake_pci_t g_fake_pci;
+#endif
 
 int nb_numa_nodes;
 uint64_t node_mem[MAX_NODES];
@@ -5077,6 +5082,61 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_s2e_output_dir:
               s2e_output_dir = optarg;
               break;
+#else
+            case QEMU_OPTION_fake_pci_name:
+              g_fake_pci.fake_pci_name = optarg;
+              break;
+            case QEMU_OPTION_fake_pci_vendor_id:
+              g_fake_pci.fake_pci_vendor_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_device_id:
+              g_fake_pci.fake_pci_device_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_revision_id:
+              g_fake_pci.fake_pci_revision_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_class_code:
+              g_fake_pci.fake_pci_class_code = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_ss_vendor_id:
+              g_fake_pci.fake_pci_ss_vendor_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_ss_id:
+              g_fake_pci.fake_pci_ss_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_resource_io:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_BASE_ADDRESS_SPACE_IO, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_mem:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_BASE_ADDRESS_SPACE_MEMORY, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_mem_prefetch:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_BASE_ADDRESS_MEM_PREFETCH, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_rom:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_ROM_ADDRESS, NULL };
+                g_fake_pci.fake_pci_num_resources = PCI_NUM_REGIONS;
+                g_fake_pci.fake_pci_resources[PCI_ROM_SLOT] = region;
+              }
+              break;
+
 #endif
 
             case QEMU_OPTION_initrd:
@@ -5757,6 +5817,7 @@ int main(int argc, char **argv, char **envp)
     }
     g_s2e = s2e_initialize(argc, argv, tcg_llvm_ctx,
                            s2e_config_file, s2e_output_dir);
+
     g_s2e_state = s2e_create_initial_state(g_s2e);
 #endif
 
@@ -6030,6 +6091,9 @@ int main(int argc, char **argv, char **envp)
 
 #ifdef CONFIG_S2E
     s2e_on_device_registration(g_s2e);
+#else
+    void fake_register_devices(fake_pci_t *fake);
+    fake_register_devices(&g_fake_pci);
 #endif
 
     module_call_init(MODULE_INIT_DEVICE);
