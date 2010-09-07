@@ -62,6 +62,12 @@ OTHER:
  - Add a PulseAudio audio backend on Linux. It will be used by default
    unless it's impossible to connect to the PA daemon.
 
+ - It is now possible to access the QEMU monitor from the console.
+   Just type "qemu monitor" and you will be at the monitor prompt.
+
+   Note that the monitor 'quit' command will not stop the emulator,
+   but will simply close the connection instead.
+
 ==============================================================================
 Changes between 7.0 and 6.0
 

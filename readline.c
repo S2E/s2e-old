@@ -474,3 +474,12 @@ ReadLineState *readline_init(Monitor *mon,
 
     return rs;
 }
+
+void readline_free(ReadLineState *rs)
+{
+    if (rs) {
+        rs->mon = NULL;
+        rs->completion_finder = NULL;
+        qemu_free(rs);
+    }
+}

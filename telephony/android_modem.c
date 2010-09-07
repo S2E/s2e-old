@@ -359,6 +359,8 @@ amodem_create( int  base_port, AModemUnsolFunc  unsol_func, void*  unsol_opaque 
 
     modem->sim = asimcard_create(base_port);
 
+    sys_main_init();
+
     return  modem;
 }
 

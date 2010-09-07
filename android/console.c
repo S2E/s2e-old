@@ -38,6 +38,7 @@
 #include "android/utils/stralloc.h"
 #include "tcpdump.h"
 #include "net.h"
+#include "monitor.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -54,13 +55,6 @@
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
 #endif
-
-/* set to 1 to use the i/o and event functions
- * defined in "telephony/sysdeps.h"
- */
-#define  USE_SYSDEPS  0
-
-#include "sysdeps.h"
 
 #define  DEBUG  1
 
@@ -88,12 +82,7 @@ typedef struct {
 } RedirRec, *Redir;
 
 
-#if USE_SYSDEPS
-typedef SysChannel  Socket;
-#else /* !USE_SYSDEPS */
-typedef int         Socket;
-#endif /* !USE_SYSDEPS */
-
+typedef int Socket;
 
 typedef struct ControlClientRec_
 {
@@ -178,19 +167,53 @@ control_global_del_redir( ControlGlobal  global,
     return -1;
 }
 
+/* Detach the socket descriptor from a given ControlClient
+ * and return its value. This is useful either when destroying
+ * the client, or redirecting the socket to another service.
+ *
+ * NOTE: this does not close the socket.
+ */
+static int
+control_client_detach( ControlClient  client )
+{
+    int  result;
+
+    if (client->sock < 0)
+        return -1;
+
+    qemu_set_fd_handler( client->sock, NULL, NULL, NULL );
+    result = client->sock;
+    client->sock = -1;
+
+    return result;
+}
+
+static void  control_client_read( void*  _client );  /* forward */
+
+/* Reattach a control client to a given socket.
+ * Return the old socket descriptor for the client.
+ */
+static int
+control_client_reattach( ControlClient client, int fd )
+{
+    int result = control_client_detach(client);
+    client->sock = fd;
+    qemu_set_fd_handler( fd, control_client_read, NULL, client );
+    return result;
+}
+
 static void
 control_client_destroy( ControlClient  client )
 {
     ControlGlobal  global = client->global;
     ControlClient  *pnode = &global->clients;
+    int            sock;
 
     D(( "destroying control client %p\n", client ));
 
-#if USE_SYSDEPS
-    sys_channel_on( client->sock, 0, NULL, NULL );
-#else
-    qemu_set_fd_handler( client->sock, NULL, NULL, NULL );
-#endif
+    sock = control_client_detach( client );
+    if (sock >= 0)
+        socket_close(sock);
 
     for ( ;; ) {
         ControlClient  node = *pnode;
@@ -204,18 +227,9 @@ control_client_destroy( ControlClient  client )
         pnode = &node->next;
     }
 
-#if USE_SYSDEPS
-    sys_channel_close( client->sock );
-    client->sock = NULL;
-#else
-    socket_close( client->sock );
-    client->sock = -1;
-#endif
-
     free( client );
 }
 
-static void  control_client_read( void*  _client );  /* forward */
 
 
 static void  control_control_write( ControlClient  client, const char*  buff, int  len )
@@ -226,11 +240,7 @@ static void  control_control_write( ControlClient  client, const char*  buff, in
         len = strlen(buff);
 
     while (len > 0) {
-#if USE_SYSDEPS
-        ret = sys_channel_write( client->sock, buff, len );
-#else
         ret = socket_send( client->sock, buff, len);
-#endif
         if (ret < 0) {
             if (errno != EINTR && errno != EWOULDBLOCK && errno != EAGAIN)
                 return;
@@ -263,23 +273,15 @@ control_client_create( Socket         socket,
     ControlClient  client = calloc( sizeof(*client), 1 );
 
     if (client) {
-#if !USE_SYSDEPS
         socket_set_nodelay( socket );
         socket_set_nonblock( socket );
-#endif
         client->finished = 0;
         client->global  = global;
         client->sock    = socket;
         client->next    = global->clients;
         global->clients = client;
 
-#if USE_SYSDEPS
-        sys_channel_on( socket, SYS_EVENT_READ,
-                        (SysChannelCallback) control_client_read,
-                        client );
-#else
         qemu_set_fd_handler( socket, control_client_read, NULL, client );
-#endif
     }
     return client;
 }
@@ -490,11 +492,7 @@ control_client_read( void*  _client )
     int            size;
 
     D(( "in control_client read: " ));
-#if USE_SYSDEPS
-    size = sys_channel_read( client->sock, buf, sizeof(buf) );
-#else
     size = socket_recv( client->sock, buf, sizeof(buf) );
-#endif
     if (size < 0) {
         D(( "size < 0, exiting with %d: %s\n", errno, errno_str ));
 		if (errno != EWOULDBLOCK && errno != EAGAIN && errno != EINTR)
@@ -549,13 +547,6 @@ control_global_accept( void*  _global )
 
     D(( "control_global_accept: just in (fd=%p)\n", (void*)global->listen_fd ));
 
-#if USE_SYSDEPS
-    fd = sys_channel_create_tcp_handler( global->listen_fd );
-    if (fd == NULL) {
-        perror("accept");
-        return;
-    }
-#else
     for(;;) {
         fd = socket_accept( global->listen_fd, NULL );
         if (fd < 0 && errno != EINTR) {
@@ -569,7 +560,6 @@ control_global_accept( void*  _global )
     }
 
     socket_set_xreuseaddr( fd );
-#endif
 
     D(( "control_global_accept: creating new client\n" ));
     client = control_client_create( fd, global );
@@ -586,28 +576,11 @@ control_global_init( ControlGlobal  global,
                      int            control_port )
 {
     Socket  fd;
-#if !USE_SYSDEPS
     int     ret;
     SockAddress  sockaddr;
-#endif
 
     memset( global, 0, sizeof(*global) );
 
-    sys_main_init();
-
-#if USE_SYSDEPS
-    fd = sys_channel_create_tcp_server( control_port );
-    if (fd == NULL) {
-        return -1;
-    }
-
-    D(("global fd=%p\n", fd));
-
-    global->listen_fd = fd;
-    sys_channel_on( fd, SYS_EVENT_READ,
-                    (SysChannelCallback) control_global_accept,
-                    global );
-#else
     fd = socket_create_inet( SOCKET_STREAM );
     if (fd < 0) {
         perror("socket");
@@ -637,7 +610,6 @@ control_global_init( ControlGlobal  global,
     global->listen_fd = fd;
 
     qemu_set_fd_handler( fd, control_global_accept, NULL, global );
-#endif
     return 0;
 }
 
@@ -1959,7 +1931,7 @@ do_geo_nmea( ControlClient  client, char*  args )
 static int
 do_geo_fix( ControlClient  client, char*  args )
 {
-#define  MAX_GEO_PARAMS  4
+#define  MAX_GEO_PARAMS  5
     char*   p = args;
     int     n_params = 0;
     double  params[ MAX_GEO_PARAMS ];
@@ -2151,6 +2123,49 @@ static const CommandDefRec  window_commands[] =
 /********************************************************************************************/
 /********************************************************************************************/
 /*****                                                                                 ******/
+/*****                           Q E M U   C O M M A N D S                             ******/
+/*****                                                                                 ******/
+/********************************************************************************************/
+/********************************************************************************************/
+
+static int
+do_qemu_monitor( ControlClient client, char* args )
+{
+    char             socketname[32];
+    int              fd;
+    CharDriverState* cs;
+
+    if (args != NULL) {
+        control_write( client, "KO: no argument for 'qemu monitor'\r\n" );
+        return -1;
+    }
+    /* Detach the client socket, and re-attach it to a monitor */
+    fd = control_client_detach(client);
+    snprintf(socketname, sizeof socketname, "tcp:socket=%d", fd);
+    cs = qemu_chr_open("monitor", socketname, NULL);
+    if (cs == NULL) {
+        control_client_reattach(client, fd);
+        control_write( client, "KO: internal error: could not detach from console !\r\n" );
+        return -1;
+    }
+    monitor_init(cs, MONITOR_USE_READLINE|MONITOR_QUIT_DOESNT_EXIT);
+    control_client_destroy(client);
+    return 0;
+}
+
+static const CommandDefRec  qemu_commands[] =
+{
+    { "monitor", "enter QEMU monitor",
+    "Enter the QEMU virtual machine monitor\r\n",
+    NULL, do_qemu_monitor, NULL },
+
+    { NULL, NULL, NULL, NULL, NULL, NULL }
+};
+
+
+/********************************************************************************************/
+/********************************************************************************************/
+/*****                                                                                 ******/
 /*****                           M A I N   C O M M A N D S                             ******/
 /*****                                                                                 ******/
 /********************************************************************************************/
@@ -2211,6 +2226,10 @@ static const CommandDefRec   main_commands[] =
     { "window", "manage emulator window",
     "allows you to modify the emulator window\r\n", NULL,
     NULL, window_commands },
+
+    { "qemu", "QEMU-specific commands",
+    "allows to connect to the QEMU virtual machine monitor\r\n", NULL,
+    NULL, qemu_commands },
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };

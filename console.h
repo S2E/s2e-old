@@ -330,9 +330,4 @@ char *vnc_display_local_addr(DisplayState *ds);
 /* curses.c */
 void curses_display_init(DisplayState *ds, int full_screen);
 
-#if defined(CONFIG_ANDROID)
-/* android-display.c */
-void android_display_init(DisplayState *ds);
-#endif
-
 #endif

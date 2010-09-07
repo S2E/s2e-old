@@ -466,6 +466,8 @@ if [ $BSD = 1 ] ; then
     echo "#define MAP_ANONYMOUS    MAP_ANON" >> $config_h
 fi
 
+echo "#define CONFIG_ANDROID       1" >> $config_h
+
 log "Generate   : $config_h"
 
 echo "Ready to go. Type 'make' to build emulator"

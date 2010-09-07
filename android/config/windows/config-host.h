@@ -9,3 +9,4 @@
 #define QEMU_PKGVERSION "Android"
 #define CONFIG_SKINS 1
 #define CONFIG_UNAME_RELEASE ""
+#define CONFIG_ANDROID 1

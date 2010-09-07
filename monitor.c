@@ -70,6 +70,8 @@ typedef struct mon_cmd_t {
     const char *help;
 } mon_cmd_t;
 
+#define MON_CMD_T_INITIALIZER { NULL, NULL, NULL, NULL, NULL }
+
 struct Monitor {
     CharDriverState *chr;
     int flags;
@@ -81,6 +83,7 @@ struct Monitor {
     BlockDriverCompletionFunc *password_completion_cb;
     void *password_opaque;
     QLIST_ENTRY(Monitor) entry;
+    int has_quit;
 };
 
 static QLIST_HEAD(mon_list, Monitor) mon_list;
@@ -409,7 +412,11 @@ static void do_info_cpu_stats(Monitor *mon)
 
 static void do_quit(Monitor *mon)
 {
-    exit(0);
+    if ((mon->flags & MONITOR_QUIT_DOESNT_EXIT) == 0) {
+        exit(0);
+    }
+    /* we cannot destroy the monitor just yet, so flag it instead */
+    mon->has_quit = 1;
 }
 
 static int eject_device(Monitor *mon, BlockDriverState *bs, int force)
@@ -1661,7 +1668,7 @@ static void do_acl(Monitor *mon,
 
 static const mon_cmd_t mon_cmds[] = {
 #include "qemu-monitor.h"
-    { NULL, NULL, },
+    MON_CMD_T_INITIALIZER
 };
 
 /* Please update qemu-monitor.hx when adding or changing commands */
@@ -1741,7 +1748,7 @@ static const mon_cmd_t info_cmds[] = {
       "", "show balloon information" },
     { "qtree", "", do_info_qtree,
       "", "show device tree" },
-    { NULL, NULL, },
+    MON_CMD_T_INITIALIZER
 };
 
 /*******************************************************************/
@@ -1758,6 +1765,8 @@ typedef struct MonitorDef {
     target_long (*get_value)(const struct MonitorDef *md, int val);
     int type;
 } MonitorDef;
+
+#define MONITOR_DEF_INITIALIZER  { NULL, 0, NULL, 0 }
 
 #if defined(TARGET_I386)
 static target_long monitor_get_pc (const struct MonitorDef *md, int val)
@@ -2085,7 +2094,7 @@ static const MonitorDef monitor_defs[] = {
     { "fprs", offsetof(CPUState, fprs) },
 #endif
 #endif
-    { NULL },
+    MONITOR_DEF_INITIALIZER
 };
 
 static void expr_error(Monitor *mon, const char *msg)
@@ -2938,6 +2947,8 @@ static int monitor_can_read(void *opaque)
     return (mon->suspend_cnt == 0) ? 128 : 0;
 }
 
+static void monitor_done(Monitor *mon); // forward
+
 static void monitor_read(void *opaque, const uint8_t *buf, int size)
 {
     Monitor *old_mon = cur_mon;
@@ -2955,6 +2966,9 @@ static void monitor_read(void *opaque, const uint8_t *buf, int size)
             monitor_handle_command(cur_mon, (char *)buf);
     }
 
+    if (cur_mon->has_quit) {
+        monitor_done(cur_mon);
+    }
     cur_mon = old_mon;
 }
 
@@ -3044,6 +3058,19 @@ void monitor_init(CharDriverState *chr, int flags)
     QLIST_INSERT_HEAD(&mon_list, mon, entry);
     if (!cur_mon || (flags & MONITOR_IS_DEFAULT))
         cur_mon = mon;
+}
+
+static void monitor_done(Monitor *mon)
+{
+    if (cur_mon == mon)
+        cur_mon = NULL;
+
+    QLIST_REMOVE(mon, entry);
+
+    readline_free(mon->rs);
+    qemu_chr_close(mon->chr);
+
+    qemu_free(mon);
 }
 
 static void bdrv_password_cb(Monitor *mon, const char *password, void *opaque)

@@ -20,9 +20,9 @@ a few important functions:
     were really written (which can be 0) and the caller must deal with it.
     This is very similar to writing to a non-blocking BSD socket on Unix.
 
-       int  qemu_chr_read( CharDriverState*  cs,
-                           const uint8_t*    data,
-                           int               datalen );
+       int  qemu_chr_write( CharDriverState*  cs,
+                            const uint8_t*    data,
+                            int               datalen );
 
     This function may return -1 in case of error, but this depends entirely
     on the underlying implementation (some of them will just return 0 instead).

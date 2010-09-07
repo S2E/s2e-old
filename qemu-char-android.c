@@ -2088,6 +2088,17 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
             fd = unix_connect(host_str);
         }
     } else {
+#ifdef CONFIG_ANDROID
+        if (!strncmp(host_str,"socket=",7)) {
+            char *end;
+            long val = strtol(host_str+7, &end, 10);
+            if (val <= 0 || end == host_str+7) {
+                printf("Invalid socket number: '%s'\n", host_str+7);
+                goto fail;
+            }
+            fd = (int) val;
+        } else
+#endif
         if (is_listen) {
             fd = inet_listen(host_str, chr->filename + offset, 256 - offset,
                              SOCKET_STREAM, 0);

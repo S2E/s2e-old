@@ -52,4 +52,6 @@ void readline_show_prompt(ReadLineState *rs);
 ReadLineState *readline_init(Monitor *mon,
                              ReadLineCompletionFunc *completion_finder);
 
+void readline_free(ReadLineState *rs);
+
 #endif /* !READLINE_H */
