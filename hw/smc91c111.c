@@ -10,11 +10,13 @@
 #include "sysbus.h"
 #include "net.h"
 #include "devices.h"
+#include "hw/hw.h"
 /* For crc32 */
 #include <zlib.h>
 
 /* Number of 2k memory pages available.  */
 #define NUM_PACKETS 4
+#define BUFFER_PER_PACKET 2048
 
 typedef struct {
     SysBusDevice busdev;
@@ -39,12 +41,87 @@ typedef struct {
     int tx_fifo_done_len;
     int tx_fifo_done[NUM_PACKETS];
     /* Packet buffer memory.  */
-    uint8_t data[NUM_PACKETS][2048];
+    uint8_t data[NUM_PACKETS][BUFFER_PER_PACKET];
     uint8_t int_level;
     uint8_t int_mask;
     uint8_t macaddr[6];
     int mmio_index;
 } smc91c111_state;
+
+#define SMC91C111_SAVE_VERSION 1
+
+static void smc91c111_save(QEMUFile *f, void *opaque)
+{
+    smc91c111_state *s = opaque;
+
+    /* busdev, vc, macaddr and mmio_index are linked to the host state and
+     * initialized when the emulator starts (in smc91c111_init1 below).
+     * Saving/restoring those values is therefore useless and may even be
+     * harmful, so they are omitted.
+     */
+    qemu_put_be16(f, s->tcr);
+    qemu_put_be16(f, s->rcr);
+    qemu_put_be16(f, s->cr);
+    qemu_put_be16(f, s->ctr);
+    qemu_put_be16(f, s->gpr);
+    qemu_put_be16(f, s->ptr);
+    qemu_put_be16(f, s->ercv);
+
+    qemu_put_be32(f, s->bank);
+    qemu_put_be32(f, s->packet_num);
+
+    qemu_put_be32(f, s->tx_alloc);
+    qemu_put_be32(f, s->allocated);
+    qemu_put_be32(f, s->tx_fifo_len);
+    qemu_put_buffer(f, (uint8_t*) s->tx_fifo, sizeof(s->tx_fifo));
+    qemu_put_be32(f, s->rx_fifo_len);
+    qemu_put_buffer(f, (uint8_t*) s->rx_fifo, sizeof(s->rx_fifo));
+    qemu_put_be32(f, s->tx_fifo_done_len);
+    qemu_put_buffer(f, (uint8_t*) s->tx_fifo_done, sizeof(s->tx_fifo_done));
+
+    /* Packet buffer memory.  */
+    qemu_put_buffer(f, (uint8_t*) s->data, sizeof(s->data));
+    qemu_put_byte(f, s->int_level);
+    qemu_put_byte(f, s->int_mask);
+
+    /* macaddr, mmio_index omitted intentionally */
+}
+
+static int smc91c111_load(QEMUFile *f, void *opaque, int version_id)
+{
+    smc91c111_state *s = opaque;
+
+    if (version_id != SMC91C111_SAVE_VERSION) {
+        return -1;
+    }
+
+    s->tcr = qemu_get_be16(f);
+    s->rcr = qemu_get_be16(f);
+    s->cr = qemu_get_be16(f);
+    s->ctr = qemu_get_be16(f);
+    s->gpr = qemu_get_be16(f);
+    s->ptr = qemu_get_be16(f);
+    s->ercv = qemu_get_be16(f);
+
+    s->bank = qemu_get_be32(f);
+    s->packet_num = qemu_get_be32(f);
+
+    s->tx_alloc = qemu_get_be32(f);
+    s->allocated = qemu_get_be32(f);
+    s->tx_fifo_len = qemu_get_be32(f);
+    qemu_get_buffer(f, (uint8_t*) s->tx_fifo, sizeof(s->tx_fifo));
+    s->rx_fifo_len = qemu_get_be32(f);
+    qemu_get_buffer(f, (uint8_t*) s->rx_fifo, sizeof(s->rx_fifo));
+    s->tx_fifo_done_len = qemu_get_be32(f);
+    qemu_get_buffer(f, (uint8_t*) s->tx_fifo_done, sizeof(s->tx_fifo_done));
+
+    /* Packet buffer memory.  */
+    qemu_get_buffer(f, (uint8_t*) s->data, sizeof(s->data));
+    s->int_level = qemu_get_byte(f);
+    s->int_mask = qemu_get_byte(f);
+
+    return 0;
+}
 
 #define RCR_SOFT_RST  0x8000
 #define RCR_STRIP_CRC 0x0200
@@ -716,7 +793,9 @@ static void smc91c111_init1(SysBusDevice *dev)
                                  smc91c111_can_receive, smc91c111_receive, NULL,
                                  smc91c111_cleanup, s);
     qemu_format_nic_info_str(s->vc, s->macaddr);
-    /* ??? Save/restore.  */
+
+    register_savevm( "smc91c111", 0, SMC91C111_SAVE_VERSION,
+                     smc91c111_save, smc91c111_load, s);
 }
 
 static void smc91c111_register_devices(void)
