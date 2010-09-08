@@ -84,15 +84,16 @@ bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
             return false;
         }
 
-        DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base,
-            0, ModuleName.c_str());
-
         ModuleDescriptor desc;
 
         desc.Pid = 0;
 
         state->readUnicodeString(ModuleEntry.driver_Name.Buffer, desc.Name, ModuleEntry.driver_Name.Length);
         std::transform(desc.Name.begin(), desc.Name.end(), desc.Name.begin(), ::tolower);
+
+        s2e_debug_print("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", ModuleEntry.base,
+            0, desc.Name.c_str());
+
 
         desc.NativeBase = 0; // Image.GetImageBase();
         desc.LoadBase = ModuleEntry.base;
@@ -119,33 +120,33 @@ bool WindowsKmInterceptor::GetDriverDescriptor(S2EExecutionState *state,
 
     if (!state->readMemoryConcrete(pDriverObject,
         &DrvObject, sizeof(DrvObject))) {
-            DPRINTF("Could not load DRIVER_OBJECT\n");
+            s2e_debug_print("Could not load DRIVER_OBJECT\n");
             return false;
     }
 
-    DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x\n", DrvObject.DriverStart,
+    s2e_debug_print("DRIVER_OBJECT Start=%#x Size=%#x\n", DrvObject.DriverStart,
         DrvObject.DriverSize);
 
     if (DrvObject.DriverStart & 0xFFF) {
-        std::cout << "Warning: The driver is not loaded on a page boundary" << std::endl;
+        s2e_debug_print("Warning: The driver is not loaded on a page boundary\n");
     }
 
 
     //Fetch MODULE_ENTRY
     if (!DrvObject.DriverSection) {
-        std::cout << "Null driver section" << std::endl;
+        s2e_debug_print("Null driver section");
         return false;
     }
 
     if (state->readMemoryConcrete(DrvObject.DriverSection, &Me, sizeof(Me)) < 0) {
-        std::cout << "Could not load MODULE_ENTRY" << std::endl;
+        s2e_debug_print("Could not load MODULE_ENTRY\n");
         return false;
     }
 
     state->readUnicodeString(Me.driver_Name.Buffer, ModuleName, Me.driver_Name.Length);
     std::transform(ModuleName.begin(), ModuleName.end(), ModuleName.begin(), ::tolower);
 
-    DPRINTF("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base,
+    s2e_debug_print("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", Me.base,
         0, ModuleName.c_str());
 
     Desc.Pid = 0;
@@ -168,7 +169,7 @@ bool WindowsKmInterceptor::CatchModuleLoad(S2EExecutionState *state)
     }
 
     if (!pDriverObject) {
-        std::cout << "DriverObject is NULL" << std::endl;
+        s2e_debug_print("DriverObject is NULL\n");
         return false;
     }
 
@@ -190,7 +191,7 @@ bool WindowsKmInterceptor::CatchModuleUnload(S2EExecutionState *state)
     }
 
     if (!pDriverObject) {
-        std::cout << "DriverObject is NULL" << std::endl;
+        s2e_debug_print("DriverObject is NULL\n");
         return false;
     }
 

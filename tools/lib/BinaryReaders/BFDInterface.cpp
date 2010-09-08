@@ -79,6 +79,10 @@ bool BFDInterface::initialize()
         return false;
     }
 
+    if (!(m_bfd->flags & HAS_SYMS)) {
+        return false;
+    }
+
     bfd_map_over_sections(m_bfd, initSections, this);
 
     //Compute image base

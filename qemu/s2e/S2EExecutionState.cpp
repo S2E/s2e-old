@@ -11,6 +11,7 @@ void* s2e_get_ram_ptr(target_phys_addr_t addr);
 
 #include "S2EExecutionState.h"
 #include <s2e/S2EDeviceState.h>
+#include <s2e/S2EExecutor.h>
 #include <s2e/Plugin.h>
 
 #include <klee/Context.h>
@@ -287,6 +288,24 @@ uint64_t S2EExecutionState::getSp() const
     ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[R_ESP]),
                                   8*sizeof(target_ulong));
     return cast<ConstantExpr>(e)->getZExtValue(64);
+}
+
+//This function must be called just after the machine call instruction
+//was executed.
+//XXX: assumes x86 architecture.
+bool S2EExecutionState::bypassFunction(unsigned paramCount)
+{
+    uint32_t retAddr;
+    if (!readMemoryConcrete(getSp(), &retAddr, sizeof(retAddr))) {
+        g_s2e->getDebugStream() << "Could not get the return address " << std::endl;
+        return false;
+    }
+
+    uint32_t newSp = getSp() + (paramCount+1)*sizeof(uint32_t);
+
+    setSp(newSp);
+    setPc(retAddr);
+    return true;
 }
 
 void S2EExecutionState::dumpStack(unsigned count)
@@ -689,6 +708,21 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
 
     return result;
 }
+
+//Must be called right after the machine call instruction is executed.
+//This function will reexecute the call but in symbolic mode
+//XXX: remove circular references with executor?
+void S2EExecutionState::undoCallAndJumpToSymbolic()
+{
+    if (g_s2e->getExecutor()->needToJumpToSymbolic(this)) {
+        //Undo the call
+        assert(getTb()->pcOfLastInstr);
+        setSp(getSp() + sizeof(uint32_t));
+        setPc(getTb()->pcOfLastInstr);
+        g_s2e->getExecutor()->jumpToSymbolicCpp(this);
+    }
+}
+
 
 void S2EExecutionState::dumpX86State(std::ostream &os) const
 {

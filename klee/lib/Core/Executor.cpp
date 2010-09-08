@@ -2691,9 +2691,17 @@ void Executor::callExternalFunction(ExecutionState &state,
         CE->toMemory((void*) &args[i]);
       } else {
           std::stringstream ss;
-          ss << "external call with symbolic argument " << std::dec <<
+           ss << "external call with symbolic argument " << std::dec <<
                   i << ": " << function->getNameStr() << " - ";
             ss << arg;
+            unsigned j=0;
+            ss << "[";
+            for (std::vector<ref<Expr> >::iterator ai1 = arguments.begin();
+                   ai1!=ae; ++ai1, ++j) {
+                ss << "arg" << j << ": " << *ai1 << std::endl;
+            }
+            ss << "]";
+
             terminateStateOnExecError(state, ss.str());
         return;
       }
@@ -2706,11 +2714,11 @@ void Executor::callExternalFunction(ExecutionState &state,
     std::ostringstream os;
     os << "calling external: " << function->getNameStr() << "(";
     for (unsigned i=0; i<arguments.size(); i++) {
-      os << arguments[i];
+        os << std::hex << arguments[i];
       if (i != arguments.size()-1)
 	os << ", ";
     }
-    os << ")";
+    os << ")" << std::dec;
     
     klee_warning_external(function, "%s", os.str().c_str());
   }

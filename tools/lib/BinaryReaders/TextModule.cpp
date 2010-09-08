@@ -34,8 +34,18 @@ bool TextModule::initialize()
 
 bool TextModule::getInfo(uint64_t addr, std::string &source, uint64_t &line, std::string &function)
 {
-    assert(false && "Not implemented");
-    return false;
+    AddressRange ar;
+    ar.start = addr;
+    ar.end = addr + 1;
+
+    RangeToNameMap::const_iterator it = m_ObjectNames.find(ar);
+    if (it == m_ObjectNames.end()) {
+        return false;
+    }
+
+    function = (*it).second;
+
+    return true;
 }
 
 bool TextModule::inited() const

@@ -166,6 +166,7 @@ void ModuleExecutionDetector::moduleLoadListener(
         }else {
             s2e()->getDebugStream() << " [REGISTERING ID=" << (*it).id << "]" << std::endl;
             plgState->loadDescriptor(module, true);
+            onModuleLoad.emit(state, module);
         }
         return;
     }
@@ -174,7 +175,10 @@ void ModuleExecutionDetector::moduleLoadListener(
 
     if (m_TrackAllModules) {
         s2e()->getDebugStream() << " [REGISTERING NOT TRACKED]" << std::endl;
-        plgState->loadDescriptor(module, false);
+        if (!plgState->exists(&module, false)) {
+            plgState->loadDescriptor(module, false);
+            onModuleLoad.emit(state, module);
+        }
         return;
     }
 
@@ -454,13 +458,19 @@ const ModuleDescriptor *ModuleTransitionState::getDescriptor(uint64_t pid, uint6
     return NULL;
 }
 
-void ModuleTransitionState::loadDescriptor(const ModuleDescriptor &desc, bool track)
+bool ModuleTransitionState::loadDescriptor(const ModuleDescriptor &desc, bool track)
 {
     if (track) {
         m_Descriptors.insert(new ModuleDescriptor(desc));
     }else {
-        m_NotTrackedDescriptors.insert(new ModuleDescriptor(desc));
+        if (m_NotTrackedDescriptors.find(&desc) != m_NotTrackedDescriptors.end()) {
+            m_NotTrackedDescriptors.insert(new ModuleDescriptor(desc));
+        }
+        else {
+            return false;
+        }
     }
+    return true;
 }
 
 void ModuleTransitionState::unloadDescriptor(const ModuleDescriptor &desc)

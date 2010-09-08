@@ -124,17 +124,6 @@ bool NdisHandlers::calledFromModule(S2EExecutionState *s)
     return (m_modules.find(*modId) != m_modules.end());
 }
 
-void NdisHandlers::undoCallAndJumpToSymbolic(S2EExecutionState *state)
-{
-    if (s2e()->getExecutor()->needToJumpToSymbolic(state)) {
-        //Undo the call
-        assert(state->getTb()->pcOfLastInstr);
-        state->setSp(state->getSp() + sizeof(uint32_t));
-        state->setPc(state->getTb()->pcOfLastInstr);
-        s2e()->getExecutor()->jumpToSymbolicCpp(state);
-    }
-}
-
 
 void NdisHandlers::onModuleLoad(
         S2EExecutionState* state,
@@ -197,20 +186,6 @@ bool NdisHandlers::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Exp
     return false;
 }
 
-bool NdisHandlers::bypassFunction(S2EExecutionState *s, unsigned paramCount)
-{
-    uint32_t retAddr;
-    if (!s->readMemoryConcrete(s->getSp(), &retAddr, sizeof(retAddr))) {
-        g_s2e->getDebugStream() << "Could not get the return address " << std::endl;
-        return false;
-    }
-
-    uint32_t newSp = s->getSp() + (paramCount+1)*sizeof(uint32_t);
-
-    s->setSp(newSp);
-    s->setPc(retAddr);
-    return true;
-}
 
 bool NdisHandlers::readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val)
 {
@@ -243,7 +218,7 @@ void NdisHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitorStat
     uint32_t valPtr;
     if (readConcreteParameter(state, 0, &valPtr)) {
         state->writeMemory(valPtr, ret);
-        bypassFunction(state, 1);
+        state->bypassFunction(1);
         throw CpuExitException();
     }
 }
@@ -254,7 +229,7 @@ void NdisHandlers::KeStallExecutionProcessor(S2EExecutionState* state, FunctionM
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
 
-    bypassFunction(state, 1);
+    state->bypassFunction(1);
     throw CpuExitException();
 }
 
@@ -268,13 +243,13 @@ void NdisHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonit
         return;
     }
 
-    undoCallAndJumpToSymbolic(state);
+    state->undoCallAndJumpToSymbolic();
 
     //XXX: local assumes the stuff comes from the registry
     if (m_consistency == OVERAPPROX || m_consistency == LOCAL) {
         klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
-        bypassFunction(state, 3);
+        state->bypassFunction(3);
         throw CpuExitException();
     }
 }
@@ -1033,7 +1008,7 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
         return;
     }
 
-    undoCallAndJumpToSymbolic(state);
+    state->undoCallAndJumpToSymbolic();
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::QueryInformationHandlerRet)
 
@@ -1074,7 +1049,7 @@ void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonit
         return;
     }
 
-    undoCallAndJumpToSymbolic(state);
+    state->undoCallAndJumpToSymbolic();
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SetInformationHandlerRet)
 

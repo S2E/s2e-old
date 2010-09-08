@@ -1,5 +1,6 @@
 #include "ExecutableFile.h"
 #include "BFDInterface.h"
+#include "TextModule.h"
 
 namespace s2etools
 {
@@ -21,6 +22,14 @@ ExecutableFile *ExecutableFile::create(const std::string &fileName)
     if (bfd->initialize() && bfd->inited()) {
         return bfd;
     }
+    delete bfd;
+
+    //Check if there is a text description of the binary
+    TextModule *tm = new TextModule(fileName);
+    if (tm->initialize() && tm->inited()) {
+        return tm;
+    }
+    delete tm;
 
     return NULL;
 

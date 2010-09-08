@@ -479,12 +479,16 @@ void PciDeviceDescriptor::print(std::ostream &os) const
 
 void PciDeviceDescriptor::setInterrupt(bool state)
 {
-   assert(false && "Unimplemented");
+    if (state) {
+       qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
+    }else {
+       qemu_irq_lower(*(qemu_irq*)m_qemuIrq);
+    }
 }
 
 void PciDeviceDescriptor::assignIrq(void *irq)
 {
-    assert(false && "Unimplemented");
+    m_qemuIrq = (qemu_irq*)irq;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -672,6 +676,7 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
     dd->mmio_io_addr =
     cpu_register_io_memory(symbhw_mmio_read, symbhw_mmio_write, d);
 
+    dd->assignIrq(&d->dev.irq[0]);
 
     return 0;
 }

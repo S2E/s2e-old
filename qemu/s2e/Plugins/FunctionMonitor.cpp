@@ -31,6 +31,7 @@ void FunctionMonitor::initialize()
     m_monitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
 }
 
+//XXX: Implement onmoduleunload to automatically clear all call signals
 FunctionMonitor::CallSignal* FunctionMonitor::getCallSignal(
         S2EExecutionState *state,
         uint64_t eip, uint64_t cr3)

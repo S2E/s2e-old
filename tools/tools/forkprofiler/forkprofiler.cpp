@@ -74,6 +74,8 @@ void ForkProfiler::onItem(unsigned traceIndex,
     fp.count = 1;
     fp.line = 0;
 
+    m_library->getInfo(mi, te->pc, fp.file, fp.line, fp.function);
+
     ForkPoints::iterator it = m_forkPoints.find(fp);
     if (it == m_forkPoints.end()) {
         if (mi) {

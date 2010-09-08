@@ -39,11 +39,13 @@ Library::~Library()
 void Library::setPath(const std::string &s)
 {
     std::string::size_type cur=0, prev=0;
+    std::cout << "PATH " << s << std::endl;
 
     do {
         cur = s.find(':', prev);
-        m_libpath.push_back(s.substr(prev, cur));
-        std::cout << "Adding libpath " << s.substr(prev, cur) << std::endl;
+        std::string path = s.substr(prev, cur - prev);
+        m_libpath.push_back(path);
+        std::cout << "Adding libpath " << path << std::endl;
         prev = cur+1;
     }while(cur != std::string::npos);
 }
@@ -83,10 +85,15 @@ bool Library::addLibraryAbs(const std::string &libName)
         return true;
     }
 
+    if (m_badLibraries.find(libName) != m_badLibraries.end()) {
+        return false;
+    }
+
     std::string ProgFile = libName;
 
     s2etools::ExecutableFile *exec = s2etools::ExecutableFile::create(ProgFile);
     if (!exec) {
+        m_badLibraries.insert(ProgFile);
         return false;
     }
 

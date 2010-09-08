@@ -48,8 +48,6 @@ typedef std::multimap<std::string, AddressRange> FunctionNameToAddressesMap;
 class TextModule:public ExecutableFile
 {
 protected:
-    std::string m_fileName;
-
     uint64_t m_imageBase;
     uint64_t m_imageSize;
     std::string m_imageName;

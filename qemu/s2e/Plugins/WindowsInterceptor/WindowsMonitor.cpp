@@ -129,6 +129,7 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
     }
 
     if(m_KernelMode) {
+        //XXX: a module load can be notified twice if it was being loaded while the snapshot was saved.
         if (m_FirstTime) {
             slotKmUpdateModuleList(state, pc);
         }

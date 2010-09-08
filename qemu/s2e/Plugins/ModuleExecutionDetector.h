@@ -93,6 +93,13 @@ public:
             bool /* static target is valid */,
             uint64_t /* static target pc */>
             onModuleTranslateBlockEnd;
+
+    /** This filters module loads passed by OSInterceptor */
+    sigc::signal<void,
+       S2EExecutionState*,
+       const ModuleDescriptor &
+    >onModuleLoad;
+
 private:
     OSMonitor *m_Monitor;
 
@@ -169,7 +176,7 @@ private:
     DescriptorSet m_NotTrackedDescriptors;
 
     const ModuleDescriptor *getDescriptor(uint64_t pid, uint64_t pc, bool tracked=true) const;
-    void loadDescriptor(const ModuleDescriptor &desc, bool track);
+    bool loadDescriptor(const ModuleDescriptor &desc, bool track);
     void unloadDescriptor(const ModuleDescriptor &desc);
     void unloadDescriptorsWithPid(uint64_t pid);
     bool exists(const ModuleDescriptor *desc, bool tracked) const;

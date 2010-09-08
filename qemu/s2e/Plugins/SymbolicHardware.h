@@ -18,7 +18,7 @@ class SymbolicHardware;
 class DeviceDescriptor {
 protected:
     std::string m_id;
-
+    void *m_qemuIrq;
 
 public:
     DeviceDescriptor(const std::string &id);
@@ -49,7 +49,6 @@ public:
 
 private:
     IsaResource m_isaResource;
-    void *m_qemuIrq;
 
     struct ISADeviceInfo *m_isaInfo;
     struct Property *m_isaProperties;

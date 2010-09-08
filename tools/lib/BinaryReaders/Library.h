@@ -6,6 +6,7 @@
 
 #include "lib/ExecutionTracer/ModuleParser.h"
 #include <string>
+#include <set>
 #include <inttypes.h>
 
 namespace s2etools
@@ -16,6 +17,7 @@ class Library
 public:
     typedef std::map<std::string, s2etools::ExecutableFile*> ModuleNameToExec;
     typedef std::vector<std::string> PathList;
+    typedef std::set<std::string> StringSet;
 
     Library();
     virtual ~Library();
@@ -41,7 +43,7 @@ private:
     PathList m_libpath;
     //std::string m_libpath;
     ModuleNameToExec m_libraries;
-
+    StringSet m_badLibraries;
 
 };
 

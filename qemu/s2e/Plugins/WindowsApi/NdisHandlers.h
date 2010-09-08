@@ -76,14 +76,11 @@ private:
             );
 
     bool calledFromModule(S2EExecutionState *s);
-    void undoCallAndJumpToSymbolic(S2EExecutionState *s);
 
     void registerImport(Imports &I, const std::string &dll, const std::string &name,
                         FunctionHandler handler, S2EExecutionState *state);
 
 
-    //XXX: move this out to some other place
-    static bool bypassFunction(S2EExecutionState *s, unsigned paramCount);
     static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
     static bool writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val);
 

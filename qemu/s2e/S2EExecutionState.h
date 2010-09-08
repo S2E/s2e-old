@@ -232,6 +232,9 @@ public:
     void setPc(uint64_t pc);
     void setSp(uint64_t sp);
 
+    bool bypassFunction(unsigned paramCount);
+    void undoCallAndJumpToSymbolic();
+
     void dumpStack(unsigned count);
 
     /** Returns true if symbex is currently enabled for this state */
