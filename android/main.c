@@ -44,8 +44,6 @@
 #include "android/skin/window.h"
 #include "android/skin/keyset.h"
 
-#include "android/hw-lcd.h"
-#include "android/boot-properties.h"
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
@@ -734,7 +732,6 @@ _adjustPartitionSize( const char*  description,
     return convertMBToBytes(imageMB);
 }
 
-
 int main(int argc, char **argv)
 {
     char   tmp[MAX_PATH];
@@ -761,6 +758,11 @@ int main(int argc, char **argv)
     char*       android_build_out  = NULL;
 
     AndroidOptions  opts[1];
+    /* LCD density value to pass to the core. */
+    char lcd_density[16];
+    /* net.shared_net_ip boot property value. */
+    char boot_prop_ip[64];
+    boot_prop_ip[0] = '\0';
 
     args[0] = argv[0];
 
@@ -1112,9 +1114,8 @@ int main(int argc, char **argv)
             fprintf(stderr, "option -shared-net-id must be an integer between 1 and 255\n");
             exit(1);
         }
-        char ip[11];
-        snprintf(ip, 11, "10.1.2.%ld", shared_net_id);
-        boot_property_add("net.shared_net_ip",ip);
+        snprintf(boot_prop_ip, sizeof(boot_prop_ip),
+                 "net.shared_net_ip=10.1.2.%ld", shared_net_id);
     }
 
 
@@ -1177,6 +1178,11 @@ int main(int argc, char **argv)
             args[n++] = "-cpu";
             args[n++] = "cortex-a8";
          }
+    }
+
+    if (boot_prop_ip[0]) {
+        args[n++] = "-boot-property";
+        args[n++] = boot_prop_ip;
     }
 
     if (opts->tcpdump) {
@@ -1470,6 +1476,20 @@ int main(int argc, char **argv)
         args[n++] = "off";
     }
 
+    /* Pass LCD density value to the core. */
+    snprintf(lcd_density, sizeof(lcd_density), "%d", get_device_dpi(opts));
+    args[n++] = "-lcd-density";
+    args[n++] = lcd_density;
+
+    /* Pass boot properties to the core. */
+    if (opts->prop != NULL) {
+        ParamList*  pl = opts->prop;
+        for ( ; pl != NULL; pl = pl->next ) {
+            args[n++] = "-boot-property";
+            args[n++] = pl->param;
+        }
+    }
+
     args[n++] = "-append";
 
     if (opts->bootchart) {
@@ -1481,28 +1501,6 @@ int main(int argc, char **argv)
             derror( "timeout specified for -bootchart option is invalid.\n"
                     "please use integers between 1 and 900\n");
             exit(1);
-        }
-    }
-
-    /* start the 'boot-properties service, and parse the -prop
-     * options, if any.
-     */
-    boot_property_init_service();
-
-    hwLcd_setBootProperty(get_device_dpi(opts));
-
-    /* Set the VM's max heap size, passed as a boot property */
-    if (hw->vm_heapSize > 0) {
-        char  tmp[32], *p=tmp, *end=p + sizeof(tmp);
-        p = bufprint(p, end, "%dm", hw->vm_heapSize);
-
-        boot_property_add("dalvik.vm.heapsize",tmp);
-    }
-
-    if (opts->prop != NULL) {
-        ParamList*  pl = opts->prop;
-        for ( ; pl != NULL; pl = pl->next ) {
-            boot_property_parse_option(pl->param);
         }
     }
 

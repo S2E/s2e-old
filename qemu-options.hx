@@ -1674,4 +1674,10 @@ DEF("netfast", 0, QEMU_OPTION_netfast, \
 DEF("tcpdump", HAS_ARG, QEMU_OPTION_tcpdump, \
     "-tcpdump <file> capture network packets to file\n")
 
+DEF("boot-property", HAS_ARG, QEMU_OPTION_boot_property, \
+    "-boot-property <name>=<value> set system property on boot\n")
+
+DEF("lcd-density", HAS_ARG, QEMU_OPTION_lcd_density, \
+    "-lcd-density <density> sets LCD density system property on boot\n")
+
 #endif

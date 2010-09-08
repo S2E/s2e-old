@@ -27,6 +27,7 @@
 #include "telephony/modem_driver.h"
 #include "trace.h"
 #include "audio/audio.h"
+/* Implemented in vl-android.c */
 extern void qemu_system_shutdown_request(void);
 extern char* qemu_find_file(int type, const char* filename);
 #endif  // CONFIG_STANDALONE_UI

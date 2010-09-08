@@ -187,6 +187,8 @@
 #include "migration.h"
 #include "kvm.h"
 #include "balloon.h"
+#include "android/hw-lcd.h"
+#include "android/boot-properties.h"
 
 #ifdef CONFIG_STANDALONE_CORE
 /* Verbose value used by the standalone emulator core (without UI) */
@@ -390,6 +392,9 @@ int android_op_netfast = 0;
 
 /* -tcpdump option value. */
 char* android_op_tcpdump = NULL;
+
+/* -lcd-density option value. */
+char* android_op_lcd_density = NULL;
 
 extern int android_display_width;
 extern int android_display_height;
@@ -5198,6 +5203,9 @@ int main(int argc, char **argv, char **envp)
 
     register_watchdogs();
 
+    /* Initialize boot properties. */
+    boot_property_init_service();
+
     optind = 1;
     for(;;) {
         if (optind >= argc)
@@ -5966,6 +5974,14 @@ int main(int argc, char **argv, char **envp)
                 android_op_tcpdump = (char*)optarg;
                 break;
 
+            case QEMU_OPTION_boot_property:
+                boot_property_parse_option((char*)optarg);
+                break;
+
+            case QEMU_OPTION_lcd_density:
+                android_op_lcd_density = (char*)optarg;
+                break;
+
 #ifdef CONFIG_MEMCHECK
             case QEMU_OPTION_android_memcheck:
                 android_op_memcheck = (char*)optarg;
@@ -6027,6 +6043,13 @@ int main(int argc, char **argv, char **envp)
     }
 #endif  // CONFIG_NAND_LIMITS
 
+    /* Set the VM's max heap size, passed as a boot property */
+    if (android_hw->vm_heapSize > 0) {
+        char  tmp[64];
+        snprintf(tmp, sizeof(tmp), "%dm", android_hw->vm_heapSize);
+        boot_property_add("dalvik.vm.heapsize",tmp);
+    }
+
     /* Initialize net speed and delays stuff. */
     if (android_parse_network_speed(android_op_netspeed) < 0 ) {
         fprintf(stderr, "invalid -netspeed parameter '%s'\n",
@@ -6045,6 +6068,17 @@ int main(int argc, char **argv, char **envp)
         qemu_net_upload_speed = 0;
         qemu_net_min_latency = 0;
         qemu_net_max_latency = 0;
+    }
+
+    /* Initialize LCD density */
+    if (android_op_lcd_density) {
+        char*   end;
+        long density = strtol(android_op_lcd_density, &end, 0);
+        if (end == NULL || *end || density < 0) {
+            fprintf(stderr, "option -lcd-density must be a positive integer\n" );
+            exit(1);
+        }
+        hwLcd_setBootProperty(density);
     }
 
     /* Initialize TCP dump */
