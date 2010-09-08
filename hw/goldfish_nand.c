@@ -49,16 +49,19 @@ xlog( const char*  format, ... )
     va_end(args);
 }
 
+/* Information on a single device/nand image used by the emulator
+ */
 typedef struct {
-    char*      devname;
+    char*      devname;      /* name for this device (not null-terminated, use len below) */
     size_t     devname_len;
-    uint8_t*   data;
+    uint8_t*   data;         /* buffer for read/write actions to underlying image */
     int        fd;
     uint32_t   flags;
     uint32_t   page_size;
     uint32_t   extra_size;
-    uint32_t   erase_size;
-    uint64_t   size;
+    uint32_t   erase_size;   /* size of the data buffer mentioned above */
+    uint64_t   max_size;     /* Capacity limit for the image. The actual underlying
+                              * file may be smaller. */
 } nand_dev;
 
 nand_threshold    android_nand_write_threshold;
@@ -110,23 +113,30 @@ nand_threshold_update( nand_threshold*  t, uint32_t  len )
 static nand_dev *nand_devs = NULL;
 static uint32_t nand_dev_count = 0;
 
+/* The controller is the single access point for all NAND images currently
+ * attached to the system.
+ */
 typedef struct {
     uint32_t base;
 
     // register state
-    uint32_t dev;
+    uint32_t dev;            /* offset in nand_devs for the device that is
+                              * currently being accessed */
     uint32_t addr_low;
     uint32_t addr_high;
     uint32_t transfer_size;
     uint32_t data;
     uint32_t result;
-} nand_dev_state;
+} nand_dev_controller_state;
 
-/* update this everytime you change the nand_dev_state structure */
-#define  NAND_DEV_STATE_SAVE_VERSION  1
+/* update this everytime you change the nand_dev_controller_state structure
+ * 1: initial version, saving only nand_dev_controller_state fields
+ * 2: saving actual disk contents as well
+ */
+#define  NAND_DEV_STATE_SAVE_VERSION  2
 
-#define  QFIELD_STRUCT  nand_dev_state
-QFIELD_BEGIN(nand_dev_state_fields)
+#define  QFIELD_STRUCT  nand_dev_controller_state
+QFIELD_BEGIN(nand_dev_controller_state_fields)
     QFIELD_INT32(dev),
     QFIELD_INT32(addr_low),
     QFIELD_INT32(addr_high),
@@ -134,23 +144,6 @@ QFIELD_BEGIN(nand_dev_state_fields)
     QFIELD_INT32(data),
     QFIELD_INT32(result),
 QFIELD_END
-
-static void  nand_dev_state_save(QEMUFile*  f, void*  opaque)
-{
-    nand_dev_state*  s = opaque;
-
-    qemu_put_struct(f, nand_dev_state_fields, s);
-}
-
-static int   nand_dev_state_load(QEMUFile*  f, void*  opaque, int  version_id)
-{
-    nand_dev_state*  s = opaque;
-
-    if (version_id != NAND_DEV_STATE_SAVE_VERSION)
-        return -1;
-
-    return qemu_get_struct(f, nand_dev_state_fields, s);
-}
 
 
 static int  do_read(int  fd, void*  buf, size_t  size)
@@ -171,6 +164,174 @@ static int  do_write(int  fd, const void*  buf, size_t  size)
     } while (ret < 0 && errno == EINTR);
 
     return ret;
+}
+
+#define NAND_DEV_SAVE_DISK_BUF_SIZE 2048
+
+
+/**
+ * Copies the current contents of a disk image into the snapshot file.
+ *
+ * TODO optimize this using some kind of copy-on-write mechanism for
+ *      unchanged disk sections.
+ */
+static void  nand_dev_save_disk_state(QEMUFile *f, nand_dev *dev)
+{
+    int buf_size = NAND_DEV_SAVE_DISK_BUF_SIZE;
+    uint8_t buffer[NAND_DEV_SAVE_DISK_BUF_SIZE] = {0};
+    int ret;
+    uint64_t total_copied = 0;
+
+    /* Put the size up front, since otherwise we don't know how much to read
+     * when restoring.
+     */
+    const uint64_t total_size = dev->max_size;
+    qemu_put_be64(f, total_size);
+
+    /* copy all data from the stream to the stored image */
+    ret = lseek(dev->fd, 0, SEEK_SET);
+    if (ret < 0) {
+        XLOG("%s seek failed: %s\n", __FUNCTION__, strerror(errno));
+        qemu_file_set_error(f);
+        return;
+    }
+    do {
+        ret = do_read(dev->fd, buffer, buf_size);
+        if (ret < 0) {
+            XLOG("%s read failed: %s\n", __FUNCTION__, strerror(errno));
+            qemu_file_set_error(f);
+            return;
+        }
+        qemu_put_buffer(f, buffer, ret);
+
+        total_copied += ret;
+    }
+    while (ret == buf_size && total_copied < total_size);
+
+    /* The file may be smaller than the device size. Pad with 0xff (pattern for
+     * erased data) until we have filled the snapshot buffer we declared earlier.
+     * TODO avoid padding. Unfortunately, attempts to use the actual size of the
+     *      underlying image instead result in broken restores. This also happens
+     *      when limited padding is inserted so the image size is a multiple of
+     *      page_size or erase_size.
+     */
+    memset(buffer, 0xff, NAND_DEV_SAVE_DISK_BUF_SIZE);
+    while (total_copied < total_size) {
+        /* adjust buffer size for last part of the image */
+        if (total_size - total_copied < buf_size) {
+            buf_size = total_size - total_copied;
+        }
+        qemu_put_buffer(f, buffer, buf_size);
+        total_copied += buf_size;
+    }
+}
+
+
+/**
+ * Saves the state of all disks managed by this controller to a snapshot file.
+ */
+static void nand_dev_save_disks(QEMUFile *f)
+{
+    int i;
+    for (i = 0; i < nand_dev_count; i++) {
+        nand_dev_save_disk_state(f, nand_devs + i);
+    }
+}
+
+/**
+ * Overwrites the contents of the disk image managed by this device with the
+ * contents as they were at the point the snapshot was made.
+ */
+static int  nand_dev_load_disk_state(QEMUFile *f, nand_dev *dev)
+{
+    int buf_size = NAND_DEV_SAVE_DISK_BUF_SIZE;
+    uint8_t buffer[NAND_DEV_SAVE_DISK_BUF_SIZE] = {0};
+    int ret;
+
+    /* number of bytes to restore */
+    uint64_t total_size = qemu_get_be64(f);
+    if (total_size > dev->max_size) {
+        XLOG("%s, restore failed: size required (%lld) exceeds device limit (%lld)\n",
+             __FUNCTION__, total_size, dev->max_size);
+        return -EIO;
+    }
+
+    /* overwrite disk contents with snapshot contents */
+    uint64_t next_offset = 0;
+    do {
+        ret = lseek(dev->fd, 0, SEEK_SET);
+    } while (ret < 0 && errno == EINTR);
+    if (ret < 0) {
+        XLOG("%s seek failed: %s\n", __FUNCTION__, strerror(errno));
+        return -EIO;
+    }
+    while (next_offset < total_size) {
+        /* snapshot buffer may not be an exact multiple of buf_size
+         * if necessary, adjust buffer size for last copy operation */
+        if (total_size - next_offset < buf_size) {
+            buf_size = total_size - next_offset;
+        }
+
+        ret = qemu_get_buffer(f, buffer, buf_size);
+        if (ret != buf_size) {
+            XLOG("%s read failed: expected %d bytes but got %d\n",
+                 __FUNCTION__, buf_size, ret);
+            return -EIO;
+        }
+        ret = do_write(dev->fd, buffer, buf_size);
+        if (ret != buf_size) {
+            XLOG("%s, write failed: %s\n", __FUNCTION__, strerror(errno));
+            return -EIO;
+        }
+
+        next_offset += buf_size;
+    }
+
+    return 0;
+}
+
+/**
+ * Restores the state of all disks managed by this driver from a snapshot file.
+ */
+static int nand_dev_load_disks(QEMUFile *f)
+{
+    int i, ret;
+    for (i = 0; i < nand_dev_count; i++) {
+        ret = nand_dev_load_disk_state(f, nand_devs + i);
+        if (ret)
+            return ret; // abort on error
+    }
+
+    return 0;
+}
+
+static void  nand_dev_controller_state_save(QEMUFile *f, void  *opaque)
+{
+    nand_dev_controller_state* s = opaque;
+
+    qemu_put_struct(f, nand_dev_controller_state_fields, s);
+
+    /* The guest will continue writing to the disk image after the state has
+     * been saved. To guarantee that the state is identical after resume, save
+     * a copy of the current disk state in the snapshot.
+     */
+    nand_dev_save_disks(f);
+}
+
+static int   nand_dev_controller_state_load(QEMUFile *f, void  *opaque, int  version_id)
+{
+    nand_dev_controller_state*  s = opaque;
+    int ret;
+
+    if (version_id != NAND_DEV_STATE_SAVE_VERSION)
+        return -1;
+
+    if ((ret = qemu_get_struct(f, nand_dev_controller_state_fields, s)))
+        return ret;
+    if ((ret = nand_dev_load_disks(f)))
+        return ret;
+
+    return 0;
 }
 
 static uint32_t nand_dev_read_file(nand_dev *dev, uint32_t data, uint64_t addr, uint32_t total_len)
@@ -258,7 +419,7 @@ static uint32_t nand_dev_erase_file(nand_dev *dev, uint64_t addr, uint32_t total
 #if !(defined __APPLE__ && defined __powerpc__)
 static
 #endif
-uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
+uint32_t nand_dev_do_cmd(nand_dev_controller_state *s, uint32_t cmd)
 {
     uint32_t size;
     uint64_t addr;
@@ -277,10 +438,10 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
         cpu_memory_rw_debug(cpu_single_env, s->data, (uint8_t*)dev->devname, size, 1);
         return size;
     case NAND_CMD_READ:
-        if(addr >= dev->size)
+        if(addr >= dev->max_size)
             return 0;
-        if(size + addr > dev->size)
-            size = dev->size - addr;
+        if(size > dev->max_size - addr)
+            size = dev->max_size - addr;
         if(dev->fd >= 0)
             return nand_dev_read_file(dev, s->data, addr, size);
         cpu_memory_rw_debug(cpu_single_env,s->data, &dev->data[addr], size, 1);
@@ -288,10 +449,10 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
     case NAND_CMD_WRITE:
         if(dev->flags & NAND_DEV_FLAG_READ_ONLY)
             return 0;
-        if(addr >= dev->size)
+        if(addr >= dev->max_size)
             return 0;
-        if(size + addr > dev->size)
-            size = dev->size - addr;
+        if(size > dev->max_size - addr)
+            size = dev->max_size - addr;
         if(dev->fd >= 0)
             return nand_dev_write_file(dev, s->data, addr, size);
         cpu_memory_rw_debug(cpu_single_env,s->data, &dev->data[addr], size, 0);
@@ -299,10 +460,10 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
     case NAND_CMD_ERASE:
         if(dev->flags & NAND_DEV_FLAG_READ_ONLY)
             return 0;
-        if(addr >= dev->size)
+        if(addr >= dev->max_size)
             return 0;
-        if(size + addr > dev->size)
-            size = dev->size - addr;
+        if(size > dev->max_size - addr)
+            size = dev->max_size - addr;
         if(dev->fd >= 0)
             return nand_dev_erase_file(dev, addr, size);
         memset(&dev->data[addr], 0xff, size);
@@ -322,7 +483,7 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
 /* I/O write */
 static void nand_dev_write(void *opaque, target_phys_addr_t offset, uint32_t value)
 {
-    nand_dev_state *s = (nand_dev_state *)opaque;
+    nand_dev_controller_state *s = (nand_dev_controller_state *)opaque;
 
     switch (offset) {
     case NAND_DEV:
@@ -355,7 +516,7 @@ static void nand_dev_write(void *opaque, target_phys_addr_t offset, uint32_t val
 /* I/O read */
 static uint32_t nand_dev_read(void *opaque, target_phys_addr_t offset)
 {
-    nand_dev_state *s = (nand_dev_state *)opaque;
+    nand_dev_controller_state *s = (nand_dev_controller_state *)opaque;
     nand_dev *dev;
 
     switch (offset) {
@@ -389,10 +550,10 @@ static uint32_t nand_dev_read(void *opaque, target_phys_addr_t offset)
         return dev->erase_size;
 
     case NAND_DEV_SIZE_LOW:
-        return (uint32_t)dev->size;
+        return (uint32_t)dev->max_size;
 
     case NAND_DEV_SIZE_HIGH:
-        return (uint32_t)(dev->size >> 32);
+        return (uint32_t)(dev->max_size >> 32);
 
     default:
         cpu_abort(cpu_single_env, "nand_dev_read: Bad offset %x\n", offset);
@@ -417,15 +578,15 @@ void nand_dev_init(uint32_t base)
 {
     int iomemtype;
     static int  instance_id = 0;
-    nand_dev_state *s;
+    nand_dev_controller_state *s;
 
-    s = (nand_dev_state *)qemu_mallocz(sizeof(nand_dev_state));
+    s = (nand_dev_controller_state *)qemu_mallocz(sizeof(nand_dev_controller_state));
     iomemtype = cpu_register_io_memory(nand_dev_readfn, nand_dev_writefn, s);
     cpu_register_physical_memory(base, 0x00000fff, iomemtype);
     s->base = base;
 
     register_savevm( "nand_dev", instance_id++, NAND_DEV_STATE_SAVE_VERSION,
-                      nand_dev_state_save, nand_dev_state_load, s);
+                      nand_dev_controller_state_save, nand_dev_controller_state_load, s);
 }
 
 static int arg_match(const char *a, const char *b, size_t b_len)
@@ -597,7 +758,7 @@ void nand_add_dev(const char *arg)
     }
     dev->devname = devname;
     dev->devname_len = devname_len;
-    dev->size = dev_size;
+    dev->max_size = dev_size;
     dev->data = malloc(dev->erase_size);
     if(dev->data == NULL)
         goto out_of_memory;
