@@ -96,6 +96,24 @@ Monitor *cur_mon = NULL;
 static void monitor_command_cb(Monitor *mon, const char *cmdline,
                                void *opaque);
 
+static inline int qmp_cmd_mode(const Monitor *mon)
+{
+    //return (mon->mc ? mon->mc->command_mode : 0);
+    return 0;
+}
+
+/* Return true if in control mode, false otherwise */
+static inline int monitor_ctrl_mode(const Monitor *mon)
+{
+    return (mon->flags & MONITOR_USE_CONTROL);
+}
+
+/* Return non-zero iff we have a current monitor, and it is in QMP mode.  */
+int monitor_cur_is_qmp(void)
+{
+    return cur_mon && monitor_ctrl_mode(cur_mon);
+}
+
 static void monitor_read_command(Monitor *mon, int show_prompt)
 {
     readline_start(mon->rs, "(qemu) ", 0, monitor_command_cb, NULL);
@@ -2739,6 +2757,22 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
         qemu_free(str_allocated[i]);
 }
 
+void monitor_set_error(Monitor *mon, QError *qerror)
+{
+#if 1
+    QDECREF(qerror);
+#else
+    /* report only the first error */
+    if (!mon->error) {
+        mon->error = qerror;
+    } else {
+        MON_DEBUG("Additional error report at %s:%d\n",
+                  qerror->file, qerror->linenr);
+        QDECREF(qerror);
+    }
+#endif
+}
+
 static void cmd_completion(const char *name, const char *list)
 {
     const char *p, *pstart;
@@ -3088,16 +3122,21 @@ static void bdrv_password_cb(Monitor *mon, const char *password, void *opaque)
     monitor_read_command(mon, 1);
 }
 
-void monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
-                                 BlockDriverCompletionFunc *completion_cb,
-                                 void *opaque)
+int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
+                                BlockDriverCompletionFunc *completion_cb,
+                                void *opaque)
 {
     int err;
 
     if (!bdrv_key_required(bs)) {
         if (completion_cb)
             completion_cb(opaque, 0);
-        return;
+        return 0;
+    }
+
+    if (monitor_ctrl_mode(mon)) {
+        qerror_report(QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs));
+        return -1;
     }
 
     monitor_printf(mon, "%s (%s) is encrypted.\n", bdrv_get_device_name(bs),
@@ -3110,4 +3149,6 @@ void monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
 
     if (err && completion_cb)
         completion_cb(opaque, err);
+
+    return err;
 }
