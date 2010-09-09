@@ -34,6 +34,15 @@ void qemu_mutex_init(QemuMutex *mutex)
         error_exit(err, __func__);
 }
 
+void qemu_mutex_destroy(QemuMutex *mutex)
+{
+    int err;
+
+    err = pthread_mutex_destroy(&mutex->lock);
+    if (err)
+        error_exit(err, __func__);
+}
+
 void qemu_mutex_lock(QemuMutex *mutex)
 {
     int err;
@@ -90,6 +99,15 @@ void qemu_cond_init(QemuCond *cond)
         error_exit(err, __func__);
 }
 
+void qemu_cond_destroy(QemuCond *cond)
+{
+    int err;
+
+    err = pthread_cond_destroy(&cond->cond);
+    if (err)
+        error_exit(err, __func__);
+}
+
 void qemu_cond_signal(QemuCond *cond)
 {
     int err;
@@ -137,9 +155,16 @@ void qemu_thread_create(QemuThread *thread,
 {
     int err;
 
+    /* Leave signal handling to the iothread.  */
+    sigset_t set, oldset;
+
+    sigfillset(&set);
+    pthread_sigmask(SIG_SETMASK, &set, &oldset);
     err = pthread_create(&thread->thread, NULL, start_routine, arg);
     if (err)
         error_exit(err, __func__);
+
+    pthread_sigmask(SIG_SETMASK, &oldset, NULL);
 }
 
 void qemu_thread_signal(QemuThread *thread, int sig)
@@ -161,3 +186,7 @@ int qemu_thread_equal(QemuThread *thread1, QemuThread *thread2)
    return pthread_equal(thread1->thread, thread2->thread);
 }
 
+void qemu_thread_exit(void *retval)
+{
+    pthread_exit(retval);
+}
