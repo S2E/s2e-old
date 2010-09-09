@@ -698,7 +698,7 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
     assert((size & ~TARGET_PAGE_MASK) == 0);
     assert((hostAddress & ~TARGET_PAGE_MASK) == 0);
 
-    std::cout << std::hex
+    m_s2e->getDebugStream() << std::hex
               << "Adding memory block (startAddr = 0x" << startAddress
               << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
               << ", isSharedConcrete=" << isSharedConcrete << ")" << std::dec << std::endl;
@@ -733,6 +733,38 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 #endif
         m_unusedMemoryRegions.push_back(make_pair(hostAddress, size));
     }
+}
+
+void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t host_address,
+                               uint64_t size)
+{
+    //Assume that dirty mask is small enough, so no need to split it in small pages
+    m_dirtyMask = addExternalObject(
+            *initial_state, (void*) host_address, size, false,
+            /* isUserSpecified = */ true, false);
+
+    m_saveOnContextSwitch.push_back(m_dirtyMask);
+}
+
+uint8_t S2EExecutor::readDirtyMask(S2EExecutionState *state, uint64_t host_address)
+{
+    uint8_t val;
+    const ObjectState *os = state->addressSpace.findObject(m_dirtyMask);
+    assert(os);
+    host_address -= m_dirtyMask->address;
+    os->readConcrete8(host_address, &val);
+    return val;
+}
+
+void S2EExecutor::writeDirtyMask(S2EExecutionState *state, uint64_t host_address, uint8_t val)
+{
+    const ObjectState *os = state->addressSpace.findObject(m_dirtyMask);
+    assert(os);
+
+    ObjectState *wos = state->addressSpace.getWriteable(m_dirtyMask, os);
+
+    host_address -= m_dirtyMask->address;
+    wos->write8(host_address, val);
 }
 
 bool S2EExecutor::isRamRegistered(S2EExecutionState *state,
@@ -1980,6 +2012,23 @@ void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
         start_address, size, host_address, is_shared_concrete,
         save_on_context_switch, name);
 }
+
+void s2e_register_dirtymask(S2E *s2e, S2EExecutionState *initial_state,
+                            uint64_t host_address, uint64_t size)
+{
+    s2e->getExecutor()->registerDirtyMask(initial_state, host_address, size);
+}
+
+uint8_t s2e_read_dirty_mask(uint64_t host_address)
+{
+    return g_s2e->getExecutor()->readDirtyMask(g_s2e_state, host_address);
+}
+
+void s2e_write_dirty_mask(uint64_t host_address, uint8_t val)
+{
+    g_s2e->getExecutor()->writeDirtyMask(g_s2e_state, host_address, val);
+}
+
 
 int s2e_is_ram_registered(S2E *s2e, S2EExecutionState *state,
                                uint64_t host_address)

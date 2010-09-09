@@ -64,6 +64,8 @@ protected:
 
     std::vector<S2EExecutionState*> m_deletedStates;
 
+    klee::MemoryObject *m_dirtyMask;
+
     typedef std::set<std::pair<uint64_t,uint64_t> > ToRunSymbolically;
     ToRunSymbolically m_toRunSymbolically;
 
@@ -91,6 +93,11 @@ public:
                         uint64_t startAddress, uint64_t size,
                         uint64_t hostAddress, bool isSharedConcrete,
                         bool saveOnContextSwitch=true, const char *name="");
+
+    uint8_t readDirtyMask(S2EExecutionState *state, uint64_t host_address);
+    void writeDirtyMask(S2EExecutionState *state, uint64_t host_address, uint8_t val);
+    void registerDirtyMask(S2EExecutionState *initial_state, uint64_t host_address,
+                                   uint64_t size);
 
     /* Execute llvm function in current context */
     klee::ref<klee::Expr> executeFunction(S2EExecutionState *state,
