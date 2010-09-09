@@ -1910,7 +1910,7 @@ float32 float32_div( float32 a, float32 b STATUS_PARAM )
 
 float32 float32_rem( float32 a, float32 b STATUS_PARAM )
 {
-    flag aSign, bSign, zSign;
+    flag aSign, zSign;
     int16 aExp, bExp, expDiff;
     bits32 aSig, bSig;
     bits32 q;
@@ -1923,7 +1923,6 @@ float32 float32_rem( float32 a, float32 b STATUS_PARAM )
     aSign = extractFloat32Sign( a );
     bSig = extractFloat32Frac( b );
     bExp = extractFloat32Exp( b );
-    bSign = extractFloat32Sign( b );
     if ( aExp == 0xFF ) {
         if ( aSig || ( ( bExp == 0xFF ) && bSig ) ) {
             return propagateFloat32NaN( a, b STATUS_VAR );
@@ -2054,6 +2053,85 @@ float32 float32_sqrt( float32 a STATUS_PARAM )
  roundAndPack:
     return roundAndPackFloat32( 0, zExp, zSig STATUS_VAR );
 
+}
+
+/*----------------------------------------------------------------------------
+| Returns the binary exponential of the single-precision floating-point value
+| `a'. The operation is performed according to the IEC/IEEE Standard for
+| Binary Floating-Point Arithmetic.
+|
+| Uses the following identities:
+|
+| 1. -------------------------------------------------------------------------
+|      x    x*ln(2)
+|     2  = e
+|
+| 2. -------------------------------------------------------------------------
+|                      2     3     4     5           n
+|      x        x     x     x     x     x           x
+|     e  = 1 + --- + --- + --- + --- + --- + ... + --- + ...
+|               1!    2!    3!    4!    5!          n!
+*----------------------------------------------------------------------------*/
+
+static const float64 float32_exp2_coefficients[15] =
+{
+    make_float64( 0x3ff0000000000000ll ), /*  1 */
+    make_float64( 0x3fe0000000000000ll ), /*  2 */
+    make_float64( 0x3fc5555555555555ll ), /*  3 */
+    make_float64( 0x3fa5555555555555ll ), /*  4 */
+    make_float64( 0x3f81111111111111ll ), /*  5 */
+    make_float64( 0x3f56c16c16c16c17ll ), /*  6 */
+    make_float64( 0x3f2a01a01a01a01all ), /*  7 */
+    make_float64( 0x3efa01a01a01a01all ), /*  8 */
+    make_float64( 0x3ec71de3a556c734ll ), /*  9 */
+    make_float64( 0x3e927e4fb7789f5cll ), /* 10 */
+    make_float64( 0x3e5ae64567f544e4ll ), /* 11 */
+    make_float64( 0x3e21eed8eff8d898ll ), /* 12 */
+    make_float64( 0x3de6124613a86d09ll ), /* 13 */
+    make_float64( 0x3da93974a8c07c9dll ), /* 14 */
+    make_float64( 0x3d6ae7f3e733b81fll ), /* 15 */
+};
+
+float32 float32_exp2( float32 a STATUS_PARAM )
+{
+    flag aSign;
+    int16 aExp;
+    bits32 aSig;
+    float64 r, x, xn;
+    int i;
+
+    aSig = extractFloat32Frac( a );
+    aExp = extractFloat32Exp( a );
+    aSign = extractFloat32Sign( a );
+
+    if ( aExp == 0xFF) {
+        if ( aSig ) return propagateFloat32NaN( a, float32_zero STATUS_VAR );
+        return (aSign) ? float32_zero : a;
+    }
+    if (aExp == 0) {
+        if (aSig == 0) return float32_one;
+    }
+
+    float_raise( float_flag_inexact STATUS_VAR);
+
+    /* ******************************* */
+    /* using float64 for approximation */
+    /* ******************************* */
+    x = float32_to_float64(a STATUS_VAR);
+    x = float64_mul(x, float64_ln2 STATUS_VAR);
+
+    xn = x;
+    r = float64_one;
+    for (i = 0 ; i < 15 ; i++) {
+        float64 f;
+
+        f = float64_mul(xn, float32_exp2_coefficients[i] STATUS_VAR);
+        r = float64_add(r, f STATUS_VAR);
+
+        xn = float64_mul(xn, x STATUS_VAR);
+    }
+
+    return float64_to_float32(r, status);
 }
 
 /*----------------------------------------------------------------------------
@@ -3062,7 +3140,7 @@ float64 float64_div( float64 a, float64 b STATUS_PARAM )
 
 float64 float64_rem( float64 a, float64 b STATUS_PARAM )
 {
-    flag aSign, bSign, zSign;
+    flag aSign, zSign;
     int16 aExp, bExp, expDiff;
     bits64 aSig, bSig;
     bits64 q, alternateASig;
@@ -3073,7 +3151,6 @@ float64 float64_rem( float64 a, float64 b STATUS_PARAM )
     aSign = extractFloat64Sign( a );
     bSig = extractFloat64Frac( b );
     bExp = extractFloat64Exp( b );
-    bSign = extractFloat64Sign( b );
     if ( aExp == 0x7FF ) {
         if ( aSig || ( ( bExp == 0x7FF ) && bSig ) ) {
             return propagateFloat64NaN( a, b STATUS_VAR );
@@ -4032,7 +4109,7 @@ floatx80 floatx80_div( floatx80 a, floatx80 b STATUS_PARAM )
 
 floatx80 floatx80_rem( floatx80 a, floatx80 b STATUS_PARAM )
 {
-    flag aSign, bSign, zSign;
+    flag aSign, zSign;
     int32 aExp, bExp, expDiff;
     bits64 aSig0, aSig1, bSig;
     bits64 q, term0, term1, alternateASig0, alternateASig1;
@@ -4043,7 +4120,6 @@ floatx80 floatx80_rem( floatx80 a, floatx80 b STATUS_PARAM )
     aSign = extractFloatx80Sign( a );
     bSig = extractFloatx80Frac( b );
     bExp = extractFloatx80Exp( b );
-    bSign = extractFloatx80Sign( b );
     if ( aExp == 0x7FFF ) {
         if (    (bits64) ( aSig0<<1 )
              || ( ( bExp == 0x7FFF ) && (bits64) ( bSig<<1 ) ) ) {
@@ -5144,7 +5220,7 @@ float128 float128_div( float128 a, float128 b STATUS_PARAM )
 
 float128 float128_rem( float128 a, float128 b STATUS_PARAM )
 {
-    flag aSign, bSign, zSign;
+    flag aSign, zSign;
     int32 aExp, bExp, expDiff;
     bits64 aSig0, aSig1, bSig0, bSig1, q, term0, term1, term2;
     bits64 allZero, alternateASig0, alternateASig1, sigMean1;
@@ -5158,7 +5234,6 @@ float128 float128_rem( float128 a, float128 b STATUS_PARAM )
     bSig1 = extractFloat128Frac1( b );
     bSig0 = extractFloat128Frac0( b );
     bExp = extractFloat128Exp( b );
-    bSign = extractFloat128Sign( b );
     if ( aExp == 0x7FFF ) {
         if (    ( aSig0 | aSig1 )
              || ( ( bExp == 0x7FFF ) && ( bSig0 | bSig1 ) ) ) {
