@@ -2,6 +2,7 @@
 #define CONFIG_QEMU_SHAREDIR "/usr/local/share/qemu"
 #define HOST_I386 1
 #define HOST_LONG_BITS 32
+#define CONFIG_FNMATCH 1
 #define CONFIG_GDBSTUB 1
 #define CONFIG_SLIRP 1
 #define CONFIG_OSS 1

@@ -3,6 +3,7 @@
 #define HOST_I386 1
 #define HOST_LONG_BITS 32
 #define HAVE_BYTESWAP_H 1
+#define CONFIG_FNMATCH 1
 #define CONFIG_GDBSTUB 1
 #define CONFIG_SLIRP 1
 #define QEMU_VERSION "0.10.50"

@@ -357,6 +357,8 @@ fi
 #
 feature_check_header HAVE_BYTESWAP_H "<byteswap.h>"
 
+feature_check_header HAVE_FNMATCH_H "<fnmatch.h>"
+
 # Build the config.make file
 #
 
@@ -403,6 +405,9 @@ echo "#define CONFIG_QEMU_SHAREDIR   \"/usr/local/share/qemu\"" >> $config_h
 echo "#define HOST_LONG_BITS  $HOST_LONGBITS" >> $config_h
 if [ "$HAVE_BYTESWAP_H" = "yes" ] ; then
   echo "#define HAVE_BYTESWAP_H 1" >> $config_h
+fi
+if [ "$HAVE_FNMATCH_H" = "yes" ] ; then
+  echo "#define CONFIG_FNMATCH  1" >> $config_h
 fi
 echo "#define CONFIG_GDBSTUB  1" >> $config_h
 echo "#define CONFIG_SLIRP    1" >> $config_h

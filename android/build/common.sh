@@ -413,7 +413,7 @@ feature_check_link ()
 feature_check_header ()
 {
     local result_ch
-    log2 "HeaderChk  : $2"
+    log "HeaderCheck: $2"
     echo "#include $2" > $TMPC
     cat >> $TMPC <<EOF
         int main(void) { return 0; }
