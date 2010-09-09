@@ -161,6 +161,7 @@ struct QEMUFile {
     QEMUFileCloseFunc *close;
     QEMUFileRateLimit *rate_limit;
     QEMUFileSetRateLimit *set_rate_limit;
+    QEMUFileGetRateLimit *get_rate_limit;
     void *opaque;
     int is_write;
 
@@ -248,9 +249,9 @@ QEMUFile *qemu_popen(FILE *popen_file, const char *mode)
     s->popen_file = popen_file;
 
     if(mode[0] == 'r') {
-        s->file = qemu_fopen_ops(s, NULL, popen_get_buffer, popen_close, NULL, NULL);
+        s->file = qemu_fopen_ops(s, NULL, popen_get_buffer, popen_close, NULL, NULL, NULL);
     } else {
-        s->file = qemu_fopen_ops(s, popen_put_buffer, NULL, popen_close, NULL, NULL);
+        s->file = qemu_fopen_ops(s, popen_put_buffer, NULL, popen_close, NULL, NULL, NULL);
     }
     return s->file;
 }
@@ -283,7 +284,7 @@ QEMUFile *qemu_fopen_socket(int fd)
     QEMUFileSocket *s = qemu_mallocz(sizeof(QEMUFileSocket));
 
     s->fd = fd;
-    s->file = qemu_fopen_ops(s, NULL, file_socket_get_buffer, file_socket_close, NULL, NULL);
+    s->file = qemu_fopen_ops(s, NULL, file_socket_get_buffer, file_socket_close, NULL, NULL, NULL);
     return s->file;
 }
 
@@ -327,9 +328,9 @@ QEMUFile *qemu_fopen(const char *filename, const char *mode)
         goto fail;
 
     if (!strcmp(mode, "wb"))
-        return qemu_fopen_ops(s, file_put_buffer, NULL, file_close, NULL, NULL);
+        return qemu_fopen_ops(s, file_put_buffer, NULL, file_close, NULL, NULL, NULL);
     else if (!strcmp(mode, "rb"))
-        return qemu_fopen_ops(s, NULL, file_get_buffer, file_close, NULL, NULL);
+        return qemu_fopen_ops(s, NULL, file_get_buffer, file_close, NULL, NULL, NULL);
 
 fail:
     if (s->outfile)
@@ -375,16 +376,17 @@ static QEMUFile *qemu_fopen_bdrv(BlockDriverState *bs, int64_t offset, int is_wr
     s->base_offset = offset;
 
     if (is_writable)
-        return qemu_fopen_ops(s, block_put_buffer, NULL, bdrv_fclose, NULL, NULL);
+        return qemu_fopen_ops(s, block_put_buffer, NULL, bdrv_fclose, NULL, NULL, NULL);
 
-    return qemu_fopen_ops(s, NULL, block_get_buffer, bdrv_fclose, NULL, NULL);
+    return qemu_fopen_ops(s, NULL, block_get_buffer, bdrv_fclose, NULL, NULL, NULL);
 }
 
 QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
                          QEMUFileGetBufferFunc *get_buffer,
                          QEMUFileCloseFunc *close,
                          QEMUFileRateLimit *rate_limit,
-                         QEMUFileSetRateLimit *set_rate_limit)
+                         QEMUFileSetRateLimit *set_rate_limit,
+                         QEMUFileGetRateLimit *get_rate_limit)
 {
     QEMUFile *f;
 

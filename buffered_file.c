@@ -156,6 +156,14 @@ static int buffered_put_buffer(void *opaque, const uint8_t *buf, int64_t pos, in
         offset = size;
     }
 
+    if (pos == 0 && size == 0) {
+        DPRINTF("file is ready\n");
+        if (s->bytes_xfer <= s->xfer_limit) {
+            DPRINTF("notifying client\n");
+            s->put_ready(s->opaque);
+        }
+    }
+
     return offset;
 }
 
@@ -222,8 +230,10 @@ static void buffered_rate_tick(void *opaque)
 {
     QEMUFileBuffered *s = opaque;
 
-    if (s->has_error)
+    if (s->has_error) {
+        buffered_close(s);
         return;
+    }
 
     qemu_mod_timer(s->timer, qemu_get_clock(rt_clock) + 100);
 
@@ -258,7 +268,8 @@ QEMUFile *qemu_fopen_ops_buffered(void *opaque,
 
     s->file = qemu_fopen_ops(s, buffered_put_buffer, NULL,
                              buffered_close, buffered_rate_limit,
-                             buffered_set_rate_limit);
+                             buffered_set_rate_limit,
+			     buffered_get_rate_limit);
 
     s->timer = qemu_new_timer(rt_clock, buffered_rate_tick, s);
 
