@@ -35,6 +35,13 @@ void qemu_aio_flush(void);
  * result of executing I/O completion or bh callbacks. */
 void qemu_aio_wait(void);
 
+/*
+ * Runs all currently allowed AIO callbacks of completed requests. Returns 0
+ * if no requests were handled, non-zero if at least one request was
+ * processed.
+ */
+int qemu_aio_process_queue(void);
+
 /* Register a file descriptor and associated callbacks.  Behaves very similarly
  * to qemu_set_fd_handler2.  Unlike qemu_set_fd_handler2, these callbacks will
  * be invoked when using either qemu_aio_wait() or qemu_aio_flush().
@@ -46,6 +53,7 @@ int qemu_aio_set_fd_handler(int fd,
                             IOHandler *io_read,
                             IOHandler *io_write,
                             AioFlushHandler *io_flush,
+                            AioProcessQueue *io_process_queue,
                             void *opaque);
 
 #endif
