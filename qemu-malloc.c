@@ -32,11 +32,6 @@ static void *oom_check(void *ptr)
     return ptr;
 }
 
-void *get_mmap_addr(unsigned long size)
-{
-    return NULL;
-}
-
 void qemu_free(void *ptr)
 {
     free(ptr);
@@ -61,20 +56,18 @@ void *qemu_malloc(size_t size)
 
 void *qemu_realloc(void *ptr, size_t size)
 {
-    if (size) {
-        return oom_check(realloc(ptr, size));
-    } else if (allow_zero_malloc()) {
-        return oom_check(realloc(ptr, size ? size : 1));
+    if (!size && !allow_zero_malloc()) {
+        abort();
     }
-    abort();
+    return oom_check(realloc(ptr, size ? size : 1));
 }
 
 void *qemu_mallocz(size_t size)
 {
-    void *ptr;
-    ptr = qemu_malloc(size);
-    memset(ptr, 0, size);
-    return ptr;
+    if (!size && !allow_zero_malloc()) {
+        abort();
+    }
+    return oom_check(calloc(1, size ? size : 1));
 }
 
 char *qemu_strdup(const char *str)
