@@ -11,7 +11,7 @@
  *
  */
 
-#include <stdbool.h>
+#include <stdarg.h>
 
 #include "qemu-common.h"
 #include "qstring.h"
@@ -93,7 +93,12 @@ static int token_is_escape(QObject *obj, const char *value)
  */
 static void parse_error(JSONParserContext *ctxt, QObject *token, const char *msg, ...)
 {
-    fprintf(stderr, "parse error: %s\n", msg);
+    va_list ap;
+    va_start(ap, msg);
+    fprintf(stderr, "parse error: ");
+    vfprintf(stderr, msg, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
 }
 
 /**
@@ -200,6 +205,10 @@ static QString *qstring_from_escaped_str(JSONParserContext *ctxt, QObject *token
                 qstring_append(str, "\b");
                 ptr++;
                 break;
+            case 'f':
+                qstring_append(str, "\f");
+                ptr++;
+                break;
             case 'n':
                 qstring_append(str, "\n");
                 ptr++;
@@ -264,7 +273,7 @@ static int parse_pair(JSONParserContext *ctxt, QDict *dict, QList **tokens, va_l
 
     peek = qlist_peek(working);
     key = parse_value(ctxt, &working, ap);
-    if (qobject_type(key) != QTYPE_QSTRING) {
+    if (!key || qobject_type(key) != QTYPE_QSTRING) {
         parse_error(ctxt, peek, "key is not a string in object");
         goto out;
     }
