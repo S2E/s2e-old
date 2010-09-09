@@ -188,6 +188,7 @@ void FunctionSkipper::onFunctionCall(
         return;
     }
 
+    s2e()->getDebugStream() << "FunctionSkipper: Called entry " << entry->cfgname << std::endl;
     bool skip = !entry->executeOnce || (entry->executeOnce && entry->invocationCount > 0);
     if (skip) {
         if (entry->symbolicReturn) {
@@ -213,6 +214,7 @@ void FunctionSkipper::onFunctionRet(
         FunctionSkipperCfgEntry *entry
         )
 {
+    s2e()->getDebugStream() << "FunctionSkipper: Returned from " << entry->cfgname << std::endl;
     ++entry->returnCount;
     if (entry->returnCount > entry->keepReturnPathsCount) {
         std::stringstream ss;

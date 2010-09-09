@@ -1,8 +1,18 @@
+extern "C" {
+#include <qemu-common.h>
+#include <cpu-all.h>
+#include <exec-all.h>
+}
+
+
 #include "ConfigFile.h"
 
 #include <s2e/Utils.h>
+#include <s2e/S2E.h>
+#include <s2e/S2EExecutionState.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <sstream>
 
 extern "C" {
 #include <lua.h>
@@ -24,6 +34,9 @@ ConfigFile::ConfigFile(const std::string &configFileName)
             luaError("Can not run configuration file:\n    %s\n",
                     lua_tostring(m_luaState, -1));
         }
+
+        //Register S2E API
+        RegisterS2EApi();
     }
 }
 
@@ -319,6 +332,223 @@ void ConfigFile::fcnExecute(const char *cmd)
                     cmd, lua_tostring(m_luaState, -1));
         //lua_pop(m_luaState, 1);
     }
+}
+
+void ConfigFile::invokeAnnotation(const std::string &annotation, S2EExecutionState *param)
+{
+    LuaPrivateData *opaque = new LuaPrivateData();
+    opaque->opaque = param;
+    opaque->type = STATE;
+
+    boxptr(m_luaState, opaque);
+    luaL_getmetatable(m_luaState, LUAS2E);
+    lua_setmetatable(m_luaState, -2);    /* Done */
+    lua_call(m_luaState, 1, 0);
+}
+
+int ConfigFile::RegisterS2EApi()
+{
+    static const luaL_reg meta_methods[] = {
+        {"__gc", ConfigFile::luaS2EDestroy },
+        {0,0}
+    };
+
+    static const luaL_reg s2e_methods[] = {
+        {"get_param",           ConfigFile::s2e_get_param },
+        {"write_mem_symb", ConfigFile::s2e_write_mem_symb },
+        {"write_register",          ConfigFile::s2e_write_register },
+        {0,0}
+    };
+#if 0
+    int metatable, methods;
+    lua_State *L = m_luaState;
+
+
+    luaL_newmetatable(L, LUAS2E);
+    lua_pushliteral(L, "__index");
+    lua_pushvalue(L, -3);
+    lua_settable(L, -3);
+    luaL_openlib(L, NULL, meta_methods, 0);
+    lua_pop(L, 1);
+
+
+    lua_pushliteral(L, LUAS2E);        /* name of LuaS2E table */
+    methods   = newtable(L);           /* LuaS2E methods table */
+    metatable = newtable(L);           /* LuaS2E metatable */
+
+    lua_pushliteral(L, "__index");     /* add index event to metatable */
+    lua_pushvalue(L, methods);
+    lua_settable(L, metatable);        /* metatable.__index = methods */
+
+    lua_pushliteral(L, "__metatable"); /* hide metatable */
+    lua_pushvalue(L, methods);
+    lua_settable(L, metatable);        /* metatable.__metatable = methods */
+
+    luaL_openlib(L, 0, meta_methods,  0); /* fill metatable */
+    luaL_openlib(L, 0, s2e_methods, 1); /* fill LuaS2E methods table */
+    lua_settable(L, LUA_GLOBALSINDEX); /* add LuaS2E to globals */
+#endif
+    return 0;
+
+}
+
+
+ConfigFile::LuaPrivateData* ConfigFile::luaS2ECheck(lua_State *L, int i)
+{
+    if (luaL_checkudata(L, i, LUAS2E) != NULL) {
+        LuaPrivateData *im = (LuaPrivateData*)unboxptr(L, i);
+        if (im == NULL)
+            luaL_error(L, "attempt to use an invalid " LUAS2E);
+        return im;
+    }
+    luaL_typerror(L, i, LUAS2E);
+    return NULL;
+}
+
+int ConfigFile::luaS2EDestroy(lua_State *L)
+{
+    LuaPrivateData *pd = (LuaPrivateData*)unboxptr(L, 1);
+    if (pd)
+        delete pd;
+    return 0;
+}
+
+//Reads a concrete value from the stack
+int ConfigFile::s2e_get_param(lua_State *L)
+{
+    int n = lua_gettop(L);    /* number of arguments */
+
+    if (n != 2) {
+        lua_pushstring(L, "incorrect argument to function s2e_get_param'");
+        lua_error(L);
+    }
+
+    LuaPrivateData *pd = luaS2ECheck(L, 1);
+    uint32_t param = luaL_checkint(L, 2);
+
+    S2EExecutionState *state = static_cast<S2EExecutionState*>(pd->opaque);
+
+    uint32_t val;
+    bool b = state->readMemoryConcrete(state->getSp() + (param+1) * sizeof(uint32_t), &val, sizeof(val));
+    if (!b) {
+        lua_pushstring(L, "s2e_get_param: Could not read from memory");
+        lua_error(L);
+    }
+
+    lua_pushnumber(L, val);        /* first result */
+    return 1;
+}
+
+int ConfigFile::s2e_write_mem_symb(lua_State *L)
+{
+    int n = lua_gettop(L);    /* number of arguments */
+
+    if (n != 3) {
+        lua_pushstring(L, "incorrect argument to function s2e_write_mem_symb'");
+        lua_error(L);
+    }
+
+    LuaPrivateData *pd = luaS2ECheck(L, 1);
+    uint32_t address = luaL_checkint(L, 2);
+    uint32_t size = luaL_checkint(L, 3);
+
+    S2EExecutionState *state = static_cast<S2EExecutionState*>(pd->opaque);
+
+    klee::Expr::Width width=klee::Expr::Int8;
+    switch(size) {
+        case 1: width = klee::Expr::Int8; break;
+        case 2: width = klee::Expr::Int16; break;
+        case 4: width = klee::Expr::Int32; break;
+        case 8: width = klee::Expr::Int64; break;
+        default:
+            {
+                std::stringstream ss;
+                ss << "s2e_write_mem_symb: Invalid size " << size;
+                lua_pushstring(L, ss.str().c_str());
+                lua_error(L);
+            }
+            break;
+    }
+
+    klee::ref<klee::Expr> val = state->createSymbolicValue(width, "s2e_write_mem_symb");
+
+    if (!state->writeMemory(address, val)) {
+        std::stringstream ss;
+        ss << "s2e_write_mem_symb: Could not write to memory at address 0x" << std::hex << address;
+        lua_pushstring(L, ss.str().c_str());
+        lua_error(L);
+    }
+
+    return 0;
+}
+
+int ConfigFile::s2e_write_register(lua_State *L)
+{
+    int n = lua_gettop(L);    /* number of arguments */
+
+    if (n != 3) {
+        lua_pushstring(L, "incorrect argument to function s2e_write_register'");
+        lua_error(L);
+    }
+#if 0
+    //XXX: check pointer validity!
+    if (!lua_isnumber(L, 1)) {
+        lua_pushstring(L, "First parameter must be the execution state");
+        lua_error(L);
+    }
+
+    if (!lua_isstring(L, 2)) {
+        lua_pushstring(L, "Second parameter must be a register name");
+        lua_error(L);
+    }
+
+    if (!lua_isnumber(L, 3)) {
+        lua_pushstring(L, "Third parameter must be the value to be written");
+        lua_error(L);
+    }
+#endif
+    LuaPrivateData *pd = luaS2ECheck(L, 1);
+    std::string regstr = luaL_checkstring(L, 2);
+    uint32_t value = luaL_checkint(L, 3);
+
+    S2EExecutionState *state = static_cast<S2EExecutionState*>(pd->opaque);
+
+    unsigned regIndex=0, size=0;
+
+    if (regstr == "eax") {
+        regIndex = R_EAX;
+        size = 4;
+    }else if (regstr == "ebx") {
+        regIndex = R_EBX;
+        size = 4;
+    }else if (regstr == "ecx") {
+        regIndex = R_ECX;
+        size = 4;
+    }else if (regstr == "edx") {
+        regIndex = R_EDX;
+        size = 4;
+    }else if (regstr == "edi") {
+        regIndex = R_EDI;
+        size = 4;
+    }else if (regstr == "esi") {
+        regIndex = R_ESI;
+        size = 4;
+    }else if (regstr == "esp") {
+        regIndex = R_ESP;
+        size = 4;
+    }else if (regstr == "ebp") {
+        regIndex = R_EBP;
+        size = 4;
+    }else {
+        std::stringstream ss;
+        ss << "Invalid register " << regstr;
+        lua_pushstring(L, ss.str().c_str());
+        lua_error(L);
+    }
+
+    state->writeCpuRegisterConcrete(offsetof(CPUState, regs) + regIndex*4, &value, size);
+
+    return 0;                   /* number of results */
 }
 
 ///////////////////////////////////////////////////////

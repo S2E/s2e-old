@@ -8,9 +8,28 @@
 struct lua_State;
 
 namespace s2e {
+class S2EExecutionState;
+
+#define LUAS2E "LuaS2E"
+
+//Copied from lua-gd
+/* Emulates lua_(un)boxpointer from Lua 5.0 (don't exists on Lua 5.1) */
+#define boxptr(L, p)   (*(void**)(lua_newuserdata(L, sizeof(void*))) = (p))
+#define unboxptr(L, i) (*(void**)(lua_touserdata(L, i)))
+
 
 class ConfigFile
 {
+public:
+    enum LuaPrivateDataType {
+        STATE
+    };
+
+    struct LuaPrivateData {
+        LuaPrivateDataType type;
+        void *opaque;
+    };
+
 private:
     lua_State *m_luaState;
 
@@ -38,6 +57,9 @@ private:
     template<typename T>
     T getValueT(const std::string& expr, const T& def, bool *ok);
 
+    int RegisterS2EApi();
+    static LuaPrivateData* luaS2ECheck(lua_State *L, int index);
+    static int luaS2EDestroy(lua_State *L);
 public:
     ConfigFile(const std::string &configFileName);
     ~ConfigFile();
@@ -86,6 +108,11 @@ public:
     static void *fcnGetContext(void *s);
     static bool fcnGetStringArg(void *s, int index, std::string &ret);
     void fcnExecute(const char *cmd);
+
+    void invokeAnnotation(const std::string &annotation, S2EExecutionState *param);
+    static int s2e_get_param(lua_State *L);
+    static int s2e_write_mem_symb(lua_State *L);
+    static int s2e_write_register(lua_State *L);
 };
 
 } // namespace s2e

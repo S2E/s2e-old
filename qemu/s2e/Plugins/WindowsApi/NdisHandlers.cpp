@@ -180,7 +180,7 @@ bool NdisHandlers::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Exp
     bool isTrue;
     klee::ref<klee::Expr> eq = klee::SgeExpr::create(expr, klee::ConstantExpr::create(0, expr.get()->getWidth()));
 
-    if (s2e->getExecutor()->getSolver()->mustBeTrue(klee::Query(s->constraints, eq), isTrue)) {
+    if (s2e->getExecutor()->getSolver()->mayBeTrue(klee::Query(s->constraints, eq), isTrue)) {
         return isTrue;
     }
     return false;
