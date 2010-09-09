@@ -73,6 +73,21 @@ generic_symbol_at_address (bfd_vma addr, struct disassemble_info *info)
   return 1;
 }
 
+bfd_vma bfd_getl64 (const bfd_byte *addr)
+{
+  unsigned long long v;
+
+  v = (unsigned long long) addr[0];
+  v |= (unsigned long long) addr[1] << 8;
+  v |= (unsigned long long) addr[2] << 16;
+  v |= (unsigned long long) addr[3] << 24;
+  v |= (unsigned long long) addr[4] << 32;
+  v |= (unsigned long long) addr[5] << 40;
+  v |= (unsigned long long) addr[6] << 48;
+  v |= (unsigned long long) addr[7] << 56;
+  return (bfd_vma) v;
+}
+
 bfd_vma bfd_getl32 (const bfd_byte *addr)
 {
   unsigned long v;
@@ -278,6 +293,8 @@ void disas(FILE *out, void *code, unsigned long size)
     print_insn = print_insn_s390;
 #elif defined(__hppa__)
     print_insn = print_insn_hppa;
+#elif defined(__ia64__)
+    print_insn = print_insn_ia64;
 #else
     fprintf(out, "0x%lx: Asm output not supported on this arch\n",
 	    (long) code);
@@ -393,6 +410,9 @@ void monitor_disas(Monitor *mon, CPUState *env,
 #else
     print_insn = print_insn_little_mips;
 #endif
+#elif defined(TARGET_SH4)
+    disasm_info.mach = bfd_mach_sh4;
+    print_insn = print_insn_sh;
 #else
     monitor_printf(mon, "0x" TARGET_FMT_lx
                    ": Asm output not supported on this arch\n", pc);

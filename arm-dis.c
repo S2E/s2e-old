@@ -60,10 +60,8 @@
 #define FPU_VFP_EXT_V3	 0
 #define FPU_NEON_EXT_V1	 0
 
-int floatformat_ieee_single_little;
 /* Assume host uses ieee float.  */
-static void floatformat_to_double (int *ignored, unsigned char *data,
-                                   double *dest)
+static void floatformat_to_double (unsigned char *data, double *dest)
 {
     union {
         uint32_t i;
@@ -2517,7 +2515,6 @@ print_insn_neon (struct disassemble_info *info, long given, bfd_boolean thumb)
 			  {
 			    func (stream, "<illegal constant %.8x:%x:%x>",
                                   bits, cmode, op);
-                            size = 32;
 			    break;
 			  }
                         switch (size)
@@ -2543,9 +2540,7 @@ print_insn_neon (struct disassemble_info *info, long given, bfd_boolean thumb)
                                 valbytes[2] = (value >> 16) & 0xff;
                                 valbytes[3] = (value >> 24) & 0xff;
 
-                                floatformat_to_double
-                                  (&floatformat_ieee_single_little, valbytes,
-                                  &fvalue);
+                                floatformat_to_double (valbytes, &fvalue);
 
                                 func (stream, "#%.7g\t; 0x%.8lx", fvalue,
                                       value);
@@ -3153,14 +3148,14 @@ print_insn_thumb16 (bfd_vma pc, struct disassemble_info *info, long given)
 		      if (started)
 			func (stream, ", ");
 		      started = 1;
-		      func (stream, arm_regnames[14] /* "lr" */);
+		      func (stream, "%s", arm_regnames[14] /* "lr" */);
 		    }
 
 		  if (domaskpc)
 		    {
 		      if (started)
 			func (stream, ", ");
-		      func (stream, arm_regnames[15] /* "pc" */);
+		      func (stream, "%s", arm_regnames[15] /* "pc" */);
 		    }
 
 		  func (stream, "}");
@@ -3703,7 +3698,7 @@ print_insn_thumb32 (bfd_vma pc, struct disassemble_info *info, long given)
 		  }
 		else
 		  {
-		    func (stream, psr_name (given & 0xff));
+		    func (stream, "%s", psr_name (given & 0xff));
 		  }
 		break;
 
@@ -3711,7 +3706,7 @@ print_insn_thumb32 (bfd_vma pc, struct disassemble_info *info, long given)
 		if ((given & 0xff) == 0)
 		  func (stream, "%cPSR", (given & 0x100000) ? 'S' : 'C');
 		else
-		  func (stream, psr_name (given & 0xff));
+		  func (stream, "%s", psr_name (given & 0xff));
 		break;
 
 	      case '0': case '1': case '2': case '3': case '4':
