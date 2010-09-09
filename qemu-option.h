@@ -28,6 +28,7 @@
 
 #include <stdint.h>
 #include "qemu-queue.h"
+#include "qdict.h"
 
 enum QEMUOptionParType {
     OPT_FLAG,
@@ -69,6 +70,8 @@ int set_option_parameter(QEMUOptionParameter *list, const char *name,
     const char *value);
 int set_option_parameter_int(QEMUOptionParameter *list, const char *name,
     uint64_t value);
+QEMUOptionParameter *append_option_parameters(QEMUOptionParameter *dest,
+    QEMUOptionParameter *list);
 QEMUOptionParameter *parse_option_parameters(const char *param,
     QEMUOptionParameter *list, QEMUOptionParameter *dest);
 void free_option_parameters(QEMUOptionParameter *list);
@@ -96,6 +99,7 @@ typedef struct QemuOptDesc {
 
 struct QemuOptsList {
     const char *name;
+    const char *implied_opt_name;
     QTAILQ_HEAD(, QemuOpts) head;
     QemuOptDesc desc[];
 };
@@ -111,13 +115,17 @@ int qemu_opt_foreach(QemuOpts *opts, qemu_opt_loopfunc func, void *opaque,
 
 QemuOpts *qemu_opts_find(QemuOptsList *list, const char *id);
 QemuOpts *qemu_opts_create(QemuOptsList *list, const char *id, int fail_if_exists);
+void qemu_opts_reset(QemuOptsList *list);
+void qemu_opts_loc_restore(QemuOpts *opts);
 int qemu_opts_set(QemuOptsList *list, const char *id,
                   const char *name, const char *value);
 const char *qemu_opts_id(QemuOpts *opts);
 void qemu_opts_del(QemuOpts *opts);
 int qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc);
 int qemu_opts_do_parse(QemuOpts *opts, const char *params, const char *firstname);
-QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params, const char *firstname);
+QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params, int permit_abbrev);
+QemuOpts *qemu_opts_from_qdict(QemuOptsList *list, const QDict *qdict);
+QDict *qemu_opts_to_qdict(QemuOpts *opts, QDict *qdict);
 
 typedef int (*qemu_opts_loopfunc)(QemuOpts *opts, void *opaque);
 int qemu_opts_print(QemuOpts *opts, void *dummy);
