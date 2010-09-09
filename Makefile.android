@@ -130,7 +130,7 @@ endif
 
 TCG_CFLAGS := -I$(LOCAL_PATH)/tcg -I$(LOCAL_PATH)/tcg/$(TCG_TARGET)
 
-LOCAL_CFLAGS += $(TCG_CFLAGS) \
+LOCAL_CFLAGS += $(TCG_CFLAGS) -DNEED_CPU_H \
                 -I$(LOCAL_PATH)/target-arm \
                 -I$(LOCAL_PATH)/fpu \
 
@@ -151,7 +151,7 @@ LOCAL_MODULE                    := emulator-hw
 
 HW_CFLAGS    := -I$(LOCAL_PATH)/hw
 
-LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
+LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) -DNEED_CPU_H
 LOCAL_CFLAGS += -I$(LOCAL_PATH)/target-arm -I$(LOCAL_PATH)/fpu $(HW_CFLAGS)
 LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
 
@@ -248,7 +248,7 @@ LOCAL_MODULE                    := emulator-memcheck
 
 MCHK_CFLAGS    := -I$(LOCAL_PATH)/memcheck -I$(LOCAL_PATH)/elff
 
-LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
+LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) -DNEED_CPU_H
 LOCAL_CFLAGS += -I$(LOCAL_PATH)/target-arm -I$(LOCAL_PATH)/fpu $(MCHK_CFLAGS)
 LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
 
@@ -283,6 +283,7 @@ LOCAL_CFLAGS += -I$(LOCAL_PATH) \
                 -I$(LOCAL_PATH)/fpu \
                 $(TCG_CFLAGS) \
                 $(HW_CFLAGS) \
+                -DNEED_CPU_H \
 
 ifeq ($(HOST_ARCH),ppc)
     LOCAL_CFLAGS += -D__powerpc__
@@ -655,6 +656,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     bt-host.c \
                     bt-vhci.c \
                     module.c \
+                    qemu-timer.c \
                     android/boot-properties.c \
                     android/display.c \
                     android/hw-kmsg.c \

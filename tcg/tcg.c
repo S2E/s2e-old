@@ -27,7 +27,7 @@
 
 #include "config.h"
 
-#ifndef CONFIG_DEBUG_TCG
+#if !defined(CONFIG_DEBUG_TCG) && !defined(NDEBUG)
 /* define it to suppress various consistency checks (faster) */
 #define NDEBUG
 #endif
@@ -47,6 +47,7 @@
 #include "qemu-common.h"
 #include "cache-utils.h"
 #include "host-utils.h"
+#include "qemu-timer.h"
 
 /* Note: the long term plan is to reduce the dependancies on the QEMU
    CPU definitions. Currently they are used for qemu_ld/st

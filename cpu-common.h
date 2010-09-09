@@ -3,19 +3,25 @@
 
 /* CPU interfaces that are target indpendent.  */
 
-#if defined(__arm__) || defined(__sparc__) || defined(__mips__) || defined(__hppa__)
+#if defined(__arm__) || defined(__sparc__) || defined(__mips__) || defined(__hppa__) || defined(__ia64__)
 #define WORDS_ALIGNED
 #endif
 
+#ifdef TARGET_PHYS_ADDR_BITS
+#include "targphys.h"
+#endif
+
+#ifndef NEED_CPU_H
+#include "poison.h"
+#endif
+
 #include "bswap.h"
+#include "qemu-queue.h"
+
+#if !defined(CONFIG_USER_ONLY)
 
 /* address in the RAM (different from a physical address) */
-#ifdef CONFIG_KQEMU
-/* FIXME: This is wrong.  */
-typedef uint32_t ram_addr_t;
-#else
 typedef unsigned long ram_addr_t;
-#endif
 
 /* memory API */
 
@@ -91,5 +97,7 @@ void cpu_physical_memory_write_rom(target_phys_addr_t addr,
 #define IO_MEM_ROMD        (1)
 #define IO_MEM_SUBPAGE     (2)
 #define IO_MEM_SUBWIDTH    (4)
+
+#endif
 
 #endif /* !CPU_COMMON_H */

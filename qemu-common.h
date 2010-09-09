@@ -2,7 +2,21 @@
 #ifndef QEMU_COMMON_H
 #define QEMU_COMMON_H
 
+#include "config-host.h"
+
 #define QEMU_NORETURN __attribute__ ((__noreturn__))
+#ifdef CONFIG_GCC_ATTRIBUTE_WARN_UNUSED_RESULT
+#define QEMU_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+#define QEMU_WARN_UNUSED_RESULT
+#endif
+
+#define QEMU_BUILD_BUG_ON(x) typedef char __build_bug_on__##__LINE__[(x)?-1:1];
+
+typedef struct QEMUTimer QEMUTimer;
+typedef struct QEMUFile QEMUFile;
+typedef struct QEMUBH QEMUBH;
+typedef struct DeviceState DeviceState;
 
 /* Hack around the mess dyngen-exec.h causes: We need QEMU_NORETURN in files that
    cannot include the following headers without conflicts. This condition has
@@ -13,6 +27,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <string.h>
 #include <strings.h>
 #include <inttypes.h>
@@ -24,7 +39,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <assert.h>
-#include "config-host.h"
 
 #ifndef O_LARGEFILE
 #define O_LARGEFILE 0
@@ -83,8 +97,6 @@ static inline char *realpath(const char *path, char *resolved_path)
 #endif /* !defined(NEED_CPU_H) */
 
 /* bottom halves */
-typedef struct QEMUBH QEMUBH;
-
 typedef void QEMUBHFunc(void *opaque);
 
 QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque);
@@ -114,6 +126,7 @@ int qemu_strnlen(const char *s, int max_len);
 time_t mktimegm(struct tm *tm);
 int qemu_fls(int i);
 int qemu_fdatasync(int fd);
+int fcntl_setfl(int fd, int flag);
 
 #define qemu_isalnum(c)		isalnum((unsigned char)(c))
 #define qemu_isalpha(c)		isalpha((unsigned char)(c))
@@ -173,11 +186,9 @@ typedef struct TextConsole TextConsole;
 typedef TextConsole QEMUConsole;
 typedef struct CharDriverState CharDriverState;
 typedef struct VLANState VLANState;
-typedef struct QEMUFile QEMUFile;
 typedef struct i2c_bus i2c_bus;
 typedef struct i2c_slave i2c_slave;
 typedef struct SMBusDevice SMBusDevice;
-typedef struct QEMUTimer QEMUTimer;
 typedef struct PCIBus PCIBus;
 typedef struct PCIDevice PCIDevice;
 typedef struct SerialState SerialState;
@@ -186,7 +197,6 @@ typedef struct PCMCIACardState PCMCIACardState;
 typedef struct MouseTransformInfo MouseTransformInfo;
 typedef struct uWireSlave uWireSlave;
 typedef struct I2SCodec I2SCodec;
-typedef struct DeviceState DeviceState;
 typedef struct SSIBus SSIBus;
 
 /* CPU save/load.  */

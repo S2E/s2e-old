@@ -19,11 +19,9 @@
 #ifndef CPU_DEFS_H
 #define CPU_DEFS_H
 
-#if 0 /* ANDROID */
 #ifndef NEED_CPU_H
 #error cpu.h included from common code
 #endif
-#endif /* ANDROID */
 
 #include "config.h"
 #include <setjmp.h>

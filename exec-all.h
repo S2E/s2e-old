@@ -406,6 +406,7 @@ static inline target_ulong get_phys_addr_code(CPUState *env1, target_ulong addr)
     return qemu_ram_addr_from_host(p);
 }
 
+#if 0
 /* Deterministic execution requires that IO only be performed on the last
    instruction of a TB so that interrupts take effect immediately.  */
 static inline int can_do_io(CPUState *env)
@@ -420,6 +421,7 @@ static inline int can_do_io(CPUState *env)
     return env->can_do_io != 0;
 }
 #endif
+#endif /* 0 */
 
 #ifdef CONFIG_KQEMU
 #define KQEMU_MODIFY_PAGE_MASK (0xff & ~(VGA_DIRTY_FLAG | CODE_DIRTY_FLAG))
