@@ -5,13 +5,13 @@
 
 #include <inttypes.h>
 
-#ifdef HAVE_MACHINE_BSWAP_H
+#ifdef CONFIG_MACHINE_BSWAP_H
 #include <sys/endian.h>
 #include <sys/types.h>
 #include <machine/bswap.h>
 #else
 
-#ifdef HAVE_BYTESWAP_H
+#ifdef CONFIG_BYTESWAP_H
 #include <byteswap.h>
 #else
 
@@ -47,7 +47,7 @@
 		(uint64_t)(((uint64_t)(__x) & (uint64_t)0xff00000000000000ULL) >> 56) )); \
 })
 
-#endif /* !HAVE_BYTESWAP_H */
+#endif /* !CONFIG_BYTESWAP_H */
 
 static inline uint16_t bswap16(uint16_t x)
 {
@@ -64,7 +64,7 @@ static inline uint64_t bswap64(uint64_t x)
     return bswap_64(x);
 }
 
-#endif /* ! HAVE_MACHINE_BSWAP_H */
+#endif /* ! CONFIG_MACHINE_BSWAP_H */
 
 static inline void bswap16s(uint16_t *s)
 {
@@ -205,13 +205,21 @@ static inline void cpu_to_be32wu(uint32_t *p, uint32_t v)
 
 #ifdef HOST_WORDS_BIGENDIAN
 #define cpu_to_32wu cpu_to_be32wu
+#define leul_to_cpu(v) glue(glue(le,HOST_LONG_BITS),_to_cpu)(v)
 #else
 #define cpu_to_32wu cpu_to_le32wu
+#define leul_to_cpu(v) (v)
 #endif
 
 #undef le_bswap
 #undef be_bswap
 #undef le_bswaps
 #undef be_bswaps
+
+/* len must be one of 1, 2, 4 */
+static inline uint32_t qemu_bswap_len(uint32_t value, int len)
+{
+    return bswap32(value) >> (32 - 8 * len);
+}
 
 #endif /* BSWAP_H */
