@@ -1,5 +1,5 @@
 /*
- * QError: QEMU Error data-type.
+ * QError Module
  *
  * Copyright (C) 2009 Red Hat Inc.
  *
@@ -9,10 +9,10 @@
  * This work is licensed under the terms of the GNU LGPL, version 2.1 or later.
  * See the COPYING.LIB file in the top-level directory.
  */
+
+#include "monitor.h"
 #include "qjson.h"
 #include "qerror.h"
-#include "qstring.h"
-#include "sysemu.h"
 #include "qemu-common.h"
 
 static void qerror_destroy_obj(QObject *obj);
@@ -38,59 +38,99 @@ static const QType qerror_type = {
  * for example:
  *
  * "running out of foo: %(foo)%%"
+ *
+ * Please keep the entries in alphabetical order.
+ * Use "sed -n '/^static.*qerror_table\[\]/,/^};/s/QERR_/&/gp' qerror.c | sort -c"
+ * to check.
  */
 static const QErrorStringTable qerror_table[] = {
+    {
+        .error_fmt = QERR_BAD_BUS_FOR_DEVICE,
+        .desc      = "Device '%(device)' can't go on a %(bad_bus_type) bus",
+    },
+    {
+        .error_fmt = QERR_BUS_NOT_FOUND,
+        .desc      = "Bus '%(bus)' not found",
+    },
+    {
+        .error_fmt = QERR_BUS_NO_HOTPLUG,
+        .desc      = "Bus '%(bus)' does not support hotplugging",
+    },
     {
         .error_fmt = QERR_COMMAND_NOT_FOUND,
         .desc      = "The command %(name) has not been found",
     },
     {
         .error_fmt = QERR_DEVICE_ENCRYPTED,
-        .desc      = "The %(device) is encrypted",
+        .desc      = "Device '%(device)' is encrypted",
+    },
+    {
+        .error_fmt = QERR_DEVICE_INIT_FAILED,
+        .desc      = "Device '%(device)' could not be initialized",
+    },
+    {
+        .error_fmt = QERR_DEVICE_IN_USE,
+        .desc      = "Device '%(device)' is in use",
     },
     {
         .error_fmt = QERR_DEVICE_LOCKED,
-        .desc      = "Device %(device) is locked",
+        .desc      = "Device '%(device)' is locked",
+    },
+    {
+        .error_fmt = QERR_DEVICE_MULTIPLE_BUSSES,
+        .desc      = "Device '%(device)' has multiple child busses",
     },
     {
         .error_fmt = QERR_DEVICE_NOT_ACTIVE,
-        .desc      = "The %(device) device has not been activated by the guest",
+        .desc      = "Device '%(device)' has not been activated",
+    },
+    {
+        .error_fmt = QERR_DEVICE_NOT_ENCRYPTED,
+        .desc      = "Device '%(device)' is not encrypted",
     },
     {
         .error_fmt = QERR_DEVICE_NOT_FOUND,
-        .desc      = "The %(device) device has not been found",
+        .desc      = "Device '%(device)' not found",
     },
     {
         .error_fmt = QERR_DEVICE_NOT_REMOVABLE,
-        .desc      = "Device %(device) is not removable",
+        .desc      = "Device '%(device)' is not removable",
+    },
+    {
+        .error_fmt = QERR_DEVICE_NO_BUS,
+        .desc      = "Device '%(device)' has no child bus",
+    },
+    {
+        .error_fmt = QERR_DUPLICATE_ID,
+        .desc      = "Duplicate ID '%(id)' for %(object)",
     },
     {
         .error_fmt = QERR_FD_NOT_FOUND,
-        .desc      = "Failed to find file descriptor named %(name)",
+        .desc      = "File descriptor named '%(name)' not found",
     },
     {
         .error_fmt = QERR_FD_NOT_SUPPLIED,
         .desc      = "No file descriptor supplied via SCM_RIGHTS",
     },
     {
-        .error_fmt = QERR_OPEN_FILE_FAILED,
-        .desc      = "Could not open '%(filename)'",
-    },
-    {
         .error_fmt = QERR_INVALID_BLOCK_FORMAT,
-        .desc      = "Invalid block format %(name)",
+        .desc      = "Invalid block format '%(name)'",
     },
     {
         .error_fmt = QERR_INVALID_PARAMETER,
-        .desc      = "Invalid parameter %(name)",
+        .desc      = "Invalid parameter '%(name)'",
     },
     {
         .error_fmt = QERR_INVALID_PARAMETER_TYPE,
         .desc      = "Invalid parameter type, expected: %(expected)",
     },
     {
+        .error_fmt = QERR_INVALID_PARAMETER_VALUE,
+        .desc      = "Parameter '%(name)' expects %(expected)",
+    },
+    {
         .error_fmt = QERR_INVALID_PASSWORD,
-        .desc      = "The entered password is invalid",
+        .desc      = "Password incorrect",
     },
     {
         .error_fmt = QERR_JSON_PARSING,
@@ -101,12 +141,48 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "Using KVM without %(capability), %(feature) unavailable",
     },
     {
+        .error_fmt = QERR_MIGRATION_EXPECTED,
+        .desc      = "An incoming migration is expected before this command can be executed",
+    },
+    {
         .error_fmt = QERR_MISSING_PARAMETER,
-        .desc      = "Parameter %(name) is missing",
+        .desc      = "Parameter '%(name)' is missing",
+    },
+    {
+        .error_fmt = QERR_NO_BUS_FOR_DEVICE,
+        .desc      = "No '%(bus)' bus found for device '%(device)'",
+    },
+    {
+        .error_fmt = QERR_OPEN_FILE_FAILED,
+        .desc      = "Could not open '%(filename)'",
+    },
+    {
+        .error_fmt = QERR_PROPERTY_NOT_FOUND,
+        .desc      = "Property '%(device).%(property)' not found",
+    },
+    {
+        .error_fmt = QERR_PROPERTY_VALUE_BAD,
+        .desc      = "Property '%(device).%(property)' doesn't take value '%(value)'",
+    },
+    {
+        .error_fmt = QERR_PROPERTY_VALUE_IN_USE,
+        .desc      = "Property '%(device).%(property)' can't take value '%(value)', it's in use",
+    },
+    {
+        .error_fmt = QERR_PROPERTY_VALUE_NOT_FOUND,
+        .desc      = "Property '%(device).%(property)' can't find value '%(value)'",
     },
     {
         .error_fmt = QERR_QMP_BAD_INPUT_OBJECT,
-        .desc      = "Bad QMP input object",
+        .desc      = "Expected '%(expected)' in QMP input",
+    },
+    {
+        .error_fmt = QERR_QMP_BAD_INPUT_OBJECT_MEMBER,
+        .desc      = "QMP input object member '%(member)' expects '%(expected)'",
+    },
+    {
+        .error_fmt = QERR_QMP_EXTRA_MEMBER,
+        .desc      = "QMP input object member '%(member)' is unexpected",
     },
     {
         .error_fmt = QERR_SET_PASSWD_FAILED,
@@ -224,6 +300,7 @@ QError *qerror_from_info(const char *file, int linenr, const char *func,
     QError *qerr;
 
     qerr = qerror_new();
+    loc_save(&qerr->loc);
     qerr->linenr = linenr;
     qerr->file = file;
     qerr->func = func;
@@ -318,14 +395,34 @@ QString *qerror_human(const QError *qerror)
  * qerror_print(): Print QError data
  *
  * This function will print the member 'desc' of the specified QError object,
- * it uses qemu_error() for this, so that the output is routed to the right
+ * it uses error_report() for this, so that the output is routed to the right
  * place (ie. stderr or Monitor's device).
  */
-void qerror_print(const QError *qerror)
+void qerror_print(QError *qerror)
 {
     QString *qstring = qerror_human(qerror);
-    qemu_error("%s\n", qstring_get_str(qstring));
+    loc_push_restore(&qerror->loc);
+    error_report("%s", qstring_get_str(qstring));
+    loc_pop(&qerror->loc);
     QDECREF(qstring);
+}
+
+void qerror_report_internal(const char *file, int linenr, const char *func,
+                            const char *fmt, ...)
+{
+    va_list va;
+    QError *qerror;
+
+    va_start(va, fmt);
+    qerror = qerror_from_info(file, linenr, func, fmt, &va);
+    va_end(va);
+
+    if (monitor_cur_is_qmp()) {
+        monitor_set_error(cur_mon, qerror);
+    } else {
+        qerror_print(qerror);
+        QDECREF(qerror);
+    }
 }
 
 /**
