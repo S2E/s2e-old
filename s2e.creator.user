@@ -1,274 +1,65 @@
 <!DOCTYPE QtCreatorProject>
 <qtcreator>
  <data>
-  <variable>GenericProjectManager.GenericProject.Toolchain</variable>
+  <variable>activeRunConfiguration</variable>
   <value type="int">0</value>
  </data>
  <data>
-  <variable>ProjectExplorer.Project.ActiveTarget</variable>
+  <variable>activebuildconfiguration</variable>
+  <value type="QString">all</value>
+ </data>
+ <data>
+  <variable>buildConfiguration-all</variable>
+  <valuemap type="QVariantMap">
+   <value key="ProjectExplorer.BuildConfiguration.DisplayName" type="QString">all</value>
+   <value key="buildDirectory" type="QString">/home/vitaly/S2E/selsymbex</value>
+  </valuemap>
+ </data>
+ <data>
+  <variable>buildconfiguration-all-buildstep0</variable>
+  <valuemap type="QVariantMap">
+   <value key="ProjectExplorer.BuildConfiguration.DisplayName" type="QString">all</value>
+   <valuelist key="buildTargets" type="QVariantList">
+    <value type="QString">all</value>
+   </valuelist>
+  </valuemap>
+ </data>
+ <data>
+  <variable>buildconfigurations</variable>
+  <valuelist type="QVariantList">
+   <value type="QString">all</value>
+  </valuelist>
+ </data>
+ <data>
+  <variable>buildstep0</variable>
+  <valuemap type="QVariantMap">
+   <value key="ProjectExplorer.BuildConfiguration.DisplayName" type="QString"></value>
+  </valuemap>
+ </data>
+ <data>
+  <variable>buildsteps</variable>
+  <valuelist type="QVariantList">
+   <value type="QString">GenericProjectManager.MakeStep</value>
+  </valuelist>
+ </data>
+ <data>
+  <variable>cleansteps</variable>
+  <valuelist type="QVariantList"/>
+ </data>
+ <data>
+  <variable>defaultFileEncoding</variable>
+  <value type="QByteArray">System</value>
+ </data>
+ <data>
+  <variable>includePaths</variable>
+  <valuelist type="QVariantList"/>
+ </data>
+ <data>
+  <variable>project</variable>
+  <valuemap type="QVariantMap"/>
+ </data>
+ <data>
+  <variable>toolChain</variable>
   <value type="int">0</value>
- </data>
- <data>
-  <variable>ProjectExplorer.Project.EditorSettings</variable>
-  <valuemap type="QVariantMap">
-   <value key="EditorConfiguration.Codec" type="QByteArray">UTF-8</value>
-  </valuemap>
- </data>
- <data>
-  <variable>ProjectExplorer.Project.Target.0</variable>
-  <valuemap type="QVariantMap">
-   <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Desktop</value>
-   <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericTarget</value>
-   <value key="ProjectExplorer.Target.ActiveBuildConfiguration" type="int">0</value>
-   <value key="ProjectExplorer.Target.ActiveRunConfiguration" type="int">0</value>
-   <valuemap key="ProjectExplorer.Target.BuildConfiguration.0" type="QVariantMap">
-    <value key="GenericProjectManager.GenericBuildConfiguration.BuildDirectory" type="QString">/home/vova/projects/s2e</value>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.0" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">stp-build</value>
-      <value type="QString">-j8</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.1" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">klee-build</value>
-      <value type="QString">-j8</value>
-      <value type="QString">ENABLE_OPTIMIZED=0</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.2" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">qemu-build</value>
-      <value type="QString">-j8</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.3" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">tools-build</value>
-      <value type="QString">-j8</value>
-      <value type="QString">ENABLE_OPTIMIZED=0</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <value key="ProjectExplorer.BuildConfiguration.BuildStepsCount" type="int">4</value>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.0" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">stp-build</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.1" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">klee-build</value>
-      <value type="QString">ENABLE_OPTIMIZED=0</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.2" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">qemu-build</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.3" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">tools-build</value>
-      <value type="QString">ENABLE_OPTIMIZED=0</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <value key="ProjectExplorer.BuildConfiguration.CleanStepsCount" type="int">4</value>
-    <value key="ProjectExplorer.BuildConfiguration.ClearSystemEnvironment" type="bool">false</value>
-    <valuelist key="ProjectExplorer.BuildConfiguration.UserEnvironmentChanges" type="QVariantList"/>
-    <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">debug</value>
-    <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericBuildConfiguration</value>
-   </valuemap>
-   <valuemap key="ProjectExplorer.Target.BuildConfiguration.1" type="QVariantMap">
-    <value key="GenericProjectManager.GenericBuildConfiguration.BuildDirectory" type="QString">/home/vova/projects</value>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.0" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">stp-build</value>
-      <value type="QString">-j8</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.1" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">klee-build</value>
-      <value type="QString">-j8</value>
-      <value type="QString">ENABLE_OPTIMIZED=1</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.2" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">qemu-build-release</value>
-      <value type="QString">-j8</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.3" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">all</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">tools-build</value>
-      <value type="QString">-j8</value>
-      <value type="QString">ENABLE_OPTIMIZED=1</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <value key="ProjectExplorer.BuildConfiguration.BuildStepsCount" type="int">4</value>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.0" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">stp-build</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.1" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">klee-build</value>
-      <value type="QString">ENABLE_OPTIMIZED=1</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.2" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">qemu-build-release</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <valuemap key="ProjectExplorer.BuildConfiguration.CleanStep.3" type="QVariantMap">
-     <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
-      <value type="QString">clean</value>
-     </valuelist>
-     <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
-      <value type="QString">-C</value>
-      <value type="QString">tools-build</value>
-      <value type="QString">ENABLE_OPTIMIZED=1</value>
-     </valuelist>
-     <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
-     <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
-     <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericMakeStep</value>
-    </valuemap>
-    <value key="ProjectExplorer.BuildConfiguration.CleanStepsCount" type="int">4</value>
-    <value key="ProjectExplorer.BuildConfiguration.ClearSystemEnvironment" type="bool">false</value>
-    <valuelist key="ProjectExplorer.BuildConfiguration.UserEnvironmentChanges" type="QVariantList"/>
-    <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">release</value>
-    <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">GenericProjectManager.GenericBuildConfiguration</value>
-   </valuemap>
-   <value key="ProjectExplorer.Target.BuildConfigurationCount" type="int">2</value>
-   <valuemap key="ProjectExplorer.Target.RunConfiguration.0" type="QVariantMap">
-    <valuelist key="ProjectExplorer.CustomExecutableRunConfiguration.Arguments" type="QVariantList"/>
-    <value key="ProjectExplorer.CustomExecutableRunConfiguration.BaseEnvironmentBase" type="int">2</value>
-    <value key="ProjectExplorer.CustomExecutableRunConfiguration.Executable" type="QString"></value>
-    <value key="ProjectExplorer.CustomExecutableRunConfiguration.UseTerminal" type="bool">false</value>
-    <valuelist key="ProjectExplorer.CustomExecutableRunConfiguration.UserEnvironmentChanges" type="QVariantList"/>
-    <value key="ProjectExplorer.CustomExecutableRunConfiguration.UserName" type="QString"></value>
-    <value key="ProjectExplorer.CustomExecutableRunConfiguration.UserSetName" type="bool">false</value>
-    <value key="ProjectExplorer.CustomExecutableRunConfiguration.WorkingDirectory" type="QString">$BUILDDIR</value>
-    <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Custom Executable</value>
-    <value key="ProjectExplorer.ProjectConfiguration.Id" type="QString">ProjectExplorer.CustomExecutableRunConfiguration</value>
-   </valuemap>
-   <value key="ProjectExplorer.Target.RunConfigurationCount" type="int">1</value>
-  </valuemap>
- </data>
- <data>
-  <variable>ProjectExplorer.Project.TargetCount</variable>
-  <value type="int">1</value>
- </data>
- <data>
-  <variable>ProjectExplorer.Project.Updater.FileVersion</variable>
-  <value type="int">4</value>
  </data>
 </qtcreator>

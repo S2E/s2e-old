@@ -62,7 +62,7 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
                         const klee::ObjectState *oldState,
                         klee::ObjectState *newState)
 {
-    if(oldState) {
+    if(mo->size == 4096 && oldState) {
         assert(m_cpuSystemState && m_cpuSystemObject);
 
         CPUX86State* cpu = m_active ?

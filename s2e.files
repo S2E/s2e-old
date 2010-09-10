@@ -556,6 +556,7 @@ qemu-0.12.2-src/hw/etraxfs_eth.c
 qemu-0.12.2-src/hw/etraxfs_pic.c
 qemu-0.12.2-src/hw/etraxfs_ser.c
 qemu-0.12.2-src/hw/etraxfs_timer.c
+qemu-0.12.2-src/hw/fakepci.c
 qemu-0.12.2-src/hw/fdc.c
 qemu-0.12.2-src/hw/fdc.h
 qemu-0.12.2-src/hw/firmware_abi.h
@@ -1126,6 +1127,8 @@ qemu-0.12.2-src/s2e/Plugins/ExecutionTracers/TranslationBlockTracer.cpp
 qemu-0.12.2-src/s2e/Plugins/ExecutionTracers/TranslationBlockTracer.h
 qemu-0.12.2-src/s2e/Plugins/FunctionMonitor.cpp
 qemu-0.12.2-src/s2e/Plugins/FunctionMonitor.h
+qemu-0.12.2-src/s2e/Plugins/FunctionSkipper.cpp
+qemu-0.12.2-src/s2e/Plugins/FunctionSkipper.h
 qemu-0.12.2-src/s2e/Plugins/ModuleDescriptor.h
 qemu-0.12.2-src/s2e/Plugins/ModuleExecutionDetector.cpp
 qemu-0.12.2-src/s2e/Plugins/ModuleExecutionDetector.h
@@ -1271,6 +1274,7 @@ qemu-0.12.2-src/vnc_keysym.h
 qemu-0.12.2-src/vnchextile.h
 qemu-0.12.2-src/x_keymap.c
 qemu-0.12.2-src/x_keymap.h
+s2e.refresh_project.py
 stp/clean-install.sh
 stp/papers/EXE-STP-TISSEC-Journal-2007.pdf
 stp/papers/EXE-STP.pdf

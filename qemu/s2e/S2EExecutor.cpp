@@ -1074,11 +1074,30 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     oldState->getDeviceState()->saveDeviceState();
     *oldState->m_timersState = timers_state;
 
+    {
+        const MemoryObject* mo = newState->m_cpuSystemState;
+        const ObjectState *newOS = newState->m_cpuSystemObject;
+        ObjectState *oldWOS = oldState->m_cpuSystemObject;
+
+        uint8_t *oldStore = oldWOS->getConcreteStore();
+        const uint8_t *newStore = newOS->getConcreteStore();
+
+        assert(oldStore);
+        assert(newStore);
+
+        memcpy(oldStore, (uint8_t*) mo->address, mo->size);
+        memcpy((uint8_t*) mo->address, newStore, mo->size);
+    }
+
     oldState->m_active = false;
+    newState->m_active = true;
 
     uint64_t totalCopied = 0;
     uint64_t objectsCopied = 0;
     foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+        if(mo == newState->m_cpuSystemState)
+            continue;
+
         const ObjectState *oldOS = oldState->addressSpace.findObject(mo);
         const ObjectState *newOS = newState->addressSpace.findObject(mo);
         ObjectState *oldWOS = oldState->addressSpace.getWriteable(mo, oldOS);
@@ -1096,8 +1115,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     }
 
     s2e_debug_print("Copied %d (count=%d)\n", totalCopied, objectsCopied);
-
-    newState->m_active = true;
 
     timers_state = *newState->m_timersState;
     newState->getDeviceState()->restoreDeviceState();

@@ -5,7 +5,7 @@ extern "C" {
 }
 
 
-#include "FunctionSkipper.h"
+#include "Annotation.h"
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/ConfigFile.h>
@@ -17,10 +17,10 @@ extern "C" {
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(FunctionSkipper, "Bypasses functions at run-time", "FunctionSkipper",
+S2E_DEFINE_PLUGIN(Annotation, "Bypasses functions at run-time", "Annotation",
                   "ModuleExecutionDetector", "FunctionMonitor", "Interceptor");
 
-void FunctionSkipper::initialize()
+void Annotation::initialize()
 {
     m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
     m_moduleExecutionDetector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
@@ -63,21 +63,23 @@ void FunctionSkipper::initialize()
     m_moduleExecutionDetector->onModuleLoad.connect(
         sigc::mem_fun(
             *this,
-            &FunctionSkipper::onModuleLoad
+            &Annotation::onModuleLoad
         )
     );
+
+    Lunar<LUAAnnotation>::Register(s2e()->getConfig()->getState());
 }
 
-FunctionSkipper::~FunctionSkipper()
+Annotation::~Annotation()
 {
     foreach2(it, m_entries.begin(), m_entries.end()) {
         delete *it;
     }
 }
 
-bool FunctionSkipper::initSection(const std::string &entry, const std::string &cfgname)
+bool Annotation::initSection(const std::string &entry, const std::string &cfgname)
 {
-    FunctionSkipperCfgEntry e, *ne;
+    AnnotationCfgEntry e, *ne;
 
     ConfigFile *cfg = s2e()->getConfig();
     std::ostream &os  = s2e()->getWarningsStream();
@@ -117,15 +119,15 @@ bool FunctionSkipper::initSection(const std::string &entry, const std::string &c
     e.executeOnce = cfg->getBool(entry + ".executeonce", false, &ok);
     e.symbolicReturn = cfg->getBool(entry + ".symbolicreturn", false, &ok);
     e.keepReturnPathsCount = cfg->getInt(entry + ".keepReturnPathsCount", 1, &ok);
-    e.callAnnotation = cfg->getString(entry, "", &ok);
+    e.callAnnotation = cfg->getString(entry + ".callAnnotation", "", &ok);
 
-    ne = new FunctionSkipperCfgEntry(e);
+    ne = new AnnotationCfgEntry(e);
     m_entries.push_back(ne);
 
     return true;
 }
 
-bool FunctionSkipper::resolveDependencies(const std::string &entry, FunctionSkipperCfgEntry *e)
+bool Annotation::resolveDependencies(const std::string &entry, AnnotationCfgEntry *e)
 {
     ConfigFile *cfg = s2e()->getConfig();
     std::ostream &os  = s2e()->getWarningsStream();
@@ -155,13 +157,13 @@ bool FunctionSkipper::resolveDependencies(const std::string &entry, FunctionSkip
 
 ///////////////////////////////////////////////////////////////////////////////////////
 //Activate all the relevant rules for each module
-void FunctionSkipper::onModuleLoad(
+void Annotation::onModuleLoad(
         S2EExecutionState* state,
         const ModuleDescriptor &module
         )
 {
     foreach2(it, m_entries.begin(), m_entries.end()) {
-        const FunctionSkipperCfgEntry &cfg = **it;
+        const AnnotationCfgEntry &cfg = **it;
         const std::string *s = m_moduleExecutionDetector->getModuleId(module);
         if (!s || (cfg.module != *s)) {
             continue;
@@ -175,54 +177,154 @@ void FunctionSkipper::onModuleLoad(
 
         //Register a call monitor for this function
         FunctionMonitor::CallSignal *cs = m_functionMonitor->getCallSignal(state, funcPc, m_osMonitor->getPid(state, funcPc));
-        cs->connect(sigc::bind(sigc::mem_fun(*this, &FunctionSkipper::onFunctionCall), *it));
+        cs->connect(sigc::bind(sigc::mem_fun(*this, &Annotation::onFunctionCall), *it));
     }
 }
 
-void FunctionSkipper::onFunctionCall(
+void Annotation::invokeAnnotation(
         S2EExecutionState* state,
         FunctionMonitorState *fns,
-        FunctionSkipperCfgEntry *entry
+        AnnotationCfgEntry *entry,
+        bool isCall
+    )
+{
+    lua_State *L = s2e()->getConfig()->getState();
+
+    S2ELUAExecutionState lua_s2e_state(state);
+    LUAAnnotation luaAnnotation(this);
+
+    luaAnnotation.m_isReturn = !isCall;
+
+    lua_getfield(L, LUA_GLOBALSINDEX, entry->callAnnotation.c_str());
+    Lunar<S2ELUAExecutionState>::push(L, &lua_s2e_state);
+    Lunar<LUAAnnotation>::push(L, &luaAnnotation);
+    lua_call(L, 2, 0);
+
+    if (luaAnnotation.m_doKill) {
+        std::stringstream ss;
+        ss << "Annotation " << entry->cfgname << " killed us" << std::endl;
+        s2e()->getExecutor()->terminateStateEarly(*state, "Annotation killed us");
+        return;
+    }
+
+    if (luaAnnotation.m_doSkip) {
+        state->bypassFunction(entry->paramCount);
+        throw CpuExitException();
+    }
+
+    if (fns) {
+        assert(!isCall);
+        FunctionMonitor::ReturnSignal returnSignal;
+        returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &Annotation::onFunctionRet), entry));
+        fns->registerReturnSignal(state, returnSignal);
+    }
+}
+
+void Annotation::onFunctionCall(
+        S2EExecutionState* state,
+        FunctionMonitorState *fns,
+        AnnotationCfgEntry *entry
         )
 {
     if (!entry->isActive) {
         return;
     }
 
-    s2e()->getDebugStream() << "FunctionSkipper: Called entry " << entry->cfgname << std::endl;
-
-    bool skip = !entry->executeOnce || (entry->executeOnce && entry->invocationCount > 0);
-    if (skip) {
-        if (entry->callAnnotation.size() > 0) {
-            s2e()->getDebugStream() << "FunctionSkipper: Invoking call annotation" << std::endl;
-            s2e()->getConfig()->invokeAnnotation(entry->callAnnotation, state);
-        }
-        state->bypassFunction(entry->paramCount);
-        throw CpuExitException();
-    }
-
-    FunctionMonitor::ReturnSignal returnSignal;
-    returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &FunctionSkipper::onFunctionRet), entry));
-    fns->registerReturnSignal(state, returnSignal);
-
-
-    ++entry->invocationCount;
+    s2e()->getDebugStream() << "Annotation: Invoking call annotation " << entry->cfgname << std::endl;
+    invokeAnnotation(state, fns, entry, true);
 
 }
 
-void FunctionSkipper::onFunctionRet(
+void Annotation::onFunctionRet(
         S2EExecutionState* state,
-        FunctionSkipperCfgEntry *entry
+        AnnotationCfgEntry *entry
         )
 {
-    s2e()->getDebugStream() << "FunctionSkipper: Returned from " << entry->cfgname << std::endl;
-    ++entry->returnCount;
-    if (entry->returnCount > entry->keepReturnPathsCount) {
-        std::stringstream ss;
-        ss << entry->cfgname << " returned " << entry->returnCount << " times" << std::endl;
-        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
-        return;
+    s2e()->getDebugStream() << "Annotation: Invoking return annotation "  << entry->cfgname << std::endl;
+    invokeAnnotation(state, NULL, entry, false);
+}
+
+
+const char LUAAnnotation::className[] = "LUAAnnotation";
+
+Lunar<LUAAnnotation>::RegType LUAAnnotation::methods[] = {
+  LUNAR_DECLARE_METHOD(LUAAnnotation, setSkip),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, setKill),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, activateRule),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, isReturn),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, isCall),
+  {0,0}
+};
+
+
+LUAAnnotation::LUAAnnotation(Annotation *plg)
+{
+    m_plugin = plg;
+    m_doKill = false;
+    m_doSkip = false;
+    m_isReturn = false;
+}
+
+LUAAnnotation::LUAAnnotation(lua_State *lua)
+{
+
+}
+
+LUAAnnotation::~LUAAnnotation()
+{
+
+}
+
+int LUAAnnotation::setSkip(lua_State *L)
+{
+    m_doSkip = lua_toboolean(L, 1);
+
+    g_s2e->getDebugStream() << "LUAAnnotation: setSkip " << m_doSkip << std::endl;
+    return 0;
+}
+
+int LUAAnnotation::setKill(lua_State *L)
+{
+
+    m_doKill = lua_toboolean(L, 1);
+
+    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << std::endl;
+    return 0;
+}
+
+
+int LUAAnnotation::activateRule(lua_State *L)
+{
+    std::string rule = luaL_checkstring(L, 1);
+    bool activate = lua_toboolean(L, 2);
+
+    g_s2e->getDebugStream() << "LUAAnnotation: setting active state of rule " <<
+            rule << " to " << activate << std::endl;
+
+    foreach2(it, m_plugin->m_entries.begin(), m_plugin->m_entries.end()) {
+        if ((*it)->cfgname != rule) {
+            continue;
+        }
+
+        (*it)->isActive = activate != 0;
+        lua_pushnumber(L, 1);        /* first result */
+        return 1;
     }
+
+    lua_pushnumber(L, 0);        /* first result */
+    return 1;
+}
+
+int LUAAnnotation::isReturn(lua_State *L)
+{
+    lua_pushnumber(L, m_isReturn);        /* first result */
+    return 1;
+}
+
+int LUAAnnotation::isCall(lua_State *L)
+{
+    lua_pushnumber(L, !m_isReturn);        /* first result */
+    return 1;
 }
 
 } // namespace plugins
