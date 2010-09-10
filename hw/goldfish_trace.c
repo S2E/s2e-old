@@ -27,8 +27,8 @@ extern int tracing;
 extern const char *trace_filename;
 
 /* for execve */
-static char path[CLIENT_PAGE_SIZE];
-static char arg[CLIENT_PAGE_SIZE];
+static char exec_path[CLIENT_PAGE_SIZE];
+static char exec_arg[CLIENT_PAGE_SIZE];
 static unsigned long vstart;    // VM start
 static unsigned long vend;      // VM end
 static unsigned long eoff;      // offset in EXE file
@@ -104,47 +104,47 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
         eoff = value;
         break;
     case TRACE_DEV_REG_EXECVE_EXEPATH:  // init exec, path of EXE
-        vstrcpy(value, path, CLIENT_PAGE_SIZE);
+        vstrcpy(value, exec_path, CLIENT_PAGE_SIZE);
         if (trace_filename != NULL) {
-            trace_init_exec(vstart, vend, eoff, path);
+            trace_init_exec(vstart, vend, eoff, exec_path);
 #ifdef DEBUG
             printf("QEMU.trace: kernel, init exec [%lx,%lx]@%lx [%s]\n",
-                   vstart, vend, eoff, path);
+                   vstart, vend, eoff, exec_path);
 #endif
         }
 #ifdef CONFIG_MEMCHECK
         if (memcheck_enabled) {
-            if (path[0] == '\0') {
+            if (exec_path[0] == '\0') {
                 // vstrcpy may fail to copy path. In this case lets do it
                 // differently.
-                memcheck_get_guest_kernel_string(path, value, CLIENT_PAGE_SIZE);
+                memcheck_get_guest_kernel_string(exec_path, value, CLIENT_PAGE_SIZE);
             }
-            memcheck_mmap_exepath(vstart, vend, eoff, path);
+            memcheck_mmap_exepath(vstart, vend, eoff, exec_path);
         }
 #endif  // CONFIG_MEMCHECK
-        path[0] = 0;
+        exec_path[0] = 0;
         break;
     case TRACE_DEV_REG_CMDLINE_LEN:     // execve, process cmdline length
         cmdlen = value;
         break;
     case TRACE_DEV_REG_CMDLINE:         // execve, process cmdline
-        cpu_memory_rw_debug(cpu_single_env, value, arg, cmdlen, 0);
+        cpu_memory_rw_debug(cpu_single_env, value, exec_arg, cmdlen, 0);
         if (trace_filename != NULL) {
-            trace_execve(arg, cmdlen);
+            trace_execve(exec_arg, cmdlen);
         }
 #ifdef CONFIG_MEMCHECK
         if (memcheck_enabled) {
-            memcheck_set_cmd_line(arg, cmdlen);
+            memcheck_set_cmd_line(exec_arg, cmdlen);
         }
 #endif  // CONFIG_MEMCHECK
 #ifdef DEBUG
         if (trace_filename != NULL) {
             int i;
             for (i = 0; i < cmdlen; i ++)
-                if (i != cmdlen - 1 && arg[i] == 0)
-                    arg[i] = ' ';
-            printf("QEMU.trace: kernel, execve %s[%d]\n", arg, cmdlen);
-            arg[0] = 0;
+                if (i != cmdlen - 1 && exec_arg[i] == 0)
+                    exec_arg[i] = ' ';
+            printf("QEMU.trace: kernel, execve %s[%d]\n", exec_arg, cmdlen);
+            exec_arg[0] = 0;
         }
 #endif
         break;
@@ -162,39 +162,39 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
 #endif  // CONFIG_MEMCHECK
         break;
     case TRACE_DEV_REG_NAME:            // record thread name
-        vstrcpy(value, path, CLIENT_PAGE_SIZE);
+        vstrcpy(value, exec_path, CLIENT_PAGE_SIZE);
 
         // Remove the trailing newline if it exists
-        int len = strlen(path);
-        if (path[len - 1] == '\n') {
-            path[len - 1] = 0;
+        int len = strlen(exec_path);
+        if (exec_path[len - 1] == '\n') {
+            exec_path[len - 1] = 0;
         }
         if (trace_filename != NULL) {
-            trace_name(path);
+            trace_name(exec_path);
 #ifdef DEBUG
-            printf("QEMU.trace: kernel, name %s\n", path);
+            printf("QEMU.trace: kernel, name %s\n", exec_path);
 #endif
         }
         break;
     case TRACE_DEV_REG_MMAP_EXEPATH:    // mmap, path of EXE, the others are same as execve
-        vstrcpy(value, path, CLIENT_PAGE_SIZE);
+        vstrcpy(value, exec_path, CLIENT_PAGE_SIZE);
         if (trace_filename != NULL) {
-            trace_mmap(vstart, vend, eoff, path);
+            trace_mmap(vstart, vend, eoff, exec_path);
 #ifdef DEBUG
-            printf("QEMU.trace: kernel, mmap [%lx,%lx]@%lx [%s]\n", vstart, vend, eoff, path);
+            printf("QEMU.trace: kernel, mmap [%lx,%lx]@%lx [%s]\n", vstart, vend, eoff, exec_path);
 #endif
         }
 #ifdef CONFIG_MEMCHECK
         if (memcheck_enabled) {
-            if (path[0] == '\0') {
+            if (exec_path[0] == '\0') {
                 // vstrcpy may fail to copy path. In this case lets do it
                 // differently.
-                memcheck_get_guest_kernel_string(path, value, CLIENT_PAGE_SIZE);
+                memcheck_get_guest_kernel_string(exec_path, value, CLIENT_PAGE_SIZE);
             }
-            memcheck_mmap_exepath(vstart, vend, eoff, path);
+            memcheck_mmap_exepath(vstart, vend, eoff, exec_path);
         }
 #endif  // CONFIG_MEMCHECK
-        path[0] = 0;
+        exec_path[0] = 0;
         break;
     case TRACE_DEV_REG_INIT_PID:        // init, name the pid that starts before device registered
         pid = value;
@@ -205,28 +205,28 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
 #endif  // CONFIG_MEMCHECK
         break;
     case TRACE_DEV_REG_INIT_NAME:       // init, the comm of the init pid
-        vstrcpy(value, path, CLIENT_PAGE_SIZE);
+        vstrcpy(value, exec_path, CLIENT_PAGE_SIZE);
         if (trace_filename != NULL) {
-            trace_init_name(tgid, pid, path);
+            trace_init_name(tgid, pid, exec_path);
 #ifdef DEBUG
-            printf("QEMU.trace: kernel, init name %u [%s]\n", pid, path);
+            printf("QEMU.trace: kernel, init name %u [%s]\n", pid, exec_path);
 #endif
         }
-        path[0] = 0;
+        exec_path[0] = 0;
         break;
 
     case TRACE_DEV_REG_DYN_SYM_ADDR:    // dynamic symbol address
         dsaddr = value;
         break;
     case TRACE_DEV_REG_DYN_SYM:         // add dynamic symbol
-        vstrcpy(value, arg, CLIENT_PAGE_SIZE);
+        vstrcpy(value, exec_arg, CLIENT_PAGE_SIZE);
         if (trace_filename != NULL) {
-            trace_dynamic_symbol_add(dsaddr, arg);
+            trace_dynamic_symbol_add(dsaddr, exec_arg);
 #ifdef DEBUG
-            printf("QEMU.trace: dynamic symbol %lx:%s\n", dsaddr, arg);
+            printf("QEMU.trace: dynamic symbol %lx:%s\n", dsaddr, exec_arg);
 #endif
         }
-        arg[0] = 0;
+        exec_arg[0] = 0;
         break;
     case TRACE_DEV_REG_REMOVE_ADDR:         // remove dynamic symbol addr
         if (trace_filename != NULL) {
@@ -238,9 +238,9 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
         break;
 
     case TRACE_DEV_REG_PRINT_STR:       // print string
-        vstrcpy(value, arg, CLIENT_PAGE_SIZE);
-        printf("%s", arg);
-        arg[0] = 0;
+        vstrcpy(value, exec_arg, CLIENT_PAGE_SIZE);
+        printf("%s", exec_arg);
+        exec_arg[0] = 0;
         break;
     case TRACE_DEV_REG_PRINT_NUM_DEC:   // print number in decimal
         printf("%d", value);
@@ -391,5 +391,5 @@ void trace_dev_init()
 
     goldfish_device_add(&s->dev, trace_dev_readfn, trace_dev_writefn, s);
 
-    path[0] = arg[0] = '\0';
+    exec_path[0] = exec_arg[0] = '\0';
 }

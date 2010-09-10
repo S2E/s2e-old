@@ -646,6 +646,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     cbuffer.c \
                     gdbstub.c \
                     ioport.c \
+                    path.c \
                     shaper.c \
                     charpipe.c \
                     tcpdump.c \

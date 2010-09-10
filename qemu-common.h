@@ -138,6 +138,10 @@ int qemu_fls(int i);
 int qemu_fdatasync(int fd);
 int fcntl_setfl(int fd, int flag);
 
+/* path.c */
+void init_paths(const char *prefix);
+const char *path(const char *pathname);
+
 #define qemu_isalnum(c)		isalnum((unsigned char)(c))
 #define qemu_isalpha(c)		isalpha((unsigned char)(c))
 #define qemu_iscntrl(c)		iscntrl((unsigned char)(c))

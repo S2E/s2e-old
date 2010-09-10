@@ -43,6 +43,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <winsock2.h>
+typedef int32_t socklen_t;
 #elif defined(CONFIG_BSD)
 #include <stdlib.h>
 #else
@@ -392,3 +394,27 @@ int qemu_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 
     return ret;
 }
+
+#ifdef WIN32
+int asprintf( char **, char *, ... );
+int vasprintf( char **, char *, va_list );
+
+int vasprintf( char **sptr, char *fmt, va_list argv )
+{
+    int wanted = vsnprintf( *sptr = NULL, 0, fmt, argv );
+    if( (wanted > 0) && ((*sptr = malloc( 1 + wanted )) != NULL) )
+        return vsprintf( *sptr, fmt, argv );
+
+    return wanted;
+}
+
+int asprintf( char **sptr, char *fmt, ... )
+{
+    int retval;
+    va_list argv;
+    va_start( argv, fmt );
+    retval = vasprintf( sptr, fmt, argv );
+    va_end( argv );
+    return retval;
+}
+#endif
