@@ -46,9 +46,14 @@ typedef struct DeviceState DeviceState;
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
-
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 #ifndef ENOMEDIUM
 #define ENOMEDIUM ENODEV
+#endif
+#if !defined(ENOTSUP)
+#define ENOTSUP 4096
 #endif
 
 #ifndef CONFIG_IOVEC
@@ -57,19 +62,19 @@ struct iovec {
     void *iov_base;
     size_t iov_len;
 };
+/*
+ * Use the same value as Linux for now.
+ */
+#define IOV_MAX		1024
 #else
 #include <sys/uio.h>
 #endif
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 #define fsync _commit
 #define lseek _lseeki64
-#define ENOTSUP 4096
 extern int qemu_ftruncate64(int, int64_t);
 #define ftruncate qemu_ftruncate64
-
 
 static inline char *realpath(const char *path, char *resolved_path)
 {
@@ -99,6 +104,10 @@ static inline char *realpath(const char *path, char *resolved_path)
 /* bottom halves */
 typedef void QEMUBHFunc(void *opaque);
 
+void async_context_push(void);
+void async_context_pop(void);
+int get_async_context_id(void);
+
 QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque);
 void qemu_bh_schedule(QEMUBH *bh);
 /* Bottom halfs that are scheduled from a bottom half handler are instantly
@@ -111,6 +120,7 @@ void qemu_bh_schedule_idle(QEMUBH *bh);
 void qemu_bh_cancel(QEMUBH *bh);
 void qemu_bh_delete(QEMUBH *bh);
 int qemu_bh_poll(void);
+void qemu_bh_update_timeout(int *timeout);
 
 uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c);
 
@@ -151,6 +161,19 @@ void qemu_free(void *ptr);
 char *qemu_strdup(const char *str);
 char *qemu_strndup(const char *str, size_t size);
 
+void qemu_mutex_lock_iothread(void);
+void qemu_mutex_unlock_iothread(void);
+
+int qemu_open(const char *name, int flags, ...);
+ssize_t qemu_write_full(int fd, const void *buf, size_t count)
+    QEMU_WARN_UNUSED_RESULT;
+void qemu_set_cloexec(int fd);
+
+#ifndef _WIN32
+int qemu_eventfd(int pipefd[2]);
+int qemu_pipe(int pipefd[2]);
+#endif
+
 void *get_mmap_addr(unsigned long size);
 
 
@@ -177,6 +200,7 @@ typedef struct NICInfo NICInfo;
 typedef struct HCIInfo HCIInfo;
 typedef struct AudioState AudioState;
 typedef struct BlockDriverState BlockDriverState;
+typedef struct DriveInfo DriveInfo;
 typedef struct DisplayState DisplayState;
 typedef struct DisplayChangeListener DisplayChangeListener;
 typedef struct DisplaySurface DisplaySurface;
@@ -185,10 +209,14 @@ typedef struct PixelFormat PixelFormat;
 typedef struct TextConsole TextConsole;
 typedef TextConsole QEMUConsole;
 typedef struct CharDriverState CharDriverState;
+typedef struct MACAddr MACAddr;
 typedef struct VLANState VLANState;
+typedef struct VLANClientState VLANClientState;
 typedef struct i2c_bus i2c_bus;
 typedef struct i2c_slave i2c_slave;
 typedef struct SMBusDevice SMBusDevice;
+typedef struct PCIHostState PCIHostState;
+typedef struct PCIExpressHost PCIExpressHost;
 typedef struct PCIBus PCIBus;
 typedef struct PCIDevice PCIDevice;
 typedef struct SerialState SerialState;
@@ -198,6 +226,18 @@ typedef struct MouseTransformInfo MouseTransformInfo;
 typedef struct uWireSlave uWireSlave;
 typedef struct I2SCodec I2SCodec;
 typedef struct SSIBus SSIBus;
+typedef struct EventNotifier EventNotifier;
+typedef struct VirtIODevice VirtIODevice;
+
+typedef uint64_t pcibus_t;
+
+typedef enum {
+    IF_NONE,
+    IF_IDE, IF_SCSI, IF_FLOPPY, IF_PFLASH, IF_MTD, IF_SD, IF_VIRTIO, IF_XEN,
+    IF_COUNT
+} BlockInterfaceType;
+
+void cpu_exec_init_all(unsigned long tb_size);
 
 /* CPU save/load.  */
 void cpu_save(QEMUFile *f, void *opaque);
@@ -212,6 +252,14 @@ void qemu_notify_event(void);
 /* Unblock cpu */
 void qemu_cpu_kick(void *env);
 int qemu_cpu_self(void *env);
+
+/* work queue */
+struct qemu_work_item {
+    struct qemu_work_item *next;
+    void (*func)(void *data);
+    void *data;
+    int done;
+};
 
 #ifdef CONFIG_USER_ONLY
 #define qemu_init_vcpu(env) do { } while (0)
@@ -229,6 +277,7 @@ typedef struct QEMUIOVector {
 void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint);
 void qemu_iovec_init_external(QEMUIOVector *qiov, struct iovec *iov, int niov);
 void qemu_iovec_add(QEMUIOVector *qiov, void *base, size_t len);
+void qemu_iovec_concat(QEMUIOVector *dst, QEMUIOVector *src, size_t size);
 void qemu_iovec_destroy(QEMUIOVector *qiov);
 void qemu_iovec_reset(QEMUIOVector *qiov);
 void qemu_iovec_to_buffer(QEMUIOVector *qiov, void *buf);
@@ -236,6 +285,17 @@ void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count);
 
 struct Monitor;
 typedef struct Monitor Monitor;
+
+/* Convert a byte between binary and BCD.  */
+static inline uint8_t to_bcd(uint8_t val)
+{
+    return ((val / 10) << 4) | (val % 10);
+}
+
+static inline uint8_t from_bcd(uint8_t val)
+{
+    return ((val >> 4) * 10) + (val & 0x0f);
+}
 
 #include "module.h"
 

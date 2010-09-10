@@ -5,7 +5,6 @@
 
 /* VLANs support */
 
-typedef struct VLANClientState VLANClientState;
 
 typedef int (NetCanReceive)(VLANClientState *);
 typedef ssize_t (NetReceive)(VLANClientState *, const uint8_t *, size_t);

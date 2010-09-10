@@ -2439,7 +2439,7 @@ void qemu_bh_delete(QEMUBH *bh)
     bh->deleted = 1;
 }
 
-static void qemu_bh_update_timeout(int *timeout)
+void qemu_bh_update_timeout(int *timeout)
 {
     QEMUBH *bh;
 

@@ -162,16 +162,11 @@ extern unsigned int nb_prom_envs;
 #endif
 
 typedef enum {
-    IF_IDE, IF_SCSI, IF_FLOPPY, IF_PFLASH, IF_MTD, IF_SD, IF_VIRTIO, IF_XEN,
-    IF_COUNT
-} BlockInterfaceType;
-
-typedef enum {
     BLOCK_ERR_REPORT, BLOCK_ERR_IGNORE, BLOCK_ERR_STOP_ENOSPC,
     BLOCK_ERR_STOP_ANY
 } BlockInterfaceErrorAction;
 
-typedef struct DriveInfo {
+struct DriveInfo {
     BlockDriverState *bdrv;
     BlockInterfaceType type;
     int bus;
@@ -180,7 +175,7 @@ typedef struct DriveInfo {
     int drive_opt_idx;
     BlockInterfaceErrorAction onerror;
     char serial[21];
-} DriveInfo;
+};
 
 #define MAX_IDE_DEVS	2
 #define MAX_SCSI_DEVS	7
