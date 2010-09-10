@@ -117,6 +117,7 @@ bool FunctionSkipper::initSection(const std::string &entry, const std::string &c
     e.executeOnce = cfg->getBool(entry + ".executeonce", false, &ok);
     e.symbolicReturn = cfg->getBool(entry + ".symbolicreturn", false, &ok);
     e.keepReturnPathsCount = cfg->getInt(entry + ".keepReturnPathsCount", 1, &ok);
+    e.callAnnotation = cfg->getString(entry, "", &ok);
 
     ne = new FunctionSkipperCfgEntry(e);
     m_entries.push_back(ne);
@@ -189,12 +190,12 @@ void FunctionSkipper::onFunctionCall(
     }
 
     s2e()->getDebugStream() << "FunctionSkipper: Called entry " << entry->cfgname << std::endl;
+
     bool skip = !entry->executeOnce || (entry->executeOnce && entry->invocationCount > 0);
     if (skip) {
-        if (entry->symbolicReturn) {
-            state->undoCallAndJumpToSymbolic();
-            klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, entry->cfgname + "_ret");
-            state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
+        if (entry->callAnnotation.size() > 0) {
+            s2e()->getDebugStream() << "FunctionSkipper: Invoking call annotation" << std::endl;
+            s2e()->getConfig()->invokeAnnotation(entry->callAnnotation, state);
         }
         state->bypassFunction(entry->paramCount);
         throw CpuExitException();

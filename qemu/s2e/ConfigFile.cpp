@@ -348,7 +348,7 @@ void ConfigFile::invokeAnnotation(const std::string &annotation, S2EExecutionSta
 
 int ConfigFile::RegisterS2EApi()
 {
-    static const luaL_reg meta_methods[] = {
+    static const luaL_reg s2e_meta_methods[] = {
         {"__gc", ConfigFile::luaS2EDestroy },
         {0,0}
     };
@@ -359,35 +359,24 @@ int ConfigFile::RegisterS2EApi()
         {"write_register",          ConfigFile::s2e_write_register },
         {0,0}
     };
-#if 0
-    int metatable, methods;
+
     lua_State *L = m_luaState;
 
-
+    luaL_openlib(L, LUAS2E, s2e_methods, 0);
     luaL_newmetatable(L, LUAS2E);
+
+    luaL_openlib(L, NULL, s2e_meta_methods, 0);
+    luaL_newmetatable(L, LUAS2E);
+
     lua_pushliteral(L, "__index");
-    lua_pushvalue(L, -3);
-    lua_settable(L, -3);
-    luaL_openlib(L, NULL, meta_methods, 0);
-    lua_pop(L, 1);
+    lua_pushvalue(L, -3);               /* dup methods table*/
+    lua_rawset(L, -3);                  /* metatable.__index = methods */
+    lua_pushliteral(L, "__metatable");
+    lua_pushvalue(L, -3);               /* dup methods table*/
+    lua_rawset(L, -3);                  /* hide metatable:
+                                             metatable.__metatable = methods */
+    lua_pop(L, 1);                      /* drop metatable */
 
-
-    lua_pushliteral(L, LUAS2E);        /* name of LuaS2E table */
-    methods   = newtable(L);           /* LuaS2E methods table */
-    metatable = newtable(L);           /* LuaS2E metatable */
-
-    lua_pushliteral(L, "__index");     /* add index event to metatable */
-    lua_pushvalue(L, methods);
-    lua_settable(L, metatable);        /* metatable.__index = methods */
-
-    lua_pushliteral(L, "__metatable"); /* hide metatable */
-    lua_pushvalue(L, methods);
-    lua_settable(L, metatable);        /* metatable.__metatable = methods */
-
-    luaL_openlib(L, 0, meta_methods,  0); /* fill metatable */
-    luaL_openlib(L, 0, s2e_methods, 1); /* fill LuaS2E methods table */
-    lua_settable(L, LUA_GLOBALSINDEX); /* add LuaS2E to globals */
-#endif
     return 0;
 
 }

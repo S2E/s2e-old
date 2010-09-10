@@ -24,6 +24,7 @@ namespace plugins {
         unsigned paramCount, keepReturnPathsCount;
         std::vector<FunctionSkipperCfgEntry*> activateOnEntry;
 
+        std::string callAnnotation;
         unsigned invocationCount, returnCount;
 
         FunctionSkipperCfgEntry() {
