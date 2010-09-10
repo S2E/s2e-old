@@ -565,7 +565,7 @@ void TCGLLVMContextPrivate::startNewBasicBlock(BasicBlock *bb)
         delPtrForValue(i);
 }
 
-Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
+inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
         Value *value, Value *addr, int mem_index, int bits)
 {
     assert(addr->getType() == intType(TARGET_LONG_BITS));
@@ -573,6 +573,17 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     assert(TCG_TARGET_REG_BITS == 64); //XXX
 
 #ifdef CONFIG_SOFTMMU
+
+#ifdef CONFIG_S2E
+    if(ld) {
+        return m_builder.CreateCall2(m_qemu_ld_helpers[bits>>4], addr,
+                    ConstantInt::get(intType(8*sizeof(int)), mem_index));
+    } else {
+        m_builder.CreateCall3(m_qemu_st_helpers[bits>>4], addr, value,
+                    ConstantInt::get(intType(8*sizeof(int)), mem_index));
+        return NULL;
+    }
+#else
 
 #define __x_offsetof(TYPE, MEMBER) ((size_t) &((TYPE *) 0)->MEMBER)
 
@@ -715,7 +726,9 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
 
 #undef __x_offsetof
 
-#else
+#endif // CONFIG_S2E
+
+#else // CONFIG_SOFTMMU
     addr = m_builder.CreateZExt(addr, wordType());
     addr = m_builder.CreateAdd(addr,
         ConstantInt::get(wordType(), GUEST_BASE));
@@ -726,7 +739,7 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
         m_builder.CreateStore(value, addr);
         return NULL;
     }
-#endif
+#endif // CONFIG_SOFTMMU
 }
 
 int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
