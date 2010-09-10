@@ -28,7 +28,7 @@
 #define unlikely(x)   __builtin_expect(!!(x), 0)
 #endif
 
-#ifndef offsetof
+#ifdef CONFIG_NEED_OFFSETOF
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *) 0)->MEMBER)
 #endif
 #ifndef container_of
@@ -94,6 +94,8 @@ int qemu_create_pidfile(const char *filename);
 
 #ifdef _WIN32
 int ffs(int i);
+
+int setenv(const char *name, const char *value, int overwrite);
 
 typedef struct {
     long tv_sec;
