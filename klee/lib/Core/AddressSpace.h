@@ -51,14 +51,10 @@ namespace klee {
     /// \invariant forall o in objects, o->copyOnWriteOwner <= cowKey
     MemoryMap objects;
 
-    /// A set of objects from MemoryMap that has isUserSpecified == false
-    MemoryMap nonUserSpecifiedObjects;
-    
   public:
     AddressSpace() : cowKey(1) {}
     AddressSpace(const AddressSpace &b) :
-            cowKey(++b.cowKey), objects(b.objects),
-            nonUserSpecifiedObjects(b.nonUserSpecifiedObjects) { }
+            cowKey(++b.cowKey), objects(b.objects) { }
     ~AddressSpace() {}
 
     /// Resolve address to an ObjectPair in result.

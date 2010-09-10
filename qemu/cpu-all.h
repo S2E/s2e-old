@@ -678,64 +678,44 @@ extern int have_guest_base;
 
 #else /* CONFIG_S2E */
 
-/* choose one to disable fast tlb lookup */
-#if 1
-#define _s2e_define_fc(t, s) \
-static inline void* s2e_tb_fc_ld_ ## t (CPUState *env, uintptr_t p, int mmu_idx, int tlb_idx) { \
-    return NULL; \
-} \
-static inline void* s2e_tb_fc_st_ ## t (CPUState *env, uintptr_t p, int mmu_idx, int tlb_idx) { \
-   return NULL; \
-}
+static inline int _s2e_check_concrete(void *objectState,
+                                      target_ulong offset, int size)
+{
+#if 0
+    if(unlikely(*(uint8_t***) objectState)) {
+        uint8_t* bits = **(uint8_t***) objectState;
+        int mask = (1<<size)-1;
+        return ((((uint16_t*)(bits + (offset>>3)))[0] >> (offset&7)) & mask) == mask;
+    }
+    return 1;
 #else
-
-#define _s2e_define_fc(t, s) \
-static inline void* s2e_tb_fc_ld_ ## t (CPUState *env, uintptr_t p, int mmu_idx, int tlb_idx) { \
-    CPUSymbCache *ce = &env->tlb_symb_table[mmu_idx][tlb_idx]; \
-    return s2e_tlb_fast_check_read((uint64_t)p, ce, s); \
-} \
-static inline void* s2e_tb_fc_st_ ## t (CPUState *env, uintptr_t p, int mmu_idx, int tlb_idx) { \
-    CPUSymbCache *ce = &env->tlb_symb_table[mmu_idx][tlb_idx]; \
-    return s2e_tlb_fast_check_write((uint64_t)p, ce, s); \
-}
+    return 0;
 #endif
-
-_s2e_define_fc(ub, 1)
-_s2e_define_fc(sb, 1)
-_s2e_define_fc(uw, 2)
-_s2e_define_fc(sw, 2)
-_s2e_define_fc(l, 4)
-_s2e_define_fc(q, 8)
-_s2e_define_fc(fl, 4)
-_s2e_define_fc(fq, 8)
-
-_s2e_define_fc(b, 1)
-_s2e_define_fc(w, 2)
-
+}
 
 #define _s2e_define_ld_raw(ct, t, s) \
     static inline ct ld ## t ## _raw(const void* p) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
-          uint8_t buf[s]; \
-          s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-          return ld ## t ## _p(buf); /* read right type of value from buf */ \
-      } else return ld ## t ## _p(p); \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _p(buf); /* read right type of value from buf */ \
+        } else return ld ## t ## _p(p); \
     } \
     static inline ct ld ## t ## _raw_s2e_trace(const void* p) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
-          uint8_t buf[s]; \
-          s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-          return ld ## t ## _p(buf); \
-      } else return ld ## t ## _p(p); \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _p(buf); \
+        } else return ld ## t ## _p(p); \
     }
 
 #define _s2e_define_st_raw(ct, t, s) \
     static inline void st ## t ## _raw(void* p, ct v) { \
         if(g_s2e_state) { /* XXX XXX XXX */ \
-          uint8_t buf[s]; \
-          st ## t ## _p(buf, v); \
-          s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
-      } else st ## t ## _p(p, v); \
+            uint8_t buf[s]; \
+            st ## t ## _p(buf, v); \
+            s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+        } else st ## t ## _p(p, v); \
     } \
     static inline void st ## t ## _raw_s2e_trace(void* p, ct v) { \
         st ## t ## _raw(p, v); \

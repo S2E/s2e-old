@@ -1832,9 +1832,7 @@ void tlb_flush(CPUState *env, int flush_global)
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
             env->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
-#ifdef CONFIG_S2E
-            s2e_flush_tlb_entry(env, mmu_idx, i);
-#endif
+            env->s2e_tlb_table[mmu_idx][i].objectState = 0;
         }
     }
 
@@ -1843,7 +1841,9 @@ void tlb_flush(CPUState *env, int flush_global)
     tlb_flush_count++;
 }
 
-static inline int tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
+static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry,
+                                   S2ETLBEntry *s2e_tlb_entry,
+                                   target_ulong addr)
 {
     if (addr == (tlb_entry->addr_read &
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK)) ||
@@ -1852,9 +1852,8 @@ static inline int tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
         addr == (tlb_entry->addr_code &
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
         *tlb_entry = s_cputlb_empty_entry;
-        return 1;
+        s2e_tlb_entry->objectState = 0;
     }
-    return 0;
 }
 
 void tlb_flush_page(CPUState *env, target_ulong addr)
@@ -1872,13 +1871,8 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
     addr &= TARGET_PAGE_MASK;
     i = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-        tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
-#ifdef CONFIG_S2E
-        if (tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr))
-            s2e_flush_tlb_entry(env, mmu_idx, i);
-#else
-        tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
-#endif
+        tlb_flush_entry(&env->tlb_table[mmu_idx][i],
+                        &env->s2e_tlb_table[mmu_idx][i], addr);
     }
 
     tlb_flush_jmp_cache(env, addr);
@@ -2144,7 +2138,8 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     }
 
 #ifdef CONFIG_S2E
-   s2e_update_tlb_entry(env, mmu_idx, index, addend);
+   s2e_update_tlb_entry(g_s2e_state, &env->s2e_tlb_table[mmu_idx][index],
+                        addend, vaddr);
 #endif
 
     return ret;

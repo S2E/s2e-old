@@ -153,6 +153,7 @@ public:
 
     uint64_t getTotalInstructionCount();
 
+#if 0
     /*************************************************/
 
     /** Accesses to memory objects through the cache **/
@@ -180,7 +181,29 @@ public:
         }
     }
 
-    void refreshTlb(klee::ObjectState *newObj);
+    void refreshTlb(klee::ObjectState *oldObj, klee::ObjectState *newObj);
+#else
+
+
+    klee::ObjectPair fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
+        return addressSpace.findObject(hostAddress);
+    }
+
+    klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
+        return addressSpace.getWriteable(mo, os);
+    }
+
+    void invalidateObjectStateMem(uintptr_t moAddr) {}
+
+    /** Universal access **/
+    inline const klee::ObjectState* fetchObjectState(const klee::MemoryObject *mo, uint64_t tpm) const {
+        return addressSpace.findObject(mo);
+    }
+
+    inline klee::ObjectState* fetchObjectStateWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
+        return addressSpace.getWriteable(mo, os);
+    }
+#endif
 
     /*************************************************/
 

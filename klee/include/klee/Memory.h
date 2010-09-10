@@ -151,35 +151,34 @@ public:
 
 class ObjectState {
 private:
+  // XXX(s2e) for now we keep this first to access from C code
+  // (yes, we do need to access if really fast)
+  BitArray *concreteMask;
+
   friend class AddressSpace;
   unsigned copyOnWriteOwner; // exclusively for AddressSpace
 
   friend class ObjectHolder;
   unsigned refCount;
 
+  const MemoryObject *object;
 
+  //XXX: made it public for fast access
+  uint8_t *concreteStore;
+
+  // XXX cleanup name of flushMask (its backwards or something)
+  // mutable because may need flushed during read of const
+  mutable BitArray *flushMask;
+
+  ref<Expr> *knownSymbolics;
+
+  // mutable because we may need flush during read of const
+  mutable UpdateList updates;
 
 public:
   unsigned size;
 
   bool readOnly;
-  // XXX cleanup name of flushMask (its backwards or something)
-  //XXX: made it public for fast access
-  const MemoryObject *object;
-  uint8_t *concreteStore;
-
-  //To speed concrete accesses
-  uint8_t *actualStore;
-
-  BitArray *concreteMask;
-
-private:
-  // mutable because may need flushed during read of const
-  mutable BitArray *flushMask;
-  ref<Expr> *knownSymbolics;
-  // mutable because we may need flush during read of const
-  mutable UpdateList updates;
-
 
 public:
   /// Create a new object state for the given memory object with concrete

@@ -95,6 +95,9 @@ target_ulong tcg_llvm_fork_and_concretize(target_ulong);
 #define S2E_FORK_AND_CONCRETIZE(val) (val)
 #endif
 
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
+//#define S2E_FORK_AND_CONCRETIZE_ADDR(val) S2E_FORK_AND_CONCRETIZE(val)
+
 /* generic load/store macros */
 
 static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
@@ -104,12 +107,9 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     target_ulong addr;
     uintptr_t physaddr;
     int mmu_idx;
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-    void *db;
-#endif
 
-    ptr = S2E_FORK_AND_CONCRETIZE(ptr);
     addr = ptr;
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
     page_index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
     mmu_idx = CPU_MMU_INDEX;
     if (unlikely(env->tlb_table[mmu_idx][page_index].ADDR_READ !=
@@ -119,16 +119,16 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 
 #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-            if ((db = glue(s2e_tb_fc_ld_, USUFFIX) (env, physaddr, mmu_idx, page_index))) {
-                res = glue(glue(ld, USUFFIX), _p)(db);
-            }else
+        S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][page_index];
+        if(_s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
+            res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
+        else
 #endif
-                res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
+            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)physaddr);
 
         //XXX: Fix this to be on the dataflow
         //res = S2E_TRACE_MEMORY(addr, physaddr, res, 0, 0);
         S2E_TRACE_MEMORY(addr, physaddr, res, 0, 0);
-
     }
     return res;
 }
@@ -140,12 +140,9 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     target_ulong addr;
     uintptr_t physaddr;
     int mmu_idx;
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-    void *db;
-#endif
 
     addr = ptr;
-    addr = S2E_FORK_AND_CONCRETIZE(addr);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
     page_index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
     mmu_idx = CPU_MMU_INDEX;
     if (unlikely(env->tlb_table[mmu_idx][page_index].ADDR_READ !=
@@ -153,12 +150,14 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
         res = (DATA_STYPE)glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+
 #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-            if ((db = glue(s2e_tb_fc_ld_, SUFFIX) (env, physaddr, mmu_idx, page_index))) {
-                res = glue(glue(lds, SUFFIX), _p)(db);
-            }else
+        S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][page_index];
+        if(_s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
+            res = glue(glue(lds, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
+        else
 #endif
-                res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
+            res = glue(glue(lds, SUFFIX), _raw)((uint8_t *)physaddr);
 
         S2E_TRACE_MEMORY(addr, physaddr, res, 0, 0);
     }
@@ -176,13 +175,9 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     target_ulong addr;
     uintptr_t physaddr;
     int mmu_idx;
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-    void *db;
-#endif
-
 
     addr = ptr;
-    addr = S2E_FORK_AND_CONCRETIZE(addr);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
     page_index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
     mmu_idx = CPU_MMU_INDEX;
     if (unlikely(env->tlb_table[mmu_idx][page_index].addr_write !=
@@ -190,12 +185,14 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
         glue(glue(__st, SUFFIX), MMUSUFFIX)(addr, v, mmu_idx);
     } else {
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
+
 #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-            if ((db = glue(s2e_tb_fc_st_, SUFFIX) (env, physaddr, mmu_idx, page_index))) {
-               glue(glue(st, SUFFIX), _p)(db, v);
-            }else
+        S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][page_index];
+        if((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
+            glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), v);
+        else
 #endif
-        glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
+            glue(glue(st, SUFFIX), _raw)((uint8_t *)physaddr, v);
 
         S2E_TRACE_MEMORY(addr, physaddr, v, 1, 0);
     }

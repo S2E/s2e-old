@@ -976,8 +976,10 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
     __ST_OP(INDEX_op_st8_i32,   8, 32)
     __ST_OP(INDEX_op_st16_i32, 16, 32)
-    //__ST_OP(INDEX_op_st_i32,   32, 32)
 
+#ifndef CONFIG_S2E
+    __ST_OP(INDEX_op_st_i32,   32, 32)
+#else
     case INDEX_op_st_i32: {
         assert(getValue(args[0])->getType() == intType(32));
         assert(getValue(args[1])->getType() == wordType());
@@ -994,6 +996,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
                     valueToStore, intType(32)), v);
         }
         break;
+#endif
 
 #if TCG_TARGET_REG_BITS == 64
     __LD_OP(INDEX_op_ld8u_i64,   8, 64, Z)

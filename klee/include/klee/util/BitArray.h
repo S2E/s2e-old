@@ -17,6 +17,8 @@ namespace klee {
   // BitArrays
 class BitArray {
 private:
+  // XXX(s2e) for now we keep this first to access from C code
+  // (yes, we do need to access if really fast)
   uint32_t *bits;
   
 protected:

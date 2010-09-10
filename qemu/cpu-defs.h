@@ -106,10 +106,10 @@ typedef struct CPUTLBEntry {
                    sizeof(target_phys_addr_t))];
 } CPUTLBEntry;
 
-typedef struct CPUSymbCache {
-    void *objectState;
-    uintptr_t hostAddr;
-}CPUSymbCache;
+typedef struct S2ETLBEntry {
+    void* objectState;
+    uintptr_t addend;
+} S2ETLBEntry;
 
 #ifdef HOST_WORDS_BIGENDIAN
 typedef struct icount_decr_u16 {
@@ -158,7 +158,7 @@ typedef struct CPUWatchpoint {
     volatile sig_atomic_t exit_request;                                 \
     /* The meaning of the MMU modes is defined in the target code. */   \
     CPUTLBEntry tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
-    CPUSymbCache tlb_symb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
+    S2ETLBEntry s2e_tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];              \
     target_phys_addr_t iotlb[NB_MMU_MODES][CPU_TLB_SIZE];               \
     struct TranslationBlock *tb_jmp_cache[TB_JMP_CACHE_SIZE];           \
     /* buffer for temporaries in the code generator */                  \

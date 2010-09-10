@@ -37,8 +37,10 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
+    /*
     m_cpuRegistersObject = NULL;
     m_cpuSystemObject = NULL;
+    */
     m_cpuSystemState = NULL;
     m_cpuRegistersState = NULL;
 }
@@ -77,16 +79,18 @@ ExecutionState* S2EExecutionState::clone()
         ret->m_PluginState.insert(std::make_pair((*it).first, (*it).second->clone()));
     }
 
+    /*
     const ObjectState *cpuSystemObject = ret->addressSpace.findObject(ret->m_cpuSystemState);
     const ObjectState *cpuRegistersObject = ret->addressSpace.findObject(ret->m_cpuRegistersState);
 
     ret->m_cpuRegistersObject = ret->addressSpace.getWriteable(ret->m_cpuRegistersState, cpuRegistersObject);
     ret->m_cpuSystemObject = ret->addressSpace.getWriteable(ret->m_cpuSystemState, cpuSystemObject);
+    */
 
     return ret;
 }
 
-
+#if 0
 /** Accesses to memory objects through the cache **/
 klee::ObjectPair S2EExecutionState::fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
 #ifdef S2E_ENABLEMEM_CACHE
@@ -113,14 +117,14 @@ klee::ObjectState* S2EExecutionState::fetchObjectStateMemWritable(const klee::Me
     assert(wos->getObject() == mo);
     if (wos != os) {
         m_memCache.update(mo->address, klee::ObjectPair(mo,wos));
-        refreshTlb(wos);
+        refreshTlb(os, wos);
     }
 
     return wos;
 #else
     klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
     if (wos != os) {
-        refreshTlb(wos);
+        refreshTlb(os, wos);
     }
     return wos;
 #endif
@@ -134,7 +138,7 @@ void S2EExecutionState::invalidateObjectStateMem(uintptr_t moAddr) {
 }
 
 //Go through the TLB and update all references to newObj
-void S2EExecutionState::refreshTlb(ObjectState *newObj)
+void S2EExecutionState::refreshTlb(ObjectState *oldObj, ObjectState *newObj)
 {
     CPUState *e, *f = NULL;
     //XXX: not sure why we need to update both of these...
@@ -152,6 +156,7 @@ void S2EExecutionState::refreshTlb(ObjectState *newObj)
         }
     }
 }
+#endif
 
 ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
                                              Expr::Width width) const
