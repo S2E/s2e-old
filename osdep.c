@@ -43,13 +43,20 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#include <winsock2.h>
-typedef int32_t socklen_t;
 #elif defined(CONFIG_BSD)
 #include <stdlib.h>
 #else
 #include <malloc.h>
 #endif
+
+#ifdef CONFIG_ANDROID
+#ifdef WIN32
+#include <winsock2.h>
+typedef int32_t socklen_t;
+#else
+#include <sys/socket.h>
+#endif
+#endif /* CONFIG_ANDROID */
 
 #include "qemu-common.h"
 #include "sysemu.h"
