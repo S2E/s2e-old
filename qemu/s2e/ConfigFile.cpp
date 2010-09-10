@@ -450,9 +450,7 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
 
     if (!m_state->writeMemory(address, val)) {
         std::stringstream ss;
-        ss << "writeMemorySymb: Could not write to memory at address 0x" << std::hex << address;
-        lua_pushstring(L, ss.str().c_str());
-        lua_error(L);
+        g_s2e->getDebugStream() << "writeMemorySymb: Could not write to memory at address 0x" << std::hex << address;
     }
 
     return 0;

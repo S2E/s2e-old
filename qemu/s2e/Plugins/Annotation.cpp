@@ -213,7 +213,7 @@ void Annotation::invokeAnnotation(
     }
 
     if (fns) {
-        assert(!isCall);
+        assert(isCall);
         FunctionMonitor::ReturnSignal returnSignal;
         returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &Annotation::onFunctionRet), entry));
         fns->registerReturnSignal(state, returnSignal);
@@ -317,13 +317,13 @@ int LUAAnnotation::activateRule(lua_State *L)
 
 int LUAAnnotation::isReturn(lua_State *L)
 {
-    lua_pushnumber(L, m_isReturn);        /* first result */
+    lua_pushboolean(L, m_isReturn);        /* first result */
     return 1;
 }
 
 int LUAAnnotation::isCall(lua_State *L)
 {
-    lua_pushnumber(L, !m_isReturn);        /* first result */
+    lua_pushboolean(L, !m_isReturn);        /* first result */
     return 1;
 }
 
