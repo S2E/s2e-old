@@ -922,10 +922,8 @@ static void init_icount_adjust(void)
 static struct qemu_alarm_timer alarm_timers[] = {
 #ifndef _WIN32
 #ifdef __linux__
-#ifndef CONFIG_S2E
     {"dynticks", ALARM_FLAG_DYNTICKS, dynticks_start_timer,
      dynticks_stop_timer, dynticks_rearm_timer, NULL},
-#endif
     /* HPET - if available - is preferred */
     {"hpet", 0, hpet_start_timer, hpet_stop_timer, NULL, NULL},
     /* ...otherwise try RTC */
@@ -4107,6 +4105,7 @@ static void tcg_cpu_exec(void)
     }
 }
 
+#ifndef CONFIG_S2E
 static int cpu_has_work(CPUState *env)
 {
     if (env->stop)
@@ -4182,6 +4181,7 @@ static int qemu_calculate_timeout(void)
     return 1000;
 #endif
 }
+#endif
 
 static int vm_can_run(void)
 {

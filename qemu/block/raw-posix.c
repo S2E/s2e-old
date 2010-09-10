@@ -30,7 +30,8 @@
 #include "block/raw-posix-aio.h"
 
 //XXX: Hack to disable AIO.
-#define ENABLE_AIO 0
+//#define ENABLE_AIO
+#undef ENABLE_AIO
 
 typedef int (*__hook_raw_read)(struct BlockDriverState *bs, int64_t sector_num,
                     uint8_t *buf, int nb_sectors);
@@ -556,6 +557,7 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
     return ret;
 }
 
+#ifdef ENABLE_AIO
 /*
  * Check if all memory in this vector is sector aligned.
  */
@@ -643,6 +645,7 @@ static BlockDriverAIOCB *raw_aio_flush(BlockDriverState *bs,
 
     return paio_submit(bs, s->fd, 0, NULL, 0, cb, opaque, QEMU_AIO_FLUSH);
 }
+#endif
 
 static void raw_close(BlockDriverState *bs)
 {
@@ -816,7 +819,7 @@ static BlockDriver bdrv_raw = {
     .bdrv_close = raw_close,
     .bdrv_create = raw_create,
     .bdrv_flush = raw_flush,
-#if ENABLE_AIO
+#ifdef ENABLE_AIO
     .bdrv_aio_readv = raw_aio_readv,
     .bdrv_aio_writev = raw_aio_writev,
     .bdrv_aio_flush = raw_aio_flush,
@@ -1002,6 +1005,7 @@ static int hdev_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
     return ioctl(s->fd, req, buf);
 }
 
+#ifdef ENABLE_AIO
 static BlockDriverAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
         unsigned long int req, void *buf,
         BlockDriverCompletionFunc *cb, void *opaque)
@@ -1012,6 +1016,7 @@ static BlockDriverAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
         return NULL;
     return paio_ioctl(bs, s->fd, req, buf, cb, opaque);
 }
+#endif
 
 #elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 static int fd_open(BlockDriverState *bs)
@@ -1072,7 +1077,7 @@ static BlockDriver bdrv_host_device = {
     .create_options     = raw_create_options,
     .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
-#if ENABLE_AIO
+#ifdef ENABLE_AIO
     .bdrv_aio_readv	= raw_aio_readv,
     .bdrv_aio_writev	= raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,
@@ -1085,7 +1090,7 @@ static BlockDriver bdrv_host_device = {
 #ifdef __linux__
     .bdrv_ioctl         = hdev_ioctl,
 //XXX: hack to disable AIO, redo properly
-#if ENABLE_AIO
+#ifdef ENABLE_AIO
     .bdrv_aio_ioctl     = hdev_aio_ioctl,
 #endif
 #endif
@@ -1173,7 +1178,7 @@ static BlockDriver bdrv_host_floppy = {
     .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
 
-#if ENABLE_AIO
+#ifdef ENABLE_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,
@@ -1257,7 +1262,7 @@ static BlockDriver bdrv_host_cdrom = {
     .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
 
-#if ENABLE_AIO
+#ifdef ENABLE_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,
@@ -1274,7 +1279,7 @@ static BlockDriver bdrv_host_cdrom = {
 
     /* generic scsi device */
     .bdrv_ioctl         = hdev_ioctl,
-#if ENABLE_AIO
+#ifdef ENABLE_AIO
     .bdrv_aio_ioctl     = hdev_aio_ioctl,
 #endif
 };
@@ -1383,7 +1388,7 @@ static BlockDriver bdrv_host_cdrom = {
     .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
 
-#if ENABLE_AIO
+#ifdef ENABLE_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,

@@ -78,6 +78,7 @@
 
 #include <errno.h>
 #include <cxxabi.h>
+#include <inttypes.h>
 
 using namespace llvm;
 using namespace klee;
@@ -621,8 +622,8 @@ void Executor::initializeGlobals(ExecutionState &state) {
         uint64_t address = ::strtoll(i->getNameStr().c_str()+1, &end, 0);
 
         if (end && *end == '\0') {
-          klee_message("NOTE: allocated global at asm specified address: %#08llx"
-                       " (%llu bytes)",
+          klee_message("NOTE: allocated global at asm specified address: %#08"
+                       PRIx64 " (%" PRIu64 " bytes)",
                        address, size);
           mo = memory->allocateFixed(address, size, &*i);
           mo->isUserSpecified = true; // XXX hack;
