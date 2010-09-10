@@ -25,70 +25,6 @@ class S2EDeviceState;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 
-
-template <unsigned Size=101>
-class S2EMemObjectCache {
-public:
-    struct CacheEntry {
-        uint64_t address;
-        klee::ObjectPair objPair;
-
-        CacheEntry() {
-            address = (uintptr_t)-1;
-            objPair = klee::ObjectPair(NULL, NULL);
-        }
-    };
-
-private:
-
-    CacheEntry m_entries[Size];
-    mutable uint64_t m_hits, m_misses;
-    mutable uint64_t m_cval, m_chash;
-
-    inline uint64_t hash(uint64_t Val) const {
-        return Val % Size;
-    }
-
-public:
-    S2EMemObjectCache() {
-        for (unsigned i=0; i<Size; ++i) {
-            m_entries[i] = CacheEntry();
-        }
-        m_hits = 0;
-        m_misses = 0;
-        m_cval = 0;
-        m_chash = 0;
-    }
-
-    inline klee::ObjectPair lookup(uint64_t address) const{
-
-        unsigned ha = hash(address);
-        const CacheEntry &ce = m_entries[ha];
-        if (address == ce.address) {
-            assert(ce.objPair.first == ce.objPair.second->getObject());
-            return ce.objPair;
-        }
-        return klee::ObjectPair(NULL, NULL);
-    }
-
-    inline void update(uint64_t address, const klee::ObjectPair &p) {
-        unsigned ha = hash(address);
-        CacheEntry &ce = m_entries[ha];
-        ce.address = address;
-        ce.objPair = p;
-        assert(ce.objPair.first == ce.objPair.second->getObject());
-        assert(ce.objPair.second && ce.objPair.first);
-    }
-
-    inline void invalidate(uint64_t address) {
-        unsigned ha = hash(address);
-        const CacheEntry &ce = m_entries[ha];
-        if (ce.address == address) {
-            m_entries[ha] = CacheEntry();
-        }
-    }
-};
-
 /** Dummy implementation, just to make events work */
 class S2EExecutionState : public klee::ExecutionState
 {
@@ -119,11 +55,6 @@ protected:
     klee::MemoryObject* m_cpuRegistersState;
     klee::MemoryObject* m_cpuSystemState;
 
-    /* Object caching scheme */
-    //cpu cache will not work because KLEE may internally do copy on write
-    //mutable S2ECPUObjectCache m_cpuCache;
-    mutable S2EMemObjectCache<101> m_memCache;
-
     klee::ObjectState *m_cpuRegistersObject;
     klee::ObjectState *m_cpuSystemObject;
 
@@ -134,6 +65,9 @@ protected:
     TimersState* m_timersState;
 
     ExecutionState* clone();
+    void addressSpaceChange(const klee::MemoryObject *mo,
+                            const klee::ObjectState *oldState,
+                            klee::ObjectState *newState);
 
 public:
     enum AddressType {
@@ -152,58 +86,6 @@ public:
     TranslationBlock *getTb() const;
 
     uint64_t getTotalInstructionCount();
-
-#if 0
-    /*************************************************/
-
-    /** Accesses to memory objects through the cache **/
-    klee::ObjectPair fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const;
-
-    klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os);
-
-    void invalidateObjectStateMem(uintptr_t moAddr);
-
-
-    /** Universal access **/
-    inline const klee::ObjectState* fetchObjectState(const klee::MemoryObject *mo, uint64_t tpm) const {
-        if (mo == m_cpuRegistersState || mo == m_cpuSystemState) {
-            return addressSpace.findObject(mo);
-        }else {
-            return fetchObjectStateMem(mo->address, tpm).second;
-        }
-    }
-
-    inline klee::ObjectState* fetchObjectStateWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        if (mo == m_cpuRegistersState || mo == m_cpuSystemState) {
-            return addressSpace.getWriteable(mo, os);
-        } else {
-            return fetchObjectStateMemWritable(mo, os);
-        }
-    }
-
-    void refreshTlb(klee::ObjectState *oldObj, klee::ObjectState *newObj);
-#else
-
-
-    klee::ObjectPair fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
-        return addressSpace.findObject(hostAddress);
-    }
-
-    klee::ObjectState* fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        return addressSpace.getWriteable(mo, os);
-    }
-
-    void invalidateObjectStateMem(uintptr_t moAddr) {}
-
-    /** Universal access **/
-    inline const klee::ObjectState* fetchObjectState(const klee::MemoryObject *mo, uint64_t tpm) const {
-        return addressSpace.findObject(mo);
-    }
-
-    inline klee::ObjectState* fetchObjectStateWritable(const klee::MemoryObject *mo, const klee::ObjectState *os) {
-        return addressSpace.getWriteable(mo, os);
-    }
-#endif
 
     /*************************************************/
 

@@ -69,6 +69,7 @@ ExecutionState::ExecutionState(KFunction *kf)
     prevPC(pc),
     queryCost(0.), 
     weight(1),
+    addressSpace(this),
     instsSinceCovNew(0),
     coveredNew(false),
     forkDisabled(false),
@@ -81,6 +82,7 @@ ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
     underConstrained(false),
     constraints(assumptions),
     queryCost(0.),
+    addressSpace(this),
     ptreeNode(0) {
 }
 
@@ -89,7 +91,13 @@ ExecutionState::~ExecutionState() {
 }
 
 ExecutionState* ExecutionState::clone() {
-  return new ExecutionState(*this);
+  ExecutionState* state = new ExecutionState(*this);
+  state->addressSpace.state = state;
+  return state;
+}
+
+void ExecutionState::addressSpaceChange(const MemoryObject*,
+                                        const ObjectState*, ObjectState*) {
 }
 
 ExecutionState *ExecutionState::branch() {

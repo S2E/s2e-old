@@ -51,10 +51,13 @@ namespace klee {
     /// \invariant forall o in objects, o->copyOnWriteOwner <= cowKey
     MemoryMap objects;
 
+    /// ExecutionState that owns this AddressSpace
+    ExecutionState *state;
+
   public:
-    AddressSpace() : cowKey(1) {}
+    AddressSpace(ExecutionState* _state) : cowKey(1), state(_state) {}
     AddressSpace(const AddressSpace &b) :
-            cowKey(++b.cowKey), objects(b.objects) { }
+            cowKey(++b.cowKey), objects(b.objects), state(NULL) { }
     ~AddressSpace() {}
 
     /// Resolve address to an ObjectPair in result.

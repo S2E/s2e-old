@@ -22,14 +22,14 @@
    <value key="ProjectExplorer.Target.ActiveBuildConfiguration" type="int">0</value>
    <value key="ProjectExplorer.Target.ActiveRunConfiguration" type="int">0</value>
    <valuemap key="ProjectExplorer.Target.BuildConfiguration.0" type="QVariantMap">
-    <value key="GenericProjectManager.GenericBuildConfiguration.BuildDirectory" type="QString">/home/vova/projects</value>
+    <value key="GenericProjectManager.GenericBuildConfiguration.BuildDirectory" type="QString">/home/vova/projects/s2e</value>
     <valuemap key="ProjectExplorer.BuildConfiguration.BuildStep.0" type="QVariantMap">
      <valuelist key="GenericProjectManager.GenericMakeStep.BuildTargets" type="QVariantList">
       <value type="QString">all</value>
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../stp-build</value>
+      <value type="QString">stp-build</value>
       <value type="QString">-j8</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
@@ -42,7 +42,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../klee-build</value>
+      <value type="QString">klee-build</value>
       <value type="QString">-j8</value>
       <value type="QString">ENABLE_OPTIMIZED=0</value>
      </valuelist>
@@ -56,7 +56,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../qemu-build</value>
+      <value type="QString">qemu-build</value>
       <value type="QString">-j8</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
@@ -69,7 +69,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../tools-build</value>
+      <value type="QString">tools-build</value>
       <value type="QString">-j8</value>
       <value type="QString">ENABLE_OPTIMIZED=0</value>
      </valuelist>
@@ -84,7 +84,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../stp-build</value>
+      <value type="QString">stp-build</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
      <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
@@ -96,7 +96,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../klee-build</value>
+      <value type="QString">klee-build</value>
       <value type="QString">ENABLE_OPTIMIZED=0</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
@@ -109,7 +109,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../qemu-build</value>
+      <value type="QString">qemu-build</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
      <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
@@ -121,7 +121,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../tools-build</value>
+      <value type="QString">tools-build</value>
       <value type="QString">ENABLE_OPTIMIZED=0</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
@@ -142,7 +142,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../stp-build</value>
+      <value type="QString">stp-build</value>
       <value type="QString">-j8</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
@@ -155,7 +155,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../klee-build</value>
+      <value type="QString">klee-build</value>
       <value type="QString">-j8</value>
       <value type="QString">ENABLE_OPTIMIZED=1</value>
      </valuelist>
@@ -169,7 +169,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../qemu-build-release</value>
+      <value type="QString">qemu-build-release</value>
       <value type="QString">-j8</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
@@ -182,7 +182,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../tools-build</value>
+      <value type="QString">tools-build</value>
       <value type="QString">-j8</value>
       <value type="QString">ENABLE_OPTIMIZED=1</value>
      </valuelist>
@@ -197,7 +197,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../stp-build</value>
+      <value type="QString">stp-build</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
      <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
@@ -209,7 +209,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../klee-build</value>
+      <value type="QString">klee-build</value>
       <value type="QString">ENABLE_OPTIMIZED=1</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
@@ -222,7 +222,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../qemu-build-release</value>
+      <value type="QString">qemu-build-release</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>
      <value key="ProjectExplorer.ProjectConfiguration.DisplayName" type="QString">Make</value>
@@ -234,7 +234,7 @@
      </valuelist>
      <valuelist key="GenericProjectManager.GenericMakeStep.MakeArguments" type="QVariantList">
       <value type="QString">-C</value>
-      <value type="QString">../tools-build</value>
+      <value type="QString">tools-build</value>
       <value type="QString">ENABLE_OPTIMIZED=1</value>
      </valuelist>
      <value key="GenericProjectManager.GenericMakeStep.MakeCommand" type="QString"></value>

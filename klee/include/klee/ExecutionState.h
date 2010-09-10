@@ -62,6 +62,8 @@ struct StackFrame {
 };
 
 class ExecutionState {
+  friend class AddressSpace;
+
 public:
   typedef std::vector<StackFrame> stack_ty;
 
@@ -110,10 +112,14 @@ public:
   void removeFnAlias(std::string fn);
   
 private:
-  ExecutionState() : fakeState(false), underConstrained(0), ptreeNode(0) {};
+  ExecutionState() : fakeState(false), underConstrained(0),
+                     addressSpace(this), ptreeNode(0) {}
 
 protected:
   virtual ExecutionState* clone();
+  virtual void addressSpaceChange(const MemoryObject *mo,
+                                  const ObjectState *oldState,
+                                  ObjectState *newState);
 
 public:
   ExecutionState(KFunction *kf);

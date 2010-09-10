@@ -658,9 +658,6 @@ void Executor::initializeGlobals(ExecutionState &state) {
       const ObjectState *os = state.addressSpace.findObject(mo);
       assert(os);
       ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-      
-      invalidateCache(state, os, wos);
-
       initializeGlobalObject(state, wos, i->getInitializer(), 0);
       // if(i->isConstant()) os->setReadOnly(true);
     }
@@ -2968,11 +2965,6 @@ void Executor::resolveExact(ExecutionState &state,
   }
 }
 
-void Executor::invalidateCache(ExecutionState &state, const ObjectState *os, ObjectState *wos)
-{
-assert(false);
-}
-
 void Executor::executeMemoryOperation(ExecutionState &state,
                                       bool isWrite,
                                       ref<Expr> address,
@@ -3032,7 +3024,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                 "readonly.err");
         } else {
           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-          invalidateCache(state, os, wos);
           if(mo->isSharedConcrete) {
               if(IgnoreAlwaysConcrete) {
                   offset = toConstantSilent(state, offset);
@@ -3093,7 +3084,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                 "readonly.err");
         } else {
           ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
-          invalidateCache(*bound, os, wos);
           ref<Expr> offset = mo->getOffsetExpr(address);
           if(mo->isSharedConcrete) {
               if(IgnoreAlwaysConcrete) {
@@ -3427,7 +3417,6 @@ void Executor::doImpliedValueConcretization(ExecutionState &state,
         assert(!os->readOnly && 
                "not possible? read only object with static read?");
         ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-        invalidateCache(state, os, wos);
         wos->write(CE, it->second);
       }
     }

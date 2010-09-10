@@ -681,7 +681,7 @@ extern int have_guest_base;
 static inline int _s2e_check_concrete(void *objectState,
                                       target_ulong offset, int size)
 {
-#if 0
+#if 1
     if(unlikely(*(uint8_t***) objectState)) {
         uint8_t* bits = **(uint8_t***) objectState;
         int mask = (1<<size)-1;

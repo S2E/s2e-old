@@ -33,16 +33,11 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         klee::ExecutionState(kf), m_stateID(s_lastStateID++),
         m_symbexEnabled(false), m_startSymbexAtPC((uint64_t) -1),
         m_active(true), m_runningConcrete(true),
-        m_cpuRegistersState(NULL), m_cpuSystemState(NULL)
+        m_cpuRegistersState(NULL), m_cpuSystemState(NULL),
+        m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL)
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
-    /*
-    m_cpuRegistersObject = NULL;
-    m_cpuSystemObject = NULL;
-    */
-    m_cpuSystemState = NULL;
-    m_cpuRegistersState = NULL;
 }
 
 S2EExecutionState::~S2EExecutionState()
@@ -63,100 +58,85 @@ S2EExecutionState::~S2EExecutionState()
     delete m_timersState;
 }
 
+void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
+                        const klee::ObjectState *oldState,
+                        klee::ObjectState *newState)
+{
+    if(oldState) {
+        assert(m_cpuSystemState && m_cpuSystemObject);
+
+        CPUX86State* cpu = m_active ?
+                (CPUX86State*)(m_cpuSystemState->address
+                              - offsetof(CPUX86State, eip)) :
+                (CPUX86State*)(m_cpuSystemObject->getConcreteStore(true)
+                              - offsetof(CPUX86State, eip));
+
+        for(unsigned i=0; i<NB_MMU_MODES; ++i) {
+            for(unsigned j=0; j<CPU_TLB_SIZE; ++j) {
+                if(cpu->s2e_tlb_table[i][j].objectState == (void*) oldState) {
+                    assert(newState); // we never delete memory pages
+                    cpu->s2e_tlb_table[i][j].objectState = newState;
+                    if(!mo->isSharedConcrete) {
+                        cpu->s2e_tlb_table[i][j].addend =
+                                (cpu->s2e_tlb_table[i][j].addend & ~1)
+                                - (uintptr_t) oldState->getConcreteStore(true)
+                                + (uintptr_t) newState->getConcreteStore(true);
+                        if(addressSpace.isOwnedByUs(newState))
+                            cpu->s2e_tlb_table[i][j].addend |= 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
 ExecutionState* S2EExecutionState::clone()
 {
+    // When cloning, all ObjectState becomes not owned by neither of states
+    // This means that we must clean owned-by-us flag in S2E TLB
+    assert(m_active && m_cpuSystemState);
+    CPUX86State* cpu = (CPUX86State*)(m_cpuSystemState->address
+                          - offsetof(CPUX86State, eip));
+
+    for(unsigned i=0; i<NB_MMU_MODES; ++i) {
+        for(unsigned j=0; j<CPU_TLB_SIZE; ++j) {
+            ObjectState* os = static_cast<ObjectState*>(
+                    cpu->s2e_tlb_table[i][j].objectState);
+            if(os && !os->getObject()->isSharedConcrete) {
+                cpu->s2e_tlb_table[i][j].addend &= ~1;
+            }
+        }
+    }
+
     S2EExecutionState *ret = new S2EExecutionState(*this);
+    ret->addressSpace.state = ret;
+
     ret->m_deviceState = m_deviceState->clone();
     ret->m_stateID = s_lastStateID++;
 
     ret->m_timersState = new TimersState;
     *ret->m_timersState = *m_timersState;
 
-    //Clone the plugins
+    // Clone the plugins
     PluginStateMap::iterator it;
     ret->m_PluginState.clear();
     for(it = m_PluginState.begin(); it != m_PluginState.end(); ++it) {
         ret->m_PluginState.insert(std::make_pair((*it).first, (*it).second->clone()));
     }
 
-    /*
-    const ObjectState *cpuSystemObject = ret->addressSpace.findObject(ret->m_cpuSystemState);
-    const ObjectState *cpuRegistersObject = ret->addressSpace.findObject(ret->m_cpuRegistersState);
+    // This objects are not in TLB and won't cause any changes to it
+    ret->m_cpuRegistersObject = ret->addressSpace.getWriteable(
+                            m_cpuRegistersState, m_cpuRegistersObject);
+    ret->m_cpuSystemObject = ret->addressSpace.getWriteable(
+                            m_cpuSystemState, m_cpuSystemObject);
 
-    ret->m_cpuRegistersObject = ret->addressSpace.getWriteable(ret->m_cpuRegistersState, cpuRegistersObject);
-    ret->m_cpuSystemObject = ret->addressSpace.getWriteable(ret->m_cpuSystemState, cpuSystemObject);
-    */
+    m_cpuRegistersObject = addressSpace.getWriteable(
+                            m_cpuRegistersState, m_cpuRegistersObject);
+    m_cpuSystemObject = addressSpace.getWriteable(
+                            m_cpuSystemState, m_cpuSystemObject);
 
     return ret;
 }
-
-#if 0
-/** Accesses to memory objects through the cache **/
-klee::ObjectPair S2EExecutionState::fetchObjectStateMem(uint64_t hostAddress, uint64_t tpm) const {
-#ifdef S2E_ENABLEMEM_CACHE
-    klee::ObjectPair op;
-    if ((op = m_memCache.lookup(hostAddress  & tpm)).first == NULL)
-    {
-        op = addressSpace.findObject(hostAddress);
-        assert(op.second->getObject() == op.first);
-        //Do not need to update the TLB, since no one references this address.
-        m_memCache.update(hostAddress & tpm, op);
-    }
-    
-    assert(op.first == op.second->getObject());
-    return op;
-#else
-    return addressSpace.findObject(hostAddress);
-#endif
-}
-
-klee::ObjectState* S2EExecutionState::fetchObjectStateMemWritable(const klee::MemoryObject *mo, const klee::ObjectState *os)
-{
-#ifdef S2E_ENABLEMEM_CACHE
-    klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
-    assert(wos->getObject() == mo);
-    if (wos != os) {
-        m_memCache.update(mo->address, klee::ObjectPair(mo,wos));
-        refreshTlb(os, wos);
-    }
-
-    return wos;
-#else
-    klee::ObjectState *wos = addressSpace.getWriteable(mo, os);
-    if (wos != os) {
-        refreshTlb(os, wos);
-    }
-    return wos;
-#endif
-}
-
-void S2EExecutionState::invalidateObjectStateMem(uintptr_t moAddr) {
-
-#ifdef S2E_ENABLEMEM_CACHE
-    m_memCache.invalidate(moAddr);
-#endif
-}
-
-//Go through the TLB and update all references to newObj
-void S2EExecutionState::refreshTlb(ObjectState *oldObj, ObjectState *newObj)
-{
-    CPUState *e, *f = NULL;
-    //XXX: not sure why we need to update both of these...
-    //XXX: remove the ugly subtraction
-
-    e = (CPUState*)(m_cpuSystemState->address - offsetof(CPUX86State, eip));
-    f = (CPUState*)(m_cpuSystemObject->getConcreteStore(false) - offsetof(CPUX86State, eip));
-
-    for (unsigned i=0; i<NB_MMU_MODES; ++i) {
-        for (unsigned j=0; j<CPU_TLB_SIZE; ++j) {
-            if (e->tlb_symb_table[i][j].hostAddr == (uintptr_t)newObj->object->address)
-                e->tlb_symb_table[i][j].objectState = newObj;
-            if (f->tlb_symb_table[i][j].hostAddr == (uintptr_t)newObj->object->address)
-                f->tlb_symb_table[i][j].objectState = newObj;
-        }
-    }
-}
-#endif
 
 ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
                                              Expr::Width width) const
@@ -165,9 +145,7 @@ ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
     assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
 
     if(!m_runningConcrete) {
-        const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
-        assert(os);
-        return os->read(offset, width);
+        return m_cpuRegistersObject->read(offset, width);
     } else {
         /* XXX: should we check getSymbolicRegisterMask ? */
         uint64_t ret = 0;
@@ -185,10 +163,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
     assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
 
     if(!m_runningConcrete) {
-        const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
-        assert(os);
-        ObjectState *wos = addressSpace.getWriteable(m_cpuRegistersState, os);
-        wos->write(offset, value);
+        m_cpuRegistersObject->write(offset, value);
 
     } else {
         /* XXX: should we check getSymbolicRegisterMask ? */
@@ -233,9 +208,7 @@ uint64_t S2EExecutionState::readCpuState(unsigned offset,
     if(m_active) {
         address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
     } else {
-        const ObjectState* os = m_cpuSystemObject; //addressSpace.findObject(m_cpuSystemState);
-        assert(os);
-        address = os->getConcreteStore(); assert(address);
+        address = m_cpuSystemObject->getConcreteStore(); assert(address);
         address -= CPU_OFFSET(eip);
     }
 
@@ -259,10 +232,7 @@ void S2EExecutionState::writeCpuState(unsigned offset, uint64_t value,
     if(m_active) {
         address = (uint8_t*) m_cpuSystemState->address - CPU_OFFSET(eip);
     } else {
-        const ObjectState* os = m_cpuSystemObject; //addressSpace.findObject(m_cpuSystemState);
-        assert(os);
-        ObjectState *wos = addressSpace.getWriteable(m_cpuSystemState, os);
-        address = wos->getConcreteStore(); assert(address);
+        address = m_cpuSystemObject->getConcreteStore(); assert(address);
         address -= CPU_OFFSET(eip);
     }
 
@@ -356,7 +326,7 @@ uint64_t S2EExecutionState::getPid() const
 
 uint64_t S2EExecutionState::getSymbolicRegistersMask() const
 {
-    const ObjectState* os = addressSpace.findObject(m_cpuRegistersState);
+    const ObjectState* os = m_cpuRegistersObject;
     if(os->isAllConcrete())
         return 0;
 
@@ -499,8 +469,7 @@ ref<Expr> S2EExecutionState::readMemory(uint64_t address,
         if(hostAddress == (uint64_t) -1)
             return ref<Expr>(0);
 
-
-        ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
 
         assert(op.first && op.first->isUserSpecified
                && op.first->size == TARGET_PAGE_SIZE);
@@ -527,7 +496,7 @@ ref<Expr> S2EExecutionState::readMemory8(uint64_t address,
     if(hostAddress == (uint64_t) -1)
         return ref<Expr>(0);
 
-    ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+    ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
 
     assert(op.first && op.first->isUserSpecified
            && op.first->size == TARGET_PAGE_SIZE);
@@ -567,12 +536,12 @@ bool S2EExecutionState::writeMemory(uint64_t address,
         if(hostAddress == (uint64_t) -1)
             return false;
 
-        ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
 
         assert(op.first && op.first->isUserSpecified
                && op.first->size == TARGET_PAGE_SIZE);
 
-        ObjectState *wos = fetchObjectStateMemWritable(op.first, op.second);
+        ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
         wos->write(hostAddress & ~TARGET_PAGE_MASK, value);
     } else {
         // Slowest case (TODO: could optimize it)
@@ -598,12 +567,12 @@ bool S2EExecutionState::writeMemory8(uint64_t address,
     if(hostAddress == (uint64_t) -1)
         return false;
 
-    ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+    ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
 
     assert(op.first && op.first->isUserSpecified
            && op.first->size == TARGET_PAGE_SIZE);
 
-    ObjectState *wos = fetchObjectStateMemWritable(op.first, op.second);
+    ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
     wos->write(hostAddress & ~TARGET_PAGE_MASK, value);
     return true;
 }
@@ -622,12 +591,12 @@ bool S2EExecutionState::writeMemory(uint64_t address,
         if(hostAddress == (uint64_t) -1)
             return false;
 
-        ObjectPair op = fetchObjectStateMem(hostAddress & TARGET_PAGE_MASK, TARGET_PAGE_MASK);
+        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
 
         assert(op.first && op.first->isUserSpecified
                && op.first->size == TARGET_PAGE_SIZE);
 
-        ObjectState *wos = fetchObjectStateMemWritable(op.first, op.second);
+        ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
         for(uint64_t i = 0; i < width / 8; ++i)
             wos->write8(pageOffset + i, buf[i]);
 

@@ -272,8 +272,6 @@ protected:
               const std::vector< klee::ref<klee::Expr> > &conditions,
               std::vector<klee::ExecutionState*> &result);
 
-    virtual void invalidateCache(klee::ExecutionState &state, const klee::ObjectState *os, klee::ObjectState *wo);
-
     /** Kills the specified state and raises an exception to exit the cpu loop */
     virtual void terminateState(klee::ExecutionState &state);
 

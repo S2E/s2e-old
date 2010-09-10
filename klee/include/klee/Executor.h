@@ -386,9 +386,6 @@ protected:
   void addSpecialFunctionHandler(llvm::Function* function,
                                  FunctionHandler handler);
 
-  //Invalidate object cache
-  virtual void invalidateCache(ExecutionState &state, const ObjectState *os, ObjectState *wo);
-
   ref<Expr> simplifyExpr(const ExecutionState &state, ref<Expr> e);
 
   static unsigned getMaxMemory();

@@ -14,18 +14,28 @@
 
 #include "klee/Expr.h"
 #include "klee/TimerStatIncrementer.h"
+#include "klee/ExecutionState.h"
 
 using namespace klee;
 
 ///
 
 void AddressSpace::bindObject(const MemoryObject *mo, ObjectState *os) {
+  assert(state);
+  const ObjectState *oldOS = findObject(mo);
+  if(oldOS) state->addressSpaceChange(mo, oldOS, NULL);
+  state->addressSpaceChange(mo, NULL, os);
+
   assert(os->copyOnWriteOwner==0 && "object already has owner");
   os->copyOnWriteOwner = cowKey;
   objects = objects.replace(std::make_pair(mo, os));
 }
 
 void AddressSpace::unbindObject(const MemoryObject *mo) {
+  assert(state);
+  const ObjectState *os = findObject(mo);
+  if(os) state->addressSpaceChange(mo, os, NULL);
+
   objects = objects.remove(mo);
 }
 
@@ -50,6 +60,10 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
   } else {
     ObjectState *n = new ObjectState(*os);
     n->copyOnWriteOwner = cowKey;
+
+    assert(state);
+    state->addressSpaceChange(mo, os, n);
+
     objects = objects.replace(std::make_pair(mo, n));
     return n;    
   }
