@@ -885,10 +885,8 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
     assert(offset + size <= CPU_OFFSET(eip));
 
-    if(state->m_runningConcrete) {
-        //assert(state->m_cpuRegistersObject->isConcrete(offset, size*8));
-        memcpy(buf, ((uint8_t*)cpuState)+offset, size);
-    } else {
+    if(!state->m_runningConcrete ||
+            !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
         ObjectState* wos = state->m_cpuRegistersObject;
 
         for(unsigned i = 0; i < size; ++i) {
@@ -918,6 +916,8 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
                 wos->write8(offset+i, buf[i]);
             }
         }
+    } else {
+        memcpy(buf, ((uint8_t*)cpuState)+offset, size);
     }
 
 #ifdef S2E_TRACE_EFLAGS
@@ -935,14 +935,14 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
     assert(offset + size <= CPU_OFFSET(eip));
 
-    if(state->m_runningConcrete) {
-        //assert(state->m_cpuRegistersObject->isConcrete(offset, size*8));
-        memcpy(((uint8_t*)cpuState)+offset, buf, size);
-    } else {
+    if(!state->m_runningConcrete ||
+            !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
         ObjectState* wos = state->m_cpuRegistersObject;
-        for(unsigned i = 0; i < size; ++i) {
+        for(unsigned i = 0; i < size; ++i)
             wos->write8(offset+i, buf[i]);
-        }
+    } else {
+        assert(state->m_cpuRegistersObject->isConcrete(offset, size*8));
+        memcpy(((uint8_t*)cpuState)+offset, buf, size);
     }
 
 #ifdef S2E_TRACE_EFLAGS
@@ -1000,6 +1000,10 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
     assert(state->m_runningConcrete);
 
     //assert(os && os->isAllConcrete());
+
+    // TODO: check that symbolic registers were not accessed
+    // in shared location ! Ideas: use hw breakpoints, or instrument
+    // translated code.
 
     ObjectState *wos = state->m_cpuRegistersObject;
     memcpy(wos->getConcreteStore(true),
@@ -1066,7 +1070,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         switchToSymbolic(oldState);
     }
 
-    copyInConcretes(*oldState);
+    //copyInConcretes(*oldState);
     oldState->getDeviceState()->saveDeviceState();
     *oldState->m_timersState = timers_state;
 
@@ -1091,14 +1095,13 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         objectsCopied++;
     }
 
-    s2e_debug_print("Copying %d (count=%d)\n", totalCopied, objectsCopied);
-    timers_state = *newState->m_timersState;
+    s2e_debug_print("Copied %d (count=%d)\n", totalCopied, objectsCopied);
 
     newState->m_active = true;
 
+    timers_state = *newState->m_timersState;
     newState->getDeviceState()->restoreDeviceState();
-    copyOutConcretes(*newState);
-
+    //copyOutConcretes(*newState);
 
     cpu_enable_ticks();
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
@@ -1126,7 +1129,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     //because QEMU does not save such requests as part of the snapshot.
     //(how does QEMU properly suspends/resumes snapshots then?)
     
-    qemu_bh_poll(); //Try to flush as much as possible first
+    //qemu_bh_poll(); //Try to flush as much as possible first
     /*if (!qemu_bh_empty()) {
 	//XXX: If the current state is killed, we'd need to clear the queue manually
 	assert(states.find(state) != states.end());
@@ -1324,7 +1327,7 @@ void S2EExecutor::finalizeState(S2EExecutionState *state)
     state->prevPC = 0;
     state->pc = m_dummyMain->instructions;
 
-    copyOutConcretes(*state);
+    //copyOutConcretes(*state);
 
 }
 
@@ -1346,10 +1349,10 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     assert(state->pc == m_dummyMain->instructions);
 
     /* Update state */
-    if (!copyInConcretes(*state)) {
-        std::cerr << "external modified read-only object" << std::endl;
-        exit(1);
-    }
+    //if (!copyInConcretes(*state)) {
+    //    std::cerr << "external modified read-only object" << std::endl;
+    //    exit(1);
+    //}
 
     /* loop until TB chain is not broken */
     do {
@@ -1440,7 +1443,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
             getDestCell(*state, state->pc).value;
     assert(isa<klee::ConstantExpr>(resExpr));
 
-    copyOutConcretes(*state);
+    //copyOutConcretes(*state);
 
     return cast<klee::ConstantExpr>(resExpr)->getZExtValue();
 }
@@ -1448,6 +1451,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 uintptr_t S2EExecutor::executeTranslationBlockConcrete(S2EExecutionState *state,
                                                        TranslationBlock *tb)
 {
+    assert(state->m_active && state->m_runningConcrete);
+
     uintptr_t ret = 0;
     memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
 
@@ -1668,10 +1673,10 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
     assert(state->stack.size() == 1);
 
     /* Update state */
-    if (!copyInConcretes(*state)) {
-        std::cerr << "external modified read-only object" << std::endl;
-        exit(1);
-    }
+    //if (!copyInConcretes(*state)) {
+    //    std::cerr << "external modified read-only object" << std::endl;
+    //    exit(1);
+    //}
 
     KInstIterator callerPC = state->pc;
     uint32_t callerStackSize = state->stack.size();
@@ -1694,7 +1699,7 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
     if(function->getReturnType()->getTypeID() != Type::VoidTyID)
         resExpr = getDestCell(*state, state->pc).value;
 
-    copyOutConcretes(*state);
+    //copyOutConcretes(*state);
 
     return resExpr;
 }
@@ -1884,6 +1889,37 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
                 switchToConcrete(state);
             TimerStatIncrementer t(stats::concreteModeTime);
             helper_set_cc_op_eflags();
+        }
+    }
+}
+
+inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
+                                     int is_int, int error_code,
+                                     uint64_t next_eip, int is_hw)
+{
+    if(state->m_cpuRegistersObject->isAllConcrete()) {
+        if(!state->m_runningConcrete)
+            switchToConcrete(state);
+        TimerStatIncrementer t(stats::concreteModeTime);
+        helper_do_interrupt(intno, is_int, error_code, next_eip, is_hw);
+    } else {
+        if(state->m_runningConcrete)
+            switchToSymbolic(state);
+        std::vector<klee::ref<klee::Expr> > args(5);
+        args[0] = klee::ConstantExpr::create(intno, sizeof(int)*8);
+        args[1] = klee::ConstantExpr::create(is_int, sizeof(int)*8);
+        args[2] = klee::ConstantExpr::create(error_code, sizeof(int)*8);
+        args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
+        args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
+        try {
+            TimerStatIncrementer t(stats::symbolicModeTime);
+            executeFunction(state, "helper_do_interrupt", args);
+        } catch(s2e::CpuExitException&) {
+            updateStates(state);
+            longjmp(env->jmp_env, 1);
+        } catch(s2e::StateTerminatedException&) {
+            updateStates(state);
+            longjmp(env->jmp_env_s2e, 1);
         }
     }
 }
@@ -2097,30 +2133,9 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
                       int intno, int is_int, int error_code,
                       uint64_t next_eip, int is_hw)
 {
-    if(state->isRunningConcrete()) {
-        TimerStatIncrementer t(stats::concreteModeTime);
-        helper_do_interrupt(intno, is_int, error_code, next_eip, is_hw);
-    } else {
-        std::vector<klee::ref<klee::Expr> > args(5);
-        args[0] = klee::ConstantExpr::create(intno, sizeof(int)*8);
-        args[1] = klee::ConstantExpr::create(is_int, sizeof(int)*8);
-        args[2] = klee::ConstantExpr::create(error_code, sizeof(int)*8);
-        args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
-        args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
-        try {
-            TimerStatIncrementer t(stats::symbolicModeTime);
-            s2e->getExecutor()->executeFunction(state,
-                                                "helper_do_interrupt", args);
-        } catch(s2e::CpuExitException&) {
-            s2e->getExecutor()->updateStates(state);
-            longjmp(env->jmp_env, 1);
-        } catch(s2e::StateTerminatedException&) {
-            s2e->getExecutor()->updateStates(state);
-            longjmp(env->jmp_env_s2e, 1);
-        }
-    }
+    s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
+                                    next_eip, is_hw);
 }
-
 
 /**
  *  Checks whether we are trying to access an I/O port that returns a symbolic value.

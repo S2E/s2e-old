@@ -25,7 +25,6 @@ class S2EDeviceState;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 
-/** Dummy implementation, just to make events work */
 class S2EExecutionState : public klee::ExecutionState
 {
 protected:
@@ -33,22 +32,28 @@ protected:
 
     static int s_lastStateID;
 
-    /* Unique numeric ID for the state */
+    /** Unique numeric ID for the state */
     int m_stateID;
 
     PluginStateMap m_PluginState;
 
-    /* True value means forking is enabled. */
+    /** True value means forking is enabled. */
     bool m_symbexEnabled;
 
     /* Internal variable - set to PC where execution should be
        switched to symbolic (e.g., due to access to symbolic memory */
     uint64_t m_startSymbexAtPC;
 
-    /* Set to true when the state is active (i.e., currently selected) */
+    /** Set to true when the state is active (i.e., currently selected).
+        NOTE: for active states, SharedConcrete memory objects are stored
+              in shared locations, for inactive - in ObjectStates. */
     bool m_active;
 
-    /* Set to true when the CPU registers are in their concrete locations */
+    /** Set to true when the state executes code in concrete mode.
+        NOTE: When m_runningConcrete is true, CPU registers that contain
+              concrete values are stored in the shared region (env global
+              variable), all other CPU registers are stored in ObjectState.
+    */
     bool m_runningConcrete;
 
     /* Move the following to S2EExecutor */
@@ -103,9 +108,7 @@ public:
     /** Returns true is this is the active state */
     bool isActive() const { return m_active; }
 
-    /** Returns true if this state is currently running in concrete mode.
-        That means that either current TB is executed entirely concrete,
-        or that symbolically running TB code have called concrete helper */
+    /** Returns true if this state is currently running in concrete mode */
     bool isRunningConcrete() const { return m_runningConcrete; }
 
     /** Returns a mask of registers that contains symbolic values */

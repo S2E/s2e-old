@@ -170,9 +170,9 @@ public:
 
     bool needToJumpToSymbolic(S2EExecutionState *state) const;
 
-    void fetchObjectForTlb(S2EExecutionState *state, uintptr_t hostaddr, int mmu_idx, int index);
-
     void setCCOpEflags(S2EExecutionState *state);
+    void doInterrupt(S2EExecutionState *state, int intno, int is_int,
+                     int error_code, uint64_t next_eip, int is_hw);
 
     /** Suspend the given state (does not kill it) */
     bool suspendState(S2EExecutionState *state);

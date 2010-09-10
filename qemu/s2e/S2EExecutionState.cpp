@@ -144,7 +144,7 @@ ref<Expr> S2EExecutionState::readCpuRegister(unsigned offset,
     assert((width == 1 || (width&7) == 0) && width <= 64);
     assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
 
-    if(!m_runningConcrete) {
+    if(!m_runningConcrete || !m_cpuRegistersObject->isConcrete(offset, width)) {
         return m_cpuRegistersObject->read(offset, width);
     } else {
         /* XXX: should we check getSymbolicRegisterMask ? */
@@ -162,7 +162,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
     assert((width == 1 || (width&7) == 0) && width <= 64);
     assert(offset + Expr::getMinBytesForWidth(width) <= CPU_OFFSET(eip));
 
-    if(!m_runningConcrete) {
+    if(!m_runningConcrete || !m_cpuRegistersObject->isConcrete(offset, width)) {
         m_cpuRegistersObject->write(offset, value);
 
     } else {
