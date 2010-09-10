@@ -743,7 +743,7 @@ void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t h
     //Assume that dirty mask is small enough, so no need to split it in small pages
     m_dirtyMask = addExternalObject(
             *initial_state, (void*) host_address, size, false,
-            /* isUserSpecified = */ true, false);
+            /* isUserSpecified = */ true, true);
 
     m_saveOnContextSwitch.push_back(m_dirtyMask);
 }
@@ -1997,7 +1997,7 @@ void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
         save_on_context_switch, name);
 }
 
-void s2e_register_dirtymask(S2E *s2e, S2EExecutionState *initial_state,
+void s2e_register_dirty_mask(S2E *s2e, S2EExecutionState *initial_state,
                             uint64_t host_address, uint64_t size)
 {
     s2e->getExecutor()->registerDirtyMask(initial_state, host_address, size);

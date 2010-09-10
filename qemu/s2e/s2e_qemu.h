@@ -244,7 +244,7 @@ void s2e_update_tlb_entry(struct S2EExecutionState *s,
 int qemu_bh_empty(void);
 void qemu_bh_clear(void);
 
-void s2e_register_dirtymask(struct S2E *s2e, struct S2EExecutionState *initial_state,
+void s2e_register_dirty_mask(struct S2E *s2e, struct S2EExecutionState *initial_state,
                             uint64_t host_address, uint64_t size);
 uint8_t s2e_read_dirty_mask(uint64_t host_address);
 void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
