@@ -169,17 +169,7 @@ int main(int argc, char **argv)
 #include "libslirp.h"
 #endif
 
-//#define DEBUG_UNUSED_IOPORT
-//#define DEBUG_IOPORT
-//#define DEBUG_NET
-//#define DEBUG_SLIRP
 
-
-#ifdef DEBUG_IOPORT
-#  define LOG_IOPORT(...) qemu_log_mask(CPU_LOG_IOPORT, ## __VA_ARGS__)
-#else
-#  define LOG_IOPORT(...) do { } while (0)
-#endif
 
 #define DEFAULT_RAM_SIZE 128
 
@@ -363,140 +353,6 @@ static void default_ioport_writel(void *opaque, uint32_t address, uint32_t data)
 #endif
 }
 
-/* size is the word size in byte */
-int register_ioport_read(int start, int length, int size,
-                         IOPortReadFunc *func, void *opaque)
-{
-    int i, bsize;
-
-    if (size == 1) {
-        bsize = 0;
-    } else if (size == 2) {
-        bsize = 1;
-    } else if (size == 4) {
-        bsize = 2;
-    } else {
-        hw_error("register_ioport_read: invalid size");
-        return -1;
-    }
-    for(i = start; i < start + length; i += size) {
-        ioport_read_table[bsize][i] = func;
-        if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
-            hw_error("register_ioport_read: invalid opaque");
-        ioport_opaque[i] = opaque;
-    }
-    return 0;
-}
-
-/* size is the word size in byte */
-int register_ioport_write(int start, int length, int size,
-                          IOPortWriteFunc *func, void *opaque)
-{
-    int i, bsize;
-
-    if (size == 1) {
-        bsize = 0;
-    } else if (size == 2) {
-        bsize = 1;
-    } else if (size == 4) {
-        bsize = 2;
-    } else {
-        hw_error("register_ioport_write: invalid size");
-        return -1;
-    }
-    for(i = start; i < start + length; i += size) {
-        ioport_write_table[bsize][i] = func;
-        if (ioport_opaque[i] != NULL && ioport_opaque[i] != opaque)
-            hw_error("register_ioport_write: invalid opaque");
-        ioport_opaque[i] = opaque;
-    }
-    return 0;
-}
-
-void isa_unassign_ioport(int start, int length)
-{
-    int i;
-
-    for(i = start; i < start + length; i++) {
-        ioport_read_table[0][i] = default_ioport_readb;
-        ioport_read_table[1][i] = default_ioport_readw;
-        ioport_read_table[2][i] = default_ioport_readl;
-
-        ioport_write_table[0][i] = default_ioport_writeb;
-        ioport_write_table[1][i] = default_ioport_writew;
-        ioport_write_table[2][i] = default_ioport_writel;
-
-        ioport_opaque[i] = NULL;
-    }
-}
-
-/***********************************************************/
-
-void cpu_outb(CPUState *env, int addr, int val)
-{
-    LOG_IOPORT("outb: %04x %02x\n", addr, val);
-    ioport_write(0, addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-}
-
-void cpu_outw(CPUState *env, int addr, int val)
-{
-    LOG_IOPORT("outw: %04x %04x\n", addr, val);
-    ioport_write(1, addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-}
-
-void cpu_outl(CPUState *env, int addr, int val)
-{
-    LOG_IOPORT("outl: %04x %08x\n", addr, val);
-    ioport_write(2, addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-}
-
-int cpu_inb(CPUState *env, int addr)
-{
-    int val;
-    val = ioport_read(0, addr);
-    LOG_IOPORT("inb : %04x %02x\n", addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-    return val;
-}
-
-int cpu_inw(CPUState *env, int addr)
-{
-    int val;
-    val = ioport_read(1, addr);
-    LOG_IOPORT("inw : %04x %04x\n", addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-    return val;
-}
-
-int cpu_inl(CPUState *env, int addr)
-{
-    int val;
-    val = ioport_read(2, addr);
-    LOG_IOPORT("inl : %04x %08x\n", addr, val);
-#ifdef CONFIG_KQEMU
-    if (env)
-        env->last_io_time = cpu_get_time_fast();
-#endif
-    return val;
-}
 
 /***********************************************************/
 void hw_error(const char *fmt, ...)
@@ -557,169 +413,6 @@ ram_addr_t qemu_balloon_status(void)
     if (qemu_balloon_event)
         return qemu_balloon_event(qemu_balloon_event_opaque, 0);
     return 0;
-}
-
-/***********************************************************/
-/* keyboard/mouse */
-
-static QEMUPutKBDEvent *qemu_put_kbd_event;
-static void *qemu_put_kbd_event_opaque;
-static QEMUPutMouseEntry *qemu_put_mouse_event_head;
-static QEMUPutMouseEntry *qemu_put_mouse_event_current;
-
-void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
-{
-    qemu_put_kbd_event_opaque = opaque;
-    qemu_put_kbd_event = func;
-}
-
-QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
-                                                void *opaque, int absolute,
-                                                const char *name)
-{
-    QEMUPutMouseEntry *s, *cursor;
-
-    s = qemu_mallocz(sizeof(QEMUPutMouseEntry));
-
-    s->qemu_put_mouse_event = func;
-    s->qemu_put_mouse_event_opaque = opaque;
-    s->qemu_put_mouse_event_absolute = absolute;
-    s->qemu_put_mouse_event_name = qemu_strdup(name);
-    s->next = NULL;
-
-    if (!qemu_put_mouse_event_head) {
-        qemu_put_mouse_event_head = qemu_put_mouse_event_current = s;
-        return s;
-    }
-
-    cursor = qemu_put_mouse_event_head;
-    while (cursor->next != NULL)
-        cursor = cursor->next;
-
-    cursor->next = s;
-    qemu_put_mouse_event_current = s;
-
-    return s;
-}
-
-void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry)
-{
-    QEMUPutMouseEntry *prev = NULL, *cursor;
-
-    if (!qemu_put_mouse_event_head || entry == NULL)
-        return;
-
-    cursor = qemu_put_mouse_event_head;
-    while (cursor != NULL && cursor != entry) {
-        prev = cursor;
-        cursor = cursor->next;
-    }
-
-    if (cursor == NULL) // does not exist or list empty
-        return;
-    else if (prev == NULL) { // entry is head
-        qemu_put_mouse_event_head = cursor->next;
-        if (qemu_put_mouse_event_current == entry)
-            qemu_put_mouse_event_current = cursor->next;
-        qemu_free(entry->qemu_put_mouse_event_name);
-        qemu_free(entry);
-        return;
-    }
-
-    prev->next = entry->next;
-
-    if (qemu_put_mouse_event_current == entry)
-        qemu_put_mouse_event_current = prev;
-
-    qemu_free(entry->qemu_put_mouse_event_name);
-    qemu_free(entry);
-}
-
-void kbd_put_keycode(int keycode)
-{
-    if (qemu_put_kbd_event) {
-        qemu_put_kbd_event(qemu_put_kbd_event_opaque, keycode);
-    }
-}
-
-void kbd_mouse_event(int dx, int dy, int dz, int buttons_state)
-{
-    QEMUPutMouseEvent *mouse_event;
-    void *mouse_event_opaque;
-    int width;
-
-    if (!qemu_put_mouse_event_current) {
-        return;
-    }
-
-    mouse_event =
-        qemu_put_mouse_event_current->qemu_put_mouse_event;
-    mouse_event_opaque =
-        qemu_put_mouse_event_current->qemu_put_mouse_event_opaque;
-
-    if (mouse_event) {
-        if (graphic_rotate) {
-            if (qemu_put_mouse_event_current->qemu_put_mouse_event_absolute)
-                width = 0x7fff;
-            else
-                width = graphic_width - 1;
-            mouse_event(mouse_event_opaque,
-                                 width - dy, dx, dz, buttons_state);
-        } else
-            mouse_event(mouse_event_opaque,
-                                 dx, dy, dz, buttons_state);
-    }
-}
-
-int kbd_mouse_is_absolute(void)
-{
-    if (!qemu_put_mouse_event_current)
-        return 0;
-
-    return qemu_put_mouse_event_current->qemu_put_mouse_event_absolute;
-}
-
-void do_info_mice(Monitor *mon)
-{
-    QEMUPutMouseEntry *cursor;
-    int index = 0;
-
-    if (!qemu_put_mouse_event_head) {
-        monitor_printf(mon, "No mouse devices connected\n");
-        return;
-    }
-
-    monitor_printf(mon, "Mouse devices available:\n");
-    cursor = qemu_put_mouse_event_head;
-    while (cursor != NULL) {
-        monitor_printf(mon, "%c Mouse #%d: %s\n",
-                       (cursor == qemu_put_mouse_event_current ? '*' : ' '),
-                       index, cursor->qemu_put_mouse_event_name);
-        index++;
-        cursor = cursor->next;
-    }
-}
-
-void do_mouse_set(Monitor *mon, int index)
-{
-    QEMUPutMouseEntry *cursor;
-    int i = 0;
-
-    if (!qemu_put_mouse_event_head) {
-        monitor_printf(mon, "No mouse devices connected\n");
-        return;
-    }
-
-    cursor = qemu_put_mouse_event_head;
-    while (cursor != NULL && index != i) {
-        i++;
-        cursor = cursor->next;
-    }
-
-    if (cursor != NULL)
-        qemu_put_mouse_event_current = cursor;
-    else
-        monitor_printf(mon, "Mouse at given index not found\n");
 }
 
 /***********************************************************/
@@ -1902,10 +1595,12 @@ typedef struct IOHandlerRecord {
     void *opaque;
     /* temporary data */
     struct pollfd *ufd;
-    struct IOHandlerRecord *next;
+    QLIST_ENTRY(IOHandlerRecord) next;
 } IOHandlerRecord;
 
-static IOHandlerRecord *first_io_handler;
+static QLIST_HEAD(, IOHandlerRecord) io_handlers =
+    QLIST_HEAD_INITIALIZER(io_handlers);
+
 
 /* XXX: fd_read_poll should be suppressed, but an API change is
    necessary in the character devices to suppress fd_can_read(). */
@@ -1915,28 +1610,22 @@ int qemu_set_fd_handler2(int fd,
                          IOHandler *fd_write,
                          void *opaque)
 {
-    IOHandlerRecord **pioh, *ioh;
+    IOHandlerRecord *ioh;
 
     if (!fd_read && !fd_write) {
-        pioh = &first_io_handler;
-        for(;;) {
-            ioh = *pioh;
-            if (ioh == NULL)
-                break;
+        QLIST_FOREACH(ioh, &io_handlers, next) {
             if (ioh->fd == fd) {
                 ioh->deleted = 1;
                 break;
             }
-            pioh = &ioh->next;
         }
     } else {
-        for(ioh = first_io_handler; ioh != NULL; ioh = ioh->next) {
+        QLIST_FOREACH(ioh, &io_handlers, next) {
             if (ioh->fd == fd)
                 goto found;
         }
         ioh = qemu_mallocz(sizeof(IOHandlerRecord));
-        ioh->next = first_io_handler;
-        first_io_handler = ioh;
+        QLIST_INSERT_HEAD(&io_handlers, ioh, next);
     found:
         ioh->fd = fd;
         ioh->fd_read_poll = fd_read_poll;
@@ -2579,13 +2268,13 @@ void vm_start(void)
 /* reset/shutdown handler */
 
 typedef struct QEMUResetEntry {
+    QTAILQ_ENTRY(QEMUResetEntry) entry;
     QEMUResetHandler *func;
     void *opaque;
-    int order;
-    struct QEMUResetEntry *next;
 } QEMUResetEntry;
 
-static QEMUResetEntry *first_reset_entry;
+static QTAILQ_HEAD(reset_handlers, QEMUResetEntry) reset_handlers =
+    QTAILQ_HEAD_INITIALIZER(reset_handlers);
 static int reset_requested;
 static int shutdown_requested;
 static int powerdown_requested;
@@ -2627,6 +2316,28 @@ static int qemu_vmstop_requested(void)
     return r;
 }
 
+void qemu_register_reset(QEMUResetHandler *func, void *opaque)
+{
+    QEMUResetEntry *re = qemu_mallocz(sizeof(QEMUResetEntry));
+
+    re->func = func;
+    re->opaque = opaque;
+    QTAILQ_INSERT_TAIL(&reset_handlers, re, entry);
+}
+
+void qemu_unregister_reset(QEMUResetHandler *func, void *opaque)
+{
+    QEMUResetEntry *re;
+
+    QTAILQ_FOREACH(re, &reset_handlers, entry) {
+        if (re->func == func && re->opaque == opaque) {
+            QTAILQ_REMOVE(&reset_handlers, re, entry);
+            qemu_free(re);
+            return;
+        }
+    }
+}
+
 static void do_vm_stop(int reason)
 {
     if (vm_running) {
@@ -2658,7 +2369,7 @@ void qemu_system_reset(void)
     QEMUResetEntry *re;
 
     /* reset all devices */
-    for(re = first_reset_entry; re != NULL; re = re->next) {
+    QTAILQ_FOREACH_SAFE(re, &reset_handlers, entry, nre) {
         re->func(re->opaque);
     }
 }
@@ -3213,7 +2924,7 @@ void main_loop_wait(int timeout)
     FD_ZERO(&rfds);
     FD_ZERO(&wfds);
     FD_ZERO(&xfds);
-    for(ioh = first_io_handler; ioh != NULL; ioh = ioh->next) {
+    QLIST_FOREACH(ioh, &io_handlers, next) {
         if (ioh->deleted)
             continue;
         if (ioh->fd_read &&
@@ -3242,28 +2953,22 @@ void main_loop_wait(int timeout)
     ret = select(nfds + 1, &rfds, &wfds, &xfds, &tv);
     qemu_mutex_lock_iothread();
     if (ret > 0) {
-        IOHandlerRecord **pioh;
+        IOHandlerRecord *pioh;
 
-        for(ioh = first_io_handler; ioh != NULL; ioh = ioh->next) {
-            if (!ioh->deleted && ioh->fd_read && FD_ISSET(ioh->fd, &rfds)) {
+        QLIST_FOREACH_SAFE(ioh, &io_handlers, next, pioh) {
+            if (ioh->deleted) {
+                QLIST_REMOVE(ioh, next);
+                qemu_free(ioh);
+                continue;
+            }
+            if (ioh->fd_read && FD_ISSET(ioh->fd, &rfds)) {
                 ioh->fd_read(ioh->opaque);
             }
-            if (!ioh->deleted && ioh->fd_write && FD_ISSET(ioh->fd, &wfds)) {
+            if (ioh->fd_write && FD_ISSET(ioh->fd, &wfds)) {
                 ioh->fd_write(ioh->opaque);
             }
         }
 
-	/* remove deleted IO handlers */
-	pioh = &first_io_handler;
-	while (*pioh) {
-            ioh = *pioh;
-            if (ioh->deleted) {
-                *pioh = ioh->next;
-                qemu_free(ioh);
-            } else
-                pioh = &ioh->next;
-        }
-    }
 #if defined(CONFIG_SLIRP)
     if (slirp_is_inited()) {
         if (ret < 0) {
@@ -3275,27 +2980,6 @@ void main_loop_wait(int timeout)
     }
 #endif
 
-#if 0
-    /* rearm timer, if not periodic */
-    if (alarm_timer->flags & ALARM_FLAG_EXPIRED) {
-        alarm_timer->flags &= ~ALARM_FLAG_EXPIRED;
-        qemu_rearm_alarm_timer(alarm_timer);
-    }
-
-    /* vm time timers */
-    if (vm_running) {
-        if (!cur_cpu || likely(!(cur_cpu->singlestep_enabled & SSTEP_NOTIMER)))
-            qemu_run_timers(&active_timers[QEMU_CLOCK_VIRTUAL],
-                qemu_get_clock(vm_clock));
-    }
-
-    /* real time timers */
-    qemu_run_timers(&active_timers[QEMU_CLOCK_REALTIME],
-                    qemu_get_clock(rt_clock));
-
-    qemu_run_timers(&active_timers[QEMU_CLOCK_HOST],
-                    qemu_get_clock(host_clock));
-#endif
     qemu_run_all_timers();
 
     /* Check bottom-halves last in case any of the earlier events triggered
@@ -3862,7 +3546,7 @@ char *qemu_find_file(int type, const char *name)
     /* If name contains path separators then try it as a straight path.  */
     if ((strchr(name, '/') || strchr(name, '\\'))
         && access(name, R_OK) == 0) {
-        return strdup(name);
+        return qemu_strdup(name);
     }
     switch (type) {
     case QEMU_FILE_TYPE_BIOS:
@@ -4288,11 +3972,7 @@ int main(int argc, char **argv, char **envp)
                 }
 
                 /* On 32-bit hosts, QEMU is limited by virtual address space */
-                if (value > (2047 << 20)
-#ifndef CONFIG_KQEMU
-                    && HOST_LONG_BITS == 32
-#endif
-                    ) {
+                if (value > (2047 << 20) && HOST_LONG_BITS == 32) {
                     fprintf(stderr, "qemu: at most 2047 MB RAM can be simulated\n");
                     exit(1);
                 }

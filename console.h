@@ -2,6 +2,8 @@
 #define CONSOLE_H
 
 #include "qemu-char.h"
+#include "qdict.h"
+#include "notify.h"
 
 /* keyboard/mouse support */
 
@@ -9,14 +11,20 @@
 #define MOUSE_EVENT_RBUTTON 0x02
 #define MOUSE_EVENT_MBUTTON 0x04
 
+/* identical to the ps/2 keyboard bits */
+#define QEMU_SCROLL_LOCK_LED (1 << 0)
+#define QEMU_NUM_LOCK_LED    (1 << 1)
+#define QEMU_CAPS_LOCK_LED   (1 << 2)
+
 /* in ms */
-#if 1  /* ANDROID */
+#ifdef CONFIG_ANDROID
 #define GUI_REFRESH_INTERVAL (1000/60)  /* 60 frames/s is better */
 #else
 #define GUI_REFRESH_INTERVAL 30
 #endif
 
 typedef void QEMUPutKBDEvent(void *opaque, int keycode);
+typedef void QEMUPutLEDEvent(void *opaque, int ledstate);
 typedef void QEMUPutMouseEvent(void *opaque, int dx, int dy, int dz, int buttons_state);
 
 typedef struct QEMUPutMouseEntry {
@@ -25,19 +33,40 @@ typedef struct QEMUPutMouseEntry {
     int qemu_put_mouse_event_absolute;
     char *qemu_put_mouse_event_name;
 
+    int index;
+
     /* used internally by qemu for handling mice */
-    struct QEMUPutMouseEntry *next;
+    QTAILQ_ENTRY(QEMUPutMouseEntry) node;
 } QEMUPutMouseEntry;
 
+typedef struct QEMUPutLEDEntry {
+    QEMUPutLEDEvent *put_led;
+    void *opaque;
+    QTAILQ_ENTRY(QEMUPutLEDEntry) next;
+} QEMUPutLEDEntry;
+
 void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque);
+void qemu_remove_kbd_event_handler(void);
 QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
                                                 void *opaque, int absolute,
                                                 const char *name);
 void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry);
+void qemu_activate_mouse_event_handler(QEMUPutMouseEntry *entry);
+
+QEMUPutLEDEntry *qemu_add_led_event_handler(QEMUPutLEDEvent *func, void *opaque);
+void qemu_remove_led_event_handler(QEMUPutLEDEntry *entry);
 
 void kbd_put_keycode(int keycode);
+void kbd_put_ledstate(int ledstate);
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state);
+
+/* Does the current mouse generate absolute events */
 int kbd_mouse_is_absolute(void);
+void qemu_add_mouse_mode_change_notifier(Notifier *notify);
+void qemu_remove_mouse_mode_change_notifier(Notifier *notify);
+
+/* Of all the mice, is there one that generates absolute events */
+int kbd_mouse_has_absolute(void);
 
 struct MouseTransformInfo {
     /* Touchscreen resolution */
@@ -47,8 +76,9 @@ struct MouseTransformInfo {
     int a[7];
 };
 
-void do_info_mice(Monitor *mon);
-void do_mouse_set(Monitor *mon, int index);
+void do_info_mice_print(Monitor *mon, const QObject *data);
+void do_info_mice(Monitor *mon, QObject **ret_data);
+void do_mouse_set(Monitor *mon, const QDict *qdict);
 
 /* keysym is a unicode code except for special keys (see QEMU_KEY_xxx
    constants) */
@@ -100,6 +130,27 @@ struct DisplaySurface {
 
     struct PixelFormat pf;
 };
+
+/* cursor data format is 32bit RGBA */
+typedef struct QEMUCursor {
+    int                 width, height;
+    int                 hot_x, hot_y;
+    int                 refcount;
+    uint32_t            data[];
+} QEMUCursor;
+
+QEMUCursor *cursor_alloc(int width, int height);
+void cursor_get(QEMUCursor *c);
+void cursor_put(QEMUCursor *c);
+QEMUCursor *cursor_builtin_hidden(void);
+QEMUCursor *cursor_builtin_left_ptr(void);
+void cursor_print_ascii_art(QEMUCursor *c, const char *prefix);
+int cursor_get_mono_bpl(QEMUCursor *c);
+void cursor_set_mono(QEMUCursor *c,
+                     uint32_t foreground, uint32_t background, uint8_t *image,
+                     int transparent, uint8_t *mask);
+void cursor_get_mono_image(QEMUCursor *c, int foreground, uint8_t *mask);
+void cursor_get_mono_mask(QEMUCursor *c, int transparent, uint8_t *mask);
 
 struct DisplayChangeListener {
     int idle;
@@ -284,6 +335,8 @@ static inline int ds_get_bytes_per_pixel(DisplayState *ds)
 typedef unsigned long console_ch_t;
 static inline void console_write_ch(console_ch_t *dest, uint32_t ch)
 {
+    if (!(ch & 0xff))
+        ch |= ' ';
     cpu_to_le32wu((uint32_t *) dest, ch);
 }
 

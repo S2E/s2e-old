@@ -215,17 +215,7 @@ unsigned long   android_verbose;
 #include "libslirp.h"
 #endif
 
-//#define DEBUG_UNUSED_IOPORT
-//#define DEBUG_IOPORT
-//#define DEBUG_NET
-//#define DEBUG_SLIRP
 
-
-#ifdef DEBUG_IOPORT
-#  define LOG_IOPORT(...) qemu_log_mask(CPU_LOG_IOPORT, ## __VA_ARGS__)
-#else
-#  define LOG_IOPORT(...) do { } while (0)
-#endif
 
 #define DEFAULT_RAM_SIZE 128
 
@@ -535,7 +525,7 @@ void hw_error(const char *fmt, ...)
     va_end(ap);
     abort();
 }
-
+ 
 static void set_proc_name(const char *s)
 {
 #if defined(__linux__) && defined(PR_SET_NAME)
@@ -547,9 +537,9 @@ static void set_proc_name(const char *s)
     /* Could rewrite argv[0] too, but that's a bit more complicated.
        This simple way is enough for `top'. */
     prctl(PR_SET_NAME, name);
-#endif
+#endif    	
 }
-
+ 
 /***************/
 /* ballooning */
 
@@ -576,179 +566,7 @@ ram_addr_t qemu_balloon_status(void)
 }
 
 /***********************************************************/
-/* keyboard/mouse */
-
-static QEMUPutKBDEvent*  qemu_put_kbd_event;
-static void*             qemu_put_kbd_event_opaque;
-
-static QEMUPutMouseEntry *qemu_put_mouse_event_head;
-static QEMUPutMouseEntry *qemu_put_mouse_event_current;
-
-void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
-{
-    qemu_put_kbd_event_opaque = opaque;
-    qemu_put_kbd_event = func;
-}
-
-#if 0
-void qemu_add_mouse_event_handler(QEMUPutMouseEvent *func, void *opaque, int absolute)
-{
-    qemu_put_mouse_event_opaque = opaque;
-    qemu_put_mouse_event = func;
-    qemu_put_mouse_event_absolute = absolute;
-}
-#else
-QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
-                                                void *opaque, int absolute,
-                                                const char *name)
-{
-    QEMUPutMouseEntry *s, *cursor;
-
-    s = qemu_mallocz(sizeof(QEMUPutMouseEntry));
-    if (!s)
-        return NULL;
-
-    s->qemu_put_mouse_event = func;
-    s->qemu_put_mouse_event_opaque = opaque;
-    s->qemu_put_mouse_event_absolute = absolute;
-    s->qemu_put_mouse_event_name = qemu_strdup(name);
-    s->next = NULL;
-
-    if (!qemu_put_mouse_event_head) {
-        qemu_put_mouse_event_head = qemu_put_mouse_event_current = s;
-        return s;
-    }
-
-    cursor = qemu_put_mouse_event_head;
-    while (cursor->next != NULL)
-        cursor = cursor->next;
-
-    cursor->next = s;
-    qemu_put_mouse_event_current = s;
-
-    return s;
-}
-
-void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry)
-{
-    QEMUPutMouseEntry *prev = NULL, *cursor;
-
-    if (!qemu_put_mouse_event_head || entry == NULL)
-        return;
-
-    cursor = qemu_put_mouse_event_head;
-    while (cursor != NULL && cursor != entry) {
-        prev = cursor;
-        cursor = cursor->next;
-    }
-
-    if (cursor == NULL) // does not exist or list empty
-        return;
-    else if (prev == NULL) { // entry is head
-        qemu_put_mouse_event_head = cursor->next;
-        if (qemu_put_mouse_event_current == entry)
-            qemu_put_mouse_event_current = cursor->next;
-        qemu_free(entry->qemu_put_mouse_event_name);
-        qemu_free(entry);
-        return;
-    }
-
-    prev->next = entry->next;
-
-    if (qemu_put_mouse_event_current == entry)
-        qemu_put_mouse_event_current = prev;
-
-    qemu_free(entry->qemu_put_mouse_event_name);
-    qemu_free(entry);
-}
-#endif
-
-void kbd_put_keycode(int keycode)
-{
-    if (qemu_put_kbd_event) {
-        qemu_put_kbd_event(qemu_put_kbd_event_opaque, keycode);
-    }
-}
-
-void kbd_mouse_event(int dx, int dy, int dz, int buttons_state)
-{
-    QEMUPutMouseEvent *mouse_event;
-    void *mouse_event_opaque;
-    int width;
-
-    if (!qemu_put_mouse_event_current) {
-        return;
-    }
-
-    mouse_event =
-        qemu_put_mouse_event_current->qemu_put_mouse_event;
-    mouse_event_opaque =
-        qemu_put_mouse_event_current->qemu_put_mouse_event_opaque;
-
-    if (mouse_event) {
-        if (graphic_rotate) {
-            if (qemu_put_mouse_event_current->qemu_put_mouse_event_absolute)
-                width = 0x7fff;
-            else
-                width = graphic_width - 1;
-            mouse_event(mouse_event_opaque,
-                                 width - dy, dx, dz, buttons_state);
-        } else
-            mouse_event(mouse_event_opaque,
-                                 dx, dy, dz, buttons_state);
-    }
-}
-
-int kbd_mouse_is_absolute(void)
-{
-    if (!qemu_put_mouse_event_current)
-        return 0;
-
-    return qemu_put_mouse_event_current->qemu_put_mouse_event_absolute;
-}
-
-void do_info_mice(Monitor *mon)
-{
-    QEMUPutMouseEntry *cursor;
-    int index = 0;
-
-    if (!qemu_put_mouse_event_head) {
-        monitor_printf(mon, "No mouse devices connected\n");
-        return;
-    }
-
-    monitor_printf(mon, "Mouse devices available:\n");
-    cursor = qemu_put_mouse_event_head;
-    while (cursor != NULL) {
-        monitor_printf(mon, "%c Mouse #%d: %s\n",
-                       (cursor == qemu_put_mouse_event_current ? '*' : ' '),
-                       index, cursor->qemu_put_mouse_event_name);
-        index++;
-        cursor = cursor->next;
-    }
-}
-
-void do_mouse_set(Monitor *mon, int index)
-{
-    QEMUPutMouseEntry *cursor;
-    int i = 0;
-
-    if (!qemu_put_mouse_event_head) {
-        monitor_printf(mon, "No mouse devices connected\n");
-        return;
-    }
-
-    cursor = qemu_put_mouse_event_head;
-    while (cursor != NULL && index != i) {
-        i++;
-        cursor = cursor->next;
-    }
-
-    if (cursor != NULL)
-        qemu_put_mouse_event_current = cursor;
-    else
-        monitor_printf(mon, "Mouse at given index not found\n");
-}
+/* real time host monotonic timer */
 
 /* compute with 96 bit intermediate result: (a*b)/c */
 uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
