@@ -2441,7 +2441,7 @@ static const struct {
     { .name = "socket",    .open = qemu_chr_open_socket },
     { .name = "udp",       .open = qemu_chr_open_udp },
     { .name = "msmouse",   .open = qemu_chr_open_msmouse },
-    { .name = "vc",        .open = text_console_init },
+    { .name = "vc",        .open = text_console_init_compat },
 #ifdef _WIN32
     { .name = "file",      .open = qemu_chr_open_win_file_out },
     { .name = "pipe",      .open = qemu_chr_open_win_pipe },

@@ -184,8 +184,7 @@ struct DisplayState {
     struct DisplayChangeListener* listeners;
 
     void (*mouse_set)(int x, int y, int on);
-    void (*cursor_define)(int width, int height, int bpp, int hot_x, int hot_y,
-                          uint8_t *image, uint8_t *mask);
+    void (*cursor_define)(QEMUCursor *cursor);
 
     struct DisplayState *next;
 };
@@ -197,11 +196,7 @@ DisplaySurface* qemu_create_displaysurface_from(int width, int height, int bpp,
 PixelFormat qemu_different_endianness_pixelformat(int bpp);
 PixelFormat qemu_default_pixelformat(int bpp);
 
-extern struct DisplayAllocator default_allocator;
 DisplayAllocator *register_displayallocator(DisplayState *ds, DisplayAllocator *da);
-DisplaySurface* defaultallocator_create_displaysurface(int width, int height);
-DisplaySurface* defaultallocator_resize_displaysurface(DisplaySurface *surface, int width, int height);
-void defaultallocator_free_displaysurface(DisplaySurface *surface);
 
 static inline DisplaySurface* qemu_create_displaysurface(DisplayState *ds, int width, int height)
 {
@@ -228,7 +223,8 @@ static inline int is_surface_bgr(DisplaySurface *surface)
 
 static inline int is_buffer_shared(DisplaySurface *surface)
 {
-    return (!(surface->flags & QEMU_ALLOCATED_FLAG));
+    return (!(surface->flags & QEMU_ALLOCATED_FLAG) &&
+            !(surface->flags & QEMU_REALPIXELS_FLAG));
 }
 
 static inline void register_displaychangelistener(DisplayState *ds, DisplayChangeListener *dcl)
@@ -358,7 +354,8 @@ void vga_hw_text_update(console_ch_t *chardata);
 
 int is_graphic_console(void);
 int is_fixedsize_console(void);
-CharDriverState *text_console_init(const char *p);
+CharDriverState *text_console_init(QemuOpts *opts);
+CharDriverState* text_console_init_compat(const char *label, const char *p);
 void text_consoles_set_display(DisplayState *ds);
 void console_select(unsigned int index);
 void console_color_init(DisplayState *ds);
@@ -382,5 +379,9 @@ char *vnc_display_local_addr(DisplayState *ds);
 
 /* curses.c */
 void curses_display_init(DisplayState *ds, int full_screen);
+
+#ifdef CONFIG_ANDROID
+void android_display_init_from(int width, int height, int rotation, int bpp);
+#endif
 
 #endif

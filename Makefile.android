@@ -657,6 +657,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     net-android.c \
                     aio-android.c \
                     dma-helpers.c \
+                    qemu-config.c \
                     qemu-sockets-android.c \
                     bt-host.c \
                     bt-vhci.c \

@@ -1678,55 +1678,6 @@ void pcmcia_info(Monitor *mon)
 }
 
 /***********************************************************/
-/* register display */
-
-struct DisplayAllocator default_allocator = {
-    defaultallocator_create_displaysurface,
-    defaultallocator_resize_displaysurface,
-    defaultallocator_free_displaysurface
-};
-
-void register_displaystate(DisplayState *ds)
-{
-    DisplayState **s;
-    s = &display_state;
-    while (*s != NULL)
-        s = &(*s)->next;
-    ds->next = NULL;
-    *s = ds;
-}
-
-DisplayState *get_displaystate(void)
-{
-    return display_state;
-}
-
-DisplayAllocator *register_displayallocator(DisplayState *ds, DisplayAllocator *da)
-{
-    if(ds->allocator ==  &default_allocator) ds->allocator = da;
-    return ds->allocator;
-}
-
-/* dumb display */
-
-static void dumb_display_init(void)
-{
-    DisplayState *ds = qemu_mallocz(sizeof(DisplayState));
-    ds->allocator = &default_allocator;
-    ds->surface = qemu_create_displaysurface(ds, 640, 480);
-    register_displaystate(ds);
-}
-
-static void
-android_display_init_from(int width, int height, int rotation, int bpp)
-{
-    DisplayState *ds = qemu_mallocz(sizeof(DisplayState));
-    ds->allocator = &default_allocator;
-    ds->surface = qemu_create_displaysurface(ds, width, height);
-    register_displaystate(ds);
-}
-
-/***********************************************************/
 /* I/O handling */
 
 typedef struct IOHandlerRecord {
@@ -5352,7 +5303,7 @@ int main(int argc, char **argv, char **envp)
                                       android_display_height, 0,
                                       android_display_bpp);
         } else {
-            dumb_display_init();
+            ds = get_displaystate();  /* this forces a dumb display init */
         }
     } else if (android_op_gui) {
         /* Resize display from the command line parameters. */
@@ -5368,7 +5319,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     /* just use the first displaystate for the moment */
-    ds = display_state;
+    ds = display_state = get_displaystate();
 
     if (display_type == DT_DEFAULT) {
 #if defined(CONFIG_SDL) || defined(CONFIG_COCOA)
