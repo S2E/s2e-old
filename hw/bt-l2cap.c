@@ -14,9 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA  02110-1301  USA
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "qemu-common.h"
@@ -998,10 +996,10 @@ static void l2cap_iframe_in(struct l2cap_chan_s *ch, uint16_t cid,
         l2cap_rexmit_enable(ch, !(hdr->data[0] >> 7));
 
     if (hdr->data[0] & 1) {
-        if (len != 4)
-            /* TODO: Signal an error? */;
+        if (len != 4) {
+            /* TODO: Signal an error? */
             return;
-
+        }
         return l2cap_sframe_in(ch, le16_to_cpup((void *) hdr->data));
     }
 
@@ -1220,7 +1218,7 @@ static void l2cap_teardown(struct l2cap_instance_s *l2cap, int send_disconnect)
     for (cid = L2CAP_CID_ALLOC; cid < L2CAP_CID_MAX; cid ++)
         if (l2cap->cid[cid]) {
             l2cap->cid[cid]->params.close(l2cap->cid[cid]->params.opaque);
-            free(l2cap->cid[cid]);
+            qemu_free(l2cap->cid[cid]);
         }
 
     if (l2cap->role)

@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "qemu-common.h"
@@ -160,7 +159,7 @@ static ssize_t sdp_svc_search(struct bt_l2cap_sdp_state_s *sdp,
 
     if (len < 3)
         return -SDP_INVALID_SYNTAX;
-    end = (req[0] << 8) | req[1];
+    max = (req[0] << 8) | req[1];
     req += 2;
     len -= 2;
 
@@ -172,7 +171,7 @@ static ssize_t sdp_svc_search(struct bt_l2cap_sdp_state_s *sdp,
     } else
         start = 0;
 
-    if (len > 1);
+    if (len > 1)
         return -SDP_INVALID_SYNTAX;
 
     /* Output the results */

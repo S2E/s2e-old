@@ -1,5 +1,6 @@
 #ifndef HW_ISA_H
 #define HW_ISA_H
+
 /* ISA bus */
 
 #include "ioport.h"

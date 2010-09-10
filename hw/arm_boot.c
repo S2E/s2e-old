@@ -191,7 +191,8 @@ void arm_load_kernel(CPUState *env, struct arm_boot_info *info)
     int n;
     int is_linux = 0;
     uint64_t elf_entry;
-    target_ulong entry;
+    target_phys_addr_t entry;
+    int big_endian;
 
     /* Load the kernel.  */
     if (!info->kernel_filename) {
@@ -199,12 +200,15 @@ void arm_load_kernel(CPUState *env, struct arm_boot_info *info)
         exit(1);
     }
 
-    if (!env->boot_info) {
-        if (info->nb_cpus == 0)
-            info->nb_cpus = 1;
-        env->boot_info = info;
-        qemu_register_reset(main_cpu_reset, 0, env);
-    }
+    if (info->nb_cpus == 0)
+        info->nb_cpus = 1;
+    env->boot_info = info;
+
+#ifdef TARGET_WORDS_BIGENDIAN
+    big_endian = 1;
+#else
+    big_endian = 0;
+#endif
 
     /* Assume that raw images are linux kernels, and ELF images are not.  */
     kernel_size = load_elf(info->kernel_filename, 0, &elf_entry, NULL, NULL);
@@ -259,4 +263,6 @@ void arm_load_kernel(CPUState *env, struct arm_boot_info *info)
         else
             set_kernel_args(info, initrd_size, info->loader_start);
     }
+    info->is_linux = is_linux;
+    qemu_register_reset(main_cpu_reset, 0, env);
 }

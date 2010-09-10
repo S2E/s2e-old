@@ -6,6 +6,9 @@
 /* smc91c111.c */
 void smc91c111_init(NICInfo *, uint32_t, qemu_irq);
 
+/* lan9118.c */
+void lan9118_init(NICInfo *, uint32_t, qemu_irq);
+
 /* tsc210x.c */
 uWireSlave *tsc2102_init(qemu_irq pint);
 uWireSlave *tsc2301_init(qemu_irq penirq, qemu_irq kbirq, qemu_irq dav);
@@ -64,7 +67,4 @@ qemu_irq tc6393xb_l3v_get(TC6393xbState *s);
 void sm501_init(uint32_t base, uint32_t local_mem_bytes, qemu_irq irq,
                 CharDriverState *chr);
 
-/* usb-ohci.c */
-void usb_ohci_init_sm501(uint32_t mmio_base, uint32_t localmem_base,
-                         int num_ports, int devfn, qemu_irq irq);
 #endif

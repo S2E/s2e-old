@@ -379,7 +379,7 @@ static void init_mbr(BDRVVVFATState* s)
 {
     /* TODO: if the files mbr.img and bootsect.img exist, use them */
     mbr_t* real_mbr=(mbr_t*)s->first_sectors;
-    partition_t* partition=&(real_mbr->partition[0]);
+    partition_t* partition = &(real_mbr->partition[0]);
     int lba;
 
     memset(s->first_sectors,0,512);
@@ -512,7 +512,7 @@ static inline uint8_t fat_chksum(const direntry_t* entry)
     for(i=0;i<11;i++) {
         unsigned char c;
 
-        c = (i <= 8) ? entry->name[i] : entry->extension[i-8];
+        c = (i < 8) ? entry->name[i] : entry->extension[i-8];
         chksum=(((chksum&0xfe)>>1)|((chksum&0x01)?0x80:0)) + c;
     }
 
@@ -526,7 +526,7 @@ static uint16_t fat_datetime(time_t time,int return_time) {
     t=localtime(&time); /* this is not thread safe */
 #else
     struct tm t1;
-    t=&t1;
+    t = &t1;
     localtime_r(&time,t);
 #endif
     if(return_time)
@@ -868,7 +868,8 @@ static int init_directories(BDRVVVFATState* s,
     {
 	direntry_t* entry=array_get_next(&(s->directory));
 	entry->attributes=0x28; /* archive | volume label */
-	snprintf((char*)entry->name,11,"QEMU VVFAT");
+	memcpy(entry->name,"QEMU VVF",8);
+	memcpy(entry->extension,"AT ",3);
     }
 
     /* Now build FAT, and write back information into directory */
@@ -882,7 +883,7 @@ static int init_directories(BDRVVVFATState* s,
     mapping->dir_index = 0;
     mapping->info.dir.parent_mapping_index = -1;
     mapping->first_mapping_index = -1;
-    mapping->path = strdup(dirname);
+    mapping->path = qemu_strdup(dirname);
     i = strlen(mapping->path);
     if (i > 0 && mapping->path[i - 1] == '/')
 	mapping->path[i - 1] = '\0';
@@ -1098,8 +1099,8 @@ static inline void vvfat_close_current_file(BDRVVVFATState *s)
  */
 static inline int find_mapping_for_cluster_aux(BDRVVVFATState* s,int cluster_num,int index1,int index2)
 {
-    int index3=index1+1;
     while(1) {
+        int index3;
 	mapping_t* mapping;
 	index3=(index1+index2)/2;
 	mapping=array_get(&(s->mapping),index3);
@@ -1243,7 +1244,7 @@ static void print_direntry(const direntry_t* direntry)
     int j = 0;
     char buffer[1024];
 
-    fprintf(stderr, "direntry 0x%x: ", (int)direntry);
+    fprintf(stderr, "direntry %p: ", direntry);
     if(!direntry)
 	return;
     if(is_long_name(direntry)) {
@@ -1272,7 +1273,11 @@ static void print_direntry(const direntry_t* direntry)
 
 static void print_mapping(const mapping_t* mapping)
 {
-    fprintf(stderr, "mapping (0x%x): begin, end = %d, %d, dir_index = %d, first_mapping_index = %d, name = %s, mode = 0x%x, " , (int)mapping, mapping->begin, mapping->end, mapping->dir_index, mapping->first_mapping_index, mapping->path, mapping->mode);
+    fprintf(stderr, "mapping (%p): begin, end = %d, %d, dir_index = %d, "
+        "first_mapping_index = %d, name = %s, mode = 0x%x, " ,
+        mapping, mapping->begin, mapping->end, mapping->dir_index,
+        mapping->first_mapping_index, mapping->path, mapping->mode);
+
     if (mapping->mode & MODE_DIRECTORY)
 	fprintf(stderr, "parent_mapping_index = %d, first_dir_index = %d\n", mapping->info.dir.parent_mapping_index, mapping->info.dir.first_dir_index);
     else
@@ -1632,12 +1637,12 @@ static uint32_t get_cluster_count_for_direntry(BDRVVVFATState* s,
 
 	    /* rename */
 	    if (strcmp(basename, basename2))
-		schedule_rename(s, cluster_num, strdup(path));
+		schedule_rename(s, cluster_num, qemu_strdup(path));
 	} else if (is_file(direntry))
 	    /* new file */
-	    schedule_new_file(s, strdup(path), cluster_num);
+	    schedule_new_file(s, qemu_strdup(path), cluster_num);
 	else {
-	    assert(0);
+            abort();
 	    return 0;
 	}
     }
@@ -1658,7 +1663,7 @@ static uint32_t get_cluster_count_for_direntry(BDRVVVFATState* s,
 		    if (offset != mapping->info.file.offset + s->cluster_size
 			    * (cluster_num - mapping->begin)) {
 			/* offset of this cluster in file chain has changed */
-			assert(0);
+                        abort();
 			copy_it = 1;
 		    } else if (offset == 0) {
 			const char* basename = get_basename(mapping->path);
@@ -1670,7 +1675,7 @@ static uint32_t get_cluster_count_for_direntry(BDRVVVFATState* s,
 
 		    if (mapping->first_mapping_index != first_mapping_index
 			    && mapping->info.file.offset > 0) {
-			assert(0);
+                        abort();
 			copy_it = 1;
 		    }
 
@@ -1752,10 +1757,10 @@ static int check_directory_consistency(BDRVVVFATState *s,
 	mapping->mode &= ~MODE_DELETED;
 
 	if (strcmp(basename, basename2))
-	    schedule_rename(s, cluster_num, strdup(path));
+	    schedule_rename(s, cluster_num, qemu_strdup(path));
     } else
 	/* new directory */
-	schedule_mkdir(s, cluster_num, strdup(path));
+	schedule_mkdir(s, cluster_num, qemu_strdup(path));
 
     lfn_init(&lfn);
     do {
@@ -1836,7 +1841,7 @@ DLOG(fprintf(stderr, "check direntry %d: \n", i); print_direntry(direntries + i)
 		    goto fail;
 		}
 	    } else
-		assert(0); /* cluster_count = 0; */
+                abort(); /* cluster_count = 0; */
 
 	    ret += cluster_count;
 	}
@@ -2256,7 +2261,11 @@ static int commit_one_file(BDRVVVFATState* s,
 	c = c1;
     }
 
-    ftruncate(fd, size);
+    if (ftruncate(fd, size)) {
+        perror("ftruncate()");
+        close(fd);
+        return -4;
+    }
     close(fd);
 
     return commit_mappings(s, first_cluster, dir_index);
@@ -2453,14 +2462,17 @@ static int handle_commits(BDRVVVFATState* s)
 	commit_t* commit = array_get(&(s->commits), i);
 	switch(commit->action) {
 	case ACTION_RENAME: case ACTION_MKDIR:
-	    assert(0);
+            abort();
 	    fail = -2;
 	    break;
 	case ACTION_WRITEOUT: {
+#ifndef NDEBUG
+            /* these variables are only used by assert() below */
 	    direntry_t* entry = array_get(&(s->directory),
 		    commit->param.writeout.dir_index);
 	    uint32_t begin = begin_of_direntry(entry);
 	    mapping_t* mapping = find_mapping_for_cluster(s, begin);
+#endif
 
 	    assert(mapping);
 	    assert(mapping->begin == begin);
@@ -2511,7 +2523,7 @@ static int handle_commits(BDRVVVFATState* s)
 	    break;
 	}
 	default:
-	    assert(0);
+            abort();
 	}
     }
     if (i > 0 && array_remove_slice(&(s->commits), 0, i))
@@ -2599,7 +2611,7 @@ static int do_commit(BDRVVVFATState* s)
     ret = handle_renames_and_mkdirs(s);
     if (ret) {
 	fprintf(stderr, "Error handling renames (%d)\n", ret);
-	assert(0);
+        abort();
 	return ret;
     }
 
@@ -2610,21 +2622,21 @@ static int do_commit(BDRVVVFATState* s)
     ret = commit_direntries(s, 0, -1);
     if (ret) {
 	fprintf(stderr, "Fatal: error while committing (%d)\n", ret);
-	assert(0);
+        abort();
 	return ret;
     }
 
     ret = handle_commits(s);
     if (ret) {
 	fprintf(stderr, "Error handling commits (%d)\n", ret);
-	assert(0);
+        abort();
 	return ret;
     }
 
     ret = handle_deletes(s);
     if (ret) {
 	fprintf(stderr, "Error deleting\n");
-        assert(0);
+        abort();
 	return ret;
     }
 
