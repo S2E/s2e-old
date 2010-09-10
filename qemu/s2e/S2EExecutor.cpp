@@ -4,6 +4,7 @@ extern "C" {
 #include <tcg-llvm.h>
 #include <exec-all.h>
 #include <sysemu.h>
+
 extern struct CPUX86State *env;
 void QEMU_NORETURN raise_exception(int exception_index);
 void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
@@ -11,9 +12,9 @@ extern const uint8_t parity_table[256];
 extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
-uint64_t helper_set_cc_op_eflags(void);
 uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw);
+uint64_t helper_set_cc_op_eflags(void);
 }
 #include <malloc.h>
 

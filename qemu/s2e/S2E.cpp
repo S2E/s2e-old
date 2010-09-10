@@ -113,8 +113,6 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     /* Init the custom memory allocator */
     //void slab_init();
     //slab_init();
-
-    atexit(s2e_close_arg);
 }
 
 void S2E::writeBitCodeToFile()
@@ -431,17 +429,11 @@ void s2e_close(S2E *s2e)
     delete s2e;
 }
 
-void s2e_close_arg()
-{
-    delete g_s2e;
-}
-
 void s2e_debug_print(const char *fmtstr, ...)
 {
     if (!g_s2e) {
         return;
     }
-
 
     va_list vl;
     va_start(vl,fmtstr);

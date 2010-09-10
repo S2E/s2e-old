@@ -1920,7 +1920,6 @@ void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
     CPUState *env;
     uintptr_t length, start1;
     int i, mask, len;
-    uint8_t *p;
 
     start &= TARGET_PAGE_MASK;
     end = TARGET_PAGE_ALIGN(end);
@@ -1937,7 +1936,7 @@ void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
         s2e_write_dirty_mask(s + i, val & mask);
     }
 #else
-    p = phys_ram_dirty + (start >> TARGET_PAGE_BITS);
+    uint8_t *p = phys_ram_dirty + (start >> TARGET_PAGE_BITS);
     for(i = 0; i < len; i++)
         p[i] &= mask;
 #endif
@@ -2145,7 +2144,7 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     return ret;
 }
 
-void* s2e_get_ram_ptr(target_phys_addr_t paddr)
+void* qemu_get_phys_ram_ptr(target_phys_addr_t paddr)
 {
     PhysPageDesc *p = phys_page_find(paddr >> TARGET_PAGE_BITS);
     if(!p)
@@ -3729,12 +3728,6 @@ void stq_phys(target_phys_addr_t addr, uint64_t val)
 }
 
 #endif
-
-int cpu_memory_rw_debug_se(target_ulong addr,
-                        uint8_t *buf, int len, int is_write)
-{
-  return cpu_memory_rw_debug(cpu_single_env, addr, buf, len, is_write);
-}
 
 /* virtual memory access for debug (includes writing to ROM) */
 int cpu_memory_rw_debug(CPUState *env, target_ulong addr,

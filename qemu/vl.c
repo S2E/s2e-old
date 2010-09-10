@@ -1792,6 +1792,26 @@ static int socket_init(void)
 }
 #endif
 
+#ifdef CONFIG_S2E
+static void s2e_cleanup(void)
+{
+    if(g_s2e) {
+        s2e_close(g_s2e);
+        g_s2e = NULL;
+    }
+}
+#endif
+
+#ifdef CONFIG_LLVM
+static void tcg_llvm_cleanup(void)
+{
+    if(tcg_llvm_ctx) {
+        tcg_llvm_close(tcg_llvm_ctx);
+        tcg_llvm_ctx = NULL;
+    }
+}
+#endif
+
 /***********************************************************/
 /* Bluetooth support */
 static int nb_hcis;
@@ -5819,6 +5839,9 @@ int main(int argc, char **argv, char **envp)
                            s2e_config_file, s2e_output_dir);
 
     g_s2e_state = s2e_create_initial_state(g_s2e);
+
+    atexit(s2e_cleanup);
+    atexit(tcg_llvm_cleanup);
 #endif
 
     /*
@@ -6317,13 +6340,12 @@ int main(int argc, char **argv, char **envp)
     net_cleanup();
 
 #ifdef CONFIG_S2E
-    s2e_close(g_s2e);
+    s2e_cleanup();
 #endif
 
 #ifdef CONFIG_LLVM
-    tcg_llvm_close(tcg_llvm_ctx);
+    tcg_llvm_cleanup();
 #endif
-
 
     return 0;
 }

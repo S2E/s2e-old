@@ -764,7 +764,7 @@ int cpu_exec(CPUState *env1)
 #endif
         } else {
 #ifdef CONFIG_S2E
-            s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, tb);
+            s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
 #if 1
                 #ifdef CONFIG_S2E
                 g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);

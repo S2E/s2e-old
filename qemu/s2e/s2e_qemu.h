@@ -21,7 +21,7 @@ struct S2ETranslationBlock;
 
 struct TranslationBlock;
 struct TCGLLVMContext;
-struct CPUSymbCache;
+struct S2ETLBEntry;
 
 
 // XXX
@@ -248,6 +248,20 @@ void s2e_register_dirty_mask(struct S2E *s2e, struct S2EExecutionState *initial_
                             uint64_t host_address, uint64_t size);
 uint8_t s2e_read_dirty_mask(uint64_t host_address);
 void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
+
+/******************************************************/
+/* Prototypes for special functions used in LLVM code */
+/* NOTE: this functions should never be defined. They */
+/* are implemented as a special function handlers.    */
+
+#if defined(S2E_LLVM_LIB)
+uint32_t tcg_llvm_fork_and_concretize(uint32_t value);
+void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
+                                  uint64_t value, uint32_t bits,
+                                  uint8_t isWrite, uint8_t isIo);
+void tcg_llvm_trace_port_access(uint64_t port, uint64_t value,
+                                unsigned bits, int isWrite);
+#endif
 
 #ifdef __cplusplus
 }

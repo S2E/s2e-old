@@ -141,9 +141,14 @@ void do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw);
 void do_interrupt_user(int intno, int is_int, int error_code,
                        target_ulong next_eip);
+uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
+                  target_ulong next_eip, int is_hw);
+
 void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
 void QEMU_NORETURN raise_exception(int exception_index);
 void do_smm_enter(void);
+
+uint64_t helper_set_cc_op_eflags(void);
 
 /* n must be a constant to be efficient */
 static inline target_long lshift(target_long x, int n)

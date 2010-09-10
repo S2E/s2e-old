@@ -583,7 +583,7 @@ Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     Value *v, *v1, *v2;
 
 #ifdef CONFIG_S2E
-    /* Call function to concretize index */
+    /* Call function to concretize address */
     addr = m_builder.CreateCall(m_helperForkAndConcretize, addr);
 #endif
 
@@ -986,7 +986,8 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
         Value* valueToStore = getValue(args[0]);
         if (args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) {
-            valueToStore = m_builder.CreateCall(m_helperForkAndConcretize, valueToStore);
+            valueToStore = m_builder.CreateCall(m_helperForkAndConcretize,
+                                                valueToStore);
         }
 
         v = m_builder.CreateAdd(getValue(args[1]),

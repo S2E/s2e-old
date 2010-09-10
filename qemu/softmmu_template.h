@@ -46,28 +46,29 @@
 #define ADDR_READ addr_read
 #endif
 
-#if defined(CONFIG_S2E) &&  !defined(S2E_LLVM_LIB)
-#define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
-    s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
-                            (uint8_t*) &value, sizeof(value), isWrite, isIO);
-#elif defined(S2E_LLVM_LIB)
+#ifdef CONFIG_S2E
+
+#ifdef S2E_LLVM_LIB
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
     tcg_llvm_trace_memory_access(vaddr, haddr, \
                                  value, 8*sizeof(value), isWrite, isIO);
-#else
-#define S2E_TRACE_MEMORY(...)
-#endif
-
-#if defined(CONFIG_S2E) && defined(S2E_LLVM_LIB)
-target_ulong tcg_llvm_fork_and_concretize(target_ulong);
 #define S2E_FORK_AND_CONCRETIZE(val) tcg_llvm_fork_and_concretize(val)
-#else
+#else // S2E_LLVM_LIB
+#define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
+    s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
+                            (uint8_t*) &value, sizeof(value), isWrite, isIO);
 #define S2E_FORK_AND_CONCRETIZE(val) (val)
-#endif
+#endif // S2E_LLVM_LIB
+
+#else // CONFIG_S2E
+
+#define S2E_TRACE_MEMORY(...)
+#define S2E_FORK_AND_CONCRETIZE(val) (val)
+
+#endif // CONFIG_S2E
 
 #define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
 //#define S2E_FORK_AND_CONCRETIZE_ADDR(val) S2E_FORK_AND_CONCRETIZE(val)
-
 
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
@@ -399,6 +400,8 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 
 #endif /* !defined(SOFTMMU_CODE_ACCESS) */
 
+#undef S2E_FORK_AND_CONCRETIZE_ADDR
+#undef S2E_FORK_AND_CONCRETIZE
 #undef S2E_TRACE_MEMORY
 #undef READ_ACCESS_TYPE
 #undef SHIFT

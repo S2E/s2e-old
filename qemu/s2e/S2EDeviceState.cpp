@@ -134,7 +134,7 @@ void S2EDeviceState::saveDeviceState()
     /* Iterate through all device descritors and call
     * their snapshot function */
     for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
-        unsigned o = m_Offset;
+        //unsigned o = m_Offset;
         void *se = *it;
         //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));
         s2e_qemu_save_state(se);
@@ -160,7 +160,7 @@ void S2EDeviceState::restoreDeviceState()
 
     //DPRINTF("Restoring device state %p\n", this);
     for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
-        unsigned o = m_Offset;
+        //unsigned o = m_Offset;
         void *se = *it;
         //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));  
         s2e_qemu_load_state(se);

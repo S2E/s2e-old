@@ -4,9 +4,6 @@ extern "C" {
 #include "sysemu.h"
 
 extern struct CPUX86State *env;
-int cpu_memory_rw_debug_se(uint64_t addr, uint8_t *buf, int len, int is_write);
-void* s2e_get_ram_ptr(target_phys_addr_t addr);
-//target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr);
 }
 
 #include "S2EExecutionState.h"
@@ -408,7 +405,7 @@ uint64_t S2EExecutionState::getHostAddress(uint64_t address,
         /* We can not use qemu_get_ram_ptr directly. Mapping of IO memory
            can be modified after memory registration and qemu_get_ram_ptr will
            return incorrect values in such cases */
-        hostAddress = (uint64_t) s2e_get_ram_ptr(hostAddress);
+        hostAddress = (uint64_t) qemu_get_phys_ram_ptr(hostAddress);
         if(!hostAddress)
             return (uint64_t) -1;
 

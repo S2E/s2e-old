@@ -179,7 +179,9 @@ static void OP_REG (int, int);
 static void OP_IMREG (int, int);
 static void OP_I (int, int);
 static void OP_I64 (int, int);
+#ifdef CONFIG_S2E
 static void OP_I64q (int, int);
+#endif
 static void OP_sI (int, int);
 static void OP_J (int, int);
 static void OP_SEG (int, int);
@@ -5521,6 +5523,7 @@ OP_I64 (int bytemode, int sizeflag)
   scratchbuf[0] = '\0';
 }
 
+#ifdef CONFIG_S2E
 static void
 OP_I64q (int bytemode, int sizeflag)
 {
@@ -5531,6 +5534,7 @@ OP_I64q (int bytemode, int sizeflag)
   oappend (scratchbuf + intel_syntax);
   scratchbuf[0] = '\0';
 }
+#endif
 
 static void
 OP_sI (int bytemode, int sizeflag)

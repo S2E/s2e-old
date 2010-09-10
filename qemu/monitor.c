@@ -2385,7 +2385,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "command:s",
         .params     = "command",
         .help       = "Execute an S2E command",
-        .mhandler.info_new = do_s2e_info,
+        .mhandler.info = do_s2e_info,
     },
 #endif
     {

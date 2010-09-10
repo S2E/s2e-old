@@ -383,7 +383,9 @@ static inline void tcg_out_movi(TCGContext *s, TCGType type,
     }
 }
 
+#ifdef __MINGW64__
 static void tcg_out_subi(TCGContext *s, int reg, tcg_target_long val);
+#endif
 static void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val);
 
 static void tcg_out_goto(TCGContext *s, int call, uint8_t *target)
@@ -489,11 +491,14 @@ static void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val)
     if (val != 0)
         tgen_arithi64(s, ARITH_ADD, reg, val);
 }
+
+#ifdef __MINGW64__
 static void tcg_out_subi(TCGContext *s, int reg, tcg_target_long val)
 {
     if (val != 0)
         tgen_arithi64(s, ARITH_SUB, reg, val);
 }
+#endif
 
 static void tcg_out_jxx(TCGContext *s, int opc, int label_index)
 {
