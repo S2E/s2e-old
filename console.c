@@ -173,7 +173,7 @@ void vga_hw_update(void)
 
 void vga_hw_invalidate(void)
 {
-    if (active_console->hw_invalidate)
+    if (active_console && active_console->hw_invalidate)
         active_console->hw_invalidate(active_console->hw);
 }
 
@@ -835,7 +835,6 @@ static void console_clear_xy(TextConsole *s, int x, int y)
     TextCell *c = &s->cells[y1 * s->width + x];
     c->ch = ' ';
     c->t_attrib = s->t_attrib_default;
-    c++;
     update_xy(s, x, y);
 }
 
@@ -1393,7 +1392,7 @@ static void text_console_do_init(CharDriverState *chr, DisplayState *ds, const c
     s->t_attrib = s->t_attrib_default;
     text_console_resize(s);
 
-    qemu_chr_reset(chr);
+    qemu_chr_generic_open(chr);
     if (chr->init)
         chr->init(chr);
 }

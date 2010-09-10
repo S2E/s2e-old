@@ -104,12 +104,15 @@
 
 #include "qemu_socket.h"
 
-/* ANDROID */
+#define READ_BUF_LEN 4096
+
+#ifdef CONFIG_ANDROID
 #include "charpipe.h"
 #include "modem_driver.h"
 #include "android/gps.h"
 #include "android/hw-kmsg.h"
 #include "android/hw-qemud.h"
+#endif /* CONFIG_ANDROID */
 
 /***********************************************************/
 /* character device */
@@ -120,12 +123,22 @@ static int initial_reset_issued;
 
 static void qemu_chr_event(CharDriverState *s, int event)
 {
+    /* Keep track if the char device is open */
+    switch (event) {
+        case CHR_EVENT_OPENED:
+            s->opened = 1;
+            break;
+        case CHR_EVENT_CLOSED:
+            s->opened = 0;
+            break;
+    }
+
     if (!s->chr_event)
         return;
     s->chr_event(s->handler_opaque, event);
 }
 
-static void qemu_chr_reset_bh(void *opaque)
+static void qemu_chr_generic_open_bh(void *opaque)
 {
     CharDriverState *s = opaque;
     qemu_chr_event(s, CHR_EVENT_OPENED);
@@ -133,10 +146,18 @@ static void qemu_chr_reset_bh(void *opaque)
     s->bh = NULL;
 }
 
+void qemu_chr_generic_open(CharDriverState *s)
+{
+    if (s->bh == NULL) {
+	s->bh = qemu_bh_new(qemu_chr_generic_open_bh, s);
+	qemu_bh_schedule(s->bh);
+    }
+}
+
 void qemu_chr_reset(CharDriverState *s)
 {
     if (s->bh == NULL && initial_reset_issued) {
-	s->bh = qemu_bh_new(qemu_chr_reset_bh, s);
+	s->bh = qemu_bh_new(qemu_chr_generic_open_bh, s);
 	qemu_bh_schedule(s->bh);
     }
 }
@@ -176,6 +197,11 @@ void qemu_chr_read(CharDriverState *s, uint8_t *buf, int len)
     s->chr_read(s->handler_opaque, buf, len);
 }
 
+int qemu_chr_get_msgfd(CharDriverState *s)
+{
+    return s->get_msgfd ? s->get_msgfd(s) : -1;
+}
+
 void qemu_chr_accept_input(CharDriverState *s)
 {
     if (s->chr_accept_input)
@@ -184,7 +210,7 @@ void qemu_chr_accept_input(CharDriverState *s)
 
 void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
 {
-    char buf[4096];
+    char buf[READ_BUF_LEN];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
@@ -210,6 +236,12 @@ void qemu_chr_add_handlers(CharDriverState *s,
     s->handler_opaque = opaque;
     if (s->chr_update_read_handler)
         s->chr_update_read_handler(s);
+
+    /* We're connecting to an already opened device, so let's make sure we
+       also get the open event */
+    if (s->opened) {
+        qemu_chr_generic_open(s);
+    }
 }
 
 static int null_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
@@ -236,6 +268,7 @@ typedef struct {
     IOEventHandler *chr_event[MAX_MUX];
     void *ext_opaque[MAX_MUX];
     CharDriverState *drv;
+    int focus;
     int mux_cnt;
     int term_got_escape;
     int max_size;
@@ -364,11 +397,11 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
             break;
         case 'c':
             /* Switch to the next registered device */
-            mux_chr_send_event(d, chr->focus, CHR_EVENT_MUX_OUT);
-            chr->focus++;
-            if (chr->focus >= d->mux_cnt)
-                chr->focus = 0;
-            mux_chr_send_event(d, chr->focus, CHR_EVENT_MUX_IN);
+            mux_chr_send_event(d, d->focus, CHR_EVENT_MUX_OUT);
+            d->focus++;
+            if (d->focus >= d->mux_cnt)
+                d->focus = 0;
+            mux_chr_send_event(d, d->focus, CHR_EVENT_MUX_IN);
             break;
         case 't':
             d->timestamps = !d->timestamps;
@@ -387,8 +420,8 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
 
 static void mux_chr_accept_input(CharDriverState *chr)
 {
-    int m = chr->focus;
     MuxDriver *d = chr->opaque;
+    int m = d->focus;
 
     while (d->prod[m] != d->cons[m] &&
            d->chr_can_read[m] &&
@@ -402,7 +435,7 @@ static int mux_chr_can_read(void *opaque)
 {
     CharDriverState *chr = opaque;
     MuxDriver *d = chr->opaque;
-    int m = chr->focus;
+    int m = d->focus;
 
     if ((d->prod[m] - d->cons[m]) < MUX_BUFFER_SIZE)
         return 1;
@@ -415,7 +448,7 @@ static void mux_chr_read(void *opaque, const uint8_t *buf, int size)
 {
     CharDriverState *chr = opaque;
     MuxDriver *d = chr->opaque;
-    int m = chr->focus;
+    int m = d->focus;
     int i;
 
     mux_chr_accept_input (opaque);
@@ -459,8 +492,12 @@ static void mux_chr_update_read_handler(CharDriverState *chr)
         qemu_chr_add_handlers(d->drv, mux_chr_can_read, mux_chr_read,
                               mux_chr_event, chr);
     }
-    chr->focus = d->mux_cnt;
+    if (d->focus != -1) {
+        mux_chr_send_event(d, d->focus, CHR_EVENT_MUX_OUT);
+    }
+    d->focus = d->mux_cnt;
     d->mux_cnt++;
+    mux_chr_send_event(d, d->focus, CHR_EVENT_MUX_IN);
 }
 
 static CharDriverState *qemu_chr_open_mux(CharDriverState *drv)
@@ -473,10 +510,14 @@ static CharDriverState *qemu_chr_open_mux(CharDriverState *drv)
 
     chr->opaque = d;
     d->drv = drv;
-    chr->focus = -1;
+    d->focus = -1;
     chr->chr_write = mux_chr_write;
     chr->chr_update_read_handler = mux_chr_update_read_handler;
     chr->chr_accept_input = mux_chr_accept_input;
+
+    /* Muxes are always open on creation */
+    qemu_chr_generic_open(chr);
+
     return chr;
 }
 
@@ -566,7 +607,7 @@ static void fd_chr_read(void *opaque)
     CharDriverState *chr = opaque;
     FDCharDriver *s = chr->opaque;
     int size, len;
-    uint8_t buf[1024];
+    uint8_t buf[READ_BUF_LEN];
 
     len = sizeof(buf);
     if (len > s->max_size)
@@ -577,6 +618,7 @@ static void fd_chr_read(void *opaque)
     if (size == 0) {
         /* FD has been closed. Remove it from the active list.  */
         qemu_set_fd_handler2(s->fd_in, NULL, NULL, NULL, NULL);
+        qemu_chr_event(chr, CHR_EVENT_CLOSED);
         return;
     }
     if (size > 0) {
@@ -609,6 +651,7 @@ static void fd_chr_close(struct CharDriverState *chr)
     }
 
     qemu_free(s);
+    qemu_chr_event(chr, CHR_EVENT_CLOSED);
 }
 
 /* open a character device to a unix fd */
@@ -626,7 +669,7 @@ static CharDriverState *qemu_chr_open_fd(int fd_in, int fd_out)
     chr->chr_update_read_handler = fd_chr_update_read_handler;
     chr->chr_close = fd_chr_close;
 
-    qemu_chr_reset(chr);
+    qemu_chr_generic_open(chr);
 
     return chr;
 }
@@ -717,6 +760,7 @@ static void stdio_read(void *opaque)
     if (size == 0) {
         /* stdin has been closed. Remove it from the active list.  */
         qemu_set_fd_handler2(0, NULL, NULL, NULL, NULL);
+        qemu_chr_event(chr, CHR_EVENT_CLOSED);
         return;
     }
     if (size > 0) {
@@ -848,7 +892,8 @@ static void cfmakeraw (struct termios *termios_p)
 #endif
 
 #if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) \
+    || defined(__GLIBC__)
 
 typedef struct {
     int fd;
@@ -887,7 +932,7 @@ static void pty_chr_read(void *opaque)
     CharDriverState *chr = opaque;
     PtyCharDriver *s = chr->opaque;
     int size, len;
-    uint8_t buf[1024];
+    uint8_t buf[READ_BUF_LEN];
 
     len = sizeof(buf);
     if (len > s->read_bytes)
@@ -938,7 +983,7 @@ static void pty_chr_state(CharDriverState *chr, int connected)
         qemu_mod_timer(s->timer, qemu_get_clock(rt_clock) + 1000);
     } else {
         if (!s->connected)
-            qemu_chr_reset(chr);
+            qemu_chr_generic_open(chr);
         s->connected = 1;
     }
 }
@@ -970,6 +1015,7 @@ static void pty_chr_close(struct CharDriverState *chr)
     qemu_del_timer(s->timer);
     qemu_free_timer(s->timer);
     qemu_free(s);
+    qemu_chr_event(chr, CHR_EVENT_CLOSED);
 }
 
 static CharDriverState *qemu_chr_open_pty(void)
@@ -1026,34 +1072,72 @@ static void tty_serial_init(int fd, int speed,
            speed, parity, data_bits, stop_bits);
 #endif
     tcgetattr (fd, &tty);
+    if (!term_atexit_done) {
+        oldtty = tty;
+    }
 
-#define MARGIN 1.1
-    if (speed <= 50 * MARGIN)
-        spd = B50;
-    else if (speed <= 75 * MARGIN)
-        spd = B75;
-    else if (speed <= 300 * MARGIN)
-        spd = B300;
-    else if (speed <= 600 * MARGIN)
-        spd = B600;
-    else if (speed <= 1200 * MARGIN)
-        spd = B1200;
-    else if (speed <= 2400 * MARGIN)
-        spd = B2400;
-    else if (speed <= 4800 * MARGIN)
-        spd = B4800;
-    else if (speed <= 9600 * MARGIN)
-        spd = B9600;
-    else if (speed <= 19200 * MARGIN)
-        spd = B19200;
-    else if (speed <= 38400 * MARGIN)
-        spd = B38400;
-    else if (speed <= 57600 * MARGIN)
-        spd = B57600;
-    else if (speed <= 115200 * MARGIN)
+#define check_speed(val) if (speed <= val) { spd = B##val; break; }
+    speed = speed * 10 / 11;
+    do {
+        check_speed(50);
+        check_speed(75);
+        check_speed(110);
+        check_speed(134);
+        check_speed(150);
+        check_speed(200);
+        check_speed(300);
+        check_speed(600);
+        check_speed(1200);
+        check_speed(1800);
+        check_speed(2400);
+        check_speed(4800);
+        check_speed(9600);
+        check_speed(19200);
+        check_speed(38400);
+        /* Non-Posix values follow. They may be unsupported on some systems. */
+        check_speed(57600);
+        check_speed(115200);
+#ifdef B230400
+        check_speed(230400);
+#endif
+#ifdef B460800
+        check_speed(460800);
+#endif
+#ifdef B500000
+        check_speed(500000);
+#endif
+#ifdef B576000
+        check_speed(576000);
+#endif
+#ifdef B921600
+        check_speed(921600);
+#endif
+#ifdef B1000000
+        check_speed(1000000);
+#endif
+#ifdef B1152000
+        check_speed(1152000);
+#endif
+#ifdef B1500000
+        check_speed(1500000);
+#endif
+#ifdef B2000000
+        check_speed(2000000);
+#endif
+#ifdef B2500000
+        check_speed(2500000);
+#endif
+#ifdef B3000000
+        check_speed(3000000);
+#endif
+#ifdef B3500000
+        check_speed(3500000);
+#endif
+#ifdef B4000000
+        check_speed(4000000);
+#endif
         spd = B115200;
-    else
-        spd = B115200;
+    } while (0);
 
     cfsetispeed(&tty, spd);
     cfsetospeed(&tty, spd);
@@ -1863,6 +1947,7 @@ typedef struct {
     int do_telnetopt;
     int do_nodelay;
     int is_unix;
+    int msgfd;
 } TCPCharDriver;
 
 static void tcp_chr_accept(void *opaque);
@@ -1938,11 +2023,76 @@ static void tcp_chr_process_IAC_bytes(CharDriverState *chr,
     *size = j;
 }
 
+static int tcp_get_msgfd(CharDriverState *chr)
+{
+    TCPCharDriver *s = chr->opaque;
+    int fd = s->msgfd;
+    s->msgfd = -1;
+    return fd;
+}
+
+#ifndef _WIN32
+static void unix_process_msgfd(CharDriverState *chr, struct msghdr *msg)
+{
+    TCPCharDriver *s = chr->opaque;
+    struct cmsghdr *cmsg;
+
+    for (cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
+        int fd;
+
+        if (cmsg->cmsg_len != CMSG_LEN(sizeof(int)) ||
+            cmsg->cmsg_level != SOL_SOCKET ||
+            cmsg->cmsg_type != SCM_RIGHTS)
+            continue;
+
+        fd = *((int *)CMSG_DATA(cmsg));
+        if (fd < 0)
+            continue;
+
+        if (s->msgfd != -1)
+            close(s->msgfd);
+        s->msgfd = fd;
+    }
+}
+
+static ssize_t tcp_chr_recv(CharDriverState *chr, char *buf, size_t len)
+{
+    TCPCharDriver *s = chr->opaque;
+    struct msghdr msg = { NULL, };
+    struct iovec iov[1];
+    union {
+        struct cmsghdr cmsg;
+        char control[CMSG_SPACE(sizeof(int))];
+    } msg_control;
+    ssize_t ret;
+
+    iov[0].iov_base = buf;
+    iov[0].iov_len = len;
+
+    msg.msg_iov = iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = &msg_control;
+    msg.msg_controllen = sizeof(msg_control);
+
+    ret = recvmsg(s->fd, &msg, 0);
+    if (ret > 0 && s->is_unix)
+        unix_process_msgfd(chr, &msg);
+
+    return ret;
+}
+#else
+static ssize_t tcp_chr_recv(CharDriverState *chr, char *buf, size_t len)
+{
+    TCPCharDriver *s = chr->opaque;
+    return recv(s->fd, buf, len, 0);
+}
+#endif
+
 static void tcp_chr_read(void *opaque)
 {
     CharDriverState *chr = opaque;
     TCPCharDriver *s = chr->opaque;
-    uint8_t buf[1024];
+    uint8_t buf[READ_BUF_LEN];
     int len, size;
 
     if (!s->connected || s->max_size <= 0)
@@ -1950,7 +2100,7 @@ static void tcp_chr_read(void *opaque)
     len = sizeof(buf);
     if (len > s->max_size)
         len = s->max_size;
-    size = socket_recv(s->fd, (void *)buf, len);
+    size = tcp_chr_recv(chr, (void *)buf, len);
     if (size == 0) {
         /* connection closed */
         s->connected = 0;
@@ -1960,6 +2110,7 @@ static void tcp_chr_read(void *opaque)
         qemu_set_fd_handler(s->fd, NULL, NULL, NULL);
         socket_close(s->fd);
         s->fd = -1;
+        qemu_chr_event(chr, CHR_EVENT_CLOSED);
     } else if (size > 0) {
         if (s->do_telnetopt)
             tcp_chr_process_IAC_bytes(chr, s, buf, &size);
@@ -1967,6 +2118,13 @@ static void tcp_chr_read(void *opaque)
             qemu_chr_read(chr, buf, size);
     }
 }
+
+#ifndef _WIN32
+CharDriverState *qemu_chr_open_eventfd(int eventfd)
+{
+    return qemu_chr_open_fd(eventfd, eventfd);
+}
+#endif
 
 static void tcp_chr_connect(void *opaque)
 {
@@ -1976,7 +2134,7 @@ static void tcp_chr_connect(void *opaque)
     s->connected = 1;
     qemu_set_fd_handler2(s->fd, tcp_chr_read_poll,
                          tcp_chr_read, NULL, chr);
-    qemu_chr_reset(chr);
+    qemu_chr_generic_open(chr);
 }
 
 #define IACSET(x,a,b,c) x[0] = a; x[1] = b; x[2] = c;
@@ -2276,4 +2434,16 @@ void qemu_chr_info(Monitor *mon)
     QTAILQ_FOREACH(chr, &chardevs, next) {
         monitor_printf(mon, "%s: filename=%s\n", chr->label, chr->filename);
     }
+}
+
+CharDriverState *qemu_chr_find(const char *name)
+{
+    CharDriverState *chr;
+
+    QTAILQ_FOREACH(chr, &chardevs, next) {
+        if (strcmp(chr->label, name) != 0)
+            continue;
+        return chr;
+    }
+    return NULL;
 }

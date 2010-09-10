@@ -64,7 +64,6 @@ struct CharDriverState {
     void (*chr_close)(struct CharDriverState *chr);
     void (*chr_accept_input)(struct CharDriverState *chr);
     void *opaque;
-    int focus;
     QEMUBH *bh;
     char *label;
     char *filename;
@@ -86,7 +85,6 @@ void qemu_chr_add_handlers(CharDriverState *s,
                            IOEventHandler *fd_event,
                            void *opaque);
 int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg);
-void qemu_chr_reset(CharDriverState *s);
 void qemu_chr_initial_reset(void);
 void qemu_chr_generic_open(CharDriverState *s);
 int qemu_chr_can_read(CharDriverState *s);
@@ -113,5 +111,4 @@ int qemu_set_fd_handler(int fd,
                         IOHandler *fd_read,
                         IOHandler *fd_write,
                         void *opaque);
-
 #endif
