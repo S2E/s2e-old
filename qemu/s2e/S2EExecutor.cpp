@@ -19,6 +19,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <malloc.h>
 
 #include "S2EExecutor.h"
+#include <s2e/s2e_config.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Utils.h>
@@ -707,13 +708,13 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
               << ", isSharedConcrete=" << isSharedConcrete << ")" << std::dec << std::endl;
 
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
-                 addr += TARGET_PAGE_SIZE) {
+                 addr += S2E_RAM_OBJECT_SIZE) {
         std::stringstream ss;
 
         ss << name << "_" << std::hex << (addr-hostAddress);
 
         MemoryObject *mo = addExternalObject(
-                *initialState, (void*) addr, TARGET_PAGE_SIZE, false,
+                *initialState, (void*) addr, S2E_RAM_OBJECT_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete);
 
         mo->setName(ss.str());
@@ -789,15 +790,15 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
                     uint64_t hostAddress, uint8_t* buf, uint64_t size)
 {
     assert(state->m_active && state->m_runningConcrete);
-    uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
-    if(page_offset + size <= TARGET_PAGE_SIZE) {
-        /* Single-page access */
+    uint64_t page_offset = hostAddress & ~S2E_RAM_OBJECT_MASK;
+    if(page_offset + size <= S2E_RAM_OBJECT_SIZE) {
+        /* Single-object access */
 
-        uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
+        uint64_t page_addr = hostAddress & S2E_RAM_OBJECT_MASK;
         ObjectPair op = state->addressSpace.findObject(page_addr);
 
         assert(op.first && op.first->isUserSpecified &&
-               op.first->size == TARGET_PAGE_SIZE);
+               op.first->size == S2E_RAM_OBJECT_SIZE);
 
         for(uint64_t i=0; i<size; ++i) {
             if(!op.second->readConcrete8(page_offset+i, buf+i)) {
@@ -810,8 +811,8 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
             }
         }
     } else {
-        /* Access spans multiple pages */
-        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        /* Access spans multiple MemoryObject's */
+        uint64_t size1 = S2E_RAM_OBJECT_SIZE - page_offset;
         readRamConcreteCheck(state, hostAddress, buf, size1);
         readRamConcreteCheck(state, hostAddress + size1, buf + size1, size - size1);
     }
@@ -821,15 +822,15 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
                     uint64_t hostAddress, uint8_t* buf, uint64_t size)
 {
     assert(state->m_active);
-    uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
-    if(page_offset + size <= TARGET_PAGE_SIZE) {
-        /* Single-page access */
+    uint64_t page_offset = hostAddress & ~S2E_RAM_OBJECT_MASK;
+    if(page_offset + size <= S2E_RAM_OBJECT_SIZE) {
+        /* Single-object access */
 
-        uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
+        uint64_t page_addr = hostAddress & S2E_RAM_OBJECT_MASK;
         ObjectPair op = state->addressSpace.findObject(page_addr);
 
         assert(op.first && op.first->isUserSpecified &&
-               op.first->size == TARGET_PAGE_SIZE);
+               op.first->size == S2E_RAM_OBJECT_SIZE);
 
         ObjectState *wos = NULL;
         for(uint64_t i=0; i<size; ++i) {
@@ -844,8 +845,8 @@ void S2EExecutor::readRamConcrete(S2EExecutionState *state,
             }
         }
     } else {
-        /* Access spans multiple pages */
-        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        /* Access spans multiple MemoryObject's */
+        uint64_t size1 = S2E_RAM_OBJECT_SIZE - page_offset;
         readRamConcrete(state, hostAddress, buf, size1);
         readRamConcrete(state, hostAddress + size1, buf + size1, size - size1);
     }
@@ -855,15 +856,15 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
                        uint64_t hostAddress, const uint8_t* buf, uint64_t size)
 {
     assert(state->m_active);
-    uint64_t page_offset = hostAddress & ~TARGET_PAGE_MASK;
-    if(page_offset + size <= TARGET_PAGE_SIZE) {
-        /* Single-page access */
+    uint64_t page_offset = hostAddress & ~S2E_RAM_OBJECT_MASK;
+    if(page_offset + size <= S2E_RAM_OBJECT_SIZE) {
+        /* Single-object access */
 
-        uint64_t page_addr = hostAddress & TARGET_PAGE_MASK;
+        uint64_t page_addr = hostAddress & S2E_RAM_OBJECT_MASK;
         ObjectPair op = state->addressSpace.findObject(page_addr);
 
         assert(op.first && op.first->isUserSpecified &&
-               op.first->size == TARGET_PAGE_SIZE);
+               op.first->size == S2E_RAM_OBJECT_SIZE);
 
         ObjectState* wos =
                 state->addressSpace.getWriteable(op.first, op.second);
@@ -872,8 +873,8 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
         }
 
     } else {
-        /* Access spans multiple pages */
-        uint64_t size1 = TARGET_PAGE_SIZE - page_offset;
+        /* Access spans multiple MemoryObject's */
+        uint64_t size1 = S2E_RAM_OBJECT_SIZE - page_offset;
         writeRamConcrete(state, hostAddress, buf, size1);
         writeRamConcrete(state, hostAddress + size1, buf + size1, size - size1);
     }
@@ -2171,22 +2172,29 @@ void s2e_update_tlb_entry(S2EExecutionState* state,
                           S2ETLBEntry *entry,
                           uintptr_t hostAddr, uintptr_t vaddr)
 {
+#ifdef S2E_ENABLE_S2E_TLB
     assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
 
-    const ObjectPair op = state->addressSpace.findObject(hostAddr);
-    assert(op.first && op.second);
+    for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i, ++entry,
+                            hostAddr += S2E_RAM_OBJECT_SIZE,
+                            vaddr += S2E_RAM_OBJECT_SIZE) {
+        const ObjectPair op = state->addressSpace.findObject(hostAddr);
+        assert(op.first && op.second);
 
-    if(op.first->isSharedConcrete) {
-        entry->objectState = const_cast<klee::ObjectState*>(op.second);
-        entry->addend = (hostAddr - vaddr) | 1;
-    } else {
-        // XXX: for now we always ensure that all pages in TLB are writable
-        klee::ObjectState *wos = state->addressSpace.getWriteable(op.first, op.second);
-        entry->objectState = wos;
-        entry->addend = ((uintptr_t) wos->getConcreteStore(true) - vaddr) | 1;
+        if(op.first->isSharedConcrete) {
+            entry->objectState = const_cast<klee::ObjectState*>(op.second);
+            entry->addend = (hostAddr - vaddr) | 1;
+        } else {
+            // XXX: for now we always ensure that all pages in TLB are writable
+            klee::ObjectState *wos = state->addressSpace.getWriteable(op.first, op.second);
+            entry->objectState = wos;
+            entry->addend = ((uintptr_t) wos->getConcreteStore(true) - vaddr) | 1;
+        }
     }
+#endif
 }
 
+#ifdef S2E_DEBUG_MEMORY
 #ifdef __linux__
 #warning Compiling with memory debugging support...
 
@@ -2225,5 +2233,6 @@ void operator delete[](void *pvMem) {
     memset(pvMem, 0xBB, s);
     free(pvMem);
 }
+#endif
 
 #endif

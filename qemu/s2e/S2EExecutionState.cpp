@@ -7,6 +7,7 @@ extern struct CPUX86State *env;
 }
 
 #include "S2EExecutionState.h"
+#include <s2e/s2e_config.h>
 #include <s2e/S2EDeviceState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Plugin.h>
@@ -59,7 +60,8 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
                         const klee::ObjectState *oldState,
                         klee::ObjectState *newState)
 {
-    if(mo->size == 4096 && oldState) {
+#ifdef S2E_ENABLE_S2E_TLB
+    if(mo->size == S2E_RAM_OBJECT_SIZE && oldState) {
         assert(m_cpuSystemState && m_cpuSystemObject);
 
         CPUX86State* cpu = m_active ?
@@ -69,7 +71,7 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
                               - offsetof(CPUX86State, eip));
 
         for(unsigned i=0; i<NB_MMU_MODES; ++i) {
-            for(unsigned j=0; j<CPU_TLB_SIZE; ++j) {
+            for(unsigned j=0; j<CPU_S2E_TLB_SIZE; ++j) {
                 if(cpu->s2e_tlb_table[i][j].objectState == (void*) oldState) {
                     assert(newState); // we never delete memory pages
                     cpu->s2e_tlb_table[i][j].objectState = newState;
@@ -85,6 +87,7 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
             }
         }
     }
+#endif
 }
 
 ExecutionState* S2EExecutionState::clone()
@@ -92,11 +95,12 @@ ExecutionState* S2EExecutionState::clone()
     // When cloning, all ObjectState becomes not owned by neither of states
     // This means that we must clean owned-by-us flag in S2E TLB
     assert(m_active && m_cpuSystemState);
+#ifdef S2E_ENABLE_S2E_TLB
     CPUX86State* cpu = (CPUX86State*)(m_cpuSystemState->address
                           - offsetof(CPUX86State, eip));
 
     for(unsigned i=0; i<NB_MMU_MODES; ++i) {
-        for(unsigned j=0; j<CPU_TLB_SIZE; ++j) {
+        for(unsigned j=0; j<CPU_S2E_TLB_SIZE; ++j) {
             ObjectState* os = static_cast<ObjectState*>(
                     cpu->s2e_tlb_table[i][j].objectState);
             if(os && !os->getObject()->isSharedConcrete) {
@@ -104,6 +108,7 @@ ExecutionState* S2EExecutionState::clone()
             }
         }
     }
+#endif
 
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->addressSpace.state = ret;
@@ -459,21 +464,21 @@ ref<Expr> S2EExecutionState::readMemory(uint64_t address,
     assert(width == 1 || (width & 7) == 0);
     uint64_t size = width / 8;
 
-    uint64_t pageOffset = address & ~TARGET_PAGE_MASK;
-    if(pageOffset + size <= TARGET_PAGE_SIZE) {
-        /* Fast path: read belongs to one physical page */
+    uint64_t pageOffset = address & ~S2E_RAM_OBJECT_MASK;
+    if(pageOffset + size <= S2E_RAM_OBJECT_SIZE) {
+        /* Fast path: read belongs to one MemoryObject */
         uint64_t hostAddress = getHostAddress(address, addressType);
         if(hostAddress == (uint64_t) -1)
             return ref<Expr>(0);
 
-        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+        ObjectPair op = addressSpace.findObject(hostAddress & S2E_RAM_OBJECT_MASK);
 
         assert(op.first && op.first->isUserSpecified
-               && op.first->size == TARGET_PAGE_SIZE);
+               && op.first->size == S2E_RAM_OBJECT_SIZE);
 
         return op.second->read(pageOffset, width);
     } else {
-        /* Access spawns multiple pages (TODO: could optimize it) */
+        /* Access spawns multiple MemoryObject's (TODO: could optimize it) */
         ref<Expr> res(0);
         for(unsigned i = 0; i != size; ++i) {
             unsigned idx = klee::Context::get().isLittleEndian() ?
@@ -493,12 +498,12 @@ ref<Expr> S2EExecutionState::readMemory8(uint64_t address,
     if(hostAddress == (uint64_t) -1)
         return ref<Expr>(0);
 
-    ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+    ObjectPair op = addressSpace.findObject(hostAddress & S2E_RAM_OBJECT_MASK);
 
     assert(op.first && op.first->isUserSpecified
-           && op.first->size == TARGET_PAGE_SIZE);
+           && op.first->size == S2E_RAM_OBJECT_SIZE);
 
-    return op.second->read8(hostAddress & ~TARGET_PAGE_MASK);
+    return op.second->read8(hostAddress & ~S2E_RAM_OBJECT_MASK);
 }
 
 bool S2EExecutionState::writeMemory(uint64_t address,
@@ -526,20 +531,20 @@ bool S2EExecutionState::writeMemory(uint64_t address,
         return writeMemory8(address, ZExtExpr::create(value, Expr::Int8),
                             addressType);
 
-    } else if((address & ~TARGET_PAGE_MASK) + (width / 8) <= TARGET_PAGE_SIZE) {
-        // All bytes belong to a single page
+    } else if((address & ~S2E_RAM_OBJECT_MASK) + (width / 8) <= TARGET_PAGE_SIZE) {
+        // All bytes belong to a single MemoryObject
 
         uint64_t hostAddress = getHostAddress(address, addressType);
         if(hostAddress == (uint64_t) -1)
             return false;
 
-        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+        ObjectPair op = addressSpace.findObject(hostAddress & S2E_RAM_OBJECT_MASK);
 
         assert(op.first && op.first->isUserSpecified
-               && op.first->size == TARGET_PAGE_SIZE);
+               && op.first->size == S2E_RAM_OBJECT_SIZE);
 
         ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
-        wos->write(hostAddress & ~TARGET_PAGE_MASK, value);
+        wos->write(hostAddress & ~S2E_RAM_OBJECT_MASK, value);
     } else {
         // Slowest case (TODO: could optimize it)
         unsigned numBytes = width / 8;
@@ -564,13 +569,13 @@ bool S2EExecutionState::writeMemory8(uint64_t address,
     if(hostAddress == (uint64_t) -1)
         return false;
 
-    ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+    ObjectPair op = addressSpace.findObject(hostAddress & S2E_RAM_OBJECT_MASK);
 
     assert(op.first && op.first->isUserSpecified
-           && op.first->size == TARGET_PAGE_SIZE);
+           && op.first->size == S2E_RAM_OBJECT_SIZE);
 
     ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
-    wos->write(hostAddress & ~TARGET_PAGE_MASK, value);
+    wos->write(hostAddress & ~S2E_RAM_OBJECT_MASK, value);
     return true;
 }
 
@@ -580,26 +585,26 @@ bool S2EExecutionState::writeMemory(uint64_t address,
     assert((width & 7) == 0);
     uint64_t size = width / 8;
 
-    uint64_t pageOffset = address & ~TARGET_PAGE_MASK;
-    if(pageOffset + size <= TARGET_PAGE_SIZE) {
-        /* Fast path: write belongs to one physical page */
+    uint64_t pageOffset = address & ~S2E_RAM_OBJECT_MASK;
+    if(pageOffset + size <= S2E_RAM_OBJECT_SIZE) {
+        /* Fast path: write belongs to one MemoryObject */
 
         uint64_t hostAddress = getHostAddress(address, addressType);
         if(hostAddress == (uint64_t) -1)
             return false;
 
-        ObjectPair op = addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
+        ObjectPair op = addressSpace.findObject(hostAddress & S2E_RAM_OBJECT_MASK);
 
         assert(op.first && op.first->isUserSpecified
-               && op.first->size == TARGET_PAGE_SIZE);
+               && op.first->size == S2E_RAM_OBJECT_SIZE);
 
         ObjectState *wos = addressSpace.getWriteable(op.first, op.second);
         for(uint64_t i = 0; i < width / 8; ++i)
             wos->write8(pageOffset + i, buf[i]);
 
     } else {
-        /* Access spawns multiple pages */
-        uint64_t size1 = TARGET_PAGE_SIZE - pageOffset;
+        /* Access spawns multiple MemoryObject's */
+        uint64_t size1 = S2E_RAM_OBJECT_SIZE - pageOffset;
         if(!writeMemory(address, buf, size1, addressType))
             return false;
         if(!writeMemory(address + size1, buf + size1, size - size1, addressType))

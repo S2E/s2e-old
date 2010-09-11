@@ -1832,17 +1832,29 @@ void tlb_flush(CPUState *env, int flush_global)
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
             env->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
+        }
+    }
+
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+    for(i = 0; i < CPU_S2E_TLB_SIZE; i++) {
+        int mmu_idx;
+        for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
             env->s2e_tlb_table[mmu_idx][i].objectState = 0;
         }
     }
+#endif
 
     memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
 
     tlb_flush_count++;
 }
 
+/*
+#error flush all corresponding s2e_tlb entries!
 static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry,
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
                                    S2ETLBEntry *s2e_tlb_entry,
+#endif
                                    target_ulong addr)
 {
     if (addr == (tlb_entry->addr_read &
@@ -1852,9 +1864,12 @@ static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry,
         addr == (tlb_entry->addr_code &
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
         *tlb_entry = s_cputlb_empty_entry;
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
         s2e_tlb_entry->objectState = 0;
+#endif
     }
 }
+*/
 
 void tlb_flush_page(CPUState *env, target_ulong addr)
 {
@@ -1871,8 +1886,24 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
     addr &= TARGET_PAGE_MASK;
     i = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-        tlb_flush_entry(&env->tlb_table[mmu_idx][i],
-                        &env->s2e_tlb_table[mmu_idx][i], addr);
+        //tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
+        CPUTLBEntry *tlb_entry = &env->tlb_table[mmu_idx][i];
+        if (addr == (tlb_entry->addr_read &
+                     (TARGET_PAGE_MASK | TLB_INVALID_MASK)) ||
+            addr == (tlb_entry->addr_write &
+                     (TARGET_PAGE_MASK | TLB_INVALID_MASK)) ||
+            addr == (tlb_entry->addr_code &
+                     (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
+            *tlb_entry = s_cputlb_empty_entry;
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+            S2ETLBEntry *s2e_tlb_entry = &env->s2e_tlb_table[mmu_idx][
+                                    i * CPU_S2E_TLB_SIZE / CPU_TLB_SIZE];
+            int j;
+            for(j = 0; j < CPU_S2E_TLB_SIZE/CPU_TLB_SIZE; ++j, ++s2e_tlb_entry) {
+                s2e_tlb_entry->objectState = 0;
+            }
+#endif
+        }
     }
 
     tlb_flush_jmp_cache(env, addr);
@@ -2136,9 +2167,10 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
         te->addr_write = -1;
     }
 
-#ifdef CONFIG_S2E
-   s2e_update_tlb_entry(g_s2e_state, &env->s2e_tlb_table[mmu_idx][index],
-                        addend, vaddr);
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+    s2e_update_tlb_entry(g_s2e_state,
+         &env->s2e_tlb_table[mmu_idx][index * CPU_S2E_TLB_SIZE / CPU_TLB_SIZE],
+         addend, vaddr);
 #endif
 
     return ret;

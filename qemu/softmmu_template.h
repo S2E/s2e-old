@@ -47,6 +47,7 @@
 #endif
 
 #ifdef CONFIG_S2E
+#include <s2e/s2e_config.h>
 
 #ifdef S2E_LLVM_LIB
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
@@ -60,15 +61,26 @@
 #define S2E_FORK_AND_CONCRETIZE(val) (val)
 #endif // S2E_LLVM_LIB
 
+#ifdef S2E_FORK_ON_SYMBOLIC_ADDRESS
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val) S2E_FORK_AND_CONCRETIZE(val)
+#else
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
+#endif
+
+#define S2E_RAM_OBJECT_DIFF (TARGET_PAGE_BITS - S2E_RAM_OBJECT_BITS)
+
 #else // CONFIG_S2E
 
 #define S2E_TRACE_MEMORY(...)
 #define S2E_FORK_AND_CONCRETIZE(val) (val)
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
+
+#define S2E_RAM_OBJECT_BITS TARGET_PAGE_BITS
+#define S2E_RAM_OBJECT_SIZE TARGET_PAGE_SIZE
+#define S2E_RAM_OBJECT_MASK TARGET_PAGE_MASK
+#define S2E_RAM_OBJECT_DIFF 0
 
 #endif // CONFIG_S2E
-
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
-//#define S2E_FORK_AND_CONCRETIZE_ADDR(val) S2E_FORK_AND_CONCRETIZE(val)
 
 static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         int mmu_idx,
@@ -112,7 +124,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                       int mmu_idx)
 {
     DATA_TYPE res;
-    int index;
+    int object_index, index;
     target_ulong tlb_addr;
     target_phys_addr_t addend;
     void *retaddr;
@@ -120,7 +132,8 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     /* test if there is match for unaligned or IO access */
     /* XXX: could done more in memory macro in a non portable way */
     addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
-    index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].ADDR_READ;
     if ((addr & TARGET_PAGE_MASK) == (tlb_addr & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
@@ -134,7 +147,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 
             S2E_TRACE_MEMORY(addr, addr+addend, res, 0, 1);
 
-        } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
+        } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
             /* slow unaligned access (it spans two pages or IO) */
         do_unaligned_access:
             retaddr = GETPC();
@@ -153,9 +166,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
 
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][index];
-            if(_s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
+            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
+            if(_s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
                 res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
             else
 #endif
@@ -183,12 +196,13 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                                                         void *retaddr)
 {
     DATA_TYPE res, res1, res2;
-    int index, shift;
+    int object_index, index, shift;
     target_phys_addr_t addend;
     target_ulong tlb_addr, addr1, addr2;
 
     addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
-    index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].ADDR_READ;
     if ((addr & TARGET_PAGE_MASK) == (tlb_addr & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
@@ -201,7 +215,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             res = glue(glue(io_read, SUFFIX), MMUSUFFIX)(addend, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+addend, res, 0, 1);
-        } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
+        } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
         do_unaligned_access:
             /* slow unaligned access (it spans two pages) */
             addr1 = addr & ~(DATA_SIZE - 1);
@@ -221,8 +235,8 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* unaligned/aligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
 
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][index];
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
+            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if(_s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
                 res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
             else
@@ -285,10 +299,11 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_phys_addr_t addend;
     target_ulong tlb_addr;
     void *retaddr;
-    int index;
+    int object_index, index;
 
     addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
-    index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].addr_write;
     if ((addr & TARGET_PAGE_MASK) == (tlb_addr & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
@@ -301,7 +316,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             glue(glue(io_write, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+addend, val, 1, 1);
-        } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
+        } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
         do_unaligned_access:
             retaddr = GETPC();
 #ifdef ALIGNED_ONLY
@@ -319,8 +334,8 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #endif
             addend = env->tlb_table[mmu_idx][index].addend;
 
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][index];
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
+            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
                 glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), val);
             else
@@ -349,9 +364,11 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 {
     target_phys_addr_t addend;
     target_ulong tlb_addr;
-    int index, i;
+    int object_index, index, i;
 
-    index = S2E_FORK_AND_CONCRETIZE((addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1));
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].addr_write;
     if ((addr & TARGET_PAGE_MASK) == (tlb_addr & (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
@@ -363,7 +380,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             glue(glue(io_write, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+addend, val, 1, 1);
-        } else if (((addr & ~TARGET_PAGE_MASK) + DATA_SIZE - 1) >= TARGET_PAGE_SIZE) {
+        } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
         do_unaligned_access:
             /* XXX: not efficient, but simple */
             /* Note: relies on the fact that tlb_fill() does not remove the
@@ -381,8 +398,8 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* aligned/unaligned access in the same page */
             addend = env->tlb_table[mmu_idx][index].addend;
 
-#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
-            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][index];
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
+            S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
             if((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
                 glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), val);
             else
@@ -400,6 +417,11 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 
 #endif /* !defined(SOFTMMU_CODE_ACCESS) */
 
+#ifndef CONFIG_S2E
+#undef S2E_RAM_OBJECT_BITS
+#undef S2E_RAM_OBJECT_SIZE
+#undef S2E_RAM_OBJECT_MASK
+#endif
 #undef S2E_FORK_AND_CONCRETIZE_ADDR
 #undef S2E_FORK_AND_CONCRETIZE
 #undef S2E_TRACE_MEMORY

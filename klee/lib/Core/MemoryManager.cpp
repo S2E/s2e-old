@@ -52,12 +52,14 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
 MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
                                            const llvm::Value *allocSite) {
 #ifndef NDEBUG
+#if 0
   for (objects_ty::iterator it = objects.begin(), ie = objects.end();
        it != ie; ++it) {
     MemoryObject *mo = *it;
     assert(!(address+size > mo->address && address < mo->address+mo->size) &&
            "allocated an overlapping object");
   }
+#endif
 #endif
 
   ++stats::allocations;

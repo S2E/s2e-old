@@ -31,6 +31,10 @@
 #include "qemu-queue.h"
 #include "targphys.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_config.h>
+#endif
+
 #ifndef TARGET_LONG_BITS
 #error TARGET_LONG_BITS must be defined before including this header
 #endif
@@ -106,10 +110,18 @@ typedef struct CPUTLBEntry {
                    sizeof(target_phys_addr_t))];
 } CPUTLBEntry;
 
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
 typedef struct S2ETLBEntry {
     void* objectState;
     uintptr_t addend;
 } S2ETLBEntry;
+// XXX: use TARGET_PAGE_SIZE here!!!
+#define CPU_S2E_TLB_SIZE (CPU_TLB_SIZE * 4096 / S2E_RAM_OBJECT_SIZE)
+#define _CPU_COMMON_S2E_TLB_TABLE \
+    S2ETLBEntry s2e_tlb_table[NB_MMU_MODES][CPU_S2E_TLB_SIZE];
+#else
+#define _CPU_COMMON_S2E_TLB_TABLE
+#endif
 
 #ifdef HOST_WORDS_BIGENDIAN
 typedef struct icount_decr_u16 {
@@ -158,7 +170,7 @@ typedef struct CPUWatchpoint {
     volatile sig_atomic_t exit_request;                                 \
     /* The meaning of the MMU modes is defined in the target code. */   \
     CPUTLBEntry tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];                  \
-    S2ETLBEntry s2e_tlb_table[NB_MMU_MODES][CPU_TLB_SIZE];              \
+    _CPU_COMMON_S2E_TLB_TABLE                                           \
     target_phys_addr_t iotlb[NB_MMU_MODES][CPU_TLB_SIZE];               \
     struct TranslationBlock *tb_jmp_cache[TB_JMP_CACHE_SIZE];           \
     /* buffer for temporaries in the code generator */                  \
