@@ -163,7 +163,7 @@ void PollingLoopDetector::onPollingInstruction(S2EExecutionState* state, uint64_
     if (plgState->isPolling(sourcePc, state->getPc())) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
                 " because of a polling loop" << std::endl;
-        s2e()->getExecutor()->terminateStateOnExit(*state);
+        s2e()->getExecutor()->terminateStateEarly(*state, "Polling loop");
     }
 }
 

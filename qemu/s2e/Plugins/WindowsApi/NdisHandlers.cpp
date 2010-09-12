@@ -318,6 +318,7 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
 
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
 
         /* Update each of the states */
         uint32_t retVal = 0;
@@ -325,7 +326,8 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
 
         retVal = 0xC0000001L;
         fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-    }
+
+     }
 }
 
 void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -344,6 +346,7 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
 
     ok &= readConcreteParameter(state, 0, &plgState->pStatus);
     ok &= readConcreteParameter(state, 1, &plgState->pConfigParam);
+    ok &= readConcreteParameter(state, 3, &plgState->pConfigString);
 
     if (!ok) {
         s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << std::endl;
@@ -381,6 +384,19 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
         return;
     }
 
+    UNICODE_STRING32 configStringUnicode;
+    ok &= state->readMemoryConcrete(plgState->pConfigString, &configStringUnicode, sizeof(configStringUnicode));
+    if (!ok || !pConfigParam) {
+        s2e()->getDebugStream() << "Could not read keyword UNICODE_STRING32" << Status << std::endl;
+        return;
+    }
+
+    std::string configString;
+    ok = state->readUnicodeString(configStringUnicode.Buffer, configString, configStringUnicode.Length);
+    if (!ok) {
+        s2e()->getDebugStream() << "Could not read keyword string" << Status << std::endl;
+    }
+
     //In all consistency models, inject symbolic value in the parameter that was read
     NDIS_CONFIGURATION_PARAMETER ConfigParam;
     ok = state->readMemoryConcrete(pConfigParam, &ConfigParam, sizeof(ConfigParam));
@@ -390,7 +406,7 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
             //Write the symbolic value there.
             uint32_t valueOffset = offsetof(NDIS_CONFIGURATION_PARAMETER, ParameterData);
             std::stringstream ss;
-            ss << __FUNCTION__ << "_value";
+            ss << __FUNCTION__ << "_" << configString << "_value";
             klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int32, ss.str());
             state->writeMemory(pConfigParam + valueOffset, val);
         }
@@ -403,7 +419,7 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
         //Fork with either success or failure
         //XXX: Since we cannot write to memory of inactive states, simply create a bunch of select statements
         std::stringstream ss;
-        ss << __FUNCTION__ << "_success";
+        ss << __FUNCTION__ << "_" << configString <<"_success";
         klee::ref<klee::Expr> succ = state->createSymbolicValue(klee::Expr::Bool, ss.str());
         klee::ref<klee::Expr> cond = klee::EqExpr::create(succ, klee::ConstantExpr::create(1, klee::Expr::Bool));
         klee::ref<klee::Expr> outcome =
@@ -479,18 +495,19 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
         klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
 
         /* Update each of the states */
         //First state succeeded
         uint32_t retVal = NDIS_STATUS_SUCCESS;
         fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
 
-
         //Second state: NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
         klee::ref<klee::Expr> cond2 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc001001E, klee::Expr::Int32));
         sp = s2e()->getExecutor()->fork(*ts, cond2, false);
         S2EExecutionState *ts_1 = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs_1 = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs_1 ? ts_1 : fs_1, state->getPc());
 
         retVal = NDIS_STATUS_RESOURCE_CONFLICT;
         fs_1->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
@@ -500,6 +517,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
         sp = s2e()->getExecutor()->fork(*ts_1, cond3, false);
         S2EExecutionState *ts_2 = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs_2 = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs_2 ? ts_2 : fs_2, state->getPc());
 
         retVal = NDIS_STATUS_RESOURCES;
         fs_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
@@ -554,6 +572,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
         klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
 
         /* Update each of the states */
         //First state succeeded
@@ -566,6 +585,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
         sp = s2e()->getExecutor()->fork(*ts, cond2, false);
         S2EExecutionState *ts_1 = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs_1 = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs_1 ? ts_1 : fs_1, state->getPc());
 
         retVal = NDIS_STATUS_RESOURCE_CONFLICT;
         fs_1->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
@@ -575,6 +595,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
         sp = s2e()->getExecutor()->fork(*ts_1, cond3, false);
         S2EExecutionState *ts_2 = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs_2 = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs_2 ? ts_2 : fs_2, state->getPc());
 
         retVal = NDIS_STATUS_RESOURCES;
         fs_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
@@ -838,7 +859,7 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 
     if (!NtSuccess(s2e(), state, eax)) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
-                " because EntryPoint failed with 0x" << std::hex << eax << std::endl;
+                " because InitializeHandler failed with 0x" << std::hex << eax << std::endl;
         s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler failed");
         return;
     }
@@ -884,7 +905,7 @@ void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
     //There is nothing more to execute, kill the state
-    s2e()->getExecutor()->terminateStateOnExit(*state);
+    s2e()->getExecutor()->terminateStateEarly(*state, "NdisHalt");
 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

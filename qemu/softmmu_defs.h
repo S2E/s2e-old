@@ -47,6 +47,20 @@ void REGPARM io_writel_mmu_s2e_trace(target_phys_addr_t physaddr, uint32_t val, 
 uint64_t REGPARM io_readq_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 void REGPARM io_writeq_mmu_s2e_trace(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
+uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr);
+int s2e_ismemfunc(void *f);
+
+void REGPARM io_write_chkb_mmu_s2e_trace(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
+void REGPARM io_write_chkw_mmu_s2e_trace(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
+void REGPARM io_write_chkl_mmu_s2e_trace(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
+void REGPARM io_write_chkq_mmu_s2e_trace(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
+
+void REGPARM io_write_chkb_mmu(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
+void REGPARM io_write_chkw_mmu(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
+void REGPARM io_write_chkl_mmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
+void REGPARM io_write_chkq_mmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
+
+
 uint8_t REGPARM __ldb_mmu_s2e_trace(target_ulong addr, int mmu_idx);
 void REGPARM __stb_mmu_s2e_trace(target_ulong addr, uint8_t val, int mmu_idx);
 uint16_t REGPARM __ldw_mmu_s2e_trace(target_ulong addr, int mmu_idx);

@@ -5841,7 +5841,7 @@ int main(int argc, char **argv, char **envp)
     g_s2e_state = s2e_create_initial_state(g_s2e);
 
     atexit(s2e_cleanup);
-    atexit(tcg_llvm_cleanup);
+    //atexit(tcg_llvm_cleanup);
 #endif
 
     /*

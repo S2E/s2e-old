@@ -54,6 +54,8 @@ void s2e_close_arg(void);
 
 
 void s2e_debug_print(const char *fmtstr, ...);
+void print_stacktrace(void);
+
 
 /*********************************/
 /* Functions from CorePlugin.cpp */

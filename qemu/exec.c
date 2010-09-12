@@ -2176,7 +2176,7 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     return ret;
 }
 
-void* qemu_get_phys_ram_ptr(target_phys_addr_t paddr)
+void* qemu_get_phys_ram_ptr(ram_addr_t paddr)
 {
     PhysPageDesc *p = phys_page_find(paddr >> TARGET_PAGE_BITS);
     if(!p)
@@ -2824,6 +2824,39 @@ static void notdirty_mem_writel(void *opaque, target_phys_addr_t ram_addr,
     if (dirty_flags == 0xff)
         tlb_set_dirty(cpu_single_env, cpu_single_env->mem_io_vaddr);
 }
+
+#ifdef CONFIG_S2E
+uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr)
+{
+    int dirty_flags;
+    dirty_flags = s2e_read_dirty_mask((uint64_t)&phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS]);
+
+    if (!(dirty_flags & CODE_DIRTY_FLAG)) {
+#if !defined(CONFIG_USER_ONLY)
+        tb_invalidate_phys_page_fast(ram_addr, 4);
+        dirty_flags = s2e_read_dirty_mask((uint64_t)&phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS]);
+#endif
+    }
+
+    dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
+
+    s2e_write_dirty_mask((uint64_t)&phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS], dirty_flags);
+
+    /* we remove the notdirty callback only if the code has been
+       flushed */
+    if (dirty_flags == 0xff)
+        tlb_set_dirty(cpu_single_env, cpu_single_env->mem_io_vaddr);
+
+    return (uintptr_t)qemu_get_ram_ptr(ram_addr);
+}
+
+int s2e_ismemfunc(void *f)
+{
+    return f == notdirty_mem_writeb || f == notdirty_mem_writew ||
+            f == notdirty_mem_writel;
+}
+
+#endif
 
 static CPUReadMemoryFunc * const error_mem_read[3] = {
     NULL, /* never used */

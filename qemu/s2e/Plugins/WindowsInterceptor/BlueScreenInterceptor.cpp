@@ -74,7 +74,7 @@ void BlueScreenInterceptor::onBsod(
 
 
 
-    s2e()->getExecutor()->terminateStateOnExit(*state);
+    s2e()->getExecutor()->terminateStateEarly(*state, "Killing because of BSOD");
 }
 
 }

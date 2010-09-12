@@ -256,12 +256,12 @@ void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool e
         return;
     }
 
-    //m_plugin->s2e()->getDebugStream() << "ESP AT RETURN 0x" << std::hex << esp <<
-    //        " plgstate=0x" << this << " EmitSignal=" << emitSignal <<  std::endl;
-
     if (m_returnDescriptors.empty()) {
         return;
     }
+
+    //m_plugin->s2e()->getDebugStream() << "ESP AT RETURN 0x" << std::hex << esp <<
+    //        " plgstate=0x" << this << " EmitSignal=" << emitSignal <<  std::endl;
 
     bool finished = true;
     do {

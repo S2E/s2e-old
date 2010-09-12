@@ -149,7 +149,7 @@ bool StateManager::killAllButCurrent()
         }
         it2 = it1;
         ++it2;
-        s2e()->getExecutor()->terminateStateOnExit(**it1);
+        s2e()->getExecutor()->terminateStateEarly(**it1, "StateManager, Kill all but current");
         it1 = it2;
     }
     return true;
@@ -183,7 +183,7 @@ bool StateManager::killAllButOneSuccessful(bool killCurrent)
                 s2e()->getDebugStream() << "Killing state  " << std::dec << (s2eState)->getID() << std::endl;
                 //XXX: the state will be lost
                 //m_executor->suspendState(*it);
-                s2e()->getExecutor()->terminateStateOnExit(**it);
+                s2e()->getExecutor()->terminateStateEarly(**it, "StateManager: Kill all but one successful");
             }else {
                 if (killCurrent) {
                     doKillCurrent = true;

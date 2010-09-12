@@ -13,6 +13,13 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include "config.h"
+
+#ifdef CONFIG_DARWIN
+#include <mach/mach.h>
+#include <mach/mach_traps.h>
+#endif
+
 namespace klee {
 namespace stats {
     Statistic translationBlocks("TranslationBlocks", "TBs");
@@ -31,6 +38,7 @@ namespace stats {
 using namespace klee;
 using namespace llvm;
 
+
 namespace s2e {
 
 /**
@@ -40,6 +48,20 @@ uint64_t S2EStatsTracker::getProcessMemoryUsage()
 {
 #ifdef _WIN32
 #error Implement memory usage detection for Windows
+#elif defined(CONFIG_DARWIN)
+    struct task_basic_info t_info;
+    mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
+
+    if (KERN_SUCCESS != task_info(mach_task_self(),
+                                  TASK_BASIC_INFO, (task_info_t)&t_info,
+                                  &t_info_count))
+    {
+        return -1;
+    }
+    // resident size is in t_info.resident_size;
+    //return t_info.virtual_size;
+    return t_info.resident_size;
+
 #else
     pid_t myPid = getpid();
     std::stringstream ss;

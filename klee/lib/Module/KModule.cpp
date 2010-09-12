@@ -481,6 +481,12 @@ KFunction* KModule::updateModuleWithFunction(llvm::Function *f)
 {
     assert(functionMap.find(f) == functionMap.end());
 
+    //We should make sure that the new functions have
+    //the correct invariants
+    //IntrinsicCleanerPass ip(*targetData, false);
+    //ip.runOnFunction(*f);
+
+
     KFunction *kf = new KFunction(f, this);
 
     /* TODO: update InstructionInfoTable here */

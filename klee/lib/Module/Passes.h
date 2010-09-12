@@ -68,6 +68,7 @@ public:
   ~IntrinsicCleanerPass() { delete IL; } 
   
   virtual bool runOnModule(llvm::Module &M);
+  virtual bool runOnFunction(llvm::Function &F);
 };
   
   // performs two transformations which make interpretation

@@ -306,7 +306,7 @@ uint64_t WindowsMonitor::GetDriverLoadPc() const
     switch(m_Version) {
     case SP2: assert(false && "Not implemented");
         //return eip >= 0x805A078C && eip <= 0x805A0796;
-    case SP3: return 0x004cc99a - 0x400000 + 0x804d7000;
+    case SP3: return 0x004cc99a - 0x400000 + 0x804d7000; //0x805A399A
     default: return 0;
     }
 

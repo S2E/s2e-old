@@ -138,6 +138,15 @@ bool IntrinsicCleanerPass::runOnModule(Module &M) {
   return dirty;
 }
 
+bool IntrinsicCleanerPass::runOnFunction(Function &F) {
+  bool dirty = false;
+
+    for (Function::iterator b = F.begin(), be = F.end(); b != be; ++b)
+      dirty |= runOnBasicBlock(*b);
+  return dirty;
+}
+
+
 bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b) { 
   bool dirty = false;
   

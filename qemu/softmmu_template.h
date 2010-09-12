@@ -290,6 +290,68 @@ inline void glue(glue(io_write, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
 #endif /* SHIFT > 2 */
 }
 
+inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+                                          DATA_TYPE val,
+                                          target_ulong addr,
+                                          void *retaddr)
+{
+    glue(glue(io_write, SUFFIX), MMUSUFFIX)(physaddr, val, addr, retaddr);
+}
+
+#else
+
+/**
+  * Only if compiling for LLVM.
+  * This function checks whether a write goes to a clean memory page.
+  * If yes, does the write directly.
+  * This avoids symbolic values flowing outside the LLVM code and killing the states.
+  */
+inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+                                          DATA_TYPE val,
+                                          target_ulong addr,
+                                          void *retaddr)
+{
+    int index;
+    void *p;
+    target_phys_addr_t oldphysaddr = physaddr;
+    index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
+    physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
+    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
+            && !can_do_io(env)) {
+        cpu_io_recompile(env, retaddr);
+    }
+
+    env->mem_io_vaddr = addr;
+    env->mem_io_pc = (uintptr_t)retaddr;
+#if SHIFT <= 2
+    p=io_mem_write[index][SHIFT];
+    if (s2e_ismemfunc(io_mem_write[index][SHIFT])) {
+        uintptr_t pa = s2e_notdirty_mem_write(physaddr);
+        glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(pa), val);
+        return;
+    }
+#else
+#ifdef TARGET_WORDS_BIGENDIAN
+    if (s2e_ismemfunc(io_mem_write[index][SHIFT])) {
+        uintptr_t pa = s2e_notdirty_mem_write(physaddr);
+        stl_raw((uint8_t *)(intptr_t)(pa), val>>32);
+        stl_raw((uint8_t *)(intptr_t)(pa+4), val);
+        return;
+    }
+#else
+    if (s2e_ismemfunc(io_mem_write[index][SHIFT])) {
+        uintptr_t pa = s2e_notdirty_mem_write(physaddr);
+        stl_raw((uint8_t *)(intptr_t)(pa), val);
+        stl_raw((uint8_t *)(intptr_t)(pa+4), val>>32);
+        return;
+    }
+#endif
+#endif /* SHIFT > 2 */
+
+    //By default, call the original io_write function, which is external
+    glue(glue(io_write, SUFFIX), MMUSUFFIX)(oldphysaddr, val, addr, retaddr);
+}
+
 #endif
 
 void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
@@ -313,7 +375,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 goto do_unaligned_access;
             retaddr = GETPC();
             addend = env->iotlb[mmu_idx][index];
-            glue(glue(io_write, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
+            glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+addend, val, 1, 1);
         } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
@@ -377,7 +439,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if ((addr & (DATA_SIZE - 1)) != 0)
                 goto do_unaligned_access;
             addend = env->iotlb[mmu_idx][index];
-            glue(glue(io_write, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
+            glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(addend, val, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+addend, val, 1, 1);
         } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {

@@ -43,6 +43,9 @@ S2EExecutionState::~S2EExecutionState()
     PluginStateMap::iterator it;
     g_s2e->getDebugStream() << "Deleting state " << std::dec <<
             m_stateID << " 0x" << std::hex << this << std::endl;
+
+    //print_stacktrace();
+
     for(it = m_PluginState.begin(); it != m_PluginState.end(); ++it) {
         g_s2e->getDebugStream() << "Deleting state info 0x" << std::hex << it->second << std::endl;
         delete it->second;

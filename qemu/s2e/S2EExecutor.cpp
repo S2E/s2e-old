@@ -433,6 +433,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(fputc)
     __DEFINE_EXT_FUNCTION(fwrite)
 
+
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
     __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
     __DEFINE_EXT_FUNCTION(cpu_x86_update_cr0)
@@ -479,6 +480,10 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
     __DEFINE_EXT_FUNCTION(s2e_is_port_symbolic)
 
+    __DEFINE_EXT_FUNCTION(s2e_ismemfunc)
+    __DEFINE_EXT_FUNCTION(s2e_notdirty_mem_write)
+    __DEFINE_EXT_FUNCTION(cpu_io_recompile)
+    __DEFINE_EXT_FUNCTION(can_do_io)
 
     __DEFINE_EXT_FUNCTION(ldub_phys)
     __DEFINE_EXT_FUNCTION(stb_phys)
@@ -1137,23 +1142,16 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         }catch(StateTerminatedException &) {
             m_s2e->getDebugStream() << "Attempted to kill current state, that's fine, we'll select another one." << std::endl;
         }
+        //The state manager can kill additional states, we must update the set of states,
+        //otherwise, the searcher might select killed states.
+        updateStates(state);
     }
+
 
     if(states.empty()) {
         m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
         exit(0);
     }
-
-    //XXX: Do not switch states if the current one has uncompleted asynchronous requests
-    //because QEMU does not save such requests as part of the snapshot.
-    //(how does QEMU properly suspends/resumes snapshots then?)
-    
-    //qemu_bh_poll(); //Try to flush as much as possible first
-    /*if (!qemu_bh_empty()) {
-	//XXX: If the current state is killed, we'd need to clear the queue manually
-	assert(states.find(state) != states.end());
-	return state;
-    }*/
 
     ExecutionState& newKleeState = searcher->selectState();
     assert(dynamic_cast<S2EExecutionState*>(&newKleeState));
@@ -1163,10 +1161,14 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     assert(states.find(newState) != states.end());
 
     if(newState != state) {
+        //XXX:For now, clear the asynchronous request queue, which is not saved as part of
+        //the snapshots by QEMU.
         qemu_bh_clear();
         doStateSwitch(state, newState);
     }
 
+    //We can't free the state immediately if it is the current state.
+    //Do it now.
     foreach(S2EExecutionState* s, m_deletedStates) {
         assert(s != newState);
         delete s;

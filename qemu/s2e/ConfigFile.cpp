@@ -411,11 +411,12 @@ int S2ELUAExecutionState::readParameter(lua_State *L)
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Reading parameter " << param
             << " from stack" << std::endl;
 
-    uint32_t val;
-    bool b = m_state->readMemoryConcrete(m_state->getSp() + (param+1) * sizeof(uint32_t), &val, sizeof(val));
+    uint32_t val=0;
+    uint32_t sp = m_state->getSp() + (param+1) * sizeof(uint32_t);
+    bool b = m_state->readMemoryConcrete(sp, &val, sizeof(val));
     if (!b) {
-        lua_pushstring(L, "readParameter: Could not read from memory");
-        lua_error(L);
+        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read parameter " << param <<
+                " at 0x"<< std::hex << sp << std::endl;
     }
 
     lua_pushnumber(L, val);        /* first result */
@@ -505,10 +506,16 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
 ///////////////////////////////////////////////////////
 void ConfigFile::luaError(const char *fmt, ...)
 {
-    fprintf(stderr, "ERROR: ");
     va_list v;
     va_start(v, fmt);
-    vfprintf(stderr, fmt, v);
+
+    if (g_s2e) {
+        char str[512];
+        vsnprintf(str, sizeof(str), fmt, v);
+        g_s2e->getMessagesStream() << "ERROR: " << str << std::endl;
+    }else {
+        vfprintf(stderr, fmt, v);
+    }
     va_end(v);
     lua_close(m_luaState);
     exit(1);
@@ -516,10 +523,16 @@ void ConfigFile::luaError(const char *fmt, ...)
 
 void ConfigFile::luaWarning(const char *fmt, ...)
 {
-    fprintf(stderr, "WARNING: ");
     va_list v;
     va_start(v, fmt);
-    vfprintf(stderr, fmt, v);
+
+    if (g_s2e) {
+        char str[512];
+        vsnprintf(str, sizeof(str), fmt, v);
+        g_s2e->getWarningsStream() << "WARNING: " << str << std::endl;
+    }else {
+        vfprintf(stderr, fmt, v);
+    }
     va_end(v);
 }
 
