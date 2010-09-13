@@ -52,6 +52,7 @@
 #ifdef CONFIG_ANDROID
 #ifdef WIN32
 #include <winsock2.h>
+#include <stdint.h>
 typedef int32_t socklen_t;
 #else
 #include <sys/socket.h>
