@@ -62,7 +62,7 @@ protected:
     S2EHandler* m_s2eHandler;
     S2EExecutor* m_s2eExecutor;
 
-    void initOutputDirectory(const std::string& outputDirectory);
+    void initOutputDirectory(const std::string& outputDirectory, int verbose);
     void initKleeOptions();
     void initExecutor();
     void initPlugins();
@@ -75,7 +75,8 @@ public:
     explicit S2E(int argc, char** argv,
                  TCGLLVMContext* tcgLLVMContext,
                  const std::string& configFileName,
-                 const std::string& outputDirectory);
+                 const std::string& outputDirectory,
+                 int verbose = 0);
     ~S2E();
 
     /*****************************/

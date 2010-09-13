@@ -4949,6 +4949,7 @@ int main(int argc, char **argv, char **envp)
     const char *s2e_config_file = NULL;
     const char *s2e_output_dir = NULL;
     int execute_always_klee = 0;
+    int s2e_verbose = 0;
 #endif
 
 #ifndef _WIN32
@@ -5811,6 +5812,10 @@ int main(int argc, char **argv, char **envp)
 #ifdef CONFIG_S2E
             case QEMU_OPTION_always_klee:
                 execute_always_klee = 1;
+                break;
+            case QEMU_OPTION_s2e_verbose:
+                s2e_verbose = 1;
+                break;
 #endif
             }
         }
@@ -5836,7 +5841,8 @@ int main(int argc, char **argv, char **envp)
                         "using the default (empty) file\n");
     }
     g_s2e = s2e_initialize(argc, argv, tcg_llvm_ctx,
-                           s2e_config_file, s2e_output_dir);
+                           s2e_config_file, s2e_output_dir,
+                           s2e_verbose);
 
     g_s2e_state = s2e_create_initial_state(g_s2e);
 

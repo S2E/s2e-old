@@ -1982,6 +1982,8 @@ DEF("writeconfig", HAS_ARG, QEMU_OPTION_writeconfig,
 
 #if defined(CONFIG_LLVM)
 #if defined(CONFIG_S2E)
+DEF("s2e-verbose", 0, QEMU_OPTION_s2e_verbose,
+    "-s2e-verbose    show more information during execution\n")
 DEF("always-klee", 0, QEMU_OPTION_always_klee,
     "-always-klee    execute everything using KLEE interpreter\n")
 #else

@@ -312,7 +312,6 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
                                           void *retaddr)
 {
     int index;
-    void *p;
     target_phys_addr_t oldphysaddr = physaddr;
     index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
@@ -324,7 +323,6 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
     env->mem_io_vaddr = addr;
     env->mem_io_pc = (uintptr_t)retaddr;
 #if SHIFT <= 2
-    p=io_mem_write[index][SHIFT];
     if (s2e_ismemfunc(io_mem_write[index][SHIFT])) {
         uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         glue(glue(st, SUFFIX), _raw)((uint8_t *)(intptr_t)(pa), val);

@@ -162,13 +162,37 @@ public:
     }
 };
 
+class HighlightStreamBuf : public streambuf
+{
+    streambuf* m_parentBuf;
+public:
+    HighlightStreamBuf(streambuf* master): m_parentBuf(master) {}
+
+    streamsize xsputn(const char* s, streamsize n) {
+        m_parentBuf->sputn("\033[31m", 5);
+        streamsize res = m_parentBuf->sputn(s, n);
+        m_parentBuf->sputn("\033[0m", 4);
+        return res;
+    }
+    int overflow(int c = EOF) {
+        m_parentBuf->sputn("\033[31m", 5);
+        m_parentBuf->sputc(c);
+        m_parentBuf->sputn("\033[0m", 4);
+        return 1;
+    }
+    int sync() {
+        return m_parentBuf->pubsync();
+    }
+};
+
 S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
-    const std::string &configFileName, const std::string &outputDirectory)
+    const std::string &configFileName, const std::string &outputDirectory,
+    int verbose)
         : m_tcgLLVMContext(tcgLLVMContext)
 {
     /* Open output directory. Do it at the very begining so that
        other init* functions can use it. */
-    initOutputDirectory(outputDirectory);
+    initOutputDirectory(outputDirectory, verbose);
 
     /* Copy the config file into the output directory */
     {
@@ -293,7 +317,7 @@ std::ostream* S2E::openOutputFile(const std::string &fileName)
     return f;
 }
 
-void S2E::initOutputDirectory(const string& outputDirectory)
+void S2E::initOutputDirectory(const string& outputDirectory, int verbose)
 {
     if (outputDirectory.empty()) {
         llvm::sys::Path cwd(".");
@@ -351,26 +375,34 @@ void S2E::initOutputDirectory(const string& outputDirectory)
 
     m_debugFile = openOutputFile("debug.txt");
     m_debugFile->setf(ios_base::unitbuf);
+    streambuf* debugFileBuf = m_debugFile->rdbuf();
 
     m_messagesFile = openOutputFile("messages.txt");
     m_messagesFile->setf(ios_base::unitbuf);
-
-    m_messagesStreamBuf = new TeeStreamBuf(m_messagesFile->rdbuf());
-    static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(
-                                            m_debugFile->rdbuf());
-    static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(
-                                            cerr.rdbuf());
-    m_messagesFile->rdbuf(m_messagesStreamBuf);
-    m_messagesFile->setf(ios_base::unitbuf);
+    streambuf* messagesFileBuf = m_messagesFile->rdbuf();
 
     m_warningsFile = openOutputFile("warnings.txt");
     m_warningsFile->setf(ios_base::unitbuf);
+    streambuf* warningsFileBuf = m_warningsFile->rdbuf();
 
-    m_warningsStreamBuf = new TeeStreamBuf(m_warningsFile->rdbuf());
-    static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
-                                            m_messagesFile->rdbuf());
-    //static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
-    //                                        cerr.rdbuf());
+    // Messages appear in messages.txt, debug.txt and on stdout
+    m_messagesStreamBuf = new TeeStreamBuf(messagesFileBuf);
+    static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(debugFileBuf);
+    if(verbose)
+        static_cast<TeeStreamBuf*>(m_messagesStreamBuf)->addParentBuf(cerr.rdbuf());
+    m_messagesFile->rdbuf(m_messagesStreamBuf);
+    m_messagesFile->setf(ios_base::unitbuf);
+
+    // Warnings appear in warnings.txt, messages.txt, debug.txt
+    // and on stderr in red color
+    m_warningsStreamBuf = new TeeStreamBuf(warningsFileBuf);
+    static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(messagesFileBuf);
+    static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(debugFileBuf);
+    if(verbose)
+        static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(
+                          new HighlightStreamBuf(cerr.rdbuf()));
+    else
+        static_cast<TeeStreamBuf*>(m_warningsStreamBuf)->addParentBuf(cerr.rdbuf());
     m_warningsFile->rdbuf(m_warningsStreamBuf);
     m_warningsFile->setf(ios_base::unitbuf);
 
@@ -513,11 +545,13 @@ S2E* g_s2e = NULL;
 
 S2E* s2e_initialize(int argc, char** argv,
             TCGLLVMContext* tcgLLVMContext,
-            const char* s2e_config_file,  const char* s2e_output_dir)
+            const char* s2e_config_file,  const char* s2e_output_dir,
+            int verbose)
 {
     return new S2E(argc, argv, tcgLLVMContext,
                    s2e_config_file ? s2e_config_file : "",
-                   s2e_output_dir  ? s2e_output_dir  : "");
+                   s2e_output_dir  ? s2e_output_dir  : "",
+                   verbose);
 }
 
 void s2e_close(S2E *s2e)
