@@ -256,6 +256,7 @@ int cpu_gen_llvm(CPUState *env, TranslationBlock *tb)
     tcg_func_start(s);
     gen_intermediate_code_pc(env, tb);
     tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
+    s2e_set_tb_function(g_s2e, tb);
 
     if(qemu_loglevel_mask(CPU_LOG_LLVM_ASM) && tb->llvm_tc_ptr) {
         ptrdiff_t size = tb->llvm_tc_end - tb->llvm_tc_ptr;

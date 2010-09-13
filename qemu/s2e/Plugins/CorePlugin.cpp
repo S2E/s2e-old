@@ -53,28 +53,6 @@ void CorePlugin::initialize()
 /******************************/
 /* Functions called from QEMU */
 
-void s2e_tb_alloc(TranslationBlock *tb)
-{
-    tb->s2e_tb = new S2ETranslationBlock;
-
-    /* Push one copy of a signal to use it as a cache */
-    tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
-
-    tb->s2e_tb_next[0] = 0;
-    tb->s2e_tb_next[1] = 0;
-}
-
-void s2e_tb_free(TranslationBlock *tb)
-{
-//    assert(0 && "NOT IMPLEMENTED");
-    if(tb->s2e_tb) {
-        foreach(ExecutionSignal* s, tb->s2e_tb->executionSignals) {
-            delete s;
-        }
-        delete tb->s2e_tb;
-    }
-}
-
 void s2e_tcg_execution_handler(void* signal, uint64_t pc)
 {
     try {
@@ -147,7 +125,8 @@ void s2e_on_translate_block_start(
 {
     assert(state->isActive());
 
-    ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
+    ExecutionSignal *signal = static_cast<ExecutionSignal*>(
+                                    tb->s2e_tb->executionSignals.back());
     assert(signal->empty());
 
     try {
@@ -170,7 +149,8 @@ void s2e_on_translate_block_end(
 {
     assert(state->isActive());
 
-    ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
+    ExecutionSignal *signal = static_cast<ExecutionSignal*>(
+                                    tb->s2e_tb->executionSignals.back());
     assert(signal->empty());
 
     try {
@@ -195,7 +175,8 @@ void s2e_on_translate_instruction_start(
 {
     assert(state->isActive());
 
-    ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
+    ExecutionSignal *signal = static_cast<ExecutionSignal*>(
+                                    tb->s2e_tb->executionSignals.back());
     assert(signal->empty());
 
     try {
@@ -217,7 +198,8 @@ void s2e_on_translate_jump_start(
 {
     assert(state->isActive());
 
-    ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
+    ExecutionSignal *signal = static_cast<ExecutionSignal*>(
+                                    tb->s2e_tb->executionSignals.back());
     assert(signal->empty());
 
     try {
@@ -238,7 +220,8 @@ void s2e_on_translate_instruction_end(
 {
     assert(state->isActive());
 
-    ExecutionSignal *signal = tb->s2e_tb->executionSignals.back();
+    ExecutionSignal *signal = static_cast<ExecutionSignal*>(
+                                    tb->s2e_tb->executionSignals.back());
     assert(signal->empty());
 
     try {

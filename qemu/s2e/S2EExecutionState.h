@@ -20,6 +20,7 @@ namespace s2e {
 class Plugin;
 class PluginState;
 class S2EDeviceState;
+struct S2ETranslationBlock;
 
 //typedef std::tr1::unordered_map<const Plugin*, PluginState*> PluginStateMap;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
@@ -68,6 +69,8 @@ protected:
     /* The following structure is used to store QEMU time accounting
        variables while the state is inactive */
     TimersState* m_timersState;
+
+    S2ETranslationBlock* m_lastS2ETb;
 
     ExecutionState* clone();
     void addressSpaceChange(const klee::MemoryObject *mo,

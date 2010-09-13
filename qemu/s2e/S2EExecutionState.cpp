@@ -32,7 +32,8 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_symbexEnabled(false), m_startSymbexAtPC((uint64_t) -1),
         m_active(true), m_runningConcrete(true),
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL),
-        m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL)
+        m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
+        m_lastS2ETb(NULL)
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
@@ -40,6 +41,8 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
 
 S2EExecutionState::~S2EExecutionState()
 {
+    assert(m_lastS2ETb == NULL);
+
     PluginStateMap::iterator it;
     g_s2e->getDebugStream() << "Deleting state " << std::dec <<
             m_stateID << " 0x" << std::hex << this << std::endl;
@@ -115,6 +118,9 @@ ExecutionState* S2EExecutionState::clone()
 
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->addressSpace.state = ret;
+
+    if(m_lastS2ETb)
+        m_lastS2ETb->refCount += 1;
 
     ret->m_deviceState = m_deviceState->clone();
     ret->m_stateID = s_lastStateID++;

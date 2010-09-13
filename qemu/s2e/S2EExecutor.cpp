@@ -78,7 +78,7 @@ using namespace klee;
 
 extern "C" {
     // XXX
-    void* g_s2e_exec_ret_addr = 0;
+    //void* g_s2e_exec_ret_addr = 0;
 }
 
 
@@ -99,7 +99,16 @@ namespace {
             cl::desc("How many concrete states to fork from symbolic values"),
             cl::init(256));
 
+    cl::opt<bool>
+    FlushTBsOnStateSwitch("flush-tbs-on-state-switch",
+            cl::desc("Flush translation blocks when switching states -"
+                     " disabling leads to faster but incorrect execution"),
+            cl::init(true));
 
+    cl::opt<bool>
+    KeepLLVMFunctions("keep-llvm-functions",
+            cl::desc("Never delete generated LLVM functions"),
+            cl::init(false));
 }
 
 static bool S2EDebugInstructions = false;
@@ -558,6 +567,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
 S2EExecutor::~S2EExecutor()
 {
+    tb_flush(env); // release references to TB functions
     if(statsTracker)
         statsTracker->done();
 }
@@ -612,7 +622,7 @@ S2EExecutionState* S2EExecutor::createInitialState()
     __DEFINE_EXT_OBJECT(env)
     __DEFINE_EXT_OBJECT(g_s2e)
     __DEFINE_EXT_OBJECT(g_s2e_state)
-    __DEFINE_EXT_OBJECT(g_s2e_exec_ret_addr)
+    //__DEFINE_EXT_OBJECT(g_s2e_exec_ret_addr)
     __DEFINE_EXT_OBJECT(io_mem_read)
     __DEFINE_EXT_OBJECT(io_mem_write)
     __DEFINE_EXT_OBJECT(io_mem_opaque)
@@ -1128,6 +1138,9 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     newState->getDeviceState()->restoreDeviceState();
     //copyOutConcretes(*newState);
 
+    if(FlushTBsOnStateSwitch)
+        tb_flush(env);
+
     cpu_enable_ticks();
     //m_s2e->getCorePlugin()->onStateSwitch.emit(oldState, newState);
 }
@@ -1172,6 +1185,8 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     //Do it now.
     foreach(S2EExecutionState* s, m_deletedStates) {
         assert(s != newState);
+        unrefS2ETb(s->m_lastS2ETb);
+        s->m_lastS2ETb = NULL;
         delete s;
     }
     m_deletedStates.clear();
@@ -1340,7 +1355,9 @@ void S2EExecutor::finalizeState(S2EExecutionState *state)
     }
 
     /* Information for GETPC() macro */
-    g_s2e_exec_ret_addr = state->getTb()->tc_ptr;
+    /* XXX: tc_ptr could be already freed at this moment */
+    /*      however, GETPC is not used in S2E anyway */
+    //g_s2e_exec_ret_addr = 0; //state->getTb()->tc_ptr;
 
     while(state->stack.size() != 1) {
         executeOneInstruction(state);
@@ -1360,11 +1377,6 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     tb_function_args[0] = env;
     tb_function_args[1] = 0;
     tb_function_args[2] = 0;
-
-
-
-    //XXX: hack to clean interrupted translation blocks (that forked)
-    //cleanupTranslationBlock(state, tb);
 
     assert(state->m_active && !state->m_runningConcrete);
     assert(state->stack.size() == 1);
@@ -1387,13 +1399,19 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
             assert(tb->llvm_function);
         }
 
+        if(tb->s2e_tb != state->m_lastS2ETb) {
+            unrefS2ETb(state->m_lastS2ETb);
+            state->m_lastS2ETb = tb->s2e_tb;
+            state->m_lastS2ETb->refCount += 1;
+        }
+
         /* Prepare function execution */
         prepareFunctionExecution(state,
                 tb->llvm_function, std::vector<ref<Expr> >(1,
                     Expr::createPointer((uint64_t) tb_function_args)));
 
         /* Information for GETPC() macro */
-        g_s2e_exec_ret_addr = tb->tc_ptr;
+        //g_s2e_exec_ret_addr = tb->tc_ptr;
 
         /* Execute */
         while(state->stack.size() != 1) {
@@ -1425,13 +1443,13 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
                     tb = next_tb;
                     env->s2e_current_tb = tb;
-                    g_s2e_exec_ret_addr = tb->tc_ptr;
+                    //g_s2e_exec_ret_addr = tb->tc_ptr;
 
                     /* assert that blocking works */
 #ifdef _WIN32
                     if (old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] != tb) {
                         env->s2e_current_tb = old_tb;
-                        g_s2e_exec_ret_addr = old_tb->tc_ptr;
+                        //g_s2e_exec_ret_addr = old_tb->tc_ptr;
                     }else {
                         cleanupTranslationBlock(state, tb);
                         break;
@@ -1458,7 +1476,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
     } while(tcg_llvm_runtime.goto_tb != 0xff);
 
-    g_s2e_exec_ret_addr = 0;
+    //g_s2e_exec_ret_addr = 0;
 
     /* Get return value */
     ref<Expr> resExpr =
@@ -1653,7 +1671,7 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         return executeTranslationBlockKlee(state, tb);
 
     } else {
-        g_s2e_exec_ret_addr = 0;
+        //g_s2e_exec_ret_addr = 0;
         if(!state->m_runningConcrete)
             switchToConcrete(state);
 
@@ -1669,7 +1687,7 @@ void S2EExecutor::cleanupTranslationBlock(
 {
     assert(state->m_active);
 
-    g_s2e_exec_ret_addr = 0;
+    //g_s2e_exec_ret_addr = 0;
 
     while(state->stack.size() != 1)
         state->popFrame();
@@ -1981,8 +1999,16 @@ bool S2EExecutor::resumeState(S2EExecutionState *state)
 }
 
 
-
-
+void S2EExecutor::unrefS2ETb(S2ETranslationBlock* s2e_tb)
+{
+    if(s2e_tb && 0 == --s2e_tb->refCount) {
+        if(s2e_tb->llvm_function && !KeepLLVMFunctions)
+            kmodule->removeFunction(s2e_tb->llvm_function);
+        foreach(void* s, s2e_tb->executionSignals) {
+            delete static_cast<ExecutionSignal*>(s);
+        }
+    }
+}
 
 } // namespace s2e
 
@@ -2195,6 +2221,29 @@ void s2e_update_tlb_entry(S2EExecutionState* state,
         }
     }
 #endif
+}
+
+void s2e_tb_alloc(S2E*, TranslationBlock *tb)
+{
+    tb->s2e_tb = new S2ETranslationBlock;
+    tb->s2e_tb->llvm_function = NULL;
+    tb->s2e_tb->refCount = 1;
+
+    /* Push one copy of a signal to use it as a cache */
+    tb->s2e_tb->executionSignals.push_back(new s2e::ExecutionSignal);
+
+    tb->s2e_tb_next[0] = 0;
+    tb->s2e_tb_next[1] = 0;
+}
+
+void s2e_set_tb_function(S2E*, TranslationBlock *tb)
+{
+    tb->s2e_tb->llvm_function = tb->llvm_function;
+}
+
+void s2e_tb_free(S2E* s2e, TranslationBlock *tb)
+{
+    s2e->getExecutor()->unrefS2ETb(tb->s2e_tb);
 }
 
 #ifdef S2E_DEBUG_MEMORY

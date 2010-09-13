@@ -61,12 +61,6 @@ void print_stacktrace(void);
 /*********************************/
 /* Functions from CorePlugin.cpp */
 
-/** Allocate S2E parts of the tanslation block. Called from tb_alloc() */
-void s2e_tb_alloc(struct TranslationBlock *tb);
-
-/** Free S2E parts of the translation block. Called from tb_flush() and tb_free() */
-void s2e_tb_free(struct TranslationBlock *tb);
-
 void s2e_tcg_execution_handler(void* signal, uint64_t pc);
 void s2e_tcg_custom_instruction_handler(uint64_t arg);
 
@@ -132,7 +126,7 @@ void s2e_on_tlb_miss(struct S2E *s2e, struct S2EExecutionState* state, uint64_t 
 
 /** Variable that holds the latest return address when
     executiong helper code from KLEE */
-extern void* g_s2e_exec_ret_addr;
+//extern void* g_s2e_exec_ret_addr;
 
 /** Create initial S2E execution state */
 struct S2EExecutionState* s2e_create_initial_state(struct S2E *s2e);
@@ -195,6 +189,16 @@ void s2e_read_ram_concrete_check(struct S2E* s2e,
 
 struct S2EExecutionState* s2e_select_next_state(
         struct S2E* s2e, struct S2EExecutionState* state);
+
+/** Allocate S2E parts of the tanslation block. Called from tb_alloc() */
+void s2e_tb_alloc(struct S2E* s2e, struct TranslationBlock *tb);
+
+/** Free S2E parts of the translation block. Called from tb_flush() and tb_free() */
+void s2e_tb_free(struct S2E* s2e, struct TranslationBlock *tb);
+
+/** Called after LLVM code generation
+    in order to update tb->s2e_tb->llvm_function */
+void s2e_set_tb_function(struct S2E* s2e, struct TranslationBlock *tb);
 
 uintptr_t s2e_qemu_tb_exec(
         struct S2E* s2e,

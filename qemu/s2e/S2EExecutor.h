@@ -12,6 +12,7 @@ namespace s2e {
 
 class S2E;
 class S2EExecutionState;
+class S2ETranslationBlock;
 
 class CpuExitException
 {
@@ -204,6 +205,8 @@ public:
         m_forceConcretizations = true;
     }
 
+    void unrefS2ETb(S2ETranslationBlock* s2e_tb);
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,
@@ -276,6 +279,24 @@ protected:
     virtual void terminateState(klee::ExecutionState &state);
 
     void setupTimersHandler();
+};
+
+struct S2ETranslationBlock
+{
+    /** Reference counter. S2ETranslationBlock should not be freed
+        until all LLVM functions are completely executed. This reference
+        counter controls it. */
+    unsigned refCount;
+
+    /** A copy of TranslationBlock::llvm_function that can be used
+        even after TranslationBlock is destroyed */
+    llvm::Function* llvm_function;
+
+    /** A list of all instruction execution signals associated with
+        this basic block. All signals in the list will be deleted
+        when this translation block will be flushed.
+        XXX: how could we avoid using void* here ? */
+    std::vector<void*> executionSignals;
 };
 
 } // namespace s2e

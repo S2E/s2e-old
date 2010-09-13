@@ -144,14 +144,6 @@ public:
 
 };
 
-struct S2ETranslationBlock
-{
-    /** A list of all instruction execution signals associated with
-        this basic block. All signals in the list will be deleted
-        when this translation block will be flushed */
-    std::vector<ExecutionSignal*> executionSignals;
-};
-
 } // namespace s2e
 
 #endif // S2E_CORE_PLUGIN_H

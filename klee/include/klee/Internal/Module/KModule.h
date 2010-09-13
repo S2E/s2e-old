@@ -116,6 +116,9 @@ namespace klee {
 
     /// Update shadow structures for newly added function
     KFunction* updateModuleWithFunction(llvm::Function *f);
+
+    /// Remove function from KModule and call removeFromParend on it
+    void removeFunction(llvm::Function *f);
   };
 } // End klee namespace
 
