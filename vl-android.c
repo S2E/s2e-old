@@ -526,20 +526,6 @@ void hw_error(const char *fmt, ...)
     abort();
 }
  
-static void set_proc_name(const char *s)
-{
-#if defined(__linux__) && defined(PR_SET_NAME)
-    char name[16];
-    if (!s)
-        return;
-    name[sizeof(name) - 1] = 0;
-    strncpy(name, s, sizeof(name));
-    /* Could rewrite argv[0] too, but that's a bit more complicated.
-       This simple way is enough for `top'. */
-    prctl(PR_SET_NAME, name);
-#endif    	
-}
- 
 /***************/
 /* ballooning */
 
@@ -1342,6 +1328,7 @@ int drive_init(struct drive_opt *arg, int snapshot, void *opaque)
     case IF_VIRTIO:
         break;
     case IF_COUNT:
+    case IF_NONE:
         abort();
     }
     if (!file[0])
@@ -2480,6 +2467,7 @@ static void qemu_system_vmstop_request(int reason)
 #ifndef _WIN32
 static int io_thread_fd = -1;
 
+#if 0
 static void qemu_event_increment(void)
 {
     static const char byte = 0;
@@ -2489,6 +2477,7 @@ static void qemu_event_increment(void)
 
     write(io_thread_fd, &byte, sizeof(byte));
 }
+#endif
 
 static void qemu_event_read(void *opaque)
 {
@@ -2802,7 +2791,7 @@ static void qemu_signal_lock(unsigned int msecs)
     qemu_mutex_unlock(&qemu_fair_mutex);
 }
 
-static void qemu_mutex_lock_iothread(void)
+void qemu_mutex_lock_iothread(void)
 {
     if (kvm_enabled()) {
         qemu_mutex_lock(&qemu_fair_mutex);
@@ -2812,7 +2801,7 @@ static void qemu_mutex_lock_iothread(void)
         qemu_signal_lock(100);
 }
 
-static void qemu_mutex_unlock_iothread(void)
+void qemu_mutex_unlock_iothread(void)
 {
     qemu_mutex_unlock(&qemu_global_mutex);
 }
@@ -3167,6 +3156,7 @@ static void tcg_cpu_exec(void)
     }
 }
 
+#if 0
 static int cpu_has_work(CPUState *env)
 {
     if (env->stop)
@@ -3189,7 +3179,7 @@ static int tcg_has_work(void)
             return 1;
     return 0;
 }
-
+#endif
 
 static int vm_can_run(void)
 {
