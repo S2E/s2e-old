@@ -51,6 +51,8 @@ public:
 
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
 
+    static bool ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s);
+
     enum Consistency {
         STRICT, LOCAL, OVERAPPROX, OVERCONSTR
     };
@@ -83,6 +85,9 @@ private:
 
     static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
     static bool writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val);
+
+    void TraceCall(S2EExecutionState* state, FunctionMonitorState *fns);
+    void TraceRet(S2EExecutionState* state);
 
     DECLARE_NDIS_ENTRY_POINT(entryPoint);
 

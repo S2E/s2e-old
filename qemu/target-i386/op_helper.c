@@ -30,6 +30,8 @@ void klee_make_symbolic(void *addr, unsigned nbytes, const char *name);
 uint8_t klee_int8(const char *name);
 uint16_t klee_int16(const char *name);
 uint32_t klee_int32(const char *name);
+void uint32_to_string(uint32_t n, char *str);
+void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc);
 
 uint8_t klee_int8(const char *name) {
     uint8_t ret;
@@ -48,6 +50,38 @@ uint32_t klee_int32(const char *name) {
     klee_make_symbolic(&ret, sizeof(ret), name);
     return ret;
 }
+
+//Helpers to avoid relying on sprintf that does not work properly
+static char hextable[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
+'c', 'd', 'e', 'f'};
+void uint32_to_string(uint32_t n, char *str)
+{
+  str[0] = hextable[(n >> 28)];
+  str[1] = hextable[((n >> 24) & 0xF)];
+  str[2] = hextable[((n >> 20) & 0xF)];
+  str[3] = hextable[((n >> 16) & 0xF)];
+  str[4] = hextable[((n >> 12) & 0xF)];
+  str[5] = hextable[((n >> 8) & 0xF)];
+  str[6] = hextable[((n >> 4) & 0xF)];
+  str[7] = hextable[((n >> 0) & 0xF)];
+}
+
+void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc)
+{
+    while(*prefix) {
+        *buf = *prefix;
+        ++buf; ++prefix;
+    }
+
+    uint32_to_string(port, buf);
+    buf+=8;
+    *buf = '_';
+    buf++;
+    uint32_to_string(pc, buf);
+    buf+=8;
+    *buf = 0;
+}
+
 #endif
 
 #ifndef S2E_LLVM_LIB
@@ -613,7 +647,9 @@ void helper_outb(uint32_t port, uint32_t data)
 target_ulong helper_inb(uint32_t port)
 {
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
-        uint8_t res = klee_int8("inb");
+        char label[64];
+        trace_port(label, "inb", port, env->eip);
+        uint8_t res = klee_int8(label);
         tcg_llvm_trace_port_access(port, res, 8, 0);
         return res;
     }
@@ -633,7 +669,9 @@ void helper_outw(uint32_t port, uint32_t data)
 target_ulong helper_inw(uint32_t port)
 {
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
-        uint16_t res = klee_int16("inw");
+        char label[64];
+        trace_port(label, "inw", port, env->eip);
+        uint16_t res = klee_int16(label);
         tcg_llvm_trace_port_access(port, res, 16, 0);
         return res;
     }
@@ -653,7 +691,9 @@ void helper_outl(uint32_t port, uint32_t data)
 target_ulong helper_inl(uint32_t port)
 {
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
-        uint32_t res = klee_int32("inl");
+        char label[64];
+        trace_port(label, "inl", port, env->eip);
+        uint32_t res = klee_int32(label);
         tcg_llvm_trace_port_access(port, res, 32, 0);
         return res;
     }

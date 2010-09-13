@@ -172,9 +172,48 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ntoskrnl.exe", GetSystemUpTime);
     //REGISTER_IMPORT(I, "hal.dll", KeStallExecutionProcessor);
 
+    //m_functionMonitor->getCallSignal(state, -1, -1)->connect(sigc::mem_fun(*this,
+    //     &NdisHandlers::TraceCall));
 }
 
+//////////////////////////////////////////////
+void NdisHandlers::TraceCall(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    std::ostream &os = s2e()->getDebugStream(state);
 
+    const ModuleDescriptor *md = m_detector->getModule(state, state->getPc(), false);
+
+    os << __FUNCTION__ << " ESP=0x" << std::hex << state->readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32)
+            << " EIP=0x" << state->getPc();
+
+    if (md) {
+        os << " " << md->Name << " 0x" << md->ToNativeBase(state->getPc()) << " +" <<
+                md->ToRelative(state->getPc());
+    }
+
+    os << std::endl;
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::TraceRet)
+}
+
+void NdisHandlers::TraceRet(S2EExecutionState* state)
+{
+    std::ostream &os = s2e()->getDebugStream(state);
+
+    const ModuleDescriptor *md = m_detector->getModule(state, state->getPc(), false);
+
+    os << __FUNCTION__ << " ESP=0x" << std::hex << state->readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32)
+            << " EIP=0x" << state->getPc();
+
+    if (md) {
+        os << " " << md->Name << " 0x" << md->ToNativeBase(state->getPc()) << " +" <<
+                md->ToRelative(state->getPc());
+    }
+
+    os << std::endl;
+}
+
+//////////////////////////////////////////////
 bool NdisHandlers::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr)
 {
     bool isTrue;
@@ -184,6 +223,26 @@ bool NdisHandlers::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Exp
         return isTrue;
     }
     return false;
+}
+
+//Address is a pointer to a UNICODE_STRING32 structure
+bool NdisHandlers::ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s)
+{
+    UNICODE_STRING32 configStringUnicode;
+    bool ok;
+
+    ok = state->readMemoryConcrete(address, &configStringUnicode, sizeof(configStringUnicode));
+    if (!ok) {
+        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32" << std::endl;
+        return false;
+    }
+
+    ok = state->readUnicodeString(configStringUnicode.Buffer, s, configStringUnicode.Length);
+    if (!ok) {
+        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32"  << std::endl;
+    }
+
+    return ok;
 }
 
 
@@ -353,6 +412,16 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
         return;
     }
 
+    std::string keyword;
+    ok = ReadUnicodeString(state, plgState->pConfigString, keyword);
+    if (ok) {
+        uint32_t paramType;
+        ok &= readConcreteParameter(state, 4, &paramType);
+
+        s2e()->getMessagesStream() << "NdisReadConfiguration Keyword=" << keyword <<
+                " Type=" << paramType << std::endl;
+    }
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisReadConfigurationRet)
 }
 
@@ -384,17 +453,10 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
         return;
     }
 
-    UNICODE_STRING32 configStringUnicode;
-    ok &= state->readMemoryConcrete(plgState->pConfigString, &configStringUnicode, sizeof(configStringUnicode));
-    if (!ok || !pConfigParam) {
-        s2e()->getDebugStream() << "Could not read keyword UNICODE_STRING32" << Status << std::endl;
-        return;
-    }
-
     std::string configString;
-    ok = state->readUnicodeString(configStringUnicode.Buffer, configString, configStringUnicode.Length);
+    ok = ReadUnicodeString(state, plgState->pConfigString, configString);
     if (!ok) {
-        s2e()->getDebugStream() << "Could not read keyword string" << Status << std::endl;
+        s2e()->getDebugStream() << "Could not read keyword string" << std::endl;
     }
 
     //In all consistency models, inject symbolic value in the parameter that was read

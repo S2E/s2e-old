@@ -23,10 +23,13 @@ void FunctionMonitor::initialize()
     s2e()->getCorePlugin()->onTranslateJumpStart.connect(
             sigc::mem_fun(*this, &FunctionMonitor::slotTranslateJumpStart));
 
+#if 0
+    //Cannot do this here, because we do not have an execution state at this point.
     if(s2e()->getConfig()->getBool(getConfigKey() + ".enableTracing")) {
         getCallSignal(0, 0)->connect(sigc::mem_fun(*this,
                                      &FunctionMonitor::slotTraceCall));
     }
+#endif
 
     m_monitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
 }

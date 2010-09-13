@@ -174,8 +174,8 @@ void ModuleExecutionDetector::moduleLoadListener(
     s2e()->getDebugStream() << std::endl;
 
     if (m_TrackAllModules) {
-        s2e()->getDebugStream() << " [REGISTERING NOT TRACKED]" << std::endl;
         if (!plgState->exists(&module, false)) {
+            s2e()->getDebugStream() << " [REGISTERING NOT TRACKED]" << std::endl;
             plgState->loadDescriptor(module, false);
             onModuleLoad.emit(state, module);
         }
@@ -463,7 +463,7 @@ bool ModuleTransitionState::loadDescriptor(const ModuleDescriptor &desc, bool tr
     if (track) {
         m_Descriptors.insert(new ModuleDescriptor(desc));
     }else {
-        if (m_NotTrackedDescriptors.find(&desc) != m_NotTrackedDescriptors.end()) {
+        if (m_NotTrackedDescriptors.find(&desc) == m_NotTrackedDescriptors.end()) {
             m_NotTrackedDescriptors.insert(new ModuleDescriptor(desc));
         }
         else {
@@ -488,17 +488,19 @@ void ModuleTransitionState::unloadDescriptor(const ModuleDescriptor &desc)
             m_PreviousModule = NULL;
         }
 
+        const ModuleDescriptor *md = *it;
         size_t s = m_Descriptors.erase(*it);
         assert(s == 1);
-        delete *it;
+        delete md;
     }
 
     it = m_NotTrackedDescriptors.find(&d);
     if (it != m_NotTrackedDescriptors.end()) {
         assert(*it != m_CachedModule && *it != m_PreviousModule);
+        const ModuleDescriptor *md = *it;
         size_t s = m_NotTrackedDescriptors.erase(*it);
         assert(s == 1);
-        delete *it;
+        delete md;
     }
 }
 
@@ -521,8 +523,9 @@ void ModuleTransitionState::unloadDescriptorsWithPid(uint64_t pid)
                 m_PreviousModule = NULL;
             }
 
+            const ModuleDescriptor *md = *it;
             m_Descriptors.erase(*it);
-            delete *it;
+            delete md;
 
             it = it1;
         }
@@ -544,8 +547,9 @@ void ModuleTransitionState::unloadDescriptorsWithPid(uint64_t pid)
                 m_PreviousModule = NULL;
             }
 
+            const ModuleDescriptor *md = *it;
             m_NotTrackedDescriptors.erase(*it);
-            delete *it;
+            delete md;
 
             it = it1;
         }
