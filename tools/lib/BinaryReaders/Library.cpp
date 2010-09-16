@@ -124,7 +124,8 @@ ExecutableFile *Library::get(const std::string &name)
 
 bool Library::getInfo(const ModuleInstance *mi, uint64_t pc, std::string &file, uint64_t &line, std::string &func)
 {
-    assert(mi);
+    if(!mi)
+        return false;
     ExecutableFile *exec = get(mi->Name);
     if (!exec) {
         return false;

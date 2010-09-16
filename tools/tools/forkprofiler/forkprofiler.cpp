@@ -79,10 +79,13 @@ void ForkProfiler::onItem(unsigned traceIndex,
     ForkPoints::iterator it = m_forkPoints.find(fp);
     if (it == m_forkPoints.end()) {
         if (mi) {
-            m_library->getInfo(mi, te->pc, fp.file, fp.line, fp.function);
-            fp.module = mi->Name;
-            fp.loadbase = mi->LoadBase;
-            fp.imagebase = mi->ImageBase;
+	    fp.module = mi->Name;
+	    fp.loadbase = mi->LoadBase;
+	    fp.imagebase = mi->ImageBase;
+        } else {
+            fp.module = "";
+            fp.loadbase = 0;
+            fp.imagebase = 0;
         }
         m_forkPoints.insert(fp);
     }else {
