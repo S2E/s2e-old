@@ -192,7 +192,8 @@ void fake_register_devices(fake_pci_t *fake)
 
 void fake_activate_devices(struct PCIBus *bus)
 {
-    pci_create_simple(bus, -1, s_fake_pci->fake_pci_name);
+    if(s_fake_pci->fake_pci_name)
+        pci_create_simple(bus, -1, s_fake_pci->fake_pci_name);
 }
 
 
