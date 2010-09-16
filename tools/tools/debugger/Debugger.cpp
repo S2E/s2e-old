@@ -188,6 +188,8 @@ Debugger::~Debugger()
 
 void Debugger::process()
 {
+assert(false && "Needs rewriting");
+#if 0
     ExecutionPaths paths;
     std::ofstream logfile;
     logfile.open(LogFile.c_str());
@@ -220,6 +222,7 @@ void Debugger::process()
         pb.processPath(*pit);
         ++pathNum;
     }
+#endif
 }
 
 }

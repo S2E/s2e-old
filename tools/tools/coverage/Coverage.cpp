@@ -232,10 +232,6 @@ void BasicBlockCoverage::printReport(std::ostream &os) const
 
 void BasicBlockCoverage::printBBCov(std::ostream &os) const
 {
-    unsigned touchedFunctions = 0;
-    unsigned fullyCoveredFunctions = 0;
-    unsigned touchedFunctionsBb = 0;
-    unsigned touchedFunctionsTotalBb = 0;
     Functions::const_iterator fit;
 
     for(fit = m_functions.begin(); fit != m_functions.end(); ++fit) {
@@ -356,39 +352,6 @@ CoverageTool::~CoverageTool()
 {
 
 }
-
-#if 0
-void CoverageTool::process()
-{
-    ExecutionPaths paths;
-    std::ofstream logfile;
-    logfile.open(LogFile.c_str());
-
-    PathBuilder pb(&m_parser);
-    m_parser.parse(TraceFile);
-
-    pb.enumeratePaths(paths);
-
-    PathBuilder::printPaths(paths, std::cout);
-
-    ExecutionPaths::iterator pit;
-
-    unsigned pathNum = 0;
-    for(pit = paths.begin(); pit != paths.end(); ++pit) {
-
-        std::cout << "Analyzing path " << pathNum << std::endl;
-        ModuleCache mc(&pb, &m_library);
-
-        //MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
-        //md.lookForValue(MemoryValue);
-
-        Coverage cov(&m_binaries, &mc, &pb, logfile);
-
-        pb.processPath(*pit);
-        ++pathNum;
-    }
-}
-#endif
 
 void CoverageTool::flatTrace()
 {

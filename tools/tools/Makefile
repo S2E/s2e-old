@@ -12,6 +12,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-PARALLEL_DIRS=coverage debugger pfprofiler s2etools-config forkprofiler
+PARALLEL_DIRS=tbtrace coverage debugger pfprofiler s2etools-config forkprofiler
 
 include $(LEVEL)/Makefile.common

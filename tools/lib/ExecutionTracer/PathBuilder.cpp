@@ -30,10 +30,16 @@ PathSegment::PathSegment(PathSegment *parent, uint32_t stateId, uint64_t forkPc)
 
 PathSegment::~PathSegment()
 {
+    deleteState();
+}
+
+void PathSegment::deleteState()
+{
     PathSegmentStateMap::iterator it;
     for (it = m_SegmentState.begin(); it != m_SegmentState.end(); ++it){
         delete (*it).second;
     }
+    m_SegmentState.clear();
 }
 
 unsigned PathSegment::getIndexInParent() const
@@ -87,6 +93,17 @@ PathBuilder::PathBuilder(LogParser *log)
 PathBuilder::~PathBuilder()
 {
     m_connection.disconnect();
+
+    StateToSegments::iterator it;
+
+    for (it = m_Leaves.begin(); it != m_Leaves.end(); ++it) {
+        PathSegmentList &psl = (*it).second;
+        PathSegmentList::iterator pslit;
+        for(pslit = psl.begin(); pslit != psl.end(); ++pslit) {
+            PathSegment *ps = *pslit;
+            delete ps;
+        }
+    }
 }
 
 void PathBuilder::onItem(unsigned traceIndex,
@@ -259,35 +276,43 @@ void PathBuilder::processSegment(PathSegment *seg)
     }
 }
 
-void PathBuilder::processPath(const ExecutionPath &p)
+bool PathBuilder::processPath(uint32_t pathId)
 {
-    ExecutionPath::const_reverse_iterator it;
-    PathSegment *curSeg = m_Root;
+    resetTree();
 
-    //XXX: It may be useful in the future to analyze particular states.
-    assert(false && "This should not be used anymore. Use processTree instead.");
+    StateToSegments::iterator it;
+    it = m_Leaves.find(pathId);
+    if (it == m_Leaves.end()) {
+        return false;
+    }
 
-    it = p.rbegin();
+    std::vector<PathSegment*> segments;
+    PathSegment *seg = (*it).second.back();
+    while(seg) {
+        segments.push_back(seg);
+        seg=seg->getParent();
+    }
 
-    do {
-        m_CurrentSegment = curSeg;
+    for (unsigned i=segments.size()-1; i!=0; --i) {
+        processSegment(segments[i]);
+    }
 
+    return true;
+}
 
-        processSegment(curSeg);
+//Discards all segment-local information kept by trace processors.
+void PathBuilder::resetTree()
+{
+    StateToSegments::iterator it;
 
-        if (it == p.rend()) {
-            break;
+    for (it = m_Leaves.begin(); it != m_Leaves.end(); ++it) {
+        PathSegmentList &psl = (*it).second;
+        PathSegmentList::iterator pslit;
+        for(pslit = psl.begin(); pslit != psl.end(); ++pslit) {
+            PathSegment *ps = *pslit;
+            ps->deleteState();
         }
-
-        const PathSegmentList &ps = curSeg->getChildren();
-        if (!(*it < ps.size())) {
-            std::cerr << *it << " - " << ps.size() << std::endl;
-            assert(false);
-        }
-
-        curSeg = ps[*it];
-        ++it;
-    }while(true);
+    }
 }
 
 void PathBuilder::processTree()

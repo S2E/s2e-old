@@ -60,6 +60,8 @@ public:
 
     ~PathSegment();
 
+    void deleteState();
+
     void appendFragment(const PathFragment &f) {
         m_FragmentList.push_back(f);
     }
@@ -128,10 +130,10 @@ public:
     static void printPath(const ExecutionPath &p, std::ostream &os);
     static void printPaths(const ExecutionPaths &p, std::ostream &os);
 
-    void processPath(const ExecutionPath &p);
-
+    bool processPath(uint32_t);
     void processTree();
 
+    void resetTree();
     virtual ItemProcessorState* getState(void *processor, ItemProcessorStateFactory f);
     virtual ItemProcessorState* getState(void *processor, uint32_t pathId);
     virtual void getPaths(PathSet &s);
