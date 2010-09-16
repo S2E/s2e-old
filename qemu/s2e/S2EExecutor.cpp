@@ -2197,28 +2197,33 @@ void s2e_switch_to_symbolic(S2E *s2e, S2EExecutionState *state)
 }
 
 /** Tlb cache helpers */
-void s2e_update_tlb_entry(S2EExecutionState* state,
-                          S2ETLBEntry *entry,
-                          uintptr_t hostAddr, uintptr_t vaddr)
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUX86State* env,
+                          int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
 #ifdef S2E_ENABLE_S2E_TLB
     assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
+    assert( (virtAddr & ~TARGET_PAGE_MASK) == 0 );
 
-    for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i, ++entry,
-                            hostAddr += S2E_RAM_OBJECT_SIZE,
-                            vaddr += S2E_RAM_OBJECT_SIZE) {
+    unsigned int index = (virtAddr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1);
+    for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i) {
+        S2ETLBEntry* entry = &env->s2e_tlb_table[mmu_idx][index];
+
         const ObjectPair op = state->addressSpace.findObject(hostAddr);
-        assert(op.first && op.second);
+        assert(op.first && op.second && op.first->address == hostAddr);
 
         if(op.first->isSharedConcrete) {
             entry->objectState = const_cast<klee::ObjectState*>(op.second);
-            entry->addend = (hostAddr - vaddr) | 1;
+            entry->addend = (hostAddr - virtAddr) | 1;
         } else {
             // XXX: for now we always ensure that all pages in TLB are writable
             klee::ObjectState *wos = state->addressSpace.getWriteable(op.first, op.second);
             entry->objectState = wos;
-            entry->addend = ((uintptr_t) wos->getConcreteStore(true) - vaddr) | 1;
+            entry->addend = ((uintptr_t) wos->getConcreteStore(true) - virtAddr) | 1;
         }
+
+        index += 1;
+        hostAddr += S2E_RAM_OBJECT_SIZE;
+        virtAddr += S2E_RAM_OBJECT_SIZE;
     }
 #endif
 }

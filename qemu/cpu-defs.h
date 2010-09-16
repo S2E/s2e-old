@@ -111,14 +111,19 @@ typedef struct CPUTLBEntry {
 } CPUTLBEntry;
 
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+
 typedef struct S2ETLBEntry {
     void* objectState;
     uintptr_t addend;
 } S2ETLBEntry;
-// XXX: use TARGET_PAGE_SIZE here!!!
-#define CPU_S2E_TLB_SIZE (CPU_TLB_SIZE * 4096 / S2E_RAM_OBJECT_SIZE)
+
+// XXX: use TARGET_PAGE_BITS here!!!
+#define CPU_S2E_TLB_BITS (CPU_TLB_BITS + 12 - S2E_RAM_OBJECT_BITS)
+#define CPU_S2E_TLB_SIZE (1 << CPU_S2E_TLB_BITS)
+
 #define _CPU_COMMON_S2E_TLB_TABLE \
     S2ETLBEntry s2e_tlb_table[NB_MMU_MODES][CPU_S2E_TLB_SIZE];
+
 #else
 #define _CPU_COMMON_S2E_TLB_TABLE
 #endif

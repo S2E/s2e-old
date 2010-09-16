@@ -1894,11 +1894,9 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
                      (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
             *tlb_entry = s_cputlb_empty_entry;
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
-            S2ETLBEntry *s2e_tlb_entry = &env->s2e_tlb_table[mmu_idx][
-                                    i * CPU_S2E_TLB_SIZE / CPU_TLB_SIZE];
-            int j;
-            for(j = 0; j < CPU_S2E_TLB_SIZE/CPU_TLB_SIZE; ++j, ++s2e_tlb_entry) {
-                s2e_tlb_entry->objectState = 0;
+            int i1 = (addr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1), j;
+            for(j = 0; j < CPU_S2E_TLB_SIZE/CPU_TLB_SIZE; ++j, ++i1) {
+                env->s2e_tlb_table[mmu_idx][i1].objectState = 0;
             }
 #endif
         }
@@ -2166,9 +2164,7 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     }
 
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
-    s2e_update_tlb_entry(g_s2e_state,
-         &env->s2e_tlb_table[mmu_idx][index * CPU_S2E_TLB_SIZE / CPU_TLB_SIZE],
-         addend, vaddr);
+    s2e_update_tlb_entry(g_s2e_state, env, mmu_idx, vaddr, addend);
 #endif
 
     return ret;
