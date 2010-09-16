@@ -71,7 +71,7 @@ static void klee_vmessage(const char *pfx, bool onlyToFile, const char *msg,
   }
   */
 
-  klee_vfmessage(pfx ? klee_message_stream : klee_warning_stream, pfx, msg, ap);
+  klee_vfmessage(pfx ? klee_warning_stream : klee_message_stream, pfx, msg, ap);
 }
 
 
