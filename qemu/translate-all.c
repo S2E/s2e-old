@@ -167,6 +167,21 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
     return 0;
 }
 
+#ifdef CONFIG_S2E
+void cpu_restore_icount(CPUState *env)
+{
+    if(use_icount) {
+        /* If we are not executing TB, s2e_icoun equals s2e_icount_after_tb */
+        assert(env->s2e_current_tb || env->s2e_icount == env->s2e_icount_after_tb);
+        assert(env->s2e_icount_after_tb - env->s2e_icount +
+                        env->icount_decr.u16.low <= 0xffff);
+        env->icount_decr.u16.low += (env->s2e_icount_after_tb - env->s2e_icount);
+        env->s2e_icount_after_tb = env->s2e_icount;
+        env->s2e_icount_before_tb = env->s2e_icount;
+    }
+}
+#endif
+
 /* The cpu state corresponding to 'searched_pc' is restored.
  */
 int cpu_restore_state(TranslationBlock *tb,

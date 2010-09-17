@@ -272,7 +272,7 @@ static int icount_time_shift;
 /* Arbitrarily pick 1MIPS as the minimum allowable speed.  */
 #define MAX_ICOUNT_SHIFT 10
 /* Compensate for varying guest execution speed.  */
-static int64_t qemu_icount_bias;
+static int64_t qemu_icount_bias = 0;
 static QEMUTimer *icount_rt_timer;
 static QEMUTimer *icount_vm_timer;
 static QEMUTimer *nographic_timer;
@@ -694,15 +694,21 @@ int64_t get_clock(void)
 #endif
 
 /* Return the virtual CPU time, based on the instruction counter.  */
-static int64_t cpu_get_icount(void)
+static int64_t cpu_get_icount_clock(void)
 {
     int64_t icount;
     CPUState *env = cpu_single_env;;
     icount = qemu_icount;
     if (env) {
+#ifdef CONFIG_S2E
+        /* XXX: this is wrong on SMP */
+        icount = env->s2e_icount;
+#else
         if (!can_do_io(env))
             fprintf(stderr, "Bad clock read\n");
         icount -= (env->icount_decr.u16.low + env->icount_extra);
+        //assert(!env || icount == env->s2e_icount);
+#endif
     }
     return qemu_icount_bias + (icount << icount_time_shift);
 }
@@ -713,10 +719,23 @@ static int64_t cpu_get_icount(void)
 TimersState timers_state;
 
 /* return the host CPU cycle counter and handle stop/restart */
-int64_t cpu_get_ticks(void)
+int64_t cpu_get_ticks(void* env1)
 {
     if (use_icount) {
-        return cpu_get_icount();
+        CPUState *env = (CPUState*) env1;
+#ifdef CONFIG_S2E
+        if(env)
+            return env->s2e_icount;
+        return qemu_icount; /* XXX this is not correct for SMP */
+#else
+        int64_t icount = qemu_icount;
+        if (env) {
+            if (!can_do_io(env1))
+                fprintf(stderr, "Bad clock read\n");
+            icount -= (env->icount_decr.u16.low + env->icount_extra);
+        }
+        return icount;
+#endif
     }
     if (!timers_state.cpu_ticks_enabled) {
         return timers_state.cpu_ticks_offset;
@@ -760,7 +779,7 @@ void cpu_enable_ticks(void)
 void cpu_disable_ticks(void)
 {
     if (timers_state.cpu_ticks_enabled) {
-        timers_state.cpu_ticks_offset = cpu_get_ticks();
+        timers_state.cpu_ticks_offset = cpu_get_ticks(NULL);
         timers_state.cpu_clock_offset = cpu_get_clock();
         timers_state.cpu_ticks_enabled = 0;
     }
@@ -1143,7 +1162,7 @@ int64_t qemu_get_clock(QEMUClock *clock)
     default:
     case QEMU_CLOCK_VIRTUAL:
         if (use_icount) {
-            return cpu_get_icount();
+            return cpu_get_icount_clock();
         } else {
             return cpu_get_clock();
         }
@@ -4071,6 +4090,9 @@ static int qemu_cpu_exec(CPUState *env)
     ti = profile_getclock();
 #endif
     if (use_icount) {
+#ifdef CONFIG_S2E
+        assert(qemu_icount == env->s2e_icount);
+#endif
         int64_t count;
         int decr;
         qemu_icount -= (env->icount_decr.u16.low + env->icount_extra);
@@ -4096,6 +4118,9 @@ static int qemu_cpu_exec(CPUState *env)
                         + env->icount_extra);
         env->icount_decr.u32 = 0;
         env->icount_extra = 0;
+#ifdef CONFIG_S2E
+        assert(qemu_icount == env->s2e_icount);
+#endif
     }
     return ret;
 }
@@ -4125,7 +4150,6 @@ static void tcg_cpu_exec(void)
     }
 }
 
-#ifndef CONFIG_S2E
 static int cpu_has_work(CPUState *env)
 {
     if (env->stop)
@@ -4171,7 +4195,7 @@ static int qemu_calculate_timeout(void)
                so just delay for a reasonable amount of time.  */
             delta = 0;
         } else {
-            delta = cpu_get_icount() - cpu_get_clock();
+            delta = cpu_get_icount_clock() - cpu_get_clock();
         }
         if (delta > 0) {
             /* If virtual time is ahead of real time then just
@@ -4190,9 +4214,18 @@ static int qemu_calculate_timeout(void)
             add = (add + (1 << icount_time_shift) - 1)
                   >> icount_time_shift;
             qemu_icount += add;
+#ifdef CONFIG_S2E
+            CPUState *env;
+            for (env = first_cpu; env != NULL; env = env->next_cpu)
+                env->s2e_icount += add;
+
+            /* For S2E we do not emulate the real timeout */
+            timeout = 0;
+#else
             timeout = delta / 1000000;
             if (timeout < 0)
                 timeout = 0;
+#endif
         }
     }
 
@@ -4201,7 +4234,6 @@ static int qemu_calculate_timeout(void)
     return 1000;
 #endif
 }
-#endif
 
 static int vm_can_run(void)
 {
@@ -4241,11 +4273,7 @@ static void main_loop(void)
 #ifdef CONFIG_PROFILER
             ti = profile_getclock();
 #endif
-#ifdef CONFIG_S2E
-            main_loop_wait(0);
-#else
             main_loop_wait(qemu_calculate_timeout());
-#endif
 #ifdef CONFIG_PROFILER
             dev_time += profile_getclock() - ti;
 #endif

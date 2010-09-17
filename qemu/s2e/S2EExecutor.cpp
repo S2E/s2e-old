@@ -450,7 +450,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_x86_update_cr3)
     __DEFINE_EXT_FUNCTION(cpu_x86_update_cr4)
     __DEFINE_EXT_FUNCTION(cpu_x86_cpuid)
-    __DEFINE_EXT_FUNCTION(cpu_get_tsc)
     __DEFINE_EXT_FUNCTION(cpu_get_apic_base)
     __DEFINE_EXT_FUNCTION(cpu_set_apic_base)
     __DEFINE_EXT_FUNCTION(cpu_get_apic_tpr)

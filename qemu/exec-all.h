@@ -71,6 +71,9 @@ uintptr_t code_gen_max_block_size(void);
 void cpu_gen_init(void);
 int cpu_gen_code(CPUState *env, struct TranslationBlock *tb,
                  int *gen_code_size_ptr);
+#ifdef CONFIG_S2E
+void cpu_restore_icount(CPUState *env);
+#endif
 int cpu_restore_state(struct TranslationBlock *tb,
                       CPUState *env, uintptr_t searched_pc,
                       void *puc);

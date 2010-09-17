@@ -181,7 +181,9 @@ typedef struct CPUWatchpoint {
     /* buffer for temporaries in the code generator */                  \
     intptr_t temp_buf[CPU_TEMP_BUF_NLONGS];                                 \
                                                                         \
-    uint64_t s2e_icount;                                                \
+    uint64_t s2e_icount; /* total icount for this CPU */                \
+    uint64_t s2e_icount_before_tb; /* icount before starting current TB */ \
+    uint64_t s2e_icount_after_tb; /* icount after starting current TB */  \
     int64_t icount_extra; /* Instructions until next timer event.  */   \
     /* Number of cycles left, with interrupt flag in high bit.          \
        This allows a single read-compare-cbranch-write sequence to test \

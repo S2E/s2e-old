@@ -109,7 +109,7 @@ static void ioportF0_write(void *opaque, uint32_t addr, uint32_t data)
 /* TSC handling */
 uint64_t cpu_get_tsc(CPUX86State *env)
 {
-    return cpu_get_ticks();
+    return cpu_get_ticks(env);
 }
 
 /* SMM support */

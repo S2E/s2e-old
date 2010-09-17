@@ -127,9 +127,9 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
 #if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
     assert(execute_llvm == 0);
 #endif
-#ifdef CONFIG_S2E
-    assert(0 && "cpu_exec_nocache should not be called in s2e!");
-#endif
+//#ifdef CONFIG_S2E
+//    assert(0 && "cpu_exec_nocache should not be called in s2e!");
+//#endif
 
     /* Should never happen.
        We only end up here when an existing TB is too long.  */
@@ -140,7 +140,13 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
+#ifdef CONFIG_S2E
+    env->s2e_current_tb = tb;
+    next_tb = s2e_qemu_tb_exec(g_s2e, g_s2e_state, tb);
+    env->s2e_current_tb = NULL;
+#else
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+#endif
 
     if ((next_tb & 3) == 2) {
         /* Restore PC.  This may happen if async event occurs before
@@ -709,6 +715,7 @@ int cpu_exec(CPUState *env1)
 #if defined(CONFIG_S2E)
                     env->s2e_current_tb = tb;
                     next_tb = s2e_qemu_tb_exec(g_s2e, g_s2e_state, tb);
+                    env->s2e_current_tb = NULL;
 #elif defined(CONFIG_LLVM)
                     if(execute_llvm) {
 #define SAVE_HOST_REGS 1
@@ -912,6 +919,9 @@ static inline int handle_cpu_signal(unsigned long pc, unsigned long address,
         return 1; /* the MMU fault was handled without causing real CPU fault */
     /* now we have a real cpu fault */
     tb = tb_find_pc(pc);
+#ifdef CONFIG_S2E
+    cpu_restore_icount(env);
+#endif
     if (tb) {
         /* the PC is inside the translated code. It means that we have
            a virtual CPU fault */

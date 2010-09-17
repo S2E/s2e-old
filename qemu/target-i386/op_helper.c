@@ -5071,6 +5071,9 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 #endif
     ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx, 1);
     if (ret) {
+#ifdef CONFIG_S2E
+        cpu_restore_icount(env);
+#endif
         if (retaddr) {
             /* now we have a real cpu fault */
             pc = (uintptr_t)retaddr;

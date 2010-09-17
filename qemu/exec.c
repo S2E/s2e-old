@@ -992,6 +992,7 @@ void tb_invalidate_phys_page_range(target_phys_addr_t start, target_phys_addr_t 
                 current_tb = NULL;
                 if (env->mem_io_pc) {
                     /* now we have a real cpu fault */
+#warning TODO: mem_io_pc is never set in S2E, use s2e_current_tb instead!
                     current_tb = tb_find_pc(env->mem_io_pc);
                 }
             }
@@ -1004,6 +1005,9 @@ void tb_invalidate_phys_page_range(target_phys_addr_t start, target_phys_addr_t 
                 restore the CPU state */
 
                 current_tb_modified = 1;
+#ifdef CONFIG_S2E
+                cpu_restore_icount(env);
+#endif
                 cpu_restore_state(current_tb, env,
                                   env->mem_io_pc, NULL);
                 cpu_get_tb_cpu_state(env, &current_pc, &current_cs_base,
@@ -1036,6 +1040,15 @@ void tb_invalidate_phys_page_range(target_phys_addr_t start, target_phys_addr_t 
     }
 #endif
 #ifdef TARGET_HAS_PRECISE_SMC
+#ifdef CONFIG_S2E
+    /* In S2E we don't keep env->mem_io_pc information, so we can't be
+       sure whether current tb was invalidated or not. We abort it
+       in any case */
+    /* XXX: is it safe to do ? */
+    //env->current_tb = NULL;
+    //cpu_resume_from_signal(env, NULL);
+#warning XXX: think about what is writen above!
+#endif
     if (current_tb_modified) {
         /* we generate a block containing just the instruction
            modifying the memory. It will ensure that it cannot modify
@@ -1113,6 +1126,9 @@ static void tb_invalidate_phys_page(target_phys_addr_t addr,
                    restore the CPU state */
 
             current_tb_modified = 1;
+#ifdef CONFIG_S2E
+            cpu_restore_icount(env);
+#endif
             cpu_restore_state(current_tb, env, pc, puc);
             cpu_get_tb_cpu_state(env, &current_pc, &current_cs_base,
                                  &current_flags);
@@ -2893,6 +2909,9 @@ static void check_watchpoint(int offset, int len_mask, int flags)
                     cpu_abort(env, "check_watchpoint: could not find TB for "
                               "pc=%p", (void *)env->mem_io_pc);
                 }
+#ifdef CONFIG_S2E
+                cpu_restore_icount(env);
+#endif
                 cpu_restore_state(tb, env, env->mem_io_pc, NULL);
                 tb_phys_invalidate(tb, -1);
                 if (wp->flags & BP_STOP_BEFORE_ACCESS) {
@@ -3827,19 +3846,31 @@ void cpu_io_recompile(CPUState *env, void *retaddr)
     uint32_t n, cflags;
     target_ulong pc, cs_base;
     uint64_t flags;
-
+#ifdef CONFIG_S2E
+    tb = env->s2e_current_tb;
+    if(!tb) {
+        cpu_restore_icount(env);
+        cpu_resume_from_signal(env, NULL);
+        return;
+    }
+    n = env->s2e_icount - env->s2e_icount_before_tb;
+    cpu_restore_icount(env);
+#else
     tb = tb_find_pc((uintptr_t)retaddr);
     if (!tb) {
         cpu_abort(env, "cpu_io_recompile: could not find TB for pc=%p", 
                   retaddr);
     }
     n = env->icount_decr.u16.low + tb->icount;
+#endif
     cpu_restore_state(tb, env, (uintptr_t)retaddr, NULL);
     /* Calculate how many instructions had been executed before the fault
        occurred.  */
+#ifndef CONFIG_S2E
     n = n - env->icount_decr.u16.low;
     /* Generate a new TB ending on the I/O insn.  */
     n++;
+#endif
     /* On MIPS and SH, delay slot instructions can only be restarted if
        they were already the first instruction in the TB.  If this is not
        the first instruction in a TB then re-execute the preceding
