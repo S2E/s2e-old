@@ -105,7 +105,7 @@ void TbTrace::onItem(unsigned traceIndex,
         m_output << "0x" << std::hex << te->pc<< " - ";
         printDebugInfo(hdr.pid, te->pc);
         m_output << std::endl;
-        m_hasItems = false;
+        m_hasItems = true;
         return;
     }
 
