@@ -7,12 +7,15 @@ extern "C"
 
 #include "SymbolicHardware.h"
 #include <s2e/S2E.h>
+#include <s2e/S2EDeviceState.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 
 #include "llvm/Support/CommandLine.h"
 
 #include <sstream>
+
+extern struct CPUX86State *env;
 
 namespace {
     //Allows bypassing the symbolic value injection.
@@ -231,6 +234,7 @@ void IsaDeviceDescriptor::initializeQemuDevice()
     m_isaInfo->qdev.props = m_isaProperties;
 
     isa_qdev_register(m_isaInfo);
+    S2EDeviceState::registerCustomDevice(m_id);
 }
 
 void IsaDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
@@ -297,6 +301,7 @@ IsaDeviceDescriptor* IsaDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 
 void IsaDeviceDescriptor::setInterrupt(bool state)
 {
+    g_s2e->getDebugStream() << "IsaDeviceDescriptor::setInterrupt " << state << std::endl;
     if (state) {
        qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
     }else {
@@ -436,6 +441,8 @@ void PciDeviceDescriptor::initializeQemuDevice()
 
     m_pciInfo->qdev.props = m_pciInfoProperties;
     pci_qdev_register(m_pciInfo);
+
+    S2EDeviceState::registerCustomDevice(m_id);
 }
 
 void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
@@ -479,10 +486,15 @@ void PciDeviceDescriptor::print(std::ostream &os) const
 
 void PciDeviceDescriptor::setInterrupt(bool state)
 {
+    g_s2e->getDebugStream() << "PciDeviceDescriptor::setInterrupt " << state << std::endl;
     if (state) {
-       qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
+       s2e_print_apic(env);
+        qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
+        s2e_print_apic(env);
     }else {
+        s2e_print_apic(env);
        qemu_irq_lower(*(qemu_irq*)m_qemuIrq);
+       s2e_print_apic(env);
     }
 }
 

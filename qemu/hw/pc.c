@@ -120,6 +120,8 @@ void cpu_smm_update(CPUState *env)
 }
 
 
+
+
 /* IRQ handling */
 int cpu_get_pic_interrupt(CPUState *env)
 {

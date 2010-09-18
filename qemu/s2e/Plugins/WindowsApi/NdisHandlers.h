@@ -70,12 +70,19 @@ private:
     std::string m_hwId;
     DeviceDescriptor *m_devDesc;
 
+    StringSet m_ignoreKeywords;
+
     Consistency m_consistency;
 
     void onModuleLoad(
             S2EExecutionState* state,
             const ModuleDescriptor &module
             );
+
+    void onModuleUnload(
+        S2EExecutionState* state,
+        const ModuleDescriptor &module
+        );
 
     bool calledFromModule(S2EExecutionState *s);
 
@@ -134,6 +141,9 @@ private:
     bool hasIsrHandler;
     uint32_t oid, pInformationBuffer;
     bool fakeoid;
+
+    uint32_t isrRecognized, isrQueue;
+    bool waitHandler;
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();

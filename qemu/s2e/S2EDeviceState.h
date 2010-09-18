@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 #include <stdint.h>
 
 #include "s2e_block.h"
@@ -18,6 +19,7 @@ private:
     typedef std::map<BlockDriverState *, SectorMap> BlockDeviceToSectorMap;
 
     static std::vector<void *> s_Devices;
+    static std::set<std::string> s_customDevices;
     static bool s_DevicesInited;
     static S2EDeviceState *s_CurrentState;
 
@@ -36,7 +38,9 @@ private:
     void AllocateBuffer(unsigned int Sz);
     void ShrinkBuffer();
 
+    void cloneDiskState();
 
+    S2EDeviceState(const S2EDeviceState &);
 public:
 
     static S2EDeviceState *getCurrentVmState() {
@@ -46,7 +50,7 @@ public:
     bool canTransferSector() const;
 
     S2EDeviceState();
-    S2EDeviceState *clone();
+    void clone(S2EDeviceState **state1, S2EDeviceState **state2);
     ~S2EDeviceState();
 
     //From QEMU to KLEE
@@ -64,6 +68,9 @@ public:
     int readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors,
         s2e_raw_read fb);
 
+    static void registerCustomDevice(const std::string &str) {
+        s_customDevices.insert(str);
+    }
 
     void initDeviceState();
     void restoreDeviceState();

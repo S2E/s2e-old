@@ -119,10 +119,14 @@ ExecutionState* S2EExecutionState::clone()
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->addressSpace.state = ret;
 
+    S2EDeviceState *dev1, *dev2;
+    m_deviceState->clone(&dev1, &dev2);
+    m_deviceState = dev1;
+    ret->m_deviceState = dev2;
+
     if(m_lastS2ETb)
         m_lastS2ETb->refCount += 1;
 
-    ret->m_deviceState = m_deviceState->clone();
     ret->m_stateID = s_lastStateID++;
 
     ret->m_timersState = new TimersState;

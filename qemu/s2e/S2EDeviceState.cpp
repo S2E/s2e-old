@@ -32,22 +32,50 @@ unsigned int S2EDeviceState::s_PreferedStateSize = 0x1000;
 S2EDeviceState *S2EDeviceState::s_CurrentState = NULL;
 std::vector<void *> S2EDeviceState::s_Devices;
 bool S2EDeviceState::s_DevicesInited=false;
+std::set<std::string> S2EDeviceState::s_customDevices;
+
 
 
 #define REGISTER_DEVICE(dev) { if (!strcmp(s2e_qemu_get_se_idstr(se), dev)) { s_Devices.push_back(se); }}
 
+S2EDeviceState::S2EDeviceState(const S2EDeviceState &)
+{
+
+}
+
 //This is assumed to be called on fork.
 //At that time, we need to save the state of the VM to 
 //be later restored.
-S2EDeviceState* S2EDeviceState::clone()
+//XXX: use reference counting to delete the device states
+void S2EDeviceState::clone(S2EDeviceState **state1, S2EDeviceState **state2)
 {
-    S2EDeviceState* ret = new S2EDeviceState(*this);
-    ret->m_Parent = this;
-    ret->m_State = 0;
-    ret->m_StateSize = 0;
-    //ret->saveDeviceState();
-    ret->m_BlockDevices.clear();
-    return ret;
+    //We must make two copies
+
+    S2EDeviceState* copy1 = new S2EDeviceState();
+    copy1->m_Parent = this;
+    copy1->m_State = 0;
+    copy1->m_StateSize = 0;
+    copy1->m_canTransferSector = m_canTransferSector;
+    *state1 = copy1;
+
+    S2EDeviceState* copy2 = new S2EDeviceState();
+    copy2->m_Parent = this;
+    copy2->m_State = 0;
+    copy2->m_StateSize = 0;
+    copy2->m_canTransferSector = m_canTransferSector;
+    *state2 = copy2;
+}
+
+void S2EDeviceState::cloneDiskState()
+{
+    foreach2(it, m_BlockDevices.begin(), m_BlockDevices.end()) {
+        SectorMap &sm = (*it).second;
+        foreach2(smit, sm.begin(), sm.end()) {
+            uint8_t *newSector = new uint8_t[512];
+            memcpy(newSector, (*smit).second, 512);
+            (*smit).second = newSector;
+        }
+    }
 }
 
 S2EDeviceState::S2EDeviceState()
@@ -68,6 +96,29 @@ void S2EDeviceState::initDeviceState()
     
     assert(!s_DevicesInited);
 
+    //s_customDevices.insert("cpu_common");
+    s_customDevices.insert("fw_cfg");
+    s_customDevices.insert("timer");
+    s_customDevices.insert("i8259");
+    s_customDevices.insert("PCIBUS");
+    s_customDevices.insert("I440FX");
+    s_customDevices.insert("PIIX3");
+    s_customDevices.insert("ioapic");
+    s_customDevices.insert("apic");
+    s_customDevices.insert("mc146818rtc");
+    s_customDevices.insert("i8254");
+    s_customDevices.insert("hpet");
+    s_customDevices.insert("dma");
+    s_customDevices.insert("piix4_pm");
+    s_customDevices.insert("ps2kbd");
+    s_customDevices.insert("ps2mouse");
+    s_customDevices.insert("i2c_bus");
+    s_customDevices.insert("ide");
+    s_customDevices.insert("ide_drive");
+    s_customDevices.insert("ide_bus");
+    s_customDevices.insert("cirrus_vga");
+
+
     g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
 
     if (!s_DevicesInited) {
@@ -77,27 +128,11 @@ void S2EDeviceState::initDeviceState()
         for(se = s2e_qemu_get_first_se(); 
             se != NULL; se = s2e_qemu_get_next_se(se)) {
                 g_s2e->getDebugStream() << "State ID=" << s2e_qemu_get_se_idstr(se) << endl;
-                //REGISTER_DEVICE("block")
-                REGISTER_DEVICE("fw_cfg")
-                REGISTER_DEVICE("timer")
-                REGISTER_DEVICE("i8259")
-                REGISTER_DEVICE("PCIBUS")
-                REGISTER_DEVICE("I440FX")
-                REGISTER_DEVICE("PIIX3")
-                REGISTER_DEVICE("ioapic")
-                REGISTER_DEVICE("apic")
-                REGISTER_DEVICE("mc146818rtc")
-                REGISTER_DEVICE("i8254")
-                REGISTER_DEVICE("hpet")
-                REGISTER_DEVICE("dma")
-                REGISTER_DEVICE("piix4_pm")
-                REGISTER_DEVICE("ps2kbd")
-                REGISTER_DEVICE("ps2mouse")
-                REGISTER_DEVICE("i2c_bus")
-                REGISTER_DEVICE("ide")
-                REGISTER_DEVICE("ide_drive")
-                REGISTER_DEVICE("ide_bus")
-                REGISTER_DEVICE("cirrus_vga")
+
+                if (s_customDevices.find(s2e_qemu_get_se_idstr(se)) != s_customDevices.end()) {
+                    g_s2e->getDebugStream() << "   Registering " << s2e_qemu_get_se_idstr(se) << std::endl;
+                    s_Devices.push_back(se);
+                }
 
                 //XXX:Check for ps2kbd, ps2mouse, i2c_bus, timer
                 //ide
@@ -120,6 +155,8 @@ void S2EDeviceState::initDeviceState()
     //restoreDeviceState();
 }
 
+int s2edev_dbg=0;
+
 void S2EDeviceState::saveDeviceState()
 {
     s2e_dev_snapshot_enable = 1;
@@ -127,8 +164,6 @@ void S2EDeviceState::saveDeviceState()
     m_Offset = 0;
     assert(s_CurrentState == NULL);
     s_CurrentState = this;
-
-    qemu_bh_poll();
 
     //DPRINTF("Saving device state %p\n", this);
     /* Iterate through all device descritors and call
@@ -151,6 +186,9 @@ void S2EDeviceState::saveDeviceState()
 void S2EDeviceState::restoreDeviceState()
 {
     assert(s_CurrentState == NULL);
+    assert(m_StateSize);
+    assert(m_State);
+
     s_CurrentState = this;
 
     vm_stop(0);

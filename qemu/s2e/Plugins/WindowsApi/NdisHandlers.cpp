@@ -72,7 +72,9 @@ void NdisHandlers::initialize()
         exit(-1);
     }
 
-
+    //Checking the keywords for NdisReadConfiguration whose result will not be replaced with symbolic values
+    ConfigFile::string_list ign = cfg->getStringList(getConfigKey() + ".ignoreKeywords");
+    m_ignoreKeywords.insert(ign.begin(), ign.end());
 
 
     foreach2(it, mods.begin(), mods.end()) {
@@ -84,6 +86,10 @@ void NdisHandlers::initialize()
                     &NdisHandlers::onModuleLoad)
             );
 
+    m_windowsMonitor->onModuleUnload.connect(
+            sigc::mem_fun(*this,
+                    &NdisHandlers::onModuleUnload)
+            );
 
 }
 
@@ -124,6 +130,21 @@ bool NdisHandlers::calledFromModule(S2EExecutionState *s)
     return (m_modules.find(*modId) != m_modules.end());
 }
 
+void NdisHandlers::onModuleUnload(
+        S2EExecutionState* state,
+        const ModuleDescriptor &module
+        )
+{
+    const std::string *s = m_detector->getModuleId(module);
+    if (!s || (m_modules.find(*s) == m_modules.end())) {
+        //Not the right module we want to intercept
+        return;
+    }
+
+    //XXX: We might want to monitor multiple modules, so avoid killing
+    s2e()->getExecutor()->terminateStateEarly(*state, "Module unloaded");
+    return;
+}
 
 void NdisHandlers::onModuleLoad(
         S2EExecutionState* state,
@@ -420,6 +441,10 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
 
         s2e()->getMessagesStream() << "NdisReadConfiguration Keyword=" << keyword <<
                 " Type=" << paramType << std::endl;
+    }
+
+    if (m_ignoreKeywords.find(keyword) != m_ignoreKeywords.end()) {
+        return;
     }
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisReadConfigurationRet)
@@ -936,6 +961,7 @@ void NdisHandlers::DisableInterruptHandler(S2EExecutionState* state, FunctionMon
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::DisableInterruptHandlerRet)
+    m_devDesc->setInterrupt(false);
 }
 
 void NdisHandlers::DisableInterruptHandlerRet(S2EExecutionState* state)
@@ -975,6 +1001,8 @@ void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMoni
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HandleInterruptHandlerRet)
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+   plgState->waitHandler = false;
 }
 
 void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
@@ -991,6 +1019,16 @@ void NdisHandlers::ISRHandler(S2EExecutionState* state, FunctionMonitorState *fn
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ISRHandlerRet)
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &plgState->isrRecognized);
+    ok &= readConcreteParameter(state, 1, &plgState->isrQueue);
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Error reading isrRecognized and isrQueue"<< std::endl;
+    }
     m_devDesc->setInterrupt(false);
 }
 
@@ -998,6 +1036,25 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    uint8_t isrRecognized=0, isrQueue=0;
+    bool ok = true;
+    ok &= state->readMemoryConcrete(plgState->isrRecognized, &isrRecognized, sizeof(isrRecognized));
+    ok &= state->readMemoryConcrete(plgState->isrQueue, &isrQueue, sizeof(isrQueue));
+
+    s2e()->getDebugStream(state) << "ISRRecognized=" << (bool)isrRecognized <<
+            " isrQueue="<< (bool)isrQueue << std::endl;
+
+    if (!ok) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "Could not determine whether the NDIS driver queued the interrupt");
+    }else {
+        if ((!isrRecognized || !isrQueue) && !plgState->waitHandler) {
+            s2e()->getExecutor()->terminateStateEarly(*state, "The state will not trigger any interrupt");
+        }
+    }
+
+    plgState->waitHandler = true;
     m_devDesc->setInterrupt(false);
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
@@ -1238,6 +1295,9 @@ NdisHandlersState::NdisHandlersState()
     pNetworkAddressLength = 0;
     hasIsrHandler = false;
     fakeoid = false;
+    isrRecognized = 0;
+    isrQueue = 0;
+    waitHandler = false;
 }
 
 NdisHandlersState::~NdisHandlersState()

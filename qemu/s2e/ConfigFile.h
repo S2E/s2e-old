@@ -244,8 +244,11 @@ public:
   S2ELUAExecutionState(S2EExecutionState *s);
   ~S2ELUAExecutionState();
   int writeRegister(lua_State *L);
+  int readRegister(lua_State *L);
   int readParameter(lua_State *L);
+  int writeParameter(lua_State *L);
   int writeMemorySymb(lua_State *L);
+  int readMemory(lua_State *L);
 };
 
 

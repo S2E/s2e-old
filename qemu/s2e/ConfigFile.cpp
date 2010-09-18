@@ -380,8 +380,11 @@ const char S2ELUAExecutionState::className[] = "S2ELUAExecutionState";
 
 Lunar<S2ELUAExecutionState>::RegType S2ELUAExecutionState::methods[] = {
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeRegister),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readRegister),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readParameter),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeParameter),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeMemorySymb),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readMemory),
   {0,0}
 };
 
@@ -423,10 +426,52 @@ int S2ELUAExecutionState::readParameter(lua_State *L)
     return 1;
 }
 
-int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
+//Reads a concrete value from the stack
+int S2ELUAExecutionState::writeParameter(lua_State *L)
+{
+    uint32_t param = luaL_checkint(L, 1);
+    uint32_t val=luaL_checkint(L, 2);
+
+    g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing parameter " << param
+            << " from stack" << std::endl;
+
+
+    uint32_t sp = m_state->getSp() + (param+1) * sizeof(uint32_t);
+    bool b = m_state->writeMemoryConcrete(sp, &val, sizeof(val));
+    if (!b) {
+        g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write parameter " << param <<
+                " at 0x"<< std::hex << sp << std::endl;
+    }
+
+    return 0;
+}
+
+int S2ELUAExecutionState::readMemory(lua_State *L)
 {
     uint32_t address = luaL_checkint(L, 1);
     uint32_t size = luaL_checkint(L, 2);
+
+    uint32_t ret;
+    size = size <= 4 ? size : 4;
+
+    m_state->readMemoryConcrete(address, &ret, size);
+    lua_pushnumber(L, ret);        /* first result */
+    return 1;
+}
+
+int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
+{
+    std::string name = luaL_checkstring(L, 1);
+    uint32_t address = luaL_checkint(L, 2);
+    uint32_t size = luaL_checkint(L, 3);
+
+    bool writeRange = false;
+    uint32_t lowerBound = 0, upperBound = 0;
+    if (lua_isnumber(L, 4) && lua_isnumber(L, 5)) {
+        lowerBound = luaL_checkint(L, 4);
+        upperBound = luaL_checkint(L, 5);
+        writeRange = true;
+    }
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing symbolic value to memory location" <<
             " 0x" << std::hex << address << " of size " << size << std::endl;
@@ -447,26 +492,29 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
             break;
     }
 
-    klee::ref<klee::Expr> val = m_state->createSymbolicValue(width, "writeMemorySymb");
 
+    klee::ref<klee::Expr> val = m_state->createSymbolicValue(width, name);
     if (!m_state->writeMemory(address, val)) {
         std::stringstream ss;
         g_s2e->getDebugStream() << "writeMemorySymb: Could not write to memory at address 0x" << std::hex << address;
+        return 0;
+    }
+
+    if (writeRange) {
+        klee::ref<klee::Expr> val1 = klee::UleExpr::create(val, klee::ConstantExpr::create(upperBound,width));
+        klee::ref<klee::Expr> val2 = klee::NotExpr::create(klee::UltExpr::create(val, klee::ConstantExpr::create(lowerBound,width)));
+        klee::ref<klee::Expr> val3 = klee::AndExpr::create(val1, val2);
+        g_s2e->getDebugStream() <<  "writeMemorySymb: " << val3 << std::endl;
+        m_state->addConstraint(val3);
+    }else {
+        val = m_state->createSymbolicValue(width, name);
     }
 
     return 0;
 }
 
-int S2ELUAExecutionState::writeRegister(lua_State *L)
+static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32 &size)
 {
-    std::string regstr = luaL_checkstring(L, 1);
-    uint32_t value = luaL_checkint(L, 2);
-
-    unsigned regIndex=0, size=0;
-
-    g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing to register "
-            << regstr << " 0x" << std::hex << value << std::endl;
-
     if (regstr == "eax") {
         regIndex = R_EAX;
         size = 4;
@@ -492,6 +540,22 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
         regIndex = R_EBP;
         size = 4;
     }else {
+        return false;
+    }
+    return true;
+}
+
+int S2ELUAExecutionState::writeRegister(lua_State *L)
+{
+    std::string regstr = luaL_checkstring(L, 1);
+    uint32_t value = luaL_checkint(L, 2);
+
+    unsigned regIndex=0, size=0;
+
+    g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing to register "
+            << regstr << " 0x" << std::hex << value << std::endl;
+
+    if (!RegNameToIndex(regstr, regIndex, size)) {
         std::stringstream ss;
         ss << "Invalid register " << regstr;
         lua_pushstring(L, ss.str().c_str());
@@ -501,6 +565,29 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
     m_state->writeCpuRegisterConcrete(offsetof(CPUState, regs) + regIndex*4, &value, size);
 
     return 0;                   /* number of results */
+}
+
+int S2ELUAExecutionState::readRegister(lua_State *L)
+{
+    std::string regstr = luaL_checkstring(L, 1);
+
+    unsigned regIndex=0, size=0;
+
+    g_s2e->getDebugStream() << "S2ELUAExecutionState: Reading register "
+            << regstr << std::endl;
+
+    if (!RegNameToIndex(regstr, regIndex, size)) {
+        std::stringstream ss;
+        ss << "Invalid register " << regstr;
+        lua_pushstring(L, ss.str().c_str());
+        lua_error(L);
+    }
+
+    uint32_t value = 0;
+    m_state->readCpuRegisterConcrete(offsetof(CPUState, regs) + regIndex*4, &value, size);
+
+    lua_pushnumber(L, value);        /* first result */
+    return 1;
 }
 
 ///////////////////////////////////////////////////////

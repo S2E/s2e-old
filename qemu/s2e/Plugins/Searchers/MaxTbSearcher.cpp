@@ -13,6 +13,7 @@ extern "C" {
 
 #include <llvm/Instructions.h>
 #include <llvm/Constants.h>
+#include <llvm/Function.h>
 
 namespace s2e {
 namespace plugins {
@@ -129,8 +130,24 @@ uint64_t MaxTbSearcher::computeTargetPc(S2EExecutionState *state)
         return 0;
     }
 
+    //instr must be a call to tcg_llvm_fork_and_concretize
     s2e()->getDebugStream() << "MaxTbSearcher: " << *instr << std::endl;
-    return GetPcAssignment(BB);
+       
+    const CallInst *callInst = dyn_cast<CallInst>(instr);
+    if (!callInst) {
+        return 0;
+    }
+
+    assert(callInst->getCalledFunction()->getName() == "tcg_llvm_fork_and_concretize");
+
+    const ConstantInt *Ci = dyn_cast<ConstantInt>(callInst->getOperand(1));
+    if (!Ci) {
+        return false;
+    }
+
+    const uint64_t* Int = Ci->getValue().getRawData();
+    return *Int;
+    //return GetPcAssignment(BB);
 }
 
 
@@ -320,8 +337,6 @@ MaxTbSearcherState::MaxTbSearcherState(S2EExecutionState *s, Plugin *p)
 
 MaxTbSearcherState::~MaxTbSearcherState()
 {
-    //Notify the searcher that our state went away
-    m_plugin->m_states.erase(m_state);
 }
 
 PluginState *MaxTbSearcherState::clone() const

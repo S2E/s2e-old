@@ -16,6 +16,6 @@
 #define S2E_FORK_ON_SYMBOLIC_ADDRESS
 
 /** Enables simple memory debugging support */
-#define S2E_DEBUG_MEMORY
+//#define S2E_DEBUG_MEMORY
 
 #endif // S2E_CONFIG_H

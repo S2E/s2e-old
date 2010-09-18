@@ -191,6 +191,12 @@ void qemu_bh_clear(void)
     bhp = &async_context->first_bh;
     while (*bhp) {
         bh = *bhp;
+
+        if (bh->scheduled && !bh->deleted) {
+            bh->idle = 0;
+            bh->cb(bh->opaque);
+        }
+
         *bhp = bh->next;
         qemu_free(bh);
     }

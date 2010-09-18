@@ -24,6 +24,10 @@
 #include "host-utils.h"
 #include "kvm.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 //#define DEBUG_APIC
 
 /* APIC Local Vector Table */
@@ -114,6 +118,25 @@ static void apic_set_irq(APICState *s, int vector_num, int trigger_mode);
 static void apic_update_irq(APICState *s);
 static void apic_get_delivery_bitmask(uint32_t *deliver_bitmask,
                                       uint8_t dest, uint8_t dest_mode);
+
+
+#ifdef CONFIG_S2E
+void s2e_print_apic(CPUState *env)
+{
+    s2e_debug_print("%04x %04x %04x %04x %04x %04x %04x %04x\n",
+
+                    env->apic_state->irr[0],
+                    env->apic_state->irr[1],
+                    env->apic_state->irr[2],
+                    env->apic_state->irr[3],
+                    env->apic_state->irr[4],
+                    env->apic_state->irr[5],
+                    env->apic_state->irr[6],
+                    env->apic_state->irr[7]);
+
+}
+
+#endif
 
 /* Find first bit starting from msb */
 static int fls_bit(uint32_t value)

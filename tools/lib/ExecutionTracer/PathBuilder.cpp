@@ -293,7 +293,7 @@ bool PathBuilder::processPath(uint32_t pathId)
         seg=seg->getParent();
     }
 
-    for (unsigned i=segments.size()-1; i!=0; --i) {
+    for (int i=segments.size()-1; i>=0; --i) {
         processSegment(segments[i]);
     }
 

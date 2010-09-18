@@ -199,6 +199,7 @@ static const VMStateDescription vmstate_ioapic = {
     .fields      = (VMStateField []) {
         VMSTATE_UINT8(id, IOAPICState),
         VMSTATE_UINT8(ioregsel, IOAPICState),
+        VMSTATE_UINT32(irr, IOAPICState),
         VMSTATE_UINT64_ARRAY(ioredtbl, IOAPICState, IOAPIC_NUM_PINS),
         VMSTATE_END_OF_LIST()
     }
