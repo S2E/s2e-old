@@ -184,9 +184,12 @@ void NdisHandlers::onModuleLoad(
 
     REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemoryWithTag);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateSharedMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterIoPortRange);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterInterrupt);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMMapIoSpace);
     REGISTER_IMPORT(I, "ndis.sys", NdisMQueryAdapterResources);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateMapRegisters);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadNetworkAddress);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadConfiguration);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadPciSlotInformation);
@@ -285,6 +288,37 @@ bool NdisHandlers::writeParameter(S2EExecutionState *s, unsigned param, klee::re
     if (!b) {
         return false;
     }
+    return true;
+}
+
+bool NdisHandlers::forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values)
+{
+
+    klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, msg);
+    std::vector<klee::Expr> conditions;
+
+    S2EExecutionState *curState = state;
+
+    for (unsigned i=0; values.size()>0 && i<values.size()-1; ++i) {
+        klee::ref<klee::Expr> cond = klee::NeExpr::create(success, klee::ConstantExpr::create(values[i], klee::Expr::Int32));
+
+        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*curState, cond, false);
+        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+
+        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
+
+        uint32_t retVal = values[i];
+        fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+
+        curState = ts;
+    }
+
+    uint32_t retVal = values[values.size()-1];
+    klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(retVal, klee::Expr::Int32));
+    curState->addConstraint(cond);
+    curState->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+
     return true;
 }
 
@@ -411,6 +445,123 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
         fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
 
      }
+}
+
+void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == STRICT) {
+        return;
+    }
+
+    bool ok = true;
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    ok &= readConcreteParameter(state, 3, &plgState->val1); //VirtualAddress
+    ok &= readConcreteParameter(state, 4, &plgState->val2); //PhysicalAddress
+
+    if (!ok) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read parameters" << std::endl;
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMAllocateSharedMemoryRet)
+}
+
+void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    bool ok=true;
+    uint32_t va = 0;
+    uint64_t pa = 0;
+
+    ok &= state->readMemoryConcrete(plgState->val1, &va, sizeof(va));
+    ok &= state->readMemoryConcrete(plgState->val2, &pa, sizeof(pa));
+    if (!ok) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read returned addresses" << std::endl;
+        s2e()->getWarningsStream() << std::hex << "VirtualAddress=0x" << va << " PhysicalAddress=0x" << pa << std::endl;
+        return;
+    }
+
+    if (!va) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": original call has failed" << std::endl;
+        return;
+    }
+
+    //Consistency: LOCAL
+    if (m_consistency == LOCAL || m_consistency == OVERAPPROX) {
+        std::stringstream ss;
+        ss << __FUNCTION__ << "_success";
+        klee::ref<klee::Expr> succ = state->createSymbolicValue(klee::Expr::Bool, ss.str());
+        klee::ref<klee::Expr> cond = klee::EqExpr::create(succ, klee::ConstantExpr::create(1, klee::Expr::Bool));
+        klee::ref<klee::Expr> outcome =
+                klee::SelectExpr::create(cond, klee::ConstantExpr::create(va, klee::Expr::Int32),
+                                             klee::ConstantExpr::create(0, klee::Expr::Int32));
+        state->writeMemory(plgState->val1, outcome);
+
+        /* Fork success and failure */
+        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
+
+        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
+     }
+}
+
+void NdisHandlers::NdisMMapIoSpace(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == STRICT) {
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMMapIoSpaceRet)
+}
+
+void NdisHandlers::NdisMMapIoSpaceRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    std::vector<uint32_t> values;
+
+    values.push_back(NDIS_STATUS_SUCCESS);
+    values.push_back(NDIS_STATUS_RESOURCE_CONFLICT);
+    values.push_back(NDIS_STATUS_RESOURCES);
+    values.push_back(NDIS_STATUS_FAILURE);
+    forkRange(state, __FUNCTION__, values);
+}
+
+void NdisHandlers::NdisMAllocateMapRegisters(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == STRICT) {
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMAllocateMapRegistersRet)
+}
+
+void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    std::vector<uint32_t> values;
+
+    values.push_back(NDIS_STATUS_SUCCESS);
+    values.push_back(NDIS_STATUS_RESOURCES);
+    forkRange(state, __FUNCTION__, values);
 }
 
 void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -708,44 +859,13 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
 
     //Consistency: LOCAL
     if (m_consistency == LOCAL) {
-        /* Fork success and failure */
-        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        klee::ref<klee::Expr> cond = klee::NeExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
+        std::vector<uint32_t> values;
 
-        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
-        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
-        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
-
-        /* Update each of the states */
-        //First state succeeded
-        uint32_t retVal = NDIS_STATUS_SUCCESS;
-        fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
-        //Second state: NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
-        klee::ref<klee::Expr> cond2 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc001001E, klee::Expr::Int32));
-        sp = s2e()->getExecutor()->fork(*ts, cond2, false);
-        S2EExecutionState *ts_1 = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs_1 = static_cast<S2EExecutionState *>(sp.second);
-        m_functionMonitor->eraseSp(state == fs_1 ? ts_1 : fs_1, state->getPc());
-
-        retVal = NDIS_STATUS_RESOURCE_CONFLICT;
-        fs_1->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
-        //Third state: NDIS_STATUS_RESOURCES 0xc000009a
-        klee::ref<klee::Expr> cond3 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc000009a, klee::Expr::Int32));
-        sp = s2e()->getExecutor()->fork(*ts_1, cond3, false);
-        S2EExecutionState *ts_2 = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs_2 = static_cast<S2EExecutionState *>(sp.second);
-        m_functionMonitor->eraseSp(state == fs_2 ? ts_2 : fs_2, state->getPc());
-
-        retVal = NDIS_STATUS_RESOURCES;
-        fs_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
-        //Fourth state: NDIS_STATUS_FAILURE
-        retVal = NDIS_STATUS_FAILURE;
-        ts_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
+        values.push_back(NDIS_STATUS_SUCCESS);
+        values.push_back(NDIS_STATUS_RESOURCE_CONFLICT);
+        values.push_back(NDIS_STATUS_RESOURCES);
+        values.push_back(NDIS_STATUS_FAILURE);
+        forkRange(state, __FUNCTION__, values);
     }
 }
 
@@ -785,45 +905,13 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
 
     //Consistency: LOCAL
     if (m_consistency == LOCAL) {
-        /* Fork success and failure */
-        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        klee::ref<klee::Expr> cond = klee::NeExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
+        std::vector<uint32_t> values;
 
-        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
-        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
-        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
-
-        /* Update each of the states */
-        //First state succeeded
-        uint32_t retVal = NDIS_STATUS_SUCCESS;
-        fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
-
-        //Second state: NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
-        klee::ref<klee::Expr> cond2 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc001001E, klee::Expr::Int32));
-        sp = s2e()->getExecutor()->fork(*ts, cond2, false);
-        S2EExecutionState *ts_1 = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs_1 = static_cast<S2EExecutionState *>(sp.second);
-        m_functionMonitor->eraseSp(state == fs_1 ? ts_1 : fs_1, state->getPc());
-
-        retVal = NDIS_STATUS_RESOURCE_CONFLICT;
-        fs_1->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
-        //Third state: NDIS_STATUS_RESOURCES 0xc000009a
-        klee::ref<klee::Expr> cond3 = klee::NeExpr::create(success, klee::ConstantExpr::create(0xc000009a, klee::Expr::Int32));
-        sp = s2e()->getExecutor()->fork(*ts_1, cond3, false);
-        S2EExecutionState *ts_2 = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs_2 = static_cast<S2EExecutionState *>(sp.second);
-        m_functionMonitor->eraseSp(state == fs_2 ? ts_2 : fs_2, state->getPc());
-
-        retVal = NDIS_STATUS_RESOURCES;
-        fs_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
-        //Fourth state: NDIS_STATUS_FAILURE
-        retVal = NDIS_STATUS_FAILURE;
-        ts_2->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
+        values.push_back(NDIS_STATUS_SUCCESS);
+        values.push_back(NDIS_STATUS_RESOURCE_CONFLICT);
+        values.push_back(NDIS_STATUS_RESOURCES);
+        values.push_back(NDIS_STATUS_FAILURE);
+        forkRange(state, __FUNCTION__, values);
     }
 
 }

@@ -73,6 +73,32 @@ NdisMQueryAdapterResources:
     xor eax, eax
 ret 4*4
 
+allocshared: db "Executing NdisMAllocateSharedMemory", 0
+NdisMAllocateSharedMemory:
+    push allocshared
+    call s2e_print_message
+    add esp,4
+
+    mov eax, [esp + 4*(1+3)]
+    mov dword [eax], 0x90000
+
+    mov eax, [esp + 4*(1+4)]
+    mov dword [eax], 0x7777
+    mov dword [eax+4], 0x7778
+
+    xor eax, eax
+ret 4*5
+
+mapiospace: db "Executing NdisMMapIoSpace", 0
+NdisMMapIoSpace:
+    push allocshared
+    call s2e_print_message
+    add esp,4
+
+    xor eax, eax
+ret 4*4
+
+
 slotinfo: db "Executing NdisReadPciSlotInformation", 0
 NdisReadPciSlotInformation:
     push slotinfo
@@ -209,6 +235,8 @@ ndis_module: db "lan9000.sys", 0
 imp_ndis_dll: db "ndis.sys",0
 imp_NdisMRegisterMiniport: db "NdisMRegisterMiniport",0
 imp_NdisMQueryAdapterResources: db "NdisMQueryAdapterResources",0
+imp_NdisMAllocateSharedMemory: db "NdisMAllocateSharedMemory",0
+imp_NdisMMapIoSpace: db "NdisMMapIoSpace",0
 imp_NdisAllocateMemory: db "NdisAllocateMemory",0
 imp_NdisReadNetworkAddress: db "NdisReadNetworkAddress",0
 imp_NdisReadPciSlotInformation: db "NdisReadPciSlotInformation",0
@@ -253,6 +281,18 @@ test_ndis:
 
     push NdisMQueryAdapterResources
     push imp_NdisMQueryAdapterResources
+    push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisMAllocateSharedMemory
+    push imp_NdisMAllocateSharedMemory
+    push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisMMapIoSpace
+    push imp_NdisMMapIoSpace
     push imp_ndis_dll
     call s2e_raw_load_import
     add esp, 3*4
@@ -313,7 +353,6 @@ test_ndis:
     push 4
     call RtlEqualUnicodeString
     
-    
     push 12; Length
     push 0x90000; Buffer
     push 0 ;Offset
@@ -337,6 +376,33 @@ nrpsi:
     call s2e_kill_state
 
 nmqar1:
+
+    push 0x90004; PhysicalAddress
+    push 0x90000; VirtualAddress
+    push 0 ;cached
+    push 0x1000; length
+    push 0x000; handle
+    call NdisMAllocateSharedMemory
+
+    cmp dword[0x90000], 0
+    jnz nmasm
+    call s2e_kill_state
+
+nmasm:
+
+
+    push 0x90004; PhysicalAddress
+    push 0x90000; VirtualAddress
+    push 0 ;cached
+    push 0x1000; length
+    push 0x000; handle
+    call NdisMMapIoSpace
+
+    cmp eax, 0
+    jz nmis
+    call s2e_kill_state
+
+nmis:
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     push 0

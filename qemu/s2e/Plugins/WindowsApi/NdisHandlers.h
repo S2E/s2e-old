@@ -96,14 +96,19 @@ private:
     void TraceCall(S2EExecutionState* state, FunctionMonitorState *fns);
     void TraceRet(S2EExecutionState* state);
 
+    bool forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values);
+
     DECLARE_NDIS_ENTRY_POINT(entryPoint);
 
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterMiniport);
     DECLARE_NDIS_ENTRY_POINT(NdisAllocateMemory);
     DECLARE_NDIS_ENTRY_POINT(NdisAllocateMemoryWithTag);
+    DECLARE_NDIS_ENTRY_POINT(NdisMAllocateSharedMemory);
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterIoPortRange);
+    DECLARE_NDIS_ENTRY_POINT(NdisMMapIoSpace);
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterInterrupt);
     DECLARE_NDIS_ENTRY_POINT(NdisMQueryAdapterResources);
+    DECLARE_NDIS_ENTRY_POINT(NdisMAllocateMapRegisters);
     DECLARE_NDIS_ENTRY_POINT(NdisReadNetworkAddress);
     DECLARE_NDIS_ENTRY_POINT(NdisReadConfiguration);
 
@@ -144,6 +149,7 @@ private:
     bool hasIsrHandler;
     uint32_t oid, pInformationBuffer;
     bool fakeoid;
+    uint32_t val1, val2;
 
     uint32_t isrRecognized, isrQueue;
     bool waitHandler;
