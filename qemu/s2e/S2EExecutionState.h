@@ -143,6 +143,7 @@ public:
     void setPc(uint64_t pc);
     void setSp(uint64_t sp);
 
+    bool getReturnAddress(uint32_t *retAddr);
     bool bypassFunction(unsigned paramCount);
     void undoCallAndJumpToSymbolic();
 

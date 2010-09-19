@@ -515,6 +515,8 @@ for opt do
   ;;
   --disable-sdl) sdl="no"
   ;;
+  --disable-cocoa) cocoa="no"
+  ;;
   --enable-sdl) sdl="yes"
   ;;
   --fmod-lib=*) fmod_lib="$optarg"

@@ -103,10 +103,13 @@ private:
     DECLARE_NDIS_ENTRY_POINT(NdisAllocateMemoryWithTag);
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterIoPortRange);
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterInterrupt);
+    DECLARE_NDIS_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_NDIS_ENTRY_POINT(NdisReadNetworkAddress);
     DECLARE_NDIS_ENTRY_POINT(NdisReadConfiguration);
 
-
+    DECLARE_NDIS_ENTRY_POINT(NdisReadPciSlotInformation);
+    DECLARE_NDIS_ENTRY_POINT(NdisWritePciSlotInformation);
+    
     DECLARE_NDIS_ENTRY_POINT(RtlEqualUnicodeString);
     DECLARE_NDIS_ENTRY_POINT(GetSystemUpTime);
     DECLARE_NDIS_ENTRY_POINT(KeStallExecutionProcessor);

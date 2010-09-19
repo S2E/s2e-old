@@ -61,6 +61,26 @@ NdisAllocateMemory:
 mov eax, 0
 ret 0x10
 
+nmqar: db "Executing NdisMQueryAdapterResources", 0
+NdisMQueryAdapterResources:
+    push nmqar
+    call s2e_print_message
+    add esp,4
+    
+    mov eax, [esp + 4]
+    mov dword [eax], 0 ; Success
+    
+    xor eax, eax
+ret 4*4
+
+slotinfo: db "Executing NdisReadPciSlotInformation", 0
+NdisReadPciSlotInformation:
+    push slotinfo
+    call s2e_print_message
+    add esp,4
+    xor eax, eax
+ret 4*5
+
 
 rdnetaddr: db "Executing NdisReadNetworkAddress", 0
 
@@ -188,8 +208,10 @@ ndis_module: db "lan9000.sys", 0
 
 imp_ndis_dll: db "ndis.sys",0
 imp_NdisMRegisterMiniport: db "NdisMRegisterMiniport",0
+imp_NdisMQueryAdapterResources: db "NdisMQueryAdapterResources",0
 imp_NdisAllocateMemory: db "NdisAllocateMemory",0
 imp_NdisReadNetworkAddress: db "NdisReadNetworkAddress",0
+imp_NdisReadPciSlotInformation: db "NdisReadPciSlotInformation",0
 
 imp_ntoskrnl_exe: db "ntoskrnl.exe",0
 imp_GetSystemUpTime: db "GetSystemUpTime", 0
@@ -219,6 +241,18 @@ test_ndis:
 
     push NdisReadNetworkAddress
     push imp_NdisReadNetworkAddress
+    push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisReadPciSlotInformation
+    push imp_NdisReadPciSlotInformation
+    push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisMQueryAdapterResources
+    push imp_NdisMQueryAdapterResources
     push imp_ndis_dll
     call s2e_raw_load_import
     add esp, 3*4
@@ -278,6 +312,31 @@ test_ndis:
     push 3
     push 4
     call RtlEqualUnicodeString
+    
+    
+    push 12; Length
+    push 0x90000; Buffer
+    push 0 ;Offset
+    push 0 ;SlotNumber
+    push 0 ;Handle
+    call NdisReadPciSlotInformation
+    
+    cmp eax, 0
+    jnz nrpsi
+    call s2e_kill_state
+nrpsi:
+
+    push 0x90000; BufferSize
+    push 0x90100; ResourceList
+    push 0 ;context
+    push 0x90004; status
+    call NdisMQueryAdapterResources
+    
+    cmp dword[0x90004], 0
+    jnz nmqar1
+    call s2e_kill_state
+
+nmqar1:
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     push 0

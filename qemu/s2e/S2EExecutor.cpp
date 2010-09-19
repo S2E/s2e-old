@@ -157,7 +157,6 @@ bool S2EExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
   if (!f)
     return false;
 
-  std::vector<GenericValue> gvArgs;
   gTheArgsP = args;
 
   #ifdef _WIN32
@@ -179,6 +178,7 @@ bool S2EExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
       if (setjmp(s2e_escapeCallJmpBuf)) {
         res = false;
       } else {
+        std::vector<GenericValue> gvArgs;
 
         executionEngine->runFunction(f, gvArgs);
         res = true;

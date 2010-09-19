@@ -38,7 +38,7 @@ void NdisHandlers::initialize()
 
     ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
     if (mods.size() == 0) {
-        s2e()->getWarningsStream() << "No modules to track configured for the NdisHandlers plugin" << std::endl;
+        s2e()->getWarningsStream() << "NDISHANDLERS: No modules to track configured for the NdisHandlers plugin" << std::endl;
         return;
     }
 
@@ -46,12 +46,12 @@ void NdisHandlers::initialize()
     m_devDesc = NULL;
     m_hwId = cfg->getString(getConfigKey() + ".hwId", "", &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You did not configure any symbolic hardware id" << std::endl;
+        s2e()->getWarningsStream() << "NDISHANDLERS: You did not configure any symbolic hardware id" << std::endl;
         exit(-1);
     }else {
         m_devDesc = m_hw->findDevice(m_hwId);
         if (!m_devDesc) {
-            s2e()->getWarningsStream() << "The specified hardware device id is invalid " << m_hwId << std::endl;
+            s2e()->getWarningsStream() << "NDISHANDLERS: The specified hardware device id is invalid " << m_hwId << std::endl;
             exit(-1);
         }
     }
@@ -68,7 +68,7 @@ void NdisHandlers::initialize()
         m_consistency = STRICT;
         s2e()->getExecutor()->setForceConcretizations(true);
     }else {
-        s2e()->getWarningsStream() << "Incorrect consistency " << consistency << std::endl;
+        s2e()->getWarningsStream() << "NDISHANDLERS: Incorrect consistency " << consistency << std::endl;
         exit(-1);
     }
 
@@ -186,8 +186,11 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemoryWithTag);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterIoPortRange);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterInterrupt);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMQueryAdapterResources);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadNetworkAddress);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadConfiguration);
+    REGISTER_IMPORT(I, "ndis.sys", NdisReadPciSlotInformation);
+    REGISTER_IMPORT(I, "ndis.sys", NdisWritePciSlotInformation);
 
     REGISTER_IMPORT(I, "ntoskrnl.exe", RtlEqualUnicodeString);
     REGISTER_IMPORT(I, "ntoskrnl.exe", GetSystemUpTime);
@@ -527,6 +530,136 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
 
 
 
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == STRICT) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    uint32_t buffer, length;
+    bool ok = true;
+
+    ok &= readConcreteParameter(state, 3, &buffer);
+    ok &= readConcreteParameter(state, 4, &length);
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+    }
+
+    uint32_t retaddr;
+    ok = state->getReturnAddress(&retaddr);
+
+    s2e()->getDebugStream(state) << "Buffer=" << std::hex << buffer <<
+        " Length=" << std::dec << length << std::endl;
+
+    //Fill in the buffer with symbolic values
+    for (unsigned i=0; i<length; ++i) {
+        std::stringstream ss;
+        ss << __FUNCTION__ << "_" << std::hex << retaddr << "_"  << i;
+        klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8, ss.str());
+        state->writeMemory(buffer+i, symb);
+    }
+
+    //Symbolic return value
+    std::stringstream ss;
+    ss << __FUNCTION__ << "_" << std::hex << retaddr << "_retval";
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+    klee::ref<klee::Expr> expr = klee::UleExpr::create(symb, klee::ConstantExpr::create(length, klee::Expr::Int32));
+    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    state->addConstraint(expr);
+
+    state->bypassFunction(5);
+    throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    
+    if (m_consistency == STRICT) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    uint32_t length;
+    bool ok = true;
+
+    ok &= readConcreteParameter(state, 4, &length);
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+    }
+
+    uint32_t retaddr;
+    ok = state->getReturnAddress(&retaddr);
+
+    s2e()->getDebugStream(state) << 
+        " Length=" << std::dec << length << std::endl;
+
+    //Symbolic return value
+    std::stringstream ss;
+    ss << __FUNCTION__ << "_" << std::hex << retaddr << "_retval";
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+    klee::ref<klee::Expr> expr = klee::UleExpr::create(symb, klee::ConstantExpr::create(length, klee::Expr::Int32));
+    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    state->addConstraint(expr);
+
+    state->bypassFunction(5);
+    throw CpuExitException();
+}
+
+void NdisHandlers::NdisMQueryAdapterResources(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == STRICT) {
+        return;
+    }
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+    
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &plgState->pStatus);
+
+    //XXX: Do the other parameters as well
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMQueryAdapterResourcesRet)
+}
+
+void NdisHandlers::NdisMQueryAdapterResourcesRet(S2EExecutionState* state)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+    
+    if (!plgState->pStatus) {
+        s2e()->getDebugStream() << "Status is NULL!" << std::endl;
+        return;
+    }
+
+    klee::ref<klee::Expr> Status = state->readMemory(plgState->pStatus, klee::Expr::Int32);
+    if (!NtSuccess(s2e(), state, Status)) {
+        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << std::endl;
+        return;
+    }
+
+    klee::ref<klee::Expr> SymbStatus = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+    state->writeMemory(plgState->pStatus, SymbStatus);
+
+    return;
 }
 
 void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -930,8 +1063,11 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
                 state->writeMemory(pMediumArray + i * 4, state->createSymbolicValue(klee::Expr::Int32, ss.str()));
             }
 
-            klee::ref<klee::Expr> SymbSize = klee::UleExpr::create(state->createSymbolicValue(klee::Expr::Int32, "MediumArraySize"),
+            klee::ref<klee::Expr> SymbSize = state->createSymbolicValue(klee::Expr::Int32, "MediumArraySize");
+
+            klee::ref<klee::Expr> Constr = klee::UleExpr::create(SymbSize,
                                                                klee::ConstantExpr::create(MediumArraySize, klee::Expr::Int32));
+            state->addConstraint(Constr);
             writeParameter(state, 3, SymbSize);
         }
     }

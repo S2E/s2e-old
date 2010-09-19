@@ -19,6 +19,7 @@ class DeviceDescriptor {
 protected:
     std::string m_id;
     void *m_qemuIrq;
+    bool m_active;
 
 public:
     DeviceDescriptor(const std::string &id);
@@ -31,6 +32,14 @@ public:
         return dd1->m_id < dd2->m_id;
     }
     };
+
+    bool isActive() const {
+        return m_active;
+    }
+
+    void setActive(bool b) {
+        m_active = true;
+    }
 
     virtual void print(std::ostream &os) const {}
     virtual void initializeQemuDevice() {assert(false);}

@@ -181,6 +181,7 @@ SymbolicHardware::~SymbolicHardware()
 
 DeviceDescriptor::DeviceDescriptor(const std::string &id){
     m_id = id;
+   m_qemuIrq = NULL;
 }
 
 DeviceDescriptor::~DeviceDescriptor()
@@ -240,6 +241,11 @@ void IsaDeviceDescriptor::initializeQemuDevice()
 void IsaDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
 {
     isa_create_simple(m_id.c_str());
+    if (!isActive()) {
+        g_s2e->getWarningsStream() << "ISA device " <<
+                m_id << " is not active. Check that its ID does not collide with native QEMU devices." << std::endl;
+        exit(-1);
+    }
 }
 
 IsaDeviceDescriptor::~IsaDeviceDescriptor()
@@ -302,6 +308,7 @@ IsaDeviceDescriptor* IsaDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 void IsaDeviceDescriptor::setInterrupt(bool state)
 {
     g_s2e->getDebugStream() << "IsaDeviceDescriptor::setInterrupt " << state << std::endl;
+    assert(m_qemuIrq);
     if (state) {
        qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
     }else {
@@ -411,6 +418,7 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 
 void PciDeviceDescriptor::initializeQemuDevice()
 {
+    g_s2e->getDebugStream() << "PciDeviceDescriptor::initializeQemuDevice()" << std::endl;
     m_vmStateFields = new VMStateField[2];
     memset(m_vmStateFields, 0, sizeof(VMStateField)*2);
     m_vmStateFields[0].name = "dev";
@@ -447,7 +455,14 @@ void PciDeviceDescriptor::initializeQemuDevice()
 
 void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
 {
-    pci_create_simple(bus, -1, m_id.c_str());
+    void *res = pci_create_simple(bus, -1, m_id.c_str());
+    assert(res);
+
+    if (!isActive()) {
+        g_s2e->getWarningsStream() << "PCI device " <<
+                m_id << " is not active. Check that its ID does not collide with native QEMU devices." << std::endl;
+        exit(-1);
+    }
 }
 
 PciDeviceDescriptor::PciDeviceDescriptor(const std::string &id):DeviceDescriptor(id)
@@ -487,6 +502,7 @@ void PciDeviceDescriptor::print(std::ostream &os) const
 void PciDeviceDescriptor::setInterrupt(bool state)
 {
     g_s2e->getDebugStream() << "PciDeviceDescriptor::setInterrupt " << state << std::endl;
+    assert(m_qemuIrq);
     if (state) {
        s2e_print_apic(env);
         qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
@@ -622,6 +638,7 @@ static int isa_symbhw_init(ISADevice *dev)
     assert(dd);
 
     isa->desc = dd;
+    dd->setActive(true);
 
     IsaDeviceDescriptor *s = isa->desc;
 
@@ -651,12 +668,16 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
     SymbolicPciDeviceState *d = DO_UPCAST(SymbolicPciDeviceState, dev, pci_dev);
     uint8_t *pci_conf;
 
+    s2e_debug_print("pci_symbhw_init\n");
+
     //Retrive the configuration
     SymbolicHardware *hw = (SymbolicHardware*)g_s2e->getPlugin("SymbolicHardware");
     assert(hw);
 
     PciDeviceDescriptor *dd = (PciDeviceDescriptor*)hw->findDevice(pci_dev->name);
     assert(dd);
+
+    dd->setActive(true);
 
     d->desc = dd;
 
