@@ -285,7 +285,7 @@ uint64_t S2EExecutionState::getSp() const
 //XXX: assumes x86 architecture.
 bool S2EExecutionState::bypassFunction(unsigned paramCount)
 {
-    uint32_t retAddr;
+    uint64_t retAddr;
     if (!getReturnAddress(&retAddr)) {
         return false;
     }
@@ -299,9 +299,10 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
 
 //May be called right after the machine call instruction
 //XXX: assumes x86 architecture
-bool S2EExecutionState::getReturnAddress(uint32_t *retAddr) 
+bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
-    if (!readMemoryConcrete(getSp(), retAddr, sizeof(*retAddr))) {
+    *retAddr = 0;
+    if (!readMemoryConcrete(getSp(), retAddr, sizeof(uint32_t))) {
         g_s2e->getDebugStream() << "Could not get the return address " << std::endl;
         return false;
     }

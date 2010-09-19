@@ -587,14 +587,23 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
         return;
     }
 
+    uint64_t pc = 0;
+    state->getReturnAddress(&pc);
+    const ModuleDescriptor *md = m_detector->getModule(state, pc, true);
+    if (md) {
+        pc = md->ToNativeBase(pc);
+    }
+
     std::string keyword;
     ok = ReadUnicodeString(state, plgState->pConfigString, keyword);
     if (ok) {
         uint32_t paramType;
         ok &= readConcreteParameter(state, 4, &paramType);
 
-        s2e()->getMessagesStream() << "NdisReadConfiguration Keyword=" << keyword <<
-                " Type=" << paramType << std::endl;
+        s2e()->getMessagesStream() << "NdisReadConfiguration Module=" << (md ? md->Name : "<unknown>") <<
+                " pc=0x" << std::hex << pc <<
+                " Keyword=" << keyword <<
+            " Type=" << paramType  << std::endl;
     }
 
     if (m_ignoreKeywords.find(keyword) != m_ignoreKeywords.end()) {
@@ -704,7 +713,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
         s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
     }
 
-    uint32_t retaddr;
+    uint64_t retaddr;
     ok = state->getReturnAddress(&retaddr);
 
     s2e()->getDebugStream(state) << "Buffer=" << std::hex << buffer <<
@@ -749,7 +758,7 @@ void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, Functio
         s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
     }
 
-    uint32_t retaddr;
+    uint64_t retaddr;
     ok = state->getReturnAddress(&retaddr);
 
     s2e()->getDebugStream(state) << 
