@@ -1147,6 +1147,7 @@ ifeq ($(CONFIG_STATIC_EXECUTABLE),true)
 endif
 
 LOCAL_MODULE := qemu-android
+LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_HOST_EXECUTABLE)
 
