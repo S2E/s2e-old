@@ -18,13 +18,14 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(Annotation, "Bypasses functions at run-time", "Annotation",
-                  "ModuleExecutionDetector", "FunctionMonitor", "Interceptor");
+                  "ModuleExecutionDetector", "FunctionMonitor", "Interceptor", "StateManager");
 
 void Annotation::initialize()
 {
     m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
     m_moduleExecutionDetector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     m_osMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
+    m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
 
     std::vector<std::string> Sections;
     Sections = s2e()->getConfig()->getListKeys(getConfigKey());
@@ -212,6 +213,13 @@ void Annotation::invokeAnnotation(
         throw CpuExitException();
     }
 
+    if (!isCall && luaAnnotation.m_succeed) {
+       assert(m_manager && "The StateManager plugin must be active to use succeed() call.");
+       m_manager->succeedState(state);
+       m_functionMonitor->eraseSp(state, state->getPc());
+       throw CpuExitException();
+    }
+
     if (fns) {
         assert(isCall);
         FunctionMonitor::ReturnSignal returnSignal;
@@ -253,6 +261,7 @@ Lunar<LUAAnnotation>::RegType LUAAnnotation::methods[] = {
   LUNAR_DECLARE_METHOD(LUAAnnotation, activateRule),
   LUNAR_DECLARE_METHOD(LUAAnnotation, isReturn),
   LUNAR_DECLARE_METHOD(LUAAnnotation, isCall),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, succeed),
   {0,0}
 };
 
@@ -263,6 +272,7 @@ LUAAnnotation::LUAAnnotation(Annotation *plg)
     m_doKill = false;
     m_doSkip = false;
     m_isReturn = false;
+    m_succeed = false;
 }
 
 LUAAnnotation::LUAAnnotation(lua_State *lua)
@@ -291,6 +301,16 @@ int LUAAnnotation::setKill(lua_State *L)
     g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << std::endl;
     return 0;
 }
+
+int LUAAnnotation::succeed(lua_State *L)
+{
+    m_succeed = true;
+    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << std::endl;
+    return 0;
+}
+
+
+
 
 
 int LUAAnnotation::activateRule(lua_State *L)

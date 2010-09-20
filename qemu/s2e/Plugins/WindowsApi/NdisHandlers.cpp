@@ -252,6 +252,17 @@ bool NdisHandlers::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Exp
     return false;
 }
 
+bool NdisHandlers::NtFailure(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr)
+{
+    bool isTrue;
+    klee::ref<klee::Expr> eq = klee::SgeExpr::create(expr, klee::ConstantExpr::create(0, expr.get()->getWidth()));
+
+    if (s2e->getExecutor()->getSolver()->mustBeFalse(klee::Query(s->constraints, eq), isTrue)) {
+        return isTrue;
+    }
+    return false;
+}
+
 //Address is a pointer to a UNICODE_STRING32 structure
 bool NdisHandlers::ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s)
 {
@@ -308,16 +319,15 @@ bool NdisHandlers::forkRange(S2EExecutionState *state, const std::string &msg, s
 
         m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
 
-        uint32_t retVal = values[i];
-        fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
+        //uint32_t retVal = values[i];
+        fs->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
         curState = ts;
     }
 
     uint32_t retVal = values[values.size()-1];
     klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(retVal, klee::Expr::Int32));
     curState->addConstraint(cond);
-    curState->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+    curState->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
 
     return true;
 }
@@ -498,8 +508,8 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
     if (m_consistency == LOCAL || m_consistency == OVERAPPROX) {
         std::stringstream ss;
         ss << __FUNCTION__ << "_success";
-        klee::ref<klee::Expr> succ = state->createSymbolicValue(klee::Expr::Bool, ss.str());
-        klee::ref<klee::Expr> cond = klee::EqExpr::create(succ, klee::ConstantExpr::create(1, klee::Expr::Bool));
+        klee::ref<klee::Expr> succ = state->createSymbolicValue(klee::Expr::Int8, ss.str());
+        klee::ref<klee::Expr> cond = klee::EqExpr::create(succ, klee::ConstantExpr::create(1, klee::Expr::Int8));
         klee::ref<klee::Expr> outcome =
                 klee::SelectExpr::create(cond, klee::ConstantExpr::create(va, klee::Expr::Int32),
                                              klee::ConstantExpr::create(0, klee::Expr::Int32));
@@ -531,13 +541,18 @@ void NdisHandlers::NdisMMapIoSpaceRet(S2EExecutionState* state)
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     s2e()->getExecutor()->jumpToSymbolicCpp(state);
 
-    std::vector<uint32_t> values;
+    if (m_consistency == LOCAL) {
+        std::vector<uint32_t> values;
 
-    values.push_back(NDIS_STATUS_SUCCESS);
-    values.push_back(NDIS_STATUS_RESOURCE_CONFLICT);
-    values.push_back(NDIS_STATUS_RESOURCES);
-    values.push_back(NDIS_STATUS_FAILURE);
-    forkRange(state, __FUNCTION__, values);
+        values.push_back(NDIS_STATUS_SUCCESS);
+        values.push_back(NDIS_STATUS_RESOURCE_CONFLICT);
+        values.push_back(NDIS_STATUS_RESOURCES);
+        values.push_back(NDIS_STATUS_FAILURE);
+        forkRange(state, __FUNCTION__, values);
+    }else  {
+        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+    }
 }
 
 void NdisHandlers::NdisMAllocateMapRegisters(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -557,12 +572,27 @@ void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     s2e()->getExecutor()->jumpToSymbolicCpp(state);
 
-    std::vector<uint32_t> values;
+    uint32_t eax;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
+        return;
+    }
+    if (eax != NDIS_STATUS_SUCCESS) {
+        s2e()->getDebugStream(state) <<  __FUNCTION__ << " failed" << std::endl;
+        return;
+    }
 
-    values.push_back(NDIS_STATUS_SUCCESS);
-    values.push_back(NDIS_STATUS_RESOURCES);
-    forkRange(state, __FUNCTION__, values);
+    if (m_consistency == LOCAL) {
+        std::vector<uint32_t> values;
+
+        values.push_back(NDIS_STATUS_SUCCESS);
+        values.push_back(NDIS_STATUS_RESOURCES);
+        forkRange(state, __FUNCTION__, values);
+    }else {
+        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
+    }
 }
+
 
 void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonitorState *fns)
 {
@@ -1177,12 +1207,26 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     //Check the success status, kill if failure
     klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
 
-    if (!NtSuccess(s2e(), state, eax)) {
+    bool isTrue;
+    klee::ref<klee::Expr> eq = klee::EqExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
+    if (!s2e()->getExecutor()->getSolver()->mayBeTrue(klee::Query(state->constraints, eq), isTrue)) {
+        s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
+                " because InitializeHandler failed to determine success" << std::endl;
+        s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler solver failed");
+    }
+
+    if (!isTrue) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
                 " because InitializeHandler failed with 0x" << std::hex << eax << std::endl;
         s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler failed");
         return;
     }
+
+    //Make sure we succeed by adding a constraint on the eax value
+    klee::ref<klee::Expr> constr = klee::SgeExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
+    state->addConstraint(constr);
+
+    s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << eax << std::endl;
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());

@@ -71,15 +71,14 @@ void TranslationBlockTracer::trace(S2EExecutionState *state, uint64_t pc, ExecTr
     tb.tbType = state->getTb()->s2e_tb_type;
     tb.symbMask = 0;
     tb.size = state->getTb()->size;
+    memset(tb.registers, 0x55, sizeof(tb.registers));
 
     assert(sizeof(tb.symbMask)*8 >= sizeof(tb.registers)/sizeof(tb.registers[0]));
     for (unsigned i=0; i<sizeof(tb.registers)/sizeof(tb.registers[0]); ++i) {
         //XXX: make it portable across architectures
         unsigned offset = offsetof(CPUX86State, regs) + i*sizeof(tb.registers[0]);
-        klee::ref<klee::Expr> r = state->readCpuRegister(offset, klee::Expr::Int32);
-        if (klee::ConstantExpr *ce = dyn_cast<klee::ConstantExpr>(r)) {
-            tb.registers[i] = (uint32_t)ce->getZExtValue();
-        }else {
+        if (!state->readCpuRegisterConcrete(offset, &tb.registers[i], sizeof(tb.registers[0]))) {
+            tb.registers[i]  = 0xDEADBEEF;
             tb.symbMask |= 1<<i;
         }
     }

@@ -9,6 +9,7 @@
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/OSMonitor.h>
 #include <s2e/ConfigFile.h>
+#include <s2e/Plugins/StateManager.h>
 
 namespace s2e {
 namespace plugins {
@@ -53,6 +54,7 @@ private:
     FunctionMonitor *m_functionMonitor;
     ModuleExecutionDetector *m_moduleExecutionDetector;
     OSMonitor *m_osMonitor;
+    StateManager *m_manager;
     CfgEntries m_entries;
 
     bool initSection(const std::string &entry, const std::string &cfgname);
@@ -91,7 +93,7 @@ private:
     bool m_doSkip;
     bool m_doKill;
     bool m_isReturn;
-
+    bool m_succeed;
 public:
     static const char className[];
     static Lunar<LUAAnnotation>::RegType methods[];
@@ -105,6 +107,7 @@ public:
     int activateRule(lua_State *L);
     int isReturn(lua_State *L);
     int isCall(lua_State *L);
+    int succeed(lua_State *L);
 
     friend class Annotation;
 };

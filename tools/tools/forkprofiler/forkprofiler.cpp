@@ -53,17 +53,10 @@ ForkProfiler::~ForkProfiler()
     m_connection.disconnect();
 }
 
-void ForkProfiler::onItem(unsigned traceIndex,
-            const s2e::plugins::ExecutionTraceItemHeader &hdr,
-            void *item)
+void ForkProfiler::doProfile(
+        const s2e::plugins::ExecutionTraceItemHeader &hdr,
+        const s2e::plugins::ExecutionTraceFork *te)
 {
-    if (hdr.type != s2e::plugins::TRACE_FORK) {
-        return;
-    }
-
-    const s2e::plugins::ExecutionTraceFork *te =
-            (const s2e::plugins::ExecutionTraceFork*) item;
-
     ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
 
     const ModuleInstance *mi = mcs->getInstance(hdr.pid, te->pc);
@@ -79,9 +72,9 @@ void ForkProfiler::onItem(unsigned traceIndex,
     ForkPoints::iterator it = m_forkPoints.find(fp);
     if (it == m_forkPoints.end()) {
         if (mi) {
-	    fp.module = mi->Name;
-	    fp.loadbase = mi->LoadBase;
-	    fp.imagebase = mi->ImageBase;
+            fp.module = mi->Name;
+            fp.loadbase = mi->LoadBase;
+            fp.imagebase = mi->ImageBase;
         } else {
             fp.module = "";
             fp.loadbase = 0;
@@ -94,7 +87,109 @@ void ForkProfiler::onItem(unsigned traceIndex,
         fp.count++;
         m_forkPoints.insert(fp);
     }
+}
 
+void ForkProfiler::doGraph(
+        const s2e::plugins::ExecutionTraceItemHeader &hdr,
+        const s2e::plugins::ExecutionTraceFork *te)
+{
+    ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
+
+    const ModuleInstance *mi = mcs->getInstance(hdr.pid, te->pc);
+
+    Fork f;
+    f.id = hdr.stateId;
+    f.pid = hdr.pid;
+    f.pc = te->pc;
+    if (mi) {
+        f.module = mi->Name;
+        f.relPc = te->pc - mi->LoadBase + mi->ImageBase;
+    }else {
+        f.relPc = te->pc;
+    }
+
+    for (unsigned i=0; i<te->stateCount; ++i) {
+        f.children.push_back(te->children[i]);
+    }
+
+    m_forks.push_back(f);
+}
+
+void ForkProfiler::onItem(unsigned traceIndex,
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            void *item)
+{
+    if (hdr.type != s2e::plugins::TRACE_FORK) {
+        return;
+    }
+
+    const s2e::plugins::ExecutionTraceFork *te =
+            (const s2e::plugins::ExecutionTraceFork*) item;
+
+    doProfile(hdr, te);
+    doGraph(hdr, te);
+
+}
+
+static std::string getColor(unsigned val, unsigned maxval)
+{
+    uint32_t index = val * 10 / maxval;
+    uint32_t hexval = index * 128 / 10;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "#%02x%02x%02x", hexval+128, 0, 0);
+    return buf;
+}
+
+void ForkProfiler::outputGraph(const std::string &path) const
+{
+    std::stringstream ss;
+    ss << path << "/" << "statetree.dot";
+    std::ofstream tree(ss.str().c_str());
+
+    std::map<uint32_t, uint32_t> stateIdMap;
+
+    //Get the maximum count number, to compute a color scale
+    ForkPoints::const_iterator fpit;
+    uint32_t maxCount = 0;
+    for (fpit = m_forkPoints.begin(); fpit != m_forkPoints.end(); ++fpit) {
+        if ((*fpit).count > maxCount) {
+            maxCount = (*fpit).count;
+        }
+    }
+
+
+
+    tree << "digraph G {" << std::endl;
+
+    ForkList::const_iterator it;
+    for(it = m_forks.begin(); it != m_forks.end(); ++it) {
+        const Fork &f = *it;
+        uint32_t newId = stateIdMap[f.id];
+        uint32_t density = 0;
+
+        ForkPoint fp;
+        fp.pc = f.pc;
+        fp.pid = f.pid;
+        fpit = m_forkPoints.find(fp);
+        if (fpit != m_forkPoints.end())  {
+            density = (*fpit).count;
+        }
+
+
+        tree << "s" << f.id << "_" << newId << " [label=\"" <<
+                std::hex << f.relPc << std::dec << "\" " <<
+                "style=filled fillcolor=\"" << getColor(density, maxCount) << "\"];"
+
+                << std::endl;
+        for (unsigned i=0; i<f.children.size(); ++i) {
+            uint32_t newChild = stateIdMap[f.children[i]] + 1;
+            stateIdMap[f.children[i]] = newChild;
+
+            tree << "s" << f.id << "_" << newId << "->" << "s" << f.children[i] << "_" << newChild << ";" << std::endl;
+        }
+    }
+
+    tree << "}" << std::endl;
 }
 
 void ForkProfiler::outputProfile(const std::string &path) const
@@ -162,6 +257,7 @@ int main(int argc, char **argv)
     pb.processTree();
 
     fp.outputProfile(LogDir);
+    fp.outputGraph(LogDir);
 
     return 0;
 }

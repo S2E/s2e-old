@@ -200,6 +200,7 @@ ok1:
 
     mov eax, esi
 
+
 ret 4
 
 queryinfomsg: db "Calling QueryInformationHandler", 0

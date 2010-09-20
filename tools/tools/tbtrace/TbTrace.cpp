@@ -88,7 +88,7 @@ void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
 {
     const char *regs[] = {"EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI"};
     for (unsigned i=0; i<8; ++i) {
-        if (te->symbMask & (1<<8)) {
+        if (te->symbMask & (1<<i)) {
             m_output << regs[i] << ": SYMBOLIC ";
         }else {
             m_output << regs[i] << ": 0x" << std::hex << te->registers[i] << " ";

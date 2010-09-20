@@ -15,6 +15,14 @@ class ForkProfiler
 {
 public:
 
+    struct Fork {
+        uint32_t id;
+        uint64_t pid;
+        uint64_t relPc, pc;
+        std::string module;
+        std::vector<uint32_t> children;
+    };
+
     struct ForkPoint {
         uint64_t pc, pid;
         uint64_t count;
@@ -45,6 +53,7 @@ public:
         }
     };
 
+    typedef std::vector<Fork> ForkList;
     typedef std::set<ForkPoint, ForkPoint> ForkPoints;
     typedef std::set<ForkPoint, ForkPointByCount> ForkPointsByCount;
 private:
@@ -53,12 +62,19 @@ private:
     Library *m_library;
 
     sigc::connection m_connection;
-
+    ForkList m_forks;
     ForkPoints m_forkPoints;
 
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
                 void *item);
+
+    void doProfile(
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            const s2e::plugins::ExecutionTraceFork *te);
+    void doGraph(
+            const s2e::plugins::ExecutionTraceItemHeader &hdr,
+            const s2e::plugins::ExecutionTraceFork *te);
 
 public:
     ForkProfiler(Library *lib, ModuleCache *cache, LogEvents *events);
@@ -66,8 +82,8 @@ public:
 
     void process();
 
-    void outputProfile(const std::string &Path) const;
-
+    void outputProfile(const std::string &path) const;
+    void outputGraph(const std::string &path) const;
 };
 
 }

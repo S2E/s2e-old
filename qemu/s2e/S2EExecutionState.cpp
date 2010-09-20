@@ -311,8 +311,12 @@ bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 
 void S2EExecutionState::dumpStack(unsigned count)
 {
+    dumpStack(getSp());
+}
+
+void S2EExecutionState::dumpStack(unsigned count, uint64_t sp)
+{
     std::ostream &os = g_s2e->getDebugStream();
-    uint64_t sp = getSp();
 
     os << "Dumping stack @0x" << std::hex << sp << std::endl;
 

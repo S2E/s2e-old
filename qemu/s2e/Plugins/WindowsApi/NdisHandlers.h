@@ -50,6 +50,7 @@ public:
     void initialize();
 
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
+    static bool NtFailure(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr);
 
     static bool ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s);
 

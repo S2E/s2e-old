@@ -148,6 +148,7 @@ public:
     void undoCallAndJumpToSymbolic();
 
     void dumpStack(unsigned count);
+    void dumpStack(unsigned count, uint64_t sp);
 
     /** Returns true if symbex is currently enabled for this state */
     bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
