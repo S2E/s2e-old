@@ -33,6 +33,7 @@ private:
                 void *item);
 
     void printDebugInfo(uint64_t pid, uint64_t pc);
+    void printRegisters(const s2e::plugins::ExecutionTraceTb *te);
 public:
     TbTrace(Library *lib, ModuleCache *cache, LogEvents *events, std::ofstream &ofs);
     virtual ~TbTrace();

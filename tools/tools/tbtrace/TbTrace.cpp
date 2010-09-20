@@ -37,6 +37,9 @@ cl::list<unsigned>
     PathList("pathId",
              cl::desc("Path id to output, repeat for more. Empty=all paths"), cl::ZeroOrMore);
 
+cl::opt<bool>
+        PrintRegisters("printRegisters", cl::desc("Print register contents for each block"), cl::init(false));
+
 }
 
 namespace s2etools
@@ -81,6 +84,18 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
 
 }
 
+void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
+{
+    const char *regs[] = {"EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI"};
+    for (unsigned i=0; i<8; ++i) {
+        if (te->symbMask & (1<<8)) {
+            m_output << regs[i] << ": SYMBOLIC ";
+        }else {
+            m_output << regs[i] << ": 0x" << std::hex << te->registers[i] << " ";
+        }
+    }
+}
+
 void TbTrace::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
             void *item)
@@ -103,6 +118,13 @@ void TbTrace::onItem(unsigned traceIndex,
                 (const s2e::plugins::ExecutionTraceTb*) item;
 
         m_output << "0x" << std::hex << te->pc<< " - ";
+
+        if (PrintRegisters) {
+            m_output << std::endl << "    ";
+            printRegisters(te);
+            m_output << std::endl << "    ";
+        }
+
         printDebugInfo(hdr.pid, te->pc);
         m_output << std::endl;
         m_hasItems = true;
