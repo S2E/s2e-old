@@ -5419,11 +5419,11 @@ int main(int argc, char **argv, char **envp)
                 gdbstub_dev);
     }
 
-    if (loadvm)
-        do_loadvm(cur_mon, loadvm);
-
     /* call android-specific setup function */
     android_emulation_setup();
+
+    if (loadvm)
+        do_loadvm(cur_mon, loadvm);
 
     if (incoming) {
         autostart = 0; /* fixme how to deal with -daemonize */
