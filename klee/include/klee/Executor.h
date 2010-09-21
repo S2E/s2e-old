@@ -193,7 +193,8 @@ protected:
   MemoryObject *addExternalObject(ExecutionState &state, void *addr, 
                                   unsigned size, bool isReadOnly,
                                   bool isUserSpecified = false,
-                                  bool isSharedConcrete = false);
+                                  bool isSharedConcrete = false,
+                                  bool isValueIgnored = false);
 
   void initializeGlobalObject(ExecutionState &state, ObjectState *os, 
 			      llvm::Constant *c,
@@ -405,6 +406,8 @@ public:
   // current state, and one of the states may be null.
   virtual StatePair fork(ExecutionState &current,
                          ref<Expr> condition, bool isInternal);
+
+  virtual bool merge(ExecutionState &base, ExecutionState &other);
 
   // remove state from queue and delete
   virtual void terminateState(ExecutionState &state);

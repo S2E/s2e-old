@@ -3,6 +3,9 @@ extern "C" {
 #include "qemu-common.h"
 #include "sysemu.h"
 
+#include "tcg-llvm.h"
+#include "cpu.h"
+
 extern struct CPUX86State *env;
 }
 
@@ -17,9 +20,19 @@ extern struct CPUX86State *env;
 #include <s2e/S2E.h>
 #include <s2e/s2e_qemu.h>
 
+#include <llvm/Support/CommandLine.h>
+
 #include <iomanip>
 
 //#define S2E_ENABLEMEM_CACHE
+
+namespace klee {
+extern llvm::cl::opt<bool> DebugLogStateMerge;
+}
+
+namespace {
+CPUTLBEntry s_cputlb_empty_entry = { -1, -1, -1, -1 };
+}
 
 namespace s2e {
 
@@ -33,7 +46,8 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_active(true), m_runningConcrete(true),
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL),
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
-        m_lastS2ETb(NULL)
+        m_dirtyMask(NULL), m_lastS2ETb(NULL),
+        m_lastMergeICount((uint64_t)-1)
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
@@ -743,6 +757,251 @@ void S2EExecutionState::dumpX86State(std::ostream &os) const
     os << "EIP=0x" << readCpuState(offsetof(CPUState, eip), 32) << std::endl;
     os << "CR2=0x" << readCpuState(offsetof(CPUState, cr[2]), 32) << std::endl;
     os << std::dec;
+}
+
+bool S2EExecutionState::merge(const ExecutionState &_b)
+{
+    assert(dynamic_cast<const S2EExecutionState*>(&_b));
+    const S2EExecutionState& b = static_cast<const S2EExecutionState&>(_b);
+
+    assert(!m_active && !b.m_active);
+
+    std::ostream& s = g_s2e->getMessagesStream(this);
+
+    if(DebugLogStateMerge)
+        s << "Attempting merge with state " << b.getID() << std::endl;
+
+    if(pc != b.pc) {
+        if(DebugLogStateMerge)
+            s << "merge failed: different pc" << std::endl;
+        return false;
+    }
+
+    // XXX is it even possible for these to differ? does it matter? probably
+    // implies difference in object states?
+    if(symbolics != b.symbolics) {
+        if(DebugLogStateMerge)
+            s << "merge failed: different symbolics" << std::endl;
+        return false;
+    }
+
+    {
+        std::vector<StackFrame>::const_iterator itA = stack.begin();
+        std::vector<StackFrame>::const_iterator itB = b.stack.begin();
+        while (itA!=stack.end() && itB!=b.stack.end()) {
+            // XXX vaargs?
+            if(itA->caller!=itB->caller || itA->kf!=itB->kf) {
+                if(DebugLogStateMerge)
+                    s << "merge failed: different callstacks" << std::endl;
+            }
+          ++itA;
+          ++itB;
+        }
+        if(itA!=stack.end() || itB!=b.stack.end()) {
+            if(DebugLogStateMerge)
+                s << "merge failed: different callstacks" << std::endl;
+            return false;
+        }
+    }
+
+    std::set< ref<Expr> > aConstraints(constraints.begin(), constraints.end());
+    std::set< ref<Expr> > bConstraints(b.constraints.begin(),
+                                       b.constraints.end());
+    std::set< ref<Expr> > commonConstraints, aSuffix, bSuffix;
+    std::set_intersection(aConstraints.begin(), aConstraints.end(),
+                          bConstraints.begin(), bConstraints.end(),
+                          std::inserter(commonConstraints, commonConstraints.begin()));
+    std::set_difference(aConstraints.begin(), aConstraints.end(),
+                        commonConstraints.begin(), commonConstraints.end(),
+                        std::inserter(aSuffix, aSuffix.end()));
+    std::set_difference(bConstraints.begin(), bConstraints.end(),
+                        commonConstraints.begin(), commonConstraints.end(),
+                        std::inserter(bSuffix, bSuffix.end()));
+    if(DebugLogStateMerge) {
+        s << "\tconstraint prefix: [";
+        for(std::set< ref<Expr> >::iterator it = commonConstraints.begin(),
+                        ie = commonConstraints.end(); it != ie; ++it)
+            s << *it << ", ";
+        s << "]\n";
+        s << "\tA suffix: [";
+        for(std::set< ref<Expr> >::iterator it = aSuffix.begin(),
+                        ie = aSuffix.end(); it != ie; ++it)
+            s << *it << ", ";
+        s << "]\n";
+        s << "\tB suffix: [";
+        for(std::set< ref<Expr> >::iterator it = bSuffix.begin(),
+                        ie = bSuffix.end(); it != ie; ++it)
+        s << *it << ", ";
+        s << "]" << std::endl;
+    }
+
+    /* Check CPUState */
+    {
+        uint8_t* cpuStateA = m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip);
+        uint8_t* cpuStateB = b.m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip);
+        if(memcmp(cpuStateA + CPU_OFFSET(eip), cpuStateB + CPU_OFFSET(eip),
+                  CPU_OFFSET(current_tb) - CPU_OFFSET(eip))) {
+            if(DebugLogStateMerge)
+                s << "merge failed: different concrete cpu state" << std::endl;
+            return false;
+        }
+    }
+
+    // We cannot merge if addresses would resolve differently in the
+    // states. This means:
+    //
+    // 1. Any objects created since the branch in either object must
+    // have been free'd.
+    //
+    // 2. We cannot have free'd any pre-existing object in one state
+    // and not the other
+
+    //if(DebugLogStateMerge) {
+    //    s << "\tchecking object states\n";
+    //    s << "A: " << addressSpace.objects << "\n";
+    //    s << "B: " << b.addressSpace.objects << "\n";
+    //}
+
+    std::set<const MemoryObject*> mutated;
+    MemoryMap::iterator ai = addressSpace.objects.begin();
+    MemoryMap::iterator bi = b.addressSpace.objects.begin();
+    MemoryMap::iterator ae = addressSpace.objects.end();
+    MemoryMap::iterator be = b.addressSpace.objects.end();
+    for(; ai!=ae && bi!=be; ++ai, ++bi) {
+        if (ai->first != bi->first) {
+            if (DebugLogStateMerge) {
+                if (ai->first < bi->first) {
+                    s << "\t\tB misses binding for: " << ai->first->id << "\n";
+                } else {
+                    s << "\t\tA misses binding for: " << bi->first->id << "\n";
+                }
+            }
+            if(DebugLogStateMerge)
+                s << "merge failed: different callstacks" << std::endl;
+            return false;
+        }
+        if(ai->second != bi->second && !ai->first->isValueIgnored &&
+                    ai->first != m_cpuSystemState && ai->first != m_dirtyMask) {
+            const MemoryObject *mo = ai->first;
+            if(DebugLogStateMerge)
+                s << "\t\tmutated: " << mo->id << " (" << mo->name << ")\n";
+            if(mo->isSharedConcrete) {
+                if(DebugLogStateMerge)
+                    s << "merge failed: different shared-concrete objects "
+                      << std::endl;
+                return false;
+            }
+            mutated.insert(mo);
+        }
+    }
+    if(ai!=ae || bi!=be) {
+        if(DebugLogStateMerge)
+            s << "merge failed: different address maps" << std::endl;
+        return false;
+    }
+
+    // Create state predicates
+    ref<Expr> inA = ConstantExpr::alloc(1, Expr::Bool);
+    ref<Expr> inB = ConstantExpr::alloc(1, Expr::Bool);
+    for(std::set< ref<Expr> >::iterator it = aSuffix.begin(),
+                 ie = aSuffix.end(); it != ie; ++it)
+        inA = AndExpr::create(inA, *it);
+    for(std::set< ref<Expr> >::iterator it = bSuffix.begin(),
+                 ie = bSuffix.end(); it != ie; ++it)
+        inB = AndExpr::create(inB, *it);
+
+    // XXX should we have a preference as to which predicate to use?
+    // it seems like it can make a difference, even though logically
+    // they must contradict each other and so inA => !inB
+
+    // merge LLVM stacks
+
+    int selectCountStack = 0, selectCountMem = 0;
+
+    std::vector<StackFrame>::iterator itA = stack.begin();
+    std::vector<StackFrame>::const_iterator itB = b.stack.begin();
+    for(; itA!=stack.end(); ++itA, ++itB) {
+        StackFrame &af = *itA;
+        const StackFrame &bf = *itB;
+        for(unsigned i=0; i<af.kf->numRegisters; i++) {
+            ref<Expr> &av = af.locals[i].value;
+            const ref<Expr> &bv = bf.locals[i].value;
+            if(av.isNull() || bv.isNull()) {
+                // if one is null then by implication (we are at same pc)
+                // we cannot reuse this local, so just ignore
+            } else {
+                if(av != bv) {
+                    av = SelectExpr::create(inA, av, bv);
+                    selectCountStack += 1;
+                }
+            }
+        }
+    }
+
+    if(DebugLogStateMerge)
+        s << "\t\tcreated " << selectCountStack << " select expressions on the stack\n";
+
+    for(std::set<const MemoryObject*>::iterator it = mutated.begin(),
+                    ie = mutated.end(); it != ie; ++it) {
+        const MemoryObject *mo = *it;
+        const ObjectState *os = addressSpace.findObject(mo);
+        const ObjectState *otherOS = b.addressSpace.findObject(mo);
+        assert(os && !os->readOnly &&
+               "objects mutated but not writable in merging state");
+        assert(otherOS);
+
+        ObjectState *wos = addressSpace.getWriteable(mo, os);
+        for (unsigned i=0; i<mo->size; i++) {
+            ref<Expr> av = wos->read8(i);
+            ref<Expr> bv = otherOS->read8(i);
+            if(av != bv) {
+                wos->write(i, SelectExpr::create(inA, av, bv));
+                selectCountMem += 1;
+            }
+        }
+    }
+
+    if(DebugLogStateMerge)
+        s << "\t\tcreated " << selectCountMem << " select expressions in memory\n";
+
+    constraints = ConstraintManager();
+    for(std::set< ref<Expr> >::iterator it = commonConstraints.begin(),
+                ie = commonConstraints.end(); it != ie; ++it)
+        constraints.addConstraint(*it);
+
+    constraints.addConstraint(OrExpr::create(inA, inB));
+
+    // Merge dirty mask by clearing bits that differ. Clearning bits in
+    // dirty mask can only affect performance but not correcntess.
+    // NOTE: this requires flushing TLB
+    {
+        const ObjectState* os = addressSpace.findObject(m_dirtyMask);
+        ObjectState* wos = addressSpace.getWriteable(m_dirtyMask, os);
+        uint8_t* dirtyMaskA = wos->getConcreteStore();
+        const uint8_t* dirtyMaskB = b.addressSpace.findObject(m_dirtyMask)->getConcreteStore();
+
+        for(unsigned i = 0; i < m_dirtyMask->size; ++i) {
+            if(dirtyMaskA[i] != dirtyMaskB[i])
+                dirtyMaskA[i] = 0;
+        }
+    }
+
+    // Flush TLB
+    {
+        CPUState* cpu = (CPUState*) (m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(eip));
+        cpu->current_tb = NULL;
+
+        for (int mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
+            for(int i = 0; i < CPU_TLB_SIZE; i++)
+                cpu->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
+            for(int i = 0; i < CPU_S2E_TLB_SIZE; i++)
+                cpu->s2e_tlb_table[mmu_idx][i].objectState = 0;
+        }
+
+        memset (cpu->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
+    }
+
+    return true;
 }
 
 } // namespace s2e

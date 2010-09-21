@@ -5065,7 +5065,8 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
     /* XXX: hack to restore env in all cases, even if not called from
        generated code */
     saved_env = env;
-    env = cpu_single_env;
+    if(env != cpu_single_env)
+        env = cpu_single_env;
 #ifdef CONFIG_S2E
     s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
 #endif
@@ -5089,7 +5090,8 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         #endif
         raise_exception_err(env->exception_index, env->error_code);
     }
-    env = saved_env;
+    if(saved_env != env)
+        env = saved_env;
 }
 #endif
 
@@ -5922,3 +5924,9 @@ uint64_t helper_set_cc_op_eflags(void)
     WR_cpu(env, cc_op, CC_OP_EFLAGS);
     return 0;
 }
+
+#if defined(CONFIG_S2E) && defined(S2E_LLVM_LIB)
+void s2e_ensure_symbolic(struct S2E* s2e, struct S2EExecutionState *state)
+{
+}
+#endif

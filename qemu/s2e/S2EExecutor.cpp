@@ -68,6 +68,8 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <sys/mman.h>
 #endif
 
+#include <tr1/functional>
+
 //#define S2E_DEBUG_INSTRUCTIONS
 //#define S2E_TRACE_EFLAGS
 //#define FORCE_CONCRETIZATION
@@ -81,6 +83,16 @@ extern "C" {
     //void* g_s2e_exec_ret_addr = 0;
 }
 
+namespace {
+    uint64_t hash64(uint64_t val, uint64_t initial = 14695981039346656037ULL) {
+        const char* __first = (const char*) &val;
+        for (unsigned int i = 0; i < sizeof(uint64_t); ++i) {
+            initial ^= static_cast<uint64_t>(*__first++);
+            initial *= static_cast<uint64_t>(1099511628211ULL);
+        }
+        return initial;
+    }
+}
 
 namespace {
     cl::opt<bool>
@@ -485,6 +497,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(io_writel_mmu)
     __DEFINE_EXT_FUNCTION(io_writeq_mmu)
 
+    __DEFINE_EXT_FUNCTION(s2e_ensure_symbolic)
+
     //__DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
     __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
     __DEFINE_EXT_FUNCTION(s2e_is_port_symbolic)
@@ -601,34 +615,36 @@ S2EExecutionState* S2EExecutor::createInitialState()
     addExternalObject(*state, &tcg_llvm_runtime,
                       sizeof(tcg_llvm_runtime), false,
                       /* isUserSpecified = */ true,
-                      /* isSharedConcrete = */ true);
+                      /* isSharedConcrete = */ true,
+                      /* isValueIgnored = */ true);
 
     addExternalObject(*state, (void*) tb_function_args,
                       sizeof(tb_function_args), false,
                       /* isUserSpecified = */ true,
-                      /* isSharedConcrete = */ true);
+                      /* isSharedConcrete = */ true,
+                      /* isValueIgnored = */ true);
 
-#define __DEFINE_EXT_OBJECT(name) \
+#define __DEFINE_EXT_OBJECT_RO(name) \
     predefinedSymbols.insert(std::make_pair(#name, (void*) &name)); \
     addExternalObject(*state, (void*) &name, sizeof(name), \
-                      false, true, true);
+                      true, true, true)->setName(#name);
 
 #define __DEFINE_EXT_OBJECT_RO_SYMB(name) \
     predefinedSymbols.insert(std::make_pair(#name, (void*) &name)); \
     addExternalObject(*state, (void*) &name, sizeof(name), \
-                      true, true, false);
+                      true, true, false)->setName(#name);
 
-    __DEFINE_EXT_OBJECT(env)
-    __DEFINE_EXT_OBJECT(g_s2e)
-    __DEFINE_EXT_OBJECT(g_s2e_state)
-    //__DEFINE_EXT_OBJECT(g_s2e_exec_ret_addr)
-    __DEFINE_EXT_OBJECT(io_mem_read)
-    __DEFINE_EXT_OBJECT(io_mem_write)
-    __DEFINE_EXT_OBJECT(io_mem_opaque)
-    __DEFINE_EXT_OBJECT(use_icount)
-    __DEFINE_EXT_OBJECT(cpu_single_env)
-    __DEFINE_EXT_OBJECT(loglevel)
-    __DEFINE_EXT_OBJECT(logfile)
+    __DEFINE_EXT_OBJECT_RO(env)
+    __DEFINE_EXT_OBJECT_RO(g_s2e)
+    __DEFINE_EXT_OBJECT_RO(g_s2e_state)
+    //__DEFINE_EXT_OBJECT_RO(g_s2e_exec_ret_addr)
+    __DEFINE_EXT_OBJECT_RO(io_mem_read)
+    __DEFINE_EXT_OBJECT_RO(io_mem_write)
+    __DEFINE_EXT_OBJECT_RO(io_mem_opaque)
+    __DEFINE_EXT_OBJECT_RO(use_icount)
+    __DEFINE_EXT_OBJECT_RO(cpu_single_env)
+    __DEFINE_EXT_OBJECT_RO(loglevel)
+    __DEFINE_EXT_OBJECT_RO(logfile)
     __DEFINE_EXT_OBJECT_RO_SYMB(parity_table)
     __DEFINE_EXT_OBJECT_RO_SYMB(rclw_table)
     __DEFINE_EXT_OBJECT_RO_SYMB(rclb_table)
@@ -730,7 +746,8 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 
         MemoryObject *mo = addExternalObject(
                 *initialState, (void*) addr, S2E_RAM_OBJECT_SIZE, false,
-                /* isUserSpecified = */ true, isSharedConcrete);
+                /* isUserSpecified = */ true, isSharedConcrete,
+                isSharedConcrete && !saveOnContextSwitch && StateSharedMemory);
 
         mo->setName(ss.str());
 
@@ -760,9 +777,13 @@ void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t h
     //Assume that dirty mask is small enough, so no need to split it in small pages
     m_dirtyMask = addExternalObject(
             *initial_state, (void*) host_address, size, false,
-            /* isUserSpecified = */ true, true);
+            /* isUserSpecified = */ true, true, false);
+
+    m_dirtyMask->setName("dirtyMask");
 
     m_saveOnContextSwitch.push_back(m_dirtyMask);
+
+    initial_state->m_dirtyMask = m_dirtyMask;
 }
 
 uint8_t S2EExecutor::readDirtyMask(S2EExecutionState *state, uint64_t host_address)
@@ -1034,7 +1055,7 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
 
 void S2EExecutor::jumpToSymbolic(S2EExecutionState *state)
 {
-    assert(state->isRunningConcrete());
+    assert(state->isActive() && state->isRunningConcrete());
 
     state->m_startSymbexAtPC = state->getPc();
     // XXX: what about regs_to_env ?
@@ -1074,68 +1095,76 @@ bool S2EExecutor::copyInConcretes(klee::ExecutionState &state)
 void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
                                 S2EExecutionState* newState)
 {
-    assert(oldState->m_active && !newState->m_active);
-    assert(!newState->m_runningConcrete);
+    assert(oldState || newState);
+    assert(!oldState || oldState->m_active);
+    assert(!newState || !newState->m_active);
+    assert(!newState || !newState->m_runningConcrete);
+
+    //XXX:For now, clear the asynchronous request queue, which is not saved as part of
+    //the snapshots by QEMU.
+    qemu_bh_clear();
 
     cpu_disable_ticks();
 
     m_s2e->getMessagesStream(oldState)
-            << "Switching from state " << oldState->getID()
-            << " to state " << newState->getID() << std::endl;
+            << "Switching from state " << (oldState ? oldState->getID() : -1)
+            << " to state " << (newState ? newState->getID() : -1) << std::endl;
 
-    if(oldState->m_runningConcrete) {
-        switchToSymbolic(oldState);
+    const MemoryObject* cpuMo = oldState ? oldState->m_cpuSystemState :
+                                            newState->m_cpuSystemState;
+    if(oldState) {
+        if(oldState->m_runningConcrete)
+            switchToSymbolic(oldState);
+
+        //copyInConcretes(*oldState);
+        oldState->getDeviceState()->saveDeviceState();
+        *oldState->m_timersState = timers_state;
+
+        uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
+        memcpy(oldStore, (uint8_t*) cpuMo->address, cpuMo->size);
+
+        oldState->m_active = false;
     }
 
-    //copyInConcretes(*oldState);
-    oldState->getDeviceState()->saveDeviceState();
-    *oldState->m_timersState = timers_state;
+    if(newState) {
+        const uint8_t *newStore = newState->m_cpuSystemObject->getConcreteStore();
+        memcpy((uint8_t*) cpuMo->address, newStore, cpuMo->size);
 
-    {
-        const MemoryObject* mo = newState->m_cpuSystemState;
-        const ObjectState *newOS = newState->m_cpuSystemObject;
-        ObjectState *oldWOS = oldState->m_cpuSystemObject;
-
-        uint8_t *oldStore = oldWOS->getConcreteStore();
-        const uint8_t *newStore = newOS->getConcreteStore();
-
-        assert(oldStore);
-        assert(newStore);
-
-        memcpy(oldStore, (uint8_t*) mo->address, mo->size);
-        memcpy((uint8_t*) mo->address, newStore, mo->size);
+        newState->m_active = true;
     }
-
-    oldState->m_active = false;
-    newState->m_active = true;
 
     uint64_t totalCopied = 0;
     uint64_t objectsCopied = 0;
     foreach(MemoryObject* mo, m_saveOnContextSwitch) {
-        if(mo == newState->m_cpuSystemState)
+        if(mo == cpuMo)
             continue;
 
-        const ObjectState *oldOS = oldState->addressSpace.findObject(mo);
-        const ObjectState *newOS = newState->addressSpace.findObject(mo);
-        ObjectState *oldWOS = oldState->addressSpace.getWriteable(mo, oldOS);
+        if(oldState) {
+            const ObjectState *oldOS = oldState->addressSpace.findObject(mo);
+            ObjectState *oldWOS = oldState->addressSpace.getWriteable(mo, oldOS);
+            uint8_t *oldStore = oldWOS->getConcreteStore();
+            assert(oldStore);
+            memcpy(oldStore, (uint8_t*) mo->address, mo->size);
+        }
 
-        uint8_t *oldStore = oldWOS->getConcreteStore();
-        const uint8_t *newStore = newOS->getConcreteStore();
+        if(newState) {
+            const ObjectState *newOS = newState->addressSpace.findObject(mo);
+            const uint8_t *newStore = newOS->getConcreteStore();
+            assert(newStore);
+            memcpy((uint8_t*) mo->address, newStore, mo->size);
+        }
 
-        assert(oldStore);
-        assert(newStore);
-
-        memcpy(oldStore, (uint8_t*) mo->address, mo->size);
-        memcpy((uint8_t*) mo->address, newStore, mo->size);
         totalCopied += mo->size;
         objectsCopied++;
     }
 
     s2e_debug_print("Copied %d (count=%d)\n", totalCopied, objectsCopied);
 
-    timers_state = *newState->m_timersState;
-    newState->getDeviceState()->restoreDeviceState();
-    //copyOutConcretes(*newState);
+    if(newState) {
+        timers_state = *newState->m_timersState;
+        newState->getDeviceState()->restoreDeviceState();
+        //copyOutConcretes(*newState);
+    }
 
     if(FlushTBsOnStateSwitch)
         tb_flush(env);
@@ -1146,8 +1175,11 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
 S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 {
+    assert(state->m_active);
     updateStates(state);
 
+    /* XXX Why is it here ? There is timers, there is onTranslate, onStateSwitch signals...
+           selectNextState is not good because it is called at "random" time. */
     if (m_stateManager) {
         //Try to kill the useless states. Even the current state can be killed at this point.
         try {
@@ -1159,7 +1191,6 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         //otherwise, the searcher might select killed states.
         updateStates(state);
     }
-
 
     if(states.empty()) {
         m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
@@ -1173,10 +1204,12 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
             static_cast<S2EExecutionState*  >(&newKleeState);
     assert(states.find(newState) != states.end());
 
+    if(!state->m_active) {
+        /* Current state might be switched off by merge method */
+        state = NULL;
+    }
+
     if(newState != state) {
-        //XXX:For now, clear the asynchronous request queue, which is not saved as part of
-        //the snapshots by QEMU.
-        qemu_bh_clear();
         doStateSwitch(state, newState);
     }
 
@@ -1882,6 +1915,30 @@ void S2EExecutor::branch(klee::ExecutionState &state,
                        newStates, newConditions);
 }
 
+bool S2EExecutor::merge(klee::ExecutionState &_base, klee::ExecutionState &_other)
+{
+    assert(dynamic_cast<S2EExecutionState*>(&_base));
+    assert(dynamic_cast<S2EExecutionState*>(&_other));
+    S2EExecutionState& base = static_cast<S2EExecutionState&>(_base);
+    S2EExecutionState& other = static_cast<S2EExecutionState&>(_other);
+
+    /* Ensure that both states are inactive, otherwise merging will not work */
+    if(base.m_active)
+        doStateSwitch(&base, NULL);
+    else if(other.m_active)
+        doStateSwitch(&other, NULL);
+
+    if(base.merge(other)) {
+        m_s2e->getMessagesStream(&base)
+                << "Merged with state " << other.getID() << std::endl;
+        return true;
+    } else {
+        m_s2e->getDebugStream(&base)
+                << "Merge with state " << other.getID() << " failed" << std::endl;
+        return false;
+    }
+}
+
 void S2EExecutor::terminateState(ExecutionState &state)
 {
     S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
@@ -2007,6 +2064,36 @@ void S2EExecutor::unrefS2ETb(S2ETranslationBlock* s2e_tb)
             delete static_cast<ExecutionSignal*>(s);
         }
     }
+}
+
+void S2EExecutor::queueStateForMerge(S2EExecutionState *state)
+{
+    if(dynamic_cast<MergingSearcher*>(searcher) == NULL) {
+        m_s2e->getWarningsStream(state)
+                << "State merging request is ignored because"
+                   " MergingSearcher is not activated\n";
+        return;
+    }
+    assert(state->m_active && !state->m_runningConcrete && state->pc);
+
+    /* Ignore attempt to merge states immediately after previous attempt */
+    if(state->m_lastMergeICount == state->getTotalInstructionCount() - 1)
+        return;
+
+    state->m_lastMergeICount = state->getTotalInstructionCount();
+
+    uint64_t mergePoint = 0;
+    if(!state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &mergePoint, 8)) {
+        m_s2e->getWarningsStream(state)
+                << "Warning: merge request for a state with symbolic ESP" << std::endl;
+    }
+    mergePoint = hash64(mergePoint);
+    mergePoint = hash64(state->getPc(), mergePoint);
+
+    m_s2e->getMessagesStream(state) << "Queueing state for merging" << std::endl;
+
+    static_cast<MergingSearcher*>(searcher)->queueStateForMerge(*state, mergePoint);
+    throw CpuExitException();
 }
 
 } // namespace s2e
@@ -2192,6 +2279,11 @@ void s2e_switch_to_symbolic(S2E *s2e, S2EExecutionState *state)
     //XXX: For now, we assume that symbolic hardware, when triggered,
     //will want to start symbexec.
     s2e->getExecutor()->enableSymbolicExecution(state);
+    s2e->getExecutor()->jumpToSymbolic(state);
+}
+
+void s2e_ensure_symbolic(S2E *s2e, S2EExecutionState *state)
+{
     s2e->getExecutor()->jumpToSymbolic(state);
 }
 

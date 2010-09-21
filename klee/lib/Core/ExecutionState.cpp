@@ -30,9 +30,9 @@
 using namespace llvm;
 using namespace klee;
 
-namespace { 
-  cl::opt<bool>
-  DebugLogStateMerge("debug-log-state-merge");
+namespace klee {
+cl::opt<bool>
+DebugLogStateMerge("debug-log-state-merge");
 }
 
 /***/

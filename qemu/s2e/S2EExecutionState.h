@@ -64,6 +64,8 @@ protected:
     klee::ObjectState *m_cpuRegistersObject;
     klee::ObjectState *m_cpuSystemObject;
 
+    klee::MemoryObject* m_dirtyMask;
+
     S2EDeviceState *m_deviceState;
 
     /* The following structure is used to store QEMU time accounting
@@ -71,6 +73,8 @@ protected:
     TimersState* m_timersState;
 
     S2ETranslationBlock* m_lastS2ETb;
+
+    uint64_t m_lastMergeICount;
 
     ExecutionState* clone();
     void addressSpaceChange(const klee::MemoryObject *mo,
@@ -211,6 +215,9 @@ public:
 
     /** Debug functions **/
     void dumpX86State(std::ostream &os) const;
+
+    /** Attempt to merge two states */
+    bool merge(const ExecutionState &b);
 };
 
 //Some convenience macros

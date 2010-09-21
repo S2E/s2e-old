@@ -63,6 +63,9 @@ public:
   /// ObjectState will still be allocated for this purpose).
   bool isSharedConcrete;
 
+  /// True if the object value can be ignored in local consistency
+  bool isValueIgnored;
+
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object
   /// it was allocated for (or whatever else makes sense).

@@ -243,6 +243,8 @@ void s2e_on_device_activation(struct S2E *s2e, struct PCIBus *bus);
 //Used by port IO for now
 void s2e_switch_to_symbolic(struct S2E *s2e, struct S2EExecutionState *state);
 
+void s2e_ensure_symbolic(struct S2E *s2e, struct S2EExecutionState *state);
+
 int s2e_is_port_symbolic(struct S2E *s2e, struct S2EExecutionState* state, uint64_t port);
 
 void s2e_update_tlb_entry(struct S2EExecutionState* state,

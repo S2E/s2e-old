@@ -261,6 +261,10 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                                  disabled, 8);
             break;
         }
+        case 0x70: /* merge point */
+            s2e()->getExecutor()->jumpToSymbolicCpp(state);
+            s2e()->getExecutor()->queueStateForMerge(state);
+            break;
         default:
             s2e()->getWarningsStream(state)
                 << "Invalid built-in opcode " << hexval(opcode) << std::endl;

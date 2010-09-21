@@ -18,6 +18,8 @@
 // FIXME: Move out of header, use llvm streams.
 #include <ostream>
 
+#include <inttypes.h>
+
 namespace llvm {
   class BasicBlock;
   class Function;
@@ -157,16 +159,18 @@ namespace klee {
 
   class MergingSearcher : public Searcher {
     Executor &executor;
-    std::set<ExecutionState*> statesAtMerge;
+    std::map<ExecutionState*, uint64_t> statesAtMerge;
     Searcher *baseSearcher;
     llvm::Function *mergeFunction;
 
   private:
-    llvm::Instruction *getMergePoint(ExecutionState &es);
+    uint64_t getMergePoint(ExecutionState &es);
 
   public:
     MergingSearcher(Executor &executor, Searcher *baseSearcher);
     ~MergingSearcher();
+
+    void queueStateForMerge(ExecutionState &es, uint64_t mergePoint);
 
     ExecutionState &selectState();
     void update(ExecutionState *current,

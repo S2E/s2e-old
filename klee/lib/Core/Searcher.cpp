@@ -376,45 +376,49 @@ MergingSearcher::~MergingSearcher() {
 
 ///
 
-Instruction *MergingSearcher::getMergePoint(ExecutionState &es) {
+uint64_t MergingSearcher::getMergePoint(ExecutionState &es) {
   if (mergeFunction) {
     Instruction *i = es.pc->inst;
 
     if (i->getOpcode()==Instruction::Call) {
       CallSite cs(cast<CallInst>(i));
       if (mergeFunction==cs.getCalledFunction())
-        return i;
+        return (uint64_t) i;
     }
   }
 
   return 0;
 }
 
+void MergingSearcher::queueStateForMerge(ExecutionState &es, uint64_t mergePoint) {
+  baseSearcher->removeState(&es, &es);
+  statesAtMerge.insert(std::make_pair(&es, mergePoint));
+}
+
 ExecutionState &MergingSearcher::selectState() {
   while (!baseSearcher->empty()) {
     ExecutionState &es = baseSearcher->selectState();
-    if (getMergePoint(es)) {
+    uint64_t mp = getMergePoint(es);
+    if (mp) {
       baseSearcher->removeState(&es, &es);
-      statesAtMerge.insert(&es);
+      statesAtMerge.insert(std::make_pair(&es, mp));
     } else {
       return es;
     }
   }
   
   // build map of merge point -> state list
-  std::map<Instruction*, std::vector<ExecutionState*> > merges;
-  for (std::set<ExecutionState*>::const_iterator it = statesAtMerge.begin(),
+  std::map<uint64_t, std::vector<ExecutionState*> > merges;
+  for (std::map<ExecutionState*, uint64_t>::const_iterator it = statesAtMerge.begin(),
          ie = statesAtMerge.end(); it != ie; ++it) {
-    ExecutionState &state = **it;
-    Instruction *mp = getMergePoint(state);
-    
-    merges[mp].push_back(&state);
+    merges[it->second].push_back(it->first);
   }
-  
+
   if (DebugLogMerge)
     std::cerr << "-- all at merge --\n";
-  for (std::map<Instruction*, std::vector<ExecutionState*> >::iterator
+  for (std::map<uint64_t, std::vector<ExecutionState*> >::iterator
          it = merges.begin(), ie = merges.end(); it != ie; ++it) {
+    int mergeCount = 0;
     if (DebugLogMerge) {
       std::cerr << "\tmerge: " << it->first << " [";
       for (std::vector<ExecutionState*>::iterator it2 = it->second.begin(),
@@ -436,7 +440,8 @@ ExecutionState &MergingSearcher::selectState() {
              ie = toMerge.end(); it != ie; ++it) {
         ExecutionState *mergeWith = *it;
         
-        if (base->merge(*mergeWith)) {
+        if (executor.merge(*base, *mergeWith)) {
+          mergeCount += 1;
           toErase.insert(mergeWith);
         }
       }
@@ -462,10 +467,13 @@ ExecutionState &MergingSearcher::selectState() {
       ++base->pc;
       baseSearcher->addState(base);
     }  
+    if (DebugLogMerge)
+      std::cerr << "\t\t" << mergeCount << " states merged\n";
   }
   
-  if (DebugLogMerge)
+  if (DebugLogMerge) {
     std::cerr << "-- merge complete, continuing --\n";
+  }
   
   return selectState();
 }
@@ -478,7 +486,7 @@ void MergingSearcher::update(ExecutionState *current,
     for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
            ie = removedStates.end(); it != ie; ++it) {
       ExecutionState *es = *it;
-      std::set<ExecutionState*>::const_iterator it = statesAtMerge.find(es);
+      std::map<ExecutionState*, uint64_t>::iterator it = statesAtMerge.find(es);
       if (it!=statesAtMerge.end()) {
         statesAtMerge.erase(it);
         alt.erase(alt.find(es));

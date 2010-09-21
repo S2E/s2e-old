@@ -142,7 +142,7 @@ public:
     constraints.addConstraint(e); 
   }
 
-  bool merge(const ExecutionState &b);
+  virtual bool merge(const ExecutionState &b);
 };
 
 }

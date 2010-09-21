@@ -690,6 +690,8 @@ typedef struct CPUX86State {
     uint32_t smbase;
     int old_exception;  /* exception in flight */
 
+    uint8_t timer_interrupt_disabled;
+
     CPU_COMMON
 
     /* processor features (e.g. for CPUID insn) */
@@ -725,7 +727,6 @@ typedef struct CPUX86State {
     /* in order to simplify APIC support, we leave this pointer to the
        user */
     struct APICState *apic_state;
-    uint8_t timer_interrupt_disabled;
 
     uint64 mcg_cap;
     uint64 mcg_status;

@@ -193,6 +193,8 @@ public:
     StatePair fork(klee::ExecutionState &current,
                    klee::ref<klee::Expr> condition, bool isInternal);
 
+    bool merge(klee::ExecutionState &base, klee::ExecutionState &other);
+
     void setStateManagerCb(StateManagerCb cb) {
         m_stateManager = cb;
     }
@@ -206,6 +208,8 @@ public:
     }
 
     void unrefS2ETb(S2ETranslationBlock* s2e_tb);
+
+    void queueStateForMerge(S2EExecutionState *state);
 
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
