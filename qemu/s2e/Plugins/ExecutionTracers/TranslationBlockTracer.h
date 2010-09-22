@@ -41,6 +41,20 @@ private:
             bool staticTarget,
             uint64_t targetPc);
 
+    void onTranslateBlockStart(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            TranslationBlock *tb,
+            uint64_t pc);
+
+    void onTranslateBlockEnd(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            TranslationBlock *tb,
+            uint64_t endPc,
+            bool staticTarget,
+            uint64_t targetPc);
+
     void trace(S2EExecutionState *state, uint64_t pc, ExecTraceEntryType type);
 
     void onExecuteBlockStart(S2EExecutionState *state, uint64_t pc);

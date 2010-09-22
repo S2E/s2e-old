@@ -1649,6 +1649,8 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 
     bool executeKlee = m_executeAlwaysKlee;
 
+    state->writeCpuState(offsetof(CPUState, old_exception), -1, 4*8);
+
     /* Think how can we optimize if symbex is disabled */
     if(true/* state->m_symbexEnabled*/) {
         if(state->m_startSymbexAtPC != (uint64_t) -1) {

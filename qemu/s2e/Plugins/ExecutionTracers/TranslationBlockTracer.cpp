@@ -31,7 +31,53 @@ void TranslationBlockTracer::initialize()
     m_detector->onModuleTranslateBlockEnd.connect(
             sigc::mem_fun(*this, &TranslationBlockTracer::onModuleTranslateBlockEnd)
     );
+
+#if 0
+    //XXX: debugging code. Will need a generic way of tracing selected portions of pc
+    s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+            sigc::mem_fun(*this, &TranslationBlockTracer::onTranslateBlockStart)
+    );
+
+    s2e()->getCorePlugin()->onTranslateBlockEnd.connect(
+            sigc::mem_fun(*this, &TranslationBlockTracer::onTranslateBlockEnd)
+    );
+#endif
 }
+
+void TranslationBlockTracer::onTranslateBlockStart(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        TranslationBlock *tb,
+        uint64_t pc)
+{
+    uint64_t rlow = 0x4746c4 - 0x400000 + 0x804d7000;
+    uint64_t rhigh = 0x474e23 - 0x400000 + 0x804d7000;
+
+    if (pc >= rlow && pc <= rhigh) {
+    signal->connect(
+        sigc::mem_fun(*this, &TranslationBlockTracer::onExecuteBlockStart)
+    );
+    }
+}
+
+void TranslationBlockTracer::onTranslateBlockEnd(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        TranslationBlock *tb,
+        uint64_t endPc,
+        bool staticTarget,
+        uint64_t targetPc)
+{
+    uint64_t rlow = 0x4746c4 - 0x400000 + 0x804d7000;
+    uint64_t rhigh = 0x474e23 - 0x400000 + 0x804d7000;
+
+    if (endPc >= rlow && endPc <= rhigh) {
+        signal->connect(
+            sigc::mem_fun(*this, &TranslationBlockTracer::onExecuteBlockEnd)
+        );
+    }
+}
+
 
 void TranslationBlockTracer::onModuleTranslateBlockStart(
         ExecutionSignal *signal,

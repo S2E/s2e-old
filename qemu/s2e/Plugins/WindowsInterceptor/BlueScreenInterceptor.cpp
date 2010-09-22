@@ -45,34 +45,11 @@ void BlueScreenInterceptor::onBsod(
 
     ModuleExecutionDetector *m_exec = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
 
-    uint64_t sp = state->getSp();
-    for (unsigned i=0; i<512; ++i) {
-        klee::ref<klee::Expr> val = state->readMemory(sp + i * sizeof(uint32_t), klee::Expr::Int32);
-        if (val.isNull()) {
-            continue;
-        }
-
-        klee::ConstantExpr *ce = dyn_cast<klee::ConstantExpr>(val);
-        if (ce) {
-            os << std::hex << "0x" << sp + i * sizeof(uint32_t) << " 0x" << std::setw(sizeof(uint32_t)*2) << std::setfill('0') << val;
-            os << std::setfill(' ');
-
-            if (m_exec) {
-                uint32_t v = ce->getZExtValue(ce->getWidth());
-                const ModuleDescriptor *md = m_exec->getModule(state,  v, false);
-                if (md) {
-                    os << " " << md->Name <<  " 0x" << md->ToNativeBase(v);
-                    os << " +0x" << md->ToRelative(v);
-                }
-            }
-        }else {
-            os << std::hex << "0x" << sp + i * sizeof(uint32_t) << val;
-        }
-
-        os << std::endl;
+    if (m_exec) {
+        m_exec->dumpMemory(state, os, state->getSp(), 512);
+    }else {
+        state->dumpStack(512);
     }
-
-
 
     s2e()->getExecutor()->terminateStateEarly(*state, "Killing because of BSOD");
 }

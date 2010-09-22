@@ -58,6 +58,9 @@ public:
         STRICT, LOCAL, OVERAPPROX, OVERCONSTR
     };
 
+    //Maps a function name to a consistency
+    typedef std::map<std::string, Consistency> ConsistencyMap;
+
 private:
     FunctionMonitor *m_functionMonitor;
     OSMonitor *m_windowsMonitor;
@@ -73,7 +76,13 @@ private:
 
     StringSet m_ignoreKeywords;
 
+    //Allows specifying per-function consistency
+    ConsistencyMap m_specificConsistency;
+
     Consistency m_consistency;
+
+    void parseSpecificConsistency();
+    Consistency getConsistency(const std::string &fcn) const;
 
     void onModuleLoad(
             S2EExecutionState* state,
@@ -110,6 +119,8 @@ private:
     DECLARE_NDIS_ENTRY_POINT(NdisMRegisterInterrupt);
     DECLARE_NDIS_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_NDIS_ENTRY_POINT(NdisMAllocateMapRegisters);
+    DECLARE_NDIS_ENTRY_POINT(NdisMInitializeTimer);
+    DECLARE_NDIS_ENTRY_POINT(NdisMRegisterAdapterShutdownHandler);
     DECLARE_NDIS_ENTRY_POINT(NdisReadNetworkAddress);
     DECLARE_NDIS_ENTRY_POINT(NdisReadConfiguration);
 
@@ -134,6 +145,9 @@ private:
     DECLARE_NDIS_ENTRY_POINT(SendPacketsHandler);
     DECLARE_NDIS_ENTRY_POINT(SetInformationHandler);
     DECLARE_NDIS_ENTRY_POINT(TransferDataHandler);
+
+    DECLARE_NDIS_ENTRY_POINT(NdisTimerEntryPoint);
+    DECLARE_NDIS_ENTRY_POINT(NdisShutdownEntryPoint);
 
     void QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery);
     void QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery);

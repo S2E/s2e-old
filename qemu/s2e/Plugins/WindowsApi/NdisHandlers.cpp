@@ -72,6 +72,9 @@ void NdisHandlers::initialize()
         exit(-1);
     }
 
+
+    parseSpecificConsistency();
+
     //Checking the keywords for NdisReadConfiguration whose result will not be replaced with symbolic values
     ConfigFile::string_list ign = cfg->getStringList(getConfigKey() + ".ignoreKeywords");
     m_ignoreKeywords.insert(ign.begin(), ign.end());
@@ -91,6 +94,58 @@ void NdisHandlers::initialize()
                     &NdisHandlers::onModuleUnload)
             );
 
+}
+
+void NdisHandlers::parseSpecificConsistency()
+{
+    ConfigFile *cfg = s2e()->getConfig();
+
+    //Get the list of key-value pair ids
+    bool ok = false;
+    ConfigFile::string_list ids = cfg->getListKeys(getConfigKey() + ".functionConsistencies", &ok);
+
+    foreach2(it, ids.begin(), ids.end()) {
+        std::string func = *it;
+
+        std::stringstream ss;
+        ss << getConfigKey() + ".functionConsistencies." << func;
+        ConfigFile::string_list pairs = cfg->getStringList(ss.str());
+        if (pairs.size() != 2) {
+            s2e()->getDebugStream() << ss.str() << " must have two elements" << std::endl;
+            exit(-1);
+        }
+
+        Consistency consistency = STRICT;
+        //Check the consistency type
+        if (pairs[1] == "strict") {
+            consistency = STRICT;
+        }else if (pairs[1] == "local") {
+            consistency = LOCAL;
+        }else if (pairs[1] == "overapproximate") {
+            consistency = OVERAPPROX;
+        }else if  (pairs[1] == "overconstrained") {
+            //This is strict consistency with forced concretizations
+            s2e()->getWarningsStream() << "NDISHANDLERS: Cannot handle overconstrained for specific functions " << std::endl;
+            exit(-1);
+        }else {
+            s2e()->getWarningsStream() << "NDISHANDLERS: Incorrect consistency " << consistency <<
+                    " for " << ss.str() << std::endl;
+            exit(-1);
+        }
+
+        s2e()->getDebugStream() << "NDISHANDLERS " << pairs[0] << " will have " << pairs[1] << " consistency" << std::endl;
+        m_specificConsistency[pairs[0]] = consistency;
+    }
+
+}
+
+NdisHandlers::Consistency NdisHandlers::getConsistency(const std::string &fcn) const
+{
+    ConsistencyMap::const_iterator it = m_specificConsistency.find(fcn);
+    if (it != m_specificConsistency.end()) {
+        return (*it).second;
+    }
+    return m_consistency;
 }
 
 void NdisHandlers::registerImport(Imports &I, const std::string &dll, const std::string &name,
@@ -190,6 +245,8 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ndis.sys", NdisMMapIoSpace);
     REGISTER_IMPORT(I, "ndis.sys", NdisMQueryAdapterResources);
     REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateMapRegisters);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMInitializeTimer);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterAdapterShutdownHandler);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadNetworkAddress);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadConfiguration);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadPciSlotInformation);
@@ -462,7 +519,7 @@ void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -524,6 +581,95 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
      }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisMInitializeTimer(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+    if (!readConcreteParameter(state, 2, &plgState->val1)) {
+        s2e()->getDebugStream() << "Could not read function pointer for timer entry point" << std::endl;
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMInitializeTimerRet)
+}
+
+void NdisHandlers::NdisMInitializeTimerRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    FunctionMonitor::CallSignal* entryPoint;
+    REGISTER_NDIS_ENTRY_POINT(entryPoint, plgState->val1, NdisTimerEntryPoint);
+}
+
+void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    static std::set<uint32_t> exploredEntryPoints;
+
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    //Skip the subsequent calls to the same entry point
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+      if (exploredEntryPoints.find(state->getPc()) != exploredEntryPoints.end()) {
+          state->bypassFunction(4);
+          throw CpuExitException();
+      }
+      exploredEntryPoints.insert(state->getPc());
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisTimerEntryPointRet)
+}
+
+void NdisHandlers::NdisTimerEntryPointRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    m_manager->succeedState(state);
+    m_functionMonitor->eraseSp(state, state->getPc());
+    throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisMRegisterAdapterShutdownHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+    if (!readConcreteParameter(state, 2, &plgState->val1)) {
+        s2e()->getDebugStream() << "Could not read function pointer for timer entry point" << std::endl;
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterAdapterShutdownHandlerRet)
+}
+
+void NdisHandlers::NdisMRegisterAdapterShutdownHandlerRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    FunctionMonitor::CallSignal* entryPoint;
+    REGISTER_NDIS_ENTRY_POINT(entryPoint, plgState->val1, NdisShutdownEntryPoint);
+}
+
+void NdisHandlers::NdisShutdownEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisShutdownEntryPointRet)
+}
+
+void NdisHandlers::NdisShutdownEntryPointRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    m_manager->succeedState(state);
+    m_functionMonitor->eraseSp(state, state->getPc());
+    throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::NdisMMapIoSpace(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
@@ -1148,13 +1294,34 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::CheckForHang(S2EExecutionState* state, FunctionMonitorState *fns)
 {
+    static bool exercised = false;
+
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (exercised) {
+        uint32_t success = 1;
+        state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &success, sizeof(success));
+        state->bypassFunction(1);
+        throw CpuExitException();
+    }
+
+    exercised = true;
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::CheckForHangRet)
 }
 
 void NdisHandlers::CheckForHangRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (m_consistency == OVERAPPROX) {
+        //Pretend we did not hang
+        //uint32_t success = 0;
+        //state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &success, sizeof(success));
+    }
+
+    m_manager->succeedState(state);
+    m_functionMonitor->eraseSp(state, state->getPc());
+    throw CpuExitException();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -104,6 +104,7 @@ void ModuleExecutionDetector::initializeConfiguration()
     }
 
     m_TrackAllModules = cfg->getBool(getConfigKey() + ".trackAllModules");
+    m_ConfigureAllModules = cfg->getBool(getConfigKey() + ".configureAllModules");
 
     foreach2(it, keyList.begin(), keyList.end()) {
         if (*it == "trackAllModules") {
@@ -158,6 +159,17 @@ void ModuleExecutionDetector::moduleLoadListener(
 
     ModuleExecutionCfg cfg;
     cfg.moduleName = module.Name;
+
+    if (m_ConfigureAllModules) {
+        if (plgState->exists(&module, true)) {
+            s2e()->getDebugStream() << " [ALREADY REGISTERED]" << std::endl;
+        }else {
+            s2e()->getDebugStream() << " [REGISTERING]" << std::endl;
+            plgState->loadDescriptor(module, true);
+            onModuleLoad.emit(state, module);
+        }
+        return;
+    }
 
     ConfiguredModulesByName::iterator it = m_ConfiguredModulesName.find(cfg);
     if (it != m_ConfiguredModulesName.end()) {
@@ -363,6 +375,35 @@ void ModuleExecutionDetector::onExecution(
     }
 }
 
+void ModuleExecutionDetector::dumpMemory(S2EExecutionState *state,
+                                         std::ostream &os,
+                                         uint64_t va, unsigned count)
+{
+    uint64_t sp = va;
+    for (unsigned i=0; i<count; ++i) {
+        klee::ref<klee::Expr> val = state->readMemory(sp + i * sizeof(uint32_t), klee::Expr::Int32);
+        if (val.isNull()) {
+            continue;
+        }
+
+        klee::ConstantExpr *ce = dyn_cast<klee::ConstantExpr>(val);
+        if (ce) {
+            os << std::hex << "0x" << sp + i * sizeof(uint32_t) << " 0x" << std::setw(sizeof(uint32_t)*2) << std::setfill('0') << val;
+            os << std::setfill(' ');
+
+            uint32_t v = ce->getZExtValue(ce->getWidth());
+            const ModuleDescriptor *md = getModule(state,  v, false);
+            if (md) {
+               os << " " << md->Name <<  " 0x" << md->ToNativeBase(v);
+               os << " +0x" << md->ToRelative(v);
+            }
+        }else {
+            os << std::hex << "0x" << sp + i * sizeof(uint32_t) << val;
+        }
+
+        os << std::endl;
+    }
+}
 
 /*****************************************************************************/
 /*****************************************************************************/

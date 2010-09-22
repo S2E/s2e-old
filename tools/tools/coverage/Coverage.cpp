@@ -153,6 +153,7 @@ void BasicBlockCoverage::printTimeCoverage(std::ostream &os) const
         bbtime.insert(*it);
     }
 
+    unsigned i = 0;
     for (tit = bbtime.begin(); tit != bbtime.end(); ++tit) {
         const BasicBlock &b = *tit;
 
@@ -161,7 +162,11 @@ void BasicBlockCoverage::printTimeCoverage(std::ostream &os) const
             timeInited = true;
         }
 
-        os << std::dec << (b.timeStamp - firstTime)/1000000 << std::hex << " 0x" << b.start << " 0x" << b.end << std::endl;
+        //DO NOT TOUCH THE FORMAT, USED BY SCRIPTS TO BUILD THE PAPER
+        os << std::dec << (b.timeStamp - firstTime)/1000000 //Timestamp
+           << std::dec << " " << i << " " //Cumulative block count
+           << std::hex << " 0x" << b.start << " 0x" << b.end << std::endl; //Addresses
+        ++i;
     }
 }
 

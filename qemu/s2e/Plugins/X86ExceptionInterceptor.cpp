@@ -6,6 +6,7 @@ extern "C" {
 
 
 #include "X86ExceptionInterceptor.h"
+#include "ModuleExecutionDetector.h"
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
@@ -189,7 +190,7 @@ void X86ExceptionInterceptor::onExecuteBlockStart(S2EExecutionState *state, uint
             s2e()->getDebugStream() << "TRAP_GATE not handled yet" << std::endl;
             break;
     }
-
+#if 0
     switch(h.idtVector) {
         case GPF:
             s2e()->getExecutor()->terminateStateEarly(*state, "General protection fault");
@@ -201,6 +202,7 @@ void X86ExceptionInterceptor::onExecuteBlockStart(S2EExecutionState *state, uint
             s2e()->getExecutor()->terminateStateEarly(*state, "Double fault");
             break;
     }
+#endif
 }
 
 void X86ExceptionInterceptor::handleTaskGate(S2EExecutionState *state, const Handler &hdlr)
@@ -227,7 +229,25 @@ void X86ExceptionInterceptor::handleTaskGate(S2EExecutionState *state, const Han
     }
 
     faultyTss.dumpInfo(s2e()->getDebugStream());
-    state->dumpStack(256, faultyTss.m_ESP);
+
+    ModuleExecutionDetector *m_exec = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+
+    if (m_exec) {
+        m_exec->dumpMemory(state, s2e()->getDebugStream(), faultyTss.m_ESP, 512);
+    }else {
+        state->dumpStack(512, faultyTss.m_ESP);
+    }
+
+    //Dump the IDT table for page fault
+    //XXX: generalize this
+    uint32_t pfhdlr = X86Parser::getOffset(m_idt[14]) ;
+    std::ostream &os = s2e()->getDebugStream();
+    os << "PF handler is at 0x" << std::hex << pfhdlr << std::endl;
+
+    uint8_t chr;
+    if (!state->readMemoryConcrete(pfhdlr, &chr, sizeof(chr))) {
+        os << "Could not read here" << std::endl;
+    }
 }
 
 //////////////////////////////

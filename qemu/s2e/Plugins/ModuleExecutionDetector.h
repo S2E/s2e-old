@@ -107,6 +107,7 @@ private:
     ConfiguredModulesByName m_ConfiguredModulesName;
 
     bool m_TrackAllModules;
+    bool m_ConfigureAllModules;
 
     void initializeConfiguration();
 public:
@@ -119,6 +120,10 @@ public:
     const ModuleDescriptor *getModule(S2EExecutionState *state, uint64_t pc, bool tracked=true);
     const ModuleDescriptor *getCurrentDescriptor(S2EExecutionState* state) const;
     const std::string *getModuleId(const ModuleDescriptor &desc) const;
+
+    void dumpMemory(S2EExecutionState *state,
+                                             std::ostream &os,
+                                             uint64_t va, unsigned count);
 
     const ConfiguredModulesById &getConfiguredModulesById() const {
         return m_ConfiguredModulesId;
