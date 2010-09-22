@@ -5055,7 +5055,8 @@ static float approx_rcp(float a)
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
-void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
+void tlb_fill(target_ulong addr, target_ulong page_addr,
+              int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
     int ret;
@@ -5069,11 +5070,25 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
         env = cpu_single_env;
 #ifdef CONFIG_S2E
     s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
-#endif
+    ret = cpu_x86_handle_mmu_fault(env, page_addr,
+                                   is_write, mmu_idx, 1);
+#else
     ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx, 1);
+#endif
     if (ret) {
 #ifdef CONFIG_S2E
-        cpu_restore_icount(env);
+        /* In S2E we pass page address instead of addr to cpu_x86_handle_mmu_fault,
+           since the latter can be symbolic while the former is always concrete.
+           To compensate, we reset fault address here. */
+        if(env->exception_index == EXCP0E_PAGE) {
+            if(env->intercept_exceptions & (1 << EXCP0E_PAGE))
+                stq_phys(env->vm_vmcb + offsetof(struct vmcb, control.exit_info_2),
+                         addr);
+            else
+                env->cr[2] = addr;
+        }
+        if(use_icount)
+            cpu_restore_icount(env);
 #endif
         if (retaddr) {
             /* now we have a real cpu fault */

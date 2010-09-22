@@ -334,8 +334,8 @@ extern int tb_invalidated_flag;
 
 #if !defined(CONFIG_USER_ONLY)
 
-void tlb_fill(target_ulong addr, int is_write, int mmu_idx,
-              void *retaddr);
+void tlb_fill(target_ulong addr, target_ulong page_addr,
+              int is_write, int mmu_idx, void *retaddr);
 
 #include "softmmu_defs.h"
 
