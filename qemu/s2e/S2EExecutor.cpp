@@ -296,9 +296,11 @@ void S2EExecutor::handlerOnTlbMiss(Executor* executor,
     bool isWrite = cast<klee::ConstantExpr>(args[3])->getZExtValue();
 
     if(!isa<klee::ConstantExpr>(addr)) {
+        /*
         g_s2e->getWarningsStream()
                 << "Warning: s2e_on_tlb_miss does not support symbolic addresses"
                 << std::endl;
+                */
         return;
     }
 
@@ -473,6 +475,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_inb)
     __DEFINE_EXT_FUNCTION(cpu_inw)
     __DEFINE_EXT_FUNCTION(cpu_inl)
+    __DEFINE_EXT_FUNCTION(cpu_restore_icount)
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
     __DEFINE_EXT_FUNCTION(cpu_abort)
     __DEFINE_EXT_FUNCTION(cpu_loop_exit)
@@ -1116,6 +1119,10 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         if(oldState->m_runningConcrete)
             switchToSymbolic(oldState);
 
+        if(use_icount)
+            assert((uint64_t) qemu_icount ==
+                        oldState->readCpuState(CPU_OFFSET(s2e_icount), 64));
+
         //copyInConcretes(*oldState);
         oldState->getDeviceState()->saveDeviceState();
         *oldState->m_timersState = timers_state;
@@ -1164,6 +1171,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         timers_state = *newState->m_timersState;
         newState->getDeviceState()->restoreDeviceState();
         //copyOutConcretes(*newState);
+
+        qemu_icount = newState->readCpuState(CPU_OFFSET(s2e_icount), 64);
     }
 
     if(FlushTBsOnStateSwitch)
