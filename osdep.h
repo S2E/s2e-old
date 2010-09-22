@@ -96,6 +96,8 @@ int qemu_create_pidfile(const char *filename);
 int ffs(int i);
 
 int setenv(const char *name, const char *value, int overwrite);
+int asprintf(char **sptr, char *fmt, ...);
+int vasprintf(char **sptr, char *fmt, va_list args);
 
 typedef struct {
     long tv_sec;

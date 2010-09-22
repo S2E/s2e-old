@@ -12,6 +12,7 @@
 #include "android/skin/trackball.h"
 #include "android/skin/image.h"
 #include "android/utils/system.h"
+#include "user-events.h"
 #include <math.h>
 
 /***********************************************************************/
@@ -448,7 +449,7 @@ trackball_move( TrackBall  ball,  int  dx, int  dy )
             break;
         }
 
-        kbd_mouse_event(ddx, ddy, 1, 0);
+        user_event_mouse(ddx, ddy, 1, 0);
     }
 
     rotator_reset( rot, dx, dy );

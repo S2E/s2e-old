@@ -152,7 +152,7 @@ class DwarfAllocBase {
    * attempts to instantiate objects of derived classes using this version
    * of operator 'new'.
    */
-  void* operator new(size_t size) {
+  void* operator new(size_t size) throw() {
     return NULL;
   }
 };

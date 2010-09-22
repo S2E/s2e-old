@@ -35,16 +35,16 @@ static const DwarfParseContext parse_rt_context = { parse_rt_tags };
 //=============================================================================
 
 ElfFile::ElfFile()
-    : sec_table_(NULL),
-      elf_file_path_(NULL),
-      sec_count_(0),
-      cu_count_(0),
-      last_cu_(NULL),
-      allocator_(NULL),
-      fixed_base_address_(0),
-      is_exec_(0),
+    : fixed_base_address_(0),
       elf_handle_((MapFile*)-1),
-      sec_entry_size_(0) {
+      elf_file_path_(NULL),
+      allocator_(NULL),
+      sec_table_(NULL),
+      sec_count_(0),
+      sec_entry_size_(0),
+      last_cu_(NULL),
+      cu_count_(0),
+      is_exec_(0) {
 }
 
 ElfFile::~ElfFile() {

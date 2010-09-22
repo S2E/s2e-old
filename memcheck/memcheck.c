@@ -138,7 +138,7 @@ av_access_violation(ProcDesc* proc,
                     }
                     memset(align, ' ', set_align);
                     align[set_align] = '\0';
-                    printf(align);
+                    printf("%s", align);
                     if (inl[index].inlined_in_file == NULL) {
                         printf("inlined to %s in unknown location\n",
                                inl[index].routine_name);
@@ -561,7 +561,7 @@ void
 memcheck_guest_print_str(target_ulong str) {
     char str_copy[4096];
     memcheck_get_guest_string(str_copy, str, sizeof(str_copy));
-    printf(str_copy);
+    printf("%s", str_copy);
 }
 
 /* Validates read operations, detected in __ldx_mmu routine.

@@ -525,7 +525,7 @@ void hw_error(const char *fmt, ...)
     va_end(ap);
     abort();
 }
- 
+
 /***************/
 /* ballooning */
 
@@ -2537,10 +2537,12 @@ static int qemu_event_init(void)
     return 0;
 }
 
+#if 0
 static void qemu_event_increment(void)
 {
     SetEvent(qemu_event_handle);
 }
+#endif
 #endif
 
 static int cpu_can_run(CPUState *env)
@@ -4948,7 +4950,10 @@ int main(int argc, char **argv, char **envp)
     if (pid_file && qemu_create_pidfile(pid_file) != 0) {
         if (daemonize) {
             uint8_t status = 1;
-            write(fds[1], &status, 1);
+            int ret;
+            do {
+                ret = write(fds[1], &status, 1);
+            } while (ret < 0 && errno == EINTR);
         } else
             fprintf(stderr, "Could not acquire pid file\n");
         exit(1);

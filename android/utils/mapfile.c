@@ -34,8 +34,8 @@ mapfile_open(const char* path, int oflag, int share_mode)
 {
 #ifdef WIN32
     DWORD win32_share;
-    DWORD win32_desired_access;
-    DWORD win32_disposition;
+    DWORD win32_desired_access = GENERIC_READ;
+    DWORD win32_disposition = OPEN_EXISTING;
     DWORD win32_flags;
 
     /* Convert to Win32 desired access. */

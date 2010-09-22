@@ -23,8 +23,8 @@ int fd = -1;
 
 static uint32_t memlog_read(void *opaque, target_phys_addr_t offset)
 {
-    struct goldfish_device *dev = opaque;
-
+    (void)opaque;
+    (void)offset;
     return 0;
 }
 
@@ -34,13 +34,19 @@ static void memlog_write(void *opaque, target_phys_addr_t offset, uint32_t val)
 {
     char buf[128];
     struct goldfish_device *dev = opaque;
+    int ret;
 
-    info[offset / 4] = val;
+    (void)dev;
+
+    if (offset < 8*4)
+        info[offset / 4] = val;
 
     if (offset == 0) {
             /* write PID and VADDR to logfile */
-        sprintf(buf,"%08x %08x\n", info[0], info[1]);
-        write(fd, buf, strlen(buf));
+        snprintf(buf, sizeof buf, "%08x %08x\n", info[0], info[1]);
+        do {
+            ret = write(fd, buf, strlen(buf));
+        } while (ret < 0 && errno == EINTR);
     }
 }
 
@@ -69,7 +75,9 @@ void goldfish_memlog_init(uint32_t base)
     dev->size = 0x1000;
     dev->irq_count = 0;
 
-    fd = open("mem.log", /* O_CREAT | */ O_TRUNC | O_WRONLY, 0644);
+    do {
+        fd = open("mem.log", /* O_CREAT | */ O_TRUNC | O_WRONLY, 0644);
+    } while (fd < 0 && errno == EINTR);
 
     goldfish_device_add(dev, memlog_readfn, memlog_writefn, dev);
 }

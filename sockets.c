@@ -9,6 +9,11 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
+#ifdef __linux__ /* Recent versions of glibc only define EAI_NODATA, which is an
+                    extension to the POSIX standard, if _GNU_SOURCE is defined. */
+#  define _GNU_SOURCE 1
+#endif
+
 #include "sockets.h"
 #include "qemu-common.h"
 #include <fcntl.h>
@@ -33,14 +38,7 @@
 #  include <sys/socket.h>
 #  include <netinet/in.h>
 #  include <netinet/tcp.h>
-#  ifdef __linux__ /* Recent versions of glibc only define EAI_NODATA, which is an
-                      extension to the POSIX standard, if __USE_GNU is defined. */
-#    define __USE_GNU
-#    include <netdb.h>
-#    undef __USE_GNU
-#  else /* !__linux__ */
-#    include <netdb.h>
-#  endif /* !__linux__ */
+#  include <netdb.h>
 #  if HAVE_UNIX_SOCKETS
 #    include <sys/un.h>
 #    ifndef UNIX_PATH_MAX
@@ -133,7 +131,7 @@ _fix_errno( void )
     int                  unix = EINVAL;  /* generic error code */
 
 	winsock_error = WSAGetLastError();
-	
+
     for ( ; werr->string != NULL; werr++ ) {
         if (werr->winsock == winsock_error) {
             unix = werr->unix;
@@ -508,7 +506,7 @@ bufprint_sock_address( char*  p, char*  end, const SockAddress*  a )
 #endif
 
 static int
-sock_address_to_bsd( const SockAddress*  a, sockaddr_storage*  paddress, size_t  *psize )
+sock_address_to_bsd( const SockAddress*  a, sockaddr_storage*  paddress, socklen_t  *psize )
 {
     switch (a->family) {
     case SOCKET_INET:
@@ -569,12 +567,12 @@ sock_address_to_bsd( const SockAddress*  a, sockaddr_storage*  paddress, size_t 
 }
 
 static int
-sock_address_from_bsd( SockAddress*  a, const sockaddr_storage*  from, size_t  fromlen )
+sock_address_from_bsd( SockAddress*  a, const void*  from, size_t  fromlen )
 {
-    switch (from->sa->sa_family) {
+    switch (((struct sockaddr *)from)->sa_family) {
     case AF_INET:
         {
-            struct sockaddr_in*  src = from->in;
+           const struct sockaddr_in*  src = from;
 
             if (fromlen < sizeof(*src))
                 return _set_errno(EINVAL);
@@ -588,7 +586,7 @@ sock_address_from_bsd( SockAddress*  a, const sockaddr_storage*  from, size_t  f
 #ifdef HAVE_IN6_SOCKETS
     case AF_INET6:
         {
-            struct sockaddr_in6*  src = from->in6;
+            const struct sockaddr_in6*  src = from;
 
             if (fromlen < sizeof(*src))
                 return _set_errno(EINVAL);
@@ -603,7 +601,7 @@ sock_address_from_bsd( SockAddress*  a, const sockaddr_storage*  from, size_t  f
 #ifdef HAVE_UNIX_SOCKETS
     case AF_LOCAL:
         {
-            struct sockaddr_un*  src = from->un;
+            const struct sockaddr_un*  src = from;
             char*                end;
 
             if (fromlen < sizeof(*src))
@@ -633,7 +631,7 @@ sock_address_init_resolve( SockAddress*  a, const char*  hostname, uint16_t  por
 {
     struct addrinfo   hints[1];
     struct addrinfo*  res;
-    int               ret;
+    int                ret;
 
     memset(hints, 0, sizeof(hints));
     hints->ai_family   = preferIn6 ? AF_INET6 : AF_UNSPEC;
@@ -760,9 +758,9 @@ sock_address_list_create( const char*  hostname,
             break;
 
         switch (ret) {
-#ifdef EAI_ADDRFAMILY		
-        case EAI_ADDRFAMILY: 
-#endif		
+#ifdef EAI_ADDRFAMILY
+        case EAI_ADDRFAMILY:
+#endif
         case EAI_NODATA:
             _set_errno(ENOENT);
             break;
@@ -772,12 +770,12 @@ sock_address_list_create( const char*  hostname,
         case EAI_AGAIN:
             _set_errno(EAGAIN);
             break;
-#ifdef EAI_SYSTEM			
+#ifdef EAI_SYSTEM
         case EAI_SYSTEM:
             if (errno == EINTR)
                 continue;
             break;
-#endif			
+#endif
         default:
             _set_errno(EINVAL);
         }
@@ -1066,14 +1064,14 @@ socket_getoption(int  fd, int  domain, int  option, int  defaut)
 #else
         int  opt  = -1;
 #endif
-        size_t  optlen = sizeof(opt);
+        socklen_t  optlen = sizeof(opt);
         ret = getsockopt(fd, domain, option, (char*)&opt, &optlen);
         if (ret == 0)
             return (int)opt;
         if (errno != EINTR)
             return defaut;
     }
-#undef OPT_CAST	
+#undef OPT_CAST
 }
 
 
@@ -1151,7 +1149,7 @@ int socket_set_ipv6only(int  fd)
 	return 0;
 #else
     return socket_setoption(fd, IPPROTO_IPV6, IPV6_V6ONLY, 1);
-#endif	
+#endif
 }
 
 
@@ -1486,7 +1484,7 @@ socket_mcast_inet_add_membership( int  s, uint32_t  ip )
     imr.imr_interface.s_addr = htonl(INADDR_ANY);
 
     if ( setsockopt( s, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                     (const char *)&imr, 
+                     (const char *)&imr,
                      sizeof(struct ip_mreq)) < 0 )
     {
         return _fix_errno();
@@ -1503,7 +1501,7 @@ socket_mcast_inet_drop_membership( int  s, uint32_t  ip )
     imr.imr_interface.s_addr = htonl(INADDR_ANY);
 
     if ( setsockopt( s, IPPROTO_IP, IP_DROP_MEMBERSHIP,
-                     (const char *)&imr, 
+                     (const char *)&imr,
                      sizeof(struct ip_mreq)) < 0 )
     {
         return _fix_errno();

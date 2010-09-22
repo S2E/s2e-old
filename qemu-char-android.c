@@ -546,7 +546,7 @@ int send_all(int fd, const void *buf, int len1)
         }
     }
     return len1 - len;
-#endif	
+#endif
 }
 
 #else
@@ -2023,6 +2023,7 @@ static void tcp_chr_process_IAC_bytes(CharDriverState *chr,
     *size = j;
 }
 
+#if 0
 static int tcp_get_msgfd(CharDriverState *chr)
 {
     TCPCharDriver *s = chr->opaque;
@@ -2030,6 +2031,7 @@ static int tcp_get_msgfd(CharDriverState *chr)
     s->msgfd = -1;
     return fd;
 }
+#endif
 
 #ifndef _WIN32
 static void unix_process_msgfd(CharDriverState *chr, struct msghdr *msg)

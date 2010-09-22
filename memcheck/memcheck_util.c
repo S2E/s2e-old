@@ -102,7 +102,7 @@ memcheck_get_guest_buffer(void* qemu_address,
      * read / write guest's memory. */
     while (buffer_size) {
         *(uint8_t*)qemu_address = ldub_user(guest_address);
-        (uint32_t)qemu_address++;
+        qemu_address = (uint8_t*)qemu_address + 1;
         guest_address++;
         buffer_size--;
     }
@@ -116,7 +116,7 @@ memcheck_set_guest_buffer(target_ulong guest_address,
     while (buffer_size) {
         stb_user(guest_address, *(uint8_t*)qemu_address);
         guest_address++;
-        (uint32_t)qemu_address++;
+        qemu_address = (uint8_t*)qemu_address + 1;
         buffer_size--;
     }
 }

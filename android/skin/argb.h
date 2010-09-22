@@ -134,7 +134,7 @@ mmx_interp255( mmx_t  m1, mmx_t  m2, mmx_t  zero, int  alpha )
 
 typedef uint32_t    argb_t;
 
-#define  ARGB_DECL_ZERO()   argb_t     _zero = 0
+#define  ARGB_DECL_ZERO()   /* nothing */
 #define  ARGB_DECL(x)       argb_t    x##_ag, x##_rb
 #define  ARGB_DECL2(x1,x2)  argb_t    x1##_ag, x1##_rb, x2##_ag, x2##_rb
 #define  ARGB_ZERO(x)       (x##_ag = x##_rb = 0)

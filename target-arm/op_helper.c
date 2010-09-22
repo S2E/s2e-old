@@ -67,10 +67,13 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
 
 #if !defined(CONFIG_USER_ONLY)
 
+//#define ALIGNED_ONLY  1
+
+#if ALIGNED_ONLY == 1
 static void do_unaligned_access (target_ulong addr, int is_write, int is_user, void *retaddr);
+#endif
 
 #define MMUSUFFIX _mmu
-//#define ALIGNED_ONLY  1
 
 #define SHIFT 0
 #include "softmmu_template.h"
@@ -84,6 +87,7 @@ static void do_unaligned_access (target_ulong addr, int is_write, int is_user, v
 #define SHIFT 3
 #include "softmmu_template.h"
 
+#if ALIGNED_ONLY == 1
 static void do_unaligned_access (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 {
     //printf("::UNALIGNED:: addr=%lx is_write=%d is_user=%d retaddr=%p\n", addr, is_write, is_user, retaddr);
@@ -96,6 +100,7 @@ static void do_unaligned_access (target_ulong addr, int is_write, int mmu_idx, v
         cpu_loop_exit();
     }
 }
+#endif
 
 /* try to fill the TLB and return an exception if error. If retaddr is
    NULL, it means that the function was called in C code (i.e. not
@@ -137,7 +142,7 @@ void vstrcpy(target_ulong ptr, char *buf, int max)
     if (buf == NULL) return;
 
     for (index = 0; index < max; index += 1) {
-        cpu_physical_memory_read(ptr + index, buf + index, 1);
+        cpu_physical_memory_read(ptr + index, (uint8_t*)buf + index, 1);
         if (buf[index] == 0)
             break;
     }

@@ -334,7 +334,6 @@ int X11_IconifyWindow(_THIS)
 
 static void  set_window_pos_nolock(_THIS, int x, int y)
 {
-    XWindowAttributes  attr;
     int          xNew, yNew;
     Window       child;
     int          xAdjust = X11_wmXAdjust;
@@ -394,7 +393,6 @@ void  X11_GetWindowPos(_THIS, int  *px, int  *py)
     SDL_Lock_EventThread();
     {
         Window  child;
-        Status  ret;
 
         XTranslateCoordinates( SDL_Display, WMwindow, SDL_Root, 0, 0, px, py, &child );
     }

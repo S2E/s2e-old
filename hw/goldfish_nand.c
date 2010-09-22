@@ -52,7 +52,7 @@ xlog( const char*  format, ... )
 typedef struct {
     char*      devname;
     size_t     devname_len;
-    char*      data;
+    uint8_t*   data;
     int        fd;
     uint32_t   flags;
     uint32_t   page_size;
@@ -274,7 +274,7 @@ uint32_t nand_dev_do_cmd(nand_dev_state *s, uint32_t cmd)
     case NAND_CMD_GET_DEV_NAME:
         if(size > dev->devname_len)
             size = dev->devname_len;
-        cpu_memory_rw_debug(cpu_single_env, s->data, dev->devname, size, 1);
+        cpu_memory_rw_debug(cpu_single_env, s->data, (uint8_t*)dev->devname, size, 1);
         return size;
     case NAND_CMD_READ:
         if(addr >= dev->size)

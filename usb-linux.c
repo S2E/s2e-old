@@ -107,9 +107,9 @@ enum {
 
 /*
  * Control transfer state.
- * Note that 'buffer' _must_ follow 'req' field because 
+ * Note that 'buffer' _must_ follow 'req' field because
  * we need contigious buffer when we submit control URB.
- */ 
+ */
 struct ctrl_struct {
     uint16_t len;
     uint16_t offset;
@@ -193,10 +193,10 @@ static USBHostDevice *hostdev_find(int bus_num, int addr)
     return NULL;
 }
 
-/* 
+/*
  * Async URB state.
  * We always allocate one isoc descriptor even for bulk transfers
- * to simplify allocation and casts. 
+ * to simplify allocation and casts.
  */
 typedef struct AsyncURB
 {
@@ -262,7 +262,7 @@ static void async_complete(void *opaque)
 
         p = aurb->packet;
 
-	dprintf("husb: async completed. aurb %p status %d alen %d\n", 
+	dprintf("husb: async completed. aurb %p status %d alen %d\n",
                 aurb, aurb->urb.status, aurb->urb.actual_length);
 
 	if (p) {
@@ -332,7 +332,7 @@ static int usb_host_claim_interfaces(USBHostDevice *dev, int configuration)
         }
         config_descr_len = dev->descr[i];
 
-	printf("husb: config #%d need %d\n", dev->descr[i + 5], configuration); 
+	printf("husb: config #%d need %d\n", dev->descr[i + 5], configuration);
 
         if (configuration < 0 || configuration == dev->descr[i + 5]) {
             configuration = dev->descr[i + 5];
@@ -454,7 +454,7 @@ static int usb_host_handle_data(USBHostDevice *s, USBPacket *p)
     if (is_halted(s, p->devep)) {
 	ret = ioctl(s->fd, USBDEVFS_CLEAR_HALT, &urb->endpoint);
         if (ret < 0) {
-            dprintf("husb: failed to clear halt. ep 0x%x errno %d\n", 
+            dprintf("husb: failed to clear halt. ep 0x%x errno %d\n",
                    urb->endpoint, errno);
             return USB_RET_NAK;
         }
@@ -502,7 +502,7 @@ static int ctrl_error(void)
 {
     if (errno == ETIMEDOUT)
         return USB_RET_NAK;
-    else 
+    else
         return USB_RET_STALL;
 }
 
@@ -518,12 +518,12 @@ static int usb_host_set_config(USBHostDevice *s, int config)
     usb_host_release_interfaces(s);
 
     int ret = ioctl(s->fd, USBDEVFS_SETCONFIGURATION, &config);
- 
+
     dprintf("husb: ctrl set config %d ret %d errno %d\n", config, ret, errno);
-    
+
     if (ret < 0)
         return ctrl_error();
- 
+
     usb_host_claim_interfaces(s, config);
     return 0;
 }
@@ -536,10 +536,10 @@ static int usb_host_set_interface(USBHostDevice *s, int iface, int alt)
     si.interface  = iface;
     si.altsetting = alt;
     ret = ioctl(s->fd, USBDEVFS_SETINTERFACE, &si);
-    
-    dprintf("husb: ctrl set iface %d altset %d ret %d errno %d\n", 
+
+    dprintf("husb: ctrl set iface %d altset %d ret %d errno %d\n",
     	iface, alt, ret, errno);
-    
+
     if (ret < 0)
         return ctrl_error();
 
@@ -553,7 +553,7 @@ static int usb_host_handle_control(USBHostDevice *s, USBPacket *p)
     AsyncURB *aurb;
     int ret, value, index;
 
-    /* 
+    /*
      * Process certain standard device requests.
      * These are infrequent and are processed synchronously.
      */
@@ -561,7 +561,7 @@ static int usb_host_handle_control(USBHostDevice *s, USBPacket *p)
     index = le16_to_cpu(s->ctrl.req.wIndex);
 
     dprintf("husb: ctrl type 0x%x req 0x%x val 0x%x index %u len %u\n",
-        s->ctrl.req.bRequestType, s->ctrl.req.bRequest, value, index, 
+        s->ctrl.req.bRequestType, s->ctrl.req.bRequest, value, index,
         s->ctrl.len);
 
     if (s->ctrl.req.bRequestType == 0) {
@@ -584,12 +584,12 @@ static int usb_host_handle_control(USBHostDevice *s, USBPacket *p)
     aurb->hdev   = s;
     aurb->packet = p;
 
-    /* 
+    /*
      * Setup ctrl transfer.
      *
      * s->ctrl is layed out such that data buffer immediately follows
      * 'req' struct which is exactly what usbdevfs expects.
-     */ 
+     */
     urb = &aurb->urb;
 
     urb->type     = USBDEVFS_URB_TYPE_CONTROL;
@@ -628,7 +628,7 @@ static int do_token_setup(USBDevice *dev, USBPacket *p)
 
     if (p->len != 8)
         return USB_RET_STALL;
- 
+
     memcpy(&s->ctrl.req, p->data, 8);
     s->ctrl.len    = le16_to_cpu(s->ctrl.req.wLength);
     s->ctrl.offset = 0;
@@ -768,7 +768,7 @@ static int usb_host_handle_packet(USBDevice *s, USBPacket *p)
 
     case USB_TOKEN_OUT:
         return do_token_out(s, p);
- 
+
     default:
         return USB_RET_STALL;
     }
@@ -927,10 +927,10 @@ static USBDevice *usb_host_device_open_addr(int bus_num, int addr, const char *p
 
     dev->fd = fd;
 
-    /* 
-     * Initial configuration is -1 which makes us claim first 
+    /*
+     * Initial configuration is -1 which makes us claim first
      * available config. We used to start with 1, which does not
-     * always work. I've seen devices where first config starts 
+     * always work. I've seen devices where first config starts
      * with 2.
      */
     if (!usb_host_claim_interfaces(dev, -1))
@@ -1018,7 +1018,7 @@ int usb_host_device_close(const char *devname)
     if (usb_host_find_device(&bus_num, &addr, product_name, sizeof(product_name),
                              devname) < 0)
         return -1;
- 
+
     s = hostdev_find(bus_num, addr);
     if (s) {
         usb_device_del_addr(0, s->dev.addr);
@@ -1027,7 +1027,7 @@ int usb_host_device_close(const char *devname)
 
     return -1;
 }
- 
+
 static int get_tag_value(char *buf, int buf_size,
                          const char *str, const char *tag,
                          const char *stopchars)
@@ -1159,9 +1159,8 @@ static int usb_host_read_file(char *line, size_t line_size, const char *device_f
              device_file);
     f = fopen(filename, "r");
     if (f) {
-        fgets(line, line_size, f);
+        ret = (fgets(line, line_size, f) != NULL);
         fclose(f);
-        ret = 1;
     } else {
         monitor_printf(mon, "husb: could not open %s\n", filename);
     }
@@ -1406,7 +1405,7 @@ static int parse_filter(const char *spec, struct USBAutoFilter *f)
     	p = strpbrk(p, ":.");
     	if (!p) break;
         p++;
- 
+
     	if (*p == '*')
             continue;
 
@@ -1426,7 +1425,7 @@ static int parse_filter(const char *spec, struct USBAutoFilter *f)
     return 0;
 }
 
-static int match_filter(const struct USBAutoFilter *f1, 
+static int match_filter(const struct USBAutoFilter *f1,
                         const struct USBAutoFilter *f2)
 {
     return f1->bus_num    == f2->bus_num &&
@@ -1444,13 +1443,13 @@ static int usb_host_auto_add(const char *spec)
 
     f = qemu_mallocz(sizeof(*f));
 
-    *f = filter; 
+    *f = filter;
 
     if (!usb_auto_filter) {
         /*
          * First entry. Init and start the monitor.
          * Right now we're using timer to check for new devices.
-         * If this turns out to be too expensive we can move that into a 
+         * If this turns out to be too expensive we can move that into a
          * separate thread.
          */
 	usb_auto_timer = qemu_new_timer(rt_clock, usb_host_auto_timer, NULL);
@@ -1657,7 +1656,7 @@ static void dec2str(int val, char *str, size_t size)
     if (val == -1)
         snprintf(str, size, "*");
     else
-        snprintf(str, size, "%d", val); 
+        snprintf(str, size, "%d", val);
 }
 
 static void hex2str(int val, char *str, size_t size)

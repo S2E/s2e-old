@@ -217,7 +217,7 @@ goldfish_audio_buff_put( struct goldfish_audio_buff*  b, QEMUFile*  f )
     qemu_put_buffer(f, b->data, b->length );
 }
 
-static int
+static void
 goldfish_audio_buff_get( struct goldfish_audio_buff*  b, QEMUFile*  f )
 {
     b->address = qemu_get_be32(f);

@@ -5798,7 +5798,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
 {
     unsigned int cond, insn, val, op1, i, shift, rm, rs, rn, rd, sh;
 #ifdef CONFIG_TRACE
-    int  ticks;
+    int  ticks = 0;
 #endif
     TCGv tmp;
     TCGv tmp2;

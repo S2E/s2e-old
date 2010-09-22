@@ -15,6 +15,7 @@
 #include "android/globals.h"  /* for android_hw */
 #include "irq.h"
 #include "user-events.h"
+#include "console.h"
 
 #define MAX_EVENTS 256*4
 

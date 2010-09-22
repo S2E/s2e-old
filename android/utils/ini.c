@@ -109,8 +109,8 @@ iniFile_getPairCount( IniFile*  i )
 }
 
 void
-iniFile_getPair( IniFile*   i, 
-                    int           index, 
+iniFile_getPair( IniFile*   i,
+                    int           index,
                     const char*  *pKey,
                     const char*  *pValue )
 {
@@ -251,6 +251,7 @@ iniFile_newFromFile( const char*  filepath )
     char*        text;
     long         size;
     IniFile*     ini = NULL;
+    size_t       len;
 
     if (fp == NULL) {
         D("could not open .ini file: %s: %s",
@@ -275,8 +276,8 @@ iniFile_newFromFile( const char*  filepath )
 
     /* read the file, add a sentinel at the end of it */
     AARRAY_NEW(text, size+1);
-    fread(text, 1, size, fp);
-    text[size] = 0;
+    len = fread(text, 1, size, fp);
+    text[len] = 0;
 
     ini = iniFile_newFromMemory(text, filepath);
     AFREE(text);

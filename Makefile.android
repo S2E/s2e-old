@@ -98,6 +98,11 @@ ifneq ($(combo_target)$(TARGET_SIMULATOR),HOST_true)
   endif
 endif
 
+# Enable warning, except those related to missing field initializers
+# (the QEMU coding style loves using these).
+#
+MY_CFLAGS += -Wall -Wno-missing-field-initializers
+
 include $(CLEAR_VARS)
 
 ###########################################################

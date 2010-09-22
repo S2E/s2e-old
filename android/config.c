@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "android/config.h"
 #include "android/utils/path.h"
@@ -193,7 +194,7 @@ restart:
             s = data - 1;
 
             if(value) {
-               /* if we're looking for a value, then take anything 
+               /* if we're looking for a value, then take anything
                 * until the end of line. note that sharp signs do
                 * not start comments then. the result will be stripped
                 * from trailing whitespace.
@@ -385,7 +386,12 @@ writer_write( Writer*  w, const char*  src, int  len )
 
         w->p += avail;
         if (w->p == w->end) {
-            write( w->fd, w->buff, w->p - w->buff );
+            int ret;
+            do {
+                ret = write( w->fd, w->buff, w->p - w->buff );
+            } while (ret < 0 && errno == EINTR);
+            if (ret < 0)
+                break;
             w->p = w->buff;
         }
     }
@@ -394,8 +400,12 @@ writer_write( Writer*  w, const char*  src, int  len )
 static void
 writer_done( Writer*  w )
 {
-    if (w->p > w->buff)
-        write( w->fd, w->buff, w->p - w->buff );
+    if (w->p > w->buff) {
+        int ret;
+        do {
+            ret = write( w->fd, w->buff, w->p - w->buff );
+        } while (ret < 0 && errno == EINTR);
+    }
     close( w->fd );
 }
 

@@ -24,7 +24,7 @@
 #endif  // CONFIG_MEMCHECK
 
 #include "memcheck_common.h"
-#include "elff_api.h"
+#include "elff/elff_api.h"
 
 #ifdef __cplusplus
 extern "C" {

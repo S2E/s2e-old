@@ -39,8 +39,8 @@ class DIEObject : public DwarfAllocBase {
       : die_(die),
         parent_cu_(parent_cu),
         parent_die_(parent_die),
-        prev_sibling_(NULL),
-        last_child_(NULL) {
+        last_child_(NULL),
+        prev_sibling_(NULL) {
   }
 
   /* Destructs DIEObject intance. */

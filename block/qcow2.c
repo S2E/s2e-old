@@ -71,7 +71,7 @@ static int qcow_probe(const uint8_t *buf, int buf_size, const char *filename)
 }
 
 
-/* 
+/*
  * read qcow2 extension and fill bs
  * start reading from start_offset
  * finish reading upon magic of value 0 or when end_offset reached
@@ -651,6 +651,35 @@ static int get_bits_from_size(size_t size)
     return res;
 }
 
+static int write_all(int fd, const void *buff, size_t bufsize)
+{
+    int ret = 0;
+    const char *ptr = buff;
+    while (bufsize > 0) {
+        ret = write(fd, ptr, bufsize);
+        if (ret < 0) {
+            if (errno != EINTR)
+                return -1;
+        } else {
+            bufsize -= ret;
+        }
+    }
+    return 0;
+}
+
+static int lseek_to(int fd, off_t offset)
+{
+    off_t ret;
+    do {
+        ret = lseek(fd, offset, SEEK_SET);
+    } while (ret == (off_t)-1 && errno == EINTR);
+
+    if (ret == (off_t)-1)
+        return -1;
+
+    return 0;
+}
+
 static int qcow_create2(const char *filename, int64_t total_size,
                         const char *backing_file, const char *backing_format,
                         int flags, size_t cluster_size)
@@ -662,7 +691,6 @@ static int qcow_create2(const char *filename, int64_t total_size,
     uint64_t tmp, offset;
     QCowCreateState s1, *s = &s1;
     QCowExtension ext_bf = {0, 0};
-
 
     memset(s, 0, sizeof(*s));
 
@@ -744,7 +772,8 @@ static int qcow_create2(const char *filename, int64_t total_size,
         ref_clusters * s->cluster_size);
 
     /* write all the data */
-    write(fd, &header, sizeof(header));
+    if (write_all(fd, &header, sizeof(header)) < 0)
+        goto FAIL;
     if (backing_file) {
         if (backing_format_len) {
             char zero[16];
@@ -753,29 +782,42 @@ static int qcow_create2(const char *filename, int64_t total_size,
             memset(zero, 0, sizeof(zero));
             cpu_to_be32s(&ext_bf.magic);
             cpu_to_be32s(&ext_bf.len);
-            write(fd, &ext_bf, sizeof(ext_bf));
-            write(fd, backing_format, backing_format_len);
+            if (write_all(fd, &ext_bf, sizeof(ext_bf)) < 0 ||
+                write_all(fd, backing_format, backing_format_len) < 0)
+                goto FAIL;
             if (d>0) {
-                write(fd, zero, d);
+                if (write_all(fd, zero, d) < 0)
+                    goto FAIL;
             }
         }
-        write(fd, backing_file, backing_filename_len);
+        if (write_all(fd, backing_file, backing_filename_len) < 0)
+            goto FAIL;
     }
-    lseek(fd, s->l1_table_offset, SEEK_SET);
+    if (lseek_to(fd, s->l1_table_offset) < 0)
+        goto FAIL;
+
     tmp = 0;
     for(i = 0;i < l1_size; i++) {
-        write(fd, &tmp, sizeof(tmp));
+        if (write_all(fd, &tmp, sizeof(tmp)) < 0)
+            goto FAIL;
     }
-    lseek(fd, s->refcount_table_offset, SEEK_SET);
-    write(fd, s->refcount_table, s->cluster_size);
+    if (lseek_to(fd, s->refcount_table_offset) < 0 ||
+        write_all(fd, s->refcount_table, s->cluster_size) < 0)
+        goto FAIL;
 
-    lseek(fd, s->refcount_block_offset, SEEK_SET);
-    write(fd, s->refcount_block, ref_clusters * s->cluster_size);
+    if (lseek_to(fd, s->refcount_block_offset) < 0 ||
+        write_all(fd, s->refcount_block, ref_clusters * s->cluster_size) < 0)
+        goto FAIL;
 
     qemu_free(s->refcount_table);
     qemu_free(s->refcount_block);
     close(fd);
     return 0;
+FAIL:
+    qemu_free(s->refcount_table);
+    qemu_free(s->refcount_block);
+    close(fd);
+    return -errno;
 }
 
 static int qcow_create(const char *filename, QEMUOptionParameter *options)

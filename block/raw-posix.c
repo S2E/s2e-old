@@ -570,7 +570,7 @@ static int posix_aio_init(void)
     PosixAioState *s;
     int fds[2];
     struct qemu_paioinit ai;
-  
+
     if (posix_aio_state)
         return 0;
 
@@ -836,7 +836,7 @@ again:
 
 static int raw_create(const char *filename, QEMUOptionParameter *options)
 {
-    int fd;
+    int fd, ret;
     int64_t total_size = 0;
 
     /* Read out options */
@@ -851,8 +851,12 @@ static int raw_create(const char *filename, QEMUOptionParameter *options)
               0644);
     if (fd < 0)
         return -EIO;
-    ftruncate(fd, total_size * 512);
+    do {
+        ret = ftruncate(fd, total_size * 512);
+    } while (ret < 0 && errno == EINTR);
     close(fd);
+    if (ret != 0)
+        return -errno;
     return 0;
 }
 

@@ -717,9 +717,9 @@ class DwarfAbbrDieArray {
    * hopping, that all Dwarf_Abbr_DIEs for the CU will fit into it.
    */
   DwarfAbbrDieArray()
-      : count_(0),
+      : array_(&small_array_[0]),
         array_size_(ELFF_ARRAY_SIZE(small_array_)),
-        array_(&small_array_[0]) {
+        count_(0) {
   }
 
   /* Destructs DwarfAbbrDieArray instance. */

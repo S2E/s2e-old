@@ -149,4 +149,11 @@ extern int tracing;
 extern int trace_cache_miss;
 extern int trace_all_addr;
 
+// Trace process/thread operations
+extern void trace_switch(int pid);
+extern void trace_fork(int tgid, int pid);
+extern void trace_clone(int tgid, int pid);
+extern void trace_exit(int exitcode);
+extern void trace_name(char *name);
+
 #endif /* TRACE_H */

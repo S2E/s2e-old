@@ -275,12 +275,12 @@ dump_value(const Dwarf_Value* attr_value) {
       break;
 
     case DWARF_VALUE_U64:
-      printf("XWORD)  = %I64u (x%I64X)\n", attr_value->u64,
+      printf("XWORD)  = %" FMT_I64 "u (x%" FMT_I64 "X)\n", attr_value->u64,
                                           attr_value->u64);
       break;
 
     case DWARF_VALUE_S64:
-      printf("SXWORD) = %I64d (x%I64X)\n", attr_value->s64,
+      printf("SXWORD) = %" FMT_I64 "d (x%" FMT_I64 "X)\n", attr_value->s64,
                                           attr_value->s64);
       break;
 
@@ -293,11 +293,11 @@ dump_value(const Dwarf_Value* attr_value) {
       break;
 
     case DWARF_VALUE_PTR64:
-      printf("PTR64)  = x%08I64X\n", attr_value->ptr64);
+      printf("PTR64)  = x%08" FMT_I64 "X\n", attr_value->ptr64);
       break;
 
     case DWARF_VALUE_BLOCK:
-      printf("BLOCK)  = [%I64u]:", attr_value->block.block_size);
+      printf("BLOCK)  = [%u]:", attr_value->block.block_size);
       for (Elf_Xword i = 0; i < attr_value->block.block_size; i++) {
         Elf_Byte prnt = *((const Elf_Byte*)attr_value->block.block_ptr + i);
         printf(" x%02X", prnt);

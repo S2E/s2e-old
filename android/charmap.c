@@ -394,7 +394,7 @@ kcm_get_key_code(const char* key_name, unsigned short* key_code) {
 */
 static int
 kcm_get_ushort_hex_val(const char* token, unsigned short* val) {
-    int hex_val = hex2int(token, strlen(token));
+    int hex_val = hex2int((const uint8_t*)token, strlen(token));
     // Make sure token format was ok and value doesn't exceed unsigned short.
     if (-1 == hex_val || 0 != (hex_val & ~0xFFFF)) {
       return -1;

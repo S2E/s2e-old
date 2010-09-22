@@ -24,6 +24,7 @@
 #include "exec-all.h"
 #include "trace.h"
 #include "varint.h"
+#include "android/utils/path.h"
 
 TraceBB trace_bb;
 TraceInsn trace_insn;

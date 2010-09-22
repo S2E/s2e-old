@@ -15,8 +15,11 @@
  */
 #include "qemu_file.h"
 #include "goldfish_trace.h"
+#include "sysemu.h"
+#include "trace.h"
 #ifdef CONFIG_MEMCHECK
 #include "memcheck/memcheck.h"
+#include "memcheck/memcheck_util.h"
 #endif  // CONFIG_MEMCHECK
 
 //#define DEBUG   1
@@ -45,6 +48,8 @@ static unsigned long unmap_start; // start address to unmap
 static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t value)
 {
     trace_dev_state *s = (trace_dev_state *)opaque;
+
+    (void)s;
 
     switch (offset >> 2) {
     case TRACE_DEV_REG_SWITCH:  // context switch, switch to pid
@@ -128,7 +133,7 @@ static void trace_dev_write(void *opaque, target_phys_addr_t offset, uint32_t va
         cmdlen = value;
         break;
     case TRACE_DEV_REG_CMDLINE:         // execve, process cmdline
-        cpu_memory_rw_debug(cpu_single_env, value, exec_arg, cmdlen, 0);
+        cpu_memory_rw_debug(cpu_single_env, value, (uint8_t*)exec_arg, cmdlen, 0);
         if (trace_filename != NULL) {
             trace_execve(exec_arg, cmdlen);
         }
@@ -351,6 +356,8 @@ static uint32_t trace_dev_read(void *opaque, target_phys_addr_t offset)
 {
     trace_dev_state *s = (trace_dev_state *)opaque;
 
+    (void)s;
+
     switch (offset >> 2) {
     case TRACE_DEV_REG_ENABLE:          // tracing enable
         return tracing;
@@ -378,7 +385,6 @@ static CPUWriteMemoryFunc *trace_dev_writefn[] = {
 /* initialize the trace device */
 void trace_dev_init()
 {
-    int iomemtype;
     trace_dev_state *s;
 
     s = (trace_dev_state *)qemu_mallocz(sizeof(trace_dev_state));

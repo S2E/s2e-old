@@ -79,7 +79,7 @@ remote_number_string_to_port( const char*  number )
 {
     char*  end;
     long   num;
-    char*  temp = number;
+    const char*  temp = number;
     int    len;
 
     len = strlen(number);

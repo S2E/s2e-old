@@ -3,6 +3,9 @@
 
    The assumption is that this area does not change.
 */
+#ifdef __linux__
+#define _GNU_SOURCE 1
+#endif
 #include <sys/types.h>
 #include <sys/param.h>
 #include <dirent.h>
