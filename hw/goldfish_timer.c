@@ -66,8 +66,7 @@ static int  goldfish_timer_load(QEMUFile*  f, void*  opaque, int  version_id)
     if (version_id != GOLDFISH_TIMER_SAVE_VERSION)
         return -1;
 
-    s->now_ns = qemu_get_sbe64(f);  /* using qemu_get_be64 (without 's') causes faulty code generation
-                                       in the compiler, dropping the 32 most significant bits */
+    s->now_ns = qemu_get_be64(f);
     s->armed  = qemu_get_byte(f);
     if (s->armed) {
         int64_t  now_tks   = qemu_get_clock(vm_clock);
