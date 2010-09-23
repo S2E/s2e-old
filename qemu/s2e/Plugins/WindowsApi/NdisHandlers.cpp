@@ -30,9 +30,8 @@ void NdisHandlers::initialize()
 
     ConfigFile *cfg = s2e()->getConfig();
 
-    m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
-    m_windowsMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
-    m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
+    WindowsApi::initialize();
+
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
     m_hw = static_cast<SymbolicHardware*>(s2e()->getPlugin("SymbolicHardware"));
 
@@ -56,25 +55,6 @@ void NdisHandlers::initialize()
         }
     }
 
-    std::string consistency = cfg->getString(getConfigKey() + ".consistency", "", &ok);
-    if (consistency == "strict") {
-        m_consistency = STRICT;
-    }else if (consistency == "local") {
-        m_consistency = LOCAL;
-    }else if (consistency == "overapproximate") {
-        m_consistency = OVERAPPROX;
-    }else if  (consistency == "overconstrained") {
-        //This is strict consistency with forced concretizations
-        m_consistency = STRICT;
-        s2e()->getExecutor()->setForceConcretizations(true);
-    }else {
-        s2e()->getWarningsStream() << "NDISHANDLERS: Incorrect consistency " << consistency << std::endl;
-        exit(-1);
-    }
-
-
-    parseSpecificConsistency();
-
     //Checking the keywords for NdisReadConfiguration whose result will not be replaced with symbolic values
     ConfigFile::string_list ign = cfg->getStringList(getConfigKey() + ".ignoreKeywords");
     m_ignoreKeywords.insert(ign.begin(), ign.end());
@@ -96,81 +76,6 @@ void NdisHandlers::initialize()
 
 }
 
-void NdisHandlers::parseSpecificConsistency()
-{
-    ConfigFile *cfg = s2e()->getConfig();
-
-    //Get the list of key-value pair ids
-    bool ok = false;
-    ConfigFile::string_list ids = cfg->getListKeys(getConfigKey() + ".functionConsistencies", &ok);
-
-    foreach2(it, ids.begin(), ids.end()) {
-        std::string func = *it;
-
-        std::stringstream ss;
-        ss << getConfigKey() + ".functionConsistencies." << func;
-        ConfigFile::string_list pairs = cfg->getStringList(ss.str());
-        if (pairs.size() != 2) {
-            s2e()->getDebugStream() << ss.str() << " must have two elements" << std::endl;
-            exit(-1);
-        }
-
-        Consistency consistency = STRICT;
-        //Check the consistency type
-        if (pairs[1] == "strict") {
-            consistency = STRICT;
-        }else if (pairs[1] == "local") {
-            consistency = LOCAL;
-        }else if (pairs[1] == "overapproximate") {
-            consistency = OVERAPPROX;
-        }else if  (pairs[1] == "overconstrained") {
-            //This is strict consistency with forced concretizations
-            s2e()->getWarningsStream() << "NDISHANDLERS: Cannot handle overconstrained for specific functions " << std::endl;
-            exit(-1);
-        }else {
-            s2e()->getWarningsStream() << "NDISHANDLERS: Incorrect consistency " << consistency <<
-                    " for " << ss.str() << std::endl;
-            exit(-1);
-        }
-
-        s2e()->getDebugStream() << "NDISHANDLERS " << pairs[0] << " will have " << pairs[1] << " consistency" << std::endl;
-        m_specificConsistency[pairs[0]] = consistency;
-    }
-
-}
-
-NdisHandlers::Consistency NdisHandlers::getConsistency(const std::string &fcn) const
-{
-    ConsistencyMap::const_iterator it = m_specificConsistency.find(fcn);
-    if (it != m_specificConsistency.end()) {
-        return (*it).second;
-    }
-    return m_consistency;
-}
-
-void NdisHandlers::registerImport(Imports &I, const std::string &dll, const std::string &name,
-                                  FunctionHandler handler, S2EExecutionState *state)
-{
-    //Register all the relevant imported functions
-    Imports::iterator it = I.find(dll);
-    if (it == I.end()) {
-        s2e()->getWarningsStream() << "NdisHandlers: Could not read imports for " << dll << std::endl;
-        return;
-    }
-
-    ImportedFunctions &funcs = (*it).second;
-    ImportedFunctions::iterator fit = funcs.find(name);
-    if (fit == funcs.end()) {
-        s2e()->getWarningsStream() << "NdisHandlers: Could not find " << name << " in " << dll << std::endl;
-        return;
-    }
-
-    s2e()->getMessagesStream() << "Registering import" << name <<  " at 0x" << std::hex << (*fit).second << std::endl;
-
-    FunctionMonitor::CallSignal* cs;
-    cs = m_functionMonitor->getCallSignal(state, (*fit).second, 0);
-    cs->connect(sigc::mem_fun(*this, handler));
-}
 
 bool NdisHandlers::calledFromModule(S2EExecutionState *s)
 {
@@ -226,7 +131,7 @@ void NdisHandlers::onModuleLoad(
     }
 
     FunctionMonitor::CallSignal* entryPoint;
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, module.ToRuntime(module.EntryPoint), entryPoint);
+    REGISTER_ENTRY_POINT(entryPoint, module.ToRuntime(module.EntryPoint), entryPoint);
 
     Imports I;
     if (!m_windowsMonitor->getImports(state, module, I)) {
@@ -260,134 +165,6 @@ void NdisHandlers::onModuleLoad(
     //     &NdisHandlers::TraceCall));
 }
 
-//////////////////////////////////////////////
-void NdisHandlers::TraceCall(S2EExecutionState* state, FunctionMonitorState *fns)
-{
-    std::ostream &os = s2e()->getDebugStream(state);
-
-    const ModuleDescriptor *md = m_detector->getModule(state, state->getPc(), false);
-
-    os << __FUNCTION__ << " ESP=0x" << std::hex << state->readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32)
-            << " EIP=0x" << state->getPc();
-
-    if (md) {
-        os << " " << md->Name << " 0x" << md->ToNativeBase(state->getPc()) << " +" <<
-                md->ToRelative(state->getPc());
-    }
-
-    os << std::endl;
-
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::TraceRet)
-}
-
-void NdisHandlers::TraceRet(S2EExecutionState* state)
-{
-    std::ostream &os = s2e()->getDebugStream(state);
-
-    const ModuleDescriptor *md = m_detector->getModule(state, state->getPc(), false);
-
-    os << __FUNCTION__ << " ESP=0x" << std::hex << state->readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32)
-            << " EIP=0x" << state->getPc();
-
-    if (md) {
-        os << " " << md->Name << " 0x" << md->ToNativeBase(state->getPc()) << " +" <<
-                md->ToRelative(state->getPc());
-    }
-
-    os << std::endl;
-}
-
-//////////////////////////////////////////////
-bool NdisHandlers::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr)
-{
-    bool isTrue;
-    klee::ref<klee::Expr> eq = klee::SgeExpr::create(expr, klee::ConstantExpr::create(0, expr.get()->getWidth()));
-
-    if (s2e->getExecutor()->getSolver()->mayBeTrue(klee::Query(s->constraints, eq), isTrue)) {
-        return isTrue;
-    }
-    return false;
-}
-
-bool NdisHandlers::NtFailure(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr)
-{
-    bool isTrue;
-    klee::ref<klee::Expr> eq = klee::SgeExpr::create(expr, klee::ConstantExpr::create(0, expr.get()->getWidth()));
-
-    if (s2e->getExecutor()->getSolver()->mustBeFalse(klee::Query(s->constraints, eq), isTrue)) {
-        return isTrue;
-    }
-    return false;
-}
-
-//Address is a pointer to a UNICODE_STRING32 structure
-bool NdisHandlers::ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s)
-{
-    UNICODE_STRING32 configStringUnicode;
-    bool ok;
-
-    ok = state->readMemoryConcrete(address, &configStringUnicode, sizeof(configStringUnicode));
-    if (!ok) {
-        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32" << std::endl;
-        return false;
-    }
-
-    ok = state->readUnicodeString(configStringUnicode.Buffer, s, configStringUnicode.Length);
-    if (!ok) {
-        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32"  << std::endl;
-    }
-
-    return ok;
-}
-
-
-bool NdisHandlers::readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val)
-{
-    bool b = s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), val, sizeof(*val));
-    if (!b) {
-        return false;
-    }
-    return true;
-}
-
-bool NdisHandlers::writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val)
-{
-    bool b = s->writeMemory(s->getSp() + (param+1) * sizeof(uint32_t), val);
-    if (!b) {
-        return false;
-    }
-    return true;
-}
-
-bool NdisHandlers::forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values)
-{
-
-    klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, msg);
-    std::vector<klee::Expr> conditions;
-
-    S2EExecutionState *curState = state;
-
-    for (unsigned i=0; values.size()>0 && i<values.size()-1; ++i) {
-        klee::ref<klee::Expr> cond = klee::NeExpr::create(success, klee::ConstantExpr::create(values[i], klee::Expr::Int32));
-
-        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*curState, cond, false);
-        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
-
-        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
-
-        //uint32_t retVal = values[i];
-        fs->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
-        curState = ts;
-    }
-
-    uint32_t retVal = values[values.size()-1];
-    klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(retVal, klee::Expr::Int32));
-    curState->addConstraint(cond);
-    curState->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
-
-    return true;
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -626,7 +403,7 @@ void NdisHandlers::NdisMInitializeTimerRet(S2EExecutionState* state)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
     FunctionMonitor::CallSignal* entryPoint;
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, plgState->val1, NdisTimerEntryPoint);
+    REGISTER_ENTRY_POINT(entryPoint, plgState->val1, NdisTimerEntryPoint);
 }
 
 void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -676,7 +453,7 @@ void NdisHandlers::NdisMRegisterAdapterShutdownHandlerRet(S2EExecutionState* sta
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
     FunctionMonitor::CallSignal* entryPoint;
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, plgState->val1, NdisShutdownEntryPoint);
+    REGISTER_ENTRY_POINT(entryPoint, plgState->val1, NdisShutdownEntryPoint);
 }
 
 void NdisHandlers::NdisShutdownEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -1271,20 +1048,20 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
 
     //Register each handler
     FunctionMonitor::CallSignal* entryPoint;
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.CheckForHangHandler, CheckForHang);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.InitializeHandler, InitializeHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.DisableInterruptHandler, DisableInterruptHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.EnableInterruptHandler, EnableInterruptHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.HaltHandler, HaltHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.HandleInterruptHandler, HandleInterruptHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.ISRHandler, ISRHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.QueryInformationHandler, QueryInformationHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.ReconfigureHandler, ReconfigureHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.ResetHandler, ResetHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.SendHandler, SendHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.SendPacketsHandler, SendPacketsHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.SetInformationHandler, SetInformationHandler);
-    REGISTER_NDIS_ENTRY_POINT(entryPoint, Miniport.TransferDataHandler, TransferDataHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.CheckForHangHandler, CheckForHang);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.InitializeHandler, InitializeHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.DisableInterruptHandler, DisableInterruptHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.EnableInterruptHandler, EnableInterruptHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.HaltHandler, HaltHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.HandleInterruptHandler, HandleInterruptHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.ISRHandler, ISRHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.QueryInformationHandler, QueryInformationHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.ReconfigureHandler, ReconfigureHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.ResetHandler, ResetHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.SendHandler, SendHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.SendPacketsHandler, SendPacketsHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.SetInformationHandler, SetInformationHandler);
+    REGISTER_ENTRY_POINT(entryPoint, Miniport.TransferDataHandler, TransferDataHandler);
 
     if (Miniport.ISRHandler) {
         DECLARE_PLUGINSTATE(NdisHandlersState, state);
