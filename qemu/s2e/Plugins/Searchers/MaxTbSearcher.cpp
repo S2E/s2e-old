@@ -237,6 +237,12 @@ void MaxTbSearcher::onTraceTb(S2EExecutionState* state, uint64_t pc)
 
     DECLARE_PLUGINSTATE(MaxTbSearcherState, state);
     plgState->m_metric = tbm[newPc];
+
+#if 1
+    s2e()->getDebugStream() << "Metric for 0x" << std::hex << (newPc+md->NativeBase) << " = " << plgState->m_metric
+            << std::endl;
+#endif
+
     plgState->m_metric *= state->queryCost < 1 ? 1 : state->queryCost;
 
     m_states.insert(state);
@@ -284,6 +290,7 @@ bool MaxTbSearcher::updatePc(S2EExecutionState *es)
     uint64_t absNextPc = computeTargetPc(es); //XXX: fix me
 
     if (!absNextPc) {
+        s2e()->getDebugStream() << "MaxTBSearcher: could not determune next pc" << std::endl;
         //Could not determine next pc
         return false;
     }
@@ -292,6 +299,11 @@ bool MaxTbSearcher::updatePc(S2EExecutionState *es)
 
     //If not covered, add the forked state to the wait list
     plgState->m_metric = m_coveredTbs[*md][md->ToRelative(absNextPc)];
+#if 1
+    s2e()->getDebugStream() << "MaxTBSearcher updatePc Metric for 0x" << std::hex << md->ToNativeBase(absNextPc) << " = " << plgState->m_metric
+            << std::endl;
+#endif
+
     m_states.insert(es);
     return true;
 }

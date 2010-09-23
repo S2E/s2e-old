@@ -131,6 +131,9 @@ private:
     DECLARE_NDIS_ENTRY_POINT(GetSystemUpTime);
     DECLARE_NDIS_ENTRY_POINT(KeStallExecutionProcessor);
 
+    //This is an internal function in ntoskrnl.exe
+    DECLARE_NDIS_ENTRY_POINT(DebugPrint);
+
     DECLARE_NDIS_ENTRY_POINT(CheckForHang);
     DECLARE_NDIS_ENTRY_POINT(InitializeHandler);
     DECLARE_NDIS_ENTRY_POINT(DisableInterruptHandler);

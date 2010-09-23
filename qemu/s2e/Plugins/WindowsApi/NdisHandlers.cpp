@@ -391,6 +391,30 @@ bool NdisHandlers::forkRange(S2EExecutionState *state, const std::string &msg, s
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//XXX: Put it in a ntoskrnl.exe file
+void NdisHandlers::DebugPrint(S2EExecutionState *state, FunctionMonitorState *fns)
+{
+    //Invoke this function in all contexts
+    uint32_t strptr;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &strptr);
+
+    if (!ok) {
+        s2e()->getDebugStream() << "Could not read string in DebugPrint" << std::endl;
+        return;
+    }
+
+    std::string message;
+    ok = state->readString(strptr, message, 255);
+    if (!ok) {
+        s2e()->getDebugStream() << "Could not read string in DebugPrint at address 0x" << std::hex << strptr <<  std::endl;
+        return;
+    }
+
+    s2e()->getMessagesStream(state) << "DebugPrint: " << message << std::endl;
+}
+
 void NdisHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
@@ -1516,19 +1540,71 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
         return;
     }
 
-    //Fork the current state. One will have the original request, the other the symbolic one.
     std::stringstream ss;
     ss << __FUNCTION__ << "_OID";
     klee::ref<klee::Expr> symbOid = state->createSymbolicValue(klee::Expr::Int32, ss.str());
 
-    klee::ref<klee::Expr> isFakeOid = state->createSymbolicValue(klee::Expr::Bool, "IsFakeOid");
-    klee::ref<klee::Expr> cond = klee::EqExpr::create(isFakeOid, klee::ConstantExpr::create(1, klee::Expr::Bool));
-    klee::ref<klee::Expr> outcome =
+    klee::ref<klee::Expr> isFakeOid = state->createSymbolicValue(klee::Expr::Int8, "IsFakeOid");
+    klee::ref<klee::Expr> cond = klee::EqExpr::create(isFakeOid, klee::ConstantExpr::create(1, klee::Expr::Int8));
+/*    klee::ref<klee::Expr> outcome =
             klee::SelectExpr::create(cond, symbOid,
                                          klee::ConstantExpr::create(plgState->oid, klee::Expr::Int32));
+*/
 
-    writeParameter(state, 1, outcome);
+    //We fake the stack pointer and prepare symbolic inputs for the buffer
+    uint32_t original_sp = state->getSp();
+    uint32_t current_sp = original_sp;
 
+    //Create space for the new buffer
+    //This will also be present in the original call.
+    uint32_t newBufferSize = 64;
+    klee::ref<klee::Expr> symbBufferSize = state->createSymbolicValue(klee::Expr::Int32, "QuerySetInfoBufferSize");
+    current_sp -= newBufferSize;
+    uint32_t newBufferPtr = current_sp;
+
+    //XXX: Do OID-aware injection
+    for (unsigned i=0; i<newBufferSize; ++i) {
+        std::stringstream ssb;
+        ssb << __FUNCTION__ << "_buffer_" << i;
+        klee::ref<klee::Expr> symbByte = state->createSymbolicValue(klee::Expr::Int8, ssb.str());
+        state->writeMemory(current_sp + i, symbByte);
+    }
+
+    //Copy and patch the parameters
+    uint32_t origContext, origInfoBuf, origLength, origBytesWritten, origBytesNeeded;
+    bool b = true;
+    b &= readConcreteParameter(state, 0, &origContext);
+    b &= readConcreteParameter(state, 2, &origInfoBuf);
+    b &= readConcreteParameter(state, 3, &origLength);
+    b &= readConcreteParameter(state, 4, &origBytesWritten);
+    b &= readConcreteParameter(state, 5, &origBytesNeeded);
+
+    if (b) {
+        current_sp -= sizeof(uint32_t);
+        b &= state->writeMemory(current_sp, (uint8_t*)&origBytesNeeded, klee::Expr::Int32);
+        current_sp -= sizeof(uint32_t);
+        b &= state->writeMemory(current_sp, (uint8_t*)&origBytesWritten, klee::Expr::Int32);
+
+        //Symbolic buffer size
+        current_sp -= sizeof(uint32_t);
+        b &= state->writeMemory(current_sp, symbBufferSize);
+
+
+        current_sp -= sizeof(uint32_t);
+        b &= state->writeMemory(current_sp, (uint8_t*)&newBufferPtr, klee::Expr::Int32);
+        current_sp -= sizeof(uint32_t);
+        b &= state->writeMemory(current_sp, symbOid);
+        current_sp -= sizeof(uint32_t);
+        b &= state->writeMemory(current_sp, (uint8_t*)&origContext, klee::Expr::Int32);
+
+        //Push the new return address (it does not matter normally, so put NULL)
+        current_sp -= sizeof(uint32_t);
+        uint32_t retaddr = 0x0badcafe;
+        b &= state->writeMemory(current_sp,(uint8_t*)&retaddr, klee::Expr::Int32);
+
+    }
+
+    //Fork now, because we do not need to access memory anymore
     klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
 
     S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
@@ -1540,6 +1616,18 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
 
     ht->fakeoid = true;
     hf->fakeoid = false;
+
+    //Set the new stack pointer for the fake state
+    ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_ESP]), &current_sp, sizeof(current_sp));
+
+    //Add a constraint for the buffer size
+    klee::ref<klee::Expr> symbBufferConstr = klee::UleExpr::create(symbBufferSize, klee::ConstantExpr::create(newBufferSize, klee::Expr::Int32));
+    ts->addConstraint(symbBufferConstr);
+
+    //Register separately the return handler,
+    //since the stack pointer is different in the two states
+    FUNCMON_REGISTER_RETURN(ts, fns, NdisHandlers::QueryInformationHandlerRet)
+    FUNCMON_REGISTER_RETURN(fs, fns, NdisHandlers::QueryInformationHandlerRet)
 }
 
 void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery)
@@ -1593,8 +1681,6 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
     }
 
     state->undoCallAndJumpToSymbolic();
-
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::QueryInformationHandlerRet)
 
     alreadyExplored = true;
     QuerySetInformationHandler(state, fns, true);
