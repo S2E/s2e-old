@@ -4216,8 +4216,10 @@ static int qemu_calculate_timeout(void)
             qemu_icount += add;
 #ifdef CONFIG_S2E
             CPUState *env;
-            for (env = first_cpu; env != NULL; env = env->next_cpu)
+            for (env = first_cpu; env != NULL; env = env->next_cpu) {
                 env->s2e_icount += add;
+                env->s2e_icount_after_tb += add;
+            }
 
             /* For S2E we do not emulate the real timeout */
             timeout = 0;

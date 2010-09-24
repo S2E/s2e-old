@@ -769,6 +769,8 @@ int cpu_exec(CPUState *env1)
             #endif
         } else {
 #ifdef CONFIG_S2E
+            cpu_restore_icount(env);
+
             s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
             g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
             s2e_qemu_finalize_state(g_s2e, g_s2e_state);

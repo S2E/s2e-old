@@ -1119,12 +1119,16 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         if(oldState->m_runningConcrete)
             switchToSymbolic(oldState);
 
-        if(use_icount)
-            assert((uint64_t) qemu_icount ==
-                        oldState->readCpuState(CPU_OFFSET(s2e_icount), 64));
+        /*
+        if(use_icount) {
+            assert(env->s2e_icount == (uint64_t) (qemu_icount -
+                            (env->icount_decr.u16.low + env->icount_extra)));
+        }
+        */
 
         //copyInConcretes(*oldState);
         oldState->getDeviceState()->saveDeviceState();
+        oldState->m_qemuIcount = qemu_icount;
         *oldState->m_timersState = timers_state;
 
         uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
@@ -1169,10 +1173,9 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     if(newState) {
         timers_state = *newState->m_timersState;
+        qemu_icount = newState->m_qemuIcount;
         newState->getDeviceState()->restoreDeviceState();
         //copyOutConcretes(*newState);
-
-        qemu_icount = newState->readCpuState(CPU_OFFSET(s2e_icount), 64);
     }
 
     if(FlushTBsOnStateSwitch)
@@ -1842,8 +1845,20 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         if(newState != originalState) {
             newState->getDeviceState()->saveDeviceState();
+            newState->m_qemuIcount = qemu_icount;
+            *newState->m_timersState = timers_state;
 
+            /* Save CPU state */
+            const MemoryObject* cpuMo = newState->m_cpuSystemState;
+            uint8_t *cpuStore = newState->m_cpuSystemObject->getConcreteStore();
+            memcpy(cpuStore, (uint8_t*) cpuMo->address, cpuMo->size);
+            newState->m_active = false;
+
+            /* Save all other objects */
             foreach(MemoryObject* mo, m_saveOnContextSwitch) {
+                if(mo == cpuMo)
+                    continue;
+
                 const ObjectState *os = newState->addressSpace.findObject(mo);
                 ObjectState *wos = newState->addressSpace.getWriteable(mo, os);
                 uint8_t *store = wos->getConcreteStore();
@@ -1851,8 +1866,6 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                 assert(store);
                 memcpy(store, (uint8_t*) mo->address, mo->size);
             }
-
-            newState->m_active = false;
         }
     }
 

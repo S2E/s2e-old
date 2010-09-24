@@ -46,7 +46,7 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_active(true), m_runningConcrete(true),
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL),
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
-        m_dirtyMask(NULL), m_lastS2ETb(NULL),
+        m_dirtyMask(NULL), m_qemuIcount(0), m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1)
 {
     m_deviceState = new S2EDeviceState();

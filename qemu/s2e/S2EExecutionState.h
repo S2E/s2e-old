@@ -71,6 +71,7 @@ protected:
     /* The following structure is used to store QEMU time accounting
        variables while the state is inactive */
     TimersState* m_timersState;
+    int64_t m_qemuIcount;
 
     S2ETranslationBlock* m_lastS2ETb;
 

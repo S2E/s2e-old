@@ -172,12 +172,17 @@ void cpu_restore_icount(CPUState *env)
 {
     if(use_icount) {
         /* If we are not executing TB, s2e_icoun equals s2e_icount_after_tb */
-        assert(env->s2e_current_tb || env->s2e_icount == env->s2e_icount_after_tb);
-        assert(env->s2e_icount_after_tb - env->s2e_icount +
-                        env->icount_decr.u16.low <= 0xffff);
-        env->icount_decr.u16.low += (env->s2e_icount_after_tb - env->s2e_icount);
-        env->s2e_icount_after_tb = env->s2e_icount;
-        env->s2e_icount_before_tb = env->s2e_icount;
+        if(env->s2e_current_tb) {
+            assert(env->s2e_icount_after_tb - env->s2e_icount +
+                            env->icount_decr.u16.low <= 0xffff);
+            env->icount_decr.u16.low += (env->s2e_icount_after_tb - env->s2e_icount);
+            env->s2e_icount_after_tb = env->s2e_icount;
+            env->s2e_icount_before_tb = env->s2e_icount;
+        } else {
+            assert(env->s2e_icount == env->s2e_icount_after_tb);
+        }
+        assert(env->s2e_icount == qemu_icount - env->icount_decr.u16.low
+                                             - env->icount_extra);
     }
 }
 #endif
