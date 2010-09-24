@@ -260,6 +260,9 @@ int cpu_exec(CPUState *env1)
     uintptr_t next_tb;
     unsigned intNb=-1;
 
+    if(cpu_halted(env1) == EXCP_HALTED)
+        return EXCP_HALTED;
+
     cpu_single_env = env1;
 
     /* first we save global registers */
