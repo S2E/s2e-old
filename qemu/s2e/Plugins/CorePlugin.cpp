@@ -30,19 +30,16 @@ static void s2e_timer_cb(void *opaque)
 {
     CorePlugin *c = (CorePlugin*)opaque;
     g_s2e->getDebugStream() << "Firing timer event" << std::endl;
-    //g_s2e->getDebugStream() << time(NULL) << std::endl;
     c->onTimer.emit();
-    qemu_mod_timer(c->getTimer(), qemu_get_clock(host_clock) +
-        get_ticks_per_sec());
+    qemu_mod_timer(c->getTimer(), qemu_get_clock(rt_clock) + 1000);
 }
 
 void CorePlugin::initializeTimers()
 {
     s2e()->getDebugStream() << "Initializing periodic timer" << std::endl;
     /* Initialize the timer handler */
-    m_Timer = qemu_new_timer(host_clock, s2e_timer_cb, this);
-    qemu_mod_timer(m_Timer, qemu_get_clock(host_clock) +
-                    get_ticks_per_sec());
+    m_Timer = qemu_new_timer(rt_clock, s2e_timer_cb, this);
+    qemu_mod_timer(m_Timer, qemu_get_clock(rt_clock) + 1000);
 }
 
 void CorePlugin::initialize()
