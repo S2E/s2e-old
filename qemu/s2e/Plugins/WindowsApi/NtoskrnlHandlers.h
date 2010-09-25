@@ -11,8 +11,8 @@
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/SymbolicHardware.h>
 
-#define CURRENT_CLASS NtoskrnlHandlers
 #include "Api.h"
+
 
 namespace s2e {
 namespace plugins {

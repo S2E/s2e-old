@@ -9,6 +9,11 @@
 namespace s2e {
 namespace plugins {
 
+enum BsodCodes
+{
+    CRITICAL_OBJECT_TERMINATION = 0xf4
+};
+
 class BlueScreenInterceptor : public Plugin
 {
     S2E_PLUGIN
@@ -25,6 +30,9 @@ private:
         S2EExecutionState *state,
         TranslationBlock *tb,
         uint64_t pc);
+
+    void dumpCriticalObjectTermination(S2EExecutionState *state);
+    void dispatchErrorCodes(S2EExecutionState *state);
 
     void onBsod(S2EExecutionState *state, uint64_t pc);
 };

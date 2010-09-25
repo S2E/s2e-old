@@ -4,10 +4,13 @@ extern "C" {
 #include <exec-all.h>
 }
 
-#include "NtoskrnlHandlers.h"
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+
+#define CURRENT_CLASS NtoskrnlHandlers
+
+#include "NtoskrnlHandlers.h"
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
 #include <klee/Solver.h>
@@ -28,7 +31,18 @@ void NtoskrnlHandlers::initialize()
 {
     WindowsApi::initialize();
 
-    bool m_loaded = false;
+    m_loaded = false;
+
+    m_windowsMonitor->onModuleLoad.connect(
+            sigc::mem_fun(*this,
+                    &NtoskrnlHandlers::onModuleLoad)
+            );
+
+    m_windowsMonitor->onModuleUnload.connect(
+            sigc::mem_fun(*this,
+                    &NtoskrnlHandlers::onModuleUnload)
+            );
+
 }
 
 void NtoskrnlHandlers::onModuleLoad(
@@ -40,6 +54,10 @@ void NtoskrnlHandlers::onModuleLoad(
         return;
     }
 
+    if (m_loaded) {
+        return;
+    }
+
     m_loaded = true;
     m_module = module;
 
@@ -47,7 +65,7 @@ void NtoskrnlHandlers::onModuleLoad(
     //XXX: differentiate versions
 
     FunctionMonitor::CallSignal *cs;
-    uint32_t dbgPrintAddr = m_module.LoadBase + 0x400000 - 0x427327;
+    uint32_t dbgPrintAddr = m_module.LoadBase - 0x400000 + 0x427327;
     REGISTER_ENTRY_POINT(cs, dbgPrintAddr, DebugPrint);
 }
 

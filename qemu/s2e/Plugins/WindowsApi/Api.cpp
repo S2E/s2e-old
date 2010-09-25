@@ -66,6 +66,7 @@ void WindowsApi::parseConsistency(const std::string &key)
     ConfigFile *cfg = s2e()->getConfig();
     bool ok = false;
     std::string consistency = cfg->getString(key + ".consistency", "", &ok);
+
     if (consistency == "strict") {
         m_consistency = STRICT;
     }else if (consistency == "local") {

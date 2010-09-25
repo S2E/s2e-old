@@ -26,9 +26,6 @@ namespace plugins {
     void name(S2EExecutionState* state, FunctionMonitorState *fns); \
     void name##Ret(S2EExecutionState* state)
 
-#ifndef CURRENT_CLASS
-#error You must define CURRENT_CLASS
-#endif
 
 #define REGISTER_IMPORT(I, dll, name) { \
     FunctionMonitor::CallSignal *__cs; \
