@@ -59,6 +59,9 @@ void NdisHandlers::initialize()
     ConfigFile::string_list ign = cfg->getStringList(getConfigKey() + ".ignoreKeywords");
     m_ignoreKeywords.insert(ign.begin(), ign.end());
 
+    //The multiplicative interval factor slows down the frequency of the registered timers
+    //via NdisSetTimer.
+    m_timerIntervalFactor = cfg->getInt(getConfigKey() + ".timerIntervalFactor", 1, &ok);
 
     foreach2(it, mods.begin(), mods.end()) {
         m_modules.insert(*it);
@@ -151,6 +154,7 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ndis.sys", NdisMQueryAdapterResources);
     REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateMapRegisters);
     REGISTER_IMPORT(I, "ndis.sys", NdisMInitializeTimer);
+    REGISTER_IMPORT(I, "ndis.sys", NdisSetTimer);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterAdapterShutdownHandler);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadNetworkAddress);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadConfiguration);
@@ -430,6 +434,26 @@ void NdisHandlers::NdisTimerEntryPointRet(S2EExecutionState* state)
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
     throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisSetTimer(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    uint32_t interval;
+    if (!readConcreteParameter(state, 1, &interval)) {
+        s2e()->getDebugStream() << "Could not read timer interval" << std::endl;
+        return;
+    }
+
+    //We make the interval longer to avoid overloading symbolic execution.
+    //This should give more time for the rest of the system to execute.
+    s2e()->getDebugStream() << "Setting interval to " << std::dec << interval*m_timerIntervalFactor
+            <<" ms. Was " << interval << " ms." << std::endl;
+
+    klee::ref<klee::Expr> newInterval = klee::ConstantExpr::create(interval*m_timerIntervalFactor, klee::Expr::Int32);
+    writeParameter(state, 1, newInterval);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -380,6 +380,7 @@ const char S2ELUAExecutionState::className[] = "S2ELUAExecutionState";
 
 Lunar<S2ELUAExecutionState>::RegType S2ELUAExecutionState::methods[] = {
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeRegister),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeRegisterSymb),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readRegister),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readParameter),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeParameter),
@@ -563,6 +564,29 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
     }
 
     m_state->writeCpuRegisterConcrete(offsetof(CPUState, regs) + regIndex*4, &value, size);
+
+    return 0;                   /* number of results */
+}
+
+int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
+{
+    std::string regstr = luaL_checkstring(L, 1);
+    std::string namestr = luaL_checkstring(L, 2);
+
+    unsigned regIndex=0, size=0;
+
+    g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing to register "
+            << regstr << std::endl;
+
+    if (!RegNameToIndex(regstr, regIndex, size)) {
+        std::stringstream ss;
+        ss << "Invalid register " << regstr;
+        lua_pushstring(L, ss.str().c_str());
+        lua_error(L);
+    }
+
+    klee::ref<klee::Expr> val = m_state->createSymbolicValue(klee::Expr::Int32, namestr);
+    m_state->writeCpuRegister(offsetof(CPUState, regs) + regIndex*4, val);
 
     return 0;                   /* number of results */
 }

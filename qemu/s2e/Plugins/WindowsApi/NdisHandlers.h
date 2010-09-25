@@ -40,6 +40,7 @@ private:
     DeviceDescriptor *m_devDesc;
 
     StringSet m_ignoreKeywords;
+    unsigned m_timerIntervalFactor;
 
     void onModuleLoad(
             S2EExecutionState* state,
@@ -65,6 +66,7 @@ private:
     DECLARE_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_ENTRY_POINT(NdisMAllocateMapRegisters);
     DECLARE_ENTRY_POINT(NdisMInitializeTimer);
+    DECLARE_ENTRY_POINT(NdisSetTimer);
     DECLARE_ENTRY_POINT(NdisMRegisterAdapterShutdownHandler);
     DECLARE_ENTRY_POINT(NdisReadNetworkAddress);
     DECLARE_ENTRY_POINT(NdisReadConfiguration);
