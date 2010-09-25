@@ -711,7 +711,8 @@ ifeq ($(HOST_ARCH),x86_64)
     CORE_MISC_SOURCES += i386-dis.c
 endif
 ifeq ($(HOST_ARCH),ppc)
-    CORE_MISC_SOURCES += ppc-dis.c
+    CORE_MISC_SOURCES += ppc-dis.c \
+                         cache-utils.c
 endif
 
 ifeq ($(HOST_OS),linux)
