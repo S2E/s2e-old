@@ -397,6 +397,14 @@ void NdisHandlers::NdisMInitializeTimer(S2EExecutionState* state, FunctionMonito
         return;
     }
 
+    uint32_t priv;
+    if (!readConcreteParameter(state, 3, &priv)) {
+        s2e()->getDebugStream() << "Could not read private pointer for timer entry point" << std::endl;
+        return;
+    }
+
+    m_timerEntryPoints.insert(std::make_pair(plgState->val1, priv));
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMInitializeTimerRet)
 }
 
@@ -416,16 +424,52 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
 
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    //Skip the subsequent calls to the same entry point
-    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
-      if (exploredEntryPoints.find(state->getPc()) != exploredEntryPoints.end()) {
-          state->bypassFunction(4);
-          throw CpuExitException();
-      }
-      exploredEntryPoints.insert(state->getPc());
+    if (getConsistency(__FUNCTION__) != OVERAPPROX) {
+        return;
     }
 
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisTimerEntryPointRet)
+    //If all timers explored, return
+    if (exploredEntryPoints.size() == m_timerEntryPoints.size()) {
+        state->bypassFunction(4);
+        throw CpuExitException();
+    }
+
+    //Fork the number of states corresponding to the number of timers
+    std::vector<S2EExecutionState*> states;
+    forkStates(state, states, m_timerEntryPoints.size() - 1);
+
+    //Force the exploration of all registered timer entry points here.
+    //This speeds up the exploration
+    unsigned stateIdx = 0;
+    foreach2(it, m_timerEntryPoints.begin(), m_timerEntryPoints.end()) {
+        S2EExecutionState *curState = states[stateIdx++];
+
+        uint32_t pc = (*it).first;
+        uint32_t priv = (*it).second;
+/*        if (exploredEntryPoints.find(pc) != exploredEntryPoints.end()) {
+            s2e()->getDebugStream() << "Timer 0x" << std::hex << pc << " with private 0x" << priv
+           << " already explored." << std::endl;
+            continue;
+        }*/
+
+        s2e()->getDebugStream() << "Found timer 0x" << std::hex << pc << " with private 0x" << priv
+       << " to explore." << std::endl;
+
+        //Overwrite the original private field with the new one
+        klee::ref<klee::Expr> privExpr = klee::ConstantExpr::create(priv, klee::Expr::Int32);
+        writeParameter(curState, 1, privExpr);
+
+        //Overwrite the program counter with the new handler
+        curState->writeCpuState(offsetof(CPUState, eip), pc, sizeof(uint32_t)*8);
+
+        //Mark the handler as explored.
+        exploredEntryPoints.insert(pc);
+
+        FUNCMON_REGISTER_RETURN(curState, fns, NdisHandlers::NdisTimerEntryPointRet)
+        return;
+    }
+
+
 }
 
 void NdisHandlers::NdisTimerEntryPointRet(S2EExecutionState* state)

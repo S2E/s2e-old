@@ -42,6 +42,9 @@ private:
     StringSet m_ignoreKeywords;
     unsigned m_timerIntervalFactor;
 
+    //Pair of address + private pointer for all registered timer entry points
+    std::set<std::pair<uint32_t, uint32_t> > m_timerEntryPoints;
+
     void onModuleLoad(
             S2EExecutionState* state,
             const ModuleDescriptor &module

@@ -108,6 +108,25 @@ NdisReadPciSlotInformation:
 ret 4*5
 
 
+inittimermsg: db "Executing NdisMInitializeTimer", 0
+NdisMInitializeTimer:
+    push slotinfo
+    call s2e_print_message
+    add esp,4
+    xor eax, eax
+ret 4*4
+
+settimermsg: db "Executing NdisSetTimer", 0
+NdisSetTimer:
+    push settimermsg
+    call s2e_print_message
+    add esp,4
+    xor eax, eax
+ret 4*4
+
+
+
+
 rdnetaddr: db "Executing NdisReadNetworkAddress", 0
 
 NdisReadNetworkAddress:
@@ -230,6 +249,58 @@ NdisSendHandler:
 
 ret 3*4
 
+timerhandler1_msg: db "Running timer handler 1", 0
+NdisTimerHandler1:
+    push timerhandler1_msg
+    call s2e_print_message
+    add esp,4
+
+    mov eax, [esp + 8]
+    push 0
+    push eax
+    call s2e_print_expression
+    add esp, 8
+ret 4*4
+
+timerhandler2_msg: db "Running timer handler 2", 0
+NdisTimerHandler2:
+    push timerhandler2_msg
+    call s2e_print_message
+    add esp,4
+
+    mov eax, [esp + 8]
+    push 0
+    push eax
+    call s2e_print_expression
+    add esp, 8
+ret 4*4
+
+timerhandler3_msg: db "Running timer handler 3", 0
+NdisTimerHandler3:
+    push timerhandler3_msg
+    call s2e_print_message
+    add esp,4
+
+    mov eax, [esp + 8]
+    push 0
+    push eax
+    call s2e_print_expression
+    add esp, 8
+ret 4*4
+
+timerhandler4_msg: db "Running timer handler 4", 0
+NdisTimerHandler4:
+    push timerhandler4_msg
+    call s2e_print_message
+    add esp,4
+
+    mov eax, [esp + 8]
+    push 0
+    push eax
+    call s2e_print_expression
+    add esp, 8
+ret 4*4
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ndis_module: db "lan9000.sys", 0
 
@@ -238,6 +309,8 @@ imp_NdisMRegisterMiniport: db "NdisMRegisterMiniport",0
 imp_NdisMQueryAdapterResources: db "NdisMQueryAdapterResources",0
 imp_NdisMAllocateSharedMemory: db "NdisMAllocateSharedMemory",0
 imp_NdisMMapIoSpace: db "NdisMMapIoSpace",0
+imp_NdisMInitializeTimer: db "NdisMInitializeTimer",0
+imp_NdisSetTimer: db "NdisSetTimer",0
 imp_NdisAllocateMemory: db "NdisAllocateMemory",0
 imp_NdisReadNetworkAddress: db "NdisReadNetworkAddress",0
 imp_NdisReadPciSlotInformation: db "NdisReadPciSlotInformation",0
@@ -294,6 +367,18 @@ test_ndis:
 
     push NdisMMapIoSpace
     push imp_NdisMMapIoSpace
+    push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisMInitializeTimer
+    push imp_NdisMInitializeTimer
+    push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisSetTimer
+    push imp_NdisSetTimer
     push imp_ndis_dll
     call s2e_raw_load_import
     add esp, 3*4
@@ -441,8 +526,63 @@ nrna_suc:
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+    push 0x1111
+    push NdisTimerHandler1
+    push 0
+    push 0
+    call NdisMInitializeTimer
+
+    push 0x2222
+    push NdisTimerHandler2
+    push 0
+    push 0
+    call NdisMInitializeTimer
+
+    push 0x3333
+    push NdisTimerHandler3
+    push 0
+    push 0
+    call NdisMInitializeTimer
+
+    push 0x4444
+    push NdisTimerHandler4
+    push 0
+    push 0
+    call NdisMInitializeTimer
+
+    ;Calling one of the handlers
+    push 0
+    push 0
+    push 1111
+    push 0
+    call NdisTimerHandler1
+
+    ;Calling one of the handlers
+    push 0
+    push 0
+    push 1111
+    push 0
+    call NdisTimerHandler1
+
+    ;Calling one of the handlers
+    push 0
+    push 0
+    push 1111
+    push 0
+    call NdisTimerHandler1
+
+    ;Calling one of the handlers
+    push 0
+    push 0
+    push 1111
+    push 0
+    call NdisTimerHandler1
+
+
+
     call s2e_kill_state
 lp1:
+
 
     leave
 

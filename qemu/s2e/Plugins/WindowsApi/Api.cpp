@@ -231,6 +231,26 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
     return true;
 }
 
+//Creates count copies of the current state.
+//All the states are identical.
+//XXX: Should move to S2EExecutor
+void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count)
+{
+    S2EExecutionState *curState = state;
+    for (int i=0; i<count; ++i) {
+        klee::ref<klee::Expr> cond = klee::ConstantExpr::create(1, klee::Expr::Bool);
+
+        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*curState, cond, false);
+        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+
+        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
+        curState = ts;
+        result.push_back(fs);
+    }
+    result.push_back(curState);
+}
+
 
 //////////////////////////////////////////////
 void WindowsApi::TraceCall(S2EExecutionState* state, FunctionMonitorState *fns)

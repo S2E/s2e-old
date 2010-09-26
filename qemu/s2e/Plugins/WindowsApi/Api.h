@@ -79,6 +79,7 @@ protected:
     void TraceRet(S2EExecutionState* state);
 
     bool forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values);
+    void forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count);
 
 
     FunctionMonitor::CallSignal* getCallSignalForImport(Imports &I, const std::string &dll, const std::string &name,

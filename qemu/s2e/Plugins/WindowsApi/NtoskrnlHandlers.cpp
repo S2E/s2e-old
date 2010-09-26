@@ -89,7 +89,7 @@ void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState
     //Invoke this function in all contexts
      uint32_t strptr;
      bool ok = true;
-     ok &= readConcreteParameter(state, 0, &strptr);
+     ok &= readConcreteParameter(state, 1, &strptr);
 
      if (!ok) {
          s2e()->getDebugStream() << "Could not read string in DebugPrint" << std::endl;
