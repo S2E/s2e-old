@@ -208,6 +208,8 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
 
 /**
  *  A call handler can invoke this function to register a return handler.
+ *  XXX: We assume that the passed execution state corresponds to the state in which
+ *  this instance of FunctionMonitorState is used.
  */
 void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, FunctionMonitor::ReturnSignal &sig)
 {

@@ -43,7 +43,8 @@ private:
     unsigned m_timerIntervalFactor;
 
     //Pair of address + private pointer for all registered timer entry points
-    std::set<std::pair<uint32_t, uint32_t> > m_timerEntryPoints;
+    typedef std::set<std::pair<uint32_t, uint32_t> > TimerEntryPoints;
+    TimerEntryPoints m_timerEntryPoints;
 
     void onModuleLoad(
             S2EExecutionState* state,
@@ -117,7 +118,7 @@ private:
     uint32_t pConfigParam, pConfigString;
     bool hasIsrHandler;
     uint32_t oid, pInformationBuffer;
-    bool fakeoid;
+    bool fakeoid, faketimer;
     uint32_t val1, val2;
 
     uint32_t isrRecognized, isrQueue;

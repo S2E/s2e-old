@@ -183,20 +183,12 @@ bool WindowsApi::ReadUnicodeString(S2EExecutionState *state, uint32_t address, s
 
 bool WindowsApi::readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val)
 {
-    bool b = s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), val, sizeof(*val));
-    if (!b) {
-        return false;
-    }
-    return true;
+    return s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), val, sizeof(*val));
 }
 
 bool WindowsApi::writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val)
 {
-    bool b = s->writeMemory(s->getSp() + (param+1) * sizeof(uint32_t), val);
-    if (!b) {
-        return false;
-    }
-    return true;
+    return s->writeMemory(s->getSp() + (param+1) * sizeof(uint32_t), val);
 }
 
 bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values)
@@ -205,7 +197,6 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
     assert(m_functionMonitor);
 
     klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, msg);
-    std::vector<klee::Expr> conditions;
 
     S2EExecutionState *curState = state;
 
@@ -216,6 +207,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
 
+        //XXX: Remove this from here.
         m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
 
         //uint32_t retVal = values[i];
@@ -233,21 +225,25 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
 
 //Creates count copies of the current state.
 //All the states are identical.
-//XXX: Should move to S2EExecutor
+//XXX: Should move to S2EExecutor, use forkRange.
 void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count)
 {
+    klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, "forkStates");
+    std::vector<klee::Expr> conditions;
+
     S2EExecutionState *curState = state;
     for (int i=0; i<count; ++i) {
-        klee::ref<klee::Expr> cond = klee::ConstantExpr::create(1, klee::Expr::Bool);
+        klee::ref<klee::Expr> cond = klee::NeExpr::create(success, klee::ConstantExpr::create(i, klee::Expr::Int32));
 
         klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*curState, cond, false);
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
 
-        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
         curState = ts;
         result.push_back(fs);
     }
+    klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(count, klee::Expr::Int32));
+    curState->addConstraint(cond);
     result.push_back(curState);
 }
 

@@ -237,6 +237,7 @@ void Annotation::onFunctionCall(
     if (!entry->isActive) {
         return;
     }
+    state->undoCallAndJumpToSymbolic();
 
     state->undoCallAndJumpToSymbolic();
     s2e()->getDebugStream() << "Annotation: Invoking call annotation " << entry->cfgname << std::endl;

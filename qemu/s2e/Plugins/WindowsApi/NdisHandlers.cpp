@@ -403,6 +403,9 @@ void NdisHandlers::NdisMInitializeTimer(S2EExecutionState* state, FunctionMonito
         return;
     }
 
+    s2e()->getDebugStream(state) << "NdisMInitializeTimer pc=0x" << std::hex << plgState->val1 <<
+            " priv=0x" << priv << std::endl;
+
     m_timerEntryPoints.insert(std::make_pair(plgState->val1, priv));
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMInitializeTimerRet)
@@ -418,55 +421,97 @@ void NdisHandlers::NdisMInitializeTimerRet(S2EExecutionState* state)
     REGISTER_ENTRY_POINT(entryPoint, plgState->val1, NdisTimerEntryPoint);
 }
 
+//This annotation will try to run all timer entry points at once to maximize coverage.
+//This is only for overapproximate consistency.
 void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
 {
-    static std::set<uint32_t> exploredEntryPoints;
+    static TimerEntryPoints exploredRealEntryPoints;
+    static TimerEntryPoints exploredEntryPoints;
+    TimerEntryPoints scheduled;
+
+    state->undoCallAndJumpToSymbolic();
 
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    //state->dumpStack(20, state->getSp());
+
+    uint32_t realPc = state->getPc();
+    uint32_t realPriv = 0;
+    if (!readConcreteParameter(state, 1, &realPriv)) {
+        s2e()->getDebugStream(state) << "Could not read value of opaque pointer" << std::endl;
+        return;
+    }
+    s2e()->getDebugStream(state) << "realPc=0x" << std::hex << realPc << " realpriv=0x" << realPriv << std::endl;
 
     if (getConsistency(__FUNCTION__) != OVERAPPROX) {
         return;
     }
 
+
+    //If this this entry point is called for real for the first time,
+    //schedule it for execution.
+    if (exploredRealEntryPoints.find(std::make_pair(realPc, realPriv)) == exploredRealEntryPoints.end()) {
+        s2e()->getDebugStream(state) << "Never called for real, schedule for execution" << std::endl;
+        exploredRealEntryPoints.insert(std::make_pair(realPc, realPriv));
+        exploredEntryPoints.insert(std::make_pair(realPc, realPriv));
+        scheduled.insert(std::make_pair(realPc, realPriv));
+    }
+
+    //Compute the set of timer entry points that were never executed.
+    //These ones will be scheduled for fake execution.
+    TimerEntryPoints scheduleFake;
+    std::insert_iterator<TimerEntryPoints > ii(scheduleFake, scheduleFake.begin());
+    std::set_difference(m_timerEntryPoints.begin(), m_timerEntryPoints.end(),
+                        exploredEntryPoints.begin(), exploredEntryPoints.end(),
+                        ii);
+
+    scheduled.insert(scheduleFake.begin(), scheduleFake.end());
+    exploredEntryPoints.insert(scheduled.begin(), scheduled.end());
+
     //If all timers explored, return
-    if (exploredEntryPoints.size() == m_timerEntryPoints.size()) {
+    if (scheduled.size() ==0) {
+        s2e()->getDebugStream(state) << "No need to redundantly run the timer another time" << std::endl;
         state->bypassFunction(4);
         throw CpuExitException();
     }
 
+    //Must register return handler before forking.
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisTimerEntryPointRet)
+
     //Fork the number of states corresponding to the number of timers
     std::vector<S2EExecutionState*> states;
-    forkStates(state, states, m_timerEntryPoints.size() - 1);
+    forkStates(state, states, scheduled.size() - 1);
+    assert(states.size() == scheduled.size());
+
+    //Fetch the physical address of the first parameter.
+    //XXX: This is a hack. S2E does not support writing to virtual memory
+    //of inactive states.
+    uint32_t param = 1; //We want the second parameter
+    uint64_t physAddr = state->getPhysicalAddress(state->getSp() + (param+1) * sizeof(uint32_t));
+
 
     //Force the exploration of all registered timer entry points here.
     //This speeds up the exploration
     unsigned stateIdx = 0;
-    foreach2(it, m_timerEntryPoints.begin(), m_timerEntryPoints.end()) {
+    foreach2(it, scheduled.begin(), scheduled.end()) {
         S2EExecutionState *curState = states[stateIdx++];
 
         uint32_t pc = (*it).first;
         uint32_t priv = (*it).second;
-/*        if (exploredEntryPoints.find(pc) != exploredEntryPoints.end()) {
-            s2e()->getDebugStream() << "Timer 0x" << std::hex << pc << " with private 0x" << priv
-           << " already explored." << std::endl;
-            continue;
-        }*/
 
-        s2e()->getDebugStream() << "Found timer 0x" << std::hex << pc << " with private 0x" << priv
-       << " to explore." << std::endl;
+        s2e()->getDebugStream() << "Found timer 0x" << std::hex << pc << " with private struct 0x" << priv
+         << " to explore." << std::endl;
 
         //Overwrite the original private field with the new one
         klee::ref<klee::Expr> privExpr = klee::ConstantExpr::create(priv, klee::Expr::Int32);
-        writeParameter(curState, 1, privExpr);
+        curState->writeMemory(physAddr, privExpr, S2EExecutionState::PhysicalAddress);
 
         //Overwrite the program counter with the new handler
         curState->writeCpuState(offsetof(CPUState, eip), pc, sizeof(uint32_t)*8);
 
-        //Mark the handler as explored.
-        exploredEntryPoints.insert(pc);
-
-        FUNCMON_REGISTER_RETURN(curState, fns, NdisHandlers::NdisTimerEntryPointRet)
-        return;
+        //Mark wheter this state will explore a fake call or a real one.
+        DECLARE_PLUGINSTATE(NdisHandlersState, curState);
+        plgState->faketimer = !(pc == realPc && priv == realPriv);
     }
 
 
@@ -475,6 +520,13 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
 void NdisHandlers::NdisTimerEntryPointRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    //We must terminate states that ran fake calls, otherwise the system might crash later.
+    if (plgState->faketimer) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "Terminating state with fake timer call");
+    }
+
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
     throw CpuExitException();
@@ -1673,6 +1725,7 @@ NdisHandlersState::NdisHandlersState()
     isrRecognized = 0;
     isrQueue = 0;
     waitHandler = false;
+    faketimer = false;
 }
 
 NdisHandlersState::~NdisHandlersState()

@@ -110,7 +110,7 @@ ret 4*5
 
 inittimermsg: db "Executing NdisMInitializeTimer", 0
 NdisMInitializeTimer:
-    push slotinfo
+    push inittimermsg
     call s2e_print_message
     add esp,4
     xor eax, eax
@@ -553,28 +553,28 @@ nrna_suc:
     ;Calling one of the handlers
     push 0
     push 0
-    push 1111
+    push 0x1111
     push 0
     call NdisTimerHandler1
 
     ;Calling one of the handlers
     push 0
     push 0
-    push 1111
+    push 0x1111
     push 0
     call NdisTimerHandler1
 
     ;Calling one of the handlers
     push 0
     push 0
-    push 1111
+    push 0x1111
     push 0
     call NdisTimerHandler1
 
     ;Calling one of the handlers
     push 0
     push 0
-    push 1111
+    push 0x1111
     push 0
     call NdisTimerHandler1
 
