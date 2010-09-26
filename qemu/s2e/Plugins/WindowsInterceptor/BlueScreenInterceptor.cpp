@@ -80,8 +80,8 @@ void BlueScreenInterceptor::dumpCriticalObjectTermination(S2EExecutionState *sta
 
     s2e()->getDebugStream(state) <<
             "CRITICAL_OBJECT_TERMINATION" << std::endl <<
-            "ImageName: " << processImageName << std::endl <<
-            "Message:   " << message << std::endl;
+            "ImageName: " << strImage << std::endl <<
+            "Message:   " << strMessage << std::endl;
 }
 
 void BlueScreenInterceptor::dispatchErrorCodes(S2EExecutionState *state)

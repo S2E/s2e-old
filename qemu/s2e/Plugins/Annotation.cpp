@@ -234,11 +234,11 @@ void Annotation::onFunctionCall(
         AnnotationCfgEntry *entry
         )
 {
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
     if (!entry->isActive) {
         return;
     }
 
+    state->undoCallAndJumpToSymbolic();
     s2e()->getDebugStream() << "Annotation: Invoking call annotation " << entry->cfgname << std::endl;
     invokeAnnotation(state, fns, entry, true);
 
@@ -250,7 +250,6 @@ void Annotation::onFunctionRet(
         )
 {
     s2e()->getExecutor()->jumpToSymbolicCpp(state);
-
     s2e()->getDebugStream() << "Annotation: Invoking return annotation "  << entry->cfgname << std::endl;
     invokeAnnotation(state, NULL, entry, false);
 }
