@@ -685,7 +685,11 @@ static inline int _s2e_check_concrete(void *objectState,
     if(unlikely(*(uint8_t***) objectState)) {
         uint8_t* bits = **(uint8_t***) objectState;
         int mask = (1<<size)-1;
-        return ((((uint16_t*)(bits + (offset>>3)))[0] >> (offset&7)) & mask) == mask;
+        if(likely((offset&7) + size <= 8)) {
+            return ((((uint8_t* )(bits + (offset>>3)))[0] >> (offset&7)) & mask) == mask;
+        } else {
+            return ((((uint16_t*)(bits + (offset>>3)))[0] >> (offset&7)) & mask) == mask;
+        }
     }
     return 1;
 #else

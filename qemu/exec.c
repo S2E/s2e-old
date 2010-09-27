@@ -2561,6 +2561,9 @@ ram_addr_t qemu_ram_alloc(ram_addr_t size)
                            MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 #else
     new_block->host = qemu_vmalloc(size);
+    /* Fill memory with known values to avoid non-determinism even
+       is guest code uses uninitialized memory */
+    memset(new_block->host, 0xce, size);
 #endif
 #ifdef MADV_MERGEABLE
     madvise(new_block->host, size, MADV_MERGEABLE);
