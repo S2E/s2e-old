@@ -390,7 +390,7 @@ ExprHandle STPBuilder::constructSDivByConstant(ExprHandle expr_n, unsigned width
   } else {
     // STP uniques arrays by name, so we make sure the name is unique by
     // including the address.
-    char buf[32];
+    char buf[256];
     snprintf(buf, sizeof(buf), "%s_%p", root->name.c_str(), (void*) root);
     root->stpInitialArray = buildArray(buf, 32, 8);
 
