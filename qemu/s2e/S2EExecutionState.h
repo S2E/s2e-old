@@ -77,6 +77,8 @@ protected:
 
     uint64_t m_lastMergeICount;
 
+    bool m_needFinalizeTBExec;
+
     ExecutionState* clone();
     void addressSpaceChange(const klee::MemoryObject *mo,
                             const klee::ObjectState *oldState,

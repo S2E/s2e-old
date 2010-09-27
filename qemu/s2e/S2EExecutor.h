@@ -155,6 +155,7 @@ public:
 
     uintptr_t executeTranslationBlock(S2EExecutionState *state,
                                       TranslationBlock *tb);
+    void finalizeTranslationBlockExec(S2EExecutionState *state);
 
     void cleanupTranslationBlock(S2EExecutionState *state,
                                  TranslationBlock *tb);
@@ -162,8 +163,6 @@ public:
     void updateStates(klee::ExecutionState *current) {
         klee::Executor::updateStates(current);
     }
-
-    void finalizeState(S2EExecutionState *state);
 
     void jumpToSymbolic(S2EExecutionState *state);
 

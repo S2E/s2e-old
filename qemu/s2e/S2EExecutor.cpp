@@ -1138,8 +1138,15 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     }
 
     if(newState) {
+        jmp_buf jmp_env, jmp_env_s2e;
+        memcpy(&jmp_env, &env->jmp_env, sizeof(jmp_buf));
+        memcpy(&jmp_env_s2e, &env->jmp_env_s2e, sizeof(jmp_buf));
+
         const uint8_t *newStore = newState->m_cpuSystemObject->getConcreteStore();
         memcpy((uint8_t*) cpuMo->address, newStore, cpuMo->size);
+
+        memcpy(&env->jmp_env, &jmp_env, sizeof(jmp_buf));
+        memcpy(&env->jmp_env_s2e, &jmp_env_s2e, sizeof(jmp_buf));
 
         newState->m_active = true;
     }
@@ -1384,16 +1391,17 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
         throw CpuExitException();
 }
 
-void S2EExecutor::finalizeState(S2EExecutionState *state)
+void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 {
-    if(state->stack.size() == 1) {
-        //No need for finalization
+    if(!state->m_needFinalizeTBExec)
         return;
-    }
+
+    state->m_needFinalizeTBExec = false;
+    assert(state->stack.size() != 1);
 
     assert(!state->m_runningConcrete);
 
-    m_s2e->getDebugStream() << "Finalizing state " << std::dec << state->getID() << std::endl;
+    m_s2e->getDebugStream() << "Finalizing TB execution " << std::dec << state->getID() << std::endl;
     foreach(const StackFrame& fr, state->stack) {
         m_s2e->getDebugStream() << fr.kf->function->getNameStr() << std::endl;
     }
@@ -1652,8 +1660,6 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 
     bool executeKlee = m_executeAlwaysKlee;
 
-    state->writeCpuState(offsetof(CPUState, old_exception), -1, 4*8);
-
     /* Think how can we optimize if symbex is disabled */
     if(true/* state->m_symbexEnabled*/) {
         if(state->m_startSymbexAtPC != (uint64_t) -1) {
@@ -1844,6 +1850,8 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
             << *newConditions[i].get() << std::endl;
 
         if(newState != originalState) {
+            newState->m_needFinalizeTBExec = true;
+
             newState->getDeviceState()->saveDeviceState();
             newState->m_qemuIcount = qemu_icount;
             *newState->m_timersState = timers_state;
@@ -2262,10 +2270,10 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
     }
 }
 
-void s2e_qemu_finalize_state(S2E *s2e, S2EExecutionState* state)
+void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
 {
     try {
-        s2e->getExecutor()->finalizeState(state);
+        s2e->getExecutor()->finalizeTranslationBlockExec(state);
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);

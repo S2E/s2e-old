@@ -213,7 +213,7 @@ void s2e_qemu_cleanup_tb_exec(
         struct S2EExecutionState* state,
         struct TranslationBlock* tb);
 
-void s2e_qemu_finalize_state(struct S2E *s2e, struct S2EExecutionState* state);
+void s2e_qemu_finalize_tb_exec(struct S2E *s2e, struct S2EExecutionState* state);
 
 void s2e_init_timers(struct S2E* s2e);
 
