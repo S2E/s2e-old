@@ -4297,16 +4297,19 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
  reswitch:
     switch(b) {
 
-#ifdef CONFIG_S2E
     case 0x13f: /* s2e_op */
         {
-        uint64_t arg = ldq_code(s->pc);
-        s2e_tcg_emit_custom_instruction(g_s2e, arg);
+#ifdef CONFIG_S2E
+            uint64_t arg = ldq_code(s->pc);
+            s2e_tcg_emit_custom_instruction(g_s2e, arg);
+#else
+            /* Simply skip the S2E opcodes when building vanilla qemu */
+            ldq_code(s->pc);
+#endif
         s->pc+=8;
         break;
-        }
-#endif
 
+    }
     case 0x0f:
         /**************************/
         /* extended op code */
