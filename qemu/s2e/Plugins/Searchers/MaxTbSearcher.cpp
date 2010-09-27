@@ -272,7 +272,12 @@ klee::ExecutionState& MaxTbSearcher::selectState()
 #endif
 
     if (m_states.size() > 0) {
-        return **m_states.begin();
+        S2EExecutionState *es = dynamic_cast<S2EExecutionState*>(*m_states.begin());
+        DECLARE_PLUGINSTATE(MaxTbSearcherState, es);
+        if (plgState->m_metric < 2) {
+            return *es;
+        }
+
     }
 
     return m_parentSearcher->selectState();
