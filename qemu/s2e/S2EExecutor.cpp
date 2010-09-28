@@ -370,16 +370,16 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
 
     // go starting from min
     Query query(state->constraints, expr);
-    uint64_t step = 1, forks = 0;
+    uint64_t step = 1;
     std::vector< uint64_t > values;
     std::vector< ref<Expr> > conditions;
     while(min <= max) {
-        if(forks >= MaxForksOnConcretize) {
+        if(conditions.size() >= MaxForksOnConcretize) {
             s2eExecutor->m_s2e->getWarningsStream(s2eState)
                 << "Dropping states with constraint \n"
                 << UleExpr::create(expr, klee::ConstantExpr::create(min, width))
                 << "\n becase max-forks-on-concretize limit was reached." << std::endl;
-
+            break;
         }
 
         ref<Expr> eqCond = EqExpr::create(expr, klee::ConstantExpr::create(min, width));
