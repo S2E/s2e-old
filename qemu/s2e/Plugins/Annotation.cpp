@@ -27,6 +27,8 @@ void Annotation::initialize()
     m_osMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
 
+    m_translationEventConnected = false;
+
     std::vector<std::string> Sections;
     Sections = s2e()->getConfig()->getListKeys(getConfigKey());
     bool noErrors = true;
@@ -43,21 +45,6 @@ void Annotation::initialize()
 
     if (!noErrors) {
         s2e()->getWarningsStream() << "Errors while scanning the sections"  <<std::endl;
-        exit(-1);
-    }
-
-    //Resolving dependencies
-    foreach2(it, m_entries.begin(), m_entries.end()) {
-        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << (*it)->cfgname << std::endl;
-        std::stringstream sk;
-        sk << getConfigKey() << "." << (*it)->cfgname;
-        if (!resolveDependencies(sk.str(), *it)) {
-            noErrors = false;
-        }
-    }
-
-    if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while resolving dependencies in the sections"  <<std::endl;
         exit(-1);
     }
 
@@ -88,15 +75,11 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
     e.cfgname = cfgname;
 
     bool ok;
-    e.address = cfg->getInt(entry + ".address", 0, &ok);
-    if (!ok) {
-        os << "You must specify a valid address for " << entry << ".address!" << std::endl;
-        return false;
-    }
 
-    e.paramCount = cfg->getInt(entry + ".paramcount", 0, &ok);
+
+    e.isActive = cfg->getBool(entry + ".active", false, &ok);
     if (!ok) {
-        os << "You must specify a valid number of function parameters for " << entry << ".paramcount!" << std::endl;
+        os << "You must specify whether the entry is active in " << entry << ".active!" << std::endl;
         return false;
     }
 
@@ -111,48 +94,36 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
         }
     }
 
-    e.isActive = cfg->getBool(entry + ".active", false, &ok);
+
+    e.address = cfg->getInt(entry + ".address", 0, &ok);
     if (!ok) {
-        os << "You must specify whether the entry is active in " << entry << ".active!" << std::endl;
+        os << "You must specify a valid address for " << entry << ".address!" << std::endl;
         return false;
     }
 
-    e.executeOnce = cfg->getBool(entry + ".executeonce", false, &ok);
-    e.symbolicReturn = cfg->getBool(entry + ".symbolicreturn", false, &ok);
-    e.keepReturnPathsCount = cfg->getInt(entry + ".keepReturnPathsCount", 1, &ok);
-    e.callAnnotation = cfg->getString(entry + ".callAnnotation", "", &ok);
 
-    ne = new AnnotationCfgEntry(e);
-    m_entries.push_back(ne);
-
-    return true;
-}
-
-bool Annotation::resolveDependencies(const std::string &entry, AnnotationCfgEntry *e)
-{
-    ConfigFile *cfg = s2e()->getConfig();
-    std::ostream &os  = s2e()->getWarningsStream();
-
-    //Fetch the dependent entries
-    bool ok;
-    std::vector<std::string> depEntries = cfg->getStringList(entry + ".activateOnEntry", ConfigFile::string_list(), &ok);
-
-    bool found = false;
-    foreach2(it, depEntries.begin(), depEntries.end()) {
-        //Look for the configuration entrie
-        found = false;
-        foreach2(eit, m_entries.begin(), m_entries.end()) {
-            s2e()->getDebugStream() << "Depentry " << (*eit)->cfgname << std::endl;
-            if ((*eit)->cfgname == *it) {
-                e->activateOnEntry.push_back(*eit);
-                found = true;
-            }
+    e.annotation = cfg->getString(entry + ".callAnnotation", "", &ok);
+    if (!ok || e.annotation=="") {
+        e.annotation = cfg->getString(entry + ".instructionAnnotation", "", &ok);
+        if (!ok || e.annotation == "") {
+            os << "You must specifiy either " << entry << ".callAnnotation or .instructionAnnotation!" << std::endl;
+            return false;
+        }else {
+            e.isCallAnnotation = false;
         }
-        if (!found) {
-            os << "Could not find dependency " << *it << std::endl;
+    }else {
+        e.isCallAnnotation = true;
+
+        e.paramCount = cfg->getInt(entry + ".paramcount", 0, &ok);
+        if (!ok) {
+            os << "You must specify a valid number of function parameters for " << entry << ".paramcount!" << std::endl;
             return false;
         }
     }
+
+    ne = new AnnotationCfgEntry(e);
+    m_entries.insert(ne);
+
     return true;
 }
 
@@ -170,8 +141,21 @@ void Annotation::onModuleLoad(
             continue;
         }
 
+        if (!cfg.isCallAnnotation && !m_translationEventConnected) {
+            m_moduleExecutionDetector->onModuleTranslateBlockStart.connect(
+                    sigc::mem_fun(*this, &Annotation::onTranslateBlockStart)
+                    );
+
+            m_moduleExecutionDetector->onModuleTranslateBlockEnd.connect(
+                    sigc::mem_fun(*this, &Annotation::onModuleTranslateBlockEnd)
+                    );
+
+            m_translationEventConnected = true;
+            continue;
+        }
+
         if (cfg.address - module.NativeBase > module.Size) {
-            s2e()->getWarningsStream() << "Specified pc for rule exceeds the size of the loaded module" << std::endl;
+            s2e()->getWarningsStream() << "Specified pc for annotation exceeds the size of the loaded module" << std::endl;
         }
 
         uint64_t funcPc = module.ToRuntime(cfg.address);
@@ -182,11 +166,87 @@ void Annotation::onModuleLoad(
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////////////
+/**
+ *  Instrument only the blocks where we want to count the instructions.
+ */
+void Annotation::onTranslateBlockStart(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        const ModuleDescriptor &module,
+        TranslationBlock *tb,
+        uint64_t pc)
+{
+    if (m_tb) {
+        m_tbConnection.disconnect();
+    }
+    m_tb = tb;
+
+    CorePlugin *plg = s2e()->getCorePlugin();
+    m_tbConnection = plg->onTranslateInstructionEnd.connect(
+            sigc::mem_fun(*this, &Annotation::onTranslateInstructionEnd)
+    );
+}
+
+
+void Annotation::onTranslateInstructionEnd(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        TranslationBlock *tb,
+        uint64_t pc)
+{
+    if (tb != m_tb) {
+        //We've been suddenly interrupted by some other module
+        m_tb = NULL;
+        m_tbConnection.disconnect();
+        return;
+    }
+
+    //Check that we are in an interesting module
+    AnnotationCfgEntry e;
+    const ModuleDescriptor *md = m_moduleExecutionDetector->getCurrentDescriptor(state);
+    if (!md) {
+        return;
+    }
+
+    e.isCallAnnotation = false;
+    e.module = *m_moduleExecutionDetector->getModuleId(*md);
+    e.address = md->ToNativeBase(pc);
+
+    if (m_entries.find(&e) == m_entries.end()) {
+        return;
+    }
+
+
+    signal->connect(
+        sigc::mem_fun(*this, &Annotation::onInstruction)
+    );
+
+}
+
+void Annotation::onModuleTranslateBlockEnd(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        const ModuleDescriptor &module,
+        TranslationBlock *tb,
+        uint64_t endPc,
+        bool staticTarget,
+        uint64_t targetPc)
+{
+    //TRACE("%"PRIx64" StaticTarget=%d TargetPc=%"PRIx64"\n", endPc, staticTarget, targetPc);
+
+    //Done translating the blocks, no need to instrument anymore.
+    if (m_tb) {
+        m_tb = NULL;
+        m_tbConnection.disconnect();
+    }
+}
+
 void Annotation::invokeAnnotation(
         S2EExecutionState* state,
         FunctionMonitorState *fns,
         AnnotationCfgEntry *entry,
-        bool isCall
+        bool isCall, bool isInstruction
     )
 {
     lua_State *L = s2e()->getConfig()->getState();
@@ -195,8 +255,9 @@ void Annotation::invokeAnnotation(
     LUAAnnotation luaAnnotation(this);
 
     luaAnnotation.m_isReturn = !isCall;
+    luaAnnotation.m_isInstruction = isInstruction;
 
-    lua_getfield(L, LUA_GLOBALSINDEX, entry->callAnnotation.c_str());
+    lua_getfield(L, LUA_GLOBALSINDEX, entry->annotation.c_str());
     Lunar<S2ELUAExecutionState>::push(L, &lua_s2e_state);
     Lunar<LUAAnnotation>::push(L, &luaAnnotation);
     lua_call(L, 2, 0);
@@ -228,6 +289,34 @@ void Annotation::invokeAnnotation(
     }
 }
 
+void Annotation::onInstruction(S2EExecutionState *state, uint64_t pc)
+{
+    const ModuleDescriptor *md = m_moduleExecutionDetector->getModule(state, pc, true);
+    if (!md) {
+        return;
+    }
+
+    AnnotationCfgEntry e;
+    e.isCallAnnotation = false;
+    e.module = *m_moduleExecutionDetector->getModuleId(*md);
+    e.address = md->ToNativeBase(pc);
+
+    CfgEntries::iterator it = m_entries.find(&e);
+
+    if (it == m_entries.end()) {
+        return;
+    }
+
+    if (!(*it)->isActive) {
+        return;
+    }
+
+    s2e()->getDebugStream() << "Annotation: Invoking instruction annotation " << (*it)->cfgname <<
+            " at 0x" << std::hex << e.address << std::endl;
+    invokeAnnotation(state, NULL, *it, false, true);
+
+}
+
 void Annotation::onFunctionCall(
         S2EExecutionState* state,
         FunctionMonitorState *fns,
@@ -237,11 +326,10 @@ void Annotation::onFunctionCall(
     if (!entry->isActive) {
         return;
     }
-    state->undoCallAndJumpToSymbolic();
 
     state->undoCallAndJumpToSymbolic();
     s2e()->getDebugStream() << "Annotation: Invoking call annotation " << entry->cfgname << std::endl;
-    invokeAnnotation(state, fns, entry, true);
+    invokeAnnotation(state, fns, entry, true, false);
 
 }
 
@@ -252,7 +340,7 @@ void Annotation::onFunctionRet(
 {
     s2e()->getExecutor()->jumpToSymbolicCpp(state);
     s2e()->getDebugStream() << "Annotation: Invoking return annotation "  << entry->cfgname << std::endl;
-    invokeAnnotation(state, NULL, entry, false);
+    invokeAnnotation(state, NULL, entry, false, false);
 }
 
 
@@ -276,6 +364,7 @@ LUAAnnotation::LUAAnnotation(Annotation *plg)
     m_doSkip = false;
     m_isReturn = false;
     m_succeed = false;
+    m_isInstruction = false;
 }
 
 LUAAnnotation::LUAAnnotation(lua_State *lua)
@@ -340,13 +429,13 @@ int LUAAnnotation::activateRule(lua_State *L)
 
 int LUAAnnotation::isReturn(lua_State *L)
 {
-    lua_pushboolean(L, m_isReturn);        /* first result */
+    lua_pushboolean(L, m_isInstruction ? false : m_isReturn);        /* first result */
     return 1;
 }
 
 int LUAAnnotation::isCall(lua_State *L)
 {
-    lua_pushboolean(L, !m_isReturn);        /* first result */
+    lua_pushboolean(L, m_isInstruction ? false : !m_isReturn);        /* first result */
     return 1;
 }
 

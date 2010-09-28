@@ -20,20 +20,29 @@ namespace plugins {
         std::string module;
         uint64_t address;
         bool isActive;
-        bool executeOnce;
-        bool symbolicReturn;
-        unsigned paramCount, keepReturnPathsCount;
-        std::vector<AnnotationCfgEntry*> activateOnEntry;
+        unsigned paramCount;
 
-        std::string callAnnotation;
+        bool isCallAnnotation;
+        std::string annotation;
         unsigned invocationCount, returnCount;
 
         AnnotationCfgEntry() {
-            keepReturnPathsCount = 0;
-            invocationCount = returnCount = 0;
+            isCallAnnotation = true;
             address = 0;
             paramCount = 0;
-            isActive = executeOnce = symbolicReturn = false;
+            isActive = false;
+        }
+
+        bool operator()(const AnnotationCfgEntry *a1, const AnnotationCfgEntry *a2) const {
+            if (a1->isCallAnnotation != a2->isCallAnnotation) {
+                return a1->isCallAnnotation < a2->isCallAnnotation;
+            }
+
+            int res = a1->module.compare(a2->module);
+            if (!res) {
+                return a1->address < a2->address;
+            }
+            return res < 0;
         }
     };
 
@@ -44,7 +53,7 @@ class Annotation : public Plugin
 {
     S2E_PLUGIN
 public:
-    typedef std::vector<AnnotationCfgEntry*> CfgEntries;
+    typedef std::set<AnnotationCfgEntry*, AnnotationCfgEntry> CfgEntries;
 
     Annotation(S2E* s2e): Plugin(s2e) {}
     virtual ~Annotation();
@@ -57,8 +66,13 @@ private:
     StateManager *m_manager;
     CfgEntries m_entries;
 
+    //To instrument specific instructions in the code
+    bool m_translationEventConnected;
+    TranslationBlock *m_tb;
+    sigc::connection m_tbConnection;
+
+
     bool initSection(const std::string &entry, const std::string &cfgname);
-    bool resolveDependencies(const std::string &entry, AnnotationCfgEntry *e);
 
     void onModuleLoad(
             S2EExecutionState* state,
@@ -76,11 +90,35 @@ private:
             AnnotationCfgEntry *entry
             );
 
+    void onTranslateBlockStart(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            const ModuleDescriptor &module,
+            TranslationBlock *tb,
+            uint64_t pc);
+
+    void onTranslateInstructionEnd(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            TranslationBlock *tb,
+            uint64_t pc);
+
+    void onModuleTranslateBlockEnd(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            const ModuleDescriptor &module,
+            TranslationBlock *tb,
+            uint64_t endPc,
+            bool staticTarget,
+            uint64_t targetPc);
+
+    void onInstruction(S2EExecutionState *state, uint64_t pc);
+
     void invokeAnnotation(
             S2EExecutionState* state,
             FunctionMonitorState *fns,
             AnnotationCfgEntry *entry,
-            bool isCall
+            bool isCall, bool isInstruction
         );
 
     friend class LUAAnnotation;
@@ -94,6 +132,7 @@ private:
     bool m_doKill;
     bool m_isReturn;
     bool m_succeed;
+    bool m_isInstruction;
 public:
     static const char className[];
     static Lunar<LUAAnnotation>::RegType methods[];
