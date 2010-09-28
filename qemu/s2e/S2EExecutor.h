@@ -8,6 +8,10 @@ class TCGLLVMContext;
 struct TranslationBlock;
 struct CPUX86State;
 
+namespace klee {
+    class Query;
+}
+
 namespace s2e {
 
 class S2E;

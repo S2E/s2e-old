@@ -593,20 +593,10 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
 
     Value *v, *v1, *v2;
 
-#ifdef CONFIG_S2E
-    /* Call function to concretize address */
-    addr = m_builder.CreateCall(m_helperForkAndConcretize, addr);
-#endif
-
     v = m_builder.CreateLShr(addr, ConstantInt::get(addr->getType(),
                 (TARGET_PAGE_BITS - CPU_TLB_ENTRY_BITS)));
     v = m_builder.CreateAnd(v, ConstantInt::get(addr->getType(),
             ((CPU_TLB_SIZE - 1) << CPU_TLB_ENTRY_BITS)));
-
-#ifdef CONFIG_S2E
-    /* Call function to concretize index */
-    v = m_builder.CreateCall(m_helperForkAndConcretize, v);
-#endif
 
     assert(m_tcgContext->temps[0].reg == TCG_AREG0);
     assert(getValue(0)->getType() == wordType());
@@ -999,8 +989,11 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
         Value* valueToStore = getValue(args[0]);
         if (args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) {
-            valueToStore = m_builder.CreateCall(m_helperForkAndConcretize,
-                                                valueToStore);
+            valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
+                                m_builder.CreateZExt(valueToStore, intType(64)),
+                                ConstantInt::get(intType(64), 0),
+                                ConstantInt::get(intType(64), 0xffffffff));
+            valueToStore = m_builder.CreateTrunc(valueToStore, intType(32));
         }
 
         v = m_builder.CreateAdd(getValue(args[1]),

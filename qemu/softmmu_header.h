@@ -69,6 +69,8 @@
 #define ADDR_READ addr_read
 #endif
 
+#define ADDR_MAX 0xffffffff
+
 #ifdef CONFIG_S2E
 #include <s2e/s2e_config.h>
 
@@ -76,18 +78,19 @@
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
     tcg_llvm_trace_memory_access(vaddr, haddr, \
                                  value, 8*sizeof(value), isWrite, isIO);
-#define S2E_FORK_AND_CONCRETIZE(val) tcg_llvm_fork_and_concretize(val)
+#define S2E_FORK_AND_CONCRETIZE(val, max) \
+    tcg_llvm_fork_and_concretize(val, 0, max)
 #else // S2E_LLVM_LIB
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
     s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
                             (uint8_t*) &value, sizeof(value), isWrite, isIO);
-#define S2E_FORK_AND_CONCRETIZE(val) (val)
+#define S2E_FORK_AND_CONCRETIZE(val, max) (val)
 #endif // S2E_LLVM_LIB
 
 #ifdef S2E_FORK_ON_SYMBOLIC_ADDRESS
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val) S2E_FORK_AND_CONCRETIZE(val)
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) S2E_FORK_AND_CONCRETIZE(val, max)
 #else
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) (val)
 #endif
 
 #define S2E_RAM_OBJECT_DIFF (TARGET_PAGE_BITS - S2E_RAM_OBJECT_BITS)
@@ -95,8 +98,8 @@
 #else // CONFIG_S2E
 
 #define S2E_TRACE_MEMORY(...)
-#define S2E_FORK_AND_CONCRETIZE(val) (val)
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
+#define S2E_FORK_AND_CONCRETIZE(val, max) (val)
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) (val)
 
 #define S2E_RAM_OBJECT_BITS TARGET_PAGE_BITS
 #define S2E_RAM_OBJECT_DIFF 0
@@ -113,8 +116,9 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
     uintptr_t physaddr;
     int mmu_idx;
 
-    addr = S2E_FORK_AND_CONCRETIZE_ADDR(ptr);
-    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(ptr, ADDR_MAX);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
+                                           ADDR_MAX >> S2E_RAM_OBJECT_BITS);
     page_index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
 
     mmu_idx = CPU_MMU_INDEX;
@@ -147,8 +151,9 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
     uintptr_t physaddr;
     int mmu_idx;
 
-    addr = S2E_FORK_AND_CONCRETIZE_ADDR(ptr);
-    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(ptr, ADDR_MAX);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
+                                           ADDR_MAX >> S2E_RAM_OBJECT_BITS);
     page_index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
 
     mmu_idx = CPU_MMU_INDEX;
@@ -183,8 +188,9 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
     uintptr_t physaddr;
     int mmu_idx;
 
-    addr = S2E_FORK_AND_CONCRETIZE_ADDR(ptr);
-    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(ptr, ADDR_MAX);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
+                                           ADDR_MAX >> S2E_RAM_OBJECT_BITS);
     page_index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
 
     mmu_idx = CPU_MMU_INDEX;
@@ -262,6 +268,7 @@ static inline void glue(stfl, MEMSUFFIX)(target_ulong ptr, float32 v)
 #undef S2E_RAM_OBJECT_DIFF
 #undef S2E_FORK_AND_CONCRETIZE
 #undef S2E_TRACE_MEMORY
+#undef ADDR_MAX
 #undef RES_TYPE
 #undef DATA_TYPE
 #undef DATA_STYPE

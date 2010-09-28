@@ -46,6 +46,8 @@
 #define ADDR_READ addr_read
 #endif
 
+#define ADDR_MAX 0xffffffff
+
 #ifdef CONFIG_S2E
 #include <s2e/s2e_config.h>
 
@@ -53,18 +55,19 @@
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
     tcg_llvm_trace_memory_access(vaddr, haddr, \
                                  value, 8*sizeof(value), isWrite, isIO);
-#define S2E_FORK_AND_CONCRETIZE(val) tcg_llvm_fork_and_concretize(val)
+#define S2E_FORK_AND_CONCRETIZE(val, max) \
+    tcg_llvm_fork_and_concretize(val, 0, max)
 #else // S2E_LLVM_LIB
 #define S2E_TRACE_MEMORY(vaddr, haddr, value, isWrite, isIO) \
     s2e_trace_memory_access(g_s2e, g_s2e_state, vaddr, haddr, \
                             (uint8_t*) &value, sizeof(value), isWrite, isIO);
-#define S2E_FORK_AND_CONCRETIZE(val) (val)
+#define S2E_FORK_AND_CONCRETIZE(val, max) (val)
 #endif // S2E_LLVM_LIB
 
 #ifdef S2E_FORK_ON_SYMBOLIC_ADDRESS
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val) S2E_FORK_AND_CONCRETIZE(val)
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) S2E_FORK_AND_CONCRETIZE(val, max)
 #else
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) (val)
 #endif
 
 #define S2E_RAM_OBJECT_DIFF (TARGET_PAGE_BITS - S2E_RAM_OBJECT_BITS)
@@ -72,8 +75,8 @@
 #else // CONFIG_S2E
 
 #define S2E_TRACE_MEMORY(...)
-#define S2E_FORK_AND_CONCRETIZE(val) (val)
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val) (val)
+#define S2E_FORK_AND_CONCRETIZE(val, max) (val)
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) (val)
 
 #define S2E_RAM_OBJECT_BITS TARGET_PAGE_BITS
 #define S2E_RAM_OBJECT_SIZE TARGET_PAGE_SIZE
@@ -131,8 +134,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
 
     /* test if there is match for unaligned or IO access */
     /* XXX: could done more in memory macro in a non portable way */
-    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
-    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr, ADDR_MAX);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
+                                           ADDR_MAX >> S2E_RAM_OBJECT_BITS);
     index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].ADDR_READ;
@@ -201,8 +205,9 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_phys_addr_t addend;
     target_ulong tlb_addr, addr1, addr2;
 
-    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
-    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr, ADDR_MAX);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
+                                           ADDR_MAX >> S2E_RAM_OBJECT_BITS);
     index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].ADDR_READ;
@@ -363,8 +368,9 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     void *retaddr;
     int object_index, index;
 
-    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
-    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr, ADDR_MAX);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
+                                           ADDR_MAX >> S2E_RAM_OBJECT_BITS);
     index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].addr_write;
@@ -429,8 +435,9 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
     target_ulong tlb_addr;
     int object_index, index, i;
 
-    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr);
-    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS);
+    addr = S2E_FORK_AND_CONCRETIZE_ADDR(addr, ADDR_MAX);
+    object_index = S2E_FORK_AND_CONCRETIZE(addr >> S2E_RAM_OBJECT_BITS,
+                                           ADDR_MAX >> S2E_RAM_OBJECT_BITS);
     index = (object_index >> S2E_RAM_OBJECT_DIFF) & (CPU_TLB_SIZE - 1);
  redo:
     tlb_addr = env->tlb_table[mmu_idx][index].addr_write;
@@ -489,6 +496,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
 #undef S2E_FORK_AND_CONCRETIZE_ADDR
 #undef S2E_FORK_AND_CONCRETIZE
 #undef S2E_TRACE_MEMORY
+#undef ADDR_MAX
 #undef READ_ACCESS_TYPE
 #undef SHIFT
 #undef DATA_TYPE

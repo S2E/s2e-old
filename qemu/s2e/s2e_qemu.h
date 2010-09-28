@@ -266,7 +266,9 @@ void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
 /* are implemented as a special function handlers.    */
 
 #if defined(S2E_LLVM_LIB)
-uint32_t tcg_llvm_fork_and_concretize(uint32_t value);
+uint64_t tcg_llvm_fork_and_concretize(uint64_t value,
+                                      uint64_t knownMin,
+                                      uint64_t knownMax);
 void tcg_llvm_trace_memory_access(uint64_t vaddr, uint64_t haddr,
                                   uint64_t value, uint32_t bits,
                                   uint8_t isWrite, uint8_t isIo);

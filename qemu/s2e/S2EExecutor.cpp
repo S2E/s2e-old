@@ -107,8 +107,8 @@ namespace {
 
 
     cl::opt<unsigned>
-    ForkRange("fork-range",
-            cl::desc("How many concrete states to fork from symbolic values"),
+    MaxForksOnConcretize("max-forks-on-concretize",
+            cl::desc("Maximum number of states to fork when concretizing symbolic value"),
             cl::init(256));
 
     cl::opt<bool>
@@ -337,66 +337,140 @@ void S2EExecutor::handlerTracePortAccess(Executor* executor,
 void S2EExecutor::handleForkAndConcretize(Executor* executor,
                                      ExecutionState* state,
                                      klee::KInstruction* target,
-                                     std::vector<klee::ref<klee::Expr> > &args)
+                                     std::vector< ref<Expr> > &args)
 {
-    assert(args.size() == 1);
-
-    klee::ref<klee::Expr> index = args[0];
-
     S2EExecutor* s2eExecutor = static_cast<S2EExecutor*>(executor);
+    S2EExecutionState* s2eState = static_cast<S2EExecutionState*>(state);
 
-    if(isa<klee::ConstantExpr>(index)) {
-        s2eExecutor->bindLocal(target, *state, index);
+    assert(args.size() == 3);
+    assert(isa<klee::ConstantExpr>(args[1]));
+    assert(isa<klee::ConstantExpr>(args[2]));
+
+    uint64_t min = cast<klee::ConstantExpr>(args[1])->getZExtValue();
+    uint64_t max = cast<klee::ConstantExpr>(args[2])->getZExtValue();
+    assert(min <= max);
+
+    ref<Expr> expr = args[0];
+    Expr::Width width = expr->getWidth();
+
+    // XXX: this might be expensive...
+    expr = s2eExecutor->simplifyExpr(*state, expr);
+    expr = state->constraints.simplifyExpr(expr);
+
+    if(isa<klee::ConstantExpr>(expr)) {
+#ifndef NDEBUG
+        uint64_t value = cast<klee::ConstantExpr>(expr)->getZExtValue();
+        assert(value >= min && value <= max);
+#endif
+        s2eExecutor->bindLocal(target, *state, expr);
         return;
     }
 
-    g_s2e->getDebugStream() << index << std::endl;
+    g_s2e->getDebugStream(s2eState) << "forkAndConcretize(" << expr << ")" << std::endl;
 
-    std::pair< ref<Expr>, ref<Expr> > res = s2eExecutor->getSolver()->
-                                            getRange(klee::Query(state->constraints, index));
+    // go starting from min
+    Query query(state->constraints, expr);
+    uint64_t step = 1, forks = 0;
+    std::vector< uint64_t > values;
+    std::vector< ref<Expr> > conditions;
+    while(min <= max) {
+        if(forks >= MaxForksOnConcretize) {
+            s2eExecutor->m_s2e->getWarningsStream(s2eState)
+                << "Dropping states with constraint \n"
+                << UleExpr::create(expr, klee::ConstantExpr::create(min, width))
+                << "\n becase max-forks-on-concretize limit was reached." << std::endl;
 
-    assert (isa<klee::ConstantExpr>(res.first) && isa<klee::ConstantExpr>(res.second));
+        }
 
-    uint64_t a = cast<klee::ConstantExpr>(res.first)->getZExtValue(64);
-    uint64_t b = cast<klee::ConstantExpr>(res.second)->getZExtValue(64);
+        ref<Expr> eqCond = EqExpr::create(expr, klee::ConstantExpr::create(min, width));
+        bool res = false;
 
-    if (a > b) {
-      unsigned t;
-      t = b;
-      b = a;
-      a = t;
-    }
+        bool success = s2eExecutor->getSolver()->mayBeTrue(query.withExpr(eqCond), res);
+        assert(success && "FIXME: Unhandled solver failure");
 
-    // Fork in the range
-    Executor::StatePair p(state, NULL);
+        if(res) {
+            values.push_back(min);
+            conditions.push_back(eqCond);
+        }
 
-    std::vector<ref<Expr> > conditions;
-    unsigned total=0;
-    for (unsigned i=a; i<=b && total<ForkRange; i++, total++) {
-      ref<Expr> constr = klee::EqExpr::create(index, klee::ConstantExpr::create(i, index.get()->getWidth()));
-      klee::Query q(state->constraints, constr);
-      bool qres;
-      if (s2eExecutor->getSolver()->mayBeTrue(q, qres) && qres) {
-        conditions.push_back(constr);
-      }
+        if(min == max) {
+            break; // this was the last possible value
+        }
+
+        // Choice next value to try
+        uint64_t lo = min+1, hi = max, mid = min + step;
+
+        if(res) {
+            // we succeeded with guessing step, it is worth trying it again
+            if(step == 1) {
+                min += 1; continue;
+            } else {
+                bool success =
+                    s2eExecutor->getSolver()->mayBeTrue(
+                        query.withExpr(
+                            AndExpr::create(
+                                UgeExpr::create(expr,
+                                    klee::ConstantExpr::create(min+1, width)),
+                                UleExpr::create(expr,
+                                    klee::ConstantExpr::create(min+step-1, width)))),
+                        res);
+                assert(success && "FIXME: Unhandled solver failure");
+                if(res == false) {
+                    min += step; continue;
+                }
+
+                // there are some values in range [min+1, min+step-1],
+                // fall back to binary search to find them
+                hi = min + step - 1;
+                mid = lo + (hi - lo)/2;
+            }
+        }
+
+        // Previous step didn't worked, try binary search
+        // anyway, start from the same step as initial guess
+        while(lo < hi) {
+            bool res = false;
+            bool success =
+                s2eExecutor->getSolver()->mayBeTrue(
+                    query.withExpr(
+                        AndExpr::create(
+                            UgeExpr::create(expr,
+                                klee::ConstantExpr::create(lo, width)),
+                            UleExpr::create(expr,
+                                klee::ConstantExpr::create(mid, width)))),
+                    res);
+
+            assert(success && "FIXME: Unhandled solver failure");
+            (void) success;
+
+            if (res)
+                hi = mid;
+            else
+                lo = mid+1;
+
+            mid = lo + (hi-lo)/2;
+        }
+
+        step = lo - min;
+        min = lo;
+
+        if(min + step > max)
+            step = max - min;
     }
 
     std::vector<ExecutionState *> branches;
     s2eExecutor->branch(*state, conditions, branches);
 
-    for (unsigned i=0; i<conditions.size(); i++) {
-        klee::ref<klee::ConstantExpr> value;
-
-      klee::Query q(branches[i]->constraints, index);
-      if (s2eExecutor->getSolver()->getValue(q, value)) {
-        s2eExecutor->bindLocal(target, *branches[i], value);
-      }else {
-        //This should not happen because of the mayBeTrue check above.
-        assert(false);
-        executor->terminateStateEarly(*state, "Could not concretize memory index, does not respect constraints.");
-      }
-
-  }
+    for(uint64_t i=0; i<conditions.size(); i++) {
+#ifndef NDEBUG
+        ref<klee::ConstantExpr> value;
+        bool success = s2eExecutor->getSolver()->getValue(
+                Query(branches[i]->constraints, expr), value);
+        assert(success && value->getZExtValue() == values[i]);
+#endif
+        s2eExecutor->bindLocal(target, *branches[i],
+                               klee::ConstantExpr::create(values[i], width));
+    }
 }
 
 S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
@@ -556,23 +630,23 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     m_dummyMain = kmodule->functionMap[dummyMain];
 
-    Function* traceFunction;
+    Function* function;
 
-    traceFunction = kmodule->module->getFunction("tcg_llvm_trace_memory_access");
-    assert(traceFunction);
-    addSpecialFunctionHandler(traceFunction, handlerTraceMemoryAccess);
+    function = kmodule->module->getFunction("tcg_llvm_trace_memory_access");
+    assert(function);
+    addSpecialFunctionHandler(function, handlerTraceMemoryAccess);
 
-    traceFunction = kmodule->module->getFunction("tcg_llvm_trace_port_access");
-    assert(traceFunction);
-    addSpecialFunctionHandler(traceFunction, handlerTracePortAccess);
+    function = kmodule->module->getFunction("tcg_llvm_trace_port_access");
+    assert(function);
+    addSpecialFunctionHandler(function, handlerTracePortAccess);
 
-    traceFunction = kmodule->module->getFunction("s2e_on_tlb_miss");
-    assert(traceFunction);
-    addSpecialFunctionHandler(traceFunction, handlerOnTlbMiss);
+    function = kmodule->module->getFunction("s2e_on_tlb_miss");
+    assert(function);
+    addSpecialFunctionHandler(function, handlerOnTlbMiss);
 
-    traceFunction = kmodule->module->getFunction("tcg_llvm_fork_and_concretize");
-    assert(traceFunction);
-    addSpecialFunctionHandler(traceFunction, handleForkAndConcretize);
+    function = kmodule->module->getFunction("tcg_llvm_fork_and_concretize");
+    assert(function);
+    addSpecialFunctionHandler(function, handleForkAndConcretize);
 
     searcher = constructUserSearcher(*this);
 
