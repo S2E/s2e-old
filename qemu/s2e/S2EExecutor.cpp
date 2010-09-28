@@ -1212,15 +1212,13 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     }
 
     if(newState) {
-        jmp_buf jmp_env, jmp_env_s2e;
+        jmp_buf jmp_env;
         memcpy(&jmp_env, &env->jmp_env, sizeof(jmp_buf));
-        memcpy(&jmp_env_s2e, &env->jmp_env_s2e, sizeof(jmp_buf));
 
         const uint8_t *newStore = newState->m_cpuSystemObject->getConcreteStore();
         memcpy((uint8_t*) cpuMo->address, newStore, cpuMo->size);
 
         memcpy(&env->jmp_env, &jmp_env, sizeof(jmp_buf));
-        memcpy(&env->jmp_env_s2e, &jmp_env_s2e, sizeof(jmp_buf));
 
         newState->m_active = true;
     }
@@ -1277,7 +1275,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         //Try to kill the useless states. Even the current state can be killed at this point.
         try {
             m_stateManager(NULL, false);
-        }catch(StateTerminatedException &) {
+        }catch(CpuExitException &) {
             m_s2e->getDebugStream() << "Attempted to kill current state, that's fine, we'll select another one." << std::endl;
         }
         //The state manager can kill additional states, we must update the set of states,
@@ -2055,7 +2053,7 @@ void S2EExecutor::terminateState(ExecutionState &state)
     //No need for exiting the loop if we kill another state.
     if (s == g_s2e_state) {
         s->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
-        throw StateTerminatedException();
+        throw CpuExitException();
     }
 }
 
@@ -2077,9 +2075,6 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
             } catch(s2e::CpuExitException&) {
                 updateStates(state);
                 longjmp(env->jmp_env, 1);
-            } catch(s2e::StateTerminatedException&) {
-                updateStates(state);
-                longjmp(env->jmp_env_s2e, 1);
             }
         }
     } else {
@@ -2119,9 +2114,6 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
         } catch(s2e::CpuExitException&) {
             updateStates(state);
             longjmp(env->jmp_env, 1);
-        } catch(s2e::StateTerminatedException&) {
-            updateStates(state);
-            longjmp(env->jmp_env_s2e, 1);
         }
     }
 }
@@ -2337,10 +2329,6 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
         s2e_update_execution_stats(state, old_icount);
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        s2e_update_execution_stats(state, old_icount);
-        s2e->getExecutor()->updateStates(state);
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -2351,9 +2339,6 @@ void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        s2e->getExecutor()->updateStates(state);
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 

@@ -57,8 +57,6 @@ void s2e_tcg_execution_handler(void* signal, uint64_t pc)
         s->emit(g_s2e_state, pc);
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -70,8 +68,6 @@ void s2e_tcg_custom_instruction_handler(uint64_t arg)
         g_s2e->getCorePlugin()->onCustomInstruction(g_s2e_state, arg);
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -134,8 +130,6 @@ void s2e_on_translate_block_start(
         }
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -156,8 +150,6 @@ void s2e_on_translate_block_end(
                 staticTarget, targetPc);
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 
     if(!signal->empty()) {
@@ -184,8 +176,6 @@ void s2e_on_translate_instruction_start(
         }
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -229,8 +219,6 @@ void s2e_on_translate_instruction_end(
         }
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -243,8 +231,6 @@ void s2e_on_exception(S2E *s2e, S2EExecutionState* state,
         s2e->getCorePlugin()->onException.emit(state, intNb, state->getPc());
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -270,8 +256,6 @@ void s2e_trace_memory_access(
                 isWrite, isIO);
         } catch(s2e::CpuExitException&) {
             longjmp(env->jmp_env, 1);
-        } catch(s2e::StateTerminatedException&) {
-            longjmp(env->jmp_env_s2e, 1);
         }
     }
 }
@@ -282,8 +266,6 @@ void s2e_on_page_fault(S2E *s2e, S2EExecutionState* state, uint64_t addr, int is
         s2e->getCorePlugin()->onPageFault.emit(state, addr, (bool)is_write);
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -293,8 +275,6 @@ void s2e_on_tlb_miss(S2E *s2e, S2EExecutionState* state, uint64_t addr, int is_w
         s2e->getCorePlugin()->onTlbMiss.emit(state, addr, (bool)is_write);
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
-    } catch(s2e::StateTerminatedException&) {
-        longjmp(env->jmp_env_s2e, 1);
     }
 }
 
@@ -322,8 +302,6 @@ void s2e_trace_port_access(
                 isWrite);
         } catch(s2e::CpuExitException&) {
             longjmp(env->jmp_env, 1);
-        } catch(s2e::StateTerminatedException&) {
-            longjmp(env->jmp_env_s2e, 1);
         }
     }
 }

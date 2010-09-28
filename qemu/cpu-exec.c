@@ -32,9 +32,6 @@
 
 #include <assert.h>
 
-#warning Remove the next line
-#include <string.h>
-
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
 #undef ECX
@@ -305,25 +302,9 @@ int cpu_exec(CPUState *env1)
 #endif
     env->exception_index = -1;
 
-#ifdef CONFIG_S2E_XXX
-    /*
-     * Invoked upon state termination,
-     * to make sure that the state is not executed anymore
-     */
-    if (setjmp(env->jmp_env_s2e) != 0) {
-        env->exception_index = -1;
-        g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
-        s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
-        cpu_single_env = NULL;
-        return -1;
-    }
-#endif
-
     /* prepare setjmp context for exception handling */
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
-#warning Remove the following hack together with jmp_env_s2e
-            memcpy(&env->jmp_env_s2e, &env->jmp_env, sizeof(jmp_buf));
             #ifdef CONFIG_S2E
             g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
             s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
