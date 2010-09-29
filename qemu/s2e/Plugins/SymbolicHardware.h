@@ -19,6 +19,7 @@ class DeviceDescriptor {
 protected:
     std::string m_id;
     void *m_qemuIrq;
+    void *m_qemuDev;
     bool m_active;
 
 public:
@@ -41,11 +42,18 @@ public:
         m_active = true;
     }
 
+    void setDevice(void *qemuDev) {
+        m_qemuDev = qemuDev;
+    }
+
     virtual void print(std::ostream &os) const {}
     virtual void initializeQemuDevice() {assert(false);}
     virtual void activateQemuDevice(struct PCIBus *bus) { assert(false);}
     virtual void setInterrupt(bool state) {assert(false);};
     virtual void assignIrq(void *irq) {assert(false);}
+    virtual bool readPciAddressSpace(void *buffer, uint32_t offset, uint32_t size) {
+        return false;
+    }
 };
 
 class IsaDeviceDescriptor:public DeviceDescriptor {
@@ -120,6 +128,8 @@ public:
 
     virtual void setInterrupt(bool state);
     virtual void assignIrq(void *irq);
+
+    virtual bool readPciAddressSpace(void *buffer, uint32_t offset, uint32_t size);
 
     virtual ~PciDeviceDescriptor();
 };

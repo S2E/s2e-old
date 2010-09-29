@@ -801,9 +801,10 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
 
     state->undoCallAndJumpToSymbolic();
 
-    uint32_t buffer, length;
+    uint32_t offset, buffer, length;
     bool ok = true;
 
+    ok &= readConcreteParameter(state, 2, &offset);
     ok &= readConcreteParameter(state, 3, &buffer);
     ok &= readConcreteParameter(state, 4, &length);
     if (!ok) {
@@ -816,12 +817,24 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     s2e()->getDebugStream(state) << "Buffer=" << std::hex << buffer <<
         " Length=" << std::dec << length << std::endl;
 
+    uint8_t buf[256];
+    bool readConcrete = false;
+    //Check if we access the base address registers
+    if (offset >= 0x10 && offset < 0x28 && (offset - 0x10 + length <= 0x28)) {
+        //Get the real concrete values
+        readConcrete = m_devDesc->readPciAddressSpace(buf, offset, length);
+    }
+
     //Fill in the buffer with symbolic values
     for (unsigned i=0; i<length; ++i) {
-        std::stringstream ss;
-        ss << __FUNCTION__ << "_" << std::hex << retaddr << "_"  << i;
-        klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8, ss.str());
-        state->writeMemory(buffer+i, symb);
+        if (readConcrete) {
+            state->writeMemory(buffer + i, &buf[i], klee::Expr::Int8);
+        }else {
+            std::stringstream ss;
+            ss << __FUNCTION__ << "_" << std::hex << retaddr << "_"  << i;
+            klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8, ss.str());
+            state->writeMemory(buffer+i, symb);
+        }
     }
 
     //Symbolic return value

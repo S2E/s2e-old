@@ -93,7 +93,7 @@ void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, uint64_
     TCGv_ptr t0 = tcg_temp_new_ptr();
     TCGv_i64 t1 = tcg_temp_new_i64();
 
-#if 0
+#if 1
     if (nextpc != (uint64_t)-1) {
         TCGv_ptr tpc = tcg_temp_new_ptr();
         TCGv_ptr cpu_env = MAKE_TCGV_PTR(0);

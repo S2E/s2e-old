@@ -180,8 +180,9 @@ SymbolicHardware::~SymbolicHardware()
 }
 
 DeviceDescriptor::DeviceDescriptor(const std::string &id){
-    m_id = id;
+   m_id = id;
    m_qemuIrq = NULL;
+   m_qemuDev = NULL;
 }
 
 DeviceDescriptor::~DeviceDescriptor()
@@ -465,6 +466,19 @@ void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
     }
 }
 
+bool PciDeviceDescriptor::readPciAddressSpace(void *buffer, uint32_t offset, uint32_t size)
+{
+    PCIDevice *pci = (PCIDevice*)m_qemuDev;
+    assert(pci);
+
+    if (offset + size > 256) {
+        return false;
+    }
+
+    memcpy(buffer, pci->config + offset, size);
+    return true;
+}
+
 PciDeviceDescriptor::PciDeviceDescriptor(const std::string &id):DeviceDescriptor(id)
 {
     m_pciInfo = NULL;
@@ -639,6 +653,7 @@ static int isa_symbhw_init(ISADevice *dev)
 
     isa->desc = dd;
     dd->setActive(true);
+    dd->setDevice(dev);
 
     IsaDeviceDescriptor *s = isa->desc;
 
@@ -680,6 +695,7 @@ static int pci_symbhw_init(PCIDevice *pci_dev)
     dd->setActive(true);
 
     d->desc = dd;
+    dd->setDevice(&d->dev);
 
     pci_conf = d->dev.config;
     pci_config_set_vendor_id(pci_conf, dd->getVid());
