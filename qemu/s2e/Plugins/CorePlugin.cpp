@@ -85,12 +85,32 @@ void s2e_tcg_emit_custom_instruction(S2E*, uint64_t arg)
 }
 
 /* Instrument generated code to emit signal on execution */
-void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc)
+/* Next pc, when != -1, indicates with which value to update the program counter
+   before calling the annotation. This is useful when instrumenting instructions
+   that do not explicitely update the program counter by themselves. */
+void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, uint64_t nextpc=-1)
 {
     TCGv_ptr t0 = tcg_temp_new_ptr();
     TCGv_i64 t1 = tcg_temp_new_i64();
 
-    // XXX: here we relay on CPUState being the first tcg global temp
+#if 0
+    if (nextpc != (uint64_t)-1) {
+        TCGv_ptr tpc = tcg_temp_new_ptr();
+        TCGv_ptr cpu_env = MAKE_TCGV_PTR(0);
+#if TCG_TARGET_REG_BITS == 64
+        tcg_gen_movi_i64(tpc, (tcg_target_ulong) nextpc);
+        tcg_gen_st_i64(tpc, cpu_env, offsetof(CPUState, eip));
+#else
+        tcg_gen_movi_i32(tpc, (tcg_target_ulong) nextpc);
+        tcg_gen_st_i32(tpc, cpu_env, offsetof(CPUState, eip));
+#endif
+
+        tcg_temp_free_ptr(tpc);
+
+    }
+#endif
+
+    // XXX: here we rely on CPUState being the first tcg global temp
     TCGArg args[2];
     args[0] = GET_TCGV_PTR(t0);
     args[1] = GET_TCGV_I64(t1);
@@ -201,9 +221,11 @@ void s2e_on_translate_jump_start(
     }
 }
 
+//Nextpc is the program counter of the of the instruction that
+//follows the one at pc, only if it does not change the control flow.
 void s2e_on_translate_instruction_end(
         S2E* s2e, S2EExecutionState* state,
-        TranslationBlock *tb, uint64_t pc)
+        TranslationBlock *tb, uint64_t pc, uint64_t nextpc)
 {
     assert(state->isActive());
 
@@ -214,7 +236,7 @@ void s2e_on_translate_instruction_end(
     try {
         s2e->getCorePlugin()->onTranslateInstructionEnd.emit(signal, state, tb, pc);
         if(!signal->empty()) {
-            s2e_tcg_instrument_code(s2e, signal, pc);
+            s2e_tcg_instrument_code(s2e, signal, pc, nextpc);
             tb->s2e_tb->executionSignals.push_back(new ExecutionSignal);
         }
     } catch(s2e::CpuExitException&) {

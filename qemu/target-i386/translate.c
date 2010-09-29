@@ -122,7 +122,8 @@ typedef struct DisasContext {
 
 #ifdef CONFIG_S2E
     void *cpuState;
-    target_ulong insPc; /* pc of the instrucition being translated */
+    target_ulong insPc; /* pc of the instruction being translated */
+    target_ulong nextPc; /* pc of the instruction following insPc */
     int enable_jmp_im;
     int done_instr_end; //1 when onTranslateInstructionEnd was called
 #endif
@@ -295,7 +296,7 @@ static inline void gen_op_andl_A0_ffff(void)
 static inline void gen_instr_end(DisasContext *s)
 {
     if (!s->done_instr_end) {
-        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, s->tb, s->insPc);
+        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, s->tb, s->insPc, s->nextPc);
         s->done_instr_end = 1;
     }
 }
@@ -7989,8 +7990,13 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_ptr);
         tb->pcOfLastInstr = pc_ptr;
 #endif
+        dc->nextPc = -1;
         new_pc_ptr = disas_insn(dc, pc_ptr);
 #ifdef CONFIG_S2E
+        if (!dc->is_jmp) {
+            //Allow proper pc update for onTranslateInstruction events
+            dc->nextPc = new_pc_ptr - dc->cs_base;
+        }
         gen_instr_end(dc);
 #endif
         pc_ptr = new_pc_ptr;

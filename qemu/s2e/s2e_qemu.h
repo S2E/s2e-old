@@ -94,7 +94,7 @@ void s2e_on_translate_instruction_start(
 void s2e_on_translate_instruction_end(
         struct S2E* s2e,
         struct S2EExecutionState* state,
-        struct TranslationBlock* tb, uint64_t pc);
+        struct TranslationBlock* tb, uint64_t pc, uint64_t nextpc);
 
 /** Called by cpu_gen_code() before translation of each jump instruction */
 void s2e_on_translate_jump_start(
