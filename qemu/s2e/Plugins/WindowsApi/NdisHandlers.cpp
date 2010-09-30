@@ -160,6 +160,7 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ndis.sys", NdisReadConfiguration);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadPciSlotInformation);
     REGISTER_IMPORT(I, "ndis.sys", NdisWritePciSlotInformation);
+    REGISTER_IMPORT(I, "ndis.sys", NdisWriteErrorLogEntry);
 
     REGISTER_IMPORT(I, "ntoskrnl.exe", RtlEqualUnicodeString);
     REGISTER_IMPORT(I, "ntoskrnl.exe", GetSystemUpTime);
@@ -786,6 +787,40 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
     plgState->pNetworkAddressLength = 0;
 
 
+
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+//BEWARE: This is a VarArg stdecl function...
+void NdisHandlers::NdisWriteErrorLogEntry(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    std::ostream &os = s2e()->getDebugStream();
+
+    uint32_t ErrorCode, NumberOfErrorValues;
+    bool ok = true;
+
+    ok &= readConcreteParameter(state, 1, &ErrorCode);
+    ok &= readConcreteParameter(state, 2, &NumberOfErrorValues);
+
+    if (!ok) {
+        os << "Could not read error parameters" << std::endl;
+        return;
+    }
+
+    os << "ErrorCode=0x" << std::hex << ErrorCode << " - ";
+
+    for (unsigned i=0; i<NumberOfErrorValues; ++i) {
+        uint32_t val;
+        ok &= readConcreteParameter(state, 3+i, &val);
+        if (!ok) {
+            os << "Could not read error parameters" << std::endl;
+            break;
+        }
+        os << val << " ";
+    }
+
+    os << std::endl;
 
 }
 
@@ -1705,6 +1740,8 @@ void NdisHandlers::SendPacketsHandler(S2EExecutionState* state, FunctionMonitorS
 void NdisHandlers::SendPacketsHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    m_devDesc->setInterrupt(true);
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());

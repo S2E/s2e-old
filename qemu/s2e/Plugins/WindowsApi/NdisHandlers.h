@@ -74,6 +74,7 @@ private:
     DECLARE_ENTRY_POINT(NdisMRegisterAdapterShutdownHandler);
     DECLARE_ENTRY_POINT(NdisReadNetworkAddress);
     DECLARE_ENTRY_POINT(NdisReadConfiguration);
+    DECLARE_ENTRY_POINT(NdisWriteErrorLogEntry);
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
