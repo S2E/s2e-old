@@ -907,8 +907,8 @@ int qemu_savevm_state_complete(QEMUFile *f)
     for(se = first_se; se != NULL; se = se->next) {
         int len;
 
-	if (se->save_state == NULL)
-	    continue;
+        if (se->save_state == NULL)
+            continue;
 
         /* Section type */
         qemu_put_byte(f, QEMU_VM_SECTION_FULL);
@@ -1122,22 +1122,6 @@ out:
     return ret;
 }
 
-/* device can contain snapshots */
-static int bdrv_can_snapshot(BlockDriverState *bs)
-{
-    return (bs &&
-            !bdrv_is_removable(bs) &&
-            !bdrv_is_read_only(bs));
-}
-
-/* device must be snapshots in order to have a reliable snapshot */
-static int bdrv_has_snapshot(BlockDriverState *bs)
-{
-    return (bs &&
-            !bdrv_is_removable(bs) &&
-            !bdrv_is_read_only(bs));
-}
-
 static BlockDriverState *get_bs_snapshots(void)
 {
     BlockDriverState *bs;
@@ -1257,7 +1241,7 @@ void do_savevm(Monitor *mon, const char *name)
 
     for(i = 0; i < nb_drives; i++) {
         bs1 = drives_table[i].bdrv;
-        if (bdrv_has_snapshot(bs1)) {
+        if (bdrv_can_snapshot(bs1)) {
             if (must_delete) {
                 ret = bdrv_snapshot_delete(bs1, old_sn->id_str);
                 if (ret < 0) {
@@ -1304,7 +1288,7 @@ void do_loadvm(Monitor *mon, const char *name)
 
     for(i = 0; i <= nb_drives; i++) {
         bs1 = drives_table[i].bdrv;
-        if (bdrv_has_snapshot(bs1)) {
+        if (bdrv_can_snapshot(bs1)) {
             ret = bdrv_snapshot_goto(bs1, name);
             if (ret < 0) {
                 if (bs != bs1)
@@ -1372,7 +1356,7 @@ void do_delvm(Monitor *mon, const char *name)
 
     for(i = 0; i <= nb_drives; i++) {
         bs1 = drives_table[i].bdrv;
-        if (bdrv_has_snapshot(bs1)) {
+        if (bdrv_can_snapshot(bs1)) {
             ret = bdrv_snapshot_delete(bs1, name);
             if (ret < 0) {
                 if (ret == -ENOTSUP)
@@ -1402,7 +1386,7 @@ void do_info_snapshots(Monitor *mon)
     monitor_printf(mon, "Snapshot devices:");
     for(i = 0; i <= nb_drives; i++) {
         bs1 = drives_table[i].bdrv;
-        if (bdrv_has_snapshot(bs1)) {
+        if (bdrv_can_snapshot(bs1)) {
             if (bs == bs1)
                 monitor_printf(mon, " %s", bdrv_get_device_name(bs1));
         }

@@ -1181,6 +1181,15 @@ int bdrv_get_buffer(BlockDriverState *bs, uint8_t *buf, int64_t pos, int size)
 /**************************************************************/
 /* handling of snapshots */
 
+int bdrv_can_snapshot(BlockDriverState *bs)
+{
+    return ( bs &&
+             !bdrv_is_removable(bs) &&
+             !bdrv_is_read_only(bs) &&
+             bs->drv &&
+             bs->drv->bdrv_snapshot_create );
+}
+
 int bdrv_snapshot_create(BlockDriverState *bs,
                          QEMUSnapshotInfo *sn_info)
 {
