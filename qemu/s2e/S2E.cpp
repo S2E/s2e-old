@@ -335,21 +335,6 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose)
             }
         }
 
-#ifndef _WIN32
-        llvm::sys::Path s2eLast(cwd);
-        s2eLast.appendComponent("s2e-last");
-
-        if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
-            perror("ERRPR: Cannot unlink s2e-last");
-            exit(1);
-        }
-
-        if (symlink(m_outputDirectory.c_str(), s2eLast.c_str()) < 0) {
-            perror("ERROR: Cannot make symlink s2e-last");
-            exit(1);
-        }
-#endif
-
     } else {
         m_outputDirectory = outputDirectory;
     }
@@ -371,6 +356,21 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose)
             exit(1);
         }
     }
+
+#ifndef _WIN32
+    llvm::sys::Path s2eLast(".");
+    s2eLast.appendComponent("s2e-last");
+
+    if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
+        perror("ERRPR: Cannot unlink s2e-last");
+        exit(1);
+    }
+
+    if (symlink(m_outputDirectory.c_str(), s2eLast.c_str()) < 0) {
+        perror("ERROR: Cannot make symlink s2e-last");
+        exit(1);
+    }
+#endif
 
     ios_base::sync_with_stdio(true);
     cout.setf(ios_base::unitbuf);
