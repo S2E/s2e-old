@@ -119,7 +119,7 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             //eax = pointer to module name
             //ebx = runtime load base
             //ecx = entry point
-            uint32_t rtloadbase, name, entrypoint;
+            uint32_t rtloadbase, name, size;
             bool ok = true;
 
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
@@ -127,7 +127,7 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
                                                  &rtloadbase, 4);
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                                 &entrypoint, 4);
+                                                 &size, 4);
 
             if(!ok) {
                 s2e()->getWarningsStream(state)
@@ -150,9 +150,9 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
                 Cfg &c = *it;
                 if (c.name == nameStr) {
                     s2e()->getMessagesStream() << "RawMonitor: Registering " << nameStr << " "
-                            " @0x" << std::hex << rtloadbase << " ep=0x" << entrypoint  << std::endl;
+                            " @0x" << std::hex << rtloadbase << " size=0x" << size  << std::endl;
                     c.start = rtloadbase;
-                    c.entrypoint = entrypoint;
+                    c.size = size;
                     loadModule(state, c, false);
                 }
             }
