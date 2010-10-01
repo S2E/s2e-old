@@ -2578,7 +2578,7 @@ void Executor::terminateStateEarly(ExecutionState &state,
                                    const Twine &message) {
   if (!OnlyOutputStatesCoveringNew || state.coveredNew ||
       (AlwaysOutputSeeds && seedMap.count(&state)))
-    interpreterHandler->processTestCase(state, (message + "\n").str().c_str(),
+    interpreterHandler->processTestCase(state, (message).str().c_str(),
                                         "early");
   terminateState(state);
 }

@@ -196,7 +196,8 @@ static void apic_local_deliver(CPUState *env, int vector)
 #ifdef DEBUG_APIC
         printf("APIC: cpu_interrupt\n");
 #endif
-        cpu_interrupt(env, CPU_INTERRUPT_HARD);
+        if(!s->cpu_env->all_apic_interrupts_disabled)
+            cpu_interrupt(env, CPU_INTERRUPT_HARD);
         break;
 
     case APIC_DM_FIXED:
@@ -409,7 +410,8 @@ static void apic_update_irq(APICState *s)
 #ifdef DEBUG_APIC
     printf("APIC: cpu_interrupt\n");
 #endif
-    cpu_interrupt(s->cpu_env, CPU_INTERRUPT_HARD);
+    if(!s->cpu_env->all_apic_interrupts_disabled)
+        cpu_interrupt(s->cpu_env, CPU_INTERRUPT_HARD);
 }
 
 void apic_reset_irq_delivered(void)

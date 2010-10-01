@@ -1711,7 +1711,8 @@ static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
     }
 
     if(tb1) {
-        if(depth > 2 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)) {
+        if(depth > 2 || (smask & tb1->reg_rmask) || (smask & tb1->reg_wmask)
+                             || (tb1->helper_accesses_mem & 4)) {
             s2e_tb_reset_jump(tb, n);
         } else if(tb1 != tb) {
             s2e_tb_reset_jump_smask(tb1, 0, smask, depth + 1);
@@ -1753,8 +1754,9 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 #if 1
             /* We can not execute TB natively if it reads any symbolic regs */
             uint64_t smask = state->getSymbolicRegistersMask();
-            if(smask) {
-                if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)) {
+            if(smask || (tb->helper_accesses_mem & 4)) {
+                if((smask & tb->reg_rmask) || (smask & tb->reg_wmask)
+                         || (tb->helper_accesses_mem & 4)) {
                     /* TB reads symbolic variables */
                     executeKlee = true;
 

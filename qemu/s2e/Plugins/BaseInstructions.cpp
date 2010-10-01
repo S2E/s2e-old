@@ -13,6 +13,7 @@ extern "C" {
 #include <s2e/Utils.h>
 
 #include <iostream>
+#include <sstream>
 
 #include <llvm/System/TimeValue.h>
 #include <klee/Searcher.h>
@@ -151,9 +152,31 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         case 6:
             {
+                std::string message;
+                uint32_t status, messagePtr;
+                bool ok = true;
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &status, 4);
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr, 4);
+
+                if (!ok) {
+                    s2e()->getWarningsStream(state)
+                        << "ERROR: symbolic argument was passed to s2e_op kill state "
+                        << std::endl;
+                    status = (uint32_t) -1;
+                } else {
+                    if(!state->readString(messagePtr, message)) {
+                        s2e()->getWarningsStream(state)
+                            << "Error reading file name string from the guest" << std::endl;
+                    }
+                }
+
                 //Kill the current state
                 s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << std::endl;
-                s2e()->getExecutor()->terminateStateEarly(*state, "State was killed by opcode");
+                std::ostringstream os;
+                os << "State was terminated by opcode\n"
+                   << "            message: \"" << message << "\"\n"
+                   << "            status: " << status;
+                s2e()->getExecutor()->terminateStateEarly(*state, os.str());
                 break;
             }
 
@@ -263,6 +286,16 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             else
                 s2e()->getMessagesStream(state) << "Enabling timer interrupt" << std::endl;
             state->writeCpuState(CPU_OFFSET(timer_interrupt_disabled),
+                                 disabled, 8);
+            break;
+        }
+        case 0x51: { /* disable/enable all apic interrupts */
+            uint64_t disabled = opcode >> 16;
+            if(disabled)
+                s2e()->getMessagesStream(state) << "Disabling all apic interrupt" << std::endl;
+            else
+                s2e()->getMessagesStream(state) << "Enabling all apic interrupt" << std::endl;
+            state->writeCpuState(CPU_OFFSET(all_apic_interrupts_disabled),
                                  disabled, 8);
             break;
         }

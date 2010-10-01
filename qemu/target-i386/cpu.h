@@ -691,6 +691,7 @@ typedef struct CPUX86State {
     int old_exception;  /* exception in flight */
 
     uint8_t timer_interrupt_disabled;
+    uint8_t all_apic_interrupts_disabled;
 
     CPU_COMMON
 
