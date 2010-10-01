@@ -124,6 +124,8 @@ private:
 
     uint32_t isrRecognized, isrQueue;
     bool waitHandler;
+
+    uint32_t shutdownHandler;
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();

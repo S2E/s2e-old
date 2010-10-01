@@ -564,6 +564,8 @@ void NdisHandlers::NdisMRegisterAdapterShutdownHandler(S2EExecutionState* state,
         return;
     }
 
+    plgState->shutdownHandler = plgState->val1;
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterAdapterShutdownHandlerRet)
 }
 
@@ -1398,7 +1400,32 @@ void NdisHandlers::EnableInterruptHandlerRet(S2EExecutionState* state)
 void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HaltHandlerRet)
+
+    if (getConsistency(__FUNCTION__) != OVERAPPROX) {
+        FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HaltHandlerRet)
+        return;
+    }
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+    if (!plgState->shutdownHandler) {
+        FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HaltHandlerRet);
+        return;
+    }
+
+    //Fork the states. In one of them run the shutdown handler
+    klee::ref<klee::Expr> isFake = state->createSymbolicValue(klee::Expr::Int8, "FakeShutdown");
+    klee::ref<klee::Expr> cond = klee::EqExpr::create(isFake, klee::ConstantExpr::create(1, klee::Expr::Int8));
+
+    klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
+
+    S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+    S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+
+    //One of the states will run the shutdown handler
+    ts->writeCpuState(offsetof(CPUState, eip), plgState->shutdownHandler, sizeof(uint32_t)*8);
+
+    FUNCMON_REGISTER_RETURN(ts, fns, NdisHandlers::HaltHandlerRet)
+    FUNCMON_REGISTER_RETURN(fs, fns, NdisHandlers::HaltHandlerRet)
 }
 
 void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
@@ -1776,6 +1803,7 @@ NdisHandlersState::NdisHandlersState()
     isrQueue = 0;
     waitHandler = false;
     faketimer = false;
+    shutdownHandler = 0;
 }
 
 NdisHandlersState::~NdisHandlersState()
