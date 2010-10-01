@@ -84,6 +84,11 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
     switch((opcode>>8) & 0xFF) {
+        case 0: { /* s2e_check */
+                uint32_t v = 1;
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &v, 4);
+            }
+            break;
         case 1: s2e()->getExecutor()->enableSymbolicExecution(state); break;
         case 2: s2e()->getExecutor()->disableSymbolicExecution(state); break;
         case 3: { /* make_symbolic */

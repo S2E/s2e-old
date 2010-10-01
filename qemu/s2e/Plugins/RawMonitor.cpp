@@ -200,7 +200,7 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
         }
 
     default:
-        s2e()->getWarningsStream() << "Invalid RawMonitor opcode 0x" << std::hex << opcode << std::endl;
+        s2e()->getWarningsStream() << "Invalid RawMonitor opcode 0x" << std::hex << opcode << std::dec << std::endl;
         break;
     }
 }

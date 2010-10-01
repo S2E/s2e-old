@@ -1833,3 +1833,5 @@ tools/tools/pfprofiler/pfprofiler.h
 tools/tools/s2etools-config/FinalLibDeps.txt
 tools/tools/tbtrace/TbTrace.cpp
 tools/tools/tbtrace/TbTrace.h
+qemu-0.12.2-src/s2e/Plugins/HostFiles.h
+qemu-0.12.2-src/s2e/Plugins/HostFiles.cpp

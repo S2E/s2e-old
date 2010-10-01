@@ -362,8 +362,14 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose)
     if(mkdir(m_outputDirectory.c_str(), 0775) < 0)
 #endif
     {
-        perror("ERROR: Unable to create output directory");
-        exit(1);
+        /* If the output directory was not specified and we aren't able
+           to create our own then let's just warn the user and abort */
+        /* It the output directory was specified by the user, it might
+           already be created befure launching S2E, don't panic in this case */
+        if(outputDirectory.empty()) {
+            perror("ERROR: Unable to create output directory");
+            exit(1);
+        }
     }
 
     ios_base::sync_with_stdio(true);

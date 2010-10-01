@@ -28,6 +28,7 @@
 #include <s2e/Plugins/StateManager.h>
 #include <s2e/Plugins/Annotation.h>
 #include <s2e/Plugins/X86ExceptionInterceptor.h>
+#include <s2e/Plugins/HostFiles.h>
 
 #include <s2e/Plugins/WindowsApi/NdisHandlers.h>
 #include <s2e/Plugins/WindowsApi/NtoskrnlHandlers.h>
@@ -89,6 +90,8 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::StateManager);
 
     __S2E_REGISTER_PLUGIN(plugins::MaxTbSearcher);
+
+    __S2E_REGISTER_PLUGIN(plugins::HostFiles);
 
     __S2E_REGISTER_PLUGIN(plugins::Debugger);
     __S2E_REGISTER_PLUGIN(plugins::Example);
