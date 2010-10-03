@@ -99,17 +99,18 @@ inline DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
     int index;
     index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
     physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
-    env->mem_io_pc = (uintptr_t)retaddr;
-    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
-            && !can_do_io(env)) {
-        cpu_io_recompile(env, retaddr);
-    }
 
 #ifdef CONFIG_S2E
     if (glue(s2e_is_mmio_symbolic_, SUFFIX)(physaddr)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
 #endif
+
+    env->mem_io_pc = (uintptr_t)retaddr;
+    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
+            && !can_do_io(env)) {
+        cpu_io_recompile(env, retaddr);
+    }
 
     env->mem_io_vaddr = addr;
 #if SHIFT <= 2
@@ -137,24 +138,96 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t p
 #else
 
 inline DATA_TYPE glue(glue(io_make_symbolic, SUFFIX), MMUSUFFIX)(const char *name) {
-    DATA_TYPE ret;
+    uint8_t ret;
     klee_make_symbolic(&ret, sizeof(ret), name);
     return ret;
 }
 
+
+inline DATA_TYPE glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(const char *label, target_ulong physaddr, uintptr_t pa)
+{
+    union {
+        DATA_TYPE dt;
+        uint8_t arr[1<<SHIFT];
+    }data;
+    unsigned i;
+
+    data.dt = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa));
+
+    for (i = 0; i<(1<<SHIFT); ++i) {
+        if (s2e_is_mmio_symbolic_b(physaddr + i)) {
+            data.arr[i] = glue(glue(io_make_symbolic, SUFFIX), MMUSUFFIX)(label);
+        }
+    }
+    return data.dt;
+}
 
 inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                           target_ulong addr,
                                           void *retaddr)
 {
     target_ulong naddr = (physaddr & TARGET_PAGE_MASK)+addr;
-    if (glue(s2e_is_mmio_symbolic_, SUFFIX)(naddr)) {
-        //Return a symbolic value here
-        char label[64];
+    char label[64];
+    int isSymb = 0;
+    if ((isSymb = glue(s2e_is_mmio_symbolic_, SUFFIX)(naddr))) {
+        //If at least one byte is symbolic, generate a label
         trace_port(label, "iommuread_", naddr, env->eip);
-        return glue(glue(io_make_symbolic, SUFFIX), MMUSUFFIX)(label);
     }
-    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(physaddr, addr, retaddr);
+
+    //If it is not DMA, then check if it is normal memory
+    int index;
+    target_phys_addr_t oldphysaddr = physaddr;
+    index = (physaddr >> IO_MEM_SHIFT) & (IO_MEM_NB_ENTRIES - 1);
+    physaddr = (physaddr & TARGET_PAGE_MASK) + addr;
+    env->mem_io_pc = (uintptr_t)retaddr;
+    if (index > (IO_MEM_NOTDIRTY >> IO_MEM_SHIFT)
+            && !can_do_io(env)) {
+        cpu_io_recompile(env, retaddr);
+    }
+
+    env->mem_io_vaddr = addr;
+#if SHIFT <= 2
+    if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
+        uintptr_t pa = s2e_notdirty_mem_write(physaddr);
+        if (isSymb) {
+            return glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(label, naddr, (uintptr_t)(pa));
+        }
+        return glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa));
+    }
+#else
+#ifdef TARGET_WORDS_BIGENDIAN
+    if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
+        DATA_TYPE res;
+        uintptr_t pa = s2e_notdirty_mem_write(physaddr);
+
+        if (isSymb) {
+            res = glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(label, naddr, (uintptr_t)(pa)) << 32;
+            res |= glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(label, naddr,(uintptr_t)(pa+4));
+        }else {
+            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa)) << 32;
+            res |= glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa+4));
+        }
+
+        return res;
+    }
+#else
+    if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
+        DATA_TYPE res;
+        uintptr_t pa = s2e_notdirty_mem_write(pa);
+        if (isSymb) {
+            res = glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(label, naddr, (uintptr_t)(pa));
+            res |= glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(label, naddr, (uintptr_t)(pa+4)) << 32;
+        }else {
+            res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa));
+            res |= glue(glue(ld, USUFFIX), _raw)((uint8_t *)(intptr_t)(pa + 4)) << 32;
+        }
+        return res;
+    }
+#endif
+#endif /* SHIFT > 2 */
+
+    //By default, call the original io_read function, which is external
+    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(oldphysaddr, addr, retaddr);
 }
 
 

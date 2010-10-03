@@ -587,7 +587,10 @@ nrna_suc:
 
 
 
+    push 0
+    push 0
     call s2e_kill_state
+    add esp, 8
 lp1:
 
 
@@ -600,6 +603,7 @@ lp1:
 
 
 
+nts_err1: db "Incorrect value read from DMA area", 0
 
 ndis_test_symbmmio:
     push ebp
@@ -608,15 +612,33 @@ ndis_test_symbmmio:
     push 0x90004; PhysicalAddress
     push 0x90000; VirtualAddress
     push 0 ;cached
-    push 0x1000; length
+    push 0x111; length
     push 0x000; handle
     call NdisMAllocateSharedMemory
 
     cmp dword[0x90000], 0
     jnz nts_ok
+
+    push 0
+    push 0
     call s2e_kill_state
+    add esp, 8
 
 nts_ok:
+
+    ;Check that reading/writing past the zone works
+    mov eax, 0xBADCAFE
+    mov [0x90111], eax
+    mov ecx, [0x90111]
+    cmp [0x90111], eax
+    je nts_ok1
+
+    push nts_err1
+    push ecx
+    call s2e_kill_state
+    add esp, 8
+
+nts_ok2:
 
     ;Try to access the memory
     mov eax, [0x90000]
@@ -624,7 +646,9 @@ nts_ok:
     je nts_ok1
 
 nts_ok1:
-
+    push 0
+    push 0
     call s2e_kill_state
+    add esp, 8
     leave
     ret

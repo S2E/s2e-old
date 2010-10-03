@@ -153,16 +153,15 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 6:
             {
                 std::string message;
-                uint32_t status, messagePtr;
+                uint32_t messagePtr;
                 bool ok = true;
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &status, 4);
+                klee::ref<klee::Expr> status = state->readCpuRegister(CPU_OFFSET(regs[R_EAX]), klee::Expr::Int32);
                 ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr, 4);
 
                 if (!ok) {
                     s2e()->getWarningsStream(state)
                         << "ERROR: symbolic argument was passed to s2e_op kill state "
                         << std::endl;
-                    status = (uint32_t) -1;
                 } else {
                     if(!state->readString(messagePtr, message)) {
                         s2e()->getWarningsStream(state)

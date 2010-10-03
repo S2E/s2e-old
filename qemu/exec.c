@@ -2160,7 +2160,7 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     }
 
 #ifdef CONFIG_S2E
-    if (s2e_is_mmio_symbolic_b(paddr)) {
+    if (s2e_is_mmio_symbolic(paddr, 1LL << TARGET_PAGE_BITS)) {
         //We hijack qemu's dirty page management to redirect
         //all accesses to MMIO memory through our handlers.
         //Note: Such ranges can be less than one page long, so we have to
@@ -2873,14 +2873,41 @@ uintptr_t s2e_notdirty_mem_write(target_phys_addr_t ram_addr)
     return (uintptr_t)qemu_get_ram_ptr(ram_addr);
 }
 
+
+/* Some pages might be partially used for DMA. All read accesses outside DMA
+   regions in a page go here. */
+static uint32_t s2edma_mem_readb(void *opaque, target_phys_addr_t ram_addr)
+{
+    return ldub_raw(qemu_get_ram_ptr(ram_addr));
+}
+
+static uint32_t s2edma_mem_readw(void *opaque, target_phys_addr_t ram_addr)
+{
+    return lduw_raw(qemu_get_ram_ptr(ram_addr));
+}
+
+
+static uint32_t s2edma_mem_readl(void *opaque, target_phys_addr_t ram_addr)
+{
+    return ldq_raw(qemu_get_ram_ptr(ram_addr));
+}
+
 int s2e_ismemfunc(void *f)
 {
     return f == notdirty_mem_writeb || f == notdirty_mem_writew ||
-            f == notdirty_mem_writel;
+            f == notdirty_mem_writel ||
+            f == s2edma_mem_readb || f == s2edma_mem_readw || f == s2edma_mem_readl;
 }
 
 #endif
 
+#ifdef CONFIG_S2E
+static CPUReadMemoryFunc * const s2edma_mem_read[3] = {
+    s2edma_mem_readb,
+    s2edma_mem_readw,
+    s2edma_mem_readl,
+};
+#endif
 static CPUReadMemoryFunc * const error_mem_read[3] = {
     NULL, /* never used */
     NULL, /* never used */
@@ -3220,7 +3247,13 @@ static void io_mem_init(void)
 
     cpu_register_io_memory_fixed(IO_MEM_ROM, error_mem_read, unassigned_mem_write, NULL);
     cpu_register_io_memory_fixed(IO_MEM_UNASSIGNED, unassigned_mem_read, unassigned_mem_write, NULL);
+
+#ifdef CONFIG_S2E
+    cpu_register_io_memory_fixed(IO_MEM_NOTDIRTY, s2edma_mem_read, notdirty_mem_write, NULL);
+#else
     cpu_register_io_memory_fixed(IO_MEM_NOTDIRTY, error_mem_read, notdirty_mem_write, NULL);
+#endif
+
     for (i=0; i<5; i++)
         io_mem_used[i] = 1;
 

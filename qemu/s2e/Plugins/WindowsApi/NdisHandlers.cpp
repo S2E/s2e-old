@@ -325,9 +325,6 @@ void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (getConsistency(__FUNCTION__) == STRICT) {
-        return;
-    }
 
     bool ok = true;
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
@@ -372,7 +369,11 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
     //All reads from it will be symbolic.
     m_hw->setSymbolicMmioRange(state, pa, plgState->val3);
 
-    //Consistency: LOCAL
+    if (getConsistency(__FUNCTION__) == STRICT) {
+        return;
+    }
+
+
     if (m_consistency == LOCAL || m_consistency == OVERAPPROX) {
         std::stringstream ss;
         ss << __FUNCTION__ << "_success";

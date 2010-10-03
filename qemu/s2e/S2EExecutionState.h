@@ -209,6 +209,8 @@ public:
     bool writeMemory64(uint64_t address, uint64_t value,
                        AddressType addressType = VirtualAddress);
 
+    CPUX86State *getConcreteCpuState() const;
+
     /** Creates new unconstrained symbolic value */
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
                               const std::string& name = std::string());

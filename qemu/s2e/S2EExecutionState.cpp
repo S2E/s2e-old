@@ -1005,6 +1005,11 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
     return true;
 }
 
+CPUState *S2EExecutionState::getConcreteCpuState() const
+{
+    return (CPUState*) (m_cpuSystemState->address - CPU_OFFSET(eip));
+}
+
 } // namespace s2e
 
 /******************************/

@@ -148,8 +148,15 @@ bool SymbolicHardware::setSymbolicMmioRange(S2EExecutionState *state, uint64_t p
     s2e()->getDebugStream() << "SymbolicHardware: adding MMIO range 0x" << std::hex << physaddr
             << " length=0x" << size << std::endl;
 
+    assert(state->isActive());
+
     DECLARE_PLUGINSTATE(SymbolicHardwareState, state);
-    return plgState->addMmioRange(physaddr, size);
+    bool b = plgState->addMmioRange(physaddr, size);
+    if (b) {
+        //We must flush the TLB, so that the next access can be taken into account
+        tlb_flush(state->getConcreteCpuState(), 1);
+    }
+    return b;
 }
 
 //XXX: Allow to unmap partial ranges.
@@ -162,8 +169,10 @@ bool SymbolicHardware::resetSymbolicMmioRange(S2EExecutionState *state, uint64_t
 bool SymbolicHardware::isMmioSymbolic(uint64_t physaddress, uint64_t size) const
 {
     DECLARE_PLUGINSTATE_CONST(SymbolicHardwareState, g_s2e_state);
-    //XXX: fix the 1.
-    return plgState->isMmio(physaddress, size);
+
+    bool b = plgState->isMmio(physaddress, size);
+    s2e()->getDebugStream() << "isMmioSymbolic: 0x" << std::hex << physaddress << " res=" << b << std::endl;
+    return b;
 }
 
 static bool symbhw_is_symbolic(uint16_t port, void *opaque)

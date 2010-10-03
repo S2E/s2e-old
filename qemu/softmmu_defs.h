@@ -68,6 +68,10 @@ uint16_t io_make_symbolicw_mmu(const char *name);
 uint32_t io_make_symbolicl_mmu(const char *name);
 uint64_t io_make_symbolicq_mmu(const char *name);
 
+uint8_t REGPARM io_read_chk_symb_b_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
+uint16_t REGPARM io_read_chk_symb_w_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
+uint32_t REGPARM io_read_chk_symb_l_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
+uint64_t REGPARM io_read_chk_symb_q_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
 
 
 #ifdef CONFIG_S2E
