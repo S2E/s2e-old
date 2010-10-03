@@ -333,7 +333,23 @@ int s2e_is_port_symbolic(struct S2E *s2e, struct S2EExecutionState* state, uint6
     return s2e->getCorePlugin()->isPortSymbolic(port);
 }
 
-int s2e_is_mmio_symbolic(uint64_t address)
+int s2e_is_mmio_symbolic_b(uint64_t address)
 {
-    return g_s2e->getCorePlugin()->isMmioSymbolic(address);
+    return g_s2e->getCorePlugin()->isMmioSymbolic(address, 1);
 }
+
+int s2e_is_mmio_symbolic_w(uint64_t address)
+{
+    return g_s2e->getCorePlugin()->isMmioSymbolic(address, 2);
+}
+
+int s2e_is_mmio_symbolic_l(uint64_t address)
+{
+    return g_s2e->getCorePlugin()->isMmioSymbolic(address, 4);
+}
+
+int s2e_is_mmio_symbolic_q(uint64_t address)
+{
+    return g_s2e->getCorePlugin()->isMmioSymbolic(address, 8);
+}
+

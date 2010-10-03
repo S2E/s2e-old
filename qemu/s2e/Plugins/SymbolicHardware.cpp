@@ -44,8 +44,8 @@ extern "C" {
     static bool symbhw_is_symbolic(uint16_t port, void *opaque);
     static bool symbhw_is_symbolic_none(uint16_t port, void *opaque);
 
-    static bool symbhw_is_mmio_symbolic(uint64_t physaddr, void *opaque);
-    static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, void *opaque);
+    static bool symbhw_is_mmio_symbolic(uint64_t physaddr, uint64_t size, void *opaque);
+    static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, uint64_t size, void *opaque);
 
     static int pci_symbhw_init(PCIDevice *pci_dev);
     static int pci_symbhw_uninit(PCIDevice *pci_dev);
@@ -159,12 +159,11 @@ bool SymbolicHardware::resetSymbolicMmioRange(S2EExecutionState *state, uint64_t
     return plgState->delMmioRange(physaddr);
 }
 
-//XXX: assume that physaddress and the implied size do not overflow a page boundary.
-bool SymbolicHardware::isMmioSymbolic(uint64_t physaddress) const
+bool SymbolicHardware::isMmioSymbolic(uint64_t physaddress, uint64_t size) const
 {
     DECLARE_PLUGINSTATE_CONST(SymbolicHardwareState, g_s2e_state);
     //XXX: fix the 1.
-    return plgState->isMmio(physaddress, 1);
+    return plgState->isMmio(physaddress, size);
 }
 
 static bool symbhw_is_symbolic(uint16_t port, void *opaque)
@@ -178,13 +177,13 @@ static bool symbhw_is_symbolic_none(uint16_t port, void *opaque)
     return false;
 }
 
-static bool symbhw_is_mmio_symbolic(uint64_t physaddr, void *opaque)
+static bool symbhw_is_mmio_symbolic(uint64_t physaddr, uint64_t size, void *opaque)
 {
     SymbolicHardware *hw = static_cast<SymbolicHardware*>(opaque);
-    return hw->isMmioSymbolic(physaddr);
+    return hw->isMmioSymbolic(physaddr, size);
 }
 
-static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, void *opaque)
+static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, uint64_t size, void *opaque)
 {
     return false;
 }
@@ -815,7 +814,6 @@ PluginState *SymbolicHardwareState::factory(Plugin *p, S2EExecutionState *s)
 
 bool SymbolicHardwareState::addMmioRange(uint64_t physbase, uint64_t size)
 {
-    assert((size & 0xFFF) == 0 && "Size must be a multiple of 4KB");
     MemoryRange mr;
     mr.base = physbase;
     mr.size = size;

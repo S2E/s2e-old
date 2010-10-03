@@ -1447,7 +1447,7 @@ void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMoni
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HandleInterruptHandlerRet)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
-   plgState->waitHandler = false;
+   plgState->isrHandlerExecuted = true;
 }
 
 void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
@@ -1494,12 +1494,11 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
     if (!ok) {
         s2e()->getExecutor()->terminateStateEarly(*state, "Could not determine whether the NDIS driver queued the interrupt");
     }else {
-        if ((!isrRecognized || !isrQueue) && !plgState->waitHandler) {
+        if ((!isrRecognized || !isrQueue) && !plgState->isrHandlerExecuted) {
             s2e()->getExecutor()->terminateStateEarly(*state, "The state will not trigger any interrupt");
         }
     }
 
-    plgState->waitHandler = true;
     m_devDesc->setInterrupt(false);
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
@@ -1806,7 +1805,7 @@ NdisHandlersState::NdisHandlersState()
     fakeoid = false;
     isrRecognized = 0;
     isrQueue = 0;
-    waitHandler = false;
+    isrHandlerExecuted = false;
     faketimer = false;
     shutdownHandler = 0;
 }

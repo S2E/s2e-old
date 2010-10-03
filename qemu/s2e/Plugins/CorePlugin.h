@@ -25,7 +25,7 @@ typedef sigc::signal<void, S2EExecutionState*, uint64_t /* pc */> ExecutionSigna
   * An interested plugin can use it. Only one plugin can use it at a time.
   * This is necessary tp speedup checks (and avoid using signals) */
 typedef bool (*SYMB_PORT_CHECK)(uint16_t port, void *opaque);
-typedef bool (*SYMB_MMIO_CHECK)(uint64_t physaddress, void *opaque);
+typedef bool (*SYMB_MMIO_CHECK)(uint64_t physaddress, uint64_t size, void *opaque);
 
 class CorePlugin : public Plugin {
     S2E_PLUGIN
@@ -66,9 +66,9 @@ public:
         return false;
     }
 
-    inline bool isMmioSymbolic(uint64_t physAddress) const {
+    inline bool isMmioSymbolic(uint64_t physAddress, uint64_t size) const {
         if (m_isMmioSymbolicCb) {
-            return m_isMmioSymbolicCb(physAddress, m_isMmioSymbolicOpaque);
+            return m_isMmioSymbolicCb(physAddress, size, m_isMmioSymbolicOpaque);
         }
         return false;
     }

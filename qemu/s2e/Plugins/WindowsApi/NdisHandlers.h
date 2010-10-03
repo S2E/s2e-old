@@ -123,7 +123,7 @@ private:
     uint32_t val1, val2, val3;
 
     uint32_t isrRecognized, isrQueue;
-    bool waitHandler;
+    bool isrHandlerExecuted;
 
     uint32_t shutdownHandler;
 public:

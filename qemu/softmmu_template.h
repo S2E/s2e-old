@@ -106,7 +106,7 @@ inline DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
     }
 
 #ifdef CONFIG_S2E
-    if (s2e_is_mmio_symbolic(physaddr)) {
+    if (glue(s2e_is_mmio_symbolic_, SUFFIX)(physaddr)) {
         s2e_switch_to_symbolic(g_s2e, g_s2e_state);
     }
 #endif
@@ -148,7 +148,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t p
                                           void *retaddr)
 {
     target_ulong naddr = (physaddr & TARGET_PAGE_MASK)+addr;
-    if (s2e_is_mmio_symbolic(naddr)) {
+    if (glue(s2e_is_mmio_symbolic_, SUFFIX)(naddr)) {
         //Return a symbolic value here
         char label[64];
         trace_port(label, "iommuread_", naddr, env->eip);

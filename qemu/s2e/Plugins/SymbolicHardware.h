@@ -152,7 +152,7 @@ public:
     void setSymbolicPortRange(uint16_t start, unsigned size, bool isSymbolic);
     bool isSymbolic(uint16_t port) const;
 
-    bool isMmioSymbolic(uint64_t physaddress) const;
+    bool isMmioSymbolic(uint64_t physaddress, uint64_t size) const;
     bool setSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr, uint64_t size);
     bool resetSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr);
 private:

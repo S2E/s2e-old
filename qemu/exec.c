@@ -2160,9 +2160,11 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     }
 
 #ifdef CONFIG_S2E
-    if (s2e_is_mmio_symbolic(paddr)) {
+    if (s2e_is_mmio_symbolic_b(paddr)) {
         //We hijack qemu's dirty page management to redirect
         //all accesses to MMIO memory through our handlers.
+        //Note: Such ranges can be less than one page long, so we have to
+        //deal with normal memory accesses as well...
         te->addr_read |= TLB_NOTDIRTY;
     }
 #endif

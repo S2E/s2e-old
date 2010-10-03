@@ -71,6 +71,7 @@ uint64_t io_make_symbolicq_mmu(const char *name);
 
 
 #ifdef CONFIG_S2E
+
 uint8_t REGPARM io_readb_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 void REGPARM io_writeb_mmu_s2e_trace(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
 uint16_t REGPARM io_readw_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
