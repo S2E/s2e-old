@@ -120,7 +120,7 @@ private:
     bool hasIsrHandler;
     uint32_t oid, pInformationBuffer;
     bool fakeoid, faketimer;
-    uint32_t val1, val2;
+    uint32_t val1, val2, val3;
 
     uint32_t isrRecognized, isrQueue;
     bool waitHandler;

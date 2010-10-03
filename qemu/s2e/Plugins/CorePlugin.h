@@ -25,6 +25,7 @@ typedef sigc::signal<void, S2EExecutionState*, uint64_t /* pc */> ExecutionSigna
   * An interested plugin can use it. Only one plugin can use it at a time.
   * This is necessary tp speedup checks (and avoid using signals) */
 typedef bool (*SYMB_PORT_CHECK)(uint16_t port, void *opaque);
+typedef bool (*SYMB_MMIO_CHECK)(uint64_t physaddress, void *opaque);
 
 class CorePlugin : public Plugin {
     S2E_PLUGIN
@@ -32,13 +33,17 @@ class CorePlugin : public Plugin {
 private:
     struct QEMUTimer *m_Timer;
     SYMB_PORT_CHECK m_isPortSymbolicCb;
+    SYMB_MMIO_CHECK m_isMmioSymbolicCb;
     void *m_isPortSymbolicOpaque;
+    void *m_isMmioSymbolicOpaque;
 
 public:
     CorePlugin(S2E* s2e): Plugin(s2e) {
         m_Timer = NULL;
         m_isPortSymbolicCb = NULL;
+        m_isMmioSymbolicCb = NULL;
         m_isPortSymbolicOpaque = NULL;
+        m_isMmioSymbolicOpaque = NULL;
     }
 
     void initialize();
@@ -49,9 +54,21 @@ public:
         m_isPortSymbolicOpaque = opaque;
     }
 
+    void setMmioCallback(SYMB_MMIO_CHECK cb, void *opaque) {
+        m_isMmioSymbolicCb = cb;
+        m_isMmioSymbolicOpaque = opaque;
+    }
+
     inline bool isPortSymbolic(uint16_t port) const {
         if (m_isPortSymbolicCb) {
             return m_isPortSymbolicCb(port, m_isPortSymbolicOpaque);
+        }
+        return false;
+    }
+
+    inline bool isMmioSymbolic(uint64_t physAddress) const {
+        if (m_isMmioSymbolicCb) {
+            return m_isMmioSymbolicCb(physAddress, m_isMmioSymbolicOpaque);
         }
         return false;
     }

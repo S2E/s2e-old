@@ -105,6 +105,12 @@ inline DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
         cpu_io_recompile(env, retaddr);
     }
 
+#ifdef CONFIG_S2E
+    if (s2e_is_mmio_symbolic(physaddr)) {
+        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+    }
+#endif
+
     env->mem_io_vaddr = addr;
 #if SHIFT <= 2
     res = io_mem_read[index][SHIFT](io_mem_opaque[index], physaddr);
@@ -119,6 +125,38 @@ inline DATA_TYPE glue(glue(io_read, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
 #endif /* SHIFT > 2 */
     return res;
 }
+
+inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+                                          target_ulong addr,
+                                          void *retaddr)
+{
+    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(physaddr, addr, retaddr);
+}
+
+
+#else
+
+inline DATA_TYPE glue(glue(io_make_symbolic, SUFFIX), MMUSUFFIX)(const char *name) {
+    DATA_TYPE ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+
+inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
+                                          target_ulong addr,
+                                          void *retaddr)
+{
+    target_ulong naddr = (physaddr & TARGET_PAGE_MASK)+addr;
+    if (s2e_is_mmio_symbolic(naddr)) {
+        //Return a symbolic value here
+        char label[64];
+        trace_port(label, "iommuread_", naddr, env->eip);
+        return glue(glue(io_make_symbolic, SUFFIX), MMUSUFFIX)(label);
+    }
+    return glue(glue(io_read, SUFFIX), MMUSUFFIX)(physaddr, addr, retaddr);
+}
+
 
 #endif
 
@@ -147,7 +185,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 goto do_unaligned_access;
             retaddr = GETPC();
             addend = env->iotlb[mmu_idx][index];
-            res = glue(glue(io_read, SUFFIX), MMUSUFFIX)(addend, addr, retaddr);
+            res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(addend, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+addend, res, 0, 1);
 
@@ -218,7 +256,7 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
                 goto do_unaligned_access;
             retaddr = GETPC();
             addend = env->iotlb[mmu_idx][index];
-            res = glue(glue(io_read, SUFFIX), MMUSUFFIX)(addend, addr, retaddr);
+            res = glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(addend, addr, retaddr);
 
             S2E_TRACE_MEMORY(addr, addr+addend, res, 0, 1);
         } else if (((addr & ~S2E_RAM_OBJECT_MASK) + DATA_SIZE - 1) >= S2E_RAM_OBJECT_SIZE) {
@@ -259,6 +297,8 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
     }
     return res;
 }
+
+/*************************************************************************************/
 
 #ifndef SOFTMMU_CODE_ACCESS
 
@@ -302,6 +342,7 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
                                           target_ulong addr,
                                           void *retaddr)
 {
+    //XXX: check symbolic memory mapped devices and write log here.
     glue(glue(io_write, SUFFIX), MMUSUFFIX)(physaddr, val, addr, retaddr);
 }
 
@@ -312,6 +353,8 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
   * This function checks whether a write goes to a clean memory page.
   * If yes, does the write directly.
   * This avoids symbolic values flowing outside the LLVM code and killing the states.
+  *
+  * It also deals with writes to memory-mapped devices that are symbolic
   */
 inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physaddr,
                                           DATA_TYPE val,
@@ -352,6 +395,8 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
     }
 #endif
 #endif /* SHIFT > 2 */
+
+    //XXX: Check if MMIO is symbolic, and add corresponding trace entry
 
     //By default, call the original io_write function, which is external
     glue(glue(io_write, SUFFIX), MMUSUFFIX)(oldphysaddr, val, addr, retaddr);

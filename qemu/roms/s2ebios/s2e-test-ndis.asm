@@ -83,8 +83,8 @@ NdisMAllocateSharedMemory:
     mov dword [eax], 0x90000
 
     mov eax, [esp + 4*(1+4)]
-    mov dword [eax], 0x7777
-    mov dword [eax+4], 0x7778
+    mov dword [eax], 0x90000
+    mov dword [eax+4], 0x0000
 
     xor eax, eax
 ret 4*5
@@ -415,6 +415,13 @@ test_ndis:
     call NdisDriverEntry
     xor eax, eax
 
+    ;-----------------
+    ;Modify this to call different tests
+    call ndis_test_symbmmio
+    jmp lp1
+    ;-----------------
+
+
     push 0
     push 0
     push 0
@@ -593,3 +600,31 @@ lp1:
 
 
 
+
+ndis_test_symbmmio:
+    push ebp
+    mov ebp, esp
+
+    push 0x90004; PhysicalAddress
+    push 0x90000; VirtualAddress
+    push 0 ;cached
+    push 0x1000; length
+    push 0x000; handle
+    call NdisMAllocateSharedMemory
+
+    cmp dword[0x90000], 0
+    jnz nts_ok
+    call s2e_kill_state
+
+nts_ok:
+
+    ;Try to access the memory
+    mov eax, [0x90000]
+    cmp eax, 0
+    je nts_ok1
+
+nts_ok1:
+
+    call s2e_kill_state
+    leave
+    ret

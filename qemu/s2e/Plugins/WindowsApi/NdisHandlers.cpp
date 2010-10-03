@@ -332,6 +332,7 @@ void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionM
     bool ok = true;
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
+    ok &= readConcreteParameter(state, 1, &plgState->val3); //Length
     ok &= readConcreteParameter(state, 3, &plgState->val1); //VirtualAddress
     ok &= readConcreteParameter(state, 4, &plgState->val2); //PhysicalAddress
 
@@ -366,6 +367,10 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
         s2e()->getWarningsStream() << __FUNCTION__  << ": original call has failed" << std::endl;
         return;
     }
+
+    //Register symbolic DMA memory.
+    //All reads from it will be symbolic.
+    m_hw->setSymbolicMmioRange(state, pa, plgState->val3);
 
     //Consistency: LOCAL
     if (m_consistency == LOCAL || m_consistency == OVERAPPROX) {

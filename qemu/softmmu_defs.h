@@ -47,6 +47,29 @@ void REGPARM io_write_chkw_mmu(target_phys_addr_t physaddr, uint16_t val, target
 void REGPARM io_write_chkl_mmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
 void REGPARM io_write_chkq_mmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
+uint8_t REGPARM io_read_chkb_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint16_t REGPARM io_read_chkw_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint32_t REGPARM io_read_chkl_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint64_t REGPARM io_read_chkq_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+
+uint8_t REGPARM io_read_chkb_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint16_t REGPARM io_read_chkw_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint32_t REGPARM io_read_chkl_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint64_t REGPARM io_read_chkq_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+
+
+uint8_t REGPARM io_read_chkb_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint16_t REGPARM io_read_chkw_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint32_t REGPARM io_read_chkl_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint64_t REGPARM io_read_chkq_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+
+uint8_t io_make_symbolicb_mmu(const char *name);
+uint16_t io_make_symbolicw_mmu(const char *name);
+uint32_t io_make_symbolicl_mmu(const char *name);
+uint64_t io_make_symbolicq_mmu(const char *name);
+
+
+
 #ifdef CONFIG_S2E
 uint8_t REGPARM io_readb_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 void REGPARM io_writeb_mmu_s2e_trace(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
@@ -68,6 +91,7 @@ uint32_t REGPARM __ldl_mmu_s2e_trace(target_ulong addr, int mmu_idx);
 void REGPARM __stl_mmu_s2e_trace(target_ulong addr, uint32_t val, int mmu_idx);
 uint64_t REGPARM __ldq_mmu_s2e_trace(target_ulong addr, int mmu_idx);
 void REGPARM __stq_mmu_s2e_trace(target_ulong addr, uint64_t val, int mmu_idx);
+
 #endif
 
 #endif

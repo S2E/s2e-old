@@ -2159,6 +2159,14 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
         te->addr_read = -1;
     }
 
+#ifdef CONFIG_S2E
+    if (s2e_is_mmio_symbolic(paddr)) {
+        //We hijack qemu's dirty page management to redirect
+        //all accesses to MMIO memory through our handlers.
+        te->addr_read |= TLB_NOTDIRTY;
+    }
+#endif
+
     if (prot & PAGE_EXEC) {
         te->addr_code = code_address;
     } else {

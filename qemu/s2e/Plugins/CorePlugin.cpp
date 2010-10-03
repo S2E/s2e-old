@@ -332,3 +332,8 @@ int s2e_is_port_symbolic(struct S2E *s2e, struct S2EExecutionState* state, uint6
 {
     return s2e->getCorePlugin()->isPortSymbolic(port);
 }
+
+int s2e_is_mmio_symbolic(uint64_t address)
+{
+    return g_s2e->getCorePlugin()->isMmioSymbolic(address);
+}

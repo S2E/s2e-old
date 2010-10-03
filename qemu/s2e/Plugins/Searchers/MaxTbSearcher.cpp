@@ -79,7 +79,7 @@ void MaxTbSearcher::addTb(S2EExecutionState *s, uint64_t absTargetPc)
     uint64_t targetPc = md->ToNativeBase(absTargetPc);
     m_coveredTbs[*md].insert(targetPc);
 }
-#endif
+
 
 static uint64_t GetPcAssignment(const BasicBlock *bb)
 {
@@ -108,6 +108,7 @@ static uint64_t GetPcAssignment(const BasicBlock *bb)
     }
     return 0;
 }
+#endif
 
 uint64_t MaxTbSearcher::computeTargetPc(S2EExecutionState *state)
 {

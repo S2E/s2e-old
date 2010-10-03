@@ -44,6 +44,9 @@ extern "C" {
     static bool symbhw_is_symbolic(uint16_t port, void *opaque);
     static bool symbhw_is_symbolic_none(uint16_t port, void *opaque);
 
+    static bool symbhw_is_mmio_symbolic(uint64_t physaddr, void *opaque);
+    static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, void *opaque);
+
     static int pci_symbhw_init(PCIDevice *pci_dev);
     static int pci_symbhw_uninit(PCIDevice *pci_dev);
     static int isa_symbhw_init(ISADevice *dev);
@@ -107,11 +110,14 @@ void SymbolicHardware::initialize()
 
     if (EnableSymbHw) {
         s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic, this);
+        s2e()->getCorePlugin()->setMmioCallback(symbhw_is_mmio_symbolic, this);
     }else {
         s2e()->getCorePlugin()->setPortCallback(symbhw_is_symbolic_none, this);
+        s2e()->getCorePlugin()->setMmioCallback(symbhw_is_mmio_symbolic_none, this);
     }
 }
 
+//XXX: Do it per-state!
 void SymbolicHardware::setSymbolicPortRange(uint16_t start, unsigned size, bool isSymbolic)
 {
     assert(start + size <= 0x10000 && start+size>=start);
@@ -127,11 +133,38 @@ void SymbolicHardware::setSymbolicPortRange(uint16_t start, unsigned size, bool 
     }
 }
 
-bool SymbolicHardware::isSymbolic(uint16_t port)
+bool SymbolicHardware::isSymbolic(uint16_t port) const
 {
     uint16_t idx = port/(sizeof(m_portMap[0])*8);
     uint16_t mod = port%(sizeof(m_portMap[0])*8);
     return m_portMap[idx] & (1<<mod);
+}
+
+//This can be used in two cases:
+//1: On device registration, to map the MMIO registers
+//2: On DMA memory registration, in conjunction with the OS annotations.
+bool SymbolicHardware::setSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr, uint64_t size)
+{
+    s2e()->getDebugStream() << "SymbolicHardware: adding MMIO range 0x" << std::hex << physaddr
+            << " length=0x" << size << std::endl;
+
+    DECLARE_PLUGINSTATE(SymbolicHardwareState, state);
+    return plgState->addMmioRange(physaddr, size);
+}
+
+//XXX: Allow to unmap partial ranges.
+bool SymbolicHardware::resetSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr)
+{
+    DECLARE_PLUGINSTATE(SymbolicHardwareState, state);
+    return plgState->delMmioRange(physaddr);
+}
+
+//XXX: assume that physaddress and the implied size do not overflow a page boundary.
+bool SymbolicHardware::isMmioSymbolic(uint64_t physaddress) const
+{
+    DECLARE_PLUGINSTATE_CONST(SymbolicHardwareState, g_s2e_state);
+    //XXX: fix the 1.
+    return plgState->isMmio(physaddress, 1);
 }
 
 static bool symbhw_is_symbolic(uint16_t port, void *opaque)
@@ -141,6 +174,17 @@ static bool symbhw_is_symbolic(uint16_t port, void *opaque)
 }
 
 static bool symbhw_is_symbolic_none(uint16_t port, void *opaque)
+{
+    return false;
+}
+
+static bool symbhw_is_mmio_symbolic(uint64_t physaddr, void *opaque)
+{
+    SymbolicHardware *hw = static_cast<SymbolicHardware*>(opaque);
+    return hw->isMmioSymbolic(physaddr);
+}
+
+static bool symbhw_is_mmio_symbolic_none(uint64_t physaddr, void *opaque)
 {
     return false;
 }
@@ -633,8 +677,13 @@ static void pci_symbhw_map(PCIDevice *pci_dev, int region_num,
         hw->setSymbolicPortRange(addr, size, true);
     }
 
+    SymbolicHardware *shw = static_cast<SymbolicHardware*>(g_s2e->getPlugin("SymbolicHardware"));
+    assert(shw);
+
     if (type & PCI_BASE_ADDRESS_SPACE_MEMORY) {
         cpu_register_physical_memory(addr, size, s->desc->mmio_io_addr);
+        //XXX: there must also be an unmap method somewhere
+        shw->setSymbolicMmioRange(g_s2e_state, addr, size);
     }
 }
 
@@ -736,6 +785,70 @@ static int pci_symbhw_uninit(PCIDevice *pci_dev)
 
     cpu_unregister_io_memory(d->desc->mmio_io_addr);
     return 0;
+}
+
+
+
+//////////////////////////////////////////////////////////////
+//Holds per-state information.
+
+
+SymbolicHardwareState::SymbolicHardwareState()
+{
+
+}
+
+SymbolicHardwareState::~SymbolicHardwareState()
+{
+
+}
+
+SymbolicHardwareState* SymbolicHardwareState::clone() const
+{
+    return new SymbolicHardwareState(*this);
+}
+
+PluginState *SymbolicHardwareState::factory(Plugin *p, S2EExecutionState *s)
+{
+    return new SymbolicHardwareState();
+}
+
+bool SymbolicHardwareState::addMmioRange(uint64_t physbase, uint64_t size)
+{
+    assert((size & 0xFFF) == 0 && "Size must be a multiple of 4KB");
+    MemoryRange mr;
+    mr.base = physbase;
+    mr.size = size;
+
+    MemoryRanges::iterator it = m_MmioMemory.find(mr);
+    if (it != m_MmioMemory.end()) {
+        //Range already mapped
+        return false;
+    }
+
+    m_MmioMemory.insert(mr);
+    return true;
+}
+
+//Unmaps a previously allocated range.
+//phybase must fall inside an existing range.
+bool SymbolicHardwareState::delMmioRange(uint64_t physbase)
+{
+    MemoryRange mr;
+    mr.base = physbase;
+    mr.size = 1;
+
+    return m_MmioMemory.erase(mr) == 1;
+}
+
+bool SymbolicHardwareState::isMmio(uint64_t physaddr, uint64_t size) const
+{
+    MemoryRange mr;
+    mr.base = physaddr;
+    mr.size = size;
+
+    MemoryRanges::const_iterator it = m_MmioMemory.find(mr);
+    return it != m_MmioMemory.end();
 }
 
 

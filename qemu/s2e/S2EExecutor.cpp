@@ -579,6 +579,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     //__DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
     __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
     __DEFINE_EXT_FUNCTION(s2e_is_port_symbolic)
+    __DEFINE_EXT_FUNCTION(s2e_is_mmio_symbolic)
+
 
     __DEFINE_EXT_FUNCTION(s2e_ismemfunc)
     __DEFINE_EXT_FUNCTION(s2e_notdirty_mem_write)

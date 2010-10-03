@@ -150,13 +150,51 @@ public:
     DeviceDescriptor *findDevice(const std::string &name) const;
 
     void setSymbolicPortRange(uint16_t start, unsigned size, bool isSymbolic);
-    bool isSymbolic(uint16_t port);
+    bool isSymbolic(uint16_t port) const;
+
+    bool isMmioSymbolic(uint64_t physaddress) const;
+    bool setSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr, uint64_t size);
+    bool resetSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr);
 private:
     uint32_t m_portMap[65536/(sizeof(uint32_t)*8)];
     DeviceDescriptors m_devices;
 
     void onDeviceRegistration();
     void onDeviceActivation(struct PCIBus* pci);
+
+};
+
+class SymbolicHardwareState : public PluginState
+{
+public:
+    struct MemoryRange {
+        uint64_t base, size;
+        bool operator()(const MemoryRange &r1, const MemoryRange &r2) const {
+            return r1.base + r1.size <= r2.base;
+        }
+        MemoryRange() {
+            base = size = 0;
+        }
+    };
+
+    typedef std::set<MemoryRange, MemoryRange> MemoryRanges;
+private:
+
+    MemoryRanges m_MmioMemory;
+
+
+public:
+
+    SymbolicHardwareState();
+    virtual ~SymbolicHardwareState();
+    virtual SymbolicHardwareState* clone() const;
+    static PluginState *factory(Plugin *p, S2EExecutionState *s);
+
+    bool addMmioRange(uint64_t physbase, uint64_t size);
+    bool delMmioRange(uint64_t physbase);
+    bool isMmio(uint64_t physaddr, uint64_t size) const;
+
+    friend class SymbolicHardware;
 
 };
 
