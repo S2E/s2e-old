@@ -883,15 +883,10 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (getConsistency(__FUNCTION__) == STRICT) {
-        return;
-    }
-
-    state->undoCallAndJumpToSymbolic();
-
-    uint32_t offset, buffer, length;
+    uint32_t slot, offset, buffer, length;
     bool ok = true;
 
+    ok &= readConcreteParameter(state, 1, &slot);
     ok &= readConcreteParameter(state, 2, &offset);
     ok &= readConcreteParameter(state, 3, &buffer);
     ok &= readConcreteParameter(state, 4, &length);
@@ -899,14 +894,23 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
         s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
     }
 
+    s2e()->getDebugStream(state) << "Buffer=" << std::hex << buffer <<
+        " Length=" << std::dec << length << " Slot=" << slot << " Offset=" << offset << std::endl;
+
+
+    if (getConsistency(__FUNCTION__) != OVERAPPROX) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
     uint64_t retaddr;
     ok = state->getReturnAddress(&retaddr);
 
-    s2e()->getDebugStream(state) << "Buffer=" << std::hex << buffer <<
-        " Length=" << std::dec << length << std::endl;
 
     uint8_t buf[256];
     bool readConcrete = false;
+
     //Check if we access the base address registers
     if (offset >= 0x10 && offset < 0x28 && (offset - 0x10 + length <= 0x28)) {
         //Get the real concrete values
