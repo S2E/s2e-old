@@ -41,6 +41,7 @@ private:
 
     StringSet m_ignoreKeywords;
     unsigned m_timerIntervalFactor;
+    uint32_t m_forceAdapterType;
 
     //Pair of address + private pointer for all registered timer entry points
     typedef std::set<std::pair<uint32_t, uint32_t> > TimerEntryPoints;
@@ -70,6 +71,8 @@ private:
     DECLARE_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_ENTRY_POINT(NdisMAllocateMapRegisters);
     DECLARE_ENTRY_POINT(NdisMInitializeTimer);
+    DECLARE_ENTRY_POINT(NdisMSetAttributesEx);
+    DECLARE_ENTRY_POINT(NdisMSetAttributes);
     DECLARE_ENTRY_POINT(NdisSetTimer);
     DECLARE_ENTRY_POINT(NdisMRegisterAdapterShutdownHandler);
     DECLARE_ENTRY_POINT(NdisReadNetworkAddress);
@@ -126,6 +129,7 @@ private:
     bool isrHandlerExecuted;
 
     uint32_t shutdownHandler;
+
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();

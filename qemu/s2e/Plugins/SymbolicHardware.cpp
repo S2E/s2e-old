@@ -171,7 +171,7 @@ bool SymbolicHardware::isMmioSymbolic(uint64_t physaddress, uint64_t size) const
     DECLARE_PLUGINSTATE_CONST(SymbolicHardwareState, g_s2e_state);
 
     bool b = plgState->isMmio(physaddress, size);
-    s2e()->getDebugStream() << "isMmioSymbolic: 0x" << std::hex << physaddress << " res=" << b << std::endl;
+    //s2e()->getDebugStream() << "isMmioSymbolic: 0x" << std::hex << physaddress << " res=" << b << std::endl;
     return b;
 }
 

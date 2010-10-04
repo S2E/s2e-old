@@ -63,6 +63,10 @@ void NdisHandlers::initialize()
     //via NdisSetTimer.
     m_timerIntervalFactor = cfg->getInt(getConfigKey() + ".timerIntervalFactor", 1, &ok);
 
+    //What device type do we want to force?
+    //This is only for overapproximate consistency
+    m_forceAdapterType = cfg->getInt(getConfigKey() + ".forceAdapterType", InterfaceTypeUndefined, &ok);
+
     foreach2(it, mods.begin(), mods.end()) {
         m_modules.insert(*it);
     }
@@ -154,6 +158,8 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ndis.sys", NdisMQueryAdapterResources);
     REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateMapRegisters);
     REGISTER_IMPORT(I, "ndis.sys", NdisMInitializeTimer);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMSetAttributes);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMSetAttributesEx);
     REGISTER_IMPORT(I, "ndis.sys", NdisSetTimer);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterAdapterShutdownHandler);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadNetworkAddress);
@@ -229,14 +235,16 @@ void NdisHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonit
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
     state->undoCallAndJumpToSymbolic();
 
     //XXX: local assumes the stuff comes from the registry
-    if (m_consistency == OVERAPPROX || m_consistency == LOCAL) {
+    //XXX: local consistency is broken, because each time gets a new symbolic value,
+    //disregarding the string.
+    if (getConsistency(__FUNCTION__) == OVERAPPROX || getConsistency(__FUNCTION__) == LOCAL) {
         klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
         state->bypassFunction(3);
@@ -250,7 +258,7 @@ void NdisHandlers::NdisAllocateMemoryWithTag(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -268,7 +276,7 @@ void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -293,13 +301,13 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
     }
 
     //XXX: this causes problems and false crashes, too slow
-    /*if (m_consistency == OVERAPPROX) {
+    /*if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
     }else*/
 
     //Consistency: LOCAL
-    if (m_consistency == LOCAL || m_consistency == OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) == LOCAL || getConsistency(__FUNCTION__) == OVERAPPROX) {
         /* Fork success and failure */
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
@@ -374,7 +382,7 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
     }
 
 
-    if (m_consistency == LOCAL || m_consistency == OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) == LOCAL || getConsistency(__FUNCTION__) == OVERAPPROX) {
         std::stringstream ss;
         ss << __FUNCTION__ << "_success";
         klee::ref<klee::Expr> succ = state->createSymbolicValue(klee::Expr::Int8, ss.str());
@@ -605,7 +613,7 @@ void NdisHandlers::NdisMMapIoSpace(S2EExecutionState* state, FunctionMonitorStat
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -617,7 +625,7 @@ void NdisHandlers::NdisMMapIoSpaceRet(S2EExecutionState* state)
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     s2e()->getExecutor()->jumpToSymbolicCpp(state);
 
-    if (m_consistency == LOCAL) {
+    if (getConsistency(__FUNCTION__) == LOCAL) {
         std::vector<uint32_t> values;
 
         values.push_back(NDIS_STATUS_SUCCESS);
@@ -636,7 +644,7 @@ void NdisHandlers::NdisMAllocateMapRegisters(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -657,7 +665,7 @@ void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
         return;
     }
 
-    if (m_consistency == LOCAL) {
+    if (getConsistency(__FUNCTION__) == LOCAL) {
         std::vector<uint32_t> values;
 
         values.push_back(NDIS_STATUS_SUCCESS);
@@ -669,13 +677,50 @@ void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
     }
 }
 
+void NdisHandlers::NdisMSetAttributesEx(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    klee::ref<klee::Expr> interfaceType = readParameter(state, 4);
+    s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << std::endl;
+
+    if (getConsistency(__FUNCTION__) != OVERAPPROX) {
+        return;
+    }
+
+    if (((signed)m_forceAdapterType) != InterfaceTypeUndefined) {
+        s2e()->getDebugStream(state) << "Forcing NIC type to " << std::dec << m_forceAdapterType << std::endl;
+        writeParameter(state, 4, klee::ConstantExpr::create(m_forceAdapterType, klee::Expr::Int32));
+    }
+}
+
+
+void NdisHandlers::NdisMSetAttributes(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    klee::ref<klee::Expr> interfaceType = readParameter(state, 3);
+    s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << std::endl;
+
+    if (getConsistency(__FUNCTION__) != OVERAPPROX) {
+        return;
+    }
+
+    if (((signed)m_forceAdapterType) != InterfaceTypeUndefined) {
+        s2e()->getDebugStream(state) << "Forcing NIC type to " << std::dec << m_forceAdapterType << std::endl;
+        writeParameter(state, 3, klee::ConstantExpr::create(m_forceAdapterType, klee::Expr::Int32));
+    }
+
+}
 
 void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -771,7 +816,7 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
         //Continue, this error is not too bad.
     }
 
-    if (m_consistency == LOCAL) {
+    if (getConsistency(__FUNCTION__) == LOCAL) {
         //Fork with either success or failure
         //XXX: Since we cannot write to memory of inactive states, simply create a bunch of select statements
         std::stringstream ss;
@@ -783,7 +828,7 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
                                              klee::ConstantExpr::create(NDIS_STATUS_FAILURE, klee::Expr::Int32));
         state->writeMemory(plgState->pStatus, outcome);
 
-    }else if (m_consistency == OVERAPPROX) {
+    }else if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         std::stringstream ss;
         ss << __FUNCTION__ << "_success";
         klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int32, ss.str());
@@ -838,7 +883,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -897,7 +942,7 @@ void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, Functio
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -934,7 +979,7 @@ void NdisHandlers::NdisMQueryAdapterResources(S2EExecutionState* state, Function
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -980,7 +1025,7 @@ void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMoni
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         //Pretend the interrupt is shared, to force the ISR to be called.
         //Make sure there is indeed a miniportisr registered
         DECLARE_PLUGINSTATE(NdisHandlersState, state);
@@ -1014,13 +1059,13 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
         return;
     }
 
-    if (m_consistency == OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
     }else
 
     //Consistency: LOCAL
-    if (m_consistency == LOCAL) {
+    if (getConsistency(__FUNCTION__) == LOCAL) {
         std::vector<uint32_t> values;
 
         values.push_back(NDIS_STATUS_SUCCESS);
@@ -1036,7 +1081,7 @@ void NdisHandlers::NdisMRegisterIoPortRange(S2EExecutionState* state, FunctionMo
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -1060,13 +1105,13 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
         return;
     }
 
-    if (m_consistency == OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
     }else
 
     //Consistency: LOCAL
-    if (m_consistency == LOCAL) {
+    if (getConsistency(__FUNCTION__) == LOCAL) {
         std::vector<uint32_t> values;
 
         values.push_back(NDIS_STATUS_SUCCESS);
@@ -1083,7 +1128,7 @@ void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMoni
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
@@ -1141,7 +1186,7 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
         state->writeMemory(NetworkAddress + i, val);
     }
 
-    if (m_consistency == LOCAL) {
+    if (getConsistency(__FUNCTION__) == LOCAL) {
         //Fork with either success or failure
         //XXX: Since we cannot write to memory of inactive states, simply create a bunch of select statements
         std::stringstream ss;
@@ -1153,7 +1198,7 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
                                              klee::ConstantExpr::create(NDIS_STATUS_FAILURE, klee::Expr::Int32));
         state->writeMemory(plgState->pStatus, outcome);
 
-    }else if (m_consistency == OVERAPPROX) {
+    }else if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         std::stringstream ss;
         ss << __FUNCTION__ << "_success";
         klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int32, ss.str());
@@ -1203,7 +1248,7 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency != STRICT) {
+    if (getConsistency(__FUNCTION__) != STRICT) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterMiniportRet)
     }
 
@@ -1257,7 +1302,7 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
         return;
     }
 
-    if (m_consistency == OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         //Replace the return value with a symbolic value
         if ((int)eax>=0) {
             klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
@@ -1290,7 +1335,7 @@ void NdisHandlers::CheckForHangRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (m_consistency == OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         //Pretend we did not hang
         //uint32_t success = 0;
         //state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &success, sizeof(success));
@@ -1320,11 +1365,11 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
         return;
     }
 
-    if (m_consistency == STRICT) {
+    if (getConsistency(__FUNCTION__) == STRICT) {
         return;
     }
 
-    //if (m_consistency == LOCAL)
+    //if (getConsistency(__FUNCTION__) == LOCAL)
     {
         //Make size properly constrained
         if (pMediumArray) {
@@ -1350,10 +1395,10 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 
     //Check the success status, kill if failure
     klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
-
+    klee::Solver *solver = s2e()->getExecutor()->getSolver();
     bool isTrue;
     klee::ref<klee::Expr> eq = klee::EqExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
-    if (!s2e()->getExecutor()->getSolver()->mayBeTrue(klee::Query(state->constraints, eq), isTrue)) {
+    if (!solver->mayBeTrue(klee::Query(state->constraints, eq), isTrue)) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
                 " because InitializeHandler failed to determine success" << std::endl;
         s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler solver failed");
@@ -1513,7 +1558,7 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
 
     s2e()->getDebugStream() << "Called with OID=0x" << std::hex << plgState->oid << std::endl;
 
-    if (m_consistency != OVERAPPROX) {
+    if (getConsistency(__FUNCTION__) != OVERAPPROX) {
         return;
     }
 
@@ -1808,7 +1853,7 @@ NdisHandlersState::NdisHandlersState()
     isrQueue = 0;
     isrHandlerExecuted = false;
     faketimer = false;
-    shutdownHandler = 0;
+    shutdownHandler = 0;   
 }
 
 NdisHandlersState::~NdisHandlersState()

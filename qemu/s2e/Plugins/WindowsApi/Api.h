@@ -45,6 +45,7 @@ public:
 
     static bool ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s);
 
+    static klee::ref<klee::Expr> readParameter(S2EExecutionState *s, unsigned param);
     static bool readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val);
     static bool writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val);
 

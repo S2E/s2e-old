@@ -79,6 +79,48 @@ typedef struct _NDIS_CONFIGURATION_PARAMETER {
     } ParameterData;
 } NDIS_CONFIGURATION_PARAMETER, *PNDIS_CONFIGURATION_PARAMETER;
 
+typedef enum _INTERFACE_TYPE {
+    InterfaceTypeUndefined = -1,
+    Internal,
+    Isa,
+    Eisa,
+    MicroChannel,
+    TurboChannel,
+    PCIBus,
+    VMEBus,
+    NuBus,
+    PCMCIABus,
+    CBus,
+    MPIBus,
+    MPSABus,
+    ProcessorInternal,
+    InternalPowerBus,
+    PNPISABus,
+    PNPBus,
+    MaximumInterfaceType
+}INTERFACE_TYPE, *PINTERFACE_TYPE;
+
+
+typedef enum _NDIS_INTERFACE_TYPE
+{
+    NdisInterfaceInternal = Internal,
+    NdisInterfaceIsa = Isa,
+    NdisInterfaceEisa = Eisa,
+    NdisInterfaceMca = MicroChannel,
+    NdisInterfaceTurboChannel = TurboChannel,
+    NdisInterfacePci = PCIBus,
+    NdisInterfacePcMcia = PCMCIABus,
+    NdisInterfaceCBus = CBus,
+    NdisInterfaceMPIBus = MPIBus,
+    NdisInterfaceMPSABus = MPSABus,
+    NdisInterfaceProcessorInternal = ProcessorInternal,
+    NdisInterfaceInternalPowerBus = InternalPowerBus,
+    NdisInterfacePNPISABus = PNPISABus,
+    NdisInterfacePNPBus = PNPBus,
+    NdisMaximumInterfaceType
+} NDIS_INTERFACE_TYPE, *PNDIS_INTERFACE_TYPE;
+
+
 typedef enum _NDIS_MEDIUM {
   NdisMedium802_3,
   NdisMedium802_5,

@@ -186,6 +186,11 @@ bool WindowsApi::readConcreteParameter(S2EExecutionState *s, unsigned param, uin
     return s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), val, sizeof(*val));
 }
 
+klee::ref<klee::Expr> WindowsApi::readParameter(S2EExecutionState *s, unsigned param)
+{
+    return s->readMemory(s->getSp() + (param+1) * sizeof(uint32_t), klee::Expr::Int32);
+}
+
 bool WindowsApi::writeParameter(S2EExecutionState *s, unsigned param, klee::ref<klee::Expr> val)
 {
     return s->writeMemory(s->getSp() + (param+1) * sizeof(uint32_t), val);
