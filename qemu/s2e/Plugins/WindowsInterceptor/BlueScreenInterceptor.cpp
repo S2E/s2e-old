@@ -6,6 +6,7 @@ extern "C" {
 
 
 #include <s2e/S2E.h>
+#include <s2e/ConfigFile.h>
 #include <s2e/S2EExecutor.h>
 #include "BlueScreenInterceptor.h"
 #include <s2e/Plugins/ModuleExecutionDetector.h>
@@ -28,6 +29,9 @@ void BlueScreenInterceptor::initialize()
     s2e()->getCorePlugin()->onTranslateBlockStart.connect(
             sigc::mem_fun(*this,
                     &BlueScreenInterceptor::onTranslateBlockStart));
+
+    bool ok;
+    m_generateCrashDump = s2e()->getConfig()->getBool(getConfigKey() + ".generateCrashDump", false, &ok);
 }
 
 void BlueScreenInterceptor::onTranslateBlockStart(
@@ -62,7 +66,9 @@ void BlueScreenInterceptor::onBsod(
         state->dumpStack(512);
     }
 
-    //generateCrashDump(state);
+    if (m_generateCrashDump) {
+        generateCrashDump(state);
+    }
 
     s2e()->getExecutor()->terminateStateEarly(*state, "Killing because of BSOD");
 }
@@ -198,21 +204,27 @@ void BlueScreenInterceptor::generateCrashDump(S2EExecutionState *state)
 
     memset( ZeroPage, 0, 0x1000 );
 
+    CurrentMemoryRun = 0;
     while( CurrentMemoryRun < ppmd->NumberOfRuns ) {
-        if( ppmd->Run[CurrentMemoryRun].PageCount == 'EGAP' || ppmd->Run[CurrentMemoryRun].BasePage == 'EGAP' )
+        if( ppmd->Run[CurrentMemoryRun].PageCount == DUMP_HDR_SIGNATURE || ppmd->Run[CurrentMemoryRun].BasePage == DUMP_HDR_SIGNATURE )
         {
             s2e()->getDebugStream() << "PHYSICAL_MEMORY_DESCRIPTOR corrupted." << std::endl;
             break;
         }
 
+        s2e()->getDebugStream() << "Processing run " << std::dec << CurrentMemoryRun << std::endl;
+
 
         uint32_t ProcessedPagesInCurrentRun = 0;
         while( ProcessedPagesInCurrentRun < ppmd->Run[CurrentMemoryRun].PageCount ) {
-            uint32_t physAddr = ppmd->Run[CurrentMemoryRun].BasePage + ProcessedPagesInCurrentRun;
+            uint32_t physAddr = (ppmd->Run[CurrentMemoryRun].BasePage + ProcessedPagesInCurrentRun) * 0x1000;
+
+            s2e()->getDebugStream() << "Processing page " << std::dec << ProcessedPagesInCurrentRun
+                    << "(addr=0x" << std::hex << physAddr << std::endl;
 
             memset(TempPage, 0, sizeof(TempPage));
             for (uint32_t i=0; i<0x1000; ++i) {
-                klee::ref<klee::Expr> v = state->readMemory(physAddr, klee::Expr::Int8, S2EExecutionState::PhysicalAddress);
+                klee::ref<klee::Expr> v = state->readMemory(physAddr+i, klee::Expr::Int8, S2EExecutionState::PhysicalAddress);
                 if (v.isNull() || !isa<klee::ConstantExpr>(v)) {
                     //XXX fix this
                     continue;
@@ -246,11 +258,13 @@ bool BlueScreenInterceptor::initializeHeader(S2EExecutionState *state, DUMP_HEAD
     }
 
     uint8_t *rawhdr = (uint8_t*)hdr;
-    memset(rawhdr, 'EGAP', 0x1000);
+    for (unsigned i=0; i<0x1000; i+=4) {
+        *(uint32_t*)(rawhdr + i) = DUMP_HDR_SIGNATURE;
+    }
 
-    hdr->ValidDump = 'PMUD';
-    hdr->MajorVersion = kprcb.MajorVersion;
-    hdr->MinorVersion = kprcb.MinorVersion;
+    hdr->ValidDump = DUMP_HDR_DUMPSIGNATURE;
+    hdr->MajorVersion = 0xF; //Free build (0xC for checked)
+    hdr->MinorVersion = 2600; //XXX: hard-coded for sp3
     hdr->DirectoryTableBase = state->getPid();
 
     //Fetch KdDebuggerDataBlock
@@ -280,7 +294,7 @@ bool BlueScreenInterceptor::initializeHeader(S2EExecutionState *state, DUMP_HEAD
         return false;
     }
 
-    if(KdDebuggerDataBlock.ValidBlock != 'GBDK' || KdDebuggerDataBlock.Size != sizeof(KdDebuggerDataBlock) )
+    if(KdDebuggerDataBlock.ValidBlock != DUMP_KDBG_SIGNATURE || KdDebuggerDataBlock.Size != sizeof(KdDebuggerDataBlock) )
     {
         // Invalid debugger data block
         s2e()->getDebugStream() << "KD_DEBUGGER_DATA_BLOCK32 is invalid" << std::endl;
@@ -292,29 +306,53 @@ bool BlueScreenInterceptor::initializeHeader(S2EExecutionState *state, DUMP_HEAD
     hdr->PsActiveProcessHead = KdDebuggerDataBlock.PsActiveProcessHead.VirtualAddress;
 
     //Get physical memory descriptor
-    PHYSICAL_MEMORY_DESCRIPTOR MmPhysicalMemoryBlock;
+    uint32_t pMmPhysicalMemoryBlock;
     ok = state->readMemoryConcrete(KdDebuggerDataBlock.MmPhysicalMemoryBlock.VirtualAddress,
-                                   &MmPhysicalMemoryBlock, sizeof(MmPhysicalMemoryBlock));
+                                   &pMmPhysicalMemoryBlock, sizeof(pMmPhysicalMemoryBlock));
+    if (!ok) {
+        s2e()->getDebugStream() << "Could not read pMmPhysicalMemoryBlock" << std::endl;
+        return false;
+    }
+
+    //Determine the number of runs
+    uint32_t RunCount;
+    ok = state->readMemoryConcrete(pMmPhysicalMemoryBlock,
+                                   &RunCount, sizeof(RunCount));
+
+    if (!ok) {
+        s2e()->getDebugStream() << "Could not read number of runs" << std::endl;
+        return false;
+    }
+
+    //Allocate enough memory for reading the whole structure
+    size_t SizeOfMemoryDescriptor;
+    if (RunCount == DUMP_HDR_SIGNATURE) {
+        SizeOfMemoryDescriptor = sizeof(PHYSICAL_MEMORY_DESCRIPTOR);
+    } else {
+        SizeOfMemoryDescriptor = sizeof(PHYSICAL_MEMORY_DESCRIPTOR) - sizeof(PHYSICAL_MEMORY_RUN) +
+        sizeof(PHYSICAL_MEMORY_RUN)*RunCount;
+    }
+
+    //XXX: is there a more beautiful way of doing this?
+    PHYSICAL_MEMORY_DESCRIPTOR *MmPhysicalMemoryBlock =
+            (PHYSICAL_MEMORY_DESCRIPTOR *)new uint8_t[SizeOfMemoryDescriptor];
+
+    ok = state->readMemoryConcrete(pMmPhysicalMemoryBlock,
+                                   MmPhysicalMemoryBlock, SizeOfMemoryDescriptor);
     if (!ok) {
         s2e()->getDebugStream() << "Could not read PHYSICAL_MEMORY_DESCRIPTOR" << std::endl;
+        delete [] MmPhysicalMemoryBlock;
         return false;
     }
 
     blocks = (uint32_t*)(uintptr_t)rawhdr;
 
-    if( MmPhysicalMemoryBlock.NumberOfRuns == 'EGAP' ) {
-        memcpy(	&blocks[ DH_PHYSICAL_MEMORY_BLOCK ],
-                        &MmPhysicalMemoryBlock,
-                        sizeof(PHYSICAL_MEMORY_DESCRIPTOR)
-                        );
-    } else {
-        memcpy(	&blocks[ DH_PHYSICAL_MEMORY_BLOCK ],
-                        &MmPhysicalMemoryBlock,
-                        sizeof(PHYSICAL_MEMORY_DESCRIPTOR) - sizeof(PHYSICAL_MEMORY_RUN) +
-                        sizeof(PHYSICAL_MEMORY_RUN)*MmPhysicalMemoryBlock.NumberOfRuns
-                        );
-    }
+    memcpy(&blocks[ DH_PHYSICAL_MEMORY_BLOCK ], MmPhysicalMemoryBlock, SizeOfMemoryDescriptor);
 
+    // Initialize dump type & size
+    blocks[ DH_DUMP_TYPE ] = DUMP_TYPE_COMPLETE;
+    *((uint64_t*)&blocks[DH_REQUIRED_DUMP_SPACE]) = ( MmPhysicalMemoryBlock->NumberOfPages << 12 ) + 0x1000;
+    delete [] MmPhysicalMemoryBlock;
 
     s2e::windows::CONTEXT32 ctx;
     saveContext(state, ctx);
@@ -334,10 +372,6 @@ bool BlueScreenInterceptor::initializeHeader(S2EExecutionState *state, DUMP_HEAD
                                     &exception,
                                     sizeof(exception)
                                     );
-
-    // Initialize dump type & size
-    blocks[ DH_DUMP_TYPE ] = DUMP_TYPE_COMPLETE;
-    *((uint64_t*)&blocks[DH_REQUIRED_DUMP_SPACE]) = ( MmPhysicalMemoryBlock.NumberOfPages << 12 ) + 0x1000;
 
     return true;
 

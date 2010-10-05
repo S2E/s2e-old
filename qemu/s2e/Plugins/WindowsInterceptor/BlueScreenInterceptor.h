@@ -13,6 +13,10 @@ namespace plugins {
 //Below are data types used to generate Windows kernel crash dumps
 //Most of the stuff is taken from http://www.wasm.ru/print.php?article=dmp_format_en
 
+#define DUMP_HDR_SIGNATURE  0x45474150 //'EGAP'
+#define DUMP_HDR_DUMPSIGNATURE  0x504D5544 //'PMUD'
+#define DUMP_KDBG_SIGNATURE  0x4742444B //'GBDK'
+
 struct DUMP_HEADER32 {
 /* 00 */    uint32_t Signature;
 /* 04 */    uint32_t ValidDump;
@@ -217,6 +221,7 @@ public:
 
 private:
     WindowsMonitor *m_monitor;
+    bool m_generateCrashDump;
 
     void onTranslateBlockStart(
         ExecutionSignal *signal,
