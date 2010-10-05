@@ -998,6 +998,16 @@ int main(int argc, char **argv)
                 D("autoconfig: -sdcard %s", opts->sdcard);
             }
         }
+
+#if CONFIG_ANDROID_SNAPSHOTS
+        if (!opts->snapstorage && opts->datadir) {
+            bufprint(tmp, tmpend, "%s/snapshots.img", opts->datadir);
+            if (path_exists(tmp)) {
+                opts->snapstorage = qemu_strdup(tmp);
+                D("autoconfig: -snapstorage %s", opts->snapstorage);
+            }
+        }
+#endif
     }
 
     /* setup the virtual device parameters from our options
@@ -1008,16 +1018,24 @@ int main(int argc, char **argv)
     if (opts->wipe_data) {
         android_avdParams->flags |= AVDINFO_WIPE_DATA | AVDINFO_WIPE_CACHE;
     }
+#if CONFIG_ANDROID_SNAPSHOTS
+    if (opts->no_snapstorage) {
+        android_avdParams->flags |= AVDINFO_NO_SNAPSHOTS;
+    }
+#endif
 
     /* if certain options are set, we can force the path of
         * certain kernel/disk image files
         */
-    _forceAvdImagePath(AVD_IMAGE_KERNEL,     opts->kernel, "kernel", 1);
-    _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system, "system", 1);
-    _forceAvdImagePath(AVD_IMAGE_RAMDISK,    opts->ramdisk,"ramdisk", 1);
-    _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,   "user data", 0);
-    _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,  "cache", 0);
-    _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard, "SD Card", 0);
+    _forceAvdImagePath(AVD_IMAGE_KERNEL,     opts->kernel,      "kernel", 1);
+    _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system,      "system", 1);
+    _forceAvdImagePath(AVD_IMAGE_RAMDISK,    opts->ramdisk,     "ramdisk", 1);
+    _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,        "user data", 0);
+    _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,       "cache", 0);
+    _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard,      "SD Card", 0);
+#if CONFIG_ANDROID_SNAPSHOTS
+    _forceAvdImagePath(AVD_IMAGE_SNAPSHOTS,  opts->snapstorage, "snapshots", 0);
+#endif
 
     /* we don't accept -skindir without -skin now
      * to simplify the autoconfig stuff with virtual devices
@@ -1375,6 +1393,37 @@ int main(int argc, char **argv)
             D("no SD Card image at '%s'", opts->sdcard);
         }
     }
+
+#if CONFIG_ANDROID_SNAPSHOTS
+    if (!opts->no_snapstorage) {
+        opts->snapstorage = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SNAPSHOTS);
+        if(opts->snapstorage) {
+            if (path_exists(opts->snapstorage)) {
+                args[n++] = "-hdb";
+                args[n++] = opts->snapstorage;
+            } else {
+                D("no image at '%s', state snapshots disabled", opts->snapstorage);
+            }
+        }
+
+        if (!opts->no_snapshot) {
+            args[n++] = "-loadvm";
+            if (opts->snapshot) {
+                args[n++] = opts->snapshot;
+            } else {
+                // name of state snapshot to load if not specified by user
+                args[n++] = "default-boot";
+            }
+        } else if (opts->snapshot) {
+            dwarning("option '-no-snapshot' overrides '-snapshot', continuing with boot sequence");
+        }
+    } else if (opts->snapshot || opts->snapstorage) {
+        dwarning("option '-no-snapstorage' overrides '-snapshot' and '-snapstorage', "
+                 "continuing with full boot, state snapshots are disabled");
+    } else if (opts->no_snapshot) {
+        D("ignoring redundant option '-no-snapshot' implied by '-no-snapstorage'");
+    }
+#endif
 
     if (!opts->logcat || opts->logcat[0] == 0) {
         opts->logcat = getenv("ANDROID_LOG_TAGS");

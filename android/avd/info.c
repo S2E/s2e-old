@@ -10,6 +10,7 @@
 ** GNU General Public License for more details.
 */
 #include "android/avd/info.h"
+#include "android/config/config.h"
 #include "android/utils/path.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/filelock.h"
@@ -681,7 +682,30 @@ EXIT:
     return l->pPath[0];
 }
 
+/* Attempts to load an AVD image, but does not kill the process if loading
+ * fails.
+ */
+static void
+imageLoader_loadOptional( ImageLoader *l, AvdImageType img_type,
+                           const char *forcedPath )
+{
+    imageLoader_set (l, img_type);
+    imageLoader_load(l, IMAGE_OPTIONAL |
+                        IMAGE_IGNORE_IF_LOCKED);
 
+    /* if the file was not found, ignore it */
+    if (l->pPath[0] && !path_exists(l->pPath[0]))
+    {
+        D("ignoring non-existing %s at %s: %s",
+          l->imageText, l->pPath[0], strerror(errno));
+
+        /* if the user provided the path by hand, warn him. */
+        if (forcedPath != NULL)
+            dwarning("ignoring non-existing %s image", l->imageText);
+
+        imageLoader_setPath(l, NULL);
+    }
+}
 
 /* find the correct path of all image files we're going to need
  * and lock the files that need it.
@@ -689,10 +713,13 @@ EXIT:
 static int
 _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
 {
-    int   wipeData  = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   wipeCache = (params->flags & AVDINFO_WIPE_CACHE) != 0;
-    int   noCache   = (params->flags & AVDINFO_NO_CACHE) != 0;
-    int   noSdCard  = (params->flags & AVDINFO_NO_SDCARD) != 0;
+    int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
+    int   wipeCache   = (params->flags & AVDINFO_WIPE_CACHE) != 0;
+    int   noCache     = (params->flags & AVDINFO_NO_CACHE) != 0;
+    int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
+#if CONFIG_ANDROID_SNAPSHOTS
+    int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
+#endif
 
     ImageLoader  l[1];
 
@@ -778,24 +805,19 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
      * already used, we must ignore it.
      */
     if (!noSdCard) {
-        imageLoader_set (l, AVD_IMAGE_SDCARD);
-        imageLoader_load(l, IMAGE_OPTIONAL |
-                            IMAGE_IGNORE_IF_LOCKED);
-
-        /* if the file was not found, ignore it */
-        if (l->pPath[0] && !path_exists(l->pPath[0])) 
-        {
-            D("ignoring non-existing %s at %s: %s",
-              l->imageText, l->pPath[0], strerror(errno));
-
-            /* if the user provided the SD Card path by hand,
-             * warn him. */
-            if (params->forcePaths[AVD_IMAGE_SDCARD] != NULL)
-                dwarning("ignoring non-existing SD Card image");
-
-            imageLoader_setPath(l, NULL);
-        }
+        imageLoader_loadOptional(l, AVD_IMAGE_SDCARD,
+                                 params->forcePaths[AVD_IMAGE_SDCARD]);
     }
+
+#if CONFIG_ANDROID_SNAPSHOTS
+    /* the state snapshot image. Mounting behaviour identical to
+     * SD card.
+     */
+    if (!noSnapshots) {
+        imageLoader_loadOptional(l, AVD_IMAGE_SNAPSHOTS,
+                                 params->forcePaths[AVD_IMAGE_SNAPSHOTS]);
+    }
+#endif
 
     return 0;
 }
@@ -1146,9 +1168,12 @@ _getBuildConfigIni( AvdInfo*  i )
 static int
 _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 {
-    int   wipeData  = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   noCache   = (params->flags & AVDINFO_NO_CACHE) != 0;
-    int   noSdCard  = (params->flags & AVDINFO_NO_SDCARD) != 0;
+    int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
+    int   noCache     = (params->flags & AVDINFO_NO_CACHE) != 0;
+    int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
+#if CONFIG_ANDROID_SNAPSHOTS
+    int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
+#endif
 
     char         temp[PATH_MAX], *p=temp, *end=p+sizeof temp;
     char*        srcData;
@@ -1262,6 +1287,15 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
         imageLoader_set (l, AVD_IMAGE_SDCARD);
         imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
     }
+
+#if CONFIG_ANDROID_SNAPSHOTS
+    /** State snapshots image
+     **/
+    if (!noSnapshots) {
+        imageLoader_set (l, AVD_IMAGE_SNAPSHOTS);
+        imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
+    }
+#endif
 
     return 0;
 }

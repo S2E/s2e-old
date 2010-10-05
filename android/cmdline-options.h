@@ -76,6 +76,12 @@ CFG_PARAM( cache,    "<file>", "cache partition image (default is temporary file
 CFG_FLAG ( no_cache, "disable the cache partition" )
 CFG_FLAG ( nocache,  "same as -no-cache" )
 OPT_PARAM( sdcard, "<file>", "SD card image (default <system>/sdcard.img")
+#if CONFIG_ANDROID_SNAPSHOTS
+OPT_PARAM( snapstorage,    "<file>", "file that contains all state snapshots (default <datadir>/snapshots.img)")
+OPT_FLAG ( no_snapstorage, "do not mount a snapshot storage file (this disables all snapshot functionality)" )
+OPT_PARAM( snapshot,       "<name>", "immediately load state snapshot rather than doing a full boot (default 'default-boot')" )
+OPT_FLAG ( no_snapshot,    "do not start from snapshot, but perform a full boot sequence" )
+#endif
 OPT_FLAG ( wipe_data, "reset the use data image (copy it from initdata)" )
 CFG_PARAM( avd, "<name>", "use a specific android virtual device" )
 CFG_PARAM( skindir, "<dir>", "search skins in <dir> (default <system>/skins)" )

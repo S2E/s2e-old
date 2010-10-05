@@ -14,6 +14,7 @@
 
 #include "android/utils/ini.h"
 #include "android/avd/hw-config.h"
+#include "android/config/config.h"
 
 /* An Android Virtual Device (AVD for short) corresponds to a
  * directory containing all kernel/disk images for a given virtual
@@ -45,6 +46,12 @@
  *
  */
 
+
+#if CONFIG_ANDROID_SNAPSHOTS
+#define _AVD_IMG_SNAPSHOT _AVD_IMG(SNAPSHOTS,"snapshots.img","snapshots")
+#else
+#define _AVD_IMG_SNAPSHOT
+#endif
 /* a macro used to define the list of disk images managed by the
  * implementation. This macro will be expanded several times with
  * varying definitions of _AVD_IMG
@@ -58,6 +65,7 @@
     _AVD_IMG(USERDATA,"userdata-qemu.img", "user data") \
     _AVD_IMG(CACHE,"cache.img","cache") \
     _AVD_IMG(SDCARD,"sdcard.img","SD Card") \
+    _AVD_IMG_SNAPSHOT \
 
 /* define the enumared values corresponding to each AVD image type
  * examples are: AVD_IMAGE_KERNEL, AVD_IMAGE_SYSTEM, etc..
@@ -86,6 +94,10 @@ typedef enum {
     AVDINFO_NO_SDCARD = (1 << 3),
     /* use to wipe the system image with new initial values */
     AVDINFO_WIPE_SYSTEM = (1 << 4),
+#if CONFIG_ANDROID_SNAPSHOTS
+    /* use to ignore ignore state snapshot image (default or provided) */
+    AVDINFO_NO_SNAPSHOTS = (1 << 5),
+#endif
 } AvdFlags;
 
 typedef struct {

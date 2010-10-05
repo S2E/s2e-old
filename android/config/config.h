@@ -13,3 +13,4 @@
 #ifndef _WIN32
 #define CONFIG_NAND_LIMITS 1
 #endif
+#define CONFIG_ANDROID_SNAPSHOTS 0
