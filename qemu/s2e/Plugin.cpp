@@ -32,6 +32,7 @@
 
 #include <s2e/Plugins/WindowsApi/NdisHandlers.h>
 #include <s2e/Plugins/WindowsApi/NtoskrnlHandlers.h>
+#include <s2e/Plugins/WindowsApi/HalHandlers.h>
 
 #include <s2e/Plugins/Searchers/MaxTbSearcher.h>
 
@@ -87,6 +88,8 @@ PluginsFactory::PluginsFactory()
 
     __S2E_REGISTER_PLUGIN(plugins::NdisHandlers);
     __S2E_REGISTER_PLUGIN(plugins::NtoskrnlHandlers);
+    __S2E_REGISTER_PLUGIN(plugins::HalHandlers);
+
     __S2E_REGISTER_PLUGIN(plugins::StateManager);
 
     __S2E_REGISTER_PLUGIN(plugins::MaxTbSearcher);

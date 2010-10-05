@@ -90,10 +90,6 @@ protected:
     void parseSpecificConsistency(const std::string &key);
     void parseConsistency(const std::string &key);
     Consistency getConsistency(const std::string &fcn) const;
-
-
-
-
 };
 
 }

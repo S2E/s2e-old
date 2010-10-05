@@ -500,6 +500,91 @@ typedef struct _KPRCB32 {
 
 } KPRCB32;
 
+typedef enum _INTERFACE_TYPE {
+    InterfaceTypeUndefined = -1,
+    Internal,
+    Isa,
+    Eisa,
+    MicroChannel,
+    TurboChannel,
+    PCIBus,
+    VMEBus,
+    NuBus,
+    PCMCIABus,
+    CBus,
+    MPIBus,
+    MPSABus,
+    ProcessorInternal,
+    InternalPowerBus,
+    PNPISABus,
+    PNPBus,
+    MaximumInterfaceType
+}INTERFACE_TYPE, *PINTERFACE_TYPE;
+
+struct FLOATING_SAVE_AREA
+{
+     uint32_t ControlWord;
+     uint32_t StatusWord;
+     uint32_t TagWord;
+     uint32_t ErrorOffset;
+     uint32_t ErrorSelector;
+     uint32_t DataOffset;
+     uint32_t DataSelector;
+     uint8_t  RegisterArea[80];
+     uint32_t Cr0NpxState;
+};
+
+
+struct CONTEXT32
+{
+     uint32_t ContextFlags;
+     uint32_t Dr0;
+     uint32_t Dr1;
+     uint32_t Dr2;
+     uint32_t Dr3;
+     uint32_t Dr6;
+     uint32_t Dr7;
+     FLOATING_SAVE_AREA FloatSave;
+     uint32_t SegGs;
+     uint32_t SegFs;
+     uint32_t SegEs;
+     uint32_t SegDs;
+     uint32_t Edi;
+     uint32_t Esi;
+     uint32_t Ebx;
+     uint32_t Edx;
+     uint32_t Ecx;
+     uint32_t Eax;
+     uint32_t Ebp;
+     uint32_t Eip;
+     uint32_t SegCs;
+     uint32_t EFlags;
+     uint32_t Esp;
+     uint32_t SegSs;
+     uint32_t ExtendedRegisters[512];
+};
+
+#define EXCEPTION_MAXIMUM_PARAMETERS 15
+
+#define EXCEPTION_NONCONTINUABLE   0x0001
+#define EXCEPTION_UNWINDING        0x0002
+#define EXCEPTION_EXIT_UNWIND      0x0004
+#define EXCEPTION_STACK_INVALID    0x0008
+#define EXCEPTION_NESTED_CALL      0x0010
+#define EXCEPTION_TARGET_UNWIND    0x0020
+#define EXCEPTION_COLLIDED_UNWIND  0x0040
+#define EXCEPTION_UNWIND           0x0066
+
+#define STATUS_BREAKPOINT 0x80000003
+
+struct EXCEPTION_RECORD32 {
+    uint32_t ExceptionCode;
+    uint32_t ExceptionFlags;
+    uint32_t ExceptionRecord; //struct _EXCEPTION_RECORD
+    uint32_t ExceptionAddress; //PVOID
+    uint32_t NumberParameters;
+    uint32_t ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
+};
 
 
 

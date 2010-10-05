@@ -79,26 +79,7 @@ typedef struct _NDIS_CONFIGURATION_PARAMETER {
     } ParameterData;
 } NDIS_CONFIGURATION_PARAMETER, *PNDIS_CONFIGURATION_PARAMETER;
 
-typedef enum _INTERFACE_TYPE {
-    InterfaceTypeUndefined = -1,
-    Internal,
-    Isa,
-    Eisa,
-    MicroChannel,
-    TurboChannel,
-    PCIBus,
-    VMEBus,
-    NuBus,
-    PCMCIABus,
-    CBus,
-    MPIBus,
-    MPSABus,
-    ProcessorInternal,
-    InternalPowerBus,
-    PNPISABus,
-    PNPBus,
-    MaximumInterfaceType
-}INTERFACE_TYPE, *PINTERFACE_TYPE;
+
 
 
 typedef enum _NDIS_INTERFACE_TYPE
