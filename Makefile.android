@@ -650,6 +650,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     monitor.c \
                     readline.c \
                     qemu-char-android.c \
+                    outputchannel.c \
                     qemu-error.c \
                     qerror.c \
                     disas.c \
