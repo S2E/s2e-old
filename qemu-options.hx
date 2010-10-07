@@ -1680,4 +1680,10 @@ DEF("boot-property", HAS_ARG, QEMU_OPTION_boot_property, \
 DEF("lcd-density", HAS_ARG, QEMU_OPTION_lcd_density, \
     "-lcd-density <density> sets LCD density system property on boot\n")
 
+DEF("ui-port", HAS_ARG, QEMU_OPTION_ui_port, \
+    "-ui-port <port> socket port to report initialization completion\n")
+
+DEF("ui-settings", HAS_ARG, QEMU_OPTION_ui_settings, \
+    "-ui-settings <string> opaque string containing persitent UI settings\n")
+
 #endif

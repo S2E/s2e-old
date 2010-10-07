@@ -678,6 +678,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     android/console.c \
                     android/hw-sensors.c \
                     android/hw-qemud.c \
+                    android/core-init-utils.c   \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
