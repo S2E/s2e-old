@@ -86,7 +86,11 @@ endif
 ifneq ($(BUILD_STANDALONE_EMULATOR),true)
 
   ifneq ($(USE_CCACHE),)
-    MY_CC := prebuilt/$(HOST_PREBUILT_TAG)/ccache/ccache $(MY_CC)
+    ccache := prebuilt/$(HOST_PREBUILT_TAG)/ccache/ccache
+    ifneq ($(ccache),$(firstword $(MY_CC)))
+      MY_CC := $(ccache) $(MY_CC)
+    endif
+    ccache :=
   endif
 endif
 
