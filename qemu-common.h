@@ -305,4 +305,13 @@ static inline uint8_t from_bcd(uint8_t val)
 
 #endif /* dyngen-exec.h hack */
 
+typedef enum DisplayType
+{
+    DT_DEFAULT,
+    DT_CURSES,
+    DT_SDL,
+    DT_VNC,
+    DT_NOGRAPHIC,
+} DisplayType;
+
 #endif

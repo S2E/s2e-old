@@ -109,15 +109,6 @@ int tap_win32_init(VLANState *vlan, const char *model,
 /* SLIRP */
 void do_info_slirp(Monitor *mon);
 
-typedef enum DisplayType
-{
-    DT_DEFAULT,
-    DT_CURSES,
-    DT_SDL,
-    DT_VNC,
-    DT_NOGRAPHIC,
-} DisplayType;
-
 extern int bios_size;
 extern int cirrus_vga_enabled;
 extern int std_vga_enabled;
