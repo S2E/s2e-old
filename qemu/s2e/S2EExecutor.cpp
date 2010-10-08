@@ -553,6 +553,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
     __DEFINE_EXT_FUNCTION(cpu_abort)
     __DEFINE_EXT_FUNCTION(cpu_loop_exit)
+    __DEFINE_EXT_FUNCTION(cpu_get_tsc)
     __DEFINE_EXT_FUNCTION(tb_find_pc)
 
     __DEFINE_EXT_FUNCTION(qemu_system_reset_request)

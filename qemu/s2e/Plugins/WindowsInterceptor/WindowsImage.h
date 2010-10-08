@@ -364,7 +364,7 @@ typedef struct _MODULE_ENTRY32
     uint32_t  unk1;
     UNICODE_STRING32 driver_Path;
     UNICODE_STRING32 driver_Name;
-} MODULE_ENTRY32, *PMODULE_ENTRY32;
+}   __attribute__((packed)) MODULE_ENTRY32, *PMODULE_ENTRY32;
 
 typedef struct _DRIVER_OBJECT32
 {
@@ -378,7 +378,7 @@ typedef struct _DRIVER_OBJECT32
   uint32_t DriverSize; //PVOID
   uint32_t DriverSection; //PVOID
   UNICODE_STRING32 DriverName;
-}DRIVER_OBJECT32, *PDRIVER_OBJECT32;
+} __attribute__((packed)) DRIVER_OBJECT32, *PDRIVER_OBJECT32;
 
 #define KPCR_OFFSET 0xFFDFF000
 #define KD_VERSION_BLOCK (KPCR_OFFSET + 0x34)
@@ -418,7 +418,7 @@ typedef struct _LDR_DATA_TABLE_ENTRY32
      };
      uint32_t EntryPointActivationContext;
      uint32_t PatchInformation;
-} LDR_DATA_TABLE_ENTRY32, *PLDR_DATA_TABLE_ENTRY32;
+}  __attribute__((packed)) LDR_DATA_TABLE_ENTRY32, *PLDR_DATA_TABLE_ENTRY32;
 
 
 typedef struct _PEB_LDR_DATA32
@@ -429,20 +429,20 @@ typedef struct _PEB_LDR_DATA32
   LIST_ENTRY32 InLoadOrderModuleList;
   LIST_ENTRY32 InMemoryOrderModuleList;
   uint32_t EntryInProgress;
-}PEB_LDR_DATA32;
+}  __attribute__((packed))PEB_LDR_DATA32;
 
 typedef struct _PEB32 {
   uint8_t Unk1[0x8];
   uint32_t ImageBaseAddress;
   uint32_t Ldr; /* PEB_LDR_DATA */
-}PEB32;
+} __attribute__((packed))PEB32;
 
 
 typedef struct _KPROCESS32 {
   uint8_t Unk1[0x18];
   uint32_t DirectoryTableBase;
   uint8_t Unk2[0x50];
-}KPROCESS32;
+} __attribute__((packed))KPROCESS32;
 
 typedef struct _EPROCESS32 {
   KPROCESS32 Pcb;
@@ -452,7 +452,7 @@ typedef struct _EPROCESS32 {
   uint8_t ImageFileName[16]; //offset 0x174
   uint32_t Unk3[11];
   uint32_t Peb;
-}EPROCESS32;
+} __attribute__((packed)) EPROCESS32;
 
 typedef struct _KAPC_STATE32 {
   LIST_ENTRY32 ApcListHead[2];
@@ -460,7 +460,7 @@ typedef struct _KAPC_STATE32 {
   uint8_t KernelApcInProgress;
   uint8_t KernelApcPending;
   uint8_t UserApcPending;
-}KAPC_STATE32;
+} __attribute__((packed))KAPC_STATE32;
 
 typedef struct _KTHREAD32
 {
@@ -470,35 +470,34 @@ typedef struct _KTHREAD32
   uint8_t Unk2[0x14];
   KAPC_STATE32 ApcState;
 
-}KTHREAD32;
+} __attribute__((packed))KTHREAD32;
 
-typedef struct _KPRCB32 {
-    uint16_t MinorVersion;
-    uint16_t MajorVersion;
-    uint32_t CurrentThread;
-    uint32_t NextThread;
-    uint32_t IdleThread;
-/*    CCHAR Number;
-    CCHAR WakeIdle;
-    USHORT BuildType;
-    KAFFINITY SetMember;
-    DWORD32  RestartBlock;
-    ULONG_PTR PcrPage;
-    ULONG Spare0[4];
+struct DESCRIPTOR32
+{
+     uint16_t Pad;
+     uint16_t Limit;
+     uint32_t Base;
+}__attribute__((packed));
 
-    ULONG     ProcessorModel;
-    ULONG     ProcessorRevision;
-    ULONG     ProcessorFamily;
-    ULONG     ProcessorArchRev;
-    ULONGLONG ProcessorSerialNumber;
-    ULONGLONG ProcessorFeatureBits;
-    UCHAR     ProcessorVendorString[16];
+struct KSPECIAL_REGISTERS32
+{
+     uint32_t Cr0;
+     uint32_t Cr2;
+     uint32_t Cr3;
+     uint32_t Cr4;
+     uint32_t KernelDr0;
+     uint32_t KernelDr1;
+     uint32_t KernelDr2;
+     uint32_t KernelDr3;
+     uint32_t KernelDr6;
+     uint32_t KernelDr7;
+     DESCRIPTOR32 Gdtr;
+     DESCRIPTOR32 Idtr;
+     uint16_t Tr;
+     uint16_t Ldtr;
+     uint32_t Reserved[6];
+}__attribute__((packed));
 
-    ULONGLONG SystemReserved[8];
-
-    ULONGLONG HalReserved[16]; */
-
-} KPRCB32;
 
 typedef enum _INTERFACE_TYPE {
     InterfaceTypeUndefined = -1,
@@ -532,7 +531,7 @@ struct FLOATING_SAVE_AREA
      uint32_t DataSelector;
      uint8_t  RegisterArea[80];
      uint32_t Cr0NpxState;
-};
+}__attribute__((packed));
 
 
 struct CONTEXT32
@@ -561,8 +560,21 @@ struct CONTEXT32
      uint32_t EFlags;
      uint32_t Esp;
      uint32_t SegSs;
-     uint32_t ExtendedRegisters[512];
-};
+     uint8_t ExtendedRegisters[512];
+}__attribute__((packed));
+
+#define CONTEXT_i386    0x00010000
+#define CONTEXT_i486    0x00010000
+
+#define CONTEXT_CONTROL         (CONTEXT_i386 | 0x00000001L)
+#define CONTEXT_INTEGER         (CONTEXT_i386 | 0x00000002L)
+#define CONTEXT_SEGMENTS        (CONTEXT_i386 | 0x00000004L)
+#define CONTEXT_FLOATING_POINT  (CONTEXT_i386 | 0x00000008L)
+#define CONTEXT_DEBUG_REGISTERS (CONTEXT_i386 | 0x00000010L)
+#define CONTEXT_EXTENDED_REGISTERS  (CONTEXT_i386 | 0x00000020L)
+
+#define CONTEXT_FULL (CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS)
+
 
 #define EXCEPTION_MAXIMUM_PARAMETERS 15
 
@@ -584,7 +596,44 @@ struct EXCEPTION_RECORD32 {
     uint32_t ExceptionAddress; //PVOID
     uint32_t NumberParameters;
     uint32_t ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
-};
+}__attribute__((packed));
+
+struct KPROCESSOR_STATE32
+{
+     CONTEXT32 ContextFrame;
+     KSPECIAL_REGISTERS32 SpecialRegisters;
+}__attribute__((packed));
+
+
+struct KPRCB32 {
+    uint16_t MinorVersion;
+    uint16_t MajorVersion;
+    uint32_t CurrentThread;
+    uint32_t NextThread;
+    uint32_t IdleThread;
+    uint8_t Number;
+    uint8_t WakeIdle;
+    uint16_t BuildType;
+    uint32_t SetMember;
+    uint32_t  RestartBlock;
+
+    KPROCESSOR_STATE32 ProcessorState;
+
+} __attribute__((packed));
+
+// Page frame number
+typedef uint32_t PFN_NUMBER;
+
+struct PHYSICAL_MEMORY_RUN {
+    PFN_NUMBER BasePage;
+    PFN_NUMBER PageCount;
+}__attribute__((packed));
+
+struct PHYSICAL_MEMORY_DESCRIPTOR {
+    uint32_t NumberOfRuns;
+    PFN_NUMBER NumberOfPages;
+    PHYSICAL_MEMORY_RUN Run[1];
+}__attribute__((packed));
 
 
 

@@ -8,6 +8,7 @@
 #include <s2e/Plugins/FunctionMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
+#include <s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 //#include <s2e/Plugins/CodeSelector.h>
 #include <s2e/Plugins/BaseInstructions.h>
@@ -67,6 +68,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::BlueScreenInterceptor);
+    __S2E_REGISTER_PLUGIN(plugins::WindowsCrashDumpGenerator);
     __S2E_REGISTER_PLUGIN(plugins::ModuleExecutionDetector);
     //__S2E_REGISTER_PLUGIN(plugins::CodeSelector);
     __S2E_REGISTER_PLUGIN(plugins::BaseInstructions);

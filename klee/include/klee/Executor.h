@@ -326,15 +326,6 @@ protected:
   ref<Expr> toUnique(const ExecutionState &state, ref<Expr> &e);
 
   /// Return a constant value for the given expression, forcing it to
-  /// be constant in the given state by adding a constraint if
-  /// necessary. Note that this function breaks completeness and
-  /// should generally be avoided.
-  ///
-  /// \param purpose An identify string to printed in case of concretization.
-  ref<klee::ConstantExpr> toConstant(ExecutionState &state, ref<Expr> e, 
-                                     const char *purpose);
-
-  /// Return a constant value for the given expression, forcing it to
   /// be constant in the given state but WITHOUT adding constraints.
   /// Note that this function could break correctness !
   ref<klee::ConstantExpr> toConstantSilent(ExecutionState &state, ref<Expr> e);
@@ -434,6 +425,15 @@ public:
 
   // XXX should just be moved out to utility module
   ref<klee::ConstantExpr> evalConstant(llvm::Constant *c);
+
+  /// Return a constant value for the given expression, forcing it to
+  /// be constant in the given state by adding a constraint if
+  /// necessary. Note that this function breaks completeness and
+  /// should generally be avoided.
+  ///
+  /// \param purpose An identify string to printed in case of concretization.
+  ref<klee::ConstantExpr> toConstant(ExecutionState &state, ref<Expr> e,
+                                     const char *purpose);
 
   virtual void setPathWriter(TreeStreamWriter *tsw) {
     pathWriter = tsw;

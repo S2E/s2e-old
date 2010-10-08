@@ -67,6 +67,17 @@ void NdisHandlers::initialize()
     //This is only for overapproximate consistency
     m_forceAdapterType = cfg->getInt(getConfigKey() + ".forceAdapterType", InterfaceTypeUndefined, &ok);
 
+    //For debugging: generate a crash dump when the driver is loaded
+    m_generateDumpOnLoad = cfg->getBool(getConfigKey() + ".generateDumpOnLoad", false, &ok);
+    if (m_generateDumpOnLoad) {
+        m_crashdumper = static_cast<WindowsCrashDumpGenerator*>(s2e()->getPlugin("WindowsCrashDumpGenerator"));
+        if (!m_manager) {
+            s2e()->getWarningsStream() << "NDISHANDLERS: generateDumpOnLoad option requires the WindowsCrashDumpGenerator plugin!"
+                    << std::endl;
+            exit(-1);
+        }
+    }
+
     foreach2(it, mods.begin(), mods.end()) {
         m_modules.insert(*it);
     }
@@ -174,6 +185,11 @@ void NdisHandlers::onModuleLoad(
 
     //m_functionMonitor->getCallSignal(state, -1, -1)->connect(sigc::mem_fun(*this,
     //     &NdisHandlers::TraceCall));
+
+    if (m_generateDumpOnLoad) {
+        m_crashdumper->generateDump(state, "NDIS-DriverEntry-");
+    }
+
 }
 
 

@@ -9,6 +9,7 @@
 #include <s2e/Plugins/FunctionMonitor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
+#include <s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.h>
 #include <s2e/Plugins/SymbolicHardware.h>
 
 
@@ -32,6 +33,7 @@ public:
 private:
     StateManager *m_manager;
     SymbolicHardware *m_hw;
+    WindowsCrashDumpGenerator *m_crashdumper;
 
     //Modules we want to intercept
     StringSet m_modules;
@@ -42,6 +44,7 @@ private:
     StringSet m_ignoreKeywords;
     unsigned m_timerIntervalFactor;
     uint32_t m_forceAdapterType;
+    bool m_generateDumpOnLoad;
 
     //Pair of address + private pointer for all registered timer entry points
     typedef std::set<std::pair<uint32_t, uint32_t> > TimerEntryPoints;

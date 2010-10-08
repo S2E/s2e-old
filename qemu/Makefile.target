@@ -332,6 +332,7 @@ s2eobj-y += s2e/Plugins/DataSelectors/WindowsService.o
 s2eobj-y += s2e/Plugins/DataSelectors/GenericDataSelector.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsMonitor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.o
+s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/UserModeInterceptor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/KernelModeInterceptor.o
 s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
