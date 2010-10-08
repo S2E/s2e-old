@@ -635,7 +635,7 @@ endif
 
 # misc. sources
 #
-CORE_MISC_SOURCES = \
+CORE_MISC_SOURCES = vl-android.c \
                     console.c \
                     loader.c \
                     monitor.c \
@@ -851,7 +851,6 @@ VL_SOURCES := framebuffer.c \
               android/cmdline-option.c \
               android/config.c \
               android/main.c \
-              vl-android.c
 
 # Add common system libraries
 #
@@ -1026,7 +1025,6 @@ LOCAL_LDLIBS  += $(AUDIO_LDLIBS)
 #
 VL_SOURCES := framebuffer.c \
               user-events-qemu.c \
-              vl-android.c
 
 # Add common system libraries
 #
@@ -1176,9 +1174,9 @@ VL_SOURCES := framebuffer.c \
               android/config.c \
               android/display.c \
               android/main.c \
-	      console-ui.c \
               qemu-timer-ui.c \
-              vl-android-ui.c
+              vl-android-ui.c \
+	          console-ui.c \
 
 # Add common system libraries
 #

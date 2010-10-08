@@ -192,7 +192,6 @@ int old_param = 0;
 const char *qemu_name;
 int alt_grab = 0;
 
-static int timer_alarm_pending = 1;
 static QEMUTimer *nographic_timer;
 
 uint8_t qemu_uuid[16];
@@ -832,8 +831,6 @@ void main_loop_wait(int timeout)
 
 static void main_loop(void)
 {
-    int r;
-
 #ifdef CONFIG_IOTHREAD
     qemu_system_ready = 1;
     qemu_cond_broadcast(&qemu_system_cond);
@@ -873,99 +870,6 @@ static void sighandler_setup(void)
 
 #endif
 
-#ifdef _WIN32
-/* Look for support files in the same directory as the executable.  */
-static char *find_datadir(const char *argv0)
-{
-    char *p;
-    char buf[MAX_PATH];
-    DWORD len;
-
-    len = GetModuleFileName(NULL, buf, sizeof(buf) - 1);
-    if (len == 0) {
-        return NULL;
-    }
-
-    buf[len] = 0;
-    p = buf + len - 1;
-    while (p != buf && *p != '\\')
-        p--;
-    *p = 0;
-    if (access(buf, R_OK) == 0) {
-        return qemu_strdup(buf);
-    }
-    return NULL;
-}
-#else /* !_WIN32 */
-
-/* Find a likely location for support files using the location of the binary.
-   For installed binaries this will be "$bindir/../share/qemu".  When
-   running from the build tree this will be "$bindir/../pc-bios".  */
-#define SHARE_SUFFIX "/share/qemu"
-#define BUILD_SUFFIX "/pc-bios"
-static char *find_datadir(const char *argv0)
-{
-    char *dir;
-    char *p = NULL;
-    char *res;
-#ifdef PATH_MAX
-    char buf[PATH_MAX];
-#endif
-    size_t max_len;
-
-#if defined(__linux__)
-    {
-        int len;
-        len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-        if (len > 0) {
-            buf[len] = 0;
-            p = buf;
-        }
-    }
-#elif defined(__FreeBSD__)
-    {
-        int len;
-        len = readlink("/proc/curproc/file", buf, sizeof(buf) - 1);
-        if (len > 0) {
-            buf[len] = 0;
-            p = buf;
-        }
-    }
-#endif
-    /* If we don't have any way of figuring out the actual executable
-       location then try argv[0].  */
-    if (!p) {
-#ifdef PATH_MAX
-        p = buf;
-#endif
-        p = realpath(argv0, p);
-        if (!p) {
-            return NULL;
-        }
-    }
-    dir = dirname(p);
-    dir = dirname(dir);
-
-    max_len = strlen(dir) +
-        MAX(strlen(SHARE_SUFFIX), strlen(BUILD_SUFFIX)) + 1;
-    res = qemu_mallocz(max_len);
-    snprintf(res, max_len, "%s%s", dir, SHARE_SUFFIX);
-    if (access(res, R_OK)) {
-        snprintf(res, max_len, "%s%s", dir, BUILD_SUFFIX);
-        if (access(res, R_OK)) {
-            qemu_free(res);
-            res = NULL;
-        }
-    }
-#ifndef PATH_MAX
-    free(p);
-#endif
-    return res;
-}
-#undef SHARE_SUFFIX
-#undef BUILD_SUFFIX
-#endif
-
 #define QEMU_FILE_TYPE_BIOS   0
 #define QEMU_FILE_TYPE_KEYMAP 1
 
@@ -1002,11 +906,8 @@ char *qemu_find_file(int type, const char *name)
 
 int main(int argc, char **argv, char **envp)
 {
-    int i;
     DisplayState *ds;
     DisplayChangeListener *dcl;
-    const char *r, *optarg;
-    char tmp_str[1024];
 
     init_clocks();
 
