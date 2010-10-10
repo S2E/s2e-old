@@ -26,6 +26,7 @@
 #include "llvm/LLVMContext.h"
 #endif
 #include "llvm/Module.h"
+#include "llvm/ModuleProvider.h"
 #include "llvm/PassManager.h"
 #include "llvm/ValueSymbolTable.h"
 #include "llvm/Support/CommandLine.h"
@@ -82,12 +83,66 @@ namespace {
                               cl::desc("Print functions whose address is taken."));
 }
 
+namespace llvm {
+extern void CreateOptimizePasses(PassManagerBase&, Module*);
+}
+
+namespace klee {
+
+struct KModulePrivate {
+  llvm::ExistingModuleProvider moduleProvider;
+  llvm::PassManager pmOptimize, pm3, pm4;
+  llvm::FunctionPassManager fpmOptimize, fpm3, fpm4;
+
+  KModulePrivate(llvm::Module *module,
+                 llvm::TargetData *targetData)
+          : moduleProvider(module),
+            fpmOptimize(&moduleProvider),
+            fpm3(&moduleProvider),
+            fpm4(&moduleProvider) {
+
+    pm3.add(createCFGSimplificationPass());
+    fpm3.add(createCFGSimplificationPass());
+
+    switch(SwitchType) {
+    case eSwitchTypeInternal: break;
+    case eSwitchTypeSimple:
+      pm3.add(new LowerSwitchPass());
+      fpm3.add(new LowerSwitchPass());
+      break;
+    case eSwitchTypeLLVM:
+      pm3.add(createLowerSwitchPass()); break;
+      fpm3.add(createLowerSwitchPass()); break;
+    default: klee_error("invalid --switch-type");
+    }
+    pm3.add(new IntrinsicCleanerPass(*targetData));
+    fpm3.add(new IntrinsicFunctionCleanerPass());
+
+    //pm3.add(new PhiCleanerPass());
+
+    pm4.add(new PhiCleanerPass());
+    fpm4.add(new PhiCleanerPass());
+
+    CreateOptimizePasses(pmOptimize, module);
+
+    CreateOptimizePasses(fpmOptimize, module);
+    fpmOptimize.doInitialization();
+  }
+
+  ~KModulePrivate() {
+    moduleProvider.releaseModule();
+  }
+};
+
+} // namespace klee
+
 KModule::KModule(Module *_module) 
   : module(_module),
     targetData(new TargetData(module)),
     dbgStopPointFn(0),
     kleeMergeFn(0),
-    infos(0) {
+    infos(0),
+    p(new KModulePrivate(_module, targetData)) {
 }
 
 KModule::~KModule() {
@@ -99,13 +154,11 @@ KModule::~KModule() {
 
   delete targetData;
   delete module;
+
+  delete p;
 }
 
 /***/
-
-namespace llvm {
-extern void Optimize(Module*);
-}
 
 // what a hack
 static Function *getStubFunctionForCtorList(Module *m,
@@ -271,7 +324,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   pm.run(*module);
 
   if (opts.Optimize)
-    Optimize(module);
+    p->pmOptimize.run(*module);
 
 
   // Force importing functions required by intrinsic lowering. Kind of
@@ -314,6 +367,8 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // linked in something with intrinsics but any external calls are
   // going to be unresolved. We really need to handle the intrinsics
   // directly I think?
+
+#if 0
   PassManager pm3;
   pm3.add(createCFGSimplificationPass());
   switch(SwitchType) {
@@ -324,7 +379,8 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   }
   pm3.add(new IntrinsicCleanerPass(*targetData));
   //pm3.add(new PhiCleanerPass());
-  pm3.run(*module);
+#endif
+  p->pm3.run(*module);
 
   if (opts.CustomPasses) {
       Module::iterator it;
@@ -335,9 +391,11 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
 
   //The PhiCleaner is important to be the last, because the rest of KLEE
   //makes assumptions about how PHI nodes are placed.
+#if 0
   PassManager pm4;
   pm4.add(new PhiCleanerPass());
-  pm4.run(*module);
+#endif
+  p->pm4.run(*module);
 
   // For cleanliness see if we can discard any of the functions we
   // forced to import.
@@ -486,6 +544,10 @@ KFunction* KModule::updateModuleWithFunction(llvm::Function *f)
     //IntrinsicCleanerPass ip(*targetData, false);
     //ip.runOnFunction(*f);
 
+    p->fpmOptimize.run(*f);
+
+    p->fpm3.run(*f);
+    p->fpm4.run(*f);
 
     KFunction *kf = new KFunction(f, this);
 

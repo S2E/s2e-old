@@ -35,6 +35,8 @@ namespace klee {
   class KModule;
   template<class T> class ref;
 
+  class KModulePrivate;
+
   struct KFunction {
     llvm::Function *function;
 
@@ -100,6 +102,9 @@ namespace klee {
     KConstant* getKConstant(llvm::Constant *c);
 
     std::vector<Cell> constantTable;
+
+  protected:
+    KModulePrivate *p;
 
   public:
     KModule(llvm::Module *_module);

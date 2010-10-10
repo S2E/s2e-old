@@ -238,7 +238,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b) {
         break;
 
       case Intrinsic::bswap:
-        ii->replaceAllUsesWith(LowerBSWAP(getGlobalContext(), ii->getOperand(0), ii));
+        ii->replaceAllUsesWith(LowerBSWAP(getGlobalContext(), ii->getOperand(1), ii));
         ii->eraseFromParent();
         break;
                     
@@ -253,4 +253,39 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b) {
 
   return dirty;
 }
+
+char IntrinsicFunctionCleanerPass::ID;
+
+bool IntrinsicFunctionCleanerPass::runOnFunction(llvm::Function &F)
+{
+  bool dirty = false;
+
+    for (Function::iterator b = F.begin(), be = F.end(); b != be; ++b)
+      dirty |= runOnBasicBlock(*b);
+  return dirty;
+}
+
+bool IntrinsicFunctionCleanerPass::runOnBasicBlock(llvm::BasicBlock &b)
+{
+  bool dirty = false;
+
+  for (BasicBlock::iterator i = b.begin(), ie = b.end(); i != ie;) {
+    IntrinsicInst *ii = dyn_cast<IntrinsicInst>(&*i);
+    // increment now since LowerIntrinsic deletion makes iterator invalid.
+    ++i;
+    if(ii) {
+      switch (ii->getIntrinsicID()) {
+      case Intrinsic::bswap:
+        ii->replaceAllUsesWith(LowerBSWAP(getGlobalContext(), ii->getOperand(1), ii));
+        ii->eraseFromParent();
+        break;
+      default:
+        break;
+      }
+    }
+  }
+
+  return dirty;
+}
+
 }

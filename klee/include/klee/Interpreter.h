@@ -92,7 +92,7 @@ public:
   /// \return The final module after it has been optimized, checks
   /// inserted, and modified for interpretation.
   virtual const llvm::Module * 
-  setModule(llvm::Module *module, 
+  setModule(llvm::Module *module,
             const ModuleOptions &opts, bool createStatsTracker = true) = 0;
 
   // supply a tree stream writer which the interpreter will use

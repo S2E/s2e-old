@@ -486,33 +486,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     LLVMContext& ctx = m_tcgLLVMContext->getLLVMContext();
 
-    /* Add dummy TB function declaration */
-    const PointerType* tbFunctionArgTy =
-            PointerType::get(IntegerType::get(ctx, 64), 0);
-    FunctionType* tbFunctionTy = FunctionType::get(
-            IntegerType::get(ctx, TCG_TARGET_REG_BITS),
-            vector<const Type*>(1, PointerType::get(
-                    IntegerType::get(ctx, 64), 0)),
-            false);
-
-    Function* tbFunction = Function::Create(
-            tbFunctionTy, Function::PrivateLinkage, "s2e_dummyTbFunction",
-            m_tcgLLVMContext->getModule());
-
-    /* Create dummy main function containing just two instructions:
-       a call to TB function and ret */
-    Function* dummyMain = Function::Create(
-            FunctionType::get(Type::getVoidTy(ctx), false),
-            Function::PrivateLinkage, "s2e_dummyMainFunction",
-            m_tcgLLVMContext->getModule());
-
-    BasicBlock* dummyMainBB = BasicBlock::Create(ctx, "entry", dummyMain);
-
-    vector<Value*> tbFunctionArgs(1, ConstantPointerNull::get(tbFunctionArgTy));
-    CallInst::Create(tbFunction, tbFunctionArgs.begin(), tbFunctionArgs.end(),
-            "tbFunctionCall", dummyMainBB);
-    ReturnInst::Create(m_tcgLLVMContext->getLLVMContext(), dummyMainBB);
-
     // XXX: this will not work without creating JIT
     // XXX: how to get data layout without without ExecutionEngine ?
     m_tcgLLVMContext->getModule()->setDataLayout(
@@ -613,17 +586,48 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
     assert(filename);
     ModuleOptions MOpts(vector<string>(1, filename),
-            /* Optimize= */ false, /* CheckDivZero= */ false,
+            /* Optimize= */ true, /* CheckDivZero= */ false,
             m_tcgLLVMContext->getFunctionPassManager());
 
     qemu_free(filename);
 
 #else
     ModuleOptions MOpts(vector<string>(),
-            /* Optimize= */ false, /* CheckDivZero= */ false);
+            /* Optimize= */ true, /* CheckDivZero= */ false);
 #endif
 
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
+
+
+    /* Add dummy TB function declaration */
+    const PointerType* tbFunctionArgTy =
+            PointerType::get(IntegerType::get(ctx, 64), 0);
+    FunctionType* tbFunctionTy = FunctionType::get(
+            IntegerType::get(ctx, TCG_TARGET_REG_BITS),
+            vector<const Type*>(1, PointerType::get(
+                    IntegerType::get(ctx, 64), 0)),
+            false);
+
+    Function* tbFunction = Function::Create(
+            tbFunctionTy, Function::PrivateLinkage, "s2e_dummyTbFunction",
+            m_tcgLLVMContext->getModule());
+
+    /* Create dummy main function containing just two instructions:
+       a call to TB function and ret */
+    Function* dummyMain = Function::Create(
+            FunctionType::get(Type::getVoidTy(ctx), false),
+            Function::PrivateLinkage, "s2e_dummyMainFunction",
+            m_tcgLLVMContext->getModule());
+
+    BasicBlock* dummyMainBB = BasicBlock::Create(ctx, "entry", dummyMain);
+
+    vector<Value*> tbFunctionArgs(1, ConstantPointerNull::get(tbFunctionArgTy));
+    CallInst::Create(tbFunction, tbFunctionArgs.begin(), tbFunctionArgs.end(),
+            "tbFunctionCall", dummyMainBB);
+    ReturnInst::Create(m_tcgLLVMContext->getLLVMContext(), dummyMainBB);
+
+    kmodule->updateModuleWithFunction(dummyMain);
+
     if(StatsTracker::useStatistics()) {
         statsTracker =
                 new S2EStatsTracker(*this,
@@ -2070,7 +2074,7 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
     uint32_t cc_op = 0;
 
     // Check wether any of cc_op, cc_src, cc_dst or cc_tmp are symbolic
-    if(state->getSymbolicRegistersMask() & (0xf<<1)) {
+    if((state->getSymbolicRegistersMask() & (0xf<<1)) || m_executeAlwaysKlee) {
         // call set_cc_op_eflags only if cc_op is symbolic or cc_op != CC_OP_EFLAGS
         bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
                                                  &cc_op, sizeof(cc_op));
@@ -2102,7 +2106,7 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
                                      int is_int, int error_code,
                                      uint64_t next_eip, int is_hw)
 {
-    if(state->m_cpuRegistersObject->isAllConcrete()) {
+    if(state->m_cpuRegistersObject->isAllConcrete() && !m_executeAlwaysKlee) {
         if(!state->m_runningConcrete)
             switchToConcrete(state);
         TimerStatIncrementer t(stats::concreteModeTime);
@@ -2342,10 +2346,13 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
 
 void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
 {
+    uint64_t old_icount = state->getTotalInstructionCount();
     try {
         s2e->getExecutor()->finalizeTranslationBlockExec(state);
+        s2e_update_execution_stats(state, old_icount);
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
+        s2e_update_execution_stats(state, old_icount);
         longjmp(env->jmp_env, 1);
     }
 }

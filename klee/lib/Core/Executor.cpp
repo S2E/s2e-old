@@ -361,7 +361,7 @@ Executor::Executor(const InterpreterOptions &opts,
 }
 
 
-const Module *Executor::setModule(llvm::Module *module, 
+const Module *Executor::setModule(llvm::Module *module,
                                   const ModuleOptions &opts,
                                   bool createStatsTracker) {
   assert(!kmodule && module && "can only register one module"); // XXX gross
