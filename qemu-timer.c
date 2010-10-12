@@ -694,7 +694,7 @@ static const VMStateDescription vmstate_timers = {
 
 void configure_icount(const char *option)
 {
-    register_savevm("timer", 0, 2, timer_save, timer_load, NULL);
+    register_savevm("timer", 0, 2, timer_save, timer_load, &timers_state);
 
     if (!option)
         return;
