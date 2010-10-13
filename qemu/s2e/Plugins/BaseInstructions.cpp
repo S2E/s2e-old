@@ -31,7 +31,6 @@ void BaseInstructions::initialize()
     s2e()->getCorePlugin()->onCustomInstruction.connect(
             sigc::mem_fun(*this, &BaseInstructions::onCustomInstruction));
 
-   // s2e()->getConfig()->fcnRegister("BaseInstr", &commandHandler, this);
 }
 
 bool BaseInstructions::createTables()
@@ -48,17 +47,6 @@ bool BaseInstructions::createTables()
 }
 
 
-/**
- *  This function handles requests from the QEMU monitor
- */
-int BaseInstructions::commandHandler(void *s)
-{
-    BaseInstructions *plg = (BaseInstructions*)ConfigFile::fcnGetContext(s);
-
-    plg->s2e()->getDebugStream() << "Called BaseInstructions lua handler" << std::endl;
-
-    return 0;
-}
 
 bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
 {

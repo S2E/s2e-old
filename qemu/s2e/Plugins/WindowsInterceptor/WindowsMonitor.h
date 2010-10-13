@@ -39,6 +39,7 @@ private:
     bool m_UserMode, m_KernelMode;
     unsigned m_PointerSize;
     uint64_t m_KernelBase;
+    bool m_CheckedBuild;
 
     bool m_MonitorModuleLoad;
     bool m_MonitorModuleUnload;
@@ -47,6 +48,8 @@ private:
     bool m_FirstTime;
     bool m_TrackPidSet;
     PidSet m_PidSet;
+
+    uint32_t m_NtkernelBase;
 
     WindowsUmInterceptor *m_UserModeInterceptor;
     WindowsKmInterceptor *m_KernelModeInterceptor;

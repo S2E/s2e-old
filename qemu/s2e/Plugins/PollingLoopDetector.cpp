@@ -161,9 +161,12 @@ void PollingLoopDetector::onPollingInstruction(S2EExecutionState* state, uint64_
 {
     DECLARE_PLUGINSTATE(PollingLoopDetectorState, state);
     if (plgState->isPolling(sourcePc, state->getPc())) {
-        s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
-                " because of a polling loop" << std::endl;
-        s2e()->getExecutor()->terminateStateEarly(*state, "Polling loop");
+        std::ostringstream ss;
+        ss << " Polling loop from 0x" <<std::hex << sourcePc << " to 0x"
+                << state->getPc();
+
+        s2e()->getMessagesStream(state) << ss.str() << std::endl;
+        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
     }
 }
 

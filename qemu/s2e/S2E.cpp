@@ -589,7 +589,7 @@ extern "C"
 {
 void s2e_execute_cmd(const char *cmd)
 {
-    g_s2e->getConfig()->fcnExecute(cmd);
+    g_s2e->getConfig()->invokeLuaCommand(cmd);
 }
 }
 

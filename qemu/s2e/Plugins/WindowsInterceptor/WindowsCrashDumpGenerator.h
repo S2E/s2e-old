@@ -2,6 +2,7 @@
 #define S2E_PLUGINS_WINDOWSCRASHDUMPGENERATOR_H
 
 #include <s2e/Plugin.h>
+#include <s2e/ConfigFile.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
 
@@ -222,6 +223,25 @@ struct KD_DEBUGGER_DATA_BLOCK32 {
 namespace s2e {
 namespace plugins {
 
+class WindowsCrashDumpGenerator;
+
+class WindowsCrashDumpInvoker {
+private:
+    WindowsCrashDumpGenerator *m_plugin;
+
+public:
+    static const char className[];
+    static Lunar<WindowsCrashDumpInvoker>::RegType methods[];
+
+    WindowsCrashDumpInvoker(WindowsCrashDumpGenerator *plg);
+    WindowsCrashDumpInvoker(lua_State *lua);
+    ~WindowsCrashDumpInvoker();
+
+public:
+    int generateCrashDump(lua_State *L);
+
+};
+
 
 
 class WindowsCrashDumpGenerator : public Plugin
@@ -252,6 +272,8 @@ private:
                                                      const BugCheckDesc &bugdesc);
 
 };
+
+
 
 } // namespace plugins
 } // namespace s2e

@@ -67,6 +67,24 @@ void WindowsMonitor::initialize()
         exit(-1);
     }
 
+    m_CheckedBuild = s2e()->getConfig()->getBool(getConfigKey() + ".checked");
+    if (m_CheckedBuild) {
+        s2e()->getWarningsStream() << "You specified a CHECKED build of Windows. Only kernel-mode interceptor " <<
+                "is properly supported for now" << std::endl;
+    }
+
+    switch(m_Version) {
+        case SP2:
+            assert(false && "SP2 support not implemented");
+            break;
+
+        case SP3:
+            m_NtkernelBase = m_CheckedBuild ? 0x80a02000 : 0x804d7000;
+            break;
+        default:
+            assert(false);
+    }
+
     m_UserModeInterceptor = NULL;
     m_KernelModeInterceptor = NULL;
 
@@ -303,11 +321,19 @@ failure:
 
 uint64_t WindowsMonitor::GetDriverLoadPc() const
 {
-    switch(m_Version) {
-    case SP2: assert(false && "Not implemented");
-        //return eip >= 0x805A078C && eip <= 0x805A0796;
-    case SP3: return 0x004cc99a - 0x400000 + 0x804d7000; //0x805A399A
-    default: return 0;
+    if (m_CheckedBuild) {
+        switch(m_Version) {
+            case SP2: assert(false && "Not implemented");
+            case SP3: return 0x0053d5d6 - 0x400000 + m_NtkernelBase; //0x80B3F5D6
+            default: return 0;
+        }
+
+    }else {
+        switch(m_Version) {
+            case SP2: assert(false && "Not implemented");
+            case SP3: return 0x004cc99a - 0x400000 + m_NtkernelBase; //0x805A399A
+            default: return 0;
+        }
     }
 
     assert(false);
@@ -316,17 +342,34 @@ uint64_t WindowsMonitor::GetDriverLoadPc() const
 
 bool WindowsMonitor::CheckPanic(uint64_t eip) const
 {
-    switch(m_Version) {
-    case SP2:
-        assert(false && "Not implemented");
-        return (eip == 0x0045B7BA  || eip == 0x0045C2DF || eip == 0x0045C303);
-        break;
-    case SP3:
-        eip = eip - 0x804d7000 + 0x400000;
-        return (eip == 0x0045BCAA  || eip == 0x0045C7CD || eip == 0x0045C7F3);
-        break;
-    default:
-        return false;
+    if (m_CheckedBuild) {
+        switch(m_Version) {
+        case SP2:
+            assert(false && "Not implemented");
+            eip = eip - m_NtkernelBase + 0x400000;
+            return (eip == 0x0045B7BA  || eip == 0x0045C2DF || eip == 0x0045C303);
+            break;
+        case SP3:
+            eip = eip - m_NtkernelBase + 0x400000;
+            return (eip == 0x42f478  || eip == 0x42ff44 || eip == 0x42ff62);
+            break;
+        default:
+            return false;
+        }
+    }else {
+        switch(m_Version) {
+        case SP2:
+            assert(false && "Not implemented");
+            eip = eip - m_NtkernelBase + 0x400000;
+            return (eip == 0x0045B7BA  || eip == 0x0045C2DF || eip == 0x0045C303);
+            break;
+        case SP3:
+            eip = eip - m_NtkernelBase + 0x400000;
+            return (eip == 0x0045BCAA  || eip == 0x0045C7CD || eip == 0x0045C7F3);
+            break;
+        default:
+            return false;
+        }
     }
 
     return false;
@@ -362,9 +405,18 @@ unsigned WindowsMonitor::GetPointerSize() const
 
 uint64_t WindowsMonitor::GetNtTerminateProcessEProcessPoint() const
 {
-    switch(m_Version) {
-    case SP2: assert (false && "Not implemented");
-    case SP3: return (0x004ab3c8 - 0x400000 + 0x804d7000);
+    if (m_CheckedBuild) {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+                //XXX: test this
+            case SP3: return (0x5dab73 - 0x400000 + m_NtkernelBase);
+        }
+
+    }else {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+            case SP3: return (0x004ab3c8 - 0x400000 + m_NtkernelBase);
+        }
     }
     assert(false && "Unknown OS version\n");
     return 0;
@@ -372,9 +424,16 @@ uint64_t WindowsMonitor::GetNtTerminateProcessEProcessPoint() const
 
 uint64_t WindowsMonitor::GetDeleteDriverPc() const
 {
-    switch(m_Version) {
-    case SP2: assert (false && "Not implemented");
-    case SP3: return (0x004EB33F - 0x400000 + 0x804d7000);
+    if (m_CheckedBuild) {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+            case SP3: return (0x540a72 - 0x400000 + m_NtkernelBase);
+        }
+    }else {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+            case SP3: return (0x004EB33F - 0x400000 + m_NtkernelBase);
+        }
     }
     assert(false && "Unknown OS version\n");
     return 0;
@@ -382,9 +441,17 @@ uint64_t WindowsMonitor::GetDeleteDriverPc() const
 
 uint64_t WindowsMonitor::GetSystemServicePc() const
 {
-    switch(m_Version) {
-    case SP2: assert (false && "Not implemented");
-    case SP3: return (0x00407631 - 0x400000 + 0x804d7000);
+    if (m_CheckedBuild) {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+            case SP3: return (0x4dca05 - 0x400000 + m_NtkernelBase);
+        }
+
+    }else {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+            case SP3: return (0x00407631 - 0x400000 + m_NtkernelBase);
+        }
     }
     assert(false && "Unknown OS version\n");
     return 0;
@@ -402,9 +469,16 @@ uint64_t WindowsMonitor::GetDllUnloadPc() const
 
 uint64_t WindowsMonitor::GetPsActiveProcessListPtr() const
 {
-    switch(m_Version) {
-    case SP2: assert (false && "Not implemented");
-    case SP3: return (0x0048A358 - 0x400000 + 0x804d7000);
+    if (m_CheckedBuild) {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+            case SP3: return (0x5102b8 - 0x400000 + m_NtkernelBase);
+        }
+    } else {
+        switch(m_Version) {
+            case SP2: assert (false && "Not implemented");
+            case SP3: return (0x0048A358 - 0x400000 + m_NtkernelBase);
+        }
     }
     assert(false && "Unknown OS version\n");
     return 0;

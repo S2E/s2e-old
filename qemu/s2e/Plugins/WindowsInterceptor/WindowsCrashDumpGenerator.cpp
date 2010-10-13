@@ -24,7 +24,8 @@ S2E_DEFINE_PLUGIN(WindowsCrashDumpGenerator, "Generates WinDbg-compatible crash 
 
 void WindowsCrashDumpGenerator::initialize()
 {
-
+    //Register the LUA API for crash dump generation
+    Lunar<WindowsCrashDumpInvoker>::Register(s2e()->getConfig()->getState());
 }
 
 void WindowsCrashDumpGenerator::generateDump(S2EExecutionState *state, const std::string &prefix)
@@ -375,6 +376,67 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
 
 }
 
+const char WindowsCrashDumpInvoker::className[] = "WindowsCrashDumpInvoker";
+
+Lunar<WindowsCrashDumpInvoker>::RegType WindowsCrashDumpInvoker::methods[] = {
+  LUNAR_DECLARE_METHOD(WindowsCrashDumpInvoker, generateCrashDump),
+  {0,0}
+};
+
+
+WindowsCrashDumpInvoker::WindowsCrashDumpInvoker(WindowsCrashDumpGenerator *plg)
+{
+    m_plugin = plg;
+}
+
+WindowsCrashDumpInvoker::WindowsCrashDumpInvoker(lua_State *lua)
+{
+
+}
+
+WindowsCrashDumpInvoker::~WindowsCrashDumpInvoker()
+{
+
+}
+
+int WindowsCrashDumpInvoker::generateCrashDump(lua_State *L)
+{
+    std::ostream &os = g_s2e->getDebugStream();
+
+    if (!lua_isstring(L, 1)) {
+        os << "First argument to " << __FUNCTION__ << " must be the prefix of the crash dump" << std::endl;
+        return 0;
+    }
+
+    std::string prefix = luaL_checkstring(L, 1);
+
+    S2EExecutionState *state = g_s2e_state;
+    int stateId = g_s2e_state->getID();
+    if (lua_isnumber(L, 2)) {
+        stateId = lua_tointeger(L, 2);
+        state = NULL;
+
+        //Fetch the right state
+        //XXX: Avoid linear search
+        const std::set<klee::ExecutionState*> &states = g_s2e->getExecutor()->getStates();
+        foreach2(it, states.begin(), states.end()) {
+            S2EExecutionState *ss = static_cast<S2EExecutionState*>(*it);
+            if (ss->getID() == stateId) {
+                state = ss;
+                break;
+            }
+        }
+    }
+
+    if (state == NULL) {
+        os << "State with id " << std::dec << stateId << " does not exist" << std::endl;
+        return 0;
+    }
+
+    m_plugin->generateDump(state, prefix);
+
+    return 0;
+}
 
 } // namespace plugins
 } // namespace s2e

@@ -327,13 +327,9 @@ public:
     bool hasKey(const std::string& name);
 
 
-    void fcnRegister(const char *name, int (*callback)(void *), void *context);
-    static int fcnGetArgumentCount(void *s);
-    static void *fcnGetContext(void *s);
-    static bool fcnGetStringArg(void *s, int index, std::string &ret);
-    void fcnExecute(const char *cmd);
+    void invokeLuaCommand(const char *cmd);
 
-    void invokeAnnotation(const std::string &annotation, S2EExecutionState *param);
+    //void invokeAnnotation(const std::string &annotation, S2EExecutionState *param);
 
     lua_State* getState() const {
         return m_luaState;
