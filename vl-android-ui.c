@@ -547,6 +547,14 @@ static void nographic_update(void *opaque)
     qemu_mod_timer(nographic_timer, interval + qemu_get_clock(rt_clock));
 }
 
+static int shutdown_requested = 0;
+
+void qemu_system_shutdown_request(void)
+{
+    shutdown_requested = 1;
+}
+
+
 
 #ifndef _WIN32
 static int io_thread_fd = -1;
@@ -647,7 +655,6 @@ static QemuCond qemu_pause_cond;
 
 static void block_io_signals(void);
 static void unblock_io_signals(void);
-static int tcg_has_work(void);
 
 static int qemu_init_main_loop(void)
 {
@@ -836,7 +843,7 @@ static void main_loop(void)
     qemu_cond_broadcast(&qemu_system_cond);
 #endif
 
-    for (;;) {
+    while (!shutdown_requested) {
         main_loop_wait(qemu_calculate_timeout());
     }
 }
@@ -1019,6 +1026,5 @@ int main(int argc, char **argv, char **envp)
 
     main_loop();
     quit_timers();
-    net_cleanup();
     return 0;
 }

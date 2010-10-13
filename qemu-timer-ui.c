@@ -934,12 +934,6 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t)
 
 #endif /* _WIN32 */
 
-static void alarm_timer_on_change_state_rearm(void *opaque, int running, int reason)
-{
-    if (running)
-        qemu_rearm_alarm_timer((struct qemu_alarm_timer *) opaque);
-}
-
 int init_timer_alarm(void)
 {
     struct qemu_alarm_timer *t = NULL;
@@ -982,7 +976,7 @@ int qemu_calculate_timeout(void)
     {
         /* XXX: use timeout computed from timers */
         int64_t add;
-        int64_t delta;
+        int64_t delta = 0;
         /* Advance virtual time to the next event.  */
         {
             /* Wait for either IO to occur or the next

@@ -178,7 +178,7 @@ qframebuffer_poll( QFrameBuffer* qfbuff )
 {
     QFrameBufferExtra*  extra = qfbuff->extra;
 
-    if (extra->fb_poll)
+    if (extra && extra->fb_poll)
         extra->fb_poll( extra->fb_opaque );
 }
 
