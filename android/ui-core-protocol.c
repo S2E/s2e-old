@@ -185,10 +185,7 @@ android_core_audio_get_backend_name(int is_input, int index,
 void
 android_core_system_shutdown_request(void)
 {
-    /* Temporary implementation for the monolitic (core + ui) builds. */
-#if !defined(CONFIG_STANDALONE_UI)
     qemu_system_shutdown_request();
-#endif  // !CONFIG_STANDALONE_UI
 }
 
 int

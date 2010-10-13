@@ -76,14 +76,14 @@ qframebuffer_init( QFrameBuffer*       qfbuff,
                    int                 rotation,
                    QFrameBufferFormat  format );
 
-/* recompute phys_width_mm and phys_height_mm according to the emulated 
+/* recompute phys_width_mm and phys_height_mm according to the emulated
  * screen DPI settings */
 extern void
 qframebuffer_set_dpi( QFrameBuffer*   qfbuff,
                       int             x_dpi,
                       int             y_dpi );
 
-/* alternative to qframebuffer_set_dpi where one can set the physical 
+/* alternative to qframebuffer_set_dpi where one can set the physical
  * dimensions directly in millimeters. for the record 1 inch = 25.4 mm */
 extern void
 qframebuffer_set_mm( QFrameBuffer*   qfbuff,
@@ -94,7 +94,7 @@ qframebuffer_set_mm( QFrameBuffer*   qfbuff,
  * rectangle of the framebuffer pixels was updated and needs to be
  * redrawn.
  */
-typedef void (*QFrameBufferUpdateFunc)( void*  opaque, int  x, int  y, 
+typedef void (*QFrameBufferUpdateFunc)( void*  opaque, int  x, int  y,
                                                        int  w, int  h );
 
 /* the Client::Rotate method is called to instruct the client that a
