@@ -336,7 +336,7 @@ cat > $TMPC << EOF
 #include <inttypes.h>
 int main(int argc, char ** argv){
         volatile uint32_t i=0x01234567;
-        return (*((uint8_t*)(&i))) == 0x67;
+        return (*((uint8_t*)(&i))) == 0x01;
 }
 EOF
 feature_run_exec HOST_BIGENDIAN
@@ -441,6 +441,9 @@ case "$CPU" in
     ;;
 esac
 echo "#define HOST_$CONFIG_CPU    1" >> $config_h
+if [ "$HOST_BIGENDIAN" = "1" ] ; then
+  echo "#define HOST_WORDS_BIGENDIAN 1" >> $config_h
+fi
 BSD=0
 case "$TARGET_OS" in
     linux-*) CONFIG_OS=LINUX

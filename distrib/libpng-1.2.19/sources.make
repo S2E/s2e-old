@@ -7,7 +7,11 @@ LIBPNG_SOURCES := png.c pngerror.c pngget.c pngmem.c pngpread.c pngread.c \
 ifeq ($(HOST_OS),darwin)
     LIBPNG_CFLAGS += -DPNG_NO_MMX_CODE
 else
-    LIBPNG_SOURCES += pnggccrd.c
+   ifeq ($(HOST_ARCH),ppc)
+      LIBPNG_CFLAGS += -DPNG_NO_MMX_CODE
+   else
+      LIBPNG_SOURCES += pnggccrd.c
+   endif
 endif
 
 LIBPNG_SOURCES := $(LIBPNG_SOURCES:%=$(LIBPNG_DIR)/%)
