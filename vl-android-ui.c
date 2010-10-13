@@ -339,6 +339,9 @@ int qemu_set_fd_handler(int fd,
 /***********************************************************/
 /* Polling handling */
 
+typedef int PollingFunc(void *opaque);
+typedef void WaitObjectFunc(void *opaque);
+
 typedef struct PollingEntry {
     PollingFunc *func;
     void *opaque;
@@ -910,6 +913,14 @@ char *qemu_find_file(int type, const char *name)
     }
     return buf;
 }
+
+#ifdef _WIN32
+static BOOL WINAPI qemu_ctrl_handler(DWORD type)
+{
+    exit(STATUS_CONTROL_C_EXIT);
+    return TRUE;
+}
+#endif
 
 int main(int argc, char **argv, char **envp)
 {
