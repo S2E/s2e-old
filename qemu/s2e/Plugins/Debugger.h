@@ -21,13 +21,21 @@ public:
 
     void initialize();
 
+    struct AddressRange {
+        AddressRange(uint64_t s, uint64_t e) {
+            start = s;
+            end = e;
+        }
+
+        uint64_t start, end;
+    };
+
 private:
 
     uint64_t *m_dataTriggers;
     unsigned m_dataTriggerCount;
 
-    uint64_t *m_addressTriggers;
-    unsigned m_addressTriggerCount;
+    std::vector<AddressRange> m_addressTriggers;
 
     bool m_monitorStack;
     uint64_t m_catchAbove;
@@ -37,6 +45,7 @@ private:
     sigc::connection m_timerConnection;
 
     void initList(const std::string &key, uint64_t **ptr, unsigned *size);
+    void initAddressTriggers(const std::string &key);
 
     bool dataTriggered(uint64_t data) const;
     bool addressTriggered(uint64_t address) const;

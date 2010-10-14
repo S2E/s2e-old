@@ -97,6 +97,7 @@ public:
     uint64_t GetDriverLoadPc() const;
     uint64_t GetSystemServicePc() const;
     uint64_t GetPsActiveProcessListPtr() const;
+    uint64_t GetKdDebuggerDataBlock() const;
 
     uint64_t getModuleSizeFromCfg(const std::string &module) const;
 
@@ -109,6 +110,10 @@ public:
 
     WindowsSpy *getSpy() const {
         return NULL;
+    }
+
+    bool isCheckedBuild() const {
+        return m_CheckedBuild;
     }
 
     virtual bool isKernelAddress(uint64_t pc) const;

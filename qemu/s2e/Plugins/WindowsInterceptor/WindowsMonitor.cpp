@@ -340,6 +340,27 @@ uint64_t WindowsMonitor::GetDriverLoadPc() const
     return 0;
 }
 
+uint64_t WindowsMonitor::GetKdDebuggerDataBlock() const
+{
+    if (m_CheckedBuild) {
+        switch(m_Version) {
+            case SP2: assert(false && "Not implemented");
+            case SP3: return 0x004ec3f0 - 0x400000 + m_NtkernelBase;
+            default: return 0;
+        }
+
+    }else {
+        switch(m_Version) {
+            case SP2: assert(false && "Not implemented");
+            case SP3: return 0x00475DE0 - 0x400000 + m_NtkernelBase;
+            default: return 0;
+        }
+    }
+
+    assert(false);
+    return 0;
+}
+
 bool WindowsMonitor::CheckPanic(uint64_t eip) const
 {
     if (m_CheckedBuild) {

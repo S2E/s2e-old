@@ -11,6 +11,7 @@ extern "C" {
 #include <s2e/Utils.h>
 
 #include <iostream>
+#include <sstream>
 
 namespace s2e {
 namespace plugins {
@@ -21,9 +22,6 @@ void Debugger::initialize()
 {
     m_dataTriggers = NULL;
     m_dataTriggerCount = 0;
-
-    m_addressTriggers = NULL;
-    m_addressTriggerCount = 0;
 
     //Catch all accesses to the stack
     m_monitorStack = s2e()->getConfig()->getBool(getConfigKey() + ".monitorStack");
@@ -38,7 +36,7 @@ void Debugger::initialize()
     //Manual addresses
     //XXX: Note that stack monitoring and manual addresses cannot be used together...
     initList(getConfigKey() + ".dataTriggers", &m_dataTriggers, &m_dataTriggerCount);
-    initList(getConfigKey() + ".addressTriggers", &m_addressTriggers, &m_addressTriggerCount);
+    initAddressTriggers(getConfigKey() + ".addressTriggers");
 
     if (!m_timeTrigger) {
         s2e()->getCorePlugin()->onDataMemoryAccess.connect(
@@ -53,8 +51,8 @@ void Debugger::initialize()
 void Debugger::initList(const std::string &key, uint64_t **ptr, unsigned *size)
 {
     ConfigFile::integer_list list;
-    list = s2e()->getConfig()->getIntegerList(key);
 
+    list = s2e()->getConfig()->getIntegerList(key);
     *size = list.size();
 
     if (list.size() > 0) {
@@ -70,14 +68,50 @@ void Debugger::initList(const std::string &key, uint64_t **ptr, unsigned *size)
     }
 }
 
+void Debugger::initAddressTriggers(const std::string &key)
+{
+    ConfigFile *cfg = s2e()->getConfig();
+
+    unsigned i=0;
+    do {
+        ++i; //Indices in LUA start with 1.
+        std::stringstream ss;
+        ConfigFile::integer_list list;
+        bool ok;
+
+        ss << key << "[" << (i) << "]";
+        s2e()->getDebugStream() << __FUNCTION__ << ": scanning " << ss.str() << std::endl;
+        list = cfg->getIntegerList(ss.str(), ConfigFile::integer_list(), &ok);
+        if (!ok) {
+            return;
+        }
+
+        if (list.size() == 0) {
+            continue;
+        }
+
+        uint64_t e=0,s=0;
+
+        if (list.size() >= 1)
+            s = list[0];
+
+        if (list.size() >= 2)
+            e = list[1];
+        else
+            e = s;
+
+        if (e < s) {
+            s2e()->getWarningsStream() << std::hex << e << " must be bigger than " << s << std::endl;
+            continue;
+        }
+        m_addressTriggers.push_back(AddressRange(list[0], list[1]));
+    }while(true);
+}
+
 Debugger::~Debugger(void)
 {
     if (m_dataTriggers) {
         delete [] m_dataTriggers;
-    }
-
-    if (m_addressTriggers) {
-        delete [] m_addressTriggers;
     }
 }
 
@@ -93,8 +127,9 @@ bool Debugger::dataTriggered(uint64_t data) const
 
 bool Debugger::addressTriggered(uint64_t address) const
 {
-    for (unsigned i=0; i<m_addressTriggerCount; ++i) {
-        if (m_addressTriggers[i] == address) {
+    for (unsigned i=0; i<m_addressTriggers.size(); ++i) {
+        if (m_addressTriggers[i].start <= address &&
+            m_addressTriggers[i].end >= address ) {
             return true;
         }
     }

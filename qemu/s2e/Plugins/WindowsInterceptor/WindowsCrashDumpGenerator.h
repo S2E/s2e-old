@@ -7,6 +7,7 @@
 #include <s2e/S2EExecutionState.h>
 
 #include "WindowsImage.h"
+#include "WindowsMonitor.h"
 
 //Below are data types used to generate Windows kernel crash dumps
 //Most of the stuff is taken from http://www.wasm.ru/print.php?article=dmp_format_en
@@ -261,6 +262,8 @@ public:
     void generateDumpOnBsod(S2EExecutionState *state, const std::string &prefix);
 
 private:
+    WindowsMonitor *m_monitor;
+
     uint32_t readAndConcretizeRegister(S2EExecutionState *state, unsigned offset);
     bool saveContext(S2EExecutionState *state, s2e::windows::CONTEXT32 &ctx);
     void generateCrashDump(S2EExecutionState *state,

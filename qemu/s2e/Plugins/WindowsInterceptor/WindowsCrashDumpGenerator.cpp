@@ -20,12 +20,15 @@ namespace plugins {
 
 using namespace s2e::windows;
 
-S2E_DEFINE_PLUGIN(WindowsCrashDumpGenerator, "Generates WinDbg-compatible crash dumps", "",);
+S2E_DEFINE_PLUGIN(WindowsCrashDumpGenerator, "Generates WinDbg-compatible crash dumps",
+                  "WindowsCrashDumpGenerator", "WindowsMonitor");
 
 void WindowsCrashDumpGenerator::initialize()
 {
     //Register the LUA API for crash dump generation
     Lunar<WindowsCrashDumpInvoker>::Register(s2e()->getConfig()->getState());
+
+    m_monitor = static_cast<WindowsMonitor*>(s2e()->getPlugin("WindowsMonitor"));
 }
 
 void WindowsCrashDumpGenerator::generateDump(S2EExecutionState *state, const std::string &prefix)
@@ -248,13 +251,13 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     }
 
     hdr->ValidDump = DUMP_HDR_DUMPSIGNATURE;
-    hdr->MajorVersion = 0xF; //Free build (0xC for checked)
+    hdr->MajorVersion = m_monitor->isCheckedBuild() ? 0xC : 0xF; //Free build (0xC for checked)
     hdr->MinorVersion = 2600; //XXX: hard-coded for sp3
     hdr->DirectoryTableBase = state->getPid();
 
     //Fetch KdDebuggerDataBlock
     //XXX: May break with windows versions
-    uint32_t pKdDebuggerDataBlock = 0x804d7000 - 0x400000 + 0x00475DE0;
+    uint32_t pKdDebuggerDataBlock = m_monitor->GetKdDebuggerDataBlock();
     hdr->KdDebuggerDataBlock = pKdDebuggerDataBlock;
 
 

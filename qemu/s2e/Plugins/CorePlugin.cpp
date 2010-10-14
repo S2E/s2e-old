@@ -93,22 +93,13 @@ void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, uint64_
     TCGv_ptr t0 = tcg_temp_new_ptr();
     TCGv_i64 t1 = tcg_temp_new_i64();
 
-#if 1
     if (nextpc != (uint64_t)-1) {
-        TCGv_ptr tpc = tcg_temp_new_ptr();
+        TCGv_i32 tpc = tcg_temp_new_i32();
         TCGv_ptr cpu_env = MAKE_TCGV_PTR(0);
-#if TCG_TARGET_REG_BITS == 64
-        tcg_gen_movi_i64(tpc, (tcg_target_ulong) nextpc);
-        tcg_gen_st_i64(tpc, cpu_env, offsetof(CPUState, eip));
-#else
         tcg_gen_movi_i32(tpc, (tcg_target_ulong) nextpc);
         tcg_gen_st_i32(tpc, cpu_env, offsetof(CPUState, eip));
-#endif
-
-        tcg_temp_free_ptr(tpc);
-
+        tcg_temp_free_i32(tpc);
     }
-#endif
 
     // XXX: here we rely on CPUState being the first tcg global temp
     TCGArg args[2];
