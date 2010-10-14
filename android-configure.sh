@@ -202,7 +202,7 @@ if [ -n "$SDL_CONFIG" ] ; then
 #include <SDL.h>
 #undef main
 int main( int argc, char** argv ) {
-   return SDL_Init (SDL_INIT_VIDEO); 
+   return SDL_Init (SDL_INIT_VIDEO);
 }
 EOF
 	feature_check_link  SDL_LINKING
@@ -229,7 +229,7 @@ int main( int argc, char** argv ) {
 	SDL_WM_SetPos(x, y);
 	SDL_WM_GetMonitorDPI(&x, &y);
 	SDL_WM_GetMonitorRect(&r);
-	return SDL_Init (SDL_INIT_VIDEO); 
+	return SDL_Init (SDL_INIT_VIDEO);
 }
 EOF
 	feature_check_link  SDL_LINKING
@@ -362,10 +362,20 @@ feature_check_header HAVE_FNMATCH_H       "<fnmatch.h>"
 # Build the config.make file
 #
 
+case $TARGET_OS in
+    windows)
+        TARGET_EXEEXT=.exe
+        ;;
+    *)
+        TARGET_EXEEXT=
+        ;;
+esac
+
 create_config_mk
 echo "" >> $config_mk
 echo "TARGET_ARCH       := arm" >> $config_mk
 echo "HOST_PREBUILT_TAG := $TARGET_OS" >> $config_mk
+echo "HOST_EXEEXT       := $TARGET_EXEEXT" >> $config_mk
 echo "PREBUILT          := $ANDROID_PREBUILT" >> $config_mk
 
 PWD=`pwd`

@@ -14,7 +14,7 @@
 #
 
 # first, call a library containing all object files
-LOCAL_BUILT_MODULE := $(call executable-path,$(LOCAL_MODULE))
+LOCAL_BUILT_MODULE := $(call executable-path,$(LOCAL_MODULE))$(HOST_EXEEXT)
 LOCAL_CC ?= $(CC)
 include $(BUILD_SYSTEM)/binary.make
 
