@@ -72,6 +72,16 @@ typedef void (*QemudClientClose)( void*  opaque );
  */
 typedef void (*QemudClientRecv) ( void*  opaque, uint8_t*  msg, int  msglen, QemudClient*  client );
 
+/* A function that will be called when the state of the client should be
+ * saved to a snapshot.
+ */
+typedef void (*QemudClientSave) ( QEMUFile*  f, QemudClient*  client, void*  opaque );
+
+/* A function that will be called when the state of the client should be
+ * restored from a snapshot.
+ */
+typedef int (*QemudClientLoad) ( QEMUFile*  f, QemudClient*  client, void*  opaque );
+
 /* Register a new client for a given service.
  * 'clie_opaque' will be sent as the first argument to 'clie_recv' and 'clie_close'
  * 'clie_recv' and 'clie_close' are both optional and may be NULL.
@@ -83,7 +93,9 @@ extern QemudClient*  qemud_client_new( QemudService*     service,
                                        int               channel_id,
                                        void*             clie_opaque,
                                        QemudClientRecv   clie_recv,
-                                       QemudClientClose  clie_close );
+                                       QemudClientClose  clie_close,
+                                       QemudClientSave   clie_save,
+                                       QemudClientLoad   clie_load );
 
 /* Enable framing on a given client channel.
  */
@@ -104,13 +116,25 @@ extern void   qemud_client_close( QemudClient*  client );
  */
 typedef QemudClient*  (*QemudServiceConnect)( void*   opaque, QemudService*  service, int  channel );
 
+/* A function that will be called when the state of the service should be
+ * saved to a snapshot.
+ */
+typedef void (*QemudServiceSave) ( QEMUFile*  f, QemudService*  service, void*  opaque );
+
+/* A function that will be called when the state of the service should be
+ * restored from a snapshot.
+ */
+typedef int (*QemudServiceLoad) ( QEMUFile*  f, QemudService*  service, void*  opaque );
+
 /* Register a new qemud service.
  * 'serv_opaque' is the first parameter to 'serv_connect'
  */
 extern QemudService*  qemud_service_register( const char*          serviceName,
                                               int                  max_clients,
                                               void*                serv_opaque,
-                                              QemudServiceConnect  serv_connect );
+                                              QemudServiceConnect  serv_connect,
+                                              QemudServiceSave     serv_save,
+                                              QemudServiceLoad     serv_load);
 
 /* Sends a message to all clients of a given service.
  */

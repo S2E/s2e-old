@@ -63,6 +63,7 @@ static inline void qemu_put_ubyte(QEMUFile *f, unsigned int v)
 void qemu_put_be16(QEMUFile *f, unsigned int v);
 void qemu_put_be32(QEMUFile *f, unsigned int v);
 void qemu_put_be64(QEMUFile *f, uint64_t v);
+void qemu_put_float(QEMUFile *f, float v);
 int qemu_get_buffer(QEMUFile *f, uint8_t *buf, int size);
 int qemu_get_byte(QEMUFile *f);
 
@@ -76,6 +77,7 @@ static inline unsigned int qemu_get_ubyte(QEMUFile *f)
 unsigned int qemu_get_be16(QEMUFile *f);
 unsigned int qemu_get_be32(QEMUFile *f);
 uint64_t qemu_get_be64(QEMUFile *f);
+float qemu_get_float(QEMUFile *f);
 int qemu_file_rate_limit(QEMUFile *f);
 size_t qemu_file_set_rate_limit(QEMUFile *f, size_t new_rate);
 size_t qemu_file_get_rate_limit(QEMUFile *f);

@@ -724,6 +724,22 @@ int   qemu_get_struct(QEMUFile*  f, const QField*  fields, void*  s)
     return 0;
 }
 
+/* write a float to file */
+void qemu_put_float(QEMUFile *f, float v)
+{
+    uint8_t *bytes = (uint8_t*) &v;
+    qemu_put_buffer(f, bytes, sizeof(float));
+}
+
+/* read a float from file */
+float qemu_get_float(QEMUFile *f)
+{
+    uint8_t bytes[sizeof(float)];
+    qemu_get_buffer(f, bytes, sizeof(float));
+
+    return *((float*) bytes);
+}
+
 typedef struct SaveStateEntry {
     char idstr[256];
     int instance_id;

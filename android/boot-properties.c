@@ -155,7 +155,7 @@ boot_property_service_connect( void*          opaque,
 
     client = qemud_client_new( serv, channel, NULL,
                                boot_property_client_recv,
-                               NULL );
+                               NULL, NULL, NULL );
 
     qemud_client_set_framing(client, 1);
     return client;
@@ -168,7 +168,8 @@ boot_property_init_service( void )
     if (!_inited) {
         QemudService*  serv = qemud_service_register( SERVICE_NAME,
                                                     1, NULL,
-                                                    boot_property_service_connect );
+                                                    boot_property_service_connect,
+                                                    NULL, NULL);
         if (serv == NULL) {
             derror("could not register '%s' service", SERVICE_NAME);
             return;

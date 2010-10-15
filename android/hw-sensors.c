@@ -16,6 +16,7 @@
 #include "android/utils/system.h"
 #include "android/hw-qemud.h"
 #include "android/globals.h"
+#include "hw/hw.h"
 #include "qemu-char.h"
 #include "qemu-timer.h"
 
@@ -84,7 +85,7 @@ typedef struct {
 
 
 typedef struct {
-    char       enabled;
+    uint8_t  enabled;
     union {
         Acceleration   acceleration;
         MagneticField  magnetic;
@@ -408,6 +409,29 @@ _hwSensorClient_receive( HwSensorClient*  cl, uint8_t*  msg, int  msglen )
     D("%s: ignoring unknown query", __FUNCTION__);
 }
 
+/* Saves sensor-specific client data to snapshot */
+static void
+_hwSensorClient_save( QEMUFile*  f, QemudClient*  client, void*  opaque  )
+{
+    HwSensorClient* sc = opaque;
+
+    qemu_put_be32(f, sc->delay_ms);
+    qemu_put_be32(f, sc->enabledMask);
+    qemu_put_timer(f, sc->timer);
+}
+
+/* Loads sensor-specific client data from snapshot */
+static int
+_hwSensorClient_load( QEMUFile*  f, QemudClient*  client, void*  opaque  )
+{
+    HwSensorClient* sc = opaque;
+
+    sc->delay_ms = qemu_get_be32(f);
+    sc->enabledMask = qemu_get_be32(f);
+    qemu_get_timer(f, sc->timer);
+
+    return 0;
+}
 
 static QemudClient*
 _hwSensors_connect( void*  opaque, QemudService*  service, int  channel )
@@ -416,7 +440,9 @@ _hwSensors_connect( void*  opaque, QemudService*  service, int  channel )
     HwSensorClient*  cl      = _hwSensorClient_new(sensors);
     QemudClient*     client  = qemud_client_new(service, channel, cl,
                                                 _hwSensorClient_recv,
-                                                _hwSensorClient_close);
+                                                _hwSensorClient_close,
+                                                _hwSensorClient_save,
+                                                _hwSensorClient_load );
     qemud_client_set_framing(client, 1);
     cl->client = client;
 
@@ -432,6 +458,99 @@ _hwSensors_setAcceleration( HwSensors*  h, float x, float y, float z )
     s->u.acceleration.y = y;
     s->u.acceleration.z = z;
 }
+
+/* Saves available sensors to allow checking availability when loaded.
+ */
+static void
+_hwSensors_save( QEMUFile*  f, QemudService*  sv, void*  opaque)
+{
+    HwSensors* h = opaque;
+
+    // number of sensors
+    qemu_put_be32(f, MAX_SENSORS);
+    AndroidSensor i;
+    for (i = 0 ; i < MAX_SENSORS; i++) {
+        Sensor* s = &h->sensors[i];
+        qemu_put_be32(f, s->enabled);
+
+        /* this switch ensures that a warning is raised when a new sensor is
+         * added and is not added here as well.
+         */
+        switch (i) {
+        case ANDROID_SENSOR_ACCELERATION:
+            qemu_put_float(f, s->u.acceleration.x);
+            qemu_put_float(f, s->u.acceleration.y);
+            qemu_put_float(f, s->u.acceleration.z);
+            break;
+        case ANDROID_SENSOR_MAGNETIC_FIELD:
+            qemu_put_float(f, s->u.magnetic.x);
+            qemu_put_float(f, s->u.magnetic.y);
+            qemu_put_float(f, s->u.magnetic.z);
+            break;
+        case ANDROID_SENSOR_ORIENTATION:
+            qemu_put_float(f, s->u.orientation.azimuth);
+            qemu_put_float(f, s->u.orientation.pitch);
+            qemu_put_float(f, s->u.orientation.roll);
+            break;
+        case ANDROID_SENSOR_TEMPERATURE:
+            qemu_put_float(f, s->u.temperature.celsius);
+            break;
+        case MAX_SENSORS:
+            break;
+        }
+    }
+}
+
+
+static int
+_hwSensors_load( QEMUFile*  f, QemudService*  s, void*  opaque)
+{
+    HwSensors* h = opaque;
+
+    /* check number of sensors */
+    int32_t num_sensors = qemu_get_be32(f);
+    if (num_sensors != MAX_SENSORS) {
+        D("%s: cannot load: snapshot requires %d sensors, %d available\n",
+          __FUNCTION__, num_sensors, MAX_SENSORS);
+        return -EIO;
+    }
+
+    /* load sensor state */
+    AndroidSensor i;
+    for (i = 0 ; i < MAX_SENSORS; i++) {
+        Sensor* s = &h->sensors[i];
+        s->enabled = qemu_get_be32(f);
+
+        /* this switch ensures that a warning is raised when a new sensor is
+         * added and is not added here as well.
+         */
+        switch (i) {
+        case ANDROID_SENSOR_ACCELERATION:
+            s->u.acceleration.x = qemu_get_float(f);
+            s->u.acceleration.y = qemu_get_float(f);
+            s->u.acceleration.z = qemu_get_float(f);
+            break;
+        case ANDROID_SENSOR_MAGNETIC_FIELD:
+            s->u.magnetic.x = qemu_get_float(f);
+            s->u.magnetic.y = qemu_get_float(f);
+            s->u.magnetic.z = qemu_get_float(f);
+            break;
+        case ANDROID_SENSOR_ORIENTATION:
+            s->u.orientation.azimuth = qemu_get_float(f);
+            s->u.orientation.pitch   = qemu_get_float(f);
+            s->u.orientation.roll    = qemu_get_float(f);
+            break;
+        case ANDROID_SENSOR_TEMPERATURE:
+            s->u.temperature.celsius = qemu_get_float(f);
+            break;
+        case MAX_SENSORS:
+            break;
+        }
+    }
+
+    return 0;
+}
+
 
 #if 0  /* not used yet */
 /* change the value of the emulated magnetic vector */
@@ -501,8 +620,8 @@ _hwSensors_setCoarseOrientation( HwSensors*  h, AndroidCoarseOrientation  orient
 static void
 _hwSensors_init( HwSensors*  h )
 {
-    h->service = qemud_service_register("sensors", 0, h,
-                                        _hwSensors_connect );
+    h->service = qemud_service_register("sensors", 0, h, _hwSensors_connect,
+                                        _hwSensors_save, _hwSensors_load);
 
     if (android_hw->hw_accelerometer)
         h->sensors[ANDROID_SENSOR_ACCELERATION].enabled = 1;

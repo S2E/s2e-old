@@ -68,7 +68,7 @@ _hw_control_qemud_connect( void*  opaque, QemudService*  service, int  channel )
     client = qemud_client_new( service, channel,
                                opaque,
                                _hw_control_qemud_client_recv,
-                               NULL );
+                               NULL, NULL, NULL );
 
     qemud_client_set_framing(client, 1);
     return client;
@@ -123,7 +123,8 @@ hw_control_init( HwControl*                    control,
     control->client_funcs = client_funcs[0];
     control->service      = qemud_service_register( "hw-control", 0,
                                                     control,
-                                                    _hw_control_qemud_connect );
+                                                    _hw_control_qemud_connect,
+                                                    NULL, NULL);
 }
 
 void
