@@ -313,7 +313,6 @@ uint64_t node_cpumask[MAX_NODES];
 
 static CPUState *cur_cpu;
 static CPUState *next_cpu;
-static int timer_alarm_pending = 1;
 static QEMUTimer *nographic_timer;
 
 uint8_t qemu_uuid[16];
@@ -3063,9 +3062,9 @@ void main_loop_wait(int timeout)
             }
         }
 
-	/* remove deleted IO handlers */
-	pioh = &first_io_handler;
-	while (*pioh) {
+        /* remove deleted IO handlers */
+        pioh = &first_io_handler;
+        while (*pioh) {
             ioh = *pioh;
             if (ioh->deleted) {
                 *pioh = ioh->next;
@@ -3086,27 +3085,6 @@ void main_loop_wait(int timeout)
 #endif
     charpipe_poll();
 
-#if 0
-    /* rearm timer, if not periodic */
-    if (alarm_timer->flags & ALARM_FLAG_EXPIRED) {
-        alarm_timer->flags &= ~ALARM_FLAG_EXPIRED;
-        qemu_rearm_alarm_timer(alarm_timer);
-    }
-
-    /* vm time timers */
-    if (vm_running) {
-        if (!cur_cpu || likely(!(cur_cpu->singlestep_enabled & SSTEP_NOTIMER)))
-            qemu_run_timers(&active_timers[QEMU_CLOCK_VIRTUAL],
-                qemu_get_clock(vm_clock));
-    }
-
-    /* real time timers */
-    qemu_run_timers(&active_timers[QEMU_CLOCK_REALTIME],
-                    qemu_get_clock(rt_clock));
-
-    qemu_run_timers(&active_timers[QEMU_CLOCK_HOST],
-                    qemu_get_clock(host_clock));
-#endif
     qemu_run_all_timers();
 
     /* Check bottom-halves last in case any of the earlier events triggered
@@ -3175,8 +3153,7 @@ static void tcg_cpu_exec(void)
 
         if (!vm_running)
             break;
-        if (timer_alarm_pending) {
-            timer_alarm_pending = 0;
+        if (qemu_timer_alarm_pending()) {
             break;
         }
         if (cpu_can_run(env))
@@ -3189,7 +3166,6 @@ static void tcg_cpu_exec(void)
     }
 }
 
-#if 0
 static int cpu_has_work(CPUState *env)
 {
     if (env->stop)
@@ -3203,7 +3179,7 @@ static int cpu_has_work(CPUState *env)
     return 0;
 }
 
-static int tcg_has_work(void)
+int tcg_has_work(void)
 {
     CPUState *env;
 
@@ -3212,7 +3188,6 @@ static int tcg_has_work(void)
             return 1;
     return 0;
 }
-#endif
 
 static int vm_can_run(void)
 {

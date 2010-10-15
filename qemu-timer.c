@@ -589,7 +589,7 @@ static void qemu_run_timers(QEMUClock *clock)
 {
     QEMUTimer **ptimer_head, *ts;
     int64_t current_time;
-   
+
     if (!clock->enabled)
         return;
 
@@ -743,6 +743,15 @@ void qemu_run_all_timers(void)
     qemu_run_timers(host_clock);
 }
 
+static int timer_alarm_pending = 1;
+
+int qemu_timer_alarm_pending(void)
+{
+    int ret = timer_alarm_pending;
+    timer_alarm_pending = 0;
+    return ret;
+}
+
 #ifdef _WIN32
 static void CALLBACK host_alarm_handler(UINT uTimerID, UINT uMsg,
                                         DWORD_PTR dwUser, DWORD_PTR dw1,
@@ -795,6 +804,7 @@ static void host_alarm_handler(int host_signum)
 
         t->expired = alarm_has_dynticks(t);
         t->pending = 1;
+        timer_alarm_pending = 1;
         qemu_notify_event();
     }
 }
@@ -961,7 +971,7 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t)
 
     sigaction(SIGALRM, &act, NULL);
 
-    /* 
+    /*
      * Initialize ev struct to 0 to avoid valgrind complaining
      * about uninitialized data in timer_create call
      */
@@ -1181,6 +1191,8 @@ void quit_timers(void)
     t->stop(t);
 }
 
+extern int tcg_has_work(void);
+
 int qemu_calculate_timeout(void)
 {
 #ifndef CONFIG_IOTHREAD
@@ -1188,7 +1200,24 @@ int qemu_calculate_timeout(void)
 
     if (!vm_running)
         timeout = 5000;
-    else {
+    else if (tcg_has_work())
+        timeout = 0;
+    else if (!use_icount) {
+#ifdef WIN32
+        /* This corresponds to the case where the emulated system is
+         * totally idle and waiting for i/o. The problem is that on
+         * Windows, the default value will prevent Windows user events
+         * to be delivered in less than 5 seconds.
+         *
+         * Upstream contains a different way to handle this, for now
+         * this hack should be sufficient until we integrate it into
+         * our tree.
+         */
+        timeout = 1000/15;  /* deliver user events every 15/th of second */
+#else
+        timeout = 5000;
+#endif
+    } else {
      /* XXX: use timeout computed from timers */
         int64_t add;
         int64_t delta;

@@ -934,6 +934,12 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t)
 
 #endif /* _WIN32 */
 
+static void alarm_timer_on_change_state_rearm(void *opaque, int running, int reason)
+{
+    if (running)
+        qemu_rearm_alarm_timer((struct qemu_alarm_timer *) opaque);
+}
+
 int init_timer_alarm(void)
 {
     struct qemu_alarm_timer *t = NULL;
@@ -971,28 +977,6 @@ void quit_timers(void)
 
 int qemu_calculate_timeout(void)
 {
-    int timeout;
-
-    {
-        /* XXX: use timeout computed from timers */
-        int64_t add;
-        int64_t delta = 0;
-        /* Advance virtual time to the next event.  */
-        {
-            /* Wait for either IO to occur or the next
-               timer event.  */
-            add = qemu_next_deadline();
-            /* We advance the timer before checking for IO.
-               Limit the amount we advance so that early IO
-               activity won't get the guest too far ahead.  */
-            if (add > 10000000)
-                add = 10000000;
-            delta += add;
-            timeout = delta / 1000000;
-            if (timeout < 0)
-                timeout = 0;
-        }
-    }
-
-    return timeout;
+	/* Deliver user events at 30 Hz */
+	return 1000/30;
 }
