@@ -59,6 +59,8 @@
 #include "android/qemulator.h"
 #include "android/display.h"
 
+#include "android/snapshot.h"
+
 #include "framebuffer.h"
 
 AndroidRotation  android_framebuffer_rotation;
@@ -1003,11 +1005,11 @@ int main(int argc, char **argv)
         if (!opts->snapstorage && opts->datadir) {
             bufprint(tmp, tmpend, "%s/snapshots.img", opts->datadir);
             if (path_exists(tmp)) {
-                opts->snapstorage = qemu_strdup(tmp);
+                opts->snapstorage = android_strdup(tmp);
                 D("autoconfig: -snapstorage %s", opts->snapstorage);
             }
         }
-#endif
+#endif // CONFIG_ANDROID_SNAPSHOTS
     }
 
     /* setup the virtual device parameters from our options
@@ -1423,7 +1425,11 @@ int main(int argc, char **argv)
     } else if (opts->no_snapshot) {
         D("ignoring redundant option '-no-snapshot' implied by '-no-snapstorage'");
     }
-#endif
+
+    if (opts->snapshot_list) {
+        snapshot_print_and_exit(opts->snapstorage);
+    }
+#endif // CONFIG_ANDROID_SNAPSHOTS
 
     if (!opts->logcat || opts->logcat[0] == 0) {
         opts->logcat = getenv("ANDROID_LOG_TAGS");

@@ -693,6 +693,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     android/hw-qemud.c \
                     android/core-init-utils.c   \
                     android/config.c \
+                    android/snapshot.c \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -1181,6 +1182,7 @@ VL_SOURCES := framebuffer.c \
               android/cmdline-option.c \
               android/config.c \
               android/display.c \
+              android/snapshot.c \
               android/main.c \
               qemu-timer-ui.c \
               vl-android-ui.c \
