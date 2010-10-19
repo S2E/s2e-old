@@ -32,6 +32,12 @@ void BlueScreenInterceptor::initialize()
                     "generateCrashDump option." << std::endl;
             exit(-1);
         }
+
+        //How many dumps to generate at most ?
+        //Dumps are large and there can be many of them.
+        m_currentDumpCount = 0;
+        m_maxDumpCount = s2e()->getConfig()->getInt(getConfigKey() + ".maxDumpCount", (int64_t)-1, &ok);
+        s2e()->getDebugStream() << "BlueScreenInterceptor: Maximum number of dumps:" << m_maxDumpCount << std::endl;
     }
 }
 
@@ -67,7 +73,8 @@ void BlueScreenInterceptor::onBsod(
         state->dumpStack(512);
     }
 
-    if (m_generateCrashDump) {
+    if (m_generateCrashDump && m_currentDumpCount < m_maxDumpCount) {
+        ++m_currentDumpCount;
         m_crashdumper->generateDumpOnBsod(state, "bsod");
     }
 

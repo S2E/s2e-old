@@ -163,6 +163,7 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemoryWithTag);
     REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateSharedMemory);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMFreeSharedMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterIoPortRange);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterInterrupt);
     REGISTER_IMPORT(I, "ndis.sys", NdisMMapIoSpace);
@@ -343,6 +344,31 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
 
      }
 }
+
+void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }                
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+
+    bool ok = true;
+
+    uint32_t physAddr;
+    uint32_t length;
+
+    //XXX: Physical address should be 64 bits
+    ok &= readConcreteParameter(state, 1, &length); //Length
+    ok &= readConcreteParameter(state, 4, &physAddr); //PhysicalAddress
+
+    if (!ok) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read parameters" << std::endl;
+        return;
+    }
+
+    m_hw->resetSymbolicMmioRange(state, physAddr, length);
+
+}
+
 
 void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionMonitorState *fns)
 {

@@ -79,15 +79,23 @@ NdisMAllocateSharedMemory:
     call s2e_print_message
     add esp,4
 
-    mov eax, [esp + 4*(1+3)]
+    mov eax, [esp + 4*(1+3)]  ;Store the virtual address of the mapping
     mov dword [eax], 0x90000
 
-    mov eax, [esp + 4*(1+4)]
+    mov eax, [esp + 4*(1+4)]  ;Return the physical address to be used for DMA
     mov dword [eax], 0x90000
     mov dword [eax+4], 0x0000
 
     xor eax, eax
-ret 4*5
+    ret 4*(5)
+
+freeshared: db "Executing NdisMFreeSharedMemory", 0
+NdisMFreeSharedMemory:
+   push freeshared
+   call s2e_print_message
+   add esp,4
+
+   ret 4*(5+1)
 
 mapiospace: db "Executing NdisMMapIoSpace", 0
 NdisMMapIoSpace:
@@ -308,6 +316,7 @@ imp_ndis_dll: db "ndis.sys",0
 imp_NdisMRegisterMiniport: db "NdisMRegisterMiniport",0
 imp_NdisMQueryAdapterResources: db "NdisMQueryAdapterResources",0
 imp_NdisMAllocateSharedMemory: db "NdisMAllocateSharedMemory",0
+imp_NdisMFreeSharedMemory: db "NdisMFreeSharedMemory", 0
 imp_NdisMMapIoSpace: db "NdisMMapIoSpace",0
 imp_NdisMInitializeTimer: db "NdisMInitializeTimer",0
 imp_NdisSetTimer: db "NdisSetTimer",0
@@ -362,6 +371,12 @@ test_ndis:
     push NdisMAllocateSharedMemory
     push imp_NdisMAllocateSharedMemory
     push imp_ndis_dll
+    call s2e_raw_load_import
+    add esp, 3*4
+
+    push NdisMFreeSharedMemory
+    push imp_NdisMFreeSharedMemory
+    push imp_ndis_dll      
     call s2e_raw_load_import
     add esp, 3*4
 
@@ -604,22 +619,34 @@ lp1:
 
 
 nts_err1: db "Incorrect value read from DMA area", 0
+nts_err2: db "Invalid value read from normal memory", 0
+nts_err3: db "NdisMAllocateSharedMemory failed", 0
+nts_okmsg: db "All is fine", 0
 
 ndis_test_symbmmio:
-    push ebp
-    mov ebp, esp
+    %push mycontext
+    %stacksize flat
+    %assign %$localsize 0
+    %local virtual_address:dword, physical_address:qword, length:dword
 
-    push 0x90004; PhysicalAddress
-    push 0x90000; VirtualAddress
+
+    enter %$localsize,0
+
+    mov dword [length], 0x1234
+
+    lea eax, [physical_address] ;PhysicalAddress
+    push eax
+    lea eax, [virtual_address] ;VirtualAddress
+    push eax
     push 0 ;cached
-    push 0x111; length
+    push dword [length]; length
     push 0x000; handle
     call NdisMAllocateSharedMemory
 
-    cmp dword[0x90000], 0
+    cmp dword [virtual_address], 0
     jnz nts_ok
 
-    push 0
+    push nts_err3
     push 0
     call s2e_kill_state
     add esp, 8
@@ -628,27 +655,65 @@ nts_ok:
 
     ;Check that reading/writing past the zone works
     mov eax, 0xBADCAFE
-    mov [0x90111], eax
-    mov ecx, [0x90111]
-    cmp [0x90111], eax
-    je nts_ok1
+    mov edx, [virtual_address]
+    add edx, [length]
+    mov [edx], eax
+    mov ecx, [edx]
+    cmp [edx], eax
+    je nts_ok11
 
+    ;Kill state because of incorrect read value
     push nts_err1
     push ecx
     call s2e_kill_state
     add esp, 8
 
-nts_ok2:
+nts_ok11:
 
     ;Try to access the memory
-    mov eax, [0x90000]
-    cmp eax, 0
+    mov eax, [virtual_address]
+    mov ecx, [length]
+    shr ecx, 1
+    add eax, ecx
+    cmp dword [eax], 0
+    je nts_ok12
+
+    nop
+
+nts_ok12:
+
+    ;Free the allocated zone
+    push dword [physical_address+4]; PhysicalAddress
+    push dword [physical_address]; PhysicalAddress
+    push dword [virtual_address]; VirtualAddress
+    push 0 ;cached
+    push dword [length]; length
+    push 0x000; handle
+    call NdisMFreeSharedMemory
+
+    ;Check that a read does not return symbolic values anymore
+    mov edx, [virtual_address]
+    add edx, 0x4
+
+    mov eax, 0xBADCAFE
+    mov [edx], eax
+    mov ecx, [edx]
+    cmp [edx], eax
     je nts_ok1
 
+    ;Print an error message
+    push nts_err2
+    push ecx
+    call s2e_kill_state
+    add esp, 8
+    ret
+
 nts_ok1:
-    push 0
+    push nts_okmsg
     push 0
     call s2e_kill_state
     add esp, 8
     leave
     ret
+
+    %pop

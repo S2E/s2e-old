@@ -68,6 +68,7 @@ private:
     DECLARE_ENTRY_POINT(NdisAllocateMemory);
     DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTag);
     DECLARE_ENTRY_POINT(NdisMAllocateSharedMemory);
+    DECLARE_ENTRY_POINT(NdisMFreeSharedMemory);
     DECLARE_ENTRY_POINT(NdisMRegisterIoPortRange);
     DECLARE_ENTRY_POINT(NdisMMapIoSpace);
     DECLARE_ENTRY_POINT(NdisMRegisterInterrupt);

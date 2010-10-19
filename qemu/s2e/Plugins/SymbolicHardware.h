@@ -6,6 +6,8 @@
 #include <s2e/S2EExecutionState.h>
 #include <s2e/ConfigFile.h>
 
+#include "klee/util/BitArray.h"
+
 #include <string>
 #include <set>
 #include <map>
@@ -154,7 +156,7 @@ public:
 
     bool isMmioSymbolic(uint64_t physaddress, uint64_t size) const;
     bool setSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr, uint64_t size);
-    bool resetSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr);
+    bool resetSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr, uint64_t size);
 private:
     uint32_t m_portMap[65536/(sizeof(uint32_t)*8)];
     DeviceDescriptors m_devices;
@@ -167,21 +169,29 @@ private:
 class SymbolicHardwareState : public PluginState
 {
 public:
-    struct MemoryRange {
-        uint64_t base, size;
-        bool operator()(const MemoryRange &r1, const MemoryRange &r2) const {
-            return r1.base + r1.size <= r2.base;
-        }
-        MemoryRange() {
-            base = size = 0;
-        }
+    class PageBitmap {
+    private:
+        bool fullySymbolic; //if false then bitmap must not be null
+        klee::BitArray *bitmap; //bit set means symbolic
+
+        void allocateBitmap(klee::BitArray *source);
+        bool isFullySymbolic() const;
+        bool isFullyConcrete() const;
+
+    public:
+        PageBitmap();
+        PageBitmap(const PageBitmap &b1);
+        ~PageBitmap();
+
+        bool set(unsigned offset, unsigned length, bool b);
+        bool get(unsigned offset) const;
+        bool hasSymbolic() const;
     };
 
-    typedef std::set<MemoryRange, MemoryRange> MemoryRanges;
+    typedef std::map<uint64_t, PageBitmap> MemoryRanges;
 private:
 
     MemoryRanges m_MmioMemory;
-
 
 public:
 
@@ -190,8 +200,7 @@ public:
     virtual SymbolicHardwareState* clone() const;
     static PluginState *factory(Plugin *p, S2EExecutionState *s);
 
-    bool addMmioRange(uint64_t physbase, uint64_t size);
-    bool delMmioRange(uint64_t physbase);
+    bool setMmioRange(uint64_t physbase, uint64_t size, bool b);
     bool isMmio(uint64_t physaddr, uint64_t size) const;
 
     friend class SymbolicHardware;

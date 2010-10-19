@@ -99,8 +99,8 @@ push ebp
 mov ebp, esp
 push ebx
 
-mov eax, [ebp + 0x8] ;status
 mov ebx, [ebp + 0xC] ;message
+mov eax, [ebp + 0x8] ;status
 
 db 0x0f
 db 0x3f ; S2EOP

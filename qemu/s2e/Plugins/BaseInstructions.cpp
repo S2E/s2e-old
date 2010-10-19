@@ -151,7 +151,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                         << "ERROR: symbolic argument was passed to s2e_op kill state "
                         << std::endl;
                 } else {
-                    if(!state->readString(messagePtr, message)) {
+                    message="<NO MESSAGE>";
+                    if(messagePtr && !state->readString(messagePtr, message)) {
                         s2e()->getWarningsStream(state)
                             << "Error reading file name string from the guest" << std::endl;
                     }
@@ -292,7 +293,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         default:
             s2e()->getWarningsStream(state)
-                << "Invalid built-in opcode " << hexval(opcode) << std::endl;
+                << "BaseInstructions: Invalid built-in opcode " << hexval(opcode) << std::endl;
             break;
     }
 }
@@ -300,14 +301,14 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode)
 {
-    s2e()->getDebugStream() << "Custom instruction 0x" << std::hex <<   opcode << std::dec << std::endl;
+    s2e()->getDebugStream() << "BaseInstructions: Custom instruction 0x" << std::hex <<   opcode << std::dec << std::endl;
 
     switch(opcode & 0xFF) {
         case 0x00:
             handleBuiltInOps(state, opcode);
             break;
         default:
-            s2e()->getWarningsStream() << "Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" <<
+            s2e()->getWarningsStream() << "BaseInstructions: Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" <<
                 state->getPc() << std::dec << std::endl;
     }
 }

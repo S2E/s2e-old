@@ -32,6 +32,8 @@ private:
     WindowsMonitor *m_monitor;
     WindowsCrashDumpGenerator *m_crashdumper;
     bool m_generateCrashDump;
+    unsigned m_maxDumpCount;
+    unsigned m_currentDumpCount;
 
     void onTranslateBlockStart(
         ExecutionSignal *signal,

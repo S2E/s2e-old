@@ -151,7 +151,7 @@ bool SymbolicHardware::setSymbolicMmioRange(S2EExecutionState *state, uint64_t p
     assert(state->isActive());
 
     DECLARE_PLUGINSTATE(SymbolicHardwareState, state);
-    bool b = plgState->addMmioRange(physaddr, size);
+    bool b = plgState->setMmioRange(physaddr, size, true);
     if (b) {
         //We must flush the TLB, so that the next access can be taken into account
         tlb_flush(state->getConcreteCpuState(), 1);
@@ -159,11 +159,11 @@ bool SymbolicHardware::setSymbolicMmioRange(S2EExecutionState *state, uint64_t p
     return b;
 }
 
-//XXX: Allow to unmap partial ranges.
-bool SymbolicHardware::resetSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr)
+//XXX: report already freed ranges
+bool SymbolicHardware::resetSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr, uint64_t size)
 {
     DECLARE_PLUGINSTATE(SymbolicHardwareState, state);
-    return plgState->delMmioRange(physaddr);
+    return plgState->setMmioRange(physaddr, size, 0);
 }
 
 bool SymbolicHardware::isMmioSymbolic(uint64_t physaddress, uint64_t size) const
@@ -821,41 +821,155 @@ PluginState *SymbolicHardwareState::factory(Plugin *p, S2EExecutionState *s)
     return new SymbolicHardwareState();
 }
 
-bool SymbolicHardwareState::addMmioRange(uint64_t physbase, uint64_t size)
-{
-    MemoryRange mr;
-    mr.base = physbase;
-    mr.size = size;
-
-    MemoryRanges::iterator it = m_MmioMemory.find(mr);
-    if (it != m_MmioMemory.end()) {
-        //Range already mapped
-        return false;
-    }
-
-    m_MmioMemory.insert(mr);
-    return true;
-}
-
 //Unmaps a previously allocated range.
 //phybase must fall inside an existing range.
-bool SymbolicHardwareState::delMmioRange(uint64_t physbase)
+bool SymbolicHardwareState::setMmioRange(uint64_t physbase, uint64_t size, bool b)
 {
-    MemoryRange mr;
-    mr.base = physbase;
-    mr.size = 1;
+    uint64_t addr = physbase;
+    while(size > 0) {
+        MemoryRanges::iterator it = m_MmioMemory.find(addr & ~0xFFF);
+        if (it == m_MmioMemory.end()) {
+            if (!b) {
+                //No need to reset anything,
+                //Go to the next page
+                uint64_t leftover = 0x1000 - (addr & 0xFFF);
+                addr += leftover;
+                size -= leftover > size ? size : leftover;
+                continue;
+            }else {
+                //Need to create a new page
+                m_MmioMemory[addr & ~0xFFF] = PageBitmap();
+                it = m_MmioMemory.find(addr & ~0xFFF);
+            }
+        }
 
-    return m_MmioMemory.erase(mr) == 1;
+        uint32_t offset = addr & 0xFFF;
+        uint32_t mysize = offset + size > 0x1000 ? 0x1000 - offset : size;
+
+        bool fc = (*it).second.set(offset, mysize, b);
+        if (fc) {
+            //The entire page is concrete, do not need to keep it in the map
+            m_MmioMemory.erase(addr & ~0xFFF);
+        }
+
+        size -= mysize;
+        addr += mysize;
+    }
+    return true;
 }
 
 bool SymbolicHardwareState::isMmio(uint64_t physaddr, uint64_t size) const
 {
-    MemoryRange mr;
-    mr.base = physaddr;
-    mr.size = size;
+    while (size > 0) {
+        MemoryRanges::const_iterator it = m_MmioMemory.find(physaddr & ~0xFFF);
+        if (it == m_MmioMemory.end()) {
+            uint64_t leftover = 0x1000 - (physaddr & 0xFFF);
+            physaddr += leftover;
+            size -= leftover > size ? size : leftover;
+            continue;
+        }
 
-    MemoryRanges::const_iterator it = m_MmioMemory.find(mr);
-    return it != m_MmioMemory.end();
+        if (((physaddr & 0xFFF) == 0) && size>=0x1000) {
+            if ((*it).second.hasSymbolic()) {
+                return true;
+            }
+            size-=0x1000;
+            physaddr+=0x1000;
+            continue;
+        }
+
+        bool b = (*it).second.get(physaddr & 0xFFF);
+        if (b) {
+            return true;
+        }
+
+        size--;
+        physaddr++;
+    }
+    return false;
+}
+
+///////////////////////////////////////////////
+bool SymbolicHardwareState::PageBitmap::hasSymbolic() const
+{
+    return !isFullyConcrete();
+}
+
+void SymbolicHardwareState::PageBitmap::allocateBitmap(klee::BitArray *source) {
+    if (source) {
+        bitmap = new klee::BitArray(*source, 0x1000);
+    } else {
+        bitmap = new klee::BitArray(0x1000, false);
+    }
+}
+
+
+bool SymbolicHardwareState::PageBitmap::isFullySymbolic() const {
+    return fullySymbolic;
+}
+
+bool SymbolicHardwareState::PageBitmap::isFullyConcrete() const {
+    if (!fullySymbolic) {
+        if (!bitmap) {
+            return true;
+        }
+        return bitmap->isAllZeros(0x1000);
+    }
+    return false;
+}
+
+SymbolicHardwareState::PageBitmap::PageBitmap() {
+    fullySymbolic = false;
+    bitmap = NULL;
+}
+
+//Copy constructor when cloning the state
+SymbolicHardwareState::PageBitmap::PageBitmap(const PageBitmap &b1) {
+    fullySymbolic = b1.fullySymbolic;
+    bitmap = NULL;
+    if (b1.bitmap) {
+        allocateBitmap(b1.bitmap);
+    }
+}
+
+SymbolicHardwareState::PageBitmap::~PageBitmap() {
+    if (bitmap) {
+        delete bitmap;
+    }
+}
+
+//Returns true if the resulting range is fully concrete
+bool SymbolicHardwareState::PageBitmap::set(unsigned offset, unsigned length, bool b) {
+    assert(offset <= 0x1000 && offset + length <= 0x1000);
+    allocateBitmap(NULL);
+
+    for (unsigned i=offset; i<offset + length; ++i) {
+        bitmap->set(i, b);
+    }
+
+    fullySymbolic = bitmap->isAllOnes(0x1000);
+    bool fc = false;
+    if (fullySymbolic || (fc = bitmap->isAllZeros(0x1000))) {
+        delete bitmap;
+        bitmap = NULL;
+        return fc;
+    }
+    return false;
+}
+
+bool SymbolicHardwareState::PageBitmap::get(unsigned offset) const {
+    assert(offset < 0x1000);
+    if (isFullySymbolic()) {
+        return true;
+    }
+
+    if (isFullyConcrete()) {
+        return true;
+    }
+
+    assert(bitmap);
+
+    return bitmap->get(offset);
 }
 
 

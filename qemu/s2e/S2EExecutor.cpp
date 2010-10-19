@@ -1187,9 +1187,10 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     assert(!newState || !newState->m_active);
     assert(!newState || !newState->m_runningConcrete);
 
-    //XXX:For now, clear the asynchronous request queue, which is not saved as part of
+    //Clear the asynchronous request queue, which is not saved as part of
     //the snapshots by QEMU.
-    qemu_bh_clear();
+    //This is the same mechanism as used by load/save_vmstate, so it should work reliably
+    qemu_aio_flush();
 
     cpu_disable_ticks();
 
