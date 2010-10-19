@@ -641,6 +641,9 @@ endif
 #
 CORE_MISC_SOURCES = vl-android.c \
                     console.c \
+                    qemu-malloc.c \
+                    cutils.c \
+                    osdep.c \
                     loader.c \
                     monitor.c \
                     readline.c \
@@ -653,6 +656,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     d3des.c \
                     vnc-android.c \
                     acl.c \
+                    keymaps.c \
                     buffered_file.c \
                     cbuffer.c \
                     gdbstub.c \
@@ -742,11 +746,8 @@ UI_SOURCES = loadpng.c \
 # lists of source files used by both, emulator UI and emulator core
 #
 
-UI_AND_CORE_SOURCES = osdep.c \
-                      cutils.c \
+UI_AND_CORE_SOURCES = \
                       sockets.c \
-                      keymaps.c \
-                      qemu-malloc.c \
                       android/keycode-array.c \
                       android/charmap.c \
                       android/utils/bufprint.c \

@@ -722,13 +722,13 @@ layout_done( Layout*  layout )
     for (nn = 0; nn < layout->num_displays; nn++)
         display_done( &layout->displays[nn] );
 
-    qemu_free( layout->buttons );
+    AFREE( layout->buttons );
     layout->buttons = NULL;
 
-    qemu_free( layout->backgrounds );
+    AFREE( layout->backgrounds );
     layout->backgrounds = NULL;
 
-    qemu_free( layout->displays );
+    AFREE( layout->displays );
     layout->displays = NULL;
 
     layout->num_buttons     = 0;
@@ -1100,7 +1100,7 @@ skin_window_resize( SkinWindow*  window )
     }
 
     if (window->shrink_pixels) {
-        qemu_free(window->shrink_pixels);
+        AFREE(window->shrink_pixels);
         window->shrink_pixels = NULL;
     }
 
@@ -1267,7 +1267,7 @@ skin_window_free  ( SkinWindow*  window )
             window->shrink_surface = NULL;
         }
         if (window->shrink_pixels) {
-            qemu_free(window->shrink_pixels);
+            AFREE(window->shrink_pixels);
             window->shrink_pixels = NULL;
         }
         if (window->onion) {
@@ -1279,7 +1279,7 @@ skin_window_free  ( SkinWindow*  window )
             window->scaler = NULL;
         }
         layout_done( &window->layout );
-        qemu_free(window);
+        AFREE(window);
     }
 }
 

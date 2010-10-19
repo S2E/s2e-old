@@ -15,6 +15,7 @@
  * is supposed to do.
  */
 #include "android/display.h"
+#include "android/utils/system.h"
 
 /*
 
@@ -92,7 +93,7 @@ void android_display_init(DisplayState* ds, QFrameBuffer* qf)
                                                     qf->pixels);
 
     /* Register a change listener for it */
-    dcl = (DisplayChangeListener *) qemu_mallocz(sizeof(DisplayChangeListener));
+    ANEW0(dcl);
     dcl->dpy_update      = android_display_update;
     dcl->dpy_resize      = android_display_resize;
     dcl->dpy_refresh     = android_display_refresh;

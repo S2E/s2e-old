@@ -131,7 +131,7 @@ get_zoneinfo_timezone( void )
                 return NULL;
             }
         }
-        pstrcpy( android_timezone0, sizeof(android_timezone0), tz );
+        snprintf(android_timezone0, sizeof(android_timezone0), "%s", tz );
         android_timezone = android_timezone0;
     }
     D( "found timezone %s", android_timezone );
@@ -402,7 +402,7 @@ get_zoneinfo_timezone( void )
             if (tz == NULL)
                 return NULL;
 
-            pstrcpy( android_timezone0, sizeof(android_timezone0), tz );
+            snprintf(android_timezone0, sizeof(android_timezone0), "%s", tz);
             android_timezone = android_timezone0;
         }
         D( "found timezone %s\n", android_timezone );

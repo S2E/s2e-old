@@ -122,7 +122,7 @@ win32_strsep(char**  pline, const char*  delim)
             q++;
         }
     }
-Exit:	
+Exit:
     *pline = p;
     return line;
 }

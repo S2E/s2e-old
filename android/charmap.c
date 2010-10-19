@@ -9,11 +9,13 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "qemu-common.h"
 #include "android/utils/path.h"
 #include "android/utils/misc.h"
 #include "android/utils/debug.h"
+#include "android/utils/system.h"
 #include "android/charmap.h"
+#include <stdio.h>
+#include <errno.h>
 
 /* Parses .kcm file producing key characters map.
  * .kcm file parsed by this module is expected to contain 4 types of
@@ -636,7 +638,7 @@ parse_kcm_file(const char* kcm_file_path, AKeyCharmap* char_map) {
 
     // Preallocate map.
     char_map->num_entries = 0;
-    char_map->entries = qemu_malloc(sizeof(AKeyEntry) * map_size);
+    AARRAY_NEW0(char_map->entries, map_size);
 
     // Line by line parse the file.
     for (; 0 != fgets(line, sizeof(line), kcm_file); cur_line++) {
@@ -651,13 +653,10 @@ parse_kcm_file(const char* kcm_file_path, AKeyCharmap* char_map) {
             // Key information has been extracted. Add it to the map.
             // Lets see if we need to reallocate map.
             if (map_size == char_map->num_entries) {
-                void* new_map;
+                AKeyEntry* entries = (AKeyEntry*)char_map->entries;
                 map_size += 10;
-                new_map = qemu_malloc(sizeof(AKeyEntry) * map_size);
-                memcpy(new_map, char_map->entries,
-                       char_map->num_entries * sizeof(AKeyEntry));
-                qemu_free((void*)char_map->entries);
-                char_map->entries = new_map;
+                AARRAY_RENEW(entries, map_size);
+                char_map->entries = (const AKeyEntry*)entries;
             }
             entries = (AKeyEntry*)char_map->entries;
             entries[char_map->num_entries] = key_entry;
@@ -682,7 +681,7 @@ parse_kcm_file(const char* kcm_file_path, AKeyCharmap* char_map) {
     if (err) {
         // Cleanup on failure.
         if (0 != char_map->entries) {
-            qemu_free((void*)char_map->entries);
+            AFREE((void*)char_map->entries);
             char_map->entries = 0;
         }
         char_map->num_entries = 0;
@@ -704,8 +703,7 @@ android_charmap_setup(const char* kcm_file_path) {
         if (!parse_kcm_file(kcm_file_path, &android_custom_charmap)) {
             // Here we have two default charmaps and the custom one.
             android_charmap_count = 3;
-            android_charmaps = qemu_malloc(sizeof(AKeyCharmap*) *
-                                           android_charmap_count);
+            AARRAY_NEW(android_charmaps, android_charmap_count);
             android_charmaps[0] = &android_custom_charmap;
             android_charmaps[1] = &_qwerty_charmap;
             android_charmaps[2] = &_qwerty2_charmap;
@@ -716,8 +714,7 @@ android_charmap_setup(const char* kcm_file_path) {
     } else {
         // Here we have only two default charmaps.
         android_charmap_count = 2;
-        android_charmaps = qemu_malloc(sizeof(AKeyCharmap*) *
-                           android_charmap_count);
+        AARRAY_NEW(android_charmaps, android_charmap_count);
         android_charmaps[0] = &_qwerty_charmap;
         android_charmaps[1] = &_qwerty2_charmap;
     }
@@ -734,10 +731,10 @@ android_charmap_done(void) {
           // static entries defined in charmap.c
           if ((_qwerty_charmap.entries != android_charmaps[n]->entries) &&
               (_qwerty2_charmap.entries != android_charmaps[n]->entries)) {
-              qemu_free((void*)android_charmaps[n]->entries);
+              AFREE((void*)android_charmaps[n]->entries);
           }
       }
-      qemu_free(android_charmaps);
+      AFREE(android_charmaps);
   }
 }
 

@@ -15,7 +15,6 @@
 #endif
 
 #include "sockets.h"
-#include "qemu-common.h"
 #include <fcntl.h>
 #include <stddef.h>
 #include "qemu_debug.h"
@@ -25,6 +24,7 @@
 #include "android/utils/path.h"
 #include "android/utils/debug.h"
 #include "android/utils/misc.h"
+#include "android/utils/system.h"
 
 #define  D(...) VERBOSE_PRINT(socket,__VA_ARGS__)
 
@@ -786,8 +786,8 @@ sock_address_list_create( const char*  hostname,
     for (count = 0, e = res; e != NULL; e = e->ai_next)
         count += 1;
 
-    list = (SockAddress**) qemu_malloc((count+1)*sizeof(SockAddress*));
-    addr = (SockAddress*)  qemu_malloc(count*sizeof(SockAddress));
+    AARRAY_NEW(list, count+1);
+    AARRAY_NEW(addr, count);
 
     for (nn = 0, e = res; e != NULL; e = e->ai_next) {
 
@@ -816,8 +816,8 @@ sock_address_list_free( SockAddress**  list )
         sock_address_done(list[nn]);
         list[nn] = NULL;
     }
-    qemu_free(addr);
-    qemu_free(list);
+    AFREE(addr);
+    AFREE(list);
 }
 
 int

@@ -24,6 +24,7 @@
 
 #include "qemu-timer.h"
 #include "console.h"
+#include "android/utils/system.h"
 
 extern QEMUClock*  rtc_clock;
 
@@ -39,11 +40,6 @@ extern QEMUClock*  rtc_clock;
 
 #ifdef __linux__
 #include <sys/ioctl.h>
-#include <linux/rtc.h>
-/* For the benefit of older linux systems which don't supply it,
-   we use a local copy of hpet.h. */
-/* #include <linux/hpet.h> */
-#include "hpet.h"
 #endif
 
 #ifdef _WIN32
@@ -265,12 +261,6 @@ static int dynticks_start_timer(struct qemu_alarm_timer *t);
 static void dynticks_stop_timer(struct qemu_alarm_timer *t);
 static void dynticks_rearm_timer(struct qemu_alarm_timer *t);
 
-static int hpet_start_timer(struct qemu_alarm_timer *t);
-static void hpet_stop_timer(struct qemu_alarm_timer *t);
-
-static int rtc_start_timer(struct qemu_alarm_timer *t);
-static void rtc_stop_timer(struct qemu_alarm_timer *t);
-
 #endif /* __linux__ */
 
 #endif /* _WIN32 */
@@ -280,10 +270,6 @@ static struct qemu_alarm_timer alarm_timers[] = {
 #ifdef __linux__
     {"dynticks", dynticks_start_timer,
      dynticks_stop_timer, dynticks_rearm_timer, NULL},
-    /* HPET - if available - is preferred */
-    {"hpet", hpet_start_timer, hpet_stop_timer, NULL, NULL},
-    /* ...otherwise try RTC */
-    {"rtc", rtc_start_timer, rtc_stop_timer, NULL, NULL},
 #endif
     {"unix", unix_start_timer, unix_stop_timer, NULL, NULL},
 #else
@@ -294,70 +280,6 @@ static struct qemu_alarm_timer alarm_timers[] = {
 #endif
     {NULL, }
 };
-
-static void show_available_alarms(void)
-{
-    int i;
-
-    printf("Available alarm timers, in order of precedence:\n");
-    for (i = 0; alarm_timers[i].name; i++)
-        printf("%s\n", alarm_timers[i].name);
-}
-
-void configure_alarms(char const *opt)
-{
-    int i;
-    int cur = 0;
-    int count = ARRAY_SIZE(alarm_timers) - 1;
-    char *arg;
-    char *name;
-    struct qemu_alarm_timer tmp;
-
-    if (!strcmp(opt, "?")) {
-        show_available_alarms();
-        exit(0);
-    }
-
-    arg = qemu_strdup(opt);
-
-    /* Reorder the array */
-    name = strtok(arg, ",");
-    while (name) {
-        for (i = 0; i < count && alarm_timers[i].name; i++) {
-            if (!strcmp(alarm_timers[i].name, name))
-                break;
-        }
-
-        if (i == count) {
-            fprintf(stderr, "Unknown clock %s\n", name);
-            goto next;
-        }
-
-        if (i < cur)
-            /* Ignore */
-            goto next;
-
-	/* Swap */
-        tmp = alarm_timers[i];
-        alarm_timers[i] = alarm_timers[cur];
-        alarm_timers[cur] = tmp;
-
-        cur++;
-next:
-        name = strtok(NULL, ",");
-    }
-
-    qemu_free(arg);
-
-    if (cur) {
-        /* Disable remaining timers */
-        for (i = cur; i < count; i++)
-            alarm_timers[i].name = NULL;
-    } else {
-        show_available_alarms();
-        exit(1);
-    }
-}
 
 #define QEMU_NUM_CLOCKS 3
 
@@ -370,22 +292,17 @@ static QEMUTimer *active_timers[QEMU_NUM_CLOCKS];
 static QEMUClock *qemu_new_clock(int type)
 {
     QEMUClock *clock;
-    clock = qemu_mallocz(sizeof(QEMUClock));
+    ANEW0(clock);
     clock->type = type;
     clock->enabled = 1;
     return clock;
-}
-
-void qemu_clock_enable(QEMUClock *clock, int enabled)
-{
-    clock->enabled = enabled;
 }
 
 QEMUTimer *qemu_new_timer(QEMUClock *clock, QEMUTimerCB *cb, void *opaque)
 {
     QEMUTimer *ts;
 
-    ts = qemu_mallocz(sizeof(QEMUTimer));
+    ANEW0(ts);
     ts->clock = clock;
     ts->cb = cb;
     ts->opaque = opaque;
@@ -394,7 +311,7 @@ QEMUTimer *qemu_new_timer(QEMUClock *clock, QEMUTimerCB *cb, void *opaque)
 
 void qemu_free_timer(QEMUTimer *ts)
 {
-    qemu_free(ts);
+    AFREE(ts);
 }
 
 /* stop a timer, but do not dealloc it */
@@ -447,16 +364,6 @@ void qemu_mod_timer(QEMUTimer *ts, int64_t expire_time)
             qemu_rearm_alarm_timer(alarm_timer);
         }
     }
-}
-
-int qemu_timer_pending(QEMUTimer *ts)
-{
-    QEMUTimer *t;
-    for(t = active_timers[ts->clock->type]; t != NULL; t = t->next) {
-        if (t == ts)
-            return 1;
-    }
-    return 0;
 }
 
 int qemu_timer_expired(QEMUTimer *timer_head, int64_t current_time)
@@ -622,8 +529,6 @@ int64_t qemu_next_deadline(void)
 
 #if defined(__linux__)
 
-#define RTC_FREQ 1024
-
 static uint64_t qemu_next_deadline_dyntick(void)
 {
     int64_t delta;
@@ -642,106 +547,6 @@ static uint64_t qemu_next_deadline_dyntick(void)
         delta = MIN_TIMER_REARM_US;
 
     return delta;
-}
-
-static void enable_sigio_timer(int fd)
-{
-    struct sigaction act;
-
-    /* timer signal */
-    sigfillset(&act.sa_mask);
-    act.sa_flags = 0;
-    act.sa_handler = host_alarm_handler;
-
-    sigaction(SIGIO, &act, NULL);
-    fcntl_setfl(fd, O_ASYNC);
-    fcntl(fd, F_SETOWN, getpid());
-}
-
-static int hpet_start_timer(struct qemu_alarm_timer *t)
-{
-    struct hpet_info info;
-    int r, fd;
-
-    fd = open("/dev/hpet", O_RDONLY);
-    if (fd < 0)
-        return -1;
-
-    /* Set frequency */
-    r = ioctl(fd, HPET_IRQFREQ, RTC_FREQ);
-    if (r < 0) {
-        fprintf(stderr, "Could not configure '/dev/hpet' to have a 1024Hz timer. This is not a fatal\n"
-                "error, but for better emulation accuracy type:\n"
-                "'echo 1024 > /proc/sys/dev/hpet/max-user-freq' as root.\n");
-        goto fail;
-    }
-
-    /* Check capabilities */
-    r = ioctl(fd, HPET_INFO, &info);
-    if (r < 0)
-        goto fail;
-
-    /* Enable periodic mode */
-    r = ioctl(fd, HPET_EPI, 0);
-    if (info.hi_flags && (r < 0))
-        goto fail;
-
-    /* Enable interrupt */
-    r = ioctl(fd, HPET_IE_ON, 0);
-    if (r < 0)
-        goto fail;
-
-    enable_sigio_timer(fd);
-    t->priv = (void *)(long)fd;
-
-    return 0;
-fail:
-    close(fd);
-    return -1;
-}
-
-static void hpet_stop_timer(struct qemu_alarm_timer *t)
-{
-    int fd = (long)t->priv;
-
-    close(fd);
-}
-
-#define TFR(cond)  while ((cond) && errno == EINTR) {}
-static int rtc_start_timer(struct qemu_alarm_timer *t)
-{
-    int rtc_fd;
-    unsigned long current_rtc_freq = 0;
-
-    TFR(rtc_fd = open("/dev/rtc", O_RDONLY));
-    if (rtc_fd < 0)
-        return -1;
-    ioctl(rtc_fd, RTC_IRQP_READ, &current_rtc_freq);
-    if (current_rtc_freq != RTC_FREQ &&
-        ioctl(rtc_fd, RTC_IRQP_SET, RTC_FREQ) < 0) {
-        fprintf(stderr, "Could not configure '/dev/rtc' to have a 1024 Hz timer. This is not a fatal\n"
-                "error, but for better emulation accuracy either use a 2.6 host Linux kernel or\n"
-                "type 'echo 1024 > /proc/sys/dev/rtc/max-user-freq' as root.\n");
-        goto fail;
-    }
-    if (ioctl(rtc_fd, RTC_PIE_ON, 0) < 0) {
-    fail:
-        close(rtc_fd);
-        return -1;
-    }
-
-    enable_sigio_timer(rtc_fd);
-
-    t->priv = (void *)(long)rtc_fd;
-
-    return 0;
-}
-
-static void rtc_stop_timer(struct qemu_alarm_timer *t)
-{
-    int rtc_fd = (long)t->priv;
-
-    close(rtc_fd);
 }
 
 static int dynticks_start_timer(struct qemu_alarm_timer *t)
@@ -933,12 +738,6 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t)
 }
 
 #endif /* _WIN32 */
-
-static void alarm_timer_on_change_state_rearm(void *opaque, int running, int reason)
-{
-    if (running)
-        qemu_rearm_alarm_timer((struct qemu_alarm_timer *) opaque);
-}
 
 int init_timer_alarm(void)
 {

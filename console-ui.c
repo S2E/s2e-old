@@ -24,6 +24,7 @@
 #include "qemu-common.h"
 #include "console.h"
 #include "qemu-timer.h"
+#include "android/utils/system.h"
 
 //#define DEBUG_CONSOLE
 #define DEFAULT_BACKSCROLL 512
@@ -364,7 +365,7 @@ static TextConsole *new_console(DisplayState *ds, console_type_t console_type)
 
     if (nb_consoles >= MAX_CONSOLES)
         return NULL;
-    s = qemu_mallocz(sizeof(TextConsole));
+    ANEW0(s);
     if (!active_console || ((active_console->console_type != GRAPHIC_CONSOLE) &&
         (console_type == GRAPHIC_CONSOLE))) {
         active_console = s;
@@ -388,8 +389,9 @@ static TextConsole *new_console(DisplayState *ds, console_type_t console_type)
 
 static DisplaySurface* defaultallocator_create_displaysurface(int width, int height)
 {
-    DisplaySurface *surface = (DisplaySurface*) qemu_mallocz(sizeof(DisplaySurface));
+    DisplaySurface *surface;
 
+    ANEW0(surface);
     surface->width = width;
     surface->height = height;
     surface->linesize = width * 4;
@@ -399,7 +401,7 @@ static DisplaySurface* defaultallocator_create_displaysurface(int width, int hei
 #else
     surface->flags = QEMU_ALLOCATED_FLAG;
 #endif
-    surface->data = (uint8_t*) qemu_mallocz(surface->linesize * surface->height);
+    surface->data = (uint8_t*) android_alloc0(surface->linesize * surface->height);
 
     return surface;
 }
@@ -412,9 +414,9 @@ static DisplaySurface* defaultallocator_resize_displaysurface(DisplaySurface *su
     surface->linesize = width * 4;
     surface->pf = qemu_default_pixelformat(32);
     if (surface->flags & QEMU_ALLOCATED_FLAG)
-        surface->data = (uint8_t*) qemu_realloc(surface->data, surface->linesize * surface->height);
+        surface->data = (uint8_t*) android_realloc(surface->data, surface->linesize * surface->height);
     else
-        surface->data = (uint8_t*) qemu_malloc(surface->linesize * surface->height);
+        surface->data = (uint8_t*) android_alloc(surface->linesize * surface->height);
 #ifdef HOST_WORDS_BIGENDIAN
     surface->flags = QEMU_ALLOCATED_FLAG | QEMU_BIG_ENDIAN_FLAG;
 #else
@@ -427,8 +429,9 @@ static DisplaySurface* defaultallocator_resize_displaysurface(DisplaySurface *su
 DisplaySurface* qemu_create_displaysurface_from(int width, int height, int bpp,
                                               int linesize, uint8_t *data)
 {
-    DisplaySurface *surface = (DisplaySurface*) qemu_mallocz(sizeof(DisplaySurface));
+    DisplaySurface *surface;
 
+    ANEW0(surface);
     surface->width = width;
     surface->height = height;
     surface->linesize = linesize;
@@ -446,8 +449,8 @@ static void defaultallocator_free_displaysurface(DisplaySurface *surface)
     if (surface == NULL)
         return;
     if (surface->flags & QEMU_ALLOCATED_FLAG)
-        qemu_free(surface->data);
-    qemu_free(surface);
+        AFREE(surface->data);
+    AFREE(surface);
 }
 
 static struct DisplayAllocator default_allocator = {
@@ -458,7 +461,8 @@ static struct DisplayAllocator default_allocator = {
 
 static void dumb_display_init(void)
 {
-    DisplayState *ds = qemu_mallocz(sizeof(DisplayState));
+    DisplayState *ds;
+    ANEW0(ds);
     ds->allocator = &default_allocator;
     ds->surface = qemu_create_displaysurface(ds, 640, 480);
     register_displaystate(ds);
@@ -506,7 +510,7 @@ DisplayState *graphic_console_init(vga_hw_update_ptr update,
     TextConsole *s;
     DisplayState *ds;
 
-    ds = (DisplayState *) qemu_mallocz(sizeof(DisplayState));
+    ANEW0(ds);
     ds->allocator = &default_allocator;
 #ifdef CONFIG_ANDROID
     ds->surface = qemu_create_displaysurface(ds, android_display_width, android_display_height);
@@ -517,7 +521,7 @@ DisplayState *graphic_console_init(vga_hw_update_ptr update,
     s = new_console(ds, GRAPHIC_CONSOLE);
     if (s == NULL) {
         qemu_free_displaysurface(ds);
-        qemu_free(ds);
+        AFREE(ds);
         return NULL;
     }
     s->hw_update = update;
@@ -702,7 +706,8 @@ PixelFormat qemu_default_pixelformat(int bpp)
 void
 android_display_init_from(int width, int height, int rotation, int bpp)
 {
-    DisplayState *ds = qemu_mallocz(sizeof(DisplayState));
+    DisplayState *ds;
+    ANEW0(ds);
     ds->allocator = &default_allocator;
     ds->surface = qemu_create_displaysurface(ds, width, height);
     register_displaystate(ds);

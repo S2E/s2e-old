@@ -39,6 +39,7 @@
 #include "charpipe.h"
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
+#include "android/utils/system.h"
 
 #ifdef CONFIG_MEMCHECK
 #include "memcheck/memcheck.h"
@@ -159,8 +160,6 @@ const char* keyboard_layout = NULL;
 int64_t ticks_per_sec;
 int vm_running;
 static int autostart;
-static int rtc_utc = 1;
-static int rtc_date_offset = -1; /* -1 means no change */
 QEMUClock *rtc_clock;
 #ifdef TARGET_SPARC
 int graphic_width = 1024;
@@ -204,10 +203,6 @@ extern void  dprint( const char* format, ... );
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
-
-/***********************************************************/
-/* real time host monotonic timer */
-
 /* compute with 96 bit intermediate result: (a*b)/c */
 uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
 {
@@ -230,43 +225,6 @@ uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
     res.l.high = rh / c;
     res.l.low = (((rh % c) << 32) + (rl & 0xffffffff)) / c;
     return res.ll;
-}
-
-/***********************************************************/
-/* host time/date access */
-void qemu_get_timedate(struct tm *tm, int offset)
-{
-    time_t ti;
-    struct tm *ret;
-
-    time(&ti);
-    ti += offset;
-    if (rtc_date_offset == -1) {
-        if (rtc_utc)
-            ret = gmtime(&ti);
-        else
-            ret = localtime(&ti);
-    } else {
-        ti -= rtc_date_offset;
-        ret = gmtime(&ti);
-    }
-
-    memcpy(tm, ret, sizeof(struct tm));
-}
-
-int qemu_timedate_diff(struct tm *tm)
-{
-    time_t seconds;
-
-    if (rtc_date_offset == -1)
-        if (rtc_utc)
-            seconds = mktimegm(tm);
-        else
-            seconds = mktime(tm);
-    else
-        seconds = mktimegm(tm) + rtc_date_offset;
-
-    return seconds - time(NULL);
 }
 
 /***********************************************************/
@@ -313,7 +271,7 @@ int qemu_set_fd_handler2(int fd,
             if (ioh->fd == fd)
                 goto found;
         }
-        ioh = qemu_mallocz(sizeof(IOHandlerRecord));
+        ANEW0(ioh);
         ioh->next = first_io_handler;
         first_io_handler = ioh;
     found:
@@ -333,194 +291,6 @@ int qemu_set_fd_handler(int fd,
                         void *opaque)
 {
     return qemu_set_fd_handler2(fd, NULL, fd_read, fd_write, opaque);
-}
-
-#ifdef _WIN32
-/***********************************************************/
-/* Polling handling */
-
-typedef int PollingFunc(void *opaque);
-typedef void WaitObjectFunc(void *opaque);
-
-typedef struct PollingEntry {
-    PollingFunc *func;
-    void *opaque;
-    struct PollingEntry *next;
-} PollingEntry;
-
-static PollingEntry *first_polling_entry;
-
-int qemu_add_polling_cb(PollingFunc *func, void *opaque)
-{
-    PollingEntry **ppe, *pe;
-    pe = qemu_mallocz(sizeof(PollingEntry));
-    pe->func = func;
-    pe->opaque = opaque;
-    for(ppe = &first_polling_entry; *ppe != NULL; ppe = &(*ppe)->next);
-    *ppe = pe;
-    return 0;
-}
-
-void qemu_del_polling_cb(PollingFunc *func, void *opaque)
-{
-    PollingEntry **ppe, *pe;
-    for(ppe = &first_polling_entry; *ppe != NULL; ppe = &(*ppe)->next) {
-        pe = *ppe;
-        if (pe->func == func && pe->opaque == opaque) {
-            *ppe = pe->next;
-            qemu_free(pe);
-            break;
-        }
-    }
-}
-
-/***********************************************************/
-/* Wait objects support */
-typedef struct WaitObjects {
-    int num;
-    HANDLE events[MAXIMUM_WAIT_OBJECTS + 1];
-    WaitObjectFunc *func[MAXIMUM_WAIT_OBJECTS + 1];
-    void *opaque[MAXIMUM_WAIT_OBJECTS + 1];
-} WaitObjects;
-
-static WaitObjects wait_objects = {0};
-
-int qemu_add_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque)
-{
-    WaitObjects *w = &wait_objects;
-
-    if (w->num >= MAXIMUM_WAIT_OBJECTS)
-        return -1;
-    w->events[w->num] = handle;
-    w->func[w->num] = func;
-    w->opaque[w->num] = opaque;
-    w->num++;
-    return 0;
-}
-
-void qemu_del_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque)
-{
-    int i, found;
-    WaitObjects *w = &wait_objects;
-
-    found = 0;
-    for (i = 0; i < w->num; i++) {
-        if (w->events[i] == handle)
-            found = 1;
-        if (found) {
-            w->events[i] = w->events[i + 1];
-            w->func[i] = w->func[i + 1];
-            w->opaque[i] = w->opaque[i + 1];
-        }
-    }
-    if (found)
-        w->num--;
-}
-#endif
-
-
-/***********************************************************/
-/* bottom halves (can be seen as timers which expire ASAP) */
-
-struct QEMUBH {
-    QEMUBHFunc *cb;
-    void *opaque;
-    int scheduled;
-    int idle;
-    int deleted;
-    QEMUBH *next;
-};
-
-static QEMUBH *first_bh = NULL;
-
-QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque)
-{
-    QEMUBH *bh;
-    bh = qemu_mallocz(sizeof(QEMUBH));
-    bh->cb = cb;
-    bh->opaque = opaque;
-    bh->next = first_bh;
-    first_bh = bh;
-    return bh;
-}
-
-int qemu_bh_poll(void)
-{
-    QEMUBH *bh, **bhp;
-    int ret;
-
-    ret = 0;
-    for (bh = first_bh; bh; bh = bh->next) {
-        if (!bh->deleted && bh->scheduled) {
-            bh->scheduled = 0;
-            if (!bh->idle)
-                ret = 1;
-            bh->idle = 0;
-            bh->cb(bh->opaque);
-        }
-    }
-
-    /* remove deleted bhs */
-    bhp = &first_bh;
-    while (*bhp) {
-        bh = *bhp;
-        if (bh->deleted) {
-            *bhp = bh->next;
-            qemu_free(bh);
-        } else
-            bhp = &bh->next;
-    }
-
-    return ret;
-}
-
-void qemu_bh_schedule_idle(QEMUBH *bh)
-{
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 1;
-}
-
-void qemu_bh_schedule(QEMUBH *bh)
-{
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 0;
-    /* stop the currently executing CPU to execute the BH ASAP */
-    //qemu_notify_event();
-}
-
-void qemu_bh_cancel(QEMUBH *bh)
-{
-    bh->scheduled = 0;
-}
-
-void qemu_bh_delete(QEMUBH *bh)
-{
-    bh->scheduled = 0;
-    bh->deleted = 1;
-}
-
-void qemu_bh_update_timeout(int *timeout)
-{
-    QEMUBH *bh;
-
-    for (bh = first_bh; bh; bh = bh->next) {
-        if (!bh->deleted && bh->scheduled) {
-            if (bh->idle) {
-                /* idle bottom halves will be polled at least
-                 * every 10ms */
-                *timeout = MIN(10, *timeout);
-            } else {
-                /* non-idle bottom halves will be executed
-                 * immediately */
-                *timeout = 0;
-                break;
-            }
-        }
-    }
 }
 
 /***********************************************************/
@@ -559,76 +329,11 @@ void qemu_system_shutdown_request(void)
 
 
 
-#ifndef _WIN32
-static int io_thread_fd = -1;
-
-static void qemu_event_read(void *opaque)
-{
-    int fd = (unsigned long)opaque;
-    ssize_t len;
-
-    /* Drain the notify pipe */
-    do {
-        char buffer[512];
-        len = read(fd, buffer, sizeof(buffer));
-    } while ((len == -1 && errno == EINTR) || len > 0);
-}
-
 static int qemu_event_init(void)
 {
-    int err;
-    int fds[2];
-
-    err = pipe(fds);
-    if (err == -1)
-        return -errno;
-
-    err = fcntl_setfl(fds[0], O_NONBLOCK);
-    if (err < 0)
-        goto fail;
-
-    err = fcntl_setfl(fds[1], O_NONBLOCK);
-    if (err < 0)
-        goto fail;
-
-    qemu_set_fd_handler2(fds[0], NULL, qemu_event_read, NULL,
-                         (void *)(unsigned long)fds[0]);
-
-    io_thread_fd = fds[1];
-    return 0;
-
-fail:
-    close(fds[0]);
-    close(fds[1]);
-    return err;
-}
-#else
-HANDLE qemu_event_handle;
-
-static void dummy_event_handler(void *opaque)
-{
-}
-
-static int qemu_event_init(void)
-{
-    qemu_event_handle = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (!qemu_event_handle) {
-        perror("Failed CreateEvent");
-        return -1;
-    }
-    qemu_add_wait_object(qemu_event_handle, dummy_event_handler, NULL);
     return 0;
 }
 
-#if 0
-static void qemu_event_increment(void)
-{
-    SetEvent(qemu_event_handle);
-}
-#endif
-#endif
-
-#ifndef CONFIG_IOTHREAD
 static int qemu_init_main_loop(void)
 {
     return qemu_event_init();
@@ -637,128 +342,10 @@ static int qemu_init_main_loop(void)
 #define qemu_mutex_lock_iothread() do { } while (0)
 #define qemu_mutex_unlock_iothread() do { } while (0)
 
-#else /* CONFIG_IOTHREAD */
-
-#include "qemu-thread.h"
-
-QemuMutex qemu_global_mutex;
-static QemuMutex qemu_fair_mutex;
-
-static QemuThread io_thread;
-
-static QemuThread *tcg_cpu_thread;
-static QemuCond *tcg_halt_cond;
-
-static int qemu_system_ready;
-/* cpu creation */
-static QemuCond qemu_cpu_cond;
-/* system init */
-static QemuCond qemu_system_cond;
-static QemuCond qemu_pause_cond;
-
-static void block_io_signals(void);
-static void unblock_io_signals(void);
-
-static int qemu_init_main_loop(void)
-{
-    int ret;
-
-    ret = qemu_event_init();
-    if (ret)
-        return ret;
-
-    qemu_cond_init(&qemu_pause_cond);
-    qemu_mutex_init(&qemu_fair_mutex);
-    qemu_mutex_init(&qemu_global_mutex);
-    qemu_mutex_lock(&qemu_global_mutex);
-
-    unblock_io_signals();
-    qemu_thread_self(&io_thread);
-
-    return 0;
-}
-
-static void block_io_signals(void)
-{
-    sigset_t set;
-    struct sigaction sigact;
-
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR2);
-    sigaddset(&set, SIGIO);
-    sigaddset(&set, SIGALRM);
-    pthread_sigmask(SIG_BLOCK, &set, NULL);
-
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR1);
-    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
-
-    memset(&sigact, 0, sizeof(sigact));
-    sigact.sa_handler = cpu_signal;
-    sigaction(SIGUSR1, &sigact, NULL);
-}
-
-static void unblock_io_signals(void)
-{
-    sigset_t set;
-
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR2);
-    sigaddset(&set, SIGIO);
-    sigaddset(&set, SIGALRM);
-    pthread_sigmask(SIG_UNBLOCK, &set, NULL);
-
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR1);
-    pthread_sigmask(SIG_BLOCK, &set, NULL);
-}
-
-#endif
-
 
 #ifdef _WIN32
 static void host_main_loop_wait(int *timeout)
 {
-    int ret, ret2, i;
-    PollingEntry *pe;
-
-
-    /* XXX: need to suppress polling by better using win32 events */
-    ret = 0;
-    for(pe = first_polling_entry; pe != NULL; pe = pe->next) {
-        ret |= pe->func(pe->opaque);
-    }
-    if (ret == 0) {
-        int err;
-        WaitObjects *w = &wait_objects;
-
-        ret = WaitForMultipleObjects(w->num, w->events, FALSE, *timeout);
-        if (WAIT_OBJECT_0 + 0 <= ret && ret <= WAIT_OBJECT_0 + w->num - 1) {
-            if (w->func[ret - WAIT_OBJECT_0])
-                w->func[ret - WAIT_OBJECT_0](w->opaque[ret - WAIT_OBJECT_0]);
-
-            /* Check for additional signaled events */
-            for(i = (ret - WAIT_OBJECT_0 + 1); i < w->num; i++) {
-
-                /* Check if event is signaled */
-                ret2 = WaitForSingleObject(w->events[i], 0);
-                if(ret2 == WAIT_OBJECT_0) {
-                    if (w->func[i])
-                        w->func[i](w->opaque[i]);
-                } else if (ret2 == WAIT_TIMEOUT) {
-                } else {
-                    err = GetLastError();
-                    fprintf(stderr, "WaitForSingleObject error %d %d\n", i, err);
-                }
-            }
-        } else if (ret == WAIT_TIMEOUT) {
-        } else {
-            err = GetLastError();
-            fprintf(stderr, "WaitForMultipleObjects error %d %d\n", ret, err);
-        }
-    }
-
-    *timeout = 0;
 }
 #else
 static void host_main_loop_wait(int *timeout)
@@ -772,8 +359,6 @@ void main_loop_wait(int timeout)
     fd_set rfds, wfds, xfds;
     int ret, nfds;
     struct timeval tv;
-
-    qemu_bh_update_timeout(&timeout);
 
     host_main_loop_wait(&timeout);
 
@@ -803,9 +388,7 @@ void main_loop_wait(int timeout)
     tv.tv_sec = timeout / 1000;
     tv.tv_usec = (timeout % 1000) * 1000;
 
-    qemu_mutex_unlock_iothread();
     ret = select(nfds + 1, &rfds, &wfds, &xfds, &tv);
-    qemu_mutex_lock_iothread();
     if (ret > 0) {
         IOHandlerRecord **pioh;
 
@@ -818,34 +401,23 @@ void main_loop_wait(int timeout)
             }
         }
 
-	/* remove deleted IO handlers */
-	pioh = &first_io_handler;
-	while (*pioh) {
+        /* remove deleted IO handlers */
+        pioh = &first_io_handler;
+        while (*pioh) {
             ioh = *pioh;
             if (ioh->deleted) {
                 *pioh = ioh->next;
-                qemu_free(ioh);
+                AFREE(ioh);
             } else
                 pioh = &ioh->next;
         }
     }
-    //charpipe_poll();
 
     qemu_run_all_timers();
-
-    /* Check bottom-halves last in case any of the earlier events triggered
-       them.  */
-    qemu_bh_poll();
-
 }
 
 static void main_loop(void)
 {
-#ifdef CONFIG_IOTHREAD
-    qemu_system_ready = 1;
-    qemu_cond_broadcast(&qemu_system_cond);
-#endif
-
     while (!shutdown_requested) {
         main_loop_wait(qemu_calculate_timeout());
     }
@@ -905,10 +477,10 @@ char *qemu_find_file(int type, const char *name)
         abort();
     }
     len = strlen(data_dir) + strlen(name) + strlen(subdir) + 2;
-    buf = qemu_mallocz(len);
+    buf = android_alloc0(len);
     snprintf(buf, len, "%s/%s%s", data_dir, subdir, name);
     if (access(buf, R_OK)) {
-        qemu_free(buf);
+        AFREE(buf);
         return NULL;
     }
     return buf;
@@ -960,26 +532,6 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     autostart= 1;
-
-//    register_watchdogs();
-
-#if 0
-    /* Initialize boot properties. */
-    boot_property_init_service();
-
-    /* Initialize character map. */
-    if (android_charmap_setup(op_charmap_file)) {
-        if (op_charmap_file) {
-            fprintf(stderr,
-                    "Unable to initialize character map from file %s.\n",
-                    op_charmap_file);
-        } else {
-            fprintf(stderr,
-                    "Unable to initialize default character map.\n");
-        }
-        exit(1);
-    }
-#endif
 
     if (qemu_init_main_loop()) {
         fprintf(stderr, "qemu_init_main_loop failed\n");

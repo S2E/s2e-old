@@ -657,7 +657,7 @@ _getSdkImagePath( const char*  fileName )
 
 FOUND_IT:
     //D("image auto-detection: %s/%s", temp, fileName);
-    return qemu_strdup(temp);
+    return android_strdup(temp);
 }
 
 static char*
@@ -670,7 +670,7 @@ _getSdkImage( const char*  path, const char*  file )
     if (p >= end || !path_exists(temp))
         return NULL;
 
-    return qemu_strdup(temp);
+    return android_strdup(temp);
 }
 
 static char*
@@ -968,7 +968,7 @@ int main(int argc, char **argv)
 
         /* if no data directory is specified, use the system directory */
         if (!opts->datadir) {
-            opts->datadir   = qemu_strdup(opts->sysdir);
+            opts->datadir   = android_strdup(opts->sysdir);
             dataDirIsSystem = 1;
             D("autoconfig: -datadir %s", opts->sysdir);
         }
@@ -987,14 +987,14 @@ int main(int argc, char **argv)
                 exit(2);
             }
 
-            opts->data = qemu_strdup(tmp);
+            opts->data = android_strdup(tmp);
             D("autoconfig: -data %s", opts->data);
         }
 
         if (!opts->sdcard && opts->datadir) {
             bufprint(tmp, tmpend, "%s/sdcard.img", opts->datadir);
             if (path_exists(tmp)) {
-                opts->sdcard = qemu_strdup(tmp);
+                opts->sdcard = android_strdup(tmp);
                 D("autoconfig: -sdcard %s", opts->sdcard);
             }
         }
@@ -1466,7 +1466,7 @@ int main(int argc, char **argv)
     }
     if (!opts->memory) {
         bufprint(tmp, tmpend, "%d", hw->hw_ramSize);
-        opts->memory = qemu_strdup(tmp);
+        opts->memory = android_strdup(tmp);
     }
 
     if (opts->trace) {

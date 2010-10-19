@@ -11,7 +11,8 @@
 */
 #include "android/utils/dirscanner.h"
 #include "android/utils/bufprint.h"
-#include "qemu-common.h"
+#include "android/utils/system.h"
+#include "android/utils/path.h"
 #include <stddef.h>
 
 #define  DIRSCANNER_BASE     \
@@ -149,7 +150,7 @@ dirScanner_next( DirScanner*  s )
 DirScanner*
 dirScanner_new ( const char*  rootPath )
 {
-    DirScanner*  s   = qemu_mallocz(sizeof *s);
+    DirScanner*  s   = android_alloc0(sizeof *s);
     char*        p   = s->root;
     char*        end = p + sizeof s->root;
 
@@ -177,7 +178,7 @@ dirScanner_free( DirScanner*  s )
         return;
 
     _dirScanner_done(s);
-    qemu_free(s);
+    AFREE(s);
 }
 
 
