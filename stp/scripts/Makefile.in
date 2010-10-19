@@ -74,7 +74,7 @@ STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib
 
 .PHONY: install
 install: all
-	@cp -f $(BINARIES) $(BIN_DIR)
+	#@cp -f $(BINARIES) $(BIN_DIR)
 	@cp -f $(LIBRARIES) $(LIB_DIR)
 	@cp -f $(HEADERS) $(INCLUDE_DIR)
 	@echo "STP installed successfully."
