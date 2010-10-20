@@ -1220,6 +1220,15 @@ skin_window_reset_internal ( SkinWindow*  window, SkinLayout*  slayout )
 
     skin_window_redraw( window, NULL );
 
+    if (slayout->event_type != 0) {
+        user_event_generic( slayout->event_type, slayout->event_code, slayout->event_value );
+        /* XXX: hack, replace by better code here */
+        if (slayout->event_value != 0)
+            android_core_sensors_set_coarse_orientation( ANDROID_COARSE_PORTRAIT );
+        else
+            android_core_sensors_set_coarse_orientation( ANDROID_COARSE_LANDSCAPE );
+    }
+
     return 0;
 }
 
@@ -1232,14 +1241,6 @@ skin_window_reset ( SkinWindow*  window, SkinLayout*  slayout )
     if (skin_window_reset_internal( window, slayout ) < 0)
         return -1;
 
-    if (slayout->event_type != 0) {
-        user_event_generic( slayout->event_type, slayout->event_code, slayout->event_value );
-        /* XXX: hack, replace by better code here */
-        if (slayout->event_value != 0)
-            android_core_sensors_set_coarse_orientation( ANDROID_COARSE_PORTRAIT );
-        else
-            android_core_sensors_set_coarse_orientation( ANDROID_COARSE_LANDSCAPE );
-    }
     return 0;
 }
 

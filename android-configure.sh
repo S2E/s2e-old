@@ -275,6 +275,12 @@ esac
 ORG_CFLAGS=$CFLAGS
 ORG_LDFLAGS=$LDFLAGS
 
+if [ "$OPTION_IGNORE_AUDIO" = "yes" ] ; then
+PROBE_ESD_ESD=no
+PROBE_ALSA=no
+PROBE_PULSEAUDIO=no
+fi
+
 # Probe a system library
 #
 # $1: Variable name (e.g. PROBE_ESD)
@@ -290,17 +296,17 @@ probe_system_library ()
         cp -f android/config/check-esd.c $TMPC
         compile && link && $TMPE
         if [ $? = 0 ] ; then
-            log "AudioProbe : $1 seems to be usable on this system"
+            log "AudioProbe : $2 seems to be usable on this system"
         else
             if [ "$OPTION_IGNORE_AUDIO" = no ] ; then
-                echo "the $1 development files do not seem to be installed on this system"
-                echo "Are you missing the $3 package ?"
+                echo "The $2 development files do not seem to be installed on this system"
+                echo "Are you missing the $4 package ?"
                 echo "Correct the errors below and try again:"
                 cat $TMPL
                 clean_exit
             fi
             eval $1=no
-            log "AudioProbe : $1 seems to be UNUSABLE on this system !!"
+            log "AudioProbe : $2 seems to be UNUSABLE on this system !!"
         fi
     fi
 }
