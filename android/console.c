@@ -545,7 +545,7 @@ control_global_accept( void*  _global )
     ControlClient       client;
     Socket              fd;
 
-    D(( "control_global_accept: just in (fd=%p)\n", (void*)global->listen_fd ));
+    D(( "control_global_accept: just in (fd=%d)\n", global->listen_fd ));
 
     for(;;) {
         fd = socket_accept( global->listen_fd, NULL );
@@ -1047,6 +1047,7 @@ do_cdma_prl_version( ControlClient client, char * args )
     if (endptr != args) {
         amodem_set_cdma_prl_version( android_modem, version );
     }
+    return 0;
 }
 /********************************************************************************************/
 /********************************************************************************************/
@@ -1398,6 +1399,9 @@ static const CommandDefRec  cdma_commands[] =
     { "ssource", "Set the current CDMA subscription source",
       NULL, describe_subscription_source,
       do_cdma_ssource, NULL },
+    { "prl_version", "Dump the current PRL version",
+      NULL, NULL,
+      do_cdma_prl_version, NULL },
 };
 
 static const CommandDefRec  gsm_commands[] =
