@@ -47,7 +47,7 @@ int main( void )
         esd_lib = dlopen( "libesd.so.0", RTLD_NOW );
 
     if (esd_lib == NULL) {
-        D("could not find libesd on this system");
+        D("could not find libesd on this system\n");
         return 1;
     }
 
