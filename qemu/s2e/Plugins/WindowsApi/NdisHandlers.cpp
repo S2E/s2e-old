@@ -501,6 +501,7 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
     s2e()->getDebugStream(state) << "realPc=0x" << std::hex << realPc << " realpriv=0x" << realPriv << std::endl;
 
     if (getConsistency(__FUNCTION__) != OVERAPPROX) {
+        FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisTimerEntryPointRet)
         return;
     }
 
@@ -582,6 +583,10 @@ void NdisHandlers::NdisTimerEntryPointRet(S2EExecutionState* state)
     //We must terminate states that ran fake calls, otherwise the system might crash later.
     if (plgState->faketimer) {
         s2e()->getExecutor()->terminateStateEarly(*state, "Terminating state with fake timer call");
+    }
+
+    if (plgState->cableStatus == NdisHandlersState::DISCONNECTED) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "Terminating state because cable is disconnected");
     }
 
     m_manager->succeedState(state);
@@ -1298,6 +1303,8 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMRegisterMiniportRet)
     }
 
+    FunctionMonitor::CallSignal* entryPoint;
+
     //Extract the function pointers from the passed data structure
     uint32_t pMiniport;
     if (!state->readMemoryConcrete(state->getSp() + sizeof(pMiniport) * (1+1), &pMiniport, sizeof(pMiniport))) {
@@ -1314,7 +1321,6 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
     }
 
     //Register each handler
-    FunctionMonitor::CallSignal* entryPoint;
     REGISTER_ENTRY_POINT(entryPoint, Miniport.CheckForHangHandler, CheckForHang);
     REGISTER_ENTRY_POINT(entryPoint, Miniport.InitializeHandler, InitializeHandler);
     REGISTER_ENTRY_POINT(entryPoint, Miniport.DisableInterruptHandler, DisableInterruptHandler);
@@ -1355,7 +1361,35 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
             state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), ret);
         }
     }
+}
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisMStatusHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMStatusHandlerRet)
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    uint32_t status;
+    if (!readConcreteParameter(state, 1, &status)) {
+        s2e()->getDebugStream() << "Could not get cable status in " << __FUNCTION__ << std::endl;
+        return;
+    }
+
+    s2e()->getDebugStream() << "Status is 0x" << std::hex << status << std::endl;
+
+    if (status == NDIS_STATUS_MEDIA_CONNECT) {
+        s2e()->getDebugStream() << "Cable is connected" << std::endl;
+        plgState->cableStatus = NdisHandlersState::CONNECTED;
+    }else if (status == NDIS_STATUS_MEDIA_DISCONNECT) {
+        s2e()->getDebugStream() << "Cable is disconnected" << std::endl;
+        plgState->cableStatus = NdisHandlersState::DISCONNECTED;
+    }
+}   
+    
+void NdisHandlers::NdisMStatusHandlerRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1410,6 +1444,26 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
         s2e()->getDebugStream(state) << "Could not read MediumArraySize" << std::endl;
         return;
     }
+
+    //Register API exported in the handle
+    uint32_t NdisHandle;
+    if (!readConcreteParameter(state, 4, &NdisHandle)) { 
+        s2e()->getDebugStream(state) << "Could not read NdisHandle" << std::endl;
+        return;
+    }
+    
+    uint32_t pStatusHandler;
+    if (!state->readMemoryConcrete(NdisHandle + 0x17c, &pStatusHandler, sizeof(pStatusHandler))) {
+        s2e()->getMessagesStream() << "Could not read pointer to status handler" << std::endl;
+        return;
+    }
+
+    s2e()->getDebugStream() << "NDIS_M_STATUS_HANDLER " << std::hex << pStatusHandler << std::endl;
+
+    FunctionMonitor::CallSignal* entryPoint;
+    REGISTER_ENTRY_POINT(entryPoint, pStatusHandler, NdisMStatusHandler);
+
+
 
     if (getConsistency(__FUNCTION__) == STRICT) {
         return;
@@ -1900,6 +1954,7 @@ NdisHandlersState::NdisHandlersState()
     isrHandlerExecuted = false;
     faketimer = false;
     shutdownHandler = 0;   
+    cableStatus = UNKNOWN;
 }
 
 NdisHandlersState::~NdisHandlersState()

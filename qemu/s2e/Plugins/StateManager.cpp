@@ -195,7 +195,7 @@ bool StateManager::killAllButOneSuccessful(bool killCurrent)
     //In case we need to kill the current state, do it last, because it will throw and exception
     //and return to the state scheduler.
     if (doKillCurrent) {
-        s2e()->getExecutor()->terminateStateOnExit(*g_s2e_state);
+        s2e()->getExecutor()->terminateStateEarly(*g_s2e_state, "StateManager: Kill all but one successful");
     }
 
     return true;

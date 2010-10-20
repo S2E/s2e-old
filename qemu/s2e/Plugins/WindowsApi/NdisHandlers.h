@@ -86,6 +86,9 @@ private:
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
     
+    //These are contained inside the miniport handle
+    DECLARE_ENTRY_POINT(NdisMStatusHandler);
+
     //XXX: Move this to ntoskrnl module
     DECLARE_ENTRY_POINT(RtlEqualUnicodeString);
     DECLARE_ENTRY_POINT(GetSystemUpTime);
@@ -121,6 +124,11 @@ private:
 //NDIS drivers are tested.
 class NdisHandlersState: public PluginState
 {
+public:
+    enum CableStatus {
+      UNKNOWN, CONNECTED, DISCONNECTED
+    };
+
 private:
     uint32_t pStatus, pNetworkAddress, pNetworkAddressLength;
     uint32_t pConfigParam, pConfigString;
@@ -134,6 +142,9 @@ private:
 
     uint32_t shutdownHandler;
 
+    //Indicates whether the cable is plugged or not in the current state.
+    //It may be unknown
+    CableStatus cableStatus;    
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();
