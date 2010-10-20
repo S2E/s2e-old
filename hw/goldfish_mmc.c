@@ -251,7 +251,7 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
                 m = (uint32_t)(capacity / (512*1024)) - 1;
                 // m must fit into 22 bits
                 if (m & 0xFFC00000) {
-                    fprintf(stderr, "SD card too big (%lld bytes).  Maximum SDHC card size is 128 gigabytes.\n", capacity);
+                    fprintf(stderr, "SD card too big (%lld bytes).  Maximum SDHC card size is 128 gigabytes.\n", (long long)capacity);
                     abort();
                 }
 
@@ -277,7 +277,7 @@ static void goldfish_mmc_do_command(struct goldfish_mmc_state *s, uint32_t cmd, 
                 exponent = 0;
                 capacity = sector_count * 512;
                 if (capacity > 2147483648U) {
-                    fprintf(stderr, "SD card too big (%lld bytes).  Maximum SD card size is 2 gigabytes.\n", capacity);
+                    fprintf(stderr, "SD card too big (%lld bytes).  Maximum SD card size is 2 gigabytes.\n", (long long)capacity);
                     abort();
                 }
                 capacity >>= 10; // convert to Kbytes

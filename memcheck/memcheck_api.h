@@ -43,7 +43,7 @@ extern int memcheck_watch_call_stack;
  * array is used to obtain guest PC address from a translated PC address.
  * tcg_gen_code_common will fill it up when memchecker is enabled. The array is
  * declared in ./translate_all.c */
-extern target_ulong* gen_opc_tpc2gpc_ptr;
+extern void** gen_opc_tpc2gpc_ptr;
 
 /* Number of (tb_pc, guest_pc) pairs stored in gen_opc_tpc2gpc array.
  * The variable is declared in ./translate_all.c */

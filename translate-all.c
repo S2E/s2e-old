@@ -59,8 +59,8 @@ uint32_t gen_opc_hflags[OPC_BUF_SIZE];
 /* Array of (tb_pc, guest_pc) pairs, big enough for all translations. This
  * array is used to obtain guest PC address from a translated PC address.
  * tcg_gen_code_common will fill it up when memchecker is enabled. */
-static target_ulong gen_opc_tpc2gpc[OPC_BUF_SIZE * 2];
-target_ulong* gen_opc_tpc2gpc_ptr = &gen_opc_tpc2gpc[0];
+static void* gen_opc_tpc2gpc[OPC_BUF_SIZE * 2];
+void** gen_opc_tpc2gpc_ptr = &gen_opc_tpc2gpc[0];
 /* Number of (tb_pc, guest_pc) pairs stored in gen_opc_tpc2gpc array. */
 unsigned int gen_opc_tpc2gpc_pairs;
 #endif  // CONFIG_MEMCHECK

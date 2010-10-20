@@ -185,7 +185,7 @@ compare_timezone_to_localtime( ScanDataRec*  scan,
     }
 
     if ( st.st_size != scan->localtime_st.st_size ) {
-        D( " size mistmatch (%lld != %lld)\n", st.st_size, scan->localtime_st.st_size );
+        D( " size mistmatch (%zd != %zd)\n", (size_t)st.st_size, (size_t)scan->localtime_st.st_size );
         return 0;
     }
 

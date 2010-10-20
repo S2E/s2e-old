@@ -127,7 +127,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             /* We only validate access to the guest's user space, for which
              * mmu_idx is set to 1. */
             if (memcheck_instrument_mmu && mmu_idx == 1 &&
-                memcheck_validate_ld(addr, DATA_SIZE, (target_ulong)GETPC())) {
+                memcheck_validate_ld(addr, DATA_SIZE, (target_ulong)(ptrdiff_t)GETPC())) {
                 /* Memory read breaks page boundary. So, if required, we
                  * must invalidate two caches in TLB. */
                 invalidate_cache = 2;
@@ -147,7 +147,7 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
              * mmu_idx is set to 1. */
             if (memcheck_instrument_mmu && mmu_idx == 1) {
                 invalidate_cache = memcheck_validate_ld(addr, DATA_SIZE,
-                                                        (target_ulong)GETPC());
+                                                        (target_ulong)(ptrdiff_t)GETPC());
             }
 #endif  // CONFIG_MEMCHECK_MMU
             /* unaligned/aligned access in the same page */
@@ -303,7 +303,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
              * mmu_idx is set to 1. */
             if (memcheck_instrument_mmu && mmu_idx == 1 &&
                 memcheck_validate_st(addr, DATA_SIZE, (uint64_t)val,
-                                     (target_ulong)GETPC())) {
+                                     (target_ulong)(ptrdiff_t)GETPC())) {
                 /* Memory write breaks page boundary. So, if required, we
                  * must invalidate two caches in TLB. */
                 invalidate_cache = 2;
@@ -323,7 +323,7 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             if (memcheck_instrument_mmu && mmu_idx == 1) {
                 invalidate_cache = memcheck_validate_st(addr, DATA_SIZE,
                                                         (uint64_t)val,
-                                                        (target_ulong)GETPC());
+                                                        (target_ulong)(ptrdiff_t)GETPC());
             }
 #endif  // CONFIG_MEMCHECK_MMU
             /* aligned/unaligned access in the same page */

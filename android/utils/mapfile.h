@@ -39,7 +39,7 @@ typedef struct MapFile MapFile;
 static inline int
 mapfile_is_valid(MapFile* handle)
 {
-    return (int)handle != -1;
+    return handle != (void*)(ptrdiff_t)-1;
 }
 
 /* Opens file in selected mode.

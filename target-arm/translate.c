@@ -5770,7 +5770,7 @@ gen_traceTicks( int  count )
 }
 
 static void
-gen_traceBB( uint64_t  bbNum, target_phys_addr_t  tb )
+gen_traceBB( uint64_t  bbNum, void* tb )
 {
 #if HOST_LONG_BITS == 32
     TCGv_i64  tmpNum = tcg_temp_new_i64();
@@ -5787,7 +5787,7 @@ gen_traceBB( uint64_t  bbNum, target_phys_addr_t  tb )
 
     tcg_gen_movi_i64(tmpNum, (int64_t)bbNum);
     tcg_gen_movi_i64(tmpTb,  (int64_t)tb);
-    gen_helper_traceBB32(tmpNum, tmpTb);
+    gen_helper_traceBB64(tmpNum, tmpTb);
     tcg_temp_free_i64(tmpTb);
     tcg_temp_free_i64(tmpNum);
 #endif
@@ -8909,7 +8909,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     gen_icount_start();
 #ifdef CONFIG_TRACE
     if (tracing) {
-        gen_traceBB(trace_static.bb_num, (target_phys_addr_t)tb );
+        gen_traceBB(trace_static.bb_num, tb);
         trace_bb_start(dc->pc);
     }
 #endif

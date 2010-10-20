@@ -473,12 +473,12 @@ DEF_HELPER_2(set_teecr, void, env, i32)
  *  First pointer contains guest PC where BL/BLX has been found.
  *  Second pointer contains guest PC where BL/BLX will return.
  */
-DEF_HELPER_2(on_call, void, ptr, ptr)
+DEF_HELPER_2(on_call, void, i32, i32)
 /* Hooks to return from translated BL/BLX. This callback is used to build
  * thread's calling stack.
  * Param:
  *  Pointer contains guest PC where BL/BLX will return.
  */
-DEF_HELPER_1(on_ret, void, ptr)
+DEF_HELPER_1(on_ret, void, i32)
 #endif  // CONFIG_MEMCHECK
 #include "def-helper.h"

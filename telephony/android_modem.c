@@ -1201,8 +1201,6 @@ handleEmergencyMode( const char* cmd, AModem modem )
 static const char*
 handlePrlVersion( const char* cmd, AModem modem )
 {
-    long arg;
-    char *endptr = NULL;
     assert ( !memcmp( "+WPRL", cmd, 5 ) );
     cmd += 5;
     if (cmd[0] == '?') {

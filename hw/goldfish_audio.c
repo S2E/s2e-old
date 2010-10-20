@@ -439,7 +439,7 @@ static void goldfish_audio_write(void *opaque, target_phys_addr_t offset, uint32
         case AUDIO_SET_READ_BUFFER:
             /* save pointer to the read buffer */
             goldfish_audio_buff_set_address( s->in_buff, val );
-            D( "%s: AUDIO_SET_READ_BUFFER %p", __FUNCTION__, (void*)val );
+            D( "%s: AUDIO_SET_READ_BUFFER %08x", __FUNCTION__, val );
             break;
 
         case AUDIO_START_READ:

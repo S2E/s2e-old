@@ -1984,7 +1984,7 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     unsigned int index;
     target_ulong address;
     target_ulong code_address;
-    target_phys_addr_t addend;
+    ptrdiff_t addend;
     int ret;
     CPUTLBEntry *te;
     CPUWatchpoint *wp;
@@ -2007,7 +2007,7 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
         /* IO memory case (romd handled later) */
         address |= TLB_MMIO;
     }
-    addend = (unsigned long)qemu_get_ram_ptr(pd & TARGET_PAGE_MASK);
+    addend = (ptrdiff_t)qemu_get_ram_ptr(pd & TARGET_PAGE_MASK);
     if ((pd & ~TARGET_PAGE_MASK) <= IO_MEM_ROM) {
         /* Normal RAM.  */
         iotlb = pd & TARGET_PAGE_MASK;
