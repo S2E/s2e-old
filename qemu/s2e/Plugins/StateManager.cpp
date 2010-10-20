@@ -23,7 +23,7 @@ static void sm_callback(S2EExecutionState *s, bool killingState)
 
     //If there are no states, try to resume some successful ones
     if (g_s2e->getExecutor()->getStatesCount() == 0) {
-        sm->killAllButOneSuccessful(false);
+        sm->killAllButOneSuccessful(true);
         return;
     }
 
