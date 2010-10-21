@@ -49,6 +49,9 @@ public:
     }
 };
 
+#define DECLARE_PLUGINSTATE_P(plg, c, execstate) \
+    c *plgState = static_cast<c*>(plg->getPluginState(execstate, &c::factory))
+
 #define DECLARE_PLUGINSTATE(c, execstate) \
     c *plgState = static_cast<c*>(getPluginState(execstate, &c::factory))
 

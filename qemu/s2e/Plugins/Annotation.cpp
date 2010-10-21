@@ -252,7 +252,7 @@ void Annotation::invokeAnnotation(
     lua_State *L = s2e()->getConfig()->getState();
 
     S2ELUAExecutionState lua_s2e_state(state);
-    LUAAnnotation luaAnnotation(this);
+    LUAAnnotation luaAnnotation(this, state);
 
     luaAnnotation.m_isReturn = !isCall;
     luaAnnotation.m_isInstruction = isInstruction;
@@ -264,8 +264,8 @@ void Annotation::invokeAnnotation(
 
     if (luaAnnotation.m_doKill) {
         std::stringstream ss;
-        ss << "Annotation " << entry->cfgname << " killed us" << std::endl;
-        s2e()->getExecutor()->terminateStateEarly(*state, "Annotation killed us");
+        ss << "Annotation " << entry->cfgname << " killed us";
+        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
         return;
     }
 
@@ -353,11 +353,13 @@ Lunar<LUAAnnotation>::RegType LUAAnnotation::methods[] = {
   LUNAR_DECLARE_METHOD(LUAAnnotation, isReturn),
   LUNAR_DECLARE_METHOD(LUAAnnotation, isCall),
   LUNAR_DECLARE_METHOD(LUAAnnotation, succeed),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, getValue),
+  LUNAR_DECLARE_METHOD(LUAAnnotation, setValue),
   {0,0}
 };
 
 
-LUAAnnotation::LUAAnnotation(Annotation *plg)
+LUAAnnotation::LUAAnnotation(Annotation *plg, S2EExecutionState *state)
 {
     m_plugin = plg;
     m_doKill = false;
@@ -365,6 +367,7 @@ LUAAnnotation::LUAAnnotation(Annotation *plg)
     m_isReturn = false;
     m_succeed = false;
     m_isInstruction = false;
+    m_state = state;
 }
 
 LUAAnnotation::LUAAnnotation(lua_State *lua)
@@ -390,7 +393,7 @@ int LUAAnnotation::setKill(lua_State *L)
 
     m_doKill = lua_toboolean(L, 1);
 
-    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << std::endl;
+    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doKill << std::endl;
     return 0;
 }
 
@@ -400,10 +403,6 @@ int LUAAnnotation::succeed(lua_State *L)
     g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << std::endl;
     return 0;
 }
-
-
-
-
 
 int LUAAnnotation::activateRule(lua_State *L)
 {
@@ -438,6 +437,65 @@ int LUAAnnotation::isCall(lua_State *L)
     lua_pushboolean(L, m_isInstruction ? false : !m_isReturn);        /* first result */
     return 1;
 }
+
+int LUAAnnotation::setValue(lua_State *L)
+{
+  std::string key = luaL_checkstring(L, 1);
+  uint64_t value = luaL_checknumber(L, 2);
+
+  g_s2e->getDebugStream() << "LUAAnnotation: setValue " << key << "=" << value << std::endl;
+
+  DECLARE_PLUGINSTATE_P(m_plugin, AnnotationState, m_state);
+  plgState->setValue(key, value);
+
+  return 0;
+}
+
+int LUAAnnotation::getValue(lua_State *L)
+{
+  std::string key = luaL_checkstring(L, 1);
+
+  DECLARE_PLUGINSTATE_P(m_plugin, AnnotationState, m_state);
+  uint64_t value = plgState->getValue(key);
+
+  g_s2e->getDebugStream() << "LUAAnnotation: getValue " << key << "=" << value  << std::endl;
+
+  lua_pushnumber(L, value);
+  return 1;
+}
+
+/////////////////////////////
+
+AnnotationState::AnnotationState()
+{
+
+}
+ 
+AnnotationState::~AnnotationState()
+{
+
+}
+
+AnnotationState* AnnotationState::clone() const
+{
+    return new AnnotationState(*this);
+}
+
+PluginState *AnnotationState::factory(Plugin *p, S2EExecutionState *s)
+{
+    return new AnnotationState();
+}
+
+uint64_t AnnotationState::getValue(const std::string &key)
+{
+    return m_storage[key];
+}
+
+void AnnotationState::setValue(const std::string &key, uint64_t value)
+{
+    m_storage[key] = value;
+}
+
 
 } // namespace plugins
 } // namespace s2e

@@ -124,6 +124,26 @@ private:
     friend class LUAAnnotation;
 };
 
+class AnnotationState: public PluginState
+{
+public:
+    typedef std::map<std::string, uint64_t> Storage;
+
+private:
+    Storage m_storage;
+
+public:
+    AnnotationState();
+    virtual ~AnnotationState();
+    virtual AnnotationState* clone() const;
+    static PluginState *factory(Plugin *p, S2EExecutionState *s);
+
+    friend class Annotation;
+
+    uint64_t getValue(const std::string &key);
+    void setValue(const std::string &key, uint64_t value);   
+};
+
 class LUAAnnotation
 {
 private:
@@ -133,11 +153,13 @@ private:
     bool m_isReturn;
     bool m_succeed;
     bool m_isInstruction;
+    S2EExecutionState *m_state;
+
 public:
     static const char className[];
     static Lunar<LUAAnnotation>::RegType methods[];
 
-    LUAAnnotation(Annotation *plg);
+    LUAAnnotation(Annotation *plg, S2EExecutionState *state);
     LUAAnnotation(lua_State *lua);
     ~LUAAnnotation();
 
@@ -147,6 +169,9 @@ public:
     int isReturn(lua_State *L);
     int isCall(lua_State *L);
     int succeed(lua_State *L);
+
+    int setValue(lua_State *L);
+    int getValue(lua_State *L);
 
     friend class Annotation;
 };
