@@ -88,7 +88,7 @@ mapfile_open(const char* path, int oflag, int share_mode)
     int file_handle = open(path, oflag, share_mode);
 #endif  // WIN32
 
-    return (MapFile*)file_handle;
+    return (MapFile*)(ptrdiff_t)file_handle;
 }
 
 int
@@ -102,7 +102,7 @@ mapfile_close(MapFile* handle)
         return -1;
     }
 #else   // WIN32
-    return close((int)handle);
+    return close((int)(ptrdiff_t)handle);
 #endif  // WIN32
 }
 
@@ -122,7 +122,7 @@ mapfile_read(MapFile* handle, void* buf, size_t nbyte)
 #else   // WIN32
     ssize_t ret;
     do {
-        ret = read((int)handle, buf, nbyte);
+        ret = read((int)(ptrdiff_t)handle, buf, nbyte);
     } while (ret < 0 && errno == EINTR);
     return ret;
 #endif  // WIN32
@@ -142,7 +142,7 @@ mapfile_read_at(MapFile* handle, size_t offset, void* buf, size_t nbyte)
     }
     return mapfile_read(handle, buf, nbyte);
 #else   // WIN32
-    ssize_t res = lseek((int)handle, offset, SEEK_SET);
+    ssize_t res = lseek((int)(ptrdiff_t)handle, offset, SEEK_SET);
     return res >= 0 ? mapfile_read(handle, buf, nbyte) : res;
 #endif  // WIN32
 }
@@ -223,7 +223,7 @@ mapfile_map(MapFile* handle,
     }
 #else   // WIN32
     mapped_at =
-        mmap(0, map_size, PROT_READ, MAP_SHARED, (int)handle, map_offset);
+        mmap(0, map_size, PROT_READ, MAP_SHARED, (int)(ptrdiff_t)handle, map_offset);
     if (mapped_at == MAP_FAILED) {
         return NULL;
     }

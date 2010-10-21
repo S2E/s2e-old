@@ -125,7 +125,7 @@ typedef struct MallocDesc {
 /* Helpers for addressing field in MallocDesc structure, using which emulator
  * reports an error back to the guest.
  */
-#define ALLOC_RES_OFFSET        ((uint32_t)&(((MallocDesc*)0)->libc_pid))
+#define ALLOC_RES_OFFSET        ((uint32_t)(ptrdiff_t)&(((MallocDesc*)0)->libc_pid))
 #define ALLOC_RES_ADDRESS(p)    (p + ALLOC_RES_OFFSET)
 
 /* Describes memory block info queried from emulator. This structure is passed
@@ -174,7 +174,7 @@ typedef struct MallocDescQuery {
 /* Helpers for addressing field in MallocDescQuery structure using which
  * emulator reports an error back to the guest.
  */
-#define QUERY_RES_OFFSET        ((uint32_t)&(((MallocDescQuery*)0)->libc_pid))
+#define QUERY_RES_OFFSET        ((uint32_t)(ptrdiff_t)&(((MallocDescQuery*)0)->libc_pid))
 #define QUERY_RES_ADDRESS(p)    (p + QUERY_RES_OFFSET)
 
 /* Describes memory block that is being freed back to the heap. This structure
@@ -201,7 +201,7 @@ typedef struct MallocFree {
 /* Helpers for addressing field in MallocFree structure, using which emulator
  * reports an error back to the guest.
  */
-#define FREE_RES_OFFSET         ((uint32_t)&(((MallocFree*)0)->libc_pid))
+#define FREE_RES_OFFSET         ((uint32_t)(ptrdiff_t)&(((MallocFree*)0)->libc_pid))
 #define FREE_RES_ADDRESS(p)     (p + FREE_RES_OFFSET)
 
 /* Extends MallocDesc structure with additional information, used by memchecker.

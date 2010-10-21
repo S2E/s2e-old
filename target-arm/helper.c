@@ -2672,11 +2672,11 @@ void HELPER(set_teecr)(CPUState *env, uint32_t val)
 }
 
 #ifdef CONFIG_MEMCHECK
-void HELPER(on_call)(void* pc, void* ret) {
-    memcheck_on_call((target_ulong)pc, (target_ulong)ret);
+void HELPER(on_call)(target_ulong pc, target_ulong ret) {
+    memcheck_on_call(pc, ret);
 }
 
-void HELPER(on_ret)(void* ret) {
-    memcheck_on_ret((target_ulong)ret);
+void HELPER(on_ret)(target_ulong ret) {
+    memcheck_on_ret(ret);
 }
 #endif  // CONFIG_MEMCHECK

@@ -213,7 +213,7 @@ void DIEObject::dump(bool only_this) const {
           while (elf_file()->get_range<Elf_Xword>(off, &low, &high) &&
                  (low != 0 || high != 0)) {
             printf("                                %08" FMT_I64 "X - %08" FMT_I64 "X\n",
-                   low, high);
+                   (unsigned long long)low, (unsigned long long)high);
             off += 16;
           }
         } else {

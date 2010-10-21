@@ -1125,7 +1125,7 @@ static void tcg_liveness_analysis(TCGContext *s)
     /* sanity check */
     if (gen_opc_ptr - gen_opc_buf > OPC_BUF_SIZE) {
         fprintf(stderr, "PANIC: too many opcodes generated (%d > %d)\n",
-                gen_opc_ptr - gen_opc_buf, OPC_BUF_SIZE);
+                (int)(gen_opc_ptr - gen_opc_buf), OPC_BUF_SIZE);
         tcg_abort();
     }
 
@@ -1982,9 +1982,9 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
          * tcg_gen_code_search_pc. */
         if (memcheck_enabled && search_pc < 0 &&
             gen_opc_instr_start[op_index]) {
-            gen_opc_tpc2gpc_ptr[tpc2gpc_index] = (target_ulong)s->code_ptr;
+            gen_opc_tpc2gpc_ptr[tpc2gpc_index] = s->code_ptr;
             tpc2gpc_index++;
-            gen_opc_tpc2gpc_ptr[tpc2gpc_index] = gen_opc_pc[op_index];
+            gen_opc_tpc2gpc_ptr[tpc2gpc_index] = (void*)(ptrdiff_t)gen_opc_pc[op_index];
             tpc2gpc_index++;
             gen_opc_tpc2gpc_pairs++;
         }
@@ -2087,7 +2087,7 @@ int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
     /* sanity check */
     if (gen_opc_ptr - gen_opc_buf > OPC_BUF_SIZE) {
         fprintf(stderr, "PANIC: too many opcodes generated (%d > %d)\n",
-                gen_opc_ptr - gen_opc_buf, OPC_BUF_SIZE);
+                (int)(gen_opc_ptr - gen_opc_buf), OPC_BUF_SIZE);
         tcg_abort();
     }
 

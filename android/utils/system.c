@@ -66,7 +66,7 @@ android_realloc( void*  block, size_t  size )
     if (block2 != NULL)
         return block2;
 
-    fprintf(stderr, "PANIC: not enough memory to reallocate %d bytes\n", size);
+    fprintf(stderr, "PANIC: not enough memory to reallocate %lld bytes\n", (uint64_t)size);
     exit(1);
     return NULL;
 }
