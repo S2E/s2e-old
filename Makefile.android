@@ -471,6 +471,26 @@ ifeq ($(BUILD_QEMU_AUDIO_LIB),true)
 endif  # !QEMU_AUDIO_LIB
 
 ##############################################################################
+# Common CFLAGS for UI and Core builds
+
+# add the build ID to the default macro definitions
+UI_AND_CORE_CFLAGS := -DANDROID_BUILD_ID="$(strip $(BUILD_ID))-$(strip $(BUILD_NUMBER))"
+
+# For non-standalone builds, extract the major version number from the Android SDK
+# tools revision number.
+ifneq ($(BUILD_STANDALONE_EMULATOR),true)
+    ANDROID_SDK_TOOLS_REVISION := $(shell awk -F= '/Pkg.Revision/ { print $$2; }' sdk/files/tools_source.properties)
+endif
+
+ANDROID_SDK_TOOLS_REVISION := $(strip $(ANDROID_SDK_TOOLS_REVISION))
+ifdef ANDROID_SDK_TOOLS_REVISION
+    UI_AND_CORE_CFLAGS += -DANDROID_SDK_TOOLS_REVISION=$(ANDROID_SDK_TOOLS_REVISION)
+endif
+
+UI_AND_CORE_CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+
+
+##############################################################################
 # Build emulator core library.
 # This library contains "pure" emulation code separated from the intricacies
 # of the UI.
@@ -530,6 +550,7 @@ ANDROID_SOURCES := qemu-setup.c
 LOCAL_SRC_FILES += $(ANDROID_SOURCES:%=android/%)
 
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS)
+LOCAL_CFLAGS += $(UI_AND_CORE_CFLAGS)
 
 include $(BUILD_HOST_STATIC_LIBRARY)
 
@@ -580,25 +601,6 @@ LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS) $(EMULATOR_
 LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_HOST_STATIC_LIBRARY)
-
-##############################################################################
-# Common CFLAGS for UI and Core builds
-
-# add the build ID to the default macro definitions
-UI_AND_CORE_CFLAGS = -DANDROID_BUILD_ID="$(strip $(BUILD_ID))-$(strip $(BUILD_NUMBER))"
-
-# For non-standalone builds, extract the major version number from the Android SDK
-# tools revision number.
-ifneq ($(BUILD_STANDALONE_EMULATOR),true)
-    ANDROID_SDK_TOOLS_REVISION := $(shell awk -F= '/Pkg.Revision/ { print $$2; }' sdk/files/tools_source.properties)
-endif
-
-ANDROID_SDK_TOOLS_REVISION := $(strip $(ANDROID_SDK_TOOLS_REVISION))
-ifdef ANDROID_SDK_TOOLS_REVISION
-    UI_AND_CORE_CFLAGS += -DANDROID_SDK_TOOLS_REVISION=$(ANDROID_SDK_TOOLS_REVISION)
-endif
-
-UI_AND_CORE_CFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 
 ##############################################################################
 # lists of source files used to build the emulator core
@@ -1161,7 +1163,7 @@ LOCAL_MODULE                    := emulator-ui
 LOCAL_STATIC_LIBRARIES          := emulator-uilib
 LOCAL_LDLIBS                    := $(MY_LDLIBS)
 
-LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_CORE_CFLAGS) $(EMULATOR_UI_CFLAGS)
+LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_UI_CFLAGS)
 
 # add the build ID to the default macro definitions
 LOCAL_CFLAGS += $(UI_AND_CORE_CFLAGS) -DCONFIG_STANDALONE_UI
