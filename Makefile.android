@@ -1163,7 +1163,7 @@ LOCAL_MODULE                    := emulator-ui
 LOCAL_STATIC_LIBRARIES          := emulator-uilib
 LOCAL_LDLIBS                    := $(MY_LDLIBS)
 
-LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_UI_CFLAGS)
+LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) $(EMULATOR_UI_CFLAGS) $(EMULATOR_CORE_CFLAGS)
 
 # add the build ID to the default macro definitions
 LOCAL_CFLAGS += $(UI_AND_CORE_CFLAGS) -DCONFIG_STANDALONE_UI
