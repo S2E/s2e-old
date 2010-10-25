@@ -1,3 +1,12 @@
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 #ifndef QEMU_PCI_H
 #define QEMU_PCI_H
 

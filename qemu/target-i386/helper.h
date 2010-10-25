@@ -1,3 +1,12 @@
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 #include "def-helper.h"
 
 #define _M_CC_OP    (1<<1)

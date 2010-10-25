@@ -17,6 +17,15 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 #ifndef _EXEC_ALL_H_
 #define _EXEC_ALL_H_
 
