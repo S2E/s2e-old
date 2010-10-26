@@ -16,6 +16,16 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 #include "config.h"
 #include "exec.h"
 #include "disas.h"

@@ -1,16 +1,3 @@
-
-Install SDL:
-
-Follow instructions on: http://mamedev.org/tools/
-Patch sdl-config with the path to the mingw64 location.
-
-To compile with MINGW64:
-
-../selsymbex/qemu-0.12.2-src/configure --cross-prefix=/d/programmation/mingw64/bin/ --target-list='i386-softmmu x86_64-softmmu' --prefix=/d/S2E/qemu-0.12.2 --disable-strip --enable-debug
-
-
-
-
 Read the documentation in qemu-doc.html.
 
 Fabrice Bellard.

@@ -71,6 +71,15 @@
 
    The affected opcode map is dceX, dcfX, deeX, defX.  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 #ifndef SYSV386_COMPAT
 /* Set non-zero for broken, compatible instructions.  Set to zero for
    non-broken opcodes at your peril.  gcc generates SystemV/386

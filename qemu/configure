@@ -2,6 +2,13 @@
 #
 # qemu configure script (c) 2003 Fabrice Bellard
 #
+
+# The file was modified for S2E Selective Symbolic Execution Framework
+#
+# Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+#
+# Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+
 # set temporary file name
 if test ! -z "$TMPDIR" ; then
     TMPDIR1="${TMPDIR}"

@@ -15,6 +15,15 @@
     GEN_HELPER 2 to do runtime registration helper functions.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 #ifndef DEF_HELPER_H
 #define DEF_HELPER_H 1
 

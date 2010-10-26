@@ -12,6 +12,15 @@
  *
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>

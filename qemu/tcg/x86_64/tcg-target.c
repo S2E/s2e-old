@@ -22,6 +22,15 @@
  * THE SOFTWARE.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ *
+ */
+
 extern struct CPUX86State* env;
 
 #ifndef NDEBUG
