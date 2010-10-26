@@ -1,0 +1,190 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html lang="en-US" xml:lang="en-US" xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Building the S2E Framework</title>
+  <link rel="stylesheet" href="s2e.css" type="text/css" />
+</head>
+<body>
+
+<h1 class="doc_title">Building the S2E Framework</h1>
+
+<div class="doc_text">
+    <p>Right now installation of S2E is a bit involved and requires multiple steps (we are working on simplifying it). The following steps describe installation in detail. We assume the installation is performed on Ubuntu 10.10 64bit host system (S2E also works on other 64bit Linux, Mac and Windows systems).</p>
+</div>
+
+<h3 class="doc_subsubsection">Required packages</h3>
+
+<div class="doc_text">
+
+<pre class="doc_code">
+$ sudo apt-get install build-essential
+$ sudo apt-get install subversion
+$ sudo apt-get install git
+$ sudo apt-get install qemu
+$ sudo apt-get install liblua5.1-dev
+$ sudo apt-get install libsigc++-2.0-dev
+$ sudo apt-get install binutils-dev
+$ sudo apt-get build-dep llvm-2.7
+$ sudo apt-get build-dep qemu
+</pre>
+
+</div>
+
+<h3 class="doc_subsubsection">Building llvm-2.6 with llvm-gcc</h3>
+
+<div class="doc_text">
+
+<p>In order to build S2E you must compile LLVM from sources. LLVM installed from binary distribution packages will not work.</p>
+
+<pre class="doc_code">
+$ S2EDIR=/path/to/s2e
+$ cd $S2EDIR
+
+$ # Download and unpack llvm-gcc and llvm-2.6
+$ wget http://llvm.org/releases/2.6/llvm-gcc-4.2-2.6-x86_64-linux.tar.gz
+$ wget http://llvm.org/releases/2.6/llvm-2.6.tar.gz
+$ tar -zxf llvm-gcc-4.2-2.6-x86_64-linux.tar.gz
+$ tar -zxf llvm-2.6.tar.gz
+
+$ # Create build directory, configure and build
+$ mkdir llvm-build
+$ cd llvm-build
+$ ../llvm-2.6/configure \
+    --prefix=$S2EDIR/opt \
+    --with-llvmgccdir=$S2EDIR/llvm-gcc-4.2-2.6-x86_64-linux \
+    --enable-optimized
+$ make ENABLE_OPTIMIZED=1 -j4 # Compile release build
+$ make ENABLE_OPTIMIZED=0 -j4 # Compile debug build (you can compile both at the same time)
+</pre>
+
+</div>
+
+<h3 class="doc_subsubsection">Checking out S2E</h3>
+
+<div class="doc_text">
+
+<p>S2E source code can be obtained from DSLab GIT repository. To access it, you need to obtain an account on <a href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and upload your ssh public key to it. If you don't have an ssh key yet, you can generate it with the following command:</p>
+
+<pre class="doc_code">
+$ ssh-keygen -t rsa -C you@email
+&gt; answer questions: store key to default location, optionally set password for it
+</pre>
+
+<p>To upload your key, go to <a href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> -&gt; dashboard -&gt; Manage SSH keys -&gt; Add SSH key, then copy content of your ~/.ssh/id_rsa.pub and paste it into the form, then press save. In a few moments your key will be ready to use. Then you can checkout S2E with the following commands:</p>
+
+<pre class="doc_code">
+$ cd $S2EDIR
+$ git clone&nbsp;git@dslabgit.epfl.ch:s2e/s2e.git
+</pre>
+
+<p>You can find more information about using git here: <a href="http://gitref.org/">http://gitref.org/</a> or here: <a href="http://progit.org/">http://progit.org/</a>.</p>
+
+<p>In order to report bugs, please use <a href="https://dslabredmine.epfl.ch">https://dslabredmine.epfl.ch</a>. If you ever want to contribute to S2E, please create your own personal clone of S2E on <a href="https://dslabgit.epfl.ch/s2e/s2e">https://dslabgit.epfl.ch/s2e/s2e</a>, push your changes to it and then send us a merge request.</p>
+
+</div>
+
+<h3 class="doc_subsubsection">Building S2E version of STP</h3>
+
+<div class="doc_text">
+
+<p>STP can only be build inside its source directory. I recommend to copy STP source into another directory before building.</p>
+
+<pre class="doc_code">
+$ cd $S2EDIR
+$ cp -R s2e/stp stp-build
+$ cd stp-build
+$ bash scripts/configure --with-prefix=$(pwd)
+$ make
+$ cp src/c_interface/c_interface.h include/stp
+</pre>
+
+</div>
+
+<h3 class="doc_subsubsection">Building S2E version of KLEE</h3>
+
+<div class="doc_text">
+
+<pre class="doc_code">
+$ cd $S2EDIR
+$ mkdir klee-build
+$ cd klee-build
+$ ../s2e/klee/configure \
+    --prefix=$S2EDIR/opt \
+    --with-llvmsrc=$S2EDIR/llvm-2.6 \
+    --with-llvmobj=$S2EDIR/llvm-build \
+    --with-stp=$S2EDIR/stp-build \
+    --enable-exceptions
+$ make ENABLE_OPTIMIZED=1 -j4 # Compile release build
+$ make ENABLE_OPTIMIZED=0 -j4 # Compile debug build (you can compile both at the same time)
+</pre>
+
+</div>
+
+<h3 class="doc_subsubsection">Building S2E (modified version of QEMU)</h3>
+
+<div class="doc_text">
+
+<pre class="doc_code">
+$ cd $S2EDIR
+
+$ # Configure and build QEMU in release mode
+$ mkdir qemu-build-release
+$ cd qemu-build-release
+$ ../s2e/qemu/configure \
+    --prefix=$S2EDIR/opt \
+    --with-llvm=$S2EDIR/llvm-build/Release \
+    --with-llvmgcc=$S2EDIR/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
+    --with-stp=$S2EDIR/stp-build \
+    --with-klee=$S2EDIR/klee-build/Release \
+    --target-list=i386-s2e-softmmu,i386-softmmu \
+    --enable-llvm \
+    --enable-s2e
+$ make -j4
+
+$ # Verify that QEMU works in vanilla mode
+$ ./i386-softmmu/qemu -m 8 # you should see BIOS booting in the VM
+$ # Verify that QEMU works in S2E mode
+$ ./i386-s2e-softmmu/qemu -m 8 # you should see BIOS booting in the VM
+
+$ # Configure and build QEMU in debug mode
+$ mkdir qemu-build-debug
+$ cd qemu-build-debug
+$ ../s2e/qemu/configure \
+    --prefix=$S2EDIR/opt \
+    --with-llvm=$S2EDIR/llvm-build/Debug  \
+    --with-llvmgcc=$S2EDIR/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
+    --with-stp=$S2EDIR/stp-build \
+    --with-klee=$S2EDIR/klee-build/Debug \
+    --target-list=i386-s2e-softmmu,i386-softmmu \
+    --enable-llvm \
+    --enable-s2e \
+    --enable-debug
+$ make -j4
+</pre>
+
+</div>
+
+<h3 class="doc_subsubsection">Building S2E-tools</h3>
+
+<div class="doc_text">
+
+<pre class="doc_code">
+$ cd $S2EDIR
+$ mkdir tools-build
+$ cd tools-build
+$ ../s2e/tools/configure \
+    --with-llvmsrc=$S2EDIR/llvm-2.6 \
+    --with-llvmobj=$S2EDIR/llvm-build \
+    --with-s2esrc=$S2EDIR/s2e/qemu \
+    --with-s2eobj=$S2EDIR/qemu-build-release
+$ make -j4
+</pre>
+
+</div>
+
+</body>
+</html>
