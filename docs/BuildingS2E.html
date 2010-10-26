@@ -13,7 +13,7 @@
 <h1 class="doc_title">Building the S2E Framework</h1>
 
 <div class="doc_text">
-    <p>Right now installation of S2E is a bit involved and requires multiple steps (we are working on simplifying it). The following steps describe installation in detail. We assume the installation is performed on Ubuntu 10.10 64bit host system (S2E also works on other 64bit Linux, Mac and Windows systems).</p>
+    <p>The following steps describe installation in detail. We assume the installation is performed on Ubuntu 10.10 64bit host system (S2E also works on other 64bit Linux, Mac and Windows systems).</p>
 </div>
 
 <h3 class="doc_subsubsection">Required packages</h3>
@@ -67,7 +67,7 @@ $ make ENABLE_OPTIMIZED=0 -j4 # Compile debug build (you can compile both at the
 
 <div class="doc_text">
 
-<p>S2E source code can be obtained from DSLab GIT repository. To access it, you need to obtain an account on <a href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and upload your ssh public key to it. If you don't have an ssh key yet, you can generate it with the following command:</p>
+<p>S2E source code can be obtained from the DSLab GIT repository. To access it, you need to obtain an account on <a href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and upload your ssh public key to it. If you don't have an ssh key yet, you can generate it with the following command:</p>
 
 <pre class="doc_code">
 $ ssh-keygen -t rsa -C you@email
@@ -91,7 +91,7 @@ $ git clone&nbsp;git@dslabgit.epfl.ch:s2e/s2e.git
 
 <div class="doc_text">
 
-<p>STP can only be build inside its source directory. I recommend to copy STP source into another directory before building.</p>
+<p>STP can only be built inside its source directory. It is recommended to copy STP source into another directory before building.</p>
 
 <pre class="doc_code">
 $ cd $S2EDIR
@@ -104,7 +104,7 @@ $ cp src/c_interface/c_interface.h include/stp
 
 </div>
 
-<h3 class="doc_subsubsection">Building S2E version of KLEE</h3>
+<h3 class="doc_subsubsection">Building the S2E version of KLEE</h3>
 
 <div class="doc_text">
 
@@ -168,7 +168,7 @@ $ make -j4
 
 </div>
 
-<h3 class="doc_subsubsection">Building S2E-tools</h3>
+<h3 class="doc_subsubsection">Building S2E tools</h3>
 
 <div class="doc_text">
 
