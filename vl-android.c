@@ -4435,7 +4435,7 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_startdate:
                 {
                     struct tm tm;
-                    time_t rtc_start_date;
+                    time_t rtc_start_date = 0;
                     if (!strcmp(optarg, "now")) {
                         rtc_date_offset = -1;
                     } else {
