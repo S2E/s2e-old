@@ -2105,7 +2105,7 @@ do_geo_fix( ControlClient  client, char*  args )
         deg = (int) val;
         val = 60*(val - deg);
         min = (int) val;
-        val = 1000*(val - min);
+        val = 10000*(val - min);
         stralloc_add_format( s, ",%02d%02d.%04d,%c", deg, min, (int)val, hemi );
 
         /* the longitude */
@@ -2118,7 +2118,7 @@ do_geo_fix( ControlClient  client, char*  args )
         deg = (int) val;
         val = 60*(val - deg);
         min = (int) val;
-        val = 1000*(val - min);
+        val = 10000*(val - min);
         stralloc_add_format( s, ",%02d%02d.%04d,%c", deg, min, (int)val, hemi );
 
         /* bogus fix quality, satellite count and dilution */
