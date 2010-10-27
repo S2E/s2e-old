@@ -1,26 +1,36 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-
-<html lang="en-US" xml:lang="en-US" xmlns="http://www.w3.org/1999/xhtml">
-
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-  <title>Building the S2E Framework</title>
-  <link rel="stylesheet" href="s2e.css" type="text/css" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<title>Building the S2E Framework</title>
+<link rel="stylesheet" href="s2e.css" type="text/css" />
+<link rel="stylesheet" href="pygments-default.css" type="text/css" />
 </head>
 <body>
+<div class="document" id="building-the-s2e-framework">
+<h1 class="title">Building the S2E Framework</h1>
 
-<h1 class="doc_title">Building the S2E Framework</h1>
-
-<div class="doc_text">
-    <p>The following steps describe installation in detail. We assume the installation is performed on Ubuntu 10.10 64bit host system (S2E also works on other 64bit Linux, Mac and Windows systems).</p>
+<p>The following steps describe installation in detail. We assume the installation
+is performed on Ubuntu 10.10 64bit host system (S2E also works on other 64bit
+Linux, Mac and Windows systems).</p>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#required-packages" id="id1">Required Packages</a></li>
+<li><a class="reference internal" href="#building-llvm-2-6-with-llvm-gcc" id="id2">Building LLVM-2.6 With llvm-gcc</a></li>
+<li><a class="reference internal" href="#checking-out-s2e" id="id3">Checking out S2E</a></li>
+<li><a class="reference internal" href="#building-s2e-version-of-stp" id="id4">Building S2E Version of STP</a></li>
+<li><a class="reference internal" href="#building-the-s2e-version-of-klee" id="id5">Building the S2E Version of KLEE</a></li>
+<li><a class="reference internal" href="#building-s2e-modified-version-of-qemu" id="id6">Building S2E (Modified Version of QEMU)</a></li>
+<li><a class="reference internal" href="#building-s2e-tools" id="id7">Building S2E Tools</a></li>
+<li><a class="reference internal" href="#preparing-linux-vm-image" id="id8">Preparing Linux VM Image</a></li>
+</ul>
 </div>
-
-<h3 class="doc_subsubsection">Required packages</h3>
-
-<div class="doc_text">
-
-<pre class="doc_code">
+<div class="section" id="required-packages">
+<h1>Required Packages</h1>
+<pre class="literal-block">
 $ sudo apt-get install build-essential
 $ sudo apt-get install subversion
 $ sudo apt-get install git
@@ -31,16 +41,12 @@ $ sudo apt-get install binutils-dev
 $ sudo apt-get build-dep llvm-2.7
 $ sudo apt-get build-dep qemu
 </pre>
-
 </div>
-
-<h3 class="doc_subsubsection">Building llvm-2.6 with llvm-gcc</h3>
-
-<div class="doc_text">
-
-<p>In order to build S2E you must compile LLVM from sources. LLVM installed from binary distribution packages will not work.</p>
-
-<pre class="doc_code">
+<div class="section" id="building-llvm-2-6-with-llvm-gcc">
+<h1>Building LLVM-2.6 With llvm-gcc</h1>
+<p>In order to build S2E you must compile LLVM from sources. LLVM installed from
+binary distribution packages will not work.</p>
+<pre class="literal-block">
 $ S2EDIR=/path/to/s2e
 $ cd $S2EDIR
 
@@ -60,40 +66,37 @@ $ ../llvm-2.6/configure \
 $ make ENABLE_OPTIMIZED=1 -j4 # Compile release build
 $ make ENABLE_OPTIMIZED=0 -j4 # Compile debug build (you can compile both at the same time)
 </pre>
-
 </div>
-
-<h3 class="doc_subsubsection">Checking out S2E</h3>
-
-<div class="doc_text">
-
-<p>S2E source code can be obtained from the DSLab GIT repository. To access it, you need to obtain an account on <a href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and upload your ssh public key to it. If you don't have an ssh key yet, you can generate it with the following command:</p>
-
-<pre class="doc_code">
-$ ssh-keygen -t rsa -C you@email
+<div class="section" id="checking-out-s2e">
+<h1>Checking out S2E</h1>
+<p>S2E source code can be obtained from the DSLab GIT repository. To access it,
+you need to obtain an account on <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and upload your ssh
+public key to it. If you don't have an ssh key yet, you can generate it with
+the following command:</p>
+<pre class="literal-block">
+$ ssh-keygen -t rsa -C you&#64;email
 &gt; answer questions: store key to default location, optionally set password for it
 </pre>
-
-<p>To upload your key, go to <a href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> -&gt; dashboard -&gt; Manage SSH keys -&gt; Add SSH key, then copy content of your ~/.ssh/id_rsa.pub and paste it into the form, then press save. In a few moments your key will be ready to use. Then you can checkout S2E with the following commands:</p>
-
-<pre class="doc_code">
+<p>To upload your key, go to <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> -&gt; dashboard -&gt; Manage SSH
+keys -&gt; Add SSH key, then copy content of your ~/.ssh/id_rsa.pub and paste it
+into the form, then press save. In a few moments your key will be ready to use.
+Then you can checkout S2E with the following commands:</p>
+<pre class="literal-block">
 $ cd $S2EDIR
-$ git clone&nbsp;git@dslabgit.epfl.ch:s2e/s2e.git
+$ git clone git&#64;dslabgit.epfl.ch:s2e/s2e.git
 </pre>
-
-<p>You can find more information about using git here: <a href="http://gitref.org/">http://gitref.org/</a> or here: <a href="http://progit.org/">http://progit.org/</a>.</p>
-
-<p>In order to report bugs, please use <a href="https://dslabredmine.epfl.ch">https://dslabredmine.epfl.ch</a>. If you ever want to contribute to S2E, please create your own personal clone of S2E on <a href="https://dslabgit.epfl.ch/s2e/s2e">https://dslabgit.epfl.ch/s2e/s2e</a>, push your changes to it and then send us a merge request.</p>
-
+<p>You can find more information about using git on <a class="reference external" href="http://gitref.org/">http://gitref.org/</a> or on
+<a class="reference external" href="http://progit.org/">http://progit.org/</a>.</p>
+<p>In order to report bugs, please use <a class="reference external" href="https://dslabredmine.epfl.ch">https://dslabredmine.epfl.ch</a>. If you ever
+want to contribute to S2E, please create your own personal clone of S2E on
+<a class="reference external" href="https://dslabgit.epfl.ch/s2e/s2e">https://dslabgit.epfl.ch/s2e/s2e</a>, push your changes to it and then send us a
+merge request.</p>
 </div>
-
-<h3 class="doc_subsubsection">Building S2E version of STP</h3>
-
-<div class="doc_text">
-
-<p>STP can only be built inside its source directory. It is recommended to copy STP source into another directory before building.</p>
-
-<pre class="doc_code">
+<div class="section" id="building-s2e-version-of-stp">
+<h1>Building S2E Version of STP</h1>
+<p>STP can only be built inside its source directory. It is recommended to copy
+STP source into another directory before building:</p>
+<pre class="literal-block">
 $ cd $S2EDIR
 $ cp -R s2e/stp stp-build
 $ cd stp-build
@@ -101,14 +104,10 @@ $ bash scripts/configure --with-prefix=$(pwd)
 $ make
 $ cp src/c_interface/c_interface.h include/stp
 </pre>
-
 </div>
-
-<h3 class="doc_subsubsection">Building the S2E version of KLEE</h3>
-
-<div class="doc_text">
-
-<pre class="doc_code">
+<div class="section" id="building-the-s2e-version-of-klee">
+<h1>Building the S2E Version of KLEE</h1>
+<pre class="literal-block">
 $ cd $S2EDIR
 $ mkdir klee-build
 $ cd klee-build
@@ -121,14 +120,10 @@ $ ../s2e/klee/configure \
 $ make ENABLE_OPTIMIZED=1 -j4 # Compile release build
 $ make ENABLE_OPTIMIZED=0 -j4 # Compile debug build (you can compile both at the same time)
 </pre>
-
 </div>
-
-<h3 class="doc_subsubsection">Building S2E (modified version of QEMU)</h3>
-
-<div class="doc_text">
-
-<pre class="doc_code">
+<div class="section" id="building-s2e-modified-version-of-qemu">
+<h1>Building S2E (Modified Version of QEMU)</h1>
+<pre class="literal-block">
 $ cd $S2EDIR
 
 $ # Configure and build QEMU in release mode
@@ -165,14 +160,10 @@ $ ../s2e/qemu/configure \
     --enable-debug
 $ make -j4
 </pre>
-
 </div>
-
-<h3 class="doc_subsubsection">Building S2E tools</h3>
-
-<div class="doc_text">
-
-<pre class="doc_code">
+<div class="section" id="building-s2e-tools">
+<h1>Building S2E Tools</h1>
+<pre class="literal-block">
 $ cd $S2EDIR
 $ mkdir tools-build
 $ cd tools-build
@@ -183,8 +174,36 @@ $ ../s2e/tools/configure \
     --with-s2eobj=$S2EDIR/qemu-build-release
 $ make -j4
 </pre>
+</div>
+<div class="section" id="preparing-linux-vm-image">
+<h1>Preparing Linux VM Image</h1>
+<p>To run S2E you need a QEMU-compatible virtual machine disk image. S2E can run
+any x86 32bit operating system inside the VM. In the following we describe how
+to install minimal version of Debian Linux in QEMU:</p>
+<pre class="literal-block">
+$ cd $S2EDIR
+
+$ # Create an empty disk image
+$ qemu-img create -f qcow2 s2e_disk.qcow2 2G
+
+$ # Download debian install CD
+$ wget http://cdimage.debian.org/debian-cd/5.0.6/i386/iso-cd/debian-506-i386-businesscard.iso
+
+$ # Run QEMU and install the OS
+$ qemu s2e_disk.qcow2 -cdrom debian-506-i386-businesscard.iso
+&gt; Follow on-screen instructions to install Debian Linux inside VM
+&gt; Select only &quot;Standard System&quot; component to install
+
+$ # When you system is installed and rebooted, run the following command
+$ # inside the guest to install C and C++ compilers
+guest$ su -c &quot;apt-get install build-essential&quot;
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="BuildingS2E.rst">View document source</a>.
 
 </div>
-
 </body>
 </html>

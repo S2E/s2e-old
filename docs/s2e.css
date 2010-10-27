@@ -63,7 +63,7 @@ h3, .doc_subsubsection { margin: 2.0em 0.5em 0.5em 0.5em;
 .doc_warning    { color: red; font-weight: bold }
 
 /* <div class="doc_code"> would use this class, and <div> adds more padding */
-.doc_code, .literal-block
+.doc_code, .literal-block, .highlight
                 { border: solid 1px gray; background: #eeeeee;
                   margin: 0 1em 0 1em;
                   padding: 0 1em 0 1em;
