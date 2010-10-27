@@ -6,6 +6,8 @@ In this tutorial, we explain how to symbolically execute the AMD PCnet driver in
 We discuss the preparation of the RAW image in vanilla QEMU, how to write an S2E configuration
 file for this purpose, how to launch symbolic execution, and finally how to interpret the results.
 
+.. contents::
+
 Preparing the QEMU image
 ========================
 
@@ -195,4 +197,270 @@ At this point, we have an image ready to be symbolically executed.
 In this section, we will explain how to write an S2E configuration file that controls the behavior of the symbolic execution process.
 This file specifies what module to symbolically execute, what parts should be symbolically executed, where to inject symbolic values, and how to kill states.
 
-1. Create a file called ``pcntpci5.sys.lua``
+Before proceeding further, create a file called ``pcntpci5.sys.lua``.
+S2E uses LUA as an interpreter for configuration files. As such, these files are fully scriptable and can interact with the symbolic execution engine.
+In this tutorial, we cover the basic steps of creating such a file.
+
+1. Configuring KLEE
+-------------------
+
+The top level section of the configuration file is ``s2e``.
+We start by configuring KLEE, using the ``kleeArgs`` subsection.
+Refer to the corresponding section of the documentation for more information about each setting.
+
+::
+
+    s2e = {
+        kleeArgs = {
+            "--use-batching-search",
+            "--use-random-path",
+            "--use-cex-cache=true",
+            "--use-cache=true",
+            "--use-fast-cex-solver=true",
+            "--max-stp-time=10",
+            "--use-expr-simplifier=true",
+            "--print-expr-simplifier=false",
+            "--flush-tbs-on-state-switch=false",
+        }
+    }
+
+2. Specifying the list of plugins
+---------------------------------
+
+S2E provides the core symbolic execution engine. All the anaylsis is done by various plugins.
+In this step, we will select the plugins required for analyzing Windows device drivers.
+Paste the following snippet right after the previous one. In the following parts of the tutorial,
+we briefly present each of the plugins.
+
+::
+
+    plugins = {
+        "WindowsMonitor",
+        "ModuleExecutionDetector",
+
+        "SymbolicHardware",
+        "PollingLoopDetector",
+        "Annotation",
+
+        "ExecutionTracer",
+        "ModuleTracer",
+        "TranslationBlockTracer",
+
+        "FunctionMonitor",
+        "StateManager",
+        "NdisHandlers"
+
+        "BlueScreenInterceptor",
+        "WindowsCrashDumpGenerator",
+
+    }
+
+3. Selecting the driver to execute
+----------------------------------
+
+The ``WindowsMonitor`` plugins monitors Windows events and catches module loads and unloads.
+The ``ModuleExecutionDetector`` plugin listens to events exported by ``WindowsMonitor`` and reacts
+when it detects specific modules.
+
+Configure ``WindowsMonitor`` as follows:
+
+::
+
+    pluginsConfig = {}
+
+    pluginsConfig.WindowsMonitor = {
+        version="sp3",
+        userMode=true,
+        kernelMode=true,
+        checked=false,
+        monitorModuleLoad=true,
+        monitorModuleUnload=true,
+        monitorProcessUnload=true
+    }
+
+This configuration assumes that you run the free build version of Windows XP Service Pack 3.
+
+Now, configure ``ModuleExecutionDetector`` as follows to track loads and unloads of ``pcntpci5.sys``.
+
+::
+
+    pluginsConfig.ModuleExecutionDetector = {
+        pcntpci5_sys_1 = {
+            moduleName = "pcntpci5.sys",
+            kernelMode = true,
+        },
+    }
+
+4. Configuring symbolic hardware
+--------------------------------
+
+The ``SymbolicHardware`` plugin creates fake PCI (or ISA) devices, which are detected by the OS.
+All reads from such devices are symbolic and writes are discarded. Symbolic devices can also generate
+interrupts and handle DMA.
+
+The following configuration is specific to the AMD PCNet NIC device.
+
+::
+
+    pluginsConfig.SymbolicHardware = {
+         pcntpci5f = {
+            id="pcnetf",
+            type="pci",
+            vid=0x1022,
+            pid=0x2000,
+            classCode=2,
+            revisionId=0x7,
+            interruptPin=1,
+            resources={
+                r0 = { isIo=true, size=0x20, isPrefetchatchable=false},
+                r1 = { isIo=false, size=0x20, isPrefetchable=false}
+            }
+        },
+    }
+
+
+
+5. Detecting polling loops
+--------------------------
+
+Drivers often use polling loops to check the status of registers.
+Polling loops cause the number of states to explode. The ``PollingLoopDetector`` plugin relies on the user
+to specify the location of each of these loops and kills the states whenever it detects such loops.
+Each configuration entry for this plugin takes a pair of addresses specifying an edge in the control flow graph of
+the binary. The plugin kills the state whenever it detects the execution of such an edge.
+
+For the ``pcntpci5.sys`` driver, use the following settings:
+
+::
+
+    pluginsConfig.PollingLoopDetector = {
+        pcntpci5_sys_1 = {
+            l0 = {0x14040, 0x1401d},
+            l01 = {0x139c2, 0x13993},
+            l02 = {0x14c84, 0x14c5e},
+       }
+    }
+
+6. Annotating driver code
+-------------------------
+
+S2E comes with a powerful ``Annotation`` plugin that allows users to control the behavior of symbolic execution.
+Each annotation comes in the form of a LUA function taking as parameters the current execution state and the instance
+of the annotation plugin. Such annotation can be used to inject symbolic values, monitor the execution, trim useless states, etc.
+
+In the following sample, we write an annotation ``init_merge_point1_oncall``
+that suspends all the execution states that have reached the end
+of the configuration phase of the ``pcntpci5.sys`` driver. The end of the phase is located at the address ``0x169c9``
+relative to the native base of the driver. You may want to disassemble the driver for more details.
+
+::
+
+    function init_merge_point1_oncall(state, plg)
+            plg:succeed();
+    end
+
+    pluginsConfig.Annotation =
+    {
+        init1 = {
+            active=true,
+            module="pcntpci5_sys_1",
+            address=0x169c9,
+            instructionAnnotation="init_merge_point1_oncall"
+        }
+    }
+
+7. Tracing driver execution
+---------------------------
+
+All output is generated by specialized plugins.
+S2E does not generate any output by itself, except debugging logs.
+
+In this part of the tutorial, we present three tracing plugins to record module loads/unloads as well as
+all executed translation blocks. This can be useful, e.g.,  to generate coverage reports. Analyzing traces is
+covered in a different tutorial.
+
+*These plugins have no configurable options. Hence, they do not require configuration sections.*
+
+* The ``ExecutionTracer`` is the main tracing plugin. This plugin abstracts the execution trace file.
+  The ``ExecutionTracer`` plugin saves a binary trace file in the ``s2e-last/ExecutionTracer.dat`` file.
+  This file is composed of generic trace items. Each item can have an arbitrary format, determined by the various tracing plugins.
+
+* The ``ModuleTracer``  plugin listens to module events exported by the ``WindowsInterceptor`` plugin (or other plugins exporting the ``Interceptor`` interface) and writes them to the trace by invoking API exported by the ``ExecutionTrace`` plugin.
+
+* Finally, the ``TranslationBlockTracer`` plugin writes the register input and output of each executed translation block.
+  Whenever a translation block of a module specified in the ``ModuleExecutionDetector`` plugin is executed, the ``TranslationBlockTracer`` plugin records it in the trace.
+
+8. Specifying consistency models
+--------------------------------
+
+S2E enables various consistency models.
+The ``NdisHandlers`` plugin implements the **overapproximate**, **local**, **strict**, and **overconstrained** models for
+Windows NDIS drivers.
+In this tutorial, we show how to set the **strict** model, in which the only symbolic input comes from the hardware.
+Feel free to experiment with other models.
+
+The configuration section looks as follows:
+
+::
+
+    pluginsConfig.NdisHandlers = {
+        moduleIds = {"pcntpci5_sys_1"},
+        hwId = "pcnetf",
+        consistency = "strict",
+    }
+
+9. Controlling the execution of entry points
+--------------------------------------------
+
+The ``StateManager`` plugins periodically chooses one successful state at random and kills the remaining states.
+The ``NdisHandlers`` plugin uses the ``StateManager`` plugin to suspend all paths that successfully returned from the
+entry points (e.g., a successful initialization). Whenever no more new translation blocks are covered during a
+*timeout* interval, the ``StateManager`` plugin kills all remaining states but one successful, and lets symbolic execution
+continue from the remaining state. This copes with the state explosion problem.
+
+::
+
+    pluginsConfig.StateManager = {
+        timeout=60
+    }
+
+10. Detecting bugs
+------------------
+
+The ``BlueScreenInterceptor`` and ``WindowsCrashDumpGenerator`` turn S2E into a basic bug finder.
+The BSOD detector kills all the states that crashes, while the crash dump generator produces dumps that can be opened
+and analyzed in WinDbg.
+
+Dump files are as large as the physical memory and take some time to generate, hence the ``BlueScreenInterceptor`` plugin options specify whether to generate a crash dump, and the maximum number of such dumps.
+
+::
+
+    pluginsConfig.BlueScreenInterceptor = {
+        generateCrashDump = false,
+        maxDumpCount = 2
+    }
+
+
+Running S2E
+===========
+
+Now that the configuration file is ready, it is time to launch S2E.
+Notice that we use the S2E-enabled QEMU in the **i386-s2e-softmmu** folder.
+
+::
+
+    $./i386-s2e-softmmu/qemu -rtc clock=vm -net user -net nic,model=ne2k_pci -hda pcntpci5.sys.qcow2 -s2e-config-file pcntpci5.sys.lua -loadvm go
+
+This command will create an ``s2e-out-???`` folder, where ``???`` is the sequence number of the run.
+``s2e-last`` is a symbolic link that points to the latest run.
+
+The folder contains various files generated by S2E or plugins. Here is a short list:
+
+* **debug.txt**: contains detailed debug output from S2E and all plugins.
+* **warnings.txt**: contains warning output from S2E and all plugins.
+* **messages.txt**: contains various messages, less verbose than **debug.txt**.
+* **s2e.cmdline**: the command line used to launch S2E.
+* **s2e.config.lua**: a copy of the configuration file. This is useful if you tweak the configuration file between different runs.
+  It allows you to quickly rerun specific experiments, without losing any configuration.
+* **s2e.db**: sqlite database, used by some plugins.
+* **ExecutionTracer.dat**: the  execution trace generated by the ``ExecutionTracer`` plugin.
