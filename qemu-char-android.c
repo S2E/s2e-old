@@ -891,9 +891,7 @@ static void cfmakeraw (struct termios *termios_p)
 }
 #endif
 
-#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) \
-    || defined(__GLIBC__)
+#ifndef _WIN32
 
 typedef struct {
     int fd;
@@ -1262,12 +1260,12 @@ static CharDriverState *qemu_chr_open_tty(const char *filename)
     qemu_chr_reset(chr);
     return chr;
 }
-#else  /* ! __linux__ && ! __sun__ */
+#else  /* _WIN32 */
 static CharDriverState *qemu_chr_open_pty(void)
 {
     return NULL;
 }
-#endif /* __linux__ || __sun__ */
+#endif /* _WIN32 */
 
 #if defined(__linux__)
 typedef struct {
@@ -2367,12 +2365,9 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*i
         chr = qemu_chr_open_pp(filename);
     } else
 #endif
-#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
     if (strstart(filename, "/dev/", NULL)) {
         chr = qemu_chr_open_tty(filename);
     } else
-#endif
 #else /* !_WIN32 */
     if (strstart(filename, "COM", NULL)) {
         chr = qemu_chr_open_win(filename);
