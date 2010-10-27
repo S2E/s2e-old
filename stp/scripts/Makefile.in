@@ -19,22 +19,7 @@ BINARIES=bin/stp
 LIBRARIES=lib/libstp.a
 HEADERS=$(SRC)/c_interface/*.h
 
-.PHONY: all
-all: AST STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv
-
-ifdef CRYPTOMINISAT2
-	$(MAKE) -C $(SRC)/sat cryptominisat2
-endif
-ifdef CORE
-	$(MAKE) -C $(SRC)/sat core
-endif
-ifdef SIMP
-	$(MAKE) -C $(SRC)/sat simp
-endif
-
-	$(MAKE) -C $(SRC)/parser
-	$(MAKE) -C $(SRC)/main
-	$(AR) rc libstp.a  $(SRC)/AST/*.o \
+LIBSTP_FILES=$(SRC)/AST/*.o \
 			   $(SRC)/AST/NodeFactory/*.o \
 			   $(SRC)/STPManager/*.o \
 			   $(SRC)/printer/*.o \
@@ -52,7 +37,27 @@ endif
 			   $(SRC)/parser/lexSMT.o \
 			   $(SRC)/main/Globals.o \
 			   $(SRC)/main/versionString.o
-			   @# N.B.: don't put main/main.o in the library.
+
+.PHONY: all
+all: AST STPManager absrefine_counterexample to-sat simplifier printer c_interface extlib-constbv
+
+ifdef CRYPTOMINISAT2
+	$(MAKE) -C $(SRC)/sat cryptominisat2
+endif
+ifdef CORE
+	$(MAKE) -C $(SRC)/sat core
+endif
+ifdef SIMP
+	$(MAKE) -C $(SRC)/sat simp
+endif
+
+	$(MAKE) -C $(SRC)/parser
+	$(MAKE) -C $(SRC)/main
+
+	$(MAKE) lib/libstp.a
+
+lib/libstp.a: $(LIBSTP_FILES)
+	$(AR) rc libstp.a $(LIBSTP_FILES)
 	$(RANLIB) libstp.a
 	@mkdir -p lib
 	@mv libstp.a lib/
