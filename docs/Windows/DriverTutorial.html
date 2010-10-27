@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<title>Analyzing Windows Drivers: Step-by-Step Tutorial</title>
+<link rel="stylesheet" href="s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="analyzing-windows-drivers-step-by-step-tutorial">
+<h1 class="title">Analyzing Windows Drivers: Step-by-Step Tutorial</h1>
+
+<p>In this tutorial, we explain how to symbolically execute the AMD PCnet driver in S2E.
+We discuss the preparation of the RAW image in vanilla QEMU, how to write an S2E configuration
+file for this purpose, how to launch symbolic execution, and finally how to interpret the results.</p>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#preparing-the-qemu-image" id="id5">Preparing the QEMU image</a><ul>
+<li><a class="reference internal" href="#booting-the-image" id="id6">1. Booting the image</a></li>
+<li><a class="reference internal" href="#copying-files" id="id7">2. Copying files</a></li>
+<li><a class="reference internal" href="#setting-up-the-networking-configuration" id="id8">3. Setting up the networking configuration</a></li>
+<li><a class="reference internal" href="#editing-registry-settings-for-pcnet" id="id9">4. Editing registry settings for PCnet</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="preparing-the-qemu-image">
+<h1>Preparing the QEMU image</h1>
+<p>We want to analyze a PCI device driver, and for this we need an automated way of loading it,
+exercising its entry points, then unloading it when we are done.
+This can be done manually via the Windows device manager, but can be automated via the &lt;tt&gt;devcon.exe&lt;/tt&gt;
+utility. You can find this utility on the Internet. &lt;tt&gt;devcon.exe&lt;/tt&gt; is a command line program that
+allows enumerating device drivers, loading, and unloading them.</p>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 22)</p>
+Literal block expected; none found.</div>
+<div class="section" id="booting-the-image">
+<h2>1. Booting the image</h2>
+<p>First, boot the vanilla QEMU with the following arguments:</p>
+<blockquote>
+<dl class="docutils">
+<dt>$./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 </dt>
+<dd>-fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 -rtc clock=vm -net user -net nic,model=ne2k_pci -hda /home/s2e/vm/windows_pcntpci5.sys.qcow2</dd>
+</dl>
+</blockquote>
+<p>Here is a succing explanation of the command line.</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-fake-pci-name pcnetf&lt;/b&gt;&lt;/tt&gt;: instructs QEMU to enable a fake PCI device called &lt;tt&gt;pcnetf&lt;/tt&gt;</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 34)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>which will mimic an AMD PCnet card. &lt;tt&gt;pcnetf&lt;/tt&gt; is an arbitrary name that identifies the device in QEMU.
+It &lt;em&gt;must&lt;/em&gt; be consistent across this tutorial.
+Note that you do not need to have a real virtual device for AMD PCnet (even though QEMU has one).
+In fact, you can specify any PCI device you want.</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000&lt;/b&gt;&lt;/tt&gt;: describe the vendor and device</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 40)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>ID of the fake PCI device. This will trick the plug-and-play module of the guest OS into believing that
+there is a real device installed and will make it load the &lt;tt&gt;pcntpci5.sys&lt;/tt&gt; driver.</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-fake-pci-class-code 2 -fake-pci-revision-id 0x7&lt;/b&gt;&lt;/tt&gt;: some additional data that will</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 44)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>populate the PCI device descriptor. This data is device-specific and may be used by the driver.</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-fake-pci-resource-io 0x20&lt;/b&gt;&lt;/tt&gt;: specifies that the device uses 64 bytes of I/O address space.</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 47)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>The base address is assigned by the OS/BIOS at startup.
+S2E intercepts all accesses in the assigned I/O range and returns symbolic values upon read. Writes to the range
+are discarded.</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-fake-pci-resource-mem 0x20&lt;/b&gt;&lt;/tt&gt;: specifies that the device uses 64 bytes of memory-mapped I/O space.</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 52)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>Same remarks as for &lt;tt&gt;-fake-pci-resource-io&lt;/tt&gt;.</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-rtc clock=vm&lt;/b&gt;&lt;/tt&gt;: the real-time clock of QEMU must be set to VM to make symbolic execution work.</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 55)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>&lt;tt style=&quot;color: rgb(255,0,0)&quot;&gt;TBD: Explain why.&lt;/tt&gt;</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-hda /home/s2e/vm/windows_pcntpci5.sys.raw&lt;/b&gt;&lt;/tt&gt;: specifies the path to the disk image.</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 59)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>Note that we use a RAW image here during set up.</p>
+<ul class="simple">
+<li>&lt;tt&gt;&lt;b&gt;-net user -net nic,model=ne2k_pci&lt;/b&gt;&lt;/tt&gt;: instructs QEMU that we want to use the NE2K virtual NIC adapter.</li>
+</ul>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 63)</p>
+Bullet list ends without a blank line; unexpected unindent.</div>
+<p>This NIC adapter is not to be confused with the fake PCI device we set up in previous options.
+This NE2K adapter is a real one, and we will use it to upload files to the virtual machine.</p>
+</div>
+<div class="section" id="copying-files">
+<h2>2. Copying files</h2>
+<p>Copy the &lt;tt&gt;devcon.exe&lt;/tt&gt; utility in the Windows image.&lt;br/&gt;
+Then, copy the following script into &lt;tt&gt;c:s2epcnet.bat&lt;/tt&gt; (or to any location you wish) in the guest OS.
+You may beed to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
+should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer to the QEMU documentation for more details.</p>
+<blockquote>
+<p>devcon enable &#64;&quot;<a href="#id1"><span class="problematic" id="id2">*</span></a>VEN_1022&amp;DEV_2000&quot;
+arp -s 192.168.111.1 00-aa-00-62-c6-09
+ping -n 4 -l 999 192.168.111.1
+devcon disable &#64;&quot;<a href="#id3"><span class="problematic" id="id4">*</span></a>VEN_1022&amp;DEV_2000&quot;</p>
+<div class="system-message" id="id1">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 76); <em><a href="#id2">backlink</a></em></p>
+Inline emphasis start-string without end-string.</div>
+<div class="system-message" id="id3">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 76); <em><a href="#id4">backlink</a></em></p>
+Inline emphasis start-string without end-string.</div>
+</blockquote>
+<p>Launch this script to check whether everything is fine. &lt;tt&gt;devcon enable&lt;/tt&gt; and &lt;tt&gt;devcon disable&lt;/tt&gt; should not produce errors.
+Of course, &lt;tt&gt;ping&lt;/tt&gt; will fail because the NIC is fake.</p>
+</div>
+<div class="section" id="setting-up-the-networking-configuration">
+<h2>3. Setting up the networking configuration</h2>
+<ol class="arabic simple">
+<li>Before proceeding, &lt;b&gt;reboot&lt;/b&gt; the virtual machine.</li>
+</ol>
+<div class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">Windows/DriverTutorial.rst</tt>, line 90)</p>
+Enumerated list ends without a blank line; unexpected unindent.</div>
+<p>2. Go to &quot;Network Connections&quot; in the control panel. You should see a disabled (greyed-out) wired network connection corresponding to the fake PCnet card.
+Right-click on it, open the properties page, and &lt;b&gt;disable&lt;/b&gt; all protocols except TCP/IP.
+3. Set the IP address of the fake NIC to 192.168.111.123/24 and the gateway to 192.168.111.1. The actual values do not matter, but you must be consistent with
+those in the &lt;tt&gt;pcnet.bat&lt;/tt&gt; script.</p>
+</div>
+<div class="section" id="editing-registry-settings-for-pcnet">
+<h2>4. Editing registry settings for PCnet</h2>
+<p>The PCnet driver has a wealth of configration settings. In this section, we will assign bogus values to them. Note that it is important to explicitely set all
+settings to something, otherwise Windows will fail the NdisReadConfiguration call in the driver. The NDIS plugin relies on a successful return of that API call
+to overwrite the settings with symbolic values.</p>
+<p>The registry key containing the settings is the following: &lt;br/&gt;
+&lt;tt&gt;HKEY_LOCAL_MACHINESYSTEMCurrentControlSetControlClass{4d36e972-e325-11ce-bfc1-02002be10318}&lt;b&gt;xxxx&lt;/b&gt;&lt;/tt&gt;, where
+&lt;tt&gt;&lt;b&gt;xxxx&lt;/b&gt;&lt;/tt&gt; is an integer that can vary from system to system. Select the key that has a value containing &quot;AMD PCNET Family PCI Ethernet Adapter&quot;.</p>
+<p>The following table lists all the settings that must be set/added.</p>
+<p>&lt;table&gt;
+&lt;tr&gt;&lt;td&gt;Name&lt;/td&gt;&lt;td&gt;Type&lt;/td&gt;&lt;td&gt;Value&lt;/td&gt;&lt;/tr&gt;</p>
+<p>&lt;/table&gt;</p>
+</div>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="DriverTutorial.rst">View document source</a>.
+
+</div>
+</body>
+</html>
