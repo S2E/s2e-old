@@ -28,5 +28,6 @@ The following checklist is specific to Windows guests. All common tips also appl
 
 
 * Disable fancy desktop themes. Windows has a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.
+* Disable the screen saver.
 * Disable unnecessary services to save memory and speedup the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.
 
