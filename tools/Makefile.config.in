@@ -11,7 +11,6 @@ LLVM_SRC_ROOT = @LLVM_SRC@
 # (this is *not* the same as OBJ_ROOT as defined in LLVM's Makefile.config).
 LLVM_OBJ_ROOT = @LLVM_OBJ@
 
-S2E_OBJ_ROOT = @S2E_OBJ@
 S2E_SRC_ROOT = @S2E_SRC@
 
 SIGCPP_LIB = @SIGCPP_LIB@
