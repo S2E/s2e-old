@@ -7,6 +7,7 @@ clean:
 	rm -f $(HTML_FILES)
 
 %.html: %.rst
-	./rst2html-pygments --stylesheet=s2e.css,pygments-default.css \
+	./rst2html-pygments \
+	    --stylesheet=$$(echo $< | sed 's:[^/]\+/:../:g' | xargs dirname)/s2e.css \
 	    --link-stylesheet --source-link --no-toc-backlinks \
 	    --input-encoding utf-8:strict $< $@
