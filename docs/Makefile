@@ -1,4 +1,4 @@
-RST_FILES := $(wildcard *.rst)
+RST_FILES := $(shell find . -name "*.rst")
 HTML_FILES := $(RST_FILES:.rst=.html)
 
 all: $(HTML_FILES)
