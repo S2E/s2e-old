@@ -1,0 +1,60 @@
+#!/usr/bin/python
+
+# Author: David Goodger, the Pygments team, GÃ¼nter Milde
+# Date: $Date: $
+# Copyright: This module has been placed in the public domain.
+
+# This is a merge of the docutils_ `rst2latex` front end with an extension
+# suggestion taken from the pygments_ documentation.
+
+"""
+A front end to docutils, producing LaTeX with syntax colouring using pygments
+"""
+
+try:
+    import locale
+    locale.setlocale(locale.LC_ALL, '')
+except:
+    pass
+
+from docutils.core import publish_cmdline, default_description
+
+description = ('Generates LaTeX documents from standalone reStructuredText '
+               'sources. Uses `pygments` to colorize the content of'
+               '"code-block" directives. Needs an adapted stylesheet' 
+               + default_description)
+
+# Define a new directive `code-block` that uses the `pygments` source
+# highlighter to render code in color. 
+#
+# Code from the `pygments`_ documentation for `Using Pygments in ReST
+# documents`_.
+
+from docutils import nodes
+from docutils.parsers.rst import directives
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name
+from pygments.formatters import LatexFormatter
+
+pygments_formatter = LatexFormatter()
+
+def pygments_directive(name, arguments, options, content, lineno,
+                       content_offset, block_text, state, state_machine):
+    try:
+        lexer = get_lexer_by_name(arguments[0])
+    except ValueError:
+        # no lexer found - use the text one instead of an exception
+        lexer = get_lexer_by_name('text')
+    parsed = highlight(u'\n'.join(content), lexer, pygments_formatter)
+    return [nodes.raw('', parsed, format='latex')]
+pygments_directive.arguments = (1, 0, 1)
+pygments_directive.content = 1
+directives.register_directive('code-block', pygments_directive)
+
+# Call the docutils publisher to render the input as latex::
+
+publish_cmdline(writer_name='latex', description=description)
+
+# .. _doctutile: http://docutils.sf.net/
+# .. _pygments: http://pygments.org/
+# .. _Using Pygments in ReST documents: http://pygments.org/docs/rstdirective/
