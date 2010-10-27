@@ -15,15 +15,17 @@ This can be done manually via the Windows device manager, but can be automated v
 utility. You can find this utility on the Internet. *devcon.exe* is a command line program that
 allows enumerating device drivers, loading, and unloading them.
 
-
 1. Booting the image
 --------------------
 
 First, boot the vanilla QEMU with the following arguments:
 
+::
+
    $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 \
     -fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 \
-    -rtc clock=vm -net user -net nic,model=ne2k_pci -hda /home/s2e/vm/windows_pcntpci5.sys.raw 
+    -rtc clock=vm -net user -net nic,model=ne2k_pci -monitor telnet:localhost:4444,server,nowait \
+    -hda /home/s2e/vm/windows_pcntpci5.sys.raw -s 
 
 Here is an explanation of the command line.
 
@@ -43,6 +45,9 @@ Here is an explanation of the command line.
 
 * **-net user -net nic,model=ne2k_pci**: instructs QEMU that we want to use the NE2K virtual NIC adapter. This NIC adapter is not to be confused with the fake PCI device we set up in previous options. This NE2K adapter is a real one, and we will use it to upload files to the virtual machine.
 
+* **-monitor telnet:localhost:4444,server,nowait**: QEMU will listen on the port 4444 for connections to the monitor. This is useful to take snapshots of the VM.
+
+* **-s**: makes QEMU to listen for incoming GDB connections. We shall see how to make use of this feature later in this tutorial.
 
 2. Copying files
 ----------------
@@ -115,8 +120,79 @@ TP                   REG_SZ          1
 -----------------------
 
 1. Once you have set registry settings, make sure the adapter is disabled, then shutdown the guest OS.
-2. Convert the *RAW* image to *QCOW2* with *qemu-img*.
+2. Save a copy of the *RAW* image
+3. Convert the *RAW* image to *QCOW2* with ``qemu-img``.
 
    ::
 
        qemu-img convert -O qcow2 /home/s2e/vm/windows_pcntpci5.sys.raw /home/s2e/vm/windows_pcntpci5.sys.qcow2
+       
+6. Preparing the image for symbolic execution
+---------------------------------------------
+
+In this step, we will show how to save a snapshot of the guest OS right before it invokes the very first instruction of the driver.
+We will use the remote target feature of GDB to connect to the guest OS, set a breakpoint in the kernel, and save a snapshot when a breakpoint is hit.
+
+1. Boot the image using the previous command line. Make sure to use the QCOW2 image, or you will not be able to save snapshots.
+
+   ::
+   
+       $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 \\
+        -fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 \\
+        -rtc clock=vm -net user -net nic,model=ne2k_pci -monitor telnet:localhost:4444,server,nowait \\
+        -hda /home/s2e/vm/windows_pcntpci5.sys.qcow2 -s
+           
+2. Once the image is booted, open the command prompt, go to ``c:\s2e`` and type ``pcnet.bat``, **without** hitting enter yet.
+
+3. On the host OS, open a terminal, launch ``telnet``, and save a first snapshot.
+
+   ::
+   
+          $ telnet localhost 4444
+          Trying 127.0.0.1...
+          Connected to localhost.
+          Escape character is '^]'.
+          QEMU 0.12.2 monitor - type 'help' for more information
+          (qemu) savevm ready
+          
+    You can use this snapshot to make quick modifications to the VM, without rebooting the guest
+           
+4. Now, open GDB, attach to the remote QEMU guest, set a breakpoint in the kernel, then resume execution.
+   In this example, we assume that you have installed the **checked build** of Windows XP **SP3** without any update installed. 
+   If you have a **free build** of Windows XP SP3 (as it comes on the distribution CD), use **0x805A399A** instead of **0x80b3f5d6**.
+   This number if the program counter of the call instruction that invokes the entry point of the driver.
+
+   ::
+   
+         $ gdb
+         (gdb) target remote localhost:1234
+         Remote debugging using localhost:1234
+         0xfc54dd3e in ?? ()
+         (gdb) b *0x80B3F5D6
+         Breakpoint 1 at 0x80b3f5d6
+         (gdb) c
+         Continuing.
+         
+5. Return to the guest, and hit ENTER to start executing the ``pcnet.bat`` script.
+
+6. When GDB hits the breakpoint, go to the telnet console, and save the new snapshot under the name **go**.
+
+   ::
+    
+         (qemu) savevm go
+          
+7. Close QEMU with the ``quit`` command.
+
+8. At this point, you have two snapshots in the ``/home/s2e/vm/windows_pcntpci5.sys.qcow2``:
+
+   a. A snapshot named **ready**, which is in the state right before loading the driver. Use this snapshot to make quick modifications to the guest between runs, if needed.
+   b. A snapshot named **go**, which is about to execute the first instruction of the driver.
+   
+Configuring S2E
+===============
+
+At this point, we have an image ready to be symbolically executed.
+In this section, we will explain how to write an S2E configuration file that controls the behavior of the symbolic execution process.
+This file specifies what module to symbolically execute, what parts should be symbolically executed, where to inject symbolic values, and how to kill states.
+
+1. Create a file called ``pcntpci5.sys.lua``

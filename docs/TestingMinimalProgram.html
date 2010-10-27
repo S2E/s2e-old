@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<title>Tutorial 1: Testing Small Program</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="tutorial-1-testing-small-program">
+<h1 class="title">Tutorial 1: Testing Small Program</h1>
+
+<p>The tutorial assumes you already built S2E and prepared VM image as described
+on <a class="reference external" href="BuildingS2E.html">Building the S2E Framework</a> page.</p>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#program-to-test" id="id1">Program to Test</a></li>
+<li><a class="reference internal" href="#compiling-the-program-in-the-guest" id="id2">Compiling the Program in the Guest</a></li>
+<li><a class="reference internal" href="#preparing-the-program-for-s2e" id="id3">Preparing the Program for S2E</a></li>
+</ul>
+</div>
+<div class="section" id="program-to-test">
+<h1>Program to Test</h1>
+<div class="highlight"><pre><span class="cp">#include &lt;stdio.h&gt;</span>
+<span class="cp">#include &lt;string.h&gt;</span>
+<span class="cp">#include &lt;ctype.h&gt;</span>
+
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span><span class="o">**</span> <span class="n">argv</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">if</span><span class="p">(</span><span class="n">argc</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;usage: %s string</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+    <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="kt">char</span> <span class="n">str</span><span class="p">[</span><span class="mi">10</span><span class="p">];</span>
+  <span class="n">str</span><span class="p">[</span><span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="n">strncpy</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+
+  <span class="k">if</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;String is empty!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">islower</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char is lowercase!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">isdigit</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char is digit!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">isalnum</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char is alphanumeric!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">str</span><span class="p">[</span><span class="n">strlen</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char equals last char!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+<p>We want to explore all possible paths through this program and cover all of its
+code.</p>
+</div>
+<div class="section" id="compiling-the-program-in-the-guest">
+<h1>Compiling the Program in the Guest</h1>
+<p>Before testing the program in S2E, let us compile and run it in normal QEMU.
+Launch QEMU with with the following command:</p>
+<pre class="literal-block">
+$ qemu your_image.qcow2
+</pre>
+<p>You need to copy example source code into the VM. As you will likely need this
+frequently, we recommend to install either ssh or http server of your host
+machine. Then you can copy the code using scp:</p>
+<pre class="literal-block">
+guest$ scp &lt;your_login_on_host&gt;&#64;&lt;your_host_name&gt;:path/to/example1.c .
+</pre>
+<p>Compile and try running the example with the following commands:</p>
+<pre class="literal-block">
+guest$ gcc example1.c -o example
+guest$ ./example abcd
+guest$ ./example 12321
+</pre>
+</div>
+<div class="section" id="preparing-the-program-for-s2e">
+<h1>Preparing the Program for S2E</h1>
+<p>In order to execute the program symbolically, it is necessary to specify what
+values should become symbolic. There are many ways to do it in S2E, but the
+most simple one is to use S2E opcodes library. This library provides a way for
+guest code to communicate with S2E system, asking for certain services.</p>
+<p>In order to explore all possible paths through the program that correspond to
+all possible inputs (command line argument in this case) we make characters
+copied to str symbolic using <tt class="docutils literal"><span class="pre">s2e_make_symbolic()</span></tt> function:</p>
+<div class="highlight"><pre><span class="p">...</span>
+<span class="n">str</span><span class="p">[</span><span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="n">strncpy</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+<span class="p">...</span>
+</pre></div>
+<p>At the end of the program execution we want to see an example of input that
+could lead to this particular execution. For that, we use <tt class="docutils literal"><span class="pre">s2e_get_example()</span></tt>
+function to get such example and <tt class="docutils literal"><span class="pre">s2e_message()</span></tt> function to send it to the
+S2E log:</p>
+<div class="highlight"><pre>  <span class="p">...</span>
+  <span class="n">s2e_get_example</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+  <span class="n">s2e_message</span><span class="p">(</span><span class="n">str</span><span class="p">);</span>
+
+  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+<p>Finally, if the program simply returns to the system, S2E will continue
+executing the system in multiple states forever. It is difficult to interract
+with such system, so we ask S2E to keep only one (selected at random) state
+after finishing the program and discard all others using
+<tt class="docutils literal"><span class="pre">s2e_kill_all_but_one()</span></tt> function:</p>
+<div class="highlight"><pre>  <span class="p">...</span>
+  <span class="n">s2e_get_example</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+  <span class="n">s2e_message</span><span class="p">(</span><span class="n">str</span><span class="p">);</span>
+
+  <span class="n">s2e_kill_all_but_one</span><span class="p">();</span>
+
+  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+<p>After these modifications the whole program looks like the following:</p>
+<div class="highlight"><pre><span class="cp">#include &lt;stdio.h&gt;</span>
+<span class="cp">#include &lt;string.h&gt;</span>
+<span class="cp">#include &lt;ctype.h&gt;</span>
+
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span><span class="o">**</span> <span class="n">argv</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">if</span><span class="p">(</span><span class="n">argc</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;usage: %s string</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+    <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="kt">char</span> <span class="n">str</span><span class="p">[</span><span class="mi">10</span><span class="p">];</span>
+  <span class="n">str</span><span class="p">[</span><span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="n">strncpy</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+  <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+
+  <span class="k">if</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;String is empty!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">islower</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char is lowercase!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">isdigit</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char is digit!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">isalnum</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char is alphanumeric!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+
+    <span class="k">if</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">str</span><span class="p">[</span><span class="n">strlen</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+      <span class="n">printf</span><span class="p">(</span><span class="s">&quot;First char equals last char!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">s2e_get_example</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+  <span class="n">s2e_message</span><span class="p">(</span><span class="n">str</span><span class="p">);</span>
+
+  <span class="n">s2e_kill_all_but_one</span><span class="p">();</span>
+
+  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="TestingMinimalProgram.rst">View document source</a>.
+
+</div>
+</body>
+</html>
