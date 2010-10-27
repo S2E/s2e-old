@@ -8,7 +8,8 @@ S2E Documentation
 * Getting Started
 
   1. `Building S2E <BuildingS2E.html>`_
-  2. `Preparing an OS image for S2E <ImageInstallation.html>`_
+  2. `Tutorial 1: Testing Minimal Program with S2E <TestingMinimalProgram.html>`_
+  3. `Preparing an OS image for S2E <ImageInstallation.html>`_
   
 * Analyzing Windows Device Drivers
 
