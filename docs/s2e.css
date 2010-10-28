@@ -2,7 +2,10 @@
  * LLVM documentation style sheet
  */
 
+<<<<<<< HEAD:docs/s2e.css
+=======
 /* Pygments style */
+>>>>>>> 8650a366e42ccfd0076e396a7351d22c021304d9:docs/s2e.css
 @import url('pygments-default.css');
 
 /* Common styles */

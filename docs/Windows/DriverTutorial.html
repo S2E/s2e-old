@@ -1,0 +1,506 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>Analyzing Windows Drivers: Step-by-Step Tutorial</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="analyzing-windows-drivers-step-by-step-tutorial">
+<h1 class="title">Analyzing Windows Drivers: Step-by-Step Tutorial</h1>
+
+<p>In this tutorial, we explain how to symbolically execute the AMD PCnet driver in S2E.
+We discuss the preparation of the RAW image in vanilla QEMU, how to write an S2E configuration
+file for this purpose, how to launch symbolic execution, and finally how to interpret the results.</p>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="auto-toc simple">
+<li><a class="reference internal" href="#preparing-the-qemu-image" id="id1">1&nbsp;&nbsp;&nbsp;Preparing the QEMU image</a><ul class="auto-toc">
+<li><a class="reference internal" href="#booting-the-image" id="id2">1.1&nbsp;&nbsp;&nbsp;Booting the image</a></li>
+<li><a class="reference internal" href="#copying-files" id="id3">1.2&nbsp;&nbsp;&nbsp;Copying files</a></li>
+<li><a class="reference internal" href="#setting-up-the-networking-configuration" id="id4">1.3&nbsp;&nbsp;&nbsp;Setting up the networking configuration</a></li>
+<li><a class="reference internal" href="#editing-registry-settings-for-pcnet" id="id5">1.4&nbsp;&nbsp;&nbsp;Editing registry settings for PCnet</a></li>
+<li><a class="reference internal" href="#converting-the-image" id="id6">1.5&nbsp;&nbsp;&nbsp;Converting the image</a></li>
+<li><a class="reference internal" href="#preparing-the-image-for-symbolic-execution" id="id7">1.6&nbsp;&nbsp;&nbsp;Preparing the image for symbolic execution</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#configuring-s2e" id="id8">2&nbsp;&nbsp;&nbsp;Configuring S2E</a><ul class="auto-toc">
+<li><a class="reference internal" href="#configuring-klee" id="id9">2.1&nbsp;&nbsp;&nbsp;Configuring KLEE</a></li>
+<li><a class="reference internal" href="#specifying-the-list-of-plugins" id="id10">2.2&nbsp;&nbsp;&nbsp;Specifying the list of plugins</a></li>
+<li><a class="reference internal" href="#selecting-the-driver-to-execute" id="id11">2.3&nbsp;&nbsp;&nbsp;Selecting the driver to execute</a></li>
+<li><a class="reference internal" href="#configuring-symbolic-hardware" id="id12">2.4&nbsp;&nbsp;&nbsp;Configuring symbolic hardware</a></li>
+<li><a class="reference internal" href="#detecting-polling-loops" id="id13">2.5&nbsp;&nbsp;&nbsp;Detecting polling loops</a></li>
+<li><a class="reference internal" href="#annotating-driver-code" id="id14">2.6&nbsp;&nbsp;&nbsp;Annotating driver code</a></li>
+<li><a class="reference internal" href="#tracing-driver-execution" id="id15">2.7&nbsp;&nbsp;&nbsp;Tracing driver execution</a></li>
+<li><a class="reference internal" href="#specifying-consistency-models" id="id16">2.8&nbsp;&nbsp;&nbsp;Specifying consistency models</a></li>
+<li><a class="reference internal" href="#controlling-the-execution-of-entry-points" id="id17">2.9&nbsp;&nbsp;&nbsp;Controlling the execution of entry points</a></li>
+<li><a class="reference internal" href="#detecting-bugs" id="id18">2.10&nbsp;&nbsp;&nbsp;Detecting bugs</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#running-s2e" id="id19">3&nbsp;&nbsp;&nbsp;Running S2E</a></li>
+</ul>
+</div>
+<div class="section" id="preparing-the-qemu-image">
+<h1>1&nbsp;&nbsp;&nbsp;Preparing the QEMU image</h1>
+<p>We want to analyze a PCI device driver, and for this we need an automated way of loading it,
+exercising its entry points, then unloading it when we are done.
+This can be done manually via the Windows device manager, but can be automated via the <em>devcon.exe</em>
+utility. You can find this utility on the Internet. <em>devcon.exe</em> is a command line program that
+allows enumerating device drivers, loading, and unloading them.</p>
+<div class="section" id="booting-the-image">
+<h2>1.1&nbsp;&nbsp;&nbsp;Booting the image</h2>
+<p>First, boot the vanilla QEMU with the following arguments:</p>
+<pre class="literal-block">
+$./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 \
+ -fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 \
+ -rtc clock=vm -net user -net nic,model=ne2k_pci -monitor telnet:localhost:4444,server,nowait \
+ -hda /home/s2e/vm/windows_pcntpci5.sys.raw -s
+</pre>
+<p>Here is an explanation of the command line.</p>
+<ul class="simple">
+<li><strong>-fake-pci-name pcnetf</strong>: instructs QEMU to enable a fake PCI device called <em>pcnetf</em> which will mimic an AMD PCnet card. <em>pcnetf</em> is an arbitrary name that identifies the device in QEMU. It <em>must</em> be consistent across this tutorial. Note that you do not need to have a real virtual device for AMD PCnet (even though QEMU has one). In fact, you can specify any PCI device you want.</li>
+<li><strong>-fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000</strong>: describe the vendor and device ID of the fake PCI device. This will trick the plug-and-play module of the guest OS into believing that  there is a real device installed and will make it load the <em>pcntpci5.sys</em> driver.</li>
+<li><strong>-fake-pci-class-code 2 -fake-pci-revision-id 0x7</strong>: some additional data that will populate the PCI device descriptor. This data is device-specific and may be used by the driver.</li>
+<li><strong>-fake-pci-resource-io 0x20</strong>: specifies that the device uses 64 bytes of I/O address space. The base address is assigned by the OS/BIOS at startup. S2E intercepts all accesses in the assigned I/O range and returns symbolic values upon read. Writes to the range are discarded.</li>
+<li><strong>-fake-pci-resource-mem 0x20</strong>: specifies that the device uses 64 bytes of memory-mapped I/O space. Same remarks as for <em>-fake-pci-resource-io</em>.</li>
+<li><strong>-rtc clock=vm</strong>: the real-time clock of QEMU must be set to VM to make symbolic execution work. <strong>TBD: Explain why.</strong></li>
+<li><strong>-hda /home/s2e/vm/windows_pcntpci5.sys.raw</strong>: specifies the path to the disk image. Note that we use a RAW image here during set up.</li>
+<li><strong>-net user -net nic,model=ne2k_pci</strong>: instructs QEMU that we want to use the NE2K virtual NIC adapter. This NIC adapter is not to be confused with the fake PCI device we set up in previous options. This NE2K adapter is a real one, and we will use it to upload files to the virtual machine.</li>
+<li><strong>-monitor telnet:localhost:4444,server,nowait</strong>: QEMU will listen on the port 4444 for connections to the monitor. This is useful to take snapshots of the VM.</li>
+<li><strong>-s</strong>: makes QEMU to listen for incoming GDB connections. We shall see how to make use of this feature later in this tutorial.</li>
+</ul>
+</div>
+<div class="section" id="copying-files">
+<h2>1.2&nbsp;&nbsp;&nbsp;Copying files</h2>
+<p>Copy the <em>devcon.exe</em> utility in the Windows image.
+Then, copy the following script into <em>c:s2epcnet.bat</em> (or to any location you wish) in the guest OS.
+You may beed to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
+should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer to the QEMU documentation for more details.</p>
+<pre class="literal-block">
+devcon enable &#64;&quot;*VEN_1022&amp;DEV_2000&quot;
+arp -s 192.168.111.1 00-aa-00-62-c6-09
+ping -n 4 -l 999 192.168.111.1
+devcon disable &#64;&quot;*VEN_1022&amp;DEV_2000&quot;
+</pre>
+<p>Launch this script to check whether everything is fine. <em>devcon enable</em> and <em>devcon disable</em> should not produce errors.
+Of course, <em>ping</em> will fail because the NIC is fake.</p>
+</div>
+<div class="section" id="setting-up-the-networking-configuration">
+<h2>1.3&nbsp;&nbsp;&nbsp;Setting up the networking configuration</h2>
+<ol class="arabic simple">
+<li>Before proceeding, <strong>reboot</strong> the virtual machine.</li>
+<li>Go to &quot;Network Connections&quot; in the control panel. You should see a disabled (greyed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and <strong>disable</strong> all protocols except TCP/IP.</li>
+<li>Set the IP address of the fake NIC to 192.168.111.123/24 and the gateway to 192.168.111.1. The actual values do not matter, but you must be consistent with those in the <em>pcnet.bat</em> script.</li>
+</ol>
+</div>
+<div class="section" id="editing-registry-settings-for-pcnet">
+<h2>1.4&nbsp;&nbsp;&nbsp;Editing registry settings for PCnet</h2>
+<p>The PCnet driver has a wealth of configuration settings. In this section, we will assign bogus values to them. Note that it is important to explicitly set all
+settings to something, otherwise Windows will fail the <em>NdisReadConfiguration</em> call in the driver. The NDIS plugin relies on a successful return of that API call
+to overwrite the settings with symbolic values. If the call fails, no symbolic values will be injected, and some paths may be disabled.</p>
+<p>The registry key containing the settings is the following:</p>
+<pre class="literal-block">
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-02002be10318}\xxxx
+</pre>
+<p>where <strong>xxxx</strong> is an integer that can vary from system to system. Select the key that has a value containing &quot;AMD PCNET Family PCI Ethernet Adapter&quot;.</p>
+<p>The following table lists all the settings that must be set/added.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="36%" />
+<col width="29%" />
+<col width="36%" />
+</colgroup>
+<thead valign="bottom">
+<tr><th class="head">Name</th>
+<th class="head">Type</th>
+<th class="head">Value</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr><td>BUS_TO_SCAN</td>
+<td>REG_SZ</td>
+<td>ALL</td>
+</tr>
+<tr><td>BusNumber</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>BUSTIMER</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>BusType</td>
+<td>REG_SZ</td>
+<td>5</td>
+</tr>
+<tr><td>EXTPHY</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>FDUP</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>LED0</td>
+<td>REG_SZ</td>
+<td>10000</td>
+</tr>
+<tr><td>LED1</td>
+<td>REG_SZ</td>
+<td>10000</td>
+</tr>
+<tr><td>LED2</td>
+<td>REG_SZ</td>
+<td>10000</td>
+</tr>
+<tr><td>LED3</td>
+<td>REG_SZ</td>
+<td>10000</td>
+</tr>
+<tr><td>MPMODE</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>NetworkAddress</td>
+<td>REG_SZ</td>
+<td>001122334455</td>
+</tr>
+<tr><td>Priority8021p</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>SlotNumber</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>TcpIpOffload</td>
+<td>REG_SZ</td>
+<td>0</td>
+</tr>
+<tr><td>TP</td>
+<td>REG_SZ</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="converting-the-image">
+<h2>1.5&nbsp;&nbsp;&nbsp;Converting the image</h2>
+<ol class="arabic">
+<li><p class="first">Once you have set registry settings, make sure the adapter is disabled, then shutdown the guest OS.</p>
+</li>
+<li><p class="first">Save a copy of the <em>RAW</em> image</p>
+</li>
+<li><p class="first">Convert the <em>RAW</em> image to <em>QCOW2</em> with <tt class="docutils literal"><span class="pre">qemu-img</span></tt>.</p>
+<pre class="literal-block">
+qemu-img convert -O qcow2 /home/s2e/vm/windows_pcntpci5.sys.raw /home/s2e/vm/windows_pcntpci5.sys.qcow2
+</pre>
+</li>
+</ol>
+</div>
+<div class="section" id="preparing-the-image-for-symbolic-execution">
+<h2>1.6&nbsp;&nbsp;&nbsp;Preparing the image for symbolic execution</h2>
+<p>In this step, we will show how to save a snapshot of the guest OS right before it invokes the very first instruction of the driver.
+We will use the remote target feature of GDB to connect to the guest OS, set a breakpoint in the kernel, and save a snapshot when a breakpoint is hit.</p>
+<ol class="arabic">
+<li><p class="first">Boot the image using the previous command line. Make sure to use the QCOW2 image, or you will not be able to save snapshots.</p>
+<pre class="literal-block">
+$./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 \\
+ -fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 \\
+ -rtc clock=vm -net user -net nic,model=ne2k_pci -monitor telnet:localhost:4444,server,nowait \\
+ -hda /home/s2e/vm/windows_pcntpci5.sys.qcow2 -s
+</pre>
+</li>
+<li><p class="first">Once the image is booted, open the command prompt, go to <tt class="docutils literal"><span class="pre">c:\s2e</span></tt> and type <tt class="docutils literal">pcnet.bat</tt>, <strong>without</strong> hitting enter yet.</p>
+</li>
+<li><p class="first">On the host OS, open a terminal, launch <tt class="docutils literal">telnet</tt>, and save a first snapshot.</p>
+<pre class="literal-block">
+      $ telnet localhost 4444
+      Trying 127.0.0.1...
+      Connected to localhost.
+      Escape character is '^]'.
+      QEMU 0.12.2 monitor - type 'help' for more information
+      (qemu) savevm ready
+
+You can use this snapshot to make quick modifications to the VM, without rebooting the guest
+</pre>
+</li>
+<li><p class="first">Now, open GDB, attach to the remote QEMU guest, set a breakpoint in the kernel, then resume execution.
+In this example, we assume that you have installed the <strong>checked build</strong> of Windows XP <strong>SP3</strong> without any update installed.
+If you have a <strong>free build</strong> of Windows XP SP3 (as it comes on the distribution CD), use <strong>0x805A399A</strong> instead of <strong>0x80b3f5d6</strong>.
+This number if the program counter of the call instruction that invokes the entry point of the driver.</p>
+<pre class="literal-block">
+$ gdb
+(gdb) target remote localhost:1234
+Remote debugging using localhost:1234
+0xfc54dd3e in ?? ()
+(gdb) b *0x80B3F5D6
+Breakpoint 1 at 0x80b3f5d6
+(gdb) c
+Continuing.
+</pre>
+</li>
+<li><p class="first">Return to the guest, and hit ENTER to start executing the <tt class="docutils literal">pcnet.bat</tt> script.</p>
+</li>
+<li><p class="first">When GDB hits the breakpoint, go to the telnet console, and save the new snapshot under the name <strong>go</strong>.</p>
+<pre class="literal-block">
+(qemu) savevm go
+</pre>
+</li>
+<li><p class="first">Close QEMU with the <tt class="docutils literal">quit</tt> command.</p>
+</li>
+<li><p class="first">At this point, you have two snapshots in the <tt class="docutils literal">/home/s2e/vm/windows_pcntpci5.sys.qcow2</tt>:</p>
+<ol class="loweralpha simple">
+<li>A snapshot named <strong>ready</strong>, which is in the state right before loading the driver. Use this snapshot to make quick modifications to the guest between runs, if needed.</li>
+<li>A snapshot named <strong>go</strong>, which is about to execute the first instruction of the driver.</li>
+</ol>
+</li>
+</ol>
+</div>
+</div>
+<div class="section" id="configuring-s2e">
+<h1>2&nbsp;&nbsp;&nbsp;Configuring S2E</h1>
+<p>At this point, we have an image ready to be symbolically executed.
+In this section, we will explain how to write an S2E configuration file that controls the behavior of the symbolic execution process.
+This file specifies what module to symbolically execute, what parts should be symbolically executed, where to inject symbolic values, and how to kill states.</p>
+<p>Before proceeding further, create a file called <tt class="docutils literal">pcntpci5.sys.lua</tt>.
+S2E uses LUA as an interpreter for configuration files. As such, these files are fully scriptable and can interact with the symbolic execution engine.
+In this tutorial, we cover the basic steps of creating such a file.</p>
+<div class="section" id="configuring-klee">
+<h2>2.1&nbsp;&nbsp;&nbsp;Configuring KLEE</h2>
+<p>The top level section of the configuration file is <tt class="docutils literal">s2e</tt>.
+We start by configuring KLEE, using the <tt class="docutils literal">kleeArgs</tt> subsection.
+Refer to the corresponding section of the documentation for more information about each setting.</p>
+<pre class="literal-block">
+s2e = {
+    kleeArgs = {
+        &quot;--use-batching-search&quot;,
+        &quot;--use-random-path&quot;,
+        &quot;--use-cex-cache=true&quot;,
+        &quot;--use-cache=true&quot;,
+        &quot;--use-fast-cex-solver=true&quot;,
+        &quot;--max-stp-time=10&quot;,
+        &quot;--use-expr-simplifier=true&quot;,
+        &quot;--print-expr-simplifier=false&quot;,
+        &quot;--flush-tbs-on-state-switch=false&quot;,
+    }
+}
+</pre>
+</div>
+<div class="section" id="specifying-the-list-of-plugins">
+<h2>2.2&nbsp;&nbsp;&nbsp;Specifying the list of plugins</h2>
+<p>S2E provides the core symbolic execution engine. All the analysis is done by various plugins.
+In this step, we will select the plugins required for analyzing Windows device drivers.
+Paste the following snippet right after the previous one. In the following parts of the tutorial,
+we briefly present each of the plugins.</p>
+<pre class="literal-block">
+plugins = {
+    &quot;WindowsMonitor&quot;,
+    &quot;ModuleExecutionDetector&quot;,
+
+    &quot;SymbolicHardware&quot;,
+    &quot;PollingLoopDetector&quot;,
+    &quot;Annotation&quot;,
+
+    &quot;ExecutionTracer&quot;,
+    &quot;ModuleTracer&quot;,
+    &quot;TranslationBlockTracer&quot;,
+
+    &quot;FunctionMonitor&quot;,
+    &quot;StateManager&quot;,
+    &quot;NdisHandlers&quot;
+
+    &quot;BlueScreenInterceptor&quot;,
+    &quot;WindowsCrashDumpGenerator&quot;,
+
+}
+</pre>
+</div>
+<div class="section" id="selecting-the-driver-to-execute">
+<h2>2.3&nbsp;&nbsp;&nbsp;Selecting the driver to execute</h2>
+<p>The <tt class="docutils literal">WindowsMonitor</tt> plugins monitors Windows events and catches module loads and unloads.
+The <tt class="docutils literal">ModuleExecutionDetector</tt> plugin listens to events exported by <tt class="docutils literal">WindowsMonitor</tt> and reacts
+when it detects specific modules.</p>
+<p>Configure <tt class="docutils literal">WindowsMonitor</tt> as follows:</p>
+<pre class="literal-block">
+pluginsConfig = {}
+
+pluginsConfig.WindowsMonitor = {
+    version=&quot;sp3&quot;,
+    userMode=true,
+    kernelMode=true,
+    checked=false,
+    monitorModuleLoad=true,
+    monitorModuleUnload=true,
+    monitorProcessUnload=true
+}
+</pre>
+<p>This configuration assumes that you run the free build version of Windows XP Service Pack 3.</p>
+<p>Now, configure <tt class="docutils literal">ModuleExecutionDetector</tt> as follows to track loads and unloads of <tt class="docutils literal">pcntpci5.sys</tt>.</p>
+<pre class="literal-block">
+pluginsConfig.ModuleExecutionDetector = {
+    pcntpci5_sys_1 = {
+        moduleName = &quot;pcntpci5.sys&quot;,
+        kernelMode = true,
+    },
+}
+</pre>
+</div>
+<div class="section" id="configuring-symbolic-hardware">
+<h2>2.4&nbsp;&nbsp;&nbsp;Configuring symbolic hardware</h2>
+<p>The <tt class="docutils literal">SymbolicHardware</tt> plugin creates fake PCI (or ISA) devices, which are detected by the OS.
+All reads from such devices are symbolic and writes are discarded. Symbolic devices can also generate
+interrupts and handle DMA.</p>
+<p>The following configuration is specific to the AMD PCNet NIC device.</p>
+<pre class="literal-block">
+pluginsConfig.SymbolicHardware = {
+     pcntpci5f = {
+        id=&quot;pcnetf&quot;,
+        type=&quot;pci&quot;,
+        vid=0x1022,
+        pid=0x2000,
+        classCode=2,
+        revisionId=0x7,
+        interruptPin=1,
+        resources={
+            r0 = { isIo=true, size=0x20, isPrefetchatchable=false},
+            r1 = { isIo=false, size=0x20, isPrefetchable=false}
+        }
+    },
+}
+</pre>
+</div>
+<div class="section" id="detecting-polling-loops">
+<h2>2.5&nbsp;&nbsp;&nbsp;Detecting polling loops</h2>
+<p>Drivers often use polling loops to check the status of registers.
+Polling loops cause the number of states to explode. The <tt class="docutils literal">PollingLoopDetector</tt> plugin relies on the user
+to specify the location of each of these loops and kills the states whenever it detects such loops.
+Each configuration entry for this plugin takes a pair of addresses specifying an edge in the control flow graph of
+the binary. The plugin kills the state whenever it detects the execution of such an edge.</p>
+<p>For the <tt class="docutils literal">pcntpci5.sys</tt> driver, use the following settings:</p>
+<pre class="literal-block">
+pluginsConfig.PollingLoopDetector = {
+    pcntpci5_sys_1 = {
+        l0 = {0x14040, 0x1401d},
+        l01 = {0x139c2, 0x13993},
+        l02 = {0x14c84, 0x14c5e},
+   }
+}
+</pre>
+</div>
+<div class="section" id="annotating-driver-code">
+<h2>2.6&nbsp;&nbsp;&nbsp;Annotating driver code</h2>
+<p>S2E comes with a powerful <tt class="docutils literal">Annotation</tt> plugin that allows users to control the behavior of symbolic execution.
+Each annotation comes in the form of a LUA function taking as parameters the current execution state and the instance
+of the annotation plugin. Such annotation can be used to inject symbolic values, monitor the execution, trim useless states, etc.</p>
+<p>In the following sample, we write an annotation <tt class="docutils literal">init_merge_point1_oncall</tt>
+that suspends all the execution states that have reached the end
+of the configuration phase of the <tt class="docutils literal">pcntpci5.sys</tt> driver. The end of the phase is located at the address <tt class="docutils literal">0x169c9</tt>
+relative to the native base of the driver. You may want to disassemble the driver for more details.</p>
+<pre class="literal-block">
+function init_merge_point1_oncall(state, plg)
+        plg:succeed();
+end
+
+pluginsConfig.Annotation =
+{
+    init1 = {
+        active=true,
+        module=&quot;pcntpci5_sys_1&quot;,
+        address=0x169c9,
+        instructionAnnotation=&quot;init_merge_point1_oncall&quot;
+    }
+}
+</pre>
+</div>
+<div class="section" id="tracing-driver-execution">
+<h2>2.7&nbsp;&nbsp;&nbsp;Tracing driver execution</h2>
+<p>All output is generated by specialized plugins.
+S2E does not generate any output by itself, except debugging logs.</p>
+<p>In this part of the tutorial, we present three tracing plugins to record module loads/unloads as well as
+all executed translation blocks. This can be useful, e.g.,  to generate coverage reports. Analyzing traces is
+covered in a different tutorial.</p>
+<p><em>These plugins have no configurable options. Hence, they do not require configuration sections.</em></p>
+<ul class="simple">
+<li>The <tt class="docutils literal">ExecutionTracer</tt> is the main tracing plugin. This plugin abstracts the execution trace file.
+The <tt class="docutils literal">ExecutionTracer</tt> plugin saves a binary trace file in the <tt class="docutils literal"><span class="pre">s2e-last/ExecutionTracer.dat</span></tt> file.
+This file is composed of generic trace items. Each item can have an arbitrary format, determined by the various tracing plugins.</li>
+<li>The <tt class="docutils literal">ModuleTracer</tt>  plugin listens to module events exported by the <tt class="docutils literal">WindowsInterceptor</tt> plugin (or other plugins exporting the <tt class="docutils literal">Interceptor</tt> interface) and writes them to the trace by invoking API exported by the <tt class="docutils literal">ExecutionTrace</tt> plugin.</li>
+<li>Finally, the <tt class="docutils literal">TranslationBlockTracer</tt> plugin writes the register input and output of each executed translation block.
+Whenever a translation block of a module specified in the <tt class="docutils literal">ModuleExecutionDetector</tt> plugin is executed, the <tt class="docutils literal">TranslationBlockTracer</tt> plugin records it in the trace.</li>
+</ul>
+</div>
+<div class="section" id="specifying-consistency-models">
+<h2>2.8&nbsp;&nbsp;&nbsp;Specifying consistency models</h2>
+<p>S2E enables various consistency models.
+The <tt class="docutils literal">NdisHandlers</tt> plugin implements the <strong>over-approximate</strong>, <strong>local</strong>, <strong>strict</strong>, and <strong>over-constrained</strong> models for
+Windows NDIS drivers.
+In this tutorial, we show how to set the <strong>strict</strong> model, in which the only symbolic input comes from the hardware.
+Feel free to experiment with other models.</p>
+<p>The configuration section looks as follows:</p>
+<pre class="literal-block">
+pluginsConfig.NdisHandlers = {
+    moduleIds = {&quot;pcntpci5_sys_1&quot;},
+    hwId = &quot;pcnetf&quot;,
+    consistency = &quot;strict&quot;,
+}
+</pre>
+</div>
+<div class="section" id="controlling-the-execution-of-entry-points">
+<h2>2.9&nbsp;&nbsp;&nbsp;Controlling the execution of entry points</h2>
+<p>The <tt class="docutils literal">StateManager</tt> plugins periodically chooses one successful state at random and kills the remaining states.
+The <tt class="docutils literal">NdisHandlers</tt> plugin uses the <tt class="docutils literal">StateManager</tt> plugin to suspend all paths that successfully returned from the
+entry points (e.g., a successful initialization). Whenever no more new translation blocks are covered during a
+<em>timeout</em> interval, the <tt class="docutils literal">StateManager</tt> plugin kills all remaining states but one successful, and lets symbolic execution
+continue from the remaining state. This copes with the state explosion problem.</p>
+<pre class="literal-block">
+pluginsConfig.StateManager = {
+    timeout=60
+}
+</pre>
+</div>
+<div class="section" id="detecting-bugs">
+<h2>2.10&nbsp;&nbsp;&nbsp;Detecting bugs</h2>
+<p>The <tt class="docutils literal">BlueScreenInterceptor</tt> and <tt class="docutils literal">WindowsCrashDumpGenerator</tt> turn S2E into a basic bug finder.
+The BSOD detector kills all the states that crashes, while the crash dump generator produces dumps that can be opened
+and analyzed in WinDbg.</p>
+<p>Dump files are as large as the physical memory and take some time to generate, hence the <tt class="docutils literal">BlueScreenInterceptor</tt> plugin options specify whether to generate a crash dump, and the maximum number of such dumps.</p>
+<pre class="literal-block">
+pluginsConfig.BlueScreenInterceptor = {
+    generateCrashDump = false,
+    maxDumpCount = 2
+}
+</pre>
+</div>
+</div>
+<div class="section" id="running-s2e">
+<h1>3&nbsp;&nbsp;&nbsp;Running S2E</h1>
+<p>Now that the configuration file is ready, it is time to launch S2E.
+Notice that we use the S2E-enabled QEMU in the <strong>i386-s2e-softmmu</strong> folder.</p>
+<pre class="literal-block">
+$./i386-s2e-softmmu/qemu -rtc clock=vm -net user -net nic,model=ne2k_pci -hda pcntpci5.sys.qcow2 -s2e-config-file pcntpci5.sys.lua -loadvm go
+</pre>
+<p>This command will create an <tt class="docutils literal"><span class="pre">s2e-out-???</span></tt> folder, where <tt class="docutils literal"><span class="pre">???</span></tt> is the sequence number of the run.
+<tt class="docutils literal"><span class="pre">s2e-last</span></tt> is a symbolic link that points to the latest run.</p>
+<p>The folder contains various files generated by S2E or plugins. Here is a short list:</p>
+<ul class="simple">
+<li><strong>debug.txt</strong>: contains detailed debug output from S2E and all plugins.</li>
+<li><strong>warnings.txt</strong>: contains warning output from S2E and all plugins.</li>
+<li><strong>messages.txt</strong>: contains various messages, less verbose than <strong>debug.txt</strong>.</li>
+<li><strong>s2e.cmdline</strong>: the command line used to launch S2E.</li>
+<li><strong>s2e.config.lua</strong>: a copy of the configuration file. This is useful if you tweak the configuration file between different runs.
+It allows you to quickly rerun specific experiments, without losing any configuration.</li>
+<li><strong>s2e.db</strong>: sqlite database, used by some plugins.</li>
+<li><strong>ExecutionTracer.dat</strong>: the  execution trace generated by the <tt class="docutils literal">ExecutionTracer</tt> plugin.</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="DriverTutorial.rst">View document source</a>.
+
+</div>
+</body>
+</html>

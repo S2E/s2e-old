@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>Preparing an OS Image for S2E</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="preparing-an-os-image-for-s2e">
+<h1 class="title">Preparing an OS Image for S2E</h1>
+
+<p>There are no specific requirements for the OS image to make it runnable in S2E.
+Any image that boots in vanilla QEMU will work in S2E. However, we enumarate a list of tips
+and optimizations that will make administration easier and symbolic execution faster.
+<em>These tips should be used as guidelines, and are not mandatory.</em></p>
+<p>Here is a checklist we recommend to follow:</p>
+<ul class="simple">
+<li>Install your operating system in the vanilla QEMU. It is the fastest approach. In general, all installation and setup tasks should be done in vanilla QEMU.</li>
+<li>Always keep a <em>RAW</em> image file of your setup. QEMU tends to corrupt <em>QCOW2</em> images over time. You can easily convert a RAW image into <em>QCOW2</em> using the <em>qemu-img</em> tool. Corruptions manifest by weired crashes that did not use to happen before.</li>
+<li>Keep a fresh copy of your OS installation. It is recommend to start with a fresh copy for each analysis task. For instance, if you use an image to test a device driver, avoid using this same image to analyze some spreadsheet component. One image=one analysis. It is easier to manage and your results will be easier to reproduce.</li>
+<li>Once your (QCOW2) image is setup and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a long time.</li>
+<li>It is recommended to use 128MiB of RAM for the guest OS (or less). S2E is not limited by the amount of memory in any way (it is 64-bit),  but your physical machine is.</li>
+</ul>
+<p>The following checklist is specific to Windows guests. All common tips also apply here.</p>
+<ul class="simple">
+<li>Disable fancy desktop themes. Windows has a GUI, which consumes resources. Disabling all visual effects will make program analysis faster.</li>
+<li>Disable the screen saver.</li>
+<li>Disable unnecessary services to save memory and speedup the guest. Services like file sharing, printing, wireless network configuration, or firewall are useless unless you want to test them in S2E.</li>
+</ul>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="ImageInstallation.rst">View document source</a>.
+
+</div>
+</body>
+</html>
