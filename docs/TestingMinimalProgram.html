@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
 <title>Tutorial 1: Testing Small Program</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -89,7 +89,7 @@ most simple one is to use S2E opcodes library. This library provides a way for
 guest code to communicate with S2E system, asking for certain services.</p>
 <p>In order to explore all possible paths through the program that correspond to
 all possible inputs (command line argument in this case) we make characters
-copied to str symbolic using <tt class="docutils literal">s2e_make_symbolic()</tt> function:</p>
+copied to str symbolic using <tt class="docutils literal"><span class="pre">s2e_make_symbolic()</span></tt> function:</p>
 <div class="highlight"><pre><span class="p">...</span>
 <span class="n">str</span><span class="p">[</span><span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
 <span class="n">strncpy</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
@@ -97,8 +97,8 @@ copied to str symbolic using <tt class="docutils literal">s2e_make_symbolic()</t
 <span class="p">...</span>
 </pre></div>
 <p>At the end of the program execution we want to see an example of input that
-could lead to this particular execution. For that, we use <tt class="docutils literal">s2e_get_example()</tt>
-function to get such example and <tt class="docutils literal">s2e_message()</tt> function to send it to the
+could lead to this particular execution. For that, we use <tt class="docutils literal"><span class="pre">s2e_get_example()</span></tt>
+function to get such example and <tt class="docutils literal"><span class="pre">s2e_message()</span></tt> function to send it to the
 S2E log:</p>
 <div class="highlight"><pre>  <span class="p">...</span>
   <span class="n">s2e_get_example</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
@@ -111,7 +111,7 @@ S2E log:</p>
 executing the system in multiple states forever. It is difficult to interract
 with such system, so we ask S2E to keep only one (selected at random) state
 after finishing the program and discard all others using
-<tt class="docutils literal">s2e_kill_all_but_one()</tt> function:</p>
+<tt class="docutils literal"><span class="pre">s2e_kill_all_but_one()</span></tt> function:</p>
 <div class="highlight"><pre>  <span class="p">...</span>
   <span class="n">s2e_get_example</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span>
   <span class="n">s2e_message</span><span class="p">(</span><span class="n">str</span><span class="p">);</span>

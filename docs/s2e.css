@@ -102,5 +102,5 @@ th.layout       { border: none; font-weight: bold; font-size: 105%;
 /* ReST-specific */
 .title { margin-top: 0 }
 .topic-title{ display: none }
-div.contents ul { list-style-type: decimal }
+/* div.contents ul { list-style-type: decimal } */
 .toc-backref    { color: black; text-decoration: none; }
