@@ -158,7 +158,7 @@ We will use the remote target feature of GDB to connect to the guest OS, set a b
           QEMU 0.12.2 monitor - type 'help' for more information
           (qemu) savevm ready
           
-    You can use this snapshot to make quick modifications to the VM, without rebooting the guest
+   You can use this snapshot to make quick modifications to the VM, without rebooting the guest
            
 4. Now, open GDB, attach to the remote QEMU guest, set a breakpoint in the kernel, then resume execution.
    In this example, we assume that you have installed the **checked build** of Windows XP **SP3** without any update installed. 

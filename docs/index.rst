@@ -17,8 +17,20 @@ S2E Documentation
   1. `Step-by-step  tutorial <Windows/DriverTutorial.html>`_  
   2. `Setting up the checked build of Windows <Windows/CheckedBuild.html>`_  
   
+* S2E Tools
+  
+  1. Available Tools
+     
+     1. `Fork Profiler <Tools/ForkProfiler.html>`_
+     2. `Translation Block Printer <Tools/TbPrinter.html>`_
+     3. `Execution Profiler <Tools/ExecutionProfiler.html>`_
+     4. `Coverage Generator <Tools/CoverageGenerator.html>`_
+   
+  2. `Supported Debug Information <Tools/DebugInfo.html>`_
+  3. Tools API
   
 S2E Plugin Reference
 ====================
 
 * `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
+

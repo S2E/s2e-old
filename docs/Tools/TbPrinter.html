@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<title>Translation Block Printer</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="translation-block-printer">
+<h1 class="title">Translation Block Printer</h1>
+
+<p>The fork profiler tool outputs for each specified state the list of translation blocks that were executed in that state.
+It complements this list with a test case, if it is available.
+This tool is useful to quickly observe the execution sequence that led to a particular event that caused a state to terminate.
+It can also be useful for debugging.</p>
+<div class="section" id="examples">
+<h1>Examples</h1>
+<p>The following command outputs the translation block trace for paths 0 and 34.
+If the <tt class="docutils literal"><span class="pre">-printRegisters</span></tt> option is specified, it will also print the contents of
+the registers before and after the execution of each translation block.
+Omitting the <tt class="docutils literal"><span class="pre">-pathId</span></tt> option will cause the command to output the trace for all paths.</p>
+<blockquote>
+<pre class="literal-block">
+$ /home/s2e/tools/Release/bin/tbtrace -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/traces \
+  -modpath=/home/s2e/experiments/rtl8139.sys/driver:/home/s2e/experiments/rtl8029.sys/driver \
+  -pathId=0 -pathId=34
+</pre>
+</blockquote>
+</div>
+<div class="section" id="required-plugins">
+<h1>Required Plugins</h1>
+<ul class="simple">
+<li>ModuleExecutionDetector (only the translation blocks of those modules that are configured will be traced)</li>
+<li>ExecutionTracer</li>
+<li>TranslationBlockTracer</li>
+</ul>
+</div>
+<div class="section" id="optional-plugins">
+<h1>Optional Plugins</h1>
+<ul class="simple">
+<li>ModuleTracer (for debug information)</li>
+<li>TestCaseGenerator (for test cases)</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="TbPrinter.rst">View document source</a>.
+
+</div>
+</body>
+</html>

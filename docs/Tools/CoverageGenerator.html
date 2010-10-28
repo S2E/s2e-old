@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<title>Coverage Generator</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="coverage-generator">
+<h1 class="title">Coverage Generator</h1>
+
+<p>The coverage generator tool outputs the basic block coverage of the specified modules.
+There must be a file suffixed with <tt class="docutils literal"><span class="pre">.bblist</span></tt> on the module path.
+This file contains the list of basic blocks for the desired module.</p>
+<p>Here is an example of such a file (showing a few basic blocks from the rtl8139.sys driver shipped with Windows XP).</p>
+<blockquote>
+<pre class="literal-block">
+0x00010300 0x0001031e RTFast_EnableInterrupt(x)
+0x0001031f 0x00010321 RTFast_EnableInterrupt(x)
+0x00010322 0x00010335 RTFast_DisableInterrupt(x)
+0x00010336 0x00010341 RTFast_DisableInterrupt(x)
+0x00010342 0x00010352 RTFast_Isr(x,x,x)
+0x00010353 0x00010360 RTFast_Isr(x,x,x)
+</pre>
+</blockquote>
+<div class="section" id="examples">
+<h1>Examples</h1>
+<blockquote>
+<pre class="literal-block">
+$ /home/s2e/tools/Release/bin/coverage -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/ \
+  -modpath=/home/s2e/experiments/rtl8139.sys/driver:/home/s2e/experiments/rtl8029.sys/driver
+</pre>
+</blockquote>
+</div>
+<div class="section" id="required-plugins">
+<h1>Required Plugins</h1>
+<ul class="simple">
+<li>ExecutionTracer</li>
+<li>TranslationBlockTracer</li>
+</ul>
+</div>
+<div class="section" id="optional-plugins">
+<h1>Optional Plugins</h1>
+<ul class="simple">
+<li>ModuleTracer (for debug information)</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="CoverageGenerator.rst">View document source</a>.
+
+</div>
+</body>
+</html>

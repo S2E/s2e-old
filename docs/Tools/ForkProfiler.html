@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<title>Fork Profiler</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="fork-profiler">
+<h1 class="title">Fork Profiler</h1>
+
+<p>The fork profiler tool lists all the program counters that caused a fork.
+This allows to quickly identify the hot spots that cause path explosion problems.</p>
+<div class="section" id="examples">
+<h1>Examples</h1>
+<p>The following command will generate a <tt class="docutils literal"><span class="pre">forkprofile.txt</span></tt> file and place it in
+the <tt class="docutils literal"><span class="pre">s2e-last</span></tt> folder.</p>
+<blockquote>
+<pre class="literal-block">
+$ /home/s2e/tools/Release/bin/forkprofiler -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/ \
+  -modpath=/home/s2e/experiments/rtl8139.sys/driver:/home/s2e/experiments/rtl8029.sys/driver
+</pre>
+</blockquote>
+</div>
+<div class="section" id="required-plugins">
+<h1>Required Plugins</h1>
+<ul class="simple">
+<li>ExecutionTracer</li>
+</ul>
+</div>
+<div class="section" id="optional-plugins">
+<h1>Optional Plugins</h1>
+<ul class="simple">
+<li>ModuleTracer (for debug information)</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="ForkProfiler.rst">View document source</a>.
+
+</div>
+</body>
+</html>
