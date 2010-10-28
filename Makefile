@@ -1,5 +1,6 @@
-SRCDIR:=$(PWD)/../s2e
-BUILDDIR:=$(PWD)
+S2ESRC:=$(PWD)/../s2e
+S2EBUILD:=$(PWD)
+
 JOBS:=8
 
 all: all-release
@@ -42,9 +43,9 @@ stamps/llvm-unpack: llvm-2.6.tar.gz
 
 stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack
 	mkdir -p llvm
-	cd llvm && $(BUILDDIR)/llvm-2.6/configure \
-		--prefix=$(BUILDDIR)/opt \
-		--with-llvmgccdir=$(BUILDDIR)/llvm-gcc-4.2-2.6-x86_64-linux \
+	cd llvm && $(S2EBUILD)/llvm-2.6/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--with-llvmgccdir=$(S2EBUILD)/llvm-gcc-4.2-2.6-x86_64-linux \
 		--enable-optimized
 	mkdir -p stamps && touch $@
 
@@ -61,11 +62,11 @@ stamps/llvm-make-release: stamps/llvm-configure
 #######
 
 stamps/stp-copy:
-	cp -Rfp $(SRCDIR)/stp stp
+	cp -Rfp $(S2ESRC)/stp stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
-	cd stp && bash scripts/configure --with-prefix=$(BUILDDIR)/stp
+	cd stp && bash scripts/configure --with-prefix=$(S2EBUILD)/stp
 	cd stp && cp src/c_interface/c_interface.h include/stp
 	mkdir -p stamps && touch $@
 
@@ -85,11 +86,11 @@ stamps/klee-configure: stamps/llvm-configure \
                        stp/include/stp/c_interface.h \
 		       stp/lib/libstp.a
 	mkdir -p klee
-	cd klee && $(SRCDIR)/klee/configure \
-		--prefix=$(BUILDDIR)/opt \
-		--with-llvmsrc=$(BUILDDIR)/llvm-2.6 \
-		--with-llvmobj=$(BUILDDIR)/llvm \
-		--with-stp=$(BUILDDIR)/stp \
+	cd klee && $(S2ESRC)/klee/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
+		--with-llvmobj=$(S2EBUILD)/llvm \
+		--with-stp=$(S2EBUILD)/stp \
 		--enable-exceptions
 	mkdir -p stamps && touch $@
 
@@ -111,12 +112,12 @@ klee/Release/bin/klee-config: stamps/klee-make-release
 
 stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	mkdir -p qemu-debug
-	cd qemu-debug && $(SRCDIR)/qemu/configure \
-		--prefix=$(BUILDDIR)/opt \
-		--with-llvm=$(BUILDDIR)/llvm/Debug  \
-		--with-llvmgcc=$(BUILDDIR)/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
-		--with-stp=$(BUILDDIR)/stp \
-		--with-klee=$(BUILDDIR)/klee/Debug \
+	cd qemu-debug && $(S2ESRC)/qemu/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--with-llvm=$(S2EBUILD)/llvm/Debug  \
+		--with-llvmgcc=$(S2EBUILD)/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
+		--with-stp=$(S2EBUILD)/stp \
+		--with-klee=$(S2EBUILD)/klee/Debug \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e \
@@ -125,12 +126,12 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
 	mkdir -p qemu-release
-	cd qemu-release && $(SRCDIR)/qemu/configure \
-		--prefix=$(BUILDDIR)/opt \
-		--with-llvm=$(BUILDDIR)/llvm/Release  \
-		--with-llvmgcc=$(BUILDDIR)/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
-		--with-stp=$(BUILDDIR)/stp \
-		--with-klee=$(BUILDDIR)/klee/Release \
+	cd qemu-release && $(S2ESRC)/qemu/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--with-llvm=$(S2EBUILD)/llvm/Release  \
+		--with-llvmgcc=$(S2EBUILD)/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
+		--with-stp=$(S2EBUILD)/stp \
+		--with-klee=$(S2EBUILD)/klee/Release \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e
@@ -150,10 +151,10 @@ stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
 
 stamps/tools-configure: stamps/llvm-configure
 	mkdir -p tools
-	cd tools && $(SRCDIR)/tools/configure \
-		--with-llvmsrc=$(BUILDDIR)/llvm-2.6 \
-		--with-llvmobj=$(BUILDDIR)/llvm \
-		--with-s2esrc=$(SRCDIR)/qemu
+	cd tools && $(S2ESRC)/tools/configure \
+		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
+		--with-llvmobj=$(S2EBUILD)/llvm \
+		--with-s2esrc=$(S2ESRC)/qemu
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS

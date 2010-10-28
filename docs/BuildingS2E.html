@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
 <title>Building the S2E Framework</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -34,6 +34,7 @@ $ sudo apt-get install qemu
 $ sudo apt-get install liblua5.1-dev
 $ sudo apt-get install libsigc++-2.0-dev
 $ sudo apt-get install binutils-dev
+$ sudo apt-get install python-docutils
 $ sudo apt-get build-dep llvm-2.7
 $ sudo apt-get build-dep qemu
 </pre>
@@ -82,9 +83,9 @@ The S2E Framework Manually</a>.</p>
 yourself or when pulling new versions through the git. Note however that the
 makefile won't automatically reconfigure the packages nor will it recompile STP
 even if changed (it will recompile only KLEE, QEMU and tools). For deep changes
-you might need to either recompile everything by issuing <tt class="docutils literal"><span class="pre">make</span> <span class="pre">clean</span></tt> or to
+you might need to either recompile everything by issuing <tt class="docutils literal">make clean</tt> or to
 force recompilation of specific modules by deleting corresponding files from
-<tt class="docutils literal"><span class="pre">stamps</span></tt> subdirectory.</p>
+<tt class="docutils literal">stamps</tt> subdirectory.</p>
 </div>
 <div class="section" id="preparing-linux-vm-image">
 <h1>Preparing Linux VM Image</h1>

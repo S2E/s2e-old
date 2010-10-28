@@ -20,6 +20,7 @@ $ sudo apt-get install qemu
 $ sudo apt-get install liblua5.1-dev
 $ sudo apt-get install libsigc++-2.0-dev
 $ sudo apt-get install binutils-dev
+$ sudo apt-get install python-docutils
 $ sudo apt-get build-dep llvm-2.7
 $ sudo apt-get build-dep qemu
 
