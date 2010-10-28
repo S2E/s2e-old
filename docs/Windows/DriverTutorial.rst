@@ -7,6 +7,7 @@ We discuss the preparation of the RAW image in vanilla QEMU, how to write an S2E
 file for this purpose, how to launch symbolic execution, and finally how to interpret the results.
 
 .. contents::
+.. sectnum::
 
 Preparing the QEMU image
 ========================
@@ -17,8 +18,8 @@ This can be done manually via the Windows device manager, but can be automated v
 utility. You can find this utility on the Internet. *devcon.exe* is a command line program that
 allows enumerating device drivers, loading, and unloading them.
 
-1. Booting the image
---------------------
+Booting the image
+-----------------
 
 First, boot the vanilla QEMU with the following arguments:
 
@@ -51,8 +52,8 @@ Here is an explanation of the command line.
 
 * **-s**: makes QEMU to listen for incoming GDB connections. We shall see how to make use of this feature later in this tutorial.
 
-2. Copying files
-----------------
+Copying files
+-------------
 
 Copy the *devcon.exe* utility in the Windows image. 
 Then, copy the following script into *c:\s2e\pcnet.bat* (or to any location you wish) in the guest OS.
@@ -71,8 +72,8 @@ Launch this script to check whether everything is fine. *devcon enable* and *dev
 Of course, *ping* will fail because the NIC is fake.
 
 
-3. Setting up the networking configuration
-------------------------------------------
+Setting up the networking configuration
+---------------------------------------
 
 1. Before proceeding, **reboot** the virtual machine.
 2. Go to "Network Connections" in the control panel. You should see a disabled (greyed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and **disable** all protocols except TCP/IP.
@@ -80,10 +81,10 @@ Of course, *ping* will fail because the NIC is fake.
 
 
 
-4. Editing registry settings for PCnet
---------------------------------------
+Editing registry settings for PCnet
+-----------------------------------
 
-The PCnet driver has a wealth of configration settings. In this section, we will assign bogus values to them. Note that it is important to explicitely set all
+The PCnet driver has a wealth of configuration settings. In this section, we will assign bogus values to them. Note that it is important to explicitly set all
 settings to something, otherwise Windows will fail the *NdisReadConfiguration* call in the driver. The NDIS plugin relies on a successful return of that API call
 to overwrite the settings with symbolic values. If the call fails, no symbolic values will be injected, and some paths may be disabled.
 
@@ -118,8 +119,8 @@ TcpIpOffload         REG_SZ          0
 TP                   REG_SZ          1
 ================     =============   ================
 
-5. Converting the image
------------------------
+Converting the image
+--------------------
 
 1. Once you have set registry settings, make sure the adapter is disabled, then shutdown the guest OS.
 2. Save a copy of the *RAW* image
@@ -129,8 +130,8 @@ TP                   REG_SZ          1
 
        qemu-img convert -O qcow2 /home/s2e/vm/windows_pcntpci5.sys.raw /home/s2e/vm/windows_pcntpci5.sys.qcow2
        
-6. Preparing the image for symbolic execution
----------------------------------------------
+Preparing the image for symbolic execution
+------------------------------------------
 
 In this step, we will show how to save a snapshot of the guest OS right before it invokes the very first instruction of the driver.
 We will use the remote target feature of GDB to connect to the guest OS, set a breakpoint in the kernel, and save a snapshot when a breakpoint is hit.
@@ -201,8 +202,8 @@ Before proceeding further, create a file called ``pcntpci5.sys.lua``.
 S2E uses LUA as an interpreter for configuration files. As such, these files are fully scriptable and can interact with the symbolic execution engine.
 In this tutorial, we cover the basic steps of creating such a file.
 
-1. Configuring KLEE
--------------------
+Configuring KLEE
+----------------
 
 The top level section of the configuration file is ``s2e``.
 We start by configuring KLEE, using the ``kleeArgs`` subsection.
@@ -224,10 +225,10 @@ Refer to the corresponding section of the documentation for more information abo
         }
     }
 
-2. Specifying the list of plugins
----------------------------------
+Specifying the list of plugins
+------------------------------
 
-S2E provides the core symbolic execution engine. All the anaylsis is done by various plugins.
+S2E provides the core symbolic execution engine. All the analysis is done by various plugins.
 In this step, we will select the plugins required for analyzing Windows device drivers.
 Paste the following snippet right after the previous one. In the following parts of the tutorial,
 we briefly present each of the plugins.
@@ -255,8 +256,8 @@ we briefly present each of the plugins.
 
     }
 
-3. Selecting the driver to execute
-----------------------------------
+Selecting the driver to execute
+-------------------------------
 
 The ``WindowsMonitor`` plugins monitors Windows events and catches module loads and unloads.
 The ``ModuleExecutionDetector`` plugin listens to events exported by ``WindowsMonitor`` and reacts
@@ -291,8 +292,8 @@ Now, configure ``ModuleExecutionDetector`` as follows to track loads and unloads
         },
     }
 
-4. Configuring symbolic hardware
---------------------------------
+Configuring symbolic hardware
+-----------------------------
 
 The ``SymbolicHardware`` plugin creates fake PCI (or ISA) devices, which are detected by the OS.
 All reads from such devices are symbolic and writes are discarded. Symbolic devices can also generate
@@ -320,8 +321,8 @@ The following configuration is specific to the AMD PCNet NIC device.
 
 
 
-5. Detecting polling loops
---------------------------
+Detecting polling loops
+-----------------------
 
 Drivers often use polling loops to check the status of registers.
 Polling loops cause the number of states to explode. The ``PollingLoopDetector`` plugin relies on the user
@@ -341,8 +342,8 @@ For the ``pcntpci5.sys`` driver, use the following settings:
        }
     }
 
-6. Annotating driver code
--------------------------
+Annotating driver code
+----------------------
 
 S2E comes with a powerful ``Annotation`` plugin that allows users to control the behavior of symbolic execution.
 Each annotation comes in the form of a LUA function taking as parameters the current execution state and the instance
@@ -369,8 +370,8 @@ relative to the native base of the driver. You may want to disassemble the drive
         }
     }
 
-7. Tracing driver execution
----------------------------
+Tracing driver execution
+------------------------
 
 All output is generated by specialized plugins.
 S2E does not generate any output by itself, except debugging logs.
@@ -390,11 +391,11 @@ covered in a different tutorial.
 * Finally, the ``TranslationBlockTracer`` plugin writes the register input and output of each executed translation block.
   Whenever a translation block of a module specified in the ``ModuleExecutionDetector`` plugin is executed, the ``TranslationBlockTracer`` plugin records it in the trace.
 
-8. Specifying consistency models
---------------------------------
+Specifying consistency models
+-----------------------------
 
 S2E enables various consistency models.
-The ``NdisHandlers`` plugin implements the **overapproximate**, **local**, **strict**, and **overconstrained** models for
+The ``NdisHandlers`` plugin implements the **over-approximate**, **local**, **strict**, and **over-constrained** models for
 Windows NDIS drivers.
 In this tutorial, we show how to set the **strict** model, in which the only symbolic input comes from the hardware.
 Feel free to experiment with other models.
@@ -409,8 +410,8 @@ The configuration section looks as follows:
         consistency = "strict",
     }
 
-9. Controlling the execution of entry points
---------------------------------------------
+Controlling the execution of entry points
+-----------------------------------------
 
 The ``StateManager`` plugins periodically chooses one successful state at random and kills the remaining states.
 The ``NdisHandlers`` plugin uses the ``StateManager`` plugin to suspend all paths that successfully returned from the
@@ -424,8 +425,8 @@ continue from the remaining state. This copes with the state explosion problem.
         timeout=60
     }
 
-10. Detecting bugs
-------------------
+Detecting bugs
+--------------
 
 The ``BlueScreenInterceptor`` and ``WindowsCrashDumpGenerator`` turn S2E into a basic bug finder.
 The BSOD detector kills all the states that crashes, while the crash dump generator produces dumps that can be opened
@@ -464,3 +465,5 @@ The folder contains various files generated by S2E or plugins. Here is a short l
   It allows you to quickly rerun specific experiments, without losing any configuration.
 * **s2e.db**: sqlite database, used by some plugins.
 * **ExecutionTracer.dat**: the  execution trace generated by the ``ExecutionTracer`` plugin.
+
+
