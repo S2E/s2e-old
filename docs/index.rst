@@ -1,9 +1,9 @@
-===================================
-Documentation for the S2E Framework
-===================================
+================================================
+The Selective Symbolic Execution (S²E) Framework
+================================================
 
 
-S2E Documentation
+S²E Documentation
 =================
 
 * Getting Started
@@ -29,7 +29,7 @@ S2E Documentation
   2. `Supported Debug Information <Tools/DebugInfo.html>`_
   3. Tools API
   
-S2E Plugin Reference
+S²E Plugin Reference
 ====================
 
 * `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
