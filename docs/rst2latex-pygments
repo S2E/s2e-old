@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Author: David Goodger, the Pygments team, GÃ¼nter Milde
 # Date: $Date: $
