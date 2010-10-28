@@ -86,6 +86,7 @@
 #include "sysemu.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
+#include "outputchannel.h"
 #include "block.h"
 #include "audio/audio.h"
 #include "migration.h"
@@ -1162,7 +1163,21 @@ static int bdrv_snapshot_find(BlockDriverState *bs, QEMUSnapshotInfo *sn_info,
     return ret;
 }
 
+static int
+monitor_output_channel_cb(void* opaque, const char* fmt, va_list ap)
+{
+    return monitor_vprintf((Monitor*) opaque, fmt, ap);
+}
+
+
 void do_savevm(Monitor *mon, const char *name)
+{
+    OutputChannel *oc = output_channel_alloc(mon, monitor_output_channel_cb);
+    do_savevm_oc(oc, name);
+    output_channel_free(oc);
+}
+
+void do_savevm_oc(OutputChannel *err, const char *name)
 {
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo sn1, *sn = &sn1, old_sn1, *old_sn = &old_sn1;
@@ -1179,7 +1194,7 @@ void do_savevm(Monitor *mon, const char *name)
 
     bs = get_bs_snapshots();
     if (!bs) {
-        monitor_printf(mon, "No block device can accept snapshots\n");
+        output_channel_printf(err, "No block device can accept snapshots\n");
         return;
     }
 
@@ -1218,22 +1233,22 @@ void do_savevm(Monitor *mon, const char *name)
     sn->vm_clock_nsec = qemu_get_clock(vm_clock);
 
     if (bdrv_get_info(bs, bdi) < 0 || bdi->vm_state_offset <= 0) {
-        monitor_printf(mon, "Device %s does not support VM state snapshots\n",
-                       bdrv_get_device_name(bs));
+        output_channel_printf(err, "Device %s does not support VM state snapshots\n",
+                              bdrv_get_device_name(bs));
         goto the_end;
     }
 
     /* save the VM state */
     f = qemu_fopen_bdrv(bs, bdi->vm_state_offset, 1);
     if (!f) {
-        monitor_printf(mon, "Could not open VM state file\n");
+        output_channel_printf(err, "Could not open VM state file\n");
         goto the_end;
     }
     ret = qemu_savevm_state(f);
     vm_state_size = qemu_ftell(f);
     qemu_fclose(f);
     if (ret < 0) {
-        monitor_printf(mon, "Error %d while writing VM\n", ret);
+        output_channel_printf(err, "Error %d while writing VM\n", ret);
         goto the_end;
     }
 
@@ -1245,17 +1260,17 @@ void do_savevm(Monitor *mon, const char *name)
             if (must_delete) {
                 ret = bdrv_snapshot_delete(bs1, old_sn->id_str);
                 if (ret < 0) {
-                    monitor_printf(mon,
-                                   "Error while deleting snapshot on '%s'\n",
-                                   bdrv_get_device_name(bs1));
+                    output_channel_printf(err,
+                                          "Error while deleting snapshot on '%s'\n",
+                                          bdrv_get_device_name(bs1));
                 }
             }
             /* Write VM state size only to the image that contains the state */
             sn->vm_state_size = (bs == bs1 ? vm_state_size : 0);
             ret = bdrv_snapshot_create(bs1, sn);
             if (ret < 0) {
-                monitor_printf(mon, "Error while creating snapshot on '%s'\n",
-                               bdrv_get_device_name(bs1));
+                output_channel_printf(err, "Error while creating snapshot on '%s'\n",
+                                      bdrv_get_device_name(bs1));
             }
         }
     }
@@ -1267,6 +1282,13 @@ void do_savevm(Monitor *mon, const char *name)
 
 void do_loadvm(Monitor *mon, const char *name)
 {
+    OutputChannel *oc = output_channel_alloc(mon, monitor_output_channel_cb);
+    do_loadvm_oc(oc, name);
+    output_channel_free(oc);
+}
+
+void do_loadvm_oc(OutputChannel *err, const char *name)
+{
     BlockDriverState *bs, *bs1;
     BlockDriverInfo bdi1, *bdi = &bdi1;
     QEMUSnapshotInfo sn;
@@ -1276,7 +1298,7 @@ void do_loadvm(Monitor *mon, const char *name)
 
     bs = get_bs_snapshots();
     if (!bs) {
-        monitor_printf(mon, "No block device supports snapshots\n");
+        output_channel_printf(err, "No block device supports snapshots\n");
         return;
     }
 
@@ -1292,20 +1314,20 @@ void do_loadvm(Monitor *mon, const char *name)
             ret = bdrv_snapshot_goto(bs1, name);
             if (ret < 0) {
                 if (bs != bs1)
-                    monitor_printf(mon, "Warning: ");
+                    output_channel_printf(err, "Warning: ");
                 switch(ret) {
                 case -ENOTSUP:
-                    monitor_printf(mon,
+                    output_channel_printf(err,
                                    "Snapshots not supported on device '%s'\n",
                                    bdrv_get_device_name(bs1));
                     break;
                 case -ENOENT:
-                    monitor_printf(mon, "Could not find snapshot '%s' on "
+                    output_channel_printf(err, "Could not find snapshot '%s' on "
                                    "device '%s'\n",
                                    name, bdrv_get_device_name(bs1));
                     break;
                 default:
-                    monitor_printf(mon, "Error %d while activating snapshot on"
+                    output_channel_printf(err, "Error %d while activating snapshot on"
                                    " '%s'\n", ret, bdrv_get_device_name(bs1));
                     break;
                 }
@@ -1317,7 +1339,7 @@ void do_loadvm(Monitor *mon, const char *name)
     }
 
     if (bdrv_get_info(bs, bdi) < 0 || bdi->vm_state_offset <= 0) {
-        monitor_printf(mon, "Device %s does not support VM state snapshots\n",
+        output_channel_printf(err, "Device %s does not support VM state snapshots\n",
                        bdrv_get_device_name(bs));
         return;
     }
@@ -1330,13 +1352,13 @@ void do_loadvm(Monitor *mon, const char *name)
     /* restore the VM state */
     f = qemu_fopen_bdrv(bs, bdi->vm_state_offset, 0);
     if (!f) {
-        monitor_printf(mon, "Could not open VM state file\n");
+        output_channel_printf(err, "Could not open VM state file\n");
         goto the_end;
     }
     ret = qemu_loadvm_state(f);
     qemu_fclose(f);
     if (ret < 0) {
-        monitor_printf(mon, "Error %d while loading VM state\n", ret);
+        output_channel_printf(err, "Error %d while loading VM state\n", ret);
     }
  the_end:
     if (saved_vm_running)
@@ -1345,12 +1367,18 @@ void do_loadvm(Monitor *mon, const char *name)
 
 void do_delvm(Monitor *mon, const char *name)
 {
+    OutputChannel *oc = output_channel_alloc(mon, monitor_output_channel_cb);
+    do_delvm_oc(oc, name);
+    output_channel_free(oc);
+}
+void do_delvm_oc(OutputChannel *err, const char *name)
+{
     BlockDriverState *bs, *bs1;
     int i, ret;
 
     bs = get_bs_snapshots();
     if (!bs) {
-        monitor_printf(mon, "No block device supports snapshots\n");
+        output_channel_printf(err, "No block device supports snapshots\n");
         return;
     }
 
@@ -1360,18 +1388,25 @@ void do_delvm(Monitor *mon, const char *name)
             ret = bdrv_snapshot_delete(bs1, name);
             if (ret < 0) {
                 if (ret == -ENOTSUP)
-                    monitor_printf(mon,
-                                   "Snapshots not supported on device '%s'\n",
-                                   bdrv_get_device_name(bs1));
+                    output_channel_printf(err,
+                                          "Snapshots not supported on device '%s'\n",
+                                          bdrv_get_device_name(bs1));
                 else
-                    monitor_printf(mon, "Error %d while deleting snapshot on "
-                                   "'%s'\n", ret, bdrv_get_device_name(bs1));
+                    output_channel_printf(err, "Error %d while deleting snapshot on "
+                                          "'%s'\n", ret, bdrv_get_device_name(bs1));
             }
         }
     }
 }
 
 void do_info_snapshots(Monitor *mon)
+{
+    OutputChannel *oc = output_channel_alloc(mon, monitor_output_channel_cb);
+    do_info_snapshots_oc(oc, oc);
+    output_channel_free(oc);
+}
+
+void do_info_snapshots_oc(OutputChannel *out, OutputChannel *err)
 {
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo *sn_tab, *sn;
@@ -1380,30 +1415,30 @@ void do_info_snapshots(Monitor *mon)
 
     bs = get_bs_snapshots();
     if (!bs) {
-        monitor_printf(mon, "No available block device supports snapshots\n");
+        output_channel_printf(err, "No available block device supports snapshots\n");
         return;
     }
-    monitor_printf(mon, "Snapshot devices:");
+    output_channel_printf(out, "Snapshot devices:");
     for(i = 0; i <= nb_drives; i++) {
         bs1 = drives_table[i].bdrv;
         if (bdrv_can_snapshot(bs1)) {
             if (bs == bs1)
-                monitor_printf(mon, " %s", bdrv_get_device_name(bs1));
+                output_channel_printf(out, " %s", bdrv_get_device_name(bs1));
         }
     }
-    monitor_printf(mon, "\n");
+    output_channel_printf(out, "\n");
 
     nb_sns = bdrv_snapshot_list(bs, &sn_tab);
     if (nb_sns < 0) {
-        monitor_printf(mon, "bdrv_snapshot_list: error %d\n", nb_sns);
+        output_channel_printf(err, "bdrv_snapshot_list: error %d\n", nb_sns);
         return;
     }
-    monitor_printf(mon, "Snapshot list (from %s):\n",
+    output_channel_printf(out, "Snapshot list (from %s):\n",
                    bdrv_get_device_name(bs));
-    monitor_printf(mon, "%s\n", bdrv_snapshot_dump(buf, sizeof(buf), NULL));
+    output_channel_printf(out, "%s\n", bdrv_snapshot_dump(buf, sizeof(buf), NULL));
     for(i = 0; i < nb_sns; i++) {
         sn = &sn_tab[i];
-        monitor_printf(mon, "%s\n", bdrv_snapshot_dump(buf, sizeof(buf), sn));
+        output_channel_printf(out, "%s\n", bdrv_snapshot_dump(buf, sizeof(buf), sn));
     }
     qemu_free(sn_tab);
 }

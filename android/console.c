@@ -36,6 +36,7 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/debug.h"
 #include "android/utils/stralloc.h"
+#include "android/config/config.h"
 #include "tcpdump.h"
 #include "net.h"
 #include "monitor.h"
@@ -251,18 +252,25 @@ static void  control_control_write( ControlClient  client, const char*  buff, in
     }
 }
 
-static void  control_write( ControlClient  client, const char*  format, ... )
+static int  control_vwrite( ControlClient  client, const char*  format, va_list args )
 {
     static char  temp[1024];
-    va_list      args;
+    int ret = vsnprintf( temp, sizeof(temp), format, args );
+    temp[ sizeof(temp)-1 ] = 0;
+    control_control_write( client, temp, -1 );
 
+    return ret;
+}
+
+static int  control_write( ControlClient  client, const char*  format, ... )
+{
+    int ret;
+    va_list      args;
     va_start(args, format);
-    vsnprintf( temp, sizeof(temp), format, args );
+    ret = control_vwrite(client, format, args);
     va_end(args);
 
-    temp[ sizeof(temp)-1 ] = 0;
-
-    control_control_write( client, temp, -1 );
+    return ret;
 }
 
 
@@ -1929,6 +1937,109 @@ static const CommandDefRec  event_commands[] =
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };
 
+#if CONFIG_ANDROID_SNAPSHOTS
+
+
+/********************************************************************************************/
+/********************************************************************************************/
+/*****                                                                                 ******/
+/*****                      S N A P S H O T   C O M M A N D S                          ******/
+/*****                                                                                 ******/
+/********************************************************************************************/
+/********************************************************************************************/
+
+static int
+control_write_out_cb(void* opaque, const char* fmt, va_list ap)
+{
+    ControlClient client = opaque;
+    int ret = control_vwrite(client, fmt, ap);
+    return ret;
+}
+
+static int
+control_write_err_cb(void* opaque, const char* fmt, va_list ap)
+{
+    int ret = 0;
+    ControlClient client = opaque;
+    ret += control_write(client, "KO: ");
+    ret += control_vwrite(client, fmt, ap);
+    return ret;
+}
+
+static int
+do_snapshot_list( ControlClient  client, char*  args )
+{
+    int ret;
+    OutputChannel *out = output_channel_alloc(client, control_write_out_cb);
+    OutputChannel *err = output_channel_alloc(client, control_write_err_cb);
+    do_info_snapshots_oc(out, err);
+    ret = output_channel_written(err);
+    output_channel_free(out);
+    output_channel_free(err);
+
+    return ret > 0;
+}
+
+static int
+do_snapshot_save( ControlClient  client, char*  args )
+{
+    int ret;
+    OutputChannel *err = output_channel_alloc(client, control_write_err_cb);
+    do_savevm_oc(err, args);
+    ret = output_channel_written(err);
+    output_channel_free(err);
+
+    return ret > 0; // no output on error channel indicates success
+}
+
+static int
+do_snapshot_load( ControlClient  client, char*  args )
+{
+    int ret;
+    OutputChannel *err = output_channel_alloc(client, control_write_err_cb);
+    do_loadvm_oc(err, args);
+    ret = output_channel_written(err);
+    output_channel_free(err);
+
+    return ret > 0;
+}
+
+static int
+do_snapshot_del( ControlClient  client, char*  args )
+{
+    int ret;
+    OutputChannel *err = output_channel_alloc(client, control_write_err_cb);
+    do_delvm_oc(err, args);
+    ret = output_channel_written(err);
+    output_channel_free(err);
+
+    return ret > 0;
+}
+
+static const CommandDefRec  snapshot_commands[] =
+{
+    { "list", "list available state snapshots",
+    "'avd snapshot list' will show a list of all state snapshots that can be loaded\r\n",
+    NULL, do_snapshot_list, NULL },
+
+    { "save", "save state snapshot",
+    "'avd snapshot save <name>' will save the current (run-time) state to a snapshot with the given name\r\n",
+    NULL, do_snapshot_save, NULL },
+
+    { "load", "load state snapshot",
+    "'avd snapshot load <name>' will load the state snapshot of the given name\r\n",
+    NULL, do_snapshot_load, NULL },
+
+    { "del", "delete state snapshot",
+    "'avd snapshot del <name>' will delete the state snapshot with the given name\r\n",
+    NULL, do_snapshot_del, NULL },
+
+    { NULL, NULL, NULL, NULL, NULL, NULL }
+};
+
+
+#endif
+
 
 /********************************************************************************************/
 /********************************************************************************************/
@@ -1985,12 +2096,18 @@ static const CommandDefRec  vm_commands[] =
     NULL, do_avd_start, NULL },
 
     { "status", "query virtual device status",
-    "'avd status' will indicate wether the virtual device is running or not\r\n",
+    "'avd status' will indicate whether the virtual device is running or not\r\n",
     NULL, do_avd_status, NULL },
 
     { "name", "query virtual device name",
     "'avd name' will return the name of this virtual device\r\n",
     NULL, do_avd_name, NULL },
+
+#if CONFIG_ANDROID_SNAPSHOTS
+    { "snapshot", "state snapshot commands",
+    "allows you to save and restore the virtual device state in snapshots\r\n",
+    NULL, NULL, snapshot_commands },
+#endif
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };
@@ -2313,8 +2430,8 @@ static const CommandDefRec   main_commands[] =
       "allows you to simulate an inbound SMS\r\n", NULL,
       NULL, sms_commands },
 
-    { "avd", "manager virtual device state",
-    "allows to change (e.g. start/stop) the virtual device state\r\n", NULL,
+    { "avd", "control virtual device execution",
+    "allows you to control (e.g. start/stop) the execution of the virtual device\r\n", NULL,
     NULL, vm_commands },
 
     { "window", "manage emulator window",

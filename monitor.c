@@ -165,11 +165,13 @@ static void monitor_puts(Monitor *mon, const char *str)
     }
 }
 
-void monitor_vprintf(Monitor *mon, const char *fmt, va_list ap)
+int monitor_vprintf(Monitor *mon, const char *fmt, va_list ap)
 {
     char buf[4096];
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
     monitor_puts(mon, buf);
+
+    return ret;
 }
 
 void monitor_printf(Monitor *mon, const char *fmt, ...)
