@@ -30,7 +30,7 @@ clean:
 # This will be updated every time make is called. 
 # Because main.cpp depends on this, 
 # it will in turn be rebuilt every time.
-versionString.cpp: ALWAYS_RUN
+versionString.cpp:
 	@echo "#include <string>"  > versionString.cpp
 	@echo "namespace BEEV{extern const std::string version=\"" $(shell svnversion ..) "\";}" >> versionString.cpp
 

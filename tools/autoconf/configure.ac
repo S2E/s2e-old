@@ -67,24 +67,11 @@ AC_ARG_WITH(s2esrc,
   AS_HELP_STRING([--with-s2esrc],
     [Location of S2E source code]),,)
 
-AC_ARG_WITH(s2eobj,
-  AS_HELP_STRING([--with-s2eobj],
-    [Location of S2E object code]),,)
-
-	
-
 dnl Make the paths absolute.
 s2e_src=`cd $with_s2esrc 2> /dev/null; pwd`
-s2e_obj=`cd $with_s2eobj 2> /dev/null; pwd`
    
 AC_MSG_RESULT([$s2e_src])
-
-dnl Report obj dir as well.
-AC_MSG_CHECKING([s2e obj dir])
-AC_MSG_RESULT([$s2e_obj])
-
 AC_SUBST(S2E_SRC,$s2e_src)
-AC_SUBST(S2E_OBJ,$s2e_obj)
 
 dnl **************************************************************************
 dnl Add OS-specific libraries

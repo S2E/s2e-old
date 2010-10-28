@@ -15,8 +15,13 @@ libast.a:$(OBJS) depend
 	$(RANLIB) $@
 
 # ASTKind.h and ASTKind.cpp are automatically generated
-ASTKind.h ASTKind.cpp:	ASTKind.kinds genkinds.pl
+ASTKind.cpp: ASTKind.h
+
+
+ASTKind.h:	ASTKind.kinds genkinds.pl
 	./genkinds.pl
+
+$(OBJS): ASTKind.h
 
 .PHONY: clean
 clean:
