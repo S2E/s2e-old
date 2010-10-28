@@ -700,6 +700,21 @@ help_no_snapshot(stralloc_t*  out)
     );
 }
 
+static void
+help_snapshot_list(stralloc_t*  out)
+{
+    PRINTF(
+    "  This prints a table of snapshots that are stored in the snapshot storage\n"
+    "  file that the emulator was started with, then exits. Values from the 'ID'\n"
+    "  and 'TAG' columns can be used as arguments for the '-snapshot' parameter.\n\n"
+
+    "  If '-snapstorage <file>' was specified as well, this command prints a "
+    "  table of the snapshots stored in <file>.\n\n"
+
+    "  See '-help-snapshot' for more information on snapshots.\n\n"
+    );
+}
+
 #endif
 
 static void
