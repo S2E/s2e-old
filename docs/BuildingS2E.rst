@@ -76,8 +76,8 @@ to either start from scratch by issuing ``make clean`` or to force
 reconfiguration of specific modules by deleting corresponding files from
 ``stamps`` subdirectory.
 
-Re-building S2E docs
-====================
+Re-Building S2E Documentation
+=============================
 
 S2E documentation is written in `reStructuredText
 <http://docutils.sourceforge.net/rst.html>`_ format. For convenience, we also
