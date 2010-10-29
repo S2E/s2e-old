@@ -9,10 +9,16 @@ all-release: stamps/qemu-make-release stamps/tools-make-release
 
 all-debug: stamps/qemu-make-debug stamps/tools-make-debug
 
+ifeq ($(shell uname -s),Darwin)
+    LLVM_GCC_SRC=llvm-gcc-4.2-2.6-i386-darwin9
+else
+    LLVM_GCC_SRC=llvm-gcc-4.2-2.6-x86_64-linux
+endif
+
 clean:
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
 	rm -Rf llvm-2.6
-	rm -Rf llvm-gcc-4.2-2.6-x86_64-linux
+	rm -Rf $(LLVM_GCC_SRC)
 	rm -Rf stamps
 
 .PHONY: all all-debug all-release clean
@@ -23,11 +29,11 @@ ALWAYS:
 # Downloads #
 #############
 
-llvm-gcc-4.2-2.6-x86_64-linux.tar.gz:
-	wget http://llvm.org/releases/2.6/llvm-gcc-4.2-2.6-x86_64-linux.tar.gz
+$(LLVM_GCC_SRC).tar.gz:
+	wget http://llvm.org/releases/2.6/$(LLVM_GCC_SRC).tar.gz
 
-stamps/llvm-gcc-unpack: llvm-gcc-4.2-2.6-x86_64-linux.tar.gz
-	tar -zxf llvm-gcc-4.2-2.6-x86_64-linux.tar.gz
+stamps/llvm-gcc-unpack: $(LLVM_GCC_SRC).tar.gz
+	tar -zxf $(LLVM_GCC_SRC).tar.gz
 	mkdir -p stamps && touch $@
 
 llvm-2.6.tar.gz:
@@ -45,7 +51,8 @@ stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack
 	mkdir -p llvm
 	cd llvm && $(S2EBUILD)/llvm-2.6/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvmgccdir=$(S2EBUILD)/llvm-gcc-4.2-2.6-x86_64-linux \
+		--with-llvmgccdir=$(S2EBUILD)/$(LLVM_GCC_SRC) \
+		--target=x86_64 \
 		--enable-optimized
 	mkdir -p stamps && touch $@
 
@@ -91,6 +98,7 @@ stamps/klee-configure: stamps/llvm-configure \
 		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
+		--target=x86_64 \
 		--enable-exceptions
 	mkdir -p stamps && touch $@
 
@@ -115,7 +123,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Debug  \
-		--with-llvmgcc=$(S2EBUILD)/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
+		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -129,7 +137,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Release  \
-		--with-llvmgcc=$(S2EBUILD)/llvm-gcc-4.2-2.6-x86_64-linux/bin/llvm-gcc \
+		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Release \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -154,7 +162,8 @@ stamps/tools-configure: stamps/llvm-configure
 	cd tools && $(S2ESRC)/tools/configure \
 		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
 		--with-llvmobj=$(S2EBUILD)/llvm \
-		--with-s2esrc=$(S2ESRC)/qemu
+		--with-s2esrc=$(S2ESRC)/qemu \
+		--target=x86_64
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS

@@ -334,7 +334,7 @@ cscope:
 
 # documentation
 %.html: %.texi
-	$(call quiet-command,texi2html -I=. -monolithic -number $<,"  GEN   $@")
+	$(call quiet-command,texi2html -I=. -monolithic -number-section $<,"  GEN   $@")
 
 %.info: %.texi
 	$(call quiet-command,makeinfo -I . $< -o $@,"  GEN   $@")
