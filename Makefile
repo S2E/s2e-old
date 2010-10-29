@@ -9,6 +9,10 @@ all-release: stamps/qemu-make-release stamps/tools-make-release
 
 all-debug: stamps/qemu-make-debug stamps/tools-make-debug
 
+ifeq ($(shell ls qemu/vl.c),qemu/vl.c)
+    $(error You should not run make in S2E source directory!)
+endif
+
 ifeq ($(shell uname -s),Darwin)
     LLVM_GCC_SRC=llvm-gcc-4.2-2.6-i386-darwin9
 else
