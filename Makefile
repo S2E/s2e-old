@@ -175,6 +175,6 @@ stamps/tools-make-release: stamps/tools-configure ALWAYS
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-debug: stamps/tools-configure ALWAYS
-	cd tools-debug && make ENABLE_OPTIMIZED=0 -j$(JOBS)
+	cd tools && make ENABLE_OPTIMIZED=0 -j$(JOBS)
 	mkdir -p stamps && touch $@
 
