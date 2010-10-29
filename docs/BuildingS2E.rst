@@ -21,6 +21,7 @@ $ sudo apt-get install liblua5.1-dev
 $ sudo apt-get install libsigc++-2.0-dev
 $ sudo apt-get install binutils-dev
 $ sudo apt-get install python-docutils
+$ sudo apt-get install python-pygments
 $ sudo apt-get build-dep llvm-2.7
 $ sudo apt-get build-dep qemu
 
@@ -74,7 +75,17 @@ makefile won't automatically reconfigure the packages nor will it recompile STP
 even if changed (it will recompile only KLEE, QEMU and tools). For deep changes
 you might need to either recompile everything by issuing ``make clean`` or to
 force recompilation of specific modules by deleting corresponding files from
-``stamps`` subdirectory.
+``stamps`` subdirectory. To significantly speed up recompilation you could use
+`ccache <http://ccache.samba.org/>`_
+
+Re-building S2E docs
+====================
+
+S2E documentation is written in `reStructuredText
+<http://docutils.sourceforge.net/rst.html>`_ format. For convenience, we also
+keep generated HTML files in the repository. Please never change HTML files
+manualy and always recompile them (by invoking ``make`` in the docs folder)
+after changing any RST files.
 
 Preparing Linux VM Image
 ========================
