@@ -1,11 +1,12 @@
 #!/usr/bin/python
 
 from subprocess import Popen, PIPE
-import mimetypes
 import sys
 import os
 
 blacklist = [
+    # The following files are for non-i386 targets
+    # they cause false positives when looking up symbols
     'qemu/target-alpha/',
     'qemu/target-arm/',
     'qemu/target-cris/',
@@ -29,16 +30,17 @@ blacklist = [
     'qemu/tcg/ppc64/',
     'qemu/tcg/s390/',
     'qemu/tcg/sparc/',
+
+    # The following directory contains a symlink to /dev/random
+    # which makes QtCreator search go crazy
+    'klee/runtime/POSIX/testing-dir',
 ]
 
 if os.path.isdir('.git'):
     git_files = Popen(['git', 'ls-files'],
                   stdout=PIPE).communicate()[0].split('\n')
-elif os.path.isdir('.svn'):
-    git_files = Popen(['svn', 'ls', '--recursive'],
-                  stdout=PIPE).communicate()[0].split('\n')
 else:
-    sys.stderr.write('Found neither .git nor .svn subfolder\n')
+    sys.stderr.write('This is not a git repository!\n')
     sys.exit(1)
 
 git_files.sort()
@@ -52,8 +54,7 @@ for fname in git_files:
             break
     else:
         if not os.path.isdir(fname):
-            if mimetypes.guess_type(fname)[0] is not None:
-                s2e_files.write(fname + '\n')
+            s2e_files.write(fname + '\n')
 
             fdir = fname
             while fdir != "":

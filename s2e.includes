@@ -1,3 +1,9 @@
+docs
+docs/Plugins/WindowsInterceptor
+docs/Plugins
+docs/Tools
+docs/Windows
+docs/img
 klee
 klee/autoconf
 klee/docs/SMT-COMP
@@ -27,7 +33,6 @@ klee/lib/Support
 klee/runtime/Intrinsic
 klee/runtime
 klee/runtime/POSIX
-klee/runtime/POSIX/testing-dir
 klee/runtime/Runtest
 klee/runtime/klee-libc
 klee/scripts
