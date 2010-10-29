@@ -82,6 +82,7 @@ stamps/stp-configure: stamps/stp-copy
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
+	cp -Rfp $(S2ESRC)/stp stp
 	cd stp && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 

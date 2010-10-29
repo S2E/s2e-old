@@ -70,13 +70,11 @@ Updating S2E
 ============
 
 You could use the same make file to recompile S2E either when changing it
-yourself or when pulling new versions through the git. Note however that the
-makefile won't automatically reconfigure the packages nor will it recompile STP
-even if changed (it will recompile only KLEE, QEMU and tools). For deep changes
-you might need to either recompile everything by issuing ``make clean`` or to
-force recompilation of specific modules by deleting corresponding files from
-``stamps`` subdirectory. To significantly speed up recompilation you could use
-`ccache <http://ccache.samba.org/>`_
+yourself or when pulling new versions through the git. Note that the makefile
+won't automatically reconfigure the packages so for deep changes you might need
+to either start from scratch by issuing ``make clean`` or to force
+reconfiguration of specific modules by deleting corresponding files from
+``stamps`` subdirectory.
 
 Re-building S2E docs
 ====================

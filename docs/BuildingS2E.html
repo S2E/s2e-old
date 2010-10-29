@@ -82,13 +82,11 @@ The S2E Framework Manually</a>.</p>
 <div class="section" id="updating-s2e">
 <h1>Updating S2E</h1>
 <p>You could use the same make file to recompile S2E either when changing it
-yourself or when pulling new versions through the git. Note however that the
-makefile won't automatically reconfigure the packages nor will it recompile STP
-even if changed (it will recompile only KLEE, QEMU and tools). For deep changes
-you might need to either recompile everything by issuing <tt class="docutils literal">make clean</tt> or to
-force recompilation of specific modules by deleting corresponding files from
-<tt class="docutils literal">stamps</tt> subdirectory. To significantly speed up recompilation you could use
-<a class="reference external" href="http://ccache.samba.org/">ccache</a></p>
+yourself or when pulling new versions through the git. Note that the makefile
+won't automatically reconfigure the packages so for deep changes you might need
+to either start from scratch by issuing <tt class="docutils literal">make clean</tt> or to force
+reconfiguration of specific modules by deleting corresponding files from
+<tt class="docutils literal">stamps</tt> subdirectory.</p>
 </div>
 <div class="section" id="re-building-s2e-docs">
 <h1>Re-building S2E docs</h1>
