@@ -16,9 +16,9 @@ Here is a checklist we recommend to follow:
 
 * Always keep a *RAW* image file of your setup. QEMU tends to corrupt *QCOW2* images over time. You can easily convert a RAW image into *QCOW2* using the *qemu-img* tool. Corruptions manifest by weired crashes that did not use to happen before.
 
-* Keep a fresh copy of your OS installation. It is recommend to start with a fresh copy for each analysis task. For instance, if you use an image to test a device driver, avoid using this same image to analyze some spreadsheet component. One image=one analysis. It is easier to manage and your results will be easier to reproduce.
+* Keep a fresh copy of your OS installation. It is recommended to start with a fresh copy for each analysis task. For instance, if you use an image to test a device driver, avoid using this same image to analyze some spreadsheet component. One image = one analysis. It is easier to manage and your results will be easier to reproduce.
 
-* Once your (QCOW2) image is setup and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a long time.
+* Once your (QCOW2) image is setup and ready to be run in symbolic execution mode, take a snapshot and resume that snapshot in the S2E-enabled QEMU. This step is not necessary, but it greatly shortens boot times. Booting an image in S2E can take a (very) long time.
 
 * It is recommended to use 128MiB of RAM for the guest OS (or less). S2E is not limited by the amount of memory in any way (it is 64-bit),  but your physical machine is.
 

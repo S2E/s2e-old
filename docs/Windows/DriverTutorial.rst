@@ -78,6 +78,9 @@ Setting up the networking configuration
 1. Before proceeding, **reboot** the virtual machine.
 2. Go to "Network Connections" in the control panel. You should see a disabled (greyed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and **disable** all protocols except TCP/IP.
 3. Set the IP address of the fake NIC to 192.168.111.123/24 and the gateway to 192.168.111.1. The actual values do not matter, but you must be consistent with those in the *pcnet.bat* script.
+4. Disable *all* services that generate spurious network traffic (e.g., SSDP, automatic time update, file sharing, etc.). You can use Wireshark to spot these services.
+5. Set the ``HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\ArpRetryCount`` setting of the TCP/IP stack to 0.
+   This disables the gratuitous ARP requests mechanism. Since we want to control what packets we send, we do not want Windows to interfere with that.
 
 
 
