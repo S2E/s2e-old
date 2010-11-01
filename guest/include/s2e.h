@@ -87,7 +87,7 @@ static inline void s2e_enable_forking(void)
 }
 
 /** Disable forking on symbolic conditions. */
-static inline void s2e_disable_symbolic(void)
+static inline void s2e_disable_forking(void)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
