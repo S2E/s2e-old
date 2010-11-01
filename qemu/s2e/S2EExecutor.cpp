@@ -157,7 +157,7 @@ namespace {
     cl::opt<bool>
     ForkOnSymbolicAddress("fork-on-symbolic-address",
             cl::desc("Fork on each memory access with symbolic address"),
-            cl::init(true));
+            cl::init(false));
 }
 
 extern "C" {
