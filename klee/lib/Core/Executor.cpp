@@ -115,7 +115,7 @@ namespace {
 
   cl::opt<bool>
   SimplifySymIndices("simplify-sym-indices",
-                     cl::init(false));
+                     cl::init(true));
 
   cl::opt<unsigned>
   MaxSymArraySize("max-sym-array-size",
@@ -153,7 +153,7 @@ namespace {
 
   cl::opt<bool>
   UseCexCache("use-cex-cache",
-              cl::init(false),
+              cl::init(true),
 	      cl::desc("Use counterexample caching"));
 
   cl::opt<bool>
@@ -174,7 +174,7 @@ namespace {
 
   cl::opt<bool>
   UseCache("use-cache",
-           cl::init(false),
+           cl::init(true),
 	   cl::desc("Use validity caching"));
 
   cl::opt<bool>

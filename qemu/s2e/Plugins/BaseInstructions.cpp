@@ -49,6 +49,7 @@ extern "C" {
 
 #include <llvm/System/TimeValue.h>
 #include <klee/Searcher.h>
+#include <klee/Solver.h>
 
 namespace s2e {
 namespace plugins {
@@ -299,6 +300,46 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             }
             break;
         }
+
+        case 0x20: /* concretize */
+        case 0x21: { /* replace an expression by one concrete example */
+            uint32_t address, size;
+
+            bool ok = true;
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                 &address, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                                 &size, 4);
+
+            if(!ok) {
+                s2e()->getWarningsStream(state)
+                    << "ERROR: symbolic argument was passed to s2e_op "
+                       " get_example opcode" << std::endl;
+                break;
+            }
+
+            for(unsigned i = 0; i < size; ++i) {
+                ref<Expr> expr = state->readMemory8(address + i);
+                if(!expr.isNull()) {
+                    if(((opcode>>8) & 0xFF) == 0x20) /* concretize */
+                        expr = s2e()->getExecutor()->toConstant(*state, expr, "request from guest");
+                    else /* example */
+                        expr = s2e()->getExecutor()->toConstantSilent(*state, expr);
+                    if(!state->writeMemory(address + i, expr)) {
+                        s2e()->getWarningsStream(state)
+                            << "Can not write to memory"
+                            << " at " << hexval(address + i) << std::endl;
+                    }
+                } else {
+                    s2e()->getWarningsStream(state)
+                        << "Can not read from memory"
+                        << " at " << hexval(address + i) << std::endl;
+                }
+            }
+
+            break;
+        }
+
         case 0x50: { /* disable/enable timer interrupt */
             uint64_t disabled = opcode >> 16;
             if(disabled)

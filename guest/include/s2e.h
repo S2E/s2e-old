@@ -107,6 +107,28 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
     );
 }
 
+/** Concretize the expression. */
+static inline void s2e_concretize(void* buf, int size)
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x20, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "a" (buf), "b" (size)
+    );
+}
+
+/** Get example value for expression (without adding state constraints). */
+static inline void s2e_get_example(void* buf, int size)
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x21, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "a" (buf), "b" (size)
+    );
+}
+
 /** Terminate current state. */
 static inline void s2e_kill_state(int status, const char* message)
 {
