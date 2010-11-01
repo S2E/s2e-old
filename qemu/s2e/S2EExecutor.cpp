@@ -158,10 +158,23 @@ namespace {
     ForkOnSymbolicAddress("fork-on-symbolic-address",
             cl::desc("Fork on each memory access with symbolic address"),
             cl::init(false));
+
+    cl::opt<bool>
+    ConcretizeIoAddress("concretize-io-address",
+            cl::desc("Concretize symbolic I/O addresses"),
+            cl::init(true));
+
+    //XXX: Works for MMIO only, add support for port I/O
+    cl::opt<bool>
+    ConcretizeIoWrites("concretize-io-writes",
+            cl::desc("Concretize symbolic I/O writes"),
+            cl::init(true));
 }
 
 extern "C" {
     int g_s2e_fork_on_symbolic_address = 0;
+    int g_s2e_concretize_io_addresses = 1;
+    int g_s2e_concretize_io_writes = 1;
 }
 
 static bool S2EDebugInstructions = false;
@@ -706,6 +719,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     m_forceConcretizations = false;
 
     g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress;
+    g_s2e_concretize_io_addresses = ConcretizeIoAddress;
+    g_s2e_concretize_io_writes = ConcretizeIoWrites;
 }
 
 S2EExecutor::~S2EExecutor()

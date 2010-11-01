@@ -4,8 +4,9 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
+    call s2e_symbhwio_test
     ;call s2e_jmptbl_test
-    call test_ndis
+    ;call test_ndis
     ;jmp s2e_test
     ;call s2e_test2
     ;call s2e_isa_dev
@@ -13,6 +14,17 @@ s2e_test:
     cli
     hlt
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Testing I/O with symbolic address/values
+
+s2e_symbhwio_test:
+    call s2e_enable
+
+    call s2e_int        ;Get symbolic value
+    mov edi, 0xFEC00000 ;APIC address
+    mov [edi], eax      ;Write symbolic value to APIC
+ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Testing symbolic offsets in jump tables

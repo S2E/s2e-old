@@ -166,6 +166,15 @@ void s2e_on_tlb_miss(struct S2E *s2e, struct S2EExecutionState* state, uint64_t 
     symbolic memory addresses */
 extern int g_s2e_fork_on_symbolic_address;
 
+/** Global variable that determines whether to make
+    symbolic I/O memory addresses concrete */
+extern int g_s2e_concretize_io_addresses;
+
+/** Global variable that determines whether to make
+    symbolic I/O writes concrete */
+extern int g_s2e_concretize_io_writes;
+
+
 /** Create initial S2E execution state */
 struct S2EExecutionState* s2e_create_initial_state(struct S2E *s2e);
 
@@ -300,6 +309,13 @@ void s2e_register_dirty_mask(struct S2E *s2e, struct S2EExecutionState *initial_
                             uint64_t host_address, uint64_t size);
 uint8_t s2e_read_dirty_mask(uint64_t host_address);
 void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
+
+
+//XXX: Provide a means of including KLEE header
+/* Return a possible constant value for the input expression. This
+   allows programs to forcibly concretize values on their own. */
+unsigned klee_get_value(unsigned expr);
+
 
 /******************************************************/
 /* Prototypes for special functions used in LLVM code */

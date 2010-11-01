@@ -479,6 +479,16 @@ inline void glue(glue(io_write_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t physa
 
     //XXX: Check if MMIO is symbolic, and add corresponding trace entry
 
+    //Since we do not handle symbolic devices for now, we offer the
+    //option of concretizing the arguments to I/O helpers.
+    if (g_s2e_concretize_io_writes) {
+        val = klee_get_value(val);
+    }
+
+    if (g_s2e_concretize_io_addresses) {
+        addr = klee_get_value(addr);
+    }
+
     //By default, call the original io_write function, which is external
     glue(glue(io_write, SUFFIX), MMUSUFFIX)(oldphysaddr, val, addr, retaddr);
 }
