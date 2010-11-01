@@ -43,10 +43,6 @@
 /** Enables S2E TLB to speed-up concrete memory accesses */
 #define S2E_ENABLE_S2E_TLB
 
-/** Defines whether all memory addresses should be concretized by
-    forking state for all possible values */
-#define S2E_FORK_ON_SYMBOLIC_ADDRESS
-
 /** Enables simple memory debugging support */
 //#define S2E_DEBUG_MEMORY
 

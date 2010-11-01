@@ -153,6 +153,15 @@ namespace {
     KeepLLVMFunctions("keep-llvm-functions",
             cl::desc("Never delete generated LLVM functions"),
             cl::init(false));
+
+    cl::opt<bool>
+    ForkOnSymbolicAddress("fork-on-symbolic-address",
+            cl::desc("Fork on each memory access with symbolic address"),
+            cl::init(true));
+}
+
+extern "C" {
+    int g_s2e_fork_on_symbolic_address = 0;
 }
 
 static bool S2EDebugInstructions = false;
@@ -695,6 +704,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     m_stateManager = NULL;
 
     m_forceConcretizations = false;
+
+    g_s2e_fork_on_symbolic_address = ForkOnSymbolicAddress;
 }
 
 S2EExecutor::~S2EExecutor()

@@ -74,11 +74,9 @@
 #define S2E_FORK_AND_CONCRETIZE(val, max) (val)
 #endif // S2E_LLVM_LIB
 
-#ifdef S2E_FORK_ON_SYMBOLIC_ADDRESS
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) S2E_FORK_AND_CONCRETIZE(val, max)
-#else
-#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) (val)
-#endif
+
+#define S2E_FORK_AND_CONCRETIZE_ADDR(val, max) \
+    (g_s2e_fork_on_symbolic_address ? S2E_FORK_AND_CONCRETIZE(val, max) : val)
 
 #define S2E_RAM_OBJECT_DIFF (TARGET_PAGE_BITS - S2E_RAM_OBJECT_BITS)
 
