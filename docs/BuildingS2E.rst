@@ -63,6 +63,10 @@ The recommended method of building S2E is using S2E Makefile::
    $ make JOBS=4 # Replace 4 with your number of cores
    > Go make some coffee, this will take a lot of time
 
+By default, the ``make`` command will compile S2E in release mode. Resulting
+binary will be placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu``.
+To compile in Debug mode, use ``make all-debug JOBS=4``.
+
 You can also build each component of S2E manually, as described in `Building
 The S2E Framework Manually <BuildingS2EManually.html>`_.
 

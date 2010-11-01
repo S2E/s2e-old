@@ -76,6 +76,9 @@ $ ln -s ../s2e/Makefile .
 $ make JOBS=4 # Replace 4 with your number of cores
 &gt; Go make some coffee, this will take a lot of time
 </pre>
+<p>By default, the <tt class="docutils literal">make</tt> command will compile S2E in release mode. Resulting
+binary will be placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu</span></tt>.
+To compile in Debug mode, use <tt class="docutils literal">make <span class="pre">all-debug</span> JOBS=4</tt>.</p>
 <p>You can also build each component of S2E manually, as described in <a class="reference external" href="BuildingS2EManually.html">Building
 The S2E Framework Manually</a>.</p>
 </div>
