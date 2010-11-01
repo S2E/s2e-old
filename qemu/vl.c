@@ -240,7 +240,7 @@ int smp_cores = 1;
 int smp_threads = 1;
 const char *vnc_display;
 int acpi_enabled = 1;
-int no_hpet = 0;
+int no_hpet = 1;
 int fd_bootchk = 1;
 int no_reboot = 0;
 int no_shutdown = 0;
@@ -5676,8 +5676,8 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_no_acpi:
                 acpi_enabled = 0;
                 break;
-            case QEMU_OPTION_no_hpet:
-                no_hpet = 1;
+            case QEMU_OPTION_hpet:
+                no_hpet = 0;
                 break;
             case QEMU_OPTION_balloon:
                 if (balloon_parse(optarg) < 0) {

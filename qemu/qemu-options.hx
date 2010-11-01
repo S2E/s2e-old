@@ -763,12 +763,12 @@ only).
 ETEXI
 
 #ifdef TARGET_I386
-DEF("no-hpet", 0, QEMU_OPTION_no_hpet,
-    "-no-hpet        disable HPET\n")
+DEF("hpet", 0, QEMU_OPTION_hpet,
+    "-hpet        enable HPET\n")
 #endif
 STEXI
-@item -no-hpet
-Disable HPET support.
+@item -hpet
+Enable HPET support.
 ETEXI
 
 #ifdef TARGET_I386
