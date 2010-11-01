@@ -73,7 +73,7 @@ stamps/llvm-make-release: stamps/llvm-configure
 #######
 
 stamps/stp-copy:
-	cp -Rfp $(S2ESRC)/stp stp
+	cp -Rup $(S2ESRC)/stp stp
 	mkdir -p stamps && touch $@
 
 stamps/stp-configure: stamps/stp-copy
@@ -82,7 +82,7 @@ stamps/stp-configure: stamps/stp-copy
 	mkdir -p stamps && touch $@
 
 stamps/stp-make: stamps/stp-configure ALWAYS
-	cp -Rfp $(S2ESRC)/stp stp
+	cp -Rup $(S2ESRC)/stp stp
 	cd stp && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
