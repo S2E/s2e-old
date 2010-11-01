@@ -1122,6 +1122,7 @@ Executor::toConstant(ExecutionState &state,
 ref<klee::ConstantExpr>
 Executor::toConstantSilent(ExecutionState &state,
                      ref<Expr> e) {
+  e = simplifyExpr(state, e);
   e = state.constraints.simplifyExpr(e);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e))
     return CE;
