@@ -708,7 +708,7 @@ void nand_add_dev(const char *arg)
         TempFile*    tmp = tempfile_create();
 
         if (tmp == NULL) {
-            XLOG("could not create temp file for %.*s NAND disk image: %s",
+            XLOG("could not create temp file for %.*s NAND disk image: %s\n",
                   devname_len, devname, strerror(errno));
             exit(1);
         }
