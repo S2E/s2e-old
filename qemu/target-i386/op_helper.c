@@ -33,6 +33,28 @@
 
 #include <inttypes.h>
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+
+#define ACCESS_TYPE 0
+#define MEMSUFFIX _kernel_s2e_trace
+#define _raw _raw_s2e_trace
+#define DATA_SIZE 1
+#include "softmmu_header.h"
+
+#define DATA_SIZE 2
+#include "softmmu_header.h"
+
+#define DATA_SIZE 4
+#include "softmmu_header.h"
+
+#define DATA_SIZE 8
+#include "softmmu_header.h"
+#undef _raw
+#undef ACCESS_TYPE
+#undef MEMSUFFIX
+
+#endif
+
 //#define DEBUG_PCALL
 #ifdef S2E_LLVM_LIB
 void klee_make_symbolic(void *addr, unsigned nbytes, const char *name);
@@ -854,6 +876,23 @@ do {\
     val = (uint32_t)ldl_kernel(SEG_ADDL(ssp, sp, sp_mask));\
     sp += 4;\
 }
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#define POPW_T(ssp, sp, sp_mask, val)\
+{\
+    val = lduw_kernel_s2e_trace((ssp) + (sp & (sp_mask)));\
+    sp += 2;\
+}
+
+#define POPL_T(ssp, sp, sp_mask, val)\
+{\
+    val = (uint32_t)ldl_kernel_s2e_trace(SEG_ADDL(ssp, sp, sp_mask));\
+    sp += 4;\
+}
+#else
+#define POPW_T(ssp, sp, sp_mask, val) POPW(ssp, sp, sp_mask, val)
+#define POPL_T(ssp, sp, sp_mask, val) POPL(ssp, sp, sp_mask, val)
+#endif
 
 /* protected mode interrupt */
 static void do_interrupt_protected(int intno, int is_int, int error_code,
@@ -2814,20 +2853,20 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
 #endif
     if (shift == 1) {
         /* 32 bits */
-        POPL(ssp, sp, sp_mask, new_eip);
-        POPL(ssp, sp, sp_mask, new_cs);
+        POPL_T(ssp, sp, sp_mask, new_eip);
+        POPL_T(ssp, sp, sp_mask, new_cs);
         new_cs &= 0xffff;
         if (is_iret) {
-            POPL(ssp, sp, sp_mask, new_eflags);
+            POPL_T(ssp, sp, sp_mask, new_eflags);
             if (new_eflags & VM_MASK)
                 goto return_to_vm86;
         }
     } else {
         /* 16 bits */
-        POPW(ssp, sp, sp_mask, new_eip);
-        POPW(ssp, sp, sp_mask, new_cs);
+        POPW_T(ssp, sp, sp_mask, new_eip);
+        POPW_T(ssp, sp, sp_mask, new_cs);
         if (is_iret)
-            POPW(ssp, sp, sp_mask, new_eflags);
+            POPW_T(ssp, sp, sp_mask, new_eflags);
     }
     LOG_PCALL("lret new %04x:" TARGET_FMT_lx " s=%d addend=0x%x\n",
               new_cs, new_eip, shift, addend);
@@ -2875,13 +2914,13 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
 #endif
         if (shift == 1) {
             /* 32 bits */
-            POPL(ssp, sp, sp_mask, new_esp);
-            POPL(ssp, sp, sp_mask, new_ss);
+            POPL_T(ssp, sp, sp_mask, new_esp);
+            POPL_T(ssp, sp, sp_mask, new_ss);
             new_ss &= 0xffff;
         } else {
             /* 16 bits */
-            POPW(ssp, sp, sp_mask, new_esp);
-            POPW(ssp, sp, sp_mask, new_ss);
+            POPW_T(ssp, sp, sp_mask, new_esp);
+            POPW_T(ssp, sp, sp_mask, new_ss);
         }
         LOG_PCALL("new ss:esp=%04x:" TARGET_FMT_lx "\n",
                     new_ss, new_esp);

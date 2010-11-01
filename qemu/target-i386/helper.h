@@ -86,7 +86,7 @@ DEF_HELPER_3_M(ljmp_protected, void, int, tl, int, (uint64_t)-1, (uint64_t)-1, _
 DEF_HELPER_4_M(lcall_real, void, int, tl, int, int, _M_ESP, _M_ESP, 0)
 DEF_HELPER_4_M(lcall_protected, void, int, tl, int, int, (uint64_t)-1, (uint64_t)-1, _AM_EXCP)
 DEF_HELPER_1_M(iret_real, void, int, _M_ESP, _M_ESP | _M_CC_SRC, 1)
-DEF_HELPER_2_M(iret_protected, void, int, int, (uint64_t)-1, (uint64_t)-1, 5)
+DEF_HELPER_2_M(iret_protected, void, int, int, (uint64_t)-1, (uint64_t)-1, 1)
 DEF_HELPER_2_M(lret_protected, void, int, int, (uint64_t)-1, (uint64_t)-1, 1)
 DEF_HELPER_1_M(read_crN, tl, int, _RM_EXCP, _WM_EXCP, _AM_EXCP)
 DEF_HELPER_2_M(write_crN, void, int, tl, _RM_EXCP, _WM_EXCP, _AM_EXCP)
