@@ -135,7 +135,7 @@ namespace {
     cl::opt<bool>
     StateSharedMemory("state-shared-memory",
             cl::desc("Allow unimportant memory regions (like video RAM) to be shared between states"),
-            cl::init(true));
+            cl::init(false));
 
 
     cl::opt<unsigned>
