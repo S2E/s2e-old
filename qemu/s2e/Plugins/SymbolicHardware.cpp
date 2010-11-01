@@ -306,6 +306,7 @@ DeviceDescriptor *DeviceDescriptor::create(SymbolicHardware *plg, ConfigFile *cf
 IsaDeviceDescriptor::IsaDeviceDescriptor(const std::string &id, const IsaResource &res):DeviceDescriptor(id) {
     m_isaResource = res;
     m_isaInfo = NULL;
+    m_isaProperties = NULL;
 }
 
 void IsaDeviceDescriptor::initializeQemuDevice()
