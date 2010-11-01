@@ -120,7 +120,8 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         rbits.knownZeroBits = bits[0].knownZeroBits | bits[1].knownZeroBits;
 
         bits[0].ignoredBits = ignoredBits | bits[1].knownZeroBits;
-        bits[1].ignoredBits = ignoredBits | bits[0].knownZeroBits;
+        bits[1].ignoredBits = ignoredBits |
+                        (bits[0].knownZeroBits & ~bits[1].knownZeroBits);
 
         /* Check if we can replace some kids by 1 */
         for(unsigned i = 0; i < 2; ++i) {
@@ -138,7 +139,8 @@ BitfieldSimplifier::ExprBitsInfo BitfieldSimplifier::doSimplifyBits(
         rbits.knownZeroBits = bits[0].knownZeroBits & bits[1].knownZeroBits;
 
         bits[0].ignoredBits = ignoredBits | bits[1].knownOneBits;
-        bits[1].ignoredBits = ignoredBits | bits[0].knownOneBits;
+        bits[1].ignoredBits = ignoredBits |
+                        (bits[0].knownOneBits & ~bits[1].knownOneBits);
 
         /* Check if we can replace some kids by 0 */
         for(unsigned i = 0; i < 2; ++i) {
