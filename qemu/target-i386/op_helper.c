@@ -669,14 +669,26 @@ void helper_check_iol(uint32_t t0)
 
 void helper_outb(uint32_t port, uint32_t data)
 {
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
     tcg_llvm_trace_port_access(port, data, 8, 1);
     if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        if (g_s2e_concretize_io_writes) {
+            data = klee_get_value(data & 0xFF);
+        }
+
         cpu_outb(port, data & 0xff);
     }
 }
 
 target_ulong helper_inb(uint32_t port)
 {
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         char label[64];
         trace_port(label, "inb", port, env->eip);
@@ -684,6 +696,7 @@ target_ulong helper_inb(uint32_t port)
         tcg_llvm_trace_port_access(port, res, 8, 0);
         return res;
     }
+
     target_ulong res = cpu_inb(port);
     tcg_llvm_trace_port_access(port, res, 8, 0);
     return res;
@@ -691,14 +704,26 @@ target_ulong helper_inb(uint32_t port)
 
 void helper_outw(uint32_t port, uint32_t data)
 {
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
     tcg_llvm_trace_port_access(port, data, 16, 1);
     if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        if (g_s2e_concretize_io_writes) {
+            data = klee_get_value(data & 0xFFFF);
+        }
+
         cpu_outw(port, data & 0xffff);
     }
 }
 
 target_ulong helper_inw(uint32_t port)
 {
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         char label[64];
         trace_port(label, "inw", port, env->eip);
@@ -713,14 +738,26 @@ target_ulong helper_inw(uint32_t port)
 
 void helper_outl(uint32_t port, uint32_t data)
 {
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
     tcg_llvm_trace_port_access(port, data, 32, 1);
     if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        if (g_s2e_concretize_io_writes) {
+            data = klee_get_value(data);
+        }
+
         cpu_outl(port, data);
     }
 }
 
 target_ulong helper_inl(uint32_t port)
 {
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
     if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
         char label[64];
         trace_port(label, "inl", port, env->eip);

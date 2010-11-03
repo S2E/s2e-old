@@ -24,6 +24,9 @@ s2e_symbhwio_test:
     call s2e_int        ;Get symbolic value
     mov edi, 0xFEC00000 ;APIC address
     mov [edi], eax      ;Write symbolic value to APIC
+
+    mov dx, ax          ;Write to symbolic port a symbolic value
+    out dx, ax
 ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
