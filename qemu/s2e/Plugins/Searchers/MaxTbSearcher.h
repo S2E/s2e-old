@@ -26,7 +26,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Authors: Vitaly Chipounov, Volodymyr Kuznetsov
+ * Main authors: Vitaly Chipounov, Volodymyr Kuznetsov.
+ * All S2E contributors are listed in the S2E-AUTHORS file.
  *
  */
 
