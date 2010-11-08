@@ -84,7 +84,7 @@ program counter/process id:</p>
 <span class="c1">//of the called function is run.</span>
 <span class="kt">void</span> <span class="n">Example</span><span class="o">::</span><span class="n">myFunctionCallMonitor</span><span class="p">(</span><span class="n">S2EExecutionState</span><span class="o">*</span> <span class="n">state</span><span class="p">,</span> <span class="n">FunctionMonitorState</span> <span class="o">*</span><span class="n">fns</span><span class="p">)</span>
 <span class="p">{</span>
-    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getMessageStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;My function handler is called&quot;</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">end</span><span class="p">;</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getMessagesStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;My function handler is called&quot;</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">end</span><span class="p">;</span>
 
     <span class="c1">//...</span>
     <span class="c1">//Perform here any analysis or state manipulation you wish</span>
@@ -106,6 +106,9 @@ program counter/process id:</p>
     <span class="c1">//...</span>
 <span class="p">}</span>
 </pre></div>
+<p>Call/return handlers are paired: <cite>FunctionMonitor</cite> tracks stack pointers. Whenever the return instruction
+is executed and the  stack pointer corresponds to the one at the call instruction,
+the return handler tied to that call is executed.</p>
 <p>You can pass as many parameters as you wish to your call handlers. You are not limited to the default
 <cite>S2EExecutionState</cite> and <cite>FunctionMonitorState</cite>. For this, you can use the <cite>sigc++</cite>  <cite>bind</cite>  feature.</p>
 </div>

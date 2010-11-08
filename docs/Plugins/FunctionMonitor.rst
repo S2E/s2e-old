@@ -92,7 +92,7 @@ The call handler looks as follows:
     //of the called function is run.
     void Example::myFunctionCallMonitor(S2EExecutionState* state, FunctionMonitorState *fns)
     {
-        s2e()->getMessageStream() << "My function handler is called" << std::end;
+        s2e()->getMessagesStream() << "My function handler is called" << std::end;
 
         //...
         //Perform here any analysis or state manipulation you wish
@@ -117,6 +117,11 @@ Finally, the return handler looks as follows:
         //Perform here any analysis or state manipulation you wish
         //...
     }
+
+Call/return handlers are paired: `FunctionMonitor` tracks stack pointers. Whenever the return instruction
+is executed and the  stack pointer corresponds to the one at the call instruction,
+the return handler tied to that call is executed.
+
 
 You can pass as many parameters as you wish to your call handlers. You are not limited to the default
 `S2EExecutionState` and `FunctionMonitorState`. For this, you can use the `sigc++`  `bind`  feature.
