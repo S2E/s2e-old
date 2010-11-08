@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>FunctionMonitor</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="functionmonitor">
+<h1 class="title">FunctionMonitor</h1>
+
+<p>The FunctionMonitor plugin catches the call/return machine instructions and invokes the corresponding handlers.</p>
+<p>Suppose that you want to monitor the call to a function that starts at address <cite>0xC00F0120</cite> in kernel space.
+You also wish to monitor all the returns from that function.</p>
+<p>Proceed as follows:</p>
+<ol class="arabic simple">
+<li>Write a plugin starting from the <cite>Example</cite>  plugin in the S2E package.</li>
+<li>Obtain the instance of the <cite>FunctionMonitor</cite> plugin in the <cite>initialize()</cite>  method of your plugin</li>
+<li>Connect a handler H to any meaningful signal that exports an <cite>S2EExecutionState</cite>  as a parameter.
+Any signal from <cite>CorePlugin</cite>  will do. You may also want to connect to the <cite>onModuleLoad</cite> signal of
+an <cite>Interceptor</cite> plugin. This is the ideal place if you want to hook some  functions exported by a module.</li>
+<li>In your handler H, obtain the addresses of the functions you want to monitor. E.g., you can parse the symbols
+of the module, or read the addresses from the configuration file.</li>
+<li>Once you have the addresses, register the call handler.</li>
+<li>In your call handler, register the return handler, if necessary.</li>
+</ol>
+<p>The following part shows the code that implements the steps explained above.</p>
+<div class="highlight"><pre><span class="c1">//1. Write a new analysis plugin (e.g., based on the Example plugin)</span>
+<span class="kt">void</span> <span class="n">Example</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="c1">//2. Get an instance of the FunctionMonitor plugin</span>
+    <span class="n">FunctionMonitor</span> <span class="o">*</span><span class="n">m_monitor</span> <span class="o">=</span> <span class="n">static_cast</span><span class="o">&lt;</span><span class="n">FunctionMonitor</span><span class="o">*&gt;</span><span class="p">(</span><span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getPlugin</span><span class="p">(</span><span class="s">&quot;FunctionMonitor&quot;</span><span class="p">));</span>
+
+    <span class="c1">//3. Monitor the translation of each translation block</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getCorePlugin</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">onTransl</span> <span class="n">ateBlockStart</span><span class="p">.</span><span class="n">connect</span><span class="p">(</span>
+            <span class="n">sigc</span><span class="o">::</span><span class="n">mem_fun</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">Example</span><span class="o">::</span><span class="n">slotTranslateBlockStart</span><span class="p">));</span>
+
+<span class="p">}</span>
+</pre></div>
+<p>For example, to monitor the kernel-mode function located at 0xC00F012, specify, issue a call as follows:</p>
+<div class="highlight"><pre><span class="kt">void</span> <span class="n">Example</span><span class="o">::</span><span class="n">slotTranslateBlockStart</span><span class="p">(</span><span class="n">ExecutionSignal</span> <span class="o">*</span><span class="n">signal</span><span class="p">,</span>
+                                      <span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span>
+                                      <span class="n">TranslationBlock</span> <span class="o">*</span><span class="n">tb</span><span class="p">,</span>
+                                      <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">FunctionMonitor</span><span class="o">::</span><span class="n">CallSignal</span> <span class="o">*</span><span class="n">callSignal</span><span class="p">;</span>
+
+    <span class="c1">//4. Obtain the address of the function to be monitored</span>
+    <span class="c1">//The hard-coded value can be specified in the configuration file your plugin</span>
+    <span class="kt">uint64_t</span> <span class="n">functionAddress</span> <span class="o">=</span> <span class="mh">0xC00F0120</span><span class="p">;</span>
+
+    <span class="c1">//5. Register a function call monitor at program counter 0xC00F0120.</span>
+    <span class="c1">//This is done in two steps:</span>
+    <span class="c1">//  a. Register a call signal for the specified address</span>
+    <span class="c1">//  b. Connect as many signal handlers as needed</span>
+
+    <span class="c1">//a. Register a call signal for address 0xC00F0120</span>
+    <span class="n">callSignal</span> <span class="o">=</span> <span class="n">m_monitor</span><span class="o">-&gt;</span><span class="n">getCallSignal</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">functionAddress</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">);</span>
+
+    <span class="c1">//b. Register one signal handler for the function call.</span>
+    <span class="c1">//Whenever a call instruction whose target is 0xC00F0120 is detected, FunctionMonitor</span>
+    <span class="c1">//will invoke myFunctionCallMonitor</span>
+    <span class="n">callSignal</span><span class="o">-&gt;</span><span class="n">connect</span><span class="p">(</span><span class="n">sigc</span><span class="o">::</span><span class="n">mem_fun</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">Example</span><span class="o">::</span><span class="n">myFunctionCallMonitor</span><span class="p">));</span>
+<span class="p">}</span>
+</pre></div>
+<p>The <cite>FunctionMonitor</cite> plugin has one important methods that returns a call descriptor tied to the specified
+program counter/process id:</p>
+<div class="highlight"><pre><span class="n">FunctionMonitor</span><span class="o">::</span><span class="n">CallSignal</span><span class="o">*</span>
+    <span class="n">FunctionMonitor</span><span class="o">::</span><span class="n">getCallSignal</span><span class="p">(</span>
+        <span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span>
+        <span class="kt">uint64_t</span> <span class="n">eip</span><span class="p">,</span>
+        <span class="kt">uint64_t</span> <span class="n">cr3</span>
+    <span class="p">);</span>
+</pre></div>
+<ul class="simple">
+<li><cite>state</cite>: the execution state in which to register the function handler</li>
+<li><cite>eip</cite>: the virtual address of the function to monitor (-1 to monitor all function calls)</li>
+<li><cite>cr3</cite>: the process id (page directory pointer) to which <cite>eip</cite> belongs (-1 to monitor all address spaces).</li>
+</ul>
+<p>The call handler looks as follows:</p>
+<div class="highlight"><pre><span class="c1">//This handler is called after the call instruction is executed, and before the first instruction</span>
+<span class="c1">//of the called function is run.</span>
+<span class="kt">void</span> <span class="n">Example</span><span class="o">::</span><span class="n">myFunctionCallMonitor</span><span class="p">(</span><span class="n">S2EExecutionState</span><span class="o">*</span> <span class="n">state</span><span class="p">,</span> <span class="n">FunctionMonitorState</span> <span class="o">*</span><span class="n">fns</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getMessageStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;My function handler is called&quot;</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">end</span><span class="p">;</span>
+
+    <span class="c1">//...</span>
+    <span class="c1">//Perform here any analysis or state manipulation you wish</span>
+    <span class="c1">//...</span>
+
+    <span class="c1">//6. Register the return handler</span>
+    <span class="c1">//The FunctionMonitor plugin invokes this method whenever the return instruction corresponding</span>
+    <span class="c1">//to this call is executed.</span>
+    <span class="n">FUNCMON_REGISTER_RETURN</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">fns</span><span class="p">,</span> <span class="n">Example</span><span class="o">::</span><span class="n">myFunctionRetMonitor</span><span class="p">)</span>
+<span class="p">}</span>
+</pre></div>
+<p>Finally, the return handler looks as follows:</p>
+<div class="highlight"><pre><span class="c1">//FunctionMonitor invokes this handler right after the return instruction is executed, and</span>
+<span class="c1">//before the next instruction is run.</span>
+<span class="kt">void</span> <span class="n">Example</span><span class="o">::</span><span class="n">myFunctionRetMonitor</span><span class="p">(</span><span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="c1">//...</span>
+    <span class="c1">//Perform here any analysis or state manipulation you wish</span>
+    <span class="c1">//...</span>
+<span class="p">}</span>
+</pre></div>
+<p>You can pass as many parameters as you wish to your call handlers. You are not limited to the default
+<cite>S2EExecutionState</cite> and <cite>FunctionMonitorState</cite>. For this, you can use the <cite>sigc++</cite>  <cite>bind</cite>  feature.</p>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="FunctionMonitor.rst">View document source</a>.
+
+</div>
+</body>
+</html>
