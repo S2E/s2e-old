@@ -21,7 +21,7 @@ struct IoLooper {
 IoLooper*
 iolooper_new(void)
 {
-    IoLooper*  iol = qemu_malloc(sizeof(*iol));
+    IoLooper*  iol = malloc(sizeof(*iol));
     iolooper_reset(iol);
     return iol;
 }
@@ -29,7 +29,7 @@ iolooper_new(void)
 void
 iolooper_free( IoLooper*  iol )
 {
-    qemu_free(iol);
+    free(iol);
 }
 
 void
@@ -110,7 +110,7 @@ iolooper_del_write( IoLooper*  iol, int  fd )
 {
     if (fd >= 0) {
         iolooper_del_fd(iol, fd);
-        FD_CLR(fd, iol->reads);
+        FD_CLR(fd, iol->writes);
     }
 }
 

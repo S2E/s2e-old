@@ -152,6 +152,10 @@ OPT_PARAM( nand_limits, "<nlimits>", "enforce NAND/Flash read/write thresholds" 
 OPT_PARAM( memcheck, "<flags>", "enable memory access checking" )
 #endif  // CONFIG_MEMCHECK
 
+#ifdef CONFIG_STANDALONE_UI
+OPT_PARAM( list_cores, "<host>", "list running core process" )
+#endif  // CONFIG_STANDALONE_UI
+
 #undef CFG_FLAG
 #undef CFG_PARAM
 #undef OPT_FLAG
