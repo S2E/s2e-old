@@ -96,10 +96,6 @@ int main(int argc, const char** argv)
     printf("... file %s of size %d was transfered successfully\n",
             argv[1], fsize);
 
-    printf("Executing %s...\n", argv[1]);
-
-    execl(argv[1], argv[1], NULL);
-    fprintf(stderr, "execl failed\n");
-    exit(1);
+    return 0;
 }
 
