@@ -94,15 +94,8 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
 }
 
 /** Handle s2e_op instruction. Instructions:
-    0f 3f 00 01 - enable forking
-    0f 3f 00 02 - disable forking
-    0f 3f 00 03 - insert symbolic value at address pointed by eax
-                  with the size in ebx and name (asciiz) in ecx
-    0f 3f 00 06 - kill the current state
-    0f 3f 00 10 00 - print message (asciiz) pointed by eax
-    0f 3f 00 10 01 - print warning (asciiz) pointed by eax
-    0f 3f 00 50 00 - disable timer interrupt
-    0f 3f 00 50 01 - enable timer interrupt
+    0f 3f XX XX XX XX XX XX XX XX
+    XX: opcode
  */
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
