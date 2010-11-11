@@ -23,7 +23,9 @@ Any signal from <cite>CorePlugin</cite>  will do. You may also want to connect t
 an <cite>Interceptor</cite> plugin. This is the ideal place if you want to hook some  functions exported by a module.</li>
 <li>In your handler H, obtain the addresses of the functions you want to monitor. E.g., you can parse the symbols
 of the module, or read the addresses from the configuration file.</li>
-<li>Once you have the addresses, register the call handler.</li>
+<li>Once you have the addresses, register the call handler.
+Make sure you register it only once, unless you want the handler to be called multiple times
+consecutively on the same call instruction.</li>
 <li>In your call handler, register the return handler, if necessary.</li>
 </ol>
 <p>The following part shows the code that implements the steps explained above.</p>
@@ -55,6 +57,12 @@ of the module, or read the addresses from the configuration file.</li>
     <span class="c1">//This is done in two steps:</span>
     <span class="c1">//  a. Register a call signal for the specified address</span>
     <span class="c1">//  b. Connect as many signal handlers as needed</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">m_registered</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">//You must make sure that you do not register the same handler more than</span>
+        <span class="c1">//once, unless you want it to be called multiple times.</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
 
     <span class="c1">//a. Register a call signal for address 0xC00F0120</span>
     <span class="n">callSignal</span> <span class="o">=</span> <span class="n">m_monitor</span><span class="o">-&gt;</span><span class="n">getCallSignal</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">functionAddress</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">);</span>
