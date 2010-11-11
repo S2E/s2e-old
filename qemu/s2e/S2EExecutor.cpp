@@ -26,8 +26,14 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Main authors: Vitaly Chipounov, Volodymyr Kuznetsov.
- * All S2E contributors are listed in the S2E-AUTHORS file.
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov (vova.kuznetsov@epfl.ch)
+ *    Vitaly Chipounov (vitaly.chipounov@epfl.ch)
+ *
+ * Revision List:
+ *    v1.0 - Initial Release - Vitaly Chipounov, Vova Kuznetsov
+ *
+ * All contributors listed in S2E-AUTHORS.
  *
  */
 
@@ -1210,19 +1216,18 @@ void S2EExecutor::jumpToSymbolic(S2EExecutionState *state)
 
 bool S2EExecutor::needToJumpToSymbolic(S2EExecutionState *state) const
 {
-    return !(state->m_symbexEnabled && !state->isRunningConcrete());
+    return  state->isRunningConcrete();
 }
 
 void S2EExecutor::jumpToSymbolicCpp(S2EExecutionState *state)
 {
-    if (state->m_symbexEnabled && !state->isRunningConcrete()) {
+    if (!state->isRunningConcrete()) {
         return;
     }
     assert(state->isRunningConcrete());
 
     //XXX: should be per-state
     m_toRunSymbolically.insert(std::make_pair(state->getPc(), state->getPid()));
-    enableSymbolicExecution(state);
     state->m_startSymbexAtPC = state->getPc();
     // XXX: what about regs_to_env ?
     throw CpuExitException();
@@ -1949,25 +1954,6 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
     return executeFunction(state, function, args);
 }
 
-void S2EExecutor::enableSymbolicExecution(S2EExecutionState *state)
-{
-    if (state->m_symbexEnabled) {
-        return;
-    }
-    state->m_symbexEnabled = true;
-    state->forkDisabled = false;
-    m_s2e->getMessagesStream(state) << "Enabled symbex"
-            << " at pc = 0x" << (void*) state->getPc() << std::endl;
-}
-
-void S2EExecutor::disableSymbolicExecution(S2EExecutionState *state)
-{
-    state->m_symbexEnabled = false;
-    state->forkDisabled = true;
-    m_s2e->getMessagesStream(state) << "Disabled symbex"
-            << " at pc = 0x" << (void*) state->getPc() << std::endl;
-}
-
 void S2EExecutor::deleteState(klee::ExecutionState *state)
 {
     assert(dynamic_cast<S2EExecutionState*>(state));
@@ -2444,7 +2430,7 @@ void s2e_switch_to_symbolic(S2E *s2e, S2EExecutionState *state)
 {
     //XXX: For now, we assume that symbolic hardware, when triggered,
     //will want to start symbexec.
-    s2e->getExecutor()->enableSymbolicExecution(state);
+    state->enableSymbolicExecution();
     s2e->getExecutor()->jumpToSymbolic(state);
 }
 

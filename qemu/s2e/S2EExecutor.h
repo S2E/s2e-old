@@ -144,12 +144,6 @@ public:
                             const std::vector<klee::ref<klee::Expr> >& args
                                 = std::vector<klee::ref<klee::Expr> >());
 
-    /** Enable symbolic execution for a given state */
-    void enableSymbolicExecution(S2EExecutionState* state);
-
-    /** Disable symbolic execution for a given state */
-    void disableSymbolicExecution(S2EExecutionState* state);
-
     /* Functions to be called mainly from QEMU */
 
     /** Return true if hostAddr is registered as a RAM with KLEE */

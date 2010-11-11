@@ -110,6 +110,57 @@ S2EExecutionState::~S2EExecutionState()
     delete m_timersState;
 }
 
+void S2EExecutionState::enableSymbolicExecution()
+{
+    if (m_symbexEnabled) {
+        return;
+    }
+
+    m_symbexEnabled = true;
+
+    g_s2e->getMessagesStream(this) << "Enabled symbex"
+            << " at pc = 0x" << (void*) getPc() << std::endl;
+
+}
+
+void S2EExecutionState::disableSymbolicExecution()
+{
+    if (!m_symbexEnabled) {
+        return;
+    }
+
+    m_symbexEnabled = false;
+
+    g_s2e->getMessagesStream(this) << "Disabled symbex"
+            << " at pc = 0x" << (void*) getPc() << std::endl;
+
+}
+
+void S2EExecutionState::enableForking()
+{
+    if (!forkDisabled) {
+        return;
+    }
+
+    forkDisabled = false;
+
+    g_s2e->getMessagesStream(this) << "Enabled forking"
+            << " at pc = 0x" << (void*) getPc() << std::endl;
+}
+
+void S2EExecutionState::disableForking()
+{
+    if (forkDisabled) {
+        return;
+    }
+
+    forkDisabled = true;
+
+    g_s2e->getMessagesStream(this) << "Disabled forking"
+            << " at pc = 0x" << (void*) getPc() << std::endl;
+}
+
+
 void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
                         const klee::ObjectState *oldState,
                         klee::ObjectState *newState)

@@ -17,6 +17,8 @@ Proceed as follows:
 4. In your handler H, obtain the addresses of the functions you want to monitor. E.g., you can parse the symbols
    of the module, or read the addresses from the configuration file.
 5. Once you have the addresses, register the call handler.
+   Make sure you register it only once, unless you want the handler to be called multiple times
+   consecutively on the same call instruction.
 6. In your call handler, register the return handler, if necessary.
 
 The following part shows the code that implements the steps explained above.
@@ -57,6 +59,12 @@ For example, to monitor the kernel-mode function located at 0xC00F012, specify, 
         //This is done in two steps:
         //  a. Register a call signal for the specified address
         //  b. Connect as many signal handlers as needed
+
+        if (m_registered) {
+            //You must make sure that you do not register the same handler more than
+            //once, unless you want it to be called multiple times.
+            return;
+        }
 
         //a. Register a call signal for address 0xC00F0120
         callSignal = m_monitor->getCallSignal(state, functionAddress, -1);

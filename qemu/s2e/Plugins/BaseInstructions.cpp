@@ -94,8 +94,8 @@ bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
 }
 
 /** Handle s2e_op instruction. Instructions:
-    0f 3f 00 01 - enable symbolic execution
-    0f 3f 00 02 - disable symbolic execution
+    0f 3f 00 01 - enable forking
+    0f 3f 00 02 - disable forking
     0f 3f 00 03 - insert symbolic value at address pointed by eax
                   with the size in ebx and name (asciiz) in ecx
     0f 3f 00 06 - kill the current state
@@ -112,8 +112,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &v, 4);
             }
             break;
-        case 1: s2e()->getExecutor()->enableSymbolicExecution(state); break;
-        case 2: s2e()->getExecutor()->disableSymbolicExecution(state); break;
+        case 1: state->enableSymbolicExecution(); break;
+        case 2: state->disableSymbolicExecution(); break;
+
         case 3: { /* make_symbolic */
             uint32_t address, size, name; // XXX
             bool ok = true;
@@ -272,6 +273,10 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
                 break;
             }
+
+        case 9: state->enableForking(); break;
+        case 10: state->disableForking(); break;
+
 
         case 0x10: { /* print message */
             uint32_t address; //XXX

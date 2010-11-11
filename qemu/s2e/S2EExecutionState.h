@@ -71,7 +71,6 @@ protected:
 
     PluginStateMap m_PluginState;
 
-    /** True value means forking is enabled. */
     bool m_symbexEnabled;
 
     /* Internal variable - set to PC where execution should be
@@ -190,8 +189,17 @@ public:
     void dumpStack(unsigned count);
     void dumpStack(unsigned count, uint64_t sp);
 
-    /** Returns true if symbex is currently enabled for this state */
-    bool isSymbolicExecutionEnabled() const { return m_symbexEnabled; }
+    bool isForkingEnabled() const { return !forkDisabled; }
+    void enableForking();
+    void disableForking();
+
+
+    bool isSymbolicExecutionEnabled() const {
+        return m_symbexEnabled;
+    }
+
+    void enableSymbolicExecution();
+    void disableSymbolicExecution();
 
     /** Read value from memory, returning false if the value is symbolic */
     bool readMemoryConcrete(uint64_t address, void *buf, uint64_t size,

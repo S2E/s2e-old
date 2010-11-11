@@ -71,6 +71,38 @@ dd 0x0
 leave
 ret
 
+s2e_fork_enable:
+push ebp
+mov ebp, esp
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x09 ; Enable forking
+db 0x00
+db 0x00
+dd 0x0
+
+leave
+ret
+
+s2e_fork_disable:
+push ebp
+mov ebp, esp
+
+db 0x0f
+db 0x3f ; S2EOP
+
+db 0x00 ; Built-in instructions
+db 0x0a ; Disable forking
+db 0x00
+db 0x00
+dd 0x0
+
+leave
+ret
+
 s2e_make_symbolic:
 push ebp
 mov ebp, esp
