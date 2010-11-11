@@ -224,6 +224,7 @@ void NdisHandlers::onModuleLoad(
         m_crashdumper->generateDump(state, "NDIS-DriverEntry-");
     }
 
+    state->enableSymbolicExecution();
 }
 
 

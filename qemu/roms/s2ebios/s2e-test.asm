@@ -4,7 +4,8 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_symbhwio_test
+    call s2e_fork_test
+    ;call s2e_symbhwio_test
     ;call s2e_jmptbl_test
     ;call test_ndis
     ;jmp s2e_test
@@ -27,6 +28,37 @@ s2e_symbhwio_test:
 
     mov dx, ax          ;Write to symbolic port a symbolic value
     out dx, ax
+ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Testing enable/disable forking
+
+s2e_fork_test:
+    call s2e_enable
+    call s2e_fork_enable
+
+    call s2e_int
+    cmp eax, 0
+    ja sft1
+
+    nop
+
+sft1:
+
+    call s2e_fork_disable
+    call s2e_int
+    cmp eax, 0
+    ja sft2
+
+    nop
+
+sft2:
+
+    push 0
+    push 0
+    call s2e_kill_state
+    add esp, 8
+
 ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
