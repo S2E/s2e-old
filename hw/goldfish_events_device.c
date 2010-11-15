@@ -30,6 +30,17 @@ enum {
     PAGE_ABSDATA    = 0x20000 | EV_ABS,
 };
 
+/* These corresponds to the state of the driver.
+ * Unfortunately, we have to buffer events coming
+ * from the UI, since the kernel driver is not
+ * capable of receiving them until XXXXXX
+ */
+enum {
+    STATE_INIT = 0,  /* The device is initialized */
+    STATE_BUFFERED,  /* Events have been buffered, but no IRQ raised yet */
+    STATE_LIVE       /* Events can be sent directly to the kernel */
+};
+
 /* NOTE: The ev_bits arrays are used to indicate to the kernel
  *       which events can be sent by the emulated hardware.
  */
@@ -44,6 +55,7 @@ typedef struct
     unsigned events[MAX_EVENTS];
     unsigned first;
     unsigned last;
+    unsigned state;
 
     const char *name;
 
@@ -59,7 +71,7 @@ typedef struct
 /* modify this each time you change the events_device structure. you
  * will also need to upadte events_state_load and events_state_save
  */
-#define  EVENTS_STATE_SAVE_VERSION  1
+#define  EVENTS_STATE_SAVE_VERSION  2
 
 #undef  QFIELD_STRUCT
 #define QFIELD_STRUCT  events_state
@@ -70,6 +82,7 @@ QFIELD_BEGIN(events_state_fields)
     QFIELD_BUFFER(events),
     QFIELD_INT32(first),
     QFIELD_INT32(last),
+    QFIELD_INT32(state),
 QFIELD_END
 
 static void  events_state_save(QEMUFile*  f, void*  opaque)
@@ -98,13 +111,17 @@ static void enqueue_event(events_state *s, unsigned int type, unsigned int code,
     if (enqueued < 0)
         enqueued += MAX_EVENTS;
 
-    if (enqueued + 3 >= MAX_EVENTS-1) {
+    if (enqueued + 3 > MAX_EVENTS) {
         fprintf(stderr, "##KBD: Full queue, lose event\n");
         return;
     }
 
     if(s->first == s->last) {
-        qemu_irq_raise(s->irq);
+	if (s->state == STATE_LIVE)
+	  qemu_irq_raise(s->irq);
+	else {
+	  s->state = STATE_BUFFERED;
+	}
     }
 
     //fprintf(stderr, "##KBD: type=%d code=%d value=%d\n", type, code, value);
@@ -158,8 +175,9 @@ static int get_page_data(events_state *s, int offset)
         return s->name[offset];
     if (page >= PAGE_EVBITS && page <= PAGE_EVBITS + EV_MAX)
         return s->ev_bits[page - PAGE_EVBITS].bits[offset];
-    if (page == PAGE_ABSDATA)
+    if (page == PAGE_ABSDATA) {
         return s->abs_info[offset / sizeof(s->abs_info[0])];
+    }
     return 0;
 }
 
@@ -167,6 +185,19 @@ static uint32_t events_read(void *x, target_phys_addr_t off)
 {
     events_state *s = (events_state *) x;
     int offset = off; // - s->base;
+
+    /* This gross hack below is used to ensure that we
+     * only raise the IRQ when the kernel driver is
+     * properly ready! If done before this, the driver
+     * becomes confused and ignores all input events
+     * as soon as one was buffered!
+     */
+    if (offset == REG_LEN && s->page == PAGE_ABSDATA) {
+	if (s->state == STATE_BUFFERED)
+	  qemu_irq_raise(s->irq);
+	s->state = STATE_LIVE;
+    }
+
     if (offset == REG_READ)
         return dequeue_event(s);
     else if (offset == REG_LEN)
@@ -388,15 +419,19 @@ void events_dev_init(uint32_t base, qemu_irq irq)
 
     qemu_add_kbd_event_handler(events_put_keycode, s);
     qemu_add_mouse_event_handler(events_put_mouse, s, 1, "goldfish-events");
-    user_event_register_generic(s, events_put_generic);
 
     s->base = base;
     s->irq = irq;
 
     s->first = 0;
     s->last = 0;
+    s->state = STATE_INIT;
+
+    /* This function migh fire buffered events to the device, so
+     * ensure that it is called after initialization is complete
+     */
+    user_event_register_generic(s, events_put_generic);
 
     register_savevm( "events_state", 0, EVENTS_STATE_SAVE_VERSION,
                       events_state_save, events_state_load, s );
 }
-
