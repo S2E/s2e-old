@@ -8,6 +8,7 @@
 #  include <sys/types.h>
 #  include <sys/select.h>
 #endif
+#include "sockets.h"
 
 struct IoLooper {
     fd_set   reads[1];
