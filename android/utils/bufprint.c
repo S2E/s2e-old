@@ -215,7 +215,10 @@ bufprint_temp_dir(char*  buff, char*  end)
 
     return  bufprint(buff, end, "%s", path);
 #else
-    const char*  tmppath = "/tmp/android";
+    const char*  tmppath = getenv("ANDROID_TMP");
+    if (!tmppath) {
+        tmppath = "/tmp/android";
+    }
     mkdir(tmppath, 0744);
     return  bufprint(buff, end, "%s", tmppath );
 #endif
