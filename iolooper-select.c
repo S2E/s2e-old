@@ -166,6 +166,10 @@ iolooper_wait( IoLooper*  iol, int64_t  duration )
         iol->writes_result[0] = iol->writes[0];
 
         ret = select( count, iol->reads_result, iol->writes_result, &errs, tm);
+        if (ret == 0) {
+            // Indicates timeout
+            errno = ETIMEDOUT;
+        }
     } while (ret < 0 && errno == EINTR);
 
     return ret;
@@ -188,4 +192,19 @@ int
 iolooper_has_operations( IoLooper* iol )
 {
     return iolooper_fd_count(iol) > 0;
+}
+
+int64_t
+iolooper_now(void)
+{
+    struct timeval time_now;
+    return gettimeofday(&time_now, NULL) ? -1 : (int64_t)time_now.tv_sec * 1000LL +
+                                                time_now.tv_usec / 1000;
+}
+
+int
+iolooper_wait_absolute(IoLooper* iol, int64_t deadline)
+{
+    int64_t timeout = deadline - iolooper_now();
+    return (timeout >= 0) ? iolooper_wait(iol, timeout) : 0;
 }
