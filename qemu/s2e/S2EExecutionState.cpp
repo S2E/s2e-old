@@ -75,7 +75,7 @@ int S2EExecutionState::s_lastStateID = 0;
 
 S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         klee::ExecutionState(kf), m_stateID(s_lastStateID++),
-        m_symbexEnabled(false), m_startSymbexAtPC((uint64_t) -1),
+        m_symbexEnabled(true), m_startSymbexAtPC((uint64_t) -1),
         m_active(true), m_runningConcrete(true),
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL),
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),

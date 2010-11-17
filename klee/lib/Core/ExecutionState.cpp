@@ -72,7 +72,7 @@ ExecutionState::ExecutionState(KFunction *kf)
     addressSpace(this),
     instsSinceCovNew(0),
     coveredNew(false),
-    forkDisabled(false),
+    forkDisabled(true),
     ptreeNode(0) {
   pushFrame(0, kf);
 }
