@@ -59,6 +59,8 @@ namespace plugins {
         std::string annotation;
         unsigned invocationCount, returnCount;
 
+        bool beforeInstruction;
+
         AnnotationCfgEntry() {
             isCallAnnotation = true;
             address = 0;
@@ -102,7 +104,8 @@ private:
     //To instrument specific instructions in the code
     bool m_translationEventConnected;
     TranslationBlock *m_tb;
-    sigc::connection m_tbConnection;
+    sigc::connection m_tbConnectionStart;
+    sigc::connection m_tbConnectionEnd;
 
 
     bool initSection(const std::string &entry, const std::string &cfgname);
@@ -130,11 +133,23 @@ private:
             TranslationBlock *tb,
             uint64_t pc);
 
+    void onTranslateInstructionStart(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            TranslationBlock *tb,
+            uint64_t pc);
+
     void onTranslateInstructionEnd(
             ExecutionSignal *signal,
             S2EExecutionState* state,
             TranslationBlock *tb,
             uint64_t pc);
+
+    void onTranslateInstruction(
+            ExecutionSignal *signal,
+            S2EExecutionState* state,
+            TranslationBlock *tb,
+            uint64_t pc, bool isStart);
 
     void onModuleTranslateBlockEnd(
             ExecutionSignal *signal,

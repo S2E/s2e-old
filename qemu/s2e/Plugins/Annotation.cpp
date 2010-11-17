@@ -143,6 +143,8 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
             return false;
         }else {
             e.isCallAnnotation = false;
+            //Wheter to call the annotation before or after the instruction
+            e.beforeInstruction = cfg->getBool(entry + ".beforeInstruction", false, &ok);
         }
     }else {
         e.isCallAnnotation = true;
@@ -211,27 +213,32 @@ void Annotation::onTranslateBlockStart(
         uint64_t pc)
 {
     if (m_tb) {
-        m_tbConnection.disconnect();
+        m_tbConnectionStart.disconnect();
+        m_tbConnectionEnd.disconnect();
     }
     m_tb = tb;
 
     CorePlugin *plg = s2e()->getCorePlugin();
-    m_tbConnection = plg->onTranslateInstructionEnd.connect(
+    m_tbConnectionStart = plg->onTranslateInstructionStart.connect(
+            sigc::mem_fun(*this, &Annotation::onTranslateInstructionStart)
+    );
+
+    m_tbConnectionEnd = plg->onTranslateInstructionEnd.connect(
             sigc::mem_fun(*this, &Annotation::onTranslateInstructionEnd)
     );
 }
 
-
-void Annotation::onTranslateInstructionEnd(
+void Annotation::onTranslateInstruction(
         ExecutionSignal *signal,
         S2EExecutionState* state,
         TranslationBlock *tb,
-        uint64_t pc)
+        uint64_t pc, bool isStart)
 {
     if (tb != m_tb) {
         //We've been suddenly interrupted by some other module
         m_tb = NULL;
-        m_tbConnection.disconnect();
+        m_tbConnectionStart.disconnect();
+        m_tbConnectionEnd.disconnect();
         return;
     }
 
@@ -250,11 +257,36 @@ void Annotation::onTranslateInstructionEnd(
         return;
     }
 
+    if (isStart && !e.beforeInstruction) {
+        return;
+    }
+
+    if (!isStart && e.beforeInstruction) {
+        return;
+    }
 
     signal->connect(
         sigc::mem_fun(*this, &Annotation::onInstruction)
     );
+}
 
+void Annotation::onTranslateInstructionStart(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        TranslationBlock *tb,
+        uint64_t pc)
+{
+    onTranslateInstruction(signal, state, tb, pc, true);
+}
+
+
+void Annotation::onTranslateInstructionEnd(
+        ExecutionSignal *signal,
+        S2EExecutionState* state,
+        TranslationBlock *tb,
+        uint64_t pc)
+{
+    onTranslateInstruction(signal, state, tb, pc, false);
 }
 
 void Annotation::onModuleTranslateBlockEnd(
@@ -271,7 +303,8 @@ void Annotation::onModuleTranslateBlockEnd(
     //Done translating the blocks, no need to instrument anymore.
     if (m_tb) {
         m_tb = NULL;
-        m_tbConnection.disconnect();
+        m_tbConnectionStart.disconnect();
+        m_tbConnectionEnd.disconnect();
     }
 }
 
@@ -328,6 +361,8 @@ void Annotation::onInstruction(S2EExecutionState *state, uint64_t pc)
     if (!md) {
         return;
     }
+
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
 
     AnnotationCfgEntry e;
     e.isCallAnnotation = false;
