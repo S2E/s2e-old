@@ -254,7 +254,7 @@ skin_plate_free( SkinPlate*  p )
     skin_region_reset( p->any.region );
 
     if (p->any.parent) {
-        areflist_del( p->any.parent->group.children, p );
+        areflist_delFirst( p->any.parent->group.children, p );
     }
 }
 
@@ -362,7 +362,7 @@ skin_viewport_free( SkinViewport*  v )
 {
     SkinPlate*  space = v->space;
     if (space != NULL) {
-        areflist_del( space->space.viewports, v );
+        areflist_delFirst( space->space.viewports, v );
         v->space = NULL;
     }
     skin_region_reset( v->update );

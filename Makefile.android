@@ -754,18 +754,22 @@ UI_AND_CORE_SOURCES = \
                       sockets.c \
                       android/keycode-array.c \
                       android/charmap.c \
+                      android/utils/assert.c \
                       android/utils/bufprint.c \
                       android/utils/debug.c \
-                      android/utils/path.c \
                       android/utils/dirscanner.c \
                       android/utils/filelock.c \
+                      android/utils/mapfile.c \
                       android/utils/misc.c \
+                      android/utils/panic.c \
+                      android/utils/path.c \
                       android/utils/reflist.c \
+                      android/utils/refset.c \
                       android/utils/stralloc.c \
                       android/utils/system.c \
                       android/utils/tempfile.c \
                       android/utils/timezone.c \
-                      android/utils/mapfile.c \
+                      android/utils/vector.c \
                       android/avd/hw-config.c \
                       android/avd/info.c \
                       android/utils/ini.c \
