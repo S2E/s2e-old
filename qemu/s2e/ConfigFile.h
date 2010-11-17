@@ -283,6 +283,7 @@ public:
   int writeParameter(lua_State *L);
   int writeMemorySymb(lua_State *L);
   int readMemory(lua_State *L);
+  int writeMemory(lua_State *L);
 };
 
 

@@ -384,6 +384,7 @@ Lunar<S2ELUAExecutionState>::RegType S2ELUAExecutionState::methods[] = {
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeParameter),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeMemorySymb),
   LUNAR_DECLARE_METHOD(S2ELUAExecutionState, readMemory),
+  LUNAR_DECLARE_METHOD(S2ELUAExecutionState, writeMemory),
   {0,0}
 };
 
@@ -456,6 +457,24 @@ int S2ELUAExecutionState::readMemory(lua_State *L)
     m_state->readMemoryConcrete(address, &ret, size);
     lua_pushnumber(L, ret);        /* first result */
     return 1;
+}
+
+int S2ELUAExecutionState::writeMemory(lua_State *L)
+{
+    uint32_t address = luaL_checkint(L, 1);
+    uint32_t size = luaL_checkint(L, 2);
+    uint32_t value = luaL_checkint(L, 3);
+
+    if (size > sizeof(value)) {
+        g_s2e->getDebugStream() << "writeMemory: size is too big" << std::hex << size;
+    }
+
+    if (!m_state->writeMemoryConcrete(address, &value, size)) {
+        g_s2e->getDebugStream() << "writeMemory: Could not write to memory at address 0x" << std::hex << address;
+        return 0;
+    }
+
+    return 0;
 }
 
 int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
