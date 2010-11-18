@@ -746,124 +746,92 @@ _adjustPartitionSize( const char*  description,
 // Socket timeout in millisec (set to half a second)
 #define CORE_PORT_TIMEOUT_MS    500
 
-/* Checks if emulator core runs at the end of the given socket.
- * Param:
- *  sockaddr Socket address addressing emulator's console.
- * Return:
- *  0 in case that core has been found for the socket, or -1 otherwise.
- */
-static int
-check_for_running_core(SockAddress* sockaddr)
+#include "android/async-console.h"
+
+typedef struct {
+    LoopIo                 io[1];
+    int                    port;
+    int                    ok;
+    AsyncConsoleConnector  connector[1];
+} CoreConsole;
+
+static void
+coreconsole_io_func(void* opaque, int fd, unsigned events)
 {
-    IoLooper* looper = iolooper_new();
-    int connect_status;
-    char buf[512];
-    int ret = -1;
-
-    int fd = socket_create_inet(SOCKET_STREAM);
-    if (fd < 0) {
-        return -1;
+    CoreConsole* cc = opaque;
+    AsyncStatus  status;
+    status = asyncConsoleConnector_run(cc->connector, cc->io);
+    if (status == ASYNC_COMPLETE) {
+        cc->ok = 1;
     }
-
-    socket_set_xreuseaddr(fd);
-    socket_set_nonblock(fd);
-    connect_status = socket_connect(fd, sockaddr);
-    if (connect_status < 0 && errno == EINPROGRESS) {
-        // Wait till connection occurs.
-        iolooper_add_write(looper, fd);
-        connect_status = iolooper_wait(looper, CORE_PORT_TIMEOUT_MS);
-        if (connect_status > 0) {
-            iolooper_del_write(looper, fd);
-        } else {
-            connect_status = -1;
-        }
-    }
-    if (connect_status >= 0) {
-        iolooper_add_read(looper, fd);
-        // Read the handshake message from the core's console.
-        if (iolooper_wait(looper, CORE_PORT_TIMEOUT_MS) > 0 &&
-            iolooper_is_read(looper, fd)) {
-            int read_bytes = read(fd, buf, sizeof(buf));
-            // Check for the console handshake.
-            if (read_bytes > 15 && !strncmp(buf, "Android Console", 15)) {
-                ret = 0;
-            }
-        }
-    }
-
-    socket_close( fd );
-    iolooper_free(looper);
-    return ret;
 }
 
-/* List emulator core processes running on the given machine.
- * This routine is called from main() if -list-cores parameter is set in the
- * command line.
- * Param:
- *  host Value passed with -list-core parameter. Must be either "localhost", or
- *  an IP address of a machine where core processes must be enumerated.
- */
+static void
+coreconsole_init(CoreConsole* cc, const SockAddress* address, Looper* looper)
+{
+    int fd = socket_create_inet(SOCKET_STREAM);
+    AsyncStatus status;
+    cc->port = sock_address_get_port(address);
+    cc->ok   = 0;
+    loopIo_init(cc->io, looper, fd, coreconsole_io_func, cc);
+    if (fd >= 0) {
+        status = asyncConsoleConnector_connect(cc->connector, address, cc->io);
+        if (status == ASYNC_ERROR) {
+            cc->ok = 0;
+        }
+    }
+}
+
+static void
+coreconsole_done(CoreConsole* cc)
+{
+    socket_close(cc->io->fd);
+    loopIo_done(cc->io);
+}
+
 static void
 list_running_cores(const char* host)
 {
-    int iter;
-    int port_iter;
-    int found_cores = 0;
+    Looper*         looper;
+    CoreConsole     cores[MAX_CORE_PROCS];
+    SockAddress     address;
+    int             nn, found;
 
-    // Convert host name into socket address list.
-    SockAddress** sockaddr_list = sock_address_list_create(host, NULL, 0);
-    if (sockaddr_list == NULL) {
-        derror("Unable to resolve hostname %s: %s\n", host, errno_str);
+    if (sock_address_init_resolve(&address, host, CORE_BASE_PORT, 0) < 0) {
+        derror("Unable to resolve hostname %s: %s", host, errno_str);
         return;
     }
 
-    /* Since core's console is not a UNIX socket, lets make sure that UNIX
-     * socket is not the only family in the list. */
-    for (iter = 0; sockaddr_list[iter] != NULL; iter++) {
-        if (sock_address_get_family(sockaddr_list[iter]) != SOCKET_UNIX) {
-            break;
-        }
-    }
-    if (sockaddr_list[iter] == NULL) {
-        derror("Unix socket is an invalid parameter for -list-cores option.\n");
-        sock_address_list_free(sockaddr_list);
-        return;
+    looper = looper_newGeneric();
+
+    for (nn = 0; nn < MAX_CORE_PROCS; nn++) {
+        int port = CORE_BASE_PORT + nn*2;
+        sock_address_set_port(&address, port);
+        coreconsole_init(&cores[nn], &address, looper);
     }
 
-    /* List running core processes. To enum core processes we will loop
-     * through socket ports 5554-5584, where we assume that successful
-     * conection to a socket means that there is a core process running
-     * at the other end of that socket. In order to make sure that it's
-     * emulator console at the other end of that socket, we will read from
-     * the socket, expecting "Android Console" string at the beginning of
-     * the data read from the socket. */
-    for (port_iter = 0; port_iter < MAX_CORE_PROCS; port_iter++) {
-        int port_num = CORE_BASE_PORT + port_iter * 2;
-        for (iter = 0; sockaddr_list[iter] != NULL; iter++) {
-            if (sock_address_get_family(sockaddr_list[iter]) == SOCKET_UNIX) {
-                continue;
+    looper_runWithTimeout(looper, CORE_PORT_TIMEOUT_MS*2);
+
+    found = 0;
+    for (nn = 0; nn < MAX_CORE_PROCS; nn++) {
+        int port = CORE_BASE_PORT + nn*2;
+        if (cores[nn].ok) {
+            if (found == 0) {
+                fprintf(stdout, "Running emulator core processes:\n");
             }
-            sock_address_set_port(sockaddr_list[iter], port_num);
-            if (!check_for_running_core(sockaddr_list[iter])) {
-                // This is a core process at the other end of the socket.
-                found_cores++;
-                if (found_cores == 1) {
-                    fprintf(stdout, "Running emulator core processes:\n");
-                }
-                fprintf(stdout, "Emulator console port %d\n", port_num);
-            }
-            // Go through this loop just once, for a non-Unix socket address.
-            break;
+            fprintf(stdout, "Emulator console port %d\n", port);
+            found++;
         }
+        coreconsole_done(&cores[nn]);
     }
+    looper_free(looper);
 
-    sock_address_list_free(sockaddr_list);
-
-    if (!found_cores) {
+    if (found == 0) {
        fprintf(stdout, "There were no running emulator core processes found on %s.\n",
                host);
     }
 }
+
 #endif  // CONFIG_STANDALONE_UI
 
 int main(int argc, char **argv)
@@ -955,9 +923,7 @@ int main(int argc, char **argv)
 #ifdef CONFIG_STANDALONE_UI
     // Lets see if user just wants to list core process.
     if (opts->list_cores) {
-        fprintf(stdout, "Enumerating running core processes.\n"
-                        "This make take up to %d seconds...\n\n",
-                        (MAX_CORE_PROCS * CORE_PORT_TIMEOUT_MS) / 1000 + 1);
+        fprintf(stdout, "Enumerating running core processes.\n");
         list_running_cores(opts->list_cores);
         exit(0);
     }
