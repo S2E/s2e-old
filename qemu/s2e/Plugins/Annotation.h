@@ -60,12 +60,15 @@ namespace plugins {
         unsigned invocationCount, returnCount;
 
         bool beforeInstruction;
+        bool switchInstructionToSymbolic;
 
         AnnotationCfgEntry() {
             isCallAnnotation = true;
             address = 0;
             paramCount = 0;
             isActive = false;
+            beforeInstruction = false;
+            switchInstructionToSymbolic = false;
         }
 
         bool operator()(const AnnotationCfgEntry *a1, const AnnotationCfgEntry *a2) const {

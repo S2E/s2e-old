@@ -135,6 +135,8 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
     }
 
 
+    e.beforeInstruction=false;
+    e.switchInstructionToSymbolic=false;
     e.annotation = cfg->getString(entry + ".callAnnotation", "", &ok);
     if (!ok || e.annotation=="") {
         e.annotation = cfg->getString(entry + ".instructionAnnotation", "", &ok);
@@ -145,6 +147,7 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
             e.isCallAnnotation = false;
             //Wheter to call the annotation before or after the instruction
             e.beforeInstruction = cfg->getBool(entry + ".beforeInstruction", false, &ok);
+            e.switchInstructionToSymbolic = cfg->getBool(entry + ".switchInstructionToSymbolic", false, &ok);
         }
     }else {
         e.isCallAnnotation = true;
@@ -253,17 +256,22 @@ void Annotation::onTranslateInstruction(
     e.module = *m_moduleExecutionDetector->getModuleId(*md);
     e.address = md->ToNativeBase(pc);
 
-    if (m_entries.find(&e) == m_entries.end()) {
+    CfgEntries::const_iterator it = m_entries.find(&e);
+
+    if (it == m_entries.end()) {
         return;
     }
 
-    if (isStart && !e.beforeInstruction) {
+    if (isStart && !(*it)->beforeInstruction) {
         return;
     }
 
-    if (!isStart && e.beforeInstruction) {
+    if (!isStart && (*it)->beforeInstruction) {
         return;
     }
+
+    s2e()->getDebugStream() << "Annotation: Instrumenting instruction before=" << isStart <<
+   " " << (*it)->beforeInstruction << " with annotation " << (*it)->cfgname << std::endl;
 
     signal->connect(
         sigc::mem_fun(*this, &Annotation::onInstruction)
@@ -362,8 +370,6 @@ void Annotation::onInstruction(S2EExecutionState *state, uint64_t pc)
         return;
     }
 
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
-
     AnnotationCfgEntry e;
     e.isCallAnnotation = false;
     e.module = *m_moduleExecutionDetector->getModuleId(*md);
@@ -378,6 +384,11 @@ void Annotation::onInstruction(S2EExecutionState *state, uint64_t pc)
     if (!(*it)->isActive) {
         return;
     }
+
+    if ((*it)->switchInstructionToSymbolic) {
+       s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    }
+
 
     s2e()->getDebugStream() << "Annotation: Invoking instruction annotation " << (*it)->cfgname <<
             " at 0x" << std::hex << e.address << std::endl;
