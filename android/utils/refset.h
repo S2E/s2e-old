@@ -20,6 +20,7 @@
 
 typedef struct {
     AVECTOR_DECL(void*,buckets);
+    int iteration;
 } ARefSet;
 
 AINLINED void
@@ -38,6 +39,7 @@ AINLINED void
 arefSet_clear( ARefSet*  s )
 {
     AVECTOR_CLEAR(s,buckets);
+    s->iteration = 0;
 }
 
 AINLINED int
@@ -50,19 +52,25 @@ extern ABool  arefSet_has( ARefSet*  s, void*  item );
 extern void   arefSet_add( ARefSet*  s, void*  item );
 extern void   arefSet_del( ARefSet*  s, void*  item );
 
+extern void   _arefSet_removeDeferred( ARefSet* s );
+
 #define  AREFSET_DELETED ((void*)~(size_t)0)
 
 #define  AREFSET_FOREACH(_set,_item,_statement) \
     do { \
         int  __refset_nn = 0; \
         int  __refset_max = (_set)->max_buckets; \
+        (_set)->iteration += 2; \
         for ( ; __refset_nn < __refset_max; __refset_nn++ ) { \
             void*  __refset_item = (_set)->buckets[__refset_nn]; \
             if (__refset_item == NULL || __refset_item == AREFSET_DELETED) \
                 continue; \
-            void* _item = __refset_item; \
+            _item = __refset_item; \
             _statement; \
         } \
+        (_set)->iteration -= 2; \
+        if ((_set)->iteration == 1) \
+            _arefSet_removeDeferred(_set); \
     } while (0)
 
 #endif /* _ANDROID_UTILS_REFSET_H */

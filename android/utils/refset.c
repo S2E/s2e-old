@@ -62,9 +62,7 @@ _arefSet_lookupInsert( ARefSet*  s, void*  item)
         } else if (*pnode == item)
             return pnode;
 
-        index += AREFSET_STEP;
-        if (index >= s->max_buckets)
-            index -= s->max_buckets;
+        index = (index + AREFSET_STEP) & (s->max_buckets-1);
     }
 }
 
@@ -87,7 +85,7 @@ static void
 _arefSet_resize( ARefSet*  s, unsigned  newSize )
 {
     ARefSet   newSet;
-    unsigned  nn;
+    unsigned  nn, count = s->num_buckets;
 
     AVECTOR_INIT_ALLOC(&newSet,buckets, newSize);
 
@@ -101,6 +99,7 @@ _arefSet_resize( ARefSet*  s, unsigned  newSize )
 
     AVECTOR_DONE(s,buckets);
     s->buckets     = newSet.buckets;
+    s->num_buckets = count;
     s->max_buckets = newSet.max_buckets;
 }
 
@@ -112,6 +111,9 @@ arefSet_add( ARefSet*  s, void*  item )
     if (item == NULL)
         return;
 
+    /* You can't add items to a set during iteration! */
+    AASSERT(s->iteration == 0);
+
     if (s->max_buckets == 0)
         AVECTOR_INIT_ALLOC(s,buckets,4);
 
@@ -122,8 +124,10 @@ arefSet_add( ARefSet*  s, void*  item )
     *lookup = item;
     s->num_buckets += 1;
 
-    if (s->num_buckets > s->max_buckets*0.85)
-        _arefSet_resize(s, s->max_buckets*2);
+    if (s->iteration == 0) {
+        if (s->num_buckets > s->max_buckets*0.85)
+            _arefSet_resize(s, s->max_buckets*2);
+    }
 }
 
 extern void
@@ -138,9 +142,37 @@ arefSet_del( ARefSet*  s, void*  item )
     if (*lookup != item)
         return;
 
-    *lookup = AREFSET_DELETED;
-    s->num_buckets -= 1;
-
-    if (s->num_buckets < s->max_buckets*0.25)
-        _arefSet_resize(s, s->max_buckets/2);
+    if (s->iteration == 0) {
+        /* direct deletion */
+        *lookup = NULL;
+        s->num_buckets -= 1;
+        if (s->num_buckets < s->max_buckets*0.25)
+            _arefSet_resize(s, s->max_buckets/2);
+    } else {
+        /* deferred deletion */
+        *lookup = AREFSET_DELETED;
+        s->num_buckets -= 1;
+        s->iteration   |= 1;
+    }
 }
+
+void
+_arefSet_removeDeferred( ARefSet*  s )
+{
+    unsigned nn, newSize;
+
+    for (nn = 0; nn < s->max_buckets; nn++) {
+        if (s->buckets[nn] == AREFSET_DELETED) {
+            s->buckets[nn]  = NULL;
+        }
+    }
+    s->iteration = 0;
+
+    newSize = s->max_buckets;
+    while (s->num_buckets < newSize*0.25)
+        newSize /= 2;
+
+    if (newSize != s->max_buckets)
+        _arefSet_resize(s, newSize);
+}
+
