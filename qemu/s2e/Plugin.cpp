@@ -43,7 +43,7 @@
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
-//#include <s2e/Plugins/CodeSelector.h>
+#include <s2e/Plugins/CodeSelector.h>
 #include <s2e/Plugins/BaseInstructions.h>
 #include <s2e/Plugins/BranchCoverage.h>
 
@@ -103,7 +103,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::BlueScreenInterceptor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsCrashDumpGenerator);
     __S2E_REGISTER_PLUGIN(plugins::ModuleExecutionDetector);
-    //__S2E_REGISTER_PLUGIN(plugins::CodeSelector);
+    __S2E_REGISTER_PLUGIN(plugins::CodeSelector);
     __S2E_REGISTER_PLUGIN(plugins::BaseInstructions);
     __S2E_REGISTER_PLUGIN(plugins::BranchCoverage);
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);

@@ -50,7 +50,29 @@
 namespace s2e {
 namespace plugins {
 
+class CodeSelector:public Plugin
+{
+    S2E_PLUGIN
+public:
+    typedef std::set<std::string> Modules;
 
+private:
+    ModuleExecutionDetector *m_ExecutionDetector;
+    Modules m_interceptedModules;
+    void onModuleTransition(
+        S2EExecutionState *state,
+        const ModuleDescriptor &prevModule,
+        const ModuleDescriptor &currentModule
+     );
+
+public:
+    CodeSelector(S2E* s2e);
+
+    virtual ~CodeSelector();
+    void initialize();
+};
+
+#if 0
 class CodeSelDesc
 {
     S2E *m_s2e;
@@ -211,7 +233,11 @@ public:
     friend class CodeSelector;
 };
 
+#endif
+
+
 }
 }
+
 
 #endif

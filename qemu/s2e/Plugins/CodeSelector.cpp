@@ -54,6 +54,73 @@ S2E_DEFINE_PLUGIN(CodeSelector,
 
 
 CodeSelector::CodeSelector(S2E *s2e) : Plugin(s2e) {
+
+}
+
+
+CodeSelector::~CodeSelector()
+{
+
+}
+
+void CodeSelector::initialize()
+{
+    m_ExecutionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    assert(m_ExecutionDetector);
+
+    ConfigFile *cfg = s2e()->getConfig();
+
+    bool ok = false;
+
+    //Fetch the list of modules where forking should be enabled
+    ConfigFile::string_list moduleList =
+            cfg->getStringList(getConfigKey() + ".modules", ConfigFile::string_list(), &ok);
+
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specify a list of modules in " <<
+                getConfigKey() + ".modules" << std::endl;
+        exit(-1);
+    }
+
+    foreach2(it, moduleList.begin(), moduleList.end()) {
+        if (m_ExecutionDetector->isModuleConfigured(*it)) {
+            m_interceptedModules.insert(*it);
+        }else {
+            s2e()->getWarningsStream() << "CodeSelector: " <<
+                    "Module " << *it << " is not configured" << std::endl;
+            exit(-1);
+        }
+    }
+
+    //Attach the signals
+    m_ExecutionDetector->onModuleTransition.connect(
+        sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
+
+}
+
+void CodeSelector::onModuleTransition(
+        S2EExecutionState *state,
+        const ModuleDescriptor &prevModule,
+        const ModuleDescriptor &currentModule
+        )
+{
+    if (!&currentModule) {
+        state->disableForking();
+        return;
+    }
+
+    if (m_interceptedModules.find(currentModule.Name) ==
+        m_interceptedModules.end()) {
+        state->disableForking();
+    }
+
+    state->enableForking();
+}
+
+
+#if 0
+
+CodeSelector::CodeSelector(S2E *s2e) : Plugin(s2e) {
     m_Tb = NULL;
 }
 
@@ -598,3 +665,5 @@ bool CodeSelDesc::initialize(const std::string &key)
 
      return true;
 }
+
+#endif
