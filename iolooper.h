@@ -16,6 +16,12 @@ void       iolooper_add_write( IoLooper*  iol, int  fd );
 void       iolooper_del_read( IoLooper*  iol, int  fd );
 void       iolooper_del_write( IoLooper*  iol, int  fd );
 
+enum {
+    IOLOOPER_READ = (1<<0),
+    IOLOOPER_WRITE = (1<<1),
+};
+void       iolooper_modify( IoLooper*  iol, int fd, int oldflags, int newflags);
+
 int        iolooper_poll( IoLooper*  iol );
 /* Wrapper around select()
  * Return:

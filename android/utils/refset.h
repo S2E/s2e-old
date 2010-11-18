@@ -34,6 +34,12 @@ arefSet_done( ARefSet*  s )
     AVECTOR_DONE(s,buckets);
 }
 
+AINLINED void
+arefSet_clear( ARefSet*  s )
+{
+    AVECTOR_CLEAR(s,buckets);
+}
+
 AINLINED int
 arefSet_count( ARefSet*  s )
 {

@@ -757,12 +757,12 @@ UI_AND_CORE_SOURCES = \
                       android/utils/assert.c \
                       android/utils/bufprint.c \
                       android/utils/debug.c \
+                      android/utils/path.c \
                       android/utils/dirscanner.c \
                       android/utils/filelock.c \
                       android/utils/mapfile.c \
                       android/utils/misc.c \
                       android/utils/panic.c \
-                      android/utils/path.c \
                       android/utils/reflist.c \
                       android/utils/refset.c \
                       android/utils/stralloc.c \
@@ -863,6 +863,7 @@ endif
 VL_SOURCES := framebuffer.c \
               user-events-qemu.c \
               android/cmdline-option.c \
+              android/looper-qemu.c \
               android/main.c \
 
 # Add common system libraries
@@ -1038,6 +1039,8 @@ LOCAL_LDLIBS  += $(AUDIO_LDLIBS)
 #
 VL_SOURCES := framebuffer.c \
               user-events-qemu.c \
+              android/looper-qemu.c \
+              android/looper-generic.c \
 
 # Add common system libraries
 #
@@ -1186,12 +1189,13 @@ VL_SOURCES := framebuffer.c \
               android/cmdline-option.c \
               android/config.c \
               android/display.c \
+              android/looper-generic.c \
               android/snapshot.c \
               android/main.c \
               qemu-timer-ui.c \
               vl-android-ui.c \
-	          console-ui.c \
-	          iolooper-select.c \
+              console-ui.c \
+              iolooper-select.c \
 
 # Add common system libraries
 #

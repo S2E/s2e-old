@@ -44,6 +44,11 @@
         (obj)->max_##name = 0; \
     } while (0)
 
+#define  AVECTOR_CLEAR(obj,name) \
+    do { \
+        (obj)->num_##name = 0; \
+    } while (0)
+
 #define  AVECTOR_AT(obj,name,index)  \
     (&(obj)->name[(index)])
 

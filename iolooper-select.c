@@ -57,6 +57,29 @@ iolooper_del_fd( IoLooper*  iol, int fd )
         iol->max_fd_valid = 0;
 }
 
+void
+iolooper_modify( IoLooper* iol, int fd, int oldflags, int newflags )
+{
+    if (fd < 0)
+        return;
+
+    int changed = oldflags ^ newflags;
+
+    if ((changed & IOLOOPER_READ) != 0) {
+        if ((newflags & IOLOOPER_READ) != 0)
+            FD_SET(fd, iol->reads);
+        else
+            FD_CLR(fd, iol->reads);
+    }
+    if ((changed & IOLOOPER_WRITE) != 0) {
+        if ((newflags & IOLOOPER_WRITE) != 0)
+            FD_SET(fd, iol->writes);
+        else
+            FD_CLR(fd, iol->writes);
+    }
+}
+
+
 static int
 iolooper_fd_count( IoLooper*  iol )
 {
