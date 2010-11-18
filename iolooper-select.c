@@ -67,15 +67,15 @@ iolooper_modify( IoLooper* iol, int fd, int oldflags, int newflags )
 
     if ((changed & IOLOOPER_READ) != 0) {
         if ((newflags & IOLOOPER_READ) != 0)
-            FD_SET(fd, iol->reads);
+            iolooper_add_read(iol, fd);
         else
-            FD_CLR(fd, iol->reads);
+            iolooper_del_read(iol, fd);
     }
     if ((changed & IOLOOPER_WRITE) != 0) {
         if ((newflags & IOLOOPER_WRITE) != 0)
-            FD_SET(fd, iol->writes);
+            iolooper_add_write(iol, fd);
         else
-            FD_CLR(fd, iol->writes);
+            iolooper_del_write(iol, fd);
     }
 }
 
@@ -230,5 +230,11 @@ int
 iolooper_wait_absolute(IoLooper* iol, int64_t deadline)
 {
     int64_t timeout = deadline - iolooper_now();
-    return (timeout >= 0) ? iolooper_wait(iol, timeout) : 0;
+
+    /* If the deadline has passed, set the timeout to 0, this allows us
+     * to poll the file descriptor nonetheless */
+    if (timeout < 0)
+        timeout = 0;
+
+    return iolooper_wait(iol, timeout);
 }

@@ -16,8 +16,10 @@
 #include "android/utils/system.h"
 #include "android/looper.h"
 #include "iolooper.h"
+#include "sockets.h"
 #include <inttypes.h>
 #include <limits.h>
+#include <errno.h>
 
 /**********************************************************************
  **********************************************************************
@@ -230,8 +232,11 @@ glooper_io_init(Looper* looper, LoopIo* user, int fd, LoopIoFunc callback, void*
     io->fd       = fd;
     io->callback = callback;
     io->opaque   = opaque;
+    io->looper   = (GLooper*) looper;
     io->wanted   = 0;
     io->ready    = 0;
+
+    socket_set_nonblock(fd);
 
     glooper_addIo(gg, io);
 
@@ -254,6 +259,7 @@ struct GLooper {
 
     ARefSet      ios[1];        /* set of all i/o waiters */
     ARefSet      pendingIos[1]; /* list of pending i/o waiters */
+    int          numActiveIos;  /* number of active LoopIo objects */
 
     IoLooper*    iolooper;
     int          running;
@@ -323,6 +329,12 @@ glooper_delPendingIo(GLooper* looper, GLoopIo* io)
 static void
 glooper_modifyFd(GLooper* looper, int fd, int oldWanted, int newWanted)
 {
+    if (oldWanted == 0 && newWanted != 0)
+        looper->numActiveIos += 1;
+
+    if (oldWanted != 0 && newWanted == 0)
+        looper->numActiveIos -= 1;
+
     iolooper_modify(looper->iolooper, fd, oldWanted, newWanted);
 }
 
@@ -339,8 +351,8 @@ glooper_forceQuit(Looper* ll)
     looper->running = 0;
 }
 
-static void
-glooper_run(Looper*  ll)
+static int
+glooper_run(Looper*  ll, Duration loop_deadline_ms)
 {
     GLooper*   looper = (GLooper*) ll;
     IoLooper*  iol    = looper->iolooper;
@@ -351,11 +363,20 @@ glooper_run(Looper*  ll)
     {
         int ret;
 
+        /* Exit prematurely if we detect that we don't have any active timer
+         * and no active LoopIo
+         */
+        if (looper->numActiveIos == 0 && looper->activeTimers == NULL)
+            return EWOULDBLOCK;
+
         /* First, compute next deadline */
         Duration  deadline = DURATION_INFINITE;
 
         if (looper->activeTimers != NULL)
             deadline = looper->activeTimers->deadline;
+
+        if (deadline > loop_deadline_ms)
+            deadline = loop_deadline_ms;
 
         ret = iolooper_wait_absolute(iol, deadline);
         if (ret < 0) { /* error, force stop ! */
@@ -425,7 +446,11 @@ glooper_run(Looper*  ll)
             });
             arefSet_clear(looper->pendingIos);
         }
+
+        if (deadline > loop_deadline_ms)
+            return ETIMEDOUT;
     }
+    return 0;
 }
 
 static void
@@ -450,6 +475,8 @@ Looper*  looper_newGeneric(void)
     GLooper*  looper;
 
     ANEW0(looper);
+
+    looper->iolooper = iolooper_new();
 
     looper->looper.now        = glooper_now;
     looper->looper.timer_init = glooper_timer_init;

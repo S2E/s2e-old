@@ -15,6 +15,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <limits.h>
+#include <android/utils/system.h>
 
 /**********************************************************************
  **********************************************************************
@@ -90,7 +91,7 @@ struct Looper {
     Duration (*now)   (Looper* looper);
     void (*timer_init)(Looper* looper, LoopTimer* timer, LoopTimerFunc callback, void* opaque);
     void (*io_init)   (Looper* looper, LoopIo* io, int fd, LoopIoFunc callback, void* opaque);
-    void (*run)       (Looper* looper);
+    int  (*run)       (Looper* looper, Duration deadline_ms);
     void (*forceQuit) (Looper* looper);
     void (*destroy)   (Looper* looper);
 };
@@ -124,7 +125,7 @@ struct LoopTimerClass {
 /* Initialize a LoopTimer with a callback and an 'opaque' value.
  * Each timer belongs to only one looper object.
  */
-extern __inline__ void
+AINLINED void
 loopTimer_init(LoopTimer*     timer,
                Looper*        looper,
                LoopTimerFunc  callback,
@@ -134,7 +135,7 @@ loopTimer_init(LoopTimer*     timer,
 }
 
 /* Finalize a LoopTimer */
-extern __inline__ void
+AINLINED void
 loopTimer_done(LoopTimer* timer)
 {
     timer->clazz->done(timer->impl);
@@ -146,7 +147,7 @@ loopTimer_done(LoopTimer* timer)
  * unless loopTimer_stop() is called before that, or the timer is
  * reprogrammed with another loopTimer_startXXX() call.
  */
-extern __inline__ void
+AINLINED void
 loopTimer_startRelative(LoopTimer* timer, Duration timeout_ms)
 {
     timer->clazz->startRelative(timer->impl, timeout_ms);
@@ -158,21 +159,21 @@ loopTimer_startRelative(LoopTimer* timer, Duration timeout_ms)
  * fire as soon as possible. Note that this can cause infinite loops
  * in your code if you're not careful.
  */
-extern __inline__ void
+AINLINED void
 loopTimer_startAbsolute(LoopTimer* timer, Duration deadline_ms)
 {
     timer->clazz->startAbsolute(timer->impl, deadline_ms);
 }
 
 /* Stop a given timer */
-extern __inline__ void
+AINLINED void
 loopTimer_stop(LoopTimer* timer)
 {
     timer->clazz->stop(timer->impl);
 }
 
 /* Returns true iff the timer is active / started */
-extern __inline__ int
+AINLINED int
 loopTimer_isActive(LoopTimer* timer)
 {
     return timer->clazz->isActive(timer->impl);
@@ -217,7 +218,7 @@ struct LoopIoClass {
     void (*done)(void* impl);
 };
 
-extern __inline__ void
+AINLINED void
 loopIo_init(LoopIo* io, Looper* looper, int fd, LoopIoFunc callback, void* opaque)
 {
     looper->io_init(looper, io, fd, callback, opaque);
@@ -225,7 +226,7 @@ loopIo_init(LoopIo* io, Looper* looper, int fd, LoopIoFunc callback, void* opaqu
 }
 
 /* Note: This does not close the file descriptor! */
-extern __inline__ void
+AINLINED void
 loopIo_done(LoopIo* io)
 {
     io->clazz->done(io->impl);
@@ -234,22 +235,22 @@ loopIo_done(LoopIo* io)
 /* The following functions are used to indicate whether you want the callback
  * to be fired when there is data to be read or when the file is ready to
  * be written to. */
-extern __inline__ void
+AINLINED void
 loopIo_wantRead(LoopIo* io)
 {
     io->clazz->wantRead(io->impl);
 }
-extern __inline__ void
+AINLINED void
 loopIo_wantWrite(LoopIo* io)
 {
     io->clazz->wantWrite(io->impl);
 }
-extern __inline__ void
+AINLINED void
 loopIo_dontWantRead(LoopIo* io)
 {
     io->clazz->dontWantRead(io->impl);
 }
-extern __inline__ void
+AINLINED void
 loopIo_dontWantWrite(LoopIo* io)
 {
     io->clazz->dontWantWrite(io->impl);
@@ -263,16 +264,58 @@ loopIo_dontWantWrite(LoopIo* io)
  **********************************************************************
  **********************************************************************/
 
+AINLINED Duration
+looper_now(Looper* looper)
+{
+    return looper->now(looper);
+}
 /* Run the event loop, until looper_forceQuit() is called, or there is no
  * more registered watchers for events/timers in the looper.
+ *
+ * The value returned indicates the reason:
+ *    0           -> normal exit through looper_forceQuit()
+ *    EWOULDBLOCK -> there are not more watchers registered (the looper
+ *                   would loop infinitely)
  */
-extern __inline__ void
+AINLINED void
 looper_run(Looper* looper)
 {
-    looper->run(looper);
+    (void) looper->run(looper, DURATION_INFINITE);
 }
 
-extern __inline__ void
+/* A variant of looper_run() that allows to run the event loop only
+ * until a certain timeout in milliseconds has passed.
+ *
+ * Returns the reason why the looper stopped:
+ *    0           -> normal exit through looper_forceQuit()
+ *    EWOULDBLOCK -> there are not more watchers registered (the looper
+ *                   would loop infinitely)
+ *    ETIMEDOUT   -> timeout reached
+ *
+ */
+AINLINED int
+looper_runWithTimeout(Looper* looper, Duration timeout_ms)
+{
+    if (timeout_ms != DURATION_INFINITE)
+        timeout_ms += looper_now(looper);
+
+    return looper->run(looper, timeout_ms);
+}
+
+/* Another variant of looper_run() that takes a deadline instead of a
+ * timeout. Same return values than looper_runWithTimeout()
+ */
+AINLINED int
+looper_runWithDeadline(Looper* looper, Duration deadline_ms)
+{
+    return looper->run(looper, deadline_ms);
+}
+
+/* Call this function from within the event loop to force it to quit
+ * as soon as possible. looper_run() / _runWithTimeout() / _runWithDeadline()
+ * will then return 0.
+ */
+AINLINED void
 looper_forceQuit(Looper* looper)
 {
     looper->forceQuit(looper);
@@ -284,7 +327,7 @@ looper_forceQuit(Looper* looper)
  * NOTE: This assumes that the user has destroyed all its
  *        timers and ios properly
  */
-extern __inline__ void
+AINLINED void
 looper_free(Looper* looper)
 {
     if (looper)
