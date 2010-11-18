@@ -10,6 +10,7 @@
 ** GNU General Public License for more details.
 */
 #include "android/utils/system.h"
+#include "android/utils/assert.h"
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef _WIN32
@@ -76,6 +77,47 @@ android_free( void*  block )
 {
     if (block)
         free(block);
+}
+
+void*
+_android_array_alloc( size_t  itemSize, size_t  count )
+{
+#if ACONFIG_USE_ASSERT
+    size_t  maxSize;
+
+    if (itemSize == 0)
+        AASSERT_FAIL("item size is 0\n");
+
+    maxSize = (~(size_t)0) / itemSize;
+    if (count > maxSize)
+        AASSERT_FAIL("allocation too large (%d > %d)\n", count, maxSize);
+#endif
+    return android_alloc(itemSize * count);
+}
+
+void*
+_android_array_alloc0( size_t  itemSize, size_t  count )
+{
+    void*  block = _android_array_alloc(itemSize, count);
+    memset(block, 0, itemSize*count);
+    return block;
+}
+
+void*
+_android_array_realloc( void* block, size_t  itemSize, size_t  count )
+{
+#if ACONFIG_USE_ASSERT
+    size_t  maxSize;
+
+    if (itemSize == 0)
+        AASSERT_FAIL("item size is 0\n");
+
+    maxSize = (~(size_t)0) / itemSize;
+    if (count > maxSize)
+        AASSERT_FAIL("reallocation of %d-bytes array too large (%d > %d)\n",
+                     itemSize, count, maxSize);
+#endif
+    return android_realloc(block, itemSize*count);
 }
 
 char*
