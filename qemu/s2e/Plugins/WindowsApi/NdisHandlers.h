@@ -79,6 +79,8 @@ private:
     uint32_t m_forceAdapterType;
     bool m_generateDumpOnLoad;
 
+    std::vector<uint8_t> m_networkAddress;
+
     //Pair of address + private pointer for all registered timer entry points
     typedef std::set<std::pair<uint32_t, uint32_t> > TimerEntryPoints;
     TimerEntryPoints m_timerEntryPoints;

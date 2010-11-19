@@ -96,6 +96,15 @@ void NdisHandlers::initialize()
     //via NdisSetTimer.
     m_timerIntervalFactor = cfg->getInt(getConfigKey() + ".timerIntervalFactor", 1, &ok);
 
+    //Read the hard-coded mac address, in case we do not want it to be symbolic
+    ConfigFile::integer_list mac = cfg->getIntegerList(getConfigKey() + ".networkAddress",
+                                                       ConfigFile::integer_list(), &ok);
+    if (ok && mac.size() > 0) {
+        foreach2(it, mac.begin(), mac.end()) {
+            m_networkAddress.push_back(*it);
+        }
+    }
+
     //What device type do we want to force?
     //This is only for overapproximate consistency
     m_forceAdapterType = cfg->getInt(getConfigKey() + ".forceAdapterType", InterfaceTypeUndefined, &ok);
@@ -110,6 +119,7 @@ void NdisHandlers::initialize()
             exit(-1);
         }
     }
+
 
     foreach2(it, mods.begin(), mods.end()) {
         m_modules.insert(*it);
@@ -359,6 +369,9 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
 
     //Consistency: LOCAL
     if (getConsistency(__FUNCTION__) == LOCAL || getConsistency(__FUNCTION__) == OVERAPPROX) {
+        bool oldForkStatus = state->isForkingEnabled();
+        state->enableForking();
+
         /* Fork success and failure */
         klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
@@ -376,6 +389,8 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
         retVal = 0xC0000001L;
         fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
 
+        ts->setForking(oldForkStatus);
+        fs->setForking(oldForkStatus);
      }
 }
 
@@ -459,6 +474,9 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
 
 
     if (getConsistency(__FUNCTION__) == LOCAL || getConsistency(__FUNCTION__) == OVERAPPROX) {
+        bool oldForkStatus = state->isForkingEnabled();
+        state->enableForking();
+
         std::stringstream ss;
         ss << __FUNCTION__ << "_success";
         klee::ref<klee::Expr> succ = state->createSymbolicValue(klee::Expr::Int8, ss.str());
@@ -474,6 +492,9 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
         m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
+
+        ts->setForking(oldForkStatus);
+        fs->setForking(oldForkStatus);
      }
 }
 
@@ -565,6 +586,14 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
         s2e()->getDebugStream(state) << "No need to redundantly run the timer another time" << std::endl;
         state->bypassFunction(4);
         throw CpuExitException();
+    }
+
+    //If a timer is scheduled, make sure that the real one is also there.
+    //Otherwise, there may be a crash, and all states could wrongly terminate.
+    if (scheduled.size() > 0) {
+       if (scheduled.find(std::make_pair(realPc, realPriv)) == scheduled.end()) {
+           scheduled.insert(std::make_pair(realPc, realPriv));
+       }
     }
 
     //Must register return handler before forking.
@@ -1265,10 +1294,18 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
 
     //In all cases, inject symbolic values in the returned buffer
     for (unsigned i=0; i<Length; ++i) {
-        std::stringstream ss;
-        ss << __FUNCTION__ << "_" << i;
-        klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int8, ss.str());
-        state->writeMemory(NetworkAddress + i, val);
+
+        if (m_networkAddress.size() > 0) {
+            s2e()->getDebugStream() << "NetworkAddress[" << i << "]=" << std::hex << 
+              (int)m_networkAddress[i % m_networkAddress.size()] << std::endl;
+
+            state->writeMemoryConcrete(NetworkAddress + i, &m_networkAddress[i % m_networkAddress.size()], 1);
+        }else {
+            std::stringstream ss;
+            ss << __FUNCTION__ << "_" << i;
+            klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int8, ss.str());
+            state->writeMemory(NetworkAddress + i, val);
+        }
     }
 
     if (getConsistency(__FUNCTION__) == LOCAL) {
@@ -1597,6 +1634,9 @@ void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *f
         return;
     }
 
+    bool oldForkStatus = state->isForkingEnabled();
+    state->enableForking();
+
     //Fork the states. In one of them run the shutdown handler
     klee::ref<klee::Expr> isFake = state->createSymbolicValue(klee::Expr::Int8, "FakeShutdown");
     klee::ref<klee::Expr> cond = klee::EqExpr::create(isFake, klee::ConstantExpr::create(1, klee::Expr::Int8));
@@ -1611,6 +1651,9 @@ void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *f
 
     FUNCMON_REGISTER_RETURN(ts, fns, NdisHandlers::HaltHandlerRet)
     FUNCMON_REGISTER_RETURN(fs, fns, NdisHandlers::HaltHandlerRet)
+
+    ts->setForking(oldForkStatus);
+    fs->setForking(oldForkStatus);
 }
 
 void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
@@ -1760,6 +1803,9 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
 
     }
 
+    bool oldForkStatus = state->isForkingEnabled();
+    state->enableForking();
+
     //Fork now, because we do not need to access memory anymore
     klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
 
@@ -1784,6 +1830,9 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
     //since the stack pointer is different in the two states
     FUNCMON_REGISTER_RETURN(ts, fns, NdisHandlers::QueryInformationHandlerRet)
     FUNCMON_REGISTER_RETURN(fs, fns, NdisHandlers::QueryInformationHandlerRet)
+
+    ts->setForking(oldForkStatus);
+    fs->setForking(oldForkStatus);
 }
 
 void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery)

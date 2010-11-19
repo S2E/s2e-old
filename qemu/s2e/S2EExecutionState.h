@@ -190,6 +190,10 @@ public:
     void dumpStack(unsigned count, uint64_t sp);
 
     bool isForkingEnabled() const { return !forkDisabled; }
+    void setForking(bool enable) {
+        forkDisabled = !enable;
+    }
+
     void enableForking();
     void disableForking();
 

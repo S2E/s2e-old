@@ -429,6 +429,24 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
 
     g_s2e->getDebugStream(s2eState) << "forkAndConcretize(" << expr << ")" << std::endl;
 
+    if (state->forkDisabled) {
+        //Simply pick one possible value and continue
+        ref<klee::ConstantExpr> value;
+        bool success = s2eExecutor->getSolver()->getValue(
+                Query(state->constraints, expr), value);
+
+        if (success) {
+            g_s2e->getDebugStream(s2eState) << "Chosen " << value << std::endl;
+            ref<Expr> eqCond = EqExpr::create(expr, value);
+            state->addConstraint(eqCond);
+            s2eExecutor->bindLocal(target, *state, value);
+        }else {
+            g_s2e->getDebugStream(s2eState) << "Failed to find a value. Leaving unconstrained." << std::endl;
+            s2eExecutor->bindLocal(target, *state, expr);
+        }
+        return;
+    }
+
     // go starting from min
     Query query(state->constraints, expr);
     uint64_t step = 1;

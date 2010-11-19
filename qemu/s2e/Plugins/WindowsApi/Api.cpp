@@ -233,6 +233,8 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
 {
 
     assert(m_functionMonitor);
+    bool oldForkStatus = state->isForkingEnabled();
+    state->enableForking();
 
     klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, msg);
 
@@ -251,6 +253,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
         //uint32_t retVal = values[i];
         fs->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
         curState = ts;
+        fs->setForking(oldForkStatus);
     }
 
     uint32_t retVal = values[values.size()-1];
@@ -258,6 +261,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
     curState->addConstraint(cond);
     curState->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), success);
 
+    curState->setForking(oldForkStatus);
     return true;
 }
 
@@ -266,6 +270,9 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
 //XXX: Should move to S2EExecutor, use forkRange.
 void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count)
 {
+    bool oldForkStatus = state->isForkingEnabled();
+    state->enableForking();
+
     klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, "forkStates");
     std::vector<klee::Expr> conditions;
 
@@ -279,10 +286,13 @@ void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionSt
 
         curState = ts;
         result.push_back(fs);
+        fs->setForking(oldForkStatus);
     }
     klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(count, klee::Expr::Int32));
     curState->addConstraint(cond);
     result.push_back(curState);
+    curState->setForking(oldForkStatus);
+
 }
 
 
