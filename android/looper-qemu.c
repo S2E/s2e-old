@@ -13,6 +13,7 @@
 /* Implement the Looper interface on top of the QEMU main event loop */
 
 #include <android/looper.h>
+#include <android/utils/panic.h>
 #include "qemu-common.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
@@ -370,6 +371,15 @@ qlooper_forceQuit(Looper* ll)
     qemu_system_shutdown_request();
 }
 
+/* The user cannot call looper_run on the core event loop, because it
+ * is started by qemu_main() explicitely instead, so just panic. */
+int
+qlooper_run(Looper* ll, Duration deadline_ms)
+{
+    APANIC("Trying to run the QEMU main event loop explicitely!");
+    return EINVAL;
+}
+
 static void
 qlooper_destroy(Looper* ll)
 {
@@ -395,6 +405,7 @@ looper_newCore(void)
     looper->looper.now        = qlooper_now;
     looper->looper.timer_init = qlooper_timer_init;
     looper->looper.io_init    = qlooper_io_init;
+    looper->looper.run        = qlooper_run;
     looper->looper.forceQuit  = qlooper_forceQuit;
     looper->looper.destroy    = qlooper_destroy;
 
