@@ -363,10 +363,10 @@ glooper_run(Looper*  ll)
         }
         if (ret > 0) {
             unsigned ready;
+            GLoopIo* io;
 
             /* Add io waiters to the pending list */
-            AREFSET_FOREACH(looper->ios, io_, {
-                GLoopIo* io = io_;
+            AREFSET_FOREACH(looper->ios, io, {
                 if (io->wanted == 0)
                     continue;
 
@@ -419,8 +419,8 @@ glooper_run(Looper*  ll)
 
         /* Now fire the pending ios */
         {
-            AREFSET_FOREACH(looper->pendingIos,io_,{
-                GLoopIo* io = io_;
+            GLoopIo* io;
+            AREFSET_FOREACH(looper->pendingIos,io,{
                 io->callback(io->opaque,io->fd,io->ready);
             });
             arefSet_clear(looper->pendingIos);
