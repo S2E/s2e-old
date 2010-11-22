@@ -2290,3 +2290,5 @@ tools/tools/s2etools-config/s2etools-config.in.in
 tools/tools/tbtrace/Makefile
 tools/tools/tbtrace/TbTrace.cpp
 tools/tools/tbtrace/TbTrace.h
+qemu/s2e/Plugins/MemoryChecker.h
+qemu/s2e/Plugins/MemoryChecker.cpp
