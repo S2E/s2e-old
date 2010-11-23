@@ -60,7 +60,12 @@ class MemoryChecker : public Plugin
     ModuleExecutionDetector *m_moduleDetector;
 
     std::string m_moduleId;
-    bool m_terminateOnError;
+
+    bool m_checkMemoryLeaks;
+    bool m_checkMemoryErrors;
+
+    bool m_terminateOnLeaks;
+    bool m_terminateOnErrors;
 
     sigc::connection m_dataMemoryAccessConnection;
 
@@ -93,21 +98,24 @@ public:
     void grantMemory(S2EExecutionState *state,
                      const ModuleDescriptor *module,
                      uint64_t start, uint64_t size, uint8_t perms,
-                     const char* regionType, uint64_t regionID,
+                     const char* regionType, uint64_t regionID = 0,
                      bool permanent = false);
 
     // Revoke memory by address
     // NOTE: end, perms and regionID can be -1, regionTypePattern can be NULL
     bool revokeMemory(S2EExecutionState *state,
                       const ModuleDescriptor *module,
-                      uint64_t start, uint64_t size, uint8_t perms,
-                      const char* regionTypePattern, uint64_t regionID);
+                      uint64_t start, uint64_t size,
+                      uint8_t perms = uint8_t(-1),
+                      const char* regionTypePattern = NULL,
+                      uint64_t regionID = uint64_t(-1));
 
     // Revoke memory by pattern
     // NOTE: regionID can be -1
     bool revokeMemory(S2EExecutionState *state,
                       const ModuleDescriptor *module,
-                      const char* regionTypePattern, uint64_t regionID);
+                      const char* regionTypePattern,
+                      uint64_t regionID = uint64_t(-1));
 
     // Check acceessibility of memory region
     bool checkMemoryAccess(S2EExecutionState *state,

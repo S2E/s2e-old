@@ -83,8 +83,8 @@ namespace {
             << "    perms = " << hexval(r.perms) << "\n"
             << "    allocPC = " << hexval(r.allocPC) << "\n"
             << "    type = " << r.type << "\n"
-            << "    id = " << hexval(r.id) << ")"
-            << "    permanent = " << r.permanent << "\n";
+            << "    id = " << hexval(r.id) << "\n"
+            << "    permanent = " << r.permanent << ")";
         return out;
     }
 } // namespace
@@ -111,14 +111,18 @@ public:
     }
 
     MemoryMap* getModuleMemoryMap(const ModuleDescriptor* module) {
+#warning Checking the module is currently disabled because limitations of NDisHandlers
+        return &m_memoryMap;
+        /*
         if(module->LoadBase == m_module.LoadBase)
             return &m_memoryMap;
         else
             return 0;
+        */
     }
 
     void setModuleMemoryMap(const ModuleDescriptor* module, const MemoryMap& memoryMap) {
-        assert(module->LoadBase == m_module.LoadBase);
+        //assert(module->LoadBase == m_module.LoadBase);
         m_memoryMap = memoryMap;
     }
 };
@@ -135,7 +139,11 @@ void MemoryChecker::initialize()
     assert(mods.size() == 1 && "Only one module is currently supported!");
     m_moduleId = mods[0];
 
-    m_terminateOnError = cfg->getBool(getConfigKey() + ".terminateOnError");
+    m_checkMemoryErrors = cfg->getBool(getConfigKey() + ".checkMemoryErrors");
+    m_checkMemoryLeaks = cfg->getBool(getConfigKey() + ".checkMemoryLeaks");
+
+    m_terminateOnErrors = cfg->getBool(getConfigKey() + ".terminateOnErrors");
+    m_terminateOnLeaks = cfg->getBool(getConfigKey() + ".terminateOnLeaks");
 
     m_moduleDetector = static_cast<ModuleExecutionDetector*>(
                             s2e()->getPlugin("ModuleExecutionDetector"));
@@ -154,10 +162,12 @@ void MemoryChecker::initialize()
                     &MemoryChecker::onModuleUnload)
             );
 
-    m_moduleDetector->onModuleTransition.connect(
-            sigc::mem_fun(*this,
-                    &MemoryChecker::onModuleTransition)
-            );
+    if(m_checkMemoryErrors) {
+        m_moduleDetector->onModuleTransition.connect(
+                sigc::mem_fun(*this,
+                        &MemoryChecker::onModuleTransition)
+                );
+    }
 }
 
 void MemoryChecker::onModuleLoad(S2EExecutionState* state,
@@ -269,6 +279,7 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
             << "detected region of " << (size == 0 ? "zero" : "negative")
             << " size!" << std::endl
             << "This probably means a bug in the OS or S2E API annotations" << std::endl;
+        delete region;
         return;
     }
 
@@ -277,7 +288,9 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
         s2e()->getWarningsStream(state) << "MemoryChecker::grantMemory: "
             << "detected overlapping ranges!" << std::endl
             << "This probably means a bug in the OS or S2E API annotations" << std::endl
-            << "Overlapping region: " << *res->second << std::endl;
+            << "NOTE: requested region: " << *region << std::endl
+            << "NOTE: overlapping region: " << *res->second << std::endl;
+        delete region;
         return;
     }
 
@@ -330,7 +343,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory that was not allocated!" << std::endl
                 << "  NOTE: overlapping region exists: " << *res->second << std::endl
-                << "  NOTE: requested region: " << region << std::endl;
+                << "  NOTE: requested region: " << *region << std::endl;
             break;
         }
 
@@ -338,35 +351,39 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region of wrong size!" << std::endl
                 << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << region << std::endl;
+                << "  NOTE: requested region: " << *region << std::endl;
         }
 
-        if(perms != uint64_t(-1) && res->second->perms != perms) {
+        if(perms != uint8_t(-1) && res->second->perms != perms) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region with wrong permissions!" << std::endl
                 << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << region << std::endl;
+                << "  NOTE: requested region: " << *region << std::endl;
         }
 
         if(regionTypePattern && !matchRegionType(regionTypePattern, res->second->type)) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region with wrong region type!" << std::endl
                 << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << region << std::endl;
+                << "  NOTE: requested region: " << *region << std::endl;
         }
 
         if(regionID != uint64_t(-1) && res->second->id != regionID) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region with wrong region ID!" << std::endl
                 << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << region << std::endl;
+                << "  NOTE: requested region: " << *region << std::endl;
         }
 
+        //we can not just delete it since it can be used by other states!
+        //delete const_cast<MemoryRegion*>(res->second);
         plgState->setModuleMemoryMap(module, memoryMap->remove(region->range));
     } while(false);
 
+    delete region;
+
     if(!err.str().empty()) {
-        if(m_terminateOnError)
+        if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
             s2e()->getWarningsStream(state) << err.str() << std::flush;
@@ -401,7 +418,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                   && matchRegionType(regionTypePattern, it->second->type)
                   && (regionID == uint64_t(-1) || it->second->id == regionID)) {
                 ret &= revokeMemory(state, module,
-                             it->first.start, it->first.start + it->first.size,
+                             it->first.start, it->first.size,
                              it->second->perms, it->second->type, it->second->id);
                 changed = true;
                 memoryMap = plgState->getModuleMemoryMap(module);
@@ -417,6 +434,9 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
                                       const ModuleDescriptor *module,
                                       uint64_t start, uint64_t size, uint8_t perms)
 {
+    if(!m_checkMemoryErrors)
+        return true;
+
     // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
@@ -463,7 +483,7 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
     } while(false);
 
     if(!err.str().empty()) {
-        if(m_terminateOnError)
+        if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
             s2e()->getWarningsStream(state) << err.str() << std::flush;
@@ -476,6 +496,9 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
 bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state,
                                      const ModuleDescriptor *module)
 {
+    if(!m_checkMemoryLeaks)
+        return true;
+
     // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
@@ -503,7 +526,7 @@ bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state,
     }
 
     if(!err.str().empty()) {
-        if(m_terminateOnError)
+        if(m_terminateOnLeaks)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
             s2e()->getWarningsStream(state) << err.str() << std::flush;

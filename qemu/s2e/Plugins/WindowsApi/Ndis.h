@@ -113,6 +113,7 @@ typedef struct _NDIS_CONFIGURATION_PARAMETER {
     union {
         uint32_t IntegerData;
         NDIS_STRING StringData;
+        BINARY_DATA32 BinaryData;
     } ParameterData;
 } NDIS_CONFIGURATION_PARAMETER, *PNDIS_CONFIGURATION_PARAMETER;
 

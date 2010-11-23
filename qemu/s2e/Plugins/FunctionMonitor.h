@@ -133,6 +133,13 @@ public:
     fns->registerReturnSignal(state, returnSignal); \
 }
 
+#define FUNCMON_REGISTER_RETURN_A(state, fns, func, ...) \
+{ \
+    FunctionMonitor::ReturnSignal returnSignal; \
+    returnSignal.connect(sigc::bind(sigc::mem_fun(*this, &func), __VA_ARGS__)); \
+    fns->registerReturnSignal(state, returnSignal); \
+}
+
 } // namespace plugins
 } // namespace s2e
 

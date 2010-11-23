@@ -55,6 +55,8 @@
 namespace s2e {
 namespace plugins {
 
+class MemoryChecker;
+
 class NdisHandlers : public WindowsApi
 {
     S2E_PLUGIN
@@ -67,6 +69,8 @@ private:
     StateManager *m_manager;
     SymbolicHardware *m_hw;
     WindowsCrashDumpGenerator *m_crashdumper;
+
+    MemoryChecker *m_memoryChecker;
 
     //Modules we want to intercept
     StringSet m_modules;
@@ -95,18 +99,21 @@ private:
         const ModuleDescriptor &module
         );
 
-    bool calledFromModule(S2EExecutionState *s);
+    const ModuleDescriptor *calledFromModule(S2EExecutionState *s);
 
     DECLARE_ENTRY_POINT(entryPoint);
 
     DECLARE_ENTRY_POINT(NdisMRegisterMiniport);
-    DECLARE_ENTRY_POINT(NdisAllocateMemory);
-    DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTag);
+    DECLARE_ENTRY_POINT(NdisAllocateMemory, uint32_t Address, uint32_t Length);
+    DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTag, uint32_t Address, uint32_t Length);
+    DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTagPriority, uint32_t Length);
+    DECLARE_ENTRY_POINT_CO(NdisFreeMemory);
     DECLARE_ENTRY_POINT(NdisMAllocateSharedMemory);
     DECLARE_ENTRY_POINT(NdisMFreeSharedMemory);
     DECLARE_ENTRY_POINT(NdisMRegisterIoPortRange);
     DECLARE_ENTRY_POINT(NdisMMapIoSpace);
     DECLARE_ENTRY_POINT(NdisMRegisterInterrupt);
+    DECLARE_ENTRY_POINT(NdisMQueryAdapterInstanceName);
     DECLARE_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_ENTRY_POINT(NdisMAllocateMapRegisters);
     DECLARE_ENTRY_POINT(NdisMInitializeTimer);
@@ -116,7 +123,14 @@ private:
     DECLARE_ENTRY_POINT(NdisMRegisterAdapterShutdownHandler);
     DECLARE_ENTRY_POINT(NdisReadNetworkAddress);
     DECLARE_ENTRY_POINT(NdisReadConfiguration);
+    DECLARE_ENTRY_POINT_CO(NdisCloseConfiguration);
     DECLARE_ENTRY_POINT(NdisWriteErrorLogEntry);
+
+    DECLARE_ENTRY_POINT(NdisAllocatePacket, uint32_t pStatus, uint32_t pPacket);
+    DECLARE_ENTRY_POINT_CO(NdisFreePacket);
+
+    DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer, uint32_t Length);
+    DECLARE_ENTRY_POINT_CO(IoFreeMdl);
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
@@ -170,7 +184,7 @@ private:
     bool hasIsrHandler;
     uint32_t oid, pInformationBuffer;
     bool fakeoid, faketimer;
-    uint32_t val1, val2, val3;
+    uint32_t val1, val2, val3, val4;
 
     uint32_t isrRecognized, isrQueue;
     bool isrHandlerExecuted;

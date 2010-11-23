@@ -44,6 +44,7 @@ extern "C" {
 #include <s2e/Utils.h>
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
+#include <s2e/Plugins/MemoryChecker.h>
 #include <klee/Solver.h>
 
 #include <iostream>
@@ -67,6 +68,8 @@ void NdisHandlers::initialize()
 
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
     m_hw = static_cast<SymbolicHardware*>(s2e()->getPlugin("SymbolicHardware"));
+
+    m_memoryChecker = static_cast<MemoryChecker*>(s2e()->getPlugin("MemoryChecker"));
 
     ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
     if (mods.size() == 0) {
@@ -138,17 +141,17 @@ void NdisHandlers::initialize()
 }
 
 
-bool NdisHandlers::calledFromModule(S2EExecutionState *s)
+const ModuleDescriptor* NdisHandlers::calledFromModule(S2EExecutionState *s)
 {
     const ModuleDescriptor *mod = m_detector->getModule(s, s->getTb()->pcOfLastInstr);
     if (!mod) {
-        return false;
+        return NULL;
     }
     const std::string *modId = m_detector->getModuleId(*mod);
     if (!modId) {
-        return false;
+        return NULL;
     }
-    return (m_modules.find(*modId) != m_modules.end());
+    return (m_modules.find(*modId) != m_modules.end()) ? mod : NULL;
 }
 
 void NdisHandlers::onModuleUnload(
@@ -161,6 +164,9 @@ void NdisHandlers::onModuleUnload(
         //Not the right module we want to intercept
         return;
     }
+
+    if(m_memoryChecker)
+        m_memoryChecker->checkMemoryLeaks(state, &module);
 
     //XXX: We might want to monitor multiple modules, so avoid killing
     s2e()->getExecutor()->terminateStateEarly(*state, "Module unloaded");
@@ -205,11 +211,14 @@ void NdisHandlers::onModuleLoad(
 
     REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemoryWithTag);
+    REGISTER_IMPORT(I, "ndis.sys", NdisAllocateMemoryWithTagPriority);
+    REGISTER_IMPORT(I, "ndis.sys", NdisFreeMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateSharedMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisMFreeSharedMemory);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterIoPortRange);
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterInterrupt);
     REGISTER_IMPORT(I, "ndis.sys", NdisMMapIoSpace);
+    REGISTER_IMPORT(I, "ndis.sys", NdisMQueryAdapterInstanceName);
     REGISTER_IMPORT(I, "ndis.sys", NdisMQueryAdapterResources);
     REGISTER_IMPORT(I, "ndis.sys", NdisMAllocateMapRegisters);
     REGISTER_IMPORT(I, "ndis.sys", NdisMInitializeTimer);
@@ -219,9 +228,15 @@ void NdisHandlers::onModuleLoad(
     REGISTER_IMPORT(I, "ndis.sys", NdisMRegisterAdapterShutdownHandler);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadNetworkAddress);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadConfiguration);
+    REGISTER_IMPORT(I, "ndis.sys", NdisCloseConfiguration);
     REGISTER_IMPORT(I, "ndis.sys", NdisReadPciSlotInformation);
     REGISTER_IMPORT(I, "ndis.sys", NdisWritePciSlotInformation);
     REGISTER_IMPORT(I, "ndis.sys", NdisWriteErrorLogEntry);
+
+    REGISTER_IMPORT(I, "ndis.sys", NdisAllocatePacket);
+    REGISTER_IMPORT(I, "ndis.sys", NdisFreePacket);
+    REGISTER_IMPORT(I, "ndis.sys", NdisAllocateBuffer);
+    REGISTER_IMPORT(I, "ntoskrnl.exe", IoFreeMdl);
 
     REGISTER_IMPORT(I, "ntoskrnl.exe", RtlEqualUnicodeString);
     REGISTER_IMPORT(I, "ntoskrnl.exe", GetSystemUpTime);
@@ -319,17 +334,22 @@ void NdisHandlers::NdisAllocateMemoryWithTag(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (getConsistency(__FUNCTION__) == STRICT) {
+    bool ok = true;
+    uint32_t Address, Length;
+    ok &= readConcreteParameter(state, 0, &Address);
+    ok &= readConcreteParameter(state, 1, &Length);
+    if(!ok) {
+        s2e()->getDebugStream(state) << "Can not read address and length of memory allocation" << std::endl;
         return;
     }
 
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisAllocateMemoryWithTagRet)
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocateMemoryWithTagRet, Address, Length);
 }
 
-void NdisHandlers::NdisAllocateMemoryWithTagRet(S2EExecutionState* state)
+void NdisHandlers::NdisAllocateMemoryWithTagRet(S2EExecutionState* state, uint32_t Address, uint32_t Length)
 {
     //Call the normal allocator annotation, since both functions are similar
-    NdisAllocateMemoryRet(state);
+    NdisAllocateMemoryRet(state, Address, Length);
 }
 
 void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -337,14 +357,19 @@ void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    if (getConsistency(__FUNCTION__) == STRICT) {
+    bool ok = true;
+    uint32_t Address, Length;
+    ok &= readConcreteParameter(state, 0, &Address);
+    ok &= readConcreteParameter(state, 1, &Length);
+    if(!ok) {
+        s2e()->getDebugStream(state) << "Can not read address and length of memory allocation" << std::endl;
         return;
     }
 
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisAllocateMemoryRet)
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocateMemoryRet, Address, Length)
 }
 
-void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
+void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Address, uint32_t Length)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
     s2e()->getExecutor()->jumpToSymbolicCpp(state);
@@ -369,6 +394,13 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
 
     //Consistency: LOCAL
     if (getConsistency(__FUNCTION__) == LOCAL || getConsistency(__FUNCTION__) == OVERAPPROX) {
+        uint32_t BufAddress;
+        bool ok = state->readMemoryConcrete(Address, &BufAddress, 4);
+        if(!ok) {
+            s2e()->getWarningsStream() << __FUNCTION__ << ": can not read allocated address" << std::endl;
+            return;
+        }
+
         bool oldForkStatus = state->isForkingEnabled();
         state->enableForking();
 
@@ -385,13 +417,63 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state)
         /* Update each of the states */
         uint32_t retVal = 0;
         ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
+        if(m_memoryChecker) {
+            m_memoryChecker->grantMemory(ts, NULL, BufAddress, Length, 3, "ndis:alloc:NdisAllcateMemory");
+        }
 
         retVal = 0xC0000001L;
         fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
 
         ts->setForking(oldForkStatus);
         fs->setForking(oldForkStatus);
+     } else {
+         assert(!m_memoryChecker && "Memory checker is only supported in local consistency");
      }
+}
+
+void NdisHandlers::NdisAllocateMemoryWithTagPriority(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    bool ok = true;
+    uint32_t Length;
+    ok &= readConcreteParameter(state, 1, &Length);
+    if(!ok) {
+        s2e()->getDebugStream(state) << __FUNCTION__ << ": can not read address params" << std::endl;
+        return;
+    }
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocateMemoryWithTagPriorityRet, Length);
+}
+
+void NdisHandlers::NdisAllocateMemoryWithTagPriorityRet(S2EExecutionState* state, uint32_t Length)
+{
+    if(m_memoryChecker) {
+        //Get the return value
+        uint32_t eax;
+        if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+            s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+            return;
+        }
+
+        if (eax) {
+            //The original function has failed
+            return;
+        }
+
+        m_memoryChecker->grantMemory(state, NULL, eax, Length, 3, "ndis:alloc:NdisAllocateMemoryWithTagPriority");
+    }
+}
+
+void NdisHandlers::NdisFreeMemory(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if(m_memoryChecker) {
+        bool ok = true;
+        uint32_t Address, Length;
+        ok &= readConcreteParameter(state, 0, &Address);
+        ok &= readConcreteParameter(state, 1, &Length);
+        if(!ok) {
+            s2e()->getWarningsStream() << __FUNCTION__ << ": can not read params" << std::endl;
+        }
+        m_memoryChecker->revokeMemory(state, NULL, Address, Length);
+    }
 }
 
 void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -403,10 +485,12 @@ void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonit
     bool ok = true;
 
     uint32_t physAddr;
+    uint32_t virtAddr;
     uint32_t length;
 
     //XXX: Physical address should be 64 bits
     ok &= readConcreteParameter(state, 1, &length); //Length
+    ok &= readConcreteParameter(state, 3, &virtAddr); //VirtualAddress
     ok &= readConcreteParameter(state, 4, &physAddr); //PhysicalAddress
 
     if (!ok) {
@@ -416,6 +500,9 @@ void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonit
 
     m_hw->resetSymbolicMmioRange(state, physAddr, length);
 
+    if(m_memoryChecker) {
+        m_memoryChecker->revokeMemory(state, NULL, virtAddr, length);
+    }
 }
 
 
@@ -495,7 +582,127 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
 
         ts->setForking(oldForkStatus);
         fs->setForking(oldForkStatus);
+
+        if(m_memoryChecker) {
+            m_memoryChecker->grantMemory(ts, NULL, va, plgState->val3, 3,
+                                         "ndis:hw:NdisMAllocateSharedMemory");
+        }
      }
+}
+
+void NdisHandlers::NdisAllocatePacket(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    uint32_t pStatus, pPacket;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pStatus);
+    ok &= readConcreteParameter(state, 1, &pPacket);
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocatePacketRet, pStatus, pPacket);
+}
+
+void NdisHandlers::NdisAllocatePacketRet(S2EExecutionState* state, uint32_t pStatus, uint32_t pPacket)
+{
+    bool ok = true;
+    NDIS_STATUS Status;
+    uint32_t Packet, Length;
+
+    ok &= state->readMemoryConcrete(pStatus, &Status, sizeof(Status));
+    ok &= state->readMemoryConcrete(pPacket, &Packet, sizeof(Packet));
+    ok &= state->readMemoryConcrete(Packet+4, &Length, 4);
+    if(!ok) {
+        s2e()->getDebugStream() << "Can not read result" << std::endl;
+        return;
+    }
+
+    if(Status) {
+        return;
+    }
+
+    //if(Length<0x1000)
+    //    Length = 0x1000; // XXX
+
+    if(m_memoryChecker) {
+        m_memoryChecker->grantMemory(state, NULL, Packet, Length, 3,
+                                     "ndis:alloc:NdisAllocatePacket");
+    }
+}
+
+void NdisHandlers::NdisFreePacket(S2EExecutionState *state, FunctionMonitorState *fns)
+{
+    uint32_t packet;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &packet);
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        return;
+    }
+
+    if(m_memoryChecker) {
+        m_memoryChecker->revokeMemory(state, NULL, packet, uint64_t(-1));
+    }
+}
+
+void NdisHandlers::NdisAllocateBuffer(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    uint32_t pStatus, pBuffer, Length;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pStatus);
+    ok &= readConcreteParameter(state, 1, &pBuffer);
+    ok &= readConcreteParameter(state, 2, &Length);
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocateBufferRet, pStatus, pBuffer, Length);
+}
+
+void NdisHandlers::NdisAllocateBufferRet(S2EExecutionState* state, uint32_t pStatus, uint32_t pBuffer, uint32_t Length)
+{
+    bool ok = true;
+    NDIS_STATUS Status;
+    uint32_t Buffer;
+
+    ok &= state->readMemoryConcrete(pStatus, &Status, sizeof(Status));
+    ok &= state->readMemoryConcrete(pBuffer, &Buffer, sizeof(Buffer));
+    if(!ok) {
+        s2e()->getDebugStream() << "Can not read result" << std::endl;
+        return;
+    }
+
+    if(Status) {
+        return;
+    }
+
+    //Length += 0x1000; // XXX
+
+    if(m_memoryChecker) {
+        m_memoryChecker->grantMemory(state, NULL, Buffer, Length, 3,
+                                     "ndis:alloc:NdisAllocateBuffer");
+    }
+}
+
+void NdisHandlers::IoFreeMdl(S2EExecutionState *state, FunctionMonitorState *fns)
+{
+    uint32_t Buffer;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &Buffer);
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        return;
+    }
+
+    if(m_memoryChecker) {
+        m_memoryChecker->revokeMemory(state, NULL, Buffer, uint64_t(-1));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -827,12 +1034,9 @@ void NdisHandlers::NdisMSetAttributes(S2EExecutionState* state, FunctionMonitorS
 
 void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonitorState *fns)
 {
-    if (!calledFromModule(state)) { return; }
+    const ModuleDescriptor* module = calledFromModule(state);
+    if (!module) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
-
-    if (getConsistency(__FUNCTION__) == STRICT) {
-        return;
-    }
 
     //Save parameter data that we will use on return
     //We need to put them in the state-local storage, as parameters can be mangled by the caller
@@ -842,6 +1046,17 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
     ok &= readConcreteParameter(state, 0, &plgState->pStatus);
     ok &= readConcreteParameter(state, 1, &plgState->pConfigParam);
     ok &= readConcreteParameter(state, 3, &plgState->pConfigString);
+
+    if(m_memoryChecker) {
+        if (!ok) {
+            s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << std::endl;
+            return;
+        }
+    }
+
+    if (getConsistency(__FUNCTION__) == STRICT) {
+        return;
+    }
 
     if (!ok) {
         s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << std::endl;
@@ -865,10 +1080,6 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
                 " pc=0x" << std::hex << pc <<
                 " Keyword=" << keyword <<
             " Type=" << paramType  << std::endl;
-    }
-
-    if (m_ignoreKeywords.find(keyword) != m_ignoreKeywords.end()) {
-        return;
     }
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisReadConfigurationRet)
@@ -912,14 +1123,18 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
     NDIS_CONFIGURATION_PARAMETER ConfigParam;
     ok = state->readMemoryConcrete(pConfigParam, &ConfigParam, sizeof(ConfigParam));
     if (ok) {
-        //For now, we only inject integer values
-        if (ConfigParam.ParameterType == NdisParameterInteger || ConfigParam.ParameterType == NdisParameterHexInteger) {
-            //Write the symbolic value there.
-            uint32_t valueOffset = offsetof(NDIS_CONFIGURATION_PARAMETER, ParameterData);
-            std::stringstream ss;
-            ss << __FUNCTION__ << "_" << configString << "_value";
-            klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int32, ss.str());
-            state->writeMemory(pConfigParam + valueOffset, val);
+
+        if (m_ignoreKeywords.find(configString) == m_ignoreKeywords.end()) {
+
+            //For now, we only inject integer values
+            if (ConfigParam.ParameterType == NdisParameterInteger || ConfigParam.ParameterType == NdisParameterHexInteger) {
+                //Write the symbolic value there.
+                uint32_t valueOffset = offsetof(NDIS_CONFIGURATION_PARAMETER, ParameterData);
+                std::stringstream ss;
+                ss << __FUNCTION__ << "_" << configString << "_value";
+                klee::ref<klee::Expr> val = state->createSymbolicValue(klee::Expr::Int32, ss.str());
+                state->writeMemory(pConfigParam + valueOffset, val);
+            }
         }
     }else {
         s2e()->getDebugStream() << "Could not read configuration data" << Status << std::endl;
@@ -938,6 +1153,37 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
                                              klee::ConstantExpr::create(NDIS_STATUS_FAILURE, klee::Expr::Int32));
         state->writeMemory(plgState->pStatus, outcome);
 
+        bool oldForkStatus = state->isForkingEnabled();
+        state->enableForking();
+
+        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
+
+        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
+        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
+        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
+
+        /* Update each of the states */
+        if(m_memoryChecker) {
+            m_memoryChecker->grantMemory(ts, NULL, pConfigParam, sizeof(ConfigParam), 1,
+                                         "ndis:ret:NdisReadConfiguration");
+            if(ConfigParam.ParameterType == NdisParameterString ||
+                    ConfigParam.ParameterType == NdisParameterMultiString) {
+                m_memoryChecker->grantMemory(ts, NULL,
+                                             ConfigParam.ParameterData.StringData.Buffer,
+                                             ConfigParam.ParameterData.StringData.Length, 1,
+                                             "ndis:ret:NdisReadConfiguration:StringData");
+            } else if(ConfigParam.ParameterType == NdisParameterBinary) {
+                m_memoryChecker->grantMemory(ts, NULL,
+                                             ConfigParam.ParameterData.BinaryData.Buffer,
+                                             ConfigParam.ParameterData.BinaryData.Length,
+                                             1,
+                                             "ndis:ret:NdisReadConfiguration:BinaryData");
+            }
+        }
+
+        ts->setForking(oldForkStatus);
+        fs->setForking(oldForkStatus);
+
     }else if (getConsistency(__FUNCTION__) == OVERAPPROX) {
         std::stringstream ss;
         ss << __FUNCTION__ << "_success";
@@ -951,6 +1197,13 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
 
 
 
+}
+
+void NdisHandlers::NdisCloseConfiguration(S2EExecutionState *state, FunctionMonitorState *fns)
+{
+    if(m_memoryChecker) {
+        m_memoryChecker->revokeMemory(state, NULL, "ndis:ret:NdisReadConfiguration*");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1130,6 +1383,60 @@ void NdisHandlers::NdisMQueryAdapterResourcesRet(S2EExecutionState* state)
 
     klee::ref<klee::Expr> SymbStatus = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
     state->writeMemory(plgState->pStatus, SymbStatus);
+
+    return;
+}
+
+void NdisHandlers::NdisMQueryAdapterInstanceName(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &plgState->val4);
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMQueryAdapterInstanceNameRet)
+}
+
+void NdisHandlers::NdisMQueryAdapterInstanceNameRet(S2EExecutionState* state)
+{
+    s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    if (!plgState->val4) {
+        s2e()->getDebugStream() << "PNDIS_STRING is NULL!" << std::endl;
+        return;
+    }
+
+    uint32_t eax;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        return;
+    }
+
+    if(eax)
+        return;
+
+    NDIS_STRING s;
+    bool ok = true;
+    ok = state->readMemoryConcrete(plgState->val4, &s, sizeof(s));
+    if(!ok) {
+        s2e()->getDebugStream() << "Can not read NDIS_STRING" << std::endl;
+        return;
+    }
+
+    if(m_memoryChecker) {
+        m_memoryChecker->grantMemory(state, NULL, s.Buffer, s.Length, 1,
+                             "ndis:ret:NdisMQueryAdapterInstenceName");
+    }
 
     return;
 }
@@ -1340,6 +1647,26 @@ void NdisHandlers::entryPoint(S2EExecutionState* state, FunctionMonitorState *fn
     s2e()->getDebugStream(state) << "Calling NDIS entry point "
                 << " at " << hexval(state->getPc()) << std::endl;
 
+    if(m_memoryChecker) {
+        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
+
+        bool ok = true;
+        uint32_t driverObject, registryPath;
+        ok &= readConcreteParameter(state, 0, &driverObject);
+        ok &= readConcreteParameter(state, 1, &registryPath);
+        assert(ok); //XXX
+
+        // Entry point args
+        m_memoryChecker->grantMemory(state, module, driverObject, 0x1000, 3,
+                                     "ndis:args:EntryPoint:DriverObject");
+        m_memoryChecker->grantMemory(state, module, registryPath, 0x1000, 3,
+                                     "ndis:args:EntryPoint:RegistryPath");
+
+        // Global variables
+        m_memoryChecker->grantMemory(state, module, 0x80552000, 4, 1,
+                                     "ndis:globals:KeTickCount", 0, true);
+    }
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::entryPointRet)
 }
 
@@ -1347,6 +1674,11 @@ void NdisHandlers::entryPointRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from NDIS entry point "
                 << " at " << hexval(state->getPc()) << std::endl;
+
+    if(m_memoryChecker) {
+        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
+        m_memoryChecker->revokeMemory(state, module, "ndis:args:EntryPoint:*");
+    }
 
     //Check the success status
     klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
@@ -1531,6 +1863,12 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
 
     s2e()->getDebugStream() << "NDIS_M_STATUS_HANDLER " << std::hex << pStatusHandler << std::endl;
 
+    if(m_memoryChecker) {
+        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
+        m_memoryChecker->grantMemory(state, module, pMediumArray, MediumArraySize*4,
+                             1, "ndis:args:MiniportInitialize:MediumArray");
+    }
+
     FunctionMonitor::CallSignal* entryPoint;
     REGISTER_ENTRY_POINT(entryPoint, pStatusHandler, NdisMStatusHandler);
 
@@ -1558,11 +1896,17 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
             writeParameter(state, 3, SymbSize);
         }
     }
+
 }
 
 void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
+
+    if(m_memoryChecker) {
+        m_memoryChecker->revokeMemory(state, module, "ndis:args:MiniportInitialize:*");
+    }
 
     //Check the success status, kill if failure
     klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
@@ -1578,6 +1922,10 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     if (!isTrue) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
                 " because InitializeHandler failed with 0x" << std::hex << eax << std::endl;
+        if(m_memoryChecker) {
+            // Driver should free all resources if initialization fails
+            m_memoryChecker->checkMemoryLeaks(state, module);
+        }
         s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler failed");
         return;
     }
@@ -1659,6 +2007,10 @@ void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *f
 void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if(m_memoryChecker) {
+        m_memoryChecker->checkMemoryLeaks(state, NULL);
+    }
 
     //There is nothing more to execute, kill the state
     s2e()->getExecutor()->terminateStateEarly(*state, "NdisHalt");

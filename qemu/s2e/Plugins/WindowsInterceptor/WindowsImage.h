@@ -372,6 +372,11 @@ typedef struct _UNICODE_STRING32 {
   uint32_t  Buffer;
 }UNICODE_STRING32, *PUNICODE_STRING32;
 
+typedef struct _BINARY_DATA32 {
+  uint16_t Length;
+  uint32_t Buffer;
+} __attribute__((packed)) BINARY_DATA32, *PBINARY_DATA32;
+
 typedef struct _LIST_ENTRY32 {
     uint32_t Flink;
     uint32_t Blink;

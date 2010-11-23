@@ -55,10 +55,12 @@ namespace plugins {
         cs->connect(sigc::mem_fun(*this, &CURRENT_CLASS::name)); \
     }
 
-#define DECLARE_ENTRY_POINT(name) \
+#define DECLARE_ENTRY_POINT(name, ...) \
     void name(S2EExecutionState* state, FunctionMonitorState *fns); \
-    void name##Ret(S2EExecutionState* state)
+    void name##Ret(S2EExecutionState* state, ##__VA_ARGS__)
 
+#define DECLARE_ENTRY_POINT_CO(name, ...) \
+    void name(S2EExecutionState* state, FunctionMonitorState *fns);
 
 #define REGISTER_IMPORT(I, dll, name) { \
     FunctionMonitor::CallSignal *__cs; \
