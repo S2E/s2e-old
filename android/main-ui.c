@@ -735,6 +735,105 @@ _adjustPartitionSize( const char*  description,
     return convertMBToBytes(imageMB);
 }
 
+#ifdef CONFIG_STANDALONE_UI
+
+// Base console port
+#define CORE_BASE_PORT          5554
+
+// Maximum number of core porocesses running simultaneously on a machine.
+#define MAX_CORE_PROCS          16
+
+// Socket timeout in millisec (set to half a second)
+#define CORE_PORT_TIMEOUT_MS    500
+
+#include "android/async-console.h"
+
+typedef struct {
+    LoopIo                 io[1];
+    int                    port;
+    int                    ok;
+    AsyncConsoleConnector  connector[1];
+} CoreConsole;
+
+static void
+coreconsole_io_func(void* opaque, int fd, unsigned events)
+{
+    CoreConsole* cc = opaque;
+    AsyncStatus  status;
+    status = asyncConsoleConnector_run(cc->connector, cc->io);
+    if (status == ASYNC_COMPLETE) {
+        cc->ok = 1;
+    }
+}
+
+static void
+coreconsole_init(CoreConsole* cc, const SockAddress* address, Looper* looper)
+{
+    int fd = socket_create_inet(SOCKET_STREAM);
+    AsyncStatus status;
+    cc->port = sock_address_get_port(address);
+    cc->ok   = 0;
+    loopIo_init(cc->io, looper, fd, coreconsole_io_func, cc);
+    if (fd >= 0) {
+        status = asyncConsoleConnector_connect(cc->connector, address, cc->io);
+        if (status == ASYNC_ERROR) {
+            cc->ok = 0;
+        }
+    }
+}
+
+static void
+coreconsole_done(CoreConsole* cc)
+{
+    socket_close(cc->io->fd);
+    loopIo_done(cc->io);
+}
+
+static void
+list_running_cores(const char* host)
+{
+    Looper*         looper;
+    CoreConsole     cores[MAX_CORE_PROCS];
+    SockAddress     address;
+    int             nn, found;
+
+    if (sock_address_init_resolve(&address, host, CORE_BASE_PORT, 0) < 0) {
+        derror("Unable to resolve hostname %s: %s", host, errno_str);
+        return;
+    }
+
+    looper = looper_newGeneric();
+
+    for (nn = 0; nn < MAX_CORE_PROCS; nn++) {
+        int port = CORE_BASE_PORT + nn*2;
+        sock_address_set_port(&address, port);
+        coreconsole_init(&cores[nn], &address, looper);
+    }
+
+    looper_runWithTimeout(looper, CORE_PORT_TIMEOUT_MS*2);
+
+    found = 0;
+    for (nn = 0; nn < MAX_CORE_PROCS; nn++) {
+        int port = CORE_BASE_PORT + nn*2;
+        if (cores[nn].ok) {
+            if (found == 0) {
+                fprintf(stdout, "Running emulator core processes:\n");
+            }
+            fprintf(stdout, "Emulator console port %d\n", port);
+            found++;
+        }
+        coreconsole_done(&cores[nn]);
+    }
+    looper_free(looper);
+
+    if (found == 0) {
+       fprintf(stdout, "There were no running emulator core processes found on %s.\n",
+               host);
+    }
+}
+
+#endif  // CONFIG_STANDALONE_UI
+
 int main(int argc, char **argv)
 {
     char   tmp[MAX_PATH];
@@ -820,6 +919,15 @@ int main(int argc, char **argv)
         fprintf(stderr, "please use -help for more information\n");
         exit(1);
     }
+
+#ifdef CONFIG_STANDALONE_UI
+    // Lets see if user just wants to list core process.
+    if (opts->list_cores) {
+        fprintf(stdout, "Enumerating running core processes.\n");
+        list_running_cores(opts->list_cores);
+        exit(0);
+    }
+#endif  // CONFIG_STANDALONE_UI
 
     if (android_charmap_setup(opts->charmap)) {
         exit(1);
