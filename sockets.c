@@ -802,6 +802,33 @@ sock_address_list_create( const char*  hostname,
     return list;
 }
 
+SockAddress**
+sock_address_list_create2(const char* host_and_port, unsigned flags )
+{
+    char host_name[512];
+    const char* actual_host_name = "localhost";
+    // Parse host and port name.
+    const char* port_name = strchr(host_and_port, ':');
+    if (port_name != NULL) {
+        int to_copy = MIN(sizeof(host_name)-1, port_name - host_and_port);
+        if (to_copy != 0) {
+            memcpy(host_name, host_and_port, to_copy);
+            host_name[to_copy] = '\0';
+            actual_host_name = host_name;
+            port_name++;
+        } else {
+            return NULL;
+        }
+    } else {
+        port_name = host_and_port;
+    }
+    // Make sure that port_name is not empty.
+    if (port_name[0] == '\0') {
+        return NULL;
+    }
+    return sock_address_list_create(actual_host_name, port_name, flags);
+}
+
 void
 sock_address_list_free( SockAddress**  list )
 {
