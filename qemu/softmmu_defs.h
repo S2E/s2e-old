@@ -47,41 +47,41 @@ void REGPARM io_writel_cmmu(target_phys_addr_t physaddr, uint32_t val, target_ul
 uint64_t REGPARM io_readq_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 void REGPARM io_writeq_cmmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
-void REGPARM io_write_chkb_mmu_s2e_trace(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
-void REGPARM io_write_chkw_mmu_s2e_trace(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
-void REGPARM io_write_chkl_mmu_s2e_trace(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
-void REGPARM io_write_chkq_mmu_s2e_trace(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
+void io_write_chkb_mmu_s2e_trace(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
+void io_write_chkw_mmu_s2e_trace(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
+void io_write_chkl_mmu_s2e_trace(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
+void io_write_chkq_mmu_s2e_trace(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
-void REGPARM io_write_chkb_mmu(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
-void REGPARM io_write_chkw_mmu(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
-void REGPARM io_write_chkl_mmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
-void REGPARM io_write_chkq_mmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
+void io_write_chkb_mmu(target_phys_addr_t physaddr, uint8_t val, target_ulong addr, void *retaddr);
+void io_write_chkw_mmu(target_phys_addr_t physaddr, uint16_t val, target_ulong addr, void *retaddr);
+void io_write_chkl_mmu(target_phys_addr_t physaddr, uint32_t val, target_ulong addr, void *retaddr);
+void io_write_chkq_mmu(target_phys_addr_t physaddr, uint64_t val, target_ulong addr, void *retaddr);
 
-uint8_t REGPARM io_read_chkb_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint16_t REGPARM io_read_chkw_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint32_t REGPARM io_read_chkl_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint64_t REGPARM io_read_chkq_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint8_t io_read_chkb_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint16_t io_read_chkw_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint32_t io_read_chkl_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint64_t io_read_chkq_mmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 
-uint8_t REGPARM io_read_chkb_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint16_t REGPARM io_read_chkw_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint32_t REGPARM io_read_chkl_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint64_t REGPARM io_read_chkq_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint8_t  io_read_chkb_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint16_t io_read_chkw_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint32_t io_read_chkl_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint64_t io_read_chkq_mmu_s2e_trace(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 
 
-uint8_t REGPARM io_read_chkb_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint16_t REGPARM io_read_chkw_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint32_t REGPARM io_read_chkl_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
-uint64_t REGPARM io_read_chkq_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint8_t  io_read_chkb_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint16_t  io_read_chkw_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint32_t  io_read_chkl_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
+uint64_t  io_read_chkq_cmmu(target_phys_addr_t physaddr, target_ulong addr, void *retaddr);
 
 uint8_t io_make_symbolicb_mmu(const char *name);
 uint16_t io_make_symbolicw_mmu(const char *name);
 uint32_t io_make_symbolicl_mmu(const char *name);
 uint64_t io_make_symbolicq_mmu(const char *name);
 
-uint8_t REGPARM io_read_chk_symb_b_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
-uint16_t REGPARM io_read_chk_symb_w_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
-uint32_t REGPARM io_read_chk_symb_l_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
-uint64_t REGPARM io_read_chk_symb_q_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
+uint8_t  io_read_chk_symb_b_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
+uint16_t  io_read_chk_symb_w_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
+uint32_t  io_read_chk_symb_l_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
+uint64_t  io_read_chk_symb_q_mmu(const char *label, target_ulong physaddr, uintptr_t pa);
 
 
 #ifdef CONFIG_S2E
