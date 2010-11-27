@@ -311,7 +311,7 @@ uint64_t cpu_get_tsc(CPUX86State *env)
 
 void cpu_loop_exit(void)
 {
-
+  abort();
 }
 
 void cpu_resume_from_signal(CPUState *env1, void *puc)
@@ -342,7 +342,7 @@ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler)
 
 void cpu_abort(CPUState *env, const char *fmt, ...)
 {
-
+    abort();
 }
 
 void cpu_set_apic_base(CPUState *env, uint64_t val)
