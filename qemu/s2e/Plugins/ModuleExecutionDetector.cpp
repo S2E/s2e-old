@@ -402,7 +402,7 @@ void ModuleExecutionDetector::onExecution(
             DPRINTF("Entered unknown module\n");
         }
 #endif
-        onModuleTransition.emit(state, *plgState->m_PreviousModule, *currentModule);
+        onModuleTransition.emit(state, plgState->m_PreviousModule, currentModule);
 
         plgState->m_PreviousModule = currentModule;
     }

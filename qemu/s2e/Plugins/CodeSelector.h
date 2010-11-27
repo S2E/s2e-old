@@ -61,8 +61,8 @@ private:
     Modules m_interceptedModules;
     void onModuleTransition(
         S2EExecutionState *state,
-        const ModuleDescriptor &prevModule,
-        const ModuleDescriptor &currentModule
+        const ModuleDescriptor *prevModule,
+        const ModuleDescriptor *currentModule
      );
 
 public:

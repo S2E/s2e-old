@@ -100,16 +100,16 @@ void CodeSelector::initialize()
 
 void CodeSelector::onModuleTransition(
         S2EExecutionState *state,
-        const ModuleDescriptor &prevModule,
-        const ModuleDescriptor &currentModule
+        const ModuleDescriptor *prevModule,
+        const ModuleDescriptor *currentModule
         )
 {
-    if (!&currentModule) {
+    if (!currentModule) {
         state->disableForking();
         return;
     }
 
-    if (m_interceptedModules.find(currentModule.Name) ==
+    if (m_interceptedModules.find(currentModule->Name) ==
         m_interceptedModules.end()) {
         state->disableForking();
     }

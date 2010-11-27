@@ -198,12 +198,12 @@ void MemoryChecker::onModuleUnload(S2EExecutionState* state,
 }
 
 void MemoryChecker::onModuleTransition(S2EExecutionState *state,
-                                       const ModuleDescriptor &prevModule,
-                                       const ModuleDescriptor &nextModule)
+                                       const ModuleDescriptor *prevModule,
+                                       const ModuleDescriptor *nextModule)
 {
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
-#warning prevModule and nextModule can be NULL here! This is crazy.
-    if(&nextModule && nextModule.LoadBase == plgState->m_module.LoadBase) {
+
+    if(nextModule && nextModule->LoadBase == plgState->m_module.LoadBase) {
         m_dataMemoryAccessConnection = s2e()->getCorePlugin()
             ->onDataMemoryAccess.connect(
                 sigc::mem_fun(*this, &MemoryChecker::onDataMemoryAccess));

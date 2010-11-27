@@ -104,8 +104,8 @@ class ModuleExecutionDetector:public Plugin
 public:
     sigc::signal<
         void, S2EExecutionState *,
-        const ModuleDescriptor &,
-        const ModuleDescriptor &> onModuleTransition;
+        const ModuleDescriptor *,
+        const ModuleDescriptor *> onModuleTransition;
 
     /** Signal that is emitted on begining and end of code generation
         for each translation block belonging to the module.
