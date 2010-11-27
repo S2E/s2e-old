@@ -222,7 +222,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t p
 #else
     if (s2e_ismemfunc(io_mem_read[index][SHIFT])) {
         DATA_TYPE res;
-        uintptr_t pa = s2e_notdirty_mem_write(pa);
+        uintptr_t pa = s2e_notdirty_mem_write(physaddr);
         if (isSymb) {
             res = glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(label, naddr, (uintptr_t)(pa));
             res |= glue(glue(io_read_chk_symb_, SUFFIX), MMUSUFFIX)(label, naddr, (uintptr_t)(pa+4)) << 32;
