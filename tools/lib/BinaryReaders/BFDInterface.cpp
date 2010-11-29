@@ -47,6 +47,15 @@ BFDInterface::BFDInterface(const std::string &fileName):ExecutableFile(fileName)
 {
     m_bfd = NULL;
     m_symbolTable = NULL;
+    //Fail loading if the image has no symbols
+    m_requireSymbols = true;
+}
+
+BFDInterface::BFDInterface(const std::string &fileName, bool requireSymbols):ExecutableFile(fileName)
+{
+    m_bfd = NULL;
+    m_symbolTable = NULL;
+    m_requireSymbols = requireSymbols;
 }
 
 BFDInterface::~BFDInterface()
@@ -112,7 +121,7 @@ bool BFDInterface::initialize()
         return false;
     }
 
-    if (!(m_bfd->flags & HAS_SYMS)) {
+    if (m_requireSymbols && !(m_bfd->flags & HAS_SYMS)) {
         return false;
     }
 
@@ -217,6 +226,35 @@ uint64_t BFDInterface::getImageSize() const
     }
 
     return bfd_get_size(m_bfd);
+}
+
+uint64_t BFDInterface::getEntryPoint() const
+{
+    if (!m_bfd) {
+        return 0;
+    }
+
+    return m_bfd->start_address;
+}
+
+bool BFDInterface::read(uint64_t va, void *dest, unsigned size)
+{
+    if (!m_bfd) {
+        return false;
+    }
+
+    BFDSection s;
+    s.start = va;
+    s.size = 1;
+
+    Sections::const_iterator it = m_sections.find(s);
+    if (it == m_sections.end()) {
+        return false;
+    }
+
+    asection *section = (*it).second;
+
+    return bfd_get_section_contents(m_bfd, section, dest, va - section->vma, size);
 }
 
 }

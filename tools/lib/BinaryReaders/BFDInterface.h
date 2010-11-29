@@ -72,11 +72,13 @@ private:
     AddressSet m_invalidAddresses;
 
     uint64_t m_imageBase;
+    bool m_requireSymbols;
 
     static void initSections(bfd *abfd, asection *sect, void *obj);
 
 public:
     BFDInterface(const std::string &fileName);
+    BFDInterface(const std::string &fileName, bool requireSymbols);
     virtual ~BFDInterface();
 
     bool initialize();
@@ -88,6 +90,12 @@ public:
     virtual bool getModuleName(std::string &name ) const;
     virtual uint64_t getImageBase() const;
     virtual uint64_t getImageSize() const;
+
+    //Gets the address of the first executable instruction of the file
+    uint64_t getEntryPoint() const;
+
+    //Read the contents at virtual address va
+    bool read(uint64_t va, void *dest, unsigned size);
 };
 
 }
