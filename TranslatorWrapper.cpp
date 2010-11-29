@@ -381,7 +381,7 @@ void qemu_system_reset_request(void)
 {
 
 }
-}
+
 
 /* Memory operations */
 void stq_phys(target_phys_addr_t addr, uint64_t val)
@@ -456,6 +456,110 @@ uint8_t __ldb_cmmu(target_ulong addr, int mmu_idx)
 {
     assert(false && "Not implemented");
     return 0;
+}
+
+int ldsb_data(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int ldub_data(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int ldub_kernel(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int lduw_data(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int lduw_kernel(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int lduw_kernel_s2e_trace(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int ldsw_data(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int ldl_data(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int ldl_kernel(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int ldl_kernel_s2e_trace(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+int ldq_data(target_ulong ptr)
+{
+    assert(false && "Not implemented");
+    return 0;
+}
+
+void stb_data(target_ulong ptr, uint8_t data)
+{
+    assert(false && "Not implemented");
+}
+
+void stb_kernel(target_ulong ptr, uint8_t data)
+{
+    assert(false && "Not implemented");
+}
+
+void stw_data(target_ulong ptr, uint16_t data)
+{
+    assert(false && "Not implemented");
+}
+
+void stw_kernel(target_ulong ptr, uint16_t data)
+{
+    assert(false && "Not implemented");
+}
+
+
+void stl_data(target_ulong ptr, uint32_t data)
+{
+    assert(false && "Not implemented");
+}
+
+void stl_kernel(target_ulong ptr, uint32_t data)
+{
+    assert(false && "Not implemented");
+}
+
+void stq_data(target_ulong ptr, uint32_t data)
+{
+    assert(false && "Not implemented");
+}
+
 }
 
 /*******************/
