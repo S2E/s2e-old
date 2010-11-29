@@ -7,7 +7,6 @@
 
 #include <lib/BinaryReaders/Library.h>
 
-
 namespace s2etools
 {
 
@@ -23,10 +22,16 @@ private:
     //Outputs raw x86 translated code here
     std::ofstream *m_translatedCode;
 
+
+    void translateBlockToX86_64(uint64_t address, void *buffer, int *codeSize);
+    llvm::Function* translateBlockToLLVM(uint64_t address);
+
 public:
     StaticTranslatorTool();
     ~StaticTranslatorTool();
-    void translate();
+    void translateToX86_64();
+    void translateToLLVM();
+
 };
 
 }
