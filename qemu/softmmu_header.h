@@ -114,6 +114,24 @@
 
 #endif // CONFIG_S2E
 
+#ifdef STATIC_TRANSLATOR
+
+//The static translator uses QEMU's translator as a library and redirects all memory accesses
+//to its custom routines.
+//Here we simply declare the functions
+RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr);
+
+#if DATA_SIZE <= 2
+int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr);
+#endif
+
+#if ACCESS_TYPE != (NB_MMU_MODES + 1)
+/* generic store macro */
+void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE v);
+#endif
+
+#else //STATIC_TRANSLATOR
+
 /* generic load/store macros */
 
 static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
@@ -222,6 +240,8 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 
 #endif /* ACCESS_TYPE != (NB_MMU_MODES + 1) */
 
+#endif //STATIC_TRANSLATOR
+
 #if ACCESS_TYPE != (NB_MMU_MODES + 1)
 
 #if DATA_SIZE == 8
@@ -269,6 +289,7 @@ static inline void glue(stfl, MEMSUFFIX)(target_ulong ptr, float32 v)
 #endif /* DATA_SIZE == 4 */
 
 #endif /* ACCESS_TYPE != (NB_MMU_MODES + 1) */
+
 
 #ifndef CONFIG_S2E
 #undef S2E_RAM_OBJECT_BITS
