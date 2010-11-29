@@ -33,6 +33,10 @@ QEMUFLAGS=-I. -I$(S2E_SRC_ROOT) -I$(S2E_SRC_ROOT)/target-i386 \
           -Wredundant-decls -Wall -Wundef -Wendif-labels -Wwrite-strings -fno-strict-aliasing \
           -Wno-sign-compare -Wno-missing-field-initializers -fexceptions
 
+ifeq ($(BuildMode),Debug)
+QEMUFLAGS+=-g -O0
+endif
+
 CFLAGS+=$(QEMUFLAGS)
 CXXFLAGS+=$(QEMUFLAGS)
 
