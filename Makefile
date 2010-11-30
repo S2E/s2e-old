@@ -19,7 +19,7 @@ SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
           $(S2E_SRC_ROOT)/translate-all.c $(S2E_SRC_ROOT)/cutils.c\
           TranslatorWrapper.cpp  \
           StaticTranslator.cpp \
-          Passes/QEMUInstructionBoundaryMarker.cpp \
+          Passes/QEMUInstructionBoundaryMarker.cpp Passes/QEMUCallMarker.cpp \
           CFG/CBasicBlock.cpp
 
 include $(LEVEL)/Makefile.common

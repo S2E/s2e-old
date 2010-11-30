@@ -195,7 +195,26 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     cpu_gen_code(&env, &tb, &codeSize);
     cpu_gen_llvm(&env, &tb);
 
-    return new CBasicBlock((Function*)tb.llvm_function, address, codeSize);
+    /*TB_DEFAULT=0,
+    TB_JMP, TB_JMP_IND,
+    TB_COND_JMP, TB_COND_JMP_IND,
+    TB_CALL, TB_CALL_IND, TB_REP, TB_RET*/
+
+    EBasicBlockType bbType;
+    switch(tb.s2e_tb_type) {
+        case TB_DEFAULT:      bbType = BB_DEFAULT; break;
+        case TB_JMP:          bbType = BB_JMP; break;
+        case TB_JMP_IND:      bbType = BB_JMP_IND; break;
+        case TB_COND_JMP:     bbType = BB_COND_JMP; break;
+        case TB_COND_JMP_IND: bbType = BB_COND_JMP_IND; break;
+        case TB_CALL:         bbType = BB_CALL; break;
+        case TB_CALL_IND:     bbType = BB_CALL_IND; break;
+        case TB_REP:          bbType = BB_REP; break;
+        case TB_RET:          bbType = BB_RET; break;
+        default: assert(false && "Unsupported translation block type");
+    }
+
+    return new CBasicBlock((Function*)tb.llvm_function, address, codeSize, bbType);
 }
 
 
