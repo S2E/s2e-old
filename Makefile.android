@@ -755,6 +755,7 @@ UI_AND_CORE_SOURCES = \
                       android/keycode-array.c \
                       android/charmap.c \
                       android/async-utils.c \
+                      android/sync-utils.c \
                       android/async-console.c \
                       android/utils/assert.c \
                       android/utils/bufprint.c \
