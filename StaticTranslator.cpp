@@ -20,6 +20,7 @@ extern "C" {
 
 #include "StaticTranslator.h"
 #include "CFG/CBasicBlock.h"
+#include "Utils.h"
 
 using namespace llvm;
 using namespace s2etools;
@@ -38,8 +39,8 @@ cl::opt<std::string>
     OutputDir("outputdir", cl::desc("Store the analysis output in this directory"), cl::init("."));
 }
 
-namespace s2etools
-{
+namespace s2etools {
+namespace translator {
 static BFDInterface *s_currentBinary = NULL;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -214,7 +215,8 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
         default: assert(false && "Unsupported translation block type");
     }
 
-    return new CBasicBlock((Function*)tb.llvm_function, address, codeSize, bbType);
+    Function *f = (Function*)tb.llvm_function;
+    return new CBasicBlock(f, address, tb.size, bbType);
 }
 
 
@@ -236,13 +238,6 @@ void StaticTranslatorTool::translateToX86_64()
 
 void StaticTranslatorTool::translateToLLVM()
 {
-
-    uint64_t ep = m_binary->getEntryPoint();
-    if (!ep) {
-        std::cerr << "Could not get entry point of " << InputFile << std::endl;
-    }
-
-
     const BFDInterface::Imports &imp = m_binary->getImports();
     BFDInterface::Imports::const_iterator it;
     for (it = imp.begin(); it != imp.end(); ++it) {
@@ -250,13 +245,43 @@ void StaticTranslatorTool::translateToLLVM()
         std::cout << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
     }
 
-    CBasicBlock *bb = translateBlockToLLVM(ep);
-    std::cout << *bb->getFunction();
+    std::set<uint64_t> addresses;
+
+    uint64_t ep = m_binary->getEntryPoint();
+    if (!ep) {
+        std::cerr << "Could not get entry point of " << InputFile << std::endl;
+    }
+
+    addresses.insert(ep);
+    while(!addresses.empty()) {
+        uint64_t ep = *addresses.begin();
+        addresses.erase(ep);
+
+        CBasicBlock *bb = translateBlockToLLVM(ep);
+        bb->toString(std::cout);
+
+        BasicBlocks::iterator bbit = m_exploredBlocks.find(bb);
+        if (bbit == m_exploredBlocks.end()) {
+            m_exploredBlocks.insert(bb);
+        } else {
+            assert(false && "Split the block here");
+            //if necessary, discard some part of it
+        }
+
+        //Check that successors have not been explored yet
+        const CBasicBlock::Successors &suc = bb->getSuccessors();
+        foreach(sit, suc.begin(), suc.end()) {
+            if (addresses.find(*sit) == addresses.end()) {
+                addresses.insert(*sit);
+            }
+        }
+
+    }
 }
 
 
 }
-
+}
 
 int main(int argc, char** argv)
 {

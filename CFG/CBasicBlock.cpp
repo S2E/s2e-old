@@ -1,7 +1,8 @@
 #include <iostream>
 #include "Passes/QEMUInstructionBoundaryMarker.h"
-#include "Passes/QEMUCallMarker.h"
+#include "Passes/QEMUTerminatorMarker.h"
 #include "CBasicBlock.h"
+#include "Utils.h"
 
 namespace s2etools {
 namespace translator {
@@ -13,11 +14,15 @@ CBasicBlock::CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBl
     m_function = f;
     m_type = type;
 
+    if (m_type == BB_DEFAULT) {
+        m_successors.insert(m_address + m_size);
+    }else {
+        markTerminator();
+    }
+
     markInstructionBoundaries();
 
-    if (m_type == BB_CALL || m_type == BB_CALL_IND) {
-        markCallInstruction();
-    }
+
 }
 
 CBasicBlock::~CBasicBlock()
@@ -34,35 +39,34 @@ void CBasicBlock::markInstructionBoundaries()
     }
 }
 
-void CBasicBlock::markCallInstruction()
+void CBasicBlock::markTerminator()
 {
-    assert (m_type == BB_CALL || m_type == BB_CALL_IND);
-    QEMUCallMarker callMarker;
-    if (!callMarker.runOnFunction(*m_function)) {
+    bool isRet = m_type == BB_RET;
+    bool isInlinable = m_type == BB_JMP || m_type == BB_COND_JMP || m_type == BB_REP;
+
+    QEMUTerminatorMarker terminatorMarker(isInlinable, isRet);
+    if (!terminatorMarker.runOnFunction(*m_function)) {
         std::cerr << "Basic block at address 0x" << std::hex << m_address <<
-                " has no call markers. This is bad." << std::endl;
+                " has no terminator markers. This is bad." << std::endl;
     }
+
+    QEMUTerminatorMarker::StaticTargets target = terminatorMarker.getStaticTargets();
+
+    foreach(it, target.begin(), target.end()) {
+        uint64_t tpc = *it;
+        //Do not add successor if it points back to the same bb.
+        if (!(tpc >= m_address && tpc < m_address+m_size)) {
+            m_successors.insert(*it);
+        }
+    }
+
+    m_successors.insert(m_address + m_size);
 }
 
-void CBasicBlock::computeSuccessors()
+
+void CBasicBlock::toString(std::ostream &os) const
 {
-    switch(m_type) {
-        //The BB has no terminator, return the address that follows it
-        case BB_DEFAULT:
-            m_successors.push_back(m_address + m_size);
-            break;
-
-        case BB_CALL:
-            //Simplest case: successor
-            m_successors.push_back(m_address + m_size);
-
-            //Run analysis pass to get the call target
-            break;
-
-    default:
-            assert(false && "Not implemented");
-
-    }
+    os << *m_function;
 }
 
 }

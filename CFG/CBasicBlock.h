@@ -3,7 +3,7 @@
 #define _CBASIC_BLOCK_H_
 
 #include <llvm/Function.h>
-
+#include <ostream>
 
 namespace s2etools {
 namespace translator {
@@ -16,10 +16,12 @@ enum EBasicBlockType
     BB_CALL, BB_CALL_IND, BB_REP, BB_RET
 };
 
+
 class CBasicBlock {
 public:
     //List of basic block addresses that follow this block
-    typedef std::vector<uint64_t> Successors;
+    typedef std::set<uint64_t> Successors;
+
 
 private:
     llvm::Function *m_function;
@@ -29,8 +31,7 @@ private:
     Successors m_successors;
 
     void markInstructionBoundaries();
-    void markCallInstruction();
-    void computeSuccessors();
+    void markTerminator();
 
 public:
     CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type);
@@ -48,7 +49,25 @@ public:
         return m_successors;
     }
 
+    uint64_t getAddress() const {
+        return m_address;
+    }
+
+    unsigned getSize() const {
+        return m_size;
+    }
+
+    void toString(std::ostream &os) const;
 };
+
+struct BasicBlockComparator {
+    bool operator()(const CBasicBlock* b1, const CBasicBlock *b2) {
+        return b1->getAddress() + b1->getSize() <= b2->getAddress();
+    }
+};
+
+typedef std::set<translator::CBasicBlock*, BasicBlockComparator> BasicBlocks;
+
 
 }
 }
