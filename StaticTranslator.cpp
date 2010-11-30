@@ -40,7 +40,9 @@ namespace s2etools
 {
 static BFDInterface *s_currentBinary = NULL;
 
-
+///////////////////////////////////////////////////////////////////////////////
+//Intercepts code loading functions
+///////////////////////////////////////////////////////////////////////////////
 extern "C" {
 int ldsb_code(target_ulong ptr)
 {
@@ -97,6 +99,7 @@ uint64_t ldq_code(target_ulong ptr)
     return val;
 }
 }
+///////////////////////////////////////////////////////////////////////////////
 
 bool StaticTranslatorTool::s_translatorInited = false;
 
@@ -152,6 +155,9 @@ void StaticTranslatorTool::translateBlockToX86_64(uint64_t address, void *buffer
     CPUState env;
     TranslationBlock tb;
 
+    memset(&env, 0, sizeof(env));
+    memset(&tb, 0, sizeof(tb));
+
     QTAILQ_INIT(&env.breakpoints);
     QTAILQ_INIT(&env.watchpoints);
 
@@ -159,6 +165,7 @@ void StaticTranslatorTool::translateBlockToX86_64(uint64_t address, void *buffer
     tb.pc = env.eip;
     tb.cs_base = 0;
     tb.tc_ptr = (uint8_t*)buffer;
+    tb.flags = (1 << HF_PE_SHIFT) | (1 << HF_CS32_SHIFT) | (1 << HF_SS32_SHIFT);
 
     cpu_gen_code(&env, &tb, codeSize);
 }
@@ -168,16 +175,20 @@ Function* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     CPUState env;
     TranslationBlock tb;
 
+    memset(&env, 0, sizeof(env));
+    memset(&tb, 0, sizeof(tb));
+
     QTAILQ_INIT(&env.breakpoints);
     QTAILQ_INIT(&env.watchpoints);
 
-    uint8_t dummyBuffer[1024];
+    uint8_t dummyBuffer[4096];
     int codeSize;
 
     env.eip = address;
     tb.pc = env.eip;
     tb.cs_base = 0;
     tb.tc_ptr = dummyBuffer;
+    tb.flags = (1 << HF_PE_SHIFT) | (1 << HF_CS32_SHIFT) | (1 << HF_SS32_SHIFT);
 
     cpu_gen_code(&env, &tb, &codeSize);
     cpu_gen_llvm(&env, &tb);
@@ -194,7 +205,7 @@ void StaticTranslatorTool::translateToX86_64()
         std::cerr << "Could not get entry point of " << InputFile << std::endl;
     }
 
-    uint8_t buffer[1024];
+    uint8_t buffer[4096];
     int codeSize = 0;
 
     translateBlockToX86_64(ep, buffer, &codeSize);
