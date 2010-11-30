@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include <lib/BinaryReaders/Library.h>
+#include "CFG/CBasicBlock.h"
 
 namespace s2etools
 {
@@ -24,7 +25,7 @@ private:
 
 
     void translateBlockToX86_64(uint64_t address, void *buffer, int *codeSize);
-    llvm::Function* translateBlockToLLVM(uint64_t address);
+    translator::CBasicBlock* translateBlockToLLVM(uint64_t address);
 
 public:
     StaticTranslatorTool();

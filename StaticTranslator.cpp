@@ -19,9 +19,11 @@ extern "C" {
 #include <lib/BinaryReaders/BFDInterface.h>
 
 #include "StaticTranslator.h"
+#include "CFG/CBasicBlock.h"
 
 using namespace llvm;
 using namespace s2etools;
+using namespace s2etools::translator;
 using namespace s2e::plugins;
 
 
@@ -170,7 +172,7 @@ void StaticTranslatorTool::translateBlockToX86_64(uint64_t address, void *buffer
     cpu_gen_code(&env, &tb, codeSize);
 }
 
-Function* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
+CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
 {
     CPUState env;
     TranslationBlock tb;
@@ -193,7 +195,7 @@ Function* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     cpu_gen_code(&env, &tb, &codeSize);
     cpu_gen_llvm(&env, &tb);
 
-    return (Function*)tb.llvm_function;
+    return new CBasicBlock((Function*)tb.llvm_function, address, codeSize);
 }
 
 
@@ -221,8 +223,16 @@ void StaticTranslatorTool::translateToLLVM()
         std::cerr << "Could not get entry point of " << InputFile << std::endl;
     }
 
-    llvm::Function *f = translateBlockToLLVM(ep);
-    std::cout << *f;
+
+    const BFDInterface::Imports &imp = m_binary->getImports();
+    BFDInterface::Imports::const_iterator it;
+    for (it = imp.begin(); it != imp.end(); ++it) {
+        const BFDInterface::FunctionDescriptor &fcnDesc = (*it).second;
+        std::cout << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
+    }
+
+    CBasicBlock *bb = translateBlockToLLVM(ep);
+    std::cout << *bb->getFunction();
 }
 
 

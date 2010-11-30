@@ -18,13 +18,17 @@ SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
           $(S2E_SRC_ROOT)/tcg/tcg-llvm.cpp \
           $(S2E_SRC_ROOT)/translate-all.c $(S2E_SRC_ROOT)/cutils.c\
           TranslatorWrapper.cpp  \
-          StaticTranslator.cpp
+          StaticTranslator.cpp \
+          Passes/QEMUInstructionBoundaryMarker.cpp \
+          CFG/CBasicBlock.cpp
 
 include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/tcg)
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/fpu)
 NEWDIR := $(shell mkdir -p $(ObjDir)/Wrapper)
+NEWDIR := $(shell mkdir -p $(ObjDir)/Passes)
+NEWDIR := $(shell mkdir -p $(ObjDir)/CFG)
 
 
 QEMUFLAGS=-I. -I$(S2E_SRC_ROOT) -I$(S2E_SRC_ROOT)/target-i386 \
