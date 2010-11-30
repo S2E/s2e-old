@@ -33,6 +33,8 @@
 
 #include "BFDInterface.h"
 
+#include "Pe.h"
+
 #include <stdlib.h>
 #include <cassert>
 
@@ -49,6 +51,8 @@ BFDInterface::BFDInterface(const std::string &fileName):ExecutableFile(fileName)
     m_symbolTable = NULL;
     //Fail loading if the image has no symbols
     m_requireSymbols = true;
+
+    m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
 }
 
 BFDInterface::BFDInterface(const std::string &fileName, bool requireSymbols):ExecutableFile(fileName)
@@ -56,6 +60,7 @@ BFDInterface::BFDInterface(const std::string &fileName, bool requireSymbols):Exe
     m_bfd = NULL;
     m_symbolTable = NULL;
     m_requireSymbols = requireSymbols;
+    m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
 }
 
 BFDInterface::~BFDInterface()
@@ -63,6 +68,9 @@ BFDInterface::~BFDInterface()
     if (m_bfd) {
         free(m_symbolTable);
         bfd_close(m_bfd);
+    }
+    if (m_file) {
+        delete m_file;
     }
 }
 
@@ -120,6 +128,9 @@ bool BFDInterface::initialize()
         m_bfd = NULL;
         return false;
     }
+
+    //Try to see if we have a PE image
+    initPeImports();
 
     if (m_requireSymbols && !(m_bfd->flags & HAS_SYMS)) {
         return false;
@@ -255,6 +266,84 @@ bool BFDInterface::read(uint64_t va, void *dest, unsigned size)
     asection *section = (*it).second;
 
     return bfd_get_section_contents(m_bfd, section, dest, va - section->vma, size);
+}
+
+/**
+ * The BFD library does not expose a standard way of extracting imported symbols.
+ * We have to provide an ad-hoc method for this.
+ */
+bool BFDInterface::initPeImports()
+{
+    if (!m_file) {
+        return false;
+    }
+
+    const windows::IMAGE_DOS_HEADER *dosHeader;
+    const windows::IMAGE_NT_HEADERS *ntHeader;
+    const uint8_t *start = (uint8_t*)m_file->getBufferStart();
+
+    dosHeader = (windows::IMAGE_DOS_HEADER*)start;
+    if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)  {
+        return false;
+    }
+
+    ntHeader = (windows::IMAGE_NT_HEADERS *)(start + dosHeader->e_lfanew);
+
+    if (ntHeader->Signature != IMAGE_NT_SIGNATURE) {
+        return false;
+    }
+
+    if (ntHeader->FileHeader.Machine != IMAGE_FILE_MACHINE_I386) {
+        return false;
+    }
+
+    const windows::IMAGE_DATA_DIRECTORY *importDir;
+    importDir =  &ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!importDir->Size || !importDir->Size) {
+        return false;
+    }
+
+    const windows::IMAGE_IMPORT_DESCRIPTOR *importDescriptors;
+    unsigned importDescCount;
+
+    importDescCount = importDir->Size / sizeof(windows::IMAGE_IMPORT_DESCRIPTOR);
+    importDescriptors = (windows::IMAGE_IMPORT_DESCRIPTOR *)(
+            start + importDir->VirtualAddress);
+
+    for (unsigned int i=0; importDescriptors[i].Characteristics && i<importDescCount; i++) {
+        const char *mn = (const char *)(start + importDescriptors[i].Name);
+        std::string moduleName = mn;
+        std::transform(moduleName.begin(), moduleName.end(), moduleName.begin(), ::tolower);
+
+        windows::IMAGE_THUNK_DATA32 *importAddressTable =
+                (windows::IMAGE_THUNK_DATA32 *)(start + importDescriptors[i].FirstThunk);
+
+        windows::IMAGE_THUNK_DATA32 *importNameTable =
+                (windows::IMAGE_THUNK_DATA32 *)(start + importDescriptors[i].OriginalFirstThunk);
+
+        while(importNameTable->u1.AddressOfData) {
+            const char *functionName = NULL;
+
+            if (importNameTable->u1.AddressOfData & IMAGE_ORDINAL_FLAG) {
+                uint32_t tmp = importNameTable->u1.AddressOfData & ~0xFFFF;
+                tmp &= ~IMAGE_ORDINAL_FLAG;
+                if (!tmp) {
+                    std::cerr << "No support for import by ordinals" << std::endl;
+                    continue;
+                }
+            }else {
+                windows::IMAGE_IMPORT_BY_NAME *byName = (windows::IMAGE_IMPORT_BY_NAME*)(start + importNameTable->u1.AddressOfData);
+                functionName = (const char*)&byName->Name;
+            }
+
+            m_imports.insert(std::make_pair(moduleName, std::make_pair(functionName, importAddressTable->u1.Function)));
+
+            importAddressTable++;
+            importNameTable++;
+        }
+    }
+
+    return true;
 }
 
 }

@@ -44,6 +44,7 @@ extern "C" {
 #include <inttypes.h>
 
 #include "ExecutableFile.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 namespace s2etools
 {
@@ -60,6 +61,10 @@ struct BFDSection
 
 class BFDInterface : public ExecutableFile
 {
+public:
+    typedef std::pair<std::string, uint64_t> FunctionDescriptor;
+    typedef std::multimap<std::string, FunctionDescriptor> Imports;
+
 private:
     typedef std::map<BFDSection, asection *> Sections;
     typedef std::set<uint64_t> AddressSet;
@@ -73,8 +78,13 @@ private:
 
     uint64_t m_imageBase;
     bool m_requireSymbols;
+    llvm::MemoryBuffer *m_file;
+
+    Imports m_imports;
 
     static void initSections(bfd *abfd, asection *sect, void *obj);
+
+    bool initPeImports();
 
 public:
     BFDInterface(const std::string &fileName);
@@ -96,6 +106,10 @@ public:
 
     //Read the contents at virtual address va
     bool read(uint64_t va, void *dest, unsigned size);
+
+    const Imports &getImports() const {
+        return m_imports;
+    }
 };
 
 }
