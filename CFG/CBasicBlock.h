@@ -3,6 +3,7 @@
 #define _CBASIC_BLOCK_H_
 
 #include <llvm/Function.h>
+#include <llvm/Instructions.h>
 #include <ostream>
 
 namespace s2etools {
@@ -21,7 +22,7 @@ class CBasicBlock {
 public:
     //List of basic block addresses that follow this block
     typedef std::set<uint64_t> Successors;
-
+    typedef std::map<uint64_t, llvm::CallInst*> Markers;
 
 private:
     llvm::Function *m_function;
@@ -29,10 +30,16 @@ private:
     unsigned m_size;
     EBasicBlockType m_type;
     Successors m_successors;
+    Markers m_instructionMarkers;
 
     void markInstructionBoundaries();
     void markTerminator();
 
+    llvm::Function* cloneFunction();
+
+    CBasicBlock();
+
+    void updateInstructionMarkers();
 public:
     CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type);
     ~CBasicBlock();
@@ -56,6 +63,8 @@ public:
     unsigned getSize() const {
         return m_size;
     }
+
+    CBasicBlock* split(uint64_t va);
 
     void toString(std::ostream &os) const;
 };

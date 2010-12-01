@@ -37,10 +37,10 @@ void QEMUInstructionBoundaryMarker::initInstructionMarker(llvm::Module *module)
 
 void QEMUInstructionBoundaryMarker::markBoundary(CallInst *Ci)
 {
-  Value *programCounter = Ci->getOperand(1);
+  ConstantInt *programCounter = dyn_cast<ConstantInt>(Ci->getOperand(1));
 
   //The program counter must be a constant!
-  if (!isa<ConstantInt>(programCounter)) {
+  if (!programCounter) {
       return;
   }
 
@@ -51,12 +51,26 @@ void QEMUInstructionBoundaryMarker::markBoundary(CallInst *Ci)
 
   Ci->replaceAllUsesWith(programCounter);
   Ci->eraseFromParent();
+
+  const uint64_t* target = programCounter->getValue().getRawData();
+  m_markers[*target] = marker;
+}
+
+void QEMUInstructionBoundaryMarker::updateMarker(llvm::CallInst *Ci)
+{
+    ConstantInt *programCounter = dyn_cast<ConstantInt>(Ci->getOperand(1));
+    assert(programCounter);
+
+    const uint64_t* target = programCounter->getValue().getRawData();
+    m_markers[*target] = Ci;
 }
 
 bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
 {
   bool modified = false;
   std::vector<CallInst *> Forks;
+
+  m_markers.clear();
 
   initInstructionMarker(F.getParent());
 
@@ -80,18 +94,24 @@ bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
       const char *Fn = F->getNameStr().c_str();
       bool IsAFork = strstr(Fn, "tcg_llvm_fork_and_concretize") != NULL;
 
-      if (IsAFork) {
+      if (IsAFork && !m_analyze) {
         Forks.push_back(Ci);
+      }
+
+      if (m_analyze && strstr(Fn, "instruction_marker")) {
+        updateMarker(Ci);
       }
     }
     
   }
 
-  std::vector<CallInst *>::iterator fit;
-  for(fit = Forks.begin(); fit != Forks.end(); ++fit) {
+  if (!m_analyze) {
+    std::vector<CallInst *>::iterator fit;
+    for(fit = Forks.begin(); fit != Forks.end(); ++fit) {
       markBoundary(*fit);
       modified = true;
-  } 
+    }
+  }
 
   return modified;
 }

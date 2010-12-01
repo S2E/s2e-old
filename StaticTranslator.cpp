@@ -257,26 +257,58 @@ void StaticTranslatorTool::translateToLLVM()
         uint64_t ep = *addresses.begin();
         addresses.erase(ep);
 
+        std::cout << "L: Translating at address 0x" << std::hex << ep << std::endl;
+
         CBasicBlock *bb = translateBlockToLLVM(ep);
-        bb->toString(std::cout);
+        //bb->toString(std::cout);
 
         BasicBlocks::iterator bbit = m_exploredBlocks.find(bb);
         if (bbit == m_exploredBlocks.end()) {
             m_exploredBlocks.insert(bb);
-        } else {
-            assert(false && "Split the block here");
-            //if necessary, discard some part of it
-        }
-
-        //Check that successors have not been explored yet
-        const CBasicBlock::Successors &suc = bb->getSuccessors();
-        foreach(sit, suc.begin(), suc.end()) {
-            if (addresses.find(*sit) == addresses.end()) {
-                addresses.insert(*sit);
+            //Check that successors have not been explored yet
+            const CBasicBlock::Successors &suc = bb->getSuccessors();
+            foreach(sit, suc.begin(), suc.end()) {
+                if (addresses.find(*sit) == addresses.end()) {
+                    std::cout << "L: Successor of 0x" << std::hex << bb->getAddress() << " is 0x" <<
+                            *sit << std::endl;
+                    addresses.insert(*sit);
+                }
             }
-        }
+        } else {
+            //The new block overlaps with another one.
+            //Decide how to split.
+            CBasicBlock *existingBlock = *bbit;
+            CBasicBlock *blockToDelete = NULL, *blockToSplit = NULL;
+            uint64_t splitAddress = 0;
 
+            if (bb->getAddress() < existingBlock->getAddress()) {
+                //The new block is bigger. Split it and remove the
+                //existing one.
+                blockToDelete = existingBlock;
+                blockToSplit = bb;
+                splitAddress = existingBlock->getAddress();
+            }else if (bb->getAddress()>existingBlock->getAddress()) {
+                //Discard the new block, and split the exising one
+                blockToDelete = bb;
+                blockToSplit = existingBlock;
+                splitAddress = bb->getAddress();
+            }else {
+                //The new block is equal to the previous one, this
+                //must not happen.
+                assert(false && "Got a block that is the same as an exisiting one");
+            }
+
+            m_exploredBlocks.erase(blockToSplit);
+            CBasicBlock *split = blockToSplit->split(splitAddress);
+
+            delete blockToDelete;
+
+            m_exploredBlocks.insert(blockToSplit);
+            m_exploredBlocks.insert(split);
+        }
     }
+
+    std::cout << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
 }
 
 
