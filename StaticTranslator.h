@@ -26,6 +26,8 @@ private:
     static bool s_translatorInited;
     BFDInterface *m_binary;
     BasicBlocks m_exploredBlocks;
+    std::set<uint64_t> m_addressesToExplore;
+
 
     //Outputs raw x86 translated code here
     std::ofstream *m_translatedCode;
@@ -33,11 +35,14 @@ private:
     void translateBlockToX86_64(uint64_t address, void *buffer, int *codeSize);
     translator::CBasicBlock* translateBlockToLLVM(uint64_t address);
 
+    void processTranslationBlock(CBasicBlock *bb);
+    void splitExistingBlock(CBasicBlock *newBlock, CBasicBlock *existingBlock);
+    void extractAddresses(CBasicBlock *bb);
 public:
     StaticTranslatorTool();
     ~StaticTranslatorTool();
     void translateToX86_64();
-    void translateToLLVM();
+    void exploreBasicBlocks();
 
 };
 

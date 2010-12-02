@@ -22,6 +22,7 @@ class CBasicBlock {
 public:
     //List of basic block addresses that follow this block
     typedef std::set<uint64_t> Successors;
+    typedef std::set<uint64_t> AddressSet;
     typedef std::map<uint64_t, llvm::CallInst*> Markers;
 
 private:
@@ -31,6 +32,9 @@ private:
     EBasicBlockType m_type;
     Successors m_successors;
     Markers m_instructionMarkers;
+
+    //Next unique id for cloned function
+    static unsigned s_seqNum;
 
     void markInstructionBoundaries();
     void markTerminator();
@@ -42,9 +46,10 @@ private:
     void updateInstructionMarkers();
 public:
     CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type);
+    CBasicBlock(uint64_t va, unsigned size);
     ~CBasicBlock();
 
-    const llvm::Function *getFunction() const {
+    llvm::Function *getFunction() const {
         return m_function;
     }
 
@@ -67,6 +72,11 @@ public:
     CBasicBlock* split(uint64_t va);
 
     void toString(std::ostream &os) const;
+
+    bool valid() const;
+
+    void intersect(CBasicBlock *bb1, AddressSet &result) const;
+
 };
 
 struct BasicBlockComparator {

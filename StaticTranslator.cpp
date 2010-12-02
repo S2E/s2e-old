@@ -20,6 +20,7 @@ extern "C" {
 
 #include "StaticTranslator.h"
 #include "CFG/CBasicBlock.h"
+#include "Passes/ConstantExtractor.h"
 #include "Utils.h"
 
 using namespace llvm;
@@ -173,6 +174,8 @@ void StaticTranslatorTool::translateBlockToX86_64(uint64_t address, void *buffer
     cpu_gen_code(&env, &tb, codeSize);
 }
 
+static uint8_t s_dummyBuffer[1024*1024];
+
 CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
 {
     CPUState env;
@@ -184,16 +187,20 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     QTAILQ_INIT(&env.breakpoints);
     QTAILQ_INIT(&env.watchpoints);
 
-    uint8_t dummyBuffer[4096];
     int codeSize;
 
     env.eip = address;
     tb.pc = env.eip;
     tb.cs_base = 0;
-    tb.tc_ptr = dummyBuffer;
+    tb.tc_ptr = s_dummyBuffer;
     tb.flags = (1 << HF_PE_SHIFT) | (1 << HF_CS32_SHIFT) | (1 << HF_SS32_SHIFT);
 
-    cpu_gen_code(&env, &tb, &codeSize);
+    try {
+        cpu_gen_code(&env, &tb, &codeSize);
+    }catch(InvalidAddressException) {
+        return NULL;
+    }
+
     cpu_gen_llvm(&env, &tb);
 
     /*TB_DEFAULT=0,
@@ -236,7 +243,108 @@ void StaticTranslatorTool::translateToX86_64()
     m_translatedCode->write((const char*)buffer, codeSize);
 }
 
-void StaticTranslatorTool::translateToLLVM()
+void StaticTranslatorTool::splitExistingBlock(CBasicBlock *newBlock, CBasicBlock *existingBlock)
+{
+    //The new block overlaps with another one.
+    //Decide how to split.
+    CBasicBlock *blockToDelete = NULL, *blockToSplit = NULL;
+    uint64_t splitAddress = 0;
+
+
+    if (newBlock->getAddress() < existingBlock->getAddress()) {
+        //The new block is bigger. Split it and remove the
+        //existing one.
+        blockToDelete = existingBlock;
+        blockToSplit = newBlock;
+        splitAddress = existingBlock->getAddress();
+
+        //Check if the bigger block has the same instructions as the smaller one.
+        //It may happen that disassembling at slightly different offsets can cause problems
+        //(e.g., disassembling a string might disassemble some valid code past the string).
+
+        //XXX: Broken. We might as well get a new block that is better, in which case we should discard
+        //the previous one. This requires heuristics...
+        //CBasicBlock::AddressSet commonAddresses;
+        //blockToSplit->intersect(existingBlock, commonAddresses);
+
+
+    }else if (newBlock->getAddress()>existingBlock->getAddress()) {
+        //Discard the new block, and split the exising one
+        blockToDelete = newBlock;
+        blockToSplit = existingBlock;
+        splitAddress = newBlock->getAddress();
+    }else {
+        //The new block is equal to a previous one
+        return;
+    }
+
+
+    CBasicBlock *split = blockToSplit->split(splitAddress);
+
+    if (!split) {
+        std::cerr << "Could not split block" << std::endl;
+        return;
+    }
+
+    m_exploredBlocks.erase(blockToSplit);
+    delete blockToDelete;
+
+    m_exploredBlocks.insert(blockToSplit);
+    m_exploredBlocks.insert(split);
+}
+
+void StaticTranslatorTool::processTranslationBlock(CBasicBlock *bb)
+{
+    BasicBlocks::iterator bbit = m_exploredBlocks.find(bb);
+    if (bbit == m_exploredBlocks.end()) {
+        m_exploredBlocks.insert(bb);
+        //Check that successors have not been explored yet
+        const CBasicBlock::Successors &suc = bb->getSuccessors();
+        foreach(sit, suc.begin(), suc.end()) {
+            if (m_addressesToExplore.find(*sit) == m_addressesToExplore.end()) {
+                std::cout << "L: Successor of 0x" << std::hex << bb->getAddress() << " is 0x" <<
+                        *sit << std::endl;
+                m_addressesToExplore.insert(*sit);
+            }
+        }
+    } else {
+        splitExistingBlock(bb, *bbit);
+    }
+}
+
+void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
+{
+    ConstantExtractor extractor;
+    extractor.runOnFunction(*bb->getFunction());
+
+    const ConstantExtractor::Constants &consts = extractor.getConstants();
+    foreach(it, consts.begin(), consts.end()) {
+        uint64_t addr = *it;
+        //Disacard anything that falls outside the binary
+        if (!m_binary->isCode(addr)) {
+            continue;
+        }
+
+        //Skip if the address falls inside the current bb
+        if (addr >= bb->getAddress() && (addr < bb->getAddress() + bb->getSize())) {
+            continue;
+        }
+
+        //Skip if we already explored the basic block
+        CBasicBlock cmp(addr, 1);
+        if (m_exploredBlocks.find(&cmp) != m_exploredBlocks.end()) {
+            continue;
+        }
+
+        //Skip if we have a string
+
+
+        std::cout << "L: Found new address 0x" << std::hex << addr << std::endl;
+        m_addressesToExplore.insert(addr);
+    }
+}
+
+void StaticTranslatorTool::exploreBasicBlocks()
 {
     const BFDInterface::Imports &imp = m_binary->getImports();
     BFDInterface::Imports::const_iterator it;
@@ -245,67 +353,28 @@ void StaticTranslatorTool::translateToLLVM()
         std::cout << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
     }
 
-    std::set<uint64_t> addresses;
 
     uint64_t ep = m_binary->getEntryPoint();
     if (!ep) {
         std::cerr << "Could not get entry point of " << InputFile << std::endl;
     }
 
-    addresses.insert(ep);
-    while(!addresses.empty()) {
-        uint64_t ep = *addresses.begin();
-        addresses.erase(ep);
+    m_addressesToExplore.insert(ep);
+    while(!m_addressesToExplore.empty()) {
+        uint64_t ep = *m_addressesToExplore.begin();
+        m_addressesToExplore.erase(ep);
 
         std::cout << "L: Translating at address 0x" << std::hex << ep << std::endl;
 
         CBasicBlock *bb = translateBlockToLLVM(ep);
-        //bb->toString(std::cout);
-
-        BasicBlocks::iterator bbit = m_exploredBlocks.find(bb);
-        if (bbit == m_exploredBlocks.end()) {
-            m_exploredBlocks.insert(bb);
-            //Check that successors have not been explored yet
-            const CBasicBlock::Successors &suc = bb->getSuccessors();
-            foreach(sit, suc.begin(), suc.end()) {
-                if (addresses.find(*sit) == addresses.end()) {
-                    std::cout << "L: Successor of 0x" << std::hex << bb->getAddress() << " is 0x" <<
-                            *sit << std::endl;
-                    addresses.insert(*sit);
-                }
-            }
-        } else {
-            //The new block overlaps with another one.
-            //Decide how to split.
-            CBasicBlock *existingBlock = *bbit;
-            CBasicBlock *blockToDelete = NULL, *blockToSplit = NULL;
-            uint64_t splitAddress = 0;
-
-            if (bb->getAddress() < existingBlock->getAddress()) {
-                //The new block is bigger. Split it and remove the
-                //existing one.
-                blockToDelete = existingBlock;
-                blockToSplit = bb;
-                splitAddress = existingBlock->getAddress();
-            }else if (bb->getAddress()>existingBlock->getAddress()) {
-                //Discard the new block, and split the exising one
-                blockToDelete = bb;
-                blockToSplit = existingBlock;
-                splitAddress = bb->getAddress();
-            }else {
-                //The new block is equal to the previous one, this
-                //must not happen.
-                assert(false && "Got a block that is the same as an exisiting one");
-            }
-
-            m_exploredBlocks.erase(blockToSplit);
-            CBasicBlock *split = blockToSplit->split(splitAddress);
-
-            delete blockToDelete;
-
-            m_exploredBlocks.insert(blockToSplit);
-            m_exploredBlocks.insert(split);
+        if (!bb) {
+            continue;
         }
+
+        extractAddresses(bb);
+        //bb->toString(std::cout);
+        processTranslationBlock(bb);
+
     }
 
     std::cout << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
@@ -320,6 +389,6 @@ int main(int argc, char** argv)
     cl::ParseCommandLineOptions(argc, (char**) argv);
     StaticTranslatorTool translator;
 
-    translator.translateToLLVM();
+    translator.exploreBasicBlocks();
     return 0;
 }

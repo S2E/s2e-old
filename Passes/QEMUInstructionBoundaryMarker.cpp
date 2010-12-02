@@ -44,16 +44,23 @@ void QEMUInstructionBoundaryMarker::markBoundary(CallInst *Ci)
       return;
   }
 
-  std::vector<Value*> CallArguments;
-  CallArguments.push_back(programCounter);
-  CallInst *marker = CallInst::Create(m_instructionMarker, CallArguments.begin(), CallArguments.end());
-  marker->insertBefore(Ci);
+  const uint64_t* target = programCounter->getValue().getRawData();
+  if(m_markers.find(*target) == m_markers.end())
+  {
+      //Some instructions generate multiple updates to the program counter
+      //(e.g., pop ss). Make sure to keep only the first one.
+      //XXX: We really should have specific markers for instruction start in the code generator
+      std::vector<Value*> CallArguments;
+      CallArguments.push_back(programCounter);
+      CallInst *marker = CallInst::Create(m_instructionMarker, CallArguments.begin(), CallArguments.end());
+      marker->insertBefore(Ci);
+      m_markers[*target] = marker;
+  }
 
+  //In all cases, delete the original fork instruction
   Ci->replaceAllUsesWith(programCounter);
   Ci->eraseFromParent();
 
-  const uint64_t* target = programCounter->getValue().getRawData();
-  m_markers[*target] = marker;
 }
 
 void QEMUInstructionBoundaryMarker::updateMarker(llvm::CallInst *Ci)
@@ -62,6 +69,8 @@ void QEMUInstructionBoundaryMarker::updateMarker(llvm::CallInst *Ci)
     assert(programCounter);
 
     const uint64_t* target = programCounter->getValue().getRawData();
+
+    assert(m_markers.find(*target) == m_markers.end());
     m_markers[*target] = Ci;
 }
 

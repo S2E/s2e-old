@@ -2,6 +2,12 @@
 #include <sstream>
 
 #include "llvm/Module.h"
+#include "llvm/ModuleProvider.h"
+#include "llvm/DerivedTypes.h"
+#include "llvm/PassManager.h"
+#include "llvm/Analysis/Verifier.h"
+#include "llvm/target/TargetData.h"
+
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "Passes/QEMUInstructionBoundaryMarker.h"
 #include "Passes/QEMUTerminatorMarker.h"
@@ -14,6 +20,8 @@ using namespace llvm;
 namespace s2etools {
 namespace translator {
 
+unsigned CBasicBlock::s_seqNum = 0;
+
 CBasicBlock::CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type)
 {
     m_address = va;
@@ -23,13 +31,20 @@ CBasicBlock::CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBl
 
     if (m_type == BB_DEFAULT) {
         m_successors.insert(m_address + m_size);
-    }else {
-        markTerminator();
     }
 
+    markTerminator();
     markInstructionBoundaries();
+    valid();
 
+}
 
+CBasicBlock::CBasicBlock(uint64_t va, unsigned size)
+{
+    m_address = va;
+    m_size = size;
+    m_function = NULL;
+    m_type = BB_DEFAULT;
 }
 
 CBasicBlock::CBasicBlock()
@@ -55,13 +70,13 @@ void CBasicBlock::markInstructionBoundaries()
         assert(false);
     }
 
-    m_instructionMarkers = marker.getMarkers();
+    m_instructionMarkers = marker.getMarkers();    
 }
 
 void CBasicBlock::markTerminator()
 {
     bool isRet = m_type == BB_RET;
-    bool isInlinable = m_type == BB_JMP || m_type == BB_COND_JMP || m_type == BB_REP;
+    bool isInlinable = m_type == BB_JMP || m_type == BB_COND_JMP || m_type == BB_REP || m_type == BB_DEFAULT;
 
     QEMUTerminatorMarker terminatorMarker(isInlinable, isRet);
     if (!terminatorMarker.runOnFunction(*m_function)) {
@@ -90,12 +105,21 @@ Function* CBasicBlock::cloneFunction()
 {
     Module *module = m_function->getParent();
 
+    std::cerr << "Cloning BB 0x" << std::hex << m_address << std::endl;
+    if (m_address == 0x10ebe) {
+        std::cerr << *m_function;
+    }
+
     std::stringstream fcnName;
-    fcnName << "bb_" << std::hex << m_address;
+    fcnName << "bb_" << std::hex << m_address << "_" << std::dec << s_seqNum;
+    ++s_seqNum;
 
     module->getOrInsertFunction(fcnName.str(), m_function->getFunctionType());
     Function *destFcn = module->getFunction(fcnName.str());
 
+    if (destFcn->begin() != destFcn->end()) {
+        assert(false && "Function already exists");
+    }
 
     DenseMap<const Value*, Value*> ValueMap;
     std::vector<ReturnInst*> Returns;
@@ -117,11 +141,13 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
 {
     if (m_instructionMarkers.size() == 1) {
         //Can't split a basic block that has only one instruction
+        std::cerr << "Basic block 0x"  << std::hex << m_address << " has only one instruction." << std::endl;
         return NULL;
     }
     
     if (m_instructionMarkers.find(va) == m_instructionMarkers.end()) {
         //Requested to split at an address that does not belong to us
+        std::cerr << "Address 0x" << std::hex << va << " does not belong to basic block 0x"<< m_address << std::endl;
         return NULL;
     }
 
@@ -170,12 +196,56 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
     m_instructionMarkers = insMarker.getMarkers();
     assert(m_instructionMarkers.size() > 0);
 
+    valid();
+    ret->valid();
     return ret;
 }
 
 void CBasicBlock::toString(std::ostream &os) const
 {
+    os << "BB Start=0x" << std::hex << m_address << " size=0x" << m_size <<
+            " type=" << m_type << std::endl;
     os << *m_function;
+}
+
+/**
+ * Returns the list of program counters common to both basic blocks
+ */
+void CBasicBlock::intersect(CBasicBlock *bb1, AddressSet &result) const
+{
+    AddressSet a1, a2;
+    foreach(it, m_instructionMarkers.begin(), m_instructionMarkers.end()) {
+        a1.insert((*it).first);
+    }
+
+    foreach(it, bb1->m_instructionMarkers.begin(), bb1->m_instructionMarkers.end()) {
+        a2.insert((*it).first);
+    }
+
+    std::set_intersection(a1.begin(), a1.end(), a2.begin(), a2.end(),
+                          std::inserter(result, result.begin()));
+}
+
+bool CBasicBlock::valid() const
+{
+    //Check that the basic block is well-formed LLVM
+    ExistingModuleProvider *MP = new ExistingModuleProvider(m_function->getParent());
+    TargetData *TD = new TargetData(m_function->getParent());
+    FunctionPassManager FcnPasses(MP);
+    FcnPasses.add(TD);
+
+    FcnPasses.add(createVerifierPass());
+
+
+    foreach(it, m_instructionMarkers.begin(), m_instructionMarkers.end()) {
+        uint64_t marker = (*it).first;
+        if (marker < m_address || marker >= m_address + m_size) {
+            std::cerr << "BUGGY FUNCTION " << std::endl;
+            toString(std::cerr);
+            assert(false && "BB has marker outside its bounds");
+        }
+    }
+    return true;
 }
 
 }
