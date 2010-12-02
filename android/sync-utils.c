@@ -132,7 +132,7 @@ syncsocket_stop_read(SyncSocket* ssocket)
 int
 syncsocket_read_absolute(SyncSocket* ssocket,
                          void* buf,
-                         int size,
+                         size_t size,
                          int64_t deadline)
 {
     int ret;
@@ -156,7 +156,39 @@ syncsocket_read_absolute(SyncSocket* ssocket,
 }
 
 int
-syncsocket_read(SyncSocket* ssocket, void* buf, int size, int timeout)
+syncsocket_read(SyncSocket* ssocket, void* buf, size_t size, int timeout)
 {
     return syncsocket_read_absolute(ssocket, buf, size, iolooper_now() + timeout);
+}
+
+int
+syncsocket_read_line_absolute(SyncSocket* ssocket,
+                              char* buffer,
+                              size_t size,
+                              int64_t deadline)
+{
+    size_t read_chars = 0;
+
+    while (read_chars < size) {
+        char ch;
+        int ret = syncsocket_read_absolute(ssocket, &ch, 1, deadline);
+        if (ret <= 0) {
+            return ret;
+        }
+        buffer[read_chars++] = ch;
+        if (ch == '\n') {
+            return (int)read_chars;
+        }
+    }
+
+    /* Not enough room in the input buffer!*/
+    errno = ENOMEM;
+    return -1;
+}
+
+int
+syncsocket_read_line(SyncSocket* ssocket, char* buffer, size_t size, int timeout)
+{
+    return syncsocket_read_line_absolute(ssocket, buffer, size,
+                                         iolooper_now() + timeout);
 }
