@@ -77,6 +77,18 @@ public:
 
     void intersect(CBasicBlock *bb1, AddressSet &result) const;
 
+    bool isReturn() const {
+        return m_type == BB_RET;
+    }
+
+    bool isIndirectJump() const {
+        return m_type == BB_COND_JMP_IND || m_type == BB_JMP_IND;
+    }
+
+    bool getInstructionCount() const {
+        return m_instructionMarkers.size();
+    }
+
 };
 
 struct BasicBlockComparator {

@@ -8,6 +8,7 @@ extern "C" {
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Function.h"
+#include "llvm/Module.h"
 #include "llvm/Linker.h"
 #include <stdio.h>
 #include <inttypes.h>
@@ -15,12 +16,14 @@ extern "C" {
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 #include <lib/BinaryReaders/BFDInterface.h>
 
 #include "StaticTranslator.h"
 #include "CFG/CBasicBlock.h"
 #include "Passes/ConstantExtractor.h"
+#include "Passes/JumpTableExtractor.h"
 #include "Utils.h"
 
 using namespace llvm;
@@ -312,8 +315,56 @@ void StaticTranslatorTool::processTranslationBlock(CBasicBlock *bb)
     }
 }
 
+bool StaticTranslatorTool::checkString(uint64_t address, std::string &res, bool isUnicode)
+{
+    std::string ret;
+    unsigned char c;
+    uint16_t u;
+
+    do {
+        if (isUnicode) {
+            if (!m_binary->read(address, &u, sizeof(u))) {
+                return false;
+            }
+        }else {
+            if (!m_binary->read(address, &c, sizeof(c))) {
+                return false;
+            }
+            u = c;
+        }
+
+        if (u > 0 && (u < 0x20 || u >= 0x80) && u != 0xd && u != 0xa) {
+            return false;
+        }
+        if (u) {
+            ret = ret + (char)u;
+        }
+
+        address = isUnicode ? address + 2 : address + 1;
+    }while(u);
+
+    //XXX: Improve the heuristic
+    if (ret.size() < 2) {
+        return false;
+    }
+
+    res = ret;
+    return true;
+}
+
 void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
 {
+    JumpTableExtractor jumpTableExtractor;
+    uint64_t jumpTableAddress = 0;
+
+    if (bb->isIndirectJump()) {
+        jumpTableExtractor.runOnFunction(*bb->getFunction());
+        jumpTableAddress = jumpTableExtractor.getJumpTableAddress();
+        if (jumpTableAddress) {
+            std::cout << "Found jump table at 0x" << std::hex << jumpTableAddress << std::endl;
+        }
+    }
+
     ConstantExtractor extractor;
     extractor.runOnFunction(*bb->getFunction());
 
@@ -330,14 +381,23 @@ void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
             continue;
         }
 
+        //Skip jump tables
+        if (addr == jumpTableAddress) {
+            continue;
+        }
+
+        //Skip strings
+        std::string str;
+        if (checkString(addr, str, false) || checkString(addr, str, true)) {
+            std::cout << "Found string at 0x" << std::hex << addr << ": " << str << std::endl;
+            continue;
+        }
+
         //Skip if we already explored the basic block
         CBasicBlock cmp(addr, 1);
         if (m_exploredBlocks.find(&cmp) != m_exploredBlocks.end()) {
             continue;
         }
-
-        //Skip if we have a string
-
 
         std::cout << "L: Found new address 0x" << std::hex << addr << std::endl;
         m_addressesToExplore.insert(addr);
@@ -380,6 +440,66 @@ void StaticTranslatorTool::exploreBasicBlocks()
     std::cout << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
 }
 
+void StaticTranslatorTool::extractFunctions()
+{
+    typedef std::map<CBasicBlock*, BasicBlocks> Graph;
+
+    Graph incomingEdges, outgoingEdges;
+
+    BasicBlocks blocksWithIncomingEdges;
+    BasicBlocks blocksWithoutIncomingEdges;
+
+    foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
+        CBasicBlock *bb = *it;
+
+        //Check the case of function stubs that have only one indirect branch
+        if (bb->isIndirectJump() && bb->getInstructionCount() == 1) {
+            //XXX: check that somebody actually calls it
+            continue;
+        }
+
+        const CBasicBlock::Successors &suc = bb->getSuccessors();
+        foreach(sucit, suc.begin(), suc.end()) {
+            //Look for the basic block descriptor given its address
+            CBasicBlock tofind(*sucit, 1);
+            BasicBlocks::iterator bbit = m_exploredBlocks.find(&tofind);
+            if (bbit == m_exploredBlocks.end()) {
+                continue;
+            }
+
+            blocksWithIncomingEdges.insert(*bbit);
+            std::cout << std::hex << "0x" << bb->getAddress() << " -> 0x" << (*bbit)->getAddress() << std::endl;
+        }
+    }
+
+    std::cout << "Blocks with incoming edge: " << std::dec << blocksWithIncomingEdges.size() << std::endl;
+
+    std::set_difference(m_exploredBlocks.begin(), m_exploredBlocks.end(),
+                        blocksWithIncomingEdges.begin(), blocksWithIncomingEdges.end(),
+                          std::inserter(blocksWithoutIncomingEdges, blocksWithoutIncomingEdges.begin()),
+                          BasicBlockComparator());
+
+    std::cout << "Blocks without incoming edge: " << std::dec << blocksWithoutIncomingEdges.size() << std::endl;
+
+    //Look for nodes that have no incoming edges.
+    //These should be function entry points
+
+    BasicBlocks functionHeaders;
+    foreach(it, blocksWithoutIncomingEdges.begin(), blocksWithoutIncomingEdges.end()) {
+            functionHeaders.insert((*it));
+    }
+
+    std::set<uint64_t> fcnStartSet;
+    foreach(it, functionHeaders.begin(), functionHeaders.end()) {
+        fcnStartSet.insert((*it)->getAddress());
+    }
+
+    foreach(it, fcnStartSet.begin(), fcnStartSet.end()) {
+        std::cout << "FCN: 0x" << std::hex << *it << std::endl;
+    }
+
+    std::cout << "There are " << std::dec << functionHeaders.size() << " functions" << std::endl;
+}
 
 }
 }
@@ -390,5 +510,6 @@ int main(int argc, char** argv)
     StaticTranslatorTool translator;
 
     translator.exploreBasicBlocks();
+    translator.extractFunctions();
     return 0;
 }

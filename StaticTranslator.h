@@ -38,11 +38,13 @@ private:
     void processTranslationBlock(CBasicBlock *bb);
     void splitExistingBlock(CBasicBlock *newBlock, CBasicBlock *existingBlock);
     void extractAddresses(CBasicBlock *bb);
+    bool checkString(uint64_t address, std::string &res, bool isUnicode);
 public:
     StaticTranslatorTool();
     ~StaticTranslatorTool();
     void translateToX86_64();
     void exploreBasicBlocks();
+    void extractFunctions();
 
 };
 

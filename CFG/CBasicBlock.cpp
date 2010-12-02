@@ -86,17 +86,17 @@ void CBasicBlock::markTerminator()
         assert(false);
     }
 
-    QEMUTerminatorMarker::StaticTargets target = terminatorMarker.getStaticTargets();
+    //Call targets are not successors
+    if (isInlinable) {
+        QEMUTerminatorMarker::StaticTargets target = terminatorMarker.getStaticTargets();
 
-    foreach(it, target.begin(), target.end()) {
-        uint64_t tpc = *it;
-        //Do not add successor if it points back to the same bb.
-        if (!(tpc >= m_address && tpc < m_address+m_size)) {
+        foreach(it, target.begin(), target.end()) {
+            uint64_t tpc = *it;
             m_successors.insert(*it);
         }
     }
 
-    if (!isRet) {
+    if (!isRet && !(m_type == BB_JMP)) {
         m_successors.insert(m_address + m_size);
     }
 }
