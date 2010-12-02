@@ -22,23 +22,126 @@
 #ifndef ANDROID_SYNC_UTILS_H
 #define ANDROID_SYNC_UTILS_H
 
+/* Descriptor for a connected non-blocking socket providing synchronous I/O */
 typedef struct SyncSocket SyncSocket;
 
+/*
+ * Connect to a non-blocking socket for further synchronous I/O.
+ * Note: this routine will explicitly call socket_set_nonblock on the fd passed
+ * to this routine.
+ * Param:
+ *  fd - File descriptor for the socket, created with socket_create_xxx routine.
+ *  sockaddr - Address of the socket to connect to.
+ *  timeout - Time out (in milliseconds) to wait for the connection to occur.
+ * Return:
+ *  Initialized SyncSocket descriptor on success, or NULL on failure.
+ */
 SyncSocket* syncsocket_connect(int fd, SockAddress* sockaddr, int timeout);
 
+/*
+ * Closes SyncSocket descriptor obtained from syncsocket_connect routine.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ */
 void syncsocket_close(SyncSocket* ssocket);
 
+/*
+ * Frees memory allocated for SyncSocket descriptor obtained from
+ * syncsocket_connect routine.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ */
 void syncsocket_free(SyncSocket* ssocket);
 
+/*
+ * Prepares the socket for read.
+ * Note: this routine must be called before calling into syncsocket_read_xxx
+ * routines.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ * Return:
+ *  0 on success, or -1 on failure.
+ */
 int syncsocket_start_read(SyncSocket* ssocket);
 
+/*
+ * Clears the socket after reading.
+ * Note: this routine must be called after all expected data has been read from
+ * the socket.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ * Return:
+ *  0 on success, or -1 on failure.
+ */
 int syncsocket_stop_read(SyncSocket* ssocket);
 
+/*
+ * Synchronously reads from the socket.
+ * Note: syncsocket_start_read must be called before first call to this routine.
+ * Once syncsocket_start_read has been called, multiple syncsocket_read_xxx can
+ * be called to read all necessary data from the socket. When all necessary data
+ * has been read, syncsocket_stop_read must be called.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ *  buf - Buffer where to read data.
+ *  size - Number of bytes to read.
+ *  deadline - Absoulte deadline time to complete the reading.
+ * Return:
+ *  Number of bytes read on success, 0 on deadline expiration, or -1 on failure.
+ */
 int syncsocket_read_absolute(SyncSocket* ssocket,
                              void* buf,
-                             int size,
+                             size_t size,
                              int64_t deadline);
 
-int syncsocket_read(SyncSocket* ssocket, void* buf, int size, int timeout);
+/*
+ * Synchronously reads from the socket.
+ * Note: syncsocket_start_read must be called before first call to this routine.
+ * Once syncsocket_start_read has been called, multiple syncsocket_read_xxx can
+ * be called to read all necessary data from the socket. When all necessary data
+ * has been read, syncsocket_stop_read must be called.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ *  buf - Buffer where to read data.
+ *  size - Number of bytes to read.
+ *  timeout - Timeout (in milliseconds) to complete the reading.
+ * Return:
+ *  Number of bytes read on success, 0 on timeout expiration, or -1 on failure.
+ */
+int syncsocket_read(SyncSocket* ssocket, void* buf, size_t size, int timeout);
+
+/*
+ * Synchronously reads a line terminated with '\n' from the socket.
+ * Note: syncsocket_start_read must be called before first call to this routine.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ *  buffer - Buffer where to read line.
+ *  size - Number of characters the buffer can contain.
+ *  deadline - Absoulte deadline time to complete the reading.
+ * Return:
+ *  Number of chracters read on success, 0 on deadline expiration,
+ *  or -1 on failure.
+ */
+int syncsocket_read_line_absolute(SyncSocket* ssocket,
+                                  char* buffer,
+                                  size_t size,
+                                  int64_t deadline);
+
+/*
+ * Synchronously reads a line terminated with '\n' from the socket.
+ * Note: syncsocket_start_read must be called before first call to this routine.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ *  buffer - Buffer where to read line.
+ *  size - Number of characters the buffer can contain.
+ *  timeout - Timeout (in milliseconds) to complete the reading.
+ * Return:
+ *  Number of chracters read on success, 0 on deadline expiration,
+ *  or -1 on failure.
+ */
+int syncsocket_read_line(SyncSocket* ssocket,
+                         char* buffer,
+                         size_t size,
+                         int timeout);
 
 #endif  // ANDROID_SYNC_UTILS_H
