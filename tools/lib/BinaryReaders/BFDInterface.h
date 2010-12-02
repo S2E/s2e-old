@@ -85,6 +85,7 @@ private:
     static void initSections(bfd *abfd, asection *sect, void *obj);
 
     bool initPeImports();
+    asection *getSection(uint64_t va, unsigned size) const;
 
 public:
     BFDInterface(const std::string &fileName);
@@ -105,11 +106,14 @@ public:
     uint64_t getEntryPoint() const;
 
     //Read the contents at virtual address va
-    bool read(uint64_t va, void *dest, unsigned size);
+    bool read(uint64_t va, void *dest, unsigned size) const;
 
     const Imports &getImports() const {
         return m_imports;
     }
+
+    //Returns whether the supplied address is in an executable section
+    bool isCode(uint64_t va) const;
 };
 
 }

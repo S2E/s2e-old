@@ -248,22 +248,30 @@ uint64_t BFDInterface::getEntryPoint() const
     return m_bfd->start_address;
 }
 
-bool BFDInterface::read(uint64_t va, void *dest, unsigned size)
+asection *BFDInterface::getSection(uint64_t va, unsigned size) const
 {
     if (!m_bfd) {
-        return false;
+        return NULL;
     }
 
     BFDSection s;
     s.start = va;
-    s.size = 1;
+    s.size = size;
 
     Sections::const_iterator it = m_sections.find(s);
     if (it == m_sections.end()) {
-        return false;
+        return NULL;
     }
 
-    asection *section = (*it).second;
+    return (*it).second;
+}
+
+bool BFDInterface::read(uint64_t va, void *dest, unsigned size) const
+{
+    asection *section = getSection(va, 1);
+    if (!section) {
+        return false;
+    }
 
     return bfd_get_section_contents(m_bfd, section, dest, va - section->vma, size);
 }
@@ -344,6 +352,16 @@ bool BFDInterface::initPeImports()
     }
 
     return true;
+}
+
+bool BFDInterface::isCode(uint64_t va) const
+{
+    asection *section = getSection(va, 1);
+    if (!section) {
+        return false;
+    }
+
+    return section->flags & SEC_CODE;
 }
 
 }
