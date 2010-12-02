@@ -79,9 +79,10 @@ OPT_PARAM( sdcard, "<file>", "SD card image (default <system>/sdcard.img")
 #if CONFIG_ANDROID_SNAPSHOTS
 OPT_PARAM( snapstorage,    "<file>", "file that contains all state snapshots (default <datadir>/snapshots.img)")
 OPT_FLAG ( no_snapstorage, "do not mount a snapshot storage file (this disables all snapshot functionality)" )
-OPT_PARAM( snapshot,       "<name>", "immediately load state snapshot rather than doing a full boot (default 'default-boot')" )
-OPT_FLAG ( no_snapshot,    "do not start from snapshot, but perform a full boot sequence" )
-OPT_FLAG ( no_snapshot_save, "do not preserve snapshot, if restore was attempted" )
+OPT_PARAM( snapshot,       "<name>", "name of snapshot within storage file for auto-start and auto-save (default 'default-boot')" )
+OPT_FLAG ( no_snapshot,    "perform a full boot and do not do not auto-save, but qemu vmload and vmsave operate on snapstorage" )
+OPT_FLAG ( no_snapshot_save, "do not auto-save to snapshot on exit: abandon changed state" )
+OPT_FLAG ( no_snapshot_load, "do not auto-start from snapshot: perform a full boot" )
 OPT_FLAG ( snapshot_list,  "show a list of available snapshots" )
 #endif
 OPT_FLAG ( wipe_data, "reset the use data image (copy it from initdata)" )
