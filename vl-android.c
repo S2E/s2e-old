@@ -394,6 +394,10 @@ extern int android_display_bpp;
 
 extern void  dprint( const char* format, ... );
 
+#if CONFIG_ANDROID_SNAPSHOTS
+const char* savevm_on_exit = NULL;
+#endif
+
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
 /* Reports the core initialization failure to the error stdout and to the UI
@@ -3234,8 +3238,14 @@ static void main_loop(void)
             if (no_shutdown) {
                 vm_stop(0);
                 no_shutdown = 0;
-            } else
+            } else {
+#if CONFIG_ANDROID_SNAPSHOTS
+                if (savevm_on_exit != NULL) {
+                  do_savevm(cur_mon, savevm_on_exit);
+                }
+#endif
                 break;
+            }
         }
         if (qemu_reset_requested()) {
             pause_all_vcpus();
@@ -4292,9 +4302,14 @@ int main(int argc, char **argv, char **envp)
                 parallel_devices[parallel_device_index] = optarg;
                 parallel_device_index++;
                 break;
-	    case QEMU_OPTION_loadvm:
-		loadvm = optarg;
-		break;
+            case QEMU_OPTION_loadvm:
+                loadvm = optarg;
+                break;
+#if CONFIG_ANDROID_SNAPSHOTS
+            case QEMU_OPTION_savevm_on_exit:
+                savevm_on_exit = optarg;
+                break;
+#endif
             case QEMU_OPTION_full_screen:
                 full_screen = 1;
                 break;

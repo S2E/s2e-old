@@ -701,6 +701,15 @@ help_no_snapshot(stralloc_t*  out)
 }
 
 static void
+help_no_snapshot_save(stralloc_t*  out)
+{
+    PRINTF(
+    "  Prevents the emulator from saving the AVD's state to the snapshot\n"
+    "  storage on exit, meaning that all changes will be lost.\n\n"
+    );
+}
+
+static void
 help_snapshot_list(stralloc_t*  out)
 {
     PRINTF(

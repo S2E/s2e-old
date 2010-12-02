@@ -1410,12 +1410,13 @@ int main(int argc, char **argv)
         }
 
         if (!opts->no_snapshot) {
+            char* snapshot_name =
+                opts->snapshot ? opts->snapshot : "default-boot";
             args[n++] = "-loadvm";
-            if (opts->snapshot) {
-                args[n++] = opts->snapshot;
-            } else {
-                // name of state snapshot to load if not specified by user
-                args[n++] = "default-boot";
+            args[n++] = snapshot_name;
+            if (!opts->no_snapshot_save) {
+              args[n++] = "-savevm-on-exit";
+              args[n++] = snapshot_name;
             }
         } else if (opts->snapshot) {
             dwarning("option '-no-snapshot' overrides '-snapshot', continuing with boot sequence");
