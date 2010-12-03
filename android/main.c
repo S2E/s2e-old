@@ -1412,14 +1412,18 @@ int main(int argc, char **argv)
         if (!opts->no_snapshot) {
             char* snapshot_name =
                 opts->snapshot ? opts->snapshot : "default-boot";
-            args[n++] = "-loadvm";
-            args[n++] = snapshot_name;
+            if (!opts->no_snapshot_load) {
+              args[n++] = "-loadvm";
+              args[n++] = snapshot_name;
+            }
             if (!opts->no_snapshot_save) {
               args[n++] = "-savevm-on-exit";
               args[n++] = snapshot_name;
             }
         } else if (opts->snapshot) {
             dwarning("option '-no-snapshot' overrides '-snapshot', continuing with boot sequence");
+        } else if (opts->no_snapshot_load || opts->no_snapshot_save) {
+            D("ignoring redundant option(s) '-no-snapshot-load' and/or '-no-snapshot-save' implied by '-no-snapshot'");
         }
     } else if (opts->snapshot || opts->snapstorage) {
         dwarning("option '-no-snapstorage' overrides '-snapshot' and '-snapstorage', "

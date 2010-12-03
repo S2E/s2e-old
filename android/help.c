@@ -670,18 +670,19 @@ help_snapshot(stralloc_t*  out)
     "  Rather than executing a full boot sequence, the Android emulator can\n"
     "  resume execution from an earlier state snapshot (which is usually\n"
     "  significantly faster). When the parameter '-snapshot <name>' is given,\n"
-    "  the emulator loads the snapshot of that name from the snapshot image.\n\n"
+    "  the emulator loads the snapshot of that name from the snapshot image,\n"
+    "  and saves it back under the same name on exit.\n\n"
 
     "  If the option is not specified, it defaults to 'default-boot'. If the\n"
     "  specified snapshot does not exist, the emulator will perform a full boot\n"
-    "  sequence instead.\n\n"
+    "  sequence instead, but will still save.\n\n"
 
     "  WARNING: In the process of loading, all contents of the system, userdata\n"
     "           and SD card images will be OVERWRITTEN with the contents they\n"
     "           held when the snapshot was made. Unless saved in a different\n"
     "           snapshot, any changes since will be lost!\n\n"
 
-    "  If you want to create a snapshot, connect to the emulator console:\n\n"
+    "  If you want to create a snapshot manually, connect to the emulator console:\n\n"
 
     "      telnet localhost <port>\n\n"
 
@@ -694,9 +695,19 @@ static void
 help_no_snapshot(stralloc_t*  out)
 {
     PRINTF(
-    "  This forces the emulator to perform a full boot sequence, rather than\n"
-    "  loading the default snapshot. It overrides the '-snapshot' parameter.\n"
+    "  This inhibits both the autoload and autosave operations, forcing\n"
+    "  emulator to perform a full boot sequence and losing state on close.\n"
+    "  It overrides the '-snapshot' parameter.\n"
     "  If '-snapshot' was specified anyway, a warning is raised.\n\n"
+    );
+}
+
+static void
+help_no_snapshot_load(stralloc_t*  out)
+{
+    PRINTF(
+    "  Prevents the emulator from loading the AVD's state from the snapshot\n"
+    "  storage on start.\n\n"
     );
 }
 
