@@ -112,6 +112,8 @@ typedef struct ControlGlobalRec_
 
 } ControlGlobalRec;
 
+/* UI client currently attached to the core. */
+ControlClient attached_ui_client = NULL;
 
 static int
 control_global_add_redir( ControlGlobal  global,
@@ -211,6 +213,10 @@ control_client_destroy( ControlClient  client )
     int            sock;
 
     D(( "destroying control client %p\n", client ));
+
+    if (client == attached_ui_client) {
+        attached_ui_client = NULL;
+    }
 
     sock = control_client_detach( client );
     if (sock >= 0)
@@ -392,8 +398,9 @@ control_client_do_command( ControlClient  client )
         CommandDef  subcmd;
 
         if (cmd->handler) {
-            if ( !cmd->handler( client, args ) )
+            if ( !cmd->handler( client, args ) ) {
                 control_write( client, "OK\r\n" );
+            }
             break;
         }
 
@@ -503,8 +510,8 @@ control_client_read( void*  _client )
     size = socket_recv( client->sock, buf, sizeof(buf) );
     if (size < 0) {
         D(( "size < 0, exiting with %d: %s\n", errno, errno_str ));
-		if (errno != EWOULDBLOCK && errno != EAGAIN && errno != EINTR)
-			control_client_destroy( client );
+        if (errno != EWOULDBLOCK && errno != EAGAIN)
+            control_client_destroy( client );
         return;
     }
 
@@ -2364,11 +2371,42 @@ do_qemu_monitor( ControlClient client, char* args )
     return 0;
 }
 
+/* UI settings, passed to the core via -ui-settings command line parameter. */
+extern char* android_op_ui_settings;
+
+static int
+do_attach_ui( ControlClient client, char* args )
+{
+    // Make sure that there are no UI already attached to this console.
+    if (attached_ui_client != NULL) {
+        control_write( client, "KO: Another UI is attached to this core!\r\n" );
+        control_client_destroy(client);
+        return -1;
+    }
+
+    attached_ui_client = client;
+
+    if (android_op_ui_settings != NULL) {
+        // Reply "OK" with the saved -ui-settings property.
+        char reply_buf[4096];
+        snprintf(reply_buf, sizeof(reply_buf), "OK: %s\r\n", android_op_ui_settings);
+        control_write( client, reply_buf);
+    } else {
+        control_write( client, "OK\r\n");
+    }
+
+    return 0;
+}
+
 static const CommandDefRec  qemu_commands[] =
 {
     { "monitor", "enter QEMU monitor",
     "Enter the QEMU virtual machine monitor\r\n",
     NULL, do_qemu_monitor, NULL },
+
+    { "attach UI", "attach UI to the core",
+    "Attach UI to the core\r\n",
+    NULL, do_attach_ui, NULL },
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };
@@ -2385,8 +2423,8 @@ static const CommandDefRec  qemu_commands[] =
 static int
 do_kill( ControlClient  client, char*  args )
 {
-	control_write( client, "OK: killing emulator, bye bye\r\n" );
-	exit(0);
+    control_write( client, "OK: killing emulator, bye bye\r\n" );
+    exit(0);
 }
 
 static const CommandDefRec   main_commands[] =
@@ -2410,7 +2448,7 @@ static const CommandDefRec   main_commands[] =
       NULL, cdma_commands },
 
     { "kill", "kill the emulator instance", NULL, NULL,
-	  do_kill, NULL },
+      do_kill, NULL },
 
     { "network", "manage network settings",
       "allows you to manage the settings related to the network data connection of the\r\n"

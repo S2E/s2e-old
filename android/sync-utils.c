@@ -130,6 +130,28 @@ syncsocket_stop_read(SyncSocket* ssocket)
 }
 
 int
+syncsocket_start_write(SyncSocket* ssocket)
+{
+    if (ssocket == NULL || ssocket->fd < 0 || ssocket->iolooper == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    iolooper_add_write(ssocket->iolooper, ssocket->fd);
+    return 0;
+}
+
+int
+syncsocket_stop_write(SyncSocket* ssocket)
+{
+    if (ssocket == NULL || ssocket->fd < 0 || ssocket->iolooper == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    iolooper_del_write(ssocket->iolooper, ssocket->fd);
+    return 0;
+}
+
+ssize_t
 syncsocket_read_absolute(SyncSocket* ssocket,
                          void* buf,
                          size_t size,
@@ -151,17 +173,74 @@ syncsocket_read_absolute(SyncSocket* ssocket,
         do {
             ret = read(ssocket->fd, buf, size);
         } while( ret < 0 && errno == EINTR);
+    } else if (ret == 0) {
+        // Timed out
+        errno = ETIMEDOUT;
+        ret = -1;
     }
     return ret;
 }
 
-int
+ssize_t
 syncsocket_read(SyncSocket* ssocket, void* buf, size_t size, int timeout)
 {
     return syncsocket_read_absolute(ssocket, buf, size, iolooper_now() + timeout);
 }
 
-int
+ssize_t
+syncsocket_write_absolute(SyncSocket* ssocket,
+                          const void* buf,
+                          size_t size,
+                          int64_t deadline)
+{
+    int ret;
+    size_t written = 0;
+
+    if (ssocket == NULL || ssocket->fd < 0 || ssocket->iolooper == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    do {
+        ret = iolooper_wait_absolute(ssocket->iolooper, deadline);
+        if (ret < 0) {
+            return ret;
+        } else if (ret == 0) {
+            // Timeout.
+            errno = ETIMEDOUT;
+            return -1;
+        }
+        if (!iolooper_is_write(ssocket->iolooper, ssocket->fd)) {
+            D("%s: Internal error, iolooper_is_write() not set!", __FUNCTION__);
+            return -1;
+        }
+
+        do {
+            ret = write(ssocket->fd, (const char*)buf + written, size - written);
+        } while( ret < 0 && errno == EINTR);
+
+        if (ret > 0) {
+            written += ret;
+        } else if (ret < 0) {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                return -1;
+            }
+        } else {
+            // Disconnected.
+            errno = ECONNRESET;
+            return -1;
+        }
+    } while (written < size);
+    return (int)written;
+}
+
+ssize_t
+syncsocket_write(SyncSocket* ssocket, const void* buf, size_t size, int timeout)
+{
+    return syncsocket_write_absolute(ssocket, buf, size, iolooper_now() + timeout);
+}
+
+ssize_t
 syncsocket_read_line_absolute(SyncSocket* ssocket,
                               char* buffer,
                               size_t size,
@@ -177,7 +256,7 @@ syncsocket_read_line_absolute(SyncSocket* ssocket,
         }
         buffer[read_chars++] = ch;
         if (ch == '\n') {
-            return (int)read_chars;
+            return read_chars;
         }
     }
 
@@ -186,7 +265,7 @@ syncsocket_read_line_absolute(SyncSocket* ssocket,
     return -1;
 }
 
-int
+ssize_t
 syncsocket_read_line(SyncSocket* ssocket, char* buffer, size_t size, int timeout)
 {
     return syncsocket_read_line_absolute(ssocket, buffer, size,

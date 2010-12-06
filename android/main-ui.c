@@ -60,6 +60,7 @@
 #include "android/display.h"
 
 #include "android/snapshot.h"
+#include "android/core-connection.h"
 
 #include "framebuffer.h"
 #include "iolooper.h"
@@ -98,6 +99,12 @@ extern void  stop_tracing(void);
 #endif
 
 unsigned long   android_verbose;
+
+/* Instance of the "attach UI" Emulator's core console client. */
+CoreConnection*   attach_client = NULL;
+
+/* -ui-settings parameters received from the core on UI attachment. */
+char* core_ui_settings = "";
 
 /***********************************************************************/
 /***********************************************************************/
@@ -735,8 +742,6 @@ _adjustPartitionSize( const char*  description,
     return convertMBToBytes(imageMB);
 }
 
-#ifdef CONFIG_STANDALONE_UI
-
 // Base console port
 #define CORE_BASE_PORT          5554
 
@@ -789,6 +794,13 @@ coreconsole_done(CoreConsole* cc)
     loopIo_done(cc->io);
 }
 
+/* List emulator core processes running on the given machine.
+ * This routine is called from main() if -list-cores parameter is set in the
+ * command line.
+ * Param:
+ *  host Value passed with -list-core parameter. Must be either "localhost", or
+ *  an IP address of a machine where core processes must be enumerated.
+ */
 static void
 list_running_cores(const char* host)
 {
@@ -832,7 +844,102 @@ list_running_cores(const char* host)
     }
 }
 
-#endif  // CONFIG_STANDALONE_UI
+/* Attaches starting UI to a running core process.
+ * This routine is called from main() when -attach-core parameter is set,
+ * indicating that this UI instance should attach to a running core, rather than
+ * start a new core process.
+ * Param:
+ *  opts Android options containing non-NULL attach_core.
+ * Return:
+ *  0 on success, or -1 on failure.
+ */
+static int
+attach_to_core(AndroidOptions* opts) {
+    int iter;
+    SockAddress console_socket;
+    SockAddress** sockaddr_list;
+
+    // Parse attach_core param extracting the host name, and the port name.
+    char* console_address = strdup(opts->attach_core);
+    char* host_name = console_address;
+    char* port_num = strchr(console_address, ':');
+    if (port_num == NULL) {
+        // The host name is ommited, indicating the localhost
+        host_name = "localhost";
+        port_num = console_address;
+    } else if (port_num == console_address) {
+        // Invalid.
+        derror("Invalid value %s for -attach-core parameter\n",
+               opts->attach_core);
+        return -1;
+    } else {
+        *port_num = '\0';
+        port_num++;
+        if (*port_num == '\0') {
+            // Invalid.
+            derror("Invalid value %s for -attach-core parameter\n",
+                   opts->attach_core);
+            return -1;
+        }
+    }
+
+    /* Create socket address list for the given address, and pull appropriate
+     * address to use for connection. Note that we're fine copying that address
+     * out of the list, since INET and IN6 will entirely fit into SockAddress
+     * structure. */
+    sockaddr_list =
+        sock_address_list_create(host_name, port_num, SOCKET_LIST_FORCE_INET);
+    free(console_address);
+    if (sockaddr_list == NULL) {
+        derror("Unable to resolve address %s: %s\n",
+               opts->attach_core, errno_str);
+        return -1;
+    }
+    for (iter = 0; sockaddr_list[iter] != NULL; iter++) {
+        if (sock_address_get_family(sockaddr_list[iter]) == SOCKET_INET ||
+            sock_address_get_family(sockaddr_list[iter]) == SOCKET_IN6) {
+            memcpy(&console_socket, sockaddr_list[iter], sizeof(SockAddress));
+            break;
+        }
+    }
+    if (sockaddr_list[iter] == NULL) {
+        derror("Unable to resolve address %s. Note that 'port' parameter passed to -attach-core\n"
+               "must be resolvable into an IP address.\n", opts->attach_core);
+        sock_address_list_free(sockaddr_list);
+        return -1;
+    }
+    sock_address_list_free(sockaddr_list);
+
+    attach_client = core_connection_create(&console_socket);
+    if (attach_client != NULL) {
+        if (!core_connection_open(attach_client)) {
+            if (!core_connection_switch_stream(attach_client, "attach UI",
+                                               &core_ui_settings)) {
+                fprintf(stdout, "UI is now attached to the core %s\n",
+                        sock_address_to_string(&console_socket));
+                if (*core_ui_settings != '\0') {
+                    fprintf(stdout, "UI setting for the core%s:\n",
+                            core_ui_settings);
+                }
+                return 0;
+            } else {
+                derror("Unable to attach to the core %s: %s\n",
+                       sock_address_to_string(&console_socket),
+                       core_ui_settings);
+                core_connection_close(attach_client);
+                core_connection_free(attach_client);
+                attach_client = NULL;
+                return -1;
+            }
+        } else {
+            core_connection_free(attach_client);
+            attach_client = NULL;
+            return -1;
+        }
+    } else {
+        return -1;
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -920,14 +1027,21 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-#ifdef CONFIG_STANDALONE_UI
     // Lets see if user just wants to list core process.
     if (opts->list_cores) {
         fprintf(stdout, "Enumerating running core processes.\n");
         list_running_cores(opts->list_cores);
         exit(0);
     }
-#endif  // CONFIG_STANDALONE_UI
+
+    // Lets see if we're attaching to a running core process here.
+    if (opts->attach_core) {
+        /* TODO: This is just for the testing and debugging purposes. Later,
+         * when code develops, there will be more meat on that bone. */
+        if (attach_to_core(opts)) {
+            return -1;
+        }
+    }
 
     if (android_charmap_setup(opts->charmap)) {
         exit(1);

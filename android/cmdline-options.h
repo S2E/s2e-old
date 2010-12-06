@@ -156,6 +156,7 @@ OPT_PARAM( memcheck, "<flags>", "enable memory access checking" )
 
 #ifdef CONFIG_STANDALONE_UI
 OPT_PARAM( list_cores, "<host>", "list running core process" )
+OPT_PARAM( attach_core, "<console socket>", "attach to a running core process" )
 #endif  // CONFIG_STANDALONE_UI
 
 #undef CFG_FLAG

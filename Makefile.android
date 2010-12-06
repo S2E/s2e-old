@@ -1194,6 +1194,7 @@ VL_SOURCES := framebuffer.c \
               android/display.c \
               android/looper-generic.c \
               android/snapshot.c \
+              android/core-connection.c \
               android/main-ui.c \
               qemu-timer-ui.c \
               vl-android-ui.c \
