@@ -18,6 +18,7 @@
 struct FunctionBuilder : public llvm::ModulePass {
     typedef std::set<llvm::Function*> Functions;
     typedef std::map<uint64_t, llvm::Instruction*> Instructions;
+    typedef std::multimap<uint64_t, llvm::Instruction*> MultiInstructions;
     typedef std::map<llvm::Function*, uint64_t> FunctionAddressMap;
 
     static char ID;
@@ -46,13 +47,13 @@ private:
     void getCalledBbsAndInstructionBoundaries(
             llvm::Module &M, llvm::Function *f,
             Instructions &boundaries,
-            Instructions &calledBbs
+            MultiInstructions &calledBbs
          );
 
     void patchCallMarkersWithRealFunctions();
 
     void patchJumps(Instructions &boundaries,
-                    Instructions &branchTargets);
+                    MultiInstructions &branchTargets);
 
 
 public:

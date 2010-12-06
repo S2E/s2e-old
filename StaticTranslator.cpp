@@ -510,7 +510,7 @@ void StaticTranslatorTool::reconstructFunctions(BasicBlocks &functionHeaders, CF
         addrMap[(*it)->getFunction()] = (*it)->getAddress();
     }
 
-
+#if 0
     CBasicBlock bbToFind(0x108d0, 1);
     BasicBlocks::iterator it = m_exploredBlocks.find(&bbToFind);
     CFunction *fcn = new CFunction(*it);
@@ -519,6 +519,7 @@ void StaticTranslatorTool::reconstructFunctions(BasicBlocks &functionHeaders, CF
     functions.insert(fcn);
 
     exit(-1);
+#endif
 
     foreach(it, functionHeaders.begin(), functionHeaders.end()) {
         CFunction *fcn = new CFunction(*it);

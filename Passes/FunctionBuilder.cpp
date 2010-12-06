@@ -57,7 +57,7 @@ Function *FunctionBuilder::createFunction(Module &M)
 void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
         Module &M, Function *f,
         Instructions &boundaries,
-        Instructions &calledBbs
+        MultiInstructions &calledBbs
      )
 {
 
@@ -78,27 +78,24 @@ void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
                 std::cerr << "Duplicate pc: 0x" << std::hex << pc << " in bb " << ci->getParent()->getNameStr() << std::endl;
                 assert(false);
             }
-            boundaries[pc] = ci;
+            boundaries.insert(std::make_pair(pc, ci));
         }else {
             FunctionAddressMap::iterator fcnAddr = m_basicBlocks.find(ci->getCalledFunction());
             if (fcnAddr != m_basicBlocks.end()) {
                 uint64_t pc = (*fcnAddr).second;
                 if (!(calledBbs.find(pc) == calledBbs.end())) {
                     //A program counter may appear twice if there are two places that try
-                    //to jump to a block that was not yet inline.
-                    //This is fine, as inlining is done once per function, and the other jumps
-                    //will be patched subsequently
+                    //to jump to a block that was not yet inlined.
                     std::cerr << "Duplicate target pc: 0x" << std::hex << pc << std::endl;
-                }else {
-                    calledBbs[pc] = ci;
                 }
+                calledBbs.insert(std::make_pair(pc, ci));
             }
         }
     }
 }
 
 void FunctionBuilder::patchJumps(Instructions &boundaries,
-                Instructions &branchTargets)
+                MultiInstructions &branchTargets)
 {
     foreach(it, branchTargets.begin(), branchTargets.end()) {
         CallInst *ci = dyn_cast<CallInst>((*it).second);
@@ -111,23 +108,26 @@ void FunctionBuilder::patchJumps(Instructions &boundaries,
         //Create the branch target
         //XXX: May create redundant chains of branches
 
-        std::cout << "Ci=" << *ci << std::endl;
         Instruction *splitTargetAt = boundaries[calledPc];
-        std::cout << "Splitting at " << *splitTargetAt << std::endl;
         BasicBlock *newBB = splitTargetAt->getParent()->splitBasicBlock(splitTargetAt);
+
+#if 0
+        std::cout << "Ci=" << *ci << std::endl;
+        std::cout << "Splitting at " << *splitTargetAt << std::endl;
         std::cout << "New BB is " << *newBB;
+#endif
 
         //Discard all instructions following the call
         BasicBlock *callBB = ci->getParent();
         while(&callBB->back() != ci) {
-            std::cout << "Erasing " << callBB->back() << std::endl;
+      //      std::cout << "Erasing " << callBB->back() << std::endl;
             callBB->back().eraseFromParent();
         }
 
         //Replace the call with a branch
         ci->eraseFromParent();
         BranchInst *bi = BranchInst::Create(newBB, callBB);
-        std::cout << "Created internal branch " << *bi << std::endl;
+        //std::cout << "Created internal branch " << *bi << std::endl;
     }
 }
 
@@ -166,22 +166,10 @@ bool FunctionBuilder::runOnModule(llvm::Module &M)
     //call instructions and markers.
     do {
         inliner.inlineFunctions();
-
-#if 0
-        std::set<CallSite>& notInlinedCallSites = inliner.getNotInlinedCallSites();
-        if (notInlinedCallSites.size() > 0) {
-            Instructions branchTargets;
-            foreach(ics, notInlinedCallSites.begin(), notInlinedCallSites.end()) {
-                FunctionAddressMap::iterator fcnAddr = m_basicBlocks.find((*ics).getCalledFunction());
-                assert(fcnAddr != m_basicBlocks.end());
-                uint64_t pc = (*fcnAddr).second;
-                branchTargets[pc] = (*ics).getInstruction();
-            }
-        }
-#endif
+        //std::cout << *F << std::flush;
 
         Instructions boundaries;
-        Instructions branchTargets;
+        MultiInstructions branchTargets;
         getCalledBbsAndInstructionBoundaries(M, F, boundaries, branchTargets);
 
         //Nothing more to inline, done with construction
@@ -191,12 +179,11 @@ bool FunctionBuilder::runOnModule(llvm::Module &M)
 
         patchJumps(boundaries, branchTargets);
 
-        std::cout << *F << std::flush;
-        FcnPasses.run(*F);
-
         modified = true;
     }while(true);
 
+    std::cout << *F << std::flush;
+    FcnPasses.run(*F);
 
     return modified;
 }
