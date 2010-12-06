@@ -33,6 +33,7 @@
 #include "qemu-timer.h"
 #include "qemu-char.h"
 #include "block.h"
+#include "sockets.h"
 #include "audio/audio.h"
 
 #include "android/android.h"
@@ -40,6 +41,7 @@
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/system.h"
+#include "android/core-connection.h"
 
 #ifdef CONFIG_MEMCHECK
 #include "memcheck/memcheck.h"
@@ -200,6 +202,9 @@ extern int android_display_height;
 extern int android_display_bpp;
 
 extern void  dprint( const char* format, ... );
+
+/* Instance of the "attach UI" Emulator's core console client. */
+extern CoreConnection*   attach_client;
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
@@ -588,6 +593,13 @@ int main(int argc, char **argv, char **envp)
     //qemu_chr_initial_reset();
 
     main_loop();
+
+    if (attach_client != NULL) {
+        core_connection_detach(attach_client);
+        core_connection_close(attach_client);
+        core_connection_free(attach_client);
+    }
+
     quit_timers();
     return 0;
 }

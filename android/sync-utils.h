@@ -47,7 +47,8 @@ void syncsocket_close(SyncSocket* ssocket);
 
 /*
  * Frees memory allocated for SyncSocket descriptor obtained from
- * syncsocket_connect routine.
+ * syncsocket_connect routine. Note that this routine will also close socket
+ * connection.
  * Param:
  *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
  */
@@ -76,6 +77,28 @@ int syncsocket_start_read(SyncSocket* ssocket);
 int syncsocket_stop_read(SyncSocket* ssocket);
 
 /*
+ * Prepares the socket for write.
+ * Note: this routine must be called before calling into syncsocket_write_xxx
+ * routines.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ * Return:
+ *  0 on success, or -1 on failure.
+ */
+int syncsocket_start_write(SyncSocket* ssocket);
+
+/*
+ * Clears the socket after writing.
+ * Note: this routine must be called after all data has been written to the
+ * socket.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ * Return:
+ *  0 on success, or -1 on failure.
+ */
+int syncsocket_stop_write(SyncSocket* ssocket);
+
+/*
  * Synchronously reads from the socket.
  * Note: syncsocket_start_read must be called before first call to this routine.
  * Once syncsocket_start_read has been called, multiple syncsocket_read_xxx can
@@ -87,12 +110,12 @@ int syncsocket_stop_read(SyncSocket* ssocket);
  *  size - Number of bytes to read.
  *  deadline - Absoulte deadline time to complete the reading.
  * Return:
- *  Number of bytes read on success, 0 on deadline expiration, or -1 on failure.
+ *  Number of bytes read on success, or -1 on failure.
  */
-int syncsocket_read_absolute(SyncSocket* ssocket,
-                             void* buf,
-                             size_t size,
-                             int64_t deadline);
+ssize_t syncsocket_read_absolute(SyncSocket* ssocket,
+                                 void* buf,
+                                 size_t size,
+                                 int64_t deadline);
 
 /*
  * Synchronously reads from the socket.
@@ -106,28 +129,66 @@ int syncsocket_read_absolute(SyncSocket* ssocket,
  *  size - Number of bytes to read.
  *  timeout - Timeout (in milliseconds) to complete the reading.
  * Return:
- *  Number of bytes read on success, 0 on timeout expiration, or -1 on failure.
+ *  Number of bytes read on success, or -1 on failure.
  */
-int syncsocket_read(SyncSocket* ssocket, void* buf, size_t size, int timeout);
+ssize_t syncsocket_read(SyncSocket* ssocket, void* buf, size_t size, int timeout);
 
 /*
- * Synchronously reads a line terminated with '\n' from the socket.
- * Note: syncsocket_start_read must be called before first call to this routine.
+ * Synchronously writes to the socket.
+ * Note: syncsocket_start_write must be called before first call to this routine.
+ * Once syncsocket_start_write has been called, multiple syncsocket_write_xxx can
+ * be called to write all necessary data to the socket. When all necessary data
+ * has been written, syncsocket_stop_write must be called.
  * Param:
  *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
- *  buffer - Buffer where to read line.
- *  size - Number of characters the buffer can contain.
- *  deadline - Absoulte deadline time to complete the reading.
+ *  buf - Buffer containing data to write.
+ *  size - Number of bytes to write.
+ *  deadline - Absoulte deadline time to complete the writing.
  * Return:
- *  Number of chracters read on success, 0 on deadline expiration,
- *  or -1 on failure.
+ *  Number of bytes written on success,or -1 on failure.
  */
-int syncsocket_read_line_absolute(SyncSocket* ssocket,
-                                  char* buffer,
+ssize_t syncsocket_write_absolute(SyncSocket* ssocket,
+                                  const void* buf,
                                   size_t size,
                                   int64_t deadline);
 
 /*
+ * Synchronously writes to the socket.
+ * Note: syncsocket_start_write must be called before first call to this routine.
+ * Once syncsocket_start_write has been called, multiple syncsocket_write_xxx can
+ * be called to write all necessary data to the socket. When all necessary data
+ * has been written, syncsocket_stop_write must be called.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ *  buf - Buffer containing data to write.
+ *  size - Number of bytes to write.
+ *  timeout - Timeout (in milliseconds) to complete the writing.
+ * Return:
+ *  Number of bytes written on success, or -1 on failure.
+ */
+ssize_t syncsocket_write(SyncSocket* ssocket,
+                         const void* buf,
+                         size_t size,
+                         int timeout);
+
+/*
+ * Synchronously reads a line terminated with '\n' from the socket.
+ * Note: syncsocket_start_read must be called before first call to this routine.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ *  buffer - Buffer where to read line.
+ *  size - Number of characters the buffer can contain.
+ *  deadline - Absoulte deadline time to complete the reading.
+ * Return:
+ *  Number of chracters read on success, 0 on deadline expiration,
+ *  or -1 on failure.
+ */
+ssize_t syncsocket_read_line_absolute(SyncSocket* ssocket,
+                                      char* buffer,
+                                      size_t size,
+                                      int64_t deadline);
+
+/*
  * Synchronously reads a line terminated with '\n' from the socket.
  * Note: syncsocket_start_read must be called before first call to this routine.
  * Param:
@@ -139,9 +200,9 @@ int syncsocket_read_line_absolute(SyncSocket* ssocket,
  *  Number of chracters read on success, 0 on deadline expiration,
  *  or -1 on failure.
  */
-int syncsocket_read_line(SyncSocket* ssocket,
-                         char* buffer,
-                         size_t size,
-                         int timeout);
+ssize_t syncsocket_read_line(SyncSocket* ssocket,
+                             char* buffer,
+                             size_t size,
+                             int timeout);
 
 #endif  // ANDROID_SYNC_UTILS_H
