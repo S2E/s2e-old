@@ -8,7 +8,7 @@ LEVEL=../..
 PARALLEL_DIRS=TranslatorBitcode
 TOOLNAME = static-translator
 USEDLIBS = executiontracer.a binaryreaders.a
-LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine
+LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scalaropts ipa transformutils
 NO_PEDANTIC=1
 SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
           $(S2E_SRC_ROOT)/target-i386/helper.c \
@@ -22,7 +22,7 @@ SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
           Passes/QEMUInstructionBoundaryMarker.cpp Passes/QEMUTerminatorMarker.cpp \
           Passes/QEMUTbCutter.cpp Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp\
           Passes/FunctionBuilder.cpp Passes/ForcedInliner.h\
-          CFG/CBasicBlock.cpp
+          CFG/CBasicBlock.cpp CFG/CFunction.cpp
 
 include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)

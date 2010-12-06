@@ -4,6 +4,12 @@
 #include <llvm/Support/IRBuilder.h>
 #include <llvm/Support/InstIterator.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/ModuleProvider.h>
+#include <llvm/PassManager.h>
+#include <llvm/Analysis/Verifier.h>
+#include <llvm/target/TargetData.h>
+
 
 #include "FunctionBuilder.h"
 #include "ForcedInliner.h"
@@ -42,11 +48,12 @@ Function *FunctionBuilder::createFunction(Module &M)
     //The initial function calls the entry basic block
     CallInst::Create(m_entryPoint, CallArguments.begin(), CallArguments.end(), "", BB);
 
-    ReturnInst::Create(M.getContext(), ConstantInt::get(M.getContext(), APInt(32,  0)), BB);
+    ReturnInst::Create(M.getContext(), ConstantInt::get(M.getContext(), APInt(64,  0)), BB);
 
     return F;
 }
 
+//calledBbs maps the address of a basic block to the call site
 void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
         Module &M, Function *f,
         Instructions &boundaries,
@@ -54,8 +61,7 @@ void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
      )
 {
 
-    Function *instrMarker = M.getFunction("instructionMarker");
-    Function *callMarker = M.getFunction("callMarker");
+    Function *instrMarker = M.getFunction("instruction_marker");
 
     foreach(iit, inst_begin(f), inst_end(f)) {
         CallInst *ci = dyn_cast<CallInst>(&*iit);
@@ -68,17 +74,24 @@ void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
             ConstantInt *cste = dyn_cast<ConstantInt>(ci->getOperand(1));
             assert(cste);
             uint64_t pc = *cste->getValue().getRawData();
-            assert(boundaries.find(pc) == boundaries.end());
+            if (!(boundaries.find(pc) == boundaries.end())) {
+                std::cerr << "Duplicate pc: 0x" << std::hex << pc << " in bb " << ci->getParent()->getNameStr() << std::endl;
+                assert(false);
+            }
             boundaries[pc] = ci;
-        }else if (ci->getCalledFunction() == callMarker) {
-            //Extract direct jumps
-            ConstantInt *cste = dyn_cast<ConstantInt>(ci->getOperand(1));
-            ConstantInt *isInlinable = dyn_cast<ConstantInt>(ci->getOperand(2));
-            assert(cste && isInlinable);
-            if (isInlinable == ConstantInt::getTrue(M.getContext())) {
-                uint64_t pc = *cste->getValue().getRawData();
-                assert(calledBbs.find(pc) == calledBbs.end());
-                calledBbs[pc] = ci;
+        }else {
+            FunctionAddressMap::iterator fcnAddr = m_basicBlocks.find(ci->getCalledFunction());
+            if (fcnAddr != m_basicBlocks.end()) {
+                uint64_t pc = (*fcnAddr).second;
+                if (!(calledBbs.find(pc) == calledBbs.end())) {
+                    //A program counter may appear twice if there are two places that try
+                    //to jump to a block that was not yet inline.
+                    //This is fine, as inlining is done once per function, and the other jumps
+                    //will be patched subsequently
+                    std::cerr << "Duplicate target pc: 0x" << std::hex << pc << std::endl;
+                }else {
+                    calledBbs[pc] = ci;
+                }
             }
         }
     }
@@ -96,43 +109,76 @@ void FunctionBuilder::patchJumps(Instructions &boundaries,
         }
 
         //Create the branch target
+        //XXX: May create redundant chains of branches
 
-        std::cout << "Ci=" << *ci;
+        std::cout << "Ci=" << *ci << std::endl;
         Instruction *splitTargetAt = boundaries[calledPc];
-        std::cout << "Splitting at " << *splitTargetAt;
+        std::cout << "Splitting at " << *splitTargetAt << std::endl;
         BasicBlock *newBB = splitTargetAt->getParent()->splitBasicBlock(splitTargetAt);
         std::cout << "New BB is " << *newBB;
 
         //Discard all instructions following the call
         BasicBlock *callBB = ci->getParent();
         while(&callBB->back() != ci) {
-            std::cout << "Erasing " << callBB->back();
+            std::cout << "Erasing " << callBB->back() << std::endl;
             callBB->back().eraseFromParent();
         }
 
         //Replace the call with a branch
         ci->eraseFromParent();
         BranchInst *bi = BranchInst::Create(newBB, callBB);
-        std::cout << "Created internal branch " << *bi;
+        std::cout << "Created internal branch " << *bi << std::endl;
     }
 }
+
+
 
 bool FunctionBuilder::runOnModule(llvm::Module &M)
 {
     bool modified = false;
     Function *F = createFunction(M);
+    m_function = F;
 
     ForcedInliner inliner;
 
     inliner.addFunction(F);
+    inliner.setPrefix("tcg-llvm-tb-");
+    inliner.setInlineOnceEachFunction(true);
+
     std::map<uintptr_t, Instruction*> programCounters;
     std::set<CallInst*> CalledBBs;
+
+    ExistingModuleProvider *MP = new ExistingModuleProvider(m_function->getParent());
+    TargetData *TD = new TargetData(m_function->getParent());
+    FunctionPassManager FcnPasses(MP);
+    FcnPasses.add(TD);
+
+    FcnPasses.add(createVerifierPass());
+   /* FcnPasses.add(createCFGSimplificationPass());
+    FcnPasses.add(createDeadStoreEliminationPass());
+    FcnPasses.add(createGVNPass());
+    FcnPasses.add(createAggressiveDCEPass());
+*/
+
 
     ///XXX: This is O(n^2), as we rescan all instructions at
     //at each iteration. Find a better way of keeping track of new
     //call instructions and markers.
     do {
         inliner.inlineFunctions();
+
+#if 0
+        std::set<CallSite>& notInlinedCallSites = inliner.getNotInlinedCallSites();
+        if (notInlinedCallSites.size() > 0) {
+            Instructions branchTargets;
+            foreach(ics, notInlinedCallSites.begin(), notInlinedCallSites.end()) {
+                FunctionAddressMap::iterator fcnAddr = m_basicBlocks.find((*ics).getCalledFunction());
+                assert(fcnAddr != m_basicBlocks.end());
+                uint64_t pc = (*fcnAddr).second;
+                branchTargets[pc] = (*ics).getInstruction();
+            }
+        }
+#endif
 
         Instructions boundaries;
         Instructions branchTargets;
@@ -144,8 +190,13 @@ bool FunctionBuilder::runOnModule(llvm::Module &M)
         }
 
         patchJumps(boundaries, branchTargets);
+
+        std::cout << *F << std::flush;
+        FcnPasses.run(*F);
+
         modified = true;
     }while(true);
+
 
     return modified;
 }

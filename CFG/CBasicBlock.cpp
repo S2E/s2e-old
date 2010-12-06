@@ -7,6 +7,8 @@
 #include "llvm/PassManager.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/target/TargetData.h"
+#include <llvm/Support/InstIterator.h>
+
 
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "Passes/QEMUInstructionBoundaryMarker.h"
@@ -21,6 +23,11 @@ namespace s2etools {
 namespace translator {
 
 unsigned CBasicBlock::s_seqNum = 0;
+
+bool BasicBlockComparator::operator ()(const CBasicBlock* b1, const CBasicBlock *b2)
+{
+   return b1->getAddress() + b1->getSize() <= b2->getAddress();
+}
 
 CBasicBlock::CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type)
 {
@@ -76,7 +83,7 @@ void CBasicBlock::markInstructionBoundaries()
 void CBasicBlock::markTerminator()
 {
     bool isRet = m_type == BB_RET;
-    bool isCall = m_type == BB_CALL || BB_CALL_IND;
+    bool isCall = m_type == BB_CALL || m_type == BB_CALL_IND;
     bool isInlinable = m_type == BB_JMP || m_type == BB_COND_JMP || m_type == BB_REP || m_type == BB_DEFAULT;
 
     QEMUTerminatorMarker terminatorMarker(isInlinable, isRet, isCall, m_address + m_size);
@@ -96,7 +103,7 @@ void CBasicBlock::markTerminator()
         }
     }
 
-    if (!isRet && !(m_type == BB_JMP)) {
+    if ((m_type != BB_RET) && (m_type != BB_JMP) && (m_type != BB_JMP)) {
         m_successors.insert(m_address + m_size);
     }
 }
@@ -111,7 +118,8 @@ Function* CBasicBlock::cloneFunction()
     }
 
     std::stringstream fcnName;
-    fcnName << "bb_" << std::hex << m_address << "_" << std::dec << s_seqNum;
+    //The tcg-llvm-tb prefix is important, will be used lated in function inlining
+    fcnName << "tcg-llvm-tb-" << s_seqNum << "c-" << std::hex << m_address;
     ++s_seqNum;
 
     module->getOrInsertFunction(fcnName.str(), m_function->getFunctionType());
@@ -130,6 +138,16 @@ Function* CBasicBlock::cloneFunction()
     assert(m_function->getParent() == destFcn->getParent());
 
     return destFcn;
+}
+
+void CBasicBlock::renameFunction()
+{
+    std::stringstream fcnName;
+    //The tcg-llvm-tb prefix is important, will be used lated in function inlining
+    fcnName << "tcg-llvm-tb-" << s_seqNum << "c-" << std::hex << m_address;
+    ++s_seqNum;
+
+    m_function->setName(fcnName.str());
 }
 
 
@@ -171,6 +189,7 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
         delete ret;
         return NULL;
     }
+
     ret->m_function = retf;
     ret->m_successors.insert(m_address + newSize);
     ret->m_type = BB_DEFAULT;
@@ -178,6 +197,7 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
     ret->m_size = newSize;
     insMarker.runOnFunction(*retf);
     ret->m_instructionMarkers = insMarker.getMarkers();
+    ret->renameFunction();
 
     assert(ret->m_instructionMarkers.size() > 0);
 
@@ -194,11 +214,57 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
 
     insMarker.runOnFunction(*m_function);
     m_instructionMarkers = insMarker.getMarkers();
+    renameFunction();
+
     assert(m_instructionMarkers.size() > 0);
 
     valid();
     ret->valid();
     return ret;
+}
+
+void CBasicBlock::patchCallMarkersWithRealFunctions(BasicBlocks &allBlocks)
+{
+    Module *module = m_function->getParent();
+    Function *callMarker = module->getFunction("call_marker");
+
+    foreach(iit, inst_begin(m_function), inst_end(m_function)) {
+        CallInst *ci = dyn_cast<CallInst>(&(*iit));
+        if (!ci || (ci->getCalledFunction() != callMarker)) {
+            continue;
+        }
+
+        //Insert the call to the actual function right before
+        ConstantInt *isInlinable = dyn_cast<ConstantInt>(ci->getOperand(2));
+        assert(isInlinable);
+        if (isInlinable != ConstantInt::getTrue(module->getContext())) {
+            continue;
+        }
+
+        ConstantInt *cste = dyn_cast<ConstantInt>(ci->getOperand(1));
+        assert(cste);
+
+        if (isInlinable == ConstantInt::getTrue(module->getContext())) {
+            uint64_t pc = *cste->getValue().getRawData();
+
+            CBasicBlock toFind(pc, 1);
+            BasicBlocks::iterator foundIt = allBlocks.find(&toFind);
+            assert(foundIt != allBlocks.end());
+
+            Function *targetFcn = (*foundIt)->getFunction();
+
+            std::vector<Value*> CallArguments(1);
+
+            Function::ArgumentListType &args = m_function->getArgumentList();
+            assert(args.size() == 1);
+
+            CallArguments[0] = &*args.begin();
+
+            CallInst *bbcall = CallInst::Create(targetFcn, CallArguments.begin(), CallArguments.end());
+            bbcall->insertAfter(ci);
+        }
+    }
+    valid();
 }
 
 void CBasicBlock::toString(std::ostream &os) const
@@ -226,6 +292,7 @@ void CBasicBlock::intersect(CBasicBlock *bb1, AddressSet &result) const
                           std::inserter(result, result.begin()));
 }
 
+
 bool CBasicBlock::valid() const
 {
     //Check that the basic block is well-formed LLVM
@@ -235,7 +302,7 @@ bool CBasicBlock::valid() const
     FcnPasses.add(TD);
 
     FcnPasses.add(createVerifierPass());
-
+    FcnPasses.run(*m_function);
 
     foreach(it, m_instructionMarkers.begin(), m_instructionMarkers.end()) {
         uint64_t marker = (*it).first;

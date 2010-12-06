@@ -9,6 +9,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <vector>
+#include <set>
 
 using namespace llvm;
 
@@ -22,7 +23,9 @@ namespace llvm {
     ForcedInlinerImpl(const ForcedInlinerImpl&); // DO NOT IMPLEMENT
     void operator=(const ForcedInlinerImpl&); // DO NO IMPLEMENT
   public:
-    ForcedInlinerImpl(TargetData *T) : TD(T) {}
+    ForcedInlinerImpl(TargetData *T) : TD(T) {
+        m_inlineOnce = false;
+    }
 
     /// addFunction - Add function into the list of functions to process.
     /// All functions must be inserted using this interface before invoking
@@ -36,9 +39,25 @@ namespace llvm {
     /// inlined functions.
     void inlineFunctions();
     
+
+    /// setPrefix - inline only those functions whose name begins with prefix
+    void setPrefix(const std::string &prefix) {
+        m_prefix = prefix;
+    }
+
+    void setInlineOnceEachFunction(bool val) {
+        m_inlineOnce = val;
+    }
+
+    const std::set<CallSite>&getNotInlinedCallSites() const {
+        return m_notInlinedCallSites;
+    }
   private:
     TargetData *TD;
     std::vector<Function *> Functions;
+    std::string m_prefix;
+    bool m_inlineOnce;
+    std::set<CallSite> m_notInlinedCallSites;
   };
 
 /// inlineFuctions - Walk all call sites in all functions supplied by
@@ -46,10 +65,13 @@ namespace llvm {
 /// inlined functions.
 void ForcedInlinerImpl::inlineFunctions() {
       
+  m_notInlinedCallSites.clear();
+
   // Scan through and identify all call sites ahead of time so that we only
   // inline call sites in the original functions, not call sites that result
   // from inlining other functions.
   std::vector<CallSite> CallSites;
+  std::set<Function*> CalledFunctions;
   
   for (std::vector<Function *>::iterator FI = Functions.begin(),
          FE = Functions.end(); FI != FE; ++FI) {
@@ -58,8 +80,19 @@ void ForcedInlinerImpl::inlineFunctions() {
       for (BasicBlock::iterator I = BB->begin(); I != BB->end(); ++I) {
         CallSite CS = CallSite::get(I);
         if (CS.getInstruction() && CS.getCalledFunction()
-            && !CS.getCalledFunction()->isDeclaration())
-          CallSites.push_back(CS);
+            && !CS.getCalledFunction()->isDeclaration()) {
+
+            if (m_inlineOnce) {
+                if (CalledFunctions.find(CS.getCalledFunction()) == CalledFunctions.end()) {
+                    CallSites.push_back(CS);
+                    CalledFunctions.insert(CS.getCalledFunction());
+                }else {
+                    m_notInlinedCallSites.insert(CS);
+                }
+            }else {
+                CallSites.push_back(CS);
+            }
+        }
       }
   }
   
@@ -79,6 +112,13 @@ void ForcedInlinerImpl::inlineFunctions() {
           CallSites.erase(CallSites.begin() + index);
               --index;
               continue;
+        }
+
+        // Elimitate functions that do not have the right prefix
+        if (m_prefix.size() > 0 && Callee->getNameStr().find(m_prefix) == std::string::npos) {
+            CallSites.erase(CallSites.begin() + index);
+                --index;
+                continue;
         }
         
         // Inline
@@ -112,6 +152,18 @@ void ForcedInliner::addFunction(Function *F) {
 /// inlined functions.
 void ForcedInliner::inlineFunctions() {
   Impl->inlineFunctions();
+}
+
+void ForcedInliner::setPrefix(const std::string &prefix) {
+       Impl->setPrefix(prefix);
+}
+
+void ForcedInliner::setInlineOnceEachFunction(bool val) {
+    Impl->setInlineOnceEachFunction(val);
+}
+
+const std::set<CallSite>& ForcedInliner::getNotInlinedCallSites() const {
+    return Impl->getNotInlinedCallSites();
 }
 
 }

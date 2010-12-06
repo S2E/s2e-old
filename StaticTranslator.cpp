@@ -490,6 +490,7 @@ void StaticTranslatorTool::extractFunctions(BasicBlocks &functionHeaders)
 
     std::set<uint64_t> fcnStartSet;
     foreach(it, functionHeaders.begin(), functionHeaders.end()) {
+        assert(fcnStartSet.find((*it)->getAddress()) == fcnStartSet.end());
         fcnStartSet.insert((*it)->getAddress());
     }
 
@@ -498,6 +499,34 @@ void StaticTranslatorTool::extractFunctions(BasicBlocks &functionHeaders)
     }
 
     std::cout << "There are " << std::dec << functionHeaders.size() << " functions" << std::endl;
+}
+
+void StaticTranslatorTool::reconstructFunctions(BasicBlocks &functionHeaders, CFunctions &functions)
+{
+    FunctionAddressMap addrMap;
+    foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
+        //This is to put calls the real basic blocks.
+        (*it)->patchCallMarkersWithRealFunctions(m_exploredBlocks);
+        addrMap[(*it)->getFunction()] = (*it)->getAddress();
+    }
+
+
+    CBasicBlock bbToFind(0x108d0, 1);
+    BasicBlocks::iterator it = m_exploredBlocks.find(&bbToFind);
+    CFunction *fcn = new CFunction(*it);
+    fcn->generate(addrMap);
+    std::cout << fcn->getFunction();
+    functions.insert(fcn);
+
+    exit(-1);
+
+    foreach(it, functionHeaders.begin(), functionHeaders.end()) {
+        CFunction *fcn = new CFunction(*it);
+        fcn->generate(addrMap);
+        std::cout << fcn->getFunction();
+        functions.insert(fcn);
+        //break;
+    }
 }
 
 }
@@ -509,8 +538,11 @@ int main(int argc, char** argv)
     StaticTranslatorTool translator;
 
     BasicBlocks functionHeaders;
+    CFunctions functions;
 
     translator.exploreBasicBlocks();
     translator.extractFunctions(functionHeaders);
+    translator.reconstructFunctions(functionHeaders, functions);
+
     return 0;
 }

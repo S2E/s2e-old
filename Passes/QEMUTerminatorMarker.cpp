@@ -69,15 +69,19 @@ void QEMUTerminatorMarker::markCall(CallInst *Ci)
   CallArguments.push_back(programCounter);
   CallArguments.push_back(m_inlinable ? ConstantInt::getTrue(module->getContext()) : ConstantInt::getFalse(module->getContext()));
   CallInst *marker = CallInst::Create(m_callMarker, CallArguments.begin(), CallArguments.end());
-  marker->insertBefore(Ci);
 
-  //If we have a call block, insert an inlinable call to the successor
+  //We must insert the call right before the terminator, to avoid messing up use/defs
+  //during inlining. All defs should dominate the uses, and if we don't put the call at the end
+  //we'll get into trouble.
+  marker->insertBefore(Ci->getParent()->getTerminator());
+
+  //If we have a block with a call instruction, insert an inlinable call to the successor
   if (m_call) {
       CallArguments.clear();
       CallArguments.push_back(ConstantInt::get(module->getContext(), APInt(64,  m_successor)));
       CallArguments.push_back(ConstantInt::getTrue(module->getContext()));
       CallInst *marker = CallInst::Create(m_callMarker, CallArguments.begin(), CallArguments.end());
-      marker->insertBefore(Ci);
+      marker->insertBefore(Ci->getParent()->getTerminator());
   }
 
   Ci->replaceAllUsesWith(programCounter);

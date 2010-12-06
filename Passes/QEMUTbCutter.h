@@ -26,11 +26,13 @@ struct QEMUTbCutter : public llvm::FunctionPass {
 public:
     llvm::CallInst *m_marker;
     bool m_cutBefore;
+    llvm::Function *m_instructionMarker;
 
 private:
     bool removeBefore(llvm::CallInst *finish);
     bool removeAfter(llvm::CallInst *start);
     void insertUnconditionalBranch(llvm::CallInst *ci);
+    bool isInstructionMarker(llvm::CallInst *Ci);
 
 public:
     virtual bool runOnFunction(llvm::Function &F);

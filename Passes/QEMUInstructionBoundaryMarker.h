@@ -2,9 +2,9 @@
 
 #define _INSTR_BOUND_MARK_PASS_H_
 
-#include "llvm/Pass.h"
-#include "llvm/Function.h"
-#include "llvm/Instructions.h"
+#include <llvm/Pass.h>
+#include <llvm/Function.h>
+#include <llvm/Instructions.h>
 
 #include <map>
 
@@ -35,6 +35,7 @@ private:
     void initInstructionMarker(llvm::Module *module);
     void markBoundary(llvm::CallInst *Ci);
     void updateMarker(llvm::CallInst *Ci);
+    bool duplicatePrefixInstructions(llvm::Function &F);
 public:
     virtual bool runOnFunction(llvm::Function &F);
 

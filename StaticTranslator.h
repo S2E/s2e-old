@@ -8,6 +8,7 @@
 
 #include <lib/BinaryReaders/Library.h>
 #include "CFG/CBasicBlock.h"
+#include "CFG/CFunction.h"
 
 namespace s2etools {
 namespace translator {
@@ -44,7 +45,9 @@ public:
     ~StaticTranslatorTool();
     void translateToX86_64();
     void exploreBasicBlocks();
+
     void extractFunctions(BasicBlocks &functionHeaders);
+    void reconstructFunctions(BasicBlocks &functionHeaders, CFunctions &functions);
 
 };
 

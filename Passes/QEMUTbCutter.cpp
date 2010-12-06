@@ -25,22 +25,13 @@ RegisterPass<QEMUTbCutter>
   false /* Analysis Pass */);
 
 
-static bool IsInstructionMarker(CallInst *Ci)
+bool QEMUTbCutter::isInstructionMarker(CallInst *Ci)
 {
     if (!Ci) {
         return false;
     }
 
-    Function *F = Ci->getCalledFunction();
-    if (!F) {
-      return false;
-    }
-
-    const char *Fn = F->getNameStr().c_str();
-    if (!strstr(Fn, "instruction_marker")) {
-        return false;
-    }
-    return true;
+    return Ci->getCalledFunction() == m_instructionMarker;
 }
 
 //ilist<Instruction>::reverse_iterator iit(finish);
@@ -64,7 +55,7 @@ bool QEMUTbCutter::removeBefore(llvm::CallInst *finish)
     while(iit != iitEnd) {
         //Look for the first marker
         if (!lookLast) {
-            if (IsInstructionMarker(dyn_cast<CallInst>(&*iit))) {
+            if (isInstructionMarker(dyn_cast<CallInst>(&*iit))) {
                 firstInstrIt = iit;
                 firstInstrBb = (*iit).getParent();
                 lookLast = true;
@@ -156,7 +147,6 @@ bool QEMUTbCutter::removeAfter(llvm::CallInst *start)
         ilist<Instruction>::reverse_iterator iitEnd(bb->begin());
 
         while(iit != iitEnd) {
-            CallInst *ci = dyn_cast<CallInst>(&*iit);
             if (&*iit == start) {
                 stopped = true;
             }
@@ -203,7 +193,11 @@ bool QEMUTbCutter::removeAfter(llvm::CallInst *start)
 #endif
 
     //Insert a return instruction
-    ReturnInst::Create(f->getParent()->getContext(), &*f->begin());
+    ilist<BasicBlock>::reverse_iterator lastBb(f->end());
+
+    LLVMContext &ctx = f->getParent()->getContext();
+    Value *revVal = ConstantInt::get(ctx, APInt(64,  0));
+    ReturnInst::Create(ctx, revVal, &*lastBb);
 
     return true;
 }
@@ -242,6 +236,8 @@ bool QEMUTbCutter::runOnFunction(llvm::Function &F)
 #endif
 
     assert(&F == m_marker->getParent()->getParent());
+
+    m_instructionMarker = F.getParent()->getFunction("instruction_marker");
 
     if (m_cutBefore) {
         res = removeBefore(m_marker);

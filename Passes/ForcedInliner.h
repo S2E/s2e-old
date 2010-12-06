@@ -4,6 +4,9 @@
 
 #include "llvm/Transforms/Utils/InlineCost.h"
 
+#include <string>
+#include <set>
+
 namespace llvm {
 
   class Function;
@@ -30,8 +33,18 @@ namespace llvm {
     /// inlined functions.
     void inlineFunctions();
 
+    /// setPrefix - inline only those functions whose name begins with prefix
+    void setPrefix(const std::string &prefix);
+
+    /// specifies whether to inline one call site only for a particular function
+    void setInlineOnceEachFunction(bool val);
+
+    /// All the call sites that were not inline during the process
+    const std::set<CallSite>& getNotInlinedCallSites() const;
+
+
   private:
-    ForcedInlinerImpl *Impl;
+    ForcedInlinerImpl *Impl;    
   };
 }
 

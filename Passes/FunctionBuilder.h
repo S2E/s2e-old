@@ -18,24 +18,29 @@
 struct FunctionBuilder : public llvm::ModulePass {
     typedef std::set<llvm::Function*> Functions;
     typedef std::map<uint64_t, llvm::Instruction*> Instructions;
+    typedef std::map<llvm::Function*, uint64_t> FunctionAddressMap;
 
     static char ID;
     FunctionBuilder() : ModulePass((intptr_t)&ID) {
-
+        m_entryPoint = NULL;
+        m_function = NULL;
     }
 
     FunctionBuilder(llvm::Function *entryPoint,
+                    FunctionAddressMap &basicBlocks,
                     const std::string &functionName) : ModulePass((intptr_t)&ID) {
         m_functionName = functionName;
         m_entryPoint = entryPoint;
+        m_function = NULL;
+        m_basicBlocks = basicBlocks;
     }
-
-public:
 
 private:
 
     llvm::Function *m_entryPoint;
     std::string m_functionName;
+    llvm::Function *m_function;
+    FunctionAddressMap m_basicBlocks;
 
     llvm::Function *createFunction(llvm::Module &M);
     void getCalledBbsAndInstructionBoundaries(
@@ -44,12 +49,18 @@ private:
             Instructions &calledBbs
          );
 
+    void patchCallMarkersWithRealFunctions();
+
     void patchJumps(Instructions &boundaries,
                     Instructions &branchTargets);
+
 
 public:
     virtual bool runOnModule(llvm::Module &M);
 
+    llvm::Function* getFunction() const {
+        return m_function;
+    }
 
 
 };

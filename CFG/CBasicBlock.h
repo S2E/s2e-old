@@ -17,6 +17,14 @@ enum EBasicBlockType
     BB_CALL, BB_CALL_IND, BB_REP, BB_RET
 };
 
+class CBasicBlock;
+
+struct BasicBlockComparator {
+    bool operator()(const CBasicBlock* b1, const CBasicBlock *b2);
+};
+
+typedef std::set<translator::CBasicBlock*, BasicBlockComparator> BasicBlocks;
+
 
 class CBasicBlock {
 public:
@@ -44,6 +52,7 @@ private:
     CBasicBlock();
 
     void updateInstructionMarkers();
+    void renameFunction();
 public:
     CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type);
     CBasicBlock(uint64_t va, unsigned size);
@@ -89,15 +98,9 @@ public:
         return m_instructionMarkers.size();
     }
 
+    void patchCallMarkersWithRealFunctions(BasicBlocks &allBlocks);
 };
 
-struct BasicBlockComparator {
-    bool operator()(const CBasicBlock* b1, const CBasicBlock *b2) {
-        return b1->getAddress() + b1->getSize() <= b2->getAddress();
-    }
-};
-
-typedef std::set<translator::CBasicBlock*, BasicBlockComparator> BasicBlocks;
 
 
 }

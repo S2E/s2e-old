@@ -24,7 +24,7 @@ struct QEMUTerminatorMarker : public llvm::FunctionPass {
 
   QEMUTerminatorMarker(bool inlinable, bool ret,
                        bool call, uint64_t successor) : FunctionPass((intptr_t)&ID) {
-      assert(!(inlinable && (!ret || call)));
+      assert(!(inlinable && ret));
       m_callMarker = NULL;
       m_returnMarker = NULL;
 

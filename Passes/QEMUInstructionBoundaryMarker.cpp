@@ -3,7 +3,10 @@
 #include <llvm/BasicBlock.h>
 #include <llvm/Support/IRBuilder.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Support/InstIterator.h>
 
+
+#include <Utils.h>>
 #include "QEMUInstructionBoundaryMarker.h"
 #include <iostream>
 
@@ -74,6 +77,61 @@ void QEMUInstructionBoundaryMarker::updateMarker(llvm::CallInst *Ci)
     m_markers[*target] = Ci;
 }
 
+/**
+ *  This function renders each machine instruction independent from the others,
+ *  by making sure that it only uses definitions that are inside its boundary.
+ */
+bool QEMUInstructionBoundaryMarker::duplicatePrefixInstructions(llvm::Function &F)
+{
+    Function *instructionMarker = F.getParent()->getFunction("instruction_marker");
+    assert(instructionMarker);
+
+    //First erase any useless instruction that appears before
+    //the first machine instruction
+    inst_iterator iit = inst_begin(F);
+    inst_iterator iitEnd = inst_end(F);
+
+    std::set<Instruction*> prologueInstructionSet;
+    std::vector<Instruction*>prologueInstructionVector;
+
+    while(iit != iitEnd) {
+        CallInst *ci = dyn_cast<CallInst>(&*iit);
+        if (ci && ci->getCalledFunction() == instructionMarker) {
+            break;
+        }
+        prologueInstructionSet.insert(&*iit);
+        prologueInstructionVector.push_back(&*iit);
+        ++iit;
+    }
+
+    //Now copy these two instructions down
+    foreach(iit, prologueInstructionVector.rbegin(), prologueInstructionVector.rend()) {
+        Instruction *instr = *iit;
+        User::use_iterator useit = instr->use_begin();
+        
+        std::vector<User*> users;
+        users.insert(users.begin(), instr->use_begin(), instr->use_end());
+        foreach(useit, users.begin(), users.end()) {
+            //Copy instruction right before *instr.
+            Instruction *target = dyn_cast<Instruction>(*useit);
+            if (prologueInstructionSet.find(target) != prologueInstructionSet.end()) {
+                continue;
+            }
+            assert(target);
+            Instruction *newInstr = instr->clone(F.getParent()->getContext());
+            newInstr->insertBefore(target);
+            for (unsigned i=0; i<target->getNumOperands(); ++i) {
+                if (target->getOperand(i) == instr) {
+                    target->setOperand(i, newInstr);
+                }
+            }
+        }
+    }
+
+
+    return true;
+}
+
 bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
 {
   bool modified = false;
@@ -82,6 +140,9 @@ bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
   m_markers.clear();
 
   initInstructionMarker(F.getParent());
+
+  Function *forkAndConcretize = F.getParent()->getFunction("tcg_llvm_fork_and_concretize");
+  Function *instructionMarker = F.getParent()->getFunction("instruction_marker");
 
   Function::iterator bbit;
   for(bbit=F.begin(); bbit != F.end(); ++bbit) {
@@ -92,26 +153,19 @@ bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
       Instruction *I = &*iit;
     
       CallInst *Ci = dyn_cast<CallInst>(I);
-      if (!Ci) {
+      Function *F;
+      if (!Ci || !(F = Ci->getCalledFunction())) {
         continue;
       }
 
-      Function *F = Ci->getCalledFunction();
-      if (!F) {
-        continue;
-      }
-      const char *Fn = F->getNameStr().c_str();
-      bool IsAFork = strstr(Fn, "tcg_llvm_fork_and_concretize") != NULL;
-
-      if (IsAFork && !m_analyze) {
+      if ((F == forkAndConcretize) && !m_analyze) {
         Forks.push_back(Ci);
       }
 
-      if (m_analyze && strstr(Fn, "instruction_marker")) {
+      if ((F == instructionMarker) && m_analyze) {
         updateMarker(Ci);
       }
-    }
-    
+    }    
   }
 
   if (!m_analyze) {
@@ -121,6 +175,8 @@ bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
       modified = true;
     }
   }
+
+  duplicatePrefixInstructions(F);
 
   return modified;
 }
