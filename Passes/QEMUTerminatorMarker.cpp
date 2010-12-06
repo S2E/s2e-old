@@ -71,6 +71,15 @@ void QEMUTerminatorMarker::markCall(CallInst *Ci)
   CallInst *marker = CallInst::Create(m_callMarker, CallArguments.begin(), CallArguments.end());
   marker->insertBefore(Ci);
 
+  //If we have a call block, insert an inlinable call to the successor
+  if (m_call) {
+      CallArguments.clear();
+      CallArguments.push_back(ConstantInt::get(module->getContext(), APInt(64,  m_successor)));
+      CallArguments.push_back(ConstantInt::getTrue(module->getContext()));
+      CallInst *marker = CallInst::Create(m_callMarker, CallArguments.begin(), CallArguments.end());
+      marker->insertBefore(Ci);
+  }
+
   Ci->replaceAllUsesWith(programCounter);
   Ci->eraseFromParent();
 }

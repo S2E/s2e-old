@@ -440,7 +440,7 @@ void StaticTranslatorTool::exploreBasicBlocks()
     std::cout << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
 }
 
-void StaticTranslatorTool::extractFunctions()
+void StaticTranslatorTool::extractFunctions(BasicBlocks &functionHeaders)
 {
     typedef std::map<CBasicBlock*, BasicBlocks> Graph;
 
@@ -484,7 +484,6 @@ void StaticTranslatorTool::extractFunctions()
     //Look for nodes that have no incoming edges.
     //These should be function entry points
 
-    BasicBlocks functionHeaders;
     foreach(it, blocksWithoutIncomingEdges.begin(), blocksWithoutIncomingEdges.end()) {
             functionHeaders.insert((*it));
     }
@@ -509,7 +508,9 @@ int main(int argc, char** argv)
     cl::ParseCommandLineOptions(argc, (char**) argv);
     StaticTranslatorTool translator;
 
+    BasicBlocks functionHeaders;
+
     translator.exploreBasicBlocks();
-    translator.extractFunctions();
+    translator.extractFunctions(functionHeaders);
     return 0;
 }

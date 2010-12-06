@@ -44,7 +44,7 @@ public:
     ~StaticTranslatorTool();
     void translateToX86_64();
     void exploreBasicBlocks();
-    void extractFunctions();
+    void extractFunctions(BasicBlocks &functionHeaders);
 
 };
 

@@ -76,9 +76,10 @@ void CBasicBlock::markInstructionBoundaries()
 void CBasicBlock::markTerminator()
 {
     bool isRet = m_type == BB_RET;
+    bool isCall = m_type == BB_CALL || BB_CALL_IND;
     bool isInlinable = m_type == BB_JMP || m_type == BB_COND_JMP || m_type == BB_REP || m_type == BB_DEFAULT;
 
-    QEMUTerminatorMarker terminatorMarker(isInlinable, isRet);
+    QEMUTerminatorMarker terminatorMarker(isInlinable, isRet, isCall, m_address + m_size);
     if (!terminatorMarker.runOnFunction(*m_function)) {
         std::cerr << "Basic block at address 0x" << std::hex << m_address <<
                 " has no terminator markers. This is bad." << std::endl;
@@ -91,7 +92,6 @@ void CBasicBlock::markTerminator()
         QEMUTerminatorMarker::StaticTargets target = terminatorMarker.getStaticTargets();
 
         foreach(it, target.begin(), target.end()) {
-            uint64_t tpc = *it;
             m_successors.insert(*it);
         }
     }
