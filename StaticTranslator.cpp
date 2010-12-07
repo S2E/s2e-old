@@ -31,6 +31,19 @@ using namespace s2etools;
 using namespace s2etools::translator;
 using namespace s2e::plugins;
 
+struct MyQwordParser : public cl::basic_parser<uint64_t> {
+  // parse - Return true on error.
+  bool parse(cl::Option &O, const char *ArgName, const std::string &Arg,
+             uint64_t &Val) {
+      const char *ArgStart = Arg.c_str();
+      char *End;
+      Val = strtol(ArgStart, &End, 0);
+//      std::cout << "ArgStart=" << ArgStart << " val=" << std::hex << Val << std::endl;
+      return false;
+  }
+};
+
+
 
 namespace {
 cl::opt<std::string>
@@ -41,6 +54,9 @@ cl::opt<std::string>
 
 cl::opt<std::string>
     OutputDir("outputdir", cl::desc("Store the analysis output in this directory"), cl::init("."));
+
+cl::opt<uint64_t, false, MyQwordParser >
+    EntryPointAddress("entrypoint", cl::desc("<address> Override the address of the default entry point"), cl::init(0));
 }
 
 namespace s2etools {
@@ -233,7 +249,15 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
 void StaticTranslatorTool::translateToX86_64()
 {
 
-    uint64_t ep = m_binary->getEntryPoint();
+    uint64_t ep;
+
+    if (EntryPointAddress) {
+        std::cout << "Overriding entry point address to 0x" << std::hex << EntryPointAddress << std::endl;
+        ep = EntryPointAddress;
+    }else {
+        ep = m_binary->getEntryPoint();
+    }
+
     if (!ep) {
         std::cerr << "Could not get entry point of " << InputFile << std::endl;
     }
@@ -414,7 +438,14 @@ void StaticTranslatorTool::exploreBasicBlocks()
     }
 
 
-    uint64_t ep = m_binary->getEntryPoint();
+    uint64_t ep;
+    if (EntryPointAddress) {
+        std::cout << "Overriding entry point address to 0x" << std::hex << EntryPointAddress << std::endl;
+        ep = EntryPointAddress;
+    }else {
+        ep = m_binary->getEntryPoint();
+    }
+
     if (!ep) {
         std::cerr << "Could not get entry point of " << InputFile << std::endl;
     }
