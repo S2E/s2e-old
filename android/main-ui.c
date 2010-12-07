@@ -1647,13 +1647,13 @@ int main(int argc, char **argv)
         } else if (opts->no_snapshot_load || opts->no_snapshot_save) {
             D("ignoring redundant option(s) '-no-snapshot-load' and/or '-no-snapshot-save' implied by '-no-snapshot'");
         }
+        // TODO: Convey -no-snapshot-time-update to core subprocess (?)
     } else if (opts->snapshot || opts->snapstorage) {
         dwarning("option '-no-snapstorage' overrides '-snapshot' and '-snapstorage', "
                  "continuing with full boot, state snapshots are disabled");
     } else if (opts->no_snapshot) {
         D("ignoring redundant option '-no-snapshot' implied by '-no-snapstorage'");
     }
-
     if (opts->snapshot_list) {
         snapshot_print_and_exit(opts->snapstorage);
     }

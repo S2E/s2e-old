@@ -721,6 +721,17 @@ help_no_snapshot_save(stralloc_t*  out)
 }
 
 static void
+help_no_snapshot_update_time(stralloc_t*  out)
+{
+    PRINTF(
+    "  Prevent the emulator from sending an unsolicited time update\n"
+    "  in response to the first signal strength query after loadvm,\n"
+    "  to avoid a sudden time jump that might upset testing. (Signal\n"
+    "  strength is queried approximately every 15 seconds)\n\n"
+    );
+}
+
+static void
 help_snapshot_list(stralloc_t*  out)
 {
     PRINTF(
