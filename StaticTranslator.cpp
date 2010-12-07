@@ -16,6 +16,7 @@ extern "C" {
 #include <llvm/ModuleProvider.h>
 #include <llvm/PassManager.h>
 #include <llvm/Analysis/Verifier.h>
+#include <llvm/Analysis/Passes.h>
 #include <llvm/target/TargetData.h>
 
 #include <stdio.h>
@@ -32,6 +33,7 @@ extern "C" {
 #include "CFG/CBasicBlock.h"
 #include "Passes/ConstantExtractor.h"
 #include "Passes/JumpTableExtractor.h"
+#include "Passes/SystemMemopsRemoval.h"
 #include "Utils.h"
 
 using namespace llvm;
@@ -601,8 +603,16 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
     }
 
 
+    FunctionPassManager FcnPassManager(new ExistingModuleProvider(module));
+    FcnPassManager.add(new SystemMemopsRemoval());
+    FcnPassManager.add(createDeadInstEliminationPass());
+
     foreach(fcnit, functions.begin(), functions.end()) {
         usedFunctions.insert((*fcnit)->getFunction());
+
+        //Cleanup the function
+        FcnPassManager.run(*(*fcnit)->getFunction());
+
     }
 
     //Drop all the useless functions

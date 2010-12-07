@@ -6,5 +6,6 @@ int main(int argc, char **argv)
         a = b;
         b = c;
     }           
+//    printf("%d\n", b);
     return b;
 }
