@@ -584,19 +584,21 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
 {
     Module *module = tcg_llvm_ctx->getModule();
     std::set<Function *> usedFunctions;
+    std::set<Function *> builtinFunctions;
 
-    std::set<std::string> libcFunctions;
-    libcFunctions.insert("strcmp");
-    libcFunctions.insert("strdup");
-    libcFunctions.insert("strtok");
-    libcFunctions.insert("strchr");
-    libcFunctions.insert("strtoul");
-    libcFunctions.insert("strlen");
-    libcFunctions.insert("pstrcpy");
-    libcFunctions.insert("snprintf");
-    libcFunctions.insert("fprintf");
-    libcFunctions.insert("fwrite");
-    libcFunctions.insert("instruction_marker");
+    const char *builtinFunctionsStr[] = {"strcmp", "strdup", "strtok",
+                                     "strchr", "strtoul", "strlen", "pstrcpy", "snprintf",
+                                     "fprintf", "fwrite",
+                                     "instruction_marker", "call_marker", "return_marker",
+                                     "__ldq_mmu", "__ldl_mmu", "__ldw_mmu", "__ldb_mmu",
+                                     "__stq_mmu", "__stl_mmu", "__stw_mmu", "__stb_mmu"};
+
+    std::set<Function *> libcFunctions;
+    for (unsigned i=0; i<sizeof(builtinFunctionsStr)/sizeof(builtinFunctionsStr[0]); ++i) {
+        Function *fcn = module->getFunction(builtinFunctionsStr[i]);
+        assert(fcn);
+        builtinFunctions.insert(fcn);
+    }
 
 
     foreach(fcnit, functions.begin(), functions.end()) {
@@ -609,31 +611,39 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
         if (f->isIntrinsic()) {
             continue;
         }
-        if (libcFunctions.find(f->getNameStr()) != libcFunctions.end()) {
+
+        if (usedFunctions.find(f) != usedFunctions.end()) {
             continue;
         }
-        if (usedFunctions.find(f) == usedFunctions.end()) {
-            f->deleteBody();
-            //replace with empty bodies
-            BasicBlock *bb = BasicBlock::Create(module->getContext(),"", f, NULL);
-            if (f->getReturnType() == Type::getInt32Ty(module->getContext())) {
-                Value *retVal = ConstantInt::get(module->getContext(), APInt(32,  0));
-                ReturnInst::Create(module->getContext(),retVal, bb);
-            }else if (f->getReturnType() == Type::getInt64Ty(module->getContext())) {
-                Value *retVal = ConstantInt::get(module->getContext(), APInt(64,  0));
-                ReturnInst::Create(module->getContext(),retVal, bb);
-            }else if (f->getReturnType() == Type::getDoubleTy(module->getContext())) {
-                Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0));
-                ReturnInst::Create(module->getContext(),retVal, bb);
-            }else if (f->getReturnType() == Type::getFloatTy(module->getContext())) {
-                Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0f));
-                ReturnInst::Create(module->getContext(),retVal, bb);
-            }else if (f->getReturnType() == Type::getVoidTy(module->getContext())) {
-                ReturnInst::Create(module->getContext(),bb);
-            }else{
-                f->deleteBody();
-            }
+
+        std::cout << "processing " << f->getNameStr() << std::endl;
+
+        f->deleteBody();
+
+        if (builtinFunctions.find(f) != builtinFunctions.end()) {
+            continue;
         }
+
+        //replace with empty bodies
+        BasicBlock *bb = BasicBlock::Create(module->getContext(),"", f, NULL);
+        if (f->getReturnType() == Type::getInt32Ty(module->getContext())) {
+            Value *retVal = ConstantInt::get(module->getContext(), APInt(32,  0));
+            ReturnInst::Create(module->getContext(),retVal, bb);
+        }else if (f->getReturnType() == Type::getInt64Ty(module->getContext())) {
+            Value *retVal = ConstantInt::get(module->getContext(), APInt(64,  0));
+            ReturnInst::Create(module->getContext(),retVal, bb);
+        }else if (f->getReturnType() == Type::getDoubleTy(module->getContext())) {
+            Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0));
+            ReturnInst::Create(module->getContext(),retVal, bb);
+        }else if (f->getReturnType() == Type::getFloatTy(module->getContext())) {
+            Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0f));
+            ReturnInst::Create(module->getContext(),retVal, bb);
+        }else if (f->getReturnType() == Type::getVoidTy(module->getContext())) {
+            ReturnInst::Create(module->getContext(),bb);
+        }else{
+            f->deleteBody();
+        }
+
     }
 
 

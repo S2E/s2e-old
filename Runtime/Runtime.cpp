@@ -15,13 +15,43 @@ extern "C" {
 
 extern "C" {
 int __main(uint64_t *env);
-void instruction_marker(uint64_t pc);
+void __attribute__((noinline)) instruction_marker(uint64_t pc);
+void __attribute__((noinline)) call_marker(uint64_t target, int isInlinable);
+void __attribute__((noinline)) return_marker();
+
 }
 
 void instruction_marker(uint64_t pc)
 {
     fprintf(stderr, "PC: 0x%llx\n", pc);
 }
+
+void call_marker(uint64_t target, int isInlinable)
+{
+    if (isInlinable) {
+        fprintf(stderr, "Jumping to PC: %#llx\n", target);
+    }else {
+        fprintf(stderr, "Calling PC: %#llx\n", target);
+    }
+}
+
+void return_marker()
+{
+    fprintf(stderr, "Function is returning\n");
+}
+
+uint32_t __ldl_mmu(target_ulong addr, int mmu_idx)
+{
+    fprintf(stderr, "Loading address %#x\n", addr);
+    return *(uint32_t*)addr;
+}
+
+void __stl_mmu(target_ulong addr, uint32_t val, int mmu_idx)
+{
+    fprintf(stderr, "Storing address %#x=%#x\n", addr, val);
+    *(uint32_t*)addr = val;
+}
+
 
 extern "C" {
 int main(int argc, char **argv)
