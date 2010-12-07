@@ -6,10 +6,18 @@ extern "C" {
 #include <tcg/tcg-llvm.h>
 }
 
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Function.h"
-#include "llvm/Module.h"
-#include "llvm/Linker.h"
+#include <llvm/Bitcode/ReaderWriter.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Function.h>
+#include <llvm/Module.h>
+#include <llvm/Linker.h>
+
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/ModuleProvider.h>
+#include <llvm/PassManager.h>
+#include <llvm/Analysis/Verifier.h>
+#include <llvm/target/TargetData.h>
+
 #include <stdio.h>
 #include <inttypes.h>
 #include <iostream>
@@ -249,14 +257,7 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
 void StaticTranslatorTool::translateToX86_64()
 {
 
-    uint64_t ep;
-
-    if (EntryPointAddress) {
-        std::cout << "Overriding entry point address to 0x" << std::hex << EntryPointAddress << std::endl;
-        ep = EntryPointAddress;
-    }else {
-        ep = m_binary->getEntryPoint();
-    }
+    uint64_t ep = getEntryPoint();
 
     if (!ep) {
         std::cerr << "Could not get entry point of " << InputFile << std::endl;
@@ -428,6 +429,15 @@ void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
     }
 }
 
+uint64_t StaticTranslatorTool::getEntryPoint()
+{
+    if (EntryPointAddress) {
+        return EntryPointAddress;
+    }else {
+        return m_binary->getEntryPoint();
+    }
+}
+
 void StaticTranslatorTool::exploreBasicBlocks()
 {
     const BFDInterface::Imports &imp = m_binary->getImports();
@@ -438,16 +448,11 @@ void StaticTranslatorTool::exploreBasicBlocks()
     }
 
 
-    uint64_t ep;
-    if (EntryPointAddress) {
-        std::cout << "Overriding entry point address to 0x" << std::hex << EntryPointAddress << std::endl;
-        ep = EntryPointAddress;
-    }else {
-        ep = m_binary->getEntryPoint();
-    }
+    uint64_t ep = getEntryPoint();
 
     if (!ep) {
         std::cerr << "Could not get entry point of " << InputFile << std::endl;
+        exit(-1);
     }
 
     m_addressesToExplore.insert(ep);
@@ -561,6 +566,107 @@ void StaticTranslatorTool::reconstructFunctions(BasicBlocks &functionHeaders, CF
     }
 }
 
+void StaticTranslatorTool::renameEntryPoint(CFunctions &functions)
+{
+    uint64_t ep = getEntryPoint();
+    assert(ep);
+
+    foreach(it, functions.begin(), functions.end()) {
+        CFunction *fcn = *it;
+        if (fcn->getAddress() == ep) {
+            fcn->getFunction()->setName("__main");
+            return;
+        }
+    }
+}
+
+void StaticTranslatorTool::cleanupCode(CFunctions &functions)
+{
+    Module *module = tcg_llvm_ctx->getModule();
+    std::set<Function *> usedFunctions;
+
+    std::set<std::string> libcFunctions;
+    libcFunctions.insert("strcmp");
+    libcFunctions.insert("strdup");
+    libcFunctions.insert("strtok");
+    libcFunctions.insert("strchr");
+    libcFunctions.insert("strtoul");
+    libcFunctions.insert("strlen");
+    libcFunctions.insert("pstrcpy");
+    libcFunctions.insert("snprintf");
+    libcFunctions.insert("fprintf");
+    libcFunctions.insert("fwrite");
+    libcFunctions.insert("instruction_marker");
+
+
+    foreach(fcnit, functions.begin(), functions.end()) {
+        usedFunctions.insert((*fcnit)->getFunction());
+    }
+
+    //Drop all the useless functions
+    foreach(fcnit, module->begin(), module->end()) {
+        Function *f = &*fcnit;
+        if (f->isIntrinsic()) {
+            continue;
+        }
+        if (libcFunctions.find(f->getNameStr()) != libcFunctions.end()) {
+            continue;
+        }
+        if (usedFunctions.find(f) == usedFunctions.end()) {
+            f->deleteBody();
+            //replace with empty bodies
+            BasicBlock *bb = BasicBlock::Create(module->getContext(),"", f, NULL);
+            if (f->getReturnType() == Type::getInt32Ty(module->getContext())) {
+                Value *retVal = ConstantInt::get(module->getContext(), APInt(32,  0));
+                ReturnInst::Create(module->getContext(),retVal, bb);
+            }else if (f->getReturnType() == Type::getInt64Ty(module->getContext())) {
+                Value *retVal = ConstantInt::get(module->getContext(), APInt(64,  0));
+                ReturnInst::Create(module->getContext(),retVal, bb);
+            }else if (f->getReturnType() == Type::getDoubleTy(module->getContext())) {
+                Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0));
+                ReturnInst::Create(module->getContext(),retVal, bb);
+            }else if (f->getReturnType() == Type::getFloatTy(module->getContext())) {
+                Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0f));
+                ReturnInst::Create(module->getContext(),retVal, bb);
+            }else if (f->getReturnType() == Type::getVoidTy(module->getContext())) {
+                ReturnInst::Create(module->getContext(),bb);
+            }else{
+                f->deleteBody();
+            }
+        }
+    }
+
+
+    PassManager FcnPasses;
+    //FcnPasses.add(TD);
+
+    FcnPasses.add(createVerifierPass());
+    FcnPasses.add(createCFGSimplificationPass());
+    FcnPasses.add(createDeadCodeEliminationPass());
+    FcnPasses.add(createInstructionCombiningPass());
+    FcnPasses.add(createDeadStoreEliminationPass());
+    FcnPasses.add(createGVNPass());
+    FcnPasses.add(createAggressiveDCEPass());
+    FcnPasses.run(*tcg_llvm_ctx->getModule());
+}
+
+void StaticTranslatorTool::outputBitcodeFile()
+{
+    std::string execTraceFile = OutputDir;
+    execTraceFile += "/";
+    execTraceFile += "module.bc";
+
+    std::ofstream o(execTraceFile.c_str(), std::ofstream::binary);
+
+    llvm::Module *module = tcg_llvm_ctx->getModule();
+    module->setTargetTriple("i386-apple-darwin10.4");
+    module->setDataLayout("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128");
+
+    // Output the bitcode file to stdout
+    llvm::WriteBitcodeToFile(module, o);
+    o.close();
+}
+
 }
 }
 
@@ -575,6 +681,9 @@ int main(int argc, char** argv)
     translator.exploreBasicBlocks();
     translator.extractFunctions(functionHeaders);
     translator.reconstructFunctions(functionHeaders, functions);
+    translator.renameEntryPoint(functions);
+    translator.cleanupCode(functions);
+    translator.outputBitcodeFile();
 
     return 0;
 }

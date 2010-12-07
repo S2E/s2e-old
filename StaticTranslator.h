@@ -40,6 +40,8 @@ private:
     void splitExistingBlock(CBasicBlock *newBlock, CBasicBlock *existingBlock);
     void extractAddresses(CBasicBlock *bb);
     bool checkString(uint64_t address, std::string &res, bool isUnicode);
+
+    uint64_t getEntryPoint();
 public:
     StaticTranslatorTool();
     ~StaticTranslatorTool();
@@ -48,6 +50,11 @@ public:
 
     void extractFunctions(BasicBlocks &functionHeaders);
     void reconstructFunctions(BasicBlocks &functionHeaders, CFunctions &functions);
+    void renameEntryPoint(CFunctions &functions);
+    void cleanupCode(CFunctions &functions);
+    void outputBitcodeFile();
+
+
 
 };
 
