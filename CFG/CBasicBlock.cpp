@@ -106,6 +106,13 @@ void CBasicBlock::markTerminator()
     if ((m_type != BB_RET) && (m_type != BB_JMP) && (m_type != BB_JMP)) {
         m_successors.insert(m_address + m_size);
     }
+
+    //Special case for some instructions (e.g., hlt)
+    if (terminatorMarker.doesNotReturn()) {
+        m_successors.clear();
+        return;
+    }
+
 }
 
 Function* CBasicBlock::cloneFunction()

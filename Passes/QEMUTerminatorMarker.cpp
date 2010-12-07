@@ -119,6 +119,9 @@ bool QEMUTerminatorMarker::runOnFunction(llvm::Function &F)
     bool modified = false;
     initMarkers(F.getParent());
 
+    Function *forkAndConcretize = F.getParent()->getFunction("tcg_llvm_fork_and_concretize");
+    Function *helper_hlt = F.getParent()->getFunction("helper_hlt");
+
     //Step 1: find all basic blocks with a return instruction in them
     Instructions returnInstructions;
     findReturnInstructions(F, returnInstructions);
@@ -144,17 +147,16 @@ bool QEMUTerminatorMarker::runOnFunction(llvm::Function &F)
             Instruction *I = &*riit;
 
             CallInst *Ci = dyn_cast<CallInst>(I);
-            if (!Ci) {
+            if (!Ci || !Ci->getCalledFunction()) {
                 continue;
             }
 
-            Function *F = Ci->getCalledFunction();
-            if (!F) {
+            if (Ci->getCalledFunction() == helper_hlt) {
+                m_doesNotReturn = true;
                 continue;
             }
 
-            const char *Fn = F->getNameStr().c_str();
-            bool marked = strstr(Fn, "tcg_llvm_fork_and_concretize") != NULL;
+            bool marked =  Ci->getCalledFunction() == forkAndConcretize;
 
             if (marked) {
                 if (m_return) {

@@ -32,6 +32,8 @@ struct QEMUTerminatorMarker : public llvm::FunctionPass {
       m_return = ret;
       m_call = call;
       m_successor = successor;
+
+      m_doesNotReturn = false;
   }
 
 
@@ -49,6 +51,8 @@ private:
   bool m_return;
   bool m_call;
   uint64_t m_successor;
+
+  bool m_doesNotReturn;
 private:
   void initMarkers(llvm::Module *module);
   void markCall(llvm::CallInst *Ci);
@@ -63,6 +67,10 @@ public:
 
   const StaticTargets &getStaticTargets() const {
       return m_staticTargets;
+  }
+
+  bool doesNotReturn() const {
+      return m_doesNotReturn;
   }
 
 };
