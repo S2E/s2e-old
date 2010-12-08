@@ -38,6 +38,7 @@
 #include <stdlib.h>
 #include <cassert>
 
+#include <algorithm>
 #include <iostream>
 
 namespace s2etools

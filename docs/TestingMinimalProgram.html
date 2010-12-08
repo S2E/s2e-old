@@ -32,7 +32,7 @@ on <a class="reference external" href="BuildingS2E.html">Building the S2E Framew
 <span class="p">{</span>
   <span class="kt">char</span> <span class="n">str</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span>
   <span class="n">printf</span><span class="p">(</span><span class="s">&quot;Enter two characters: &quot;</span><span class="p">);</span>
-  <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">fgets</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">stdin</span><span class="p">))</span>
+  <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="n">fgets</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">str</span><span class="p">),</span> <span class="n">stdin</span><span class="p">))</span>
     <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
 
   <span class="k">if</span><span class="p">(</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="o">||</span> <span class="n">str</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
@@ -97,7 +97,7 @@ replace a call to <tt class="docutils literal">fgets()</tt> by a call to <tt cla
 <div class="highlight"><pre><span class="p">...</span>
 <span class="kt">char</span> <span class="n">str</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span>
 <span class="c1">// printf(&quot;Enter two characters: &quot;);</span>
-<span class="c1">// if(!fgets(str, 2, stdin))</span>
+<span class="c1">// if(!fgets(str, sizeof(str), stdin))</span>
 <span class="c1">//   return 1;</span>
 <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s">&quot;str&quot;</span><span class="p">);</span>
 <span class="n">str</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
@@ -194,11 +194,11 @@ disabled. Than we save a snapshot and load it in the S2E:</p>
 <pre class="literal-block">
 guest$ su -c halt # shut down qemu
 
-$ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2
+$ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2
 &gt; Wait until Linux is loaded, login into the system. Then press
 &gt; Ctrl + Alt + 2 and type 'savevm 1' then 'quit'.
 
-$ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2 -loadvm 1 \
+$ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
                            -s2e-config-file config.lua -s2e-verbose
 &gt; Wait the snapshot is resumed, then type in the guest
 guest$ ./tutorial1
@@ -248,12 +248,12 @@ S2E log using <tt class="docutils literal">s2e_message()</tt> or <tt class="docu
 <p>Now we should resume our snapshot in QEMU with S2E disabled, edit and recompile
 the program, re-save the snapshot and re-load it in S2E:</p>
 <pre class="literal-block">
-$ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2 -loadvm 1
+$ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2 -loadvm 1
 guest$ edit tutorial1.c
 guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
 &gt; press Ctrl + Alt + 2 and type 'savevm 1' then type 'quit'.
 
-$ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2 -loadvm 1 \
+$ $S2EDIR/build/qemu/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
                            -s2e-config-file config.lua -s2e-verbose
 guest$ ./tutorial1
 </pre>

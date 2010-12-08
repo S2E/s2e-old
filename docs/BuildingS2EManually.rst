@@ -112,7 +112,6 @@ Building S2E Tools
 ::
 
    $ cd $S2EBUILD/tools
-   $ cd $S2EBUILD/tools
    $ $S2ESRC/tools/configure \
        --with-llvmsrc=$S2EBUILD/llvm-2.6 \
        --with-llvmobj=$S2EBUILD/llvm \
