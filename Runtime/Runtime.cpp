@@ -2,8 +2,6 @@ extern "C" {
 #include <qemu-common.h>
 #include <cpu-all.h>
 #include <exec-all.h>
-#include <tcg/tcg.h>
-#include <tcg/tcg-llvm.h>
 }
 
 #include <stdlib.h>
@@ -18,7 +16,8 @@ int __main(uint64_t *env);
 void __attribute__((noinline)) instruction_marker(uint64_t pc);
 void __attribute__((noinline)) call_marker(uint64_t target, int isInlinable);
 void __attribute__((noinline)) return_marker();
-
+uint32_t __attribute__((noinline)) __ldl_mmu(target_ulong addr, int mmu_idx);
+void __attribute__((noinline)) __stl_mmu(target_ulong addr, uint32_t val, int mmu_idx);
 }
 
 void instruction_marker(uint64_t pc)

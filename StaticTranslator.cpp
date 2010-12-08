@@ -34,6 +34,8 @@ extern "C" {
 #include "Passes/ConstantExtractor.h"
 #include "Passes/JumpTableExtractor.h"
 #include "Passes/SystemMemopsRemoval.h"
+#include "Passes/GlobalDataFixup.h"
+
 #include "Utils.h"
 
 using namespace llvm;
@@ -81,7 +83,7 @@ int ldsb_code(target_ulong ptr)
 {
     uint8_t val;
     if (!s_currentBinary->read(ptr, &val, sizeof(val))) {
-        throw InvalidAddressException();
+        throw InvalidAddressException(ptr, 1);
     }
     return (int)(int8_t)val;
 }
@@ -90,7 +92,7 @@ int ldub_code(target_ulong ptr)
 {
     uint8_t val;
     if (!s_currentBinary->read(ptr, &val, sizeof(val))) {
-        throw InvalidAddressException();
+        throw InvalidAddressException(ptr, 1);
     }
     return (int)val;
 }
@@ -100,7 +102,7 @@ int lduw_code(target_ulong ptr)
 {
     uint16_t val;
     if (!s_currentBinary->read(ptr, &val, sizeof(val))) {
-        throw InvalidAddressException();
+        throw InvalidAddressException(ptr, 2);
     }
     return val;
 }
@@ -109,7 +111,7 @@ int ldsw_code(target_ulong ptr)
 {
     uint16_t val;
     if (!s_currentBinary->read(ptr, &val, sizeof(val))) {
-        throw InvalidAddressException();
+        throw InvalidAddressException(ptr, 2);
     }
     return (int)(int16_t)val;
 }
@@ -118,7 +120,7 @@ int ldl_code(target_ulong ptr)
 {
     uint32_t val;
     if (!s_currentBinary->read(ptr, &val, sizeof(val))) {
-        throw InvalidAddressException();
+        throw InvalidAddressException(ptr, 4);
     }
     return val;
 }
@@ -127,7 +129,7 @@ uint64_t ldq_code(target_ulong ptr)
 {
     uint64_t val;
     if (!s_currentBinary->read(ptr, &val, sizeof(val))) {
-        throw InvalidAddressException();
+        throw InvalidAddressException(ptr, 8);
     }
     return val;
 }
@@ -226,7 +228,8 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
 
     try {
         cpu_gen_code(&env, &tb, &codeSize);
-    }catch(InvalidAddressException) {
+    }catch(InvalidAddressException &e) {
+        std::cerr << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
         return NULL;
     }
 
@@ -605,7 +608,8 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
 
     FunctionPassManager FcnPassManager(new ExistingModuleProvider(module));
     FcnPassManager.add(new SystemMemopsRemoval());
-    FcnPassManager.add(createDeadInstEliminationPass());
+//    FcnPassManager.add(createDeadInstEliminationPass());
+//    FcnPassManager.add(createDeadStoreEliminationPass());
 
     foreach(fcnit, functions.begin(), functions.end()) {
         usedFunctions.insert((*fcnit)->getFunction());
@@ -614,6 +618,12 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
         FcnPassManager.run(*(*fcnit)->getFunction());
 
     }
+
+    //Fix global variable accesses.
+    //This must be done __AFTER__ SystemMemopsRemoval because
+    //global data fixup replaces ld*_mmu ops with ld/st.
+    GlobalDataFixup globalData(m_binary);
+    globalData.runOnModule(*module);
 
     //Drop all the useless functions
     foreach(fcnit, module->begin(), module->end()) {
@@ -701,6 +711,12 @@ int main(int argc, char** argv)
     translator.exploreBasicBlocks();
     translator.extractFunctions(functionHeaders);
     translator.reconstructFunctions(functionHeaders, functions);
+
+    if (functions.size() == 0) {
+        std::cout << "No functions found" << std::endl;
+        return -1;
+    }
+
     translator.renameEntryPoint(functions);
     translator.cleanupCode(functions);
     translator.outputBitcodeFile();

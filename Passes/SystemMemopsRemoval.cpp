@@ -120,7 +120,7 @@ bool SystemMemopsRemoval::runOnFunction(llvm::Function &F)
     foreach(iit, inst_begin(F), inst_end(F)) {
         uint64_t offset;
         if (getEnvOffset(&*iit, offset)) {
-            if (offset > offsetof(CPUState, eip)) {
+            if (offset >= offsetof(CPUState, eip)) {
                 toDelete.insert(&*iit);
             }
         }else if(isHardCodedAddress(&*iit)) {

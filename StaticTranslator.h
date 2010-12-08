@@ -16,7 +16,18 @@ namespace translator {
 
 
 class InvalidAddressException {
+    uintptr_t m_address;
+    unsigned m_size;
 
+public:
+    InvalidAddressException(uintptr_t address, unsigned size) {
+        m_address = address;
+        m_size = size;
+    }
+
+    uintptr_t getAddress() const {
+        return m_address;
+    }
 };
 
 
