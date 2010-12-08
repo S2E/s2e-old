@@ -59,6 +59,13 @@ void QEMUTerminatorMarker::markCall(CallInst *Ci)
   if (ConstantInt *cste = dyn_cast<ConstantInt>(programCounter)) {
     const uint64_t* target = cste->getValue().getRawData();
     m_staticTargets.insert(*target);
+
+    //Take into account the case where the call is used to get
+    //the current program counter. The program calls the next instruction, and pops the return address
+    if (*target == m_successor) {
+        m_call = false;
+        m_inlinable = true;
+    }
   }
 
   //It is impossible to inline a call if it is indirect
@@ -75,7 +82,8 @@ void QEMUTerminatorMarker::markCall(CallInst *Ci)
   //we'll get into trouble.
   marker->insertBefore(Ci->getParent()->getTerminator());
 
-  //If we have a block with a call instruction, insert an inlinable call to the successor
+  //If we have a block with a call instruction, insert an inlinable call to the successor, i.e.,
+  //put a "branch" (call marker) to the following basic block.
   if (m_call) {
       CallArguments.clear();
       CallArguments.push_back(ConstantInt::get(module->getContext(), APInt(64,  m_successor)));

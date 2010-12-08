@@ -94,12 +94,23 @@ void CBasicBlock::markTerminator()
         assert(false);
     }
 
+    QEMUTerminatorMarker::StaticTargets target = terminatorMarker.getStaticTargets();
+
     //Call targets are not successors
     if (isInlinable) {
-        QEMUTerminatorMarker::StaticTargets target = terminatorMarker.getStaticTargets();
-
         foreach(it, target.begin(), target.end()) {
-            m_successors.insert(*it);
+            m_successors.insert((*it));
+        }
+    }
+
+    //Take into account the case where the call is used to get
+    //the current program counter. The program calls the next instruction, and pops the return address
+    if (m_type == BB_CALL && target.size() == 1) {
+        uint64_t pc = (*target.begin());
+        if (pc == m_address + m_size) {
+            //This is not a call anymore, but simply a normal basic block.
+            m_type = BB_DEFAULT;
+            //The QEMUTerminatorMarker has already taken care of not putting actual call instructions.
         }
     }
 
