@@ -67,6 +67,9 @@ cl::opt<std::string>
 cl::opt<std::string>
     OutputDir("outputdir", cl::desc("Store the analysis output in this directory"), cl::init("."));
 
+cl::opt<std::string>
+    BfdFormat("bfd", cl::desc("Binary format of the input (in case auto detection fails)"), cl::init(""));
+
 cl::opt<uint64_t, false, MyQwordParser >
     EntryPointAddress("entrypoint", cl::desc("<address> Override the address of the default entry point"), cl::init(0));
 }
@@ -141,7 +144,7 @@ bool StaticTranslatorTool::s_translatorInited = false;
 StaticTranslatorTool::StaticTranslatorTool()
 {
     m_binary = new BFDInterface(InputFile, false);
-    if (!m_binary->initialize()) {
+    if (!m_binary->initialize(BfdFormat)) {
         std::cerr << "Could not open " << InputFile << std::endl;
         exit(-1);
     }
@@ -717,8 +720,8 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    translator.renameEntryPoint(functions);
     translator.cleanupCode(functions);
+    translator.renameEntryPoint(functions);
     translator.outputBitcodeFile();
 
     return 0;
