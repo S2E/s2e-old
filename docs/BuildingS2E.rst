@@ -22,6 +22,7 @@ $ sudo apt-get install libsigc++-2.0-dev
 $ sudo apt-get install binutils-dev
 $ sudo apt-get install python-docutils
 $ sudo apt-get install python-pygments
+$ sudo apt-get install nasm
 $ sudo apt-get build-dep llvm-2.7
 $ sudo apt-get build-dep qemu
 
@@ -102,10 +103,10 @@ to install minimal version of Debian Linux in QEMU::
    $ qemu-img create -f qcow2 s2e_disk.qcow2 2G
 
    $ # Download debian install CD
-   $ wget http://cdimage.debian.org/debian-cd/5.0.6/i386/iso-cd/debian-506-i386-businesscard.iso
+   $ wget http://cdimage.debian.org/debian-cd/5.0.7/i386/iso-cd/debian-507-i386-businesscard.iso
 
    $ # Run QEMU and install the OS
-   $ qemu s2e_disk.qcow2 -cdrom debian-506-i386-businesscard.iso
+   $ qemu s2e_disk.qcow2 -cdrom debian-507-i386-businesscard.iso
    > Follow on-screen instructions to install Debian Linux inside VM
    > Select only "Standard System" component to install
 

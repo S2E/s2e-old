@@ -19,7 +19,7 @@ Program to Test
    {
      char str[3];
      printf("Enter two characters: ");
-     if(!fgets(str, 2, stdin))
+     if(!fgets(str, sizeof(str), stdin))
        return 1;
 
      if(str[0] == 0 || str[1] == 0) {
@@ -89,7 +89,7 @@ replace a call to ``fgets()`` by a call to ``s2e_make_symbolic()``:
      ...
      char str[3];
      // printf("Enter two characters: ");
-     // if(!fgets(str, 2, stdin))
+     // if(!fgets(str, sizeof(str), stdin))
      //   return 1;
      s2e_make_symbolic(str, 2, "str");
      str[3] = 0;
@@ -195,11 +195,11 @@ disabled. Than we save a snapshot and load it in the S2E::
 
    guest$ su -c halt # shut down qemu
    
-   $ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2
    > Wait until Linux is loaded, login into the system. Then press
    > Ctrl + Alt + 2 and type 'savevm 1' then 'quit'.
 
-   $ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2 -loadvm 1 \
+   $ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
                               -s2e-config-file config.lua -s2e-verbose
    > Wait the snapshot is resumed, then type in the guest
    guest$ ./tutorial1
@@ -256,12 +256,12 @@ S2E log using ``s2e_message()`` or ``s2e_warning()`` functions:
 Now we should resume our snapshot in QEMU with S2E disabled, edit and recompile
 the program, re-save the snapshot and re-load it in S2E::
 
-   $ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2 -loadvm 1
+   $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2 -loadvm 1
    guest$ edit tutorial1.c
    guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
    > press Ctrl + Alt + 2 and type 'savevm 1' then type 'quit'.
 
-   $ $S2EDIR/build/qemu/i386-softmmu/qemu your_image.qcow2 -loadvm 1 \
+   $ $S2EDIR/build/qemu/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
                               -s2e-config-file config.lua -s2e-verbose
    guest$ ./tutorial1
 
