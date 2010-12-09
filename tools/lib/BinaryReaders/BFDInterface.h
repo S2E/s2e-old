@@ -55,7 +55,7 @@ struct BFDSection
     uint64_t start, size;
 
     bool operator < (const BFDSection &s) const {
-        return start + size < s.start;
+        return start + size <= s.start;
     }
 };
 
@@ -64,9 +64,10 @@ class BFDInterface : public ExecutableFile
 public:
     typedef std::pair<std::string, uint64_t> FunctionDescriptor;
     typedef std::multimap<std::string, FunctionDescriptor> Imports;
+    typedef std::map<BFDSection, asection *> Sections;
 
 private:
-    typedef std::map<BFDSection, asection *> Sections;
+
     typedef std::set<uint64_t> AddressSet;
 
     static bool s_bfdInited;
@@ -92,7 +93,12 @@ public:
     BFDInterface(const std::string &fileName, bool requireSymbols);
     virtual ~BFDInterface();
 
+    //Autodetects the bfd format
     bool initialize();
+
+    //Specifies the bfd format to use
+    bool initialize(const std::string &format);
+
     bool getInfo(uint64_t addr, std::string &source, uint64_t &line, std::string &function);
     bool inited() const {
         return m_bfd != NULL;
@@ -114,6 +120,13 @@ public:
 
     //Returns whether the supplied address is in an executable section
     bool isCode(uint64_t va) const;
+    bool isData(uint64_t va) const;
+    int getSectionFlags(uint64_t va) const;
+
+    const Sections &getSections() const {
+        return m_sections;
+    }
+
 };
 
 }

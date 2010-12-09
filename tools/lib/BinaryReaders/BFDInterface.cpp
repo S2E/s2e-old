@@ -82,10 +82,27 @@ void BFDInterface::initSections(bfd *abfd, asection *sect, void *obj)
     s.start = sect->vma;
     s.size = sect->size;
 
+    //Deal with relocations
+    if (bfd_get_section_flags(abfd, sect) & SEC_RELOC) {
+        long reloc_size = bfd_get_reloc_upper_bound(bfdptr->m_bfd, sect);
+        if (reloc_size > 0) {
+            arelent **relent = (arelent**)malloc (reloc_size);
+            long res = bfd_canonicalize_reloc(abfd, sect, relent, bfdptr->m_symbolTable);
+            if (res < 0) {
+                free(relent);
+            }
+        }
+    }
+
     bfdptr->m_sections[s] = sect;
 }
 
 bool BFDInterface::initialize()
+{
+    return initialize("");
+}
+
+bool BFDInterface::initialize(const std::string &format)
 {
     if (!s_bfdInited) {
         bfd_init();
@@ -96,7 +113,12 @@ bool BFDInterface::initialize()
         return true;
     }
 
-    m_bfd = bfd_fopen(m_fileName.c_str(), NULL, "rb", -1);
+    const char *bfdFormat = NULL;
+    if (format.size() > 0) {
+        bfdFormat = format.c_str();
+    }
+
+    m_bfd = bfd_fopen(m_fileName.c_str(), bfdFormat, "rb", -1);
     if (!m_bfd) {
         std::cerr << "Could not open bfd file " << m_fileName << " - ";
         std::cerr << bfd_errmsg(bfd_get_error()) << std::endl;
@@ -263,6 +285,8 @@ asection *BFDInterface::getSection(uint64_t va, unsigned size) const
         return NULL;
     }
 
+    assert((*it).second->vma <= va);
+
     return (*it).second;
 }
 
@@ -363,5 +387,26 @@ bool BFDInterface::isCode(uint64_t va) const
 
     return section->flags & SEC_CODE;
 }
+
+bool BFDInterface::isData(uint64_t va) const
+{
+    asection *section = getSection(va, 1);
+    if (!section) {
+        return false;
+    }
+
+    return section->flags & SEC_DATA;
+}
+
+int BFDInterface::getSectionFlags(uint64_t va) const
+{
+    asection *section = getSection(va, 1);
+    if (!section) {
+        return false;
+    }
+
+    return section->flags;
+}
+
 
 }
