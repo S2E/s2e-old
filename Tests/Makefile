@@ -1,5 +1,5 @@
 LDFLAGS=-m32
-TESTS=empty-main fib simple-global1
+TESTS=empty-main fib simple-global1 inline1
 
 
 empty-main: empty-main.o
@@ -16,6 +16,9 @@ fib:fib.c
 empty-main: empty-main.c
 	gcc -m32 -o $@ $<
 
+inline1: inline1.c
+	gcc -m32 -o $@ $<
+	objdump -S $@ > $@.s
 
 all: $(TESTS)
 

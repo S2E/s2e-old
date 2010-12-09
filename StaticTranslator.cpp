@@ -230,13 +230,15 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     tb.flags = (1 << HF_PE_SHIFT) | (1 << HF_CS32_SHIFT) | (1 << HF_SS32_SHIFT);
 
     try {
+        //Must retranslate twice to get a correct size of tb.
         cpu_gen_code(&env, &tb, &codeSize);
+        cpu_gen_llvm(&env, &tb);
     }catch(InvalidAddressException &e) {
         std::cerr << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
         return NULL;
     }
 
-    cpu_gen_llvm(&env, &tb);
+
 
     /*TB_DEFAULT=0,
     TB_JMP, TB_JMP_IND,
@@ -258,6 +260,7 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     }
 
     Function *f = (Function*)tb.llvm_function;
+    std::cout << "ORIG:" << *f << std::endl;
     return new CBasicBlock(f, address, tb.size, bbType);
 }
 
@@ -599,13 +602,23 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
                                      "fprintf", "fwrite",
                                      "instruction_marker", "call_marker", "return_marker",
                                      "__ldq_mmu", "__ldl_mmu", "__ldw_mmu", "__ldb_mmu",
-                                     "__stq_mmu", "__stl_mmu", "__stw_mmu", "__stb_mmu"};
+                                     "__stq_mmu", "__stl_mmu", "__stw_mmu", "__stb_mmu",
+                                     };
+
+    const char *helperFunctionsStr[] ={"helper_bsf", "helper_bsr", "helper_lzcnt"};
 
     std::set<Function *> libcFunctions;
     for (unsigned i=0; i<sizeof(builtinFunctionsStr)/sizeof(builtinFunctionsStr[0]); ++i) {
         Function *fcn = module->getFunction(builtinFunctionsStr[i]);
         assert(fcn);
         builtinFunctions.insert(fcn);
+    }
+
+    std::set<Function *> helperFunctions;
+    for (unsigned i=0; i<sizeof(helperFunctionsStr)/sizeof(helperFunctionsStr[0]); ++i) {
+        Function *fcn = module->getFunction(helperFunctionsStr[i]);
+        assert(fcn);
+        helperFunctions.insert(fcn);
     }
 
 
@@ -636,6 +649,10 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
         }
 
         if (usedFunctions.find(f) != usedFunctions.end()) {
+            continue;
+        }
+
+        if (helperFunctions.find(f) != helperFunctions.end()) {
             continue;
         }
 

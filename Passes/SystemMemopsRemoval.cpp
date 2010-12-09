@@ -65,7 +65,8 @@ bool SystemMemopsRemoval::getEnvOffsetFromLoadStore(Instruction *instr, uint64_t
         }
         for (unsigned i=0; i<ci->getNumOperands(); ++i) {
             Instruction *ni = dyn_cast<Instruction>(ci->getOperand(i));
-            if (!ni || dyn_cast<LoadInst>(ni)) {
+            //XXX: This TOTALLY UNRELIABLE. Implement proper alias analysis....
+            if (!ni || dyn_cast<LoadInst>(ni) || dyn_cast<CallInst>(ni)) {
                 continue;
             }
             tovisit.push(ni);
@@ -118,12 +119,14 @@ bool SystemMemopsRemoval::runOnFunction(llvm::Function &F)
     std::set<Instruction *> toDelete;
 
     foreach(iit, inst_begin(F), inst_end(F)) {
-        uint64_t offset;
+        uint64_t offset = 0;
         if (getEnvOffset(&*iit, offset)) {
             if (offset >= offsetof(CPUState, eip)) {
+                //std::cout << "Deleting offset " << *iit << std::endl;
                 toDelete.insert(&*iit);
             }
         }else if(isHardCodedAddress(&*iit)) {
+            //std::cout << "Deleting hard-coded " << *iit << std::endl;
             toDelete.insert(&*iit);
         }
 

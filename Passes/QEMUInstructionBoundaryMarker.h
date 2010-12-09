@@ -35,6 +35,7 @@ private:
     void initInstructionMarker(llvm::Module *module);
     void markBoundary(llvm::CallInst *Ci);
     void updateMarker(llvm::CallInst *Ci);
+    void moveAllocInstruction(llvm::AllocaInst *inst);
     bool duplicatePrefixInstructions(llvm::Function &F);
 public:
     virtual bool runOnFunction(llvm::Function &F);
