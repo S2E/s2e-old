@@ -12,6 +12,8 @@ extern "C" {
 #include <llvm/Module.h>
 #include <llvm/Linker.h>
 
+#include <llvm/System/Path.h>
+
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/ModuleProvider.h>
 #include <llvm/PassManager.h>
@@ -26,6 +28,8 @@ extern "C" {
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <sys/stat.h>
+
 
 #include <lib/BinaryReaders/BFDInterface.h>
 
@@ -66,6 +70,10 @@ cl::opt<std::string>
 
 cl::opt<std::string>
     OutputDir("outputdir", cl::desc("Store the analysis output in this directory"), cl::init("."));
+
+cl::opt<bool>
+    ExpMode("expmode", cl::desc("Auto-increment the x2e-out-* folder and create x2l-last symlink"), cl::init(false));
+
 
 cl::opt<std::string>
     BfdFormat("bfd", cl::desc("Binary format of the input (in case auto detection fails)"), cl::init(""));
@@ -143,6 +151,8 @@ bool StaticTranslatorTool::s_translatorInited = false;
 
 StaticTranslatorTool::StaticTranslatorTool()
 {
+    m_startTime = llvm::sys::TimeValue::now().usec();
+
     m_binary = new BFDInterface(InputFile, false);
     if (!m_binary->initialize(BfdFormat)) {
         std::cerr << "Could not open " << InputFile << std::endl;
@@ -172,6 +182,16 @@ StaticTranslatorTool::StaticTranslatorTool()
 
     std::string translatedFile = OutputDir + "/translated.bin";
     m_translatedCode = new std::ofstream(translatedFile.c_str(), std::ios::binary);
+
+    std::ios::openmode io_mode = std::ios::out | std::ios::trunc
+                                  | std::ios::binary;
+
+
+    std::string messages = OutputDir + "/messages.txt";
+    m_messages.open(messages.c_str(), io_mode);
+
+    std::string debug = OutputDir + "/debug.txt";
+    m_debug.open(debug.c_str(), io_mode);
 }
 
 //XXX: the translator is global...
@@ -260,7 +280,7 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     }
 
     Function *f = (Function*)tb.llvm_function;
-    std::cout << "ORIG:" << *f << std::endl;
+//    std::cout << "ORIG:" << *f << std::endl;
     return new CBasicBlock(f, address, tb.size, bbType);
 }
 
@@ -455,7 +475,7 @@ void StaticTranslatorTool::exploreBasicBlocks()
     BFDInterface::Imports::const_iterator it;
     for (it = imp.begin(); it != imp.end(); ++it) {
         const BFDInterface::FunctionDescriptor &fcnDesc = (*it).second;
-        std::cout << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
+        m_debug << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
     }
 
 
@@ -471,7 +491,7 @@ void StaticTranslatorTool::exploreBasicBlocks()
         uint64_t ep = *m_addressesToExplore.begin();
         m_addressesToExplore.erase(ep);
 
-        std::cout << "L: Translating at address 0x" << std::hex << ep << std::endl;
+        m_debug << "L: Translating at address 0x" << std::hex << ep << std::endl;
 
         CBasicBlock *bb = translateBlockToLLVM(ep);
         if (!bb) {
@@ -481,13 +501,12 @@ void StaticTranslatorTool::exploreBasicBlocks()
         extractAddresses(bb);
         //bb->toString(std::cout);
         processTranslationBlock(bb);
-
     }
 
-    std::cout << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
+    m_debug << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
 }
 
-void StaticTranslatorTool::extractFunctions(BasicBlocks &functionHeaders)
+void StaticTranslatorTool::extractFunctions()
 {
     typedef std::map<CBasicBlock*, BasicBlocks> Graph;
 
@@ -515,40 +534,40 @@ void StaticTranslatorTool::extractFunctions(BasicBlocks &functionHeaders)
             }
 
             blocksWithIncomingEdges.insert(*bbit);
-            std::cout << std::hex << "0x" << bb->getAddress() << " -> 0x" << (*bbit)->getAddress() << std::endl;
+            m_debug << std::hex << "0x" << bb->getAddress() << " -> 0x" << (*bbit)->getAddress() << std::endl;
         }
     }
 
-    std::cout << "Blocks with incoming edge: " << std::dec << blocksWithIncomingEdges.size() << std::endl;
+    m_debug << "Blocks with incoming edge: " << std::dec << blocksWithIncomingEdges.size() << std::endl;
 
     std::set_difference(m_exploredBlocks.begin(), m_exploredBlocks.end(),
                         blocksWithIncomingEdges.begin(), blocksWithIncomingEdges.end(),
                           std::inserter(blocksWithoutIncomingEdges, blocksWithoutIncomingEdges.begin()),
                           BasicBlockComparator());
 
-    std::cout << "Blocks without incoming edge: " << std::dec << blocksWithoutIncomingEdges.size() << std::endl;
+    m_debug << "Blocks without incoming edge: " << std::dec << blocksWithoutIncomingEdges.size() << std::endl;
 
     //Look for nodes that have no incoming edges.
     //These should be function entry points
 
     foreach(it, blocksWithoutIncomingEdges.begin(), blocksWithoutIncomingEdges.end()) {
-            functionHeaders.insert((*it));
+            m_functionHeaders.insert((*it));
     }
 
     std::set<uint64_t> fcnStartSet;
-    foreach(it, functionHeaders.begin(), functionHeaders.end()) {
+    foreach(it, m_functionHeaders.begin(), m_functionHeaders.end()) {
         assert(fcnStartSet.find((*it)->getAddress()) == fcnStartSet.end());
         fcnStartSet.insert((*it)->getAddress());
     }
 
     foreach(it, fcnStartSet.begin(), fcnStartSet.end()) {
-        std::cout << "FCN: 0x" << std::hex << *it << std::endl;
+        m_debug << "FCN: 0x" << std::hex << *it << std::endl;
     }
 
-    std::cout << "There are " << std::dec << functionHeaders.size() << " functions" << std::endl;
+    m_debug << "There are " << std::dec << m_functionHeaders.size() << " functions" << std::endl;
 }
 
-void StaticTranslatorTool::reconstructFunctions(BasicBlocks &functionHeaders, CFunctions &functions)
+void StaticTranslatorTool::reconstructFunctions()
 {
     FunctionAddressMap addrMap;
     foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
@@ -557,32 +576,22 @@ void StaticTranslatorTool::reconstructFunctions(BasicBlocks &functionHeaders, CF
         addrMap[(*it)->getFunction()] = (*it)->getAddress();
     }
 
-#if 0
-    CBasicBlock bbToFind(0x108d0, 1);
-    BasicBlocks::iterator it = m_exploredBlocks.find(&bbToFind);
-    CFunction *fcn = new CFunction(*it);
-    fcn->generate(addrMap);
-    std::cout << fcn->getFunction();
-    functions.insert(fcn);
 
-    exit(-1);
-#endif
-
-    foreach(it, functionHeaders.begin(), functionHeaders.end()) {
+    foreach(it, m_functionHeaders.begin(), m_functionHeaders.end()) {
         CFunction *fcn = new CFunction(*it);
         fcn->generate(addrMap);
         std::cout << fcn->getFunction();
-        functions.insert(fcn);
+        m_functions.insert(fcn);
         //break;
     }
 }
 
-void StaticTranslatorTool::renameEntryPoint(CFunctions &functions)
+void StaticTranslatorTool::renameEntryPoint()
 {
     uint64_t ep = getEntryPoint();
     assert(ep);
 
-    foreach(it, functions.begin(), functions.end()) {
+    foreach(it, m_functions.begin(), m_functions.end()) {
         CFunction *fcn = *it;
         if (fcn->getAddress() == ep) {
             fcn->getFunction()->setName("__main");
@@ -591,7 +600,7 @@ void StaticTranslatorTool::renameEntryPoint(CFunctions &functions)
     }
 }
 
-void StaticTranslatorTool::cleanupCode(CFunctions &functions)
+void StaticTranslatorTool::cleanupCode()
 {
     Module *module = tcg_llvm_ctx->getModule();
     std::set<Function *> usedFunctions;
@@ -627,7 +636,7 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
 //    FcnPassManager.add(createDeadInstEliminationPass());
 //    FcnPassManager.add(createDeadStoreEliminationPass());
 
-    foreach(fcnit, functions.begin(), functions.end()) {
+    foreach(fcnit, m_functions.begin(), m_functions.end()) {
         usedFunctions.insert((*fcnit)->getFunction());
 
         //Cleanup the function
@@ -656,7 +665,7 @@ void StaticTranslatorTool::cleanupCode(CFunctions &functions)
             continue;
         }
 
-        std::cout << "processing " << f->getNameStr() << std::endl;
+        m_messages << "processing " << f->getNameStr() << std::endl;
 
         f->deleteBody();
 
@@ -717,29 +726,107 @@ void StaticTranslatorTool::outputBitcodeFile()
     o.close();
 }
 
+void StaticTranslatorTool::dumpStats()
+{
+    std::string basicBlockListFile = OutputDir + "/bblist.txt";
+    std::ofstream bbFile(basicBlockListFile.c_str(), std::ios::binary);
+
+    foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
+        CBasicBlock *bb = *it;
+        bbFile << std::hex << "0x" << bb->getAddress() << std::endl;
+    }
+
+    std::string functionListFile = OutputDir + "/functions.txt";
+    std::ofstream fcnFile(functionListFile.c_str(), std::ios::binary);
+
+    foreach(it, m_functions.begin(), m_functions.end()) {
+        CFunction *fcn = *it;
+        fcnFile << std::hex << "0x" << fcn->getAddress() << std::endl;
+    }
+
+    m_endTime = llvm::sys::TimeValue::now().usec();
+    std::string statsFileStr = OutputDir + "/stats.txt";
+    std::ofstream statsFile(statsFileStr.c_str(), std::ios::binary);
+
+    statsFile << "Execution time: " << std::dec << (m_endTime - m_startTime) / 1000000.0 << std::endl;
+    statsFile << "Basic blocks:   " << m_exploredBlocks.size() << std::endl;
+    statsFile << "Functions:      " << m_functions.size() << std::endl;
 }
+
+}
+}
+
+void initializeOutputDirectory()
+{
+    llvm::sys::Path cwd(OutputDir.getValue());
+
+    for (int i = 0; ; i++) {
+        std::ostringstream dirName;
+        dirName << "x2l-out-" << i;
+
+        llvm::sys::Path dirPath(cwd);
+        dirPath.appendComponent(dirName.str());
+
+        if(!dirPath.exists()) {
+            OutputDir = dirPath.toString();
+            break;
+        }
+    }
+
+
+    std::cout << "X2L: output directory = \"" << OutputDir << "\"\n";
+
+#ifdef _WIN32
+    if(mkdir(OutputDir.c_str()) < 0) {
+#else
+    if(mkdir(OutputDir.c_str(), 0775) < 0)
+#endif
+    {
+        perror("ERROR: Unable to create output directory");
+        exit(1);
+    }
+
+
+#ifndef _WIN32
+    llvm::sys::Path s2eLast(".");
+    s2eLast.appendComponent("x2l-last");
+
+    if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
+        perror("ERRPR: Cannot unlink x2l-last");
+        exit(1);
+    }
+
+    if (symlink(OutputDir.getValue().c_str(), s2eLast.c_str()) < 0) {
+        perror("ERROR: Cannot make symlink x2l-last");
+        exit(1);
+    }
+#endif
 }
 
 int main(int argc, char** argv)
 {
     cl::ParseCommandLineOptions(argc, (char**) argv);
+
+    if (ExpMode) {
+        initializeOutputDirectory();
+    }
+
     StaticTranslatorTool translator;
 
-    BasicBlocks functionHeaders;
-    CFunctions functions;
-
     translator.exploreBasicBlocks();
-    translator.extractFunctions(functionHeaders);
-    translator.reconstructFunctions(functionHeaders, functions);
+    translator.extractFunctions();
+    translator.reconstructFunctions();
 
-    if (functions.size() == 0) {
+    if (translator.getFunctions().size() == 0) {
         std::cout << "No functions found" << std::endl;
         return -1;
     }
 
-    translator.cleanupCode(functions);
-    translator.renameEntryPoint(functions);
+    translator.cleanupCode();
+    translator.renameEntryPoint();
     translator.outputBitcodeFile();
+
+    translator.dumpStats();
 
     return 0;
 }

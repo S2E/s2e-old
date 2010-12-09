@@ -77,6 +77,60 @@ void QEMUInstructionBoundaryMarker::updateMarker(llvm::CallInst *Ci)
     m_markers[*target] = Ci;
 }
 
+#if 0
+
+//XXX: Ugly hack. Should implement a decent iterator to go back through the instructions
+//if it doesn't already exist in LLVM.
+class BackwardInstructionIterator {
+    ilist<Instruction>::iterator iFirstFcnInstr;
+    ilist<BasicBlock>::iterator iFirstFcnBb;
+
+    ilist<Instruction>::iterator iStartOfCurBb;
+    ilist<Instruction>::iterator iCurInstr;
+    ilist<BasicBlock>::iterator iCurBb;
+    bool end;
+
+public:
+    BackwardInstructionIterator(Instruction *I) {
+        Instruction *firstInst = &*(*I->getParent()->getParent()->begin()).begin();
+        Function *f = I->getParent()->getParent();
+        iFirstFcnInstr = ilist<Instruction>::iterator(firstInst);
+        iFirstFcnBb = ilist<BasicBlock>::iterator(&*f->begin());
+
+        iStartOfCurBb = ilist<Instruction>::iterator(*I->getParent()->begin());
+        iCurInstr = ilist<Instruction>::iterator(I);
+        iCurBb = ilist<BasicBlock>::iterator(I->getParent());
+        end = false;
+    }
+
+
+    //Go back
+    bool prev() {
+        //Got to the first instruction of the BB. Move to the previous BB.
+        if (iCurInstr == iStartOfCurBb) {
+            if (iCurBb == iFirstFcnBb) {
+                end = true;
+                return false;
+            }
+            --iCurBb;
+            iStartOfCurBb = ilist<Instruction>::iterator(*(*iCurBb).begin());
+            iCurInstr = ilist<Instruction>::iterator((*iCurBb).back());
+            --iCurInstr;
+        }else {
+            --iCurInstr;
+        }
+        return true;
+    }
+
+    Instruction *get() {
+        if (end) {
+            return NULL;
+        }
+        return &*iCurInstr;
+    }
+};
+
+
 /**
  *  Moves the alloca instruction in the prologue of the TB closer
  *  to its use site, i.e., right after the instruction marker.
@@ -87,59 +141,117 @@ void QEMUInstructionBoundaryMarker::moveAllocInstruction(llvm::AllocaInst *instr
     Function *instructionMarker = containingFunction->getParent()->getFunction("instruction_marker");
     std::vector<User*> users;
     users.insert(users.begin(), instr->use_begin(), instr->use_end());
-    assert(users.size() > 0);
+
+    if (users.size() == 0) {
+        std::cout << "Erasing useless alloca" << std::endl;
+        instr->eraseFromParent();
+        return;
+    }
+
 
     Instruction *movedRightAfter = NULL;
 
-    std::cerr << "ALLOCA: " << *instr << std::endl;
+    std::cout << "ALLOCA: " << *instr << std::endl;
 
     foreach(useit, users.begin(), users.end()) {
         Instruction *target = dyn_cast<Instruction>(*useit);
 
-        std::cerr << "USER: " << *target << std::endl;
+        std::cout << "USER: " << *target << std::endl;
 
-        Instruction *firstInst = &*(*instr->getParent()->getParent()->begin()).begin();
-        //Get the instruction boundary
+        BackwardInstructionIterator backwardIt(target);
+        Instruction *prevInstr = NULL;
 
-        ilist<BasicBlock>::iterator iCurBb(*target->getParent());
-        ilist<BasicBlock>::iterator iFirstBb(*target->getParent()->getParent()->begin());
+        while(backwardIt.get()) {
+            Instruction *curInstr = backwardIt.get();
+            //std::cerr << "Scanning: " << *curInstr << std::endl;
 
-        ilist<Instruction>::iterator iStartOfCurBb(*target->getParent()->begin());
-        ilist<Instruction>::iterator iCurInstr(target);
-        ilist<Instruction>::iterator iFirstFcnInstr(firstInst);
-
-
-        while(iCurInstr != iFirstFcnInstr) {
-            if (iCurInstr == iStartOfCurBb) {
-                //Go to the previous basic block
-                --iCurBb;
-                iStartOfCurBb = ilist<Instruction>::iterator(*(*iCurBb).begin());
-                iCurInstr = ilist<Instruction>::iterator((*iCurBb).back());
-                --iCurInstr;
-
-            }
-
-            CallInst *ci = dyn_cast<CallInst>(&*iCurInstr);
+            CallInst *ci = dyn_cast<CallInst>(curInstr);
             if (!ci || ci->getCalledFunction() != instructionMarker) {
-                --iCurInstr;
+                prevInstr = curInstr;
+                backwardIt.prev();
                 continue;
             }
 
             if (movedRightAfter) {
                 //Check that the new use is the same instruction
+                if (movedRightAfter != ci) {
+                    std::cerr << "CallInst: " << *ci << std::endl;
+                    std::cerr << "moveRightAfter: " << *movedRightAfter << std::endl;
+                    std::cerr << *target->getParent()->getParent() << std::endl;
+                }
                 assert(movedRightAfter == ci && "The alloca is used across multiple instructions...");
                 break;
             }
 
             movedRightAfter = ci;
-            std::cerr << " MOVING AFTER " << *ci << std::endl;
+            std::cout << " MOVING AFTER " << *ci << std::endl;
             //Move the alloc right after
-            ++iCurInstr;
-            std::cerr << "        BEFORE " << *iCurInstr << std::endl;
-            instr->moveBefore(&*iCurInstr);
+            std::cout << "        BEFORE " << *prevInstr << std::endl;
+            instr->moveBefore(prevInstr);
             break;
         }
      }
+}
+
+#endif
+
+
+/**
+ *  Moves the alloca instruction in the prologue of the TB closer
+ *  to its use site, i.e., right after the instruction marker.
+ */
+void QEMUInstructionBoundaryMarker::moveAllocInstruction(llvm::AllocaInst *instr)
+{
+    Function *containingFunction = instr->getParent()->getParent();
+    Function *instructionMarker = containingFunction->getParent()->getFunction("instruction_marker");
+
+    //std::cout << "BEFORE" << *containingFunction;
+
+    if (instr->getNumUses() == 0) {
+        std::cout << "Erasing useless alloca" << std::endl;
+        instr->eraseFromParent();
+        return;
+    }
+
+    //XXX: optimize this
+    std::map<Instruction *, CallInst*> instrMap;
+    CallInst *lastMarker = NULL;
+    foreach(iit, inst_begin(containingFunction), inst_end(containingFunction)) {
+        CallInst *ci = dyn_cast<CallInst>(&*iit);
+        if (ci && ci->getCalledFunction() == instructionMarker) {
+            lastMarker = ci;
+            continue;
+        }
+        if (lastMarker) {
+            instrMap[&*iit] = lastMarker;
+        }
+    }
+
+    std::map<CallInst*, std::set<User*> > userMap;
+
+    //Go through the instruction list and map each use of instr to its instruction marker
+    foreach(uit, instr->use_begin(), instr->use_end()) {
+        Instruction *uinst = dyn_cast<Instruction>(*uit);
+        assert(uinst);
+        CallInst *ci = instrMap[uinst];
+        assert(ci);
+        userMap[ci].insert(*uit);
+    }
+
+    //For each instruction, duplicate the alloc and move it right below the marker
+    foreach(it, userMap.begin(), userMap.end()) {
+        CallInst *marker = (*it).first;
+        AllocaInst *ai = instr->clone(containingFunction->getParent()->getContext());
+        ai->insertAfter(marker);
+        std::cout << "INSERTING AFTER " << *marker << std::endl;
+        foreach(uit, (*it).second.begin(), (*it).second.end()) {
+            Instruction *user = dyn_cast<Instruction>(*uit);
+            assert(user);
+            user->replaceUsesOfWith(instr, ai);
+        }
+    }
+
+    //std::cout << "AFTER" << *containingFunction;
 }
 
 /**
@@ -249,7 +361,7 @@ bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
 
   duplicatePrefixInstructions(F);
 
-  std::cout << "Marked" << F << std::endl;
+  //std::cout << "Marked" << F << std::endl;
 
   return modified;
 }

@@ -7,6 +7,8 @@
 #include <set>
 
 #include <lib/BinaryReaders/Library.h>
+#include <llvm/System/TimeValue.h>
+
 #include "CFG/CBasicBlock.h"
 #include "CFG/CFunction.h"
 
@@ -41,8 +43,19 @@ private:
     std::set<uint64_t> m_addressesToExplore;
 
 
+    BasicBlocks m_functionHeaders;
+    CFunctions m_functions;
+
+
     //Outputs raw x86 translated code here
     std::ofstream *m_translatedCode;
+    std::ofstream m_messages;
+    std::ofstream m_debug;
+
+    //Statistics
+    uint64_t m_startTime;
+    uint64_t m_endTime;
+
 
     void translateBlockToX86_64(uint64_t address, void *buffer, int *codeSize);
     translator::CBasicBlock* translateBlockToLLVM(uint64_t address);
@@ -59,11 +72,17 @@ public:
     void translateToX86_64();
     void exploreBasicBlocks();
 
-    void extractFunctions(BasicBlocks &functionHeaders);
-    void reconstructFunctions(BasicBlocks &functionHeaders, CFunctions &functions);
-    void renameEntryPoint(CFunctions &functions);
-    void cleanupCode(CFunctions &functions);
+    void extractFunctions();
+    void reconstructFunctions();
+    void renameEntryPoint();
+    void cleanupCode();
     void outputBitcodeFile();
+
+    const CFunctions &getFunctions() const {
+        return m_functions;
+    }
+
+    void dumpStats();
 
 
 
