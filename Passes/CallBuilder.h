@@ -29,6 +29,7 @@ private:
    FunctionMap m_functions;
 
    void resolveCall(llvm::Module &M, llvm::Function &F, llvm::CallInst *ci);
+   void createMapping(llvm::Module &M);
 public:
 
   virtual bool runOnModule(llvm::Module &M);

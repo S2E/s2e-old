@@ -36,9 +36,13 @@ void QEMUTerminatorMarker::initMarkers(llvm::Module *module)
     paramTypes.push_back(Type::getInt64Ty(module->getContext()));
     //Second parameter: 0=not inlinable, 1=inlinable
     paramTypes.push_back(Type::getInt1Ty(module->getContext()));
+    //Third parameter: pointer to the CPU state, for indirect calls
+    paramTypes.push_back(PointerType::getUnqual(Type::getInt64Ty(module->getContext())));
 
     type = FunctionType::get(Type::getVoidTy(module->getContext()), paramTypes, false);
     m_callMarker = dyn_cast<Function>(module->getOrInsertFunction("call_marker", type));
+
+    std::cout << *m_callMarker << std::endl;
 
     //2. Handle the return marker
     paramTypes.clear();
@@ -75,6 +79,7 @@ void QEMUTerminatorMarker::markCall(CallInst *Ci)
   std::vector<Value*> CallArguments;
   CallArguments.push_back(programCounter);
   CallArguments.push_back(m_inlinable ? ConstantInt::getTrue(module->getContext()) : ConstantInt::getFalse(module->getContext()));
+  CallArguments.push_back(&*Ci->getParent()->getParent()->arg_begin());
   CallInst *marker = CallInst::Create(m_callMarker, CallArguments.begin(), CallArguments.end());
 
   //We must insert the call right before the terminator, to avoid messing up use/defs
@@ -88,6 +93,7 @@ void QEMUTerminatorMarker::markCall(CallInst *Ci)
       CallArguments.clear();
       CallArguments.push_back(ConstantInt::get(module->getContext(), APInt(64,  m_successor)));
       CallArguments.push_back(ConstantInt::getTrue(module->getContext()));
+      CallArguments.push_back(&*Ci->getParent()->getParent()->arg_begin());
       CallInst *marker = CallInst::Create(m_callMarker, CallArguments.begin(), CallArguments.end());
       marker->insertBefore(Ci->getParent()->getTerminator());
   }

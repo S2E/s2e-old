@@ -17,8 +17,8 @@ empty-main: empty-main.c
 	gcc -m32 -o $@ $<
 
 calltester: calltester.c
-	gcc -m32 -o $@ $<
-
+	gcc -fno-pic -m32 -o $@ $<
+	objdump -S $@ > $@.s
 
 inline1: inline1.c
 	gcc -m32 -o $@ $<

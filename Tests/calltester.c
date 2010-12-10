@@ -9,7 +9,19 @@ int a = 1, b = 1, i;
 return b;
 }
 
+int dummyfunc1(int n)
+{
+  return 42;
+}
+
+typedef int (*funcptr_t)(int);
+
 int main(int argc, char **argv)
 {
-  return fib(20);
+funcptr_t g_funcs[] = {
+  fib, dummyfunc1
+};
+
+
+  return g_funcs[argc-1](20);
 }

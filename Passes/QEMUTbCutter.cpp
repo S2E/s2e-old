@@ -44,7 +44,7 @@ bool QEMUTbCutter::removeBefore(llvm::CallInst *finish)
     inst_iterator firstInstrIt = inst_end(f);
     inst_iterator lastInstrIt = inst_end(f);
 
-    BasicBlock *firstInstrBb, *lastInstrBb;
+    BasicBlock *firstInstrBb = NULL, *lastInstrBb = NULL;
     std::vector<BasicBlock*> bbToDelete;
 
     //Locate the first machine instruction
@@ -220,6 +220,7 @@ void QEMUTbCutter::insertUnconditionalBranch(CallInst *ci)
     std::vector<Value*> CallArguments;
     CallArguments.push_back(programCounter);
     CallArguments.push_back(ConstantInt::getTrue(cf->getParent()->getContext()));
+    CallArguments.push_back(&*ci->getParent()->getParent()->arg_begin());
     CallInst *marker = CallInst::Create(callMarker, CallArguments.begin(), CallArguments.end());
     marker->insertBefore(ci);
 }
