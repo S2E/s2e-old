@@ -39,6 +39,7 @@ extern "C" {
 #include "Passes/JumpTableExtractor.h"
 #include "Passes/SystemMemopsRemoval.h"
 #include "Passes/GlobalDataFixup.h"
+#include "Passes/CallBuilder.h"
 
 #include "Utils.h"
 
@@ -649,6 +650,16 @@ void StaticTranslatorTool::cleanupCode()
     //global data fixup replaces ld*_mmu ops with ld/st.
     GlobalDataFixup globalData(m_binary);
     globalData.runOnModule(*module);
+
+
+    //Resolve function calls
+    CallBuilder::FunctionMap fcnMap;
+    foreach(it, m_functions.begin(), m_functions.end()) {
+        fcnMap.insert(std::make_pair((*it)->getAddress(), (*it)->getFunction()));
+    }
+
+    CallBuilder callBuilder(fcnMap);
+    callBuilder.runOnModule(*module);
 
     //Drop all the useless functions
     foreach(fcnit, module->begin(), module->end()) {

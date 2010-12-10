@@ -1,5 +1,5 @@
 LDFLAGS=-m32
-TESTS=empty-main fib simple-global1 inline1
+TESTS=empty-main fib simple-global1 inline1 calltester
 
 
 empty-main: empty-main.o
@@ -15,6 +15,10 @@ fib:fib.c
 
 empty-main: empty-main.c
 	gcc -m32 -o $@ $<
+
+calltester: calltester.c
+	gcc -m32 -o $@ $<
+
 
 inline1: inline1.c
 	gcc -m32 -o $@ $<
