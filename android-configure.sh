@@ -294,7 +294,7 @@ probe_system_library ()
         CFLAGS="$ORG_CFLAGS"
         LDFLAGS="$ORG_LDFLAGS -ldl"
         cp -f android/config/check-esd.c $TMPC
-        compile && link && $TMPE
+        compile
         if [ $? = 0 ] ; then
             log "AudioProbe : $2 seems to be usable on this system"
         else
