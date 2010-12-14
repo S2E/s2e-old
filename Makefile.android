@@ -1044,6 +1044,7 @@ VL_SOURCES := framebuffer.c \
               user-events-qemu.c \
               android/looper-qemu.c \
               android/looper-generic.c \
+              android/display-core.c \
 
 # Add common system libraries
 #
