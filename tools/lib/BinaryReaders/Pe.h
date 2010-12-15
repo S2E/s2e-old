@@ -2,6 +2,8 @@
 #define S2ETOOLS_PE_H
 
 #include <inttypes.h>
+#include <cassert>
+#include "Binary.h"
 
 namespace s2etools {
 namespace windows {
@@ -152,6 +154,35 @@ struct IMAGE_IMPORT_DESCRIPTOR {
 
 
 }
+
+
+class PeReader: public Binary {
+private:
+    BFDInterface::Imports m_imports;
+    llvm::MemoryBuffer *m_file;
+
+    windows::IMAGE_DOS_HEADER m_dosHeader;
+    windows::IMAGE_NT_HEADERS m_ntHeader;
+
+
+    bool initialize();
+    bool resolveImports();
+
+public:
+    PeReader(BFDInterface *bfd);
+
+    static bool isValid(llvm::MemoryBuffer *file);
+
+    virtual const BFDInterface::Imports &getImports() const {
+        return m_imports;
+    }
+
+    virtual const RelocationEntries &getRelocations() const {
+        assert(false && "Not implemented");
+    }
+
+};
+
 }
 
 #endif

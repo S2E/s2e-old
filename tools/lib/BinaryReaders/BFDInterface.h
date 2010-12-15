@@ -49,6 +49,7 @@ extern "C" {
 namespace s2etools
 {
 
+class Binary;
 
 struct BFDSection
 {
@@ -62,8 +63,8 @@ struct BFDSection
 class BFDInterface : public ExecutableFile
 {
 public:
-    typedef std::pair<std::string, uint64_t> FunctionDescriptor;
-    typedef std::multimap<std::string, FunctionDescriptor> Imports;
+    typedef std::pair<std::string, std::string> FunctionDescriptor;
+    typedef std::multimap<uint64_t, FunctionDescriptor> Imports;
     typedef std::map<BFDSection, asection *> Sections;
 
 private:
@@ -73,6 +74,8 @@ private:
     static bool s_bfdInited;
     bfd *m_bfd;
     asymbol **m_symbolTable;
+    long m_symbolCount;
+
     std::string m_moduleName;
     Sections m_sections;
     AddressSet m_invalidAddresses;
@@ -80,8 +83,10 @@ private:
     uint64_t m_imageBase;
     bool m_requireSymbols;
     llvm::MemoryBuffer *m_file;
+    Binary *m_binary;
 
-    Imports m_imports;
+    //This for copy-on-write, when we need to write stuff to the BFD
+    std::map<uint64_t, uint8_t> m_cowBuffer;
 
     static void initSections(bfd *abfd, asection *sect, void *obj);
 
@@ -114,9 +119,10 @@ public:
     //Read the contents at virtual address va
     bool read(uint64_t va, void *dest, unsigned size) const;
 
-    const Imports &getImports() const {
-        return m_imports;
-    }
+    bool write(uint64_t va, void *source, unsigned size);
+
+    const bool getImports(Imports &imports) const;
+    const bool getRelocations(RelocationEntries &relocs) const;
 
     //Returns whether the supplied address is in an executable section
     bool isCode(uint64_t va) const;
@@ -125,6 +131,18 @@ public:
 
     const Sections &getSections() const {
         return m_sections;
+    }
+
+    asymbol **getSymbols() const {
+        return m_symbolTable;
+    }
+
+    long getSymbolCount() const {
+        return m_symbolCount;
+    }
+
+    llvm::MemoryBuffer *getFile() const {
+        return m_file;
     }
 
 };

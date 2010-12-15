@@ -32,14 +32,17 @@
  */
 
 #include "BFDInterface.h"
+#include "Binary.h"
 
 #include "Pe.h"
+#include "Macho.h"
 
 #include <stdlib.h>
 #include <cassert>
 
 #include <algorithm>
 #include <iostream>
+#include <vector>
 
 namespace s2etools
 {
@@ -54,6 +57,7 @@ BFDInterface::BFDInterface(const std::string &fileName):ExecutableFile(fileName)
     m_requireSymbols = true;
 
     m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
+    m_binary = NULL;
 }
 
 BFDInterface::BFDInterface(const std::string &fileName, bool requireSymbols):ExecutableFile(fileName)
@@ -62,10 +66,15 @@ BFDInterface::BFDInterface(const std::string &fileName, bool requireSymbols):Exe
     m_symbolTable = NULL;
     m_requireSymbols = requireSymbols;
     m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
+    m_binary = NULL;
 }
 
 BFDInterface::~BFDInterface()
 {
+    if (m_binary) {
+        delete m_binary;
+    }
+
     if (m_bfd) {
         free(m_symbolTable);
         bfd_close(m_bfd);
@@ -73,6 +82,7 @@ BFDInterface::~BFDInterface()
     if (m_file) {
         delete m_file;
     }
+
 }
 
 void BFDInterface::initSections(bfd *abfd, asection *sect, void *obj)
@@ -119,7 +129,7 @@ bool BFDInterface::initialize(const std::string &format)
         bfdFormat = format.c_str();
     }
 
-    m_bfd = bfd_fopen(m_fileName.c_str(), bfdFormat, "rb", -1);
+    m_bfd = bfd_fopen(m_fileName.c_str(), bfdFormat, "rw", -1);
     if (!m_bfd) {
         std::cerr << "Could not open bfd file " << m_fileName << " - ";
         std::cerr << bfd_errmsg(bfd_get_error()) << std::endl;
@@ -152,8 +162,7 @@ bool BFDInterface::initialize(const std::string &format)
         return false;
     }
 
-    //Try to see if we have a PE image
-    initPeImports();
+    m_symbolCount = number_of_symbols;
 
     if (m_requireSymbols && !(m_bfd->flags & HAS_SYMS)) {
         return false;
@@ -173,6 +182,12 @@ bool BFDInterface::initialize(const std::string &format)
     }
     assert(vma);
     m_imageBase = vma & (uint64_t)~0xFFF;
+
+    if (PeReader::isValid(m_file)) {
+        m_binary = new PeReader(this);
+    }else if (MachoReader::isValid(m_file)) {
+        m_binary = new MachoReader(this);
+    }
 
     //Extract module name
     size_t pos = m_fileName.find_last_of("\\/");
@@ -298,86 +313,35 @@ bool BFDInterface::read(uint64_t va, void *dest, unsigned size) const
         return false;
     }
 
-    return bfd_get_section_contents(m_bfd, section, dest, va - section->vma, size);
-}
-
-/**
- * The BFD library does not expose a standard way of extracting imported symbols.
- * We have to provide an ad-hoc method for this.
- */
-bool BFDInterface::initPeImports()
-{
-    if (!m_file) {
-        return false;
-    }
-
-    const windows::IMAGE_DOS_HEADER *dosHeader;
-    const windows::IMAGE_NT_HEADERS *ntHeader;
-    const uint8_t *start = (uint8_t*)m_file->getBufferStart();
-
-    dosHeader = (windows::IMAGE_DOS_HEADER*)start;
-    if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)  {
-        return false;
-    }
-
-    ntHeader = (windows::IMAGE_NT_HEADERS *)(start + dosHeader->e_lfanew);
-
-    if (ntHeader->Signature != IMAGE_NT_SIGNATURE) {
-        return false;
-    }
-
-    if (ntHeader->FileHeader.Machine != IMAGE_FILE_MACHINE_I386) {
-        return false;
-    }
-
-    const windows::IMAGE_DATA_DIRECTORY *importDir;
-    importDir =  &ntHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (!importDir->Size || !importDir->Size) {
-        return false;
-    }
-
-    const windows::IMAGE_IMPORT_DESCRIPTOR *importDescriptors;
-    unsigned importDescCount;
-
-    importDescCount = importDir->Size / sizeof(windows::IMAGE_IMPORT_DESCRIPTOR);
-    importDescriptors = (windows::IMAGE_IMPORT_DESCRIPTOR *)(
-            start + importDir->VirtualAddress);
-
-    for (unsigned int i=0; importDescriptors[i].Characteristics && i<importDescCount; i++) {
-        const char *mn = (const char *)(start + importDescriptors[i].Name);
-        std::string moduleName = mn;
-        std::transform(moduleName.begin(), moduleName.end(), moduleName.begin(), ::tolower);
-
-        windows::IMAGE_THUNK_DATA32 *importAddressTable =
-                (windows::IMAGE_THUNK_DATA32 *)(start + importDescriptors[i].FirstThunk);
-
-        windows::IMAGE_THUNK_DATA32 *importNameTable =
-                (windows::IMAGE_THUNK_DATA32 *)(start + importDescriptors[i].OriginalFirstThunk);
-
-        while(importNameTable->u1.AddressOfData) {
-            const char *functionName = NULL;
-
-            if (importNameTable->u1.AddressOfData & IMAGE_ORDINAL_FLAG) {
-                uint32_t tmp = importNameTable->u1.AddressOfData & ~0xFFFF;
-                tmp &= ~IMAGE_ORDINAL_FLAG;
-                if (!tmp) {
-                    std::cerr << "No support for import by ordinals" << std::endl;
-                    continue;
-                }
-            }else {
-                windows::IMAGE_IMPORT_BY_NAME *byName = (windows::IMAGE_IMPORT_BY_NAME*)(start + importNameTable->u1.AddressOfData);
-                functionName = (const char*)&byName->Name;
-            }
-
-            m_imports.insert(std::make_pair(moduleName, std::make_pair(functionName, importAddressTable->u1.Function)));
-
-            importAddressTable++;
-            importNameTable++;
+    bool b = bfd_get_section_contents(m_bfd, section, dest, va - section->vma, size);
+    //Check for written changes
+    for (unsigned i=0; i<size; ++i) {
+        std::map<uint64_t, uint8_t>::const_iterator it = m_cowBuffer.find(va+i);
+        if (it != m_cowBuffer.end()) {
+            *(((uint8_t*)dest) + i) = (*it).second;
         }
     }
-
-    return true;
+    return b;
 }
+
+bool BFDInterface::write(uint64_t va, void *source, unsigned size)
+{
+    asection *section = getSection(va, 1);
+    if (!section) {
+        return false;
+    }
+
+    //Write data to a local buffer instead of the bfd
+    for (unsigned i=0; i<size; ++i) {
+        m_cowBuffer[va+i] = *(((uint8_t*)source) + i);
+    }
+    return true;
+    //XXX: This always seems to fail, because bfd_direction is not properly set for
+    //some reason.
+    //return bfd_set_section_contents(m_bfd, section, source, va - section->vma, size);
+}
+
+
 
 bool BFDInterface::isCode(uint64_t va) const
 {
@@ -409,5 +373,22 @@ int BFDInterface::getSectionFlags(uint64_t va) const
     return section->flags;
 }
 
+const bool BFDInterface::getImports(Imports &imports) const
+{
+    if (!m_binary) {
+        return false;
+    }
+    imports = m_binary->getImports();
+    return true;
+}
+
+const bool BFDInterface::getRelocations(RelocationEntries &relocs) const
+{
+    if (!m_binary) {
+        return false;
+    }
+    relocs = m_binary->getRelocations();
+    return true;
+}
 
 }

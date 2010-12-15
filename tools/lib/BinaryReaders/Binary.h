@@ -31,40 +31,62 @@
  *
  */
 
-#ifndef S2ETOOLS_EXECUTABLEFILE_H
-#define S2ETOOLS_EXECUTABLEFILE_H
+#ifndef S2ETOOLS_BINARY_H
 
+#define S2ETOOLS_BINARY_H
 
-#include <string>
-#include <inttypes.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <vector>
+#include "BFDInterface.h"
 
 namespace s2etools
 {
 
-/**
- *  XXX:We should get rid of BFD eventually because it does not handle all we needs
- *  For now the missing functionality is implemented by subclasses of Binary
- */
-class ExecutableFile
-{
-protected:
-    std::string m_fileName;
+class BFDInterface;
 
-public:
-    ExecutableFile(const std::string &fileName);
-    virtual ~ExecutableFile();
+struct RelocationEntry {
+    //Virtual address of the value to relocate
+    uint64_t va;
 
-    virtual bool initialize() = 0;
-    virtual bool getInfo(uint64_t addr, std::string &source, uint64_t &line, std::string &function) = 0;
-    virtual bool inited() const = 0;
+    //Size of the value to relocate (e.g., 4 bytes)
+    unsigned size;
 
-    static ExecutableFile *create(const std::string &fileName);
+    //The original value that was stored
+    uint64_t originalValue;
 
-    virtual bool getModuleName(std::string &name ) const = 0;
-    virtual uint64_t getImageBase() const  = 0;
-    virtual uint64_t getImageSize() const  = 0;
+    //The value that is currently written,
+    //after performing relocations
+    uint64_t targetValue;
+
+    //Name for convenience
+    std::string symbolName;
+
+    //The index in the **asymbol array
+    unsigned symbolIndex;
 };
 
+typedef std::vector<RelocationEntry> RelocationEntries;
+
+/**
+ *  The BFD library cannot handle all features like dynamic linking,
+ *  some forms of relocations, etc...
+ *  These features goes into subclasses of Binary.
+ */
+class Binary {
+private:
+    BFDInterface *m_bfd;
+
+public:
+    Binary(BFDInterface *bfd);
+
+    static bool isValid(llvm::MemoryBuffer *file);
+    virtual const BFDInterface::Imports &getImports() const = 0;
+    virtual const RelocationEntries &getRelocations() const = 0;
+protected:
+    virtual BFDInterface* getBfd() const{
+        return m_bfd;
+    }
+};
 
 }
 
