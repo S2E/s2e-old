@@ -1425,6 +1425,9 @@ int main(int argc, char **argv)
         } else if (opts->no_snapshot_load || opts->no_snapshot_save) {
             D("ignoring redundant option(s) '-no-snapshot-load' and/or '-no-snapshot-save' implied by '-no-snapshot'");
         }
+        if (opts->no_snapshot_update_time) {
+            android_snapshot_update_time = 0;
+        }
     } else if (opts->snapshot || opts->snapstorage) {
         dwarning("option '-no-snapstorage' overrides '-snapshot' and '-snapstorage', "
                  "continuing with full boot, state snapshots are disabled");
