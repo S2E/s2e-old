@@ -56,6 +56,7 @@
 #include "android/charmap.h"
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
+#include "android/display-core.h"
 #include "targphys.h"
 #include "tcpdump.h"
 
@@ -5343,6 +5344,10 @@ int main(int argc, char **argv, char **envp)
 #elif defined(CONFIG_COCOA)
     case DT_SDL:
         cocoa_display_init(ds, full_screen);
+        break;
+#elif defined(CONFIG_STANDALONE_CORE)
+    case DT_SDL:
+        core_display_init(ds);
         break;
 #endif
     case DT_VNC:
