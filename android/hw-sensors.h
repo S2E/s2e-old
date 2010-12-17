@@ -26,6 +26,7 @@ extern void  android_hw_sensors_init( void );
     SENSOR_(MAGNETIC_FIELD,"magnetic-field") \
     SENSOR_(ORIENTATION,"orientation") \
     SENSOR_(TEMPERATURE,"temperature") \
+    SENSOR_(PROXIMITY,"proximity") \
 
 typedef enum {
 #define  SENSOR_(x,y)  ANDROID_SENSOR_##x,

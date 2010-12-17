@@ -85,12 +85,17 @@ typedef struct {
 
 
 typedef struct {
-    uint8_t  enabled;
+    float  value;
+} Proximity;
+
+typedef struct {
+    char       enabled;
     union {
         Acceleration   acceleration;
         MagneticField  magnetic;
         Orientation    orientation;
         Temperature    temperature;
+        Proximity      proximity;
     } u;
 } Sensor;
 
@@ -303,6 +308,13 @@ _hwSensorClient_tick( void*  opaque )
         _hwSensorClient_send(cl, (uint8_t*)buffer, strlen(buffer));
     }
 
+    if (_hwSensorClient_enabled(cl, ANDROID_SENSOR_PROXIMITY)) {
+        sensor = &hw->sensors[ANDROID_SENSOR_PROXIMITY];
+        snprintf(buffer, sizeof buffer, "proximity:%g",
+                 sensor->u.proximity.value);
+        _hwSensorClient_send(cl, (uint8_t*) buffer, strlen(buffer));
+    }
+
     now_ns = qemu_get_clock(vm_clock);
 
     snprintf(buffer, sizeof buffer, "sync:%lld", now_ns/1000);
@@ -495,6 +507,9 @@ _hwSensors_save( QEMUFile*  f, QemudService*  sv, void*  opaque)
         case ANDROID_SENSOR_TEMPERATURE:
             qemu_put_float(f, s->u.temperature.celsius);
             break;
+        case ANDROID_SENSOR_PROXIMITY:
+            qemu_put_float(f, s->u.proximity.value);
+            break;
         case MAX_SENSORS:
             break;
         }
@@ -543,6 +558,9 @@ _hwSensors_load( QEMUFile*  f, QemudService*  s, void*  opaque)
         case ANDROID_SENSOR_TEMPERATURE:
             s->u.temperature.celsius = qemu_get_float(f);
             break;
+        case ANDROID_SENSOR_PROXIMITY:
+            s->u.proximity.value = qemu_get_float(f);
+            break;
         case MAX_SENSORS:
             break;
         }
@@ -581,6 +599,14 @@ _hwSensors_setTemperature( HwSensors*  h, float celsius )
     s->u.temperature.celsius = celsius;
 }
 #endif
+
+/* change the emulated proximity */
+static void
+_hwSensors_setProximity( HwSensors*  h, float value )
+{
+    Sensor*  s = &h->sensors[ANDROID_SENSOR_PROXIMITY];
+    s->u.proximity.value = value;
+}
 
 /* change the coarse orientation (landscape/portrait) of the emulated device */
 static void
@@ -626,10 +652,14 @@ _hwSensors_init( HwSensors*  h )
     if (android_hw->hw_accelerometer)
         h->sensors[ANDROID_SENSOR_ACCELERATION].enabled = 1;
 
+    if (android_hw->hw_sensors_proximity)
+        h->sensors[ANDROID_SENSOR_PROXIMITY].enabled = 1;
+
     /* XXX: TODO: Add other tests when we add the corresponding
         * properties to hardware-properties.ini et al. */
 
     _hwSensors_setCoarseOrientation(h, ANDROID_COARSE_PORTRAIT);
+    _hwSensors_setProximity(h, 1);
 }
 
 static HwSensors    _sensorsState[1];
