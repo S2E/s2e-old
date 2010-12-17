@@ -235,6 +235,9 @@ typedef struct AModemRec_
     int           cell_id;
     int           base_port;
 
+    int           rssi;
+    int           ber;
+
     /* SMS */
     int           wait_sms;
 
@@ -464,6 +467,9 @@ amodem_reset( AModem  modem )
     modem->nvram_config = amodem_load_nvram(modem);
     modem->radio_state = A_RADIO_STATE_OFF;
     modem->wait_sms    = 0;
+
+    modem->rssi= 7;    // Two signal strength bars
+    modem->ber = 99;   // Means 'unknown'
 
     modem->oper_name_index     = amodem_nvram_get_int(modem, NV_OPER_NAME_INDEX, 2);
     modem->oper_selection_mode = amodem_nvram_get_int(modem, NV_SELECTION_MODE, A_SELECTION_AUTOMATIC);
@@ -877,6 +883,12 @@ amodem_find_call_by_number( AModem  modem, const char*  number )
     return  NULL;
 }
 
+void
+amodem_set_signal_strength( AModem modem, int rssi, int ber )
+{
+    modem->rssi = rssi;
+    modem->ber = ber;
+}
 
 static void
 acall_set_state( AVoiceCall    call, ACallState  state )
@@ -2135,7 +2147,6 @@ int android_snapshot_update_time_request = 0;
 static const char*
 handleSignalStrength( const char*  cmd, AModem  modem )
 {
-   /* XXX: TODO: implement variable signal strength and error rates */
     amodem_begin_line( modem );
 #if CONFIG_ANDROID_SNAPSHOTS
     /* Sneak time updates into the SignalStrength request, because it's periodic.
@@ -2149,7 +2160,12 @@ handleSignalStrength( const char*  cmd, AModem  modem )
 #endif
     // rssi = 0 (<-113dBm) 1 (<-111) 2-30 (<-109--53) 31 (>=-51) 99 (?!)
     // ber (bit error rate) - always 99 (unknown), apparently.
-    amodem_add_line( modem, "+CSQ: %i,99\r\n", 27 );
+    // TODO: return 99 if modem->radio_state==A_RADIO_STATE_OFF, once radio_state is in snapshot.
+    int rssi = modem->rssi;
+    int ber = modem->ber;
+    rssi = (0 > rssi && rssi > 31) ? 99 : rssi ;
+    ber = (0 > ber && ber > 7 ) ? 99 : ber;
+    amodem_add_line( modem, "+CSQ: %i,%i\r\n", rssi, ber );
     return amodem_end_line( modem );
 }
 
