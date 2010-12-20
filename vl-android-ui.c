@@ -42,6 +42,7 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/system.h"
 #include "android/core-connection.h"
+#include "android/framebuffer-ui.h"
 
 #ifdef CONFIG_MEMCHECK
 #include "memcheck/memcheck.h"
@@ -205,6 +206,8 @@ extern void  dprint( const char* format, ... );
 
 /* Instance of the "attach UI" Emulator's core console client. */
 extern CoreConnection*   attach_client;
+/* Instance of the "framebuffer" console client. */
+extern ClientFramebuffer*  fb_client;
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
@@ -598,6 +601,11 @@ int main(int argc, char **argv, char **envp)
         core_connection_detach(attach_client);
         core_connection_close(attach_client);
         core_connection_free(attach_client);
+    }
+
+    if (fb_client != NULL) {
+        clientfb_destroy(fb_client);
+        fb_client = NULL;
     }
 
     quit_timers();

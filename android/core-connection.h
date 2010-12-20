@@ -130,4 +130,12 @@ int core_connection_switch_stream(CoreConnection* desc,
  */
 void core_connection_detach(CoreConnection* desc);
 
+/* Gets socket descriptor associated with the core connection.
+ * Param:
+ *  desc Console client descriptor opened with core_connection_open.
+ * Return
+ *  Socket descriptor associated with the core connection.
+ */
+int core_connection_get_socket(CoreConnection* desc);
+
 #endif  // QEMU_ANDROID_CORE_CONNECTION_H

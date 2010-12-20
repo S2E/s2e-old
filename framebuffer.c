@@ -42,6 +42,29 @@ _get_pitch( int  width, QFrameBufferFormat  format )
     }
 }
 
+static int
+_get_bits_per_pixel(QFrameBufferFormat  format)
+{
+
+    switch (format) {
+        case QFRAME_BUFFER_RGB565:
+            return 16;
+        default:
+            return -1;
+    }
+}
+
+static int
+_get_bytes_per_pixel(QFrameBufferFormat  format)
+{
+
+    switch (format) {
+        case QFRAME_BUFFER_RGB565:
+            return 2;
+        default:
+            return -1;
+    }
+}
 
 int
 qframebuffer_init( QFrameBuffer*       qfbuff,
@@ -50,7 +73,7 @@ qframebuffer_init( QFrameBuffer*       qfbuff,
                    int                 rotation,
                    QFrameBufferFormat  format )
 {
-    int   pitch;
+    int   pitch, bytes_per_pixel, bits_per_pixel;
 
     rotation &= 3;
 
@@ -59,6 +82,14 @@ qframebuffer_init( QFrameBuffer*       qfbuff,
 
     pitch = _get_pitch( width, format );
     if (pitch < 0)
+        return -1;
+
+	bits_per_pixel = _get_bits_per_pixel(format);
+	if (bits_per_pixel < 0)
+		return -1;
+
+	bytes_per_pixel = _get_bytes_per_pixel(format);
+    if (bytes_per_pixel < 0)
         return -1;
 
     memset( qfbuff, 0, sizeof(*qfbuff) );
@@ -77,6 +108,8 @@ qframebuffer_init( QFrameBuffer*       qfbuff,
     qfbuff->height = height;
     qfbuff->pitch  = pitch;
     qfbuff->format = format;
+    qfbuff->bits_per_pixel = bits_per_pixel;
+    qfbuff->bytes_per_pixel = bytes_per_pixel;
 
     qframebuffer_set_dpi( qfbuff, DEFAULT_FRAMEBUFFER_DPI, DEFAULT_FRAMEBUFFER_DPI );
     return 0;

@@ -271,3 +271,9 @@ syncsocket_read_line(SyncSocket* ssocket, char* buffer, size_t size, int timeout
     return syncsocket_read_line_absolute(ssocket, buffer, size,
                                          iolooper_now() + timeout);
 }
+
+int
+syncsocket_get_socket(SyncSocket* ssocket)
+{
+    return (ssocket != NULL) ? ssocket->fd : -1;
+}
