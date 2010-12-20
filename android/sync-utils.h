@@ -205,4 +205,12 @@ ssize_t syncsocket_read_line(SyncSocket* ssocket,
                              size_t size,
                              int timeout);
 
+/* Gets socket descriptor associated with the sync socket.
+ * Param:
+ *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.
+ * Return
+ *  Socket descriptor associated with the sync socket.
+ */
+int syncsocket_get_socket(SyncSocket* ssocket);
+
 #endif  // ANDROID_SYNC_UTILS_H

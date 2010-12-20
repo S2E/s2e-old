@@ -21,14 +21,17 @@
 /* Core display descriptor. */
 struct CoreDisplay {
     /* Display state for this core display. */
-    DisplayState*   ds;
+    DisplayState*       ds;
 
     /* Framebuffer for this core display. */
-    QFrameBuffer*   fb;
+    QFrameBuffer*       fb;
+
+    /* Framebuffer service associated with this core display. */
+    CoreFramebuffer*    core_fb;
 };
 
 /* One and only one core display instance. */
-static CoreDisplay core_display;
+CoreDisplay core_display;
 
 /*
  * Framebuffer calls this routine when it detects changes. This routine will
@@ -36,8 +39,12 @@ static CoreDisplay core_display;
  * See QFrameBufferUpdateFunc in framebuffer.h for more info on this callback.
  */
 static void
-core_display_fb_update(void* opaque, int x, int y, int w, int h)
+coredisplay_fb_update(void* opaque, int x, int y, int w, int h)
 {
+    CoreDisplay* cd = (CoreDisplay*)opaque;
+    if (cd->core_fb) {
+        corefb_update(cd->core_fb, cd->ds, cd->fb, x, y, w, h);
+    }
 }
 
 /*
@@ -45,7 +52,7 @@ core_display_fb_update(void* opaque, int x, int y, int w, int h)
  * info on this callback.
  */
 static void
-core_display_fb_rotate(void* opaque, int rotation)
+coredisplay_fb_rotate(void* opaque, int rotation)
 {
 }
 
@@ -54,7 +61,7 @@ core_display_fb_rotate(void* opaque, int rotation)
  * info on this callback.
  */
 static void
-core_display_fb_poll(void* opaque)
+coredisplay_fb_poll(void* opaque)
 {
     // This will eventually call core_display_fb_update.
     qframebuffer_check_updates();
@@ -65,18 +72,19 @@ core_display_fb_poll(void* opaque)
  * info on this callback.
  */
 static void
-core_display_fb_done(void* opaque)
+coredisplay_fb_done(void* opaque)
 {
 }
 
 void
-core_display_init(DisplayState* ds)
+coredisplay_init(DisplayState* ds)
 {
     core_display.ds = ds;
     /* Create and initialize framebuffer instance that will be used for core
      * display.
      */
     ANEW0(core_display.fb);
+    core_display.core_fb = NULL;
     qframebuffer_init(core_display.fb, ds->surface->width, ds->surface->height,
                       0, QFRAME_BUFFER_RGB565 );
     qframebuffer_fifo_add(core_display.fb);
@@ -85,7 +93,27 @@ core_display_init(DisplayState* ds)
      * core all framebuffer callbacks are essentially no-ops.
      */
     qframebuffer_add_client(core_display.fb, &core_display,
-                            core_display_fb_update, core_display_fb_rotate,
-                            core_display_fb_poll, core_display_fb_done);
+                            coredisplay_fb_update, coredisplay_fb_rotate,
+                            coredisplay_fb_poll, coredisplay_fb_done);
     android_display_init(ds, core_display.fb);
 }
+
+int
+coredisplay_attach_fb_service(CoreFramebuffer* core_fb)
+{
+    if (core_display.core_fb == NULL) {
+        core_display.core_fb = core_fb;
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
+CoreFramebuffer*
+coredisplay_detach_fb_service(void)
+{
+    CoreFramebuffer* ret = core_display.core_fb;
+    core_display.core_fb = NULL;
+    return ret;
+}
+

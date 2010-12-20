@@ -47,6 +47,8 @@ struct QFrameBuffer {
     int                 width;        /* width in pixels */
     int                 height;       /* height in pixels */
     int                 pitch;        /* bytes per line */
+    int                 bits_per_pixel; /* bits per pixel */
+    int                 bytes_per_pixel;    /* bytes per pixel */
     int                 rotation;     /* rotation to be applied when displaying */
     QFrameBufferFormat  format;
     void*               pixels;       /* pixel buffer */

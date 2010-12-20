@@ -80,8 +80,8 @@ typedef struct {
     size_t         pos;
 } AsyncWriter;
 
-/* Setup an ASyncReader, by giving the address of the read buffer,
- * and the number of bytes we want to read.
+/* Setup an ASyncWriter, by giving the address of the write buffer,
+ * and the number of bytes we want to write.
  *
  * This also calls loopIo_wantWrite(io) for you.
  */
@@ -100,7 +100,7 @@ void asyncWriter_init(AsyncWriter*  aw,
  *                 ECONNRESET in case of disconnection.
  *
  *    ASYNC_NEED_MORE: If not all bytes could be sent yet (or if 'events'
- *                     doesn't contain LOOP_IO_READ).
+ *                     doesn't contain LOOP_IO_WRITE).
  */
 AsyncStatus asyncWriter_write(AsyncWriter* aw,
                               LoopIo*      io);

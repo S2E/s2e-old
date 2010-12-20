@@ -199,13 +199,15 @@ qloopio_modify(QLoopIo* io, unsigned wanted)
 
     /* if we're pending, but the new mask doesn't care about
      * out state, remove from pending list */
-    if (io->ready && (io->ready & wanted) == 0)
+    if (io->ready && (io->ready & wanted) == 0) {
         qloopio_removePending(io);
+    }
 
     /* recompute read/write handlers for QEMU */
     IOHandler* fd_read  = (wanted & LOOP_IO_READ)  ? qloopio_handleRead  : NULL;
     IOHandler* fd_write = (wanted & LOOP_IO_WRITE) ? qloopio_handleWrite : NULL;
     qemu_set_fd_handler(io->fd, fd_read, fd_write, io);
+    io->wanted = wanted;
 }
 
 static void
@@ -312,7 +314,7 @@ qlooper_addPendingIo(QLooper* looper, QLoopIo* io)
         qemu_bh_schedule(looper->io_bh);
     }
     io->pendingNext    = looper->io_pending;
-    looper->io_pending = io->pendingNext;
+    looper->io_pending = io;
 }
 
 static void

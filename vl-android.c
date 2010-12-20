@@ -5347,7 +5347,7 @@ int main(int argc, char **argv, char **envp)
         break;
 #elif defined(CONFIG_STANDALONE_CORE)
     case DT_SDL:
-        core_display_init(ds);
+        coredisplay_init(ds);
         break;
 #endif
     case DT_VNC:

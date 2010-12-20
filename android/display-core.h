@@ -18,8 +18,9 @@
 #ifndef _ANDROID_DISPLAY_CORE_H
 #define _ANDROID_DISPLAY_CORE_H
 
-#include "android/display.h"
 #include "framebuffer.h"
+#include "android/display.h"
+#include "android/framebuffer-core.h"
 
 /* Descriptor for a core display instance */
 typedef struct CoreDisplay CoreDisplay;
@@ -29,6 +30,23 @@ typedef struct CoreDisplay CoreDisplay;
  * Param:
  *  ds - Display state to use for the core display.
  */
-extern void core_display_init(DisplayState* ds);
+extern void coredisplay_init(DisplayState* ds);
+
+/*
+ * Attaches framebuffer service to the core display.
+ * Param:
+ *  core_fb - Framebuffer service descriptor to attach.
+ * Return:
+ *  0 on success, or -1 on failure.
+ */
+extern int coredisplay_attach_fb_service(CoreFramebuffer* core_fb);
+
+/*
+ * Detaches framebuffer service previously attached to the core display.
+ * Return:
+ *  Framebuffer service descriptor attached to the core display, or NULL if
+ *  the core display didn't have framebuffer service attached to it.
+ */
+extern CoreFramebuffer* coredisplay_detach_fb_service(void);
 
 #endif /* _ANDROID_DISPLAY_CORE_H */

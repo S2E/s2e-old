@@ -321,3 +321,9 @@ core_connection_detach(CoreConnection* desc)
 {
     core_connection_write(desc, "\n", 1, NULL);
 }
+
+int
+core_connection_get_socket(CoreConnection* desc)
+{
+    return (desc != NULL) ? syncsocket_get_socket(desc->ssocket) : -1;
+}
