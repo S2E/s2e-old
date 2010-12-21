@@ -117,3 +117,8 @@ coredisplay_detach_fb_service(void)
     return ret;
 }
 
+QFrameBuffer*
+coredisplay_get_framebuffer(void)
+{
+    return core_display.fb;
+}

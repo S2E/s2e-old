@@ -29,10 +29,11 @@ typedef struct CoreFramebuffer CoreFramebuffer;
  *      supported values ar:
  *      -raw Transfers the updating rectangle buffer over the socket.
  *      -shared Used a shared memory to transfer the updating rectangle buffer.
+ *  fb - Framebuffer descriptor for this service.
  * Return:
  *  Framebuffer service descriptor.
  */
-CoreFramebuffer* corefb_create(int sock, const char* protocol);
+CoreFramebuffer* corefb_create(int sock, const char* protocol, struct QFrameBuffer* fb);
 
 /*
  * Destroys framebuffer service created with corefb_create.
@@ -51,5 +52,14 @@ void corefb_destroy(CoreFramebuffer* core_fb);
  */
 void corefb_update(CoreFramebuffer* core_fb, struct DisplayState* ds,
                    struct QFrameBuffer* fb, int x, int y, int w, int h);
+
+/*
+ * Gets number of bits used to encode a single pixel.
+ * Param:
+ *  core_fb - Framebuffer service descriptor created with corefb_create
+ * Return:
+ *  Number of bits used to encode a single pixel.
+ */
+int corefb_get_bits_per_pixel(CoreFramebuffer* core_fb);
 
 #endif /* _ANDROID_FRAMEBUFFER_CORE_H */

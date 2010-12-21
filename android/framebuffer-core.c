@@ -28,10 +28,13 @@
 /* Core framebuffer descriptor. */
 struct CoreFramebuffer {
     /* Writer used to send FB update notification messages. */
-    AsyncWriter  fb_update_writer;
+    AsyncWriter             fb_update_writer;
 
     /* I/O associated with this descriptor. */
-    LoopIo  io;
+    LoopIo                  io;
+
+    /* Framebuffer used for this service. */
+    QFrameBuffer*           fb;
 
     /* Looper used to communicate framebuffer updates. */
     Looper* looper;
@@ -116,7 +119,6 @@ fbupdatenotify_create(CoreFramebuffer* core_fb, const QFrameBuffer* fb,
     ret->message.y = y;
     ret->message.w = w;
     ret->message.h = h;
-    ret->message.bits_per_pixel = fb->bits_per_pixel;
     _copy_fb_rect(ret->message.rect, fb, x, y, w, h);
     return ret;
 }
@@ -182,7 +184,7 @@ corefb_io_func(void* opaque, int fd, unsigned events)
 }
 
 CoreFramebuffer*
-corefb_create(int sock, const char* protocol)
+corefb_create(int sock, const char* protocol, QFrameBuffer* fb)
 {
     // At this point we're implementing the -raw protocol only.
     CoreFramebuffer* ret;
@@ -190,6 +192,7 @@ corefb_create(int sock, const char* protocol)
     ret->sock = sock;
     ret->looper = looper_newCore();
     loopIo_init(&ret->io, ret->looper, sock, corefb_io_func, ret);
+    ret->fb = fb;
     ret->fb_update_head = NULL;
     ret->fb_update_tail = NULL;
     return ret;
@@ -255,4 +258,11 @@ corefb_update(CoreFramebuffer* core_fb, struct DisplayState* ds,
             printf("PARTIAL\n");
             return;
     }
+}
+
+int
+corefb_get_bits_per_pixel(CoreFramebuffer* core_fb)
+{
+    return (core_fb != NULL && core_fb->fb != NULL) ?
+                                                core_fb->fb->bits_per_pixel : -1;
 }

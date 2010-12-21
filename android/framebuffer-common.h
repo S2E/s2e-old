@@ -27,9 +27,6 @@ typedef struct FBUpdateMessage {
     uint16_t    w;
     uint16_t    h;
 
-    /* Number of bits used to encode a single pixel. */
-    uint8_t     bits_per_pixel;
-
     /* Contains updating rectangle copied over from the framebuffer's pixels. */
     uint8_t rect[0];
 } FBUpdateMessage;
