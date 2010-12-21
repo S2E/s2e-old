@@ -59,6 +59,9 @@ struct ClientFramebuffer {
 
     /* Socket descriptor for the framebuffer client. */
     int             sock;
+
+    /* Number of bits used to encode single pixel. */
+    int             bits_per_pixel;
 };
 
 /* The only instance of framebuffer client. */
@@ -127,7 +130,7 @@ _clientfb_read_cb(void* opaque)
             fb_client->reader_offset = 0;
             fb_client->reader_bytes = fb_client->update_header.w *
                                       fb_client->update_header.h *
-                                      (fb_client->update_header.bits_per_pixel / 8);
+                                      (fb_client->bits_per_pixel / 8);
             fb_client->reader_buffer = malloc(fb_client->reader_bytes);
             if (fb_client->reader_buffer == NULL) {
                 PANIC("Unable to allocate memory for framebuffer update\n");
@@ -144,7 +147,7 @@ _clientfb_read_cb(void* opaque)
             // Perform the update. Note that pixels buffer must be freed there.
             update_rect(fb_client->update_header.x, fb_client->update_header.y,
                         fb_client->update_header.w, fb_client->update_header.h,
-                        fb_client->update_header.bits_per_pixel, pixels);
+                        fb_client->bits_per_pixel, pixels);
         }
     }
 }
@@ -165,7 +168,7 @@ clientfb_create(SockAddress* console_socket, const char* protocol)
     if (core_connection_open(_client_fb.core_connection)) {
         core_connection_free(_client_fb.core_connection);
         _client_fb.core_connection = NULL;
-        derror("Framebuffer client is unable to ioen the console: %s\n",
+        derror("Framebuffer client is unable to open the console: %s\n",
                errno_str);
         return NULL;
     }
@@ -182,8 +185,30 @@ clientfb_create(SockAddress* console_socket, const char* protocol)
         _client_fb.core_connection = NULL;
         return NULL;
     }
+
+    // We expect core framebuffer to return us bits per pixel property in
+    // the handshake message.
+    _client_fb.bits_per_pixel = 0;
     if (connect_message != NULL) {
-        free(connect_message);
+        char* bpp = strstr(connect_message, "bitsperpixel=");
+        if (bpp != NULL) {
+            char* end;
+            bpp += strlen("bitsperpixel=");
+            end = strchr(bpp, ' ');
+            if (end == NULL) {
+                end = bpp + strlen(bpp);
+            }
+            _client_fb.bits_per_pixel = strtol(bpp, &end, 0);
+        }
+    }
+
+    if (!_client_fb.bits_per_pixel) {
+        derror("Unexpected core framebuffer reply: %s\n"
+               "Bits per pixel property is not there, or is invalid\n", connect_message);
+        core_connection_close(_client_fb.core_connection);
+        core_connection_free(_client_fb.core_connection);
+        _client_fb.core_connection = NULL;
+        return NULL;
     }
 
     // Now that we're connected lets initialize the descriptor.
@@ -192,6 +217,10 @@ clientfb_create(SockAddress* console_socket, const char* protocol)
     _client_fb.reader_buffer = (uint8_t*)&_client_fb.update_header;
     _client_fb.reader_offset = 0;
     _client_fb.reader_bytes = sizeof(FBUpdateMessage);
+
+    if (connect_message != NULL) {
+        free(connect_message);
+    }
 
     // At last setup read callback, and start receiving the updates.
     if (qemu_set_fd_handler(_client_fb.sock, _clientfb_read_cb, NULL, &_client_fb)) {

@@ -49,4 +49,11 @@ extern int coredisplay_attach_fb_service(CoreFramebuffer* core_fb);
  */
 extern CoreFramebuffer* coredisplay_detach_fb_service(void);
 
+/*
+ * Get framebuffer descriptor for core display.
+ * Return:
+ *  Framebuffer descriptor for core display.
+ */
+extern QFrameBuffer* coredisplay_get_framebuffer(void);
+
 #endif /* _ANDROID_DISPLAY_CORE_H */

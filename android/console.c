@@ -2518,10 +2518,14 @@ do_create_framebuffer_service( ControlClient client, char* args )
         return -1;
     }
 
-    core_fb = corefb_create(client->sock, protocol);
+    core_fb = corefb_create(client->sock, protocol, coredisplay_get_framebuffer());
     if (!coredisplay_attach_fb_service(core_fb)) {
+        char reply_buf[4096];
         framebuffer_client = client;
-        control_write( client, "OK\r\n");
+        // Reply "OK" with the framebuffer's bits per pixel
+        snprintf(reply_buf, sizeof(reply_buf), "OK: -bitsperpixel=%d\r\n",
+                 corefb_get_bits_per_pixel(core_fb));
+        control_write( client, reply_buf);
     } else {
         control_write( client, "KO\r\n" );
         control_client_destroy(client);
