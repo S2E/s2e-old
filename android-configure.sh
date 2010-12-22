@@ -26,9 +26,8 @@ OPTION_DEBUG=no
 OPTION_STATIC=no
 OPTION_MINGW=no
 
-if [ -z "$CC" ] ; then
-  CC=gcc
-fi
+HOST_CC=${CC:-gcc}
+OPTION_CC=
 
 for opt do
   optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'`
@@ -50,7 +49,7 @@ for opt do
   ;;
   --mingw) OPTION_MINGW=yes
   ;;
-  --cc=*) CC="$optarg" ; HOSTCC=$CC
+  --cc=*) OPTION_CC="$optarg"
   ;;
   --no-strip) OPTION_NO_STRIP=yes
   ;;
@@ -81,7 +80,7 @@ EOF
     echo "Standard options:"
     echo "  --help                   print this message"
     echo "  --install=FILEPATH       copy emulator executable to FILEPATH [$TARGETS]"
-    echo "  --cc=PATH                specify C compiler [$CC]"
+    echo "  --cc=PATH                specify C compiler [$HOST_CC]"
     echo "  --sdl-config=FILE        use specific sdl-config script [$SDL_CONFIG]"
     echo "  --no-strip               do not strip emulator executable"
     echo "  --debug                  enable debug (-O0 -g) build"
@@ -94,6 +93,16 @@ EOF
     echo "  --debug                  build debug version of the emulator"
     echo ""
     exit 1
+fi
+
+# On Linux, try to use our 32-bit prebuilt toolchain to generate binaries
+# that are compatible with Ubuntu 8.04
+if [ -z "$CC" -a -z "$OPTION_CC" -a "$HOST_OS" = linux -a "$OPTION_TRY_64" != "yes" ] ; then
+    HOST_CC=`dirname $0`/../../prebuilt/linux-x86/toolchain/i686-linux-glibc2.7-4.4.3/bin/i686-linux-gcc
+    if [ -f "$HOST_CC" ] ; then
+        echo "Using prebuilt 32-bit toolchain: $HOST_CC"
+        CC="$HOST_CC"
+    fi
 fi
 
 # we only support generating 32-bit binaris on 64-bit systems.
