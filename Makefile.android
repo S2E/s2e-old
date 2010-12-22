@@ -642,6 +642,7 @@ endif
 # misc. sources
 #
 CORE_MISC_SOURCES = vl-android.c \
+                    async.c \
                     console.c \
                     qemu-malloc.c \
                     cutils.c \

@@ -375,7 +375,7 @@ void hw_error(const char *fmt, ...)
     va_end(ap);
     abort();
 }
- 
+
 /***************/
 /* ballooning */
 
@@ -2014,7 +2014,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
             if (ram_load_dead(f, opaque) < 0)
                 return -EINVAL;
         }
-        
+
         if (flags & RAM_SAVE_FLAG_COMPRESS) {
             uint8_t ch = qemu_get_byte(f);
             memset(qemu_get_ram_ptr(addr), ch, TARGET_PAGE_SIZE);
@@ -2028,110 +2028,6 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 void qemu_service_io(void)
 {
     qemu_notify_event();
-}
-
-/***********************************************************/
-/* bottom halves (can be seen as timers which expire ASAP) */
-
-struct QEMUBH {
-    QEMUBHFunc *cb;
-    void *opaque;
-    int scheduled;
-    int idle;
-    int deleted;
-    QEMUBH *next;
-};
-
-static QEMUBH *first_bh = NULL;
-
-QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque)
-{
-    QEMUBH *bh;
-    bh = qemu_mallocz(sizeof(QEMUBH));
-    bh->cb = cb;
-    bh->opaque = opaque;
-    bh->next = first_bh;
-    first_bh = bh;
-    return bh;
-}
-
-int qemu_bh_poll(void)
-{
-    QEMUBH *bh, **bhp;
-    int ret;
-
-    ret = 0;
-    for (bh = first_bh; bh; bh = bh->next) {
-        if (!bh->deleted && bh->scheduled) {
-            bh->scheduled = 0;
-            if (!bh->idle)
-                ret = 1;
-            bh->idle = 0;
-            bh->cb(bh->opaque);
-        }
-    }
-
-    /* remove deleted bhs */
-    bhp = &first_bh;
-    while (*bhp) {
-        bh = *bhp;
-        if (bh->deleted) {
-            *bhp = bh->next;
-            qemu_free(bh);
-        } else
-            bhp = &bh->next;
-    }
-
-    return ret;
-}
-
-void qemu_bh_schedule_idle(QEMUBH *bh)
-{
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 1;
-}
-
-void qemu_bh_schedule(QEMUBH *bh)
-{
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 0;
-    /* stop the currently executing CPU to execute the BH ASAP */
-    qemu_notify_event();
-}
-
-void qemu_bh_cancel(QEMUBH *bh)
-{
-    bh->scheduled = 0;
-}
-
-void qemu_bh_delete(QEMUBH *bh)
-{
-    bh->scheduled = 0;
-    bh->deleted = 1;
-}
-
-void qemu_bh_update_timeout(int *timeout)
-{
-    QEMUBH *bh;
-
-    for (bh = first_bh; bh; bh = bh->next) {
-        if (!bh->deleted && bh->scheduled) {
-            if (bh->idle) {
-                /* idle bottom halves will be polled at least
-                 * every 10ms */
-                *timeout = MIN(10, *timeout);
-            } else {
-                /* non-idle bottom halves will be executed
-                 * immediately */
-                *timeout = 0;
-                break;
-            }
-        }
-    }
 }
 
 /***********************************************************/
@@ -3860,7 +3756,7 @@ int main(int argc, char **argv, char **envp)
                 {
                     /* Could easily be extended to 64 devices if needed */
                     const char *p;
-                    
+
                     boot_devices_bitmap = 0;
                     for (p = boot_devices; *p != '\0'; p++) {
                         /* Allowed boot devices are:
@@ -4716,7 +4612,7 @@ int main(int argc, char **argv, char **envp)
         show_vnc_port = 1;
 #endif
     }
-        
+
 
     switch (display_type) {
     case DT_NOGRAPHIC:
