@@ -496,6 +496,9 @@ SW *glue (AUD_open_, TYPE) (
     sw->vol = nominal_volume;
     sw->callback.fn = callback_fn;
     sw->callback.opaque = callback_opaque;
+#ifdef DAC
+    sw->empty = 1;
+#endif
 
 #ifdef DAC
     if (live) {

@@ -1068,7 +1068,7 @@ static int audio_pcm_hw_find_min_out (HWVoiceOut *hw, int *nb_livep)
     int nb_live = 0;
 
     for (sw = hw->sw_head.lh_first; sw; sw = sw->entries.le_next) {
-        if (sw->active || !sw->empty) {
+        if (sw->active && !sw->empty) {
             m = audio_MIN (m, sw->total_hw_samples_mixed);
             nb_live += 1;
         }
@@ -1540,7 +1540,7 @@ static void audio_run_out (AudioState *s)
 
         cleanup_required = 0;
         for (sw = hw->sw_head.lh_first; sw; sw = sw->entries.le_next) {
-            if (!sw->active && sw->empty) {
+            if (!sw->active || sw->empty) {
                 continue;
             }
 
