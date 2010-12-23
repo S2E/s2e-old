@@ -20,6 +20,7 @@
 #include "audio/audio.h"
 #include "arm-misc.h"
 #include "console.h"
+#include "blockdev.h"
 #ifdef CONFIG_MEMCHECK
 #include "memcheck/memcheck_api.h"
 #endif  // CONFIG_MEMCHECK
@@ -120,9 +121,10 @@ static void android_arm_init_(ram_addr_t ram_size,
     goldfish_audio_init(0xff004000, 0, audio_input_source);
 #endif
     {
-        int  idx = drive_get_index( IF_IDE, 0, 0 );
-        if (idx >= 0)
-            goldfish_mmc_init(0xff005000, 0, drives_table[idx].bdrv);
+        DriveInfo* info = drive_get( IF_IDE, 0, 0 );
+        if (info != NULL) {
+            goldfish_mmc_init(0xff005000, 0, info->bdrv);
+        }
     }
 
     goldfish_memlog_init(0xff006000);

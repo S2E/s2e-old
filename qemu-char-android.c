@@ -385,12 +385,7 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
                  break;
             }
         case 's':
-            {
-                int i;
-                for (i = 0; i < nb_drives; i++) {
-                        bdrv_commit(drives_table[i].bdrv);
-                }
-            }
+            bdrv_commit_all();
             break;
         case 'b':
             qemu_chr_event(chr, CHR_EVENT_BREAK);

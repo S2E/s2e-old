@@ -42,26 +42,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <net/if.h>
-#if defined(__NetBSD__)
-#include <net/if_tap.h>
-#endif
-#ifdef __linux__
-#include <linux/if_tun.h>
-#endif
 #include <arpa/inet.h>
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
 #ifdef CONFIG_BSD
 #include <sys/stat.h>
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
 #include <libutil.h>
 #else
 #include <util.h>
 #endif
-#elif defined (__GLIBC__) && defined (__FreeBSD_kernel__)
-#include <freebsd/stdlib.h>
-#else
 #ifdef __linux__
 #include <pty.h>
 #include <malloc.h>
@@ -86,16 +77,16 @@
 #include "sysemu.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
+#include "blockdev.h"
 #include "outputchannel.h"
 #include "block.h"
 #include "audio/audio.h"
 #include "migration.h"
 #include "qemu_socket.h"
+#include "qemu-queue.h"
 #include "qemu_file.h"
 #include "android/snapshot.h"
 
-/* point to the block driver where the snapshots are managed */
-static BlockDriverState *bs_snapshots;
 
 #define SELF_ANNOUNCE_ROUNDS 5
 #define ETH_P_EXPERIMENTAL 0x01F1 /* just a number */
@@ -350,21 +341,17 @@ typedef struct QEMUFileBdrv
 static int block_put_buffer(void *opaque, const uint8_t *buf,
                            int64_t pos, int size)
 {
-    QEMUFileBdrv *s = opaque;
-    bdrv_put_buffer(s->bs, buf, s->base_offset + pos, size);
+    bdrv_save_vmstate(opaque, buf, pos, size);
     return size;
 }
 
 static int block_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
 {
-    QEMUFileBdrv *s = opaque;
-    return bdrv_get_buffer(s->bs, buf, s->base_offset + pos, size);
+    return bdrv_load_vmstate(opaque, buf, pos, size);
 }
 
 static int bdrv_fclose(void *opaque)
 {
-    QEMUFileBdrv *s = opaque;
-    qemu_free(s);
     return 0;
 }
 
@@ -1123,7 +1110,7 @@ out:
 
     return ret;
 }
-
+#if 0
 static BlockDriverState *get_bs_snapshots(void)
 {
     BlockDriverState *bs;
@@ -1141,7 +1128,7 @@ static BlockDriverState *get_bs_snapshots(void)
     bs_snapshots = bs;
     return bs;
 }
-
+#endif
 static int bdrv_snapshot_find(BlockDriverState *bs, QEMUSnapshotInfo *sn_info,
                               const char *name)
 {
@@ -1182,7 +1169,7 @@ void do_savevm_oc(OutputChannel *err, const char *name)
 {
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo sn1, *sn = &sn1, old_sn1, *old_sn = &old_sn1;
-    int must_delete, ret, i;
+    int must_delete, ret;
     BlockDriverInfo bdi1, *bdi = &bdi1;
     QEMUFile *f;
     int saved_vm_running;
@@ -1193,7 +1180,7 @@ void do_savevm_oc(OutputChannel *err, const char *name)
     struct timeval tv;
 #endif
 
-    bs = get_bs_snapshots();
+    bs = bdrv_snapshots();
     if (!bs) {
         output_channel_printf(err, "No block device can accept snapshots\n");
         return;
@@ -1255,8 +1242,8 @@ void do_savevm_oc(OutputChannel *err, const char *name)
 
     /* create the snapshots */
 
-    for(i = 0; i < nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    bs1 = NULL;
+    while ((bs1 = bdrv_next(bs1))) {
         if (bdrv_can_snapshot(bs1)) {
             if (must_delete) {
                 ret = bdrv_snapshot_delete(bs1, old_sn->id_str);
@@ -1295,10 +1282,10 @@ void do_loadvm_oc(OutputChannel *err, const char *name)
     BlockDriverInfo bdi1, *bdi = &bdi1;
     QEMUSnapshotInfo sn;
     QEMUFile *f;
-    int i, ret;
+    int ret;
     int saved_vm_running;
 
-    bs = get_bs_snapshots();
+    bs = bdrv_snapshots();
     if (!bs) {
         output_channel_printf(err, "No block device supports snapshots\n");
         return;
@@ -1310,8 +1297,8 @@ void do_loadvm_oc(OutputChannel *err, const char *name)
     saved_vm_running = vm_running;
     vm_stop(0);
 
-    for(i = 0; i <= nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    bs1 = NULL;
+    while ((bs1 = bdrv_next(bs))) {
         if (bdrv_can_snapshot(bs1)) {
             ret = bdrv_snapshot_goto(bs1, name);
             if (ret < 0) {
@@ -1376,16 +1363,16 @@ void do_delvm(Monitor *mon, const char *name)
 void do_delvm_oc(OutputChannel *err, const char *name)
 {
     BlockDriverState *bs, *bs1;
-    int i, ret;
+    int ret;
 
-    bs = get_bs_snapshots();
+    bs = bdrv_snapshots();
     if (!bs) {
         output_channel_printf(err, "No block device supports snapshots\n");
         return;
     }
 
-    for(i = 0; i <= nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    bs1 = NULL;
+    while ((bs1 = bdrv_next(bs1))) {
         if (bdrv_can_snapshot(bs1)) {
             ret = bdrv_snapshot_delete(bs1, name);
             if (ret < 0) {
@@ -1415,14 +1402,14 @@ void do_info_snapshots_oc(OutputChannel *out, OutputChannel *err)
     int nb_sns, i;
     char buf[256];
 
-    bs = get_bs_snapshots();
+    bs = bdrv_snapshots();
     if (!bs) {
         output_channel_printf(err, "No available block device supports snapshots\n");
         return;
     }
     output_channel_printf(out, "Snapshot devices:");
-    for(i = 0; i <= nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    bs1 = NULL;
+    while ((bs1 = bdrv_next(bs1))) {
         if (bdrv_can_snapshot(bs1)) {
             if (bs == bs1)
                 output_channel_printf(out, " %s", bdrv_get_device_name(bs1));

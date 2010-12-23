@@ -15,6 +15,7 @@
 
 #include <qemu-common.h>
 #include <sysemu.h>
+#include "blockdev.h"
 //#define DEBUG_SCSI
 
 #ifdef DEBUG_SCSI
@@ -219,7 +220,7 @@ static void scsi_read_data(SCSIDevice *d, uint32_t tag)
 
 static int scsi_handle_write_error(SCSIRequest *r, int error)
 {
-    BlockInterfaceErrorAction action = drive_get_onerror(r->dev->bdrv);
+    BlockErrorAction action = bdrv_get_on_error(r->dev->bdrv, 0);
 
     if (action == BLOCK_ERR_IGNORE)
         return 0;
@@ -318,7 +319,7 @@ static void scsi_dma_restart_cb(void *opaque, int running, int reason)
     while (r) {
         if (r->status & SCSI_REQ_STATUS_RETRY) {
             r->status &= ~SCSI_REQ_STATUS_RETRY;
-            scsi_write_request(r); 
+            scsi_write_request(r);
         }
         r = r->next;
     }
@@ -948,9 +949,11 @@ SCSIDevice *scsi_disk_init(BlockDriverState *bdrv, int tcq,
     if (nb_sectors)
         nb_sectors--;
     s->max_lba = nb_sectors;
+#if 0
     strncpy(s->drive_serial_str, drive_get_serial(s->bdrv),
             sizeof(s->drive_serial_str));
     if (strlen(s->drive_serial_str) == 0)
+#endif
         pstrcpy(s->drive_serial_str, sizeof(s->drive_serial_str), "0");
     qemu_add_vm_change_state_handler(scsi_dma_restart_cb, s);
     d = (SCSIDevice *)qemu_mallocz(sizeof(SCSIDevice));

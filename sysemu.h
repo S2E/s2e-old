@@ -114,6 +114,7 @@ int tap_win32_init(VLANState *vlan, const char *model,
 /* SLIRP */
 void do_info_slirp(Monitor *mon);
 
+extern int autostart;
 extern int bios_size;
 extern int cirrus_vga_enabled;
 extern int std_vga_enabled;
@@ -157,6 +158,7 @@ extern unsigned int nb_prom_envs;
 #endif
 #endif
 
+#if 0
 typedef enum {
     BLOCK_ERR_REPORT, BLOCK_ERR_IGNORE, BLOCK_ERR_STOP_ENOSPC,
     BLOCK_ERR_STOP_ANY
@@ -200,6 +202,8 @@ extern int nb_drives_opt;
 
 extern int drive_add(const char *file, const char *fmt, ...);
 extern int drive_init(struct drive_opt *arg, int snapshot, void *machine);
+int add_init_drive(const char *opts);
+#endif
 
 /* acpi */
 void qemu_system_hot_add_init(void);
@@ -209,7 +213,6 @@ void qemu_system_device_hot_add(int pcibus, int slot, int state);
 
 typedef int (dev_match_fn)(void *dev_private, void *arg);
 
-int add_init_drive(const char *opts);
 void destroy_nic(dev_match_fn *match_fn, void *arg);
 void destroy_bdrvs(dev_match_fn *match_fn, void *arg);
 

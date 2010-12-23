@@ -30,6 +30,7 @@
 #include "qdev.h"
 #include "sysemu.h"
 #include "monitor.h"
+#include "blockdev.h"
 
 struct DeviceProperty {
     const char *name;
@@ -100,6 +101,119 @@ DeviceState *qdev_create(BusState *bus, const char *name)
     dev->parent_bus = bus;
     QLIST_INSERT_HEAD(&bus->children, dev, sibling);
     return dev;
+}
+
+int qdev_device_help(QemuOpts *opts)
+{
+#ifdef CONFIG_ANDROID  /* Not ready yet, will remove when we properly integrate upstream qdev */
+    return 0;
+#else
+    const char *driver;
+    DeviceInfo *info;
+    Property *prop;
+
+    driver = qemu_opt_get(opts, "driver");
+    if (driver && !strcmp(driver, "?")) {
+        for (info = device_info_list; info != NULL; info = info->next) {
+            if (info->no_user) {
+                continue;       /* not available, don't show */
+            }
+            qdev_print_devinfo(info);
+        }
+        return 1;
+    }
+
+    if (!qemu_opt_get(opts, "?")) {
+        return 0;
+    }
+
+    info = qdev_find_info(NULL, driver);
+    if (!info) {
+        return 0;
+    }
+
+    for (prop = info->props; prop && prop->name; prop++) {
+        /*
+         * TODO Properties without a parser are just for dirty hacks.
+         * qdev_prop_ptr is the only such PropertyInfo.  It's marked
+         * for removal.  This conditional should be removed along with
+         * it.
+         */
+        if (!prop->info->parse) {
+            continue;           /* no way to set it, don't show */
+        }
+        error_printf("%s.%s=%s\n", info->name, prop->name, prop->info->name);
+    }
+    return 1;
+#endif
+}
+
+DeviceState *qdev_device_add(QemuOpts *opts)
+{
+#ifdef CONFIG_ANDROID  /* Not ready yet */
+    return NULL;
+#else
+    const char *driver, *path, *id;
+    DeviceInfo *info;
+    DeviceState *qdev;
+    BusState *bus;
+
+    driver = qemu_opt_get(opts, "driver");
+    if (!driver) {
+        qerror_report(QERR_MISSING_PARAMETER, "driver");
+        return NULL;
+    }
+
+    /* find driver */
+    info = qdev_find_info(NULL, driver);
+    if (!info || info->no_user) {
+        qerror_report(QERR_INVALID_PARAMETER_VALUE, "driver", "a driver name");
+        error_printf_unless_qmp("Try with argument '?' for a list.\n");
+        return NULL;
+    }
+
+    /* find bus */
+    path = qemu_opt_get(opts, "bus");
+    if (path != NULL) {
+        bus = qbus_find(path);
+        if (!bus) {
+            return NULL;
+        }
+        if (bus->info != info->bus_info) {
+            qerror_report(QERR_BAD_BUS_FOR_DEVICE,
+                           driver, bus->info->name);
+            return NULL;
+        }
+    } else {
+        bus = qbus_find_recursive(main_system_bus, NULL, info->bus_info);
+        if (!bus) {
+            qerror_report(QERR_NO_BUS_FOR_DEVICE,
+                           info->name, info->bus_info->name);
+            return NULL;
+        }
+    }
+    if (qdev_hotplug && !bus->allow_hotplug) {
+        qerror_report(QERR_BUS_NO_HOTPLUG, bus->name);
+        return NULL;
+    }
+
+    /* create device, set properties */
+    qdev = qdev_create_from_info(bus, info);
+    id = qemu_opts_id(opts);
+    if (id) {
+        qdev->id = id;
+    }
+    if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
+        qdev_free(qdev);
+        return NULL;
+    }
+    if (qdev_init(qdev) < 0) {
+        qerror_report(QERR_DEVICE_INIT_FAILED, driver);
+        return NULL;
+    }
+    qdev->opts = opts;
+    return qdev;
+#endif
 }
 
 /* Initialize a device.  Device properties should be set before calling
@@ -280,13 +394,13 @@ static int next_block_unit[IF_COUNT];
 BlockDriverState *qdev_init_bdrv(DeviceState *dev, BlockInterfaceType type)
 {
     int unit = next_block_unit[type]++;
-    int index;
+    DriveInfo* info;
 
-    index = drive_get_index(type, 0, unit);
-    if (index == -1) {
+    info = drive_get(type, 0, unit);
+    if (info == NULL) {
         return NULL;
     }
-    return drives_table[index].bdrv;
+    return info->bdrv;
 }
 
 BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
@@ -309,14 +423,14 @@ void scsi_bus_new(DeviceState *host, SCSIAttachFn attach)
 {
    int bus = next_scsi_bus++;
    int unit;
-   int index;
+   DriveInfo* info;
 
    for (unit = 0; unit < MAX_SCSI_DEVS; unit++) {
-       index = drive_get_index(IF_SCSI, bus, unit);
-       if (index == -1) {
+       info = drive_get(IF_SCSI, bus, unit);
+       if (info == NULL) {
            continue;
        }
-       attach(host, drives_table[index].bdrv, unit);
+       attach(host, info->bdrv, unit);
    }
 }
 

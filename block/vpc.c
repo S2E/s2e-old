@@ -1,5 +1,5 @@
 /*
- * Block driver for Conectix/Microsoft Virtual PC images
+ * Block driver for Connectix / Microsoft Virtual PC images
  *
  * Copyright (c) 2005 Alex Beregszaszi
  * Copyright (c) 2009 Kevin Wolf <kwolf@suse.de>
@@ -150,20 +150,16 @@ static int vpc_probe(const uint8_t *buf, int buf_size, const char *filename)
     return 0;
 }
 
-static int vpc_open(BlockDriverState *bs, const char *filename, int flags)
+static int vpc_open(BlockDriverState *bs, int flags)
 {
     BDRVVPCState *s = bs->opaque;
-    int ret, i;
+    int i;
     struct vhd_footer* footer;
     struct vhd_dyndisk_header* dyndisk_header;
     uint8_t buf[HEADER_SIZE];
     uint32_t checksum;
 
-    ret = bdrv_file_open(&s->hd, filename, flags);
-    if (ret < 0)
-        return ret;
-
-    if (bdrv_pread(s->hd, 0, s->footer_buf, HEADER_SIZE) != HEADER_SIZE)
+    if (bdrv_pread(bs->file, 0, s->footer_buf, HEADER_SIZE) != HEADER_SIZE)
         goto fail;
 
     footer = (struct vhd_footer*) s->footer_buf;
@@ -174,7 +170,7 @@ static int vpc_open(BlockDriverState *bs, const char *filename, int flags)
     footer->checksum = 0;
     if (vpc_checksum(s->footer_buf, HEADER_SIZE) != checksum)
         fprintf(stderr, "block-vpc: The header checksum of '%s' is "
-            "incorrect.\n", filename);
+            "incorrect.\n", bs->filename);
 
     // The visible size of a image in Virtual PC depends on the geometry
     // rather than on the size stored in the footer (the size in the footer
@@ -182,7 +178,7 @@ static int vpc_open(BlockDriverState *bs, const char *filename, int flags)
     bs->total_sectors = (int64_t)
         be16_to_cpu(footer->cyls) * footer->heads * footer->secs_per_cyl;
 
-    if (bdrv_pread(s->hd, be64_to_cpu(footer->data_offset), buf, HEADER_SIZE)
+    if (bdrv_pread(bs->file, be64_to_cpu(footer->data_offset), buf, HEADER_SIZE)
             != HEADER_SIZE)
         goto fail;
 
@@ -199,7 +195,7 @@ static int vpc_open(BlockDriverState *bs, const char *filename, int flags)
     s->pagetable = qemu_malloc(s->max_table_entries * 4);
 
     s->bat_offset = be64_to_cpu(dyndisk_header->table_offset);
-    if (bdrv_pread(s->hd, s->bat_offset, s->pagetable,
+    if (bdrv_pread(bs->file, s->bat_offset, s->pagetable,
             s->max_table_entries * 4) != s->max_table_entries * 4)
 	    goto fail;
 
@@ -228,7 +224,6 @@ static int vpc_open(BlockDriverState *bs, const char *filename, int flags)
 
     return 0;
  fail:
-    bdrv_delete(s->hd);
     return -1;
 }
 
@@ -266,7 +261,7 @@ static inline int64_t get_sector_offset(BlockDriverState *bs,
 
         s->last_bitmap_offset = bitmap_offset;
         memset(bitmap, 0xff, s->bitmap_size);
-        bdrv_pwrite(s->hd, bitmap_offset, bitmap, s->bitmap_size);
+        bdrv_pwrite_sync(bs->file, bitmap_offset, bitmap, s->bitmap_size);
     }
 
 //    printf("sector: %" PRIx64 ", index: %x, offset: %x, bioff: %" PRIx64 ", bloff: %" PRIx64 "\n",
@@ -316,7 +311,7 @@ static int rewrite_footer(BlockDriverState* bs)
     BDRVVPCState *s = bs->opaque;
     int64_t offset = s->free_data_block_offset;
 
-    ret = bdrv_pwrite(s->hd, offset, s->footer_buf, HEADER_SIZE);
+    ret = bdrv_pwrite_sync(bs->file, offset, s->footer_buf, HEADER_SIZE);
     if (ret < 0)
         return ret;
 
@@ -351,7 +346,8 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
 
     // Initialize the block's bitmap
     memset(bitmap, 0xff, s->bitmap_size);
-    bdrv_pwrite(s->hd, s->free_data_block_offset, bitmap, s->bitmap_size);
+    bdrv_pwrite_sync(bs->file, s->free_data_block_offset, bitmap,
+        s->bitmap_size);
 
     // Write new footer (the old one will be overwritten)
     s->free_data_block_offset += s->block_size + s->bitmap_size;
@@ -362,7 +358,7 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
     // Write BAT entry to disk
     bat_offset = s->bat_offset + (4 * index);
     bat_value = be32_to_cpu(s->pagetable[index]);
-    ret = bdrv_pwrite(s->hd, bat_offset, &bat_value, 4);
+    ret = bdrv_pwrite_sync(bs->file, bat_offset, &bat_value, 4);
     if (ret < 0)
         goto fail;
 
@@ -379,21 +375,30 @@ static int vpc_read(BlockDriverState *bs, int64_t sector_num,
     BDRVVPCState *s = bs->opaque;
     int ret;
     int64_t offset;
+    int64_t sectors, sectors_per_block;
 
     while (nb_sectors > 0) {
         offset = get_sector_offset(bs, sector_num, 0);
 
-        if (offset == -1) {
-            memset(buf, 0, 512);
-        } else {
-            ret = bdrv_pread(s->hd, offset, buf, 512);
-            if (ret != 512)
-                return -1;
+        sectors_per_block = s->block_size >> BDRV_SECTOR_BITS;
+        sectors = sectors_per_block - (sector_num % sectors_per_block);
+        if (sectors > nb_sectors) {
+            sectors = nb_sectors;
         }
 
-        nb_sectors--;
-        sector_num++;
-        buf += 512;
+        if (offset == -1) {
+            memset(buf, 0, sectors * BDRV_SECTOR_SIZE);
+        } else {
+            ret = bdrv_pread(bs->file, offset, buf,
+                sectors * BDRV_SECTOR_SIZE);
+            if (ret != sectors * BDRV_SECTOR_SIZE) {
+                return -1;
+            }
+        }
+
+        nb_sectors -= sectors;
+        sector_num += sectors;
+        buf += sectors * BDRV_SECTOR_SIZE;
     }
     return 0;
 }
@@ -403,10 +408,17 @@ static int vpc_write(BlockDriverState *bs, int64_t sector_num,
 {
     BDRVVPCState *s = bs->opaque;
     int64_t offset;
+    int64_t sectors, sectors_per_block;
     int ret;
 
     while (nb_sectors > 0) {
         offset = get_sector_offset(bs, sector_num, 1);
+
+        sectors_per_block = s->block_size >> BDRV_SECTOR_BITS;
+        sectors = sectors_per_block - (sector_num % sectors_per_block);
+        if (sectors > nb_sectors) {
+            sectors = nb_sectors;
+        }
 
         if (offset == -1) {
             offset = alloc_block(bs, sector_num);
@@ -414,13 +426,14 @@ static int vpc_write(BlockDriverState *bs, int64_t sector_num,
                 return -1;
         }
 
-        ret = bdrv_pwrite(s->hd, offset, buf, 512);
-        if (ret != 512)
+        ret = bdrv_pwrite(bs->file, offset, buf, sectors * BDRV_SECTOR_SIZE);
+        if (ret != sectors * BDRV_SECTOR_SIZE) {
             return -1;
+        }
 
-        nb_sectors--;
-        sector_num++;
-        buf += 512;
+        nb_sectors -= sectors;
+        sector_num += sectors;
+        buf += sectors * BDRV_SECTOR_SIZE;
     }
 
     return 0;
@@ -470,9 +483,7 @@ static int calculate_geometry(int64_t total_sectors, uint16_t* cyls,
         }
     }
 
-    // Note: Rounding up deviates from the Virtual PC behaviour
-    // However, we need this to avoid truncating images in qemu-img convert
-    *cyls = (cyls_times_heads + *heads - 1) / *heads;
+    *cyls = cyls_times_heads / *heads;
 
     return 0;
 }
@@ -484,9 +495,9 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     struct vhd_dyndisk_header* dyndisk_header =
         (struct vhd_dyndisk_header*) buf;
     int fd, i;
-    uint16_t cyls;
-    uint8_t heads;
-    uint8_t secs_per_cyl;
+    uint16_t cyls = 0;
+    uint8_t heads = 0;
+    uint8_t secs_per_cyl = 0;
     size_t block_size, num_bat_entries;
     int64_t total_sectors = 0;
 
@@ -503,18 +514,23 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     if (fd < 0)
         return -EIO;
 
-    // Calculate matching total_size and geometry
-    if (calculate_geometry(total_sectors, &cyls, &heads, &secs_per_cyl))
-        return -EFBIG;
+    /* Calculate matching total_size and geometry. Increase the number of
+       sectors requested until we get enough (or fail). */
+    for (i = 0; total_sectors > (int64_t)cyls * heads * secs_per_cyl; i++) {
+        if (calculate_geometry(total_sectors + i,
+                               &cyls, &heads, &secs_per_cyl)) {
+            return -EFBIG;
+        }
+    }
     total_sectors = (int64_t) cyls * heads * secs_per_cyl;
 
     // Prepare the Hard Disk Footer
     memset(buf, 0, 1024);
 
-    strncpy(footer->creator, "conectix", 8);
+    memcpy(footer->creator, "conectix", 8);
     // TODO Check if "qemu" creator_app is ok for VPC
-    strncpy(footer->creator_app, "qemu", 4);
-    strncpy(footer->creator_os, "Wi2k", 4);
+    memcpy(footer->creator_app, "qemu", 4);
+    memcpy(footer->creator_os, "Wi2k", 4);
 
     footer->features = be32_to_cpu(0x02);
     footer->version = be32_to_cpu(0x00010000);
@@ -563,7 +579,7 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     // Prepare the Dynamic Disk Header
     memset(buf, 0, 1024);
 
-    strncpy(dyndisk_header->magic, "cxsparse", 8);
+    memcpy(dyndisk_header->magic, "cxsparse", 8);
 
     dyndisk_header->data_offset = be64_to_cpu(0xFFFFFFFF);
     dyndisk_header->table_offset = be64_to_cpu(3 * 512);
@@ -590,7 +606,6 @@ static void vpc_close(BlockDriverState *bs)
 #ifdef CACHE
     qemu_free(s->pageentry_u8);
 #endif
-    bdrv_delete(s->hd);
 }
 
 static QEMUOptionParameter vpc_create_options[] = {

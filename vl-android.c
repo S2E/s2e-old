@@ -43,7 +43,7 @@
 #include "gdbstub.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
-#include "block.h"
+#include "blockdev.h"
 #include "audio/audio.h"
 
 #include "qemu_file.h"
@@ -235,10 +235,12 @@ const char *bios_name = NULL;
 static void *ioport_opaque[MAX_IOPORTS];
 static IOPortReadFunc *ioport_read_table[3][MAX_IOPORTS];
 static IOPortWriteFunc *ioport_write_table[3][MAX_IOPORTS];
+#ifdef MAX_DRIVES
 /* Note: drives_table[MAX_DRIVES] is a dummy block driver if none available
    to store the VM snapshots */
 DriveInfo drives_table[MAX_DRIVES+1];
 int nb_drives;
+#endif
 enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
 static DisplayState *display_state;
 DisplayType display_type = DT_DEFAULT;
@@ -248,7 +250,7 @@ ram_addr_t ram_size;
 int nb_nics;
 NICInfo nd_table[MAX_NICS];
 int vm_running;
-static int autostart;
+int autostart;
 static int rtc_utc = 1;
 static int rtc_date_offset = -1; /* -1 means no change */
 int cirrus_vga_enabled = 1;
@@ -306,9 +308,10 @@ int alt_grab = 0;
 unsigned int nb_prom_envs = 0;
 const char *prom_envs[MAX_PROM_ENVS];
 #endif
+#ifdef MAX_DRIVES
 int nb_drives_opt;
 struct drive_opt drives_opt[MAX_DRIVES];
-
+#endif
 int nb_numa_nodes;
 uint64_t node_mem[MAX_NODES];
 uint64_t node_cpumask[MAX_NODES];
@@ -902,6 +905,27 @@ static int bt_parse(const char *opt)
 #define MTD_ALIAS "if=mtd"
 #define SD_ALIAS "index=0,if=sd"
 
+static int drive_init_func(QemuOpts *opts, void *opaque)
+{
+    int *use_scsi = opaque;
+    int fatal_error = 0;
+
+    if (drive_init(opts, *use_scsi, &fatal_error) == NULL) {
+        if (fatal_error)
+            return 1;
+    }
+    return 0;
+}
+
+static int drive_enable_snapshot(QemuOpts *opts, void *opaque)
+{
+    if (NULL == qemu_opt_get(opts, "snapshot")) {
+        qemu_opt_set(opts, "snapshot", "on");
+    }
+    return 0;
+}
+
+#ifdef MAX_DRIVES
 static int drive_opt_get_free_idx(void)
 {
     int index;
@@ -1383,6 +1407,7 @@ int drive_init(struct drive_opt *arg, int snapshot, void *opaque)
         autostart = 0;
     return drives_table_idx;
 }
+#endif /* MAX_DRIVES */
 
 static void numa_add(const char *optarg)
 {
@@ -3639,11 +3664,11 @@ int main(int argc, char **argv, char **envp)
     DisplayState *ds;
     DisplayChangeListener *dcl;
     int cyls, heads, secs, translation;
+    QemuOpts *hda_opts = NULL;
     const char *net_clients[MAX_NET_CLIENTS];
     int nb_net_clients;
     const char *bt_opts[MAX_BT_CMDLINE];
     int nb_bt_opts;
-    int hda_index;
     int optind;
     const char *r, *optarg;
     CharDriverState *monitor_hd = NULL;
@@ -3763,10 +3788,11 @@ int main(int argc, char **argv, char **envp)
 
     nb_net_clients = 0;
     nb_bt_opts = 0;
+#ifdef MAX_DRIVES
     nb_drives = 0;
     nb_drives_opt = 0;
+#endif
     nb_numa_nodes = 0;
-    hda_index = -1;
 
     nb_nics = 0;
 
@@ -3784,7 +3810,7 @@ int main(int argc, char **argv, char **envp)
             break;
         r = argv[optind];
         if (r[0] != '-') {
-	    hda_index = drive_add(argv[optind++], HD_ALIAS, 0);
+            hda_opts = drive_add(argv[optind++], HD_ALIAS, 0);
         } else {
             const QEMUOption *popt;
 
@@ -3848,9 +3874,9 @@ int main(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_hda:
                 if (cyls == 0)
-                    hda_index = drive_add(optarg, HD_ALIAS, 0);
+                    hda_opts = drive_add(optarg, HD_ALIAS, 0);
                 else
-                    hda_index = drive_add(optarg, HD_ALIAS
+                    hda_opts = drive_add(optarg, HD_ALIAS
 			     ",cyls=%d,heads=%d,secs=%d%s",
                              0, cyls, heads, secs,
                              translation == BIOS_ATA_TRANSLATION_LBA ?
@@ -3911,15 +3937,19 @@ int main(int argc, char **argv, char **envp)
                     chs_fail:
                         PANIC("qemu: invalid physical CHS format");
                     }
-		    if (hda_index != -1)
-                        snprintf(drives_opt[hda_index].opt,
-                                 sizeof(drives_opt[hda_index].opt),
-                                 HD_ALIAS ",cyls=%d,heads=%d,secs=%d%s",
-                                 0, cyls, heads, secs,
-			         translation == BIOS_ATA_TRANSLATION_LBA ?
-			     	    ",trans=lba" :
-			         translation == BIOS_ATA_TRANSLATION_NONE ?
-			             ",trans=none" : "");
+		    if (hda_opts != NULL) {
+                        char num[16];
+                        snprintf(num, sizeof(num), "%d", cyls);
+                        qemu_opt_set(hda_opts, "cyls", num);
+                        snprintf(num, sizeof(num), "%d", heads);
+                        qemu_opt_set(hda_opts, "heads", num);
+                        snprintf(num, sizeof(num), "%d", secs);
+                        qemu_opt_set(hda_opts, "secs", num);
+                        if (translation == BIOS_ATA_TRANSLATION_LBA)
+                            qemu_opt_set(hda_opts, "trans", "lba");
+                        if (translation == BIOS_ATA_TRANSLATION_NONE)
+                            qemu_opt_set(hda_opts, "trans", "none");
+                    }
                 }
                 break;
             case QEMU_OPTION_numa:
@@ -4927,7 +4957,7 @@ int main(int argc, char **argv, char **envp)
     bdrv_init();
 
     /* we always create the cdrom drive, even if no disk is there */
-
+#if 0
     if (nb_drives_opt < MAX_DRIVES)
         drive_add(NULL, CDROM_ALIAS);
 
@@ -4935,18 +4965,18 @@ int main(int argc, char **argv, char **envp)
 
     if (nb_drives_opt < MAX_DRIVES)
         drive_add(NULL, FD_ALIAS, 0);
-
     /* we always create one sd slot, even if no card is in it */
 
-    if (nb_drives_opt < MAX_DRIVES)
+    if (1) {
         drive_add(NULL, SD_ALIAS);
+    }
+#endif
 
     /* open the virtual block devices */
-
-    for(i = 0; i < nb_drives_opt; i++)
-        if (drive_init(&drives_opt[i], snapshot, machine) == -1) {
-            PANIC("Could not open the virtual block devices");
-        }
+    if (snapshot)
+        qemu_opts_foreach(qemu_find_opts("drive"), drive_enable_snapshot, NULL, 0);
+    if (qemu_opts_foreach(qemu_find_opts("drive"), drive_init_func, &machine->use_scsi, 1) != 0)
+        exit(1);
 
     //register_savevm("timer", 0, 2, timer_save, timer_load, &timers_state);
     register_savevm_live("ram", 0, 3, ram_save_live, NULL, ram_load, NULL);

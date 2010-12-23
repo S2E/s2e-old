@@ -743,6 +743,26 @@ static int bt_parse(const char *opt)
 #define MTD_ALIAS "if=mtd"
 #define SD_ALIAS "index=0,if=sd"
 
+static int drive_init_func(QemuOpts *opts, void *opaque)
+{
+    int *use_scsi = opaque;
+    int fatal_error = 0;
+
+    if (drive_init(opts, *use_scsi, &fatal_error) == NULL) {
+        if (fatal_error)
+            return 1;
+    }
+    return 0;
+}
+
+static int drive_enable_snapshot(QemuOpts *opts, void *opaque)
+{
+    if (NULL == qemu_opt_get(opts, "snapshot")) {
+        qemu_opt_set(opts, "snapshot", "on");
+    }
+    return 0;
+}
+
 static int drive_opt_get_free_idx(void)
 {
     int index;
@@ -4427,14 +4447,15 @@ int main(int argc, char **argv, char **envp)
 
     /* we always create one sd slot, even if no card is in it */
 
-    if (nb_drives_opt < MAX_DRIVES)
+    if (nb_drives_opt < MAX_DRIVES) {
         drive_add(NULL, SD_ALIAS);
+    }
 
     /* open the virtual block devices */
-
-    for(i = 0; i < nb_drives_opt; i++)
-        if (drive_init(&drives_opt[i], snapshot, machine) == -1)
-	    exit(1);
+    if (snapshot)
+        qemu_opts_foreach(qemu_find_opts("drive"), drive_enable_snapshot, NULL, 0);
+    if (qemu_opts_foreach(qemu_find_opts("drive"), drive_init_func, &machine->use_scsi, 1) != 0)
+        exit(1);
 
     //register_savevm("timer", 0, 2, timer_save, timer_load, NULL);
     register_savevm_live("ram", 0, 3, ram_save_live, NULL, ram_load, NULL);

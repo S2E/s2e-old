@@ -551,7 +551,7 @@ USBDevice *usb_msd_init(const char *filename)
     s = qemu_mallocz(sizeof(MSDState));
 
     bdrv = bdrv_new("usb");
-    if (bdrv_open2(bdrv, filename, 0, drv) < 0)
+    if (bdrv_open(bdrv, filename, 0, drv) < 0)
         goto fail;
     s->bs = bdrv;
 
