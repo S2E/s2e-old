@@ -38,6 +38,15 @@ public:
         return m_entryPoint->getAddress();
     }
 
+    bool isStub() const {
+        return m_entryPoint->getInstructionCount() == 1 &&
+                (m_entryPoint->isIndirectJump() || m_entryPoint->isDirectJump());
+    }
+
+    CBasicBlock* getEntryPoint() const {
+        return m_entryPoint;
+    }
+
 };
 
 struct FunctionComparator {

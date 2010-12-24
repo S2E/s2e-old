@@ -472,10 +472,11 @@ uint64_t StaticTranslatorTool::getEntryPoint()
 
 void StaticTranslatorTool::exploreBasicBlocks()
 {
-    const BFDInterface::Imports &imp = m_binary->getImports();
-    BFDInterface::Imports::const_iterator it;
+    Imports imp;
+    imp = m_binary->getImports();
+    Imports::const_iterator it;
     for (it = imp.begin(); it != imp.end(); ++it) {
-        const BFDInterface::FunctionDescriptor &fcnDesc = (*it).second;
+        std::pair<std::string, std::string> fcnDesc = (*it).second;
         m_debug << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
     }
 
@@ -500,7 +501,7 @@ void StaticTranslatorTool::exploreBasicBlocks()
         }
 
         extractAddresses(bb);
-        //bb->toString(std::cout);
+        bb->toString(std::cout);
         processTranslationBlock(bb);
     }
 
@@ -615,7 +616,8 @@ void StaticTranslatorTool::cleanupCode()
                                      "__stq_mmu", "__stl_mmu", "__stw_mmu", "__stb_mmu",
                                      };
 
-    const char *helperFunctionsStr[] ={"helper_bsf", "helper_bsr", "helper_lzcnt"};
+    const char *helperFunctionsStr[] ={"helper_bsf", "helper_bsr", "helper_lzcnt",
+                                   "libc__fputs"};
 
     std::set<Function *> libcFunctions;
     for (unsigned i=0; i<sizeof(builtinFunctionsStr)/sizeof(builtinFunctionsStr[0]); ++i) {
@@ -653,18 +655,13 @@ void StaticTranslatorTool::cleanupCode()
 
 
     //Resolve function calls
-    CallBuilder::FunctionMap fcnMap;
-    foreach(it, m_functions.begin(), m_functions.end()) {
-        fcnMap.insert(std::make_pair((*it)->getAddress(), (*it)->getFunction()));
-    }
-
-    CallBuilder callBuilder(fcnMap);
+    CallBuilder callBuilder(m_functions, m_binary);
     callBuilder.runOnModule(*module);
 
     //Drop all the useless functions
     foreach(fcnit, module->begin(), module->end()) {
         Function *f = &*fcnit;
-        if (f->isIntrinsic()) {
+        if (f->isIntrinsic() || f->isDeclaration()) {
             continue;
         }
 

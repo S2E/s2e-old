@@ -94,9 +94,14 @@ public:
         return m_type == BB_COND_JMP_IND || m_type == BB_JMP_IND;
     }
 
+    bool isDirectJump() const {
+        return m_type == BB_JMP;
+    }
+
     bool getInstructionCount() const {
         return m_instructionMarkers.size();
     }
+
 
     void patchCallMarkersWithRealFunctions(BasicBlocks &allBlocks);
 };

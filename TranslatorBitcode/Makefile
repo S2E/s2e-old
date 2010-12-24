@@ -1,6 +1,6 @@
 #===-- tools/tools/Makefile --------------------------------*- Makefile -*--===#
 #
-# THIS MUST BE COMPILED TO 64 BITS IN OPTIMIZED MODE!
+# THIS MUST BE COMPILED TO 64 BITS IN OPTIMIZED MODE! (really?)
 #
 #===------------------------------------------------------------------------===#
 
@@ -16,7 +16,8 @@ ENABLE_OPTIMIZED=1
 SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
           $(S2E_SRC_ROOT)/target-i386/helper.c \
           $(S2E_SRC_ROOT)/target-i386/op_helper.c \
-          $(S2E_SRC_ROOT)/fpu/softfloat-native.c
+          $(S2E_SRC_ROOT)/fpu/softfloat-native.c \
+          ImportedLibraries.cpp
 
 include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)

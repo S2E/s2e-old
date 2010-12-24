@@ -16,6 +16,8 @@ extern x2l_entry_point __x2l_g_functionlist_ptr[];
 extern uint64_t __x2l_g_functionlist_val[];
 extern unsigned __x2l_g_functionCount;
 
+FILE *libc____sF = stdout;
+
 typedef std::map<uint64_t, x2l_entry_point> functionmap_t;
 static functionmap_t s_functions;
 
@@ -40,19 +42,19 @@ static void initialize_function_map(void)
 
 void instruction_marker(uint64_t pc)
 {
-    fprintf(stderr, "PC: 0x%llx\n", pc);
+    fprintf(stdout, "PC: 0x%llx\n", pc);
 }
 
 void call_marker(uint64_t target, int isInlinable, uint64_t *opaque)
 {
     CPUState *state = *(CPUState**)opaque;
     if (isInlinable) {
-        fprintf(stderr, "Jumping to PC: %#llx\n", target);
+        fprintf(stdout, "Jumping to PC: %#llx\n", target);
     }else {
-        fprintf(stderr, "Calling PC: %#llx ESP=%x \n", target, state->regs[R_ESP]);
+        fprintf(stdout, "Calling PC: %#llx ESP=%x \n", target, state->regs[R_ESP]);
         functionmap_t::const_iterator it = s_functions.find(target);
         if (it == s_functions.end()) {
-            fprintf(stderr, "Called invalid function\n");
+            fprintf(stdout, "Called invalid function\n");
             exit(-1);
         }
         (*it).second(opaque);
@@ -61,28 +63,35 @@ void call_marker(uint64_t target, int isInlinable, uint64_t *opaque)
 
 void return_marker()
 {
-    fprintf(stderr, "Function is returning\n");
+    fprintf(stdout, "Function is returning\n");
 }
 
 uint32_t __ldl_mmu(target_ulong addr, int mmu_idx)
-{
-    fprintf(stderr, "Loading address %#x\n", addr);
-    return *(uint32_t*)addr;
+{    
+    uint32_t val = *(uint32_t*)addr;
+    fprintf(stdout, "Loading address %#x=%#x\n", addr, val);
+    return val;
 }
 
 void __stl_mmu(target_ulong addr, uint32_t val, int mmu_idx)
 {
-    fprintf(stderr, "Storing address %#x=%#x\n", addr, val);
+    fprintf(stdout, "Storing address %#x=%#x\n", addr, val);
     *(uint32_t*)addr = val;
 }
 
 
 extern "C" {
+    int __attribute__((noinline))  libc__fputs(const char * a, FILE * b);
+
 int main(int argc, char **argv)
 {
     CPUState *penv;
 
     initialize_function_map();
+
+    libc__fputs("test\n", stdout);
+    fprintf(stdout, "stdout=%x\n", stdout);
+    fflush(stdout);
 
     //XXX: Ugly hack!
     //Since we compile this module in 32-bit, the compiler thinks the CPUState is smaller...
@@ -97,6 +106,7 @@ int main(int argc, char **argv)
     penv->regs[R_ESP] = (uint32_t)&stack[STACK_SIZE/sizeof(uint32) - 5];
 
     int ret = __main((uint64_t*)&penv);
+    fflush(stdout);
     printf("Main returned %d\n", penv->regs[R_EAX]);
 
     free(stack);

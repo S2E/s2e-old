@@ -20,6 +20,11 @@ calltester: calltester.c
 	gcc -fno-pic -m32 -o $@ $<
 	objdump -S $@ > $@.s
 
+lib1: lib1.c
+	gcc -mmacosx-version-min=10.4 -read_only_relocs suppress -fno-pic -m32 -o $@ $< 
+	objdump -S $@ > $@.s
+
+
 inline1: inline1.c
 	gcc -m32 -o $@ $<
 	objdump -S $@ > $@.s

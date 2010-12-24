@@ -114,7 +114,7 @@ void CBasicBlock::markTerminator()
         }
     }
 
-    if ((m_type != BB_RET) && (m_type != BB_JMP) && (m_type != BB_JMP)) {
+    if ((m_type != BB_RET) && (m_type != BB_JMP) && (m_type != BB_JMP_IND)) {
         m_successors.insert(m_address + m_size);
     }
 
@@ -267,7 +267,12 @@ void CBasicBlock::patchCallMarkersWithRealFunctions(BasicBlocks &allBlocks)
 
             CBasicBlock toFind(pc, 1);
             BasicBlocks::iterator foundIt = allBlocks.find(&toFind);
-            assert(foundIt != allBlocks.end());
+
+            if (foundIt == allBlocks.end()) {
+                //This can happen if the basic block is the entry block of a stub function.
+                std::cerr << "patchCallMarkersWithRealFunctions: The target basic block does not exist..." << std::endl;
+                return;
+            }
 
             Function *targetFcn = (*foundIt)->getFunction();
 

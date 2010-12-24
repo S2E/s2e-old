@@ -28,21 +28,26 @@ struct GlobalDataFixup : public llvm::ModulePass {
 private:
   typedef std::map<s2etools::BFDSection, llvm::GlobalVariable*> Sections;
   typedef std::map<uint64_t, llvm::Instruction*> ProgramCounters;
-  typedef std::map<uint64_t, arelent> RelocationEntries;
 
   s2etools::BFDInterface *m_binary;
   Sections m_sections;
 
   void createGlobalArray(llvm::Module &M, const std::string &name, uint8_t *data, uint64_t va, unsigned size);
   void injectDataSections(llvm::Module &M);
-  void patchAddress(llvm::Module &M, llvm::CallInst *ci, bool isLoad, unsigned accessSize);
-  void patchPointer(llvm::Module &M, llvm::Value *ptrVal, llvm::Instruction *owner, uint64_t pointer);
+
+  bool patchFunctionPointer(llvm::Module &M, llvm::Value *ptr);
+  bool patchImportedDataPointer(llvm::Module &M,
+                                llvm::Instruction *instructionMarker,
+                                llvm::Value *ptr, const s2etools::RelocationEntry &relEntry);
+  void patchDataPointer(llvm::Module &M, llvm::Value *ptr);
+  void patchRelocations(llvm::Module &M);
+
+//  void patchAddress(llvm::Module &M, llvm::CallInst *ci, bool isLoad, unsigned accessSize);
   void initMemOps(llvm::Module &M);
 
-  void getProgramCounters(llvm::Function &F, ProgramCounters &counters);
+  void getProgramCounters(llvm::Module &M, ProgramCounters &counters);
   llvm::ConstantInt *findValue(llvm::Instruction *boundary, uint64_t value, llvm::Instruction **owner);
-  void loadRelocations(RelocationEntries &result);
-  void processRelocations(llvm::Module &M, llvm::Function &F, RelocationEntries &relocEntries);
+
   //The bool indicates load (true) or store (false)
   std::map<llvm::Function *, std::pair<unsigned, bool> > m_memops;
 

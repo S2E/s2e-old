@@ -19,8 +19,12 @@ char GlobalDataFixup::ID = 0;
 RegisterPass<GlobalDataFixup>
   GlobalDataFixup("GlobalDataFixup", "Fixes all references to global data",
   false /* Only looks at CFG */,
-  true /* Analysis Pass */);
+  false /* Analysis Pass */);
 
+/**
+ * Creates a global array initialized with the content of data.
+ * Initialized to zero if data is null.
+ */
 void GlobalDataFixup::createGlobalArray(llvm::Module &M, const std::string &name, uint8_t *data, uint64_t va, unsigned size)
 {
     std::stringstream ss;
@@ -59,6 +63,9 @@ void GlobalDataFixup::createGlobalArray(llvm::Module &M, const std::string &name
     std::cout << *var;
 }
 
+/**
+ * Stores all data sections of the binary into global arrays
+ */
 void GlobalDataFixup::injectDataSections(llvm::Module &M)
 {
     const BFDInterface::Sections &sections = m_binary->getSections();
@@ -106,15 +113,116 @@ void GlobalDataFixup::initMemOps(Module &M)
     }
 }
 
-void GlobalDataFixup::patchPointer(Module &M, Value *ptr, Instruction *owner, uint64_t pointer)
+bool GlobalDataFixup::patchFunctionPointer(Module &M, Value *ptr)
 {
-    //Fetch the corresponding section
+    ConstantInt *addr = dyn_cast<ConstantInt>(ptr);
+    assert(addr);
+    const uint64_t target = *addr->getValue().getRawData();
+
+    Function *function;
+    std::string name;
+
+    //Check whether we have an imported function
+    const Imports &imports = m_binary->getImports();
+    Imports::const_iterator it = imports.find(target);
+    if (it != imports.end()) {
+        name = (*it).second.second;
+        function = M.getFunction(name);
+        if (!function) {
+            std::cerr << "Could not find imported function " << name << std::endl;
+            std::cerr << "Check that the bitcode library declares it as an external" << std::endl;
+            assert(false);
+        }
+
+        if (!function->isDeclaration()) {
+            std::cerr << "Imported function " << name << " must not be defined by the bitcode library" << std::endl;
+            assert(false);
+        }
+
+    }else {
+        //Check if it is an internal function
+        std::stringstream ss;
+        ss << "function_" << std::hex << target;
+        name = ss.str();
+        function = M.getFunction(name);
+        if (!function) {
+            return false;
+        }
+    }
+
+    assert(function);
+
+    //Cast the pointer to integer
+    ptr->replaceAllUsesWith(ConstantExpr::getPtrToInt(function, ptr->getType()));
+    return true;
+}
+
+bool GlobalDataFixup::patchImportedDataPointer(Module &M,
+                                               Instruction *instructionMarker,
+                                               Value *ptr, const RelocationEntry &relEntry)
+{
+    ConstantInt *addr = dyn_cast<ConstantInt>(ptr);
+    assert(addr);
+    //const uint64_t target = *addr->getValue().getRawData();
+
+    if (!relEntry.symbolBase) {
+        return false;
+    }
+
+    const Imports &imports = m_binary->getImports();
+    Imports::const_iterator it = imports.find(relEntry.symbolBase);
+    if (it == imports.end()) {
+        return false;
+    }
+
+    //std::stringstream mangledNameS;
+    //mangledNameS << (*it).second.first << "_" << (*it).second.second;
+    //std::string name = mangledNameS.str();
+
+    //The imported symbols must also be imported by the Bitcode library.
+    //The symbols must not be redefined (otherwise linking problems...)
+
+    //Remove the leading underscore
+    //XXX: should be put in a central place...
+    std::string name = (*it).second.second.substr(1);
+
+    //foreach(it, M.global_begin(), M.global_end()) {
+    //    std::cout << (*it).getNameStr() << std::endl;
+    //}
+
+    GlobalVariable *importedVariable = M.getNamedGlobal(name);
+    if (!importedVariable) {
+        return false;
+    }
+
+    //Add the offset to the base of the variable (to accomodate arrays)
+    Value *V = ConstantExpr::getPtrToInt(importedVariable, ptr->getType());
+    uint32_t sizeInBits = V->getType()->getScalarSizeInBits();
+    Constant *offset = ConstantInt::get(V->getType(), APInt(sizeInBits, relEntry.getOffetFromSymbol()));
+    Instruction *finalPointer = BinaryOperator::CreateAdd(V, offset);
+    finalPointer->insertAfter(instructionMarker);
+    //Cast the pointer to integer
+    ptr->replaceAllUsesWith(finalPointer);
+    return true;
+}
+
+
+//Pointer whithin the section
+void GlobalDataFixup::patchDataPointer(Module &M, Value *ptr)
+{
+    ConstantInt *addr = dyn_cast<ConstantInt>(ptr);
+    assert(addr);
+    const uint64_t pointer = *addr->getValue().getRawData();
+
+
+    //Fetch the section referenced by pointer
     BFDSection sec;
     sec.size = 1;
     sec.start = pointer;
 
     Sections::iterator it = m_sections.find(sec);
     if (it == m_sections.end()) {
+        std::cerr << "Invalid address: 0x" << std::hex << pointer << std::endl;
         assert(false && "Program tries to access a hard-coded address that is not in any section of its binary.");
         return;
     }
@@ -128,15 +236,68 @@ void GlobalDataFixup::patchPointer(Module &M, Value *ptr, Instruction *owner, ui
     Constant *gepAddr = ConstantExpr::getInBoundsGetElementPtr(var, gepIndexes, 2);
 
     //Cast the pointer to integer
-    for (unsigned i=0; i<owner->getNumOperands(); ++i) {
-        Value *v = owner->getOperand(i);
-        if (v == ptr) {
-            owner->setOperand(i, ConstantExpr::getPtrToInt(gepAddr, ptr->getType()));
+    ptr->replaceAllUsesWith(ConstantExpr::getPtrToInt(gepAddr, ptr->getType()));
+}
+
+
+void GlobalDataFixup::patchRelocations(Module &M)
+{
+    const RelocationEntries &relocEntries = m_binary->getRelocations();
+
+    ProgramCounters counters;
+    getProgramCounters(M, counters);
+    assert((counters.size() > 0) && "There are no program counter markers in the module");
+
+
+    foreach(it, relocEntries.begin(), relocEntries.end()) {
+        //Fetch the instruction that encloses this relocation entry
+        uint64_t relocAddress = (*it).first;
+        const RelocationEntry &relEntry = (*it).second;
+
+        //...get the instruction right after the address to be relocated
+        ProgramCounters::iterator pcIt = counters.upper_bound(relocAddress);
+
+        //...decrement the iterator to get the right instruction
+        --pcIt;
+        assert((*pcIt).first <= relocAddress);
+
+        //Scan the function to fetch the LLVM constant value
+        Instruction *owner;
+        ConstantInt *cste = findValue((*pcIt).second, relEntry.targetValue, &owner);
+        assert(cste && "Could not find value to relocate in LLVM stream. Bad.");
+
+        //Determine the type of the target value (function pointer, data, external...)
+        bool b;
+        b = patchImportedDataPointer(M, (*pcIt).second, cste, relEntry);
+        if (b) {
+            continue;
         }
+
+        b = patchFunctionPointer(M, cste);
+        if (b) {
+            continue;
+        }
+
+        patchDataPointer(M, cste);
     }
 }
 
-void GlobalDataFixup::patchAddress(Module &M, CallInst *ci, bool isLoad, unsigned accessSize) {
+//All constants involved in pointers should be present in the relocation table,
+//XXX: this would work only for shared libraries in the general case
+#if 0
+void GlobalDataFixup::patchConstantMemoryAddresses(Module &M, std::set<CallInst *> memOps)
+{
+    //For each call site, patch the pointer with the address of
+    //the global variable.
+    foreach(it, memOpsCalls.begin(), memOpsCalls.end()) {
+        CallInst *ci = *it;
+        unsigned size = (*m_memops.find(ci->getCalledFunction())).second.first;
+        bool isLoad = (*m_memops.find(ci->getCalledFunction())).second.second;
+        patchAddress(M, *it, isLoad, size);
+    }
+}
+
+void GlobalDataFixup::patchConstantMemoryAddress(Module &M, CallInst *ci, bool isLoad, unsigned accessSize) {
 
     std::cerr << *ci << std::endl;
     ConstantInt *addr = dyn_cast<ConstantInt>(ci->getOperand(1));
@@ -195,22 +356,35 @@ void GlobalDataFixup::patchAddress(Module &M, CallInst *ci, bool isLoad, unsigne
 
     //std::cerr << *ci->getParent() << std::endl;
 }
+#endif
 
-void GlobalDataFixup::getProgramCounters(llvm::Function &F, ProgramCounters &counters)
+/**
+ *  Retrieves all the instruction boundary markers from the module.
+ *  Only considers final functions, whose CFG is rebuilt.
+ */
+void GlobalDataFixup::getProgramCounters(llvm::Module &M, ProgramCounters &counters)
 {
-    Function *instructionMarker = F.getParent()->getFunction("instruction_marker");
+    Function *instructionMarker = M.getFunction("instruction_marker");
     assert(instructionMarker);
 
-    foreach(iit, inst_begin(F), inst_end(F)) {
-        CallInst *ci = dyn_cast<CallInst>(&*iit);
-        if (!ci || ci->getCalledFunction() != instructionMarker) {
+    foreach(fit, M.begin(), M.end()) {
+        Function &F = *fit;
+        if (F.getNameStr().find("function_") == std::string::npos) {
             continue;
         }
 
-        ConstantInt *addr = dyn_cast<ConstantInt>(ci->getOperand(1));
-        assert(addr);
-        const uint64_t target = *addr->getValue().getRawData();
-        counters[target] = ci;
+        foreach(iit, inst_begin(F), inst_end(F)) {
+            CallInst *ci = dyn_cast<CallInst>(&*iit);
+            if (!ci || ci->getCalledFunction() != instructionMarker) {
+                continue;
+            }
+
+            ConstantInt *addr = dyn_cast<ConstantInt>(ci->getOperand(1));
+            assert(addr);
+            const uint64_t target = *addr->getValue().getRawData();
+            assert(counters.find(target) == counters.end());
+            counters[target] = ci;
+        }
     }
 }
 
@@ -251,93 +425,32 @@ ConstantInt *GlobalDataFixup::findValue(Instruction *boundary, uint64_t value, I
     return NULL;
 }
 
-void GlobalDataFixup::loadRelocations(RelocationEntries &result)
-{
-    //Fetch the corresponding section
-    const BFDInterface::Sections &sections = m_binary->getSections();
-
-    foreach (sit, sections.begin(), sections.end()) {
-        asection *theSection = (*sit).second;
-        if (!(theSection->flags & SEC_RELOC)) {
-            //There is nothing to relocate (apparently)
-            continue;
-        }
-
-        for (unsigned i=0; i<theSection->reloc_count; ++i) {
-            uint64_t absAddress = theSection->relocation[i].address + theSection->vma;
-            assert(result.find(absAddress) == result.end());
-            result[absAddress] = theSection->relocation[i];
-        }
-    }
-}
-
-void GlobalDataFixup::processRelocations(Module &M, Function &F, RelocationEntries &relocEntries)
-{
-    ProgramCounters counters;
-    getProgramCounters(F, counters);
-    assert((counters.size() > 0) && "There are no program counter markers in the function");
 
 
-    foreach(it, counters.begin(), counters.end()) {
-        uint64_t pc = (*it).first;
-        std::cout << "Reloc checking pc 0x" << std::hex << pc << std::endl;
-        ProgramCounters::iterator lbit = counters.upper_bound(pc);
-
-        uint64_t upper = 0;
-        if (lbit == counters.end()) {
-            //No upper bound, end of function.
-            break;
-        }else {
-            upper = (*lbit).first;
-            assert(pc < upper);
-        }
-
-        //Fetch the relocation entries for this pc
-        RelocationEntries::iterator lowerIt = relocEntries.lower_bound(pc);
-        RelocationEntries::iterator upperIt = relocEntries.upper_bound(upper);
 
 
-        while(lowerIt != upperIt) {
-            uint64_t address = (*lowerIt).first;
-            const arelent &relent = (*lowerIt).second;
-
-            //Read the real value from the BFD
-            uint32_t data;
-            bool b = m_binary->read(address, &data, sizeof(data));
-            assert(b && "Could not read from binary file");
-
-            std::cout << "Processing relocation for pc=0x" << std::hex << pc <<
-                    "  address=0x" << address <<  "  originalData=0x" << data << std::endl;
-
-            assert(relent.addend == 0 && "Relocation type not supported!");
-
-            //Scan the function to fetch the LLVM constant value
-            Instruction *owner;
-            ConstantInt *cste = findValue((*it).second, data, &owner);
-            assert(cste && "Could not find value to relocate in LLVM stream. Bad.");
-
-            //std::cout << *cste << std::endl;
-
-            //Patch the value
-            patchPointer(M, cste, owner, data);
-
-            ++lowerIt;
-        }
-    }
-
-
-}
+/**
+  * Patch all integers that are in the relocation table
+  * Addresses falling in the code section:
+  *   - if function, replace with function pointer
+  *     take into account indirect calls and jumps
+  *   - if pointing to data, patch with a pointer to the right array
+  *     do not assume that value will be used for load/store (might be involved in arithmetic)
+  * Addresses of imported symbols:
+  *   - the declaration are already located in the BitCodeLibrary
+  *   - get the address of data/function and patch the value
+  */
 
 //This can only be run once on the module
 bool GlobalDataFixup::runOnModule(llvm::Module &M)
 {
     initMemOps(M);
     injectDataSections(M);
+    patchRelocations(M);
 
-    RelocationEntries relocEntries;
-    loadRelocations(relocEntries);
-
+#if 0
     std::set<CallInst *> memOpsCalls;
+
 
     //Get all the call sites to MMU memory accesses
     foreach(fit, M.begin(), M.end()) {
@@ -358,19 +471,9 @@ bool GlobalDataFixup::runOnModule(llvm::Module &M)
                 memOpsCalls.insert(ci);
             }
         }
-        processRelocations(M, f, relocEntries);
-    }
-
-#if 0
-    //For each call site, patch the pointer with the address of
-    //the global variable.
-    foreach(it, memOpsCalls.begin(), memOpsCalls.end()) {
-        CallInst *ci = *it;
-        unsigned size = (*m_memops.find(ci->getCalledFunction())).second.first;
-        bool isLoad = (*m_memops.find(ci->getCalledFunction())).second.second;
-        patchAddress(M, *it, isLoad, size);
 
     }
 #endif
+
     return false;
 }
