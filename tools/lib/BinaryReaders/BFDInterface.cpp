@@ -373,22 +373,20 @@ int BFDInterface::getSectionFlags(uint64_t va) const
     return section->flags;
 }
 
-const bool BFDInterface::getImports(Imports &imports) const
+const Imports &BFDInterface::getImports() const
 {
     if (!m_binary) {
-        return false;
+        return m_imports;
     }
-    imports = m_binary->getImports();
-    return true;
+    return m_binary->getImports();
 }
 
-const bool BFDInterface::getRelocations(RelocationEntries &relocs) const
+const RelocationEntries & BFDInterface::getRelocations() const
 {
     if (!m_binary) {
-        return false;
+        return m_relocations;
     }
-    relocs = m_binary->getRelocations();
-    return true;
+    return m_binary->getRelocations();
 }
 
 }

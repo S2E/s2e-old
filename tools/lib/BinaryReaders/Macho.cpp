@@ -141,28 +141,37 @@ bool MachoReader::resolveRelocations()
             continue;
         }
 
-        uint32_t va = extRelocs[i].r_address;
-        uint32_t avl = (uint32_t)m_nextAvailableAddress;
+        //External relocation symbols have already been allocated
+        //when scanning the import table.
+        std::string symbName = symbolTable[extRelocs[i].r_symbolnum]->name;
+        assert(m_importsByName.find(symbName) != m_importsByName.end());
+
+
+        uint32_t relocationPointVa = extRelocs[i].r_address;
+        uint32_t addressOfSymbol = (uint32_t)m_importsByName[symbName];
         uint32_t origValue;
 
-        bool b = getBfd()->read(va, &origValue, sizeof(origValue));
-        assert(b);
-
-        b = getBfd()->write(va, &avl, sizeof(avl));
+        bool b = getBfd()->read(relocationPointVa, &origValue, sizeof(origValue));
         assert(b);
 
         RelocationEntry relEntry;
         relEntry.originalValue = origValue;
         relEntry.size = 1 << extRelocs[i].r_length;
-        relEntry.targetValue = avl;
-        relEntry.va = va;
+        relEntry.symbolBase = addressOfSymbol;
+        relEntry.targetValue = addressOfSymbol + origValue;
+        relEntry.va = relocationPointVa;
         relEntry.symbolIndex = extRelocs[i].r_symbolnum;
         relEntry.symbolName = symbolTable[relEntry.symbolIndex]->name;
-        
-        //XXX: Remove hard-coded constant
-        m_nextAvailableAddress += 0x1000;
 
-        m_relocations.push_back(relEntry);
+        b = getBfd()->write(relocationPointVa, &relEntry.targetValue, sizeof(relocationPointVa));
+        assert(b);
+        
+        std::cout << "extRelocs[i].r_type=" << extRelocs[i].r_type <<
+                " origValue=0x" << std::hex << relEntry.originalValue <<
+                std::endl;
+
+
+        m_relocations[relEntry.va] = relEntry;
     }
 
     return true;
@@ -202,8 +211,9 @@ bool MachoReader::resolveImports()
 
         undefinedSymbols.push_back(symbols[i]->name);
 
-        std::cout << "Import " << symbols[i]->name << " at address 0x" << m_nextAvailableAddress << std::endl;
-        m_imports.insert(std::make_pair(m_nextAvailableAddress, BFDInterface::FunctionDescriptor("libc", symbols[i]->name)));
+        std::cout << "Import " << symbols[i]->name << " at address 0x" << std::hex <<  m_nextAvailableAddress << std::endl;
+        m_imports.insert(std::make_pair(m_nextAvailableAddress, std::make_pair("libc", symbols[i]->name)));
+        m_importsByName[symbols[i]->name] = m_nextAvailableAddress;
         symbToAddress[symbols[i]->name] = m_nextAvailableAddress;
         m_nextAvailableAddress += 0x1000;
     }

@@ -233,16 +233,20 @@ class BFDInterface;
 class MachoReader: public Binary {
 private:
     typedef std::vector<macos::macho_section> Sections;
+    typedef std::map<std::string, uint64_t> NameToAddress;
 
     llvm::MemoryBuffer *m_file;
 
     macos::macho_dysymtab_command m_dynSymCmd;
     Sections m_sections;
-    BFDInterface::Imports m_imports;
+    Imports m_imports;
+    NameToAddress m_importsByName;
+
     RelocationEntries m_relocations;
 
     //Where to allocate the next external import
     uint64_t m_nextAvailableAddress;
+
 
     bool resolveImports();
     bool resolveRelocations();
@@ -255,7 +259,7 @@ public:
     //Check that the given buffer contains a valid Mach-O object file
     static bool isValid(llvm::MemoryBuffer *file);
 
-    virtual const BFDInterface::Imports &getImports() const {
+    virtual const Imports &getImports() const {
         return m_imports;
     }
 

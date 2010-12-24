@@ -51,6 +51,45 @@ namespace s2etools
 
 class Binary;
 
+//Maps an address to a pair of library and function name
+typedef std::map<uint64_t, std::pair<std::string, std::string> > Imports;
+
+struct RelocationEntry {
+    //Virtual address of the value to relocate
+    uint64_t va;
+
+    //Size of the value to relocate (e.g., 4 bytes)
+    unsigned size;
+
+    //The original value that was stored
+    uint64_t originalValue;
+
+    //The value that is currently written,
+    //after performing relocations
+    uint64_t targetValue;
+
+    //Name for convenience
+    std::string symbolName;
+
+    //The base address of the symbol
+    uint64_t symbolBase;
+
+    //The index in the **asymbol array
+    unsigned symbolIndex;
+
+    //Returns the offset from the base address
+    //to get the right location for the data
+    //Useful for imports e.g.
+    uint64_t getOffetFromSymbol() const {
+        return originalValue;
+    }
+};
+
+//Maps a virtual address to its relocation entry
+typedef std::map<uint64_t, RelocationEntry> RelocationEntries;
+
+
+
 struct BFDSection
 {
     uint64_t start, size;
@@ -63,8 +102,6 @@ struct BFDSection
 class BFDInterface : public ExecutableFile
 {
 public:
-    typedef std::pair<std::string, std::string> FunctionDescriptor;
-    typedef std::multimap<uint64_t, FunctionDescriptor> Imports;
     typedef std::map<BFDSection, asection *> Sections;
 
 private:
@@ -87,6 +124,9 @@ private:
 
     //This for copy-on-write, when we need to write stuff to the BFD
     std::map<uint64_t, uint8_t> m_cowBuffer;
+
+    RelocationEntries m_relocations;
+    Imports m_imports;
 
     static void initSections(bfd *abfd, asection *sect, void *obj);
 
@@ -121,8 +161,8 @@ public:
 
     bool write(uint64_t va, void *source, unsigned size);
 
-    const bool getImports(Imports &imports) const;
-    const bool getRelocations(RelocationEntries &relocs) const;
+    const Imports &getImports() const;
+    const RelocationEntries &getRelocations() const;
 
     //Returns whether the supplied address is in an executable section
     bool isCode(uint64_t va) const;

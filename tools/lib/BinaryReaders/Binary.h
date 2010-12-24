@@ -44,28 +44,6 @@ namespace s2etools
 
 class BFDInterface;
 
-struct RelocationEntry {
-    //Virtual address of the value to relocate
-    uint64_t va;
-
-    //Size of the value to relocate (e.g., 4 bytes)
-    unsigned size;
-
-    //The original value that was stored
-    uint64_t originalValue;
-
-    //The value that is currently written,
-    //after performing relocations
-    uint64_t targetValue;
-
-    //Name for convenience
-    std::string symbolName;
-
-    //The index in the **asymbol array
-    unsigned symbolIndex;
-};
-
-typedef std::vector<RelocationEntry> RelocationEntries;
 
 /**
  *  The BFD library cannot handle all features like dynamic linking,
@@ -80,7 +58,7 @@ public:
     Binary(BFDInterface *bfd);
 
     static bool isValid(llvm::MemoryBuffer *file);
-    virtual const BFDInterface::Imports &getImports() const = 0;
+    virtual const Imports &getImports() const = 0;
     virtual const RelocationEntries &getRelocations() const = 0;
 protected:
     virtual BFDInterface* getBfd() const{
