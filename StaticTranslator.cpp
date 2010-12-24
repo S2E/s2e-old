@@ -616,8 +616,11 @@ void StaticTranslatorTool::cleanupCode()
                                      "__stq_mmu", "__stl_mmu", "__stw_mmu", "__stb_mmu",
                                      };
 
+    //The idea is to delete the body of unused functions so that there are no linking problems
+    //(some of the functions call undefined routines).
+    //XXX: This is really ugly. Maybe look at how LLVM does that (link time optimization...)
     const char *helperFunctionsStr[] ={"helper_bsf", "helper_bsr", "helper_lzcnt",
-                                   "libc__fputs"};
+                                   "libc__fputs", "libc__pthread_join", "libc__pthread_create"};
 
     std::set<Function *> libcFunctions;
     for (unsigned i=0; i<sizeof(builtinFunctionsStr)/sizeof(builtinFunctionsStr[0]); ++i) {

@@ -10,6 +10,14 @@ extern "C" {
 
 #include <map>
 
+//#define DEBUG
+
+#ifdef DEBUG
+#define DBGPRINT(x) (fprintf x)
+#else
+#define DBGPRINT(x)
+#endif
+
 typedef void (*x2l_entry_point)(uint64_t *opaque);
 
 extern x2l_entry_point __x2l_g_functionlist_ptr[];
@@ -31,6 +39,9 @@ void __attribute__((noinline)) call_marker(uint64_t target, int isInlinable, uin
 void __attribute__((noinline)) return_marker();
 uint32_t __attribute__((noinline)) __ldl_mmu(target_ulong addr, int mmu_idx);
 void __attribute__((noinline)) __stl_mmu(target_ulong addr, uint32_t val, int mmu_idx);
+int __attribute__((noinline)) libc__pthread_create(pthread_t  *  thread, pthread_attr_t * attr, void *
+                                                   (*start_routine)(void *), void * arg);
+
 }
 
 static void initialize_function_map(void)
@@ -42,16 +53,25 @@ static void initialize_function_map(void)
 
 void instruction_marker(uint64_t pc)
 {
-    fprintf(stdout, "PC: 0x%llx\n", pc);
+    DBGPRINT((stdout, "PC: 0x%llx\n", pc));
+}
+
+void *__x2e_findFunction(uint32_t target)
+{
+    functionmap_t::const_iterator it = s_functions.find(target);
+    if (it == s_functions.end()) {
+        return NULL;
+    }
+    return (void*)(*it).second;
 }
 
 void call_marker(uint64_t target, int isInlinable, uint64_t *opaque)
 {
     CPUState *state = *(CPUState**)opaque;
     if (isInlinable) {
-        fprintf(stdout, "Jumping to PC: %#llx\n", target);
+        DBGPRINT((stdout, "Jumping to PC: %#llx\n", target));
     }else {
-        fprintf(stdout, "Calling PC: %#llx ESP=%x \n", target, state->regs[R_ESP]);
+        DBGPRINT((stdout, "Calling PC: %#llx ESP=%x \n", target, state->regs[R_ESP]));
         functionmap_t::const_iterator it = s_functions.find(target);
         if (it == s_functions.end()) {
             fprintf(stdout, "Called invalid function\n");
@@ -63,21 +83,76 @@ void call_marker(uint64_t target, int isInlinable, uint64_t *opaque)
 
 void return_marker()
 {
-    fprintf(stdout, "Function is returning\n");
+    DBGPRINT((stdout, "Function is returning\n"));
 }
 
 uint32_t __ldl_mmu(target_ulong addr, int mmu_idx)
 {    
     uint32_t val = *(uint32_t*)addr;
-    fprintf(stdout, "Loading address %#x=%#x\n", addr, val);
+    DBGPRINT((stdout, "Loading address %#x=%#x\n", addr, val));
     return val;
 }
 
 void __stl_mmu(target_ulong addr, uint32_t val, int mmu_idx)
 {
-    fprintf(stdout, "Storing address %#x=%#x\n", addr, val);
+    DBGPRINT((stdout, "Storing address %#x=%#x\n", addr, val));
     *(uint32_t*)addr = val;
 }
+
+typedef  void* (*thread_routine_t)(void *);
+typedef  void (*transalted_thread_routine_t)(uint64_t *);
+
+typedef struct {
+    void *parameter;
+    transalted_thread_routine_t routine;
+}x2l_thread_t;
+
+static void *__x2e_thread_routine(void *opaque)
+{
+    x2l_thread_t *threadParameters = (x2l_thread_t*)opaque;
+    uint32_t *stack = new uint32_t[STACK_SIZE];
+    CPUState *penv = new CPUState;
+
+    stack[STACK_SIZE/sizeof(uint32) - 4] = (uint32_t)threadParameters->parameter;
+    stack[STACK_SIZE/sizeof(uint32) - 5] = 0xDEADBEEF; //dummy return address
+    penv->regs[R_ESP] = (uint32_t)&stack[STACK_SIZE/sizeof(uint32) - 5];
+
+    threadParameters->routine((uint64_t*)&penv);
+
+    void *ret = (void*)penv->regs[R_EAX];
+
+    delete penv;
+    delete [] stack;
+    delete threadParameters;
+
+    return ret;
+}
+
+int __attribute__((noinline)) libc__pthread_create(pthread_t  *  thread, pthread_attr_t * attr, void *
+                                                   (*start_routine)(void *), void * arg) {
+
+    fprintf(stdout, "pthread_create %p %p %p %p\n", thread, attr, start_routine, arg);
+    transalted_thread_routine_t x2l_routine =
+            (transalted_thread_routine_t)__x2e_findFunction((uint64_t)start_routine);
+
+    if (!x2l_routine) {
+        fprintf(stdout, "Could not find thread routine %p\n", start_routine);
+        exit(-1);
+    }
+
+    //Create the stack here
+    x2l_thread_t *threadDesc = new x2l_thread_t;
+    threadDesc->parameter = arg;
+    threadDesc->routine = x2l_routine;
+
+
+    int ret = pthread_create(thread, attr, __x2e_thread_routine, threadDesc);
+    if (ret) {
+        fprintf(stdout, "pthread_create failed: %d\n", ret);
+    }
+    return ret;
+}
+
 
 
 extern "C" {

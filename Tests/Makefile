@@ -1,5 +1,5 @@
 LDFLAGS=-m32
-TESTS=empty-main fib simple-global1 inline1 calltester
+TESTS=empty-main fib simple-global1 inline1 calltester thread1
 
 
 empty-main: empty-main.o
@@ -22,6 +22,10 @@ calltester: calltester.c
 
 lib1: lib1.c
 	gcc -mmacosx-version-min=10.4 -read_only_relocs suppress -fno-pic -m32 -o $@ $< 
+	objdump -S $@ > $@.s
+
+thread1: thread1.c
+	gcc -mmacosx-version-min=10.4 -read_only_relocs suppress -fno-pic -m32 -o $@ $<
 	objdump -S $@ > $@.s
 
 
