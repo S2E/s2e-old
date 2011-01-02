@@ -889,69 +889,9 @@ help_audio(stralloc_t*  out)
     "  the '-audio <backend>' option allows you to select a specific backend\n"
     "  to be used to both play and record audio in the Android emulator.\n\n"
 
-    "  this is equivalent to calling both '-audio-in <backend>' and\n"
-    "  '-audio-out <backend>' at the same time.\n\n"
-
-    "  use '-help-audio-out' to see a list of valid output <backend> values.\n"
-    "  use '-help-audio-in'  to see a list of valid input <backend> values.\n"
     "  use '-audio none' to disable audio completely.\n\n"
     );
 }
-
-static void
-help_audio_out(stralloc_t*  out)
-{
-    int  nn;
-
-    PRINTF(
-        "  the  '-audio-out <backend>' option allows you to select a specific\n"
-        "  backend to play audio in the Android emulator. this is mostly useful\n"
-        "  on Linux\n\n"
-
-        "  on this system, output <backend> can be one of the following:\n\n"
-    );
-    for ( nn = 0; ; nn++ ) {
-        char  name[512];
-        char  descr[4096];
-        if (android_core_audio_get_backend_name(0, nn, name, sizeof(name),
-                                                descr, sizeof(descr))) {
-            break;
-        }
-        PRINTF( "    %-10s %s\n", name, descr );
-    }
-    PRINTF( "\n" );
-}
-
-static void
-help_audio_in(stralloc_t*  out)
-{
-    int  nn;
-
-    PRINTF(
-        "  the  '-audio-in <backend>' option allows you to select a specific\n"
-        "  backend to play audio in the Android emulator. this is mostly useful\n"
-        "  on Linux\n\n"
-
-        "  IMPORTANT NOTE:\n"
-        "     on some Linux systems, broken Esd/ALSA/driver implementations will\n"
-        "     make your emulator freeze and become totally unresponsive when\n"
-        "     using audio recording. the only way to avoid this is to use\n"
-        "     '-audio-in none' to disable it\n\n"
-
-        "  on this system, input <backend> can be one of:\n\n"
-    );
-    for ( nn = 0; ; nn++ ) {
-        char  name[512];
-        char  descr[4096];
-        if (android_core_audio_get_backend_name(1, nn, name, sizeof(name),
-                                                descr, sizeof(descr))) {
-            break;
-        }
-        PRINTF( "    %-10s %s\n", name, descr );
-    }
-    PRINTF( "\n" );
-}
-
 
 static void
 help_scale(stralloc_t*  out)

@@ -1240,15 +1240,6 @@ int main(int argc, char **argv)
         args[n++] = opts->audio;
     }
 
-    if (opts->audio_in) {
-        args[n++] = "-audio-in";
-        args[n++] = opts->audio_in;
-    }
-    if (opts->audio_out) {
-        args[n++] = "-audio-out";
-        args[n++] = opts->audio_out;
-    }
-
     if (opts->cpu_delay) {
         args[n++] = "-cpu-delay";
         args[n++] = opts->cpu_delay;

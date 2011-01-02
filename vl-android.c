@@ -350,12 +350,6 @@ char* android_op_gps = NULL;
 /* -audio option value. */
 char* android_op_audio = NULL;
 
-/* -audio-in option value. */
-char* android_op_audio_in = NULL;
-
-/* -audio-out option value. */
-char* android_op_audio_out = NULL;
-
 /* -cpu-delay option value. */
 char* android_op_cpu_delay = NULL;
 
@@ -4601,14 +4595,6 @@ int main(int argc, char **argv, char **envp)
                 android_op_audio = (char*)optarg;
                 break;
 
-            case QEMU_OPTION_audio_in:
-                android_op_audio_in = (char*)optarg;
-                break;
-
-            case QEMU_OPTION_audio_out:
-                android_op_audio_out = (char*)optarg;
-                break;
-
             case QEMU_OPTION_cpu_delay:
                 android_op_cpu_delay = (char*)optarg;
                 break;
@@ -4788,47 +4774,9 @@ int main(int argc, char **argv, char **envp)
 
     /* Initialize audio. */
     if (android_op_audio) {
-        if (android_op_audio_in || android_op_audio_out) {
-            PANIC("you can't use -audio with -audio-in or -audio-out");
-        }
         if ( !audio_check_backend_name( 0, android_op_audio ) ) {
             PANIC("'%s' is not a valid audio output backend. see -help-audio-out",
                     android_op_audio);
-        }
-        android_op_audio_out = android_op_audio;
-        android_op_audio_in  = android_op_audio;
-
-        if ( !audio_check_backend_name( 1, android_op_audio ) ) {
-            fprintf(stdout,
-                    "emulator: warning: '%s' is not a valid audio input backend. audio record disabled\n",
-                    android_op_audio);
-            android_op_audio_in = "none";
-        }
-    }
-
-    if (android_op_audio_in) {
-        static char  env[64]; /* note: putenv needs a static unique string buffer */
-        if ( !audio_check_backend_name( 1, android_op_audio_in ) ) {
-            PANIC("'%s' is not a valid audio input backend. see -help-audio-in",
-                    android_op_audio_in);
-        }
-        bufprint( env, env+sizeof(env), "QEMU_AUDIO_IN_DRV=%s", android_op_audio_in );
-        putenv( env );
-
-        if (!android_hw->hw_audioInput) {
-            fprintf(stdout, "Emulated hardware doesn't have audio input.\n");
-        }
-    }
-    if (android_op_audio_out) {
-        static char  env[64]; /* note: putenv needs a static unique string buffer */
-        if ( !audio_check_backend_name( 0, android_op_audio_out ) ) {
-            PANIC("'%s' is not a valid audio output backend. see -help-audio-out",
-                    android_op_audio_out);
-        }
-        bufprint( env, env+sizeof(env), "QEMU_AUDIO_OUT_DRV=%s", android_op_audio_out );
-        putenv( env );
-        if (!android_hw->hw_audioOutput) {
-            fprintf(stdout, "Emulated hardware doesn't have audio output\n");
         }
     }
 
