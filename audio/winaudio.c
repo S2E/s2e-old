@@ -251,12 +251,11 @@ winaudio_out_init (HWVoiceOut *hw, struct audsettings *as)
 
 
 static int
-winaudio_out_run (HWVoiceOut *hw)
+winaudio_out_run (HWVoiceOut *hw, int live)
 {
     WinAudioOut*  s      = (WinAudioOut*) hw;
     int           played = 0;
     int           has_buffer;
-    int           live = audio_pcm_hw_get_live_out (hw);
 
     if (!live) {
         return 0;

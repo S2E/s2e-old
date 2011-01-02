@@ -191,6 +191,7 @@
 #include "android/hw-lcd.h"
 #include "android/boot-properties.h"
 #include "android/core-init-utils.h"
+#include "android/audio-test.h"
 
 #ifdef CONFIG_STANDALONE_CORE
 /* Verbose value used by the standalone emulator core (without UI) */
@@ -349,12 +350,6 @@ char* android_op_gps = NULL;
 
 /* -audio option value. */
 char* android_op_audio = NULL;
-
-/* -audio-in option value. */
-char* android_op_audio_in = NULL;
-
-/* -audio-out option value. */
-char* android_op_audio_out = NULL;
 
 /* -cpu-delay option value. */
 char* android_op_cpu_delay = NULL;
@@ -2159,110 +2154,6 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 void qemu_service_io(void)
 {
     qemu_notify_event();
-}
-
-/***********************************************************/
-/* bottom halves (can be seen as timers which expire ASAP) */
-
-struct QEMUBH {
-    QEMUBHFunc *cb;
-    void *opaque;
-    int scheduled;
-    int idle;
-    int deleted;
-    QEMUBH *next;
-};
-
-static QEMUBH *first_bh = NULL;
-
-QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque)
-{
-    QEMUBH *bh;
-    bh = qemu_mallocz(sizeof(QEMUBH));
-    bh->cb = cb;
-    bh->opaque = opaque;
-    bh->next = first_bh;
-    first_bh = bh;
-    return bh;
-}
-
-int qemu_bh_poll(void)
-{
-    QEMUBH *bh, **bhp;
-    int ret;
-
-    ret = 0;
-    for (bh = first_bh; bh; bh = bh->next) {
-        if (!bh->deleted && bh->scheduled) {
-            bh->scheduled = 0;
-            if (!bh->idle)
-                ret = 1;
-            bh->idle = 0;
-            bh->cb(bh->opaque);
-        }
-    }
-
-    /* remove deleted bhs */
-    bhp = &first_bh;
-    while (*bhp) {
-        bh = *bhp;
-        if (bh->deleted) {
-            *bhp = bh->next;
-            qemu_free(bh);
-        } else
-            bhp = &bh->next;
-    }
-
-    return ret;
-}
-
-void qemu_bh_schedule_idle(QEMUBH *bh)
-{
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 1;
-}
-
-void qemu_bh_schedule(QEMUBH *bh)
-{
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 0;
-    /* stop the currently executing CPU to execute the BH ASAP */
-    qemu_notify_event();
-}
-
-void qemu_bh_cancel(QEMUBH *bh)
-{
-    bh->scheduled = 0;
-}
-
-void qemu_bh_delete(QEMUBH *bh)
-{
-    bh->scheduled = 0;
-    bh->deleted = 1;
-}
-
-void qemu_bh_update_timeout(int *timeout)
-{
-    QEMUBH *bh;
-
-    for (bh = first_bh; bh; bh = bh->next) {
-        if (!bh->deleted && bh->scheduled) {
-            if (bh->idle) {
-                /* idle bottom halves will be polled at least
-                 * every 10ms */
-                *timeout = MIN(10, *timeout);
-            } else {
-                /* non-idle bottom halves will be executed
-                 * immediately */
-                *timeout = 0;
-                break;
-            }
-        }
-    }
 }
 
 /***********************************************************/
@@ -4601,14 +4492,6 @@ int main(int argc, char **argv, char **envp)
                 android_op_audio = (char*)optarg;
                 break;
 
-            case QEMU_OPTION_audio_in:
-                android_op_audio_in = (char*)optarg;
-                break;
-
-            case QEMU_OPTION_audio_out:
-                android_op_audio_out = (char*)optarg;
-                break;
-
             case QEMU_OPTION_cpu_delay:
                 android_op_cpu_delay = (char*)optarg;
                 break;
@@ -4653,6 +4536,10 @@ int main(int argc, char **argv, char **envp)
 
             case QEMU_OPTION_ui_settings:
                 android_op_ui_settings = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_audio_test_out:
+                android_audio_test_start_out();
                 break;
 
 #ifdef CONFIG_MEMCHECK
@@ -4788,47 +4675,9 @@ int main(int argc, char **argv, char **envp)
 
     /* Initialize audio. */
     if (android_op_audio) {
-        if (android_op_audio_in || android_op_audio_out) {
-            PANIC("you can't use -audio with -audio-in or -audio-out");
-        }
         if ( !audio_check_backend_name( 0, android_op_audio ) ) {
             PANIC("'%s' is not a valid audio output backend. see -help-audio-out",
                     android_op_audio);
-        }
-        android_op_audio_out = android_op_audio;
-        android_op_audio_in  = android_op_audio;
-
-        if ( !audio_check_backend_name( 1, android_op_audio ) ) {
-            fprintf(stdout,
-                    "emulator: warning: '%s' is not a valid audio input backend. audio record disabled\n",
-                    android_op_audio);
-            android_op_audio_in = "none";
-        }
-    }
-
-    if (android_op_audio_in) {
-        static char  env[64]; /* note: putenv needs a static unique string buffer */
-        if ( !audio_check_backend_name( 1, android_op_audio_in ) ) {
-            PANIC("'%s' is not a valid audio input backend. see -help-audio-in",
-                    android_op_audio_in);
-        }
-        bufprint( env, env+sizeof(env), "QEMU_AUDIO_IN_DRV=%s", android_op_audio_in );
-        putenv( env );
-
-        if (!android_hw->hw_audioInput) {
-            fprintf(stdout, "Emulated hardware doesn't have audio input.\n");
-        }
-    }
-    if (android_op_audio_out) {
-        static char  env[64]; /* note: putenv needs a static unique string buffer */
-        if ( !audio_check_backend_name( 0, android_op_audio_out ) ) {
-            PANIC("'%s' is not a valid audio output backend. see -help-audio-out",
-                    android_op_audio_out);
-        }
-        bufprint( env, env+sizeof(env), "QEMU_AUDIO_OUT_DRV=%s", android_op_audio_out );
-        putenv( env );
-        if (!android_hw->hw_audioOutput) {
-            fprintf(stdout, "Emulated hardware doesn't have audio output\n");
         }
     }
 

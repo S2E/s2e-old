@@ -750,6 +750,9 @@ sock_address_list_create( const char*  hostname,
     else
         ai.ai_flags |= AI_CANONNAME;
 
+    if (flags & SOCKET_LIST_DGRAM)
+        ai.ai_socktype = SOCK_DGRAM;
+
     while (1) {
         struct addrinfo  hints = ai;
 

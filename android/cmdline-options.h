@@ -108,8 +108,6 @@ OPT_PARAM( logcat, "<tags>", "enable logcat output with given tags" )
 OPT_FLAG ( no_audio, "disable audio support" )
 OPT_FLAG ( noaudio,  "same as -no-audio" )
 OPT_PARAM( audio,    "<backend>", "use specific audio backend" )
-OPT_PARAM( audio_in, "<backend>", "use specific audio input backend" )
-OPT_PARAM( audio_out,"<backend>", "use specific audio output backend" )
 
 OPT_FLAG ( raw_keys, "disable Unicode keyboard reverse-mapping" )
 OPT_PARAM( radio, "<device>", "redirect radio modem interface to character device" )

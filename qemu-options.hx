@@ -1598,7 +1598,7 @@ DEF("nand", HAS_ARG, QEMU_OPTION_nand, \
 
 #endif /* CONFIG_TRACE */
 
-#if 1 /* ANDROID */
+#ifdef CONFIG_ANDROID
 
 DEF("savevm-on-exit", HAS_ARG, QEMU_OPTION_savevm_on_exit, \
     "savevm-on-exit [tag|id]\n" \
@@ -1653,12 +1653,6 @@ DEF("gps", HAS_ARG, QEMU_OPTION_gps, \
 DEF("audio", HAS_ARG, QEMU_OPTION_audio, \
     "-audio <backend> use specific audio backend\n")
 
-DEF("audio-in", HAS_ARG, QEMU_OPTION_audio_in, \
-    "-audio-in <backend> use specific audio input backend\n")
-
-DEF("audio-out", HAS_ARG, QEMU_OPTION_audio_out, \
-    "-audio-out <backend> use specific audio output backend\n")
-
 DEF("cpu-delay", HAS_ARG, QEMU_OPTION_cpu_delay, \
     "-cpu-delay <cpudelay> throttle CPU emulation\n")
 
@@ -1694,4 +1688,7 @@ DEF("ui-port", HAS_ARG, QEMU_OPTION_ui_port, \
 DEF("ui-settings", HAS_ARG, QEMU_OPTION_ui_settings, \
     "-ui-settings <string> opaque string containing persitent UI settings\n")
 
-#endif
+DEF("audio-test-out", 0, QEMU_OPTION_audio_test_out, \
+   "-audio-test-out Test audio output\n")
+
+#endif /* ANDROID */

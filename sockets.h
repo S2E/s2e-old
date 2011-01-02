@@ -258,7 +258,8 @@ int  sock_address_get_numeric_info( SockAddress*  a,
 enum {
     SOCKET_LIST_PASSIVE    = (1 << 0),
     SOCKET_LIST_FORCE_INET = (1 << 1),
-    SOCKET_LIST_FORCE_IN6  = (1 << 2)
+    SOCKET_LIST_FORCE_IN6  = (1 << 2),
+    SOCKET_LIST_DGRAM      = (1 << 3),
 };
 
 /* resolve a host and service/port name into a list of SockAddress objects.

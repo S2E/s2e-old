@@ -245,8 +245,8 @@ static HW *glue (audio_pcm_hw_add_new_, TYPE) (struct audsettings *as)
 {
     HW *hw;
     AudioState *s = &glob_audio_state;
-    struct audio_driver *drv = glue(s->drv_, TYPE);
-    int  err;
+    struct audio_driver *drv = s->drv;
+    int err;
 
     if (!glue (s->nb_hw_voices_, TYPE)) {
         return NULL;
@@ -433,7 +433,7 @@ SW *glue (AUD_open_, TYPE) (
         goto fail;
     }
 
-    if (audio_bug (AUDIO_FUNC, !glue (s->drv_, TYPE))) {
+    if (audio_bug (AUDIO_FUNC, !s->drv)) {
         dolog ("Can not open `%s' (no host audio driver)\n", name);
         goto fail;
     }
@@ -452,9 +452,9 @@ SW *glue (AUD_open_, TYPE) (
                SW_NAME (sw), sw->info.freq, sw->info.bits, sw->info.nchannels);
         dolog ("New %s freq %d, bits %d, channels %d\n",
                name,
-               freq,
-               (fmt == AUD_FMT_S16 || fmt == AUD_FMT_U16) ? 16 : 8,
-               nchannels);
+               as->freq,
+               (as->fmt == AUD_FMT_S16 || as->fmt == AUD_FMT_U16) ? 16 : 8,
+               as->nchannels);
 #endif
 
         if (live) {
@@ -496,6 +496,9 @@ SW *glue (AUD_open_, TYPE) (
     sw->vol = nominal_volume;
     sw->callback.fn = callback_fn;
     sw->callback.opaque = callback_opaque;
+#ifdef DAC
+    sw->empty = 1;
+#endif
 
 #ifdef DAC
     if (live) {
@@ -548,7 +551,7 @@ uint64_t glue (AUD_get_elapsed_usec_, TYPE) (SW *sw, QEMUAudioTimeStamp *ts)
 
     cur_ts = sw->hw->ts_helper;
     old_ts = ts->old_ts;
-    /* dolog ("cur %lld old %lld\n", cur_ts, old_ts); */
+    /* dolog ("cur %" PRId64 " old %" PRId64 "\n", cur_ts, old_ts); */
 
     if (cur_ts >= old_ts) {
         delta = cur_ts - old_ts;

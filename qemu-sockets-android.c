@@ -26,6 +26,10 @@
 # define AI_ADDRCONFIG 0
 #endif
 
+#ifndef INET6_ADDRSTRLEN
+# define INET6_ADDRSTRLEN  46
+#endif
+
 static int sockets_debug = 0;
 static const int on=1, off=0;
 
@@ -52,6 +56,11 @@ static QemuOptsList dummy_opts = {
         },{
             .name = "ipv6",
             .type = QEMU_OPT_BOOL,
+#ifdef CONFIG_ANDROID
+        },{
+            .name = "socket",
+            .type = QEMU_OPT_NUMBER,
+#endif
         },
         { /* end if list */ }
     },
@@ -78,6 +87,13 @@ int inet_listen_opts(QemuOpts *opts, int port_offset)
     char uaddr[256+1];
     char uport[33];
     int slisten,to,try_next,nn;
+
+#ifdef CONFIG_ANDROID
+    const char* socket_fd = qemu_opt_get(opts, "socket");
+    if (socket_fd) {
+        return atoi(socket_fd);
+    }
+#endif
 
     if ((qemu_opt_get(opts, "host") == NULL) ||
         (qemu_opt_get(opts, "port") == NULL)) {
@@ -177,6 +193,13 @@ int inet_connect_opts(QemuOpts *opts)
     const char *port;
     int sock, nn;
 
+#ifdef CONFIG_ANDROID
+    const char* socket_fd = qemu_opt_get(opts, "socket");
+    if (socket_fd) {
+        return atoi(socket_fd);
+    }
+#endif
+
     addr = qemu_opt_get(opts, "host");
     port = qemu_opt_get(opts, "port");
     if (addr == NULL || port == NULL) {
@@ -233,6 +256,115 @@ EXIT:
     return sock;
 }
 
+int inet_dgram_opts(QemuOpts *opts)
+{
+    SockAddress**  peer_list = NULL;
+    SockAddress**  local_list = NULL;
+    SockAddress*   e;
+    unsigned       flags = 0;
+    const char *addr;
+    const char *port;
+    char uaddr[INET6_ADDRSTRLEN+1];
+    char uport[33];
+    int sock = -1;
+    int nn;
+
+    /* lookup peer addr */
+    addr = qemu_opt_get(opts, "host");
+    port = qemu_opt_get(opts, "port");
+    if (addr == NULL || strlen(addr) == 0) {
+        addr = "localhost";
+    }
+    if (port == NULL || strlen(port) == 0) {
+        fprintf(stderr, "inet_dgram: port not specified\n");
+        return -1;
+    }
+
+    flags = SOCKET_LIST_DGRAM;
+    if (qemu_opt_get_bool(opts, "ipv4", 0)) {
+        flags &= SOCKET_LIST_FORCE_IN6;
+        flags |= SOCKET_LIST_FORCE_INET;
+    }
+    if (qemu_opt_get_bool(opts, "ipv6", 0)) {
+        flags &= SOCKET_LIST_FORCE_INET;
+        flags |= SOCKET_LIST_FORCE_IN6;
+    }
+
+    peer_list = sock_address_list_create(addr, port, flags);
+    if (peer_list == NULL) {
+        fprintf(stderr,"getaddrinfo(%s,%s): %s\n",
+                addr, port, errno_str);
+        return -1;
+    }
+
+    /* lookup local addr */
+    addr = qemu_opt_get(opts, "localaddr");
+    port = qemu_opt_get(opts, "localport");
+    if (addr == NULL || strlen(addr) == 0) {
+        addr = NULL;
+    }
+    if (!port || strlen(port) == 0)
+        port = "0";
+
+    flags = SOCKET_LIST_DGRAM | SOCKET_LIST_PASSIVE;
+    local_list = sock_address_list_create(addr, port, flags);
+    if (local_list == NULL) {
+        fprintf(stderr,"getaddrinfo(%s,%s): %s\n",
+                addr, port, errno_str);
+        goto EXIT;
+    }
+
+    if (sock_address_get_numeric_info(local_list[0],
+                                       uaddr, INET6_ADDRSTRLEN,
+                                       uport, 32)) {
+        fprintf(stderr, "%s: getnameinfo: oops\n", __FUNCTION__);
+        goto EXIT;
+    }
+
+    for (nn = 0; peer_list[nn] != NULL; nn++) {
+        SockAddress *local = local_list[0];
+        e    = peer_list[nn];
+        sock = socket_create(sock_address_get_family(e), SOCKET_DGRAM);
+        if (sock < 0) {
+            fprintf(stderr,"%s: socket(%s): %s\n", __FUNCTION__,
+            sock_address_strfamily(e), errno_str);
+            continue;
+        }
+        socket_set_xreuseaddr(sock);
+
+        /* bind socket */
+        if (socket_bind(sock, local) < 0) {
+            fprintf(stderr,"%s: bind(%s,%s,%s): OK\n", __FUNCTION__,
+                sock_address_strfamily(local), addr, port);
+            socket_close(sock);
+            continue;
+        }
+
+        /* connect to peer */
+        if (socket_connect(sock,e) < 0) {
+            if (sockets_debug)
+                fprintf(stderr, "%s: connect(%s,%s,%s,%s): %s\n", __FUNCTION__,
+                        sock_address_strfamily(e),
+                        sock_address_to_string(e), addr, port, strerror(errno));
+            socket_close(sock);
+            continue;
+        }
+        if (sockets_debug)
+            fprintf(stderr, "%s: connect(%s,%s,%s,%s): OK\n", __FUNCTION__,
+                        sock_address_strfamily(e),
+                        sock_address_to_string(e), addr, port);
+
+        goto EXIT;
+    }
+    sock = -1;
+EXIT:
+    if (local_list)
+        sock_address_list_free(local_list);
+    if (peer_list)
+        sock_address_list_free(peer_list);
+    return sock;
+}
+
 /* compatibility wrapper */
 static int inet_parse(QemuOpts *opts, const char *str)
 {
@@ -286,6 +418,25 @@ static int inet_parse(QemuOpts *opts, const char *str)
         qemu_opt_set(opts, "ipv4", "on");
     if (strstr(optstr, ",ipv6"))
         qemu_opt_set(opts, "ipv6", "on");
+#ifdef CONFIG_ANDROID
+    h = strstr(optstr, ",socket=");
+    if (h) {
+        int socket_fd;
+        char str_fd[12];
+        if (1 != sscanf(h+7,"%d",&socket_fd)) {
+            fprintf(stderr,"%s: socket fd parse error (%s)\n",
+                    __FUNCTION__, h+7);
+            return -1;
+        }
+        if (socket_fd < 0 || socket_fd >= INT_MAX) {
+            fprintf(stderr,"%s: socket fd range error (%d)\n",
+                    __FUNCTION__, socket_fd);
+            return -1;
+        }
+        snprintf(str_fd, sizeof str_fd, "%d", socket_fd);
+        qemu_opt_set(opts, "socket", str_fd);
+    }
+#endif
     return 0;
 }
 

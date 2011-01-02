@@ -25,11 +25,10 @@
 #include <esd.h>
 #include "qemu-common.h"
 #include "audio.h"
-#include <signal.h>
 
 #define AUDIO_CAP "esd"
 #include "audio_int.h"
-#include <dlfcn.h>
+#include "audio_pt_int.h"
 
 #include "qemu_debug.h"
 
@@ -51,38 +50,7 @@
 #define  STRINGIFY_(x)  #x
 #define  STRINGIFY(x)   STRINGIFY_(x)
 
-typedef struct {
-    HWVoiceOut hw;
-    int done;
-    int live;
-    int decr;
-    int rpos;
-    void *pcm_buf;
-    int fd;
-} ESDVoiceOut;
-
-typedef struct {
-    HWVoiceIn hw;
-    int done;
-    int dead;
-    int incr;
-    int wpos;
-    void *pcm_buf;
-    int fd;
-} ESDVoiceIn;
-
-static struct {
-    int samples;
-    int divisor;
-    char *dac_host;
-    char *adc_host;
-} conf = {
-    1024,
-    2,
-    NULL,
-    NULL
-};
-
+#include <dlfcn.h>
 /* link dynamically to the libesd.so */
 
 #define  DYNLINK_FUNCTIONS   \
@@ -98,6 +66,39 @@ static struct {
 
 static void*    esd_lib;
 
+
+typedef struct {
+    HWVoiceOut hw;
+    int done;
+    int live;
+    int decr;
+    int rpos;
+    void *pcm_buf;
+    int fd;
+    struct audio_pt pt;
+} ESDVoiceOut;
+
+typedef struct {
+    HWVoiceIn hw;
+    int done;
+    int dead;
+    int incr;
+    int wpos;
+    void *pcm_buf;
+    int fd;
+    struct audio_pt pt;
+} ESDVoiceIn;
+
+static struct {
+    int samples;
+    int divisor;
+    char *dac_host;
+    char *adc_host;
+} conf = {
+    .samples = 1024,
+    .divisor = 2,
+};
+
 static void GCC_FMT_ATTR (2, 3) qesd_logerr (int err, const char *fmt, ...)
 {
     va_list ap;
@@ -109,50 +110,111 @@ static void GCC_FMT_ATTR (2, 3) qesd_logerr (int err, const char *fmt, ...)
     AUD_log (AUDIO_CAP, "Reason: %s\n", strerror (err));
 }
 
-static int qesd_run_out (HWVoiceOut *hw)
+/* playback */
+static void *qesd_thread_out (void *arg)
 {
-    ESDVoiceOut *esd = (ESDVoiceOut *) hw;
-    int  liveSamples, totalSamples;
-    int  rpos, nwrite, writeSamples, writeBytes;
+    ESDVoiceOut *esd = arg;
+    HWVoiceOut *hw = &esd->hw;
+    int threshold;
 
-    liveSamples  = audio_pcm_hw_get_live_out (hw);
-    rpos         = hw->rpos;
-    totalSamples = 0;
+    threshold = conf.divisor ? hw->samples / conf.divisor : 0;
 
-    while (liveSamples > 0) {
-        int  chunkSamples = audio_MIN (liveSamples, hw->samples - rpos);
-        int  chunkBytes   = chunkSamples << hw->info.shift;
-        struct st_sample *src = hw->mix_buf + rpos;
-
-        hw->clip (esd->pcm_buf, src, chunkSamples);
-
-    AGAIN:
-        nwrite = write (esd->fd, esd->pcm_buf, chunkBytes);
-        if (nwrite == -1) {
-            if (errno == EINTR)
-                goto AGAIN;
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                break;
-            qesd_logerr (errno, "write failed: %s\n", strerror(errno));
-            O("EsounD output thread write error: %s", strerror(errno));
-            break;
-        }
-        if (nwrite == 0)
-            break;
-
-        writeSamples = nwrite >> hw->info.shift;
-        writeBytes   = writeSamples << hw->info.shift;
-        if (writeBytes != nwrite) {
-            dolog ("warning: Misaligned write %d (requested %d), "
-                    "alignment %d\n",
-                    nwrite, writeBytes, hw->info.align + 1);
-        }
-        rpos          = (rpos + writeSamples) % hw->samples;
-        totalSamples += writeSamples;
-        liveSamples  -= writeSamples;
+    if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+        return NULL;
     }
-    hw->rpos = rpos;
-    return totalSamples;
+
+    for (;;) {
+        int decr, to_mix, rpos;
+
+        for (;;) {
+            if (esd->done) {
+                goto exit;
+            }
+
+            if (esd->live > threshold) {
+                break;
+            }
+
+            if (audio_pt_wait (&esd->pt, AUDIO_FUNC)) {
+                goto exit;
+            }
+        }
+
+        decr = to_mix = esd->live;
+        rpos = hw->rpos;
+
+        if (audio_pt_unlock (&esd->pt, AUDIO_FUNC)) {
+            return NULL;
+        }
+
+        while (to_mix) {
+            ssize_t written;
+            int chunk = audio_MIN (to_mix, hw->samples - rpos);
+            struct st_sample *src = hw->mix_buf + rpos;
+
+            hw->clip (esd->pcm_buf, src, chunk);
+
+        again:
+            written = write (esd->fd, esd->pcm_buf, chunk << hw->info.shift);
+            if (written == -1) {
+                if (errno == EINTR || errno == EAGAIN) {
+                    goto again;
+                }
+                qesd_logerr (errno, "write failed\n");
+                return NULL;
+            }
+
+            if (written != chunk << hw->info.shift) {
+                int wsamples = written >> hw->info.shift;
+                int wbytes = wsamples << hw->info.shift;
+                if (wbytes != written) {
+                    dolog ("warning: Misaligned write %d (requested %zd), "
+                           "alignment %d\n",
+                           wbytes, written, hw->info.align + 1);
+                }
+                to_mix -= wsamples;
+                rpos = (rpos + wsamples) % hw->samples;
+                break;
+            }
+
+            rpos = (rpos + chunk) % hw->samples;
+            to_mix -= chunk;
+        }
+
+        if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+            return NULL;
+        }
+
+        esd->rpos = rpos;
+        esd->live -= decr;
+        esd->decr += decr;
+    }
+
+ exit:
+    audio_pt_unlock (&esd->pt, AUDIO_FUNC);
+    return NULL;
+}
+
+static int qesd_run_out (HWVoiceOut *hw, int live)
+{
+    int decr;
+    ESDVoiceOut *esd = (ESDVoiceOut *) hw;
+
+    if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+        return 0;
+    }
+
+    decr = audio_MIN (live, esd->decr);
+    esd->decr -= decr;
+    esd->live = live - decr;
+    hw->rpos = esd->rpos;
+    if (esd->live > 0) {
+        audio_pt_unlock_and_signal (&esd->pt, AUDIO_FUNC);
+    }
+    else {
+        audio_pt_unlock (&esd->pt, AUDIO_FUNC);
+    }
+    return decr;
 }
 
 static int qesd_write (SWVoiceOut *sw, void *buf, int len)
@@ -165,13 +227,7 @@ static int qesd_init_out (HWVoiceOut *hw, struct audsettings *as)
     ESDVoiceOut *esd = (ESDVoiceOut *) hw;
     struct audsettings obt_as = *as;
     int esdfmt = ESD_STREAM | ESD_PLAY;
-    int result = -1;
 
-    /* shut down verbose debug spew */
-    if (!D_ACTIVE)
-        stdio_disable();
-
-    O("initializing EsoundD audio output");
     esdfmt |= (as->nchannels == 2) ? ESD_STEREO : ESD_MONO;
     switch (as->fmt) {
     case AUD_FMT_S8:
@@ -179,11 +235,11 @@ static int qesd_init_out (HWVoiceOut *hw, struct audsettings *as)
         esdfmt |= ESD_BITS8;
         obt_as.fmt = AUD_FMT_U8;
         break;
-#if 0
+
     case AUD_FMT_S32:
     case AUD_FMT_U32:
         dolog ("Will use 16 instead of 32 bit samples\n");
-#endif
+
     case AUD_FMT_S16:
     case AUD_FMT_U16:
     deffmt:
@@ -205,43 +261,43 @@ static int qesd_init_out (HWVoiceOut *hw, struct audsettings *as)
     if (!esd->pcm_buf) {
         dolog ("Could not allocate buffer (%d bytes)\n",
                hw->samples << hw->info.shift);
-        goto exit;
+        return -1;
     }
 
     esd->fd = FF(esd_play_stream) (esdfmt, as->freq, conf.dac_host, NULL);
     if (esd->fd < 0) {
-        if (conf.dac_host == NULL) {
-            esd->fd = FF(esd_play_stream) (esdfmt, as->freq, "localhost", NULL);
-        }
-        if (esd->fd < 0) {
-            qesd_logerr (errno, "esd_play_stream failed\n");
-            goto fail2;
-        }
+        qesd_logerr (errno, "esd_play_stream failed\n");
+        goto fail1;
     }
 
-    {
-        int  flags;
-        flags = fcntl(esd->fd, F_GETFL);
-        fcntl(esd->fd, F_SETFL, flags | O_NONBLOCK);
+    if (audio_pt_init (&esd->pt, qesd_thread_out, esd, AUDIO_CAP, AUDIO_FUNC)) {
+        goto fail2;
     }
 
-    result = 0;  /* success */
-    goto exit;
+    return 0;
 
  fail2:
+    if (close (esd->fd)) {
+        qesd_logerr (errno, "%s: close on esd socket(%d) failed\n",
+                     AUDIO_FUNC, esd->fd);
+    }
+    esd->fd = -1;
+
+ fail1:
     qemu_free (esd->pcm_buf);
     esd->pcm_buf = NULL;
-
- exit:
-    if (!D_ACTIVE)
-        stdio_enable();
-
-    return result;
+    return -1;
 }
 
 static void qesd_fini_out (HWVoiceOut *hw)
 {
+    void *ret;
     ESDVoiceOut *esd = (ESDVoiceOut *) hw;
+
+    audio_pt_lock (&esd->pt, AUDIO_FUNC);
+    esd->done = 1;
+    audio_pt_unlock_and_signal (&esd->pt, AUDIO_FUNC);
+    audio_pt_join (&esd->pt, &ret, AUDIO_FUNC);
 
     if (esd->fd >= 0) {
         if (close (esd->fd)) {
@@ -249,6 +305,9 @@ static void qesd_fini_out (HWVoiceOut *hw)
         }
         esd->fd = -1;
     }
+
+    audio_pt_fini (&esd->pt, AUDIO_FUNC);
+
     qemu_free (esd->pcm_buf);
     esd->pcm_buf = NULL;
 }
@@ -261,56 +320,112 @@ static int qesd_ctl_out (HWVoiceOut *hw, int cmd, ...)
 }
 
 /* capture */
+static void *qesd_thread_in (void *arg)
+{
+    ESDVoiceIn *esd = arg;
+    HWVoiceIn *hw = &esd->hw;
+    int threshold;
+
+    threshold = conf.divisor ? hw->samples / conf.divisor : 0;
+
+    if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+        return NULL;
+    }
+
+    for (;;) {
+        int incr, to_grab, wpos;
+
+        for (;;) {
+            if (esd->done) {
+                goto exit;
+            }
+
+            if (esd->dead > threshold) {
+                break;
+            }
+
+            if (audio_pt_wait (&esd->pt, AUDIO_FUNC)) {
+                goto exit;
+            }
+        }
+
+        incr = to_grab = esd->dead;
+        wpos = hw->wpos;
+
+        if (audio_pt_unlock (&esd->pt, AUDIO_FUNC)) {
+            return NULL;
+        }
+
+        while (to_grab) {
+            ssize_t nread;
+            int chunk = audio_MIN (to_grab, hw->samples - wpos);
+            void *buf = advance (esd->pcm_buf, wpos);
+
+        again:
+            nread = read (esd->fd, buf, chunk << hw->info.shift);
+            if (nread == -1) {
+                if (errno == EINTR || errno == EAGAIN) {
+                    goto again;
+                }
+                qesd_logerr (errno, "read failed\n");
+                return NULL;
+            }
+
+            if (nread != chunk << hw->info.shift) {
+                int rsamples = nread >> hw->info.shift;
+                int rbytes = rsamples << hw->info.shift;
+                if (rbytes != nread) {
+                    dolog ("warning: Misaligned write %d (requested %zd), "
+                           "alignment %d\n",
+                           rbytes, nread, hw->info.align + 1);
+                }
+                to_grab -= rsamples;
+                wpos = (wpos + rsamples) % hw->samples;
+                break;
+            }
+
+            hw->conv (hw->conv_buf + wpos, buf, nread >> hw->info.shift,
+                      &nominal_volume);
+            wpos = (wpos + chunk) % hw->samples;
+            to_grab -= chunk;
+        }
+
+        if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+            return NULL;
+        }
+
+        esd->wpos = wpos;
+        esd->dead -= incr;
+        esd->incr += incr;
+    }
+
+ exit:
+    audio_pt_unlock (&esd->pt, AUDIO_FUNC);
+    return NULL;
+}
+
 static int qesd_run_in (HWVoiceIn *hw)
 {
-    int  wpos, liveSamples, totalSamples;
-    int  grabSamples;
+    int live, incr, dead;
     ESDVoiceIn *esd = (ESDVoiceIn *) hw;
 
-    wpos        = hw->wpos;
-    liveSamples = audio_pcm_hw_get_live_in (hw);
-    grabSamples = hw->samples - liveSamples;
-    totalSamples = 0;
-
-    while (grabSamples > 0) {
-        ssize_t  nread;
-        int      chunkSamples = audio_MIN (grabSamples, hw->samples - wpos);
-        int      chunkBytes   = chunkSamples << hw->info.shift;
-        int      readSamples, readBytes;
-        void*    buf          = advance (esd->pcm_buf, wpos);
-
-    AGAIN:
-        nread = read (esd->fd, buf, chunkBytes);
-        if (nread == -1) {
-            if (errno == EINTR)
-                goto AGAIN;
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                break;
-
-            qesd_logerr (errno, "read failed: %s\n", strerror(errno));
-            break;
-        }
-        if (nread == 0)
-            break;
-
-        readSamples = nread >> hw->info.shift;
-        readBytes   = readSamples << hw->info.shift;
-
-        if (readBytes != nread) {
-            dolog ("warning: Misaligned read %d (requested %d), "
-                    "alignment %d\n",
-                    nread, readBytes, hw->info.align + 1);
-        }
-
-        hw->conv (hw->conv_buf + wpos, buf, readSamples,
-                  &nominal_volume);
-
-        wpos = (wpos + readSamples) % hw->samples;
-        grabSamples  -= readSamples;
-        totalSamples += readSamples;
+    if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
+        return 0;
     }
-    hw->wpos = wpos;
-    return totalSamples;
+
+    live = audio_pcm_hw_get_live_in (hw);
+    dead = hw->samples - live;
+    incr = audio_MIN (dead, esd->incr);
+    esd->incr -= incr;
+    esd->dead = dead - incr;
+    hw->wpos = esd->wpos;
+    if (esd->dead > 0) {
+        audio_pt_unlock_and_signal (&esd->pt, AUDIO_FUNC);
+    }
+    else {
+        audio_pt_unlock (&esd->pt, AUDIO_FUNC);
+    }
+    return incr;
 }
 
 static int qesd_read (SWVoiceIn *sw, void *buf, int len)
@@ -323,11 +438,6 @@ static int qesd_init_in (HWVoiceIn *hw, struct audsettings *as)
     ESDVoiceIn *esd = (ESDVoiceIn *) hw;
     struct audsettings obt_as = *as;
     int esdfmt = ESD_STREAM | ESD_RECORD;
-    int result = -1;
-
-    /* shut down verbose debug spew */
-    if (!D_ACTIVE)
-        stdio_disable();
 
     esdfmt |= (as->nchannels == 2) ? ESD_STEREO : ESD_MONO;
     switch (as->fmt) {
@@ -359,43 +469,43 @@ static int qesd_init_in (HWVoiceIn *hw, struct audsettings *as)
     if (!esd->pcm_buf) {
         dolog ("Could not allocate buffer (%d bytes)\n",
                hw->samples << hw->info.shift);
-        goto exit;
+        return -1;
     }
 
     esd->fd = FF(esd_record_stream) (esdfmt, as->freq, conf.adc_host, NULL);
     if (esd->fd < 0) {
-        if (conf.adc_host == NULL) {
-            esd->fd = FF(esd_record_stream) (esdfmt, as->freq, "localhost", NULL);
-        }
-        if (esd->fd < 0) {
-            qesd_logerr (errno, "esd_record_stream failed\n");
-            goto fail2;
-        }
+        qesd_logerr (errno, "esd_record_stream failed\n");
+        goto fail1;
     }
 
-    {
-        int  flags;
-        flags = fcntl(esd->fd, F_GETFL);
-        fcntl(esd->fd, F_SETFL, flags | O_NONBLOCK);
+    if (audio_pt_init (&esd->pt, qesd_thread_in, esd, AUDIO_CAP, AUDIO_FUNC)) {
+        goto fail2;
     }
 
-    result = 0;  /* success */
-    goto exit;
+    return 0;
 
  fail2:
+    if (close (esd->fd)) {
+        qesd_logerr (errno, "%s: close on esd socket(%d) failed\n",
+                     AUDIO_FUNC, esd->fd);
+    }
+    esd->fd = -1;
+
+ fail1:
     qemu_free (esd->pcm_buf);
     esd->pcm_buf = NULL;
-
- exit:
-    if (!D_ACTIVE)
-        stdio_enable();
-
-    return result;
+    return -1;
 }
 
 static void qesd_fini_in (HWVoiceIn *hw)
 {
+    void *ret;
     ESDVoiceIn *esd = (ESDVoiceIn *) hw;
+
+    audio_pt_lock (&esd->pt, AUDIO_FUNC);
+    esd->done = 1;
+    audio_pt_unlock_and_signal (&esd->pt, AUDIO_FUNC);
+    audio_pt_join (&esd->pt, &ret, AUDIO_FUNC);
 
     if (esd->fd >= 0) {
         if (close (esd->fd)) {
@@ -403,6 +513,9 @@ static void qesd_fini_in (HWVoiceIn *hw)
         }
         esd->fd = -1;
     }
+
+    audio_pt_fini (&esd->pt, AUDIO_FUNC);
+
     qemu_free (esd->pcm_buf);
     esd->pcm_buf = NULL;
 }
@@ -473,46 +586,57 @@ static void qesd_audio_fini (void *opaque)
 }
 
 struct audio_option qesd_options[] = {
-    {"SAMPLES", AUD_OPT_INT, &conf.samples,
-     "buffer size in samples", NULL, 0},
-
-    {"DIVISOR", AUD_OPT_INT, &conf.divisor,
-     "threshold divisor", NULL, 0},
-
-    {"DAC_HOST", AUD_OPT_STR, &conf.dac_host,
-     "playback host", NULL, 0},
-
-    {"ADC_HOST", AUD_OPT_STR, &conf.adc_host,
-     "capture host", NULL, 0},
-
-    {NULL, 0, NULL, NULL, NULL, 0}
+    {
+        .name  = "SAMPLES",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.samples,
+        .descr = "buffer size in samples"
+    },
+    {
+        .name  = "DIVISOR",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.divisor,
+        .descr = "threshold divisor"
+    },
+    {
+        .name  = "DAC_HOST",
+        .tag   = AUD_OPT_STR,
+        .valp  = &conf.dac_host,
+        .descr = "playback host"
+    },
+    {
+        .name  = "ADC_HOST",
+        .tag   = AUD_OPT_STR,
+        .valp  = &conf.adc_host,
+        .descr = "capture host"
+    },
+    { /* End of list */ }
 };
 
 static struct audio_pcm_ops qesd_pcm_ops = {
-    qesd_init_out,
-    qesd_fini_out,
-    qesd_run_out,
-    qesd_write,
-    qesd_ctl_out,
+    .init_out = qesd_init_out,
+    .fini_out = qesd_fini_out,
+    .run_out  = qesd_run_out,
+    .write    = qesd_write,
+    .ctl_out  = qesd_ctl_out,
 
-    qesd_init_in,
-    qesd_fini_in,
-    qesd_run_in,
-    qesd_read,
-    qesd_ctl_in,
+    .init_in  = qesd_init_in,
+    .fini_in  = qesd_fini_in,
+    .run_in   = qesd_run_in,
+    .read     = qesd_read,
+    .ctl_in   = qesd_ctl_in,
 };
 
 struct audio_driver esd_audio_driver = {
-    INIT_FIELD (name           = ) "esd",
-    INIT_FIELD (descr          = )
-    "EsounD audio (en.wikipedia.org/wiki/Esound)",
-    INIT_FIELD (options        = ) qesd_options,
-    INIT_FIELD (init           = ) qesd_audio_init,
-    INIT_FIELD (fini           = ) qesd_audio_fini,
-    INIT_FIELD (pcm_ops        = ) &qesd_pcm_ops,
-    INIT_FIELD (can_be_default = ) 1,
-    INIT_FIELD (max_voices_out = ) INT_MAX,
-    INIT_FIELD (max_voices_in  = ) 1,
-    INIT_FIELD (voice_size_out = ) sizeof (ESDVoiceOut),
-    INIT_FIELD (voice_size_in  = ) sizeof (ESDVoiceIn)
+    .name           = "esd",
+    .descr          = "http://en.wikipedia.org/wiki/Esound",
+    .options        = qesd_options,
+    .init           = qesd_audio_init,
+    .fini           = qesd_audio_fini,
+    .pcm_ops        = &qesd_pcm_ops,
+    .can_be_default = 0,
+    .max_voices_out = INT_MAX,
+    .max_voices_in  = INT_MAX,
+    .voice_size_out = sizeof (ESDVoiceOut),
+    .voice_size_in  = sizeof (ESDVoiceIn)
 };

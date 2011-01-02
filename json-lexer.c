@@ -27,8 +27,12 @@
  *
  */
 
+/* Building with mingw results in an error because ERROR is defined as a
+ * macro in this environment. Undefined it */
+#undef ERROR
+
 enum json_lexer_state {
-    JSON_ERROR = 0,
+    ERROR = 0,
     IN_DQ_UCODE3,
     IN_DQ_UCODE2,
     IN_DQ_UCODE1,
@@ -150,7 +154,7 @@ static const uint8_t json_lexer[][256] =  {
     /* Zero */
     [IN_ZERO] = {
         TERMINAL(JSON_INTEGER),
-        ['0' ... '9'] = JSON_ERROR,
+        ['0' ... '9'] = ERROR,
         ['.'] = IN_MANTISSA,
     },
 
@@ -302,7 +306,7 @@ static int json_lexer_feed_char(JSONLexer *lexer, char ch)
             lexer->token = qstring_new();
             new_state = IN_START;
             break;
-        case JSON_ERROR:
+        case ERROR:
             return -EINVAL;
         default:
             break;

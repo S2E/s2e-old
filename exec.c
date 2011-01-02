@@ -226,21 +226,21 @@ static void map_exec(void *addr, long size)
     DWORD old_protect;
     VirtualProtect(addr, size,
                    PAGE_EXECUTE_READWRITE, &old_protect);
-
+    
 }
 #else
 static void map_exec(void *addr, long size)
 {
     unsigned long start, end, page_size;
-
+    
     page_size = getpagesize();
     start = (unsigned long)addr;
     start &= ~(page_size - 1);
-
+    
     end = (unsigned long)addr + size;
     end += page_size - 1;
     end &= ~(page_size - 1);
-
+    
     mprotect((void *)start, end - start,
              PROT_READ | PROT_WRITE | PROT_EXEC);
 }
@@ -440,7 +440,7 @@ static void code_gen_alloc(unsigned long tb_size)
         code_gen_buffer_size = MIN_CODE_GEN_BUFFER_SIZE;
     /* The code gen buffer location may have constraints depending on
        the host cpu and OS */
-#if defined(__linux__)
+#if defined(__linux__) 
     {
         int flags;
         void *start = NULL;
@@ -463,6 +463,13 @@ static void code_gen_alloc(unsigned long tb_size)
         start = (void *) 0x01000000UL;
         if (code_gen_buffer_size > 16 * 1024 * 1024)
             code_gen_buffer_size = 16 * 1024 * 1024;
+#elif defined(__s390x__)
+        /* Map the buffer so that we can use direct calls and branches.  */
+        /* We have a +- 4GB range on the branches; leave some slop.  */
+        if (code_gen_buffer_size > (3ul * 1024 * 1024 * 1024)) {
+            code_gen_buffer_size = 3ul * 1024 * 1024 * 1024;
+        }
+        start = (void *)0x90000000UL;
 #endif
         code_gen_buffer = mmap(start, code_gen_buffer_size,
                                PROT_WRITE | PROT_READ | PROT_EXEC,
@@ -487,7 +494,7 @@ static void code_gen_alloc(unsigned long tb_size)
             code_gen_buffer_size = (800 * 1024 * 1024);
 #endif
         code_gen_buffer = mmap(addr, code_gen_buffer_size,
-                               PROT_WRITE | PROT_READ | PROT_EXEC,
+                               PROT_WRITE | PROT_READ | PROT_EXEC, 
                                flags, -1, 0);
         if (code_gen_buffer == MAP_FAILED) {
             fprintf(stderr, "Could not allocate dynamic translator buffer\n");
@@ -1712,6 +1719,14 @@ void cpu_abort(CPUState *env, const char *fmt, ...)
     }
     va_end(ap2);
     va_end(ap);
+#if defined(CONFIG_USER_ONLY)
+    {
+        struct sigaction act;
+        sigfillset(&act.sa_mask);
+        act.sa_handler = SIG_DFL;
+        sigaction(SIGABRT, &act, NULL);
+    }
+#endif
     abort();
 }
 
@@ -1758,12 +1773,12 @@ static inline void tlb_flush_jmp_cache(CPUState *env, target_ulong addr)
     /* Discard jump cache entries for any tb which might potentially
        overlap the flushed page.  */
     i = tb_jmp_cache_hash_page(addr - TARGET_PAGE_SIZE);
-    memset (&env->tb_jmp_cache[i], 0,
-	    TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
+    memset (&env->tb_jmp_cache[i], 0, 
+            TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
 
     i = tb_jmp_cache_hash_page(addr);
-    memset (&env->tb_jmp_cache[i], 0,
-	    TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
+    memset (&env->tb_jmp_cache[i], 0, 
+            TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
 }
 
 /* NOTE: if flush_global is true, also flush global entries (not
@@ -2198,9 +2213,9 @@ int page_get_flags(target_ulong address)
     return p->flags;
 }
 
-/* modify the flags of a page and invalidate the code if
-   necessary. The flag PAGE_WRITE_ORG is positioned automatically
-   depending on PAGE_WRITE */
+/* Modify the flags of a page and invalidate the code if necessary.
+   The flag PAGE_WRITE_ORG is positioned automatically depending
+   on PAGE_WRITE.  The mmap_lock should already be held.  */
 void page_set_flags(target_ulong start, target_ulong end, int flags)
 {
     PageDesc *p;
@@ -2626,13 +2641,13 @@ static void unassigned_mem_writel(void *opaque, target_phys_addr_t addr, uint32_
 #endif
 }
 
-static CPUReadMemoryFunc *unassigned_mem_read[3] = {
+static CPUReadMemoryFunc * const unassigned_mem_read[3] = {
     unassigned_mem_readb,
     unassigned_mem_readw,
     unassigned_mem_readl,
 };
 
-static CPUWriteMemoryFunc *unassigned_mem_write[3] = {
+static CPUWriteMemoryFunc * const unassigned_mem_write[3] = {
     unassigned_mem_writeb,
     unassigned_mem_writew,
     unassigned_mem_writel,
@@ -2698,13 +2713,13 @@ static void notdirty_mem_writel(void *opaque, target_phys_addr_t ram_addr,
         tlb_set_dirty(cpu_single_env, cpu_single_env->mem_io_vaddr);
 }
 
-static CPUReadMemoryFunc *error_mem_read[3] = {
+static CPUReadMemoryFunc * const error_mem_read[3] = {
     NULL, /* never used */
     NULL, /* never used */
     NULL, /* never used */
 };
 
-static CPUWriteMemoryFunc *notdirty_mem_write[3] = {
+static CPUWriteMemoryFunc * const notdirty_mem_write[3] = {
     notdirty_mem_writeb,
     notdirty_mem_writew,
     notdirty_mem_writel,
@@ -2797,13 +2812,13 @@ static void watch_mem_writel(void *opaque, target_phys_addr_t addr,
     stl_phys(addr, val);
 }
 
-static CPUReadMemoryFunc *watch_mem_read[3] = {
+static CPUReadMemoryFunc * const watch_mem_read[3] = {
     watch_mem_readb,
     watch_mem_readw,
     watch_mem_readl,
 };
 
-static CPUWriteMemoryFunc *watch_mem_write[3] = {
+static CPUWriteMemoryFunc * const watch_mem_write[3] = {
     watch_mem_writeb,
     watch_mem_writew,
     watch_mem_writel,
@@ -2895,13 +2910,13 @@ static void subpage_writel (void *opaque,
     subpage_writelen(opaque, addr, value, 2);
 }
 
-static CPUReadMemoryFunc *subpage_read[] = {
+static CPUReadMemoryFunc * const subpage_read[] = {
     &subpage_readb,
     &subpage_readw,
     &subpage_readl,
 };
 
-static CPUWriteMemoryFunc *subpage_write[] = {
+static CPUWriteMemoryFunc * const subpage_write[] = {
     &subpage_writeb,
     &subpage_writew,
     &subpage_writel,
@@ -2982,8 +2997,8 @@ static int get_free_io_mem_idx(void)
    value can be used with cpu_register_physical_memory(). (-1) is
    returned if error. */
 static int cpu_register_io_memory_fixed(int io_index,
-                                        CPUReadMemoryFunc **mem_read,
-                                        CPUWriteMemoryFunc **mem_write,
+                                        CPUReadMemoryFunc * const *mem_read,
+                                        CPUWriteMemoryFunc * const *mem_write,
                                         void *opaque)
 {
     int i, subwidth = 0;
@@ -3008,8 +3023,8 @@ static int cpu_register_io_memory_fixed(int io_index,
     return (io_index << IO_MEM_SHIFT) | subwidth;
 }
 
-int cpu_register_io_memory(CPUReadMemoryFunc **mem_read,
-                           CPUWriteMemoryFunc **mem_write,
+int cpu_register_io_memory(CPUReadMemoryFunc * const *mem_read,
+                           CPUWriteMemoryFunc * const *mem_write,
                            void *opaque)
 {
     return cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque);
@@ -3625,7 +3640,7 @@ void cpu_io_recompile(CPUState *env, void *retaddr)
 
     tb = tb_find_pc((unsigned long)retaddr);
     if (!tb) {
-        cpu_abort(env, "cpu_io_recompile: could not find TB for pc=%p",
+        cpu_abort(env, "cpu_io_recompile: could not find TB for pc=%p", 
                   retaddr);
     }
     n = env->icount_decr.u16.low + tb->icount;
@@ -3673,6 +3688,8 @@ void cpu_io_recompile(CPUState *env, void *retaddr)
     cpu_resume_from_signal(env, NULL);
 }
 
+#if !defined(CONFIG_USER_ONLY)
+
 void dump_exec_info(FILE *f,
                     int (*cpu_fprintf)(FILE *f, const char *fmt, ...))
 {
@@ -3703,7 +3720,7 @@ void dump_exec_info(FILE *f,
     cpu_fprintf(f, "Translation buffer state:\n");
     cpu_fprintf(f, "gen code size       %ld/%ld\n",
                 code_gen_ptr - code_gen_buffer, code_gen_buffer_max_size);
-    cpu_fprintf(f, "TB count            %d/%d\n",
+    cpu_fprintf(f, "TB count            %d/%d\n", 
                 nb_tbs, code_gen_max_blocks);
     cpu_fprintf(f, "TB avg target size  %d max=%d bytes\n",
                 nb_tbs ? target_code_size / nb_tbs : 0,
@@ -3725,8 +3742,6 @@ void dump_exec_info(FILE *f,
     cpu_fprintf(f, "TLB flush count     %d\n", tlb_flush_count);
     tcg_dump_info(f, cpu_fprintf);
 }
-
-#if !defined(CONFIG_USER_ONLY)
 
 #define MMUSUFFIX _cmmu
 #define GETPC() NULL

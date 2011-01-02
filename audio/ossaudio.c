@@ -31,36 +31,26 @@
 #include <sys/soundcard.h>
 #endif
 #include "qemu-common.h"
+#include "host-utils.h"
+#include "qemu-char.h"
 #include "audio.h"
 
 #define AUDIO_CAP "oss"
 #include "audio_int.h"
 
-/* http://www.df.lth.se/~john_e/gems/gem002d.html */
-/* http://www.multi-platforms.com/Tips/PopCount.htm */
-uint32_t popcount (uint32_t u)
-{
-    u = ((u&0x55555555) + ((u>>1)&0x55555555));
-    u = ((u&0x33333333) + ((u>>2)&0x33333333));
-    u = ((u&0x0f0f0f0f) + ((u>>4)&0x0f0f0f0f));
-    u = ((u&0x00ff00ff) + ((u>>8)&0x00ff00ff));
-    u = ( u&0x0000ffff) + (u>>16);
-    return u;
-}
-
-inline uint32_t lsbindex (uint32_t u)
-{
-    return popcount ((u&-u)-1);
-}
+#if defined OSS_GETVERSION && defined SNDCTL_DSP_POLICY
+#define USE_DSP_POLICY
+#endif
 
 typedef struct OSSVoiceOut {
     HWVoiceOut hw;
     void *pcm_buf;
     int fd;
+    int wpos;
     int nfrags;
     int fragsize;
     int mmapped;
-    int old_optr;
+    int pending;
 } OSSVoiceOut;
 
 typedef struct OSSVoiceIn {
@@ -69,7 +59,6 @@ typedef struct OSSVoiceIn {
     int fd;
     int nfrags;
     int fragsize;
-    int old_optr;
 } OSSVoiceIn;
 
 static struct {
@@ -79,13 +68,17 @@ static struct {
     const char *devpath_out;
     const char *devpath_in;
     int debug;
+    int exclusive;
+    int policy;
 } conf = {
     .try_mmap = 0,
     .nfrags = 4,
     .fragsize = 4096,
     .devpath_out = "/dev/dsp",
     .devpath_in = "/dev/dsp",
-    .debug = 0
+    .debug = 0,
+    .exclusive = 0,
+    .policy = 5
 };
 
 struct oss_params {
@@ -127,11 +120,40 @@ static void GCC_FMT_ATTR (3, 4) oss_logerr2 (
 
 static void oss_anal_close (int *fdp)
 {
-    int err = close (*fdp);
+    int err;
+
+    qemu_set_fd_handler (*fdp, NULL, NULL, NULL);
+    err = close (*fdp);
     if (err) {
         oss_logerr (errno, "Failed to close file(fd=%d)\n", *fdp);
     }
     *fdp = -1;
+}
+
+static void oss_helper_poll_out (void *opaque)
+{
+    (void) opaque;
+    audio_run ("oss_poll_out");
+}
+
+static void oss_helper_poll_in (void *opaque)
+{
+    (void) opaque;
+    audio_run ("oss_poll_in");
+}
+
+static int oss_poll_out (HWVoiceOut *hw)
+{
+    OSSVoiceOut *oss = (OSSVoiceOut *) hw;
+
+    return qemu_set_fd_handler (oss->fd, NULL, oss_helper_poll_out, NULL);
+}
+
+static int oss_poll_in (HWVoiceIn *hw)
+{
+    OSSVoiceIn *oss = (OSSVoiceIn *) hw;
+
+    return qemu_set_fd_handler (oss->fd, oss_helper_poll_in, NULL, NULL);
 }
 
 static int oss_write (SWVoiceOut *sw, void *buf, int len)
@@ -218,17 +240,46 @@ static void oss_dump_info (struct oss_params *req, struct oss_params *obt)
 }
 #endif
 
+#ifdef USE_DSP_POLICY
+static int oss_get_version (int fd, int *version, const char *typ)
+{
+    if (ioctl (fd, OSS_GETVERSION, &version)) {
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+        /*
+         * Looks like atm (20100109) FreeBSD knows OSS_GETVERSION
+         * since 7.x, but currently only on the mixer device (or in
+         * the Linuxolator), and in the native version that part of
+         * the code is in fact never reached so the ioctl fails anyway.
+         * Until this is fixed, just check the errno and if its what
+         * FreeBSD's sound drivers return atm assume they are new enough.
+         */
+        if (errno == EINVAL) {
+            *version = 0x040000;
+            return 0;
+        }
+#endif
+        oss_logerr2 (errno, typ, "Failed to get OSS version\n");
+        return -1;
+    }
+    return 0;
+}
+#endif
+
 static int oss_open (int in, struct oss_params *req,
                      struct oss_params *obt, int *pfd)
 {
     int fd;
-    int mmmmssss;
+    int oflags = conf.exclusive ? O_EXCL : 0;
     audio_buf_info abinfo;
     int fmt, freq, nchannels;
+    int setfragment = 1;
     const char *dspname = in ? conf.devpath_in : conf.devpath_out;
     const char *typ = in ? "ADC" : "DAC";
 
-    fd = open (dspname, (in ? O_RDONLY : O_WRONLY) | O_NONBLOCK);
+    /* Kludge needed to have working mmap on Linux */
+    oflags |= conf.try_mmap ? O_RDWR : (in ? O_RDONLY : O_WRONLY);
+
+    fd = open (dspname, oflags | O_NONBLOCK);
     if (-1 == fd) {
         oss_logerr2 (errno, typ, "Failed to open `%s'\n", dspname);
         return -1;
@@ -259,11 +310,36 @@ static int oss_open (int in, struct oss_params *req,
         goto err;
     }
 
-    mmmmssss = (req->nfrags << 16) | lsbindex (req->fragsize);
-    if (ioctl (fd, SNDCTL_DSP_SETFRAGMENT, &mmmmssss)) {
-        oss_logerr2 (errno, typ, "Failed to set buffer length (%d, %d)\n",
-                     req->nfrags, req->fragsize);
-        goto err;
+#ifdef USE_DSP_POLICY
+    if (conf.policy >= 0) {
+        int version;
+
+        if (!oss_get_version (fd, &version, typ)) {
+            if (conf.debug) {
+                dolog ("OSS version = %#x\n", version);
+            }
+
+            if (version >= 0x040000) {
+                int policy = conf.policy;
+                if (ioctl (fd, SNDCTL_DSP_POLICY, &policy)) {
+                    oss_logerr2 (errno, typ,
+                                 "Failed to set timing policy to %d\n",
+                                 conf.policy);
+                    goto err;
+                }
+                setfragment = 0;
+            }
+        }
+    }
+#endif
+
+    if (setfragment) {
+        int mmmmssss = (req->nfrags << 16) | ctz32 (req->fragsize);
+        if (ioctl (fd, SNDCTL_DSP_SETFRAGMENT, &mmmmssss)) {
+            oss_logerr2 (errno, typ, "Failed to set buffer length (%d, %d)\n",
+                         req->nfrags, req->fragsize);
+            goto err;
+        }
     }
 
     if (ioctl (fd, in ? SNDCTL_DSP_GETISPACE : SNDCTL_DSP_GETOSPACE, &abinfo)) {
@@ -305,26 +381,58 @@ static int oss_open (int in, struct oss_params *req,
     return -1;
 }
 
-static int oss_run_out (HWVoiceOut *hw)
+static void oss_write_pending (OSSVoiceOut *oss)
+{
+    HWVoiceOut *hw = &oss->hw;
+
+    if (oss->mmapped) {
+        return;
+    }
+
+    while (oss->pending) {
+        int samples_written;
+        ssize_t bytes_written;
+        int samples_till_end = hw->samples - oss->wpos;
+        int samples_to_write = audio_MIN (oss->pending, samples_till_end);
+        int bytes_to_write = samples_to_write << hw->info.shift;
+        void *pcm = advance (oss->pcm_buf, oss->wpos << hw->info.shift);
+
+        bytes_written = write (oss->fd, pcm, bytes_to_write);
+        if (bytes_written < 0) {
+            if (errno != EAGAIN) {
+                oss_logerr (errno, "failed to write %d bytes\n",
+                            bytes_to_write);
+            }
+            break;
+        }
+
+        if (bytes_written & hw->info.align) {
+            dolog ("misaligned write asked for %d, but got %zd\n",
+                   bytes_to_write, bytes_written);
+            return;
+        }
+
+        samples_written = bytes_written >> hw->info.shift;
+        oss->pending -= samples_written;
+        oss->wpos = (oss->wpos + samples_written) % hw->samples;
+        if (bytes_written - bytes_to_write) {
+            break;
+        }
+    }
+}
+
+static int oss_run_out (HWVoiceOut *hw, int live)
 {
     OSSVoiceOut *oss = (OSSVoiceOut *) hw;
-    int err, rpos, live, decr;
-    int samples;
-    uint8_t *dst;
-    struct st_sample *src;
+    int err, decr;
     struct audio_buf_info abinfo;
     struct count_info cntinfo;
     int bufsize;
 
-    live = audio_pcm_hw_get_live_out (hw);
-    if (!live) {
-        return 0;
-    }
-
     bufsize = hw->samples << hw->info.shift;
 
     if (oss->mmapped) {
-        int bytes;
+        int bytes, pos;
 
         err = ioctl (oss->fd, SNDCTL_DSP_GETOPTR, &cntinfo);
         if (err < 0) {
@@ -332,20 +440,8 @@ static int oss_run_out (HWVoiceOut *hw)
             return 0;
         }
 
-        if (cntinfo.ptr == oss->old_optr) {
-            if (abs (hw->samples - live) < 64) {
-                dolog ("warning: Overrun\n");
-            }
-            return 0;
-        }
-
-        if (cntinfo.ptr > oss->old_optr) {
-            bytes = cntinfo.ptr - oss->old_optr;
-        }
-        else {
-            bytes = bufsize + cntinfo.ptr - oss->old_optr;
-        }
-
+        pos = hw->rpos << hw->info.shift;
+        bytes = audio_ring_dist (cntinfo.ptr, pos, bufsize);
         decr = audio_MIN (bytes >> hw->info.shift, live);
     }
     else {
@@ -358,7 +454,7 @@ static int oss_run_out (HWVoiceOut *hw)
         if (abinfo.bytes > bufsize) {
             if (conf.debug) {
                 dolog ("warning: Invalid available size, size=%d bufsize=%d\n"
-                       "please report your OS/audio hw to malc@pulsesoft.com\n",
+                       "please report your OS/audio hw to av1474@comtv.ru\n",
                        abinfo.bytes, bufsize);
             }
             abinfo.bytes = bufsize;
@@ -378,53 +474,10 @@ static int oss_run_out (HWVoiceOut *hw)
         }
     }
 
-    samples = decr;
-    rpos = hw->rpos;
-    while (samples) {
-        int left_till_end_samples = hw->samples - rpos;
-        int convert_samples = audio_MIN (samples, left_till_end_samples);
+    decr = audio_pcm_hw_clip_out (hw, oss->pcm_buf, decr, oss->pending);
+    oss->pending += decr;
+    oss_write_pending (oss);
 
-        src = hw->mix_buf + rpos;
-        dst = advance (oss->pcm_buf, rpos << hw->info.shift);
-
-        hw->clip (dst, src, convert_samples);
-        if (!oss->mmapped) {
-            int written;
-
-            written = write (oss->fd, dst, convert_samples << hw->info.shift);
-            /* XXX: follow errno recommendations ? */
-            if (written == -1) {
-                oss_logerr (
-                    errno,
-                    "Failed to write %d bytes of audio data from %p\n",
-                    convert_samples << hw->info.shift,
-                    dst
-                    );
-                continue;
-            }
-
-            if (written != convert_samples << hw->info.shift) {
-                int wsamples = written >> hw->info.shift;
-                int wbytes = wsamples << hw->info.shift;
-                if (wbytes != written) {
-                    dolog ("warning: Misaligned write %d (requested %d), "
-                           "alignment %d\n",
-                           wbytes, written, hw->info.align + 1);
-                }
-                decr -= wsamples;
-                rpos = (rpos + wsamples) % hw->samples;
-                break;
-            }
-        }
-
-        rpos = (rpos + convert_samples) % hw->samples;
-        samples -= convert_samples;
-    }
-    if (oss->mmapped) {
-        oss->old_optr = cntinfo.ptr;
-    }
-
-    hw->rpos = rpos;
     return decr;
 }
 
@@ -498,7 +551,7 @@ static int oss_init_out (HWVoiceOut *hw, struct audsettings *as)
     oss->mmapped = 0;
     if (conf.try_mmap) {
         oss->pcm_buf = mmap (
-            0,
+            NULL,
             hw->samples << hw->info.shift,
             PROT_READ | PROT_WRITE,
             MAP_SHARED,
@@ -508,7 +561,8 @@ static int oss_init_out (HWVoiceOut *hw, struct audsettings *as)
         if (oss->pcm_buf == MAP_FAILED) {
             oss_logerr (errno, "Failed to map %d bytes of DAC\n",
                         hw->samples << hw->info.shift);
-        } else {
+        }
+        else {
             int err;
             int trig = 0;
             if (ioctl (fd, SNDCTL_DSP_SETTRIGGER, &trig) < 0) {
@@ -563,25 +617,48 @@ static int oss_ctl_out (HWVoiceOut *hw, int cmd, ...)
     int trig;
     OSSVoiceOut *oss = (OSSVoiceOut *) hw;
 
-    if (!oss->mmapped) {
-        return 0;
-    }
-
     switch (cmd) {
     case VOICE_ENABLE:
-        ldebug ("enabling voice\n");
-        audio_pcm_info_clear_buf (&hw->info, oss->pcm_buf, hw->samples);
-        trig = PCM_ENABLE_OUTPUT;
-        if (ioctl (oss->fd, SNDCTL_DSP_SETTRIGGER, &trig) < 0) {
-            oss_logerr (
-                errno,
-                "SNDCTL_DSP_SETTRIGGER PCM_ENABLE_OUTPUT failed\n"
-                );
-            return -1;
+        {
+            va_list ap;
+            int poll_mode;
+
+            va_start (ap, cmd);
+            poll_mode = va_arg (ap, int);
+            va_end (ap);
+
+            ldebug ("enabling voice\n");
+            if (poll_mode && oss_poll_out (hw)) {
+                poll_mode = 0;
+            }
+            hw->poll_mode = poll_mode;
+
+            if (!oss->mmapped) {
+                return 0;
+            }
+
+            audio_pcm_info_clear_buf (&hw->info, oss->pcm_buf, hw->samples);
+            trig = PCM_ENABLE_OUTPUT;
+            if (ioctl (oss->fd, SNDCTL_DSP_SETTRIGGER, &trig) < 0) {
+                oss_logerr (
+                    errno,
+                    "SNDCTL_DSP_SETTRIGGER PCM_ENABLE_OUTPUT failed\n"
+                    );
+                return -1;
+            }
         }
         break;
 
     case VOICE_DISABLE:
+        if (hw->poll_mode) {
+            qemu_set_fd_handler (oss->fd, NULL, NULL, NULL);
+            hw->poll_mode = 0;
+        }
+
+        if (!oss->mmapped) {
+            return 0;
+        }
+
         ldebug ("disabling voice\n");
         trig = 0;
         if (ioctl (oss->fd, SNDCTL_DSP_SETTRIGGER, &trig) < 0) {
@@ -671,8 +748,8 @@ static int oss_run_in (HWVoiceIn *hw)
         int add;
         int len;
     } bufs[2] = {
-        { hw->wpos, 0 },
-        { 0, 0 }
+        { .add = hw->wpos, .len = 0 },
+        { .add = 0,        .len = 0 }
     };
 
     if (!dead) {
@@ -686,7 +763,6 @@ static int oss_run_in (HWVoiceIn *hw)
     else {
         bufs[0].len = dead << hwshift;
     }
-
 
     for (i = 0; i < 2; ++i) {
         ssize_t nread;
@@ -737,8 +813,32 @@ static int oss_read (SWVoiceIn *sw, void *buf, int size)
 
 static int oss_ctl_in (HWVoiceIn *hw, int cmd, ...)
 {
-    (void) hw;
-    (void) cmd;
+    OSSVoiceIn *oss = (OSSVoiceIn *) hw;
+
+    switch (cmd) {
+    case VOICE_ENABLE:
+        {
+            va_list ap;
+            int poll_mode;
+
+            va_start (ap, cmd);
+            poll_mode = va_arg (ap, int);
+            va_end (ap);
+
+            if (poll_mode && oss_poll_in (hw)) {
+                poll_mode = 0;
+            }
+            hw->poll_mode = poll_mode;
+        }
+        break;
+
+    case VOICE_DISABLE:
+        if (hw->poll_mode) {
+            hw->poll_mode = 0;
+            qemu_set_fd_handler (oss->fd, NULL, NULL, NULL);
+        }
+        break;
+    }
     return 0;
 }
 
@@ -753,45 +853,83 @@ static void oss_audio_fini (void *opaque)
 }
 
 static struct audio_option oss_options[] = {
-    {"FRAGSIZE", AUD_OPT_INT, &conf.fragsize,
-     "Fragment size in bytes", NULL, 0},
-    {"NFRAGS", AUD_OPT_INT, &conf.nfrags,
-     "Number of fragments", NULL, 0},
-    {"MMAP", AUD_OPT_BOOL, &conf.try_mmap,
-     "Try using memory mapped access", NULL, 0},
-    {"DAC_DEV", AUD_OPT_STR, &conf.devpath_out,
-     "Path to DAC device", NULL, 0},
-    {"ADC_DEV", AUD_OPT_STR, &conf.devpath_in,
-     "Path to ADC device", NULL, 0},
-    {"DEBUG", AUD_OPT_BOOL, &conf.debug,
-     "Turn on some debugging messages", NULL, 0},
-    {NULL, 0, NULL, NULL, NULL, 0}
+    {
+        .name  = "FRAGSIZE",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.fragsize,
+        .descr = "Fragment size in bytes"
+    },
+    {
+        .name  = "NFRAGS",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.nfrags,
+        .descr = "Number of fragments"
+    },
+    {
+        .name  = "MMAP",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.try_mmap,
+        .descr = "Try using memory mapped access"
+    },
+    {
+        .name  = "DAC_DEV",
+        .tag   = AUD_OPT_STR,
+        .valp  = &conf.devpath_out,
+        .descr = "Path to DAC device"
+    },
+    {
+        .name  = "ADC_DEV",
+        .tag   = AUD_OPT_STR,
+        .valp  = &conf.devpath_in,
+        .descr = "Path to ADC device"
+    },
+    {
+        .name  = "EXCLUSIVE",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.exclusive,
+        .descr = "Open device in exclusive mode (vmix wont work)"
+    },
+#ifdef USE_DSP_POLICY
+    {
+        .name  = "POLICY",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.policy,
+        .descr = "Set the timing policy of the device, -1 to use fragment mode",
+    },
+#endif
+    {
+        .name  = "DEBUG",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.debug,
+        .descr = "Turn on some debugging messages"
+    },
+    { /* End of list */ }
 };
 
 static struct audio_pcm_ops oss_pcm_ops = {
-    oss_init_out,
-    oss_fini_out,
-    oss_run_out,
-    oss_write,
-    oss_ctl_out,
+    .init_out = oss_init_out,
+    .fini_out = oss_fini_out,
+    .run_out  = oss_run_out,
+    .write    = oss_write,
+    .ctl_out  = oss_ctl_out,
 
-    oss_init_in,
-    oss_fini_in,
-    oss_run_in,
-    oss_read,
-    oss_ctl_in
+    .init_in  = oss_init_in,
+    .fini_in  = oss_fini_in,
+    .run_in   = oss_run_in,
+    .read     = oss_read,
+    .ctl_in   = oss_ctl_in
 };
 
 struct audio_driver oss_audio_driver = {
-    INIT_FIELD (name           = ) "oss",
-    INIT_FIELD (descr          = ) "OSS audio (www.opensound.com)",
-    INIT_FIELD (options        = ) oss_options,
-    INIT_FIELD (init           = ) oss_audio_init,
-    INIT_FIELD (fini           = ) oss_audio_fini,
-    INIT_FIELD (pcm_ops        = ) &oss_pcm_ops,
-    INIT_FIELD (can_be_default = ) 1,
-    INIT_FIELD (max_voices_out = ) INT_MAX,
-    INIT_FIELD (max_voices_in  = ) INT_MAX,
-    INIT_FIELD (voice_size_out = ) sizeof (OSSVoiceOut),
-    INIT_FIELD (voice_size_in  = ) sizeof (OSSVoiceIn)
+    .name           = "oss",
+    .descr          = "OSS http://www.opensound.com",
+    .options        = oss_options,
+    .init           = oss_audio_init,
+    .fini           = oss_audio_fini,
+    .pcm_ops        = &oss_pcm_ops,
+    .can_be_default = 1,
+    .max_voices_out = INT_MAX,
+    .max_voices_in  = INT_MAX,
+    .voice_size_out = sizeof (OSSVoiceOut),
+    .voice_size_in  = sizeof (OSSVoiceIn)
 };
