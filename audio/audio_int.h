@@ -70,6 +70,7 @@ typedef struct SWVoiceCap SWVoiceCap;
 
 typedef struct HWVoiceOut {
     int enabled;
+    int poll_mode;
     int pending_disable;
     struct audio_pcm_info info;
 
@@ -89,6 +90,7 @@ typedef struct HWVoiceOut {
 
 typedef struct HWVoiceIn {
     int enabled;
+    int poll_mode;
     struct audio_pcm_info info;
 
     t_sample *conv;
@@ -155,7 +157,7 @@ struct audio_driver {
 struct audio_pcm_ops {
     int  (*init_out)(HWVoiceOut *hw, struct audsettings *as);
     void (*fini_out)(HWVoiceOut *hw);
-    int  (*run_out) (HWVoiceOut *hw);
+    int  (*run_out) (HWVoiceOut *hw, int live);
     int  (*write)   (SWVoiceOut *sw, void *buf, int size);
     int  (*ctl_out) (HWVoiceOut *hw, int cmd, ...);
 
@@ -186,10 +188,8 @@ struct SWVoiceCap {
 };
 
 struct AudioState {
-    struct audio_driver*  drv_in;
-    void*                 drv_in_opaque;
-    struct audio_driver*  drv_out;
-    void*                 drv_out_opaque;
+    struct audio_driver *drv;
+    void *drv_opaque;
 
     QEMUTimer *ts;
     QLIST_HEAD (card_listhead, QEMUSoundCard) card_head;
@@ -203,6 +203,7 @@ struct AudioState {
 
 extern struct audio_driver no_audio_driver;
 extern struct audio_driver oss_audio_driver;
+extern struct audio_driver sdl_audio_driver;
 extern struct audio_driver win_audio_driver;
 extern struct audio_driver wav_audio_driver;
 extern struct audio_driver fmod_audio_driver;
@@ -211,6 +212,7 @@ extern struct audio_driver coreaudio_audio_driver;
 extern struct audio_driver dsound_audio_driver;
 extern struct audio_driver esd_audio_driver;
 extern struct audio_driver pa_audio_driver;
+extern struct audio_driver winwave_audio_driver;
 extern struct mixeng_volume nominal_volume;
 
 void audio_pcm_init_info (struct audio_pcm_info *info, struct audsettings *as);
@@ -220,11 +222,14 @@ int  audio_pcm_sw_write (SWVoiceOut *sw, void *buf, int len);
 int  audio_pcm_hw_get_live_in (HWVoiceIn *hw);
 
 int  audio_pcm_sw_read (SWVoiceIn *sw, void *buf, int len);
-int  audio_pcm_hw_get_live_out (HWVoiceOut *hw);
-int  audio_pcm_hw_get_live_out2 (HWVoiceOut *hw, int *nb_live);
+
+int audio_pcm_hw_clip_out (HWVoiceOut *hw, void *pcm_buf,
+                           int live, int pending);
 
 int audio_bug (const char *funcname, int cond);
 void *audio_calloc (const char *funcname, int nmemb, size_t size);
+
+void audio_run (const char *msg);
 
 #define VOICE_ENABLE 1
 #define VOICE_DISABLE 2

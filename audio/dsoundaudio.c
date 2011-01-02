@@ -26,16 +26,18 @@
  * SEAL 1.07 by Carlos 'pel' Hasan was used as documentation
  */
 
+#include "qemu-common.h"
 #include "audio.h"
 
 #define AUDIO_CAP "dsound"
 #include "audio_int.h"
 
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <mmsystem.h>
 #include <objbase.h>
 #include <dsound.h>
+
+#include "audio_win_int.h"
 
 /* #define DEBUG_DSOUND */
 
@@ -46,28 +48,26 @@ static struct {
     int set_primary;
     int bufsize_in;
     int bufsize_out;
-    audsettings_t settings;
+    struct audsettings settings;
     int latency_millis;
 } conf = {
-    1,
-    1,
-    1,
-    0,
-    16384,
-    16384,
-    {
-        44100,
-        2,
-        AUD_FMT_S16
-    },
-    10
+    .lock_retries       = 1,
+    .restore_retries    = 1,
+    .getstatus_retries  = 1,
+    .set_primary        = 0,
+    .bufsize_in         = 16384,
+    .bufsize_out        = 16384,
+    .settings.freq      = 44100,
+    .settings.nchannels = 2,
+    .settings.fmt       = AUD_FMT_S16,
+    .latency_millis     = 10
 };
 
 typedef struct {
     LPDIRECTSOUND dsound;
     LPDIRECTSOUNDCAPTURE dsound_capture;
     LPDIRECTSOUNDBUFFER dsound_primary_buffer;
-    audsettings_t settings;
+    struct audsettings settings;
 } dsound;
 
 static dsound glob_dsound;
@@ -306,99 +306,6 @@ static int dsound_restore_out (LPDIRECTSOUNDBUFFER dsb)
     return -1;
 }
 
-static int waveformat_from_audio_settings (WAVEFORMATEX *wfx, audsettings_t *as)
-{
-    memset (wfx, 0, sizeof (*wfx));
-
-    wfx->wFormatTag = WAVE_FORMAT_PCM;
-    wfx->nChannels = as->nchannels;
-    wfx->nSamplesPerSec = as->freq;
-    wfx->nAvgBytesPerSec = as->freq << (as->nchannels == 2);
-    wfx->nBlockAlign = 1 << (as->nchannels == 2);
-    wfx->cbSize = 0;
-
-    switch (as->fmt) {
-    case AUD_FMT_S8:
-    case AUD_FMT_U8:
-        wfx->wBitsPerSample = 8;
-        break;
-
-    case AUD_FMT_S16:
-    case AUD_FMT_U16:
-        wfx->wBitsPerSample = 16;
-        wfx->nAvgBytesPerSec <<= 1;
-        wfx->nBlockAlign <<= 1;
-        break;
-
-    case AUD_FMT_S32:
-    case AUD_FMT_U32:
-        wfx->wBitsPerSample = 32;
-        wfx->nAvgBytesPerSec <<= 2;
-        wfx->nBlockAlign <<= 2;
-        break;
-
-    default:
-        dolog ("Internal logic error: Bad audio format %d\n", as->freq);
-        return -1;
-    }
-
-    return 0;
-}
-
-static int waveformat_to_audio_settings (WAVEFORMATEX *wfx, audsettings_t *as)
-{
-    if (wfx->wFormatTag != WAVE_FORMAT_PCM) {
-        dolog ("Invalid wave format, tag is not PCM, but %d\n",
-               wfx->wFormatTag);
-        return -1;
-    }
-
-    if (!wfx->nSamplesPerSec) {
-        dolog ("Invalid wave format, frequency is zero\n");
-        return -1;
-    }
-    as->freq = wfx->nSamplesPerSec;
-
-    switch (wfx->nChannels) {
-    case 1:
-        as->nchannels = 1;
-        break;
-
-    case 2:
-        as->nchannels = 2;
-        break;
-
-    default:
-        dolog (
-            "Invalid wave format, number of channels is not 1 or 2, but %d\n",
-            wfx->nChannels
-            );
-        return -1;
-    }
-
-    switch (wfx->wBitsPerSample) {
-    case 8:
-        as->fmt = AUD_FMT_U8;
-        break;
-
-    case 16:
-        as->fmt = AUD_FMT_S16;
-        break;
-
-    case 32:
-        as->fmt = AUD_FMT_S32;
-        break;
-
-    default:
-        dolog ("Invalid wave format, bits per sample is not "
-               "8, 16 or 32, but %d\n",
-               wfx->wBitsPerSample);
-        return -1;
-    }
-
-    return 0;
-}
-
 #include "dsound_template.h"
 #define DSBTYPE_IN
 #include "dsound_template.h"
@@ -447,8 +354,8 @@ static void dsound_write_sample (HWVoiceOut *hw, uint8_t *dst, int dst_len)
     int src_len1 = dst_len;
     int src_len2 = 0;
     int pos = hw->rpos + dst_len;
-    st_sample_t *src1 = hw->mix_buf + hw->rpos;
-    st_sample_t *src2 = NULL;
+    struct st_sample *src1 = hw->mix_buf + hw->rpos;
+    struct st_sample *src2 = NULL;
 
     if (pos > hw->samples) {
         src_len1 = hw->samples - hw->rpos;
@@ -658,13 +565,13 @@ static int dsound_write (SWVoiceOut *sw, void *buf, int len)
     return audio_pcm_sw_write (sw, buf, len);
 }
 
-static int dsound_run_out (HWVoiceOut *hw)
+static int dsound_run_out (HWVoiceOut *hw, int live)
 {
     int err;
     HRESULT hr;
     DSoundVoiceOut *ds = (DSoundVoiceOut *) hw;
     LPDIRECTSOUNDBUFFER dsb = ds->dsound_buffer;
-    int live, len, hwshift;
+    int len, hwshift;
     DWORD blen1, blen2;
     DWORD len1, len2;
     DWORD decr;
@@ -679,8 +586,6 @@ static int dsound_run_out (HWVoiceOut *hw)
 
     hwshift = hw->info.shift;
     bufsize = hw->samples << hwshift;
-
-    live = audio_pcm_hw_get_live_out (hw);
 
     hr = IDirectSoundBuffer_GetCurrentPosition (
         dsb,
@@ -1033,54 +938,93 @@ static void *dsound_audio_init (void)
 }
 
 static struct audio_option dsound_options[] = {
-    {"LOCK_RETRIES", AUD_OPT_INT, &conf.lock_retries,
-     "Number of times to attempt locking the buffer", NULL, 0},
-    {"RESTOURE_RETRIES", AUD_OPT_INT, &conf.restore_retries,
-     "Number of times to attempt restoring the buffer", NULL, 0},
-    {"GETSTATUS_RETRIES", AUD_OPT_INT, &conf.getstatus_retries,
-     "Number of times to attempt getting status of the buffer", NULL, 0},
-    {"SET_PRIMARY", AUD_OPT_BOOL, &conf.set_primary,
-     "Set the parameters of primary buffer", NULL, 0},
-    {"LATENCY_MILLIS", AUD_OPT_INT, &conf.latency_millis,
-     "(undocumented)", NULL, 0},
-    {"PRIMARY_FREQ", AUD_OPT_INT, &conf.settings.freq,
-     "Primary buffer frequency", NULL, 0},
-    {"PRIMARY_CHANNELS", AUD_OPT_INT, &conf.settings.nchannels,
-     "Primary buffer number of channels (1 - mono, 2 - stereo)", NULL, 0},
-    {"PRIMARY_FMT", AUD_OPT_FMT, &conf.settings.fmt,
-     "Primary buffer format", NULL, 0},
-    {"BUFSIZE_OUT", AUD_OPT_INT, &conf.bufsize_out,
-     "(undocumented)", NULL, 0},
-    {"BUFSIZE_IN", AUD_OPT_INT, &conf.bufsize_in,
-     "(undocumented)", NULL, 0},
-    {NULL, 0, NULL, NULL, NULL, 0}
+    {
+        .name  = "LOCK_RETRIES",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.lock_retries,
+        .descr = "Number of times to attempt locking the buffer"
+    },
+    {
+        .name  = "RESTOURE_RETRIES",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.restore_retries,
+        .descr = "Number of times to attempt restoring the buffer"
+    },
+    {
+        .name  = "GETSTATUS_RETRIES",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.getstatus_retries,
+        .descr = "Number of times to attempt getting status of the buffer"
+    },
+    {
+        .name  = "SET_PRIMARY",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.set_primary,
+        .descr = "Set the parameters of primary buffer"
+    },
+    {
+        .name  = "LATENCY_MILLIS",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.latency_millis,
+        .descr = "(undocumented)"
+    },
+    {
+        .name  = "PRIMARY_FREQ",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.settings.freq,
+        .descr = "Primary buffer frequency"
+    },
+    {
+        .name  = "PRIMARY_CHANNELS",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.settings.nchannels,
+        .descr = "Primary buffer number of channels (1 - mono, 2 - stereo)"
+    },
+    {
+        .name  = "PRIMARY_FMT",
+        .tag   = AUD_OPT_FMT,
+        .valp  = &conf.settings.fmt,
+        .descr = "Primary buffer format"
+    },
+    {
+        .name  = "BUFSIZE_OUT",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.bufsize_out,
+        .descr = "(undocumented)"
+    },
+    {
+        .name  = "BUFSIZE_IN",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.bufsize_in,
+        .descr = "(undocumented)"
+    },
+    { /* End of list */ }
 };
 
 static struct audio_pcm_ops dsound_pcm_ops = {
-    dsound_init_out,
-    dsound_fini_out,
-    dsound_run_out,
-    dsound_write,
-    dsound_ctl_out,
+    .init_out = dsound_init_out,
+    .fini_out = dsound_fini_out,
+    .run_out  = dsound_run_out,
+    .write    = dsound_write,
+    .ctl_out  = dsound_ctl_out,
 
-    dsound_init_in,
-    dsound_fini_in,
-    dsound_run_in,
-    dsound_read,
-    dsound_ctl_in
+    .init_in  = dsound_init_in,
+    .fini_in  = dsound_fini_in,
+    .run_in   = dsound_run_in,
+    .read     = dsound_read,
+    .ctl_in   = dsound_ctl_in
 };
 
 struct audio_driver dsound_audio_driver = {
-    INIT_FIELD (name           = ) "dsound",
-    INIT_FIELD (descr          = )
-    "DirectSound audio (www.wikipedia.org/wiki/DirectSound)",
-    INIT_FIELD (options        = ) dsound_options,
-    INIT_FIELD (init           = ) dsound_audio_init,
-    INIT_FIELD (fini           = ) dsound_audio_fini,
-    INIT_FIELD (pcm_ops        = ) &dsound_pcm_ops,
-    INIT_FIELD (can_be_default = ) 1,
-    INIT_FIELD (max_voices_out = ) INT_MAX,
-    INIT_FIELD (max_voices_in  = ) 1,
-    INIT_FIELD (voice_size_out = ) sizeof (DSoundVoiceOut),
-    INIT_FIELD (voice_size_in  = ) sizeof (DSoundVoiceIn)
+    .name           = "dsound",
+    .descr          = "DirectSound http://wikipedia.org/wiki/DirectSound",
+    .options        = dsound_options,
+    .init           = dsound_audio_init,
+    .fini           = dsound_audio_fini,
+    .pcm_ops        = &dsound_pcm_ops,
+    .can_be_default = 1,
+    .max_voices_out = INT_MAX,
+    .max_voices_in  = 1,
+    .voice_size_out = sizeof (DSoundVoiceOut),
+    .voice_size_in  = sizeof (DSoundVoiceIn)
 };

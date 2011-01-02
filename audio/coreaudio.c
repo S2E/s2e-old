@@ -27,12 +27,11 @@
 #include <string.h>             /* strerror */
 #include <pthread.h>            /* pthread_X */
 
+#include "qemu-common.h"
 #include "audio.h"
 
 #define AUDIO_CAP "coreaudio"
 #include "audio_int.h"
-
-#define  ENABLE_IN  1
 
 #if 0
 #  define  D(...)  fprintf(stderr, __VA_ARGS__)
@@ -152,11 +151,6 @@ static void GCC_FMT_ATTR (3, 4) coreaudio_logerr2 (
     coreaudio_logstatus (status);
 }
 
-static void coreaudio_atexit (void)
-{
-    conf.isAtexit = 1;
-}
-
 /***************************************************************************************/
 /***************************************************************************************/
 /***                                                                                 ***/
@@ -177,9 +171,8 @@ typedef struct coreAudioVoice {
     int                          pos;
 } coreaudioVoice;
 
-
 static inline UInt32
-coreaudio_voice_isPlaying (coreaudioVoice*  core)
+coreaudio_voice_isPlaying (coreaudioVoice *core)
 {
     OSStatus status;
     UInt32 result = 0;
@@ -194,8 +187,12 @@ coreaudio_voice_isPlaying (coreaudioVoice*  core)
     return result;
 }
 
-static int
-coreaudio_voice_lock (coreaudioVoice*  core, const char *fn_name)
+static void coreaudio_atexit (void)
+{
+    conf.isAtexit = 1;
+}
+
+static int coreaudio_voice_lock (coreaudioVoice *core, const char *fn_name)
 {
     int err;
 
@@ -209,7 +206,7 @@ coreaudio_voice_lock (coreaudioVoice*  core, const char *fn_name)
 }
 
 static int
-coreaudio_voice_unlock (coreaudioVoice*  core, const char *fn_name)
+coreaudio_voice_unlock (coreaudioVoice *core, const char *fn_name)
 {
     int err;
 
@@ -465,17 +462,14 @@ typedef struct coreaudioVoiceOut {
 #define  CORE_OUT(hw)  ((coreaudioVoiceOut*)(hw))->core
 
 
-static int
-coreaudio_run_out (HWVoiceOut *hw)
+static int coreaudio_run_out (HWVoiceOut *hw, int live)
 {
-    int live, decr;
-    coreaudioVoice  *core = CORE_OUT(hw);
+    int decr;
+    coreaudioVoice *core = CORE_OUT(hw);
 
     if (coreaudio_voice_lock (core, "coreaudio_run_out")) {
         return 0;
     }
-
-    live = audio_pcm_hw_get_live_out (hw);
 
     if (core->decr > live) {
         ldebug ("core->decr %d live %d core->live %d\n",
@@ -484,19 +478,18 @@ coreaudio_run_out (HWVoiceOut *hw)
                 core->live);
     }
 
-    decr        = audio_MIN (core->decr, live);
+    decr = audio_MIN (core->decr, live);
     core->decr -= decr;
-    core->live  = live - decr;
-    hw->rpos    = core->pos;
+
+    core->live = live - decr;
+    hw->rpos = core->pos;
 
     coreaudio_voice_unlock (core, "coreaudio_run_out");
     return decr;
 }
 
-
 /* callback to feed audiooutput buffer */
-static OSStatus
-audioOutDeviceIOProc(
+static OSStatus audioOutDeviceIOProc(
     AudioDeviceID inDevice,
     const AudioTimeStamp* inNow,
     const AudioBufferList* inInputData,
@@ -555,27 +548,25 @@ audioOutDeviceIOProc(
 
     rpos = (rpos + frameCount) % hw->samples;
     core->decr += frameCount;
-    core->pos  = rpos;
+    core->pos = rpos;
 
     coreaudio_voice_unlock (core, "audioDeviceIOProc");
     return 0;
 }
 
-static int
-coreaudio_write (SWVoiceOut *sw, void *buf, int len)
+static int coreaudio_write (SWVoiceOut *sw, void *buf, int len)
 {
     return audio_pcm_sw_write (sw, buf, len);
 }
 
-static int
-coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
+static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
 {
     coreaudioVoice*  core = CORE_OUT(hw);
-    int              err;
+    int err;
 
     audio_pcm_init_info (&hw->info, as);
 
-    err = coreaudio_voice_init( core, as, conf.out_buffer_frames, audioOutDeviceIOProc, hw, 0 );
+    err = coreaudio_voice_init (core, as, conf.out_buffer_frames, audioOutDeviceIOProc, hw, 0);
     if (err < 0)
         return err;
 
@@ -583,21 +574,19 @@ coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
     return 0;
 }
 
-static void
-coreaudio_fini_out (HWVoiceOut *hw)
+static void coreaudio_fini_out (HWVoiceOut *hw)
 {
+    coreaudioVoice *core = CORE_OUT(hw);
 
-    coreaudioVoice*  core = CORE_OUT(hw);
-
-    coreaudio_voice_fini(core);
+    coreaudio_voice_fini (core);
 }
 
 static int
 coreaudio_ctl_out (HWVoiceOut *hw, int cmd, ...)
 {
-    coreaudioVoice*  core = CORE_OUT(hw);
+    coreaudioVoice *core = CORE_OUT(hw);
 
-    return coreaudio_voice_ctl(core, cmd);
+    return coreaudio_voice_ctl (core, cmd);
 }
 
 /***************************************************************************************/
@@ -615,15 +604,14 @@ typedef struct coreaudioVoiceIn {
     coreaudioVoice   core[1];
 } coreaudioVoiceIn;
 
-#define  CORE_IN(hw)  ((coreaudioVoiceIn*)(hw))->core
+#define  CORE_IN(hw)  ((coreaudioVoiceIn *) (hw))->core
 
 
-static int
-coreaudio_run_in (HWVoiceIn *hw)
+static int coreaudio_run_in (HWVoiceIn *hw, int live)
 {
     int decr;
 
-    coreaudioVoice  *core = CORE_IN(hw);
+    coreaudioVoice *core = CORE_IN(hw);
 
     if (coreaudio_voice_lock (core, "coreaudio_run_in")) {
         return 0;
@@ -639,8 +627,7 @@ coreaudio_run_in (HWVoiceIn *hw)
 
 
 /* callback to feed audiooutput buffer */
-static OSStatus
-audioInDeviceIOProc(
+static OSStatus audioInDeviceIOProc(
     AudioDeviceID inDevice,
     const AudioTimeStamp* inNow,
     const AudioBufferList* inInputData,
@@ -712,7 +699,7 @@ audioInDeviceIOProc(
 static int
 coreaudio_read (SWVoiceIn *sw, void *buf, int len)
 {
-    int  result = audio_pcm_sw_read(sw, buf, len);
+    int  result = audio_pcm_sw_read (sw, buf, len);
     D("%s: audio_pcm_sw_read(%d) returned %d\n", __FUNCTION__, len, result);
     return result;
 }
@@ -725,7 +712,7 @@ coreaudio_init_in (HWVoiceIn *hw, struct audsettings *as)
 
     audio_pcm_init_info (&hw->info, as);
 
-    err = coreaudio_voice_init( core, as, conf.in_buffer_frames, audioInDeviceIOProc, hw, 1 );
+    err = coreaudio_voice_init (core, as, conf.in_buffer_frames, audioInDeviceIOProc, hw, 1);
     if (err < 0) {
         return err;
     }
@@ -751,71 +738,69 @@ coreaudio_ctl_in (HWVoiceIn *hw, int cmd, ...)
     return coreaudio_voice_ctl(core, cmd);
 }
 
-static void*
-coreaudio_audio_init (void)
+static void *coreaudio_audio_init (void)
 {
     atexit(coreaudio_atexit);
     return &coreaudio_audio_init;
 }
 
-static void
-coreaudio_audio_fini (void *opaque)
+static void coreaudio_audio_fini (void *opaque)
 {
     (void) opaque;
 }
 
 static struct audio_option coreaudio_options[] = {
-    {"OUT_BUFFER_SIZE", AUD_OPT_INT, &conf.out_buffer_frames,
-     "Size of the output buffer in frames", NULL, 0},
-    {"OUT_BUFFER_COUNT", AUD_OPT_INT, &conf.out_nbuffers,
-     "Number of output buffers", NULL, 0},
-    {"IN_BUFFER_SIZE", AUD_OPT_INT, &conf.in_buffer_frames,
-     "Size of the input buffer in frames", NULL, 0},
-    {"IN_BUFFER_COUNT", AUD_OPT_INT, &conf.in_nbuffers,
-     "Number of input buffers", NULL, 0},
-    {NULL, 0, NULL, NULL, NULL, 0}
+    {
+        .name  = "OUT_BUFFER_SIZE",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.out_buffer_frames,
+        .descr = "Size of the output buffer in frames"
+    },
+    {
+        .name  = "OUT_BUFFER_COUNT",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.out_nbuffers,
+        .descr = "Number of output buffers"
+    },
+    {
+        .name  = "IN_BUFFER_SIZE",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.in_buffer_frames,
+        .descr = "Size of the input buffer in frames"
+    },
+    {
+        .name  = "IN_BUFFER_COUNT",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.in_nbuffers,
+        .descr = "Number of input buffers"
+    },
+    { /* End of list */ }
 };
 
 static struct audio_pcm_ops coreaudio_pcm_ops = {
-    coreaudio_init_out,
-    coreaudio_fini_out,
-    coreaudio_run_out,
-    coreaudio_write,
-    coreaudio_ctl_out,
+    .init_out = coreaudio_init_out,
+    .fini_out = coreaudio_fini_out,
+    .run_out  = coreaudio_run_out,
+    .write    = coreaudio_write,
+    .ctl_out  = coreaudio_ctl_out
 
-#if ENABLE_IN
-    coreaudio_init_in,
-    coreaudio_fini_in,
-    coreaudio_run_in,
-    coreaudio_read,
-    coreaudio_ctl_in
-#else
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL
-#endif
+    .init_in = coreaudio_init_in,
+    .fini_in = coreaudio_fini_in,
+    .run_in  = coreaudio_run_in,
+    .read    = coreaudio_read,
+    .ctl_in  = coreaudio_ctl_in
 };
 
 struct audio_driver coreaudio_audio_driver = {
-    INIT_FIELD (name           = ) "coreaudio",
-    INIT_FIELD (descr          = )
-    "CoreAudio (developer.apple.com/audio/coreaudio.html)",
-    INIT_FIELD (options        = ) coreaudio_options,
-    INIT_FIELD (init           = ) coreaudio_audio_init,
-    INIT_FIELD (fini           = ) coreaudio_audio_fini,
-    INIT_FIELD (pcm_ops        = ) &coreaudio_pcm_ops,
-    INIT_FIELD (can_be_default = ) 1,
-#if ENABLE_IN
-    INIT_FIELD (max_voices_out = ) 1,
-    INIT_FIELD (max_voices_in  = ) 1,
-    INIT_FIELD (voice_size_out = ) sizeof (coreaudioVoiceOut),
-    INIT_FIELD (voice_size_in  = ) sizeof (coreaudioVoiceIn),
-#else
-    INIT_FIELD (max_voices_out = ) 1,
-    INIT_FIELD (max_voices_in  = ) 0,
-    INIT_FIELD (voice_size_out = ) sizeof (coreaudioVoiceOut),
-    INIT_FIELD (voice_size_in  = ) 0,
-#endif
+    .name           = "coreaudio",
+    .descr          = "CoreAudio http://developer.apple.com/audio/coreaudio.html",
+    .options        = coreaudio_options,
+    .init           = coreaudio_audio_init,
+    .fini           = coreaudio_audio_fini,
+    .pcm_ops        = &coreaudio_pcm_ops,
+    .can_be_default = 1,
+    .max_voices_out = 1,
+    .max_voices_in  = 1,
+    .voice_size_out = sizeof (coreaudioVoiceOut),
+    .voice_size_in  = sizeof (coreaudioVoiceIn),
 };
