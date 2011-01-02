@@ -1598,7 +1598,7 @@ DEF("nand", HAS_ARG, QEMU_OPTION_nand, \
 
 #endif /* CONFIG_TRACE */
 
-#if 1 /* ANDROID */
+#ifdef CONFIG_ANDROID
 
 DEF("savevm-on-exit", HAS_ARG, QEMU_OPTION_savevm_on_exit, \
     "savevm-on-exit [tag|id]\n" \
@@ -1688,4 +1688,7 @@ DEF("ui-port", HAS_ARG, QEMU_OPTION_ui_port, \
 DEF("ui-settings", HAS_ARG, QEMU_OPTION_ui_settings, \
     "-ui-settings <string> opaque string containing persitent UI settings\n")
 
-#endif
+DEF("audio-test-out", 0, QEMU_OPTION_audio_test_out, \
+   "-audio-test-out Test audio output\n")
+
+#endif /* ANDROID */

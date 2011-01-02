@@ -191,6 +191,7 @@
 #include "android/hw-lcd.h"
 #include "android/boot-properties.h"
 #include "android/core-init-utils.h"
+#include "android/audio-test.h"
 
 #ifdef CONFIG_STANDALONE_CORE
 /* Verbose value used by the standalone emulator core (without UI) */
@@ -4639,6 +4640,10 @@ int main(int argc, char **argv, char **envp)
 
             case QEMU_OPTION_ui_settings:
                 android_op_ui_settings = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_audio_test_out:
+                android_audio_test_start_out();
                 break;
 
 #ifdef CONFIG_MEMCHECK

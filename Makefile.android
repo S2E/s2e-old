@@ -735,6 +735,8 @@ CORE_SOURCES = $(CORE_BLOCK_SOURCES) $(CORE_HW_SOURCES)
 CORE_SOURCES += $(CORE_MIGRATION_SOURCES) $(CORE_MISC_SOURCES)
 CORE_SOURCES += $(CORE_UPSTREAM_SOURCES)
 
+CORE_SOURCES += android/audio-test.c
+
 ##############################################################################
 # lists of source files used to build the emulator UI
 #

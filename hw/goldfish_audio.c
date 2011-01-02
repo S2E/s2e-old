@@ -582,7 +582,7 @@ void goldfish_audio_init(uint32_t base, int id, const char* input_source)
     if (android_hw->hw_audioOutput) {
         s->voice = AUD_open_out (
             &s->card,
-            s->voice,
+            NULL,
             "goldfish_audio",
             s,
             goldfish_audio_callback,
