@@ -782,7 +782,7 @@ static struct audio_pcm_ops coreaudio_pcm_ops = {
     .fini_out = coreaudio_fini_out,
     .run_out  = coreaudio_run_out,
     .write    = coreaudio_write,
-    .ctl_out  = coreaudio_ctl_out
+    .ctl_out  = coreaudio_ctl_out,
 
     .init_in = coreaudio_init_in,
     .fini_in = coreaudio_fini_in,
