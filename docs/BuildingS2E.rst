@@ -90,12 +90,12 @@ keep generated HTML files in the repository. Please never change HTML files
 manualy and always recompile them (by invoking ``make`` in the docs folder)
 after changing any RST files.
 
-Preparing Linux VM Image
-========================
+Preparing a Linux VM Image
+==========================
 
-To run S2E you need a QEMU-compatible virtual machine disk image. S2E can run
-any x86 32bit operating system inside the VM. In the following we describe how
-to install minimal version of Debian Linux in QEMU::
+To run S2E, you need a QEMU-compatible virtual machine disk image. S2E can run
+any x86 32-bit operating system inside the VM. In the following we describe how
+to install a minimal version of Debian Linux in QEMU::
 
    $ cd $S2EDIR
 
@@ -114,3 +114,53 @@ to install minimal version of Debian Linux in QEMU::
    $ # inside the guest to install C and C++ compilers
    guest$ su -c "apt-get install build-essential"
 
+
+Compiling the Linux kernel
+==========================
+
+Although S2E can run any kernel, it is often convenient to recompile it to suit particular needs.
+E.g., enabling Kprobes, adding debug information, etc.
+This sections explains how to do it on a Debian system using a ``chroot`` environment.
+Using chroot makes it easy to compile a 32-bit kernel package on a 64-bit host.
+
+::
+
+   $ # Install the bootstrapping environment	
+   $ sudo apt-get install debootstrap
+
+   $ # Create the directory with the chroot environment
+   $ mkdir ~/debian32
+
+   $ # From now on, we need root rights   
+   $ sudo -s
+
+   $ # Create the basic chroot environment
+   $ debootstrap --arch i386 lenny debian32/ http://mirror.switch.ch/ftp/mirror/debian/
+
+   $ # Activate the chroot
+   $ chroot ~/debian32
+
+   $ # Install build tools
+   $ apt-get install build-essential kernel-package locales
+
+   $ # Set the locale to UTF-8, otherwise perl will complain   
+   $ export LANGUAGE=en_US.UTF-8 
+   $ export LANG=en_US.UTF-8
+   $ export LC_ALL=en_US.UTF-8
+   $ locale-gen en_US.UTF-8
+   $ dpkg-reconfigure locales
+
+   $ # Download the kernel
+   $ mkdir /root/kernel && cd /root/kernel
+   $ wget http://www.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.8.tar.bz2
+   $ tar xjvf linux-2.6.26.8.tar.bz2
+   $ cd linux-2.6.26.8
+
+   $ # Select your options
+   $ make menuconfig
+
+   $ # Compile and generate the packages
+   $ make-kpkg --append-to-version=-s2e --rootcmd fakeroot --initrd kernel_image kernel_headers
+
+   
+The result of the process is three ``*.deb`` files that you can upload to your VM image.
