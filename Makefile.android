@@ -518,6 +518,11 @@ EMULATOR_CORE_CFLAGS += -I$(LOCAL_PATH)/ \
                         $(TCG_CFLAGS) \
                         $(HW_CFLAGS) \
 
+# Required by block.c, default value is empty in upstream
+EMULATOR_CORE_CFLAGS += -DCONFIG_BDRV_WHITELIST=""
+
+# Required
+EMULATOR_CORE_CFLAGS += -D_XOPEN_SOURCE=600 -D_BSD_SOURCE=1
 # include slirp-android code, i.e. the user-level networking stuff
 #
 SLIRP_SOURCES := bootp.c     cksum.c      debug.c  if.c     ip_icmp.c  ip_input.c   ip_output.c  \
@@ -609,6 +614,7 @@ include $(BUILD_HOST_STATIC_LIBRARY)
 # block sources
 #
 CORE_BLOCK_SOURCES = block.c \
+                     blockdev.c \
                      block/qcow.c \
                      block/qcow2.c \
                      block/qcow2-refcount.c \
@@ -616,7 +622,8 @@ CORE_BLOCK_SOURCES = block.c \
                      block/qcow2-cluster.c \
                      block/cloop.c \
                      block/dmg.c \
-                     block/vvfat.c
+                     block/vvfat.c \
+                     block/raw.c
 ifeq ($(HOST_OS),windows)
   CORE_BLOCK_SOURCES += block/raw-win32.c
 else
@@ -715,6 +722,8 @@ endif
 
 ifeq ($(HOST_OS),windows)
   CORE_MISC_SOURCES   += tap-win32.c
+else
+  CORE_MISC_SOURCES   += posix-aio-compat.c
 endif
 
 # sources inherited from upstream, but not fully

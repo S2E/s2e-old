@@ -512,7 +512,7 @@ static inline uint8_t fat_chksum(const direntry_t* entry)
     for(i=0;i<11;i++) {
         unsigned char c;
 
-        c = (i < 8) ? entry->name[i] : entry->extension[i-8];
+        c = (i <= 8) ? entry->name[i] : entry->extension[i-8];
         chksum=(((chksum&0xfe)>>1)|((chksum&0x01)?0x80:0)) + c;
     }
 
@@ -2799,8 +2799,11 @@ static int enable_write_target(BDRVVVFATState *s)
     if (bdrv_create(bdrv_qcow, s->qcow_filename, options) < 0)
 	return -1;
     s->qcow = bdrv_new("");
-    if (s->qcow == NULL || bdrv_open(s->qcow, s->qcow_filename, 0) < 0)
+    if (s->qcow == NULL ||
+        bdrv_open(s->qcow, s->qcow_filename, BDRV_O_RDWR, bdrv_qcow) < 0)
+    {
 	return -1;
+    }
 
 #ifndef _WIN32
     unlink(s->qcow_filename);
@@ -2828,7 +2831,7 @@ static void vvfat_close(BlockDriverState *bs)
 static BlockDriver bdrv_vvfat = {
     .format_name	= "vvfat",
     .instance_size	= sizeof(BDRVVVFATState),
-    .bdrv_open		= vvfat_open,
+    .bdrv_file_open	= vvfat_open,
     .bdrv_read		= vvfat_read,
     .bdrv_write		= vvfat_write,
     .bdrv_close		= vvfat_close,
@@ -2866,7 +2869,7 @@ static void checkpoint(void) {
     return;
     /* avoid compiler warnings: */
     hexdump(NULL, 100);
-    remove_mapping(vvv, NULL);
+    remove_mapping(vvv, 0);
     print_mapping(NULL);
     print_direntry(NULL);
 }

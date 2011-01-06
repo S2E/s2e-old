@@ -36,7 +36,7 @@
 #include "monitor.h"
 #include "readline.h"
 #include "console.h"
-#include "block.h"
+#include "blockdev.h"
 #include "audio/audio.h"
 #include "disas.h"
 #include "balloon.h"
@@ -218,6 +218,11 @@ static int monitor_fprintf(FILE *stream, const char *fmt, ...)
     return 0;
 }
 
+void monitor_protocol_event(MonitorEvent event, QObject *data)
+{
+    /* XXX: TODO */
+}
+
 static int compare_cmd(const char *name, const char *list)
 {
     const char *p, *pstart;
@@ -264,18 +269,6 @@ static void help_cmd(Monitor *mon, const char *name)
                 monitor_printf(mon, "%-10s %s\n", item->name, item->help);
             }
         }
-    }
-}
-
-static void do_commit(Monitor *mon, const char *device)
-{
-    int i, all_devices;
-
-    all_devices = !strcmp(device, "all");
-    for (i = 0; i < nb_drives; i++) {
-            if (all_devices ||
-                !strcmp(bdrv_get_device_name(drives_table[i].bdrv), device))
-                bdrv_commit(drives_table[i].bdrv);
     }
 }
 
@@ -439,60 +432,6 @@ static void do_quit(Monitor *mon)
     }
     /* we cannot destroy the monitor just yet, so flag it instead */
     mon->has_quit = 1;
-}
-
-static int eject_device(Monitor *mon, BlockDriverState *bs, int force)
-{
-    if (bdrv_is_inserted(bs)) {
-        if (!force) {
-            if (!bdrv_is_removable(bs)) {
-                monitor_printf(mon, "device is not removable\n");
-                return -1;
-            }
-            if (bdrv_is_locked(bs)) {
-                monitor_printf(mon, "device is locked\n");
-                return -1;
-            }
-        }
-        bdrv_close(bs);
-    }
-    return 0;
-}
-
-static void do_eject(Monitor *mon, int force, const char *filename)
-{
-    BlockDriverState *bs;
-
-    bs = bdrv_find(filename);
-    if (!bs) {
-        monitor_printf(mon, "device not found\n");
-        return;
-    }
-    eject_device(mon, bs, force);
-}
-
-static void do_change_block(Monitor *mon, const char *device,
-                            const char *filename, const char *fmt)
-{
-    BlockDriverState *bs;
-    BlockDriver *drv = NULL;
-
-    bs = bdrv_find(device);
-    if (!bs) {
-        monitor_printf(mon, "device not found\n");
-        return;
-    }
-    if (fmt) {
-        drv = bdrv_find_format(fmt);
-        if (!drv) {
-            monitor_printf(mon, "invalid format %s\n", fmt);
-            return;
-        }
-    }
-    if (eject_device(mon, bs, 0) < 0)
-        return;
-    bdrv_open2(bs, filename, 0, drv);
-    monitor_read_bdrv_key_start(mon, bs, NULL, NULL);
 }
 
 static void change_vnc_password_cb(Monitor *mon, const char *password,
@@ -895,7 +834,7 @@ static void do_physical_memory_save(Monitor *mon, unsigned int valh,
     FILE *f;
     uint32_t l;
     uint8_t buf[1024];
-    target_phys_addr_t addr = GET_TPHYSADDR(valh, vall); 
+    target_phys_addr_t addr = GET_TPHYSADDR(valh, vall);
 
     f = fopen(filename, "wb");
     if (!f) {

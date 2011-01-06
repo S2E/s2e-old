@@ -49,9 +49,6 @@ static int nbd_open(BlockDriverState *bs, const char* filename, int flags)
     size_t blocksize;
     int ret;
 
-    if ((flags & BDRV_O_CREAT))
-        return -EINVAL;
-
     if (!strstart(filename, "nbd:", &host))
         return -EINVAL;
 
@@ -180,7 +177,7 @@ static int64_t nbd_getlength(BlockDriverState *bs)
 static BlockDriver bdrv_nbd = {
     .format_name	= "nbd",
     .instance_size	= sizeof(BDRVNBDState),
-    .bdrv_open		= nbd_open,
+    .bdrv_file_open	= nbd_open,
     .bdrv_read		= nbd_read,
     .bdrv_write		= nbd_write,
     .bdrv_close		= nbd_close,

@@ -79,7 +79,7 @@ int qcow2_read_snapshots(BlockDriverState *bs)
     s->snapshots = qemu_mallocz(s->nb_snapshots * sizeof(QCowSnapshot));
     for(i = 0; i < s->nb_snapshots; i++) {
         offset = align_offset(offset, 8);
-        if (bdrv_pread(s->hd, offset, &h, sizeof(h)) != sizeof(h))
+        if (bdrv_pread(bs->file, offset, &h, sizeof(h)) != sizeof(h))
             goto fail;
         offset += sizeof(h);
         sn = s->snapshots + i;
@@ -97,13 +97,13 @@ int qcow2_read_snapshots(BlockDriverState *bs)
         offset += extra_data_size;
 
         sn->id_str = qemu_malloc(id_str_size + 1);
-        if (bdrv_pread(s->hd, offset, sn->id_str, id_str_size) != id_str_size)
+        if (bdrv_pread(bs->file, offset, sn->id_str, id_str_size) != id_str_size)
             goto fail;
         offset += id_str_size;
         sn->id_str[id_str_size] = '\0';
 
         sn->name = qemu_malloc(name_size + 1);
-        if (bdrv_pread(s->hd, offset, sn->name, name_size) != name_size)
+        if (bdrv_pread(bs->file, offset, sn->name, name_size) != name_size)
             goto fail;
         offset += name_size;
         sn->name[name_size] = '\0';
@@ -139,6 +139,9 @@ static int qcow_write_snapshots(BlockDriverState *bs)
 
     snapshots_offset = qcow2_alloc_clusters(bs, snapshots_size);
     offset = snapshots_offset;
+    if (offset < 0) {
+        return offset;
+    }
 
     for(i = 0; i < s->nb_snapshots; i++) {
         sn = s->snapshots + i;
@@ -155,25 +158,25 @@ static int qcow_write_snapshots(BlockDriverState *bs)
         h.id_str_size = cpu_to_be16(id_str_size);
         h.name_size = cpu_to_be16(name_size);
         offset = align_offset(offset, 8);
-        if (bdrv_pwrite(s->hd, offset, &h, sizeof(h)) != sizeof(h))
+        if (bdrv_pwrite_sync(bs->file, offset, &h, sizeof(h)) < 0)
             goto fail;
         offset += sizeof(h);
-        if (bdrv_pwrite(s->hd, offset, sn->id_str, id_str_size) != id_str_size)
+        if (bdrv_pwrite_sync(bs->file, offset, sn->id_str, id_str_size) < 0)
             goto fail;
         offset += id_str_size;
-        if (bdrv_pwrite(s->hd, offset, sn->name, name_size) != name_size)
+        if (bdrv_pwrite_sync(bs->file, offset, sn->name, name_size) < 0)
             goto fail;
         offset += name_size;
     }
 
     /* update the various header fields */
     data64 = cpu_to_be64(snapshots_offset);
-    if (bdrv_pwrite(s->hd, offsetof(QCowHeader, snapshots_offset),
-                    &data64, sizeof(data64)) != sizeof(data64))
+    if (bdrv_pwrite_sync(bs->file, offsetof(QCowHeader, snapshots_offset),
+                    &data64, sizeof(data64)) < 0)
         goto fail;
     data32 = cpu_to_be32(s->nb_snapshots);
-    if (bdrv_pwrite(s->hd, offsetof(QCowHeader, nb_snapshots),
-                    &data32, sizeof(data32)) != sizeof(data32))
+    if (bdrv_pwrite_sync(bs->file, offsetof(QCowHeader, nb_snapshots),
+                    &data32, sizeof(data32)) < 0)
         goto fail;
 
     /* free the old snapshot table */
@@ -235,6 +238,7 @@ int qcow2_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_info)
     QCowSnapshot *snapshots1, sn1, *sn = &sn1;
     int i, ret;
     uint64_t *l1_table = NULL;
+    int64_t l1_table_offset;
 
     memset(sn, 0, sizeof(*sn));
 
@@ -263,16 +267,25 @@ int qcow2_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_info)
         goto fail;
 
     /* create the L1 table of the snapshot */
-    sn->l1_table_offset = qcow2_alloc_clusters(bs, s->l1_size * sizeof(uint64_t));
+    l1_table_offset = qcow2_alloc_clusters(bs, s->l1_size * sizeof(uint64_t));
+    if (l1_table_offset < 0) {
+        goto fail;
+    }
+
+    sn->l1_table_offset = l1_table_offset;
     sn->l1_size = s->l1_size;
 
-    l1_table = qemu_malloc(s->l1_size * sizeof(uint64_t));
+    if (s->l1_size != 0) {
+        l1_table = qemu_malloc(s->l1_size * sizeof(uint64_t));
+    } else {
+        l1_table = NULL;
+    }
+
     for(i = 0; i < s->l1_size; i++) {
         l1_table[i] = cpu_to_be64(s->l1_table[i]);
     }
-    if (bdrv_pwrite(s->hd, sn->l1_table_offset,
-                    l1_table, s->l1_size * sizeof(uint64_t)) !=
-        (s->l1_size * sizeof(uint64_t)))
+    if (bdrv_pwrite_sync(bs->file, sn->l1_table_offset,
+                    l1_table, s->l1_size * sizeof(uint64_t)) < 0)
         goto fail;
     qemu_free(l1_table);
     l1_table = NULL;
@@ -288,7 +301,7 @@ int qcow2_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_info)
     if (qcow_write_snapshots(bs) < 0)
         goto fail;
 #ifdef DEBUG_ALLOC
-    check_refcounts(bs);
+    qcow2_check_refcounts(bs);
 #endif
     return 0;
  fail:
@@ -318,11 +331,11 @@ int qcow2_snapshot_goto(BlockDriverState *bs, const char *snapshot_id)
     s->l1_size = sn->l1_size;
     l1_size2 = s->l1_size * sizeof(uint64_t);
     /* copy the snapshot l1 table to the current l1 table */
-    if (bdrv_pread(s->hd, sn->l1_table_offset,
+    if (bdrv_pread(bs->file, sn->l1_table_offset,
                    s->l1_table, l1_size2) != l1_size2)
         goto fail;
-    if (bdrv_pwrite(s->hd, s->l1_table_offset,
-                    s->l1_table, l1_size2) != l1_size2)
+    if (bdrv_pwrite_sync(bs->file, s->l1_table_offset,
+                    s->l1_table, l1_size2) < 0)
         goto fail;
     for(i = 0;i < s->l1_size; i++) {
         be64_to_cpus(&s->l1_table[i]);
@@ -332,7 +345,7 @@ int qcow2_snapshot_goto(BlockDriverState *bs, const char *snapshot_id)
         goto fail;
 
 #ifdef DEBUG_ALLOC
-    check_refcounts(bs);
+    qcow2_check_refcounts(bs);
 #endif
     return 0;
  fail:
@@ -369,7 +382,7 @@ int qcow2_snapshot_delete(BlockDriverState *bs, const char *snapshot_id)
         return ret;
     }
 #ifdef DEBUG_ALLOC
-    check_refcounts(bs);
+    qcow2_check_refcounts(bs);
 #endif
     return 0;
 }
