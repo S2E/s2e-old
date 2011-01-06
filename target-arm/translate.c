@@ -5783,7 +5783,7 @@ gen_traceBB( uint64_t  bbNum, void* tb )
     tcg_temp_free_i64(tmpNum);
 #elif HOST_LONG_BITS == 64
     TCGv_i64  tmpNum = tcg_temp_new_i64();
-    TCGv_i64  tmpTb  = tcg_temp_new_i32();
+    TCGv_i64  tmpTb  = tcg_temp_new_i64();
 
     tcg_gen_movi_i64(tmpNum, (int64_t)bbNum);
     tcg_gen_movi_i64(tmpTb,  (int64_t)tb);
