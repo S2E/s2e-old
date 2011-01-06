@@ -26,7 +26,7 @@ struct OutputChannel {
 
 OutputChannel* output_channel_alloc(void* opaque, OutputChannelPrintf cb)
 {
-    OutputChannel* oc = qemu_mallocz(sizeof(oc));
+    OutputChannel* oc = qemu_mallocz(sizeof(*oc));
     oc->printf  = cb;
     oc->opaque  = opaque;
     oc->written = 0;
