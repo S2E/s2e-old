@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<title>Using SystemTap with S2E</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="using-systemtap-with-s2e">
+<h1 class="title">Using SystemTap with S2E</h1>
+
+<p>SystemTap is a powerful tracing framework on Linux. It can intercept any function calls or instructions
+in the kernel and invoke a custom scripts. Such scripts have full access to the system state, can leverage
+debugging information, etc.</p>
+<p>SystemTap provides S2E users a flexible way of controlling symbolic execution.
+The user writes a SystemTap scripts with embedded calls to S2E custom instructions.
+This allows to inject symbolic values in any place, kill states based on complex
+conditions, etc.</p>
+<p>In this tutorial, we describe how to build and run SystemTap. We also give several
+examples of useful in-vivo analysis that can be achieved.</p>
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#building-the-linux-kernel" id="id1">Building the Linux kernel</a></li>
+<li><a class="reference internal" href="#building-systemtap-on-the-host" id="id2">Building SystemTap on the host</a></li>
+<li><a class="reference internal" href="#building-systemtap-on-the-guest" id="id3">Building SystemTap on the guest</a></li>
+<li><a class="reference internal" href="#creating-a-simple-s2e-script" id="id4">Creating a simple S2E script</a></li>
+<li><a class="reference internal" href="#running-the-script-in-the-guest" id="id5">Running the script in the guest</a></li>
+</ul>
+</div>
+<div class="section" id="building-the-linux-kernel">
+<h1>Building the Linux kernel</h1>
+<p>SystemTap requires a kernel built with the following settings:</p>
+<ul class="simple">
+<li>CONFIG_DEBUG_INFO=y</li>
+<li>CONFIG_RELAY=y</li>
+<li>CONFIG_KPROBES=y</li>
+<li>CONFIG_DEBUG_FS=y</li>
+</ul>
+<p>Refer to the &quot;Compiling the Linux kernel&quot; section of the <a class="reference external" href="BuildingS2E.html">Building S2E tutorial</a>
+for a list of detailed steps.</p>
+<p>Install the resulting kernel in the guest OS.</p>
+</div>
+<div class="section" id="building-systemtap-on-the-host">
+<h1>Building SystemTap on the host</h1>
+<p>We will compile the SystemTap scripts in the chrooted environment, upload them
+in the VM, and run them there. We could also compile the scripts directly inside
+the VM, but it is much slower.</p>
+<p>In the <tt class="docutils literal"><span class="pre">chroot</span></tt> environment you use to compile your kernel, do the following:</p>
+<pre class="literal-block">
+# Install the compiled kernel, headers, and debug information.
+# You must ensure that kernel-package = 11.015 is installed, later versions (&gt;=12)
+# strip the debug information from the kernel image/modules.
+
+
+# Adapt all the filenames accordingly
+$ dpkg -i linux-image-2.6.26.8-s2e.deb
+$ dpkg -i linux-headers-2.6.26.8-s2e.deb
+$ dpkg -i linux-image-2.6.26.8-s2e-dbg.deb
+
+# Get the SystemTap server, configure, compile, and install
+$ wget wget http://sourceware.org/systemtap/ftp/releases/systemtap-1.3.tar.gz
+$ tar xzvf systemtap-1.3.tar.gz
+$ cd systemtap-1.3
+$ ./configure
+$ make
+$ make install
+</pre>
+</div>
+<div class="section" id="building-systemtap-on-the-guest">
+<h1>Building SystemTap on the guest</h1>
+<p>Upload the kernel packages in the guest OS, install them, and reboot.
+Then, download SystemTap and install it following the same staps as previously described.</p>
+</div>
+<div class="section" id="creating-a-simple-s2e-script">
+<h1>Creating a simple S2E script</h1>
+<p>In this section, we show how to intercept the network packets received by the <tt class="docutils literal"><span class="pre">pcnet32</span></tt> driver
+and replace the content of specific packets with symbolic data.</p>
+<p>Create (on the host machine) a <tt class="docutils literal"><span class="pre">pcnet32.stp</span></tt> file with the following content:</p>
+<div class="highlight"><pre><span class="n">probe</span> <span class="nf">module</span><span class="p">(</span><span class="s">&quot;pcnet32&quot;</span><span class="p">).</span><span class="n">function</span><span class="p">(</span><span class="s">&quot;*&quot;</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s -&gt; %s</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">thread_indent</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">probefunc</span><span class="p">())</span>
+<span class="p">}</span>
+
+<span class="n">probe</span> <span class="n">module</span><span class="p">(</span><span class="s">&quot;pcnet32&quot;</span><span class="p">).</span><span class="n">function</span><span class="p">(</span><span class="s">&quot;*&quot;</span><span class="p">).</span><span class="k">return</span> <span class="p">{</span>
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s &lt;- %s</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">thread_indent</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">probefunc</span><span class="p">())</span>
+<span class="p">}</span>
+</pre></div>
+<p>Cross-compile it with SystemTap, adjusting the kernel revision to suite your needs.
+Since the chrooted environment runs a different kernel, cross-compiling is mandatory.</p>
+<pre class="literal-block">
+$ stap -r 2.6.26.8-s2e -m pcnet_probe pcnet32.stp
+WARNING: kernel release/architecture mismatch with host forces last-pass 4.
+pcnet_probe.ko
+</pre>
+<p>This will result in a module called <tt class="docutils literal"><span class="pre">pcnet_probe.ko</span></tt> that we will upload to the VM.</p>
+</div>
+<div class="section" id="running-the-script-in-the-guest">
+<h1>Running the script in the guest</h1>
+<p>Once you uploaded the <tt class="docutils literal"><span class="pre">pcnet_probe.ko</span></tt> module in the guest OS, run the following command:</p>
+<pre class="literal-block">
+$ staprun pcnet_probe.ko
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="SystemTap.rst">View document source</a>.
+
+</div>
+</body>
+</html>
