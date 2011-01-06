@@ -63,7 +63,7 @@ typedef int32_t socklen_t;
 #include "sysemu.h"
 #include "qemu_socket.h"
 
-#if !defined(_POSIX_C_SOURCE) || defined(_WIN32) || defined(__sun__)
+#if !defined(_POSIX_C_SOURCE) || defined(_WIN32) || defined(__sun__) || defined(__APPLE__)
 static void *oom_check(void *ptr)
 {
     if (ptr == NULL) {
@@ -107,7 +107,7 @@ void qemu_vfree(void *ptr)
 
 void *qemu_memalign(size_t alignment, size_t size)
 {
-#if defined(_POSIX_C_SOURCE) && !defined(__sun__)
+#if defined(_POSIX_C_SOURCE) && !defined(__sun__) && !defined(__APPLE__)
     int ret;
     void *ptr;
     ret = posix_memalign(&ptr, alignment, size);
