@@ -33,6 +33,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <algorithm>
 #include "Pe.h"
 #include "BFDInterface.h"
 

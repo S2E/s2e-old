@@ -33,6 +33,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <string.h>
 
 #include "Macho.h"
 #include "BFDInterface.h"
