@@ -1,0 +1,40 @@
+#Sample of Systemtap functions for S2E support
+
+/** Terminate current state. */
+function s2e_kill_state(status:long, message: string) %{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x06, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "a" ((uint32_t)THIS->status), "b" (THIS->message)
+    );
+%}
+
+/** Fill buffer with unconstrained symbolic values. */
+function s2e_make_symbolic(buf: long, size:long, name:string) %{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x03, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "a" ((uint32_t)THIS->buf), "b" ((uint32_t)THIS->size), "c" (THIS->name)
+    );
+%}
+
+/** Print message to the S2E log. */
+function s2e_message(message:string) %{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x10, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "a" (THIS->message)
+    );
+%}
+
+function s2e_print_expression(name: string, expression:long) %{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x07, 0x01, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "a" ((uint32_t)THIS->expression), "c" (THIS->name)
+    );
+%}

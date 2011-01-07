@@ -136,12 +136,16 @@ Using chroot makes it easy to compile a 32-bit kernel package on a 64-bit host.
 
    $ # Create the basic chroot environment
    $ debootstrap --arch i386 lenny debian32/ http://mirror.switch.ch/ftp/mirror/debian/
+   $ mount -t proc proc debian32/proc
 
    $ # Activate the chroot
    $ chroot ~/debian32
+   
+   $ # Setup devices
+   $ cd /dev; /sbin/MAKEDEV generic; cd ..
 
    $ # Install build tools
-   $ apt-get install build-essential kernel-package locales
+	$ apt-get install build-essential kernel-package locales
 
    $ # Set the locale to UTF-8, otherwise perl will complain   
    $ export LANGUAGE=en_US.UTF-8 
@@ -163,4 +167,4 @@ Using chroot makes it easy to compile a 32-bit kernel package on a 64-bit host.
    $ make-kpkg --append-to-version=-s2e --rootcmd fakeroot --initrd kernel_image kernel_headers
 
    
-The result of the process is three ``*.deb`` files that you can upload to your VM image.
+The result of the process is two ``*.deb`` files that you can upload to your VM image.

@@ -18,6 +18,10 @@ S²E Documentation
   1. `Step-by-step  tutorial <Windows/DriverTutorial.html>`_  
   2. `Setting up the checked build of Windows <Windows/CheckedBuild.html>`_  
   
+* Analyzing the Linux Kernel
+
+  1. `Using SystemTap with S2E <SystemTap.html>`_  
+  
 * S2E Tools
   
   1. Available Tools
