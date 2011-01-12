@@ -40,3 +40,8 @@ S²E Plugin Reference
 * `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
 * `FunctionMonitor <Plugins/FunctionMonitor.html>`_
 
+S²E Development
+===============
+
+* `Profiling S2E <ProfilingS2E.html>`_
+
