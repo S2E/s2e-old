@@ -56,10 +56,6 @@ public:
 private:
     void onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode);
-
-    bool createTables();
-    bool insertTiming(S2EExecutionState *state, uint64_t id);
-
 };
 
 } // namespace plugins

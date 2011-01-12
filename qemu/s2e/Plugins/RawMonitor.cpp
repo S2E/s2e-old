@@ -36,6 +36,8 @@
  *  of modules in memory.
  *
  *  This allows things like defining poritions of the BIOS.
+ *
+ *  RESERVES THE CUSTOM OPCODE 0xAA
  */
 
 extern "C" {
