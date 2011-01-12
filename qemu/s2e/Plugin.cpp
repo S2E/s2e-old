@@ -71,6 +71,7 @@
 #include <s2e/Plugins/WindowsApi/HalHandlers.h>
 
 #include <s2e/Plugins/Searchers/MaxTbSearcher.h>
+#include <s2e/Plugins/Searchers/CooperativeSearcher.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -130,6 +131,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::StateManager);
 
     __S2E_REGISTER_PLUGIN(plugins::MaxTbSearcher);
+    __S2E_REGISTER_PLUGIN(plugins::CooperativeSearcher);
 
     __S2E_REGISTER_PLUGIN(plugins::HostFiles);
 
