@@ -39,6 +39,9 @@ typedef enum ClientFBState {
  * Descriptor for the framebuffer client.
  */
 struct ClientFramebuffer {
+    /* Framebuffer for this client. */
+    QFrameBuffer*   fb;
+
     /* Core connection instance for the framebuffer client. */
     CoreConnection* core_connection;
 
@@ -68,20 +71,30 @@ struct ClientFramebuffer {
 static ClientFramebuffer _client_fb;
 
 /*
- * Updates a desplay rectangle.
+ * Updates a display rectangle.
  * Param
+ *  fb - Framebuffer where to update the rectangle.
  *  x, y, w, and h define rectangle to update.
  *  bits_per_pixel define number of bits used to encode a single pixel.
  *  pixels contains pixels for the rectangle. Buffer addressed by this parameter
  *      must be eventually freed with free()
  */
-void
-update_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+static void
+update_rect(QFrameBuffer* fb, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
             uint8_t bits_per_pixel, uint8_t* pixels)
 {
-    // TODO: Do the actual update!
-    printf("Update rectangle (%d bytes): %d:%d %d:%d\n",
-           w * h * (bits_per_pixel / 8), x, y, w, h);
+    if (fb != NULL) {
+        uint16_t n;
+        const uint8_t* src = pixels;
+        const uint16_t src_line_size = w * ((bits_per_pixel + 7) / 8);
+        uint8_t* dst  = (uint8_t*)fb->pixels + y * fb->pitch + x * fb->bytes_per_pixel;
+        for (n = 0; n < h; n++) {
+            memcpy(dst, src, src_line_size);
+            src += src_line_size;
+            dst += fb->pitch;
+        }
+        qframebuffer_update(fb, x, y, w, h);
+    }
     free(pixels);
 }
 
@@ -145,15 +158,18 @@ _clientfb_read_cb(void* opaque)
             fb_client->reader_buffer = (uint8_t*)&fb_client->update_header;
 
             // Perform the update. Note that pixels buffer must be freed there.
-            update_rect(fb_client->update_header.x, fb_client->update_header.y,
-                        fb_client->update_header.w, fb_client->update_header.h,
-                        fb_client->bits_per_pixel, pixels);
+            update_rect(fb_client->fb, fb_client->update_header.x,
+                        fb_client->update_header.y, fb_client->update_header.w,
+                        fb_client->update_header.h, fb_client->bits_per_pixel,
+                        pixels);
         }
     }
 }
 
 ClientFramebuffer*
-clientfb_create(SockAddress* console_socket, const char* protocol)
+clientfb_create(SockAddress* console_socket,
+                const char* protocol,
+                QFrameBuffer* fb)
 {
     char* connect_message = NULL;
     char switch_cmd[256];
@@ -212,6 +228,7 @@ clientfb_create(SockAddress* console_socket, const char* protocol)
     }
 
     // Now that we're connected lets initialize the descriptor.
+    _client_fb.fb = fb;
     _client_fb.sock = core_connection_get_socket(_client_fb.core_connection);
     _client_fb.fb_state = WAIT_HEADER;
     _client_fb.reader_buffer = (uint8_t*)&_client_fb.update_header;

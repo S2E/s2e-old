@@ -194,6 +194,19 @@ qemulator_get_layout(QEmulator* emulator)
     return emulator->layout;
 }
 
+QFrameBuffer*
+qemulator_get_first_framebuffer(QEmulator* emulator)
+{
+    /* register as a framebuffer clients for all displays defined in the skin file */
+    SKIN_FILE_LOOP_PARTS( emulator->layout_file, part )
+        SkinDisplay*  disp = part->display;
+        if (disp->valid) {
+            return disp->qfbuff;
+        }
+    SKIN_FILE_LOOP_END_PARTS
+    return NULL;
+}
+
 void
 qemulator_set_title(QEmulator* emulator)
 {

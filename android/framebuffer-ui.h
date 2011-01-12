@@ -19,6 +19,7 @@
 #define _ANDROID_FRAMEBUFFER_UI_H
 
 #include "console.h"
+#include "framebuffer.h"
 #include "android/looper.h"
 #include "android/async-utils.h"
 #include "android/core-connection.h"
@@ -33,11 +34,13 @@ typedef struct ClientFramebuffer ClientFramebuffer;
  *  protocol Protocol to use for the updates:
  *      -raw Stream pixels over socket
  *      -shared Use shared memory for pixels.
+ * fb - Framebuffer associated with this FB client.
  * Return:
  *  Descriptor for the framebuffer client on success, or NULL on failure.
  */
 ClientFramebuffer* clientfb_create(SockAddress* console_socket,
-                                   const char* protocol);
+                                   const char* protocol,
+                                   QFrameBuffer* fb);
 
 /*
  * Disconnects and destroys framebuffer client.
