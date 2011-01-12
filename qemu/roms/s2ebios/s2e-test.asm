@@ -4,7 +4,8 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_fork_test
+    call s2e_test_memobj
+    ;call s2e_fork_test
     ;call s2e_symbhwio_test
     ;call s2e_jmptbl_test
     ;call test_ndis
@@ -14,6 +15,111 @@ s2e_test:
     ;jmp s2e_test
     cli
     hlt
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Testing small memory objects
+%define S2E_PAGE_SZE
+memok: db "Memory test passed ok", 0
+membad: db "MEMORY TEST FAILED", 0
+val: db "Value", 0
+
+s2e_test_memobj:
+    %push mycontext
+    %stacksize flat
+    %assign %$localsize 0
+    %local root_id:dword, cur_count:dword, obj_bits:dword
+
+    enter %$localsize,0
+
+    mov dword [cur_count], 0
+
+    call s2e_get_path_id
+    mov [root_id], eax
+
+    call s2e_get_ram_object_bits
+    mov [obj_bits], eax
+
+    ;Create 100 states
+  stm0:
+    cmp dword [cur_count], 10
+    jz stm1
+
+    call s2e_int
+    cmp eax, 0
+    jz stm1                 ;One state exits the loop
+    inc dword [cur_count]   ;The other one continues it
+    jmp stm0
+
+  stm1:
+    ;In each state, we have a loop that
+    ;writes its state id in the page, yields,
+    ;checks the content when it gets back the control,
+    ;then exits
+
+
+    call s2e_get_path_id ;Get current path id in eax
+    mov edi, 0x100000     ;Start filling at 1MB
+
+    mov ecx, [obj_bits]
+    mov edx, 1
+    shl edx, cl          ;edx contains the size of the page
+    shr edx, 2           ;We want to store dwords
+
+    pusha
+    push val
+    push edx
+    call s2e_print_expression
+    add esp, 8
+    popa
+
+  stm2:
+
+    ;Fill the memory with the test pattern
+    mov ecx, edx
+    cld
+    rep stosd
+
+    ;Schedule another state
+    call s2e_coop_yield
+
+    ;Check that the memory is correct
+    mov ecx, edx
+    shl ecx, 2
+    sub edi, ecx
+    mov ecx, edx
+
+  stm3:
+    scasd
+    loopz stm3
+    jnz sterr
+
+    pusha
+    push val
+    push edi
+    call s2e_print_expression
+    add esp, 8
+    popa
+
+    cmp edi, 0x1000000
+    jb stm2
+
+    ;------------------------
+    ;Successfully completed the memory test
+    push memok
+    push 0
+    call s2e_kill_state
+
+    ;------------------------
+    ;Error during memory check
+  sterr:
+    push membad
+    push edi
+    call s2e_kill_state
+
+    leave
+    ret
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
