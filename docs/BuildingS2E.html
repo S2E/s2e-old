@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>Building the S2E Framework</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -45,10 +45,15 @@ $ sudo apt-get build-dep qemu
 </div>
 <div class="section" id="checking-out-s2e">
 <h1>Checking out S2E</h1>
-<p>S2E source code can be obtained from the DSLab GIT repository. To access it,
-you need to obtain an account on <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and upload your ssh
-public key to it. If you don't have an ssh key yet, you can generate it with
-the following command:</p>
+<p>S2E source code can be obtained from the DSLab GIT repository using the
+following commands:</p>
+<pre class="literal-block">
+$ cd $S2EDIR
+$ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git
+</pre>
+<p>Alternatively, you could obtain an account on <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and
+upload your ssh public key to it. If you don't have an ssh key yet, you can
+generate it with the following command:</p>
 <pre class="literal-block">
 $ ssh-keygen -t rsa -C you&#64;email
 &gt; answer questions: store key to default location, optionally set password for it
@@ -78,9 +83,9 @@ $ ln -s ../s2e/Makefile .
 $ make JOBS=4 # Replace 4 with your number of cores
 &gt; Go make some coffee, this will take a lot of time
 </pre>
-<p>By default, the <tt class="docutils literal"><span class="pre">make</span></tt> command will compile S2E in release mode. Resulting
+<p>By default, the <tt class="docutils literal">make</tt> command will compile S2E in release mode. Resulting
 binary will be placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu</span></tt>.
-To compile in Debug mode, use <tt class="docutils literal"><span class="pre">make</span> <span class="pre">all-debug</span> <span class="pre">JOBS=4</span></tt>.</p>
+To compile in Debug mode, use <tt class="docutils literal">make <span class="pre">all-debug</span> JOBS=4</tt>.</p>
 <p>You can also build each component of S2E manually, as described in <a class="reference external" href="BuildingS2EManually.html">Building
 The S2E Framework Manually</a>.</p>
 </div>
@@ -89,15 +94,15 @@ The S2E Framework Manually</a>.</p>
 <p>You could use the same make file to recompile S2E either when changing it
 yourself or when pulling new versions through the git. Note that the makefile
 won't automatically reconfigure the packages so for deep changes you might need
-to either start from scratch by issuing <tt class="docutils literal"><span class="pre">make</span> <span class="pre">clean</span></tt> or to force
+to either start from scratch by issuing <tt class="docutils literal">make clean</tt> or to force
 reconfiguration of specific modules by deleting corresponding files from
-<tt class="docutils literal"><span class="pre">stamps</span></tt> subdirectory.</p>
+<tt class="docutils literal">stamps</tt> subdirectory.</p>
 </div>
 <div class="section" id="re-building-s2e-documentation">
 <h1>Re-Building S2E Documentation</h1>
 <p>S2E documentation is written in <a class="reference external" href="http://docutils.sourceforge.net/rst.html">reStructuredText</a> format. For convenience, we also
 keep generated HTML files in the repository. Please never change HTML files
-manualy and always recompile them (by invoking <tt class="docutils literal"><span class="pre">make</span></tt> in the docs folder)
+manualy and always recompile them (by invoking <tt class="docutils literal">make</tt> in the docs folder)
 after changing any RST files.</p>
 </div>
 <div class="section" id="preparing-a-linux-vm-image">
@@ -128,7 +133,7 @@ guest$ su -c &quot;apt-get install build-essential&quot;
 <h1>Compiling the Linux kernel</h1>
 <p>Although S2E can run any kernel, it is often convenient to recompile it to suit particular needs.
 E.g., enabling Kprobes, adding debug information, etc.
-This sections explains how to do it on a Debian system using a <tt class="docutils literal"><span class="pre">chroot</span></tt> environment.
+This sections explains how to do it on a Debian system using a <tt class="docutils literal">chroot</tt> environment.
 Using chroot makes it easy to compile a 32-bit kernel package on a 64-bit host.</p>
 <pre class="literal-block">
 $ # Install the bootstrapping environment
@@ -172,7 +177,7 @@ $ make menuconfig
 $ # Compile and generate the packages
 $ make-kpkg --append-to-version=-s2e --rootcmd fakeroot --initrd kernel_image kernel_headers
 </pre>
-<p>The result of the process is two <tt class="docutils literal"><span class="pre">*.deb</span></tt> files that you can upload to your VM image.</p>
+<p>The result of the process is two <tt class="docutils literal">*.deb</tt> files that you can upload to your VM image.</p>
 </div>
 </div>
 <div class="footer">
