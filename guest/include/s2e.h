@@ -192,6 +192,16 @@ static inline void s2e_enable_all_apic_interrupts()
     );
 }
 
+/** Get the current S2E_RAM_OBJECT_BITS configuration macro */
+static inline int s2e_get_ram_object_bits()
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x52, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+    );
+}
+
 /** Declare a merge point: S2E will try to merge
  *  all states when they reach this point.
  *
