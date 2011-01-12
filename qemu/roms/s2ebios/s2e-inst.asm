@@ -251,7 +251,7 @@ mov ebp, esp
 
 mov eax, [ebp + 0x8] ;name
 mov ebx, [ebp + 0xC] ;loadbase
-mov ecx, [ebp + 0x10] ;entrypoint
+mov ecx, [ebp + 0x10] ;size
 
 db 0x0f
 db 0x3f ; S2EOP
