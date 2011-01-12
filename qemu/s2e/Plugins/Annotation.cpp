@@ -51,7 +51,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(Annotation, "Bypasses functions at run-time", "Annotation",
-                  "ModuleExecutionDetector", "FunctionMonitor", "Interceptor", "StateManager");
+                  "ModuleExecutionDetector", "FunctionMonitor", "Interceptor");
 
 void Annotation::initialize()
 {
