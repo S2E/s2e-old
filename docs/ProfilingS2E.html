@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<title>Profiling S2E</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="profiling-s2e">
+<h1 class="title">Profiling S2E</h1>
+
+<p>This page describes a techniques that we use to profile and optimize S2E itself.</p>
+<div class="section" id="running-oprofile">
+<h1>Running OProfile</h1>
+<ol class="arabic">
+<li><p class="first">Recompile STP, KLEE and QEMU with <tt class="docutils literal"><span class="pre">-fno-omit-frame-pointer</span></tt> option in CFLAGS and CXXFLAGS</p>
+</li>
+<li><p class="first">Run QEMU as usual with the workload you want to profile</p>
+</li>
+<li><p class="first">Start oprofile using the following commands:</p>
+<pre class="literal-block">
+$ sudo opcontrol --reset
+$ sudo opcontrol --no-vmlinux --callgraph=128 --start
+</pre>
+</li>
+<li><p class="first">Wait for some time to get statistics (remember, this is statistical profiling, time is important)</p>
+</li>
+<li><p class="first">Stop oprofile using the following command:</p>
+<pre class="literal-block">
+$ sudo opcontrol --stop
+</pre>
+</li>
+<li><p class="first">Now you can use opreport to generate various profiling reports</p>
+</li>
+</ol>
+</div>
+<div class="section" id="viewing-results-with-kcachegrind">
+<h1>Viewing results with kcachegrind</h1>
+<p>You can convert results to kcachegrind-readable format with the following command:</p>
+<pre class="literal-block">
+$ opreport -gdf | op2calltree
+</pre>
+<p>However, callgraph information is not preserved by this convertion tool.</p>
+</div>
+<div class="section" id="generating-callgraph-with-gprof2dot-and-graphviz">
+<h1>Generating callgraph with gprof2dot and graphviz</h1>
+<ol class="arabic">
+<li><p class="first">Download <tt class="docutils literal">gprof2dot</tt> tool from <a class="reference external" href="http://code.google.com/p/jrfonseca/wiki/Gprof2Dot">http://code.google.com/p/jrfonseca/wiki/Gprof2Dot</a></p>
+</li>
+<li><p class="first">Run the following commands:</p>
+<pre class="literal-block">
+$ opreport -lcD smart image:/path/to/qemu | \
+  ./gprof2dot.py -f oprofile -n 1 -e 1 -s &gt; prof.dot
+$ dot prof.dot -Tpng -o prof.png
+</pre>
+</li>
+</ol>
+<p>Now you can view generated prof.png file. You can change its verbosity by modifying <tt class="docutils literal"><span class="pre">-n</span></tt> and <tt class="docutils literal"><span class="pre">-e</span></tt> options (minimal percentage of nodes and edges to show), or removing <tt class="docutils literal"><span class="pre">-s</span></tt> option (strip function arguments).</p>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="ProfilingS2E.rst">View document source</a>.
+
+</div>
+</body>
+</html>

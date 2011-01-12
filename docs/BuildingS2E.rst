@@ -13,26 +13,31 @@ Required Packages
 
 ::
 
-$ sudo apt-get install build-essential
-$ sudo apt-get install subversion
-$ sudo apt-get install git
-$ sudo apt-get install qemu
-$ sudo apt-get install liblua5.1-dev
-$ sudo apt-get install libsigc++-2.0-dev
-$ sudo apt-get install binutils-dev
-$ sudo apt-get install python-docutils
-$ sudo apt-get install python-pygments
-$ sudo apt-get install nasm
-$ sudo apt-get build-dep llvm-2.7
-$ sudo apt-get build-dep qemu
+    $ sudo apt-get install build-essential
+    $ sudo apt-get install subversion
+    $ sudo apt-get install git
+    $ sudo apt-get install qemu
+    $ sudo apt-get install liblua5.1-dev
+    $ sudo apt-get install libsigc++-2.0-dev
+    $ sudo apt-get install binutils-dev
+    $ sudo apt-get install python-docutils
+    $ sudo apt-get install python-pygments
+    $ sudo apt-get install nasm
+    $ sudo apt-get build-dep llvm-2.7
+    $ sudo apt-get build-dep qemu
 
 Checking out S2E
 ================
 
-S2E source code can be obtained from the DSLab GIT repository. To access it,
-you need to obtain an account on https://dslabgit.epfl.ch and upload your ssh
-public key to it. If you don't have an ssh key yet, you can generate it with
-the following command::
+S2E source code can be obtained from the DSLab GIT repository using the
+following commands::
+
+   $ cd $S2EDIR
+   $ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git
+
+Alternatively, you could obtain an account on https://dslabgit.epfl.ch and
+upload your ssh public key to it. If you don't have an ssh key yet, you can
+generate it with the following command::
 
    $ ssh-keygen -t rsa -C you@email
    > answer questions: store key to default location, optionally set password for it
