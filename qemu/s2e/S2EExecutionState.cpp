@@ -658,7 +658,7 @@ bool S2EExecutionState::writeMemory(uint64_t address,
         return writeMemory8(address, ZExtExpr::create(value, Expr::Int8),
                             addressType);
 
-    } else if((address & ~S2E_RAM_OBJECT_MASK) + (width / 8) <= TARGET_PAGE_SIZE) {
+    } else if((address & ~S2E_RAM_OBJECT_MASK) + (width / 8) <= S2E_RAM_OBJECT_SIZE) {
         // All bytes belong to a single MemoryObject
 
         uint64_t hostAddress = getHostAddress(address, addressType);
