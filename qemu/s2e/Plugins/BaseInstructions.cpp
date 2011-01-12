@@ -67,32 +67,6 @@ void BaseInstructions::initialize()
 
 }
 
-bool BaseInstructions::createTables()
-{
-    const char *query = "create table TimingInstructions(" 
-          "'timestamp' unsigned big int,"  
-          "'data' unsigned big int,"
-          "'pc' unsigned big int,"
-          "'pid' unsigned big int"
-          "); create index if not exists TimingInstructionsIdx on TimingInstructions(timestamp);";
-    
-    Database *db = s2e()->getDb();
-    return db->executeQuery(query);
-}
-
-
-
-bool BaseInstructions::insertTiming(S2EExecutionState *state, uint64_t id)
-{
-    char buf[512];
-    uint64_t timestamp = llvm::sys::TimeValue::now().usec();
-    snprintf(buf, sizeof(buf), "insert into TimingInstructions('%"PRIu64"', '%"PRIu64"', '%"PRIu64"', '%"PRIu64"');", 
-        timestamp, id, state->getPc(), state->getPid());
-    
-    Database *db = s2e()->getDb();
-    return db->executeQuery(buf);
-}
-
 /** Handle s2e_op instruction. Instructions:
     0f 3f XX XX XX XX XX XX XX XX
     XX: opcode
@@ -149,20 +123,12 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             }
             break;
         }
-        case 4: 
-            {
-                //Timing opcode
-                uint64_t low = state->readCpuState(offsetof(CPUX86State, regs[R_EAX]), 8*sizeof(uint32_t));
-                uint64_t high = state->readCpuState(offsetof(CPUX86State, regs[R_EDX]), 8*sizeof(uint32_t));
-                insertTiming(state, (high << 32LL) | low);
-                break;
-            }
 
         case 5:
             {
                 //Get current path
                 state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
-                    klee::ConstantExpr::create(123, klee::Expr::Int32));
+                    klee::ConstantExpr::create(state->getID(), klee::Expr::Int32));
                 break;
             }
 
@@ -359,11 +325,19 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                                  disabled, 8);
             break;
         }
+
+        case 0x52: { /* Gets the current S2E memory object size (in power of 2) */
+                uint32_t size = S2E_RAM_OBJECT_BITS;
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &size, 4);
+                break;
+        }
+
         case 0x70: /* merge point */
             s2e()->getExecutor()->jumpToSymbolicCpp(state);
             s2e()->getExecutor()->queueStateForMerge(state);
             break;
-        default:
+
+    default:
             s2e()->getWarningsStream(state)
                 << "BaseInstructions: Invalid built-in opcode " << hexval(opcode) << std::endl;
             break;
@@ -373,15 +347,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode)
 {
-    s2e()->getDebugStream() << "BaseInstructions: Custom instruction 0x" << std::hex <<   opcode << std::dec << std::endl;
-
-    switch(opcode & 0xFF) {
-        case 0x00:
-            handleBuiltInOps(state, opcode);
-            break;
-        default:
-            s2e()->getWarningsStream() << "BaseInstructions: Invalid custom operation 0x"<< std::hex << opcode<< " at 0x" <<
-                state->getPc() << std::dec << std::endl;
+    uint8_t opc = (opcode>>8) & 0xFF;
+    if (opc <= 0x70) {
+        handleBuiltInOps(state, opcode);
     }
 }
 
