@@ -225,9 +225,6 @@ corefb_update(CoreFramebuffer* core_fb, struct DisplayState* ds,
     AsyncStatus status;
     FBUpdateNotify* descr = fbupdatenotify_create(core_fb, fb, x, y, w, h);
 
-    printf("Update framebuffer (%u bytes): %d:%d - %d:%d         ",
-           descr->message_size, x, y, w, h);
-
     // Lets see if we should list it behind other pending updates.
     if (core_fb->fb_update_tail != NULL) {
         core_fb->fb_update_tail->next_fb_update = descr;

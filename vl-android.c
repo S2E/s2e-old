@@ -4587,6 +4587,17 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+    /* Parse GUI option early, so when we init framebuffer in goldfish we have
+     * saved display parameters. */
+    if (android_op_gui) {
+        if (parse_androig_gui_option(android_op_gui,
+                                     &android_display_width,
+                                     &android_display_height,
+                                     &android_display_bpp)) {
+            PANIC("Unable to parse -android-gui parameter: %s", android_op_gui);
+        }
+    }
+
     /* Initialize character map. */
     if (android_charmap_setup(op_charmap_file)) {
         if (op_charmap_file) {
@@ -5164,16 +5175,12 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+    /* just use the first displaystate for the moment */
+    ds = display_state = get_displaystate();
+
     if (!display_state) {
         if (android_op_gui) {
             /* Initialize display from the command line parameters. */
-            if (parse_androig_gui_option(android_op_gui,
-                                         &android_display_width,
-                                         &android_display_height,
-                                         &android_display_bpp)) {
-                PANIC("Unable to parse -android-gui parameter: %s",
-                                  android_op_gui);
-            }
             android_display_init_from(android_display_width,
                                       android_display_height, 0,
                                       android_display_bpp);
@@ -5182,20 +5189,10 @@ int main(int argc, char **argv, char **envp)
         }
     } else if (android_op_gui) {
         /* Resize display from the command line parameters. */
-        if (parse_androig_gui_option(android_op_gui,
-                                     &android_display_width,
-                                     &android_display_height,
-                                     &android_display_bpp)) {
-            PANIC("Unable to parse -android-gui parameter: %s",
-                              android_op_gui);
-        }
         display_state->surface = qemu_resize_displaysurface(display_state,
                                                             android_display_width,
                                                             android_display_height);
     }
-
-    /* just use the first displaystate for the moment */
-    ds = display_state = get_displaystate();
 
     if (display_type == DT_DEFAULT) {
 #if defined(CONFIG_SDL) || defined(CONFIG_COCOA)

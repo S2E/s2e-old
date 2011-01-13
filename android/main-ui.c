@@ -862,6 +862,7 @@ attach_to_core(AndroidOptions* opts) {
     int iter;
     SockAddress console_socket;
     SockAddress** sockaddr_list;
+    QEmulator* emulator;
 
     // Parse attach_core param extracting the host name, and the port name.
     char* console_address = strdup(opts->attach_core);
@@ -943,7 +944,9 @@ attach_to_core(AndroidOptions* opts) {
         return -1;
     }
 
-    fb_client = clientfb_create(&console_socket, "-raw");
+    emulator = qemulator_get();
+    fb_client = clientfb_create(&console_socket, "-raw",
+                                qemulator_get_first_framebuffer(emulator));
     if (fb_client == NULL) {
         return -1;
     }
@@ -1044,14 +1047,6 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    // Lets see if we're attaching to a running core process here.
-    if (opts->attach_core) {
-        /* TODO: This is just for the testing and debugging purposes. Later,
-         * when code develops, there will be more meat on that bone. */
-        if (attach_to_core(opts)) {
-            return -1;
-        }
-    }
 
     if (android_charmap_setup(opts->charmap)) {
         exit(1);
@@ -1374,6 +1369,15 @@ int main(int argc, char **argv)
 
     emulator_config_init();
     init_skinned_ui(opts->skindir, opts->skin, opts);
+
+    // Lets see if we're attaching to a running core process here.
+    if (opts->attach_core) {
+        /* TODO: This is just for the testing and debugging purposes. Later,
+         * when code develops, there will be more meat on that bone. */
+        if (attach_to_core(opts)) {
+            return -1;
+        }
+    }
 
     if (!opts->netspeed) {
         if (skin_network_speed)
