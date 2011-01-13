@@ -22,8 +22,11 @@
  *
  * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
  *
- * Main authors: Vitaly Chipounov, Volodymyr Kuznetsov.
- * All S2E contributors are listed in the S2E-AUTHORS file.
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
  *
  */
 

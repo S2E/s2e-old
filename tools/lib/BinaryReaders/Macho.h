@@ -49,8 +49,11 @@
  * @APPLE_LICENSE_HEADER_END@
  *
  *
- * Main authors: Vitaly Chipounov, Volodymyr Kuznetsov.
- * All S2E contributors are listed in the S2E-AUTHORS file.
+ * Currently maintained by:
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
  *
  */
 #ifndef S2ETOOLS_MACHO_H
