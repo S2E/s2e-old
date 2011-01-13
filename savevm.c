@@ -341,13 +341,13 @@ typedef struct QEMUFileBdrv
 static int block_put_buffer(void *opaque, const uint8_t *buf,
                            int64_t pos, int size)
 {
-    bdrv_save_vmstate(opaque, buf, pos, size);
+    bdrv_save_vmstate(((QEMUFileBdrv*)opaque)->bs, buf, pos, size);
     return size;
 }
 
 static int block_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
 {
-    return bdrv_load_vmstate(opaque, buf, pos, size);
+    return bdrv_load_vmstate(((QEMUFileBdrv*)opaque)->bs, buf, pos, size);
 }
 
 static int bdrv_fclose(void *opaque)
