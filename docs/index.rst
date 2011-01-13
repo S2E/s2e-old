@@ -45,3 +45,23 @@ S²E Development
 
 * `Profiling S2E <ProfilingS2E.html>`_
 
+S²E Publications
+================
+
+* S2E: A Platform for In Vivo Multi-Path Analysis of Software Systems. Vitaly
+  Chipounov, Volodymyr Kuznetsov, George Candea. 16th Intl. Conference on
+  Architectural Support for Programming Languages and Operating Systems
+  (`ASPLOS <http://asplos11.cs.ucr.edu/>`_), Newport Beach, CA, March 2011.
+  [coming soon]
+* `Testing Closed-Source Binary Device Drivers with DDT
+  <http://dslab.epfl.ch/pubs/ddt>`_. Volodymyr Kuznetsov, Vitaly Chipounov,
+  George Candea. USENIX Annual Technical Conference (`USENIX
+  <http://www.usenix.org/event/atc10/>`_), Boston, MA, June 2010.
+* `Reverse Engineering of Binary Device Drivers with RevNIC
+  <http://dslab.epfl.ch/pubs/revnic>`_. Vitaly Chipounov and George Candea. 5th
+  ACM SIGOPS/EuroSys European Conference on Computer Systems (`EuroSys
+  <http://eurosys2010.sigops-france.fr/>`_), Paris, France, April 2010.
+* `Selective Symbolic Execution <http://dslab.epfl.ch/pubs/selsymbex>`_. Vitaly
+  Chipounov, Vlad Georgescu, Cristian Zamfir, George Candea. Proc. 5th Workshop
+  on Hot Topics in System Dependability, Lisbon, Portugal, June 2009
+
