@@ -121,6 +121,9 @@ ControlClient attached_ui_client = NULL;
 ControlClient framebuffer_client = NULL;
 #endif  // CONFIG_STANDALONE_CORE
 
+/* -android-avdname option value. Defined in vl-android.c */
+extern char* android_op_avd_name;
+
 static int
 control_global_add_redir( ControlGlobal  global,
                           int            host_port,
@@ -2170,7 +2173,7 @@ do_avd_status( ControlClient  client, char*  args )
 static int
 do_avd_name( ControlClient  client, char*  args )
 {
-    control_write( client, "%s\r\n", avdInfo_getName(android_avdInfo) );
+    control_write( client, "%s\r\n", android_op_avd_name);
     return 0;
 }
 

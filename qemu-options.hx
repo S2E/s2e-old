@@ -1644,6 +1644,12 @@ DEF("android-memcheck", HAS_ARG, QEMU_OPTION_android_memcheck, \
 DEF("dns-server", HAS_ARG, QEMU_OPTION_dns_server, \
     "-dns-server <servers> use this DNS server(s) in the emulated system\n")
 
+DEF("timezone", HAS_ARG, QEMU_OPTION_timezone, \
+    "-timezone <timezone> use this timezone instead of the host's default\n")
+
+DEF("android-avdname", HAS_ARG, QEMU_OPTION_android_avdname, \
+    "-android-avdname <avdname> names the virtual device\n")
+
 DEF("radio", HAS_ARG, QEMU_OPTION_radio, \
     "-radio <device> redirect radio modem interface to character device\n")
 

@@ -702,6 +702,7 @@ CORE_MISC_SOURCES = vl-android.c \
                     android/core-init-utils.c   \
                     android/config.c \
                     android/snapshot.c \
+                    android/utils/timezone.c \
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -757,6 +758,7 @@ UI_SOURCES = loadpng.c \
              android/qemulator.c \
              android/keycode.c \
              android/help.c \
+             android/avd/info.c \
 
 ##############################################################################
 # lists of source files used by both, emulator UI and emulator core
@@ -783,10 +785,8 @@ UI_AND_CORE_SOURCES = \
                       android/utils/stralloc.c \
                       android/utils/system.c \
                       android/utils/tempfile.c \
-                      android/utils/timezone.c \
                       android/utils/vector.c \
                       android/avd/hw-config.c \
-                      android/avd/info.c \
                       android/utils/ini.c \
 
 # include the Zlib sources

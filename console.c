@@ -312,10 +312,10 @@ static void vga_bitblt(DisplayState *ds, int xs, int ys, int xd, int yd, int w, 
 
 #define cbswap_32(__x) \
 ((uint32_t)( \
-		(((uint32_t)(__x) & (uint32_t)0x000000ffUL) << 24) | \
-		(((uint32_t)(__x) & (uint32_t)0x0000ff00UL) <<  8) | \
-		(((uint32_t)(__x) & (uint32_t)0x00ff0000UL) >>  8) | \
-		(((uint32_t)(__x) & (uint32_t)0xff000000UL) >> 24) ))
+        (((uint32_t)(__x) & (uint32_t)0x000000ffUL) << 24) | \
+        (((uint32_t)(__x) & (uint32_t)0x0000ff00UL) <<  8) | \
+        (((uint32_t)(__x) & (uint32_t)0x00ff0000UL) >>  8) | \
+        (((uint32_t)(__x) & (uint32_t)0xff000000UL) >> 24) ))
 
 #ifdef HOST_WORDS_BIGENDIAN
 #define PAT(x) x
@@ -1395,7 +1395,7 @@ DisplayState *graphic_console_init(vga_hw_update_ptr update,
     DisplayState *ds;
 
     ds = (DisplayState *) qemu_mallocz(sizeof(DisplayState));
-    ds->allocator = &default_allocator; 
+    ds->allocator = &default_allocator;
 #ifdef CONFIG_ANDROID
     ds->surface = qemu_create_displaysurface(ds, android_display_width, android_display_height);
 #else
