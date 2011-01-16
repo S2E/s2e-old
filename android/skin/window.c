@@ -151,10 +151,18 @@ static __inline__ uint32_t  rgb565_to_argb32( uint32_t  pix )
     uint32_t  r = ((pix & 0xf800) << 8) | ((pix & 0xe000) << 3);
     uint32_t  g = ((pix & 0x07e0) << 5) | ((pix & 0x0600) >> 1);
     uint32_t  b = ((pix & 0x001f) << 3) | ((pix & 0x001c) >> 2);
-
     return 0xff000000 | r | g | b;
 }
 
+/* The framebuffer format is R,G,B,X in framebuffer memory, on a
+ * little-endian system, this translates to XBGR after a load.
+ */
+static __inline__ uint32_t  xbgr_to_argb32( uint32_t pix )
+{
+    uint32_t  g  = (pix & 0x0000ff00);
+    uint32_t  rb = (pix & 0xff00ff);
+    return 0xff000000 | (rb << 16) | g | (rb >> 16);
+}
 
 static void
 display_set_onion( ADisplay*  disp, SkinImage*  onion, SkinRotation  rotation, int  blend )
@@ -366,6 +374,184 @@ lcd_off_argb32( unsigned char*  pixels, SkinRect*  r, int  pitch )
     }
 }
 
+static void
+display_redraw_rect16( ADisplay* disp, SkinRect* rect, SDL_Surface* surface)
+{
+    int           x  = rect->pos.x - disp->rect.pos.x;
+    int           y  = rect->pos.y - disp->rect.pos.y;
+    int           w  = rect->size.w;
+    int           h  = rect->size.h;
+    int           disp_w    = disp->rect.size.w;
+    int           disp_h    = disp->rect.size.h;
+    int           dst_pitch = surface->pitch;
+    uint8_t*      dst_line  = (uint8_t*)surface->pixels + rect->pos.x*4 + rect->pos.y*dst_pitch;
+    int           src_pitch = disp->datasize.w*2;
+    uint8_t*      src_line  = (uint8_t*)disp->data;
+    int           yy, xx;
+
+    switch ( disp->rotation & 3 )
+    {
+    case ANDROID_ROTATION_0:
+        src_line += x*2 + y*src_pitch;
+
+        for (yy = h; yy > 0; yy--)
+        {
+            uint32_t*  dst = (uint32_t*)dst_line;
+            uint16_t*  src = (uint16_t*)src_line;
+
+            for (xx = 0; xx < w; xx++) {
+                dst[xx] = rgb565_to_argb32(src[xx]);
+            }
+            src_line += src_pitch;
+            dst_line += dst_pitch;
+        }
+        break;
+
+    case ANDROID_ROTATION_90:
+        src_line += y*2 + (disp_w - x - 1)*src_pitch;
+
+        for (yy = h; yy > 0; yy--)
+        {
+            uint32_t*  dst = (uint32_t*)dst_line;
+            uint8_t*   src = src_line;
+
+            for (xx = w; xx > 0; xx--)
+            {
+                dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
+                src -= src_pitch;
+                dst += 1;
+            }
+            src_line += 2;
+            dst_line += dst_pitch;
+        }
+        break;
+
+    case ANDROID_ROTATION_180:
+        src_line += (disp_w -1 - x)*2 + (disp_h-1-y)*src_pitch;
+
+        for (yy = h; yy > 0; yy--)
+        {
+            uint16_t*  src = (uint16_t*)src_line;
+            uint32_t*  dst = (uint32_t*)dst_line;
+
+            for (xx = w; xx > 0; xx--) {
+                dst[0] = rgb565_to_argb32(src[0]);
+                src -= 1;
+                dst += 1;
+            }
+
+            src_line -= src_pitch;
+            dst_line += dst_pitch;
+    }
+    break;
+
+    default:  /* ANDROID_ROTATION_270 */
+        src_line += (disp_h-1-y)*2 + x*src_pitch;
+
+        for (yy = h; yy > 0; yy--)
+        {
+            uint32_t*  dst = (uint32_t*)dst_line;
+            uint8_t*   src = src_line;
+
+            for (xx = w; xx > 0; xx--) {
+                dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
+                dst   += 1;
+                src   += src_pitch;
+            }
+            src_line -= 2;
+            dst_line += dst_pitch;
+        }
+    }
+}
+
+static void
+display_redraw_rect32( ADisplay* disp, SkinRect* rect,SDL_Surface* surface)
+{
+    int           x  = rect->pos.x - disp->rect.pos.x;
+    int           y  = rect->pos.y - disp->rect.pos.y;
+    int           w  = rect->size.w;
+    int           h  = rect->size.h;
+    int           disp_w    = disp->rect.size.w;
+    int           disp_h    = disp->rect.size.h;
+    int           dst_pitch = surface->pitch;
+    uint8_t*      dst_line  = (uint8_t*)surface->pixels + rect->pos.x*4 + rect->pos.y*dst_pitch;
+    int           src_pitch = disp->datasize.w*4;
+    uint8_t*      src_line  = (uint8_t*)disp->data;
+    int           yy, xx;
+
+    switch ( disp->rotation & 3 )
+    {
+    case ANDROID_ROTATION_0:
+        src_line += x*4 + y*src_pitch;
+
+        for (yy = h; yy > 0; yy--) {
+            uint32_t*  src = (uint32_t*)src_line;
+            uint32_t*  dst = (uint32_t*)dst_line;
+
+            for (xx = 0; xx < w; xx++) {
+                dst[xx] = xbgr_to_argb32(src[xx]);
+            }
+            src_line += src_pitch;
+            dst_line += dst_pitch;
+        }
+        break;
+
+    case ANDROID_ROTATION_90:
+        src_line += y*4 + (disp_w - x - 1)*src_pitch;
+
+        for (yy = h; yy > 0; yy--)
+        {
+            uint32_t*  dst = (uint32_t*)dst_line;
+            uint8_t*   src = src_line;
+
+            for (xx = w; xx > 0; xx--)
+            {
+                dst[0] = xbgr_to_argb32(*(uint32_t*)src);
+                src -= src_pitch;
+                dst += 1;
+            }
+            src_line += 4;
+            dst_line += dst_pitch;
+        }
+        break;
+
+    case ANDROID_ROTATION_180:
+        src_line += (disp_w -1 - x)*4 + (disp_h-1-y)*src_pitch;
+
+        for (yy = h; yy > 0; yy--)
+        {
+            uint32_t*  src = (uint32_t*)src_line;
+            uint32_t*  dst = (uint32_t*)dst_line;
+
+            for (xx = w; xx > 0; xx--) {
+                dst[0] = xbgr_to_argb32(src[0]);
+                src -= 1;
+                dst += 1;
+            }
+
+            src_line -= src_pitch;
+            dst_line += dst_pitch;
+    }
+    break;
+
+    default:  /* ANDROID_ROTATION_270 */
+        src_line += (disp_h-1-y)*4 + x*src_pitch;
+
+        for (yy = h; yy > 0; yy--)
+        {
+            uint32_t*  dst = (uint32_t*)dst_line;
+            uint8_t*   src = src_line;
+
+            for (xx = w; xx > 0; xx--) {
+                dst[0] = xbgr_to_argb32(*(uint32_t*)src);
+                dst   += 1;
+                src   += src_pitch;
+            }
+            src_line -= 4;
+            dst_line += dst_pitch;
+        }
+    }
+}
 
 static void
 display_redraw( ADisplay*  disp, SkinRect*  rect, SDL_Surface*  surface )
@@ -374,21 +560,11 @@ display_redraw( ADisplay*  disp, SkinRect*  rect, SDL_Surface*  surface )
 
     if (skin_rect_intersect( &r, rect, &disp->rect ))
     {
-        int           x  = r.pos.x - disp->rect.pos.x;
-        int           y  = r.pos.y - disp->rect.pos.y;
-        int           w  = r.size.w;
-        int           h  = r.size.h;
-        int           disp_w    = disp->rect.size.w;
-        int           disp_h    = disp->rect.size.h;
-        int           dst_pitch = surface->pitch;
-        uint8_t*      dst_line  = (uint8_t*)surface->pixels + r.pos.x*4 + r.pos.y*dst_pitch;
-        int           src_pitch = disp->datasize.w*2;
-        uint8_t*      src_line  = (uint8_t*)disp->data;
-        int           yy, xx;
 #if 0
         fprintf(stderr, "--- display redraw r.pos(%d,%d) r.size(%d,%d) "
                         "disp.pos(%d,%d) disp.size(%d,%d) datasize(%d,%d) rect.pos(%d,%d) rect.size(%d,%d)\n",
-                        r.pos.x - disp->rect.pos.x, r.pos.y - disp->rect.pos.y, w, h, disp->rect.pos.x, disp->rect.pos.y,
+                        r.pos.x - disp->rect.pos.x, r.pos.y - disp->rect.pos.y,
+                        r.size.w, r.size.h, disp->rect.pos.x, disp->rect.pos.y,
                         disp->rect.size.w, disp->rect.size.h, disp->datasize.w, disp->datasize.h,
                         rect->pos.x, rect->pos.y, rect->size.w, rect->size.h );
 #endif
@@ -396,83 +572,14 @@ display_redraw( ADisplay*  disp, SkinRect*  rect, SDL_Surface*  surface )
 
         if (disp->brightness == LCD_BRIGHTNESS_OFF)
         {
-            lcd_off_argb32( surface->pixels, &r, dst_pitch );
+            lcd_off_argb32( surface->pixels, &r, surface->pitch );
         }
         else
         {
-            switch ( disp->rotation & 3 )
-            {
-            case ANDROID_ROTATION_0:
-                src_line += x*2 + y*src_pitch;
-
-                for (yy = h; yy > 0; yy--)
-                {
-                    uint32_t*  dst = (uint32_t*)dst_line;
-                    uint16_t*  src = (uint16_t*)src_line;
-
-                    for (xx = 0; xx < w; xx++) {
-                        dst[xx] = rgb565_to_argb32(src[xx]);
-                    }
-                    src_line += src_pitch;
-                    dst_line += dst_pitch;
-                }
-                break;
-
-            case ANDROID_ROTATION_90:
-                src_line += y*2 + (disp_w - x - 1)*src_pitch;
-
-                for (yy = h; yy > 0; yy--)
-                {
-                    uint32_t*  dst = (uint32_t*)dst_line;
-                    uint8_t*   src = src_line;
-
-                    for (xx = w; xx > 0; xx--)
-                    {
-                        dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
-                        src -= src_pitch;
-                        dst += 1;
-                    }
-                    src_line += 2;
-                    dst_line += dst_pitch;
-                }
-                break;
-
-            case ANDROID_ROTATION_180:
-                src_line += (disp_w -1 - x)*2 + (disp_h-1-y)*src_pitch;
-
-                for (yy = h; yy > 0; yy--)
-                {
-                    uint16_t*  src = (uint16_t*)src_line;
-                    uint32_t*  dst = (uint32_t*)dst_line;
-
-                    for (xx = w; xx > 0; xx--) {
-                        dst[0] = rgb565_to_argb32(src[0]);
-                        src -= 1;
-                        dst += 1;
-                    }
-
-                    src_line -= src_pitch;
-                    dst_line += dst_pitch;
-            }
-            break;
-
-            default:  /* ANDROID_ROTATION_270 */
-                src_line += (disp_h-1-y)*2 + x*src_pitch;
-
-                for (yy = h; yy > 0; yy--)
-                {
-                    uint32_t*  dst = (uint32_t*)dst_line;
-                    uint8_t*   src = src_line;
-
-                    for (xx = w; xx > 0; xx--) {
-                        dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
-                        dst   += 1;
-                        src   += src_pitch;
-                    }
-                    src_line -= 2;
-                    dst_line += dst_pitch;
-                }
-            }
+            if (disp->qfbuff->bits_per_pixel == 32)
+                display_redraw_rect32(disp, &r, surface);
+            else
+                display_redraw_rect16(disp, &r, surface);
 #if DOT_MATRIX
             dotmatrix_dither_argb32( surface->pixels, r.pos.x, r.pos.y, r.size.w, r.size.h, surface->pitch );
 #endif
@@ -502,7 +609,7 @@ display_redraw( ADisplay*  disp, SkinRect*  rect, SDL_Surface*  surface )
             }
         }
 
-        SDL_UpdateRect( surface, r.pos.x, r.pos.y, w, h );
+        SDL_UpdateRect( surface, r.pos.x, r.pos.y, r.size.w, r.size.h );
     }
 }
 

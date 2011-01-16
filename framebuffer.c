@@ -37,6 +37,8 @@ _get_pitch( int  width, QFrameBufferFormat  format )
     switch (format) {
         case QFRAME_BUFFER_RGB565:
             return width*2;
+        case QFRAME_BUFFER_RGBX_8888:
+            return width*4;
         default:
             return -1;
     }
@@ -49,6 +51,8 @@ _get_bits_per_pixel(QFrameBufferFormat  format)
     switch (format) {
         case QFRAME_BUFFER_RGB565:
             return 16;
+        case QFRAME_BUFFER_RGBX_8888:
+            return 32;
         default:
             return -1;
     }
@@ -61,6 +65,8 @@ _get_bytes_per_pixel(QFrameBufferFormat  format)
     switch (format) {
         case QFRAME_BUFFER_RGB565:
             return 2;
+        case QFRAME_BUFFER_RGBX_8888:
+            return 4;
         default:
             return -1;
     }
@@ -84,11 +90,11 @@ qframebuffer_init( QFrameBuffer*       qfbuff,
     if (pitch < 0)
         return -1;
 
-	bits_per_pixel = _get_bits_per_pixel(format);
-	if (bits_per_pixel < 0)
-		return -1;
+    bits_per_pixel = _get_bits_per_pixel(format);
+    if (bits_per_pixel < 0)
+        return -1;
 
-	bytes_per_pixel = _get_bytes_per_pixel(format);
+    bytes_per_pixel = _get_bytes_per_pixel(format);
     if (bytes_per_pixel < 0)
         return -1;
 

@@ -375,8 +375,13 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
             if(x && isdigit(x[1])) {
                 int width = atoi(name);
                 int height = atoi(x + 1);
-                sprintf(tmp,"display {\n  width %d\n  height %d\n}\n",
-                        width, height);
+                int bpp   = 16;
+                char* y = strchr(x+1, 'x');
+                if (y && isdigit(y[1])) {
+                    bpp = atoi(y+1);
+                }
+                sprintf(tmp,"display {\n  width %d\n  height %d\n bpp %d}\n",
+                        width, height,bpp);
                 aconfig_load(root, strdup(tmp));
                 path = ":";
                 goto found_a_skin;

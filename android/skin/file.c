@@ -91,6 +91,7 @@ skin_display_init_from( SkinDisplay*  display, AConfig*  node )
     display->rect.size.w = aconfig_int(node, "width", 0);
     display->rect.size.h = aconfig_int(node, "height", 0);
     display->rotation    = aconfig_unsigned(node, "rotation", SKIN_ROTATION_0);
+    display->bpp         = aconfig_int(node, "bpp", 16);
 
     display->valid = ( display->rect.size.w > 0 && display->rect.size.h > 0 );
 
@@ -101,7 +102,8 @@ skin_display_init_from( SkinDisplay*  display, AConfig*  node )
                            r.size.w,
                            r.size.h,
                            0,
-                           QFRAME_BUFFER_RGB565 );
+                           display->bpp == 32 ? QFRAME_BUFFER_RGBX_8888
+                                              : QFRAME_BUFFER_RGB565 );
 
         qframebuffer_fifo_add( display->qfbuff );
     }

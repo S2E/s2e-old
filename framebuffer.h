@@ -40,6 +40,7 @@ typedef struct QFrameBuffer   QFrameBuffer;
 typedef enum {
     QFRAME_BUFFER_NONE   = 0,
     QFRAME_BUFFER_RGB565 = 1,
+    QFRAME_BUFFER_RGBX_8888 = 2,
     QFRAME_BUFFER_MAX          /* do not remove */
 } QFrameBufferFormat;
 

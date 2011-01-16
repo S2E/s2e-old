@@ -88,7 +88,7 @@ void android_display_init(DisplayState* ds, QFrameBuffer* qf)
     ds->opaque    = qf;
     ds->surface   = qemu_create_displaysurface_from(qf->width,
                                                     qf->height,
-                                                    16,
+                                                    qf->bits_per_pixel,
                                                     qf->pitch,
                                                     qf->pixels);
 

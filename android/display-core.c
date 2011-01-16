@@ -79,14 +79,24 @@ coredisplay_fb_done(void* opaque)
 void
 coredisplay_init(DisplayState* ds)
 {
+    int format;
+
     core_display.ds = ds;
     /* Create and initialize framebuffer instance that will be used for core
      * display.
      */
     ANEW0(core_display.fb);
     core_display.core_fb = NULL;
+
+    /* In the core, there is no skin to parse and the format of ds->surface
+     * is determined by the -android-gui option.
+     */
+    format = QFRAME_BUFFER_RGB565;
+    if (ds->surface->pf.bytes_per_pixel == 4)
+        format = QFRAME_BUFFER_RGBX_8888;
+
     qframebuffer_init(core_display.fb, ds->surface->width, ds->surface->height,
-                      0, QFRAME_BUFFER_RGB565 );
+                      0, format);
     qframebuffer_fifo_add(core_display.fb);
     /* Register core display as the client for the framebuffer, so we can start
      * receiving framebuffer notifications. Note that until UI connects to the

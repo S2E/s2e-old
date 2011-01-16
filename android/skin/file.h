@@ -28,6 +28,7 @@ typedef struct SkinBackground {
 typedef struct SkinDisplay {
     SkinRect      rect;      /* display rectangle    */
     SkinRotation  rotation;  /* framebuffer rotation */
+    int           bpp;       /* bits per pixel, 32 or 16 */
     char          valid;
     QFrameBuffer  qfbuff[1];
 } SkinDisplay;
