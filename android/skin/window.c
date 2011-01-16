@@ -15,6 +15,7 @@
 #include "android/charmap.h"
 #include "android/utils/debug.h"
 #include "android/utils/system.h"
+#include "android/utils/duff.h"
 #include "android/ui-core-protocol.h"
 #include <SDL_syswm.h>
 #include "user-events.h"
@@ -313,9 +314,9 @@ lcd_brightness_argb32( unsigned char*  pixels, SkinRect*  r, int  pitch, int  br
 
         for ( ; h > 0; h-- ) {
             unsigned*  line = (unsigned*) pixels;
-            int        nn;
+            int        nn   = 0;
 
-            for (nn = 0; nn < w; nn++) {
+            DUFF4(w, {
                 unsigned  c  = line[nn];
                 unsigned  ag = (c >> 8) & 0x00ff00ff;
                 unsigned  rb = (c)      & 0x00ff00ff;
@@ -324,7 +325,8 @@ lcd_brightness_argb32( unsigned char*  pixels, SkinRect*  r, int  pitch, int  br
                 rb = ((rb*alpha) >> 8) & 0x00ff00ff;
 
                 line[nn] = (unsigned)(ag | rb);
-            }
+                nn++;
+            });
             pixels += pitch;
         }
     }
@@ -339,9 +341,9 @@ lcd_brightness_argb32( unsigned char*  pixels, SkinRect*  r, int  pitch, int  br
 
         for ( ; h > 0; h-- ) {
             unsigned*  line = (unsigned*) pixels;
-            int        nn;
+            int        nn   = 0;
 
-            for (nn = 0; nn < w; nn++) {
+            DUFF4(w, {
                 unsigned  c  = line[nn];
                 unsigned  ag = (c >> 8) & 0x00ff00ff;
                 unsigned  rb = (c)      & 0x00ff00ff;
@@ -351,7 +353,8 @@ lcd_brightness_argb32( unsigned char*  pixels, SkinRect*  r, int  pitch, int  br
                 rb = ((rb*ialpha + 0x00ff00ff*alpha) >> 8) & 0x00ff00ff;
 
                 line[nn] = (unsigned)(ag | rb);
-            }
+                nn++;
+            });
             pixels += pitch;
         }
     }
@@ -399,9 +402,11 @@ display_redraw_rect16( ADisplay* disp, SkinRect* rect, SDL_Surface* surface)
             uint32_t*  dst = (uint32_t*)dst_line;
             uint16_t*  src = (uint16_t*)src_line;
 
-            for (xx = 0; xx < w; xx++) {
+            xx = 0;
+            DUFF4(w, {
                 dst[xx] = rgb565_to_argb32(src[xx]);
-            }
+                xx++;
+            });
             src_line += src_pitch;
             dst_line += dst_pitch;
         }
@@ -415,12 +420,11 @@ display_redraw_rect16( ADisplay* disp, SkinRect* rect, SDL_Surface* surface)
             uint32_t*  dst = (uint32_t*)dst_line;
             uint8_t*   src = src_line;
 
-            for (xx = w; xx > 0; xx--)
-            {
+            DUFF4(w, {
                 dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
                 src -= src_pitch;
                 dst += 1;
-            }
+            });
             src_line += 2;
             dst_line += dst_pitch;
         }
@@ -434,12 +438,11 @@ display_redraw_rect16( ADisplay* disp, SkinRect* rect, SDL_Surface* surface)
             uint16_t*  src = (uint16_t*)src_line;
             uint32_t*  dst = (uint32_t*)dst_line;
 
-            for (xx = w; xx > 0; xx--) {
+            DUFF4(w, {
                 dst[0] = rgb565_to_argb32(src[0]);
                 src -= 1;
                 dst += 1;
-            }
-
+            });
             src_line -= src_pitch;
             dst_line += dst_pitch;
     }
@@ -453,11 +456,11 @@ display_redraw_rect16( ADisplay* disp, SkinRect* rect, SDL_Surface* surface)
             uint32_t*  dst = (uint32_t*)dst_line;
             uint8_t*   src = src_line;
 
-            for (xx = w; xx > 0; xx--) {
+            DUFF4(w, {
                 dst[0] = rgb565_to_argb32(((uint16_t*)src)[0]);
                 dst   += 1;
                 src   += src_pitch;
-            }
+            });
             src_line -= 2;
             dst_line += dst_pitch;
         }
@@ -477,7 +480,7 @@ display_redraw_rect32( ADisplay* disp, SkinRect* rect,SDL_Surface* surface)
     uint8_t*      dst_line  = (uint8_t*)surface->pixels + rect->pos.x*4 + rect->pos.y*dst_pitch;
     int           src_pitch = disp->datasize.w*4;
     uint8_t*      src_line  = (uint8_t*)disp->data;
-    int           yy, xx;
+    int           yy;
 
     switch ( disp->rotation & 3 )
     {
@@ -488,9 +491,11 @@ display_redraw_rect32( ADisplay* disp, SkinRect* rect,SDL_Surface* surface)
             uint32_t*  src = (uint32_t*)src_line;
             uint32_t*  dst = (uint32_t*)dst_line;
 
-            for (xx = 0; xx < w; xx++) {
-                dst[xx] = xbgr_to_argb32(src[xx]);
-            }
+            DUFF4(w, {
+                dst[0] = xbgr_to_argb32(src[0]);
+                dst++;
+                src++;
+            });
             src_line += src_pitch;
             dst_line += dst_pitch;
         }
@@ -504,12 +509,11 @@ display_redraw_rect32( ADisplay* disp, SkinRect* rect,SDL_Surface* surface)
             uint32_t*  dst = (uint32_t*)dst_line;
             uint8_t*   src = src_line;
 
-            for (xx = w; xx > 0; xx--)
-            {
+            DUFF4(w, {
                 dst[0] = xbgr_to_argb32(*(uint32_t*)src);
                 src -= src_pitch;
                 dst += 1;
-            }
+            });
             src_line += 4;
             dst_line += dst_pitch;
         }
@@ -523,12 +527,11 @@ display_redraw_rect32( ADisplay* disp, SkinRect* rect,SDL_Surface* surface)
             uint32_t*  src = (uint32_t*)src_line;
             uint32_t*  dst = (uint32_t*)dst_line;
 
-            for (xx = w; xx > 0; xx--) {
+            DUFF4(w, {
                 dst[0] = xbgr_to_argb32(src[0]);
                 src -= 1;
                 dst += 1;
-            }
-
+            });
             src_line -= src_pitch;
             dst_line += dst_pitch;
     }
@@ -542,11 +545,11 @@ display_redraw_rect32( ADisplay* disp, SkinRect* rect,SDL_Surface* surface)
             uint32_t*  dst = (uint32_t*)dst_line;
             uint8_t*   src = src_line;
 
-            for (xx = w; xx > 0; xx--) {
+            DUFF4(w, {
                 dst[0] = xbgr_to_argb32(*(uint32_t*)src);
                 dst   += 1;
                 src   += src_pitch;
-            }
+            });
             src_line -= 4;
             dst_line += dst_pitch;
         }
