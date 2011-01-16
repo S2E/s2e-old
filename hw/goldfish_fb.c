@@ -11,6 +11,7 @@
 */
 #include "qemu_file.h"
 #include "android/android.h"
+#include "android/utils/debug.h"
 #include "goldfish_device.h"
 #include "console.h"
 
@@ -37,6 +38,7 @@ enum {
     FB_SET_BLANK        = 0x18,
     FB_GET_PHYS_WIDTH   = 0x1c,
     FB_GET_PHYS_HEIGHT  = 0x20,
+    FB_GET_FORMAT       = 0x24,
 
     FB_INT_VSYNC             = 1U << 0,
     FB_INT_BASE_UPDATE_DONE  = 1U << 1
@@ -153,26 +155,28 @@ static int goldfish_fb_get_pixel_format(struct goldfish_fb_state *s)
     }
     static const FbConfig fb_configs[] = {
         { HAL_PIXEL_FORMAT_RGB_565, 16, 2, 0xf800, 0x7e0, 0x1f, 0x0 },
+        { HAL_PIXEL_FORMAT_RGBX_8888, 32, 4, 0xff0000, 0xff00, 0xff, 0x0 },
+        { HAL_PIXEL_FORMAT_RGBA_8888, 32, 4, 0xff0000, 0xff00, 0xff, 0xff000000 },
         { -1, }
     };
 
     /* Determine HAL pixel format value based on s->ds */
     struct PixelFormat* pf = &s->ds->surface->pf;
-#if 0
-    printf("%s:%d: display surface,pixel format:\n", __FUNCTION__, __LINE__);
-    printf("  bits/pixel:  %d\n", pf->bits_per_pixel);
-    printf("  bytes/pixel: %d\n", pf->bytes_per_pixel);
-    printf("  depth:       %d\n", pf->depth);
-    printf("  red:         bits=%d mask=0x%x shift=%d max=0x%x\n",
-           pf->rbits, pf->rmask, pf->rshift, pf->rmax);
-    printf("  green:       bits=%d mask=0x%x shift=%d max=0x%x\n",
-           pf->gbits, pf->gmask, pf->gshift, pf->gmax);
-    printf("  blue:        bits=%d mask=0x%x shift=%d max=0x%x\n",
-           pf->bbits, pf->bmask, pf->bshift, pf->bmax);
-    printf("  alpha:       bits=%d mask=0x%x shift=%d max=0x%x\n",
-           pf->abits, pf->amask, pf->ashift, pf->amax);
+    if (VERBOSE_CHECK(init)) {
+        printf("%s:%d: display surface,pixel format:\n", __FUNCTION__, __LINE__);
+        printf("  bits/pixel:  %d\n", pf->bits_per_pixel);
+        printf("  bytes/pixel: %d\n", pf->bytes_per_pixel);
+        printf("  depth:       %d\n", pf->depth);
+        printf("  red:         bits=%d mask=0x%x shift=%d max=0x%x\n",
+            pf->rbits, pf->rmask, pf->rshift, pf->rmax);
+        printf("  green:       bits=%d mask=0x%x shift=%d max=0x%x\n",
+            pf->gbits, pf->gmask, pf->gshift, pf->gmax);
+        printf("  blue:        bits=%d mask=0x%x shift=%d max=0x%x\n",
+            pf->bbits, pf->bmask, pf->bshift, pf->bmax);
+        printf("  alpha:       bits=%d mask=0x%x shift=%d max=0x%x\n",
+            pf->abits, pf->amask, pf->ashift, pf->amax);
+    }
 
-#endif
     s->bytes_per_pixel = pf->bytes_per_pixel;
     int nn;
     for (nn = 0; fb_configs[nn].pixel_format >= 0; nn++) {
@@ -555,6 +559,9 @@ static uint32_t goldfish_fb_read(void *opaque, target_phys_addr_t offset)
             ret = pixels_to_mm( ds_get_height(s->ds), s->dpi );
             //printf( "FB_GET_PHYS_HEIGHT => %d\n", ret );
             return ret;
+
+        case FB_GET_FORMAT:
+            return goldfish_fb_get_pixel_format(s);
 
         default:
             cpu_abort (cpu_single_env, "goldfish_fb_read: Bad offset %x\n", offset);
