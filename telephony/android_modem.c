@@ -19,6 +19,8 @@
 #include "android/utils/system.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/path.h"
+#include "hw/hw.h"
+#include "qemu-common.h"
 #include "sim_card.h"
 #include "sysdeps.h"
 #include <memory.h>
@@ -518,6 +520,59 @@ amodem_reset( AModem  modem )
     modem->roaming_pref = _amodem_get_cdma_roaming_preference( modem );
 }
 
+static AVoiceCall amodem_alloc_call( AModem   modem );
+static void amodem_free_call( AModem  modem, AVoiceCall  call );
+
+#define MODEM_DEV_STATE_SAVE_VERSION 1
+
+static void  android_modem_state_save(QEMUFile *f, void  *opaque)
+{
+    AModem modem = opaque;
+
+    // TODO: save more than just calls and call_count - rssi, power, etc.
+
+    qemu_put_byte(f, modem->call_count);
+
+    int nn;
+    for (nn = modem->call_count - 1; nn >= 0; nn--) {
+      AVoiceCall  vcall = modem->calls + nn;
+      // Note: not saving timers or remote calls.
+      ACall       call  = &vcall->call;
+      qemu_put_byte( f, call->dir );
+      qemu_put_byte( f, call->state );
+      qemu_put_byte( f, call->mode );
+      qemu_put_be32( f, call->multi );
+      qemu_put_buffer( f, (uint8_t *)call->number, A_CALL_NUMBER_MAX_SIZE+1 );
+    }
+}
+
+static int  android_modem_state_load(QEMUFile *f, void  *opaque, int version_id)
+{
+    if (version_id != MODEM_DEV_STATE_SAVE_VERSION)
+      return -1;
+
+    AModem modem = opaque;
+
+    // In case there are timers or remote calls.
+    int nn;
+    for (nn = modem->call_count - 1; nn >= 0; nn--) {
+      amodem_free_call( modem, modem->calls + nn);
+    }
+
+    int call_count = qemu_get_byte(f);
+    for (nn = call_count; nn > 0; nn--) {
+      AVoiceCall vcall = amodem_alloc_call( modem );
+      ACall      call  = &vcall->call;
+      call->dir   = qemu_get_byte( f );
+      call->state = qemu_get_byte( f );
+      call->mode  = qemu_get_byte( f );
+      call->multi = qemu_get_be32( f );
+      qemu_get_buffer( f, (uint8_t *)call->number, A_CALL_NUMBER_MAX_SIZE+1 );
+    }
+
+    return 0; // >=0 Happy
+}
+
 static AModemRec   _android_modem[1];
 
 AModem
@@ -541,6 +596,9 @@ amodem_create( int  base_port, AModemUnsolFunc  unsol_func, void*  unsol_opaque 
     modem->sim = asimcard_create(base_port);
 
     sys_main_init();
+    register_savevm( "android_modem", 0, MODEM_DEV_STATE_SAVE_VERSION,
+                      android_modem_state_save,
+                      android_modem_state_load, modem);
 
     aconfig_save_file( modem->nvram_config, modem->nvram_config_filename );
     return  modem;
