@@ -48,7 +48,6 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
 #include "android/utils/path.h"
-#include "android/utils/timezone.h"
 
 #include "android/cmdline-option.h"
 #include "android/help.h"
@@ -1047,11 +1046,6 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-
-    if (android_charmap_setup(opts->charmap)) {
-        exit(1);
-    }
-
     if (opts->version) {
         printf("Android emulator version %s\n"
                "Copyright (C) 2006-2008 The Android Open Source Project and many others.\n"
@@ -1072,10 +1066,14 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    if (opts->timezone) {
-        if ( timezone_set(opts->timezone) < 0 ) {
-            fprintf(stderr, "emulator: it seems the timezone '%s' is not in zoneinfo format\n", opts->timezone);
-        }
+    /* Initialization of UI started with -attach-core should work differently
+     * than initialization of UI that starts the core. In particular....
+     */
+
+    /* opts->charmap is incompatible with -attach-core, because particular
+     * charmap gets set up in the running core. */
+    if (android_charmap_setup(opts->charmap)) {
+        exit(1);
     }
 
     /* legacy support: we used to use -system <dir> and -image <file>
@@ -1110,22 +1108,11 @@ int main(int argc, char **argv)
         opts->system = NULL;
     }
 
-    if (opts->nojni)
-        opts->no_jni = opts->nojni;
-
     if (opts->nocache)
         opts->no_cache = opts->nocache;
 
-    if (opts->noaudio)
-        opts->no_audio = opts->noaudio;
-
     if (opts->noskin)
         opts->no_skin = opts->noskin;
-
-    if (opts->initdata) {
-        opts->init_data = opts->initdata;
-        opts->initdata  = NULL;
-    }
 
     /* If no AVD name was given, try to find the top of the
      * Android build tree
@@ -1409,6 +1396,12 @@ int main(int argc, char **argv)
     if (opts->no_cache)
         opts->cache = 0;
 
+    if (opts->nojni)
+        opts->no_jni = opts->nojni;
+
+    if (opts->noaudio)
+        opts->no_audio = opts->noaudio;
+
     n = 1;
     /* generate arguments for the underlying qemu main() */
     {
@@ -1453,6 +1446,11 @@ int main(int argc, char **argv)
         args[n++] = opts->nand_limits;
     }
 #endif
+
+    if (opts->timezone) {
+        args[n++] = "-timezone";
+        args[n++] = opts->timezone;
+    }
 
     if (opts->netspeed) {
         args[n++] = "-netspeed";

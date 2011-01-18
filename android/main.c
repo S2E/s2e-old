@@ -201,7 +201,7 @@ sdl_set_window_icon( void )
             SDL_FreeSurface(icon);
             free( icon_pixels );
         }
-#endif	/* !_WIN32 */
+#endif  /* !_WIN32 */
     }
 }
 
@@ -894,11 +894,6 @@ int main(int argc, char **argv)
 
     if (opts->noskin)
         opts->no_skin = opts->noskin;
-
-    if (opts->initdata) {
-        opts->init_data = opts->initdata;
-        opts->initdata  = NULL;
-    }
 
     /* If no AVD name was given, try to find the top of the
      * Android build tree

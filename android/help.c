@@ -557,19 +557,6 @@ help_image(stralloc_t*  out)
 }
 
 static void
-help_init_data(stralloc_t*  out)
-{
-    PRINTF(
-    "  use '-init-data <file>' to specify an *init* /data partition file.\n"
-    "  it is only used when creating a new writable /data image file, or\n"
-    "  when you use '-wipe-data' to reset it. the default is 'userdata.img'\n"
-    "  from the system directory.\n\n"
-
-    "  see '-help-disk-images' for more information about disk image files\n\n"
-    );
-}
-
-static void
 help_data(stralloc_t*  out)
 {
     PRINTF(

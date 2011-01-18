@@ -57,6 +57,7 @@
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
 #include "android/display-core.h"
+#include "android/utils/timezone.h"
 #include "targphys.h"
 #include "tcpdump.h"
 
@@ -386,6 +387,9 @@ char* android_op_ui_port = NULL;
  * process is attaching to the core.
  */
 char* android_op_ui_settings = NULL;
+
+/* -android-avdname option value. */
+char* android_op_avd_name = "unknown";
 
 extern int android_display_width;
 extern int android_display_height;
@@ -4570,6 +4574,17 @@ int main(int argc, char **argv, char **envp)
 
             case QEMU_OPTION_audio_test_out:
                 android_audio_test_start_out();
+                break;
+
+            case QEMU_OPTION_android_avdname:
+                android_op_avd_name = (char*)optarg;
+                break;
+
+            case QEMU_OPTION_timezone:
+                if (timezone_set((char*)optarg)) {
+                    fprintf(stderr, "emulator: it seems the timezone '%s' is not in zoneinfo format\n",
+                            (char*)optarg);
+                }
                 break;
 
 #ifdef CONFIG_MEMCHECK
