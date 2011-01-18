@@ -12,6 +12,7 @@
 #include "qemu_file.h"
 #include "android/android.h"
 #include "android/utils/debug.h"
+#include "android/utils/duff.h"
 #include "goldfish_device.h"
 #include "console.h"
 
@@ -316,26 +317,29 @@ compute_fb_update_rect_linear(FbUpdateState*  fbs,
             const uint16_t* src = (const uint16_t*) src_line;
             uint16_t*       dst = (uint16_t*) dst_line;
 
-            for (xx1 = 0; xx1 < width; xx1++) {
-                if (src[xx1] != dst[xx1]) {
+            xx1 = 0;
+            DUFF4(width, {
+                if (src[xx1] != dst[xx1])
                     break;
-                }
-            }
+                xx1++;
+            });
             if (xx1 == width) {
                 break;
             }
-            for (xx2 = width-1; xx2 > xx1; xx2--) {
-                if (src[xx2] != dst[xx2]) {
+            xx2 = width-1;
+            DUFF4(xx2-xx1, {
+                if (src[xx2] != dst[xx2])
                     break;
-                }
-            }
+                xx2--;
+            });
 #if HOST_WORDS_BIGENDIAN
             /* Convert the guest little-endian pixels into big-endian ones */
             int xx = xx1;
-            for ( ; xx <= xx2; xx++ ) {
+            DUFF4(xx2-xx1+1,{
                 unsigned   spix = src[xx];
                 dst[xx] = (uint16_t)((spix << 8) | (spix >> 8));
-            }
+                xx++;
+            });
 #else
             memcpy( dst+xx1, src+xx1, (xx2-xx1+1)*2 );
 #endif
@@ -344,25 +348,29 @@ compute_fb_update_rect_linear(FbUpdateState*  fbs,
 
         case 3:
         {
-            for (xx1 = 0; xx1 < width; xx1 += 1) {
+            xx1 = 0;
+            DUFF4(width, {
                 int xx = xx1*3;
                 if (src_line[xx+0] != dst_line[xx+0] ||
                     src_line[xx+1] != dst_line[xx+1] ||
                     src_line[xx+2] != dst_line[xx+2]) {
                     break;
                 }
-            }
+                xx1 ++;
+            });
             if (xx1 == width) {
                 break;
             }
-            for (xx2 = width-1; xx2 > xx1; xx2--) {
+            xx2 = width-1;
+            DUFF4(xx2-xx1,{
                 int xx = xx2*3;
                 if (src_line[xx+0] != dst_line[xx+0] ||
                     src_line[xx+1] != dst_line[xx+1] ||
                     src_line[xx+2] != dst_line[xx+2]) {
                     break;
                 }
-            }
+                xx2--;
+            });
             memcpy( dst_line+xx1*3, src_line+xx1*3, (xx2-xx1+1)*3 );
             break;
         }
@@ -372,28 +380,33 @@ compute_fb_update_rect_linear(FbUpdateState*  fbs,
             const uint32_t* src = (const uint32_t*) src_line;
             uint32_t*       dst = (uint32_t*) dst_line;
 
-            for (xx1 = 0; xx1 < width; xx1++) {
+            xx1 = 0;
+            DUFF4(width, {
                 if (src[xx1] != dst[xx1]) {
                     break;
                 }
-            }
+                xx1++;
+            });
             if (xx1 == width) {
                 break;
             }
-            for (xx2 = width-1; xx2 > xx1; xx2--) {
+            xx2 = width-1;
+            DUFF4(xx2-xx1,{
                 if (src[xx2] != dst[xx2]) {
                     break;
                 }
-            }
+                xx2--;
+            });
 #if HOST_WORDS_BIGENDIAN
             /* Convert the guest little-endian pixels into big-endian ones */
             int xx = xx1;
-            for ( ; xx <= xx2; xx++ ) {
+            DUFF4(xx2-xx1+1,{
                 uint32_t   spix = src[xx];
                 spix = (spix << 16) | (spix >> 16);
                 spix = ((spix << 8) & 0xff00ff00) | ((spix >> 8) & 0x00ff00ff);
                 dst[xx] = spix;
-            }
+                xx++;
+            })
 #else
             memcpy( dst+xx1, src+xx1, (xx2-xx1+1)*4 );
 #endif
