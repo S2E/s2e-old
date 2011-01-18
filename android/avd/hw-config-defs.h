@@ -150,6 +150,13 @@ HWCFG_INT(
   "Max VM application heap size",
   "The maximum heap size a Dalvik application might allocate before being killed by the system. Value is in megabytes.")
 
+HWCFG_BOOL(
+  hw_sensors_proximity,
+  "hw.sensors.proximity",
+  "yes",
+  "Proximity support",
+  "Whether there is an proximity in the device.")
+
 #undef HWCFG_INT
 #undef HWCFG_BOOL
 #undef HWCFG_DISKSIZE
