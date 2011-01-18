@@ -385,6 +385,7 @@ s2e/Plugins/ExecutionTracers/CallRetTracer.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/InstructionCounter.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/TranslationBlockTracer.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Searchers/MaxTbSearcher.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/Searchers/CooperativeSearcher.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/WindowsApi/NdisHandlers.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/X86ExceptionInterceptor.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/HostFiles.o: QEMU_CXXFLAGS+=-fno-inline
