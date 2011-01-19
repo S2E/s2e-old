@@ -50,6 +50,11 @@ qemulator_init( QEmulator*       emulator,
                 int              y,
                 AndroidOptions*  opts );
 
+void
+qemulator_get_screen_size( QEmulator*  emulator,
+                           int        *width,
+                           int        *height );
+
 /* Uninitializes QEmulator structure instance on exit. */
 void
 qemulator_done( QEmulator* emulator );

@@ -1520,7 +1520,35 @@ int main(int argc, char **argv)
         }
     }
     if (!opts->memory) {
-        bufprint(tmp, tmpend, "%d", hw->hw_ramSize);
+        int ramSize = hw->hw_ramSize;
+        if (ramSize <= 0) {
+            /* Compute the default RAM size based on the size of screen.
+             * This is only used when the skin doesn't provide the ram
+             * size through its hardware.ini (i.e. legacy ones) or when
+             * in the full Android build system.
+             */
+            int width, height, pixels;
+            qemulator_get_screen_size(qemulator_get(), &width, &height);
+            pixels  = width*height;
+
+            /* The following thresholds are a bit liberal, but we
+             * essentially want to ensure the following mappings:
+             *
+             *   320x480 -> 96
+             *   800x600 -> 128
+             *  1024x768 -> 256
+             *
+             * These are just simple heuristics, they could change in
+             * the future.
+             */
+            if (pixels <= 250000)
+                ramSize = 96;
+            else if (pixels <= 500000)
+                ramSize = 128;
+            else
+                ramSize = 256;
+        }
+        bufprint(tmp, tmpend, "%d", ramSize);
         opts->memory = android_strdup(tmp);
     }
 

@@ -20,7 +20,7 @@
 HWCFG_INT(
   hw_ramSize,
   "hw.ramSize",
-  96,
+  0,
   "Device ram size",
   "The amount of physical RAM on the device, in megabytes.")
 
