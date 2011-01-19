@@ -176,6 +176,13 @@ namespace {
     ConcretizeIoWrites("concretize-io-writes",
             cl::desc("Concretize symbolic I/O writes"),
             cl::init(true));
+
+    //The logs may be flooded with messages when switching execution mode.
+    //This option allows disabling printing mode switches.
+    cl::opt<bool>
+    PrintModeSwitch("print-mode-switch",
+                    cl::desc("Print message when switching from symbolic to concrete and vice versa"),
+                    cl::init(false));
 }
 
 extern "C" {
@@ -1008,9 +1015,11 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
 
         for(uint64_t i=0; i<size; ++i) {
             if(!op.second->readConcrete8(page_offset+i, buf+i)) {
-                m_s2e->getMessagesStream(state)
-                        << "Switching to KLEE executor at pc = "
-                        << hexval(state->getPc()) << std::endl;
+                if (PrintModeSwitch) {
+                    m_s2e->getMessagesStream(state)
+                            << "Switching to KLEE executor at pc = "
+                            << hexval(state->getPc()) << std::endl;
+                }
                 state->m_startSymbexAtPC = state->getPc();
                 // XXX: what about regs_to_env ?
                 longjmp(env->jmp_env, 1);
@@ -1198,9 +1207,11 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
            wos->getConcreteStore(true), wos->size);
     static_cast<S2EExecutionState*>(state)->m_runningConcrete = true;
 
-    m_s2e->getMessagesStream(state)
-            << "Switched to concrete execution at pc = "
-            << hexval(state->getPc()) << std::endl;
+    if (PrintModeSwitch) {
+        m_s2e->getMessagesStream(state)
+                << "Switched to concrete execution at pc = "
+                << hexval(state->getPc()) << std::endl;
+    }
 }
 
 void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
@@ -1218,9 +1229,11 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
            (void*) state->m_cpuRegistersState->address, wos->size);
     state->m_runningConcrete = false;
 
-    m_s2e->getMessagesStream(state)
-            << "Switched to symbolic execution at pc = "
-            << hexval(state->getPc()) << std::endl;
+    if (PrintModeSwitch) {
+        m_s2e->getMessagesStream(state)
+                << "Switched to symbolic execution at pc = "
+                << hexval(state->getPc()) << std::endl;
+    }
 }
 
 void S2EExecutor::jumpToSymbolic(S2EExecutionState *state)
