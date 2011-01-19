@@ -51,7 +51,10 @@ void kcm_extract_charmap_name(const char* kcm_file_path,
                               char* charmap_name,
                               int max_len);
 
-/* Initialzes key charmap array.
+/* Gets a pointer to the default hard-coded charmap */
+const AKeyCharmap* android_get_default_charmap(void);
+
+/* Parse a charmap file and add it to our list.
  * Key charmap array always contains two maps: one for qwerty, and
  * another for qwerty2 keyboard layout. However, a custom layout can
  * be requested with -charmap option. In tha case kcm_file_path
@@ -61,23 +64,20 @@ void kcm_extract_charmap_name(const char* kcm_file_path,
  * kcm_file_path is NULL and final key charmap array will contain only
  * two default entries.
  * Returns a zero value on success, or -1 on failure.
-*/
+ *
+ * Note: on success, the charmap will be returned by android_get_charmap()
+ */
 int android_charmap_setup(const char* kcm_file_path);
 
 /* Cleanups initialization performed in android_charmap_setup routine. */
 void android_charmap_done(void);
 
 /* Gets charmap descriptor by its name.
- * This routine finds and returns pointer to a descriptor in the array of
- * charmaps that matches given name. If no such descriptor has been found, this
- * routine returns NULL.
+ * This routine tries to find a charmap by name. This will compare the
+ * name to the default charmap's name, or any charmap loaded with
+ * android_charmap_setup(). Returns NULL on failure.
  */
 const AKeyCharmap* android_get_charmap_by_name(const char* name);
-
-/* Gets charmap descriptor by its index in the array of charmaps.
- * If index is greater than charmap array size, this routine returns NULL.
- */
-const AKeyCharmap* android_get_charmap_by_index(unsigned int index);
 
 /* Maps given unicode key character into a keycode and adds mapped keycode into
  * keycode array. This routine uses charmap passed as cmap parameter to do the
@@ -90,10 +90,15 @@ android_charmap_reverse_map_unicode(const AKeyCharmap* cmap,
                                     int  down,
                                     AKeycodeBuffer* keycodes);
 
-/* Gets default charmap (index 0) */
-const AKeyCharmap* android_get_default_charmap(void);
+/* Return a pointer to the active charmap. If android_charmap_setup() was
+ * called succesfully, this corresponds to the newly loaded charmap.
+ *
+ * Otherwise, return a pointer to the default charmap.
+ */
+const AKeyCharmap* android_get_charmap(void);
 
-/* Gets name of the default charmap (index 0) */
-const char* android_get_default_charmap_name(void);
+/* Return the name of the charmap to be used. Same as
+ * android_get_charmap()->name */
+const char* android_get_charmap_name(void);
 
 #endif /* _android_charmap_h */

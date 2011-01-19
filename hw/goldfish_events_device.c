@@ -153,12 +153,24 @@ static unsigned dequeue_event(events_state *s)
     return n;
 }
 
+static const char*
+get_charmap_name(events_state *s)
+{
+    if (s->name != NULL)
+        return s->name;
+
+    s->name = android_get_charmap_name();
+    return s->name;
+}
+
+
 static int get_page_len(events_state *s)
 {
     int page = s->page;
-    if (page == PAGE_NAME)
-        return strlen(s->name);
-    if (page >= PAGE_EVBITS && page <= PAGE_EVBITS + EV_MAX)
+    if (page == PAGE_NAME) {
+        const char* name = get_charmap_name(s);
+        return strlen(name);
+    } if (page >= PAGE_EVBITS && page <= PAGE_EVBITS + EV_MAX)
         return s->ev_bits[page - PAGE_EVBITS].len;
     if (page == PAGE_ABSDATA)
         return s->abs_info_count * sizeof(s->abs_info[0]);
@@ -171,9 +183,10 @@ static int get_page_data(events_state *s, int offset)
     int page = s->page;
     if (offset > page_len)
         return 0;
-    if (page == PAGE_NAME)
-        return s->name[offset];
-    if (page >= PAGE_EVBITS && page <= PAGE_EVBITS + EV_MAX)
+    if (page == PAGE_NAME) {
+        const char* name = get_charmap_name(s);
+        return name[offset];
+    } if (page >= PAGE_EVBITS && page <= PAGE_EVBITS + EV_MAX)
         return s->ev_bits[page - PAGE_EVBITS].bits[offset];
     if (page == PAGE_ABSDATA) {
         return s->abs_info[offset / sizeof(s->abs_info[0])];
@@ -306,8 +319,9 @@ void events_dev_init(uint32_t base, qemu_irq irq)
     AndroidHwConfig*  config = android_hw;
 
     s = (events_state *) qemu_mallocz(sizeof(events_state));
-    // Use name of the default charmap.
-    s->name = android_get_default_charmap_name();
+
+    // charmap name will be determined on demand
+    s->name = NULL;
 
     /* now set the events capability bits depending on hardware configuration */
     /* apparently, the EV_SYN array is used to indicate which other

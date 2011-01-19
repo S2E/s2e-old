@@ -25,6 +25,7 @@
 #  define  D(...)  ((void)0)
 #endif
 
+#define DEFAULT_ANDROID_CHARMAP  "qwerty2"
 
 /** LAST PRESSED KEYS
  ** a small buffer of last pressed keys, this is used to properly
@@ -77,7 +78,7 @@ skin_keyboard_charmap_name( SkinKeyboard*  keyboard )
     if (keyboard && keyboard->charmap)
         return keyboard->charmap->name;
 
-    return "qwerty";
+    return DEFAULT_ANDROID_CHARMAP;
 }
 
 void
@@ -520,8 +521,8 @@ skin_keyboard_create_from_charmap_name(const char*  charmap_name,
 
     kb->charmap = android_get_charmap_by_name(charmap_name);
     if (!kb->charmap) {
-        // Charmap name was not found. Default to the first charmap in the array.
-        kb->charmap = android_get_charmap_by_index(0);
+        // Charmap name was not found. Default to "qwerty2" */
+        kb->charmap = android_get_charmap_by_name(DEFAULT_ANDROID_CHARMAP);
         fprintf(stderr, "### warning, skin requires unknown '%s' charmap, reverting to '%s'\n",
                 charmap_name, kb->charmap->name );
     }
@@ -540,7 +541,7 @@ skin_keyboard_create_from_charmap_name(const char*  charmap_name,
 SkinKeyboard*
 skin_keyboard_create_from_aconfig( AConfig*  aconfig, int  use_raw_keys )
 {
-    const char*    charmap_name = "qwerty";
+    const char*    charmap_name = DEFAULT_ANDROID_CHARMAP;
     AConfig*       node = aconfig_find( aconfig, "keyboard" );
     if (node != NULL) {
         charmap_name = aconfig_str(node, "charmap", charmap_name);
