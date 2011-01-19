@@ -1691,9 +1691,16 @@ int main(int argc, char **argv)
 
     if(VERBOSE_CHECK(init)) {
         int i;
+        printf("QEMU options list:\n");
         for(i = 0; i < n; i++) {
-            fprintf(stdout, "emulator: argv[%02d] = \"%s\"\n", i, args[i]);
+            printf("emulator: argv[%02d] = \"%s\"\n", i, args[i]);
         }
+        /* Dump final command-line option to make debugging the core easier */
+        printf("Concatenated QEMU options:\n");
+        for (i = 0; i < n; i++) {
+            printf(" %s", args[i]);
+        }
+        printf("\n");
     }
     return qemu_main(n, args);
 }
