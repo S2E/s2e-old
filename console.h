@@ -200,7 +200,7 @@ DisplayAllocator *register_displayallocator(DisplayState *ds, DisplayAllocator *
 
 static inline DisplaySurface* qemu_create_displaysurface(DisplayState *ds, int width, int height)
 {
-    return ds->allocator->create_displaysurface(width, height);    
+    return ds->allocator->create_displaysurface(width, height);
 }
 
 static inline DisplaySurface* qemu_resize_displaysurface(DisplayState *ds, int width, int height)
@@ -381,7 +381,7 @@ char *vnc_display_local_addr(DisplayState *ds);
 void curses_display_init(DisplayState *ds, int full_screen);
 
 #ifdef CONFIG_ANDROID
-void android_display_init_from(int width, int height, int rotation, int bpp);
+void android_display_reset(DisplayState* ds, int width, int height, int bitspp);
 #endif
 
 #endif

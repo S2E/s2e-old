@@ -243,7 +243,6 @@ DriveInfo drives_table[MAX_DRIVES+1];
 int nb_drives;
 #endif
 enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
-static DisplayState *display_state;
 DisplayType display_type = DT_DEFAULT;
 const char* keyboard_layout = NULL;
 int64_t ticks_per_sec;
@@ -5191,22 +5190,17 @@ int main(int argc, char **argv, char **envp)
     }
 
     /* just use the first displaystate for the moment */
-    ds = display_state = get_displaystate();
+    ds = get_displaystate();
 
-    if (!display_state) {
-        if (android_op_gui) {
-            /* Initialize display from the command line parameters. */
-            android_display_init_from(android_display_width,
-                                      android_display_height, 0,
-                                      android_display_bpp);
-        } else {
-            ds = get_displaystate();  /* this forces a dumb display init */
-        }
-    } else if (android_op_gui) {
-        /* Resize display from the command line parameters. */
-        display_state->surface = qemu_resize_displaysurface(display_state,
-                                                            android_display_width,
-                                                            android_display_height);
+    if (android_op_gui) {
+        /* Initialize display from the command line parameters. */
+        android_display_reset(ds,
+                              android_display_width,
+                              android_display_height,
+                              android_display_bpp);
+    } else {
+        /* By default, use 320x480x16 */
+        android_display_reset(ds, 320, 480, 16);
     }
 
     if (display_type == DT_DEFAULT) {
@@ -5270,7 +5264,7 @@ int main(int argc, char **argv, char **envp)
         qemu_mod_timer(nographic_timer, qemu_get_clock(rt_clock));
     }
 
-    text_consoles_set_display(display_state);
+    text_consoles_set_display(ds);
     qemu_chr_initial_reset();
 
     if (monitor_device && monitor_hd)
