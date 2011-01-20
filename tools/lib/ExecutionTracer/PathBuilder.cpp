@@ -330,6 +330,7 @@ bool PathBuilder::processPath(uint32_t pathId)
     }
 
     for (int i=segments.size()-1; i>=0; --i) {
+        m_CurrentSegment = segments[i];
         processSegment(segments[i]);
     }
 
