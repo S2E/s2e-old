@@ -76,6 +76,9 @@ cl::list<unsigned>
 cl::opt<bool>
         PrintRegisters("printRegisters", cl::desc("Print register contents for each block"), cl::init(false));
 
+cl::opt<bool>
+        PrintMemory("printMemory", cl::desc("Print memory trace"), cl::init(false));
+
 }
 
 namespace s2etools
@@ -136,11 +139,6 @@ void TbTrace::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
             void *item)
 {
-    if (hdr.type != s2e::plugins::TRACE_TB_START &&
-        hdr.type != s2e::plugins::TRACE_FORK) {
-        return;
-    }
-
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         m_output << "Forked at 0x" << std::hex << f->pc << " - ";
@@ -167,8 +165,22 @@ void TbTrace::onItem(unsigned traceIndex,
         return;
     }
 
+    if (PrintMemory && (hdr.type == s2e::plugins::TRACE_MEMORY)) {
+        const s2e::plugins::ExecutionTraceMemory *te =
+                (const s2e::plugins::ExecutionTraceMemory*) item;
+        std::string type;
 
-    assert(false);
+        type += te->flags & EXECTRACE_MEM_SYMBADDR ? "s" : "c";
+        type += te->flags & EXECTRACE_MEM_SYMBVAL ? "S" : "C";
+        type += te->flags & EXECTRACE_MEM_WRITE   ? "W" : "R";
+        m_output << "PC=0x" << std::hex << te->pc << " " << type << (int)te->size << "[0x"
+                << std::hex << te->address << "]=0x" << std::setw(10) << std::setfill('0') << te->value << "\t";
+
+        printDebugInfo(hdr.pid, te->pc);
+        m_output << std::setfill(' ');
+        m_output << std::endl;
+       return;
+    }
 }
 
 TbTraceTool::TbTraceTool()
@@ -248,6 +260,8 @@ void TbTraceTool::flatTrace()
             traceFile << "WARNING: No test case in the path " << std::dec << *listit << std::endl;
             traceFile << "WARNING: Make sure to use the TestCaseGenerator plugin and terminate the states before running this tool. "
                     << std::endl << std::endl;
+        }else {
+            tcs->printInputs(traceFile);
         }
     }
 

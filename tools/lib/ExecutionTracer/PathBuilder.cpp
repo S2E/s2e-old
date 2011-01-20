@@ -331,6 +331,20 @@ bool PathBuilder::processPath(uint32_t pathId)
 
     for (int i=segments.size()-1; i>=0; --i) {
         m_CurrentSegment = segments[i];
+
+        if (m_CurrentSegment->getParent()) {
+            //Copy the trace analyzer's state from the parent
+            //to the current segment.
+            assert(m_CurrentSegment->getStateMap().empty());
+            PathSegmentStateMap &pm = m_CurrentSegment->getParent()->getStateMap();
+            PathSegmentStateMap &m = m_CurrentSegment->getStateMap();
+
+            PathSegmentStateMap::iterator it;
+            for (it = pm.begin(); it != pm.end(); ++it) {
+                m[(*it).first] = (*it).second->clone();
+            }
+        }
+
         processSegment(segments[i]);
     }
 
