@@ -1058,6 +1058,7 @@ VL_SOURCES := framebuffer.c \
               android/looper-generic.c \
               android/display-core.c \
               android/framebuffer-core.c \
+              android/user-events-core.c \
 
 # Add common system libraries
 #

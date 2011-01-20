@@ -53,6 +53,7 @@
 #include "android/core-ui-protocol.h"
 #include "android/display-core.h"
 #include "android/framebuffer-core.h"
+#include "android/user-events-core.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
@@ -119,6 +120,12 @@ ControlClient attached_ui_client = NULL;
 
 /* Core framebuffer service client. */
 ControlClient framebuffer_client = NULL;
+
+/* User events service client. */
+ControlClient user_events_client = NULL;
+
+/* User events service. */
+CoreUserEvents* core_ue = NULL;
 #endif  // CONFIG_STANDALONE_CORE
 
 /* -android-avdname option value. Defined in vl-android.c */
@@ -235,6 +242,11 @@ control_client_destroy( ControlClient  client )
             AFREE(core_fb);
         }
         framebuffer_client = NULL;
+    }
+
+    if (client == user_events_client) {
+        coreue_destroy(core_ue);
+        user_events_client = NULL;
     }
 #endif  // CONFIG_STANDALONE_CORE
 
@@ -2537,6 +2549,32 @@ do_create_framebuffer_service( ControlClient client, char* args )
 
     return 0;
 }
+
+static int
+do_create_user_events_service( ControlClient client, char* args )
+{
+    // Make sure that there are no framebuffer client already existing.
+    if (user_events_client != NULL) {
+        control_write( client, "KO: Another user events service is already existing!\r\n" );
+        control_client_destroy(client);
+        return -1;
+    }
+
+    core_ue = coreue_create(client->sock);
+    if (core_ue != NULL) {
+        char reply_buf[4096];
+        user_events_client = client;
+        // Reply "OK" with the framebuffer's bits per pixel
+        snprintf(reply_buf, sizeof(reply_buf), "OK\r\n");
+        control_write( client, reply_buf);
+    } else {
+        control_write( client, "KO\r\n" );
+        control_client_destroy(client);
+        return -1;
+    }
+
+    return 0;
+}
 #endif  // CONFIG_STANDALONE_CORE
 
 static const CommandDefRec  qemu_commands[] =
@@ -2553,6 +2591,10 @@ static const CommandDefRec  qemu_commands[] =
     { "framebuffer", "create framebuffer service",
     "Create framebuffer service\r\n",
     NULL, do_create_framebuffer_service, NULL },
+
+    { "user events", "create user events service",
+    "Create user events service\r\n",
+    NULL, do_create_user_events_service, NULL },
 #endif  // CONFIG_STANDALONE_CORE
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
