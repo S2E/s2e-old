@@ -43,7 +43,7 @@ SyncSocket* syncsocket_connect(int fd, SockAddress* sockaddr, int timeout);
  * Note: this routine will explicitly call socket_set_nonblock on the fd passed
  * to this routine.
  * Param:
- *  fd - File descriptor for the already connected.
+ *  fd - File descriptor for the already connected socket.
  * Return:
  *  Initialized SyncSocket descriptor on success, or NULL on failure.
  */

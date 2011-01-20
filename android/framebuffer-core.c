@@ -30,6 +30,9 @@ struct CoreFramebuffer {
     /* Writer used to send FB update notification messages. */
     AsyncWriter             fb_update_writer;
 
+    /* Reader used to read FB requests from the client. */
+    AsyncReader             fb_req_reader;
+
     /* I/O associated with this descriptor. */
     LoopIo                  io;
 
@@ -47,6 +50,9 @@ struct CoreFramebuffer {
 
     /* Socket used to communicate framebuffer updates. */
     int     sock;
+
+    /* Framebuffer request header. */
+    FBRequestHeader         fb_req_header;
 };
 
 /* Framebuffer update notification descriptor to the core. */
@@ -140,25 +146,14 @@ fbupdatenotify_delete(FBUpdateNotify* desc)
 extern void destroy_control_fb_client(void);
 
 /*
- * Asynchronous I/O callback launched when writing framebuffer notifications
- * to the socket.
+ * Asynchronous write I/O callback launched when writing framebuffer
+ * notifications to the socket.
  * Param:
- *  opaque - CoreFramebuffer instance.
+ *  core_fb - CoreFramebuffer instance.
  */
 static void
-corefb_io_func(void* opaque, int fd, unsigned events)
+corefb_io_write(CoreFramebuffer* core_fb)
 {
-    CoreFramebuffer* core_fb = opaque;
-
-    if (events & LOOP_IO_READ) {
-        // We don't expect the UI client to write anything here, except when
-        // the client gets disconnected.
-        loopIo_dontWantWrite(&core_fb->io);
-        loopIo_dontWantRead(&core_fb->io);
-        destroy_control_fb_client();
-        return;
-    }
-
     while (core_fb->fb_update_head != NULL) {
         FBUpdateNotify* current_update = core_fb->fb_update_head;
         // Lets continue writing of the current notification.
@@ -195,6 +190,66 @@ corefb_io_func(void* opaque, int fd, unsigned events)
     }
 }
 
+/*
+ * Asynchronous read I/O callback launched when reading framebuffer requests
+ * from the socket.
+ * Param:
+ *  core_fb - CoreFramebuffer instance.
+ */
+static void
+corefb_io_read(CoreFramebuffer* core_fb)
+{
+    // Read the request header.
+    const AsyncStatus status =
+        asyncReader_read(&core_fb->fb_req_reader, &core_fb->io);
+    switch (status) {
+        case ASYNC_COMPLETE:
+            // Request header is received
+            switch (core_fb->fb_req_header.request_type) {
+                case AFB_REQUEST_REFRESH:
+                    // Force full screen update to be sent
+                    corefb_update(core_fb, core_fb->fb,
+                                  0, 0, core_fb->fb->width, core_fb->fb->height);
+                    break;
+                default:
+                    derror("Unknown framebuffer request %d\n",
+                           core_fb->fb_req_header.request_type);
+                    break;
+            }
+            core_fb->fb_req_header.request_type = -1;
+            asyncReader_init(&core_fb->fb_req_reader, &core_fb->fb_req_header,
+                             sizeof(core_fb->fb_req_header), &core_fb->io);
+            break;
+        case ASYNC_ERROR:
+            loopIo_dontWantRead(&core_fb->io);
+            if (errno == ECONNRESET) {
+                // UI has exited. We need to destroy framebuffer service.
+                destroy_control_fb_client();
+            }
+            break;
+
+        case ASYNC_NEED_MORE:
+            // Transfer will eventually come back into this routine.
+            return;
+    }
+}
+
+/*
+ * Asynchronous I/O callback launched when writing framebuffer notifications
+ * to the socket.
+ * Param:
+ *  opaque - CoreFramebuffer instance.
+ */
+static void
+corefb_io_func(void* opaque, int fd, unsigned events)
+{
+    if (events & LOOP_IO_READ) {
+        corefb_io_read((CoreFramebuffer*)opaque);
+    } else if (events & LOOP_IO_WRITE) {
+        corefb_io_write((CoreFramebuffer*)opaque);
+    }
+}
+
 CoreFramebuffer*
 corefb_create(int sock, const char* protocol, QFrameBuffer* fb)
 {
@@ -203,13 +258,12 @@ corefb_create(int sock, const char* protocol, QFrameBuffer* fb)
     ANEW0(ret);
     ret->sock = sock;
     ret->looper = looper_newCore();
-    loopIo_init(&ret->io, ret->looper, sock, corefb_io_func, ret);
-    // Since we're overriding the read callback with our looper's I/O routine,
-    // we need to have set our read callback here to monitor disconnections.
-    loopIo_wantRead(&ret->io);
     ret->fb = fb;
     ret->fb_update_head = NULL;
     ret->fb_update_tail = NULL;
+    loopIo_init(&ret->io, ret->looper, sock, corefb_io_func, ret);
+    asyncReader_init(&ret->fb_req_reader, &ret->fb_req_header,
+                     sizeof(ret->fb_req_header), &ret->io);
     return ret;
 }
 
@@ -234,7 +288,7 @@ corefb_destroy(CoreFramebuffer* core_fb)
 }
 
 void
-corefb_update(CoreFramebuffer* core_fb, struct DisplayState* ds,
+corefb_update(CoreFramebuffer* core_fb,
               struct QFrameBuffer* fb, int x, int y, int w, int h)
 {
     AsyncStatus status;

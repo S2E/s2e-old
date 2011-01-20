@@ -46,12 +46,11 @@ void corefb_destroy(CoreFramebuffer* core_fb);
  * Notifies framebuffer client about changes in framebuffer.
  * Param:
  *  core_fb - Framebuffer service descriptor created with corefb_create
- *  ds - Display state for the framebuffer.
  *  fb Framebuffer containing pixels.
  *  x, y, w, and h identify the rectangle that has benn changed.
  */
-void corefb_update(CoreFramebuffer* core_fb, struct DisplayState* ds,
-                   struct QFrameBuffer* fb, int x, int y, int w, int h);
+void corefb_update(CoreFramebuffer* core_fb, struct QFrameBuffer* fb,
+                   int x, int y, int w, int h);
 
 /*
  * Gets number of bits used to encode a single pixel.
