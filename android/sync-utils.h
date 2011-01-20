@@ -39,6 +39,17 @@ typedef struct SyncSocket SyncSocket;
 SyncSocket* syncsocket_connect(int fd, SockAddress* sockaddr, int timeout);
 
 /*
+ * Initializes a non-blocking socket for further synchronous I/O.
+ * Note: this routine will explicitly call socket_set_nonblock on the fd passed
+ * to this routine.
+ * Param:
+ *  fd - File descriptor for the already connected.
+ * Return:
+ *  Initialized SyncSocket descriptor on success, or NULL on failure.
+ */
+SyncSocket* syncsocket_init(int fd);
+
+/*
  * Closes SyncSocket descriptor obtained from syncsocket_connect routine.
  * Param:
  *  ssocket - SyncSocket descriptor obtained from syncsocket_connect routine.

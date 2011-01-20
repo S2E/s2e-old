@@ -852,6 +852,9 @@ list_running_cores(const char* host)
     }
 }
 
+/* Implemented in user-events-ui.c */
+extern int clientue_create(SockAddress* console_socket);
+
 /* Attaches starting UI to a running core process.
  * This routine is called from main() when -attach-core parameter is set,
  * indicating that this UI instance should attach to a running core, rather than
@@ -952,6 +955,10 @@ attach_to_core(AndroidOptions* opts) {
     fb_client = clientfb_create(&console_socket, "-raw",
                                 qemulator_get_first_framebuffer(emulator));
     if (fb_client == NULL) {
+        return -1;
+    }
+
+    if (clientue_create(&console_socket)) {
         return -1;
     }
 

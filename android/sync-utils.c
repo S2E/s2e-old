@@ -25,6 +25,7 @@
 #include "sockets.h"
 #include "android/utils/debug.h"
 #include "android/sync-utils.h"
+#include "android/utils/system.h"
 
 #define  D(...)  do {  if (VERBOSE_CHECK(init)) dprint(__VA_ARGS__); } while (0)
 
@@ -37,11 +38,24 @@ struct SyncSocket {
 };
 
 SyncSocket*
+syncsocket_init(int fd)
+{
+    SyncSocket* sync_socket;
+    ANEW0(sync_socket);
+
+    socket_set_nonblock(fd);
+    sync_socket->iolooper = iolooper_new();
+    sync_socket->fd = fd;
+
+    return sync_socket;
+}
+
+SyncSocket*
 syncsocket_connect(int fd, SockAddress* sockaddr, int timeout)
 {
-    IoLooper* looper = NULL;
+    IoLooper* looper;
     int connect_status;
-    SyncSocket* sync_socket;
+    SyncSocket* sync_socket = NULL;
 
     socket_set_nonblock(fd);
 

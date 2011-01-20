@@ -229,7 +229,6 @@ corefb_update(CoreFramebuffer* core_fb, struct DisplayState* ds,
     if (core_fb->fb_update_tail != NULL) {
         core_fb->fb_update_tail->next_fb_update = descr;
         core_fb->fb_update_tail = descr;
-        printf("PENDED\n");
         return;
     }
 
@@ -243,16 +242,13 @@ corefb_update(CoreFramebuffer* core_fb, struct DisplayState* ds,
         case ASYNC_COMPLETE:
             fbupdatenotify_delete(descr);
             core_fb->fb_update_head = core_fb->fb_update_tail = NULL;
-            printf("COMPLETED\n");
             return;
         case ASYNC_ERROR:
-            printf("FAILED: %s\n", errno_str);
             fbupdatenotify_delete(descr);
             core_fb->fb_update_head = core_fb->fb_update_tail = NULL;
             return;
         case ASYNC_NEED_MORE:
             // Update transfer will eventually complete in corefb_io_func
-            printf("PARTIAL\n");
             return;
     }
 }
