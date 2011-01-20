@@ -136,6 +136,9 @@ fbupdatenotify_delete(FBUpdateNotify* desc)
     }
 }
 
+/* Implemented in android/console.c */
+extern void destroy_control_fb_client(void);
+
 /*
  * Asynchronous I/O callback launched when writing framebuffer notifications
  * to the socket.
@@ -146,6 +149,15 @@ static void
 corefb_io_func(void* opaque, int fd, unsigned events)
 {
     CoreFramebuffer* core_fb = opaque;
+
+    if (events & LOOP_IO_READ) {
+        // We don't expect the UI client to write anything here, except when
+        // the client gets disconnected.
+        loopIo_dontWantWrite(&core_fb->io);
+        loopIo_dontWantRead(&core_fb->io);
+        destroy_control_fb_client();
+        return;
+    }
 
     while (core_fb->fb_update_head != NULL) {
         FBUpdateNotify* current_update = core_fb->fb_update_head;
@@ -192,6 +204,9 @@ corefb_create(int sock, const char* protocol, QFrameBuffer* fb)
     ret->sock = sock;
     ret->looper = looper_newCore();
     loopIo_init(&ret->io, ret->looper, sock, corefb_io_func, ret);
+    // Since we're overriding the read callback with our looper's I/O routine,
+    // we need to have set our read callback here to monitor disconnections.
+    loopIo_wantRead(&ret->io);
     ret->fb = fb;
     ret->fb_update_head = NULL;
     ret->fb_update_tail = NULL;
