@@ -2550,6 +2550,14 @@ do_create_framebuffer_service( ControlClient client, char* args )
     return 0;
 }
 
+void
+destroy_control_fb_client(void)
+{
+    if (framebuffer_client != NULL) {
+        control_client_destroy(framebuffer_client);
+    }
+}
+
 static int
 do_create_user_events_service( ControlClient client, char* args )
 {
@@ -2574,6 +2582,14 @@ do_create_user_events_service( ControlClient client, char* args )
     }
 
     return 0;
+}
+
+void
+destroy_control_ue_client(void)
+{
+    if (user_events_client != NULL) {
+        control_client_destroy(user_events_client);
+    }
 }
 #endif  // CONFIG_STANDALONE_CORE
 

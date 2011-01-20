@@ -57,6 +57,8 @@ struct CoreUserEvents {
     };
 };
 
+/* Implemented in android/console.c */
+extern void destroy_control_ue_client(void);
 
 /*
  * Asynchronous I/O callback launched when reading user events from the socket.
@@ -135,6 +137,10 @@ coreue_io_func(void* opaque, int fd, unsigned events)
             break;
         case ASYNC_ERROR:
             loopIo_dontWantRead(&ue->io);
+            if (errno == ECONNRESET) {
+                // UI has exited. We need to destroy user event service.
+                destroy_control_ue_client();
+            }
             break;
 
         case ASYNC_NEED_MORE:
