@@ -19,6 +19,7 @@
 #include "android/framebuffer-ui.h"
 #include "android/utils/system.h"
 #include "android/utils/debug.h"
+#include "android/sync-utils.h"
 
 #define  PANIC(...) do { fprintf(stderr, __VA_ARGS__);  \
                          exit(1);                       \
@@ -247,7 +248,18 @@ clientfb_create(SockAddress* console_socket,
         _client_fb.core_connection = NULL;
         return NULL;
     }
+    {
+        // Force the core to send us entire framebuffer now, when we're prepared
+        // to receive it.
+        FBRequestHeader hd;
+        SyncSocket* sk = syncsocket_init(_client_fb.sock);
 
+        hd.request_type = AFB_REQUEST_REFRESH;
+        syncsocket_start_write(sk);
+        syncsocket_write(sk, &hd, sizeof(hd), 500);
+        syncsocket_stop_write(sk);
+        syncsocket_free(sk);
+    }
     fprintf(stdout, "Framebuffer %s is now attached to the core %s\n",
             protocol, sock_address_to_string(console_socket));
 

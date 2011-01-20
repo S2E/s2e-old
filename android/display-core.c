@@ -43,7 +43,7 @@ coredisplay_fb_update(void* opaque, int x, int y, int w, int h)
 {
     CoreDisplay* cd = (CoreDisplay*)opaque;
     if (cd->core_fb) {
-        corefb_update(cd->core_fb, cd->ds, cd->fb, x, y, w, h);
+        corefb_update(cd->core_fb, cd->fb, x, y, w, h);
     }
 }
 

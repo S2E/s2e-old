@@ -31,4 +31,15 @@ typedef struct FBUpdateMessage {
     uint8_t rect[0];
 } FBUpdateMessage;
 
+/* Requests the service to refresh framebuffer. */
+#define AFB_REQUEST_REFRESH     1
+
+/* Header for framebuffer requests sent from the client (UI)
+ * to the service (core).
+ */
+typedef struct FBRequestHeader {
+    /* Request type. See AFB_REQUEST_XXX for the values. */
+    uint8_t request_type;
+} FBRequestHeader;
+
 #endif /* _ANDROID_FRAMEBUFFER_UI_H */

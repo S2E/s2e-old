@@ -113,7 +113,6 @@ void
 syncsocket_free(SyncSocket* ssocket)
 {
     if (ssocket != NULL) {
-        syncsocket_close(ssocket);
         if (ssocket->iolooper != NULL) {
             iolooper_free(ssocket->iolooper);
         }
