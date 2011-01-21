@@ -25,6 +25,7 @@ static QEmulator   qemulator[1];
 
 static void handle_key_command( void*  opaque, SkinKeyCommand  command, int  param );
 static void qemulator_refresh(QEmulator* emulator);
+extern void qemu_system_shutdown_request(void);
 
 static void
 qemulator_light_brightness( void* opaque, const char*  light, int  value )
@@ -592,7 +593,7 @@ static void qemulator_refresh(QEmulator* emulator)
 #endif
             /* only save emulator config through clean exit */
             qemulator_done(qemulator_get());
-            android_core_system_shutdown_request();
+            qemu_system_shutdown_request();
             return;
         }
     }

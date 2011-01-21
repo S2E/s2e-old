@@ -769,8 +769,8 @@ static void
 help_shaper(stralloc_t*  out)
 {
     int  n;
-    NetworkSpeed android_netspeed;
-    NetworkLatency android_netdelay;
+    NetworkSpeed* android_netspeed;
+    NetworkLatency* android_netdelay;
     PRINTF(
     "  the Android emulator supports network throttling, i.e. slower network\n"
     "  bandwidth as well as higher connection latencies. this is done either through\n"
@@ -780,10 +780,11 @@ help_shaper(stralloc_t*  out)
 
     for (n = 0; !android_core_get_android_netspeed(n, &android_netspeed); n++) {
         PRINTF( "    -netspeed %-12s %-15s  (up: %.1f, down: %.1f)\n",
-                        android_netspeed.name,
-                        android_netspeed.display,
-                        android_netspeed.upload/1000.,
-                        android_netspeed.download/1000. );
+                        android_netspeed->name,
+                        android_netspeed->display,
+                        android_netspeed->upload/1000.,
+                        android_netspeed->download/1000. );
+        free(android_netspeed);
     }
     PRINTF( "\n" );
     PRINTF( "    -netspeed %-12s %s", "<num>", "select both upload and download speed\n");
@@ -792,8 +793,9 @@ help_shaper(stralloc_t*  out)
     PRINTF( "\n  The format of -netdelay is one of the following (numbers are msec):\n\n" );
     for (n = 0; !android_core_get_android_netdelay(n, &android_netdelay); n++) {
         PRINTF( "    -netdelay %-10s   %-15s  (min %d, max %d)\n",
-                        android_netdelay.name, android_netdelay.display,
-                        android_netdelay.min_ms, android_netdelay.max_ms );
+                        android_netdelay->name, android_netdelay->display,
+                        android_netdelay->min_ms, android_netdelay->max_ms );
+        free(android_netdelay);
     }
     PRINTF( "    -netdelay %-10s   %s", "<num>", "select exact latency\n");
     PRINTF( "    -netdelay %-10s   %s", "<min>:<max>", "select min and max latencies\n\n");

@@ -20,6 +20,9 @@
 #include "android/globals.h"
 #include "android/android.h"
 #include "android/core-ui-protocol.h"
+#if defined(CONFIG_STANDALONE_CORE)
+#include "android/ui-ctl-core.h"
+#endif  // defined(CONFIG_STANDALONE_CORE)
 
 #if !defined(CONFIG_STANDALONE_CORE)
 /* in android/qemulator.c */
@@ -31,6 +34,8 @@ android_ui_set_window_scale(double scale, int is_dpi)
 {
 #if !defined(CONFIG_STANDALONE_CORE)
     android_emulator_set_window_scale(scale, is_dpi);
+#else
+    coreuictl_set_window_scale(scale, is_dpi);
 #endif
 }
 

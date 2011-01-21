@@ -61,6 +61,7 @@
 #include "android/snapshot.h"
 #include "android/core-connection.h"
 #include "android/framebuffer-ui.h"
+#include "android/ui-ctl-ui.h"
 
 #include "framebuffer.h"
 #include "iolooper.h"
@@ -959,13 +960,23 @@ attach_to_core(AndroidOptions* opts) {
     emulator = qemulator_get();
     qemulator_set_title(emulator);
 
+    // Connect to the core's framebuffer service
     fb_client = clientfb_create(&console_socket, "-raw",
                                 qemulator_get_first_framebuffer(emulator));
     if (fb_client == NULL) {
         return -1;
     }
 
+    // Connect to the core's user events service.
     if (clientue_create(&console_socket)) {
+        return -1;
+    }
+
+    // Connect to the core's UI control services. For the simplicity of
+    // implementation there are two UI control services: "ui-core control" that
+    // handle UI controls initiated in the UI, and "core-ui control" that handle
+    // UI controls initiated in the core.
+    if (clientuictl_create(&console_socket)) {
         return -1;
     }
 

@@ -42,9 +42,6 @@ void android_core_set_brightness_change_callback(AndroidHwLightBrightnessCallbac
 /* change the coarse orientation value */
 void  android_core_sensors_set_coarse_orientation( AndroidCoarseOrientation  orient );
 
-/* Sets the network state */
-void android_core_set_network_enabled(int enabled);
-
 /* Toggles the network state */
 void android_core_toggle_network(void);
 
@@ -62,7 +59,7 @@ void android_core_tracing_stop(void);
  * Return:
  *  0 on success, or -1 if requested entry index is too large.
  */
-int android_core_get_android_netspeed(int index, NetworkSpeed* netspeed);
+int android_core_get_android_netspeed(int index, NetworkSpeed** netspeed);
 
 /* Gets an entry in android_netdelays array defined in net-android.c
  * Parameters:
@@ -71,26 +68,7 @@ int android_core_get_android_netspeed(int index, NetworkSpeed* netspeed);
  * Return:
  *  0 on success, or -1 if requested entry index is too large.
  */
-int android_core_get_android_netdelay(int index, NetworkLatency* delay);
-
-/* Get name of a given audio backend.
- * Parameters
- *  is_input - If 1, routine should lookup for input audio backend, if zero,
- *      routine should lookup for output audio backend.
- *  index - Index of the registered audio backend to lookup.
- *  name - Upon successful return contains backend name.
- *  name_buf_size - name buffer size (in characters).
- *  descr - Upon successful return contains backend description.
- *  descr_buf_size - descre buffer size (in characters).
- * Return:
- *  0 on success, or -1 if requested backend has not been found.
- */
-int android_core_audio_get_backend_name(int is_input, int index,
-                                        char* name, size_t name_buf_size,
-                                        char* descr, size_t descr_buf_size);
-
-/* Notifies the core about system shutdown requested by the UI. */
-void android_core_system_shutdown_request(void);
+int android_core_get_android_netdelay(int index, NetworkLatency** delay);
 
 /* Builds a path to a file of the given type in the emulator's data directory.
  * Param:
