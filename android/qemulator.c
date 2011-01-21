@@ -258,7 +258,7 @@ qemulator_set_title(QEmulator* emulator)
     }
 
     p = bufprint(p, end, "%d:%s",
-                 android_core_get_base_port(),
+                 android_base_port,
                  avdInfo_getName( android_avdInfo ));
 
     skin_window_set_title( emulator->window, temp );

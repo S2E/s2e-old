@@ -199,6 +199,11 @@
 unsigned long   android_verbose;
 #endif  // CONFIG_STANDALONE_CORE
 
+#if !defined(CONFIG_STANDALONE_CORE)
+/* in android/qemulator.c */
+extern void  android_emulator_set_base_port(int  port);
+#endif
+
 #if defined(CONFIG_SKINS) && !defined(CONFIG_STANDALONE_CORE)
 #undef main
 #define main qemu_main
@@ -5301,6 +5306,12 @@ int main(int argc, char **argv, char **envp)
 
     /* call android-specific setup function */
     android_emulation_setup();
+
+#if !defined(CONFIG_STANDALONE_CORE)
+    // For the standalone emulator (UI+core in one executable) we need to
+    // set the window title here.
+    android_emulator_set_base_port(android_base_port);
+#endif
 
     if (loadvm)
         do_loadvm(cur_mon, loadvm);
