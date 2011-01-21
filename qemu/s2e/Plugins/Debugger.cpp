@@ -52,6 +52,7 @@ extern "C" {
 namespace s2e {
 namespace plugins {
 
+
 S2E_DEFINE_PLUGIN(Debugger, "Debugger plugin", "",);
 
 void Debugger::initialize()
@@ -81,6 +82,7 @@ void Debugger::initialize()
         m_timerConnection = s2e()->getCorePlugin()->onTimer.connect(
                 sigc::mem_fun(*this, &Debugger::onTimer));
     }
+
 
 }
 
@@ -229,7 +231,7 @@ void Debugger::onTranslateInstructionStart(
     uint64_t pc
     )
 {
-    signal->connect(sigc::mem_fun(*this, &Debugger::onInstruction));
+    //signal->connect(sigc::mem_fun(*this, &Debugger::onInstruction));
 
     /*if (pc <= 0xc02144b1 && pc >= 0xc02142f8) {
         signal->connect(sigc::mem_fun(*this, &Debugger::onInstruction));
@@ -255,8 +257,8 @@ void Debugger::onTimer()
     }
 
     s2e()->getMessagesStream() << "Debugger Plugin: Enabling memory tracing" << std::endl;
-/*    s2e()->getCorePlugin()->onDataMemoryAccess.connect(
-            sigc::mem_fun(*this, &Debugger::onDataMemoryAccess));*/
+    s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+            sigc::mem_fun(*this, &Debugger::onDataMemoryAccess));
 
     //s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
       //      sigc::mem_fun(*this, &Debugger::onTranslateInstructionStart));
@@ -266,6 +268,8 @@ void Debugger::onTimer()
 
     m_timerConnection.disconnect();
 }
+
+
 
 } // namespace plugins
 } // namespace s2e

@@ -44,6 +44,7 @@
 namespace s2e {
 namespace plugins {
 
+
 /**
  *  This is a plugin for aiding in debugging guest code.
  *  XXX: To be replaced by gdb.
@@ -66,6 +67,7 @@ public:
         uint64_t start, end;
     };
 
+
 private:
 
     uint64_t *m_dataTriggers;
@@ -79,6 +81,7 @@ private:
     uint64_t m_timeTrigger;
     uint64_t m_elapsedTics;
     sigc::connection m_timerConnection;
+    sigc::connection m_memoryConnection;
 
     void initList(const std::string &key, uint64_t **ptr, unsigned *size);
     void initAddressTriggers(const std::string &key);
@@ -93,7 +96,6 @@ private:
                                    klee::ref<klee::Expr> hostAddress,
                                    klee::ref<klee::Expr> value,
                                    bool isWrite, bool isIO);
-
 
     void onTranslateInstructionStart(
         ExecutionSignal *signal,
