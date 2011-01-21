@@ -52,9 +52,6 @@ namespace plugins {
 #define COOPSEARCHER_OPCODE 0xAB
 
 
-#define COOPSEARCHER_OPCODE_SCHEDULE 0
-#define COOPSEARCHER_OPCODE_SCHEDULE 0
-
 class CooperativeSearcher : public Plugin, public klee::Searcher
 {
     S2E_PLUGIN
