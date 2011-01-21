@@ -97,8 +97,17 @@ bool RawMonitor::initSection(const std::string &cfgKey, const std::string &svcId
         return false;
     }
 
-    cfg.delayLoad = s2e()->getConfig()->getBool(cfgKey + ".delay");
-    cfg.kernelMode = s2e()->getConfig()->getBool(cfgKey + ".kernelmode");
+    cfg.delayLoad = s2e()->getConfig()->getBool(cfgKey + ".delay", false, &ok);
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".delay" << std::endl;
+        return false;
+    }
+
+    cfg.kernelMode = s2e()->getConfig()->getBool(cfgKey + ".kernelmode", false, &ok);
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".kernelmode" << std::endl;
+        return false;
+    }
 
     m_cfg.push_back(cfg);
     return true;
@@ -126,7 +135,7 @@ void RawMonitor::initialize()
     }
 
     if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the WindowsService sections"
+        s2e()->getWarningsStream() << "Errors while scanning the RawMonitor sections"
             <<std::endl;
         exit(-1);
     }
