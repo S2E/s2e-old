@@ -67,7 +67,8 @@ void MemoryTracer::initialize()
     m_catchAbove = s2e()->getConfig()->getInt(getConfigKey() + ".catchAccessesAbove");
 
     //Start monitoring after the specified number of seconds
-    m_timeTrigger = s2e()->getConfig()->getInt(getConfigKey() + ".timeTrigger");
+    bool hasTimeTrigger = false;
+    m_timeTrigger = s2e()->getConfig()->getInt(getConfigKey() + ".timeTrigger", 0, &hasTimeTrigger);
     m_elapsedTics = 0;
 
     m_monitorMemory = s2e()->getConfig()->getBool(getConfigKey() + ".monitorMemory");
@@ -77,12 +78,18 @@ void MemoryTracer::initialize()
     s2e()->getDebugStream() << "MonitorMemory: " << m_monitorMemory << 
     " PageFaults: " << m_monitorPageFaults << " TlbMisses: " << m_monitorTlbMisses << std::endl;
 
-    if (!m_timeTrigger) {
-        enableTracing();
+    if (!m_elapsedTics) {
+        if (hasTimeTrigger) {
+            enableTracing();
+        }
     }else {
         m_timerConnection = s2e()->getCorePlugin()->onTimer.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onTimer));
     }
+
+    s2e()->getCorePlugin()->onCustomInstruction.connect(
+            sigc::mem_fun(*this, &MemoryTracer::onCustomInstruction));
+
 }
 
 bool MemoryTracer::decideTracing(S2EExecutionState *state, uint64_t addr, uint64_t data) const
@@ -156,21 +163,31 @@ void MemoryTracer::enableTracing()
 {
     if (m_monitorMemory) {
         s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling memory tracing" << std::endl;
-        s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+        m_memoryMonitor.disconnect();
+        m_memoryMonitor = s2e()->getCorePlugin()->onDataMemoryAccess.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess));
     }
 
     if (m_monitorPageFaults) {
         s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling page fault tracing" << std::endl;
-        s2e()->getCorePlugin()->onPageFault.connect(
+        m_pageFaultsMonitor.disconnect();
+        m_pageFaultsMonitor = s2e()->getCorePlugin()->onPageFault.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onPageFault));
     }
 
     if (m_monitorTlbMisses) {
         s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling TLB miss tracing" << std::endl;
-        s2e()->getCorePlugin()->onTlbMiss.connect(
+        m_tlbMissesMonitor.disconnect();
+        m_tlbMissesMonitor = s2e()->getCorePlugin()->onTlbMiss.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onTlbMiss));
     }
+}
+
+void MemoryTracer::disableTracing()
+{
+    m_memoryMonitor.disconnect();
+    m_pageFaultsMonitor.disconnect();
+    m_tlbMissesMonitor.disconnect();
 }
 
 void MemoryTracer::onTimer()
@@ -182,6 +199,37 @@ void MemoryTracer::onTimer()
     enableTracing();
 
     m_timerConnection.disconnect();
+}
+
+void MemoryTracer::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
+{
+    //XXX: find a better way of allocating custom opcodes
+    if (((opcode>>8) & 0xFF) != MEMORY_TRACER_OPCODE) {
+        return;
+    }
+
+    //XXX: remove this mess. Should have a function for extracting
+    //info from opcodes.
+    opcode >>= 16;
+    uint8_t op = opcode & 0xFF;
+    opcode >>= 8;
+
+
+    MemoryTracerOpcodes opc = (MemoryTracerOpcodes)op;
+    switch(opc) {
+    case Enable:
+        enableTracing();
+        break;
+
+    case Disable:
+        disableTracing();
+        break;
+
+    default:
+        s2e()->getWarningsStream() << "MemoryTracer: unsupported opcode 0x" << std::hex << opc << std::endl;
+        break;
+    }
+
 }
 
 }

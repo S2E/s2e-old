@@ -60,58 +60,33 @@ void TranslationBlockTracer::initialize()
     m_tracer = (ExecutionTracer *)s2e()->getPlugin("ExecutionTracer");
     m_detector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
 
-    m_detector->onModuleTranslateBlockStart.connect(
+    bool ok = false;
+    //Specify whether or not to enable cutom instructions for enabling/disabling tracing
+    bool manualTrigger = s2e()->getConfig()->getBool(getConfigKey() + ".manualTrigger", false, &ok);
+
+    if (manualTrigger) {
+        s2e()->getCorePlugin()->onCustomInstruction.connect(
+                sigc::mem_fun(*this, &TranslationBlockTracer::onCustomInstruction));
+    }else {
+        enableTracing();
+    }
+}
+
+void TranslationBlockTracer::enableTracing()
+{
+    m_tbStartConnection = m_detector->onModuleTranslateBlockStart.connect(
             sigc::mem_fun(*this, &TranslationBlockTracer::onModuleTranslateBlockStart)
     );
 
-    m_detector->onModuleTranslateBlockEnd.connect(
+    m_tbEndConnection = m_detector->onModuleTranslateBlockEnd.connect(
             sigc::mem_fun(*this, &TranslationBlockTracer::onModuleTranslateBlockEnd)
     );
-
-#if 0
-    //XXX: debugging code. Will need a generic way of tracing selected portions of pc
-    s2e()->getCorePlugin()->onTranslateBlockStart.connect(
-            sigc::mem_fun(*this, &TranslationBlockTracer::onTranslateBlockStart)
-    );
-
-    s2e()->getCorePlugin()->onTranslateBlockEnd.connect(
-            sigc::mem_fun(*this, &TranslationBlockTracer::onTranslateBlockEnd)
-    );
-#endif
 }
 
-void TranslationBlockTracer::onTranslateBlockStart(
-        ExecutionSignal *signal,
-        S2EExecutionState* state,
-        TranslationBlock *tb,
-        uint64_t pc)
+void TranslationBlockTracer::disableTracing()
 {
-    uint64_t rlow = 0x4746c4 - 0x400000 + 0x804d7000;
-    uint64_t rhigh = 0x474e23 - 0x400000 + 0x804d7000;
-
-    if (pc >= rlow && pc <= rhigh) {
-    signal->connect(
-        sigc::mem_fun(*this, &TranslationBlockTracer::onExecuteBlockStart)
-    );
-    }
-}
-
-void TranslationBlockTracer::onTranslateBlockEnd(
-        ExecutionSignal *signal,
-        S2EExecutionState* state,
-        TranslationBlock *tb,
-        uint64_t endPc,
-        bool staticTarget,
-        uint64_t targetPc)
-{
-    uint64_t rlow = 0x4746c4 - 0x400000 + 0x804d7000;
-    uint64_t rhigh = 0x474e23 - 0x400000 + 0x804d7000;
-
-    if (endPc >= rlow && endPc <= rhigh) {
-        signal->connect(
-            sigc::mem_fun(*this, &TranslationBlockTracer::onExecuteBlockEnd)
-        );
-    }
+    m_tbStartConnection.disconnect();
+    m_tbEndConnection.disconnect();
 }
 
 
@@ -177,6 +152,37 @@ void TranslationBlockTracer::onExecuteBlockStart(S2EExecutionState *state, uint6
 void TranslationBlockTracer::onExecuteBlockEnd(S2EExecutionState *state, uint64_t pc)
 {
     trace(state, pc, TRACE_TB_END);
+}
+
+void TranslationBlockTracer::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
+{
+    //XXX: find a better way of allocating custom opcodes
+    if (((opcode>>8) & 0xFF) != TB_TRACER_OPCODE) {
+        return;
+    }
+
+    //XXX: remove this mess. Should have a function for extracting
+    //info from opcodes.
+    opcode >>= 16;
+    uint8_t op = opcode & 0xFF;
+    opcode >>= 8;
+
+
+    TbTracerOpcodes opc = (TbTracerOpcodes)op;
+    switch(opc) {
+    case Enable:
+        enableTracing();
+        break;
+
+    case Disable:
+        disableTracing();
+        break;
+
+    default:
+        s2e()->getWarningsStream() << "MemoryTracer: unsupported opcode 0x" << std::hex << opc << std::endl;
+        break;
+    }
+
 }
 
 } // namespace plugins

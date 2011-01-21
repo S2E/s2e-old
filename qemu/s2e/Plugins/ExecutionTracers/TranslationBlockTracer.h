@@ -48,6 +48,8 @@
 namespace s2e {
 namespace plugins {
 
+#define TB_TRACER_OPCODE 0xAD
+
 class TranslationBlockTracer : public Plugin
 {
     S2E_PLUGIN
@@ -56,10 +58,18 @@ public:
 
     void initialize(void);
 
+    enum TbTracerOpcodes {
+        Enable = 0,
+        Disable = 1
+    };
 
 private:
     ExecutionTracer *m_tracer;
     ModuleExecutionDetector *m_detector;
+
+    sigc::connection m_tbStartConnection;
+    sigc::connection m_tbEndConnection;
+
 
     void onModuleTranslateBlockStart(
             ExecutionSignal *signal,
@@ -95,6 +105,10 @@ private:
 
     void onExecuteBlockStart(S2EExecutionState *state, uint64_t pc);
     void onExecuteBlockEnd(S2EExecutionState *state, uint64_t pc);
+
+    void enableTracing();
+    void disableTracing();
+    void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
 };
 
 } // namespace plugins

@@ -44,6 +44,9 @@
 namespace s2e{
 namespace plugins{
 
+#define MEMORY_TRACER_OPCODE 0xAC
+
+
 /** Handler required for KLEE interpreter */
 class MemoryTracer : public Plugin
 {
@@ -55,6 +58,12 @@ public:
     MemoryTracer(S2E* s2e);
 
     void initialize();
+
+    enum MemoryTracerOpcodes {
+        Enable = 0,
+        Disable = 1
+    };
+
 private:
     bool m_monitorPageFaults;
     bool m_monitorTlbMisses;
@@ -66,6 +75,10 @@ private:
     uint64_t m_timeTrigger;
     uint64_t m_elapsedTics;
     sigc::connection m_timerConnection;
+
+    sigc::connection m_memoryMonitor;
+    sigc::connection m_pageFaultsMonitor;
+    sigc::connection m_tlbMissesMonitor;
 
     ExecutionTracer *m_tracer;
 
@@ -83,6 +96,8 @@ private:
     void onTimer();
 
     void enableTracing();
+    void disableTracing();
+    void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
 
 };
 
