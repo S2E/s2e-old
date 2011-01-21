@@ -109,6 +109,9 @@ ClientFramebuffer* fb_client = NULL;
 /* -ui-settings parameters received from the core on UI attachment. */
 char* core_ui_settings = "";
 
+/* Emulator's core port. */
+int android_base_port = 0;
+
 /***********************************************************************/
 /***********************************************************************/
 /*****                                                             *****/
@@ -951,7 +954,11 @@ attach_to_core(AndroidOptions* opts) {
         return -1;
     }
 
+    // Save core's port, and set the title.
+    android_base_port = sock_address_get_port(&console_socket);
     emulator = qemulator_get();
+    qemulator_set_title(emulator);
+
     fb_client = clientfb_create(&console_socket, "-raw",
                                 qemulator_get_first_framebuffer(emulator));
     if (fb_client == NULL) {

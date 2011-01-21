@@ -51,16 +51,6 @@ android_core_set_brightness_change_callback(AndroidHwLightBrightnessCallback cal
 #endif  // CONFIG_STANDALONE_UI
 }
 
-int
-android_core_get_base_port(void)
-{
-#if !defined(CONFIG_STANDALONE_UI)
-    return android_base_port;
-#else
-    return 5554;
-#endif  // CONFIG_STANDALONE_UI
-}
-
 void
 android_core_sensors_set_coarse_orientation( AndroidCoarseOrientation  orient )
 {
