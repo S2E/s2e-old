@@ -515,6 +515,7 @@ const ModuleDescriptor *ModuleTransitionState::getDescriptor(uint64_t pid, uint6
     ModuleDescriptor d;
     d.Pid = pid;
     d.LoadBase = pc;
+    d.Size = 1;
     DescriptorSet::iterator it = m_Descriptors.find(&d);
     if (it != m_Descriptors.end()) {
         m_CachedModule = *it;
@@ -555,6 +556,8 @@ void ModuleTransitionState::unloadDescriptor(const ModuleDescriptor &desc)
     ModuleDescriptor d;
     d.LoadBase = desc.LoadBase;
     d.Pid = desc.Pid;
+    d.Size = desc.Size;
+
     DescriptorSet::iterator it = m_Descriptors.find(&d);
     if (it != m_Descriptors.end()) {
         if (m_CachedModule == *it) {
