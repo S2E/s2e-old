@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
 <title>Using the s2eget Tool</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -12,8 +12,8 @@
 <h1 class="title">Using the s2eget Tool</h1>
 
 <p>The s2eget tool allows to easily download files from the host into the guest in
-S2E mode. The typical usecase for the tool is to setup a VM snapshot that, when
-resumed in S2E mode, automatically download a program from the host and starts
+S2E mode. The typical use case for this tool is to setup a VM snapshot that, when
+resumed in S2E mode, automatically downloads a program from the host and starts
 symbolically executing it.</p>
 <div class="contents topic" id="contents">
 <p class="topic-title first">Contents</p>
@@ -24,25 +24,25 @@ symbolically executing it.</p>
 </div>
 <div class="section" id="setting-up-hostfiles-plugin">
 <h1>Setting up HostFiles Plugin</h1>
-<p>The s2eget tool depends on HostFiles plugin being enabled and configured in S2E.
+<p>To use the s2eget tool, you must enable the HostFiles plugin in the S2E configuration file.
 Add the following lines to your config.lua file:</p>
 <div class="highlight"><pre><span class="n">plugins</span> <span class="o">=</span> <span class="p">{</span>
    <span class="p">...</span>
-   <span class="s2">&quot;</span><span class="s">HostFiles&quot;</span><span class="p">,</span>
+   <span class="s2">&quot;</span><span class="s">HostFiles&quot;</span>
 <span class="p">}</span>
 
 <span class="n">pluginsConfig</span><span class="p">.</span><span class="n">HostFiles</span> <span class="o">=</span> <span class="p">{</span>
   <span class="n">baseDir</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">/path/to/host/dir&quot;</span>
 <span class="p">}</span>
 </pre></div>
-<p>Here <tt class="docutils literal">pluginsConfig.HostFiles.baseDir</tt> configuration option specifies what
+<p>The <tt class="docutils literal">pluginsConfig.HostFiles.baseDir</tt> configuration option specifies what
 directory on the host should be exported to the guest. The path could be either
 absolute of relative, or can be empty in which case the s2e output directory
 will be exported.</p>
 </div>
 <div class="section" id="running-s2eget">
 <h1>Running s2eget</h1>
-<p>First, boot the VM in S2E version of QEMU in non-S2E mode. Copy s2eget tool
+<p>First, boot the VM in the S2E version of QEMU in non-S2E mode. Copy the s2eget tool
 into the guest over SSH (or any other method). Then run the tool, for example,
 as follows:</p>
 <pre class="literal-block">
