@@ -263,3 +263,13 @@ static inline int s2e_read(int fd, char* buf, int count)
     return res;
 }
 
+
+/* Kills the current state if b is zero */
+void _s2e_assert(int b, const char *expression )
+{
+   if (!b) {
+      s2e_kill_state(0, expression);
+   }
+}
+
+#define s2e_assert(expression) _s2e_assert(expression, "Assertion failed: "  #expression)
