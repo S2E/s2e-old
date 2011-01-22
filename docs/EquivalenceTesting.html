@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>Equivalence Testing</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="equivalence-testing">
+<h1 class="title">Equivalence Testing</h1>
+
+<p>Given two functions <tt class="docutils literal">f</tt> and <tt class="docutils literal">g</tt>, we would like to check
+whether for all input, they produce the same output. In other words, we verify
+whether <tt class="docutils literal">f</tt> and <tt class="docutils literal">g</tt> are equivalent.</p>
+<p>Equivalence testing is useful to check that two implementations of the same
+algorithm produce identical results. E.g., scripts may parse the output of
+some tools (e.g., ls) and thus expect certain behavior. The developers
+of alternative and compatible implementations (e.g., ls for Busybox)
+of such tools can use equivalence testing to gain confidence that their
+implementation behaves in the same way. Another example is to check the equivalence
+of two implementations of the same protocol (e.g., TCP/IP).</p>
+<p>In this tutorial, we show how to perform equivalence testing with S2E.
+At a high level, this is done by passing identical symbolic inputs to the functions,
+letting S2E explore the execution tree, and when both functions return, check whether
+they produced the same output (e.g., with an assertion check).</p>
+<div class="section" id="program-to-test">
+<h1>Program to Test</h1>
+<p>This sample program contains two implementations of the factorial algorithm that
+we want to test for equivalence.
+Both implementations behave in the same way except in some corner cases.</p>
+<div class="highlight"><pre><span class="cp">#include &lt;inttypes.h&gt;</span>
+<span class="cp">#include &lt;s2e.h&gt;</span>
+
+<span class="cm">/**</span>
+<span class="cm"> *  Computes x!</span>
+<span class="cm"> *  If x &gt; max, computes max!</span>
+<span class="cm"> */</span>
+<span class="kt">uint64_t</span> <span class="nf">factorial1</span><span class="p">(</span><span class="kt">uint64_t</span> <span class="n">x</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">max</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kt">uint64_t</span> <span class="n">ret</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kt">uint64_t</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="n">i</span><span class="o">&lt;=</span><span class="n">x</span> <span class="o">&amp;&amp;</span> <span class="n">i</span><span class="o">&lt;=</span><span class="n">max</span><span class="p">;</span> <span class="o">++</span><span class="n">i</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">ret</span> <span class="o">*</span> <span class="n">i</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">ret</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="cm">/**</span>
+<span class="cm"> *  Computes x!</span>
+<span class="cm"> *  If x &gt; max, computes max!</span>
+<span class="cm"> */</span>
+<span class="kt">uint64_t</span> <span class="nf">factorial2</span><span class="p">(</span><span class="kt">uint64_t</span> <span class="n">x</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">max</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">max</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">max</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">x</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">x</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="n">factorial2</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">max</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>
+    <span class="kt">uint64_t</span> <span class="n">max</span> <span class="o">=</span> <span class="mi">10</span><span class="p">;</span>
+
+    <span class="c1">//Make x symbolic</span>
+    <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="s">&quot;x&quot;</span><span class="p">);</span>
+
+    <span class="kt">uint64_t</span> <span class="n">f1</span> <span class="o">=</span> <span class="n">factorial1</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">max</span><span class="p">);</span>
+    <span class="kt">uint64_t</span> <span class="n">f2</span> <span class="o">=</span> <span class="n">factorial2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">max</span><span class="p">);</span>
+
+    <span class="c1">//Check the equivalence of the two functions for each path</span>
+    <span class="n">s2e_assert</span><span class="p">(</span><span class="n">f1</span> <span class="o">==</span> <span class="n">f2</span><span class="p">);</span>
+
+    <span class="c1">//In case of success, terminate the state with the</span>
+    <span class="c1">//appropriate message</span>
+    <span class="n">s2e_kill_state</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s">&quot;Success&quot;</span><span class="p">);</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+<p>Compile it as follows after adapting the include path:</p>
+<pre class="literal-block">
+$ gcc -m32 -I /home/user/s2e/guest/include/ -std=c99 -o factorial factorial.c
+</pre>
+</div>
+<div class="section" id="configuring-s2e">
+<h1>Configuring S2E</h1>
+<p>We will instruct S2E to compute test cases at the end of each execution path (i.e., when
+<tt class="docutils literal">s2e_kill_state</tt> is called), in order to reproduce potential assertion failures on
+our own. A test case consists of concrete program inputs that would drive the program down
+the corresponding execution path.</p>
+<div class="highlight"><pre><span class="c1">-- File: config.lua</span>
+<span class="n">s2e</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="n">kleeArgs</span> <span class="o">=</span> <span class="p">{</span>
+     <span class="c1">--Switch states only when the current one terminates</span>
+     <span class="s2">&quot;</span><span class="s">--use-dfs-search&quot;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+<span class="n">plugins</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="c1">-- Enable S2E custom opcodes</span>
+  <span class="s2">&quot;</span><span class="s">BaseInstructions&quot;</span><span class="p">,</span>
+
+  <span class="c1">-- Enable the test case generator plugin</span>
+  <span class="s2">&quot;</span><span class="s">TestCaseGenerator&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="section" id="running-the-program-in-s2e">
+<h1>Running the Program in S2E</h1>
+<p>Run the program in S2E. Refer to <a class="reference external" href="TestingMinimalProgram.html">this tuorial</a> for more details.
+S2E will exit when all paths terminate.</p>
+</div>
+<div class="section" id="interpreting-the-results">
+<h1>Interpreting the Results</h1>
+<p>After the run, the <tt class="docutils literal"><span class="pre">s2e-last/messages.txt</span></tt> file contains the following output:</p>
+<ul class="simple">
+<li>Messages explaining the reason why each state terminated (either success or failure)</li>
+<li>The concrete input that would allow replaying the same path independently of S2E</li>
+</ul>
+<p>For several states, we see the following type of message:</p>
+<pre class="literal-block">
+message: &quot;Assertion failed: f1 == f2&quot;
+TestCaseGenerator: processTestCase of state 0 at address 0x8048525
+x: 7f 7f 7f 7f 7f 7f 7f 7f
+</pre>
+<p>This indicates that when <tt class="docutils literal">x == 0x7f7f7f7f7f7f7f7f</tt>, the two implementations of
+factorial produce a different output. To reproduce this behavior, take the computed value for x
+(it is displayed in little endian format by the test case generator),
+plug it into the original program, and run the program in a debugger to understand what happens.
+When you fixed the deviating behavior, rerun the program again in S2E, until all states terminate
+with a success.</p>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="EquivalenceTesting.rst">View document source</a>.
+
+</div>
+</body>
+</html>

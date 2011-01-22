@@ -10,9 +10,10 @@ S²E Documentation
 
   1. `Building S2E <BuildingS2E.html>`_
   2. `Preparing an OS image for S2E <ImageInstallation.html>`_
-  3. `Testing a Simple Program with S2E <TestingMinimalProgram.html>`_
-  4. `Quicky Uploading Programs to the Guest with s2eget <UsingS2EGet.html>`_
+  3. `Quicky Uploading Programs to the Guest with s2eget <UsingS2EGet.html>`_
 
+  4. `Testing a Simple Program <TestingMinimalProgram.html>`_
+  5. `Equivalence Testing <EquivalenceTesting.html>`_
   
 * Analyzing Windows Device Drivers
 
