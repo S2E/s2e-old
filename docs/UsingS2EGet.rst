@@ -3,8 +3,8 @@ Using the s2eget Tool
 =====================
 
 The s2eget tool allows to easily download files from the host into the guest in
-S2E mode. The typical usecase for the tool is to setup a VM snapshot that, when
-resumed in S2E mode, automatically download a program from the host and starts
+S2E mode. The typical use case for this tool is to setup a VM snapshot that, when
+resumed in S2E mode, automatically downloads a program from the host and starts
 symbolically executing it.
 
 .. contents::
@@ -12,21 +12,21 @@ symbolically executing it.
 Setting up HostFiles Plugin
 ===========================
 
-The s2eget tool depends on HostFiles plugin being enabled and configured in S2E.
+To use the s2eget tool, you must enable the HostFiles plugin in the S2E configuration file.
 Add the following lines to your config.lua file:
 
 .. code-block:: lua
 
    plugins = {
       ...
-      "HostFiles",
+      "HostFiles"
    }
 
    pluginsConfig.HostFiles = {
      baseDir = "/path/to/host/dir"
    }
 
-Here ``pluginsConfig.HostFiles.baseDir`` configuration option specifies what
+The ``pluginsConfig.HostFiles.baseDir`` configuration option specifies what
 directory on the host should be exported to the guest. The path could be either
 absolute of relative, or can be empty in which case the s2e output directory
 will be exported.
@@ -34,7 +34,7 @@ will be exported.
 Running s2eget
 ==============
 
-First, boot the VM in S2E version of QEMU in non-S2E mode. Copy s2eget tool
+First, boot the VM in the S2E version of QEMU in non-S2E mode. Copy the s2eget tool
 into the guest over SSH (or any other method). Then run the tool, for example,
 as follows::
 

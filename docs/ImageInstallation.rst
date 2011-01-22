@@ -7,7 +7,7 @@ Preparing an OS Image for S2E
 There are no specific requirements for the OS image to make it runnable in S2E.
 Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumarate a list of tips 
 and optimizations that will make administration easier and symbolic execution faster.
-*These tips should be used as guidelines, and are not mandatory.*
+*These tips should be used as guidelines and are not mandatory.*
 
 Here is a checklist we recommend to follow:
 

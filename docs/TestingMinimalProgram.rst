@@ -1,6 +1,6 @@
-=================================
-Tutorial 1: Testing Small Program
-=================================
+=============================================
+Tutorial 1: Testing a Simple Program with S2E
+=============================================
 
 The tutorial assumes you already built S2E and prepared VM image as described
 on `Building the S2E Framework <BuildingS2E.html>`_ page.
