@@ -111,13 +111,23 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
         return;
     }
     uint64_t relPc = pc - mi->LoadBase + mi->ImageBase;
-    m_output << std::hex << "(" << mi->Name << " 0x" << relPc << ")";
+    m_output << std::hex << "(" << mi->Name;
+    if (relPc != pc) {
+       m_output << " 0x" << relPc;
+    }
+    m_output << ")";
+
     m_hasModuleInfo = true;
 
     std::string file = "?", function="?";
     uint64_t line=0;
     if (m_library->getInfo(mi, pc, file, line, function)) {
-        m_output << " - " << file << std::dec << ":" << line << " in " << function;
+        size_t pos = file.find_last_of('/');
+	if (pos != std::string::npos) {
+            file = file.substr(pos+1);
+        }
+
+        m_output << " " << file << std::dec << ":" << line << " in " << function;
         m_hasDebugInfo = true;
     }
 
@@ -170,11 +180,18 @@ void TbTrace::onItem(unsigned traceIndex,
                 (const s2e::plugins::ExecutionTraceMemory*) item;
         std::string type;
 
-        type += te->flags & EXECTRACE_MEM_SYMBADDR ? "s" : "c";
+        
+        type += te->flags & EXECTRACE_MEM_SYMBHOSTADDR ? "H" : "h";
+        type += te->flags & EXECTRACE_MEM_SYMBADDR ? "A" : "a";
         type += te->flags & EXECTRACE_MEM_SYMBVAL ? "S" : "C";
         type += te->flags & EXECTRACE_MEM_WRITE   ? "W" : "R";
-        m_output << "PC=0x" << std::hex << te->pc << " " << type << (int)te->size << "[0x"
-                << std::hex << te->address << "]=0x" << std::setw(10) << std::setfill('0') << te->value << "\t";
+        m_output << "S=" << std::dec << hdr.stateId << " P=0x" << std::hex << hdr.pid << " PC=0x" << std::hex << te->pc << " " << type << (int)te->size << "[0x"
+                << std::hex << te->address << "]=0x" << std::setw(10) << std::setfill('0') << te->value;
+
+	if (te->flags & EXECTRACE_MEM_HASHOSTADDR) {
+           m_output << " hostAddr=0x" << te->hostAddress << " ";
+        }
+        m_output << "\t";
 
         printDebugInfo(hdr.pid, te->pc);
         m_output << std::setfill(' ');

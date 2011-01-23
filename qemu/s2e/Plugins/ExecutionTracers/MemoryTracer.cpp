@@ -66,6 +66,10 @@ void MemoryTracer::initialize()
     //Catch accesses that are above the specified address
     m_catchAbove = s2e()->getConfig()->getInt(getConfigKey() + ".catchAccessesAbove");
 
+    //Whether or not to include host addresses in the trace.
+    //This is useful for debugging, bug yields larger traces
+    m_traceHostAddresses = s2e()->getConfig()->getBool(getConfigKey() + ".traceHostAddresses");
+
     //Start monitoring after the specified number of seconds
     bool hasTimeTrigger = false;
     m_timeTrigger = s2e()->getConfig()->getInt(getConfigKey() + ".timeTrigger", 0, &hasTimeTrigger);
@@ -116,27 +120,52 @@ void MemoryTracer::onDataMemoryAccess(S2EExecutionState *state,
                                klee::ref<klee::Expr> value,
                                bool isWrite, bool isIO)
 {
+    bool isAddrCste = isa<klee::ConstantExpr>(address);
+    bool isValCste = isa<klee::ConstantExpr>(value);
+    bool isHostAddrCste = isa<klee::ConstantExpr>(hostAddress);
 
-    if(!isa<klee::ConstantExpr>(address) || !isa<klee::ConstantExpr>(value)) {
-        //We do not support symbolic values yet...
-        return;
+    if (isAddrCste && isValCste) {
+        uint64_t addr = cast<klee::ConstantExpr>(address)->getZExtValue(64);
+        uint64_t val = cast<klee::ConstantExpr>(value)->getZExtValue(64);
+
+        if (!decideTracing(state, addr, val)) {
+           return;
+        }
     }
 
-    uint64_t addr = cast<klee::ConstantExpr>(address)->getZExtValue(64);
-    uint64_t val = cast<klee::ConstantExpr>(value)->getZExtValue(64);
-
-    if (decideTracing(state, addr, val)) {
-       //Output to the trace entry here
-       ExecutionTraceMemory e;
-       e.pc = state->getPc();
-       e.address = addr;
-       e.value = val;
-       e.size = klee::Expr::getMinBytesForWidth(value->getWidth());
-       e.flags = isWrite*EXECTRACE_MEM_WRITE |
+    //Output to the trace entry here
+    ExecutionTraceMemory e;
+    e.pc = state->getPc();
+    e.address = isAddrCste ? cast<klee::ConstantExpr>(address)->getZExtValue(64) : 0xDEADBEEF;
+    e.value = isValCste ? cast<klee::ConstantExpr>(value)->getZExtValue(64) : 0xDEADBEEF;
+    e.size = klee::Expr::getMinBytesForWidth(value->getWidth());
+    e.flags = isWrite*EXECTRACE_MEM_WRITE |
                  isIO*EXECTRACE_MEM_IO;
 
-       m_tracer->writeData(state, &e, sizeof(e), TRACE_MEMORY);
+    e.hostAddress = isHostAddrCste ? cast<klee::ConstantExpr>(hostAddress)->getZExtValue(64) : 0xDEADBEEF;
+
+    if (m_traceHostAddresses) {
+        e.flags |= EXECTRACE_MEM_HASHOSTADDR;
     }
+
+    if (!isAddrCste) {
+       e.flags |= EXECTRACE_MEM_SYMBADDR;
+    }
+
+    if (!isValCste) {
+       e.flags |= EXECTRACE_MEM_SYMBVAL;
+    }
+
+    if (!isHostAddrCste) {
+       e.flags |= EXECTRACE_MEM_SYMBHOSTADDR;
+    }
+
+    unsigned strucSize = sizeof(e);
+    if (!(e.flags & EXECTRACE_MEM_HASHOSTADDR)) {
+       strucSize -= sizeof(e.hostAddress);
+    }
+
+    m_tracer->writeData(state, &e, sizeof(e), TRACE_MEMORY);
 }
 
 void MemoryTracer::onTlbMiss(S2EExecutionState *state, uint64_t addr, bool is_write)
