@@ -2,13 +2,17 @@
 Tutorial 1: Testing a Simple Program with S2E
 =============================================
 
-The tutorial assumes you already built S2E and prepared VM image as described
-on `Building the S2E Framework <BuildingS2E.html>`_ page.
+This tutorial assumes that you have already built S2E and prepared VM image as described
+on the `Building the S2E Framework <BuildingS2E.html>`_ page.
 
 .. contents::
 
 Program to Test
 ===============
+
+We want to cover all of the code of the following program by exploring all
+the possible paths through it.
+
 
 .. code-block:: c
 
@@ -45,25 +49,24 @@ Program to Test
      return 0;
    }
 
-We want to explore all possible paths through this program and cover all of its
-code.
    
 Compiling the Program in the Guest
 ==================================
 
-Before testing the program in S2E, let us compile and run it in normal QEMU.
+Before testing the program in S2E, compile and run it in the vanilla QEMU
+(e.g., that you downloaded on the QEMU's web site).
 Launch QEMU with with the following command::
 
    $ qemu your_image.qcow2
 
-You need to copy example source code into the VM. As you will likely need this
-frequently, we recommend to install either ssh or http server of your host
-machine. Then you can copy the code using scp::
+You need to copy the example source code into the VM. As you will likely need to do this
+frequently, we recommend to install either ``ssh`` or an http server on your host
+machine. Then you can copy the code using ``scp``::
 
    guest$ scp <your_login_on_host>@<your_host_name>:path/to/tutorial1.c .
    guest$ scp <your_login_on_host>@<your_host_name>:path/to/s2e/guest/include/s2e.h .
 
-Compile and try running the example with the following commands::
+Compile and run the example with the following commands::
 
    guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
    guest$ ./tutorial1
@@ -77,12 +80,12 @@ Preparing the Program for S2E
    
 In order to execute the program symbolically, it is necessary to specify what
 values should become symbolic. There are many ways to do it in S2E, but the
-most simple one is to use S2E opcodes library. This library provides a way for
-guest code to communicate with S2E system, asking for certain services.
+simplest one is to use the S2E opcodes library. This library provides a way for
+guest code to communicate with the S2E system.
 
 In order to explore all possible paths through the program that correspond to
-all possible inputs we want to make that inputs symbolic. To accomplish it we
-replace a call to ``fgets()`` by a call to ``s2e_make_symbolic()``:
+all possible inputs, we want to make these inputs symbolic. To accomplish this, we
+replace the call to ``fgets()`` by a call to ``s2e_make_symbolic()``:
 
 .. code-block:: c
 
@@ -95,21 +98,22 @@ replace a call to ``fgets()`` by a call to ``s2e_make_symbolic()``:
      str[3] = 0;
      ...
 
-By default S2E will propagate our symbolic values through the program but will
-not fork on branches. To enable forking, we should call
+By default, S2E propagates the symbolic values through the program but does
+not fork on branches. To enable forking, call
 ``s2e_enable_forking()`` before making symbolic values, and
 ``s2e_disable_forking()`` after exploring all branches. In addition, as we want
 to minimize the amount of code that will execute with forking, we also disable
 all interrupts during symbolic execution using
 ``s2e_disable_all_apic_interrupts()`` and ``s2e_enable_all_apic_interrupts``.
 
-Finally, it would be interesting to see an example of input value that caused a
-program to take a particular execution path. For that, we use
-``s2e_get_example()`` function that gives a concrete example of symbolic value
-that satisfies current path constraints (i.e., all branch conditions along the
+Finally, it would be interesting to see an example of input value that cause a
+program to take a particular execution path. This can be useful to reproduce a bug
+in a debugger, independently of S2E.
+For that, use the ``s2e_get_example()`` function. This function gives a concrete example of symbolic values
+that satisfy the current path constraints (i.e., all branch conditions along the
 execution path).
 
-After these modifications our example program looks like the following:
+After these changes, the example program looks as follows:
 
 .. code-block:: c
 
@@ -159,20 +163,20 @@ After these modifications our example program looks like the following:
      return 0;
    }
 
-Compile this program as usual and try running it::
+Compile and run the program as usual::
 
    guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
    guest$ ./tutorial1
    Illegal instruction
 
-You see ``Illegal instruction`` message because all ``s2e_*`` functions use
-special CPU instruction that is only recognized by S2E.
+You see the ``Illegal instruction`` message because all ``s2e_*`` functions use
+special CPU opcodes that are only recognized by S2E.
 
 Running the Program in S2E
 ==========================
 
-Now we need to shutdown the VM and reboot it in the S2E, but first we need to
-create a simple config file
+To run a program in S2E, we have to write a configuration file, then reboot
+the system in S2E.
 
 .. code-block:: lua
 
@@ -189,48 +193,51 @@ create a simple config file
      "BaseInstructions"
    }
 
-Booting the system in S2E takes a very long time, we use two step process to
-speed it up. First, we boot the system in our version of QEMU but with S2E
-disabled. Than we save a snapshot and load it in the S2E::
+Booting the system in S2E takes a long time. Use a two-step process to
+speed it up. First, boot the system in the version of QEMU that has S2E
+disabled. Then, save a snapshot and load it in the S2E::
 
    guest$ su -c halt # shut down qemu
    
    $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2
    > Wait until Linux is loaded, login into the system. Then press
    > Ctrl + Alt + 2 and type 'savevm 1' then 'quit'.
+   > Notice that we use i386-softmmu, which is the build with S2E DISABLED.
 
    $ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
                               -s2e-config-file config.lua -s2e-verbose
    > Wait the snapshot is resumed, then type in the guest
    guest$ ./tutorial1
+   > Notice that we use i386-s2e-softmmu, which is the build with S2E ENABLED.
 
-After you run this command, S2E will start to symbolically execute our example.
-We configured S2E to switch states once per second, each time it selects next
-state to explore at random. You will see QEMU screen content changing each
-second between different possible outputs of our example.
+After you run this command, S2E starts to symbolically execute the example.
+The configuration file instructs S2E to pick a random state once per second.
+You will see the QEMU screen content changing every
+second for different possible outputs of the example.
 
 Each state is a completely independent snapshot of the whole system. You can
-even interrupt with each state independently, for example by launching
-different programs. Try launching ``tutorial1`` in one of the states again!
+even interact with each state independently, for example by launching
+different programs. Try to launch ``tutorial1`` in one of the states again!
 
-In the host terminal (i.e., S2E standard output) you will see various
-information about state execution, forking and switching. The same output is
-also saved into ``s2e-last/messages.txt`` log file. You could try following the
-history of one execution state through the log file.
+In the host terminal (i.e., the S2E standard output), you see various
+information about state execution, forking and switching. This output is
+also saved into the ``s2e-last/messages.txt`` log file. As an exercise, try to follow the
+execution history of a state through the log file.
 
-Exploring The Program Faster
+Exploring the Program Faster
 ============================
 
-In the previous section we made program fork and run along multiple execution
+In the previous section, we made the program run along multiple execution
 paths.  However, each path continued to run even after the program terminated,
-executing operating system code.  This might be nice to visually experience how
+executing operating system code.  This is great to visually experience how
 S2E works, but in general we want S2E to stop executing each path as soon as
-our program terminates.
+the program to analyze terminates.
 
-This is accomplished with ``s2e_kill_state()`` function: it stops executing
-current state immediately, and exits S2E if there are no more states to
-explore. We should add a call to this function just before our program returns
-control to the OS. Before that, we might want to print example values to the
+Terminating an execution path is accomplished with the ``s2e_kill_state()`` function.
+A call to this function immediately stops executing the
+current state and exits S2E if there are no more states to
+explore. Add a call to this function just before the program returns
+control to the OS. Before that, we might want to print example values in the
 S2E log using ``s2e_message()`` or ``s2e_warning()`` functions:
 
 .. code-block:: c
@@ -253,7 +260,7 @@ S2E log using ``s2e_message()`` or ``s2e_warning()`` functions:
      return 0;
    }
 
-Now we should resume our snapshot in QEMU with S2E disabled, edit and recompile
+Now, resume the snapshot in QEMU with S2E disabled, edit and recompile
 the program, re-save the snapshot and re-load it in S2E::
 
    $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2 -loadvm 1
@@ -265,14 +272,16 @@ the program, re-save the snapshot and re-load it in S2E::
                               -s2e-config-file config.lua -s2e-verbose
    guest$ ./tutorial1
 
-When you run tutorial1 this time, S2E will quickly terminate leaving you with
+Running ``tutorial1`` this time  will make S2E quickly terminate, leaving
 a log file that you can examine.
 
 Please note that in case your program crashes or exits at some other point
-without calling ``s2e_kill_state()``, S2E will not terminate and continue to
-execute paths that returned to the system. To avoid that you could write
-another program that simply calls ``s2e_kill_state()`` whenever you launch it
-and run the tutorial program like this::
+without calling ``s2e_kill_state()``, S2E will not terminate and will continue to
+execute paths that returned to the system. To avoid this, you can write
+a program that simply calls ``s2e_kill_state()``. Launch it right after the
+invocation to the program that can crash, e.g., as follows:
+
+::
 
    guest$ ./tutorial; ./s2e_kill
 
