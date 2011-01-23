@@ -2,9 +2,9 @@
 Building the S2E Framework
 ==========================
 
-The following steps describe installation in detail. We assume the installation
-is performed on Ubuntu 10.10 64bit host system (S2E also works on other 64bit
-Linux, Mac and Windows systems).
+The following steps describe the installation process in detail. We assume the installation
+is performed on an Ubuntu 10.10 64-bit host system (S2E also works on 64-bit
+Linux, Mac, and Windows systems).
 
 .. contents::
 
@@ -29,39 +29,39 @@ Required Packages
 Checking out S2E
 ================
 
-S2E source code can be obtained from the DSLab GIT repository using the
+S2E source code can be obtained from the S2E GIT repository using the
 following commands::
 
    $ cd $S2EDIR
    $ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git
 
-Alternatively, you could obtain an account on https://dslabgit.epfl.ch and
-upload your ssh public key to it. If you don't have an ssh key yet, you can
+Alternatively, you can obtain an account on `https://dslabgit.epfl.ch <https://dslabgit.epfl.ch>`_ and
+upload your public SSH key to it. If you do not have an SSH key yet,
 generate it with the following command::
 
    $ ssh-keygen -t rsa -C you@email
    > answer questions: store key to default location, optionally set password for it
 
-To upload your key, go to https://dslabgit.epfl.ch -> dashboard -> Manage SSH
-keys -> Add SSH key, then copy content of your ~/.ssh/id_rsa.pub and paste it
-into the form, then press save. In a few moments your key will be ready to use.
-Then you can checkout S2E with the following commands::
+To upload your key, go to `https://dslabgit.epfl.ch <https://dslabgit.epfl.ch>`_ -> Dashboard -> Manage SSH
+keys -> Add SSH key, then copy the content of your ~/.ssh/id_rsa.pub, paste it
+into the form, and then press save. Your key is activated within a few moments.
+Then, checkout S2E as follows::
 
    $ cd $S2EDIR
    $ git clone git@dslabgit.epfl.ch:s2e/s2e.git
 
-You can find more information about using git on http://gitref.org/ or on
-http://progit.org/.
+You can find more information about using git on `http://gitref.org/ <http://gitref.org/>`_ or on
+`http://progit.org/ <http://progit.org/>`_.
 
-In order to report bugs, please use https://dslabredmine.epfl.ch. If you ever
-want to contribute to S2E, please create your own personal clone of S2E on
-https://dslabgit.epfl.ch/s2e/s2e, push your changes to it and then send us a
+In order to report bugs, please use https://dslabredmine.epfl.ch. If you would like
+to contribute to S2E, please create your own personal clone of S2E on
+`https://dslabgit.epfl.ch/s2e/s2e <https://dslabgit.epfl.ch/s2e/s2e>`_, push your changes to it and then send us a
 merge request.
 
 Building S2E
 ============
 
-The recommended method of building S2E is using S2E Makefile::
+The recommended method of building S2E is using the S2E Makefile::
 
    $ mkdir $S2EDIR/build
    $ cd $S2EDIR/build
@@ -69,37 +69,37 @@ The recommended method of building S2E is using S2E Makefile::
    $ make JOBS=4 # Replace 4 with your number of cores
    > Go make some coffee, this will take a lot of time
 
-By default, the ``make`` command will compile S2E in release mode. Resulting
-binary will be placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu``.
+By default, the ``make`` command compiles S2E in release mode. The resulting
+binary is placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu``.
 To compile in Debug mode, use ``make all-debug JOBS=4``.
 
 You can also build each component of S2E manually, as described in `Building
-The S2E Framework Manually <BuildingS2EManually.html>`_.
+the S2E Framework Manually <BuildingS2EManually.html>`_.
 
 Updating S2E
 ============
 
-You could use the same make file to recompile S2E either when changing it
-yourself or when pulling new versions through the git. Note that the makefile
-won't automatically reconfigure the packages so for deep changes you might need
+You can use the same make file to recompile S2E either when changing it
+yourself or when pulling new versions through ``git``. Note that the makefile
+will not automatically reconfigure the packages; for deep changes you might need
 to either start from scratch by issuing ``make clean`` or to force
-reconfiguration of specific modules by deleting corresponding files from
+the reconfiguration of specific modules by deleting  the corresponding files from
 ``stamps`` subdirectory.
 
-Re-Building S2E Documentation
+Rebuilding S2E Documentation
 =============================
 
-S2E documentation is written in `reStructuredText
+The S2E documentation is written in `reStructuredText
 <http://docutils.sourceforge.net/rst.html>`_ format. For convenience, we also
-keep generated HTML files in the repository. Please never change HTML files
-manualy and always recompile them (by invoking ``make`` in the docs folder)
-after changing any RST files.
+keep generated HTML files in the repository. Never change HTML files
+manually and always recompile them (by invoking ``make`` in the docs folder)
+after changing any ``RST`` files.
 
 Preparing a Linux VM Image
 ==========================
 
 To run S2E, you need a QEMU-compatible virtual machine disk image. S2E can run
-any x86 32-bit operating system inside the VM. In the following we describe how
+any x86 32-bit operating system inside the VM. In the following, we describe how
 to install a minimal version of Debian Linux in QEMU::
 
    $ cd $S2EDIR

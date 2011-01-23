@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
 <title>Building the S2E Framework</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -11,19 +11,19 @@
 <div class="document" id="building-the-s2e-framework">
 <h1 class="title">Building the S2E Framework</h1>
 
-<p>The following steps describe installation in detail. We assume the installation
-is performed on Ubuntu 10.10 64bit host system (S2E also works on other 64bit
-Linux, Mac and Windows systems).</p>
+<p>The following steps describe the installation process in detail. We assume the installation
+is performed on an Ubuntu 10.10 64-bit host system (S2E also works on 64-bit
+Linux, Mac, and Windows systems).</p>
 <div class="contents topic" id="contents">
 <p class="topic-title first">Contents</p>
 <ul class="simple">
-<li><a class="reference internal" href="#required-packages" id="id1">Required Packages</a></li>
-<li><a class="reference internal" href="#checking-out-s2e" id="id2">Checking out S2E</a></li>
-<li><a class="reference internal" href="#building-s2e" id="id3">Building S2E</a></li>
-<li><a class="reference internal" href="#updating-s2e" id="id4">Updating S2E</a></li>
-<li><a class="reference internal" href="#re-building-s2e-documentation" id="id5">Re-Building S2E Documentation</a></li>
-<li><a class="reference internal" href="#preparing-a-linux-vm-image" id="id6">Preparing a Linux VM Image</a></li>
-<li><a class="reference internal" href="#compiling-the-linux-kernel" id="id7">Compiling the Linux kernel</a></li>
+<li><a class="reference internal" href="#required-packages" id="id2">Required Packages</a></li>
+<li><a class="reference internal" href="#checking-out-s2e" id="id3">Checking out S2E</a></li>
+<li><a class="reference internal" href="#building-s2e" id="id4">Building S2E</a></li>
+<li><a class="reference internal" href="#updating-s2e" id="id5">Updating S2E</a></li>
+<li><a class="reference internal" href="#rebuilding-s2e-documentation" id="id6">Rebuilding S2E Documentation</a></li>
+<li><a class="reference internal" href="#preparing-a-linux-vm-image" id="id7">Preparing a Linux VM Image</a></li>
+<li><a class="reference internal" href="#compiling-the-linux-kernel" id="id8">Compiling the Linux kernel</a></li>
 </ul>
 </div>
 <div class="section" id="required-packages">
@@ -45,37 +45,37 @@ $ sudo apt-get build-dep qemu
 </div>
 <div class="section" id="checking-out-s2e">
 <h1>Checking out S2E</h1>
-<p>S2E source code can be obtained from the DSLab GIT repository using the
+<p>S2E source code can be obtained from the S2E GIT repository using the
 following commands:</p>
 <pre class="literal-block">
 $ cd $S2EDIR
 $ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git
 </pre>
-<p>Alternatively, you could obtain an account on <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and
-upload your ssh public key to it. If you don't have an ssh key yet, you can
+<p>Alternatively, you can obtain an account on <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> and
+upload your public SSH key to it. If you do not have an SSH key yet,
 generate it with the following command:</p>
 <pre class="literal-block">
 $ ssh-keygen -t rsa -C you&#64;email
 &gt; answer questions: store key to default location, optionally set password for it
 </pre>
-<p>To upload your key, go to <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> -&gt; dashboard -&gt; Manage SSH
-keys -&gt; Add SSH key, then copy content of your ~/.ssh/id_rsa.pub and paste it
-into the form, then press save. In a few moments your key will be ready to use.
-Then you can checkout S2E with the following commands:</p>
+<p>To upload your key, go to <a class="reference external" href="https://dslabgit.epfl.ch">https://dslabgit.epfl.ch</a> -&gt; Dashboard -&gt; Manage SSH
+keys -&gt; Add SSH key, then copy the content of your ~/.ssh/id_rsa.pub, paste it
+into the form, and then press save. Your key is activated within a few moments.
+Then, checkout S2E as follows:</p>
 <pre class="literal-block">
 $ cd $S2EDIR
 $ git clone git&#64;dslabgit.epfl.ch:s2e/s2e.git
 </pre>
 <p>You can find more information about using git on <a class="reference external" href="http://gitref.org/">http://gitref.org/</a> or on
 <a class="reference external" href="http://progit.org/">http://progit.org/</a>.</p>
-<p>In order to report bugs, please use <a class="reference external" href="https://dslabredmine.epfl.ch">https://dslabredmine.epfl.ch</a>. If you ever
-want to contribute to S2E, please create your own personal clone of S2E on
+<p>In order to report bugs, please use <a class="reference external" href="https://dslabredmine.epfl.ch">https://dslabredmine.epfl.ch</a>. If you would like
+to contribute to S2E, please create your own personal clone of S2E on
 <a class="reference external" href="https://dslabgit.epfl.ch/s2e/s2e">https://dslabgit.epfl.ch/s2e/s2e</a>, push your changes to it and then send us a
 merge request.</p>
 </div>
 <div class="section" id="building-s2e">
 <h1>Building S2E</h1>
-<p>The recommended method of building S2E is using S2E Makefile:</p>
+<p>The recommended method of building S2E is using the S2E Makefile:</p>
 <pre class="literal-block">
 $ mkdir $S2EDIR/build
 $ cd $S2EDIR/build
@@ -83,32 +83,32 @@ $ ln -s ../s2e/Makefile .
 $ make JOBS=4 # Replace 4 with your number of cores
 &gt; Go make some coffee, this will take a lot of time
 </pre>
-<p>By default, the <tt class="docutils literal">make</tt> command will compile S2E in release mode. Resulting
-binary will be placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu</span></tt>.
+<p>By default, the <tt class="docutils literal">make</tt> command compiles S2E in release mode. The resulting
+binary is placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu</span></tt>.
 To compile in Debug mode, use <tt class="docutils literal">make <span class="pre">all-debug</span> JOBS=4</tt>.</p>
 <p>You can also build each component of S2E manually, as described in <a class="reference external" href="BuildingS2EManually.html">Building
-The S2E Framework Manually</a>.</p>
+the S2E Framework Manually</a>.</p>
 </div>
 <div class="section" id="updating-s2e">
 <h1>Updating S2E</h1>
-<p>You could use the same make file to recompile S2E either when changing it
-yourself or when pulling new versions through the git. Note that the makefile
-won't automatically reconfigure the packages so for deep changes you might need
+<p>You can use the same make file to recompile S2E either when changing it
+yourself or when pulling new versions through <tt class="docutils literal">git</tt>. Note that the makefile
+will not automatically reconfigure the packages; for deep changes you might need
 to either start from scratch by issuing <tt class="docutils literal">make clean</tt> or to force
-reconfiguration of specific modules by deleting corresponding files from
+the reconfiguration of specific modules by deleting  the corresponding files from
 <tt class="docutils literal">stamps</tt> subdirectory.</p>
 </div>
-<div class="section" id="re-building-s2e-documentation">
-<h1>Re-Building S2E Documentation</h1>
-<p>S2E documentation is written in <a class="reference external" href="http://docutils.sourceforge.net/rst.html">reStructuredText</a> format. For convenience, we also
-keep generated HTML files in the repository. Please never change HTML files
-manualy and always recompile them (by invoking <tt class="docutils literal">make</tt> in the docs folder)
-after changing any RST files.</p>
+<div class="section" id="rebuilding-s2e-documentation">
+<h1>Rebuilding S2E Documentation</h1>
+<p>The S2E documentation is written in <a class="reference external" href="http://docutils.sourceforge.net/rst.html">reStructuredText</a> format. For convenience, we also
+keep generated HTML files in the repository. Never change HTML files
+manually and always recompile them (by invoking <tt class="docutils literal">make</tt> in the docs folder)
+after changing any <tt class="docutils literal">RST</tt> files.</p>
 </div>
 <div class="section" id="preparing-a-linux-vm-image">
 <h1>Preparing a Linux VM Image</h1>
 <p>To run S2E, you need a QEMU-compatible virtual machine disk image. S2E can run
-any x86 32-bit operating system inside the VM. In the following we describe how
+any x86 32-bit operating system inside the VM. In the following, we describe how
 to install a minimal version of Debian Linux in QEMU:</p>
 <pre class="literal-block">
 $ cd $S2EDIR

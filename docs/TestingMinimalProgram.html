@@ -11,8 +11,8 @@
 <div class="document" id="tutorial-1-testing-a-simple-program-with-s2e">
 <h1 class="title">Tutorial 1: Testing a Simple Program with S2E</h1>
 
-<p>The tutorial assumes you already built S2E and prepared VM image as described
-on <a class="reference external" href="BuildingS2E.html">Building the S2E Framework</a> page.</p>
+<p>This tutorial assumes that you have already built S2E and prepared VM image as described
+on the <a class="reference external" href="BuildingS2E.html">Building the S2E Framework</a> page.</p>
 <div class="contents topic" id="contents">
 <p class="topic-title first">Contents</p>
 <ul class="simple">
@@ -20,11 +20,13 @@ on <a class="reference external" href="BuildingS2E.html">Building the S2E Framew
 <li><a class="reference internal" href="#compiling-the-program-in-the-guest" id="id2">Compiling the Program in the Guest</a></li>
 <li><a class="reference internal" href="#preparing-the-program-for-s2e" id="id3">Preparing the Program for S2E</a></li>
 <li><a class="reference internal" href="#running-the-program-in-s2e" id="id4">Running the Program in S2E</a></li>
-<li><a class="reference internal" href="#exploring-the-program-faster" id="id5">Exploring The Program Faster</a></li>
+<li><a class="reference internal" href="#exploring-the-program-faster" id="id5">Exploring the Program Faster</a></li>
 </ul>
 </div>
 <div class="section" id="program-to-test">
 <h1>Program to Test</h1>
+<p>We want to cover all of the code of the following program by exploring all
+the possible paths through it.</p>
 <div class="highlight"><pre><span class="cp">#include &lt;stdio.h&gt;</span>
 <span class="cp">#include &lt;string.h&gt;</span>
 
@@ -58,24 +60,23 @@ on <a class="reference external" href="BuildingS2E.html">Building the S2E Framew
   <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
-<p>We want to explore all possible paths through this program and cover all of its
-code.</p>
 </div>
 <div class="section" id="compiling-the-program-in-the-guest">
 <h1>Compiling the Program in the Guest</h1>
-<p>Before testing the program in S2E, let us compile and run it in normal QEMU.
+<p>Before testing the program in S2E, compile and run it in the vanilla QEMU
+(e.g., that you downloaded on the QEMU's web site).
 Launch QEMU with with the following command:</p>
 <pre class="literal-block">
 $ qemu your_image.qcow2
 </pre>
-<p>You need to copy example source code into the VM. As you will likely need this
-frequently, we recommend to install either ssh or http server of your host
-machine. Then you can copy the code using scp:</p>
+<p>You need to copy the example source code into the VM. As you will likely need to do this
+frequently, we recommend to install either <tt class="docutils literal">ssh</tt> or an http server on your host
+machine. Then you can copy the code using <tt class="docutils literal">scp</tt>:</p>
 <pre class="literal-block">
 guest$ scp &lt;your_login_on_host&gt;&#64;&lt;your_host_name&gt;:path/to/tutorial1.c .
 guest$ scp &lt;your_login_on_host&gt;&#64;&lt;your_host_name&gt;:path/to/s2e/guest/include/s2e.h .
 </pre>
-<p>Compile and try running the example with the following commands:</p>
+<p>Compile and run the example with the following commands:</p>
 <pre class="literal-block">
 guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
 guest$ ./tutorial1
@@ -89,11 +90,11 @@ First and second chars are not the same
 <h1>Preparing the Program for S2E</h1>
 <p>In order to execute the program symbolically, it is necessary to specify what
 values should become symbolic. There are many ways to do it in S2E, but the
-most simple one is to use S2E opcodes library. This library provides a way for
-guest code to communicate with S2E system, asking for certain services.</p>
+simplest one is to use the S2E opcodes library. This library provides a way for
+guest code to communicate with the S2E system.</p>
 <p>In order to explore all possible paths through the program that correspond to
-all possible inputs we want to make that inputs symbolic. To accomplish it we
-replace a call to <tt class="docutils literal">fgets()</tt> by a call to <tt class="docutils literal">s2e_make_symbolic()</tt>:</p>
+all possible inputs, we want to make these inputs symbolic. To accomplish this, we
+replace the call to <tt class="docutils literal">fgets()</tt> by a call to <tt class="docutils literal">s2e_make_symbolic()</tt>:</p>
 <div class="highlight"><pre><span class="p">...</span>
 <span class="kt">char</span> <span class="n">str</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span>
 <span class="c1">// printf(&quot;Enter two characters: &quot;);</span>
@@ -103,19 +104,20 @@ replace a call to <tt class="docutils literal">fgets()</tt> by a call to <tt cla
 <span class="n">str</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
 <span class="p">...</span>
 </pre></div>
-<p>By default S2E will propagate our symbolic values through the program but will
-not fork on branches. To enable forking, we should call
+<p>By default, S2E propagates the symbolic values through the program but does
+not fork on branches. To enable forking, call
 <tt class="docutils literal">s2e_enable_forking()</tt> before making symbolic values, and
 <tt class="docutils literal">s2e_disable_forking()</tt> after exploring all branches. In addition, as we want
 to minimize the amount of code that will execute with forking, we also disable
 all interrupts during symbolic execution using
 <tt class="docutils literal">s2e_disable_all_apic_interrupts()</tt> and <tt class="docutils literal">s2e_enable_all_apic_interrupts</tt>.</p>
-<p>Finally, it would be interesting to see an example of input value that caused a
-program to take a particular execution path. For that, we use
-<tt class="docutils literal">s2e_get_example()</tt> function that gives a concrete example of symbolic value
-that satisfies current path constraints (i.e., all branch conditions along the
+<p>Finally, it would be interesting to see an example of input value that cause a
+program to take a particular execution path. This can be useful to reproduce a bug
+in a debugger, independently of S2E.
+For that, use the <tt class="docutils literal">s2e_get_example()</tt> function. This function gives a concrete example of symbolic values
+that satisfy the current path constraints (i.e., all branch conditions along the
 execution path).</p>
-<p>After these modifications our example program looks like the following:</p>
+<p>After these changes, the example program looks as follows:</p>
 <div class="highlight"><pre><span class="cp">#include &lt;stdio.h&gt;</span>
 <span class="cp">#include &lt;string.h&gt;</span>
 <span class="cp">#include &quot;s2e.h&quot;</span>
@@ -162,19 +164,19 @@ execution path).</p>
   <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
-<p>Compile this program as usual and try running it:</p>
+<p>Compile and run the program as usual:</p>
 <pre class="literal-block">
 guest$ gcc -m32 -O3 tutorial1.c -o tutorial1
 guest$ ./tutorial1
 Illegal instruction
 </pre>
-<p>You see <tt class="docutils literal">Illegal instruction</tt> message because all <tt class="docutils literal">s2e_*</tt> functions use
-special CPU instruction that is only recognized by S2E.</p>
+<p>You see the <tt class="docutils literal">Illegal instruction</tt> message because all <tt class="docutils literal">s2e_*</tt> functions use
+special CPU opcodes that are only recognized by S2E.</p>
 </div>
 <div class="section" id="running-the-program-in-s2e">
 <h1>Running the Program in S2E</h1>
-<p>Now we need to shutdown the VM and reboot it in the S2E, but first we need to
-create a simple config file</p>
+<p>To run a program in S2E, we have to write a configuration file, then reboot
+the system in S2E.</p>
 <div class="highlight"><pre><span class="c1">-- File: config.lua</span>
 <span class="n">s2e</span> <span class="o">=</span> <span class="p">{</span>
   <span class="n">kleeArgs</span> <span class="o">=</span> <span class="p">{</span>
@@ -188,44 +190,47 @@ create a simple config file</p>
   <span class="s2">&quot;</span><span class="s">BaseInstructions&quot;</span>
 <span class="p">}</span>
 </pre></div>
-<p>Booting the system in S2E takes a very long time, we use two step process to
-speed it up. First, we boot the system in our version of QEMU but with S2E
-disabled. Than we save a snapshot and load it in the S2E:</p>
+<p>Booting the system in S2E takes a long time. Use a two-step process to
+speed it up. First, boot the system in the version of QEMU that has S2E
+disabled. Then, save a snapshot and load it in the S2E:</p>
 <pre class="literal-block">
 guest$ su -c halt # shut down qemu
 
 $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2
 &gt; Wait until Linux is loaded, login into the system. Then press
 &gt; Ctrl + Alt + 2 and type 'savevm 1' then 'quit'.
+&gt; Notice that we use i386-softmmu, which is the build with S2E DISABLED.
 
 $ $S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
                            -s2e-config-file config.lua -s2e-verbose
 &gt; Wait the snapshot is resumed, then type in the guest
 guest$ ./tutorial1
+&gt; Notice that we use i386-s2e-softmmu, which is the build with S2E ENABLED.
 </pre>
-<p>After you run this command, S2E will start to symbolically execute our example.
-We configured S2E to switch states once per second, each time it selects next
-state to explore at random. You will see QEMU screen content changing each
-second between different possible outputs of our example.</p>
+<p>After you run this command, S2E starts to symbolically execute the example.
+The configuration file instructs S2E to pick a random state once per second.
+You will see the QEMU screen content changing every
+second for different possible outputs of the example.</p>
 <p>Each state is a completely independent snapshot of the whole system. You can
-even interrupt with each state independently, for example by launching
-different programs. Try launching <tt class="docutils literal">tutorial1</tt> in one of the states again!</p>
-<p>In the host terminal (i.e., S2E standard output) you will see various
-information about state execution, forking and switching. The same output is
-also saved into <tt class="docutils literal"><span class="pre">s2e-last/messages.txt</span></tt> log file. You could try following the
-history of one execution state through the log file.</p>
+even interact with each state independently, for example by launching
+different programs. Try to launch <tt class="docutils literal">tutorial1</tt> in one of the states again!</p>
+<p>In the host terminal (i.e., the S2E standard output), you see various
+information about state execution, forking and switching. This output is
+also saved into the <tt class="docutils literal"><span class="pre">s2e-last/messages.txt</span></tt> log file. As an exercise, try to follow the
+execution history of a state through the log file.</p>
 </div>
 <div class="section" id="exploring-the-program-faster">
-<h1>Exploring The Program Faster</h1>
-<p>In the previous section we made program fork and run along multiple execution
+<h1>Exploring the Program Faster</h1>
+<p>In the previous section, we made the program run along multiple execution
 paths.  However, each path continued to run even after the program terminated,
-executing operating system code.  This might be nice to visually experience how
+executing operating system code.  This is great to visually experience how
 S2E works, but in general we want S2E to stop executing each path as soon as
-our program terminates.</p>
-<p>This is accomplished with <tt class="docutils literal">s2e_kill_state()</tt> function: it stops executing
-current state immediately, and exits S2E if there are no more states to
-explore. We should add a call to this function just before our program returns
-control to the OS. Before that, we might want to print example values to the
+the program to analyze terminates.</p>
+<p>Terminating an execution path is accomplished with the <tt class="docutils literal">s2e_kill_state()</tt> function.
+A call to this function immediately stops executing the
+current state and exits S2E if there are no more states to
+explore. Add a call to this function just before the program returns
+control to the OS. Before that, we might want to print example values in the
 S2E log using <tt class="docutils literal">s2e_message()</tt> or <tt class="docutils literal">s2e_warning()</tt> functions:</p>
 <div class="highlight"><pre><span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
 <span class="p">{</span>
@@ -245,7 +250,7 @@ S2E log using <tt class="docutils literal">s2e_message()</tt> or <tt class="docu
   <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
-<p>Now we should resume our snapshot in QEMU with S2E disabled, edit and recompile
+<p>Now, resume the snapshot in QEMU with S2E disabled, edit and recompile
 the program, re-save the snapshot and re-load it in S2E:</p>
 <pre class="literal-block">
 $ $S2EDIR/build/qemu-release/i386-softmmu/qemu your_image.qcow2 -loadvm 1
@@ -257,13 +262,13 @@ $ $S2EDIR/build/qemu/i386-s2e-softmmu/qemu your_image.qcow2 -loadvm 1 \
                            -s2e-config-file config.lua -s2e-verbose
 guest$ ./tutorial1
 </pre>
-<p>When you run tutorial1 this time, S2E will quickly terminate leaving you with
+<p>Running <tt class="docutils literal">tutorial1</tt> this time  will make S2E quickly terminate, leaving
 a log file that you can examine.</p>
 <p>Please note that in case your program crashes or exits at some other point
-without calling <tt class="docutils literal">s2e_kill_state()</tt>, S2E will not terminate and continue to
-execute paths that returned to the system. To avoid that you could write
-another program that simply calls <tt class="docutils literal">s2e_kill_state()</tt> whenever you launch it
-and run the tutorial program like this:</p>
+without calling <tt class="docutils literal">s2e_kill_state()</tt>, S2E will not terminate and will continue to
+execute paths that returned to the system. To avoid this, you can write
+a program that simply calls <tt class="docutils literal">s2e_kill_state()</tt>. Launch it right after the
+invocation to the program that can crash, e.g., as follows:</p>
 <pre class="literal-block">
 guest$ ./tutorial; ./s2e_kill
 </pre>

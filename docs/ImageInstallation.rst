@@ -5,7 +5,7 @@ Preparing an OS Image for S2E
 .. contents::
 
 There are no specific requirements for the OS image to make it runnable in S2E.
-Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumarate a list of tips 
+Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumerate a list of tips
 and optimizations that will make administration easier and symbolic execution faster.
 *These tips should be used as guidelines and are not mandatory.*
 
@@ -14,7 +14,7 @@ Here is a checklist we recommend to follow:
 
 * Install your operating system in the vanilla QEMU. It is the fastest approach. In general, all installation and setup tasks should be done in vanilla QEMU.
 
-* Always keep a *RAW* image file of your setup. QEMU tends to corrupt *QCOW2* images over time. You can easily convert a RAW image into *QCOW2* using the *qemu-img* tool. Corruptions manifest by weired crashes that did not use to happen before.
+* Always keep a *RAW* image file of your setup. QEMU tends to corrupt *QCOW2* images over time. You can easily convert a RAW image into *QCOW2* using the *qemu-img* tool. Corruptions manifest by weird crashes that did not use to happen before.
 
 * Keep a fresh copy of your OS installation. It is recommended to start with a fresh copy for each analysis task. For instance, if you use an image to test a device driver, avoid using this same image to analyze some spreadsheet component. One image = one analysis. It is easier to manage and your results will be easier to reproduce.
 
