@@ -70,6 +70,7 @@ private:
     sigc::connection m_tbStartConnection;
     sigc::connection m_tbEndConnection;
 
+    bool m_flushTbOnChange;
 
     void onModuleTranslateBlockStart(
             ExecutionSignal *signal,

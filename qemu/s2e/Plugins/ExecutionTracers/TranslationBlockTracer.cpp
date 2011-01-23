@@ -39,6 +39,7 @@ extern "C" {
 //#include "cpu.h"
 //#include "exec-all.h"
 #include "qemu-common.h"
+    extern struct CPUX86State *env;
 }
 
 
@@ -64,6 +65,12 @@ void TranslationBlockTracer::initialize()
     //Specify whether or not to enable cutom instructions for enabling/disabling tracing
     bool manualTrigger = s2e()->getConfig()->getBool(getConfigKey() + ".manualTrigger", false, &ok);
 
+    //Whether or not to flush the translation block cache when enabling/disabling tracing.
+    //This can be useful when tracing is enabled in the middle of a run where most of the blocks
+    //are already translated without the tracing instrumentation enabled.
+    //The default behavior is ON, because otherwise it may produce confising results.
+    m_flushTbOnChange = s2e()->getConfig()->getBool(getConfigKey() + ".flushTbCache", true);
+
     if (manualTrigger) {
         s2e()->getCorePlugin()->onCustomInstruction.connect(
                 sigc::mem_fun(*this, &TranslationBlockTracer::onCustomInstruction));
@@ -74,6 +81,10 @@ void TranslationBlockTracer::initialize()
 
 void TranslationBlockTracer::enableTracing()
 {
+    if (m_flushTbOnChange) {
+        tb_flush(env);
+    }
+
     m_tbStartConnection = m_detector->onModuleTranslateBlockStart.connect(
             sigc::mem_fun(*this, &TranslationBlockTracer::onModuleTranslateBlockStart)
     );
@@ -85,6 +96,10 @@ void TranslationBlockTracer::enableTracing()
 
 void TranslationBlockTracer::disableTracing()
 {
+    if (m_flushTbOnChange) {
+        tb_flush(env);
+    }
+
     m_tbStartConnection.disconnect();
     m_tbEndConnection.disconnect();
 }
