@@ -66,6 +66,7 @@ Both implementations behave in the same way except in some corner cases.</p>
 
     <span class="c1">//Make x symbolic</span>
     <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="s">&quot;x&quot;</span><span class="p">);</span>
+    <span class="n">s2e_enable_forking</span><span class="p">();</span>
 
     <span class="kt">uint64_t</span> <span class="n">f1</span> <span class="o">=</span> <span class="n">factorial1</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">max</span><span class="p">);</span>
     <span class="kt">uint64_t</span> <span class="n">f2</span> <span class="o">=</span> <span class="n">factorial2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">max</span><span class="p">);</span>
@@ -101,6 +102,9 @@ the corresponding execution path.</p>
   <span class="c1">-- Enable S2E custom opcodes</span>
   <span class="s2">&quot;</span><span class="s">BaseInstructions&quot;</span><span class="p">,</span>
 
+  <span class="c1">-- Basic tracing required for test case generation</span>
+  <span class="s2">&quot;</span><span class="s">ExecutionTracer&quot;</span><span class="p">,</span>
+
   <span class="c1">-- Enable the test case generator plugin</span>
   <span class="s2">&quot;</span><span class="s">TestCaseGenerator&quot;</span>
 <span class="p">}</span>
@@ -110,6 +114,8 @@ the corresponding execution path.</p>
 <h1>Running the Program in S2E</h1>
 <p>Run the program in S2E. Refer to <a class="reference external" href="TestingMinimalProgram.html">this tuorial</a> for more details.
 S2E will exit when all paths terminate.</p>
+<p>Make sure to have at least 8 GB of available virtual memory
+and set the stack size to unlimited using <tt class="docutils literal">ulimit <span class="pre">-s</span> unlimited</tt>.</p>
 </div>
 <div class="section" id="interpreting-the-results">
 <h1>Interpreting the Results</h1>

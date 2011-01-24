@@ -67,6 +67,7 @@ Both implementations behave in the same way except in some corner cases.
 
         //Make x symbolic
         s2e_make_symbolic(&x, sizeof(x), "x");
+        s2e_enable_forking();
 
         uint64_t f1 = factorial1(x, max);
         uint64_t f2 = factorial2(x, max);
@@ -110,6 +111,9 @@ the corresponding execution path.
      -- Enable S2E custom opcodes
      "BaseInstructions",
 
+     -- Basic tracing required for test case generation
+     "ExecutionTracer",
+
      -- Enable the test case generator plugin
      "TestCaseGenerator"
    }
@@ -120,6 +124,9 @@ Running the Program in S2E
 
 Run the program in S2E. Refer to `this tuorial <TestingMinimalProgram.html>`_ for more details.
 S2E will exit when all paths terminate.
+
+Make sure to have at least 8 GB of available virtual memory
+and set the stack size to unlimited using ``ulimit -s unlimited``.
 
 
 Interpreting the Results
