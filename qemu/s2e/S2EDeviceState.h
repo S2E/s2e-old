@@ -104,10 +104,6 @@ public:
     int readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors,
         s2e_raw_read fb);
 
-    static void registerCustomDevice(const std::string &str) {
-        s_customDevices.insert(str);
-    }
-
     void initDeviceState();
     void restoreDeviceState();
     void saveDeviceState();
