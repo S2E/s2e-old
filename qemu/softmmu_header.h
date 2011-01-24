@@ -159,7 +159,7 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
 
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
         S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
-        if(_s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
+        if(_s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
             res = glue(glue(ld, USUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
         else
 #endif
@@ -194,7 +194,7 @@ static inline int glue(glue(lds, SUFFIX), MEMSUFFIX)(target_ulong ptr)
 
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
         S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
-        if(_s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
+        if(_s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
             res = glue(glue(lds, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)));
         else
 #endif
@@ -231,7 +231,7 @@ static inline void glue(glue(st, SUFFIX), MEMSUFFIX)(target_ulong ptr, RES_TYPE 
 
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
         S2ETLBEntry *e = &env->s2e_tlb_table[mmu_idx][object_index & (CPU_S2E_TLB_SIZE-1)];
-        if((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~TARGET_PAGE_MASK, DATA_SIZE))
+        if((e->addend & 1) && _s2e_check_concrete(e->objectState, addr & ~S2E_RAM_OBJECT_MASK, DATA_SIZE))
             glue(glue(st, SUFFIX), _p)((uint8_t*)(addr + (e->addend&~1)), v);
         else
 #endif
