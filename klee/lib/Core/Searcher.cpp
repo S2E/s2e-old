@@ -516,8 +516,11 @@ BatchingSearcher::~BatchingSearcher() {
 
 ExecutionState &BatchingSearcher::selectState() {
   if (!lastState || 
-      (util::getWallTime()-lastStartTime)>timeBudget ||
-      (stats::instructions-lastStartInstructions)>instructionBudget) {
+      (util::getWallTime()-lastStartTime)>timeBudget) {
+
+      //XXX: Remove for S2E, as the number of instructions
+      //does not make much sense for now.
+      //(stats::instructions-lastStartInstructions)>instructionBudget) {
     /*
     if (lastState) {
       double delta = util::getWallTime()-lastStartTime;
