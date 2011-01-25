@@ -426,7 +426,7 @@ static void sdl_update_caption(void)
         snprintf(win_title, sizeof(win_title), WINDOW_TITLE " (%s)%s", qemu_name, status);
         snprintf(icon_title, sizeof(icon_title), WINDOW_TITLE " (%s)", qemu_name);
     } else {
-        snprintf(win_title, sizeof(win_title), WINDOW_TITLE" %s", status);
+        snprintf(win_title, sizeof(win_title), WINDOW_TITLE"%s", status);
         snprintf(icon_title, sizeof(icon_title), WINDOW_TITLE);
     }
 
