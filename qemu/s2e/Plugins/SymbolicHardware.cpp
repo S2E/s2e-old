@@ -325,7 +325,6 @@ void IsaDeviceDescriptor::initializeQemuDevice()
     m_isaInfo->qdev.props = m_isaProperties;
 
     isa_qdev_register(m_isaInfo);
-    S2EDeviceState::registerCustomDevice(m_id);
 }
 
 void IsaDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
@@ -539,8 +538,6 @@ void PciDeviceDescriptor::initializeQemuDevice()
 
     m_pciInfo->qdev.props = m_pciInfoProperties;
     pci_qdev_register(m_pciInfo);
-
-    S2EDeviceState::registerCustomDevice(m_id);
 }
 
 void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
