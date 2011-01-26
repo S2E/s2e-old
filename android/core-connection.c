@@ -32,7 +32,7 @@ struct CoreConnection {
 
     /* Stream name. Can be:
      *  - NULL for the console itself.
-     *  - "attach UI" for the attached UI client.
+     *  - "attach-UI" for the attached UI client.
      */
     char* stream_name;
 };

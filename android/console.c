@@ -2686,7 +2686,7 @@ static const CommandDefRec  qemu_commands[] =
     NULL, do_qemu_monitor, NULL },
 
 #ifdef CONFIG_STANDALONE_CORE
-    { "attach UI", "attach UI to the core",
+    { "attach-UI", "attach UI to the core",
     "Attach UI to the core\r\n",
     NULL, do_attach_ui, NULL },
 
@@ -2694,15 +2694,15 @@ static const CommandDefRec  qemu_commands[] =
     "Create framebuffer service\r\n",
     NULL, do_create_framebuffer_service, NULL },
 
-    { "user events", "create user events service",
+    { "user-events", "create user events service",
     "Create user events service\r\n",
     NULL, do_create_user_events_service, NULL },
 
-    { "ui-core control", "create UI control service",
+    { "ui-core-control", "create UI control service",
     "Create UI control service\r\n",
     NULL, do_create_ui_core_ctl_service, NULL },
 
-    { "core-ui control", "create UI control service",
+    { "core-ui-control", "create UI control service",
     "Create UI control service\r\n",
     NULL, do_create_core_ui_ctl_service, NULL },
 #endif  // CONFIG_STANDALONE_CORE

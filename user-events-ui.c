@@ -54,7 +54,7 @@ clientue_create(SockAddress* console_socket)
                errno_str);
         return -1;
     }
-    snprintf(switch_cmd, sizeof(switch_cmd), "user events");
+    snprintf(switch_cmd, sizeof(switch_cmd), "user-events");
     if (core_connection_switch_stream(_client_ue.core_connection, switch_cmd,
                                       &connect_message)) {
         derror("Unable to connect to the user events service: %s\n",

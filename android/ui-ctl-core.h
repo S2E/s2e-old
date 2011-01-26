@@ -15,8 +15,8 @@
 
 /*
  * Contains core-side of UI control protocols. For the simplicity of the
- * implementation there are two UI control services: "ui-core control" that
- * handle UI controls initiated in the UI, and "core-ui control" that handle UI
+ * implementation there are two UI control services: "ui-core-control" that
+ * handle UI controls initiated in the UI, and "core-ui-control" that handle UI
  * controls initiated in the core. The reason for hawing two services is that
  * some of the UI controls expect the core to respond with some data. The
  * simplest way to differentiate core commands from core responses to the UI
