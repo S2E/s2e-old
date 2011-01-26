@@ -305,12 +305,14 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
 
     m_s2e->getWarningsStream(s)
            << "Terminating state " << s->getID()
-           << " with error message '" << (err ? err : "") << "'" << std::endl;
+           << " with message '" << (err ? err : "") << "'" << std::endl;
 
     if (m_s2e->getExecutor()->getStateManager()) {
         m_s2e->getExecutor()->getStateManager()(s1, true);
     }
 
+    //XXX: export a core event onStateTermination or something like that
+    //to avoid hard-coded test case generation plugin.
     s2e::plugins::TestCaseGenerator *tc =
             dynamic_cast<s2e::plugins::TestCaseGenerator*>(m_s2e->getPlugin("TestCaseGenerator"));
     if (tc) {
