@@ -1,8 +1,50 @@
 =============================
-Preparing an OS Image for S2E
+Preparing VM Images for S2E
 =============================
 
 .. contents::
+
+To run S2E, you need a QEMU-compatible virtual machine disk image. S2E can run
+any x86 32-bit operating system inside the VM.
+In this section, we describe how to build a Linux image and present general
+requirements and guidelines for various operating systems.
+
+
+Preparing a Linux VM Image
+==========================
+
+In the following, we describe how to install a minimal version of Debian Linux in QEMU.
+S2E supports only 32-bit systems for now.
+
+::
+
+   $ cd $S2EDIR
+
+   $ # Create an empty disk image
+   $ qemu-img create -f raw s2e_disk.raw 2G
+
+   $ # Download debian install CD
+   $ wget http://cdimage.debian.org/debian-cd/5.0.7/i386/iso-cd/debian-507-i386-businesscard.iso
+
+   $ # Run QEMU and install the OS
+   $ qemu s2e_disk.qcow2 -cdrom debian-507-i386-businesscard.iso
+   > Follow on-screen instructions to install Debian Linux inside VM
+   > Select only "Standard System" component to install
+
+   $ # When you system is installed and rebooted, run the following command
+   $ # inside the guest to install C and C++ compilers
+   guest$ su -c "apt-get install build-essential"
+
+You have just setup a disk image in RAW format. You need to convert it to QCOW2 for optimal use
+with S2E (the reasons for this are described in the next section).
+
+::
+
+   $ qemu-img convert -O qcow2 s2e_disk.raw s2e_disk.qcow2
+
+
+General Requirements and Guidelines for VM Images
+=================================================
 
 There are no specific requirements for the OS image to make it runnable in S2E.
 Any x86 32-bit image that boots in vanilla QEMU will work in S2E. However, we enumerate a list of tips

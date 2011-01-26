@@ -101,10 +101,7 @@ replace the call to ``fgets()`` by a call to ``s2e_make_symbolic()``:
 By default, S2E propagates the symbolic values through the program but does
 not fork on branches. To enable forking, call
 ``s2e_enable_forking()`` before making symbolic values, and
-``s2e_disable_forking()`` after exploring all branches. In addition, as we want
-to minimize the amount of code that will execute with forking, we also disable
-all interrupts during symbolic execution using
-``s2e_disable_all_apic_interrupts()`` and ``s2e_enable_all_apic_interrupts``.
+``s2e_disable_forking()`` after exploring all branches.
 
 Finally, it would be interesting to see an example of input value that cause a
 program to take a particular execution path. This can be useful to reproduce a bug
@@ -128,7 +125,6 @@ After these changes, the example program looks as follows:
      // if(!fgets(str, sizeof(str), stdin))
      //   return 1;
 
-     s2e_disable_all_apic_interrupts();
      s2e_enable_forking();
      s2e_make_symbolic(str, 2, "str");
 
@@ -157,8 +153,6 @@ After these changes, the example program looks as follows:
      s2e_get_example(str, 2);
      printf("'%c%c' %02x %02x\n", str[0], str[1],
             (unsigned char) str[0], (unsigned char) str[1]);
-
-     s2e_enable_all_apic_interrupts();
 
      return 0;
    }
@@ -254,7 +248,6 @@ S2E log using ``s2e_message()`` or ``s2e_warning()`` functions:
             (unsigned char) str[0], (unsigned char) str[1]);
      s2e_warning(buf);
 
-     //s2e_enable_all_apic_interrupts();
      s2e_kill_state(0, "program terminated");
 
      return 0;

@@ -107,10 +107,7 @@ replace the call to <tt class="docutils literal">fgets()</tt> by a call to <tt c
 <p>By default, S2E propagates the symbolic values through the program but does
 not fork on branches. To enable forking, call
 <tt class="docutils literal">s2e_enable_forking()</tt> before making symbolic values, and
-<tt class="docutils literal">s2e_disable_forking()</tt> after exploring all branches. In addition, as we want
-to minimize the amount of code that will execute with forking, we also disable
-all interrupts during symbolic execution using
-<tt class="docutils literal">s2e_disable_all_apic_interrupts()</tt> and <tt class="docutils literal">s2e_enable_all_apic_interrupts</tt>.</p>
+<tt class="docutils literal">s2e_disable_forking()</tt> after exploring all branches.</p>
 <p>Finally, it would be interesting to see an example of input value that cause a
 program to take a particular execution path. This can be useful to reproduce a bug
 in a debugger, independently of S2E.
@@ -129,7 +126,6 @@ execution path).</p>
   <span class="c1">// if(!fgets(str, sizeof(str), stdin))</span>
   <span class="c1">//   return 1;</span>
 
-  <span class="n">s2e_disable_all_apic_interrupts</span><span class="p">();</span>
   <span class="n">s2e_enable_forking</span><span class="p">();</span>
   <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s">&quot;str&quot;</span><span class="p">);</span>
 
@@ -158,8 +154,6 @@ execution path).</p>
   <span class="n">s2e_get_example</span><span class="p">(</span><span class="n">str</span><span class="p">,</span> <span class="mi">2</span><span class="p">);</span>
   <span class="n">printf</span><span class="p">(</span><span class="s">&quot;&#39;%c%c&#39; %02x %02x</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">str</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
          <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span><span class="p">)</span> <span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span><span class="p">)</span> <span class="n">str</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
-
-  <span class="n">s2e_enable_all_apic_interrupts</span><span class="p">();</span>
 
   <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
 <span class="p">}</span>
@@ -244,7 +238,6 @@ S2E log using <tt class="docutils literal">s2e_message()</tt> or <tt class="docu
          <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span><span class="p">)</span> <span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">char</span><span class="p">)</span> <span class="n">str</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
   <span class="n">s2e_warning</span><span class="p">(</span><span class="n">buf</span><span class="p">);</span>
 
-  <span class="c1">//s2e_enable_all_apic_interrupts();</span>
   <span class="n">s2e_kill_state</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s">&quot;program terminated&quot;</span><span class="p">);</span>
 
   <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
