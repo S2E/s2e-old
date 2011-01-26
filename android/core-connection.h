@@ -29,8 +29,8 @@ typedef struct CoreConnection CoreConnection;
 // Maximum number of core porocesses running simultaneously on a machine.
 #define MAX_CORE_PROCS          16
 
-// Socket timeout in millisec (set to half a second)
-#define CORE_PORT_TIMEOUT_MS    500
+// Socket timeout in millisec (set to 5 seconds)
+#define CORE_PORT_TIMEOUT_MS    5000
 
 /* Opens core console socket.
  * Param:
@@ -122,6 +122,20 @@ int core_connection_switch_stream(CoreConnection* desc,
                                   const char* stream_name,
                                   char** handshake);
 
+/* Creates a console client, and switches it to a given stream.
+ *  console_socket Socket address for the console.
+ *  stream_name Name of the stream to switch to.
+ *  handshake Address of a string to allocate for a handshake message on
+ *      success, or an error message on failure. If upon return from this
+ *      routine that string is not NULL, its buffer must be freed with 'free'.
+ * Return:
+ *  Allocated and initialized descriptor for the switched client on success, or
+ *  NULL on failure.
+ */
+CoreConnection* core_connection_create_and_switch(SockAddress* console_socket,
+                                                  const char* stream_name,
+                                                  char** handshake);
+
 /* Detaches opened console client from the console.
  * By console protocol, writing "\r\n" string to the console will destroy the
  * console client.
@@ -137,5 +151,19 @@ void core_connection_detach(CoreConnection* desc);
  *  Socket descriptor associated with the core connection.
  */
 int core_connection_get_socket(CoreConnection* desc);
+
+/* Calculates timeout for transferring the given number of bytes via core
+ * connection.
+ * Return:
+ *  Number of milliseconds during which the entire number of bytes is expected
+ *  to be transferred via core connection.
+ */
+static inline int
+core_connection_get_timeout(size_t data_size)
+{
+    // Min 2 seconds + 10 millisec for each transferring byte.
+    // TODO: Come up with a better arithmetics here.
+    return 2000 + data_size * 10;
+}
 
 #endif  // QEMU_ANDROID_CORE_CONNECTION_H

@@ -14,7 +14,8 @@
 #include "android/utils/bufprint.h"
 #include "android/globals.h"
 #include "android/qemulator.h"
-#include "android/ui-core-protocol.h"
+#include "android/protocol/core-commands-api.h"
+#include "android/protocol/ui-commands-api.h"
 #include "user-events.h"
 
 #define  D(...)  do {  if (VERBOSE_CHECK(init)) dprint(__VA_ARGS__); } while (0)
@@ -87,8 +88,8 @@ qemulator_setup( QEmulator*  emulator )
     }
 
     /* initialize hardware control support */
-    android_core_set_brightness_change_callback(qemulator_light_brightness,
-                                                emulator);
+    uicmd_set_brightness_change_callback(qemulator_light_brightness,
+                                         emulator);
 }
 
 static void
@@ -272,7 +273,7 @@ qemulator_set_title(QEmulator* emulator)
 int
 get_device_dpi( AndroidOptions*  opts )
 {
-    int    dpi_device  = android_core_get_hw_lcd_density();
+    int    dpi_device  = corecmd_get_hw_lcd_density();
 
     if (opts->dpi_device != NULL) {
         char*  end;
@@ -405,8 +406,8 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
     {
     case SKIN_KEY_COMMAND_TOGGLE_NETWORK:
         {
-            android_core_toggle_network();
-            D( "network is now %s", android_core_is_network_disabled() ?
+            corecmd_toggle_network();
+            D( "network is now %s", corecmd_is_network_disabled() ?
                                     "disconnected" : "connected" );
         }
         break;
@@ -421,10 +422,7 @@ handle_key_command( void*  opaque, SkinKeyCommand  command, int  down )
         {
 #ifdef CONFIG_TRACE
             tracing = !tracing;
-            if (tracing)
-                android_core_tracing_start();
-            else
-                android_core_tracing_stop();
+            corecmd_trace_control(tracing);
 #endif
         }
         break;

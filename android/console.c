@@ -50,11 +50,12 @@
 #include "user-events.h"
 #include "android/keycode-array.h"
 #include "android/charmap.h"
-#include "android/core-ui-protocol.h"
 #include "android/display-core.h"
 #include "android/framebuffer-core.h"
 #include "android/user-events-core.h"
-#include "android/ui-ctl-core.h"
+#include "android/protocol/ui-commands-api.h"
+#include "android/protocol/core-commands-impl.h"
+#include "android/protocol/ui-commands-proxy.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
@@ -263,12 +264,12 @@ control_client_destroy( ControlClient  client )
     }
 
     if (client == ui_core_ctl_client) {
-        uicorectl_destroy();
+        coreCmdImpl_destroy();
         ui_core_ctl_client = NULL;
     }
 
     if (client == core_ui_ctl_client) {
-        coreuictl_destroy();
+        uiCmdProxy_destroy();
         core_ui_ctl_client = NULL;
     }
 #endif  // CONFIG_STANDALONE_CORE
@@ -2443,7 +2444,7 @@ do_window_scale( ControlClient  client, char*  args )
         }
     }
 
-    android_ui_set_window_scale( scale, is_dpi );
+    uicmd_set_window_scale( scale, is_dpi );
     return 0;
 }
 
@@ -2624,7 +2625,7 @@ do_create_ui_core_ctl_service( ControlClient client, char* args )
         return -1;
     }
 
-    if (!uicorectl_create(client->sock)) {
+    if (!coreCmdImpl_create(client->sock)) {
         char reply_buf[4096];
         ui_core_ctl_client = client;
         snprintf(reply_buf, sizeof(reply_buf), "OK\r\n");
@@ -2646,6 +2647,14 @@ destroy_ui_core_ctl_client(void)
     }
 }
 
+void
+destroy_corecmd_client(void)
+{
+    if (ui_core_ctl_client != NULL) {
+        control_client_destroy(ui_core_ctl_client);
+    }
+}
+
 static int
 do_create_core_ui_ctl_service( ControlClient client, char* args )
 {
@@ -2656,7 +2665,7 @@ do_create_core_ui_ctl_service( ControlClient client, char* args )
         return -1;
     }
 
-    if (!coreuictl_create(client->sock)) {
+    if (!uiCmdProxy_create(client->sock)) {
         char reply_buf[4096];
         core_ui_ctl_client = client;
         snprintf(reply_buf, sizeof(reply_buf), "OK\r\n");
@@ -2677,6 +2686,15 @@ destroy_core_ui_ctl_client(void)
         control_client_destroy(core_ui_ctl_client);
     }
 }
+
+void
+destroy_uicmd_client(void)
+{
+    if (core_ui_ctl_client != NULL) {
+        control_client_destroy(core_ui_ctl_client);
+    }
+}
+
 #endif  // CONFIG_STANDALONE_CORE
 
 static const CommandDefRec  qemu_commands[] =

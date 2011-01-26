@@ -799,9 +799,6 @@ UI_AND_CORE_CFLAGS  += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
 UI_AND_CORE_SOURCES += $(LIBPNG_SOURCES)
 UI_AND_CORE_CFLAGS  += $(LIBPNG_CFLAGS) -I$(LOCAL_PATH)/$(LIBPNG_DIR)
 
-# temp files used to collect UI->Core exchange protocol.
-UI_AND_CORE_SOURCES += android/ui-core-protocol.c android/core-ui-protocol.c
-
 # The common libraries
 #
 QEMU_SYSTEM_LDLIBS := -lm
@@ -879,6 +876,8 @@ VL_SOURCES := framebuffer.c \
               user-events-qemu.c \
               android/cmdline-option.c \
               android/looper-qemu.c \
+              android/protocol/ui-commands-qemu.c \
+              android/protocol/core-commands-qemu.c \
               android/main.c \
 
 # Add common system libraries
@@ -1059,7 +1058,8 @@ VL_SOURCES := framebuffer.c \
               android/display-core.c \
               android/framebuffer-core.c \
               android/user-events-core.c \
-              android/ui-ctl-core.c \
+              android/protocol/ui-commands-proxy.c \
+              android/protocol/core-commands-impl.c \
 
 # Add common system libraries
 #
@@ -1217,7 +1217,8 @@ VL_SOURCES := framebuffer.c \
               console-ui.c \
               iolooper-select.c \
               android/framebuffer-ui.c \
-              android/ui-ctl-ui.c \
+              android/protocol/ui-commands-impl.c \
+              android/protocol/core-commands-proxy.c \
 
 # Add common system libraries
 #

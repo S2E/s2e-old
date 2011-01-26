@@ -61,7 +61,8 @@
 #include "android/snapshot.h"
 #include "android/core-connection.h"
 #include "android/framebuffer-ui.h"
-#include "android/ui-ctl-ui.h"
+#include "android/protocol/core-commands-proxy.h"
+#include "android/protocol/ui-commands-impl.h"
 
 #include "framebuffer.h"
 #include "iolooper.h"
@@ -760,8 +761,8 @@ _adjustPartitionSize( const char*  description,
 // Maximum number of core porocesses running simultaneously on a machine.
 #define MAX_CORE_PROCS          16
 
-// Socket timeout in millisec (set to half a second)
-#define CORE_PORT_TIMEOUT_MS    500
+// Socket timeout in millisec (set to 5 seconds)
+#define CORE_PORT_TIMEOUT_MS    5000
 
 #include "android/async-console.h"
 
@@ -976,7 +977,10 @@ attach_to_core(AndroidOptions* opts) {
     // implementation there are two UI control services: "ui-core-control" that
     // handle UI controls initiated in the UI, and "core-ui-control" that handle
     // UI controls initiated in the core.
-    if (clientuictl_create(&console_socket)) {
+    if (coreCmdProxy_create(&console_socket)) {
+        return -1;
+    }
+    if (uiCmdImpl_create(&console_socket)) {
         return -1;
     }
 
