@@ -86,7 +86,7 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
 
    # We use the embedded C support of SystemTap to access the S2E
    # custom instructions. A comprehensive set of such instructions can
-   # be found in s2e.h. You can adapt them to SystemTap, if in case
+   # be found in s2e.h. You can adapt them to SystemTap, in case
    # you need them
    
    # Terminate current state.
