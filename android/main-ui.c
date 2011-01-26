@@ -101,7 +101,7 @@ extern void  stop_tracing(void);
 
 unsigned long   android_verbose;
 
-/* Instance of the "attach UI" Emulator's core console client. */
+/* Instance of the "attach-UI" Emulator's core console client. */
 CoreConnection*   attach_client = NULL;
 
 /* Instance of the "framebuffer" console client. */
@@ -929,7 +929,7 @@ attach_to_core(AndroidOptions* opts) {
     attach_client = core_connection_create(&console_socket);
     if (attach_client != NULL) {
         if (!core_connection_open(attach_client)) {
-            if (!core_connection_switch_stream(attach_client, "attach UI",
+            if (!core_connection_switch_stream(attach_client, "attach-UI",
                                                &core_ui_settings)) {
                 fprintf(stdout, "UI is now attached to the core %s\n",
                         sock_address_to_string(&console_socket));
@@ -973,8 +973,8 @@ attach_to_core(AndroidOptions* opts) {
     }
 
     // Connect to the core's UI control services. For the simplicity of
-    // implementation there are two UI control services: "ui-core control" that
-    // handle UI controls initiated in the UI, and "core-ui control" that handle
+    // implementation there are two UI control services: "ui-core-control" that
+    // handle UI controls initiated in the UI, and "core-ui-control" that handle
     // UI controls initiated in the core.
     if (clientuictl_create(&console_socket)) {
         return -1;

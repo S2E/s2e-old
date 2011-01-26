@@ -531,7 +531,7 @@ int
 clientuictl_create(SockAddress* console_socket)
 {
     // Connect to Core->UI service
-    if (_clientuictl_create_client(console_socket, "core-ui control",
+    if (_clientuictl_create_client(console_socket, "core-ui-control",
                                    &_core_ui_client.common)) {
         return -1;
     }
@@ -548,7 +548,7 @@ clientuictl_create(SockAddress* console_socket)
             sock_address_to_string(console_socket));
 
     // Connect to UI->Core service
-    if (_clientuictl_create_client(console_socket, "ui-core control",
+    if (_clientuictl_create_client(console_socket, "ui-core-control",
                                    &_ui_core_client.common)) {
         _core_ui_client_destroy();
         return -1;
