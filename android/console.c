@@ -54,6 +54,7 @@
 #include "android/display-core.h"
 #include "android/framebuffer-core.h"
 #include "android/user-events-core.h"
+#include "android/ui-ctl-core.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
@@ -126,6 +127,18 @@ ControlClient user_events_client = NULL;
 
 /* User events service. */
 CoreUserEvents* core_ue = NULL;
+
+/* UI control service client (UI -> Core). */
+ControlClient ui_core_ctl_client = NULL;
+
+/* UI control service (UI -> Core. */
+// CoreUICtl* ui_core_ctl = NULL;
+
+/* UI control service client (Core-> UI). */
+ControlClient core_ui_ctl_client = NULL;
+
+/* UI control service (Core -> UI. */
+// CoreUICtl* core_ui_ctl = NULL;
 #endif  // CONFIG_STANDALONE_CORE
 
 /* -android-avdname option value. Defined in vl-android.c */
@@ -247,6 +260,16 @@ control_client_destroy( ControlClient  client )
     if (client == user_events_client) {
         coreue_destroy(core_ue);
         user_events_client = NULL;
+    }
+
+    if (client == ui_core_ctl_client) {
+        uicorectl_destroy();
+        ui_core_ctl_client = NULL;
+    }
+
+    if (client == core_ui_ctl_client) {
+        coreuictl_destroy();
+        core_ui_ctl_client = NULL;
     }
 #endif  // CONFIG_STANDALONE_CORE
 
@@ -2561,7 +2584,7 @@ destroy_control_fb_client(void)
 static int
 do_create_user_events_service( ControlClient client, char* args )
 {
-    // Make sure that there are no framebuffer client already existing.
+    // Make sure that there are no user events client already existing.
     if (user_events_client != NULL) {
         control_write( client, "KO: Another user events service is already existing!\r\n" );
         control_client_destroy(client);
@@ -2572,7 +2595,6 @@ do_create_user_events_service( ControlClient client, char* args )
     if (core_ue != NULL) {
         char reply_buf[4096];
         user_events_client = client;
-        // Reply "OK" with the framebuffer's bits per pixel
         snprintf(reply_buf, sizeof(reply_buf), "OK\r\n");
         control_write( client, reply_buf);
     } else {
@@ -2589,6 +2611,70 @@ destroy_control_ue_client(void)
 {
     if (user_events_client != NULL) {
         control_client_destroy(user_events_client);
+    }
+}
+
+static int
+do_create_ui_core_ctl_service( ControlClient client, char* args )
+{
+    // Make sure that there are no ui control client already existing.
+    if (ui_core_ctl_client != NULL) {
+        control_write( client, "KO: Another UI control service is already existing!\r\n" );
+        control_client_destroy(client);
+        return -1;
+    }
+
+    if (!uicorectl_create(client->sock)) {
+        char reply_buf[4096];
+        ui_core_ctl_client = client;
+        snprintf(reply_buf, sizeof(reply_buf), "OK\r\n");
+        control_write( client, reply_buf);
+    } else {
+        control_write( client, "KO\r\n" );
+        control_client_destroy(client);
+        return -1;
+    }
+
+    return 0;
+}
+
+void
+destroy_ui_core_ctl_client(void)
+{
+    if (ui_core_ctl_client != NULL) {
+        control_client_destroy(ui_core_ctl_client);
+    }
+}
+
+static int
+do_create_core_ui_ctl_service( ControlClient client, char* args )
+{
+    // Make sure that there are no ui control client already existing.
+    if (core_ui_ctl_client != NULL) {
+        control_write( client, "KO: Another UI control service is already existing!\r\n" );
+        control_client_destroy(client);
+        return -1;
+    }
+
+    if (!coreuictl_create(client->sock)) {
+        char reply_buf[4096];
+        core_ui_ctl_client = client;
+        snprintf(reply_buf, sizeof(reply_buf), "OK\r\n");
+        control_write( client, reply_buf);
+    } else {
+        control_write( client, "KO\r\n" );
+        control_client_destroy(client);
+        return -1;
+    }
+
+    return 0;
+}
+
+void
+destroy_core_ui_ctl_client(void)
+{
+    if (core_ui_ctl_client != NULL) {
+        control_client_destroy(core_ui_ctl_client);
     }
 }
 #endif  // CONFIG_STANDALONE_CORE
@@ -2611,6 +2697,14 @@ static const CommandDefRec  qemu_commands[] =
     { "user events", "create user events service",
     "Create user events service\r\n",
     NULL, do_create_user_events_service, NULL },
+
+    { "ui-core control", "create UI control service",
+    "Create UI control service\r\n",
+    NULL, do_create_ui_core_ctl_service, NULL },
+
+    { "core-ui control", "create UI control service",
+    "Create UI control service\r\n",
+    NULL, do_create_core_ui_ctl_service, NULL },
 #endif  // CONFIG_STANDALONE_CORE
 
     { NULL, NULL, NULL, NULL, NULL, NULL }

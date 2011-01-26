@@ -22,6 +22,8 @@
 #ifndef ANDROID_SYNC_UTILS_H
 #define ANDROID_SYNC_UTILS_H
 
+#include "sockets.h"
+
 /* Descriptor for a connected non-blocking socket providing synchronous I/O */
 typedef struct SyncSocket SyncSocket;
 
@@ -223,5 +225,26 @@ ssize_t syncsocket_read_line(SyncSocket* ssocket,
  *  Socket descriptor associated with the sync socket.
  */
 int syncsocket_get_socket(SyncSocket* ssocket);
+
+/* Converts syncsocket_xxx operation status into success / failure result.
+ * Param:
+ *  status - syncsocket_xxx operation status to convert.
+ * Return:
+ *  0 if status passed to this routine indicated a success, or < 0 if status
+ *  indicated a failure.
+ */
+static inline int
+syncsocket_result(int status)
+{
+    if (status == 0) {
+        // Status 0 returned from syncsocket_xxx means "disconnection", which is
+        // a failure.
+        status = -1;
+    } else if (status > 0) {
+        // Status > 0 means success.
+        status = 0;
+    }
+    return status;
+}
 
 #endif  // ANDROID_SYNC_UTILS_H

@@ -1059,6 +1059,7 @@ VL_SOURCES := framebuffer.c \
               android/display-core.c \
               android/framebuffer-core.c \
               android/user-events-core.c \
+              android/ui-ctl-core.c \
 
 # Add common system libraries
 #
@@ -1216,6 +1217,7 @@ VL_SOURCES := framebuffer.c \
               console-ui.c \
               iolooper-select.c \
               android/framebuffer-ui.c \
+              android/ui-ctl-ui.c \
 
 # Add common system libraries
 #

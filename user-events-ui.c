@@ -100,19 +100,21 @@ clientue_send(ClientUserEvents* ue,
     UserEventHeader header;
 
     header.event_type = event;
-    syncsocket_start_write(ue->sync_socket);
-    // Send event type first (event header)
-    res = syncsocket_write(ue->sync_socket, &header, sizeof(header), 500);
-    if (res < 0) {
-        return -1;
+    res = syncsocket_start_write(ue->sync_socket);
+    if (!res) {
+        // Send event type first (event header)
+        res = syncsocket_write(ue->sync_socket, &header, sizeof(header), 500);
+        if (res > 0) {
+            // Send event param next.
+            res = syncsocket_write(ue->sync_socket, event_param, size, 500);
+        }
+        res = syncsocket_result(res);
+        syncsocket_stop_write(ue->sync_socket);
     }
-    // Send event param next.
-    res = syncsocket_write(ue->sync_socket, event_param, size, 500);
     if (res < 0) {
-        return -1;
+        derror("Unable to send user event: %s\n", errno_str);
     }
-    syncsocket_stop_write(ue->sync_socket);
-    return 0;
+    return res;
 }
 
 void
