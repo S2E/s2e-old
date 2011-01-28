@@ -10,7 +10,7 @@
 #include "audio/audio.h"
 #include <string.h>
 #include <stdlib.h>
-#include "android/ui-core-protocol.h"
+#include "android/protocol/core-commands-api.h"
 
 /* XXX: TODO: put most of the help stuff in auto-generated files */
 
@@ -778,7 +778,7 @@ help_shaper(stralloc_t*  out)
 
     "  the format of -netspeed is one of the following (numbers are kbits/s):\n\n" );
 
-    for (n = 0; !android_core_get_android_netspeed(n, &android_netspeed); n++) {
+    for (n = 0; !corecmd_get_netspeed(n, &android_netspeed); n++) {
         PRINTF( "    -netspeed %-12s %-15s  (up: %.1f, down: %.1f)\n",
                         android_netspeed->name,
                         android_netspeed->display,
@@ -791,7 +791,7 @@ help_shaper(stralloc_t*  out)
     PRINTF( "    -netspeed %-12s %s", "<up>:<down>", "select individual up and down speed\n");
 
     PRINTF( "\n  The format of -netdelay is one of the following (numbers are msec):\n\n" );
-    for (n = 0; !android_core_get_android_netdelay(n, &android_netdelay); n++) {
+    for (n = 0; !corecmd_get_netdelay(n, &android_netdelay); n++) {
         PRINTF( "    -netdelay %-10s   %-15s  (min %d, max %d)\n",
                         android_netdelay->name, android_netdelay->display,
                         android_netdelay->min_ms, android_netdelay->max_ms );

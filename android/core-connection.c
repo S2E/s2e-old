@@ -281,10 +281,15 @@ core_connection_switch_stream(CoreConnection* desc,
         syncsocket_read_line_absolute(desc->ssocket, buf, sizeof(buf), deadline);
     _zero_terminate(buf, sizeof(buf), handshake_len);
     // Replace terminating "\r\n" with 0
-    if (handshake_len >= 2 && buf[handshake_len - 2] == '\r') {
-        buf[handshake_len - 2] = '\0';
+    if (handshake_len >= 1) {
+        if (buf[handshake_len - 1] == '\r' || buf[handshake_len - 1] == '\n') {
+            buf[handshake_len - 1] = '\0';
+            if (handshake_len >= 2 && (buf[handshake_len - 2] == '\r' ||
+                                       buf[handshake_len - 2] == '\n')) {
+                buf[handshake_len - 2] = '\0';
+            }
+        }
     }
-    printf("Handshake: %s\n", buf);
     // Lets see what kind of response we've got here.
     if (_is_reply_ok(buf, handshake_len)) {
         *handshake = strdup(buf + 3);
@@ -314,6 +319,35 @@ core_connection_switch_stream(CoreConnection* desc,
         *handshake = strdup(buf);
         return -1;
     }
+}
+
+CoreConnection*
+core_connection_create_and_switch(SockAddress* console_socket,
+                                  const char* stream_name,
+                                  char** handshake)
+{
+    char switch_cmd[256];
+    CoreConnection* connection = NULL;
+
+    // Connect to the console service.
+    connection = core_connection_create(console_socket);
+    if (connection == NULL) {
+        return NULL;
+    }
+    if (core_connection_open(connection)) {
+        core_connection_free(connection);
+        return NULL;
+    }
+
+    // Perform the switch.
+    snprintf(switch_cmd, sizeof(switch_cmd), "%s", stream_name);
+    if (core_connection_switch_stream(connection, switch_cmd, handshake)) {
+        core_connection_close(connection);
+        core_connection_free(connection);
+        return NULL;
+    }
+
+    return connection;
 }
 
 void
