@@ -127,10 +127,12 @@ _coreCmdProxy_destroy(void)
     if (_coreCmdProxy.sync_writer != NULL) {
         syncsocket_close(_coreCmdProxy.sync_writer);
         syncsocket_free(_coreCmdProxy.sync_writer);
+        _coreCmdProxy.sync_writer = NULL;
     }
     if (_coreCmdProxy.sync_reader != NULL) {
         syncsocket_close(_coreCmdProxy.sync_reader);
         syncsocket_free(_coreCmdProxy.sync_reader);
+        _coreCmdProxy.sync_reader = NULL;
     }
     if (_coreCmdProxy.core_connection != NULL) {
         core_connection_close(_coreCmdProxy.core_connection);

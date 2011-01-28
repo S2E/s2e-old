@@ -61,6 +61,7 @@
 #include "android/snapshot.h"
 #include "android/core-connection.h"
 #include "android/framebuffer-ui.h"
+#include "android/protocol/user-events-proxy.h"
 #include "android/protocol/core-commands-proxy.h"
 #include "android/protocol/ui-commands-impl.h"
 
@@ -857,9 +858,6 @@ list_running_cores(const char* host)
     }
 }
 
-/* Implemented in user-events-ui.c */
-extern int clientue_create(SockAddress* console_socket);
-
 /* Attaches starting UI to a running core process.
  * This routine is called from main() when -attach-core parameter is set,
  * indicating that this UI instance should attach to a running core, rather than
@@ -969,7 +967,7 @@ attach_to_core(AndroidOptions* opts) {
     }
 
     // Connect to the core's user events service.
-    if (clientue_create(&console_socket)) {
+    if (userEventsProxy_create(&console_socket)) {
         return -1;
     }
 
