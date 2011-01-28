@@ -52,7 +52,7 @@
 #include "android/charmap.h"
 #include "android/display-core.h"
 #include "android/framebuffer-core.h"
-#include "android/user-events-core.h"
+#include "android/protocol/user-events-impl.h"
 #include "android/protocol/ui-commands-api.h"
 #include "android/protocol/core-commands-impl.h"
 #include "android/protocol/ui-commands-proxy.h"
@@ -125,9 +125,6 @@ ControlClient framebuffer_client = NULL;
 
 /* User events service client. */
 ControlClient user_events_client = NULL;
-
-/* User events service. */
-CoreUserEvents* core_ue = NULL;
 
 /* UI control service client (UI -> Core). */
 ControlClient ui_core_ctl_client = NULL;
@@ -259,7 +256,7 @@ control_client_destroy( ControlClient  client )
     }
 
     if (client == user_events_client) {
-        coreue_destroy(core_ue);
+        userEventsImpl_destroy();
         user_events_client = NULL;
     }
 
@@ -2592,8 +2589,7 @@ do_create_user_events_service( ControlClient client, char* args )
         return -1;
     }
 
-    core_ue = coreue_create(client->sock);
-    if (core_ue != NULL) {
+    if (!userEventsImpl_create(client->sock)) {
         char reply_buf[4096];
         user_events_client = client;
         snprintf(reply_buf, sizeof(reply_buf), "OK\r\n");
@@ -2608,7 +2604,7 @@ do_create_user_events_service( ControlClient client, char* args )
 }
 
 void
-destroy_control_ue_client(void)
+destroy_user_events_client(void)
 {
     if (user_events_client != NULL) {
         control_client_destroy(user_events_client);

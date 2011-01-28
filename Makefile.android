@@ -1057,7 +1057,7 @@ VL_SOURCES := framebuffer.c \
               android/looper-generic.c \
               android/display-core.c \
               android/framebuffer-core.c \
-              android/user-events-core.c \
+              android/protocol/user-events-impl.c \
               android/protocol/ui-commands-proxy.c \
               android/protocol/core-commands-impl.c \
 
@@ -1204,7 +1204,6 @@ endif
 # include other sources
 #
 VL_SOURCES := framebuffer.c \
-              user-events-ui.c \
               android/cmdline-option.c \
               android/config.c \
               android/display.c \
@@ -1219,6 +1218,7 @@ VL_SOURCES := framebuffer.c \
               android/framebuffer-ui.c \
               android/protocol/ui-commands-impl.c \
               android/protocol/core-commands-proxy.c \
+              android/protocol/user-events-proxy.c \
 
 # Add common system libraries
 #
