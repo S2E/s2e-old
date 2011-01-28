@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>Building the S2E Framework</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -37,6 +37,12 @@ $ sudo apt-get install binutils-dev
 $ sudo apt-get install python-docutils
 $ sudo apt-get install python-pygments
 $ sudo apt-get install nasm
+</pre>
+<p>The following commands ask apt-get to install build dependencies for llvm-2.7
+and qemu. We install the build dependencies for llvm-2.7 instead of llvm-2.6
+(which is used by S2E) because both of them have almost identical build
+dependencies but llvm-2.6 is not available on Ubuntu 10.10:</p>
+<pre class="literal-block">
 $ sudo apt-get build-dep llvm-2.7
 $ sudo apt-get build-dep qemu
 </pre>

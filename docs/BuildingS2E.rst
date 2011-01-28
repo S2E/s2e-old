@@ -23,6 +23,12 @@ Required Packages
     $ sudo apt-get install python-docutils
     $ sudo apt-get install python-pygments
     $ sudo apt-get install nasm
+
+The following commands ask apt-get to install build dependencies for llvm-2.7
+and qemu. We install the build dependencies for llvm-2.7 instead of llvm-2.6
+(which is used by S2E) because both of them have almost identical build
+dependencies but llvm-2.6 is not available on Ubuntu 10.10::
+
     $ sudo apt-get build-dep llvm-2.7
     $ sudo apt-get build-dep qemu
 
