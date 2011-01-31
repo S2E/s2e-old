@@ -27,7 +27,7 @@ struct CoreDisplay {
     QFrameBuffer*       fb;
 
     /* Framebuffer service associated with this core display. */
-    CoreFramebuffer*    core_fb;
+    ProxyFramebuffer*   core_fb;
 };
 
 /* One and only one core display instance. */
@@ -43,7 +43,7 @@ coredisplay_fb_update(void* opaque, int x, int y, int w, int h)
 {
     CoreDisplay* cd = (CoreDisplay*)opaque;
     if (cd->core_fb) {
-        corefb_update(cd->core_fb, cd->fb, x, y, w, h);
+        proxyFb_update(cd->core_fb, cd->fb, x, y, w, h);
     }
 }
 
@@ -109,7 +109,7 @@ coredisplay_init(DisplayState* ds)
 }
 
 int
-coredisplay_attach_fb_service(CoreFramebuffer* core_fb)
+coredisplay_attach_fb_service(ProxyFramebuffer* core_fb)
 {
     if (core_display.core_fb == NULL) {
         core_display.core_fb = core_fb;
@@ -119,10 +119,10 @@ coredisplay_attach_fb_service(CoreFramebuffer* core_fb)
     }
 }
 
-CoreFramebuffer*
+ProxyFramebuffer*
 coredisplay_detach_fb_service(void)
 {
-    CoreFramebuffer* ret = core_display.core_fb;
+    ProxyFramebuffer* ret = core_display.core_fb;
     core_display.core_fb = NULL;
     return ret;
 }

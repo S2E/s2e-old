@@ -20,13 +20,14 @@
 #include "android/looper.h"
 #include "android/display-core.h"
 #include "android/async-utils.h"
-#include "android/framebuffer-common.h"
-#include "android/framebuffer-core.h"
+#include "android/protocol/fb-updates.h"
+#include "android/protocol/fb-updates-proxy.h"
 #include "android/utils/system.h"
 #include "android/utils/debug.h"
 
-/* Core framebuffer descriptor. */
-struct CoreFramebuffer {
+/* Descriptor for the Core-side implementation of the "framebufer" service.
+ */
+struct ProxyFramebuffer {
     /* Writer used to send FB update notification messages. */
     AsyncWriter             fb_update_writer;
 
@@ -55,13 +56,13 @@ struct CoreFramebuffer {
     FBRequestHeader         fb_req_header;
 };
 
-/* Framebuffer update notification descriptor to the core. */
+/* Framebuffer update notification descriptor. */
 typedef struct FBUpdateNotify {
     /* Links all pending FB update notifications. */
     struct FBUpdateNotify*  next_fb_update;
 
     /* Core framebuffer instance that owns the message. */
-    CoreFramebuffer*        core_fb;
+    ProxyFramebuffer*       proxy_fb;
 
     /* Size of the message to transfer. */
     size_t                  message_size;
@@ -112,14 +113,14 @@ _copy_fb_rect(uint8_t* rect, const QFrameBuffer* fb, int x, int y, int w, int h)
  *  Initialized framebuffer update notification descriptor.
  */
 static FBUpdateNotify*
-fbupdatenotify_create(CoreFramebuffer* core_fb, const QFrameBuffer* fb,
+fbupdatenotify_create(ProxyFramebuffer* proxy_fb, const QFrameBuffer* fb,
                       int x, int y, int w, int h)
 {
     const size_t rect_size = w * h * fb->bytes_per_pixel;
     FBUpdateNotify* ret = malloc(sizeof(FBUpdateNotify) + rect_size);
 
     ret->next_fb_update = NULL;
-    ret->core_fb = core_fb;
+    ret->proxy_fb = proxy_fb;
     ret->message_size = sizeof(FBUpdateMessage) + rect_size;
     ret->message.x = x;
     ret->message.y = y;
@@ -149,23 +150,23 @@ extern void destroy_control_fb_client(void);
  * Asynchronous write I/O callback launched when writing framebuffer
  * notifications to the socket.
  * Param:
- *  core_fb - CoreFramebuffer instance.
+ *  proxy_fb - ProxyFramebuffer instance.
  */
 static void
-corefb_io_write(CoreFramebuffer* core_fb)
+_proxyFb_io_write(ProxyFramebuffer* proxy_fb)
 {
-    while (core_fb->fb_update_head != NULL) {
-        FBUpdateNotify* current_update = core_fb->fb_update_head;
+    while (proxy_fb->fb_update_head != NULL) {
+        FBUpdateNotify* current_update = proxy_fb->fb_update_head;
         // Lets continue writing of the current notification.
         const AsyncStatus status =
-            asyncWriter_write(&core_fb->fb_update_writer, &core_fb->io);
+            asyncWriter_write(&proxy_fb->fb_update_writer, &proxy_fb->io);
         switch (status) {
             case ASYNC_COMPLETE:
                 // Done with the current update. Move on to the next one.
                 break;
             case ASYNC_ERROR:
                 // Done with the current update. Move on to the next one.
-                loopIo_dontWantWrite(&core_fb->io);
+                loopIo_dontWantWrite(&proxy_fb->io);
                 break;
 
             case ASYNC_NEED_MORE:
@@ -174,18 +175,18 @@ corefb_io_write(CoreFramebuffer* core_fb)
         }
 
         // Advance the list of updates
-        core_fb->fb_update_head = current_update->next_fb_update;
-        if (core_fb->fb_update_head == NULL) {
-            core_fb->fb_update_tail = NULL;
+        proxy_fb->fb_update_head = current_update->next_fb_update;
+        if (proxy_fb->fb_update_head == NULL) {
+            proxy_fb->fb_update_tail = NULL;
         }
         fbupdatenotify_delete(current_update);
 
-        if (core_fb->fb_update_head != NULL) {
+        if (proxy_fb->fb_update_head != NULL) {
             // Schedule the next one.
-            asyncWriter_init(&core_fb->fb_update_writer,
-                             &core_fb->fb_update_head->message,
-                             core_fb->fb_update_head->message_size,
-                             &core_fb->io);
+            asyncWriter_init(&proxy_fb->fb_update_writer,
+                             &proxy_fb->fb_update_head->message,
+                             proxy_fb->fb_update_head->message_size,
+                             &proxy_fb->io);
         }
     }
 }
@@ -194,34 +195,35 @@ corefb_io_write(CoreFramebuffer* core_fb)
  * Asynchronous read I/O callback launched when reading framebuffer requests
  * from the socket.
  * Param:
- *  core_fb - CoreFramebuffer instance.
+ *  proxy_fb - ProxyFramebuffer instance.
  */
 static void
-corefb_io_read(CoreFramebuffer* core_fb)
+_proxyFb_io_read(ProxyFramebuffer* proxy_fb)
 {
     // Read the request header.
     const AsyncStatus status =
-        asyncReader_read(&core_fb->fb_req_reader, &core_fb->io);
+        asyncReader_read(&proxy_fb->fb_req_reader, &proxy_fb->io);
     switch (status) {
         case ASYNC_COMPLETE:
             // Request header is received
-            switch (core_fb->fb_req_header.request_type) {
+            switch (proxy_fb->fb_req_header.request_type) {
                 case AFB_REQUEST_REFRESH:
                     // Force full screen update to be sent
-                    corefb_update(core_fb, core_fb->fb,
-                                  0, 0, core_fb->fb->width, core_fb->fb->height);
+                    proxyFb_update(proxy_fb, proxy_fb->fb,
+                                  0, 0, proxy_fb->fb->width,
+                                  proxy_fb->fb->height);
                     break;
                 default:
                     derror("Unknown framebuffer request %d\n",
-                           core_fb->fb_req_header.request_type);
+                           proxy_fb->fb_req_header.request_type);
                     break;
             }
-            core_fb->fb_req_header.request_type = -1;
-            asyncReader_init(&core_fb->fb_req_reader, &core_fb->fb_req_header,
-                             sizeof(core_fb->fb_req_header), &core_fb->io);
+            proxy_fb->fb_req_header.request_type = -1;
+            asyncReader_init(&proxy_fb->fb_req_reader, &proxy_fb->fb_req_header,
+                             sizeof(proxy_fb->fb_req_header), &proxy_fb->io);
             break;
         case ASYNC_ERROR:
-            loopIo_dontWantRead(&core_fb->io);
+            loopIo_dontWantRead(&proxy_fb->io);
             if (errno == ECONNRESET) {
                 // UI has exited. We need to destroy framebuffer service.
                 destroy_control_fb_client();
@@ -238,93 +240,93 @@ corefb_io_read(CoreFramebuffer* core_fb)
  * Asynchronous I/O callback launched when writing framebuffer notifications
  * to the socket.
  * Param:
- *  opaque - CoreFramebuffer instance.
+ *  opaque - ProxyFramebuffer instance.
  */
 static void
-corefb_io_func(void* opaque, int fd, unsigned events)
+_proxyFb_io_fun(void* opaque, int fd, unsigned events)
 {
     if (events & LOOP_IO_READ) {
-        corefb_io_read((CoreFramebuffer*)opaque);
+        _proxyFb_io_read((ProxyFramebuffer*)opaque);
     } else if (events & LOOP_IO_WRITE) {
-        corefb_io_write((CoreFramebuffer*)opaque);
+        _proxyFb_io_write((ProxyFramebuffer*)opaque);
     }
 }
 
-CoreFramebuffer*
-corefb_create(int sock, const char* protocol, QFrameBuffer* fb)
+ProxyFramebuffer*
+proxyFb_create(int sock, const char* protocol, QFrameBuffer* fb)
 {
     // At this point we're implementing the -raw protocol only.
-    CoreFramebuffer* ret;
+    ProxyFramebuffer* ret;
     ANEW0(ret);
     ret->sock = sock;
     ret->looper = looper_newCore();
     ret->fb = fb;
     ret->fb_update_head = NULL;
     ret->fb_update_tail = NULL;
-    loopIo_init(&ret->io, ret->looper, sock, corefb_io_func, ret);
+    loopIo_init(&ret->io, ret->looper, sock, _proxyFb_io_fun, ret);
     asyncReader_init(&ret->fb_req_reader, &ret->fb_req_header,
                      sizeof(ret->fb_req_header), &ret->io);
     return ret;
 }
 
 void
-corefb_destroy(CoreFramebuffer* core_fb)
+proxyFb_destroy(ProxyFramebuffer* proxy_fb)
 {
-    if (core_fb != NULL) {
-        if (core_fb->looper != NULL) {
+    if (proxy_fb != NULL) {
+        if (proxy_fb->looper != NULL) {
             // Stop all I/O that may still be going on.
-            loopIo_done(&core_fb->io);
+            loopIo_done(&proxy_fb->io);
             // Delete all pending frame updates.
-            while (core_fb->fb_update_head != NULL) {
-                FBUpdateNotify* pending_update = core_fb->fb_update_head;
-                core_fb->fb_update_head = pending_update->next_fb_update;
+            while (proxy_fb->fb_update_head != NULL) {
+                FBUpdateNotify* pending_update = proxy_fb->fb_update_head;
+                proxy_fb->fb_update_head = pending_update->next_fb_update;
                 fbupdatenotify_delete(pending_update);
             }
-            core_fb->fb_update_tail = NULL;
-            looper_free(core_fb->looper);
-            core_fb->looper = NULL;
+            proxy_fb->fb_update_tail = NULL;
+            looper_free(proxy_fb->looper);
+            proxy_fb->looper = NULL;
         }
     }
 }
 
 void
-corefb_update(CoreFramebuffer* core_fb,
+proxyFb_update(ProxyFramebuffer* proxy_fb,
               struct QFrameBuffer* fb, int x, int y, int w, int h)
 {
     AsyncStatus status;
-    FBUpdateNotify* descr = fbupdatenotify_create(core_fb, fb, x, y, w, h);
+    FBUpdateNotify* descr = fbupdatenotify_create(proxy_fb, fb, x, y, w, h);
 
     // Lets see if we should list it behind other pending updates.
-    if (core_fb->fb_update_tail != NULL) {
-        core_fb->fb_update_tail->next_fb_update = descr;
-        core_fb->fb_update_tail = descr;
+    if (proxy_fb->fb_update_tail != NULL) {
+        proxy_fb->fb_update_tail->next_fb_update = descr;
+        proxy_fb->fb_update_tail = descr;
         return;
     }
 
     // We're first in the list. Just send it now.
-    core_fb->fb_update_head = core_fb->fb_update_tail = descr;
-    asyncWriter_init(&core_fb->fb_update_writer,
-                     &core_fb->fb_update_head->message,
-                     core_fb->fb_update_head->message_size, &core_fb->io);
-    status = asyncWriter_write(&core_fb->fb_update_writer, &core_fb->io);
+    proxy_fb->fb_update_head = proxy_fb->fb_update_tail = descr;
+    asyncWriter_init(&proxy_fb->fb_update_writer,
+                     &proxy_fb->fb_update_head->message,
+                     proxy_fb->fb_update_head->message_size, &proxy_fb->io);
+    status = asyncWriter_write(&proxy_fb->fb_update_writer, &proxy_fb->io);
     switch (status) {
         case ASYNC_COMPLETE:
             fbupdatenotify_delete(descr);
-            core_fb->fb_update_head = core_fb->fb_update_tail = NULL;
+            proxy_fb->fb_update_head = proxy_fb->fb_update_tail = NULL;
             return;
         case ASYNC_ERROR:
             fbupdatenotify_delete(descr);
-            core_fb->fb_update_head = core_fb->fb_update_tail = NULL;
+            proxy_fb->fb_update_head = proxy_fb->fb_update_tail = NULL;
             return;
         case ASYNC_NEED_MORE:
-            // Update transfer will eventually complete in corefb_io_func
+            // Update transfer will eventually complete in _proxyFb_io_fun
             return;
     }
 }
 
 int
-corefb_get_bits_per_pixel(CoreFramebuffer* core_fb)
+proxyFb_get_bits_per_pixel(ProxyFramebuffer* proxy_fb)
 {
-    return (core_fb != NULL && core_fb->fb != NULL) ?
-                                                core_fb->fb->bits_per_pixel : -1;
+    return (proxy_fb != NULL && proxy_fb->fb != NULL) ?
+                                            proxy_fb->fb->bits_per_pixel : -1;
 }

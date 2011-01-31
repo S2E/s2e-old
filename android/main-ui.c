@@ -60,7 +60,7 @@
 
 #include "android/snapshot.h"
 #include "android/core-connection.h"
-#include "android/framebuffer-ui.h"
+#include "android/protocol/fb-updates-impl.h"
 #include "android/protocol/user-events-proxy.h"
 #include "android/protocol/core-commands-proxy.h"
 #include "android/protocol/ui-commands-impl.h"
@@ -105,9 +105,6 @@ unsigned long   android_verbose;
 
 /* Instance of the "attach-UI" Emulator's core console client. */
 CoreConnection*   attach_client = NULL;
-
-/* Instance of the "framebuffer" console client. */
-ClientFramebuffer* fb_client = NULL;
 
 /* -ui-settings parameters received from the core on UI attachment. */
 char* core_ui_settings = "";
@@ -960,9 +957,8 @@ attach_to_core(AndroidOptions* opts) {
     qemulator_set_title(emulator);
 
     // Connect to the core's framebuffer service
-    fb_client = clientfb_create(&console_socket, "-raw",
-                                qemulator_get_first_framebuffer(emulator));
-    if (fb_client == NULL) {
+    if (implFb_create(&console_socket, "-raw",
+                        qemulator_get_first_framebuffer(emulator))) {
         return -1;
     }
 

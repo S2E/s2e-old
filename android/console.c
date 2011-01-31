@@ -51,7 +51,7 @@
 #include "android/keycode-array.h"
 #include "android/charmap.h"
 #include "android/display-core.h"
-#include "android/framebuffer-core.h"
+#include "android/protocol/fb-updates-proxy.h"
 #include "android/protocol/user-events-impl.h"
 #include "android/protocol/ui-commands-api.h"
 #include "android/protocol/core-commands-impl.h"
@@ -247,9 +247,9 @@ control_client_destroy( ControlClient  client )
     }
 
     if (client == framebuffer_client) {
-        CoreFramebuffer* core_fb = coredisplay_detach_fb_service();
+        ProxyFramebuffer* core_fb = coredisplay_detach_fb_service();
         if (core_fb != NULL) {
-            corefb_destroy(core_fb);
+            proxyFb_destroy(core_fb);
             AFREE(core_fb);
         }
         framebuffer_client = NULL;
@@ -2523,7 +2523,7 @@ extern CoreDisplay core_display;
 static int
 do_create_framebuffer_service( ControlClient client, char* args )
 {
-    CoreFramebuffer* core_fb;
+    ProxyFramebuffer* core_fb;
     const char* protocol = "-raw";   // Default framebuffer exchange protocol.
 
     // Protocol type is defined by the arguments passed with the stream switch
@@ -2554,13 +2554,13 @@ do_create_framebuffer_service( ControlClient client, char* args )
         return -1;
     }
 
-    core_fb = corefb_create(client->sock, protocol, coredisplay_get_framebuffer());
+    core_fb = proxyFb_create(client->sock, protocol, coredisplay_get_framebuffer());
     if (!coredisplay_attach_fb_service(core_fb)) {
         char reply_buf[4096];
         framebuffer_client = client;
         // Reply "OK" with the framebuffer's bits per pixel
         snprintf(reply_buf, sizeof(reply_buf), "OK: -bitsperpixel=%d\r\n",
-                 corefb_get_bits_per_pixel(core_fb));
+                 proxyFb_get_bits_per_pixel(core_fb));
         control_write( client, reply_buf);
     } else {
         control_write( client, "KO\r\n" );

@@ -1056,7 +1056,7 @@ VL_SOURCES := framebuffer.c \
               android/looper-qemu.c \
               android/looper-generic.c \
               android/display-core.c \
-              android/framebuffer-core.c \
+              android/protocol/fb-updates-proxy.c \
               android/protocol/user-events-impl.c \
               android/protocol/ui-commands-proxy.c \
               android/protocol/core-commands-impl.c \
@@ -1215,7 +1215,7 @@ VL_SOURCES := framebuffer.c \
               vl-android-ui.c \
               console-ui.c \
               iolooper-select.c \
-              android/framebuffer-ui.c \
+              android/protocol/fb-updates-impl.c \
               android/protocol/ui-commands-impl.c \
               android/protocol/core-commands-proxy.c \
               android/protocol/user-events-proxy.c \

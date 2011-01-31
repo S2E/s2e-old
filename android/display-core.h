@@ -20,7 +20,7 @@
 
 #include "framebuffer.h"
 #include "android/display.h"
-#include "android/framebuffer-core.h"
+#include "android/protocol/fb-updates-proxy.h"
 
 /* Descriptor for a core display instance */
 typedef struct CoreDisplay CoreDisplay;
@@ -39,7 +39,7 @@ extern void coredisplay_init(DisplayState* ds);
  * Return:
  *  0 on success, or -1 on failure.
  */
-extern int coredisplay_attach_fb_service(CoreFramebuffer* core_fb);
+extern int coredisplay_attach_fb_service(ProxyFramebuffer* core_fb);
 
 /*
  * Detaches framebuffer service previously attached to the core display.
@@ -47,7 +47,7 @@ extern int coredisplay_attach_fb_service(CoreFramebuffer* core_fb);
  *  Framebuffer service descriptor attached to the core display, or NULL if
  *  the core display didn't have framebuffer service attached to it.
  */
-extern CoreFramebuffer* coredisplay_detach_fb_service(void);
+extern ProxyFramebuffer* coredisplay_detach_fb_service(void);
 
 /*
  * Get framebuffer descriptor for core display.
