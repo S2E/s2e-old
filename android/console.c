@@ -56,6 +56,7 @@
 #include "android/protocol/ui-commands-api.h"
 #include "android/protocol/core-commands-impl.h"
 #include "android/protocol/ui-commands-proxy.h"
+#include "android/protocol/attach-ui-proxy.h"
 
 #if defined(CONFIG_SLIRP)
 #include "libslirp.h"
@@ -134,9 +135,6 @@ ControlClient ui_core_ctl_client = NULL;
 
 /* UI control service client (Core-> UI). */
 ControlClient core_ui_ctl_client = NULL;
-
-/* UI control service (Core -> UI. */
-// CoreUICtl* core_ui_ctl = NULL;
 #endif  // CONFIG_STANDALONE_CORE
 
 /* -android-avdname option value. Defined in vl-android.c */
@@ -243,6 +241,7 @@ control_client_destroy( ControlClient  client )
 
 #ifdef CONFIG_STANDALONE_CORE
     if (client == attached_ui_client) {
+        attachUiProxy_destroy();
         attached_ui_client = NULL;
     }
 
@@ -2503,18 +2502,27 @@ do_attach_ui( ControlClient client, char* args )
         return -1;
     }
 
-    attached_ui_client = client;
-
-    if (android_op_ui_settings != NULL) {
-        // Reply "OK" with the saved -ui-settings property.
+    if (!attachUiProxy_create(client->sock)) {
         char reply_buf[4096];
+        attached_ui_client = client;
+        // Reply "OK" with the saved -ui-settings property.
         snprintf(reply_buf, sizeof(reply_buf), "OK: %s\r\n", android_op_ui_settings);
         control_write( client, reply_buf);
     } else {
-        control_write( client, "OK\r\n");
+        control_write( client, "KO\r\n" );
+        control_client_destroy(client);
+        return -1;
     }
 
     return 0;
+}
+
+void
+destroy_attach_ui_client(void)
+{
+    if (attached_ui_client != NULL) {
+        control_client_destroy(attached_ui_client);
+    }
 }
 
 /* Core display instance. */

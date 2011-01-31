@@ -22,6 +22,7 @@
 #ifndef ANDROID_SYNC_UTILS_H
 #define ANDROID_SYNC_UTILS_H
 
+#include "android/android.h"
 #include "sockets.h"
 
 /* Descriptor for a connected non-blocking socket providing synchronous I/O */

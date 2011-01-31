@@ -31,4 +31,7 @@
  */
 extern int uiCmdImpl_create(SockAddress* console_socket);
 
+/* Destroys UI-side of the "core-ui-control" service. */
+extern void uiCmdImpl_destroy();
+
 #endif /* _ANDROID_PROTOCOL_UI_COMMANDS_IMPL_H */
