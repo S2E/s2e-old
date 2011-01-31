@@ -11,8 +11,8 @@
 */
 
 /*
- * Contains UI-side framebuffer client that receives framebuffer updates
- * from the core.
+ * Contains UI-side "framebuffer" client that receives framebuffer updates
+ * from the Core.
  */
 
 #ifndef _ANDROID_FRAMEBUFFER_UI_H
@@ -24,11 +24,7 @@
 #include "android/async-utils.h"
 #include "android/core-connection.h"
 
-/* Descriptor for the framebuffer client. */
-typedef struct ClientFramebuffer ClientFramebuffer;
-
-/*
- * Creates framebuffer client, and connects it with the core.
+/* Creates framebuffer client, and connects it with the core.
  * Param:
  *  console_socket Address of the core's console socket.
  *  protocol Protocol to use for the updates:
@@ -36,17 +32,13 @@ typedef struct ClientFramebuffer ClientFramebuffer;
  *      -shared Use shared memory for pixels.
  * fb - Framebuffer associated with this FB client.
  * Return:
- *  Descriptor for the framebuffer client on success, or NULL on failure.
+ *  0 on success, or < 0 on failure.
  */
-ClientFramebuffer* clientfb_create(SockAddress* console_socket,
-                                   const char* protocol,
-                                   QFrameBuffer* fb);
+int implFb_create(SockAddress* console_socket,
+                  const char* protocol,
+                  QFrameBuffer* fb);
 
-/*
- * Disconnects and destroys framebuffer client.
- * Param:
- *  client_fb Framebuffer client descriptor created with clientfb_create.
- */
-void clientfb_destroy(ClientFramebuffer* client_fb);
+/* Disconnects and destroys framebuffer client. */
+void implFb_destroy(void);
 
 #endif /* _ANDROID_FRAMEBUFFER_UI_H */

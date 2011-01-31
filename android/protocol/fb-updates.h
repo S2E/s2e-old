@@ -11,13 +11,18 @@
 */
 
 /*
- * Contains framebuffer declarations that are shared by the core and the UI.
+ * Contains the API for calling into the UI with Core's framebuffer updates.
  */
 
-#ifndef _ANDROID_FRAMEBUFFER_COMMON_H
-#define _ANDROID_FRAMEBUFFER_COMMON_H
+#ifndef _ANDROID_PROTOCOL_FB_UPDATES_H
+#define _ANDROID_PROTOCOL_FB_UPDATES_H
 
 #include "sysemu.h"
+
+/* Requests the Core to refresh framebuffer.
+ * This message is sent by the UI to the Core right after the UI is initialized.
+ * This message forces the Core to send a full display update back to the UI. */
+#define AFB_REQUEST_REFRESH     1
 
 /* Header of framebuffer update message sent from the core to the UI. */
 typedef struct FBUpdateMessage {
@@ -31,15 +36,10 @@ typedef struct FBUpdateMessage {
     uint8_t rect[0];
 } FBUpdateMessage;
 
-/* Requests the service to refresh framebuffer. */
-#define AFB_REQUEST_REFRESH     1
-
-/* Header for framebuffer requests sent from the client (UI)
- * to the service (core).
- */
+/* Header for framebuffer requests sent from the UI to the Core. */
 typedef struct FBRequestHeader {
     /* Request type. See AFB_REQUEST_XXX for the values. */
     uint8_t request_type;
 } FBRequestHeader;
 
-#endif /* _ANDROID_FRAMEBUFFER_UI_H */
+#endif /* _ANDROID_PROTOCOL_FB_UPDATES_H */

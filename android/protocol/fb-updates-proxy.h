@@ -15,11 +15,11 @@
  * to the UI connected to the core.
  */
 
-#ifndef _ANDROID_FRAMEBUFFER_CORE_H
-#define _ANDROID_FRAMEBUFFER_CORE_H
+#ifndef _ANDROID_PROTOCOL_FB_UPDATES_PROXY_H
+#define _ANDROID_PROTOCOL_FB_UPDATES_PROXY_H
 
 /* Descriptor for a framebuffer core service instance */
-typedef struct CoreFramebuffer CoreFramebuffer;
+typedef struct ProxyFramebuffer ProxyFramebuffer;
 
 /*
  * Creates framebuffer service.
@@ -33,32 +33,32 @@ typedef struct CoreFramebuffer CoreFramebuffer;
  * Return:
  *  Framebuffer service descriptor.
  */
-CoreFramebuffer* corefb_create(int sock, const char* protocol, struct QFrameBuffer* fb);
+ProxyFramebuffer* proxyFb_create(int sock, const char* protocol, struct QFrameBuffer* fb);
 
 /*
- * Destroys framebuffer service created with corefb_create.
+ * Destroys framebuffer service created with proxyFb_create.
  * Param:
- *  core_fb - Framebuffer service descriptor created with corefb_create
+ *  core_fb - Framebuffer service descriptor created with proxyFb_create
  */
-void corefb_destroy(CoreFramebuffer* core_fb);
+void proxyFb_destroy(ProxyFramebuffer* core_fb);
 
 /*
  * Notifies framebuffer client about changes in framebuffer.
  * Param:
- *  core_fb - Framebuffer service descriptor created with corefb_create
+ *  core_fb - Framebuffer service descriptor created with proxyFb_create
  *  fb Framebuffer containing pixels.
  *  x, y, w, and h identify the rectangle that has benn changed.
  */
-void corefb_update(CoreFramebuffer* core_fb, struct QFrameBuffer* fb,
+void proxyFb_update(ProxyFramebuffer* core_fb, struct QFrameBuffer* fb,
                    int x, int y, int w, int h);
 
 /*
  * Gets number of bits used to encode a single pixel.
  * Param:
- *  core_fb - Framebuffer service descriptor created with corefb_create
+ *  core_fb - Framebuffer service descriptor created with proxyFb_create
  * Return:
  *  Number of bits used to encode a single pixel.
  */
-int corefb_get_bits_per_pixel(CoreFramebuffer* core_fb);
+int proxyFb_get_bits_per_pixel(ProxyFramebuffer* core_fb);
 
-#endif /* _ANDROID_FRAMEBUFFER_CORE_H */
+#endif /* _ANDROID_PROTOCOL_FB_UPDATES_PROXY_H */

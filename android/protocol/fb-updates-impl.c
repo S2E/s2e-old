@@ -15,31 +15,26 @@
  * from the core.
  */
 
-#include "android/framebuffer-common.h"
-#include "android/framebuffer-ui.h"
+#include "sysemu.h"
 #include "android/utils/system.h"
 #include "android/utils/debug.h"
+#include "android/utils/panic.h"
 #include "android/sync-utils.h"
+#include "android/protocol/fb-updates.h"
+#include "android/protocol/fb-updates-impl.h"
 
-#define  PANIC(...) do { fprintf(stderr, __VA_ARGS__);  \
-                         exit(1);                       \
-                    } while (0)
-
-/*
- * Enumerates states for the client framebuffer update reader.
- */
-typedef enum ClientFBState {
+/*Enumerates states for the client framebuffer update reader. */
+typedef enum ImplFBState {
     /* The reader is waiting on update header. */
-    WAIT_HEADER,
+    EXPECTS_HEADER,
 
     /* The reader is waiting on pixels. */
-    WAIT_PIXELS,
-} ClientFBState;
+    EXPECTS_PIXELS,
+} ImplFBState;
 
-/*
- * Descriptor for the framebuffer client.
+/* Descriptor for the UI-side implementation of the "framebufer" service.
  */
-struct ClientFramebuffer {
+typedef struct ImplFramebuffer {
     /* Framebuffer for this client. */
     QFrameBuffer*   fb;
 
@@ -59,17 +54,17 @@ struct ClientFramebuffer {
     size_t          reader_bytes;
 
     /* Current state of the update reader. */
-    ClientFBState   fb_state;
+    ImplFBState     fb_state;
 
     /* Socket descriptor for the framebuffer client. */
     int             sock;
 
     /* Number of bits used to encode single pixel. */
     int             bits_per_pixel;
-};
+} ImplFramebuffer;
 
-/* The only instance of framebuffer client. */
-static ClientFramebuffer _client_fb;
+/* One and the only ImplFramebuffer instance. */
+static ImplFramebuffer _implFb;
 
 /*
  * Updates a display rectangle.
@@ -81,14 +76,15 @@ static ClientFramebuffer _client_fb;
  *      must be eventually freed with free()
  */
 static void
-update_rect(QFrameBuffer* fb, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
-            uint8_t bits_per_pixel, uint8_t* pixels)
+_update_rect(QFrameBuffer* fb, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
+             uint8_t bits_per_pixel, uint8_t* pixels)
 {
     if (fb != NULL) {
         uint16_t n;
         const uint8_t* src = pixels;
         const uint16_t src_line_size = w * ((bits_per_pixel + 7) / 8);
-        uint8_t* dst  = (uint8_t*)fb->pixels + y * fb->pitch + x * fb->bytes_per_pixel;
+        uint8_t* dst  = (uint8_t*)fb->pixels + y * fb->pitch + x *
+                        fb->bytes_per_pixel;
         for (n = 0; n < h; n++) {
             memcpy(dst, src, src_line_size);
             src += src_line_size;
@@ -103,12 +99,12 @@ update_rect(QFrameBuffer* fb, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
  * Asynchronous I/O callback launched when framebuffer notifications are ready
  * to be read.
  * Param:
- *  opaque - ClientFramebuffer instance.
+ *  opaque - ImplFramebuffer instance.
  */
 static void
-_clientfb_read_cb(void* opaque)
+_implFb_read_cb(void* opaque)
 {
-    ClientFramebuffer* fb_client = opaque;
+    ImplFramebuffer* fb_client = opaque;
     int  ret;
 
     // Read updates while they are immediately available.
@@ -118,7 +114,7 @@ _clientfb_read_cb(void* opaque)
                    fb_client->reader_bytes - fb_client->reader_offset);
         if (ret == 0) {
             /* disconnection ! */
-            clientfb_destroy(fb_client);
+            implFb_destroy();
             return;
         }
         if (ret < 0) {
@@ -138,28 +134,28 @@ _clientfb_read_cb(void* opaque)
         }
 
         // All expected data has been read. Time to change the state.
-        if (fb_client->fb_state == WAIT_HEADER) {
+        if (fb_client->fb_state == EXPECTS_HEADER) {
             // Update header has been read. Prepare for the pixels.
-            fb_client->fb_state = WAIT_PIXELS;
+            fb_client->fb_state = EXPECTS_PIXELS;
             fb_client->reader_offset = 0;
             fb_client->reader_bytes = fb_client->update_header.w *
                                       fb_client->update_header.h *
                                       (fb_client->bits_per_pixel / 8);
             fb_client->reader_buffer = malloc(fb_client->reader_bytes);
             if (fb_client->reader_buffer == NULL) {
-                PANIC("Unable to allocate memory for framebuffer update\n");
+                APANIC("Unable to allocate memory for framebuffer update\n");
             }
         } else {
             // Pixels have been read. Prepare for the header.
              uint8_t* pixels = fb_client->reader_buffer;
 
-            fb_client->fb_state = WAIT_HEADER;
+            fb_client->fb_state = EXPECTS_HEADER;
             fb_client->reader_offset = 0;
             fb_client->reader_bytes = sizeof(FBUpdateMessage);
             fb_client->reader_buffer = (uint8_t*)&fb_client->update_header;
 
             // Perform the update. Note that pixels buffer must be freed there.
-            update_rect(fb_client->fb, fb_client->update_header.x,
+            _update_rect(fb_client->fb, fb_client->update_header.x,
                         fb_client->update_header.y, fb_client->update_header.w,
                         fb_client->update_header.h, fb_client->bits_per_pixel,
                         pixels);
@@ -167,47 +163,33 @@ _clientfb_read_cb(void* opaque)
     }
 }
 
-ClientFramebuffer*
-clientfb_create(SockAddress* console_socket,
-                const char* protocol,
-                QFrameBuffer* fb)
+int
+implFb_create(SockAddress* console_socket, const char* protocol, QFrameBuffer* fb)
 {
-    char* connect_message = NULL;
+    char* handshake = NULL;
     char switch_cmd[256];
 
+    // Initialize descriptor.
+    _implFb.fb = fb;
+    _implFb.reader_buffer = (uint8_t*)&_implFb.update_header;
+    _implFb.reader_offset = 0;
+    _implFb.reader_bytes = sizeof(FBUpdateMessage);
+
     // Connect to the framebuffer service.
-    _client_fb.core_connection = core_connection_create(console_socket);
-    if (_client_fb.core_connection == NULL) {
-        derror("Framebuffer client is unable to connect to the console: %s\n",
-               errno_str);
-        return NULL;
-    }
-    if (core_connection_open(_client_fb.core_connection)) {
-        core_connection_free(_client_fb.core_connection);
-        _client_fb.core_connection = NULL;
-        derror("Framebuffer client is unable to open the console: %s\n",
-               errno_str);
-        return NULL;
-    }
     snprintf(switch_cmd, sizeof(switch_cmd), "framebuffer %s", protocol);
-    if (core_connection_switch_stream(_client_fb.core_connection, switch_cmd,
-                                      &connect_message)) {
-        derror("Unable to attach to the framebuffer %s: %s\n",
-               switch_cmd, connect_message ? connect_message : "");
-        if (connect_message != NULL) {
-            free(connect_message);
-        }
-        core_connection_close(_client_fb.core_connection);
-        core_connection_free(_client_fb.core_connection);
-        _client_fb.core_connection = NULL;
-        return NULL;
+    _implFb.core_connection =
+        core_connection_create_and_switch(console_socket, switch_cmd, &handshake);
+    if (_implFb.core_connection == NULL) {
+        derror("Unable to connect to the framebuffer service: %s\n",
+               errno_str);
+        return -1;
     }
 
     // We expect core framebuffer to return us bits per pixel property in
     // the handshake message.
-    _client_fb.bits_per_pixel = 0;
-    if (connect_message != NULL) {
-        char* bpp = strstr(connect_message, "bitsperpixel=");
+    _implFb.bits_per_pixel = 0;
+    if (handshake != NULL) {
+        char* bpp = strstr(handshake, "bitsperpixel=");
         if (bpp != NULL) {
             char* end;
             bpp += strlen("bitsperpixel=");
@@ -215,67 +197,68 @@ clientfb_create(SockAddress* console_socket,
             if (end == NULL) {
                 end = bpp + strlen(bpp);
             }
-            _client_fb.bits_per_pixel = strtol(bpp, &end, 0);
+            _implFb.bits_per_pixel = strtol(bpp, &end, 0);
         }
     }
-
-    if (!_client_fb.bits_per_pixel) {
+    if (!_implFb.bits_per_pixel) {
         derror("Unexpected core framebuffer reply: %s\n"
-               "Bits per pixel property is not there, or is invalid\n", connect_message);
-        core_connection_close(_client_fb.core_connection);
-        core_connection_free(_client_fb.core_connection);
-        _client_fb.core_connection = NULL;
-        return NULL;
+               "Bits per pixel property is not there, or is invalid\n",
+               handshake);
+        implFb_destroy();
+        return -1;
     }
 
-    // Now that we're connected lets initialize the descriptor.
-    _client_fb.fb = fb;
-    _client_fb.sock = core_connection_get_socket(_client_fb.core_connection);
-    _client_fb.fb_state = WAIT_HEADER;
-    _client_fb.reader_buffer = (uint8_t*)&_client_fb.update_header;
-    _client_fb.reader_offset = 0;
-    _client_fb.reader_bytes = sizeof(FBUpdateMessage);
-
-    if (connect_message != NULL) {
-        free(connect_message);
-    }
+    _implFb.sock = core_connection_get_socket(_implFb.core_connection);
 
     // At last setup read callback, and start receiving the updates.
-    if (qemu_set_fd_handler(_client_fb.sock, _clientfb_read_cb, NULL, &_client_fb)) {
-        derror("Unable to set up framebuffer read callback\n");
-        core_connection_close(_client_fb.core_connection);
-        core_connection_free(_client_fb.core_connection);
-        _client_fb.core_connection = NULL;
-        return NULL;
+    if (qemu_set_fd_handler(_implFb.sock, _implFb_read_cb, NULL, &_implFb)) {
+        derror("Unable to set up framebuffer read callback.\n");
+        implFb_destroy();
+        return -1;
     }
     {
         // Force the core to send us entire framebuffer now, when we're prepared
         // to receive it.
         FBRequestHeader hd;
-        SyncSocket* sk = syncsocket_init(_client_fb.sock);
+        SyncSocket* sk = syncsocket_init(_implFb.sock);
 
         hd.request_type = AFB_REQUEST_REFRESH;
         syncsocket_start_write(sk);
-        syncsocket_write(sk, &hd, sizeof(hd), 500);
+        syncsocket_write(sk, &hd, sizeof(hd), 5000);
         syncsocket_stop_write(sk);
         syncsocket_free(sk);
     }
-    fprintf(stdout, "Framebuffer %s is now attached to the core %s\n",
-            protocol, sock_address_to_string(console_socket));
 
-    return &_client_fb;
+    fprintf(stdout, "framebuffer is now connected to the core at %s.",
+            sock_address_to_string(console_socket));
+    if (handshake != NULL) {
+        if (handshake[0] != '\0') {
+            fprintf(stdout, " Handshake: %s", handshake);
+        }
+        free(handshake);
+    }
+    fprintf(stdout, "\n");
+
+    return 0;
 }
 
 void
-clientfb_destroy(ClientFramebuffer* client_fb)
+implFb_destroy(void)
 {
-    if (client_fb != NULL && client_fb->core_connection != NULL) {
+    if (_implFb.core_connection != NULL) {
         // Disable the reader callback.
-        qemu_set_fd_handler(client_fb->sock, NULL, NULL, NULL);
+        qemu_set_fd_handler(_implFb.sock, NULL, NULL, NULL);
 
         // Close framebuffer connection.
-        core_connection_close(client_fb->core_connection);
-        core_connection_free(client_fb->core_connection);
-        client_fb->core_connection = NULL;
+        core_connection_close(_implFb.core_connection);
+        core_connection_free(_implFb.core_connection);
+        _implFb.core_connection = NULL;
+    }
+
+    _implFb.fb = NULL;
+    if (_implFb.reader_buffer != NULL &&
+        _implFb.reader_buffer != (uint8_t*)&_implFb.update_header) {
+        free(_implFb.reader_buffer);
+        _implFb.reader_buffer = (uint8_t*)&_implFb.update_header;
     }
 }
