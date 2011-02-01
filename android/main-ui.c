@@ -64,6 +64,7 @@
 #include "android/protocol/user-events-proxy.h"
 #include "android/protocol/core-commands-proxy.h"
 #include "android/protocol/ui-commands-impl.h"
+#include "android/protocol/attach-ui-impl.h"
 
 #include "framebuffer.h"
 #include "iolooper.h"
@@ -102,9 +103,6 @@ extern void  stop_tracing(void);
 #endif
 
 unsigned long   android_verbose;
-
-/* Instance of the "attach-UI" Emulator's core console client. */
-CoreConnection*   attach_client = NULL;
 
 /* -ui-settings parameters received from the core on UI attachment. */
 char* core_ui_settings = "";
@@ -922,32 +920,7 @@ attach_to_core(AndroidOptions* opts) {
     }
     sock_address_list_free(sockaddr_list);
 
-    attach_client = core_connection_create(&console_socket);
-    if (attach_client != NULL) {
-        if (!core_connection_open(attach_client)) {
-            if (!core_connection_switch_stream(attach_client, "attach-UI",
-                                               &core_ui_settings)) {
-                fprintf(stdout, "UI is now attached to the core %s\n",
-                        sock_address_to_string(&console_socket));
-                if (*core_ui_settings != '\0') {
-                    fprintf(stdout, "UI setting for the core%s:\n",
-                            core_ui_settings);
-                }
-            } else {
-                derror("Unable to attach to the core %s: %s\n",
-                       sock_address_to_string(&console_socket),
-                       core_ui_settings);
-                core_connection_close(attach_client);
-                core_connection_free(attach_client);
-                attach_client = NULL;
-                return -1;
-            }
-        } else {
-            core_connection_free(attach_client);
-            attach_client = NULL;
-            return -1;
-        }
-    } else {
+    if (attachUiImpl_create(&console_socket)) {
         return -1;
     }
 
@@ -955,28 +928,6 @@ attach_to_core(AndroidOptions* opts) {
     android_base_port = sock_address_get_port(&console_socket);
     emulator = qemulator_get();
     qemulator_set_title(emulator);
-
-    // Connect to the core's framebuffer service
-    if (implFb_create(&console_socket, "-raw",
-                        qemulator_get_first_framebuffer(emulator))) {
-        return -1;
-    }
-
-    // Connect to the core's user events service.
-    if (userEventsProxy_create(&console_socket)) {
-        return -1;
-    }
-
-    // Connect to the core's UI control services. For the simplicity of
-    // implementation there are two UI control services: "ui-core-control" that
-    // handle UI controls initiated in the UI, and "core-ui-control" that handle
-    // UI controls initiated in the core.
-    if (coreCmdProxy_create(&console_socket)) {
-        return -1;
-    }
-    if (uiCmdImpl_create(&console_socket)) {
-        return -1;
-    }
 
     return 0;
 }
@@ -1017,6 +968,21 @@ int main(int argc, char **argv)
 
     if ( android_parse_options( &argc, &argv, opts ) < 0 ) {
         exit(1);
+    }
+
+    // Lets see if we're attaching to a running core process here.
+    if (opts->attach_core) {
+        if (attach_to_core(opts)) {
+            return -1;
+        }
+        // Connect to the core's UI control services.
+        if (coreCmdProxy_create(attachUiImpl_get_console_socket())) {
+            return -1;
+        }
+        // Connect to the core's user events service.
+        if (userEventsProxy_create(attachUiImpl_get_console_socket())) {
+            return -1;
+        }
     }
 
     while (argc-- > 1) {
@@ -1385,13 +1351,15 @@ int main(int argc, char **argv)
     emulator_config_init();
     init_skinned_ui(opts->skindir, opts->skin, opts);
 
-    // Lets see if we're attaching to a running core process here.
-    if (opts->attach_core) {
-        /* TODO: This is just for the testing and debugging purposes. Later,
-         * when code develops, there will be more meat on that bone. */
-        if (attach_to_core(opts)) {
-            return -1;
-        }
+    // Connect to the core's framebuffer service
+    if (implFb_create(attachUiImpl_get_console_socket(), "-raw",
+                      qemulator_get_first_framebuffer(qemulator_get()))) {
+        return -1;
+    }
+
+    // Attach the recepient of UI commands.
+    if (uiCmdImpl_create(attachUiImpl_get_console_socket())) {
+        return -1;
     }
 
     if (!opts->netspeed) {

@@ -120,27 +120,6 @@ _coreCmdProxy_get_response(UICmdRespHeader* resp, void** resp_data)
     return status;
 }
 
-/* Destroys CoreCmdProxy instance. */
-static void
-_coreCmdProxy_destroy(void)
-{
-    if (_coreCmdProxy.sync_writer != NULL) {
-        syncsocket_close(_coreCmdProxy.sync_writer);
-        syncsocket_free(_coreCmdProxy.sync_writer);
-        _coreCmdProxy.sync_writer = NULL;
-    }
-    if (_coreCmdProxy.sync_reader != NULL) {
-        syncsocket_close(_coreCmdProxy.sync_reader);
-        syncsocket_free(_coreCmdProxy.sync_reader);
-        _coreCmdProxy.sync_reader = NULL;
-    }
-    if (_coreCmdProxy.core_connection != NULL) {
-        core_connection_close(_coreCmdProxy.core_connection);
-        core_connection_free(_coreCmdProxy.core_connection);
-        _coreCmdProxy.core_connection = NULL;
-    }
-}
-
 int
 corecmd_set_coarse_orientation(AndroidCoarseOrientation orient)
 {
@@ -351,13 +330,13 @@ coreCmdProxy_create(SockAddress* console_socket)
     _coreCmdProxy.sync_writer = syncsocket_init(_coreCmdProxy.sock);
     if (_coreCmdProxy.sync_writer == NULL) {
         derror("Unable to initialize CoreCmdProxy writer: %s\n", errno_str);
-        _coreCmdProxy_destroy();
+        coreCmdProxy_destroy();
         return -1;
     }
     _coreCmdProxy.sync_reader = syncsocket_init(_coreCmdProxy.sock);
     if (_coreCmdProxy.sync_reader == NULL) {
         derror("Unable to initialize CoreCmdProxy reader: %s\n", errno_str);
-        _coreCmdProxy_destroy();
+        coreCmdProxy_destroy();
         return -1;
     }
 
@@ -373,4 +352,25 @@ coreCmdProxy_create(SockAddress* console_socket)
     fprintf(stdout, "\n");
 
     return 0;
+}
+
+/* Destroys CoreCmdProxy instance. */
+void
+coreCmdProxy_destroy(void)
+{
+    if (_coreCmdProxy.sync_writer != NULL) {
+        syncsocket_close(_coreCmdProxy.sync_writer);
+        syncsocket_free(_coreCmdProxy.sync_writer);
+        _coreCmdProxy.sync_writer = NULL;
+    }
+    if (_coreCmdProxy.sync_reader != NULL) {
+        syncsocket_close(_coreCmdProxy.sync_reader);
+        syncsocket_free(_coreCmdProxy.sync_reader);
+        _coreCmdProxy.sync_reader = NULL;
+    }
+    if (_coreCmdProxy.core_connection != NULL) {
+        core_connection_close(_coreCmdProxy.core_connection);
+        core_connection_free(_coreCmdProxy.core_connection);
+        _coreCmdProxy.core_connection = NULL;
+    }
 }

@@ -27,4 +27,7 @@
  */
 extern int userEventsProxy_create(SockAddress* console_socket);
 
+/* Destroys the UI-side of the "user-events". */
+extern void userEventsProxy_destroy(void);
+
 #endif /* _ANDROID_PROTOCOL_USER_EVENTS_PROXY_H */

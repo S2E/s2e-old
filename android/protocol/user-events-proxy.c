@@ -34,22 +34,6 @@ typedef struct UserEventsProxy {
 /* One and only one user events client instance. */
 static UserEventsProxy _userEventsProxy = { 0 };
 
-/* Destroys CoreCmdProxy instance. */
-static void
-_userEventsProxy_destroy(void)
-{
-    if (_userEventsProxy.sync_writer != NULL) {
-        syncsocket_close(_userEventsProxy.sync_writer);
-        syncsocket_free(_userEventsProxy.sync_writer);
-        _userEventsProxy.sync_writer = NULL;
-    }
-    if (_userEventsProxy.core_connection != NULL) {
-        core_connection_close(_userEventsProxy.core_connection);
-        core_connection_free(_userEventsProxy.core_connection);
-        _userEventsProxy.core_connection = NULL;
-    }
-}
-
 /* Sends an event to the core.
  * Parameters:
  *  event - Event type. Must be one of the AUSER_EVENT_XXX.
@@ -107,7 +91,7 @@ userEventsProxy_create(SockAddress* console_socket)
     _userEventsProxy.sync_writer = syncsocket_init(_userEventsProxy.sock);
     if (_userEventsProxy.sync_writer == NULL) {
         derror("Unable to initialize UserEventsProxy writer: %s\n", errno_str);
-        _userEventsProxy_destroy();
+        userEventsProxy_destroy();
         return -1;
     }
 
@@ -124,6 +108,20 @@ userEventsProxy_create(SockAddress* console_socket)
     return 0;
 }
 
+void
+userEventsProxy_destroy(void)
+{
+    if (_userEventsProxy.sync_writer != NULL) {
+        syncsocket_close(_userEventsProxy.sync_writer);
+        syncsocket_free(_userEventsProxy.sync_writer);
+        _userEventsProxy.sync_writer = NULL;
+    }
+    if (_userEventsProxy.core_connection != NULL) {
+        core_connection_close(_userEventsProxy.core_connection);
+        core_connection_free(_userEventsProxy.core_connection);
+        _userEventsProxy.core_connection = NULL;
+    }
+}
 void
 user_event_keycodes(int *kcodes, int count)
 {

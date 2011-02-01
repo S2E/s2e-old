@@ -42,7 +42,11 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/system.h"
 #include "android/core-connection.h"
+#include "android/protocol/attach-ui-impl.h"
 #include "android/protocol/fb-updates-impl.h"
+#include "android/protocol/user-events-proxy.h"
+#include "android/protocol/core-commands-proxy.h"
+#include "android/protocol/ui-commands-impl.h"
 
 #ifdef CONFIG_MEMCHECK
 #include "memcheck/memcheck.h"
@@ -203,9 +207,6 @@ extern int android_display_height;
 extern int android_display_bpp;
 
 extern void  dprint( const char* format, ... );
-
-/* Instance of the "attach UI" Emulator's core console client. */
-extern CoreConnection*   attach_client;
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
@@ -595,13 +596,11 @@ int main(int argc, char **argv, char **envp)
 
     main_loop();
 
-    if (attach_client != NULL) {
-        core_connection_detach(attach_client);
-        core_connection_close(attach_client);
-        core_connection_free(attach_client);
-    }
-
     implFb_destroy();
+    userEventsProxy_destroy();
+    coreCmdProxy_destroy();
+    uiCmdImpl_destroy();
+    attachUiImpl_destroy();
 
     quit_timers();
     return 0;

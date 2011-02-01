@@ -29,4 +29,7 @@
  */
 extern int coreCmdProxy_create(SockAddress* console_socket);
 
+/* Destroys the UI-side of the "ui-core-control" */
+void coreCmdProxy_destroy(void);
+
 #endif /* _ANDROID_PROTOCOL_CORE_COMMANDS_PROXY_H */

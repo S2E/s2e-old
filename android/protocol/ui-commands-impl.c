@@ -17,7 +17,6 @@
  */
 
 #include "console.h"
-//#include "android/hw-control.h"
 #include "android/looper.h"
 #include "android/core-connection.h"
 #include "android/async-utils.h"
@@ -73,25 +72,6 @@ static UICmdImpl  _uiCmdImpl;
 static AndroidHwLightBrightnessCallback _brightness_change_callback = NULL;
 static void* _brightness_change_callback_param = NULL;
 
-/* Destroys UICmdImpl instance. */
-static void
-_uiCmdImpl_destroy()
-{
-    if (_uiCmdImpl.core_connection != NULL) {
-        // Disable I/O callbacks.
-        qemu_set_fd_handler(_uiCmdImpl.sock, NULL, NULL, NULL);
-        core_connection_close(_uiCmdImpl.core_connection);
-        core_connection_free(_uiCmdImpl.core_connection);
-        _uiCmdImpl.core_connection = NULL;
-    }
-    // Properly deallocate the reader buffer.
-    if (_uiCmdImpl.reader_buffer != NULL &&
-        _uiCmdImpl.reader_buffer != (uint8_t*)&_uiCmdImpl.cmd_header) {
-        free(_uiCmdImpl.reader_buffer);
-        _uiCmdImpl.reader_buffer = (uint8_t*)&_uiCmdImpl.cmd_header;
-    }
-}
-
 /* Handles UI control command received from the core.
  * Param:
  *  uicmd - UICmdImpl instance that received the command.
@@ -146,7 +126,7 @@ _uiCmdImpl_io_read(void* opaque)
         if (status == 0) {
             /* Disconnection, meaning that the core process got termonated. */
             fprintf(stderr, "core-ui-control service got disconnected\n");
-            _uiCmdImpl_destroy();
+            uiCmdImpl_destroy();
             return;
         }
         if (status < 0) {
@@ -227,7 +207,7 @@ uiCmdImpl_create(SockAddress* console_socket)
                             &_uiCmdImpl)) {
         derror("Unable to set up UI _uiCmdImpl_io_read callback: %s\n",
                errno_str);
-        _uiCmdImpl_destroy();
+        uiCmdImpl_destroy();
         if (handshake != NULL) {
             free(handshake);
         }
@@ -245,6 +225,24 @@ uiCmdImpl_create(SockAddress* console_socket)
     fprintf(stdout, "\n");
 
     return 0;
+}
+
+void
+uiCmdImpl_destroy(void)
+{
+    if (_uiCmdImpl.core_connection != NULL) {
+        // Disable I/O callbacks.
+        qemu_set_fd_handler(_uiCmdImpl.sock, NULL, NULL, NULL);
+        core_connection_close(_uiCmdImpl.core_connection);
+        core_connection_free(_uiCmdImpl.core_connection);
+        _uiCmdImpl.core_connection = NULL;
+    }
+    // Properly deallocate the reader buffer.
+    if (_uiCmdImpl.reader_buffer != NULL &&
+        _uiCmdImpl.reader_buffer != (uint8_t*)&_uiCmdImpl.cmd_header) {
+        free(_uiCmdImpl.reader_buffer);
+        _uiCmdImpl.reader_buffer = (uint8_t*)&_uiCmdImpl.cmd_header;
+    }
 }
 
 int
