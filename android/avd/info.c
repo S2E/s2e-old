@@ -750,7 +750,6 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
      */
     imageLoader_set( l, AVD_IMAGE_USERDATA );
     if ( !imageLoader_load( l, IMAGE_OPTIONAL |
-                               IMAGE_EMPTY_IF_MISSING |
                                IMAGE_DONT_LOCK ) )
     {
         /* it's not, we're going to initialize it. simply
