@@ -43,17 +43,6 @@ void      iniFile_free( IniFile*  f );
 /* returns the number of (key.value) pairs in an IniFile */
 int       iniFile_getPairCount( IniFile*  f );
 
-/* return a specific (key,value) pair from an IniFile.
- * if the index is not correct, both '*pKey' and '*pValue' will be
- * set to NULL.
- *
- * you should probably use iniFile_getValue() and its variants instead
- */
-void      iniFile_getPair( IniFile*     f,
-                           int          index,
-                           const char* *pKey,
-                           const char* *pValue );
-
 /* returns the value of a given key from an IniFile.
  * NULL if the key is not assigned in the corresponding configuration file
  */
@@ -95,6 +84,14 @@ int     iniFile_getBoolean( IniFile*  f, const char*  key, const char*  defaultV
  * NOTE: we consider that 1K = 1024, not 1000.
  */
 int64_t  iniFile_getDiskSize( IniFile*  f, const char*  key, const char*  defaultValue );
+
+/* These functions are used to set values in an IniFile */
+void iniFile_setValue( IniFile* f, const char* key, const char* value );
+void iniFile_setInteger( IniFile* f, const char* key, int value );
+void iniFile_setInt64( IniFile* f, const char* key, int64_t value );
+void iniFile_setDouble( IniFile* f, const char* key, double value );
+void iniFile_setBoolean( IniFile* f, const char* key, int value );
+void iniFile_setDiskSize( IniFile* f, const char* key, int64_t size );
 
 /* */
 

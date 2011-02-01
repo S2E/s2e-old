@@ -37,3 +37,23 @@ androidHwConfig_read( AndroidHwConfig*  config,
 
     return 0;
 }
+
+int
+androidHwConfig_write( AndroidHwConfig* config,
+                       IniFile*         ini )
+{
+    if (ini == NULL)
+        return -1;
+
+    /* use the magic of macros to implement the hardware configuration loaded */
+
+#define   HWCFG_BOOL(n,s,d,a,t)       iniFile_setBoolean(ini, s, config->n);
+#define   HWCFG_INT(n,s,d,a,t)        iniFile_setInteger(ini, s, config->n);
+#define   HWCFG_STRING(n,s,d,a,t)     iniFile_setValue(ini, s, config->n);
+#define   HWCFG_DOUBLE(n,s,d,a,t)     iniFile_setDouble(ini, s, config->n);
+#define   HWCFG_DISKSIZE(n,s,d,a,t)   iniFile_setDiskSize(ini, s, config->n);
+
+#include "android/avd/hw-config-defs.h"
+
+    return 0;
+}

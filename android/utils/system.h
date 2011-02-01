@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <inttypes.h>  /* for PRId64 et al. */
 #include "android/utils/assert.h"
 
 /* internal helpers */
@@ -160,6 +161,18 @@ extern  void   restore_sigalrm( signal_state_t  *state );
  **/
 
 extern  void   sleep_ms( int  timeout );
+
+/** FORMATTING int64_t in printf() statements
+ **
+ ** Normally defined in <inttypes.h> except on Windows and maybe others.
+ **/
+
+#ifndef PRId64
+#  define PRId64  "lld"
+#endif
+#ifndef PRIx64
+#  define PRIx64  "llx"
+#endif
 
 /* */
 

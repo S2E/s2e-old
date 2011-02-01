@@ -48,6 +48,7 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
 #include "android/utils/path.h"
+#include "android/utils/tempfile.h"
 
 #include "android/cmdline-option.h"
 #include "android/help.h"
@@ -1943,6 +1944,31 @@ int main(int argc, char **argv)
         args[n++] = *argv++;
     }
     args[n] = 0;
+
+    /* Generate a temporary hardware.ini for this AVD. The real hardware
+     * configuration is ususally stored in several files, e.g. the AVD's
+     * config.ini plus the skin-specific hardware.ini.
+     *
+     * The new temp file will group all definitions and will be used to
+     * launch the core with the -android-hw <file> option.
+     */
+    {
+        TempFile*  tempHw = tempfile_create();
+        if (tempHw == NULL) {
+            derror("Could not create temporary hardware.ini: %s", strerror(errno));
+            exit(2);
+        }
+
+        const char* tempHwPath = tempfile_path(tempHw);
+        IniFile*    hwIni      = iniFile_newFromMemory("", NULL);
+        androidHwConfig_write(hw, hwIni);
+        if (iniFile_saveToFile(hwIni, tempHwPath) < 0) {
+            derror("Could not write temporary hardware.ini: %s", tempHwPath);
+            exit(2);
+        }
+        args[n++] = "-android-hw";
+        args[n++] = strdup(tempHwPath);
+    }
 
     if(VERBOSE_CHECK(init)) {
         int i;
