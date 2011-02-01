@@ -43,4 +43,11 @@ typedef struct {
 int  androidHwConfig_read( AndroidHwConfig*  hwConfig,
                            IniFile*          configFile );
 
+/* Write a hardware configuration to a config file object.
+ * Returns 0 in case of success. Note that any value that is set to the
+ * default will not bet written.
+ */
+int  androidHwConfig_write( AndroidHwConfig*  hwConfig,
+                            IniFile*          configFile );
+
 #endif /* _ANDROID_AVD_HW_CONFIG_H */
