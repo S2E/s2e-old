@@ -21,7 +21,7 @@
 #include "user-events.h"
 #include <math.h>
 
-#include "framebuffer.h"
+#include "android/framebuffer.h"
 
 /* when shrinking, we reduce the pixel ratio by this fixed amount */
 #define  SHRINK_SCALE  0.6

@@ -9,7 +9,7 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#include "framebuffer.h"
+#include "android/framebuffer.h"
 #include <memory.h>
 #include <stdlib.h>
 

@@ -19,7 +19,7 @@
 #define _ANDROID_FRAMEBUFFER_UI_H
 
 #include "console.h"
-#include "framebuffer.h"
+#include "android/framebuffer.h"
 #include "android/looper.h"
 #include "android/async-utils.h"
 

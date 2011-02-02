@@ -59,7 +59,7 @@
 #include "android/protocol/ui-commands-impl.h"
 #include "android/protocol/attach-ui-impl.h"
 
-#include "framebuffer.h"
+#include "android/framebuffer.h"
 #include "iolooper.h"
 
 AndroidRotation  android_framebuffer_rotation;

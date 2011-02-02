@@ -9,8 +9,8 @@
 ** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ** GNU General Public License for more details.
 */
-#ifndef _QEMU_FRAMEBUFFER_H_
-#define _QEMU_FRAMEBUFFER_H_
+#ifndef _ANDROID_FRAMEBUFFER_H_
+#define _ANDROID_FRAMEBUFFER_H_
 
 /* A simple abstract interface to framebuffer displays. this is used to
  * de-couple hardware emulation from final display.
@@ -215,5 +215,4 @@ qframebuffer_fifo_get( void );
 
 /* */
 
-#endif /* _QEMU_FRAMEBUFFER_H_ */
-
+#endif /* _ANDROID_FRAMEBUFFER_H_ */

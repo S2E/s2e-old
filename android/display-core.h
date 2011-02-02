@@ -18,7 +18,7 @@
 #ifndef _ANDROID_DISPLAY_CORE_H
 #define _ANDROID_DISPLAY_CORE_H
 
-#include "framebuffer.h"
+#include "android/framebuffer.h"
 #include "android/display.h"
 #include "android/protocol/fb-updates-proxy.h"
 
