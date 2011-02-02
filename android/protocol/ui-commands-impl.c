@@ -16,7 +16,7 @@
  * from the Core.
  */
 
-#include "console.h"
+#include <unistd.h>
 #include "android/looper.h"
 #include "android/async-utils.h"
 #include "android/sync-utils.h"
@@ -43,6 +43,9 @@ typedef struct UICmdImpl {
 
     /* Socket descriptor for the UI service. */
     int             sock;
+
+    /* Custom i/o handler */
+    LoopIo          io[1];
 
     /* Command reader state. */
     UICmdImplState  reader_state;
@@ -113,7 +116,7 @@ _uiCmdImpl_handle_command(UICmdImpl* uicmd,
  *  opaque - UICmdImpl instance.
  */
 static void
-_uiCmdImpl_io_read(void* opaque)
+_uiCmdImpl_io_callback(void* opaque, int fd, unsigned events)
 {
     UICmdImpl* uicmd = opaque;
     int status;
@@ -181,7 +184,7 @@ _uiCmdImpl_io_read(void* opaque)
 }
 
 int
-uiCmdImpl_create(SockAddress* console_socket)
+uiCmdImpl_create(SockAddress* console_socket, Looper* looper)
 {
     char* handshake = NULL;
 
@@ -203,16 +206,10 @@ uiCmdImpl_create(SockAddress* console_socket)
 
     // Initialize UI command reader.
     _uiCmdImpl.sock = core_connection_get_socket(_uiCmdImpl.core_connection);
-    if (qemu_set_fd_handler(_uiCmdImpl.sock, _uiCmdImpl_io_read, NULL,
-                            &_uiCmdImpl)) {
-        derror("Unable to set up UI _uiCmdImpl_io_read callback: %s\n",
-               errno_str);
-        uiCmdImpl_destroy();
-        if (handshake != NULL) {
-            free(handshake);
-        }
-        return -1;
-    }
+    loopIo_init(_uiCmdImpl.io, looper, _uiCmdImpl.sock,
+                _uiCmdImpl_io_callback,
+                &_uiCmdImpl);
+    loopIo_wantRead(_uiCmdImpl.io);
 
     fprintf(stdout, "core-ui-control is now connected to the core at %s.",
             sock_address_to_string(console_socket));
@@ -232,7 +229,7 @@ uiCmdImpl_destroy(void)
 {
     if (_uiCmdImpl.core_connection != NULL) {
         // Disable I/O callbacks.
-        qemu_set_fd_handler(_uiCmdImpl.sock, NULL, NULL, NULL);
+        loopIo_done(_uiCmdImpl.io);
         core_connection_close(_uiCmdImpl.core_connection);
         core_connection_free(_uiCmdImpl.core_connection);
         _uiCmdImpl.core_connection = NULL;

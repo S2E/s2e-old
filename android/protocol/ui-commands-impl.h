@@ -14,6 +14,7 @@
 #define _ANDROID_PROTOCOL_UI_COMMANDS_IMPL_H
 
 #include "sockets.h"
+#include "android/looper.h"
 #include "android/protocol/ui-commands.h"
 
 /*
@@ -29,7 +30,7 @@
  * Return:
  *  0 on success, or < 0 on failure.
  */
-extern int uiCmdImpl_create(SockAddress* console_socket);
+extern int uiCmdImpl_create(SockAddress* console_socket, Looper* looper);
 
 /* Destroys UI-side of the "core-ui-control" service. */
 extern void uiCmdImpl_destroy();
