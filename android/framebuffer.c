@@ -281,6 +281,15 @@ qframebuffer_check_updates( void )
 }
 
 void
+qframebuffer_pulse( void )
+{
+    int  nn;
+    for (nn = 0; nn < framebuffer_fifo_count; nn++) {
+        qframebuffer_poll(framebuffer_fifo[nn]);
+    }
+}
+
+void
 qframebuffer_invalidate_all( void )
 {
     int  nn;

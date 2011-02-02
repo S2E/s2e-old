@@ -315,7 +315,9 @@ void sdl_display_init(DisplayState *ds, int full_screen, int  no_frame)
     }
 
     snprintf(buf, sizeof buf, "width=%d,height=%d", width, height);
+#if !defined(CONFIG_STANDALONE_UI) && !defined(CONFIG_STANDALONE_CORE)
     android_display_init(ds, qframebuffer_fifo_get());
+#endif
 }
 
 /* list of skin aliases */

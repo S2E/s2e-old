@@ -27,6 +27,8 @@
 #define _GNU_SOURCE 1
 #endif
 
+#include <sys/wait.h>
+
 #include "qemu-common.h"
 #include "net.h"
 #include "console.h"
@@ -47,217 +49,46 @@
 #include "android/protocol/user-events-proxy.h"
 #include "android/protocol/core-commands-proxy.h"
 #include "android/protocol/ui-commands-impl.h"
+#include "android/qemulator.h"
 
-#ifdef CONFIG_MEMCHECK
-#include "memcheck/memcheck.h"
-#endif  // CONFIG_MEMCHECK
-
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <time.h>
-#include <errno.h>
-#include <sys/time.h>
-#include <zlib.h>
-
-/* Needed early for CONFIG_BSD etc. */
-#include "config-host.h"
-
-#ifndef _WIN32
-#include <libgen.h>
-#include <pwd.h>
-#include <sys/times.h>
-#include <sys/wait.h>
-#include <termios.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
-#include <sys/resource.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#if defined(__NetBSD__)
-#include <net/if_tap.h>
-#endif
-#ifdef __linux__
-#include <linux/if_tun.h>
-#endif
-#include <arpa/inet.h>
-#include <dirent.h>
-#include <netdb.h>
-#include <sys/select.h>
-#ifdef CONFIG_BSD
-#include <sys/stat.h>
-#if defined(__FreeBSD__) || defined(__DragonFly__)
-#include <libutil.h>
-#else
-#include <util.h>
-#endif
-#elif defined (__GLIBC__) && defined (__FreeBSD_kernel__)
-#include <freebsd/stdlib.h>
-#else
-#ifdef __linux__
-#include <pty.h>
-#include <malloc.h>
-#include <linux/rtc.h>
-
-/* For the benefit of older linux systems which don't supply it,
-   we use a local copy of hpet.h. */
-/* #include <linux/hpet.h> */
-#include "hpet.h"
-
-#include <linux/ppdev.h>
-#include <linux/parport.h>
-#endif
-#ifdef __sun__
-#include <sys/stat.h>
-#include <sys/ethernet.h>
-#include <sys/sockio.h>
-#include <netinet/arp.h>
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h> // must come after ip.h
-#include <netinet/udp.h>
-#include <netinet/tcp.h>
-#include <net/if.h>
-#include <syslog.h>
-#include <stropts.h>
-#endif
-#endif
-#endif
-
-#if defined(__OpenBSD__)
-#include <util.h>
-#endif
-
-#if defined(CONFIG_VDE)
-#include <libvdeplug.h>
-#endif
-
-#ifdef _WIN32
-#include <windows.h>
-#include <malloc.h>
-#include <sys/timeb.h>
-#include <mmsystem.h>
-#define getopt_long_only getopt_long
-#define memalign(align, size) malloc(size)
-#endif
-
-
-#ifdef CONFIG_COCOA
-#undef main
-#define main qemu_main
-#endif /* CONFIG_COCOA */
-
-#include "qemu-timer.h"
-#include "qemu-char.h"
-
-#if defined(CONFIG_SKINS) && !defined(CONFIG_STANDALONE_CORE)
-#undef main
-#define main qemu_main
-#endif
-
-#include "qemu_socket.h"
-
-static const char *data_dir;
-
-static DisplayState *display_state;
-DisplayType display_type = DT_DEFAULT;
-const char* keyboard_layout = NULL;
-int64_t ticks_per_sec;
-int vm_running;
-static int autostart;
-QEMUClock *rtc_clock;
-#ifdef TARGET_SPARC
-int graphic_width = 1024;
-int graphic_height = 768;
-int graphic_depth = 8;
-#else
-int graphic_width = 800;
-int graphic_height = 600;
-int graphic_depth = 15;
-#endif
-static int full_screen = 0;
-#ifdef CONFIG_SDL
-static int no_frame = 0;
-#endif
-int no_quit = 0;
-int smp_cpus = 1;
-const char *vnc_display;
-int acpi_enabled = 1;
-int no_reboot = 0;
-int no_shutdown = 0;
-int cursor_hide = 1;
-int graphic_rotate = 0;
-#ifndef _WIN32
-int daemonize = 0;
-#endif
-#ifdef TARGET_ARM
-int old_param = 0;
-#endif
-const char *qemu_name;
-int alt_grab = 0;
-
-static QEMUTimer *nographic_timer;
-
-uint8_t qemu_uuid[16];
-
-extern int android_display_width;
-extern int android_display_height;
-extern int android_display_bpp;
-
-extern void  dprint( const char* format, ... );
-
-#define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
-
-/* compute with 96 bit intermediate result: (a*b)/c */
-uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
-{
-    union {
-        uint64_t ll;
-        struct {
-#ifdef HOST_WORDS_BIGENDIAN
-            uint32_t high, low;
-#else
-            uint32_t low, high;
-#endif
-        } l;
-    } u, res;
-    uint64_t rl, rh;
-
-    u.ll = a;
-    rl = (uint64_t)u.l.low * (uint64_t)b;
-    rh = (uint64_t)u.l.high * (uint64_t)b;
-    rh += (rl >> 32);
-    res.l.high = rh / c;
-    res.l.low = (((rh % c) << 32) + (rl & 0xffffffff)) / c;
-    return res.ll;
-}
+static Looper*  mainLooper;
 
 /***********************************************************/
 /* I/O handling */
 
 typedef struct IOHandlerRecord {
-    int fd;
-    IOCanReadHandler *fd_read_poll;
-    IOHandler *fd_read;
-    IOHandler *fd_write;
-    int deleted;
-    void *opaque;
-    /* temporary data */
-    struct pollfd *ufd;
+    LoopIo  io[1];
+    IOHandler* fd_read;
+    IOHandler* fd_write;
+    int        running;
+    int        deleted;
+    void*      opaque;
     struct IOHandlerRecord *next;
 } IOHandlerRecord;
 
 static IOHandlerRecord *first_io_handler;
 
-/* XXX: fd_read_poll should be suppressed, but an API change is
-   necessary in the character devices to suppress fd_can_read(). */
-int qemu_set_fd_handler2(int fd,
-                         IOCanReadHandler *fd_read_poll,
-                         IOHandler *fd_read,
-                         IOHandler *fd_write,
-                         void *opaque)
+static void ioh_callback(void* opaque, int fd, unsigned events)
+{
+    IOHandlerRecord* ioh = opaque;
+    ioh->running = 1;
+    if ((events & LOOP_IO_READ) != 0) {
+        ioh->fd_read(ioh->opaque);
+    }
+    if (!ioh->deleted && (events & LOOP_IO_WRITE) != 0) {
+        ioh->fd_write(ioh->opaque);
+    }
+    ioh->running = 0;
+    if (ioh->deleted) {
+        loopIo_done(ioh->io);
+        free(ioh);
+    }
+}
+
+int qemu_set_fd_handler(int fd,
+                        IOHandler *fd_read,
+                        IOHandler *fd_write,
+                        void *opaque)
 {
     IOHandlerRecord **pioh, *ioh;
 
@@ -266,175 +97,76 @@ int qemu_set_fd_handler2(int fd,
         for(;;) {
             ioh = *pioh;
             if (ioh == NULL)
-                break;
-            if (ioh->fd == fd) {
-                ioh->deleted = 1;
+                return 0;
+            if (ioh->io->fd == fd) {
                 break;
             }
             pioh = &ioh->next;
         }
+        if (ioh->running) {
+            ioh->deleted = 1;
+        } else {
+            *pioh = ioh->next;
+            loopIo_done(ioh->io);
+            free(ioh);
+        }
     } else {
         for(ioh = first_io_handler; ioh != NULL; ioh = ioh->next) {
-            if (ioh->fd == fd)
+            if (ioh->io->fd == fd)
                 goto found;
         }
         ANEW0(ioh);
         ioh->next = first_io_handler;
         first_io_handler = ioh;
+        loopIo_init(ioh->io, mainLooper, fd, ioh_callback, ioh);
     found:
-        ioh->fd = fd;
-        ioh->fd_read_poll = fd_read_poll;
-        ioh->fd_read = fd_read;
+        ioh->fd_read  = fd_read;
         ioh->fd_write = fd_write;
-        ioh->opaque = opaque;
-        ioh->deleted = 0;
+        ioh->opaque   = opaque;
+
+        if (fd_read != NULL)
+            loopIo_wantRead(ioh->io);
+        else
+            loopIo_dontWantRead(ioh->io);
+
+        if (fd_write != NULL)
+            loopIo_wantWrite(ioh->io);
+        else
+            loopIo_dontWantWrite(ioh->io);
     }
     return 0;
-}
-
-int qemu_set_fd_handler(int fd,
-                        IOHandler *fd_read,
-                        IOHandler *fd_write,
-                        void *opaque)
-{
-    return qemu_set_fd_handler2(fd, NULL, fd_read, fd_write, opaque);
 }
 
 /***********************************************************/
 /* main execution loop */
 
+static LoopTimer  gui_timer[1];
+
 static void gui_update(void *opaque)
 {
-    uint64_t interval = GUI_REFRESH_INTERVAL;
-    DisplayState *ds = opaque;
-    DisplayChangeListener *dcl = ds->listeners;
-
-    dpy_refresh(ds);
-
-    while (dcl != NULL) {
-        if (dcl->gui_timer_interval &&
-            dcl->gui_timer_interval < interval)
-            interval = dcl->gui_timer_interval;
-        dcl = dcl->next;
-    }
-    qemu_mod_timer(ds->gui_timer, interval + qemu_get_clock(rt_clock));
+    LoopTimer* timer = opaque;
+    qframebuffer_pulse();
+    loopTimer_startRelative(timer, GUI_REFRESH_INTERVAL);
 }
 
-static void nographic_update(void *opaque)
+static void init_gui_timer(Looper* looper)
 {
-    uint64_t interval = GUI_REFRESH_INTERVAL;
-
-    qemu_mod_timer(nographic_timer, interval + qemu_get_clock(rt_clock));
+    loopTimer_init(gui_timer, looper, gui_update, gui_timer);
+    loopTimer_startRelative(gui_timer, 0);
+    qframebuffer_invalidate_all();
 }
 
-static int shutdown_requested = 0;
-
+/* Called from qemulator.c */
 void qemu_system_shutdown_request(void)
 {
-    shutdown_requested = 1;
-}
-
-
-
-static int qemu_event_init(void)
-{
-    return 0;
-}
-
-static int qemu_init_main_loop(void)
-{
-    return qemu_event_init();
-}
-
-#define qemu_mutex_lock_iothread() do { } while (0)
-#define qemu_mutex_unlock_iothread() do { } while (0)
-
-
-#ifdef _WIN32
-static void host_main_loop_wait(int *timeout)
-{
-}
-#else
-static void host_main_loop_wait(int *timeout)
-{
-}
-#endif
-
-void main_loop_wait(int timeout)
-{
-    IOHandlerRecord *ioh;
-    fd_set rfds, wfds, xfds;
-    int ret, nfds;
-    struct timeval tv;
-
-    host_main_loop_wait(&timeout);
-
-    /* poll any events */
-    /* XXX: separate device handlers from system ones */
-    nfds = -1;
-    FD_ZERO(&rfds);
-    FD_ZERO(&wfds);
-    FD_ZERO(&xfds);
-    for(ioh = first_io_handler; ioh != NULL; ioh = ioh->next) {
-        if (ioh->deleted)
-            continue;
-        if (ioh->fd_read &&
-            (!ioh->fd_read_poll ||
-             ioh->fd_read_poll(ioh->opaque) != 0)) {
-            FD_SET(ioh->fd, &rfds);
-            if (ioh->fd > nfds)
-                nfds = ioh->fd;
-        }
-        if (ioh->fd_write) {
-            FD_SET(ioh->fd, &wfds);
-            if (ioh->fd > nfds)
-                nfds = ioh->fd;
-        }
-    }
-
-    tv.tv_sec = timeout / 1000;
-    tv.tv_usec = (timeout % 1000) * 1000;
-
-    ret = select(nfds + 1, &rfds, &wfds, &xfds, &tv);
-    if (ret > 0) {
-        IOHandlerRecord **pioh;
-
-        for(ioh = first_io_handler; ioh != NULL; ioh = ioh->next) {
-            if (!ioh->deleted && ioh->fd_read && FD_ISSET(ioh->fd, &rfds)) {
-                ioh->fd_read(ioh->opaque);
-            }
-            if (!ioh->deleted && ioh->fd_write && FD_ISSET(ioh->fd, &wfds)) {
-                ioh->fd_write(ioh->opaque);
-            }
-        }
-
-        /* remove deleted IO handlers */
-        pioh = &first_io_handler;
-        while (*pioh) {
-            ioh = *pioh;
-            if (ioh->deleted) {
-                *pioh = ioh->next;
-                AFREE(ioh);
-            } else
-                pioh = &ioh->next;
-        }
-    }
-
-    qemu_run_all_timers();
-}
-
-static void main_loop(void)
-{
-    while (!shutdown_requested) {
-        main_loop_wait(qemu_calculate_timeout());
-    }
+    looper_forceQuit(mainLooper);
 }
 
 #ifndef _WIN32
 
 static void termsig_handler(int signal)
 {
-    /* qemu_system_shutdown_request(); */
+    qemu_system_shutdown_request();
 }
 
 static void sigchld_handler(int signal)
@@ -459,40 +191,6 @@ static void sighandler_setup(void)
 
 #endif
 
-#define QEMU_FILE_TYPE_BIOS   0
-#define QEMU_FILE_TYPE_KEYMAP 1
-
-char *qemu_find_file(int type, const char *name)
-{
-    int len;
-    const char *subdir;
-    char *buf;
-
-    /* If name contains path separators then try it as a straight path.  */
-    if ((strchr(name, '/') || strchr(name, '\\'))
-        && access(name, R_OK) == 0) {
-        return strdup(name);
-    }
-    switch (type) {
-    case QEMU_FILE_TYPE_BIOS:
-        subdir = "";
-        break;
-    case QEMU_FILE_TYPE_KEYMAP:
-        subdir = "keymaps/";
-        break;
-    default:
-        abort();
-    }
-    len = strlen(data_dir) + strlen(name) + strlen(subdir) + 2;
-    buf = android_alloc0(len);
-    snprintf(buf, len, "%s/%s%s", data_dir, subdir, name);
-    if (access(buf, R_OK)) {
-        AFREE(buf);
-        return NULL;
-    }
-    return buf;
-}
-
 #ifdef _WIN32
 static BOOL WINAPI qemu_ctrl_handler(DWORD type)
 {
@@ -501,13 +199,8 @@ static BOOL WINAPI qemu_ctrl_handler(DWORD type)
 }
 #endif
 
-int main(int argc, char **argv, char **envp)
+int qemu_main(int argc, char **argv, char **envp)
 {
-    DisplayState *ds;
-    DisplayChangeListener *dcl;
-
-    init_clocks();
-
 #ifndef _WIN32
     {
         struct sigaction act;
@@ -538,18 +231,6 @@ int main(int argc, char **argv, char **envp)
     }
 #endif
 
-    autostart= 1;
-
-    if (qemu_init_main_loop()) {
-        fprintf(stderr, "qemu_init_main_loop failed\n");
-        exit(1);
-    }
-
-    if (init_timer_alarm() < 0) {
-        fprintf(stderr, "could not initialize alarm timer\n");
-        exit(1);
-    }
-
 #ifdef _WIN32
     socket_init();
 #endif
@@ -559,42 +240,23 @@ int main(int argc, char **argv, char **envp)
     sighandler_setup();
 #endif
 
-    /* just use the first displaystate for the moment */
-    ds = display_state = get_displaystate();
+    mainLooper = looper_newGeneric();
 
-    if (display_type == DT_DEFAULT) {
-        display_type = DT_SDL;
+    /* Register a timer to call qframebuffer_pulse periodically */
+    init_gui_timer(mainLooper);
+
+    // Connect to the core's framebuffer service
+    if (implFb_create(attachUiImpl_get_console_socket(), "-raw",
+                      qemulator_get_first_framebuffer(qemulator_get()))) {
+        return -1;
     }
 
-
-    switch (display_type) {
-    case DT_NOGRAPHIC:
-        break;
-    case DT_SDL:
-        sdl_display_init(ds, full_screen, no_frame);
-        break;
-    default:
-        break;
-    }
-    dpy_resize(ds);
-
-    dcl = ds->listeners;
-    while (dcl != NULL) {
-        if (dcl->dpy_refresh != NULL) {
-            ds->gui_timer = qemu_new_timer(rt_clock, gui_update, ds);
-            qemu_mod_timer(ds->gui_timer, qemu_get_clock(rt_clock));
-        }
-        dcl = dcl->next;
+    // Attach the recepient of UI commands.
+    if (uiCmdImpl_create(attachUiImpl_get_console_socket())) {
+        return -1;
     }
 
-    if (display_type == DT_NOGRAPHIC || display_type == DT_VNC) {
-        nographic_timer = qemu_new_timer(rt_clock, nographic_update, NULL);
-        qemu_mod_timer(nographic_timer, qemu_get_clock(rt_clock));
-    }
-
-    //qemu_chr_initial_reset();
-
-    main_loop();
+    looper_run(mainLooper);
 
     implFb_destroy();
     userEventsProxy_destroy();
@@ -602,6 +264,5 @@ int main(int argc, char **argv, char **envp)
     uiCmdImpl_destroy();
     attachUiImpl_destroy();
 
-    quit_timers();
     return 0;
 }

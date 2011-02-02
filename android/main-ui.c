@@ -1507,16 +1507,5 @@ int main(int argc, char **argv)
         }
     }
 
-    // Connect to the core's framebuffer service
-    if (implFb_create(attachUiImpl_get_console_socket(), "-raw",
-                      qemulator_get_first_framebuffer(qemulator_get()))) {
-        return -1;
-    }
-
-    // Attach the recepient of UI commands.
-    if (uiCmdImpl_create(attachUiImpl_get_console_socket())) {
-        return -1;
-    }
-
     return qemu_main(n, args);
 }

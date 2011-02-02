@@ -49,6 +49,8 @@ extern QEMUClock*  rtc_clock;
 
 #include "qemu-timer.h"
 
+QEMUClock *rtc_clock;
+
 /***********************************************************/
 /* real time host monotonic timer */
 

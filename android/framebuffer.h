@@ -172,6 +172,10 @@ qframebuffer_update( QFrameBuffer*  qfbuff, int  x, int  y, int  w, int  h );
 extern void
 qframebuffer_rotate( QFrameBuffer*  qfbuff, int  rotation );
 
+/* this function is used to poll a framebuffer's client for input
+ * events. Should be called either explicitely, or through qframebuffer_pulse()
+ * periodically.
+ */
 extern void
 qframebuffer_poll( QFrameBuffer* qfbuff );
 
@@ -187,6 +191,11 @@ qframebuffer_done( QFrameBuffer*   qfbuff );
  */
 extern void
 qframebuffer_check_updates( void );
+
+/* call this function periodically to force a poll on all franebuffers
+ */
+extern void
+qframebuffer_pulse( void );
 
 /* this is called by the emulator. for each registered framebuffer, call
  * its producer's Invalidate method, if any

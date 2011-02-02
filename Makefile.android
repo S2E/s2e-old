@@ -690,7 +690,6 @@ CORE_MISC_SOURCES = vl-android.c \
                     module.c \
                     qemu-timer.c \
                     android/boot-properties.c \
-                    android/display.c \
                     android/hw-kmsg.c \
                     android/hw-lcd.c \
                     android/gps.c \
@@ -876,6 +875,7 @@ endif
 VL_SOURCES := android/framebuffer.c \
               user-events-qemu.c \
               android/cmdline-option.c \
+              android/display.c \
               android/looper-qemu.c \
               android/protocol/ui-commands-qemu.c \
               android/protocol/core-commands-qemu.c \
@@ -1209,14 +1209,11 @@ endif
 VL_SOURCES := android/framebuffer.c \
               android/cmdline-option.c \
               android/config.c \
-              android/display.c \
               android/looper-generic.c \
               android/snapshot.c \
               android/main-common.c \
               android/main-ui.c \
-              qemu-timer-ui.c \
               vl-android-ui.c \
-              console-ui.c \
               iolooper-select.c \
               android/protocol/core-connection.c \
               android/protocol/attach-ui-impl.c \
