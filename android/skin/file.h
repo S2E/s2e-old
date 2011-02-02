@@ -14,7 +14,7 @@
 
 #include "android/skin/image.h"
 #include "android/config.h"
-#include "framebuffer.h"
+#include "android/framebuffer.h"
 
 /**  Layout
  **/

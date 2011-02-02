@@ -16,7 +16,7 @@
  */
 
 #include "console.h"
-#include "framebuffer.h"
+#include "android/framebuffer.h"
 #include "android/looper.h"
 #include "android/display-core.h"
 #include "android/async-utils.h"
