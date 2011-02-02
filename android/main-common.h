@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include "android/cmdline-option.h"
 #include "android/skin/keyset.h"
+#include "android/config.h"
 
 /* Common routines used by both android/main.c and android/main-ui.c */
 
@@ -38,6 +39,20 @@ void write_default_keyset( void );
 extern const char*  skin_network_speed;
 extern const char*  skin_network_delay;
 
-void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts);
+/* Find the skin corresponding to our options, and return an AConfig pointer
+ * and the base path to load skin data from
+ */
+void parse_skin_files(const char*      skinDirPath,
+                      const char*      skinName,
+                      AndroidOptions*  opts,
+                      AConfig*        *skinConfig,
+                      char*           *skinPath);
+
+/* Returns the amount of pixels used by the default display. */
+int64_t  get_screen_pixels(AConfig*  skinConfig);
+
+void init_sdl_ui(AConfig*         skinConfig,
+                 const char*      skinPath,
+                 AndroidOptions*  opts);
 
 #endif /* ANDROID_MAIN_COMMON_H */

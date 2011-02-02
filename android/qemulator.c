@@ -190,22 +190,6 @@ qemulator_done(QEmulator* emulator)
     }
 }
 
-void
-qemulator_get_screen_size( QEmulator*  emulator,
-                           int        *width,
-                           int        *height )
-{
-    AConfig*  root = emulator->aconfig;
-    AConfig*  disp;
-
-    *width = *height = 0;
-    if (root == NULL || (disp = aconfig_find(root, "display")) == NULL)
-        return;
-
-    *width  = aconfig_int(disp, "width", 0);
-    *height = aconfig_int(disp, "height", 0);
-}
-
 SkinLayout*
 qemulator_get_layout(QEmulator* emulator)
 {

@@ -335,12 +335,137 @@ static const struct {
 /* this is used by hw/events_device.c to send the charmap name to the system */
 const char*    android_skin_keycharmap = NULL;
 
-void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
+void
+parse_skin_files(const char*      skinDirPath,
+                 const char*      skinName,
+                 AndroidOptions*  opts,
+                 AConfig*        *skinConfig,
+                 char*           *skinPath)
 {
     char      tmp[1024];
     AConfig*  root;
+    const char* path = NULL;
     AConfig*  n;
-    int       win_x, win_y, flags;
+
+    root = aconfig_node("", "");
+
+    if (skinName == NULL)
+        goto DEFAULT_SKIN;
+
+    /* Support skin aliases like QVGA-H QVGA-P, etc...
+       But first we check if it's a directory that exist before applying
+       the alias */
+    int  checkAlias = 1;
+
+    if (skinDirPath != NULL) {
+        bufprint(tmp, tmp+sizeof(tmp), "%s/%s", skinDirPath, skinName);
+        if (path_exists(tmp)) {
+            checkAlias = 0;
+        } else {
+            D("there is no '%s' skin in '%s'", skinName, skinDirPath);
+        }
+    }
+
+    if (checkAlias) {
+        int  nn;
+
+        for (nn = 0; ; nn++ ) {
+            const char*  skin_name  = skin_aliases[nn].name;
+            const char*  skin_alias = skin_aliases[nn].alias;
+
+            if (!skin_name)
+                break;
+
+            if (!strcasecmp( skin_name, skinName )) {
+                D("skin name '%s' aliased to '%s'", skinName, skin_alias);
+                skinName = skin_alias;
+                break;
+            }
+        }
+    }
+
+    /* Magically support skins like "320x240" or "320x240x16" */
+    if(isdigit(skinName[0])) {
+        char *x = strchr(skinName, 'x');
+        if(x && isdigit(x[1])) {
+            int width = atoi(skinName);
+            int height = atoi(x+1);
+            int bpp   = 16;
+            char* y = strchr(x+1, 'x');
+            if (y && isdigit(y[1])) {
+                bpp = atoi(y+1);
+            }
+            snprintf(tmp, sizeof tmp,
+                        "display {\n  width %d\n  height %d\n bpp %d}\n",
+                        width, height,bpp);
+            aconfig_load(root, strdup(tmp));
+            path = ":";
+            D("found magic skin width=%d height=%d bpp=%d\n", width, height, bpp);
+            goto FOUND_SKIN;
+        }
+    }
+
+    if (skinDirPath == NULL) {
+        derror("unknown skin name '%s'", skinName);
+        exit(1);
+    }
+
+    snprintf(tmp, sizeof tmp, "%s/%s/layout", skinDirPath, skinName);
+    D("trying to load skin file '%s'", tmp);
+
+    if(aconfig_load_file(root, tmp) < 0) {
+        dwarning("could not load skin file '%s', using built-in one\n",
+                 tmp);
+        goto DEFAULT_SKIN;
+    }
+
+    snprintf(tmp, sizeof tmp, "%s/%s/", skinDirPath, skinName);
+    path = tmp;
+    goto FOUND_SKIN;
+
+FOUND_SKIN:
+    /* the default network speed and latency can now be specified by the device skin */
+    n = aconfig_find(root, "network");
+    if (n != NULL) {
+        skin_network_speed = aconfig_str(n, "speed", 0);
+        skin_network_delay = aconfig_str(n, "delay", 0);
+    }
+
+    *skinConfig = root;
+    *skinPath   = strdup(path);
+    return;
+
+DEFAULT_SKIN:
+    {
+        const unsigned char*  layout_base;
+        size_t                layout_size;
+        char*                 base;
+
+        skinName = "<builtin>";
+
+        layout_base = android_resource_find( "layout", &layout_size );
+        if (layout_base == NULL) {
+            fprintf(stderr, "Couldn't load builtin skin\n");
+            exit(1);
+        }
+        base = malloc( layout_size+1 );
+        memcpy( base, layout_base, layout_size );
+        base[layout_size] = 0;
+
+        D("parsing built-in skin layout file (%d bytes)", (int)layout_size);
+        aconfig_load(root, base);
+        path = ":";
+    }
+    goto FOUND_SKIN;
+}
+
+
+void
+init_sdl_ui(AConfig*         skinConfig,
+            const char*      skinPath,
+            AndroidOptions*  opts)
+{
+    int  win_x, win_y, flags;
 
     signal(SIGINT, SIG_DFL);
 #ifndef _WIN32
@@ -380,135 +505,14 @@ void init_skinned_ui(const char *path, const char *name, AndroidOptions*  opts)
     }
     atexit(sdl_at_exit);
 
-    root = aconfig_node("", "");
-
-    if(name) {
-        /* Support skin aliases like QVGA-H QVGA-P, etc...
-           But first we check if it's a directory that exist before applying
-           the alias */
-        int  checkAlias = 1;
-
-        if (path != NULL) {
-            bufprint(tmp, tmp+sizeof(tmp), "%s/%s", path, name);
-            if (path_exists(tmp)) {
-                checkAlias = 0;
-            } else {
-                D("there is no '%s' skin in '%s'", name, path);
-            }
-        }
-
-        if (checkAlias) {
-            int  nn;
-
-            for (nn = 0; ; nn++ ) {
-                const char*  skin_name  = skin_aliases[nn].name;
-                const char*  skin_alias = skin_aliases[nn].alias;
-
-                if ( !skin_name )
-                    break;
-
-                if ( !strcasecmp( skin_name, name ) ) {
-                    D("skin name '%s' aliased to '%s'", name, skin_alias);
-                    name = skin_alias;
-                    break;
-                }
-            }
-        }
-
-        /* Magically support skins like "320x240" or "320x240x16" */
-        if(isdigit(name[0])) {
-            char *x = strchr(name, 'x');
-            if(x && isdigit(x[1])) {
-                int width = atoi(name);
-                int height = atoi(x+1);
-                int bpp   = 16;
-                char* y = strchr(x+1, 'x');
-                if (y && isdigit(y[1])) {
-                    bpp = atoi(y+1);
-                }
-                sprintf(tmp,"display {\n  width %d\n  height %d\n bpp %d}\n",
-                        width, height,bpp);
-                aconfig_load(root, strdup(tmp));
-                path = ":";
-                goto found_a_skin;
-            }
-        }
-
-        if (path == NULL) {
-            derror("unknown skin name '%s'", name);
-            exit(1);
-        }
-
-        sprintf(tmp, "%s/%s/layout", path, name);
-        D("trying to load skin file '%s'", tmp);
-
-        if(aconfig_load_file(root, tmp) >= 0) {
-            sprintf(tmp, "%s/%s/", path, name);
-            path = tmp;
-            goto found_a_skin;
-        } else {
-            dwarning("could not load skin file '%s', using built-in one\n",
-                     tmp);
-        }
-    }
-
-    {
-        const unsigned char*  layout_base;
-        size_t                layout_size;
-
-        name = "<builtin>";
-
-        layout_base = android_resource_find( "layout", &layout_size );
-        if (layout_base != NULL) {
-            char*  base = malloc( layout_size+1 );
-            memcpy( base, layout_base, layout_size );
-            base[layout_size] = 0;
-
-            D("parsing built-in skin layout file (size=%d)", (int)layout_size);
-            aconfig_load(root, base);
-            path = ":";
-        } else {
-            fprintf(stderr, "Couldn't load builtin skin\n");
-            exit(1);
-        }
-    }
-
-found_a_skin:
     emulator_config_get_window_pos(&win_x, &win_y);
 
-    if ( qemulator_init(qemulator_get(), root, path, win_x, win_y, opts ) < 0 ) {
-        fprintf(stderr, "### Error: could not load emulator skin '%s'\n", name);
+    if ( qemulator_init(qemulator_get(), skinConfig, skinPath, win_x, win_y, opts) < 0 ) {
+        fprintf(stderr, "### Error: could not load emulator skin from '%s'\n", skinPath);
         exit(1);
     }
 
     android_skin_keycharmap = skin_keyboard_charmap_name(qemulator_get()->keyboard);
-
-    /* the default network speed and latency can now be specified by the device skin */
-    n = aconfig_find(root, "network");
-    if (n != NULL) {
-        skin_network_speed = aconfig_str(n, "speed", 0);
-        skin_network_delay = aconfig_str(n, "delay", 0);
-    }
-
-#if 0
-    /* create a trackball if needed */
-    n = aconfig_find(root, "trackball");
-    if (n != NULL) {
-        SkinTrackBallParameters  params;
-
-        params.x        = aconfig_unsigned(n, "x", 0);
-        params.y        = aconfig_unsigned(n, "y", 0);
-        params.diameter = aconfig_unsigned(n, "diameter", 20);
-        params.ring     = aconfig_unsigned(n, "ring", 1);
-
-        params.ball_color = aconfig_unsigned(n, "ball-color", 0xffe0e0e0);
-        params.dot_color  = aconfig_unsigned(n, "dot-color",  0xff202020 );
-        params.ring_color = aconfig_unsigned(n, "ring-color", 0xff000000 );
-
-        qemu_disp->trackball = skin_trackball_create( &params );
-        skin_trackball_refresh( qemu_disp->trackball );
-    }
-#endif
 
     /* add an onion overlay image if needed */
     if (opts->onion) {
@@ -531,3 +535,21 @@ found_a_skin:
     }
 }
 
+int64_t  get_screen_pixels(AConfig*  skinConfig)
+{
+    int64_t  pixels = 0;
+    AConfig*  disp;
+
+    if (skinConfig != NULL) {
+        disp = aconfig_find(skinConfig, "display");
+        if (disp != NULL) {
+            int width = aconfig_int(disp, "width", 0);
+            int height = aconfig_int(disp, "height", 0);
+            pixels = (int64_t)width*height;
+        }
+    }
+    if (pixels == 0)
+        pixels = 320*240;
+
+    return pixels;
+}
