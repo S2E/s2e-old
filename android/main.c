@@ -40,7 +40,6 @@
 #include "android/utils/bufprint.h"
 #include "android/utils/dirscanner.h"
 #include "android/utils/path.h"
-#include "android/utils/timezone.h"
 #include "android/utils/tempfile.h"
 
 #include "android/main-common.h"
@@ -286,6 +285,8 @@ int main(int argc, char **argv)
 
     AndroidHwConfig*  hw;
     AvdInfo*          avd;
+    AConfig*          skinConfig;
+    char*             skinPath;
 
     //const char *appdir = get_app_dir();
     char*       android_build_root = NULL;
@@ -352,10 +353,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (android_charmap_setup(opts->charmap)) {
-        exit(1);
-    }
-
     if (opts->version) {
         printf("Android emulator version %s\n"
                "Copyright (C) 2006-2008 The Android Open Source Project and many others.\n"
@@ -376,10 +373,8 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    if (opts->timezone) {
-        if ( timezone_set(opts->timezone) < 0 ) {
-            fprintf(stderr, "emulator: it seems the timezone '%s' is not in zoneinfo format\n", opts->timezone);
-        }
+    if (android_charmap_setup(opts->charmap)) {
+        exit(1);
     }
 
     /* legacy support: we used to use -system <dir> and -image <file>
@@ -667,7 +662,8 @@ int main(int argc, char **argv)
 
 
     emulator_config_init();
-    init_skinned_ui(opts->skindir, opts->skin, opts);
+    parse_skin_files(opts->skindir, opts->skin, opts,
+                     &skinConfig, &skinPath);
 
     if (!opts->netspeed) {
         if (skin_network_speed)
@@ -743,6 +739,11 @@ int main(int argc, char **argv)
         args[n++] = opts->nand_limits;
     }
 #endif
+
+    if (opts->timezone) {
+        args[n++] = "-timezone";
+        args[n++] = opts->timezone;
+    }
 
     if (opts->netspeed) {
         args[n++] = "-netspeed";
@@ -1053,9 +1054,7 @@ int main(int argc, char **argv)
              * size through its hardware.ini (i.e. legacy ones) or when
              * in the full Android build system.
              */
-            int width, height, pixels;
-            qemulator_get_screen_size(qemulator_get(), &width, &height);
-            pixels  = width*height;
+            int64_t pixels  = get_screen_pixels(skinConfig);
 
             /* The following thresholds are a bit liberal, but we
              * essentially want to ensure the following mappings:
@@ -1281,5 +1280,9 @@ int main(int argc, char **argv)
         }
         printf("\n");
     }
+
+    /* Setup SDL UI just before calling the code */
+    init_sdl_ui(skinConfig, skinPath, opts);
+
     return qemu_main(n, args);
 }

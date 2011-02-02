@@ -33,16 +33,8 @@
 
 #include "android/charmap.h"
 #include "android/utils/debug.h"
-#include "android/resource.h"
 #include "android/config.h"
 #include "android/config/config.h"
-
-#include "android/skin/image.h"
-#include "android/skin/trackball.h"
-#include "android/skin/keyboard.h"
-#include "android/skin/file.h"
-#include "android/skin/window.h"
-#include "android/skin/keyset.h"
 
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
@@ -80,9 +72,6 @@ AndroidRotation  android_framebuffer_rotation;
 #else
 #  define  VERSION_STRING  "standalone"
 #endif
-
-#define  KEYSET_FILE    "default.keyset"
-SkinKeyset*      android_keyset;
 
 #define  D(...)  do {  if (VERBOSE_CHECK(init)) dprint(__VA_ARGS__); } while (0)
 
@@ -493,6 +482,8 @@ int main(int argc, char **argv)
 
     AndroidHwConfig*  hw;
     AvdInfo*          avd;
+    AConfig*          skinConfig;
+    char*             skinPath;
 
     //const char *appdir = get_app_dir();
     char*       android_build_root = NULL;
@@ -511,19 +502,11 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    // Lets see if we're attaching to a running core process here.
-    if (opts->attach_core) {
-        if (attach_to_core(opts)) {
-            return -1;
-        }
-        // Connect to the core's UI control services.
-        if (coreCmdProxy_create(attachUiImpl_get_console_socket())) {
-            return -1;
-        }
-        // Connect to the core's user events service.
-        if (userEventsProxy_create(attachUiImpl_get_console_socket())) {
-            return -1;
-        }
+    // Lets see if user just wants to list core process.
+    if (opts->list_cores) {
+        fprintf(stdout, "Enumerating running core processes.\n");
+        list_running_cores(opts->list_cores);
+        exit(0);
     }
 
     while (argc-- > 1) {
@@ -574,13 +557,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    // Lets see if user just wants to list core process.
-    if (opts->list_cores) {
-        fprintf(stdout, "Enumerating running core processes.\n");
-        list_running_cores(opts->list_cores);
-        exit(0);
-    }
-
     if (opts->version) {
         printf("Android emulator version %s\n"
                "Copyright (C) 2006-2008 The Android Open Source Project and many others.\n"
@@ -605,7 +581,7 @@ int main(int argc, char **argv)
      * than initialization of UI that starts the core. In particular....
      */
 
-    /* opts->charmap is incompatible with -attach-core, because particular
+    /* -charmap is incompatible with -attach-core, because particular
      * charmap gets set up in the running core. */
     if (android_charmap_setup(opts->charmap)) {
         exit(1);
@@ -643,8 +619,14 @@ int main(int argc, char **argv)
         opts->system = NULL;
     }
 
+    if (opts->nojni)
+        opts->no_jni = opts->nojni;
+
     if (opts->nocache)
         opts->no_cache = opts->nocache;
+
+    if (opts->noaudio)
+        opts->no_audio = opts->noaudio;
 
     if (opts->noskin)
         opts->no_skin = opts->noskin;
@@ -890,18 +872,8 @@ int main(int argc, char **argv)
 
 
     emulator_config_init();
-    init_skinned_ui(opts->skindir, opts->skin, opts);
-
-    // Connect to the core's framebuffer service
-    if (implFb_create(attachUiImpl_get_console_socket(), "-raw",
-                      qemulator_get_first_framebuffer(qemulator_get()))) {
-        return -1;
-    }
-
-    // Attach the recepient of UI commands.
-    if (uiCmdImpl_create(attachUiImpl_get_console_socket())) {
-        return -1;
-    }
+    parse_skin_files(opts->skindir, opts->skin, opts,
+                     &skinConfig, &skinPath);
 
     if (!opts->netspeed) {
         if (skin_network_speed)
@@ -932,12 +904,6 @@ int main(int argc, char **argv)
 
     if (opts->no_cache)
         opts->cache = 0;
-
-    if (opts->nojni)
-        opts->no_jni = opts->nojni;
-
-    if (opts->noaudio)
-        opts->no_audio = opts->noaudio;
 
     n = 1;
     /* generate arguments for the underlying qemu main() */
@@ -1296,9 +1262,7 @@ int main(int argc, char **argv)
              * size through its hardware.ini (i.e. legacy ones) or when
              * in the full Android build system.
              */
-            int width, height, pixels;
-            qemulator_get_screen_size(qemulator_get(), &width, &height);
-            pixels  = width*height;
+            int64_t pixels  = get_screen_pixels(skinConfig);
 
             /* The following thresholds are a bit liberal, but we
              * essentially want to ensure the following mappings:
@@ -1329,7 +1293,7 @@ int main(int argc, char **argv)
     }
 
     /* Pass LCD density value to the core. */
-    snprintf(lcd_density, sizeof(lcd_density), "%d", get_device_dpi(opts));
+    snprintf(lcd_density, sizeof(lcd_density), "%d", hw->hw_lcd_density);
     args[n++] = "-lcd-density";
     args[n++] = lcd_density;
 
@@ -1524,5 +1488,35 @@ int main(int argc, char **argv)
         }
         printf("\n");
     }
+
+    /* Setup SDL UI just before calling the code */
+    init_sdl_ui(skinConfig, skinPath, opts);
+
+    // Lets see if we're attaching to a running core process here.
+    if (opts->attach_core) {
+        if (attach_to_core(opts)) {
+            return -1;
+        }
+        // Connect to the core's UI control services.
+        if (coreCmdProxy_create(attachUiImpl_get_console_socket())) {
+            return -1;
+        }
+        // Connect to the core's user events service.
+        if (userEventsProxy_create(attachUiImpl_get_console_socket())) {
+            return -1;
+        }
+    }
+
+    // Connect to the core's framebuffer service
+    if (implFb_create(attachUiImpl_get_console_socket(), "-raw",
+                      qemulator_get_first_framebuffer(qemulator_get()))) {
+        return -1;
+    }
+
+    // Attach the recepient of UI commands.
+    if (uiCmdImpl_create(attachUiImpl_get_console_socket())) {
+        return -1;
+    }
+
     return qemu_main(n, args);
 }
