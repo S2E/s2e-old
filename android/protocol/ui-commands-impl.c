@@ -18,12 +18,12 @@
 
 #include "console.h"
 #include "android/looper.h"
-#include "android/core-connection.h"
 #include "android/async-utils.h"
 #include "android/sync-utils.h"
 #include "android/utils/system.h"
 #include "android/utils/debug.h"
 #include "android/utils/panic.h"
+#include "android/protocol/core-connection.h"
 #include "android/protocol/ui-commands-impl.h"
 #include "android/protocol/ui-commands-api.h"
 

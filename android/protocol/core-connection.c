@@ -19,8 +19,8 @@
 #include "android/android.h"
 #include "android/utils/debug.h"
 #include "android/globals.h"
-#include "android/core-connection.h"
 #include "android/utils/system.h"
+#include "android/protocol/core-connection.h"
 
 /* Descriptor for a client, connected to the core via console port. */
 struct CoreConnection {

@@ -1212,13 +1212,13 @@ VL_SOURCES := framebuffer.c \
               android/display.c \
               android/looper-generic.c \
               android/snapshot.c \
-              android/core-connection.c \
               android/main-common.c \
               android/main-ui.c \
               qemu-timer-ui.c \
               vl-android-ui.c \
               console-ui.c \
               iolooper-select.c \
+              android/protocol/core-connection.c \
               android/protocol/attach-ui-impl.c \
               android/protocol/fb-updates-impl.c \
               android/protocol/ui-commands-impl.c \
