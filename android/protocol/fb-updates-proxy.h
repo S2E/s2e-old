@@ -29,11 +29,10 @@ typedef struct ProxyFramebuffer ProxyFramebuffer;
  *      supported values ar:
  *      -raw Transfers the updating rectangle buffer over the socket.
  *      -shared Used a shared memory to transfer the updating rectangle buffer.
- *  fb - Framebuffer descriptor for this service.
  * Return:
  *  Framebuffer service descriptor.
  */
-ProxyFramebuffer* proxyFb_create(int sock, const char* protocol, struct QFrameBuffer* fb);
+ProxyFramebuffer* proxyFb_create(int sock, const char* protocol);
 
 /*
  * Destroys framebuffer service created with proxyFb_create.
@@ -41,16 +40,6 @@ ProxyFramebuffer* proxyFb_create(int sock, const char* protocol, struct QFrameBu
  *  core_fb - Framebuffer service descriptor created with proxyFb_create
  */
 void proxyFb_destroy(ProxyFramebuffer* core_fb);
-
-/*
- * Notifies framebuffer client about changes in framebuffer.
- * Param:
- *  core_fb - Framebuffer service descriptor created with proxyFb_create
- *  fb Framebuffer containing pixels.
- *  x, y, w, and h identify the rectangle that has benn changed.
- */
-void proxyFb_update(ProxyFramebuffer* core_fb, struct QFrameBuffer* fb,
-                   int x, int y, int w, int h);
 
 /*
  * Gets number of bits used to encode a single pixel.

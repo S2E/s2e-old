@@ -1733,6 +1733,23 @@ PixelFormat qemu_default_pixelformat(int bpp)
 }
 
 #ifdef CONFIG_ANDROID
+
+void
+unregister_displayupdatelistener(DisplayState *ds, DisplayUpdateListener *dul)
+{
+    DisplayUpdateListener **pnode = &ds->update_listeners;
+    for (;;) {
+        if (*pnode == NULL)
+            break;
+        if (*pnode == dul) {
+            *pnode = dul->next;
+            break;
+        }
+        pnode = &(*pnode)->next;
+    }
+    dul->next = NULL;
+}
+
 void
 android_display_reset(DisplayState* ds, int width, int height, int bitspp)
 {

@@ -169,6 +169,19 @@ struct DisplayChangeListener {
     struct DisplayChangeListener *next;
 };
 
+#ifdef CONFIG_ANDROID
+/* The problem with DisplayChangeListener is that the callbacks can't
+ * differentiate between different DisplayChangeListeners. Instead of
+ * modifying the type above, which is going to generate conflicts with
+ * upstream changes, we define our own listener type here.
+ */
+typedef struct DisplayUpdateListener {
+    void* opaque;
+    void (*dpy_update)(void* opaque, int x, int y, int w, int h);
+    struct DisplayUpdateListener *next;
+} DisplayUpdateListener;
+#endif
+
 struct DisplayAllocator {
     DisplaySurface* (*create_displaysurface)(int width, int height);
     DisplaySurface* (*resize_displaysurface)(DisplaySurface *surface, int width, int height);
@@ -182,7 +195,9 @@ struct DisplayState {
 
     struct DisplayAllocator* allocator;
     struct DisplayChangeListener* listeners;
-
+#ifdef CONFIG_ANDROID
+    struct DisplayUpdateListener* update_listeners;
+#endif
     void (*mouse_set)(int x, int y, int on);
     void (*cursor_define)(QEMUCursor *cursor);
 
@@ -233,6 +248,17 @@ static inline void register_displaychangelistener(DisplayState *ds, DisplayChang
     ds->listeners = dcl;
 }
 
+#ifdef CONFIG_ANDROID
+static inline void register_displayupdatelistener(DisplayState *ds, DisplayUpdateListener *dul)
+{
+    dul->next = ds->update_listeners;
+    ds->update_listeners = dul;
+}
+
+void unregister_displayupdatelistener(DisplayState *ds, DisplayUpdateListener *dul);
+
+#endif
+
 static inline void dpy_update(DisplayState *s, int x, int y, int w, int h)
 {
     struct DisplayChangeListener *dcl = s->listeners;
@@ -240,6 +266,13 @@ static inline void dpy_update(DisplayState *s, int x, int y, int w, int h)
         dcl->dpy_update(s, x, y, w, h);
         dcl = dcl->next;
     }
+#ifdef CONFIG_ANDROID
+    DisplayUpdateListener* dul = s->update_listeners;
+    while (dul != NULL) {
+        dul->dpy_update(dul->opaque, x, y, w, h);
+        dul = dul->next;
+    }
+#endif
 }
 
 static inline void dpy_resize(DisplayState *s)

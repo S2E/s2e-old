@@ -15,120 +15,54 @@
  * by the core to communicate display changes to the attached UI
  */
 
-#include "android/utils/system.h"
 #include "android/display-core.h"
+#include "qemu-common.h"
 
-/* Core display descriptor. */
-struct CoreDisplay {
-    /* Display state for this core display. */
-    DisplayState*       ds;
-
-    /* Framebuffer for this core display. */
-    QFrameBuffer*       fb;
-
-    /* Framebuffer service associated with this core display. */
-    ProxyFramebuffer*   core_fb;
-};
-
-/* One and only one core display instance. */
-CoreDisplay core_display;
-
-/*
- * Framebuffer calls this routine when it detects changes. This routine will
- * initiate a "push" of the framebuffer changes to the UI.
- * See QFrameBufferUpdateFunc in framebuffer.h for more info on this callback.
+/* This callback is call periodically by the GUI timer.
+ * Its purpose is to ensure that hw framebuffer updates are properly
+ * detected. Call the normal QEMU function for this here.
  */
 static void
-coredisplay_fb_update(void* opaque, int x, int y, int w, int h)
+coredisplay_refresh(DisplayState* ds)
 {
-    CoreDisplay* cd = (CoreDisplay*)opaque;
-    if (cd->core_fb) {
-        proxyFb_update(cd->core_fb, cd->fb, x, y, w, h);
-    }
+    (void)ds;
+    vga_hw_update();
 }
 
-/*
- * Framebuffer callback. See QFrameBufferRotateFunc in framebuffer.h for more
- * info on this callback.
+/* Don't do anything here because this callback can't differentiate
+ * between several listeners. This will be handled by a DisplayUpdateListener
+ * instead. See Android-specific changes in console.h
+ *
+ * In the core, the DisplayUpdateListener is registered by the ProxyFramebuffer
+ * object. See android/protocol/fb-updates-proxy.c.
  */
 static void
-coredisplay_fb_rotate(void* opaque, int rotation)
+coredisplay_update(DisplayState* ds, int x, int y, int w, int h)
 {
+    (void)ds;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
 }
 
-/*
- * Framebuffer callback. See QFrameBufferPollFunc in framebuffer.h for more
- * info on this callback.
+/* This callback is normally used to indicate that the display resolution
+ * was changed by the guest (e.g. when a Windows PC changes the display from
+ * 1024x768 to 800x600. Since this doesn't happen in Android, ignore it.
  */
 static void
-coredisplay_fb_poll(void* opaque)
+coredisplay_resize(DisplayState* ds)
 {
-    // This will eventually call core_display_fb_update.
-    qframebuffer_check_updates();
-}
-
-/*
- * Framebuffer callback. See QFrameBufferDoneFunc in framebuffer.h for more
- * info on this callback.
- */
-static void
-coredisplay_fb_done(void* opaque)
-{
+    (void)ds;
 }
 
 void
 coredisplay_init(DisplayState* ds)
 {
-    int format;
+    static DisplayChangeListener dcl[1];
 
-    core_display.ds = ds;
-    /* Create and initialize framebuffer instance that will be used for core
-     * display.
-     */
-    ANEW0(core_display.fb);
-    core_display.core_fb = NULL;
-
-    /* In the core, there is no skin to parse and the format of ds->surface
-     * is determined by the -android-gui option.
-     */
-    format = QFRAME_BUFFER_RGB565;
-    if (ds->surface->pf.bytes_per_pixel == 4)
-        format = QFRAME_BUFFER_RGBX_8888;
-
-    qframebuffer_init(core_display.fb, ds->surface->width, ds->surface->height,
-                      0, format);
-    qframebuffer_fifo_add(core_display.fb);
-    /* Register core display as the client for the framebuffer, so we can start
-     * receiving framebuffer notifications. Note that until UI connects to the
-     * core all framebuffer callbacks are essentially no-ops.
-     */
-    qframebuffer_add_client(core_display.fb, &core_display,
-                            coredisplay_fb_update, coredisplay_fb_rotate,
-                            coredisplay_fb_poll, coredisplay_fb_done);
-    android_display_init(ds, core_display.fb);
-}
-
-int
-coredisplay_attach_fb_service(ProxyFramebuffer* core_fb)
-{
-    if (core_display.core_fb == NULL) {
-        core_display.core_fb = core_fb;
-        return 0;
-    } else {
-        return -1;
-    }
-}
-
-ProxyFramebuffer*
-coredisplay_detach_fb_service(void)
-{
-    ProxyFramebuffer* ret = core_display.core_fb;
-    core_display.core_fb = NULL;
-    return ret;
-}
-
-QFrameBuffer*
-coredisplay_get_framebuffer(void)
-{
-    return core_display.fb;
+    dcl->dpy_update  = coredisplay_update;
+    dcl->dpy_refresh = coredisplay_refresh;
+    dcl->dpy_resize  = coredisplay_resize;
+    register_displaychangelistener(ds, dcl);
 }
