@@ -52,7 +52,7 @@
 #include "android/display.h"
 
 #include "android/snapshot.h"
-#include "android/core-connection.h"
+#include "android/protocol/core-connection.h"
 #include "android/protocol/fb-updates-impl.h"
 #include "android/protocol/user-events-proxy.h"
 #include "android/protocol/core-commands-proxy.h"

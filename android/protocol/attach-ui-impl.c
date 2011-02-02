@@ -16,9 +16,9 @@
  * from the Core.
  */
 
-#include "android/core-connection.h"
 #include "android/utils/debug.h"
 #include "android/utils/panic.h"
+#include "android/protocol/core-connection.h"
 #include "android/protocol/attach-ui-impl.h"
 
 /* Descriptor for the UI-side of the "attach-ui" service. */

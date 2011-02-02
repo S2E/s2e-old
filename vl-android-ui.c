@@ -41,7 +41,7 @@
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/system.h"
-#include "android/core-connection.h"
+#include "android/protocol/core-connection.h"
 #include "android/protocol/attach-ui-impl.h"
 #include "android/protocol/fb-updates-impl.h"
 #include "android/protocol/user-events-proxy.h"

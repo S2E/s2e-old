@@ -20,6 +20,7 @@
 #include "android/utils/debug.h"
 #include "android/utils/panic.h"
 #include "android/sync-utils.h"
+#include "android/protocol/core-connection.h"
 #include "android/protocol/fb-updates.h"
 #include "android/protocol/fb-updates-impl.h"
 

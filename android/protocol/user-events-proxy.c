@@ -14,8 +14,8 @@
 #include "console.h"
 #include "android/looper.h"
 #include "android/async-utils.h"
-#include "android/core-connection.h"
 #include "android/utils/debug.h"
+#include "android/protocol/core-connection.h"
 #include "android/protocol/user-events-protocol.h"
 #include "android/protocol/user-events-proxy.h"
 

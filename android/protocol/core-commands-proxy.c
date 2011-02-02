@@ -17,11 +17,11 @@
 
 #include "console.h"
 #include "android/looper.h"
-#include "android/core-connection.h"
 #include "android/async-utils.h"
 #include "android/sync-utils.h"
 #include "android/utils/debug.h"
 #include "android/utils/panic.h"
+#include "android/protocol/core-connection.h"
 #include "android/protocol/core-commands.h"
 #include "android/protocol/core-commands-proxy.h"
 #include "android/protocol/core-commands-api.h"

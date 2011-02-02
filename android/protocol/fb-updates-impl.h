@@ -22,7 +22,6 @@
 #include "framebuffer.h"
 #include "android/looper.h"
 #include "android/async-utils.h"
-#include "android/core-connection.h"
 
 /* Creates framebuffer client, and connects it with the core.
  * Param:
