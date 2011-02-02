@@ -33,12 +33,12 @@
  * Return:
  *  0 on success, or < 0 on failure.
  */
-int implFb_create(SockAddress* console_socket,
-                  const char* protocol,
-                  QFrameBuffer* fb,
-                  Looper* looper);
+int fbUpdatesImpl_create(SockAddress* console_socket,
+                         const char* protocol,
+                         QFrameBuffer* fb,
+                         Looper* looper);
 
 /* Disconnects and destroys framebuffer client. */
-void implFb_destroy(void);
+void fbUpdatesImpl_destroy(void);
 
 #endif /* _ANDROID_FRAMEBUFFER_UI_H */

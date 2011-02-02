@@ -162,9 +162,9 @@ int qemu_main(int argc, char **argv, char **envp)
     init_gui_timer(mainLooper);
 
     // Connect to the core's framebuffer service
-    if (implFb_create(attachUiImpl_get_console_socket(), "-raw",
-                      qemulator_get_first_framebuffer(qemulator_get()),
-                      mainLooper)) {
+    if (fbUpdatesImpl_create(attachUiImpl_get_console_socket(), "-raw",
+                             qemulator_get_first_framebuffer(qemulator_get()),
+                             mainLooper)) {
         return -1;
     }
 
@@ -175,7 +175,7 @@ int qemu_main(int argc, char **argv, char **envp)
 
     looper_run(mainLooper);
 
-    implFb_destroy();
+    fbUpdatesImpl_destroy();
     userEventsProxy_destroy();
     coreCmdProxy_destroy();
     uiCmdImpl_destroy();

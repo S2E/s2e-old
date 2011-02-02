@@ -24,17 +24,17 @@
 #include "android/protocol/fb-updates-impl.h"
 
 /*Enumerates states for the client framebuffer update reader. */
-typedef enum ImplFBState {
+typedef enum FbImplState {
     /* The reader is waiting on update header. */
     EXPECTS_HEADER,
 
     /* The reader is waiting on pixels. */
     EXPECTS_PIXELS,
-} ImplFBState;
+} FbImplState;
 
 /* Descriptor for the UI-side implementation of the "framebufer" service.
  */
-typedef struct ImplFramebuffer {
+typedef struct FrameBufferImpl {
     /* Framebuffer for this client. */
     QFrameBuffer*   fb;
 
@@ -54,7 +54,7 @@ typedef struct ImplFramebuffer {
     size_t          reader_bytes;
 
     /* Current state of the update reader. */
-    ImplFBState     fb_state;
+    FbImplState     fb_state;
 
     /* Socket descriptor for the framebuffer client. */
     int             sock;
@@ -64,10 +64,10 @@ typedef struct ImplFramebuffer {
 
     /* Number of bits used to encode single pixel. */
     int             bits_per_pixel;
-} ImplFramebuffer;
+} FrameBufferImpl;
 
-/* One and the only ImplFramebuffer instance. */
-static ImplFramebuffer _implFb;
+/* One and the only FrameBufferImpl instance. */
+static FrameBufferImpl _fbImpl;
 
 /*
  * Updates a display rectangle.
@@ -102,22 +102,22 @@ _update_rect(QFrameBuffer* fb, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
  * Asynchronous I/O callback launched when framebuffer notifications are ready
  * to be read.
  * Param:
- *  opaque - ImplFramebuffer instance.
+ *  opaque - FrameBufferImpl instance.
  */
 static void
-_implFb_io_callback(void* opaque, int fd, unsigned events)
+_fbUpdatesImpl_io_callback(void* opaque, int fd, unsigned events)
 {
-    ImplFramebuffer* fb_client = opaque;
+    FrameBufferImpl* fbi = opaque;
     int  ret;
 
     // Read updates while they are immediately available.
     for (;;) {
         // Read next chunk of data.
-        ret = read(fb_client->sock, fb_client->reader_buffer + fb_client->reader_offset,
-                   fb_client->reader_bytes - fb_client->reader_offset);
+        ret = read(fbi->sock, fbi->reader_buffer + fbi->reader_offset,
+                   fbi->reader_bytes - fbi->reader_offset);
         if (ret == 0) {
             /* disconnection ! */
-            implFb_destroy();
+            fbUpdatesImpl_destroy();
             return;
         }
         if (ret < 0) {
@@ -130,62 +130,63 @@ _implFb_io_callback(void* opaque, int fd, unsigned events)
             }
         }
 
-        fb_client->reader_offset += ret;
-        if (fb_client->reader_offset != fb_client->reader_bytes) {
+        fbi->reader_offset += ret;
+        if (fbi->reader_offset != fbi->reader_bytes) {
             // There are still some data left in the pipe.
             continue;
         }
 
         // All expected data has been read. Time to change the state.
-        if (fb_client->fb_state == EXPECTS_HEADER) {
+        if (fbi->fb_state == EXPECTS_HEADER) {
             // Update header has been read. Prepare for the pixels.
-            fb_client->fb_state = EXPECTS_PIXELS;
-            fb_client->reader_offset = 0;
-            fb_client->reader_bytes = fb_client->update_header.w *
-                                      fb_client->update_header.h *
-                                      (fb_client->bits_per_pixel / 8);
-            fb_client->reader_buffer = malloc(fb_client->reader_bytes);
-            if (fb_client->reader_buffer == NULL) {
+            fbi->fb_state = EXPECTS_PIXELS;
+            fbi->reader_offset = 0;
+            fbi->reader_bytes = fbi->update_header.w *
+                                      fbi->update_header.h *
+                                      (fbi->bits_per_pixel / 8);
+            fbi->reader_buffer = malloc(fbi->reader_bytes);
+            if (fbi->reader_buffer == NULL) {
                 APANIC("Unable to allocate memory for framebuffer update\n");
             }
         } else {
             // Pixels have been read. Prepare for the header.
-             uint8_t* pixels = fb_client->reader_buffer;
+             uint8_t* pixels = fbi->reader_buffer;
 
-            fb_client->fb_state = EXPECTS_HEADER;
-            fb_client->reader_offset = 0;
-            fb_client->reader_bytes = sizeof(FBUpdateMessage);
-            fb_client->reader_buffer = (uint8_t*)&fb_client->update_header;
+            fbi->fb_state = EXPECTS_HEADER;
+            fbi->reader_offset = 0;
+            fbi->reader_bytes = sizeof(FBUpdateMessage);
+            fbi->reader_buffer = (uint8_t*)&fbi->update_header;
 
             // Perform the update. Note that pixels buffer must be freed there.
-            _update_rect(fb_client->fb, fb_client->update_header.x,
-                        fb_client->update_header.y, fb_client->update_header.w,
-                        fb_client->update_header.h, fb_client->bits_per_pixel,
+            _update_rect(fbi->fb, fbi->update_header.x,
+                        fbi->update_header.y, fbi->update_header.w,
+                        fbi->update_header.h, fbi->bits_per_pixel,
                         pixels);
         }
     }
 }
 
 int
-implFb_create(SockAddress* console_socket,
+fbUpdatesImpl_create(SockAddress* console_socket,
               const char* protocol,
               QFrameBuffer* fb,
               Looper* looper)
 {
+    FrameBufferImpl* fbi = &_fbImpl;
     char* handshake = NULL;
     char switch_cmd[256];
 
     // Initialize descriptor.
-    _implFb.fb = fb;
-    _implFb.reader_buffer = (uint8_t*)&_implFb.update_header;
-    _implFb.reader_offset = 0;
-    _implFb.reader_bytes = sizeof(FBUpdateMessage);
+    fbi->fb = fb;
+    fbi->reader_buffer = (uint8_t*)&fbi->update_header;
+    fbi->reader_offset = 0;
+    fbi->reader_bytes = sizeof(FBUpdateMessage);
 
     // Connect to the framebuffer service.
     snprintf(switch_cmd, sizeof(switch_cmd), "framebuffer %s", protocol);
-    _implFb.core_connection =
+    fbi->core_connection =
         core_connection_create_and_switch(console_socket, switch_cmd, &handshake);
-    if (_implFb.core_connection == NULL) {
+    if (fbi->core_connection == NULL) {
         derror("Unable to connect to the framebuffer service: %s\n",
                errno_str);
         return -1;
@@ -193,7 +194,7 @@ implFb_create(SockAddress* console_socket,
 
     // We expect core framebuffer to return us bits per pixel property in
     // the handshake message.
-    _implFb.bits_per_pixel = 0;
+    fbi->bits_per_pixel = 0;
     if (handshake != NULL) {
         char* bpp = strstr(handshake, "bitsperpixel=");
         if (bpp != NULL) {
@@ -203,28 +204,28 @@ implFb_create(SockAddress* console_socket,
             if (end == NULL) {
                 end = bpp + strlen(bpp);
             }
-            _implFb.bits_per_pixel = strtol(bpp, &end, 0);
+            fbi->bits_per_pixel = strtol(bpp, &end, 0);
         }
     }
-    if (!_implFb.bits_per_pixel) {
+    if (!fbi->bits_per_pixel) {
         derror("Unexpected core framebuffer reply: %s\n"
                "Bits per pixel property is not there, or is invalid\n",
                handshake);
-        implFb_destroy();
+        fbUpdatesImpl_destroy();
         return -1;
     }
 
-    _implFb.sock = core_connection_get_socket(_implFb.core_connection);
+    fbi->sock = core_connection_get_socket(fbi->core_connection);
 
     // At last setup read callback, and start receiving the updates.
-    loopIo_init(_implFb.io, looper, _implFb.sock,
-                _implFb_io_callback, &_implFb);
-    loopIo_wantRead(_implFb.io);
+    loopIo_init(fbi->io, looper, fbi->sock,
+                _fbUpdatesImpl_io_callback, &_fbImpl);
+    loopIo_wantRead(fbi->io);
     {
         // Force the core to send us entire framebuffer now, when we're prepared
         // to receive it.
         FBRequestHeader hd;
-        SyncSocket* sk = syncsocket_init(_implFb.sock);
+        SyncSocket* sk = syncsocket_init(fbi->sock);
 
         hd.request_type = AFB_REQUEST_REFRESH;
         syncsocket_start_write(sk);
@@ -247,22 +248,24 @@ implFb_create(SockAddress* console_socket,
 }
 
 void
-implFb_destroy(void)
+fbUpdatesImpl_destroy(void)
 {
-    if (_implFb.core_connection != NULL) {
+    FrameBufferImpl* fbi = &_fbImpl;
+
+    if (fbi->core_connection != NULL) {
         // Disable the reader callback.
-        loopIo_done(_implFb.io);
+        loopIo_done(fbi->io);
 
         // Close framebuffer connection.
-        core_connection_close(_implFb.core_connection);
-        core_connection_free(_implFb.core_connection);
-        _implFb.core_connection = NULL;
+        core_connection_close(fbi->core_connection);
+        core_connection_free(fbi->core_connection);
+        fbi->core_connection = NULL;
     }
 
-    _implFb.fb = NULL;
-    if (_implFb.reader_buffer != NULL &&
-        _implFb.reader_buffer != (uint8_t*)&_implFb.update_header) {
-        free(_implFb.reader_buffer);
-        _implFb.reader_buffer = (uint8_t*)&_implFb.update_header;
+    fbi->fb = NULL;
+    if (fbi->reader_buffer != NULL &&
+        fbi->reader_buffer != (uint8_t*)&fbi->update_header) {
+        free(fbi->reader_buffer);
+        fbi->reader_buffer = (uint8_t*)&fbi->update_header;
     }
 }

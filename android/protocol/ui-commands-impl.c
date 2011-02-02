@@ -186,30 +186,31 @@ _uiCmdImpl_io_callback(void* opaque, int fd, unsigned events)
 int
 uiCmdImpl_create(SockAddress* console_socket, Looper* looper)
 {
+    UICmdImpl* uicmd = &_uiCmdImpl;
     char* handshake = NULL;
 
     // Setup command reader.
-    _uiCmdImpl.reader_buffer = (uint8_t*)&_uiCmdImpl.cmd_header;
-    _uiCmdImpl.reader_state = EXPECTS_HEADER;
-    _uiCmdImpl.reader_offset = 0;
-    _uiCmdImpl.reader_bytes = sizeof(UICmdHeader);
+    uicmd->reader_buffer = (uint8_t*)&uicmd->cmd_header;
+    uicmd->reader_state = EXPECTS_HEADER;
+    uicmd->reader_offset = 0;
+    uicmd->reader_bytes = sizeof(UICmdHeader);
 
     // Connect to the core-ui-control service.
-    _uiCmdImpl.core_connection =
+    uicmd->core_connection =
         core_connection_create_and_switch(console_socket, "core-ui-control",
                                           &handshake);
-    if (_uiCmdImpl.core_connection == NULL) {
+    if (uicmd->core_connection == NULL) {
         derror("Unable to connect to the core-ui-control service: %s\n",
                errno_str);
         return -1;
     }
 
     // Initialize UI command reader.
-    _uiCmdImpl.sock = core_connection_get_socket(_uiCmdImpl.core_connection);
-    loopIo_init(_uiCmdImpl.io, looper, _uiCmdImpl.sock,
+    uicmd->sock = core_connection_get_socket(uicmd->core_connection);
+    loopIo_init(uicmd->io, looper, uicmd->sock,
                 _uiCmdImpl_io_callback,
                 &_uiCmdImpl);
-    loopIo_wantRead(_uiCmdImpl.io);
+    loopIo_wantRead(uicmd->io);
 
     fprintf(stdout, "core-ui-control is now connected to the core at %s.",
             sock_address_to_string(console_socket));
@@ -227,18 +228,20 @@ uiCmdImpl_create(SockAddress* console_socket, Looper* looper)
 void
 uiCmdImpl_destroy(void)
 {
-    if (_uiCmdImpl.core_connection != NULL) {
+    UICmdImpl* uicmd = &_uiCmdImpl;
+
+    if (uicmd->core_connection != NULL) {
         // Disable I/O callbacks.
-        loopIo_done(_uiCmdImpl.io);
-        core_connection_close(_uiCmdImpl.core_connection);
-        core_connection_free(_uiCmdImpl.core_connection);
-        _uiCmdImpl.core_connection = NULL;
+        loopIo_done(uicmd->io);
+        core_connection_close(uicmd->core_connection);
+        core_connection_free(uicmd->core_connection);
+        uicmd->core_connection = NULL;
     }
     // Properly deallocate the reader buffer.
-    if (_uiCmdImpl.reader_buffer != NULL &&
-        _uiCmdImpl.reader_buffer != (uint8_t*)&_uiCmdImpl.cmd_header) {
-        free(_uiCmdImpl.reader_buffer);
-        _uiCmdImpl.reader_buffer = (uint8_t*)&_uiCmdImpl.cmd_header;
+    if (uicmd->reader_buffer != NULL &&
+        uicmd->reader_buffer != (uint8_t*)&uicmd->cmd_header) {
+        free(uicmd->reader_buffer);
+        uicmd->reader_buffer = (uint8_t*)&uicmd->cmd_header;
     }
 }
 
