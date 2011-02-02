@@ -16,7 +16,6 @@
  */
 
 #include "console.h"
-#include "android/framebuffer.h"
 #include "android/looper.h"
 #include "android/display-core.h"
 #include "android/async-utils.h"
@@ -37,8 +36,9 @@ struct ProxyFramebuffer {
     /* I/O associated with this descriptor. */
     LoopIo                  io;
 
-    /* Framebuffer used for this service. */
-    QFrameBuffer*           fb;
+    /* Display state used for this service */
+    DisplayState*           ds;
+    DisplayUpdateListener*  ds_listener;
 
     /* Looper used to communicate framebuffer updates. */
     Looper* looper;
@@ -80,9 +80,9 @@ typedef struct FBUpdateNotify {
  *  Pointer in framebuffer's pixels for the given pixel.
  */
 static const uint8_t*
-_pixel_offset(const QFrameBuffer* fb, int x, int y)
+_pixel_offset(const DisplaySurface* dsu, int x, int y)
 {
-    return (const uint8_t*)fb->pixels + y * fb->pitch + x * fb->bytes_per_pixel;
+    return (const uint8_t*)dsu->data + y * dsu->linesize + x * dsu->pf.bytes_per_pixel;
 }
 
 /*
@@ -93,13 +93,13 @@ _pixel_offset(const QFrameBuffer* fb, int x, int y)
  *  x, y, w, and h - dimensions of the rectangle to copy.
  */
 static void
-_copy_fb_rect(uint8_t* rect, const QFrameBuffer* fb, int x, int y, int w, int h)
+_copy_fb_rect(uint8_t* rect, const DisplaySurface* dsu, int x, int y, int w, int h)
 {
-    const uint8_t* start = _pixel_offset(fb, x, y);
+    const uint8_t* start = _pixel_offset(dsu, x, y);
     for (; h > 0; h--) {
-        memcpy(rect, start, w * fb->bytes_per_pixel);
-        start += fb->pitch;
-        rect += w * fb->bytes_per_pixel;
+        memcpy(rect, start, w * dsu->pf.bytes_per_pixel);
+        start += dsu->linesize;
+        rect += w * dsu->pf.bytes_per_pixel;
     }
 }
 
@@ -113,10 +113,10 @@ _copy_fb_rect(uint8_t* rect, const QFrameBuffer* fb, int x, int y, int w, int h)
  *  Initialized framebuffer update notification descriptor.
  */
 static FBUpdateNotify*
-fbupdatenotify_create(ProxyFramebuffer* proxy_fb, const QFrameBuffer* fb,
+fbupdatenotify_create(ProxyFramebuffer* proxy_fb,
                       int x, int y, int w, int h)
 {
-    const size_t rect_size = w * h * fb->bytes_per_pixel;
+    const size_t rect_size = w * h * proxy_fb->ds->surface->pf.bytes_per_pixel;
     FBUpdateNotify* ret = malloc(sizeof(FBUpdateNotify) + rect_size);
 
     ret->next_fb_update = NULL;
@@ -126,7 +126,7 @@ fbupdatenotify_create(ProxyFramebuffer* proxy_fb, const QFrameBuffer* fb,
     ret->message.y = y;
     ret->message.w = w;
     ret->message.h = h;
-    _copy_fb_rect(ret->message.rect, fb, x, y, w, h);
+    _copy_fb_rect(ret->message.rect, proxy_fb->ds->surface, x, y, w, h);
     return ret;
 }
 
@@ -142,9 +142,6 @@ fbupdatenotify_delete(FBUpdateNotify* desc)
         free(desc);
     }
 }
-
-/* Implemented in android/console.c */
-extern void destroy_control_fb_client(void);
 
 /*
  * Asynchronous write I/O callback launched when writing framebuffer
@@ -191,6 +188,8 @@ _proxyFb_io_write(ProxyFramebuffer* proxy_fb)
     }
 }
 
+static void proxyFb_update(void* opaque, int x, int y, int w, int h);
+
 /*
  * Asynchronous read I/O callback launched when reading framebuffer requests
  * from the socket.
@@ -201,6 +200,7 @@ static void
 _proxyFb_io_read(ProxyFramebuffer* proxy_fb)
 {
     // Read the request header.
+    DisplaySurface* dsu;
     const AsyncStatus status =
         asyncReader_read(&proxy_fb->fb_req_reader, &proxy_fb->io);
     switch (status) {
@@ -209,9 +209,9 @@ _proxyFb_io_read(ProxyFramebuffer* proxy_fb)
             switch (proxy_fb->fb_req_header.request_type) {
                 case AFB_REQUEST_REFRESH:
                     // Force full screen update to be sent
-                    proxyFb_update(proxy_fb, proxy_fb->fb,
-                                  0, 0, proxy_fb->fb->width,
-                                  proxy_fb->fb->height);
+                    dsu = proxy_fb->ds->surface;
+                    proxyFb_update(proxy_fb,
+                                  0, 0, dsu->width, dsu->height);
                     break;
                 default:
                     derror("Unknown framebuffer request %d\n",
@@ -226,7 +226,7 @@ _proxyFb_io_read(ProxyFramebuffer* proxy_fb)
             loopIo_dontWantRead(&proxy_fb->io);
             if (errno == ECONNRESET) {
                 // UI has exited. We need to destroy framebuffer service.
-                destroy_control_fb_client();
+                proxyFb_destroy(proxy_fb);
             }
             break;
 
@@ -253,14 +253,24 @@ _proxyFb_io_fun(void* opaque, int fd, unsigned events)
 }
 
 ProxyFramebuffer*
-proxyFb_create(int sock, const char* protocol, QFrameBuffer* fb)
+proxyFb_create(int sock, const char* protocol)
 {
     // At this point we're implementing the -raw protocol only.
     ProxyFramebuffer* ret;
+    DisplayState* ds = get_displaystate();
+    DisplayUpdateListener* dul;
+
     ANEW0(ret);
     ret->sock = sock;
     ret->looper = looper_newCore();
-    ret->fb = fb;
+    ret->ds = ds;
+
+    ANEW0(dul);
+    dul->opaque = ret;
+    dul->dpy_update = proxyFb_update;
+    register_displayupdatelistener(ds, dul);
+    ret->ds_listener = dul;
+
     ret->fb_update_head = NULL;
     ret->fb_update_tail = NULL;
     loopIo_init(&ret->io, ret->looper, sock, _proxyFb_io_fun, ret);
@@ -273,6 +283,7 @@ void
 proxyFb_destroy(ProxyFramebuffer* proxy_fb)
 {
     if (proxy_fb != NULL) {
+        unregister_displayupdatelistener(proxy_fb->ds, proxy_fb->ds_listener);
         if (proxy_fb->looper != NULL) {
             // Stop all I/O that may still be going on.
             loopIo_done(&proxy_fb->io);
@@ -286,15 +297,16 @@ proxyFb_destroy(ProxyFramebuffer* proxy_fb)
             looper_free(proxy_fb->looper);
             proxy_fb->looper = NULL;
         }
+        AFREE(proxy_fb);
     }
 }
 
-void
-proxyFb_update(ProxyFramebuffer* proxy_fb,
-              struct QFrameBuffer* fb, int x, int y, int w, int h)
+static void
+proxyFb_update(void* opaque, int x, int y, int w, int h)
 {
+    ProxyFramebuffer* proxy_fb = opaque;
     AsyncStatus status;
-    FBUpdateNotify* descr = fbupdatenotify_create(proxy_fb, fb, x, y, w, h);
+    FBUpdateNotify* descr = fbupdatenotify_create(proxy_fb, x, y, w, h);
 
     // Lets see if we should list it behind other pending updates.
     if (proxy_fb->fb_update_tail != NULL) {
@@ -327,6 +339,8 @@ proxyFb_update(ProxyFramebuffer* proxy_fb,
 int
 proxyFb_get_bits_per_pixel(ProxyFramebuffer* proxy_fb)
 {
-    return (proxy_fb != NULL && proxy_fb->fb != NULL) ?
-                                            proxy_fb->fb->bits_per_pixel : -1;
+    if (proxy_fb == NULL || proxy_fb->ds == NULL)
+        return -1;
+
+    return proxy_fb->ds->surface->pf.bits_per_pixel;
 }

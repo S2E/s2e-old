@@ -124,7 +124,7 @@ _uiCmdImpl_io_read(void* opaque)
         status = read(uicmd->sock, uicmd->reader_buffer + uicmd->reader_offset,
                       uicmd->reader_bytes - uicmd->reader_offset);
         if (status == 0) {
-            /* Disconnection, meaning that the core process got termonated. */
+            /* Disconnection, meaning that the core process got terminated. */
             fprintf(stderr, "core-ui-control service got disconnected\n");
             uiCmdImpl_destroy();
             return;
@@ -201,7 +201,7 @@ uiCmdImpl_create(SockAddress* console_socket)
         return -1;
     }
 
-    // Initialze UI command reader.
+    // Initialize UI command reader.
     _uiCmdImpl.sock = core_connection_get_socket(_uiCmdImpl.core_connection);
     if (qemu_set_fd_handler(_uiCmdImpl.sock, _uiCmdImpl_io_read, NULL,
                             &_uiCmdImpl)) {

@@ -121,9 +121,6 @@ typedef struct ControlGlobalRec_
 /* UI client currently attached to the core. */
 ControlClient attached_ui_client = NULL;
 
-/* Core framebuffer service client. */
-ControlClient framebuffer_client = NULL;
-
 /* User events service client. */
 ControlClient user_events_client = NULL;
 
@@ -243,15 +240,6 @@ control_client_destroy( ControlClient  client )
     if (client == attached_ui_client) {
         attachUiProxy_destroy();
         attached_ui_client = NULL;
-    }
-
-    if (client == framebuffer_client) {
-        ProxyFramebuffer* core_fb = coredisplay_detach_fb_service();
-        if (core_fb != NULL) {
-            proxyFb_destroy(core_fb);
-            AFREE(core_fb);
-        }
-        framebuffer_client = NULL;
     }
 
     if (client == user_events_client) {
@@ -2525,14 +2513,12 @@ destroy_attach_ui_client(void)
     }
 }
 
-/* Core display instance. */
-extern CoreDisplay core_display;
-
 static int
 do_create_framebuffer_service( ControlClient client, char* args )
 {
     ProxyFramebuffer* core_fb;
     const char* protocol = "-raw";   // Default framebuffer exchange protocol.
+    char reply_buf[64];
 
     // Protocol type is defined by the arguments passed with the stream switch
     // command.
@@ -2555,36 +2541,18 @@ do_create_framebuffer_service( ControlClient client, char* args )
         }
     }
 
-    // Make sure that there are no framebuffer client already existing.
-    if (framebuffer_client != NULL) {
-        control_write( client, "KO: Another framebuffer service is already existing!\r\n" );
-        control_client_destroy(client);
-        return -1;
-    }
-
-    core_fb = proxyFb_create(client->sock, protocol, coredisplay_get_framebuffer());
-    if (!coredisplay_attach_fb_service(core_fb)) {
-        char reply_buf[4096];
-        framebuffer_client = client;
-        // Reply "OK" with the framebuffer's bits per pixel
-        snprintf(reply_buf, sizeof(reply_buf), "OK: -bitsperpixel=%d\r\n",
-                 proxyFb_get_bits_per_pixel(core_fb));
-        control_write( client, reply_buf);
-    } else {
+    core_fb = proxyFb_create(client->sock, protocol);
+    if (core_fb == NULL) {
         control_write( client, "KO\r\n" );
         control_client_destroy(client);
         return -1;
     }
 
+    // Reply "OK" with the framebuffer's bits per pixel
+    snprintf(reply_buf, sizeof(reply_buf), "OK: -bitsperpixel=%d\r\n",
+             proxyFb_get_bits_per_pixel(core_fb));
+    control_write( client, reply_buf);
     return 0;
-}
-
-void
-destroy_control_fb_client(void)
-{
-    if (framebuffer_client != NULL) {
-        control_client_destroy(framebuffer_client);
-    }
 }
 
 static int

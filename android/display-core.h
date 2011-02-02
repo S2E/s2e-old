@@ -18,42 +18,14 @@
 #ifndef _ANDROID_DISPLAY_CORE_H
 #define _ANDROID_DISPLAY_CORE_H
 
-#include "android/framebuffer.h"
-#include "android/display.h"
-#include "android/protocol/fb-updates-proxy.h"
-
-/* Descriptor for a core display instance */
-typedef struct CoreDisplay CoreDisplay;
+#include "console.h"
 
 /*
  * Initializes one and only one instance of a core display.
- * Param:
+ * Only used to register a dummy display change listener that
+ * will trigger a timer.
  *  ds - Display state to use for the core display.
  */
 extern void coredisplay_init(DisplayState* ds);
-
-/*
- * Attaches framebuffer service to the core display.
- * Param:
- *  core_fb - Framebuffer service descriptor to attach.
- * Return:
- *  0 on success, or -1 on failure.
- */
-extern int coredisplay_attach_fb_service(ProxyFramebuffer* core_fb);
-
-/*
- * Detaches framebuffer service previously attached to the core display.
- * Return:
- *  Framebuffer service descriptor attached to the core display, or NULL if
- *  the core display didn't have framebuffer service attached to it.
- */
-extern ProxyFramebuffer* coredisplay_detach_fb_service(void);
-
-/*
- * Get framebuffer descriptor for core display.
- * Return:
- *  Framebuffer descriptor for core display.
- */
-extern QFrameBuffer* coredisplay_get_framebuffer(void);
 
 #endif /* _ANDROID_DISPLAY_CORE_H */

@@ -289,7 +289,7 @@ glooper_addActiveTimer(GLooper* looper, GLoopTimer* tt)
         pnode = &node->activeNext;
     }
     tt->activeNext = *pnode;
-    *pnode         = tt->activeNext;
+    *pnode         = tt;
 }
 
 static void
