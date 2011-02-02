@@ -15,7 +15,6 @@
  * from the core.
  */
 
-#include "sysemu.h"
 #include "android/utils/system.h"
 #include "android/utils/debug.h"
 #include "android/utils/panic.h"
@@ -60,6 +59,9 @@ typedef struct ImplFramebuffer {
     /* Socket descriptor for the framebuffer client. */
     int             sock;
 
+    /* Custom i/o handler */
+    LoopIo          io[1];
+
     /* Number of bits used to encode single pixel. */
     int             bits_per_pixel;
 } ImplFramebuffer;
@@ -103,7 +105,7 @@ _update_rect(QFrameBuffer* fb, uint16_t x, uint16_t y, uint16_t w, uint16_t h,
  *  opaque - ImplFramebuffer instance.
  */
 static void
-_implFb_read_cb(void* opaque)
+_implFb_io_callback(void* opaque, int fd, unsigned events)
 {
     ImplFramebuffer* fb_client = opaque;
     int  ret;
@@ -165,7 +167,10 @@ _implFb_read_cb(void* opaque)
 }
 
 int
-implFb_create(SockAddress* console_socket, const char* protocol, QFrameBuffer* fb)
+implFb_create(SockAddress* console_socket,
+              const char* protocol,
+              QFrameBuffer* fb,
+              Looper* looper)
 {
     char* handshake = NULL;
     char switch_cmd[256];
@@ -212,11 +217,9 @@ implFb_create(SockAddress* console_socket, const char* protocol, QFrameBuffer* f
     _implFb.sock = core_connection_get_socket(_implFb.core_connection);
 
     // At last setup read callback, and start receiving the updates.
-    if (qemu_set_fd_handler(_implFb.sock, _implFb_read_cb, NULL, &_implFb)) {
-        derror("Unable to set up framebuffer read callback.\n");
-        implFb_destroy();
-        return -1;
-    }
+    loopIo_init(_implFb.io, looper, _implFb.sock,
+                _implFb_io_callback, &_implFb);
+    loopIo_wantRead(_implFb.io);
     {
         // Force the core to send us entire framebuffer now, when we're prepared
         // to receive it.
@@ -248,7 +251,7 @@ implFb_destroy(void)
 {
     if (_implFb.core_connection != NULL) {
         // Disable the reader callback.
-        qemu_set_fd_handler(_implFb.sock, NULL, NULL, NULL);
+        loopIo_done(_implFb.io);
 
         // Close framebuffer connection.
         core_connection_close(_implFb.core_connection);

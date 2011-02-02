@@ -18,7 +18,7 @@
 #ifndef _ANDROID_FRAMEBUFFER_UI_H
 #define _ANDROID_FRAMEBUFFER_UI_H
 
-#include "console.h"
+#include "android/looper.h"
 #include "android/framebuffer.h"
 #include "android/looper.h"
 #include "android/async-utils.h"
@@ -35,7 +35,8 @@
  */
 int implFb_create(SockAddress* console_socket,
                   const char* protocol,
-                  QFrameBuffer* fb);
+                  QFrameBuffer* fb,
+                  Looper* looper);
 
 /* Disconnects and destroys framebuffer client. */
 void implFb_destroy(void);
