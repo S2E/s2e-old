@@ -879,6 +879,7 @@ VL_SOURCES := framebuffer.c \
               android/looper-qemu.c \
               android/protocol/ui-commands-qemu.c \
               android/protocol/core-commands-qemu.c \
+              android/main-common.c \
               android/main.c \
 
 # Add common system libraries
@@ -1212,6 +1213,7 @@ VL_SOURCES := framebuffer.c \
               android/looper-generic.c \
               android/snapshot.c \
               android/core-connection.c \
+              android/main-common.c \
               android/main-ui.c \
               qemu-timer-ui.c \
               vl-android-ui.c \
