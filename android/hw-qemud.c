@@ -50,8 +50,12 @@
  * talking to a legacy qemud daemon. See docs/ANDROID-QEMUD.TXT
  * for details.
  */
+#ifdef TARGET_ARM
 #define  SUPPORT_LEGACY_QEMUD  1
-
+#endif
+#ifdef TARGET_I386
+#define  SUPPORT_LEGACY_QEMUD  0 /* no legacy support */
+#endif
 #if SUPPORT_LEGACY_QEMUD
 #include "telephony/android_modem.h"
 #include "telephony/modem_driver.h"

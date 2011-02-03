@@ -1,5 +1,12 @@
-ifeq ($(TARGET_ARCH),arm)
+ifneq (,$(filter $(TARGET_ARCH),arm x86))
 LOCAL_PATH:= $(call my-dir)
+
+# determine the target cpu
+ifeq ($(TARGET_ARCH),arm)
+EMULATOR_TARGET_CPU := target-arm
+else
+EMULATOR_TARGET_CPU := target-i386
+endif
 
 # determine the host tag to use
 QEMU_HOST_TAG := $(HOST_PREBUILT_TAG)
@@ -36,6 +43,11 @@ ifeq ($(BUILD_DEBUG_EMULATOR),true)
 endif
 
 MY_CFLAGS += -DCONFIG_MEMCHECK
+
+# prepare config.h for x86
+ifeq ($(TARGET_ARCH),x86)
+MY_CFLAGS += -DARCH_FLAGS_x86
+endif
 
 MY_LDLIBS :=
 
@@ -140,7 +152,7 @@ endif
 TCG_CFLAGS := -I$(LOCAL_PATH)/tcg -I$(LOCAL_PATH)/tcg/$(TCG_TARGET)
 
 LOCAL_CFLAGS += $(TCG_CFLAGS) -DNEED_CPU_H \
-                -I$(LOCAL_PATH)/target-arm \
+                -I$(LOCAL_PATH)/$(EMULATOR_TARGET_CPU) \
                 -I$(LOCAL_PATH)/fpu \
 
 LOCAL_SRC_FILES := \
@@ -161,12 +173,10 @@ LOCAL_MODULE                    := emulator-hw
 HW_CFLAGS    := -I$(LOCAL_PATH)/hw
 
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) -DNEED_CPU_H
-LOCAL_CFLAGS += -I$(LOCAL_PATH)/target-arm -I$(LOCAL_PATH)/fpu $(HW_CFLAGS)
+LOCAL_CFLAGS += -I$(LOCAL_PATH)/$(EMULATOR_TARGET_CPU) -I$(LOCAL_PATH)/fpu $(HW_CFLAGS)
 LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
 
 HW_SOURCES := \
-    android_arm.c \
-    arm_pic.c \
     bt.c \
     bt-hci.c \
     bt-hid.c \
@@ -175,24 +185,18 @@ HW_SOURCES := \
     cdrom.c \
     dma.c \
     irq.c \
-    goldfish_audio.c \
-    goldfish_battery.c \
     goldfish_device.c \
     goldfish_events_device.c \
     goldfish_fb.c \
-    goldfish_interrupt.c \
+    goldfish_battery.c \
+    goldfish_mmc.c   \
     goldfish_memlog.c \
-    goldfish_mmc.c \
-    goldfish_nand.c  \
-    goldfish_switch.c \
-    goldfish_timer.c \
-    goldfish_trace.c \
+    goldfish_nand.c \
     goldfish_tty.c \
     msmouse.c \
     pci.c \
     qdev.c \
     scsi-disk.c \
-    smc91c111.c \
     sysbus.c \
     usb-hid.c \
     usb-hub.c \
@@ -200,6 +204,34 @@ HW_SOURCES := \
     usb-ohci.c \
     usb.c \
     watchdog.c \
+
+ifeq ($(TARGET_ARCH),arm)
+HW_SOURCES += android_arm.c \
+    arm_pic.c \
+    smc91c111.c \
+    goldfish_audio.c \
+    goldfish_interrupt.c \
+    goldfish_switch.c \
+    goldfish_timer.c \
+    goldfish_trace.c \
+
+endif
+
+ifeq ($(TARGET_ARCH),x86)
+HW_SOURCES += pc.c \
+    apic.c \
+    i8259.c \
+    mc146818rtc.c \
+    piix_pci.c \
+    i8254.c \
+    ne2000.c \
+    pckbd.c \
+    ioapic.c \
+    ps2.c \
+    smbios.c \
+    fw_cfg.c \
+
+endif
 
 LOCAL_SRC_FILES += $(HW_SOURCES:%=hw/%)
 
@@ -223,7 +255,7 @@ LOCAL_CPP_EXTENSION             := .cc
 ELFF_CFLAGS    := -I$(LOCAL_PATH)/elff
 
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) -fno-exceptions
-LOCAL_CFLAGS += -I$(LOCAL_PATH)/target-arm -I$(LOCAL_PATH)/fpu $(ELFF_CFLAGS)
+LOCAL_CFLAGS += -I$(LOCAL_PATH)/$(EMULATOR_TARGET_CPU) -I$(LOCAL_PATH)/fpu $(ELFF_CFLAGS)
 LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
 
 ELFF_SOURCES := \
@@ -258,7 +290,7 @@ LOCAL_MODULE                    := emulator-memcheck
 MCHK_CFLAGS    := -I$(LOCAL_PATH)/memcheck -I$(LOCAL_PATH)/elff
 
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS) -DNEED_CPU_H
-LOCAL_CFLAGS += -I$(LOCAL_PATH)/target-arm -I$(LOCAL_PATH)/fpu $(MCHK_CFLAGS)
+LOCAL_CFLAGS += -I$(LOCAL_PATH)/$(EMULATOR_TARGET_CPU) -I$(LOCAL_PATH)/fpu $(MCHK_CFLAGS)
 LOCAL_CFLAGS += $(ZLIB_CFLAGS) -I$(LOCAL_PATH)/$(ZLIB_DIR)
 
 MCHK_SOURCES := \
@@ -273,13 +305,21 @@ LOCAL_SRC_FILES += $(MCHK_SOURCES:%=memcheck/%)
 include $(BUILD_HOST_STATIC_LIBRARY)
 
 ##############################################################################
-# build the ARM-specific emulation engine sources
+# build the CPU-specific emulation engine sources
 #
 include $(CLEAR_VARS)
 
+ifeq ($(TARGET_ARCH),arm)
+LOCAL_MODULE			:= emulator-arm
+endif
+ifeq ($(TARGET_ARCH),x86)
+LOCAL_MODULE			:= emulator-i386
+LOCAL_MODULE_TAGS		:= optional
+endif
+
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
-LOCAL_MODULE                    := emulator-arm
+LOCAL_MODULE                    := $(LOCAL_MODULE)
 LOCAL_LDLIBS                    := $(MY_LDLIBS)
 LOCAL_CFLAGS                    := $(MY_CFLAGS) $(LOCAL_CFLAGS)
 LOCAL_STATIC_LIBRARIES          := emulator-hw
@@ -288,7 +328,7 @@ LOCAL_CFLAGS := -fno-PIC -fomit-frame-pointer -Wno-sign-compare
 LOCAL_CFLAGS := $(MY_CFLAGS) $(LOCAL_CFLAGS)
 
 LOCAL_CFLAGS += -I$(LOCAL_PATH) \
-                -I$(LOCAL_PATH)/target-arm \
+                -I$(LOCAL_PATH)/$(EMULATOR_TARGET_CPU) \
                 -I$(LOCAL_PATH)/fpu \
                 $(TCG_CFLAGS) \
                 $(HW_CFLAGS) \
@@ -298,13 +338,14 @@ ifeq ($(HOST_ARCH),ppc)
     LOCAL_CFLAGS += -D__powerpc__
 endif
 
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_SRC_FILES += exec.c cpu-exec.c  \
-                   target-arm/op_helper.c \
-                   target-arm/iwmmxt_helper.c \
-                   target-arm/neon_helper.c \
-                   target-arm/helper.c \
-                   target-arm/translate.c \
-                   target-arm/machine.c \
+                   $(EMULATOR_TARGET_CPU)/op_helper.c \
+                   $(EMULATOR_TARGET_CPU)/iwmmxt_helper.c \
+                   $(EMULATOR_TARGET_CPU)/neon_helper.c \
+                   $(EMULATOR_TARGET_CPU)/helper.c \
+                   $(EMULATOR_TARGET_CPU)/translate.c \
+                   $(EMULATOR_TARGET_CPU)/machine.c \
                    translate-all.c \
                    hw/armv7m.c \
                    hw/armv7m_nvic.c \
@@ -315,6 +356,22 @@ LOCAL_SRC_FILES += exec.c cpu-exec.c  \
                    softmmu_outside_jit.c \
 
 LOCAL_SRC_FILES += fpu/softfloat.c
+endif
+
+ifeq ($(TARGET_ARCH), x86)
+LOCAL_SRC_FILES += exec.c cpu-exec.c  \
+                   $(EMULATOR_TARGET_CPU)/op_helper.c \
+                   $(EMULATOR_TARGET_CPU)/helper.c \
+                   $(EMULATOR_TARGET_CPU)/translate.c \
+                   $(EMULATOR_TARGET_CPU)/machine.c \
+                   translate-all.c \
+                   trace.c \
+                   varint.c \
+                   dcache.c \
+                   softmmu_outside_jit.c \
+
+LOCAL_SRC_FILES += fpu/softfloat-native.c
+endif
 
 include $(BUILD_HOST_STATIC_LIBRARY)
 
@@ -450,7 +507,7 @@ ifeq ($(BUILD_QEMU_AUDIO_LIB),true)
   LOCAL_CFLAGS := -Wno-sign-compare \
                   -fno-strict-aliasing -W -Wall -Wno-unused-parameter \
                   -I$(LOCAL_PATH) \
-                  -I$(LOCAL_PATH)/target-arm \
+                  -I$(LOCAL_PATH)/$(EMULATOR_TARGET_CPU) \
                   -I$(LOCAL_PATH)/fpu \
 
   # this is very important, otherwise the generated binaries may
@@ -513,7 +570,7 @@ EMULATOR_CORE_CFLAGS += -DNEED_CPU_H
 
 # Common includes for the emulator
 EMULATOR_CORE_CFLAGS += -I$(LOCAL_PATH)/ \
-                        -I$(LOCAL_PATH)/target-arm \
+                        -I$(LOCAL_PATH)/$(EMULATOR_TARGET_CPU) \
                         -I$(LOCAL_PATH)/fpu \
                         $(TCG_CFLAGS) \
                         $(HW_CFLAGS) \
@@ -632,8 +689,14 @@ endif
 
 # hw sources
 #
+ifeq ($(TARGET_ARCH),arm)
 CORE_HW_SOURCES = hw/arm_boot.c \
                   hw/android_arm.c
+endif
+
+ifeq ($(TARGET_ARCH),x86)
+CORE_HW_SOURCES = hw/pc.c
+endif
 
 # migration sources
 #
@@ -662,7 +725,6 @@ CORE_MISC_SOURCES = vl-android.c \
                     qemu-error.c \
                     qerror.c \
                     disas.c \
-                    arm-dis.c \
                     aes.c \
                     d3des.c \
                     vnc-android.c \
@@ -702,6 +764,10 @@ CORE_MISC_SOURCES = vl-android.c \
                     android/config.c \
                     android/snapshot.c \
                     android/utils/timezone.c \
+
+ifeq ($(TARGET_ARCH),arm)
+    CORE_MISC_SOURCES += arm-dis.c
+endif
 
 ifeq ($(HOST_ARCH),x86)
     CORE_MISC_SOURCES += i386-dis.c
@@ -834,7 +900,12 @@ LOCAL_GENERATED_SOURCES :=
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := emulator
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_STATIC_LIBRARIES          := emulator-memcheck emulator-hw emulator-arm emulator-tcg
+endif
+ifeq ($(TARGET_ARCH),x86)
+LOCAL_STATIC_LIBRARIES          := emulator-memcheck emulator-hw emulator-i386 emulator-tcg
+endif
 LOCAL_STATIC_LIBRARIES          += emulator-elff
 LOCAL_STATIC_LIBRARIES          += emulator-core emulator-uilib
 LOCAL_LDLIBS                    := $(MY_LDLIBS)
@@ -867,7 +938,7 @@ LOCAL_LDLIBS  += $(AUDIO_LDLIBS)
 
 ifeq ($(HOST_ARCH),x86)
 # enable MMX code for our skin scaler
-LOCAL_CFLAGS += -DUSE_MMX=1 -mmmx
+LOCAL_CFLAGS += -DUSE_MMX=1 -mmmx -DNEED_CPU_H
 endif
 
 # include other sources
@@ -1022,7 +1093,13 @@ LOCAL_GENERATED_SOURCES         :=
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
 LOCAL_MODULE                    := qemu-android
+ifeq ($(TARGET_ARCH),arm)
 LOCAL_STATIC_LIBRARIES          := emulator-memcheck emulator-hw emulator-arm emulator-tcg
+endif
+ifeq ($(TARGET_ARCH),x86)
+LOCAL_STATIC_LIBRARIES          := emulator-memcheck emulator-hw emulator-i386 emulator-tcg
+endif
+
 LOCAL_STATIC_LIBRARIES          += emulator-elff
 LOCAL_STATIC_LIBRARIES          += emulator-core
 LOCAL_LDLIBS                    := $(MY_LDLIBS)
@@ -1281,4 +1358,4 @@ LOCAL_SRC_FILES += $(SDLMAIN_SOURCES)
 
 include $(BUILD_HOST_EXECUTABLE)
 
-endif  # TARGET_ARCH == arm
+endif  # TARGET_ARCH == arm || TARGET_ARCH == x86

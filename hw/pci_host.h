@@ -34,11 +34,10 @@ do { printf("pci_host_data: " fmt , ## __VA_ARGS__); } while (0)
 #else
 #define PCI_DPRINTF(fmt, ...)
 #endif
-
-typedef struct {
+struct PCIHostState {
     uint32_t config_reg;
     PCIBus *bus;
-} PCIHostState;
+};
 
 static void pci_host_data_writeb(void* opaque, pci_addr_t addr, uint32_t val)
 {

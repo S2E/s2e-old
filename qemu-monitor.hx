@@ -491,7 +491,7 @@ STEXI
 @item migrate_set_downtime @var{second}
 Set maximum tolerated downtime (in seconds) for migration.
 ETEXI
-
+#ifndef CONFIG_ANDROID
 #if defined(TARGET_I386)
     { "drive_add", "ss", drive_hot_add, "pci_addr=[[<domain>:]<bus>:]<slot>\n"
                                          "[file=file][,if=type][,bus=n]\n"
@@ -500,21 +500,27 @@ ETEXI
                                         "[snapshot=on|off][,cache=on|off]",
                                         "add drive to PCI storage controller" },
 #endif
+#endif
 STEXI
 @item drive_add
 Add drive to PCI storage controller.
 ETEXI
 
+#ifndef CONFIG_ANDROID
 #if defined(TARGET_I386)
     { "pci_add", "sss", pci_device_hot_add, "pci_addr=auto|[[<domain>:]<bus>:]<slot> nic|storage [[vlan=n][,macaddr=addr][,model=type]] [file=file][,if=type][,bus=nr]...", "hot-add PCI device" },
 #endif
+#endif
+
 STEXI
 @item pci_add
 Hot-add PCI device.
 ETEXI
 
+#ifndef CONFIG_ANDROID
 #if defined(TARGET_I386)
     { "pci_del", "s", pci_device_hot_remove, "pci_addr=[[<domain>:]<bus>:]<slot>", "hot remove PCI device" },
+#endif
 #endif
 STEXI
 @item pci_del
@@ -609,6 +615,14 @@ remove the specified match rule from the access control list.
 remove all matches from the access control list, and set the default
 policy back to @code{deny}.
 @end table
+ETEXI
+
+#if defined(TARGET_I386)
+    { "mce", "iillll", do_inject_mce, "cpu bank status mcgstatus addr misc", "inject a MCE on the given CPU"},
+#endif
+STEXI
+@item mce @var{cpu} @var{bank} @var{status} @var{mcgstatus} @var{addr} @var{misc}
+Inject an MCE on the given CPU (x86 only).
 ETEXI
 
 STEXI

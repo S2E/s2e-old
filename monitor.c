@@ -90,6 +90,28 @@ struct Monitor {
 
 static QLIST_HEAD(mon_list, Monitor) mon_list;
 
+#if defined(TARGET_I386)
+static void do_inject_mce(Monitor *mon,
+                          int cpu_index, int bank,
+                          unsigned status_hi, unsigned status_lo,
+                          unsigned mcg_status_hi, unsigned mcg_status_lo,
+                          unsigned addr_hi, unsigned addr_lo,
+                          unsigned misc_hi, unsigned misc_lo)
+{
+    CPUState *cenv;
+    uint64_t status = ((uint64_t)status_hi << 32) | status_lo;
+    uint64_t mcg_status = ((uint64_t)mcg_status_hi << 32) | mcg_status_lo;
+    uint64_t addr = ((uint64_t)addr_hi << 32) | addr_lo;
+    uint64_t misc = ((uint64_t)misc_hi << 32) | misc_lo;
+
+    for (cenv = first_cpu; cenv != NULL; cenv = cenv->next_cpu)
+        if (cenv->cpu_index == cpu_index && cenv->mcg_cap) {
+            cpu_inject_x86_mce(cenv, bank, status, mcg_status, addr, misc);
+            break;
+        }
+}
+#endif
+
 static const mon_cmd_t mon_cmds[];
 static const mon_cmd_t info_cmds[];
 
@@ -2403,7 +2425,15 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
                       void *arg3, void *arg4, void *arg5);
     void (*handler_7)(Monitor *mon, void *arg0, void *arg1, void *arg2,
                       void *arg3, void *arg4, void *arg5, void *arg6);
-
+    void (*handler_8)(Monitor *mon, void *arg0, void *arg1, void *arg2,
+                      void *arg3, void *arg4, void *arg5, void *arg6,
+                      void *arg7);
+    void (*handler_9)(Monitor *mon, void *arg0, void *arg1, void *arg2,
+                      void *arg3, void *arg4, void *arg5, void *arg6,
+                      void *arg7, void *arg8);
+    void (*handler_10)(Monitor *mon, void *arg0, void *arg1, void *arg2,
+                       void *arg3, void *arg4, void *arg5, void *arg6,
+                       void *arg7, void *arg8, void *arg9);
 #ifdef DEBUG
     monitor_printf(mon, "command='%s'\n", cmdline);
 #endif
@@ -2690,6 +2720,21 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
         handler_7 = cmd->handler;
         handler_7(mon, args[0], args[1], args[2], args[3], args[4], args[5],
                   args[6]);
+        break;
+    case 8:
+        handler_8 = cmd->handler;
+        handler_8(mon, args[0], args[1], args[2], args[3], args[4], args[5],
+                  args[6], args[7]);
+        break;
+    case 9:
+        handler_9 = cmd->handler;
+        handler_9(mon, args[0], args[1], args[2], args[3], args[4], args[5],
+                  args[6], args[7], args[8]);
+        break;
+    case 10:
+        handler_10 = cmd->handler;
+        handler_10(mon, args[0], args[1], args[2], args[3], args[4], args[5],
+                   args[6], args[7], args[8], args[9]);
         break;
     default:
         monitor_printf(mon, "unsupported number of arguments: %d\n", nb_args);

@@ -388,7 +388,14 @@ esac
 
 create_config_mk
 echo "" >> $config_mk
+if [ $TARGET_ARCH = arm ] ; then
 echo "TARGET_ARCH       := arm" >> $config_mk
+fi
+
+if [ $TARGET_ARCH = x86 ] ; then
+echo "TARGET_ARCH       := x86" >> $config_mk
+fi
+
 echo "HOST_PREBUILT_TAG := $TARGET_OS" >> $config_mk
 echo "HOST_EXEEXT       := $TARGET_EXEEXT" >> $config_mk
 echo "PREBUILT          := $ANDROID_PREBUILT" >> $config_mk
