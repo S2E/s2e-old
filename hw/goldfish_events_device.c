@@ -149,7 +149,23 @@ static unsigned dequeue_event(events_state *s)
     if(s->first == s->last) {
         qemu_irq_lower(s->irq);
     }
-
+#ifdef TARGET_I386
+    /*
+     * Adding the logic to handle edge-triggered interrupts for x86
+     * because the exisiting goldfish events device basically provides
+     * level-trigger interrupts only.
+     *
+     * Logic: When an event (including the type/code/value) is fetched
+     * by the driver, if there is still another event in the event
+     * queue, the goldfish event device will re-assert the IRQ so that
+     * the driver can be notified to fetch the event again.
+     */
+    else if (((s->first + 2) & (MAX_EVENTS - 1)) < s->last ||
+               (s->first & (MAX_EVENTS - 1)) > s->last) { /* if there still is an event */
+        qemu_irq_lower(s->irq);
+        qemu_irq_raise(s->irq);
+    }
+#endif
     return n;
 }
 

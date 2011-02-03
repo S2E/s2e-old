@@ -4267,11 +4267,13 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_rtc_td_hack:
                 rtc_td_hack = 1;
                 break;
+#ifndef CONFIG_ANDROID
             case QEMU_OPTION_acpitable:
                 if(acpi_table_add(optarg) < 0) {
                     PANIC("Wrong acpi table provided");
                 }
                 break;
+#endif
             case QEMU_OPTION_smbios:
                 if(smbios_entry_add(optarg) < 0) {
                     PANIC("Wrong smbios provided");
