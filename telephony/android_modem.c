@@ -671,7 +671,7 @@ amodem_set_voice_registration( AModem  modem, ARegistrationState  state )
         case A_REGISTRATION_UNSOL_ENABLED_FULL:
             amodem_unsol( modem, "+CREG: %d,%d, \"%04x\", \"%04x\"\r",
                           modem->voice_mode, modem->voice_state,
-                          modem->area_code, modem->cell_id );
+                          modem->area_code & 0xffff, modem->cell_id & 0xffff);
             break;
         default:
             ;
@@ -699,12 +699,12 @@ amodem_set_data_registration( AModem  modem, ARegistrationState  state )
             if (modem->supportsNetworkDataType)
                 amodem_unsol( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\",\"%04x\"\r",
                             modem->data_mode, modem->data_state,
-                            modem->area_code, modem->cell_id,
+                            modem->area_code & 0xffff, modem->cell_id & 0xffff,
                             modem->data_network );
             else
                 amodem_unsol( modem, "+CGREG: %d,%d,\"%04x\",\"%04x\"\r",
                             modem->data_mode, modem->data_state,
-                            modem->area_code, modem->cell_id );
+                            modem->area_code & 0xffff, modem->cell_id & 0xffff );
             break;
 
         default:
@@ -1343,9 +1343,13 @@ handleNetworkRegistration( const char*  cmd, AModem  modem )
     if ( !memcmp( cmd, "+CREG", 5 ) ) {
         cmd += 5;
         if (cmd[0] == '?') {
-            return amodem_printf( modem, "+CREG: %d,%d, \"%04x\", \"%04x\"",
-                                  modem->voice_mode, modem->voice_state,
-                                  modem->area_code, modem->cell_id );
+            if (modem->voice_mode == A_REGISTRATION_UNSOL_ENABLED_FULL)
+                return amodem_printf( modem, "+CREG: %d,%d, \"%04x\", \"%04x\"",
+                                       modem->voice_mode, modem->voice_state,
+                                       modem->area_code, modem->cell_id );
+            else
+                return amodem_printf( modem, "+CREG: %d,%d",
+                                       modem->voice_mode, modem->voice_state );
         } else if (cmd[0] == '=') {
             switch (cmd[1]) {
                 case '0':
@@ -1955,7 +1959,7 @@ handleListPDPContexts( const char*  cmd, AModem  modem )
         ADataContext  data = modem->data_contexts + nn;
         if (!data->active)
             continue;
-        amodem_add_line( modem, "+CGACT: %d,%d\r", data->id, data->active );
+        amodem_add_line( modem, "+CGACT: %d,%d\r\n", data->id, data->active );
     }
     return amodem_end_line( modem );
 }
@@ -1966,18 +1970,11 @@ handleDefinePDPContext( const char*  cmd, AModem  modem )
     assert( !memcmp( cmd, "+CGDCONT=", 9 ) );
     cmd += 9;
     if (cmd[0] == '?') {
-        int  nn;
-        amodem_begin_line(modem);
-        for (nn = 0; nn < MAX_DATA_CONTEXTS; nn++) {
-            ADataContext  data = modem->data_contexts + nn;
-            if (!data->active)
-                continue;
-            amodem_add_line( modem, "+CGDCONT: %d,%s,\"%s\",,0,0\r\n",
-                             data->id,
-                             data->type == A_DATA_IP ? "IP" : "PPP",
-                             data->apn );
-        }
-        return amodem_end_line(modem);
+        /* +CGDCONT=? is used to query the ranges of supported PDP Contexts.
+         * We only really support IP ones in the emulator, so don't try to
+         * fake PPP ones.
+         */
+        return "+CGDCONT: (1-1),\"IP\",,,(0-2),(0-4)\r\n";
     } else {
         /* template is +CGDCONT=<id>,"<type>","<apn>",,0,0 */
         int              id = cmd[0] - '1';
@@ -2021,26 +2018,31 @@ BadCommand:
     return "ERROR: BAD COMMAND";
 }
 
+static const char*
+handleQueryPDPContext( const char* cmd, AModem modem )
+{
+    int  nn;
+    amodem_begin_line(modem);
+    for (nn = 0; nn < MAX_DATA_CONTEXTS; nn++) {
+        ADataContext  data = modem->data_contexts + nn;
+        if (!data->active)
+            continue;
+        amodem_add_line( modem, "+CGDCONT: %d,\"%s\",\"%s\",\"%s\",0,0\r\n",
+                         data->id,
+                         data->type == A_DATA_IP ? "IP" : "PPP",
+                         data->apn,
+                         /* Note: For now, hard-code the IP address of our
+                          *       network interface
+                          */
+                         data->type == A_DATA_IP ? "10.0.2.15" : "");
+    }
+    return amodem_end_line(modem);
+}
 
 static const char*
 handleStartPDPContext( const char*  cmd, AModem  modem )
 {
     /* XXX: TODO: handle PDP start appropriately */
-    /* for the moment, always return success */
-#if 0
-    AVoiceCall  vcall = amodem_alloc_call( modem );
-    ACall       call  = (ACall) vcall;
-    if (call == NULL) {
-        return "ERROR: TOO MANY CALLS";
-    }
-    call->id    = 1;
-    call->dir   = A_CALL_OUTBOUND;
-    /* XXX: it would be better to delay this */
-    call->state = A_CALL_ACTIVE;
-    call->mode  = A_CALL_DATA;
-    call->multi = 0;
-    strcpy( call->number, "012345" );
-#endif
     return NULL;
 }
 
@@ -2377,7 +2379,7 @@ static const struct {
     { "+WPRL?", NULL, handlePrlVersion }, /* Query the current PRL version */
 
     /* see requestOrSendPDPContextList() */
-    { "+CGACT?", "", handleListPDPContexts },
+    { "+CGACT?", NULL, handleListPDPContexts },
 
     /* see requestOperator() */
     { "+COPS=3,0;+COPS?;+COPS=3,1;+COPS?;+COPS=3,2;+COPS?", NULL, handleRequestOperator },
@@ -2409,6 +2411,7 @@ static const struct {
     { "%DATA=2,\"UART\",1,,\"SER\",\"UART\",0", NULL, NULL },
 
     { "!+CGDCONT=", NULL, handleDefinePDPContext },
+    { "+CGDCONT?", NULL, handleQueryPDPContext },
 
     { "+CGQREQ=1", NULL, NULL },
     { "+CGQMIN=1", NULL, NULL },
@@ -2453,9 +2456,6 @@ static const struct {
     { "E0Q0V1", NULL, NULL },
     { "S0=0", NULL, NULL },
     { "+CMEE=1", NULL, NULL },
-    { "+CREG=2", NULL, handleNetworkRegistration },
-    { "+CREG=1", NULL, handleNetworkRegistration },
-    { "+CGREG=1", NULL, handleNetworkRegistration },
     { "+CCWA=1", NULL, NULL },
     { "+CMOD=0", NULL, NULL },
     { "+CMUT=0", NULL, NULL },
