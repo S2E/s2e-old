@@ -328,6 +328,17 @@ events_set_bit(events_state* s, int  type, int  bit)
     events_set_bits(s, type, bit, bit);
 }
 
+static void
+events_clr_bit(events_state* s, int type, int bit)
+{
+    int ii = bit / 8;
+    if (ii < s->ev_bits[type].len) {
+        uint8_t* bits = s->ev_bits[type].bits;
+        uint8_t  mask = 0x01U << (bit & 7);
+        bits[ii] &= ~mask;
+    }
+}
+
 void events_dev_init(uint32_t base, qemu_irq irq)
 {
     events_state *s;
@@ -409,6 +420,18 @@ void events_dev_init(uint32_t base, qemu_irq irq)
          */
         events_set_bits(s, EV_KEY, 1, 0xff);
         events_set_bits(s, EV_KEY, 0x160, 0x1ff);
+
+        /* If there is a keyboard, but no DPad, we need to clear the
+         * corresponding bits. Doing this is simpler than trying to exclude
+         * the DPad values from the ranges above.
+         */
+        if (!config->hw_dPad) {
+            events_clr_bit(s, EV_KEY, KEY_DOWN);
+            events_clr_bit(s, EV_KEY, KEY_UP);
+            events_clr_bit(s, EV_KEY, KEY_LEFT);
+            events_clr_bit(s, EV_KEY, KEY_RIGHT);
+            events_clr_bit(s, EV_KEY, KEY_CENTER);
+        }
     }
 
     /* configure EV_REL array
