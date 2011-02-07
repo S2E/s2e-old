@@ -124,6 +124,7 @@ struct AvdInfo {
     char      inAndroidBuild;
     char*     androidOut;
     char*     androidBuildRoot;
+    char*     targetArch;
 
     /* for the normal virtual device case */
     char*     deviceName;
@@ -558,7 +559,7 @@ imageLoader_empty( ImageLoader*  l, unsigned  flags )
 }
 
 
-/* copy image file from a given source 
+/* copy image file from a given source
  * assumes locking is needed.
  */
 static void
@@ -606,7 +607,7 @@ imageLoader_load( ImageLoader*    l,
 
     /* set image state */
     l->pState[0] = (flags & IMAGE_DONT_LOCK) == 0
-                 ? IMAGE_STATE_MUSTLOCK 
+                 ? IMAGE_STATE_MUSTLOCK
                  : IMAGE_STATE_READONLY;
 
     /* check user-provided path */
@@ -651,7 +652,7 @@ imageLoader_load( ImageLoader*    l,
         if (flags & IMAGE_REQUIRED) {
             AvdInfo*  i = l->info;
 
-            derror("could not find required %s image (%s).", 
+            derror("could not find required %s image (%s).",
                    l->imageText, l->imageFile);
 
             if (i->inAndroidBuild) {
@@ -1190,14 +1191,8 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
     if ( !imageLoader_load( l, IMAGE_OPTIONAL |
                                IMAGE_DONT_LOCK ) )
     {
-#ifdef TARGET_ARM
-#define  PREBUILT_KERNEL_PATH   "prebuilt/android-arm/kernel/kernel-qemu"
-#endif
-#ifdef TARGET_I386
-#define  PREBUILT_KERNEL_PATH   "prebuilt/android-x86/kernel/kernel-qemu"
-#endif
-        p = bufprint(temp, end, "%s/%s", i->androidBuildRoot,
-                        PREBUILT_KERNEL_PATH);
+        p = bufprint(temp, end, "%s/prebuilt/android-%s/kernel/kernel-qemu",
+                     i->androidBuildRoot, i->targetArch);
         if (p >= end || !path_exists(temp)) {
             derror("bad workspace: cannot find prebuilt kernel in: %s", temp);
             exit(1);
@@ -1280,7 +1275,7 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 
         /* if the user provided one cache image, lock & use it */
         if ( params->forcePaths[l->id] != NULL ) {
-            imageLoader_load(l, IMAGE_REQUIRED | 
+            imageLoader_load(l, IMAGE_REQUIRED |
                                 IMAGE_IGNORE_IF_LOCKED);
         }
     }
@@ -1398,6 +1393,7 @@ _getBuildHardwareIni( AvdInfo*  i )
 AvdInfo*
 avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
                             const char*     androidOut,
+                            const char*     targetArch,
                             AvdInfoParams*  params )
 {
     AvdInfo*  i;
@@ -1408,6 +1404,7 @@ avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
     i->androidBuildRoot = ASTRDUP(androidBuildRoot);
     i->androidOut       = ASTRDUP(androidOut);
     i->contentPath      = ASTRDUP(androidOut);
+    i->targetArch       = ASTRDUP(targetArch);
 
     /* TODO: find a way to provide better information from the build files */
     i->deviceName = ASTRDUP("<build>");

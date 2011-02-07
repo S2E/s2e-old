@@ -181,7 +181,7 @@
 #define HF2_VINTR_SHIFT      3 /* value of V_INTR_MASKING bit */
 
 #define HF2_GIF_MASK          (1 << HF2_GIF_SHIFT)
-#define HF2_HIF_MASK          (1 << HF2_HIF_SHIFT) 
+#define HF2_HIF_MASK          (1 << HF2_HIF_SHIFT)
 #define HF2_NMI_MASK          (1 << HF2_NMI_SHIFT)
 #define HF2_VINTR_MASK        (1 << HF2_VINTR_SHIFT)
 
@@ -409,7 +409,7 @@
 #define CPUID_VENDOR_INTEL_3 0x6c65746e /* "ntel" */
 
 #define CPUID_VENDOR_AMD_1   0x68747541 /* "Auth" */
-#define CPUID_VENDOR_AMD_2   0x69746e65 /* "enti" */ 
+#define CPUID_VENDOR_AMD_2   0x69746e65 /* "enti" */
 #define CPUID_VENDOR_AMD_3   0x444d4163 /* "cAMD" */
 
 #define CPUID_MWAIT_IBE     (1 << 1) /* Interrupts can exit capability */

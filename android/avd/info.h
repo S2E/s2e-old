@@ -126,6 +126,7 @@ AvdInfo*  avdInfo_new( const char*  name, AvdInfoParams*  params );
  */
 AvdInfo*  avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
                                       const char*     androidOut,
+                                      const char*     targetArch,
                                       AvdInfoParams*  params );
 
 /* Frees an AvdInfo object and the corresponding strings that may be
