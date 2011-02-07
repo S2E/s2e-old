@@ -107,7 +107,7 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x03, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (buf), "b" (size), "c" (name)
+        : : "a" (buf), "b" (size), "c" (name) : "memory"
     );
 }
 
@@ -118,7 +118,7 @@ static inline void s2e_concretize(void* buf, int size)
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x20, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (buf), "b" (size)
+        : : "a" (buf), "b" (size) : "memory"
     );
 }
 
@@ -129,7 +129,7 @@ static inline void s2e_get_example(void* buf, int size)
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x21, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (buf), "b" (size)
+        : : "a" (buf), "b" (size) : "memory"
     );
 }
 
@@ -198,11 +198,14 @@ static inline void s2e_enable_all_apic_interrupts()
 /** Get the current S2E_RAM_OBJECT_BITS configuration macro */
 static inline int s2e_get_ram_object_bits()
 {
+    int bits;
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x52, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : "=a" (bits)  : "a" (0)
     );
+    return bits;
 }
 
 /** Declare a merge point: S2E will try to merge
@@ -265,7 +268,7 @@ static inline int s2e_read(int fd, char* buf, int count)
 
 
 /* Kills the current state if b is zero */
-void _s2e_assert(int b, const char *expression )
+static inline void _s2e_assert(int b, const char *expression )
 {
    if (!b) {
       s2e_kill_state(0, expression);
