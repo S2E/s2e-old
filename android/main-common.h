@@ -22,10 +22,10 @@
 /** Emulator user configuration (e.g. last window position)
  **/
 
-void emulator_config_init( void );
-void emulator_config_done( void );
+void user_config_init( void );
+void user_config_done( void );
 
-void emulator_config_get_window_pos( int *window_x, int *window_y );
+void user_config_get_window_pos( int *window_x, int *window_y );
 
 #define  ONE_MB  (1024*1024)
 

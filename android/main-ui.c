@@ -875,7 +875,7 @@ int main(int argc, char **argv)
     }
 
 
-    emulator_config_init();
+    user_config_init();
     parse_skin_files(opts->skindir, opts->skin, opts,
                      &skinConfig, &skinPath);
 
