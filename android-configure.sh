@@ -29,6 +29,8 @@ OPTION_MINGW=no
 HOST_CC=${CC:-gcc}
 OPTION_CC=
 
+TARGET_ARCH=arm
+
 for opt do
   optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'`
   case "$opt" in
@@ -63,6 +65,8 @@ for opt do
   ;;
   --static) OPTION_STATIC=yes
   ;;
+  --arch=*) TARGET_ARCH=$optarg
+  ;;
   *)
     echo "unknown option '$opt', use --help"
     exit 1
@@ -81,6 +85,7 @@ EOF
     echo "  --help                   print this message"
     echo "  --install=FILEPATH       copy emulator executable to FILEPATH [$TARGETS]"
     echo "  --cc=PATH                specify C compiler [$HOST_CC]"
+    echo "  --arch=ARM               specify target architecture [$TARGET_ARCH]"
     echo "  --sdl-config=FILE        use specific sdl-config script [$SDL_CONFIG]"
     echo "  --no-strip               do not strip emulator executable"
     echo "  --debug                  enable debug (-O0 -g) build"
