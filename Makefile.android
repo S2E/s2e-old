@@ -1092,7 +1092,7 @@ include $(CLEAR_VARS)
 LOCAL_GENERATED_SOURCES         :=
 LOCAL_NO_DEFAULT_COMPILER_FLAGS := true
 LOCAL_CC                        := $(MY_CC)
-LOCAL_MODULE                    := qemu-android
+LOCAL_MODULE                    := qemu-android-$(TARGET_ARCH)
 ifeq ($(TARGET_ARCH),arm)
 LOCAL_STATIC_LIBRARIES          := emulator-memcheck emulator-hw emulator-arm emulator-tcg
 endif
@@ -1254,7 +1254,6 @@ ifeq ($(CONFIG_STATIC_EXECUTABLE),true)
     LOCAL_LDLIBS    += -static
 endif
 
-LOCAL_MODULE := qemu-android
 LOCAL_MODULE_TAGS := debug
 
 include $(BUILD_HOST_EXECUTABLE)
