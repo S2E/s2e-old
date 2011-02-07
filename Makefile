@@ -13,6 +13,16 @@
 # limitations under the License.
 #
 
+# disable implicit rules
+.SUFFIXES:
+%:: %,v
+%:: RCS/%
+%:: RCS/%,v
+%:: s.%
+%:: SCCS/s.%
+%.c: %.w %.ch
+
+
 # this is a set of definitions that allow the usage of Makefile.android
 # even if we're not using the Android build system.
 #
@@ -24,7 +34,7 @@ CONFIG_MAKE  := $(OBJS_DIR)/config.make
 CONFIG_H     := $(OBJS_DIR)/config-host.h
 
 ifeq ($(wildcard $(CONFIG_MAKE)),)
-    $(error "The configuration file '$(CONFIG_MAKE)' doesnt' exist, please run the "rebuilt.sh" script)
+    $(error "The configuration file '$(CONFIG_MAKE)' doesnt' exist, please run the "android-configure.sh" script)
 endif
 
 include $(CONFIG_MAKE)
