@@ -40,7 +40,7 @@ asyncReader_read(AsyncReader*  ar,
     }
 
     do {
-        ret = read(io->fd, ar->buffer + ar->pos, ar->buffsize - ar->pos);
+        ret = socket_recv(io->fd, ar->buffer + ar->pos, ar->buffsize - ar->pos);
         if (ret == 0) {
             /* disconnection ! */
             errno = ECONNRESET;
@@ -87,7 +87,7 @@ asyncWriter_write(AsyncWriter* aw,
     }
 
     do {
-        ret = write(io->fd, aw->buffer + aw->pos, aw->buffsize - aw->pos);
+        ret = socket_send(io->fd, aw->buffer + aw->pos, aw->buffsize - aw->pos);
         if (ret == 0) {
             /* disconnection ! */
             errno = ECONNRESET;
@@ -136,7 +136,7 @@ asyncLineReader_read(AsyncLineReader* alr,
 
     do {
         char ch;
-        ret = read(io->fd, &ch, 1);
+        ret = socket_recv(io->fd, &ch, 1);
         if (ret == 0) {
             /* disconnection ! */
             errno = ECONNRESET;
@@ -247,7 +247,7 @@ asyncConnector_run(AsyncConnector* ac, LoopIo* io)
         /* We need to read the socket error to determine if
             * the connection was really succesful or not. This
             * is optional, because in case of error a future
-            * read() or write() will fail anyway, but this
+            * socket_recv() or socket_send() will fail anyway, but this
             * allows us to get a better error value as soon as
             * possible.
             */

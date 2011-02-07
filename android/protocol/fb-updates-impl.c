@@ -113,8 +113,8 @@ _fbUpdatesImpl_io_callback(void* opaque, int fd, unsigned events)
     // Read updates while they are immediately available.
     for (;;) {
         // Read next chunk of data.
-        ret = read(fbi->sock, fbi->reader_buffer + fbi->reader_offset,
-                   fbi->reader_bytes - fbi->reader_offset);
+        ret = socket_recv(fbi->sock, fbi->reader_buffer + fbi->reader_offset,
+                          fbi->reader_bytes - fbi->reader_offset);
         if (ret == 0) {
             /* disconnection ! */
             fbUpdatesImpl_destroy();

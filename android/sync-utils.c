@@ -74,6 +74,7 @@ syncsocket_connect(int fd, SockAddress* sockaddr, int timeout)
             connect_status = iolooper_wait(looper, timeout);
             if (connect_status > 0) {
                 iolooper_del_write(looper, fd);
+                break;
             } else {
                 iolooper_free(looper);
                 return NULL;
@@ -184,7 +185,7 @@ syncsocket_read_absolute(SyncSocket* ssocket,
             return -1;
         }
         do {
-            ret = read(ssocket->fd, buf, size);
+            ret = socket_recv(ssocket->fd, buf, size);
         } while( ret < 0 && errno == EINTR);
     } else if (ret == 0) {
         // Timed out
@@ -229,7 +230,7 @@ syncsocket_write_absolute(SyncSocket* ssocket,
         }
 
         do {
-            ret = write(ssocket->fd, (const char*)buf + written, size - written);
+            ret = socket_send(ssocket->fd, (const char*)buf + written, size - written);
         } while( ret < 0 && errno == EINTR);
 
         if (ret > 0) {

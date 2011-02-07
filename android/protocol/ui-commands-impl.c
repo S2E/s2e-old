@@ -124,8 +124,9 @@ _uiCmdImpl_io_callback(void* opaque, int fd, unsigned events)
     // Read requests while they are immediately available.
     for (;;) {
         // Read next chunk of data.
-        status = read(uicmd->sock, uicmd->reader_buffer + uicmd->reader_offset,
-                      uicmd->reader_bytes - uicmd->reader_offset);
+        status = socket_recv(uicmd->sock,
+                             uicmd->reader_buffer + uicmd->reader_offset,
+                             uicmd->reader_bytes - uicmd->reader_offset);
         if (status == 0) {
             /* Disconnection, meaning that the core process got terminated. */
             fprintf(stderr, "core-ui-control service got disconnected\n");

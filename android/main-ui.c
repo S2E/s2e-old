@@ -502,6 +502,10 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+#ifdef _WIN32
+    socket_init();
+#endif
+
     // Lets see if user just wants to list core process.
     if (opts->list_cores) {
         fprintf(stdout, "Enumerating running core processes.\n");
