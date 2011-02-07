@@ -20,6 +20,11 @@
 #include "dwarf_cu.h"
 #include "dwarf_utils.h"
 
+#include <fcntl.h>
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
 /* Tags to parse when collecting info about routines. */
 static const Dwarf_Tag parse_rt_tags[] = {
   DW_TAG_compile_unit,

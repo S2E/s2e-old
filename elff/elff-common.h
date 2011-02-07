@@ -22,6 +22,7 @@
 #include "assert.h"
 #include "memory.h"
 #include "errno.h"
+#include "stdlib.h"
 #ifdef  WIN32
 #include "windows.h"
 #else   // WIN32
@@ -32,28 +33,6 @@
 
 static inline void _set_errno(uint32_t err) {
     errno = err;
-}
-
-/* Main operator new. We overwrite it to redirect memory
- * allocations to qemu_malloc, instead of malloc. */
-inline void* operator new(size_t size) {
-    return qemu_malloc(size);
-}
-
-/* Main operator delete. We overwrite it to redirect memory
- * deallocation to qemu_free, instead of free. */
-inline void operator delete(void* p) {
-    if (p != NULL) {
-        qemu_free(p);
-    }
-}
-
-/* Main operator delete for arrays. We overwrite it to redirect
- * memory deallocation to qemu_free, instead of free. */
-inline void operator delete[](void* p) {
-    if (p != NULL) {
-        qemu_free(p);
-    }
 }
 
 #endif  // ELFF_ELFF_COMMON_H_

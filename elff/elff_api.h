@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#include "qemu-common.h"
+#include <stdint.h>
 
 /* Defines type for a handle used in ELFF API. */
 typedef void* ELFF_HANDLE;
