@@ -110,6 +110,12 @@ if [ -z "$CC" -a -z "$OPTION_CC" -a "$HOST_OS" = linux -a "$OPTION_TRY_64" != "y
     fi
 fi
 
+echo "OPTION_CC='$OPTION_CC'"
+if [ -n "$OPTION_CC" ]; then
+    echo "Using specified C compiler: $OPTION_CC"
+    CC="$OPTION_CC"
+fi
+
 # we only support generating 32-bit binaris on 64-bit systems.
 # And we may need to add a -Wa,--32 to CFLAGS to let the assembler
 # generate 32-bit binaries on Linux x86_64.
