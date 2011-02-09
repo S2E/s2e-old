@@ -1126,6 +1126,7 @@ int main(int argc, char **argv)
         p = bufprint(p, end, "qemu=1 console=ttyS0" );
 #ifdef TARGET_I386
         p = bufprint(p, end, " androidboot.hardware=goldfish");
+        p = bufprint(p, end, " clocksource=pit");
 #endif
 
         if (opts->shell || opts->logcat) {
