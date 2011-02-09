@@ -923,7 +923,7 @@ static void pc_init1(ram_addr_t ram_size,
     }
 #ifndef CONFIG_ANDROID
     vmport_init();
-#endif
+
     /* allocate RAM */
     ram_addr = qemu_ram_alloc(0xa0000);
     cpu_register_physical_memory(0, 0xa0000, ram_addr);
@@ -937,6 +937,15 @@ static void pc_init1(ram_addr_t ram_size,
     cpu_register_physical_memory(0x100000,
                  below_4g_mem_size - 0x100000,
                  ram_addr);
+#else
+    /*
+     * Allocate a single contiguous RAM so that the goldfish
+     * framebuffer can work well especially when the frame buffer is
+     * large.
+     */
+    ram_addr = qemu_ram_alloc(below_4g_mem_size);
+    cpu_register_physical_memory(0, below_4g_mem_size, ram_addr);
+#endif
 
     /* above 4giga memory allocation */
     if (above_4g_mem_size > 0) {
