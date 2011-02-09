@@ -213,6 +213,7 @@ help_disk_images( stralloc_t*  out )
     datadir );
 }
 
+#ifndef CONFIG_STANDALONE_CORE
 static void
 help_keys(stralloc_t*  out)
 {
@@ -253,7 +254,7 @@ help_keys(stralloc_t*  out)
     PRINTF( "\n" );
     PRINTF( "  note that NumLock must be deactivated for keypad keys to work\n\n" );
 }
-
+#endif /* !CONFIG_STANDALONE_CORE */
 
 static void
 help_environment(stralloc_t*  out)
@@ -285,7 +286,7 @@ help_environment(stralloc_t*  out)
     );
 }
 
-
+#ifndef CONFIG_STANDALONE_CORE
 static void
 help_keyset_file(stralloc_t*  out)
 {
@@ -355,7 +356,7 @@ help_keyset_file(stralloc_t*  out)
     "\n"
     );
 }
-
+#endif /* !CONFIG_STANDALONE_CORE */
 
 static void
 help_debug_tags(stralloc_t*  out)
@@ -1304,6 +1305,7 @@ help_gps(stralloc_t*  out)
 }
 
 
+#ifndef CONFIG_STANDALONE_CORE
 static void
 help_keyset(stralloc_t*  out)
 {
@@ -1343,6 +1345,7 @@ help_keyset(stralloc_t*  out)
     "\n"
     );
 }
+#endif /* !CONFIG_STANDALONE_CORE */
 
 static void
 help_old_system(stralloc_t*  out)
@@ -1494,11 +1497,15 @@ typedef struct {
 
 static const TopicHelp    topic_help[] = {
     { "disk-images",  "about disk images",      help_disk_images },
+#ifndef CONFIG_STANDALONE_CORE
     { "keys",         "supported key bindings", help_keys },
+#endif
     { "debug-tags",   "debug tags for -debug <tags>", help_debug_tags },
     { "char-devices", "character <device> specification", help_char_devices },
     { "environment",  "environment variables",  help_environment },
+#ifndef CONFIG_STANDALONE_CORE
     { "keyset-file",  "key bindings configuration file", help_keyset_file },
+#endif
     { "virtual-device", "virtual device management", help_virtual_device },
     { "sdk-images",   "about disk images when using the SDK", help_sdk_images },
     { "build-images", "about disk images when building Android", help_build_images },

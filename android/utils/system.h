@@ -173,6 +173,12 @@ extern  void   sleep_ms( int  timeout );
 #ifndef PRIx64
 #  define PRIx64  "llx"
 #endif
+#ifndef PRUd64
+#  define PRUd64  "llu"
+#endif
+#ifndef PRUx64
+#  define PRUx64  "llx"
+#endif
 
 /* */
 
