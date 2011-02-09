@@ -81,7 +81,7 @@ int slirp_add_dns_server(const SockAddress*  new_dns_addr)
         return -1;
 
     dns_ip = sock_address_get_ip(new_dns_addr);
-    if (dns_ip < 0)
+    if (dns_ip == -1)
         return -1;
 
     dns_addr[dns_addr_count++] = dns_ip;
