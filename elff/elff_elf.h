@@ -18,9 +18,7 @@
 #ifndef ELFF_ELH_H_
 #define ELFF_ELH_H_
 
-extern "C" {
-#include "qemu-common.h"
-}
+#include <stdint.h>
 #include "elff-common.h"
 
 //=============================================================================

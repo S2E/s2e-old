@@ -17,7 +17,7 @@
 #ifndef ELFF_ELF_DEFS_H_
 #define ELFF_ELF_DEFS_H_
 
-#include "elf.h"
+#include "elff_elf.h"
 
 //=============================================================================
 // Macros.

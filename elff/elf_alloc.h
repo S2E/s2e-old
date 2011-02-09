@@ -18,9 +18,7 @@
 #ifndef ELFF_ELF_ALLOC_H_
 #define ELFF_ELF_ALLOC_H_
 
-extern "C" {
-#include "qemu-common.h"
-}
+#include <stdint.h>
 #include "elff-common.h"
 
 class ElfFile;
@@ -156,5 +154,8 @@ class DwarfAllocBase {
     return NULL;
   }
 };
+
+extern "C" void* elff_alloc(size_t  size);
+extern "C" void  elff_free(void* ptr);
 
 #endif  // ELFF_ELF_ALLOC_H_
