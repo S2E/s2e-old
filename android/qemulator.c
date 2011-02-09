@@ -98,6 +98,8 @@ qemulator_fb_update( void*   _emulator, int  x, int  y, int  w, int  h )
     QEmulator*  emulator = _emulator;
 
     if (!emulator->window) {
+        if (emulator->opts->no_window)
+            return;
         qemulator_setup( emulator );
     }
     skin_window_update_display( emulator->window, x, y, w, h );
