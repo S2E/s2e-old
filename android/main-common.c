@@ -57,14 +57,14 @@
 static AUserConfig*  userConfig;
 
 void
-emulator_config_init( void )
+user_config_init( void )
 {
     userConfig = auserConfig_new( android_avdInfo );
 }
 
 /* only call this function on normal exits, so that ^C doesn't save the configuration */
 void
-emulator_config_done( void )
+user_config_done( void )
 {
     int  win_x, win_y;
 
@@ -79,7 +79,7 @@ emulator_config_done( void )
 }
 
 void
-emulator_config_get_window_pos( int *window_x, int *window_y )
+user_config_get_window_pos( int *window_x, int *window_y )
 {
     *window_x = *window_y = 10;
 
@@ -293,7 +293,7 @@ const char*  skin_network_delay = NULL;
 
 static void sdl_at_exit(void)
 {
-    emulator_config_done();
+    user_config_done();
     qemulator_done(qemulator_get());
     SDL_Quit();
 }
@@ -507,7 +507,7 @@ init_sdl_ui(AConfig*         skinConfig,
     }
     atexit(sdl_at_exit);
 
-    emulator_config_get_window_pos(&win_x, &win_y);
+    user_config_get_window_pos(&win_x, &win_y);
 
     if ( qemulator_init(qemulator_get(), skinConfig, skinPath, win_x, win_y, opts) < 0 ) {
         fprintf(stderr, "### Error: could not load emulator skin from '%s'\n", skinPath);
