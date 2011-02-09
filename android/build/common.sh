@@ -269,7 +269,7 @@ EOF
 
     compile
     if [ $? != 0 ] ; then
-        echo "your C compiler doesn't seem to work:"
+        echo "your C compiler doesn't seem to work: $CC"
         cat $TMPL
         clean_exit
     fi
@@ -534,7 +534,7 @@ create_config_mk ()
         cat $TMPL
         clean_exit
     fi
-    
+
     # re-create the start of the configuration file
     log "Generate   : $config_mk"
 
