@@ -667,7 +667,7 @@ int main(int argc, char **argv)
 
 
     user_config_init();
-    parse_skin_files(opts->skindir, opts->skin, opts,
+    parse_skin_files(opts->skindir, opts->skin, opts, hw,
                      &skinConfig, &skinPath);
 
     if (!opts->netspeed) {

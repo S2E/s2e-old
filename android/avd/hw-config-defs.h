@@ -137,6 +137,27 @@ HWCFG_DISKSIZE(
   "")
 
 HWCFG_INT(
+  hw_lcd_width,
+  "hw.lcd.width",
+  320,
+  "LCD pixel width",
+  "")
+
+HWCFG_INT(
+  hw_lcd_height,
+  "hw.lcd.height",
+  640,
+  "LCD pixel height",
+  "")
+
+HWCFG_INT(
+  hw_lcd_depth,
+  "hw.lcd.depth",
+  16,
+  "LCD color depth",
+  "Must be 16 or 32. Color bit depth of emulated framebuffer.")
+
+HWCFG_INT(
   hw_lcd_density,
   "hw.lcd.density",
   160,

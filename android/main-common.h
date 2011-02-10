@@ -16,6 +16,7 @@
 #include "android/cmdline-option.h"
 #include "android/skin/keyset.h"
 #include "android/config.h"
+#include "android/avd/hw-config.h"
 
 /* Common routines used by both android/main.c and android/main-ui.c */
 
@@ -45,6 +46,7 @@ extern const char*  skin_network_delay;
 void parse_skin_files(const char*      skinDirPath,
                       const char*      skinName,
                       AndroidOptions*  opts,
+                      AndroidHwConfig* hwConfig,
                       AConfig*        *skinConfig,
                       char*           *skinPath);
 

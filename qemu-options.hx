@@ -1631,10 +1631,6 @@ DEF("charmap", HAS_ARG, QEMU_OPTION_charmap, \
     "-charmap <file>"
     " use specific key character map\n")
 
-DEF("android-gui", HAS_ARG, QEMU_OPTION_android_gui, \
-    "-android-gui width=<width>,height=<height>,bpp=<bits per pixel>"
-    " width, height, and bits per pixel for the graphic console\n")
-
 DEF("android-hw", HAS_ARG, QEMU_OPTION_android_hw, \
     "-android-hw <file> read hardware initialization from ini file\n")
 

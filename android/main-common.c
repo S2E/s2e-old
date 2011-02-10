@@ -341,6 +341,7 @@ void
 parse_skin_files(const char*      skinDirPath,
                  const char*      skinName,
                  AndroidOptions*  opts,
+                 AndroidHwConfig* hwConfig,
                  AConfig*        *skinConfig,
                  char*           *skinPath)
 {
@@ -431,6 +432,53 @@ FOUND_SKIN:
     if (n != NULL) {
         skin_network_speed = aconfig_str(n, "speed", 0);
         skin_network_delay = aconfig_str(n, "delay", 0);
+    }
+
+    /* extract framebuffer information from the skin.
+     *
+     * for version 1 of the skin format, they are in the top-level
+     * 'display' element.
+     *
+     * for version 2 of the skin format, they are under parts.device.display
+     */
+    n = aconfig_find(root, "display");
+    if (n == NULL) {
+        n = aconfig_find(root, "parts");
+        if (n != NULL) {
+            n = aconfig_find(root, "device");
+            if (n != NULL) {
+                n = aconfig_find(root, "display");
+            }
+        }
+    }
+
+    if (n != NULL) {
+        int  width  = aconfig_int(n, "width", hwConfig->hw_lcd_width);
+        int  height = aconfig_int(n, "height", hwConfig->hw_lcd_height);
+        int  depth  = aconfig_int(n, "bpp", hwConfig->hw_lcd_depth);
+
+        if (width > 0 && height > 0) {
+            /* The emulated framebuffer wants sizes that are multiples of 4 */
+            if (((width|height) & 3) != 0) {
+                width  = (width+3) & ~3;
+                height = (height+3) & ~3;
+                D("adjusting LCD dimensions to (%dx%dx)", width, height);
+            }
+
+            /* only depth values of 16 and 32 are correct. 16 is the default. */
+            if (depth != 32 && depth != 16) {
+                depth = 16;
+                D("adjusting LCD bit depth to %d", depth);
+            }
+
+            hwConfig->hw_lcd_width  = width;
+            hwConfig->hw_lcd_height = height;
+            hwConfig->hw_lcd_depth  = depth;
+        }
+        else {
+            D("ignoring invalid skin LCD dimensions (%dx%dx%d)",
+              width, height, depth);
+        }
     }
 
     *skinConfig = root;
