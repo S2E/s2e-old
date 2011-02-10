@@ -298,8 +298,6 @@ int main(int argc, char **argv)
     char*       android_build_out  = NULL;
 
     AndroidOptions  opts[1];
-    /* LCD density value to pass to the core. */
-    char lcd_density[16];
     /* net.shared_net_ip boot property value. */
     char boot_prop_ip[64];
     boot_prop_ip[0] = '\0';
@@ -1050,6 +1048,7 @@ int main(int argc, char **argv)
             derror( "physical memory size must be between 32 and 4096 MB" );
             exit(1);
         }
+        hw->hw_ramSize = ramSize;
     }
     if (!opts->memory) {
         int ramSize = hw->hw_ramSize;
@@ -1059,8 +1058,7 @@ int main(int argc, char **argv)
              * size through its hardware.ini (i.e. legacy ones) or when
              * in the full Android build system.
              */
-            int64_t pixels  = get_screen_pixels(skinConfig);
-
+            int64_t pixels  = hw->hw_lcd_width * hw->hw_lcd_height;
             /* The following thresholds are a bit liberal, but we
              * essentially want to ensure the following mappings:
              *
@@ -1078,8 +1076,30 @@ int main(int argc, char **argv)
             else
                 ramSize = 256;
         }
-        bufprint(tmp, tmpend, "%d", ramSize);
-        opts->memory = android_strdup(tmp);
+        hw->hw_ramSize = ramSize;
+    }
+
+    D("Physical RAM size: %dMB\n", hw->hw_ramSize);
+
+    if (hw->vm_heapSize == 0) {
+        /* Compute the default heap size based on the RAM size.
+         * Essentially, we want to ensure the following liberal mappings:
+         *
+         *   96MB RAM -> 16MB heap
+         *  128MB RAM -> 24MB heap
+         *  256MB RAM -> 48MB heap
+         */
+        int  ramSize = hw->hw_ramSize;
+        int  heapSize;
+
+        if (ramSize < 100)
+            heapSize = 16;
+        else if (ramSize < 192)
+            heapSize = 24;
+        else
+            heapSize = 48;
+
+        hw->vm_heapSize = heapSize;
     }
 
     if (opts->trace) {
@@ -1088,11 +1108,6 @@ int main(int argc, char **argv)
         args[n++] = "-tracing";
         args[n++] = "off";
     }
-
-    /* Pass LCD density value to the core. */
-    snprintf(lcd_density, sizeof(lcd_density), "%d", get_device_dpi(opts));
-    args[n++] = "-lcd-density";
-    args[n++] = lcd_density;
 
     /* Pass boot properties to the core. */
     if (opts->prop != NULL) {
@@ -1216,9 +1231,7 @@ int main(int argc, char **argv)
         args[n++] = opts->memcheck;
     }
 
-    /* physical memory */
-    args[n++] = "-m";
-    args[n++] = opts->memory;
+    /* physical memory is now in hw->hw_ramSize */
 
     /* on Linux, the 'dynticks' clock sometimes doesn't work
      * properly. this results in the UI freezing while emulation

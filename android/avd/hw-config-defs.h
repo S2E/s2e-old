@@ -167,7 +167,7 @@ HWCFG_INT(
 HWCFG_INT(
   vm_heapSize,
   "vm.heapSize",
-  16,
+  0,
   "Max VM application heap size",
   "The maximum heap size a Dalvik application might allocate before being killed by the system. Value is in megabytes.")
 

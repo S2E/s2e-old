@@ -4646,11 +4646,10 @@ int main(int argc, char **argv, char **envp)
     }
 
     /* Initialize LCD density */
-    if (android_op_lcd_density) {
-        char*   end;
-        long density = strtol(android_op_lcd_density, &end, 0);
-        if (end == NULL || *end || density < 0) {
-            PANIC("option -lcd-density must be a positive integer");
+    if (android_hw->hw_lcd_density) {
+        long density = android_hw->hw_lcd_density;
+        if (density <= 0) {
+            PANIC("Invalid hw.lcd.density value: %ld", density);
         }
         hwLcd_setBootProperty(density);
     }
@@ -4925,8 +4924,12 @@ int main(int argc, char **argv, char **envp)
         }
 
     /* init the memory */
-    if (ram_size == 0)
-        ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
+    if (ram_size == 0) {
+        ram_size = android_hw->hw_ramSize * 1024LL * 1024;
+        if (ram_size == 0) {
+            ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
+        }
+    }
 
 #ifdef CONFIG_KQEMU
     /* FIXME: This is a nasty hack because kqemu can't cope with dynamic
