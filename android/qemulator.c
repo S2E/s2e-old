@@ -258,7 +258,7 @@ qemulator_set_title(QEmulator* emulator)
  * Helper routines
  */
 
-int
+static int
 get_device_dpi( AndroidOptions*  opts )
 {
     int    dpi_device  = corecmd_get_hw_lcd_density();

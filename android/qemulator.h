@@ -66,8 +66,4 @@ qemulator_get_layout( QEmulator* emulator );
 QFrameBuffer*
 qemulator_get_first_framebuffer(QEmulator* emulator);
 
-/* A helper routine for getting device DPI. */
-int
-get_device_dpi( AndroidOptions*  opts );
-
 #endif  // QEMU_ANDROID_QEMULATOR_H

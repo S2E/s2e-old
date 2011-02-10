@@ -584,22 +584,3 @@ init_sdl_ui(AConfig*         skinConfig,
         qemulator_get()->onion_rotation = rotate;
     }
 }
-
-int64_t  get_screen_pixels(AConfig*  skinConfig)
-{
-    int64_t  pixels = 0;
-    AConfig*  disp;
-
-    if (skinConfig != NULL) {
-        disp = aconfig_find(skinConfig, "display");
-        if (disp != NULL) {
-            int width = aconfig_int(disp, "width", 0);
-            int height = aconfig_int(disp, "height", 0);
-            pixels = (int64_t)width*height;
-        }
-    }
-    if (pixels == 0)
-        pixels = 320*240;
-
-    return pixels;
-}
