@@ -338,9 +338,6 @@ extern char* op_http_proxy;
 // Path to the file containing specific key character map.
 char* op_charmap_file = NULL;
 
-/* Framebuffer dimensions, passed with -android-gui option. */
-char* android_op_gui = NULL;
-
 /* Path to hardware initialization file passed with -android-hw option. */
 char* android_op_hwini = NULL;
 
@@ -507,42 +504,6 @@ static void default_ioport_writel(void *opaque, uint32_t address, uint32_t data)
 #ifdef DEBUG_UNUSED_IOPORT
     fprintf(stderr, "unused outl: port=0x%04x data=0x%02x\n", address, data);
 #endif
-}
-
-/* Parses -android-gui command line option, extracting width, height and bits
- * per pixel parameters for the GUI console used in this session of the
- * emulator. -android-gui option contains exactly three comma-separated positive
- * integer numbers in strict order: width goes first, width goes next, and bits
- * per pixel goes third. This routine verifies that format and return 0 if all
- * three numbers were extracted, or -1 if string format was incorrect for that
- * option. Note that this routine does not verify that extracted values are
- * correct!
- */
-static int
-parse_androig_gui_option(const char* op, int* width, int* height, int* bpp)
-{
-    char val[128];
-
-    if (get_param_value(val, 128, "width", op)) {
-        *width = strtol(val, NULL, 0);
-    } else {
-        fprintf(stderr, "option -android-gui is missing width parameter\n");
-        return -1;
-    }
-    if (get_param_value(val, 128, "height", op)) {
-        *height = strtol(val, NULL, 0);
-    } else {
-        fprintf(stderr, "option -android-gui is missing height parameter\n");
-        return -1;
-    }
-    if (get_param_value(val, 128, "bpp", op)) {
-        *bpp = strtol(val, NULL, 0);
-    } else {
-        fprintf(stderr, "option -android-gui is missing bpp parameter\n");
-        return -1;
-    }
-
-    return 0;
 }
 
 /***********************************************************/
@@ -3706,9 +3667,7 @@ int main(int argc, char **argv, char **envp)
 #endif
     CPUState *env;
     int show_vnc_port = 0;
-#ifdef CONFIG_STANDALONE_CORE
     IniFile*  hw_ini = NULL;
-#endif  // CONFIG_STANDALONE_CORE
     /* Container for the kernel initialization parameters collected in this
      * routine. */
     char kernel_cmdline_append[1024];
@@ -4508,10 +4467,6 @@ int main(int argc, char **argv, char **envp)
                 op_charmap_file = (char*)optarg;
                 break;
 
-            case QEMU_OPTION_android_gui:
-                android_op_gui = (char*)optarg;
-                break;
-
             case QEMU_OPTION_android_hw:
                 android_op_hwini = (char*)optarg;
                 break;
@@ -4608,17 +4563,6 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    /* Parse GUI option early, so when we init framebuffer in goldfish we have
-     * saved display parameters. */
-    if (android_op_gui) {
-        if (parse_androig_gui_option(android_op_gui,
-                                     &android_display_width,
-                                     &android_display_height,
-                                     &android_display_bpp)) {
-            PANIC("Unable to parse -android-gui parameter: %s", android_op_gui);
-        }
-    }
-
     /* Initialize character map. */
     if (android_charmap_setup(op_charmap_file)) {
         if (op_charmap_file) {
@@ -4641,20 +4585,33 @@ int main(int argc, char **argv, char **envp)
         data_dir = CONFIG_QEMU_SHAREDIR;
     }
 
-#ifdef CONFIG_STANDALONE_CORE
-    /* Initialize hardware configuration. */
-    if (android_op_hwini) {
-      hw_ini = iniFile_newFromFile(android_op_hwini);
-      if (hw_ini == NULL) {
-        PANIC("Could not find %s file.", android_op_hwini);
-      }
-    } else {
-      hw_ini = iniFile_newFromMemory("", 0);
+    if (!android_op_hwini) {
+        PANIC("Missing -android-hw <file> option!");
     }
-
+    hw_ini = iniFile_newFromFile(android_op_hwini);
+    if (hw_ini == NULL) {
+        PANIC("Could not find %s file.", android_op_hwini);
+    }
     androidHwConfig_read(android_hw, hw_ini);
     iniFile_free(hw_ini);
-#endif  // CONFIG_STANDALONE_CORE
+
+    {
+        int width  = android_hw->hw_lcd_width;
+        int height = android_hw->hw_lcd_height;
+        int depth  = android_hw->hw_lcd_depth;
+
+        /* A bit of sanity checking */
+        if (width <= 0 || height <= 0    ||
+            (depth != 16 && depth != 32) ||
+            (((width|height) & 3) != 0)  )
+        {
+            PANIC("Invalid display configuration (%d,%d,%d)",
+                  width, height, depth);
+        }
+        android_display_width  = width;
+        android_display_height = height;
+        android_display_bpp    = depth;
+    }
 
 #ifdef CONFIG_NAND_LIMITS
     /* Init nand stuff. */
@@ -5199,16 +5156,11 @@ int main(int argc, char **argv, char **envp)
     /* just use the first displaystate for the moment */
     ds = get_displaystate();
 
-    if (android_op_gui) {
-        /* Initialize display from the command line parameters. */
-        android_display_reset(ds,
-                              android_display_width,
-                              android_display_height,
-                              android_display_bpp);
-    } else {
-        /* By default, use 320x480x16 */
-        android_display_reset(ds, 320, 480, 16);
-    }
+    /* Initialize display from the command line parameters. */
+    android_display_reset(ds,
+                          android_display_width,
+                          android_display_height,
+                          android_display_bpp);
 
     if (display_type == DT_DEFAULT) {
 #if defined(CONFIG_SDL) || defined(CONFIG_COCOA)
