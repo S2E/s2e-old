@@ -93,6 +93,12 @@ AvdInfo*        android_avdInfo;
  */
 #define  SDCARD_PATH     "sdcard.path"
 
+/* the name of the .ini file that will contain the complete hardware
+ * properties for the AVD. This will be used to launch the corresponding
+ * core from the UI.
+ */
+#define  CORE_HARDWARE_INI   "qemu-hardware.ini"
+
 /* certain disk image files are mounted read/write by the emulator
  * to ensure that several emulators referencing the same files
  * do not corrupt these files, we need to lock them and respond
@@ -134,11 +140,12 @@ struct AvdInfo {
     char*     contentPath;
     IniFile*  rootIni;      /* root <foo>.ini file */
     IniFile*  configIni;    /* virtual device's config.ini */
-    IniFile*  hardwareIni;  /* skin-specific hardware.ini */
+    IniFile*  skinHardwareIni;  /* skin-specific hardware.ini */
 
     /* for both */
     char*     skinName;     /* skin name */
     char*     skinDirPath;  /* skin directory */
+    char*     coreHardwareIniPath;  /* core hardware.ini path */
 
     /* image files */
     char*     imagePath [ AVD_IMAGE_MAX ];
@@ -157,6 +164,7 @@ avdInfo_free( AvdInfo*  i )
 
         AFREE(i->skinName);
         AFREE(i->skinDirPath);
+        AFREE(i->coreHardwareIniPath);
 
         for (nn = 0; nn < i->numSearchPaths; nn++)
             AFREE(i->searchPaths[nn]);
@@ -168,9 +176,9 @@ avdInfo_free( AvdInfo*  i )
             i->configIni = NULL;
         }
 
-        if (i->hardwareIni) {
-            iniFile_free(i->hardwareIni);
-            i->hardwareIni = NULL;
+        if (i->skinHardwareIni) {
+            iniFile_free(i->skinHardwareIni);
+            i->skinHardwareIni = NULL;
         }
 
         if (i->rootIni) {
@@ -558,7 +566,7 @@ imageLoader_empty( ImageLoader*  l, unsigned  flags )
 }
 
 
-/* copy image file from a given source 
+/* copy image file from a given source
  * assumes locking is needed.
  */
 static void
@@ -606,7 +614,7 @@ imageLoader_load( ImageLoader*    l,
 
     /* set image state */
     l->pState[0] = (flags & IMAGE_DONT_LOCK) == 0
-                 ? IMAGE_STATE_MUSTLOCK 
+                 ? IMAGE_STATE_MUSTLOCK
                  : IMAGE_STATE_READONLY;
 
     /* check user-provided path */
@@ -651,7 +659,7 @@ imageLoader_load( ImageLoader*    l,
         if (flags & IMAGE_REQUIRED) {
             AvdInfo*  i = l->info;
 
-            derror("could not find required %s image (%s).", 
+            derror("could not find required %s image (%s).",
                    l->imageText, l->imageFile);
 
             if (i->inAndroidBuild) {
@@ -1088,6 +1096,22 @@ _getSDCardPath( AvdInfo*  i, AvdInfoParams*  params )
     params->forcePaths[AVD_IMAGE_SDCARD] = path;
 }
 
+static int
+_getCoreHwIniPath( AvdInfo* i, const char* basePath )
+{
+    char temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+
+    p = bufprint(temp, end, "%s/%s", basePath, CORE_HARDWARE_INI);
+    if (p >= end) {
+        DD("Path too long for %s:", CORE_HARDWARE_INI, basePath);
+        return -1;
+    }
+
+    D("using core hw config path: %s", temp);
+    i->coreHardwareIniPath = ASTRDUP(temp);
+    return 0;
+}
+
 AvdInfo*
 avdInfo_new( const char*  name, AvdInfoParams*  params )
 {
@@ -1107,7 +1131,8 @@ avdInfo_new( const char*  name, AvdInfoParams*  params )
     if ( _getSdkRoot(i)     < 0 ||
          _getRootIni(i)     < 0 ||
          _getContentPath(i) < 0 ||
-         _getConfigIni(i)   < 0 )
+         _getConfigIni(i)   < 0 ||
+         _getCoreHwIniPath(i, i->contentPath) < 0 )
         goto FAIL;
 
     /* look for image search paths. handle post 1.1/pre cupcake
@@ -1280,7 +1305,7 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 
         /* if the user provided one cache image, lock & use it */
         if ( params->forcePaths[l->id] != NULL ) {
-            imageLoader_load(l, IMAGE_REQUIRED | 
+            imageLoader_load(l, IMAGE_REQUIRED |
                                 IMAGE_IGNORE_IF_LOCKED);
         }
     }
@@ -1373,7 +1398,7 @@ _getBuildSkin( AvdInfo*  i, AvdInfoParams*  params )
 
 /* Read a hardware.ini if it is located in the skin directory */
 static int
-_getBuildHardwareIni( AvdInfo*  i )
+_getBuildSkinHardwareIni( AvdInfo*  i )
 {
     char  temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
 
@@ -1387,13 +1412,12 @@ _getBuildHardwareIni( AvdInfo*  i )
     }
 
     D("found skin-specific hardware.ini: %s", temp);
-    i->hardwareIni = iniFile_newFromFile(temp);
-    if (i->hardwareIni == NULL)
+    i->skinHardwareIni = iniFile_newFromFile(temp);
+    if (i->skinHardwareIni == NULL)
         return -1;
 
     return 0;
 }
-
 
 AvdInfo*
 avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
@@ -1413,12 +1437,13 @@ avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
     i->deviceName = ASTRDUP("<build>");
 
     if (_getBuildConfigIni(i)          < 0 ||
-        _getBuildImagePaths(i, params) < 0 )
+        _getBuildImagePaths(i, params) < 0 ||
+        _getCoreHwIniPath(i, i->androidOut) < 0 )
         goto FAIL;
 
     /* we don't need to fail if there is no valid skin */
     _getBuildSkin(i, params);
-    _getBuildHardwareIni(i);
+    _getBuildSkinHardwareIni(i);
 
     return i;
 
@@ -1492,8 +1517,8 @@ avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw )
     if (ini != i->configIni)
         iniFile_free(ini);
 
-    if (ret == 0 && i->hardwareIni != NULL) {
-        ret = androidHwConfig_read(hw, i->hardwareIni);
+    if (ret == 0 && i->skinHardwareIni != NULL) {
+        ret = androidHwConfig_read(hw, i->skinHardwareIni);
     }
 
     /* special product-specific hardware configuration */
@@ -1538,4 +1563,10 @@ avdInfo_getTracePath( AvdInfo*  i, const char*  traceName )
                       i->contentPath, traceName );
     }
     return ASTRDUP(tmp);
+}
+
+const char*
+avdInfo_getCoreHwIniPath( AvdInfo* i )
+{
+    return i->coreHardwareIniPath;
 }

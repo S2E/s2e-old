@@ -183,6 +183,12 @@ int          avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw );
 /* Returns a *copy* of the path used to store trace 'foo'. result must be freed by caller */
 char*        avdInfo_getTracePath( AvdInfo*  i, const char*  traceName );
 
+/* Returns the path of the hardware.ini where we will write the AVD's
+ * complete hardware configuration before launching the corresponding
+ * core.
+ */
+const char*  avdInfo_getCoreHwIniPath( AvdInfo* i );
+
 /* */
 
 #endif /* ANDROID_AVD_INFO_H */
