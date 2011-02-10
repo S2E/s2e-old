@@ -46,6 +46,13 @@ HWCFG_BOOL(
   "Whether the device has a QWERTY keyboard.")
 
 HWCFG_BOOL(
+  hw_keyboard_lid,
+  "hw.keyboard.lid",
+  "yes",
+  "Keyboard lid support",
+  "Whether the QWERTY keyboard can be opened/closed.")
+
+HWCFG_BOOL(
   hw_dPad,
   "hw.dPad",
   "yes",

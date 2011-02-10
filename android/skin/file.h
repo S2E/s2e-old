@@ -99,6 +99,7 @@ extern SkinDisplay*   skin_layout_get_display( SkinLayout*  layout );
 extern SkinRotation   skin_layout_get_dpad_rotation( SkinLayout*  layout );
 
 typedef struct SkinFile {
+    int             version;  /* 1, 2 or 3 */
     SkinPart*       parts;
     SkinLayout*     layouts;
     int             num_parts;
