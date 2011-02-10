@@ -4,10 +4,7 @@
 
 #include "qemu-common.h"
 #include "irq.h"
-
-#if defined(TARGET_PHYS_ADDRESS_SPACE_BITS) && !defined(NEED_CPU_H)
 #include "cpu.h"
-#endif
 
 /* VM Load/Save */
 

@@ -19,16 +19,8 @@
 #include <process.h>
 #endif
 
-#ifndef CONFIG_STANDALONE_CORE
 #include <SDL.h>
 #include <SDL_syswm.h>
-#include "android/qemulator.h"
-#include "android/skin/image.h"
-#include "android/skin/trackball.h"
-#include "android/skin/keyboard.h"
-#include "android/skin/file.h"
-#include "android/skin/window.h"
-#endif
 
 #include "console.h"
 
@@ -39,7 +31,13 @@
 #include "android/globals.h"
 #include "android/resource.h"
 #include "android/user-config.h"
+#include "android/qemulator.h"
 #include "android/display.h"
+#include "android/skin/image.h"
+#include "android/skin/trackball.h"
+#include "android/skin/keyboard.h"
+#include "android/skin/file.h"
+#include "android/skin/window.h"
 
 
 
@@ -56,20 +54,6 @@
 /***  CONFIGURATION
  ***/
 
-#ifdef CONFIG_STANDALONE_CORE
-
-void
-user_config_init( void )
-{
-}
-
-/* only call this function on normal exits, so that ^C doesn't save the configuration */
-void
-user_config_done( void )
-{
-}
-
-#else /* !CONFIG_STANDALONE_CORE */
 static AUserConfig*  userConfig;
 
 void
@@ -102,7 +86,6 @@ user_config_get_window_pos( int *window_x, int *window_y )
     if (userConfig)
         auserConfig_getWindowPos(userConfig, window_x, window_y);
 }
-#endif /* !CONFIG_STANDALONE_CORE */
 
 unsigned convertBytesToMB( uint64_t  size )
 {
@@ -122,7 +105,6 @@ uint64_t convertMBToBytes( unsigned  megaBytes )
 }
 
 
-#ifndef CONFIG_STANDALONE_CORE
 /***********************************************************************/
 /***********************************************************************/
 /*****                                                             *****/
@@ -217,7 +199,7 @@ write_default_keyset( void )
     }
 }
 
-#endif /* !CONFIG_STANDALONE_CORE */
+
 
 /***********************************************************************/
 /***********************************************************************/
@@ -226,8 +208,6 @@ write_default_keyset( void )
 /*****                                                             *****/
 /***********************************************************************/
 /***********************************************************************/
-
-#ifndef CONFIG_STANDALONE_CORE
 
 void *readpng(const unsigned char*  base, size_t  size, unsigned *_width, unsigned *_height);
 
@@ -289,19 +269,15 @@ sdl_set_window_icon( void )
             }
         }
 
-#ifndef CONFIG_STANDALONE_CORE
         SDL_Surface* icon = sdl_surface_from_argb32( icon_pixels, icon_w, icon_h );
         if (icon != NULL) {
             SDL_WM_SetIcon(icon, NULL);
             SDL_FreeSurface(icon);
             free( icon_pixels );
         }
-#endif
-
 #endif  /* !_WIN32 */
     }
 }
-#endif /* !CONFIG_STANDALONE_CORE */
 
 /***********************************************************************/
 /***********************************************************************/
@@ -314,7 +290,7 @@ sdl_set_window_icon( void )
 const char*  skin_network_speed = NULL;
 const char*  skin_network_delay = NULL;
 
-#ifndef CONFIG_STANDALONE_CORE
+
 static void sdl_at_exit(void)
 {
     user_config_done();
@@ -343,7 +319,6 @@ void sdl_display_init(DisplayState *ds, int full_screen, int  no_frame)
     android_display_init(ds, qframebuffer_fifo_get());
 #endif
 }
-#endif
 
 /* list of skin aliases */
 static const struct {
@@ -487,26 +462,6 @@ DEFAULT_SKIN:
 }
 
 
-#ifdef CONFIG_STANDALONE_CORE
-void
-init_sdl_ui(AConfig*         skinConfig,
-            const char*      skinPath,
-            AndroidOptions*  opts)
-{
-    signal(SIGINT, SIG_DFL);
-#ifndef _WIN32
-    signal(SIGQUIT, SIG_DFL);
-   /* prevent SIGTTIN and SIGTTOUT from stopping us. this is necessary to be
-    * able to run the emulator in the background (e.g. "emulator &").
-    * despite the fact that the emulator should not grab input or try to
-    * write to the output in normal cases, we're stopped on some systems
-    * (e.g. OS X)
-    */
-    signal(SIGTTIN, SIG_IGN);
-    signal(SIGTTOU, SIG_IGN);
-#endif
-}
-#else /* !CONFIG_STANDALONE_CORE */
 void
 init_sdl_ui(AConfig*         skinConfig,
             const char*      skinPath,
@@ -581,7 +536,6 @@ init_sdl_ui(AConfig*         skinConfig,
         qemulator_get()->onion_rotation = rotate;
     }
 }
-#endif /* !CONFIG_STANDALONE_CORE */
 
 int64_t  get_screen_pixels(AConfig*  skinConfig)
 {

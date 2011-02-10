@@ -26,11 +26,8 @@
 #include "console.h"
 #include "user-events.h"
 
-#ifndef CONFIG_STANDALONE_CORE
 #include <SDL.h>
 #include <SDL_syswm.h>
-#include "android/qemulator.h"
-#endif
 
 #include "math.h"
 
@@ -51,6 +48,7 @@
 
 #include "android/globals.h"
 
+#include "android/qemulator.h"
 #include "android/display.h"
 
 #include "android/snapshot.h"
@@ -262,7 +260,7 @@ _adjustPartitionSize( const char*  description,
     if (imageMB > defaultMB) {
         snprintf(temp, sizeof temp, "(%d MB > %d MB)", imageMB, defaultMB);
     } else {
-        snprintf(temp, sizeof temp, "(%" PRUd64" bytes > %" PRUd64" bytes)", imageBytes, defaultBytes);
+        snprintf(temp, sizeof temp, "(%lld bytes > %lld bytes)", imageBytes, defaultBytes);
     }
 
     if (inAndroidBuild) {
@@ -605,7 +603,6 @@ int main(int argc, char **argv)
         android_avdInfo = avdInfo_newForAndroidBuild(
                             android_build_root,
                             android_build_out,
-                            TARGET_ARCH,
                             android_avdParams );
 
         if(android_avdInfo == NULL) {
@@ -634,7 +631,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-#ifndef CONFIG_STANDALONE_CORE
     if (opts->keyset) {
         parse_keyset(opts->keyset, opts);
         if (!android_keyset) {
@@ -657,7 +653,6 @@ int main(int argc, char **argv)
                 write_default_keyset();
         }
     }
-#endif /* !CONFIG_STANDALONE_CORE */
 
     if (opts->shared_net_id) {
         char*  end;
@@ -1095,7 +1090,7 @@ int main(int argc, char **argv)
     }
 
     /* Pass LCD density value to the core. */
-    snprintf(lcd_density, sizeof(lcd_density), "%d", hw->hw_lcd_density);
+    snprintf(lcd_density, sizeof(lcd_density), "%d", get_device_dpi(opts));
     args[n++] = "-lcd-density";
     args[n++] = lcd_density;
 

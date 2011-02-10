@@ -812,7 +812,6 @@ int main(int argc, char **argv)
         android_avdInfo = avdInfo_newForAndroidBuild(
                             android_build_root,
                             android_build_out,
-                            "arm",
                             android_avdParams );
 
         if(android_avdInfo == NULL) {

@@ -131,9 +131,7 @@ OPT_FLAG( version, "display emulator version number" )
 
 OPT_PARAM( report_console, "<socket>", "report console port to remote socket" )
 OPT_PARAM( gps, "<device>", "redirect NMEA GPS to character device" )
-#ifndef CONFIG_STANDALONE_CORE
 OPT_PARAM( keyset, "<name>", "specify keyset file name" )
-#endif
 OPT_PARAM( shell_serial, "<device>", "specific character device for root shell" )
 OPT_FLAG ( old_system, "support old (pre 1.4) system images" )
 OPT_PARAM( tcpdump, "<file>", "capture network packets to file" )
