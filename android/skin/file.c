@@ -609,6 +609,7 @@ skin_file_load_from_v1( SkinFile*  file, AConfig*  aconfig, const char*  basepat
         *ptail = layout;
         ptail  = &layout->next;
     }
+    file->version = 1;
     return 0;
 }
 
@@ -662,6 +663,7 @@ skin_file_load_from_v2( SkinFile*  file, AConfig*  aconfig, const char*  basepat
     if (file->layouts == NULL)
         return -1;
 
+    file->version = 2;
     return 0;
 }
 
@@ -671,19 +673,29 @@ skin_file_create_from_aconfig( AConfig*   aconfig, const char*  basepath )
     SkinFile*  file;
 
     ANEW0(file);
+
     if ( aconfig_find(aconfig, "parts") != NULL) {
         if (skin_file_load_from_v2( file, aconfig, basepath ) < 0) {
-            skin_file_free( file );
-            file = NULL;
+            goto BAD_FILE;
+        }
+        file->version = aconfig_int(aconfig, "version", 2);
+        /* The file version must be 1 or higher */
+        if (file->version <= 0) {
+            dprint( "## WARNING: invalid skin version: %d", file->version);
+            goto BAD_FILE;
         }
     }
     else {
         if (skin_file_load_from_v1( file, aconfig, basepath ) < 0) {
-            skin_file_free( file );
-            file = NULL;
+            goto BAD_FILE;
         }
+        file->version = 1;
     }
     return file;
+
+BAD_FILE:
+    skin_file_free( file );
+    return NULL;
 }
 
 void

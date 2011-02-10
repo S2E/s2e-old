@@ -48,9 +48,10 @@ int       iniFile_getPairCount( IniFile*  f );
  */
 const char*  iniFile_getValue( IniFile*  f, const char*  key );
 
-/* returns a copy of the value of a given key, or NULL
+/* returns a copy of the value of a given key, or NULL if defaultValue is NULL.
+ * caller must free() it.
  */
-char*   iniFile_getString( IniFile*  f, const char*  key );
+char*   iniFile_getString( IniFile*  f, const char*  key, const char* defaultValue );
 
 /* returns an integer value, or a default in case the value string is
  * missing or badly formatted
@@ -66,10 +67,6 @@ int64_t iniFile_getInt64( IniFile*  f, const char*  key, int64_t  defaultValue )
  * missing or badly formatted
  */
 double  iniFile_getDouble( IniFile*  f, const char*  key, double  defaultValue );
-
-/* returns a copy of a given key's value, if any, or NULL if it is missing
- * caller must call free() to release it */
-char*   iniFile_getString( IniFile*  f, const char*  key );
 
 /* parses a key value as a boolean. Accepted values are "1", "0", "yes", "YES",
  * "no" and "NO". Returns either 1 or 0.
