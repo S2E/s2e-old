@@ -1259,21 +1259,15 @@ int main(int argc, char **argv)
      * launch the core with the -android-hw <file> option.
      */
     {
-        TempFile*  tempHw = tempfile_create();
-        if (tempHw == NULL) {
-            derror("Could not create temporary hardware.ini: %s", strerror(errno));
-            exit(2);
-        }
-
-        const char* tempHwPath = tempfile_path(tempHw);
-        IniFile*    hwIni      = iniFile_newFromMemory("", NULL);
+        const char* coreHwIniPath = avdInfo_getCoreHwIniPath(avd);
+        IniFile*    hwIni         = iniFile_newFromMemory("", NULL);
         androidHwConfig_write(hw, hwIni);
-        if (iniFile_saveToFile(hwIni, tempHwPath) < 0) {
-            derror("Could not write temporary hardware.ini: %s", tempHwPath);
+        if (iniFile_saveToFile(hwIni, coreHwIniPath) < 0) {
+            derror("Could not write hardware.ini to %s: %s", coreHwIniPath, strerror(errno));
             exit(2);
         }
         args[n++] = "-android-hw";
-        args[n++] = strdup(tempHwPath);
+        args[n++] = strdup(coreHwIniPath);
     }
 
     if(VERBOSE_CHECK(init)) {
