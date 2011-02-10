@@ -268,7 +268,7 @@ _getSearchPaths( AvdInfo*  i )
         if (p >= end)
             continue;
 
-        path = iniFile_getString( i->configIni, temp );
+        path = iniFile_getString( i->configIni, temp, NULL );
         if (path != NULL) {
             DD("    found image search path: %s", path);
             if (!path_is_absolute(path)) {
@@ -331,7 +331,7 @@ _getRootIni( AvdInfo*  i )
 static int
 _getContentPath( AvdInfo*  i )
 {
-    i->contentPath = iniFile_getString(i->rootIni, ROOT_PATH_KEY);
+    i->contentPath = iniFile_getString(i->rootIni, ROOT_PATH_KEY, NULL);
 
     if (i->contentPath == NULL) {
         derror("bad config: %s",
@@ -986,7 +986,7 @@ _getSkin( AvdInfo*  i, AvdInfoParams*  params )
     if (params->skinName) {
         skinName = ASTRDUP(params->skinName);
     } else {
-        skinName = iniFile_getString( i->configIni, SKIN_PATH );
+        skinName = iniFile_getString( i->configIni, SKIN_PATH, NULL );
         explicitSkin = 0;
     }
 
@@ -1089,7 +1089,7 @@ _getSDCardPath( AvdInfo*  i, AvdInfoParams*  params )
     if (params->forcePaths[AVD_IMAGE_SDCARD] != NULL)
         return;
 
-    path = iniFile_getString(i->configIni, SDCARD_PATH);
+    path = iniFile_getString(i->configIni, SDCARD_PATH, NULL);
     if (path == NULL)
         return;
 

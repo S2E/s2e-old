@@ -326,12 +326,15 @@ iniFile_saveToFile( IniFile*  f, const char*  filepath )
 }
 
 char*
-iniFile_getString( IniFile*  f, const char*  key )
+iniFile_getString( IniFile*  f, const char*  key, const char* defaultValue )
 {
     const char*  val = iniFile_getValue(f, key);
 
-    if (!val)
-        return NULL;
+    if (!val) {
+        if (!defaultValue)
+            return NULL;
+        val= defaultValue;
+    }
 
     return ASTRDUP(val);
 }
