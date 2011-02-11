@@ -211,7 +211,7 @@ static x86_def_t x86_defs[] = {
         .model = 3,
         .stepping = 3,
         .features = PPRO_FEATURES,
-        .ext_features = CPUID_EXT_SSE3,
+        .ext_features = CPUID_EXT_SSE3 | CPUID_EXT_SSSE3,
         .xlevel = 0,
         .model_id = "QEMU Virtual CPU version " QEMU_VERSION,
     },
