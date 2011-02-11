@@ -38,7 +38,6 @@
 
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
-#include "android/utils/dirscanner.h"
 #include "android/utils/path.h"
 #include "android/utils/tempfile.h"
 
@@ -117,159 +116,6 @@ void emulator_help( void )
     exit(1);
 }
 
-/* this function is used to perform auto-detection of the
- * system directory in the case of a SDK installation.
- *
- * we want to deal with several historical usages, hence
- * the slightly complicated logic.
- *
- * NOTE: the function returns the path to the directory
- *       containing 'fileName'. this is *not* the full
- *       path to 'fileName'.
- */
-static char*
-_getSdkImagePath( const char*  fileName )
-{
-    char   temp[MAX_PATH];
-    char*  p   = temp;
-    char*  end = p + sizeof(temp);
-    char*  q;
-    char*  app;
-
-    static const char* const  searchPaths[] = {
-        "",                                  /* program's directory */
-        "/lib/images",                       /* this is for SDK 1.0 */
-        "/../platforms/android-1.1/images",  /* this is for SDK 1.1 */
-        NULL
-    };
-
-    app = bufprint_app_dir(temp, end);
-    if (app >= end)
-        return NULL;
-
-    do {
-        int  nn;
-
-        /* first search a few well-known paths */
-        for (nn = 0; searchPaths[nn] != NULL; nn++) {
-            p = bufprint(app, end, "%s", searchPaths[nn]);
-            q = bufprint(p, end, "/%s", fileName);
-            if (q < end && path_exists(temp)) {
-                *p = 0;
-                goto FOUND_IT;
-            }
-        }
-
-        /* hmmm. let's assume that we are in a post-1.1 SDK
-         * scan ../platforms if it exists
-         */
-        p = bufprint(app, end, "/../platforms");
-        if (p < end) {
-            DirScanner*  scanner = dirScanner_new(temp);
-            if (scanner != NULL) {
-                int          found = 0;
-                const char*  subdir;
-
-                for (;;) {
-                    subdir = dirScanner_next(scanner);
-                    if (!subdir) break;
-
-                    q = bufprint(p, end, "/%s/images/%s", subdir, fileName);
-                    if (q >= end || !path_exists(temp))
-                        continue;
-
-                    found = 1;
-                    p = bufprint(p, end, "/%s/images", subdir);
-                    break;
-                }
-                dirScanner_free(scanner);
-                if (found)
-                    break;
-            }
-        }
-
-        /* I'm out of ideas */
-        return NULL;
-
-    } while (0);
-
-FOUND_IT:
-    //D("image auto-detection: %s/%s", temp, fileName);
-    return android_strdup(temp);
-}
-
-static char*
-_getSdkImage( const char*  path, const char*  file )
-{
-    char  temp[MAX_PATH];
-    char  *p = temp, *end = p + sizeof(temp);
-
-    p = bufprint(temp, end, "%s/%s", path, file);
-    if (p >= end || !path_exists(temp))
-        return NULL;
-
-    return android_strdup(temp);
-}
-
-static char*
-_getSdkSystemImage( const char*  path, const char*  optionName, const char*  file )
-{
-    char*  image = _getSdkImage(path, file);
-
-    if (image == NULL) {
-        derror("Your system directory is missing the '%s' image file.\n"
-               "Please specify one with the '%s <filepath>' option",
-               file, optionName);
-        exit(2);
-    }
-    return image;
-}
-
-static void
-_forceAvdImagePath( AvdImageType  imageType,
-                   const char*   path,
-                   const char*   description,
-                   int           required )
-{
-    if (path == NULL)
-        return;
-
-    if (required && !path_exists(path)) {
-        derror("Cannot find %s image file: %s", description, path);
-        exit(1);
-    }
-    android_avdParams->forcePaths[imageType] = path;
-}
-
-static uint64_t
-_adjustPartitionSize( const char*  description,
-                      uint64_t     imageBytes,
-                      uint64_t     defaultBytes,
-                      int          inAndroidBuild )
-{
-    char      temp[64];
-    unsigned  imageMB;
-    unsigned  defaultMB;
-
-    if (imageBytes <= defaultBytes)
-        return defaultBytes;
-
-    imageMB   = convertBytesToMB(imageBytes);
-    defaultMB = convertBytesToMB(defaultBytes);
-
-    if (imageMB > defaultMB) {
-        snprintf(temp, sizeof temp, "(%d MB > %d MB)", imageMB, defaultMB);
-    } else {
-        snprintf(temp, sizeof temp, "(%lld bytes > %lld bytes)", imageBytes, defaultBytes);
-    }
-
-    if (inAndroidBuild) {
-        dwarning("%s partition size adjusted to match image file %s\n", description, temp);
-    }
-
-    return convertMBToBytes(imageMB);
-}
-
 int main(int argc, char **argv)
 {
     char   tmp[MAX_PATH];
@@ -284,18 +130,12 @@ int main(int argc, char **argv)
     int    qemud_serial = 0;
     int    shell_serial = 0;
     unsigned  cachePartitionSize = 0;
-    unsigned  systemPartitionSize = 0;
-    unsigned  dataPartitionSize = 0;
-    unsigned  defaultPartitionSize = convertMBToBytes(66);
 
     AndroidHwConfig*  hw;
     AvdInfo*          avd;
     AConfig*          skinConfig;
     char*             skinPath;
-
-    //const char *appdir = get_app_dir();
-    char*       android_build_root = NULL;
-    char*       android_build_out  = NULL;
+    int               inAndroidBuild;
 
     AndroidOptions  opts[1];
     /* net.shared_net_ip boot property value. */
@@ -380,38 +220,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    /* legacy support: we used to use -system <dir> and -image <file>
-     * instead of -sysdir <dir> and -system <file>, so handle this by checking
-     * whether the options point to directories or files.
-     */
-    if (opts->image != NULL) {
-        if (opts->system != NULL) {
-            if (opts->sysdir != NULL) {
-                derror( "You can't use -sysdir, -system and -image at the same time.\n"
-                        "You should probably use '-sysdir <path> -system <file>'.\n" );
-                exit(2);
-            }
-        }
-        dwarning( "Please note that -image is obsolete and that -system is now used to point\n"
-                  "to the system image. Next time, try using '-sysdir <path> -system <file>' instead.\n" );
-        opts->sysdir = opts->system;
-        opts->system = opts->image;
-        opts->image  = NULL;
-    }
-    else if (opts->system != NULL && path_is_dir(opts->system)) {
-        if (opts->sysdir != NULL) {
-            derror( "Option -system should now be followed by a file path, not a directory one.\n"
-                    "Please use '-sysdir <path>' to point to the system directory.\n" );
-            exit(1);
-        }
-        dwarning( "Please note that the -system option should now be used to point to the initial\n"
-                  "system image (like the obsolete -image option). To point to the system directory\n"
-                  "please now use '-sysdir <path>' instead.\n" );
-
-        opts->sysdir = opts->system;
-        opts->system = NULL;
-    }
-
     if (opts->nojni)
         opts->no_jni = opts->nojni;
 
@@ -424,192 +232,8 @@ int main(int argc, char **argv)
     if (opts->noskin)
         opts->no_skin = opts->noskin;
 
-    /* If no AVD name was given, try to find the top of the
-     * Android build tree
-     */
-    if (opts->avd == NULL) {
-        do {
-            char*  out = getenv("ANDROID_PRODUCT_OUT");
-
-            if (out == NULL || out[0] == 0)
-                break;
-
-            if (!path_exists(out)) {
-                derror("Can't access ANDROID_PRODUCT_OUT as '%s'\n"
-                    "You need to build the Android system before launching the emulator",
-                    out);
-                exit(2);
-            }
-
-            android_build_root = path_parent( out, 4 );
-            if (android_build_root == NULL || !path_exists(android_build_root)) {
-                derror("Can't find the Android build root from '%s'\n"
-                    "Please check the definition of the ANDROID_PRODUCT_OUT variable.\n"
-                    "It should point to your product-specific build output directory.\n",
-                    out );
-                exit(2);
-            }
-            android_build_out = out;
-            D( "found Android build root: %s", android_build_root );
-            D( "found Android build out:  %s", android_build_out );
-        } while (0);
-    }
-    /* if no virtual device name is given, and we're not in the
-     * Android build system, we'll need to perform some auto-detection
-     * magic :-)
-     */
-    if (opts->avd == NULL && !android_build_out)
-    {
-        char   dataDirIsSystem = 0;
-
-        if (!opts->sysdir) {
-            opts->sysdir = _getSdkImagePath("system.img");
-            if (!opts->sysdir) {
-                derror(
-                "You did not specify a virtual device name, and the system\n"
-                "directory could not be found.\n\n"
-                "If you are an Android SDK user, please use '@<name>' or '-avd <name>'\n"
-                "to start a given virtual device (see -help-avd for details).\n\n"
-
-                "Otherwise, follow the instructions in -help-disk-images to start the emulator\n"
-                );
-                exit(2);
-            }
-            D("autoconfig: -sysdir %s", opts->sysdir);
-        }
-
-        if (!opts->system) {
-            opts->system = _getSdkSystemImage(opts->sysdir, "-image", "system.img");
-            D("autoconfig: -image %s", opts->image);
-        }
-
-        if (!opts->kernel) {
-            opts->kernel = _getSdkSystemImage(opts->sysdir, "-kernel", "kernel-qemu");
-            D("autoconfig: -kernel %s", opts->kernel);
-        }
-
-        if (!opts->ramdisk) {
-            opts->ramdisk = _getSdkSystemImage(opts->sysdir, "-ramdisk", "ramdisk.img");
-            D("autoconfig: -ramdisk %s", opts->ramdisk);
-        }
-
-        /* if no data directory is specified, use the system directory */
-        if (!opts->datadir) {
-            opts->datadir   = android_strdup(opts->sysdir);
-            dataDirIsSystem = 1;
-            D("autoconfig: -datadir %s", opts->sysdir);
-        }
-
-        if (!opts->data) {
-            /* check for userdata-qemu.img in the data directory */
-            bufprint(tmp, tmpend, "%s/userdata-qemu.img", opts->datadir);
-            if (!path_exists(tmp)) {
-                derror(
-                "You did not provide the name of an Android Virtual Device\n"
-                "with the '-avd <name>' option. Read -help-avd for more information.\n\n"
-
-                "If you *really* want to *NOT* run an AVD, consider using '-data <file>'\n"
-                "to specify a data partition image file (I hope you know what you're doing).\n"
-                );
-                exit(2);
-            }
-
-            opts->data = android_strdup(tmp);
-            D("autoconfig: -data %s", opts->data);
-        }
-
-        if (!opts->sdcard && opts->datadir) {
-            bufprint(tmp, tmpend, "%s/sdcard.img", opts->datadir);
-            if (path_exists(tmp)) {
-                opts->sdcard = android_strdup(tmp);
-                D("autoconfig: -sdcard %s", opts->sdcard);
-            }
-        }
-
-#if CONFIG_ANDROID_SNAPSHOTS
-        if (!opts->snapstorage && opts->datadir) {
-            bufprint(tmp, tmpend, "%s/snapshots.img", opts->datadir);
-            if (path_exists(tmp)) {
-                opts->snapstorage = android_strdup(tmp);
-                D("autoconfig: -snapstorage %s", opts->snapstorage);
-            }
-        }
-#endif // CONFIG_ANDROID_SNAPSHOTS
-    }
-
-    /* setup the virtual device parameters from our options
-     */
-    if (opts->no_cache) {
-        android_avdParams->flags |= AVDINFO_NO_CACHE;
-    }
-    if (opts->wipe_data) {
-        android_avdParams->flags |= AVDINFO_WIPE_DATA | AVDINFO_WIPE_CACHE;
-    }
-#if CONFIG_ANDROID_SNAPSHOTS
-    if (opts->no_snapstorage) {
-        android_avdParams->flags |= AVDINFO_NO_SNAPSHOTS;
-    }
-#endif
-
-    /* if certain options are set, we can force the path of
-        * certain kernel/disk image files
-        */
-    _forceAvdImagePath(AVD_IMAGE_KERNEL,     opts->kernel,      "kernel", 1);
-    _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system,      "system", 1);
-    _forceAvdImagePath(AVD_IMAGE_RAMDISK,    opts->ramdisk,     "ramdisk", 1);
-    _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,        "user data", 0);
-    _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,       "cache", 0);
-    _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard,      "SD Card", 0);
-#if CONFIG_ANDROID_SNAPSHOTS
-    _forceAvdImagePath(AVD_IMAGE_SNAPSHOTS,  opts->snapstorage, "snapshots", 0);
-#endif
-
-    /* we don't accept -skindir without -skin now
-     * to simplify the autoconfig stuff with virtual devices
-     */
-    if (opts->no_skin) {
-        opts->skin    = "320x480";
-        opts->skindir = NULL;
-    }
-
-    if (opts->skindir) {
-        if (!opts->skin) {
-            derror( "the -skindir <path> option requires a -skin <name> option");
-            exit(1);
-        }
-    }
-    android_avdParams->skinName     = opts->skin;
-    android_avdParams->skinRootPath = opts->skindir;
-
-    /* setup the virtual device differently depending on whether
-     * we are in the Android build system or not
-     */
-    if (opts->avd != NULL)
-    {
-        android_avdInfo = avdInfo_new( opts->avd, android_avdParams );
-        if (android_avdInfo == NULL) {
-            /* an error message has already been printed */
-            dprint("could not find virtual device named '%s'", opts->avd);
-            exit(1);
-        }
-    }
-    else
-    {
-        if (!android_build_out) {
-            android_build_out = android_build_root = opts->sysdir;
-        }
-        android_avdInfo = avdInfo_newForAndroidBuild(
-                            android_build_root,
-                            android_build_out,
-                            android_avdParams );
-
-        if(android_avdInfo == NULL) {
-            D("could not start virtual device\n");
-            exit(1);
-        }
-    }
-
-    avd = android_avdInfo;
+    /* Parses options and builds an appropriate AVD. */
+    avd = android_avdInfo = createAVD(opts, &inAndroidBuild) ;
 
     /* get the skin from the virtual device configuration */
     opts->skin    = (char*) avdInfo_getSkinName( avd );
@@ -628,6 +252,9 @@ int main(int argc, char **argv)
         derror("could not read hardware configuration ?");
         exit(1);
     }
+
+    /* Update HW config with the AVD information. */
+    updateHwConfigFromAVD(hw, avd, opts, inAndroidBuild);
 
     if (opts->keyset) {
         parse_keyset(opts->keyset, opts);
@@ -783,79 +410,16 @@ int main(int argc, char **argv)
     args[n++] = "-initrd";
     args[n++] = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_RAMDISK);
 
-    if (opts->partition_size) {
-        char*  end;
-        long   sizeMB = strtol(opts->partition_size, &end, 0);
-        long   minSizeMB = 10;
-        long   maxSizeMB = LONG_MAX / ONE_MB;
-
-        if (sizeMB < 0 || *end != 0) {
-            derror( "-partition-size must be followed by a positive integer" );
-            exit(1);
-        }
-        if (sizeMB < minSizeMB || sizeMB > maxSizeMB) {
-            derror( "partition-size (%d) must be between %dMB and %dMB",
-                    sizeMB, minSizeMB, maxSizeMB );
-            exit(1);
-        }
-        defaultPartitionSize = sizeMB * ONE_MB;
-    }
-
-    /* Check the size of the system partition image.
-     * If we have an AVD, it must be smaller than
-     * the disk.systemPartition.size hardware property.
-     *
-     * Otherwise, we need to adjust the systemPartitionSize
-     * automatically, and print a warning.
-     *
-     */
-    {
-        uint64_t   systemBytes  = avdInfo_getImageFileSize(avd, AVD_IMAGE_INITSYSTEM);
-        uint64_t   defaultBytes = defaultPartitionSize;
-
-        if (defaultBytes == 0 || opts->partition_size)
-            defaultBytes = defaultPartitionSize;
-
-        systemPartitionSize = _adjustPartitionSize("system", systemBytes, defaultBytes,
-                                                   android_build_out != NULL);
-    }
-
-    /* Check the size of the /data partition. The only interesting cases here are:
-     * - when the USERDATA image already exists and is larger than the default
-     * - when we're wiping data and the INITDATA is larger than the default.
-     */
-
-    {
-        const char*  dataPath     = avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA);
-        uint64_t     defaultBytes = defaultPartitionSize;
-
-        if (defaultBytes == 0 || opts->partition_size)
-            defaultBytes = defaultPartitionSize;
-
-        if (dataPath == NULL || !path_exists(dataPath) || opts->wipe_data) {
-            dataPath = avdInfo_getImageFile(avd, AVD_IMAGE_INITDATA);
-        }
-        if (dataPath == NULL || !path_exists(dataPath)) {
-            dataPartitionSize = defaultBytes;
-        }
-        else {
-            uint64_t  dataBytes;
-            path_get_size(dataPath, &dataBytes);
-
-            dataPartitionSize = _adjustPartitionSize("data", dataBytes, defaultBytes,
-                                                     android_build_out != NULL);
-        }
-    }
-
     {
         const char*  filetype = "file";
 
+        // TODO: This should go to core!
         if (avdInfo_isImageReadOnly(avd, AVD_IMAGE_INITSYSTEM))
             filetype = "initfile";
 
         bufprint(tmp, tmpend,
-             "system,size=0x%x,%s=%s", systemPartitionSize, filetype,
-             avdInfo_getImageFile(avd, AVD_IMAGE_INITSYSTEM));
+             "system,size=0x%x,%s=%s", (uint32_t)hw->disk_systemPartition_size,
+             filetype, avdInfo_getImageFile(avd, AVD_IMAGE_INITSYSTEM));
 
         args[n++] = "-nand";
         args[n++] = strdup(tmp);
@@ -863,13 +427,14 @@ int main(int argc, char **argv)
 
     bufprint(tmp, tmpend,
              "userdata,size=0x%x,file=%s",
-             dataPartitionSize,
+             (uint32_t)hw->disk_dataPartition_size,
              avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA));
 
     args[n++] = "-nand";
     args[n++] = strdup(tmp);
 
     if (hw->disk_cachePartition) {
+        // TODO: This should go to core
         opts->cache = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_CACHE);
         cachePartitionSize = hw->disk_cachePartition_size;
     }
@@ -892,6 +457,7 @@ int main(int argc, char **argv)
         args[n++] = strdup(tmp);
     }
 
+     // TODO: This should go to core
     if (hw->hw_sdCard != 0)
         opts->sdcard = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SDCARD);
     else if (opts->sdcard) {
@@ -920,6 +486,7 @@ int main(int argc, char **argv)
 
 #if CONFIG_ANDROID_SNAPSHOTS
     if (!opts->no_snapstorage) {
+        // TODO: This should go to core
         opts->snapstorage = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SNAPSHOTS);
         if(opts->snapstorage) {
             if (path_exists(opts->snapstorage)) {
