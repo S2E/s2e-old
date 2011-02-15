@@ -10,6 +10,7 @@
 ** GNU General Public License for more details.
 */
 
+#include <math.h>
 #include "android/hw-sensors.h"
 #include "android/utils/debug.h"
 #include "android/utils/misc.h"
@@ -210,7 +211,7 @@ _hwSensorClient_new( HwSensors*  sensors )
 
     cl->sensors     = sensors;
     cl->enabledMask = 0;
-    cl->delay_ms    = 1000;
+    cl->delay_ms    = 800;
     cl->timer       = qemu_new_timer(vm_clock, _hwSensorClient_tick, cl);
 
     cl->next         = sensors->clients;
@@ -625,16 +626,17 @@ _hwSensors_setCoarseOrientation( HwSensors*  h, AndroidCoarseOrientation  orient
      * If the phone is completely vertical, rotating it will not do anything !
      */
     const double  g      = 9.81;
-    const double  cos_30 = 0.866025403784;
-    const double  sin_30 = 0.5;
+    const double  angle  = 20.0;
+    const double  cos_angle = cos(angle/M_PI);
+    const double  sin_angle = sin(angle/M_PI);
 
     switch (orient) {
     case ANDROID_COARSE_PORTRAIT:
-        _hwSensors_setAcceleration( h, 0., g*cos_30, g*sin_30 );
+        _hwSensors_setAcceleration( h, 0., g*cos_angle, g*sin_angle );
         break;
 
     case ANDROID_COARSE_LANDSCAPE:
-        _hwSensors_setAcceleration( h, g*cos_30, 0., g*sin_30 );
+        _hwSensors_setAcceleration( h, g*cos_angle, 0., g*sin_angle );
         break;
     default:
         ;
