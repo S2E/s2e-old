@@ -40,7 +40,7 @@
 /** This defines the size of each MemoryObject that represents physical RAM.
     Larget values save some memory, smaller (exponentially) decrease solving
     time for constraints with symbolic addresses */
-#define S2E_RAM_OBJECT_BITS 12
+#define S2E_RAM_OBJECT_BITS 7
 #define S2E_RAM_OBJECT_SIZE (1 << S2E_RAM_OBJECT_BITS)
 #define S2E_RAM_OBJECT_MASK (~(S2E_RAM_OBJECT_SIZE - 1))
 
