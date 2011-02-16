@@ -32,6 +32,12 @@
 #include "android/android.h"
 #include "sockets.h"
 
+#include <sys/queue.h>
+
+/* proto types */
+static void slirp_net_forward_init(void);
+
+
 #define  D(...)   VERBOSE_PRINT(slirp,__VA_ARGS__)
 #define  DN(...)  do { if (VERBOSE_CHECK(slirp)) dprintn(__VA_ARGS__); } while (0)
 
@@ -259,6 +265,8 @@ void slirp_init(int restricted, const char *special_ip)
     alias_addr_ip = special_addr_ip | CTL_ALIAS;
     getouraddr();
     register_savevm("slirp", 0, 1, slirp_state_save, slirp_state_load, NULL);
+
+    slirp_net_forward_init();
 }
 
 #define CONN_CANFSEND(so) (((so)->so_state & (SS_FCANTSENDMORE|SS_ISFCONNECTED)) == SS_ISFCONNECTED)
@@ -818,6 +826,298 @@ void if_encap(const uint8_t *ip_data, int ip_data_len)
         slirp_output(buf, ip_data_len + ETH_HLEN);
     }
 }
+
+
+/*---------------------------------------------------*/
+/* User mode network stack restrictions */
+struct fw_allow_entry {
+    struct fw_allow_entry* next;
+    unsigned long dst_addr;   /* host byte order */
+    /* Allowed port range. dst_lport should be the same as dst_hport for a
+     * single port. */
+    unsigned short dst_lport; /* host byte order */
+    unsigned short dst_hport; /* host byte order */
+};
+
+static int drop_udp = 0;
+static int drop_tcp = 0;
+static struct fw_allow_entry* allow_tcp_entries = NULL;
+static struct fw_allow_entry* allow_udp_entries = NULL;
+static FILE* drop_log_fd = NULL;
+static FILE* dns_log_fd = NULL;
+static int max_dns_conns = -1;   /* unlimited max DNS connections by default */
+static int slirp_net_forward_inited = 0;
+
+void slirp_drop_udp() {
+    drop_udp = 1;
+}
+
+void slirp_drop_tcp() {
+    drop_tcp = 1;
+}
+
+/* TCP traffic forwarding to a sink - If enabled, all TCP traffic to any
+ * ip/port that is not explicitly forwared using '-net-forward', and which would
+ * otherwise be dropped if '-drop-tcp' has been specified, is redirected to the
+ * specified ip:port
+ */
+int forward_dropped_tcp2sink = 0;
+static unsigned long tcp_sink_ip;
+int tcp_sink_port;
+
+void slirp_forward_dropped_tcp2sink(unsigned long sink_ip, int sink_port) {
+    tcp_sink_ip = sink_ip;
+    tcp_sink_port = sink_port;
+    forward_dropped_tcp2sink = 1;
+}
+
+int slirp_should_forward_dropped_tcp2sink() {
+    return forward_dropped_tcp2sink;
+}
+
+unsigned long slirp_get_tcp_sink_ip() {
+    return tcp_sink_ip;
+}
+int slirp_get_tcp_sink_port() {
+    return tcp_sink_port;
+}
+
+/* Fill in the firewall rules. dst_lport and dst_hport are in host byte order */
+void slirp_add_allow(unsigned long dst_addr,
+                     int dst_lport, int dst_hport,
+                     u_int8_t proto) {
+
+    struct fw_allow_entry** ate;
+    switch (proto) {
+      case IPPROTO_TCP:
+          ate = &allow_tcp_entries;
+          break;
+      case IPPROTO_UDP:
+          ate = &allow_udp_entries;
+          break;
+      default:
+          return; // unknown protocol for the FW
+    }
+
+    while(*ate != NULL)
+        ate = &(*ate)->next;
+
+    *ate = malloc(sizeof(**ate));
+    if (*ate == NULL) {
+        DEBUG_MISC((dfd,
+                    "Unable to create new firewall record, malloc failed\n"));
+        exit(-1);
+    }
+
+    (*ate)->next = NULL;
+    (*ate)->dst_addr = dst_addr;
+    (*ate)->dst_lport = dst_lport;
+    (*ate)->dst_hport = dst_hport;
+}
+
+void slirp_drop_log_fd(FILE* fd) {
+    drop_log_fd = fd;
+}
+
+void slirp_dns_log_fd(FILE* fd) {
+    dns_log_fd = fd;
+}
+
+/* Address and ports are in host byte order */
+int slirp_should_drop(unsigned long dst_addr,
+                      int dst_port,
+                      u_int8_t proto) {
+
+    struct fw_allow_entry* ate;
+
+    switch (proto) {
+        case IPPROTO_TCP:
+            if (drop_tcp != 0)
+                ate = allow_tcp_entries;
+            else
+                return 0;
+            break;
+        case IPPROTO_UDP:
+            if (drop_udp != 0)
+                ate = allow_udp_entries;
+            else
+                return 0;
+            break;
+        default:
+            return 1;  // unknown protocol for the FW
+    }
+
+    while(ate) {
+        if ((ate->dst_lport <= dst_port) && (dst_port <= ate->dst_hport)) {
+            // allow any destination if 0
+            if (ate->dst_addr == 0 || ate->dst_addr == dst_addr)
+                return 0;
+        }
+        ate = ate->next;
+    }
+
+    return 1;
+}
+
+/*
+ * log DNS requests in a separate log
+ */
+int
+slirp_log_dns(struct mbuf* m, int dropped) {
+    char dns_query[256];  // max allowable dns name size
+    int c = 0;
+    int i= 0;
+    int index = 0;
+    int offset = 40 + 1;  // udp/ip headers length + 1;
+    int trim_bytes = 4;
+
+    if (!dns_log_fd)
+        return -1;
+
+    /* We assume one DNS name per query: 300 = 255 (max dns name length)
+     * + 40 (udp/ip hdr) + 1 byte DNS peamble + 4 bytes DNS suffix
+     */
+    if (m->m_len < offset || m->m_len > 300) {
+        DEBUG_MISC((dfd,"Malformed DNS qeury, length %d \n", (int)m->m_len));
+        return -1;
+    }
+    for (i = offset; i < m->m_len - trim_bytes && index < sizeof(dns_query); i++, index++) {
+        c = m->m_data[i];
+        if (c < ' ' || c > '~')
+            c = '.';
+
+        dns_query[index] = (char)c;
+    }
+    dns_query[index] = '\0';
+    if (!dropped) {
+        fprintf(dns_log_fd, "Sent DNS query for, %s\n" , dns_query);
+    } else {
+        fprintf(dns_log_fd, "Dropped DNS query for, %s\n" , dns_query);
+    }
+    fflush(dns_log_fd);
+    return 1;
+}
+
+/*
+ * log DNS requests in a separate log
+ */
+int
+slirp_dump_dns(struct mbuf* m) {
+
+    if (!dns_log_fd)
+        return 0;
+    // first we write the length of the record then the record (IP packet)
+    if (!fwrite(&(m->m_len), sizeof(int), 1, dns_log_fd) ||
+        !fwrite(m->m_data, m->m_len, 1, dns_log_fd)) {
+        return 0;
+    }
+
+    fflush(dns_log_fd);
+    return 1;
+}
+
+/* Log dropped/accepted packet info */
+int slirp_drop_log(const char* format, ...) {
+    va_list args;
+
+    if (!drop_log_fd)
+        return 0;
+
+    va_start(args, format);
+    vfprintf(drop_log_fd, format, args);
+    va_end(args);
+
+    fflush(drop_log_fd);
+
+    return 1;
+}
+
+
+/* Set max DNS requests allowed to be issued from the VM */
+void slirp_set_max_dns_conns(int num_conns) {
+    max_dns_conns = num_conns;
+}
+
+int slirp_get_max_dns_conns() {
+    return max_dns_conns;
+}
+
+/* generic guest network redirection functionality for ipv4 */
+struct net_forward_entry {
+    QTAILQ_ENTRY(net_forward_entry) next;
+    /* ip addresses are also in host byte order */
+    unsigned long dest_ip;            /* the destination address they try to contact */
+    unsigned long dest_mask;          /* the mask to apply to the address for matching */
+    /* Range of ports they were trying to contact. In case of a single port,
+     * dest_lport should be the same as dest_hport */
+    int dest_lport; /* Host byte order */
+    int dest_hport; /* Host byte order */
+
+    unsigned long  redirect_ip;
+    int redirect_port; /* Host byte order */
+};
+
+static QTAILQ_HEAD(net_forwardq, net_forward_entry) net_forwards;
+
+static void slirp_net_forward_init(void)
+{
+    if (!slirp_net_forward_inited) {
+      QTAILQ_INIT(&net_forwards);
+      slirp_net_forward_inited = 1;
+    }
+}
+
+/* all addresses and ports ae in host byte order */
+void slirp_add_net_forward(unsigned long dest_ip, unsigned long dest_mask,
+                           int dest_lport, int dest_hport,
+                           unsigned long redirect_ip, int redirect_port)
+{
+    slirp_net_forward_init();
+
+    struct net_forward_entry *entry = malloc(sizeof(*entry));
+    if (entry == NULL) {
+        DEBUG_MISC((dfd, "Unable to create new forwarding entry, malloc failed\n"));
+        exit(-1);
+    }
+
+    entry->dest_ip = dest_ip;
+    entry->dest_mask = dest_mask;
+    entry->dest_lport = dest_lport;
+    entry->dest_hport = dest_hport;
+    entry->redirect_ip = redirect_ip;
+    entry->redirect_port = redirect_port;
+
+    QTAILQ_INSERT_TAIL(&net_forwards, entry, next);
+}
+
+/* remote_port and redir_port arguments
+ * are in network byte order (tcp_subr.c) */
+int slirp_should_net_forward(unsigned long remote_ip, int remote_port,
+                             unsigned long *redirect_ip, int *redirect_port)
+{
+    struct net_forward_entry *entry;
+
+    for (entry = net_forwards.tqh_first;
+         entry != NULL; entry = entry->next.tqe_next) {
+
+        if ((entry->dest_lport <= remote_port)
+            && (remote_port <= entry->dest_hport)) {
+            if ((entry->dest_ip & entry->dest_mask)
+                == (remote_ip & entry->dest_mask)) {
+              *redirect_ip = entry->redirect_ip;
+              *redirect_port = entry->redirect_port;
+              return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+/*---------------------------------------------------*/
+
+
+
 
 static void _slirp_redir_loop(void (*func)(void *opaque, int is_udp,
                                            const SockAddress *laddr,

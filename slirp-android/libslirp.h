@@ -2,7 +2,9 @@
 #define _LIBSLIRP_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include "sockets.h"
+#include "slirp.h"
 #ifdef _WIN32
 #  define WIN32_LEAN_AND_MEAN
 #  define socket_close  winsock2_socket_close3
@@ -15,6 +17,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct mbuf;
 
 int    inet_strtoip(const char*  str, uint32_t  *ip);
 char*  inet_iptostr(uint32_t  ip);
@@ -31,6 +35,59 @@ void slirp_input(const uint8_t *pkt, int pkt_len);
 /* you must provide the following functions: */
 int slirp_can_output(void);
 void slirp_output(const uint8_t *pkt, int pkt_len);
+
+/* ---------------------------------------------------*/
+/* User mode network stack restrictions */
+void slirp_drop_udp();
+void slirp_drop_tcp();
+void slirp_add_allow(unsigned long dst_addr, int dst_lport,
+                     int dst_hport, u_int8_t proto);
+void slirp_drop_log_fd(FILE* fd);
+int slirp_should_drop(unsigned long dst_addr,
+                      int dst_port,
+                      u_int8_t proto);
+int slirp_drop_log(const char* format, ...);
+
+/* for network forwards */
+void slirp_add_net_forward(unsigned long dest_ip, unsigned long dest_mask,
+                           int dest_lport, int dest_hport,
+                           unsigned long redirect_ip, int redirect_port);
+
+int slirp_should_net_forward(unsigned long remote_ip, int remote_port,
+                             unsigned long *redirect_ip, int *redirect_port);
+/* ---------------------------------------------------*/
+
+/**
+ * Additional network stack modifications, aiming to detect and log
+ * any network activity initiated by any binary outisde the context of
+ * the running browser.
+ */
+
+void slirp_dns_log_fd(FILE* fd);
+/** Logs the DNS name in DNS query issued by the VM. */
+int slirp_log_dns(struct mbuf* m, int dropped);
+/** IP packet dump of DNS queris and responses. */
+int slirp_dump_dns(struct mbuf* m);
+/** Sets an upper limit for the number of allowed DNS requests from
+ * the VM.
+ */
+void slirp_set_max_dns_conns(int max_dns_conns);
+/* Returns the max number of allowed DNS requests.*/
+int slirp_get_max_dns_conns();
+
+/**
+ * Modifications for implementing "-net-forward-tcp2sink' option.
+ */
+
+void slirp_forward_dropped_tcp2sink(unsigned long sink_ip,  int sink_port);
+int slirp_should_forward_dropped_tcp2sink();
+unsigned long slirp_get_tcp_sink_ip();
+int slirp_get_tcp_sink_port();
+
+
+
+
+/* ---------------------------------------------------*/
 
 void slirp_redir_loop(void (*func)(void *opaque, int is_udp,
                                    const SockAddress *laddr,
