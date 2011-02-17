@@ -458,10 +458,9 @@ void events_dev_init(uint32_t base, qemu_irq irq)
      * was closed or opened (done when we switch layouts through
      * KP-7 or KP-9).
      *
-     * We only support this when there is a real keyboard, which
-     * we assume can be hidden/revealed.
+     * We only support this when hw.keyboard.lid is true.
      */
-    if (config->hw_keyboard) {
+    if (config->hw_keyboard && config->hw_keyboard_lid) {
         events_set_bit(s, EV_SYN, EV_SW);
         events_set_bit(s, EV_SW, 0);
     }
