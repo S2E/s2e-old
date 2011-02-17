@@ -47,6 +47,10 @@
 struct udpstat udpstat;
 #endif
 
+/* Keeps track of the number of DNS requests.  Used to implement the firewall
+ * option that restricts the number of DNS requests (-max_dns_conns). */
+u_int dns_num_conns;
+
 struct socket udb;
 
 static u_int8_t udp_tos(struct socket *so);
@@ -68,6 +72,7 @@ void
 udp_init(void)
 {
 	udb.so_next = udb.so_prev = &udb;
+	dns_num_conns = 0;
 }
 /* m->m_data  points at ip packet header
  * m->m_len   length ip packet
@@ -121,6 +126,33 @@ udp_input(register struct mbuf *m, int iphlen)
 		ip->ip_len = len;
 	}
 
+	/* ------------------------------------------------------*/
+	/* User mode network stack restrictions */
+	/* slirp_should_drop requires host byte ordering in arguments */
+	if (slirp_should_drop(ntohl(ip->ip_dst.addr), ntohs(uh->uh_dport.port),
+	                      IPPROTO_UDP)) {
+	  slirp_drop_log(
+	    "Dropped UDP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+	    ip->ip_src.addr,
+	    uh->uh_sport.port,
+	    ip->ip_dst.addr,
+	    uh->uh_dport.port
+	  );
+	  goto bad; /* drop the packet */
+	}
+	else {
+	  slirp_drop_log(
+	    "Allowed UDP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+	    ip->ip_src.addr,
+	    uh->uh_sport.port,
+	    ip->ip_dst.addr,
+	    uh->uh_dport.port
+	  );
+	}
+  /* ------------------------------------------------------*/
+
+
+
 	/*
 	 * Save a copy of the IP header in case we want restore it
 	 * for sending an ICMP error message in response.
@@ -163,6 +195,18 @@ udp_input(register struct mbuf *m, int iphlen)
             tftp_input(m);
             goto bad;
         }
+
+        // DNS logging and FW rules
+        if (ntohs(uh->uh_dport.port) == 53) {
+            if (!slirp_dump_dns(m)) {
+                DEBUG_MISC((dfd,"Error logging DNS packet"));
+            }
+            dns_num_conns++;
+            if (slirp_get_max_dns_conns() != -1 &&
+                dns_num_conns > slirp_get_max_dns_conns())
+                goto bad;
+        }
+
 
 	/*
 	 * Locate pcb for datagram.
@@ -308,6 +352,13 @@ int udp_output2_(struct socket *so, struct mbuf *m,
 	((struct ip *)ui)->ip_tos = iptos;
 
 	STAT(udpstat.udps_opackets++);
+
+	//  DNS logging
+	if (so != NULL && so->so_faddr_port == htons(53)) {
+	  if (!slirp_dump_dns(m)) {
+	    DEBUG_MISC((dfd,"Error logging DNS packet"));
+	  }
+	}
 
 	error = ip_output(so, m);
 

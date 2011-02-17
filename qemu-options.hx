@@ -1440,6 +1440,95 @@ Set the initial date of the real time clock. Valid formats for
 @code{2006-06-17}. The default value is @code{now}.
 ETEXI
 
+/* Start user mode network stack restrictions */
+DEF("drop-udp", 0, QEMU_OPTION_drop_udp, \
+    "-drop-udp       starts filtering all UDP packets\n")
+STEXI
+
+@item -drop-udp
+Enable dropping of all UDP packets.
+ETEXI
+
+
+DEF("drop-tcp", 0, QEMU_OPTION_drop_tcp, \
+    "-drop-tcp       starts filtering all TCP packets\n")
+STEXI
+
+@item -drop-tcp
+Enable dropping of all TCP packets.
+ETEXI
+
+
+DEF("allow-tcp", HAS_ARG, QEMU_OPTION_allow_tcp, \
+    "-allow-tcp      Only allows TCP packets for host:port\n")
+STEXI
+
+@item -allow-tcp @var{host}:@var{port}
+Allows communication with the host named @code{host} and with
+the port @code{port}.
+ETEXI
+
+
+DEF("drop-log", 0, QEMU_OPTION_drop_log, \
+    "-drop-log       Creates a log for dropped connections\n")
+STEXI
+
+@item -drop-log @var{file}
+Creates a log for dropped connections in the file @code{file}.
+ETEXI
+
+/* Additional network restriction options */
+
+DEF("max-dns-conns", HAS_ARG, QEMU_OPTION_max_dns_conns, \
+    "-max-dns-conns limit \n"
+    "                Limits the maximum DNS connections\n")
+STEXI
+@item -max-dns-conns @var{limit}
+Limits the maximum DNS connections to @var{limit}.
+ETEXI
+
+DEF("allow-udp", HAS_ARG, QEMU_OPTION_allow_udp, \
+    "-allow-udp host:port \n"
+    "                Allows udp connections to go through to host:port\n")
+STEXI
+@item -allow-udp @var{host}:@var{port}
+Allows udp connections to go through to @var{host}:@var{port}.
+ETEXI
+
+DEF("dns-log", HAS_ARG, QEMU_OPTION_dns_log, \
+    "-dns-log file   Creates a log of DNS lookups\n")
+STEXI
+@item -dns-log @var{file}
+Creates a log of DNS lookups as @var{file}.
+ETEXI
+
+
+DEF("net-forward", HAS_ARG, QEMU_OPTION_net_forward, \
+"-net-forward dst_net:dst_mask:dst_port:redirect_ip:redirect_port:\n"
+"                Forwards guest network traffic sent to dst_net(dst_mask):dst_port\n"
+"                to redirect_ip:redirect_port\n")
+
+STEXI
+@item -net-forward @var{settings}
+Forwards network traffic using the settings @code{settings}.
+ETEXI
+
+
+DEF("net-forward-tcp2sink", HAS_ARG, QEMU_OPTION_net_forward_tcp2sink, \
+"-net-forward-tcp2sink sink_ip:sink_port\n"
+"                Forwards all dropped and non-forwarded guest network traffic\n"
+"                to specified ip:port. \n")
+
+STEXI
+@item -net-forward-tcp2sink @var{settings}
+Forwards all dropped and non-forwarded network traffic to sink ip:port.
+ETEXI
+
+
+
+/* End User mode network stack restrictions */
+
+
 DEF("icount", HAS_ARG, QEMU_OPTION_icount, \
     "-icount [N|auto]\n" \
     "                enable virtual instruction counter with 2^N clock ticks per\n" \

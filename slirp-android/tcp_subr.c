@@ -377,6 +377,29 @@ tcp_proxy_event( struct socket*  so,
     tcp_input(NULL, sizeof(struct ip), so);
 }
 
+
+/* Tests if an IP address corresponds to a special Qemu service (eg, the DNS
+ * server or the gateway - see ctl.h) and if so, rewrites it with the real
+ * address of the service.
+ */
+int is_qemu_special_address(unsigned long dst_addr, unsigned long *redir_addr)
+{
+  if ((dst_addr & htonl(0xffffff00)) == special_addr_ip) {
+    /* It's an alias */
+
+    int  last_byte = dst_addr & 0xff;
+
+    if (CTL_IS_DNS(last_byte))
+      *redir_addr = dns_addr[last_byte - CTL_DNS];
+    else
+      *redir_addr = loopback_addr_ip;
+
+    return 1;
+  }
+  return 0;
+}
+
+
 /*
  * Connect to a host on the Internet
  * Called by tcp_input
@@ -390,41 +413,56 @@ tcp_proxy_event( struct socket*  so,
 int tcp_fconnect(struct socket *so)
 {
   int ret=0;
-    int try_proxy = 1;
     SockAddress    sockaddr;
-    uint32_t       sock_ip;
-    uint16_t       sock_port;
+    unsigned long       sock_ip;
+    int                 sock_port;
 
     DEBUG_CALL("tcp_fconnect");
     DEBUG_ARG("so = %lx", (long )so);
 
-    sock_ip   = so->so_faddr_ip;
-    sock_port = so->so_faddr_port;
+    /* when true, a connection that otherwise would be dropped will instead be
+     * redirected to the sink ('-net-forward-tcp2sink') */
+    int forward_dropped_to_sink = 0;
 
-    if ((sock_ip & 0xffffff00) == special_addr_ip) {
-      /* It's an alias */
-      int  last_byte = sock_ip & 0xff;
 
-      if (CTL_IS_DNS(last_byte))
-        sock_ip = dns_addr[last_byte - CTL_DNS];
-      else
-        sock_ip = loopback_addr_ip;
-      try_proxy = 0;
+    /*-------------------------------------------------------------*/
+    /* User mode network stack restrictions */
+    if (slirp_should_drop(so->so_faddr_ip, so->so_faddr_port, IPPROTO_TCP)) {
+
+      /* If forwarding to sink is enabled, don't actually drop it */
+      if (slirp_should_forward_dropped_tcp2sink()) {
+        slirp_drop_log(
+            "About to be dropped TCP forwarded to sink: "
+            "src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+              so->so_laddr_ip,
+              so->so_laddr_port,
+              so->so_faddr_ip,
+              so->so_faddr_port
+        );
+        forward_dropped_to_sink = 1;
+      }
+      else {
+        slirp_drop_log(
+            "Dropped TCP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+            so->so_laddr_ip,
+            so->so_laddr_port,
+            so->so_faddr_ip,
+            so->so_faddr_port
+        );
+        //errno = ENETUNREACH;
+        errno = ECONNREFUSED;
+        return -1;
+      }
+    } else {
+      slirp_drop_log(
+          "Allowed TCP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+          so->so_laddr_ip,
+          so->so_laddr_port,
+          so->so_faddr_ip,
+          so->so_faddr_port
+      );
     }
-
-    sock_address_init_inet( &sockaddr, sock_ip, sock_port );
-
-    DEBUG_MISC((dfd, " connect()ing, addr=%s, proxy=%d\n",
-                sock_address_to_string(&sockaddr), try_proxy));
-
-    if (try_proxy) {
-        if (!proxy_manager_add(&sockaddr, SOCKET_STREAM, (ProxyEventFunc) tcp_proxy_event, so)) {
-            soisfconnecting(so);
-            so->s         = -1;
-            so->so_state |= SS_PROXIFIED;
-            return 0;
-        }
-    }
+    /*-------------------------------------------------------------*/
 
     if ((ret=so->s=socket_create_inet(SOCKET_STREAM)) >= 0) 
     {
@@ -433,6 +471,79 @@ int tcp_fconnect(struct socket *so)
         socket_set_nonblock(s);
         socket_set_xreuseaddr(s);
         socket_set_oobinline(s);
+
+
+        if (forward_dropped_to_sink) {
+
+          /* This connection would normally be dropped, but since forwarding of
+           * dropped connections is enabled, redirect it to the sink */
+          sock_ip = slirp_get_tcp_sink_ip();
+          sock_port= slirp_get_tcp_sink_port();
+          slirp_drop_log(
+              "Redirected would-be dropped TCP to sink: "
+                "src: 0x%08lx:0x%04x org dst: 0x%08lx:0x%04x "
+              "new dst: 0x%08lx:0x%04x\n",
+              so->so_laddr_ip, so->so_laddr_port,
+              so->so_faddr_ip, so->so_faddr_port,
+              sock_ip, sock_port
+            );
+        }
+        else {   /* An allowed connection */
+
+          unsigned long faddr;
+          int fport;
+
+          /* Determine if the connection should be redirected
+           * due to a -net-forward rule */
+          /* faddr and fport are modified only on success */
+          if (slirp_should_net_forward(so->so_faddr_ip, so->so_faddr_port,
+                                       &faddr, &fport)) {
+            slirp_drop_log(
+                "Redirected TCP: src: 0x%08lx:0x%04x org dst: 0x%08lx:0x%04x "
+                "new dst: 0x%08lx:0x%04x\n",
+                so->so_laddr_ip, so->so_laddr_port,
+                so->so_faddr_ip, so->so_faddr_port,
+                faddr, fport
+            );
+            sock_ip = faddr;              /* forced dst addr */
+            sock_port= fport;                 /* forced dst port */
+          }
+          /* Determine if this is a connection to a special qemu service,
+           * and change the destination address accordingly.
+           * 'faddr' is modified only onsuccess  */
+          else if (is_qemu_special_address(so->so_faddr_ip, &faddr)) {
+
+          /* We keep the original destination port. If a special service
+           * listens on a different port than the standard, then appropriate
+           * forwarding should be set up using -net-forward, e.g., as it is
+           * the case with Mawler's DNS traffic, which is redirected to the
+           * special DNS port:
+           * -net-forward 0.0.0.0:0.0.0.0:53:127.0.0.1:21737 */
+
+            sock_ip = faddr;         /* real DNS/gateway addr */
+            sock_port= so->so_faddr_port;/* original dst port */
+
+          }
+          /* A normal connection - keep the original destination addr/port */
+          else {
+
+            if (!proxy_manager_add(&sockaddr, SOCKET_STREAM,
+                                   (ProxyEventFunc) tcp_proxy_event, so)) {
+                soisfconnecting(so);
+                so->s         = -1;
+                so->so_state |= SS_PROXIFIED;
+                return 0;
+            }
+
+            sock_ip = so->so_faddr_ip;  /* original dst addr */
+            sock_port= so->so_faddr_port;   /* original dst port */
+          }
+        }
+
+        DEBUG_MISC((dfd, " connect()ing, addr=%s, proxy=%d\n",
+                    sock_address_to_string(&sockaddr), try_proxy));
+
+        sock_address_init_inet( &sockaddr, sock_ip, sock_port );
 
         /* We don't care what port we get */
         socket_connect(s, &sockaddr);

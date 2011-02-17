@@ -570,6 +570,26 @@ sosendto(struct socket *so, struct mbuf *m)
 
 	addr_port = so->so_faddr_port;
 
+	/*
+	 * test for generic forwarding; this function replaces the arguments
+	 * only on success
+	 */
+	unsigned long faddr = addr_ip;
+        int fport = addr_port;
+
+	if (slirp_should_net_forward(faddr, fport, &faddr, &fport)) {
+	    slirp_drop_log(
+	       "Redirected UDP: src: 0x%08lx:0x%04x org dst: 0x%08lx:0x%04x "
+	       "new dst: 0x%08lx:0x%04x\n",
+	        so->so_laddr_ip, so->so_laddr_port,
+	        addr_ip, addr_port,
+	        faddr, fport
+	    );
+	}
+	addr_ip = faddr;
+	addr_port = fport;
+
+
         sock_address_init_inet(&addr, addr_ip, addr_port);
 
 	DEBUG_MISC((dfd, " sendto()ing, addr.sin_port=%d, addr.sin_addr.s_addr=%08x\n", addr_port, addr_ip));
@@ -779,4 +799,3 @@ sofwdrain(struct socket *so)
 	else
 		sofcantsendmore(so);
 }
-

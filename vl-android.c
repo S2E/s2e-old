@@ -3620,6 +3620,164 @@ append_param(char* param_str, const char* arg, int size)
     }
 }
 
+/* Parses an integer
+ * Pararm:
+ *  str      String containing a number to be parsed.
+ *  result   Passes the parsed integer in this argument
+ *  returns  0 if ok, -1 if failed
+ */
+int
+parse_int(const char *str, int *result)
+{
+    char* r;
+    *result = strtol(str, &r, 0);
+    if (r == NULL || *r != '\0')
+      return -1;
+
+    return 0;
+}
+
+
+/* parses a null-terminated string specifying a network port (e.g., "80") or
+ * port range (e.g., "[6666-7000]"). In case of a single port, lport and hport
+ * are the same. Returns 0 on success, -1 on error. */
+
+int parse_port_range(const char *str, unsigned short *lport,
+                     unsigned short *hport) {
+
+  unsigned int low = 0, high = 0;
+  char *p, *arg = strdup(str);
+
+  if ((*arg == '[') && ((p = strrchr(arg, ']')) != NULL)) {
+    p = arg + 1;   /* skip '[' */
+    low  = atoi(strtok(p, "-"));
+    high = atoi(strtok(NULL, "-"));
+    if ((low > 0) && (high > 0) && (low < high) && (high < 65535)) {
+      *lport = low;
+      *hport = high;
+    }
+  }
+  else {
+    low = atoi(arg);
+    if ((0 < low) && (low < 65535)) {
+      *lport = low;
+      *hport = low;
+    }
+  }
+  free(arg);
+  if (low != 0)
+    return 0;
+  return -1;
+}
+
+/*
+ * Implements the generic port forwarding option
+ */
+void
+net_slirp_forward(const char *optarg)
+{
+    /*
+     * we expect the following format:
+     * dst_net:dst_mask:dst_port:redirect_ip:redirect_port OR
+     * dst_net:dst_mask:[dp_range_start-dp_range_end]:redirect_ip:redirect_port
+     */
+    char *argument = strdup(optarg), *p = argument;
+    char *dst_net, *dst_mask, *dst_port;
+    char *redirect_ip, *redirect_port;
+    uint32_t dnet, dmask, rip;
+    unsigned short dlport, dhport, rport;
+
+
+    dst_net = strtok(p, ":");
+    dst_mask = strtok(NULL, ":");
+    dst_port = strtok(NULL, ":");
+    redirect_ip = strtok(NULL, ":");
+    redirect_port = strtok(NULL, ":");
+
+    if (dst_net == NULL || dst_mask == NULL || dst_port == NULL ||
+        redirect_ip == NULL || redirect_port == NULL) {
+        fprintf(stderr,
+                "Invalid argument for -net-forward, we expect "
+                "dst_net:dst_mask:dst_port:redirect_ip:redirect_port or "
+                "dst_net:dst_mask:[dp_range_start-dp_range_end]"
+                ":redirect_ip:redirect_port: %s\n",
+                optarg);
+        exit(1);
+    }
+
+    /* inet_strtoip converts dotted address to host byte order */
+    if (inet_strtoip(dst_net, &dnet) == -1) {
+        fprintf(stderr, "Invalid destination IP net: %s\n", dst_net);
+        exit(1);
+    }
+    if (inet_strtoip(dst_mask, &dmask) == -1) {
+        fprintf(stderr, "Invalid destination IP mask: %s\n", dst_mask);
+        exit(1);
+    }
+    if (inet_strtoip(redirect_ip, &rip) == -1) {
+        fprintf(stderr, "Invalid redirect IP address: %s\n", redirect_ip);
+        exit(1);
+    }
+
+    if (parse_port_range(dst_port, &dlport, &dhport) == -1) {
+        fprintf(stderr, "Invalid destination port or port range\n");
+        exit(1);
+    }
+
+    rport = atoi(redirect_port);
+    if (!rport) {
+        fprintf(stderr, "Invalid redirect port: %s\n", redirect_port);
+        exit(1);
+    }
+
+    dnet &= dmask;
+
+    slirp_add_net_forward(dnet, dmask, dlport, dhport,
+                          rip, rport);
+
+    free(argument);
+}
+
+
+/* Parses an -allow-tcp or -allow-udp argument and inserts a corresponding
+ * entry in the allows list */
+void
+slirp_allow(const char *optarg, u_int8_t proto)
+{
+  /*
+   * we expect the following format:
+   * dst_ip:dst_port OR dst_ip:[dst_lport-dst_hport]
+   */
+  char *argument = strdup(optarg), *p = argument;
+  char *dst_ip_str, *dst_port_str;
+  uint32_t dst_ip;
+  unsigned short dst_lport, dst_hport;
+
+  dst_ip_str = strtok(p, ":");
+  dst_port_str = strtok(NULL, ":");
+
+  if (dst_ip_str == NULL || dst_port_str == NULL) {
+    fprintf(stderr,
+            "Invalid argument %s for -allow. We expect "
+            "dst_ip:dst_port or dst_ip:[dst_lport-dst_hport]\n",
+            optarg);
+    exit(1);
+  }
+
+  if (inet_strtoip(dst_ip_str, &dst_ip) == -1) {
+    fprintf(stderr, "Invalid destination IP address: %s\n", dst_ip_str);
+    exit(1);
+  }
+  if (parse_port_range(dst_port_str, &dst_lport, &dst_hport) == -1) {
+    fprintf(stderr, "Invalid destination port or port range\n");
+    exit(1);
+  }
+
+  slirp_add_allow(dst_ip, dst_lport, dst_hport, proto);
+
+  free(argument);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -4375,6 +4533,89 @@ int main(int argc, char **argv, char **envp)
                     }
                 }
                 break;
+
+            /* -------------------------------------------------------*/
+            /* User mode network stack restrictions */
+            case QEMU_OPTION_drop_udp:
+                slirp_drop_udp();
+                break;
+            case QEMU_OPTION_drop_tcp:
+                slirp_drop_tcp();
+                break;
+            case QEMU_OPTION_allow_tcp:
+                slirp_allow(optarg, IPPROTO_TCP);
+                break;
+            case QEMU_OPTION_allow_udp:
+                slirp_allow(optarg, IPPROTO_UDP);
+                break;
+             case QEMU_OPTION_drop_log:
+                {
+                    FILE* drop_log_fd;
+                    drop_log_fd = fopen(optarg, "w");
+
+                    if (!drop_log_fd) {
+                        fprintf(stderr, "Cannot open drop log: %s\n", optarg);
+                        exit(1);
+                    }
+
+                    slirp_drop_log_fd(drop_log_fd);
+                }
+                break;
+
+            case QEMU_OPTION_dns_log:
+                {
+                    FILE* dns_log_fd;
+                    dns_log_fd = fopen(optarg, "wb");
+
+                    if (dns_log_fd == NULL) {
+                        fprintf(stderr, "Cannot open dns log: %s\n", optarg);
+                        exit(1);
+                    }
+
+                    slirp_dns_log_fd(dns_log_fd);
+                }
+                break;
+
+
+            case QEMU_OPTION_max_dns_conns:
+                {
+                    int max_dns_conns = 0;
+                    if (parse_int(optarg, &max_dns_conns)) {
+                      fprintf(stderr,
+                              "qemu: syntax: -max-dns-conns max_connections\n");
+                      exit(1);
+                    }
+                    if (max_dns_conns <= 0 ||  max_dns_conns == LONG_MAX) {
+                      fprintf(stderr,
+                              "Invalid arg for max dns connections: %s\n",
+                              optarg);
+                      exit(1);
+                    }
+                    slirp_set_max_dns_conns(max_dns_conns);
+                }
+                break;
+
+            case QEMU_OPTION_net_forward:
+                net_slirp_forward(optarg);
+                break;
+            case QEMU_OPTION_net_forward_tcp2sink:
+                {
+                    SockAddress saddr;
+
+                    if (parse_host_port(&saddr, optarg)) {
+                        fprintf(stderr,
+                                "Invalid ip/port %s for "
+                                "-forward-dropped-tcp2sink. "
+                                "We expect 'sink_ip:sink_port'\n",
+                                optarg);
+                        exit(1);
+                    }
+                    slirp_forward_dropped_tcp2sink(saddr.u.inet.address,
+                                                   saddr.u.inet.port);
+                }
+                break;
+            /* -------------------------------------------------------*/
+
             case QEMU_OPTION_tb_size:
                 tb_size = strtol(optarg, NULL, 0);
                 if (tb_size < 0)
