@@ -128,6 +128,7 @@ static KeyInfo  _keyinfo_table[] = {
     { "soft-left",    kKeyCodeSoftLeft },
     { "soft-right",   kKeyCodeSoftRight },
     { "search",       kKeyCodeSearch },
+    { "camera",       kKeyCodeCamera },
     { "volume-up",    kKeyCodeVolumeUp },
     { "volume-down",  kKeyCodeVolumeDown },
     { "power",        kKeyCodePower },
