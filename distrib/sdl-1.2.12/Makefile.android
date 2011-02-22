@@ -85,8 +85,8 @@ SDL_HEADERS := \
 $(foreach target,$(INSTALL_TARGETS),\
   $(eval $(call install-target,objs/sdl-config,$(target)/bin/sdl-config)) \
   $(eval $(call install-target,objs/SDL_config.h,$(target)/include/SDL/SDL_config.h)) \
-  $(eval $(call install-target,objs/libSDL.a,$(target)/lib/libSDL.a)) \
-  $(eval $(call install-target,objs/libSDLmain.a,$(target)/lib/libSDLmain.a)) \
+  $(eval $(call install-target,objs/libs/libSDL.a,$(target)/libs/libSDL.a)) \
+  $(eval $(call install-target,objs/libs/libSDLmain.a,$(target)/libs/libSDLmain.a)) \
   $(foreach header,$(SDL_HEADERS), \
     $(eval $(call install-target,include/$(header),$(target)/include/SDL/$(header))) \
   ) \

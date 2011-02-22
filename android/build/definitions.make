@@ -148,7 +148,7 @@ endef
 define copy-prebuilt-lib
 _SRC := $(1)
 _SRC1 := $$(notdir $$(_SRC))
-_DST := $$(OBJS_DIR)/$$(_SRC1)
+_DST := $$(LIBS_DIR)/$$(_SRC1)
 LIBRARIES += $$(_DST)
 $$(_DST): PRIVATE_DST := $$(_DST)
 $$(_DST): PRIVATE_SRC := $$(_SRC)
