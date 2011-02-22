@@ -479,7 +479,7 @@ generate_sdl_config ()
     # replace @exec_prefix@ with "{prefix}", and @libdir@ with "{libdir}"
     cat > $TMPC <<EOF
 s!@exec_prefix@!\$\{prefix\}!g
-s!@libdir@!\$\{exec_prefix\}/lib!g
+s!@libdir@!\$\{exec_prefix\}/libs!g
 s!@includedir@!\$\{prefix\}/include!g
 EOF
 
