@@ -136,6 +136,13 @@ HWCFG_BOOL(
   "Cache partition support",
   "Whether we use a /cache partition on the device.")
 
+HWCFG_STRING(
+  disk_cachePartition_path,
+  "disk.cachePartition.path",
+  "",
+  "Cache partition",
+  "Cache partition to use on the device. Ignored if disk.cachePartition is not 'yes'.")
+
 HWCFG_DISKSIZE(
   disk_cachePartition_size,
   "disk.cachePartition.size",
@@ -184,6 +191,76 @@ HWCFG_BOOL(
   "yes",
   "Proximity support",
   "Whether there is an proximity in the device.")
+
+HWCFG_STRING(
+  disk_kernel_path,
+  "disk.kernel.path",
+  "",
+  "Path to the kernel image",
+  "Path to the kernel image.")
+
+HWCFG_STRING(
+  disk_ramDisk_path,
+  "disk.ramDisk.path",
+  "",
+  "Path to the ramdisk image",
+  "Path to the ramdisk image.")
+
+HWCFG_STRING(
+  disk_systemPartition_path,
+  "disk.systemPartition.path",
+  "<init>",
+  "Path to system partition image",
+  "Path to read/write system partition image during emulation. If special value '<init>' is used, a temporary file will be created, populated with the content of .initPath")
+
+HWCFG_STRING(
+  disk_systemPartition_initPath,
+  "disk.systemPartition.initPath",
+  "",
+  "Initial system partition image",
+  "Only used if .path is '<init>', path to an initial system image that will be copied into the temporary system image file before launch.")
+
+HWCFG_DISKSIZE(
+  disk_systemPartition_size,
+  "disk.systemPartition.size",
+  "0",
+  "Ideal size of system partition",
+  "ideal size of system partition. Ignored if smaller than the size of .path (or .initPath). Otherwise, gives the maximum size the partition is allowed to grow dynamically.")
+
+HWCFG_STRING(
+  disk_dataPartition_path,
+  "disk.dataPartition.path",
+  "<temp>",
+  "Path to data partition file",
+  "Path to data partition file. Cannot be empty. Special value <temp> means using a temporary file. If disk.dataPartition.initPath is not empty, its content will be copied to the disk.dataPartition.path file at boot-time.")
+
+HWCFG_STRING(
+  disk_dataPartition_initPath,
+  "disk.dataPartition.initPath",
+  "",
+  "Initial data partition",
+  "If not empty, its content will be copied to the disk.dataPartition.path file at boot-time.")
+
+HWCFG_DISKSIZE(
+  disk_dataPartition_size,
+  "disk.dataPartition.size",
+  "0",
+  "Ideal size of data partition",
+  "ideal size of data partition. Ignored if smaller than the size of .path (or .initPath). Otherwise, gives the maximum size the partition is allowed to grow dynamically.")
+
+HWCFG_STRING(
+  disk_snapshots_path,
+  "disk.snapshots.path",
+  "",
+  "Path to snapshots",
+  "Path to a 'snapshot storage' file, where all snapshots are stored, including the default snapshot.")
+
+HWCFG_STRING(
+  disk_sdCard_path,
+  "disk.sdCard.path",
+  "",
+  "Path to SD Card image file",
+  "Path to SD Card image file. Ignored if disk.sdCard is not set to 'yes'.")
 
 #undef HWCFG_INT
 #undef HWCFG_BOOL

@@ -57,4 +57,25 @@ void init_sdl_ui(AConfig*         skinConfig,
                  const char*      skinPath,
                  AndroidOptions*  opts);
 
+/* Creates and initializes AvdInfo instance for the given options.
+ * Param:
+ *  opts - Options passed to the main()
+ *  inAndroidBuild - Upon exit contains 0 if AvdInfo has been initialized from
+ *      AVD file, or 1 if AvdInfo has been initialized from the build directory.
+ * Return:
+ *  AvdInfo instance initialized for the given options.
+ */
+struct AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild);
+
+/* Updates hardware configuration for the given AVD and options.
+ * Param:
+ *  hwConfig - Hardware configuration to update.
+ *  avd - AVD info containig paths for the hardware configuration.
+ *  opts - Options passed to the main()
+ *  inAndroidBuild - 0 if AVD has been initialized from AVD file, or 1 if AVD
+ *      has been initialized from the build directory.
+ */
+void updateHwConfigFromAVD(AndroidHwConfig* hwConfig, struct AvdInfo* avd,
+                           AndroidOptions* opts, int inAndroidBuild);
+
 #endif /* ANDROID_MAIN_COMMON_H */
