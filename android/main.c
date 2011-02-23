@@ -233,7 +233,7 @@ int main(int argc, char **argv)
         opts->no_skin = opts->noskin;
 
     /* Parses options and builds an appropriate AVD. */
-    avd = android_avdInfo = createAVD(opts, &inAndroidBuild) ;
+    avd = android_avdInfo = createAVD(opts, &inAndroidBuild);
 
     /* get the skin from the virtual device configuration */
     opts->skin    = (char*) avdInfo_getSkinName( avd );
@@ -810,7 +810,7 @@ int main(int argc, char **argv)
 #endif
 
     args[n++] = "-android-avdname";
-    args[n++] = avdInfo_getName(avd);
+    args[n++] = (char*) avdInfo_getName(avd);
 
     /* Set up the interfaces for inter-emulator networking */
     if (opts->shared_net_id) {

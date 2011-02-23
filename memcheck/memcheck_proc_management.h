@@ -18,12 +18,6 @@
 #ifndef QEMU_MEMCHECK_MEMCHECK_PROC_MANAGEMENT_H
 #define QEMU_MEMCHECK_MEMCHECK_PROC_MANAGEMENT_H
 
-/* This file should compile iff qemu is built with memory checking
- * configuration turned on. */
-#ifndef CONFIG_MEMCHECK
-#error CONFIG_MEMCHECK is not defined.
-#endif  // CONFIG_MEMCHECK
-
 #include "qemu-queue.h"
 #include "memcheck_common.h"
 #include "memcheck_malloc_map.h"

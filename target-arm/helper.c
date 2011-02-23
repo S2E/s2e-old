@@ -1214,7 +1214,7 @@ static inline int get_phys_addr(CPUState *env, uint32_t address,
 int cpu_arm_handle_mmu_fault (CPUState *env, target_ulong address,
                               int access_type, int mmu_idx, int is_softmmu)
 {
-    uint32_t phys_addr;
+    uint32_t phys_addr = 0;
     int prot;
     int ret, is_user;
 
@@ -1244,7 +1244,7 @@ int cpu_arm_handle_mmu_fault (CPUState *env, target_ulong address,
 
 target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
 {
-    uint32_t phys_addr;
+    uint32_t phys_addr = 0;
     int prot;
     int ret;
 
