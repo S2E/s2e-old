@@ -1089,3 +1089,242 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
         }
     }
 }
+
+
+
+#ifdef CONFIG_STANDALONE_UI
+
+#include "android/protocol/core-connection.h"
+#include "android/protocol/fb-updates-impl.h"
+#include "android/protocol/user-events-proxy.h"
+#include "android/protocol/core-commands-proxy.h"
+#include "android/protocol/ui-commands-impl.h"
+#include "android/protocol/attach-ui-impl.h"
+
+/* Emulator's core port. */
+int android_base_port = 0;
+
+// Base console port
+#define CORE_BASE_PORT          5554
+
+// Maximum number of core porocesses running simultaneously on a machine.
+#define MAX_CORE_PROCS          16
+
+// Socket timeout in millisec (set to 5 seconds)
+#define CORE_PORT_TIMEOUT_MS    5000
+
+#include "android/async-console.h"
+
+typedef struct {
+    LoopIo                 io[1];
+    int                    port;
+    int                    ok;
+    AsyncConsoleConnector  connector[1];
+} CoreConsole;
+
+static void
+coreconsole_io_func(void* opaque, int fd, unsigned events)
+{
+    CoreConsole* cc = opaque;
+    AsyncStatus  status;
+    status = asyncConsoleConnector_run(cc->connector, cc->io);
+    if (status == ASYNC_COMPLETE) {
+        cc->ok = 1;
+    }
+}
+
+static void
+coreconsole_init(CoreConsole* cc, const SockAddress* address, Looper* looper)
+{
+    int fd = socket_create_inet(SOCKET_STREAM);
+    AsyncStatus status;
+    cc->port = sock_address_get_port(address);
+    cc->ok   = 0;
+    loopIo_init(cc->io, looper, fd, coreconsole_io_func, cc);
+    if (fd >= 0) {
+        status = asyncConsoleConnector_connect(cc->connector, address, cc->io);
+        if (status == ASYNC_ERROR) {
+            cc->ok = 0;
+        }
+    }
+}
+
+static void
+coreconsole_done(CoreConsole* cc)
+{
+    socket_close(cc->io->fd);
+    loopIo_done(cc->io);
+}
+
+/* List emulator core processes running on the given machine.
+ * This routine is called from main() if -list-cores parameter is set in the
+ * command line.
+ * Param:
+ *  host Value passed with -list-core parameter. Must be either "localhost", or
+ *  an IP address of a machine where core processes must be enumerated.
+ */
+static void
+list_running_cores(const char* host)
+{
+    Looper*         looper;
+    CoreConsole     cores[MAX_CORE_PROCS];
+    SockAddress     address;
+    int             nn, found;
+
+    if (sock_address_init_resolve(&address, host, CORE_BASE_PORT, 0) < 0) {
+        derror("Unable to resolve hostname %s: %s", host, errno_str);
+        return;
+    }
+
+    looper = looper_newGeneric();
+
+    for (nn = 0; nn < MAX_CORE_PROCS; nn++) {
+        int port = CORE_BASE_PORT + nn*2;
+        sock_address_set_port(&address, port);
+        coreconsole_init(&cores[nn], &address, looper);
+    }
+
+    looper_runWithTimeout(looper, CORE_PORT_TIMEOUT_MS*2);
+
+    found = 0;
+    for (nn = 0; nn < MAX_CORE_PROCS; nn++) {
+        int port = CORE_BASE_PORT + nn*2;
+        if (cores[nn].ok) {
+            if (found == 0) {
+                fprintf(stdout, "Running emulator core processes:\n");
+            }
+            fprintf(stdout, "Emulator console port %d\n", port);
+            found++;
+        }
+        coreconsole_done(&cores[nn]);
+    }
+    looper_free(looper);
+
+    if (found == 0) {
+       fprintf(stdout, "There were no running emulator core processes found on %s.\n",
+               host);
+    }
+}
+
+/* Attaches starting UI to a running core process.
+ * This routine is called from main() when -attach-core parameter is set,
+ * indicating that this UI instance should attach to a running core, rather than
+ * start a new core process.
+ * Param:
+ *  opts Android options containing non-NULL attach_core.
+ * Return:
+ *  0 on success, or -1 on failure.
+ */
+static int
+attach_to_core(AndroidOptions* opts) {
+    int iter;
+    SockAddress console_socket;
+    SockAddress** sockaddr_list;
+    QEmulator* emulator;
+
+    // Parse attach_core param extracting the host name, and the port name.
+    char* console_address = strdup(opts->attach_core);
+    char* host_name = console_address;
+    char* port_num = strchr(console_address, ':');
+    if (port_num == NULL) {
+        // The host name is ommited, indicating the localhost
+        host_name = "localhost";
+        port_num = console_address;
+    } else if (port_num == console_address) {
+        // Invalid.
+        derror("Invalid value %s for -attach-core parameter\n",
+               opts->attach_core);
+        return -1;
+    } else {
+        *port_num = '\0';
+        port_num++;
+        if (*port_num == '\0') {
+            // Invalid.
+            derror("Invalid value %s for -attach-core parameter\n",
+                   opts->attach_core);
+            return -1;
+        }
+    }
+
+    /* Create socket address list for the given address, and pull appropriate
+     * address to use for connection. Note that we're fine copying that address
+     * out of the list, since INET and IN6 will entirely fit into SockAddress
+     * structure. */
+    sockaddr_list =
+        sock_address_list_create(host_name, port_num, SOCKET_LIST_FORCE_INET);
+    free(console_address);
+    if (sockaddr_list == NULL) {
+        derror("Unable to resolve address %s: %s\n",
+               opts->attach_core, errno_str);
+        return -1;
+    }
+    for (iter = 0; sockaddr_list[iter] != NULL; iter++) {
+        if (sock_address_get_family(sockaddr_list[iter]) == SOCKET_INET ||
+            sock_address_get_family(sockaddr_list[iter]) == SOCKET_IN6) {
+            memcpy(&console_socket, sockaddr_list[iter], sizeof(SockAddress));
+            break;
+        }
+    }
+    if (sockaddr_list[iter] == NULL) {
+        derror("Unable to resolve address %s. Note that 'port' parameter passed to -attach-core\n"
+               "must be resolvable into an IP address.\n", opts->attach_core);
+        sock_address_list_free(sockaddr_list);
+        return -1;
+    }
+    sock_address_list_free(sockaddr_list);
+
+    if (attachUiImpl_create(&console_socket)) {
+        return -1;
+    }
+
+    // Save core's port, and set the title.
+    android_base_port = sock_address_get_port(&console_socket);
+    emulator = qemulator_get();
+    qemulator_set_title(emulator);
+
+    return 0;
+}
+
+
+void handle_ui_options( AndroidOptions* opts )
+{
+    // Lets see if user just wants to list core process.
+    if (opts->list_cores) {
+        fprintf(stdout, "Enumerating running core processes.\n");
+        list_running_cores(opts->list_cores);
+        exit(0);
+    }
+}
+
+int attach_ui_to_core( AndroidOptions* opts )
+{
+    // Lets see if we're attaching to a running core process here.
+    if (opts->attach_core) {
+        if (attach_to_core(opts)) {
+            return -1;
+        }
+        // Connect to the core's UI control services.
+        if (coreCmdProxy_create(attachUiImpl_get_console_socket())) {
+            return -1;
+        }
+        // Connect to the core's user events service.
+        if (userEventsProxy_create(attachUiImpl_get_console_socket())) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+#else  /* !CONFIG_STANDALONE_UI */
+
+void handle_ui_options( AndroidOptions* opts )
+{
+    return;
+}
+
+int attach_ui_to_core( AndroidOptions* opts )
+{
+    return 0;
+}
+
+#endif /* CONFIG_STANDALONE_UI */

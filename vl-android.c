@@ -58,6 +58,7 @@
 #include "android/utils/bufprint.h"
 #include "android/display-core.h"
 #include "android/utils/timezone.h"
+#include "android/snapshot.h"
 #include "targphys.h"
 #include "tcpdump.h"
 
@@ -4800,6 +4801,10 @@ int main(int argc, char **argv, char **envp)
                 append_param(kernel_cmdline_append, tmp_str, sizeof(kernel_cmdline_append));
                 break;
 #endif // CONFIG_MEMCHECK
+
+            case QEMU_OPTION_snapshot_no_time_update:
+                android_snapshot_update_time = 0;
+                break;
             }
         }
     }
