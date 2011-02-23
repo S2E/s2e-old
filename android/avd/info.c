@@ -130,6 +130,7 @@ struct AvdInfo {
     char      inAndroidBuild;
     char*     androidOut;
     char*     androidBuildRoot;
+    char*     targetArch;
 
     /* for the normal virtual device case */
     char*     deviceName;
@@ -1215,14 +1216,8 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
     if ( !imageLoader_load( l, IMAGE_OPTIONAL |
                                IMAGE_DONT_LOCK ) )
     {
-#ifdef TARGET_ARM
-#define  PREBUILT_KERNEL_PATH   "prebuilt/android-arm/kernel/kernel-qemu"
-#endif
-#ifdef TARGET_I386
-#define  PREBUILT_KERNEL_PATH   "prebuilt/android-x86/kernel/kernel-qemu"
-#endif
-        p = bufprint(temp, end, "%s/%s", i->androidBuildRoot,
-                        PREBUILT_KERNEL_PATH);
+        p = bufprint(temp, end, "%s/prebuilt/android-%s/kernel/kernel-qemu",
+                     i->androidBuildRoot, i->targetArch);
         if (p >= end || !path_exists(temp)) {
             derror("bad workspace: cannot find prebuilt kernel in: %s", temp);
             exit(1);
@@ -1419,6 +1414,76 @@ _getBuildSkinHardwareIni( AvdInfo*  i )
     return 0;
 }
 
+#define ABI_PREFIX       "ro.product.cpu.abi="
+#define ABI_PREFIX_LEN   (sizeof(ABI_PREFIX)-1)
+
+/* Retrieves a string corresponding to the target architecture
+ * when in the Android platform tree. The only way to do that
+ * properly for now is to look at $OUT/system/build.prop:
+ *
+ *   ro.product.cpu-abi=<abi>
+ *
+ * Where <abi> can be 'armeabi', 'armeabi-v7a' or 'x86'.
+ */
+static const char*
+_getBuildTargetArch( AvdInfo*  i )
+{
+    const char* arch = "arm";
+    char temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+    FILE*  file;
+
+    p = bufprint(temp, end, "%s/system/build.prop", i->androidOut);
+    if (p >= end) {
+        D("%s: ANDROID_PRODUCT_OUT too long: %s", __FUNCTION__, i->androidOut);
+        goto EXIT;
+    }
+    file = fopen(temp, "rb");
+    if (file == NULL) {
+        D("Could not open file: %s: %s", temp, strerror(errno));
+        D("Default target architecture=%s", arch);
+        goto EXIT;
+    }
+
+    while (fgets(temp, sizeof temp, file) != NULL) {
+        /* Trim trailing newlines, if any */
+        p = memchr(temp, '\0', sizeof temp);
+        if (p == NULL)
+            p = end;
+        if (p > temp && p[-1] == '\n') {
+            *--p = '\0';
+        }
+        if (p > temp && p[-1] == '\r') {
+            *--p = '\0';
+        }
+        /* force zero-termination in case of full-buffer */
+        if (p == end)
+            *--p = '\0';
+
+        if (memcmp(temp, ABI_PREFIX, ABI_PREFIX_LEN) != 0) {
+            continue;
+        }
+        p = temp + ABI_PREFIX_LEN;
+        if (p >= end || !*p)
+            goto EXIT2;
+
+        if (!strcmp("armeabi",p))
+            arch = "arm";
+        else if (!strcmp("armeabi-v7a",p))
+            arch = "arm";
+        else
+            arch = p;
+
+        D("Found target ABI=%s, architecture=%s", p, arch);
+        goto EXIT2;
+    }
+
+    D("Could not find target architecture, defaulting to %s", arch);
+EXIT2:
+    fclose(file);
+EXIT:
+    return arch;
+}
+
 AvdInfo*
 avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
                             const char*     androidOut,
@@ -1432,6 +1497,7 @@ avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
     i->androidBuildRoot = ASTRDUP(androidBuildRoot);
     i->androidOut       = ASTRDUP(androidOut);
     i->contentPath      = ASTRDUP(androidOut);
+    i->targetArch       = ASTRDUP(_getBuildTargetArch(i));
 
     /* TODO: find a way to provide better information from the build files */
     i->deviceName = ASTRDUP("<build>");
