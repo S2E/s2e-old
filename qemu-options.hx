@@ -1782,4 +1782,7 @@ DEF("ui-settings", HAS_ARG, QEMU_OPTION_ui_settings, \
 DEF("audio-test-out", 0, QEMU_OPTION_audio_test_out, \
    "-audio-test-out Test audio output\n")
 
+DEF("snapshot-no-time-update", 0, QEMU_OPTION_snapshot_no_time_update, \
+    "-snapshot-no-time-update Disable time update when restoring snapshots\n")
+
 #endif /* ANDROID */

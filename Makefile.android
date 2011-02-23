@@ -1288,7 +1288,7 @@ VL_SOURCES := android/framebuffer.c \
               android/looper-generic.c \
               android/snapshot.c \
               android/main-common.c \
-              android/main-ui.c \
+              android/main.c \
               vl-android-ui.c \
               iolooper-select.c \
               android/protocol/core-connection.c \

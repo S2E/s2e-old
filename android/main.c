@@ -55,11 +55,6 @@
 #include "android/framebuffer.h"
 #include "iolooper.h"
 
-#ifdef TARGET_I386
-nand_threshold android_nand_read_threshold;
-nand_threshold android_nand_write_threshold;
-#endif
-
 AndroidRotation  android_framebuffer_rotation;
 
 #define  STRINGIFY(x)   _STRINGIFY(x)
@@ -80,10 +75,6 @@ extern int qemu_milli_needed;
 /* the default device DPI if none is specified by the skin
  */
 #define  DEFAULT_DEVICE_DPI  165
-
-#if 0
-static int  opts->flashkeys;      /* forward */
-#endif
 
 #ifdef CONFIG_TRACE
 extern void  start_tracing(void);
@@ -147,6 +138,12 @@ int main(int argc, char **argv)
     if ( android_parse_options( &argc, &argv, opts ) < 0 ) {
         exit(1);
     }
+
+#ifdef _WIN32
+    socket_init();
+#endif
+
+    handle_ui_options(opts);
 
     while (argc-- > 1) {
         opt = (++argv)[0];
@@ -216,6 +213,12 @@ int main(int argc, char **argv)
         exit(0);
     }
 
+    /* Initialization of UI started with -attach-core should work differently
+     * than initialization of UI that starts the core. In particular....
+     */
+
+    /* -charmap is incompatible with -attach-core, because particular
+     * charmap gets set up in the running core. */
     if (android_charmap_setup(opts->charmap)) {
         exit(1);
     }
@@ -413,7 +416,7 @@ int main(int argc, char **argv)
     {
         const char*  filetype = "file";
 
-        // TODO: This should go to core!
+        // TODO: This should go to core
         if (avdInfo_isImageReadOnly(avd, AVD_IMAGE_INITSYSTEM))
             filetype = "initfile";
 
@@ -457,7 +460,7 @@ int main(int argc, char **argv)
         args[n++] = strdup(tmp);
     }
 
-     // TODO: This should go to core
+    // TODO: This should go to core
     if (hw->hw_sdCard != 0)
         opts->sdcard = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SDCARD);
     else if (opts->sdcard) {
@@ -514,7 +517,7 @@ int main(int argc, char **argv)
             D("ignoring redundant option(s) '-no-snapshot-load' and/or '-no-snapshot-save' implied by '-no-snapshot'");
         }
         if (opts->no_snapshot_update_time) {
-            android_snapshot_update_time = 0;
+            args[n++] = "-snapshot-no-time-update";
         }
     } else if (opts->snapshot || opts->snapstorage) {
         dwarning("option '-no-snapstorage' overrides '-snapshot' and '-snapstorage', "
@@ -869,6 +872,11 @@ int main(int argc, char **argv)
 
     /* Setup SDL UI just before calling the code */
     init_sdl_ui(skinConfig, skinPath, opts);
+
+    if (attach_ui_to_core(opts) < 0) {
+        derror("Can't attach to core!");
+        exit(1);
+    }
 
     return qemu_main(n, args);
 }
