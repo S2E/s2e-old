@@ -788,6 +788,7 @@ static int parallel_io[MAX_PARALLEL_PORTS] = { 0x378, 0x278, 0x3bc };
 static int parallel_irq[MAX_PARALLEL_PORTS] = { 7, 7, 7 }; */
 
 #ifdef HAS_AUDIO
+#ifndef CONFIG_ANDROID
 static void audio_init (PCIBus *pci_bus, qemu_irq *pic)
 {
     struct soundhw *c;
@@ -804,6 +805,7 @@ static void audio_init (PCIBus *pci_bus, qemu_irq *pic)
         }
     }
 }
+#endif
 #endif
 
 static void pc_init_ne2k_isa(NICInfo *nd, qemu_irq *pic)
@@ -1184,7 +1186,11 @@ static void pc_init1(ram_addr_t ram_size,
     events_dev_init(event0_device.base, i8259[event0_device.irq]);
 
 #ifdef HAS_AUDIO
+#ifndef CONFIG_ANDROID
     audio_init(pci_enabled ? pci_bus : NULL, i8259);
+#else
+    goldfish_audio_init(0xff004000, 0, audio_input_source);
+#endif
 #endif
 
 #ifndef CONFIG_ANDROID
