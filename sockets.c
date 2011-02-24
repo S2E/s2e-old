@@ -130,7 +130,7 @@ _fix_errno( void )
     const WinsockError*  werr = _winsock_errors;
     int                  unix = EINVAL;  /* generic error code */
 
-	winsock_error = WSAGetLastError();
+    winsock_error = WSAGetLastError();
 
     for ( ; werr->string != NULL; werr++ ) {
         if (werr->winsock == winsock_error) {
