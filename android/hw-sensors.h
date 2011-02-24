@@ -20,6 +20,9 @@ extern void  android_hw_sensors_init( void );
 /* NOTE: this list must be the same that the one defined in
  *       the sensors_qemu.c source of the libsensors.goldfish.so
  *       library.
+ *
+ *       DO NOT CHANGE THE ORDER IN THIS LIST, UNLESS YOU INTEND
+ *       TO BREAK SNAPSHOTS!
  */
 #define  SENSORS_LIST  \
     SENSOR_(ACCELERATION,"acceleration") \
