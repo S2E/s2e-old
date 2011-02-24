@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef SNAPSHOTS_H_
-#define SNAPSHOTS_H_
+#ifndef ANDROID_SNAPSHOT_H
+#define ANDROID_SNAPSHOT_H
 
 #include "config/config.h"
-
-#if CONFIG_ANDROID_SNAPSHOTS
 
 /* Prints a table with information on the snapshot stored in the file
  * 'snapstorage', then exit()s.
@@ -30,6 +28,4 @@ void snapshot_print_and_exit( const char *snapstorage );
 extern int android_snapshot_update_time;
 extern int android_snapshot_update_time_request;
 
-#endif
-
-#endif /* SNAPSHOTS_H_ */
+#endif /* ANDROID_SNAPSHOT_H */

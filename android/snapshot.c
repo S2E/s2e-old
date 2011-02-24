@@ -33,12 +33,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "bswap.h"
 #include "android/utils/debug.h"
 #include "android/utils/system.h"
-#include "bswap.h"
-#include "snapshot.h"
-
-#if CONFIG_ANDROID_SNAPSHOTS
+#include "android/snapshot.h"
 
 /* "Magic" sequence of four bytes required by spec to be the first four bytes
  * of any Qcow file.
@@ -333,4 +331,3 @@ snapshot_print_and_exit( const char *snapstorage )
     close(fd);
     exit(0);
 }
-#endif // CONFIG_ANDROID_SNAPSHOTS

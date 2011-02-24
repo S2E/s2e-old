@@ -166,9 +166,7 @@ help_disk_images( stralloc_t*  out )
     "    system-qemu.img    an *optional* persistent system image\n"
     "    cache.img          an *optional* cache partition image\n"
     "    sdcard.img         an *optional* SD Card partition image\n\n"
-#if CONFIG_ANDROID_SNAPSHOTS
     "    snapshots.img      an *optional* state snapshots image\n\n"
-#endif
 
     "  If you use a virtual device, its content directory should store\n"
     "  all writable images, and read-only ones will be found from the\n"
@@ -184,11 +182,7 @@ help_disk_images( stralloc_t*  out )
     "  can still run the emulator by explicitely providing the paths to\n"
     "  *all* required disk images through a combination of the following\n"
     "  options: -sysdir, -datadir, -kernel, -ramdisk, -system, -data, -cache\n"
-#if CONFIG_ANDROID_SNAPSHOTS
     "  -sdcard and -snapstorage.\n\n"
-#else
-    "  and -sdcard.\n\n"
-#endif
 
     "  The actual logic being that the emulator should be able to find all\n"
     "  images from the options you give it.\n\n"
@@ -205,10 +199,8 @@ help_disk_images( stralloc_t*  out )
     "      -no-cache        do not use a cache partition, even if one is\n"
     "                       available.\n\n"
 
-#if CONFIG_ANDROID_SNAPSHOTS
     "      -no-snapstorage  do not use a state snapshot image, even if one is\n"
     "                       available.\n\n"
-#endif
     ,
     datadir );
 }
@@ -619,7 +611,6 @@ help_sdcard(stralloc_t*  out)
     );
 }
 
-#if CONFIG_ANDROID_SNAPSHOTS
 static void
 help_snapstorage(stralloc_t*  out)
 {
@@ -732,8 +723,6 @@ help_snapshot_list(stralloc_t*  out)
     "  See '-help-snapshot' for more information on snapshots.\n\n"
     );
 }
-
-#endif
 
 static void
 help_skindir(stralloc_t*  out)

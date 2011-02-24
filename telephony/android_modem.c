@@ -2199,16 +2199,14 @@ handleAnswer( const char*  cmd, AModem  modem )
     return NULL;
 }
 
-#if CONFIG_ANDROID_SNAPSHOTS
 int android_snapshot_update_time = 1;
 int android_snapshot_update_time_request = 0;
-#endif
 
 static const char*
 handleSignalStrength( const char*  cmd, AModem  modem )
 {
     amodem_begin_line( modem );
-#if CONFIG_ANDROID_SNAPSHOTS
+
     /* Sneak time updates into the SignalStrength request, because it's periodic.
      * Ideally, we'd be able to prod the guest into asking immediately on restore
      * from snapshot, but that'd require a driver.
@@ -2217,7 +2215,7 @@ handleSignalStrength( const char*  cmd, AModem  modem )
       amodem_addTimeUpdate( modem );
       android_snapshot_update_time_request = 0;
     }
-#endif
+
     // rssi = 0 (<-113dBm) 1 (<-111) 2-30 (<-109--53) 31 (>=-51) 99 (?!)
     // ber (bit error rate) - always 99 (unknown), apparently.
     // TODO: return 99 if modem->radio_state==A_RADIO_STATE_OFF, once radio_state is in snapshot.

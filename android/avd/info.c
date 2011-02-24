@@ -726,9 +726,7 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
     int   wipeCache   = (params->flags & AVDINFO_WIPE_CACHE) != 0;
     int   noCache     = (params->flags & AVDINFO_NO_CACHE) != 0;
     int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
-#if CONFIG_ANDROID_SNAPSHOTS
     int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
-#endif
 
     ImageLoader  l[1];
 
@@ -817,7 +815,6 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
                                  params->forcePaths[AVD_IMAGE_SDCARD]);
     }
 
-#if CONFIG_ANDROID_SNAPSHOTS
     /* the state snapshot image. Mounting behaviour identical to
      * SD card.
      */
@@ -825,7 +822,6 @@ _getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
         imageLoader_loadOptional(l, AVD_IMAGE_SNAPSHOTS,
                                  params->forcePaths[AVD_IMAGE_SNAPSHOTS]);
     }
-#endif
 
     return 0;
 }
@@ -1196,9 +1192,7 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
     int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
     int   noCache     = (params->flags & AVDINFO_NO_CACHE) != 0;
     int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
-#if CONFIG_ANDROID_SNAPSHOTS
     int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
-#endif
 
     char         temp[PATH_MAX], *p=temp, *end=p+sizeof temp;
     char*        srcData;
@@ -1312,14 +1306,12 @@ _getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
         imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
     }
 
-#if CONFIG_ANDROID_SNAPSHOTS
     /** State snapshots image
      **/
     if (!noSnapshots) {
         imageLoader_set (l, AVD_IMAGE_SNAPSHOTS);
         imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
     }
-#endif
 
     return 0;
 }
