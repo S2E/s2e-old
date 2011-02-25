@@ -61,6 +61,7 @@ HW_SOURCES := \
     cdrom.c \
     dma.c \
     irq.c \
+    goldfish_audio.c \
     goldfish_device.c \
     goldfish_events_device.c \
     goldfish_fb.c \
@@ -84,7 +85,6 @@ HW_SOURCES := \
 ifeq ($(EMULATOR_TARGET_ARCH),arm)
 HW_SOURCES += android_arm.c \
     arm_pic.c \
-    goldfish_audio.c \
     goldfish_interrupt.c \
     goldfish_switch.c \
     goldfish_timer.c \
