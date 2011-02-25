@@ -1130,8 +1130,6 @@ static int
 _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
 {
     int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   wipeCache   = (params->flags & AVDINFO_WIPE_CACHE) != 0;
-    int   noCache     = (params->flags & AVDINFO_NO_CACHE) != 0;
     int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
     int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
 
@@ -1184,24 +1182,6 @@ _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
         /* lock the data partition image */
         l->pState[0] = IMAGE_STATE_MUSTLOCK;
         imageLoader_lock( l, 0 );
-    }
-
-    /* the cache partition: unless the user doesn't want one,
-     * we're going to create it in the content directory
-     */
-    if (!noCache) {
-        imageLoader_set (l, AVD_IMAGE_CACHE);
-        imageLoader_load(l, IMAGE_OPTIONAL |
-                            IMAGE_EMPTY_IF_MISSING );
-
-        if (wipeCache) {
-            if (path_empty_file(l->pPath[0]) < 0) {
-                derror("cannot wipe %s image at %s: %s",
-                       l->imageText, l->pPath[0],
-                       strerror(errno));
-                exit(2);
-            }
-        }
     }
 
     /* the SD Card image. unless the user doesn't want to, we're
@@ -1314,7 +1294,6 @@ static int
 _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 {
     int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   noCache     = (params->flags & AVDINFO_NO_CACHE) != 0;
     int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
     int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
 
@@ -1385,18 +1364,6 @@ _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 
     /* force the system image to read-only status */
     l->pState[0] = IMAGE_STATE_READONLY;
-
-    /** cache partition handling
-     **/
-    if (!noCache) {
-        imageLoader_set (l, AVD_IMAGE_CACHE);
-
-        /* if the user provided one cache image, lock & use it */
-        if ( params->forcePaths[l->id] != NULL ) {
-            imageLoader_load(l, IMAGE_REQUIRED |
-                                IMAGE_IGNORE_IF_LOCKED);
-        }
-    }
 
     /** SD Card image
      **/
@@ -1545,6 +1512,18 @@ avdInfo_getRamdiskPath( AvdInfo* i )
 {
     const char* imageName = _imageFileNames[ AVD_IMAGE_RAMDISK ];
     return _avdInfo_getContentOrSdkFilePath(i, imageName);
+}
+
+char*  avdInfo_getCachePath( AvdInfo*  i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_CACHE ];
+    return _avdInfo_getContentFilePath(i, imageName);
+}
+
+char*  avdInfo_getDefaultCachePath( AvdInfo*  i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_CACHE ];
+    return _getFullFilePath(i->contentPath, imageName);
 }
 
 char*
