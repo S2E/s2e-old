@@ -130,6 +130,17 @@ void        avdInfo_free( AvdInfo*  i );
  */
 const char*  avdInfo_getName( AvdInfo*  i );
 
+/* Returns the path to a given AVD image file. This will return NULL if
+ * the file cannot be found / does not exist.
+ */
+const char*  avdInfo_getImagePath( AvdInfo*  i, AvdImageType  imageType );
+
+/* Returns the default path of a given AVD image file. This only makes sense
+ * if avdInfo_getImagePath() returned NULL.
+ */
+const char*  avdInfo_getImageDefaultPath( AvdInfo*  i, AvdImageType  imageType );
+
+
 /* Try to find the path of a given image file, returns NULL
  * if the corresponding file could not be found. the string
  * belongs to the AvdInfo object.
@@ -154,18 +165,17 @@ int          avdInfo_lockImageFile( AvdInfo*  i, AvdImageType  imageType, int  a
 /* Manually set the path of a given image file. */
 void         avdInfo_setImageFile( AvdInfo*  i, AvdImageType  imageType, const char*  imagePath );
 
-/* Returns the path of the skin directory */
-/* the string belongs to the AvdInfo object */
-const char*  avdInfo_getSkinPath( AvdInfo*  i );
-
-/* Returns the name of the virtual device's skin */
-const char*  avdInfo_getSkinName( AvdInfo*  i );
-
-/* Returns the root skin directory for this device */
-const char*  avdInfo_getSkinDir ( AvdInfo*  i );
-
 /* Returns the content path of the virtual device */
 const char*  avdInfo_getContentPath( AvdInfo*  i );
+
+/* Retrieve the AVD's specific skin information.
+ * On exit:
+ *   '*pSkinName' points to the skin's name.
+ *   '*pSkinDir' points to the skin's directory.
+ *
+ * Note that the skin's content will be under <skinDir>/<skinName>.
+ */
+void         avdInfo_getSkinInfo( AvdInfo*  i, char** pSkinName, char** pSkinDir );
 
 /* Returns TRUE iff in the Android build system */
 int          avdInfo_inAndroidBuild( AvdInfo*  i );

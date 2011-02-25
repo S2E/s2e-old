@@ -60,6 +60,12 @@ void init_sdl_ui(AConfig*         skinConfig,
                  const char*      skinPath,
                  AndroidOptions*  opts);
 
+/* Sanitize options. This deals with a few legacy options that are now
+ * handled differently. Call before anything else that needs to read
+ * the options list.
+ */
+void sanitizeOptions( AndroidOptions* opts );
+
 /* Creates and initializes AvdInfo instance for the given options.
  * Param:
  *  opts - Options passed to the main()
@@ -69,6 +75,12 @@ void init_sdl_ui(AConfig*         skinConfig,
  *  AvdInfo instance initialized for the given options.
  */
 struct AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild);
+
+/* Populate the hwConfig fields corresponding to the kernel/disk images
+ * used by the emulator. This will zero *hwConfig first.
+ */
+void findImagePaths( AndroidHwConfig*  hwConfig,
+                     AndroidOptions*   opts );
 
 /* Updates hardware configuration for the given AVD and options.
  * Param:
