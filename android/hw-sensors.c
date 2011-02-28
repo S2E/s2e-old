@@ -525,7 +525,7 @@ _hwSensors_load( QEMUFile*  f, QemudService*  s, void*  opaque)
 
     /* check number of sensors */
     int32_t num_sensors = qemu_get_be32(f);
-    if (num_sensors != MAX_SENSORS) {
+    if (num_sensors > MAX_SENSORS) {
         D("%s: cannot load: snapshot requires %d sensors, %d available\n",
           __FUNCTION__, num_sensors, MAX_SENSORS);
         return -EIO;
@@ -533,7 +533,7 @@ _hwSensors_load( QEMUFile*  f, QemudService*  s, void*  opaque)
 
     /* load sensor state */
     AndroidSensor i;
-    for (i = 0 ; i < MAX_SENSORS; i++) {
+    for (i = 0 ; i < num_sensors; i++) {
         Sensor* s = &h->sensors[i];
         s->enabled = qemu_get_be32(f);
 
@@ -565,6 +565,14 @@ _hwSensors_load( QEMUFile*  f, QemudService*  s, void*  opaque)
         case MAX_SENSORS:
             break;
         }
+    }
+
+    /* The following is necessary when we resume a snaphost
+     * created by an older version of the emulator that provided
+     * less hardware sensors.
+     */
+    for ( ; i < MAX_SENSORS; i++ ) {
+        h->sensors[i].enabled = 0;
     }
 
     return 0;
