@@ -157,6 +157,8 @@ char*  avdInfo_getSystemImagePath( AvdInfo* i );
  */
 char*  avdInfo_getSystemInitImagePath( AvdInfo*  i );
 
+char*  avdInfo_getDataImagePath( AvdInfo*  i );
+char*  avdInfo_getDefaultDataImagePath( AvdInfo*  i );
 char*  avdInfo_getDataInitImagePath( AvdInfo* i );
 
 /* Returns the path to a given AVD image file. This will return NULL if

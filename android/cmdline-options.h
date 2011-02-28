@@ -83,7 +83,7 @@ OPT_FLAG ( no_snapshot_save, "do not auto-save to snapshot on exit: abandon chan
 OPT_FLAG ( no_snapshot_load, "do not auto-start from snapshot: perform a full boot" )
 OPT_FLAG ( snapshot_list,  "show a list of available snapshots" )
 OPT_FLAG ( no_snapshot_update_time, "do not do try to correct snapshot time on restore" )
-OPT_FLAG ( wipe_data, "reset the use data image (copy it from initdata)" )
+OPT_FLAG ( wipe_data, "reset the user data image (copy it from initdata)" )
 CFG_PARAM( avd, "<name>", "use a specific android virtual device" )
 CFG_PARAM( skindir, "<dir>", "search skins in <dir> (default <system>/skins)" )
 CFG_PARAM( skin, "<name>", "select a given skin" )

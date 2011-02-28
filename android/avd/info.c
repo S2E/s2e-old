@@ -780,398 +780,6 @@ _avdInfo_getCoreHwIniPath( AvdInfo* i, const char* basePath )
     return 0;
 }
 
-
-/***************************************************************
- ***************************************************************
- *****
- *****    KERNEL/DISK IMAGE LOADER
- *****
- *****/
-
-/* a structure used to handle the loading of
- * kernel/disk images.
- */
-typedef struct {
-    AvdInfo*        info;
-    AvdInfoParams*  params;
-    AvdImageType    id;
-    const char*     imageFile;
-    const char*     imageText;
-    char**          pPath;
-    char*           pState;
-    char            temp[PATH_MAX];
-} ImageLoader;
-
-static void
-imageLoader_init( ImageLoader*  l, AvdInfo*  info, AvdInfoParams*  params )
-{
-    memset(l, 0, sizeof(*l));
-    l->info    = info;
-    l->params  = params;
-}
-
-/* set the type of the image to load */
-static void
-imageLoader_set( ImageLoader*  l, AvdImageType  id )
-{
-    l->id        = id;
-    l->imageFile = _imageFileNames[id];
-    l->imageText = _imageFileText[id];
-    l->pPath     = &l->info->imagePath[id];
-    l->pState    = &l->info->imageState[id];
-
-    l->pState[0] = IMAGE_STATE_READONLY;
-}
-
-/* change the image path */
-static char*
-imageLoader_setPath( ImageLoader*  l, const char*  path )
-{
-    path = path ? ASTRDUP(path) : NULL;
-
-    AFREE(l->pPath[0]);
-    l->pPath[0] = (char*) path;
-
-    return (char*) path;
-}
-
-static char*
-imageLoader_extractPath( ImageLoader*  l )
-{
-    char*  result = l->pPath[0];
-    l->pPath[0] = NULL;
-    return result;
-}
-
-/* flags used when loading images */
-enum {
-    IMAGE_REQUIRED          = (1<<0),  /* image is required */
-    IMAGE_SEARCH_SDK        = (1<<1),  /* search image in SDK */
-    IMAGE_EMPTY_IF_MISSING  = (1<<2),  /* create empty file if missing */
-    IMAGE_DONT_LOCK         = (1<<4),  /* don't try to lock image */
-    IMAGE_IGNORE_IF_LOCKED  = (1<<5),  /* ignore file if it's locked */
-};
-
-#define  IMAGE_OPTIONAL  0
-
-/* find an image from the SDK search directories.
- * returns the full path or NULL if the file could not be found.
- *
- * note: this stores the result in the image's path as well
- */
-static char*
-imageLoader_lookupSdk( ImageLoader*  l  )
-{
-    AvdInfo*     i     = l->info;
-    const char*  image = l->imageFile;
-    char*        temp  = l->temp, *p = temp, *end = p + sizeof(l->temp);
-
-    do {
-        /* try the search paths */
-        int  nn;
-
-        for (nn = 0; nn < i->numSearchPaths; nn++) {
-            const char* searchDir = i->searchPaths[nn];
-
-            p = bufprint(temp, end, "%s/%s", searchDir, image);
-            if (p < end && path_exists(temp)) {
-                DD("found %s in search dir: %s", image, searchDir);
-                goto FOUND;
-            }
-            DD("    no %s in search dir: %s", image, searchDir);
-        }
-
-        return NULL;
-
-    } while (0);
-
-FOUND:
-    l->pState[0] = IMAGE_STATE_READONLY;
-
-    return imageLoader_setPath(l, temp);
-}
-
-/* search for a file in the content directory.
- * returns NULL if the file cannot be found.
- *
- * note that this formats l->temp with the file's path
- * allowing you to retrieve it if the function returns NULL
- */
-static char*
-imageLoader_lookupContent( ImageLoader*  l )
-{
-    AvdInfo*  i     = l->info;
-    char*     temp  = l->temp, *p = temp, *end = p + sizeof(l->temp);
-
-    p = bufprint(temp, end, "%s/%s", i->contentPath, l->imageFile);
-    if (p >= end) {
-        derror("content directory path too long");
-        exit(2);
-    }
-    if (!path_exists(temp)) {
-        DD("    no %s in content directory", l->imageFile);
-        return NULL;
-    }
-    DD("found %s in content directory", l->imageFile);
-
-    /* assume content image files must be locked */
-    l->pState[0] = IMAGE_STATE_MUSTLOCK;
-
-    return imageLoader_setPath(l, temp);
-}
-
-/* lock a file image depending on its state and user flags
- * note that this clears l->pPath[0] if the lock could not
- * be acquired and that IMAGE_IGNORE_IF_LOCKED is used.
- */
-static void
-imageLoader_lock( ImageLoader*  l, unsigned  flags )
-{
-    const char*  path = l->pPath[0];
-
-    if (flags & IMAGE_DONT_LOCK)
-        return;
-
-    if (l->pState[0] != IMAGE_STATE_MUSTLOCK)
-        return;
-
-    D("    locking %s image at %s", l->imageText, path);
-
-    if (filelock_create(path) != NULL) {
-        /* succesful lock */
-        l->pState[0] = IMAGE_STATE_LOCKED;
-        return;
-    }
-
-    if (flags & IMAGE_IGNORE_IF_LOCKED) {
-        dwarning("ignoring locked %s image at %s", l->imageText, path);
-        imageLoader_setPath(l, NULL);
-        return;
-    }
-
-    derror("the %s image is used by another emulator. aborting",
-            l->imageText);
-    exit(2);
-}
-
-/* make a file image empty, this may require locking */
-static void
-imageLoader_empty( ImageLoader*  l, unsigned  flags )
-{
-    const char*  path;
-
-    imageLoader_lock(l, flags);
-
-    path = l->pPath[0];
-    if (path == NULL)  /* failed to lock, caller will handle it */
-        return;
-
-    if (path_empty_file(path) < 0) {
-        derror("could not create %s image at %s: %s",
-                l->imageText, path, strerror(errno));
-        exit(2);
-    }
-    l->pState[0] = IMAGE_STATE_LOCKED_EMPTY;
-}
-
-
-/* copy image file from a given source
- * assumes locking is needed.
- */
-static void
-imageLoader_copyFrom( ImageLoader*  l, const char*  srcPath )
-{
-    const char*  dstPath = NULL;
-
-    /* find destination file */
-    if (l->params) {
-        dstPath = l->params->forcePaths[l->id];
-    }
-    if (!dstPath) {
-        imageLoader_lookupContent(l);
-        dstPath = l->temp;
-    }
-
-    /* lock destination */
-    imageLoader_setPath(l, dstPath);
-    l->pState[0] = IMAGE_STATE_MUSTLOCK;
-    imageLoader_lock(l, 0);
-
-    /* make the copy */
-    if (path_copy_file(dstPath, srcPath) < 0) {
-        derror("can't initialize %s image from SDK: %s: %s",
-               l->imageText, dstPath, strerror(errno));
-        exit(2);
-    }
-}
-
-/* this will load and eventually lock and image file, depending
- * on the flags being used. on exit, this function udpates
- * l->pState[0] and l->pPath[0]
- *
- * returns the path to the file. Note that it returns NULL
- * only if the file was optional and could not be found.
- *
- * if the file is required and missing, the function aborts
- * the program.
- */
-static char*
-imageLoader_load( ImageLoader*    l,
-                  unsigned        flags )
-{
-    const char*  path = NULL;
-
-    /* set image state */
-    l->pState[0] = (flags & IMAGE_DONT_LOCK) == 0
-                 ? IMAGE_STATE_MUSTLOCK
-                 : IMAGE_STATE_READONLY;
-
-    /* check user-provided path */
-    path = l->params->forcePaths[l->id];
-    if (path != NULL) {
-        imageLoader_setPath(l, path);
-        if (path_exists(path)) {
-            DD("found user-provided %s image: %s", l->imageText, l->imageFile);
-            goto EXIT;
-        }
-        D("user-provided %s image does not exist: %s",
-          l->imageText, path);
-
-        /* if the file is required, abort */
-        if (flags & IMAGE_REQUIRED) {
-            derror("user-provided %s image at %s doesn't exist",
-                    l->imageText, path);
-            exit(2);
-        }
-    }
-    else {
-        const char*  contentFile;
-
-        /* second, look in the content directory */
-        path = imageLoader_lookupContent(l);
-        if (path) goto EXIT;
-
-        contentFile = ASTRDUP(l->temp);
-
-        /* it's not there */
-        if (flags & IMAGE_SEARCH_SDK) {
-            /* third, look in the SDK directory */
-            path = imageLoader_lookupSdk(l);
-            if (path) {
-                AFREE((char*)contentFile);
-                goto EXIT;
-            }
-        }
-        DD("found no %s image (%s)", l->imageText, l->imageFile);
-
-        /* if the file is required, abort */
-        if (flags & IMAGE_REQUIRED) {
-            AvdInfo*  i = l->info;
-
-            derror("could not find required %s image (%s).",
-                   l->imageText, l->imageFile);
-
-            if (i->inAndroidBuild) {
-                dprint( "Did you build everything ?" );
-            } else if (!i->sdkRootPathFromEnv) {
-                dprint( "Maybe defining %s to point to a valid SDK "
-                        "installation path might help ?", SDK_ROOT_ENV );
-            } else {
-                dprint( "Your %s is probably wrong: %s", SDK_ROOT_ENV,
-                        i->sdkRootPath );
-            }
-            exit(2);
-        }
-
-        path = imageLoader_setPath(l, contentFile);
-        AFREE((char*)contentFile);
-    }
-
-    /* otherwise, do we need to create it ? */
-    if (flags & IMAGE_EMPTY_IF_MISSING) {
-        imageLoader_empty(l, flags);
-        return l->pPath[0];
-    }
-    return NULL;
-
-EXIT:
-    imageLoader_lock(l, flags);
-    return l->pPath[0];
-}
-
-/* find the correct path of all image files we're going to need
- * and lock the files that need it.
- */
-static int
-_avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
-{
-    int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-
-    ImageLoader  l[1];
-
-    imageLoader_init(l, i, params);
-
-    /* the data partition - this one is special because if it
-     * is missing, we need to copy the initial image file into it.
-     *
-     * first, try to see if it is in the content directory
-     * (or the user-provided path)
-     */
-    imageLoader_set( l, AVD_IMAGE_USERDATA );
-    if ( !imageLoader_load( l, IMAGE_OPTIONAL |
-                               IMAGE_DONT_LOCK ) )
-    {
-        /* it's not, we're going to initialize it. simply
-         * forcing a data wipe should be enough */
-        D("initializing new data partition image: %s", l->pPath[0]);
-        wipeData = 1;
-    }
-
-    if (wipeData) {
-        /* find SDK source file */
-        const char*  srcPath;
-
-        imageLoader_set( l, AVD_IMAGE_INITDATA );
-        if (imageLoader_lookupSdk(l) == NULL) {
-            derror("can't locate initial %s image in SDK",
-                l->imageText);
-            exit(2);
-        }
-        srcPath = imageLoader_extractPath(l);
-
-        imageLoader_set( l, AVD_IMAGE_USERDATA );
-        imageLoader_copyFrom( l, srcPath );
-        AFREE((char*) srcPath);
-    }
-    else
-    {
-        /* lock the data partition image */
-        l->pState[0] = IMAGE_STATE_MUSTLOCK;
-        imageLoader_lock( l, 0 );
-    }
-
-    return 0;
-}
-
-/* If the user didn't explicitely provide an SD Card path,
- * check the SDCARD_PATH key in config.ini and use that if
- * available.
- */
-static void
-_avdInfo_getSDCardPath( AvdInfo*  i, AvdInfoParams*  params )
-{
-    const char*  path;
-
-    if (params->forcePaths[AVD_IMAGE_SDCARD] != NULL)
-        return;
-
-    path = iniFile_getString(i->configIni, SDCARD_PATH, NULL);
-    if (path == NULL)
-        return;
-
-    params->forcePaths[AVD_IMAGE_SDCARD] = path;
-}
-
 AvdInfo*
 avdInfo_new( const char*  name, AvdInfoParams*  params )
 {
@@ -1199,14 +807,10 @@ avdInfo_new( const char*  name, AvdInfoParams*  params )
      * obsolete SDKs.
      */
     _avdInfo_getSearchPaths(i);
-    _avdInfo_getSDCardPath(i, params);
 
     /* don't need this anymore */
     iniFile_free(i->rootIni);
     i->rootIni = NULL;
-
-    if ( _avdInfo_getImagePaths(i, params) < 0 )
-        goto FAIL;
 
     return i;
 
@@ -1238,73 +842,6 @@ FAIL:
  *****    - there is no root .ini file, or any config.ini in
  *****      the content directory, no SDK images search path.
  *****/
-
-static int
-_avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
-{
-    int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-
-    char         temp[PATH_MAX];
-    char*        srcData;
-    ImageLoader  l[1];
-
-    imageLoader_init(l, i, params);
-
-    /** load the data partition. note that we use userdata-qemu.img
-     ** since we don't want to modify userdata.img at all
-     **/
-    imageLoader_set ( l, AVD_IMAGE_USERDATA );
-    imageLoader_load( l, IMAGE_OPTIONAL | IMAGE_DONT_LOCK );
-
-    /* get the path of the source file, and check that it actually exists
-     * if the user didn't provide an explicit data file
-     */
-    srcData = imageLoader_extractPath(l);
-    if (srcData == NULL && params->forcePaths[AVD_IMAGE_USERDATA] == NULL) {
-        derror("There is no %s image in your build directory. Please make a full build",
-                l->imageText, l->imageFile);
-        exit(2);
-    }
-
-    /* get the path of the target file */
-    l->imageFile = "userdata-qemu.img";
-    imageLoader_load( l, IMAGE_OPTIONAL |
-                         IMAGE_EMPTY_IF_MISSING |
-                         IMAGE_IGNORE_IF_LOCKED );
-
-    /* force a data wipe if we just created the image */
-    if (l->pState[0] == IMAGE_STATE_LOCKED_EMPTY)
-        wipeData = 1;
-
-    /* if the image was already locked, create a temp file
-     * then force a data wipe.
-     */
-    if (l->pPath[0] == NULL) {
-        TempFile*  temp = tempfile_create();
-        imageLoader_setPath(l, tempfile_path(temp));
-        dwarning( "Another emulator is running. user data changes will *NOT* be saved");
-        wipeData = 1;
-    }
-
-    /* in the case of a data wipe, copy userdata.img into
-     * the destination */
-    if (wipeData) {
-        if (srcData == NULL || !path_exists(srcData)) {
-            derror("There is no %s image in your build directory. Please make a full build",
-                   l->imageText, _imageFileNames[l->id]);
-            exit(2);
-        }
-        if (path_copy_file( l->pPath[0], srcData ) < 0) {
-            derror("could not initialize %s image from %s: %s",
-                   l->imageText, temp, strerror(errno));
-            exit(2);
-        }
-    }
-
-    AFREE(srcData);
-
-    return 0;
-}
 
 /* Read a hardware.ini if it is located in the skin directory */
 static int
@@ -1353,8 +890,7 @@ avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
     /* There is no config.ini in the build */
     i->configIni = NULL;
 
-    if (_avdInfo_getBuildImagePaths(i, params) < 0 ||
-        _avdInfo_getCoreHwIniPath(i, i->androidOut) < 0 )
+    if (_avdInfo_getCoreHwIniPath(i, i->androidOut) < 0 )
         goto FAIL;
 
     /* Read the build skin's hardware.ini, if any */
@@ -1492,6 +1028,20 @@ avdInfo_getSystemInitImagePath( AvdInfo*  i )
 {
     const char* imageName = _imageFileNames[ AVD_IMAGE_INITSYSTEM ];
     return _avdInfo_getContentOrSdkFilePath(i, imageName);
+}
+
+char*
+avdInfo_getDataImagePath( AvdInfo*  i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_USERDATA ];
+    return _avdInfo_getContentFilePath(i, imageName);
+}
+
+char*
+avdInfo_getDefaultDataImagePath( AvdInfo*  i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_USERDATA ];
+    return _getFullFilePath(i->contentPath, imageName);
 }
 
 char*

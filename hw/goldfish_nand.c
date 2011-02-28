@@ -794,7 +794,7 @@ void nand_add_dev(const char *arg)
                 exit(1);
             }
             if(do_write(rwfd, dev->data, read_size) != read_size) {
-                XLOG("could not write file %s, %s\n", initfilename, strerror(errno));
+                XLOG("could not write file %s, %s\n", rwfilename, strerror(errno));
                 exit(1);
             }
         } while(read_size == dev->erase_size);
