@@ -3775,6 +3775,7 @@ int main(int argc, char **argv, char **envp)
     DisplayChangeListener *dcl;
     int cyls, heads, secs, translation;
     QemuOpts *hda_opts = NULL;
+    QemuOpts *hdb_opts = NULL;
     const char *net_clients[MAX_NET_CLIENTS];
     int nb_net_clients;
     const char *bt_opts[MAX_BT_CMDLINE];
@@ -3987,6 +3988,9 @@ int main(int argc, char **argv, char **envp)
                                  ",trans=none" : "");
                  break;
             case QEMU_OPTION_hdb:
+                hdb_opts = drive_add(optarg, HD_ALIAS, 1);
+                break;
+
             case QEMU_OPTION_hdc:
             case QEMU_OPTION_hdd:
                 drive_add(optarg, HD_ALIAS, popt->index - QEMU_OPTION_hda);
@@ -4850,6 +4854,19 @@ int main(int argc, char **argv, char **envp)
                 /* Successful locking */
                 hda_opts = drive_add(sdPath, HD_ALIAS, 0);
             }
+        }
+    }
+
+    if (hdb_opts == NULL) {
+        const char* spath = android_hw->disk_snapStorage_path;
+        if (spath && *spath) {
+            if (!path_exists(spath)) {
+                PANIC("Snapshot storage file does not exist: %s", spath);
+            }
+            if (filelock_create(spath) == NULL) {
+                PANIC("Snapshot storag already in use: %s", spath);
+            }
+            hdb_opts = drive_add(spath, HD_ALIAS, 1);
         }
     }
 

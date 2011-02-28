@@ -137,6 +137,7 @@ const char*  avdInfo_getName( AvdInfo*  i );
 char*  avdInfo_getKernelPath( AvdInfo*  i );
 char*  avdInfo_getRamdiskPath( AvdInfo*  i );
 char*  avdInfo_getSdCardPath( AvdInfo* i );
+char*  avdInfo_getSnapStoragePath( AvdInfo* i );
 
 /* This function returns NULL if the cache image file cannot be found.
  * Use avdInfo_getDefaultCachePath() to retrieve the default path

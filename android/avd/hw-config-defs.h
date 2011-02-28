@@ -263,11 +263,11 @@ HWCFG_DISKSIZE(
   "ideal size of data partition. Ignored if smaller than the size of .path (or .initPath). Otherwise, gives the maximum size the partition is allowed to grow dynamically.")
 
 HWCFG_STRING(
-  disk_snapshots_path,
-  "disk.snapshots.path",
+  disk_snapStorage_path,
+  "disk.snapStorage.path",
   "",
-  "Path to snapshots",
-  "Path to a 'snapshot storage' file, where all snapshots are stored, including the default snapshot.")
+  "Path to snapshot storage",
+  "Path to a 'snapshot storage' file, where all snapshots are stored.")
 
 #undef HWCFG_INT
 #undef HWCFG_BOOL
