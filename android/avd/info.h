@@ -130,6 +130,16 @@ void        avdInfo_free( AvdInfo*  i );
  */
 const char*  avdInfo_getName( AvdInfo*  i );
 
+/* Returns the path to various images corresponding to a given AVD.
+ * NULL if the image cannot be found. Returned strings must be freed
+ * by the caller.
+ */
+char*  avdInfo_getKernelPath( AvdInfo*  i );
+char*  avdInfo_getRamdiskPath( AvdInfo*  i );
+
+char*  avdInfo_getSystemInitImagePath( AvdInfo*  i );
+char*  avdInfo_getDataInitImagePath( AvdInfo* i );
+
 /* Returns the path to a given AVD image file. This will return NULL if
  * the file cannot be found / does not exist.
  */

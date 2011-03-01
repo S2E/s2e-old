@@ -193,15 +193,22 @@ HWCFG_BOOL(
   "Whether there is an proximity in the device.")
 
 HWCFG_STRING(
-  disk_kernel_path,
-  "disk.kernel.path",
+  kernel_path,
+  "kernel.path",
   "",
   "Path to the kernel image",
   "Path to the kernel image.")
 
 HWCFG_STRING(
-  disk_ramDisk_path,
-  "disk.ramDisk.path",
+  kernel_parameters,
+  "kernel.parameters",
+  "",
+  "kernel boot parameters string.",
+  "")
+
+HWCFG_STRING(
+  disk_ramdisk_path,
+  "disk.ramdisk.path",
   "",
   "Path to the ramdisk image",
   "Path to the ramdisk image.")
