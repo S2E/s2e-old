@@ -37,6 +37,9 @@ extern SkinKeyset*  android_keyset;
 void parse_keyset(const char*  keyset, AndroidOptions*  opts);
 void write_default_keyset( void );
 
+#define NETWORK_SPEED_DEFAULT  "full"
+#define NETWORK_DELAY_DEFAULT  "none"
+
 extern const char*  skin_network_speed;
 extern const char*  skin_network_delay;
 

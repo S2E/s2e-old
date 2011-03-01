@@ -299,15 +299,17 @@ int main(int argc, char **argv)
     parse_skin_files(opts->skindir, opts->skin, opts, hw,
                      &skinConfig, &skinPath);
 
-    if (!opts->netspeed) {
-        if (skin_network_speed)
-            D("skin network speed: '%s'", skin_network_speed);
-        opts->netspeed = (char*)skin_network_speed;
+    if (!opts->netspeed && skin_network_speed) {
+        D("skin network speed: '%s'", skin_network_speed);
+        if (strcmp(skin_network_speed, NETWORK_SPEED_DEFAULT) != 0) {
+            opts->netspeed = (char*)skin_network_speed;
+        }
     }
-    if (!opts->netdelay) {
-        if (skin_network_delay)
-            D("skin network delay: '%s'", skin_network_delay);
-        opts->netdelay = (char*)skin_network_delay;
+    if (!opts->netdelay && skin_network_delay) {
+        D("skin network delay: '%s'", skin_network_delay);
+        if (strcmp(skin_network_delay, NETWORK_DELAY_DEFAULT) != 0) {
+            opts->netdelay = (char*)skin_network_delay;
+        }
     }
 
     if (opts->trace) {
