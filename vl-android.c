@@ -4877,6 +4877,40 @@ int main(int argc, char **argv, char **envp)
         nand_add_dev(tmp);
     }
 
+    /* Initialize data partition image */
+    {
+        char        tmp[PATH_MAX+32];
+        const char* dataImage = android_hw->disk_dataPartition_path;
+        const char* initImage = android_hw->disk_dataPartition_initPath;
+        uint64_t    dataBytes = android_hw->disk_dataPartition_size;
+
+        if (dataBytes == 0) {
+            PANIC("Invalid data partition size: %" PRUd64, dataBytes);
+        }
+
+        snprintf(tmp,sizeof(tmp),"userdata,size=0x%" PRUx64, dataBytes);
+
+        if (dataImage && *dataImage) {
+            if (filelock_create(dataImage) == NULL) {
+                fprintf(stderr, "WARNING: Data partition already in use. Changes will not persist!\n");
+                /* Note: if there is no file= parameters, nand_add_dev() will
+                 *       create a temporary file to back the partition image. */
+            } else {
+                /* Create the file if needed */
+                if (!path_exists(dataImage)) {
+                    path_empty_file(dataImage);
+                }
+                pstrcat(tmp, sizeof(tmp), ",file=");
+                pstrcat(tmp, sizeof(tmp), dataImage);
+            }
+        }
+        if (initImage && *initImage) {
+            pstrcat(tmp, sizeof(tmp), ",initfile=");
+            pstrcat(tmp, sizeof(tmp), initImage);
+        }
+        nand_add_dev(tmp);
+    }
+
     /* Init SD-Card stuff. For Android, it is always hda */
     /* If the -hda option was used, ignore the Android-provided one */
     if (hda_opts == NULL) {

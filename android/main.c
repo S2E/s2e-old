@@ -309,9 +309,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    /* Update HW config with the AVD information. */
-    updateHwConfigFromAVD(hw, avd, opts, inAndroidBuild);
-
     if (opts->keyset) {
         parse_keyset(opts->keyset, opts);
         if (!android_keyset) {
@@ -583,13 +580,70 @@ int main(int argc, char **argv)
 
     /** DATA PARTITION **/
 
-    bufprint(tmp, tmpend,
-             "userdata,size=0x%x,file=%s",
-             (uint32_t)hw->disk_dataPartition_size,
-             avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA));
+    if (opts->datadir) {
+        if (!path_exists(opts->datadir)) {
+            derror("Invalid -datadir directory: %s", opts->datadir);
+        }
+    }
 
-    args[n++] = "-nand";
-    args[n++] = strdup(tmp);
+    {
+        char*  dataImage = NULL;
+        char*  initImage = NULL;
+
+        do {
+            if (!opts->data) {
+                dataImage = avdInfo_getDataImagePath(avd);
+                if (dataImage != NULL) {
+                    D("autoconfig: -data %s", dataImage);
+                    break;
+                }
+                dataImage = avdInfo_getDefaultDataImagePath(avd);
+                if (dataImage == NULL) {
+                    derror("No data image path for this configuration!");
+                    exit (1);
+                }
+                opts->wipe_data = 1;
+                break;
+            }
+
+            if (opts->datadir) {
+                dataImage = _getFullFilePath(opts->datadir, opts->data);
+            } else {
+                dataImage = ASTRDUP(opts->data);
+            }
+        } while (0);
+
+        if (opts->initdata != NULL) {
+            initImage = ASTRDUP(opts->initdata);
+            if (!path_exists(initImage)) {
+                derror("Invalid initial data image path: %s", initImage);
+                exit(1);
+            }
+        } else {
+            initImage = avdInfo_getDataInitImagePath(avd);
+            D("autoconfig: -initdata %s", initImage);
+        }
+
+        hw->disk_dataPartition_path = dataImage;
+        if (opts->wipe_data) {
+            hw->disk_dataPartition_initPath = initImage;
+        } else {
+            hw->disk_dataPartition_initPath = NULL;
+        }
+
+        uint64_t     defaultBytes = defaultPartitionSize;
+        uint64_t     dataBytes;
+        const char*  dataPath = hw->disk_dataPartition_initPath;
+
+        if (dataPath == NULL)
+            dataPath = hw->disk_dataPartition_path;
+
+        path_get_size(dataPath, &dataBytes);
+
+        hw->disk_dataPartition_size =
+            _adjustPartitionSize("data", dataBytes, defaultBytes,
+                                 avdInfo_inAndroidBuild(avd));
+    }
 
     /** CACHE PARTITION **/
 

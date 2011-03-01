@@ -694,23 +694,6 @@ _getSdkSystemImage( const char*  path, const char*  optionName, const char*  fil
     return image;
 }
 
-static void
-_forceAvdImagePath( AvdImageType  imageType,
-                   const char*   path,
-                   const char*   description,
-                   int           required )
-{
-    if (path == NULL)
-        return;
-
-    if (required && !path_exists(path)) {
-        derror("Cannot find %s image file: %s", description, path);
-        exit(1);
-    }
-    android_avdParams->forcePaths[imageType] = path;
-}
-
-
 void sanitizeOptions( AndroidOptions* opts )
 {
     /* legacy support: we used to use -system <dir> and -image <file>
@@ -810,18 +793,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
     char*  tmpend = tmp + sizeof(tmp);
     char*  android_build_root = NULL;
     char*  android_build_out  = NULL;
-
-    /* setup the virtual device parameters from our options
-     */
-    if (opts->no_cache) {
-        android_avdParams->flags |= AVDINFO_NO_CACHE;
-    }
-    if (opts->wipe_data) {
-        android_avdParams->flags |= AVDINFO_WIPE_DATA | AVDINFO_WIPE_CACHE;
-    }
-    if (opts->no_snapstorage) {
-        android_avdParams->flags |= AVDINFO_NO_SNAPSHOTS;
-    }
 
     /* If no AVD name was given, try to find the top of the
      * Android build tree
@@ -926,16 +897,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
         }
     }
 
-    /* if certain options are set, we can force the path of
-        * certain kernel/disk image files
-        */
-    _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system,      "system", 1);
-    _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,        "user data", 0);
-    _forceAvdImagePath(AVD_IMAGE_SNAPSHOTS,  opts->snapstorage, "snapshots", 0);
-
-    android_avdParams->skinName     = opts->skin;
-    android_avdParams->skinRootPath = opts->skindir;
-
     /* setup the virtual device differently depending on whether
      * we are in the Android build system or not
      */
@@ -973,111 +934,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
     return ret;
 }
 
-static int
-_is_valid_hw_disk_path(const char* path)
-{
-    if (path == NULL || '\0' == *path || !strcmp(path, "<init>")) {
-        return 0;
-    }
-    return 1;
-}
-
-static int
-_update_hwconfig_path(char** path,  AvdInfo* avd, int image_type)
-{
-    if (!_is_valid_hw_disk_path(*path)) {
-        *path = android_strdup(avdInfo_getImageFile(avd, image_type));
-        if (!_is_valid_hw_disk_path(*path)) {
-            return -1;
-        }
-    }
-    return 0;
-}
-
-static uint64_t
-_adjustPartitionSize( const char*  description,
-                      uint64_t     imageBytes,
-                      uint64_t     defaultBytes,
-                      int          inAndroidBuild )
-{
-    char      temp[64];
-    unsigned  imageMB;
-    unsigned  defaultMB;
-
-    if (imageBytes <= defaultBytes)
-        return defaultBytes;
-
-    imageMB   = convertBytesToMB(imageBytes);
-    defaultMB = convertBytesToMB(defaultBytes);
-
-    if (imageMB > defaultMB) {
-        snprintf(temp, sizeof temp, "(%d MB > %d MB)", imageMB, defaultMB);
-    } else {
-        snprintf(temp, sizeof temp, "(%lld bytes > %lld bytes)", imageBytes, defaultBytes);
-    }
-
-    if (inAndroidBuild) {
-        dwarning("%s partition size adjusted to match image file %s\n", description, temp);
-    }
-
-    return convertMBToBytes(imageMB);
-}
-
-void
-updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
-                      AvdInfo* avd,
-                      AndroidOptions* opts,
-                      int inAndroidBuild)
-{
-    unsigned  defaultPartitionSize = convertMBToBytes(66);
-
-    _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_USERDATA);
-    _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_INITDATA);
-
-    if (opts->partition_size) {
-        char*  end;
-        long   sizeMB = strtol(opts->partition_size, &end, 0);
-        long   minSizeMB = 10;
-        long   maxSizeMB = LONG_MAX / ONE_MB;
-
-        if (sizeMB < 0 || *end != 0) {
-            derror( "-partition-size must be followed by a positive integer" );
-            exit(1);
-        }
-        if (sizeMB < minSizeMB || sizeMB > maxSizeMB) {
-            derror( "partition-size (%d) must be between %dMB and %dMB",
-                    sizeMB, minSizeMB, maxSizeMB );
-            exit(1);
-        }
-        defaultPartitionSize = sizeMB * ONE_MB;
-    }
-    /* Check the size of the /data partition. The only interesting cases here are:
-     * - when the USERDATA image already exists and is larger than the default
-     * - when we're wiping data and the INITDATA is larger than the default.
-     */
-
-    {
-        const char*  dataPath     = avdInfo_getImageFile(avd, AVD_IMAGE_USERDATA);
-        uint64_t     defaultBytes = defaultPartitionSize;
-
-        if (defaultBytes == 0 || opts->partition_size)
-            defaultBytes = defaultPartitionSize;
-
-        if (dataPath == NULL || !path_exists(dataPath) || opts->wipe_data) {
-            dataPath = avdInfo_getImageFile(avd, AVD_IMAGE_INITDATA);
-        }
-        if (dataPath == NULL || !path_exists(dataPath)) {
-            hwConfig->disk_dataPartition_size = defaultBytes;
-        }
-        else {
-            uint64_t  dataBytes;
-            path_get_size(dataPath, &dataBytes);
-
-            hwConfig->disk_dataPartition_size =
-                _adjustPartitionSize("data", dataBytes, defaultBytes, inAndroidBuild);
-        }
-    }
-}
 
 
 
