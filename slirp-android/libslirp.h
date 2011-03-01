@@ -43,6 +43,9 @@ void slirp_drop_tcp();
 void slirp_add_allow(unsigned long dst_addr, int dst_lport,
                      int dst_hport, u_int8_t proto);
 void slirp_drop_log_fd(FILE* fd);
+
+/** Get the drop log fd */
+FILE* get_slirp_drop_log_fd(void);
 int slirp_should_drop(unsigned long dst_addr,
                       int dst_port,
                       u_int8_t proto);
@@ -64,6 +67,8 @@ int slirp_should_net_forward(unsigned long remote_ip, int remote_port,
  */
 
 void slirp_dns_log_fd(FILE* fd);
+/** Get the dns log fd */
+FILE* get_slirp_dns_log_fd(void);
 /** Logs the DNS name in DNS query issued by the VM. */
 int slirp_log_dns(struct mbuf* m, int dropped);
 /** IP packet dump of DNS queris and responses. */
