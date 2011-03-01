@@ -917,14 +917,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
             D("autoconfig: -data %s", opts->data);
         }
 
-        if (!opts->sdcard && opts->datadir) {
-            bufprint(tmp, tmpend, "%s/sdcard.img", opts->datadir);
-            if (path_exists(tmp)) {
-                opts->sdcard = android_strdup(tmp);
-                D("autoconfig: -sdcard %s", opts->sdcard);
-            }
-        }
-
         if (!opts->snapstorage && opts->datadir) {
             bufprint(tmp, tmpend, "%s/snapshots.img", opts->datadir);
             if (path_exists(tmp)) {
@@ -939,7 +931,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
         */
     _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system,      "system", 1);
     _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,        "user data", 0);
-    _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard,      "SD Card", 0);
     _forceAvdImagePath(AVD_IMAGE_SNAPSHOTS,  opts->snapstorage, "snapshots", 0);
 
     android_avdParams->skinName     = opts->skin;
@@ -1048,7 +1039,6 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_USERDATA);
     _update_hwconfig_path(&hwConfig->disk_systemPartition_path, avd, AVD_IMAGE_USERSYSTEM);
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_INITDATA);
-    _update_hwconfig_path(&hwConfig->disk_sdCard_path, avd, AVD_IMAGE_SDCARD);
     _update_hwconfig_path(&hwConfig->disk_snapshots_path, avd, AVD_IMAGE_SNAPSHOTS);
 
     if (opts->partition_size) {

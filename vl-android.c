@@ -57,6 +57,8 @@
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
 #include "android/utils/debug.h"
+#include "android/utils/filelock.h"
+#include "android/utils/path.h"
 #include "android/utils/stralloc.h"
 #include "android/display-core.h"
 #include "android/utils/timezone.h"
@@ -4834,6 +4836,22 @@ int main(int argc, char **argv, char **envp)
         parse_nand_limits(android_op_nand_limits);
     }
 #endif  // CONFIG_NAND_LIMITS
+
+    /* Init SD-Card stuff. For Android, it is always hda */
+    /* If the -hda option was used, ignore the Android-provided one */
+    if (hda_opts == NULL) {
+        const char* sdPath = android_hw->hw_sdCard_path;
+        if (sdPath && *sdPath) {
+            if (!path_exists(sdPath)) {
+                fprintf(stderr, "WARNING: SD Card image is missing: %s\n", sdPath);
+            } else if (filelock_create(sdPath) == NULL) {
+                fprintf(stderr, "WARNING: SD Card image already in use: %s\n", sdPath);
+            } else {
+                /* Successful locking */
+                hda_opts = drive_add(sdPath, HD_ALIAS, 0);
+            }
+        }
+    }
 
     /* Set the VM's max heap size, passed as a boot property */
     if (android_hw->vm_heapSize > 0) {
