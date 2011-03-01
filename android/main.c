@@ -38,6 +38,7 @@
 
 #include "android/user-config.h"
 #include "android/utils/bufprint.h"
+#include "android/utils/filelock.h"
 #include "android/utils/path.h"
 #include "android/utils/tempfile.h"
 
@@ -837,17 +838,26 @@ int main(int argc, char **argv)
     }
     args[n] = 0;
 
-    /* Generate a temporary hardware.ini for this AVD. The real hardware
+    /* Generate a hardware-qemu.ini for this AVD. The real hardware
      * configuration is ususally stored in several files, e.g. the AVD's
      * config.ini plus the skin-specific hardware.ini.
      *
-     * The new temp file will group all definitions and will be used to
+     * The new file will group all definitions and will be used to
      * launch the core with the -android-hw <file> option.
      */
     {
         const char* coreHwIniPath = avdInfo_getCoreHwIniPath(avd);
         IniFile*    hwIni         = iniFile_newFromMemory("", NULL);
         androidHwConfig_write(hw, hwIni);
+
+        if (filelock_create(coreHwIniPath) == NULL) {
+            /* The AVD is already in use, we still support this as an
+             * experimental feature. Use a temporary hardware-qemu.ini
+             * file though to avoid overwriting the existing one. */
+             TempFile*  tempIni = tempfile_create();
+             coreHwIniPath = tempfile_path(tempIni);
+        }
+
         if (iniFile_saveToFile(hwIni, coreHwIniPath) < 0) {
             derror("Could not write hardware.ini to %s: %s", coreHwIniPath, strerror(errno));
             exit(2);
