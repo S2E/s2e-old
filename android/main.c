@@ -1020,8 +1020,7 @@ int main(int argc, char **argv)
 
     /* physical memory is now in hw->hw_ramSize */
 
-    args[n++] = "-android-avdname";
-    args[n++] = (char*) avdInfo_getName(avd);
+    hw->avd_name = ASTRDUP(avdInfo_getName(avd));
 
     /* Set up the interfaces for inter-emulator networking */
     if (opts->shared_net_id) {

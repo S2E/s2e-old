@@ -4891,6 +4891,14 @@ int main(int argc, char **argv, char **envp)
     }
 #endif  // CONFIG_NAND_LIMITS
 
+    /* Initialize AVD name from hardware configuration if needed */
+    if (!android_op_avd_name) {
+        if (android_hw->avd_name && *android_hw->avd_name) {
+            android_op_avd_name = android_hw->avd_name;
+            VERBOSE_PRINT(init,"AVD Name: %s", android_op_avd_name);
+        }
+    }
+
     /* Initialize system partition image */
     {
         char        tmp[PATH_MAX+32];
