@@ -60,6 +60,7 @@
 #include "android/utils/filelock.h"
 #include "android/utils/path.h"
 #include "android/utils/stralloc.h"
+#include "android/utils/tempfile.h"
 #include "android/display-core.h"
 #include "android/utils/timezone.h"
 #include "android/snapshot.h"
@@ -4840,6 +4841,41 @@ int main(int argc, char **argv, char **envp)
         parse_nand_limits(android_op_nand_limits);
     }
 #endif  // CONFIG_NAND_LIMITS
+
+    /* Initialize system partition image */
+    {
+        char        tmp[PATH_MAX+32];
+        const char* sysImage = android_hw->disk_systemPartition_path;
+        const char* initImage = android_hw->disk_systemPartition_initPath;
+        uint64_t    sysBytes = android_hw->disk_systemPartition_size;
+
+        if (sysBytes == 0) {
+            PANIC("Invalid system partition size: %" PRUd64, sysBytes);
+        }
+
+        snprintf(tmp,sizeof(tmp),"system,size=0x%" PRUx64, sysBytes);
+
+        if (sysImage && *sysImage) {
+            if (filelock_create(sysImage) == NULL) {
+                fprintf(stderr,"WARNING: System image already in use, changes will not persist!\n");
+                /* If there is no file= parameters, nand_add_dev will create
+                 * a temporary file to back the partition image. */
+            } else {
+                pstrcat(tmp,sizeof(tmp),",file=");
+                pstrcat(tmp,sizeof(tmp),sysImage);
+            }
+        }
+        if (initImage && *initImage) {
+            if (!path_exists(initImage)) {
+                PANIC("Invalid initial system image path: %s", initImage);
+            }
+            pstrcat(tmp,sizeof(tmp),",initfile=");
+            pstrcat(tmp,sizeof(tmp),initImage);
+        } else {
+            PANIC("Missing initial system image path!");
+        }
+        nand_add_dev(tmp);
+    }
 
     /* Init SD-Card stuff. For Android, it is always hda */
     /* If the -hda option was used, ignore the Android-provided one */
