@@ -1039,7 +1039,6 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_USERDATA);
     _update_hwconfig_path(&hwConfig->disk_systemPartition_path, avd, AVD_IMAGE_USERSYSTEM);
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_INITDATA);
-    _update_hwconfig_path(&hwConfig->disk_snapshots_path, avd, AVD_IMAGE_SNAPSHOTS);
 
     if (opts->partition_size) {
         char*  end;

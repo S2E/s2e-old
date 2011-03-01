@@ -1130,7 +1130,6 @@ static int
 _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
 {
     int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
 
     ImageLoader  l[1];
 
@@ -1181,14 +1180,6 @@ _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
         /* lock the data partition image */
         l->pState[0] = IMAGE_STATE_MUSTLOCK;
         imageLoader_lock( l, 0 );
-    }
-
-    /* the state snapshot image. Mounting behaviour identical to
-     * SD card.
-     */
-    if (!noSnapshots) {
-        imageLoader_loadOptional(l, AVD_IMAGE_SNAPSHOTS,
-                                 params->forcePaths[AVD_IMAGE_SNAPSHOTS]);
     }
 
     return 0;
@@ -1284,7 +1275,6 @@ static int
 _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 {
     int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
 
     char         temp[PATH_MAX];
     char*        srcData;
@@ -1353,13 +1343,6 @@ _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 
     /* force the system image to read-only status */
     l->pState[0] = IMAGE_STATE_READONLY;
-
-    /** State snapshots image
-     **/
-    if (!noSnapshots) {
-        imageLoader_set (l, AVD_IMAGE_SNAPSHOTS);
-        imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
-    }
 
     return 0;
 }
@@ -1528,6 +1511,13 @@ char*  avdInfo_getSdCardPath( AvdInfo* i )
     }
 
     /* Otherwise, simply look into the content directory */
+    return _avdInfo_getContentFilePath(i, imageName);
+}
+
+char*
+avdInfo_getSnapStoragePath( AvdInfo* i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_SNAPSHOTS ];
     return _avdInfo_getContentFilePath(i, imageName);
 }
 

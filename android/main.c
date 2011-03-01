@@ -194,7 +194,7 @@ int main(int argc, char **argv)
 
     if (opts->version) {
         printf("Android emulator version %s\n"
-               "Copyright (C) 2006-2008 The Android Open Source Project and many others.\n"
+               "Copyright (C) 2006-2011 The Android Open Source Project and many others.\n"
                "This program is a derivative of the QEMU CPU emulator (www.qemu.org).\n\n",
 #if defined ANDROID_BUILD_ID
                VERSION_STRING " (build_id " STRINGIFY(ANDROID_BUILD_ID) ")" );
@@ -210,6 +210,10 @@ int main(int argc, char **argv)
                "  GNU General Public License for more details.\n\n");
 
         exit(0);
+    }
+
+    if (opts->snapshot_list) {
+        snapshot_print_and_exit(opts->snapstorage);
     }
 
     sanitizeOptions(opts);
@@ -537,46 +541,81 @@ int main(int argc, char **argv)
 
     /** SNAPSHOT STORAGE HANDLING */
 
-    if (!opts->no_snapstorage) {
-        // TODO: This should go to core
-        opts->snapstorage = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SNAPSHOTS);
-        if(opts->snapstorage) {
-            if (path_exists(opts->snapstorage)) {
-                args[n++] = "-hdb";
-                args[n++] = opts->snapstorage;
-            } else {
-                D("no image at '%s', state snapshots disabled", opts->snapstorage);
+    /* Determine snapstorage path. -no-snapstorage disables all snapshotting
+     * support. This means you can't resume a snapshot at load, save it at
+     * exit, or even load/save them dynamically at runtime with the console.
+     */
+    if (opts->no_snapstorage) {
+
+        if (opts->snapshot) {
+            dwarning("ignoring -snapshot option due to the use of -no-snapstorage");
+            opts->snapshot = NULL;
+        }
+
+        if (opts->snapstorage) {
+            dwarning("ignoring -snapstorage option due to the use of -no-snapstorage");
+            opts->snapstorage = NULL;
+        }
+    }
+    else
+    {
+        if (!opts->snapstorage) {
+            opts->snapstorage = avdInfo_getSnapStoragePath(avd);
+            if (opts->snapstorage != NULL) {
+                D("autoconfig: -snapstorage %s", opts->snapstorage);
             }
         }
 
-        if (!opts->no_snapshot) {
-            char* snapshot_name =
-                opts->snapshot ? opts->snapshot : "default-boot";
-            if (!opts->no_snapshot_load) {
-              args[n++] = "-loadvm";
-              args[n++] = snapshot_name;
-            }
-            if (!opts->no_snapshot_save) {
-              args[n++] = "-savevm-on-exit";
-              args[n++] = snapshot_name;
-            }
-        } else if (opts->snapshot) {
-            dwarning("option '-no-snapshot' overrides '-snapshot', continuing with boot sequence");
-        } else if (opts->no_snapshot_load || opts->no_snapshot_save) {
-            D("ignoring redundant option(s) '-no-snapshot-load' and/or '-no-snapshot-save' implied by '-no-snapshot'");
+        if (opts->snapstorage && !path_exists(opts->snapstorage)) {
+            D("no image at '%s', state snapshots disabled", opts->snapstorage);
+            opts->snapstorage = NULL;
         }
+    }
+
+    /* If we have a valid snapshot storage path */
+
+    if (opts->snapstorage) {
+
+        hw->disk_snapStorage_path = ASTRDUP(opts->snapstorage);
+
+        /* -no-snapshot is equivalent to using both -no-snapshot-load
+        * and -no-snapshot-save. You can still load/save snapshots dynamically
+        * from the console though.
+        */
+        if (opts->no_snapshot) {
+
+            opts->no_snapshot_load = 1;
+            opts->no_snapshot_save = 1;
+
+            if (opts->snapshot) {
+                dwarning("ignoring -snapshot option due to the use of -no-snapshot.");
+            }
+        }
+
+        if (!opts->no_snapshot_load || !opts->no_snapshot_save) {
+            if (opts->snapshot == NULL) {
+                opts->snapshot = "default-boot";
+                D("autoconfig: -snapshot %s", opts->snapshot);
+            }
+        }
+
+        /* We still use QEMU command-line options for the following since
+        * they can change from one invokation to the next and don't really
+        * correspond to the hardware configuration itself.
+        */
+        if (!opts->no_snapshot_load) {
+            args[n++] = "-loadvm";
+            args[n++] = ASTRDUP(opts->snapshot);
+        }
+
+        if (!opts->no_snapshot_save) {
+            args[n++] = "-savevm-on-exit";
+            args[n++] = ASTRDUP(opts->snapshot);
+        }
+
         if (opts->no_snapshot_update_time) {
             args[n++] = "-snapshot-no-time-update";
         }
-    } else if (opts->snapshot || opts->snapstorage) {
-        dwarning("option '-no-snapstorage' overrides '-snapshot' and '-snapstorage', "
-                 "continuing with full boot, state snapshots are disabled");
-    } else if (opts->no_snapshot) {
-        D("ignoring redundant option '-no-snapshot' implied by '-no-snapstorage'");
-    }
-
-    if (opts->snapshot_list) {
-        snapshot_print_and_exit(opts->snapstorage);
     }
 
     if (!opts->logcat || opts->logcat[0] == 0) {
@@ -584,13 +623,6 @@ int main(int argc, char **argv)
         if (opts->logcat && opts->logcat[0] == 0)
             opts->logcat = NULL;
     }
-
-#if 0
-    if (opts->console) {
-        derror( "option -console is obsolete. please use -shell instead" );
-        exit(1);
-    }
-#endif
 
     /* we always send the kernel messages from ttyS0 to android_kmsg */
     {
