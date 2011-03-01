@@ -214,6 +214,8 @@ int main(int argc, char **argv)
         exit(0);
     }
 
+    sanitizeOptions(opts);
+
     /* Initialization of UI started with -attach-core should work differently
      * than initialization of UI that starts the core. In particular....
      */
@@ -224,29 +226,30 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (opts->nojni)
-        opts->no_jni = opts->nojni;
-
-    if (opts->nocache)
-        opts->no_cache = opts->nocache;
-
-    if (opts->noaudio)
-        opts->no_audio = opts->noaudio;
-
-    if (opts->noskin)
-        opts->no_skin = opts->noskin;
-
     /* Parses options and builds an appropriate AVD. */
     avd = android_avdInfo = createAVD(opts, &inAndroidBuild);
 
     /* get the skin from the virtual device configuration */
-    opts->skin    = (char*) avdInfo_getSkinName( avd );
-    opts->skindir = (char*) avdInfo_getSkinDir( avd );
+    if (opts->skindir != NULL) {
+        if (opts->skin == NULL) {
+            /* NOTE: Normally handled by sanitizeOptions(), just be safe */
+            derror("The -skindir <path> option requires a -skin <name> option");
+            exit(2);
+        }
+    } else {
+        char* skinName;
+        char* skinDir;
 
-    if (opts->skin) {
-        D("autoconfig: -skin %s", opts->skin);
-    }
-    if (opts->skindir) {
+        avdInfo_getSkinInfo(avd, &skinName, &skinDir);
+
+        if (opts->skin == NULL) {
+            opts->skin = skinName;
+            D("autoconfig: -skin %s", opts->skin);
+        } else {
+            AFREE(skinName);
+        }
+
+        opts->skindir = skinDir;
         D("autoconfig: -skindir %s", opts->skindir);
     }
 
@@ -328,9 +331,6 @@ int main(int argc, char **argv)
         opts->trace = tracePath;
     }
 
-    if (opts->no_cache)
-        opts->cache = 0;
-
     n = 1;
     /* generate arguments for the underlying qemu main() */
     {
@@ -392,11 +392,6 @@ int main(int argc, char **argv)
     if (opts->netfast) {
         args[n++] = "-netfast";
     }
-
-    /* the purpose of -no-audio is to disable sound output from the emulator,
-     * not to disable Audio emulation. So simply force the 'none' backends */
-    if (opts->no_audio)
-        opts->audio = "none";
 
     if (opts->audio) {
         args[n++] = "-audio";

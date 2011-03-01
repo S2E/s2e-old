@@ -710,26 +710,9 @@ _forceAvdImagePath( AvdImageType  imageType,
     android_avdParams->forcePaths[imageType] = path;
 }
 
-AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
+
+void sanitizeOptions( AndroidOptions* opts )
 {
-    AvdInfo* ret = NULL;
-    char   tmp[MAX_PATH];
-    char*  tmpend = tmp + sizeof(tmp);
-    char*       android_build_root = NULL;
-    char*       android_build_out  = NULL;
-
-    /* setup the virtual device parameters from our options
-     */
-    if (opts->no_cache) {
-        android_avdParams->flags |= AVDINFO_NO_CACHE;
-    }
-    if (opts->wipe_data) {
-        android_avdParams->flags |= AVDINFO_WIPE_DATA | AVDINFO_WIPE_CACHE;
-    }
-    if (opts->no_snapstorage) {
-        android_avdParams->flags |= AVDINFO_NO_SNAPSHOTS;
-    }
-
     /* legacy support: we used to use -system <dir> and -image <file>
      * instead of -sysdir <dir> and -system <file>, so handle this by checking
      * whether the options point to directories or files.
@@ -760,6 +743,72 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
 
         opts->sysdir = opts->system;
         opts->system = NULL;
+    }
+
+    if (opts->nojni) {
+        opts->no_jni = opts->nojni;
+        opts->nojni  = 0;
+    }
+
+    if (opts->nocache) {
+        opts->no_cache = opts->nocache;
+        opts->nocache  = 0;
+    }
+
+    if (opts->noaudio) {
+        opts->no_audio = opts->noaudio;
+        opts->noaudio  = 0;
+    }
+
+    if (opts->noskin) {
+        opts->no_skin = opts->noskin;
+        opts->noskin  = 0;
+    }
+
+    /* If -no-cache is used, ignore any -cache argument */
+    if (opts->no_cache) {
+        opts->cache = 0;
+    }
+
+    /* the purpose of -no-audio is to disable sound output from the emulator,
+     * not to disable Audio emulation. So simply force the 'none' backends */
+    if (opts->no_audio)
+        opts->audio = "none";
+
+    /* we don't accept -skindir without -skin now
+     * to simplify the autoconfig stuff with virtual devices
+     */
+    if (opts->no_skin) {
+        opts->skin    = "320x480";
+        opts->skindir = NULL;
+    }
+
+    if (opts->skindir) {
+        if (!opts->skin) {
+            derror( "the -skindir <path> option requires a -skin <name> option");
+            exit(1);
+        }
+    }
+}
+
+AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
+{
+    AvdInfo* ret = NULL;
+    char   tmp[MAX_PATH];
+    char*  tmpend = tmp + sizeof(tmp);
+    char*  android_build_root = NULL;
+    char*  android_build_out  = NULL;
+
+    /* setup the virtual device parameters from our options
+     */
+    if (opts->no_cache) {
+        android_avdParams->flags |= AVDINFO_NO_CACHE;
+    }
+    if (opts->wipe_data) {
+        android_avdParams->flags |= AVDINFO_WIPE_DATA | AVDINFO_WIPE_CACHE;
+    }
+    if (opts->no_snapstorage) {
+        android_avdParams->flags |= AVDINFO_NO_SNAPSHOTS;
     }
 
     /* If no AVD name was given, try to find the top of the
@@ -884,20 +933,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
     _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard,      "SD Card", 0);
     _forceAvdImagePath(AVD_IMAGE_SNAPSHOTS,  opts->snapstorage, "snapshots", 0);
 
-    /* we don't accept -skindir without -skin now
-     * to simplify the autoconfig stuff with virtual devices
-     */
-    if (opts->no_skin) {
-        opts->skin    = "320x480";
-        opts->skindir = NULL;
-    }
-
-    if (opts->skindir) {
-        if (!opts->skin) {
-            derror( "the -skindir <path> option requires a -skin <name> option");
-            exit(1);
-        }
-    }
     android_avdParams->skinName     = opts->skin;
     android_avdParams->skinRootPath = opts->skindir;
 
