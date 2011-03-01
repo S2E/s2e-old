@@ -19,7 +19,7 @@
 #include <limits.h>
 
 extern void
-stralloc_tabular( stralloc_t*  out, 
+stralloc_tabular( stralloc_t*  out,
                   const char** strings, int  count,
                   const char*  prefix,  int  width )
 {
@@ -136,6 +136,40 @@ stralloc_cstr( stralloc_t*  s )
     stralloc_readyplus( s, 1 );
     s->s[s->n] = 0;
     return s->s;
+}
+
+void
+stralloc_lstrip( stralloc_t*  s )
+{
+    int  count;
+
+    for (count = 0; count < s->n; count++) {
+        if (s->s[count] != ' ' && s->s[count] != '\t')
+            break;
+    }
+
+    if (count > 0) {
+        memmove(s->s, s->s + count, s->n - count);
+        s->n -= count;
+    }
+}
+
+void
+stralloc_rstrip( stralloc_t*  s )
+{
+    int  count = s->n;
+
+    while (count > 0 && (s->s[count-1] == ' ' || s->s[count-1] == '\t'))
+        count--;
+
+    s->n = count;
+}
+
+void
+stralloc_strip( stralloc_t* s )
+{
+    stralloc_rstrip(s);
+    stralloc_lstrip(s);
 }
 
 extern char*
