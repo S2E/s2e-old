@@ -804,15 +804,6 @@ int main(int argc, char **argv)
 
     /* physical memory is now in hw->hw_ramSize */
 
-    /* on Linux, the 'dynticks' clock sometimes doesn't work
-     * properly. this results in the UI freezing while emulation
-     * continues, for several seconds...
-     */
-#ifdef __linux__
-    args[n++] = "-clock";
-    args[n++] = "unix";
-#endif
-
     args[n++] = "-android-avdname";
     args[n++] = (char*) avdInfo_getName(avd);
 

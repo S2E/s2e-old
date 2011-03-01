@@ -394,14 +394,20 @@ int64_t qemu_icount_round(int64_t count)
 static struct qemu_alarm_timer alarm_timers[] = {
 #ifndef _WIN32
 #ifdef __linux__
-    {"dynticks", dynticks_start_timer,
-     dynticks_stop_timer, dynticks_rearm_timer, NULL},
     /* HPET - if available - is preferred */
     {"hpet", hpet_start_timer, hpet_stop_timer, NULL, NULL},
     /* ...otherwise try RTC */
     {"rtc", rtc_start_timer, rtc_stop_timer, NULL, NULL},
 #endif
     {"unix", unix_start_timer, unix_stop_timer, NULL, NULL},
+#ifdef __linux__
+    /* on Linux, the 'dynticks' clock sometimes doesn't work
+     * properly. this results in the UI freezing while emulation
+     * continues, for several seconds... So move it to the end
+     * of the list. */
+    {"dynticks", dynticks_start_timer,
+     dynticks_stop_timer, dynticks_rearm_timer, NULL},
+#endif
 #else
     {"dynticks", win32_start_timer,
      win32_stop_timer, win32_rearm_timer, &alarm_win32_data},
