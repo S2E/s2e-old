@@ -865,7 +865,14 @@ int main(int argc, char **argv)
         /* Dump final command-line option to make debugging the core easier */
         printf("Concatenated QEMU options:\n");
         for (i = 0; i < n; i++) {
-            printf(" %s", args[i]);
+            /* To make it easier to copy-paste the output to a command-line,
+             * quote anything that contains spaces.
+             */
+            if (strchr(args[i], ' ') != NULL) {
+                printf(" '%s'", args[i]);
+            } else {
+                printf(" %s", args[i]);
+            }
         }
         printf("\n");
     }
