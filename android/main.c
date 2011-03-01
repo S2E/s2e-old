@@ -162,9 +162,6 @@ int main(int argc, char **argv)
     int    n;
     char*  opt;
     int    serial = 0;
-    int    gps_serial = 0;
-    int    radio_serial = 0;
-    int    qemud_serial = 0;
     int    shell_serial = 0;
 
     AndroidHwConfig*  hw;
@@ -821,14 +818,8 @@ int main(int argc, char **argv)
     }
 
     /* we always send the kernel messages from ttyS0 to android_kmsg */
-    {
-        if (opts->show_kernel) {
-            args[n++] = "-show-kernel";
-        }
-
-        args[n++] = "-serial";
-        args[n++] = "android-kmsg";
-        serial++;
+    if (opts->show_kernel) {
+        args[n++] = "-show-kernel";
     }
 
     /* XXXX: TODO: implement -shell and -logcat through qemud instead */
@@ -848,39 +839,14 @@ int main(int argc, char **argv)
         shell_serial = serial++;
     }
 
-    if (opts->old_system)
-    {
-        if (opts->radio) {
-            args[n++] = "-serial";
-            args[n++] = opts->radio;
-            radio_serial = serial++;
-        }
-        else {
-            args[n++] = "-serial";
-            args[n++] = "android-modem";
-            radio_serial = serial++;
-        }
-        if (opts->gps) {
-            args[n++] = "-serial";
-            args[n++] = opts->gps;
-            gps_serial = serial++;
-        }
+    if (opts->radio) {
+        args[n++] = "-radio";
+        args[n++] = opts->radio;
     }
-    else /* !opts->old_system */
-    {
-        args[n++] = "-serial";
-        args[n++] = "android-qemud";
-        qemud_serial = serial++;
 
-        if (opts->radio) {
-            args[n++] = "-radio";
-            args[n++] = opts->radio;
-        }
-
-        if (opts->gps) {
-            args[n++] = "-gps";
-            args[n++] = opts->gps;
-        }
+    if (opts->gps) {
+        args[n++] = "-gps";
+        args[n++] = opts->gps;
     }
 
     if (opts->memory) {
@@ -970,7 +936,9 @@ int main(int argc, char **argv)
         static char  params[1024];
         char        *p = params, *end = p + sizeof(params);
 
-        p = bufprint(p, end, "qemu=1 console=ttyS0" );
+        /* Don't worry about having a leading space here, this is handled
+         * by the core later. */
+
 #ifdef TARGET_I386
         p = bufprint(p, end, " androidboot.hardware=goldfish");
         p = bufprint(p, end, " clocksource=pit");
@@ -1006,19 +974,6 @@ int main(int argc, char **argv)
                 }
             }
             p = q;
-        }
-
-        if (opts->old_system)
-        {
-            p = bufprint(p, end, " android.ril=ttyS%d", radio_serial);
-
-            if (opts->gps) {
-                p = bufprint(p, end, " android.gps=ttyS%d", gps_serial);
-            }
-        }
-        else
-        {
-            p = bufprint(p, end, " android.qemud=ttyS%d", qemud_serial);
         }
 
         if (opts->bootchart) {

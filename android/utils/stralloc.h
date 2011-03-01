@@ -52,6 +52,11 @@ extern void   stralloc_add_quote_bytes( stralloc_t*  s, const void*  from, unsig
 extern void   stralloc_add_hex( stralloc_t*  s, unsigned  value, int  num_digits );
 extern void   stralloc_add_hexdump( stralloc_t*  s, void*  base, int  size, const char*  prefix );
 
+/* Remove leading, trailing or leading+trailing whitespace */
+extern void   stralloc_lstrip( stralloc_t*  s );
+extern void   stralloc_rstrip( stralloc_t*  s );
+extern void   stralloc_strip( stralloc_t*  s );
+
 extern void   stralloc_tabular( stralloc_t*  s, const char** strings, int  count,
                                                 const char*  prefix,  int  width );
 

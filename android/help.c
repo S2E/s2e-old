@@ -1333,20 +1333,6 @@ help_keyset(stralloc_t*  out)
     );
 }
 
-static void
-help_old_system(stralloc_t*  out)
-{
-    PRINTF(
-    "  use '-old-system' if you want to use a recent emulator binary to run\n"
-    "  an old version of the Android SDK system images. Here, 'old' means anything\n"
-    "  older than version 1.4 of the emulator.\n\n"
-
-    "  NOTE: using '-old-system' with recent system images is likely to not work\n"
-    "        properly, though you may not notice it immediately (e.g. failure to\n"
-    "        start the emulated GPS hardware)\n\n"
-    );
-}
-
 #ifdef CONFIG_NAND_LIMITS
 static void
 help_nand_limits(stralloc_t*  out)

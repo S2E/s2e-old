@@ -284,6 +284,8 @@ static int no_frame = 0;
 #endif
 int no_quit = 0;
 CharDriverState *serial_hds[MAX_SERIAL_PORTS];
+int              serial_hds_count;
+
 CharDriverState *parallel_hds[MAX_PARALLEL_PORTS];
 CharDriverState *virtcon_hds[MAX_VIRTIO_CONSOLES];
 #ifdef TARGET_I386
@@ -3762,6 +3764,53 @@ slirp_allow(const char *optarg, u_int8_t proto)
   free(argument);
 }
 
+/* Add a serial device at a given location in the emulated hardware table.
+ * On failure, this function aborts the program with an error message.
+ */
+static void
+serial_hds_add_at(int  index, const char* devname)
+{
+    char label[32];
+
+    if (!devname || !strcmp(devname,"none"))
+        return;
+
+    if (index >= MAX_SERIAL_PORTS) {
+        PANIC("qemu: invalid serial index for %s (%d >= %d)",
+              devname, index, MAX_SERIAL_PORTS);
+    }
+    if (serial_hds[index] != NULL) {
+        PANIC("qemu: invalid serial index for %s (%d: already taken!)",
+              devname, index);
+    }
+    snprintf(label, sizeof(label), "serial%d", index);
+    serial_hds[index] = qemu_chr_open(label, devname, NULL);
+    if (!serial_hds[index]) {
+        PANIC("qemu: could not open serial device '%s'", devname);
+    }
+}
+
+
+/* Find a free slot in the emulated serial device table, and register
+ * it. Return the allocated table index.
+ */
+static int
+serial_hds_add(const char* devname)
+{
+    int  index;
+
+    /* Find first free slot */
+    for (index = 0; index < MAX_SERIAL_PORTS; index++) {
+        if (serial_hds[index] == NULL) {
+            serial_hds_add_at(index, devname);
+            return index;
+        }
+    }
+
+    PANIC("qemu: too many serial devices registered (%d)", index);
+    return -1;  /* shouldn't happen */
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -5093,6 +5142,19 @@ int main(int argc, char **argv, char **envp)
         nand_add_dev(tmp);
     }
 
+    /* We always force qemu=1 when running inside QEMU */
+    stralloc_add_str(kernel_params, " qemu=1");
+
+    /* We always initialize the first serial port for the android-kmsg
+     * character device (used to send kernel messages) */
+    serial_hds_add_at(0, "android-kmsg");
+    stralloc_add_str(kernel_params, " console=ttyS0");
+
+    /* We always initialize the second serial port for the android-qemud
+     * character device as well */
+    serial_hds_add_at(1, "android-qemud");
+    stralloc_add_str(kernel_params, " android.qemud=ttyS1");
+
 #if defined(CONFIG_KVM) && defined(CONFIG_KQEMU)
     if (kvm_allowed && kqemu_allowed) {
         PANIC(
@@ -5399,16 +5461,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
-        const char *devname = serial_devices[i];
-        if (devname && strcmp(devname, "none")) {
-            char label[32];
-            snprintf(label, sizeof(label), "serial%d", i);
-            serial_hds[i] = qemu_chr_open(label, devname, NULL);
-            if (!serial_hds[i]) {
-                PANIC("qemu: could not open serial device '%s'",
-                        devname);
-            }
-        }
+        serial_hds_add(serial_devices[i]);
     }
 
     for(i = 0; i < MAX_PARALLEL_PORTS; i++) {
@@ -5476,6 +5529,9 @@ int main(int argc, char **argv, char **envp)
             stralloc_add_c(kernel_params, ' ');
             stralloc_add_str(kernel_params, kernel_cmdline);
         }
+
+        /* Remove any leading/trailing spaces */
+        stralloc_strip(kernel_params);
 
         kernel_parameters = stralloc_cstr(kernel_params);
         VERBOSE_PRINT(init, "Kernel parameters: %s", kernel_parameters);
