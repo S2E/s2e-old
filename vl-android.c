@@ -5061,6 +5061,14 @@ int main(int argc, char **argv, char **envp)
     if (qemu_init_main_loop()) {
         PANIC("qemu_init_main_loop failed");
     }
+
+    if (kernel_filename == NULL) {
+        kernel_filename = android_hw->kernel_path;
+    }
+    if (initrd_filename == NULL) {
+        initrd_filename = android_hw->disk_ramdisk_path;
+    }
+
     linux_boot = (kernel_filename != NULL);
     net_boot = (boot_devices_bitmap >> ('n' - 'a')) & 0xF;
 
@@ -5332,6 +5340,10 @@ int main(int argc, char **argv, char **envp)
      */
     {
         const char* kernel_parameters;
+
+        if (android_hw->kernel_parameters) {
+            stralloc_add_str(kernel_params, android_hw->kernel_parameters);
+        }
 
         /* If not empty, kernel_config always contains a leading space */
         stralloc_append(kernel_params, kernel_config);

@@ -1139,15 +1139,6 @@ _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
 
     imageLoader_init(l, i, params);
 
-    /* pick up the kernel and ramdisk image files - these don't
-     * need a specific handling.
-     */
-    imageLoader_set ( l, AVD_IMAGE_KERNEL );
-    imageLoader_load( l, IMAGE_REQUIRED | IMAGE_SEARCH_SDK | IMAGE_DONT_LOCK );
-
-    imageLoader_set ( l, AVD_IMAGE_RAMDISK );
-    imageLoader_load( l, IMAGE_REQUIRED | IMAGE_SEARCH_SDK | IMAGE_DONT_LOCK );
-
     /* the system image
      *
      * if there is one in the content directory just lock
@@ -1327,30 +1318,11 @@ _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
     int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
     int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
 
-    char         temp[PATH_MAX], *p=temp, *end=p+sizeof temp;
+    char         temp[PATH_MAX];
     char*        srcData;
     ImageLoader  l[1];
 
     imageLoader_init(l, i, params);
-
-    /** load the kernel image
-     **/
-
-    /* if it is not in the out directory, get it from prebuilt
-     */
-    imageLoader_set ( l, AVD_IMAGE_KERNEL );
-
-    if ( !imageLoader_load( l, IMAGE_OPTIONAL |
-                               IMAGE_DONT_LOCK ) )
-    {
-        p = bufprint(temp, end, "%s/prebuilt/android-%s/kernel/kernel-qemu",
-                     i->androidBuildRoot, i->targetArch);
-        if (p >= end || !path_exists(temp)) {
-            derror("bad workspace: cannot find prebuilt kernel in: %s", temp);
-            exit(1);
-        }
-        imageLoader_setPath(l, temp);
-    }
 
     /** load the data partition. note that we use userdata-qemu.img
      ** since we don't want to modify userdata.img at all
@@ -1404,12 +1376,6 @@ _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
     }
 
     AFREE(srcData);
-
-    /** load the ramdisk image
-     **/
-    imageLoader_set ( l, AVD_IMAGE_RAMDISK );
-    imageLoader_load( l, IMAGE_REQUIRED |
-                         IMAGE_DONT_LOCK );
 
     /** load the system image. read-only. the caller must
      ** take care of checking the state
@@ -1547,6 +1513,52 @@ avdInfo_isImageReadOnly( AvdInfo*  i, AvdImageType  imageType )
         return 1;
 
     return (i->imageState[imageType] == IMAGE_STATE_READONLY);
+}
+
+char*
+avdInfo_getKernelPath( AvdInfo*  i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_KERNEL ];
+
+    char*  kernelPath = _avdInfo_getContentOrSdkFilePath(i, imageName);
+
+    if (kernelPath == NULL && i->inAndroidBuild) {
+        /* When in the Android build, look into the prebuilt directory
+         * for our target architecture.
+         */
+        char temp[PATH_MAX], *p = temp, *end = p + sizeof(temp);
+
+        p = bufprint(temp, end, "%s/prebuilt/android-%s/kernel/kernel-qemu",
+                     i->androidBuildRoot, i->targetArch);
+        if (p >= end || !path_exists(temp)) {
+            derror("bad workspace: cannot find prebuilt kernel in: %s", temp);
+            exit(1);
+        }
+        kernelPath = ASTRDUP(temp);
+    }
+    return kernelPath;
+}
+
+
+char*
+avdInfo_getRamdiskPath( AvdInfo* i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_RAMDISK ];
+    return _avdInfo_getContentOrSdkFilePath(i, imageName);
+}
+
+char*
+avdInfo_getSystemInitImagePath( AvdInfo*  i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_INITSYSTEM ];
+    return _avdInfo_getContentOrSdkFilePath(i, imageName);
+}
+
+char*
+avdInfo_getDataInitImagePath( AvdInfo* i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_INITDATA ];
+    return _avdInfo_getContentOrSdkFilePath(i, imageName);
 }
 
 int

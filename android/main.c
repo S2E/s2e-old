@@ -334,11 +334,23 @@ int main(int argc, char **argv)
     n = 1;
     /* generate arguments for the underlying qemu main() */
     {
-        const char*  kernelFile    = avdInfo_getImageFile(avd, AVD_IMAGE_KERNEL);
-        int          kernelFileLen = strlen(kernelFile);
+        char*  kernelFile    = opts->kernel;
+        int    kernelFileLen;
 
-        args[n++] = "-kernel";
-        args[n++] = (char*)kernelFile;
+        if (kernelFile == NULL) {
+            kernelFile = avdInfo_getKernelPath(avd);
+            if (kernelFile == NULL) {
+                derror( "This AVD's configuration is missing a kernel file!!" );
+                exit(2);
+            }
+            D("autoconfig: -kernel %s", kernelFile);
+        }
+        if (!path_exists(kernelFile)) {
+            derror( "Invalid or missing kernel image file: %s", kernelFile );
+            exit(2);
+        }
+
+        hw->kernel_path = kernelFile;
 
         /* If the kernel image name ends in "-armv7", then change the cpu
          * type automatically. This is a poor man's approach to configuration
@@ -353,6 +365,7 @@ int main(int argc, char **argv)
          * some build system changes. I prefer not to do that for now for reasons
          * of simplicity.
          */
+         kernelFileLen = strlen(kernelFile);
          if (kernelFileLen > 6 && !memcmp(kernelFile + kernelFileLen - 6, "-armv7", 6)) {
             args[n++] = "-cpu";
             args[n++] = "cortex-a8";
@@ -408,8 +421,8 @@ int main(int argc, char **argv)
         args[n++] = opts->dns_server;
     }
 
-    args[n++] = "-initrd";
-    args[n++] = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_RAMDISK);
+    hw->disk_ramdisk_path = avdInfo_getRamdiskPath(avd);
+    D("autoconfig: -ramdisk %s", hw->disk_ramdisk_path);
 
     {
         const char*  filetype = "file";
@@ -684,20 +697,6 @@ int main(int argc, char **argv)
         }
     }
 
-    args[n++] = "-append";
-
-    if (opts->bootchart) {
-        char*  end;
-        int    timeout = strtol(opts->bootchart, &end, 10);
-        if (timeout == 0)
-            opts->bootchart = NULL;
-        else if (timeout < 0 || timeout > 15*60) {
-            derror( "timeout specified for -bootchart option is invalid.\n"
-                    "please use integers between 1 and 900\n");
-            exit(1);
-        }
-    }
-
     /* Setup the kernel init options
      */
     {
@@ -764,7 +763,7 @@ int main(int argc, char **argv)
             exit(1);
         }
 
-        args[n++] = strdup(params);
+        hw->kernel_parameters = strdup(params);
     }
 
     if (opts->ports) {

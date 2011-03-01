@@ -789,6 +789,18 @@ void sanitizeOptions( AndroidOptions* opts )
             exit(1);
         }
     }
+
+    if (opts->bootchart) {
+        char*  end;
+        int    timeout = strtol(opts->bootchart, &end, 10);
+        if (timeout == 0)
+            opts->bootchart = NULL;
+        else if (timeout < 0 || timeout > 15*60) {
+            derror( "timeout specified for -bootchart option is invalid.\n"
+                    "please use integers between 1 and 900\n");
+            exit(1);
+        }
+    }
 }
 
 AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
@@ -925,9 +937,7 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
     /* if certain options are set, we can force the path of
         * certain kernel/disk image files
         */
-    _forceAvdImagePath(AVD_IMAGE_KERNEL,     opts->kernel,      "kernel", 1);
     _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system,      "system", 1);
-    _forceAvdImagePath(AVD_IMAGE_RAMDISK,    opts->ramdisk,     "ramdisk", 1);
     _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,        "user data", 0);
     _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,       "cache", 0);
     _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard,      "SD Card", 0);
@@ -1030,16 +1040,6 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
                       int inAndroidBuild)
 {
     unsigned  defaultPartitionSize = convertMBToBytes(66);
-
-    if (_update_hwconfig_path(&hwConfig->disk_kernel_path, avd, AVD_IMAGE_KERNEL)) {
-        dprint("kernel image path %s is invalid", hwConfig->disk_kernel_path);
-        exit(1);
-    }
-
-    if (_update_hwconfig_path(&hwConfig->disk_ramDisk_path, avd, AVD_IMAGE_RAMDISK)) {
-        dprint("ramdisk image path %s is invalid", hwConfig->disk_ramDisk_path);
-        exit(1);
-    }
 
     if (_update_hwconfig_path(&hwConfig->disk_systemPartition_initPath, avd, AVD_IMAGE_INITSYSTEM)) {
         dprint("system path %s is invalid", hwConfig->disk_systemPartition_initPath);
