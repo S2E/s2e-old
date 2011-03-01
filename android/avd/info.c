@@ -1130,7 +1130,6 @@ static int
 _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
 {
     int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
     int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
 
     ImageLoader  l[1];
@@ -1182,15 +1181,6 @@ _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
         /* lock the data partition image */
         l->pState[0] = IMAGE_STATE_MUSTLOCK;
         imageLoader_lock( l, 0 );
-    }
-
-    /* the SD Card image. unless the user doesn't want to, we're
-     * going to mount it if available. Note that if the image is
-     * already used, we must ignore it.
-     */
-    if (!noSdCard) {
-        imageLoader_loadOptional(l, AVD_IMAGE_SDCARD,
-                                 params->forcePaths[AVD_IMAGE_SDCARD]);
     }
 
     /* the state snapshot image. Mounting behaviour identical to
@@ -1294,7 +1284,6 @@ static int
 _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 {
     int   wipeData    = (params->flags & AVDINFO_WIPE_DATA) != 0;
-    int   noSdCard    = (params->flags & AVDINFO_NO_SDCARD) != 0;
     int   noSnapshots = (params->flags & AVDINFO_NO_SNAPSHOTS) != 0;
 
     char         temp[PATH_MAX];
@@ -1364,13 +1353,6 @@ _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 
     /* force the system image to read-only status */
     l->pState[0] = IMAGE_STATE_READONLY;
-
-    /** SD Card image
-     **/
-    if (!noSdCard) {
-        imageLoader_set (l, AVD_IMAGE_SDCARD);
-        imageLoader_load(l, IMAGE_OPTIONAL | IMAGE_IGNORE_IF_LOCKED);
-    }
 
     /** State snapshots image
      **/
@@ -1524,6 +1506,29 @@ char*  avdInfo_getDefaultCachePath( AvdInfo*  i )
 {
     const char* imageName = _imageFileNames[ AVD_IMAGE_CACHE ];
     return _getFullFilePath(i->contentPath, imageName);
+}
+
+char*  avdInfo_getSdCardPath( AvdInfo* i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_SDCARD ];
+    char*       path;
+
+    /* Special case, the config.ini can have a SDCARD_PATH entry
+     * that gives the full path to the SD Card.
+     */
+    if (i->configIni != NULL) {
+        path = iniFile_getString(i->configIni, SDCARD_PATH, NULL);
+        if (path != NULL) {
+            if (path_exists(path))
+                return path;
+
+            dwarning("Ignoring invalid SDCard path: %s", path);
+            AFREE(path);
+        }
+    }
+
+    /* Otherwise, simply look into the content directory */
+    return _avdInfo_getContentFilePath(i, imageName);
 }
 
 char*

@@ -129,6 +129,13 @@ HWCFG_BOOL(
   "SD Card support",
   "Whether the device supports insertion/removal of virtual SD Cards.")
 
+HWCFG_STRING(
+  hw_sdCard_path,
+  "hw.sdCard.path",
+  "",
+  "SD Card image path",
+  "")
+
 HWCFG_BOOL(
   disk_cachePartition,
   "disk.cachePartition",
@@ -261,13 +268,6 @@ HWCFG_STRING(
   "",
   "Path to snapshots",
   "Path to a 'snapshot storage' file, where all snapshots are stored, including the default snapshot.")
-
-HWCFG_STRING(
-  disk_sdCard_path,
-  "disk.sdCard.path",
-  "",
-  "Path to SD Card image file",
-  "Path to SD Card image file. Ignored if disk.sdCard is not set to 'yes'.")
 
 #undef HWCFG_INT
 #undef HWCFG_BOOL

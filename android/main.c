@@ -115,7 +115,6 @@ int main(int argc, char **argv)
     char*  args[128];
     int    n;
     char*  opt;
-    int    use_sdcard_img = 0;
     int    serial = 0;
     int    gps_serial = 0;
     int    radio_serial = 0;
@@ -472,6 +471,9 @@ int main(int argc, char **argv)
                     opts->cache = avdInfo_getDefaultCachePath(avd);
                 }
             }
+            if (opts->cache) {
+                D("autoconfig: -cache %s", opts->cache);
+            }
         }
 
         if (opts->cache) {
@@ -481,12 +483,38 @@ int main(int argc, char **argv)
 
     /** SD CARD PARTITION */
 
-    // TODO: This should go to core
-    if (hw->hw_sdCard != 0)
-        opts->sdcard = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SDCARD);
-    else if (opts->sdcard) {
-        dwarning( "Emulated hardware doesn't support SD Cards" );
-        opts->sdcard = NULL;
+    if (!hw->hw_sdCard) {
+        /* No SD Card emulation, so -sdcard will be ignored */
+        if (opts->sdcard) {
+            dwarning( "Emulated hardware doesn't support SD Cards. -sdcard option ignored." );
+            opts->sdcard = NULL;
+        }
+    } else {
+        /* Auto-configure -sdcard if it is not available */
+        if (!opts->sdcard) {
+            do {
+                /* If -datadir <path> is used, look for a sdcard.img file here */
+                if (opts->datadir) {
+                    bufprint(tmp, tmpend, "%s/%s", opts->datadir, "system.img");
+                    if (path_exists(tmp)) {
+                        opts->sdcard = strdup(tmp);
+                        break;
+                    }
+                }
+
+                /* Otherwise, look at the AVD's content */
+                opts->sdcard = avdInfo_getSdCardPath(avd);
+                if (opts->sdcard != NULL) {
+                    break;
+                }
+
+                /* Nothing */
+            } while (0);
+
+            if (opts->sdcard) {
+                D("autoconfig: -sdcard %s", opts->sdcard);
+            }
+        }
     }
 
     if(opts->sdcard) {
@@ -499,14 +527,15 @@ int main(int argc, char **argv)
             if (size < 9*1024*1024ULL) {
                 fprintf(stderr, "### WARNING: SD Card files must be at least 9MB, ignoring '%s'\n", opts->sdcard);
             } else {
-                args[n++] = "-hda";
-                args[n++] = opts->sdcard;
-                use_sdcard_img = 1;
+                hw->hw_sdCard_path = ASTRDUP(opts->sdcard);
             }
         } else {
-            D("no SD Card image at '%s'", opts->sdcard);
+            dwarning("no SD Card image at '%s'", opts->sdcard);
         }
     }
+
+
+    /** SNAPSHOT STORAGE HANDLING */
 
     if (!opts->no_snapstorage) {
         // TODO: This should go to core
