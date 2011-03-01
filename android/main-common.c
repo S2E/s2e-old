@@ -726,11 +726,9 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
     if (opts->wipe_data) {
         android_avdParams->flags |= AVDINFO_WIPE_DATA | AVDINFO_WIPE_CACHE;
     }
-#if CONFIG_ANDROID_SNAPSHOTS
     if (opts->no_snapstorage) {
         android_avdParams->flags |= AVDINFO_NO_SNAPSHOTS;
     }
-#endif
 
     /* legacy support: we used to use -system <dir> and -image <file>
      * instead of -sysdir <dir> and -system <file>, so handle this by checking
@@ -866,7 +864,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
             }
         }
 
-#if CONFIG_ANDROID_SNAPSHOTS
         if (!opts->snapstorage && opts->datadir) {
             bufprint(tmp, tmpend, "%s/snapshots.img", opts->datadir);
             if (path_exists(tmp)) {
@@ -874,7 +871,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
                 D("autoconfig: -snapstorage %s", opts->snapstorage);
             }
         }
-#endif // CONFIG_ANDROID_SNAPSHOTS
     }
 
     /* if certain options are set, we can force the path of
@@ -886,9 +882,7 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
     _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,        "user data", 0);
     _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,       "cache", 0);
     _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard,      "SD Card", 0);
-#if CONFIG_ANDROID_SNAPSHOTS
     _forceAvdImagePath(AVD_IMAGE_SNAPSHOTS,  opts->snapstorage, "snapshots", 0);
-#endif
 
     /* we don't accept -skindir without -skin now
      * to simplify the autoconfig stuff with virtual devices
@@ -1022,9 +1016,7 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_INITDATA);
     _update_hwconfig_path(&hwConfig->disk_sdCard_path, avd, AVD_IMAGE_SDCARD);
     _update_hwconfig_path(&hwConfig->disk_cachePartition_path, avd, AVD_IMAGE_CACHE);
-#if CONFIG_ANDROID_SNAPSHOTS
     _update_hwconfig_path(&hwConfig->disk_snapshots_path, avd, AVD_IMAGE_SNAPSHOTS);
-#endif  // CONFIG_ANDROID_SNAPSHOTS
 
     if (opts->partition_size) {
         char*  end;

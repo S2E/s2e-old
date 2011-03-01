@@ -490,7 +490,6 @@ int main(int argc, char **argv)
         }
     }
 
-#if CONFIG_ANDROID_SNAPSHOTS
     if (!opts->no_snapstorage) {
         // TODO: This should go to core
         opts->snapstorage = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_SNAPSHOTS);
@@ -532,7 +531,6 @@ int main(int argc, char **argv)
     if (opts->snapshot_list) {
         snapshot_print_and_exit(opts->snapstorage);
     }
-#endif // CONFIG_ANDROID_SNAPSHOTS
 
     if (!opts->logcat || opts->logcat[0] == 0) {
         opts->logcat = getenv("ANDROID_LOG_TAGS");

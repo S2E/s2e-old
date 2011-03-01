@@ -2049,8 +2049,6 @@ static const CommandDefRec  event_commands[] =
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };
 
-#if CONFIG_ANDROID_SNAPSHOTS
-
 
 /********************************************************************************************/
 /********************************************************************************************/
@@ -2150,8 +2148,6 @@ static const CommandDefRec  snapshot_commands[] =
 };
 
 
-#endif
-
 
 /********************************************************************************************/
 /********************************************************************************************/
@@ -2215,11 +2211,9 @@ static const CommandDefRec  vm_commands[] =
     "'avd name' will return the name of this virtual device\r\n",
     NULL, do_avd_name, NULL },
 
-#if CONFIG_ANDROID_SNAPSHOTS
     { "snapshot", "state snapshot commands",
     "allows you to save and restore the virtual device state in snapshots\r\n",
     NULL, NULL, snapshot_commands },
-#endif
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };

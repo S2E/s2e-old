@@ -399,9 +399,7 @@ extern int android_display_bpp;
 
 extern void  dprint( const char* format, ... );
 
-#if CONFIG_ANDROID_SNAPSHOTS
 const char* savevm_on_exit = NULL;
-#endif
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
@@ -3126,11 +3124,9 @@ static void main_loop(void)
                 vm_stop(0);
                 no_shutdown = 0;
             } else {
-#if CONFIG_ANDROID_SNAPSHOTS
                 if (savevm_on_exit != NULL) {
                   do_savevm(cur_mon, savevm_on_exit);
                 }
-#endif
                 break;
             }
         }
@@ -4353,11 +4349,9 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_loadvm:
                 loadvm = optarg;
                 break;
-#if CONFIG_ANDROID_SNAPSHOTS
             case QEMU_OPTION_savevm_on_exit:
                 savevm_on_exit = optarg;
                 break;
-#endif
             case QEMU_OPTION_full_screen:
                 full_screen = 1;
                 break;
