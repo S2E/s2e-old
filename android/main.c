@@ -108,6 +108,52 @@ void emulator_help( void )
     exit(1);
 }
 
+/* TODO: Put in shared source file */
+static char*
+_getFullFilePath( const char* rootPath, const char* fileName )
+{
+    if (path_is_absolute(fileName)) {
+        return ASTRDUP(fileName);
+    } else {
+        char temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+
+        p = bufprint(temp, end, "%s/%s", rootPath, fileName);
+        if (p >= end) {
+            return NULL;
+        }
+        return ASTRDUP(temp);
+    }
+}
+
+static uint64_t
+_adjustPartitionSize( const char*  description,
+                      uint64_t     imageBytes,
+                      uint64_t     defaultBytes,
+                      int          inAndroidBuild )
+{
+    char      temp[64];
+    unsigned  imageMB;
+    unsigned  defaultMB;
+
+    if (imageBytes <= defaultBytes)
+        return defaultBytes;
+
+    imageMB   = convertBytesToMB(imageBytes);
+    defaultMB = convertBytesToMB(defaultBytes);
+
+    if (imageMB > defaultMB) {
+        snprintf(temp, sizeof temp, "(%d MB > %d MB)", imageMB, defaultMB);
+    } else {
+        snprintf(temp, sizeof temp, "(%lld bytes > %lld bytes)", imageBytes, defaultBytes);
+    }
+
+    if (inAndroidBuild) {
+        dwarning("%s partition size adjusted to match image file %s\n", description, temp);
+    }
+
+    return convertMBToBytes(imageMB);
+}
+
 int main(int argc, char **argv)
 {
     char   tmp[MAX_PATH];
@@ -126,6 +172,7 @@ int main(int argc, char **argv)
     AConfig*          skinConfig;
     char*             skinPath;
     int               inAndroidBuild;
+    uint64_t          defaultPartitionSize = convertMBToBytes(66);
 
     AndroidOptions  opts[1];
     /* net.shared_net_ip boot property value. */
@@ -426,20 +473,115 @@ int main(int argc, char **argv)
     hw->disk_ramdisk_path = avdInfo_getRamdiskPath(avd);
     D("autoconfig: -ramdisk %s", hw->disk_ramdisk_path);
 
-    {
-        const char*  filetype = "file";
+    /* -partition-size is used to specify the max size of both the system
+     * and data partition sizes.
+     */
+    if (opts->partition_size) {
+        char*  end;
+        long   sizeMB = strtol(opts->partition_size, &end, 0);
+        long   minSizeMB = 10;
+        long   maxSizeMB = LONG_MAX / ONE_MB;
 
-        // TODO: This should go to core
-        if (avdInfo_isImageReadOnly(avd, AVD_IMAGE_INITSYSTEM))
-            filetype = "initfile";
-
-        bufprint(tmp, tmpend,
-             "system,size=0x%x,%s=%s", (uint32_t)hw->disk_systemPartition_size,
-             filetype, avdInfo_getImageFile(avd, AVD_IMAGE_INITSYSTEM));
-
-        args[n++] = "-nand";
-        args[n++] = strdup(tmp);
+        if (sizeMB < 0 || *end != 0) {
+            derror( "-partition-size must be followed by a positive integer" );
+            exit(1);
+        }
+        if (sizeMB < minSizeMB || sizeMB > maxSizeMB) {
+            derror( "partition-size (%d) must be between %dMB and %dMB",
+                    sizeMB, minSizeMB, maxSizeMB );
+            exit(1);
+        }
+        defaultPartitionSize = (uint64_t) sizeMB * ONE_MB;
     }
+
+
+    /** SYSTEM PARTITION **/
+
+    if (opts->sysdir == NULL) {
+        if (avdInfo_inAndroidBuild(avd)) {
+            opts->sysdir = ASTRDUP(avdInfo_getContentPath(avd));
+            D("autoconfig: -sysdir %s", opts->sysdir);
+        }
+    }
+
+    if (opts->sysdir != NULL) {
+        if (!path_exists(opts->sysdir)) {
+            derror("Directory does not exist: %s", opts->sysdir);
+            exit(1);
+        }
+    }
+
+    {
+        char*  rwImage   = NULL;
+        char*  initImage = NULL;
+
+        do {
+            if (opts->system == NULL) {
+                /* If -system is not used, try to find a runtime system image
+                * (i.e. system-qemu.img) in the content directory.
+                */
+                rwImage = avdInfo_getSystemImagePath(avd);
+                if (rwImage != NULL) {
+                    break;
+                }
+                /* Otherwise, try to find the initial system image */
+                initImage = avdInfo_getSystemInitImagePath(avd);
+                if (initImage == NULL) {
+                    derror("No initial system image for this configuration!");
+                    exit(1);
+                }
+                break;
+            }
+
+            /* If -system <name> is used, use it to find the initial image */
+            if (opts->sysdir != NULL) {
+                initImage = _getFullFilePath(opts->sysdir, opts->system);
+            } else {
+                initImage = ASTRDUP(opts->system);
+            }
+            if (!path_exists(initImage)) {
+                derror("System image file doesn't exist: %s", initImage);
+                exit(1);
+            }
+
+        } while (0);
+
+        if (rwImage != NULL) {
+            /* Use the read/write image file directly */
+            hw->disk_systemPartition_path     = rwImage;
+            hw->disk_systemPartition_initPath = NULL;
+            D("Using direct system image: %s", rwImage);
+        } else if (initImage != NULL) {
+            hw->disk_systemPartition_path = NULL;
+            hw->disk_systemPartition_initPath = initImage;
+            D("Using initial system image: %s", initImage);
+        }
+
+        /* Check the size of the system partition image.
+        * If we have an AVD, it must be smaller than
+        * the disk.systemPartition.size hardware property.
+        *
+        * Otherwise, we need to adjust the systemPartitionSize
+        * automatically, and print a warning.
+        *
+        */
+        const char* systemImage = hw->disk_systemPartition_path;
+        uint64_t    systemBytes;
+
+        if (systemImage == NULL)
+            systemImage = hw->disk_systemPartition_initPath;
+
+        if (path_get_size(systemImage, &systemBytes) < 0) {
+            derror("Missing system image: %s", systemImage);
+            exit(1);
+        }
+
+        hw->disk_systemPartition_size =
+            _adjustPartitionSize("system", systemBytes, defaultPartitionSize,
+                                 avdInfo_inAndroidBuild(avd));
+    }
+
+    /** DATA PARTITION **/
 
     bufprint(tmp, tmpend,
              "userdata,size=0x%x,file=%s",

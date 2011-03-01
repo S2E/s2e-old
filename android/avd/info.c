@@ -470,6 +470,7 @@ _checkSkinSkinsDir( const char*  skinDirRoot,
     char         temp[MAX_PATH], *p = temp, *end = p + sizeof(temp);
 
     p = bufprint(temp, end, "%s/skins/%s", skinDirRoot, skinName);
+    DD("Probing skin directory: %s", temp);
     if (p >= end || !path_exists(temp)) {
         DD("    ignore bad skin directory %s", temp);
         return NULL;
@@ -1098,31 +1099,6 @@ EXIT:
     return l->pPath[0];
 }
 
-/* Attempts to load an AVD image, but does not kill the process if loading
- * fails.
- */
-static void
-imageLoader_loadOptional( ImageLoader *l, AvdImageType img_type,
-                           const char *forcedPath )
-{
-    imageLoader_set (l, img_type);
-    imageLoader_load(l, IMAGE_OPTIONAL |
-                        IMAGE_IGNORE_IF_LOCKED);
-
-    /* if the file was not found, ignore it */
-    if (l->pPath[0] && !path_exists(l->pPath[0]))
-    {
-        D("ignoring non-existing %s at %s: %s",
-          l->imageText, l->pPath[0], strerror(errno));
-
-        /* if the user provided the path by hand, warn him. */
-        if (forcedPath != NULL)
-            dwarning("ignoring non-existing %s image", l->imageText);
-
-        imageLoader_setPath(l, NULL);
-    }
-}
-
 /* find the correct path of all image files we're going to need
  * and lock the files that need it.
  */
@@ -1134,14 +1110,6 @@ _avdInfo_getImagePaths(AvdInfo*  i, AvdInfoParams*  params )
     ImageLoader  l[1];
 
     imageLoader_init(l, i, params);
-
-    /* the system image
-     *
-     * if there is one in the content directory just lock
-     * and use it.
-     */
-    imageLoader_set ( l, AVD_IMAGE_INITSYSTEM );
-    imageLoader_load( l, IMAGE_REQUIRED | IMAGE_SEARCH_SDK | IMAGE_DONT_LOCK );
 
     /* the data partition - this one is special because if it
      * is missing, we need to copy the initial image file into it.
@@ -1335,15 +1303,6 @@ _avdInfo_getBuildImagePaths( AvdInfo*  i, AvdInfoParams*  params )
 
     AFREE(srcData);
 
-    /** load the system image. read-only. the caller must
-     ** take care of checking the state
-     **/
-    imageLoader_set ( l, AVD_IMAGE_INITSYSTEM );
-    imageLoader_load( l, IMAGE_REQUIRED | IMAGE_DONT_LOCK );
-
-    /* force the system image to read-only status */
-    l->pState[0] = IMAGE_STATE_READONLY;
-
     return 0;
 }
 
@@ -1518,6 +1477,13 @@ char*
 avdInfo_getSnapStoragePath( AvdInfo* i )
 {
     const char* imageName = _imageFileNames[ AVD_IMAGE_SNAPSHOTS ];
+    return _avdInfo_getContentFilePath(i, imageName);
+}
+
+char*
+avdInfo_getSystemImagePath( AvdInfo*  i )
+{
+    const char* imageName = _imageFileNames[ AVD_IMAGE_USERSYSTEM ];
     return _avdInfo_getContentFilePath(i, imageName);
 }
 

@@ -1031,13 +1031,7 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
 {
     unsigned  defaultPartitionSize = convertMBToBytes(66);
 
-    if (_update_hwconfig_path(&hwConfig->disk_systemPartition_initPath, avd, AVD_IMAGE_INITSYSTEM)) {
-        dprint("system path %s is invalid", hwConfig->disk_systemPartition_initPath);
-        exit(1);
-    }
-
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_USERDATA);
-    _update_hwconfig_path(&hwConfig->disk_systemPartition_path, avd, AVD_IMAGE_USERSYSTEM);
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_INITDATA);
 
     if (opts->partition_size) {
@@ -1057,25 +1051,6 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
         }
         defaultPartitionSize = sizeMB * ONE_MB;
     }
-
-    /* Check the size of the system partition image.
-     * If we have an AVD, it must be smaller than
-     * the disk.systemPartition.size hardware property.
-     *
-     * Otherwise, we need to adjust the systemPartitionSize
-     * automatically, and print a warning.
-     *
-     */
-    {
-        uint64_t   systemBytes  = avdInfo_getImageFileSize(avd, AVD_IMAGE_INITSYSTEM);
-        uint64_t   defaultBytes = defaultPartitionSize;
-
-        if (defaultBytes == 0 || opts->partition_size)
-            defaultBytes = defaultPartitionSize;
-        hwConfig->disk_systemPartition_size =
-            _adjustPartitionSize("system", systemBytes, defaultBytes, inAndroidBuild);
-    }
-
     /* Check the size of the /data partition. The only interesting cases here are:
      * - when the USERDATA image already exists and is larger than the default
      * - when we're wiping data and the INITDATA is larger than the default.

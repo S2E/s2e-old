@@ -147,7 +147,16 @@ char*  avdInfo_getCachePath( AvdInfo*  i );
 char*  avdInfo_getDefaultCachePath( AvdInfo*  i );
 
 
+/* avdInfo_getSystemImagePath() will return NULL, except if the AVD content
+ * directory contains a file named "system-qemu.img".
+ */
+char*  avdInfo_getSystemImagePath( AvdInfo* i );
+
+/* avdInfo_getSystemInitImagePath() retrieves the path to the read-only
+ * initialization image for this disk image.
+ */
 char*  avdInfo_getSystemInitImagePath( AvdInfo*  i );
+
 char*  avdInfo_getDataInitImagePath( AvdInfo* i );
 
 /* Returns the path to a given AVD image file. This will return NULL if

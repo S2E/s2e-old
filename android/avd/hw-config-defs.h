@@ -223,23 +223,23 @@ HWCFG_STRING(
 HWCFG_STRING(
   disk_systemPartition_path,
   "disk.systemPartition.path",
-  "<init>",
-  "Path to system partition image",
-  "Path to read/write system partition image during emulation. If special value '<init>' is used, a temporary file will be created, populated with the content of .initPath")
+  "",
+  "Path to runtime system partition image",
+  "")
 
 HWCFG_STRING(
   disk_systemPartition_initPath,
   "disk.systemPartition.initPath",
   "",
   "Initial system partition image",
-  "Only used if .path is '<init>', path to an initial system image that will be copied into the temporary system image file before launch.")
+  "")
 
 HWCFG_DISKSIZE(
   disk_systemPartition_size,
   "disk.systemPartition.size",
   "0",
   "Ideal size of system partition",
-  "ideal size of system partition. Ignored if smaller than the size of .path (or .initPath). Otherwise, gives the maximum size the partition is allowed to grow dynamically.")
+  "")
 
 HWCFG_STRING(
   disk_dataPartition_path,
@@ -260,7 +260,7 @@ HWCFG_DISKSIZE(
   "disk.dataPartition.size",
   "0",
   "Ideal size of data partition",
-  "ideal size of data partition. Ignored if smaller than the size of .path (or .initPath). Otherwise, gives the maximum size the partition is allowed to grow dynamically.")
+  "")
 
 HWCFG_STRING(
   disk_snapStorage_path,
