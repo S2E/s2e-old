@@ -269,6 +269,13 @@ HWCFG_STRING(
   "Path to snapshot storage",
   "Path to a 'snapshot storage' file, where all snapshots are stored.")
 
+HWCFG_STRING(
+  avd_name,
+  "avd.name",
+  "<build>",
+  "Name of the AVD being run",
+  "")
+
 #undef HWCFG_INT
 #undef HWCFG_BOOL
 #undef HWCFG_DISKSIZE
