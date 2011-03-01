@@ -56,6 +56,8 @@
 #include "android/charmap.h"
 #include "android/globals.h"
 #include "android/utils/bufprint.h"
+#include "android/utils/debug.h"
+#include "android/utils/stralloc.h"
 #include "android/display-core.h"
 #include "android/utils/timezone.h"
 #include "android/snapshot.h"
@@ -3599,24 +3601,6 @@ add_dns_server( const char*  server_name )
     return 0;
 }
 
-/* Appends a parameter to a string of parameters separated with space.
- * Pararm:
- *  param_str String containing parameters separated with space.
- *  param Parameter to append to the string.
- *  size - Size (in characters) of the buffer addressed by param_str.
- */
-static void
-append_param(char* param_str, const char* arg, int size)
-{
-    if (*param_str) {
-        strncat(param_str, " ", size);
-        strncat(param_str, arg, size);
-    } else {
-        strncpy(param_str, arg, size);
-        param_str[size - 1] = '\0';
-    }
-}
-
 /* Parses an integer
  * Pararm:
  *  str      String containing a number to be parsed.
@@ -3823,13 +3807,8 @@ int main(int argc, char **argv, char **envp)
     CPUState *env;
     int show_vnc_port = 0;
     IniFile*  hw_ini = NULL;
-    /* Container for the kernel initialization parameters collected in this
-     * routine. */
-    char kernel_cmdline_append[1024];
-    /* Combines kernel initialization parameters passed from the UI with
-     * the parameters collected in this routine. */
-    char kernel_cmdline_full[1024];
-    char tmp_str[1024];
+    STRALLOC_DEFINE(kernel_params);
+    STRALLOC_DEFINE(kernel_config);
     int    dns_count = 0;
 
     /* Initialize sockets before anything else, so we can properly report
@@ -3881,8 +3860,7 @@ int main(int argc, char **argv, char **envp)
     snapshot = 0;
     kernel_filename = NULL;
     kernel_cmdline = "";
-    kernel_cmdline_append[0] = '\0';
-    kernel_cmdline_full[0] = '\0';
+
     cyls = heads = secs = 0;
     translation = BIOS_ATA_TRANSLATION_AUTO;
     monitor_device = "vc:80Cx24C";
@@ -4787,12 +4765,9 @@ int main(int argc, char **argv, char **envp)
 #ifdef CONFIG_MEMCHECK
             case QEMU_OPTION_android_memcheck:
                 android_op_memcheck = (char*)optarg;
-                snprintf(tmp_str, sizeof(tmp_str), "memcheck=%s",
-                         android_op_memcheck);
-                tmp_str[sizeof(tmp_str) - 1] = '\0';
                 /* This will set ro.kernel.memcheck system property
                  * to memcheck's tracing flags. */
-                append_param(kernel_cmdline_append, tmp_str, sizeof(kernel_cmdline_append));
+                stralloc_add_format(kernel_config, " memcheck=%s", android_op_memcheck);
                 break;
 #endif // CONFIG_MEMCHECK
 
@@ -4985,8 +4960,7 @@ int main(int argc, char **argv, char **envp)
     if (dns_count == 0)
         dns_count = slirp_get_system_dns_servers();
     if (dns_count) {
-        snprintf(tmp_str, sizeof(tmp_str), "ndns=%d", dns_count);
-        append_param(kernel_cmdline_append, tmp_str, sizeof(kernel_cmdline_append));
+        stralloc_add_format(kernel_config, " ndns=%d", dns_count);
     }
 
 #ifdef CONFIG_MEMCHECK
@@ -5349,21 +5323,37 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     /* Combine kernel command line passed from the UI with parameters
-     * collected during initialization. */
-    if (*kernel_cmdline) {
-        if (kernel_cmdline_append[0]) {
-            snprintf(kernel_cmdline_full, sizeof(kernel_cmdline_full), "%s %s",
-                     kernel_cmdline, kernel_cmdline_append);
-        } else {
-            strncpy(kernel_cmdline_full, kernel_cmdline, sizeof(kernel_cmdline_full));
-            kernel_cmdline_full[sizeof(kernel_cmdline_full) - 1] = '\0';
-        }
-    } else if (kernel_cmdline_append[0]) {
-        strncpy(kernel_cmdline_full, kernel_cmdline_append, sizeof(kernel_cmdline_full));
-    }
+     * collected during initialization.
+     *
+     * The order is the following:
+     * - parameters from the hw configuration (kernel.parameters)
+     * - additionnal parameters from options (e.g. -memcheck)
+     * - the -append parameters.
+     */
+    {
+        const char* kernel_parameters;
 
-    machine->init(ram_size, boot_devices,
-                  kernel_filename, kernel_cmdline_full, initrd_filename, cpu_model);
+        /* If not empty, kernel_config always contains a leading space */
+        stralloc_append(kernel_params, kernel_config);
+
+        if (*kernel_cmdline) {
+            stralloc_add_c(kernel_params, ' ');
+            stralloc_add_str(kernel_params, kernel_cmdline);
+        }
+
+        kernel_parameters = stralloc_cstr(kernel_params);
+        VERBOSE_PRINT(init, "Kernel parameters: %s", kernel_parameters);
+
+        machine->init(ram_size,
+                      boot_devices,
+                      kernel_filename,
+                      kernel_parameters,
+                      initrd_filename,
+                      cpu_model);
+
+        stralloc_reset(kernel_params);
+        stralloc_reset(kernel_config);
+    }
 
 
     for (env = first_cpu; env != NULL; env = env->next_cpu) {
