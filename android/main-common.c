@@ -939,7 +939,6 @@ AvdInfo* createAVD(AndroidOptions* opts, int* inAndroidBuild)
         */
     _forceAvdImagePath(AVD_IMAGE_INITSYSTEM, opts->system,      "system", 1);
     _forceAvdImagePath(AVD_IMAGE_USERDATA,   opts->data,        "user data", 0);
-    _forceAvdImagePath(AVD_IMAGE_CACHE,      opts->cache,       "cache", 0);
     _forceAvdImagePath(AVD_IMAGE_SDCARD,     opts->sdcard,      "SD Card", 0);
     _forceAvdImagePath(AVD_IMAGE_SNAPSHOTS,  opts->snapstorage, "snapshots", 0);
 
@@ -1050,7 +1049,6 @@ updateHwConfigFromAVD(AndroidHwConfig* hwConfig,
     _update_hwconfig_path(&hwConfig->disk_systemPartition_path, avd, AVD_IMAGE_USERSYSTEM);
     _update_hwconfig_path(&hwConfig->disk_dataPartition_path, avd, AVD_IMAGE_INITDATA);
     _update_hwconfig_path(&hwConfig->disk_sdCard_path, avd, AVD_IMAGE_SDCARD);
-    _update_hwconfig_path(&hwConfig->disk_cachePartition_path, avd, AVD_IMAGE_CACHE);
     _update_hwconfig_path(&hwConfig->disk_snapshots_path, avd, AVD_IMAGE_SNAPSHOTS);
 
     if (opts->partition_size) {

@@ -121,7 +121,6 @@ int main(int argc, char **argv)
     int    radio_serial = 0;
     int    qemud_serial = 0;
     int    shell_serial = 0;
-    unsigned  cachePartitionSize = 0;
 
     AndroidHwConfig*  hw;
     AvdInfo*          avd;
@@ -447,29 +446,40 @@ int main(int argc, char **argv)
     args[n++] = "-nand";
     args[n++] = strdup(tmp);
 
-    if (hw->disk_cachePartition) {
-        // TODO: This should go to core
-        opts->cache = (char*) avdInfo_getImageFile(avd, AVD_IMAGE_CACHE);
-        cachePartitionSize = hw->disk_cachePartition_size;
+    /** CACHE PARTITION **/
+
+    if (opts->no_cache) {
+        /* No cache partition at all */
+        hw->disk_cachePartition = 0;
     }
-    else if (opts->cache) {
-        dwarning( "Emulated hardware doesn't support a cache partition" );
-        opts->cache    = NULL;
-        opts->no_cache = 1;
+    else if (!hw->disk_cachePartition) {
+        if (opts->cache) {
+            dwarning( "Emulated hardware doesn't support a cache partition. -cache option ignored!" );
+            opts->cache = NULL;
+        }
+    }
+    else
+    {
+        if (!opts->cache) {
+            /* Find the current cache partition file */
+            opts->cache = avdInfo_getCachePath(avd);
+            if (opts->cache == NULL) {
+                /* The file does not exists, we will force its creation
+                 * if we are not in the Android build system. Otherwise,
+                 * a temporary file will be used.
+                 */
+                if (!avdInfo_inAndroidBuild(avd)) {
+                    opts->cache = avdInfo_getDefaultCachePath(avd);
+                }
+            }
+        }
+
+        if (opts->cache) {
+            hw->disk_cachePartition_path = ASTRDUP(opts->cache);
+        }
     }
 
-    if (opts->cache) {
-        /* use a specific cache file */
-        sprintf(tmp, "cache,size=0x%0x,file=%s", cachePartitionSize, opts->cache);
-        args[n++] = "-nand";
-        args[n++] = strdup(tmp);
-    }
-    else if (!opts->no_cache) {
-        /* create a temporary cache partition file */
-        sprintf(tmp, "cache,size=0x%0x", cachePartitionSize);
-        args[n++] = "-nand";
-        args[n++] = strdup(tmp);
-    }
+    /** SD CARD PARTITION */
 
     // TODO: This should go to core
     if (hw->hw_sdCard != 0)

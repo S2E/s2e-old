@@ -4969,6 +4969,25 @@ int main(int argc, char **argv, char **envp)
     }
 #endif  // CONFIG_MEMCHECK
 
+    /* Initialize cache partition, if any */
+    if (android_hw->disk_cachePartition != 0) {
+        char        tmp[PATH_MAX+32];
+        const char* partPath = android_hw->disk_cachePartition_path;
+        uint32_t    partSize = android_hw->disk_cachePartition_size;
+
+        if (!partPath || !*partPath || !strcmp(partPath, "<temp>"))
+        {
+            /* Use temporary cache partition */
+            snprintf(tmp, sizeof(tmp), "cache,size=0x%x", partSize);
+        }
+        else
+        {
+            /* Use specific cache partition */
+            snprintf(tmp, sizeof(tmp), "cache,size=0x%x,file=%s", partSize, partPath);
+        }
+        nand_add_dev(tmp);
+    }
+
 #if defined(CONFIG_KVM) && defined(CONFIG_KQEMU)
     if (kvm_allowed && kqemu_allowed) {
         PANIC(

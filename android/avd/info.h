@@ -137,6 +137,13 @@ const char*  avdInfo_getName( AvdInfo*  i );
 char*  avdInfo_getKernelPath( AvdInfo*  i );
 char*  avdInfo_getRamdiskPath( AvdInfo*  i );
 
+/* This function returns NULL if the cache image file cannot be found.
+ * Use avdInfo_getDefaultCachePath() to retrieve the default path
+ * if you intend to create the partition file there.
+ */
+char*  avdInfo_getCachePath( AvdInfo*  i );
+char*  avdInfo_getDefaultCachePath( AvdInfo*  i );
+
 char*  avdInfo_getSystemInitImagePath( AvdInfo*  i );
 char*  avdInfo_getDataInitImagePath( AvdInfo* i );
 

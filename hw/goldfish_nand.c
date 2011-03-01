@@ -638,6 +638,8 @@ void nand_add_dev(const char *arg)
     uint32_t extra_size = 64;
     uint32_t erase_pages = 64;
 
+    VERBOSE_PRINT(init, "%s: %s", __FUNCTION__, arg);
+
     while(arg) {
         next_arg = strchr(arg, ',');
         value = strchr(arg, '=');
