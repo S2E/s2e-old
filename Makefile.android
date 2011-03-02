@@ -95,10 +95,9 @@ ifneq ($(BUILD_STANDALONE_EMULATOR),true)
     HOST_SDK_TOOLCHAIN_PREFIX := prebuilt/linux-x86/toolchain/i686-linux-glibc2.7-4.4.3/bin/i686-linux
     # Don't do anything if the toolchain is not there
     ifneq (,$(strip $(wildcard $(HOST_SDK_TOOLCHAIN_PREFIX)-gcc)))
-      HOST_CC  := $(HOST_SDK_TOOLCHAIN_PREFIX)-gcc
-      HOST_CXX := $(HOST_SDK_TOOLCHAIN_PREFIX)-g++
-      HOST_AR  := $(HOST_SDK_TOOLCHAIN_PREFIX)-ar
-      MY_CC := $(HOST_CC)
+      MY_CC  := $(HOST_SDK_TOOLCHAIN_PREFIX)-gcc
+      MY_CXX := $(HOST_SDK_TOOLCHAIN_PREFIX)-g++
+      MY_AR  := $(HOST_SDK_TOOLCHAIN_PREFIX)-ar
     endif # $(HOST_SDK_TOOLCHAIN_PREFIX)-gcc exists
   endif # HOST_OS == linux
 
@@ -141,7 +140,9 @@ start-emulator-library = \
     $(eval include $(CLEAR_VARS)) \
     $(eval LOCAL_NO_DEFAULT_COMPILER_FLAGS := true) \
     $(eval LOCAL_CC := $(MY_CC)) \
+    $(eval LOCAL_CXX := $(MY_CXX)) \
     $(eval LOCAL_CFLAGS := $(MY_CFLAGS)) \
+    $(eval LOCAL_AR := $(MY_AR)) \
     $(eval LOCAL_LDLIBS := $(MY_LDLIBS)) \
     $(eval LOCAL_MODULE_TAGS := debug) \
     $(eval LOCAL_MODULE := $1)
