@@ -406,6 +406,10 @@ extern int android_display_bpp;
 
 extern void  dprint( const char* format, ... );
 
+const char* dns_log_filename = NULL;
+const char* drop_log_filename = NULL;
+static int rotate_logs_requested = 0;
+
 const char* savevm_on_exit = NULL;
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
@@ -510,6 +514,52 @@ static void default_ioport_writel(void *opaque, uint32_t address, uint32_t data)
 #ifdef DEBUG_UNUSED_IOPORT
     fprintf(stderr, "unused outl: port=0x%04x data=0x%02x\n", address, data);
 #endif
+}
+
+/*
+ * Sets a flag (rotate_logs_requested) to clear both the DNS and the
+ * drop logs upon receiving a SIGUSR1 signal. We need to clear the logs
+ * between the tasks that do not require restarting Qemu.
+ */
+void rotate_qemu_logs_handler(int signum) {
+  rotate_logs_requested = 1;
+}
+
+/*
+ * Resets the rotate_log_requested_flag. Normally called after qemu
+ * logs has been rotated.
+ */
+void reset_rotate_qemu_logs_request(void) {
+  rotate_logs_requested = 0;
+}
+
+/*
+ * Clears the passed qemu log when the rotate_logs_requested
+ * is set. We need to clear the logs between the tasks that do not
+ * require restarting Qemu.
+ */
+FILE* rotate_qemu_log(FILE* old_log_fd, const char* filename) {
+  FILE* new_log_fd = NULL;
+  if (old_log_fd) {
+    if (fclose(old_log_fd) == -1) {
+      fprintf(stderr, "Cannot close old_log fd\n");
+      exit(errno);
+    }
+  }
+
+  if (!filename) {
+    fprintf(stderr, "The log filename to be rotated is not provided");
+    exit(-1);
+  }
+
+  new_log_fd = fopen(filename , "wb+");
+  if (new_log_fd == NULL) {
+    fprintf(stderr, "Cannot open the log file: %s for write.\n",
+            filename);
+    exit(1);
+  }
+
+  return new_log_fd;
 }
 
 /***********************************************************/
@@ -3122,6 +3172,17 @@ static void main_loop(void)
 #ifdef CONFIG_PROFILER
             dev_time += profile_getclock() - ti;
 #endif
+
+            if (rotate_logs_requested) {
+                FILE* new_dns_log_fd = rotate_qemu_log(get_slirp_dns_log_fd(),
+                                                        dns_log_filename);
+                FILE* new_drop_log_fd = rotate_qemu_log(get_slirp_drop_log_fd(),
+                                                         drop_log_filename);
+                slirp_dns_log_fd(new_dns_log_fd);
+                slirp_drop_log_fd(new_drop_log_fd);
+                reset_rotate_qemu_logs_request();
+            }
+
         } while (vm_can_run());
 
         if (qemu_debug_requested())
@@ -3622,6 +3683,23 @@ parse_int(const char *str, int *result)
 
     return 0;
 }
+
+#ifndef _WIN32
+/*
+ * Initializes the SIGUSR1 signal handler to clear Qemu logs.
+ */
+void init_qemu_clear_logs_sig() {
+  struct sigaction act;
+  sigfillset(&act.sa_mask);
+  act.sa_flags = 0;
+  act.sa_handler = rotate_qemu_logs_handler;
+  if (sigaction(SIGUSR1, &act, NULL) == -1) {
+    fprintf(stderr, "Failed to setup SIGUSR1 handler to clear Qemu logs\n");
+    exit(-1);
+  }
+}
+#endif
+
 
 
 /* parses a null-terminated string specifying a network port (e.g., "80") or
@@ -4580,7 +4658,8 @@ int main(int argc, char **argv, char **envp)
              case QEMU_OPTION_drop_log:
                 {
                     FILE* drop_log_fd;
-                    drop_log_fd = fopen(optarg, "w");
+                    drop_log_filename = optarg;
+                    drop_log_fd = fopen(optarg, "w+");
 
                     if (!drop_log_fd) {
                         fprintf(stderr, "Cannot open drop log: %s\n", optarg);
@@ -4594,7 +4673,8 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_dns_log:
                 {
                     FILE* dns_log_fd;
-                    dns_log_fd = fopen(optarg, "wb");
+                    dns_log_filename = optarg;
+                    dns_log_fd = fopen(optarg, "wb+");
 
                     if (dns_log_fd == NULL) {
                         fprintf(stderr, "Cannot open dns log: %s\n", optarg);
@@ -5357,6 +5437,10 @@ int main(int argc, char **argv, char **envp)
             PANIC("Could not allocate physical memory");
         }
     }
+#endif
+
+#ifndef _WIN32
+    init_qemu_clear_logs_sig();
 #endif
 
     /* init the dynamic translator */

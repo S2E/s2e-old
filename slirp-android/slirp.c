@@ -923,6 +923,14 @@ void slirp_dns_log_fd(FILE* fd) {
     dns_log_fd = fd;
 }
 
+FILE* get_slirp_drop_log_fd(void) {
+  return drop_log_fd;
+}
+
+FILE* get_slirp_dns_log_fd(void) {
+  return dns_log_fd;
+}
+
 /* Address and ports are in host byte order */
 int slirp_should_drop(unsigned long dst_addr,
                       int dst_port,

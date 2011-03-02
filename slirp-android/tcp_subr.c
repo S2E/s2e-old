@@ -384,7 +384,7 @@ tcp_proxy_event( struct socket*  so,
  */
 int is_qemu_special_address(unsigned long dst_addr, unsigned long *redir_addr)
 {
-  if ((dst_addr & htonl(0xffffff00)) == special_addr_ip) {
+  if ((dst_addr & 0xffffff00) == special_addr_ip) {
     /* It's an alias */
 
     int  last_byte = dst_addr & 0xff;
@@ -416,6 +416,7 @@ int tcp_fconnect(struct socket *so)
     SockAddress    sockaddr;
     unsigned long       sock_ip;
     int                 sock_port;
+    int redirect_happened = 0; /* for logging new src ip/port after connect */
 
     DEBUG_CALL("tcp_fconnect");
     DEBUG_ARG("so = %lx", (long )so);
@@ -423,7 +424,7 @@ int tcp_fconnect(struct socket *so)
     /* when true, a connection that otherwise would be dropped will instead be
      * redirected to the sink ('-net-forward-tcp2sink') */
     int forward_dropped_to_sink = 0;
-
+    time_t timestamp = time(NULL);
 
     /*-------------------------------------------------------------*/
     /* User mode network stack restrictions */
@@ -432,22 +433,24 @@ int tcp_fconnect(struct socket *so)
       /* If forwarding to sink is enabled, don't actually drop it */
       if (slirp_should_forward_dropped_tcp2sink()) {
         slirp_drop_log(
-            "About to be dropped TCP forwarded to sink: "
-            "src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+            "About to be dropped TCP allowed to sink: "
+            "0x%08lx:0x%04x -> 0x%08lx:0x%04x %ld\n",
               so->so_laddr_ip,
               so->so_laddr_port,
               so->so_faddr_ip,
-              so->so_faddr_port
+              so->so_faddr_port,
+              timestamp
         );
         forward_dropped_to_sink = 1;
       }
       else {
         slirp_drop_log(
-            "Dropped TCP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+            "Dropped TCP: 0x%08lx:0x%04x -> 0x%08lx:0x%04x %ld\n",
             so->so_laddr_ip,
             so->so_laddr_port,
             so->so_faddr_ip,
-            so->so_faddr_port
+            so->so_faddr_port,
+            timestamp
         );
         //errno = ENETUNREACH;
         errno = ECONNREFUSED;
@@ -455,11 +458,12 @@ int tcp_fconnect(struct socket *so)
       }
     } else {
       slirp_drop_log(
-          "Allowed TCP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
+          "Allowed TCP: 0x%08lx:0x%04x -> 0x%08lx:0x%04x %ld\n",
           so->so_laddr_ip,
           so->so_laddr_port,
           so->so_faddr_ip,
-          so->so_faddr_port
+          so->so_faddr_port,
+          timestamp
       );
     }
     /*-------------------------------------------------------------*/
@@ -479,14 +483,7 @@ int tcp_fconnect(struct socket *so)
            * dropped connections is enabled, redirect it to the sink */
           sock_ip = slirp_get_tcp_sink_ip();
           sock_port= slirp_get_tcp_sink_port();
-          slirp_drop_log(
-              "Redirected would-be dropped TCP to sink: "
-                "src: 0x%08lx:0x%04x org dst: 0x%08lx:0x%04x "
-              "new dst: 0x%08lx:0x%04x\n",
-              so->so_laddr_ip, so->so_laddr_port,
-              so->so_faddr_ip, so->so_faddr_port,
-              sock_ip, sock_port
-            );
+          redirect_happened = 1;
         }
         else {   /* An allowed connection */
 
@@ -498,19 +495,13 @@ int tcp_fconnect(struct socket *so)
           /* faddr and fport are modified only on success */
           if (slirp_should_net_forward(so->so_faddr_ip, so->so_faddr_port,
                                        &faddr, &fport)) {
-            slirp_drop_log(
-                "Redirected TCP: src: 0x%08lx:0x%04x org dst: 0x%08lx:0x%04x "
-                "new dst: 0x%08lx:0x%04x\n",
-                so->so_laddr_ip, so->so_laddr_port,
-                so->so_faddr_ip, so->so_faddr_port,
-                faddr, fport
-            );
+            redirect_happened = 1;
             sock_ip = faddr;              /* forced dst addr */
             sock_port= fport;                 /* forced dst port */
           }
           /* Determine if this is a connection to a special qemu service,
            * and change the destination address accordingly.
-           * 'faddr' is modified only onsuccess  */
+           * 'faddr' is modified only on success  */
           else if (is_qemu_special_address(so->so_faddr_ip, &faddr)) {
 
           /* We keep the original destination port. If a special service
@@ -548,7 +539,24 @@ int tcp_fconnect(struct socket *so)
         /* We don't care what port we get */
         socket_connect(s, &sockaddr);
 
-        /*
+        if (redirect_happened) {
+          SockAddress local_addr;
+          if (socket_get_address(s, &local_addr)) {
+            fprintf (stderr,
+                     "Warning: tcp_fconnect: could not get socket name\n");
+          }
+          slirp_drop_log(
+              "Redirected TCP: orig 0x%08lx:0x%04x -> 0x%08lx:0x%04x "
+              "new 0x%08lx:0x%04x -> 0x%08lx:0x%04x %ld\n",
+              so->so_laddr_ip, so->so_laddr_port,
+              so->so_faddr_ip, so->so_laddr_port,
+              sock_address_get_ip(&local_addr),
+              sock_address_get_port(&local_addr),
+              sock_ip, sock_port, timestamp
+          );
+        }
+
+       /*
         * If it's not in progress, it failed, so we just return 0,
         * without clearing SS_NOFDREF
         */

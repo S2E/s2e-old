@@ -578,12 +578,13 @@ sosendto(struct socket *so, struct mbuf *m)
         int fport = addr_port;
 
 	if (slirp_should_net_forward(faddr, fport, &faddr, &fport)) {
-	    slirp_drop_log(
+      time_t timestamp = time(NULL);
+      slirp_drop_log(
 	       "Redirected UDP: src: 0x%08lx:0x%04x org dst: 0x%08lx:0x%04x "
-	       "new dst: 0x%08lx:0x%04x\n",
+	       "new dst: 0x%08lx:0x%04x %ld\n",
 	        so->so_laddr_ip, so->so_laddr_port,
 	        addr_ip, addr_port,
-	        faddr, fport
+	        faddr, fport, timestamp
 	    );
 	}
 	addr_ip = faddr;

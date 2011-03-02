@@ -129,24 +129,28 @@ udp_input(register struct mbuf *m, int iphlen)
 	/* ------------------------------------------------------*/
 	/* User mode network stack restrictions */
 	/* slirp_should_drop requires host byte ordering in arguments */
+	time_t timestamp = time(NULL);
+
 	if (slirp_should_drop(ntohl(ip->ip_dst.addr), ntohs(uh->uh_dport.port),
 	                      IPPROTO_UDP)) {
 	  slirp_drop_log(
-	    "Dropped UDP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
-	    ip->ip_src.addr,
-	    uh->uh_sport.port,
-	    ip->ip_dst.addr,
-	    uh->uh_dport.port
+	    "Dropped UDP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x %ld\n",
+	    ntohl(ip->ip_src.addr),
+	    ntohs(uh->uh_sport.port),
+	    ntohl(ip->ip_dst.addr),
+	    ntohs(uh->uh_dport.port),
+	    timestamp
 	  );
 	  goto bad; /* drop the packet */
 	}
 	else {
 	  slirp_drop_log(
-	    "Allowed UDP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x\n",
-	    ip->ip_src.addr,
-	    uh->uh_sport.port,
-	    ip->ip_dst.addr,
-	    uh->uh_dport.port
+	    "Allowed UDP: src: 0x%08lx:0x%04x dst: 0x%08lx:0x%04x %ld\n",
+	    ntohl(ip->ip_src.addr),
+	    ntohs(uh->uh_sport.port),
+	    ntohl(ip->ip_dst.addr),
+	    ntohs(uh->uh_dport.port),
+	    timestamp
 	  );
 	}
   /* ------------------------------------------------------*/
@@ -354,7 +358,7 @@ int udp_output2_(struct socket *so, struct mbuf *m,
 	STAT(udpstat.udps_opackets++);
 
 	//  DNS logging
-	if (so != NULL && so->so_faddr_port == htons(53)) {
+	if (so != NULL && so->so_faddr_port == 53) {  /*so has host byte order */
 	  if (!slirp_dump_dns(m)) {
 	    DEBUG_MISC((dfd,"Error logging DNS packet"));
 	  }
