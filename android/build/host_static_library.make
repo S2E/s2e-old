@@ -22,7 +22,10 @@ LOCAL_BUILT_MODULE := $(call library-path,$(LOCAL_MODULE))
 LOCAL_CC ?= $(CC)
 include $(BUILD_SYSTEM)/binary.make
 
-LOCAL_AR ?= $(AR)
+LOCAL_AR := $(strip $(LOCAL_AR))
+ifndef LOCAL_AR
+    LOCAL_AR := $(AR)
+endif
 ARFLAGS := crs
 
 $(LOCAL_BUILT_MODULE): PRIVATE_AR := $(LOCAL_AR)

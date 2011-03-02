@@ -25,7 +25,9 @@ endif
 
 CONFIG_INCLUDES := $(CONFIG_DIRS:%=-I%)
 
-MY_CC := $(HOST_CC)
+MY_CC  := $(HOST_CC)
+MY_CXX := $(HOST_CXX)
+MY_AR  := $(HOST_AR)
 
 MY_OPTIM := -O2 -g -fno-PIC -falign-functions=0 -fomit-frame-pointer
 ifeq ($(BUILD_DEBUG_EMULATOR),true)
