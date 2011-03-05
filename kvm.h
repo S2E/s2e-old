@@ -18,9 +18,15 @@
 #include "qemu-queue.h"
 
 #ifdef CONFIG_KVM
+
+#ifdef TARGET_I386
 extern int kvm_allowed;
 
 #define kvm_enabled() (kvm_allowed)
+#else
+#define kvm_enabled() (0)
+#endif
+
 #else
 #define kvm_enabled() (0)
 #endif

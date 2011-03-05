@@ -8,6 +8,10 @@
 #include "exec-all.h"
 #include "disas.h"
 
+#ifdef TARGET_I386
+#include "kvm.h"
+#endif
+
 /* Filled in by elfload.c.  Simplistic, but will do for now. */
 struct syminfo *syminfos = NULL;
 
@@ -33,6 +37,10 @@ target_read_memory (bfd_vma memaddr,
                     int length,
                     struct disassemble_info *info)
 {
+#ifdef TARGET_I386
+    if (kvm_enabled())
+        cpu_synchronize_state(cpu_single_env, 0);
+#endif
     cpu_memory_rw_debug(cpu_single_env, memaddr, myaddr, length, 0);
     return 0;
 }

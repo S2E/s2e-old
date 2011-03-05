@@ -12,6 +12,9 @@
 #include "qemu_file.h"
 #include "arm_pic.h"
 #include "goldfish_device.h"
+#ifdef TARGET_I386
+#include "kvm.h"
+#endif
 
 #define PDEV_BUS_OP_DONE        (0x00)
 #define PDEV_BUS_OP_REMOVE_DEV  (0x04)
@@ -148,8 +151,13 @@ static void goldfish_bus_write(void *opaque, target_phys_addr_t offset, uint32_t
             };
             break;
         case PDEV_BUS_GET_NAME:
-            if(s->current)
+            if(s->current) {
+#ifdef TARGET_I386
+                if(kvm_enabled())
+                    cpu_synchronize_state(cpu_single_env, 0);
+#endif
                 cpu_memory_rw_debug(cpu_single_env, value, (void*)s->current->name, strlen(s->current->name), 1);
+            }
             break;
         default:
             cpu_abort (cpu_single_env, "goldfish_bus_write: Bad offset %x\n", offset);
