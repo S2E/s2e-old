@@ -12,6 +12,7 @@
 #define QEMU_VERSION    "0.10.50"
 #define QEMU_PKGVERSION "Android"
 #define HOST_I386    1
+#define CONFIG_KVM   1
 #define CONFIG_IOVEC 1
 #define CONFIG_LINUX   1
 #define CONFIG_ANDROID       1

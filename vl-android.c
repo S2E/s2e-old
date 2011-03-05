@@ -4520,6 +4520,7 @@ int main(int argc, char **argv, char **envp)
                 kqemu_allowed = 2;
                 break;
 #endif
+#ifdef TARGET_I386
 #ifdef CONFIG_KVM
             case QEMU_OPTION_enable_kvm:
                 kvm_allowed = 1;
@@ -4528,6 +4529,7 @@ int main(int argc, char **argv, char **envp)
 #endif
                 break;
 #endif
+#endif  /* TARGET_I386 */
             case QEMU_OPTION_usb:
                 usb_enabled = 1;
                 break;

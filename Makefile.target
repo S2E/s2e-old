@@ -170,6 +170,15 @@ LOCAL_SRC_FILES += \
 LOCAL_SRC_FILES += fpu/softfloat-native.c
 endif
 
+# compile KVM only if target is x86 on x86 Linux
+ifeq ($(QEMU_HOST_TAG)-$(EMULATOR_TARGET_ARCH),linux-x86-x86)
+# the following is to include linux/kvm.h
+LOCAL_CFLAGS += -I /usr/include
+LOCAL_SRC_FILES += \
+    target-i386/kvm.c \
+    kvm-all.c
+endif
+
 ##############################################################################
 # Memory-access checking support.
 # Memory access checker uses information collected by instrumented code in
