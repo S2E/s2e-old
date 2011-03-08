@@ -5621,6 +5621,7 @@ int main(int argc, char **argv, char **envp)
         const char* kernel_parameters;
 
         if (android_hw->kernel_parameters) {
+            stralloc_add_c(kernel_params, ' ');
             stralloc_add_str(kernel_params, android_hw->kernel_parameters);
         }
 
