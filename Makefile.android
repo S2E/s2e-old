@@ -105,6 +105,7 @@ ifneq ($(BUILD_STANDALONE_EMULATOR),true)
 
   ifneq ($(USE_CCACHE),)
     ccache := prebuilt/$(HOST_PREBUILT_TAG)/ccache/ccache
+    ccache := $(strip $(wildcard $(ccache)))
     ifneq ($(ccache),$(firstword $(MY_CC)))
       MY_CC := $(ccache) $(MY_CC)
     endif
