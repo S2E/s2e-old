@@ -480,19 +480,22 @@ iniFile_setDiskSize( IniFile* f, const char* key, int64_t size )
 {
     char     temp[32];
     int64_t  divisor = 0;
+    const int64_t  kilo = 1024;
+    const int64_t  mega = 1024*kilo;
+    const int64_t  giga = 1024*mega;
     char     suffix = '\0';
 
-    if (size >= 0) {
-        if (!(size % 1024)) {
-            suffix = 'k';
-            divisor = 1024;
-        } else if (!(size % 1024*1024)) {
-            divisor = 1024*1024;
-            suffix  = 'm';
-        } else if (!(size % 1024*1024*1024LL)) {
-            divisor = 1024*1024*1024;
-            suffix = 'g';
-        }
+    if (size >= giga && !(size % giga)) {
+        divisor = giga;
+        suffix = 'g';
+    }
+    else if (size >= mega && !(size % mega)) {
+        divisor = mega;
+        suffix  = 'm';
+    }
+    else if (size >= kilo && !(size % kilo)) {
+        divisor = kilo;
+        suffix = 'k';
     }
     if (divisor) {
         snprintf(temp, sizeof temp, "%" PRId64 "%c", size/divisor, suffix);
