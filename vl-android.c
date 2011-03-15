@@ -5045,7 +5045,9 @@ int main(int argc, char **argv, char **envp)
             } else {
                 /* Create the file if needed */
                 if (!path_exists(dataImage)) {
-                    path_empty_file(dataImage);
+                    if (path_empty_file(dataImage) < 0) {
+                        PANIC("Could not create data image file %s: %s", dataImage, strerror(errno));
+                    }
                 }
                 pstrcat(tmp, sizeof(tmp), ",file=");
                 pstrcat(tmp, sizeof(tmp), dataImage);
@@ -5225,17 +5227,25 @@ int main(int argc, char **argv, char **envp)
     if (android_hw->disk_cachePartition != 0) {
         char        tmp[PATH_MAX+32];
         const char* partPath = android_hw->disk_cachePartition_path;
-        uint32_t    partSize = android_hw->disk_cachePartition_size;
+        uint64_t    partSize = android_hw->disk_cachePartition_size;
 
-        if (!partPath || !*partPath || !strcmp(partPath, "<temp>"))
-        {
-            /* Use temporary cache partition */
-            snprintf(tmp, sizeof(tmp), "cache,size=0x%x", partSize);
-        }
-        else
-        {
-            /* Use specific cache partition */
-            snprintf(tmp, sizeof(tmp), "cache,size=0x%x,file=%s", partSize, partPath);
+        snprintf(tmp,sizeof(tmp),"cache,size=0x%" PRUx64, partSize);
+
+        if (partPath && *partPath && strcmp(partPath, "<temp>") != 0) {
+            if (filelock_create(partPath) == NULL) {
+                fprintf(stderr, "WARNING: Cache partition already in use. Changes will not persist!\n");
+                /* Note: if there is no file= parameters, nand_add_dev() will
+                 *       create a temporary file to back the partition image. */
+            } else {
+                /* Create the file if needed */
+                if (!path_exists(partPath)) {
+                    if (path_empty_file(partPath) < 0) {
+                        PANIC("Could not create cache image file %s: %s", partPath, strerror(errno));
+                    }
+                }
+                pstrcat(tmp, sizeof(tmp), ",file=");
+                pstrcat(tmp, sizeof(tmp), partPath);
+            }
         }
         nand_add_dev(tmp);
     }
