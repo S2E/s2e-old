@@ -688,10 +688,11 @@ void nand_add_dev(const char *arg)
             if(value != NULL)
                 goto bad_arg_and_value;
             devname_len = arg_len;
-            devname = malloc(arg_len);
+            devname = malloc(arg_len+1);
             if(devname == NULL)
                 goto out_of_memory;
             memcpy(devname, arg, arg_len);
+            devname[arg_len] = 0;
         }
         else if(value == NULL) {
             if(arg_match("readonly", arg, arg_len)) {
@@ -765,7 +766,7 @@ void nand_add_dev(const char *arg)
 
     if(rwfilename) {
         rwfd = open(rwfilename, O_BINARY | (read_only ? O_RDONLY : O_RDWR));
-        if(rwfd < 0 && read_only) {
+        if(rwfd < 0) {
             XLOG("could not open file %s, %s\n", rwfilename, strerror(errno));
             exit(1);
         }
