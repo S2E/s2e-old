@@ -161,7 +161,11 @@ int main(int argc, char **argv)
     char*  args[128];
     int    n;
     char*  opt;
-    int    serial = 0;
+    /* The emulator always uses the first serial port for kernel messages
+     * and the second one for qemud. So start at the third if we need one
+     * for logcat or 'shell'
+     */
+    int    serial = 2;
     int    shell_serial = 0;
 
     AndroidHwConfig*  hw;
