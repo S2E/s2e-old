@@ -448,8 +448,44 @@ void events_dev_init(uint32_t base, qemu_irq irq)
      * EV_ABS events are sent when the touchscreen is pressed
      */
     if (config->hw_touchScreen) {
+        int32_t*  values;
+
         events_set_bit (s, EV_SYN, EV_ABS );
         events_set_bits(s, EV_ABS, ABS_X, ABS_Z);
+        /* Allocate the absinfo to report the min/max bounds for each
+         * absolute dimension. The array must contain 3 tuples
+         * of (min,max,fuzz,flat) 32-bit values.
+         *
+         * min and max are the bounds
+         * fuzz corresponds to the device's fuziness, we set it to 0
+         * flat corresponds to the flat position for JOEYDEV devices,
+         * we also set it to 0.
+         *
+         * There is no need to save/restore this array in a snapshot
+         * since the values only depend on the hardware configuration.
+         */
+        s->abs_info_count = 3*4;
+        s->abs_info = values = malloc(sizeof(uint32_t)*s->abs_info_count);
+
+        /* ABS_X min/max/fuzz/flat */
+        values[0] = 0;
+        values[1] = config->hw_lcd_width-1;
+        values[2] = 0;
+        values[3] = 0;
+        values   += 4;
+
+        /* ABS_Y */
+        values[0] = 0;
+        values[1] = config->hw_lcd_height-1;
+        values[2] = 0;
+        values[3] = 0;
+        values   += 4;
+
+        /* ABS_Z */
+        values[0] = 0;
+        values[1] = 1;
+        values[2] = 0;
+        values[3] = 0;
     }
 
     /* configure EV_SW array
