@@ -4953,7 +4953,10 @@ int main(int argc, char **argv, char **envp)
     if (hw_ini == NULL) {
         PANIC("Could not find %s file.", android_op_hwini);
     }
+
+    androidHwConfig_init(android_hw, 0);
     androidHwConfig_read(android_hw, hw_ini);
+
     iniFile_free(hw_ini);
 
     {

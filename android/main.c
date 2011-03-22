@@ -305,7 +305,7 @@ int main(int argc, char **argv)
 
     /* Read hardware configuration */
     hw = android_hw;
-    if (avdInfo_getHwConfig(avd, hw) < 0) {
+    if (avdInfo_initHwConfig(avd, hw) < 0) {
         derror("could not read hardware configuration ?");
         exit(1);
     }
