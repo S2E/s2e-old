@@ -130,6 +130,13 @@ void        avdInfo_free( AvdInfo*  i );
  */
 const char*  avdInfo_getName( AvdInfo*  i );
 
+/* Return the target API level for this AVD.
+ * Note that this will be some ridiculously large
+ * value (e.g. 1000) if this value cannot be properly
+ * determined (e.g. you're using an AVD from a preview SDK)
+ */
+int    avdInfo_getApiLevel( AvdInfo*  i );
+
 /* Returns the path to various images corresponding to a given AVD.
  * NULL if the image cannot be found. Returned strings must be freed
  * by the caller.
@@ -212,7 +219,7 @@ void         avdInfo_getSkinInfo( AvdInfo*  i, char** pSkinName, char** pSkinDir
 int          avdInfo_inAndroidBuild( AvdInfo*  i );
 
 /* Reads the AVD's hardware configuration into 'hw'. returns -1 on error, 0 otherwise */
-int          avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw );
+int          avdInfo_initHwConfig( AvdInfo*  i, AndroidHwConfig*  hw );
 
 /* Returns a *copy* of the path used to store trace 'foo'. result must be freed by caller */
 char*        avdInfo_getTracePath( AvdInfo*  i, const char*  traceName );

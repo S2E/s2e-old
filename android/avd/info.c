@@ -149,6 +149,7 @@ struct AvdInfo {
     IniFile*  skinHardwareIni;  /* skin-specific hardware.ini */
 
     /* for both */
+    int       apiLevel;
     char*     skinName;     /* skin name */
     char*     skinDirPath;  /* skin directory */
     char*     coreHardwareIniPath;  /* core hardware.ini path */
@@ -348,34 +349,25 @@ _getRootIniPath( const char*  avdName )
 }
 
 
-/* Retrieves a string corresponding to the target architecture
- * when in the Android platform tree. The only way to do that
- * properly for now is to look at $OUT/system/build.prop:
+/* Retrieves the value of a given system property defined in a .prop
+ * file. This is a text file that contains definitions of the format:
+ * <name>=<value>
  *
- *   ro.product.cpu-abi=<abi>
- *
- * Where <abi> can be 'armeabi', 'armeabi-v7a' or 'x86'.
+ * Returns NULL if property <name> is undefined or empty.
+ * Returned string must be freed by the caller.
  */
-static const char*
-_getBuildTargetArch( const char* androidOut )
+static char*
+_getSystemProperty( const char* propFile, const char* propName )
 {
-    const char* arch = "arm";
-    char temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
     FILE*  file;
+    char   temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+    int    propNameLen = strlen(propName);
+    char*  result = NULL;
 
-#define ABI_PREFIX       "ro.product.cpu.abi="
-#define ABI_PREFIX_LEN   (sizeof(ABI_PREFIX)-1)
-
-    p = bufprint(temp, end, "%s/system/build.prop", androidOut);
-    if (p >= end) {
-        D("%s: ANDROID_PRODUCT_OUT too long: %s", __FUNCTION__, androidOut);
-        goto EXIT;
-    }
-    file = fopen(temp, "rb");
+    file = fopen(propFile, "rb");
     if (file == NULL) {
         D("Could not open file: %s: %s", temp, strerror(errno));
-        D("Default target architecture=%s", arch);
-        goto EXIT;
+        return NULL;
     }
 
     while (fgets(temp, sizeof temp, file) != NULL) {
@@ -393,29 +385,110 @@ _getBuildTargetArch( const char* androidOut )
         if (p == end)
             *--p = '\0';
 
-        if (memcmp(temp, ABI_PREFIX, ABI_PREFIX_LEN) != 0) {
+        /* check that the line starts with the property name */
+        if (memcmp(temp, propName, propNameLen) != 0) {
             continue;
         }
-        p = temp + ABI_PREFIX_LEN;
+        p = temp + propNameLen;
+
+        /* followed by an equal sign */
+        if (p >= end || *p != '=')
+            continue;
+        p++;
+
+        /* followed by something */
         if (p >= end || !*p)
-            goto EXIT2;
+            break;
 
-        if (!strcmp("armeabi",p))
-            arch = "arm";
-        else if (!strcmp("armeabi-v7a",p))
-            arch = "arm";
-        else
-            arch = p;
-
-        D("Found target ABI=%s, architecture=%s", p, arch);
-        goto EXIT2;
+        result = ASTRDUP(p);
+        break;
     }
-
-    D("Could not find target architecture, defaulting to %s", arch);
-EXIT2:
     fclose(file);
-EXIT:
-    return arch;
+    return result;
+}
+
+/* Return a build property. This is a system property defined in a file
+ * named $ANDROID_PRODUCT_OUT/system/build.prop
+ *
+ * Returns NULL if undefined or empty. Returned string must be freed
+ * by the caller.
+ */
+static char*
+_getBuildProperty( const char* androidOut, const char* propName )
+{
+    char temp[PATH_MAX], *p=temp, *end=p+sizeof(temp);
+
+    p = bufprint(temp, end, "%s/system/build.prop", androidOut);
+    if (p >= end) {
+        D("%s: ANDROID_PRODUCT_OUT too long: %s", __FUNCTION__, androidOut);
+        return NULL;
+    }
+    return _getSystemProperty(temp, propName);
+}
+
+/* Retrieves a string corresponding to the target architecture
+ * when in the Android platform tree. The only way to do that
+ * properly for now is to look at $OUT/system/build.prop:
+ *
+ *   ro.product.cpu-abi=<abi>
+ *
+ * Where <abi> can be 'armeabi', 'armeabi-v7a' or 'x86'.
+ */
+static char*
+_getBuildTargetArch( const char* androidOut )
+{
+    const char* defaultArch = "arm";
+    char*       result = NULL;
+    char*       cpuAbi = _getBuildProperty(androidOut, "ro.product.cpu.abi");
+
+    if (cpuAbi == NULL) {
+        D("Coult not find CPU ABI in build properties!");
+        D("Default target architecture=%s", defaultArch);
+        result = ASTRDUP(defaultArch);
+    } else {
+        /* Translate ABI to cpu arch if necessary */
+        if (!strcmp("armeabi",cpuAbi))
+            result = "arm";
+        else if (!strcmp("armeabi-v7a", cpuAbi))
+            result = "arm";
+        else
+            result = cpuAbi;
+
+        D("Found target ABI=%s, architecture=%s", cpuAbi, result);
+        result = ASTRDUP(result);
+        AFREE(cpuAbi);
+    }
+    return result;
+}
+
+static int
+_getBuildTargetApiLevel( const char* androidOut )
+{
+    const int  defaultLevel = 1000;
+    int        level        = defaultLevel;
+    char*      sdkVersion = _getBuildProperty(androidOut, "ro.build.version.sdk");
+
+    if (sdkVersion != NULL) {
+        long  value;
+        char* end;
+        value = strtol(sdkVersion, &end, 10);
+        if (end == NULL || *end != '\0' || value != (int)value) {
+            D("Invalid SDK version build property: '%s'", sdkVersion);
+            D("Defaulting to target API level %d", level);
+        } else {
+            level = (int)value;
+            /* Sanity check, the Android SDK doesn't support anything
+             * before Android 1.5, a.k.a API level 3 */
+            if (level < 3)
+                level = 3;
+            D("Found target API level: %d", level);
+        }
+        AFREE(sdkVersion);
+    } else {
+        D("Could not find target API level / SDK version in build properties!");
+        D("Default target API level: %d", level);
+    }
+    return level;
 }
 
 /* Returns the full path of a given file.
@@ -630,6 +703,76 @@ _avdInfo_getContentPath( AvdInfo*  i )
     return 0;
 }
 
+static int
+_avdInfo_getApiLevel( AvdInfo*  i )
+{
+    char*       target;
+    const char* p;
+    const int   defaultLevel = 1000;
+    int         level        = defaultLevel;
+
+#    define ROOT_TARGET_KEY   "target"
+
+    target = iniFile_getString(i->rootIni, ROOT_TARGET_KEY, NULL);
+    if (target == NULL) {
+        D("No target field in root AVD .ini file?");
+        D("Defaulting to API level %d", level);
+        return level;
+    }
+
+    DD("Found target field in root AVD .ini file: '%s'", target);
+
+    /* There are two acceptable formats for the target key.
+     *
+     * 1/  android-<level>
+     * 2/  <vendor-name>:<add-on-name>:<level>
+     *
+     * Where <level> can be either a _name_ (for experimental/preview SDK builds)
+     * or a decimal number. Note that if a _name_, it can start with a digit.
+     */
+
+    /* First, extract the level */
+    if (!memcmp(target, "android-", 8))
+        p = target + 8;
+    else {
+        /* skip two columns */
+        p = strchr(target, ':');
+        if (p != NULL) {
+            p = strchr(p+1, ':');
+            if (p != NULL)
+                p += 1;
+        }
+    }
+    if (p == NULL || !isdigit(*p)) {
+        goto NOT_A_NUMBER;
+    } else {
+        char* end;
+        long  val = strtol(p, &end, 10);
+        if (end == NULL || *end != '\0' || val != (int)val) {
+            goto NOT_A_NUMBER;
+        }
+        level = (int)val;
+
+        /* Sanity check, we don't support anything prior to Android 1.5 */
+        if (level < 3)
+            level = 3;
+
+        D("Found AVD target API level: %d", level);
+    }
+EXIT:
+    AFREE(target);
+    return level;
+
+NOT_A_NUMBER:
+    if (p == NULL) {
+        D("Invalid target field in root AVD .ini file");
+    } else {
+        D("Target AVD api level is not a number");
+    }
+    D("Defaulting to API level %d", level);
+    goto EXIT;
+}
+
 /* Look for a named file inside the AVD's content directory.
  * Returns NULL if it doesn't exist, or a strdup() copy otherwise.
  */
@@ -803,6 +946,8 @@ avdInfo_new( const char*  name, AvdInfoParams*  params )
          _avdInfo_getCoreHwIniPath(i, i->contentPath) < 0 )
         goto FAIL;
 
+    i->apiLevel = _avdInfo_getApiLevel(i);
+
     /* look for image search paths. handle post 1.1/pre cupcake
      * obsolete SDKs.
      */
@@ -882,7 +1027,8 @@ avdInfo_newForAndroidBuild( const char*     androidBuildRoot,
     i->androidBuildRoot = ASTRDUP(androidBuildRoot);
     i->androidOut       = ASTRDUP(androidOut);
     i->contentPath      = ASTRDUP(androidOut);
-    i->targetArch       = ASTRDUP(_getBuildTargetArch(i->androidOut));
+    i->targetArch       = _getBuildTargetArch(i->androidOut);
+    i->apiLevel         = _getBuildTargetApiLevel(i->androidOut);
 
     /* TODO: find a way to provide better information from the build files */
     i->deviceName = ASTRDUP("<build>");
@@ -1052,31 +1198,27 @@ avdInfo_getDataInitImagePath( AvdInfo* i )
 }
 
 int
-avdInfo_getHwConfig( AvdInfo*  i, AndroidHwConfig*  hw )
+avdInfo_initHwConfig( AvdInfo*  i, AndroidHwConfig*  hw )
 {
-    IniFile*   ini = i->configIni;
-    int        ret;
+    int  ret = 0;
 
-    if (ini == NULL)
-        ini = iniFile_newFromMemory("", 0);
+    androidHwConfig_init(hw, i->apiLevel);
 
-    ret = androidHwConfig_read(hw, ini);
+    /* First read the config.ini, if any */
+    if (i->configIni != NULL) {
+        ret = androidHwConfig_read(hw, i->configIni);
+    }
 
-    if (ini != i->configIni)
-        iniFile_free(ini);
-
+    /* The skin's hardware.ini can override values */
     if (ret == 0 && i->skinHardwareIni != NULL) {
         ret = androidHwConfig_read(hw, i->skinHardwareIni);
     }
 
-    /* special product-specific hardware configuration */
-    if (i->androidOut != NULL)
-    {
+    /* Auto-disable keyboard emulation on sapphire platform builds */
+    if (i->androidOut != NULL) {
         char*  p = strrchr(i->androidOut, '/');
-        if (p != NULL && p[0] != 0) {
-            if (p[1] == 's') {
-                hw->hw_keyboard = 0;
-            }
+        if (p != NULL && !strcmp(p,"sapphire")) {
+            hw->hw_keyboard = 0;
         }
     }
 

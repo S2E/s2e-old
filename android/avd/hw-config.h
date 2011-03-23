@@ -34,6 +34,10 @@ typedef struct {
 #include "android/avd/hw-config-defs.h"
 } AndroidHwConfig;
 
+/* Set all default values, based on the target API level */
+void androidHwConfig_init( AndroidHwConfig*  hwConfig,
+                           int               apiLevel );
+
 /* reads a hardware configuration file from disk.
  * returns -1 if the file could not be read, or 0 in case of success.
  *
@@ -49,5 +53,8 @@ int  androidHwConfig_read( AndroidHwConfig*  hwConfig,
  */
 int  androidHwConfig_write( AndroidHwConfig*  hwConfig,
                             IniFile*          configFile );
+
+/* Finalize a given hardware configuration */
+void androidHwConfig_done( AndroidHwConfig* config );
 
 #endif /* _ANDROID_AVD_HW_CONFIG_H */
