@@ -15,7 +15,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-
+//AKA
 /* the global variable containing the hardware config for this device */
 AndroidHwConfig   android_hw[1];
 
