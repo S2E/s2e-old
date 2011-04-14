@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
+<title>Building the S2E Platform on Windows</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="building-the-s2e-platform-on-windows">
+<h1 class="title">Building the S2E Platform on Windows</h1>
+
+<p>In this document, we explain how to build S2E for Windows XP x64.
+Windows Vista and 7 may work but were not tested.</p>
+<div class="section" id="installing-the-toolchain-the-fast-way">
+<h1>Installing the Toolchain the Fast Way</h1>
+<ol class="arabic simple">
+<li>Install Python 2.6 for Windows and put it on your path.</li>
+<li>Download the pre-installed archive <cite>s2e-toolchain.zip</cite></li>
+<li>Decompress it to some directory. In the following, we assume <cite>c:/s2e-toolchain</cite></li>
+<li>Add the following folders to your <cite>%PATH%</cite>, via the control panel:</li>
+</ol>
+<pre class="literal-block">
+c:/s2e-toolchain/mingw64/x86_64-w64-mingw32/bin
+c:/s2e-toolchain/mingw64/bin
+</pre>
+<ol class="arabic simple" start="5">
+<li>Add the following environment variable:</li>
+</ol>
+<pre class="literal-block">
+C_INCLUDE_PATH=/c/s2e-toolchain/mingw64/x86_64-w64-mingw32/include
+</pre>
+<p>Go to the &quot;Compiling S2E&quot; section.</p>
+</div>
+<div class="section" id="installing-the-toolchain-the-slow-way">
+<h1>Installing the Toolchain the Slow Way</h1>
+<ol class="arabic simple">
+<li>Install Python 2.6 for Windows and put it on your path.</li>
+<li>Download the <cite>s2e-toolchain-archive.zip</cite> file.</li>
+<li>Decompress it to <cite>c:/s2e-archive</cite></li>
+<li>Decompress <cite>c:/s2e-archive/msysCORE-1.0.11-bin.tar.gz</cite> to <cite>c:/s2e-toolchain</cite>.</li>
+<li>Launch MSYS by running c:/s2e-archive/msys.bat</li>
+<li>Run the following commands:</li>
+</ol>
+<pre class="literal-block">
+$ cd /c/s2e-archive
+$ ./setupenv.sh /c/s2e-toolchain
+</pre>
+<p>Wait for the build to complete. It will take a long time.</p>
+<p>Add the following folders to your %PATH%, via the control panel:</p>
+<pre class="literal-block">
+c:/s2e-toolchain/mingw64/x86_64-w64-mingw32/bin
+c:/s2e-toolchain/mingw64/bin
+</pre>
+<p>Add the following environment variable:</p>
+<pre class="literal-block">
+C_INCLUDE_PATH=/c/s2e-toolchain/mingw64/x86_64-w64-mingw32/include
+</pre>
+<p>Close and reopen the MSYS console.</p>
+<p>Go to the &quot;Compiling S2E&quot; section.</p>
+</div>
+<div class="section" id="compiling-s2e">
+<h1>Compiling S2E</h1>
+<p>In the MSYS console, run the following commands:</p>
+<pre class="literal-block">
+$ mkdir /c/s2e
+$ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git s2e
+$ make -f s2e/Makefile.win32
+</pre>
+<p>There is no x86-64 llvm-gcc that produces 64-bit-ready code on Windows.
+We use Clang instead, combined with the MINGW's header files. These files are not tweaked
+for Clang, hence the large number of warnings you will get. Look at the Makefile.win32 for details
+on how to build each component individually.</p>
+</div>
+<div class="section" id="potential-issues">
+<h1>Potential Issues</h1>
+<p><cite>make</cite> tends to deadlock when called with -j2 or higher. If the builds seems to
+make no progress and <cite>make</cite> uses all the CPU, kill it and restart.</p>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="BuildingS2EWindows.rst">View document source</a>.
+
+</div>
+</body>
+</html>
