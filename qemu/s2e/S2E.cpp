@@ -73,10 +73,13 @@
 
 // stacktrace.h (c) 2008, Timo Bingmann from http://idlebox.net/
 // published under the WTFPL v2.0
-
-#ifndef _STACKTRACE_H_
-#define _STACKTRACE_H_
-
+#if defined(CONFIG_WIN32)
+void print_stacktrace(void)
+{
+    std::ostream &os = g_s2e->getDebugStream();
+    os << "Stack trace printing unsupported on Windows" << std::endl;
+}
+#else
 #include <stdio.h>
 #include <stdlib.h>
 #include <execinfo.h>
@@ -164,8 +167,7 @@ void print_stacktrace(void)
     free(funcname);
     free(symbollist);
 }
-
-#endif // _STACKTRACE_H_
+#endif //CONFIG_WIN32
 
 namespace s2e {
 
