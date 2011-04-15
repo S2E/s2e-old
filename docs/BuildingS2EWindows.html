@@ -22,6 +22,8 @@ Windows Vista and 7 may work but were not tested.</p>
 <li>Download the pre-installed archive <cite>s2e-toolchain.zip</cite></li>
 <li>Decompress it to some directory. In the following, we assume <cite>c:\s2e-toolchain</cite></li>
 </ol>
+<p>You will have a complete Unix-like environment, with gdb/gdb-tui.
+You can launch the environment by double-clicking on <cite>msys.bat</cite>.</p>
 </div>
 <div class="section" id="installing-the-toolchain-the-slow-way">
 <h1>Installing the Toolchain the Slow Way</h1>
@@ -50,7 +52,7 @@ c:\s2e-toolchain\mingw64\x86_64-w64-mingw32\bin
 c:\s2e-toolchain\mingw64\bin
 </pre>
 <ol class="arabic simple" start="2">
-<li>Add the following environment variable (DO NOT put trailing slashes):</li>
+<li>Add the following environment variable (DO NOT put a trailing slash):</li>
 </ol>
 <pre class="literal-block">
 C_INCLUDE_PATH=c:\s2e-toolchain\mingw64\x86_64-w64-mingw32\include
@@ -65,15 +67,17 @@ $ mkdir /c/s2e
 $ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git s2e
 $ make -f s2e/Makefile.win32
 </pre>
-<p>There is no x86-64 llvm-gcc that produces 64-bit code on Windows.
+<p>There is no x86-64 <cite>llvm-gcc</cite> that produces 64-bit code on Windows.
 We use Clang instead, combined with the MINGW's header files. These files are not tweaked
 for Clang, hence the large number of warnings you will get. Look at the <cite>Makefile.win32</cite> for details
 on how to build each component individually.</p>
 </div>
-<div class="section" id="potential-issues">
-<h1>Potential Issues</h1>
+<div class="section" id="issues">
+<h1>Issues</h1>
 <p><cite>make</cite> tends to deadlock when called with -j2 or higher. If the build seems to
 make no progress and <cite>make</cite> uses all the CPU, kill and restart it.</p>
+<p>You must copy the <cite>op_helper.bc</cite> file into c:/s2e/i386-s2e-softmmu/ folder (create the folder if necessary).
+Make sure you copy the one corresponding to the S2E build you use (release of debug).</p>
 </div>
 </div>
 <div class="footer">

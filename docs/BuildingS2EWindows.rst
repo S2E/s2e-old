@@ -16,6 +16,9 @@ This consists in 3 steps and takes less than 5 minutes.
 2. Download the pre-installed archive `s2e-toolchain.zip`
 3. Decompress it to some directory. In the following, we assume `c:\\s2e-toolchain`
 
+You will have a complete Unix-like environment, with gdb/gdb-tui.
+You can launch the environment by double-clicking on `msys.bat`.
+
 
 Installing the Toolchain the Slow Way
 =====================================
@@ -47,7 +50,7 @@ Setting up the Environment
    c:\s2e-toolchain\mingw64\x86_64-w64-mingw32\bin
    c:\s2e-toolchain\mingw64\bin
 
-2. Add the following environment variable (DO NOT put trailing slashes):
+2. Add the following environment variable (DO NOT put a trailing slash):
 
 ::
 
@@ -68,13 +71,16 @@ In the MSYS console, run the following commands:
    $ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git s2e
    $ make -f s2e/Makefile.win32
 
-There is no x86-64 llvm-gcc that produces 64-bit code on Windows.
+There is no x86-64 `llvm-gcc` that produces 64-bit code on Windows.
 We use Clang instead, combined with the MINGW's header files. These files are not tweaked
 for Clang, hence the large number of warnings you will get. Look at the `Makefile.win32` for details
 on how to build each component individually.
 
-Potential Issues
-================
+Issues
+======
 
 `make` tends to deadlock when called with -j2 or higher. If the build seems to
 make no progress and `make` uses all the CPU, kill and restart it.
+
+You must copy the `op_helper.bc` file into c:/s2e/i386-s2e-softmmu/ folder (create the folder if necessary).
+Make sure you copy the one corresponding to the S2E build you use (release of debug).
