@@ -577,8 +577,17 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 #define __DEFINE_EXT_FUNCTION(name) \
     llvm::sys::DynamicLibrary::AddSymbol(#name, (void*) name);
 
+#define __DEFINE_EXT_VARIABLE(name) \
+    llvm::sys::DynamicLibrary::AddSymbol(#name, (void*) &name);
+
     //__DEFINE_EXT_FUNCTION(raise_exception)
     //__DEFINE_EXT_FUNCTION(raise_exception_err)
+
+#ifdef _WIN32
+    __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_addresses)
+    __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_writes)
+    __DEFINE_EXT_VARIABLE(g_s2e_fork_on_symbolic_address)
+#endif
 
     __DEFINE_EXT_FUNCTION(fprintf)
     __DEFINE_EXT_FUNCTION(sprintf)
@@ -1589,6 +1598,10 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 
 }
 
+#ifdef _WIN32
+extern "C" int g_timer_ticks_enabled;
+#endif
+
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
         S2EExecutionState* state,
         TranslationBlock* tb)
@@ -1643,6 +1656,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* The next should be atomic with respect to signals */
                 /* XXX: what else should we block ? */
 #ifdef _WIN32
+#warning This is not tested yet...
+                g_timer_ticks_enabled = 0;
 #else
                 sigset_t set, oldset;
                 sigfillset(&set);
@@ -1666,13 +1681,10 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
                     /* assert that blocking works */
 #ifdef _WIN32
-                    if (old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] != tb) {
-                        env->s2e_current_tb = old_tb;
-                        //g_s2e_exec_ret_addr = old_tb->tc_ptr;
-                    }else {
-                        cleanupTranslationBlock(state, tb);
-                        break;
-                    }
+                    assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
+                    cleanupTranslationBlock(state, tb);
+                    g_timer_ticks_enabled = 1;
+                    break;
 #else
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
                     cleanupTranslationBlock(state, tb);
@@ -1684,6 +1696,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* the block was unchained by signal handler */
                 tcg_llvm_runtime.goto_tb = 0xff;
 #ifdef _WIN32
+                g_timer_ticks_enabled = 1;
 #else
                 sigprocmask(SIG_SETMASK, &oldset, NULL);
 #endif
