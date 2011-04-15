@@ -13,34 +13,25 @@
 
 <p>In this document, we explain how to build S2E for Windows XP x64.
 Windows Vista and 7 may work but were not tested.</p>
+<p>All the files can be found on the <a class="reference external" href="https://s2e.epfl.ch/projects/s2e/files">S2E web site</a>.</p>
 <div class="section" id="installing-the-toolchain-the-fast-way">
 <h1>Installing the Toolchain the Fast Way</h1>
+<p>This consists in 3 steps and takes less than 5 minutes.</p>
 <ol class="arabic simple">
 <li>Install Python 2.6 for Windows and put it on your path.</li>
 <li>Download the pre-installed archive <cite>s2e-toolchain.zip</cite></li>
-<li>Decompress it to some directory. In the following, we assume <cite>c:/s2e-toolchain</cite></li>
-<li>Add the following folders to your <cite>%PATH%</cite>, via the control panel:</li>
+<li>Decompress it to some directory. In the following, we assume <cite>c:\s2e-toolchain</cite></li>
 </ol>
-<pre class="literal-block">
-c:/s2e-toolchain/mingw64/x86_64-w64-mingw32/bin
-c:/s2e-toolchain/mingw64/bin
-</pre>
-<ol class="arabic simple" start="5">
-<li>Add the following environment variable:</li>
-</ol>
-<pre class="literal-block">
-C_INCLUDE_PATH=/c/s2e-toolchain/mingw64/x86_64-w64-mingw32/include
-</pre>
-<p>Go to the &quot;Compiling S2E&quot; section.</p>
 </div>
 <div class="section" id="installing-the-toolchain-the-slow-way">
 <h1>Installing the Toolchain the Slow Way</h1>
+<p>This is more involved and may take 1-2 hours depending on the speed of your machine.</p>
 <ol class="arabic simple">
 <li>Install Python 2.6 for Windows and put it on your path.</li>
 <li>Download the <cite>s2e-toolchain-archive.zip</cite> file.</li>
-<li>Decompress it to <cite>c:/s2e-archive</cite></li>
-<li>Decompress <cite>c:/s2e-archive/msysCORE-1.0.11-bin.tar.gz</cite> to <cite>c:/s2e-toolchain</cite>.</li>
-<li>Launch MSYS by running c:/s2e-archive/msys.bat</li>
+<li>Decompress it to <cite>c:\s2e-archive</cite></li>
+<li>Decompress <cite>c:\s2e-archive\msysCORE-1.0.11-bin.tar.gz</cite> to <cite>c:\s2e-toolchain</cite>.</li>
+<li>Launch MSYS by running c:\s2e-archive\msys.bat</li>
 <li>Run the following commands:</li>
 </ol>
 <pre class="literal-block">
@@ -48,16 +39,22 @@ $ cd /c/s2e-archive
 $ ./setupenv.sh /c/s2e-toolchain
 </pre>
 <p>Wait for the build to complete. It will take a long time.</p>
-<p>Add the following folders to your %PATH%, via the control panel:</p>
+</div>
+<div class="section" id="setting-up-the-environment">
+<h1>Setting up the Environment</h1>
+<ol class="arabic simple">
+<li>Add the following folders to your <cite>%PATH%</cite>, via the control panel:</li>
+</ol>
 <pre class="literal-block">
-c:/s2e-toolchain/mingw64/x86_64-w64-mingw32/bin
-c:/s2e-toolchain/mingw64/bin
+c:\s2e-toolchain\mingw64\x86_64-w64-mingw32\bin
+c:\s2e-toolchain\mingw64\bin
 </pre>
-<p>Add the following environment variable:</p>
+<ol class="arabic simple" start="2">
+<li>Add the following environment variable (DO NOT put trailing slashes):</li>
+</ol>
 <pre class="literal-block">
-C_INCLUDE_PATH=/c/s2e-toolchain/mingw64/x86_64-w64-mingw32/include
+C_INCLUDE_PATH=c:\s2e-toolchain\mingw64\x86_64-w64-mingw32\include
 </pre>
-<p>Close and reopen the MSYS console.</p>
 <p>Go to the &quot;Compiling S2E&quot; section.</p>
 </div>
 <div class="section" id="compiling-s2e">
@@ -68,15 +65,15 @@ $ mkdir /c/s2e
 $ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git s2e
 $ make -f s2e/Makefile.win32
 </pre>
-<p>There is no x86-64 llvm-gcc that produces 64-bit-ready code on Windows.
+<p>There is no x86-64 llvm-gcc that produces 64-bit code on Windows.
 We use Clang instead, combined with the MINGW's header files. These files are not tweaked
-for Clang, hence the large number of warnings you will get. Look at the Makefile.win32 for details
+for Clang, hence the large number of warnings you will get. Look at the <cite>Makefile.win32</cite> for details
 on how to build each component individually.</p>
 </div>
 <div class="section" id="potential-issues">
 <h1>Potential Issues</h1>
-<p><cite>make</cite> tends to deadlock when called with -j2 or higher. If the builds seems to
-make no progress and <cite>make</cite> uses all the CPU, kill it and restart.</p>
+<p><cite>make</cite> tends to deadlock when called with -j2 or higher. If the build seems to
+make no progress and <cite>make</cite> uses all the CPU, kill and restart it.</p>
 </div>
 </div>
 <div class="footer">

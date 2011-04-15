@@ -5,37 +5,28 @@ Building the S2E Platform on Windows
 In this document, we explain how to build S2E for Windows XP x64.
 Windows Vista and 7 may work but were not tested. 
 
+All the files can be found on the `S2E web site <https://s2e.epfl.ch/projects/s2e/files>`_.
 
 Installing the Toolchain the Fast Way
 =====================================
 
+This consists in 3 steps and takes less than 5 minutes.
+
 1. Install Python 2.6 for Windows and put it on your path.
 2. Download the pre-installed archive `s2e-toolchain.zip`
-3. Decompress it to some directory. In the following, we assume `c:/s2e-toolchain`
-4. Add the following folders to your `%PATH%`, via the control panel:
+3. Decompress it to some directory. In the following, we assume `c:\\s2e-toolchain`
 
-::
-
-   c:/s2e-toolchain/mingw64/x86_64-w64-mingw32/bin
-   c:/s2e-toolchain/mingw64/bin
-
-5. Add the following environment variable:
-
-::
-
-   C_INCLUDE_PATH=/c/s2e-toolchain/mingw64/x86_64-w64-mingw32/include
-
-
-Go to the "Compiling S2E" section.
 
 Installing the Toolchain the Slow Way
 =====================================
 
+This is more involved and may take 1-2 hours depending on the speed of your machine.
+
 1. Install Python 2.6 for Windows and put it on your path.
 2. Download the `s2e-toolchain-archive.zip` file.
-3. Decompress it to `c:/s2e-archive`
-4. Decompress `c:/s2e-archive/msysCORE-1.0.11-bin.tar.gz` to `c:/s2e-toolchain`.
-5. Launch MSYS by running c:/s2e-archive/msys.bat
+3. Decompress it to `c:\\s2e-archive`
+4. Decompress `c:\\s2e-archive\\msysCORE-1.0.11-bin.tar.gz` to `c:\\s2e-toolchain`.
+5. Launch MSYS by running c:\\s2e-archive\\msys.bat
 6. Run the following commands:
 
 ::
@@ -45,22 +36,26 @@ Installing the Toolchain the Slow Way
 
 Wait for the build to complete. It will take a long time.
 
-Add the following folders to your %PATH%, via the control panel:
+
+Setting up the Environment
+==========================
+
+1. Add the following folders to your `%PATH%`, via the control panel:
 
 ::
 
-   c:/s2e-toolchain/mingw64/x86_64-w64-mingw32/bin
-   c:/s2e-toolchain/mingw64/bin
+   c:\s2e-toolchain\mingw64\x86_64-w64-mingw32\bin
+   c:\s2e-toolchain\mingw64\bin
 
-Add the following environment variable:
+2. Add the following environment variable (DO NOT put trailing slashes):
 
 ::
 
-   C_INCLUDE_PATH=/c/s2e-toolchain/mingw64/x86_64-w64-mingw32/include
+   C_INCLUDE_PATH=c:\s2e-toolchain\mingw64\x86_64-w64-mingw32\include
 
-Close and reopen the MSYS console.
 
 Go to the "Compiling S2E" section.
+
 
 Compiling S2E
 =============
@@ -73,9 +68,9 @@ In the MSYS console, run the following commands:
    $ git clone https://dslabgit.epfl.ch/git/s2e/s2e.git s2e
    $ make -f s2e/Makefile.win32
 
-There is no x86-64 llvm-gcc that produces 64-bit-ready code on Windows.
+There is no x86-64 llvm-gcc that produces 64-bit code on Windows.
 We use Clang instead, combined with the MINGW's header files. These files are not tweaked
-for Clang, hence the large number of warnings you will get. Look at the Makefile.win32 for details
+for Clang, hence the large number of warnings you will get. Look at the `Makefile.win32` for details
 on how to build each component individually.
 
 Potential Issues
