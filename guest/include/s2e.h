@@ -103,11 +103,14 @@ static inline void s2e_disable_forking(void)
 /** Get the current execution path/state id. */
 static inline unsigned s2e_get_path_id(void)
 {
+    unsigned id;
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x05, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : "=a" (id)
     );
+    return id;
 }
 
 /** Fill buffer with unconstrained symbolic values. */
