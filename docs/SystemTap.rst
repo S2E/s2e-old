@@ -26,32 +26,41 @@ SystemTap requires a kernel built with the following settings:
 - CONFIG_KPROBES=y
 - CONFIG_DEBUG_FS=y
 
-Refer to the "Compiling the Linux kernel" section of the `Building S2E tutorial <BuildingS2E.html>`_
+For the purpose of this tutorial, also enable the following option:
+
+- CONFIG_PCNET32=y
+
+
+Refer to the `Building Linux <BuildingLinux.html>`_ tutorial
 for a list of detailed steps.
 
 Install the resulting kernel in the guest OS.
 
-Building SystemTap on the host
-==============================
+Building SystemTap in the ``chroot`` environment of the host
+============================================================
 
-We will compile the SystemTap scripts in the chrooted environment, upload them
-in the VM, and run them there. We could also compile the scripts directly inside
+We will compile SystemTap and the scripts in the *chrooted* and *32-bit* environment, upload
+the scripts in the VM, and run them there. The ``chroot`` environment makes it easy
+to compile to 32-bit mode when your host is 64-bit and isolates your production
+environment from mistakes.
+
+We could also compile the scripts directly inside
 the VM, but it is much slower.
 
-In the ``chroot`` environment you use to compile your kernel, do the following:
+In the ``chroot`` 32-bit environment you use to compile your kernel, do the following:
 
 ::
 
    # Install the compiled kernel, headers, and debug information.
    # You must ensure that kernel-package = 11.015 is installed, later versions (>=12)
-   # strip the debug information from the kernel image/modules.   
+   # strip the debug information from the kernel image/modules.
       
       
    # Adapt all the filenames accordingly 
    $ dpkg -i linux-image-2.6.26.8-s2e.deb
    $ dpkg -i linux-headers-2.6.26.8-s2e.deb   
    
-   # Get the SystemTap server, configure, compile, and install
+   # Get SystemTap, configure, compile, and install.
    $ wget wget http://sourceware.org/systemtap/ftp/releases/systemtap-1.3.tar.gz
    $ tar xzvf systemtap-1.3.tar.gz
    $ cd systemtap-1.3
@@ -77,11 +86,11 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
 
    # We use the embedded C support of SystemTap to access the S2E
    # custom instructions. A comprehensive set of such instructions can
-   # be found in s2e.h. You can adapt them to SystemTap, if in case
+   # be found in s2e.h. You can adapt them to SystemTap, in case
    # you need them
    
    # Terminate current state.
-	# This is a SystemTap function, that can be called from SystemTap code   
+   # This is a SystemTap function, that can be called from SystemTap code
    function s2e_kill_state(status:long, message: string) %{
       __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
@@ -102,11 +111,11 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
       );
    %}
 
-   %{
    # SystemTap also allows to paste arbitrary C code.
    # This is useful when calling other C functions.
-   
-   # Make the specified buffer symbolic, and assign a name to it
+
+   %{
+   //Make the specified buffer symbolic, and assign a name to it
    static inline void s2e_make_symbolic(void* buf, int size, const char* name)
    {
       __asm__ __volatile__(
@@ -152,8 +161,7 @@ Create (on the host machine) a ``pcnet32.stp`` file with the following content:
    }
 
 
-Cross-compile it with SystemTap, adjusting the kernel revision to suite your needs.
-Since the chrooted environment runs a different kernel, cross-compiling is mandatory.
+Compile the script with SystemTap in the ``chroot`` environment, adjusting the kernel revision to suite your needs.
 
 ::
 
@@ -176,14 +184,12 @@ Create the ``tcpip.lua`` configuration file with the following content:
      kleeArgs = {
         "--use-batching-search",
         "--use-random-path",
-        "--use-cex-cache=true",
-        "--use-cache=true",
-        "--use-fast-cex-solver=true",
      }
    }
 
 
    plugins = {
+     --This is required for s2e_make_symbolic
      "BaseInstructions",
    }
 

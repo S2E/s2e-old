@@ -47,6 +47,7 @@ extern "C" {
 #include "s2e_block.h"
 
 #include <iostream>
+#include <sstream>
 #include <s2e/Utils.h>
 #include <s2e/S2E.h>
 #include "llvm/Support/CommandLine.h"
@@ -58,6 +59,11 @@ namespace {
     llvm::cl::opt<bool>
     PersistentDiskWrites("s2e-persistent-disk-writes",
                      llvm::cl::init(false));
+    //Share device state between states
+    llvm::cl::opt<std::string>
+    SharedDevices("s2e-shared-devices",
+        llvm::cl::desc("Comma-separated list of devices to be shared between states."),
+        llvm::cl::init(""));
 }
 
 
@@ -68,7 +74,6 @@ unsigned int S2EDeviceState::s_PreferedStateSize = 0x1000;
 S2EDeviceState *S2EDeviceState::s_CurrentState = NULL;
 std::vector<void *> S2EDeviceState::s_Devices;
 bool S2EDeviceState::s_DevicesInited=false;
-std::set<std::string> S2EDeviceState::s_customDevices;
 
 
 
@@ -132,28 +137,15 @@ void S2EDeviceState::initDeviceState()
     
     assert(!s_DevicesInited);
 
-    //s_customDevices.insert("cpu_common");
-    s_customDevices.insert("fw_cfg");
-    s_customDevices.insert("timer");
-    s_customDevices.insert("i8259");
-    s_customDevices.insert("PCIBUS");
-    s_customDevices.insert("I440FX");
-    s_customDevices.insert("PIIX3");
-    s_customDevices.insert("ioapic");
-    s_customDevices.insert("apic");
-    s_customDevices.insert("mc146818rtc");
-    s_customDevices.insert("i8254");
-    s_customDevices.insert("hpet");
-    s_customDevices.insert("dma");
-    s_customDevices.insert("piix4_pm");
-    s_customDevices.insert("ps2kbd");
-    s_customDevices.insert("ps2mouse");
-    s_customDevices.insert("i2c_bus");
-    s_customDevices.insert("ide");
-    s_customDevices.insert("ide_drive");
-    s_customDevices.insert("ide_bus");
-    s_customDevices.insert("cirrus_vga");
-
+    std::set<std::string> ignoreList;
+    std::stringstream ss(SharedDevices);
+    std::string s;
+    while (getline(ss, s, ',')) {
+        ignoreList.insert(s);
+    }
+    //S2E manages the memory and disc state on its own
+    ignoreList.insert("ram");
+    ignoreList.insert("block");
 
     g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
 
@@ -161,17 +153,16 @@ void S2EDeviceState::initDeviceState()
         void *se;
         g_s2e->getDebugStream() << "Looking for relevant virtual devices..." << endl;
 
-        for(se = s2e_qemu_get_first_se(); 
+        //Register all active devices detected by QEMU
+        for(se = s2e_qemu_get_first_se();
             se != NULL; se = s2e_qemu_get_next_se(se)) {
-                g_s2e->getDebugStream() << "State ID=" << s2e_qemu_get_se_idstr(se) << endl;
-
-                if (s_customDevices.find(s2e_qemu_get_se_idstr(se)) != s_customDevices.end()) {
-                    g_s2e->getDebugStream() << "   Registering " << s2e_qemu_get_se_idstr(se) << std::endl;
+                std::string deviceId(s2e_qemu_get_se_idstr(se));
+                if (!ignoreList.count(deviceId)) {
+                    g_s2e->getDebugStream() << "   Registering device " << deviceId << std::endl;
                     s_Devices.push_back(se);
+                } else {
+                    g_s2e->getDebugStream() << "   Shared device " << deviceId << std::endl;
                 }
-
-                //XXX:Check for ps2kbd, ps2mouse, i2c_bus, timer
-                //ide
         }
         s_DevicesInited = true;
     }

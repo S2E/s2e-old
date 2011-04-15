@@ -1240,6 +1240,8 @@ static const VMStateDescription vmstate_timers = {
 static void qemu_event_increment(void);
 
 #ifdef _WIN32
+int g_timer_ticks_enabled = 1;
+
 static void CALLBACK host_alarm_handler(UINT uTimerID, UINT uMsg,
                                         DWORD_PTR dwUser, DWORD_PTR dw1,
                                         DWORD_PTR dw2)
@@ -1253,6 +1255,13 @@ static void host_alarm_handler(int host_signum)
         static int64_t delta_min = INT64_MAX;
         static int64_t delta_max, delta_cum, last_clock, delta, ti;
         static int count;
+
+#ifdef _WIN32
+        if (!g_timer_ticks_enabled) {
+            return;
+        }
+#endif
+
         ti = qemu_get_clock(vm_clock);
         if (last_clock != 0) {
             delta = ti - last_clock;

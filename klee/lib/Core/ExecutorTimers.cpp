@@ -76,7 +76,9 @@ VOID CALLBACK TimerProc(
     DWORD dwTime
 )
 {
-  onAlarm(0);
+    //XXX: Ugly hack, but there are so many of them anyway
+    ++timerTicks;
+    //Executor::onAlarm(0);
 }
 #endif
 

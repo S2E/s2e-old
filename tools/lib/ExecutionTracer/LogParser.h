@@ -45,6 +45,10 @@
 #include <map>
 #include <set>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace s2etools
 {
 
@@ -96,6 +100,11 @@ class LogParser: public LogEvents
 private:
 
     //FILE *m_File;
+#ifdef _WIN32
+    HANDLE m_hFile;
+    HANDLE m_hMapping;
+#endif
+
     void *m_File;
     uint64_t m_size;
     std::vector<uint64_t> m_ItemOffsets;

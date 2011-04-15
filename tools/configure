@@ -2375,6 +2375,8 @@ $as_echo "$s2etools_cv_os_type" >&6; }
 
 OS=`uname -a`
 case "$OS" in
+  MINGW*) OS=mingw
+  ;;
   mingw*) OS=mingw
   ;;
   Linux*) OS=linux

@@ -56,6 +56,11 @@
 #include <mach/mach_traps.h>
 #endif
 
+#ifdef CONFIG_WIN32
+#include <windows.h>
+#include <psapi.h>
+#endif
+
 namespace klee {
 namespace stats {
     Statistic translationBlocks("TranslationBlocks", "TBs");
@@ -82,8 +87,17 @@ namespace s2e {
  */
 uint64_t S2EStatsTracker::getProcessMemoryUsage()
 {
-#ifdef _WIN32
-#error Implement memory usage detection for Windows
+#if defined(CONFIG_WIN32)
+
+    PROCESS_MEMORY_COUNTERS Memory;
+    HANDLE CurrentProcess = GetCurrentProcess();
+
+    if (!GetProcessMemoryInfo(CurrentProcess, &Memory, sizeof(Memory))) {
+        return 0;
+    }
+
+    return Memory.PagefileUsage;
+
 #elif defined(CONFIG_DARWIN)
     struct task_basic_info t_info;
     mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;

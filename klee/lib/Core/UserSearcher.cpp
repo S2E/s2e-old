@@ -76,11 +76,15 @@ namespace {
   UseBatchingSearch("use-batching-search", 
            cl::desc("Use batching searcher (keep running selected state for N instructions/time, see --batch-instructions and --batch-time"));
 
+  //XXX: We disable this option for S2E
+  //A small number of instructions takes precedence over batch-time
+#if 0
   cl::opt<unsigned>
   BatchInstructions("batch-instructions",
                     cl::desc("Number of instructions to batch when using --use-batching-search"),
                     cl::init(10000));
-  
+#endif
+
   cl::opt<double>
   BatchTime("batch-time",
             cl::desc("Amount of time to batch when using --use-batching-search"),
@@ -151,7 +155,9 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
   }
 
   if (UseBatchingSearch) {
-    searcher = new BatchingSearcher(searcher, BatchTime, BatchInstructions);
+    //searcher = new BatchingSearcher(searcher, BatchTime, BatchInstructions);
+    //XXX: For S2E
+    searcher = new BatchingSearcher(searcher, BatchTime, 0);
   }
 
   if (UseMerge) {

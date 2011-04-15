@@ -52,6 +52,8 @@ esac])
 
 OS=`uname -a`
 case "$OS" in
+  MINGW*) OS=mingw
+	;;
   mingw*) OS=mingw
   ;;
   Linux*) OS=linux

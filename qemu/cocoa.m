@@ -28,7 +28,6 @@
 #include "console.h"
 #include "sysemu.h"
 
-
 //#define DEBUG
 
 #ifdef DEBUG
@@ -402,7 +401,7 @@ int cocoa_keycode_to_qemu(int keycode)
         [normalWindow setFrame:NSMakeRect([normalWindow frame].origin.x, [normalWindow frame].origin.y - h + screen.height, w, h + [normalWindow frame].size.height - screen.height) display:NO animate:NO];
     } else {
         if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s", qemu_name]];
+            [normalWindow setTitle:[NSString stringWithFormat:@"%s %s", WINDOW_TITLE, qemu_name]];
         [normalWindow setFrame:NSMakeRect([normalWindow frame].origin.x, [normalWindow frame].origin.y - h + screen.height, w, h + [normalWindow frame].size.height - screen.height) display:YES animate:YES];
     }
     screen.width = w;
@@ -649,9 +648,9 @@ int cocoa_keycode_to_qemu(int keycode)
 
     if (!isFullscreen) {
         if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s - (Press ctrl + alt to release Mouse)", qemu_name]];
+            [normalWindow setTitle:[NSString stringWithFormat:@"%s %s - (Press ctrl + alt to release Mouse)", WINDOW_TITLE, qemu_name]];
         else
-            [normalWindow setTitle:@"QEMU - (Press ctrl + alt to release Mouse)"];
+            [normalWindow setTitle:[NSString stringWithFormat:@"%s - (Press ctrl + alt to release Mouse)", WINDOW_TITLE]];
     }
     [NSCursor hide];
     CGAssociateMouseAndMouseCursorPosition(FALSE);
@@ -664,9 +663,9 @@ int cocoa_keycode_to_qemu(int keycode)
 
     if (!isFullscreen) {
         if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s", qemu_name]];
+            [normalWindow setTitle:[NSString stringWithFormat:@"%s %s", WINDOW_TITLE, qemu_name]];
         else
-            [normalWindow setTitle:@"QEMU"];
+            [normalWindow setTitle:[NSString stringWithFormat:@"%s", WINDOW_TITLE]];
     }
     [NSCursor unhide];
     CGAssociateMouseAndMouseCursorPosition(TRUE);
@@ -722,7 +721,7 @@ int cocoa_keycode_to_qemu(int keycode)
             exit(1);
         }
         [normalWindow setAcceptsMouseMovedEvents:YES];
-        [normalWindow setTitle:[NSString stringWithFormat:@"QEMU"]];
+        [normalWindow setTitle:[NSString stringWithFormat:@"%s", WINDOW_TITLE]];
         [normalWindow setContentView:cocoaView];
         [normalWindow makeKeyAndOrderFront:self];
 		[normalWindow center];
@@ -856,14 +855,15 @@ int main (int argc, const char * argv[]) {
 
     // Application menu
     menu = [[NSMenu alloc] initWithTitle:@""];
-    [menu addItemWithTitle:@"About QEMU" action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""]; // About QEMU
+
+    [menu addItemWithTitle:@"About " WINDOW_TITLE action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""]; // About QEMU
     [menu addItem:[NSMenuItem separatorItem]]; //Separator
-    [menu addItemWithTitle:@"Hide QEMU" action:@selector(hide:) keyEquivalent:@"h"]; //Hide QEMU
+    [menu addItemWithTitle:@"Hide " WINDOW_TITLE action:@selector(hide:) keyEquivalent:@"h"]; //Hide QEMU
     menuItem = (NSMenuItem *)[menu addItemWithTitle:@"Hide Others" action:@selector(hideOtherApplications:) keyEquivalent:@"h"]; // Hide Others
     [menuItem setKeyEquivalentModifierMask:(NSAlternateKeyMask|NSCommandKeyMask)];
     [menu addItemWithTitle:@"Show All" action:@selector(unhideAllApplications:) keyEquivalent:@""]; // Show All
     [menu addItem:[NSMenuItem separatorItem]]; //Separator
-    [menu addItemWithTitle:@"Quit QEMU" action:@selector(terminate:) keyEquivalent:@"q"];
+    [menu addItemWithTitle:@"Quit " WINDOW_TITLE action:@selector(terminate:) keyEquivalent:@"q"];
     menuItem = [[NSMenuItem alloc] initWithTitle:@"Apple" action:nil keyEquivalent:@""];
     [menuItem setSubmenu:menu];
     [[NSApp mainMenu] addItem:menuItem];

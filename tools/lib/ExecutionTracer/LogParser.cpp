@@ -39,7 +39,7 @@
 #include "LogParser.h"
 
 #ifdef _WIN32
-
+#include <windows.h>
 #else
 
 #include <unistd.h>
@@ -97,9 +97,15 @@ LogParser::LogParser():LogEvents()
 
 LogParser::~LogParser()
 {
+#ifdef _WIN32
+    UnmapViewOfFile(m_File);
+    CloseHandle(m_hMapping);
+    CloseHandle(m_hFile);
+#else
     if (m_File) {
         munmap(m_File, m_size);
     }
+#endif
 }
 
 
@@ -107,7 +113,34 @@ LogParser::~LogParser()
 bool LogParser::parse(const std::string &fileName)
 {
 #ifdef _WIN32
-#error Implement memory-mapped file support
+    m_hFile = CreateFile(fileName.c_str(), GENERIC_READ,
+                              FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+                              NULL);
+    if (m_hFile == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    LARGE_INTEGER FileSize;
+    if (!GetFileSizeEx(m_hFile, &FileSize)) {
+        CloseHandle(m_hFile);
+        return false;
+    }
+
+    m_hMapping = CreateFileMapping(m_hFile, NULL, PAGE_READONLY, FileSize.HighPart, FileSize.LowPart, NULL);
+    if (m_hMapping == NULL) {
+        CloseHandle(m_hFile);
+        return false;
+    }
+
+    m_File = MapViewOfFile(m_hMapping, PAGE_READONLY, FileSize.HighPart, FileSize.LowPart, 0);
+    if (!m_File) {
+        CloseHandle(m_hMapping);
+        CloseHandle(m_hFile);
+        return false;
+    }
+
+    m_size = FileSize.QuadPart;
+
 #else
     int file = open(fileName.c_str(), O_RDONLY);
     if (file<0) {
