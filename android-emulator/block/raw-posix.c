@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "qemu-common.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
@@ -28,6 +42,31 @@
 #include "block_int.h"
 #include "module.h"
 #include "block/raw-posix-aio.h"
+
+//XXX: Hack to disable AIO.
+//#define ENABLE_AIO
+#undef ENABLE_AIO
+
+typedef int (*__hook_raw_read)(struct BlockDriverState *bs, int64_t sector_num,
+                    uint8_t *buf, int nb_sectors);
+int (*__hook_bdrv_read)(struct BlockDriverState *bs, int64_t sector_num,
+                  uint8_t *buf, int nb_sectors,
+                  int *fallback,
+                  __hook_raw_read fb);
+
+int (*__hook_bdrv_write)(struct BlockDriverState *bs, int64_t sector_num,
+                   const uint8_t *buf, int nb_sectors);
+
+struct BlockDriverAIOCB* (*__hook_bdrv_aio_read)(
+    struct BlockDriverState *bs, int64_t sector_num,
+   uint8_t *buf, int nb_sectors,
+   BlockDriverCompletionFunc *cb, void *opaque,
+   int *fallback, __hook_raw_read fb);
+
+struct BlockDriverAIOCB* (*__hook_bdrv_aio_write)(
+   BlockDriverState *bs, int64_t sector_num,
+   const uint8_t *buf, int nb_sectors,
+   BlockDriverCompletionFunc *cb, void *opaque);
 
 #ifdef CONFIG_COCOA
 #include <paths.h>
@@ -387,6 +426,14 @@ static int raw_read(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
 
+    if (__hook_bdrv_read) {
+            int fallback;
+            ret = __hook_bdrv_read(bs, sector_num, buf, nb_sectors, &fallback, &raw_read);
+            if (!fallback) {
+                return ret;
+            }
+        }
+
     ret = raw_pread(bs, sector_num * BDRV_SECTOR_SIZE, buf,
                     nb_sectors * BDRV_SECTOR_SIZE);
     if (ret == (nb_sectors * BDRV_SECTOR_SIZE))
@@ -476,6 +523,13 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
                      const uint8_t *buf, int nb_sectors)
 {
     int ret;
+
+    if (__hook_bdrv_write) {
+            ///XXX: only do when s2e is running
+            return __hook_bdrv_write(bs, sector_num, buf, nb_sectors);
+        }
+
+
     ret = raw_pwrite(bs, sector_num * BDRV_SECTOR_SIZE, buf,
                      nb_sectors * BDRV_SECTOR_SIZE);
     if (ret == (nb_sectors * BDRV_SECTOR_SIZE))
@@ -483,6 +537,8 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
     return ret;
 }
 
+
+#ifdef ENABLE_AIO
 /*
  * Check if all memory in this vector is sector aligned.
  */
@@ -532,6 +588,18 @@ static BlockDriverAIOCB *raw_aio_readv(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
+
+    printf("aio read\n");
+    if (__hook_bdrv_aio_read) {
+        int fallback;
+        static BlockDriverAIOCB *ret;
+        ret = __hook_bdrv_aio_read(bs, sector_num, qiov->iov->iov_base, nb_sectors, cb,
+            opaque, &fallback, &raw_read);
+        if (!fallback) {
+            return ret;
+        }
+    }
+
     return raw_aio_submit(bs, sector_num, qiov, nb_sectors,
                           cb, opaque, QEMU_AIO_READ);
 }
@@ -540,6 +608,12 @@ static BlockDriverAIOCB *raw_aio_writev(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
+
+    if (__hook_bdrv_aio_write) {
+        ///XXX: only do when s2e is running
+        return __hook_bdrv_aio_write(bs, sector_num, qiov->iov->iov_base, nb_sectors, cb, opaque);
+    }
+
     return raw_aio_submit(bs, sector_num, qiov, nb_sectors,
                           cb, opaque, QEMU_AIO_WRITE);
 }
@@ -554,6 +628,8 @@ static BlockDriverAIOCB *raw_aio_flush(BlockDriverState *bs,
 
     return paio_submit(bs, s->fd, 0, NULL, 0, cb, opaque, QEMU_AIO_FLUSH);
 }
+
+#endif
 
 static void raw_close(BlockDriverState *bs)
 {
@@ -748,9 +824,11 @@ static BlockDriver bdrv_file = {
     .bdrv_create = raw_create,
     .bdrv_flush = raw_flush,
 
+#ifdef ENABLE_AIO
     .bdrv_aio_readv = raw_aio_readv,
     .bdrv_aio_writev = raw_aio_writev,
     .bdrv_aio_flush = raw_aio_flush,
+#endif
 
     .bdrv_truncate = raw_truncate,
     .bdrv_getlength = raw_getlength,
@@ -933,6 +1011,7 @@ static int hdev_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
     return ioctl(s->fd, req, buf);
 }
 
+#ifdef ENABLE_AIO
 static BlockDriverAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
         unsigned long int req, void *buf,
         BlockDriverCompletionFunc *cb, void *opaque)
@@ -943,6 +1022,7 @@ static BlockDriverAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
         return NULL;
     return paio_ioctl(bs, s->fd, req, buf, cb, opaque);
 }
+#endif
 
 #elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 static int fd_open(BlockDriverState *bs)
@@ -1010,9 +1090,11 @@ static BlockDriver bdrv_host_device = {
     .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
+#ifdef ENABLE_AIO
     .bdrv_aio_readv	= raw_aio_readv,
     .bdrv_aio_writev	= raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,
+#endif
 
     .bdrv_read          = raw_read,
     .bdrv_write         = raw_write,
@@ -1021,7 +1103,10 @@ static BlockDriver bdrv_host_device = {
     /* generic scsi device */
 #ifdef __linux__
     .bdrv_ioctl         = hdev_ioctl,
+//XXX: hack to disable AIO, redo properly
+#ifdef ENABLE_AIO
     .bdrv_aio_ioctl     = hdev_aio_ioctl,
+#endif
 #endif
 };
 
@@ -1125,9 +1210,11 @@ static BlockDriver bdrv_host_floppy = {
     .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
+#ifdef ENABLE_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,
+#endif
 
     .bdrv_read          = raw_read,
     .bdrv_write         = raw_write,
@@ -1225,9 +1312,11 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
+#ifdef ENABLE_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,
+#endif
 
     .bdrv_read          = raw_read,
     .bdrv_write         = raw_write,
@@ -1240,7 +1329,9 @@ static BlockDriver bdrv_host_cdrom = {
 
     /* generic scsi device */
     .bdrv_ioctl         = hdev_ioctl,
+#ifdef ENABLE_AIO
     .bdrv_aio_ioctl     = hdev_aio_ioctl,
+#endif
 };
 #endif /* __linux__ */
 
@@ -1348,9 +1439,11 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
+#ifdef ENABLE_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
     .bdrv_aio_flush	= raw_aio_flush,
+#endif
 
     .bdrv_read          = raw_read,
     .bdrv_write         = raw_write,
