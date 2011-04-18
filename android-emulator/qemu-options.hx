@@ -38,6 +38,32 @@ STEXI
 Select CPU model (-cpu ? for list and additional feature selection)
 ETEXI
 
+#if defined(CONFIG_LLVM)
+
+DEF("llvm", 0, QEMU_OPTION_s2e_llvm,
+           "-llvm             execute code using LLVM JIT\n")
+STEXI
+@item -llvm
+execute code using LLVM JIT
+ETEXI
+
+DEF("generate-llvm", 0, QEMU_OPTION_s2e_genllvm,
+           "-generate-llvm    translate code into LLVM but don't execute it\n")
+@item -generate-llvm
+translate code into LLVM but don't execute it
+ETEXI
+#endif
+
+
+#if defined(CONFIG_S2E)
+DEF("s2e-output-dir", HAS_ARG, QEMU_OPTION_s2e_confdir,
+           "-s2e-output-dir DIR    directory for S2E files\n")
+STEXI
+@item -s2e-output-dir @var{dir}
+set directory of S2E files to var{dir}
+ETEXI
+#endif
+
 DEF("smp", HAS_ARG, QEMU_OPTION_smp,
     "-smp n          set the number of CPUs to 'n' [default=1]\n")
 STEXI

@@ -230,7 +230,9 @@ extern void  android_emulator_set_base_port(int  port);
 #include "libslirp.h"
 #endif
 
-
+#ifdef CONFIG_S2E
+extern const char* s2e_output_dir;
+#endif
 
 #define DEFAULT_RAM_SIZE 128
 
@@ -4108,6 +4110,20 @@ int main(int argc, char **argv, char **envp)
                     cpu_model = optarg;
                 }
                 break;
+#ifdef CONFIG_LLVM
+            case QEMU_OPTION_s2e_genllvm:
+            	generate_llvm = 1;
+            	break;
+            case QEMU_OPTION_s2e_llvm:
+            	generate_llvm = 1;
+            	execute_llvm = 1;
+            	break;
+#endif
+#ifdef CONFIG_S2E
+            case QEMU_OPTION_s2e_confdir:
+            	s2e_output_dir = optarg;
+            	break;
+#endif
             case QEMU_OPTION_initrd:
                 initrd_filename = optarg;
                 break;
