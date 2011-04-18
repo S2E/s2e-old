@@ -168,13 +168,14 @@ void pic_update_irq(PicState2 *s)
         qemu_irq_raise(s->parent_irq);
     }
 
-/* all targets should do this rather than acking the IRQ in the cpu */
-#if defined(TARGET_MIPS) || defined(TARGET_PPC) || defined(TARGET_ALPHA)
-    else {
-        qemu_irq_lower(s->parent_irq);
-    }
-#endif
-}
+    /* all targets should do this rather than acking the IRQ in the cpu */
+    /* vova: at least on x86 targets this is required to avoid crashed when
+             simulation speed is low (for example due to logging enabled */
+    //#if defined(TARGET_MIPS) || defined(TARGET_PPC) || defined(TARGET_ALPHA)
+        else {
+            qemu_irq_lower(s->parent_irq);
+        }
+    //#endif
 
 #ifdef DEBUG_IRQ_LATENCY
 int64_t irq_time[16];
