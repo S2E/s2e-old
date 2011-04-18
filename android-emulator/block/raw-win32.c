@@ -21,12 +21,47 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "qemu-common.h"
 #include "qemu-timer.h"
 #include "block_int.h"
 #include "module.h"
 #include <windows.h>
 #include <winioctl.h>
+
+typedef int (*__hook_raw_read)(struct BlockDriverState *bs, int64_t sector_num,
+                    uint8_t *buf, int nb_sectors);
+int (*__hook_bdrv_read)(struct BlockDriverState *bs, int64_t sector_num,
+                  uint8_t *buf, int nb_sectors,
+                  int *fallback,
+                  __hook_raw_read fb);
+
+int (*__hook_bdrv_write)(struct BlockDriverState *bs, int64_t sector_num,
+                   const uint8_t *buf, int nb_sectors);
+
+struct BlockDriverAIOCB* (*__hook_bdrv_aio_read)(
+    struct BlockDriverState *bs, int64_t sector_num,
+   uint8_t *buf, int nb_sectors,
+   BlockDriverCompletionFunc *cb, void *opaque,
+   int *fallback, __hook_raw_read fb);
+
+struct BlockDriverAIOCB* (*__hook_bdrv_aio_write)(
+   BlockDriverState *bs, int64_t sector_num,
+   const uint8_t *buf, int nb_sectors,
+   BlockDriverCompletionFunc *cb, void *opaque);
 
 #define FTYPE_FILE 0
 #define FTYPE_CD     1
@@ -115,6 +150,14 @@ static int raw_read(BlockDriverState *bs, int64_t sector_num,
     int64_t offset = sector_num * 512;
     int count = nb_sectors * 512;
 
+    if (__hook_bdrv_read) {
+        int fallback;
+        ret = __hook_bdrv_read(bs, sector_num, buf, nb_sectors, &fallback, &raw_read);
+        if (!fallback) {
+            return ret;
+        }
+    }
+
     memset(&ov, 0, sizeof(ov));
     ov.Offset = offset;
     ov.OffsetHigh = offset >> 32;
@@ -135,6 +178,11 @@ static int raw_write(BlockDriverState *bs, int64_t sector_num,
     int ret;
     int64_t offset = sector_num * 512;
     int count = nb_sectors * 512;
+
+    if (__hook_bdrv_write) {
+        ///XXX: only do when s2e is running
+        return __hook_bdrv_write(bs, sector_num, buf, nb_sectors);
+    }
 
     memset(&ov, 0, sizeof(ov));
     ov.Offset = offset;
