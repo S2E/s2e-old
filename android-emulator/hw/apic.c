@@ -17,10 +17,29 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
+
 #include "hw.h"
 #include "pc.h"
 #include "qemu-timer.h"
 #include "host-utils.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
 
 //#define DEBUG_APIC
 
@@ -100,6 +119,24 @@ static void apic_update_irq(APICState *s);
 static void apic_get_delivery_bitmask(uint32_t *deliver_bitmask,
                                       uint8_t dest, uint8_t dest_mode);
 
+#ifdef CONFIG_S2E
+void s2e_print_apic(CPUState *env)
+{
+    s2e_debug_print("%04x %04x %04x %04x %04x %04x %04x %04x\n",
+
+                    env->apic_state->irr[0],
+                    env->apic_state->irr[1],
+                    env->apic_state->irr[2],
+                    env->apic_state->irr[3],
+                    env->apic_state->irr[4],
+                    env->apic_state->irr[5],
+                    env->apic_state->irr[6],
+                    env->apic_state->irr[7]);
+
+}
+
+#endif
+
 /* Find first bit starting from msb */
 static int fls_bit(uint32_t value)
 {
@@ -155,7 +192,11 @@ static void apic_local_deliver(CPUState *env, int vector)
         break;
 
     case APIC_DM_EXTINT:
-        cpu_interrupt(env, CPU_INTERRUPT_HARD);
+#ifdef DEBUG_APIC
+        printf("APIC: cpu_interrupt\n");
+#endif
+        if(!s->cpu_env->all_apic_interrupts_disabled)
+        	cpu_interrupt(env, CPU_INTERRUPT_HARD);
         break;
 
     case APIC_DM_FIXED:
@@ -365,6 +406,10 @@ static void apic_update_irq(APICState *s)
     ppr = apic_get_ppr(s);
     if (ppr && (irrv & 0xf0) <= (ppr & 0xf0))
         return;
+#ifdef DEBUG_APIC
+    printf("APIC: cpu_interrupt\n");
+#endif
+    if(!s->cpu_env->all_apic_interrupts_disabled)
     cpu_interrupt(s->cpu_env, CPU_INTERRUPT_HARD);
 }
 
@@ -642,7 +687,8 @@ static void apic_timer(void *opaque)
 {
     APICState *s = opaque;
 
-    apic_local_deliver(s->cpu_env, APIC_LVT_TIMER);
+    if(!s->cpu_env->timer_interrupt_disabled)
+    	apic_local_deliver(s->cpu_env, APIC_LVT_TIMER);
     apic_timer_update(s, s->next_time);
 }
 
