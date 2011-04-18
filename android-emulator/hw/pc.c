@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "hw.h"
 #include "pc.h"
 #include "fdc.h"
@@ -41,6 +55,10 @@
 #include "console.h"
 
 #include "goldfish_device.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
 
 char* audio_input_source = NULL;
 /* output Bochs bios info messages */
@@ -120,7 +138,7 @@ uint64_t cpu_get_tsc(CPUX86State *env)
     } else
 #endif
     {
-        return cpu_get_ticks();
+        return cpu_get_ticks(env);
     }
 }
 
@@ -913,6 +931,9 @@ static void pc_init1(ram_addr_t ram_size,
     
     for(i = 0; i < smp_cpus; i++) {
         env = cpu_init(cpu_model);
+#ifdef CONFIG_S2E
+        s2e_register_cpu(g_s2e, g_s2e_state, env);
+#endif
         if (!env) {
             fprintf(stderr, "Unable to find x86 CPU definition\n");
             exit(1);
@@ -930,11 +951,22 @@ static void pc_init1(ram_addr_t ram_size,
     ram_addr = qemu_ram_alloc(0xa0000);
     cpu_register_physical_memory(0, 0xa0000, ram_addr);
 
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, 0, 0xa0000,
+                        (uint64_t) qemu_get_ram_ptr(ram_addr), 0, 0, "lowmem");
+#endif
+
     /* Allocate, even though we won't register, so we don't break the
      * phys_ram_base + PA assumption. This range includes vga (0xa0000 - 0xc0000),
      * and some bios areas, which will be registered later
      */
     ram_addr = qemu_ram_alloc(0x100000 - 0xa0000);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state, 0xa0000, 0x100000 - 0xa0000,
+                        (uint64_t) qemu_get_ram_ptr(ram_addr), 1, 0, "mem_a0000");
+#endif
+
     ram_addr = qemu_ram_alloc(below_4g_mem_size - 0x100000);
     cpu_register_physical_memory(0x100000,
                  below_4g_mem_size - 0x100000,
@@ -958,6 +990,13 @@ static void pc_init1(ram_addr_t ram_size,
         cpu_register_physical_memory(0x100000000ULL,
                                      above_4g_mem_size,
                                      ram_addr);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state,
+                  0x100000, below_4g_mem_size - 0x100000,
+                  (uint64_t) qemu_get_ram_ptr(ram_addr), 0, 0, "ram");
+#endif
+
 #endif
     }
 
@@ -1031,6 +1070,17 @@ static void pc_init1(ram_addr_t ram_size,
                                  bios_size, bios_offset | IO_MEM_ROM);
 
     bochs_bios_init();
+
+
+//XXX: AKA: Is this the right place with the right register calls?
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state,
+            -1, bios_size,
+            (uint64_t) qemu_get_ram_ptr(bios_offset), 1, 0, "bios");
+    s2e_register_ram(g_s2e, g_s2e_state,
+            PC_ROM_MIN_VGA, PC_ROM_SIZE,
+            (uint64_t) qemu_get_ram_ptr(option_rom_offset), 1, 0, "pcrom");
+#endif
 
     cpu_irq = qemu_allocate_irqs(pic_irq_request, NULL, 1);
     i8259 = i8259_init(cpu_irq[0]);
@@ -1266,6 +1316,14 @@ static void pc_init1(ram_addr_t ram_size,
             }
         }
     }
+
+#ifdef CONFIG_S2E
+    s2e_on_device_activation(g_s2e, pci_bus);
+#else
+    void fake_activate_devices(struct PCIBus *bus);
+    fake_activate_devices(pci_bus);
+#endif
+
 #endif
 }
 
