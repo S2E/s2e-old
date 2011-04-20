@@ -22,6 +22,19 @@
  * THE SOFTWARE.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 /* define it to use liveness analysis (better code) */
 #define USE_LIVENESS_ANALYSIS
 
@@ -66,7 +79,7 @@
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
 
-static TCGOpDef tcg_op_defs[] = {
+TCGOpDef tcg_op_defs[] = {
 #define DEF(s, n, copy_size) { #s, 0, 0, n, n, 0, copy_size },
 #define DEF2(s, oargs, iargs, cargs, flags) { #s, oargs, iargs, cargs, iargs + oargs + cargs, flags, 0 },
 #include "tcg-opc.h"
@@ -111,7 +124,7 @@ static inline void tcg_out32(TCGContext *s, uint32_t v)
 /* label relocation processing */
 
 void tcg_out_reloc(TCGContext *s, uint8_t *code_ptr, int type, 
-                   int label_index, long addend)
+                   int label_index, intptr_t addend)
 {
     TCGLabel *l;
     TCGRelocation *r;
@@ -255,8 +268,8 @@ void tcg_context_init(TCGContext *s)
     s->code_buf = code_gen_prologue;
     s->code_ptr = s->code_buf;
     tcg_target_qemu_prologue(s);
-    flush_icache_range((unsigned long)s->code_buf, 
-                       (unsigned long)s->code_ptr);
+    flush_icache_range((uintptr_t)s->code_buf,
+                       (uintptr_t)s->code_ptr);
 }
 
 void tcg_set_frame(TCGContext *s, int reg,
@@ -535,7 +548,9 @@ TCGv_i64 tcg_const_local_i64(int64_t val)
     return t0;
 }
 
-void tcg_register_helper(void *func, const char *name)
+void tcg_register_helper_with_reg_mask(void *func, const char *name,
+                                       uint64_t reg_rmask, uint64_t reg_wmask,
+                                       uint64_t accesses_mem)
 {
     TCGContext *s = &tcg_ctx;
     int n;
@@ -551,7 +566,15 @@ void tcg_register_helper(void *func, const char *name)
     }
     s->helpers[s->nb_helpers].func = (tcg_target_ulong)func;
     s->helpers[s->nb_helpers].name = name;
+    s->helpers[s->nb_helpers].reg_rmask = reg_rmask;
+    s->helpers[s->nb_helpers].reg_wmask = reg_wmask;
+    s->helpers[s->nb_helpers].accesses_mem = accesses_mem;
     s->nb_helpers++;
+}
+
+void tcg_register_helper(void *func, const char *name)
+{
+    tcg_register_helper_with_reg_mask(func, name, (uint64_t) -1, (uint64_t) -1, 1);
 }
 
 /* Note: we convert the 64 bit args to 32 bit and do some alignment
@@ -774,6 +797,32 @@ static TCGHelperInfo *tcg_find_helper(TCGContext *s, tcg_target_ulong val)
     return NULL;
 }
 
+const char *tcg_helper_get_name(TCGContext *s, void *func)
+{
+    TCGHelperInfo *info = tcg_find_helper(s, (tcg_target_ulong) func);
+    return info ? info->name : NULL;
+}
+
+void tcg_helper_get_reg_mask(TCGContext *s, void *func,
+                             uint64_t* reg_rmask, uint64_t* reg_wmask,
+                             uint64_t* accesses_mem)
+{
+    TCGHelperInfo *info = tcg_find_helper(s, (tcg_target_ulong) func);
+    if(info) {
+        assert(func != NULL);
+        *reg_rmask = info->reg_rmask;
+        *reg_wmask = info->reg_wmask;
+        *accesses_mem = info->accesses_mem;
+    } else {
+        *reg_rmask = (uint64_t) -1;
+        *reg_wmask = (uint64_t) -1;
+#ifdef CONFIG_S2E
+#warning Change 0 to 1 here, but register S2E helpers before!
+        *accesses_mem = 0; /* XXX! */
+#endif
+    }
+}
+
 static const char * const cond_name[] =
 {
     [TCG_COND_EQ] = "eq",
@@ -933,6 +982,99 @@ void tcg_dump_ops(TCGContext *s, FILE *outfile)
         args += nb_iargs + nb_oargs + nb_cargs;
     }
 }
+
+#ifdef CONFIG_S2E
+void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
+                      uint64_t *accesses_mem)
+{
+    const uint16_t *opc_ptr;
+    const TCGArg *args;
+    int c, i, nb_oargs, nb_iargs, nb_cargs;
+    const TCGOpDef *def;
+
+    uint64_t temps[TCG_MAX_TEMPS];
+    memset(temps, 0, sizeof(temps[0])*(s->nb_globals + s->nb_temps));
+
+    *rmask = *wmask = *accesses_mem = 0;
+
+    opc_ptr = gen_opc_buf;
+    args = gen_opparam_buf;
+    while (opc_ptr < gen_opc_ptr) {
+        c = *opc_ptr++;
+        def = &tcg_op_defs[c];
+
+        if (c == INDEX_op_call) {
+            TCGArg arg_count;
+
+            /* variable number of arguments */
+            arg_count = *args++;
+            nb_oargs = arg_count >> 16;
+            nb_iargs = arg_count & 0xffff;
+            nb_cargs = def->nb_cargs;
+
+            /* get information about helper register access mask */
+            TCGArg func_arg = args[nb_oargs + nb_iargs - 1];
+            assert(func_arg < s->nb_globals + s->nb_temps);
+
+            uint64_t func_rmask, func_wmask, func_accesses_mem;
+            tcg_helper_get_reg_mask(s, (void*) temps[func_arg],
+                                    &func_rmask, &func_wmask,
+                                    &func_accesses_mem);
+
+            *rmask |= func_rmask;
+            *wmask |= func_wmask;
+            *accesses_mem |= func_accesses_mem;
+
+            /* access mask of helper arguments will be added later */
+
+        } else if (c == INDEX_op_nopn) {
+
+            /* variable number of arguments */
+            nb_cargs = *args;
+            nb_oargs = 0;
+            nb_iargs = 0;
+
+        } else {
+
+            nb_oargs = def->nb_oargs;
+            nb_iargs = def->nb_iargs;
+            nb_cargs = def->nb_cargs;
+        }
+
+        /* We want to track movi assignments in order
+           to be able to determine target helper for call
+           instructions */
+        if (c == INDEX_op_movi_i32
+#if TCG_TARGET_REG_BITS == 64
+                   || c == INDEX_op_movi_i64
+#endif
+                   ) {
+            assert(args[0] < s->nb_globals + s->nb_temps);
+            temps[args[0]] = args[1];
+        } else {
+            for(i = 0; i < nb_oargs; i++)
+                temps[args[i]] = 0;
+        }
+
+        for(i = 0; i < nb_iargs; i++) {
+            TCGArg idx = args[nb_oargs + i];
+            if (idx < s->nb_globals) {
+                if ((*wmask & (1<<idx)) == 0)
+                    *rmask |= (1<<idx);
+            }
+        }
+
+        for(i = 0; i < nb_oargs; i++) {
+            TCGArg idx = args[i];
+            if (idx < s->nb_globals) {
+                *wmask |= (1<<idx);
+            }
+        }
+
+        args += nb_iargs + nb_oargs + nb_cargs;
+    }
+}
+#endif
 
 /* we give more priority to constraints with less registers */
 static int get_constraint_priority(const TCGOpDef *def, int k)
@@ -1926,7 +2068,7 @@ void dump_op_count(void)
 
 
 static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
-                                      long search_pc)
+                                      uintptr_t search_pc)
 {
     int opc, op_index;
     const TCGOpDef *def;
@@ -2038,7 +2180,7 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
             break;
         case INDEX_op_set_label:
             tcg_reg_alloc_bb_end(s, s->reserved_regs);
-            tcg_out_label(s, args[0], (long)s->code_ptr);
+            tcg_out_label(s, args[0], (uintptr_t)s->code_ptr);
             break;
         case INDEX_op_call:
             dead_iargs = s->op_dead_iargs[op_index];
@@ -2068,6 +2210,8 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     return -1;
 }
 
+//#include <sys/mman.h>
+
 int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
 {
 #ifdef CONFIG_PROFILER
@@ -2093,9 +2237,18 @@ int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
 
     tcg_gen_code_common(s, gen_code_buf, -1);
 
+    /*assert(!((uintptr_t)gen_code_buf & 0xFFF));
+       (uintptr_t)s->code_ptr &= ~0xFFF;
+       (uintptr_t)s->code_ptr += 0x1000;*/
+
     /* flush instruction cache */
-    flush_icache_range((unsigned long)gen_code_buf,
-                       (unsigned long)s->code_ptr);
+    flush_icache_range((uintptr_t)gen_code_buf,
+                       (uintptr_t)s->code_ptr);
+
+
+   /* assert((uintptr_t)(s->code_ptr -  gen_code_buf) <= 0x1000);
+    assert(!mprotect(gen_code_buf, 0x1000, PROT_READ|PROT_EXEC));
+    */
     return s->code_ptr -  gen_code_buf;
 }
 
@@ -2103,7 +2256,7 @@ int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf)
    offset bytes from the start of the TB.  The contents of gen_code_buf must
    not be changed, though writing the same values is ok.
    Return -1 if not found. */
-int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, long offset)
+int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, intptr_t offset)
 {
     return tcg_gen_code_common(s, gen_code_buf, offset);
 }

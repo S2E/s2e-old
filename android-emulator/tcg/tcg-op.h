@@ -474,7 +474,7 @@ static inline void tcg_gen_andi_i32(TCGv_i32 ret, TCGv_i32 arg1, int32_t arg2)
     /* some cases can be optimized here */
     if (arg2 == 0) {
         tcg_gen_movi_i32(ret, 0);
-    } else if (arg2 == 0xffffffff) {
+    } else if ((uint32_t) arg2 == 0xffffffff) {
         tcg_gen_mov_i32(ret, arg1);
     } else {
         TCGv_i32 t0 = tcg_const_i32(arg2);
@@ -495,7 +495,7 @@ static inline void tcg_gen_or_i32(TCGv_i32 ret, TCGv_i32 arg1, TCGv_i32 arg2)
 static inline void tcg_gen_ori_i32(TCGv_i32 ret, TCGv_i32 arg1, int32_t arg2)
 {
     /* some cases can be optimized here */
-    if (arg2 == 0xffffffff) {
+    if ((uint32_t) arg2 == 0xffffffff) {
         tcg_gen_movi_i32(ret, 0xffffffff);
     } else if (arg2 == 0) {
         tcg_gen_mov_i32(ret, arg1);
