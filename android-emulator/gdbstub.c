@@ -16,6 +16,20 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "config.h"
 #include "qemu-common.h"
 #ifdef CONFIG_USER_ONLY
@@ -535,7 +549,7 @@ static int cpu_gdb_read_register(CPUState *env, uint8_t *mem_buf, int n)
         n -= CPU_NB_REGS;
         switch (n) {
         case 0: GET_REGL(env->eip);
-        case 1: GET_REG32(env->eflags);
+        case 1: GET_REG32(cpu_get_eflags_dirty(env));
         case 2: GET_REG32(env->segs[R_CS].selector);
         case 3: GET_REG32(env->segs[R_SS].selector);
         case 4: GET_REG32(env->segs[R_DS].selector);
@@ -584,7 +598,7 @@ static int cpu_gdb_write_register(CPUState *env, uint8_t *mem_buf, int i)
         i -= CPU_NB_REGS;
         switch (i) {
         case 0: env->eip = ldtul_p(mem_buf); return sizeof(target_ulong);
-        case 1: env->eflags = ldl_p(mem_buf); return 4;
+        case 1: cpu_set_eflags(env, ldl_p(mem_buf)); return 4;
 #if defined(CONFIG_USER_ONLY)
 #define LOAD_SEG(index, sreg)\
             tmp = ldl_p(mem_buf);\
