@@ -161,7 +161,7 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
     INIT_DISASSEMBLE_INFO(disasm_info, out, fprintf);
 
     disasm_info.read_memory_func = target_read_memory;
-    disasm_info.buffer_vma = code;
+    disasm_info.buffer_vma = (uintptr_t) code;
     disasm_info.buffer_length = size;
 
 #ifdef TARGET_WORDS_BIGENDIAN
@@ -227,7 +227,7 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
     return;
 #endif
 
-    for (pc = code; size > 0; pc += count, size -= count) {
+    for (pc = (uintptr_t) code; size > 0; pc += count, size -= count) {
 	fprintf(out, "0x" TARGET_FMT_lx ":  ", pc);
 	count = print_insn(pc, &disasm_info);
 #if 0
