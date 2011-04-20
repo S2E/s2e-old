@@ -21,7 +21,7 @@
 #if !defined(CONFIG_USER_ONLY)
 
 /* address in the RAM (different from a physical address) */
-typedef unsigned long ram_addr_t;
+typedef uintptr_t ram_addr_t;
 
 /* memory API */
 
@@ -44,6 +44,7 @@ ram_addr_t qemu_ram_alloc(ram_addr_t);
 void qemu_ram_free(ram_addr_t addr);
 /* This should only be used for ram local to a device.  */
 void *qemu_get_ram_ptr(ram_addr_t addr);
+void *qemu_get_phys_ram_ptr(ram_addr_t addr);
 /* This should not be used by devices.  */
 ram_addr_t qemu_ram_addr_from_host(void *ptr);
 

@@ -16,11 +16,29 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #ifndef CPU_ALL_H
 #define CPU_ALL_H
 
 #include "qemu-common.h"
 #include "cpu-common.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
 
 /* some important defines:
  *
@@ -410,7 +428,7 @@ static inline int lduw_be_p(const void *ptr)
                   : "m" (*(uint16_t *)ptr));
     return val;
 #else
-    const uint8_t *b = ptr;
+    const uint8_t *b = (const uint8_t*) ptr;
     return ((b[0] << 8) | b[1]);
 #endif
 }
@@ -425,7 +443,7 @@ static inline int ldsw_be_p(const void *ptr)
                   : "m" (*(uint16_t *)ptr));
     return (int16_t)val;
 #else
-    const uint8_t *b = ptr;
+    const uint8_t *b = (const uint8_t*) ptr;
     return (int16_t)((b[0] << 8) | b[1]);
 #endif
 }
@@ -660,9 +678,11 @@ extern unsigned long reserved_va;
 #else /* !CONFIG_USER_ONLY */
 /* NOTE: we use double casts if pointers and target_ulong have
    different sizes */
-#define saddr(x) (uint8_t *)(long)(x)
-#define laddr(x) (uint8_t *)(long)(x)
+#define saddr(x) (uint8_t *)(intptr_t)(x)
+#define laddr(x) (uint8_t *)(intptr_t)(x)
 #endif
+
+#if !defined(CONFIG_S2E) || defined(S2E_LLVM_LIB)
 
 #define ldub_raw(p) ldub_p(laddr((p)))
 #define ldsb_raw(p) ldsb_p(laddr((p)))
@@ -679,6 +699,72 @@ extern unsigned long reserved_va;
 #define stfl_raw(p, v) stfl_p(saddr((p)), v)
 #define stfq_raw(p, v) stfq_p(saddr((p)), v)
 
+#else /* CONFIG_S2E */
+
+static inline int _s2e_check_concrete(void *objectState,
+                                      target_ulong offset, int size)
+{
+#if 1
+    if(unlikely(*(uint8_t***) objectState)) {
+        uint8_t* bits = **(uint8_t***) objectState;
+        int mask = (1<<size)-1;
+        if(likely((offset&7) + size <= 8)) {
+            return ((((uint8_t* )(bits + (offset>>3)))[0] >> (offset&7)) & mask) == mask;
+        } else {
+            return ((((uint16_t*)(bits + (offset>>3)))[0] >> (offset&7)) & mask) == mask;
+        }
+    }
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+#define _s2e_define_ld_raw(ct, t, s) \
+    static inline ct ld ## t ## _raw(const void* p) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _p(buf); /* read right type of value from buf */ \
+        } else return ld ## t ## _p(p); \
+    } \
+    static inline ct ld ## t ## _raw_s2e_trace(const void* p) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            s2e_read_ram_concrete_check(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+            return ld ## t ## _p(buf); \
+        } else return ld ## t ## _p(p); \
+    }
+
+#define _s2e_define_st_raw(ct, t, s) \
+    static inline void st ## t ## _raw(void* p, ct v) { \
+        if(g_s2e_state) { /* XXX XXX XXX */ \
+            uint8_t buf[s]; \
+            st ## t ## _p(buf, v); \
+            s2e_write_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p, buf, s); \
+        } else st ## t ## _p(p, v); \
+    } \
+    static inline void st ## t ## _raw_s2e_trace(void* p, ct v) { \
+        st ## t ## _raw(p, v); \
+    }
+
+_s2e_define_ld_raw(int, ub, 1)
+_s2e_define_ld_raw(int, sb, 1)
+_s2e_define_ld_raw(int, uw, 2)
+_s2e_define_ld_raw(int, sw, 2)
+_s2e_define_ld_raw(int,  l, 4)
+_s2e_define_ld_raw(uint64_t,  q, 8)
+_s2e_define_ld_raw(float32,  fl, 4)
+_s2e_define_ld_raw(float64,  fq, 8)
+
+_s2e_define_st_raw(int, b, 1)
+_s2e_define_st_raw(int, w, 2)
+_s2e_define_st_raw(int, l, 4)
+_s2e_define_st_raw(uint64_t,  q, 8)
+_s2e_define_st_raw(float32,  fl, 4)
+_s2e_define_st_raw(float64,  fq, 8)
+
+#endif
 
 #if defined(CONFIG_USER_ONLY)
 
@@ -729,10 +815,10 @@ extern unsigned long reserved_va;
 #define TARGET_PAGE_ALIGN(addr) (((addr) + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK)
 
 /* ??? These should be the larger of unsigned long and target_ulong.  */
-extern unsigned long qemu_real_host_page_size;
-extern unsigned long qemu_host_page_bits;
-extern unsigned long qemu_host_page_size;
-extern unsigned long qemu_host_page_mask;
+extern uintptr_t qemu_real_host_page_size;
+extern uintptr_t qemu_host_page_bits;
+extern uintptr_t qemu_host_page_size;
+extern uintptr_t qemu_host_page_mask;
 
 #define HOST_PAGE_ALIGN(addr) (((addr) + qemu_host_page_size - 1) & qemu_host_page_mask)
 
@@ -837,6 +923,8 @@ void run_on_cpu(CPUState *env, void (*func)(void *data), void *data);
 #define CPU_LOG_IOPORT     (1 << 7)
 #define CPU_LOG_TB_CPU     (1 << 8)
 #define CPU_LOG_RESET      (1 << 9)
+#define CPU_LOG_LLVM_IR    (1 << 10)
+#define CPU_LOG_LLVM_ASM   (1 << 11)
 
 /* define log items */
 typedef struct CPULogItem {

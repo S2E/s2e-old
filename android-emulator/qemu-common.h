@@ -241,7 +241,7 @@ typedef enum {
     IF_COUNT
 } BlockInterfaceType;
 
-void cpu_exec_init_all(unsigned long tb_size);
+void cpu_exec_init_all(uintptr_t tb_size);
 
 /* CPU save/load.  */
 void cpu_save(QEMUFile *f, void *opaque);

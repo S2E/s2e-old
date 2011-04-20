@@ -22,8 +22,25 @@
  * THE SOFTWARE.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "qemu-common.h"
 #include "qemu-aio.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
 
 /*
  * An AsyncContext protects the callbacks of AIO requests and Bottom Halves
@@ -164,6 +181,41 @@ int qemu_bh_poll(void)
 
     return ret;
 }
+
+#ifdef CONFIG_S2E
+int qemu_bh_empty(void)
+{
+    QEMUBH *bh;
+    int ret;
+
+    ret = 0;
+    for (bh = async_context->first_bh; bh; bh = bh->next) {
+        if (!bh->deleted) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+void qemu_bh_clear(void)
+{
+    QEMUBH *bh, **bhp;
+
+    bhp = &async_context->first_bh;
+    while (*bhp) {
+        bh = *bhp;
+
+        if (bh->scheduled && !bh->deleted) {
+            bh->idle = 0;
+            bh->cb(bh->opaque);
+        }
+
+        *bhp = bh->next;
+        qemu_free(bh);
+    }
+}
+
+#endif
 
 void qemu_bh_schedule_idle(QEMUBH *bh)
 {

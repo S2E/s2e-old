@@ -16,12 +16,37 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "config.h"
 #include "exec.h"
 #include "disas.h"
 #include "tcg.h"
 #include "kvm.h"
 #include "qemu-barrier.h"
+
+#ifdef CONFIG_LLVM
+#include "tcg-llvm.h"
+#endif
+
+#ifdef CONFIG_S2E
+#include "s2e/s2e_qemu.h"
+#endif
+
+#include <assert.h>
 
 #if !defined(CONFIG_SOFTMMU)
 #undef EAX
@@ -43,6 +68,20 @@
 // Work around ugly bugs in glibc that mangle global register contents
 #undef env
 #define env cpu_single_env
+#endif
+
+#ifndef CONFIG_S2E
+volatile host_reg_t saved_AREGs[3];
+#endif
+
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+int generate_llvm = 0;
+int execute_llvm = 0;
+#endif
+
+#ifdef CONFIG_S2E
+#define do_interrupt(intno, is_int, error_code, next_eip, is_hw) \
+    s2e_do_interrupt(g_s2e, g_s2e_state, intno, is_int, error_code, next_eip, is_hw)
 #endif
 
 int tb_invalidated_flag;
@@ -103,6 +142,13 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     unsigned long next_tb;
     TranslationBlock *tb;
 
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    assert(execute_llvm == 0);
+#endif
+//#ifdef CONFIG_S2E
+//    assert(0 && "cpu_exec_nocache should not be called in s2e!");
+//#endif
+
     /* Should never happen.
        We only end up here when an existing TB is too long.  */
     if (max_cycles > CF_COUNT_MASK)
@@ -112,7 +158,13 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
+#ifdef CONFIG_S2E
+    env->s2e_current_tb = tb;
+    next_tb = s2e_qemu_tb_exec(g_s2e, g_s2e_state, tb);
+    env->s2e_current_tb = NULL;
+#else
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
+#endif
     env->current_tb = NULL;
 
     if ((next_tb & 3) == 2) {
@@ -221,7 +273,8 @@ int cpu_exec(CPUState *env1)
     int ret, interrupt_request;
     TranslationBlock *tb;
     uint8_t *tc_ptr;
-    unsigned long next_tb;
+    uintptr_t next_tb;
+    unsigned intNb=-1;
 
     if (cpu_halted(env1) == EXCP_HALTED)
         return EXCP_HALTED;
@@ -231,9 +284,11 @@ int cpu_exec(CPUState *env1)
     /* the access to env below is actually saving the global register's
        value, so that files not including target-xyz/exec.h are free to
        use it.  */
+#ifndef CONFIG_S2E
     QEMU_BUILD_BUG_ON (sizeof (saved_env_reg) != sizeof (env));
     saved_env_reg = (host_reg_t) env;
     barrier();
+#endif
     env = env1;
 
     if (unlikely(exit_request)) {
@@ -243,10 +298,14 @@ int cpu_exec(CPUState *env1)
 #if defined(TARGET_I386)
     if (!kvm_enabled()) {
         /* put eflags in CPU temporary format */
-        CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
-        DF = 1 - (2 * ((env->eflags >> 10) & 1));
-        CC_OP = CC_OP_EFLAGS;
-        env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
+        /* We no longer need this - eflags is always in that format */
+        /*
+        CC_SRC_W(RR_cpu(env, eflags) & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
+        DF_W(1 - (2 * ((RR_cpu(env, eflags) >> 10) & 1)));
+        CC_OP_W(CC_OP_EFLAGS);
+        WR_cpu(env, eflags,
+               RR_cpu(env, eflags) & ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C));
+        */
     }
 #elif defined(TARGET_SPARC)
 #elif defined(TARGET_M68K)
@@ -270,6 +329,11 @@ int cpu_exec(CPUState *env1)
     /* prepare setjmp context for exception handling */
     for(;;) {
         if (setjmp(env->jmp_env) == 0) {
+#ifdef CONFIG_S2E
+g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
+s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
+#endif
+
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
 #undef env
                     env = cpu_single_env;
@@ -293,6 +357,7 @@ int cpu_exec(CPUState *env1)
                                       env->exception_is_int,
                                       env->error_code,
                                       env->exception_next_eip);
+                    intNb = env->exception_index;
                     /* successfully delivered */
                     env->old_exception = -1;
 #endif
@@ -384,16 +449,18 @@ int cpu_exec(CPUState *env1)
                             env->interrupt_request &= ~CPU_INTERRUPT_NMI;
                             env->hflags2 |= HF2_NMI_MASK;
                             do_interrupt(EXCP02_NMI, 0, 0, 0, 1);
+                            intNb = EXCP02_NMI;
                             next_tb = 0;
 			} else if (interrupt_request & CPU_INTERRUPT_MCE) {
                             env->interrupt_request &= ~CPU_INTERRUPT_MCE;
                             do_interrupt(EXCP12_MCHK, 0, 0, 0, 0);
+                            intNb = EXCP12_MCHK;
                             next_tb = 0;
                         } else if ((interrupt_request & CPU_INTERRUPT_HARD) &&
                                    (((env->hflags2 & HF2_VINTR_MASK) && 
                                      (env->hflags2 & HF2_HIF_MASK)) ||
                                     (!(env->hflags2 & HF2_VINTR_MASK) && 
-                                     (env->eflags & IF_MASK && 
+                                     (env->mflags & IF_MASK &&
                                       !(env->hflags & HF_INHIBIT_IRQ_MASK))))) {
                             int intno;
                             svm_check_intercept(SVM_EXIT_INTR);
@@ -405,19 +472,21 @@ int cpu_exec(CPUState *env1)
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
+                    		intNb = intno;
                             do_interrupt(intno, 0, 0, 0, 1);
                             /* ensure that no TB jump will be modified as
                                the program flow was changed */
                             next_tb = 0;
 #if !defined(CONFIG_USER_ONLY)
                         } else if ((interrupt_request & CPU_INTERRUPT_VIRQ) &&
-                                   (env->eflags & IF_MASK) && 
+                                   (env->mflags & IF_MASK) &&
                                    !(env->hflags & HF_INHIBIT_IRQ_MASK)) {
                             int intno;
                             /* FIXME: this should respect TPR */
                             svm_check_intercept(SVM_EXIT_VINTR);
                             intno = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.int_vector));
                             qemu_log_mask(CPU_LOG_TB_IN_ASM, "Servicing virtual hardware INT=0x%02x\n", intno);
+                            intNb = intno;
                             do_interrupt(intno, 0, 0, 0, 1);
                             env->interrupt_request &= ~CPU_INTERRUPT_VIRQ;
                             next_tb = 0;
@@ -494,7 +563,7 @@ int cpu_exec(CPUState *env1)
                        We avoid this by disabling interrupts when
                        pc contains a magic address.  */
                     if (interrupt_request & CPU_INTERRUPT_HARD
-                        && ((IS_M(env) && env->regs[15] < 0xfffffff0)
+                        && ((IS_M(env) && RR_cpu(env,regs[15]) < 0xfffffff0)
                             || !(env->uncached_cpsr & CPSR_I))) {
                         env->exception_index = EXCP_IRQ;
                         do_interrupt(env);
@@ -552,6 +621,7 @@ int cpu_exec(CPUState *env1)
                     env->exception_index = EXCP_INTERRUPT;
                     cpu_loop_exit();
                 }
+// REMOVED BY S2E
 #if defined(DEBUG_DISAS) || defined(CONFIG_DEBUG_EXEC)
                 if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
                     /* restore flags in standard format */
@@ -571,6 +641,16 @@ int cpu_exec(CPUState *env1)
                 }
 #endif /* DEBUG_DISAS || CONFIG_DEBUG_EXEC */
                 spin_lock(&tb_lock);
+
+                if (intNb != -1) {
+                    qemu_log_mask(CPU_LOG_INT,
+                                  "CPU interrupt, vector=0x%x\n", intNb);
+#ifdef CONFIG_S2E
+                    s2e_on_exception(g_s2e, g_s2e_state, intNb);
+#endif
+                    intNb = -1;
+                }
+
                 tb = tb_find_fast();
                 /* Note: we do it here to avoid a gcc bug on Mac OS X when
                    doing it in tb_find_slow */
@@ -581,11 +661,14 @@ int cpu_exec(CPUState *env1)
                     next_tb = 0;
                     tb_invalidated_flag = 0;
                 }
+
+// REMOVED BY S2E
 #ifdef CONFIG_DEBUG_EXEC
                 qemu_log_mask(CPU_LOG_EXEC, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
                              (long)tb->tc_ptr, tb->pc,
                              lookup_symbol(tb->pc));
 #endif
+
                 /* see if we can patch the calling TB. When the TB
                    spans two pages, we cannot safely do a direct
                    jump. */
@@ -608,11 +691,28 @@ int cpu_exec(CPUState *env1)
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
+
+#if defined(CONFIG_S2E)
+                    env->s2e_current_tb = tb;
+                    next_tb = s2e_qemu_tb_exec(g_s2e, g_s2e_state, tb);
+                    env->s2e_current_tb = NULL;
+#elif defined(CONFIG_LLVM)
+                    if(execute_llvm) {
+#define SAVE_HOST_REGS 1
+#include "hostregs_helper.h"
+                        next_tb = tcg_llvm_qemu_tb_exec(tb, saved_AREGs);
+// restore host regs
+#include "hostregs_helper.h"
+                    } else {
+                        next_tb = tcg_qemu_tb_exec(tc_ptr);
+                    }
+#else
+
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;
-                        tb = (TranslationBlock *)(long)(next_tb & ~3);
+                        tb = (TranslationBlock *)(intptr_t)(next_tb & ~3);
                         /* Restore PC.  */
                         cpu_pc_from_tb(env, tb);
                         insns_left = env->icount_decr.u32;
@@ -641,13 +741,25 @@ int cpu_exec(CPUState *env1)
                 /* reset soft MMU for next block (it can currently
                    only be set by a memory fault) */
             } /* for(;;) */
+        } else {
+#ifdef CONFIG_S2E
+            cpu_restore_icount(env);
+            s2e_qemu_cleanup_tb_exec(g_s2e, g_s2e_state, NULL);
+#endif
         }
     } /* for(;;) */
 
 
 #if defined(TARGET_I386)
+#ifdef CONFIG_S2E
+    s2e_set_cc_op_eflags(g_s2e, g_s2e_state);
+#else
     /* restore flags in standard format */
-    env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
+    WR_cpu(env, cc_src, helper_cc_compute_all(CC_OP));
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    //WR_cpu(env, eflags, RR_cpu(env, eflags) |
+    //       helper_cc_compute_all(CC_OP) | (DF & DF_MASK));
+#endif
 #elif defined(TARGET_ARM)
     /* XXX: Save/restore host fpu exception state?.  */
 #elif defined(TARGET_SPARC)
@@ -668,9 +780,11 @@ int cpu_exec(CPUState *env1)
 #error unsupported target CPU
 #endif
 
+#ifndef CONFIG_S2E
     /* restore global registers */
     barrier();
     env = (void *) saved_env_reg;
+#endif
 
     /* fail safe : never use cpu_single_env outside cpu_exec() */
     cpu_single_env = NULL;
@@ -698,7 +812,7 @@ void cpu_x86_load_seg(CPUX86State *s, int seg_reg, int selector)
 
     saved_env = env;
     env = s;
-    if (!(env->cr[0] & CR0_PE_MASK) || (env->eflags & VM_MASK)) {
+    if (!(env->cr[0] & CR0_PE_MASK) || (env->mflags & VM_MASK)) {
         selector &= 0xffff;
         cpu_x86_load_seg_cache(env, seg_reg, selector,
                                (selector << 4), 0xffff, 0);
@@ -772,6 +886,9 @@ static inline int handle_cpu_signal(unsigned long pc, unsigned long address,
         return 1; /* the MMU fault was handled without causing real CPU fault */
     /* now we have a real cpu fault */
     tb = tb_find_pc(pc);
+#ifdef CONFIG_S2E
+    cpu_restore_icount(env);
+#endif
     if (tb) {
         /* the PC is inside the translated code. It means that we have
            a virtual CPU fault */
