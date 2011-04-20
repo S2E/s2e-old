@@ -16,6 +16,20 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #if !defined(__DYNGEN_EXEC_H__)
 #define __DYNGEN_EXEC_H__
 
@@ -119,13 +133,41 @@ extern int printf(const char *, ...);
 /* The return address may point to the start of the next instruction.
    Subtracting one gets us the call instruction itself.  */
 #if defined(__s390__) && !defined(__s390x__)
-# define GETPC() ((void*)(((unsigned long)__builtin_return_address(0) & 0x7fffffffUL) - 1))
+# define GETPC() ((void*)(((uintptr_t)__builtin_return_address(0) & 0x7fffffffUL) - 1))
 #elif defined(__arm__)
 /* Thumb return addresses have the low bit set, so we need to subtract two.
    This is still safe in ARM mode because instructions are 4 bytes.  */
-# define GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 2))
+# define GETPC() ((void *)((uintptr_t)__builtin_return_address(0) - 2))
 #else
-# define GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 1))
+# define GETPC() ((void *)((uintptr_t)__builtin_return_address(0) - 1))
+
+#endif
+
+#if defined(CONFIG_S2E)
+
+//extern void* g_s2e_exec_ret_addr;
+/*
+#ifdef S2E_LLVM_LIB
+#define GETPC() (g_s2e_exec_ret_addr)
+#else
+#define GETPC() (g_s2e_exec_ret_addr ? g_s2e_exec_ret_addr : _GETPC())
+#endif
+ */
+#define GETPC() (NULL)
+
+#elif defined(CONFIG_LLVM)
+
+#ifdef __linux__
+extern uint64_t tcg_llvm_helper_ret_addr asm("tcg_llvm_runtime"); // XXX
+#else
+extern uint64_t tcg_llvm_helper_ret_addr asm("_tcg_llvm_runtime"); // XXX
+#endif
+#define GETPC() (execute_llvm ? (void*) tcg_llvm_helper_ret_addr : _GETPC())
+
+#else
+
+#define GETPC() _GETPC()
+
 #endif
 
 #endif /* !defined(__DYNGEN_EXEC_H__) */
