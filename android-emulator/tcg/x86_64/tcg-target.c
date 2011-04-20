@@ -61,6 +61,21 @@ static const int tcg_target_reg_alloc_order[] = {
     TCG_REG_RAX,
 };
 
+#ifdef __MINGW64__
+
+static const int tcg_target_call_iarg_regs[4] = {
+    TCG_REG_RDX,
+    TCG_REG_RCX,
+    TCG_REG_R8,
+    TCG_REG_R9,
+};
+
+static const int tcg_target_call_oarg_regs[2] = {
+    TCG_REG_RAX,
+    TCG_REG_RDX
+};
+
+#else
 static const int tcg_target_call_iarg_regs[6] = {
     TCG_REG_RDI,
     TCG_REG_RSI,
@@ -74,6 +89,8 @@ static const int tcg_target_call_oarg_regs[2] = {
     TCG_REG_RAX, 
     TCG_REG_RDX 
 };
+#endif
+
 
 static uint8_t *tb_ret_addr;
 
@@ -93,7 +110,7 @@ static void patch_reloc(uint8_t *code_ptr, int type,
         *(uint32_t *)code_ptr = value;
         break;
     case R_386_PC32:
-        value -= (long)code_ptr;
+        value -= (intptr_t)code_ptr;
         if (value != (int32_t)value)
             tcg_abort();
         *(uint32_t *)code_ptr = value;
@@ -106,7 +123,11 @@ static void patch_reloc(uint8_t *code_ptr, int type,
 /* maximum number of register used for input function arguments */
 static inline int tcg_target_get_call_iarg_regs_count(int flags)
 {
-    return 6;
+#ifdef __MINGW64__
+  return 4;
+#else
+  return 6;
+#endif
 }
 
 /* parse target specific constraints */
@@ -377,9 +398,20 @@ static inline void tcg_out_movi(TCGContext *s, TCGType type,
     }
 }
 
+#ifdef __MINGW64__
+static void tcg_out_subi(TCGContext *s, int reg, tcg_target_long val);
+#endif
+static void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val);
+
 static void tcg_out_goto(TCGContext *s, int call, uint8_t *target)
 {
     int32_t disp;
+
+#ifdef __MINGW64__
+      if (call) {
+        tcg_out_subi(s, TCG_REG_RSP, 32);
+      }
+#endif
 
     disp = target - s->code_ptr - 5;
     if (disp == (target - s->code_ptr - 5)) {
@@ -389,6 +421,13 @@ static void tcg_out_goto(TCGContext *s, int call, uint8_t *target)
         tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_R10, (tcg_target_long) target);
         tcg_out_modrm(s, 0xff, call ? 2 : 4, TCG_REG_R10);
     }
+
+#ifdef __MINGW64__
+    if (call) {
+      tcg_out_addi(s, TCG_REG_RSP, 32);
+    }
+#endif
+
 }
 
 static inline void tcg_out_ld(TCGContext *s, TCGType type, int ret,
@@ -462,6 +501,14 @@ static void tcg_out_addi(TCGContext *s, int reg, tcg_target_long val)
     if (val != 0)
         tgen_arithi64(s, ARITH_ADD, reg, val);
 }
+
+#ifdef __MINGW64__
+static void tcg_out_subi(TCGContext *s, int reg, tcg_target_long val)
+{
+    if (val != 0)
+        tgen_arithi64(s, ARITH_SUB, reg, val);
+}
+#endif
 
 static void tcg_out_jxx(TCGContext *s, int opc, int label_index)
 {
@@ -539,6 +586,8 @@ static void tcg_out_setcond(TCGContext *s, int cond, TCGArg dest,
 
 #include "../../softmmu_defs.h"
 
+#ifndef CONFIG_S2E
+
 static void *qemu_ld_helpers[4] = {
     __ldb_mmu,
     __ldw_mmu,
@@ -552,14 +601,40 @@ static void *qemu_st_helpers[4] = {
     __stl_mmu,
     __stq_mmu,
 };
+#else
+static void *qemu_ld_helpers[4] = {
+    __ldb_mmu_s2e_trace,
+    __ldw_mmu_s2e_trace,
+    __ldl_mmu_s2e_trace,
+    __ldq_mmu_s2e_trace,
+};
+static void *qemu_st_helpers[4] = {
+    __stb_mmu_s2e_trace,
+    __stw_mmu_s2e_trace,
+    __stl_mmu_s2e_trace,
+    __stq_mmu_s2e_trace,
+};
+
 #endif
+#endif
+
+static inline void tcg_out_push(TCGContext *s, int reg);
+static inline void tcg_out_pop(TCGContext *s, int reg);
 
 static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
                             int opc)
 {
-    int addr_reg, data_reg, r0, r1, mem_index, s_bits, bswap, rexw;
+	 /* S2E note: we do not generate inlined fast-path
+	       when compiling with CONFIG_S2E and always revert to
+	       calling external helper. Memory should never be accessed
+	       directly in S2E */
+
+    int addr_reg, data_reg, r0, r1, mem_index, s_bits, rexw;
+#ifndef CONFIG_S2E
+    int bswap;
     int32_t offset;
-#if defined(CONFIG_SOFTMMU)
+#endif
+#if defined(CONFIG_SOFTMMU) && !defined(CONFIG_S2E)
     uint8_t *label1_ptr, *label2_ptr;
 #endif
 
@@ -567,6 +642,13 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     addr_reg = *args++;
     mem_index = *args;
     s_bits = opc & 3;
+
+
+#ifdef __MINGW64__
+    tcg_out_push(s, TCG_REG_RDI);
+    tcg_out_push(s, TCG_REG_RSI);
+#endif
+
 
     r0 = TCG_REG_RDI;
     r1 = TCG_REG_RSI;
@@ -577,6 +659,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     rexw = P_REXW;
 #endif
 #if defined(CONFIG_SOFTMMU)
+#if !defined(CONFIG_S2E)
     /* mov */
     tcg_out_modrm(s, 0x8b | rexw, r1, addr_reg);
 
@@ -606,10 +689,26 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out8(s, 0x70 + JCC_JE);
     label1_ptr = s->code_ptr;
     s->code_ptr++;
+#else
+    /* mov */
+    tcg_out_modrm(s, 0x8b | rexw, r0, addr_reg);
+#endif
 
     /* XXX: move that code at the end of the TB */
+#ifdef __MINGW64__
+    tcg_out_mov(s, TCG_REG_RCX, addr_reg);
+    tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RDX, mem_index);
+#else
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RSI, mem_index);
+#endif
     tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
+
+#ifdef CONFIG_S2E
+    /* mov r14, $env */
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_ulong) &env);
+    /* mov r14, [r14] */
+    tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
+#endif
 
     switch(opc) {
     case 0 | 4:
@@ -642,6 +741,13 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         break;
     }
 
+#ifdef __MINGW64__
+   tcg_out_pop(s, TCG_REG_RSI);
+   tcg_out_pop(s, TCG_REG_RDI);
+   #endif
+
+#if !defined(CONFIG_S2E)
+
     /* jmp label2 */
     tcg_out8(s, 0xeb);
     label2_ptr = s->code_ptr;
@@ -654,6 +760,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     tcg_out_modrm_offset(s, 0x03 | P_REXW, r0, r1, offsetof(CPUTLBEntry, addend) - 
                          offsetof(CPUTLBEntry, addr_read));
     offset = 0;
+#endif
 #else
     if (GUEST_BASE == (int32_t)GUEST_BASE) {
         r0 = addr_reg;
@@ -668,6 +775,8 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_out_modrm(s, 0x01 | P_REXW, addr_reg, r0);
     }
 #endif    
+
+#if !defined(CONFIG_S2E)
 
 #ifdef TARGET_WORDS_BIGENDIAN
     bswap = 1;
@@ -742,18 +851,32 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         tcg_abort();
     }
 
+#ifdef __MINGW64__
+    tcg_out_pop(s, TCG_REG_RSI);
+    tcg_out_pop(s, TCG_REG_RDI);
+#endif
+
 #if defined(CONFIG_SOFTMMU)
     /* label2: */
     *label2_ptr = s->code_ptr - label2_ptr - 1;
+#endif
 #endif
 }
 
 static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
                             int opc)
 {
-    int addr_reg, data_reg, r0, r1, mem_index, s_bits, bswap, rexw;
+	/* S2E note: we do not generate inlined fast-path
+	       when compiling with CONFIG_S2E and always revert to
+	       calling external helper. Memory should never be accessed
+	       directly in S2E */
+
+    int addr_reg, data_reg, r0, r1, mem_index, s_bits, rexw;
+#ifndef CONFIG_S2E
+    int bswap;
     int32_t offset;
-#if defined(CONFIG_SOFTMMU)
+#endif
+#if defined(CONFIG_SOFTMMU) && !defined(CONFIG_S2E)
     uint8_t *label1_ptr, *label2_ptr;
 #endif
 
@@ -762,6 +885,12 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     mem_index = *args;
 
     s_bits = opc;
+
+#ifdef __MINGW64__
+    tcg_out_push(s, TCG_REG_RDI);
+    tcg_out_push(s, TCG_REG_RSI);
+
+#endif
 
     r0 = TCG_REG_RDI;
     r1 = TCG_REG_RSI;
@@ -772,6 +901,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     rexw = P_REXW;
 #endif
 #if defined(CONFIG_SOFTMMU)
+#if !defined(CONFIG_S2E)
     /* mov */
     tcg_out_modrm(s, 0x8b | rexw, r1, addr_reg);
 
@@ -802,7 +932,34 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     label1_ptr = s->code_ptr;
     s->code_ptr++;
 
+#else
+    /* mov */
+    tcg_out_modrm(s, 0x8b | rexw, r0, addr_reg);
+#endif
+
     /* XXX: move that code at the end of the TB */
+#ifdef __MINGW64__
+    tcg_out_modrm(s, 0x8b | rexw, TCG_REG_RCX, addr_reg);
+    switch(opc) {
+    case 0:
+        /* movzbl */
+        tcg_out_modrm(s, 0xb6 | P_EXT | P_REXB, TCG_REG_RDX, data_reg);
+        break;
+    case 1:
+        /* movzwl */
+        tcg_out_modrm(s, 0xb7 | P_EXT, TCG_REG_RDX, data_reg);
+        break;
+    case 2:
+        /* movl */
+        tcg_out_modrm(s, 0x8b, TCG_REG_RDX, data_reg);
+        break;
+    default:
+    case 3:
+        tcg_out_mov(s, TCG_REG_RDX, data_reg);
+        break;
+    }
+    tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_R8, mem_index);
+#else
     switch(opc) {
     case 0:
         /* movzbl */
@@ -822,7 +979,22 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         break;
     }
     tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_RDX, mem_index);
+#endif
     tcg_out_goto(s, 1, qemu_st_helpers[s_bits]);
+
+#ifdef CONFIG_S2E
+    /* mov r14, $env */
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_ulong) &env);
+    /* mov r14, [r14] */
+    tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
+#endif
+
+    #ifdef __MINGW64__
+    tcg_out_pop(s, TCG_REG_RSI);
+    tcg_out_pop(s, TCG_REG_RDI);
+    #endif
+
+#if !defined(CONFIG_S2E)
 
     /* jmp label2 */
     tcg_out8(s, 0xeb);
@@ -836,6 +1008,9 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     tcg_out_modrm_offset(s, 0x03 | P_REXW, r0, r1, offsetof(CPUTLBEntry, addend) - 
                          offsetof(CPUTLBEntry, addr_write));
     offset = 0;
+
+#endif
+
 #else
     if (GUEST_BASE == (int32_t)GUEST_BASE) {
         r0 = addr_reg;
@@ -851,6 +1026,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     }
 #endif
 
+#if !defined(CONFIG_S2E)
 #ifdef TARGET_WORDS_BIGENDIAN
     bswap = 1;
 #else
@@ -897,9 +1073,14 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         tcg_abort();
     }
 
+#ifdef __MINGW64__
+tcg_out_pop(s, TCG_REG_RSI);
+tcg_out_pop(s, TCG_REG_RDI);
+#endif
 #if defined(CONFIG_SOFTMMU)
     /* label2: */
     *label2_ptr = s->code_ptr - label2_ptr - 1;
+#endif
 #endif
 }
 
@@ -934,6 +1115,12 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
         } else {
             tcg_out_modrm(s, 0xff, 2, args[0]);
         }
+#ifdef CONFIG_S2E
+        /* mov r14, $env */
+        tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_ulong) &env);
+        /* mov r14, [r14] */
+        tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
+#endif
         break;
     case INDEX_op_jmp:
         if (const_args[0]) {
@@ -1266,6 +1453,20 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
     }
 }
 
+#ifdef __MINGW64__
+static int tcg_target_callee_save_regs[] = {
+    TCG_REG_RBP,
+    TCG_REG_RBX,
+    TCG_REG_RDI,
+    TCG_REG_RSI,
+    TCG_REG_R12,
+    TCG_REG_R13,
+    /*    TCG_REG_R14, */ /* currently used for the global env, so no
+                             need to save */
+    TCG_REG_R15,
+};
+#else
+
 static int tcg_target_callee_save_regs[] = {
     TCG_REG_RBP,
     TCG_REG_RBX,
@@ -1275,6 +1476,7 @@ static int tcg_target_callee_save_regs[] = {
                              need to save */
     TCG_REG_R15,
 };
+#endif
 
 static inline void tcg_out_push(TCGContext *s, int reg)
 {
@@ -1304,9 +1506,20 @@ void tcg_target_qemu_prologue(TCGContext *s)
         ~(TCG_TARGET_STACK_ALIGN - 1);
     stack_addend = frame_size - push_size;
     tcg_out_addi(s, TCG_REG_RSP, -stack_addend);
+#ifdef CONFIG_S2E
+    /* will TCG_AREG0 */
 
+    /* mov r14, $env */
+    tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_long)&env);
+    /* mov r14, [r14] */
+    tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
+#endif
+
+#ifdef __MINGW64__
+    tcg_out_modrm(s, 0xff, 4, TCG_REG_RCX); /* jmp *%rcx */
+#else
     tcg_out_modrm(s, 0xff, 4, TCG_REG_RDI); /* jmp *%rdi */
-    
+#endif
     /* TB epilogue */
     tb_ret_addr = s->code_ptr;
     tcg_out_addi(s, TCG_REG_RSP, stack_addend);
@@ -1315,6 +1528,42 @@ void tcg_target_qemu_prologue(TCGContext *s)
     }
     tcg_out8(s, 0xc3); /* ret */
 }
+
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+#ifdef __linux__
+#define _S(x) #x
+#else
+#define _S(x) "_" #x
+#endif
+
+#define _D(x) _S(x) "(%rip)"
+
+__asm__(
+    ".text                                              \n"
+    ".globl " _S(tcg_llvm_helper_wrapper) "             \n"
+    ".globl " _S(tcg_llvm_helper_ret) "                 \n"
+    _S(tcg_llvm_helper_wrapper) ":                      \n"
+    "   movq %r14, " _D(tcg_llvm_runtime + 2*8) "       \n" // helper_regs
+    "   movq " _D(saved_AREGs) ", %r14                  \n"
+    "   movq (%rsp), %r11                               \n"
+    "   movq %r11, " _D(tcg_llvm_runtime + 0*8) "       \n" // helper_ret_addr
+    "   leaq " _D(tcg_llvm_helper_ret) ", %r11          \n"
+    "   movq %r11, (%rsp)                               \n"
+    "   movq " _D(tcg_llvm_runtime + 1*8) ", %r11       \n" // helper_call_addr
+    "   jmp *%r11                                       \n"
+    "                                                   \n"
+    _S(tcg_llvm_helper_ret) ":                          \n"
+    "   movq %r14, " _D(saved_AREGs) "                  \n"
+    "   movq " _D(tcg_llvm_runtime + 2*8) ", %r14       \n" // helper_regs
+    "   movq " _D(tcg_llvm_runtime + 0*8) ", %r11       \n" // helper_ret_addr
+    "   jmp *%r11                                       \n"
+);
+
+#undef _S
+#undef _D
+
+#endif
+
 
 static const TCGTargetOpDef x86_64_op_defs[] = {
     { INDEX_op_exit_tb, { } },

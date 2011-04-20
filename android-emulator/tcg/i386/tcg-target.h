@@ -64,6 +64,6 @@ enum {
 #define TCG_AREG1 TCG_REG_EBX
 #define TCG_AREG2 TCG_REG_ESI
 
-static inline void flush_icache_range(unsigned long start, unsigned long stop)
+static inline void flush_icache_range(uintptr_t start, uintptr_t stop)
 {
 }
