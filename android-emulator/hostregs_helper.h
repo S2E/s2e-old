@@ -17,6 +17,19 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 /* The GCC global register variable extension is used to reserve some
    host registers for use by generated code.  However only the core parts of
    the translation engine are compiled with these settings.  We must manually
@@ -34,12 +47,12 @@
 
 #define DO_REG(REG)					\
     __asm__ __volatile__ ("" : "=r" (reg_AREG##REG));	\
-    saved_AREG##REG = reg_AREG##REG;
+    saved_AREGs[REG] = reg_AREG##REG;
 
 #else
 
 #define DO_REG(REG)                                     \
-    reg_AREG##REG = saved_AREG##REG;		        \
+    reg_AREG##REG = saved_AREGs[REG];		        \
     __asm__ __volatile__ ("" : : "r" (reg_AREG##REG));
 
 #endif
