@@ -180,10 +180,23 @@ static int timer_load(QEMUFile *f, void *opaque, int version_id)
 TimersState timers_state;
 
 /* return the host CPU cycle counter and handle stop/restart */
-int64_t cpu_get_ticks(void)
+int64_t cpu_get_ticks(void* env1)
 {
     if (use_icount) {
-        return cpu_get_icount();
+    	CPUState *env = (CPUState*) env1;
+    	#ifdef CONFIG_S2E
+    	        if(env)
+    	            return env->s2e_icount;
+    	        return qemu_icount; /* XXX this is not correct for SMP */
+    	#else
+    	        int64_t icount = qemu_icount;
+    	        if (env) {
+    	            if (!can_do_io(env1))
+    	                fprintf(stderr, "Bad clock read\n");
+    	            icount -= (env->icount_decr.u16.low + env->icount_extra);
+    	        }
+    	        return icount;
+    	#endif
     }
     if (!timers_state.cpu_ticks_enabled) {
         return timers_state.cpu_ticks_offset;
@@ -243,10 +256,15 @@ void cpu_enable_ticks(void)
 void cpu_disable_ticks(void)
 {
     if (timers_state.cpu_ticks_enabled) {
-        timers_state.cpu_ticks_offset = cpu_get_ticks();
+        timers_state.cpu_ticks_offset = cpu_get_ticks(NULL);
         timers_state.cpu_clock_offset = cpu_get_clock();
         timers_state.cpu_ticks_enabled = 0;
     }
+}
+
+void cpu_adjust_clock(int64_t delta)
+{
+    timers_state.cpu_clock_offset += delta;
 }
 
 /***********************************************************/
@@ -409,8 +427,10 @@ static struct qemu_alarm_timer alarm_timers[] = {
      dynticks_stop_timer, dynticks_rearm_timer, NULL},
 #endif
 #else
+#ifndef CONFIG_S2E
     {"dynticks", win32_start_timer,
      win32_stop_timer, win32_rearm_timer, &alarm_win32_data},
+#endif
     {"win32", win32_start_timer,
      win32_stop_timer, NULL, &alarm_win32_data},
 #endif
@@ -588,7 +608,13 @@ int qemu_timer_expired(QEMUTimer *timer_head, int64_t current_time)
 {
     if (!timer_head)
         return 0;
-    return (timer_head->expire_time <= current_time);
+
+    int exp = (timer_head->expire_time <= current_time);
+        /*if (exp) {
+            s2e_debug_print("Timer interrupt icount=%"PRIu64" ct=%"PRIu64" et=%"PRIu64"\n", s2e_get_executed_instructions(),
+                            current_time, timer_head->expire_time);
+        }*/
+        return exp;
 }
 
 static void qemu_run_timers(QEMUClock *clock)
@@ -655,7 +681,11 @@ void init_clocks(void)
     vm_clock = qemu_new_clock(QEMU_CLOCK_VIRTUAL);
     host_clock = qemu_new_clock(QEMU_CLOCK_HOST);
 
-    rtc_clock = host_clock;
+    //#ifdef CONFIG_S2E
+        rtc_clock = vm_clock;
+    //#else
+    //    rtc_clock = host_clock;
+    //#endif
 }
 
 /* save a timer */
@@ -1105,7 +1135,7 @@ static int win32_start_timer(struct qemu_alarm_timer *t)
     data->timerId = timeSetEvent(1,         // interval (ms)
                         data->period,       // resolution
                         host_alarm_handler, // function
-                        (DWORD)t,           // parameter
+                        (DWORD_PTR)t,           // parameter
                         flags);
 
     if (!data->timerId) {
@@ -1141,7 +1171,7 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t)
     data->timerId = timeSetEvent(1,
                         data->period,
                         host_alarm_handler,
-                        (DWORD)t,
+                        (DWORD_PTR)t,
                         TIME_ONESHOT | TIME_CALLBACK_FUNCTION);
 
     if (!data->timerId) {
@@ -1244,9 +1274,20 @@ int qemu_calculate_timeout(void)
                 add = 10000000;
             delta += add;
             qemu_icount += qemu_icount_round (add);
+#ifdef CONFIG_S2E
+            CPUState *env;
+            for (env = first_cpu; env != NULL; env = env->next_cpu) {
+                env->s2e_icount += add;
+                env->s2e_icount_after_tb += add;
+            }
+
+            /* For S2E we do not emulate the real timeout */
+            timeout = 0;
+#else
             timeout = delta / 1000000;
             if (timeout < 0)
                 timeout = 0;
+#endif
         }
     }
 
@@ -1264,10 +1305,20 @@ int64_t cpu_get_icount(void)
 
     icount = qemu_icount;
     if (env) {
+
+#ifdef CONFIG_S2E
+        /* XXX: this is wrong on SMP */
+        icount = env->s2e_icount;
+#else
+
         if (!can_do_io(env)) {
             fprintf(stderr, "Bad clock read\n");
         }
         icount -= (env->icount_decr.u16.low + env->icount_extra);
+
+        //assert(!env || icount == env->s2e_icount);
+#endif
+
     }
     return qemu_icount_bias + (icount << icount_time_shift);
 }

@@ -22,6 +22,19 @@
  * THE SOFTWARE.
  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 /* the following is needed on Linux to define ptsname() in stdlib.h */
 #if defined(__linux__)
 #define _GNU_SOURCE 1
@@ -33,6 +46,7 @@
 #include "hw/usb.h"
 #include "hw/pcmcia.h"
 #include "hw/pc.h"
+#include "hw/pci.h" //S2E
 #include "hw/audiodev.h"
 #include "hw/isa.h"
 #include "hw/baum.h"
@@ -234,6 +248,16 @@ extern void  android_emulator_set_base_port(int  port);
 extern const char* s2e_output_dir;
 #endif
 
+
+#ifdef CONFIG_LLVM
+#include <tcg-llvm.h>
+#endif
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
+
 #define DEFAULT_RAM_SIZE 128
 
 /* Max number of USB devices that can be specified on the commandline.  */
@@ -299,7 +323,7 @@ int singlestep = 0;
 int smp_cpus = 1;
 const char *vnc_display;
 int acpi_enabled = 1;
-int no_hpet = 0;
+int no_hpet = 1;
 int no_virtio_balloon = 0;
 int fd_bootchk = 1;
 int no_reboot = 0;
@@ -415,6 +439,11 @@ static int rotate_logs_requested = 0;
 const char* savevm_on_exit = NULL;
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
+
+
+#if !defined(CONFIG_S2E)
+fake_pci_t g_fake_pci;
+#endif
 
 /* Reports the core initialization failure to the error stdout and to the UI
  * socket before exiting the application.
@@ -729,6 +758,27 @@ void sigint_handler(int sig)
   qemu_notify_event();
 }
 #endif /* CONFIG_TRACE */
+
+
+#ifdef CONFIG_S2E
+static void s2e_cleanup(void)
+{
+    if(g_s2e) {
+        s2e_close(g_s2e);
+        g_s2e = NULL;
+    }
+}
+#endif
+
+#ifdef CONFIG_LLVM
+static void tcg_llvm_cleanup(void)
+{
+    if(tcg_llvm_ctx) {
+        tcg_llvm_close(tcg_llvm_ctx);
+        tcg_llvm_ctx = NULL;
+    }
+}
+#endif
 
 
 /***********************************************************/
@@ -2022,6 +2072,13 @@ static int ram_save_block(QEMUFile *f)
 
             p = qemu_get_ram_ptr(current_addr);
 
+#ifdef CONFIG_S2E
+            uint8_t buf[TARGET_PAGE_SIZE];
+            s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) p,
+                                  buf, TARGET_PAGE_SIZE);
+            p = buf;
+#endif
+
             if (is_dup_page(p, *p)) {
                 qemu_put_be64(f, current_addr | RAM_SAVE_FLAG_COMPRESS);
                 qemu_put_byte(f, *p);
@@ -2195,9 +2252,25 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 
         if (flags & RAM_SAVE_FLAG_COMPRESS) {
             uint8_t ch = qemu_get_byte(f);
+#ifndef CONFIG_S2E
             memset(qemu_get_ram_ptr(addr), ch, TARGET_PAGE_SIZE);
+#else
+            int i;
+            uint64_t vaddr = (uint64_t) qemu_get_ram_ptr(addr);
+            for(i = 0; i < TARGET_PAGE_SIZE; i++)
+                s2e_write_ram_concrete(g_s2e, g_s2e_state, vaddr+i, &ch, 1);
+#endif
         } else if (flags & RAM_SAVE_FLAG_PAGE)
+#ifndef CONFIG_S2E
             qemu_get_buffer(f, qemu_get_ram_ptr(addr), TARGET_PAGE_SIZE);
+#else
+            uint8_t buf[TARGET_PAGE_SIZE];
+            qemu_get_buffer(f, buf, TARGET_PAGE_SIZE);
+
+            s2e_write_ram_concrete(g_s2e, g_s2e_state,
+                                   (uint64_t) qemu_get_ram_ptr(addr),
+                                   buf, TARGET_PAGE_SIZE);
+#endif
     } while (!(flags & RAM_SAVE_FLAG_EOS));
 
     return 0;
@@ -3052,6 +3125,9 @@ static int qemu_cpu_exec(CPUState *env)
     ti = profile_getclock();
 #endif
     if (use_icount) {
+#ifdef CONFIG_S2E
+        assert(qemu_icount == env->s2e_icount);
+#endif
         int64_t count;
         int decr;
         qemu_icount -= (env->icount_decr.u16.low + env->icount_extra);
@@ -3086,6 +3162,9 @@ static int qemu_cpu_exec(CPUState *env)
                         + env->icount_extra);
         env->icount_decr.u32 = 0;
         env->icount_extra = 0;
+#ifdef CONFIG_S2E
+        assert(qemu_icount == env->s2e_icount);
+#endif
     }
     return ret;
 }
@@ -3164,6 +3243,9 @@ static void main_loop(void)
 #ifdef CONFIG_PROFILER
             int64_t ti;
 #endif
+            /*#ifdef CONFIG_S2E
+                        g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
+            #endif*/
 #ifndef CONFIG_IOTHREAD
             tcg_cpu_exec();
 #endif
@@ -3635,6 +3717,10 @@ char *qemu_find_file(int type, const char *name)
         return strdup(name);
     }
     switch (type) {
+    case QEMU_FILE_TYPE_LIB:
+        /* XXX: Terrible hack. Redo it after deadline! */
+        subdir="../i386-s2e-softmmu/";
+        break;
     case QEMU_FILE_TYPE_BIOS:
         subdir = "";
         break;
@@ -3647,6 +3733,7 @@ char *qemu_find_file(int type, const char *name)
     len = strlen(data_dir) + strlen(name) + strlen(subdir) + 2;
     buf = qemu_mallocz(len);
     snprintf(buf, len, "%s/%s%s", data_dir, subdir, name);
+    printf("%s\n", buf);
     if (access(buf, R_OK)) {
         qemu_free(buf);
         return NULL;
@@ -3931,6 +4018,14 @@ int main(int argc, char **argv, char **envp)
     const char *loadvm = NULL;
     QEMUMachine *machine;
     const char *cpu_model;
+
+#ifdef CONFIG_S2E
+    const char *s2e_config_file = NULL;
+    const char *s2e_output_dir = NULL;
+    int execute_always_klee = 0;
+    int s2e_verbose = 0;
+#endif
+
     const char *usb_devices[MAX_USB_CMDLINE];
     int usb_devices_index;
 #ifndef _WIN32
@@ -3963,6 +4058,7 @@ int main(int argc, char **argv, char **envp)
     qemu_cache_utils_init(envp);
 
     QLIST_INIT (&vm_change_state_head);
+
 #ifndef _WIN32
     {
         struct sigaction act;
@@ -3977,10 +4073,10 @@ int main(int argc, char **argv, char **envp)
        QEMU to run on a single CPU */
     {
         HANDLE h;
-        DWORD mask, smask;
+        DWORD_PTR mask, smask;
         int i;
         h = GetCurrentProcess();
-        if (GetProcessAffinityMask(h, &mask, &smask)) {
+        if (GetProcessAffinityMask(h, (PDWORD_PTR)&mask, (PDWORD_PTR)&smask)) {
             for(i = 0; i < 32; i++) {
                 if (mask & (1 << i))
                     break;
@@ -4110,19 +4206,68 @@ int main(int argc, char **argv, char **envp)
                     cpu_model = optarg;
                 }
                 break;
-#ifdef CONFIG_LLVM
-            case QEMU_OPTION_s2e_genllvm:
-            	generate_llvm = 1;
-            	break;
-            case QEMU_OPTION_s2e_llvm:
-            	generate_llvm = 1;
-            	execute_llvm = 1;
-            	break;
-#endif
 #ifdef CONFIG_S2E
-            case QEMU_OPTION_s2e_confdir:
-            	s2e_output_dir = optarg;
-            	break;
+            case QEMU_OPTION_s2e_config_file:
+              s2e_config_file = optarg;
+              break;
+            case QEMU_OPTION_s2e_output_dir:
+              s2e_output_dir = optarg;
+              break;
+#else
+            case QEMU_OPTION_fake_pci_name:
+              g_fake_pci.fake_pci_name = optarg;
+              break;
+            case QEMU_OPTION_fake_pci_vendor_id:
+              g_fake_pci.fake_pci_vendor_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_device_id:
+              g_fake_pci.fake_pci_device_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_revision_id:
+              g_fake_pci.fake_pci_revision_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_class_code:
+              g_fake_pci.fake_pci_class_code = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_ss_vendor_id:
+              g_fake_pci.fake_pci_ss_vendor_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_ss_id:
+              g_fake_pci.fake_pci_ss_id = strtol(optarg, NULL, 0);
+              break;
+            case QEMU_OPTION_fake_pci_resource_io:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_BASE_ADDRESS_SPACE_IO, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_mem:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_BASE_ADDRESS_SPACE_MEMORY, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_mem_prefetch:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_BASE_ADDRESS_MEM_PREFETCH, NULL };
+                if (g_fake_pci.fake_pci_num_resources < PCI_NUM_REGIONS)
+                  g_fake_pci.fake_pci_resources[g_fake_pci.fake_pci_num_resources++] = region;
+              }
+              break;
+            case QEMU_OPTION_fake_pci_resource_rom:
+              {
+                PCIIORegion region =
+                  { -1, strtol(optarg, NULL, 0), 0, PCI_ROM_ADDRESS, NULL };
+                g_fake_pci.fake_pci_num_resources = PCI_NUM_REGIONS;
+                g_fake_pci.fake_pci_resources[PCI_ROM_SLOT] = region;
+              }
+              break;
+
 #endif
             case QEMU_OPTION_initrd:
                 initrd_filename = optarg;
@@ -4572,7 +4717,7 @@ int main(int argc, char **argv, char **envp)
                 acpi_enabled = 0;
                 break;
             case QEMU_OPTION_no_hpet:
-                no_hpet = 1;
+                no_hpet = 0;
                 break;
             case QEMU_OPTION_no_virtio_balloon:
                 no_virtio_balloon = 1;
@@ -4782,6 +4927,24 @@ int main(int argc, char **argv, char **envp)
                 break;
 #endif
 
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+            case QEMU_OPTION_execute_llvm:
+                generate_llvm = 1;
+                execute_llvm = 1;
+                break;
+            case QEMU_OPTION_generate_llvm:
+                generate_llvm = 1;
+                break;
+#endif
+#ifdef CONFIG_S2E
+            case QEMU_OPTION_always_klee:
+                execute_always_klee = 1;
+                break;
+            case QEMU_OPTION_s2e_verbose:
+                s2e_verbose = 1;
+                break;
+#endif
+
 
             case QEMU_OPTION_mic:
                 audio_input_source = (char*)optarg;
@@ -4961,6 +5124,25 @@ int main(int argc, char **argv, char **envp)
     if (!data_dir) {
         data_dir = CONFIG_QEMU_SHAREDIR;
     }
+
+#ifdef CONFIG_LLVM
+    tcg_llvm_ctx = tcg_llvm_initialize();
+#endif
+
+#ifdef CONFIG_S2E
+    if (!s2e_config_file) {
+      fprintf(stderr, "Warning: S2E configuration file was not specified, "
+                        "using the default (empty) file\n");
+    }
+    g_s2e = s2e_initialize(argc, argv, tcg_llvm_ctx,
+                           s2e_config_file, s2e_output_dir,
+                           s2e_verbose);
+
+    g_s2e_state = s2e_create_initial_state(g_s2e);
+
+    atexit(s2e_cleanup);
+    //atexit(tcg_llvm_cleanup);
+#endif
 
     if (!android_op_hwini) {
         PANIC("Missing -android-hw <file> option!");
@@ -5621,6 +5803,14 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+
+#ifdef CONFIG_S2E
+    s2e_on_device_registration(g_s2e);
+#else
+    void fake_register_devices(fake_pci_t *fake);
+    fake_register_devices(&g_fake_pci);
+#endif
+
     module_call_init(MODULE_INIT_DEVICE);
 
 
@@ -5827,6 +6017,11 @@ int main(int argc, char **argv, char **envp)
     if (loadvm)
         do_loadvm(cur_mon, loadvm);
 
+#ifdef CONFIG_S2E
+   s2e_init_device_state(g_s2e_state);
+   s2e_init_timers(g_s2e);
+#endif
+
     if (incoming) {
         autostart = 0; /* fixme how to deal with -daemonize */
         qemu_start_incoming_migration(incoming);
@@ -5896,6 +6091,23 @@ int main(int argc, char **argv, char **envp)
     }
 #endif
 
+#ifdef CONFIG_S2E
+    /** Normal memory was registered by pc.c. Here we want to
+        register all other memory as a shared concrete memory */
+    /*
+    ram_addr_t addr;
+    for(addr = 0; addr < last_ram_offset; addr += TARGET_PAGE_SIZE) {
+        uint64_t host_address = (uint64_t) qemu_get_ram_ptr(addr);
+        if(!s2e_is_ram_registered(g_s2e, g_s2e_state, host_address)) {
+            s2e_register_ram(g_s2e, g_s2e_state, addr, TARGET_PAGE_SIZE,
+                             host_address, 1);
+        }
+    }
+    */
+    s2e_initialize_execution(g_s2e, g_s2e_state, execute_always_klee);
+    s2e_register_dirty_mask(g_s2e, g_s2e_state, (uint64_t)phys_ram_dirty, last_ram_offset >> TARGET_PAGE_BITS);
+#endif
+
 #ifdef CONFIG_ANDROID
     // This will notify the UI that the core is successfuly initialized
     android_core_init_completed();
@@ -5905,6 +6117,15 @@ int main(int argc, char **argv, char **envp)
     quit_timers();
     net_cleanup();
     android_emulation_teardown();
+
+#ifdef CONFIG_S2E
+    s2e_cleanup();
+#endif
+
+#ifdef CONFIG_LLVM
+    tcg_llvm_cleanup();
+#endif
+
     return 0;
 }
 
