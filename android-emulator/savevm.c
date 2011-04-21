@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -31,6 +45,10 @@
 
 /* Needed early for CONFIG_BSD etc. */
 #include "config-host.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
 
 #ifndef _WIN32
 #include <sys/times.h>
@@ -457,6 +475,14 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
 {
     int l;
 
+#ifdef CONFIG_S2E
+    if (s2e_dev_snapshot_enable) {
+        assert(!f);
+        s2e_qemu_put_buffer(g_s2e_state, buf, size);
+        return;
+    }
+#endif
+
     if (!f->has_error && f->is_write == 0 && f->buf_index > 0) {
         fprintf(stderr,
                 "Attempted to write to buffer while read buffer is not empty\n");
@@ -479,6 +505,15 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
 
 void qemu_put_byte(QEMUFile *f, int v)
 {
+
+#ifdef CONFIG_S2E
+    if (s2e_dev_snapshot_enable) {
+        assert(!f);
+        s2e_qemu_put_byte(g_s2e_state, v);
+        return;
+    }
+#endif
+
     if (!f->has_error && f->is_write == 0 && f->buf_index > 0) {
         fprintf(stderr,
                 "Attempted to write to buffer while read buffer is not empty\n");
@@ -494,6 +529,13 @@ void qemu_put_byte(QEMUFile *f, int v)
 int qemu_get_buffer(QEMUFile *f, uint8_t *buf, int size1)
 {
     int size, l;
+
+#ifdef CONFIG_S2E
+    if (s2e_dev_snapshot_enable) {
+        assert(!f);
+        return s2e_qemu_get_buffer(g_s2e_state, buf, size1);
+    }
+#endif
 
     if (f->is_write)
         abort();
@@ -519,6 +561,13 @@ int qemu_get_buffer(QEMUFile *f, uint8_t *buf, int size1)
 
 int qemu_get_byte(QEMUFile *f)
 {
+#ifdef CONFIG_S2E
+    if (s2e_dev_snapshot_enable) {
+        assert(!f);
+        return s2e_qemu_get_byte(g_s2e_state);
+    }
+#endif
+
     if (f->is_write)
         abort();
 
@@ -972,6 +1021,38 @@ typedef struct LoadStateEntry {
     int version_id;
     struct LoadStateEntry *next;
 } LoadStateEntry;
+
+#ifdef CONFIG_S2E
+
+void *s2e_qemu_get_first_se(void)
+{
+    return savevm_handlers.tqh_first;
+}
+
+void *s2e_qemu_get_next_se(void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    return sse->entry.tqe_next;
+}
+
+const char *s2e_qemu_get_se_idstr(void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    return sse->idstr;
+}
+
+void s2e_qemu_save_state(void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    vmstate_save(NULL, sse);
+}
+
+void s2e_qemu_load_state(void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    vmstate_load(NULL, sse, sse->version_id);
+}
+#endif
 
 static int qemu_loadvm_state_v2(QEMUFile *f)
 {

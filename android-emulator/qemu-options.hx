@@ -24,6 +24,48 @@ STEXI
 Display version information and exit
 ETEXI
 
+#ifdef CONFIG_S2E
+DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
+    "s2e-config-file file      Path to S2E configuration file\n")
+DEF("s2e-output-dir", HAS_ARG, QEMU_OPTION_s2e_output_dir,
+    "s2e-output-dir dir        Path to S2E output directory\n")
+#else
+DEF("fake-pci-name", HAS_ARG, QEMU_OPTION_fake_pci_name,
+    "fake-pci-name name        Name of the fake PCI device (used in snapshots)\n")
+
+DEF("fake-pci-vendor-id", HAS_ARG, QEMU_OPTION_fake_pci_vendor_id,
+    "fake-pci-vendor-id vendorid        Vendor ID\n")
+
+DEF("fake-pci-device-id", HAS_ARG, QEMU_OPTION_fake_pci_device_id,
+    "fake-pci-device-id deviceid        Device ID\n")
+
+DEF("fake-pci-revision-id", HAS_ARG, QEMU_OPTION_fake_pci_revision_id,
+    "fake-pci-revision-id revision        Revision ID\n")
+
+DEF("fake-pci-class-code", HAS_ARG, QEMU_OPTION_fake_pci_class_code,
+    "fake-pci-class-code code         Class code\n")
+
+DEF("fake-pci-ss-vendor-id", HAS_ARG, QEMU_OPTION_fake_pci_ss_vendor_id,
+    "fake-pci-ss-vendor-id vendorid       SS Vendor ID\n")
+
+DEF("fake-pci-ss-id", HAS_ARG, QEMU_OPTION_fake_pci_ss_id,
+    "fake-pci-ss-id ssid       SS ID\n")
+
+DEF("fake-pci-resource-io", HAS_ARG, QEMU_OPTION_fake_pci_resource_io,
+    "fake-pci-resource-io size  Size of the port range\n")
+
+DEF("fake-pci-resource-mem", HAS_ARG, QEMU_OPTION_fake_pci_resource_mem,
+    "fake-pci-resource-mem size  Size of the memory range\n")
+
+DEF("fake-pci-resource-mem-prefetch", HAS_ARG, QEMU_OPTION_fake_pci_resource_mem_prefetch,
+    "fake-pci-resource-mem-prefetch size  Size of the memory range\n")
+
+DEF("fake-pci-resource-rom", HAS_ARG, QEMU_OPTION_fake_pci_resource_rom,
+    "fake-pci-resource-rom\n")
+
+
+#endif
+
 DEF("M", HAS_ARG, QEMU_OPTION_M,
     "-M machine      select emulated machine (-M ? for list)\n")
 STEXI
@@ -1812,3 +1854,16 @@ DEF("snapshot-no-time-update", 0, QEMU_OPTION_snapshot_no_time_update, \
     "-snapshot-no-time-update Disable time update when restoring snapshots\n")
 
 #endif /* ANDROID */
+#if defined(CONFIG_LLVM)
+#if defined(CONFIG_S2E)
+DEF("s2e-verbose", 0, QEMU_OPTION_s2e_verbose,
+    "-s2e-verbose    show more information during execution\n")
+DEF("always-klee", 0, QEMU_OPTION_always_klee,
+    "-always-klee    execute everything using KLEE interpreter\n")
+#else
+DEF("llvm", 0, QEMU_OPTION_execute_llvm,
+    "-llvm           execute code using LLVM JIT\n")
+DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
+    "-generate-llvm  translate code into LLVM but don't execute it\n")
+#endif
+#endif

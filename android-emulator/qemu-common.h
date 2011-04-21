@@ -2,6 +2,8 @@
 #ifndef QEMU_COMMON_H
 #define QEMU_COMMON_H
 
+#define WINDOW_TITLE "S2E"
+
 #include "config-host.h"
 
 #define QEMU_NORETURN __attribute__ ((__noreturn__))
