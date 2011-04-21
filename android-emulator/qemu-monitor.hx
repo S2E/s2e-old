@@ -96,6 +96,26 @@ show device tree
 @end table
 ETEXI
 
+#ifdef CONFIG_S2E
+
+    {
+        .name       = "s2e",
+        .args_type  = "command:s",
+        .params     = "command",
+        .help       = "Execute an S2E command",
+        .mhandler.cmd_new = do_s2e,
+        .mhandler.info = NULL,
+        .mhandler.info_new = NULL,
+        .mhandler.cmd = NULL,
+    },
+
+STEXI
+@item s2e @var{command}
+Execute the specified S2E command
+ETEXI
+
+#endif
+
     { "q|quit", "", do_quit,
       "", "quit the emulator" },
 STEXI
