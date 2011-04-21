@@ -1,3 +1,16 @@
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #ifndef SYSEMU_H
 #define SYSEMU_H
 /* Misc. things related to the system emulator.  */
@@ -19,6 +32,7 @@ extern const char *bios_name;
 
 #define QEMU_FILE_TYPE_BIOS   0
 #define QEMU_FILE_TYPE_KEYMAP 1
+#define QEMU_FILE_TYPE_LIB    3
 char *qemu_find_file(int type, const char *name);
 
 extern int vm_running;
@@ -41,9 +55,22 @@ uint64_t ram_bytes_remaining(void);
 uint64_t ram_bytes_transferred(void);
 uint64_t ram_bytes_total(void);
 
+int64_t get_clock(void);
+
+typedef struct TimersState {
+    int64_t cpu_ticks_prev;
+    int64_t cpu_ticks_offset;
+    int64_t cpu_clock_offset;
+    int32_t cpu_ticks_enabled;
+    int64_t dummy;
+} TimersState;
+
+extern TimersState timers_state;
+
 int64_t cpu_get_ticks(void);
 void cpu_enable_ticks(void);
 void cpu_disable_ticks(void);
+void cpu_adjust_clock(int64_t delta);
 
 void qemu_system_reset_request(void);
 void qemu_system_shutdown_request(void);
