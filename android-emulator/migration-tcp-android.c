@@ -125,7 +125,7 @@ MigrationState *tcp_start_outgoing_migration(const char *host_port,
 static void tcp_accept_incoming_migration(void *opaque)
 {
     SockAddress  addr;
-    int s = (unsigned long)opaque;
+    uintptr_t s = (uintptr_t)opaque;
     QEMUFile *f;
     int c, ret;
 
@@ -187,7 +187,7 @@ int tcp_start_incoming_migration(const char *host_port)
         goto err;
 
     qemu_set_fd_handler2(s, NULL, tcp_accept_incoming_migration, NULL,
-                         (void *)(unsigned long)s);
+                         (void *)(uintptr_t)s);
 
     return 0;
 
