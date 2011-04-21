@@ -55,6 +55,19 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, see <http://www.gnu.org/licenses/>.  */
 
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 /* The SystemV/386 SVR3.2 assembler, and probably all AT&T derived
    ix86 Unix assemblers, generate floating point instructions with
    reversed source and destination registers in certain cases.
@@ -145,7 +158,7 @@
 #define MAX_MEMORY_OPERANDS 2
 
 /* max size of insn mnemonics.  */
-#define MAX_MNEM_SIZE 16
+#define MAX_MNEM_SIZE 18
 
 /* max size of register name in insn mnemonics.  */
 #define MAX_REG_NAME_SIZE 8
@@ -180,6 +193,9 @@ static void OP_REG (int, int);
 static void OP_IMREG (int, int);
 static void OP_I (int, int);
 static void OP_I64 (int, int);
+#ifdef CONFIG_S2E
+static void OP_I64q (int, int);
+#endif
 static void OP_sI (int, int);
 static void OP_J (int, int);
 static void OP_SEG (int, int);
@@ -1089,7 +1105,11 @@ static const struct dis386 dis386_twobyte[] = {
   { "(bad)",		{ XX } },
   { "(bad)",		{ XX } },
   { "(bad)",		{ XX } },
+#ifdef CONFIG_S2E
+  { "s2e_op",		{ { OP_I64q, 0} } },
+#else
   { "(bad)",		{ XX } },
+#endif
   /* 40 */
   { "cmovo",		{ Gv, Ev } },
   { "cmovno",		{ Gv, Ev } },
@@ -5523,6 +5543,19 @@ OP_I64 (int bytemode, int sizeflag)
   oappend (scratchbuf + intel_syntax);
   scratchbuf[0] = '\0';
 }
+
+#ifdef CONFIG_S2E
+static void
+OP_I64q (int bytemode, int sizeflag)
+{
+  bfd_signed_vma op;
+  op = get64();
+  scratchbuf[0] = '$';
+  print_operand_value (scratchbuf + 1, sizeof(scratchbuf) - 1, 1, op);
+  oappend (scratchbuf + intel_syntax);
+  scratchbuf[0] = '\0';
+}
+#endif
 
 static void
 OP_sI (int bytemode, int sizeflag)
