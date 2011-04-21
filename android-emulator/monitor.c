@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include <dirent.h>
 #include "hw/hw.h"
 #include "hw/qdev.h"
@@ -44,6 +58,11 @@
 #include "migration.h"
 #include "kvm.h"
 #include "acl.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 
 //#define DEBUG
 //#define DEBUG_COMPLETION
@@ -140,7 +159,7 @@ int monitor_cur_is_qmp(void)
 
 static void monitor_read_command(Monitor *mon, int show_prompt)
 {
-    readline_start(mon->rs, "(qemu) ", 0, monitor_command_cb, NULL);
+    readline_start(mon->rs, "(qemu-android) ", 0, monitor_command_cb, NULL);
     if (show_prompt)
         readline_show_prompt(mon->rs);
 }
@@ -312,6 +331,31 @@ static void do_info(Monitor *mon, const char *item)
     handler = cmd->handler;
     handler(mon);
 }
+
+#ifdef CONFIG_S2E
+static void do_s2e(Monitor *mon, const QDict *params, QObject **ret_data)
+{
+    const char *command = qdict_get_try_str(params, "command");
+    if (!command) {
+        assert(monitor_ctrl_mode(mon) == 0);
+        goto help;
+    }
+
+    monitor_printf(mon, "Executing S2E command %s\n", command);
+
+    s2e_execute_cmd(command);
+
+    return;
+
+    help:
+        help_cmd(mon, "info");
+}
+
+static void do_s2e_info(Monitor *mon)
+{
+    monitor_printf(mon, "Execute S2E command\n");
+}
+#endif
 
 static void do_info_version(Monitor *mon)
 {
@@ -1656,6 +1700,15 @@ static const mon_cmd_t mon_cmds[] = {
 
 /* Please update qemu-monitor.hx when adding or changing commands */
 static const mon_cmd_t info_cmds[] = {
+#ifdef CONFIG_S2E
+    {
+        .name       = "s2e",
+        .args_type  = "command:s",
+        .params     = "command",
+        .help       = "Execute an S2E command",
+        .mhandler.info = do_s2e_info,
+    },
+#endif
     { "version", "", do_info_version,
       "", "show the version of QEMU" },
     { "network", "", do_info_network,
@@ -1759,6 +1812,15 @@ static target_long monitor_get_pc (const struct MonitorDef *md, int val)
         return 0;
     return env->eip + env->segs[R_CS].base;
 }
+
+static target_long monitor_get_eflags (const struct MonitorDef *md, int val)
+{
+    CPUState *env = mon_get_cpu();
+    if (!env)
+        return 0;
+    return cpu_get_eflags_dirty(env);
+}
+
 #endif
 
 #if defined(TARGET_PPC)
@@ -1865,7 +1927,8 @@ static const MonitorDef monitor_defs[] = {
     { "r14", offsetof(CPUState, regs[14]) },
     { "r15", offsetof(CPUState, regs[15]) },
 #endif
-    { "eflags", offsetof(CPUState, eflags) },
+    //{ "eflags", offsetof(CPUState, eflags) },
+    { "eflags", 0, monitor_get_eflags, },
     { "eip", offsetof(CPUState, eip) },
     SEG("cs", R_CS)
     SEG("ds", R_DS)
