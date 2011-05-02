@@ -29,7 +29,7 @@ This is more involved and may take 1-2 hours depending on the speed of your mach
 2. Download the `s2e-toolchain-archive.zip` file.
 3. Decompress it to `c:\\s2e-archive`
 4. Decompress `c:\\s2e-archive\\msysCORE-1.0.11-bin.tar.gz` to `c:\\s2e-toolchain`.
-5. Launch MSYS by running c:\\s2e-archive\\msys.bat
+5. Launch MSYS by running c:\\s2e-toolchain\\msys.bat
 6. Run the following commands:
 
 ::
