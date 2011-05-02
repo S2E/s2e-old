@@ -3,9 +3,10 @@ Building the S2E Platform on Windows
 ====================================
 
 In this document, we explain how to build S2E for Windows XP x64.
-Windows Vista and 7 may work but were not tested. 
+Windows Vista and 7 may work but were not tested.
 
 All the files can be found on the `S2E web site <https://s2e.epfl.ch/projects/s2e/files>`_.
+
 
 Installing the Toolchain the Fast Way
 =====================================
@@ -62,6 +63,9 @@ Go to the "Compiling S2E" section.
 
 Compiling S2E
 =============
+
+*Warning:* Make sure you setup your environment (git and code editors) to use Linux line endings.
+Windows line endings may cause the build to fail, especially during the configuration phase.
 
 In the MSYS console, run the following commands:
 
