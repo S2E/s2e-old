@@ -61,8 +61,21 @@ public:
     Binary(BFDInterface *bfd);
 
     static bool isValid(llvm::MemoryBuffer *file);
+
     virtual const Imports &getImports() const = 0;
+
     virtual const RelocationEntries &getRelocations() const = 0;
+
+    /**
+     * Read the contents at virtual address va
+     */
+    bool read(uint64_t va, void *dest, unsigned size) const;
+
+    /**
+     * Write the contents to virtual address va
+     */
+    bool write(uint64_t va, void *source, unsigned size);
+
 protected:
     virtual BFDInterface* getBfd() const{
         return m_bfd;

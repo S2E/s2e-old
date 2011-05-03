@@ -42,4 +42,15 @@ Binary::Binary(BFDInterface *bfd)
 {
     m_bfd = bfd;
 }
+
+bool Binary::read(uint64_t va, void *dest, unsigned size) const
+{
+    return m_bfd->read(va, dest, size);
+}
+
+bool Binary::write(uint64_t va, void *source, unsigned size)
+{
+    return m_bfd->write(va, source, size);
+}
+
 }
