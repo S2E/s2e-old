@@ -7,6 +7,7 @@
 LEVEL=../..
 LIBRARYNAME = X86Translator
 USEDLIBS = executiontracer.a binaryreaders.a
+PARALLEL_DIRS=X86BitcodeLibrary
 NO_PEDANTIC=1
 
 SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
