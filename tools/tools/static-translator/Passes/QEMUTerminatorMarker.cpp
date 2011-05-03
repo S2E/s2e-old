@@ -120,11 +120,11 @@ void QEMUTerminatorMarker::markReturn(CallInst *Ci)
 void QEMUTerminatorMarker::findReturnInstructions(Function &F, Instructions &Result)
 {
   foreach(bbit, F.begin(), F.end()) {
-    foreach(iit, bbit->begin(), bbit->end()) {
-      if (iit->getOpcode() == Instruction::Ret) {
-        Result.push_back(&*iit);
+      BasicBlock &bb = *bbit;
+      TerminatorInst  *term = bb.getTerminator();
+      if (term->getOpcode() == Instruction::Ret) {
+          Result.push_back(term);
       }
-    }
   }
 }
 
