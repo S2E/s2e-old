@@ -1,0 +1,28 @@
+//#define CONFIG_QEMU_SHAREDIR "/Users/vitaly/S2E/qemu-0.12.2/share/qemu"
+#define HOST_X86_64 1
+#define CONFIG_DEBUG_TCG 1
+#define CONFIG_DEBUG_EXEC 1
+#define HOST_LONG_BITS 64
+#define CONFIG_POSIX 1
+#define CONFIG_DARWIN 1
+#define CONFIG_SLIRP 1
+#define CONFIG_AC97 1
+#define CONFIG_ES1370 1
+#define CONFIG_SB16 1
+#define CONFIG_AUDIO_DRIVERS \
+    &coreaudio_audio_driver,\
+
+#define CONFIG_COREAUDIO 1
+#define CONFIG_BDRV_WHITELIST \
+    NULL
+#define CONFIG_FNMATCH 1
+#define QEMU_VERSION "0.12.2"
+#define QEMU_PKGVERSION ""
+#define CONFIG_COCOA 1
+#define CONFIG_LLVM 1
+#define CONFIG_IOVEC 1
+#define CONFIG_GCC_ATTRIBUTE_WARN_UNUSED_RESULT 1
+#define CONFIG_FDATASYNC 1
+#define CONFIG_BSD 1
+#define CONFIG_UNAME_RELEASE ""
+#define CONFIG_ZERO_MALLOC 1
