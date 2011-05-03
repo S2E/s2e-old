@@ -84,6 +84,10 @@ Translator::Translator(const llvm::sys::Path &bitcodeLibrary) {
     m_binary = NULL;
 
     if (!s_translatorInited) {
+        cpu_gen_init();
+        tcg_llvm_ctx = tcg_llvm_initialize();
+
+
         //Link in the helper bitcode file
         Linker linker("translator", tcg_llvm_ctx->getModule(), false);
         bool native = false;
@@ -95,12 +99,11 @@ Translator::Translator(const llvm::sys::Path &bitcodeLibrary) {
             return;
         }
 
-        linker.releaseModule();
-
-        cpu_gen_init();
-        tcg_llvm_ctx = tcg_llvm_initialize();
         optimize_flags_init();
         tcg_llvm_ctx->initializeHelpers();
+
+        linker.releaseModule();
+        s_translatorInited = true;
     }
 }
 

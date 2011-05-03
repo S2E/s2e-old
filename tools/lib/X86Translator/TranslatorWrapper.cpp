@@ -93,7 +93,7 @@ TranslationBlock *tb_find_pc(uintptr_t tc_ptr)
 
 void s2e_set_tb_function(S2E*, TranslationBlock *tb)
 {
-    assert(false && "Not usable statically");
+
 }
 
 void s2e_tcg_emit_custom_instruction(S2E*, uint64_t arg)
@@ -149,7 +149,7 @@ void s2e_on_translate_block_start(
         S2E* s2e, S2EExecutionState* state,
         TranslationBlock *tb, uint64_t pc)
 {
-    assert(false && "Not usable statically");
+
 }
 
 void s2e_on_translate_block_end(
@@ -157,28 +157,28 @@ void s2e_on_translate_block_end(
         TranslationBlock *tb,
         uint64_t insPc, int staticTarget, uint64_t targetPc)
 {
-    assert(false && "Not usable statically");
+
 }
 
 void s2e_on_translate_jump_start(
         S2E* s2e, S2EExecutionState* state,
         TranslationBlock *tb, uint64_t pc, int jump_type)
 {
-    assert(false && "Not usable statically");
+
 }
 
 void s2e_on_translate_instruction_start(
         S2E* s2e, S2EExecutionState* state,
         TranslationBlock *tb, uint64_t pc)
 {
-    assert(false && "Not usable statically");
+
 }
 
 void s2e_on_translate_instruction_end(
         S2E* s2e, S2EExecutionState* state,
         TranslationBlock *tb, uint64_t pc, uint64_t nextpc)
 {
-    assert(false && "Not usable statically");
+
 }
 
 void s2e_on_page_fault(S2E *s2e, S2EExecutionState* state, uint64_t addr, int is_write)
