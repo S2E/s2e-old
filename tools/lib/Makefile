@@ -2,7 +2,7 @@
 
 LEVEL=..
 
-PARALLEL_DIRS=ExecutionTracer BinaryReaders
+PARALLEL_DIRS=ExecutionTracer BinaryReaders X86Translator
 
 #LIBRARYNAME=s2etools
 #DONT_BUILD_RELINKED=1
