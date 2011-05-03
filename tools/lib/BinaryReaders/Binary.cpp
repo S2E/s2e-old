@@ -53,4 +53,9 @@ bool Binary::write(uint64_t va, void *source, unsigned size)
     return m_bfd->write(va, source, size);
 }
 
+uint64_t Binary::getEntryPoint() const
+{
+    return m_bfd->getEntryPoint();
+}
+
 }

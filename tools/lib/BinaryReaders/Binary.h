@@ -69,12 +69,17 @@ public:
     /**
      * Read the contents at virtual address va
      */
-    bool read(uint64_t va, void *dest, unsigned size) const;
+    virtual bool read(uint64_t va, void *dest, unsigned size) const;
 
     /**
      * Write the contents to virtual address va
      */
-    bool write(uint64_t va, void *source, unsigned size);
+    virtual bool write(uint64_t va, void *source, unsigned size);
+
+    /**
+     * Get the address of the first executable instruction of the file
+     */
+    virtual uint64_t getEntryPoint() const;
 
 protected:
     virtual BFDInterface* getBfd() const{

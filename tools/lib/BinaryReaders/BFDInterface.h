@@ -188,6 +188,10 @@ public:
         return m_file;
     }
 
+    Binary *getBinary() const {
+        return m_binary;
+    }
+
 };
 
 }
