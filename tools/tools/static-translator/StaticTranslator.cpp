@@ -104,6 +104,7 @@ StaticTranslatorTool::StaticTranslatorTool()
 
     llvm::sys::Path libraryPath(BitcodeLibrary);
     m_translator = new X86Translator(libraryPath);
+    m_translator->setBinaryFile(m_binary);
 
     std::string translatedFile = OutputDir + "/translated.bin";
     m_translatedCode = new std::ofstream(translatedFile.c_str(), std::ios::binary);
@@ -124,12 +125,10 @@ StaticTranslatorTool::~StaticTranslatorTool()
 
     s_currentBinary = NULL;
 
-    if (m_binary) {
-        delete m_binary;
-    }
     if (m_bfd) {
         delete m_bfd;
     }
+    m_binary = NULL;
 
     delete m_translator;
 }
