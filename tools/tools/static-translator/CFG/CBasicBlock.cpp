@@ -136,7 +136,7 @@ Function* CBasicBlock::cloneFunction()
     }
 
     std::stringstream fcnName;
-    //The tcg-llvm-tb prefix is important, will be used lated in function inlining
+    //The tcg-llvm-tb prefix is important, will be used later in function inlining
     fcnName << "tcg-llvm-tb-" << s_seqNum << "c-" << std::hex << m_address;
     ++s_seqNum;
 
@@ -246,11 +246,16 @@ void CBasicBlock::patchCallMarkersWithRealFunctions(BasicBlocks &allBlocks)
     Module *module = m_function->getParent();
     Function *callMarker = module->getFunction("call_marker");
 
-    foreach(iit, inst_begin(m_function), inst_end(m_function)) {
-        CallInst *ci = dyn_cast<CallInst>(&(*iit));
-        if (!ci || (ci->getCalledFunction() != callMarker)) {
-            continue;
+    std::vector<CallInst*> callInsts;
+    foreach(iit, callMarker->use_begin(), callMarker->use_end()) {
+        CallInst *ci = dyn_cast<CallInst>((*iit));
+        if (ci && (ci->getParent()->getParent() == m_function)) {
+            callInsts.push_back(ci);
         }
+    }
+
+    foreach(iit, callInsts.begin(), callInsts.end()) {
+        CallInst *ci = *iit;
 
         //Insert the call to the actual function right before
         ConstantInt *isInlinable = dyn_cast<ConstantInt>(ci->getOperand(2));

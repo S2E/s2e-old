@@ -166,6 +166,7 @@ bool QEMUTerminatorMarker::runOnFunction(llvm::Function &F)
             }
 
             if (Ci->getCalledFunction() == helper_hlt) {
+                //XXX: use llvm::Function.setDoesNotReturn?
                 m_doesNotReturn = true;
                 continue;
             }
