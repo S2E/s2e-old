@@ -238,9 +238,10 @@ bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
       markBoundary(*fit);
       modified = true;
     }
+    duplicatePrefixInstructions(F);
   }
 
-  duplicatePrefixInstructions(F);
+
 
   //std::cout << "Marked" << F << std::endl;
 
