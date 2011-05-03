@@ -102,7 +102,7 @@ public:
     X86Translator(const llvm::sys::Path &bitcodeLibrary);
     virtual ~X86Translator();
 
-    virtual LLVMBasicBlock translate(uint64_t address) = 0;
+    virtual LLVMBasicBlock translate(uint64_t address);
 };
 
 }
