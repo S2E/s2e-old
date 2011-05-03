@@ -11,26 +11,10 @@
 
 #include "CFG/CBasicBlock.h"
 #include "CFG/CFunction.h"
+#include <lib/X86Translator/Translator.h>
 
 namespace s2etools {
 namespace translator {
-
-
-
-class InvalidAddressException {
-    uintptr_t m_address;
-    unsigned m_size;
-
-public:
-    InvalidAddressException(uintptr_t address, unsigned size) {
-        m_address = address;
-        m_size = size;
-    }
-
-    uintptr_t getAddress() const {
-        return m_address;
-    }
-};
 
 
 class StaticTranslatorTool {
@@ -38,7 +22,10 @@ public:
 
 private:
     static bool s_translatorInited;
-    BFDInterface *m_binary;
+    BFDInterface *m_bfd;
+    Binary *m_binary;
+    X86Translator *m_translator;
+
     BasicBlocks m_exploredBlocks;
     std::set<uint64_t> m_addressesToExplore;
 
@@ -56,8 +43,6 @@ private:
     uint64_t m_startTime;
     uint64_t m_endTime;
 
-
-    void translateBlockToX86_64(uint64_t address, void *buffer, int *codeSize);
     translator::CBasicBlock* translateBlockToLLVM(uint64_t address);
 
     void processTranslationBlock(CBasicBlock *bb);
@@ -69,7 +54,6 @@ private:
 public:
     StaticTranslatorTool();
     ~StaticTranslatorTool();
-    void translateToX86_64();
     void exploreBasicBlocks();
 
     void extractFunctions();

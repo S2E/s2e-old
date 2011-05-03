@@ -7,18 +7,10 @@
 LEVEL=../..
 PARALLEL_DIRS=TranslatorBitcode Runtime
 TOOLNAME = static-translator
-USEDLIBS = executiontracer.a binaryreaders.a
+USEDLIBS = executiontracer.a binaryreaders.a X86Translator.a
 LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scalaropts ipa transformutils
 NO_PEDANTIC=1
-SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
-          $(S2E_SRC_ROOT)/target-i386/helper.c \
-          $(S2E_SRC_ROOT)/target-i386/op_helper.c \
-          $(S2E_SRC_ROOT)/fpu/softfloat-native.c \
-          $(S2E_SRC_ROOT)/tcg/tcg.c \
-          $(S2E_SRC_ROOT)/tcg/tcg-llvm.cpp \
-          $(S2E_SRC_ROOT)/translate-all.c $(S2E_SRC_ROOT)/cutils.c\
-          TranslatorWrapper.cpp  \
-          StaticTranslator.cpp \
+SOURCES = StaticTranslator.cpp \
           Passes/QEMUInstructionBoundaryMarker.cpp Passes/QEMUTerminatorMarker.cpp \
           Passes/QEMUTbCutter.cpp Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp \
           Passes/FunctionBuilder.cpp Passes/ForcedInliner.h Passes/SystemMemopsRemoval.cpp \

@@ -4,18 +4,11 @@
 
 #include <llvm/Function.h>
 #include <llvm/Instructions.h>
+#include <lib/X86Translator/Translator.h>
 #include <ostream>
 
 namespace s2etools {
 namespace translator {
-
-enum EBasicBlockType
-{
-    BB_DEFAULT=0,
-    BB_JMP, BB_JMP_IND,
-    BB_COND_JMP, BB_COND_JMP_IND,
-    BB_CALL, BB_CALL_IND, BB_REP, BB_RET
-};
 
 class CBasicBlock;
 
