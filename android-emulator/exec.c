@@ -1871,6 +1871,14 @@ static inline void tlb_flush_jmp_cache(CPUState *env, target_ulong addr)
             TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
 }
 
+//AKA: added from newer QEMU
+static CPUTLBEntry s_cputlb_empty_entry = {
+    .addr_read  = -1,
+    .addr_write = -1,
+    .addr_code  = -1,
+    .addend     = -1,
+};
+
 /* NOTE: if flush_global is true, also flush global entries (not
    implemented yet) */
 void tlb_flush(CPUState *env, int flush_global)
@@ -1887,9 +1895,7 @@ void tlb_flush(CPUState *env, int flush_global)
     for(i = 0; i < CPU_TLB_SIZE; i++) {
         int mmu_idx;
         for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
-            env->tlb_table[mmu_idx][i].addr_read = -1;
-            env->tlb_table[mmu_idx][i].addr_write = -1;
-            env->tlb_table[mmu_idx][i].addr_code = -1;
+        	env->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
         }
     }
 
