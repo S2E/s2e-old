@@ -21,6 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
+#ifndef TCG_H
+#define TCG_H
+
 #include "qemu-common.h"
 #include "tcg-target.h"
 #include "tcg-runtime.h"
@@ -252,6 +269,9 @@ typedef struct TCGTemp {
 typedef struct TCGHelperInfo {
     tcg_target_ulong func;
     const char *name;
+    uint64_t reg_rmask;
+    uint64_t reg_wmask;
+    uint64_t accesses_mem;
 } TCGHelperInfo;
 
 typedef struct TCGContext TCGContext;
@@ -269,7 +289,7 @@ struct TCGContext {
 
     /* goto_tb support */
     uint8_t *code_buf;
-    unsigned long *tb_next;
+    uintptr_t *tb_next;
     uint16_t *tb_next_offset;
     uint16_t *tb_jmp_offset; /* != NULL if USE_DIRECT_JUMP */
 
@@ -344,7 +364,7 @@ void tcg_context_init(TCGContext *s);
 void tcg_func_start(TCGContext *s);
 
 int tcg_gen_code(TCGContext *s, uint8_t *gen_code_buf);
-int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, long offset);
+int tcg_gen_code_search_pc(TCGContext *s, uint8_t *gen_code_buf, intptr_t offset);
 
 void tcg_set_frame(TCGContext *s, int reg,
                    tcg_target_long start, tcg_target_long size);
@@ -422,6 +442,8 @@ typedef struct TCGTargetOpDef {
     const char *args_ct_str[TCG_MAX_OP_ARGS];
 } TCGTargetOpDef;
 
+extern TCGOpDef tcg_op_defs[];
+
 void tcg_target_init(TCGContext *s);
 void tcg_target_qemu_prologue(TCGContext *s);
 
@@ -439,6 +461,7 @@ void tcg_add_target_add_op_defs(const TCGTargetOpDef *tdefs);
 #define tcg_sub_ptr tcg_sub_i32
 #define TCGv_ptr TCGv_i32
 #define GET_TCGV_PTR GET_TCGV_I32
+#define MAKE_TCGV_PTR MAKE_TCGV_I32
 #define tcg_global_reg_new_ptr tcg_global_reg_new_i32
 #define tcg_global_mem_new_ptr tcg_global_mem_new_i32
 #define tcg_temp_new_ptr tcg_temp_new_i32
@@ -449,6 +472,7 @@ void tcg_add_target_add_op_defs(const TCGTargetOpDef *tdefs);
 #define tcg_sub_ptr tcg_sub_i64
 #define TCGv_ptr TCGv_i64
 #define GET_TCGV_PTR GET_TCGV_I64
+#define MAKE_TCGV_PTR MAKE_TCGV_I64
 #define tcg_global_reg_new_ptr tcg_global_reg_new_i64
 #define tcg_global_mem_new_ptr tcg_global_mem_new_i64
 #define tcg_temp_new_ptr tcg_temp_new_i64
@@ -461,9 +485,15 @@ void tcg_gen_callN(TCGContext *s, TCGv_ptr func, unsigned int flags,
 void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
                         int c, int right, int arith);
 
-/* only used for debugging purposes */
+/* accesses_mem should be set to one if the helper can access symb memory */
+void tcg_register_helper_with_reg_mask(void *func, const char *name,
+                                   uint64_t reg_rmask, uint64_t reg_wmask,
+                                   uint64_t accesses_mem);
 void tcg_register_helper(void *func, const char *name);
 const char *tcg_helper_get_name(TCGContext *s, void *func);
+void tcg_helper_get_reg_mask(TCGContext *s, void *func,
+                             uint64_t* reg_rmask, uint64_t* reg_wmask,
+                             uint64_t* accesses_mem);
 void tcg_dump_ops(TCGContext *s, FILE *outfile);
 
 void dump_ops(const uint16_t *opc_buf, const TCGArg *opparam_buf);
@@ -473,12 +503,19 @@ TCGv_i32 tcg_const_local_i32(int32_t val);
 TCGv_i64 tcg_const_local_i64(int64_t val);
 
 void tcg_out_reloc(TCGContext *s, uint8_t *code_ptr, int type, 
-                   int label_index, long addend);
+                   int label_index, intptr_t addend);
 
 extern uint8_t code_gen_prologue[];
 #if defined(_ARCH_PPC) && !defined(_ARCH_PPC64)
 #define tcg_qemu_tb_exec(tb_ptr) \
     ((long REGPARM __attribute__ ((longcall)) (*)(void *))code_gen_prologue)(tb_ptr)
 #else
-#define tcg_qemu_tb_exec(tb_ptr) ((long REGPARM (*)(void *))code_gen_prologue)(tb_ptr)
+#define tcg_qemu_tb_exec(tb_ptr) ((intptr_t REGPARM (*)(void *))code_gen_prologue)(tb_ptr)
+#endif
+
+#ifdef CONFIG_S2E
+void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
+                      uint64_t *accesses_mem);
+#endif
+
 #endif
