@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>How to Write an S2E plugin?</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="how-to-write-an-s2e-plugin">
+<h1 class="title">How to Write an S2E plugin?</h1>
+
+<p>In this tutorial, we show step-by-step how to write a complete plugin that uses most of the features of the S2E plugin infrastructure.
+We take the example of a plugin that counts how many times a specific instruction has been executed.
+Users of that plugin can specify the instruction to watch in the S2E configuration file.
+We will also show how to build the plugin so that it can communicate with other plugins and expose
+reusable functionality.</p>
+<div class="section" id="starting-with-an-empty-plugin">
+<h1>Starting with an Empty Plugin</h1>
+<p>The first thing to do is to name the plugin and create boilerplate code. Let us name the plugin <tt class="docutils literal">InstructionTracker</tt>.
+You can copy/paste the <tt class="docutils literal">Example</tt> plugin that ships with S2E.</p>
+<p>Create a file named <tt class="docutils literal">InstructionTracker.h</tt> in the <tt class="docutils literal">/qemu/s2e/Plugins</tt> directory with the following content:</p>
+<div class="highlight"><pre><span class="cp">#ifndef S2E_PLUGINS_INSTRTRACKER_H</span>
+<span class="cp">#define S2E_PLUGINS_INSTRTRACKER_H</span>
+
+<span class="cp">#include &lt;s2e/Plugin.h&gt;</span>
+<span class="cp">#include &lt;s2e/Plugins/CorePlugin.h&gt;</span>
+<span class="cp">#include &lt;s2e/S2EExecutionState.h&gt;</span>
+
+<span class="n">namespace</span> <span class="n">s2e</span> <span class="p">{</span>
+<span class="n">namespace</span> <span class="n">plugins</span> <span class="p">{</span>
+
+<span class="n">class</span> <span class="n">InstructionTracker</span> <span class="o">:</span> <span class="n">public</span> <span class="n">Plugin</span>
+<span class="p">{</span>
+    <span class="n">S2E_PLUGIN</span>
+<span class="nl">public:</span>
+    <span class="n">InstructionTracker</span><span class="p">(</span><span class="n">S2E</span><span class="o">*</span> <span class="n">s2e</span><span class="p">)</span><span class="o">:</span> <span class="n">Plugin</span><span class="p">(</span><span class="n">s2e</span><span class="p">)</span> <span class="p">{}</span>
+
+    <span class="kt">void</span> <span class="n">initialize</span><span class="p">();</span>
+<span class="p">};</span>
+
+<span class="p">}</span> <span class="c1">// namespace plugins</span>
+<span class="p">}</span> <span class="c1">// namespace s2e</span>
+
+<span class="cp">#endif</span>
+</pre></div>
+<p>Then, create the corresponding <tt class="docutils literal">InstructionTracker.cpp</tt> file in the same directory as follows:</p>
+<div class="highlight"><pre><span class="cp">#include &lt;s2e/S2E.h&gt;</span>
+<span class="cp">#include &quot;InstructionTracker.h&quot;</span>
+
+<span class="n">namespace</span> <span class="n">s2e</span> <span class="p">{</span>
+<span class="n">namespace</span> <span class="n">plugins</span> <span class="p">{</span>
+
+<span class="c1">//Define a plugin whose class is InstructionTracker and called &quot;InstructionTracker&quot;.</span>
+<span class="c1">//The plugin does not have any dependency.</span>
+<span class="n">S2E_DEFINE_PLUGIN</span><span class="p">(</span><span class="n">InstructionTracker</span><span class="p">,</span> <span class="s">&quot;Tutorial - Tracking instructions&quot;</span><span class="p">,</span> <span class="s">&quot;InstructionTracker&quot;</span><span class="p">,);</span>
+
+<span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
+<span class="p">{</span>
+
+<span class="p">}</span>
+
+<span class="p">}</span> <span class="c1">// namespace plugins</span>
+<span class="p">}</span> <span class="c1">// namespace s2e</span>
+</pre></div>
+<p>Now, we need to tell S2E to initialize the plugin at startup.
+For this, we add the following references to <tt class="docutils literal">InstructionTracker</tt> in <tt class="docutils literal">/qemu/s2e/Plugins.cpp</tt>:</p>
+<div class="highlight"><pre><span class="cp">#include &lt;s2e/Plugins/ModuleExecutionDetector.h&gt;</span>
+<span class="cp">#include &lt;s2e/Plugins/CodeSelector.h&gt;</span>
+<span class="cp">#include &lt;s2e/Plugins/BaseInstructions.h&gt;</span>
+<span class="c1">//...other include files...</span>
+<span class="cp">#include &lt;s2e/Plugins/IntructionTracker.h&gt;</span>
+<span class="c1">//...other include files...</span>
+
+<span class="c1">//....</span>
+
+<span class="n">PluginsFactory</span><span class="o">::</span><span class="n">PluginsFactory</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="c1">//....</span>
+    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">CorePlugin</span><span class="p">);</span>
+    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">plugins</span><span class="o">::</span><span class="n">RawMonitor</span><span class="p">);</span>
+    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">plugins</span><span class="o">::</span><span class="n">FunctionMonitor</span><span class="p">);</span>
+    <span class="c1">//....</span>
+    <span class="n">__S2E_REGISTER_PLUGIN</span><span class="p">(</span><span class="n">plugins</span><span class="o">::</span><span class="n">InstructionTracker</span><span class="p">);</span>
+    <span class="c1">//....</span>
+<span class="p">}</span>
+</pre></div>
+<p>Finally, we need  to compile the plugin with the rest of S2E.
+For this, add the following line to <tt class="docutils literal">/qemu/Makefile.target</tt>, near other plugin declarations:</p>
+<pre class="literal-block">
+s2eobj-y += s2e/Plugins/InstructionTracker.o
+#...many more lines here...
+s2eobj-y += s2e/Plugins/ExecutionTracers/ExecutionTracer.o
+s2eobj-y += s2e/Plugins/ExecutionTracers/ModuleTracer.o
+s2eobj-y += s2e/Plugins/ExecutionTracers/EventTracer.o
+</pre>
+</div>
+<div class="section" id="reading-the-configuration">
+<h1>Reading the Configuration</h1>
+<p>We would like to let the user specify which instruction to monitor. For this, we create a configuration variable
+that stores the address of that instruction.
+Every plugin can have an entry in the S2E configuration file. The entry for our plugin would look like this:</p>
+<pre class="literal-block">
+pluginsConfig.InstructionTracker = {
+    -- The address we want to track
+    addressToTrack=0x12345
+}
+</pre>
+<p>If we run the plugin as it is now, nothing will happen. S2E ignores any unknown configuration value.
+We need a mechanism to explicitly retrieve the configuration value.
+In S2E, plugins can retrieve the configuration at any time. In our case, we do it during the initialization phase.</p>
+<div class="highlight"><pre><span class="c1">//We need this to read configuration files</span>
+<span class="cp">#include &lt;s2e/ConfigFile.h&gt;</span>
+<span class="c1">//...</span>
+
+<span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="n">m_address</span> <span class="o">=</span> <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getConfig</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getInt</span><span class="p">(</span><span class="n">getConfigKey</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;.addressToTrack&quot;</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+<p>Do not forget to add <tt class="docutils literal">uint64_t m_address;</tt>  to the private members of <tt class="docutils literal">InstructionTracker.h</tt>.</p>
+</div>
+<div class="section" id="instrumenting-the-instruction">
+<h1>Instrumenting the Instruction</h1>
+<p>To instrument an instruction, an S2E plugins registers to the <tt class="docutils literal">onTranslateInstructionStart</tt>  core event.
+There are many other core events to which a plugin can register. These events are defined in  <tt class="docutils literal">CorePlugin.h</tt>.</p>
+<p>Extend your code as follows. Do not forget to add all new member functions to the (private) section of the class declaration.</p>
+<div class="highlight"><pre><span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="n">m_address</span> <span class="o">=</span> <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getConfig</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getInt</span><span class="p">(</span><span class="n">getConfigKey</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;.addressToTrack&quot;</span><span class="p">);</span>
+
+    <span class="c1">//This indicates that our plugin is interested in monitoring instruction translation.</span>
+    <span class="c1">//For this, the plugin registers a callback with the onTranslateInstruction signal.</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getCorePlugin</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">onTranslateInstructionStart</span><span class="p">.</span><span class="n">connect</span><span class="p">(</span>
+            <span class="n">sigc</span><span class="o">::</span><span class="n">mem_fun</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onTranslateInstruction</span><span class="p">));</span>
+<span class="p">}</span>
+
+
+<span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onTranslateInstruction</span><span class="p">(</span><span class="n">ExecutionSignal</span> <span class="o">*</span><span class="n">signal</span><span class="p">,</span>
+                                      <span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span>
+                                      <span class="n">TranslationBlock</span> <span class="o">*</span><span class="n">tb</span><span class="p">,</span>
+                                      <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">m_address</span> <span class="o">==</span> <span class="n">pc</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">//When we find an interesting address, ask S2E to invoke our</span>
+        <span class="c1">//callback when the address is actually executed.</span>
+        <span class="n">signal</span><span class="o">-&gt;</span><span class="n">connect</span><span class="p">(</span><span class="n">sigc</span><span class="o">::</span><span class="n">mem_fun</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onInstructionExecution</span><span class="p">));</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">//This callback is called only when the instruction at our address is executed.</span>
+<span class="c1">//The callback incurs zero overhead for all other instructions.</span>
+<span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onInstructionExecution</span><span class="p">(</span><span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">pc</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+    <span class="c1">//The plugins can arbitrarily modify/observe the current execution state via</span>
+    <span class="c1">//the execution state pointer.</span>
+    <span class="c1">//Plugins can also call the s2e() method to use the S2E API.</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="section" id="counting-the-instructions">
+<h1>Counting the Instructions</h1>
+<p>We would like to count how many times that particular instruction is executed.
+There are two options:</p>
+<blockquote>
+<ol class="arabic simple">
+<li>Count how many times it was executed across all path</li>
+<li>Count how many times it was executed in each path</li>
+</ol>
+</blockquote>
+<p>The first option is trivial to implement. Simply add an additional member
+to the class and increment it every time the <tt class="docutils literal">onInstructionExecution</tt> callback is invoked.</p>
+<p>The second option requires to keep per-state plugin information.
+S2E plugins manage per-state information in a class that derives from <tt class="docutils literal">PluginState</tt>.
+This class must implement a factory method that returns a new instance of the class when S2E starts symbolic execution.
+It  must also implement a <tt class="docutils literal">clone</tt> method which S2E uses to fork the plugin state.</p>
+<p>Here is how <tt class="docutils literal">InstructionTracker</tt> could implement the plugin state.</p>
+<div class="highlight"><pre><span class="n">class</span> <span class="n">InstructionTrackerState</span><span class="o">:</span> <span class="n">public</span> <span class="n">PluginState</span>
+<span class="p">{</span>
+<span class="nl">private:</span>
+    <span class="kt">int</span> <span class="n">m_count</span><span class="p">;</span>
+
+<span class="nl">public:</span>
+    <span class="n">InstructionTrackerState</span><span class="p">()</span> <span class="p">{</span>
+        <span class="n">m_count</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="o">~</span><span class="n">InstructionTrackerState</span><span class="p">()</span> <span class="p">{}</span>
+
+    <span class="k">static</span> <span class="n">PluginState</span> <span class="o">*</span><span class="n">factory</span><span class="p">(</span><span class="n">Plugin</span><span class="o">*</span><span class="p">,</span> <span class="n">S2EExecutionState</span><span class="o">*</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">new</span> <span class="n">InstructionTrackerState</span><span class="p">();</span>
+    <span class="p">}</span>
+
+    <span class="n">InstructionTrackerState</span> <span class="o">*</span><span class="n">clone</span><span class="p">()</span> <span class="k">const</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">new</span> <span class="n">InstructionTrackerState</span><span class="p">(</span><span class="o">*</span><span class="n">this</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="kt">int</span> <span class="n">increment</span><span class="p">()</span> <span class="p">{</span> <span class="o">++</span><span class="n">m_count</span><span class="p">;</span> <span class="p">}</span>
+    <span class="kt">int</span> <span class="n">get</span><span class="p">()</span> <span class="p">{</span> <span class="k">return</span> <span class="n">m_count</span><span class="p">;</span> <span class="p">}</span>
+
+<span class="p">}</span>
+</pre></div>
+<p>Plugin code can refer to this state using the <tt class="docutils literal">DECLARE_PLUGINSTATE</tt> macro, like this:</p>
+<div class="highlight"><pre><span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onInstructionExecution</span><span class="p">(</span><span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="c1">//This macro declares the plgState variable of type InstructionTrackerState.</span>
+    <span class="c1">//It automatically takes care of retrieving the right plugin state attached to the</span>
+    <span class="c1">//specified execution state.</span>
+    <span class="n">DECLARE_PLUGINSTATE</span><span class="p">(</span><span class="n">InstructionTrackerState</span><span class="p">,</span> <span class="n">state</span><span class="p">);</span>
+
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">pc</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+
+    <span class="c1">//Increment the count</span>
+    <span class="n">plgState</span><span class="o">-&gt;</span><span class="n">increment</span><span class="p">();</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="section" id="exporting-events">
+<h1>Exporting Events</h1>
+<p>All S2E plugins can define custom events. Other plugins can in turn connect to them and also export
+their own events. This scheme is heavily used by stock S2E plugins. For example, S2E provides the <tt class="docutils literal">Annotation</tt> plugin that
+invokes a user-written script that can arbitrarily manipulate the execution state.
+This plugin allows to implement different execution consistency models
+and is a central piece in tools like DDT and RevNIC. This plugins relies on <tt class="docutils literal">FunctionMonitor</tt> to intercept annotated functions and
+on <tt class="docutils literal">ModuleExecutionDetector</tt> to trigger annotations when execution enters user-defined modules. Finally, <tt class="docutils literal">ModuleExecutionDetector</tt>
+itself depends on several plugins that abstract OS-specific events (e.g., module loads/unloads).</p>
+<p>In this tutorial, we show how <tt class="docutils literal">InstructionTracker</tt> can expose an event and trigger it when the monitored instruction
+is executed ten times.</p>
+<p>First, we declare the signal as a <tt class="docutils literal">public</tt> field of the <tt class="docutils literal">InstructionTracker</tt> class. It is important that the field be public,
+otherwise other plugins will not be able to register.</p>
+<div class="highlight"><pre><span class="n">class</span> <span class="n">InstructionTrackerState</span><span class="o">:</span> <span class="n">public</span> <span class="n">PluginState</span> <span class="p">{</span>
+    <span class="c1">//...</span>
+
+    <span class="nl">public:</span>
+        <span class="n">sigc</span><span class="o">::</span><span class="n">signal</span><span class="o">&lt;</span>
+            <span class="kt">void</span><span class="p">,</span>
+            <span class="n">S2EExecutionState</span> <span class="o">*</span><span class="p">,</span> <span class="c1">//The first parameter of the callback is the state</span>
+            <span class="kt">uint64_t</span>             <span class="c1">//The second parameter is an integer representing the program counter</span>
+            <span class="o">&gt;</span> <span class="n">onPeriodicEvent</span><span class="p">;</span>
+
+    <span class="c1">//...</span>
+<span class="p">}</span>
+</pre></div>
+<p>Second, we add some logic to fire the event and call all the registered callbacks.</p>
+<div class="highlight"><pre><span class="kt">void</span> <span class="n">InstructionTracker</span><span class="o">::</span><span class="n">onInstructionExecution</span><span class="p">(</span><span class="n">S2EExecutionState</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">pc</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">DECLARE_PLUGINSTATE</span><span class="p">(</span><span class="n">InstructionTrackerState</span><span class="p">,</span> <span class="n">state</span><span class="p">);</span>
+
+    <span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getDebugStream</span><span class="p">()</span> <span class="o">&lt;&lt;</span> <span class="s">&quot;Executing instruction at &quot;</span> <span class="o">&lt;&lt;</span> <span class="n">pc</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+
+    <span class="n">plgState</span><span class="o">-&gt;</span><span class="n">increment</span><span class="p">();</span>
+
+    <span class="c1">//Fire the event</span>
+    <span class="k">if</span> <span class="p">((</span><span class="n">plgState</span><span class="o">-&gt;</span><span class="n">get</span><span class="p">()</span> <span class="o">%</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">onPeriodicEvent</span><span class="p">.</span><span class="n">emit</span><span class="p">();</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+<p>That is all we need to define and trigger an event.
+To register for this event, a plugin invokes <tt class="docutils literal"><span class="pre">s2e()-&gt;getPlugin(&quot;PluginName&quot;);</span></tt>, where <tt class="docutils literal">PluginName</tt> is
+the name of the plugin as defined in the <tt class="docutils literal">S2E_DEFINE_PLUGIN</tt> macro.
+In our case, a plugin named <tt class="docutils literal">MyClient</tt> would do something like this in its initialization routine:</p>
+<div class="highlight"><pre><span class="c1">//Specify the dependency</span>
+<span class="n">S2E_DEFINE_PLUGIN</span><span class="p">(</span><span class="n">MyClient</span><span class="p">,</span> <span class="s">&quot;We use InstructionTracker&quot;</span><span class="p">,</span> <span class="s">&quot;MyClient&quot;</span><span class="p">,</span> <span class="s">&quot;InstructionTracker&quot;</span><span class="p">);</span>
+
+<span class="kt">void</span> <span class="n">MyClient</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="c1">//Get the instance of the plugin</span>
+    <span class="n">InstructionTracker</span> <span class="o">*</span><span class="n">tracker</span> <span class="o">=</span> <span class="p">(</span><span class="n">InstructionTracker</span><span class="o">*</span><span class="p">)</span><span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getPlugin</span><span class="p">(</span><span class="s">&quot;InstructionTracker&quot;</span><span class="p">);</span>
+    <span class="n">assert</span><span class="p">(</span><span class="n">tracker</span><span class="p">);</span>
+
+    <span class="c1">//Register to custom events</span>
+    <span class="n">tracker</span><span class="o">-&gt;</span><span class="n">onPeriodicEvent</span><span class="p">...</span>
+
+    <span class="c1">//Call plugin&#39;s public members</span>
+    <span class="n">tracker</span><span class="o">-&gt;</span><span class="p">...</span>
+<span class="p">}</span>
+</pre></div>
+<p>Note that S2E enforces the plugin dependencies specified in the <tt class="docutils literal">S2E_DEFINE_PLUGIN</tt> macro.
+If a dependency is not satisfied (e.g., the plugin is not enabled in the configuration file or
+is not compiled in S2E), S2E will not start and emit an error message instead.</p>
+<p>It is not always necessary to specify the dependencies.
+For example, a plugin may want to work with reduced functionality if some dependent plugin is missing.
+Attempting to call <tt class="docutils literal"><span class="pre">s2e()-&gt;getPlugin()</span></tt>  returns <tt class="docutils literal">NULL</tt> if the requested plugin is missing.</p>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="WritingPlugins.rst">View document source</a>.
+
+</div>
+</body>
+</html>

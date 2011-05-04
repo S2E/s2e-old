@@ -25,6 +25,10 @@ S²E Documentation
   1. `Building the Linux kernel <BuildingLinux.html>`_
   2. `Using SystemTap with S2E <SystemTap.html>`_
   
+* S2E Plugins
+
+  1. `How to write a plugin <WritingPlugins.html>`_
+
 * S2E Tools
   
   1. Available Tools
