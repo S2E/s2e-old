@@ -2016,7 +2016,6 @@ void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
     CPUState *env;
     uintptr_t length, start1;
     int i, mask, len;
-    uint8_t *p;
 
     start &= TARGET_PAGE_MASK;
     end = TARGET_PAGE_ALIGN(end);
