@@ -66,6 +66,10 @@ public:
     MemoryFile(const std::string &file);
     ~MemoryFile();
 
+    uint64_t getSize() const {
+        return m_size;
+    }
+
     uint8_t *getBuffer();
 };
 

@@ -53,6 +53,9 @@ MemoryFile::MemoryFile(const std::string &fileName)
 {
     TAG="MemoryFile";
 
+    m_size = 0;
+    m_file = NULL;
+
 #ifdef _WIN32
     m_hFile = CreateFile(fileName.c_str(), GENERIC_READ,
                               FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
@@ -73,8 +76,8 @@ MemoryFile::MemoryFile(const std::string &fileName)
         return;
     }
 
-    m_File = MapViewOfFile(m_hMapping, FILE_MAP_COPY, FileSize.HighPart, FileSize.LowPart, 0);
-    if (!m_File) {
+    m_file = MapViewOfFile(m_hMapping, FILE_MAP_COPY, FileSize.HighPart, FileSize.LowPart, 0);
+    if (!m_file) {
         CloseHandle(m_hMapping);
         CloseHandle(m_hFile);
         return;
