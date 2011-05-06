@@ -32,6 +32,7 @@ extern "C" {
 
 
 #include <lib/BinaryReaders/BFDInterface.h>
+#include <lib/Utils/Log.h>
 
 #include "StaticTranslator.h"
 #include "CFG/CBasicBlock.h"
@@ -92,11 +93,19 @@ bool StaticTranslatorTool::s_translatorInited = false;
 
 StaticTranslatorTool::StaticTranslatorTool()
 {
+    TAG="StaticTranslatorTool";
+
+    if (ExpMode) {
+        m_experiment = new ExperimentManager(OutputDir, "x2l");
+    }else {
+        m_experiment = new ExperimentManager(OutputDir);
+    }
+
     m_startTime = llvm::sys::TimeValue::now().usec();
 
     m_bfd = new BFDInterface(InputFile, false);
     if (!m_bfd->initialize(BfdFormat)) {
-        std::cerr << "Could not open " << InputFile << std::endl;
+        LOGDEBUG() << "Could not open " << InputFile << std::endl;
         exit(-1);
     }
 
@@ -106,22 +115,14 @@ StaticTranslatorTool::StaticTranslatorTool()
     m_translator = new X86Translator(libraryPath);
     m_translator->setBinaryFile(m_binary);
 
-    std::string translatedFile = OutputDir + "/translated.bin";
-    m_translatedCode = new std::ofstream(translatedFile.c_str(), std::ios::binary);
-
-    std::ios::openmode io_mode = std::ios::out | std::ios::trunc | std::ios::binary;
-
-    std::string messages = OutputDir + "/messages.txt";
-    m_messages.open(messages.c_str(), io_mode);
-
-    std::string debug = OutputDir + "/debug.txt";
-    m_debug.open(debug.c_str(), io_mode);
+    m_translatedCode = m_experiment->getOuputFile("translated.bin");
 }
 
 //XXX: the translator is global...
 StaticTranslatorTool::~StaticTranslatorTool()
 {
     delete m_translatedCode;
+    delete m_experiment;
 
     s_currentBinary = NULL;
 
@@ -131,6 +132,7 @@ StaticTranslatorTool::~StaticTranslatorTool()
     m_binary = NULL;
 
     delete m_translator;
+
 }
 
 
@@ -142,7 +144,8 @@ CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
     try {
         bblock = m_translator->translate(address);
     }catch(InvalidAddressException &e) {
-        std::cerr << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
+
+        LOGDEBUG() << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
         return NULL;
     }
 
@@ -189,7 +192,7 @@ void StaticTranslatorTool::splitExistingBlock(CBasicBlock *newBlock, CBasicBlock
     CBasicBlock *split = blockToSplit->split(splitAddress);
 
     if (!split) {
-        std::cerr << "Could not split block" << std::endl;
+        LOGDEBUG() << "Could not split block" << std::endl;
         return;
     }
 
@@ -209,7 +212,7 @@ void StaticTranslatorTool::processTranslationBlock(CBasicBlock *bb)
         const CBasicBlock::Successors &suc = bb->getSuccessors();
         foreach(sit, suc.begin(), suc.end()) {
             if (m_addressesToExplore.find(*sit) == m_addressesToExplore.end()) {
-                std::cout << "L: Successor of 0x" << std::hex << bb->getAddress() << " is 0x" <<
+                LOGDEBUG() << "L: Successor of 0x" << std::hex << bb->getAddress() << " is 0x" <<
                         *sit << std::endl;
                 m_addressesToExplore.insert(*sit);
             }
@@ -265,7 +268,7 @@ void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
         jumpTableExtractor.runOnFunction(*bb->getFunction());
         jumpTableAddress = jumpTableExtractor.getJumpTableAddress();
         if (jumpTableAddress) {
-            std::cout << "Found jump table at 0x" << std::hex << jumpTableAddress << std::endl;
+            LOGDEBUG() << "Found jump table at 0x" << std::hex << jumpTableAddress << std::endl;
         }
     }
 
@@ -293,7 +296,7 @@ void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
         //Skip strings
         std::string str;
         if (checkString(addr, str, false) || checkString(addr, str, true)) {
-            std::cout << "Found string at 0x" << std::hex << addr << ": " << str << std::endl;
+            LOGDEBUG() << "Found string at 0x" << std::hex << addr << ": " << str << std::endl;
             continue;
         }
 
@@ -303,7 +306,7 @@ void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
             continue;
         }
 
-        std::cout << "L: Found new address 0x" << std::hex << addr << std::endl;
+        LOGDEBUG() << "L: Found new address 0x" << std::hex << addr << std::endl;
         m_addressesToExplore.insert(addr);
     }
 }
@@ -324,14 +327,14 @@ void StaticTranslatorTool::exploreBasicBlocks()
     Imports::const_iterator it;
     for (it = imp.begin(); it != imp.end(); ++it) {
         std::pair<std::string, std::string> fcnDesc = (*it).second;
-        m_debug << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
+        LOGDEBUG() << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
     }
 
 
     uint64_t ep = getEntryPoint();
 
     if (!ep) {
-        std::cerr << "Could not get entry point of " << InputFile << std::endl;
+        LOGERROR() << "Could not get entry point of " << InputFile << std::endl;
         exit(-1);
     }
 
@@ -340,7 +343,7 @@ void StaticTranslatorTool::exploreBasicBlocks()
         uint64_t ep = *m_addressesToExplore.begin();
         m_addressesToExplore.erase(ep);
 
-        m_debug << "L: Translating at address 0x" << std::hex << ep << std::endl;
+        LOGDEBUG() << "L: Translating at address 0x" << std::hex << ep << std::endl;
 
         CBasicBlock *bb = translateBlockToLLVM(ep);
         if (!bb) {
@@ -352,7 +355,7 @@ void StaticTranslatorTool::exploreBasicBlocks()
         processTranslationBlock(bb);
     }
 
-    m_debug << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
+    LOGINFO() << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
 }
 
 void StaticTranslatorTool::extractFunctions()
@@ -383,18 +386,18 @@ void StaticTranslatorTool::extractFunctions()
             }
 
             blocksWithIncomingEdges.insert(*bbit);
-            m_debug << std::hex << "0x" << bb->getAddress() << " -> 0x" << (*bbit)->getAddress() << std::endl;
+            LOGDEBUG() << std::hex << "0x" << bb->getAddress() << " -> 0x" << (*bbit)->getAddress() << std::endl;
         }
     }
 
-    m_debug << "Blocks with incoming edge: " << std::dec << blocksWithIncomingEdges.size() << std::endl;
+    LOGINFO() << "Blocks with incoming edge: " << std::dec << blocksWithIncomingEdges.size() << std::endl;
 
     std::set_difference(m_exploredBlocks.begin(), m_exploredBlocks.end(),
                         blocksWithIncomingEdges.begin(), blocksWithIncomingEdges.end(),
                           std::inserter(blocksWithoutIncomingEdges, blocksWithoutIncomingEdges.begin()),
                           BasicBlockComparator());
 
-    m_debug << "Blocks without incoming edge: " << std::dec << blocksWithoutIncomingEdges.size() << std::endl;
+    LOGINFO() << "Blocks without incoming edge: " << std::dec << blocksWithoutIncomingEdges.size() << std::endl;
 
     //Look for nodes that have no incoming edges.
     //These should be function entry points
@@ -410,10 +413,10 @@ void StaticTranslatorTool::extractFunctions()
     }
 
     foreach(it, fcnStartSet.begin(), fcnStartSet.end()) {
-        m_debug << "FCN: 0x" << std::hex << *it << std::endl;
+        LOGDEBUG() << "FCN: 0x" << std::hex << *it << std::endl;
     }
 
-    m_debug << "There are " << std::dec << m_functionHeaders.size() << " functions" << std::endl;
+    LOGINFO() << "There are " << std::dec << m_functionHeaders.size() << " functions" << std::endl;
 }
 
 void StaticTranslatorTool::reconstructFunctions()
@@ -523,7 +526,7 @@ void StaticTranslatorTool::cleanupCode()
             continue;
         }
 
-        m_messages << "processing " << f->getNameStr() << std::endl;
+        LOGDEBUG() << "processing " << f->getNameStr() << std::endl;
 
         f->deleteBody();
 
@@ -569,105 +572,53 @@ void StaticTranslatorTool::cleanupCode()
 
 void StaticTranslatorTool::outputBitcodeFile()
 {
-    std::string execTraceFile = OutputDir;
-    execTraceFile += "/";
-    execTraceFile += "module.bc";
 
-    std::ofstream o(execTraceFile.c_str(), std::ofstream::binary);
+    std::ostream *o = m_experiment->getOuputFile("module.bc");
 
     llvm::Module *module = tcg_llvm_ctx->getModule();
     module->setTargetTriple("i386-apple-darwin10.4");
     module->setDataLayout("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128");
 
     // Output the bitcode file to stdout
-    llvm::WriteBitcodeToFile(module, o);
-    o.close();
+    llvm::WriteBitcodeToFile(module, *o);
+    delete o;
 }
 
 void StaticTranslatorTool::dumpStats()
 {
-    std::string basicBlockListFile = OutputDir + "/bblist.txt";
-    std::ofstream bbFile(basicBlockListFile.c_str(), std::ios::binary);
+    std::ostream *bbFile = m_experiment->getOuputFile("bblist.txt");
 
     foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
         CBasicBlock *bb = *it;
-        bbFile << std::hex << "0x" << bb->getAddress() << std::endl;
+        *bbFile << std::hex << "0x" << bb->getAddress() << std::endl;
     }
 
-    std::string functionListFile = OutputDir + "/functions.txt";
-    std::ofstream fcnFile(functionListFile.c_str(), std::ios::binary);
+    std::ostream *fcnFile = m_experiment->getOuputFile("functions.txt");
 
     foreach(it, m_functions.begin(), m_functions.end()) {
         CFunction *fcn = *it;
-        fcnFile << std::hex << "0x" << fcn->getAddress() << std::endl;
+        *fcnFile << std::hex << "0x" << fcn->getAddress() << std::endl;
     }
 
     m_endTime = llvm::sys::TimeValue::now().usec();
-    std::string statsFileStr = OutputDir + "/stats.txt";
-    std::ofstream statsFile(statsFileStr.c_str(), std::ios::binary);
+    std::ostream *statsFile = m_experiment->getOuputFile("stats.txt");
 
-    statsFile << "Execution time: " << std::dec << (m_endTime - m_startTime) / 1000000.0 << std::endl;
-    statsFile << "Basic blocks:   " << m_exploredBlocks.size() << std::endl;
-    statsFile << "Functions:      " << m_functions.size() << std::endl;
+    *statsFile << "Execution time: " << std::dec << (m_endTime - m_startTime) / 1000000.0 << std::endl;
+    *statsFile << "Basic blocks:   " << m_exploredBlocks.size() << std::endl;
+    *statsFile << "Functions:      " << m_functions.size() << std::endl;
+
+    delete statsFile;
+    delete fcnFile;
+    delete bbFile;
 }
 
 }
 }
 
-void initializeOutputDirectory()
-{
-    llvm::sys::Path cwd(OutputDir.getValue());
-
-    for (int i = 0; ; i++) {
-        std::ostringstream dirName;
-        dirName << "x2l-out-" << i;
-
-        llvm::sys::Path dirPath(cwd);
-        dirPath.appendComponent(dirName.str());
-
-        if(!dirPath.exists()) {
-            OutputDir = dirPath.toString();
-            break;
-        }
-    }
-
-
-    std::cout << "X2L: output directory = \"" << OutputDir << "\"\n";
-
-#ifdef _WIN32
-    if(mkdir(OutputDir.c_str()) < 0) {
-#else
-    if(mkdir(OutputDir.c_str(), 0775) < 0)
-#endif
-    {
-        perror("ERROR: Unable to create output directory");
-        exit(1);
-    }
-
-
-#ifndef _WIN32
-    llvm::sys::Path s2eLast(".");
-    s2eLast.appendComponent("x2l-last");
-
-    if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
-        perror("ERRPR: Cannot unlink x2l-last");
-        exit(1);
-    }
-
-    if (symlink(OutputDir.getValue().c_str(), s2eLast.c_str()) < 0) {
-        perror("ERROR: Cannot make symlink x2l-last");
-        exit(1);
-    }
-#endif
-}
 
 int main(int argc, char** argv)
 {
     cl::ParseCommandLineOptions(argc, (char**) argv);
-
-    if (ExpMode) {
-        initializeOutputDirectory();
-    }
 
     StaticTranslatorTool translator;
 

@@ -7,7 +7,7 @@
 LEVEL=../..
 PARALLEL_DIRS=TranslatorBitcode Runtime
 TOOLNAME = static-translator
-USEDLIBS = executiontracer.a binaryreaders.a X86Translator.a
+USEDLIBS = executiontracer.a binaryreaders.a X86Translator.a  utils.a
 LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scalaropts ipa transformutils
 NO_PEDANTIC=1
 SOURCES = StaticTranslator.cpp \

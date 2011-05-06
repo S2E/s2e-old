@@ -7,6 +7,7 @@
 #include <set>
 
 #include <lib/BinaryReaders/Library.h>
+#include <lib/Utils/ExperimentManager.h>
 #include <llvm/System/TimeValue.h>
 
 #include "CFG/CBasicBlock.h"
@@ -21,10 +22,13 @@ class StaticTranslatorTool {
 public:
 
 private:
+    std::string TAG;
     static bool s_translatorInited;
     BFDInterface *m_bfd;
     Binary *m_binary;
     X86Translator *m_translator;
+
+    ExperimentManager *m_experiment;
 
     BasicBlocks m_exploredBlocks;
     std::set<uint64_t> m_addressesToExplore;
@@ -35,9 +39,7 @@ private:
 
 
     //Outputs raw x86 translated code here
-    std::ofstream *m_translatedCode;
-    std::ofstream m_messages;
-    std::ofstream m_debug;
+    std::ostream *m_translatedCode;
 
     //Statistics
     uint64_t m_startTime;
