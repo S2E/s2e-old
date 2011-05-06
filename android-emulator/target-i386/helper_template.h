@@ -17,6 +17,20 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #define DATA_BITS (1 << (3 + SHIFT))
 #define SHIFT_MASK (DATA_BITS - 1)
 #define SIGN_MASK (((target_ulong)1) << (DATA_BITS - 1))
@@ -59,7 +73,7 @@ static int glue(compute_all_add, SUFFIX)(void)
     src1 = CC_SRC;
     src2 = CC_DST - CC_SRC;
     cf = (DATA_TYPE)CC_DST < (DATA_TYPE)src1;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = (CC_DST ^ src1 ^ src2) & 0x10;
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -83,7 +97,7 @@ static int glue(compute_all_adc, SUFFIX)(void)
     src1 = CC_SRC;
     src2 = CC_DST - CC_SRC - 1;
     cf = (DATA_TYPE)CC_DST <= (DATA_TYPE)src1;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = (CC_DST ^ src1 ^ src2) & 0x10;
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -107,7 +121,7 @@ static int glue(compute_all_sub, SUFFIX)(void)
     src1 = CC_DST + CC_SRC;
     src2 = CC_SRC;
     cf = (DATA_TYPE)src1 < (DATA_TYPE)src2;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = (CC_DST ^ src1 ^ src2) & 0x10;
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -132,7 +146,7 @@ static int glue(compute_all_sbb, SUFFIX)(void)
     src1 = CC_DST + CC_SRC + 1;
     src2 = CC_SRC;
     cf = (DATA_TYPE)src1 <= (DATA_TYPE)src2;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = (CC_DST ^ src1 ^ src2) & 0x10;
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -154,7 +168,7 @@ static int glue(compute_all_logic, SUFFIX)(void)
 {
     int cf, pf, af, zf, sf, of;
     cf = 0;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = 0;
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -174,7 +188,7 @@ static int glue(compute_all_inc, SUFFIX)(void)
     src1 = CC_DST - 1;
     src2 = 1;
     cf = CC_SRC;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = (CC_DST ^ src1 ^ src2) & 0x10;
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -196,7 +210,7 @@ static int glue(compute_all_dec, SUFFIX)(void)
     src1 = CC_DST + 1;
     src2 = 1;
     cf = CC_SRC;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = (CC_DST ^ src1 ^ src2) & 0x10;
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -208,7 +222,7 @@ static int glue(compute_all_shl, SUFFIX)(void)
 {
     int cf, pf, af, zf, sf, of;
     cf = (CC_SRC >> (DATA_BITS - 1)) & CC_C;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = 0; /* undefined */
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -233,7 +247,7 @@ static int glue(compute_all_sar, SUFFIX)(void)
 {
     int cf, pf, af, zf, sf, of;
     cf = CC_SRC & 1;
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = 0; /* undefined */
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;
@@ -257,7 +271,7 @@ static int glue(compute_all_mul, SUFFIX)(void)
 {
     int cf, pf, af, zf, sf, of;
     cf = (CC_SRC != 0);
-    pf = parity_table[(uint8_t)CC_DST];
+    pf = parity_table[(uint8_t)CC_DST] & CC_P;
     af = 0; /* undefined */
     zf = ((DATA_TYPE)CC_DST == 0) << 6;
     sf = lshift(CC_DST, 8 - DATA_BITS) & 0x80;

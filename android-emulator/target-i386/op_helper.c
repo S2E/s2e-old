@@ -17,13 +17,114 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #define CPU_NO_GLOBAL_REGS
 #include "exec.h"
 #include "exec-all.h"
 #include "host-utils.h"
 
-//#define DEBUG_PCALL
+#include <inttypes.h>
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+
+#define ACCESS_TYPE 0
+#define MEMSUFFIX _kernel_s2e_trace
+#define _raw _raw_s2e_trace
+#define DATA_SIZE 1
+#include "softmmu_header.h"
+
+#define DATA_SIZE 2
+#include "softmmu_header.h"
+
+#define DATA_SIZE 4
+#include "softmmu_header.h"
+
+#define DATA_SIZE 8
+#include "softmmu_header.h"
+#undef _raw
+#undef ACCESS_TYPE
+#undef MEMSUFFIX
+
+#endif
+
+//#define DEBUG_PCALL
+#ifdef S2E_LLVM_LIB
+void klee_make_symbolic(void *addr, unsigned nbytes, const char *name);
+uint8_t klee_int8(const char *name);
+uint16_t klee_int16(const char *name);
+uint32_t klee_int32(const char *name);
+void uint32_to_string(uint32_t n, char *str);
+void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc);
+
+uint8_t klee_int8(const char *name) {
+    uint8_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+uint16_t klee_int16(const char *name) {
+    uint16_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+uint32_t klee_int32(const char *name) {
+    uint32_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+//Helpers to avoid relying on sprintf that does not work properly
+static char hextable[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
+'c', 'd', 'e', 'f'};
+void uint32_to_string(uint32_t n, char *str)
+{
+  str[0] = hextable[(n >> 28)];
+  str[1] = hextable[((n >> 24) & 0xF)];
+  str[2] = hextable[((n >> 20) & 0xF)];
+  str[3] = hextable[((n >> 16) & 0xF)];
+  str[4] = hextable[((n >> 12) & 0xF)];
+  str[5] = hextable[((n >> 8) & 0xF)];
+  str[6] = hextable[((n >> 4) & 0xF)];
+  str[7] = hextable[((n >> 0) & 0xF)];
+}
+
+void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc)
+{
+    while(*prefix) {
+        *buf = *prefix;
+        ++buf; ++prefix;
+    }
+
+    uint32_to_string(port, buf);
+    buf+=8;
+    *buf = '_';
+    buf++;
+    uint32_to_string(pc, buf);
+    buf+=8;
+    *buf = 0;
+}
+
+#endif
+
+#ifndef S2E_LLVM_LIB
+#ifdef CONFIG_S2E
+struct CPUX86State* env = 0;
+#endif
+#endif
 
 #ifdef DEBUG_PCALL
 #  define LOG_PCALL(...) qemu_log_mask(CPU_LOG_PCALL, ## __VA_ARGS__)
@@ -34,6 +135,8 @@
 #  define LOG_PCALL_STATE(env) do { } while (0)
 #endif
 
+#ifndef S2E_LLVM_LIB
+
 
 #if 0
 #define raise_exception_err(a, b)\
@@ -43,7 +146,7 @@ do {\
 } while (0)
 #endif
 
-static const uint8_t parity_table[256] = {
+const uint8_t parity_table[256] = {
     CC_P, 0, 0, CC_P, 0, CC_P, CC_P, 0,
     0, CC_P, CC_P, 0, CC_P, 0, 0, CC_P,
     0, CC_P, CC_P, 0, CC_P, 0, 0, CC_P,
@@ -79,7 +182,7 @@ static const uint8_t parity_table[256] = {
 };
 
 /* modulo 17 table */
-static const uint8_t rclw_table[32] = {
+const uint8_t rclw_table[32] = {
     0, 1, 2, 3, 4, 5, 6, 7,
     8, 9,10,11,12,13,14,15,
    16, 0, 1, 2, 3, 4, 5, 6,
@@ -87,14 +190,14 @@ static const uint8_t rclw_table[32] = {
 };
 
 /* modulo 9 table */
-static const uint8_t rclb_table[32] = {
+const uint8_t rclb_table[32] = {
     0, 1, 2, 3, 4, 5, 6, 7,
     8, 0, 1, 2, 3, 4, 5, 6,
     7, 8, 0, 1, 2, 3, 4, 5,
     6, 7, 8, 0, 1, 2, 3, 4,
 };
 
-static const CPU86_LDouble f15rk[7] =
+const CPU86_LDouble f15rk[7] =
 {
     0.00000000000000000000L,
     1.00000000000000000000L,
@@ -105,8 +208,14 @@ static const CPU86_LDouble f15rk[7] =
     3.32192809488736234781L,  /*l2t*/
 };
 
-/* broken thread support */
+#else
+extern const uint8_t parity_table[256];
+extern const uint8_t rclw_table[32];
+extern const uint8_t rclb_table[32];
+#endif
 
+/* broken thread support */
+#ifndef S2E_LLVM_LIB
 static spinlock_t global_cpu_lock = SPIN_LOCK_UNLOCKED;
 
 void helper_lock(void)
@@ -118,6 +227,7 @@ void helper_unlock(void)
 {
     spin_unlock(&global_cpu_lock);
 }
+#endif /* S2E_LLVM_LIB */
 
 void helper_write_eflags(target_ulong t0, uint32_t update_mask)
 {
@@ -129,7 +239,7 @@ target_ulong helper_read_eflags(void)
     uint32_t eflags;
     eflags = helper_cc_compute_all(CC_OP);
     eflags |= (DF & DF_MASK);
-    eflags |= env->eflags & ~(VM_MASK | RF_MASK);
+    eflags |= env->mflags & ~(VM_MASK | RF_MASK);
     return eflags;
 }
 
@@ -444,14 +554,14 @@ static void switch_tss(int tss_selector,
         eflags_mask &= 0xffff;
     load_eflags(new_eflags, eflags_mask);
     /* XXX: what to do in 16 bit case ? */
-    EAX = new_regs[0];
-    ECX = new_regs[1];
-    EDX = new_regs[2];
-    EBX = new_regs[3];
-    ESP = new_regs[4];
-    EBP = new_regs[5];
-    ESI = new_regs[6];
-    EDI = new_regs[7];
+    EAX_W(new_regs[0]);
+    ECX_W(new_regs[1]);
+    EDX_W(new_regs[2]);
+    EBX_W(new_regs[3]);
+    ESP_W(new_regs[4]);
+    EBP_W(new_regs[5]);
+    ESI_W(new_regs[6]);
+    EDI_W(new_regs[7]);
     if (new_eflags & VM_MASK) {
         for(i = 0; i < 6; i++)
             load_seg_vm(i, new_segs[i]);
@@ -557,35 +667,192 @@ void helper_check_iol(uint32_t t0)
     check_io(t0, 4);
 }
 
+#ifdef S2E_LLVM_LIB
+/**
+ *  We bypass the call to the handlers in case of writes to symbolic ports to
+ *  avoid concretizing data unnecessarily.
+ */
+
 void helper_outb(uint32_t port, uint32_t data)
 {
-    cpu_outb(port, data & 0xff);
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
+    tcg_llvm_trace_port_access(port, data, 8, 1);
+    if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        if (g_s2e_concretize_io_writes) {
+            data = klee_get_value(data & 0xFF);
+        }
+
+        cpu_outb(port, data & 0xff);
+    }
 }
 
 target_ulong helper_inb(uint32_t port)
 {
-    return cpu_inb(port);
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        char label[64];
+        trace_port(label, "inb", port, env->eip);
+        uint8_t res = klee_int8(label);
+        tcg_llvm_trace_port_access(port, res, 8, 0);
+        return res;
+    }
+
+    target_ulong res = cpu_inb(port);
+    tcg_llvm_trace_port_access(port, res, 8, 0);
+    return res;
 }
 
 void helper_outw(uint32_t port, uint32_t data)
 {
-    cpu_outw(port, data & 0xffff);
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
+    tcg_llvm_trace_port_access(port, data, 16, 1);
+    if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        if (g_s2e_concretize_io_writes) {
+            data = klee_get_value(data & 0xFFFF);
+        }
+
+        cpu_outw(port, data & 0xffff);
+    }
 }
 
 target_ulong helper_inw(uint32_t port)
 {
-    return cpu_inw(port);
+    if (g_s2e_concretize_io_addresses) {
+        port = klee_get_value(port);
+    }
+
+    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+        char label[64];
+        trace_port(label, "inw", port, env->eip);
+        uint16_t res = klee_int16(label);
+        tcg_llvm_trace_port_access(port, res, 16, 0);
+        return res;
+    }
+    target_ulong res = cpu_inw(port);
+    tcg_llvm_trace_port_access(port, res, 16, 0);
+    return res;
 }
 
 void helper_outl(uint32_t port, uint32_t data)
 {
-    cpu_outl(port, data);
+	if (g_s2e_concretize_io_addresses) {
+	        port = klee_get_value(port);
+	    }
+
+	    tcg_llvm_trace_port_access(port, data, 32, 1);
+	    if (!s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        if (g_s2e_concretize_io_writes) {
+	            data = klee_get_value(data);
+	        }
+
+	        cpu_outl(port, data);
+	    }
 }
 
 target_ulong helper_inl(uint32_t port)
 {
-    return cpu_inl(port);
-}
+	if (g_s2e_concretize_io_addresses) {
+	        port = klee_get_value(port);
+	    }
+
+	    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        char label[64];
+	        trace_port(label, "inl", port, env->eip);
+	        uint32_t res = klee_int32(label);
+	        tcg_llvm_trace_port_access(port, res, 32, 0);
+	        return res;
+	    }
+	    target_ulong res = cpu_inl(port);
+	    tcg_llvm_trace_port_access(port, res, 32, 0);
+	    return res;
+	}
+	#else
+
+	void helper_outb(uint32_t port, uint32_t data)
+	{
+	#ifdef CONFIG_S2E
+	    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+	    }
+	    s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 8, 1);
+	#endif
+	    cpu_outb(port, data & 0xff);
+	}
+
+	target_ulong helper_inb(uint32_t port)
+	{
+	#ifdef CONFIG_S2E
+	    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+	    }
+	#endif
+	    target_ulong res = cpu_inb(port);
+	#ifdef CONFIG_S2E
+	    s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 8, 0);
+	#endif
+	    return res;
+	}
+
+	void helper_outw(uint32_t port, uint32_t data)
+	{
+	#ifdef CONFIG_S2E
+	    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+	    }
+	    s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 16, 1);
+	#endif
+	    cpu_outw(port, data & 0xffff);
+	}
+
+	target_ulong helper_inw(uint32_t port)
+	{
+	#ifdef CONFIG_S2E
+	    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+	    }
+	#endif
+	    target_ulong res = cpu_inw(port);
+	#ifdef CONFIG_S2E
+	    s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 16, 0);
+	#endif
+	    return res;
+	}
+
+	void helper_outl(uint32_t port, uint32_t data)
+	{
+	#ifdef CONFIG_S2E
+	    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+	    }
+	    s2e_trace_port_access(g_s2e, g_s2e_state, port, data, 32, 1);
+	#endif
+	    cpu_outl(port, data);
+	}
+
+	target_ulong helper_inl(uint32_t port)
+	{
+	#ifdef CONFIG_S2E
+	    if (s2e_is_port_symbolic(g_s2e, g_s2e_state, port)) {
+	        s2e_switch_to_symbolic(g_s2e, g_s2e_state);
+	    }
+	#endif
+	    target_ulong res = cpu_inl(port);
+	#ifdef CONFIG_S2E
+	    s2e_trace_port_access(g_s2e, g_s2e_state, port, res, 32, 0);
+	#endif
+	    return res;
+	}
+
+	#endif
 
 static inline unsigned int get_sp_mask(unsigned int e2)
 {
@@ -621,7 +888,7 @@ do {\
         ESP = (val);\
 } while (0)
 #else
-#define SET_ESP(val, sp_mask) ESP = (ESP & ~(sp_mask)) | ((val) & (sp_mask))
+#define SET_ESP(val, sp_mask) ESP_W((ESP & ~(sp_mask)) | ((val) & (sp_mask)))
 #endif
 
 /* in 64-bit machines, this can overflow. So this segment addition macro
@@ -652,6 +919,23 @@ do {\
     val = (uint32_t)ldl_kernel(SEG_ADDL(ssp, sp, sp_mask));\
     sp += 4;\
 }
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#define POPW_T(ssp, sp, sp_mask, val)\
+{\
+    val = lduw_kernel_s2e_trace((ssp) + (sp & (sp_mask)));\
+    sp += 2;\
+}
+
+#define POPL_T(ssp, sp, sp_mask, val)\
+{\
+    val = (uint32_t)ldl_kernel_s2e_trace(SEG_ADDL(ssp, sp, sp_mask));\
+    sp += 4;\
+}
+#else
+#define POPW_T(ssp, sp, sp_mask, val) POPW(ssp, sp, sp_mask, val)
+#define POPL_T(ssp, sp, sp_mask, val) POPL(ssp, sp, sp_mask, val)
+#endif
 
 /* protected mode interrupt */
 static void do_interrupt_protected(int intno, int is_int, int error_code,
@@ -759,7 +1043,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
         ssp = get_seg_base(ss_e1, ss_e2);
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
         /* to same privilege */
-        if (env->eflags & VM_MASK)
+        if (env->mflags & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
         sp_mask = get_sp_mask(env->segs[R_SS].flags);
@@ -779,13 +1063,13 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 #if 0
     /* XXX: check that enough room is available */
     push_size = 6 + (new_stack << 2) + (has_error_code << 1);
-    if (env->eflags & VM_MASK)
+    if (RR_cpu(env, eflags) & VM_MASK)
         push_size += 8;
     push_size <<= shift;
 #endif
     if (shift == 1) {
         if (new_stack) {
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 PUSHL(ssp, esp, sp_mask, env->segs[R_GS].selector);
                 PUSHL(ssp, esp, sp_mask, env->segs[R_FS].selector);
                 PUSHL(ssp, esp, sp_mask, env->segs[R_DS].selector);
@@ -802,7 +1086,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
         }
     } else {
         if (new_stack) {
-            if (env->eflags & VM_MASK) {
+            if (env->mflags & VM_MASK) {
                 PUSHW(ssp, esp, sp_mask, env->segs[R_GS].selector);
                 PUSHW(ssp, esp, sp_mask, env->segs[R_FS].selector);
                 PUSHW(ssp, esp, sp_mask, env->segs[R_DS].selector);
@@ -820,7 +1104,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     }
 
     if (new_stack) {
-        if (env->eflags & VM_MASK) {
+        if (env->mflags & VM_MASK) {
             cpu_x86_load_seg_cache(env, R_ES, 0, 0, 0, 0);
             cpu_x86_load_seg_cache(env, R_DS, 0, 0, 0, 0);
             cpu_x86_load_seg_cache(env, R_FS, 0, 0, 0, 0);
@@ -842,9 +1126,9 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 
     /* interrupt gate clear IF mask */
     if ((type & 1) == 0) {
-        env->eflags &= ~IF_MASK;
+        env->mflags &= ~IF_MASK;
     }
-    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+    env->mflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
 }
 
 #ifdef TARGET_X86_64
@@ -950,7 +1234,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
         new_stack = 1;
     } else if ((e2 & DESC_C_MASK) || dpl == cpl) {
         /* to same privilege */
-        if (env->eflags & VM_MASK)
+        if (env->mflags & VM_MASK)
             raise_exception_err(EXCP0D_GPF, selector & 0xfffc);
         new_stack = 0;
         if (ist != 0)
@@ -990,9 +1274,9 @@ static void do_interrupt64(int intno, int is_int, int error_code,
 
     /* interrupt gate clear IF mask */
     if ((type & 1) == 0) {
-        env->eflags &= ~IF_MASK;
+        env->mflags &= ~IF_MASK;
     }
-    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+    env->mflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
 }
 #endif
 
@@ -1016,8 +1300,8 @@ void helper_syscall(int next_eip_addend)
     if (env->hflags & HF_LMA_MASK) {
         int code64;
 
-        ECX = env->eip + next_eip_addend;
-        env->regs[11] = compute_eflags();
+        ECX_W(env, env->eip + next_eip_addend);
+        WR_cpu(env, regs[11], compute_eflags());
 
         code64 = env->hflags & HF_CS64_MASK;
 
@@ -1032,8 +1316,11 @@ void helper_syscall(int next_eip_addend)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags &= ~env->fmask;
-        load_eflags(env->eflags, 0);
+        CC_SRC_W(helper_cc_compute_all(CC_OP) & ~env->fmask);
+        CC_OP_W(CC_OP_EFLAGS);
+        if(env->fmask & DF_MASK)
+            DF_W(1); // this means df = 0, see CPUX86State.df in cpu.h
+        env->mflags &= ~env->fmask;
         if (code64)
             env->eip = env->lstar;
         else
@@ -1052,7 +1339,7 @@ void helper_syscall(int next_eip_addend)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags &= ~(IF_MASK | RF_MASK | VM_MASK);
+        env->mflags &= ~(IF_MASK | RF_MASK | VM_MASK);
         env->eip = (uint32_t)env->star;
     }
 }
@@ -1094,7 +1381,7 @@ void helper_sysret(int dflag)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK | (3 << DESC_DPL_SHIFT) |
                                DESC_W_MASK | DESC_A_MASK);
-        load_eflags((uint32_t)(env->regs[11]), TF_MASK | AC_MASK | ID_MASK |
+        load_eflags((uint32_t)(RR_cpu(env, regs[11])), TF_MASK | AC_MASK | ID_MASK |
                     IF_MASK | IOPL_MASK | VM_MASK | RF_MASK | NT_MASK);
         cpu_x86_set_cpl(env, 3);
     } else {
@@ -1109,7 +1396,7 @@ void helper_sysret(int dflag)
                                DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                                DESC_S_MASK | (3 << DESC_DPL_SHIFT) |
                                DESC_W_MASK | DESC_A_MASK);
-        env->eflags |= IF_MASK;
+        env->mflags |= IF_MASK;
         cpu_x86_set_cpl(env, 3);
     }
 #ifdef CONFIG_KQEMU
@@ -1153,11 +1440,11 @@ static void do_interrupt_real(int intno, int is_int, int error_code,
     PUSHW(ssp, esp, 0xffff, old_eip);
 
     /* update processor state */
-    ESP = (ESP & ~0xffff) | (esp & 0xffff);
+    ESP_W((ESP & ~0xffff) | (esp & 0xffff));
     env->eip = offset;
     env->segs[R_CS].selector = selector;
     env->segs[R_CS].base = (selector << 4);
-    env->eflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
+    env->mflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
 }
 
 /* fake user mode interrupt */
@@ -1235,7 +1522,9 @@ void do_interrupt(int intno, int is_int, int error_code,
                 qemu_log(" EAX=" TARGET_FMT_lx, EAX);
             }
             qemu_log("\n");
+#ifndef S2E_LLVM_LIB
             log_cpu_state(env, X86_DUMP_CCOP);
+#endif
 #if 0
             {
                 int i;
@@ -1274,10 +1563,17 @@ void do_interrupt(int intno, int is_int, int error_code,
 
 #if !defined(CONFIG_USER_ONLY)
     if (env->hflags & HF_SVMI_MASK) {
-	    uint32_t event_inj = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj));
-	    stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj & ~SVM_EVTINJ_VALID);
+        uint32_t event_inj = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj));
+        stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj & ~SVM_EVTINJ_VALID);
     }
 #endif
+}
+
+uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
+                  target_ulong next_eip, int is_hw)
+{
+    do_interrupt(intno, is_int, error_code, next_eip, is_hw);
+    return 0;
 }
 
 /* This should come from sysemu.h - if we could include it here... */
@@ -1387,7 +1683,9 @@ void do_smm_enter(void)
     int i, offset;
 
     qemu_log_mask(CPU_LOG_INT, "SMM: enter\n");
+#ifndef S2E_LLVM_LIB
     log_cpu_state_mask(CPU_LOG_INT, env, X86_DUMP_CCOP);
+#endif
 
     env->hflags |= HF_SMM_MASK;
     cpu_smm_update(env);
@@ -1431,7 +1729,7 @@ void do_smm_enter(void)
     stq_phys(sm_state + 0x7fc8, ESI);
     stq_phys(sm_state + 0x7fc0, EDI);
     for(i = 8; i < 16; i++)
-        stq_phys(sm_state + 0x7ff8 - i * 8, env->regs[i]);
+        stq_phys(sm_state + 0x7ff8 - i * 8, RR_cpu(env, regs[i]));
     stq_phys(sm_state + 0x7f78, env->eip);
     stl_phys(sm_state + 0x7f70, compute_eflags());
     stl_phys(sm_state + 0x7f68, env->dr[6]);
@@ -1510,7 +1808,7 @@ void do_smm_enter(void)
                        env->cr[0] & ~(CR0_PE_MASK | CR0_EM_MASK | CR0_TS_MASK | CR0_PG_MASK));
     cpu_x86_update_cr4(env, 0);
     env->dr[7] = 0x00000400;
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
 }
 
 void helper_rsm(void)
@@ -1557,7 +1855,7 @@ void helper_rsm(void)
     ESI = ldq_phys(sm_state + 0x7fc8);
     EDI = ldq_phys(sm_state + 0x7fc0);
     for(i = 8; i < 16; i++)
-        env->regs[i] = ldq_phys(sm_state + 0x7ff8 - i * 8);
+    	WR_cpu(env, regs[i], ldq_phys(sm_state + 0x7ff8 - i * 8));
     env->eip = ldq_phys(sm_state + 0x7f78);
     load_eflags(ldl_phys(sm_state + 0x7f70),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
@@ -1578,14 +1876,14 @@ void helper_rsm(void)
     load_eflags(ldl_phys(sm_state + 0x7ff4),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
     env->eip = ldl_phys(sm_state + 0x7ff0);
-    EDI = ldl_phys(sm_state + 0x7fec);
-    ESI = ldl_phys(sm_state + 0x7fe8);
-    EBP = ldl_phys(sm_state + 0x7fe4);
-    ESP = ldl_phys(sm_state + 0x7fe0);
-    EBX = ldl_phys(sm_state + 0x7fdc);
-    EDX = ldl_phys(sm_state + 0x7fd8);
-    ECX = ldl_phys(sm_state + 0x7fd4);
-    EAX = ldl_phys(sm_state + 0x7fd0);
+    EDI_W(ldl_phys(sm_state + 0x7fec));
+    ESI_W(ldl_phys(sm_state + 0x7fe8));
+    EBP_W(ldl_phys(sm_state + 0x7fe4));
+    ESP_W(ldl_phys(sm_state + 0x7fe0));
+    EBX_W(ldl_phys(sm_state + 0x7fdc));
+    EDX_W(ldl_phys(sm_state + 0x7fd8));
+    ECX_W(ldl_phys(sm_state + 0x7fd4));
+    EAX_W(ldl_phys(sm_state + 0x7fd0));
     env->dr[6] = ldl_phys(sm_state + 0x7fcc);
     env->dr[7] = ldl_phys(sm_state + 0x7fc8);
 
@@ -1623,12 +1921,14 @@ void helper_rsm(void)
         env->smbase = ldl_phys(sm_state + 0x7ef8) & ~0x7fff;
     }
 #endif
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
     env->hflags &= ~HF_SMM_MASK;
     cpu_smm_update(env);
 
     qemu_log_mask(CPU_LOG_INT, "SMM: after RSM\n");
+#ifndef S2E_LLVM_LIB
     log_cpu_state_mask(CPU_LOG_INT, env, X86_DUMP_CCOP);
+#endif
 }
 
 #endif /* !CONFIG_USER_ONLY */
@@ -1650,7 +1950,7 @@ void helper_divb_AL(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xff;
     r = (num % den) & 0xff;
-    EAX = (EAX & ~0xffff) | (r << 8) | q;
+    EAX_W((EAX & ~0xffff) | (r << 8) | q);
 }
 
 void helper_idivb_AL(target_ulong t0)
@@ -1667,7 +1967,7 @@ void helper_idivb_AL(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xff;
     r = (num % den) & 0xff;
-    EAX = (EAX & ~0xffff) | (r << 8) | q;
+    EAX_W((EAX & ~0xffff) | (r << 8) | q);
 }
 
 void helper_divw_AX(target_ulong t0)
@@ -1684,8 +1984,8 @@ void helper_divw_AX(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xffff;
     r = (num % den) & 0xffff;
-    EAX = (EAX & ~0xffff) | q;
-    EDX = (EDX & ~0xffff) | r;
+    EAX_W((EAX & ~0xffff) | q);
+    EDX_W((EDX & ~0xffff) | r);
 }
 
 void helper_idivw_AX(target_ulong t0)
@@ -1702,8 +2002,8 @@ void helper_idivw_AX(target_ulong t0)
         raise_exception(EXCP00_DIVZ);
     q &= 0xffff;
     r = (num % den) & 0xffff;
-    EAX = (EAX & ~0xffff) | q;
-    EDX = (EDX & ~0xffff) | r;
+    EAX_W((EAX & ~0xffff) | q);
+    EDX_W((EDX & ~0xffff) | r);
 }
 
 void helper_divl_EAX(target_ulong t0)
@@ -1720,8 +2020,8 @@ void helper_divl_EAX(target_ulong t0)
     r = (num % den);
     if (q > 0xffffffff)
         raise_exception(EXCP00_DIVZ);
-    EAX = (uint32_t)q;
-    EDX = (uint32_t)r;
+    EAX_W((uint32_t)q);
+    EDX_W((uint32_t)r);
 }
 
 void helper_idivl_EAX(target_ulong t0)
@@ -1738,8 +2038,8 @@ void helper_idivl_EAX(target_ulong t0)
     r = (num % den);
     if (q != (int32_t)q)
         raise_exception(EXCP00_DIVZ);
-    EAX = (uint32_t)q;
-    EDX = (uint32_t)r;
+    EAX_W((uint32_t)q);
+    EDX_W((uint32_t)r);
 }
 
 /* bcd */
@@ -1751,8 +2051,8 @@ void helper_aam(int base)
     al = EAX & 0xff;
     ah = al / base;
     al = al % base;
-    EAX = (EAX & ~0xffff) | al | (ah << 8);
-    CC_DST = al;
+    EAX_W((EAX & ~0xffff) | al | (ah << 8));
+    CC_DST_W(al);
 }
 
 void helper_aad(int base)
@@ -1761,8 +2061,8 @@ void helper_aad(int base)
     al = EAX & 0xff;
     ah = (EAX >> 8) & 0xff;
     al = ((ah * base) + al) & 0xff;
-    EAX = (EAX & ~0xffff) | al;
-    CC_DST = al;
+    EAX_W((EAX & ~0xffff) | al);
+    CC_DST_W(al);
 }
 
 void helper_aaa(void)
@@ -1785,8 +2085,8 @@ void helper_aaa(void)
         eflags &= ~(CC_C | CC_A);
         al &= 0x0f;
     }
-    EAX = (EAX & ~0xffff) | al | (ah << 8);
-    CC_SRC = eflags;
+    EAX_W((EAX & ~0xffff) | al | (ah << 8));
+    CC_SRC_W(eflags);
 }
 
 void helper_aas(void)
@@ -1809,8 +2109,8 @@ void helper_aas(void)
         eflags &= ~(CC_C | CC_A);
         al &= 0x0f;
     }
-    EAX = (EAX & ~0xffff) | al | (ah << 8);
-    CC_SRC = eflags;
+    EAX_W((EAX & ~0xffff) | al | (ah << 8));
+    CC_SRC_W(eflags);
 }
 
 void helper_daa(void)
@@ -1832,12 +2132,12 @@ void helper_daa(void)
         al = (al + 0x60) & 0xff;
         eflags |= CC_C;
     }
-    EAX = (EAX & ~0xff) | al;
+    EAX_W((EAX & ~0xff) | al);
     /* well, speed is not an issue here, so we compute the flags by hand */
     eflags |= (al == 0) << 6; /* zf */
-    eflags |= parity_table[al]; /* pf */
+    eflags |= (parity_table[al] & CC_P); /* pf */
     eflags |= (al & 0x80); /* sf */
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 void helper_das(void)
@@ -1862,12 +2162,12 @@ void helper_das(void)
         al = (al - 0x60) & 0xff;
         eflags |= CC_C;
     }
-    EAX = (EAX & ~0xff) | al;
+    EAX_W((EAX & ~0xff) | al);
     /* well, speed is not an issue here, so we compute the flags by hand */
     eflags |= (al == 0) << 6; /* zf */
-    eflags |= parity_table[al]; /* pf */
+    eflags |= (parity_table[al] & CC_P); /* pf */
     eflags |= (al & 0x80); /* sf */
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 void helper_into(int next_eip_addend)
@@ -1891,12 +2191,12 @@ void helper_cmpxchg8b(target_ulong a0)
         eflags |= CC_Z;
     } else {
         /* always do the store */
-        stq(a0, d); 
-        EDX = (uint32_t)(d >> 32);
-        EAX = (uint32_t)d;
+        stq(a0, d);
+        EDX_W((uint32_t)(d >> 32));
+        EAX_W((uint32_t)d);
         eflags &= ~CC_Z;
     }
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 #ifdef TARGET_X86_64
@@ -1941,11 +2241,18 @@ void helper_cpuid(void)
 
     helper_svm_check_intercept_param(SVM_EXIT_CPUID, 0);
 
-    cpu_x86_cpuid(env, (uint32_t)EAX, (uint32_t)ECX, &eax, &ebx, &ecx, &edx);
-    EAX = eax;
-    EBX = ebx;
-    ECX = ecx;
-    EDX = edx;
+    uint32_t index = (uint32_t)EAX;
+
+    //XXX: workaround to avoid passing symbolic count information
+    if (index == 4) {
+        cpu_x86_cpuid(env, (uint32_t)EAX, (uint32_t)ECX, &eax, &ebx, &ecx, &edx);
+    }else {
+        cpu_x86_cpuid(env, (uint32_t)EAX, 0, &eax, &ebx, &ecx, &edx);
+    }
+    EAX_W(eax);
+    EBX_W(ebx);
+    ECX_W(ecx);
+    EDX_W(edx);
 }
 
 void helper_enter_level(int level, int data32, target_ulong t1)
@@ -2244,7 +2551,7 @@ void helper_ljmp_protected(int new_cs, target_ulong new_eip,
                 raise_exception_err(EXCP0D_GPF, new_cs & 0xfffc);
             next_eip = env->eip + next_eip_addend;
             switch_tss(new_cs, e1, e2, SWITCH_TSS_JMP, next_eip);
-            CC_OP = CC_OP_EFLAGS;
+            CC_OP_W(CC_OP_EFLAGS);
             break;
         case 4: /* 286 call gate */
         case 12: /* 386 call gate */
@@ -2320,7 +2627,9 @@ void helper_lcall_protected(int new_cs, target_ulong new_eip,
 
     next_eip = env->eip + next_eip_addend;
     LOG_PCALL("lcall %04x:%08x s=%d\n", new_cs, (uint32_t)new_eip, shift);
+#ifndef S2E_LLVM_LIB
     LOG_PCALL_STATE(env);
+#endif
     if ((new_cs & 0xfffc) == 0)
         raise_exception_err(EXCP0D_GPF, 0);
     if (load_segment(&e1, &e2, new_cs) != 0)
@@ -2395,7 +2704,7 @@ void helper_lcall_protected(int new_cs, target_ulong new_eip,
             if (dpl < cpl || dpl < rpl)
                 raise_exception_err(EXCP0D_GPF, new_cs & 0xfffc);
             switch_tss(new_cs, e1, e2, SWITCH_TSS_CALL, next_eip);
-            CC_OP = CC_OP_EFLAGS;
+            CC_OP_W(CC_OP_EFLAGS);
             return;
         case 4: /* 286 call gate */
         case 12: /* 386 call gate */
@@ -2537,11 +2846,11 @@ void helper_iret_real(int shift)
         POPW(ssp, sp, sp_mask, new_cs);
         POPW(ssp, sp, sp_mask, new_eflags);
     }
-    ESP = (ESP & ~sp_mask) | (sp & sp_mask);
+    ESP_W((ESP & ~sp_mask) | (sp & sp_mask));
     env->segs[R_CS].selector = new_cs;
     env->segs[R_CS].base = (new_cs << 4);
     env->eip = new_eip;
-    if (env->eflags & VM_MASK)
+    if (env->mflags & VM_MASK)
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | IF_MASK | RF_MASK | NT_MASK;
     else
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | IF_MASK | IOPL_MASK | RF_MASK | NT_MASK;
@@ -2603,24 +2912,26 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
 #endif
     if (shift == 1) {
         /* 32 bits */
-        POPL(ssp, sp, sp_mask, new_eip);
-        POPL(ssp, sp, sp_mask, new_cs);
+        POPL_T(ssp, sp, sp_mask, new_eip);
+        POPL_T(ssp, sp, sp_mask, new_cs);
         new_cs &= 0xffff;
         if (is_iret) {
-            POPL(ssp, sp, sp_mask, new_eflags);
+            POPL_T(ssp, sp, sp_mask, new_eflags);
             if (new_eflags & VM_MASK)
                 goto return_to_vm86;
         }
     } else {
         /* 16 bits */
-        POPW(ssp, sp, sp_mask, new_eip);
-        POPW(ssp, sp, sp_mask, new_cs);
+        POPW_T(ssp, sp, sp_mask, new_eip);
+        POPW_T(ssp, sp, sp_mask, new_cs);
         if (is_iret)
-            POPW(ssp, sp, sp_mask, new_eflags);
+            POPW_T(ssp, sp, sp_mask, new_eflags);
     }
     LOG_PCALL("lret new %04x:" TARGET_FMT_lx " s=%d addend=0x%x\n",
               new_cs, new_eip, shift, addend);
+#ifndef S2E_LLVM_LIB
     LOG_PCALL_STATE(env);
+#endif
     if ((new_cs & 0xfffc) == 0)
         raise_exception_err(EXCP0D_GPF, new_cs & 0xfffc);
     if (load_segment(&e1, &e2, new_cs) != 0)
@@ -2662,13 +2973,13 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
 #endif
         if (shift == 1) {
             /* 32 bits */
-            POPL(ssp, sp, sp_mask, new_esp);
-            POPL(ssp, sp, sp_mask, new_ss);
+            POPL_T(ssp, sp, sp_mask, new_esp);
+            POPL_T(ssp, sp, sp_mask, new_ss);
             new_ss &= 0xffff;
         } else {
             /* 16 bits */
-            POPW(ssp, sp, sp_mask, new_esp);
-            POPW(ssp, sp, sp_mask, new_ss);
+            POPW_T(ssp, sp, sp_mask, new_esp);
+            POPW_T(ssp, sp, sp_mask, new_ss);
         }
         LOG_PCALL("new ss:esp=%04x:" TARGET_FMT_lx "\n",
                     new_ss, new_esp);
@@ -2736,7 +3047,7 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
         eflags_mask = TF_MASK | AC_MASK | ID_MASK | RF_MASK | NT_MASK;
         if (cpl == 0)
             eflags_mask |= IOPL_MASK;
-        iopl = (env->eflags >> IOPL_SHIFT) & 3;
+        iopl = (env->mflags >> IOPL_SHIFT) & 3;
         if (cpl <= iopl)
             eflags_mask |= IF_MASK;
         if (shift == 0)
@@ -2765,7 +3076,7 @@ static inline void helper_ret_protected(int shift, int is_iret, int addend)
     load_seg_vm(R_GS, new_gs & 0xffff);
 
     env->eip = new_eip & 0xffff;
-    ESP = new_esp;
+    ESP_W(new_esp);
 }
 
 void helper_iret_protected(int shift, int next_eip)
@@ -2774,7 +3085,7 @@ void helper_iret_protected(int shift, int next_eip)
     uint32_t e1, e2;
 
     /* specific case for TSS */
-    if (env->eflags & NT_MASK) {
+    if (env->mflags & NT_MASK) {
 #ifdef TARGET_X86_64
         if (env->hflags & HF_LMA_MASK)
             raise_exception_err(EXCP0D_GPF, 0);
@@ -2818,7 +3129,7 @@ void helper_sysenter(void)
     if (env->sysenter_cs == 0) {
         raise_exception_err(EXCP0D_GPF, 0);
     }
-    env->eflags &= ~(VM_MASK | IF_MASK | RF_MASK);
+    env->mflags &= ~(VM_MASK | IF_MASK | RF_MASK);
     cpu_x86_set_cpl(env, 0);
 
 #ifdef TARGET_X86_64
@@ -2842,7 +3153,7 @@ void helper_sysenter(void)
                            DESC_G_MASK | DESC_B_MASK | DESC_P_MASK |
                            DESC_S_MASK |
                            DESC_W_MASK | DESC_A_MASK);
-    ESP = env->sysenter_esp;
+    ESP_W(env->sysenter_esp);
     EIP = env->sysenter_eip;
 }
 
@@ -2881,7 +3192,7 @@ void helper_sysexit(int dflag)
                                DESC_S_MASK | (3 << DESC_DPL_SHIFT) |
                                DESC_W_MASK | DESC_A_MASK);
     }
-    ESP = ECX;
+    ESP_W(ECX);
     EIP = EDX;
 #ifdef CONFIG_KQEMU
     if (kqemu_is_ok(env)) {
@@ -2999,8 +3310,14 @@ void helper_rdtsc(void)
     helper_svm_check_intercept_param(SVM_EXIT_RDTSC, 0);
 
     val = cpu_get_tsc(env) + env->tsc_offset;
-    EAX = (uint32_t)(val);
-    EDX = (uint32_t)(val >> 32);
+    EAX_W((uint32_t)(val));
+    EDX_W((uint32_t)(val >> 32));
+}
+
+void helper_rdtscp(void)
+{
+    helper_rdtsc();
+    ECX_W((uint32_t)(env->tsc_aux));
 }
 
 void helper_rdpmc(void)
@@ -3291,8 +3608,8 @@ void helper_rdmsr(void)
         val = 0;
         break;
     }
-    EAX = (uint32_t)(val);
-    EDX = (uint32_t)(val >> 32);
+    EAX_W((uint32_t)(val));
+    EDX_W((uint32_t)(val >> 32));
 }
 #endif
 
@@ -3332,12 +3649,12 @@ target_ulong helper_lsl(target_ulong selector1)
         }
         if (dpl < cpl || dpl < rpl) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+        CC_SRC_W(eflags & ~CC_Z);
             return 0;
         }
     }
     limit = get_seg_limit(e1, e2);
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
     return limit;
 }
 
@@ -3379,11 +3696,11 @@ target_ulong helper_lar(target_ulong selector1)
         }
         if (dpl < cpl || dpl < rpl) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+        CC_SRC_W(eflags & ~CC_Z);
             return 0;
         }
     }
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
     return e2 & 0x00f0ff00;
 }
 
@@ -3413,11 +3730,11 @@ void helper_verr(target_ulong selector1)
     } else {
         if (dpl < cpl || dpl < rpl) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+            CC_SRC_W(eflags & ~CC_Z);
             return;
         }
     }
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
 }
 
 void helper_verw(target_ulong selector1)
@@ -3443,13 +3760,14 @@ void helper_verw(target_ulong selector1)
             goto fail;
         if (!(e2 & DESC_W_MASK)) {
         fail:
-            CC_SRC = eflags & ~CC_Z;
+            CC_SRC_W(eflags & ~CC_Z);
             return;
         }
     }
-    CC_SRC = eflags | CC_Z;
+    CC_SRC_W(eflags | CC_Z);
 }
 
+#ifndef S2E_LLVM_LIB
 /* x87 FPU helpers */
 
 static void fpu_set_exception(int mask)
@@ -3716,7 +4034,7 @@ void helper_fcomi_ST0_FT0(void)
     ret = floatx_compare(ST0, FT0, &env->fp_status);
     eflags = helper_cc_compute_all(CC_OP);
     eflags = (eflags & ~(CC_Z | CC_P | CC_C)) | fcomi_ccval[ret + 1];
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 void helper_fucomi_ST0_FT0(void)
@@ -3727,7 +4045,7 @@ void helper_fucomi_ST0_FT0(void)
     ret = floatx_compare_quiet(ST0, FT0, &env->fp_status);
     eflags = helper_cc_compute_all(CC_OP);
     eflags = (eflags & ~(CC_Z | CC_P | CC_C)) | fcomi_ccval[ret + 1];
-    CC_SRC = eflags;
+    CC_SRC_W(eflags);
 }
 
 void helper_fadd_ST0_FT0(void)
@@ -4532,6 +4850,8 @@ CPU86_LDouble cpu_set_fp80(uint64_t mant, uint16_t upper)
 }
 #endif
 
+#endif /* S2E_LLVM_LIB */
+
 #ifdef TARGET_X86_64
 
 //#define DEBUG_MULDIV
@@ -4724,7 +5044,7 @@ void helper_debug(void)
 
 void helper_reset_rf(void)
 {
-    env->eflags &= ~RF_MASK;
+    env->mflags &= ~RF_MASK;
 }
 
 void helper_raise_interrupt(int intno, int next_eip_addend)
@@ -4739,25 +5059,25 @@ void helper_raise_exception(int exception_index)
 
 void helper_cli(void)
 {
-    env->eflags &= ~IF_MASK;
+    env->mflags &= ~IF_MASK;
 }
 
 void helper_sti(void)
 {
-    env->eflags |= IF_MASK;
+    env->mflags |= IF_MASK;
 }
 
 #if 0
 /* vm86plus instructions */
 void helper_cli_vm(void)
 {
-    env->eflags &= ~VIF_MASK;
+    env->mflags &= ~VIF_MASK;
 }
 
 void helper_sti_vm(void)
 {
-    env->eflags |= VIF_MASK;
-    if (env->eflags & VIP_MASK) {
+    env->mflags |= VIF_MASK;
+    if (env->mflags & VIP_MASK) {
         raise_exception(EXCP0D_GPF);
     }
 }
@@ -4794,6 +5114,7 @@ void helper_boundl(target_ulong a0, int v)
     }
 }
 
+#ifndef S2E_LLVM_LIB
 static float approx_rsqrt(float a)
 {
     return 1.0 / sqrt(a);
@@ -4803,6 +5124,7 @@ static float approx_rcp(float a)
 {
     return 1.0 / a;
 }
+#endif
 
 #if !defined(CONFIG_USER_ONLY)
 
@@ -4820,6 +5142,31 @@ static float approx_rcp(float a)
 #define SHIFT 3
 #include "softmmu_template.h"
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#undef MMUSUFFIX
+#define MMUSUFFIX _mmu_s2e_trace
+#define _raw _raw_s2e_trace
+
+#define SHIFT 0
+#include "softmmu_template.h"
+
+#define SHIFT 1
+#include "softmmu_template.h"
+
+#define SHIFT 2
+#include "softmmu_template.h"
+
+#define SHIFT 3
+#include "softmmu_template.h"
+
+#undef _raw
+#endif
+
+#endif
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+
 #endif
 
 #if !defined(CONFIG_USER_ONLY)
@@ -4827,23 +5174,43 @@ static float approx_rcp(float a)
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
-void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
+void tlb_fill(target_ulong addr, target_ulong page_addr, int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
     int ret;
-    unsigned long pc;
+    uintptr_t pc;
     CPUX86State *saved_env;
 
     /* XXX: hack to restore env in all cases, even if not called from
        generated code */
     saved_env = env;
-    env = cpu_single_env;
-
+    if(env != cpu_single_env)
+        env = cpu_single_env;
+#ifdef CONFIG_S2E
+    s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
+    ret = cpu_x86_handle_mmu_fault(env, page_addr,
+                                   is_write, mmu_idx, 1);
+#else
     ret = cpu_x86_handle_mmu_fault(env, addr, is_write, mmu_idx, 1);
+#endif
     if (ret) {
+#ifdef CONFIG_S2E
+        /* In S2E we pass page address instead of addr to cpu_x86_handle_mmu_fault,
+           since the latter can be symbolic while the former is always concrete.
+           To compensate, we reset fault address here. */
+        if(env->exception_index == EXCP0E_PAGE) {
+            if(env->intercept_exceptions & (1 << EXCP0E_PAGE))
+                stq_phys(env->vm_vmcb + offsetof(struct vmcb, control.exit_info_2),
+                         addr);
+            else
+                env->cr[2] = addr;
+        }
+        if(use_icount)
+            cpu_restore_icount(env);
+#endif
         if (retaddr) {
             /* now we have a real cpu fault */
-            pc = (unsigned long)retaddr;
+            pc = (uintptr_t)retaddr;
             tb = tb_find_pc(pc);
             if (tb) {
                 /* the PC is inside the translated code. It means that we have
@@ -4851,8 +5218,12 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
                 cpu_restore_state(tb, env, pc, NULL);
             }
         }
+#ifdef CONFIG_S2E
+s2e_on_page_fault(g_s2e, g_s2e_state, addr, is_write);
+#endif
         raise_exception_err(env->exception_index, env->error_code);
     }
+    if(saved_env != env)
     env = saved_env;
 }
 #endif
@@ -5011,16 +5382,16 @@ void helper_vmrun(int aflag, int next_eip_addend)
     if (int_ctl & V_INTR_MASKING_MASK) {
         env->v_tpr = int_ctl & V_TPR_MASK;
         env->hflags2 |= HF2_VINTR_MASK;
-        if (env->eflags & IF_MASK)
+        if (env->mflags & IF_MASK)
             env->hflags2 |= HF2_HIF_MASK;
     }
 
     cpu_load_efer(env, 
                   ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.efer)));
-    env->eflags = 0;
+    env->mflags = 0;
     load_eflags(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rflags)),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
 
     svm_load_seg_cache(env->vm_vmcb + offsetof(struct vmcb, save.es),
                        env, R_ES);
@@ -5033,8 +5404,8 @@ void helper_vmrun(int aflag, int next_eip_addend)
 
     EIP = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rip));
     env->eip = EIP;
-    ESP = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rsp));
-    EAX = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rax));
+    ESP_W(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rsp)));
+    EAX_W(ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.rax)));
     env->dr[7] = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.dr7));
     env->dr[6] = ldq_phys(env->vm_vmcb + offsetof(struct vmcb, save.dr6));
     cpu_x86_set_cpl(env, ldub_phys(env->vm_vmcb + offsetof(struct vmcb, save.cpl)));
@@ -5373,10 +5744,10 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
        set properly */
     cpu_load_efer(env, 
                   ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.efer)));
-    env->eflags = 0;
+    env->mflags = 0;
     load_eflags(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rflags)),
                 ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK));
-    CC_OP = CC_OP_EFLAGS;
+    CC_OP_W(CC_OP_EFLAGS);
 
     svm_load_seg_cache(env->vm_hsave + offsetof(struct vmcb, save.es),
                        env, R_ES);
@@ -5388,8 +5759,8 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
                        env, R_DS);
 
     EIP = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rip));
-    ESP = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rsp));
-    EAX = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rax));
+    ESP_W(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rsp)));
+    EAX_W(ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.rax)));
 
     env->dr[6] = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.dr6));
     env->dr[7] = ldq_phys(env->vm_hsave + offsetof(struct vmcb, save.dr7));
@@ -5417,7 +5788,7 @@ void helper_vmexit(uint32_t exit_code, uint64_t exit_info_1)
 
     /* Forces CR0.PE = 1, RFLAGS.VM = 0. */
     env->cr[0] |= CR0_PE_MASK;
-    env->eflags &= ~VM_MASK;
+    env->mflags &= ~VM_MASK;
 
     /* Disables all breakpoints in the host DR7 register. */
 
@@ -5459,11 +5830,13 @@ void helper_movq(void *d, void *s)
     *(uint64_t *)d = *(uint64_t *)s;
 }
 
+#ifndef S2E_LLVM_LIB
 #define SHIFT 0
 #include "ops_sse.h"
 
 #define SHIFT 1
 #include "ops_sse.h"
+#endif
 
 #define SHIFT 0
 #include "helper_template.h"
@@ -5667,3 +6040,16 @@ uint32_t helper_cc_compute_c(int op)
 #endif
     }
 }
+
+uint64_t helper_set_cc_op_eflags(void)
+{
+    WR_cpu(env, cc_src, helper_cc_compute_all(CC_OP));
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    return 0;
+}
+
+#if defined(CONFIG_S2E) && defined(S2E_LLVM_LIB)
+void s2e_ensure_symbolic(struct S2E* s2e, struct S2EExecutionState *state)
+{
+}
+#endif

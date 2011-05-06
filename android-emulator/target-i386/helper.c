@@ -17,6 +17,20 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -515,9 +529,13 @@ void cpu_reset(CPUX86State *env)
                            DESC_A_MASK);
 
     env->eip = 0xfff0;
-    env->regs[R_EDX] = env->cpuid_version;
+    WR_cpu(env, regs[R_EDX], env->cpuid_version);
 
-    env->eflags = 0x2;
+    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+    WR_cpu(env, cc_src, 0);
+    env->df = 1; /* this means df flag = 0 */
+    env->mflags = 0;
+    //WR_cpu(env, eflags, 0x2);
 
     /* FPU init */
     for(i = 0;i < 8; i++)
@@ -662,7 +680,7 @@ void cpu_dump_state(CPUState *env, FILE *f,
     if (kvm_enabled())
         kvm_arch_get_registers(env);
 
-    eflags = env->eflags;
+    eflags = cpu_get_eflags_dirty(env);
 #ifdef TARGET_X86_64
     if (env->hflags & HF_CS64_MASK) {
         cpu_fprintf(f,
@@ -671,22 +689,22 @@ void cpu_dump_state(CPUState *env, FILE *f,
                     "R8 =%016" PRIx64 " R9 =%016" PRIx64 " R10=%016" PRIx64 " R11=%016" PRIx64 "\n"
                     "R12=%016" PRIx64 " R13=%016" PRIx64 " R14=%016" PRIx64 " R15=%016" PRIx64 "\n"
                     "RIP=%016" PRIx64 " RFL=%08x [%c%c%c%c%c%c%c] CPL=%d II=%d A20=%d SMM=%d HLT=%d\n",
-                    env->regs[R_EAX],
-                    env->regs[R_EBX],
-                    env->regs[R_ECX],
-                    env->regs[R_EDX],
-                    env->regs[R_ESI],
-                    env->regs[R_EDI],
-                    env->regs[R_EBP],
-                    env->regs[R_ESP],
-                    env->regs[8],
-                    env->regs[9],
-                    env->regs[10],
-                    env->regs[11],
-                    env->regs[12],
-                    env->regs[13],
-                    env->regs[14],
-                    env->regs[15],
+                    RR_cpu(env, regs[R_EAX]),
+                    RR_cpu(env, regs[R_EBX]),
+                    RR_cpu(env, regs[R_ECX]),
+                    RR_cpu(env, regs[R_EDX]),
+                    RR_cpu(env, regs[R_ESI]),
+                    RR_cpu(env, regs[R_EDI]),
+                    RR_cpu(env, regs[R_EBP]),
+                    RR_cpu(env, regs[R_ESP]),
+                    RR_cpu(env, regs[8]),
+                    RR_cpu(env, regs[9]),
+                    RR_cpu(env, regs[10]),
+                    RR_cpu(env, regs[11]),
+                    RR_cpu(env, regs[12]),
+                    RR_cpu(env, regs[13]),
+                    RR_cpu(env, regs[14]),
+                    RR_cpu(env, regs[15]),
                     env->eip, eflags,
                     eflags & DF_MASK ? 'D' : '-',
                     eflags & CC_O ? 'O' : '-',
@@ -706,14 +724,14 @@ void cpu_dump_state(CPUState *env, FILE *f,
         cpu_fprintf(f, "EAX=%08x EBX=%08x ECX=%08x EDX=%08x\n"
                     "ESI=%08x EDI=%08x EBP=%08x ESP=%08x\n"
                     "EIP=%08x EFL=%08x [%c%c%c%c%c%c%c] CPL=%d II=%d A20=%d SMM=%d HLT=%d\n",
-                    (uint32_t)env->regs[R_EAX],
-                    (uint32_t)env->regs[R_EBX],
-                    (uint32_t)env->regs[R_ECX],
-                    (uint32_t)env->regs[R_EDX],
-                    (uint32_t)env->regs[R_ESI],
-                    (uint32_t)env->regs[R_EDI],
-                    (uint32_t)env->regs[R_EBP],
-                    (uint32_t)env->regs[R_ESP],
+                    (uint32_t)RR_cpu(env, regs[R_EAX]),
+                    (uint32_t)RR_cpu(env, regs[R_EBX]),
+                    (uint32_t)RR_cpu(env, regs[R_ECX]),
+                    (uint32_t)RR_cpu(env, regs[R_EDX]),
+                    (uint32_t)RR_cpu(env, regs[R_ESI]),
+                    (uint32_t)RR_cpu(env, regs[R_EDI]),
+                    (uint32_t)RR_cpu(env, regs[R_EBP]),
+                    (uint32_t)RR_cpu(env, regs[R_ESP]),
                     (uint32_t)env->eip, eflags,
                     eflags & DF_MASK ? 'D' : '-',
                     eflags & CC_O ? 'O' : '-',
@@ -768,20 +786,22 @@ void cpu_dump_state(CPUState *env, FILE *f,
         cpu_fprintf(f, "\nDR6=%08x DR7=%08x\n", env->dr[6], env->dr[7]);
     }
     if (flags & X86_DUMP_CCOP) {
-        if ((unsigned)env->cc_op < CC_OP_NB)
-            snprintf(cc_op_name, sizeof(cc_op_name), "%s", cc_op_str[env->cc_op]);
+        if ((unsigned)RR_cpu(env, cc_op) < CC_OP_NB)
+            snprintf(cc_op_name, sizeof(cc_op_name), "%s",
+                     cc_op_str[RR_cpu(env, cc_op)]);
         else
-            snprintf(cc_op_name, sizeof(cc_op_name), "[%d]", env->cc_op);
+            snprintf(cc_op_name, sizeof(cc_op_name), "[%d]",
+                     RR_cpu(env, cc_op));
 #ifdef TARGET_X86_64
         if (env->hflags & HF_CS64_MASK) {
             cpu_fprintf(f, "CCS=%016" PRIx64 " CCD=%016" PRIx64 " CCO=%-8s\n",
-                        env->cc_src, env->cc_dst,
+                    RR_cpu(env, cc_src), RR_cpu(env, cc_dst),
                         cc_op_name);
         } else
 #endif
         {
             cpu_fprintf(f, "CCS=%08x CCD=%08x CCO=%-8s\n",
-                        (uint32_t)env->cc_src, (uint32_t)env->cc_dst,
+                    (uint32_t)RR_cpu(env, cc_src), (uint32_t)RR_cpu(env, cc_dst),
                         cc_op_name);
         }
     }
