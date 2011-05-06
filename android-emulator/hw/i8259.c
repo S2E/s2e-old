@@ -180,6 +180,7 @@ void pic_update_irq(PicState2 *s)
 #ifdef DEBUG_IRQ_LATENCY
 int64_t irq_time[16];
 #endif
+}
 
 static void i8259_set_irq(void *opaque, int irq, int level)
 {
