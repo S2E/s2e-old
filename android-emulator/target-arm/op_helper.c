@@ -106,7 +106,8 @@ static void do_unaligned_access (target_ulong addr, int is_write, int mmu_idx, v
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
-void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
+void tlb_fill(target_ulong addr, target_ulong page_addr, int is_write, int mmu_idx,
+              void *retaddr)
 {
     TranslationBlock *tb;
     CPUState *saved_env;
