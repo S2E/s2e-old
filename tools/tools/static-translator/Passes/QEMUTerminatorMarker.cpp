@@ -42,8 +42,6 @@ void QEMUTerminatorMarker::initMarkers(llvm::Module *module)
     type = FunctionType::get(Type::getVoidTy(module->getContext()), paramTypes, false);
     m_callMarker = dyn_cast<Function>(module->getOrInsertFunction("call_marker", type));
 
-    std::cout << *m_callMarker << std::endl;
-
     //2. Handle the return marker
     paramTypes.clear();
     type = FunctionType::get(Type::getVoidTy(module->getContext()), paramTypes, false);

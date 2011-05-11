@@ -7,6 +7,7 @@
 #include "llvm/Instructions.h"
 
 #include <set>
+#include <string>
 
 /**
  * Extracts all constant integers from an LLVM function.
@@ -19,6 +20,7 @@ struct JumpTableExtractor : public llvm::FunctionPass {
   }
 
 private:
+  static std::string TAG;
   uint64_t m_jumpTableAddress;
   uint64_t m_jumpTableSize;
 

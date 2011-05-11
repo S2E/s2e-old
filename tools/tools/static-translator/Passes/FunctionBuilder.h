@@ -37,6 +37,7 @@ struct FunctionBuilder : public llvm::ModulePass {
     }
 
 private:
+    static std::string TAG;
 
     llvm::Function *m_entryPoint;
     std::string m_functionName;

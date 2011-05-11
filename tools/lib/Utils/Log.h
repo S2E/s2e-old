@@ -46,10 +46,12 @@
 
 namespace s2etools {
 
+#include <ostream>
+
 /** Get the logging stream */
 std::ostream& Log(int logLevel);
 
-#define __LOG_SUFFIX(level) Log(level) << std::dec << '[' << level << "] " << \
+#define __LOG_SUFFIX(level) s2etools::Log(level) << std::dec << '[' << level << "] " << \
 TAG << ":" << __FUNCTION__ << " - "
 
 #define LOGDEBUG() __LOG_SUFFIX(LOG_DEBUG)

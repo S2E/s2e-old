@@ -5,6 +5,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Support/InstIterator.h>
 
+#include <lib/Utils/Log.h>
 
 #include <Utils.h>>
 #include "QEMUInstructionBoundaryMarker.h"
@@ -23,6 +24,8 @@ RegisterPass<QEMUInstructionBoundaryMarker>
   QEMUInstructionBoundaryMarker("qemuinstructionmarker", "Marks instruction boundaries",
   false /* Only looks at CFG */,
   false /* Analysis Pass */);
+
+std::string QEMUInstructionBoundaryMarker::TAG="QEMUInstructionBoundaryMarker";
 
 void QEMUInstructionBoundaryMarker::initInstructionMarker(llvm::Module *module)
 {
@@ -86,10 +89,10 @@ void QEMUInstructionBoundaryMarker::moveAllocInstruction(llvm::AllocaInst *instr
     Function *containingFunction = instr->getParent()->getParent();
     Function *instructionMarker = containingFunction->getParent()->getFunction("instruction_marker");
 
-    //std::cout << "BEFORE" << *containingFunction;
+    //LOGDEBUG() << "BEFORE" << *containingFunction;
 
     if (instr->getNumUses() == 0) {
-        std::cout << "Erasing useless alloca" << std::endl;
+        LOGDEBUG() << "Erasing useless alloca" << std::endl;
         instr->eraseFromParent();
         return;
     }
@@ -124,7 +127,7 @@ void QEMUInstructionBoundaryMarker::moveAllocInstruction(llvm::AllocaInst *instr
         CallInst *marker = (*it).first;
         AllocaInst *ai = instr->clone(containingFunction->getParent()->getContext());
         ai->insertAfter(marker);
-        std::cout << "INSERTING AFTER " << *marker << std::endl;
+        LOGDEBUG() << "INSERTING AFTER " << *marker << std::endl;
         foreach(uit, (*it).second.begin(), (*it).second.end()) {
             Instruction *user = dyn_cast<Instruction>(*uit);
             assert(user);
@@ -132,7 +135,7 @@ void QEMUInstructionBoundaryMarker::moveAllocInstruction(llvm::AllocaInst *instr
         }
     }
 
-    //std::cout << "AFTER" << *containingFunction;
+    //LOGDEBUG() << "AFTER" << *containingFunction;
 }
 
 /**
@@ -241,9 +244,7 @@ bool QEMUInstructionBoundaryMarker::runOnFunction(llvm::Function &F)
     duplicatePrefixInstructions(F);
   }
 
-
-
-  //std::cout << "Marked" << F << std::endl;
+  //LOGDEBUG() << "Marked" << F << std::endl;
 
   return modified;
 }

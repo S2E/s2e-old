@@ -33,6 +33,8 @@ public:
 
 
 private:
+  static std::string TAG;
+
   s2etools::BFDInterface *m_binary;
   s2etools::translator::CFunctions m_functions;
   FunctionMap m_functionMap;

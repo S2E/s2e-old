@@ -11,6 +11,7 @@
 
 
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "lib/Utils/Log.h"
 #include "Passes/QEMUInstructionBoundaryMarker.h"
 #include "Passes/QEMUTerminatorMarker.h"
 #include "Passes/QEMUTbCutter.h"
@@ -22,6 +23,7 @@ using namespace llvm;
 namespace s2etools {
 namespace translator {
 
+std::string CBasicBlock::TAG = "CBasicBlock";
 unsigned CBasicBlock::s_seqNum = 0;
 
 bool BasicBlockComparator::operator ()(const CBasicBlock* b1, const CBasicBlock *b2)
@@ -71,9 +73,9 @@ void CBasicBlock::markInstructionBoundaries()
 {
     QEMUInstructionBoundaryMarker marker;
     if (!marker.runOnFunction(*m_function)) {
-        std::cerr << "Basic block at address 0x" << std::hex << m_address <<
+        LOGERROR() << "Basic block at address 0x" << std::hex << m_address <<
                 " has no instruction markers. This is bad." << std::endl;
-        std::cerr << m_function << std::endl;
+        LOGERROR() << m_function << std::endl;
         assert(false);
     }
 
@@ -88,9 +90,9 @@ void CBasicBlock::markTerminator()
 
     QEMUTerminatorMarker terminatorMarker(isInlinable, isRet, isCall, m_address + m_size);
     if (!terminatorMarker.runOnFunction(*m_function)) {
-        std::cerr << "Basic block at address 0x" << std::hex << m_address <<
+        LOGERROR() << "Basic block at address 0x" << std::hex << m_address <<
                 " has no terminator markers. This is bad." << std::endl;
-        std::cerr << m_function << std::endl;
+        LOGERROR() << m_function << std::endl;
         assert(false);
     }
 
@@ -130,9 +132,9 @@ Function* CBasicBlock::cloneFunction()
 {
     Module *module = m_function->getParent();
 
-    std::cerr << "Cloning BB 0x" << std::hex << m_address << std::endl;
+    LOGERROR() << "Cloning BB 0x" << std::hex << m_address << std::endl;
     if (m_address == 0x10ebe) {
-        std::cerr << *m_function;
+        LOGERROR() << *m_function;
     }
 
     std::stringstream fcnName;
@@ -177,13 +179,13 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
 {
     if (m_instructionMarkers.size() == 1) {
         //Can't split a basic block that has only one instruction
-        std::cerr << "Basic block 0x"  << std::hex << m_address << " has only one instruction." << std::endl;
+        LOGERROR() << "Basic block 0x"  << std::hex << m_address << " has only one instruction." << std::endl;
         return NULL;
     }
     
     if (m_instructionMarkers.find(va) == m_instructionMarkers.end()) {
         //Requested to split at an address that does not belong to us
-        std::cerr << "Address 0x" << std::hex << va << " does not belong to basic block 0x"<< m_address << std::endl;
+        LOGERROR() << "Address 0x" << std::hex << va << " does not belong to basic block 0x"<< m_address << std::endl;
         return NULL;
     }
 
@@ -203,7 +205,7 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
 
     QEMUTbCutter tbCutter(ret->m_instructionMarkers[va], false);
     if (!tbCutter.runOnFunction(*retf)) {
-        std::cerr << "Could not cut function " << retf->getNameStr() << " at 0x" << std::hex << va << std::endl;
+        LOGERROR() << "Could not cut function " << retf->getNameStr() << " at 0x" << std::hex << va << std::endl;
         delete ret;
         return NULL;
     }
@@ -223,7 +225,7 @@ CBasicBlock* CBasicBlock::split(uint64_t va)
     //Shorten the current function by removing instructions at the start
     QEMUTbCutter tbShortener(m_instructionMarkers[va], true);
     if (!tbShortener.runOnFunction(*m_function)) {
-        std::cerr << "Could not cut function " << m_function->getNameStr() << " at 0x" << std::hex << va << std::endl;
+        LOGERROR() << "Could not cut function " << m_function->getNameStr() << " at 0x" << std::hex << va << std::endl;
         delete ret;
         return NULL;
     }
@@ -275,7 +277,7 @@ void CBasicBlock::patchCallMarkersWithRealFunctions(BasicBlocks &allBlocks)
 
             if (foundIt == allBlocks.end()) {
                 //This can happen if the basic block is the entry block of a stub function.
-                std::cerr << "patchCallMarkersWithRealFunctions: The target basic block does not exist..." << std::endl;
+                LOGERROR() << "patchCallMarkersWithRealFunctions: The target basic block does not exist..." << std::endl;
                 return;
             }
 
@@ -335,8 +337,8 @@ bool CBasicBlock::valid() const
     foreach(it, m_instructionMarkers.begin(), m_instructionMarkers.end()) {
         uint64_t marker = (*it).first;
         if (marker < m_address || marker >= m_address + m_size) {
-            std::cerr << "BUGGY FUNCTION " << std::endl;
-            toString(std::cerr);
+            LOGERROR() << "BUGGY FUNCTION " << std::endl;
+            toString(LOGERROR());
             assert(false && "BB has marker outside its bounds");
         }
     }

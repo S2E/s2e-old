@@ -27,6 +27,7 @@ public:
     typedef std::map<uint64_t, llvm::CallInst*> Markers;
 
 private:
+    static std::string TAG;
     llvm::Function *m_function;
     uint64_t m_address;
     unsigned m_size;

@@ -351,7 +351,6 @@ void StaticTranslatorTool::exploreBasicBlocks()
         }
 
         extractAddresses(bb);
-        bb->toString(std::cout);
         processTranslationBlock(bb);
     }
 

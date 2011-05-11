@@ -2,6 +2,7 @@
 #include <llvm/BasicBlock.h>
 #include <llvm/Module.h>
 
+#include "lib/Utils/Log.h"
 #include "JumpTableExtractor.h"
 #include "Utils.h"
 
@@ -17,6 +18,7 @@ RegisterPass<JumpTableExtractor>
   true /* Only looks at CFG */,
   true /* Analysis Pass */);
 
+std::string JumpTableExtractor::TAG="JumpTableExtractor";
 
 Value *JumpTableExtractor::getIndirectCallAddress(llvm::Function &F)
 {
@@ -76,8 +78,8 @@ uint64_t JumpTableExtractor::getOffset(Value *address) const
 
 bool JumpTableExtractor::runOnFunction(llvm::Function &F)
 {
-    std::cerr << "INDIRECT CALL FCN" << std::endl;
-    std::cerr << F;
+    LOGDEBUG() << "INDIRECT CALL FCN" << std::endl;
+    LOGDEBUG() << F;
 
     Value *address = getIndirectCallAddress(F);
     if (!address) {
@@ -86,7 +88,7 @@ bool JumpTableExtractor::runOnFunction(llvm::Function &F)
 
     uint64_t offset = getOffset(address);
     if (!offset) {
-        std::cerr << "Could not find jump table (offset not found)" << std::endl;
+        LOGINFO() << "Could not find jump table (offset not found)" << std::endl;
         return false;
     }
 

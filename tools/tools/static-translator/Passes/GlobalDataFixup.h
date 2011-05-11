@@ -26,6 +26,8 @@ struct GlobalDataFixup : public llvm::ModulePass {
   }
 
 private:
+  static std::string TAG;
+
   typedef std::map<s2etools::BFDSection, llvm::GlobalVariable*> Sections;
   typedef std::map<uint64_t, llvm::Instruction*> ProgramCounters;
 

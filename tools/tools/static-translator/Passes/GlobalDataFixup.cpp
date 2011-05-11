@@ -4,7 +4,7 @@
 #include <llvm/Constants.h>
 #include <llvm/Support/InstIterator.h>
 
-
+#include "lib/Utils/Log.h"
 #include "GlobalDataFixup.h"
 #include "Utils.h"
 
@@ -20,6 +20,8 @@ RegisterPass<GlobalDataFixup>
   GlobalDataFixup("GlobalDataFixup", "Fixes all references to global data",
   false /* Only looks at CFG */,
   false /* Analysis Pass */);
+
+std::string GlobalDataFixup::TAG="GlobalDataFixup";
 
 /**
  * Creates a global array initialized with the content of data.
@@ -60,7 +62,7 @@ void GlobalDataFixup::createGlobalArray(llvm::Module &M, const std::string &name
     sec.size = size;
     m_sections[sec] = var;
 
-    std::cout << *var;
+    LOGDEBUG() << *var;
 }
 
 /**
@@ -75,7 +77,7 @@ void GlobalDataFixup::injectDataSections(llvm::Module &M)
         uint64_t start = (*it).first.start;
         uint64_t size = (*it).first.size;
 
-        std::cout << "Processing section " << (*it).second->name << " flags=0x" << std::hex << flags << std::endl;
+        LOGINFO() << "Processing section " << (*it).second->name << " flags=0x" << std::hex << flags << std::endl;
 
         if (flags & SEC_DEBUGGING) {
             continue;
@@ -129,13 +131,13 @@ bool GlobalDataFixup::patchFunctionPointer(Module &M, Value *ptr)
         name = (*it).second.second;
         function = M.getFunction(name);
         if (!function) {
-            std::cerr << "Could not find imported function " << name << std::endl;
-            std::cerr << "Check that the bitcode library declares it as an external" << std::endl;
+            LOGERROR() << "Could not find imported function " << name << std::endl;
+            LOGERROR() << "Check that the bitcode library declares it as an external" << std::endl;
             assert(false);
         }
 
         if (!function->isDeclaration()) {
-            std::cerr << "Imported function " << name << " must not be defined by the bitcode library" << std::endl;
+            LOGERROR() << "Imported function " << name << " must not be defined by the bitcode library" << std::endl;
             assert(false);
         }
 
@@ -222,7 +224,7 @@ void GlobalDataFixup::patchDataPointer(Module &M, Value *ptr)
 
     Sections::iterator it = m_sections.find(sec);
     if (it == m_sections.end()) {
-        std::cerr << "Invalid address: 0x" << std::hex << pointer << std::endl;
+        LOGERROR() << "Invalid address: 0x" << std::hex << pointer << std::endl;
         assert(false && "Program tries to access a hard-coded address that is not in any section of its binary.");
         return;
     }
@@ -299,7 +301,7 @@ void GlobalDataFixup::patchConstantMemoryAddresses(Module &M, std::set<CallInst 
 
 void GlobalDataFixup::patchConstantMemoryAddress(Module &M, CallInst *ci, bool isLoad, unsigned accessSize) {
 
-    std::cerr << *ci << std::endl;
+    LOGERROR() << *ci << std::endl;
     ConstantInt *addr = dyn_cast<ConstantInt>(ci->getOperand(1));
     assert(addr);
     const uint64_t target = *addr->getValue().getRawData();
@@ -344,17 +346,17 @@ void GlobalDataFixup::patchConstantMemoryAddress(Module &M, CallInst *ci, bool i
     Instruction *accessInstr;
     if (isLoad) {
         accessInstr = new LoadInst(bitCast, "", ci);
-        std::cerr << "Created load: " << *accessInstr << std::endl;
+        LOGERROR() << "Created load: " << *accessInstr << std::endl;
         ci->replaceAllUsesWith(accessInstr);
         ci->eraseFromParent();
     }else {
         accessInstr = new StoreInst(ci->getOperand(2), bitCast, false, ci);
-        std::cerr << "Created store: " << *accessInstr << std::endl;
+        LOGERROR() << "Created store: " << *accessInstr << std::endl;
         //Get rid of the original access, not needed anymore
         ci->eraseFromParent();
     }
 
-    //std::cerr << *ci->getParent() << std::endl;
+    //LOGERROR() << *ci->getParent() << std::endl;
 }
 #endif
 

@@ -10,7 +10,7 @@
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/target/TargetData.h>
 
-
+#include "lib/Utils/Log.h"
 #include "FunctionBuilder.h"
 #include "ForcedInliner.h"
 #include "Utils.h"
@@ -28,6 +28,8 @@ RegisterPass<FunctionBuilder>
   FunctionBuilder("FunctionBuilder", "Transforms merges independent basic block functions into LLVM functions",
   false /* Only looks at CFG */,
   false /* Analysis Pass */);
+
+std::string FunctionBuilder::TAG = "FunctionBuilder";
 
 Function *FunctionBuilder::createFunction(Module &M)
 {
@@ -75,7 +77,7 @@ void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
             assert(cste);
             uint64_t pc = *cste->getValue().getRawData();
             if (!(boundaries.find(pc) == boundaries.end())) {
-                std::cerr << "Duplicate pc: 0x" << std::hex << pc << " in bb " << ci->getParent()->getNameStr() << std::endl;
+                LOGERROR() << "Duplicate pc: 0x" << std::hex << pc << " in bb " << ci->getParent()->getNameStr() << std::endl;
                 assert(false);
             }
             boundaries.insert(std::make_pair(pc, ci));
@@ -86,7 +88,7 @@ void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
                 if (!(calledBbs.find(pc) == calledBbs.end())) {
                     //A program counter may appear twice if there are two places that try
                     //to jump to a block that was not yet inlined.
-                    std::cerr << "Duplicate target pc: 0x" << std::hex << pc << std::endl;
+                    LOGERROR() << "Duplicate target pc: 0x" << std::hex << pc << std::endl;
                 }
                 calledBbs.insert(std::make_pair(pc, ci));
             }
@@ -182,7 +184,7 @@ bool FunctionBuilder::runOnModule(llvm::Module &M)
         modified = true;
     }while(true);
 
-    std::cout << *F << std::flush;
+    LOGDEBUG() << *F << std::flush;
     FcnPasses.run(*F);
 
     return modified;

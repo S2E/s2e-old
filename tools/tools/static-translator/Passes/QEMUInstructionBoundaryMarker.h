@@ -28,6 +28,7 @@ public:
     typedef std::map<uint64_t, llvm::CallInst*> Markers;
 
 private:
+    static std::string TAG;
     llvm::Function *m_instructionMarker;
     Markers m_markers;
     bool m_analyze;

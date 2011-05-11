@@ -10,6 +10,8 @@ extern "C" {
 #include <llvm/InstrTypes.h>
 #include <llvm/Support/InstIterator.h>
 
+#include "lib/Utils/Log.h"
+
 #include "CallBuilder.h"
 #include "Utils.h"
 
@@ -27,6 +29,8 @@ RegisterPass<CallBuilder>
   CallBuilder("CallBuilder", "Rebuild all function calls",
   false /* Only looks at CFG */,
   false /* Analysis Pass */);
+
+std::string CallBuilder::TAG="CallBuilder";
 
 void CallBuilder::createMapping(llvm::Module &M)
 {
@@ -114,7 +118,7 @@ uint64_t CallBuilder::resolveStub(llvm::Module &M, uint64_t callee)
 
     //Get the branch target
     Function *stubFunc = f->getFunction();
-    std::cout << *stubFunc;
+    LOGDEBUG() << *stubFunc;
 
     //Look for the call_marker instruction in it
     CallInst *jmpCall = NULL;
@@ -123,7 +127,7 @@ uint64_t CallBuilder::resolveStub(llvm::Module &M, uint64_t callee)
         if (!jmpCall || jmpCall->getCalledFunction() != callMarker) {
             continue;
         }
-        std::cout << "Found call: " << *jmpCall << std::endl;
+        LOGINFO() << "Found call: " << *jmpCall << std::endl;
         break;
     }
 
@@ -188,7 +192,7 @@ bool CallBuilder::patchCallWithLibraryFunction(llvm::Module &M, CallInst *ci, st
     //Get the prototype of the function
     Function *libFunc = M.getFunction(functionName);
     if (!libFunc) {
-        std::cerr << "Could not find " << functionName << " prototype in LLVM bitcode." << std::endl;
+        LOGERROR() << "Could not find " << functionName << " prototype in LLVM bitcode." << std::endl;
         return false;
     }
 
@@ -243,7 +247,7 @@ bool CallBuilder::patchCallWithLibraryFunction(llvm::Module &M, CallInst *ci, st
     std::vector<Value*> CallArguments;
     std::vector<const Type*> LibFuncArguments;
 
-    std::cout << *libFunc->getType() << std::endl;
+    LOGDEBUG() << *libFunc->getType() << std::endl;
 
     foreach(ait, libFunc->arg_begin(), libFunc->arg_end()) {
         LibFuncArguments.push_back((*ait).getType());
@@ -269,7 +273,7 @@ bool CallBuilder::patchCallWithLibraryFunction(llvm::Module &M, CallInst *ci, st
 
     //Must make sure to update the return value...
 
-    std::cout << *ci->getParent()->getParent();
+    LOGDEBUG() << *ci->getParent()->getParent();
 
     return true;
 }
