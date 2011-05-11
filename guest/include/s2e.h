@@ -117,10 +117,13 @@ static inline unsigned s2e_get_path_id(void)
 static inline void s2e_make_symbolic(void* buf, int size, const char* name)
 {
     __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%edx, %%ebx\n"
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x03, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (buf), "b" (size), "c" (name) : "memory"
+        "popl %%ebx\n"
+        : : "a" (buf), "d" (size), "c" (name) : "memory"
     );
 }
 
@@ -128,10 +131,13 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
 static inline void s2e_concretize(void* buf, int size)
 {
     __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%edx, %%ebx\n"
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x20, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (buf), "b" (size) : "memory"
+        "popl %%ebx\n"
+        : : "a" (buf), "d" (size) : "memory"
     );
 }
 
@@ -139,10 +145,13 @@ static inline void s2e_concretize(void* buf, int size)
 static inline void s2e_get_example(void* buf, int size)
 {
     __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%edx, %%ebx\n"
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x21, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (buf), "b" (size) : "memory"
+        "popl %%ebx\n"
+        : : "a" (buf), "d" (size) : "memory"
     );
 }
 
@@ -150,10 +159,13 @@ static inline void s2e_get_example(void* buf, int size)
 static inline void s2e_kill_state(int status, const char* message)
 {
     __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%edx, %%ebx\n"
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x06, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (status), "b" (message)
+        "popl %%ebx\n"
+        : : "a" (status), "d" (message)
     );
 }
 
@@ -161,10 +173,13 @@ static inline void s2e_load_module(const char* name,
         unsigned int loadbase, unsigned int size)
 {
     __asm__ __volatile__(
-        ".byte 0x0f, 0x3f\n"
-        ".byte 0x00, 0xAA, 0x00, 0x00\n"
-        ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : : "a" (name), "b" (loadbase), "c" (size)
+       "pushl %%ebx\n"
+       "movl %%edx, %%ebx\n"
+       ".byte 0x0f, 0x3f\n"
+       ".byte 0x00, 0xAA, 0x00, 0x00\n"
+       ".byte 0x00, 0x00, 0x00, 0x00\n"
+       "popl %%ebx\n"
+        : : "a" (name), "d" (loadbase), "c" (size)
     );
 }
 
@@ -271,10 +286,13 @@ static inline int s2e_read(int fd, char* buf, int count)
 {
     int res;
     __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%esi, %%ebx\n"
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0xEE, 0x02, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : "=a" (res) : "a" (-1), "b" (fd), "c" (buf), "d" (count)
+        "popl %%ebx\n"
+        : "=a" (res) : "a" (-1), "S" (fd), "c" (buf), "d" (count)
     );
     return res;
 }
