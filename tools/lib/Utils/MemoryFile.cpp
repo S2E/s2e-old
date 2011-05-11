@@ -98,7 +98,7 @@ MemoryFile::MemoryFile(const std::string &fileName)
         return;
     }
 
-    m_file = mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, file, 0);
+    m_file = mmap(NULL, fileSize, PROT_READ|PROT_WRITE, MAP_PRIVATE, file, 0);
     if (!m_file) {
         LOGERROR() << "Could not map the log file in memory" << std::endl;
         close(file);
