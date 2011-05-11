@@ -58,8 +58,7 @@ BFDInterface::BFDInterface(const std::string &fileName):ExecutableFile(fileName)
     m_symbolTable = NULL;
     //Fail loading if the image has no symbols
     m_requireSymbols = true;
-
-    m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
+    m_file = new MemoryFile(fileName);
     m_binary = NULL;
 }
 
@@ -68,7 +67,7 @@ BFDInterface::BFDInterface(const std::string &fileName, bool requireSymbols):Exe
     m_bfd = NULL;
     m_symbolTable = NULL;
     m_requireSymbols = requireSymbols;
-    m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
+    m_file = new MemoryFile(fileName);
     m_binary = NULL;
 }
 

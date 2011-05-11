@@ -50,11 +50,11 @@ PeReader::PeReader(BFDInterface *bfd):Binary(bfd)
     resolveImports();
 }
 
-bool PeReader::isValid(llvm::MemoryBuffer *file)
+bool PeReader::isValid(MemoryFile *file)
 {
     const windows::IMAGE_DOS_HEADER *dosHeader;
     const windows::IMAGE_NT_HEADERS *ntHeader;
-    const uint8_t *start = (uint8_t*)file->getBufferStart();
+    const uint8_t *start = (uint8_t*)file->getBuffer();
 
     dosHeader = (windows::IMAGE_DOS_HEADER*)start;
     if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)  {
@@ -76,16 +76,17 @@ bool PeReader::isValid(llvm::MemoryBuffer *file)
 
 bool PeReader::initialize()
 {
-    const uint8_t *start = (uint8_t*)m_file->getBufferStart();
+    const uint8_t *start = (uint8_t*)m_file->getBuffer();
     m_dosHeader = *(windows::IMAGE_DOS_HEADER*)start;
     m_ntHeader = *(windows::IMAGE_NT_HEADERS *)(start + m_dosHeader.e_lfanew);
+    m_importedAddressPtr = getBfd()->getImageBase() + getBfd()->getImageSize();
     return true;
 }
 
 
 bool PeReader::resolveImports()
 {
-    const uint8_t *start = (uint8_t*)m_file->getBufferStart();
+    const uint8_t *start = (uint8_t*)m_file->getBuffer();
 
     const windows::IMAGE_DATA_DIRECTORY *importDir;
     importDir =  &m_ntHeader.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
@@ -127,8 +128,10 @@ bool PeReader::resolveImports()
             }
 
             //XXX: Need to allocate the function here
-            assert(false && "Address allocation for import binding not implemented yet");
+            //assert(false && "Address allocation for import binding not implemented yet");
             //importAddressTable->u1.Function = ...; Write to the bfd the actual address
+            importAddressTable->u1.Function = m_importedAddressPtr;
+            m_importedAddressPtr += 0x1000;
 
             m_imports.insert(std::make_pair(importAddressTable->u1.Function, std::make_pair(moduleName, functionName)));
 

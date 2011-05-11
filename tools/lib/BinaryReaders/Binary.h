@@ -38,7 +38,7 @@
 
 #define S2ETOOLS_BINARY_H
 
-#include <llvm/Support/MemoryBuffer.h>
+#include "lib/Utils/MemoryFile.h"
 #include <vector>
 #include "BFDInterface.h"
 
@@ -60,7 +60,7 @@ private:
 public:
     Binary(BFDInterface *bfd);
 
-    static bool isValid(llvm::MemoryBuffer *file);
+    static bool isValid(MemoryFile *file);
 
     virtual const Imports &getImports() const = 0;
 

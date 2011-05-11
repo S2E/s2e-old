@@ -159,11 +159,12 @@ struct IMAGE_IMPORT_DESCRIPTOR {
 class PeReader: public Binary {
 private:
     Imports m_imports;
-    llvm::MemoryBuffer *m_file;
+    MemoryFile *m_file;
 
     windows::IMAGE_DOS_HEADER m_dosHeader;
     windows::IMAGE_NT_HEADERS m_ntHeader;
 
+    uint64_t m_importedAddressPtr;
 
     bool initialize();
     bool resolveImports();
@@ -171,7 +172,7 @@ private:
 public:
     PeReader(BFDInterface *bfd);
 
-    static bool isValid(llvm::MemoryBuffer *file);
+    static bool isValid(MemoryFile *file);
 
     virtual const Imports &getImports() const {
         return m_imports;
