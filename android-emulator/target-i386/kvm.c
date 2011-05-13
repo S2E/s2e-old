@@ -364,7 +364,7 @@ static int kvm_getput_regs(CPUState *env, int set)
     if(set)
         eflags = cpu_get_eflags(env);
 
-    kvm_getput_reg(&regs.rflags, &env->eflags, set);
+    kvm_getput_reg(&regs.rflags, &eflags, set);
     if(!set)
         cpu_set_eflags(env, eflags);
     kvm_getput_reg(&regs.rip, &env->eip, set);

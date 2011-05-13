@@ -1,3 +1,16 @@
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #ifndef QEMU_PCI_H
 #define QEMU_PCI_H
 
@@ -81,6 +94,18 @@ typedef int PCIUnregisterFunc(PCIDevice *pci_dev);
 #define PCI_ADDRESS_SPACE_MEM		0x00
 #define PCI_ADDRESS_SPACE_IO		0x01
 #define PCI_ADDRESS_SPACE_MEM_PREFETCH	0x08
+
+
+//FROM NEWER pci.h (used by fakepci)
+//TODO: do it in a clean way!
+#define PCI_BASE_ADDRESS_0	0x10	/* 32 bits */
+#define  PCI_BASE_ADDRESS_SPACE_IO	0x01
+#define  PCI_BASE_ADDRESS_SPACE_MEMORY	0x00
+#define  PCI_BASE_ADDRESS_MEM_TYPE_64	0x04	/* 64 bit address */
+#define  PCI_BASE_ADDRESS_MEM_PREFETCH	0x08	/* prefetchable? */
+#define PCI_ROM_ADDRESS		0x30	/* Bits 31..11 are address, 10..1 reserved */
+#define PCI_ROM_ADDRESS1	0x38	/* Same as PCI_ROM_ADDRESS, but for htype 1 */
+//END OF NEWER pci.h
 
 typedef struct PCIIORegion {
     uint32_t addr; /* current PCI mapping address. -1 means not mapped */
@@ -247,5 +272,23 @@ PCIBus *pci_apb_init(target_phys_addr_t special_base,
 /* sh_pci.c */
 PCIBus *sh_pci_register_bus(pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
                             qemu_irq *pic, int devfn_min, int nirq);
+
+#ifndef CONFIG_S2E
+typedef struct {
+    const char *fake_pci_name;
+    int fake_pci_vendor_id;
+    int fake_pci_device_id;
+    int fake_pci_revision_id;
+    int fake_pci_class_code;
+    int fake_pci_ss_vendor_id;
+    int fake_pci_ss_id;
+    int fake_pci_num_resources;
+    PCIIORegion fake_pci_resources[PCI_NUM_REGIONS];
+    int mmioidx;
+}fake_pci_t;
+
+extern fake_pci_t g_fake_pci;
+
+#endif
 
 #endif

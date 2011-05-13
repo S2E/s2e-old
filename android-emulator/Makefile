@@ -71,8 +71,9 @@ distclean: clean clean-config
 # let's roll
 include Makefile.android
 
-libraries: $(LIBRARIES)
-executables: $(EXECUTABLES)
+libraries: $(LIBRARIES) 
+
+executables: $(EXECUTABLES) 
 
 clean-intermediates:
 	rm -rf $(OBJS_DIR)/intermediates $(EXECUTABLES) $(LIBRARIES)

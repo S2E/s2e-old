@@ -67,7 +67,7 @@ typedef struct TimersState {
 
 extern TimersState timers_state;
 
-int64_t cpu_get_ticks(void);
+int64_t cpu_get_ticks(void* env1);
 void cpu_enable_ticks(void);
 void cpu_disable_ticks(void);
 void cpu_adjust_clock(int64_t delta);

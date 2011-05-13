@@ -118,7 +118,7 @@ static void init_get_clock(void)
 #endif
 }
 
-static int64_t get_clock(void)
+int64_t get_clock(void)
 {
 #if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000) \
 	|| defined(__DragonFly__) || defined(__FreeBSD_kernel__)
@@ -139,13 +139,14 @@ static int64_t get_clock(void)
 /***********************************************************/
 /* guest cycle counter */
 
-typedef struct TimersState {
-    int64_t cpu_ticks_prev;
-    int64_t cpu_ticks_offset;
-    int64_t cpu_clock_offset;
-    int32_t cpu_ticks_enabled;
-    int64_t dummy;
-} TimersState;
+//duplicate (sysemu.h)
+//typedef struct TimersState {
+//    int64_t cpu_ticks_prev;
+//    int64_t cpu_ticks_offset;
+//    int64_t cpu_clock_offset;
+//    int32_t cpu_ticks_enabled;
+//    int64_t dummy;
+//} TimersState;
 
 static void timer_save(QEMUFile *f, void *opaque)
 {

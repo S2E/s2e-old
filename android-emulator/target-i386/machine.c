@@ -49,7 +49,7 @@ void cpu_save(QEMUFile *f, void *opaque)
     for(i = 0; i < CPU_NB_REGS; i++)
         qemu_put_betls(f, &env->regs[i]);
     qemu_put_betls(f, &env->eip);
-    qemu_put_betls(f, &env->eflags);
+    qemu_put_betls(f, &env->mflags);
     hflags = env->hflags; /* XXX: suppress most of the redundant hflags */
     qemu_put_be32s(f, &hflags);
 
@@ -212,7 +212,7 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
     for(i = 0; i < CPU_NB_REGS; i++)
         qemu_get_betls(f, &env->regs[i]);
     qemu_get_betls(f, &env->eip);
-    qemu_get_betls(f, &env->eflags);
+    qemu_get_betls(f, &env->mflags);
     qemu_get_be32s(f, &hflags);
 
     qemu_get_be16s(f, &fpuc);

@@ -4696,7 +4696,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             next_eip = s->pc - s->cs_base;
             gen_movtl_T1_im(next_eip);
             gen_push_T1(s);
-            gen_op_jmp_T0();
+            gen_op_jmp_T0(s);
             gen_eob(s);
             break;
         case 3: /* lcall Ev */
@@ -4737,7 +4737,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             if (s->pe && !s->vm86) {
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
-                gen_jmp_im(pc_start - s->cs_base);
+                gen_jmp_im(s, pc_start - s->cs_base);
                 tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
                 gen_helper_ljmp_protected(cpu_tmp2_i32, cpu_T[1],
                                           tcg_const_i32(s->pc - pc_start));
@@ -6257,7 +6257,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         gen_stack_update(s, val + (2 << s->dflag));
         if (s->dflag == 0)
             gen_op_andl_T0_ffff();
-        gen_op_jmp_T0();
+        gen_op_jmp_T0(s);
         gen_eob(s);
         break;
     case 0xc3: /* ret */
@@ -6290,7 +6290,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_op_andl_T0_ffff();
             /* NOTE: keeping EIP updated is not a problem in case of
                exception */
-            gen_op_jmp_T0();
+            gen_op_jmp_T0(s);
             /* pop selector */
             gen_op_addl_A0_im(2 << s->dflag);
             gen_op_ld_T0_A0(1 + s->dflag + s->mem_index);

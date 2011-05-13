@@ -3458,6 +3458,9 @@ void helper_wrmsr(void)
             && (val == 0 || val == ~(uint64_t)0))
             env->mcg_ctl = val;
         break;
+    case MSR_TSC_AUX:
+        env->tsc_aux = val;
+        break;
     default:
         if ((uint32_t)ECX >= MSR_MC0_CTL
             && (uint32_t)ECX < MSR_MC0_CTL + (4 * env->mcg_cap & 0xff)) {
@@ -5873,11 +5876,14 @@ target_ulong helper_bsf(target_ulong t0)
     return count;
 }
 
-target_ulong helper_bsr(target_ulong t0)
+target_ulong helper_lzcnt(target_ulong t0, int wordsize)
 {
     int count;
     target_ulong res, mask;
-    
+
+    if (wordsize > 0 && t0 == 0) {
+        return wordsize;
+    }
     res = t0;
     count = TARGET_LONG_BITS - 1;
     mask = (target_ulong)1 << (TARGET_LONG_BITS - 1);
@@ -5885,7 +5891,16 @@ target_ulong helper_bsr(target_ulong t0)
         count--;
         res <<= 1;
     }
+    if (wordsize > 0) {
+        return wordsize - 1 - count;
+    }
     return count;
+}
+
+
+target_ulong helper_bsr(target_ulong t0)
+{
+	return helper_lzcnt(t0, 0);
 }
 
 
