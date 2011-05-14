@@ -71,6 +71,11 @@ esac
 
 log2 "CPU=$CPU"
 
+# default flags for all hosts
+CFLAGS="-g $CFLAGS"
+CXXFLAGS="-g $CXXFLAGS"
+LDFLAGS="-g $LDFLAGS"
+
 # at this point, the supported values for CPU are:
 #   x86
 #   x86_64
@@ -157,6 +162,8 @@ TMPC=/tmp/android-$$-test.c
 TMPO=/tmp/android-$$-test.o
 TMPE=/tmp/android-$$-test$EXE
 TMPL=/tmp/android-$$-test.log
+TMPCXX="/tmp/qemu-conf-${RANDOM}-$$-${RANDOM}.cpp"
+TMPASM="/tmp/qemu-conf-${RANDOM}-$$-${RANDOM}.asm"
 
 # cleanup temporary files
 clean_temp ()
@@ -306,7 +313,25 @@ EOF
 compile ()
 {
     log2 "Object     : $CC -o $TMPO -c $CFLAGS $TMPC"
-    $CC -o $TMPO -c $CFLAGS $TMPC 2> $TMPL
+    $CC -o $TMPO -c $CFLAGS $CXXFLAGS $TMPC 2> $TMPL
+}
+
+compile_object_cxx() {
+  $cxx $CFLAGS $CXXFLAGS -c -o $TMPO $TMPCXX > /dev/null 2> /dev/null
+}
+
+assemble_object_asm() {
+  $asm -o $TMPO $TMPASM > /dev/null 2> /dev/null
+}
+
+compile_prog_cxx() {
+  local_cxxflags="$1"
+  local_ldflags="$2"
+
+  echo "AKA: do compile_prog_cxx() executing the following command:"
+  echo "$cxx $CFLAGS $CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null"
+
+  $cxx $CFLAGS $CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
 }
 
 # try to link the recently built file into an executable. error log in $TMPL

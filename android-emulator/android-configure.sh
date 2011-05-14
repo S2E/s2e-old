@@ -25,11 +25,23 @@ OPTION_HELP=no
 OPTION_DEBUG=no
 OPTION_STATIC=no
 OPTION_MINGW=no
-
+OPTION_S2E=no
+OPTION_LLVM=no
 HOST_CC=${CC:-gcc}
 OPTION_CC=
 
 TARGET_ARCH=arm
+
+#default parameters for s2e
+cxx="g++"
+asm="nasm"
+
+llvm="no"
+llvmdir=""
+s2e="no"
+kleedir=""
+stpdir=""
+llvmgcc=""
 
 for opt do
   optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'`
@@ -51,10 +63,6 @@ for opt do
   ;;
   --mingw) OPTION_MINGW=yes
   ;;
-  --cc=*) OPTION_CC="$optarg"
-  ;;
-  --no-strip) OPTION_NO_STRIP=yes
-  ;;
   --debug) OPTION_DEBUG=yes
   ;;
   --ignore-audio) OPTION_IGNORE_AUDIO=yes
@@ -65,7 +73,21 @@ for opt do
   ;;
   --static) OPTION_STATIC=yes
   ;;
+  --cxx=*) cxx=$optarg
+  ;;
   --arch=*) TARGET_ARCH=$optarg
+  ;;
+  --enable-llvm) llvm=yes
+  ;;
+  --with-llvm=*) llvmdir=$optarg
+  ;;
+  --enable-s2e) s2e=yes
+  ;;
+  --with-klee=*) kleedir=$optarg
+  ;;
+  --with-stp=*) stpdir=$optarg
+  ;;
+  --with-llvmgcc=*) llvmgcc=$optarg
   ;;
   *)
     echo "unknown option '$opt', use --help"
@@ -85,6 +107,7 @@ EOF
     echo "  --help                   print this message"
     echo "  --install=FILEPATH       copy emulator executable to FILEPATH [$TARGETS]"
     echo "  --cc=PATH                specify C compiler [$HOST_CC]"
+    echo "  --cxx=PATH               specify C++ compiler [$cxx]"
     echo "  --arch=ARM               specify target architecture [$TARGET_ARCH]"
     echo "  --sdl-config=FILE        use specific sdl-config script [$SDL_CONFIG]"
     echo "  --no-strip               do not strip emulator executable"
@@ -96,6 +119,12 @@ EOF
     echo "  --static                 build a completely static executable"
     echo "  --verbose                verbose configuration"
     echo "  --debug                  build debug version of the emulator"
+    echo "  --enable-llvm            enable LLVM support (for all targets)"
+    echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
+    echo "  --enable-s2e             enable S2E"
+    echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
+    echo "  --with-stp=PATH         STP path (PATH/lib/libstp.a must exist)"
+    echo "  --with-llvmgcc=PATH      path to llvm-gcc"
     echo ""
     exit 1
 fi
@@ -301,6 +330,189 @@ PROBE_ALSA=no
 PROBE_PULSEAUDIO=no
 fi
 
+##########################################
+# asm support probe
+
+cat > $TMPASM <<EOF
+mov eax, 1
+EOF
+
+if assemble_object_asm ; then
+  :  assembler works ok
+else
+  echo "ERROR: \"$asm\" either does not exist or does not work"
+  exit 1
+fi
+
+##########################################
+# C++ support probe
+
+if test "$llvm" != "no" -o "$s2e" != "no" ; then
+
+# check that the CXX compiler works.
+cat > $TMPCXX <<EOF
+int main(void) {}
+EOF
+
+if compile_object_cxx ; then
+  : CXX compiler works ok
+else
+  echo "ERROR: \"$cxx\" (required for --enable-llvm and --enable-s2e) either does not exist or does not work"
+  exit 1
+fi
+
+fi
+
+##########################################
+# llvm support probe
+
+if test "$llvm" != "no" -o "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <llvm/LLVMContext.h>
+int main(void) { llvm::LLVMContext& c = llvm::getGlobalContext(); return 0; }
+EOF
+  if test "$llvmdir" != ""; then
+      llvm_config="$llvmdir/bin/llvm-config"
+  else
+      llvm_config="llvm-config"
+      echo "use default llvmdir: $llvm_config"
+  fi
+  echo "llvm_config: $llvm_config"
+  llvm_components="jit bitreader bitwriter ipo linker engine"
+  llvm_cxxflags=`$llvm_config $llvm_components --cflags 2> /dev/null`
+  echo "llvm_components: $llvm_components"
+
+  llvm_ldflags=`$llvm_config $llvm_components --ldflags 2> /dev/null`
+  llvm_libs=`$llvm_config $llvm_components --libs 2> /dev/null`
+
+  echo "llvm_cxxflags: $llvm_cxxflags --- llvm_libs: $llvm_libs --- llvm_ldflags: $llvm_ldflags"
+
+  if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags" ; then
+    : LLVM found
+  else
+    echo "AKA: feature not found"
+    feature_not_found "llvm (required for --enable-llvm and --enable-s2e)"
+    exit 1
+  fi
+fi
+
+if test "$llvm" != "no" ; then
+  llvm="yes"
+  LIBS="$llvm_libs $LIBS $llvm_ldflags"
+  linker="$cxx"
+fi
+
+##########################################
+# s2e probe: KLEE
+
+if test "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <llvm/LLVMContext.h>
+#include <klee/Common.h>
+int main(void) { llvm::LLVMContext& c = llvm::getGlobalContext(); klee::klee_message("a"); return 0; }
+EOF
+  if test "$kleedir" != ""; then
+      klee_config="$kleedir/bin/klee-config"
+  else
+      echo "AKA: klee default dir"
+      klee_config="klee-config"
+  fi
+  klee_cxxflags=`$klee_config --cflags 2> /dev/null`
+  klee_ldflags=`$klee_config --ldflags 2> /dev/null`
+  klee_libs=`$klee_config --libs 2> /dev/null`
+  klee_libdir=`$klee_config --libdir 2> /dev/null | sed s:Debug/lib$:Release/lib:`
+  klee_libfiles=`$klee_config --libfiles 2> /dev/null`
+
+  if test "$stpdir" != ""; then
+    stpdir=$(cd $stpdir>/dev/null && pwd)
+    klee_ldflags="$klee_ldflags -L$stpdir/lib"
+    klee_libs="$klee_libs -lstp"
+  fi
+
+  if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags" ; then
+    s2e="yes"
+  else
+    feature_not_found "klee (required for s2e)"
+    exit 1
+  fi
+fi
+
+##########################################
+# s2e probe: lua
+
+if test "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+extern "C" {
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+}
+int main(void) { lua_State *L = lua_open(); lua_close(L); return 0; }
+EOF
+  if [ "$mingw32" = "yes" ]; then
+    lua_libs="-llua"
+  else
+    if pkg-config --exists lua5.1 ; then
+        lua_pkg="lua5.1"
+    else
+        lua_pkg="lua"
+    fi
+    lua_cxxflags=`pkg-config $lua_pkg --cflags 2> /dev/null`
+    lua_libs=`pkg-config $lua_pkg --libs 2> /dev/null`
+  fi
+
+  if compile_prog_cxx "$lua_cxxflags" "$lua_libs" ; then
+    : LUA found
+  else
+    feature_not_found "lua (required for s2e)"
+    exit 1
+  fi
+fi
+
+##########################################
+# s2e probe: libsigc++-2
+
+if test "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <sigc++/sigc++.h>
+int main(void) { sigc::signal<void, int> s; s.emit(1); return 0; }
+EOF
+  if [ "$mingw32" = "yes" ]; then
+    sigcxx2_libs="-lsigc-2.0.dll"
+  else
+    sigcxx2_cxxflags=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
+    sigcxx2_libs=`pkg-config sigc++-2.0 --libs 2> /dev/null`
+  fi
+
+  if compile_prog_cxx "$sigcxx2_cxxflags" "$sigcxx2_libs" ; then
+    : libsigc++-2.0 found
+  else
+    feature_not_found "libsigc++ (required for s2e)"
+    exit 1
+  fi
+fi
+
+##########################################
+# s2e probe: llvmgcc
+
+if test "$s2e" != "no" ; then
+  if test -z "$llvmgcc"; then
+    llvmgcc=`which llvm-gcc`
+  fi
+  if [ -x "$llvmgcc" ]; then
+    : llvm-gcc found
+  else
+    feature_not_found "llvmgcc (required for s2e)"
+    exit 1
+  fi
+
+  if test "$llvmdir" != ""; then
+      llvmar="$llvmdir/bin/llvm-ar"
+  else
+      llvmar="llvm-ar"
+  fi
+fi
+
 # Probe a system library
 #
 # $1: Variable name (e.g. PROBE_ESD)
@@ -385,6 +597,13 @@ feature_check_header HAVE_BYTESWAP_H      "<byteswap.h>"
 feature_check_header HAVE_MACHINE_BSWAP_H "<machine/bswap.h>"
 feature_check_header HAVE_FNMATCH_H       "<fnmatch.h>"
 
+#s2e assembler flags
+if [ "TARGET_ARCH" = "x86" ]; then
+  ASMFLAGS="-f elf32"
+elif [ "TARGET_ARCH" = "x86_64" ] ; then
+  ASMFLAGS="-f elf64"
+fi
+
 # Build the config.make file
 #
 
@@ -407,6 +626,11 @@ if [ $TARGET_ARCH = x86 ] ; then
 echo "TARGET_ARCH       := x86" >> $config_mk
 fi
 
+echo "CXX=$cxx" >> $config_mk
+echo "ASM=$asm" >> $config_mk
+echo "LINKER=$linker" >> $config_mk
+
+
 echo "HOST_PREBUILT_TAG := $TARGET_OS" >> $config_mk
 echo "HOST_EXEEXT       := $TARGET_EXEEXT" >> $config_mk
 echo "PREBUILT          := $ANDROID_PREBUILT" >> $config_mk
@@ -425,9 +649,37 @@ echo "CONFIG_PULSEAUDIO := $PROBE_PULSEAUDIO" >> $config_mk
 echo "BUILD_STANDALONE_EMULATOR := true" >> $config_mk
 if [ $OPTION_DEBUG = yes ] ; then
     echo "BUILD_DEBUG_EMULATOR := true" >> $config_mk
+  llvm_cxxflags=`echo ${llvm_cxxflags} | sed 's/\-O[23]//' | sed 's/\-DNDEBUG//'`
+  klee_cxxflags=`echo ${klee_cxxflags} | sed 's/\-O[23]//' | sed 's/\-DNDEBUG//'`
+else 
+  CFLAGS="-O2 $CFLAGS"
+  CXXFLAGS="-O2 $CXXFLAGS"
 fi
+
+if test "$target_s2e" = "yes" ; then
+  echo "CONFIG_S2E=y" >> $config_mk
+  echo "CONFIG_LLVM=y" >> $config_mk
+  echo "LLVM_CXXFLAGS:=$llvm_cxxflags" >> $config_mk
+  echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags, $klee_cxxflags)" >> $config_mk
+  echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_mk
+  echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_mk
+  echo "LLVMCC:=$llvmgcc" >> $config_mk
+  echo "LLVMAR:=$llvmar" >> $config_mk
+  echo "LINKER=$cxx" >> $config_mk
+  echo "LIBS+=$klee_libs $llvm_libs" >> $config_mk
+  echo "LIBS+=$lua_libs $sigcxx2_libs" >> $config_mk
+  echo "LIBS+=\$(filter-out $llvm_ldflags, $klee_ldflags) $llvm_ldflags" >> $config_mk
+  echo "KLEE_LIBFILES=$klee_libfiles" >> $config_mk
+fi
+
+
 if [ $OPTION_STATIC = yes ] ; then
     echo "CONFIG_STATIC_EXECUTABLE := true" >> $config_mk
+fi
+
+if test "$llvm" = "yes" ; then
+  echo "CONFIG_LLVM=y" >> $config_mk
+  echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_mk
 fi
 
 if [ -n "$ANDROID_SDK_TOOLS_REVISION" ] ; then

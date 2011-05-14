@@ -47,6 +47,7 @@ LOCAL_CFLAGS += $(EMULATOR_TARGET_CFLAGS)
 
 LOCAL_SRC_FILES += \
     tcg/tcg.c \
+    tcg/tcg-llvm.c
 
 ##############################################################################
 # Emulated hardware devices.
@@ -113,7 +114,8 @@ HW_SOURCES += \
     ioapic.c \
     ps2.c \
     smbios.c \
-    fw_cfg.c
+    fw_cfg.c \
+    fakepci.c
 
 # The following sources must be compiled with the final executables
 # because they contain device_init() or machine_init() statements.
