@@ -537,7 +537,7 @@ static int img_convert(int argc, char **argv)
     BlockDriverState **bs, *out_bs;
     int64_t total_sectors, nb_sectors, sector_num, bs_offset;
     uint64_t bs_sectors;
-    uint8_t buf[IO_BUF_SIZE];
+    uint8_t * buf;
     const uint8_t *buf1;
     BlockDriverInfo bdi;
     QEMUOptionParameter *param = NULL;
@@ -578,6 +578,10 @@ static int img_convert(int argc, char **argv)
             break;
         }
     }
+
+    buf = calloc(IO_BUF_SIZE,sizeof(*buf));
+    if(buf==NULL)
+	error("Out of memory");
 
     bs_n = argc - optind - 1;
     if (bs_n < 1) help();
@@ -791,6 +795,7 @@ static int img_convert(int argc, char **argv)
     bdrv_delete(out_bs);
     for (bs_i = 0; bs_i < bs_n; bs_i++)
         bdrv_delete(bs[bs_i]);
+    free(buf);
     free(bs);
     return 0;
 }
