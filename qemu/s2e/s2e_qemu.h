@@ -61,7 +61,7 @@ struct S2ETLBEntry;
 
 
 // XXX
-struct CPUX86State;
+struct CPUARMState;
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,7 +93,7 @@ void s2e_close_arg(void);
 void s2e_debug_print(const char *fmtstr, ...);
 void print_stacktrace(void);
 
-void s2e_print_apic(struct CPUX86State *env);
+void s2e_print_apic(struct CPUARMState *env);
 
 
 /*********************************/
@@ -190,7 +190,7 @@ void s2e_initialize_execution(struct S2E *s2e,
 
 void s2e_register_cpu(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
-                      struct CPUX86State* cpu_env);
+                      struct CPUARMState* cpu_env);
 
 void s2e_register_ram(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
@@ -215,11 +215,11 @@ void s2e_write_ram_concrete(struct S2E* s2e,
         uint64_t host_address, const uint8_t* buf, uint64_t size);
 
 void s2e_read_register_concrete(struct S2E* s2e,
-        struct S2EExecutionState* state, struct CPUX86State* cpuState,
+        struct S2EExecutionState* state, struct CPUARMState* cpuState,
         unsigned offset, uint8_t* buf, unsigned size);
 
 void s2e_write_register_concrete(struct S2E* s2e,
-        struct S2EExecutionState* state, struct CPUX86State* cpuState,
+        struct S2EExecutionState* state, struct CPUARMState* cpuState,
         unsigned offset, uint8_t* buf, unsigned size);
 
 /* helpers that should be run as LLVM functions */
@@ -302,7 +302,7 @@ int s2e_is_mmio_symbolic_l(uint64_t address);
 int s2e_is_mmio_symbolic_q(uint64_t address);
 
 void s2e_update_tlb_entry(struct S2EExecutionState* state,
-                          struct CPUX86State* env,
+                          struct CPUARMState* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
 
 //Check that no asyc request are pending

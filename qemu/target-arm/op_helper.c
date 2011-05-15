@@ -84,7 +84,7 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
 /* XXX: fix it to restore all registers */
-void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
+void tlb_fill (target_ulong addr, target_ulong page_addr, int is_write, int mmu_idx, void *retaddr)
 {
     TranslationBlock *tb;
     CPUState *saved_env;

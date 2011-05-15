@@ -40,7 +40,7 @@ extern "C" {
 #include <tcg-op.h>
 #include <qemu-timer.h>
 
-extern struct CPUX86State *env;
+extern struct CPUARMState *env;
 }
 
 #include "CorePlugin.h"
@@ -133,7 +133,7 @@ void s2e_tcg_instrument_code(S2E*, ExecutionSignal* signal, uint64_t pc, uint64_
         TCGv_i32 tpc = tcg_temp_new_i32();
         TCGv_ptr cpu_env = MAKE_TCGV_PTR(0);
         tcg_gen_movi_i32(tpc, (tcg_target_ulong) nextpc);
-        tcg_gen_st_i32(tpc, cpu_env, offsetof(CPUState, eip));
+        tcg_gen_st_i32(tpc, cpu_env, offsetof(CPUARMState, regs[15]));
         tcg_temp_free_i32(tpc);
     }
 

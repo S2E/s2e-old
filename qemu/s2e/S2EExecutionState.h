@@ -46,8 +46,8 @@ extern "C" {
 }
 
 // XXX
-struct CPUX86State;
-#define CPU_OFFSET(field) offsetof(CPUX86State, field)
+struct CPUARMState;
+#define CPU_OFFSET(field) offsetof(CPUARMState, field)
 
 //#include <tr1/unordered_map>
 
@@ -257,7 +257,7 @@ public:
     bool writeMemory64(uint64_t address, uint64_t value,
                        AddressType addressType = VirtualAddress);
 
-    CPUX86State *getConcreteCpuState() const;
+    CPUARMState *getConcreteCpuState() const;
 
     /** Creates new unconstrained symbolic value */
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
