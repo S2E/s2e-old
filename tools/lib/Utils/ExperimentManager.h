@@ -38,6 +38,7 @@
 #define S2ETOOLS_EXPMANAGER_H
 
 #include <string>
+#include "lib/Utils/Log.h"
 
 namespace s2etools {
 
@@ -47,7 +48,7 @@ namespace s2etools {
  */
 class ExperimentManager {
 private:
-    std::string TAG;
+    static LogKey TAG;
     std::string m_outputFolder;
     std::string m_prefix;
     bool m_autoIncrement;

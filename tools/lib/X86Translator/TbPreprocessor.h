@@ -9,6 +9,7 @@
 #include <set>
 
 #include "Translator.h"
+#include "lib/Utils/Log.h"
 
 namespace s2etools {
 
@@ -41,7 +42,7 @@ public:
   typedef std::vector<llvm::BasicBlock*> BasicBlocks;
 
 private:
-  static std::string TAG;
+  static LogKey TAG;
 
     llvm::Function *m_callMarker;
     llvm::Function *m_returnMarker;

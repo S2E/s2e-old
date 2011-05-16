@@ -30,7 +30,7 @@ std::string TbPreprocessor::s_jumpMarker = "jump_marker";
 std::string TbPreprocessor::s_callMarker = "call_marker";
 std::string TbPreprocessor::s_returnMarker = "return_marker";
 
-std::string TbPreprocessor::TAG = "TbPreprocessor";
+LogKey TbPreprocessor::TAG = LogKey("TbPreprocessor");
 
 void TbPreprocessor::initMarkers(llvm::Module *module)
 {

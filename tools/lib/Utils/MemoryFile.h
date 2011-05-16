@@ -44,6 +44,7 @@
 
 #include <stdint.h>
 #include <string>
+#include "Log.h"
 
 namespace s2etools
 {
@@ -52,7 +53,7 @@ namespace s2etools
 class MemoryFile {
 
 private:
-    std::string TAG;
+    static LogKey TAG;
 
 #ifdef _WIN32
     HANDLE m_hFile;

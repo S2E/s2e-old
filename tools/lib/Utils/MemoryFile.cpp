@@ -49,10 +49,10 @@
 namespace s2etools
 {
 
+LogKey MemoryFile::TAG = LogKey("MemoryFile");
+
 MemoryFile::MemoryFile(const std::string &fileName)
 {
-    TAG="MemoryFile";
-
     m_size = 0;
     m_file = NULL;
 

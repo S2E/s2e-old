@@ -12,13 +12,15 @@
 
 using namespace llvm;
 
+namespace s2etools {
+
 char JumpTableExtractor::ID = 0;
 RegisterPass<JumpTableExtractor>
   JumpTableExtractor("JumpTableExtractor", "Extracts jump tables referenced by an indirect branch",
   true /* Only looks at CFG */,
   true /* Analysis Pass */);
 
-std::string JumpTableExtractor::TAG="JumpTableExtractor";
+LogKey JumpTableExtractor::TAG = LogKey("JumpTableExtractor");
 
 Value *JumpTableExtractor::getIndirectCallAddress(llvm::Function &F)
 {
@@ -95,4 +97,5 @@ bool JumpTableExtractor::runOnFunction(llvm::Function &F)
     m_jumpTableAddress = offset;
 
     return true;
+}
 }

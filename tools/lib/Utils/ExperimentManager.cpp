@@ -46,10 +46,10 @@
 
 namespace s2etools {
 
+LogKey ExperimentManager::TAG = LogKey("ExperimentManager");
 
 ExperimentManager::ExperimentManager(const std::string &outputFolder)
 {
-    TAG = "ExperimentManager";
     m_outputFolder = outputFolder;
     m_autoIncrement = false;
 
@@ -60,7 +60,6 @@ ExperimentManager::ExperimentManager(const std::string &outputFolder)
 
 ExperimentManager::ExperimentManager(const std::string &outputFolder, const std::string prefix)
 {
-    TAG = "ExperimentManager";
     m_outputFolder = outputFolder;
     m_prefix = prefix;
     m_autoIncrement = true;

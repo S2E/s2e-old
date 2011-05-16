@@ -38,6 +38,11 @@
 #define S2ETOOLS_LOG_H
 
 #include <ostream>
+#include <string>
+#include <llvm/ADT/DenseSet.h>
+#include <map>
+
+#include "Utils.h"
 
 #define LOG_DEBUG    0
 #define LOG_INFO     1
@@ -46,13 +51,52 @@
 
 namespace s2etools {
 
-#include <ostream>
+class LogKey;
+
+class Logger {
+friend class LogKey;
+
+public:
+    typedef llvm::DenseSet<unsigned> TrackedKeys;
+    typedef std::map<unsigned, std::string> KeyToString;
+    typedef std::map<std::string, unsigned> StringToKey;
+
+private:
+    Logger();
+    static bool s_inited;
+    static unsigned s_currentKey;
+
+    //These have to be pointers because of static intializing issues
+    static TrackedKeys *s_trackedKeysFast;
+    static KeyToString *s_trackedStrings;
+    static StringToKey *s_trackedKeys;
+
+    static void AllocateStructs();
+
+public:
+    static void Initialize();
+    static unsigned Key(const std::string &s);
+};
+
+class LogKey {
+private:
+    unsigned m_key;
+    std::string m_tag;
+public:
+    LogKey(const std::string &tag);
+    inline bool isTracked() const {
+        return Logger::s_trackedKeysFast->count(m_key);
+    }
+    inline const std::string &getTag() const {
+        return m_tag;
+    }
+};
 
 /** Get the logging stream */
-std::ostream& Log(int logLevel);
+std::ostream& Log(int logLevel, const LogKey &k);
 
-#define __LOG_SUFFIX(level) s2etools::Log(level) << std::dec << '[' << level << "] " << \
-TAG << ":" << __FUNCTION__ << " - "
+#define __LOG_SUFFIX(level) s2etools::Log(level, TAG) << std::dec << '[' << level << "] " << \
+TAG.getTag() << ":" << __FUNCTION__ << " - "
 
 #define LOGDEBUG() __LOG_SUFFIX(LOG_DEBUG)
 #define LOGWARNING() __LOG_SUFFIX(LOG_WARNING)

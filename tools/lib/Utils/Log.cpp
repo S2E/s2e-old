@@ -48,11 +48,19 @@ cl::opt<std::string>
 
 cl::opt<int>
         LogLevel("loglevel", cl::desc("Logging verbosity"), cl::init(LOG_WARNING));
+
+cl::opt<bool>
+        LogAll("logall", cl::desc("Logging verbosity"), cl::init(true));
+
+cl::list<std::string>
+        LogItems("log", llvm::cl::value_desc("log-item"), llvm::cl::Prefix, llvm::cl::desc("Item to log"));
+
+cl::list<std::string>
+        NoLogItems("nolog", llvm::cl::value_desc("nolog-item"), llvm::cl::Prefix, llvm::cl::desc("Disable log for this item"));
 }
 
 namespace s2etools {
 
-static bool s_log_inited = false;
 
 struct nullstream:std::ostream {
     nullstream(): std::ios(0), std::ostream(0) {}
@@ -60,9 +68,87 @@ struct nullstream:std::ostream {
 
 static nullstream s_null;
 static std::ofstream s_logfile;
+bool Logger::s_inited = false;
+Logger::TrackedKeys* Logger::s_trackedKeysFast = NULL;
+Logger::KeyToString* Logger::s_trackedStrings = NULL;
+Logger::StringToKey* Logger::s_trackedKeys = NULL;
+unsigned Logger::s_currentKey = 0;
 
-std::ostream& Log(int logLevel)
+void Logger::Initialize()
 {
+    if (s_inited) {
+        return;
+    }
+
+    AllocateStructs();
+
+    //First check whether we need to log everything
+    if (LogAll) {
+        foreach(it, s_trackedKeys->begin(), s_trackedKeys->end()) {
+            s_trackedKeysFast->insert((*it).second);
+        }
+    }
+
+    //Add all extra items
+    foreach(it, LogItems.begin(), LogItems.end()) {
+        if (s_trackedKeys->find(*it) != s_trackedKeys->end()) {
+            s_trackedKeysFast->insert((*s_trackedKeys)[*it]);
+        }
+    }
+
+    //No check the items that we don't want to log
+    foreach(it, NoLogItems.begin(), NoLogItems.end()) {
+        if (s_trackedKeys->find(*it) != s_trackedKeys->end()) {
+            s_trackedKeysFast->erase((*s_trackedKeys)[*it]);
+        }
+    }
+
+    s_logfile.open(LogFile.c_str(), std::ios::binary);
+    s_inited = true;
+}
+
+void Logger::AllocateStructs()
+{
+    if (s_trackedKeys) {
+        return;
+    }
+
+    s_trackedKeys = new StringToKey();
+    s_trackedKeysFast = new TrackedKeys();
+    s_trackedStrings = new KeyToString();
+}
+
+unsigned Logger::Key(const std::string &s)
+{
+    AllocateStructs();
+
+    StringToKey::iterator it = s_trackedKeys->find(s);
+    if (it == s_trackedKeys->end()) {
+        unsigned ret;
+
+        (*s_trackedKeys)[s] = s_currentKey;
+        (*s_trackedStrings)[s_currentKey] = s;
+        ret = s_currentKey++;
+        return ret;
+    }else {
+        return (*it).second;
+    }
+}
+
+LogKey::LogKey(const std::string &tag)
+{
+    m_key = Logger::Key(tag);
+    m_tag = tag;
+}
+
+
+std::ostream& Log(int logLevel, const LogKey &k)
+{
+    Logger::Initialize();
+    if (!k.isTracked()) {
+        return s_null;
+    }
+
     if (logLevel < LogLevel) {
         return s_null;
     }
@@ -71,10 +157,6 @@ std::ostream& Log(int logLevel)
         return std::cerr;
     }
 
-    if (!s_log_inited) {
-        s_logfile.open(LogFile.c_str(), std::ios::binary);
-        s_log_inited = true;
-    }
     return s_logfile;
 }
 

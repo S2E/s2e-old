@@ -11,25 +11,11 @@
 #include <llvm/System/TimeValue.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
-#include <llvm/ADT/DenseMapInfo.h>
 
 #include "CFG/CFunction.h"
 #include <lib/X86Translator/Translator.h>
-
-namespace llvm {
-    // Provide DenseMapInfo for uint64_t
-    template<> struct DenseMapInfo<uint64_t> {
-      static inline uint64_t getEmptyKey() { return ~0L; }
-      static inline uint64_t getTombstoneKey() { return ~0L - 1L; }
-      static unsigned getHashValue(const uint64_t& Val) {
-        return (unsigned)(Val * 37L);
-      }
-      static bool isPod() { return true; }
-      static bool isEqual(const uint64_t& LHS, const uint64_t& RHS) {
-      return LHS == RHS;
-      }
-    };
-}
+#include <lib/Utils/Utils.h>
+#include <lib/Utils/Log.h>
 
 namespace s2etools {
 namespace translator {
@@ -42,7 +28,7 @@ public:
     typedef llvm::DenseMap<uint64_t, TranslatedBlock *> TranslatedBlocksMap;
     typedef llvm::DenseSet<uint64_t> AddressSet;
 private:
-    static std::string TAG;
+    static LogKey TAG;
     static bool s_translatorInited;
     BFDInterface *m_bfd;
     Binary *m_binary;

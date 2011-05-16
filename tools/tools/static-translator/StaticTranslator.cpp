@@ -78,12 +78,13 @@ cl::opt<std::string>
 
 cl::opt<uint64_t, false, MyQwordParser >
     EntryPointAddress("entrypoint", cl::desc("<address> Override the address of the default entry point"), cl::init(0));
+
 }
 
 namespace s2etools {
 namespace translator {
 static BFDInterface *s_currentBinary = NULL;
-std::string StaticTranslatorTool::TAG = "StaticTranslatorTool";
+LogKey StaticTranslatorTool::TAG = LogKey("StaticTranslatorTool");
 
 bool StaticTranslatorTool::s_translatorInited = false;
 
