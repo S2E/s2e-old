@@ -7,14 +7,26 @@ extern "C" {
 }
 
 #include <llvm/Linker.h>
+#include <llvm/Analysis/Verifier.h>
+#include <llvm/Transforms/Scalar.h>
 #include <sstream>
 
 #include "Translator.h"
+#include "TbPreprocessor.h"
 
+#include "lib/Utils/Log.h"
+#include "lib/Utils/Utils.h"
+
+
+using namespace llvm;
 namespace s2etools {
+
 
 Binary *s_currentBinary = NULL;
 bool Translator::s_translatorInited = false;
+std::string TranslatedBlock::TAG = "TranslatedBlock";
+std::string Translator::TAG = "Translator";
+std::string X86Translator::TAG = "X86Translator";
 
 /*****************************************************************************
  * The following functions are invoked by the QEMU translator to read code.
@@ -77,11 +89,37 @@ uint64_t ldq_code(target_ulong ptr)
 }
 
 /*****************************************************************************/
+void TranslatedBlock::print(std::ostream &os) const
+{
+    os << "TB at 0x" << std::hex << m_address << " type=0x" << m_type <<
+            " size=0x" << m_size << std::endl;
+
+    unsigned i=0;
+    foreach(it, m_successors.begin(), m_successors.end()) {
+        Value *v = *it;
+        if (!v) {
+            ++i;
+            continue;
+        }
+
+        if (ConstantInt *ci = dyn_cast<ConstantInt>(v)) {
+            uint64_t val = ci->getZExtValue();
+            os << "succ[" << i << "]=0x" << val << std::endl;
+        }else {
+            os << "succ[" << i << "]=" << *v << std::endl;
+        }
+        ++i;
+    }
+    os << *m_function << std::endl;
+}
+
+/*****************************************************************************/
 
 using namespace llvm;
 
 Translator::Translator(const llvm::sys::Path &bitcodeLibrary) {
     m_binary = NULL;
+    m_singlestep = false;
 
     if (!s_translatorInited) {
         cpu_gen_init();
@@ -100,8 +138,7 @@ Translator::Translator(const llvm::sys::Path &bitcodeLibrary) {
         }
 
         optimize_flags_init();
-        tcg_llvm_ctx->initializeHelpers();
-
+        tcg_llvm_ctx->initializeHelpers();        
         linker.releaseModule();
         s_translatorInited = true;
     }
@@ -125,20 +162,20 @@ void Translator::setBinaryFile(Binary *binary)
 
 X86Translator::X86Translator(const llvm::sys::Path &bitcodeLibrary):Translator(bitcodeLibrary)
 {
-
+    m_functionPasses = new FunctionPassManager(tcg_llvm_ctx->getModuleProvider());
+    m_functionPasses->add(createCFGSimplificationPass());
 }
 
 X86Translator::~X86Translator()
 {
-
+    delete m_functionPasses;
 }
 
-LLVMBasicBlock X86Translator::translate(uint64_t address)
+TranslatedBlock X86Translator::translate(uint64_t address)
 {
     static uint8_t s_dummyBuffer[1024*1024];
     CPUState env;
     TranslationBlock tb;
-    LLVMBasicBlock ret;
 
     if (!isInitialized()) {
         throw TranslatorNotInitializedException();
@@ -152,6 +189,10 @@ LLVMBasicBlock X86Translator::translate(uint64_t address)
 
     int codeSize;
 
+    //We translate only one instruction at a time.
+    //It is much easier to rebuild basic blocks this way.
+    env.singlestep_enabled = isSingleStep();
+
     env.eip = address;
     tb.pc = env.eip;
     tb.cs_base = 0;
@@ -163,7 +204,9 @@ LLVMBasicBlock X86Translator::translate(uint64_t address)
     cpu_gen_code(&env, &tb, &codeSize);
     cpu_gen_llvm(&env, &tb);
 
-    EBasicBlockType bbType;
+    //verifyFunction(*(Function*)tb.llvm_function);
+
+    ETranslatedBlockType bbType;
     switch(tb.s2e_tb_type) {
         case TB_DEFAULT:      bbType = BB_DEFAULT; break;
         case TB_JMP:          bbType = BB_JMP; break;
@@ -177,10 +220,19 @@ LLVMBasicBlock X86Translator::translate(uint64_t address)
         default: assert(false && "Unsupported translation block type");
     }
 
-    ret.address = address;
-    ret.size = tb.size;
-    ret.type = bbType;
-    ret.function = (Function*)tb.llvm_function;
+
+    TranslatedBlock ret(address, tb.size, (Function*)tb.llvm_function, bbType);
+
+    //CFG simiplification is required because TbPreprocessor assumes that the
+    //program counter is always updated in blocks ending with a ret.
+    m_functionPasses->run(*ret.getFunction());
+
+    if (isSingleStep()) {
+        //ret.print(LOGDEBUG() << "BEFORE" << std::endl);
+        TbPreprocessor prep(&ret);
+        prep.runOnFunction(*ret.getFunction());
+        //ret.print(LOGDEBUG() << "AFTER" << std::endl);
+    }
 
     return ret;
 }

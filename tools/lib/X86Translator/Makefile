@@ -19,7 +19,7 @@ SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
           $(S2E_SRC_ROOT)/cutils.c\
           $(S2E_SRC_ROOT)/translate-all.c\
           TranslatorWrapper.cpp  \
-          Translator.cpp
+          Translator.cpp TbPreprocessor.cpp
 
 
 include $(LEVEL)/Makefile.common

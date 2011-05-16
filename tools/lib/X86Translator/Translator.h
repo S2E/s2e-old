@@ -18,6 +18,8 @@
 #include <lib/BinaryReaders/Binary.h>
 #include <llvm/System/Path.h>
 #include <llvm/Function.h>
+#include <llvm/PassManager.h>
+#include <llvm/ADT/SmallVector.h>
 
 
 namespace s2etools
@@ -51,34 +53,106 @@ public:
     }
 };
 
-enum EBasicBlockType
+enum ETranslatedBlockType
 {
     BB_DEFAULT=0,
     BB_JMP, BB_JMP_IND,
-    BB_COND_JMP, BB_COND_JMP_IND,
-    BB_CALL, BB_CALL_IND, BB_REP, BB_RET
+    BB_COND_JMP, BB_REP, BB_COND_JMP_IND,
+    BB_CALL, BB_CALL_IND, BB_RET
 };
 
-struct LLVMBasicBlock
+/**
+ * This holds a translated block of machine code to LLVM.
+ * The block may correspond to one machine instruction or
+ * contain the translation for several instructions, depending
+ * on the translation mode.
+ */
+class TranslatedBlock
 {
-    /* Linear address of the basic block */
-    uint64_t address;
+    static std::string TAG;
 
-    /* Size of the machine code */
-    unsigned size;
+    /* Linear address of the instruction */
+    uint64_t m_address;
 
-    /* Raw LLVM representation of the machine code */
-    llvm::Function *function;
+    /* Raw LLVM representation of the instruction */
+    llvm::Function *m_function;
 
-    /* Type of the basic block determined by the translator */
-    EBasicBlockType type;
+    /* Successors */
+    llvm::SmallVector<llvm::Value *, 2> m_successors;
+
+    /* Type of the instruction determined by the translator */
+    ETranslatedBlockType m_type;
+
+    /* Size of the machine instruction */
+    unsigned m_size;
+
+public:
+    TranslatedBlock() {
+        m_address = 0;
+        m_size = 0;
+        m_function = NULL;
+        m_type = BB_DEFAULT;
+        m_successors.resize(2, NULL);
+    }
+
+    TranslatedBlock(uint64_t address, unsigned size, llvm::Function *f, ETranslatedBlockType type) {
+        m_address = address;
+        m_size = size;
+        m_function = f;
+        m_type = type;
+        m_successors.resize(2, NULL);
+    }
+
+    llvm::Value *getFallback() const {
+        return m_successors[0];
+    }
+
+    void setFallback(llvm::Value *v) {
+        m_successors[0] = v;
+    }
+
+    llvm::Value *getDestination() const {
+        return m_successors[1];
+    }
+
+    void setDestination(llvm::Value *v) {
+        m_successors[1] = v;
+    }
+
+    bool isIndirectJump() const {
+        return m_type == BB_JMP_IND || m_type == BB_COND_JMP_IND;
+    }
+
+    bool operator<(const TranslatedBlock &bb) const {
+        return m_address + m_size <= bb.m_address;
+    }
+
+    uint64_t getAddress() const {
+        return m_address;
+    }
+
+    unsigned getSize() const {
+        return m_size;
+    }
+
+    llvm::Function* getFunction() const {
+        return m_function;
+    }
+
+    ETranslatedBlockType getType() const {
+        return m_type;
+    }
+
+    void print(std::ostream &os) const;
 };
 
 
 class Translator {
 private:
+    static std::string TAG;
     Binary *m_binary;
     static bool s_translatorInited;
+    bool m_singlestep;
 
 public:
     Translator(const llvm::sys::Path &bitcodeLibrary);
@@ -87,22 +161,33 @@ public:
 
     void setBinaryFile(Binary *binary);
 
-    virtual LLVMBasicBlock translate(uint64_t address) = 0;
+    virtual TranslatedBlock translate(uint64_t address) = 0;
 
-    static bool isInitialized() {
+    bool isInitialized() {
         return s_translatorInited;
+    }
+
+    virtual bool isSingleStep() const {
+        return m_singlestep;
+    }
+
+    virtual void setSingleStep(bool b) {
+        m_singlestep = b;
     }
 };
 
 
 
 class X86Translator: public Translator {
+private:
+    static std::string TAG;
+    llvm::FunctionPassManager *m_functionPasses;
 
 public:
     X86Translator(const llvm::sys::Path &bitcodeLibrary);
     virtual ~X86Translator();
 
-    virtual LLVMBasicBlock translate(uint64_t address);
+    virtual TranslatedBlock translate(uint64_t address);
 };
 
 }
