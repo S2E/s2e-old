@@ -200,7 +200,7 @@ void StaticTranslatorTool::computeFunctionInstructions(uint64_t entryPoint, Addr
 
 void StaticTranslatorTool::translateAllInstructions()
 {
-    uint64_t ep = m_binary->getEntryPoint();
+    uint64_t ep = getEntryPoint();
 
     if (!ep) {
         LOGERROR() << "Could not get entry point of " << InputFile << std::endl;
@@ -363,6 +363,15 @@ void StaticTranslatorTool::outputBitcodeFile()
     // Output the bitcode file to stdout
     llvm::WriteBitcodeToFile(module, *o);
     delete o;
+}
+
+uint64_t StaticTranslatorTool::getEntryPoint()
+{
+    if (EntryPointAddress) {
+        return EntryPointAddress;
+    }else {
+        return m_binary->getEntryPoint();
+    }
 }
 
 void StaticTranslatorTool::dumpStats()
