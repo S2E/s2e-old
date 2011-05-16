@@ -31,7 +31,7 @@ private:
     llvm::Function *m_function;
     uint64_t m_address;
     unsigned m_size;
-    EBasicBlockType m_type;
+    ETranslatedBlockType m_type;
     Successors m_successors;
     Markers m_instructionMarkers;
 
@@ -48,7 +48,7 @@ private:
     void updateInstructionMarkers();
     void renameFunction();
 public:
-    CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type);
+    CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, ETranslatedBlockType type);
     CBasicBlock(uint64_t va, unsigned size);
     ~CBasicBlock();
 
@@ -56,7 +56,7 @@ public:
         return m_function;
     }
 
-    EBasicBlockType getType() const {
+    ETranslatedBlockType getType() const {
         return m_type;
     }
 

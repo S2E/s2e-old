@@ -42,7 +42,7 @@ extern "C" {
 #include "Passes/GlobalDataFixup.h"
 #include "Passes/CallBuilder.h"
 
-#include "Utils.h"
+#include "lib/Utils/Utils.h"
 
 using namespace llvm;
 using namespace s2etools;
@@ -87,14 +87,12 @@ cl::opt<uint64_t, false, MyQwordParser >
 namespace s2etools {
 namespace translator {
 static BFDInterface *s_currentBinary = NULL;
-
+std::string StaticTranslatorTool::TAG = "StaticTranslatorTool";
 
 bool StaticTranslatorTool::s_translatorInited = false;
 
 StaticTranslatorTool::StaticTranslatorTool()
 {
-    TAG="StaticTranslatorTool";
-
     if (ExpMode) {
         m_experiment = new ExperimentManager(OutputDir, "x2l");
     }else {
@@ -114,7 +112,7 @@ StaticTranslatorTool::StaticTranslatorTool()
     llvm::sys::Path libraryPath(BitcodeLibrary);
     m_translator = new X86Translator(libraryPath);
     m_translator->setBinaryFile(m_binary);
-
+    m_translator->setSingleStep(true);
     m_translatedCode = m_experiment->getOuputFile("translated.bin");
 }
 
@@ -136,20 +134,40 @@ StaticTranslatorTool::~StaticTranslatorTool()
 }
 
 
-
-
-CBasicBlock* StaticTranslatorTool::translateBlockToLLVM(uint64_t address)
+void StaticTranslatorTool::translateAllInstructions()
 {
-    LLVMBasicBlock bblock;
-    try {
-        bblock = m_translator->translate(address);
-    }catch(InvalidAddressException &e) {
+    uint64_t ep = getEntryPoint();
 
-        LOGDEBUG() << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
-        return NULL;
+    if (!ep) {
+        LOGERROR() << "Could not get entry point of " << InputFile << std::endl;
+        exit(-1);
     }
 
-    return new CBasicBlock(bblock.function, address, bblock.size, bblock.type);
+    m_addressesToExplore.insert(ep);
+    while(!m_addressesToExplore.empty()) {
+        uint64_t addr = *m_addressesToExplore.begin();
+        m_addressesToExplore.erase(addr);
+
+        if (m_exploredAddresses.find(addr) != m_exploredAddresses.end()) {
+            continue;
+        }
+        m_exploredAddresses.insert(addr);
+
+        LOGDEBUG() << "L: Translating at address 0x" << std::hex << addr << std::endl;
+
+        TranslatedBlock bblock;
+        try {
+            bblock = m_translator->translate(addr);
+        }catch(InvalidAddressException &e) {
+            LOGDEBUG() << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
+            continue;
+        }
+        extractAddresses(bblock.getFunction(), bblock.isIndirectJump());
+
+    }
+
+    LOGINFO() << "There are " << std::dec << m_translatedInstructions.size() << " instructions" << std::endl;
+
 }
 
 
@@ -259,13 +277,13 @@ bool StaticTranslatorTool::checkString(uint64_t address, std::string &res, bool 
     return true;
 }
 
-void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
+void StaticTranslatorTool::extractAddresses(llvm::Function *llvmInstruction, bool isIndirectJump)
 {
     JumpTableExtractor jumpTableExtractor;
     uint64_t jumpTableAddress = 0;
 
-    if (bb->isIndirectJump()) {
-        jumpTableExtractor.runOnFunction(*bb->getFunction());
+    if (isIndirectJump) {
+        jumpTableExtractor.runOnFunction(*llvmInstruction);
         jumpTableAddress = jumpTableExtractor.getJumpTableAddress();
         if (jumpTableAddress) {
             LOGDEBUG() << "Found jump table at 0x" << std::hex << jumpTableAddress << std::endl;
@@ -273,7 +291,7 @@ void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
     }
 
     ConstantExtractor extractor;
-    extractor.runOnFunction(*bb->getFunction());
+    extractor.runOnFunction(*llvmInstruction);
 
     const ConstantExtractor::Constants &consts = extractor.getConstants();
     foreach(it, consts.begin(), consts.end()) {
@@ -283,10 +301,12 @@ void StaticTranslatorTool::extractAddresses(CBasicBlock *bb)
             continue;
         }
 
+#if 0
         //Skip if the address falls inside the current bb
         if (addr >= bb->getAddress() && (addr < bb->getAddress() + bb->getSize())) {
             continue;
         }
+#endif
 
         //Skip jump tables
         if (addr == jumpTableAddress) {
@@ -322,6 +342,7 @@ uint64_t StaticTranslatorTool::getEntryPoint()
 
 void StaticTranslatorTool::exploreBasicBlocks()
 {
+#if 0
     Imports imp;
     imp = m_binary->getImports();
     Imports::const_iterator it;
@@ -355,6 +376,7 @@ void StaticTranslatorTool::exploreBasicBlocks()
     }
 
     LOGINFO() << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
+#endif
 }
 
 void StaticTranslatorTool::extractFunctions()
@@ -621,6 +643,9 @@ int main(int argc, char** argv)
 
     StaticTranslatorTool translator;
 
+    translator.translateAllInstructions();
+
+#if 0
     translator.exploreBasicBlocks();
     translator.extractFunctions();
     translator.reconstructFunctions();
@@ -632,6 +657,7 @@ int main(int argc, char** argv)
 
     translator.cleanupCode();
     translator.renameEntryPoint();
+#endif
     translator.outputBitcodeFile();
 
     translator.dumpStats();

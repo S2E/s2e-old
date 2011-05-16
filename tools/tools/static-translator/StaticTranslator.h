@@ -20,9 +20,9 @@ namespace translator {
 
 class StaticTranslatorTool {
 public:
-
+    typedef std::set<TranslatedBlock> TranslatedInstructions;
 private:
-    std::string TAG;
+    static std::string TAG;
     static bool s_translatorInited;
     BFDInterface *m_bfd;
     Binary *m_binary;
@@ -32,7 +32,10 @@ private:
 
     BasicBlocks m_exploredBlocks;
     std::set<uint64_t> m_addressesToExplore;
+    std::set<uint64_t> m_exploredAddresses;
 
+
+    TranslatedInstructions m_translatedInstructions;
 
     BasicBlocks m_functionHeaders;
     CFunctions m_functions;
@@ -45,17 +48,16 @@ private:
     uint64_t m_startTime;
     uint64_t m_endTime;
 
-    translator::CBasicBlock* translateBlockToLLVM(uint64_t address);
-
     void processTranslationBlock(CBasicBlock *bb);
     void splitExistingBlock(CBasicBlock *newBlock, CBasicBlock *existingBlock);
-    void extractAddresses(CBasicBlock *bb);
+    void extractAddresses(llvm::Function *llvmInstruction, bool isIndirectJump);
     bool checkString(uint64_t address, std::string &res, bool isUnicode);
 
     uint64_t getEntryPoint();
 public:
     StaticTranslatorTool();
     ~StaticTranslatorTool();
+    void translateAllInstructions();
     void exploreBasicBlocks();
 
     void extractFunctions();

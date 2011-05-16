@@ -16,7 +16,7 @@ extern "C" {
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include "SystemMemopsRemoval.h"
-#include "Utils.h"
+#include "lib/Utils/Utils.h"
 #include <iostream>
 
 #include <set>

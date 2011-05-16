@@ -16,7 +16,7 @@
 #include "Passes/QEMUTerminatorMarker.h"
 #include "Passes/QEMUTbCutter.h"
 #include "CBasicBlock.h"
-#include "Utils.h"
+#include "lib/Utils/Utils.h"
 
 using namespace llvm;
 
@@ -31,19 +31,21 @@ bool BasicBlockComparator::operator ()(const CBasicBlock* b1, const CBasicBlock 
    return b1->getAddress() + b1->getSize() <= b2->getAddress();
 }
 
-CBasicBlock::CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, EBasicBlockType type)
+CBasicBlock::CBasicBlock(llvm::Function *f, uint64_t va, unsigned size, ETranslatedBlockType type)
 {
     m_address = va;
     m_size = size;
     m_function = f;
     m_type = type;
 
+    LOGDEBUG() << *f << std::endl;
+
     if (m_type == BB_DEFAULT) {
         m_successors.insert(m_address + m_size);
     }
 
     markTerminator();
-    markInstructionBoundaries();
+    //markInstructionBoundaries();
     valid();
 
 }
@@ -75,7 +77,7 @@ void CBasicBlock::markInstructionBoundaries()
     if (!marker.runOnFunction(*m_function)) {
         LOGERROR() << "Basic block at address 0x" << std::hex << m_address <<
                 " has no instruction markers. This is bad." << std::endl;
-        LOGERROR() << m_function << std::endl;
+        LOGERROR() << *m_function << std::endl;
         assert(false);
     }
 
@@ -92,7 +94,7 @@ void CBasicBlock::markTerminator()
     if (!terminatorMarker.runOnFunction(*m_function)) {
         LOGERROR() << "Basic block at address 0x" << std::hex << m_address <<
                 " has no terminator markers. This is bad." << std::endl;
-        LOGERROR() << m_function << std::endl;
+        LOGERROR() << *m_function << std::endl;
         assert(false);
     }
 
@@ -337,8 +339,10 @@ bool CBasicBlock::valid() const
     foreach(it, m_instructionMarkers.begin(), m_instructionMarkers.end()) {
         uint64_t marker = (*it).first;
         if (marker < m_address || marker >= m_address + m_size) {
-            LOGERROR() << "BUGGY FUNCTION " << std::endl;
+            LOGERROR() << std::hex << "BUGGY FUNCTION marker=0x" << marker << " m_address=0x" << m_address <<
+                    " m_size=0x" << m_size << std::endl;
             toString(LOGERROR());
+            LOGERROR() << std::flush;
             assert(false && "BB has marker outside its bounds");
         }
     }

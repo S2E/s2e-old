@@ -13,7 +13,7 @@
 #include "lib/Utils/Log.h"
 #include "FunctionBuilder.h"
 #include "ForcedInliner.h"
-#include "Utils.h"
+#include "lib/Utils/Utils.h"
 #include <iostream>
 
 #include <set>
@@ -25,7 +25,7 @@ using namespace llvm;
 
 char FunctionBuilder::ID = 0;
 RegisterPass<FunctionBuilder>
-  FunctionBuilder("FunctionBuilder", "Transforms merges independent basic block functions into LLVM functions",
+  FunctionBuilder("FunctionBuilder", "Merges independent basic block functions into LLVM functions",
   false /* Only looks at CFG */,
   false /* Analysis Pass */);
 
@@ -88,7 +88,7 @@ void FunctionBuilder::getCalledBbsAndInstructionBoundaries(
                 if (!(calledBbs.find(pc) == calledBbs.end())) {
                     //A program counter may appear twice if there are two places that try
                     //to jump to a block that was not yet inlined.
-                    LOGERROR() << "Duplicate target pc: 0x" << std::hex << pc << std::endl;
+                    LOGDEBUG() << "Duplicate target pc: 0x" << std::hex << pc << std::endl;
                 }
                 calledBbs.insert(std::make_pair(pc, ci));
             }
@@ -113,23 +113,21 @@ void FunctionBuilder::patchJumps(Instructions &boundaries,
         Instruction *splitTargetAt = boundaries[calledPc];
         BasicBlock *newBB = splitTargetAt->getParent()->splitBasicBlock(splitTargetAt);
 
-#if 0
-        std::cout << "Ci=" << *ci << std::endl;
-        std::cout << "Splitting at " << *splitTargetAt << std::endl;
-        std::cout << "New BB is " << *newBB;
-#endif
+        LOGDEBUG() << "Ci=" << *ci << std::endl;
+        LOGDEBUG() << "Splitting at " << *splitTargetAt << std::endl;
+        LOGDEBUG() << "New BB is " << *newBB;
 
         //Discard all instructions following the call
         BasicBlock *callBB = ci->getParent();
         while(&callBB->back() != ci) {
-      //      std::cout << "Erasing " << callBB->back() << std::endl;
+            LOGDEBUG() << "Erasing " << callBB->back() << std::endl;
             callBB->back().eraseFromParent();
         }
 
         //Replace the call with a branch
         ci->eraseFromParent();
         BranchInst *bi = BranchInst::Create(newBB, callBB);
-        //std::cout << "Created internal branch " << *bi << std::endl;
+        LOGDEBUG() << "Created internal branch " << *bi << std::endl;
     }
 }
 
@@ -179,9 +177,15 @@ bool FunctionBuilder::runOnModule(llvm::Module &M)
             break;
         }
 
+        LOGDEBUG() << "Before patching" << *F << std::flush;
+
         patchJumps(boundaries, branchTargets);
 
+        LOGDEBUG() << "After patching" << *F << std::flush;
+
         modified = true;
+        FcnPasses.run(*F);
+        LOGDEBUG() << "Passed checks" << std::endl;
     }while(true);
 
     LOGDEBUG() << *F << std::flush;
