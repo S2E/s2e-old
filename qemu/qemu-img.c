@@ -579,9 +579,6 @@ static int img_convert(int argc, char **argv)
         }
     }
 
-    buf = calloc(IO_BUF_SIZE,sizeof(*buf));
-    if(buf==NULL)
-	error("Out of memory");
 
     bs_n = argc - optind - 1;
     if (bs_n < 1) help();
@@ -660,6 +657,10 @@ static int img_convert(int argc, char **argv)
     bs_i = 0;
     bs_offset = 0;
     bdrv_get_geometry(bs[0], &bs_sectors);
+
+    buf = calloc(IO_BUF_SIZE,sizeof(*buf));
+    if(buf==NULL)
+	error("Out of memory");
 
     if (flags & BLOCK_FLAG_COMPRESS) {
         if (bdrv_get_info(out_bs, &bdi) < 0)
