@@ -11,11 +11,8 @@ USEDLIBS = executiontracer.a binaryreaders.a X86Translator.a  utils.a
 LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scalaropts ipa transformutils
 NO_PEDANTIC=1
 SOURCES = StaticTranslator.cpp \
-          Passes/QEMUInstructionBoundaryMarker.cpp Passes/QEMUTerminatorMarker.cpp \
-          Passes/QEMUTbCutter.cpp Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp \
-          Passes/FunctionBuilder.cpp Passes/ForcedInliner.h Passes/SystemMemopsRemoval.cpp \
-          Passes/GlobalDataFixup.cpp Passes/CallBuilder.cpp\
-          CFG/CBasicBlock.cpp CFG/CFunction.cpp
+          Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp \
+          Passes/ForcedInliner.h
 
 include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)

@@ -200,6 +200,10 @@ void TbPreprocessor::markCall(Function &f)
     destMarker->eraseFromParent();
 
     m_tb->setDestination(destination);
+
+    //The fallback is the instruction right after the call
+    m_tb->setFallback(ConstantInt::get(f.getParent()->getContext(),
+                                   APInt(64,  m_tb->getAddress() + m_tb->getSize())));
     return;
 }
 

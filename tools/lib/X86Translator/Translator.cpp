@@ -171,7 +171,7 @@ X86Translator::~X86Translator()
     delete m_functionPasses;
 }
 
-TranslatedBlock X86Translator::translate(uint64_t address)
+TranslatedBlock *X86Translator::translate(uint64_t address)
 {
     static uint8_t s_dummyBuffer[1024*1024];
     CPUState env;
@@ -221,16 +221,16 @@ TranslatedBlock X86Translator::translate(uint64_t address)
     }
 
 
-    TranslatedBlock ret(address, tb.size, (Function*)tb.llvm_function, bbType);
+    TranslatedBlock *ret = new TranslatedBlock(address, tb.size, (Function*)tb.llvm_function, bbType);
 
     //CFG simiplification is required because TbPreprocessor assumes that the
     //program counter is always updated in blocks ending with a ret.
-    m_functionPasses->run(*ret.getFunction());
+    m_functionPasses->run(*ret->getFunction());
 
     if (isSingleStep()) {
         //ret.print(LOGDEBUG() << "BEFORE" << std::endl);
-        TbPreprocessor prep(&ret);
-        prep.runOnFunction(*ret.getFunction());
+        TbPreprocessor prep(ret);
+        prep.runOnFunction(*ret->getFunction());
         //ret.print(LOGDEBUG() << "AFTER" << std::endl);
     }
 

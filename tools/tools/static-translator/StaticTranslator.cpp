@@ -35,12 +35,8 @@ extern "C" {
 #include <lib/Utils/Log.h>
 
 #include "StaticTranslator.h"
-#include "CFG/CBasicBlock.h"
 #include "Passes/ConstantExtractor.h"
 #include "Passes/JumpTableExtractor.h"
-#include "Passes/SystemMemopsRemoval.h"
-#include "Passes/GlobalDataFixup.h"
-#include "Passes/CallBuilder.h"
 
 #include "lib/Utils/Utils.h"
 
@@ -133,10 +129,78 @@ StaticTranslatorTool::~StaticTranslatorTool()
 
 }
 
+void StaticTranslatorTool::computePredecessors()
+{
+    foreach(it, m_translatedInstructions.begin(), m_translatedInstructions.end()) {
+        TranslatedBlock *tb = (*it).second;
+        if (!m_predecessors.count(tb->getAddress())) {
+            m_predecessors[tb->getAddress()] = 0;
+        }
+
+        if (tb->isCallInstruction()) {
+            ConstantInt *ci = dyn_cast<ConstantInt>(tb->getFallback());
+            assert(ci);
+            m_predecessors[ci->getZExtValue()] = tb->getAddress();
+        }else {
+            const TranslatedBlock::Successors &sucs = tb->getSuccessors();
+            foreach(sit, sucs.begin(), sucs.end()) {
+                ConstantInt *ci;
+                if (*sit && (ci = dyn_cast<ConstantInt>(*sit))) {
+                    ++m_predecessors[ci->getZExtValue()];
+                }
+            }
+        }
+    }
+}
+
+//Retrieve all program counters with no predecessors
+void StaticTranslatorTool::computeFunctionEntryPoints(AddressSet &entryPoints)
+{
+    foreach(it, m_predecessors.begin(), m_predecessors.end()) {
+        if ((*it).second == 0) {
+            entryPoints.insert((*it).first);
+        }
+    }
+}
+
+//Get the list of all instructions in a function
+//XXX: call to the next program counter
+void StaticTranslatorTool::computeFunctionInstructions(uint64_t entryPoint, AddressSet &exploredInstructions)
+{    
+    AddressSet instructionsToExplore;
+
+    exploredInstructions.clear();
+    instructionsToExplore.insert(entryPoint);
+    while(!instructionsToExplore.empty()) {
+        uint64_t addr = *instructionsToExplore.begin();
+        instructionsToExplore.erase(addr);
+        if (exploredInstructions.count(addr)) {
+            continue;
+        }
+        exploredInstructions.insert(addr);
+
+        TranslatedBlock *tb = m_translatedInstructions[addr];
+        assert(tb && "There must be a corresponding LLVM translation for each instruction");
+
+        if (tb->isCallInstruction()) {
+            ConstantInt *ci = dyn_cast<ConstantInt>(tb->getFallback());
+            assert(ci);
+            instructionsToExplore.insert(ci->getZExtValue());
+        }else {
+            const TranslatedBlock::Successors &sucs = tb->getSuccessors();
+            foreach(sit, sucs.begin(), sucs.end()) {
+                ConstantInt *ci;
+                if (*sit && (ci = dyn_cast<ConstantInt>(*sit))) {
+                    instructionsToExplore.insert(ci->getZExtValue());
+                }
+            }
+        }
+    }
+}
 
 void StaticTranslatorTool::translateAllInstructions()
 {
-    uint64_t ep = getEntryPoint();
+    uint64_t ep = m_binary->getEntryPoint();
 
     if (!ep) {
         LOGERROR() << "Could not get entry point of " << InputFile << std::endl;
@@ -148,96 +212,38 @@ void StaticTranslatorTool::translateAllInstructions()
         uint64_t addr = *m_addressesToExplore.begin();
         m_addressesToExplore.erase(addr);
 
-        if (m_exploredAddresses.find(addr) != m_exploredAddresses.end()) {
+        if (m_exploredAddresses.count(addr)) {
             continue;
         }
         m_exploredAddresses.insert(addr);
 
         LOGDEBUG() << "L: Translating at address 0x" << std::hex << addr << std::endl;
 
-        TranslatedBlock bblock;
+        TranslatedBlock *bblock = NULL;
         try {
             bblock = m_translator->translate(addr);
         }catch(InvalidAddressException &e) {
-            LOGDEBUG() << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
+            LOGERROR() << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
             continue;
         }
-        extractAddresses(bblock.getFunction(), bblock.isIndirectJump());
+
+        assert(bblock);
+        m_translatedInstructions[addr] = bblock;
+
+        const TranslatedBlock::Successors &sucs = bblock->getSuccessors();
+        foreach(sit, sucs.begin(), sucs.end()) {
+            ConstantInt *ci;
+            if (*sit && (ci = dyn_cast<ConstantInt>(*sit))) {
+                m_addressesToExplore.insert(ci->getZExtValue());
+            }
+        }
+
+        extractAddresses(bblock->getFunction(), bblock->isIndirectJump());
 
     }
 
     LOGINFO() << "There are " << std::dec << m_translatedInstructions.size() << " instructions" << std::endl;
 
-}
-
-
-void StaticTranslatorTool::splitExistingBlock(CBasicBlock *newBlock, CBasicBlock *existingBlock)
-{
-    //The new block overlaps with another one.
-    //Decide how to split.
-    CBasicBlock *blockToDelete = NULL, *blockToSplit = NULL;
-    uint64_t splitAddress = 0;
-
-
-    if (newBlock->getAddress() < existingBlock->getAddress()) {
-        //The new block is bigger. Split it and remove the
-        //existing one.
-        blockToDelete = existingBlock;
-        blockToSplit = newBlock;
-        splitAddress = existingBlock->getAddress();
-
-        //Check if the bigger block has the same instructions as the smaller one.
-        //It may happen that disassembling at slightly different offsets can cause problems
-        //(e.g., disassembling a string might disassemble some valid code past the string).
-
-        //XXX: Broken. We might as well get a new block that is better, in which case we should discard
-        //the previous one. This requires heuristics...
-        //CBasicBlock::AddressSet commonAddresses;
-        //blockToSplit->intersect(existingBlock, commonAddresses);
-
-
-    }else if (newBlock->getAddress()>existingBlock->getAddress()) {
-        //Discard the new block, and split the exising one
-        blockToDelete = newBlock;
-        blockToSplit = existingBlock;
-        splitAddress = newBlock->getAddress();
-    }else {
-        //The new block is equal to a previous one
-        return;
-    }
-
-
-    CBasicBlock *split = blockToSplit->split(splitAddress);
-
-    if (!split) {
-        LOGDEBUG() << "Could not split block" << std::endl;
-        return;
-    }
-
-    m_exploredBlocks.erase(blockToSplit);
-    delete blockToDelete;
-
-    m_exploredBlocks.insert(blockToSplit);
-    m_exploredBlocks.insert(split);
-}
-
-void StaticTranslatorTool::processTranslationBlock(CBasicBlock *bb)
-{
-    BasicBlocks::iterator bbit = m_exploredBlocks.find(bb);
-    if (bbit == m_exploredBlocks.end()) {
-        m_exploredBlocks.insert(bb);
-        //Check that successors have not been explored yet
-        const CBasicBlock::Successors &suc = bb->getSuccessors();
-        foreach(sit, suc.begin(), suc.end()) {
-            if (m_addressesToExplore.find(*sit) == m_addressesToExplore.end()) {
-                LOGDEBUG() << "L: Successor of 0x" << std::hex << bb->getAddress() << " is 0x" <<
-                        *sit << std::endl;
-                m_addressesToExplore.insert(*sit);
-            }
-        }
-    } else {
-        splitExistingBlock(bb, *bbit);
-    }
 }
 
 bool StaticTranslatorTool::checkString(uint64_t address, std::string &res, bool isUnicode)
@@ -320,275 +326,29 @@ void StaticTranslatorTool::extractAddresses(llvm::Function *llvmInstruction, boo
             continue;
         }
 
-        //Skip if we already explored the basic block
-        CBasicBlock cmp(addr, 1);
-        if (m_exploredBlocks.find(&cmp) != m_exploredBlocks.end()) {
-            continue;
-        }
-
         LOGDEBUG() << "L: Found new address 0x" << std::hex << addr << std::endl;
         m_addressesToExplore.insert(addr);
     }
 }
 
-uint64_t StaticTranslatorTool::getEntryPoint()
+void StaticTranslatorTool::reconstructFunctions(const AddressSet &entryPoints)
 {
-    if (EntryPointAddress) {
-        return EntryPointAddress;
-    }else {
-        return m_binary->getEntryPoint();
-    }
-}
+    AddressSet alreadyExplored;
 
-void StaticTranslatorTool::exploreBasicBlocks()
-{
-#if 0
-    Imports imp;
-    imp = m_binary->getImports();
-    Imports::const_iterator it;
-    for (it = imp.begin(); it != imp.end(); ++it) {
-        std::pair<std::string, std::string> fcnDesc = (*it).second;
-        LOGDEBUG() << (*it).first << " " << fcnDesc.first << " " << std::hex << fcnDesc.second << std::endl;
-    }
+    foreach(it, entryPoints.begin(), entryPoints.end()) {
+        uint64_t ep = *it;
+        StaticTranslatorTool::AddressSet instructions;
+        computeFunctionInstructions(ep, instructions);
 
-
-    uint64_t ep = getEntryPoint();
-
-    if (!ep) {
-        LOGERROR() << "Could not get entry point of " << InputFile << std::endl;
-        exit(-1);
-    }
-
-    m_addressesToExplore.insert(ep);
-    while(!m_addressesToExplore.empty()) {
-        uint64_t ep = *m_addressesToExplore.begin();
-        m_addressesToExplore.erase(ep);
-
-        LOGDEBUG() << "L: Translating at address 0x" << std::hex << ep << std::endl;
-
-        CBasicBlock *bb = translateBlockToLLVM(ep);
-        if (!bb) {
-            continue;
-        }
-
-        extractAddresses(bb);
-        processTranslationBlock(bb);
-    }
-
-    LOGINFO() << "There are " << std::dec << m_exploredBlocks.size() << " bbs" << std::endl;
-#endif
-}
-
-void StaticTranslatorTool::extractFunctions()
-{
-    typedef std::map<CBasicBlock*, BasicBlocks> Graph;
-
-    Graph incomingEdges, outgoingEdges;
-
-    BasicBlocks blocksWithIncomingEdges;
-    BasicBlocks blocksWithoutIncomingEdges;
-
-    foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
-        CBasicBlock *bb = *it;
-
-        //Check the case of function stubs that have only one indirect branch
-        if (bb->isIndirectJump() && bb->getInstructionCount() == 1) {
-            //XXX: check that somebody actually calls it
-            continue;
-        }
-
-        const CBasicBlock::Successors &suc = bb->getSuccessors();
-        foreach(sucit, suc.begin(), suc.end()) {
-            //Look for the basic block descriptor given its address
-            CBasicBlock tofind(*sucit, 1);
-            BasicBlocks::iterator bbit = m_exploredBlocks.find(&tofind);
-            if (bbit == m_exploredBlocks.end()) {
-                continue;
+        LOGDEBUG() << "EP: 0x" << std::hex << ep << std::endl;
+        foreach(iit, instructions.begin(), instructions.end()) {
+            if (alreadyExplored.count(*iit)) {
+                LOGERROR() << "Instruction 0x" << *iit << " of function 0x" << std::hex << ep << " already in another function" << std::endl;
             }
-
-            blocksWithIncomingEdges.insert(*bbit);
-            LOGDEBUG() << std::hex << "0x" << bb->getAddress() << " -> 0x" << (*bbit)->getAddress() << std::endl;
+            alreadyExplored.insert(*iit);
+            LOGDEBUG() << "    " << std::hex << *iit << std::endl;
         }
     }
-
-    LOGINFO() << "Blocks with incoming edge: " << std::dec << blocksWithIncomingEdges.size() << std::endl;
-
-    std::set_difference(m_exploredBlocks.begin(), m_exploredBlocks.end(),
-                        blocksWithIncomingEdges.begin(), blocksWithIncomingEdges.end(),
-                          std::inserter(blocksWithoutIncomingEdges, blocksWithoutIncomingEdges.begin()),
-                          BasicBlockComparator());
-
-    LOGINFO() << "Blocks without incoming edge: " << std::dec << blocksWithoutIncomingEdges.size() << std::endl;
-
-    //Look for nodes that have no incoming edges.
-    //These should be function entry points
-
-    foreach(it, blocksWithoutIncomingEdges.begin(), blocksWithoutIncomingEdges.end()) {
-            m_functionHeaders.insert((*it));
-    }
-
-    std::set<uint64_t> fcnStartSet;
-    foreach(it, m_functionHeaders.begin(), m_functionHeaders.end()) {
-        assert(fcnStartSet.find((*it)->getAddress()) == fcnStartSet.end());
-        fcnStartSet.insert((*it)->getAddress());
-    }
-
-    foreach(it, fcnStartSet.begin(), fcnStartSet.end()) {
-        LOGDEBUG() << "FCN: 0x" << std::hex << *it << std::endl;
-    }
-
-    LOGINFO() << "There are " << std::dec << m_functionHeaders.size() << " functions" << std::endl;
-}
-
-void StaticTranslatorTool::reconstructFunctions()
-{
-    FunctionAddressMap addrMap;
-    foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
-        //This is to put calls the real basic blocks.
-        (*it)->patchCallMarkersWithRealFunctions(m_exploredBlocks);
-        addrMap[(*it)->getFunction()] = (*it)->getAddress();
-    }
-
-
-    foreach(it, m_functionHeaders.begin(), m_functionHeaders.end()) {
-        CFunction *fcn = new CFunction(*it);
-        fcn->generate(addrMap);
-        std::cout << fcn->getFunction();
-        m_functions.insert(fcn);
-        //break;
-    }
-}
-
-void StaticTranslatorTool::renameEntryPoint()
-{
-    uint64_t ep = getEntryPoint();
-    assert(ep);
-
-    foreach(it, m_functions.begin(), m_functions.end()) {
-        CFunction *fcn = *it;
-        if (fcn->getAddress() == ep) {
-            fcn->getFunction()->setName("__main");
-            return;
-        }
-    }
-}
-
-void StaticTranslatorTool::cleanupCode()
-{
-    Module *module = tcg_llvm_ctx->getModule();
-    std::set<Function *> usedFunctions;
-    std::set<Function *> builtinFunctions;
-
-    const char *builtinFunctionsStr[] = {"strcmp", "strdup", "strtok",
-                                     "strchr", "strtoul", "strlen", "pstrcpy", "snprintf",
-                                     "fprintf", "fwrite",
-                                     "instruction_marker", "call_marker", "return_marker",
-                                     "__ldq_mmu", "__ldl_mmu", "__ldw_mmu", "__ldb_mmu",
-                                     "__stq_mmu", "__stl_mmu", "__stw_mmu", "__stb_mmu",
-                                     };
-
-    //The idea is to delete the body of unused functions so that there are no linking problems
-    //(some of the functions call undefined routines).
-    //XXX: This is really ugly. Maybe look at how LLVM does that (link time optimization...)
-    const char *helperFunctionsStr[] ={"helper_bsf", "helper_bsr", "helper_lzcnt",
-                                   "libc__fputs", "libc__pthread_join", "libc__pthread_create"};
-
-    std::set<Function *> libcFunctions;
-    for (unsigned i=0; i<sizeof(builtinFunctionsStr)/sizeof(builtinFunctionsStr[0]); ++i) {
-        Function *fcn = module->getFunction(builtinFunctionsStr[i]);
-        assert(fcn);
-        builtinFunctions.insert(fcn);
-    }
-
-    std::set<Function *> helperFunctions;
-    for (unsigned i=0; i<sizeof(helperFunctionsStr)/sizeof(helperFunctionsStr[0]); ++i) {
-        Function *fcn = module->getFunction(helperFunctionsStr[i]);
-        assert(fcn);
-        helperFunctions.insert(fcn);
-    }
-
-
-    FunctionPassManager FcnPassManager(new ExistingModuleProvider(module));
-    FcnPassManager.add(new SystemMemopsRemoval());
-//    FcnPassManager.add(createDeadInstEliminationPass());
-//    FcnPassManager.add(createDeadStoreEliminationPass());
-
-    foreach(fcnit, m_functions.begin(), m_functions.end()) {
-        usedFunctions.insert((*fcnit)->getFunction());
-
-        //Cleanup the function
-        FcnPassManager.run(*(*fcnit)->getFunction());
-
-    }
-
-    //Fix global variable accesses.
-    //This must be done __AFTER__ SystemMemopsRemoval because
-    //global data fixup replaces ld*_mmu ops with ld/st.
-    GlobalDataFixup globalData(m_bfd);
-    globalData.runOnModule(*module);
-
-
-    //Resolve function calls
-    CallBuilder callBuilder(m_functions, m_bfd);
-    callBuilder.runOnModule(*module);
-
-    //Drop all the useless functions
-    foreach(fcnit, module->begin(), module->end()) {
-        Function *f = &*fcnit;
-        if (f->isIntrinsic() || f->isDeclaration()) {
-            continue;
-        }
-
-        if (usedFunctions.find(f) != usedFunctions.end()) {
-            continue;
-        }
-
-        if (helperFunctions.find(f) != helperFunctions.end()) {
-            continue;
-        }
-
-        LOGDEBUG() << "processing " << f->getNameStr() << std::endl;
-
-        f->deleteBody();
-
-        if (builtinFunctions.find(f) != builtinFunctions.end()) {
-            continue;
-        }
-
-        //replace with empty bodies
-        BasicBlock *bb = BasicBlock::Create(module->getContext(),"", f, NULL);
-        if (f->getReturnType() == Type::getInt32Ty(module->getContext())) {
-            Value *retVal = ConstantInt::get(module->getContext(), APInt(32,  0));
-            ReturnInst::Create(module->getContext(),retVal, bb);
-        }else if (f->getReturnType() == Type::getInt64Ty(module->getContext())) {
-            Value *retVal = ConstantInt::get(module->getContext(), APInt(64,  0));
-            ReturnInst::Create(module->getContext(),retVal, bb);
-        }else if (f->getReturnType() == Type::getDoubleTy(module->getContext())) {
-            Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0));
-            ReturnInst::Create(module->getContext(),retVal, bb);
-        }else if (f->getReturnType() == Type::getFloatTy(module->getContext())) {
-            Value *retVal = ConstantFP::get(module->getContext(), APFloat(0.0f));
-            ReturnInst::Create(module->getContext(),retVal, bb);
-        }else if (f->getReturnType() == Type::getVoidTy(module->getContext())) {
-            ReturnInst::Create(module->getContext(),bb);
-        }else{
-            f->deleteBody();
-        }
-
-    }
-
-
-    PassManager FcnPasses;
-    //FcnPasses.add(TD);
-
-    FcnPasses.add(createVerifierPass());
-    FcnPasses.add(createCFGSimplificationPass());
-    FcnPasses.add(createDeadCodeEliminationPass());
-    FcnPasses.add(createInstructionCombiningPass());
-    FcnPasses.add(createDeadStoreEliminationPass());
-    FcnPasses.add(createGVNPass());
-    FcnPasses.add(createAggressiveDCEPass());
-    FcnPasses.run(*tcg_llvm_ctx->getModule());
 }
 
 void StaticTranslatorTool::outputBitcodeFile()
@@ -609,23 +369,24 @@ void StaticTranslatorTool::dumpStats()
 {
     std::ostream *bbFile = m_experiment->getOuputFile("bblist.txt");
 
-    foreach(it, m_exploredBlocks.begin(), m_exploredBlocks.end()) {
-        CBasicBlock *bb = *it;
-        *bbFile << std::hex << "0x" << bb->getAddress() << std::endl;
+    foreach(it, m_exploredAddresses.begin(), m_exploredAddresses.end()) {
+        *bbFile << std::hex << "0x" << *it << std::endl;
     }
 
     std::ostream *fcnFile = m_experiment->getOuputFile("functions.txt");
 
+#if 0
     foreach(it, m_functions.begin(), m_functions.end()) {
         CFunction *fcn = *it;
         *fcnFile << std::hex << "0x" << fcn->getAddress() << std::endl;
     }
+#endif
 
     m_endTime = llvm::sys::TimeValue::now().usec();
     std::ostream *statsFile = m_experiment->getOuputFile("stats.txt");
 
     *statsFile << "Execution time: " << std::dec << (m_endTime - m_startTime) / 1000000.0 << std::endl;
-    *statsFile << "Basic blocks:   " << m_exploredBlocks.size() << std::endl;
+    *statsFile << "Instructions :  " << m_exploredAddresses.size() << std::endl;
     *statsFile << "Functions:      " << m_functions.size() << std::endl;
 
     delete statsFile;
@@ -639,16 +400,23 @@ void StaticTranslatorTool::dumpStats()
 
 int main(int argc, char** argv)
 {
+    static std::string TAG="main";
+
     cl::ParseCommandLineOptions(argc, (char**) argv);
 
     StaticTranslatorTool translator;
+    StaticTranslatorTool::AddressSet entryPoints;
 
     translator.translateAllInstructions();
+    translator.computePredecessors();
+    translator.computeFunctionEntryPoints(entryPoints);
+    translator.reconstructFunctions(entryPoints);
+
 
 #if 0
     translator.exploreBasicBlocks();
     translator.extractFunctions();
-    translator.reconstructFunctions();
+
 
     if (translator.getFunctions().size() == 0) {
         std::cout << "No functions found" << std::endl;

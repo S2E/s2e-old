@@ -69,6 +69,10 @@ enum ETranslatedBlockType
  */
 class TranslatedBlock
 {
+public:
+    typedef llvm::SmallVector<llvm::Value *, 2> Successors;
+
+private:
     static std::string TAG;
 
     /* Linear address of the instruction */
@@ -78,7 +82,7 @@ class TranslatedBlock
     llvm::Function *m_function;
 
     /* Successors */
-    llvm::SmallVector<llvm::Value *, 2> m_successors;
+    Successors m_successors;
 
     /* Type of the instruction determined by the translator */
     ETranslatedBlockType m_type;
@@ -123,6 +127,10 @@ public:
         return m_type == BB_JMP_IND || m_type == BB_COND_JMP_IND;
     }
 
+    bool isCallInstruction() const {
+        return m_type == BB_CALL || m_type == BB_CALL_IND;
+    }
+
     bool operator<(const TranslatedBlock &bb) const {
         return m_address + m_size <= bb.m_address;
     }
@@ -143,6 +151,10 @@ public:
         return m_type;
     }
 
+    const Successors& getSuccessors() const {
+        return m_successors;
+    }
+
     void print(std::ostream &os) const;
 };
 
@@ -161,7 +173,7 @@ public:
 
     void setBinaryFile(Binary *binary);
 
-    virtual TranslatedBlock translate(uint64_t address) = 0;
+    virtual TranslatedBlock *translate(uint64_t address) = 0;
 
     bool isInitialized() {
         return s_translatorInited;
@@ -187,7 +199,7 @@ public:
     X86Translator(const llvm::sys::Path &bitcodeLibrary);
     virtual ~X86Translator();
 
-    virtual TranslatedBlock translate(uint64_t address);
+    virtual TranslatedBlock *translate(uint64_t address);
 };
 
 }
