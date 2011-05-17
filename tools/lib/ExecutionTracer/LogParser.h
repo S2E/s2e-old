@@ -40,6 +40,7 @@
 #include <string>
 #include <sigc++/sigc++.h>
 #include <s2e/Plugins/ExecutionTracers/TraceEntries.h>
+#include <lib/Utils/MemoryFile.h>
 #include <stdio.h>
 #include <vector>
 #include <map>
@@ -98,6 +99,8 @@ protected:
 class LogParser: public LogEvents
 {
 private:
+
+    MemoryFile *m_memoryFile;
 
     //FILE *m_File;
 #ifdef _WIN32

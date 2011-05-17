@@ -238,7 +238,7 @@ private:
     typedef std::vector<macos::macho_section> Sections;
     typedef std::map<std::string, uint64_t> NameToAddress;
 
-    llvm::MemoryBuffer *m_file;
+    MemoryFile *m_file;
 
     macos::macho_dysymtab_command m_dynSymCmd;
     Sections m_sections;
@@ -260,7 +260,7 @@ public:
     MachoReader(BFDInterface *bfd);
 
     //Check that the given buffer contains a valid Mach-O object file
-    static bool isValid(llvm::MemoryBuffer *file);
+    static bool isValid(MemoryFile *file);
 
     virtual const Imports &getImports() const {
         return m_imports;

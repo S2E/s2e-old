@@ -56,9 +56,9 @@ MachoReader::MachoReader(BFDInterface *bfd):Binary(bfd)
      initialize();
  }
 
-bool MachoReader::isValid(llvm::MemoryBuffer *file)
+bool MachoReader::isValid(MemoryFile *file)
 {
-    const macos::macho_header *header = (macos::macho_header*)file->getBufferStart();
+    const macos::macho_header *header = (macos::macho_header*)file->getBuffer();
     if (header->magic != MACHO_SIGNATURE) {
         return false;
     }
@@ -86,7 +86,7 @@ bool MachoReader::initialize()
 bool MachoReader::parse()
 {
     bool dynsymInited = false;
-    const uint8_t *start = (uint8_t*)m_file->getBufferStart();
+    const uint8_t *start = (uint8_t*)m_file->getBuffer();
     macho_header *header = (macho_header*)start;
     uint32_t curOffset = sizeof(macos::macho_header);
 
@@ -136,7 +136,7 @@ bool MachoReader::resolveRelocations()
     asymbol **symbolTable = getBfd()->getSymbols();
 
     macos::relocation_info *extRelocs =
-            (macos::relocation_info*)(m_file->getBufferStart() + m_dynSymCmd.extreloff);
+            (macos::relocation_info*)(m_file->getBuffer() + m_dynSymCmd.extreloff);
     uint32_t extRelocsCount = m_dynSymCmd.nextrel;
 
     //Patch all the references
@@ -204,7 +204,7 @@ bool MachoReader::resolveImports()
     std::map<std::string, uint64_t> symbToAddress;
     std::vector<std::string> undefinedSymbols;
 
-    uint8_t *start = (uint8_t*)m_file->getBufferStart();
+    uint8_t *start = (uint8_t*)m_file->getBuffer();
     asymbol **symbols = getBfd()->getSymbols();
 
     //Find a undefined symbols, allocate an address for them

@@ -2794,7 +2794,13 @@ static void gen_eob(DisasContext *s)
         gen_helper_reset_rf();
     }
     if (s->singlestep_enabled) {
+#ifdef STATIC_TRANSLATOR
+        //We only want a return instruction in the translation block.
+        //We don't care about helper_debug().
+        tcg_gen_exit_tb(0);
+#else
         gen_helper_debug();
+#endif
     } else if (s->tf) {
     gen_helper_single_step();
     } else {
