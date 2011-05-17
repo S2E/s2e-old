@@ -61,9 +61,18 @@ void TbPreprocessor::initMarkers(llvm::Module *module)
 
     //**********************************
     //2a. Handle the jump marker
-    //XXX: no jump markers.
-    //Patch all returns with 1 if branch taken, 0 if fallback.
+    //This is only used for indirect jumps
+    paramTypes.clear();
 
+    //First parameter: pointer to the CPU state, for indirect jumps
+    paramTypes.push_back(PointerType::getUnqual(Type::getInt64Ty(module->getContext())));
+
+    //Second parameter is the program counter of the basic block to which we jump
+    paramTypes.push_back(Type::getInt64Ty(module->getContext()));
+
+    type = FunctionType::get(Type::getVoidTy(module->getContext()), paramTypes, false);
+    m_jumpMarker = dyn_cast<Function>(module->getOrInsertFunction(getJumpMarker(), type));
+    m_jumpMarker->setDoesNotReturn(true);
 
     //**********************************
     //3. Handle the instruction marker

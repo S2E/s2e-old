@@ -158,6 +158,16 @@ void Translator::setBinaryFile(Binary *binary)
     s_currentBinary = binary;
 }
 
+llvm::Module *Translator::getModule() const
+{
+    return tcg_llvm_ctx->getModule();
+}
+
+llvm::ModuleProvider *Translator::getModuleProvider() const
+{
+    return tcg_llvm_ctx->getModuleProvider();
+}
+
 /*****************************************************************************/
 
 X86Translator::X86Translator(const llvm::sys::Path &bitcodeLibrary):Translator(bitcodeLibrary)

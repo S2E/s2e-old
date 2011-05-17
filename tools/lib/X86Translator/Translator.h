@@ -186,6 +186,9 @@ public:
     virtual void setSingleStep(bool b) {
         m_singlestep = b;
     }
+
+    llvm::Module *getModule() const;
+    llvm::ModuleProvider *getModuleProvider() const;
 };
 
 

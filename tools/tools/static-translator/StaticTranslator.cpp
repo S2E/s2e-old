@@ -37,6 +37,7 @@ extern "C" {
 #include "StaticTranslator.h"
 #include "Passes/ConstantExtractor.h"
 #include "Passes/JumpTableExtractor.h"
+#include "Passes/FunctionBuilder.h"
 
 #include "lib/Utils/Utils.h"
 
@@ -349,6 +350,14 @@ void StaticTranslatorTool::reconstructFunctions(const AddressSet &entryPoints)
             alreadyExplored.insert(*iit);
             LOGDEBUG() << "    " << std::hex << *iit << std::endl;
         }
+
+        FunctionBuilder functionBuilder(m_translatedInstructions, instructions, ep);
+        functionBuilder.runOnModule(*m_translator->getModule());
+
+        FunctionPassManager fpm(m_translator->getModuleProvider());
+        fpm.add(createVerifierPass());
+        fpm.run(*functionBuilder.getFunction());
+
     }
 }
 
