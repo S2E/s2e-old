@@ -192,7 +192,7 @@ public:
     }
 
     virtual const RelocationEntries &getRelocations() const {
-        assert(false && "Not implemented");
+        return m_relocations;
     }
 
 };

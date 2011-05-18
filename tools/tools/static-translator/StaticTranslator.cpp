@@ -386,6 +386,43 @@ uint64_t StaticTranslatorTool::getEntryPoint()
 
 void StaticTranslatorTool::dumpStats()
 {
+    Module *m = m_translator->getModule();
+    std::ostream *bbFile = m_experiment->getOuputFile("stats.txt");
+    unsigned hardCodedMemAccesses = 0;
+    unsigned totalMemAccesses = 0;
+
+    llvm::DenseSet<Function*> memFunctions;
+    memFunctions.insert(m->getFunction("__ldb_mmu"));
+    memFunctions.insert(m->getFunction("__ldw_mmu"));
+    memFunctions.insert(m->getFunction("__ldl_mmu"));
+    memFunctions.insert(m->getFunction("__ldq_mmu"));
+
+    memFunctions.insert(m->getFunction("__stb_mmu"));
+    memFunctions.insert(m->getFunction("__stw_mmu"));
+    memFunctions.insert(m->getFunction("__stl_mmu"));
+    memFunctions.insert(m->getFunction("__stq_mmu"));
+
+    foreach(it, memFunctions.begin(), memFunctions.end()) {
+        Function *f = (*it);
+        foreach(uit, f->use_begin(), f->use_end()) {
+            CallInst *ci = dyn_cast<CallInst>(*uit);
+            if (ci) {
+                if (dyn_cast<ConstantInt>(ci->getOperand(1))) {
+                    ++hardCodedMemAccesses;
+                }
+            }
+            ++totalMemAccesses;
+        }
+    }
+
+    *bbFile << "TotalMemoryAccesses:     " << std::dec << totalMemAccesses << std::endl;
+    *bbFile << "HardCodedMemoryAccesses: " << std::dec << hardCodedMemAccesses << std::endl;
+    *bbFile << "TotalRelocations:        " << std::dec << m_binary->getRelocations().size() << std::endl;
+
+    delete bbFile;
+
+#if 0
+
     std::ostream *bbFile = m_experiment->getOuputFile("bblist.txt");
 
     foreach(it, m_exploredAddresses.begin(), m_exploredAddresses.end()) {
@@ -394,12 +431,12 @@ void StaticTranslatorTool::dumpStats()
 
     std::ostream *fcnFile = m_experiment->getOuputFile("functions.txt");
 
-#if 0
+
     foreach(it, m_functions.begin(), m_functions.end()) {
         CFunction *fcn = *it;
         *fcnFile << std::hex << "0x" << fcn->getAddress() << std::endl;
     }
-#endif
+
 
     m_endTime = llvm::sys::TimeValue::now().usec();
     std::ostream *statsFile = m_experiment->getOuputFile("stats.txt");
@@ -411,6 +448,7 @@ void StaticTranslatorTool::dumpStats()
     delete statsFile;
     delete fcnFile;
     delete bbFile;
+#endif
 }
 
 }
