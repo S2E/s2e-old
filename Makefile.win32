@@ -3,7 +3,7 @@ S2EBUILD:=$(CURDIR)
 MINGW:=/mingw64/x86_64-w64-mingw32
 
 #Sometimes the build gets stuck with nb. of jobs > 1.
-JOBS:=8
+JOBS:=1
 
 all: all-release
 
@@ -48,10 +48,12 @@ llvm-2.6.tar.gz:
 
 clang-2.6.tar.gz:
 	wget http://llvm.org/releases/2.6/clang-2.6.tar.gz
-	
-stamps/llvm-unpack: llvm-2.6.tar.gz
-	tar -zxf llvm-2.6.tar.gz
+
+llvm-2.6-mingw.patch:
 	wget --no-check-certificate https://s2e.epfl.ch/attachments/download/96/llvm-2.6-mingw.patch
+	
+stamps/llvm-unpack: llvm-2.6.tar.gz llvm-2.6-mingw.patch
+	tar -zxf llvm-2.6.tar.gz
 	cd llvm-2.6 && patch -p0 < ../llvm-2.6-mingw.patch
 	mkdir -p stamps && touch $@
 	
