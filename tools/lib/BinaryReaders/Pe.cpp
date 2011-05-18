@@ -40,7 +40,12 @@
 #include "Pe.h"
 #include "BFDInterface.h"
 
+
+using namespace s2etools::windows;
+
 namespace s2etools {
+
+LogKey PeReader::TAG = LogKey("PeReader");
 
 PeReader::PeReader(BFDInterface *bfd):Binary(bfd)
 {
@@ -48,6 +53,7 @@ PeReader::PeReader(BFDInterface *bfd):Binary(bfd)
     assert(isValid(m_file));
     initialize();
     resolveImports();
+    processesRelocations();
 }
 
 bool PeReader::isValid(MemoryFile *file)
@@ -71,6 +77,11 @@ bool PeReader::isValid(MemoryFile *file)
         return false;
     }
 
+    if (ntHeader->OptionalHeader.FileAlignment != ntHeader->OptionalHeader.SectionAlignment) {
+        LOGERROR() << "The binary must have the same on-disk and in-memory alignment!" << std::endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -83,14 +94,14 @@ bool PeReader::initialize()
     return true;
 }
 
-
+//XXX: file alignment needs to be taken into account
 bool PeReader::resolveImports()
 {
     const uint8_t *start = (uint8_t*)m_file->getBuffer();
 
     const windows::IMAGE_DATA_DIRECTORY *importDir;
     importDir =  &m_ntHeader.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-    if (!importDir->Size || !importDir->Size) {
+    if (!importDir->Size || !importDir->VirtualAddress) {
         return false;
     }
 
@@ -119,7 +130,7 @@ bool PeReader::resolveImports()
                 uint32_t tmp = importNameTable->u1.AddressOfData & ~0xFFFF;
                 tmp &= ~IMAGE_ORDINAL_FLAG;
                 if (!tmp) {
-                    std::cerr << "No support for import by ordinals" << std::endl;
+                    LOGERROR() << "No support for import by ordinals" << std::endl;
                     continue;
                 }
             }else {
@@ -144,6 +155,59 @@ bool PeReader::resolveImports()
 
 }
 
+bool PeReader::processesRelocations()
+{
+    const IMAGE_DATA_DIRECTORY *relocsDir;
+    relocsDir = &m_ntHeader.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+    if (!relocsDir->Size || !relocsDir->VirtualAddress) {
+        return false;
+    }
 
+    const uint8_t *start = (uint8_t*)m_file->getBuffer();
+
+    IMAGE_BASE_RELOCATION *relocs = (IMAGE_BASE_RELOCATION*)(start + relocsDir->VirtualAddress);
+
+    uint32_t loadBase = m_ntHeader.OptionalHeader.ImageBase;
+    uint32_t sectionOffset = 0;
+
+    while (sectionOffset < relocsDir->Size) {
+        unsigned relocCount = (relocs->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(uint16_t);
+        uint16_t *relocEntries = (uint16_t*)((uint8_t*)relocs + sizeof(IMAGE_BASE_RELOCATION));
+        LOGDEBUG() << "RelocChunk: 0x" << std::hex << relocs->VirtualAddress + loadBase << std::endl;
+        for (unsigned i=0; i<relocCount; ++i) {
+            unsigned type = relocEntries[i] >> 12;
+            unsigned offset = relocEntries[i] & 0xFFF;
+
+            if (relocEntries[i] == 0) {
+                break;
+            }
+
+            assert(type == IMAGE_REL_BASED_HIGHLOW && "We support only IMAGE_REL_BASED_HIGHLOW");
+
+            RelocationEntry re;
+            re.va = relocs->VirtualAddress + loadBase + offset;
+            re.size = sizeof(uint32_t);
+
+            if (!read(re.va, &re.originalValue, re.size)) {
+                LOGERROR() << "Could not read data at address 0x" << std::hex << re.va << std::endl;
+                continue;
+            }
+            LOGDEBUG() << std::hex << "  RelocEntry: " << type << " Offset: " << offset << " OrigValue=0x" << re.originalValue << std::endl;
+
+
+            re.targetValue = re.originalValue;
+
+            //XXX: Retrieve the symbol name, if available.
+            //Need to parse the import table
+            re.symbolName = "";
+            re.symbolBase = 0;
+            re.symbolIndex = 0;
+            m_relocations[re.va] = re;
+        }
+        sectionOffset += relocs->SizeOfBlock;
+        relocs = (IMAGE_BASE_RELOCATION *)(((uint8_t*)relocs) + relocs->SizeOfBlock);
+    }
+    return true;
+}
 
 }

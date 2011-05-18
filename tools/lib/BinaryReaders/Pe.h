@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <cassert>
 #include "Binary.h"
+#include "lib/Utils/Log.h"
 
 namespace s2etools {
 namespace windows {
@@ -152,12 +153,21 @@ struct IMAGE_IMPORT_DESCRIPTOR {
     uint32_t   FirstThunk;                     // RVA to IAT (if bound this IAT has actual addresses)
 } __attribute__ ((packed));
 
+struct IMAGE_BASE_RELOCATION {
+   uint32_t  VirtualAddress;
+   uint32_t  SizeOfBlock;
+// USHORT TypeOffset[1];
+}__attribute__ ((packed));
+
+#define IMAGE_REL_BASED_HIGHLOW 3
 
 }
 
 
 class PeReader: public Binary {
 private:
+    static s2etools::LogKey TAG;
+
     Imports m_imports;
     MemoryFile *m_file;
 
@@ -166,8 +176,11 @@ private:
 
     uint64_t m_importedAddressPtr;
 
+    RelocationEntries m_relocations;
+
     bool initialize();
     bool resolveImports();
+    bool processesRelocations();
 
 public:
     PeReader(BFDInterface *bfd);

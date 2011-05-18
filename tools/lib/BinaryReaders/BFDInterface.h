@@ -86,6 +86,11 @@ struct RelocationEntry {
     uint64_t getOffetFromSymbol() const {
         return originalValue;
     }
+
+    RelocationEntry() {
+        va = size = originalValue = targetValue = 0;
+        symbolBase = symbolIndex = 0;
+    }
 };
 
 //Maps a virtual address to its relocation entry
