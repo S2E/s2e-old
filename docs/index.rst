@@ -9,7 +9,7 @@ S²E Documentation
 * Getting Started
 
   1. `Building S2E <BuildingS2E.html>`_
-  2. `Preparing an VM image for S2E <ImageInstallation.html>`_
+  2. `Preparing a VM image for S2E <ImageInstallation.html>`_
   3. `Quicky Uploading Programs to the Guest with s2eget <UsingS2EGet.html>`_
 
   4. `Testing a Simple Program <TestingMinimalProgram.html>`_
@@ -25,6 +25,10 @@ S²E Documentation
   1. `Building the Linux kernel <BuildingLinux.html>`_
   2. `Using SystemTap with S2E <SystemTap.html>`_
   
+* S2E Plugins
+
+  1. `How to write a plugin <WritingPlugins.html>`_
+
 * S2E Tools
   
   1. Available Tools
