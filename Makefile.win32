@@ -51,7 +51,7 @@ clang-2.6.tar.gz:
 	
 stamps/llvm-unpack: llvm-2.6.tar.gz
 	tar -zxf llvm-2.6.tar.gz
-	wget --no-check-certificate https://s2e.epfl.ch/attachments/download/96/llvm-2.6-mingw.patch
+	cp "$(S2ESRC)/windows-toolchain/llvm-2.6-mingw.patch" .
 	cd llvm-2.6 && patch -p0 < ../llvm-2.6-mingw.patch
 	mkdir -p stamps && touch $@
 	

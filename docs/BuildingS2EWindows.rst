@@ -1,15 +1,15 @@
-====================================
-Building the S2E Platform on Windows
-====================================
+=======================
+Building S2E on Windows
+=======================
 
-In this document, we explain how to build S2E for Windows XP x64.
-Windows Vista and 7 may work but were not tested.
+In this document, we explain how to build S2E on 64-bit versions of Windows.
+S2E works on Windows XP x64 and Windows 7.
 
 All the files can be found on the `S2E web site <https://s2e.epfl.ch/projects/s2e/files>`_.
 
 
-Installing the Toolchain the Fast Way
-=====================================
+Quick install
+=============
 
 This consists in 3 steps and takes less than 5 minutes.
 
@@ -21,8 +21,8 @@ You will have a complete Unix-like environment, with gdb/gdb-tui.
 You can launch the environment by double-clicking on `msys.bat`.
 
 
-Installing the Toolchain the Slow Way
-=====================================
+Compiling the toolchain from scratch
+====================================
 
 This is more involved and may take 1-2 hours depending on the speed of your machine.
 
@@ -41,7 +41,7 @@ This is more involved and may take 1-2 hours depending on the speed of your mach
 Wait for the build to complete. It will take a long time.
 
 
-Setting up the Environment
+Setting up the environment
 ==========================
 
 1. Add the following folders to your `%PATH%`, via the control panel:
