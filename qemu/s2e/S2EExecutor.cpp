@@ -2175,6 +2175,7 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
 //    }
 }
 
+//TODO: change the interface to match ARM's do_interrupt function
 inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
                                      int is_int, int error_code,
                                      uint64_t next_eip, int is_hw)
@@ -2189,7 +2190,7 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
         if(state->m_runningConcrete)
             switchToSymbolic(state);
         std::vector<klee::ref<klee::Expr> > args(5);
-        args[0] = klee::ConstantExpr::create(intno, sizeof(env)*8);
+        args[0] = klee::ConstantExpr::create(intno, sizeof(int)*8);
         args[1] = klee::ConstantExpr::create(is_int, sizeof(int)*8);
         args[2] = klee::ConstantExpr::create(error_code, sizeof(int)*8);
         args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
