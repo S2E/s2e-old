@@ -18,6 +18,18 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ * for S2E-Android emulator
+ *
+ * Currently maintained by:
+ *    Andreas Kirchner ( a0600112@unet.univie.ac.at )
+ *
+ * All contributors of S2E are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -33,6 +45,10 @@
 #include "helpers.h"
 #define GEN_HELPER 1
 #include "helpers.h"
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
 
 #define ENABLE_ARCH_5J    0
 #define ENABLE_ARCH_6     arm_feature(env, ARM_FEATURE_V6)
@@ -59,7 +75,26 @@ typedef struct DisasContext {
 #if !defined(CONFIG_USER_ONLY)
     int user;
 #endif
+
+#ifdef CONFIG_S2E
+    void *cpuState;
+    target_ulong insPc; /* pc of the instruction being translated */
+    int useNextPc; /* indicates whether nextPc is valid */
+    target_ulong nextPc; /* pc of the instruction following insPc */
+    int enable_jmp_im;
+    int done_instr_end; //1 when onTranslateInstructionEnd was called
+#endif
+    //enum ETranslationBlockType tb_type;
+
 } DisasContext;
+
+#ifdef CONFIG_S2E
+#define SET_TB_TYPE(t) s->tb->s2e_tb_type = t
+#else
+#define SET_TB_TYPE(t)
+#define s2e_on_translate_jump_start(...)
+#endif
+
 
 #if defined(CONFIG_USER_ONLY)
 #define IS_USER(s) 1
@@ -93,6 +128,16 @@ static TCGv_i64 cpu_F0d, cpu_F1d;
 static const char *regnames[] =
     { "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
       "r8", "r9", "r10", "r11", "r12", "r13", "r14", "pc" };
+
+#ifdef CONFIG_S2E
+static inline void gen_instr_end(DisasContext *s)
+{
+    if (!s->done_instr_end) {
+        s2e_on_translate_instruction_end(g_s2e, g_s2e_state, s->tb, s->insPc, s->useNextPc ? s->nextPc : (uint64_t)-1);
+        s->done_instr_end = 1;
+    }
+}
+#endif
 
 /* initialize TCG globals.  */
 void arm_translate_init(void)
@@ -727,7 +772,7 @@ static const uint8_t table_logic_cc[16] = {
 static inline void gen_bx_im(DisasContext *s, uint32_t addr)
 {
     TCGv tmp;
-
+    SET_TB_TYPE(TB_CALL_IND);
     s->is_jmp = DISAS_UPDATE;
     if (s->thumb != (addr & 1)) {
         tmp = new_tmp();
@@ -736,6 +781,8 @@ static inline void gen_bx_im(DisasContext *s, uint32_t addr)
         dead_tmp(tmp);
     }
     tcg_gen_movi_i32(cpu_R[15], addr & ~1);
+
+
 }
 
 /* Set PC and Thumb state from var.  var is marked as dead.  */
@@ -3300,6 +3347,13 @@ static inline void gen_goto_tb(DisasContext *s, int n, uint32_t dest)
     TranslationBlock *tb;
 
     tb = s->tb;
+
+#ifdef CONFIG_S2E
+    s2e_on_translate_block_end(g_s2e, g_s2e_state,
+                               tb, s->insPc, 1, dest);
+    gen_instr_end(s);
+#endif
+
     if ((tb->pc & TARGET_PAGE_MASK) == (dest & TARGET_PAGE_MASK)) {
         tcg_gen_goto_tb(n);
         gen_set_pc_im(dest);
@@ -3312,6 +3366,7 @@ static inline void gen_goto_tb(DisasContext *s, int n, uint32_t dest)
 
 static inline void gen_jmp (DisasContext *s, uint32_t dest)
 {
+	SET_TB_TYPE(TB_JMP);
     if (unlikely(s->singlestep_enabled)) {
         /* An indirect jump so that we still trigger the debug exception.  */
         if (s->thumb)
@@ -5976,9 +6031,31 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     insn = ldl_code(s->pc);
     s->pc += 4;
 
+#ifdef CONFIG_S2E
+    tcg_gen_movi_tl(cpu_R[0], s->pc);
+    tcg_gen_st_tl(cpu_R[0], cpu_env, offsetof(CPUState, regs[15]));
+
+    tcg_gen_ld_i64(cpu_V0, cpu_env, offsetof(CPUState, s2e_icount));
+    tcg_gen_addi_i64(cpu_V0, cpu_V0, 1);
+    tcg_gen_st_i64(cpu_V0, cpu_env, offsetof(CPUState, s2e_icount));
+
+//    if (s->cc_op != CC_OP_DYNAMIC)
+//        gen_op_set_cc_op(s->cc_op);
+#endif
+
     /* M variants do not implement ARM mode.  */
     if (IS_M(env))
         goto illegal_op;
+    if (((insn >> 24) & 255) == 1) { /* s2e_op */
+		#ifdef CONFIG_S2E
+					uint64_t arg = ldq_code(s->pc);
+					s2e_tcg_emit_custom_instruction(g_s2e, arg);
+		#else
+					/* Simply skip the S2E opcodes when building vanilla qemu */
+					ldq_code(s->pc);
+		#endif
+		s->pc += 4;
+    }
     cond = insn >> 28;
     if (cond == 0xf){
         /* Unconditional instructions.  */
@@ -6177,6 +6254,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         s->condlabel = gen_new_label();
         gen_test_cc(cond ^ 1, s->condlabel);
         s->condjmp = 1;
+        SET_TB_TYPE(TB_COND_JMP);
     }
     if ((insn & 0x0f900000) == 0x03000000) {
         if ((insn & (1 << 21)) == 0) {
@@ -7975,6 +8053,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                 s->condlabel = gen_new_label();
                 gen_test_cc(op ^ 1, s->condlabel);
                 s->condjmp = 1;
+                SET_TB_TYPE(TB_COND_JMP);
 
                 /* offset[11:1] = insn[10:0] */
                 offset = (insn & 0x7ff) << 1;
@@ -8276,6 +8355,7 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
         s->condlabel = gen_new_label();
         gen_test_cc(cond ^ 1, s->condlabel);
         s->condjmp = 1;
+        SET_TB_TYPE(TB_COND_JMP);
     }
 
     insn = lduw_code(s->pc);
@@ -8991,6 +9071,17 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     if (max_insns == 0)
         max_insns = CF_COUNT_MASK;
 
+#ifdef CONFIG_S2E
+    dc->enable_jmp_im = 1;
+    dc->cpuState = env;
+    tb->s2e_tb_type = TB_DEFAULT;
+
+    s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
+
+    tcg_gen_movi_i64(cpu_V0, (uint64_t) tb);
+    tcg_gen_st_i64(cpu_V0, cpu_env, offsetof(CPUState, s2e_current_tb));
+#endif
+
     gen_icount_start();
     /* Reset the conditional execution bits immediately. This avoids
        complications trying to do it at the end of the block.  */
@@ -9050,6 +9141,16 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         if (num_insns + 1 == max_insns && (tb->cflags & CF_LAST_IO))
             gen_io_start();
 
+#ifdef CONFIG_S2E
+        dc->insPc = dc->pc;
+        dc->done_instr_end = 0;
+
+        s2e_on_translate_instruction_start(g_s2e, g_s2e_state, tb, pc_start);
+        tb->pcOfLastInstr = pc_start;
+        dc->useNextPc = 0;
+        dc->nextPc = -1;
+#endif
+
         if (env->thumb) {
             disas_thumb_insn(env, dc);
             if (dc->condexec_mask) {
@@ -9063,6 +9164,18 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         } else {
             disas_arm_insn(env, dc);
         }
+
+#ifdef CONFIG_S2E
+        if (!dc->is_jmp) {
+            //Do proper pc update for onTranslateInstruction events
+            dc->nextPc = dc->pc;
+            //XXX: Switch it on when nextPC properly determined
+            dc->useNextPc = 0;
+        }
+        gen_instr_end(dc);
+#endif
+
+
         if (num_temps) {
             fprintf(stderr, "Internal resource leak before %08x\n", dc->pc);
             num_temps = 0;
@@ -9248,7 +9361,7 @@ void cpu_dump_state(CPUState *env, FILE *f,
 }
 
 void gen_pc_load(CPUState *env, TranslationBlock *tb,
-                unsigned long searched_pc, int pc_pos, void *puc)
+		uintptr_t searched_pc, int pc_pos, void *puc)
 {
     env->regs[15] = gen_opc_pc[pc_pos];
 }

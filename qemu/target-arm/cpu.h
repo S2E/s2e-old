@@ -29,6 +29,12 @@
 
 #include "softfloat.h"
 
+#include <assert.h>
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 #define TARGET_HAS_ICE 1
 
 #define EXCP_UDEF            1   /* undefined instruction */
@@ -202,11 +208,57 @@ typedef struct CPUARMState {
     int eabi;
 #endif
 
+    uint8_t timer_interrupt_disabled;
+    uint8_t all_apic_interrupts_disabled;
+
     CPU_COMMON
 
     /* These fields after the common ones so they are preserved on reset.  */
     struct arm_boot_info *boot_info;
 } CPUARMState;
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+/* Macros to access registers */
+static inline target_ulong __RR_env_raw(CPUARMState* cpuState,
+                                        unsigned offset, unsigned size) {
+    target_ulong result = 0;
+    s2e_read_register_concrete(g_s2e, g_s2e_state, cpuState,
+                               offset, (uint8_t*) &result, size);
+    return result;
+}
+static inline void __WR_env_raw(CPUARMState* cpuState, unsigned offset,
+                                target_ulong value, unsigned size) {
+    s2e_write_register_concrete(g_s2e, g_s2e_state, cpuState,
+                                offset, (uint8_t*) &value, size);
+}
+#define RR_cpu(cpu, reg) ((typeof(cpu->reg)) \
+            __RR_env_raw(cpu, offsetof(CPUARMState, reg), sizeof(cpu->reg)))
+#define WR_cpu(cpu, reg, value) __WR_env_raw(cpu, offsetof(CPUARMState, reg), \
+            (target_ulong) value, sizeof(cpu->reg))
+#else
+#define RR_cpu(cpu, reg) cpu->reg
+#define WR_cpu(cpu, reg, value) cpu->reg = value
+#endif
+
+//static inline target_ulong cpu_get_eflags(CPUX86State* env)
+//{
+//    assert(RR_cpu(env, cc_op) == CC_OP_EFLAGS);
+//    return env->mflags | RR_cpu(env, cc_src) | (env->df & DF_MASK) | 0x2;
+//}
+//
+////XXX: Temporary hack to dump cpu state without crashing
+//static inline target_ulong cpu_get_eflags_dirty(CPUX86State* env)
+//{
+//    return env->mflags | RR_cpu(env, cc_src) | (env->df & DF_MASK) | 0x2;
+//}
+//
+//static inline void cpu_set_eflags(CPUX86State* env, target_ulong eflags)
+//{
+//    WR_cpu(env, cc_op, CC_OP_EFLAGS);
+//    WR_cpu(env, cc_src, eflags & CFLAGS_MASK);
+//    env->df = (eflags & DF_MASK) ? -1 : 1;
+//    env->mflags = eflags & MFLAGS_MASK;
+//}
 
 CPUARMState *cpu_arm_init(const char *cpu_model);
 void arm_translate_init(void);
@@ -426,8 +478,8 @@ static inline int cpu_mmu_index (CPUState *env)
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 {
     if (newsp)
-        env->regs[13] = newsp;
-    env->regs[0] = 0;
+        WR_CPU(env,regs[13],newsp);
+        WR_CPU(env,regs[0],0);
 }
 #endif
 

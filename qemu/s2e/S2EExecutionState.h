@@ -267,7 +267,8 @@ public:
             unsigned size, const std::string& name = std::string());
 
     /** Debug functions **/
-    void dumpX86State(std::ostream &os) const;
+//    void dumpX86State(std::ostream &os) const;
+    void dumpARMState(std::ostream &os) const;
 
     /** Attempt to merge two states */
     bool merge(const ExecutionState &b);

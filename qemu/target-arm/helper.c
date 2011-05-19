@@ -587,18 +587,23 @@ void switch_mode(CPUState *env, int mode)
     }
 
     i = bank_number(old_mode);
-    env->banked_r13[i] = env->regs[13];
-    env->banked_r14[i] = env->regs[14];
+//    WR_CPU(env,banked_r13[i],RR_CPU(env,regs[13]));
+//    WR_CPU(env,banked_r14[i],RR_CPU(env,regs[14]));
+  env->banked_r13[i] = env->regs[13];
+  env->banked_r14[i] = env->regs[14];
     env->banked_spsr[i] = env->spsr;
 
     i = bank_number(mode);
-    env->regs[13] = env->banked_r13[i];
-    env->regs[14] = env->banked_r14[i];
+//    WR_CPU(env,regs[13],RR_CPU(env,banked_r13[i]));
+//    WR_CPU(env,regs[14],RR_CPU(env,banked_r14[i]));
+  env->regs[13] = env->banked_r13[i];
+  env->regs[14] = env->banked_r14[i];
     env->spsr = env->banked_spsr[i];
 }
 
 static void v7m_push(CPUARMState *env, uint32_t val)
 {
+//	WR_CPU(env,regs[13],(RR_CPU(env,regs[13]) - 4));
     env->regs[13] -= 4;
     stl_phys(env->regs[13], val);
 }
@@ -608,6 +613,7 @@ static uint32_t v7m_pop(CPUARMState *env)
     uint32_t val;
     val = ldl_phys(env->regs[13]);
     env->regs[13] += 4;
+//	WR_CPU(env,regs[13],(RR_CPU(env,regs[13]) + 4));
     return val;
 }
 
@@ -635,11 +641,11 @@ static void do_v7m_exception_exit(CPUARMState *env)
     /* Switch to the target stack.  */
     switch_v7m_sp(env, (type & 4) != 0);
     /* Pop registers.  */
-    env->regs[0] = v7m_pop(env);
-    env->regs[1] = v7m_pop(env);
-    env->regs[2] = v7m_pop(env);
-    env->regs[3] = v7m_pop(env);
-    env->regs[12] = v7m_pop(env);
+    WR_cpu(env,regs[0],v7m_pop(env));
+    WR_cpu(env,regs[1],v7m_pop(env));
+    WR_cpu(env,regs[2],v7m_pop(env));
+    WR_cpu(env,regs[3],v7m_pop(env));
+    WR_cpu(env,regs[12],v7m_pop(env));
     env->regs[14] = v7m_pop(env);
     env->regs[15] = v7m_pop(env);
     xpsr = v7m_pop(env);
@@ -688,7 +694,7 @@ static void do_interrupt_v7m(CPUARMState *env)
             nr = lduw_code(env->regs[15]) & 0xff;
             if (nr == 0xab) {
                 env->regs[15] += 2;
-                env->regs[0] = do_arm_semihosting(env);
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
                 return;
             }
         }
@@ -716,11 +722,11 @@ static void do_interrupt_v7m(CPUARMState *env)
     v7m_push(env, xpsr);
     v7m_push(env, env->regs[15]);
     v7m_push(env, env->regs[14]);
-    v7m_push(env, env->regs[12]);
-    v7m_push(env, env->regs[3]);
-    v7m_push(env, env->regs[2]);
-    v7m_push(env, env->regs[1]);
-    v7m_push(env, env->regs[0]);
+    v7m_push(env, RR_cpu(env,regs[12]));
+    v7m_push(env, RR_cpu(env,regs[3]));
+    v7m_push(env, RR_cpu(env,regs[2]));
+    v7m_push(env, RR_cpu(env,regs[1]));
+    v7m_push(env, RR_cpu(env,regs[0]));
     switch_v7m_sp(env, 0);
     env->uncached_cpsr &= ~CPSR_IT;
     env->regs[14] = lr;
@@ -765,7 +771,7 @@ void do_interrupt(CPUARMState *env)
             if (((mask == 0x123456 && !env->thumb)
                     || (mask == 0xab && env->thumb))
                   && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
-                env->regs[0] = do_arm_semihosting(env);
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
                 return;
             }
         }
@@ -782,7 +788,7 @@ void do_interrupt(CPUARMState *env)
             if (mask == 0xab
                   && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
                 env->regs[15] += 2;
-                env->regs[0] = do_arm_semihosting(env);
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
                 return;
             }
         }

@@ -56,10 +56,8 @@ stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack
 	cd llvm && $(S2EBUILD)/llvm-2.6/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvmgccdir=$(S2EBUILD)/$(LLVM_GCC_SRC) \
-		--target=x86 \
-		--enable-optimized \
-		--build=x86-linux \
-		--host=x86-linux 
+		--target=x86_64 \
+		--enable-optimized
 	mkdir -p stamps && touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
@@ -105,7 +103,7 @@ stamps/klee-configure: stamps/llvm-configure \
 		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
-		--target=x86 \
+		--target=x86_64 \
 		--enable-exceptions
 	mkdir -p stamps && touch $@
 
@@ -132,10 +130,10 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug \
-		--arch=ARM \
 		--enable-llvm \
 		--enable-s2e \
 		--debug \
+		--try-64 \
 		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
                 --install=$(S2EBUILD)/opt 
 	mkdir -p stamps && touch $@
@@ -154,7 +152,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS
-	cd qemu-debug && make -j$(JOBS)
+	cd $(S2ESRC)/android-emulator && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release ALWAYS
@@ -171,7 +169,7 @@ stamps/tools-configure: stamps/llvm-configure
 		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
-		--target=x86
+		--target=x86_64
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS

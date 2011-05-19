@@ -54,6 +54,7 @@ BUILD_HOST_STATIC_LIBRARY := $(BUILD_SYSTEM)/host_static_library.make
 DEPENDENCY_DIRS :=
 
 all: libraries executables
+	echo "AKA: libraries $(LIBRARIES) and executables $(EXECUTABLES)" 
 EXECUTABLES :=
 LIBRARIES   :=
 

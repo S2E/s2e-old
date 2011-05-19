@@ -559,7 +559,7 @@ int cpu_exec(CPUState *env1)
                        We avoid this by disabling interrupts when
                        pc contains a magic address.  */
                     if (interrupt_request & CPU_INTERRUPT_HARD
-                        && ((IS_M(env) && RR_cpu(env, env->regs[15]) < 0xfffffff0)
+                        && ((IS_M(env) && env->regs[15] < 0xfffffff0)
                             || !(env->uncached_cpsr & CPSR_I))) {
                         env->exception_index = EXCP_IRQ;
                         do_interrupt(env);

@@ -42,7 +42,7 @@
 class TCGLLVMContext;
 
 struct TranslationBlock;
-struct CPUX86State;
+struct CPUARMState;
 
 namespace klee {
     class Query;
@@ -125,7 +125,7 @@ public:
     void initializeExecution(S2EExecutionState *initialState,
                              bool executeAlwaysKlee);
 
-    void registerCpu(S2EExecutionState *initialState, CPUX86State *cpuEnv);
+    void registerCpu(S2EExecutionState *initialState, CPUARMState *cpuEnv);
     void registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
                         uint64_t hostAddress, bool isSharedConcrete,
@@ -174,11 +174,11 @@ public:
             uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
     /** Read from register, concretizing if nessecary. */
-    void readRegisterConcrete(S2EExecutionState *state, CPUX86State* cpuState,
+    void readRegisterConcrete(S2EExecutionState *state, CPUARMState* cpuState,
             unsigned offset, uint8_t* buf, unsigned size);
 
     /** Write concrete value to register. */
-    void writeRegisterConcrete(S2EExecutionState *state, CPUX86State* cpuState,
+    void writeRegisterConcrete(S2EExecutionState *state, CPUARMState* cpuState,
             unsigned offset, const uint8_t* buf, unsigned size);
 
     S2EExecutionState* selectNextState(S2EExecutionState* state);

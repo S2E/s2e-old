@@ -183,7 +183,7 @@ inline DATA_TYPE glue(glue(io_read_chk, SUFFIX), MMUSUFFIX)(target_phys_addr_t p
     int isSymb = 0;
     if ((isSymb = glue(s2e_is_mmio_symbolic_, SUFFIX)(naddr))) {
         //If at least one byte is symbolic, generate a label
-        trace_port(label, "iommuread_", naddr, env->eip);
+        trace_port(label, "iommuread_", naddr, env->regs[15]);
     }
 
     //If it is not DMA, then check if it is normal memory
