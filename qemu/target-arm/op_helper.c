@@ -22,6 +22,72 @@
 #define SIGNBIT (uint32_t)0x80000000
 #define SIGNBIT64 ((uint64_t)1 << 63)
 
+#ifdef S2E_LLVM_LIB
+void klee_make_symbolic(void *addr, unsigned nbytes, const char *name);
+uint8_t klee_int8(const char *name);
+uint16_t klee_int16(const char *name);
+uint32_t klee_int32(const char *name);
+void uint32_to_string(uint32_t n, char *str);
+void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc);
+
+uint8_t klee_int8(const char *name) {
+    uint8_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+uint16_t klee_int16(const char *name) {
+    uint16_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+uint32_t klee_int32(const char *name) {
+    uint32_t ret;
+    klee_make_symbolic(&ret, sizeof(ret), name);
+    return ret;
+}
+
+//Helpers to avoid relying on sprintf that does not work properly
+static char hextable[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
+'c', 'd', 'e', 'f'};
+void uint32_to_string(uint32_t n, char *str)
+{
+  str[0] = hextable[(n >> 28)];
+  str[1] = hextable[((n >> 24) & 0xF)];
+  str[2] = hextable[((n >> 20) & 0xF)];
+  str[3] = hextable[((n >> 16) & 0xF)];
+  str[4] = hextable[((n >> 12) & 0xF)];
+  str[5] = hextable[((n >> 8) & 0xF)];
+  str[6] = hextable[((n >> 4) & 0xF)];
+  str[7] = hextable[((n >> 0) & 0xF)];
+}
+
+void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc)
+{
+    while(*prefix) {
+        *buf = *prefix;
+        ++buf; ++prefix;
+    }
+
+    uint32_to_string(port, buf);
+    buf+=8;
+    *buf = '_';
+    buf++;
+    uint32_to_string(pc, buf);
+    buf+=8;
+    *buf = 0;
+}
+
+#endif
+
+#ifndef S2E_LLVM_LIB
+#ifdef CONFIG_S2E
+struct CPUARMState* env = 0;
+#endif
+#endif
+
+
 void raise_exception(int tt)
 {
     env->exception_index = tt;
@@ -80,6 +146,26 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
 #define SHIFT 3
 #include "softmmu_template.h"
 
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+#undef MMUSUFFIX
+#define MMUSUFFIX _mmu_s2e_trace
+#define _raw _raw_s2e_trace
+
+#define SHIFT 0
+#include "softmmu_template.h"
+
+#define SHIFT 1
+#include "softmmu_template.h"
+
+#define SHIFT 2
+#include "softmmu_template.h"
+
+#define SHIFT 3
+#include "softmmu_template.h"
+
+#undef _raw
+#endif
+
 /* try to fill the TLB and return an exception if error. If retaddr is
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
@@ -111,6 +197,10 @@ void tlb_fill (target_ulong addr, target_ulong page_addr, int is_write, int mmu_
     }
     env = saved_env;
 }
+#endif
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
 #endif
 
 /* FIXME: Pass an axplicit pointer to QF to CPUState, and move saturating

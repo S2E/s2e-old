@@ -353,7 +353,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
     }
 }
 
-void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
+void BaseInstructions::onCustomInstruction(S2EExecutionState* state,
         uint64_t opcode)
 {
 

@@ -37,12 +37,18 @@
 #include <s2e/s2e_qemu.h>
 #endif
 
+#ifdef CONFIG_S2E
+extern struct CPUARMState *env;
+#else
 register struct CPUARMState *env asm(AREG0);
+#endif
 
 #define M0   env->iwmmxt.val
 
 #include "cpu.h"
 #include "exec-all.h"
+#include "qemu-common.h"
+#include "qemu-log.h"
 
 static inline void env_to_regs(void)
 {
