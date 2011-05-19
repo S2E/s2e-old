@@ -45,10 +45,13 @@ extern "C" {
 #include <s2e/Utils.h>
 
 #include <iostream>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#include <llvm/System/Path.h>
 
 namespace s2e {
 namespace plugins {
@@ -106,23 +109,37 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
 
             unsigned i;
             for(i = 0; i < fname.size(); ++i) {
+                //Allow only certain characters in the file name.
                 if(!(isalnum(fname[i]) || fname[i] == ','
-                        || fname[i] == '_' || fname[i] == '-')) {
+                        || fname[i] == '_' || fname[i] == '-' || fname[i] == '.')) {
+                    s2e()->getWarningsStream(state) <<
+                            "HostFiles: Invalid character " << fname[i] << " in " << fname << std::endl;
                     break;
                 }
             }
 
             if(fname.size() == 0 || i != fname.size()) {
                 s2e()->getWarningsStream(state)
-                    << "Guest passes ivalid file name to HostFiles plugin" << std::endl;
+                        << "Guest passed invalid file name to HostFiles plugin: " << fname << std::endl;
                 break;
             }
 
-            int fd = open((m_baseDir + "/" + fname).c_str(), O_RDONLY);
+            llvm::sys::Path path(m_baseDir);
+            path.appendComponent(fname);
+
+            int oflags = O_RDONLY;
+#ifdef CONFIG_WIN32
+            oflags |= O_BINARY;
+#endif
+
+            int fd = open(path.c_str(), oflags);
             if(fd != -1) {
                 m_openFiles.push_back(fd);
                 guestFd = m_openFiles.size()-1;
                 state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
+            }else {
+                s2e()->getWarningsStream(state) <<
+                        "HostFiles could not open " << path.c_str() << "(errno " << errno << ")" << std::endl;
             }
         }
 
