@@ -727,9 +727,10 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     assert(function);
     addSpecialFunctionHandler(function, handlerTraceMemoryAccess);
 
-    function = kmodule->module->getFunction("tcg_llvm_trace_port_access");
-    assert(function);
-    addSpecialFunctionHandler(function, handlerTracePortAccess);
+// TODO: Find a way to bypass i/o access (when I/O adress is symbolic) for ARM
+//    function = kmodule->module->getFunction("tcg_llvm_trace_port_access");
+//    assert(function);
+//    addSpecialFunctionHandler(function, handlerTracePortAccess);
 
     function = kmodule->module->getFunction("s2e_on_tlb_miss");
     assert(function);

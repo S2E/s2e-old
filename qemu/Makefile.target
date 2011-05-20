@@ -10,7 +10,7 @@ include $(SRC_PATH)/rules.mak
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
 VPATH=$(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw
-QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -DNEED_CPU_H
+QEMU_CFLAGS+= -fno-inline -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
 ifdef CONFIG_USER_ONLY
 # user emulator name
