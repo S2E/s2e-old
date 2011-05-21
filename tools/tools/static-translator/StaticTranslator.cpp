@@ -457,8 +457,6 @@ void StaticTranslatorTool::dumpStats()
 
 int main(int argc, char** argv)
 {
-    static std::string TAG="main";
-
     cl::ParseCommandLineOptions(argc, (char**) argv);
 
     StaticTranslatorTool translator;

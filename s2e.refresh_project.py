@@ -65,6 +65,7 @@ for fname in git_files:
 
 s2e_includes.write('\n'.join([
     '../llvm-2.6/include',
+    '../llvm-2.6/tools/clang/include',
     '../llvm-build/include',
     '../stp-build/include',
     '../klee-build/include',
