@@ -5,7 +5,7 @@
 #===------------------------------------------------------------------------===#
 
 LEVEL=../..
-PARALLEL_DIRS=TranslatorBitcode Runtime
+PARALLEL_DIRS=TranslatorBitcode Runtime TypeExtractor
 TOOLNAME = static-translator
 USEDLIBS = executiontracer.a binaryreaders.a X86Translator.a  utils.a
 LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scalaropts ipa transformutils
