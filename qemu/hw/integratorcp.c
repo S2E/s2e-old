@@ -15,6 +15,10 @@
 #include "arm-misc.h"
 #include "net.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 typedef struct {
     SysBusDevice busdev;
     uint32_t memsz;
@@ -467,6 +471,11 @@ static void integratorcp_init(ram_addr_t ram_size,
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
+
+#ifdef CONFIG_S2E
+        s2e_register_cpu(g_s2e, g_s2e_state, env);
+#endif
+
     ram_offset = qemu_ram_alloc(ram_size);
     /* ??? On a real system the first 1Mb is mapped as SSRAM or boot flash.  */
     /* ??? RAM should repeat to fill physical memory space.  */
@@ -474,6 +483,12 @@ static void integratorcp_init(ram_addr_t ram_size,
     cpu_register_physical_memory(0, ram_size, ram_offset | IO_MEM_RAM);
     /* And again at address 0x80000000 */
     cpu_register_physical_memory(0x80000000, ram_size, ram_offset | IO_MEM_RAM);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state,
+                  0, ram_size,
+                  (uint64_t) qemu_get_ram_ptr(ram_offset | IO_MEM_RAM), 0, 0, "ram");
+#endif
 
     dev = qdev_create(NULL, "integrator_core");
     qdev_prop_set_uint32(dev, "memsz", ram_size >> 20);

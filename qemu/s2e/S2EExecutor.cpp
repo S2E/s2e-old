@@ -51,8 +51,7 @@ extern const uint8_t parity_table[256];
 extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
-uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
-                  target_ulong next_eip, int is_hw);
+uint64_t helper_do_interrupt(void);
 uint64_t helper_set_cc_op_eflags(void);
 }
 #include <malloc.h>
@@ -2176,26 +2175,17 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
 //    }
 }
 
-//TODO: change the interface to match ARM's do_interrupt function
-inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
-                                     int is_int, int error_code,
-                                     uint64_t next_eip, int is_hw)
+inline void S2EExecutor::doInterrupt(S2EExecutionState *state)
 {
     if(state->m_cpuRegistersObject->isAllConcrete() && !m_executeAlwaysKlee) {
         if(!state->m_runningConcrete)
             switchToConcrete(state);
         TimerStatIncrementer t(stats::concreteModeTime);
-//        helper_do_interrupt(intno, is_int, error_code, next_eip, is_hw);
-        do_interrupt(env);
+        helper_do_interrupt();
     } else {
         if(state->m_runningConcrete)
             switchToSymbolic(state);
-        std::vector<klee::ref<klee::Expr> > args(5);
-        args[0] = klee::ConstantExpr::create(intno, sizeof(int)*8);
-        args[1] = klee::ConstantExpr::create(is_int, sizeof(int)*8);
-        args[2] = klee::ConstantExpr::create(error_code, sizeof(int)*8);
-        args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
-        args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
+        std::vector<klee::ref<klee::Expr> > args(0);
         try {
             TimerStatIncrementer t(stats::symbolicModeTime);
             executeFunction(state, "helper_do_interrupt", args);
@@ -2445,12 +2435,9 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
     s2e->getExecutor()->setCCOpEflags(state);
 }
 
-void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
-                      int intno, int is_int, int error_code,
-                      uint64_t next_eip, int is_hw)
+void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state)
 {
-    s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
-                                    next_eip, is_hw);
+    s2e->getExecutor()->doInterrupt(state);
 }
 
 /**

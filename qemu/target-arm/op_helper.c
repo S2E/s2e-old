@@ -89,6 +89,13 @@ struct CPUARMState* env = 0;
 #endif
 
 
+uint64_t helper_do_interrupt(void);
+uint64_t helper_do_interrupt(void)
+{
+    do_interrupt(env);
+    return 0;
+}
+
 void raise_exception(int tt)
 {
     env->exception_index = tt;
@@ -389,14 +396,16 @@ uint32_t HELPER(get_user_reg)(uint32_t regno)
     uint32_t val;
 
     if (regno == 13) {
-        val = env->banked_r13[0];
+        val = RR_cpu(env,banked_r13[0]);
     } else if (regno == 14) {
-        val = env->banked_r14[0];
+        val = RR_cpu(env,banked_r14[0]);
+    }else if (regno == 15) {
+            	val = env->regs[regno];
     } else if (regno >= 8
                && (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_FIQ) {
-        val = env->usr_regs[regno - 8];
+        val = RR_cpu(env,usr_regs[regno - 8]);
     } else {
-        val = env->regs[regno];
+        val = RR_cpu(env,regs[regno]);
     }
     return val;
 }
@@ -404,14 +413,16 @@ uint32_t HELPER(get_user_reg)(uint32_t regno)
 void HELPER(set_user_reg)(uint32_t regno, uint32_t val)
 {
     if (regno == 13) {
-        env->banked_r13[0] = val;
+        WR_cpu(env,banked_r13[0],val);
     } else if (regno == 14) {
-        env->banked_r14[0] = val;
+        WR_cpu(env,banked_r14[0],val);
+    } else if (regno == 15) {
+    	env->regs[regno] = val;
     } else if (regno >= 8
                && (env->uncached_cpsr & 0x1f) == ARM_CPU_MODE_FIQ) {
-        env->usr_regs[regno - 8] = val;
+        WR_cpu(env,usr_regs[regno - 8],val);
     } else {
-        env->regs[regno] = val;
+        WR_cpu(env,regs[regno],val);
     }
 }
 

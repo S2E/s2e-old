@@ -201,8 +201,7 @@ public:
     bool needToJumpToSymbolic(S2EExecutionState *state) const;
 
     void setCCOpEflags(S2EExecutionState *state);
-    void doInterrupt(S2EExecutionState *state, int intno, int is_int,
-                     int error_code, uint64_t next_eip, int is_hw);
+    void doInterrupt(S2EExecutionState *state);
 
     /** Suspend the given state (does not kill it) */
     bool suspendState(S2EExecutionState *state);

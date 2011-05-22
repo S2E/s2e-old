@@ -579,41 +579,60 @@ void switch_mode(CPUState *env, int mode)
         return;
 
     if (old_mode == ARM_CPU_MODE_FIQ) {
-        memcpy (env->fiq_regs, env->regs + 8, 5 * sizeof(uint32_t));
-        memcpy (env->regs + 8, env->usr_regs, 5 * sizeof(uint32_t));
+        //memcpy (env->fiq_regs, env->regs + 8, 5 * sizeof(uint32_t));
+    	WR_cpu(env,fiq_regs[0],RR_cpu(env,regs[8]));
+    	WR_cpu(env,fiq_regs[1],RR_cpu(env,regs[9]));
+    	WR_cpu(env,fiq_regs[2],RR_cpu(env,regs[10]));
+    	WR_cpu(env,fiq_regs[3],RR_cpu(env,regs[11]));
+    	WR_cpu(env,fiq_regs[4],RR_cpu(env,regs[12]));
+
+    	//memcpy (env->regs + 8, env->usr_regs, 5 * sizeof(uint32_t));
+    	WR_cpu(env,regs[8],RR_cpu(env,usr_regs[0]));
+    	WR_cpu(env,regs[9],RR_cpu(env,usr_regs[1]));
+    	WR_cpu(env,regs[10],RR_cpu(env,usr_regs[2]));
+    	WR_cpu(env,regs[11],RR_cpu(env,usr_regs[3]));
+    	WR_cpu(env,regs[12],RR_cpu(env,usr_regs[4]));
+
     } else if (mode == ARM_CPU_MODE_FIQ) {
-        memcpy (env->usr_regs, env->regs + 8, 5 * sizeof(uint32_t));
-        memcpy (env->regs + 8, env->fiq_regs, 5 * sizeof(uint32_t));
+        //memcpy (env->usr_regs, env->regs + 8, 5 * sizeof(uint32_t));
+        WR_cpu(env,usr_regs[0],RR_cpu(env,regs[8]));
+        WR_cpu(env,usr_regs[1],RR_cpu(env,regs[9]));
+        WR_cpu(env,usr_regs[2],RR_cpu(env,regs[10]));
+        WR_cpu(env,usr_regs[3],RR_cpu(env,regs[11]));
+        WR_cpu(env,usr_regs[4],RR_cpu(env,regs[12]));
+
+        //memcpy (env->regs + 8, env->fiq_regs, 5 * sizeof(uint32_t));
+    	WR_cpu(env,regs[8],RR_cpu(env,fiq_regs[0]));
+    	WR_cpu(env,regs[9],RR_cpu(env,fiq_regs[1]));
+    	WR_cpu(env,regs[10],RR_cpu(env,fiq_regs[2]));
+    	WR_cpu(env,regs[11],RR_cpu(env,fiq_regs[3]));
+    	WR_cpu(env,regs[12],RR_cpu(env,fiq_regs[4]));
     }
 
     i = bank_number(old_mode);
-//    WR_CPU(env,banked_r13[i],RR_CPU(env,regs[13]));
-//    WR_CPU(env,banked_r14[i],RR_CPU(env,regs[14]));
-  env->banked_r13[i] = env->regs[13];
-  env->banked_r14[i] = env->regs[14];
+//    WR_cpu(env,banked_r13[i],RR_cpu(env,regs[13]));
+//    WR_cpu(env,banked_r14[i],RR_cpu(env,regs[14]));
+  WR_cpu(env,banked_r13[i], RR_cpu(env,regs[13]));
+  WR_cpu(env,banked_r14[i], RR_cpu(env,regs[14]));
     env->banked_spsr[i] = env->spsr;
 
     i = bank_number(mode);
-//    WR_CPU(env,regs[13],RR_CPU(env,banked_r13[i]));
-//    WR_CPU(env,regs[14],RR_CPU(env,banked_r14[i]));
-  env->regs[13] = env->banked_r13[i];
-  env->regs[14] = env->banked_r14[i];
+    WR_cpu(env,regs[13],RR_cpu(env,banked_r13[i]));
+    WR_cpu(env,regs[13],RR_cpu(env,banked_r14[i]));
     env->spsr = env->banked_spsr[i];
 }
 
 static void v7m_push(CPUARMState *env, uint32_t val)
 {
-//	WR_CPU(env,regs[13],(RR_CPU(env,regs[13]) - 4));
-    env->regs[13] -= 4;
-    stl_phys(env->regs[13], val);
+	WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) - 4));
+    stl_phys(RR_cpu(env,regs[13]), val);
 }
 
 static uint32_t v7m_pop(CPUARMState *env)
 {
     uint32_t val;
-    val = ldl_phys(env->regs[13]);
-    env->regs[13] += 4;
-//	WR_CPU(env,regs[13],(RR_CPU(env,regs[13]) + 4));
+    val = ldl_phys(RR_cpu(env,regs[13]));
+    WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) + 4));
     return val;
 }
 
@@ -623,8 +642,8 @@ static void switch_v7m_sp(CPUARMState *env, int process)
     uint32_t tmp;
     if (env->v7m.current_sp != process) {
         tmp = env->v7m.other_sp;
-        env->v7m.other_sp = env->regs[13];
-        env->regs[13] = tmp;
+        env->v7m.other_sp = RR_cpu(env,regs[13]);
+        WR_cpu(env,regs[13],tmp);
         env->v7m.current_sp = process;
     }
 }
@@ -646,13 +665,13 @@ static void do_v7m_exception_exit(CPUARMState *env)
     WR_cpu(env,regs[2],v7m_pop(env));
     WR_cpu(env,regs[3],v7m_pop(env));
     WR_cpu(env,regs[12],v7m_pop(env));
-    env->regs[14] = v7m_pop(env);
+    WR_cpu(env,regs[14],v7m_pop(env));
     env->regs[15] = v7m_pop(env);
     xpsr = v7m_pop(env);
     xpsr_write(env, xpsr, 0xfffffdff);
     /* Undo stack alignment.  */
     if (xpsr & 0x200)
-        env->regs[13] |= 4;
+        WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) | 4));
     /* ??? The exception return type specifies Thread/Handler mode.  However
        this is also implied by the xPSR value. Not sure what to do
        if there is a mismatch.  */
@@ -714,14 +733,14 @@ static void do_interrupt_v7m(CPUARMState *env)
     /* Align stack pointer.  */
     /* ??? Should only do this if Configuration Control Register
        STACKALIGN bit is set.  */
-    if (env->regs[13] & 4) {
-        env->regs[13] -= 4;
+    if (RR_cpu(env,regs[13]) & 4) {
+        WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) - 4));
         xpsr |= 0x200;
     }
     /* Switch to the handler mode.  */
     v7m_push(env, xpsr);
     v7m_push(env, env->regs[15]);
-    v7m_push(env, env->regs[14]);
+    v7m_push(env, RR_cpu(env,regs[14]));
     v7m_push(env, RR_cpu(env,regs[12]));
     v7m_push(env, RR_cpu(env,regs[3]));
     v7m_push(env, RR_cpu(env,regs[2]));
@@ -729,11 +748,12 @@ static void do_interrupt_v7m(CPUARMState *env)
     v7m_push(env, RR_cpu(env,regs[0]));
     switch_v7m_sp(env, 0);
     env->uncached_cpsr &= ~CPSR_IT;
-    env->regs[14] = lr;
+    WR_cpu(env,regs[14],lr);
     addr = ldl_phys(env->v7m.vecbase + env->v7m.exception * 4);
     env->regs[15] = addr & 0xfffffffe;
     env->thumb = addr & 1;
 }
+
 
 /* Handle a CPU exception.  */
 void do_interrupt(CPUARMState *env)
@@ -836,7 +856,7 @@ void do_interrupt(CPUARMState *env)
     env->uncached_cpsr = (env->uncached_cpsr & ~CPSR_M) | new_mode;
     env->uncached_cpsr |= mask;
     env->thumb = 0;
-    env->regs[14] = env->regs[15] + offset;
+    WR_cpu(env,regs[14],(env->regs[15] + offset));
     env->regs[15] = addr;
     env->interrupt_request |= CPU_INTERRUPT_EXITTB;
 }
@@ -1861,9 +1881,9 @@ uint32_t HELPER(v7m_mrs)(CPUState *env, uint32_t reg)
     case 7: /* IEPSR */
         return xpsr_read(env) & 0x0700edff;
     case 8: /* MSP */
-        return env->v7m.current_sp ? env->v7m.other_sp : env->regs[13];
+        return env->v7m.current_sp ? env->v7m.other_sp : RR_cpu(env,regs[13]);
     case 9: /* PSP */
-        return env->v7m.current_sp ? env->regs[13] : env->v7m.other_sp;
+        return env->v7m.current_sp ? RR_cpu(env,regs[13]) : env->v7m.other_sp;
     case 16: /* PRIMASK */
         return (env->uncached_cpsr & CPSR_I) != 0;
     case 17: /* FAULTMASK */
@@ -1908,11 +1928,11 @@ void HELPER(v7m_msr)(CPUState *env, uint32_t reg, uint32_t val)
         if (env->v7m.current_sp)
             env->v7m.other_sp = val;
         else
-            env->regs[13] = val;
+            WR_cpu(env,regs[13],val);
         break;
     case 9: /* PSP */
         if (env->v7m.current_sp)
-            env->regs[13] = val;
+            WR_cpu(env,regs[13],val);
         else
             env->v7m.other_sp = val;
         break;

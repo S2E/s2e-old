@@ -6,19 +6,21 @@ void cpu_save(QEMUFile *f, void *opaque)
     int i;
     CPUARMState *env = (CPUARMState *)opaque;
 
-    for (i = 0; i < 16; i++) {
-        qemu_put_be32(f, env->regs[i]);
+    for (i = 0; i < 14; i++) {
+    		qemu_put_be32(f, RR_cpu(env,regs[i]));
     }
+	qemu_put_be32(f, env->regs[15]);
+
     qemu_put_be32(f, cpsr_read(env));
     qemu_put_be32(f, env->spsr);
     for (i = 0; i < 6; i++) {
         qemu_put_be32(f, env->banked_spsr[i]);
-        qemu_put_be32(f, env->banked_r13[i]);
-        qemu_put_be32(f, env->banked_r14[i]);
+        qemu_put_be32(f, RR_cpu(env,banked_r13[i]));
+        qemu_put_be32(f, RR_cpu(env,banked_r14[i]));
     }
     for (i = 0; i < 5; i++) {
-        qemu_put_be32(f, env->usr_regs[i]);
-        qemu_put_be32(f, env->fiq_regs[i]);
+        qemu_put_be32(f, RR_cpu(env,usr_regs[i]));
+        qemu_put_be32(f, RR_cpu(env,fiq_regs[i]));
     }
     qemu_put_be32(f, env->cp15.c0_cpuid);
     qemu_put_be32(f, env->cp15.c0_cachetype);
@@ -110,9 +112,11 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
     if (version_id != CPU_SAVE_VERSION)
         return -EINVAL;
 
-    for (i = 0; i < 16; i++) {
-        env->regs[i] = qemu_get_be32(f);
+    for (i = 0; i < 15; i++) {
+        WR_cpu(env,regs[i],qemu_get_be32(f));
     }
+    env->regs[15] = qemu_get_be32(f);
+
     val = qemu_get_be32(f);
     /* Avoid mode switch when restoring CPSR.  */
     env->uncached_cpsr = val & CPSR_M;
@@ -120,12 +124,12 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
     env->spsr = qemu_get_be32(f);
     for (i = 0; i < 6; i++) {
         env->banked_spsr[i] = qemu_get_be32(f);
-        env->banked_r13[i] = qemu_get_be32(f);
-        env->banked_r14[i] = qemu_get_be32(f);
+        WR_cpu(env,banked_r13[i],qemu_get_be32(f));
+        WR_cpu(env,banked_r14[i],qemu_get_be32(f));
     }
     for (i = 0; i < 5; i++) {
-        env->usr_regs[i] = qemu_get_be32(f);
-        env->fiq_regs[i] = qemu_get_be32(f);
+        WR_cpu(env,usr_regs[i],qemu_get_be32(f));
+        WR_cpu(env,fiq_regs[i],qemu_get_be32(f));
     }
     env->cp15.c0_cpuid = qemu_get_be32(f);
     env->cp15.c0_cachetype = qemu_get_be32(f);
