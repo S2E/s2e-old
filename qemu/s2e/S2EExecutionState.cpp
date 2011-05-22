@@ -387,16 +387,18 @@ uint64_t S2EExecutionState::getSp() const
 //XXX: assumes x86 architecture.
 bool S2EExecutionState::bypassFunction(unsigned paramCount)
 {
-    uint64_t retAddr;
-    if (!getReturnAddress(&retAddr)) {
-        return false;
-    }
+	assert(false && "not implemented");
 
-    uint32_t newSp = getSp() + (paramCount+1)*sizeof(uint32_t);
-
-    setSp(newSp);
-    setPc(retAddr);
-    return true;
+//    uint64_t retAddr;
+//    if (!getReturnAddress(&retAddr)) {
+//        return false;
+//    }
+//
+//    uint32_t newSp = getSp() + (paramCount+1)*sizeof(uint32_t);
+//
+//    setSp(newSp);
+//    setPc(retAddr);
+//    return true;
 }
 
 //May be called right after the machine call instruction
