@@ -1,6 +1,6 @@
 #include <inttypes.h>
 #include <iostream>
-
+#include <stdio.h>
 
 #include "BFDInterface.h"
 
@@ -51,18 +51,21 @@ BFDInterface::BFDInterface(IDebugControl *Control, const char *ImageName)
 
     //Compute image base
     //XXX: Make sure it is correct
+#if 0
     for (it = m_sections.begin(); it != m_sections.end(); ++it) {
         asection *section = (*it).second;
         if (section->vma && (section->vma < vma)) {
             vma = section->vma;
         }
     }
-
-    if (!vma) {
+    m_imageBase = vma & (uint64_t)~0xFFF;
+#endif
+    if (!InitImageBase(ImageName)) {
         DBGPRINT("Could not compute image base\n");
+    }else {
+        DBGPRINT("Image base: %p\n", m_imageBase);
     }
 
-    m_imageBase = vma & (uint64_t)~0xFFF;
 
     MapSymbols();
 
@@ -73,6 +76,33 @@ BFDInterface::BFDInterface(IDebugControl *Control, const char *ImageName)
     err1:
     bfd_close(m_bfd);
     m_bfd = NULL;
+}
+
+//XXX: only for 64-bit clients!
+bool BFDInterface::InitImageBase(const char *fn)
+{
+    FILE *fp = fopen(fn, "rb");
+    if (!fp) {
+        return false;
+    }
+
+    IMAGE_DOS_HEADER DosHeader;
+    if (fread(&DosHeader, sizeof(DosHeader), 1, fp) != 1) {
+        fclose(fp);
+        return false;
+    }
+    fseek(fp, DosHeader.e_lfanew, SEEK_SET);
+
+    IMAGE_NT_HEADERS NtHeaders;
+    if (fread(&NtHeaders, sizeof(NtHeaders), 1, fp) != 1) {
+        fclose(fp);
+        return false;
+    }
+
+    m_imageBase = NtHeaders.OptionalHeader.ImageBase;
+
+    fclose(fp);
+    return true;
 }
 
 void BFDInterface::InitSections(bfd *abfd, asection *sect, void *obj)
@@ -162,13 +192,15 @@ bool BFDInterface::MapSymbols()
     return true;
 }
 
-bool BFDInterface::GetSymbolForAddress(uint64_t addr, std::string &s) const
+bool BFDInterface::GetSymbolForAddress(uint64_t addr, StartSize &sz, std::string &s) const
 {
     StartSize range(addr, addr+1);
     AddressRangeToSymbolIndex::const_iterator it = m_mappedSymbols.find(range);
     if (it == m_mappedSymbols.end()) {
         return false;
     }
+
+    sz = (*it).first;
 
     unsigned index = (*it).second;
 
@@ -302,9 +334,10 @@ void BFDInterface::DumpSymbols(IDebugControl *Control) const
     for (it = m_mappedSymbols.begin(); it != m_mappedSymbols.end(); ++it) {
         uint64_t Address = (*it).first.Start;
         std::string Symbol;
-
-        GetSymbolForAddress(Address, Symbol);
+        StartSize sz;
+        GetSymbolForAddress(Address, sz, Symbol);
         DBGPRINT("%p %s\n", Address + m_imageBase, Symbol.c_str());
     }
     DBGPRINT("\n");
 }
+

@@ -39,7 +39,7 @@ public:
                  uint64_t &line,
                  std::string &function);
 
-    bool GetSymbolForAddress(uint64_t addr, std::string &s) const;
+    bool GetSymbolForAddress(uint64_t addr, StartSize &sz, std::string &s) const;
     void Dump() const;
 
 };

@@ -89,8 +89,10 @@ extern "C" HRESULT CALLBACK gsym(PDEBUG_CLIENT Client, PCSTR args)
 {
     HRESULT Ret;
     IDebugControl *Control;
+    IDebugSymbols3 *Symbols;
     std::string File, Function, Symbol="<unksym>";
     uint64_t Line;
+    StartSize sz;
 
 
     Ret = Client->QueryInterface(IID_IDebugControl, (LPVOID*)&Control);
@@ -98,21 +100,38 @@ extern "C" HRESULT CALLBACK gsym(PDEBUG_CLIENT Client, PCSTR args)
         goto err1;
     }
 
+    Ret = Client->QueryInterface(IID_IDebugSymbols3, (LPVOID*)&Symbols);
+    if(FAILED(Ret)) {
+        DBGPRINT("Failed to obtain IDebugSymbols3 interface. Use a more recent debugger.");
+        goto err2;
+    }
+
+
     UINT64 Address;
     sscanf(args, "%llx", &Address);
 
 
-    s_symbols->GetSymbolForAddress(Address, Symbol);
-    DBGPRINT("%p %s ", Address, Symbol.c_str());
+
+    if (s_symbols->GetSymbolForAddress(Address, sz, Symbol)) {
+        DEBUG_MODULE_AND_ID ModuleId;
+        HRESULT Ret = Symbols->AddSyntheticSymbol(sz.Start, (ULONG)sz.Size, Symbol.c_str(), DEBUG_ADDSYNTHSYM_DEFAULT, &ModuleId);
+        if (FAILED(Ret)) {
+            DBGPRINT("Failed to add symbol (%p)\n", Ret);
+        }
+    }
+    DBGPRINT("%p Size=%#x %s ", sz.Start, sz.Size, Symbol.c_str());
 
     if (s_symbols->GetInfo(Address, File, Line, Function)) {
         DBGPRINT("%s:%d (%s)",  File.c_str(), Line, Function.c_str());
     }
     DBGPRINT("\n");
 
+
+    Symbols->Release();
     Control->Release();
     return S_OK;
 
+    err2: Control->Release();
     err1: return DEBUG_EXTENSION_CONTINUE_SEARCH;
 }
 
@@ -153,12 +172,13 @@ extern "C" HRESULT CALLBACK gbt(PDEBUG_CLIENT Client, PCSTR args)
     for(uint64_t s = StackPointer; s < StackPointer + 0x1000; s+=8) {
         std::string File, Function, Symbol="<unksym>";
         uint64_t Line;
+        StartSize sz;
 
         uint64_t Address;
         ULONG ReadBytes;
         Data->ReadVirtual(s, &Address, sizeof(Address), &ReadBytes);
 
-        s_symbols->GetSymbolForAddress(Address, Symbol);
+        s_symbols->GetSymbolForAddress(Address, sz, Symbol);
 
         DBGPRINT("[%p]=%p %s ", s, Address, Symbol.c_str());
         if (s_symbols->GetInfo(Address, File, Line, Function)) {

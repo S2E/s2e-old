@@ -41,6 +41,7 @@ private:
     bool MapSymbols();
 
     static void InitSections(bfd *abfd, asection *sect, void *obj);
+    bool InitImageBase(const char *fn);
 public:
     BFDInterface(IDebugControl *Control, const char *ImageName);
     bool UpdateSymbols(IDebugControl *Control, IDebugSymbols3 *Symbols);
@@ -49,7 +50,7 @@ public:
     }
     uint64_t GetImageSize() const;
     bool GetInfo(uint64_t addr, std::string &source, uint64_t &line, std::string &function);
-    bool GetSymbolForAddress(uint64_t addr, std::string &s) const;
+    bool GetSymbolForAddress(uint64_t addr, StartSize &sz, std::string &s) const;
 
     uint64_t GetImageBase() const {
         return m_imageBase;

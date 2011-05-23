@@ -151,7 +151,7 @@ bool Symbols::GetInfo(uint64_t addr,
     return bfd->GetInfo(addr - (*it).first.Start + bfd->GetImageBase(), source, line, function);
 }
 
-bool Symbols::GetSymbolForAddress(uint64_t addr, std::string &s) const
+bool Symbols::GetSymbolForAddress(uint64_t addr, StartSize &sz, std::string &s) const
 {
     StartSize info;
     info.Start = addr;
@@ -164,7 +164,8 @@ bool Symbols::GetSymbolForAddress(uint64_t addr, std::string &s) const
     }
 
     BFDInterface *bfd = (*it).second;
-    return bfd->GetSymbolForAddress(addr - (*it).first.Start + bfd->GetImageBase(), s);
+    uint64_t Address = addr - (*it).first.Start + bfd->GetImageBase();
+    return bfd->GetSymbolForAddress(Address, sz, s);
 }
 
 void Symbols::Dump() const
