@@ -1,22 +1,18 @@
-/************************************************************
- *
- *                   Debug Extensions
- *
- * Toby Opferman
- *
- ************************************************************/
 #define INITGUID
 
 #include <string>
 #include <map>
 #include <stdio.h>
 #include <windows.h>
+#include <psapi.h>
+#include <stdint.h>
 
 #include "BFDInterface.h"
+#include "Symbols.h"
 
 using namespace std;
 
-
+static Symbols *s_symbols = NULL;
 
 extern "C" HRESULT CALLBACK DebugExtensionInitialize(PULONG Version, PULONG Flags)
 {
@@ -34,89 +30,27 @@ extern "C" VOID CALLBACK DebugExtensionNotify(ULONG Notify, ULONG64 Argument)
 
 }
 
-typedef std::map<std::string, BFDInterface *> LoadedImages;
-static LoadedImages s_loadedImages;
 
 //cannot assume that a debug session is active at this point
 extern "C" VOID CALLBACK DebugExtensionUninitialize(VOID)
 {
-    LoadedImages::iterator it;
-    for (it = s_loadedImages.begin(); it != s_loadedImages.end(); ++it) {
-        delete (*it).second;
+    if (s_symbols) {
+        delete s_symbols;
     }
-    s_loadedImages.clear();
 }
 
 
 
-BOOL LoadSymbolsImage(IDebugControl *Control, IDebugSymbols3 *Symbols, PSTR ImageName)
-{
-    BFDInterface *bfd = NULL;
-    LoadedImages::iterator it = s_loadedImages.find(std::string(ImageName));
-    if (it != s_loadedImages.end()) {
-        bfd = (*it).second;
-    }else {
-        bfd = new BFDInterface(Control, (const char*)ImageName);
-        if (!bfd->IsInitialized()) {
-            return FALSE;
-        }
-        s_loadedImages[ImageName] = bfd;
-    }
-
-    return bfd->UpdateSymbols(Control, Symbols);
-}
-
-HRESULT LoadSymbols(IDebugClient *Client, IDebugControl *Control, IDebugSymbols3 *Symbols)
-{
-    HRESULT Ret;
-    ULONG LoadedModulesCount, UnloadedModulesCount;
-
-    Ret = Symbols->GetNumberModules(&LoadedModulesCount, &UnloadedModulesCount);
-    if (FAILED(Ret)) {
-        DBGPRINT("Could not get number of modules\n");
-        return Ret;
-    }
-
-    for (ULONG i=0; i<LoadedModulesCount; ++i) {
-        CHAR ImageName[4096];
-        CHAR ModuleName[4096];
-        CHAR LoadedImageName[4096];
-
-        Ret = Symbols->GetModuleNames(i, 0,
-                                ImageName, sizeof(ImageName), 0,
-                                ModuleName, sizeof(ModuleName), 0,
-                                LoadedImageName, sizeof(LoadedImageName), 0);
-        switch(Ret) {
-            case S_FALSE:
-                DBGPRINT("Some image names truncated for module %d\n", i);
-                DBGPRINT("ImageName: %s\n", ImageName);
-                continue;
-            case S_OK:
-                break;
-            default:
-                DBGPRINT("Error while getting info for module %d\n", i);
-                continue;
-        }
-
-        DBGPRINT("Loading symbols for %s - %s - %s\n", ImageName, ModuleName, LoadedImageName);
-
-        //Sometimes Windbg returns the full path in LoadedImageName instead of ImageName.
-        //We take the longest string.
-        if (strlen(ImageName) < strlen(LoadedImageName)) {
-            LoadSymbolsImage(Control, Symbols, LoadedImageName);
-        }else {
-            LoadSymbolsImage(Control, Symbols, ImageName);
-        }
-    }
-
-    return S_OK;
-}
-
-extern "C" HRESULT CALLBACK gdbsyms(PDEBUG_CLIENT Client, PCSTR args)
+//Loads information about all images
+extern "C" HRESULT CALLBACK gload(PDEBUG_CLIENT Client, PCSTR args)
 {
     IDebugControl *control;
     IDebugSymbols3 *symbols;
     HRESULT hr;
+
+    if (!s_symbols) {
+        s_symbols = new Symbols(Client);
+    }
 
     hr = Client->QueryInterface(IID_IDebugControl, (LPVOID*)&control);
     if(FAILED(hr)) {
@@ -130,7 +64,7 @@ extern "C" HRESULT CALLBACK gdbsyms(PDEBUG_CLIENT Client, PCSTR args)
         goto err2;
     }
 
-    LoadSymbols(Client, control, symbols);
+    s_symbols->LoadSymbols(Client, symbols);
 
     symbols->Release();
     control->Release();
@@ -140,3 +74,107 @@ err2: control->Release();
 err1: return DEBUG_EXTENSION_CONTINUE_SEARCH;
 }
 
+extern "C" HRESULT CALLBACK gdump(PDEBUG_CLIENT Client, PCSTR args)
+{
+    s_symbols->Dump();
+    return S_OK;
+}
+
+/**
+ *  Queries the specified address for the corresponding symbol
+ *  and add the symbol to the symbol library.
+ *  Syntax: gsym address
+ */
+extern "C" HRESULT CALLBACK gsym(PDEBUG_CLIENT Client, PCSTR args)
+{
+    HRESULT Ret;
+    IDebugControl *Control;
+    std::string File, Function, Symbol="<unksym>";
+    uint64_t Line;
+
+
+    Ret = Client->QueryInterface(IID_IDebugControl, (LPVOID*)&Control);
+    if(FAILED(Ret)) {
+        goto err1;
+    }
+
+    UINT64 Address;
+    sscanf(args, "%llx", &Address);
+
+
+    s_symbols->GetSymbolForAddress(Address, Symbol);
+    DBGPRINT("%p %s ", Address, Symbol.c_str());
+
+    if (s_symbols->GetInfo(Address, File, Line, Function)) {
+        DBGPRINT("%s:%d (%s)",  File.c_str(), Line, Function.c_str());
+    }
+    DBGPRINT("\n");
+
+    Control->Release();
+    return S_OK;
+
+    err1: return DEBUG_EXTENSION_CONTINUE_SEARCH;
+}
+
+/**
+ *  Displays the backtrace starting from current program counter
+ */
+extern "C" HRESULT CALLBACK gbt(PDEBUG_CLIENT Client, PCSTR args)
+{
+    IDebugRegisters *Registers;
+    IDebugControl *Control;
+    IDebugDataSpaces *Data;
+    HRESULT Ret;
+
+    if (!s_symbols) {
+        s_symbols = new Symbols(Client);
+    }
+
+    Ret = Client->QueryInterface(IID_IDebugControl, (LPVOID*)&Control);
+    if(FAILED(Ret)) {
+        goto err1;
+    }
+
+    Ret = Client->QueryInterface(IID_IDebugRegisters, (LPVOID*)&Registers);
+    if (FAILED(Ret)) {
+        goto err2;
+    }
+
+    Ret = Client->QueryInterface(IID_IDebugDataSpaces, (LPVOID*)&Data);
+    if (FAILED(Ret)) {
+        goto err3;
+    }
+
+
+    ULONG64 StackPointer;
+    Registers->GetStackOffset(&StackPointer);
+
+    DBGPRINT("Printing stack from offset %p\n", StackPointer)
+    for(uint64_t s = StackPointer; s < StackPointer + 0x1000; s+=8) {
+        std::string File, Function, Symbol="<unksym>";
+        uint64_t Line;
+
+        uint64_t Address;
+        ULONG ReadBytes;
+        Data->ReadVirtual(s, &Address, sizeof(Address), &ReadBytes);
+
+        s_symbols->GetSymbolForAddress(Address, Symbol);
+
+        DBGPRINT("[%p]=%p %s ", s, Address, Symbol.c_str());
+        if (s_symbols->GetInfo(Address, File, Line, Function)) {
+            DBGPRINT("%s:%d (%s)",  File.c_str(), Line, Function.c_str());
+        }
+        DBGPRINT("\n");
+    }
+
+    Data->Release();
+    Control->Release();
+    Registers->Release();
+
+    return S_OK;
+
+    err3: Registers->Release();
+    err2: Control->Release();
+    err1: return DEBUG_EXTENSION_CONTINUE_SEARCH;
+
+}
