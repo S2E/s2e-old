@@ -67,6 +67,7 @@ public:
     void computeFunctionEntryPoints(AddressSet &ret);
     void computeFunctionInstructions(uint64_t entryPoint, AddressSet &instructions);
     void reconstructFunctions(const AddressSet &entryPoints);
+    void reconstructFunctionCalls();
     void outputBitcodeFile();
 
     void dumpStats();

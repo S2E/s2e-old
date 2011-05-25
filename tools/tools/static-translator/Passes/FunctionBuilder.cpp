@@ -101,10 +101,9 @@ void FunctionBuilder::createFunction(Module &M)
     TranslatedBlock *tb = (*it).second;
     assert(tb && "Entry point not present in the list of all instructions");
 
-    std::stringstream fn;
-    fn << "function_" << std::hex << tb->getAddress();
-    M.getOrInsertFunction(fn.str(), tb->getFunction()->getFunctionType());
-    m_function = M.getFunction(fn.str());
+    std::string fn = TbPreprocessor::getFunctionName(tb->getAddress());
+    M.getOrInsertFunction(fn, tb->getFunction()->getFunctionType());
+    m_function = M.getFunction(fn);
 }
 
 void FunctionBuilder::callInstruction(BasicBlock *bb, Function *f)
@@ -326,13 +325,11 @@ void FunctionBuilder::buildFunction(Module &M)
 
 bool FunctionBuilder::runOnModule(llvm::Module &M)
 {
-    bool modified = false;
-
     createFunction(M);
     computeBasicBlockBoundaries();
     buildFunction(M);
     LOGDEBUG() << *m_function << std::flush;
-    return modified;
+    return true;
 }
 
 }

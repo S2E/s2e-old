@@ -3,10 +3,12 @@
 #define _TBPREPROP_PASS_H_
 
 #include "llvm/Pass.h"
+#include "llvm/Module.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
 
 #include <set>
+#include <sstream>
 
 #include "Translator.h"
 #include "lib/Utils/Log.h"
@@ -57,6 +59,7 @@ private:
     static std::string s_jumpMarker;
     static std::string s_callMarker;
     static std::string s_returnMarker;
+    static std::string s_functionPrefix;
 private:
     void initMarkers(llvm::Module *module);
     void markInstructionStart(llvm::Function &f);
@@ -90,6 +93,34 @@ public:
   static const std::string& getCallMarker() {
       return s_callMarker;
   }
+
+  static llvm::Function* getCallMarker(llvm::Module &M) {
+      return M.getFunction(getCallMarker());
+  }
+
+  static llvm::ConstantInt *getCallTargetConstant(llvm::CallInst *marker) {
+      return llvm::dyn_cast<llvm::ConstantInt>(marker->getOperand(2));
+  }
+  static llvm::Value *getCallTarget(llvm::CallInst *marker) {
+      return marker->getOperand(2);
+  }
+
+  //Returns the prefix of the name of the reconstructed functions.
+  static const std::string& getFunctionPrefix() {
+      return s_functionPrefix;
+  }
+
+  static std::string getFunctionName(uint64_t target) {
+      std::stringstream ss;
+      ss << getFunctionPrefix() << std::hex << target;
+      return ss.str();
+  }
+
+  static llvm::Function* getFunction(llvm::Module &M, llvm::ConstantInt *target) {
+      return M.getFunction(getFunctionName(target->getZExtValue()));
+  }
+
+  static bool isReconstructedFunction(const llvm::Function &f);
 };
 
 }

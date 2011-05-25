@@ -38,6 +38,7 @@ extern "C" {
 #include "Passes/ConstantExtractor.h"
 #include "Passes/JumpTableExtractor.h"
 #include "Passes/FunctionBuilder.h"
+#include "Passes/CallBuilder.h"
 
 #include "lib/Utils/Utils.h"
 
@@ -357,7 +358,19 @@ void StaticTranslatorTool::reconstructFunctions(const AddressSet &entryPoints)
         FunctionPassManager fpm(m_translator->getModuleProvider());
         fpm.add(createVerifierPass());
         fpm.run(*functionBuilder.getFunction());
+    }
+}
 
+void StaticTranslatorTool::reconstructFunctionCalls()
+{
+    CallBuilder callBuilder(m_binary);
+    callBuilder.runOnModule(*m_translator->getModule());
+
+    FunctionPassManager fpm(m_translator->getModuleProvider());
+    fpm.add(createVerifierPass());
+    Module *M = m_translator->getModule();
+    foreach(it, M->begin(), M->end()) {
+        fpm.run(*it);
     }
 }
 
@@ -466,7 +479,7 @@ int main(int argc, char** argv)
     translator.computePredecessors();
     translator.computeFunctionEntryPoints(entryPoints);
     translator.reconstructFunctions(entryPoints);
-
+    translator.reconstructFunctionCalls();
 
 #if 0
     translator.exploreBasicBlocks();
