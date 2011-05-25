@@ -12,7 +12,7 @@ LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scala
 NO_PEDANTIC=1
 SOURCES = StaticTranslator.cpp \
           Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp \
-          Passes/ForcedInliner.h Passes/FunctionBuilder.h
+          Passes/ForcedInliner.cpp Passes/FunctionBuilder.cpp
 
 include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)
