@@ -43,15 +43,31 @@ using namespace s2etools;
 namespace {
 cl::opt<std::string>
     InputFile(cl::Positional, cl::Required, cl::desc("<input file>"));
+
+cl::opt<std::string>
+    OuputSourceFile("outsrc", cl::desc("Where to write generated source file"), cl::init("output.c"));
+
+cl::opt<std::string>
+    ErrorFile("errlog", cl::desc("Where to write compiler errors"), cl::init("errors.txt"));
+
+cl::list<std::string>
+    IncludeDirs("I", llvm::cl::value_desc("include-dir"), llvm::cl::Prefix, llvm::cl::desc("Include directory"));
+
+cl::list<std::string>
+    Defines("D", llvm::cl::value_desc("defines"), llvm::cl::Prefix, llvm::cl::desc("Preprocessor macros"));
+
+
 }
 
 
 namespace s2etools {
 
 TypeExtractor::TypeExtractor(const std::string &inputFile,
-                             const std::string &errorFile):
+                             const std::string &errorFile,
+                             const std::string &outputFile):
                                 m_inputFile(inputFile),
-                                m_errorFile(errorFile)
+                                m_errorFile(errorFile),
+                                m_outputFile(outputFile)
 {
     m_langOptions.GNUMode = 1;
     m_langOptions.C99 = 1;
@@ -65,12 +81,15 @@ TypeExtractor::TypeExtractor(const std::string &inputFile,
     m_targetInfo = TargetInfo::CreateTargetInfo("i386-apple-darwin10.0");
 
     std::string ErrMsg;
-    m_tempFile.set("output");
+    m_tempFile.set(outputFile);
+#if 0
+
     if (m_tempFile.createTemporaryFileOnDisk(false, &ErrMsg)) {
         std::cerr << "Could not create temporary file " << m_tempFile.c_str() << std::endl;
         std::cerr << ErrMsg << std::endl;
         exit(-1);
     }
+#endif
 
     std::ios::openmode io_mode = std::ios::out | std::ios::trunc | std::ios::binary;
     m_os = new std::ofstream(m_tempFile.c_str(), io_mode);
@@ -81,6 +100,15 @@ TypeExtractor::TypeExtractor(const std::string &inputFile,
 TypeExtractor::~TypeExtractor() {
     //m_tempFile.eraseFromDisk(true, NULL);
     delete m_os;
+}
+
+void TypeExtractor::GenerateSourceHeader()
+{
+    foreach (mit, Defines.begin(), Defines.end()) {
+        *m_os << "#define " << *mit << std::endl;
+    }
+
+    *m_os << "#include \"" << InputFile << "\"" << std::endl << std::endl;
 }
 
 bool TypeExtractor::ExtractTypes()
@@ -94,8 +122,15 @@ bool TypeExtractor::ExtractTypes()
     HeaderSearch headers(m_fileManager);
     InitHeaderSearch init(headers);
 
+    foreach(iit, IncludeDirs.begin(), IncludeDirs.end()) {
+        init.AddPath(*iit, InitHeaderSearch::Angled, false, true, false);
+    }
+
+#if 0
     init.AddPath("/Users/vitaly/softs/mingw/include", InitHeaderSearch::Angled, false, true, false);
     init.AddPath("/Users/vitaly/softs/mingw//lib/gcc/i386-mingw32/4.2.1-sjlj/include", InitHeaderSearch::Angled, false, true, false);
+#endif
+
     init.Realize();
 
     diagPrinter.setLangOptions(&m_langOptions);
@@ -103,6 +138,11 @@ bool TypeExtractor::ExtractTypes()
     Preprocessor pp(diag, m_langOptions, *m_targetInfo, m_sourceManager, headers);
 
     PreprocessorInitOptions ppio;
+
+    foreach (mit, Defines.begin(), Defines.end()) {
+        ppio.addMacroDef(*mit);
+    }
+
     InitializePreprocessor(pp, ppio);
 
     const FileEntry *file = m_fileManager.getFile(m_inputFile);
@@ -112,10 +152,13 @@ bool TypeExtractor::ExtractTypes()
     SelectorTable sel;
     Builtin::Context builtins(*m_targetInfo);
 
-
     ASTContext ctx(m_langOptions, m_sourceManager, *m_targetInfo, tab, sel, builtins);
     ParseAST(pp, m_typeConsumer, ctx, false, true);
-    m_typeConsumer->GenerateFunction();
+
+    if (!diag.hasErrorOccurred()) {
+        GenerateSourceHeader();
+        m_typeConsumer->GenerateFunction();
+    }
 
     return diag.hasErrorOccurred();
 }
@@ -128,8 +171,7 @@ int main(int argc, char **argv)
 {
     cl::ParseCommandLineOptions(argc, (char**) argv);
 
-
-    TypeExtractor te(InputFile, "errors.txt");
+    TypeExtractor te(InputFile, ErrorFile, OuputSourceFile);
     te.ExtractTypes();
 
 #if 0

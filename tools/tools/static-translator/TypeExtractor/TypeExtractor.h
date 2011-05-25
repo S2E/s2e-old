@@ -19,6 +19,7 @@ class TypeExtractor {
 private:
     std::string m_inputFile;
     std::string m_errorFile;
+    std::string m_outputFile;
 
     llvm::sys::Path m_tempFile;
     std::ostream *m_os;
@@ -31,9 +32,12 @@ private:
     clang::TargetInfo *m_targetInfo;
 
     TypeConsumer *m_typeConsumer;
+
+    void GenerateSourceHeader();
 public:
     TypeExtractor(const std::string &inputFile,
-                  const std::string &errorFile);
+                  const std::string &errorFile,
+                  const std::string &outputFile);
     ~TypeExtractor();
 
     bool ExtractTypes();

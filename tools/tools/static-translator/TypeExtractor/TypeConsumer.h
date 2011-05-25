@@ -7,6 +7,8 @@
 #include <clang/AST/DeclGroup.h>
 #include <clang/AST/ASTContext.h>
 
+#include <llvm/ADT/DenseMap.h>
+
 #include <vector>
 #include <set>
 #include <ostream>
@@ -16,12 +18,13 @@ namespace s2etools {
 class TypeConsumer : public clang::ASTConsumer {
 public:
     typedef std::vector<clang::FunctionDecl*> FunctionDecls;
-    typedef std::set<clang::Type *> Types;
+    typedef llvm::DenseMap<clang::Type *, unsigned> Types;
 private:
     FunctionDecls m_functionDecls;
     std::ostream &m_os;
+    std::set<std::string> m_macros;
 
-    void DeclareFunction(clang::FunctionDecl *VD);
+    void InvokeFunction(clang::FunctionDecl *fcn, Types &types);
     void DeclareType(clang::Type *type, const std::string &name);
     void GetAllTypes(Types &types);
 
