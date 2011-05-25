@@ -103,7 +103,9 @@ void Logger::Initialize()
         }
     }
 
-    s_logfile.open(LogFile.c_str(), std::ios::binary);
+    if (LogFile.size() > 0) {
+        s_logfile.open(LogFile.c_str(), std::ios::binary);
+    }
     s_inited = true;
 }
 
