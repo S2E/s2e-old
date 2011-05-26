@@ -1093,7 +1093,11 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
 {
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
-    assert(offset + size <= CPU_OFFSET(regs[15]));
+#ifdef TARGET_ARM
+	assert(offset + size <= CPU_OFFSET(fiq_regs[4]));
+#elif defined(TARGET_I386)
+	assert(offset + size <= CPU_OFFSET(eip));
+#endif
 
     if(!state->m_runningConcrete ||
             !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
@@ -1133,14 +1137,14 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
         memcpy(buf, ((uint8_t*)cpuState)+offset, size);
     }
 
-/*
-#ifdef S2E_TRACE_EFLAGS
+
+#if defined(TARGET_I386) && defined(S2E_TRACE_EFLAGS)
     if (offsetof(CPUState, cc_src) == offset) {
         m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
                 "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
     }
 #endif
-*/
+
 }
 
 void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
@@ -1148,7 +1152,11 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
 {
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
-    assert(offset + size <= CPU_OFFSET(regs[15]));
+	#ifdef TARGET_ARM
+		assert(offset + size <= CPU_OFFSET(fiq_regs[4]));
+	#elif defined(TARGET_I386)
+		assert(offset + size <= CPU_OFFSET(eip));
+	#endif
 
     if(!state->m_runningConcrete ||
             !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
@@ -1160,14 +1168,14 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         memcpy(((uint8_t*)cpuState)+offset, buf, size);
     }
 
-/*
-#ifdef S2E_TRACE_EFLAGS
+
+#if defined(TARGET_I386) && defined(S2E_TRACE_EFLAGS)
     if (offsetof(CPUState, cc_src) == offset) {
         m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
                 "write conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
     }
 #endif
-*/
+
 }
 
 void S2EExecutor::switchToConcrete(S2EExecutionState *state)
