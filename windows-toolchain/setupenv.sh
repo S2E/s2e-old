@@ -185,7 +185,9 @@ cp "$ARCHIVES_DIR/libsigc++-2.2.9.tar.gz" .
 tar xzvf libsigc++-2.2.9.tar.gz
 cd libsigc++-2.2.9
 ./configure --prefix="$MINGW_BASE" CC=gcc CXX=g++
-make install
+make install $JOBS
+./configure --prefix="$MINGW_BASE" CC=gcc CXX=g++ --enable-static
+make install $JOBS
 
 mv "$MINGW_BASE/include/sigc++-2.0/sigc++" "$MINGW_BASE/include/"
 mv "sigc++config.h" "$MINGW_BASE/include/"
