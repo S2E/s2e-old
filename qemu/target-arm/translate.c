@@ -6049,7 +6049,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     /* M variants do not implement ARM mode.  */
     if (IS_M(env))
         goto illegal_op;
-    if (((insn >> 24) & 255) == 1) { /* s2e_op */
+    if ((insn >> 24) == 255) { /* s2e_op */
 		#ifdef CONFIG_S2E
 					uint64_t arg = ldq_code(s->pc);
 					s2e_tcg_emit_custom_instruction(g_s2e, arg);
