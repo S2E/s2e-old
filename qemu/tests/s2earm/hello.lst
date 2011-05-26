@@ -1,0 +1,49 @@
+ARM GAS  hello.S 			page 1
+
+
+   1              	@filename hello.S
+   2              	.global _start
+   3              	.text
+   4              	.arm
+   5              	/***********************************************************************************
+   6              	section: a range of address with no gaps.
+   7              	main sections: text, data, bss.
+   8              	other: absolute, undefined
+   9              	
+  10              	text section: contains instructions, constants, ...
+  11              	data section: similar to text, but alterable.
+  12              	bss section: hold uninitialized variables, common storage,
+  13              	absolute section: is unrelocable (address 0 of this section maps to runtime address 0.)
+  14              	
+  15              	run as with the following option:
+  16              	-mcpu=arm926e
+  17              	-march=armv5te
+  18              	
+  19              	 
+  20              	************************************************************************************/
+  21              	.equ testvar, 10 @just for fun
+  22              	.set test2, 0xF00 @magic
+  23              	.text 1
+  24              	
+  25              	/* start code */
+  26              	_start:
+  27 0000 0A00A0E3 	mov r0, #10
+  28 0004 000001FF 	.word 0xFF010000 @S2E enable Symbolic Execution 
+  29              	.align 2
+  30 0008 000002FF 	.word 0xFF020000 @S2E disable Symbolic Execution
+  31              	
+  32 000c 00008FE2 	adr r0, msg 
+  33 0010 FF100000 	.byte 0xFF, 0x10, 0x00, 0x00 @S2E print message 
+  34              	
+  35              	msg:
+  36 0014 48656C6C 	.asciz "Hello S2E-Android!"
+  36      6F205332 
+  36      452D416E 
+  36      64726F69 
+  36      642100
+  37              	
+  38 0027 0000A0E1 	NOP
+  39 002b 0000A0E1 	NOP
+  40 002f 0000A0E1 	NOP
+  41 0033 0000A0E1 	NOP
+  41      00
