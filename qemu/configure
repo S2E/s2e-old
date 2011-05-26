@@ -331,11 +331,11 @@ CYGWIN*)
 ;;
 MINGW32*)
   if [ "$cpu" = "i386" ]; then
-	QEMU_ASMFLAGS="-f win32"
+       QEMU_ASMFLAGS="-f win32"
   elif [ "$cpu" = "x86_64" ] ; then
-	QEMU_ASMFLAGS="-f win64"
+       QEMU_ASMFLAGS="-f win64"
   fi
-  
+
   mingw32="yes"
   audio_possible_drivers="winwave dsound sdl fmod"
   audio_drv_list="winwave"
@@ -388,7 +388,7 @@ Darwin)
   else
     QEMU_CFLAGS="-mdynamic-no-pic $QEMU_CFLAGS"
   fi
-    
+
   darwin_user="yes"
   cocoa="yes"
   audio_drv_list="coreaudio"
@@ -1584,7 +1584,11 @@ if test "$s2e" != "no" ; then
 int main(void) { sigc::signal<void, int> s; s.emit(1); return 0; }
 EOF
   if [ "$mingw32" = "yes" ]; then
-    sigcxx2_libs="-lsigc-2.0.dll"
+    if [ "$static" = "yes" ]; then
+        sigcxx2_libs="-lsigc-2.0"
+    else
+        sigcxx2_libs="-lsigc-2.0.dll"
+    fi
   else
     sigcxx2_cxxflags=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
     sigcxx2_libs=`pkg-config sigc++-2.0 --libs 2> /dev/null`
@@ -2248,6 +2252,9 @@ fi
 if test "$static" = "yes" ; then
   echo "CONFIG_STATIC=y" >> $config_host_mak
   LDFLAGS="-static $LDFLAGS"
+  if test "$mingw32" = "yes" ; then
+    LDFLAGS="-static-libgcc $LDFLAGS"
+  fi
 fi
 if test $profiler = "yes" ; then
   echo "CONFIG_PROFILER=y" >> $config_host_mak
