@@ -81,6 +81,8 @@ public:
      */
     virtual uint64_t getEntryPoint() const;
 
+    virtual uint64_t readAddressFromImportTable(uint64_t va) const = 0;
+
 protected:
     virtual BFDInterface* getBfd() const{
         return m_bfd;

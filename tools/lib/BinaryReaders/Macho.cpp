@@ -207,7 +207,7 @@ bool MachoReader::resolveImports()
     uint8_t *start = (uint8_t*)m_file->getBuffer();
     asymbol **symbols = getBfd()->getSymbols();
 
-    //Find a undefined symbols, allocate an address for them
+    //Find undefined symbols, allocate an address for them
     for (long i = 0; i<getBfd()->getSymbolCount(); ++i) {
         if (!bfd_is_und_section(symbols[i]->section)) {
             continue;

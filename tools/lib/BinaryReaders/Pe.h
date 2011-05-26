@@ -5,6 +5,7 @@
 #include <cassert>
 #include "Binary.h"
 #include "lib/Utils/Log.h"
+#include "lib/Utils/Utils.h"
 
 namespace s2etools {
 namespace windows {
@@ -166,6 +167,8 @@ struct IMAGE_BASE_RELOCATION {
 
 class PeReader: public Binary {
 private:
+    typedef struct std::set<StartSizePair> ImportAddressTables;
+
     static s2etools::LogKey TAG;
 
     Imports m_imports;
@@ -177,6 +180,7 @@ private:
     uint64_t m_importedAddressPtr;
 
     RelocationEntries m_relocations;
+    ImportAddressTables m_iat;
 
     bool initialize();
     bool resolveImports();
@@ -194,6 +198,8 @@ public:
     virtual const RelocationEntries &getRelocations() const {
         return m_relocations;
     }
+
+    virtual uint64_t readAddressFromImportTable(uint64_t va) const;
 
 };
 

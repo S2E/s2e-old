@@ -10,6 +10,7 @@
 
 /**
  * Extracts all constant integers from an LLVM function.
+ * XXX: should use LLVM's constant iterator!
  */
 struct ConstantExtractor : public llvm::FunctionPass {
   static char ID;

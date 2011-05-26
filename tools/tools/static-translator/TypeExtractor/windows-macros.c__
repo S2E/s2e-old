@@ -1,0 +1,134 @@
+#define _WIN32
+# 1 "<built-in>" 3
+#define __llvm__ 1
+#define __clang__ 1
+#define __GNUC_MINOR__ 2
+#define __GNUC_PATCHLEVEL__ 1
+#define __GNUC__ 4
+#define __GXX_ABI_VERSION 1002
+#define __VERSION__ "4.2.1 Compatible Clang Compiler"
+#define __STDC__ 1
+#define __STDC_VERSION__ 199901L
+#define __STDC_HOSTED__ 1
+#define __CONSTANT_CFSTRINGS__ 1
+#define __block __attribute__((__blocks__(byref)))
+#define __BLOCKS__ 1
+#define __CHAR_BIT__ 8
+#define __SCHAR_MAX__ 127
+#define __SHRT_MAX__ 32767
+#define __INT_MAX__ 2147483647
+#define __LONG_MAX__ 2147483647L
+#define __LONG_LONG_MAX__ 9223372036854775807LL
+#define __WCHAR_MAX__ 2147483647
+#define __INTMAX_MAX__ 9223372036854775807LL
+#define __INTMAX_TYPE__ long long int
+#define __UINTMAX_TYPE__ long long unsigned int
+#define __PTRDIFF_TYPE__ int
+#define __INTPTR_TYPE__ long int
+#define __SIZE_TYPE__ long unsigned int
+#define __WCHAR_TYPE__ int
+#define __WINT_TYPE__ int
+#define __FLT_DENORM_MIN__ 1.40129846e-45F
+#define __FLT_DIG__ 6
+#define __FLT_EPSILON__ 1.19209290e-7F
+#define __FLT_HAS_INFINITY__ 1
+#define __FLT_HAS_QUIET_NAN__ 1
+#define __FLT_MANT_DIG__ 24
+#define __FLT_MAX_10_EXP__ 38
+#define __FLT_MAX_EXP__ 128
+#define __FLT_MAX__ 3.40282347e+38F
+#define __FLT_MIN_10_EXP__ (-37)
+#define __FLT_MIN_EXP__ (-125)
+#define __FLT_MIN__ 1.17549435e-38F
+#define __FLT_HAS_DENORM__ 1
+#define __DBL_DENORM_MIN__ 4.9406564584124654e-324
+#define __DBL_DIG__ 15
+#define __DBL_EPSILON__ 2.2204460492503131e-16
+#define __DBL_HAS_INFINITY__ 1
+#define __DBL_HAS_QUIET_NAN__ 1
+#define __DBL_MANT_DIG__ 53
+#define __DBL_MAX_10_EXP__ 308
+#define __DBL_MAX_EXP__ 1024
+#define __DBL_MAX__ 1.7976931348623157e+308
+#define __DBL_MIN_10_EXP__ (-307)
+#define __DBL_MIN_EXP__ (-1021)
+#define __DBL_MIN__ 2.2250738585072014e-308
+#define __DBL_HAS_DENORM__ 1
+#define __LDBL_DENORM_MIN__ 3.64519953188247460253e-4951L
+#define __LDBL_DIG__ 18
+#define __LDBL_EPSILON__ 1.08420217248550443401e-19L
+#define __LDBL_HAS_INFINITY__ 1
+#define __LDBL_HAS_QUIET_NAN__ 1
+#define __LDBL_MANT_DIG__ 64
+#define __LDBL_MAX_10_EXP__ 4932
+#define __LDBL_MAX_EXP__ 16384
+#define __LDBL_MAX__ 1.18973149535723176502e+4932L
+#define __LDBL_MIN_10_EXP__ (-4931)
+#define __LDBL_MIN_EXP__ (-16381)
+#define __LDBL_MIN__ 3.36210314311209350626e-4932L
+#define __LDBL_HAS_DENORM__ 1
+#define __POINTER_WIDTH__ 32
+#define __INT8_TYPE__ char
+#define __INT16_TYPE__ short
+#define __INT32_TYPE__ int
+#define __INT64_TYPE__ long long int
+//typedef char* __builtin_va_list;
+#define __USER_LABEL_PREFIX__ _
+#define __FINITE_MATH_ONLY__ 0
+#define __GNUC_STDC_INLINE__ 1
+#define __NO_INLINE__ 1
+#define __PIC__ 1
+#define __pic__ 1
+#define __FLT_EVAL_METHOD__ 0
+#define __FLT_RADIX__ 2
+#define __DECIMAL_DIG__ 21
+#define __SSP__ 1
+#define __i386 1
+#define __i386__ 1
+#define __LITTLE_ENDIAN__ 1
+#define __nocona 1
+#define __nocona__ 1
+#define __tune_nocona__ 1
+#define __REGISTER_PREFIX__ 
+#define __NO_MATH_INLINES 1
+#define __SSE3__ 1
+#define __SSE2__ 1
+#define __SSE2_MATH__ 1
+#define __SSE__ 1
+#define __SSE_MATH__ 1
+#define __MMX__ 1
+#define __APPLE_CC__ 5621
+#define __APPLE__ 1
+#define __MACH__ 1
+#define OBJC_NEW_PROPERTIES 1
+#define __weak __attribute__((objc_gc(weak)))
+#define __strong 
+#define __DYNAMIC__ 1
+#define __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ 1060
+# 1 "<command line>" 1
+
+
+
+#ifdef __TY_WIN_NDIS
+//#define i386
+#define _X86_
+#define NDIS_MINIPORT_DRIVER
+#define NDIS50_MINIPORT   1
+#include <ddk/ndis.h>
+#endif
+
+#if 0
+struct test_t {
+ int a;
+};
+
+void func(struct test_t *f);
+
+#if 0
+int main(int argc, char **argv)
+{
+  return 0;
+}
+#endif
+
+#endif

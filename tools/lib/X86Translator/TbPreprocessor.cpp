@@ -38,6 +38,25 @@ bool TbPreprocessor::isReconstructedFunction(const llvm::Function &f)
     return f.getName().startswith(getFunctionPrefix());
 }
 
+//XXX: 32-bit assumptions
+CallInst* TbPreprocessor::getMemoryLoadFromIndirectCall(CallInst *marker)
+{
+    ZExtInst *v = dyn_cast<ZExtInst>(TbPreprocessor::getCallTarget(marker));
+    if (!v) {
+        return NULL;
+    }
+
+    CallInst *cs = dyn_cast<CallInst>(v->getOperand(0));
+    if (!cs) {
+        return NULL;
+    }
+
+    if (cs->getCalledFunction()->getName().equals("__ldl_mmu")) {
+        return cs;
+    }
+    return NULL;
+}
+
 void TbPreprocessor::initMarkers(llvm::Module *module)
 {
     if (m_callMarker || m_returnMarker) {

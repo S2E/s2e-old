@@ -123,7 +123,10 @@ bool PeReader::resolveImports()
         windows::IMAGE_THUNK_DATA32 *importNameTable =
                 (windows::IMAGE_THUNK_DATA32 *)(start + importDescriptors[i].OriginalFirstThunk);
 
+        StartSizePair iat(importDescriptors[i].FirstThunk + m_ntHeader.OptionalHeader.ImageBase, 0);
+
         while(importNameTable->u1.AddressOfData) {
+            iat.size+=sizeof(windows::IMAGE_THUNK_DATA32);
             const char *functionName = NULL;
 
             if (importNameTable->u1.AddressOfData & IMAGE_ORDINAL_FLAG) {
@@ -149,6 +152,7 @@ bool PeReader::resolveImports()
             importAddressTable++;
             importNameTable++;
         }
+        m_iat.insert(iat);
     }
 
     return true;
@@ -208,6 +212,21 @@ bool PeReader::processesRelocations()
         relocs = (IMAGE_BASE_RELOCATION *)(((uint8_t*)relocs) + relocs->SizeOfBlock);
     }
     return true;
+}
+
+//XXX: Fix for 64-bit binaries
+uint64_t PeReader::readAddressFromImportTable(uint64_t va) const
+{
+    //Check it's indeed in the import section
+    StartSizePair p(va, 4);
+    if (m_iat.find(p) == m_iat.end()) {
+        return 0;
+    }
+
+    uint32_t offset = va - m_ntHeader.OptionalHeader.ImageBase;
+    uint32_t *value = (uint32_t*)(m_file->getBuffer() + offset);
+
+    return *value;
 }
 
 }

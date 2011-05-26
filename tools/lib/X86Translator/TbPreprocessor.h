@@ -121,6 +121,12 @@ public:
   }
 
   static bool isReconstructedFunction(const llvm::Function &f);
+
+  static llvm::CallInst* getMemoryLoadFromIndirectCall(llvm::CallInst *marker);
+
+  static llvm::Value* getAddressFromMemoryOp(const llvm::CallInst *memop) {
+      return memop->getOperand(1);
+  }
 };
 
 }

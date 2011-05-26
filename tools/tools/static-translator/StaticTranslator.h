@@ -58,6 +58,8 @@ private:
     bool checkString(uint64_t address, std::string &res, bool isUnicode);
 
 
+    void loadLibraries();
+
     uint64_t getEntryPoint();
 public:
     StaticTranslatorTool();

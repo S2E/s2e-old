@@ -68,6 +68,10 @@ cl::opt<std::string>
 cl::opt<std::string>
     BitcodeLibrary("bitcodelibrary", cl::Required, cl::desc("Translator bitcode file"));
 
+cl::list<std::string>
+        Libraries("lib", llvm::cl::value_desc("library"), llvm::cl::Prefix, llvm::cl::desc("Library functions"));
+
+
 cl::opt<std::string>
     OutputDir("outputdir", cl::desc("Store the analysis output in this directory"), cl::init("."));
 
@@ -113,6 +117,8 @@ StaticTranslatorTool::StaticTranslatorTool()
     m_translator->setBinaryFile(m_binary);
     m_translator->setSingleStep(true);
     m_translatedCode = m_experiment->getOuputFile("translated.bin");
+
+    loadLibraries();
 }
 
 //XXX: the translator is global...
@@ -130,6 +136,23 @@ StaticTranslatorTool::~StaticTranslatorTool()
 
     delete m_translator;
 
+}
+
+void StaticTranslatorTool::loadLibraries()
+{
+    //Link in the helper bitcode file
+    Linker linker("StaticTranslatorTool", m_translator->getModule());
+    bool native = false;
+
+    foreach(it, Libraries.begin(), Libraries.end()) {
+        const llvm::sys::Path path(*it);
+        if (linker.LinkInFile(path, native)) {
+            LOGERROR() << "Linking in library " << (*it)  << " failed!" << std::endl;
+        }else {
+            LOGINFO() << "Linked in library " << (*it)  << std::endl;
+        }
+    }
+    linker.releaseModule();
 }
 
 void StaticTranslatorTool::computePredecessors()

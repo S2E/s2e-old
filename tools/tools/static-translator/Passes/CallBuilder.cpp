@@ -12,13 +12,48 @@ LogKey CallBuilder::TAG = LogKey("CallBuilder");
 
 bool CallBuilder::processLocalCall(CallInst *marker, Function *f)
 {
-    std::vector<Value*> CallArguments;
+    SmallVector<Value*,1> CallArguments;
     CallArguments.push_back(marker->getOperand(1));
     CallInst *newCall = CallInst::Create(f, CallArguments.begin(), CallArguments.end());
     newCall->insertBefore(marker);
     marker->eraseFromParent();
     return true;
 }
+
+
+bool CallBuilder::processIndirectCall(CallInst *marker)
+{
+    CallInst *memLoad = TbPreprocessor::getMemoryLoadFromIndirectCall(marker);
+    if (!memLoad) {
+        return false;
+    }
+
+    Value *v = TbPreprocessor::getAddressFromMemoryOp(memLoad);
+    assert(v && "Something is broken");
+
+    if (ConstantInt *cste = dyn_cast<ConstantInt>(v)) {
+        uint64_t address = cste->getZExtValue();
+        uint32_t target =  m_binary->readAddressFromImportTable(address);
+        if (!target) {
+            LOGDEBUG() << "Could not read import entry 0x" << std::hex << address << std::endl;
+            return false;
+        }
+
+        const Imports &imports = m_binary->getImports();
+        Imports::const_iterator iit = imports.find(target);
+        if (iit == imports.end()) {
+            LOGDEBUG() << "No imported function at 0x" << std::hex << target << std::endl;
+            return false;
+        }
+
+        LOGDEBUG() << "Found function " << (*iit).second.first << "!" <<
+                (*iit).second.second << std::endl;
+        return true;
+    }
+    return false;
+}
+
+
 
 bool CallBuilder::processCallMarker(Module &M, CallInst *marker)
 {
@@ -35,6 +70,8 @@ bool CallBuilder::processCallMarker(Module &M, CallInst *marker)
                 << std::hex << cste->getZExtValue() << " for call " <<
                 *marker << std::endl;
         return false;
+    }else {
+        return processIndirectCall(marker);
     }
     return false;
 }

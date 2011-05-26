@@ -2,6 +2,8 @@
 
 #define TRANSLATOR_UTILS_H
 
+#include <inttypes.h>
+
 #define foreach(_i, _b, _e) \
       for(typeof(_b) _i = _b, _i ## end = _e; _i != _i ## end;  ++ _i)
 
@@ -20,6 +22,19 @@ namespace llvm {
     return LHS == RHS;
     }
   };
+}
+
+namespace s2etools {
+    struct StartSizePair {
+        uint64_t start, size;
+        StartSizePair(uint64_t st, uint64_t sz) {
+            start = st;
+            size = sz;
+        }
+        bool operator<(const StartSizePair &p) const {
+            return start + size <= p.start;
+        }
+    };
 }
 
 #endif

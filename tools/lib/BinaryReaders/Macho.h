@@ -270,6 +270,10 @@ public:
         return m_relocations;
     }
 
+    virtual uint64_t readAddressFromImportTable(uint64_t va) const {
+        assert(false && "Not implemented yet");
+    }
+
 };
 
 
