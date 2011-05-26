@@ -16,6 +16,7 @@ class CallBuilder : public llvm::ModulePass {
 
     Binary *m_binary;
 
+    bool resolveImport(uint64_t address, std::string &functionName);
     bool processIndirectCall(llvm::CallInst *marker);
     bool processLocalCall(llvm::CallInst *marker, llvm::Function *f);
     bool processCallMarker(llvm::Module &M, llvm::CallInst *marker);

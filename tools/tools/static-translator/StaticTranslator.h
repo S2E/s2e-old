@@ -70,6 +70,7 @@ public:
     void computeFunctionInstructions(uint64_t entryPoint, AddressSet &instructions);
     void reconstructFunctions(const AddressSet &entryPoints);
     void reconstructFunctionCalls();
+    void inlineInstructions();
     void outputBitcodeFile();
 
     void dumpStats();

@@ -20,7 +20,33 @@ bool CallBuilder::processLocalCall(CallInst *marker, Function *f)
     return true;
 }
 
+bool CallBuilder::resolveImport(uint64_t address, std::string &functionName)
+{
+    uint32_t target =  m_binary->readAddressFromImportTable(address);
+    if (!target) {
+        LOGDEBUG() << "Could not read import entry 0x" << std::hex << address << std::endl;
+        return false;
+    }
 
+    const Imports &imports = m_binary->getImports();
+    Imports::const_iterator iit = imports.find(target);
+    if (iit == imports.end()) {
+        LOGDEBUG() << "No imported function at 0x" << std::hex << target << std::endl;
+        return false;
+    }
+
+    LOGDEBUG() << "Found function " << (*iit).second.first << "!" <<
+            (*iit).second.second << std::endl;
+
+    functionName = (*iit).second.second;
+    return true;
+}
+
+
+/**
+ * call [ds:immediate_value] ;Usually for import tables
+ * call register ;Figure out whether the register is constant
+ */
 bool CallBuilder::processIndirectCall(CallInst *marker)
 {
     CallInst *memLoad = TbPreprocessor::getMemoryLoadFromIndirectCall(marker);
@@ -33,22 +59,13 @@ bool CallBuilder::processIndirectCall(CallInst *marker)
 
     if (ConstantInt *cste = dyn_cast<ConstantInt>(v)) {
         uint64_t address = cste->getZExtValue();
-        uint32_t target =  m_binary->readAddressFromImportTable(address);
-        if (!target) {
-            LOGDEBUG() << "Could not read import entry 0x" << std::hex << address << std::endl;
+        std::string functionName;
+        if (!resolveImport(address, functionName)) {
             return false;
         }
-
-        const Imports &imports = m_binary->getImports();
-        Imports::const_iterator iit = imports.find(target);
-        if (iit == imports.end()) {
-            LOGDEBUG() << "No imported function at 0x" << std::hex << target << std::endl;
-            return false;
-        }
-
-        LOGDEBUG() << "Found function " << (*iit).second.first << "!" <<
-                (*iit).second.second << std::endl;
         return true;
+    }else {
+        //Check if this is a register access
     }
     return false;
 }

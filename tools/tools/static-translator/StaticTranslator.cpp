@@ -39,6 +39,7 @@ extern "C" {
 #include "Passes/JumpTableExtractor.h"
 #include "Passes/FunctionBuilder.h"
 #include "Passes/CallBuilder.h"
+#include "Passes/InstructionInliner.h"
 
 #include "lib/Utils/Utils.h"
 
@@ -397,6 +398,12 @@ void StaticTranslatorTool::reconstructFunctionCalls()
     }
 }
 
+void StaticTranslatorTool::inlineInstructions()
+{
+    InstructionInliner inliner;
+    inliner.runOnModule(*m_translator->getModule());
+}
+
 void StaticTranslatorTool::outputBitcodeFile()
 {
 
@@ -502,7 +509,9 @@ int main(int argc, char** argv)
     translator.computePredecessors();
     translator.computeFunctionEntryPoints(entryPoints);
     translator.reconstructFunctions(entryPoints);
-    translator.reconstructFunctionCalls();
+    translator.inlineInstructions();
+    //translator.reconstructFunctionCalls();
+
 
 #if 0
     translator.exploreBasicBlocks();

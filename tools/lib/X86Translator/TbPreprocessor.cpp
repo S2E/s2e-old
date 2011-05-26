@@ -77,6 +77,10 @@ void TbPreprocessor::initMarkers(llvm::Module *module)
     //The marker does not return anything
     type = FunctionType::get(Type::getVoidTy(module->getContext()), paramTypes, false);
     m_callMarker = dyn_cast<Function>(module->getOrInsertFunction(getCallMarker(), type));
+    m_callMarker->setDoesNotAccessMemory(true);
+    m_callMarker->setDoesNotThrow(true);
+    m_callMarker->setDoesNotAlias(0, true);
+    m_callMarker->setDoesNotAlias(1, true);
 
     //**********************************
     //2. Handle the return marker
@@ -106,6 +110,9 @@ void TbPreprocessor::initMarkers(llvm::Module *module)
     paramTypes.push_back(Type::getInt64Ty(module->getContext()));
     type = FunctionType::get(Type::getVoidTy(module->getContext()), paramTypes, false);
     m_instructionMarker = dyn_cast<Function>(module->getOrInsertFunction(getInstructionMarker(), type));
+    m_instructionMarker->setDoesNotAccessMemory(true);
+    m_instructionMarker->setDoesNotThrow(true);
+    m_instructionMarker->setDoesNotAlias(0, true);
 
     //**********************************
     //tcg_llvm_fork_and_concretize is a special marker placed by the translator
