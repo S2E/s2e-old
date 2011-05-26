@@ -156,7 +156,7 @@ extern int printf(const char *, ...);
 
 #elif defined(CONFIG_LLVM)
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__MINGW32__)
 extern uint64_t tcg_llvm_helper_ret_addr asm("tcg_llvm_runtime"); // XXX
 #else
 extern uint64_t tcg_llvm_helper_ret_addr asm("_tcg_llvm_runtime"); // XXX
