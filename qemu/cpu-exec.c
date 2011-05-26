@@ -83,7 +83,8 @@ int execute_llvm = 0;
     s2e_do_interrupt(g_s2e, g_s2e_state, intno, is_int, error_code, next_eip, is_hw)
 #endif
 #ifdef TARGET_ARM
-//TODO: ARM_specific s2e_do_interrupt
+#define do_interrupt(env) \
+	s2e_do_interrupt(g_s2e,g_s2e_state)
 #endif
 #endif
 

@@ -405,12 +405,13 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
 //XXX: assumes x86 architecture
 bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
-    *retAddr = 0;
-    if (!readMemoryConcrete(getSp(), retAddr, sizeof(uint32_t))) {
-        g_s2e->getDebugStream() << "Could not get the return address " << std::endl;
-        return false;
-    }
-    return true;
+	assert(false && "not implemented");
+//    *retAddr = 0;
+//    if (!readMemoryConcrete(getSp(), retAddr, sizeof(uint32_t))) {
+//        g_s2e->getDebugStream() << "Could not get the return address " << std::endl;
+//        return false;
+//    }
+//    return true;
 }
 
 void S2EExecutionState::dumpStack(unsigned count)

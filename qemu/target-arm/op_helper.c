@@ -188,7 +188,8 @@ void tlb_fill (target_ulong addr, target_ulong page_addr, int is_write, int mmu_
     /* XXX: hack to restore env in all cases, even if not called from
        generated code */
     saved_env = env;
-    env = cpu_single_env;
+    if(env != cpu_single_env)
+        env = cpu_single_env;
 
 #ifdef CONFIG_S2E
     s2e_on_tlb_miss(g_s2e, g_s2e_state, addr, is_write);
@@ -228,6 +229,7 @@ s2e_on_page_fault(g_s2e, g_s2e_state, addr, is_write);
 
         raise_exception(env->exception_index);
     }
+    if(saved_env != env)
     env = saved_env;
 }
 #endif

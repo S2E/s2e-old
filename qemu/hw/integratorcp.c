@@ -488,6 +488,9 @@ static void integratorcp_init(ram_addr_t ram_size,
     s2e_register_ram(g_s2e, g_s2e_state,
                   0, ram_size,
                   (uint64_t) qemu_get_ram_ptr(ram_offset | IO_MEM_RAM), 0, 0, "ram");
+//    s2e_register_ram(g_s2e, g_s2e_state,
+//    			  0x80000000, ram_size,
+//    			  (uint64_t) qemu_get_ram_ptr(ram_offset | IO_MEM_RAM), 0,0, "ramhigh");
 #endif
 
     dev = qdev_create(NULL, "integrator_core");

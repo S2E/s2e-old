@@ -226,9 +226,7 @@ void s2e_write_register_concrete(struct S2E* s2e,
 void s2e_set_cc_op_eflags(struct S2E* s2e,
                           struct S2EExecutionState* state);
 
-void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
-                      int intno, int is_int, int error_code,
-                      uint64_t next_eip, int is_hw);
+void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state);
 
 /** This function is called when RAM is read by concretely executed
     generated code. If the memory location turns out to be symbolic,
