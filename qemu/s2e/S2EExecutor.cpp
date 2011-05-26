@@ -1599,7 +1599,36 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 }
 
 #ifdef _WIN32
-extern "C" int g_timer_ticks_enabled;
+
+extern "C" volatile LONG g_signals_enabled;
+
+typedef int sigset_t;
+
+static void s2e_disable_signals(sigset_t *oldset)
+{
+    while(InterlockedCompareExchange(&g_signals_enabled, 0, 1) == 0)
+       ;
+}
+
+static void s2e_enable_signals(sigset_t *oldset)
+{
+    g_signals_enabled = 1;
+}
+
+#else
+
+static void s2e_disable_signals(sigset_t *oldset)
+{
+    sigset_t set;
+    sigfillset(&set);
+    sigprocmask(SIG_BLOCK, &set, oldset);
+}
+
+static void s2e_enable_signals(sigset_t *oldset)
+{
+    sigprocmask(SIG_SETMASK, oldset, NULL);
+}
+
 #endif
 
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
@@ -1656,8 +1685,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* The next should be atomic with respect to signals */
                 /* XXX: what else should we block ? */
 #ifdef _WIN32
-#warning This is not tested yet...
-                g_timer_ticks_enabled = 0;
+                //Timers can run in different threads...
+                s2e_disable_signals(NULL);
 #else
                 sigset_t set, oldset;
                 sigfillset(&set);
@@ -1683,7 +1712,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 #ifdef _WIN32
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
                     cleanupTranslationBlock(state, tb);
-                    g_timer_ticks_enabled = 1;
+                    s2e_enable_signals(NULL);
                     break;
 #else
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
@@ -1696,7 +1725,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* the block was unchained by signal handler */
                 tcg_llvm_runtime.goto_tb = 0xff;
 #ifdef _WIN32
-                g_timer_ticks_enabled = 1;
+                s2e_enable_signals(NULL);
 #else
                 sigprocmask(SIG_SETMASK, &oldset, NULL);
 #endif
@@ -1776,37 +1805,6 @@ static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
     }
 }
 
-#ifdef _WIN32
-
-#warning Implement signal enabling/disabling...
-
-typedef int sigset_t;
-
-static void s2e_disable_signals(sigset_t *oldset)
-{
-
-}
-
-static void s2e_enable_signals(sigset_t *oldset)
-{
-
-}
-
-#else
-
-static void s2e_disable_signals(sigset_t *oldset)
-{
-    sigset_t set;
-    sigfillset(&set);
-    sigprocmask(SIG_BLOCK, &set, oldset);
-}
-
-static void s2e_enable_signals(sigset_t *oldset)
-{
-    sigprocmask(SIG_SETMASK, oldset, NULL);
-}
-
-#endif
 
 //XXX: inline causes compiler internal errors
 static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
