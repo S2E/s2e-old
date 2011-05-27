@@ -149,6 +149,11 @@ public:
         return m_function;
     }
 
+    //Must not be used after the TB is created
+    void setFunction(llvm::Function *func) {
+        m_function = func;
+    }
+
     ETranslatedBlockType getType() const {
         return m_type;
     }
@@ -199,6 +204,7 @@ class X86Translator: public Translator {
 private:
     static LogKey TAG;
     llvm::FunctionPassManager *m_functionPasses;
+    llvm::FunctionPassManager *m_functionOptPasses;
 
 public:
     X86Translator(const llvm::sys::Path &bitcodeLibrary);

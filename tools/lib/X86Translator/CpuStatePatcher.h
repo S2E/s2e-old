@@ -6,6 +6,7 @@
 #include <llvm/Module.h>
 #include <llvm/Function.h>
 #include <llvm/Instructions.h>
+#include <llvm/Target/TargetData.h>
 
 #include <vector>
 #include <string>
@@ -27,16 +28,30 @@ class CpuStatePatcher : public llvm::FunctionPass {
     static std::string s_cpuStateTypeName;
 
     uint64_t m_instructionAddress;
+    const llvm::StructType* m_envType;
+    const llvm::TargetData *m_targetData;
+    const llvm::StructLayout *m_envLayout;
+    llvm::Function *m_transformed;
 
+    llvm::Instruction *createGep(llvm::Instruction *instr,
+                                 llvm::ConstantInt *offset,
+                                 bool &dropInstruction,
+                                 unsigned accessSize) const;
     void getAllLoadStores(Instructions &I, llvm::Function &F) const;
+    void patchOffset(llvm::Instruction *intr) const;
+    void patchOffsets(llvm::Function *transformed) const;
     void transformArguments(llvm::Function *transformed, llvm::Function *original) const;
     llvm::Function *createTransformedFunction(llvm::Function &original) const;
 
 public:
     CpuStatePatcher(uint64_t instructionAddress);
+    ~CpuStatePatcher();
 
     virtual bool runOnFunction(llvm::Function &F);
 
+    llvm::Function *getTransformed() const {
+        return m_transformed;
+    }
 };
 
 }

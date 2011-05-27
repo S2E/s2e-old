@@ -176,11 +176,19 @@ X86Translator::X86Translator(const llvm::sys::Path &bitcodeLibrary):Translator(b
 {
     m_functionPasses = new FunctionPassManager(tcg_llvm_ctx->getModuleProvider());
     m_functionPasses->add(createCFGSimplificationPass());
+
+    //We need this passes to simplify the translation of the instruction.
+    //The code is quite bulky, the fewer instructions, the better.
+    m_functionOptPasses = new FunctionPassManager(tcg_llvm_ctx->getModuleProvider());
+    //m_functionOptPasses->add(createVerifierPass());
+    m_functionOptPasses->add(createDeadCodeEliminationPass());
+    m_functionOptPasses->add(createGVNPREPass());
 }
 
 X86Translator::~X86Translator()
 {
     delete m_functionPasses;
+    delete m_functionOptPasses;
 }
 
 TranslatedBlock *X86Translator::translate(uint64_t address)
@@ -240,13 +248,17 @@ TranslatedBlock *X86Translator::translate(uint64_t address)
     m_functionPasses->run(*ret->getFunction());
 
     if (isSingleStep()) {
-        //ret.print(LOGDEBUG() << "BEFORE" << std::endl);
         TbPreprocessor prep(ret);
         prep.runOnFunction(*ret->getFunction());
 
         CpuStatePatcher patcher(address);
         patcher.runOnFunction(*ret->getFunction());
-        //ret.print(LOGDEBUG() << "AFTER" << std::endl);
+
+        //Optimize the resulting function
+        m_functionOptPasses->run(*patcher.getTransformed());
+        ret->setFunction(patcher.getTransformed());
+        //LOGDEBUG() << "AFTER" <<  std::endl;
+        //LOGDEBUG() << *patcher.getTransformed();
     }
 
     return ret;
