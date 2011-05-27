@@ -6027,7 +6027,6 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     TCGv tmp3;
     TCGv addr;
     TCGv_i64 tmp64;
-
     insn = ldl_code(s->pc);
     s->pc += 4;
 
@@ -6051,13 +6050,13 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         goto illegal_op;
     if ((insn >> 24) == 255) { /* s2e_op */
 		#ifdef CONFIG_S2E
-					uint64_t arg = ldq_code(s->pc);
-					s2e_tcg_emit_custom_instruction(g_s2e, arg);
+    				//ldq_code loads a 64 bit content from memory
+    				//whereas ldl_code loads a 32 bit content from memory
+					s2e_tcg_emit_custom_instruction(g_s2e, ((uint64_t) insn));
 		#else
 					/* Simply skip the S2E opcodes when building vanilla qemu */
-					ldq_code(s->pc);
 		#endif
-		s->pc += 4;
+		return;
     }
     cond = insn >> 28;
     if (cond == 0xf){

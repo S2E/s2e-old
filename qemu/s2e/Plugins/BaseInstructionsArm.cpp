@@ -82,7 +82,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 	                        << " called."
 	                        << std::endl;
 
-    switch((opcode>>8) & 0xFF) {
+    switch((opcode>>16) & 0xFF) {
         case 0: { /* s2e_check */
                 uint32_t v = 2;
                 state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]), &v, 4);
@@ -177,7 +177,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 uint32_t name; //xxx
                 bool ok = true;
                 ref<Expr> val = state->readCpuRegister(offsetof(CPUARMState, regs[0]), klee::Expr::Int32);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
                                                      &name, 4);
 
                 if(!ok) {
@@ -295,7 +295,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             for(unsigned i = 0; i < size; ++i) {
                 ref<Expr> expr = state->readMemory8(address + i);
                 if(!expr.isNull()) {
-                    if(((opcode>>8) & 0xFF) == 0x20) /* concretize */
+                    if(((opcode>>16) & 0xFF) == 0x20) /* concretize */
                         expr = s2e()->getExecutor()->toConstant(*state, expr, "request from guest");
                     else /* example */
                         expr = s2e()->getExecutor()->toConstantSilent(*state, expr);
@@ -363,7 +363,7 @@ void BaseInstructions::onCustomInstruction(S2EExecutionState* state,
 	                        << " called."
 	                        << std::endl;
 
-    uint8_t opc = (opcode>>8) & 0xFF;
+    uint8_t opc = (opcode>>16) & 0xFF;
     if (opc <= 0x70) {
         handleBuiltInOps(state, opcode);
     }

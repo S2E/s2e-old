@@ -25,17 +25,34 @@ run as with the following option:
 /* start code */
 _start:
 mov r0, #10
-.word 0xFF010000 @S2E enable Symbolic Execution 
-.align 2
-.word 0xFF020000 @S2E disable Symbolic Execution
-
+bl s2e_enable_symbolic
+bl s2e_disable_symbolic
 adr r0, msg 
-.byte 0xFF, 0x10, 0x00, 0x00 @S2E print message 
+bl s2e_message
+bl s2e_version
+@todo: improve code below
+adr r1, version
+mov r2, r1		  @store start of output
+str r0, [r1], #4  @write version
+mov r0, #00
+strb r0, [r1], #4 @tailing zero byte
+mov r0, r2		  @prepare arg0 (adress to version string)
+bl s2e_message
+NOP
+NOP
+NOP
+NOP
+B _idle
+
+_idle:
+NOP
+B _idle
 
 msg:
 .asciz "Hello S2E-Android!"
 
+version:
 NOP
 NOP
-NOP
-NOP
+.end
+
