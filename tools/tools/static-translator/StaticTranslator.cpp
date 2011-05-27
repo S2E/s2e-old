@@ -31,6 +31,7 @@ extern "C" {
 #include <sys/stat.h>
 
 
+#include <lib/X86Translator/TbPreprocessor.h>
 #include <lib/BinaryReaders/BFDInterface.h>
 #include <lib/Utils/Log.h>
 
@@ -115,6 +116,9 @@ StaticTranslatorTool::StaticTranslatorTool()
 
     llvm::sys::Path libraryPath(BitcodeLibrary);
     m_translator = new X86Translator(libraryPath);
+    if (!m_translator->isInitialized()) {
+        exit(-1);
+    }
     m_translator->setBinaryFile(m_binary);
     m_translator->setSingleStep(true);
     m_translatedCode = m_experiment->getOuputFile("translated.bin");
@@ -402,6 +406,26 @@ void StaticTranslatorTool::inlineInstructions()
 {
     InstructionInliner inliner;
     inliner.runOnModule(*m_translator->getModule());
+
+    //Do some optimizations
+    FunctionPassManager fpm(m_translator->getModuleProvider());
+    fpm.add(createReassociatePass());
+    fpm.add(createConstantPropagationPass());
+    fpm.add(createInstructionCombiningPass());
+    fpm.add(createGVNPass());
+    fpm.add(createDeadInstEliminationPass());
+    fpm.add(createDeadInstEliminationPass());
+    fpm.add(createDeadStoreEliminationPass());
+    fpm.add(createCFGSimplificationPass());
+
+    Module *M = m_translator->getModule();
+    foreach(it, M->begin(), M->end()) {
+        if (!TbPreprocessor::isReconstructedFunction(*it)) {
+            continue;
+        }
+        fpm.run(*it);
+    }
+
 }
 
 void StaticTranslatorTool::outputBitcodeFile()
@@ -506,10 +530,10 @@ int main(int argc, char** argv)
     StaticTranslatorTool::AddressSet entryPoints;
 
     translator.translateAllInstructions();
-    translator.computePredecessors();
+    /*translator.computePredecessors();
     translator.computeFunctionEntryPoints(entryPoints);
     translator.reconstructFunctions(entryPoints);
-    translator.inlineInstructions();
+    translator.inlineInstructions();*/
     //translator.reconstructFunctionCalls();
 
 

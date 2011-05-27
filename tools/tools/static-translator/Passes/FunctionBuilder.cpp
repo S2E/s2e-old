@@ -18,8 +18,7 @@ extern "C" {
 
 #include "lib/Utils/Log.h"
 #include "lib/X86Translator/TbPreprocessor.h"
-#include "FunctionBuilder.h"
-#include "ForcedInliner.h"
+#include "lib/X86Translator/ForcedInliner.h"
 #include "lib/Utils/Utils.h"
 #include <iostream>
 
@@ -28,6 +27,8 @@ extern "C" {
 #include <vector>
 #include <queue>
 #include <sstream>
+
+#include "FunctionBuilder.h"
 
 using namespace llvm;
 

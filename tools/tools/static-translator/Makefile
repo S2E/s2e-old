@@ -12,7 +12,7 @@ LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scala
 NO_PEDANTIC=1
 SOURCES = StaticTranslator.cpp \
           Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp \
-          Passes/ForcedInliner.cpp Passes/FunctionBuilder.cpp \
+          Passes/FunctionBuilder.cpp \
           Passes/CallBuilder.cpp Passes/InstructionInliner.cpp
 
 include $(LEVEL)/Makefile.common

@@ -1,7 +1,8 @@
 #include "lib/Utils/Utils.h"
 #include "lib/X86Translator/TbPreprocessor.h"
+#include "lib/X86Translator/ForcedInliner.h"
 #include "InstructionInliner.h"
-#include "ForcedInliner.h"
+
 
 
 using namespace llvm;

@@ -13,6 +13,8 @@ extern "C" {
 
 #include "Translator.h"
 #include "TbPreprocessor.h"
+#include "CpuStatePatcher.h"
+
 
 #include "lib/Utils/Log.h"
 #include "lib/Utils/Utils.h"
@@ -24,9 +26,9 @@ namespace s2etools {
 
 Binary *s_currentBinary = NULL;
 bool Translator::s_translatorInited = false;
-std::string TranslatedBlock::TAG = "TranslatedBlock";
-std::string Translator::TAG = "Translator";
-std::string X86Translator::TAG = "X86Translator";
+LogKey TranslatedBlock::TAG = LogKey("TranslatedBlock");
+LogKey Translator::TAG = LogKey("Translator");
+LogKey X86Translator::TAG = LogKey("X86Translator");
 
 /*****************************************************************************
  * The following functions are invoked by the QEMU translator to read code.
@@ -131,11 +133,11 @@ Translator::Translator(const llvm::sys::Path &bitcodeLibrary) {
         bool native = false;
 
         if (linker.LinkInFile(bitcodeLibrary, native)) {
-            std::stringstream ss;
-            ss << "Linking in library " << bitcodeLibrary.c_str()  << " failed!";
-            throw TranslatorException(ss.str());
+            LOGERROR() << "Linking in library " << bitcodeLibrary.c_str()  << " failed!" << std::endl;
             return;
         }
+
+        LOGINFO() << "Linked in library " << bitcodeLibrary.c_str()  << std::endl;
 
         optimize_flags_init();
         tcg_llvm_ctx->initializeHelpers();        
@@ -241,6 +243,9 @@ TranslatedBlock *X86Translator::translate(uint64_t address)
         //ret.print(LOGDEBUG() << "BEFORE" << std::endl);
         TbPreprocessor prep(ret);
         prep.runOnFunction(*ret->getFunction());
+
+        CpuStatePatcher patcher(address);
+        patcher.runOnFunction(*ret->getFunction());
         //ret.print(LOGDEBUG() << "AFTER" << std::endl);
     }
 

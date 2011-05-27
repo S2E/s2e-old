@@ -21,6 +21,8 @@
 #include <llvm/PassManager.h>
 #include <llvm/ADT/SmallVector.h>
 
+#include "lib/Utils/Log.h"
+
 
 namespace s2etools
 {
@@ -73,7 +75,7 @@ public:
     typedef llvm::SmallVector<llvm::Value *, 2> Successors;
 
 private:
-    static std::string TAG;
+    static LogKey TAG;
 
     /* Linear address of the instruction */
     uint64_t m_address;
@@ -161,7 +163,7 @@ public:
 
 class Translator {
 private:
-    static std::string TAG;
+    static LogKey TAG;
     Binary *m_binary;
     static bool s_translatorInited;
     bool m_singlestep;
@@ -195,7 +197,7 @@ public:
 
 class X86Translator: public Translator {
 private:
-    static std::string TAG;
+    static LogKey TAG;
     llvm::FunctionPassManager *m_functionPasses;
 
 public:

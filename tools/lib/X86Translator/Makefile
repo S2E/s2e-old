@@ -18,8 +18,8 @@ SOURCES = $(S2E_SRC_ROOT)/target-i386/translate.c \
           $(S2E_SRC_ROOT)/tcg/tcg-llvm.cpp \
           $(S2E_SRC_ROOT)/cutils.c\
           $(S2E_SRC_ROOT)/translate-all.c\
-          TranslatorWrapper.cpp  \
-          Translator.cpp TbPreprocessor.cpp
+          TranslatorWrapper.cpp TbPreprocessor.cpp \
+          Translator.cpp ForcedInliner.cpp CpuStatePatcher.cpp
 
 
 include $(LEVEL)/Makefile.common
