@@ -1,6 +1,108 @@
 ARM GAS  hello.S 			page 1
 
 
+   1              	@filename s2earm-inst.S
+   2              	.text
+   3              	.arm
+   4              	
+   5              	
+   6              	@returns version in r0
+   7              	s2e_version:
+   8 0000 00402DE9 	stmfd sp!,{r14}
+   9 0004 000000FF 	.word 0xFF000000
+  10 0008 0080BDE8 	ldmfd sp!,{r15}
+  11              	
+  12              	s2e_enable_symbolic:
+  13 000c 00402DE9 	stmfd sp!,{r14}
+  14 0010 000001FF 	.word 0xFF010000
+  15 0014 0080BDE8 	ldmfd sp!,{r15}
+  16              	
+  17              	s2e_disable_symbolic:
+  18 0018 00402DE9 	stmfd sp!,{r14}
+  19 001c 000002FF 	.word 0xFF020000
+  20 0020 0080BDE8 	ldmfd sp!,{r15}
+  21              	
+  22              	@requires r0: address
+  23              	@requires r1: size
+  24              	@requires r2: address to symbolic name
+  25              	s2e_make_symbolic:
+  26 0024 00402DE9 	stmfd sp!,{r14}
+  27 0028 000003FF 	.word 0xFF030000
+  28 002c 0080BDE8 	ldmfd sp!,{r15}
+  29              	
+  30              	@returns path id to r0
+  31              	s2e_get_path_id:
+  32 0030 00402DE9 	stmfd sp!,{r14}
+  33 0034 000005FF 	.word 0xFF050000
+  34 0038 0080BDE8 	ldmfd sp!,{r15}
+  35              	
+  36              	@requires r0: status code number
+  37              	@requires r1: address to kill message
+  38              	s2e_kill_state:
+  39 003c 00402DE9 	stmfd sp!,{r14}
+  40 0040 000006FF 	.word 0xFF060000
+  41 0044 0080BDE8 	ldmfd sp!,{r15}
+  42              	
+  43              	@requires r0: expression number
+  44              	@requires r1: address to symbolic name
+  45              	s2e_print_expression:
+  46 0048 00402DE9 	stmfd sp!,{r14}
+  47 004c 000007FF 	.word 0xFF070000
+  48 0050 0080BDE8 	ldmfd sp!,{r15}
+  49              	
+  50              	@requires r0: address
+  51              	@requires r1: size
+  52              	@requires r2: address to (your abitrary) name of this memory region
+  53              	s2e_print_memory:
+  54 0054 00402DE9 	stmfd sp!,{r14}
+  55 0058 000008FF 	.word 0xFF080000
+  56 005c 0080BDE8 	ldmfd sp!,{r15}
+  57              	
+ARM GAS  hello.S 			page 2
+
+
+  58              	s2e_enable_forking:
+  59 0060 00402DE9 	stmfd sp!,{r14}
+  60 0064 000009FF 	.word 0xFF090000
+  61 0068 0080BDE8 	ldmfd sp!,{r15}
+  62              	
+  63              	s2e_disable_forking:
+  64 006c 00402DE9 	stmfd sp!,{r14}
+  65 0070 00000AFF 	.word 0xFF0A0000
+  66 0074 0080BDE8 	ldmfd sp!,{r15}
+  67              	
+  68              	@requires r0 to point to the address with the string to be printed
+  69              	s2e_message:
+  70 0078 00402DE9 	stmfd sp!,{r14}
+  71 007c 000010FF 	.word 0xFF100000
+  72 0080 0080BDE8 	ldmfd sp!,{r15}
+  73              	
+  74              	
+  75              	@requires r0: address
+  76              	@requires r1: size
+  77              	s2e_concretize:
+  78 0084 00402DE9 	stmfd sp!,{r14}
+  79 0088 000020FF 	.word 0xFF200000
+  80 008c 0080BDE8 	ldmfd sp!,{r15}
+  81              	
+  82              	@requires r0: address
+  83              	@requires r1: size
+  84              	s2e_get_example:
+  85 0090 00402DE9 	stmfd sp!,{r14}
+  86 0094 000021FF 	.word 0xFF210000
+  87 0098 0080BDE8 	ldmfd sp!,{r15}
+  88              	
+  89              	
+  90              	s2e_get_ram_object_bits:
+  91 009c 00402DE9 	stmfd sp!,{r14}
+  92 00a0 000052FF 	.word 0xFF520000
+  93 00a4 0080BDE8 	ldmfd sp!,{r15}
+  94              	
+  95              	
+  96              	s2e_merge_point:
+  97 00a8 00402DE9 	stmfd sp!,{r14}
+  98 00ac 000070FF 	.word 0xFF700000
+  99 00b0 0080BDE8 	ldmfd sp!,{r15}
    1              	@filename hello.S
    2              	.global _start
    3              	.text
@@ -16,34 +118,94 @@ ARM GAS  hello.S 			page 1
   13              	absolute section: is unrelocable (address 0 of this section maps to runtime address 0.)
   14              	
   15              	run as with the following option:
+ARM GAS  hello.S 			page 3
+
+
   16              	-mcpu=arm926e
   17              	-march=armv5te
   18              	
   19              	 
   20              	************************************************************************************/
   21              	.equ testvar, 10 @just for fun
-  22              	.set test2, 0xF00 @magic
-  23              	.text 1
+  22              	.set stackstart, 0x7000
+  23              	.set symbstart,  0x7200
   24              	
   25              	/* start code */
   26              	_start:
-  27 0000 0A00A0E3 	mov r0, #10
-  28 0004 000001FF 	.word 0xFF010000 @S2E enable Symbolic Execution 
-  29              	.align 2
-  30 0008 000002FF 	.word 0xFF020000 @S2E disable Symbolic Execution
-  31              	
-  32 000c 00008FE2 	adr r0, msg 
-  33 0010 FF100000 	.byte 0xFF, 0x10, 0x00, 0x00 @S2E print message 
-  34              	
-  35              	msg:
-  36 0014 48656C6C 	.asciz "Hello S2E-Android!"
-  36      6F205332 
-  36      452D416E 
-  36      64726F69 
-  36      642100
-  37              	
-  38 0027 0000A0E1 	NOP
-  39 002b 0000A0E1 	NOP
-  40 002f 0000A0E1 	NOP
-  41 0033 0000A0E1 	NOP
-  41      00
+  27 00b4 FFFFFFEA 		b init_stack
+  28              	
+  29              	
+  30              	init_stack: @we use full descending mode (and do not care about different execution modes)
+  31 00b8 07DAA0E3 		mov sp, #stackstart
+  32 00bc FFFFFFEA 		b main
+  33              	
+  34              	main:
+  35 00c0 010000EB 		bl initial_test
+  36 00c4 0B0000EB 		bl test_mem
+  37 00c8 230000EA 		B _idle
+  38              	
+  39              	initial_test:
+  40 00cc 00402DE9 		stmfd sp!,{r14}
+  41 00d0 728CA0E3 		mov r8, #symbstart
+  42 00d4 0A00A0E3 		mov r0, #10
+  43 00d8 CEFFFFEB 		bl s2e_disable_symbolic
+  44 00dc CAFFFFEB 		bl s2e_enable_symbolic
+  45 00e0 DEFFFFEB 		bl s2e_enable_forking
+  46 00e4 78008FE2 		adr r0, msg
+  47 00e8 E2FFFFEB 		bl s2e_message
+  48 00ec C3FFFFEB 		bl s2e_version
+  49 00f0 0050A0E1 		mov r5, r0
+  50 00f4 0080BDE8 		ldmfd sp!,{r15}
+  51              	
+  52              	test_mem:
+  53 00f8 20402DE9 		stmfd sp!,{r5, r14}
+  54 00fc 0070A0E3 		mov r7, #0
+  55 0100 CAFFFFEB 		bl s2e_get_path_id
+  56 0104 0050A0E1 		mov r5, r0
+  57 0108 E3FFFFEB 		bl s2e_get_ram_object_bits
+  58 010c 0060A0E1 		mov r6, r0
+  59              	stm0:
+  60 0110 0A0057E3 		cmp r7,#10
+  61 0114 0900000A 		beq stm1
+  62 0118 048048E2 		sub r8, r8, #4		@decrement (custom symb. value 'stack')
+  63 011c 0800A0E1 		mov r0, r8			@address of symb. value
+  64 0120 0410A0E3 		mov r1, #4			@size of symb. value = 4byte
+  65 0124 0020A0E3 		mov r2, #0			@name is empty (use default name)
+  66 0128 BDFFFFEB 	    bl s2e_make_symbolic
+  67 012c 000090E5 	    ldr r0, [r0,#0]		@get the symbolic value?
+  68 0130 000050E3 	    cmp r0, #0
+  69 0134 0100000A 	    beq stm1
+  70 0138 017087E2 	    add r7, #1
+  71 013c F3FFFFEA 	    b stm0
+  72              	stm1:
+ARM GAS  hello.S 			page 4
+
+
+  73 0140 BAFFFFEB 		bl s2e_get_path_id
+  74 0144 0190A0E3 		mov r9, #1
+  75 0148 1996A0E1 		mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
+  76 014c 0900A0E1 		mov r0, r9			@expression
+  77 0150 1F108FE2 		adr r1, val			@name
+  78 0154 BBFFFFEB 		bl s2e_print_expression
+  79 0158 2080BDE8 		ldmfd sp!,{r5, r15}		@lets stop here for now
+  80              	
+  81              	_idle:
+  82 015c 0000A0E1 		NOP
+  83 0160 FDFFFFEA 		B _idle
+  84              	
+  85              	msg:
+  86 0164 48656C6C 		.asciz "Hello S2E-Android!"
+  86      6F205332 
+  86      452D416E 
+  86      64726F69 
+  86      642100
+  87              	val:
+  88 0177 50616765 		.asciz "Pagesize: "
+  88      73697A65 
+  88      3A2000
+  89              	
+  90              	version:
+  91 0182 0000A0E1 		NOP
+  92 0186 0000A0E1 		NOP
+  93              	
+  94              	.end

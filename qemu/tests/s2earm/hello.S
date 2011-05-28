@@ -19,40 +19,77 @@ run as with the following option:
  
 ************************************************************************************/
 .equ testvar, 10 @just for fun
-.set test2, 0xF00 @magic
-.text 1
+.set stackstart, 0x7000
+.set symbstart,  0x7200
 
 /* start code */
 _start:
-mov r0, #10
-bl s2e_enable_symbolic
-bl s2e_disable_symbolic
-adr r0, msg 
-bl s2e_message
-bl s2e_version
-@todo: improve code below
-adr r1, version
-mov r2, r1		  @store start of output
-str r0, [r1], #4  @write version
-mov r0, #00
-strb r0, [r1], #4 @tailing zero byte
-mov r0, r2		  @prepare arg0 (adress to version string)
-bl s2e_message
-NOP
-NOP
-NOP
-NOP
-B _idle
+	b init_stack
+
+
+init_stack: @we use full descending mode (and do not care about different execution modes)
+	mov sp, #stackstart
+	b main
+
+main:
+	bl initial_test
+	bl test_mem
+	B _idle
+
+initial_test:
+	stmfd sp!,{r14}
+	mov r8, #symbstart
+	mov r0, #10
+	bl s2e_disable_symbolic
+	bl s2e_enable_symbolic
+	bl s2e_enable_forking
+	adr r0, msg
+	bl s2e_message
+	bl s2e_version
+	mov r5, r0
+	ldmfd sp!,{r15}
+
+test_mem:
+	stmfd sp!,{r5, r14}
+	mov r7, #0
+	bl s2e_get_path_id
+	mov r5, r0
+	bl s2e_get_ram_object_bits
+	mov r6, r0
+stm0:
+	cmp r7,#10
+	beq stm1
+	sub r8, r8, #4		@decrement (custom symb. value 'stack')
+	mov r0, r8			@address of symb. value
+	mov r1, #4			@size of symb. value = 4byte
+	mov r2, #0			@name is empty (use default name)
+    bl s2e_make_symbolic
+    ldr r0, [r0,#0]		@get the symbolic value?
+    cmp r0, #0
+    beq stm1
+    add r7, #1
+    b stm0
+stm1:
+	bl s2e_get_path_id
+	mov r9, #1
+	mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
+	mov r0, r9			@expression
+	adr r1, val			@name
+	bl s2e_print_expression
+	ldmfd sp!,{r5, r15}		@lets stop here for now
 
 _idle:
-NOP
-B _idle
+	NOP
+	B _idle
 
 msg:
-.asciz "Hello S2E-Android!"
+	.asciz "Hello S2E-Android!"
+val:
+	.asciz "Pagesize: "
 
 version:
-NOP
-NOP
+	NOP
+	NOP
+
 .end
 
