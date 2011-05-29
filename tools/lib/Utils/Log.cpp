@@ -143,6 +143,18 @@ LogKey::LogKey(const std::string &tag)
     m_tag = tag;
 }
 
+int DoLog(int logLevel, const LogKey &k)
+{
+    Logger::Initialize();
+    if (!k.isTracked()) {
+        return 0;
+    }
+
+    if (logLevel < LogLevel) {
+        return 0;
+    }
+    return 1;
+}
 
 std::ostream& Log(int logLevel, const LogKey &k)
 {

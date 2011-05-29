@@ -95,13 +95,15 @@ public:
 /** Get the logging stream */
 std::ostream& Log(int logLevel, const LogKey &k);
 
+int DoLog(int level, const LogKey &k);
+
 #define __LOG_SUFFIX(level) s2etools::Log(level, TAG) << std::dec << '[' << level << "] " << \
 TAG.getTag() << ":" << __FUNCTION__ << " - "
 
-#define LOGDEBUG() __LOG_SUFFIX(LOG_DEBUG)
-#define LOGWARNING() __LOG_SUFFIX(LOG_WARNING)
-#define LOGINFO() __LOG_SUFFIX(LOG_INFO)
-#define LOGERROR() __LOG_SUFFIX(LOG_ERROR)
+#define LOGDEBUG(a) if (DoLog(LOG_DEBUG, TAG)) __LOG_SUFFIX(LOG_DEBUG) << a
+#define LOGWARNING(a) if (DoLog(LOG_WARNING, TAG)) __LOG_SUFFIX(LOG_WARNING) << a
+#define LOGINFO(a) if (DoLog(LOG_INFO, TAG)) __LOG_SUFFIX(LOG_INFO) << a
+#define LOGERROR(a) if (DoLog(LOG_ERROR, TAG)) __LOG_SUFFIX(LOG_ERROR) << a
 
 }
 

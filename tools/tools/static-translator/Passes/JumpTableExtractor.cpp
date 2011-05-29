@@ -80,8 +80,8 @@ uint64_t JumpTableExtractor::getOffset(Value *address) const
 
 bool JumpTableExtractor::runOnFunction(llvm::Function &F)
 {
-    LOGDEBUG() << "INDIRECT CALL FCN" << std::endl;
-    LOGDEBUG() << F;
+    LOGDEBUG("INDIRECT CALL FCN" << std::endl);
+    LOGDEBUG(F);
 
     Value *address = getIndirectCallAddress(F);
     if (!address) {
@@ -90,7 +90,7 @@ bool JumpTableExtractor::runOnFunction(llvm::Function &F)
 
     uint64_t offset = getOffset(address);
     if (!offset) {
-        LOGINFO() << "Could not find jump table (offset not found)" << std::endl;
+        LOGINFO("Could not find jump table (offset not found)" << std::endl);
         return false;
     }
 

@@ -78,7 +78,7 @@ bool PeReader::isValid(MemoryFile *file)
     }
 
     if (ntHeader->OptionalHeader.FileAlignment != ntHeader->OptionalHeader.SectionAlignment) {
-        LOGERROR() << "The binary must have the same on-disk and in-memory alignment!" << std::endl;
+        LOGERROR("The binary must have the same on-disk and in-memory alignment!" << std::endl);
         return false;
     }
 
@@ -133,7 +133,7 @@ bool PeReader::resolveImports()
                 uint32_t tmp = importNameTable->u1.AddressOfData & ~0xFFFF;
                 tmp &= ~IMAGE_ORDINAL_FLAG;
                 if (!tmp) {
-                    LOGERROR() << "No support for import by ordinals" << std::endl;
+                    LOGERROR("No support for import by ordinals" << std::endl);
                     continue;
                 }
             }else {
@@ -177,7 +177,7 @@ bool PeReader::processesRelocations()
     while (sectionOffset < relocsDir->Size) {
         unsigned relocCount = (relocs->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(uint16_t);
         uint16_t *relocEntries = (uint16_t*)((uint8_t*)relocs + sizeof(IMAGE_BASE_RELOCATION));
-        LOGDEBUG() << "RelocChunk: 0x" << std::hex << relocs->VirtualAddress + loadBase << std::endl;
+        LOGDEBUG("RelocChunk: 0x" << std::hex << relocs->VirtualAddress + loadBase << std::endl);
         for (unsigned i=0; i<relocCount; ++i) {
             unsigned type = relocEntries[i] >> 12;
             unsigned offset = relocEntries[i] & 0xFFF;
@@ -193,10 +193,10 @@ bool PeReader::processesRelocations()
             re.size = sizeof(uint32_t);
 
             if (!read(re.va, &re.originalValue, re.size)) {
-                LOGERROR() << "Could not read data at address 0x" << std::hex << re.va << std::endl;
+                LOGERROR("Could not read data at address 0x" << std::hex << re.va << std::endl);
                 continue;
             }
-            LOGDEBUG() << std::hex << "  RelocEntry: " << type << " Offset: " << offset << " OrigValue=0x" << re.originalValue << std::endl;
+            LOGDEBUG(std::hex << "  RelocEntry: " << type << " Offset: " << offset << " OrigValue=0x" << re.originalValue << std::endl);
 
 
             re.targetValue = re.originalValue;

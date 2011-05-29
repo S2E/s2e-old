@@ -108,7 +108,7 @@ StaticTranslatorTool::StaticTranslatorTool()
 
     m_bfd = new BFDInterface(InputFile, false);
     if (!m_bfd->initialize(BfdFormat)) {
-        LOGDEBUG() << "Could not open " << InputFile << std::endl;
+        LOGERROR("Could not open " << InputFile << std::endl);
         exit(-1);
     }
 
@@ -152,9 +152,9 @@ void StaticTranslatorTool::loadLibraries()
     foreach(it, Libraries.begin(), Libraries.end()) {
         const llvm::sys::Path path(*it);
         if (linker.LinkInFile(path, native)) {
-            LOGERROR() << "Linking in library " << (*it)  << " failed!" << std::endl;
+            LOGERROR("Linking in library " << (*it)  << " failed!" << std::endl);
         }else {
-            LOGINFO() << "Linked in library " << (*it)  << std::endl;
+            LOGINFO("Linked in library " << (*it)  << std::endl);
         }
     }
     linker.releaseModule();
@@ -234,7 +234,7 @@ void StaticTranslatorTool::translateAllInstructions()
     uint64_t ep = getEntryPoint();
 
     if (!ep) {
-        LOGERROR() << "Could not get entry point of " << InputFile << std::endl;
+        LOGERROR("Could not get entry point of " << InputFile << std::endl);
         exit(-1);
     }
 
@@ -248,13 +248,13 @@ void StaticTranslatorTool::translateAllInstructions()
         }
         m_exploredAddresses.insert(addr);
 
-        LOGDEBUG() << "L: Translating at address 0x" << std::hex << addr << std::endl;
+        LOGDEBUG("L: Translating at address 0x" << std::hex << addr << std::endl);
 
         TranslatedBlock *bblock = NULL;
         try {
             bblock = m_translator->translate(addr);
         }catch(InvalidAddressException &e) {
-            LOGERROR() << "Could not access address 0x" << std::hex << e.getAddress() << std::endl;
+            LOGERROR("Could not access address 0x" << std::hex << e.getAddress() << std::endl);
             continue;
         }
 
@@ -273,7 +273,7 @@ void StaticTranslatorTool::translateAllInstructions()
 
     }
 
-    LOGINFO() << "There are " << std::dec << m_translatedInstructions.size() << " instructions" << std::endl;
+    LOGINFO("There are " << std::dec << m_translatedInstructions.size() << " instructions" << std::endl);
 
 }
 
@@ -323,7 +323,7 @@ void StaticTranslatorTool::extractAddresses(llvm::Function *llvmInstruction, boo
         jumpTableExtractor.runOnFunction(*llvmInstruction);
         jumpTableAddress = jumpTableExtractor.getJumpTableAddress();
         if (jumpTableAddress) {
-            LOGDEBUG() << "Found jump table at 0x" << std::hex << jumpTableAddress << std::endl;
+            LOGDEBUG("Found jump table at 0x" << std::hex << jumpTableAddress << std::endl);
         }
     }
 
@@ -353,11 +353,11 @@ void StaticTranslatorTool::extractAddresses(llvm::Function *llvmInstruction, boo
         //Skip strings
         std::string str;
         if (checkString(addr, str, false) || checkString(addr, str, true)) {
-            LOGDEBUG() << "Found string at 0x" << std::hex << addr << ": " << str << std::endl;
+            LOGDEBUG("Found string at 0x" << std::hex << addr << ": " << str << std::endl);
             continue;
         }
 
-        LOGDEBUG() << "L: Found new address 0x" << std::hex << addr << std::endl;
+        LOGDEBUG("L: Found new address 0x" << std::hex << addr << std::endl);
         m_addressesToExplore.insert(addr);
     }
 }
@@ -371,13 +371,13 @@ void StaticTranslatorTool::reconstructFunctions(const AddressSet &entryPoints)
         StaticTranslatorTool::AddressSet instructions;
         computeFunctionInstructions(ep, instructions);
 
-        LOGDEBUG() << "EP: 0x" << std::hex << ep << std::endl;
+        LOGDEBUG("EP: 0x" << std::hex << ep << std::endl);
         foreach(iit, instructions.begin(), instructions.end()) {
             if (alreadyExplored.count(*iit)) {
-                LOGERROR() << "Instruction 0x" << *iit << " of function 0x" << std::hex << ep << " already in another function" << std::endl;
+                LOGERROR("Instruction 0x" << *iit << " of function 0x" << std::hex << ep << " already in another function" << std::endl);
             }
             alreadyExplored.insert(*iit);
-            LOGDEBUG() << "    " << std::hex << *iit << std::endl;
+            LOGDEBUG("    " << std::hex << *iit << std::endl);
         }
 
         FunctionBuilder functionBuilder(m_translatedInstructions, instructions, ep);

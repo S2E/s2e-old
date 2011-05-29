@@ -69,7 +69,7 @@ void FunctionBuilder::computeBasicBlockBoundaries()
             //XXX: we should resolve statically all possible targets
             //here
             case BB_JMP_IND:
-                LOGERROR() << "RevGen does not support indirect branches yet..." << std::endl;
+                LOGERROR("RevGen does not support indirect branches yet..." << std::endl);
                 //dest = dyn_cast<ConstantInt>(tb->getDestination());
                 break;
 
@@ -322,7 +322,7 @@ bool FunctionBuilder::runOnModule(llvm::Module &M)
     createFunction(M);
     computeBasicBlockBoundaries();
     buildFunction(M);
-    LOGDEBUG() << *m_function << std::flush;
+    //LOGDEBUG(*m_function << std::flush);
     return true;
 }
 

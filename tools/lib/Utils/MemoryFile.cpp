@@ -88,19 +88,19 @@ MemoryFile::MemoryFile(const std::string &fileName)
 #else
     int file = open(fileName.c_str(), O_RDONLY);
     if (file<0) {
-        LOGERROR() << "LogParser: Could not open " << fileName << std::endl;
+        LOGERROR("LogParser: Could not open " << fileName << std::endl);
         return;
     }
 
     off_t fileSize = lseek(file, 0, SEEK_END);
     if (fileSize == (off_t) -1) {
-        LOGERROR() << "Could not get log file size" << std::endl;
+        LOGERROR("Could not get log file size" << std::endl);
         return;
     }
 
     m_file = mmap(NULL, fileSize, PROT_READ|PROT_WRITE, MAP_PRIVATE, file, 0);
     if (!m_file) {
-        LOGERROR() << "Could not map the log file in memory" << std::endl;
+        LOGERROR("Could not map the log file in memory" << std::endl);
         close(file);
         return;
     }

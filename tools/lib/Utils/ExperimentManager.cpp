@@ -94,7 +94,7 @@ bool ExperimentManager::initializeOutputDirectory()
         }
     }
 
-    LOGINFO() << "X2L: output directory = \"" << finalOutputFolder << "\"" << std::endl;
+    LOGINFO("X2L: output directory = \"" << finalOutputFolder << "\"" << std::endl);
 
 #ifdef _WIN32
     if(mkdir(finalOutputFolder.c_str()) < 0) {
@@ -102,7 +102,7 @@ bool ExperimentManager::initializeOutputDirectory()
     if(mkdir(finalOutputFolder.c_str(), 0775) < 0)
 #endif
     {
-        LOGERROR() << "Unable to create output directory" << std::endl;
+        LOGERROR("Unable to create output directory" << std::endl);
         return false;
     }
 
@@ -112,12 +112,12 @@ bool ExperimentManager::initializeOutputDirectory()
     s2eLast.appendComponent(m_prefix + "-last");
 
     if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
-        LOGERROR() <<  "Cannot unlink " << m_prefix << "-last" << std::endl;
+        LOGERROR("Cannot unlink " << m_prefix << "-last" << std::endl);
         return false;
     }
 
     if (symlink(finalOutputFolder.c_str(), s2eLast.c_str()) < 0) {
-        LOGERROR() << "Cannot make symlink " << m_prefix << "-last" << std::endl;
+        LOGERROR("Cannot make symlink " << m_prefix << "-last" << std::endl);
         return false;
     }
 #endif

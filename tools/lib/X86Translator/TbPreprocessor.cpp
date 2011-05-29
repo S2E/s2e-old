@@ -225,7 +225,7 @@ void TbPreprocessor::markCall(Function &f)
     Value *destination, *fallback;
     CallInst *destMarker, *fbMarker;
     if (!findFinalPcAssignments(f, &destination, &fallback, &destMarker, &fbMarker)) {
-        LOGERROR() << "No program counter assignments in the LLVM function" << f << std::endl;
+        LOGERROR("No program counter assignments in the LLVM function" << f << std::endl);
         assert(false);
     }
 
@@ -278,7 +278,7 @@ void TbPreprocessor::extractJumpInfo(Function &f)
     Value *destination=NULL, *fallback=NULL;
     CallInst *destMarker, *fbMarker;
     if (!findFinalPcAssignments(f, &destination, &fallback, &destMarker, &fbMarker)) {
-        LOGERROR() << "No program counter assignments in the LLVM function" << f << std::endl;
+        LOGERROR("No program counter assignments in the LLVM function" << f << std::endl);
         assert(false);
     }
 

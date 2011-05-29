@@ -133,11 +133,11 @@ Translator::Translator(const llvm::sys::Path &bitcodeLibrary) {
         bool native = false;
 
         if (linker.LinkInFile(bitcodeLibrary, native)) {
-            LOGERROR() << "Linking in library " << bitcodeLibrary.c_str()  << " failed!" << std::endl;
+            LOGERROR("Linking in library " << bitcodeLibrary.c_str()  << " failed!" << std::endl);
             return;
         }
 
-        LOGINFO() << "Linked in library " << bitcodeLibrary.c_str()  << std::endl;
+        LOGINFO("Linked in library " << bitcodeLibrary.c_str()  << std::endl);
 
         optimize_flags_init();
         tcg_llvm_ctx->initializeHelpers();        

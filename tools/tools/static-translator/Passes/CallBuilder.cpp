@@ -24,19 +24,19 @@ bool CallBuilder::resolveImport(uint64_t address, std::string &functionName)
 {
     uint32_t target =  m_binary->readAddressFromImportTable(address);
     if (!target) {
-        LOGDEBUG() << "Could not read import entry 0x" << std::hex << address << std::endl;
+        LOGDEBUG("Could not read import entry 0x" << std::hex << address << std::endl);
         return false;
     }
 
     const Imports &imports = m_binary->getImports();
     Imports::const_iterator iit = imports.find(target);
     if (iit == imports.end()) {
-        LOGDEBUG() << "No imported function at 0x" << std::hex << target << std::endl;
+        LOGDEBUG("No imported function at 0x" << std::hex << target << std::endl);
         return false;
     }
 
-    LOGDEBUG() << "Found function " << (*iit).second.first << "!" <<
-            (*iit).second.second << std::endl;
+    LOGDEBUG("Found function " << (*iit).second.first << "!" <<
+            (*iit).second.second << std::endl);
 
     functionName = (*iit).second.second;
     return true;
@@ -83,9 +83,9 @@ bool CallBuilder::processCallMarker(Module &M, CallInst *marker)
         }
 
         //Not an internal function call
-        LOGERROR() << "Could not determine call target for address 0x"
+        LOGERROR("Could not determine call target for address 0x"
                 << std::hex << cste->getZExtValue() << " for call " <<
-                *marker << std::endl;
+                *marker << std::endl);
         return false;
     }else {
         return processIndirectCall(marker);
@@ -111,9 +111,9 @@ bool CallBuilder::runOnModule(llvm::Module &M)
 
 
         if (!processCallMarker(M, ci)) {
-            LOGDEBUG() << "Could not process " << *ci <<
+            LOGDEBUG("Could not process " << *ci <<
                     " in function " << ci->getParent()->getParent()->getNameStr()
-                    <<std::endl;
+                    <<std::endl);
             ++unprocessedCallsCount;
         }
 
@@ -121,9 +121,9 @@ bool CallBuilder::runOnModule(llvm::Module &M)
     }
 
     if (unprocessedCallsCount > 0) {
-        LOGINFO() << "Processed " << std::dec << processedCallsCount << " calls" << std::endl;
-        LOGERROR() << "Could not process " << std::dec << unprocessedCallsCount
-                << " calls" << std::endl;
+        LOGINFO("Processed " << std::dec << processedCallsCount << " calls" << std::endl);
+        LOGERROR("Could not process " << std::dec << unprocessedCallsCount
+                << " calls" << std::endl);
     }
 
     return processedCallsCount > 0;
