@@ -52,6 +52,10 @@ public:
     llvm::Function *getTransformed() const {
         return m_transformed;
     }
+
+    static std::string getCpuStateTypeName() {
+        return s_cpuStateTypeName;
+    }
 };
 
 }

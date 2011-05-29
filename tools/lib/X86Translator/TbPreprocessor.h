@@ -54,6 +54,7 @@ private:
     llvm::Function *m_forkAndConcretize;
 
     TranslatedBlock *m_tb;
+    const llvm::StructType *m_envType;
 
     static std::string s_instructionMarker;
     static std::string s_jumpMarker;

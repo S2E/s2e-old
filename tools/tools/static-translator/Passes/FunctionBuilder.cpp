@@ -117,19 +117,12 @@ void FunctionBuilder::callInstruction(BasicBlock *bb, Function *f)
 void FunctionBuilder::buildPcGep(Module &M, BasicBlock *bb)
 {
     Value *env = &*bb->getParent()->arg_begin();
-    //First load the environment pointer
-    Value *zero = ConstantInt::get(M.getContext(), APInt(32,  0));
-    GetElementPtrInst *envPtr = GetElementPtrInst::Create(env, zero, "", bb);
-    m_env = new LoadInst(envPtr, "", bb);
 
-    //Then create the pointer to the program counter
-    ConstantInt *pcOffset = ConstantInt::get(M.getContext(), APInt(m_env->getRawType()->getScalarSizeInBits(), offsetof(CPUState, eip)));
-    Instruction *addPcOffset = BinaryOperator::CreateAdd(m_env, pcOffset);
-    //XXX: Assumptions about source architecture!
-    m_pcptr = new IntToPtrInst(addPcOffset, PointerType::get(IntegerType::get(M.getContext(), 32), 0));
+    SmallVector<Value*, 2>gepElements;
+    gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  0)));
+    gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  5)));
 
-    addPcOffset->insertAfter(&bb->back());
-    m_pcptr->insertAfter(addPcOffset);
+    m_pcptr = GetElementPtrInst::Create(env, gepElements.begin(), gepElements.end(), "", bb);
 }
 
 void FunctionBuilder::buildConditionalBranch(Module &M, BasicBlocksMap &bbmap, BasicBlock *bb, TranslatedBlock *tb)

@@ -243,22 +243,39 @@ TranslatedBlock *X86Translator::translate(uint64_t address)
 
     TranslatedBlock *ret = new TranslatedBlock(address, tb.size, (Function*)tb.llvm_function, bbType);
 
-    //CFG simiplification is required because TbPreprocessor assumes that the
-    //program counter is always updated in blocks ending with a ret.
-    m_functionPasses->run(*ret->getFunction());
-
     if (isSingleStep()) {
+        Function *fcn = ret->getFunction();
+
+        //LOGDEBUG() << "BEFORE DEUG" <<  std::endl;
+        //LOGDEBUG() << *fcn << std::flush;
+
+
+        //Deuglygepify
+        CpuStatePatcher patcher(address);
+        patcher.runOnFunction(*fcn);
+        fcn = patcher.getTransformed();
+
+        ret->setFunction(fcn);
+
+        //CFG simiplification is required because TbPreprocessor assumes that the
+        //program counter is always updated in blocks ending with a ret.
+        m_functionPasses->run(*ret->getFunction());
+
+        //LOGDEBUG() << "BEFORE PREP" <<  std::endl;
+        //LOGDEBUG() << *fcn << std::flush;
+
+        //Insert various markers
         TbPreprocessor prep(ret);
         prep.runOnFunction(*ret->getFunction());
 
-        CpuStatePatcher patcher(address);
-        patcher.runOnFunction(*ret->getFunction());
+        //Optimize the resulting function.
+        m_functionOptPasses->run(*fcn);
 
-        //Optimize the resulting function
-        m_functionOptPasses->run(*patcher.getTransformed());
-        ret->setFunction(patcher.getTransformed());
+
         //LOGDEBUG() << "AFTER" <<  std::endl;
-        //LOGDEBUG() << *patcher.getTransformed();
+        //LOGDEBUG() << *fcn << std::flush;
+    }else {
+        m_functionPasses->run(*ret->getFunction());
     }
 
     return ret;

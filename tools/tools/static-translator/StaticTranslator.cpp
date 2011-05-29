@@ -530,11 +530,11 @@ int main(int argc, char** argv)
     StaticTranslatorTool::AddressSet entryPoints;
 
     translator.translateAllInstructions();
-    /*translator.computePredecessors();
+    translator.computePredecessors();
     translator.computeFunctionEntryPoints(entryPoints);
     translator.reconstructFunctions(entryPoints);
-    translator.inlineInstructions();*/
-    //translator.reconstructFunctionCalls();
+    translator.inlineInstructions();
+    translator.reconstructFunctionCalls();
 
 
 #if 0
