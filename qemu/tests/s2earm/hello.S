@@ -42,6 +42,7 @@ initial_test:
 	mov r0, #10
 	bl s2e_disable_symbolic
 	bl s2e_enable_symbolic
+	bl s2e_disable_forking
 	bl s2e_enable_forking
 	adr r0, msg
 	bl s2e_message
@@ -64,10 +65,10 @@ stm0:
 	mov r1, #4			@size of symb. value = 4byte
 	mov r2, #0			@name is empty (use default name)
     bl s2e_make_symbolic
-    ldr r0, [r0,#0]		@get the symbolic value?
-    cmp r0, #0
+    ldr r10, [r8,#0]		@get the symbolic value?
+    cmp r10, #0
     beq stm1
-    add r7, #1
+    add r7, r7, #1
     b stm0
 stm1:
 	bl s2e_get_path_id
@@ -76,16 +77,62 @@ stm1:
 	mov r0, r9			@expression
 	adr r1, val			@name
 	bl s2e_print_expression
-	ldmfd sp!,{r5, r15}		@lets stop here for now
+	mov r4, #1048576 @ starting memory address 0x100000
+stm2_restart:
+	mov r10, r9		@(re)arm counter
+stm2:
+	@Fill page with test pattern (path id stored in r5)
+	str r5, [r4],#+4
+	sub r10, r10, #1 @decrease counter
+	cmp r10, #0
+	bne stm2
+	mov r10, r9 @reset counter
+	mov r10, r10, lsl #2
+	sub r4, r4, r10 @get back to memory starting address
+	mov r10, r9 @reset counter
+	adr r1, mem			@name param2 for print expression
+stm3:
+	@Check that the memory is correct
+	ldr r0, [r4],#+4
+	sub r10, r10, #1
+	cmp r0, r5 @do we get the path id back?
+	bne sterr  @if not, goto error
+	mov r0, r4
+	bl s2e_print_expression
+	cmp r10, #0
+	bne stm3
+
+	cmp r4, #16777216 @ 0x1000000
+	blt stm2_restart
+
+	@successfully completed mem test
+	mov r0, #0
+	adr r1, memok
+	bl s2e_kill_state
+	bl _idle
+	ldmfd sp!,{r5, r15}
 
 _idle:
 	NOP
 	B _idle
 
+sterr:
+mov r0, r4
+adr r1, membad
+bl s2e_kill_state
+bl _idle
+
 msg:
 	.asciz "Hello S2E-Android!"
 val:
 	.asciz "Pagesize: "
+mem:
+	.asciz "Memcheck: "
+
+memok:
+	.asciz "Memory test passed ok"
+membad:
+	.asciz "MEMORY TEST FAILED"
 
 version:
 	NOP

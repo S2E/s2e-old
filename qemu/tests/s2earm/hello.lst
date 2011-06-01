@@ -141,8 +141,8 @@ ARM GAS  hello.S 			page 1
   33              	
   34              	main:
   35 00c0 010000EB 		bl initial_test
-  36 00c4 0B0000EB 		bl test_mem
-  37 00c8 230000EA 		B _idle
+  36 00c4 0C0000EB 		bl test_mem
+  37 00c8 3D0000EA 		B _idle
   38              	
   39              	initial_test:
   40 00cc 00402DE9 		stmfd sp!,{r14}
@@ -150,62 +150,122 @@ ARM GAS  hello.S 			page 1
   42 00d4 0A00A0E3 		mov r0, #10
   43 00d8 CEFFFFEB 		bl s2e_disable_symbolic
   44 00dc CAFFFFEB 		bl s2e_enable_symbolic
-  45 00e0 DEFFFFEB 		bl s2e_enable_forking
-  46 00e4 78008FE2 		adr r0, msg
-  47 00e8 E2FFFFEB 		bl s2e_message
-  48 00ec C3FFFFEB 		bl s2e_version
-  49 00f0 0050A0E1 		mov r5, r0
-  50 00f4 0080BDE8 		ldmfd sp!,{r15}
-  51              	
-  52              	test_mem:
-  53 00f8 20402DE9 		stmfd sp!,{r5, r14}
-  54 00fc 0070A0E3 		mov r7, #0
-  55 0100 CAFFFFEB 		bl s2e_get_path_id
-  56 0104 0050A0E1 		mov r5, r0
-  57 0108 E3FFFFEB 		bl s2e_get_ram_object_bits
-  58 010c 0060A0E1 		mov r6, r0
-  59              	stm0:
-  60 0110 0A0057E3 		cmp r7,#10
-  61 0114 0900000A 		beq stm1
-  62 0118 048048E2 		sub r8, r8, #4		@decrement (custom symb. value 'stack')
-  63 011c 0800A0E1 		mov r0, r8			@address of symb. value
-  64 0120 0410A0E3 		mov r1, #4			@size of symb. value = 4byte
-  65 0124 0020A0E3 		mov r2, #0			@name is empty (use default name)
-  66 0128 BDFFFFEB 	    bl s2e_make_symbolic
-  67 012c 000090E5 	    ldr r0, [r0,#0]		@get the symbolic value?
-  68 0130 000050E3 	    cmp r0, #0
-  69 0134 0100000A 	    beq stm1
-  70 0138 017087E2 	    add r7, #1
-  71 013c F3FFFFEA 	    b stm0
-  72              	stm1:
+  45 00e0 E1FFFFEB 		bl s2e_disable_forking
+  46 00e4 DDFFFFEB 		bl s2e_enable_forking
+  47 00e8 EC008FE2 		adr r0, msg
+  48 00ec E1FFFFEB 		bl s2e_message
+  49 00f0 C2FFFFEB 		bl s2e_version
+  50 00f4 0050A0E1 		mov r5, r0
+  51 00f8 0080BDE8 		ldmfd sp!,{r15}
+  52              	
+  53              	test_mem:
+  54 00fc 20402DE9 		stmfd sp!,{r5, r14}
+  55 0100 0070A0E3 		mov r7, #0
+  56 0104 C9FFFFEB 		bl s2e_get_path_id
+  57 0108 0050A0E1 		mov r5, r0
+  58 010c E2FFFFEB 		bl s2e_get_ram_object_bits
+  59 0110 0060A0E1 		mov r6, r0
+  60              	stm0:
+  61 0114 0A0057E3 		cmp r7,#10
+  62 0118 0900000A 		beq stm1
+  63 011c 048048E2 		sub r8, r8, #4		@decrement (custom symb. value 'stack')
+  64 0120 0800A0E1 		mov r0, r8			@address of symb. value
+  65 0124 0410A0E3 		mov r1, #4			@size of symb. value = 4byte
+  66 0128 0020A0E3 		mov r2, #0			@name is empty (use default name)
+  67 012c BCFFFFEB 	    bl s2e_make_symbolic
+  68 0130 00A098E5 	    ldr r10, [r8,#0]		@get the symbolic value?
+  69 0134 00005AE3 	    cmp r10, #0
+  70 0138 0100000A 	    beq stm1
+  71 013c 017087E2 	    add r7, r7, #1
+  72 0140 F3FFFFEA 	    b stm0
 ARM GAS  hello.S 			page 4
 
 
-  73 0140 BAFFFFEB 		bl s2e_get_path_id
-  74 0144 0190A0E3 		mov r9, #1
-  75 0148 1996A0E1 		mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
-  76 014c 0900A0E1 		mov r0, r9			@expression
-  77 0150 1F108FE2 		adr r1, val			@name
-  78 0154 BBFFFFEB 		bl s2e_print_expression
-  79 0158 2080BDE8 		ldmfd sp!,{r5, r15}		@lets stop here for now
-  80              	
-  81              	_idle:
-  82 015c 0000A0E1 		NOP
-  83 0160 FDFFFFEA 		B _idle
-  84              	
-  85              	msg:
-  86 0164 48656C6C 		.asciz "Hello S2E-Android!"
-  86      6F205332 
-  86      452D416E 
-  86      64726F69 
-  86      642100
-  87              	val:
-  88 0177 50616765 		.asciz "Pagesize: "
-  88      73697A65 
-  88      3A2000
-  89              	
-  90              	version:
-  91 0182 0000A0E1 		NOP
-  92 0186 0000A0E1 		NOP
-  93              	
-  94              	.end
+  73              	stm1:
+  74 0144 B9FFFFEB 		bl s2e_get_path_id
+  75 0148 0190A0E3 		mov r9, #1
+  76 014c 1996A0E1 		mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
+  77 0150 0900A0E1 		mov r0, r9			@expression
+  78 0154 93108FE2 		adr r1, val			@name
+  79 0158 BAFFFFEB 		bl s2e_print_expression
+  80 015c 0146A0E3 		mov r4, #1048576 @ starting memory address 0x100000
+  81              	stm2_restart:
+  82 0160 09A0A0E1 		mov r10, r9		@(re)arm counter
+  83              	stm2:
+  84              		@Fill page with test pattern (path id stored in r5)
+  85 0164 045084E4 		str r5, [r4],#+4
+  86 0168 01A04AE2 		sub r10, r10, #1 @decrease counter
+  87 016c 00005AE3 		cmp r10, #0
+  88 0170 FBFFFF1A 		bne stm2
+  89 0174 09A0A0E1 		mov r10, r9 @reset counter
+  90 0178 0AA1A0E1 		mov r10, r10, lsl #2
+  91 017c 0A4044E0 		sub r4, r4, r10 @get back to memory starting address
+  92 0180 09A0A0E1 		mov r10, r9 @reset counter
+  93 0184 6E108FE2 		adr r1, mem			@name param2 for print expression
+  94              	stm3:
+  95              		@Check that the memory is correct
+  96 0188 040094E4 		ldr r0, [r4],#+4
+  97 018c 01A04AE2 		sub r10, r10, #1
+  98 0190 050050E1 		cmp r0, r5 @do we get the path id back?
+  99 0194 0C00001A 		bne sterr  @if not, goto error
+ 100 0198 0400A0E1 		mov r0, r4
+ 101 019c A9FFFFEB 		bl s2e_print_expression
+ 102 01a0 00005AE3 		cmp r10, #0
+ 103 01a4 F7FFFF1A 		bne stm3
+ 104              	
+ 105 01a8 010454E3 		cmp r4, #16777216 @ 0x1000000
+ 106 01ac EBFFFFBA 		blt stm2_restart
+ 107              	
+ 108              		@successfully completed mem test
+ 109 01b0 0000A0E3 		mov r0, #0
+ 110 01b4 49108FE2 		adr r1, memok
+ 111 01b8 9FFFFFEB 		bl s2e_kill_state
+ 112 01bc 000000EB 		bl _idle
+ 113 01c0 2080BDE8 		ldmfd sp!,{r5, r15}
+ 114              	
+ 115              	_idle:
+ 116 01c4 0000A0E1 		NOP
+ 117 01c8 FDFFFFEA 		B _idle
+ 118              	
+ 119              	sterr:
+ 120 01cc 0400A0E1 	mov r0, r4
+ 121 01d0 43108FE2 	adr r1, membad
+ 122 01d4 98FFFFEB 	bl s2e_kill_state
+ 123 01d8 F9FFFFEB 	bl _idle
+ 124              	
+ 125              	msg:
+ 126 01dc 48656C6C 		.asciz "Hello S2E-Android!"
+ 126      6F205332 
+ 126      452D416E 
+ 126      64726F69 
+ARM GAS  hello.S 			page 5
+
+
+ 126      642100
+ 127              	val:
+ 128 01ef 50616765 		.asciz "Pagesize: "
+ 128      73697A65 
+ 128      3A2000
+ 129              	mem:
+ 130 01fa 4D656D63 		.asciz "Memcheck: "
+ 130      6865636B 
+ 130      3A2000
+ 131              	
+ 132              	memok:
+ 133 0205 4D656D6F 		.asciz "Memory test passed ok"
+ 133      72792074 
+ 133      65737420 
+ 133      70617373 
+ 133      6564206F 
+ 134              	membad:
+ 135 021b 4D454D4F 		.asciz "MEMORY TEST FAILED"
+ 135      52592054 
+ 135      45535420 
+ 135      4641494C 
+ 135      454400
+ 136              	
+ 137              	version:
+ 138 022e 0000A0E1 		NOP
+ 139 0232 0000A0E1 		NOP
+ 140              	
+ 141              	.end
