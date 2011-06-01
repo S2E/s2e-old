@@ -31,14 +31,14 @@
 <p>Several things may be going on in your execution:</p>
 <ul class="simple">
 <li>some constraints are hard to solve. Set a timeout in the constraint solver: <strong>--use-forked-stp --max-stp-time=TimeoutInSeconds</strong></li>
-<li>you forgot a s2e_disable_all_apic_interrupts call somewhere in your code.</li>
-<li>you are doing unnecessary system calls with symbolic arguments (e.g. printf)</li>
+<li>you forgot a <tt class="docutils literal"><span class="pre">s2e_disable_all_apic_interrupts</span></tt> call somewhere in your code.</li>
+<li>you are doing unnecessary system calls with symbolic arguments (e.g. <tt class="docutils literal"><span class="pre">printf</span></tt>)</li>
 <li>try to reduce the number of symbolic variables</li>
 </ul>
 </div>
 <div class="section" id="how-do-i-know-what-s2e-is-doing">
 <h2>1.2&nbsp;&nbsp;&nbsp;How do I know what S2E is doing?</h2>
-<p>You can look at the s2e-last/debug.txt.
+<p>You can look at the <tt class="docutils literal"><span class="pre">s2e-last/debug.txt</span></tt>.
 This file lists all the major events occurring during symbolic execution. One of them is &quot;Firing timer event&quot; which is called every second by S2E from the main execution loop. If you do not see it every second, it means that QEMU is stuck running plugin code (most likely because of a plugin bug) or constraint solver code (because of a complex query). To see which query is causing the problem, look at the query log.</p>
 <p>run.stats also contains some statistics. This file is updated every second, but only when executing symbolic code.</p>
 </div>
@@ -56,15 +56,15 @@ s2e = {
  &quot;--use-query-log&quot;, &quot;--use-query-pc-log&quot;,  &quot;--use-stp-query-pc-log&quot;
 }
 </pre>
-<p>With this configuration S2E generates two logs: queries.pc and stp-queries.qlog</p>
+<p>With this configuration S2E generates two logs: <tt class="docutils literal"><span class="pre">s2e-last/queries.pc</span></tt> and <tt class="docutils literal"><span class="pre">s2e-last/stp-queries.qlog</span></tt></p>
 </div>
 <div class="section" id="what-do-the-cexcachetime-forktime-solvertime-resolvetime-and-querytime-fields-mean">
 <h2>1.5&nbsp;&nbsp;&nbsp;What do the CexCacheTime, ForkTime, SolverTime, ResolveTime and QueryTime fields mean?</h2>
 <ul class="simple">
 <li><strong>QueryTime</strong> shows how much time KLEE spent in the STP solver.</li>
-<li><strong>CexCacheTime</strong> adds to that time also the time spend while looking for a solution in a counter-example cache (which is enabled by --use-cex-cache KLEE option). SolverTime shows how much time KLEE spent in total while solving queries (this includes all the solver optimisations that could be enabled by various solver-related KLEE options).</li>
+<li><strong>CexCacheTime</strong> adds to that time also the time spend while looking for a solution in a counter-example cache (which is enabled by --use-cex-cache KLEE option). SolverTime shows how much time KLEE spent in total while solving queries (this includes all the solver optimizations that could be enabled by various solver-related KLEE options).</li>
 <li><strong>ResolveTime</strong> represents time that KLEE spend resolving symbolic memory addresses, however in S2E this is not computed correctly yet.</li>
-<li><strong>ForkTime</strong> shows how much time KLEE spend on forking (i.e., duplication of) states, however in S2E right now this does not take into account a time spent on saving/restoring states of devices.</li>
+<li><strong>ForkTime</strong> shows how much time KLEE spend on forking (i.e., duplication of) states, however in S2E right now this does not take into account the time spent on saving/restoring states of devices.</li>
 </ul>
 </div>
 </div>

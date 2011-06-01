@@ -15,16 +15,16 @@ Several things may be going on in your execution:
 
 * some constraints are hard to solve. Set a timeout in the constraint solver: **--use-forked-stp --max-stp-time=TimeoutInSeconds**
 
-* you forgot a s2e_disable_all_apic_interrupts call somewhere in your code.
+* you forgot a ``s2e_disable_all_apic_interrupts`` call somewhere in your code.
 
-* you are doing unnecessary system calls with symbolic arguments (e.g. printf)
+* you are doing unnecessary system calls with symbolic arguments (e.g. ``printf``)
 
 * try to reduce the number of symbolic variables
 
 
 How do I know what S2E is doing? 
 --------------------------------
-You can look at the s2e-last/debug.txt.
+You can look at the ``s2e-last/debug.txt``.
 This file lists all the major events occurring during symbolic execution. One of them is "Firing timer event" which is called every second by S2E from the main execution loop. If you do not see it every second, it means that QEMU is stuck running plugin code (most likely because of a plugin bug) or constraint solver code (because of a complex query). To see which query is causing the problem, look at the query log.
 
 run.stats also contains some statistics. This file is updated every second, but only when executing symbolic code.
@@ -46,7 +46,7 @@ Try to log constraint solving queries:
     "--use-query-log", "--use-query-pc-log",  "--use-stp-query-pc-log"
    }
 
-With this configuration S2E generates two logs: queries.pc and stp-queries.qlog
+With this configuration S2E generates two logs: ``s2e-last/queries.pc`` and ``s2e-last/stp-queries.qlog``
 
 
 What do the CexCacheTime, ForkTime, SolverTime, ResolveTime and QueryTime fields mean?
@@ -58,5 +58,5 @@ What do the CexCacheTime, ForkTime, SolverTime, ResolveTime and QueryTime fields
 
 * **ResolveTime** represents time that KLEE spend resolving symbolic memory addresses, however in S2E this is not computed correctly yet.
 
-* **ForkTime** shows how much time KLEE spend on forking (i.e., duplication of) states, however in S2E right now this does not take into account a time spent on saving/restoring states of devices. 
+* **ForkTime** shows how much time KLEE spend on forking (i.e., duplication of) states, however in S2E right now this does not take into account the time spent on saving/restoring states of devices. 
 
