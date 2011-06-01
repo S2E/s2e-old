@@ -10,9 +10,9 @@ TOOLNAME = static-translator
 USEDLIBS = executiontracer.a binaryreaders.a X86Translator.a  utils.a
 LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scalaropts ipa transformutils
 NO_PEDANTIC=1
-SOURCES = StaticTranslator.cpp \
+SOURCES = StaticTranslator.cpp Passes/RevgenAlias.cpp \
           Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp \
-          Passes/FunctionBuilder.cpp \
+          Passes/FunctionBuilder.cpp Passes/TargetBinary.cpp\
           Passes/CallBuilder.cpp Passes/InstructionInliner.cpp
 
 include $(LEVEL)/Makefile.common
