@@ -436,24 +436,26 @@ uint32_t HELPER (add_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
     result = a + b;
-    env->NF = env->ZF = result;
-    env->CF = result < a;
-    env->VF = (a ^ b ^ -1) & (a ^ result);
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
+    WR_cpu(env,CF,(result < a));
+    WR_cpu(env,VF,((a ^ b ^ -1) & (a ^ result)));
     return result;
 }
 
 uint32_t HELPER(adc_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
-    if (!env->CF) {
+    if (!(RR_cpu(env,CF))) {
         result = a + b;
-        env->CF = result < a;
+        WR_cpu(env,CF,(result < a));
     } else {
         result = a + b + 1;
-        env->CF = result <= a;
+        WR_cpu(env,CF,(result <= a));
     }
-    env->VF = (a ^ b ^ -1) & (a ^ result);
-    env->NF = env->ZF = result;
+    WR_cpu(env,VF,((a ^ b ^ -1) & (a ^ result)));
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
     return result;
 }
 
@@ -461,24 +463,26 @@ uint32_t HELPER(sub_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
     result = a - b;
-    env->NF = env->ZF = result;
-    env->CF = a >= b;
-    env->VF = (a ^ b) & (a ^ result);
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
+    WR_cpu(env,CF,(a >= b));
+    WR_cpu(env,VF,((a ^ b) & (a ^ result)));
     return result;
 }
 
 uint32_t HELPER(sbc_cc)(uint32_t a, uint32_t b)
 {
     uint32_t result;
-    if (!env->CF) {
+    if (!(RR_cpu(env,CF))) {
         result = a - b - 1;
-        env->CF = a > b;
+        WR_cpu(env,CF,(a > b));
     } else {
         result = a - b;
-        env->CF = a >= b;
+        WR_cpu(env,CF,(a >= b));
     }
-    env->VF = (a ^ b) & (a ^ result);
-    env->NF = env->ZF = result;
+    WR_cpu(env,VF,((a ^ b) & (a ^ result)));
+    WR_cpu(env,NF,result);
+    WR_cpu(env,ZF,result);
     return result;
 }
 
@@ -513,12 +517,12 @@ uint32_t HELPER(shl_cc)(uint32_t x, uint32_t i)
     int shift = i & 0xff;
     if (shift >= 32) {
         if (shift == 32)
-            env->CF = x & 1;
+            WR_cpu(env,CF,(x & 1));
         else
-            env->CF = 0;
+            WR_cpu(env,CF,0);
         return 0;
     } else if (shift != 0) {
-        env->CF = (x >> (32 - shift)) & 1;
+        WR_cpu(env,CF,((x >> (32 - shift)) & 1));
         return x << shift;
     }
     return x;
@@ -529,12 +533,12 @@ uint32_t HELPER(shr_cc)(uint32_t x, uint32_t i)
     int shift = i & 0xff;
     if (shift >= 32) {
         if (shift == 32)
-            env->CF = (x >> 31) & 1;
+            WR_cpu(env,CF,((x >> 31) & 1));
         else
-            env->CF = 0;
+            WR_cpu(env,CF,0);
         return 0;
     } else if (shift != 0) {
-        env->CF = (x >> (shift - 1)) & 1;
+        WR_cpu(env,CF,((x >> (shift - 1)) & 1));
         return x >> shift;
     }
     return x;
@@ -544,10 +548,10 @@ uint32_t HELPER(sar_cc)(uint32_t x, uint32_t i)
 {
     int shift = i & 0xff;
     if (shift >= 32) {
-        env->CF = (x >> 31) & 1;
+        WR_cpu(env,CF,((x >> 31) & 1));
         return (int32_t)x >> 31;
     } else if (shift != 0) {
-        env->CF = (x >> (shift - 1)) & 1;
+        WR_cpu(env,CF,((x >> (shift - 1)) & 1));
         return (int32_t)x >> shift;
     }
     return x;
@@ -560,10 +564,10 @@ uint32_t HELPER(ror_cc)(uint32_t x, uint32_t i)
     shift = shift1 & 0x1f;
     if (shift == 0) {
         if (shift1 != 0)
-            env->CF = (x >> 31) & 1;
+            WR_cpu(env,CF,((x >> 31) & 1));
         return x;
     } else {
-        env->CF = (x >> (shift - 1)) & 1;
+        WR_cpu(env,CF,((x >> (shift - 1)) & 1));
         return ((uint32_t)x >> shift) | (x << (32 - shift));
     }
 }

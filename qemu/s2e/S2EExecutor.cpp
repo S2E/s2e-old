@@ -183,7 +183,7 @@ extern "C" {
     int g_s2e_concretize_io_writes = 1;
 }
 
-static bool S2EDebugInstructions = false;
+static bool S2EDebugInstructions = true;
 
 namespace s2e {
 
@@ -1094,7 +1094,7 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 #ifdef TARGET_ARM
-	assert(offset + size <= CPU_OFFSET(fiq_regs[4]));
+	assert(offset + size <= CPU_OFFSET(QF));
 #elif defined(TARGET_I386)
 	assert(offset + size <= CPU_OFFSET(eip));
 #endif
@@ -1153,7 +1153,7 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 	#ifdef TARGET_ARM
-		assert(offset + size <= CPU_OFFSET(fiq_regs[4]));
+		assert(offset + size <= CPU_OFFSET(QF));
 	#elif defined(TARGET_I386)
 		assert(offset + size <= CPU_OFFSET(eip));
 	#endif
@@ -2149,38 +2149,41 @@ void S2EExecutor::terminateState(ExecutionState &state)
     }
 }
 
-//TODO: not needed for ARM?
 inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
 {
-//    uint32_t cc_op = 0;
-//
-//    // Check wether any of cc_op, cc_src, cc_dst or cc_tmp are symbolic
-//    if((state->getSymbolicRegistersMask() & (0xf<<1)) || m_executeAlwaysKlee) {
-//        // call set_cc_op_eflags only if cc_op is symbolic or cc_op != CC_OP_EFLAGS
-//        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
-//                                                 &cc_op, sizeof(cc_op));
-//        if(!ok || cc_op != CC_OP_EFLAGS) {
-//            try {
-//                if(state->m_runningConcrete)
-//                    switchToSymbolic(state);
-//                TimerStatIncrementer t(stats::symbolicModeTime);
-//                executeFunction(state, "helper_set_cc_op_eflags");
-//            } catch(s2e::CpuExitException&) {
-//                updateStates(state);
-//                longjmp(env->jmp_env, 1);
-//            }
-//        }
-//    } else {
-//        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
-//                                                 &cc_op, sizeof(cc_op));
-//        assert(ok);
-//        if(cc_op != CC_OP_EFLAGS) {
-//            if(!state->m_runningConcrete)
-//                switchToConcrete(state);
-//            TimerStatIncrementer t(stats::concreteModeTime);
-//            helper_set_cc_op_eflags();
-//        }
-//    }
+#ifdef TARGET_I386
+	uint32_t cc_op = 0;
+
+    // Check wether any of cc_op, cc_src, cc_dst or cc_tmp are symbolic
+    if((state->getSymbolicRegistersMask() & (0xf<<1)) || m_executeAlwaysKlee) {
+        // call set_cc_op_eflags only if cc_op is symbolic or cc_op != CC_OP_EFLAGS
+        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
+                                                 &cc_op, sizeof(cc_op));
+        if(!ok || cc_op != CC_OP_EFLAGS) {
+            try {
+                if(state->m_runningConcrete)
+                    switchToSymbolic(state);
+                TimerStatIncrementer t(stats::symbolicModeTime);
+                executeFunction(state, "helper_set_cc_op_eflags");
+            } catch(s2e::CpuExitException&) {
+                updateStates(state);
+                longjmp(env->jmp_env, 1);
+            }
+        }
+    } else {
+        bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(cc_op),
+                                                 &cc_op, sizeof(cc_op));
+        assert(ok);
+        if(cc_op != CC_OP_EFLAGS) {
+            if(!state->m_runningConcrete)
+                switchToConcrete(state);
+            TimerStatIncrementer t(stats::concreteModeTime);
+            helper_set_cc_op_eflags();
+        }
+    }
+#elif defined(TARGET_ARM)
+    //not needed for ARM
+#endif
 }
 
 inline void S2EExecutor::doInterrupt(S2EExecutionState *state)

@@ -172,11 +172,20 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
     if(mo->size == S2E_RAM_OBJECT_SIZE && oldState) {
         assert(m_cpuSystemState && m_cpuSystemObject);
 
+#ifdef TARGET_ARM
         CPUARMState* cpu = m_active ?
                 (CPUARMState*)(m_cpuSystemState->address
                               - offsetof(CPUARMState, regs[15])) :
                 (CPUARMState*)(m_cpuSystemObject->getConcreteStore(true)
                               - offsetof(CPUARMState, regs[15]));
+#elif defined(TARGET_I386)
+	CPUX86State* cpu = m_active ?
+	                (CPUX86State*)(m_cpuSystemState->address
+	                              - offsetof(CPUX86State, eip)) :
+	                (CPUX86State*)(m_cpuSystemObject->getConcreteStore(true)
+	                              - offsetof(CPUX86State, eip));
+#endif
+
 
         for(unsigned i=0; i<NB_MMU_MODES; ++i) {
             for(unsigned j=0; j<CPU_S2E_TLB_SIZE; ++j) {

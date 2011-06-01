@@ -366,9 +366,9 @@ void cpu_arm_close(CPUARMState *env)
 uint32_t cpsr_read(CPUARMState *env)
 {
     int ZF;
-    ZF = (env->ZF == 0);
-    return env->uncached_cpsr | (env->NF & 0x80000000) | (ZF << 30) |
-        (env->CF << 29) | ((env->VF & 0x80000000) >> 3) | (env->QF << 27)
+    ZF = (RR_cpu(env,ZF) == 0);
+    return env->uncached_cpsr | (RR_cpu(env,NF) & 0x80000000) | (ZF << 30) |
+        (RR_cpu(env,CF) << 29) | ((RR_cpu(env,VF) & 0x80000000) >> 3) | (env->QF << 27)
         | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
         | ((env->condexec_bits & 0xfc) << 8)
         | (env->GE << 16);
@@ -377,10 +377,10 @@ uint32_t cpsr_read(CPUARMState *env)
 void cpsr_write(CPUARMState *env, uint32_t val, uint32_t mask)
 {
     if (mask & CPSR_NZCV) {
-        env->ZF = (~val) & CPSR_Z;
-        env->NF = val;
-        env->CF = (val >> 29) & 1;
-        env->VF = (val << 3) & 0x80000000;
+        WR_cpu(env,ZF,((~val) & CPSR_Z));
+        WR_cpu(env,NF,val);
+        WR_cpu(env,CF,((val >> 29) & 1));
+        WR_cpu(env,VF,((val << 3) & 0x80000000));
     }
     if (mask & CPSR_Q)
         env->QF = ((val & CPSR_Q) != 0);
@@ -1768,7 +1768,7 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
         }
     case 7: /* Cache control.  */
         /* FIXME: Should only clear Z flag if destination is r15.  */
-        env->ZF = 0;
+        WR_cpu(env,ZF,0);
         return 0;
     case 8: /* MMU TLB control.  */
         goto bad_reg;
