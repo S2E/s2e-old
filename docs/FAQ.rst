@@ -54,7 +54,7 @@ What do the CexCacheTime, ForkTime, SolverTime, ResolveTime and QueryTime fields
 
 * **QueryTime** shows how much time KLEE spent in the STP solver. 
 
-* **CexCacheTime** adds to that time also the time spend while looking for a solution in a counter-example cache (which is enabled by --use-cex-cache KLEE option). SolverTime shows how much time KLEE spent in total while solving queries (this includes all the solver optimisations that could be enabled by various solver-related KLEE options).
+* **CexCacheTime** adds to that time also the time spend while looking for a solution in a counter-example cache (which is enabled by --use-cex-cache KLEE option). SolverTime shows how much time KLEE spent in total while solving queries (this includes all the solver optimizations that could be enabled by various solver-related KLEE options).
 
 * **ResolveTime** represents time that KLEE spend resolving symbolic memory addresses, however in S2E this is not computed correctly yet.
 
