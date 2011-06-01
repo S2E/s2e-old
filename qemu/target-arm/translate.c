@@ -9029,6 +9029,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     DisasContext dc1, *dc = &dc1;
     CPUBreakpoint *bp;
     uint16_t *gen_opc_end;
+    TCGv_i64 tmp64;
     int j, lj;
     target_ulong pc_start;
     uint32_t next_page_start;
@@ -9079,9 +9080,9 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     tb->s2e_tb_type = TB_DEFAULT;
 
     s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
-
-    tcg_gen_movi_i64(cpu_V0, (uint64_t) tb);
-    tcg_gen_st_i64(cpu_V0, cpu_env, offsetof(CPUState, s2e_current_tb));
+    tmp64 = tcg_temp_new_i64();
+    tcg_gen_movi_i64(tmp64, (uint64_t) tb);
+    tcg_gen_st_i64(tmp64, cpu_env, offsetof(CPUState, s2e_current_tb));
 #endif
 
     gen_icount_start();
