@@ -21,6 +21,8 @@ extern "C" {
 #include <llvm/Analysis/Passes.h>
 #include <llvm/target/TargetData.h>
 
+
+
 #include <stdio.h>
 #include <inttypes.h>
 #include <iostream>
@@ -36,6 +38,7 @@ extern "C" {
 #include <lib/Utils/Log.h>
 
 #include "StaticTranslator.h"
+#include "Passes/TargetBinary.h"
 #include "Passes/ConstantExtractor.h"
 #include "Passes/JumpTableExtractor.h"
 #include "Passes/FunctionBuilder.h"
@@ -64,6 +67,8 @@ struct MyQwordParser : public cl::basic_parser<uint64_t> {
 
 
 namespace {
+
+
 cl::opt<std::string>
     InputFile(cl::Positional, cl::Required, cl::desc("<input file>"));
 
@@ -91,6 +96,32 @@ cl::opt<uint64_t, false, MyQwordParser >
 
 namespace s2etools {
 namespace translator {
+
+class PassListener: public PassRegistrationListener {
+private:
+    const PassInfo *m_aliasAnalysisPass;
+    static LogKey TAG;
+public:
+    PassListener(): PassRegistrationListener() {
+        m_aliasAnalysisPass = NULL;
+    }
+
+    virtual void passEnumerate(const PassInfo *pi) {
+        LOGDEBUG("Found pass: " << pi->getPassArgument() << std::endl);
+        if (std::string(pi->getPassArgument()) == "basicaa") {
+            m_aliasAnalysisPass = pi;
+        }
+    }
+
+    const PassInfo *getAliasAnalysis() const {
+        return m_aliasAnalysisPass;
+    }
+};
+
+LogKey PassListener::TAG = LogKey("PassListener");
+
+PassListener s_passListener;
+
 static BFDInterface *s_currentBinary = NULL;
 LogKey StaticTranslatorTool::TAG = LogKey("StaticTranslatorTool");
 
@@ -124,6 +155,8 @@ StaticTranslatorTool::StaticTranslatorTool()
     m_translatedCode = m_experiment->getOuputFile("translated.bin");
 
     loadLibraries();
+
+    s_passListener.enumeratePasses();
 }
 
 //XXX: the translator is global...
@@ -391,12 +424,19 @@ void StaticTranslatorTool::reconstructFunctions(const AddressSet &entryPoints)
 
 void StaticTranslatorTool::reconstructFunctionCalls()
 {
-    CallBuilder callBuilder(m_binary);
-    callBuilder.runOnModule(*m_translator->getModule());
+    Module *M = m_translator->getModule();
+
+    PassManager pm;
+    pm.add(new TargetData(m_translator->getModule()));
+    pm.add(new TargetBinary(m_binary, m_translator));
+    pm.add(new CallBuilder());
+
+    pm.run(*M);
+
 
     FunctionPassManager fpm(m_translator->getModuleProvider());
     fpm.add(createVerifierPass());
-    Module *M = m_translator->getModule();
+
     foreach(it, M->begin(), M->end()) {
         fpm.run(*it);
     }

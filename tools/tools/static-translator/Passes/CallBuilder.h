@@ -2,6 +2,8 @@
 
 #define _INSTR_CALLBUILDER_PASS_H_
 
+#include <llvm/Analysis/MemoryDependenceAnalysis.h>
+
 #include "lib/BinaryReaders/Binary.h"
 
 namespace s2etools {
@@ -11,10 +13,13 @@ namespace s2etools {
  * function calls. Resolves internal and library function calls.
  */
 class CallBuilder : public llvm::ModulePass {
-    static char ID;
     static LogKey TAG;
 
     Binary *m_binary;
+
+    llvm::MemoryDependenceAnalysis *m_memDepAnalysis;
+
+    llvm::StoreInst *getRegisterDefinition(llvm::LoadInst *load);
 
     bool resolveImport(uint64_t address, std::string &functionName);
     bool processIndirectCall(llvm::CallInst *marker);
@@ -24,12 +29,15 @@ class CallBuilder : public llvm::ModulePass {
     bool processCallMarker(llvm::CallInst *marker);
 
 public:
-    CallBuilder(Binary *binary) : ModulePass((intptr_t)&ID) {
-        m_binary = binary;
+    static char ID;
+
+    CallBuilder() : ModulePass(&ID){
+        m_binary = NULL;
     }
 
-    virtual bool runOnModule(llvm::Module &M);
+    virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 
+    bool runOnModule(llvm::Module &M);
 };
 
 }

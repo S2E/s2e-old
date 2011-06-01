@@ -6,6 +6,7 @@
 #include <llvm/Module.h>
 #include <llvm/Function.h>
 #include <llvm/Instructions.h>
+#include <llvm/DerivedTypes.h>
 #include <llvm/Target/TargetData.h>
 
 #include <vector>
@@ -55,6 +56,14 @@ public:
 
     static std::string getCpuStateTypeName() {
         return s_cpuStateTypeName;
+    }
+
+    static const llvm::StructType* getCpuStateType(llvm::Module &M) {
+        return llvm::dyn_cast<llvm::StructType>(M.getTypeByName(getCpuStateTypeName()));
+    }
+
+    static llvm::Value* getCpuStateParam(llvm::Function &F) {
+        return F.arg_begin();
     }
 };
 

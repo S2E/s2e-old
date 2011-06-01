@@ -58,6 +58,20 @@ CallInst* TbPreprocessor::getMemoryLoadFromIndirectCall(CallInst *marker)
     return NULL;
 }
 
+LoadInst *TbPreprocessor::getRegisterLoadFromIndirectCall(CallInst *marker)
+{
+    ZExtInst *v = dyn_cast<ZExtInst>(TbPreprocessor::getCallTarget(marker));
+    if (!v) {
+        return NULL;
+    }
+
+    LoadInst *cs = dyn_cast<LoadInst>(v->getOperand(0));
+    if (!cs) {
+        return NULL;
+    }
+    return cs;
+}
+
 void TbPreprocessor::initMarkers(llvm::Module *module)
 {
     if (m_callMarker || m_returnMarker) {
@@ -110,6 +124,7 @@ void TbPreprocessor::initMarkers(llvm::Module *module)
     paramTypes.push_back(Type::getInt64Ty(module->getContext()));
     type = FunctionType::get(Type::getVoidTy(module->getContext()), paramTypes, false);
     m_instructionMarker = dyn_cast<Function>(module->getOrInsertFunction(getInstructionMarker(), type));
+    m_instructionMarker->setOnlyReadsMemory(true);
 
     //**********************************
     //tcg_llvm_fork_and_concretize is a special marker placed by the translator
