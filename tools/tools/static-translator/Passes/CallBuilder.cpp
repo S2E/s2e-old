@@ -7,6 +7,7 @@
 #include "CallBuilder.h"
 #include "TargetBinary.h"
 #include "RevgenAlias.h"
+#include "CallingConvention.h"
 
 using namespace llvm;
 
@@ -61,38 +62,62 @@ bool CallBuilder::resolveImport(uint64_t address, std::string &functionName)
 
 StoreInst *CallBuilder::getRegisterDefinition(LoadInst *load)
 {
-    StoreInst *regDef = NULL;
+    std::set<StoreInst*> definitions;
+    std::vector<LoadInst*> toVisit;
+    std::set<Instruction*> visited;
+    SmallVectorImpl<MemoryDependenceAnalysis::NonLocalDepEntry> Dependencies(2);
 
-    MemDepResult Dependency = m_memDepAnalysis->getDependency(load);
-    if (Dependency.isNonLocal()) {
-        SmallVectorImpl<MemoryDependenceAnalysis::NonLocalDepEntry> Dependencies(3);
-        m_memDepAnalysis->getNonLocalPointerDependency(load->getPointerOperand(), true,
-                                                      load->getParent(),
-                                                      Dependencies);
-        foreach(it, Dependencies.begin(), Dependencies.end()) {
-            MemoryDependenceAnalysis::NonLocalDepEntry &dentry = *it;
-            LOGDEBUG("Dep: " << dentry.first->getNameStr() << " - " << *dentry.second.getInst() << std::endl);
+    LOGDEBUG("Looking for definition of " << *load << std::endl);
+
+    toVisit.push_back(load);
+
+    while(!toVisit.empty()) {
+        load = &*toVisit.back();
+        toVisit.pop_back();
+
+        if (visited.count(load)) {
+            continue;
+        }
+        visited.insert(load);
+
+        MemDepResult Dependency = m_memDepAnalysis->getDependency(load);
+        if (Dependency.isNonLocal()) {
+            Dependencies.clear();
+            m_memDepAnalysis->getNonLocalPointerDependency(load->getPointerOperand(), true,
+                                                          load->getParent(),
+                                                          Dependencies);
+        }else {
+            Dependencies.push_back(std::make_pair(Dependency.getInst()->getParent(), Dependency));
         }
 
-        //XXX: For now, just accept one definition.
-        if (Dependencies.size() != 1) {
-            return false;
+        //foreach(it, Dependencies.begin(), Dependencies.end()) {
+        for (unsigned i=0; i<Dependencies.size(); ++i) {
+            MemoryDependenceAnalysis::NonLocalDepEntry &dentry = Dependencies[i];
+            MemDepResult Result = dentry.second;
+            LOGDEBUG("Dep: " << Result.isClobber() << " - " << Result.isDef()<< " - " << Result.isNonLocal() << std::endl << std::flush);
+            LOGDEBUG("Dep: " << dentry.first->getNameStr() << " - " << *Result.getInst() << std::endl);
+            if (Result.isDef() != true) {
+                LOGDEBUG("   Dependency is not a definition " << std::endl);
+                return false;
+            }
+            if (LoadInst *loadInst = dyn_cast<LoadInst>(Result.getInst())) {
+                toVisit.push_back(loadInst);
+            }else {
+                StoreInst *regDef = dyn_cast<StoreInst>(Result.getInst());
+                definitions.insert(regDef);
+            }
         }
-        Dependency = (*Dependencies.begin()).second;
     }
 
-    if (Dependency.isDef() != true) {
-        LOGDEBUG("Could not find dependency, got: " << *Dependency.getInst() << std::endl);
-        return false;
-    }else  {
-        regDef = dyn_cast<StoreInst>(Dependency.getInst());
+    if (definitions.size() != 1) {
+        //XXX: Check that all definitions are the same values and reachable from all paths
+        return NULL;
     }
 
     //XXX: Check that the size of the load/store matches
 
-    //XXX: Check for all paths
 
-    return regDef;
+    return *definitions.begin();
 }
 
 /**
@@ -230,6 +255,7 @@ bool CallBuilder::runOnModule(llvm::Module &M)
     //compute the size of various types.
     FunctionPassManager fpm(targetBinary->getTranslator()->getModuleProvider());
     fpm.add(new TargetData(&M));
+    fpm.add(new CallingConvention());
     fpm.add(new RevgenAlias());
     m_memDepAnalysis = new MemoryDependenceAnalysis();
     fpm.add(m_memDepAnalysis);
@@ -246,6 +272,7 @@ bool CallBuilder::runOnModule(llvm::Module &M)
             if (!processCallMarker(M, ci)) {
                 LOGDEBUG("Could not process " << *ci <<
                         " in function " << ci->getParent()->getParent()->getNameStr()
+                        << " bblock " << ci->getParent()->getNameStr()
                         <<std::endl);
                 ++unprocessedCallsCount;
             }else {
