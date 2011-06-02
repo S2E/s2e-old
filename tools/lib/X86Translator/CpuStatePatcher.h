@@ -65,6 +65,8 @@ public:
     static llvm::Value* getCpuStateParam(llvm::Function &F) {
         return F.arg_begin();
     }
+
+    static bool getRegisterIndex(const llvm::GetElementPtrInst *reg, unsigned &index);
 };
 
 }

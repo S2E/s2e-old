@@ -1,3 +1,9 @@
+extern "C" {
+#include <qemu-common.h>
+#include <cpu-all.h>
+#include <exec-all.h>
+}
+
 #include <sstream>
 #include <llvm/TypeSymbolTable.h>
 
@@ -21,6 +27,26 @@ CpuStatePatcher::CpuStatePatcher(uint64_t instructionAddress) : FunctionPass((in
 CpuStatePatcher::~CpuStatePatcher()
 {
     delete m_targetData;
+}
+
+bool CpuStatePatcher::getRegisterIndex(const llvm::GetElementPtrInst *reg, unsigned &index)
+{
+    if (reg->getNumIndices() != 3) {
+        return false;
+    }
+
+    ConstantInt *regArray = dyn_cast<ConstantInt>(reg->getOperand(2));
+    if (!regArray || regArray->getZExtValue() != 0) {
+        return false;
+    }
+
+    ConstantInt *x86reg = dyn_cast<ConstantInt>(reg->getOperand(3));
+    if (!regArray || x86reg->getZExtValue() > R_EDI) {
+        return false;
+    }
+
+    index = x86reg->getZExtValue();
+    return true;
 }
 
 void CpuStatePatcher::getAllLoadStores(Instructions &I, llvm::Function &F) const
