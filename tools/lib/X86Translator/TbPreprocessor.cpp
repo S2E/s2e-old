@@ -323,8 +323,12 @@ void TbPreprocessor::extractJumpInfo(Function &f)
 }
 
 void TbPreprocessor::removeForkAndConcretize(llvm::Function &F) {
-    foreach(uit, m_forkAndConcretize->use_begin(), m_forkAndConcretize->use_end()) {
+    Function::use_iterator uit = m_forkAndConcretize->use_begin();
+
+    while(uit != m_forkAndConcretize->use_end()) {
         CallInst *ci = dyn_cast<CallInst>(*uit);
+        ++uit;
+
         if (!ci || ci->getParent()->getParent() != &F) {
             continue;
         }
