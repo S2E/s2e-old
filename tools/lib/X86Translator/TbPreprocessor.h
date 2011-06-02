@@ -99,6 +99,10 @@ public:
       return M.getFunction(getCallMarker());
   }
 
+  static llvm::Function* getInstructionMarker(llvm::Module &M) {
+      return M.getFunction(getInstructionMarker());
+  }
+
   static llvm::ConstantInt *getCallTargetConstant(llvm::CallInst *marker) {
       return llvm::dyn_cast<llvm::ConstantInt>(marker->getOperand(2));
   }
