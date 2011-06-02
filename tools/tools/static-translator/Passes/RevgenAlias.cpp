@@ -3,6 +3,7 @@
 #include "lib/X86Translator/CpuStatePatcher.h"
 #include "lib/X86Translator/TbPreprocessor.h"
 #include "RevgenAlias.h"
+#include "CallingConvention.h"
 
 using namespace llvm;
 
@@ -44,20 +45,11 @@ void RevgenAlias::initializeMemoryAccessors(Module &M)
     m_memoryAccessors.insert(M.getFunction("__stl_mmu"));
     m_memoryAccessors.insert(M.getFunction("__stq_mmu"));
 
-    m_memoryAccessors.insert(M.getFunction(TbPreprocessor::getInstructionMarker()));
-
-    assert(m_memoryAccessors.size() == 9 && "Could not find all ops. Your ucode lib is probably broken");
+    assert(m_memoryAccessors.size() == 8 && "Could not find all ops. Your ucode lib is probably broken");
 }
 
 AliasAnalysis::ModRefResult RevgenAlias::getModRefInfo(CallSite CS, Value *P, unsigned Size)
 {
-    //If we call something else than machine uops, there may be anything
-    if (!m_memoryAccessors.count(CS.getCalledFunction())) {
-        return AliasAnalysis::getModRefInfo(CS, P, Size);
-    }
-
-    //If P is a pointer to the CPU state, there is no way there can
-    //be aliasing with a memory uop
     GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(P);
     if (!gep) {
         return AliasAnalysis::getModRefInfo(CS, P, Size);
@@ -70,18 +62,55 @@ AliasAnalysis::ModRefResult RevgenAlias::getModRefInfo(CallSite CS, Value *P, un
     //LOGDEBUG(*cpuState->getType() << std::endl << std::flush);
     assert(cpuState->getType() == m_cpuStateType && "Broken translator");
 
-    if (gep->getPointerOperand() == cpuState) {
+    if (gep->getPointerOperand() != cpuState) {
+        return AliasAnalysis::getModRefInfo(CS, P, Size);
+    }
+
+    //A pointer to the CPU state can never alias memory
+    if (m_memoryAccessors.count(CS.getCalledFunction())) {
         return NoModRef;
     }
 
+    //Instruction markers are just here for decoration
+    if (CS.getCalledFunction() == m_instructionMarker) {
+        return NoModRef;
+    }
+
+    if (CS.getCalledFunction() == m_callMarker) {
+        //Check if the register may be clobbered by the called function,
+        //assuming the specified convention
+        //XXX: This may give erroneous results if used on internal calls
+        //XXX: Check for library call first?
+        if (m_callingConvention) {
+            if (m_callingConvention->getConvention(gep) == CallingConvention::CalleeSave) {
+                //XXX: Use NoModRef instead???
+                return Ref;
+            }
+        }
+    }
+
+    LOGDEBUG("Trying default AA for " << *P << std::endl);
+    //Try the default alias analyzer
     return AliasAnalysis::getModRefInfo(CS, P, Size);
 }
 
+void RevgenAlias::initializeCallingConvention(Module &M)
+{
+    m_callingConvention = getAnalysisIfAvailable<CallingConvention>();
+    if (!m_callingConvention) {
+        LOGWARNING("Calling convention not specified. This may give inaccurate results.");
+    }
+
+    m_callMarker = TbPreprocessor::getCallMarker(M);
+    m_instructionMarker = TbPreprocessor::getInstructionMarker(M);
+
+}
 
 bool RevgenAlias::runOnFunction(Function &F)
 {
     InitializeAliasAnalysis(this);
     initializeMemoryAccessors(*F.getParent());
+    initializeCallingConvention(*F.getParent());
     return false;
 }
 

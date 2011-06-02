@@ -10,6 +10,7 @@
 #include <llvm/ADT/DenseSet.h>
 
 #include "lib/Utils/Log.h"
+#include "CallingConvention.h"
 
 namespace s2etools {
 
@@ -18,9 +19,14 @@ class RevgenAlias : public llvm::FunctionPass, public llvm::AliasAnalysis {
     typedef llvm::DenseSet<llvm::Function*> Functions;
 
     Functions m_memoryAccessors;
+    llvm::Function *m_callMarker;
+    llvm::Function *m_instructionMarker;
     const llvm::PointerType* m_cpuStateType;
 
+    CallingConvention *m_callingConvention;
+
     void initializeMemoryAccessors(llvm::Module &M);
+    void initializeCallingConvention(llvm::Module &M);
 public:
     static char ID;
 
