@@ -29,13 +29,30 @@ _start:
 
 init_stack: @we use full descending mode (and do not care about different execution modes)
 	mov sp, #stackstart
+	mov r8, #symbstart
 	b main
 
 main:
-    bl test_flags
-	bl initial_test
-	bl test_mem
+@    bl test_flags
+@	bl initial_test
+@	bl test_mem
+	bl test_forking
 	B _idle
+
+test_forking:
+	stmfd sp!,{r14}
+	sub r8, r8, #4		@decrement (custom symb. value 'stack')
+
+	mov r0, r8			@address of symb. value
+	mov r1, #4			@size of symb. value = 4byte
+	mov r2, #0			@name is empty (use default name)
+    bl s2e_make_symbolic
+
+    ldr r10, [r8,#0]	@get the symbolic value
+
+    cmp r10, #0
+    beq test_mem			@forking should occur
+    ldmfd sp!,{r15}
 
 test_flags:
 	stmfd sp!,{r14}
@@ -62,7 +79,6 @@ print_status:
 	ldmfd sp!,{r15}
 initial_test:
 	stmfd sp!,{r14}
-	mov r8, #symbstart
 	mov r0, #10
 	bl s2e_disable_symbolic
 	bl s2e_enable_symbolic
@@ -89,16 +105,21 @@ stm0:
 	mov r1, #4			@size of symb. value = 4byte
 	mov r2, #0			@name is empty (use default name)
     bl s2e_make_symbolic
-    ldr r10, [r8,#0]		@get the symbolic value?
     mov r0, r8
     mov r1, #4
     mov r2, #0
     bl s2e_print_memory
+    ldr r10, [r8,#0]		@get the symbolic value?
     cmp r10, #0
     beq stm1
     add r7, r7, #1
     b stm0
 stm1:
+    mov r0, r8
+    mov r1, #4
+    mov r2, #0
+    bl s2e_print_memory
+    ldr r10, [r8,#0]		@get the symbolic value?
 	bl s2e_get_path_id
 	mov r9, #1
 	mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page

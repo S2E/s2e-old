@@ -1091,7 +1091,9 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
 void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
         CPUARMState *cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
+#if not defined(TARGET_ARM)
     assert(state->m_active);
+#endif
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 #ifdef TARGET_ARM
 	assert(offset + size <= CPU_OFFSET(regs[15]));
@@ -1150,7 +1152,9 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
 void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         CPUARMState *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
 {
+#if not defined(TARGET_ARM)
     assert(state->m_active);
+#endif
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 	#ifdef TARGET_ARM
 		assert(offset + size <= CPU_OFFSET(regs[15]));

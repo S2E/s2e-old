@@ -6,7 +6,7 @@ void cpu_save(QEMUFile *f, void *opaque)
     int i;
     CPUARMState *env = (CPUARMState *)opaque;
 
-    for (i = 0; i < 14; i++) {
+    for (i = 0; i < 15; i++) {
     		qemu_put_be32(f, RR_cpu(env,regs[i]));
     }
 	qemu_put_be32(f, env->regs[15]);
