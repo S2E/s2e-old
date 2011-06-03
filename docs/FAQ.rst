@@ -34,24 +34,41 @@ How do I know what S2E is doing?
 
 Execution seems stuck/slow. What to do?
 ---------------------------------------
-Several things may be going on in your execution:
+
+First, ensure that you configured S2E properly.
+
+* If you used ``s2e_disable_all_apic_interrupts``, you probably forgot an ``s2e_enable_all_apic_interrupts`` call somewhere in your code.
+  Use this functionality with care, disabling interrupts can easily hang your guest OS.
 
 * Some constraints are hard to solve. Set a timeout in the constraint solver with ``--use-forked-stp`` and ``--max-stp-time=TimeoutInSeconds``.
   If you do not see the "Firing timer event" message periodically in the ``debug.txt`` log file, execution got stuck in the
   constraint solver.
 
-* If you used ``s2e_disable_all_apic_interrupts``, you probably forgot an ``s2e_enable_all_apic_interrupts`` call somewhere in your code.
-  Use this functionality with care, disabling interrupts can hang your system
 
-* You are doing unnecessary system calls with symbolic arguments (e.g. ``printf``).
+* By default, S2E flushes the translation block cache on every state switch.
+  S2E does not implement copy-on-write for this cache, therefore it must flush
+  the cache to ensure correct execution. In particular, this prevents clobbering in case
+  there are two paths that execute different code loaded to the same memory locations.
+  Flushing is expensive in case of frequent state switches. In most of the cases, it is not necessary, e.g., if you
+  execute a program that does not use self-modifying code or frequently loads/unloads libraries. In this case,
+  use the ``--flush-tbs-on-state-switch=false`` option.
+
+
+Second, use S2E to *selectively* relax and/or overconstrain path constraints.
+
+* Check that the module under analysis is not doing unnecessary calls with symbolic arguments (e.g. ``printf``).
   Use the ``s2e_get_example_*`` functions to provide a concrete value to ``printf``  without actually adding path
-  constraints, to prevent disabling future paths.
-
-* Try to reduce the number of symbolic variables
+  constraints, to prevent disabling future paths. Unless a program reads the output of ``printf`` and takes decisions
+  based on it, not adding constraints will not affect execution consistency from the point of view of the module under analysis.
 
 * If you use a depth-first search and execution hits a polling loop, rapid forking may occur and execution may never exit the loop.
-  Moreover, depending on the accumulated constraints, each iteration may be slow.
+  Moreover, depending on the accumulated constraints, each iteration may be slower and slower.
   Try to use a different search strategy or kill the unwanted execution paths.
+
+* Try to relax path constraints. For example, there may be a branch that causes a bottleneck. Write a plugin to intercept
+  that branch instruction and overwrite the branch condition with an unconstrained value. This trades execution consistency
+  for execution speed. There may be paths that cannot occur in real execution (i.e., false positives), but as long as there
+  are few of them, or you can detect them a posteriori, this is an acceptable trade-off.
 
 
 How do I deal with state explosion?
@@ -67,7 +84,7 @@ The following describes concrete steps that allowed us to explore programs most 
 
 3. Extract the fork profile and identify the code locations that fork the most.
 
-4. If forking occurs outside the module of interest, a few options are:
+4. If forking occurs outside the module of interest, the following may help:
 
    * Use the ``CodeSelector`` plugin to disable forking when execution leaves the module of interest
    * Concretize some symbolic values when execution leaves the module of interest. You may need to use the ``FunctionMonitor`` plugin
