@@ -41,6 +41,8 @@ S²E Documentation
   2. `Supported Debug Information <Tools/DebugInfo.html>`_
   3. Tools API
   
+* `FAQ <FAQ.html>`_
+
 S²E Plugin Reference
 ====================
 
