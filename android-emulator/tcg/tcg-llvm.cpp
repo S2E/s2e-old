@@ -1322,6 +1322,14 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
     }
 #endif
 
+#ifdef DEBUG_DISAS
+    if (qemu_loglevel_mask(CPU_LOG_TB_OP)) {
+        qemu_log("OP:\n");
+        tcg_dump_ops(s, logfile);
+        qemu_log("\n");
+    }
+#endif
+
     if(qemu_loglevel_mask(CPU_LOG_LLVM_IR)) {
         std::ostringstream s;
         s << *m_tbFunction;

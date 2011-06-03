@@ -1094,7 +1094,7 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 #ifdef TARGET_ARM
-	assert(offset + size <= CPU_OFFSET(QF));
+	assert(offset + size <= CPU_OFFSET(regs[15]));
 #elif defined(TARGET_I386)
 	assert(offset + size <= CPU_OFFSET(eip));
 #endif
@@ -1153,7 +1153,7 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 	#ifdef TARGET_ARM
-		assert(offset + size <= CPU_OFFSET(QF));
+		assert(offset + size <= CPU_OFFSET(regs[15]));
 	#elif defined(TARGET_I386)
 		assert(offset + size <= CPU_OFFSET(eip));
 	#endif

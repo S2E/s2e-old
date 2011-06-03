@@ -32,10 +32,34 @@ init_stack: @we use full descending mode (and do not care about different execut
 	b main
 
 main:
+    bl test_flags
 	bl initial_test
 	bl test_mem
 	B _idle
 
+test_flags:
+	stmfd sp!,{r14}
+	msr cpsr_f, 0xF0000000 @set all flags to 1
+	bl print_status
+	msr cpsr_f, 0x00000000 @set all flags to 0
+	bl print_status
+	subs r0, r0 @z should be enabled
+	bl print_status
+	mov r0, #0
+	subs r0, r0, #10 @should enable n
+	bl print_status
+	msr cpsr_f, 0x00000000 @set all flags to 0
+	bl print_status
+	ldmfd sp!,{r15}
+
+print_status:
+	stmfd sp!,{r14}
+	mov r1, #4160749568  @mask 0xF8000000
+	mrs r0, cpsr
+	and r0, r0, r1
+	adr r1, flagtest
+	bl s2e_print_expression
+	ldmfd sp!,{r15}
 initial_test:
 	stmfd sp!,{r14}
 	mov r8, #symbstart
@@ -66,6 +90,10 @@ stm0:
 	mov r2, #0			@name is empty (use default name)
     bl s2e_make_symbolic
     ldr r10, [r8,#0]		@get the symbolic value?
+    mov r0, r8
+    mov r1, #4
+    mov r2, #0
+    bl s2e_print_memory
     cmp r10, #0
     beq stm1
     add r7, r7, #1
@@ -94,11 +122,11 @@ stm2:
 stm3:
 	@Check that the memory is correct
 	ldr r0, [r4],#+4
-	sub r10, r10, #1
 	cmp r0, r5 @do we get the path id back?
 	bne sterr  @if not, goto error
 	mov r0, r4
 	bl s2e_print_expression
+	sub r10, r10, #1
 	cmp r10, #0
 	bne stm3
 
@@ -128,7 +156,10 @@ val:
 	.asciz "Pagesize: "
 mem:
 	.asciz "Memcheck: "
-
+symbtest:
+	.asciz "SymbTest: "
+flagtest:
+	.asciz "Flagtest: "
 memok:
 	.asciz "Memory test passed ok"
 membad:

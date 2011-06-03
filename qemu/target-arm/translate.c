@@ -9328,13 +9328,14 @@ void cpu_dump_state(CPUState *env, FILE *f,
 #endif
     uint32_t psr;
 
-    for(i=0;i<16;i++) {
-        cpu_fprintf(f, "R%02d=%08x", i, env->regs[i]);
+    for(i=0;i<15;i++) {
+        cpu_fprintf(f, "R%02d=%08x", i, RR_cpu(env,regs[i]));
         if ((i % 4) == 3)
             cpu_fprintf(f, "\n");
         else
             cpu_fprintf(f, " ");
     }
+    cpu_fprintf(f, "R%02d=%08x\n", i, env->regs[15]);
     psr = cpsr_read(env);
     cpu_fprintf(f, "PSR=%08x %c%c%c%c %c %s%d\n",
                 psr,
