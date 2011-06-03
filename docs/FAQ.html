@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
 <title>FAQ (Frequently Asked Questions)</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -19,7 +19,7 @@
 <li><a class="reference internal" href="#how-do-i-know-what-s2e-is-doing" id="id3">1.2&nbsp;&nbsp;&nbsp;How do I know what S2E is doing?</a></li>
 <li><a class="reference internal" href="#how-to-keep-memory-usage-low" id="id4">1.3&nbsp;&nbsp;&nbsp;How to keep memory usage low?</a></li>
 <li><a class="reference internal" href="#how-much-time-is-the-constraint-solver-taking-to-solve-constraints" id="id5">1.4&nbsp;&nbsp;&nbsp;How much time is the constraint solver taking to solve constraints?</a></li>
-<li><a class="reference internal" href="#what-do-the-cexcachetime-forktime-solvertime-resolvetime-and-querytime-fields-mean" id="id6">1.5&nbsp;&nbsp;&nbsp;What do the CexCacheTime, ForkTime, SolverTime, ResolveTime and QueryTime fields mean?</a></li>
+<li><a class="reference internal" href="#what-do-the-various-fields-in-run-stats-mean" id="id6">1.5&nbsp;&nbsp;&nbsp;What do the various fields in <tt class="docutils literal">run.stats</tt> mean?</a></li>
 </ul>
 </li>
 </ul>
@@ -30,36 +30,49 @@
 <h2>1.1&nbsp;&nbsp;&nbsp;Execution seems stuck/slow. What to do?</h2>
 <p>Several things may be going on in your execution:</p>
 <ul class="simple">
-<li>some constraints are hard to solve. Set a timeout in the constraint solver: <strong>--use-forked-stp --max-stp-time=TimeoutInSeconds</strong></li>
-<li>you forgot a <tt class="docutils literal"><span class="pre">s2e_disable_all_apic_interrupts</span></tt> call somewhere in your code.</li>
-<li>you are doing unnecessary system calls with symbolic arguments (e.g. <tt class="docutils literal"><span class="pre">printf</span></tt>)</li>
-<li>try to reduce the number of symbolic variables</li>
+<li>Some constraints are hard to solve. Set a timeout in the constraint solver: <strong>--use-forked-stp --max-stp-time=TimeoutInSeconds</strong></li>
+<li>If you used <tt class="docutils literal">s2e_disable_all_apic_interrupts</tt>, you probably forgot an <tt class="docutils literal">s2e_enable_all_apic_interrupts</tt> call somewhere in your code</li>
+<li>You are doing unnecessary system calls with symbolic arguments (e.g. <tt class="docutils literal">printf</tt>)</li>
+<li>Try to reduce the number of symbolic variables</li>
 </ul>
 </div>
 <div class="section" id="how-do-i-know-what-s2e-is-doing">
 <h2>1.2&nbsp;&nbsp;&nbsp;How do I know what S2E is doing?</h2>
 <p>You can look at the <tt class="docutils literal"><span class="pre">s2e-last/debug.txt</span></tt>.
-This file lists all the major events occurring during symbolic execution. One of them is &quot;Firing timer event&quot; which is called every second by S2E from the main execution loop. If you do not see it every second, it means that QEMU is stuck running plugin code (most likely because of a plugin bug) or constraint solver code (because of a complex query). To see which query is causing the problem, look at the query log.</p>
-<p>run.stats also contains some statistics. This file is updated every second, but only when executing symbolic code.</p>
+This file lists all the major events occurring during symbolic execution.
+One of them is &quot;Firing timer event&quot; which is called every second
+by S2E from the main execution loop. If you do not see it every second,
+it means that QEMU is stuck running plugin code (most likely because of a plugin bug)
+or constraint solver code (because of a complex query).
+To see which query is causing the problem, look at the query log.</p>
+<p><tt class="docutils literal">run.stats</tt> also contains many types statistics. This file is updated every second,
+but only when executing symbolic code.</p>
 </div>
 <div class="section" id="how-to-keep-memory-usage-low">
 <h2>1.3&nbsp;&nbsp;&nbsp;How to keep memory usage low?</h2>
-<p>You could ask S2E to disable forking when certain memory limit is reached using the following KLEE options: <strong>--max-memory-inhibit --max-memory=MemoryLimitInMB</strong></p>
-<p>However, it is usually better to limit the number of states and killing unneeded states when appropriate.</p>
+<p>You can use several options, depending on your needs.</p>
+<p>1. Enabling the shared framebuffer. By default, each state writes to its own framebuffer, which
+may add up to several megabytes to each state. However, it often does not matter what appears on
+the screen. In such case, use the <strong>--state-shared-memory=true</strong> option.</p>
+<p>2. Disable forking when certain memory limit is reached
+using the following KLEE options: <strong>--max-memory-inhibit --max-memory=MemoryLimitInMB</strong></p>
+<p>3. Explicitely kill unneeded states. E.g., if you want to achieve high code coverage and
+know that some state is unlikely to cover any new code, kill it.</p>
 </div>
 <div class="section" id="how-much-time-is-the-constraint-solver-taking-to-solve-constraints">
 <h2>1.4&nbsp;&nbsp;&nbsp;How much time is the constraint solver taking to solve constraints?</h2>
-<p>Try to log constraint solving queries:</p>
+<p>First, enable logging for constraint solving queries:</p>
 <pre class="literal-block">
 s2e = {
  kleeArgs = {
  &quot;--use-query-log&quot;, &quot;--use-query-pc-log&quot;,  &quot;--use-stp-query-pc-log&quot;
 }
 </pre>
-<p>With this configuration S2E generates two logs: <tt class="docutils literal"><span class="pre">s2e-last/queries.pc</span></tt> and <tt class="docutils literal"><span class="pre">s2e-last/stp-queries.qlog</span></tt></p>
+<p>With this configuration S2E generates two logs: <tt class="docutils literal"><span class="pre">s2e-last/queries.pc</span></tt> and <tt class="docutils literal"><span class="pre">s2e-last/stp-queries.qlog</span></tt>
+Look for &quot;Elapsed time&quot; in the logs.</p>
 </div>
-<div class="section" id="what-do-the-cexcachetime-forktime-solvertime-resolvetime-and-querytime-fields-mean">
-<h2>1.5&nbsp;&nbsp;&nbsp;What do the CexCacheTime, ForkTime, SolverTime, ResolveTime and QueryTime fields mean?</h2>
+<div class="section" id="what-do-the-various-fields-in-run-stats-mean">
+<h2>1.5&nbsp;&nbsp;&nbsp;What do the various fields in <tt class="docutils literal">run.stats</tt> mean?</h2>
 <ul class="simple">
 <li><strong>QueryTime</strong> shows how much time KLEE spent in the STP solver.</li>
 <li><strong>CexCacheTime</strong> adds to that time also the time spend while looking for a solution in a counter-example cache (which is enabled by --use-cex-cache KLEE option). SolverTime shows how much time KLEE spent in total while solving queries (this includes all the solver optimizations that could be enabled by various solver-related KLEE options).</li>

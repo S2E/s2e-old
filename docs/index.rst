@@ -9,7 +9,7 @@ S²E Documentation
 * Getting Started
 
   1. `Building S2E <BuildingS2E.html>`_
-  2. `Preparing an VM image for S2E <ImageInstallation.html>`_
+  2. `Preparing a VM image for S2E <ImageInstallation.html>`_
   3. `Quicky Uploading Programs to the Guest with s2eget <UsingS2EGet.html>`_
 
   4. `Testing a Simple Program <TestingMinimalProgram.html>`_

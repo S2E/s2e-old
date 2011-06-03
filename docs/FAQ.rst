@@ -13,31 +13,50 @@ Execution seems stuck/slow. What to do?
 ---------------------------------------------------
 Several things may be going on in your execution:
 
-* some constraints are hard to solve. Set a timeout in the constraint solver: **--use-forked-stp --max-stp-time=TimeoutInSeconds**
+* Some constraints are hard to solve. Set a timeout in the constraint solver: **--use-forked-stp --max-stp-time=TimeoutInSeconds**
+  If you do not see the "Firing timer event" message periodically in the ``debug.txt`` log file, execution got stuck in the
+  constraint solver.
 
-* you forgot a ``s2e_disable_all_apic_interrupts`` call somewhere in your code.
+* If you used ``s2e_disable_all_apic_interrupts``, you probably forgot an ``s2e_enable_all_apic_interrupts`` call somewhere in your code
 
-* you are doing unnecessary system calls with symbolic arguments (e.g. ``printf``)
+* You are doing unnecessary system calls with symbolic arguments (e.g. ``printf``)
 
-* try to reduce the number of symbolic variables
+* Try to reduce the number of symbolic variables
 
 
 How do I know what S2E is doing? 
 --------------------------------
 You can look at the ``s2e-last/debug.txt``.
-This file lists all the major events occurring during symbolic execution. One of them is "Firing timer event" which is called every second by S2E from the main execution loop. If you do not see it every second, it means that QEMU is stuck running plugin code (most likely because of a plugin bug) or constraint solver code (because of a complex query). To see which query is causing the problem, look at the query log.
+This file lists all the major events occurring during symbolic execution.
+One of them is "Firing timer event" which is called every second
+by S2E from the main execution loop. If you do not see it every second,
+it means that QEMU is stuck running plugin code (most likely because of a plugin bug)
+or constraint solver code (because of a complex query).
+To see which query is causing the problem, look at the query log.
 
-run.stats also contains some statistics. This file is updated every second, but only when executing symbolic code.
+``run.stats`` also contains many types statistics. This file is updated every second,
+but only when executing symbolic code.
+
+
 
 How to keep memory usage low?
 -------------------------------
-You could ask S2E to disable forking when certain memory limit is reached using the following KLEE options: **--max-memory-inhibit --max-memory=MemoryLimitInMB**
+You can use several options, depending on your needs.
 
-However, it is usually better to limit the number of states and killing unneeded states when appropriate.
+1. Enabling the shared framebuffer. By default, each state writes to its own framebuffer, which
+may add up to several megabytes to each state. However, it often does not matter what appears on
+the screen. In such case, use the **--state-shared-memory=true** option.
+
+2. Disable forking when certain memory limit is reached
+using the following KLEE options: **--max-memory-inhibit --max-memory=MemoryLimitInMB**
+
+3. Explicitely kill unneeded states. E.g., if you want to achieve high code coverage and
+know that some state is unlikely to cover any new code, kill it.
+
 
 How much time is the constraint solver taking to solve constraints?
 -------------------------------------------------------------------
-Try to log constraint solving queries:
+First, enable logging for constraint solving queries:
 
 ::
 
@@ -47,9 +66,10 @@ Try to log constraint solving queries:
    }
 
 With this configuration S2E generates two logs: ``s2e-last/queries.pc`` and ``s2e-last/stp-queries.qlog``
+Look for "Elapsed time" in the logs.
 
 
-What do the CexCacheTime, ForkTime, SolverTime, ResolveTime and QueryTime fields mean?
+What do the various fields in ``run.stats`` mean?
 ------------------------------------------------------------------------------------------------------
 
 * **QueryTime** shows how much time KLEE spent in the STP solver. 
