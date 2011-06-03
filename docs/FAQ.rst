@@ -1,5 +1,5 @@
 ======================================
-FAQ (Frequently Asked Questions)
+Frequently Asked Questions (FAQ)
 ======================================
 
 .. contents::
@@ -18,16 +18,17 @@ How do I know what S2E is doing?
    have a detailed trace for each execution path, which you can view with the ``tbtrace`` tool. Finally, ``TranslationBlockTracer``
    allows you to use the basic block `coverage <Tools/CoverageGenerator.html>`_ tool.
 
-You can look at the ``s2e-last/debug.txt``.
-This file lists all the major events occurring during symbolic execution.
-One of them is "Firing timer event" which is called every second
-by S2E from the main execution loop. If you do not see it every second,
-it means that QEMU is stuck running plugin code (most likely because of a plugin bug)
-or constraint solver code (because of a complex query).
-To see which query is causing the problem, look at the query log.
+2. Look at ``s2e-last/debug.txt`` and other files.
+   These files list all the major events occurring during symbolic execution.
 
-``run.stats`` also contains many types statistics. This file is updated every second,
-but only when executing symbolic code.
+   S2E outputs "Firing timer event" into ``s2e-last/debug.txt`` once per second.
+   If you do not see this event every second,
+   it means that QEMU is stuck running plugin code (most likely because of a plugin bug)
+   or constraint solver code (because of a complex query).
+   To see which query is causing the problem, look at the query log.
+
+3. ``run.stats`` also contains types statistics. This file is updated every second,
+   but only when executing symbolic code. See later in this FAQ for a description of its fields.
 
 
 
