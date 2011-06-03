@@ -6028,7 +6028,6 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     TCGv addr;
     TCGv_i64 tmp64;
     insn = ldl_code(s->pc);
-    s->pc += 4;
 
 #ifdef CONFIG_S2E
     tmp = new_tmp();
@@ -6044,6 +6043,8 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
 //    if (s->cc_op != CC_OP_DYNAMIC)
 //        gen_op_set_cc_op(s->cc_op);
 #endif
+
+    s->pc += 4;
 
     /* M variants do not implement ARM mode.  */
     if (IS_M(env))

@@ -1107,22 +1107,22 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
             if(!wos->readConcrete8(offset+i, buf+i)) {
                 const char* reg;
                 switch(offset) {
-                    case 0x00: reg = "r0"; break;
-                    case 0x04: reg = "r1"; break;
-                    case 0x08: reg = "r2"; break;
-                    case 0x0c: reg = "r3"; break;
-                    case 0x10: reg = "r4"; break;
-                    case 0x14: reg = "r5"; break;
-                    case 0x18: reg = "r6"; break;
-                    case 0x1c: reg = "r7"; break;
-                    case 0x20: reg = "r8"; break;
-                    case 0x24: reg = "r9"; break;
-                    case 0x28: reg = "r10"; break;
-                    case 0x3c: reg = "r11"; break;
-                    case 0x40: reg = "r12"; break;
-                    case 0x44: reg = "r13"; break;
-                    case 0x48: reg = "r14"; break;
-                    case 0x4c: reg = "r15"; break;
+                    case 132: reg = "r0"; break;
+                    case 136: reg = "r1"; break;
+                    case 140: reg = "r2"; break;
+                    case 144: reg = "r3"; break;
+                    case 148: reg = "r4"; break;
+                    case 152: reg = "r5"; break;
+                    case 156: reg = "r6"; break;
+                    case 160: reg = "r7"; break;
+                    case 164: reg = "r8"; break;
+                    case 168: reg = "r9"; break;
+                    case 172: reg = "r10"; break;
+                    case 176: reg = "r11"; break;
+                    case 180: reg = "r12"; break;
+                    case 184: reg = "r13"; break;
+                    case 188: reg = "r14"; break;
+                    case 192: reg = "r15"; break;
 
                     default: reg = "unknown"; break;
                 }
