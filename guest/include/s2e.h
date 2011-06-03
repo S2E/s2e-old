@@ -155,6 +155,23 @@ static inline void s2e_get_example(void* buf, int size)
     );
 }
 
+/** Get example value for expression (without adding state constraints). */
+/** Convenience function to be used in printfs */
+static inline unsigned s2e_get_example_uint(unsigned val)
+{
+    unsigned buf = val;
+    __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%edx, %%ebx\n"
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0x21, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        "popl %%ebx\n"
+        : : "a" (&buf), "d" (sizeof(buf)) : "memory"
+    );
+    return buf;
+}
+
 /** Terminate current state. */
 static inline void s2e_kill_state(int status, const char* message)
 {
@@ -297,6 +314,21 @@ static inline int s2e_read(int fd, char* buf, int count)
     return res;
 }
 
+/** Raw monitor plugin */
+/** Communicates to S2E the coordinates of loaded modules. Useful when there is
+    no plugin to automatically parse OS data structures */
+static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, unsigned size)
+{
+    __asm__ __volatile__(
+        "pushl %%ebx\n"
+        "movl %%edx, %%ebx\n"
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAA, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        "popl %%ebx\n"
+        : : "a" (name), "b" (loadbase), "c" (entrypoint)
+    );
+}
 
 /* Kills the current state if b is zero */
 static inline void _s2e_assert(int b, const char *expression )
