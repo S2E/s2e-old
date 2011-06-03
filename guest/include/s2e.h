@@ -326,7 +326,7 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
         ".byte 0x00, 0xAA, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
         "popl %%ebx\n"
-        : : "a" (name), "b" (loadbase), "c" (entrypoint)
+        : : "a" (name), "d" (loadbase), "c" (entrypoint)
     );
 }
 
