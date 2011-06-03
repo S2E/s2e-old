@@ -119,7 +119,12 @@ void RawMonitor::initialize()
     Sections = s2e()->getConfig()->getListKeys(getConfigKey());
     bool noErrors = true;
 
-    m_kernelStart = s2e()->getConfig()->getInt(getConfigKey() + ".kernelStart");
+    bool ok = false;
+    m_kernelStart = s2e()->getConfig()->getInt(getConfigKey() + ".kernelStart", 0, &ok);
+    if (!ok) {
+        s2e()->getWarningsStream() << "You must specify " << getConfigKey() << ".kernelStart" << std::endl;
+        exit(-1);
+    }
 
     foreach2(it, Sections.begin(), Sections.end()) {
         if (*it == "kernelStart") {
