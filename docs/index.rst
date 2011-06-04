@@ -10,10 +10,10 @@ S²E Documentation
 
   1. `Building S2E <BuildingS2E.html>`_
   2. `Preparing a VM image for S2E <ImageInstallation.html>`_
-  3. `Quicky Uploading Programs to the Guest with s2eget <UsingS2EGet.html>`_
+  3. `Quicky uploading programs to the guest with s2eget <UsingS2EGet.html>`_
 
-  4. `Testing a Simple Program <TestingMinimalProgram.html>`_
-  5. `Equivalence Testing <EquivalenceTesting.html>`_
+  4. `Testing a simple program <TestingMinimalProgram.html>`_
+  5. `Equivalence testing <EquivalenceTesting.html>`_
   
 * Analyzing Windows Device Drivers
 
@@ -24,24 +24,24 @@ S²E Documentation
 
   1. `Building the Linux kernel <BuildingLinux.html>`_
   2. `Using SystemTap with S2E <SystemTap.html>`_
-  
-* S2E Plugins
 
-  1. `How to write a plugin <WritingPlugins.html>`_
+* Howtos
+
+  1. `How to use execution tracers? <ExecutionTracers.html>`_
+  2. `How to write an S2E plugin? <WritingPlugins.html>`_
 
 * S2E Tools
   
   1. Available Tools
      
-     1. `Fork Profiler <Tools/ForkProfiler.html>`_
-     2. `Translation Block Printer <Tools/TbPrinter.html>`_
-     3. `Execution Profiler <Tools/ExecutionProfiler.html>`_
-     4. `Coverage Generator <Tools/CoverageGenerator.html>`_
+     1. `Fork profiler <Tools/ForkProfiler.html>`_
+     2. `Translation block printer <Tools/TbPrinter.html>`_
+     3. `Execution profiler <Tools/ExecutionProfiler.html>`_
+     4. `Coverage generator <Tools/CoverageGenerator.html>`_
    
-  2. `Supported Debug Information <Tools/DebugInfo.html>`_
-  3. Tools API
+  2. `Supported debug information <Tools/DebugInfo.html>`_
   
-* `FAQ <FAQ.html>`_
+* `Frequently Asked Questions <FAQ.html>`_
 
 S²E Plugin Reference
 ====================
