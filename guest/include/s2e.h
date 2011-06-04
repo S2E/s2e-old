@@ -186,20 +186,6 @@ static inline void s2e_kill_state(int status, const char* message)
     );
 }
 
-static inline void s2e_load_module(const char* name,
-        unsigned int loadbase, unsigned int size)
-{
-    __asm__ __volatile__(
-       "pushl %%ebx\n"
-       "movl %%edx, %%ebx\n"
-       ".byte 0x0f, 0x3f\n"
-       ".byte 0x00, 0xAA, 0x00, 0x00\n"
-       ".byte 0x00, 0x00, 0x00, 0x00\n"
-       "popl %%ebx\n"
-        : : "a" (name), "d" (loadbase), "c" (size)
-    );
-}
-
 /** Disable timer interrupt in the guest. */
 static inline void s2e_disable_timer_interrupt()
 {
