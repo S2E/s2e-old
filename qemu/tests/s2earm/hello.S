@@ -20,7 +20,7 @@ run as with the following option:
 ************************************************************************************/
 .equ testvar, 10 @just for fun
 .set stackstart, 0x7000
-.set symbstart,  0x7200
+.set symbstart,  0x8000
 
 /* start code */
 _start:
@@ -35,8 +35,8 @@ init_stack: @we use full descending mode (and do not care about different execut
 main:
 @    bl test_flags
 @	bl initial_test
-@	bl test_mem
-	bl test_forking
+	bl test_mem
+@	bl test_forking
 	B _idle
 
 test_forking:
@@ -91,53 +91,78 @@ initial_test:
 	ldmfd sp!,{r15}
 
 test_mem:
+    @
+	@registers with special roles:
+	@   r4  ... contains the current address to store/check
+	@   r5  ... contains path id of current path
+	@   r6  ... contains ram object bits (to build pagesize)
+	@   r7  ... used as a counter to limit the loop which forks the state
+	@   r8  ... custom stack where symbolic data is written (has to be decremented by <size of last written symbolic value> before use)
+	@   r9  ... contains pagesize
+	@
+
 	stmfd sp!,{r5, r14}
 	mov r7, #0
-	bl s2e_get_path_id
-	mov r5, r0
 	bl s2e_get_ram_object_bits
 	mov r6, r0
+	mov r9, #1
+	mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
 stm0:
+	mov r0, r7		    @print counter
+	adr r1, cnt		@name
+	bl s2e_print_expression
+
 	cmp r7,#10
+	bl print_status
 	beq stm1
+
 	sub r8, r8, #4		@decrement (custom symb. value 'stack')
+
 	mov r0, r8			@address of symb. value
 	mov r1, #4			@size of symb. value = 4byte
 	mov r2, #0			@name is empty (use default name)
     bl s2e_make_symbolic
+
     mov r0, r8
     mov r1, #4
     mov r2, #0
     bl s2e_print_memory
-    ldr r10, [r8,#0]		@get the symbolic value?
-    cmp r10, #0
-    beq stm1
+
+    ldr r10, [r8,#0]	@get the symbolic value
+    cmp r10, #0			@fork state
+    beq stm1			@one state enters stm1, the other continues
     add r7, r7, #1
     b stm0
 stm1:
-    mov r0, r8
-    mov r1, #4
-    mov r2, #0
-    bl s2e_print_memory
-    ldr r10, [r8,#0]		@get the symbolic value?
 	bl s2e_get_path_id
-	mov r9, #1
-	mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
-	mov r0, r9			@expression
+	mov r5, r0
+
+	mov r0, r9		@expression argument (r9 contains pagesize)
 	adr r1, val			@name
 	bl s2e_print_expression
 	mov r4, #1048576 @ starting memory address 0x100000
 stm2_restart:
+	adr r1, adrafter
+	mov r0, r4
+	bl s2e_print_expression
 	mov r10, r9		@(re)arm counter
 stm2:
 	@Fill page with test pattern (path id stored in r5)
+
 	str r5, [r4],#+4
+
 	sub r10, r10, #1 @decrease counter
 	cmp r10, #0
 	bne stm2
+	@sub r4, r4, #4 @one step back - last address is not written
 	mov r10, r9 @reset counter
 	mov r10, r10, lsl #2
+
+	mov r0, r10		@expression argument
+	bl s2e_print_expression
+
 	sub r4, r4, r10 @get back to memory starting address
+
 	mov r10, r9 @reset counter
 	adr r1, mem			@name param2 for print expression
 stm3:
@@ -166,29 +191,32 @@ _idle:
 	B _idle
 
 sterr:
+adr r1, membadval
+bl s2e_print_expression
 mov r0, r4
 adr r1, membad
 bl s2e_kill_state
 bl _idle
 
-msg:
-	.asciz "Hello S2E-Android!"
-val:
-	.asciz "Pagesize: "
-mem:
-	.asciz "Memcheck: "
-symbtest:
-	.asciz "SymbTest: "
-flagtest:
-	.asciz "Flagtest: "
-memok:
-	.asciz "Memory test passed ok"
-membad:
-	.asciz "MEMORY TEST FAILED"
+msg:.asciz "Hello S2E-Android!"
+val:		.asciz "Pagesize"
+.align 2
+mem:		.asciz "Memcheck"
+.align 2
+symbtest:	.asciz "SymbTest"
+.align 2
+flagtest:	.asciz "Flagtest"
+.align 2
+memok: 		.asciz "Memory test passed ok"
+.align 2
+membad: 	.asciz "MEMORY TEST FAILED"
+.align 2
+membadval: 	.asciz "Bad value"
+.align 2
+cnt:		.asciz "R7 counter"
+.align 2
+adrafter: 	.asciz "R4 address "
 
-version:
-	NOP
-	NOP
 
 .end
 
