@@ -1091,9 +1091,7 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
 void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
         CPUARMState *cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
-#if not defined(TARGET_ARM)
     assert(state->m_active);
-#endif
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 #ifdef TARGET_ARM
 	assert(offset + size <= CPU_OFFSET(regs[15]));
@@ -1109,6 +1107,10 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
             if(!wos->readConcrete8(offset+i, buf+i)) {
                 const char* reg;
                 switch(offset) {
+					case 116: reg = "CF"; break;
+					case 120: reg = "VF"; break;
+					case 124: reg = "NF"; break;
+					case 128: reg = "ZF"; break;
                     case 132: reg = "r0"; break;
                     case 136: reg = "r1"; break;
                     case 140: reg = "r2"; break;
@@ -1125,7 +1127,6 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
                     case 184: reg = "r13"; break;
                     case 188: reg = "r14"; break;
                     case 192: reg = "r15"; break;
-
                     default: reg = "unknown"; break;
                 }
                 std::string reason = std::string("access to ") + reg +
@@ -1152,9 +1153,7 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
 void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         CPUARMState *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
 {
-#if not defined(TARGET_ARM)
     assert(state->m_active);
-#endif
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
 	#ifdef TARGET_ARM
 		assert(offset + size <= CPU_OFFSET(regs[15]));
@@ -1321,7 +1320,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
         memcpy(oldStore, (uint8_t*) cpuMo->address, cpuMo->size);
 
-        oldState->m_active = false;
     }
 
     if(newState) {
@@ -1367,6 +1365,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         timers_state = *newState->m_timersState;
         qemu_icount = newState->m_qemuIcount;
         newState->getDeviceState()->restoreDeviceState();
+        oldState->m_active = false;
         //copyOutConcretes(*newState);
     }
 
@@ -2019,7 +2018,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         if(newState != originalState) {
             newState->m_needFinalizeTBExec = true;
-
+            newState->m_active = true;
             newState->getDeviceState()->saveDeviceState();
             newState->m_qemuIcount = qemu_icount;
             *newState->m_timersState = timers_state;
