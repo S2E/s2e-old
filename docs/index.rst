@@ -60,6 +60,11 @@ module loads/unloads and execution of modules of interest.
 Execution Tracers
 -----------------
 
+These plugins record various types of multi-path information during execution.
+This information can be processed by offline analysis tools. Refer to
+the `How to use execution tracers? <ExecutionTracers.html>`_ tutorial to understand
+how to combine these tracers.
+
 * `ExecutionTracer <Plugins/Tracers/ExecutionTracer.html>`_
 * `ModuleTracer <Plugins/Tracers/ModuleTracer.html>`_
 * `TestCaseGenerator <Plugins/Tracers/TestCaseGenerator.html>`_
