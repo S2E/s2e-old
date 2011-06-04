@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>RawMonitor</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="rawmonitor">
+<h1 class="title">RawMonitor</h1>
+
+<p>The RawMonitor plugin lets uses specify via a custom instruction whenever a module of interest is loaded or unloaded.
+It is useful when using S2E on a new OS for which there is no plugin that automatically extracts this information.
+RawMonitor can also be used to analyze raw pieces of code, such as the BIOS, firmware, etc.</p>
+<div class="section" id="custom-instruction">
+<h1>Custom Instruction</h1>
+<p>Raw monitor defines the following custom instruction (in the <tt class="docutils literal">s2e.h</tt> header):</p>
+<div class="highlight"><pre><span class="kt">void</span> <span class="n">s2e_rawmon_loadmodule</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">name</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="n">loadbase</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="n">size</span><span class="p">);</span>
+</pre></div>
+<p>It takes as parameters the name of the module, where it is loaded in memory, and its size.
+Use this function in your code to manually specify module boundaries, like this:</p>
+<div class="highlight"><pre><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+  <span class="p">...</span>
+  <span class="n">s2e_rawmon_loadmodule</span><span class="p">(</span><span class="s">&quot;myprogram&quot;</span><span class="p">,</span> <span class="n">loadbase</span><span class="p">,</span> <span class="n">size</span><span class="p">);</span>
+  <span class="p">...</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="section" id="options">
+<h1>Options</h1>
+<p>RawMonitor accepts global options and an arbitrary number of per-module sections.
+Per-module options are prefixed with &quot;module.&quot; in the documentation. Refer to the
+example below for details.</p>
+<div class="section" id="kernelstart-address">
+<h2>kernelStart=[address]</h2>
+<p>Indicates the boundary between the memory mapped in all address spaces
+and process-specific memory. On Linux, this value is typically 0xC0000000, while
+one Windows it is 0x80000000. Set the value to zero if this distinction
+does not make sense (e.g., there are no address spaces).</p>
+</div>
+<div class="section" id="module-name-string">
+<h2>module.name=[&quot;string&quot;]</h2>
+<p>The name of the module. This must match the name passed to <tt class="docutils literal">s2e_rawmon_loadmodule</tt>.</p>
+</div>
+<div class="section" id="module-delay-true-false">
+<h2>module.delay=[true|false]</h2>
+<p>Set to true when the <tt class="docutils literal">s2e_rawmon_loadmodule</tt> custom instruction is used.
+When set to false, RawMonitor considers the module to be loaded when S2E starts. In this
+case, it uses the <tt class="docutils literal">module.start</tt> parameter to determine the runtime address.</p>
+</div>
+<div class="section" id="module-start-address">
+<h2>module.start=[address]</h2>
+<p>The run-time address of the module. Set to zero if the runtime address is determined
+by the custom instruction.</p>
+</div>
+<div class="section" id="module-size-integer">
+<h2>module.size=[integer]</h2>
+<p>The size of the module binary.</p>
+</div>
+<div class="section" id="module-nativebase-address">
+<h2>module.nativebase=[address]</h2>
+<p>The default base address of the binary set by the linker.</p>
+</div>
+<div class="section" id="module-kernel-true-false">
+<h2>module.kernel=[true|false]</h2>
+<p>Whether the module lies above or below the kernel-mode threshold.
+Assumes that the module is mapped in all address space at the same location above
+the kernel/user-space boundary.</p>
+</div>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<pre class="literal-block">
+pluginsConfig.RawMonitor = {
+    kernelStart = 0xc0000000,
+    myprog_id = {
+        delay = true,
+        name = &quot;myprogram&quot;,
+        start = 0x0,
+        size = 52505,
+        nativebase = 0x8048000,
+        kernelmode = false
+    }
+}
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="RawMonitor.rst">View document source</a>.
+
+</div>
+</body>
+</html>

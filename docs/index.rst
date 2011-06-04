@@ -46,8 +46,30 @@ S²E Documentation
 S²E Plugin Reference
 ====================
 
-* `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
-* `FunctionMonitor <Plugins/FunctionMonitor.html>`_
+
+OS Event Monitors
+-----------------
+
+To implement selectivity, S2E relies on several OS-specific plugins to detect
+module loads/unloads and execution of modules of interest.
+
+   * `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
+   * `RawMonitor <Plugins/RawMonitor.html>`_
+   * `ModuleExecutionDetector <Plugins/ModuleExecutionDetector.html>`_
+
+Execution Tracers
+-----------------
+
+  * `ExecutionTracer <Plugins/Tracers/ExecutionTracer.html>`_
+  * `ModuleTracer <Plugins/Tracers/ModuleTracer.html>`_
+  * `TestCaseGenerator <Plugins/Tracers/TestCaseGenerator.html>`_
+  * `TranslationBlockTracer <Plugins/Tracers/TranslationBlockTracer.html>`_
+  * `InstructionCounter <Plugins/Tracers/InstructionCounter.html>`_
+
+Miscellaneous plugins
+---------------------
+
+* `FunctionMonitor <Plugins/FunctionMonitor.html>`_ Provides client plugins with events triggered when the guest code invokes specified functions.
 
 S²E Development
 ===============

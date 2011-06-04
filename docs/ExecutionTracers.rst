@@ -114,7 +114,7 @@ Your ``config.lua`` file may look as follows. Note that some plugins do not have
     }
 
     pluginsConfig.ModuleExecutionDetector = {
-        fsck = {
+        myprog_id = {
             moduleName = "myprogram",
             kernelMode = false
         },

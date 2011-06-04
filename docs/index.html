@@ -53,10 +53,36 @@
 </div>
 <div class="section" id="s2e-plugin-reference">
 <h1>S²E Plugin Reference</h1>
+<div class="section" id="os-event-monitors">
+<h2>OS Event Monitors</h2>
+<p>To implement selectivity, S2E relies on several OS-specific plugins to detect
+module loads/unloads and execution of modules of interest.</p>
+<blockquote>
 <ul class="simple">
 <li><a class="reference external" href="Plugins/WindowsInterceptor/WindowsMonitor.html">WindowsMonitor</a></li>
-<li><a class="reference external" href="Plugins/FunctionMonitor.html">FunctionMonitor</a></li>
+<li><a class="reference external" href="Plugins/RawMonitor.html">RawMonitor</a></li>
+<li><a class="reference external" href="Plugins/ModuleExecutionDetector.html">ModuleExecutionDetector</a></li>
 </ul>
+</blockquote>
+</div>
+<div class="section" id="execution-tracers">
+<h2>Execution Tracers</h2>
+<blockquote>
+<ul class="simple">
+<li><a class="reference external" href="Plugins/Tracers/ExecutionTracer.html">ExecutionTracer</a></li>
+<li><a class="reference external" href="Plugins/Tracers/ModuleTracer.html">ModuleTracer</a></li>
+<li><a class="reference external" href="Plugins/Tracers/TestCaseGenerator.html">TestCaseGenerator</a></li>
+<li><a class="reference external" href="Plugins/Tracers/TranslationBlockTracer.html">TranslationBlockTracer</a></li>
+<li><a class="reference external" href="Plugins/Tracers/InstructionCounter.html">InstructionCounter</a></li>
+</ul>
+</blockquote>
+</div>
+<div class="section" id="miscellaneous-plugins">
+<h2>Miscellaneous plugins</h2>
+<ul class="simple">
+<li><a class="reference external" href="Plugins/FunctionMonitor.html">FunctionMonitor</a> Provides client plugins with events triggered when the guest code invokes specified functions.</li>
+</ul>
+</div>
 </div>
 <div class="section" id="s2e-development">
 <h1>S²E Development</h1>
