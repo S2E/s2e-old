@@ -53,18 +53,18 @@ OS Event Monitors
 To implement selectivity, S2E relies on several OS-specific plugins to detect
 module loads/unloads and execution of modules of interest.
 
-   * `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
-   * `RawMonitor <Plugins/RawMonitor.html>`_
-   * `ModuleExecutionDetector <Plugins/ModuleExecutionDetector.html>`_
+* `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
+* `RawMonitor <Plugins/RawMonitor.html>`_
+* `ModuleExecutionDetector <Plugins/ModuleExecutionDetector.html>`_
 
 Execution Tracers
 -----------------
 
-  * `ExecutionTracer <Plugins/Tracers/ExecutionTracer.html>`_
-  * `ModuleTracer <Plugins/Tracers/ModuleTracer.html>`_
-  * `TestCaseGenerator <Plugins/Tracers/TestCaseGenerator.html>`_
-  * `TranslationBlockTracer <Plugins/Tracers/TranslationBlockTracer.html>`_
-  * `InstructionCounter <Plugins/Tracers/InstructionCounter.html>`_
+* `ExecutionTracer <Plugins/Tracers/ExecutionTracer.html>`_
+* `ModuleTracer <Plugins/Tracers/ModuleTracer.html>`_
+* `TestCaseGenerator <Plugins/Tracers/TestCaseGenerator.html>`_
+* `TranslationBlockTracer <Plugins/Tracers/TranslationBlockTracer.html>`_
+* `InstructionCounter <Plugins/Tracers/InstructionCounter.html>`_
 
 Miscellaneous plugins
 ---------------------
