@@ -74,11 +74,11 @@ how to combine these tracers.
 Miscellaneous plugins
 ---------------------
 
-* *BaseInstructions* implements various custom instructions to control symbolic execution from the guest.
+* `BaseInstructions <Plugins/BaseInstructions.html>`_ implements various custom instructions to control symbolic execution from the guest.
 * `FunctionMonitor <Plugins/FunctionMonitor.html>`_ Provides client plugins with events triggered when the guest code invokes specified functions.
 * *CacheSim* implements a multi-path cache profiler.
 * `HostFiles <UsingS2EGet.html>`_ allows to quickly upload files to the guest.
-* *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA.
+* *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the `Windows driver testing <Windows/DriverTutorial.html>`_ tutorial for usage instructions.
 
 S²E Development
 ===============
