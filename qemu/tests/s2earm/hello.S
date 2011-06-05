@@ -37,9 +37,9 @@ init_stack: @we use full descending mode (and do not care about different execut
 main:
 @    bl test_flags
 @	bl initial_test
-@	bl test_mem
+	bl test_mem
 @	bl test_forking
-	bl switch_main
+@	bl switch_main
 	B _idle
 
 switch_main:
