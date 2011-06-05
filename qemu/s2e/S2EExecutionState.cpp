@@ -74,10 +74,8 @@ namespace s2e {
 
 using namespace klee;
 
-int S2EExecutionState::s_lastStateID = 0;
-
 S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
-        klee::ExecutionState(kf), m_stateID(s_lastStateID++),
+        klee::ExecutionState(kf), m_stateID(g_s2e->fetchAndIncrementStateId()),
         m_symbexEnabled(true), m_startSymbexAtPC((uint64_t) -1),
         m_active(true), m_runningConcrete(true),
         m_cpuRegistersState(NULL), m_cpuSystemState(NULL),
@@ -229,7 +227,7 @@ ExecutionState* S2EExecutionState::clone()
     if(m_lastS2ETb)
         m_lastS2ETb->refCount += 1;
 
-    ret->m_stateID = s_lastStateID++;
+    ret->m_stateID = g_s2e->fetchAndIncrementStateId();
 
     ret->m_timersState = new TimersState;
     *ret->m_timersState = *m_timersState;

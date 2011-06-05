@@ -68,6 +68,11 @@ class Database;
 
 struct S2EShared {
     unsigned currentProcessCount;
+
+    //We must have unique state ids across all processes
+    //otherwise offline tools will be extremely confused when
+    //aggregating different execution trace files.
+    unsigned lastStateId;
 };
 
 class S2E
@@ -191,6 +196,7 @@ public:
     void writeBitCodeToFile();
 
     int fork();
+    unsigned fetchAndIncrementStateId();
 };
 
 } // namespace s2e

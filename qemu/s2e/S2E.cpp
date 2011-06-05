@@ -246,7 +246,9 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 
     m_maxProcesses = s2e_max_processes;
     m_currentProcessIndex = 0;
-    m_sync.acquire()->currentProcessCount = 1;
+    S2EShared *shared = m_sync.acquire();
+    shared->currentProcessCount = 1;
+    shared->lastStateId = 0;
     m_sync.release();
 
     /* Open output directory. Do it at the very begining so that
@@ -648,6 +650,15 @@ int S2E::fork()
 
     return pid == 0 ? 1 : 0;
 #endif
+}
+
+unsigned S2E::fetchAndIncrementStateId()
+{
+    S2EShared *shared = m_sync.acquire();
+    unsigned ret = shared->lastStateId;
+    ++shared->lastStateId;
+    m_sync.release();
+    return ret;
 }
 
 
