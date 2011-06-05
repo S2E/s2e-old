@@ -412,7 +412,7 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
         llvm::sys::Path dirPath(m_outputDirectory);
 
         ostringstream oss;
-        oss << m_currentProcessIndex << "-" << getpid();
+        oss << m_currentProcessIndex;
 
         dirPath.appendComponent(oss.str());
         assert(!dirPath.exists());
