@@ -2005,6 +2005,17 @@ void S2EExecutor::deleteState(klee::ExecutionState *state)
     m_deletedStates.push_back(static_cast<S2EExecutionState*>(state));
 }
 
+void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
+                 const vector<S2EExecutionState*>& newStates,
+                 const vector<ref<Expr> >& newConditions)
+{
+#ifdef _WIN32
+
+#else
+
+#endif
+}
+
 void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                  const vector<S2EExecutionState*>& newStates,
                  const vector<ref<Expr> >& newConditions)

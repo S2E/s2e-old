@@ -281,6 +281,11 @@ protected:
                      const std::vector<S2EExecutionState*>& newStates,
                      const std::vector<klee::ref<klee::Expr> >& conditions);
 
+    void doProcessFork(S2EExecutionState *originalState,
+                     const std::vector<S2EExecutionState*>& newStates,
+                     const std::vector<klee::ref<klee::Expr> >& newConditions);
+
+
     /** Copy concrete values to their proper location, concretizing
         if necessary (most importantly it will concretize CPU registers.
         Note: this is required only to execute generated code,

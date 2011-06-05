@@ -93,12 +93,19 @@ protected:
 
     TCGLLVMContext *m_tcgLLVMContext;
 
+    /* How many processes can S2E fork */
+    unsigned m_maxProcesses;
+
+    std::string m_outputDirectoryBase;
+
     /* The following members are late-initialized when
     QEMU pc creation is complete */
     S2EHandler* m_s2eHandler;
     S2EExecutor* m_s2eExecutor;
 
-    void initOutputDirectory(const std::string& outputDirectory, int verbose);
+    /* forked indicates whether the current S2E process was forked from a parent S2E process */
+    void initOutputDirectory(const std::string& outputDirectory, int verbose, bool forked);
+
     void initKleeOptions();
     void initExecutor();
     void initPlugins();
@@ -112,7 +119,7 @@ public:
                  TCGLLVMContext* tcgLLVMContext,
                  const std::string& configFileName,
                  const std::string& outputDirectory,
-                 int verbose = 0);
+                 int verbose = 0, unsigned s2e_max_processes = 1);
     ~S2E();
 
     /*****************************/

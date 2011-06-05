@@ -83,7 +83,7 @@ struct S2E* s2e_initialize(int argc, char** argv,
                            struct TCGLLVMContext *tcgLLVMContext,
                            const char *s2e_config_file,
                            const char *s2e_output_dir,
-                           int verbose);
+                           int verbose, unsigned max_processes);
 
 /** Relese S2E instance and all S2E-related objects. Called by main() */
 void s2e_close(struct S2E* s2e);

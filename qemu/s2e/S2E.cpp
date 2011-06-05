@@ -71,6 +71,11 @@
 
 #include <sys/stat.h>
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
 // stacktrace.h (c) 2008, Timo Bingmann from http://idlebox.net/
 // published under the WTFPL v2.0
 #if defined(CONFIG_WIN32)
@@ -225,12 +230,25 @@ public:
 
 S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     const std::string &configFileName, const std::string &outputDirectory,
-    int verbose)
+    int verbose, unsigned s2e_max_processes)
         : m_tcgLLVMContext(tcgLLVMContext)
 {
+    if (s2e_max_processes < 1) {
+        std::cerr << "You must at least allow one process for S2E." << std::endl;
+        exit(1);
+    }
+#ifdef CONFIG_WIN32
+    if (s2e_max_processes > 1) {
+        std::cerr << "S2E for Windows does not support more than one process" << std::endl;
+        exit(1);
+    }
+#endif
+
+    m_maxProcesses = s2e_max_processes;
+
     /* Open output directory. Do it at the very begining so that
        other init* functions can use it. */
-    initOutputDirectory(outputDirectory, verbose);
+    initOutputDirectory(outputDirectory, verbose, false);
 
     /* Copy the config file into the output directory */
     {
@@ -252,9 +270,6 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
         }
         delete out;
     }
-
-    /* Init the data base */
-    m_database = new s2e::Database(m_outputDirectory + "/s2e.db");
 
     /* Parse configuration file */
     m_configFile = new s2e::ConfigFile(configFileName);
@@ -355,58 +370,75 @@ std::ostream* S2E::openOutputFile(const std::string &fileName)
     return f;
 }
 
-void S2E::initOutputDirectory(const string& outputDirectory, int verbose)
+void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool forked)
 {
-    if (outputDirectory.empty()) {
-        llvm::sys::Path cwd(".");
+    if (!forked) {
+        //In case we create the first S2E process
+        if (outputDirectory.empty()) {
+            llvm::sys::Path cwd(".");
 
-        for (int i = 0; ; i++) {
-            ostringstream dirName;
-            dirName << "s2e-out-" << i;
+            for (int i = 0; ; i++) {
+                ostringstream dirName;
+                dirName << "s2e-out-" << i;
 
-            llvm::sys::Path dirPath(cwd);
-            dirPath.appendComponent(dirName.str());
+                llvm::sys::Path dirPath(cwd);
+                dirPath.appendComponent(dirName.str());
 
-            if(!dirPath.exists()) {
-                m_outputDirectory = dirPath.toString();
-                break;
+                if(!dirPath.exists()) {
+                    m_outputDirectory = dirPath.toString();
+                    break;
+                }
             }
-        }
 
-    } else {
-        m_outputDirectory = outputDirectory;
+        } else {
+            m_outputDirectory = outputDirectory;
+        }
+        m_outputDirectoryBase = m_outputDirectory;
+    }else {
+        m_outputDirectory = m_outputDirectoryBase;
     }
+
+
+
+#ifndef _WIN32
+    if (m_maxProcesses > 1) {
+        //Create one output directory per child process
+        //This prevents child processes to clobber each other's output
+        llvm::sys::Path dirPath(m_outputDirectory);
+
+        ostringstream oss;
+        oss << getpid();
+
+        dirPath.appendComponent(oss.str());
+        assert(!dirPath.exists());
+        m_outputDirectory = dirPath.toString();
+    }
+#endif
 
     std::cout << "S2E: output directory = \"" << m_outputDirectory << "\"\n";
 
-#ifdef _WIN32
-    if(mkdir(m_outputDirectory.c_str()) < 0)
-#else
-    if(mkdir(m_outputDirectory.c_str(), 0775) < 0)
-#endif
-    {
-        /* If the output directory was not specified and we aren't able
-           to create our own then let's just warn the user and abort */
-        /* It the output directory was specified by the user, it might
-           already be created befure launching S2E, don't panic in this case */
-        if(outputDirectory.empty()) {
-            perror("ERROR: Unable to create output directory");
-            exit(1);
-        }
+    llvm::sys::Path outDir(m_outputDirectory);
+    std::string mkdirError;
+    if (outDir.createDirectoryOnDisk(true, &mkdirError)) {
+        std::cerr << "Could not create output directory " << outDir.toString() <<
+                " error: " << mkdirError << std::endl;
+        exit(-1);
     }
 
 #ifndef _WIN32
-    llvm::sys::Path s2eLast(".");
-    s2eLast.appendComponent("s2e-last");
+    if (!forked) {
+        llvm::sys::Path s2eLast(".");
+        s2eLast.appendComponent("s2e-last");
 
-    if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
-        perror("ERRPR: Cannot unlink s2e-last");
-        exit(1);
-    }
+        if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
+            perror("ERRPR: Cannot unlink s2e-last");
+            exit(1);
+        }
 
-    if (symlink(m_outputDirectory.c_str(), s2eLast.c_str()) < 0) {
-        perror("ERROR: Cannot make symlink s2e-last");
-        exit(1);
+        if (symlink(m_outputDirectoryBase.c_str(), s2eLast.c_str()) < 0) {
+            perror("ERROR: Cannot make symlink s2e-last");
+            exit(1);
+        }
     }
 #endif
 
@@ -452,6 +484,10 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose)
 
     klee::klee_message_stream = m_messagesFile;
     klee::klee_warning_stream = m_warningsFile;
+
+    /* Init the data base */
+    m_database = new s2e::Database(m_outputDirectory + "/s2e.db");
+
 }
 
 void S2E::initKleeOptions()
@@ -590,12 +626,12 @@ S2E* g_s2e = NULL;
 S2E* s2e_initialize(int argc, char** argv,
             TCGLLVMContext* tcgLLVMContext,
             const char* s2e_config_file,  const char* s2e_output_dir,
-            int verbose)
+            int verbose, unsigned s2e_max_processes)
 {
     return new S2E(argc, argv, tcgLLVMContext,
                    s2e_config_file ? s2e_config_file : "",
                    s2e_output_dir  ? s2e_output_dir  : "",
-                   verbose);
+                   verbose, s2e_max_processes);
 }
 
 void s2e_close(S2E *s2e)
