@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.5: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
 <title>Analyzing Windows Drivers: Step-by-Step Tutorial</title>
 <link rel="stylesheet" href="../s2e.css" type="text/css" />
 </head>
@@ -94,7 +94,7 @@ Of course, <em>ping</em> will fail because the NIC is fake.</p>
 <li>Go to &quot;Network Connections&quot; in the control panel. You should see a disabled (greyed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and <strong>disable</strong> all protocols except TCP/IP.</li>
 <li>Set the IP address of the fake NIC to 192.168.111.123/24 and the gateway to 192.168.111.1. The actual values do not matter, but you must be consistent with those in the <em>pcnet.bat</em> script.</li>
 <li>Disable <em>all</em> services that generate spurious network traffic (e.g., SSDP, automatic time update, file sharing, etc.). You can use Wireshark to spot these services.</li>
-<li>Set the <tt class="docutils literal"><span class="pre">HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\ArpRetryCount</span></tt> setting of the TCP/IP stack to 0.
+<li>Set the <tt class="docutils literal">HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\ArpRetryCount</tt> setting of the TCP/IP stack to 0.
 This disables the gratuitous ARP requests mechanism. Since we want to control what packets we send, we do not want Windows to interfere with that.</li>
 </ol>
 </div>
@@ -216,9 +216,9 @@ $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-
  -hda /home/s2e/vm/windows_pcntpci5.sys.qcow2 -s
 </pre>
 </li>
-<li><p class="first">Once the image is booted, open the command prompt, go to <tt class="docutils literal"><span class="pre">c:\s2e</span></tt> and type <tt class="docutils literal"><span class="pre">pcnet.bat</span></tt>, <strong>without</strong> hitting enter yet.</p>
+<li><p class="first">Once the image is booted, open the command prompt, go to <tt class="docutils literal"><span class="pre">c:\s2e</span></tt> and type <tt class="docutils literal">pcnet.bat</tt>, <strong>without</strong> hitting enter yet.</p>
 </li>
-<li><p class="first">On the host OS, open a terminal, launch <tt class="docutils literal"><span class="pre">telnet</span></tt>, and save a first snapshot.</p>
+<li><p class="first">On the host OS, open a terminal, launch <tt class="docutils literal">telnet</tt>, and save a first snapshot.</p>
 <pre class="literal-block">
 $ telnet localhost 4444
 Trying 127.0.0.1...
@@ -244,16 +244,16 @@ Breakpoint 1 at 0x80b3f5d6
 Continuing.
 </pre>
 </li>
-<li><p class="first">Return to the guest, and hit ENTER to start executing the <tt class="docutils literal"><span class="pre">pcnet.bat</span></tt> script.</p>
+<li><p class="first">Return to the guest, and hit ENTER to start executing the <tt class="docutils literal">pcnet.bat</tt> script.</p>
 </li>
 <li><p class="first">When GDB hits the breakpoint, go to the telnet console, and save the new snapshot under the name <strong>go</strong>.</p>
 <pre class="literal-block">
 (qemu) savevm go
 </pre>
 </li>
-<li><p class="first">Close QEMU with the <tt class="docutils literal"><span class="pre">quit</span></tt> command.</p>
+<li><p class="first">Close QEMU with the <tt class="docutils literal">quit</tt> command.</p>
 </li>
-<li><p class="first">At this point, you have two snapshots in the <tt class="docutils literal"><span class="pre">/home/s2e/vm/windows_pcntpci5.sys.qcow2</span></tt>:</p>
+<li><p class="first">At this point, you have two snapshots in the <tt class="docutils literal">/home/s2e/vm/windows_pcntpci5.sys.qcow2</tt>:</p>
 <ol class="loweralpha simple">
 <li>A snapshot named <strong>ready</strong>, which is in the state right before loading the driver. Use this snapshot to make quick modifications to the guest between runs, if needed.</li>
 <li>A snapshot named <strong>go</strong>, which is about to execute the first instruction of the driver.</li>
@@ -267,13 +267,13 @@ Continuing.
 <p>At this point, we have an image ready to be symbolically executed.
 In this section, we will explain how to write an S2E configuration file that controls the behavior of the symbolic execution process.
 This file specifies what module to symbolically execute, what parts should be symbolically executed, where to inject symbolic values, and how to kill states.</p>
-<p>Before proceeding further, create a file called <tt class="docutils literal"><span class="pre">pcntpci5.sys.lua</span></tt>.
+<p>Before proceeding further, create a file called <tt class="docutils literal">pcntpci5.sys.lua</tt>.
 S2E uses LUA as an interpreter for configuration files. As such, these files are fully scriptable and can interact with the symbolic execution engine.
 In this tutorial, we cover the basic steps of creating such a file.</p>
 <div class="section" id="configuring-klee">
 <h2>2.1&nbsp;&nbsp;&nbsp;Configuring KLEE</h2>
-<p>The top level section of the configuration file is <tt class="docutils literal"><span class="pre">s2e</span></tt>.
-We start by configuring KLEE, using the <tt class="docutils literal"><span class="pre">kleeArgs</span></tt> subsection.
+<p>The top level section of the configuration file is <tt class="docutils literal">s2e</tt>.
+We start by configuring KLEE, using the <tt class="docutils literal">kleeArgs</tt> subsection.
 Refer to the corresponding section of the documentation for more information about each setting.</p>
 <pre class="literal-block">
 s2e = {
@@ -303,7 +303,7 @@ plugins = {
     &quot;ModuleExecutionDetector&quot;,
 
     &quot;SymbolicHardware&quot;,
-    &quot;PollingLoopDetector&quot;,
+    &quot;EdgeKiller&quot;,
     &quot;Annotation&quot;,
 
     &quot;ExecutionTracer&quot;,
@@ -322,10 +322,10 @@ plugins = {
 </div>
 <div class="section" id="selecting-the-driver-to-execute">
 <h2>2.3&nbsp;&nbsp;&nbsp;Selecting the driver to execute</h2>
-<p>The <tt class="docutils literal"><span class="pre">WindowsMonitor</span></tt> plugins monitors Windows events and catches module loads and unloads.
-The <tt class="docutils literal"><span class="pre">ModuleExecutionDetector</span></tt> plugin listens to events exported by <tt class="docutils literal"><span class="pre">WindowsMonitor</span></tt> and reacts
+<p>The <tt class="docutils literal">WindowsMonitor</tt> plugins monitors Windows events and catches module loads and unloads.
+The <tt class="docutils literal">ModuleExecutionDetector</tt> plugin listens to events exported by <tt class="docutils literal">WindowsMonitor</tt> and reacts
 when it detects specific modules.</p>
-<p>Configure <tt class="docutils literal"><span class="pre">WindowsMonitor</span></tt> as follows:</p>
+<p>Configure <tt class="docutils literal">WindowsMonitor</tt> as follows:</p>
 <pre class="literal-block">
 pluginsConfig = {}
 
@@ -340,7 +340,7 @@ pluginsConfig.WindowsMonitor = {
 }
 </pre>
 <p>This configuration assumes that you run the free build version of Windows XP Service Pack 3.</p>
-<p>Now, configure <tt class="docutils literal"><span class="pre">ModuleExecutionDetector</span></tt> as follows to track loads and unloads of <tt class="docutils literal"><span class="pre">pcntpci5.sys</span></tt>.</p>
+<p>Now, configure <tt class="docutils literal">ModuleExecutionDetector</tt> as follows to track loads and unloads of <tt class="docutils literal">pcntpci5.sys</tt>.</p>
 <pre class="literal-block">
 pluginsConfig.ModuleExecutionDetector = {
     pcntpci5_sys_1 = {
@@ -352,7 +352,7 @@ pluginsConfig.ModuleExecutionDetector = {
 </div>
 <div class="section" id="configuring-symbolic-hardware">
 <h2>2.4&nbsp;&nbsp;&nbsp;Configuring symbolic hardware</h2>
-<p>The <tt class="docutils literal"><span class="pre">SymbolicHardware</span></tt> plugin creates fake PCI (or ISA) devices, which are detected by the OS.
+<p>The <tt class="docutils literal">SymbolicHardware</tt> plugin creates fake PCI (or ISA) devices, which are detected by the OS.
 All reads from such devices are symbolic and writes are discarded. Symbolic devices can also generate
 interrupts and handle DMA.</p>
 <p>The following configuration is specific to the AMD PCNet NIC device.</p>
@@ -377,29 +377,29 @@ pluginsConfig.SymbolicHardware = {
 <div class="section" id="detecting-polling-loops">
 <h2>2.5&nbsp;&nbsp;&nbsp;Detecting polling loops</h2>
 <p>Drivers often use polling loops to check the status of registers.
-Polling loops cause the number of states to explode. The <tt class="docutils literal"><span class="pre">PollingLoopDetector</span></tt> plugin relies on the user
+Polling loops cause the number of states to explode. The <a class="reference external" href="../Plugins/EdgeKiller.html">EdgeKiller</a> plugin relies on the user
 to specify the location of each of these loops and kills the states whenever it detects such loops.
 Each configuration entry for this plugin takes a pair of addresses specifying an edge in the control flow graph of
 the binary. The plugin kills the state whenever it detects the execution of such an edge.</p>
-<p>For the <tt class="docutils literal"><span class="pre">pcntpci5.sys</span></tt> driver, use the following settings:</p>
+<p>For the <tt class="docutils literal">pcntpci5.sys</tt> driver, use the following settings:</p>
 <pre class="literal-block">
-pluginsConfig.PollingLoopDetector = {
+pluginsConfig.EdgeKiller = {
     pcntpci5_sys_1 = {
-        l0 = {0x14040, 0x1401d},
-        l01 = {0x139c2, 0x13993},
-        l02 = {0x14c84, 0x14c5e},
+        l1 = {0x14040, 0x1401d},
+        l2 = {0x139c2, 0x13993},
+        l3 = {0x14c84, 0x14c5e}
    }
 }
 </pre>
 </div>
 <div class="section" id="annotating-driver-code">
 <h2>2.6&nbsp;&nbsp;&nbsp;Annotating driver code</h2>
-<p>S2E comes with a powerful <tt class="docutils literal"><span class="pre">Annotation</span></tt> plugin that allows users to control the behavior of symbolic execution.
+<p>S2E comes with a powerful <tt class="docutils literal">Annotation</tt> plugin that allows users to control the behavior of symbolic execution.
 Each annotation comes in the form of a LUA function taking as parameters the current execution state and the instance
 of the annotation plugin. Such annotation can be used to inject symbolic values, monitor the execution, trim useless states, etc.</p>
-<p>In the following sample, we write an annotation <tt class="docutils literal"><span class="pre">init_merge_point1_oncall</span></tt>
+<p>In the following sample, we write an annotation <tt class="docutils literal">init_merge_point1_oncall</tt>
 that suspends all the execution states that have reached the end
-of the configuration phase of the <tt class="docutils literal"><span class="pre">pcntpci5.sys</span></tt> driver. The end of the phase is located at the address <tt class="docutils literal"><span class="pre">0x169c9</span></tt>
+of the configuration phase of the <tt class="docutils literal">pcntpci5.sys</tt> driver. The end of the phase is located at the address <tt class="docutils literal">0x169c9</tt>
 relative to the native base of the driver. You may want to disassemble the driver for more details.</p>
 <pre class="literal-block">
 function init_merge_point1_oncall(state, plg)
@@ -426,18 +426,18 @@ all executed translation blocks. This can be useful, e.g.,  to generate coverage
 covered in a different tutorial.</p>
 <p><em>These plugins have no configurable options. Hence, they do not require configuration sections.</em></p>
 <ul class="simple">
-<li>The <tt class="docutils literal"><span class="pre">ExecutionTracer</span></tt> is the main tracing plugin. This plugin abstracts the execution trace file.
-The <tt class="docutils literal"><span class="pre">ExecutionTracer</span></tt> plugin saves a binary trace file in the <tt class="docutils literal"><span class="pre">s2e-last/ExecutionTracer.dat</span></tt> file.
+<li>The <tt class="docutils literal">ExecutionTracer</tt> is the main tracing plugin. This plugin abstracts the execution trace file.
+The <tt class="docutils literal">ExecutionTracer</tt> plugin saves a binary trace file in the <tt class="docutils literal"><span class="pre">s2e-last/ExecutionTracer.dat</span></tt> file.
 This file is composed of generic trace items. Each item can have an arbitrary format, determined by the various tracing plugins.</li>
-<li>The <tt class="docutils literal"><span class="pre">ModuleTracer</span></tt>  plugin listens to module events exported by the <tt class="docutils literal"><span class="pre">WindowsInterceptor</span></tt> plugin (or other plugins exporting the <tt class="docutils literal"><span class="pre">Interceptor</span></tt> interface) and writes them to the trace by invoking API exported by the <tt class="docutils literal"><span class="pre">ExecutionTrace</span></tt> plugin.</li>
-<li>Finally, the <tt class="docutils literal"><span class="pre">TranslationBlockTracer</span></tt> plugin writes the register input and output of each executed translation block.
-Whenever a translation block of a module specified in the <tt class="docutils literal"><span class="pre">ModuleExecutionDetector</span></tt> plugin is executed, the <tt class="docutils literal"><span class="pre">TranslationBlockTracer</span></tt> plugin records it in the trace.</li>
+<li>The <tt class="docutils literal">ModuleTracer</tt>  plugin listens to module events exported by the <tt class="docutils literal">WindowsInterceptor</tt> plugin (or other plugins exporting the <tt class="docutils literal">Interceptor</tt> interface) and writes them to the trace by invoking API exported by the <tt class="docutils literal">ExecutionTrace</tt> plugin.</li>
+<li>Finally, the <tt class="docutils literal">TranslationBlockTracer</tt> plugin writes the register input and output of each executed translation block.
+Whenever a translation block of a module specified in the <tt class="docutils literal">ModuleExecutionDetector</tt> plugin is executed, the <tt class="docutils literal">TranslationBlockTracer</tt> plugin records it in the trace.</li>
 </ul>
 </div>
 <div class="section" id="specifying-consistency-models">
 <h2>2.8&nbsp;&nbsp;&nbsp;Specifying consistency models</h2>
 <p>S2E enables various consistency models.
-The <tt class="docutils literal"><span class="pre">NdisHandlers</span></tt> plugin implements the <strong>over-approximate</strong>, <strong>local</strong>, <strong>strict</strong>, and <strong>over-constrained</strong> models for
+The <tt class="docutils literal">NdisHandlers</tt> plugin implements the <strong>over-approximate</strong>, <strong>local</strong>, <strong>strict</strong>, and <strong>over-constrained</strong> models for
 Windows NDIS drivers.
 In this tutorial, we show how to set the <strong>strict</strong> model, in which the only symbolic input comes from the hardware.
 Feel free to experiment with other models.</p>
@@ -452,10 +452,10 @@ pluginsConfig.NdisHandlers = {
 </div>
 <div class="section" id="controlling-the-execution-of-entry-points">
 <h2>2.9&nbsp;&nbsp;&nbsp;Controlling the execution of entry points</h2>
-<p>The <tt class="docutils literal"><span class="pre">StateManager</span></tt> plugins periodically chooses one successful state at random and kills the remaining states.
-The <tt class="docutils literal"><span class="pre">NdisHandlers</span></tt> plugin uses the <tt class="docutils literal"><span class="pre">StateManager</span></tt> plugin to suspend all paths that successfully returned from the
+<p>The <tt class="docutils literal">StateManager</tt> plugins periodically chooses one successful state at random and kills the remaining states.
+The <tt class="docutils literal">NdisHandlers</tt> plugin uses the <tt class="docutils literal">StateManager</tt> plugin to suspend all paths that successfully returned from the
 entry points (e.g., a successful initialization). Whenever no more new translation blocks are covered during a
-<em>timeout</em> interval, the <tt class="docutils literal"><span class="pre">StateManager</span></tt> plugin kills all remaining states but one successful, and lets symbolic execution
+<em>timeout</em> interval, the <tt class="docutils literal">StateManager</tt> plugin kills all remaining states but one successful, and lets symbolic execution
 continue from the remaining state. This copes with the state explosion problem.</p>
 <pre class="literal-block">
 pluginsConfig.StateManager = {
@@ -465,10 +465,10 @@ pluginsConfig.StateManager = {
 </div>
 <div class="section" id="detecting-bugs">
 <h2>2.10&nbsp;&nbsp;&nbsp;Detecting bugs</h2>
-<p>The <tt class="docutils literal"><span class="pre">BlueScreenInterceptor</span></tt> and <tt class="docutils literal"><span class="pre">WindowsCrashDumpGenerator</span></tt> turn S2E into a basic bug finder.
+<p>The <tt class="docutils literal">BlueScreenInterceptor</tt> and <tt class="docutils literal">WindowsCrashDumpGenerator</tt> turn S2E into a basic bug finder.
 The BSOD detector kills all the states that crashes, while the crash dump generator produces dumps that can be opened
 and analyzed in WinDbg.</p>
-<p>Dump files are as large as the physical memory and take some time to generate, hence the <tt class="docutils literal"><span class="pre">BlueScreenInterceptor</span></tt> plugin options specify whether to generate a crash dump, and the maximum number of such dumps.</p>
+<p>Dump files are as large as the physical memory and take some time to generate, hence the <tt class="docutils literal">BlueScreenInterceptor</tt> plugin options specify whether to generate a crash dump, and the maximum number of such dumps.</p>
 <pre class="literal-block">
 pluginsConfig.BlueScreenInterceptor = {
     generateCrashDump = false,
@@ -495,7 +495,7 @@ $./i386-s2e-softmmu/qemu -rtc clock=vm -net user -net nic,model=ne2k_pci -hda pc
 <li><strong>s2e.config.lua</strong>: a copy of the configuration file. This is useful if you tweak the configuration file between different runs.
 It allows you to quickly rerun specific experiments, without losing any configuration.</li>
 <li><strong>s2e.db</strong>: sqlite database, used by some plugins.</li>
-<li><strong>ExecutionTracer.dat</strong>: the  execution trace generated by the <tt class="docutils literal"><span class="pre">ExecutionTracer</span></tt> plugin.</li>
+<li><strong>ExecutionTracer.dat</strong>: the  execution trace generated by the <tt class="docutils literal">ExecutionTracer</tt> plugin.</li>
 </ul>
 </div>
 </div>

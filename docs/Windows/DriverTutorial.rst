@@ -28,7 +28,7 @@ First, boot the vanilla QEMU with the following arguments:
    $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 \
     -fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 \
     -rtc clock=vm -net user -net nic,model=ne2k_pci -monitor telnet:localhost:4444,server,nowait \
-    -hda /home/s2e/vm/windows_pcntpci5.sys.raw -s 
+    -hda /home/s2e/vm/windows_pcntpci5.sys.raw -s
 
 Here is an explanation of the command line.
 
@@ -55,7 +55,7 @@ Here is an explanation of the command line.
 Copying files
 -------------
 
-Copy the *devcon.exe* utility in the Windows image. 
+Copy the *devcon.exe* utility in the Windows image.
 Then, copy the following script into *c:\s2e\pcnet.bat* (or to any location you wish) in the guest OS.
 You may beed to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
 should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer to the QEMU documentation for more details.
@@ -76,7 +76,7 @@ Setting up the networking configuration
 ---------------------------------------
 
 1. Before proceeding, **reboot** the virtual machine.
-2. Go to "Network Connections" in the control panel. You should see a disabled (greyed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and **disable** all protocols except TCP/IP.
+2. Go to "Network Connections" in the control panel. You should see a disabled (grayed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and **disable** all protocols except TCP/IP.
 3. Set the IP address of the fake NIC to 192.168.111.123/24 and the gateway to 192.168.111.1. The actual values do not matter, but you must be consistent with those in the *pcnet.bat* script.
 4. Disable *all* services that generate spurious network traffic (e.g., SSDP, automatic time update, file sharing, etc.). You can use Wireshark to spot these services.
 5. Set the ``HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\ArpRetryCount`` setting of the TCP/IP stack to 0.
@@ -95,7 +95,7 @@ The registry key containing the settings is the following:
 
 ::
 
-    HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-02002be10318}\xxxx 
+    HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-02002be10318}\xxxx
 
 where **xxxx** is an integer that can vary from system to system. Select the key that has a value containing "AMD PCNET Family PCI Ethernet Adapter".
 
@@ -114,7 +114,7 @@ LED0                 REG_SZ          10000
 LED1                 REG_SZ          10000
 LED2                 REG_SZ          10000
 LED3                 REG_SZ          10000
-MPMODE               REG_SZ          0 
+MPMODE               REG_SZ          0
 NetworkAddress       REG_SZ          001122334455
 Priority8021p        REG_SZ          0
 SlotNumber           REG_SZ          0
@@ -132,7 +132,7 @@ Converting the image
    ::
 
        qemu-img convert -O qcow2 /home/s2e/vm/windows_pcntpci5.sys.raw /home/s2e/vm/windows_pcntpci5.sys.qcow2
-       
+
 Preparing the image for symbolic execution
 ------------------------------------------
 
@@ -142,34 +142,34 @@ We will use the remote target feature of GDB to connect to the guest OS, set a b
 1. Boot the image using the previous command line. Make sure to use the QCOW2 image, or you will not be able to save snapshots.
 
    ::
-   
+
        $./i386-softmmu/qemu -fake-pci-name pcnetf -fake-pci-vendor-id 0x1022 -fake-pci-device-id 0x2000 \\
         -fake-pci-class-code 2 -fake-pci-revision-id 0x7 -fake-pci-resource-io 0x20 -fake-pci-resource-mem 0x20 \\
         -rtc clock=vm -net user -net nic,model=ne2k_pci -monitor telnet:localhost:4444,server,nowait \\
         -hda /home/s2e/vm/windows_pcntpci5.sys.qcow2 -s
-           
+
 2. Once the image is booted, open the command prompt, go to ``c:\s2e`` and type ``pcnet.bat``, **without** hitting enter yet.
 
 3. On the host OS, open a terminal, launch ``telnet``, and save a first snapshot.
 
    ::
-   
+
           $ telnet localhost 4444
           Trying 127.0.0.1...
           Connected to localhost.
           Escape character is '^]'.
           QEMU 0.12.2 monitor - type 'help' for more information
           (qemu) savevm ready
-          
+
    You can use this snapshot to make quick modifications to the VM, without rebooting the guest
-           
+
 4. Now, open GDB, attach to the remote QEMU guest, set a breakpoint in the kernel, then resume execution.
-   In this example, we assume that you have installed the **checked build** of Windows XP **SP3** without any update installed. 
+   In this example, we assume that you have installed the **checked build** of Windows XP **SP3** without any update installed.
    If you have a **free build** of Windows XP SP3 (as it comes on the distribution CD), use **0x805A399A** instead of **0x80b3f5d6**.
    This number if the program counter of the call instruction that invokes the entry point of the driver.
 
    ::
-   
+
          $ gdb
          (gdb) target remote localhost:1234
          Remote debugging using localhost:1234
@@ -178,22 +178,22 @@ We will use the remote target feature of GDB to connect to the guest OS, set a b
          Breakpoint 1 at 0x80b3f5d6
          (gdb) c
          Continuing.
-         
+
 5. Return to the guest, and hit ENTER to start executing the ``pcnet.bat`` script.
 
 6. When GDB hits the breakpoint, go to the telnet console, and save the new snapshot under the name **go**.
 
    ::
-    
+
          (qemu) savevm go
-          
+
 7. Close QEMU with the ``quit`` command.
 
 8. At this point, you have two snapshots in the ``/home/s2e/vm/windows_pcntpci5.sys.qcow2``:
 
    a. A snapshot named **ready**, which is in the state right before loading the driver. Use this snapshot to make quick modifications to the guest between runs, if needed.
    b. A snapshot named **go**, which is about to execute the first instruction of the driver.
-   
+
 Configuring S2E
 ===============
 
@@ -243,7 +243,7 @@ we briefly present each of the plugins.
         "ModuleExecutionDetector",
 
         "SymbolicHardware",
-        "PollingLoopDetector",
+        "EdgeKiller",
         "Annotation",
 
         "ExecutionTracer",
@@ -328,7 +328,7 @@ Detecting polling loops
 -----------------------
 
 Drivers often use polling loops to check the status of registers.
-Polling loops cause the number of states to explode. The ``PollingLoopDetector`` plugin relies on the user
+Polling loops cause the number of states to explode. The `EdgeKiller <../Plugins/EdgeKiller.html>`_ plugin relies on the user
 to specify the location of each of these loops and kills the states whenever it detects such loops.
 Each configuration entry for this plugin takes a pair of addresses specifying an edge in the control flow graph of
 the binary. The plugin kills the state whenever it detects the execution of such an edge.
@@ -337,11 +337,11 @@ For the ``pcntpci5.sys`` driver, use the following settings:
 
 ::
 
-    pluginsConfig.PollingLoopDetector = {
+    pluginsConfig.EdgeKiller = {
         pcntpci5_sys_1 = {
-            l0 = {0x14040, 0x1401d},
-            l01 = {0x139c2, 0x13993},
-            l02 = {0x14c84, 0x14c5e},
+            l1 = {0x14040, 0x1401d},
+            l2 = {0x139c2, 0x13993},
+            l3 = {0x14c84, 0x14c5e}
        }
     }
 

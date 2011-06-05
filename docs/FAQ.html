@@ -103,6 +103,7 @@ to track function calls and concretize parameters.</li>
 <li>If you exercise multiple entry points of a library (e.g., a device driver), it may make sense to choose only
 one successful state when an entry point exits and kill all the others. Use the <a class="reference external" href="Plugins/StateManager.html">StateManager</a> plugin to suspend
 the execution of all paths that returned from a library function until one return succeeds.</li>
+<li>Kill back-edges of polling loops using the <a class="reference external" href="Plugins/EdgeKiller.html">EdgeKiller</a> plugin.</li>
 </ul>
 </li>
 <li>Prioritize states according to a metric that makes sense for your problem.

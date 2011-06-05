@@ -71,15 +71,29 @@ how to combine these tracers.
 * `TranslationBlockTracer <Plugins/Tracers/TranslationBlockTracer.html>`_
 * `InstructionCounter <Plugins/Tracers/InstructionCounter.html>`_
 
-Miscellaneous plugins
+Selection Plugins
+-----------------
+
+These plugins allow you to specify which paths to execute and where to inject symbolic values
+
+* `StateManager <Plugins/StateManager.html>`_ helps exploring library entry points more efficiently.
+* `EdgeKiller <Plugins/EdgeKiller.html>`_ kills execution paths that execute some sequence of instructions (e.g., polling loops).
+* `BaseInstructions <Plugins/BaseInstructions.html>`_ implements various custom instructions to control symbolic execution from the guest.
+* *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the `Windows driver testing <Windows/DriverTutorial.html>`_ tutorial for usage instructions.
+
+
+Analysis Plugins
+----------------
+
+* *CacheSim* implements a multi-path cache profiler.
+
+
+Miscellaneous Plugins
 ---------------------
 
-* `BaseInstructions <Plugins/BaseInstructions.html>`_ implements various custom instructions to control symbolic execution from the guest.
-* `FunctionMonitor <Plugins/FunctionMonitor.html>`_ Provides client plugins with events triggered when the guest code invokes specified functions.
-* *CacheSim* implements a multi-path cache profiler.
+* `FunctionMonitor <Plugins/FunctionMonitor.html>`_ provides client plugins with events triggered when the guest code invokes specified functions.
 * `HostFiles <UsingS2EGet.html>`_ allows to quickly upload files to the guest.
-* *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the `Windows driver testing <Windows/DriverTutorial.html>`_ tutorial for usage instructions.
-* `StateManager <Plugins/StateManager.html>`_ helps exploring library entry points more efficiently.
+
 
 S²E Development
 ===============

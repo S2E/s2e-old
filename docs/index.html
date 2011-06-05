@@ -77,15 +77,27 @@ how to combine these tracers.</p>
 <li><a class="reference external" href="Plugins/Tracers/InstructionCounter.html">InstructionCounter</a></li>
 </ul>
 </div>
-<div class="section" id="miscellaneous-plugins">
-<h2>Miscellaneous plugins</h2>
+<div class="section" id="selection-plugins">
+<h2>Selection Plugins</h2>
+<p>These plugins allow you to specify which paths to execute and where to inject symbolic values</p>
 <ul class="simple">
-<li><a class="reference external" href="Plugins/BaseInstructions.html">BaseInstructions</a> implements various custom instructions to control symbolic execution from the guest.</li>
-<li><a class="reference external" href="Plugins/FunctionMonitor.html">FunctionMonitor</a> Provides client plugins with events triggered when the guest code invokes specified functions.</li>
-<li><em>CacheSim</em> implements a multi-path cache profiler.</li>
-<li><a class="reference external" href="UsingS2EGet.html">HostFiles</a> allows to quickly upload files to the guest.</li>
-<li><em>SymbolicHardware</em> implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the <a class="reference external" href="Windows/DriverTutorial.html">Windows driver testing</a> tutorial for usage instructions.</li>
 <li><a class="reference external" href="Plugins/StateManager.html">StateManager</a> helps exploring library entry points more efficiently.</li>
+<li><a class="reference external" href="Plugins/EdgeKiller.html">EdgeKiller</a> kills execution paths that execute some sequence of instructions (e.g., polling loops).</li>
+<li><a class="reference external" href="Plugins/BaseInstructions.html">BaseInstructions</a> implements various custom instructions to control symbolic execution from the guest.</li>
+<li><em>SymbolicHardware</em> implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the <a class="reference external" href="Windows/DriverTutorial.html">Windows driver testing</a> tutorial for usage instructions.</li>
+</ul>
+</div>
+<div class="section" id="analysis-plugins">
+<h2>Analysis Plugins</h2>
+<ul class="simple">
+<li><em>CacheSim</em> implements a multi-path cache profiler.</li>
+</ul>
+</div>
+<div class="section" id="miscellaneous-plugins">
+<h2>Miscellaneous Plugins</h2>
+<ul class="simple">
+<li><a class="reference external" href="Plugins/FunctionMonitor.html">FunctionMonitor</a> provides client plugins with events triggered when the guest code invokes specified functions.</li>
+<li><a class="reference external" href="UsingS2EGet.html">HostFiles</a> allows to quickly upload files to the guest.</li>
 </ul>
 </div>
 </div>

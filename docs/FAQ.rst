@@ -98,6 +98,7 @@ The following describes concrete steps that allowed us to explore programs most 
    * If you exercise multiple entry points of a library (e.g., a device driver), it may make sense to choose only
      one successful state when an entry point exits and kill all the others. Use the `StateManager <Plugins/StateManager.html>`_ plugin to suspend
      the execution of all paths that returned from a library function until one return succeeds.
+   * Kill back-edges of polling loops using the `EdgeKiller <Plugins/EdgeKiller.html>`_ plugin.
 
 6. Prioritize states according to a metric that makes sense for your problem.
    This may be done by writing a custom state searcher plugin. S2E comes with several examples of searchers that aim to maximize code coverage
