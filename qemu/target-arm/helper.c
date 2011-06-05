@@ -366,31 +366,31 @@ void cpu_arm_close(CPUARMState *env)
 uint32_t cpsr_read(CPUARMState *env)
 {
 
-    int ZF;
-    ZF = (RR_cpu(env,ZF) == 0);
-    return env->uncached_cpsr | (RR_cpu(env,NF) & 0x80000000) | (ZF << 30) |
-        (RR_cpu(env,CF) << 29) | ((RR_cpu(env,VF) & 0x80000000) >> 3) | (env->QF << 27)
-        | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
-        | ((env->condexec_bits & 0xfc) << 8)
-        | (env->GE << 16);
+//    int ZF;
+//    ZF = (RR_cpu(env,ZF) == 0);
+//    return env->uncached_cpsr | (RR_cpu(env,NF) & 0x80000000) | (ZF << 30) |
+//        (RR_cpu(env,CF) << 29) | ((RR_cpu(env,VF) & 0x80000000) >> 3) | (env->QF << 27)
+//        | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
+//        | ((env->condexec_bits & 0xfc) << 8)
+//        | (env->GE << 16);
 
 // For DEBUG purposes
-//    int ZF;
-//    target_ulong NF,CF,VF,QF, thumb, condex1, condex2, GE;
-//    ZF = (RR_cpu(env,ZF) == 0);
-//    NF = (RR_cpu(env,NF) & 0x80000000);
-//    CF = (RR_cpu(env,CF) << 29);
-//    VF = ((RR_cpu(env,VF) & 0x80000000) >> 3);
-//    QF = (env->QF << 27);
-//    thumb = (env->thumb << 5);
-//    condex1 = ((env->condexec_bits & 3) << 25);
-//    condex2 = ((env->condexec_bits & 0xfc) << 8);
-//    GE = (env->GE << 16);
-//    return env->uncached_cpsr | NF | (ZF << 30) |
-//        CF | VF | QF
-//        | thumb | condex1
-//        | condex2
-//        | GE;
+    int ZF;
+    target_ulong NF,CF,VF,QF, thumb, condex1, condex2, GE;
+    ZF = (RR_cpu(env,ZF) == 0);
+    NF = (RR_cpu(env,NF) & 0x80000000);
+    CF = (RR_cpu(env,CF) << 29);
+    VF = ((RR_cpu(env,VF) & 0x80000000) >> 3);
+    QF = (env->QF << 27);
+    thumb = (env->thumb << 5);
+    condex1 = ((env->condexec_bits & 3) << 25);
+    condex2 = ((env->condexec_bits & 0xfc) << 8);
+    GE = (env->GE << 16);
+    return env->uncached_cpsr | NF | (ZF << 30) |
+        CF | VF | QF
+        | thumb | condex1
+        | condex2
+        | GE;
 }
 
 void cpsr_write(CPUARMState *env, uint32_t val, uint32_t mask)
@@ -629,16 +629,14 @@ void switch_mode(CPUState *env, int mode)
     }
 
     i = bank_number(old_mode);
-//    WR_cpu(env,banked_r13[i],RR_cpu(env,regs[13]));
-//    WR_cpu(env,banked_r14[i],RR_cpu(env,regs[14]));
   WR_cpu(env,banked_r13[i], RR_cpu(env,regs[13]));
   WR_cpu(env,banked_r14[i], RR_cpu(env,regs[14]));
-    env->banked_spsr[i] = env->spsr;
+    WR_cpu(env,banked_spsr[i], RR_cpu(env,spsr));
 
     i = bank_number(mode);
     WR_cpu(env,regs[13],RR_cpu(env,banked_r13[i]));
     WR_cpu(env,regs[13],RR_cpu(env,banked_r14[i]));
-    env->spsr = env->banked_spsr[i];
+    WR_cpu(env,spsr,RR_cpu(env,banked_spsr[i]));
 }
 
 static void v7m_push(CPUARMState *env, uint32_t val)
@@ -867,7 +865,7 @@ void do_interrupt(CPUARMState *env)
         addr += 0xffff0000;
     }
     switch_mode (env, new_mode);
-    env->spsr = cpsr_read(env);
+    WR_cpu(env,spsr,cpsr_read(env));
     /* Clear IT bits.  */
     env->condexec_bits = 0;
     /* Switch to the new mode, and switch to Arm mode.  */

@@ -9030,7 +9030,6 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     DisasContext dc1, *dc = &dc1;
     CPUBreakpoint *bp;
     uint16_t *gen_opc_end;
-    TCGv_i64 tmp64;
     int j, lj;
     target_ulong pc_start;
     uint32_t next_page_start;
@@ -9076,6 +9075,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         max_insns = CF_COUNT_MASK;
 
 #ifdef CONFIG_S2E
+    TCGv_i64 tmp64;
     dc->enable_jmp_im = 1;
     dc->cpuState = env;
     tb->s2e_tb_type = TB_DEFAULT;

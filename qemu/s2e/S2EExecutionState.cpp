@@ -477,19 +477,62 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
         return 0;
 
     uint64_t mask = 0;
-    /* XXX: x86-specific */
+
+#ifdef TARGET_ARM
+
+        if(!os->isConcrete( 29*4, 4*8)) // CF
+            mask |= (1 << 1);
+        if(!os->isConcrete( 30*4, 4*8)) // VF
+            mask |= (1 << 2);
+        if(!os->isConcrete(31*4, 4*8)) // NF
+            mask |= (1 << 3);
+        if(!os->isConcrete(32*4, 4*8)) // ZF
+            mask |= (1 << 4);
+        for(int i = 0; i < 15; ++i) { /* regs */
+                if(!os->isConcrete((33+i)*4, 4*8))
+                    mask |= (1 << (i+5));
+        }
+        if(!os->isConcrete(0, 4*8)) // spsr
+            mask |= (1 << 20);
+        for(int i = 0; i < 6; ++i) { /* banked_spsr */
+                if(!os->isConcrete((1+i)*4, 4*8))
+                    mask |= (1 << (i+21));
+        }
+        for(int i = 0; i < 6; ++i) { /* banked r13 */
+                if(!os->isConcrete((7+i)*4, 4*8))
+                    mask |= (1 << (i+27));
+        }
+        for(int i = 0; i < 6; ++i) { /* banked r14 */
+                if(!os->isConcrete((13+i)*4, 4*8))
+                    mask |= (1 << (i+33));
+        }
+        for(int i = 0; i < 5; ++i) { /* usr_regs */
+                if(!os->isConcrete((19+i)*4, 4*8))
+                    mask |= (1 << (i+39));
+        }
+        for(int i = 0; i < 5; ++i) { /* fiq_regs */
+                if(!os->isConcrete((24+i)*4, 4*8))
+                    mask |= (1 << (i+44));
+        }
+
+#elif defined(TARGET_I386)
     for(int i = 0; i < 8; ++i) { /* regs */
-        if(!os->isConcrete(i*4, 4*8))
-            mask |= (1 << (i+5));
-    }
-    if(!os->isConcrete( 8*4, 4*8)) // cc_op
-        mask |= (1 << 1);
-    if(!os->isConcrete( 9*4, 4*8)) // cc_src
-        mask |= (1 << 2);
-    if(!os->isConcrete(10*4, 4*8)) // cc_dst
-        mask |= (1 << 3);
-    if(!os->isConcrete(11*4, 4*8)) // cc_tmp
-        mask |= (1 << 4);
+            if(!os->isConcrete(i*4, 4*8))
+                mask |= (1 << (i+5));
+        }
+        if(!os->isConcrete( 8*4, 4*8)) // cc_op
+            mask |= (1 << 1);
+        if(!os->isConcrete( 9*4, 4*8)) // cc_src
+            mask |= (1 << 2);
+        if(!os->isConcrete(10*4, 4*8)) // cc_dst
+            mask |= (1 << 3);
+        if(!os->isConcrete(11*4, 4*8)) // cc_tmp
+            mask |= (1 << 4);
+#else
+	assert(false & "Update Hardcoded masking of symbolic fields of CPUState for your target.");
+#endif
+
+
     return mask;
 }
 
