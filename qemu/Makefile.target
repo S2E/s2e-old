@@ -365,6 +365,7 @@ s2eobj-y += s2e/Database.o
 s2eobj-y += s2e/ConfigFile.o
 s2eobj-y += s2e/SelectRemovalPass.o
 s2eobj-y += s2e/S2EExecutor.o
+s2eobj-y += s2e/Synchronization.o
 s2eobj-y += s2e/S2EExecutionState.o
 s2eobj-y += s2e/S2EDeviceState.o
 s2eobj-y += s2e/S2EStatsTracker.o
