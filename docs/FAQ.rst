@@ -71,15 +71,15 @@ Second, use S2E to *selectively* relax and/or overconstrain path constraints.
   are few of them, or you can detect them a posteriori, this is an acceptable trade-off.
 
 
-How do I deal with state explosion?
+How do I deal with path explosion?
 -----------------------------------
 
-Use the *selective* aspect of S2E to kill states that are not interesting and prevent forking outside modules of interest.
+Use the *selective* aspect of S2E to kill paths that are not interesting and prevent forking outside modules of interest.
 The following describes concrete steps that allowed us to explore programs most efficiently.
 
 1. Run your program with minimum symbolic input (e.g., 1 byte) and with tracing enabled (see first section).
 
-2. Insert more and more symbolic values until state explosion occurs (i.e., it takes too long for you to explore all the paths
+2. Insert more and more symbolic values until path explosion occurs (i.e., it takes too long for you to explore all the paths
    or it takes too much memory/CPU resources).
 
 3. Extract the fork profile and identify the code locations that fork the most.
@@ -94,13 +94,15 @@ The following describes concrete steps that allowed us to explore programs most 
 5. Kill the paths that you are not interested in:
 
    * You may only want to explore error-free paths. For example, kill all those where library functions fail.
-   * Keep only the paths of interest. Write a custom plugin that probes the program's state to decide when to kill it.
+   * You may only be interested error recovery code. In this case, kill all the paths in which no error occur.
+   * Keep only the paths of interest. Write a custom plugin that probes the program's state to decide when to kill the path.
    * If you exercise multiple entry points of a library (e.g., a device driver), it may make sense to choose only
-     one successful state when an entry point exits and kill all the others. Use the `StateManager <Plugins/StateManager.html>`_ plugin to suspend
+     one successful path when an entry point exits and kill all the others. Use the `StateManager <Plugins/StateManager.html>`_ plugin to suspend
      the execution of all paths that returned from a library function until one return succeeds.
-   * Kill back-edges of polling loops using the `EdgeKiller <Plugins/EdgeKiller.html>`_ plugin.
+   * Kill back-edges of polling loops using the `EdgeKiller <Plugins/EdgeKiller.html>`_ plugin. You can also use
+     this plugin when execution enters some block of code (e.g., error recovery).
 
-6. Prioritize states according to a metric that makes sense for your problem.
+6. Prioritize paths according to a metric that makes sense for your problem.
    This may be done by writing a custom state searcher plugin. S2E comes with several examples of searchers that aim to maximize code coverage
    as fast as possible.
 
@@ -117,8 +119,8 @@ You can use several options, depending on your needs.
 *  Disable forking when a memory limit is reached
    using the following KLEE options: ``--max-memory-inhibit`` and  ``--max-memory=MemoryLimitInMB``.
 
-*  Explicitly kill unneeded states. E.g., if you want to achieve high code coverage and
-   know that some state is unlikely to cover any new code, kill it.
+*  Explicitly kill unneeded paths. E.g., if you want to achieve high code coverage and
+   know that some path is unlikely to cover any new code, kill it.
 
 
 How much time is the constraint solver taking to solve constraints?
