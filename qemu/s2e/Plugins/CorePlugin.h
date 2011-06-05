@@ -183,6 +183,10 @@ public:
                  const std::vector<klee::ref<klee::Expr> >& /* newConditions */>
             onStateFork;
 
+    /** Signal emited when spawning a new S2E process */
+    /** The signal is emitted in the child processes only */
+    sigc::signal<void> onProcessFork;
+
     /** Signal that is emitted upon TLB miss */
     sigc::signal<void, S2EExecutionState*, uint64_t, bool> onTlbMiss;
 

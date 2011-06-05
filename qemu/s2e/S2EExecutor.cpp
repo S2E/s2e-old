@@ -2058,6 +2058,10 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
             }
             high = splitIndex-1;
             splitIndex = (splitIndex - low) / 2;
+
+            //Only send notification to the children
+            m_s2e->getCorePlugin()->onProcessFork.emit();
+
             if (splitIndex == 0) {
                 break;
             }
