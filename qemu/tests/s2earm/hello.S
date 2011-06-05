@@ -19,8 +19,10 @@ run as with the following option:
  
 ************************************************************************************/
 .equ testvar, 10 @just for fun
-.set stackstart, 0x7000
-.set symbstart,  0x8000
+.set stackstart, 	0x7000
+.set symbstart,  	0x8000
+.set memstart,		0x10000
+.set testvalue, 	0xDE
 
 /* start code */
 _start:
@@ -35,9 +37,35 @@ init_stack: @we use full descending mode (and do not care about different execut
 main:
 @    bl test_flags
 @	bl initial_test
-	bl test_mem
+@	bl test_mem
 @	bl test_forking
+	bl switch_main
 	B _idle
+
+switch_main:
+	stmfd sp!,{r14}
+	sub r8, r8, #4		@decrement (custom symb. value 'stack')
+
+	mov r0, r8			@address of symb. value
+	mov r1, #4			@size of symb. value = 4byte
+	mov r2, #0			@name is empty (use default name)
+    bl s2e_make_symbolic
+	mov r4, #memstart
+
+    ldr r10, [r8,#0]	@get the symbolic value
+    cmp r10, #0
+    movne r0, #163     @should fork into 2 states
+  	mov r6, #6
+switch_loop:
+	cmp r6, #6
+	bne switch_error
+	b switch_loop
+    ldmfd sp!,{r15}
+
+switch_error:
+	mov r0, r6
+	adr r1, statebad
+	bl s2e_kill_state
 
 test_forking:
 	stmfd sp!,{r14}
@@ -47,12 +75,45 @@ test_forking:
 	mov r1, #4			@size of symb. value = 4byte
 	mov r2, #0			@name is empty (use default name)
     bl s2e_make_symbolic
+	mov r4, #memstart
 
     ldr r10, [r8,#0]	@get the symbolic value
-
     cmp r10, #0
-    beq test_mem			@forking should occur
+    movge r0, #163     @should fork into 2 states
+
+	bl s2e_get_path_id
+	mov r5, r0
+
+	adr r1, labelreg5
+	bl s2e_print_expression
+
+
+	str r5, [r4],#+4
+	str r5, [r4],#+4
+    bl compareMem
+
+
+	adr r1, symbtest
+	bl s2e_kill_state
     ldmfd sp!,{r15}
+
+compareMem:
+	stmfd sp!,{r0, r14}
+	sub r4, r4, #8
+
+	mov r0, r4
+	adr r1, adrafter
+	bl s2e_print_expression
+
+
+	ldr r0, [r4],#+4
+	cmp r0, r5
+	bne sterr  @if not, goto error
+	bl checkpoint
+	ldr r0, [r4],#+4
+	cmp r0, r5
+	bne sterr  @if not, goto error
+	ldmfd sp!,{r0, r15}
 
 test_flags:
 	stmfd sp!,{r14}
@@ -90,8 +151,14 @@ initial_test:
 	mov r5, r0
 	ldmfd sp!,{r15}
 
+checkpoint:
+	stmfd sp!,{r14}
+	adr r0, checkmsg
+	bl s2e_message
+	ldmfd sp!,{r15}
+
 test_mem:
-    @
+   @
 	@registers with special roles:
 	@   r4  ... contains the current address to store/check
 	@   r5  ... contains path id of current path
@@ -100,7 +167,6 @@ test_mem:
 	@   r8  ... custom stack where symbolic data is written (has to be decremented by <size of last written symbolic value> before use)
 	@   r9  ... contains pagesize
 	@
-
 	stmfd sp!,{r5, r14}
 	mov r7, #0
 	bl s2e_get_ram_object_bits
@@ -112,10 +178,21 @@ stm0:
 	adr r1, cnt		@name
 	bl s2e_print_expression
 
-	cmp r7,#10
-	bl print_status
+	cmp r7,#1
 	beq stm1
 
+	mov r10, #0
+@ comment the following two lines to have single-state memory check / multi-state-memory-check
+	bl symbolic_int
+    ldr r10, [r8,#0]	@get the symbolic value
+
+    cmp r10, #0			@fork state
+    beq stm1			@one state enters stm1, the other continues
+    add r7, r7, #1
+    b stm0
+
+symbolic_int:
+	stmfd sp!,{r14}
 	sub r8, r8, #4		@decrement (custom symb. value 'stack')
 
 	mov r0, r8			@address of symb. value
@@ -127,12 +204,8 @@ stm0:
     mov r1, #4
     mov r2, #0
     bl s2e_print_memory
+    ldmfd sp!,{r15}
 
-    ldr r10, [r8,#0]	@get the symbolic value
-    cmp r10, #0			@fork state
-    beq stm1			@one state enters stm1, the other continues
-    add r7, r7, #1
-    b stm0
 stm1:
 	bl s2e_get_path_id
 	mov r5, r0
@@ -143,8 +216,6 @@ stm1:
 	mov r4, #1048576 @ starting memory address 0x100000
 stm2_restart:
 	adr r1, adrafter
-	mov r0, r4
-	bl s2e_print_expression
 	mov r10, r9		@(re)arm counter
 stm2:
 	@Fill page with test pattern (path id stored in r5)
@@ -154,28 +225,24 @@ stm2:
 	sub r10, r10, #1 @decrease counter
 	cmp r10, #0
 	bne stm2
-	@sub r4, r4, #4 @one step back - last address is not written
+
 	mov r10, r9 @reset counter
 	mov r10, r10, lsl #2
-
-	mov r0, r10		@expression argument
-	bl s2e_print_expression
-
 	sub r4, r4, r10 @get back to memory starting address
 
 	mov r10, r9 @reset counter
 	adr r1, mem			@name param2 for print expression
 stm3:
-	@Check that the memory is correct
+	@Check if the memory is correct
 	ldr r0, [r4],#+4
 	cmp r0, r5 @do we get the path id back?
 	bne sterr  @if not, goto error
-	mov r0, r4
-	bl s2e_print_expression
 	sub r10, r10, #1
 	cmp r10, #0
 	bne stm3
 
+	mov r0, r4
+	bl s2e_print_expression
 	cmp r4, #16777216 @ 0x1000000
 	blt stm2_restart
 
@@ -191,12 +258,12 @@ _idle:
 	B _idle
 
 sterr:
-adr r1, membadval
-bl s2e_print_expression
-mov r0, r4
-adr r1, membad
-bl s2e_kill_state
-bl _idle
+	adr r1, membadval
+	bl s2e_print_expression
+	mov r0, r4
+	adr r1, membad
+	bl s2e_kill_state
+	bl _idle
 
 msg:.asciz "Hello S2E-Android!"
 val:		.asciz "Pagesize"
@@ -215,8 +282,12 @@ membadval: 	.asciz "Bad value"
 .align 2
 cnt:		.asciz "R7 counter"
 .align 2
-adrafter: 	.asciz "R4 address "
-
-
+adrafter: 	.asciz "address"
+.align 2
+labelreg5:	.asciz "Testval"
+.align 2
+checkmsg:	.asciz "Checkpoint"
+.align 2
+statebad:	.asciz "State Switch Check FAILED"
 .end
 
