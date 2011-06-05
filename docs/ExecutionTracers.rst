@@ -126,6 +126,12 @@ Your ``config.lua`` file may look as follows. Note that some plugins do not have
       flushTbCache = true
     }
 
+3. Viewing the traces
+=====================
+
+S2E comes with several tools that parse and display the execution traces.
+They are located in the `tools`  folder of the source distribution.
+You can find the documentation for them on the `main page <index.html>`_.
 
 
 
