@@ -2063,15 +2063,11 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
                             ref<Expr> condition, bool isInternal)
 {
-    static int count=0;
     assert(dynamic_cast<S2EExecutionState*>(&current));
     assert(!static_cast<S2EExecutionState*>(&current)->m_runningConcrete);
 
     StatePair res = Executor::fork(current, condition, isInternal);
     if(res.first && res.second) {
-        if (++count == 10) {
-//        exit(-1);
-        }
 
         assert(dynamic_cast<S2EExecutionState*>(res.first));
         assert(dynamic_cast<S2EExecutionState*>(res.second));
