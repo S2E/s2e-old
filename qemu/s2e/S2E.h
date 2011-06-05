@@ -44,6 +44,7 @@
 #include <map>
 
 #include "Plugin.h"
+#include "Synchronization.h"
 
 namespace klee {
     class Interpreter;
@@ -65,9 +66,14 @@ class S2EExecutionState;
 
 class Database;
 
+struct S2EShared {
+    unsigned currentProcessCount;
+};
+
 class S2E
 {
 protected:
+    S2ESynchronizedObject<S2EShared> m_sync;
     ConfigFile* m_configFile;
     PluginsFactory* m_pluginsFactory;
 
@@ -95,6 +101,7 @@ protected:
 
     /* How many processes can S2E fork */
     unsigned m_maxProcesses;
+    unsigned m_currentProcessIndex;
 
     std::string m_outputDirectoryBase;
 
@@ -182,6 +189,8 @@ public:
     void refreshPlugins();
 
     void writeBitCodeToFile();
+
+    int fork();
 };
 
 } // namespace s2e

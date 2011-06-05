@@ -35,6 +35,7 @@
  */
 
 #include "S2E.h"
+#include "config-host.h"
 #include "Synchronization.h"
 
 #ifndef CONFIG_WIN32
@@ -43,8 +44,14 @@
 #include <fcntl.h>
 #include <iostream>
 #include <stdlib.h>
+#endif
+
+#ifdef CONFIG_DARWIN
+#include <mach/semaphore.h>
+#else
 #include <semaphore.h>
 #endif
+
 
 namespace s2e {
 
@@ -76,7 +83,11 @@ void S2ESynchronizedObjectInternal::release()
 
 
 struct SyncHeader{
+#ifdef CONFIG_DARWIN
+    unsigned lock;
+#else
     sem_t lock;
+#endif
 };
 
 
@@ -98,24 +109,30 @@ S2ESynchronizedObjectInternal::S2ESynchronizedObjectInternal(unsigned size) {
 
     unsigned totalSize = m_headerSize + size;
 
-    m_sharedBuffer = mmap(NULL, totalSize, PROT_READ, MAP_SHARED | MAP_ANON, -1, 0);
+    m_sharedBuffer = mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
     if (!m_sharedBuffer) {
-        std::cerr << "Could not allocate shared memory " << std::endl;
+        perror("Could not allocate shared memory ");
         exit(-1);
     }
 
     SyncHeader *hdr = static_cast<SyncHeader*>(m_sharedBuffer);
+
+#ifdef CONFIG_DARWIN
+    hdr->lock = 1;
+#else    
     if (sem_init(&hdr->lock, 1, 1) < 0) {
-        std::cerr << "Could not initialize semaphore for shared memory region" << std::endl;
+        perror("Could not initialize semaphore for shared memory region");
         exit(-1);
     }
+#endif
 }
 
 
 S2ESynchronizedObjectInternal::~S2ESynchronizedObjectInternal()
 {
-    SyncHeader *hdr = (SyncHeader*)m_sharedBuffer;
-    sem_close(&hdr->lock);
+    //SyncHeader *hdr = (SyncHeader*)m_sharedBuffer;
+
+    //XXX: What about closing the semaphore, IPC?
 
     unsigned totalSize = m_headerSize + m_size;
     munmap(m_sharedBuffer, totalSize);
@@ -123,14 +140,22 @@ S2ESynchronizedObjectInternal::~S2ESynchronizedObjectInternal()
 
 void *S2ESynchronizedObjectInternal::aquire() {
     SyncHeader *hdr = (SyncHeader*)m_sharedBuffer;
+#ifdef CONFIG_DARWIN
+    while (__sync_lock_test_and_set(&hdr->lock, 0) != 0);
+#else
     sem_wait(&hdr->lock);
+#endif
     return ((uint8_t*)m_sharedBuffer + m_headerSize);
 }
 
 void S2ESynchronizedObjectInternal::release()
 {
     SyncHeader *hdr = (SyncHeader*)m_sharedBuffer;
+#ifdef CONFIG_DARWIN
+    hdr->lock = 1;
+#else
     sem_post(&hdr->lock);
+#endif
 }
 
 #endif

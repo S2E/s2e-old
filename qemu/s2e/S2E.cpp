@@ -245,6 +245,9 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 #endif
 
     m_maxProcesses = s2e_max_processes;
+    m_currentProcessIndex = 0;
+    m_sync.acquire()->currentProcessCount = 1;
+    m_sync.release();
 
     /* Open output directory. Do it at the very begining so that
        other init* functions can use it. */
@@ -407,7 +410,7 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
         llvm::sys::Path dirPath(m_outputDirectory);
 
         ostringstream oss;
-        oss << getpid();
+        oss << m_currentProcessIndex << "-" << getpid();
 
         dirPath.appendComponent(oss.str());
         assert(!dirPath.exists());
@@ -613,6 +616,40 @@ void S2E::refreshPlugins()
         (*it)->refresh();
     }
 }
+
+int S2E::fork()
+{
+#ifdef CONFIG_WIN32
+    return -1;
+#else
+
+    S2EShared *shared = m_sync.acquire();
+    if (shared->currentProcessCount == m_maxProcesses) {
+        m_sync.release();
+        return -1;
+    }
+
+    unsigned newProcessIndex = shared->currentProcessCount;
+    ++shared->currentProcessCount;
+
+    m_sync.release();
+
+    pid_t pid = ::fork();
+    if (pid < 0) {
+        //Fork failed
+        return -1;
+    }
+
+    if (pid == 0) {
+        m_currentProcessIndex = newProcessIndex;
+        //We are the child process, setup the log files again
+        initOutputDirectory(m_outputDirectoryBase, 0, true);
+    }
+
+    return pid == 0 ? 1 : 0;
+#endif
+}
+
 
 } // namespace s2e
 

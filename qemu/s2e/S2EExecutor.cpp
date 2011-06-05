@@ -566,7 +566,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                             InterpreterHandler *ie)
         : Executor(opts, ie, tcgLLVMContext->getExecutionEngine()),
           m_s2e(s2e), m_tcgLLVMContext(tcgLLVMContext),
-          m_executeAlwaysKlee(false)
+          m_executeAlwaysKlee(false), m_forkProcTerminateCurrentState(false)
 {
     delete externalDispatcher;
     externalDispatcher = new S2EExternalDispatcher(
@@ -1576,6 +1576,14 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
     //int64_t inst_clock = get_clock() - start_clock;
     //cpu_adjust_clock(- inst_clock*(1-0.02));
 
+    //Handle the case where we killed the current state inside processFork
+    if (m_forkProcTerminateCurrentState) {
+        state->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
+        m_forkProcTerminateCurrentState = false;
+        throw CpuExitException();
+    }
+
+
     if(shouldExitCpu)
         throw CpuExitException();
 }
@@ -2006,14 +2014,60 @@ void S2EExecutor::deleteState(klee::ExecutionState *state)
 }
 
 void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
-                 const vector<S2EExecutionState*>& newStates,
-                 const vector<ref<Expr> >& newConditions)
+                                const vector<S2EExecutionState*>& newStates)
 {
-#ifdef _WIN32
+    int splitIndex = newStates.size() / 2;
+    int low = 0;
+    int high = newStates.size()-1;
+    bool exitLoop = false;
 
-#else
+    do {
+        int child = m_s2e->fork();
+        if (child < 0) {
+            //Fork did not succeed
+            break;
+        }
 
-#endif
+        if (child == 0) {
+            //Delete all the states before
+            m_s2e->getDebugStream() << "Deleting before i=" << low << " splitIndex=" << splitIndex << std::endl;
+
+            for (int i=low; i<splitIndex; ++i) {
+                if (newStates[i] == originalState) {
+                    m_s2e->getDebugStream() << "came across origstate" << std::endl;
+                    exitLoop = true;
+                }
+                m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
+                Executor::terminateState(*newStates[i]);
+            }
+            low = splitIndex;
+            splitIndex = (high - splitIndex) / 2;
+            if (high == splitIndex) {
+                break;
+            }
+        }else {
+            //Delete all the states after
+            m_s2e->getDebugStream() << "Deleting after i=" << splitIndex << " high=" << high << std::endl;
+            for (int i=splitIndex; i<=high; ++i) {
+                if (newStates[i] == originalState) {
+                    m_s2e->getDebugStream() << "came across origstate" << std::endl;
+                    exitLoop = true;
+                }
+                m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
+                Executor::terminateState(*newStates[i]);
+            }
+            high = splitIndex-1;
+            splitIndex = (splitIndex - low) / 2;
+            if (splitIndex == 0) {
+                break;
+            }
+        }
+    }while(1);
+
+    if (exitLoop) {
+        assert(originalState = g_s2e_state);
+        m_forkProcTerminateCurrentState = true;
+    }
 }
 
 void S2EExecutor::doStateFork(S2EExecutionState *originalState,
@@ -2069,6 +2123,8 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,
                                              newStates, newConditions);
+
+    doProcessFork(originalState, newStates);
 }
 
 S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
@@ -2123,9 +2179,10 @@ void S2EExecutor::branch(klee::ExecutionState &state,
         }
     }
 
-    if(newStates.size() > 1)
+    if(newStates.size() > 1) {
         doStateFork(static_cast<S2EExecutionState*>(&state),
                        newStates, newConditions);
+    }
 }
 
 bool S2EExecutor::merge(klee::ExecutionState &_base, klee::ExecutionState &_other)

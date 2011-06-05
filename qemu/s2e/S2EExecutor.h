@@ -111,6 +111,8 @@ protected:
 
     bool m_forceConcretizations;
 
+    bool m_forkProcTerminateCurrentState;
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
@@ -282,8 +284,7 @@ protected:
                      const std::vector<klee::ref<klee::Expr> >& conditions);
 
     void doProcessFork(S2EExecutionState *originalState,
-                     const std::vector<S2EExecutionState*>& newStates,
-                     const std::vector<klee::ref<klee::Expr> >& newConditions);
+                       const std::vector<S2EExecutionState*>& newStates);
 
 
     /** Copy concrete values to their proper location, concretizing
