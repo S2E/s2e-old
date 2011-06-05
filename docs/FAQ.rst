@@ -47,7 +47,7 @@ First, ensure that you configured S2E properly.
 
 * By default, S2E flushes the translation block cache on every state switch.
   S2E does not implement copy-on-write for this cache, therefore it must flush
-  the cache to ensure correct execution. In particular, this prevents clobbering in case
+  the cache to ensure correct execution. Flushing prevents clobbering in case
   there are two paths that execute different code loaded to the same memory locations.
   Flushing is expensive in case of frequent state switches. In most of the cases, it is not necessary, e.g., if you
   execute a program that does not use self-modifying code or frequently loads/unloads libraries. In this case,
@@ -56,18 +56,18 @@ First, ensure that you configured S2E properly.
 
 Second, use S2E to *selectively* relax and/or overconstrain path constraints.
 
-* Check that the module under analysis is not doing unnecessary calls with symbolic arguments (e.g. ``printf``).
+* Check that the module under analysis is not doing unnecessary calls with symbolic arguments (e.g., ``printf``).
   Use the ``s2e_get_example_*`` functions to provide a concrete value to ``printf``  without actually adding path
-  constraints, to prevent disabling future paths. Unless a program reads the output of ``printf`` and takes decisions
+  constraints, to avoid disabling future paths. Unless a program reads the output of ``printf`` and takes decisions
   based on it, not adding constraints will not affect execution consistency from the point of view of the module under analysis.
 
 * If you use a depth-first search and execution hits a polling loop, rapid forking may occur and execution may never exit the loop.
   Moreover, depending on the accumulated constraints, each iteration may be slower and slower.
-  Try to use a different search strategy or kill the unwanted execution paths.
+  Try to use a different search strategy or kill unwanted execution paths.
 
 * Try to relax path constraints. For example, there may be a branch that causes a bottleneck. Write a plugin to intercept
   that branch instruction and overwrite the branch condition with an unconstrained value. This trades execution consistency
-  for execution speed. There may be paths that cannot occur in real execution (i.e., false positives), but as long as there
+  for execution speed. Unconstraining execution may create paths that cannot occur in real executions (i.e., false positives), but as long as there
   are few of them, or you can detect them a posteriori, this is an acceptable trade-off.
 
 
@@ -91,7 +91,15 @@ The following describes concrete steps that allowed us to explore programs most 
      to track function calls and concretize parameters.
    * Provide example values to the library (e.g., to ``printf``, as described previously)
 
-5. Prioritize states according to a metric that makes sense for your problem.
+5. Kill the paths that you are not interested in:
+
+   * You may only want to explore error-free paths. For example, kill all those where library functions fail.
+   * Keep only the paths of interest. Write a custom plugin that probes the program's state to decide when to kill it.
+   * If you exercise multiple entry points of a library (e.g., a device driver), it may make sense to choose only
+     one successful state when an entry point exits and kill all the others. Use the `StateManager <Plugins/StateManager.html>`_ plugin to suspend
+     the execution of all paths that returned from a library function until one return succeeds.
+
+6. Prioritize states according to a metric that makes sense for your problem.
    This may be done by writing a custom state searcher plugin. S2E comes with several examples of searchers that aim to maximize code coverage
    as fast as possible.
 
