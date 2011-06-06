@@ -41,7 +41,7 @@
 #include <iostream>
 #include "Path.h"
 
-#define DEBUG_PB
+//#define DEBUG_PB
 
 namespace s2etools
 {

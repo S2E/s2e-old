@@ -63,8 +63,9 @@ using namespace s2etools;
 namespace {
 
 
-cl::opt<std::string>
-    TraceFile("trace", cl::desc("Input trace"), cl::init("ExecutionTracer.dat"));
+cl::list<std::string>
+    TraceFiles("trace", llvm::cl::value_desc("Input trace"), llvm::cl::Prefix,
+                llvm::cl::desc("Specify an execution trace file"));
 
 cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
@@ -397,7 +398,7 @@ CoverageTool::~CoverageTool()
 void CoverageTool::flatTrace()
 {
     PathBuilder pb(&m_parser);
-    m_parser.parse(TraceFile);
+    m_parser.parse(TraceFiles);
 
     ModuleCache mc(&pb);
     Coverage cov(&m_binaries, &mc, &pb);
@@ -405,7 +406,6 @@ void CoverageTool::flatTrace()
     pb.processTree();
 
     cov.outputCoverage(LogDir);
-
 }
 
 
