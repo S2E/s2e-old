@@ -646,6 +646,8 @@ int S2E::fork()
         m_currentProcessIndex = newProcessIndex;
         //We are the child process, setup the log files again
         initOutputDirectory(m_outputDirectoryBase, 0, true);
+        //Also recreate new statistics files
+        m_s2eExecutor->initializeStatistics();
     }
 
     return pid == 0 ? 1 : 0;

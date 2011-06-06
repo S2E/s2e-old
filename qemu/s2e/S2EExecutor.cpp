@@ -725,13 +725,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     kmodule->updateModuleWithFunction(dummyMain);
 
-    if(StatsTracker::useStatistics()) {
-        statsTracker =
-                new S2EStatsTracker(*this,
-                    interpreterHandler->getOutputFilename("assembly.ll"),
-                    userSearcherRequiresMD2U());
-        statsTracker->writeHeaders();
-    }
+    initializeStatistics();
 
     m_tcgLLVMContext->initializeHelpers();
 
@@ -765,6 +759,18 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     g_s2e_concretize_io_addresses = ConcretizeIoAddress;
     g_s2e_concretize_io_writes = ConcretizeIoWrites;
 }
+
+void S2EExecutor::initializeStatistics()
+{
+    if(StatsTracker::useStatistics()) {
+        statsTracker =
+                new S2EStatsTracker(*this,
+                    interpreterHandler->getOutputFilename("assembly.ll"),
+                    userSearcherRequiresMD2U());
+        statsTracker->writeHeaders();
+    }
+}
+
 
 S2EExecutor::~S2EExecutor()
 {

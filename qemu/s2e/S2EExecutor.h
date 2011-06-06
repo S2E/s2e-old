@@ -119,7 +119,6 @@ public:
                 klee::InterpreterHandler *ie);
     virtual ~S2EExecutor();
 
-
     /** Create initial execution state */
     S2EExecutionState* createInitialState();
 
@@ -241,6 +240,8 @@ public:
     void unrefS2ETb(S2ETranslationBlock* s2e_tb);
 
     void queueStateForMerge(S2EExecutionState *state);
+
+    void initializeStatistics();
 
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
