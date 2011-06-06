@@ -648,6 +648,8 @@ int S2E::fork()
         initOutputDirectory(m_outputDirectoryBase, 0, true);
         //Also recreate new statistics files
         m_s2eExecutor->initializeStatistics();
+        //And the solver output
+        m_s2eExecutor->initializeSolver();
     }
 
     return pid == 0 ? 1 : 0;

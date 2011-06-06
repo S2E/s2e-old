@@ -505,6 +505,7 @@ public:
   }
 
   Solver *getSolver() const;
+  void initializeSolver();
 };
   
 } // End klee namespace
