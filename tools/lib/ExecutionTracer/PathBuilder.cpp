@@ -41,7 +41,7 @@
 #include <iostream>
 #include "Path.h"
 
-//#define DEBUG_PB
+#define DEBUG_PB
 
 namespace s2etools
 {
@@ -305,7 +305,9 @@ void PathBuilder::processSegment(PathSegment *seg)
         std::cout << std::dec << "sid=" << seg->getStateId() <<  " frag(" << f.startIndex << "," << f.endIndex << ")"<< std::endl;
         #endif
         for (uint32_t s = f.startIndex; s <= f.endIndex; ++s) {
-            m_Parser->getItem(s, hdr, (void**)&data);
+            if (!m_Parser->getItem(s, hdr, (void**)&data)) {
+                assert(false && "Trace is broken");
+            }
             assert(hdr.stateId == seg->getStateId());
             processItem(s, hdr, data);
         }
