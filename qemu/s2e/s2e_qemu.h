@@ -321,6 +321,9 @@ void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
 unsigned klee_get_value(unsigned expr);
 
 
+//Used by S2E.h to reinitialize timers in the forked process
+int init_timer_alarm(void);
+
 /******************************************************/
 /* Prototypes for special functions used in LLVM code */
 /* NOTE: this functions should never be defined. They */

@@ -68,7 +68,7 @@ class Database;
 
 struct S2EShared {
     unsigned currentProcessCount;
-
+    unsigned lastFileId;
     //We must have unique state ids across all processes
     //otherwise offline tools will be extremely confused when
     //aggregating different execution trace files.

@@ -249,6 +249,7 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     S2EShared *shared = m_sync.acquire();
     shared->currentProcessCount = 1;
     shared->lastStateId = 0;
+    shared->lastFileId = 1;
     m_sync.release();
 
     /* Open output directory. Do it at the very begining so that
@@ -310,6 +311,11 @@ void S2E::writeBitCodeToFile()
 
 S2E::~S2E()
 {
+    //Tell other instances we are dead so they can fork more    
+    S2EShared *shared = m_sync.acquire();
+    --shared->currentProcessCount;
+    m_sync.release();
+
     foreach(Plugin* p, m_activePluginsList)
         delete p;
 
@@ -631,7 +637,8 @@ int S2E::fork()
         return -1;
     }
 
-    unsigned newProcessIndex = shared->currentProcessCount;
+    unsigned newProcessIndex = shared->lastFileId;
+    ++shared->lastFileId;
     ++shared->currentProcessCount;
 
     m_sync.release();
@@ -650,6 +657,11 @@ int S2E::fork()
         m_s2eExecutor->initializeStatistics();
         //And the solver output
         m_s2eExecutor->initializeSolver();
+
+        if (init_timer_alarm()<0) {
+	   getDebugStream() << "Could not initialize timers" << std::endl;
+           exit(-1);
+        }
     }
 
     return pid == 0 ? 1 : 0;
