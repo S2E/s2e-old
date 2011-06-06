@@ -34,6 +34,8 @@
  *
  */
 
+#include <cassert>
+
 #include "S2E.h"
 #include "config-host.h"
 #include "Synchronization.h"
@@ -50,6 +52,7 @@
 #include <mach/semaphore.h>
 #else
 #include <semaphore.h>
+#include <errno.h>
 #endif
 
 
@@ -143,7 +146,13 @@ void *S2ESynchronizedObjectInternal::aquire() {
 #ifdef CONFIG_DARWIN
     while (__sync_lock_test_and_set(&hdr->lock, 0) != 0);
 #else
-    sem_wait(&hdr->lock);
+    int ret;
+    
+     do {
+        ret = sem_wait(&hdr->lock);
+        assert(ret != -EDEADLK && ret != -ENOSYS && ret != -EINVAL);
+     }while(ret);
+    
 #endif
     return ((uint8_t*)m_sharedBuffer + m_headerSize);
 }
