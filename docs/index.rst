@@ -29,6 +29,7 @@ S²E Documentation
 
   1. `How to use execution tracers? <ExecutionTracers.html>`_
   2. `How to write an S2E plugin? <WritingPlugins.html>`_
+  3. `How to run S2E on multiple cores? <Parallel.html>`_
 
 * S2E Tools
   
