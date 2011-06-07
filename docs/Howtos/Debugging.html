@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>Debugging Guest Code</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="debugging-guest-code">
+<h1 class="title">Debugging Guest Code</h1>
+
+<p>It is possible to attach GDB to any running instance of S2E. S2E relies on the QEMU's GDB interface, which can
+be enabled with the <cite>-s</cite> command line option. This option creates a socket on the port number 1234.</p>
+<pre class="literal-block">
+$ ./i386-s2e-softmmu/qemu  -s2e-config-file config.lua -s
+</pre>
+<p>Once the guest is launched and the program is running, attach GDB to it.</p>
+<pre class="literal-block">
+$ gdb /path/to/my/prog
+(gdb) target remote localhost:1234
+#use gdb as usual (set breakpoints, source directories, single-step, etc.).
+</pre>
+<div class="section" id="remarks">
+<h1>Remarks</h1>
+<ul class="simple">
+<li>GDB can only manipulate the current path. Use the DFS search strategy to have a coherent debugging experience.</li>
+<li>GDB cannot inspect symbolic variables. If you attempt to display a symbolic variable, S2E will concretize it.</li>
+<li>You can also debug kernel-mode code.</li>
+</ul>
+</div>
+<div class="section" id="useful-tips">
+<h1>Useful tips</h1>
+<ul class="simple">
+<li>At any point, if you feel that symbolic execution got stuck, attach GDB to the running S2E instance to check
+what code is being executed.</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="Debugging.rst">View document source</a>.
+
+</div>
+</body>
+</html>

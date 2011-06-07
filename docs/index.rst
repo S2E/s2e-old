@@ -30,6 +30,7 @@ S²E Documentation
   1. `How to use execution tracers? <Howtos/ExecutionTracers.html>`_
   2. `How to write an S2E plugin? <Howtos/WritingPlugins.html>`_
   3. `How to run S2E on multiple cores? <Howtos/Parallel.html>`_
+  4. `How to debug guest code? <Howtos/Debugging.html>`_
 
 * S2E Tools
   

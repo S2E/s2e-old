@@ -53,7 +53,7 @@ First, ensure that you configured S2E properly.
   use the ``--flush-tbs-on-state-switch=false`` option.
 
 * Make sure your VM image is minimal for the components you want to test. In most cases, it should not have swap enabled
-  and all unnecessary background deamons should be disabled. Refer to the `Image installation <ImageInstallation.html>`_ tutorial for
+  and all unnecessary background deamons should be disabled. Refer to the `image installation <ImageInstallation.html>`_ tutorial for
   more information.
 
 
@@ -62,6 +62,8 @@ Second, throw hardware at your problem
 * Refer to the "`How to run S2E on multiple cores <Howtos/Parallel.html>`_" tutorial for instructions.
 
 Third, use S2E to *selectively* relax and/or overconstrain path constraints.
+
+* Understanding what to select can be made considerably easier if you `attach a debugger <Howtos/Debugging.html>`_ to the S2E instance.
 
 * Check that the module under analysis is not doing unnecessary calls with symbolic arguments (e.g., ``printf``).
   Use the ``s2e_get_example_*`` functions to provide a concrete value to ``printf``  without actually adding path
@@ -96,13 +98,13 @@ The following describes concrete steps that allowed us to explore programs most 
    * Use the ``CodeSelector`` plugin to disable forking when execution leaves the module of interest
    * Concretize some symbolic values when execution leaves the module of interest. You may need to use the ``FunctionMonitor`` plugin
      to track function calls and concretize parameters.
-   * Provide example values to the library (e.g., to ``printf``, as described previously)
+   * Provide example values to library functions (e.g., to ``printf``, as described previously)
 
 5. Kill the paths that you are not interested in:
 
    * You may only want to explore error-free paths. For example, kill all those where library functions fail.
-   * You may only be interested error recovery code. In this case, kill all the paths in which no error occur.
-   * Keep only the paths of interest. Write a custom plugin that probes the program's state to decide when to kill the path.
+   * You may only be interested in error recovery code. In this case, kill all the paths in which no errors occur.
+   * Write a custom plugin that probes the program's state to decide when to kill the path.
    * If you exercise multiple entry points of a library (e.g., a device driver), it may make sense to choose only
      one successful path when an entry point exits and kill all the others. Use the `StateManager <Plugins/StateManager.html>`_ plugin to suspend
      the execution of all paths that returned from a library function until one return succeeds.
@@ -126,23 +128,23 @@ You can use several options, depending on your needs.
 *  Disable forking when a memory limit is reached
    using the following KLEE options: ``--max-memory-inhibit`` and  ``--max-memory=MemoryLimitInMB``.
 
-*  Explicitly kill unneeded paths. E.g., if you want to achieve high code coverage and
+*  Explicitly kill unneeded paths. For example, if you want to achieve high code coverage and
    know that some path is unlikely to cover any new code, kill it.
 
 
 How much time is the constraint solver taking to solve constraints?
 -------------------------------------------------------------------
 
-First, enable logging for constraint solving queries:
+Enable logging for constraint solving queries:
 
 ::
 
    s2e = {
     kleeArgs = {
-    "--use-query-log", "--use-query-pc-log",  "--use-stp-query-pc-log"
+      "--use-query-log", "--use-query-pc-log",  "--use-stp-query-pc-log"
    }
 
-With this configuration S2E generates two logs: ``s2e-last/queries.pc`` and ``s2e-last/stp-queries.qlog``
+With this configuration S2E generates two logs: ``s2e-last/queries.pc`` and ``s2e-last/stp-queries.qlog``.
 Look for "Elapsed time" in the logs.
 
 
@@ -154,16 +156,15 @@ Most of the fields are self-explanatory. Here are the trickiest ones:
 
 * ``QueryTime`` shows how much time KLEE spent in the STP solver.
 
-* ``CexCacheTime`` adds to that time also the time spend while looking
+* ``CexCacheTime`` adds to that time also the time spent while looking
   for a solution in a counter-example cache (which is enabled by ``--use-cex-cache`` KLEE option).
   SolverTime shows how much time KLEE spent in total while solving queries
   (this includes all the solver optimizations that could be enabled by various solver-related KLEE options).
 
 
-* ``ResolveTime`` represents time that KLEE spend resolving symbolic
+* ``ResolveTime`` represents time that KLEE spent resolving symbolic
   memory addresses, however in S2E this is not computed correctly yet.
 
 
-* ``ForkTime`` shows how much time KLEE spend on forking (i.e., duplication of) states,
-  however in S2E right now this does not take into account the time spent on saving/restoring states of devices.
+* ``ForkTime`` shows how much time KLEE spent on forking states.
 
