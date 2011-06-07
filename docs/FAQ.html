@@ -66,7 +66,11 @@ Flushing is expensive in case of frequent state switches. In most of the cases, 
 execute a program that does not use self-modifying code or frequently loads/unloads libraries. In this case,
 use the <tt class="docutils literal"><span class="pre">--flush-tbs-on-state-switch=false</span></tt> option.</li>
 </ul>
-<p>Second, use S2E to <em>selectively</em> relax and/or overconstrain path constraints.</p>
+<p>Second, throw hardware at your problem</p>
+<ul class="simple">
+<li>Refer to the &quot;<a class="reference external" href="Parallel.html">How to run S2E on multiple cores</a>&quot; tutorial for instructions.</li>
+</ul>
+<p>Third, use S2E to <em>selectively</em> relax and/or overconstrain path constraints.</p>
 <ul class="simple">
 <li>Check that the module under analysis is not doing unnecessary calls with symbolic arguments (e.g., <tt class="docutils literal">printf</tt>).
 Use the <tt class="docutils literal">s2e_get_example_*</tt> functions to provide a concrete value to <tt class="docutils literal">printf</tt>  without actually adding path

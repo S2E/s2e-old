@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>Parallel S2E</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="parallel-s2e">
+<h1 class="title">Parallel S2E</h1>
+
+<p>S2E can be run in multi-process mode.</p>
+<p>Append <tt class="docutils literal"><span class="pre">-s2e-max-processes</span> XX</tt> to the command line, where <tt class="docutils literal">XX</tt> is the maximum number of S2E instances you would like to have.
+Also add the <tt class="docutils literal"><span class="pre">-nographic</span></tt> option.</p>
+<p>It works by forking an S2E instance on every branch instruction where both outcomes can happen.</p>
+<div class="section" id="how-do-i-process-generated-traces">
+<h1>How do I process generated traces?</h1>
+<p>In multi-process mode, S2E outputs traces in the <tt class="docutils literal"><span class="pre">s2e-last/XX</span> folders</tt>, where <tt class="docutils literal">XX</tt> is the sequence number of the S2E instance.
+This number is incremented each time a new instance is launched. Note that instances can also terminate, e.g., if they
+finished exploring their respective subtree.</p>
+<p>Each trace contains a subtree of the global execution tree. Therefore, you must process the traces in the relative order
+of their creation. The relative order is defined by the sequence number of the instance. This can be done by specifying
+multiple <tt class="docutils literal"><span class="pre">-trace</span></tt> arguments to the offline analysis tools. For example, generating the forkprofile of a multi-core run can be done
+as follows:</p>
+<pre class="literal-block">
+$ /home/s2e/tools/Release/bin/forkprofiler -outputdir=s2e-last/
+-trace=s2e-last/0/ExecutionTracer.dat -trace=s2e-last/1/ExecutionTracer.dat \
+-trace=s2e-last/2/ExecutionTracer.dat -trace=s2e-last/3/ExecutionTracer.dat
+</pre>
+</div>
+<div class="section" id="limitations">
+<h1>Limitations</h1>
+<ul class="simple">
+<li>S2E can only run on a shared-memory architecture. S2E cannot start on one machine and fork new instances on other machines for now.
+This limitation will be fixed soon.</li>
+<li>Because S2E uses the <tt class="docutils literal">fork</tt> system call, S2E cannot run on Windows in multi-core mode.</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="Parallel.rst">View document source</a>.
+
+</div>
+</body>
+</html>

@@ -54,7 +54,11 @@ First, ensure that you configured S2E properly.
   use the ``--flush-tbs-on-state-switch=false`` option.
 
 
-Second, use S2E to *selectively* relax and/or overconstrain path constraints.
+Second, throw hardware at your problem
+
+* Refer to the "`How to run S2E on multiple cores <Parallel.html>`_" tutorial for instructions.
+
+Third, use S2E to *selectively* relax and/or overconstrain path constraints.
 
 * Check that the module under analysis is not doing unnecessary calls with symbolic arguments (e.g., ``printf``).
   Use the ``s2e_get_example_*`` functions to provide a concrete value to ``printf``  without actually adding path
