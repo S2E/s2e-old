@@ -2035,6 +2035,9 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
         }
 
         if (child == 1) {
+	    //Only send notification to the children
+            m_s2e->getCorePlugin()->onProcessFork.emit();
+
             //Delete all the states before
             m_s2e->getDebugStream() << "Deleting before i=" << low << " splitIndex=" << splitIndex << std::endl;
 
@@ -2046,6 +2049,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                 m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
                 Executor::terminateState(*newStates[i]);
             }
+  
             low = splitIndex;
             splitIndex = (high - splitIndex) / 2 + splitIndex;
             if (high == splitIndex) {
@@ -2064,9 +2068,6 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
             }
             high = splitIndex-1;
             splitIndex = (splitIndex - low) / 2;
-
-            //Only send notification to the children
-            m_s2e->getCorePlugin()->onProcessFork.emit();
 
             if (splitIndex == low) {
                 break;
