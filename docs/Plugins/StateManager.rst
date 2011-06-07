@@ -43,5 +43,7 @@ Configuration Sample
 
 ::
 
-    pluginsConfig.ModuleTracer = {}
+    pluginsConfig.StateManager = {
+        timeout = 60
+    }
 
