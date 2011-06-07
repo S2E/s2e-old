@@ -44,8 +44,8 @@ it means that QEMU is stuck running plugin code (most likely because of a plugin
 or constraint solver code (because of a complex query).
 To see which query is causing the problem, look at the query log.</p>
 </li>
-<li><p class="first"><tt class="docutils literal">run.stats</tt> also contains types statistics. This file is updated every second,
-but only when executing symbolic code. See later in this FAQ for a description of its fields.</p>
+<li><p class="first"><tt class="docutils literal">run.stats</tt> contains many types of statistics. S2E updates this file about every second,
+when executing symbolic code. See later in this FAQ for a description of its fields.</p>
 </li>
 </ol>
 </div>
@@ -60,9 +60,9 @@ If you do not see the &quot;Firing timer event&quot; message periodically in the
 constraint solver.</li>
 <li>By default, S2E flushes the translation block cache on every state switch.
 S2E does not implement copy-on-write for this cache, therefore it must flush
-the cache to ensure correct execution. Flushing prevents clobbering in case
-there are two paths that execute different code loaded to the same memory locations.
-Flushing is expensive in case of frequent state switches. In most of the cases, it is not necessary, e.g., if you
+the cache to ensure correct execution. Flushing avoids clobbering in case
+there are two paths that execute different pieces of code loaded at the same memory locations.
+Flushing is <em>very</em> expensive in case of frequent state switches. In most of the cases, flushing is not necessary, e.g., if you
 execute a program that does not use self-modifying code or frequently loads/unloads libraries. In this case,
 use the <tt class="docutils literal"><span class="pre">--flush-tbs-on-state-switch=false</span></tt> option.</li>
 <li>Make sure your VM image is minimal for the components you want to test. In most cases, it should not have swap enabled
@@ -91,7 +91,7 @@ are few of them, or you can detect them a posteriori, this is an acceptable trad
 </div>
 <div class="section" id="how-do-i-deal-with-path-explosion">
 <h2>1.3&nbsp;&nbsp;&nbsp;How do I deal with path explosion?</h2>
-<p>Use the <em>selective</em> aspect of S2E to kill paths that are not interesting and prevent forking outside modules of interest.
+<p>Use S2E to <em>selectively</em> kill paths that are not interesting and prevent forking outside modules of interest.
 The following describes concrete steps that allowed us to explore programs most efficiently.</p>
 <ol class="arabic simple">
 <li>Run your program with minimum symbolic input (e.g., 1 byte) and with tracing enabled (see first section).</li>
@@ -99,7 +99,7 @@ The following describes concrete steps that allowed us to explore programs most 
 or it takes too much memory/CPU resources).</li>
 <li>Extract the fork profile and identify the code locations that fork the most.</li>
 <li>If forking occurs outside the module of interest, the following may help:<ul>
-<li>Use the <tt class="docutils literal">CodeSelector</tt> plugin to disable forking when execution leaves the module of interest</li>
+<li>Use the CodeSelector plugin to disable forking when execution leaves the module of interest</li>
 <li>Concretize some symbolic values when execution leaves the module of interest. You may need to use the <tt class="docutils literal">FunctionMonitor</tt> plugin
 to track function calls and concretize parameters.</li>
 <li>Provide example values to library functions (e.g., to <tt class="docutils literal">printf</tt>, as described previously)</li>

@@ -27,8 +27,8 @@ How do I know what S2E is doing?
    or constraint solver code (because of a complex query).
    To see which query is causing the problem, look at the query log.
 
-3. ``run.stats`` also contains types statistics. This file is updated every second,
-   but only when executing symbolic code. See later in this FAQ for a description of its fields.
+3. ``run.stats`` contains many types of statistics. S2E updates this file about every second,
+   when executing symbolic code. See later in this FAQ for a description of its fields.
 
 
 
@@ -46,9 +46,9 @@ First, ensure that you configured S2E properly.
 
 * By default, S2E flushes the translation block cache on every state switch.
   S2E does not implement copy-on-write for this cache, therefore it must flush
-  the cache to ensure correct execution. Flushing prevents clobbering in case
-  there are two paths that execute different code loaded to the same memory locations.
-  Flushing is expensive in case of frequent state switches. In most of the cases, it is not necessary, e.g., if you
+  the cache to ensure correct execution. Flushing avoids clobbering in case
+  there are two paths that execute different pieces of code loaded at the same memory locations.
+  Flushing is *very* expensive in case of frequent state switches. In most of the cases, flushing is not necessary, e.g., if you
   execute a program that does not use self-modifying code or frequently loads/unloads libraries. In this case,
   use the ``--flush-tbs-on-state-switch=false`` option.
 
@@ -83,7 +83,7 @@ Third, use S2E to *selectively* relax and/or overconstrain path constraints.
 How do I deal with path explosion?
 -----------------------------------
 
-Use the *selective* aspect of S2E to kill paths that are not interesting and prevent forking outside modules of interest.
+Use S2E to *selectively* kill paths that are not interesting and prevent forking outside modules of interest.
 The following describes concrete steps that allowed us to explore programs most efficiently.
 
 1. Run your program with minimum symbolic input (e.g., 1 byte) and with tracing enabled (see first section).
@@ -95,7 +95,7 @@ The following describes concrete steps that allowed us to explore programs most 
 
 4. If forking occurs outside the module of interest, the following may help:
 
-   * Use the ``CodeSelector`` plugin to disable forking when execution leaves the module of interest
+   * Use the CodeSelector plugin to disable forking when execution leaves the module of interest
    * Concretize some symbolic values when execution leaves the module of interest. You may need to use the ``FunctionMonitor`` plugin
      to track function calls and concretize parameters.
    * Provide example values to library functions (e.g., to ``printf``, as described previously)

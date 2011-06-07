@@ -1,7 +1,10 @@
-================================================
-The Selective Symbolic Execution (S²E) Framework
-================================================
+===============================================
+The Selective Symbolic Execution (S²E) Platform
+===============================================
 
+.. contents::
+
+Do not forget the `FAQ <FAQ.html>`_ if you have questions.
 
 S²E Documentation
 =================

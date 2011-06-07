@@ -180,14 +180,14 @@ Extend your code as follows. Do not forget to add all new member functions to th
     }
 
 
-Counting the Instructions
-=========================
+Counting Instructions
+=====================
 
 We would like to count how many times that particular instruction is executed.
 There are two options:
 
-    1) Count how many times it was executed across all path
-    2) Count how many times it was executed in each path
+  1) Count how many times it was executed across all path
+  2) Count how many times it was executed in each path
 
 The first option is trivial to implement. Simply add an additional member
 to the class and increment it every time the ``onInstructionExecution`` callback is invoked.
@@ -266,7 +266,7 @@ otherwise other plugins will not be able to register.
 
 .. code-block:: c
 
-    class InstructionTrackerState: public PluginState {
+    class InstructionTracker: public Plugin {
         //...
 
         public:
@@ -306,13 +306,13 @@ In our case, a plugin named ``MyClient`` would do something like this in its ini
 
 .. code-block:: c
 
-    //Specify the dependency
+    //Specify dependencies
     S2E_DEFINE_PLUGIN(MyClient, "We use InstructionTracker", "MyClient", "InstructionTracker");
 
     void MyClient::initialize()
     {
         //Get the instance of the plugin
-        InstructionTracker *tracker = (InstructionTracker*)s2e()->getPlugin("InstructionTracker");
+        InstructionTracker *tracker = static_cast<InstructionTracker*>(s2e()->getPlugin("InstructionTracker"));
         assert(tracker);
 
         //Register to custom events
