@@ -59,7 +59,7 @@ First, ensure that you configured S2E properly.
 
 Second, throw hardware at your problem
 
-* Refer to the "`How to run S2E on multiple cores <Parallel.html>`_" tutorial for instructions.
+* Refer to the "`How to run S2E on multiple cores <Howtos/Parallel.html>`_" tutorial for instructions.
 
 Third, use S2E to *selectively* relax and/or overconstrain path constraints.
 

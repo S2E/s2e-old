@@ -91,7 +91,7 @@ Of course, <em>ping</em> will fail because the NIC is fake.</p>
 <h2>1.3&nbsp;&nbsp;&nbsp;Setting up the networking configuration</h2>
 <ol class="arabic simple">
 <li>Before proceeding, <strong>reboot</strong> the virtual machine.</li>
-<li>Go to &quot;Network Connections&quot; in the control panel. You should see a disabled (greyed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and <strong>disable</strong> all protocols except TCP/IP.</li>
+<li>Go to &quot;Network Connections&quot; in the control panel. You should see a disabled (grayed-out) wired network connection corresponding to the fake PCnet card. Right-click on it, open the properties page, and <strong>disable</strong> all protocols except TCP/IP.</li>
 <li>Set the IP address of the fake NIC to 192.168.111.123/24 and the gateway to 192.168.111.1. The actual values do not matter, but you must be consistent with those in the <em>pcnet.bat</em> script.</li>
 <li>Disable <em>all</em> services that generate spurious network traffic (e.g., SSDP, automatic time update, file sharing, etc.). You can use Wireshark to spot these services.</li>
 <li>Set the <tt class="docutils literal">HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\ArpRetryCount</tt> setting of the TCP/IP stack to 0.

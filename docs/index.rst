@@ -27,9 +27,9 @@ S²E Documentation
 
 * Howtos
 
-  1. `How to use execution tracers? <ExecutionTracers.html>`_
-  2. `How to write an S2E plugin? <WritingPlugins.html>`_
-  3. `How to run S2E on multiple cores? <Parallel.html>`_
+  1. `How to use execution tracers? <Howtos/ExecutionTracers.html>`_
+  2. `How to write an S2E plugin? <Howtos/WritingPlugins.html>`_
+  3. `How to run S2E on multiple cores? <Howtos/Parallel.html>`_
 
 * S2E Tools
   
@@ -63,7 +63,7 @@ Execution Tracers
 
 These plugins record various types of multi-path information during execution.
 This information can be processed by offline analysis tools. Refer to
-the `How to use execution tracers? <ExecutionTracers.html>`_ tutorial to understand
+the `How to use execution tracers? <Howtos/ExecutionTracers.html>`_ tutorial to understand
 how to combine these tracers.
 
 * `ExecutionTracer <Plugins/Tracers/ExecutionTracer.html>`_
