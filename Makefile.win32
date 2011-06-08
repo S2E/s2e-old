@@ -71,16 +71,16 @@ stamps/llvm-configure: stamps/clang-unpack stamps/llvm-unpack
 	cd llvm && $(S2EBUILD)/llvm-2.6/configure \
 		--prefix=$(MINGW) \
 		--target=x86_64 --enable-jit --enable-targets=x86 --build=x86_64-w64-mingw32 \
-		--enable-optimized CXXFLAGS=-fexceptions
+		--enable-optimized CXXFLAGS="-fexceptions"
 	mkdir -p stamps && touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
-	cd llvm && make ENABLE_OPTIMIZED=0 CXXFLAGS="-fexceptions"  -j$(JOBS)
+	cd llvm && make ENABLE_OPTIMIZED=0 CXXFLAGS="-fexceptions -Wno-unused-but-set-variable"  -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 #Install the Release version only
 stamps/llvm-make-release: stamps/llvm-configure
-	cd llvm && make ENABLE_OPTIMIZED=1 CXXFLAGS="-fexceptions"  install -j$(JOBS)
+	cd llvm && make ENABLE_OPTIMIZED=1 CXXFLAGS="-fexceptions -Wno-unused-but-set-variable"  install -j$(JOBS)
 	mv $(MINGW)/bin/clang.exe $(MINGW)/bin/llvm-gcc.exe
 	cp llvm/Release/bin/clang-cc.exe $(MINGW)/bin/
 	mkdir -p stamps && touch $@
@@ -174,15 +174,15 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--with-klee=$(S2EBUILD)/klee/Release \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
-		--enable-s2e --extra-cflags="-D_WIN32"
+		--enable-s2e --extra-cflags="-D_WIN32 -Wno-unsused-but-used-variable"
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS
-	cd qemu-debug && make -j$(JOBS)
+	cd qemu-debug && make -j$(JOBS) 
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release ALWAYS
-	cd qemu-release && make -j$(JOBS)
+	cd qemu-release && make -j$(JOBS) CFLAGS=-Wno-unused-but-set-variable CXXFLAGS=-Wno-unused-but-set-variable
 	mkdir -p stamps && touch $@
 
 #########
