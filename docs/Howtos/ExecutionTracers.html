@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>How to Use Execution Tracers?</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="how-to-use-execution-tracers">
+<h1 class="title">How to Use Execution Tracers?</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#preparing-the-binary" id="id1">1. Preparing the Binary</a></li>
+<li><a class="reference internal" href="#configuring-plugins" id="id2">2. Configuring Plugins</a></li>
+<li><a class="reference internal" href="#viewing-the-traces" id="id3">3. Viewing the traces</a></li>
+<li><a class="reference internal" href="#mini-faq" id="id4">Mini-FAQ</a></li>
+</ul>
+</div>
+<p>Execution tracers are S2E analysis plugins that record various information along the execution of each path.
+Here is a list of currently available plugins:</p>
+<ul class="simple">
+<li><strong>ExecutionTracer</strong>: Base plugin upon which all tracers depend. This plugin records fork points so that offline
+analysis tools can reconstruct the execution tree. This plugin is useful by itself to obtain a fork profile
+of the system and answer questions such as: Which branch forks the most? What is causing path explosion?</li>
+<li><strong>ModuleTracer</strong>: Records when and where the guest OS loads modules, programs, or libraries. Offline analysis tools
+rely on this plugin to display debug information such as which line of code corresponds to which program counter.
+If ModuleTracer is disabled, no debug information will be displayed.</li>
+<li><strong>TestCaseGenerator</strong>: Outputs a test case whenever a path terminates. The test case consists of concrete input values
+that would exercise the given path.</li>
+<li><strong>TranslationBlockTracer</strong>: Records information about the executed translation blocks, including the program counter of
+each executed block and the content of registers before and after execution. This plugin is useful to obtain basic block
+coverage.</li>
+<li><strong>InstructionCounter</strong>: Counts the number of instructions executed on each path in the modules of interest.</li>
+</ul>
+<p>Most of the tracers record information only for the configured modules (except ExecutionTracer, which records forks
+anywhere in the system). For this, tracers need to know when execution enters and leaves the modules of interest.
+Tracers rely on the ModuleExecutionDetector plugin to obtain this information. ModuleExecutionDetector relies itself
+on OS monitor plugins to be notified whenever the OS loads or unloads the modules.</p>
+<p>Using execution tracers consists of two steps: preparing the binaries for tracing and configuring the S2E plugins.
+In the following, we give an end-to-end example of how to obtain the fork profile of an application.</p>
+<div class="section" id="preparing-the-binary">
+<h1>1. Preparing the Binary</h1>
+<p>We assume a Linux binary for which source code is available.
+To detect module loads on Linux, we use the <a class="reference external" href="Plugins/RawMonitor.html">RawMonitor</a>  plugin. This
+plugin requires the user to <em>manually</em> specify whenever the modules of interest are loaded. This
+can be simply done with a custom instruction. If you use Windows,
+the <a class="reference external" href="Plugins/WindowsInterceptor/WindowsMonitor.html">WindowMonitor</a> plugin handles detection fully automatically.</p>
+<p>Here are the steps to prepare the binary:</p>
+<pre class="literal-block">
+# Compile your program with debug information
+$ gcc -g -O0 -m32 -o myprogram myprogram.c
+
+# Obtain the size of the compiled program
+$ ls -l myprogram
+
+# Obtain the native base address of the binary
+# On Linux, it is something like 0x08048000
+$ objdump / idapro / etc.
+
+# Add a call to s2e_rawmon_loadmodule (declared in s2e.h) in the main() of your program.
+# This function tells S2E where you program is loaded.
+# You must specify the runtime base address of the program (which is usually the same as the native base address)
+# and the size of the program. You can use the one you obtained previously.
+
+# If you use an OS monitor plugin that automatically detects module loads (e.g., WindowMonitor),
+# you do not need this step. There is no such plugin yet for Linux.
+
+# main() {
+#   ...
+#   s2e_rawmon_loadmodule(&quot;myprogram&quot;, loadbase, size);
+#   ...
+# }
+
+# Recompile your program
+$ gcc -g -O0 -m32 -o myprogram myprogram.c
+</pre>
+</div>
+<div class="section" id="configuring-plugins">
+<h1>2. Configuring Plugins</h1>
+<p>In the second step, configure the desired plugin. You can use multiple tracers at once. Please refer to the documentation of each
+plugin for detailed configuration options.</p>
+<p>Your <tt class="docutils literal">config.lua</tt> file may look as follows. Note that some plugins do not have any option.</p>
+<pre class="literal-block">
+s2e = {
+    kleeArgs = {
+        -- Whatever options you like
+    }
+}
+
+plugins = {
+    &quot;BaseInstructions&quot;,
+    &quot;RawMonitor&quot;,
+    &quot;ModuleExecutionDetector&quot;,
+    &quot;ExecutionTracer&quot;,
+    &quot;ModuleTracer&quot;,
+    &quot;TranslationBlockTracer&quot;
+}
+
+pluginsConfig = {}
+
+pluginsConfig.RawMonitor = {
+    kernelStart = 0xc0000000,
+    myprog_id = {
+        name = &quot;myprogram&quot;,
+        start = 0x0,
+        size = --put your size here, e.g., 52505,
+        nativebase = 0x8048000,
+        delay = true,
+        kernelmode = false
+    }
+}
+
+pluginsConfig.ModuleExecutionDetector = {
+    myprog_id = {
+        moduleName = &quot;myprogram&quot;,
+        kernelMode = false
+    },
+}
+
+--Trace all the modules configured in ModuleExecutionDetector
+pluginsConfig.TranslationBlockTracer = {
+  manualTrigger = false,
+  flushTbCache = true
+}
+</pre>
+</div>
+<div class="section" id="viewing-the-traces">
+<h1>3. Viewing the traces</h1>
+<p>S2E comes with several tools that parse and display the execution traces.
+They are located in the <cite>tools</cite>  folder of the source distribution.
+You can find the documentation for them on the <a class="reference external" href="index.html">main page</a>.</p>
+</div>
+<div class="section" id="mini-faq">
+<h1>Mini-FAQ</h1>
+<ul class="simple">
+<li>The RawMonitor plugin complains that it cannot read the program name.
+This is because the string that you passed to <tt class="docutils literal">s2e_rawmon_loadmodule</tt> is located in an unmapped memory page.
+S2E cannot access unmapped pages. You need to touch that page to let the OS load it before calling <tt class="docutils literal">s2e_rawmon_loadmodule</tt>.</li>
+<li>You followed all steps and no debug information is displayed by the offline tools.<ul>
+<li>Check that you used the name of the modules coherently. The string you specified in <tt class="docutils literal">s2e_rawmon_loadmodule</tt>
+must be identical to what you set in the RawMonitor and ModuleExecutionDetector plugins.</li>
+<li>Make sure you defined the module to trace in the ModuleExecutionDetector configuration section.</li>
+<li>Check that your binutils library understands the debug information in the binaries.</li>
+<li>Make sure you computed the runtime load address properly, especially if you want to analyze a relocatable library.</li>
+<li>Check the size of your binary</li>
+<li>Make sure you set the kernel-mode option properly. It must be <tt class="docutils literal">false</tt> for user-mode programs (more precisely, for
+programs that do not run in the kernel space, above 0x80000000 or 0xC0000000).</li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="ExecutionTracers.rst">View document source</a>.
+
+</div>
+</body>
+</html>

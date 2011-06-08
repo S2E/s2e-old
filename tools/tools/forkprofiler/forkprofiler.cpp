@@ -61,8 +61,9 @@ using namespace s2etools;
 namespace {
 
 
-cl::opt<std::string>
-    TraceFile("trace", cl::desc("Input trace"), cl::init("ExecutionTracer.dat"));
+cl::list<std::string>
+    TraceFiles("trace", llvm::cl::value_desc("Input trace"), llvm::cl::Prefix,
+               llvm::cl::desc("Specify an execution trace file"));
 
 cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
@@ -285,7 +286,7 @@ int main(int argc, char **argv)
 
     LogParser parser;
     PathBuilder pb(&parser);
-    parser.parse(TraceFile);
+    parser.parse(TraceFiles);
 
     ModuleCache mc(&pb);
     ForkProfiler fp(&library, &mc, &pb);

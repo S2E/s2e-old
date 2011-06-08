@@ -60,7 +60,7 @@
 #include <s2e/Plugins/CacheSim.h>
 #include <s2e/Plugins/Debugger.h>
 #include <s2e/Plugins/SymbolicHardware.h>
-#include <s2e/Plugins/PollingLoopDetector.h>
+#include <s2e/Plugins/EdgeKiller.h>
 #include <s2e/Plugins/StateManager.h>
 #include <s2e/Plugins/Annotation.h>
 #include <s2e/Plugins/X86ExceptionInterceptor.h>
@@ -121,7 +121,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::TranslationBlockTracer);
 
     __S2E_REGISTER_PLUGIN(plugins::SymbolicHardware);
-    __S2E_REGISTER_PLUGIN(plugins::PollingLoopDetector);
+    __S2E_REGISTER_PLUGIN(plugins::EdgeKiller);
     __S2E_REGISTER_PLUGIN(plugins::Annotation);
     __S2E_REGISTER_PLUGIN(plugins::X86ExceptionInterceptor);
 

@@ -1,7 +1,10 @@
-================================================
-The Selective Symbolic Execution (S²E) Framework
-================================================
+===============================================
+The Selective Symbolic Execution (S²E) Platform
+===============================================
 
+.. contents::
+
+Do not forget the `FAQ <FAQ.html>`_ if you have questions.
 
 S²E Documentation
 =================
@@ -10,10 +13,10 @@ S²E Documentation
 
   1. `Building S2E <BuildingS2E.html>`_
   2. `Preparing a VM image for S2E <ImageInstallation.html>`_
-  3. `Quicky Uploading Programs to the Guest with s2eget <UsingS2EGet.html>`_
+  3. `Quicky uploading programs to the guest with s2eget <UsingS2EGet.html>`_
 
-  4. `Testing a Simple Program <TestingMinimalProgram.html>`_
-  5. `Equivalence Testing <EquivalenceTesting.html>`_
+  4. `Testing a simple program <TestingMinimalProgram.html>`_
+  5. `Equivalence testing <EquivalenceTesting.html>`_
   
 * Analyzing Windows Device Drivers
 
@@ -24,28 +27,78 @@ S²E Documentation
 
   1. `Building the Linux kernel <BuildingLinux.html>`_
   2. `Using SystemTap with S2E <SystemTap.html>`_
-  
-* S2E Plugins
 
-  1. `How to write a plugin <WritingPlugins.html>`_
+* Howtos
+
+  1. `How to use execution tracers? <Howtos/ExecutionTracers.html>`_
+  2. `How to write an S2E plugin? <Howtos/WritingPlugins.html>`_
+  3. `How to run S2E on multiple cores? <Howtos/Parallel.html>`_
+  4. `How to debug guest code? <Howtos/Debugging.html>`_
 
 * S2E Tools
   
   1. Available Tools
      
-     1. `Fork Profiler <Tools/ForkProfiler.html>`_
-     2. `Translation Block Printer <Tools/TbPrinter.html>`_
-     3. `Execution Profiler <Tools/ExecutionProfiler.html>`_
-     4. `Coverage Generator <Tools/CoverageGenerator.html>`_
+     1. `Fork profiler <Tools/ForkProfiler.html>`_
+     2. `Translation block printer <Tools/TbPrinter.html>`_
+     3. `Execution profiler <Tools/ExecutionProfiler.html>`_
+     4. `Coverage generator <Tools/CoverageGenerator.html>`_
    
-  2. `Supported Debug Information <Tools/DebugInfo.html>`_
-  3. Tools API
+  2. `Supported debug information <Tools/DebugInfo.html>`_
   
+* `Frequently Asked Questions <FAQ.html>`_
+
 S²E Plugin Reference
 ====================
 
+
+OS Event Monitors
+-----------------
+
+To implement selectivity, S2E relies on several OS-specific plugins to detect
+module loads/unloads and execution of modules of interest.
+
 * `WindowsMonitor <Plugins/WindowsInterceptor/WindowsMonitor.html>`_
-* `FunctionMonitor <Plugins/FunctionMonitor.html>`_
+* `RawMonitor <Plugins/RawMonitor.html>`_
+* `ModuleExecutionDetector <Plugins/ModuleExecutionDetector.html>`_
+
+Execution Tracers
+-----------------
+
+These plugins record various types of multi-path information during execution.
+This information can be processed by offline analysis tools. Refer to
+the `How to use execution tracers? <Howtos/ExecutionTracers.html>`_ tutorial to understand
+how to combine these tracers.
+
+* `ExecutionTracer <Plugins/Tracers/ExecutionTracer.html>`_
+* `ModuleTracer <Plugins/Tracers/ModuleTracer.html>`_
+* `TestCaseGenerator <Plugins/Tracers/TestCaseGenerator.html>`_
+* `TranslationBlockTracer <Plugins/Tracers/TranslationBlockTracer.html>`_
+* `InstructionCounter <Plugins/Tracers/InstructionCounter.html>`_
+
+Selection Plugins
+-----------------
+
+These plugins allow you to specify which paths to execute and where to inject symbolic values
+
+* `StateManager <Plugins/StateManager.html>`_ helps exploring library entry points more efficiently.
+* `EdgeKiller <Plugins/EdgeKiller.html>`_ kills execution paths that execute some sequence of instructions (e.g., polling loops).
+* `BaseInstructions <Plugins/BaseInstructions.html>`_ implements various custom instructions to control symbolic execution from the guest.
+* *SymbolicHardware* implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the `Windows driver testing <Windows/DriverTutorial.html>`_ tutorial for usage instructions.
+
+
+Analysis Plugins
+----------------
+
+* *CacheSim* implements a multi-path cache profiler.
+
+
+Miscellaneous Plugins
+---------------------
+
+* `FunctionMonitor <Plugins/FunctionMonitor.html>`_ provides client plugins with events triggered when the guest code invokes specified functions.
+* `HostFiles <UsingS2EGet.html>`_ allows to quickly upload files to the guest.
+
 
 S²E Development
 ===============

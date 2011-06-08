@@ -1,0 +1,7 @@
+LIBRARY "GDBSYMS.DLL"
+
+EXPORTS
+    DebugExtensionInitialize
+    DebugExtensionNotify
+    gdbsyms
+

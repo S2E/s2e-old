@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>TranslationBlockTracer</title>
+<link rel="stylesheet" href="../../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="translationblocktracer">
+<h1 class="title">TranslationBlockTracer</h1>
+
+<p>The TranslationBlockTracer plugin records the execution of all translation blocks in the modules of interest.
+Recorded information includes that start address of each block as well as the contents of CPU registers before and after
+the execution.</p>
+<div class="section" id="options">
+<h1>Options</h1>
+<div class="section" id="manualtrigger-true-false-default-false">
+<h2>manualTrigger=[true|false] (default=false)</h2>
+<p>When true, tracing will start and stop upon execution of a special custom instruction.
+This is useful to restrict tracing to particular pieces of code (e.g., a submodule, a function, etc.).</p>
+</div>
+<div class="section" id="flushtbcache-true-false-default-true">
+<h2>flushTbCache=[true|false] (default=true)</h2>
+<p>Tracing works by instrumenting translation blocks at translation time. If some block was
+already translated at the time tracing is enabled, the subsequent execution of that block
+will not appear in the trace unless the block is flushed and retranslated again.</p>
+</div>
+</div>
+<div class="section" id="required-plugins">
+<h1>Required Plugins</h1>
+<ul class="simple">
+<li><a class="reference external" href="ExecutionTracer.html">ExecutionTracer</a></li>
+<li><a class="reference external" href="../ModuleExecutionDetector.html">ModuleExecutionDetector</a></li>
+</ul>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<pre class="literal-block">
+pluginsConfig.TranslationBlockTracer = {}
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="TranslationBlockTracer.rst">View document source</a>.
+
+</div>
+</body>
+</html>

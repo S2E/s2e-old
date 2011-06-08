@@ -314,6 +314,23 @@ Solver *constructSolverChain(STPSolver *stpSolver,
   return solver;
 }
 
+void Executor::initializeSolver()
+{
+    if (this->solver) {
+        delete this->solver;
+    }
+
+    STPSolver *stpSolver = new STPSolver(UseForkedSTP);
+    Solver *solver =
+      constructSolverChain(stpSolver,
+                           interpreterHandler->getOutputFilename("queries.qlog"),
+                           interpreterHandler->getOutputFilename("stp-queries.qlog"),
+                           interpreterHandler->getOutputFilename("queries.pc"),
+                           interpreterHandler->getOutputFilename("stp-queries.pc"));
+
+    this->solver = new TimingSolver(solver, stpSolver);
+}
+
 Executor::Executor(const InterpreterOptions &opts,
                    InterpreterHandler *ih, ExecutionEngine *engine)
   : Interpreter(opts),
@@ -342,15 +359,8 @@ Executor::Executor(const InterpreterOptions &opts,
     stpTimeout = std::min(MaxSTPTime,MaxInstructionTime);
   }
 
-  STPSolver *stpSolver = new STPSolver(UseForkedSTP);
-  Solver *solver = 
-    constructSolverChain(stpSolver,
-                         interpreterHandler->getOutputFilename("queries.qlog"),
-                         interpreterHandler->getOutputFilename("stp-queries.qlog"),
-                         interpreterHandler->getOutputFilename("queries.pc"),
-                         interpreterHandler->getOutputFilename("stp-queries.pc"));
-  
-  this->solver = new TimingSolver(solver, stpSolver);
+  this->solver = NULL;
+  initializeSolver();
 
   memory = new MemoryManager();
 

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>ExecutionTracer</title>
+<link rel="stylesheet" href="../../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="executiontracer">
+<h1 class="title">ExecutionTracer</h1>
+
+<p>The ExecutionTracer plugin is the main tracing plugin.
+This plugin saves a binary trace file in the <tt class="docutils literal"><span class="pre">s2e-last/ExecutionTracer.dat</span></tt> file.
+This file is composed of generic trace items. Each item can have an arbitrary format, determined by the various client tracing plugins.
+The client plugins call the ExecutionTracer's API to write trace items.</p>
+<p>By default, ExecutionTracer records the program counters where fork occurs.
+This allows offline analysis tools to rebuild the execution tree and provide per-path analyses.</p>
+<div class="section" id="options">
+<h1>Options</h1>
+<p>This plugin does not have any option.</p>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<pre class="literal-block">
+pluginsConfig.ExecutionTracer = {}
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="ExecutionTracer.rst">View document source</a>.
+
+</div>
+</body>
+</html>

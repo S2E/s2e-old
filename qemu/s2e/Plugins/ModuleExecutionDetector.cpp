@@ -151,8 +151,21 @@ void ModuleExecutionDetector::initializeConfiguration()
         std::stringstream s;
         s << getConfigKey() << "." << *it << ".";
         d.id = *it;
-        d.moduleName = cfg->getString(s.str() + "moduleName");
-        d.kernelMode = cfg->getBool(s.str() + "kernelMode");
+
+        bool ok = false;
+        d.moduleName = cfg->getString(s.str() + "moduleName", "", &ok);
+        if (!ok) {
+            s2e()->getWarningsStream() << "You must specifiy " << s.str() + "moduleName" << std::endl;
+            exit(-1);
+        }
+
+        d.kernelMode = cfg->getBool(s.str() + "kernelMode", false, &ok);
+        if (!ok) {
+            s2e()->getWarningsStream() << "You must specifiy " << s.str() + "kernelMode" << std::endl;
+            exit(-1);
+        }
+
+
         s2e()->getDebugStream() << "ModuleExecutionDetector: " <<
                 "id=" << d.id << " " <<
                 "moduleName=" << d.moduleName << " " <<

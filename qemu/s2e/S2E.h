@@ -44,6 +44,7 @@
 #include <map>
 
 #include "Plugin.h"
+#include "Synchronization.h"
 
 namespace klee {
     class Interpreter;
@@ -65,9 +66,19 @@ class S2EExecutionState;
 
 class Database;
 
+struct S2EShared {
+    unsigned currentProcessCount;
+    unsigned lastFileId;
+    //We must have unique state ids across all processes
+    //otherwise offline tools will be extremely confused when
+    //aggregating different execution trace files.
+    unsigned lastStateId;
+};
+
 class S2E
 {
 protected:
+    S2ESynchronizedObject<S2EShared> m_sync;
     ConfigFile* m_configFile;
     PluginsFactory* m_pluginsFactory;
 
@@ -93,12 +104,20 @@ protected:
 
     TCGLLVMContext *m_tcgLLVMContext;
 
+    /* How many processes can S2E fork */
+    unsigned m_maxProcesses;
+    unsigned m_currentProcessIndex;
+
+    std::string m_outputDirectoryBase;
+
     /* The following members are late-initialized when
     QEMU pc creation is complete */
     S2EHandler* m_s2eHandler;
     S2EExecutor* m_s2eExecutor;
 
-    void initOutputDirectory(const std::string& outputDirectory, int verbose);
+    /* forked indicates whether the current S2E process was forked from a parent S2E process */
+    void initOutputDirectory(const std::string& outputDirectory, int verbose, bool forked);
+
     void initKleeOptions();
     void initExecutor();
     void initPlugins();
@@ -112,7 +131,7 @@ public:
                  TCGLLVMContext* tcgLLVMContext,
                  const std::string& configFileName,
                  const std::string& outputDirectory,
-                 int verbose = 0);
+                 int verbose = 0, unsigned s2e_max_processes = 1);
     ~S2E();
 
     /*****************************/
@@ -175,6 +194,9 @@ public:
     void refreshPlugins();
 
     void writeBitCodeToFile();
+
+    int fork();
+    unsigned fetchAndIncrementStateId();
 };
 
 } // namespace s2e

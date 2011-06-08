@@ -26,9 +26,11 @@ ETEXI
 
 #ifdef CONFIG_S2E
 DEF("s2e-config-file", HAS_ARG, QEMU_OPTION_s2e_config_file,
-    "s2e-config-file file      Path to S2E configuration file\n")
+    "s2e-config-file   file      Path to S2E configuration file\n")
 DEF("s2e-output-dir", HAS_ARG, QEMU_OPTION_s2e_output_dir,
-    "s2e-output-dir dir        Path to S2E output directory\n")
+    "s2e-output-dir    dir       Path to S2E output directory\n")
+DEF("s2e-max-processes", HAS_ARG, QEMU_OPTION_s2e_max_processes,
+    "s2e-max-processes num       Maximum number of processes to fork\n")
 #else
 DEF("fake-pci-name", HAS_ARG, QEMU_OPTION_fake_pci_name,
     "fake-pci-name name        Name of the fake PCI device (used in snapshots)\n")

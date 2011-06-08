@@ -99,15 +99,28 @@ class LogParser: public LogEvents
 {
 private:
 
-    //FILE *m_File;
-#ifdef _WIN32
-    HANDLE m_hFile;
-    HANDLE m_hMapping;
-#endif
+    struct LogFile {
+        #ifdef _WIN32
+        HANDLE m_hFile;
+        HANDLE m_hMapping;
+        #endif
+        void *m_File;
+        uint64_t m_size;
 
-    void *m_File;
-    uint64_t m_size;
-    std::vector<uint64_t> m_ItemOffsets;
+        LogFile() {
+            #ifdef _WIN32
+            m_hFile = NULL;
+            m_hMapping = NULL;
+            #endif
+            m_File = NULL;
+            m_size = 0;
+        }
+    };
+
+    typedef std::vector<LogFile> LogFiles;
+
+    LogFiles m_files;
+    std::vector<uint8_t*> m_ItemAddresses;
 
     ItemProcessors m_ItemProcessors;
     void *m_cachedProcessor;
@@ -120,6 +133,7 @@ public:
     LogParser();
     virtual ~LogParser();
 
+    bool parse(const std::vector<std::string> fileNames);
     bool parse(const std::string &file);
     bool getItem(unsigned index, s2e::plugins::ExecutionTraceItemHeader &hdr, void **data);
 

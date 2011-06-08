@@ -4,22 +4,39 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
-<title>The Selective Symbolic Execution (S²E) Framework</title>
+<title>The Selective Symbolic Execution (S²E) Platform</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
 <body>
-<div class="document" id="the-selective-symbolic-execution-s2e-framework">
-<h1 class="title">The Selective Symbolic Execution (S²E) Framework</h1>
+<div class="document" id="the-selective-symbolic-execution-s2e-platform">
+<h1 class="title">The Selective Symbolic Execution (S²E) Platform</h1>
 
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#s2e-documentation" id="id2">S²E Documentation</a></li>
+<li><a class="reference internal" href="#s2e-plugin-reference" id="id3">S²E Plugin Reference</a><ul>
+<li><a class="reference internal" href="#os-event-monitors" id="id4">OS Event Monitors</a></li>
+<li><a class="reference internal" href="#execution-tracers" id="id5">Execution Tracers</a></li>
+<li><a class="reference internal" href="#selection-plugins" id="id6">Selection Plugins</a></li>
+<li><a class="reference internal" href="#analysis-plugins" id="id7">Analysis Plugins</a></li>
+<li><a class="reference internal" href="#miscellaneous-plugins" id="id8">Miscellaneous Plugins</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#s2e-development" id="id9">S²E Development</a></li>
+<li><a class="reference internal" href="#s2e-publications" id="id10">S²E Publications</a></li>
+</ul>
+</div>
+<p>Do not forget the <a class="reference external" href="FAQ.html">FAQ</a> if you have questions.</p>
 <div class="section" id="s2e-documentation">
 <h1>S²E Documentation</h1>
 <ul class="simple">
 <li>Getting Started<ol class="arabic">
 <li><a class="reference external" href="BuildingS2E.html">Building S2E</a></li>
-<li><a class="reference external" href="ImageInstallation.html">Preparing an VM image for S2E</a></li>
-<li><a class="reference external" href="UsingS2EGet.html">Quicky Uploading Programs to the Guest with s2eget</a></li>
-<li><a class="reference external" href="TestingMinimalProgram.html">Testing a Simple Program</a></li>
-<li><a class="reference external" href="EquivalenceTesting.html">Equivalence Testing</a></li>
+<li><a class="reference external" href="ImageInstallation.html">Preparing a VM image for S2E</a></li>
+<li><a class="reference external" href="UsingS2EGet.html">Quicky uploading programs to the guest with s2eget</a></li>
+<li><a class="reference external" href="TestingMinimalProgram.html">Testing a simple program</a></li>
+<li><a class="reference external" href="EquivalenceTesting.html">Equivalence testing</a></li>
 </ol>
 </li>
 <li>Analyzing Windows Device Drivers<ol class="arabic">
@@ -32,30 +49,76 @@
 <li><a class="reference external" href="SystemTap.html">Using SystemTap with S2E</a></li>
 </ol>
 </li>
-<li>S2E Plugins<ol class="arabic">
-<li><a class="reference external" href="WritingPlugins.html">How to write a plugin</a></li>
+<li>Howtos<ol class="arabic">
+<li><a class="reference external" href="Howtos/ExecutionTracers.html">How to use execution tracers?</a></li>
+<li><a class="reference external" href="Howtos/WritingPlugins.html">How to write an S2E plugin?</a></li>
+<li><a class="reference external" href="Howtos/Parallel.html">How to run S2E on multiple cores?</a></li>
+<li><a class="reference external" href="Howtos/Debugging.html">How to debug guest code?</a></li>
 </ol>
 </li>
 <li>S2E Tools<ol class="arabic">
 <li>Available Tools<ol class="arabic">
-<li><a class="reference external" href="Tools/ForkProfiler.html">Fork Profiler</a></li>
-<li><a class="reference external" href="Tools/TbPrinter.html">Translation Block Printer</a></li>
-<li><a class="reference external" href="Tools/ExecutionProfiler.html">Execution Profiler</a></li>
-<li><a class="reference external" href="Tools/CoverageGenerator.html">Coverage Generator</a></li>
+<li><a class="reference external" href="Tools/ForkProfiler.html">Fork profiler</a></li>
+<li><a class="reference external" href="Tools/TbPrinter.html">Translation block printer</a></li>
+<li><a class="reference external" href="Tools/ExecutionProfiler.html">Execution profiler</a></li>
+<li><a class="reference external" href="Tools/CoverageGenerator.html">Coverage generator</a></li>
 </ol>
 </li>
-<li><a class="reference external" href="Tools/DebugInfo.html">Supported Debug Information</a></li>
-<li>Tools API</li>
+<li><a class="reference external" href="Tools/DebugInfo.html">Supported debug information</a></li>
 </ol>
 </li>
+<li><a class="reference external" href="FAQ.html">Frequently Asked Questions</a></li>
 </ul>
 </div>
 <div class="section" id="s2e-plugin-reference">
 <h1>S²E Plugin Reference</h1>
+<div class="section" id="os-event-monitors">
+<h2>OS Event Monitors</h2>
+<p>To implement selectivity, S2E relies on several OS-specific plugins to detect
+module loads/unloads and execution of modules of interest.</p>
 <ul class="simple">
 <li><a class="reference external" href="Plugins/WindowsInterceptor/WindowsMonitor.html">WindowsMonitor</a></li>
-<li><a class="reference external" href="Plugins/FunctionMonitor.html">FunctionMonitor</a></li>
+<li><a class="reference external" href="Plugins/RawMonitor.html">RawMonitor</a></li>
+<li><a class="reference external" href="Plugins/ModuleExecutionDetector.html">ModuleExecutionDetector</a></li>
 </ul>
+</div>
+<div class="section" id="execution-tracers">
+<h2>Execution Tracers</h2>
+<p>These plugins record various types of multi-path information during execution.
+This information can be processed by offline analysis tools. Refer to
+the <a class="reference external" href="Howtos/ExecutionTracers.html">How to use execution tracers?</a> tutorial to understand
+how to combine these tracers.</p>
+<ul class="simple">
+<li><a class="reference external" href="Plugins/Tracers/ExecutionTracer.html">ExecutionTracer</a></li>
+<li><a class="reference external" href="Plugins/Tracers/ModuleTracer.html">ModuleTracer</a></li>
+<li><a class="reference external" href="Plugins/Tracers/TestCaseGenerator.html">TestCaseGenerator</a></li>
+<li><a class="reference external" href="Plugins/Tracers/TranslationBlockTracer.html">TranslationBlockTracer</a></li>
+<li><a class="reference external" href="Plugins/Tracers/InstructionCounter.html">InstructionCounter</a></li>
+</ul>
+</div>
+<div class="section" id="selection-plugins">
+<h2>Selection Plugins</h2>
+<p>These plugins allow you to specify which paths to execute and where to inject symbolic values</p>
+<ul class="simple">
+<li><a class="reference external" href="Plugins/StateManager.html">StateManager</a> helps exploring library entry points more efficiently.</li>
+<li><a class="reference external" href="Plugins/EdgeKiller.html">EdgeKiller</a> kills execution paths that execute some sequence of instructions (e.g., polling loops).</li>
+<li><a class="reference external" href="Plugins/BaseInstructions.html">BaseInstructions</a> implements various custom instructions to control symbolic execution from the guest.</li>
+<li><em>SymbolicHardware</em> implements symbolic PCI and ISA devices as well as symbolic interrupts and DMA. Refer to the <a class="reference external" href="Windows/DriverTutorial.html">Windows driver testing</a> tutorial for usage instructions.</li>
+</ul>
+</div>
+<div class="section" id="analysis-plugins">
+<h2>Analysis Plugins</h2>
+<ul class="simple">
+<li><em>CacheSim</em> implements a multi-path cache profiler.</li>
+</ul>
+</div>
+<div class="section" id="miscellaneous-plugins">
+<h2>Miscellaneous Plugins</h2>
+<ul class="simple">
+<li><a class="reference external" href="Plugins/FunctionMonitor.html">FunctionMonitor</a> provides client plugins with events triggered when the guest code invokes specified functions.</li>
+<li><a class="reference external" href="UsingS2EGet.html">HostFiles</a> allows to quickly upload files to the guest.</li>
+</ul>
+</div>
 </div>
 <div class="section" id="s2e-development">
 <h1>S²E Development</h1>
