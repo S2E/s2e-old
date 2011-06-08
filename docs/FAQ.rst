@@ -74,7 +74,7 @@ Third, use S2E to *selectively* relax and/or overconstrain path constraints.
   Moreover, depending on the accumulated constraints, each iteration may be slower and slower.
   Try to use a different search strategy or kill unwanted execution paths.
 
-* Try to relax path constraints. For example, there may be a branch that causes a bottleneck. Write a plugin to intercept
+* Try to relax path constraints. For example, there may be a branch that causes a bottleneck. Use the *Annotation* plugin to intercept
   that branch instruction and overwrite the branch condition with an unconstrained value. This trades execution consistency
   for execution speed. Unconstraining execution may create paths that cannot occur in real executions (i.e., false positives), but as long as there
   are few of them, or you can detect them a posteriori, this is an acceptable trade-off.
