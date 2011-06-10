@@ -142,7 +142,7 @@ bool LogParser::parse(const std::string &fileName)
     }
 
     element.m_hMapping = CreateFileMapping(element.m_hFile, NULL, PAGE_READONLY, FileSize.HighPart, FileSize.LowPart, NULL);
-    if (m_hMapping == NULL) {
+    if (element.m_hMapping == NULL) {
         CloseHandle(element.m_hFile);
         return false;
     }
