@@ -2,12 +2,11 @@
 Parallel S2E
 ============
 
-S2E can be run in multi-process mode.
+S2E can be run in multi-process mode. It works by forking an S2E instance on every branch instruction where both outcomes can happen.
 
 Append ``-s2e-max-processes XX`` to the command line, where ``XX`` is the maximum number of S2E instances you would like to have.
-Also add the ``-nographic`` option.
+Also add the ``-nographic`` option as it is not possible to fork a new S2E window for now.
 
-It works by forking an S2E instance on every branch instruction where both outcomes can happen.
 
 How do I process generated traces?
 ----------------------------------
@@ -37,4 +36,7 @@ Limitations
 
 * S2E can only run on a shared-memory architecture. S2E cannot start on one machine and fork new instances on other machines for now.
   This limitation will be fixed soon.
+* It is not possible to have a separate S2E window for each process for now. If you start with ``-nographic``, you will not be able
+  to manipulate the console. To start the program that you want to symbex in the guest, use the `HostFiles <../UsingS2EGet.html>`_ plugin or
+  the ``-vnc :1`` option.
 * Because S2E uses the ``fork`` system call, S2E cannot run on Windows in multi-core mode.
