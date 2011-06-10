@@ -51,7 +51,11 @@
 #ifdef CONFIG_DARWIN
 #include <mach/semaphore.h>
 #else
+#ifndef _WIN32
 #include <semaphore.h>
+#else
+
+#endif
 #include <errno.h>
 #endif
 
@@ -71,7 +75,7 @@ S2ESynchronizedObjectInternal::~S2ESynchronizedObjectInternal()
     delete [] m_sharedBuffer;
 }
 
-void *S2ESynchronizedObjectInternal::acquire()
+void *S2ESynchronizedObjectInternal::aquire()
 {
     return m_sharedBuffer;
 }
