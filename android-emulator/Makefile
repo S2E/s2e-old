@@ -84,5 +84,4 @@ clean-config:
 
 # include dependency information
 DEPENDENCY_DIRS := $(sort $(DEPENDENCY_DIRS))
-$(warning DEPENDENCY_DIRS is $(DEPENDENCY_DIRS))
 -include $(wildcard $(DEPENDENCY_DIRS:%=%/*.d))

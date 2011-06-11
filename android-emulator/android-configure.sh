@@ -42,6 +42,7 @@ s2e="no"
 kleedir=""
 stpdir=""
 llvmgcc=""
+zeromalloc="no"
 
 for opt do
   optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'`
@@ -89,6 +90,8 @@ for opt do
   ;;
   --with-llvmgcc=*) llvmgcc=$optarg
   ;;
+  --zero-malloc) zeromalloc="yes"
+  ;;
   *)
     echo "unknown option '$opt', use --help"
     exit 1
@@ -125,6 +128,7 @@ EOF
     echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
     echo "  --with-stp=PATH         STP path (PATH/lib/libstp.a must exist)"
     echo "  --with-llvmgcc=PATH      path to llvm-gcc"
+    echo "  --zero-malloc			 allow zero memory allocations"
     echo ""
     exit 1
 fi
@@ -693,6 +697,7 @@ if [ "$OPTION_MINGW" = "yes" ] ; then
     echo "HOST_OS   := windows" >> $config_mk
 fi
 
+
 # Build the config-host.h file
 #
 config_h=objs/config-host.h
@@ -718,6 +723,9 @@ if [ "$s2e" = yes ] ; then
   echo "#define CONFIG_LLVM	  1" >> $config_h
 fi
 
+if test "$zeromalloc" = "yes" ; then
+  echo "#define CONFIG_ZERO_MALLOC	1" >> $config_h
+fi
 
 
 # only Linux has fdatasync()

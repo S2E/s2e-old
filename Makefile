@@ -119,9 +119,9 @@ stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/
 	cd klee && make ENABLE_OPTIMIZED=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
 
-########
-# QEMU #
-########
+####################
+# Android Emulator #
+####################
 
 klee/Debug/bin/klee-config: stamps/klee-make-debug
 
@@ -137,9 +137,10 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--enable-llvm \
 		--enable-s2e \
 		--debug \
+		--zero-malloc \
 		--try-64 \
 		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
-                --install=$(S2EBUILD)/opt 
+		--install=$(S2EBUILD)/opt 
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config

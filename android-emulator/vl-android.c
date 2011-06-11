@@ -3720,8 +3720,9 @@ char *qemu_find_file(int type, const char *name)
     switch (type) {
     case QEMU_FILE_TYPE_LIB:
         /* XXX: Terrible hack. Redo it after deadline! */
-        subdir="../i386-s2e-softmmu/";
-        break;
+        //subdir="../i386-s2e-softmmu/";
+        subdir="../objs/intermediates/emulator-s2ellvm-arm/";
+    	break;
     case QEMU_FILE_TYPE_BIOS:
         subdir = "";
         break;
