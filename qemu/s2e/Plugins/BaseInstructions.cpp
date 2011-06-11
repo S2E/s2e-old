@@ -40,7 +40,7 @@ extern "C" {
 }
 
 
-//#include "BaseInstructions.h"
+#include "BaseInstructions.h"
 #include <s2e/S2E.h>
 #include <s2e/Database.h>
 #include <s2e/S2EExecutor.h>
@@ -61,7 +61,7 @@ namespace plugins {
 using namespace std;
 using namespace klee;
 
-//S2E_DEFINE_PLUGIN(BaseInstructions, "Default set of custom instructions plugin", "",);
+S2E_DEFINE_PLUGIN(BaseInstructions, "Default set of custom instructions plugin", "",);
 
 void BaseInstructions::initialize()
 {

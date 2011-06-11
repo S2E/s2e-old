@@ -44,15 +44,26 @@ extern "C" {
 #include <exec-all.h>
 #include <sysemu.h>
 
+#ifdef TARGET_ARM
 extern struct CPUARMState *env;
+#elif defined(TARGET_I386)
+extern struct CPUX86State *env;
+#endif
+
 void QEMU_NORETURN raise_exception(int exception_index);
 void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
 extern const uint8_t parity_table[256];
 extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
+#ifdef TARGET_ARM
 uint64_t helper_do_interrupt(void);
+#elif defined(TARGET_I386)
+uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
+                  target_ulong next_eip, int is_hw);
+#endif
 uint64_t helper_set_cc_op_eflags(void);
+
 }
 #include <malloc.h>
 
@@ -586,15 +597,29 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
 
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
+#ifdef TARGET_ARM
     __DEFINE_EXT_FUNCTION(cpu_arm_handle_mmu_fault)
     __DEFINE_EXT_FUNCTION(cpsr_read)
     __DEFINE_EXT_FUNCTION(cpsr_write)
     __DEFINE_EXT_FUNCTION(arm_cpu_list)
-//    __DEFINE_EXT_FUNCTION(cpu_get_apic_base)
-//    __DEFINE_EXT_FUNCTION(cpu_set_apic_base)
-//    __DEFINE_EXT_FUNCTION(cpu_get_apic_tpr)
-//    __DEFINE_EXT_FUNCTION(cpu_set_apic_tpr)
-//    __DEFINE_EXT_FUNCTION(cpu_smm_update)
+#endif
+#ifdef TARGET_I386
+    __DEFINE_EXT_FUNCTION(cpu_io_recompile)
+    __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
+    __DEFINE_EXT_FUNCTION(cpu_x86_update_cr0)
+    __DEFINE_EXT_FUNCTION(cpu_x86_update_cr3)
+    __DEFINE_EXT_FUNCTION(cpu_x86_update_cr4)
+    __DEFINE_EXT_FUNCTION(cpu_x86_cpuid)
+    __DEFINE_EXT_FUNCTION(cpu_get_apic_base)
+    __DEFINE_EXT_FUNCTION(cpu_set_apic_base)
+    __DEFINE_EXT_FUNCTION(cpu_get_apic_tpr)
+    __DEFINE_EXT_FUNCTION(cpu_set_apic_tpr)
+    __DEFINE_EXT_FUNCTION(cpu_smm_update)
+    __DEFINE_EXT_FUNCTION(hw_breakpoint_insert)
+    __DEFINE_EXT_FUNCTION(hw_breakpoint_remove)
+    __DEFINE_EXT_FUNCTION(check_hw_breakpoints)
+    __DEFINE_EXT_FUNCTION(cpu_get_tsc)
+#endif
     __DEFINE_EXT_FUNCTION(cpu_outb)
     __DEFINE_EXT_FUNCTION(cpu_outw)
     __DEFINE_EXT_FUNCTION(cpu_outl)
@@ -605,15 +630,13 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
     __DEFINE_EXT_FUNCTION(cpu_abort)
     __DEFINE_EXT_FUNCTION(cpu_loop_exit)
-//    __DEFINE_EXT_FUNCTION(cpu_get_tsc)
+
     __DEFINE_EXT_FUNCTION(tb_find_pc)
 
     __DEFINE_EXT_FUNCTION(qemu_system_reset_request)
 
     __DEFINE_EXT_FUNCTION(cpu_reset)
-//    __DEFINE_EXT_FUNCTION(hw_breakpoint_insert)
-//    __DEFINE_EXT_FUNCTION(hw_breakpoint_remove)
-//    __DEFINE_EXT_FUNCTION(check_hw_breakpoints)
+
 
     __DEFINE_EXT_FUNCTION(tlb_flush_page)
     __DEFINE_EXT_FUNCTION(tlb_flush)
@@ -852,6 +875,8 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state,
     initTimers();
 }
 
+
+#ifdef TARGET_ARM
 void S2EExecutor::registerCpu(S2EExecutionState *initialState,
                               CPUARMState *cpuEnv)
 {
@@ -893,6 +918,52 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
     initialState->m_cpuSystemObject = initialState->addressSpace
         .getWriteable(initialState->m_cpuSystemState, cpuSystemObject);
 }
+#elif defined(TARGET_I386)
+
+void S2EExecutor::registerCpu(S2EExecutionState *initialState,
+                              CPUX86State *cpuEnv)
+{
+    std::cout << std::hex
+              << "Adding CPU (addr = 0x" << cpuEnv
+              << ", size = 0x" << sizeof(*cpuEnv) << ")"
+              << std::dec << std::endl;
+
+    /* Add registers and eflags area as a true symbolic area */
+    initialState->m_cpuRegistersState =
+        addExternalObject(*initialState, cpuEnv,
+                      offsetof(CPUX86State, eip),
+                      /* isReadOnly = */ false,
+                      /* isUserSpecified = */ false,
+                      /* isSharedConcrete = */ false);
+
+    initialState->m_cpuRegistersState->setName("CpuRegistersState");
+
+    /* Add the rest of the structure as concrete-only area */
+    initialState->m_cpuSystemState =
+        addExternalObject(*initialState,
+                      ((uint8_t*)cpuEnv) + offsetof(CPUX86State, eip),
+                      sizeof(CPUX86State) - offsetof(CPUX86State, eip),
+                      /* isReadOnly = */ false,
+                      /* isUserSpecified = */ true,
+                      /* isSharedConcrete = */ true);
+
+    initialState->m_cpuSystemState->setName("CpuSystemState");
+
+    m_saveOnContextSwitch.push_back(initialState->m_cpuSystemState);
+
+    const ObjectState *cpuSystemObject = initialState->addressSpace
+                                .findObject(initialState->m_cpuSystemState);
+    const ObjectState *cpuRegistersObject = initialState->addressSpace
+                                .findObject(initialState->m_cpuRegistersState);
+
+    initialState->m_cpuRegistersObject = initialState->addressSpace
+        .getWriteable(initialState->m_cpuRegistersState, cpuRegistersObject);
+    initialState->m_cpuSystemObject = initialState->addressSpace
+        .getWriteable(initialState->m_cpuSystemState, cpuSystemObject);
+}
+
+#endif
+
 
 void S2EExecutor::registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
@@ -1088,6 +1159,7 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
     }
 }
 
+#ifdef TARGET_ARM
 void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
         CPUARMState *cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
@@ -1139,27 +1211,72 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
     } else {
         memcpy(buf, ((uint8_t*)cpuState)+offset, size);
     }
+}
+#elif defined(TARGET_I386)
 
+    void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
+            CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size)
+    {
+        assert(state->m_active);
+        assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
+        assert(offset + size <= CPU_OFFSET(eip));
 
-#if defined(TARGET_I386) && defined(S2E_TRACE_EFLAGS)
-    if (offsetof(CPUState, cc_src) == offset) {
-        m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
-                "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
+        if(!state->m_runningConcrete ||
+                !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
+            ObjectState* wos = state->m_cpuRegistersObject;
+
+            for(unsigned i = 0; i < size; ++i) {
+                if(!wos->readConcrete8(offset+i, buf+i)) {
+                    const char* reg;
+                    switch(offset) {
+                        case 0x00: reg = "eax"; break;
+                        case 0x04: reg = "ecx"; break;
+                        case 0x08: reg = "edx"; break;
+                        case 0x0c: reg = "ebx"; break;
+                        case 0x10: reg = "esp"; break;
+                        case 0x14: reg = "ebp"; break;
+                        case 0x18: reg = "esi"; break;
+                        case 0x1c: reg = "edi"; break;
+
+                        case 0x20: reg = "cc_src"; break;
+                        case 0x24: reg = "cc_dst"; break;
+                        case 0x28: reg = "cc_op"; break;
+                        case 0x3c: reg = "df"; break;
+
+                        default: reg = "unknown"; break;
+                    }
+                    std::string reason = std::string("access to ") + reg +
+                                         " register from QEMU helper";
+                    buf[i] = toConstant(*state, wos->read8(offset+i),
+                                        reason.c_str())->getZExtValue(8);
+                    wos->write8(offset+i, buf[i]);
+                }
+            }
+        } else {
+            memcpy(buf, ((uint8_t*)cpuState)+offset, size);
+        }
+
+    #ifdef S2E_TRACE_EFLAGS
+        if (offsetof(CPUState, cc_src) == offset) {
+            m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
+                    "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
+        }
+    #endif
     }
+
+
 #endif
 
-}
+
+#ifdef TARGET_ARM
 
 void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         CPUARMState *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
 {
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
-	#ifdef TARGET_ARM
-		assert(offset + size <= CPU_OFFSET(regs[15]));
-	#elif defined(TARGET_I386)
-		assert(offset + size <= CPU_OFFSET(eip));
-	#endif
+	assert(offset + size <= CPU_OFFSET(regs[15]));
+
 
     if(!state->m_runningConcrete ||
             !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
@@ -1171,8 +1288,28 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
         memcpy(((uint8_t*)cpuState)+offset, buf, size);
     }
 
+}
 
-#if defined(TARGET_I386) && defined(S2E_TRACE_EFLAGS)
+#elif defined(TARGET_I386)
+
+void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
+        CPUX86State *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
+{
+    assert(state->m_active);
+    assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
+    assert(offset + size <= CPU_OFFSET(eip));
+
+    if(!state->m_runningConcrete ||
+            !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
+        ObjectState* wos = state->m_cpuRegistersObject;
+        for(unsigned i = 0; i < size; ++i)
+            wos->write8(offset+i, buf[i]);
+    } else {
+        assert(state->m_cpuRegistersObject->isConcrete(offset, size*8));
+        memcpy(((uint8_t*)cpuState)+offset, buf, size);
+    }
+
+#ifdef S2E_TRACE_EFLAGS
     if (offsetof(CPUState, cc_src) == offset) {
         m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
                 "write conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
@@ -1180,6 +1317,9 @@ void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
 #endif
 
 }
+
+#endif
+
 
 void S2EExecutor::switchToConcrete(S2EExecutionState *state)
 {
@@ -2189,6 +2329,8 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
 #endif
 }
 
+
+#ifdef TARGET_ARM
 inline void S2EExecutor::doInterrupt(S2EExecutionState *state)
 {
     if(state->m_cpuRegistersObject->isAllConcrete() && !m_executeAlwaysKlee) {
@@ -2209,6 +2351,37 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state)
         }
     }
 }
+#elif defined(TARGET_I386)
+inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
+                                     int is_int, int error_code,
+                                     uint64_t next_eip, int is_hw)
+{
+    if(state->m_cpuRegistersObject->isAllConcrete() && !m_executeAlwaysKlee) {
+        if(!state->m_runningConcrete)
+            switchToConcrete(state);
+        TimerStatIncrementer t(stats::concreteModeTime);
+        helper_do_interrupt(intno, is_int, error_code, next_eip, is_hw);
+    } else {
+        if(state->m_runningConcrete)
+            switchToSymbolic(state);
+        std::vector<klee::ref<klee::Expr> > args(5);
+        args[0] = klee::ConstantExpr::create(intno, sizeof(int)*8);
+        args[1] = klee::ConstantExpr::create(is_int, sizeof(int)*8);
+        args[2] = klee::ConstantExpr::create(error_code, sizeof(int)*8);
+        args[3] = klee::ConstantExpr::create(next_eip, sizeof(target_ulong)*8);
+        args[4] = klee::ConstantExpr::create(is_hw, sizeof(int)*8);
+        try {
+            TimerStatIncrementer t(stats::symbolicModeTime);
+            executeFunction(state, "helper_do_interrupt", args);
+        } catch(s2e::CpuExitException&) {
+            updateStates(state);
+            longjmp(env->jmp_env, 1);
+        }
+    }
+}
+#endif
+
+
 
 void S2EExecutor::setupTimersHandler()
 {
@@ -2305,11 +2478,19 @@ void s2e_initialize_execution(S2E *s2e, S2EExecutionState *initial_state,
     tcg_register_helper((void*)&s2e_tcg_custom_instruction_handler, "s2e_tcg_custom_instruction_handler");
 }
 
+#ifdef TARGET_ARM
 void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
                       CPUARMState *cpu_env)
 {
     s2e->getExecutor()->registerCpu(initial_state, cpu_env);
 }
+#elif defined(TARGET_I386)
+void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
+                      CPUX86State *cpu_env)
+{
+    s2e->getExecutor()->registerCpu(initial_state, cpu_env);
+}
+#endif
 
 void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
         uint64_t start_address, uint64_t size,
@@ -2372,6 +2553,7 @@ void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
     s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
 }
 
+#ifdef TARGET_ARM
 void s2e_read_register_concrete(S2E* s2e, S2EExecutionState* state,
         CPUARMState* cpuState, unsigned offset, uint8_t* buf, unsigned size)
 {
@@ -2385,6 +2567,23 @@ void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
     /** XXX: use cpuState */
     s2e->getExecutor()->writeRegisterConcrete(state, cpuState, offset, buf, size);
 }
+
+#elif defined(TARGET_I386)
+void s2e_read_register_concrete(S2E* s2e, S2EExecutionState* state,
+        CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
+{
+    /** XXX: use cpuState */
+    s2e->getExecutor()->readRegisterConcrete(state, cpuState, offset, buf, size);
+}
+
+void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
+        CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
+{
+    /** XXX: use cpuState */
+    s2e->getExecutor()->writeRegisterConcrete(state, cpuState, offset, buf, size);
+}
+
+#endif
 
 S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
 {
@@ -2449,10 +2648,21 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
     s2e->getExecutor()->setCCOpEflags(state);
 }
 
+
+#ifdef TARGET_ARM
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state)
 {
     s2e->getExecutor()->doInterrupt(state);
 }
+#elif defined(TARGET_I386)
+void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
+                      int intno, int is_int, int error_code,
+                      uint64_t next_eip, int is_hw)
+{
+    s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
+                                    next_eip, is_hw);
+}
+#endif
 
 /**
  *  Checks whether we are trying to access an I/O port that returns a symbolic value.
@@ -2471,7 +2681,7 @@ void s2e_ensure_symbolic(S2E *s2e, S2EExecutionState *state)
 }
 
 /** Tlb cache helpers */
-void s2e_update_tlb_entry(S2EExecutionState* state, CPUARMState* env,
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUState* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
 #ifdef S2E_ENABLE_S2E_TLB

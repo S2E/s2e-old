@@ -479,8 +479,8 @@ static inline target_ulong get_phys_addr_code(CPUState *env1, target_ulong addr)
         cpu_abort(env1, "Trying to execute code outside RAM or ROM at 0x" TARGET_FMT_lx "\n", addr);
 #endif
     }
-    p = (void *)(uintptr_t)addr
-        + env1->tlb_table[mmu_idx][page_index].addend;
+    p = (void *)((uintptr_t)addr
+        + env1->tlb_table[mmu_idx][page_index].addend);
     return qemu_ram_addr_from_host(p);
 }
 

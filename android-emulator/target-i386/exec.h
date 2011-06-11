@@ -87,10 +87,6 @@ extern struct CPUX86State *env;
 #define EIP (env->eip)
 #define DF  (env->df)
 
-#define CC_SRC (env->cc_src)
-#define CC_DST (env->cc_dst)
-#define CC_OP  (env->cc_op)
-
 /* float macros */
 #define FT0    (env->ft0)
 #define ST0    (env->fpregs[env->fpstt].d)

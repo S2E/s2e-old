@@ -41,7 +41,7 @@
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/Example.h>
 //#include <s2e/Plugins/RawMonitor.h>
-#include <s2e/Plugins/FunctionMonitor.h>
+//#include <s2e/Plugins/FunctionMonitor.h>
 //#include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 //#include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
 //#include <s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.h>
@@ -51,20 +51,22 @@
 #include <s2e/Plugins/BranchCoverage.h>
 
 //#include <s2e/Plugins/DataSelectors/WindowsService.h>
-#include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
+//#include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
 #include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
 #include <s2e/Plugins/ExecutionTracers/ModuleTracer.h>
 #include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 #include <s2e/Plugins/ExecutionTracers/MemoryTracer.h>
 #include <s2e/Plugins/ExecutionTracers/InstructionCounter.h>
 #include <s2e/Plugins/ExecutionTracers/TranslationBlockTracer.h>
-#include <s2e/Plugins/CacheSim.h>
+//#include <s2e/Plugins/CacheSim.h>
 #include <s2e/Plugins/Debugger.h>
 //#include <s2e/Plugins/SymbolicHardware.h>
 #include <s2e/Plugins/PollingLoopDetector.h>
 #include <s2e/Plugins/StateManager.h>
-#include <s2e/Plugins/Annotation.h>
-//#include <s2e/Plugins/X86ExceptionInterceptor.h>
+//#include <s2e/Plugins/Annotation.h>
+#ifdef TARGET_X86
+#include <s2e/Plugins/X86ExceptionInterceptor.h>
+#endif
 #include <s2e/Plugins/HostFiles.h>
 
 #include <s2e/Plugins/MemoryChecker.h>
@@ -104,7 +106,7 @@ PluginsFactory::PluginsFactory()
 
     __S2E_REGISTER_PLUGIN(CorePlugin);
 //    __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
-    __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
+//    __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
 //    __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
 //    __S2E_REGISTER_PLUGIN(plugins::BlueScreenInterceptor);
 //    __S2E_REGISTER_PLUGIN(plugins::WindowsCrashDumpGenerator);
@@ -113,8 +115,8 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::BaseInstructions);
     __S2E_REGISTER_PLUGIN(plugins::BranchCoverage);
 //    __S2E_REGISTER_PLUGIN(plugins::WindowsService);
-    __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
-    __S2E_REGISTER_PLUGIN(plugins::CacheSim);
+//    __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
+//    __S2E_REGISTER_PLUGIN(plugins::CacheSim);
     __S2E_REGISTER_PLUGIN(plugins::ExecutionTracer);
     __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);
     __S2E_REGISTER_PLUGIN(plugins::TestCaseGenerator);
@@ -124,7 +126,7 @@ PluginsFactory::PluginsFactory()
 
 //    __S2E_REGISTER_PLUGIN(plugins::SymbolicHardware);
     __S2E_REGISTER_PLUGIN(plugins::PollingLoopDetector);
-    __S2E_REGISTER_PLUGIN(plugins::Annotation);
+//    __S2E_REGISTER_PLUGIN(plugins::Annotation);
 //    __S2E_REGISTER_PLUGIN(plugins::X86ExceptionInterceptor);
 
 //    __S2E_REGISTER_PLUGIN(plugins::NdisHandlers);

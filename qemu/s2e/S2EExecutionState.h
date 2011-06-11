@@ -45,9 +45,13 @@ extern "C" {
     struct TimersState;
 }
 
-// XXX
+#ifdef TARGET_ARM
 struct CPUARMState;
 #define CPU_OFFSET(field) offsetof(CPUARMState, field)
+#elif defined(TARGET_I386)
+struct CPUX86State;
+#define CPU_OFFSET(field) offsetof(CPUX86State, field)
+#endif
 
 //#include <tr1/unordered_map>
 
@@ -65,8 +69,6 @@ typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 class S2EExecutionState : public klee::ExecutionState
 {
 protected:
-    friend class S2EExecutor;
-
     static int s_lastStateID;
 
     /** Unique numeric ID for the state */
@@ -120,6 +122,9 @@ protected:
                             klee::ObjectState *newState);
 
 public:
+
+    friend class S2EExecutor;
+
     enum AddressType {
         VirtualAddress, PhysicalAddress, HostAddress
     };
@@ -257,8 +262,11 @@ public:
     bool writeMemory64(uint64_t address, uint64_t value,
                        AddressType addressType = VirtualAddress);
 
+#ifdef TARGET_ARM
     CPUARMState *getConcreteCpuState() const;
-
+#elif defined(TARGET_I386)
+    CPUX86State *getConcreteCpuState() const;
+#endif
     /** Creates new unconstrained symbolic value */
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
                               const std::string& name = std::string());
@@ -267,8 +275,7 @@ public:
             unsigned size, const std::string& name = std::string());
 
     /** Debug functions **/
-//    void dumpX86State(std::ostream &os) const;
-    void dumpARMState(std::ostream &os) const;
+    void dumpCpuState(std::ostream &os) const;
 
     /** Attempt to merge two states */
     bool merge(const ExecutionState &b);

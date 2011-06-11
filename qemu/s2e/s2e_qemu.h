@@ -59,9 +59,11 @@ struct TranslationBlock;
 struct TCGLLVMContext;
 struct S2ETLBEntry;
 
-
-// XXX
+#ifdef TARGET_ARM
 struct CPUARMState;
+#elif defined(TARGET_I386)
+struct CPUX86State;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,7 +95,12 @@ void s2e_close_arg(void);
 void s2e_debug_print(const char *fmtstr, ...);
 void print_stacktrace(void);
 
+#ifdef TARGET_ARM
 void s2e_print_apic(struct CPUARMState *env);
+#elif defined(TARGET_I386)
+void s2e_print_apic(struct CPUX86State *env);
+#endif
+
 
 
 /*********************************/
@@ -188,9 +195,17 @@ void s2e_initialize_execution(struct S2E *s2e,
                               struct S2EExecutionState *initial_state,
                               int execute_always_klee);
 
+#ifdef TARGET_ARM
 void s2e_register_cpu(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
                       struct CPUARMState* cpu_env);
+#elif defined(TARGET_I386)
+void s2e_register_cpu(struct S2E* s2e,
+                      struct S2EExecutionState *initial_state,
+                      struct CPUX86State* cpu_env);
+#endif
+
+
 
 void s2e_register_ram(struct S2E* s2e,
                       struct S2EExecutionState *initial_state,
@@ -214,6 +229,8 @@ void s2e_write_ram_concrete(struct S2E* s2e,
         struct S2EExecutionState* state,
         uint64_t host_address, const uint8_t* buf, uint64_t size);
 
+#ifdef TARGET_ARM
+
 void s2e_read_register_concrete(struct S2E* s2e,
         struct S2EExecutionState* state, struct CPUARMState* cpuState,
         unsigned offset, uint8_t* buf, unsigned size);
@@ -222,12 +239,28 @@ void s2e_write_register_concrete(struct S2E* s2e,
         struct S2EExecutionState* state, struct CPUARMState* cpuState,
         unsigned offset, uint8_t* buf, unsigned size);
 
+#elif defined(TARGET_I386)
+
+void s2e_read_register_concrete(struct S2E* s2e,
+        struct S2EExecutionState* state, struct CPUX86State* cpuState,
+        unsigned offset, uint8_t* buf, unsigned size);
+
+void s2e_write_register_concrete(struct S2E* s2e,
+        struct S2EExecutionState* state, struct CPUX86State* cpuState,
+        unsigned offset, uint8_t* buf, unsigned size);
+
+#endif
+
+
 /* helpers that should be run as LLVM functions */
 void s2e_set_cc_op_eflags(struct S2E* s2e,
                           struct S2EExecutionState* state);
 
+#ifdef TARGET_ARM
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state);
-
+#elif defined(TARGET_I386)
+void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state, int intno, int is_int, int error_code, uint64_t next_eip, int is_hw);
+#endif
 /** This function is called when RAM is read by concretely executed
     generated code. If the memory location turns out to be symbolic,
     this function will either concretize it of switch to execution
@@ -299,9 +332,21 @@ int s2e_is_mmio_symbolic_w(uint64_t address);
 int s2e_is_mmio_symbolic_l(uint64_t address);
 int s2e_is_mmio_symbolic_q(uint64_t address);
 
+
+#ifdef TARGET_ARM
+
 void s2e_update_tlb_entry(struct S2EExecutionState* state,
                           struct CPUARMState* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
+
+#elif defined(TARGET_I386)
+
+void s2e_update_tlb_entry(struct S2EExecutionState* state,
+                          struct CPUX86State* env,
+                          int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
+
+#endif
+
 
 //Check that no asyc request are pending
 int qemu_bh_empty(void);

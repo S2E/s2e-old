@@ -1072,13 +1072,13 @@ static void pc_init1(ram_addr_t ram_size,
     bochs_bios_init();
 
 
-//XXX: AKA: Is this the right place with the right register calls?
+//XXX: AKA: Is this the right place with the right options?
 #ifdef CONFIG_S2E
     s2e_register_ram(g_s2e, g_s2e_state,
             -1, bios_size,
             (uint64_t) qemu_get_ram_ptr(bios_offset), 1, 0, "bios");
     s2e_register_ram(g_s2e, g_s2e_state,
-            PC_ROM_MIN_VGA, PC_ROM_SIZE,
+    		0xc0000 + oprom_area_size, (0xe0000 - (0xc0000 + oprom_area_size)),
             (uint64_t) qemu_get_ram_ptr(option_rom_offset), 1, 0, "pcrom");
 #endif
 

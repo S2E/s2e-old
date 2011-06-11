@@ -27,8 +27,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Currently maintained by:
- *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Andreas Kirchner <a0600112@unet.univie.ac.at>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
@@ -61,7 +60,7 @@ namespace plugins {
 using namespace std;
 using namespace klee;
 
-S2E_DEFINE_PLUGIN(BaseInstructions, "Default set of custom instructions plugin", "",);
+S2E_DEFINE_PLUGIN(BaseInstructions, "Default set of custom instructions plugin for ARM", "",);
 
 void BaseInstructions::initialize()
 {
@@ -71,16 +70,22 @@ void BaseInstructions::initialize()
 }
 
 /** Handle s2e_op instruction. Instructions:
-    0f 3f XX XX XX XX XX XX XX XX
+    ff XX XX XX
     XX: opcode
  */
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
 
-    switch((opcode>>8) & 0xFF) {
+	s2e()->getWarningsStream(state)
+	                        << "handleBuildInOps with opcode "
+	                        << opcode
+	                        << " called."
+	                        << std::endl;
+
+    switch((opcode>>16) & 0xFF) {
         case 0: { /* s2e_check */
-                uint32_t v = 1;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &v, 4);
+                uint32_t v = 2;
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]), &v, 4);
             }
             break;
         case 1: state->enableSymbolicExecution(); break;
@@ -89,11 +94,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 3: { /* make_symbolic */
             uint32_t address, size, name; // XXX
             bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
                                                  &address, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
                                                  &size, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
                                                  &name, 4);
 
             if(!ok) {
@@ -131,7 +136,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 5:
             {
                 //Get current path
-                state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
+                state->writeCpuRegister(offsetof(CPUARMState, regs[0]),
                     klee::ConstantExpr::create(state->getID(), klee::Expr::Int32));
                 break;
             }
@@ -141,8 +146,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 std::string message;
                 uint32_t messagePtr;
                 bool ok = true;
-                klee::ref<klee::Expr> status = state->readCpuRegister(CPU_OFFSET(regs[R_EAX]), klee::Expr::Int32);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr, 4);
+                klee::ref<klee::Expr> status = state->readCpuRegister(CPU_OFFSET(regs[0]), klee::Expr::Int32);
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]), &messagePtr, 4);
 
                 if (!ok) {
                     s2e()->getWarningsStream(state)
@@ -171,8 +176,8 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 //Print the expression
                 uint32_t name; //xxx
                 bool ok = true;
-                ref<Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                ref<Expr> val = state->readCpuRegister(offsetof(CPUARMState, regs[0]), klee::Expr::Int32);
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
                                                      &name, 4);
 
                 if(!ok) {
@@ -200,11 +205,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 //Print memory contents
                 uint32_t address, size, name; // XXX should account for 64 bits archs
                 bool ok = true;
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
                                                      &address, 4);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
                                                      &size, 4);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
                                                      &name, 4);
 
                 if(!ok) {
@@ -243,7 +248,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         case 0x10: { /* print message */
             uint32_t address; //XXX
-            bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+            bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
                                                         &address, 4);
             if(!ok) {
                 s2e()->getWarningsStream(state)
@@ -275,9 +280,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             uint32_t address, size;
 
             bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
                                                  &address, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
                                                  &size, 4);
 
             if(!ok) {
@@ -290,7 +295,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             for(unsigned i = 0; i < size; ++i) {
                 ref<Expr> expr = state->readMemory8(address + i);
                 if(!expr.isNull()) {
-                    if(((opcode>>8) & 0xFF) == 0x20) /* concretize */
+                    if(((opcode>>16) & 0xFF) == 0x20) /* concretize */
                         expr = s2e()->getExecutor()->toConstant(*state, expr, "request from guest");
                     else /* example */
                         expr = s2e()->getExecutor()->toConstantSilent(*state, expr);
@@ -332,7 +337,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         case 0x52: { /* Gets the current S2E memory object size (in power of 2) */
                 uint32_t size = S2E_RAM_OBJECT_BITS;
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &size, 4);
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]), &size, 4);
                 break;
         }
 
@@ -348,10 +353,17 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
     }
 }
 
-void BaseInstructions::onCustomInstruction(S2EExecutionState* state, 
+void BaseInstructions::onCustomInstruction(S2EExecutionState* state,
         uint64_t opcode)
 {
-    uint8_t opc = (opcode>>8) & 0xFF;
+
+	s2e()->getWarningsStream(state)
+	                        << "onCustomInstruction with opcode "
+	                        << opcode
+	                        << " called."
+	                        << std::endl;
+
+    uint8_t opc = (opcode>>16) & 0xFF;
     if (opc <= 0x70) {
         handleBuiltInOps(state, opcode);
     }

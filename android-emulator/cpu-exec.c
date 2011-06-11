@@ -80,8 +80,14 @@ int execute_llvm = 0;
 #endif
 
 #ifdef CONFIG_S2E
+#ifdef TARGET_I386
 #define do_interrupt(intno, is_int, error_code, next_eip, is_hw) \
     s2e_do_interrupt(g_s2e, g_s2e_state, intno, is_int, error_code, next_eip, is_hw)
+#endif
+#ifdef TARGET_ARM
+#define do_interrupt(env) \
+	s2e_do_interrupt(g_s2e,g_s2e_state)
+#endif
 #endif
 
 int tb_invalidated_flag;

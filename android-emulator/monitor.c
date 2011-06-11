@@ -1702,11 +1702,8 @@ static const mon_cmd_t mon_cmds[] = {
 static const mon_cmd_t info_cmds[] = {
 #ifdef CONFIG_S2E
     {
-        .name       = "s2e",
-        .args_type  = "command:s",
-        .params     = "command",
-        .help       = "Execute an S2E command",
-        .mhandler.info = do_s2e_info,
+    		 "s2e", "command:s", do_s2e_info, "command", "Execute an S2E command"
+
     },
 #endif
     { "version", "", do_info_version,

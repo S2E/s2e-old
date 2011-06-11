@@ -1901,9 +1901,9 @@ static inline unsigned pcmpxstrx(Reg *d, Reg *s,
     }
 
     if (res)
-       CC_SRC |= CC_C;
+       CC_SRC_W(CC_SRC | CC_C);
     if (res & 1)
-       CC_SRC |= CC_O;
+       CC_SRC_W(CC_SRC | CC_O);
 
     return res;
 }

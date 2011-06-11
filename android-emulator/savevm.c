@@ -1026,13 +1026,13 @@ typedef struct LoadStateEntry {
 
 void *s2e_qemu_get_first_se(void)
 {
-    return savevm_handlers.tqh_first;
+	return first_se;
 }
 
 void *s2e_qemu_get_next_se(void *se)
 {
     SaveStateEntry *sse = (SaveStateEntry*)se;
-    return sse->entry.tqe_next;
+    return sse->next;
 }
 
 const char *s2e_qemu_get_se_idstr(void *se)
@@ -1044,13 +1044,15 @@ const char *s2e_qemu_get_se_idstr(void *se)
 void s2e_qemu_save_state(void *se)
 {
     SaveStateEntry *sse = (SaveStateEntry*)se;
-    vmstate_save(NULL, sse);
+    sse->save_state(NULL, sse);
+//    vmstate_save(NULL, sse);
 }
 
 void s2e_qemu_load_state(void *se)
 {
     SaveStateEntry *sse = (SaveStateEntry*)se;
-    vmstate_load(NULL, sse, sse->version_id);
+    sse->load_state(NULL, sse, sse->version_id);
+//    vmstate_load(NULL, sse, sse->version_id);
 }
 #endif
 

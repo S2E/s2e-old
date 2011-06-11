@@ -23,6 +23,7 @@ LOCAL_CC        ?= $(CC)
 LOCAL_C_SOURCES := $(filter  %.c,$(LOCAL_SRC_FILES))
 LOCAL_GENERATED_C_SOURCES := $(filter %.c,$(LOCAL_GENERATED_SOURCES))
 LOCAL_CXX_SOURCES := $(filter %$(LOCAL_CPP_EXTENSION),$(LOCAL_SRC_FILES) $(LOCAL_GENERATED_SOURCES))
+
 LOCAL_OBJC_SOURCES := $(filter %.m,$(LOCAL_SRC_FILES) $(LOCAL_GENERATED_SOURCES))
 
 $(foreach src,$(LOCAL_C_SOURCES), \
@@ -39,6 +40,10 @@ $(foreach src,$(LOCAL_CXX_SOURCES), \
 
 $(foreach src,$(LOCAL_OBJC_SOURCES), \
     $(eval $(call compile-objc-source,$(src))) \
+)
+
+$(foreach src,$(LOCAL_LLVM_C_SOURCES), \
+    $(eval $(call compile-c-source-with-llvm,$(src))) \
 )
 
 CLEAN_OBJS_DIRS += $(LOCAL_OBJS_DIR)

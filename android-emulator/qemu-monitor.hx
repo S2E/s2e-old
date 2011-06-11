@@ -99,14 +99,7 @@ ETEXI
 #ifdef CONFIG_S2E
 
     {
-        .name       = "s2e",
-        .args_type  = "command:s",
-        .params     = "command",
-        .help       = "Execute an S2E command",
-        .mhandler.cmd_new = do_s2e,
-        .mhandler.info = NULL,
-        .mhandler.info_new = NULL,
-        .mhandler.cmd = NULL,
+        "s2e", "command:s", do_s2e, "command", "Execute an S2E command"
     },
 
 STEXI

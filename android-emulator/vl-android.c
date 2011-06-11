@@ -2260,7 +2260,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
             for(i = 0; i < TARGET_PAGE_SIZE; i++)
                 s2e_write_ram_concrete(g_s2e, g_s2e_state, vaddr+i, &ch, 1);
 #endif
-        } else if (flags & RAM_SAVE_FLAG_PAGE)
+        } else if (flags & RAM_SAVE_FLAG_PAGE) {
 #ifndef CONFIG_S2E
             qemu_get_buffer(f, qemu_get_ram_ptr(addr), TARGET_PAGE_SIZE);
 #else
@@ -2271,6 +2271,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                                    (uint64_t) qemu_get_ram_ptr(addr),
                                    buf, TARGET_PAGE_SIZE);
 #endif
+        }
     } while (!(flags & RAM_SAVE_FLAG_EOS));
 
     return 0;

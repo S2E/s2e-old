@@ -158,7 +158,12 @@ void TranslationBlockTracer::trace(S2EExecutionState *state, uint64_t pc, ExecTr
     assert(sizeof(tb.symbMask)*8 >= sizeof(tb.registers)/sizeof(tb.registers[0]));
     for (unsigned i=0; i<sizeof(tb.registers)/sizeof(tb.registers[0]); ++i) {
         //XXX: make it portable across architectures
+    	//XXX: test for ARM
+#ifdef TARGET_ARM
         unsigned offset = offsetof(CPUARMState, regs) + i*sizeof(tb.registers[0]);
+#elif defined(TARGET_I386)
+        unsigned offset = offsetof(CPUX86State, regs) + i*sizeof(tb.registers[0]);
+#endif
         if (!state->readCpuRegisterConcrete(offset, &tb.registers[i], sizeof(tb.registers[0]))) {
             tb.registers[i]  = 0xDEADBEEF;
             tb.symbMask |= 1<<i;

@@ -148,10 +148,17 @@ start-emulator-library = \
     $(eval LOCAL_AR := $(MY_AR)) \
     $(eval LOCAL_LDLIBS := $(MY_LDLIBS)) \
     $(eval LOCAL_MODULE_TAGS := debug) \
-    $(eval LOCAL_MODULE := $1)
+    $(eval LOCAL_MODULE := $1) \
+    $(warning --- Emulator Library $(LOCAL_MODULE) ---)
 
 # Used with start-emulator-library
 end-emulator-library = \
+	$(warning CC: $(LOCAL_CC)) \
+    $(warning CFLAGS: $(LOCAL_CFLAGS)) \
+    $(warning CXX: $(LOCAL_CXX)) \
+    $(warning AR: $(LOCAL_AR)) \
+    $(warning LDLIBS: $(LOCAL_LDLIBS)) \
+    $(warning SRC: $(LOCAL_SRC_FILES)) \
     $(eval include $(BUILD_HOST_STATIC_LIBRARY))
 
 # A variant of start-emulator-library to start the definition of a host

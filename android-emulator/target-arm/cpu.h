@@ -29,6 +29,12 @@
 
 #include "softfloat.h"
 
+#include <assert.h>
+
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 #define TARGET_HAS_ICE 1
 
 #define EXCP_UDEF            1   /* undefined instruction */
@@ -71,32 +77,38 @@ struct arm_boot_info;
  */
 
 typedef struct CPUARMState {
-    /* Regs for current mode.  */
-    uint32_t regs[16];
-    /* Frequently accessed CPSR bits are stored separately for efficiently.
-       This contains all the other bits.  Use cpsr_{read,write} to access
-       the whole CPSR.  */
-    uint32_t uncached_cpsr;
     uint32_t spsr;
 
     /* Banked registers.  */
     uint32_t banked_spsr[6];
     uint32_t banked_r13[6];
     uint32_t banked_r14[6];
+    //offset 76
 
     /* These hold r8-r12.  */
     uint32_t usr_regs[5];
     uint32_t fiq_regs[5];
+
+    //offset 116
 
     /* cpsr flag cache for faster execution */
     uint32_t CF; /* 0 or 1 */
     uint32_t VF; /* V is the bit 31. All other bits are undefined */
     uint32_t NF; /* N is bit 31. All other bits are undefined.  */
     uint32_t ZF; /* Z set if zero.  */
+
+    /* Regs for current mode.  */
+    uint32_t regs[16];	/* regs[15] is the border between concrete and symbolic area, i.e., regs[15] is in concrete-only-area */
+
     uint32_t QF; /* 0 or 1 */
     uint32_t GE; /* cpsr[19:16] */
     uint32_t thumb; /* cpsr[5]. 0 = arm mode, 1 = thumb mode. */
     uint32_t condexec_bits; /* IT bits.  cpsr[15:10,26:25].  */
+
+    /* Frequently accessed CPSR bits are stored separately for efficiently.
+       This contains all the other bits.  Use cpsr_{read,write} to access
+       the whole CPSR.  */
+    uint32_t uncached_cpsr;
 
     /* System control coprocessor (cp15) */
     struct {
@@ -181,11 +193,20 @@ typedef struct CPUARMState {
 
         float_status fp_status;
     } vfp;
+    uint32_t exclusive_addr;
+    uint32_t exclusive_val;
+    uint32_t exclusive_high;
+#if defined(CONFIG_USER_ONLY)
+    uint32_t exclusive_test;
+    uint32_t exclusive_info;
+#endif
+
 #if defined(CONFIG_USER_ONLY)
     struct mmon_state *mmon_entry;
 #else
     uint32_t mmon_addr;
 #endif
+
 
     /* iwMMXt coprocessor state.  */
     struct {
@@ -200,11 +221,37 @@ typedef struct CPUARMState {
     int eabi;
 #endif
 
+    uint8_t timer_interrupt_disabled;
+    uint8_t all_apic_interrupts_disabled;
+
     CPU_COMMON
 
     /* These fields after the common ones so they are preserved on reset.  */
     struct arm_boot_info *boot_info;
 } CPUARMState;
+
+#if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
+/* Macros to access registers */
+static inline target_ulong __RR_env_raw(CPUARMState* cpuState,
+                                        unsigned offset, unsigned size) {
+    target_ulong result = 0;
+    s2e_read_register_concrete(g_s2e, g_s2e_state, cpuState,
+                               offset, (uint8_t*) &result, size);
+    return result;
+}
+static inline void __WR_env_raw(CPUARMState* cpuState, unsigned offset,
+                                target_ulong value, unsigned size) {
+    s2e_write_register_concrete(g_s2e, g_s2e_state, cpuState,
+                                offset, (uint8_t*) &value, size);
+}
+#define RR_cpu(cpu, reg) ((typeof(cpu->reg)) \
+            __RR_env_raw(cpu, offsetof(CPUARMState, reg), sizeof(cpu->reg)))
+#define WR_cpu(cpu, reg, value) __WR_env_raw(cpu, offsetof(CPUARMState, reg), \
+            (target_ulong) value, sizeof(cpu->reg))
+#else
+#define RR_cpu(cpu, reg) cpu->reg
+#define WR_cpu(cpu, reg, value) cpu->reg = value
+#endif
 
 CPUARMState *cpu_arm_init(const char *cpu_model);
 void arm_translate_init(void);
@@ -263,22 +310,22 @@ void cpsr_write(CPUARMState *env, uint32_t val, uint32_t mask);
 static inline uint32_t xpsr_read(CPUARMState *env)
 {
     int ZF;
-    ZF = (env->ZF == 0);
-    return (env->NF & 0x80000000) | (ZF << 30)
-        | (env->CF << 29) | ((env->VF & 0x80000000) >> 3) | (env->QF << 27)
-        | (env->thumb << 24) | ((env->condexec_bits & 3) << 25)
-        | ((env->condexec_bits & 0xfc) << 8)
-        | env->v7m.exception;
+    ZF = (RR_cpu(env,ZF) == 0);
+        return (RR_cpu(env,NF) & 0x80000000) | (ZF << 30)
+            | (RR_cpu(env,CF) << 29) | ((RR_cpu(env,VF) & 0x80000000) >> 3) | (env->QF << 27)
+            | (env->thumb << 24) | ((env->condexec_bits & 3) << 25)
+            | ((env->condexec_bits & 0xfc) << 8)
+            | env->v7m.exception;
 }
 
 /* Set the xPSR.  Note that some bits of mask must be all-set or all-clear.  */
 static inline void xpsr_write(CPUARMState *env, uint32_t val, uint32_t mask)
 {
     if (mask & CPSR_NZCV) {
-        env->ZF = (~val) & CPSR_Z;
-        env->NF = val;
-        env->CF = (val >> 29) & 1;
-        env->VF = (val << 3) & 0x80000000;
+    	WR_cpu(env,ZF,((~val) & CPSR_Z));
+    	WR_cpu(env,NF,val);
+    	WR_cpu(env,CF,((val >> 29) & 1));
+    	WR_cpu(env,VF,((val << 3) & 0x80000000));
     }
     if (mask & CPSR_Q)
         env->QF = ((val & CPSR_Q) != 0);
@@ -430,9 +477,10 @@ static inline int is_cpu_user (CPUState *env)
 #if defined(CONFIG_USER_ONLY)
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 {
-    if (newsp)
-        env->regs[13] = newsp;
-    env->regs[0] = 0;
+    if (newsp) {
+        WR_CPU(env,regs[13],newsp);
+    }
+    WR_CPU(env,regs[0],0);
 }
 #endif
 

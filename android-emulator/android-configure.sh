@@ -656,7 +656,7 @@ else
   CXXFLAGS="-O2 $CXXFLAGS"
 fi
 
-if test "$target_s2e" = "yes" ; then
+if [ "$s2e" = yes ] ; then
   echo "CONFIG_S2E=y" >> $config_mk
   echo "CONFIG_LLVM=y" >> $config_mk
   echo "LLVM_CXXFLAGS:=$llvm_cxxflags" >> $config_mk
@@ -670,6 +670,7 @@ if test "$target_s2e" = "yes" ; then
   echo "LIBS+=$lua_libs $sigcxx2_libs" >> $config_mk
   echo "LIBS+=\$(filter-out $llvm_ldflags, $klee_ldflags) $llvm_ldflags" >> $config_mk
   echo "KLEE_LIBFILES=$klee_libfiles" >> $config_mk
+ 
 fi
 
 
@@ -677,7 +678,7 @@ if [ $OPTION_STATIC = yes ] ; then
     echo "CONFIG_STATIC_EXECUTABLE := true" >> $config_mk
 fi
 
-if test "$llvm" = "yes" ; then
+if [ "$llvm" = "yes" ] ; then
   echo "CONFIG_LLVM=y" >> $config_mk
   echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_mk
 fi
@@ -711,6 +712,13 @@ echo "#define CONFIG_GDBSTUB  1" >> $config_h
 echo "#define CONFIG_SLIRP    1" >> $config_h
 echo "#define CONFIG_SKINS    1" >> $config_h
 echo "#define CONFIG_TRACE    1" >> $config_h
+
+if [ "$s2e" = yes ] ; then
+  echo "#define CONFIG_S2E    1" >> $config_h
+  echo "#define CONFIG_LLVM	  1" >> $config_h
+fi
+
+
 
 # only Linux has fdatasync()
 case "$TARGET_OS" in
