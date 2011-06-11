@@ -19,7 +19,11 @@ else
     LLVM_GCC_SRC=llvm-gcc-4.2-2.6-x86_64-linux
 endif
 
-clean:
+clean-android:
+	rm -Rf $(S2ESRC)/android-emulator/objs
+	rm -Rf stamps/qemu-configure-debug
+
+clean: clean-android
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
 	rm -Rf llvm-2.6
 	rm -Rf $(LLVM_GCC_SRC)
