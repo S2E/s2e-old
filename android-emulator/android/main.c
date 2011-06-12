@@ -1017,10 +1017,12 @@ int main(int argc, char **argv)
         args[n++] = opts->charmap;
     }
 
+#if defined(CONFIG_MEMCHECK)
     if (opts->memcheck) {
         args[n++] = "-android-memcheck";
         args[n++] = opts->memcheck;
     }
+#endif
 
     /* physical memory is now in hw->hw_ramSize */
 

@@ -40,7 +40,7 @@ MY_CFLAGS := $(CONFIG_INCLUDES) $(MY_OPTIM)
 #
 ifeq ($(BUILD_DEBUG_EMULATOR),true)
     MY_CFLAGS := $(CONFIG_INCLUDES) -O0 -g \
-                 -fno-PIC -falign-functions=0
+                 -fno-PIC -falign-functions=0 -fno-inline
 endif
 
 MY_LDLIBS :=

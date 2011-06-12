@@ -246,11 +246,14 @@ void tlb_fill(target_ulong addr, target_ulong page_addr, int is_write, int mmu_i
             }
         }
 
+
+        raise_exception(env->exception_index);
+    }
+
 #ifdef CONFIG_S2E
 s2e_on_page_fault(g_s2e, g_s2e_state, addr, is_write);
 #endif
-        raise_exception(env->exception_index);
-    }
+
     if(saved_env != env)
     	env = saved_env;
 }

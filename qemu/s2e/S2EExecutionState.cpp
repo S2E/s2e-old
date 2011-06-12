@@ -543,9 +543,8 @@ TranslationBlock *S2EExecutionState::getTb() const
 uint64_t S2EExecutionState::getPid() const
 {
 #ifdef TARGET_ARM
-	assert(false && "not implemented");
 	//TODO: write pid somewhere in the cpu state
-//	return (uint64_t)0;
+	return (uint64_t)0;
 #elif defined(TARGET_I386)
 	return readCpuState(offsetof(CPUX86State, cr[3]), 8*sizeof(target_ulong));
 #endif
