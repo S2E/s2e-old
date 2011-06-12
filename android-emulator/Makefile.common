@@ -24,7 +24,8 @@ EMULATOR_COMMON_CFLAGS :=
 
 # Needed by everything about the host
 EMULATOR_COMMON_CFLAGS += \
-    -I$(LOCAL_PATH)/android/config/$(QEMU_HOST_TAG)
+    -I$(LOCAL_PATH)/android/config/$(QEMU_HOST_TAG) \
+    -m64
 
 # add the build ID to the default macro definitions
 ifeq ($(BUILD_STANDALONE_EMULATOR),)

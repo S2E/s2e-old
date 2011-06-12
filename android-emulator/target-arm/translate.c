@@ -934,6 +934,14 @@ static inline TCGv gen_ld32(TCGv addr, int index)
     tcg_gen_qemu_ld32u(tmp, addr, index);
     return tmp;
 }
+
+static inline TCGv_i64 gen_ld64(TCGv addr, int index)
+{
+    TCGv_i64 tmp = tcg_temp_new_i64();
+    tcg_gen_qemu_ld64(tmp, addr, index);
+    return tmp;
+}
+
 static inline void gen_st8(TCGv val, TCGv addr, int index)
 {
     tcg_gen_qemu_st8(val, addr, index);
@@ -948,6 +956,12 @@ static inline void gen_st32(TCGv val, TCGv addr, int index)
 {
     tcg_gen_qemu_st32(val, addr, index);
     dead_tmp(val);
+}
+
+static inline void gen_st64(TCGv_i64 val, TCGv addr, int index)
+{
+    tcg_gen_qemu_st64(val, addr, index);
+    tcg_temp_free_i64(val);
 }
 
 static inline void gen_movl_T0_reg(DisasContext *s, int reg)

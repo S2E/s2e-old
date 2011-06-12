@@ -379,7 +379,7 @@ s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QE
 s2e/Plugins/ExecutionTrace.o s2e/Plugins/DataSelectors/GenericDataSelector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/DataSelectors/DataSelector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/RawMonitor.o s2e/Plugins/FunctionMonitor.o: QEMU_CXXFLAGS+=-fno-inline
-s2e/Plugins/CacheSim.o s2e/Plugins/BaseInstructions.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/CacheSim.o s2e/Plugins/BaseInstructionsArm.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Debugger.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/CallRetTracer.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/InstructionCounter.o: QEMU_CXXFLAGS+=-fno-inline
