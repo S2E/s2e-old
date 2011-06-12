@@ -2238,10 +2238,6 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
         }
     } else {
         te->addr_write = -1;
-
-#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
-    s2e_update_tlb_entry(g_s2e_state, env, mmu_idx, vaddr, addend);
-#endif
     }
 
 #ifdef CONFIG_MEMCHECK
@@ -2273,6 +2269,10 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
         }
     }
 #endif  // CONFIG_MEMCHECK
+
+#if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB)
+    s2e_update_tlb_entry(g_s2e_state, env, mmu_idx, vaddr, addend);
+#endif
 
     return ret;
 }
