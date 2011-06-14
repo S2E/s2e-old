@@ -146,6 +146,20 @@ void S2EDeviceState::initDeviceState()
     //S2E manages the memory and disc state on its own
     ignoreList.insert("ram");
     ignoreList.insert("block");
+//    ignoreList.insert("qemud");
+//    ignoreList.insert("slirp");
+//    ignoreList.insert("goldfish_int");
+//    ignoreList.insert("goldfish_timer");
+//    ignoreList.insert("goldfish_rtc");
+//    ignoreList.insert("goldfish_tty");
+//    ignoreList.insert("smc91c111");
+    ignoreList.insert("goldfish_fb");
+//    ignoreList.insert("goldfish_mmc");
+//    ignoreList.insert("battery_state");
+//    ignoreList.insert("events_state");
+//    ignoreList.insert("nand_dev");
+//    ignoreList.insert("goldfish_switch");
+    ignoreList.insert("android_modem");
 
     g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
 

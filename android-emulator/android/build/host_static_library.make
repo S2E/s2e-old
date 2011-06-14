@@ -16,7 +16,7 @@
 # build a host executable, the name of the final executable should be
 # put in LOCAL_BUILT_MODULE for use by the caller
 #
-$(warning LOCAL_SOURCE_FILES: $(LOCAL_SRC_FILES))
+#$(warning LOCAL_SOURCE_FILES: $(LOCAL_SRC_FILES))
 #$(info STATIC_LIBRARY SRCS=$(LOCAL_SRC_FILES))
 LOCAL_BUILT_MODULE := $(call library-path,$(LOCAL_MODULE))
 LOCAL_CC ?= $(CC)
@@ -33,7 +33,7 @@ $(LOCAL_BUILT_MODULE): PRIVATE_OBJECTS := $(LOCAL_OBJECTS)
 $(LOCAL_BUILT_MODULE): $(LOCAL_OBJECTS)
 	@mkdir -p $(dir $@)
 	@echo "Library: $@"
-	$(warning Objects to be ARed are $(PRIVATE_OBJECTS))
+#	$(warning Objects to be ARed are $(PRIVATE_OBJECTS))
 	$(hide) $(PRIVATE_AR) $(ARFLAGS) $@ $(PRIVATE_OBJECTS)
 
 LIBRARIES += $(LOCAL_BUILT_MODULE)
