@@ -2681,9 +2681,15 @@ void s2e_ensure_symbolic(S2E *s2e, S2EExecutionState *state)
 }
 
 /** Tlb cache helpers */
-void s2e_update_tlb_entry(S2EExecutionState* state, CPUState* env,
+#ifdef TARGET_ARM
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUARMState* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
+#elif defined(TARGET_I386)
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUX86State* env,
+	                      int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
+{
+#endif
 #ifdef S2E_ENABLE_S2E_TLB
     assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
     assert( (virtAddr & ~TARGET_PAGE_MASK) == 0 );

@@ -70,10 +70,10 @@ static void goldfish_fb_save(QEMUFile*  f, void*  opaque)
 
     DisplayState*  ds = s->ds;
 
-    qemu_put_be32(f, ds->surface->width);
-    qemu_put_be32(f, ds->surface->height);
-    qemu_put_be32(f, ds->surface->linesize);
-    qemu_put_byte(f, 0);
+	qemu_put_be32(f, ds->surface->width);
+	qemu_put_be32(f, ds->surface->height);
+	qemu_put_be32(f, ds->surface->linesize);
+	qemu_put_byte(f, 0);
 
     qemu_put_be32(f, s->fb_base);
     qemu_put_byte(f, s->base_valid);
@@ -91,27 +91,30 @@ static int  goldfish_fb_load(QEMUFile*  f, void*  opaque, int  version_id)
 {
     struct goldfish_fb_state*  s   = opaque;
     int                        ret = -1;
+    int						   ds_present;
     int                        ds_w, ds_h, ds_pitch, ds_rot;
+
 
     if (version_id != GOLDFISH_FB_SAVE_VERSION)
         goto Exit;
 
-    ds_w     = qemu_get_be32(f);
-    ds_h     = qemu_get_be32(f);
-    ds_pitch = qemu_get_be32(f);
-    ds_rot   = qemu_get_byte(f);
+	ds_w     = qemu_get_be32(f);
+	ds_h     = qemu_get_be32(f);
+	ds_pitch = qemu_get_be32(f);
+	ds_rot   = qemu_get_byte(f);
 
-    DisplayState*  ds = s->ds;
+	DisplayState*  ds = s->ds;
 
-    if (ds->surface->width != ds_w ||
-        ds->surface->height != ds_h ||
-        ds->surface->linesize != ds_pitch ||
-        ds_rot != 0)
-    {
-        /* XXX: We should be able to force a resize/rotation from here ? */
-        fprintf(stderr, "%s: framebuffer dimensions mismatch\n", __FUNCTION__);
-        goto Exit;
-    }
+	if (ds->surface->width != ds_w ||
+			ds->surface->height != ds_h ||
+			ds->surface->linesize != ds_pitch ||
+			ds_rot != 0)
+	{
+			/* XXX: We should be able to force a resize/rotation from here ? */
+			fprintf(stderr, "%s: framebuffer dimensions mismatch\n", __FUNCTION__);
+			goto Exit;
+	}
+
 
     s->fb_base      = qemu_get_be32(f);
     s->base_valid   = qemu_get_byte(f);

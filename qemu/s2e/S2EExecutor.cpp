@@ -1486,6 +1486,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
             uint8_t *oldStore = oldWOS->getConcreteStore();
             assert(oldStore);
             memcpy(oldStore, (uint8_t*) mo->address, mo->size);
+
+            oldState->m_active = false;
         }
 
         if(newState) {
@@ -1505,7 +1507,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         timers_state = *newState->m_timersState;
         qemu_icount = newState->m_qemuIcount;
         newState->getDeviceState()->restoreDeviceState();
-        oldState->m_active = false;
         //copyOutConcretes(*newState);
     }
 
@@ -2158,7 +2159,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         if(newState != originalState) {
             newState->m_needFinalizeTBExec = true;
-            newState->m_active = true;
+
             newState->getDeviceState()->saveDeviceState();
             newState->m_qemuIcount = qemu_icount;
             *newState->m_timersState = timers_state;
@@ -2681,9 +2682,16 @@ void s2e_ensure_symbolic(S2E *s2e, S2EExecutionState *state)
 }
 
 /** Tlb cache helpers */
-void s2e_update_tlb_entry(S2EExecutionState* state, CPUState* env,
+#ifdef TARGET_ARM
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUARMState* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
+#elif defined(TARGET_I386)
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUX86State* env,
+	                      int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
+{
+#endif
+
 #ifdef S2E_ENABLE_S2E_TLB
     assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
     assert( (virtAddr & ~TARGET_PAGE_MASK) == 0 );

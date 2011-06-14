@@ -30,6 +30,7 @@ _start:
 
 
 init_stack: @we use full descending mode (and do not care about different execution modes)
+	mov r0, #0
 	mov sp, #stackstart
 	mov r8, #symbstart
 	b main
@@ -209,6 +210,7 @@ symbolic_int:
 stm1:
 	bl s2e_get_path_id
 	mov r5, r0
+	add r5, #10	
 
 	mov r0, r9		@expression argument (r9 contains pagesize)
 	adr r1, val			@name
@@ -260,7 +262,7 @@ _idle:
 sterr:
 	adr r1, membadval
 	bl s2e_print_expression
-	mov r0, r4
+	mov r0, r5
 	adr r1, membad
 	bl s2e_kill_state
 	bl _idle

@@ -538,11 +538,11 @@ static void  android_modem_state_save(QEMUFile *f, void  *opaque)
       AVoiceCall  vcall = modem->calls + nn;
       // Note: not saving timers or remote calls.
       ACall       call  = &vcall->call;
-      qemu_put_byte( f, call->dir );
-      qemu_put_byte( f, call->state );
-      qemu_put_byte( f, call->mode );
-      qemu_put_be32( f, call->multi );
-      qemu_put_buffer( f, (uint8_t *)call->number, A_CALL_NUMBER_MAX_SIZE+1 );
+		  qemu_put_byte( f, call->dir );
+		  qemu_put_byte( f, call->state );
+		  qemu_put_byte( f, call->mode );
+		  qemu_put_be32( f, call->multi );
+		  qemu_put_buffer( f, (uint8_t *)call->number, A_CALL_NUMBER_MAX_SIZE+1 );
     }
 }
 
@@ -561,13 +561,14 @@ static int  android_modem_state_load(QEMUFile *f, void  *opaque, int version_id)
 
     int call_count = qemu_get_byte(f);
     for (nn = call_count; nn > 0; nn--) {
-      AVoiceCall vcall = amodem_alloc_call( modem );
-      ACall      call  = &vcall->call;
-      call->dir   = qemu_get_byte( f );
-      call->state = qemu_get_byte( f );
-      call->mode  = qemu_get_byte( f );
-      call->multi = qemu_get_be32( f );
-      qemu_get_buffer( f, (uint8_t *)call->number, A_CALL_NUMBER_MAX_SIZE+1 );
+
+          AVoiceCall vcall = amodem_alloc_call( modem );
+          ACall      call  = &vcall->call;
+    	  call->dir   = qemu_get_byte( f );
+		  call->state = qemu_get_byte( f );
+		  call->mode  = qemu_get_byte( f );
+		  call->multi = qemu_get_be32( f );
+		  qemu_get_buffer( f, (uint8_t *)call->number, A_CALL_NUMBER_MAX_SIZE+1 );
     }
 
     return 0; // >=0 Happy

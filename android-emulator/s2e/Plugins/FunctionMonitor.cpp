@@ -255,7 +255,7 @@ void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, Functi
 
     uint32_t esp;
 
-    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
+    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[13]),
                                              &esp, sizeof(target_ulong));
     if(!ok) {
         m_plugin->s2e()->getWarningsStream(state)
@@ -283,47 +283,51 @@ void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, Functi
  */
 void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal)
 {
-    target_ulong cr3 = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
+	//TODO: ARM-equivalent for CR3
+	//    target_ulong cr3 = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
 
-    target_ulong esp;
-    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
-                                             &esp, sizeof(target_ulong));
-    if(!ok) {
-        target_ulong eip = state->readCpuState(CPU_OFFSET(eip),
-                                               8*sizeof(target_ulong));
-        m_plugin->s2e()->getWarningsStream(state)
-            << "Function return with symbolic ESP!" << std::endl
-            << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << std::endl;
-        return;
-    }
+//    target_ulong esp;
+//    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[13]),
+//                                             &esp, sizeof(target_ulong));
+//    if(!ok) {
+//        target_ulong eip = state->readCpuState(CPU_OFFSET(regs[15]),
+//                                               8*sizeof(target_ulong));
+//        m_plugin->s2e()->getWarningsStream(state)
+//            << "Function return with symbolic ESP!" << std::endl
+//            << "  EIP=" << hexval(eip) << /*" CR3=" << hexval(cr3) <<*/ std::endl;
+//        return;
+//    }
+//
+//    if (m_returnDescriptors.empty()) {
+//        return;
+//    }
+//
+//    //m_plugin->s2e()->getDebugStream() << "ESP AT RETURN 0x" << std::hex << esp <<
+//    //        " plgstate=0x" << this << " EmitSignal=" << emitSignal <<  std::endl;
+//
+//    bool finished = true;
+//
+//    do {
+//        finished = true;
+//        std::pair<ReturnDescriptorsMap::iterator, ReturnDescriptorsMap::iterator>
+//                range = m_returnDescriptors.equal_range(esp);
+//        for(ReturnDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+//            if (m_plugin->m_monitor) {
+//                cr3 = m_plugin->m_monitor->getPid(state, pc);
+//            }
+//
+//
+//            if(it->second.cr3 == cr3) {
+//                if (emitSignal) {
+//                    it->second.signal.emit(state);
+//                }
+//                m_returnDescriptors.erase(it);
+//                finished = false;
+//                break;
+//            }
+//        }
+//    } while(!finished);
 
-    if (m_returnDescriptors.empty()) {
-        return;
-    }
-
-    //m_plugin->s2e()->getDebugStream() << "ESP AT RETURN 0x" << std::hex << esp <<
-    //        " plgstate=0x" << this << " EmitSignal=" << emitSignal <<  std::endl;
-
-    bool finished = true;
-    do {
-        finished = true;
-        std::pair<ReturnDescriptorsMap::iterator, ReturnDescriptorsMap::iterator>
-                range = m_returnDescriptors.equal_range(esp);
-        for(ReturnDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-            if (m_plugin->m_monitor) {
-                cr3 = m_plugin->m_monitor->getPid(state, pc);
-            }
-
-            if(it->second.cr3 == cr3) {
-                if (emitSignal) {
-                    it->second.signal.emit(state);
-                }
-                m_returnDescriptors.erase(it);
-                finished = false;
-                break;
-            }
-        }
-    } while(!finished);
 }
 
 
