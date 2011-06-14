@@ -179,7 +179,7 @@ stm0:
 	adr r1, cnt		@name
 	bl s2e_print_expression
 
-	cmp r7,#1
+	cmp r7,#1     @the number represents the number of cycles in stm0
 	beq stm1
 
 	mov r10, #0
