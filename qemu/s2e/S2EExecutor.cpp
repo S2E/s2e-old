@@ -1455,7 +1455,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
         uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
         memcpy(oldStore, (uint8_t*) cpuMo->address, cpuMo->size);
-
+        oldState->m_active = false;
     }
 
     if(newState) {
@@ -1482,8 +1482,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
             uint8_t *oldStore = oldWOS->getConcreteStore();
             assert(oldStore);
             memcpy(oldStore, (uint8_t*) mo->address, mo->size);
-
-            oldState->m_active = false;
         }
 
         if(newState) {
