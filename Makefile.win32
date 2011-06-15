@@ -53,13 +53,17 @@ llvm-2.6-mingw.patch:
 	wget --no-check-certificate https://s2e.epfl.ch/attachments/download/96/llvm-2.6-mingw.patch
 	
 stamps/llvm-unpack: llvm-2.6.tar.gz llvm-2.6-mingw.patch
-	tar -zxf llvm-2.6.tar.gz
-	cd llvm-2.6 && patch -p0 < ../llvm-2.6-mingw.patch
+	if [ ! -d "llvm-2.6" ]; then \
+	tar -zxf llvm-2.6.tar.gz; \
+	cd llvm-2.6 && patch -p0 < ../llvm-2.6-mingw.patch; \
+	fi
 	mkdir -p stamps && touch $@
 	
 stamps/clang-unpack: clang-2.6.tar.gz stamps/llvm-unpack
-	tar -zxf clang-2.6.tar.gz
-	mv clang-2.6 llvm-2.6/tools/clang
+	if [ ! -d "llvm-2.6/tools/clang/clang-2.6" ]; then \
+	tar -zxf clang-2.6.tar.gz; \
+	mv clang-2.6 llvm-2.6/tools/clang; \
+	fi
 	mkdir -p stamps && touch $@
 
 ########
