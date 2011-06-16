@@ -38,6 +38,7 @@ extern "C" {
 #include <lib/Utils/Log.h>
 
 #include "StaticTranslator.h"
+#include "InlineAssemblyExtractor.h"
 #include "Passes/TargetBinary.h"
 #include "Passes/ConstantExtractor.h"
 #include "Passes/JumpTableExtractor.h"
@@ -82,9 +83,15 @@ cl::list<std::string>
 cl::opt<std::string>
     OutputDir("outputdir", cl::desc("Store the analysis output in this directory"), cl::init("."));
 
+cl::opt<std::string>
+    OutputFile("o", cl::desc("Output file"), cl::init(""));
+
+
 cl::opt<bool>
     ExpMode("expmode", cl::desc("Auto-increment the x2e-out-* folder and create x2l-last symlink"), cl::init(false));
 
+cl::opt<bool>
+    AsmRemoval("asmdeinliner", cl::desc("Remove inline assembly from specified module"), cl::init(false));
 
 cl::opt<std::string>
     BfdFormat("bfd", cl::desc("Binary format of the input (in case auto detection fails)"), cl::init(""));
@@ -566,33 +573,28 @@ int main(int argc, char** argv)
 {
     cl::ParseCommandLineOptions(argc, (char**) argv);
 
-    StaticTranslatorTool translator;
-    StaticTranslatorTool::AddressSet entryPoints;
+    if (AsmRemoval) {
+        if (OutputFile.getValue().size() == 0) {
+            std::cerr << "You must specify the output file" << std::endl;
+            exit(-1);
+        }
 
-    translator.translateAllInstructions();
-    translator.computePredecessors();
-    translator.computeFunctionEntryPoints(entryPoints);
-    translator.reconstructFunctions(entryPoints);
-    translator.inlineInstructions();
-    translator.reconstructFunctionCalls();
+        InlineAssemblyExtractor asmExtr(InputFile, OutputFile);
+        asmExtr.process();
+    }else {
 
+        StaticTranslatorTool translator;
+        StaticTranslatorTool::AddressSet entryPoints;
 
-#if 0
-    translator.exploreBasicBlocks();
-    translator.extractFunctions();
+        translator.translateAllInstructions();
+        translator.computePredecessors();
+        translator.computeFunctionEntryPoints(entryPoints);
+        translator.reconstructFunctions(entryPoints);
+        translator.inlineInstructions();
+        translator.reconstructFunctionCalls();
 
-
-    if (translator.getFunctions().size() == 0) {
-        std::cout << "No functions found" << std::endl;
-        return -1;
+        translator.outputBitcodeFile();
+        translator.dumpStats();
     }
-
-    translator.cleanupCode();
-    translator.renameEntryPoint();
-#endif
-    translator.outputBitcodeFile();
-
-    translator.dumpStats();
-
     return 0;
 }
