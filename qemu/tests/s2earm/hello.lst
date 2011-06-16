@@ -127,145 +127,380 @@ ARM GAS  hello.S 			page 1
   19              	 
   20              	************************************************************************************/
   21              	.equ testvar, 10 @just for fun
-  22              	.set stackstart, 0x7000
-  23              	.set symbstart,  0x7200
-  24              	
-  25              	/* start code */
-  26              	_start:
-  27 00b4 FFFFFFEA 		b init_stack
-  28              	
-  29              	
-  30              	init_stack: @we use full descending mode (and do not care about different execution modes)
-  31 00b8 07DAA0E3 		mov sp, #stackstart
-  32 00bc FFFFFFEA 		b main
-  33              	
-  34              	main:
-  35 00c0 010000EB 		bl initial_test
-  36 00c4 0C0000EB 		bl test_mem
-  37 00c8 3D0000EA 		B _idle
-  38              	
-  39              	initial_test:
-  40 00cc 00402DE9 		stmfd sp!,{r14}
-  41 00d0 728CA0E3 		mov r8, #symbstart
-  42 00d4 0A00A0E3 		mov r0, #10
-  43 00d8 CEFFFFEB 		bl s2e_disable_symbolic
-  44 00dc CAFFFFEB 		bl s2e_enable_symbolic
-  45 00e0 E1FFFFEB 		bl s2e_disable_forking
-  46 00e4 DDFFFFEB 		bl s2e_enable_forking
-  47 00e8 EC008FE2 		adr r0, msg
-  48 00ec E1FFFFEB 		bl s2e_message
-  49 00f0 C2FFFFEB 		bl s2e_version
-  50 00f4 0050A0E1 		mov r5, r0
-  51 00f8 0080BDE8 		ldmfd sp!,{r15}
-  52              	
-  53              	test_mem:
-  54 00fc 20402DE9 		stmfd sp!,{r5, r14}
-  55 0100 0070A0E3 		mov r7, #0
-  56 0104 C9FFFFEB 		bl s2e_get_path_id
-  57 0108 0050A0E1 		mov r5, r0
-  58 010c E2FFFFEB 		bl s2e_get_ram_object_bits
-  59 0110 0060A0E1 		mov r6, r0
-  60              	stm0:
-  61 0114 0A0057E3 		cmp r7,#10
-  62 0118 0900000A 		beq stm1
-  63 011c 048048E2 		sub r8, r8, #4		@decrement (custom symb. value 'stack')
-  64 0120 0800A0E1 		mov r0, r8			@address of symb. value
-  65 0124 0410A0E3 		mov r1, #4			@size of symb. value = 4byte
-  66 0128 0020A0E3 		mov r2, #0			@name is empty (use default name)
-  67 012c BCFFFFEB 	    bl s2e_make_symbolic
-  68 0130 00A098E5 	    ldr r10, [r8,#0]		@get the symbolic value?
-  69 0134 00005AE3 	    cmp r10, #0
-  70 0138 0100000A 	    beq stm1
-  71 013c 017087E2 	    add r7, r7, #1
-  72 0140 F3FFFFEA 	    b stm0
+  22              	.set stackstart, 	0x7000
+  23              	.set symbstart,  	0x8000
+  24              	.set memstart,		0x40000
+  25              	.set testvalue, 	0xDE
+  26              	
+  27              	/* start code */
+  28              	_start:
+  29 00b4 FFFFFFEA 		b init_stack
+  30              	
+  31              	
+  32              	init_stack: @we use full descending mode (and do not care about different execution modes)
+  33 00b8 0000A0E3 		mov r0, #0
+  34 00bc 07DAA0E3 		mov sp, #stackstart
+  35 00c0 0289A0E3 		mov r8, #symbstart
+  36 00c4 FFFFFFEA 		b main
+  37              	
+  38              	main:
+  39              	@    bl test_flags
+  40              	@	bl initial_test
+  41 00c8 830000EB 		bl test_mem
+  42              	@	bl test_forking
+  43              	@	bl switch_main
+  44              	@	bl register_check
+  45              	@	B _idle
+  46              	
+  47              	register_check:
+  48 00cc 00402DE9 		stmfd sp!,{r14}
+  49 00d0 910000EB 		bl symbolic_int
+  50              	
+  51 00d4 0100A0E3 		mov r0, #1
+  52 00d8 0210A0E3 		mov r1, #2
+  53 00dc 0320A0E3 		mov r2, #3
+  54 00e0 0430A0E3 		mov r3, #4
+  55 00e4 0540A0E3 		mov r4, #5
+  56 00e8 0650A0E3 		mov r5, #6
+  57 00ec 0760A0E3 		mov r6, #7
+  58 00f0 0870A0E3 		mov r7, #8
+  59 00f4 0A90A0E3 		mov r9, #10
+  60 00f8 0CB0A0E3 		mov r11, #12
+  61 00fc 0DC0A0E3 		mov r12, #13
+  62              	
+  63 0100 00A098E5 		ldr r10, [r8,#0]	@get the symbolic value
+  64              	
+  65 0104 00005AE3 	    cmp r10, #0			@fork state
+  66 0108 0500000B 	    bleq register_check_compare
+  67 010c 0400001B 	    blne register_check_compare
+  68 0110 0AA0A0E3 	    mov r10, #10
+  69 0114 0A005AE3 	    cmp r10, #10						@does not fork
+  70 0118 2800001A 	    bne switch_error
+  71 011c C6FFFFEB 	    bl s2e_kill_state
+  72 0120 0080BDE8 	    ldmfd sp!,{r15}
 ARM GAS  hello.S 			page 4
 
 
-  73              	stm1:
-  74 0144 B9FFFFEB 		bl s2e_get_path_id
-  75 0148 0190A0E3 		mov r9, #1
-  76 014c 1996A0E1 		mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
-  77 0150 0900A0E1 		mov r0, r9			@expression
-  78 0154 93108FE2 		adr r1, val			@name
-  79 0158 BAFFFFEB 		bl s2e_print_expression
-  80 015c 0146A0E3 		mov r4, #1048576 @ starting memory address 0x100000
-  81              	stm2_restart:
-  82 0160 09A0A0E1 		mov r10, r9		@(re)arm counter
-  83              	stm2:
-  84              		@Fill page with test pattern (path id stored in r5)
-  85 0164 045084E4 		str r5, [r4],#+4
-  86 0168 01A04AE2 		sub r10, r10, #1 @decrease counter
-  87 016c 00005AE3 		cmp r10, #0
-  88 0170 FBFFFF1A 		bne stm2
-  89 0174 09A0A0E1 		mov r10, r9 @reset counter
-  90 0178 0AA1A0E1 		mov r10, r10, lsl #2
-  91 017c 0A4044E0 		sub r4, r4, r10 @get back to memory starting address
-  92 0180 09A0A0E1 		mov r10, r9 @reset counter
-  93 0184 6E108FE2 		adr r1, mem			@name param2 for print expression
-  94              	stm3:
-  95              		@Check that the memory is correct
-  96 0188 040094E4 		ldr r0, [r4],#+4
-  97 018c 01A04AE2 		sub r10, r10, #1
-  98 0190 050050E1 		cmp r0, r5 @do we get the path id back?
-  99 0194 0C00001A 		bne sterr  @if not, goto error
- 100 0198 0400A0E1 		mov r0, r4
- 101 019c A9FFFFEB 		bl s2e_print_expression
- 102 01a0 00005AE3 		cmp r10, #0
- 103 01a4 F7FFFF1A 		bne stm3
- 104              	
- 105 01a8 010454E3 		cmp r4, #16777216 @ 0x1000000
- 106 01ac EBFFFFBA 		blt stm2_restart
- 107              	
- 108              		@successfully completed mem test
- 109 01b0 0000A0E3 		mov r0, #0
- 110 01b4 49108FE2 		adr r1, memok
- 111 01b8 9FFFFFEB 		bl s2e_kill_state
- 112 01bc 000000EB 		bl _idle
- 113 01c0 2080BDE8 		ldmfd sp!,{r5, r15}
- 114              	
- 115              	_idle:
- 116 01c4 0000A0E1 		NOP
- 117 01c8 FDFFFFEA 		B _idle
- 118              	
- 119              	sterr:
- 120 01cc 0400A0E1 	mov r0, r4
- 121 01d0 43108FE2 	adr r1, membad
- 122 01d4 98FFFFEB 	bl s2e_kill_state
- 123 01d8 F9FFFFEB 	bl _idle
+  73              	
+  74              	register_check_compare:
+  75 0124 00402DE9 		stmfd sp!,{r14}
+  76 0128 010050E3 		cmp r0, #1
+  77 012c 2300001A 		bne switch_error
+  78 0130 020051E3 		cmp r1, #2
+  79 0134 2100001A 		bne switch_error
+  80 0138 030052E3 		cmp r2, #3
+  81 013c 1F00001A 		bne switch_error
+  82 0140 040053E3 		cmp r3, #4
+  83 0144 1D00001A 		bne switch_error
+  84 0148 050054E3 		cmp r4, #5
+  85 014c 1B00001A 		bne switch_error
+  86 0150 060055E3 		cmp r5, #6
+  87 0154 1900001A 		bne switch_error
+  88 0158 070056E3 		cmp r6, #7
+  89 015c 1700001A 		bne switch_error
+  90 0160 080057E3 		cmp r7, #8
+  91 0164 1500001A 		bne switch_error
+  92 0168 0A0059E3 		cmp r9, #10
+  93 016c 1300001A 		bne switch_error
+  94 0170 0C005BE3 		cmp r11, #12
+  95 0174 1100001A 		bne switch_error
+  96 0178 0D005CE3 		cmp r12, #13
+  97 017c 0F00001A 		bne switch_error
+  98 0180 0080BDE8 	    ldmfd sp!,{r15}
+  99              	
+ 100              	switch_main:
+ 101 0184 00402DE9 		stmfd sp!,{r14}
+ 102 0188 048048E2 		sub r8, r8, #4		@decrement (custom symb. value 'stack')
+ 103              	
+ 104 018c 0800A0E1 		mov r0, r8			@address of symb. value
+ 105 0190 0410A0E3 		mov r1, #4			@size of symb. value = 4byte
+ 106 0194 0020A0E3 		mov r2, #0			@name is empty (use default name)
+ 107 0198 A1FFFFEB 	    bl s2e_make_symbolic
+ 108 019c 0147A0E3 		mov r4, #memstart
+ 109              	
+ 110 01a0 00A098E5 	    ldr r10, [r8,#0]	@get the symbolic value
+ 111 01a4 00005AE3 	    cmp r10, #0
+ 112 01a8 A300A013 	    movne r0, #163     @should fork into 2 states
+ 113 01ac 0660A0E3 	  	mov r6, #6
+ 114              	switch_loop:
+ 115 01b0 060056E3 		cmp r6, #6
+ 116 01b4 0100001A 		bne switch_error
+ 117 01b8 FCFFFFEA 		b switch_loop
+ 118 01bc 0080BDE8 	    ldmfd sp!,{r15}
+ 119              	
+ 120              	switch_error:
+ 121 01c0 0600A0E1 		mov r0, r6
+ 122 01c4 0B1D8FE2 		adr r1, statebad
+ 123 01c8 9BFFFFEB 		bl s2e_kill_state
  124              	
- 125              	msg:
- 126 01dc 48656C6C 		.asciz "Hello S2E-Android!"
- 126      6F205332 
- 126      452D416E 
- 126      64726F69 
+ 125              	test_forking:
+ 126 01cc 00402DE9 		stmfd sp!,{r14}
+ 127 01d0 048048E2 		sub r8, r8, #4		@decrement (custom symb. value 'stack')
+ 128              	
+ 129 01d4 0800A0E1 		mov r0, r8			@address of symb. value
 ARM GAS  hello.S 			page 5
 
 
- 126      642100
- 127              	val:
- 128 01ef 50616765 		.asciz "Pagesize: "
- 128      73697A65 
- 128      3A2000
- 129              	mem:
- 130 01fa 4D656D63 		.asciz "Memcheck: "
- 130      6865636B 
- 130      3A2000
- 131              	
- 132              	memok:
- 133 0205 4D656D6F 		.asciz "Memory test passed ok"
- 133      72792074 
- 133      65737420 
- 133      70617373 
- 133      6564206F 
- 134              	membad:
- 135 021b 4D454D4F 		.asciz "MEMORY TEST FAILED"
- 135      52592054 
- 135      45535420 
- 135      4641494C 
- 135      454400
- 136              	
- 137              	version:
- 138 022e 0000A0E1 		NOP
- 139 0232 0000A0E1 		NOP
- 140              	
- 141              	.end
+ 130 01d8 0410A0E3 		mov r1, #4			@size of symb. value = 4byte
+ 131 01dc 0020A0E3 		mov r2, #0			@name is empty (use default name)
+ 132 01e0 8FFFFFEB 	    bl s2e_make_symbolic
+ 133 01e4 0147A0E3 		mov r4, #memstart
+ 134              	
+ 135 01e8 00A098E5 	    ldr r10, [r8,#0]	@get the symbolic value
+ 136 01ec 00005AE3 	    cmp r10, #0
+ 137 01f0 A300A0A3 	    movge r0, #163     @should fork into 2 states
+ 138              	
+ 139 01f4 8DFFFFEB 		bl s2e_get_path_id
+ 140 01f8 0050A0E1 		mov r5, r0
+ 141              	
+ 142 01fc 9D1F8FE2 		adr r1, labelreg5
+ 143 0200 90FFFFEB 		bl s2e_print_expression
+ 144              	
+ 145              	
+ 146 0204 045084E4 		str r5, [r4],#+4
+ 147 0208 045084E4 		str r5, [r4],#+4
+ 148 020c 020000EB 	    bl compareMem
+ 149              	
+ 150              	
+ 151 0210 7F1F8FE2 		adr r1, symbtest
+ 152 0214 88FFFFEB 		bl s2e_kill_state
+ 153 0218 0080BDE8 	    ldmfd sp!,{r15}
+ 154              	
+ 155              	compareMem:
+ 156 021c 01402DE9 		stmfd sp!,{r0, r14}
+ 157 0220 084044E2 		sub r4, r4, #8
+ 158              	
+ 159 0224 0400A0E1 		mov r0, r4
+ 160 0228 091D8FE2 		adr r1, adrafter
+ 161 022c 85FFFFEB 		bl s2e_print_expression
+ 162              	
+ 163              	
+ 164 0230 040094E4 		ldr r0, [r4],#+4
+ 165 0234 050050E1 		cmp r0, r5
+ 166 0238 6500001A 		bne sterr  @if not, goto error
+ 167 023c 220000EB 		bl checkpoint
+ 168 0240 040094E4 		ldr r0, [r4],#+4
+ 169 0244 050050E1 		cmp r0, r5
+ 170 0248 6100001A 		bne sterr  @if not, goto error
+ 171 024c 0180BDE8 		ldmfd sp!,{r0, r15}
+ 172              	
+ 173              	test_flags:
+ 174 0250 00402DE9 		stmfd sp!,{r14}
+ 175 0254 0FF228E3 		msr cpsr_f, 0xF0000000 @set all flags to 1
+ 176 0258 090000EB 		bl print_status
+ 177 025c 00F028E3 		msr cpsr_f, 0x00000000 @set all flags to 0
+ 178 0260 070000EB 		bl print_status
+ 179 0264 000050E0 		subs r0, r0 @z should be enabled
+ 180 0268 050000EB 		bl print_status
+ 181 026c 0000A0E3 		mov r0, #0
+ 182 0270 0A0050E2 		subs r0, r0, #10 @should enable n
+ 183 0274 020000EB 		bl print_status
+ 184 0278 00F028E3 		msr cpsr_f, 0x00000000 @set all flags to 0
+ 185 027c 000000EB 		bl print_status
+ 186 0280 0080BDE8 		ldmfd sp!,{r15}
+ARM GAS  hello.S 			page 6
+
+
+ 187              	
+ 188              	print_status:
+ 189 0284 00402DE9 		stmfd sp!,{r14}
+ 190 0288 3E13A0E3 		mov r1, #4160749568  @mask 0xF8000000
+ 191 028c 00000FE1 		mrs r0, cpsr
+ 192 0290 010000E0 		and r0, r0, r1
+ 193 0294 611F8FE2 		adr r1, flagtest
+ 194 0298 6AFFFFEB 		bl s2e_print_expression
+ 195 029c 0080BDE8 		ldmfd sp!,{r15}
+ 196              	initial_test:
+ 197 02a0 00402DE9 		stmfd sp!,{r14}
+ 198 02a4 0A00A0E3 		mov r0, #10
+ 199 02a8 5AFFFFEB 		bl s2e_disable_symbolic
+ 200 02ac 56FFFFEB 		bl s2e_enable_symbolic
+ 201 02b0 6DFFFFEB 		bl s2e_disable_forking
+ 202 02b4 69FFFFEB 		bl s2e_enable_forking
+ 203 02b8 4B0F8FE2 		adr r0, msg
+ 204 02bc 6DFFFFEB 		bl s2e_message
+ 205 02c0 4EFFFFEB 		bl s2e_version
+ 206 02c4 0050A0E1 		mov r5, r0
+ 207 02c8 0080BDE8 		ldmfd sp!,{r15}
+ 208              	
+ 209              	checkpoint:
+ 210 02cc 00402DE9 		stmfd sp!,{r14}
+ 211 02d0 6A0F8FE2 		adr r0, checkmsg
+ 212 02d4 67FFFFEB 		bl s2e_message
+ 213 02d8 0080BDE8 		ldmfd sp!,{r15}
+ 214              	
+ 215              	test_mem:
+ 216              	   @
+ 217              		@registers with special roles:
+ 218              		@   r4  ... contains the current address to store/check
+ 219              		@   r5  ... contains path id of current path
+ 220              		@   r6  ... contains ram object bits (to build pagesize)
+ 221              		@   r7  ... used as a counter to limit the loop which forks the state
+ 222              		@   r8  ... custom stack where symbolic data is written (has to be decremented by <size of last wr
+ 223              		@   r9  ... contains pagesize
+ 224              		@
+ 225 02dc 20402DE9 		stmfd sp!,{r5, r14}
+ 226 02e0 0070A0E3 		mov r7, #0
+ 227 02e4 6CFFFFEB 		bl s2e_get_ram_object_bits
+ 228 02e8 0060A0E1 		mov r6, r0
+ 229 02ec 0190A0E3 		mov r9, #1
+ 230 02f0 1996A0E1 		mov r9, r9, lsl r6	@shift by ram_object_bits to get the size of the page
+ 231              	stm0:
+ 232 02f4 0700A0E1 		mov r0, r7		    @print counter
+ 233 02f8 591F8FE2 		adr r1, cnt		@name
+ 234 02fc 51FFFFEB 		bl s2e_print_expression
+ 235              	
+ 236 0300 010057E3 		cmp r7,#1     @the number represents the number of cycles in stm0
+ 237 0304 0F00000A 		beq stm1
+ 238              	
+ 239 0308 00A0A0E3 		mov r10, #0
+ 240              	@ comment the following two lines to have single-state memory check / multi-state-memory-check
+ 241              	@	bl symbolic_int
+ 242              	@    ldr r10, [r8,#0]	@get the symbolic value
+ 243              	
+ARM GAS  hello.S 			page 7
+
+
+ 244 030c 00005AE3 	    cmp r10, #0			@fork state
+ 245 0310 0C00000A 	    beq stm1			@one state enters stm1, the other continues
+ 246 0314 017087E2 	    add r7, r7, #1
+ 247 0318 F5FFFFEA 	    b stm0
+ 248              	
+ 249              	symbolic_int:
+ 250 031c 00402DE9 		stmfd sp!,{r14}
+ 251 0320 048048E2 		sub r8, r8, #4		@decrement (custom symb. value 'stack')
+ 252              	
+ 253 0324 0800A0E1 		mov r0, r8			@address of symb. value
+ 254 0328 0410A0E3 		mov r1, #4			@size of symb. value = 4byte
+ 255 032c 0020A0E3 		mov r2, #0			@name is empty (use default name)
+ 256 0330 3BFFFFEB 	    bl s2e_make_symbolic
+ 257              	
+ 258 0334 0800A0E1 	    mov r0, r8
+ 259 0338 0410A0E3 	    mov r1, #4
+ 260 033c 0020A0E3 	    mov r2, #0
+ 261 0340 43FFFFEB 	    bl s2e_print_memory
+ 262 0344 0080BDE8 	    ldmfd sp!,{r15}
+ 263              	
+ 264              	stm1:
+ 265 0348 38FFFFEB 		bl s2e_get_path_id
+ 266 034c 0050A0E1 		mov r5, r0
+ 267 0350 0A5085E2 		add r5, #10	
+ 268              	
+ 269 0354 0900A0E1 		mov r0, r9		@expression argument (r9 contains pagesize)
+ 270 0358 9F108FE2 		adr r1, val			@name
+ 271 035c 39FFFFEB 		bl s2e_print_expression
+ 272 0360 0146A0E3 		mov r4, #1048576 @ starting memory address 0x100000
+ 273              	stm2_restart:
+ 274 0364 411F8FE2 		adr r1, adrafter
+ 275 0368 09A0A0E1 		mov r10, r9		@(re)arm counter
+ 276              	stm2:
+ 277              		@Fill page with test pattern (path id stored in r5)
+ 278              	
+ 279 036c 045084E4 		str r5, [r4],#+4
+ 280              	
+ 281 0370 01A04AE2 		sub r10, r10, #1 @decrease counter
+ 282 0374 00005AE3 		cmp r10, #0
+ 283 0378 FBFFFF1A 		bne stm2
+ 284              	
+ 285 037c 09A0A0E1 		mov r10, r9 @reset counter
+ 286 0380 0AA1A0E1 		mov r10, r10, lsl #2
+ 287 0384 0A4044E0 		sub r4, r4, r10 @get back to memory starting address
+ 288              	
+ 289 0388 09A0A0E1 		mov r10, r9 @reset counter
+ 290 038c 74108FE2 		adr r1, mem			@name param2 for print expression
+ 291              	stm3:
+ 292              		@Check if the memory is correct
+ 293 0390 040094E4 		ldr r0, [r4],#+4
+ 294 0394 050050E1 		cmp r0, r5 @do we get the path id back?
+ 295 0398 0D00001A 		bne sterr  @if not, goto error
+ 296 039c 01A04AE2 		sub r10, r10, #1
+ 297 03a0 00005AE3 		cmp r10, #0
+ 298 03a4 F9FFFF1A 		bne stm3
+ 299              	
+ 300 03a8 0400A0E1 		mov r0, r4
+ARM GAS  hello.S 			page 8
+
+
+ 301 03ac 25FFFFEB 		bl s2e_print_expression
+ 302 03b0 010454E3 		cmp r4, #16777216 @ 0x1000000
+ 303 03b4 EAFFFFBA 		blt stm2_restart
+ 304              	
+ 305              		@successfully completed mem test
+ 306 03b8 0000A0E3 		mov r0, #0
+ 307 03bc 68108FE2 		adr r1, memok
+ 308 03c0 1DFFFFEB 		bl s2e_kill_state
+ 309 03c4 000000EB 		bl _idle
+ 310 03c8 2080BDE8 		ldmfd sp!,{r5, r15}
+ 311              	
+ 312              	_idle:
+ 313 03cc 0000A0E1 		NOP
+ 314 03d0 FDFFFFEA 		B _idle
+ 315              	
+ 316              	sterr:
+ 317 03d4 7C108FE2 		adr r1, membadval
+ 318 03d8 1AFFFFEB 		bl s2e_print_expression
+ 319 03dc 0500A0E1 		mov r0, r5
+ 320 03e0 5C108FE2 		adr r1, membad
+ 321 03e4 14FFFFEB 		bl s2e_kill_state
+ 322 03e8 F7FFFFEB 		bl _idle
+ 323              	
+ 324 03ec 48656C6C 	msg:.asciz "Hello S2E-Android!"
+ 324      6F205332 
+ 324      452D416E 
+ 324      64726F69 
+ 324      642100
+ 325 03ff 50616765 	val:		.asciz "Pagesize"
+ 325      73697A65 
+ 325      00
+ 326              	.align 2
+ 327 0408 4D656D63 	mem:		.asciz "Memcheck"
+ 327      6865636B 
+ 327      00
+ 328 0411 000000   	.align 2
+ 329 0414 53796D62 	symbtest:	.asciz "SymbTest"
+ 329      54657374 
+ 329      00
+ 330 041d 000000   	.align 2
+ 331 0420 466C6167 	flagtest:	.asciz "Flagtest"
+ 331      74657374 
+ 331      00
+ 332 0429 000000   	.align 2
+ 333 042c 4D656D6F 	memok: 		.asciz "Memory test passed ok"
+ 333      72792074 
+ 333      65737420 
+ 333      70617373 
+ 333      6564206F 
+ 334 0442 0000     	.align 2
+ 335 0444 4D454D4F 	membad: 	.asciz "MEMORY TEST FAILED"
+ 335      52592054 
+ 335      45535420 
+ 335      4641494C 
+ 335      454400
+ 336 0457 00       	.align 2
+ 337 0458 42616420 	membadval: 	.asciz "Bad value"
+ARM GAS  hello.S 			page 9
+
+
+ 337      76616C75 
+ 337      6500
+ 338 0462 0000     	.align 2
+ 339 0464 52372063 	cnt:		.asciz "R7 counter"
+ 339      6F756E74 
+ 339      657200
+ 340 046f 00       	.align 2
+ 341 0470 61646472 	adrafter: 	.asciz "address"
+ 341      65737300 
+ 342              	.align 2
+ 343 0478 54657374 	labelreg5:	.asciz "Testval"
+ 343      76616C00 
+ 344              	.align 2
+ 345 0480 43686563 	checkmsg:	.asciz "Checkpoint"
+ 345      6B706F69 
+ 345      6E7400
+ 346 048b 00       	.align 2
+ 347 048c 53746174 	statebad:	.asciz "State Switch Check FAILED"
+ 347      65205377 
+ 347      69746368 
+ 347      20436865 
+ 347      636B2046 
+ 348 04a6 0000     	.end

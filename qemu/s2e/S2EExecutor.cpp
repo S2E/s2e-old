@@ -1147,6 +1147,12 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
 
         ObjectState* wos =
                 state->addressSpace.getWriteable(op.first, op.second);
+
+        qemu_log("WRITE RAM concrete (size=%"PRIu64"):\n",size);
+        qemu_log("\t host address: %"PRIx64".\n", hostAddress);
+        qemu_log("\t page_address: %"PRIx64".\n", page_addr);
+        qemu_log("\t wos  address: %"PRIx64".\n", wos);
+
         for(uint64_t i=0; i<size; ++i) {
             wos->write8(page_offset+i, buf[i]);
         }
@@ -1431,6 +1437,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     cpu_disable_ticks();
 
+    qemu_log("Switching from state %d to state %d.\n",(oldState ? oldState->getID() : -1), (newState ? newState->getID() : -1));
     m_s2e->getMessagesStream(oldState)
             << "Switching from state " << (oldState ? oldState->getID() : -1)
             << " to state " << (newState ? newState->getID() : -1) << std::endl;

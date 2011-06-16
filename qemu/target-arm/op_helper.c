@@ -214,7 +214,7 @@ void tlb_fill (target_ulong addr, target_ulong page_addr, int is_write, int mmu_
 
         if (retaddr) {
             /* now we have a real cpu fault */
-            pc = (unsigned long)retaddr;
+            pc = (uintptr_t)retaddr;
             tb = tb_find_pc(pc);
             if (tb) {
                 /* the PC is inside the translated code. It means that we have
@@ -230,7 +230,7 @@ s2e_on_page_fault(g_s2e, g_s2e_state, addr, is_write);
         raise_exception(env->exception_index);
     }
     if(saved_env != env)
-    env = saved_env;
+    	env = saved_env;
 }
 #endif
 

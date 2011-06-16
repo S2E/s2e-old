@@ -35,6 +35,7 @@
 
 #include "qemu-common.h"
 #include "cpu-common.h"
+#include "qemu-log.h"
 
 #ifdef CONFIG_S2E
 #include <s2e/s2e_qemu.h>
@@ -380,16 +381,19 @@ static inline uint64_t ldq_le_p(const void *ptr)
 
 static inline void stw_le_p(void *ptr, int v)
 {
+	qemu_log("STORE 16bit value %d at address %"PRIx16".\n",v, (uint16_t *)ptr);
     *(uint16_t *)ptr = v;
 }
 
 static inline void stl_le_p(void *ptr, int v)
 {
+	qemu_log("STORE 32bit value %d at address  %"PRIx32".\n",v, (uint32_t *)ptr);
     *(uint32_t *)ptr = v;
 }
 
 static inline void stq_le_p(void *ptr, uint64_t v)
 {
+	qemu_log("STORE 64bit value %d at address  %"PRIx64".\n",v, (uint64_t *)ptr);
     *(uint64_t *)ptr = v;
 }
 

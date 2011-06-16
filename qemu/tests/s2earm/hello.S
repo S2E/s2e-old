@@ -21,7 +21,7 @@ run as with the following option:
 .equ testvar, 10 @just for fun
 .set stackstart, 	0x7000
 .set symbstart,  	0x8000
-.set memstart,		0x10000
+.set memstart,		0x40000
 .set testvalue, 	0xDE
 
 /* start code */
@@ -41,7 +41,61 @@ main:
 	bl test_mem
 @	bl test_forking
 @	bl switch_main
-	B _idle
+@	bl register_check
+@	B _idle
+
+register_check:
+	stmfd sp!,{r14}
+	bl symbolic_int
+
+	mov r0, #1
+	mov r1, #2
+	mov r2, #3
+	mov r3, #4
+	mov r4, #5
+	mov r5, #6
+	mov r6, #7
+	mov r7, #8
+	mov r9, #10
+	mov r11, #12
+	mov r12, #13
+
+	ldr r10, [r8,#0]	@get the symbolic value
+
+    cmp r10, #0			@fork state
+    bleq register_check_compare
+    blne register_check_compare
+    mov r10, #10
+    cmp r10, #10						@does not fork
+    bne switch_error
+    bl s2e_kill_state
+    ldmfd sp!,{r15}
+
+register_check_compare:
+	stmfd sp!,{r14}
+	cmp r0, #1
+	bne switch_error
+	cmp r1, #2
+	bne switch_error
+	cmp r2, #3
+	bne switch_error
+	cmp r3, #4
+	bne switch_error
+	cmp r4, #5
+	bne switch_error
+	cmp r5, #6
+	bne switch_error
+	cmp r6, #7
+	bne switch_error
+	cmp r7, #8
+	bne switch_error
+	cmp r9, #10
+	bne switch_error
+	cmp r11, #12
+	bne switch_error
+	cmp r12, #13
+	bne switch_error
+    ldmfd sp!,{r15}
 
 switch_main:
 	stmfd sp!,{r14}
@@ -184,8 +238,8 @@ stm0:
 
 	mov r10, #0
 @ comment the following two lines to have single-state memory check / multi-state-memory-check
-	bl symbolic_int
-    ldr r10, [r8,#0]	@get the symbolic value
+@	bl symbolic_int
+@    ldr r10, [r8,#0]	@get the symbolic value
 
     cmp r10, #0			@fork state
     beq stm1			@one state enters stm1, the other continues
