@@ -14,7 +14,8 @@ SOURCES = StaticTranslator.cpp Passes/RevgenAlias.cpp \
           Passes/ConstantExtractor.cpp Passes/JumpTableExtractor.cpp \
           Passes/FunctionBuilder.cpp Passes/TargetBinary.cpp\
           Passes/CallBuilder.cpp Passes/InstructionInliner.cpp \
-          Passes/CallingConvention.cpp
+          Passes/CallingConvention.cpp Passes/AsmDeinliner.cpp \
+          InlineAssemblyExtractor.cpp
 
 include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)
