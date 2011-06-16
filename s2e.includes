@@ -1,5 +1,7 @@
 docs
+docs/Howtos
 docs/Plugins
+docs/Plugins/Tracers
 docs/Plugins/WindowsInterceptor
 docs/Tools
 docs/Windows
@@ -9,6 +11,7 @@ guest/include
 guest
 guest/s2eget
 guest/stp
+guest/windbg-gdb
 klee
 klee/autoconf
 klee/docs/SMT-COMP
@@ -201,6 +204,7 @@ tools/tools/scripts
 tools/tools/static-translator/CFG
 tools/tools/static-translator
 tools/tools/static-translator/Passes
+tools/tools/static-translator/Passes/old
 tools/tools/static-translator/Runtime
 tools/tools/static-translator/Tests
 tools/tools/static-translator/TranslatorBitcode

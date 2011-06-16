@@ -1240,7 +1240,7 @@ static const VMStateDescription vmstate_timers = {
 static void qemu_event_increment(void);
 
 #ifdef _WIN32
-int g_timer_ticks_enabled = 1;
+volatile LONG g_signals_enabled = 1;
 
 static void CALLBACK host_alarm_handler(UINT uTimerID, UINT uMsg,
                                         DWORD_PTR dwUser, DWORD_PTR dw1,
@@ -1255,12 +1255,6 @@ static void host_alarm_handler(int host_signum)
         static int64_t delta_min = INT64_MAX;
         static int64_t delta_max, delta_cum, last_clock, delta, ti;
         static int count;
-
-#ifdef _WIN32
-        if (!g_timer_ticks_enabled) {
-            return;
-        }
-#endif
 
         ti = qemu_get_clock(vm_clock);
         if (last_clock != 0) {
@@ -1285,6 +1279,13 @@ static void host_alarm_handler(int host_signum)
         last_clock = ti;
     }
 #endif
+
+#ifdef _WIN32
+   //Timers can run in different threads...
+   if (InterlockedCompareExchange(&g_signals_enabled, 0, 1) == 0)
+      return;
+#endif
+
     if (alarm_has_dynticks(alarm_timer) ||
         (!use_icount &&
             qemu_timer_expired(active_timers[QEMU_CLOCK_VIRTUAL],
@@ -1305,6 +1306,10 @@ static void host_alarm_handler(int host_signum)
         timer_alarm_pending = 1;
         qemu_notify_event();
     }
+
+#ifdef _WIN32
+    g_signals_enabled = 1;
+#endif
 }
 
 static int64_t qemu_next_deadline(void)
@@ -1664,7 +1669,7 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t)
 
 #endif /* _WIN32 */
 
-static int init_timer_alarm(void)
+int init_timer_alarm(void)
 {
     struct qemu_alarm_timer *t = NULL;
     int i, err = -1;
@@ -5003,6 +5008,7 @@ int main(int argc, char **argv, char **envp)
     const char *s2e_output_dir = NULL;
     int execute_always_klee = 0;
     int s2e_verbose = 0;
+    int s2e_max_processes = 1;
 #endif
 
 #ifndef _WIN32
@@ -5869,6 +5875,12 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_s2e_verbose:
                 s2e_verbose = 1;
                 break;
+            case QEMU_OPTION_s2e_max_processes:
+                s2e_max_processes = strtol(optarg, NULL, 0);
+                if (s2e_max_processes == 0) {
+                    s2e_max_processes = 1;
+                }
+                break;
 #endif
             }
         }
@@ -5895,7 +5907,7 @@ int main(int argc, char **argv, char **envp)
     }
     g_s2e = s2e_initialize(argc, argv, tcg_llvm_ctx,
                            s2e_config_file, s2e_output_dir,
-                           s2e_verbose);
+                           s2e_verbose, s2e_max_processes);
 
     g_s2e_state = s2e_create_initial_state(g_s2e);
 

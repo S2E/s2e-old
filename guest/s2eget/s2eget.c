@@ -59,9 +59,15 @@ int main(int argc, const char** argv)
     printf("Copying file %s from the host...\n", argv[1]);
 
     unlink(argv[1]);
+
+#ifdef _WIN32
+    int fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, S_IRWXU);
+#else
     int fd = creat(argv[1], S_IRWXU);
+#endif
+
     if(fd == -1) {
-        fprintf(stderr, "can not create file %s\n", argv[1]);
+        fprintf(stderr, "cannot create file %s\n", argv[1]);
         exit(1);
     }
 

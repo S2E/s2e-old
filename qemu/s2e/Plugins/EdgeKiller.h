@@ -46,11 +46,11 @@
 namespace s2e {
 namespace plugins {
 
-class PollingLoopDetector : public Plugin
+class EdgeKiller : public Plugin
 {
     S2E_PLUGIN
 public:
-    PollingLoopDetector(S2E* s2e): Plugin(s2e) {}
+    EdgeKiller(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
 
@@ -77,47 +77,47 @@ private:
             bool staticTarget,
             uint64_t targetPc);
 
-    void onPollingInstruction(S2EExecutionState* state, uint64_t sourcePc);
+    void onEdge(S2EExecutionState* state, uint64_t sourcePc);
 
     ModuleExecutionDetector *m_detector;
     OSMonitor *m_monitor;
 
 };
 
-class PollingLoopDetectorState : public PluginState
+class EdgeKillerState : public PluginState
 {
 public:
-    struct PollingEntry {
+    struct Edge {
         uint64_t source;
         uint64_t dest;
-        bool operator()(const PollingEntry &p1, const PollingEntry &p2) const {
+        bool operator()(const Edge &p1, const Edge &p2) const {
             return p1.source < p2.source;
         }
 
-        bool operator==(const PollingEntry &p1) const {
+        bool operator==(const Edge &p1) const {
             return p1.source == source && p1.dest == dest;
         }
     };
 
-    typedef std::set<PollingEntry, PollingEntry> PollingEntries;
+    typedef std::set<Edge, Edge> EdgeEntries;
 
 private:
-    PollingEntries m_pollingEntries;
+    EdgeEntries m_edges;
 
 public:
-    PollingLoopDetectorState();
-    PollingLoopDetectorState(S2EExecutionState *s, Plugin *p);
-    virtual ~PollingLoopDetectorState();
+    EdgeKillerState();
+    EdgeKillerState(S2EExecutionState *s, Plugin *p);
+    virtual ~EdgeKillerState();
     virtual PluginState *clone() const;
     static PluginState *factory(Plugin *p, S2EExecutionState *s);
 
-    void addEntry(uint64_t source, uint64_t dest);
-    PollingEntries &getEntries();
+    void addEdge(uint64_t source, uint64_t dest);
+    EdgeEntries &getEntries();
 
-    bool isPolling(uint64_t source) const;
-    bool isPolling(uint64_t source, uint64_t dest) const;
+    bool isEdge(uint64_t source) const;
+    bool isEdge(uint64_t source, uint64_t dest) const;
 
-    friend class PollingLoopDetector;
+    friend class EdgeKiller;
 };
 
 } // namespace plugins

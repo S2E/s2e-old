@@ -83,7 +83,7 @@ struct S2E* s2e_initialize(int argc, char** argv,
                            struct TCGLLVMContext *tcgLLVMContext,
                            const char *s2e_config_file,
                            const char *s2e_output_dir,
-                           int verbose);
+                           int verbose, unsigned max_processes);
 
 /** Relese S2E instance and all S2E-related objects. Called by main() */
 void s2e_close(struct S2E* s2e);
@@ -320,6 +320,9 @@ void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
    allows programs to forcibly concretize values on their own. */
 unsigned klee_get_value(unsigned expr);
 
+
+//Used by S2E.h to reinitialize timers in the forked process
+int init_timer_alarm(void);
 
 /******************************************************/
 /* Prototypes for special functions used in LLVM code */

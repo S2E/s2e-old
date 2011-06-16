@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
 <title>How to Write an S2E plugin?</title>
-<link rel="stylesheet" href="./s2e.css" type="text/css" />
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
 </head>
 <body>
 <div class="document" id="how-to-write-an-s2e-plugin">
@@ -160,8 +160,8 @@ There are many other core events to which a plugin can register. These events ar
 <span class="p">}</span>
 </pre></div>
 </div>
-<div class="section" id="counting-the-instructions">
-<h1>Counting the Instructions</h1>
+<div class="section" id="counting-instructions">
+<h1>Counting Instructions</h1>
 <p>We would like to count how many times that particular instruction is executed.
 There are two options:</p>
 <blockquote>
@@ -230,7 +230,7 @@ itself depends on several plugins that abstract OS-specific events (e.g., module
 is executed ten times.</p>
 <p>First, we declare the signal as a <tt class="docutils literal">public</tt> field of the <tt class="docutils literal">InstructionTracker</tt> class. It is important that the field be public,
 otherwise other plugins will not be able to register.</p>
-<div class="highlight"><pre><span class="n">class</span> <span class="n">InstructionTrackerState</span><span class="o">:</span> <span class="n">public</span> <span class="n">PluginState</span> <span class="p">{</span>
+<div class="highlight"><pre><span class="n">class</span> <span class="n">InstructionTracker</span><span class="o">:</span> <span class="n">public</span> <span class="n">Plugin</span> <span class="p">{</span>
     <span class="c1">//...</span>
 
     <span class="nl">public:</span>
@@ -262,13 +262,13 @@ otherwise other plugins will not be able to register.</p>
 To register for this event, a plugin invokes <tt class="docutils literal"><span class="pre">s2e()-&gt;getPlugin(&quot;PluginName&quot;);</span></tt>, where <tt class="docutils literal">PluginName</tt> is
 the name of the plugin as defined in the <tt class="docutils literal">S2E_DEFINE_PLUGIN</tt> macro.
 In our case, a plugin named <tt class="docutils literal">MyClient</tt> would do something like this in its initialization routine:</p>
-<div class="highlight"><pre><span class="c1">//Specify the dependency</span>
+<div class="highlight"><pre><span class="c1">//Specify dependencies</span>
 <span class="n">S2E_DEFINE_PLUGIN</span><span class="p">(</span><span class="n">MyClient</span><span class="p">,</span> <span class="s">&quot;We use InstructionTracker&quot;</span><span class="p">,</span> <span class="s">&quot;MyClient&quot;</span><span class="p">,</span> <span class="s">&quot;InstructionTracker&quot;</span><span class="p">);</span>
 
 <span class="kt">void</span> <span class="n">MyClient</span><span class="o">::</span><span class="n">initialize</span><span class="p">()</span>
 <span class="p">{</span>
     <span class="c1">//Get the instance of the plugin</span>
-    <span class="n">InstructionTracker</span> <span class="o">*</span><span class="n">tracker</span> <span class="o">=</span> <span class="p">(</span><span class="n">InstructionTracker</span><span class="o">*</span><span class="p">)</span><span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getPlugin</span><span class="p">(</span><span class="s">&quot;InstructionTracker&quot;</span><span class="p">);</span>
+    <span class="n">InstructionTracker</span> <span class="o">*</span><span class="n">tracker</span> <span class="o">=</span> <span class="n">static_cast</span><span class="o">&lt;</span><span class="n">InstructionTracker</span><span class="o">*&gt;</span><span class="p">(</span><span class="n">s2e</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getPlugin</span><span class="p">(</span><span class="s">&quot;InstructionTracker&quot;</span><span class="p">));</span>
     <span class="n">assert</span><span class="p">(</span><span class="n">tracker</span><span class="p">);</span>
 
     <span class="c1">//Register to custom events</span>

@@ -61,9 +61,9 @@ struct iovec {
 
 #ifdef _WIN32
 #define fsync _commit
-#define lseek _lseeki64
+#define lseek64 _lseeki64
 extern int qemu_ftruncate64(int, int64_t);
-#define ftruncate qemu_ftruncate64
+#define ftruncate64 qemu_ftruncate64
 
 static inline char *realpath(const char *path, char *resolved_path)
 {

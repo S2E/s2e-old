@@ -51,10 +51,7 @@ S2E_DEFINE_PLUGIN(ExecutionTracer, "ExecutionTracer plugin", "",);
 
 void ExecutionTracer::initialize()
 {
-
-    m_LogFile = fopen(s2e()->getOutputFilename("ExecutionTracer.dat").c_str(), "wb");
-    assert(m_LogFile);
-    m_CurrentIndex = 0;
+    createNewTraceFile();
 
     s2e()->getCorePlugin()->onStateFork.connect(
             sigc::mem_fun(*this, &ExecutionTracer::onFork));
@@ -62,11 +59,25 @@ void ExecutionTracer::initialize()
     s2e()->getCorePlugin()->onTimer.connect(
         sigc::mem_fun(*this, &ExecutionTracer::onTimer)
     );
+
+    s2e()->getCorePlugin()->onProcessFork.connect(
+        sigc::mem_fun(*this, &ExecutionTracer::onProcessFork)
+    );
 }
 
 ExecutionTracer::~ExecutionTracer()
 {
     fclose(m_LogFile);
+}
+
+void ExecutionTracer::createNewTraceFile()
+{
+    m_LogFile = fopen(s2e()->getOutputFilename("ExecutionTracer.dat").c_str(), "wb");
+    if (!m_LogFile) {
+        s2e()->getWarningsStream() << "Could not create ExecutionTracer.dat" << std::endl;
+        exit(-1);
+    }
+    m_CurrentIndex = 0;
 }
 
 void ExecutionTracer::onTimer()
@@ -108,6 +119,11 @@ void ExecutionTracer::flush()
     if (m_LogFile) {
         fflush(m_LogFile);
     }
+}
+
+void ExecutionTracer::onProcessFork()
+{
+    createNewTraceFile();
 }
 
 void ExecutionTracer::onFork(S2EExecutionState *state,

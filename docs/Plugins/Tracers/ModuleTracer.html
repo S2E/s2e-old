@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>ModuleTracer</title>
+<link rel="stylesheet" href="../../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="moduletracer">
+<h1 class="title">ModuleTracer</h1>
+
+<p>The ModuleTracer records load events for modules specified by the <a class="reference external" href="../ModuleExecutionDetector.html">ModuleExecutionDetector</a> plugin.
+ModuleTracer is required by offline analysis tools to map program counters to specific modules, e.g., to display user-friendly debug information.</p>
+<div class="section" id="options">
+<h1>Options</h1>
+<p>This plugin does not have any option.</p>
+</div>
+<div class="section" id="required-plugins">
+<h1>Required Plugins</h1>
+<ul class="simple">
+<li><a class="reference external" href="ExecutionTracer.html">ExecutionTracer</a></li>
+<li><a class="reference external" href="../ModuleExecutionDetector.html">ModuleExecutionDetector</a></li>
+</ul>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<pre class="literal-block">
+pluginsConfig.ModuleTracer = {}
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="ModuleTracer.rst">View document source</a>.
+
+</div>
+</body>
+</html>

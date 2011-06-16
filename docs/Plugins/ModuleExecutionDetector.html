@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>ModuleExecutionDetector</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="moduleexecutiondetector">
+<h1 class="title">ModuleExecutionDetector</h1>
+
+<p>The ModuleExecutionDetector plugin signals other plugins when execution enters or leaves a module of interest.
+It relies on an OS monitor to get the location of the modules in memory.</p>
+<div class="section" id="options">
+<h1>Options</h1>
+<p>ModuleExecutionDetector accepts global options and an arbitrary number of per-module sections.
+Per-module options are prefixed with &quot;module.&quot; in the documentation. Refer to the
+example below for details.</p>
+<div class="section" id="trackallmodules-true-false">
+<h2>trackAllModules=[true|false]</h2>
+<p>When true, pass events about <em>all</em> module loads and unloads to client plugins but do <em>not</em>
+notify them about the execution. This is useful for execution tracers to record modules loads to
+provide debug information offline without actually recording any trace. This option is false by default.</p>
+</div>
+<div class="section" id="configureallmodules-true-false">
+<h2>configureAllModules=[true|false]</h2>
+<p>When true, consider all modules of the system to be of interest, regardless of per-module
+configuration. This option is false by default.</p>
+</div>
+<div class="section" id="module-modulename-string">
+<h2>module.moduleName=[&quot;string&quot;]</h2>
+<p>The name of the module. This must match the name returned by the OS monitoring plugin.</p>
+</div>
+<div class="section" id="module-kernelmode-true-false">
+<h2>module.kernelMode=[true|false]</h2>
+<p>Whether the module lies above or below the kernel-mode threshold.
+Assumes that the module is mapped in all address space at the same location above
+the kernel/user-space boundary.</p>
+</div>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<pre class="literal-block">
+pluginsConfig.ModuleExecutionDetector = {
+    myprog_id = {
+        moduleName = &quot;myprogram&quot;,
+        kernelMode = false
+    },
+}
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="ModuleExecutionDetector.rst">View document source</a>.
+
+</div>
+</body>
+</html>

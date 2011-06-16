@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>Frequently Asked Questions (FAQ)</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="frequently-asked-questions-faq">
+<h1 class="title">Frequently Asked Questions (FAQ)</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="auto-toc simple">
+<li><a class="reference internal" href="#s2e" id="id1">1&nbsp;&nbsp;&nbsp;S2E</a><ul class="auto-toc">
+<li><a class="reference internal" href="#how-do-i-know-what-s2e-is-doing" id="id2">1.1&nbsp;&nbsp;&nbsp;How do I know what S2E is doing?</a></li>
+<li><a class="reference internal" href="#execution-seems-stuck-slow-what-to-do" id="id3">1.2&nbsp;&nbsp;&nbsp;Execution seems stuck/slow. What to do?</a></li>
+<li><a class="reference internal" href="#how-do-i-deal-with-path-explosion" id="id4">1.3&nbsp;&nbsp;&nbsp;How do I deal with path explosion?</a></li>
+<li><a class="reference internal" href="#how-to-keep-memory-usage-low" id="id5">1.4&nbsp;&nbsp;&nbsp;How to keep memory usage low?</a></li>
+<li><a class="reference internal" href="#how-much-time-is-the-constraint-solver-taking-to-solve-constraints" id="id6">1.5&nbsp;&nbsp;&nbsp;How much time is the constraint solver taking to solve constraints?</a></li>
+<li><a class="reference internal" href="#what-do-the-various-fields-in-run-stats-mean" id="id7">1.6&nbsp;&nbsp;&nbsp;What do the various fields in <tt class="docutils literal">run.stats</tt> mean?</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="s2e">
+<h1>1&nbsp;&nbsp;&nbsp;S2E</h1>
+<div class="section" id="how-do-i-know-what-s2e-is-doing">
+<h2>1.1&nbsp;&nbsp;&nbsp;How do I know what S2E is doing?</h2>
+<ol class="arabic">
+<li><p class="first">Enable execution tracing and use the fork profiler to identify the code locations that fork the most.
+In your LUA file, enable the <tt class="docutils literal">ExecutionTracer</tt>, <tt class="docutils literal">ModuleTracer</tt> and the <tt class="docutils literal">ModuleExecutionDetector</tt> plugins.
+This will allow you to collect all fork locations. Additionally, you can use <tt class="docutils literal">TranslationBlockTracer</tt>  in order to
+have a detailed trace for each execution path, which you can view with the <tt class="docutils literal">tbtrace</tt> tool. Finally, <tt class="docutils literal">TranslationBlockTracer</tt>
+allows you to use the basic block <a class="reference external" href="Tools/CoverageGenerator.html">coverage</a> tool.</p>
+</li>
+<li><p class="first">Look at <tt class="docutils literal"><span class="pre">s2e-last/debug.txt</span></tt> and other files.
+These files list all the major events occurring during symbolic execution.</p>
+<p>S2E outputs &quot;Firing timer event&quot; into <tt class="docutils literal"><span class="pre">s2e-last/debug.txt</span></tt> once per second.
+If you do not see this event every second,
+it means that QEMU is stuck running plugin code (most likely because of a plugin bug)
+or constraint solver code (because of a complex query).
+To see which query is causing the problem, look at the query log.</p>
+</li>
+<li><p class="first"><tt class="docutils literal">run.stats</tt> contains many types of statistics. S2E updates this file about every second,
+when executing symbolic code. See later in this FAQ for a description of its fields.</p>
+</li>
+</ol>
+</div>
+<div class="section" id="execution-seems-stuck-slow-what-to-do">
+<h2>1.2&nbsp;&nbsp;&nbsp;Execution seems stuck/slow. What to do?</h2>
+<p>First, ensure that you configured S2E properly.</p>
+<ul class="simple">
+<li>If you used <tt class="docutils literal">s2e_disable_all_apic_interrupts</tt>, you probably forgot an <tt class="docutils literal">s2e_enable_all_apic_interrupts</tt> call somewhere in your code.
+Use this functionality with care, disabling interrupts can easily hang your guest OS.</li>
+<li>Some constraints are hard to solve. Set a timeout in the constraint solver with <tt class="docutils literal"><span class="pre">--use-forked-stp</span></tt> and <tt class="docutils literal"><span class="pre">--max-stp-time=TimeoutInSeconds</span></tt>.
+If you do not see the &quot;Firing timer event&quot; message periodically in the <tt class="docutils literal">debug.txt</tt> log file, execution got stuck in the
+constraint solver.</li>
+<li>By default, S2E flushes the translation block cache on every state switch.
+S2E does not implement copy-on-write for this cache, therefore it must flush
+the cache to ensure correct execution. Flushing avoids clobbering in case
+there are two paths that execute different pieces of code loaded at the same memory locations.
+Flushing is <em>very</em> expensive in case of frequent state switches. In most of the cases, flushing is not necessary, e.g., if you
+execute a program that does not use self-modifying code or frequently loads/unloads libraries. In this case,
+use the <tt class="docutils literal"><span class="pre">--flush-tbs-on-state-switch=false</span></tt> option.</li>
+<li>Make sure your VM image is minimal for the components you want to test. In most cases, it should not have swap enabled
+and all unnecessary background deamons should be disabled. Refer to the <a class="reference external" href="ImageInstallation.html">image installation</a> tutorial for
+more information.</li>
+</ul>
+<p>Second, throw hardware at your problem</p>
+<ul class="simple">
+<li>Refer to the &quot;<a class="reference external" href="Howtos/Parallel.html">How to run S2E on multiple cores</a>&quot; tutorial for instructions.</li>
+</ul>
+<p>Third, use S2E to <em>selectively</em> relax and/or overconstrain path constraints.</p>
+<ul class="simple">
+<li>Understanding what to select can be made considerably easier if you <a class="reference external" href="Howtos/Debugging.html">attach a debugger</a> to the S2E instance.</li>
+<li>Check that the module under analysis is not doing unnecessary calls with symbolic arguments (e.g., <tt class="docutils literal">printf</tt>).
+Use the <tt class="docutils literal">s2e_get_example_*</tt> functions to provide a concrete value to <tt class="docutils literal">printf</tt>  without actually adding path
+constraints, to avoid disabling future paths. Unless a program reads the output of <tt class="docutils literal">printf</tt> and takes decisions
+based on it, not adding constraints will not affect execution consistency from the point of view of the module under analysis.</li>
+<li>If you use a depth-first search and execution hits a polling loop, rapid forking may occur and execution may never exit the loop.
+Moreover, depending on the accumulated constraints, each iteration may be slower and slower.
+Try to use a different search strategy or kill unwanted execution paths.</li>
+<li>Try to relax path constraints. For example, there may be a branch that causes a bottleneck. Use the <em>Annotation</em> plugin to intercept
+that branch instruction and overwrite the branch condition with an unconstrained value. This trades execution consistency
+for execution speed. Unconstraining execution may create paths that cannot occur in real executions (i.e., false positives), but as long as there
+are few of them, or you can detect them a posteriori, this is an acceptable trade-off.</li>
+</ul>
+</div>
+<div class="section" id="how-do-i-deal-with-path-explosion">
+<h2>1.3&nbsp;&nbsp;&nbsp;How do I deal with path explosion?</h2>
+<p>Use S2E to <em>selectively</em> kill paths that are not interesting and prevent forking outside modules of interest.
+The following describes concrete steps that allowed us to explore programs most efficiently.</p>
+<ol class="arabic simple">
+<li>Run your program with minimum symbolic input (e.g., 1 byte) and with tracing enabled (see first section).</li>
+<li>Insert more and more symbolic values until path explosion occurs (i.e., it takes too long for you to explore all the paths
+or it takes too much memory/CPU resources).</li>
+<li>Extract the fork profile and identify the code locations that fork the most.</li>
+<li>If forking occurs outside the module of interest, the following may help:<ul>
+<li>Use the CodeSelector plugin to disable forking when execution leaves the module of interest</li>
+<li>Concretize some symbolic values when execution leaves the module of interest. You may need to use the <tt class="docutils literal">FunctionMonitor</tt> plugin
+to track function calls and concretize parameters.</li>
+<li>Provide example values to library functions (e.g., to <tt class="docutils literal">printf</tt>, as described previously)</li>
+</ul>
+</li>
+<li>Kill the paths that you are not interested in:<ul>
+<li>You may only want to explore error-free paths. For example, kill all those where library functions fail.</li>
+<li>You may only be interested in error recovery code. In this case, kill all the paths in which no errors occur.</li>
+<li>Write a custom plugin that probes the program's state to decide when to kill the path.</li>
+<li>If you exercise multiple entry points of a library (e.g., a device driver), it may make sense to choose only
+one successful path when an entry point exits and kill all the others. Use the <a class="reference external" href="Plugins/StateManager.html">StateManager</a> plugin to suspend
+the execution of all paths that returned from a library function until one return succeeds.</li>
+<li>Kill back-edges of polling loops using the <a class="reference external" href="Plugins/EdgeKiller.html">EdgeKiller</a> plugin. You can also use
+this plugin when execution enters some block of code (e.g., error recovery).</li>
+</ul>
+</li>
+<li>Prioritize paths according to a metric that makes sense for your problem.
+This may be done by writing a custom state searcher plugin. S2E comes with several examples of searchers that aim to maximize code coverage
+as fast as possible.</li>
+</ol>
+</div>
+<div class="section" id="how-to-keep-memory-usage-low">
+<h2>1.4&nbsp;&nbsp;&nbsp;How to keep memory usage low?</h2>
+<p>You can use several options, depending on your needs.</p>
+<ul class="simple">
+<li>Enable the shared framebuffer. By default, each state writes to its own framebuffer, which
+may add up to several megabytes to each state. However, it often does not matter what appears on
+the screen. In such case, use the <tt class="docutils literal"><span class="pre">--state-shared-memory=true</span></tt> option.</li>
+<li>Disable forking when a memory limit is reached
+using the following KLEE options: <tt class="docutils literal"><span class="pre">--max-memory-inhibit</span></tt> and  <tt class="docutils literal"><span class="pre">--max-memory=MemoryLimitInMB</span></tt>.</li>
+<li>Explicitly kill unneeded paths. For example, if you want to achieve high code coverage and
+know that some path is unlikely to cover any new code, kill it.</li>
+</ul>
+</div>
+<div class="section" id="how-much-time-is-the-constraint-solver-taking-to-solve-constraints">
+<h2>1.5&nbsp;&nbsp;&nbsp;How much time is the constraint solver taking to solve constraints?</h2>
+<p>Enable logging for constraint solving queries:</p>
+<pre class="literal-block">
+s2e = {
+ kleeArgs = {
+   &quot;--use-query-log&quot;, &quot;--use-query-pc-log&quot;,  &quot;--use-stp-query-pc-log&quot;
+}
+</pre>
+<p>With this configuration S2E generates two logs: <tt class="docutils literal"><span class="pre">s2e-last/queries.pc</span></tt> and <tt class="docutils literal"><span class="pre">s2e-last/stp-queries.qlog</span></tt>.
+Look for &quot;Elapsed time&quot; in the logs.</p>
+</div>
+<div class="section" id="what-do-the-various-fields-in-run-stats-mean">
+<h2>1.6&nbsp;&nbsp;&nbsp;What do the various fields in <tt class="docutils literal">run.stats</tt> mean?</h2>
+<p>You can open <tt class="docutils literal">run.stats</tt> in a spreadsheet as a CVS file.
+Most of the fields are self-explanatory. Here are the trickiest ones:</p>
+<ul class="simple">
+<li><tt class="docutils literal">QueryTime</tt> shows how much time KLEE spent in the STP solver.</li>
+<li><tt class="docutils literal">CexCacheTime</tt> adds to that time also the time spent while looking
+for a solution in a counter-example cache (which is enabled by <tt class="docutils literal"><span class="pre">--use-cex-cache</span></tt> KLEE option).
+SolverTime shows how much time KLEE spent in total while solving queries
+(this includes all the solver optimizations that could be enabled by various solver-related KLEE options).</li>
+<li><tt class="docutils literal">ResolveTime</tt> represents time that KLEE spent resolving symbolic
+memory addresses, however in S2E this is not computed correctly yet.</li>
+<li><tt class="docutils literal">ForkTime</tt> shows how much time KLEE spent on forking states.</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="FAQ.rst">View document source</a>.
+
+</div>
+</body>
+</html>

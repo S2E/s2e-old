@@ -153,7 +153,7 @@ namespace {
     cl::opt<bool>
     FlushTBsOnStateSwitch("flush-tbs-on-state-switch",
             cl::desc("Flush translation blocks when switching states -"
-                     " disabling leads to faster but incorrect execution"),
+                     " disabling leads to faster but possibly incorrect execution"),
             cl::init(true));
 
     cl::opt<bool>
@@ -566,7 +566,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
                             InterpreterHandler *ie)
         : Executor(opts, ie, tcgLLVMContext->getExecutionEngine()),
           m_s2e(s2e), m_tcgLLVMContext(tcgLLVMContext),
-          m_executeAlwaysKlee(false)
+          m_executeAlwaysKlee(false), m_forkProcTerminateCurrentState(false)
 {
     delete externalDispatcher;
     externalDispatcher = new S2EExternalDispatcher(
@@ -725,13 +725,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
     kmodule->updateModuleWithFunction(dummyMain);
 
-    if(StatsTracker::useStatistics()) {
-        statsTracker =
-                new S2EStatsTracker(*this,
-                    interpreterHandler->getOutputFilename("assembly.ll"),
-                    userSearcherRequiresMD2U());
-        statsTracker->writeHeaders();
-    }
+    initializeStatistics();
 
     m_tcgLLVMContext->initializeHelpers();
 
@@ -765,6 +759,18 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     g_s2e_concretize_io_addresses = ConcretizeIoAddress;
     g_s2e_concretize_io_writes = ConcretizeIoWrites;
 }
+
+void S2EExecutor::initializeStatistics()
+{
+    if(StatsTracker::useStatistics()) {
+        statsTracker =
+                new S2EStatsTracker(*this,
+                    interpreterHandler->getOutputFilename("assembly.ll"),
+                    userSearcherRequiresMD2U());
+        statsTracker->writeHeaders();
+    }
+}
+
 
 S2EExecutor::~S2EExecutor()
 {
@@ -1576,6 +1582,14 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
     //int64_t inst_clock = get_clock() - start_clock;
     //cpu_adjust_clock(- inst_clock*(1-0.02));
 
+    //Handle the case where we killed the current state inside processFork
+    if (m_forkProcTerminateCurrentState) {
+        state->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
+        m_forkProcTerminateCurrentState = false;
+        throw CpuExitException();
+    }
+
+
     if(shouldExitCpu)
         throw CpuExitException();
 }
@@ -1612,7 +1626,36 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 }
 
 #ifdef _WIN32
-extern "C" int g_timer_ticks_enabled;
+
+extern "C" volatile LONG g_signals_enabled;
+
+typedef int sigset_t;
+
+static void s2e_disable_signals(sigset_t *oldset)
+{
+    while(InterlockedCompareExchange(&g_signals_enabled, 0, 1) == 0)
+       ;
+}
+
+static void s2e_enable_signals(sigset_t *oldset)
+{
+    g_signals_enabled = 1;
+}
+
+#else
+
+static void s2e_disable_signals(sigset_t *oldset)
+{
+    sigset_t set;
+    sigfillset(&set);
+    sigprocmask(SIG_BLOCK, &set, oldset);
+}
+
+static void s2e_enable_signals(sigset_t *oldset)
+{
+    sigprocmask(SIG_SETMASK, oldset, NULL);
+}
+
 #endif
 
 uintptr_t S2EExecutor::executeTranslationBlockKlee(
@@ -1669,8 +1712,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* The next should be atomic with respect to signals */
                 /* XXX: what else should we block ? */
 #ifdef _WIN32
-#warning This is not tested yet...
-                g_timer_ticks_enabled = 0;
+                //Timers can run in different threads...
+                s2e_disable_signals(NULL);
 #else
                 sigset_t set, oldset;
                 sigfillset(&set);
@@ -1696,7 +1739,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 #ifdef _WIN32
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
                     cleanupTranslationBlock(state, tb);
-                    g_timer_ticks_enabled = 1;
+                    s2e_enable_signals(NULL);
                     break;
 #else
                     assert(old_tb->s2e_tb_next[tcg_llvm_runtime.goto_tb] == tb);
@@ -1709,7 +1752,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
                 /* the block was unchained by signal handler */
                 tcg_llvm_runtime.goto_tb = 0xff;
 #ifdef _WIN32
-                g_timer_ticks_enabled = 1;
+                s2e_enable_signals(NULL);
 #else
                 sigprocmask(SIG_SETMASK, &oldset, NULL);
 #endif
@@ -1789,37 +1832,6 @@ static inline void s2e_tb_reset_jump(TranslationBlock *tb, unsigned int n)
     }
 }
 
-#ifdef _WIN32
-
-#warning Implement signal enabling/disabling...
-
-typedef int sigset_t;
-
-static void s2e_disable_signals(sigset_t *oldset)
-{
-
-}
-
-static void s2e_enable_signals(sigset_t *oldset)
-{
-
-}
-
-#else
-
-static void s2e_disable_signals(sigset_t *oldset)
-{
-    sigset_t set;
-    sigfillset(&set);
-    sigprocmask(SIG_BLOCK, &set, oldset);
-}
-
-static void s2e_enable_signals(sigset_t *oldset)
-{
-    sigprocmask(SIG_SETMASK, oldset, NULL);
-}
-
-#endif
 
 //XXX: inline causes compiler internal errors
 static void s2e_tb_reset_jump_smask(TranslationBlock* tb, unsigned int n,
@@ -2007,6 +2019,68 @@ void S2EExecutor::deleteState(klee::ExecutionState *state)
     m_deletedStates.push_back(static_cast<S2EExecutionState*>(state));
 }
 
+void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
+                                const vector<S2EExecutionState*>& newStates)
+{
+    int splitIndex = newStates.size() / 2;
+    int low = 0;
+    int high = newStates.size()-1;
+    bool exitLoop = false;
+
+    do {
+        int child = m_s2e->fork();
+        if (child < 0) {
+            //Fork did not succeed
+            break;
+        }
+
+        if (child == 1) {
+	    //Only send notification to the children
+            m_s2e->getCorePlugin()->onProcessFork.emit();
+
+            //Delete all the states before
+            m_s2e->getDebugStream() << "Deleting before i=" << low << " splitIndex=" << splitIndex << std::endl;
+
+            for (int i=low; i<splitIndex; ++i) {
+                if (newStates[i] == originalState) {
+                    m_s2e->getDebugStream() << "came across origstate" << std::endl;
+                    exitLoop = true;
+                }
+                m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
+                Executor::terminateState(*newStates[i]);
+            }
+  
+            low = splitIndex;
+            splitIndex = (high - splitIndex) / 2 + splitIndex;
+            if (high == splitIndex) {
+                break;
+            }
+        }else {
+            //Delete all the states after
+            m_s2e->getDebugStream() << "Deleting after i=" << splitIndex << " high=" << high << std::endl;
+            for (int i=splitIndex; i<=high; ++i) {
+                if (newStates[i] == originalState) {
+                    m_s2e->getDebugStream() << "came across origstate" << std::endl;
+                    exitLoop = true;
+                }
+                m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
+                Executor::terminateState(*newStates[i]);
+            }
+            high = splitIndex-1;
+            splitIndex = (splitIndex - low) / 2;
+
+            if (splitIndex == low) {
+                break;
+            }
+        }
+    }while(1);
+
+    if (exitLoop) {
+        assert(originalState = g_s2e_state);
+        m_forkProcTerminateCurrentState = true;
+    }
+}
+
 void S2EExecutor::doStateFork(S2EExecutionState *originalState,
                  const vector<S2EExecutionState*>& newStates,
                  const vector<ref<Expr> >& newConditions)
@@ -2060,20 +2134,18 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,
                                              newStates, newConditions);
+
+    doProcessFork(originalState, newStates);
 }
 
 S2EExecutor::StatePair S2EExecutor::fork(ExecutionState &current,
                             ref<Expr> condition, bool isInternal)
 {
-    static int count=0;
     assert(dynamic_cast<S2EExecutionState*>(&current));
     assert(!static_cast<S2EExecutionState*>(&current)->m_runningConcrete);
 
     StatePair res = Executor::fork(current, condition, isInternal);
     if(res.first && res.second) {
-        if (++count == 10) {
-//        exit(-1);
-        }
 
         assert(dynamic_cast<S2EExecutionState*>(res.first));
         assert(dynamic_cast<S2EExecutionState*>(res.second));
@@ -2118,9 +2190,10 @@ void S2EExecutor::branch(klee::ExecutionState &state,
         }
     }
 
-    if(newStates.size() > 1)
+    if(newStates.size() > 1) {
         doStateFork(static_cast<S2EExecutionState*>(&state),
                        newStates, newConditions);
+    }
 }
 
 bool S2EExecutor::merge(klee::ExecutionState &_base, klee::ExecutionState &_other)

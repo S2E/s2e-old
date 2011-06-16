@@ -13,8 +13,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <sys/time.h>
+#endif
 #include <time.h>
 
 #include "klee/klee.h"

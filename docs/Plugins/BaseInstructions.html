@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>BaseInstructions</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="baseinstructions">
+<h1 class="title">BaseInstructions</h1>
+
+<p>This plugin implements various custom instructions to control the behavior of symbolic execution from within the guest OS.
+S2E extends the x86 instruction set with a custom opcode. This opcode takes an 8-bytes operand
+that is passed to plugins that listen for custom instructions. The content of the operand is plugin specific.</p>
+<pre class="literal-block">
+#S2E custom instruction format
+0f 3f XX XX YY YY YY YY YY YY
+
+XX: 16-bit instruction code. Each plugin should have a unique one.
+YY: 6-bytes operands. Freely defined by the instruction code.
+</pre>
+<p><tt class="docutils literal">s2e.h</tt> defines a basic set of custom instructions. You can extend this by assigning an unused instruction code
+to your custom instruction. S2E does not track instruction code allocation. S2E calls all the plugins that listen for
+a custom opcode in the order of their registration.</p>
+<div class="section" id="creating-symbolic-values-and-concretizing-them">
+<h1>Creating symbolic values and concretizing them</h1>
+<div class="highlight"><pre><span class="cm">/** Make the content of the specified buffer symbolic */</span>
+<span class="kt">void</span> <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">name</span><span class="p">);</span>
+
+
+<span class="cm">/** Concretize the expression</span>
+<span class="cm">/** This function adds path constraints */</span>
+<span class="kt">void</span> <span class="n">s2e_concretize</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">);</span>
+
+
+<span class="cm">/** Get an example value for the expression stored in buf */</span>
+<span class="cm">/** This function does NOT add path constraints. */</span>
+<span class="kt">void</span> <span class="n">s2e_get_example</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">buf</span><span class="p">,</span> <span class="kt">int</span> <span class="n">size</span><span class="p">);</span>
+
+
+<span class="cm">/** Return an example value for the expression passed in val */</span>
+<span class="cm">/** It is meant to be used in printf-like functions*/</span>
+<span class="kt">unsigned</span> <span class="n">s2e_get_example_uint</span><span class="p">(</span><span class="kt">unsigned</span> <span class="n">val</span><span class="p">);</span>
+</pre></div>
+</div>
+<div class="section" id="controlling-path-exploration">
+<h1>Controlling path exploration</h1>
+<p>These functions control the path exploration from within the guest.
+The guest can enable/disable forking as well as kill states at any point in the code.
+When forking is disabled, S2E follows only one branch outcome, even if
+both outcomes are feasible.</p>
+<div class="highlight"><pre><span class="cm">/** Enable forking on symbolic conditions. */</span>
+<span class="kt">void</span> <span class="n">s2e_enable_forking</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span>
+
+<span class="cm">/** Disable forking on symbolic conditions. */</span>
+<span class="kt">void</span> <span class="n">s2e_disable_forking</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span>
+
+<span class="cm">/** Terminate current state. */</span>
+<span class="kt">void</span> <span class="n">s2e_kill_state</span><span class="p">(</span><span class="kt">int</span> <span class="n">status</span><span class="p">,</span> <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">message</span><span class="p">)</span>
+
+<span class="cm">/** Get the current execution path/state id. */</span>
+<span class="kt">unsigned</span> <span class="n">s2e_get_path_id</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span>
+</pre></div>
+</div>
+<div class="section" id="printing-messages">
+<h1>Printing messages</h1>
+<p>These custom instructions allow you to print messages and symbolic values
+to the S2E log file. This is useful for debugging.</p>
+<div class="highlight"><pre><span class="cm">/** Print a message to the S2E log. */</span>
+<span class="kt">void</span> <span class="n">s2e_message</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">message</span><span class="p">);</span>
+
+<span class="cm">/** Print a warning to the S2E log and S2E stdout. */</span>
+<span class="kt">void</span> <span class="n">s2e_warning</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">message</span><span class="p">);</span>
+
+<span class="cm">/** Print a symbolic expression to the S2E log. */</span>
+<span class="kt">void</span> <span class="n">s2e_print_expression</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">message</span><span class="p">,</span> <span class="kt">int</span> <span class="n">expression</span><span class="p">);</span>
+</pre></div>
+</div>
+<div class="section" id="s2e-configuration">
+<h1>S2E configuration</h1>
+<div class="highlight"><pre><span class="cm">/** Get S2E version or 0 when running without S2E. */</span>
+<span class="kt">int</span> <span class="n">s2e_version</span><span class="p">();</span>
+
+
+<span class="cm">/** Get the current S2E_RAM_OBJECT_BITS configuration macro */</span>
+<span class="kt">int</span> <span class="n">s2e_get_ram_object_bits</span><span class="p">();</span>
+</pre></div>
+</div>
+<div class="section" id="controlling-interrupt-behavior">
+<h1>Controlling interrupt behavior</h1>
+<p>These functions allow to speed up execution in some circumstances by
+limiting the number of concrete/symbolic switches. <em>They can easily hang
+your system. Use with care.</em></p>
+<div class="highlight"><pre><span class="cm">/** Disable timer interrupt in the guest. */</span>
+<span class="kt">void</span> <span class="n">s2e_disable_timer_interrupt</span><span class="p">();</span>
+
+
+<span class="cm">/** Enable timer interrupt in the guest. */</span>
+<span class="kt">void</span> <span class="n">s2e_enable_timer_interrupt</span><span class="p">();</span>
+
+
+<span class="cm">/** Disable all APIC interrupts in the guest. */</span>
+<span class="kt">void</span> <span class="n">s2e_disable_all_apic_interrupts</span><span class="p">();</span>
+
+
+<span class="cm">/** Enable all APIC interrupts in the guest. */</span>
+<span class="kt">void</span> <span class="n">s2e_enable_all_apic_interrupts</span><span class="p">();</span>
+</pre></div>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="BaseInstructions.rst">View document source</a>.
+
+</div>
+</body>
+</html>

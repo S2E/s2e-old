@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<title>EdgeKiller</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="edgekiller">
+<h1 class="title">EdgeKiller</h1>
+
+<p>The EdgeKiller plugin looks for the execution of a sequence of program counters and kills all the paths where this sequence occurs.
+This is useful to kill polling loops.</p>
+<div class="section" id="options">
+<h1>Options</h1>
+<p>The configuration requires one section per module to be monitored.
+The section name must match the module identifier defined in the configuration section of
+the <a class="reference external" href="../ModuleExecutionDetector.html">ModuleExecutionDetector</a> plugin.
+Each section contains a list of named pairs of program counters that define the program edges.
+All program counters are relative to the native load base of the module. The name of each pair is not important, but must be unique.</p>
+</div>
+<div class="section" id="required-plugins">
+<h1>Required Plugins</h1>
+<ul class="simple">
+<li><a class="reference external" href="../ModuleExecutionDetector.html">ModuleExecutionDetector</a></li>
+</ul>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<p>The following example shows how to kill the polling loops in the <cite>pcntpci5.sys</cite> device driver.
+Each pair of addresses represents the source and the target of a polling loop back-edge.
+Refer to the <a class="reference external" href="../Windows/DriverTutorial.html">Windows driver testing</a> tutorial for more detailed examples.</p>
+<pre class="literal-block">
+pluginsConfig.EdgeKiller = {
+    pcntpci5_sys_1 = {
+        l1 = {0x14040, 0x1401d},
+        l2 = {0x139c2, 0x13993},
+        l3 = {0x14c84, 0x14c5e}
+   }
+}
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="EdgeKiller.rst">View document source</a>.
+
+</div>
+</body>
+</html>

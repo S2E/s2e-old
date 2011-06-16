@@ -111,12 +111,13 @@ protected:
 
     bool m_forceConcretizations;
 
+    bool m_forkProcTerminateCurrentState;
+
 public:
     S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLVMContext,
                 const InterpreterOptions &opts,
                 klee::InterpreterHandler *ie);
     virtual ~S2EExecutor();
-
 
     /** Create initial execution state */
     S2EExecutionState* createInitialState();
@@ -240,6 +241,8 @@ public:
 
     void queueStateForMerge(S2EExecutionState *state);
 
+    void initializeStatistics();
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,
@@ -280,6 +283,10 @@ protected:
     void doStateFork(S2EExecutionState *originalState,
                      const std::vector<S2EExecutionState*>& newStates,
                      const std::vector<klee::ref<klee::Expr> >& conditions);
+
+    void doProcessFork(S2EExecutionState *originalState,
+                       const std::vector<S2EExecutionState*>& newStates);
+
 
     /** Copy concrete values to their proper location, concretizing
         if necessary (most importantly it will concretize CPU registers.

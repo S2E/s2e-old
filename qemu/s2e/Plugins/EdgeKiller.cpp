@@ -41,27 +41,27 @@
 
 #include <sstream>
 
-#include "PollingLoopDetector.h"
+#include "EdgeKiller.h"
 
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(PollingLoopDetector, "Kills states stuck in a polling loop", "PollingLoopDetector",
+S2E_DEFINE_PLUGIN(EdgeKiller, "Kills states when a specified sequence of instructions has been executed", "EdgeKiller",
                   "ModuleExecutionDetector", "Interceptor");
 
-void PollingLoopDetector::initialize()
+void EdgeKiller::initialize()
 {
     m_detector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
     m_monitor = (OSMonitor*)s2e()->getPlugin("Interceptor");
 
     m_monitor->onModuleLoad.connect(
             sigc::mem_fun(*this,
-                    &PollingLoopDetector::onModuleLoad)
+                    &EdgeKiller::onModuleLoad)
             );
 
     m_monitor->onModuleUnload.connect(
             sigc::mem_fun(*this,
-                    &PollingLoopDetector::onModuleUnload)
+                    &EdgeKiller::onModuleUnload)
             );
 
 
@@ -71,18 +71,18 @@ void PollingLoopDetector::initialize()
 /**
  *  Read the config section of the module
  */
-void PollingLoopDetector::onModuleLoad(
+void EdgeKiller::onModuleLoad(
         S2EExecutionState* state,
         const ModuleDescriptor &module
         )
 {
-    DECLARE_PLUGINSTATE(PollingLoopDetectorState, state);
+    DECLARE_PLUGINSTATE(EdgeKillerState, state);
 
     ConfigFile *cfg = s2e()->getConfig();
     const std::string *id = m_detector->getModuleId(module);
 
     if (!id) {
-        s2e()->getDebugStream() << "PollingLoopDetector could not figure out which "
+        s2e()->getDebugStream() << "EdgeKiller could not figure out which "
                 "module id was passed to onModuleLoad!" << std::endl;
         module.Print(s2e()->getDebugStream());
         return;
@@ -95,7 +95,7 @@ void PollingLoopDetector::onModuleLoad(
     ConfigFile::string_list pollingEntries = cfg->getListKeys(ss.str());
 
     if (pollingEntries.size() == 0) {
-        s2e()->getWarningsStream() << "PollingLoopDetector did not find any configured entry for "
+        s2e()->getWarningsStream() << "EdgeKiller did not find any configured entry for "
                 "the module " << *id <<  "(" << ss.str() << ")" << std::endl;
         return;
     }
@@ -105,7 +105,7 @@ void PollingLoopDetector::onModuleLoad(
         ss1 << ss.str() << "." << *it;
         ConfigFile::integer_list il = cfg->getIntegerList(ss1.str());
         if (il.size() != 2) {
-            s2e()->getWarningsStream() << "PollingLoopDetector entry " << ss1.str() <<
+            s2e()->getWarningsStream() << "EdgeKiller entry " << ss1.str() <<
                     " must be of the form {sourcePc, destPc} format" << *id << std::endl;
             continue;
         }
@@ -113,13 +113,13 @@ void PollingLoopDetector::onModuleLoad(
         bool ok = false;
         uint64_t source = cfg->getInt(ss1.str() + "[1]", 0, &ok);
         if (!ok) {
-            s2e()->getWarningsStream() << "PollingLoopDetector could not read " << ss1.str() << "[0]" << std::endl;
+            s2e()->getWarningsStream() << "EdgeKiller could not read " << ss1.str() << "[0]" << std::endl;
             continue;
         }
 
         uint64_t dest = cfg->getInt(ss1.str() + "[2]", 0, &ok);
         if (!ok) {
-            s2e()->getWarningsStream() << "PollingLoopDetector could not read " << ss1.str() << "[1]" << std::endl;
+            s2e()->getWarningsStream() << "EdgeKiller could not read " << ss1.str() << "[1]" << std::endl;
             continue;
         }
 
@@ -128,35 +128,35 @@ void PollingLoopDetector::onModuleLoad(
         dest = module.ToRuntime(dest);
 
         //Insert in the state
-        plgState->addEntry(source, dest);
+        plgState->addEdge(source, dest);
     }
 
     if (!m_connection.connected()) {
         m_connection = m_detector->onModuleTranslateBlockEnd.connect(
                 sigc::mem_fun(*this,
-                        &PollingLoopDetector::onModuleTranslateBlockEnd)
+                        &EdgeKiller::onModuleTranslateBlockEnd)
                 );
     }
 
 
 }
 
-void PollingLoopDetector::onModuleUnload(
+void EdgeKiller::onModuleUnload(
         S2EExecutionState* state,
         const ModuleDescriptor &module
         )
 {
-    DECLARE_PLUGINSTATE(PollingLoopDetectorState, state);
+    DECLARE_PLUGINSTATE(EdgeKillerState, state);
 
     //Remove all the polling entries that belong to the module
-    PollingLoopDetectorState::PollingEntries &entries =
+    EdgeKillerState::EdgeEntries &entries =
             plgState->getEntries();
 
-    PollingLoopDetectorState::PollingEntries::iterator it1, it2;
+    EdgeKillerState::EdgeEntries::iterator it1, it2;
 
     it1 = entries.begin();
     while(it1 != entries.end()) {
-        const PollingLoopDetectorState::PollingEntry &e = *it1;
+        const EdgeKillerState::Edge &e = *it1;
         if (module.Contains(e.source)) {
             it2 = it1;
             ++it2;
@@ -173,7 +173,7 @@ void PollingLoopDetector::onModuleUnload(
 /**
  *  Instrument only the blocks where we want to kill the state.
  */
-void PollingLoopDetector::onModuleTranslateBlockEnd(
+void EdgeKiller::onModuleTranslateBlockEnd(
         ExecutionSignal *signal,
         S2EExecutionState* state,
         const ModuleDescriptor &module,
@@ -182,23 +182,23 @@ void PollingLoopDetector::onModuleTranslateBlockEnd(
         bool staticTarget,
         uint64_t targetPc)
 {
-    DECLARE_PLUGINSTATE(PollingLoopDetectorState, state);
+    DECLARE_PLUGINSTATE(EdgeKillerState, state);
 
     //If the target instruction is a kill point, connect the killer.
-    if (plgState->isPolling(endPc)) {
+    if (plgState->isEdge(endPc)) {
         signal->connect(
-            sigc::mem_fun(*this, &PollingLoopDetector::onPollingInstruction)
+            sigc::mem_fun(*this, &EdgeKiller::onEdge)
         );
     }
 }
 
 
-void PollingLoopDetector::onPollingInstruction(S2EExecutionState* state, uint64_t sourcePc)
+void EdgeKiller::onEdge(S2EExecutionState* state, uint64_t sourcePc)
 {
-    DECLARE_PLUGINSTATE(PollingLoopDetectorState, state);
-    if (plgState->isPolling(sourcePc, state->getPc())) {
+    DECLARE_PLUGINSTATE(EdgeKillerState, state);
+    if (plgState->isEdge(sourcePc, state->getPc())) {
         std::ostringstream ss;
-        ss << "Polling loop from 0x" <<std::hex << sourcePc << " to 0x"
+        ss << "Edge from 0x" <<std::hex << sourcePc << " to 0x"
                 << state->getPc();
 
         s2e()->getMessagesStream(state) << ss.str() << std::endl;
@@ -209,60 +209,60 @@ void PollingLoopDetector::onPollingInstruction(S2EExecutionState* state, uint64_
 
 ///////////////////////////////////////////////////////////////////////////
 
-PollingLoopDetectorState::PollingLoopDetectorState()
+EdgeKillerState::EdgeKillerState()
 {
 
 }
 
-PollingLoopDetectorState::PollingLoopDetectorState(S2EExecutionState *s, Plugin *p)
+EdgeKillerState::EdgeKillerState(S2EExecutionState *s, Plugin *p)
 {
 
 }
 
-PollingLoopDetectorState::~PollingLoopDetectorState()
+EdgeKillerState::~EdgeKillerState()
 {
 
 }
 
-PluginState *PollingLoopDetectorState::clone() const
+PluginState *EdgeKillerState::clone() const
 {
-    return new PollingLoopDetectorState(*this);
+    return new EdgeKillerState(*this);
 }
 
-PluginState *PollingLoopDetectorState::factory(Plugin *p, S2EExecutionState *s)
+PluginState *EdgeKillerState::factory(Plugin *p, S2EExecutionState *s)
 {
-    return new PollingLoopDetectorState();
+    return new EdgeKillerState();
 }
 
-PollingLoopDetectorState::PollingEntries &PollingLoopDetectorState::getEntries()
+EdgeKillerState::EdgeEntries &EdgeKillerState::getEntries()
 {
-    return m_pollingEntries;
+    return m_edges;
 }
 
-void PollingLoopDetectorState::addEntry(uint64_t source, uint64_t dest)
+void EdgeKillerState::addEdge(uint64_t source, uint64_t dest)
 {
-    PollingEntry pe;
+    Edge pe;
     pe.source = source;
     pe.dest = dest;
-    m_pollingEntries.insert(pe);
+    m_edges.insert(pe);
 }
 
-bool PollingLoopDetectorState::isPolling(uint64_t source) const
+bool EdgeKillerState::isEdge(uint64_t source) const
 {
-    PollingEntry pe;
+    Edge pe;
     pe.source = source;
-    return m_pollingEntries.find(pe) != m_pollingEntries.end();
+    return m_edges.find(pe) != m_edges.end();
 }
 
-bool PollingLoopDetectorState::isPolling(uint64_t source, uint64_t dest) const
+bool EdgeKillerState::isEdge(uint64_t source, uint64_t dest) const
 {
-    PollingEntry pe;
+    Edge pe;
     pe.source = source;
     pe.dest = dest;
 
     //For now we assume unique source in the list
-    PollingEntries::const_iterator it = m_pollingEntries.find(pe);
-    if (it != m_pollingEntries.end())  {
+    EdgeEntries::const_iterator it = m_edges.find(pe);
+    if (it != m_edges.end())  {
         return pe == *it;
     }
     return false;

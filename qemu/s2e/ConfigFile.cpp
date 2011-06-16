@@ -307,7 +307,7 @@ int ConfigFile::getListSize(const std::string& name, bool *ok)
 
 ConfigFile::string_list ConfigFile::getListKeys(const std::string& name, bool *ok)
 {
-    static const _key_list l;
+    static const _key_list l={std::vector<std::string>(0)};
     return getValueT(name, l, ok).keys;
 }
 
