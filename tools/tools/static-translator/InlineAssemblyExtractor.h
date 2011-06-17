@@ -5,6 +5,7 @@
 #include <llvm/Module.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <llvm/System/Path.h>
 #include <lib/Utils/Log.h>
 
 #include <string>
@@ -23,7 +24,13 @@ private:
 
     bool loadModule();
     void prepareModule();
-    bool output();
+    bool output(const llvm::sys::Path &path);
+
+    const char **createArguments(const std::vector<std::string> &args) const;
+    void destroyArguments(const char ** args);
+
+    bool createAssemblyFile(llvm::sys::Path &outAssemblyFile, const llvm::sys::Path &inBitcodeFile);
+    bool createObjectFile(llvm::sys::Path &outObjectFile, const llvm::sys::Path &inAssemblyFile);
 
 public:
 
