@@ -69,6 +69,8 @@ typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 class S2EExecutionState : public klee::ExecutionState
 {
 protected:
+    friend class S2EExecutor;
+
     static int s_lastStateID;
 
     /** Unique numeric ID for the state */
@@ -122,8 +124,6 @@ protected:
                             klee::ObjectState *newState);
 
 public:
-
-    friend class S2EExecutor;
 
     enum AddressType {
         VirtualAddress, PhysicalAddress, HostAddress

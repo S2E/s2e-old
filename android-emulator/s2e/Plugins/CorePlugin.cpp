@@ -42,7 +42,7 @@ extern "C" {
 
 #ifdef TARGET_ARM
 extern struct CPUARMState *env;
-#elif defined TARGET_I386
+#elif defined(TARGET_I386)
 extern struct CPUX86State *env;
 #endif
 }

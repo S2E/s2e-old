@@ -560,8 +560,6 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
 
     uint64_t mask = 0;
 
-#ifdef TARGET_ARM
-
         if(!os->isConcrete( 29*4, 4*8)) // CF
             mask |= (1 << 1);
         if(!os->isConcrete( 30*4, 4*8)) // VF
@@ -597,24 +595,6 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
                     mask |= (1 << (i+44));
         }
 
-#elif defined(TARGET_I386)
-    for(int i = 0; i < 8; ++i) { /* regs */
-            if(!os->isConcrete(i*4, 4*8))
-                mask |= (1 << (i+5));
-        }
-        if(!os->isConcrete( 8*4, 4*8)) // cc_op
-            mask |= (1 << 1);
-        if(!os->isConcrete( 9*4, 4*8)) // cc_src
-            mask |= (1 << 2);
-        if(!os->isConcrete(10*4, 4*8)) // cc_dst
-            mask |= (1 << 3);
-        if(!os->isConcrete(11*4, 4*8)) // cc_tmp
-            mask |= (1 << 4);
-#else
-	assert(false & "Update Hardcoded masking of symbolic fields of CPUState for your target.");
-#endif
-
-
     return mask;
 }
 
@@ -640,6 +620,11 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
     if(!os->isConcrete(11*4, 4*8)) // cc_tmp
         mask |= (1 << 4);
     return mask;
+}
+#else
+uint64_t S2EExecutionState::getSymbolicRegistersMask() const
+{
+	assert(false & "Update Hardcoded masking of symbolic fields of CPUState for your target.");
 }
 #endif
 

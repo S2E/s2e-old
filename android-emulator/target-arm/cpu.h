@@ -25,6 +25,15 @@
 
 #define CPUState struct CPUARMState
 
+#if defined(CONFIG_USER_ONLY)
+#define TARGET_PAGE_BITS 12
+#else
+/* The ARM MMU allows 1k pages.  */
+/* ??? Linux doesn't actually use these, and they're deprecated in recent
+   architecture revisions.  Maybe a configure option to disable them.  */
+#define TARGET_PAGE_BITS 10
+#endif
+
 #include "cpu-defs.h"
 
 #include "softfloat.h"
@@ -438,15 +447,6 @@ void cpu_arm_set_cp_io(CPUARMState *env, int cpnum,
 #define ARM_CPUID_CORTEXA9    0x410fc090
 #define ARM_CPUID_CORTEXM3    0x410fc231
 #define ARM_CPUID_ANY         0xffffffff
-
-#if defined(CONFIG_USER_ONLY)
-#define TARGET_PAGE_BITS 12
-#else
-/* The ARM MMU allows 1k pages.  */
-/* ??? Linux doesn't actually use these, and they're deprecated in recent
-   architecture revisions.  Maybe a configure option to disable them.  */
-#define TARGET_PAGE_BITS 10
-#endif
 
 #define cpu_init cpu_arm_init
 #define cpu_exec cpu_arm_exec

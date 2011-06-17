@@ -981,6 +981,12 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
               << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
               << ", isSharedConcrete=" << isSharedConcrete << ")" << std::dec << std::endl;
 
+#ifdef DEBUG_TLB
+    qemu_log("ALLOCATE RAM of size=%"PRIu64"\n",size);
+    qemu_log("\t start address: %"PRIx64".\n", startAddress);
+    qemu_log("\t host_address: %"PRIx64".\n", hostAddress);
+#endif
+
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += S2E_RAM_OBJECT_SIZE) {
         std::stringstream ss;
@@ -991,6 +997,17 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
                 *initialState, (void*) addr, S2E_RAM_OBJECT_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete,
                 isSharedConcrete && !saveOnContextSwitch && StateSharedMemory);
+
+#ifdef DEBUG_TLB
+        qemu_log("\t mo address: %"PRIx64".\n", mo);
+
+        //get concrete store just for debugging
+        ObjectPair op = initialState->addressSpace.findObject(addr);
+        ObjectState* wos =
+                initialState->addressSpace.getWriteable(op.first, op.second);
+
+        qemu_log("\t wos->concreteStore  address: %"PRIx64".\n", wos->getConcreteStore());
+#endif
 
         mo->setName(ss.str());
 
@@ -1148,10 +1165,13 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
         ObjectState* wos =
                 state->addressSpace.getWriteable(op.first, op.second);
 
+#ifdef DEBUG_TLB
         qemu_log("WRITE RAM concrete (size=%"PRIu64"):\n",size);
         qemu_log("\t host address: %"PRIx64".\n", hostAddress);
         qemu_log("\t page_address: %"PRIx64".\n", page_addr);
         qemu_log("\t wos  address: %"PRIx64".\n", wos);
+        qemu_log("\t wos->concreteStore  address: %"PRIx64".\n", wos->getConcreteStore());
+#endif
 
         for(uint64_t i=0; i<size; ++i) {
             wos->write8(page_offset+i, buf[i]);
@@ -1437,7 +1457,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     cpu_disable_ticks();
 
-    qemu_log("Switching from state %d to state %d.\n",(oldState ? oldState->getID() : -1), (newState ? newState->getID() : -1));
     m_s2e->getMessagesStream(oldState)
             << "Switching from state " << (oldState ? oldState->getID() : -1)
             << " to state " << (newState ? newState->getID() : -1) << std::endl;

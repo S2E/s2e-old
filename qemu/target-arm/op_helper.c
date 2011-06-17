@@ -174,6 +174,10 @@ uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
 #undef _raw
 #endif
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 /* try to fill the TLB and return an exception if error. If retaddr is
    NULL, it means that the function was called in C code (i.e. not
    from generated code or from helper.c) */
@@ -232,10 +236,6 @@ s2e_on_page_fault(g_s2e, g_s2e_state, addr, is_write);
     if(saved_env != env)
     	env = saved_env;
 }
-#endif
-
-#ifdef CONFIG_S2E
-#include <s2e/s2e_qemu.h>
 #endif
 
 /* FIXME: Pass an axplicit pointer to QF to CPUState, and move saturating

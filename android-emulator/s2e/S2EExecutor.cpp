@@ -981,6 +981,12 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
               << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
               << ", isSharedConcrete=" << isSharedConcrete << ")" << std::dec << std::endl;
 
+#ifdef DEBUG_TLB
+    qemu_log("ALLOCATE RAM of size=%"PRIu64"\n",size);
+    qemu_log("\t start address: %"PRIx64".\n", startAddress);
+    qemu_log("\t host_address: %"PRIx64".\n", hostAddress);
+#endif
+
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += S2E_RAM_OBJECT_SIZE) {
         std::stringstream ss;
@@ -991,6 +997,17 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
                 *initialState, (void*) addr, S2E_RAM_OBJECT_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete,
                 isSharedConcrete && !saveOnContextSwitch && StateSharedMemory);
+
+#ifdef DEBUG_TLB
+        qemu_log("\t mo address: %"PRIx64".\n", mo);
+
+        //get concrete store just for debugging
+        ObjectPair op = initialState->addressSpace.findObject(addr);
+        ObjectState* wos =
+                initialState->addressSpace.getWriteable(op.first, op.second);
+
+        qemu_log("\t wos->concreteStore  address: %"PRIx64".\n", wos->getConcreteStore());
+#endif
 
         mo->setName(ss.str());
 
@@ -1147,6 +1164,15 @@ void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
 
         ObjectState* wos =
                 state->addressSpace.getWriteable(op.first, op.second);
+
+#ifdef DEBUG_TLB
+        qemu_log("WRITE RAM concrete (size=%"PRIu64"):\n",size);
+        qemu_log("\t host address: %"PRIx64".\n", hostAddress);
+        qemu_log("\t page_address: %"PRIx64".\n", page_addr);
+        qemu_log("\t wos  address: %"PRIx64".\n", wos);
+        qemu_log("\t wos->concreteStore  address: %"PRIx64".\n", wos->getConcreteStore());
+#endif
+
         for(uint64_t i=0; i<size; ++i) {
             wos->write8(page_offset+i, buf[i]);
         }
@@ -1165,11 +1191,7 @@ void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
 {
     assert(state->m_active);
     assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
-#ifdef TARGET_ARM
 	assert(offset + size <= CPU_OFFSET(regs[15]));
-#elif defined(TARGET_I386)
-	assert(offset + size <= CPU_OFFSET(eip));
-#endif
 
     if(!state->m_runningConcrete ||
             !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
@@ -1459,7 +1481,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
         uint8_t *oldStore = oldState->m_cpuSystemObject->getConcreteStore();
         memcpy(oldStore, (uint8_t*) cpuMo->address, cpuMo->size);
-
+        oldState->m_active = false;
     }
 
     if(newState) {
@@ -1505,7 +1527,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
         timers_state = *newState->m_timersState;
         qemu_icount = newState->m_qemuIcount;
         newState->getDeviceState()->restoreDeviceState();
-        oldState->m_active = false;
         //copyOutConcretes(*newState);
     }
 
@@ -2158,7 +2179,7 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 
         if(newState != originalState) {
             newState->m_needFinalizeTBExec = true;
-            newState->m_active = true;
+
             newState->getDeviceState()->saveDeviceState();
             newState->m_qemuIcount = qemu_icount;
             *newState->m_timersState = timers_state;
@@ -2690,6 +2711,7 @@ void s2e_update_tlb_entry(S2EExecutionState* state, CPUX86State* env,
 	                      int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
 #endif
+
 #ifdef S2E_ENABLE_S2E_TLB
     assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
     assert( (virtAddr & ~TARGET_PAGE_MASK) == 0 );
