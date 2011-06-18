@@ -238,8 +238,8 @@ stm0:
 
 	mov r10, #0
 @ comment the following two lines to have single-state memory check / multi-state-memory-check
-@	bl symbolic_int
-@    ldr r10, [r8,#0]	@get the symbolic value
+	bl symbolic_int
+    ldr r10, [r8,#0]	@get the symbolic value
 
     cmp r10, #0			@fork state
     beq stm1			@one state enters stm1, the other continues

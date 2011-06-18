@@ -37,6 +37,9 @@
 #ifndef S2E_CONFIG_H
 #define S2E_CONFIG_H
 
+#define STRING2(x) #x
+#define STRING(x) STRING2(x)
+
 /** This defines the size of each MemoryObject that represents physical RAM.
     Larget values save some memory, smaller (exponentially) decrease solving
     time for constraints with symbolic addresses */
@@ -49,5 +52,11 @@
 
 /** Enables simple memory debugging support */
 //#define S2E_DEBUG_MEMORY
+
+#if S2E_RAM_OBJECT_BITS > TARGET_PAGE_BITS
+#pragma message ( "S2E_RAM_OBJECT_BITS: " STRING(S2E_RAM_OBJECT_BITS) )
+#pragma message ( "TARGET_PAGE_BITS: " STRING(TARGET_PAGE_BITS) )
+#error S2E_RAM_OBJECTS should be smaller (or equal to) TARGET_PAGE_BITS
+#endif
 
 #endif // S2E_CONFIG_H

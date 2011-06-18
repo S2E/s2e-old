@@ -62,6 +62,8 @@
 
 #define CPUState struct CPUX86State
 
+#define TARGET_PAGE_BITS 12
+
 #include "cpu-defs.h"
 
 #include "softfloat.h"
@@ -939,8 +941,6 @@ static inline int cpu_get_time_fast(void)
     return low;
 }
 #endif
-
-#define TARGET_PAGE_BITS 12
 
 #define cpu_init cpu_x86_init
 #define cpu_exec cpu_x86_exec

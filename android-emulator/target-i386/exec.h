@@ -45,6 +45,7 @@
 #define TARGET_LONG_BITS 32
 #endif
 
+#include "cpu.h"
 #include "cpu-defs.h"
 #ifdef CONFIG_S2E
 extern struct CPUX86State *env;
@@ -147,7 +148,7 @@ register struct CPUX86State *env asm(AREG0);
 #include "qemu-common.h"
 #include "qemu-log.h"
 
-#include "cpu.h"
+
 #include "exec-all.h"
 
 /* op_helper.c */
