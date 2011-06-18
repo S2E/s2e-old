@@ -15,6 +15,7 @@ SOURCES = StaticTranslator.cpp Passes/RevgenAlias.cpp \
           Passes/FunctionBuilder.cpp Passes/TargetBinary.cpp\
           Passes/CallBuilder.cpp Passes/InstructionInliner.cpp \
           Passes/CallingConvention.cpp Passes/AsmDeinliner.cpp \
+          Passes/AsmNativeAdapter.cpp \
           InlineAssemblyExtractor.cpp
 
 include $(LEVEL)/Makefile.common
