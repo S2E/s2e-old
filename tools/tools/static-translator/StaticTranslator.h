@@ -46,6 +46,7 @@ private:
     BasicBlocks m_functionHeaders;
     CFunctions m_functions;
 
+    AddressSet m_entryPoints;
 
     //Outputs raw x86 translated code here
     std::ostream *m_translatedCode;
@@ -54,17 +55,35 @@ private:
     uint64_t m_startTime;
     uint64_t m_endTime;
 
+    bool m_extractAddresses;
+
     void extractAddresses(llvm::Function *llvmInstruction, bool isIndirectJump);
     bool checkString(uint64_t address, std::string &res, bool isUnicode);
 
 
     void loadLibraries();
 
-    uint64_t getEntryPoint();
+    const AddressSet& getEntryPoints() const {
+        return m_entryPoints;
+    }
 public:
-    StaticTranslatorTool();
+    StaticTranslatorTool(
+            const std::string &inputFile,
+            const std::string &bfdFormat,
+            const std::string &bitCodeLibrary,
+            uint64_t entryPoint,
+            bool ignoreDefaultEntrypoint);
+
     ~StaticTranslatorTool();
-    void translateAllInstructions();
+    void addEntryPoint(uint64_t ep) {
+        m_entryPoints.insert(ep);
+    }
+
+    void setExtractAddresses(bool v) {
+        m_extractAddresses = v;
+    }
+
+    bool translateAllInstructions();
     void computePredecessors();
     void computeFunctionEntryPoints(AddressSet &ret);
     void computeFunctionInstructions(uint64_t entryPoint, AddressSet &instructions);
@@ -75,7 +94,13 @@ public:
 
     void dumpStats();
 
+    BFDInterface *getBfd() const {
+        return m_bfd;
+    }
 
+    X86Translator *getTranslator() const{
+        return m_translator;
+    }
 
 };
 

@@ -134,7 +134,13 @@ LogKey StaticTranslatorTool::TAG = LogKey("StaticTranslatorTool");
 
 bool StaticTranslatorTool::s_translatorInited = false;
 
-StaticTranslatorTool::StaticTranslatorTool()
+StaticTranslatorTool::StaticTranslatorTool(
+       const std::string &inputFile,
+       const std::string &bfdFormat,
+       const std::string &bitCodeLibrary,
+       uint64_t entryPoint,
+       bool ignoreDefaultEntrypoint
+       )
 {
     if (ExpMode) {
         m_experiment = new ExperimentManager(OutputDir, "x2l");
@@ -144,15 +150,16 @@ StaticTranslatorTool::StaticTranslatorTool()
 
     m_startTime = llvm::sys::TimeValue::now().usec();
 
-    m_bfd = new BFDInterface(InputFile, false);
-    if (!m_bfd->initialize(BfdFormat)) {
+    m_bfd = new BFDInterface(inputFile, false);
+    if (!m_bfd->initialize(bfdFormat)) {
         LOGERROR("Could not open " << InputFile << std::endl);
         exit(-1);
     }
 
     m_binary = m_bfd->getBinary();
+    assert(m_binary);
 
-    llvm::sys::Path libraryPath(BitcodeLibrary);
+    llvm::sys::Path libraryPath(bitCodeLibrary);
     m_translator = new X86Translator(libraryPath);
     if (!m_translator->isInitialized()) {
         exit(-1);
@@ -160,6 +167,14 @@ StaticTranslatorTool::StaticTranslatorTool()
     m_translator->setBinaryFile(m_binary);
     m_translator->setSingleStep(true);
     m_translatedCode = m_experiment->getOuputFile("translated.bin");
+
+    if (entryPoint) {
+        m_entryPoints.insert(entryPoint);
+    }else if (!ignoreDefaultEntrypoint) {
+        m_entryPoints.insert(m_binary->getEntryPoint());
+    }
+
+    m_extractAddresses = true;
 
     loadLibraries();
 
@@ -269,16 +284,14 @@ void StaticTranslatorTool::computeFunctionInstructions(uint64_t entryPoint, Addr
     }
 }
 
-void StaticTranslatorTool::translateAllInstructions()
+bool StaticTranslatorTool::translateAllInstructions()
 {
-    uint64_t ep = getEntryPoint();
-
-    if (!ep) {
-        LOGERROR("Could not get entry point of " << InputFile << std::endl);
-        exit(-1);
+    if (m_entryPoints.size() == 0) {
+        LOGERROR("No entry points defined" << std::endl);
+        return false;
     }
 
-    m_addressesToExplore.insert(ep);
+    m_addressesToExplore.insert(m_entryPoints.begin(), m_entryPoints.end());
     while(!m_addressesToExplore.empty()) {
         uint64_t addr = *m_addressesToExplore.begin();
         m_addressesToExplore.erase(addr);
@@ -309,12 +322,14 @@ void StaticTranslatorTool::translateAllInstructions()
             }
         }
 
-        extractAddresses(bblock->getFunction(), bblock->isIndirectJump());
+        if (m_extractAddresses) {
+            extractAddresses(bblock->getFunction(), bblock->isIndirectJump());
+        }
 
     }
 
     LOGINFO("There are " << std::dec << m_translatedInstructions.size() << " instructions" << std::endl);
-
+    return true;
 }
 
 bool StaticTranslatorTool::checkString(uint64_t address, std::string &res, bool isUnicode)
@@ -489,14 +504,6 @@ void StaticTranslatorTool::outputBitcodeFile()
     delete o;
 }
 
-uint64_t StaticTranslatorTool::getEntryPoint()
-{
-    if (EntryPointAddress) {
-        return EntryPointAddress;
-    }else {
-        return m_binary->getEntryPoint();
-    }
-}
 
 void StaticTranslatorTool::dumpStats()
 {
@@ -579,11 +586,12 @@ int main(int argc, char** argv)
             exit(-1);
         }
 
-        InlineAssemblyExtractor asmExtr(InputFile, OutputFile);
+        InlineAssemblyExtractor asmExtr(InputFile, OutputFile, BitcodeLibrary);
         asmExtr.process();
     }else {
 
-        StaticTranslatorTool translator;
+        StaticTranslatorTool translator(InputFile, BfdFormat, BitcodeLibrary,
+                                        EntryPointAddress, false);
         StaticTranslatorTool::AddressSet entryPoints;
 
         translator.translateAllInstructions();

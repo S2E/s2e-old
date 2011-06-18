@@ -7,19 +7,26 @@
 #include <fstream>
 #include <iomanip>
 
+#include <lib/BinaryReaders/BFDInterface.h>
+#include <lib/X86Translator/Translator.h>
 #include "InlineAssemblyExtractor.h"
 #include "Passes/AsmDeinliner.h"
+#include "StaticTranslator.h"
 
 using namespace llvm;
 
 namespace s2etools {
+namespace translator {
 
 LogKey InlineAssemblyExtractor::TAG = LogKey("InlineAssemblyExtractor");
 
 InlineAssemblyExtractor::InlineAssemblyExtractor(const std::string &bitcodeFile,
-                                                 const std::string &outputBitcodeFile) {
+                                                 const std::string &outputBitcodeFile,
+                                                 const std::string &bitcodeLibrary) {
    m_bitcodeFile = bitcodeFile;
    m_outputBitcodeFile = outputBitcodeFile;
+   m_bitcodeLibrary = bitcodeLibrary;
+
    m_module = NULL;
    m_buffer = NULL;
 }
@@ -64,7 +71,7 @@ void InlineAssemblyExtractor::prepareModule()
 }
 
 
-bool InlineAssemblyExtractor::output(const llvm::sys::Path &path)
+bool InlineAssemblyExtractor::output(llvm::Module *module, const llvm::sys::Path &path)
 {
     LOGDEBUG("Writing module to " << path.toString() << std::endl);
 
@@ -76,7 +83,7 @@ bool InlineAssemblyExtractor::output(const llvm::sys::Path &path)
         return false;
     }
 
-    WriteBitcodeToFile(m_module, outputFile);
+    WriteBitcodeToFile(module, outputFile);
 
     outputFile.close();
     return true;
@@ -125,6 +132,7 @@ bool InlineAssemblyExtractor::createAssemblyFile(llvm::sys::Path &outAssemblyFil
     }
 
     std::vector<std::string> argsVec;
+    argsVec.push_back("llc");
     argsVec.push_back("-f");
     argsVec.push_back("-o=" + outAssemblyFile.toString());
     argsVec.push_back(inBitcodeFile.toString());
@@ -156,6 +164,7 @@ bool InlineAssemblyExtractor::createObjectFile(llvm::sys::Path &outObjectFile, c
 
     //Transform the assembly file into an object file
     std::vector<std::string> argsVec;
+    argsVec.push_back("gcc");
     argsVec.push_back("-m32");
     argsVec.push_back("-c");
     argsVec.push_back("-o");
@@ -169,6 +178,7 @@ bool InlineAssemblyExtractor::createObjectFile(llvm::sys::Path &outObjectFile, c
     }
 
     const char **gccArgs = createArguments(argsVec);
+
     llvm::sys::Program gccCompiler;
     gccCompiler.ExecuteAndWait(gcc, gccArgs);
     destroyArguments(gccArgs);
@@ -199,17 +209,19 @@ bool InlineAssemblyExtractor::process()
         LOGERROR("Could not create temporary file" << std::endl);
     }
 
-    if (!output(preparedBitCodeFile)) {
+    if (!output(m_module, preparedBitCodeFile)) {
         return false;
     }
 
 
+    //Create assembly file
     llvm::sys::Path assemblyFile;
     if (!createAssemblyFile(assemblyFile, preparedBitCodeFile)) {
         preparedBitCodeFile.eraseFromDisk();
         return false;
     }
 
+    //Create object file
     llvm::sys::Path objectFile;
     if (!createObjectFile(objectFile, assemblyFile)) {
         assemblyFile.eraseFromDisk();
@@ -221,6 +233,11 @@ bool InlineAssemblyExtractor::process()
     LOGDEBUG("Assembly file: " << assemblyFile.toString() << std::endl);
     LOGDEBUG("Object file: " << objectFile.toString() << std::endl);
 
+    //Translate object file to bitcode
+    if (!translateObjectFile(objectFile)) {
+        return false;
+    }
+
 #if 0
     assemblyFile.eraseFromDisk();
     preparedBitCodeFile.eraseFromDisk();
@@ -230,4 +247,92 @@ bool InlineAssemblyExtractor::process()
     return true;
 }
 
+bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
+{
+    StaticTranslatorTool translator(inObjectFile.toString(), "", m_bitcodeLibrary, 0, true);
+
+    DenseSet<uint64_t> entryPointsInBitcode;
+
+    //Maps the name of the deinlined function to its
+    //address in the binary object file
+    Functions deinlinedFunctions;
+
+    //Fetch all the deinlined function names from the module
+    foreach(fit, m_module->begin(), m_module->end()) {
+        const Function &F = *fit;
+        if (F.getName().startswith("asmdein_")) {
+            deinlinedFunctions[F.getNameStr()] = 0;
+        }
+    }
+
+    //Fetch all the entry points that correspond to deinlined functions
+    BFDInterface *bfd = translator.getBfd();
+
+    asymbol **syms = bfd->getSymbols();
+    unsigned symCount = bfd->getSymbolCount();
+    unsigned foundFunctions = 0;
+
+    for (unsigned i = 0; i<symCount; ++i) {
+        //Strip the leading underscore if necessary
+        std::string name;
+        if (syms[i]->name[0] == '_') {
+            name = &syms[i]->name[1];
+        }else {
+            name = syms[i]->name;
+        }
+
+        Functions::iterator it = deinlinedFunctions.find(name);
+        if (it == deinlinedFunctions.end()) {
+            //This is not the symbol for a deinlined function
+            continue;
+        }
+
+        assert((*it).second == 0 && "Multiply defined symbols???");
+
+        (*it).second = syms[i]->value;
+        ++foundFunctions;
+
+        LOGDEBUG("sym: " << syms[i]->name << " flags:" << std::hex << syms[i]->flags <<
+                 " addr:" << syms[i]->value << std::endl);
+
+    }
+
+    if (foundFunctions != deinlinedFunctions.size()) {
+        LOGERROR("Some functions could not be found in the object file" << std::endl);
+        return false;
+    }
+
+    //Insert all the functions in the translator
+    foreach(it, deinlinedFunctions.begin(), deinlinedFunctions.end()) {
+        translator.addEntryPoint((*it).second);
+    }
+
+    //The object file is linked to address 0.
+    //This confuses the address extractor which thinks that all
+    //small integers belong to some code...
+    translator.setExtractAddresses(false);
+
+    //Perform reconstruction
+    if (!translator.translateAllInstructions()) {
+        return false;
+    }
+
+    translator.computePredecessors();
+
+    StaticTranslatorTool::AddressSet entryPoints;
+    translator.computeFunctionEntryPoints(entryPoints);
+    translator.reconstructFunctions(entryPoints);
+    translator.inlineInstructions();
+
+    llvm::sys::Path translatedBitCode = inObjectFile;
+    translatedBitCode.appendSuffix("bc");
+    output(translator.getTranslator()->getModule(), translatedBitCode);
+
+    LOGDEBUG("Translated bitcode file: " << translatedBitCode.toString() << std::endl);
+
+    return true;
+
+}
+
+}
 }
