@@ -133,16 +133,6 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif
     tcg_func_start(s);
 
-#ifdef CONFIG_S2E
-    tcg_calc_regmask(s, &tb->reg_rmask, &tb->reg_wmask,
-                     &tb->helper_accesses_mem);
-#endif
-
-#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
-    if(generate_llvm)
-        tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
-#endif
-
 
     gen_intermediate_code(env, tb);
 
@@ -188,6 +178,16 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
         }
     }
 #endif  // CONFIG_MEMCHECK
+
+#ifdef CONFIG_S2E
+    tcg_calc_regmask(s, &tb->reg_rmask, &tb->reg_wmask,
+                     &tb->helper_accesses_mem);
+#endif
+
+#if defined(CONFIG_LLVM) && !defined(CONFIG_S2E)
+    if(generate_llvm)
+        tcg_llvm_gen_code(tcg_llvm_ctx, s, tb);
+#endif
 
 #ifdef DEBUG_DISAS
     if (qemu_loglevel_mask(CPU_LOG_TB_OUT_ASM)) {
