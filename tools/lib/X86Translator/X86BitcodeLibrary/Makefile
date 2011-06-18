@@ -1,6 +1,5 @@
 #===-- tools/tools/Makefile --------------------------------*- Makefile -*--===#
 #
-# THIS MUST BE COMPILED TO 64 BITS IN OPTIMIZED MODE! (really?)
 #
 #===------------------------------------------------------------------------===#
 
@@ -20,7 +19,7 @@ include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/fpu)
 
-QEMUFLAGS=-m64 -I. -I$(S2E_SRC_ROOT) -I$(S2E_SRC_ROOT)/target-i386 \
+QEMUFLAGS=-m32 -I. -I$(S2E_SRC_ROOT) -I$(S2E_SRC_ROOT)/target-i386 \
         -I$(S2E_SRC_ROOT)/fpu -I$(S2E_SRC_ROOT)/tcg -I$(S2E_SRC_ROOT)/tcg/x86_64 -I..\
          -D_GNU_SOURCE -DNEED_CPU_H  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
          -DS2E_LLVM_LIB \
