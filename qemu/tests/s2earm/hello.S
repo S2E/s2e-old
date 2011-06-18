@@ -36,13 +36,13 @@ init_stack: @we use full descending mode (and do not care about different execut
 	b main
 
 main:
-@    bl test_flags
+@        bl test_flags
 @	bl initial_test
 	bl test_mem
 @	bl test_forking
 @	bl switch_main
 @	bl register_check
-@	B _idle
+	B _idle
 
 register_check:
 	stmfd sp!,{r14}
@@ -176,6 +176,9 @@ test_flags:
 	bl print_status
 	msr cpsr_f, 0x00000000 @set all flags to 0
 	bl print_status
+	mov r0, #1
+	cmp r0, #1	
+	bl print_status	
 	subs r0, r0 @z should be enabled
 	bl print_status
 	mov r0, #0
@@ -234,7 +237,7 @@ stm0:
 	bl s2e_print_expression
 
 	cmp r7,#1     @the number represents the number of cycles in stm0
-	beq stm1
+	bge stm1
 
 	mov r10, #0
 @ comment the following two lines to have single-state memory check / multi-state-memory-check
