@@ -23,7 +23,7 @@ private:
     std::string m_outputBitcodeFile;
     std::string m_bitcodeLibrary;
 
-    llvm::LLVMContext m_context;
+    llvm::LLVMContext &m_context;
     llvm::MemoryBuffer *m_buffer;
     llvm::Module *m_module;
 

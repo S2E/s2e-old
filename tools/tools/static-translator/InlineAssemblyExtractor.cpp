@@ -27,7 +27,7 @@ LogKey InlineAssemblyExtractor::TAG = LogKey("InlineAssemblyExtractor");
 
 InlineAssemblyExtractor::InlineAssemblyExtractor(const std::string &bitcodeFile,
                                                  const std::string &outputBitcodeFile,
-                                                 const std::string &bitcodeLibrary) {
+                                                 const std::string &bitcodeLibrary):m_context(getGlobalContext()) {
    m_bitcodeFile = bitcodeFile;
    m_outputBitcodeFile = outputBitcodeFile;
    m_bitcodeLibrary = bitcodeLibrary;
@@ -366,6 +366,7 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
         return false;
     }
 
+#if 0
     llvm::sys::Path linkedModule(inObjectFile);
     linkedModule.appendSuffix("bc");
     output(m_module, linkedModule);
@@ -377,6 +378,7 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
     loadModule();
 
     linkedModule.eraseFromDisk();
+ #endif
 
     //Map deinlined to native
     AsmNativeAdapter::FunctionMap deinlinedToNativeMap;
