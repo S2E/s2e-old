@@ -39,6 +39,7 @@
 
 #include "Pe.h"
 #include "Macho.h"
+#include "DefaultBinary.h"
 
 #include <stdlib.h>
 #include <cassert>
@@ -189,6 +190,8 @@ bool BFDInterface::initialize(const std::string &format)
         m_binary = new PeReader(this);
     }else if (MachoReader::isValid(m_file)) {
         m_binary = new MachoReader(this);
+    }else if (DefaultBinary::isValid(m_file)) {
+        m_binary = new DefaultBinary(this);
     }
 
     //Extract module name
