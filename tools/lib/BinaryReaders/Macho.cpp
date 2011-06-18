@@ -47,6 +47,8 @@ using namespace llvm;
 namespace s2etools
 {
 
+LogKey MachoReader::TAG = LogKey("MachoReader");
+
 MachoReader::MachoReader(BFDInterface *bfd):Binary(bfd)
  {
      m_file = getBfd()->getFile();
@@ -129,7 +131,7 @@ bool MachoReader::resolveRelocations()
     assert(m_nextAvailableAddress);
 
     if (!m_dynSymCmd.cmdsize) {
-        std::cerr << "MachoReader: no LC_DYSYMTAB in executable. Cannot resolve external relocations." << std::endl;
+        LOGERROR("no LC_DYSYMTAB in executable. Cannot resolve external relocations." << std::endl);
         return false;
     }
 
@@ -170,9 +172,9 @@ bool MachoReader::resolveRelocations()
         b = getBfd()->write(relocationPointVa, &relEntry.targetValue, sizeof(relocationPointVa));
         assert(b);
         
-        std::cout << "extRelocs[i].r_type=" << extRelocs[i].r_type <<
+        LOGDEBUG("extRelocs[i].r_type=" << extRelocs[i].r_type <<
                 " origValue=0x" << std::hex << relEntry.originalValue <<
-                std::endl;
+                std::endl);
 
 
         m_relocations[relEntry.va] = relEntry;
@@ -184,7 +186,7 @@ bool MachoReader::resolveRelocations()
 bool MachoReader::resolveImports()
 {
     if (!m_dynSymCmd.cmdsize) {
-        std::cerr << "MachoReader: no LC_DYSYMTAB in executable. Cannot resolve imports." << std::endl;
+        LOGERROR("no LC_DYSYMTAB in executable. Cannot resolve imports." << std::endl);
         return false;
     }
 
@@ -215,7 +217,7 @@ bool MachoReader::resolveImports()
 
         undefinedSymbols.push_back(symbols[i]->name);
 
-        std::cout << "Import " << symbols[i]->name << " at address 0x" << std::hex <<  m_nextAvailableAddress << std::endl;
+        LOGINFO("Import " << symbols[i]->name << " at address 0x" << std::hex <<  m_nextAvailableAddress << std::endl);
         m_imports.insert(std::make_pair(m_nextAvailableAddress, std::make_pair("libc", symbols[i]->name)));
         m_importsByName[symbols[i]->name] = m_nextAvailableAddress;
         symbToAddress[symbols[i]->name] = m_nextAvailableAddress;
@@ -235,6 +237,12 @@ bool MachoReader::resolveImports()
 
         uint32_t indirectIndex = section.reserved1;
         uint32_t stubSize = section.reserved2;
+
+        if (!stubSize) {
+            LOGDEBUG("Stub size if null" << std::endl);
+            continue;
+        }
+
         uint32_t indexCount = section.size / stubSize;
 
         for (unsigned i=0; i<indexCount; ++i) {
@@ -246,7 +254,7 @@ bool MachoReader::resolveImports()
             //index of the symbol in the symbol table
             uint32_t symbolIndex = ((uint32_t*)(start + m_dynSymCmd.indirectsymoff))[rawIdx];
 
-            std::cout << "Patching " << symbolTable[symbolIndex]->name << std::endl;
+            LOGDEBUG("Patching " << symbolTable[symbolIndex]->name << std::endl);
             //Get the address of the symbol
             uint32_t addrToWrite = symbToAddress[symbolTable[symbolIndex]->name];
             assert(addrToWrite);

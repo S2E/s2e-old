@@ -63,6 +63,7 @@
 #include <vector>
 #include "llvm/Support/MemoryBuffer.h"
 
+#include "lib/Utils/Log.h"
 #include "Binary.h"
 
 namespace s2etools {
@@ -235,6 +236,8 @@ class BFDInterface;
  */
 class MachoReader: public Binary {
 private:
+    static s2etools::LogKey TAG;
+
     typedef std::vector<macos::macho_section> Sections;
     typedef std::map<std::string, uint64_t> NameToAddress;
 
