@@ -3,15 +3,20 @@
 #include <llvm/PassManager.h>
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/System/Program.h>
+#include <llvm/Linker.h>
+#include <llvm/Transforms/IPO.h>
 
 #include <fstream>
 #include <iomanip>
 
 #include <lib/BinaryReaders/BFDInterface.h>
 #include <lib/X86Translator/Translator.h>
+#include <lib/X86Translator/TbPreprocessor.h>
 #include "InlineAssemblyExtractor.h"
 #include "Passes/AsmDeinliner.h"
+#include "Passes/AsmNativeAdapter.h"
 #include "StaticTranslator.h"
+
 
 using namespace llvm;
 
@@ -238,7 +243,20 @@ bool InlineAssemblyExtractor::process()
         return false;
     }
 
-#if 0
+    //Removed unused stuff from the final file
+    //XXX: Specifiy which functions we want to keep...
+    PassManager Passes;
+    Passes.add(new TargetData(m_module));
+    Passes.add(createGlobalDCEPass());             // Delete unreachable globals
+    Passes.add(createDeadTypeEliminationPass());   // Remove dead types...
+    Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
+
+    //Write the output
+    llvm::sys::Path outputBitcodeFile(m_outputBitcodeFile);
+    output(m_module, outputBitcodeFile);
+
+    //Delete intermediate files
+#if 1
     assemblyFile.eraseFromDisk();
     preparedBitCodeFile.eraseFromDisk();
     objectFile.eraseFromDisk();
@@ -326,9 +344,61 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
 
     llvm::sys::Path translatedBitCode = inObjectFile;
     translatedBitCode.appendSuffix("bc");
-    output(translator.getTranslator()->getModule(), translatedBitCode);
+
+    Module *translatedModule = translator.getTranslator()->getModule();
+
+    output(translatedModule, translatedBitCode);
+
 
     LOGDEBUG("Translated bitcode file: " << translatedBitCode.toString() << std::endl);
+
+    LOGDEBUG("Translated data layout: " << translatedModule->getDataLayout() << std::endl);
+    LOGDEBUG("Module data layout    : " << m_module->getDataLayout() << std::endl);
+
+    LOGDEBUG("Translated target triple: " << translatedModule->getTargetTriple() << std::endl);
+    LOGDEBUG("Module target triple    : " << m_module->getTargetTriple() << std::endl);
+
+
+    //Link the translated file with the original module
+    if (Linker::LinkModules(m_module, translatedModule, NULL)) {
+        translatedBitCode.eraseFromDisk();
+        LOGERROR("Error linking in translated module" << std::endl);
+        return false;
+    }
+
+    llvm::sys::Path linkedModule(inObjectFile);
+    linkedModule.appendSuffix("bc");
+    output(m_module, linkedModule);
+
+    //Read back the module
+    //This is a workaround for an LLVM bug where type equality gets broken
+    //after linking the two modules. i32 != i32 :-(
+    m_bitcodeFile = linkedModule.toString();
+    loadModule();
+
+    linkedModule.eraseFromDisk();
+
+    //Map deinlined to native
+    AsmNativeAdapter::FunctionMap deinlinedToNativeMap;
+    foreach(it, deinlinedFunctions.begin(), deinlinedFunctions.end()) {
+        Function *deinlined = m_module->getFunction((*it).first);
+
+        std::string nativeName = TbPreprocessor::getFunctionName((*it).second);
+        Function *native = m_module->getFunction(nativeName);
+
+        if (!native || !deinlined) {
+            LOGERROR("Could not find " << nativeName << " in translated module" << std::endl);
+            return false;
+        }
+        deinlinedToNativeMap[deinlined] = native;
+    }
+
+
+    PassManager pm;
+    pm.add(new TargetData(m_module));
+    pm.add(new AsmNativeAdapter(deinlinedToNativeMap));
+    pm.add(createVerifierPass());
+    pm.run(*m_module);
 
     return true;
 
