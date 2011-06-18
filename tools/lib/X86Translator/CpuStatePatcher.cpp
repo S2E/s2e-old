@@ -29,6 +29,27 @@ CpuStatePatcher::~CpuStatePatcher()
     delete m_targetData;
 }
 
+
+static GetElementPtrInst* GetRegister(Module &M, Value *cpuState, unsigned reg)
+{
+    //Create a get element ptr instruction to access the array
+    SmallVector<Value*, 2> gepElements;
+    gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  0)));
+    gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  0))); //register array
+    gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  reg)));
+    return GetElementPtrInst::Create(cpuState, gepElements.begin(), gepElements.end());
+}
+
+GetElementPtrInst* CpuStatePatcher::getStackPointer(Module &M, Value *cpuState)
+{
+    return GetRegister(M, cpuState, R_ESP);
+}
+
+GetElementPtrInst* CpuStatePatcher::getResultRegister(Module &M, Value *cpuState)
+{
+    return GetRegister(M, cpuState, R_EAX);
+}
+
 bool CpuStatePatcher::getRegisterIndex(const llvm::GetElementPtrInst *reg, unsigned &index)
 {
     if (reg->getNumIndices() != 3) {

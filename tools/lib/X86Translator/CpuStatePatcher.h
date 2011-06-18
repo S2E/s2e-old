@@ -66,6 +66,9 @@ public:
         return F.arg_begin();
     }
 
+    static llvm::GetElementPtrInst* getStackPointer(llvm::Module &M, llvm::Value *cpuState);
+    static llvm::GetElementPtrInst* getResultRegister(llvm::Module &M, llvm::Value *cpuState);
+
     static bool getRegisterIndex(const llvm::GetElementPtrInst *reg, unsigned &index);
 };
 
