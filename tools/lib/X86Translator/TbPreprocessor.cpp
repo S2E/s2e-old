@@ -32,6 +32,9 @@ std::string TbPreprocessor::s_callMarker = "call_marker";
 std::string TbPreprocessor::s_returnMarker = "return_marker";
 std::string TbPreprocessor::s_functionPrefix = "function_";
 
+std::string TbPreprocessor::s_ld[4] = {"__ldb_mmu", "__ldw_mmu", "__ldl_mmu", "__ldq_mmu"};
+std::string TbPreprocessor::s_st[4] = {"__stb_mmu", "__stw_mmu", "__stl_mmu", "__stq_mmu"};
+
 LogKey TbPreprocessor::TAG = LogKey("TbPreprocessor");
 
 bool TbPreprocessor::isReconstructedFunction(const llvm::Function &f)

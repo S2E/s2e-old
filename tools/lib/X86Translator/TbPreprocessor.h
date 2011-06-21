@@ -61,6 +61,10 @@ private:
     static std::string s_callMarker;
     static std::string s_returnMarker;
     static std::string s_functionPrefix;
+
+    static std::string s_ld[4];
+    static std::string s_st[4];
+
 private:
     void initMarkers(llvm::Module *module);
     void markInstructionStart(llvm::Function &f);
@@ -95,12 +99,30 @@ public:
       return s_callMarker;
   }
 
+  static llvm::Function* getJumpMarker(llvm::Module &M) {
+      return M.getFunction(getJumpMarker());
+  }
+
   static llvm::Function* getCallMarker(llvm::Module &M) {
       return M.getFunction(getCallMarker());
   }
 
+  static llvm::Function* getReturnMarker(llvm::Module &M) {
+      return M.getFunction(getReturnMarker());
+  }
+
   static llvm::Function* getInstructionMarker(llvm::Module &M) {
       return M.getFunction(getInstructionMarker());
+  }
+
+  static llvm::Function* getMemoryStore(llvm::Module &M, unsigned size_po2) {
+      assert (size_po2 < 4 && "Invalid memory access size");
+      return M.getFunction(s_st[size_po2]);
+  }
+
+  static llvm::Function* getMemoryLoad(llvm::Module &M, unsigned size_po2) {
+      assert (size_po2 < 4 && "Invalid memory access size");
+      return M.getFunction(s_ld[size_po2]);
   }
 
   static llvm::ConstantInt *getCallTargetConstant(llvm::CallInst *marker) {
@@ -132,6 +154,10 @@ public:
 
   static llvm::Value* getAddressFromMemoryOp(const llvm::CallInst *memop) {
       return memop->getOperand(1);
+  }
+
+  static llvm::Value* getValueFromMemoryOp(const llvm::CallInst *memop) {
+      return memop->getOperand(2);
   }
 
 };

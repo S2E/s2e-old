@@ -16,6 +16,7 @@ SOURCES = StaticTranslator.cpp Passes/RevgenAlias.cpp \
           Passes/CallBuilder.cpp Passes/InstructionInliner.cpp \
           Passes/CallingConvention.cpp Passes/AsmDeinliner.cpp \
           Passes/AsmNativeAdapter.cpp \
+          Passes/MarkerRemover.cpp \
           InlineAssemblyExtractor.cpp
 
 include $(LEVEL)/Makefile.common

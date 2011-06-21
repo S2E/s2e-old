@@ -15,6 +15,7 @@
 #include "InlineAssemblyExtractor.h"
 #include "Passes/AsmDeinliner.h"
 #include "Passes/AsmNativeAdapter.h"
+#include "Passes/MarkerRemover.h"
 #include "StaticTranslator.h"
 
 
@@ -256,6 +257,7 @@ bool InlineAssemblyExtractor::process()
     PassManager Passes;
     Passes.add(new TargetData(m_module));
     //Passes.add(createGVExtractionPass(originalFunctions));
+    Passes.add(new MarkerRemover());
     Passes.add(createGlobalDCEPass());             // Delete unreachable globals
     Passes.add(createDeadTypeEliminationPass());   // Remove dead types...
     Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
