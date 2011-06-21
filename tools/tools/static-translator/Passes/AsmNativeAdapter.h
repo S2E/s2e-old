@@ -10,6 +10,8 @@
 
 #include <lib/Utils/Log.h>
 
+#include <map>
+
 namespace s2etools {
 
 /**
@@ -21,11 +23,18 @@ namespace s2etools {
  */
 class AsmNativeAdapter: public llvm::ModulePass {
 private:
-    static LogKey TAG;
+    typedef std::map<llvm::Function*, llvm::AllocaInst*> CpuStateAllocs;
 
-    void createNativeWrapper(llvm::Module &M,
-                                               llvm::Function *deinlinedFunction,
-                                               llvm::Function *nativeFunction);
+    static LogKey TAG;
+    CpuStateAllocs m_cpuStateAllocs;
+
+    llvm::Function *createNativeWrapper(llvm::Module &M,
+                                        llvm::Function *deinlinedFunction,
+                                        llvm::Function *nativeFunction);
+
+    bool replaceDeinlinedFunction(llvm::Module &M,
+                                  llvm::Function *deinlinedFunction,
+                                  llvm::Function *nativeWrapper);
 
 public:
     /**

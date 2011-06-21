@@ -1614,10 +1614,6 @@ s2e.config
 s2e.creator
 s2e.creator.user.example
 s2e.files
-s2e.files
-s2e.files
-s2e.includes
-s2e.includes
 s2e.includes
 s2e.refresh_project.py
 stp/AUTHORS
@@ -2317,6 +2313,8 @@ tools/lib/BinaryReaders/BFDInterface.cpp
 tools/lib/BinaryReaders/BFDInterface.h
 tools/lib/BinaryReaders/Binary.cpp
 tools/lib/BinaryReaders/Binary.h
+tools/lib/BinaryReaders/DefaultBinary.cpp
+tools/lib/BinaryReaders/DefaultBinary.h
 tools/lib/BinaryReaders/ExecutableFile.cpp
 tools/lib/BinaryReaders/ExecutableFile.h
 tools/lib/BinaryReaders/Library.cpp
@@ -2331,10 +2329,6 @@ tools/lib/BinaryReaders/TextModule.h
 tools/lib/ExecutionTracer/InstructionCounter.cpp
 tools/lib/ExecutionTracer/InstructionCounter.h
 tools/lib/ExecutionTracer/LogParser.cpp
-tools/lib/ExecutionTracer/LogParser.cpp
-tools/lib/ExecutionTracer/LogParser.cpp
-tools/lib/ExecutionTracer/LogParser.h
-tools/lib/ExecutionTracer/LogParser.h
 tools/lib/ExecutionTracer/LogParser.h
 tools/lib/ExecutionTracer/Makefile
 tools/lib/ExecutionTracer/ModuleParser.cpp
@@ -2394,7 +2388,13 @@ tools/tools/static-translator/CFG/CBasicBlock.cpp
 tools/tools/static-translator/CFG/CBasicBlock.h
 tools/tools/static-translator/CFG/CFunction.cpp
 tools/tools/static-translator/CFG/CFunction.h
+tools/tools/static-translator/InlineAssemblyExtractor.cpp
+tools/tools/static-translator/InlineAssemblyExtractor.h
 tools/tools/static-translator/Makefile
+tools/tools/static-translator/Passes/AsmDeinliner.cpp
+tools/tools/static-translator/Passes/AsmDeinliner.h
+tools/tools/static-translator/Passes/AsmNativeAdapter.cpp
+tools/tools/static-translator/Passes/AsmNativeAdapter.h
 tools/tools/static-translator/Passes/CallBuilder.cpp
 tools/tools/static-translator/Passes/CallBuilder.h
 tools/tools/static-translator/Passes/CallingConvention.cpp
@@ -2431,6 +2431,7 @@ tools/tools/static-translator/Runtime/config-target.h
 tools/tools/static-translator/StaticTranslator.cpp
 tools/tools/static-translator/StaticTranslator.h
 tools/tools/static-translator/Tests/Makefile
+tools/tools/static-translator/Tests/asm1.c
 tools/tools/static-translator/Tests/calltester.c
 tools/tools/static-translator/Tests/empty-main.c
 tools/tools/static-translator/Tests/fib.c

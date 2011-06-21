@@ -20,7 +20,7 @@ void AsmNativeAdapter::getAnalysisUsage(llvm::AnalysisUsage &AU) const
     AU.addRequired<TargetData>();
 }
 
-void AsmNativeAdapter::createNativeWrapper(Module &M,
+Function* AsmNativeAdapter::createNativeWrapper(Module &M,
                                            Function *deinlinedFunction,
                                            Function *nativeFunction)
 {
@@ -108,6 +108,57 @@ void AsmNativeAdapter::createNativeWrapper(Module &M,
     ReturnInst::Create(M.getContext(), loadResult, BB);
 
     LOGDEBUG(*wrapperFunction);
+
+    return wrapperFunction;
+}
+
+bool AsmNativeAdapter::replaceDeinlinedFunction(llvm::Module &M,
+                              llvm::Function *deinlinedFunction,
+                              llvm::Function *nativeWrapper)
+{
+    unsigned callSitesCount = 0;
+
+    foreach(uit, deinlinedFunction->use_begin(), deinlinedFunction->use_end()) {
+        CallInst *callSite = dyn_cast<CallInst>(*uit);
+        if (!callSite) {
+            continue;
+        }
+        ++callSitesCount;
+
+        Function *caller = callSite->getParent()->getParent();
+        CpuStateAllocs::iterator it = m_cpuStateAllocs.find(caller);
+        AllocaInst *cpuState = NULL;
+        if (it == m_cpuStateAllocs.end()) {
+            //Create an alloca instruction for the CPU state
+            cpuState = new AllocaInst(m_cpuStateType, "");
+            cpuState->insertBefore(&*caller->getEntryBlock().begin());
+            m_cpuStateAllocs[caller] = cpuState;
+        }else {
+            cpuState = (*it).second;
+        }
+
+        SmallVector<Value *, 5> args;
+        args.push_back(cpuState);
+        for (unsigned argIdx = 1; argIdx < callSite->getNumOperands(); ++argIdx) {
+            args.push_back(callSite->getOperand(argIdx));
+        }
+        CallInst *callToWrapper = CallInst::Create(nativeWrapper, args.begin(), args.end(), "");
+        callToWrapper->insertBefore(callSite);
+        callSite->replaceAllUsesWith(callToWrapper);
+        callSite->eraseFromParent();
+    }
+
+    if (!callSitesCount) {
+        LOGERROR(deinlinedFunction->getNameStr() << " not called from anywhere" << std::endl);
+        return false;
+    }
+
+    if (callSitesCount > 1) {
+        LOGERROR(deinlinedFunction->getNameStr() << " called multiple times" << std::endl);
+        return false;
+    }
+
+    return true;
 }
 
 bool AsmNativeAdapter::runOnModule(Module &M)
@@ -122,7 +173,8 @@ bool AsmNativeAdapter::runOnModule(Module &M)
     foreach(it, m_functionMap.begin(), m_functionMap.end()) {
         Function *deinlined = (*it).first;
         Function *native = (*it).second;
-        createNativeWrapper(M, deinlined, native);
+        Function *nativeWrapper = createNativeWrapper(M, deinlined, native);
+        replaceDeinlinedFunction(M, deinlined, nativeWrapper);
     }
 
     return true;
