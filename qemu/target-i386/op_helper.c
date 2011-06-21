@@ -134,7 +134,7 @@ struct CPUX86State* env = 0;
 #  define LOG_PCALL_STATE(env) do { } while (0)
 #endif
 
-#ifndef S2E_LLVM_LIB
+#if !defined(S2E_LLVM_LIB) || defined(STATIC_TRANSLATOR)
 
 #if 0
 #define raise_exception_err(a, b)\
