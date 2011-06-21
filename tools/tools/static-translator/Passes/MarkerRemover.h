@@ -1,4 +1,4 @@
-#ifndef _ASM_MARKER_REMOVER_PASS_H_
+#ifndef _MARKER_REMOVER_PASS_H_
 
 #define _MARKER_REMOVER_PASS_H_
 
