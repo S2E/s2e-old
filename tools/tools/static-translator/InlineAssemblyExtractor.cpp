@@ -238,18 +238,28 @@ bool InlineAssemblyExtractor::process()
     LOGDEBUG("Assembly file: " << assemblyFile.toString() << std::endl);
     LOGDEBUG("Object file: " << objectFile.toString() << std::endl);
 
+    //Save the set of functions of the original bitcode file
+    std::vector<GlobalValue*> originalFunctions;
+    foreach(fit, m_module->begin(), m_module->end()) {
+        LOGDEBUG("Keeping " << (*fit).getNameStr() << std::endl);
+        originalFunctions.push_back(&*fit);
+    }
+
     //Translate object file to bitcode
     if (!translateObjectFile(objectFile)) {
+        LOGERROR("Failed translating object file" << std::endl);
         return false;
     }
 
-    //Removed unused stuff from the final file
-    //XXX: Specifiy which functions we want to keep...
+    //Remove unused stuff from the final file
+    LOGDEBUG("Cleaning output" << std::endl);
     PassManager Passes;
     Passes.add(new TargetData(m_module));
+    //Passes.add(createGVExtractionPass(originalFunctions));
     Passes.add(createGlobalDCEPass());             // Delete unreachable globals
     Passes.add(createDeadTypeEliminationPass());   // Remove dead types...
     Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
+    Passes.run(*m_module);
 
     //Write the output
     llvm::sys::Path outputBitcodeFile(m_outputBitcodeFile);
@@ -357,6 +367,14 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
 
     LOGDEBUG("Translated target triple: " << translatedModule->getTargetTriple() << std::endl);
     LOGDEBUG("Module target triple    : " << m_module->getTargetTriple() << std::endl);
+
+    //Make all functions in the translated modules internal
+    foreach(it, translatedModule->begin(), translatedModule->end()) {
+        Function &F = *it;
+        if (!F.isDeclaration()) {
+            F.setLinkage(Function::InternalLinkage);
+        }
+    }
 
 
     //Link the translated file with the original module
