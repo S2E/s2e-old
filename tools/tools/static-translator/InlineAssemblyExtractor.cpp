@@ -265,7 +265,7 @@ bool InlineAssemblyExtractor::process()
     Passes.add(createGlobalDCEPass());             // Delete unreachable globals
     Passes.add(createDeadTypeEliminationPass());   // Remove dead types...
     Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
-    Passes.run(*m_module);
+    //Passes.run(*m_module);
 
     //Write the output
     llvm::sys::Path outputBitcodeFile(m_outputBitcodeFile);

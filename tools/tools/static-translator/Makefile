@@ -5,7 +5,8 @@
 #===------------------------------------------------------------------------===#
 
 LEVEL=../..
-PARALLEL_DIRS=TranslatorBitcode Runtime TypeExtractor
+#PARALLEL_DIRS=TranslatorBitcode Runtime TypeExtractor
+PARALLEL_DIRS=TypeExtractor
 TOOLNAME = static-translator
 USEDLIBS = executiontracer.a binaryreaders.a X86Translator.a  utils.a
 LINK_COMPONENTS = support system jit bitreader bitwriter ipo linker engine scalaropts ipa transformutils
@@ -30,7 +31,7 @@ NEWDIR := $(shell mkdir -p $(ObjDir)/CFG)
 
 QEMUFLAGS=-I. -I$(S2E_SRC_ROOT) -I$(S2E_SRC_ROOT)/target-i386 \
         -I$(S2E_SRC_ROOT)/fpu -I$(S2E_SRC_ROOT)/tcg -I$(S2E_SRC_ROOT)/tcg/x86_64 -I..\
-         -D_GNU_SOURCE -DNEED_CPU_H  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE  -DSTATIC_TRANSLATOR\
+         -D__STDC_FORMAT_MACROS  -D_GNU_SOURCE -DNEED_CPU_H  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE  -DSTATIC_TRANSLATOR\
           -Wredundant-decls -Wall -Wundef -Wendif-labels -Wwrite-strings -fno-strict-aliasing \
           -Wno-sign-compare -Wno-missing-field-initializers -fexceptions
 

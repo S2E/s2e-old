@@ -1,5 +1,6 @@
 #===-- tools/tools/Makefile --------------------------------*- Makefile -*--===#
 #
+# The host must be 64-bit!
 #
 #===------------------------------------------------------------------------===#
 
@@ -19,7 +20,7 @@ include $(LEVEL)/Makefile.common
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/target-i386)
 NEWDIR := $(shell mkdir -p $(ObjDir)/$(S2E_SRC_ROOT)/fpu)
 
-QEMUFLAGS=-m32 -I. -I$(S2E_SRC_ROOT) -I$(S2E_SRC_ROOT)/target-i386 \
+QEMUFLAGS=-m64 -I. -I$(S2E_SRC_ROOT) -I$(S2E_SRC_ROOT)/target-i386 \
         -I$(S2E_SRC_ROOT)/fpu -I$(S2E_SRC_ROOT)/tcg -I$(S2E_SRC_ROOT)/tcg/x86_64 -I..\
          -D_GNU_SOURCE -DNEED_CPU_H  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
          -DS2E_LLVM_LIB -DSTATIC_TRANSLATOR\

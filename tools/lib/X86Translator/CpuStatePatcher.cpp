@@ -131,7 +131,8 @@ Instruction *CpuStatePatcher::createGep(llvm::Instruction *instr,
             if (!offset && accessSize == elSz) {
                 break;
             }
-            return NULL;
+            LOGERROR("offset: " << offset << " size=" << accessSize << " elsize=" <<elSz<< std::endl << std::flush);
+            assert(false && "Not implemented");
         }else if (const PointerType *it = dyn_cast<PointerType>(ty)) {
             //We are storing some pointer.
             //Such stuff should be discarded later anyway.
@@ -140,6 +141,7 @@ Instruction *CpuStatePatcher::createGep(llvm::Instruction *instr,
         }else{
             //Don't know how to handle all the cases
             //They should not happen anyway.
+            assert(false && "Not implemented");
             return NULL;
         }
 
@@ -153,6 +155,14 @@ Instruction *CpuStatePatcher::createGep(llvm::Instruction *instr,
                               gepOffsets.end(), "");
 }
 
+/**
+ * Patch accesses of the form
+ * %env_v.i = load i64* %4                         ; <i64> [#uses=2]
+ * %5 = add i64 %env_v.i, 736                      ; <i64> [#uses=1]
+ * %6 = inttoptr i64 %5 to i64*                    ; <i64*> [#uses=1]
+ * store i64 140734799482896, i64* %6
+
+ */
 void CpuStatePatcher::patchOffset(llvm::Instruction *instr) const
 {
     StoreInst *storeInstr = dyn_cast<StoreInst>(instr);
@@ -167,6 +177,7 @@ void CpuStatePatcher::patchOffset(llvm::Instruction *instr) const
 
     unsigned accessSize = valueType->getPrimitiveSizeInBits() / 8;
 
+    LOGDEBUG("Patching " << *instr << std::endl);
     //LOGDEBUG() << *instr->getOperand(addrOperand) << std::endl << std::flush;
     //Get the offset out of the expression
     IntToPtrInst *address = dyn_cast<IntToPtrInst>(instr->getOperand(addrOperand));
@@ -187,6 +198,8 @@ void CpuStatePatcher::patchOffset(llvm::Instruction *instr) const
     bool dropInstruction = false;
     Instruction *gep = createGep(instr, offset, dropInstruction, accessSize);
 
+    LOGDEBUG("  Drop: " << dropInstruction << " gep:" << gep<< std::endl);
+
     if (gep) {
         gep->insertBefore(instr);
         instr->setOperand(addrOperand, gep);
@@ -196,6 +209,7 @@ void CpuStatePatcher::patchOffset(llvm::Instruction *instr) const
     if (storeInstr && dropInstruction) {
         instr->eraseFromParent();
     }
+
 }
 
 void CpuStatePatcher::transformArguments(llvm::Function *transformed,

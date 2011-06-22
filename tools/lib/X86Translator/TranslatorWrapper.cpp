@@ -423,6 +423,12 @@ uint64_t ldq_phys(target_phys_addr_t addr)
     return 0;
 }
 
+uint64_t ldq_kernel(target_phys_addr_t addr)
+{
+    assert(false && "Not usable statically");
+    return 0;
+}
+
 uint32_t ldl_phys(target_phys_addr_t addr)
 {
     assert(false && "Not usable statically");
@@ -558,6 +564,11 @@ void stl_data(target_ulong ptr, uint32_t data)
 }
 
 void stl_kernel(target_ulong ptr, uint32_t data)
+{
+    assert(false && "Not usable statically");
+}
+
+void stq_kernel(target_ulong ptr, uint32_t data)
 {
     assert(false && "Not usable statically");
 }

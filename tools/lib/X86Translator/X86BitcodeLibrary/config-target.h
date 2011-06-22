@@ -1,5 +1,6 @@
-#define CONFIG_QEMU_PREFIX "/usr/gnemul/qemu-i386"
-#define TARGET_ARCH "i386"
+#define CONFIG_QEMU_PREFIX "/usr/gnemul/qemu-x86_64"
+#define TARGET_ARCH "x86_64"
+#define TARGET_X86_64 1
 #define TARGET_I386 1
 #define TARGET_PHYS_ADDR_BITS 64
 #define CONFIG_SOFTMMU 1
