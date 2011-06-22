@@ -21,6 +21,7 @@ void AsmDeinliner::processInlineAsm(CallInst *ci, InlineAsm *inlineAsm)
     ss << "asmdein_" << ci->getParent()->getParent()->getName().str() << "_" << m_inlineAsmId;
 
     Function *f = dyn_cast<Function>(M->getOrInsertFunction(ss.str(), inlineAsm->getFunctionType()));
+    f->setLinkage(Function::InternalLinkage);
 
     BasicBlock *BB = BasicBlock::Create(M->getContext(), "", f, NULL);
 

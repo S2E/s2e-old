@@ -12,6 +12,7 @@
 #include <lib/BinaryReaders/BFDInterface.h>
 #include <lib/X86Translator/Translator.h>
 #include <lib/X86Translator/TbPreprocessor.h>
+#include <lib/X86Translator/CpuStateAsParameter.h>
 #include "InlineAssemblyExtractor.h"
 #include "Passes/AsmDeinliner.h"
 #include "Passes/AsmNativeAdapter.h"
@@ -259,6 +260,9 @@ bool InlineAssemblyExtractor::process()
     //Passes.add(createGVExtractionPass(originalFunctions));
     Passes.add(new MarkerRemover());
     Passes.add(createGlobalDCEPass());             // Delete unreachable globals
+    Passes.add(new CpuStateAsParameter());
+    Passes.add(createVerifierPass());
+    Passes.add(createGlobalDCEPass());             // Delete unreachable globals
     Passes.add(createDeadTypeEliminationPass());   // Remove dead types...
     Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
     Passes.run(*m_module);
@@ -385,20 +389,6 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
         LOGERROR("Error linking in translated module" << std::endl);
         return false;
     }
-
-#if 0
-    llvm::sys::Path linkedModule(inObjectFile);
-    linkedModule.appendSuffix("bc");
-    output(m_module, linkedModule);
-
-    //Read back the module
-    //This is a workaround for an LLVM bug where type equality gets broken
-    //after linking the two modules. i32 != i32 :-(
-    m_bitcodeFile = linkedModule.toString();
-    loadModule();
-
-    linkedModule.eraseFromDisk();
- #endif
 
     //Map deinlined to native
     AsmNativeAdapter::FunctionMap deinlinedToNativeMap;

@@ -109,6 +109,8 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
 
     LOGDEBUG(*wrapperFunction);
 
+    wrapperFunction->setLinkage(Function::InternalLinkage);
+
     return wrapperFunction;
 }
 
