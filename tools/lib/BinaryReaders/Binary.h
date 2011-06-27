@@ -58,6 +58,11 @@ private:
     BFDInterface *m_bfd;
 
 public:
+    enum Mode {
+        BIT16, BIT32, BIT64
+    };
+
+
     Binary(BFDInterface *bfd);
 
     static bool isValid(MemoryFile *file);
@@ -83,6 +88,8 @@ public:
 
     virtual uint64_t readAddressFromImportTable(uint64_t va) const = 0;
 
+    //XXX: Should be per-segment eventually
+    virtual Mode getMode() const;
 protected:
     virtual BFDInterface* getBfd() const{
         return m_bfd;

@@ -242,7 +242,7 @@ private:
     typedef std::map<std::string, uint64_t> NameToAddress;
 
     MemoryFile *m_file;
-
+    macos::macho_header m_header;
     macos::macho_dysymtab_command m_dynSymCmd;
     Sections m_sections;
     Imports m_imports;
@@ -276,6 +276,8 @@ public:
     virtual uint64_t readAddressFromImportTable(uint64_t va) const {
         assert(false && "Not implemented yet");
     }
+
+    virtual Mode getMode() const;
 
 };
 

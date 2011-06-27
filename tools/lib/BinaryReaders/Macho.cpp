@@ -90,6 +90,7 @@ bool MachoReader::parse()
     bool dynsymInited = false;
     const uint8_t *start = (uint8_t*)m_file->getBuffer();
     macho_header *header = (macho_header*)start;
+    m_header = *header;
     uint32_t curOffset = sizeof(macos::macho_header);
 
     for (uint32_t i=0; i<header->ncmds; ++i) {
@@ -274,5 +275,16 @@ bool MachoReader::resolveImports()
     return true;
 }
 
+Binary::Mode MachoReader::getMode() const
+{
+    if (m_header.cputype == CPU_TYPE_I386) {
+        return BIT32;
+    }else if (m_header.cputype == CPU_TYPE_X86_64) {
+        return BIT64;
+    }
+
+    assert(false && "Not implemented");
+    return BIT32;
+}
 
 }

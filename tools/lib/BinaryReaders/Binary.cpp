@@ -58,4 +58,15 @@ uint64_t Binary::getEntryPoint() const
     return m_bfd->getEntryPoint();
 }
 
+Binary::Mode Binary::getMode() const
+{
+    bfd *b = m_bfd->getBfd();
+    switch(bfd_arch_bits_per_address(b)) {
+        case 16: return BIT16;
+        case 32: return BIT32;
+        case 64: return BIT64;
+    }
+    assert(false && "Not implemented");
+}
+
 }

@@ -229,4 +229,13 @@ uint64_t PeReader::readAddressFromImportTable(uint64_t va) const
     return *value;
 }
 
+Binary::Mode PeReader::getMode() const
+{
+    if (m_ntHeader.FileHeader.Machine == IMAGE_FILE_MACHINE_I386) {
+        return BIT32;
+    }
+    assert(false && "Not implemented");
+    return BIT32;
+}
+
 }

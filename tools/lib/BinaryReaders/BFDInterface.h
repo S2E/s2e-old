@@ -197,6 +197,10 @@ public:
         return m_binary;
     }
 
+    bfd *getBfd() const {
+        return m_bfd;
+    }
+
 };
 
 }

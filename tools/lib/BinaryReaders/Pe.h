@@ -201,6 +201,8 @@ public:
 
     virtual uint64_t readAddressFromImportTable(uint64_t va) const;
 
+    virtual Mode getMode() const;
+
 };
 
 }
