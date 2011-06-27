@@ -70,6 +70,7 @@ public:
     static llvm::GetElementPtrInst* getResultRegister(llvm::Module &M, llvm::Value *cpuState);
 
     static bool getRegisterIndex(const llvm::GetElementPtrInst *reg, unsigned &index);
+    static llvm::GetElementPtrInst* getRegister(llvm::Module &M, llvm::Value *cpuState, unsigned reg);
 };
 
 }

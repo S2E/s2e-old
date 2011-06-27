@@ -30,7 +30,7 @@ CpuStatePatcher::~CpuStatePatcher()
 }
 
 
-static GetElementPtrInst* GetRegister(Module &M, Value *cpuState, unsigned reg)
+GetElementPtrInst* CpuStatePatcher::getRegister(Module &M, Value *cpuState, unsigned reg)
 {
     //Create a get element ptr instruction to access the array
     SmallVector<Value*, 2> gepElements;
@@ -42,12 +42,12 @@ static GetElementPtrInst* GetRegister(Module &M, Value *cpuState, unsigned reg)
 
 GetElementPtrInst* CpuStatePatcher::getStackPointer(Module &M, Value *cpuState)
 {
-    return GetRegister(M, cpuState, R_ESP);
+    return getRegister(M, cpuState, R_ESP);
 }
 
 GetElementPtrInst* CpuStatePatcher::getResultRegister(Module &M, Value *cpuState)
 {
-    return GetRegister(M, cpuState, R_EAX);
+    return getRegister(M, cpuState, R_EAX);
 }
 
 bool CpuStatePatcher::getRegisterIndex(const llvm::GetElementPtrInst *reg, unsigned &index)
