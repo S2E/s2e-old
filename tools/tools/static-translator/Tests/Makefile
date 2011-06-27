@@ -33,6 +33,16 @@ inline1: inline1.c
 	gcc -m32 -o $@ $<
 	objdump -S $@ > $@.s
 
+
+asm1.bc: asm1.c
+	llvm-gcc -m64 -c -emit-llvm -o $@ $<
+
+asm1.ll: asm1.bc
+	llvm-dis -f asm1.bc
+
+asm1: asm1.c asm1.bc asm1.ll
+	gcc -m64 -o $@ $<
+
 all: $(TESTS)
 
 clean:
