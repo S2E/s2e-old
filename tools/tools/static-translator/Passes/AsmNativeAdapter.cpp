@@ -51,9 +51,7 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
 
     //The stack holds the original parameters + the return value + 8 free slots for the callee
     unsigned stackSize = wrapperFunction->getArgumentList().size() + 1 + 8;
-    Value *stackElementCount = ConstantInt::get(stackElementType,
-                                                APInt(m_targetData->getPointerSizeInBits(),
-                                                      stackSize));
+    Value *stackElementCount = ConstantInt::get(IntegerType::getInt32Ty(M.getContext()), APInt(32, stackSize));
     AllocaInst *stackAlloc = new AllocaInst(stackElementType,  stackElementCount, "", BB);
 
     //Store the original parameters on the stack
@@ -69,11 +67,14 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
 
         //Create a get element ptr instruction to access the array
         SmallVector<Value*, 1> gepElements;
-            gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  argIdx-1)));
+        gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  argIdx-1)));
         GetElementPtrInst *gep = GetElementPtrInst::Create(stackAlloc, gepElements.begin(), gepElements.end(), "", BB);
 
+        //Zero-extend the argument
+        ZExtInst *zi = new ZExtInst(&arg, stackElementType, "", BB);
+
         //Store the parameter in the array
-        new StoreInst(&arg, gep, BB);
+        new StoreInst(zi, gep, BB);
 
         ++argIdx;
     }
@@ -105,7 +106,13 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
     eaxPtr->insertAfter(&BB->back());
     LoadInst *loadResult = new LoadInst(eaxPtr, "", BB);
 
-    ReturnInst::Create(M.getContext(), loadResult, BB);
+    unsigned bits = wrapperFunction->getReturnType()->getScalarSizeInBits();
+    Instruction *ti = loadResult;
+    if (bits < loadResult->getType()->getScalarSizeInBits()) {
+        ti = new TruncInst(loadResult, wrapperFunction->getReturnType(), "", BB);
+    }
+
+    ReturnInst::Create(M.getContext(), ti, BB);
 
     LOGDEBUG(*wrapperFunction);
 
@@ -168,7 +175,7 @@ bool AsmNativeAdapter::runOnModule(Module &M)
     m_targetData = &getAnalysis<TargetData>();
     assert(m_targetData && "Must have TargetData");
 
-    assert(m_targetData->getPointerSize() == sizeof(uint32_t) && "We only support 32-bit targets for now");
+    assert(m_targetData->getPointerSize() == sizeof(uint64_t) && "We only support 64-bit targets for now");
 
     m_cpuStateType = CpuStatePatcher::getCpuStateType(M);
 

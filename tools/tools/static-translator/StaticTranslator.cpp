@@ -160,6 +160,7 @@ StaticTranslatorTool::StaticTranslatorTool(
     assert(m_binary);
 
     llvm::sys::Path libraryPath(bitCodeLibrary);
+
     m_translator = new X86Translator(libraryPath);
     if (!m_translator->isInitialized()) {
         exit(-1);

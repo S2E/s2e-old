@@ -172,7 +172,8 @@ bool InlineAssemblyExtractor::createObjectFile(llvm::sys::Path &outObjectFile, c
     //Transform the assembly file into an object file
     std::vector<std::string> argsVec;
     argsVec.push_back("gcc");
-    argsVec.push_back("-m32");
+    //TODO: Fix for 32-bit as well
+    argsVec.push_back("-m64");
     argsVec.push_back("-c");
     argsVec.push_back("-o");
     argsVec.push_back(outObjectFile.toString());
@@ -240,12 +241,6 @@ bool InlineAssemblyExtractor::process()
     LOGDEBUG("Assembly file: " << assemblyFile.toString() << std::endl);
     LOGDEBUG("Object file: " << objectFile.toString() << std::endl);
 
-    //Save the set of functions of the original bitcode file
-    std::vector<GlobalValue*> originalFunctions;
-    foreach(fit, m_module->begin(), m_module->end()) {
-        LOGDEBUG("Keeping " << (*fit).getNameStr() << std::endl);
-        originalFunctions.push_back(&*fit);
-    }
 
     //Translate object file to bitcode
     if (!translateObjectFile(objectFile)) {
@@ -257,7 +252,6 @@ bool InlineAssemblyExtractor::process()
     LOGDEBUG("Cleaning output" << std::endl);
     PassManager Passes;
     Passes.add(new TargetData(m_module));
-    //Passes.add(createGVExtractionPass(originalFunctions));
     Passes.add(new MarkerRemover());
     Passes.add(createGlobalDCEPass());             // Delete unreachable globals
     Passes.add(new CpuStateAsParameter());
@@ -265,7 +259,7 @@ bool InlineAssemblyExtractor::process()
     Passes.add(createGlobalDCEPass());             // Delete unreachable globals
     Passes.add(createDeadTypeEliminationPass());   // Remove dead types...
     Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
-    //Passes.run(*m_module);
+    Passes.run(*m_module);
 
     //Write the output
     llvm::sys::Path outputBitcodeFile(m_outputBitcodeFile);
