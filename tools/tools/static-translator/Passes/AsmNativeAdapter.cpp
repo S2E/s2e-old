@@ -3,6 +3,7 @@
 
 #include "lib/X86Translator/CpuStatePatcher.h"
 #include "AsmNativeAdapter.h"
+#include "CallingConvention.h"
 
 #include <sstream>
 
@@ -18,6 +19,7 @@ LogKey AsmNativeAdapter::TAG = LogKey("AsmNativeAdapter");
 void AsmNativeAdapter::getAnalysisUsage(llvm::AnalysisUsage &AU) const
 {
     AU.addRequired<TargetData>();
+    AU.addRequired<CallingConvention>();
 }
 
 Function* AsmNativeAdapter::createNativeWrapper(Module &M,
@@ -50,56 +52,35 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
     const IntegerType *stackElementType = IntegerType::get(M.getContext(), m_targetData->getPointerSizeInBits());
 
     //The stack holds the original parameters + the return value + 8 free slots for the callee
+    //XXX: wtf hard-coded constants
     unsigned stackSize = wrapperFunction->getArgumentList().size() + 1 + 8;
     Value *stackElementCount = ConstantInt::get(IntegerType::getInt32Ty(M.getContext()), APInt(32, stackSize));
+    Value *stackLastElement = ConstantInt::get(IntegerType::getInt32Ty(M.getContext()), APInt(32, stackSize-1));
     AllocaInst *stackAlloc = new AllocaInst(stackElementType,  stackElementCount, "", BB);
 
-    //Store the original parameters on the stack
-    unsigned argIdx = 0;
+    //Push all the parameters
+    std::vector<Value*> nativeParameters;
+    int skipfirst = true;
     foreach(it, wrapperFunction->arg_begin(), wrapperFunction->arg_end()) {
-        Argument &arg = *it;
-        if (argIdx == 0) {
-            ++argIdx;
+        if (skipfirst) {
+            skipfirst = false;
             continue;
         }
-
-        assert(arg.getType()->isInteger() || dyn_cast<PointerType>(arg.getType()));
-
-        //Create a get element ptr instruction to access the array
-        SmallVector<Value*, 1> gepElements;
-        gepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  argIdx-1)));
-        GetElementPtrInst *gep = GetElementPtrInst::Create(stackAlloc, gepElements.begin(), gepElements.end(), "", BB);
-
-        //Zero-extend the argument
-        ZExtInst *zi = new ZExtInst(&arg, stackElementType, "", BB);
-
-        //Store the parameter in the array
-        new StoreInst(zi, gep, BB);
-
-        ++argIdx;
+        nativeParameters.push_back(&*it);
     }
 
-    //Initialize the stack pointer at call
+    //Initialize the stack pointer
     Value *cpuStateParam = CpuStatePatcher::getCpuStateParam(*wrapperFunction);
+
     GetElementPtrInst *stackPtr = CpuStatePatcher::getStackPointer(M, cpuStateParam);
-    stackPtr->insertAfter(&BB->back());
-
-    SmallVector<Value*, 1> spGepElements;
-    spGepElements.push_back(ConstantInt::get(M.getContext(), APInt(32,  argIdx-1)));
-    GetElementPtrInst *spGep = GetElementPtrInst::Create(stackAlloc, spGepElements.begin(), spGepElements.end(), "", BB);
-    CastInst *spGepInt = CastInst::CreatePointerCast(spGep, stackElementType, "", BB);
+    stackPtr->insertAfter(&(BB->back()));
+    GetElementPtrInst *stackTop = GetElementPtrInst::Create(stackAlloc, stackLastElement, "", BB);
+    PtrToIntInst *stackTopAsInt = new PtrToIntInst(stackTop, stackElementType, "", BB);
+    new StoreInst(stackTopAsInt, stackPtr, BB);
 
 
-    new StoreInst(spGepInt, stackPtr, BB);
-
-    LOGDEBUG(*wrapperFunction << std::flush);
-    LOGDEBUG(*nativeFunction << std::flush);
-
-    //Invoke the native function
-    SmallVector<Value*, 1> arguments;
-    arguments.push_back(CpuStatePatcher::getCpuStateParam(*wrapperFunction));
-
-    CallInst::Create(nativeFunction, arguments.begin(), arguments.end(), "", BB);
+    //Generate the right type of wrapper depending on the current calling convention
+    m_callingConvention->generateGuestCall(cpuStateParam, nativeFunction, BB, nativeParameters, stackTopAsInt);
 
     //Get back the result
     GetElementPtrInst *eaxPtr = CpuStatePatcher::getResultRegister(M, cpuStateParam);
@@ -173,6 +154,7 @@ bool AsmNativeAdapter::replaceDeinlinedFunction(llvm::Module &M,
 bool AsmNativeAdapter::runOnModule(Module &M)
 {
     m_targetData = &getAnalysis<TargetData>();
+    m_callingConvention = &getAnalysis<CallingConvention>();
     assert(m_targetData && "Must have TargetData");
 
     assert(m_targetData->getPointerSize() == sizeof(uint64_t) && "We only support 64-bit targets for now");

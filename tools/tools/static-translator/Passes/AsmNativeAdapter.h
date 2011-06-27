@@ -9,6 +9,7 @@
 #include <llvm/Target/TargetData.h>
 
 #include <lib/Utils/Log.h>
+#include "CallingConvention.h"
 
 #include <map>
 
@@ -27,6 +28,7 @@ private:
 
     static LogKey TAG;
     CpuStateAllocs m_cpuStateAllocs;
+    CallingConvention *m_callingConvention;
 
     llvm::Function *createNativeWrapper(llvm::Module &M,
                                         llvm::Function *deinlinedFunction,

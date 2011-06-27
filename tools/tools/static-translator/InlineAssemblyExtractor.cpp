@@ -17,6 +17,8 @@
 #include "Passes/AsmDeinliner.h"
 #include "Passes/AsmNativeAdapter.h"
 #include "Passes/MarkerRemover.h"
+#include "Passes/TargetBinary.h"
+#include "Passes/CallingConvention.h"
 #include "StaticTranslator.h"
 
 
@@ -402,6 +404,9 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
 
     PassManager pm;
     pm.add(new TargetData(m_module));
+    pm.add(new TargetBinary(translator.getTranslator()->getBinaryFile(),
+                            translator.getTranslator()));
+    pm.add(new CallingConvention());
     pm.add(new AsmNativeAdapter(deinlinedToNativeMap));
     pm.add(createVerifierPass());
     pm.run(*m_module);
