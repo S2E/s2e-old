@@ -1029,7 +1029,30 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
     __ST_OP(INDEX_op_st8_i64,   8, 64)
     __ST_OP(INDEX_op_st16_i64, 16, 64)
     __ST_OP(INDEX_op_st32_i64, 32, 64)
+
+#ifndef CONFIG_S2E
     __ST_OP(INDEX_op_st_i64,   64, 64)
+#else
+    case INDEX_op_st_i64: {
+        assert(getValue(args[0])->getType() == intType(64));
+        assert(getValue(args[1])->getType() == wordType());
+
+        Value* valueToStore = getValue(args[0]);
+        if (args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) {
+            valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
+                                m_builder.CreateZExt(valueToStore, intType(64)),
+                                ConstantInt::get(intType(64), 0),
+                                ConstantInt::get(intType(64), 0xffffffffffffffff));
+            valueToStore = m_builder.CreateTrunc(valueToStore, intType(64));
+        }
+
+        v = m_builder.CreateAdd(getValue(args[1]),
+                    ConstantInt::get(wordType(), args[2]));
+        v = m_builder.CreateIntToPtr(v, intPtrType(64));
+        m_builder.CreateStore(valueToStore, v);
+        }
+        break;
+#endif
 #endif
 
 #undef __LD_OP
