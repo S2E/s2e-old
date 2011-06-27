@@ -110,6 +110,9 @@ void CpuStateAsParameter::patchUses(llvm::Module &M, OriginalToPatched &patchMap
                     case Instruction::PtrToInt:
                         newCste = ConstantExpr::getPtrToInt(patched, cste->getType());
                         break;
+                    case Instruction::BitCast:
+                        newCste = ConstantExpr::getZExtOrBitCast(patched, cste->getType());
+                        break;
                 default:
                         assert(false && "Don't know how to patch this");
                 }

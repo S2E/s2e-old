@@ -179,6 +179,9 @@ public:
     virtual ~Translator();
 
     void setBinaryFile(Binary *binary);
+    Binary *getBinaryFile() const {
+        return m_binary;
+    }
 
     virtual TranslatedBlock *translate(uint64_t address) = 0;
 
@@ -201,6 +204,8 @@ public:
 
 
 class X86Translator: public Translator {
+public:
+
 private:
     static LogKey TAG;
     llvm::FunctionPassManager *m_functionPasses;

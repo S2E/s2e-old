@@ -271,6 +271,7 @@ void TbPreprocessor::markReturn(Function &f)
 
     CallInst *marker;
     Value *programCounter = getTargetPc(f.getEntryBlock(), &marker);
+    assert(programCounter && "Something is broken");
     assert(!isa<ConstantInt>(programCounter) && "Return instruction cannot go to a constant address");
 
     CallInst *ret = buildReturnMarker();

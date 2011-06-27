@@ -217,7 +217,22 @@ TranslatedBlock *X86Translator::translate(uint64_t address)
     tb.pc = env.eip;
     tb.cs_base = 0;
     tb.tc_ptr = s_dummyBuffer;
-    tb.flags = (1 << HF_PE_SHIFT) | (1 << HF_CS32_SHIFT) | (1 << HF_SS32_SHIFT);
+
+    switch(getBinaryFile()->getMode()) {
+        case Binary::BIT16:
+            assert(false && "not implemented");
+            break;
+
+        case Binary::BIT32:
+            tb.flags = (1 << HF_PE_SHIFT) | (1 << HF_CS32_SHIFT) | (1 << HF_SS32_SHIFT);
+            break;
+
+        case Binary::BIT64:
+            tb.flags = (1 << HF_PE_SHIFT) | (1 << HF_CS32_SHIFT) | (1 << HF_SS32_SHIFT) |
+                       (1 << HF_CS64_SHIFT) | (1 << HF_LMA_SHIFT);
+            break;
+    }
+
 
     //Must retranslate twice to get a correct size of tb.
     //May throw InvalidAddressException
@@ -246,8 +261,8 @@ TranslatedBlock *X86Translator::translate(uint64_t address)
     if (isSingleStep()) {
         Function *fcn = ret->getFunction();
 
-        //LOGDEBUG() << "BEFORE DEUG" <<  std::endl;
-        //LOGDEBUG() << *fcn << std::flush;
+        LOGDEBUG("BEFORE DEUG" <<  std::endl);
+        LOGDEBUG(*fcn << std::flush);
 
 
         //Deuglygepify
