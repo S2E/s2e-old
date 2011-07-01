@@ -107,6 +107,8 @@ bool AsmNativeAdapter::replaceDeinlinedFunction(llvm::Module &M,
                               llvm::Function *nativeWrapper)
 {
     unsigned callSitesCount = 0;
+    std::vector<Instruction*> toErase;
+
 
     foreach(uit, deinlinedFunction->use_begin(), deinlinedFunction->use_end()) {
         CallInst *callSite = dyn_cast<CallInst>(*uit);
@@ -135,7 +137,11 @@ bool AsmNativeAdapter::replaceDeinlinedFunction(llvm::Module &M,
         CallInst *callToWrapper = CallInst::Create(nativeWrapper, args.begin(), args.end(), "");
         callToWrapper->insertBefore(callSite);
         callSite->replaceAllUsesWith(callToWrapper);
-        callSite->eraseFromParent();
+        toErase.push_back(callSite);
+    }
+
+    foreach(it, toErase.begin(), toErase.end()) {
+        (*it)->eraseFromParent();
     }
 
     if (!callSitesCount) {
