@@ -167,7 +167,6 @@ StaticTranslatorTool::StaticTranslatorTool(
     }
     m_translator->setBinaryFile(m_binary);
     m_translator->setSingleStep(true);
-    m_translatedCode = m_experiment->getOuputFile("translated.bin");
 
     if (entryPoint) {
         m_entryPoints.insert(entryPoint);
@@ -185,7 +184,6 @@ StaticTranslatorTool::StaticTranslatorTool(
 //XXX: the translator is global...
 StaticTranslatorTool::~StaticTranslatorTool()
 {
-    delete m_translatedCode;
     delete m_experiment;
 
     s_currentBinary = NULL;

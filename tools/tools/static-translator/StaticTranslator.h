@@ -48,9 +48,6 @@ private:
 
     AddressSet m_entryPoints;
 
-    //Outputs raw x86 translated code here
-    std::ostream *m_translatedCode;
-
     //Statistics
     uint64_t m_startTime;
     uint64_t m_endTime;
