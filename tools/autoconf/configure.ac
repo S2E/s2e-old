@@ -28,6 +28,7 @@ AC_CONFIG_HEADERS([include/s2etools/config.h])
 dnl FIXME: Make out of tree builds work.
 AC_CONFIG_MAKEFILE(Makefile)
 AC_CONFIG_MAKEFILE(Makefile.common)
+AC_CONFIG_MAKEFILE(test/Makefile)
 
 dnl Do the first stage of configuration for s2etools-config.in.
 AC_CONFIG_FILES([tools/s2etools-config/s2etools-config.in])
@@ -236,6 +237,7 @@ eval S2ETOOLS_PREFIX="${prefix}";
 S2ETOOLS_CONFIGTIME=`date`
 AC_SUBST(S2ETOOLS_PREFIX)
 AC_SUBST(S2ETOOLS_CONFIGTIME)
+
 
 dnl **************************************************************************
 dnl * Create the output files

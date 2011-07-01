@@ -9,7 +9,7 @@
 #
 LEVEL = .
 PARALLEL_DIRS = 
-DIRS = lib tools
+DIRS = lib tools test
 EXTRA_DIST = include
 
 #
