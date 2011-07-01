@@ -13,6 +13,8 @@ class CallingConvention : public llvm::ImmutablePass {
 private:
     static LogKey TAG;
 
+    llvm::Value* CastToInteger(llvm::Value *value, const llvm::IntegerType *resType);
+
     void generateGuestCallCdecl(llvm::Value *cpuState, llvm::Function *callee,
                            llvm::BasicBlock *insertAtEnd,
                            std::vector<llvm::Value*> &parameters,

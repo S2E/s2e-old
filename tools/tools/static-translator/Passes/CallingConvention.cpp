@@ -69,6 +69,20 @@ void generateGuestCallCdecl(llvm::Value *cpuState, llvm::Function *callee,
     assert(false && "Not implemented");
 }
 
+Value* CallingConvention::CastToInteger(Value *value, const IntegerType *resType)
+{
+    if (value->getType() == resType) {
+        return value;
+    }
+
+    if (isa<PointerType>(value->getType())) {
+        TargetData *targetData = &getAnalysis<TargetData>();
+        assert(targetData->getPointerSizeInBits() == resType->getPrimitiveSizeInBits());
+        return new PtrToIntInst(value, resType, "");
+    }
+    return new ZExtInst(value, resType, "");
+}
+
 //Push the value on the stack, updating the stack pointer
 void CallingConvention::push(llvm::BasicBlock *BB, llvm::Value *cpuState, llvm::GetElementPtrInst *stackPtr,
                              llvm::Value *value)
@@ -89,9 +103,11 @@ void CallingConvention::push(llvm::BasicBlock *BB, llvm::Value *cpuState, llvm::
     const IntegerType *stackElementType = IntegerType::get(M->getContext(), targetData->getPointerSizeInBits());
     LOGDEBUG("Type: " << *stackElementType << " - val:" << *value << std::endl << std::flush);
 
-    if (value->getType() != stackElementType) {
-        value = new ZExtInst(value, stackElementType, "", BB);
+    value = CastToInteger(value, stackElementType);
+    if (Instruction *instr = dyn_cast<Instruction>(value)) {
+        instr->insertAfter(&BB->back());
     }
+
 
     const Type *ptrType = PointerType::getUnqual(stackElementType);
     IntToPtrInst *llvmStackPtr = new IntToPtrInst(subEsp, ptrType, "", BB);
@@ -160,8 +176,12 @@ void CallingConvention::generateGuestCall64(llvm::Value *cpuState, llvm::Functio
 
         //Zero-extend the argument
         //XXX: standard says we shouldn't do that...
-        ZExtInst *zi = new ZExtInst(parameters[paramIdx], stackElementType, "", insertAtEnd);
-        new StoreInst(zi, reg, insertAtEnd);
+        Value *value = CastToInteger(parameters[paramIdx], stackElementType);
+        if (Instruction *instr = dyn_cast<Instruction>(value)) {
+            instr->insertAfter(&insertAtEnd->back());
+        }
+
+        new StoreInst(value, reg, insertAtEnd);
     }
 
     GetElementPtrInst *stackPtr = CpuStatePatcher::getStackPointer(*M, cpuState);
