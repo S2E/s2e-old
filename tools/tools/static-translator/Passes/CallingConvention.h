@@ -14,6 +14,7 @@ private:
     static LogKey TAG;
 
     llvm::Value* CastToInteger(llvm::Value *value, const llvm::IntegerType *resType);
+    llvm::Value* CastIntegerTo(llvm::Value *value, const llvm::Type *targetType);
 
     void generateGuestCallCdecl(llvm::Value *cpuState, llvm::Function *callee,
                            llvm::BasicBlock *insertAtEnd,
@@ -51,6 +52,13 @@ public:
                            std::vector<llvm::Value*> &parameters,
                            llvm::Value *stack);
 
+    bool returnTypeRequiresShadowParameter(const llvm::Type *ty) const;
+    bool returnTypeUsesRegisters(const llvm::Type *ty) const;
+    bool returnTypeUsesRegisters(const llvm::Type *ty, llvm::SmallVector<unsigned, 2> &regs) const;
+
+    llvm::Value *extractReturnValues(llvm::Value *cpuState,
+                                                const llvm::Type *returnType,
+                                                llvm::BasicBlock *BB);
 };
 }
 

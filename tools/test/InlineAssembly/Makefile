@@ -7,7 +7,7 @@
 
 LEVEL = ../..
 
-SOURCES = asm1.diff asm2.diff
+SOURCES = asm1.diff asm2.diff asm3-multiple-output.diff
 REVGEN=$(PROJ_OBJ_ROOT)/Debug/bin/static-translator
 BITCODE_LIB=$(PROJ_OBJ_ROOT)/Release/lib/X86BitcodeLibrary.bc
 RUNSAFE=$(PROJ_SRC_ROOT)/test/RunSafely.sh

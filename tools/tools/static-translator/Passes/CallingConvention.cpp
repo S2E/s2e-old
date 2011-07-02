@@ -69,6 +69,7 @@ void generateGuestCallCdecl(llvm::Value *cpuState, llvm::Function *callee,
     assert(false && "Not implemented");
 }
 
+//XXX: does casting belong to here?
 Value* CallingConvention::CastToInteger(Value *value, const IntegerType *resType)
 {
     if (value->getType() == resType) {
@@ -80,7 +81,28 @@ Value* CallingConvention::CastToInteger(Value *value, const IntegerType *resType
         assert(targetData->getPointerSizeInBits() == resType->getPrimitiveSizeInBits());
         return new PtrToIntInst(value, resType, "");
     }
-    return new ZExtInst(value, resType, "");
+
+    if (value->getType()->getPrimitiveSizeInBits() < resType->getPrimitiveSizeInBits()) {
+        return new ZExtInst(value, resType, "");
+    }else if (value->getType()->getPrimitiveSizeInBits() > resType->getPrimitiveSizeInBits()) {
+        return new TruncInst(value, resType, "");
+    }else {
+        return value;
+    }
+}
+
+//XXX: does casting belong to here?
+Value* CallingConvention::CastIntegerTo(Value *value, const Type *targetType)
+{
+    if (const IntegerType* it = dyn_cast<IntegerType>(targetType)) {
+        return CastToInteger(value, it);
+    }else if (const PointerType *ptr = dyn_cast<PointerType>(targetType)) {
+        TargetData *targetData = &getAnalysis<TargetData>();
+        assert(targetData->getPointerSizeInBits() == value->getType()->getPrimitiveSizeInBits());
+        return new IntToPtrInst(value, ptr, "");
+    }else {
+        assert(false && "Not implemented");
+    }
 }
 
 //Push the value on the stack, updating the stack pointer
@@ -220,6 +242,114 @@ void CallingConvention::generateGuestCall(llvm::Value *cpuState, llvm::Function 
     }else {
         assert(false && "Not implemented");
     }
+}
+
+bool CallingConvention::returnTypeUsesRegisters(const llvm::Type *ty) const
+{
+    llvm::SmallVector<unsigned, 2> regs;
+    return returnTypeUsesRegisters(ty, regs);
+}
+
+bool CallingConvention::returnTypeUsesRegisters(const llvm::Type *ty, llvm::SmallVector<unsigned, 2> &regs) const
+{
+    regs.clear();
+
+    LOGDEBUG("Return type: " << *ty << std::endl << std::flush);
+
+    if (ty->isPrimitiveType()) {
+        //XXX: Assume x86 architecture
+        regs.push_back(R_EAX);
+        return true;
+    }else if (ty->isAggregateType()) {
+        const StructType *struc = dyn_cast<StructType>(ty);
+        assert(struc && "Arrays not supported yet");
+        if (struc->getNumElements() > 2) {
+            //XXX: Are there any calling conventions which use more than two
+            //registers for return values?
+            return false;
+        }
+
+        for (unsigned elIdx = 0; elIdx < struc->getNumElements(); ++elIdx) {
+            const Type *elTy = struc->getElementType(elIdx);
+            bool isInt = elTy->isInteger();
+            bool isPtr = isa<PointerType>(elTy);
+            if (!isPtr && !isInt) {
+                return false;
+            }
+        }
+
+        if (struc->getNumElements() >= 1) {
+            //XXX: Move register elsewhere
+            regs.push_back(R_EAX);
+        }
+
+        if (struc->getNumElements() >= 2) {
+            //XXX: Move register elsewhere
+            regs.push_back(R_EDX);
+        }
+        return true;
+    }
+    assert(false && "Not supported yet");
+}
+
+Value *CallingConvention::extractReturnValues(llvm::Value *cpuState,
+                                            const llvm::Type *returnType,
+                                            llvm::BasicBlock *BB)
+{
+    llvm::SmallVector<unsigned, 2> returnTypeRegs;
+    bool returnTypeUsesRegs;
+
+    returnTypeUsesRegs = returnTypeUsesRegisters(returnType, returnTypeRegs);
+
+    //Get back the result
+    if (returnTypeUsesRegs) {
+        Module &M = *BB->getParent()->getParent();
+
+        //Assign the field that corresponds to each register
+        //First field is EAX, second is EDX.
+        SmallVector<Value*, 2> fields;
+        for (unsigned regIdx = 0; regIdx < returnTypeRegs.size(); ++regIdx) {
+            GetElementPtrInst *regPtr = CpuStatePatcher::getRegister(M, cpuState, returnTypeRegs[regIdx]);
+            regPtr->insertAfter(&BB->back());
+            LoadInst *loadResult = new LoadInst(regPtr, "", BB);
+            fields.push_back(loadResult);
+        }
+
+        if (returnType->isPrimitiveType()) {
+            assert(fields.size() == 1 && "Primitive type cannot span two registers... (implement 64-bit return value in EAX:EDX)");
+
+            unsigned bits = returnType->getScalarSizeInBits();
+            Value *returnedValue = fields[0];
+            if (bits < returnedValue->getType()->getScalarSizeInBits()) {
+                returnedValue = new TruncInst(returnedValue, returnType, "", BB);
+                //ReturnInst::Create(M.getContext(), returnedValue, BB);
+                return returnedValue;
+            }
+        }else {
+            //Get the address of each field element
+            const StructType *struc = dyn_cast<StructType>(returnType);
+            assert(struc && "Do not support arrays");
+
+            Value *returnedValue = new AllocaInst(struc, "", BB);
+            returnedValue = new LoadInst(returnedValue, "", BB);
+            Value *lastValue = returnedValue;
+            for (unsigned elIdx = 0; elIdx < struc->getNumElements(); ++elIdx) {
+                //XXX: Should use TargetData to take care of alignment, etc.
+
+                //Cast the integer to whatever type is in the structure
+                Value *cast = CastIntegerTo(fields[elIdx], struc->getElementType(elIdx));
+                if (cast != fields[elIdx]) {
+                    Instruction *instr = dyn_cast<Instruction>(cast);
+                    instr->insertAfter(&BB->back());
+                }
+
+                lastValue = InsertValueInst::Create(lastValue, cast, elIdx, "", BB);
+            }
+            return lastValue;
+        }
+    }
+
+    return NULL;
 }
 
 }

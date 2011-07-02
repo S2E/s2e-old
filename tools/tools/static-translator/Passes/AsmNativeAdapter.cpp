@@ -45,6 +45,8 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
     Function *wrapperFunction = dyn_cast<Function>(M.getOrInsertFunction(ss.str(), wrapperFunctionType));
     assert(wrapperFunction);
 
+    LOGDEBUG(*wrapperFunction << std::endl << std::flush);
+
     //Create the only basic block in the wrapper function
     BasicBlock *BB = BasicBlock::Create(M.getContext(), "", wrapperFunction, NULL);
 
@@ -59,6 +61,7 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
     AllocaInst *stackAlloc = new AllocaInst(stackElementType,  stackElementCount, "", BB);
 
     //Push all the parameters
+    //XXX: Assume here they are pushed from right to left!
     std::vector<Value*> nativeParameters;
     int skipfirst = true;
     foreach(it, wrapperFunction->arg_begin(), wrapperFunction->arg_end()) {
@@ -67,6 +70,20 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
             continue;
         }
         nativeParameters.push_back(&*it);
+    }
+
+    //Check whether to pass a hidden parameter that will hold
+    //a complex return type
+    const Type *returnType = wrapperFunctionType->getReturnType();
+    Value *returnedValue = NULL;
+    SmallVector<unsigned, 2> returnTypeRegs;
+    bool returnTypeUsesRegs;
+
+    returnTypeUsesRegs = m_callingConvention->returnTypeUsesRegisters(returnType, returnTypeRegs);
+    if (!returnTypeUsesRegs) {
+        returnedValue = new AllocaInst(returnType, "", BB);
+        //XXX: check memory layout!
+        nativeParameters.push_back(returnedValue);
     }
 
     //Initialize the stack pointer
@@ -82,20 +99,17 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
     //Generate the right type of wrapper depending on the current calling convention
     m_callingConvention->generateGuestCall(cpuStateParam, nativeFunction, BB, nativeParameters, stackTopAsInt);
 
-    //Get back the result
-    GetElementPtrInst *eaxPtr = CpuStatePatcher::getResultRegister(M, cpuStateParam);
-    eaxPtr->insertAfter(&BB->back());
-    LoadInst *loadResult = new LoadInst(eaxPtr, "", BB);
 
-    unsigned bits = wrapperFunction->getReturnType()->getScalarSizeInBits();
-    Instruction *ti = loadResult;
-    if (bits < loadResult->getType()->getScalarSizeInBits()) {
-        ti = new TruncInst(loadResult, wrapperFunction->getReturnType(), "", BB);
+    Value *aggregatedRegs = m_callingConvention->extractReturnValues(cpuStateParam, returnType, BB);
+    assert(!returnTypeUsesRegs || !returnedValue);
+    if (aggregatedRegs) {
+        assert(returnedValue == NULL);
+        returnedValue = aggregatedRegs;
     }
 
-    ReturnInst::Create(M.getContext(), ti, BB);
+    ReturnInst::Create(M.getContext(), returnedValue, BB);
 
-    LOGDEBUG(*wrapperFunction);
+    LOGDEBUG(*wrapperFunction << std::flush);
 
     wrapperFunction->setLinkage(Function::InternalLinkage);
 
