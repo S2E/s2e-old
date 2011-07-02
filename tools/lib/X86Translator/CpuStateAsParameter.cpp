@@ -177,7 +177,11 @@ bool CpuStateAsParameter::runOnModule(llvm::Module &M)
 {
     m_cpuStateType = CpuStatePatcher::getCpuStateType(M);
     m_env = M.getGlobalVariable("env");
-    assert(m_env && "There is not global variable env. Make sure you linked in the bitcode library");
+
+    if (!m_env) {
+        //If there are no helpers used, env may be optimized away and be missing.
+        return false;
+    }
 
     foreach(uit, m_env->use_begin(), m_env->use_end()) {
         Instruction *instr = dyn_cast<Instruction>(*uit);
