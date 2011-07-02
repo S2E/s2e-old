@@ -7,7 +7,7 @@
 
 LEVEL = ../..
 
-SOURCES = asm1.diff asm2.diff asm3-multiple-output.diff
+SOURCES = asm1.diff asm2.diff asm3-multiple-output.diff asm4-spilled-regs.diff
 REVGEN=$(PROJ_OBJ_ROOT)/Debug/bin/static-translator
 BITCODE_LIB=$(PROJ_OBJ_ROOT)/Release/lib/X86BitcodeLibrary.bc
 RUNSAFE=$(PROJ_SRC_ROOT)/test/RunSafely.sh
@@ -24,7 +24,7 @@ include $(LEVEL)/Makefile.common
 
 %.bc.translated: %.bc
 	@echo $(REVGEN) -o $@ -asmdeinliner -logfile $*.log -bitcodelibrary=$(BITCODE_LIB) $< > $*.cmd
-	@$(RUNSAFE) 200 0 /dev/null "$*.revgen" $(REVGEN) -o $@ -asmdeinliner -logfile $*.log -bitcodelibrary=$(BITCODE_LIB) $<
+	@$(RUNSAFE) 200 0 /dev/null "$*.revgen" $(REVGEN) -o $@ -asmdeinliner -loglevel 0 -logfile $*.log -bitcodelibrary=$(BITCODE_LIB) -keeptmp $<
 
 %.native.translated: %.bc.translated
 	@$(LLC) -f -o=$@.s $<
