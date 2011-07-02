@@ -27,6 +27,8 @@ private:
     llvm::MemoryBuffer *m_buffer;
     llvm::Module *m_module;
 
+    bool m_keepTemporaries;
+
     bool loadModule();
     void prepareModule();
     bool output(llvm::Module *module, const llvm::sys::Path &path);
@@ -46,6 +48,9 @@ public:
     ~InlineAssemblyExtractor();
     bool process();
 
+    void setKeepTemporaries(bool b) {
+        m_keepTemporaries = true;
+    }
 
 };
 

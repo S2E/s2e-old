@@ -38,6 +38,8 @@ InlineAssemblyExtractor::InlineAssemblyExtractor(const std::string &bitcodeFile,
 
    m_module = NULL;
    m_buffer = NULL;
+
+   m_keepTemporaries = false;
 }
 
 InlineAssemblyExtractor::~InlineAssemblyExtractor() {
@@ -125,11 +127,19 @@ bool InlineAssemblyExtractor::createAssemblyFile(llvm::sys::Path &outAssemblyFil
     //Create a temporary assembly file
     outAssemblyFile.set("tmp");
     if (outAssemblyFile.createTemporaryFileOnDisk()) {
-        LOGERROR("Could not creat assembly file" << std::endl);
+        LOGERROR("Could not create assembly file" << std::endl);
         return false;
     }
     outAssemblyFile.appendSuffix("s");
     outAssemblyFile.eraseFromDisk();
+
+    llvm::sys::Path r_stdout("llc-log");
+    if (r_stdout.createTemporaryFileOnDisk()) {
+        LOGERROR("Could not create lcc log file" << std::endl);
+        return false;
+    }
+    const llvm::sys::Path *redirects[] = {NULL, &r_stdout, &r_stdout};
+
 
     //Assemble the module
 
@@ -148,13 +158,15 @@ bool InlineAssemblyExtractor::createAssemblyFile(llvm::sys::Path &outAssemblyFil
 
     const char **llcArgs = createArguments(argsVec);
     llvm::sys::Program assemblyGenerator;
-    assemblyGenerator.ExecuteAndWait(llc, llcArgs);
+    assemblyGenerator.ExecuteAndWait(llc, llcArgs, NULL, redirects);
     destroyArguments(llcArgs);
 
     if (!outAssemblyFile.exists()) {
         LOGERROR("Could not create " << outAssemblyFile.toString() << std::endl);
         return false;
     }
+
+    r_stdout.eraseFromDisk();
 
     return true;
 }
@@ -164,11 +176,19 @@ bool InlineAssemblyExtractor::createObjectFile(llvm::sys::Path &outObjectFile, c
     //Create a temporary object file
     outObjectFile.set("tmp");
     if (outObjectFile.createTemporaryFileOnDisk()) {
-        LOGERROR("Could not creat object file" << std::endl);
+        LOGERROR("Could not create object file" << std::endl);
         return false;
     }
     outObjectFile.eraseFromDisk();
     outObjectFile.appendSuffix("o");
+
+
+    llvm::sys::Path r_stdout("gcc-log");
+    if (r_stdout.createTemporaryFileOnDisk()) {
+        LOGERROR("Could not create gcc log file" << std::endl);
+        return false;
+    }
+    const llvm::sys::Path *redirects[] = {NULL, &r_stdout, &r_stdout};
 
 
     //Transform the assembly file into an object file
@@ -190,7 +210,8 @@ bool InlineAssemblyExtractor::createObjectFile(llvm::sys::Path &outObjectFile, c
     const char **gccArgs = createArguments(argsVec);
 
     llvm::sys::Program gccCompiler;
-    gccCompiler.ExecuteAndWait(gcc, gccArgs);
+    gccCompiler.ExecuteAndWait(gcc, gccArgs, NULL, redirects);
+
     destroyArguments(gccArgs);
 
     if (!outObjectFile.exists()) {
@@ -198,6 +219,7 @@ bool InlineAssemblyExtractor::createObjectFile(llvm::sys::Path &outObjectFile, c
         return false;
     }
 
+    r_stdout.eraseFromDisk();
     return true;
 }
 
@@ -227,15 +249,19 @@ bool InlineAssemblyExtractor::process()
     //Create assembly file
     llvm::sys::Path assemblyFile;
     if (!createAssemblyFile(assemblyFile, preparedBitCodeFile)) {
-        preparedBitCodeFile.eraseFromDisk();
+        if (!m_keepTemporaries) {
+            preparedBitCodeFile.eraseFromDisk();
+        }
         return false;
     }
 
     //Create object file
     llvm::sys::Path objectFile;
     if (!createObjectFile(objectFile, assemblyFile)) {
-        assemblyFile.eraseFromDisk();
-        preparedBitCodeFile.eraseFromDisk();
+        if (!m_keepTemporaries) {
+            assemblyFile.eraseFromDisk();
+            preparedBitCodeFile.eraseFromDisk();
+        }
         return false;
     }
 
@@ -268,11 +294,11 @@ bool InlineAssemblyExtractor::process()
     output(m_module, outputBitcodeFile);
 
     //Delete intermediate files
-#if 1
-    assemblyFile.eraseFromDisk();
-    preparedBitCodeFile.eraseFromDisk();
-    objectFile.eraseFromDisk();
-#endif
+    if (!m_keepTemporaries) {
+        assemblyFile.eraseFromDisk();
+        preparedBitCodeFile.eraseFromDisk();
+        objectFile.eraseFromDisk();
+    }
 
     return true;
 }
@@ -381,7 +407,9 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
 
     //Link the translated file with the original module
     if (Linker::LinkModules(m_module, translatedModule, NULL)) {
-        translatedBitCode.eraseFromDisk();
+        if (!m_keepTemporaries) {
+            translatedBitCode.eraseFromDisk();
+        }
         LOGERROR("Error linking in translated module" << std::endl);
         return false;
     }

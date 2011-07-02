@@ -93,6 +93,10 @@ cl::opt<bool>
 cl::opt<bool>
     AsmRemoval("asmdeinliner", cl::desc("Remove inline assembly from specified module"), cl::init(false));
 
+cl::opt<bool>
+    KeepTemporaries("keeptmp", cl::desc("Keep temporary files"), cl::init(false));
+
+
 cl::opt<std::string>
     BfdFormat("bfd", cl::desc("Binary format of the input (in case auto detection fails)"), cl::init(""));
 
@@ -586,6 +590,8 @@ int main(int argc, char** argv)
         }
 
         InlineAssemblyExtractor asmExtr(InputFile, OutputFile, BitcodeLibrary);
+        asmExtr.setKeepTemporaries(KeepTemporaries);
+
         asmExtr.process();
     }else {
 
