@@ -20,10 +20,33 @@ void AsmDeinliner::processInlineAsm(CallInst *ci, InlineAsm *inlineAsm)
     std::stringstream ss;
     ss << "asmdein_" << ci->getParent()->getParent()->getName().str() << "_" << m_inlineAsmId;
 
-    Function *f = dyn_cast<Function>(M->getOrInsertFunction(ss.str(), inlineAsm->getFunctionType()));
-    f->setLinkage(Function::InternalLinkage);
+    const FunctionType *inlineAsmType = inlineAsm->getFunctionType();
+    const Type *inlineAsmRetType = inlineAsmType->getReturnType();
+    const Type *deinlinedRetType = NULL;
+    const FunctionType *deinlinedType = NULL;
 
-    BasicBlock *BB = BasicBlock::Create(M->getContext(), "", f, NULL);
+    //Prepare the deinlined function type.
+    //We pass all aggregate return types as a parameter, as LLVM cannot lower
+    //aggregate return values to machine code.
+    std::vector<const Type *> paramTypes;
+
+    if (inlineAsmRetType->isAggregateType()) {
+        paramTypes.push_back(PointerType::getUnqual(inlineAsmRetType));
+        deinlinedRetType = PointerType::getVoidTy(M->getContext());
+    }else {
+        deinlinedRetType = inlineAsmRetType;
+    }
+
+    foreach(it, inlineAsmType->param_begin(), inlineAsmType->param_end()) {
+        paramTypes.push_back(*it);
+    }
+
+    deinlinedType = FunctionType::get(deinlinedRetType, paramTypes, false);
+
+    Function *deinlinedFunction = dyn_cast<Function>(M->getOrInsertFunction(ss.str(), deinlinedType));
+    deinlinedFunction->setLinkage(Function::InternalLinkage);
+
+    BasicBlock *BB = BasicBlock::Create(M->getContext(), "", deinlinedFunction, NULL);
 
     //Create an identical call instruction
     InlineAsm *clonedInlineAsm = InlineAsm::get(inlineAsm->getFunctionType(),
@@ -32,23 +55,55 @@ void AsmDeinliner::processInlineAsm(CallInst *ci, InlineAsm *inlineAsm)
                                                inlineAsm->hasSideEffects());
 
     std::vector<Value*> params;
-    foreach (it, f->arg_begin(), f->arg_end()) {
+    bool useStructPtr = deinlinedRetType == PointerType::getVoidTy(M->getContext());
+    bool skipFirst = useStructPtr;
+    foreach (it, deinlinedFunction->arg_begin(), deinlinedFunction->arg_end()) {
+        if (skipFirst) {
+            skipFirst = false;
+            continue;
+        }
         params.push_back(&*it);
     }
 
     CallInst *asmCall = CallInst::Create(clonedInlineAsm, params.begin(), params.end(), "", BB);
 
-    ReturnInst::Create(M->getContext(), asmCall, BB);
+
+    //Create the return instruction
+    if (useStructPtr) {
+        //Store aggregate result in the first parameter
+        new StoreInst(asmCall, &*deinlinedFunction->arg_begin(), BB);
+        //We return void
+        ReturnInst::Create(M->getContext(), BB);
+    }else {
+        //Return an integer type directly
+        ReturnInst::Create(M->getContext(), asmCall, BB);
+    }
 
     //Replace the call site
     params.clear();
+
+    Value *structHolder = NULL;
+    if (useStructPtr) {
+        //Create a data structure holder
+        structHolder = new AllocaInst(inlineAsmRetType, "", ci);
+        params.push_back(structHolder);
+    }
+
     for (unsigned i = 1; i < ci->getNumOperands(); ++i) {
         params.push_back(ci->getOperand(i));
     }
 
-    CallInst *newCi = CallInst::Create(f, params.begin(), params.end(), "");
+    CallInst *newCi = CallInst::Create(deinlinedFunction, params.begin(), params.end(), "");
     newCi->insertBefore(ci);
-    ci->replaceAllUsesWith(newCi);
+
+    if (useStructPtr) {
+        Instruction *loadedResult = new LoadInst(structHolder, "");
+        loadedResult->insertAfter(newCi);
+        ci->replaceAllUsesWith(loadedResult);
+    }else {
+        ci->replaceAllUsesWith(newCi);
+    }
+
     ci->eraseFromParent();
 }
 

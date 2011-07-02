@@ -76,15 +76,6 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
     //a complex return type
     const Type *returnType = wrapperFunctionType->getReturnType();
     Value *returnedValue = NULL;
-    SmallVector<unsigned, 2> returnTypeRegs;
-    bool returnTypeUsesRegs;
-
-    returnTypeUsesRegs = m_callingConvention->returnTypeUsesRegisters(returnType, returnTypeRegs);
-    if (!returnTypeUsesRegs) {
-        returnedValue = new AllocaInst(returnType, "", BB);
-        //XXX: check memory layout!
-        nativeParameters.push_back(returnedValue);
-    }
 
     //Initialize the stack pointer
     Value *cpuStateParam = CpuStatePatcher::getCpuStateParam(*wrapperFunction);
@@ -100,14 +91,12 @@ Function* AsmNativeAdapter::createNativeWrapper(Module &M,
     m_callingConvention->generateGuestCall(cpuStateParam, nativeFunction, BB, nativeParameters, stackTopAsInt);
 
 
-    Value *aggregatedRegs = m_callingConvention->extractReturnValues(cpuStateParam, returnType, BB);
-    assert(!returnTypeUsesRegs || !returnedValue);
-    if (aggregatedRegs) {
-        assert(returnedValue == NULL);
-        returnedValue = aggregatedRegs;
+    returnedValue = m_callingConvention->extractReturnValues(cpuStateParam, returnType, BB);
+    if (returnedValue) {
+        ReturnInst::Create(M.getContext(), returnedValue, BB);
+    }else {
+        ReturnInst::Create(M.getContext(), BB);
     }
-
-    ReturnInst::Create(M.getContext(), returnedValue, BB);
 
     LOGDEBUG(*wrapperFunction << std::flush);
 
