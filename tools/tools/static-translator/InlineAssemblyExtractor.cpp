@@ -5,6 +5,8 @@
 #include <llvm/System/Program.h>
 #include <llvm/Linker.h>
 #include <llvm/Transforms/IPO.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/ModuleProvider.h>
 
 #include <fstream>
 #include <iomanip>
@@ -19,6 +21,7 @@
 #include "Passes/MarkerRemover.h"
 #include "Passes/TargetBinary.h"
 #include "Passes/CallingConvention.h"
+#include "Passes/RevgenAlias.h"
 #include "StaticTranslator.h"
 
 
@@ -289,6 +292,20 @@ bool InlineAssemblyExtractor::process()
     Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
     Passes.run(*m_module);
 
+    //Optimize every function
+    FunctionPassManager fpm(new ExistingModuleProvider(m_module));
+    fpm.add(new TargetData(m_module));
+    fpm.add(createCFGSimplificationPass());
+    fpm.add(createGVNPass());
+    fpm.add(createDeadStoreEliminationPass());
+    fpm.add(createDeadCodeEliminationPass());
+    fpm.add(createGVNPREPass());
+
+    foreach(fit, m_module->begin(), m_module->end()) {
+        fpm.run(*fit);
+    }
+
+
     //Write the output
     llvm::sys::Path outputBitcodeFile(m_outputBitcodeFile);
     output(m_module, outputBitcodeFile);
@@ -414,6 +431,16 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
         return false;
     }
 
+    //Optimize every function
+    FunctionPassManager fpm(translator.getTranslator()->getModuleProvider());
+    fpm.add(new TargetData(m_module));
+    fpm.add(new RevgenAlias());
+    fpm.add(createCFGSimplificationPass());
+    fpm.add(createGVNPass());
+    fpm.add(createDeadStoreEliminationPass());
+    fpm.add(createDeadCodeEliminationPass());
+    fpm.add(createGVNPREPass());
+
     //Map deinlined to native
     AsmNativeAdapter::FunctionMap deinlinedToNativeMap;
     foreach(it, deinlinedFunctions.begin(), deinlinedFunctions.end()) {
@@ -421,6 +448,8 @@ bool InlineAssemblyExtractor::translateObjectFile(llvm::sys::Path &inObjectFile)
 
         std::string nativeName = TbPreprocessor::getFunctionName((*it).second);
         Function *native = m_module->getFunction(nativeName);
+
+        fpm.run(*native);
 
         if (!native || !deinlined) {
             LOGERROR("Could not find " << nativeName << " in translated module" << std::endl);
