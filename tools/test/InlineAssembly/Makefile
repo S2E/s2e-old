@@ -7,8 +7,8 @@
 
 LEVEL = ../..
 
-SOURCES = asm1.diff asm2.diff asm3-multiple-output.diff asm4-spilled-regs.diff
-REVGEN=$(PROJ_OBJ_ROOT)/Debug/bin/static-translator
+SOURCES = asm1.diff asm2.diff asm3-multiple-output.diff asm4-spilled-regs.diff asm5-inregs.diff
+REVGEN=$(PROJ_OBJ_ROOT)/Release/bin/static-translator
 BITCODE_LIB=$(PROJ_OBJ_ROOT)/Release/lib/X86BitcodeLibrary.bc
 RUNSAFE=$(PROJ_SRC_ROOT)/test/RunSafely.sh
 CMPOUT=$(PROJ_SRC_ROOT)/test/CompareOutput.sh
@@ -37,6 +37,9 @@ include $(LEVEL)/Makefile.common
 
 	
 test: $(SOURCES)
-	rm tmp-*
+	rm -f tmp-*
+
+clean::
+	rm -f *.bc *.native.translated *.bc.translated *.native tmp-*
 
 .PRECIOUS: %.bc %.native.translated %.bc.translated %.native
