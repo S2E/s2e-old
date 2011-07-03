@@ -260,7 +260,7 @@ bool CallingConvention::returnTypeUsesRegisters(const llvm::Type *ty, llvm::Smal
         return false;
     }
 
-    if (ty->isPrimitiveType()) {
+    if (isa<PointerType>(ty) || ty->isInteger()) {
         //XXX: Assume x86-64 architecture
         regs.push_back(R_EAX);
         return true;
@@ -269,6 +269,7 @@ bool CallingConvention::returnTypeUsesRegisters(const llvm::Type *ty, llvm::Smal
     //Aggregate return types are explicitely passed by parameter to the function.
     //They are handled just like any other parameter.
     //Nothing to do here.
+    LOGDEBUG(*ty << std::endl << std::flush);
     assert(false && "Cannot happen");
 
     return false;
@@ -288,18 +289,15 @@ Value *CallingConvention::extractReturnValues(llvm::Value *cpuState,
 
     Module *M = BB->getParent()->getParent();
 
-    Instruction *returnedValue = CpuStatePatcher::getResultRegister(*M, cpuState);
-    returnedValue->insertAfter(&BB->back());
+    GetElementPtrInst *resultRegPtr = CpuStatePatcher::getResultRegister(*M, cpuState);
+    resultRegPtr->insertAfter(&BB->back());
+    Instruction *returnedValue = new LoadInst(resultRegPtr, "", BB);
 
-    unsigned bits = returnType->getScalarSizeInBits();
-
-    if (bits < returnedValue->getType()->getScalarSizeInBits()) {
-        returnedValue = new TruncInst(returnedValue, returnType, "", BB);
-        return returnedValue;
+    Value *cast = CastIntegerTo(returnedValue, returnType);
+    if (cast != returnedValue) {
+        dyn_cast<Instruction>(cast)->insertAfter(&BB->back());
     }
-
-    assert(false && "Should not happen");
-    return NULL;
+    return cast;
 }
 
 }
