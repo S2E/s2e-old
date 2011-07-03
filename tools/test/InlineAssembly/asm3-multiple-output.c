@@ -6,7 +6,7 @@ int rol(int *val, int count, int *dummy)
   int res;
   asm("mov (%%rdi), %%eax\n"
       "rol %%cl, %%eax\n"
-      "mov $0xdeadbeef, %%edx":"=a" (res), "=d" (*dummy) :  "d"(val), "c" (count) );
+      "mov $0xdeadbeef, %%edx":"=a" (res), "=d" (*dummy) :  "D"(val), "c" (count) );
   return res;
 }
 

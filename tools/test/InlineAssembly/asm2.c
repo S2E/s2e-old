@@ -5,7 +5,7 @@ int rol(int *val, int count)
 {
   int res;
   asm("mov (%%rdi), %%eax\n"
-      "rol %%cl, %%eax":"=a" (res) : "d"(val), "c" (count) );
+      "rol %%cl, %%eax":"=a" (res) : "D"(val), "c" (count) );
   return res;
 }
 
