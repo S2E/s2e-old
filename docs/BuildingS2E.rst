@@ -20,6 +20,7 @@ Required Packages
     $ sudo apt-get install git
     $ sudo apt-get install qemu
     $ sudo apt-get install liblua5.1-dev
+    $ sudo apt-get install libsdl1.2-dev
     $ sudo apt-get install libsigc++-2.0-dev
     $ sudo apt-get install binutils-dev
     $ sudo apt-get install python-docutils
