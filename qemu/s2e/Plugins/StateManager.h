@@ -100,7 +100,7 @@ public:
 private:
 
     enum Opcodes {
-        SUCCEED
+        SUCCEED=0
     };
 
     StateSet m_succeeded;

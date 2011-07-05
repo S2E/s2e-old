@@ -34,6 +34,11 @@
  *
  */
 
+extern "C" {
+#include "config.h"
+#include "qemu-common.h"
+}
+
 #include <llvm/System/TimeValue.h>
 
 #include <s2e/ConfigFile.h>
@@ -86,6 +91,13 @@ void StateManager::sendKillToAllInstances(bool keepOneSuccessful, unsigned procI
     cmd.command = StateManagerShared::KILL;
     cmd.nodeId = keepOneSuccessful ? procId : (unsigned)-1;
     s->command.write(cmd);
+
+    //Wait for all instances to execute the command
+    while (AtomicFunctions::read(&s->waitingProcessCount) > 1)
+        ;
+
+    cmd.command = StateManagerShared::EMPTY;
+    s->command.write(cmd);
 }
 
 bool StateManager::listenForCommands()
@@ -121,6 +133,8 @@ void StateManager::suspendAllProcesses()
     //Wait for all instances to be suspended (except our own one)
     while (AtomicFunctions::read(&s->waitingProcessCount) < g_s2e->getMaxProcesses() - 1)
         ;
+
+    AtomicFunctions::write(&s->suspendAll, 0);
 }
 
 bool StateManager::isSuspending()
@@ -290,6 +304,10 @@ void StateManager::killAllButOneSuccessfulLocal()
 
     StateSet toKeep;
     toKeep.insert(one);
+
+    uint64_t *successCount = m_shared.get()->successCount;
+    successCount[s2e()->getCurrentProcessId()] = 0;
+
     killAllExcept(toKeep, true);
 }
 
@@ -300,7 +318,7 @@ bool StateManager::killAllButOneSuccessful()
 
     //Determine the instance that has at least one successful state
     unsigned hasSuccessfulIndex;
-    for (unsigned hasSuccessfulIndex=0; hasSuccessfulIndex < maxProcesses; ++hasSuccessfulIndex) {
+    for (hasSuccessfulIndex=0; hasSuccessfulIndex < maxProcesses; ++hasSuccessfulIndex) {
         if (successCount[hasSuccessfulIndex] > 0) {
             break;
         }
@@ -316,7 +334,7 @@ bool StateManager::killAllButOneSuccessful()
     //Kill all states everywhere except one successful on the instance that we found
     if (hasSuccessfulIndex == s2e()->getCurrentProcessId()) {
         //We chose one state on our local instance
-        assert(m_succeeded.size() > 0);
+        assert(successCount[hasSuccessfulIndex] == m_succeeded.size());
 
         //Ask other instances to kill all their states
         sendKillToAllInstances(false, 0);
@@ -378,9 +396,17 @@ void StateManager::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
 
     unsigned subfunc = OPCODE_GETSUBFUNCTION(opcode);
     switch (subfunc) {
-        case SUCCEED:
+        case SUCCEED: {
             succeedState(state);
+
+            //At this point, we must advance the program counter, otherwise
+            //the current custom instruction will be executed again when the state resumes.
+            target_ulong pc = state->getPc() + OPCODE_SIZE;
+            state->writeCpuState(CPU_OFFSET(eip), pc, 8*sizeof(target_ulong));
+
+            throw CpuExitException();
             break;
+        }
 
         default:
             s2e()->getWarningsStream() << "StateManager: incorrect opcode " << std::hex << subfunc << std::endl;

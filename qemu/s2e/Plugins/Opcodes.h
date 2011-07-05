@@ -38,6 +38,8 @@
 
 #define __S2E_OPCODES__
 
+#define OPCODE_SIZE (2 + 8)
+
 //Central opcode repository for plugins that implement micro-operations
 #define RAW_MONITOR_OPCODE   0xAA
 #define MEMORY_TRACER_OPCODE 0xAC
