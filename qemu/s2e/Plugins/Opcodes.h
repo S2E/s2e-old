@@ -34,75 +34,23 @@
  *
  */
 
-#ifndef S2E_PLUGINS_MEMTRACER_H
-#define S2E_PLUGINS_MEMTRACER_H
+#ifndef __S2E_OPCODES__
 
-#include <s2e/Plugin.h>
-#include <s2e/Plugins/Opcodes.h>
-#include <string>
-#include "ExecutionTracer.h"
+#define __S2E_OPCODES__
 
-namespace s2e{
-namespace plugins{
+//Central opcode repository for plugins that implement micro-operations
+#define RAW_MONITOR_OPCODE   0xAA
+#define MEMORY_TRACER_OPCODE 0xAC
+#define STATE_MANAGER_OPCODE 0xAD
 
+//Expression evaluates to true if the custom instruction operand contains the
+//specified opcode
+#define OPCODE_CHECK(operand, opcode) ((((operand)>>8) & 0xFF) == (opcode))
 
-/** Handler required for KLEE interpreter */
-class MemoryTracer : public Plugin
-{
-    S2E_PLUGIN
+//Get an 8-bit function code from the operand.
+//This may or may not be used depending on how a plugin expects an operand to
+//look like
+#define OPCODE_GETSUBFUNCTION(operand) (((operand) >> 16) & 0xFF)
 
-private:
-
-public:
-    MemoryTracer(S2E* s2e);
-
-    void initialize();
-
-    enum MemoryTracerOpcodes {
-        Enable = 0,
-        Disable = 1
-    };
-
-private:
-    bool m_monitorPageFaults;
-    bool m_monitorTlbMisses;
-    bool m_monitorMemory;
-
-    bool m_monitorStack;
-    bool m_traceHostAddresses;
-    uint64_t m_catchAbove;
-
-    uint64_t m_timeTrigger;
-    uint64_t m_elapsedTics;
-    sigc::connection m_timerConnection;
-
-    sigc::connection m_memoryMonitor;
-    sigc::connection m_pageFaultsMonitor;
-    sigc::connection m_tlbMissesMonitor;
-
-    ExecutionTracer *m_tracer;
-
-    bool decideTracing(S2EExecutionState *state, uint64_t addr, uint64_t data) const;
-
-    void onDataMemoryAccess(S2EExecutionState *state,
-                                   klee::ref<klee::Expr> address,
-                                   klee::ref<klee::Expr> hostAddress,
-                                   klee::ref<klee::Expr> value,
-                                   bool isWrite, bool isIO);
-
-    void onTlbMiss(S2EExecutionState *state, uint64_t addr, bool is_write);
-    void onPageFault(S2EExecutionState *state, uint64_t addr, bool is_write);
-
-    void onTimer();
-
-    void enableTracing();
-    void disableTracing();
-    void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
-
-};
-
-
-}
-}
 
 #endif
