@@ -38,9 +38,11 @@
 
 #define S2E_STATEMANAGER_H
 
+#include <s2e/s2e_config.h>
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
+#include <s2e/Plugins/Opcodes.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutor.h>
@@ -48,6 +50,43 @@
 
 namespace s2e {
 namespace plugins {
+
+struct StateManagerShared {
+    enum Commands {
+        EMPTY=0, KILL, RESUME
+    };
+
+    struct Command {
+        uint8_t command;
+        uint8_t nodeId;
+        uint16_t padding;
+        uint32_t padding2;
+    };
+
+    uint64_t waitingProcessCount;
+    uint64_t suspendAll;
+    uint64_t timeOfLastNewBlock;
+
+    AtomicObject<Command> command;
+
+    //How many states succeeded in each instance.
+    //Access using the current state id modulo max number of processes.
+    uint64_t successCount[S2E_MAX_PROCESSES];
+
+    StateManagerShared() {
+        waitingProcessCount = 0;
+        suspendAll = 0;
+        timeOfLastNewBlock = 0;
+        for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i) {
+            successCount[i] = 0;
+        }
+
+        Command cmd = {0,0,0,0};
+        command.write(cmd);
+    }
+};
+
+void sm_callback(S2EExecutionState *s, bool killingState);
 
 class StateManager : public Plugin
 {
@@ -59,18 +98,20 @@ public:
     void initialize();
 
 private:
+
+    enum Opcodes {
+        SUCCEED
+    };
+
     StateSet m_succeeded;
     S2EExecutor *m_executor;
     unsigned m_timeout;
-    unsigned m_timerTicks;
 
     ModuleExecutionDetector *m_detector;
 
     static StateManager *s_stateManager;
 
-
-
-    void onTimer();
+    S2ESynchronizedObject<StateManagerShared> m_shared;
 
     void onNewBlockCovered(
             ExecutionSignal *signal,
@@ -79,17 +120,38 @@ private:
             TranslationBlock *tb,
             uint64_t pc);
 
-public:
+    void onProcessFork();
+
+    void suspendAllProcesses();
+    bool isSuspending();
+    bool listenForCommands();
+    bool grabLock();
+    void ungrabLock();
+
+
+    bool killAllExcept(StateSet &states, bool ungrab);
+    void resumeSucceeded();
+
+    bool timeoutReached() const;
+    void resetTimeout();
+
+    void sendKillToAllInstances(bool keepOneSuccessful, unsigned procId);
     void killOnTimeOut();
-    bool succeedState(S2EExecutionState *s);
     bool resumeSucceededState(S2EExecutionState *s);
 
-    bool killAllButOneSuccessful(bool killCurrent=false);
-    bool killAllButCurrent();
-    void resumeSucceeded();
+    bool killAllButOneSuccessful();
+    void killAllButOneSuccessfulLocal();
+
+
+    void onCustomInstruction(S2EExecutionState* state,
+        uint64_t opcode);
+public:
+    bool succeedState(S2EExecutionState *s);
 
     //Checks whether the search has no more states
     bool empty();
+
+    friend void sm_callback(S2EExecutionState *s, bool killingState);
 };
 
 
