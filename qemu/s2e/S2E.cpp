@@ -709,6 +709,13 @@ unsigned S2E::fetchAndIncrementStateId()
     return ret;
 }
 
+unsigned S2E::getCurrentProcessCount()
+{
+    S2EShared *shared = m_sync.acquire();
+    unsigned ret = shared->currentProcessCount;
+    m_sync.release();
+    return ret;
+}
 
 } // namespace s2e
 

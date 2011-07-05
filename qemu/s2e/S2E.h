@@ -211,6 +211,8 @@ public:
     unsigned getCurrentProcessId() const {
         return m_currentProcessId;
     }
+
+    unsigned getCurrentProcessCount();
 };
 
 } // namespace s2e

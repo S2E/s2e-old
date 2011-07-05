@@ -308,6 +308,18 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
+        case 0x30: { /* Get number of active states */
+                uint32_t count = s2e()->getExecutor()->getStatesCount();
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+                break;
+        }
+
+        case 0x31: { /* Get number of active S2E instances */
+                uint32_t count = s2e()->getCurrentProcessCount();
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+                break;
+        }
+
         case 0x50: { /* disable/enable timer interrupt */
             uint64_t disabled = opcode >> 16;
             if(disabled)
