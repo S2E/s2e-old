@@ -4,7 +4,8 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_test2
+    call s2e_sm_test
+    ;call s2e_test2
     ;call s2e_test_memobj
     ;call s2e_fork_test
     ;call s2e_symbhwio_test
