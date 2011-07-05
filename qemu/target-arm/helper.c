@@ -635,7 +635,7 @@ void switch_mode(CPUState *env, int mode)
 
     i = bank_number(mode);
     WR_cpu(env,regs[13],RR_cpu(env,banked_r13[i]));
-    WR_cpu(env,regs[13],RR_cpu(env,banked_r14[i]));
+    WR_cpu(env,regs[14],RR_cpu(env,banked_r14[i]));
     WR_cpu(env,spsr,RR_cpu(env,banked_spsr[i]));
 }
 
