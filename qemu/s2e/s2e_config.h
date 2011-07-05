@@ -37,6 +37,11 @@
 #ifndef S2E_CONFIG_H
 #define S2E_CONFIG_H
 
+/** How many S2E instances we want to handle.
+    Plugins can use this constant to allocate blocks of shared memory whose size
+    depends on the maximum number of processes (e.g., bitmaps) */
+#define S2E_MAX_PROCESSES 48
+
 /** This defines the size of each MemoryObject that represents physical RAM.
     Larget values save some memory, smaller (exponentially) decrease solving
     time for constraints with symbolic addresses */
