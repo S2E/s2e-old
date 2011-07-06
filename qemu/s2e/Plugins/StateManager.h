@@ -53,7 +53,7 @@ namespace plugins {
 
 struct StateManagerShared {
     enum Commands {
-        EMPTY=0, KILL, RESUME
+        EMPTY=0, KILL
     };
 
     struct Command {
@@ -63,26 +63,22 @@ struct StateManagerShared {
         uint32_t padding2;
     };
 
-    uint64_t waitingProcessCount;
     uint64_t suspendAll;
     uint64_t timeOfLastNewBlock;
-
-    AtomicObject<Command> command;
 
     //How many states succeeded in each instance.
     //Access using the current state id modulo max number of processes.
     uint64_t successCount[S2E_MAX_PROCESSES];
+    AtomicObject<Command>  commands[S2E_MAX_PROCESSES];
 
     StateManagerShared() {
-        waitingProcessCount = 0;
         suspendAll = 0;
         timeOfLastNewBlock = 0;
+        Command cmd = {0,0,0,0};
         for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i) {
             successCount[i] = 0;
+            commands[i].write(cmd);
         }
-
-        Command cmd = {0,0,0,0};
-        command.write(cmd);
     }
 };
 
@@ -123,11 +119,7 @@ private:
 
     void onProcessFork();
 
-    void suspendAllProcesses();
-    bool isSuspending();
-    bool listenForCommands();
-    bool grabLock();
-    void ungrabLock();
+    bool processCommands();
 
 
     bool killAllExcept(StateSet &states, bool ungrab);
@@ -141,7 +133,7 @@ private:
     bool resumeSucceededState(S2EExecutionState *s);
 
     bool killAllButOneSuccessful();
-    void killAllButOneSuccessfulLocal();
+    void killAllButOneSuccessfulLocal(bool ungrabLock);
 
 
     void onCustomInstruction(S2EExecutionState* state,

@@ -64,106 +64,63 @@ void sm_callback(S2EExecutionState *s, bool killingState)
         return;
     }
 
-    if (!sm->grabLock()) {
-        return;
-    }
+    sm->m_shared.acquire();
+
+    //Process the commands that we may have
+    sm->processCommands();
 
     //If there are no states, try to resume some successful ones
     if (g_s2e->getExecutor()->getStatesCount() == 0) {
         sm->killAllButOneSuccessful();
-        sm->ungrabLock();
+        sm->m_shared.release();
         return;
     }
 
     //Check for timeout conditions
     sm->killOnTimeOut();
-    sm->ungrabLock();
+    sm->m_shared.release();
 }
 
 void StateManager::sendKillToAllInstances(bool keepOneSuccessful, unsigned procId)
 {
-    suspendAllProcesses();
-
     StateManagerShared *s = m_shared.get();
 
     StateManagerShared::Command cmd;
     cmd.command = StateManagerShared::KILL;
-    cmd.nodeId = keepOneSuccessful ? procId : (unsigned)-1;
-    s->command.write(cmd);
 
-    //Wait for all instances to execute the command
-    while (AtomicFunctions::read(&s->waitingProcessCount) > 1)
-        ;
-
-    cmd.command = StateManagerShared::EMPTY;
-    s->command.write(cmd);
+    //Write a command to each instance, which will eventually execute it
+    for(unsigned i=0; i<s2e()->getCurrentProcessCount(); ++i) {
+        if (i != s2e()->getCurrentProcessId()) {
+            cmd.nodeId = keepOneSuccessful ? procId : (unsigned)-1;
+            s->commands[i].write(cmd);
+        }
+    }
 }
 
-bool StateManager::listenForCommands()
+bool StateManager::processCommands()
 {
     StateManagerShared *s = m_shared.get();
-    AtomicFunctions::add(&s->waitingProcessCount, 1);
 
-    StateManagerShared::Command cmd;
-    do {
-     cmd = s->command.read();
-    }while(cmd.command == StateManagerShared::EMPTY);
+
+    StateManagerShared::Command cmd = s->commands[s2e()->getCurrentProcessId()].read();
 
     if (cmd.command == StateManagerShared::KILL) {
+        cmd.command = StateManagerShared::EMPTY;
+        s->commands[s2e()->getCurrentProcessId()].write(cmd);
+        s2e()->getDebugStream() << "StateManager: received kill command" << std::endl;
         if (cmd.nodeId == s2e()->getCurrentProcessId()) {
             //Keep one successful
-            killAllButOneSuccessfulLocal();
+            killAllButOneSuccessfulLocal(false);
         }else {
             //Kill everything
             StateSet toKeep;
             killAllExcept(toKeep, true);
         }
-    }else {
-        assert(false && "Unsupported command");
     }
 
-    AtomicFunctions::sub(&s->waitingProcessCount, 1);
-    return cmd.command == StateManagerShared::RESUME;
-}
-
-void StateManager::suspendAllProcesses()
-{
-    StateManagerShared *s = m_shared.get();
-    AtomicFunctions::write(&s->suspendAll, 1);
-
-    //Wait for all instances to be suspended (except our own one)
-    while (AtomicFunctions::read(&s->waitingProcessCount) < g_s2e->getMaxProcesses() - 1)
-        ;
-
-    AtomicFunctions::write(&s->suspendAll, 0);
-}
-
-bool StateManager::isSuspending()
-{
-    StateManagerShared *s = m_shared.get();
-    return AtomicFunctions::read(&s->suspendAll) == 1;
-}
-
-bool StateManager::grabLock()
-{
-    StateManagerShared *s;
-    while (!(s = m_shared.tryAcquire())) {
-        if (isSuspending()) {
-            if (listenForCommands()) {
-                continue;
-            }
-            //This is unreachable
-            assert(false && "Unreachable");
-            return false;
-        }
-     }
     return true;
 }
 
-void StateManager::ungrabLock()
-{
-    m_shared.release();
-}
 
 bool StateManager::timeoutReached() const
 {
@@ -189,11 +146,18 @@ void StateManager::resumeSucceeded()
         m_executor->resumeState(*it);
     }
     m_succeeded.clear();
+
+    uint64_t *successCount = m_shared.get()->successCount;
+    successCount[s2e()->getCurrentProcessId()] = 0;
 }
 
 bool StateManager::resumeSucceededState(S2EExecutionState *s)
 {
     if (m_succeeded.find(s) != m_succeeded.end()) {
+
+        uint64_t *successCount = m_shared.get()->successCount;
+        --successCount[s2e()->getCurrentProcessId()];
+
         m_succeeded.erase(s);
         m_executor->resumeState(s);
         return true;
@@ -229,7 +193,11 @@ void StateManager::initialize()
 
 void StateManager::onProcessFork()
 {
-    m_shared.get()->successCount[s2e()->getCurrentProcessId()] = 0;
+    StateManagerShared *s = m_shared.acquire();
+    s->successCount[s2e()->getCurrentProcessId()] = 0;
+    StateManagerShared::Command cmd = {0,0,0,0};
+    s->commands[s2e()->getCurrentProcessId()].write(cmd);
+    m_shared.release();
 }
 
 //Reset the timeout every time a new block of the module is translated.
@@ -266,6 +234,8 @@ void StateManager::killOnTimeOut()
 
 bool StateManager::killAllExcept(StateSet &toKeep, bool ungrab)
 {
+    s2e()->getDebugStream() << "StateManager: killAllExcept" << std::endl;
+
     bool killCurrent = false;
     const std::set<klee::ExecutionState*> &states = s2e()->getExecutor()->getStates();
     std::set<klee::ExecutionState*>::const_iterator it = states.begin();
@@ -289,7 +259,7 @@ bool StateManager::killAllExcept(StateSet &toKeep, bool ungrab)
     //and return to the state scheduler.
     if (killCurrent) {
         if (ungrab) {
-            ungrabLock();
+            m_shared.release();
         }
         s2e()->getExecutor()->terminateStateEarly(*g_s2e_state, "StateManager: killing state");
     }
@@ -297,8 +267,9 @@ bool StateManager::killAllExcept(StateSet &toKeep, bool ungrab)
     return true;
 }
 
-void StateManager::killAllButOneSuccessfulLocal()
+void StateManager::killAllButOneSuccessfulLocal(bool ungrabLock)
 {
+    s2e()->getDebugStream() << "StateManager: killAllButOneSuccessfulLocal" << std::endl;
     assert(m_succeeded.size() > 0);
     S2EExecutionState *one =  *m_succeeded.begin();
     resumeSucceeded();
@@ -309,7 +280,7 @@ void StateManager::killAllButOneSuccessfulLocal()
     uint64_t *successCount = m_shared.get()->successCount;
     successCount[s2e()->getCurrentProcessId()] = 0;
 
-    killAllExcept(toKeep, true);
+    killAllExcept(toKeep, ungrabLock);
 }
 
 bool StateManager::killAllButOneSuccessful()
@@ -341,7 +312,7 @@ bool StateManager::killAllButOneSuccessful()
         sendKillToAllInstances(false, 0);
 
         //Kill all local states
-        killAllButOneSuccessfulLocal();
+        killAllButOneSuccessfulLocal(true);
     }else {
         //We chose a state on a different instance
         sendKillToAllInstances(true, hasSuccessfulIndex);
@@ -360,25 +331,22 @@ bool StateManager::killAllButOneSuccessful()
 
 bool StateManager::succeedState(S2EExecutionState *s)
 {
-    if (!grabLock()) {
-        return false;
-    }
-
     s2e()->getDebugStream() << "Succeeding state " << std::dec << s->getID() << std::endl;
 
     if (m_succeeded.find(s) != m_succeeded.end()) {
         //Do not suspend states that were consecutively succeeded.
         s2e()->getDebugStream() << "State " << std::dec << s->getID() <<
                 " was already marked as succeeded" << std::endl;
-        ungrabLock();
         return false;
     }
     m_succeeded.insert(s);
 
     bool ret =  s2e()->getExecutor()->suspendState(s);
-    m_shared.get()->successCount[s2e()->getCurrentProcessId()] = m_succeeded.size();
 
-    ungrabLock();
+    StateManagerShared *shared = m_shared.acquire();
+    shared->successCount[s2e()->getCurrentProcessId()] = m_succeeded.size();
+    m_shared.release();
+
     return ret;
 }
 
@@ -416,6 +384,8 @@ void StateManager::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
             for (unsigned i=0;i<s2e()->getMaxProcesses(); ++i) {
                 count += s->successCount[i];
             }
+            m_shared.release();
+
             state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
         }
 
