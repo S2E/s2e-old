@@ -71,8 +71,8 @@ namespace {
 cl::opt<std::string>
     TraceFile("trace", cl::desc("<input trace>"), cl::init("ExecutionTracer.dat"));
 
-cl::opt<std::string>
-        ModPath("modpath", cl::desc("Path to module descriptors"), cl::init("."));
+cl::list<std::string>
+    ModPath("modpath", cl::desc("Path to modules"));
 
 cl::opt<std::string>
         ModListRaw("modlist", cl::desc("Display debug info for the specified modules (all when empty)"), cl::init(""));
@@ -119,7 +119,7 @@ PfProfiler::PfProfiler(const std::string &file)
 {
     m_FileName = file;
     m_ModuleCache = NULL;
-    m_binaries.setPath(ModPath);
+    m_binaries.setPaths(ModPath);
 }
 
 PfProfiler::~PfProfiler()
@@ -329,7 +329,6 @@ int main(int argc, char **argv)
 {
     cl::ParseCommandLineOptions(argc, (char**) argv, " pfprofiler\n");
     std::cout << TraceFile << std::endl;
-    std::cout << ModPath << std::endl;
 
     ModList = split(ModListRaw);
 

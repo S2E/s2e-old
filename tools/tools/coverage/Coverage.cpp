@@ -70,8 +70,8 @@ cl::list<std::string>
 cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the coverage into the given folder"), cl::init("."));
 
-cl::opt<std::string>
-    ModPath("modpath", cl::desc("Path to module descriptors"), cl::init("."));
+cl::list<std::string>
+    ModPath("modpath", cl::desc("Path to modules"));
 
 cl::opt<bool>
     Compact("compact", cl::desc("Do not display non-covered blocks"), cl::init(false));
@@ -387,7 +387,7 @@ void Coverage::outputCoverage(const std::string &path) const
 
 CoverageTool::CoverageTool()
 {
-    m_binaries.setPath(ModPath);
+    m_binaries.setPaths(ModPath);
 }
 
 CoverageTool::~CoverageTool()

@@ -63,7 +63,8 @@ public:
 
     ExecutableFile *get(const std::string &name);
 
-    void setPath(const std::string &s);
+    void addPath(const std::string &s);
+    void setPaths(const PathList &s);
 
     bool print(
             const std::string &modName, uint64_t loadBase, uint64_t imageBase,
