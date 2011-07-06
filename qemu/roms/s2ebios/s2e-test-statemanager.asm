@@ -10,7 +10,7 @@ s2e_sm_test:
     call s2e_sm_succeed
 
     ;At this point, there can be only one state
-    call s2e_sm_get_state_count
+    call s2e_get_state_count
     cmp eax, 1
     je sst1
 
@@ -22,7 +22,7 @@ s2e_sm_test:
 sst1:
 
     ;We must have only one S2E instance
-    call s2e_sm_get_proc_count
+    call s2e_get_proc_count
     cmp eax, 1
     je sst2
 

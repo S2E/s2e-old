@@ -237,7 +237,7 @@ s2e_int:
     ret
 
 
-s2e_sm_get_state_count:
+s2e_get_state_count:
     db 0x0f
     db 0x3f ; S2EOP
 
@@ -248,7 +248,7 @@ s2e_sm_get_state_count:
     dd 0x00
     ret
 
-s2e_sm_get_proc_count:
+s2e_get_proc_count:
     db 0x0f
     db 0x3f ; S2EOP
 
@@ -359,4 +359,13 @@ s2e_sm_succeed:
     dd 0x00
     ret
 
+s2e_sm_succ_count:
+    db 0x0f
+    db 0x3f ; S2EOP
 
+    db 0x00 ; Built-in instructions
+    db 0xAD ; state manager
+    db 0x01 ; count of succeeded states across all nodes
+    db 0x00
+    dd 0x00
+    ret
