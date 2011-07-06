@@ -9,6 +9,12 @@ s2e_sm_test:
 
     call s2e_sm_succeed
 
+    ;Wait for the state to stabilize
+    ;(it takes a while for all processes to be killed)
+    push 3
+    call s2e_sleep
+    add esp, 4
+
     ;At this point, there can be only one state
     call s2e_get_state_count
     cmp eax, 1
