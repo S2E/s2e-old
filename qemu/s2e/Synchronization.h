@@ -63,7 +63,7 @@ public:
 
     //Unsynchronized function to get the buffer
     void *get() const {
-        return m_sharedBuffer;
+        return ((uint8_t*)m_sharedBuffer)+m_headerSize;
     }
 };
 
@@ -80,11 +80,12 @@ private:
 public:
 
     S2ESynchronizedObject():sync(S2ESynchronizedObjectInternal(sizeof(T))) {
-
+        new (sync.get()) T();
     }
 
     ~S2ESynchronizedObject() {
-
+        T* t = (T*)sync.get();
+        t->~T();
     }
 
     T *acquire() {

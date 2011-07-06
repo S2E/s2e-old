@@ -180,7 +180,9 @@ void *S2ESynchronizedObjectInternal::aquire() {
     
      do {
         ret = sem_wait(&hdr->lock);
-        assert(ret != -EDEADLK && ret != -ENOSYS && ret != -EINVAL);
+        if (ret < 0) {
+            assert(errno != EDEADLK && errno != ENOSYS && errno != EINVAL);
+        }
      }while(ret);
     
 #endif
@@ -199,10 +201,9 @@ void *S2ESynchronizedObjectInternal::tryAquire()
 
      do {
         ret = sem_trywait(&hdr->lock);
-        if (ret == -EAGAIN) {
+        if (ret < 0 && errno == EAGAIN) {
             return NULL;
         }
-        assert(ret != -EDEADLK && ret != -ENOSYS && ret != -EINVAL);
      }while(ret);
 
 #endif
@@ -216,7 +217,9 @@ void S2ESynchronizedObjectInternal::release()
 #ifdef CONFIG_DARWIN
     hdr->lock = 1;
 #else
-    sem_post(&hdr->lock);
+    if (sem_post(&hdr->lock) < 0) {
+        assert(false && "Semaphore failed");
+    }
 #endif
 }
 
