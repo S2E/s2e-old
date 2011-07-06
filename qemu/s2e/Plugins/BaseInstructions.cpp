@@ -319,6 +319,19 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
                 break;
         }
+        case 0x32: { /* Sleep for a given number of seconds */
+                uint32_t duration = 0;
+                state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration, sizeof(uint32_t));
+                s2e()->getDebugStream() << "Sleeping " << std::dec << duration << " seconds" << std::endl;
+
+                llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
+
+                while (llvm::sys::TimeValue::now().seconds() - startTime.seconds() < duration) {
+                    sleep(1);
+                }
+
+                break;
+        }
 
         case 0x50: { /* disable/enable timer interrupt */
             uint64_t disabled = opcode >> 16;
@@ -352,7 +365,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             s2e()->getExecutor()->queueStateForMerge(state);
             break;
 
-    default:
+        default:
             s2e()->getWarningsStream(state)
                 << "BaseInstructions: Invalid built-in opcode " << hexval(opcode) << std::endl;
             break;

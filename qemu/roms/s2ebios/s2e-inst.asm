@@ -259,7 +259,18 @@ s2e_get_proc_count:
     dd 0x00
     ret
 
+s2e_sleep:
+    mov eax, [esp + 4];
 
+    db 0x0f
+    db 0x3f ; S2EOP
+
+    db 0x00 ; Built-in instructions
+    db 0x32 ; sleep x seconds
+    db 0x00 ; succeed
+    db 0x00
+    dd 0x00
+    ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Raw Plugin Custom Instructions
