@@ -1,6 +1,7 @@
 [bits 32]
 
 msg_sm: db "FAILED - Must have only one state after the barrier", 0
+msg_sminst: db "FAILED - Must have only one instance after the barrier", 0
 msg_ok: db "SUCCESS", 0
 
 s2e_sm_test:
@@ -19,6 +20,17 @@ s2e_sm_test:
     call s2e_kill_state
 
 sst1:
+
+    ;We must have only one S2E instance
+    call s2e_sm_get_proc_count
+    cmp eax, 1
+    je sst2
+
+    push msg_sminst
+    push eax
+    call s2e_kill_state
+
+sst2:
 
     ;Finish the test
     push msg_ok
