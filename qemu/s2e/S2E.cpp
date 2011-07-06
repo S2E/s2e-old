@@ -253,10 +253,12 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 
     m_maxProcesses = s2e_max_processes;
     m_currentProcessIndex = 0;
+    m_currentProcessId = 0;
     S2EShared *shared = m_sync.acquire();
     shared->currentProcessCount = 1;
     shared->lastStateId = 0;
     shared->lastFileId = 1;
+    shared->processIds[m_currentProcessId] = m_currentProcessIndex;
     m_sync.release();
 
     /* Open output directory. Do it at the very begining so that
@@ -321,6 +323,7 @@ S2E::~S2E()
     //Tell other instances we are dead so they can fork more    
     S2EShared *shared = m_sync.acquire();
 
+    getDebugStream() <<"arr=" << shared->processIds[m_currentProcessId] << std::endl;
     assert(shared->processIds[m_currentProcessId] == m_currentProcessIndex);
     shared->processIds[m_currentProcessId] = (unsigned) -1;
     --shared->currentProcessCount;
@@ -615,7 +618,11 @@ std::ostream& S2E::getStream(std::ostream& stream,
     fflush(stderr);
 
     if(state) {
-        stream << "[State " << std::dec << state->getID() << "] ";
+        if (m_maxProcesses > 1) {
+            stream << std::dec << "[Node " << m_currentProcessIndex << " - State " << state->getID() << "] ";
+        }else {
+            stream << "[State " << std::dec << state->getID() << "] ";
+        }
     }
     return stream;
 }
