@@ -59,13 +59,12 @@ void sm_callback(S2EExecutionState *s, bool killingState)
     StateManager *sm = static_cast<StateManager*>(g_s2e->getPlugin("StateManager"));
     assert(sm);
 
-    if (!sm->grabLock()) {
+    if (killingState && s) {
+        sm->resumeSucceededState(s);
         return;
     }
 
-    if (killingState && s) {
-        sm->resumeSucceededState(s);
-        sm->ungrabLock();
+    if (!sm->grabLock()) {
         return;
     }
 
@@ -108,7 +107,7 @@ bool StateManager::listenForCommands()
     StateManagerShared::Command cmd;
     do {
      cmd = s->command.read();
-    }while(cmd.command != StateManagerShared::EMPTY);
+    }while(cmd.command == StateManagerShared::EMPTY);
 
     if (cmd.command == StateManagerShared::KILL) {
         if (cmd.nodeId == s2e()->getCurrentProcessId()) {
@@ -119,6 +118,8 @@ bool StateManager::listenForCommands()
             StateSet toKeep;
             killAllExcept(toKeep, true);
         }
+    }else {
+        assert(false && "Unsupported command");
     }
 
     AtomicFunctions::sub(&s->waitingProcessCount, 1);
@@ -406,6 +407,16 @@ void StateManager::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
 
             throw CpuExitException();
             break;
+        }
+
+        //Count the number of successful states across all nodes
+        case GET_SUCCESSFUL_STATE_COUNT: {
+            StateManagerShared *s = m_shared.acquire();
+            uint32_t count=0;
+            for (unsigned i=0;i<s2e()->getMaxProcesses(); ++i) {
+                count += s->successCount[i];
+            }
+            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
         }
 
         default:
