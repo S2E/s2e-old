@@ -321,6 +321,7 @@ compute_fb_update_rect_linear(FbUpdateState*  fbs,
             uint16_t*       dst = (uint16_t*) dst_line;
 
             xx1 = 0;
+
             DUFF4(width, {
                 if (src[xx1] != dst[xx1])
                     break;
@@ -471,12 +472,21 @@ static void goldfish_fb_update_display(void *opaque)
         s->need_update = 0;
     }
 
-    src_line  = qemu_get_ram_ptr( base );
-
     dst_line  = s->ds->surface->data;
     pitch     = s->ds->surface->linesize;
     width     = s->ds->surface->width;
     height    = s->ds->surface->height;
+
+    src_line  = qemu_get_ram_ptr( base );
+
+#ifdef CONFIG_S2E
+    uint8_t buf[pitch*height];
+    s2e_read_ram_concrete(g_s2e, g_s2e_state, (uint64_t) src_line,
+                          buf, pitch*height);
+    src_line = buf;
+#endif
+
+
 
     FbUpdateState  fbs;
     FbUpdateRect   rect;
