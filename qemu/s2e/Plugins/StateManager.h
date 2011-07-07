@@ -103,6 +103,7 @@ private:
     StateSet m_succeeded;
     S2EExecutor *m_executor;
     unsigned m_timeout;
+    uint64_t m_currentTime;
 
     ModuleExecutionDetector *m_detector;
 
@@ -118,6 +119,7 @@ private:
             uint64_t pc);
 
     void onProcessFork();
+    void onTimer();
 
     bool processCommands();
 

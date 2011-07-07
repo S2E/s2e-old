@@ -128,10 +128,8 @@ bool StateManager::timeoutReached() const
         return false;
     }
 
-    llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
-    llvm::sys::TimeValue prevTime((double)AtomicFunctions::read(&m_shared.get()->timeOfLastNewBlock));
-
-    return curTime.seconds() - prevTime.seconds() >= m_timeout;
+    uint64_t prevTime = AtomicFunctions::read(&m_shared.get()->timeOfLastNewBlock);
+    return m_currentTime - prevTime >= m_timeout;
 }
 
 void StateManager::resetTimeout()
@@ -187,8 +185,18 @@ void StateManager::initialize()
     s2e()->getCorePlugin()->onCustomInstruction.connect(
             sigc::mem_fun(*this, &StateManager::onCustomInstruction));
 
+    s2e()->getCorePlugin()->onTimer.connect(
+            sigc::mem_fun(*this, &StateManager::onTimer));
+
     m_executor = s2e()->getExecutor();
     m_executor->setStateManagerCb(sm_callback);
+}
+
+void StateManager::onTimer()
+{
+    //Calling this is very expensive and should be done as rarely as possible.
+    llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
+    m_currentTime = curTime.seconds();
 }
 
 void StateManager::onProcessFork()

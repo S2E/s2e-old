@@ -1504,6 +1504,8 @@ void S2EExecutor::prepareFunctionExecution(S2EExecutionState *state,
 
 inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 {
+    ++state->m_statInstructionCountSymbolic;
+
     //int64_t start_clock = get_clock();
     cpu_disable_ticks();
 
@@ -1670,6 +1672,8 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     assert(state->stack.size() == 1);
     assert(state->pc == m_dummyMain->instructions);
 
+    ++state->m_statTranslationBlockSymbolic;
+
     /* Update state */
     //if (!copyInConcretes(*state)) {
     //    std::cerr << "external modified read-only object" << std::endl;
@@ -1780,6 +1784,7 @@ uintptr_t S2EExecutor::executeTranslationBlockConcrete(S2EExecutionState *state,
                                                        TranslationBlock *tb)
 {
     assert(state->m_active && state->m_runningConcrete);
+    ++state->m_statTranslationBlockConcrete;
 
     uintptr_t ret = 0;
     memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
@@ -1862,6 +1867,8 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         S2EExecutionState* state,
         TranslationBlock* tb)
 {
+    //Avoid incrementing stats everytime, very expensive.
+    static unsigned doStatsIncrementCount= 0;
     assert(state->isActive());
 
     bool executeKlee = m_executeAlwaysKlee;
@@ -1874,7 +1881,8 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         }
 
         //XXX: hack to run code symbolically that may be delayed because of interrupts.
-        if (m_toRunSymbolically.find(std::make_pair(state->getPc(), state->getPid()))
+        //Size check is important to avoid expensive calls to getPc/getPid in the common case
+        if (m_toRunSymbolically.size() > 0 &&  m_toRunSymbolically.find(std::make_pair(state->getPc(), state->getPid()))
             != m_toRunSymbolically.end()) {
             executeKlee = true;
             m_toRunSymbolically.erase(std::make_pair(state->getPc(), state->getPid()));
@@ -1918,12 +1926,13 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 #endif
             } //forced concretizations
         }
-        processTimers(state, 0);
     }
 
     if(executeKlee) {
-        if(state->m_runningConcrete)
+        if(state->m_runningConcrete) {
+            TimerStatIncrementer t(stats::concreteModeTime);
             switchToSymbolic(state);
+        }
 
         TimerStatIncrementer t(stats::symbolicModeTime);
 
@@ -1934,7 +1943,9 @@ uintptr_t S2EExecutor::executeTranslationBlock(
         if(!state->m_runningConcrete)
             switchToConcrete(state);
 
-        TimerStatIncrementer t(stats::concreteModeTime);
+        if (!((++doStatsIncrementCount) & 0xFFF)) {
+            TimerStatIncrementer t(stats::concreteModeTime);
+        }
 
         return executeTranslationBlockConcrete(state, tb);
     }
@@ -2371,6 +2382,41 @@ void S2EExecutor::queueStateForMerge(S2EExecutionState *state)
     throw CpuExitException();
 }
 
+void S2EExecutor::updateStats(S2EExecutionState* state)
+{
+    //Updating translation block counts
+    uint64_t tbcdiff = state->getStatTbConcrete() - state->getLastStatTbConcrete();
+    stats::translationBlocksConcrete += tbcdiff;
+    state->setLastStatTbConcrete(state->getStatTbConcrete());
+
+    uint64_t sbcdiff = state->getStatTbSymbolic() - state->getLastStatTbSymbolic();
+    stats::translationBlocksKlee += sbcdiff;
+    state->setLastStatTbSymbolic(state->getStatTbSymbolic());
+
+    stats::translationBlocks += tbcdiff + sbcdiff;
+
+    //Updating instruction counts
+
+    //KLEE icount
+    uint64_t sidiff = state->getStatInstructionCountSymbolic() - state->getLastStatInstructionCountSymbolic();
+    stats::cpuInstructionsKlee += sidiff;
+    state->setLastStatInstructionCountSymbolic(state->getStatInstructionCountSymbolic());
+
+    //Total icount
+    uint64_t totalICount = state->getTotalInstructionCount();
+    uint64_t tidiff = totalICount - state->getLastStatInstructionCount();
+    stats::cpuInstructions += tidiff;
+    state->setLastStatInstructionCount(state->getLastStatInstructionCount());
+
+    //Concrete icount
+    uint64_t ccount = totalICount - state->getStatInstructionCountSymbolic();
+    uint64_t cidiff = ccount - state->getLastStatInstructionCountConcrete();
+    stats::cpuInstructionsConcrete += cidiff;
+    state->setLastStatInstructionCountConcrete(ccount);
+
+    processTimers(state, 0);
+}
+
 } // namespace s2e
 
 /******************************/
@@ -2476,20 +2522,12 @@ S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
     return s2e->getExecutor()->selectNextState(state);
 }
 
-static void s2e_update_execution_stats(S2EExecutionState* state,
-                                       uint64_t old_icount)
+void s2e_update_execution_stats(S2EExecutionState* state)
 {
-    ++stats::translationBlocks;
-    uint64_t icount = state->getTotalInstructionCount() - old_icount;
-    stats::cpuInstructions += icount;
-    if(state->isRunningConcrete()) {
-        ++stats::translationBlocksConcrete;
-        stats::cpuInstructionsConcrete += icount;
-    } else {
-        ++stats::translationBlocksKlee;
-        stats::cpuInstructionsKlee += icount;
-    }
+    g_s2e->getExecutor()->updateStats(state);
 }
+
+
 
 uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
                            struct TranslationBlock* tb)
@@ -2497,13 +2535,10 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
             << std::endl;   */
-    uint64_t old_icount = state->getTotalInstructionCount();
     try {
         uintptr_t ret = s2e->getExecutor()->executeTranslationBlock(state, tb);
-        s2e_update_execution_stats(state, old_icount);
         return ret;
     } catch(s2e::CpuExitException&) {
-        s2e_update_execution_stats(state, old_icount);
         s2e->getExecutor()->updateStates(state);
         longjmp(env->jmp_env, 1);
     }
@@ -2511,13 +2546,10 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
 
 void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
 {
-    uint64_t old_icount = state->getTotalInstructionCount();
     try {
         s2e->getExecutor()->finalizeTranslationBlockExec(state);
-        s2e_update_execution_stats(state, old_icount);
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
-        s2e_update_execution_stats(state, old_icount);
         longjmp(env->jmp_env, 1);
     }
 }

@@ -112,6 +112,18 @@ protected:
 
     bool m_needFinalizeTBExec;
 
+    //Statistics counters
+    uint64_t m_statTranslationBlockConcrete;
+    uint64_t m_statTranslationBlockSymbolic;
+    uint64_t m_statInstructionCountSymbolic;
+
+    //Counter values at the last check
+    uint64_t m_laststatTranslationBlockConcrete;
+    uint64_t m_laststatTranslationBlockSymbolic;
+    uint64_t m_laststatInstructionCount;
+    uint64_t m_laststatInstructionCountConcrete;
+    uint64_t m_laststatInstructionCountSymbolic;
+
     ExecutionState* clone();
     void addressSpaceChange(const klee::MemoryObject *mo,
                             const klee::ObjectState *oldState,
@@ -134,6 +146,21 @@ public:
     TranslationBlock *getTb() const;
 
     uint64_t getTotalInstructionCount();
+    inline uint64_t getStatTbConcrete() const { return m_statTranslationBlockConcrete; }
+    inline uint64_t getStatTbSymbolic() const { return m_statTranslationBlockSymbolic; }
+    inline uint64_t getStatInstructionCountSymbolic() const { return m_statInstructionCountSymbolic; }
+
+    inline uint64_t getLastStatTbConcrete() const { return m_laststatTranslationBlockConcrete; }
+    inline uint64_t getLastStatTbSymbolic() const { return m_laststatTranslationBlockSymbolic; }
+    inline uint64_t getLastStatInstructionCount() const { return m_laststatInstructionCount; }
+    inline uint64_t getLastStatInstructionCountConcrete() const { return m_laststatInstructionCount; }
+    inline uint64_t getLastStatInstructionCountSymbolic() const { return m_laststatInstructionCountSymbolic; }
+
+    inline void setLastStatTbConcrete(uint64_t count) { m_laststatTranslationBlockConcrete = count; }
+    inline void setLastStatTbSymbolic(uint64_t count) { m_laststatTranslationBlockSymbolic = count; }
+    inline void setLastStatInstructionCount(uint64_t count) { m_laststatInstructionCount = count; }
+    inline void setLastStatInstructionCountConcrete(uint64_t count) { m_laststatInstructionCountConcrete = count; }
+    inline void setLastStatInstructionCountSymbolic(uint64_t count) { m_laststatInstructionCountSymbolic = count; }
 
     /*************************************************/
 

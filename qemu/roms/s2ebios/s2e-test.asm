@@ -4,7 +4,8 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_sm_test
+    call s2e_test_memspeed
+    ;call s2e_sm_test
     ;call s2e_test2
     ;call s2e_test_memobj
     ;call s2e_fork_test
@@ -17,6 +18,22 @@ s2e_test:
     ;jmp s2e_test
     cli
     hlt
+
+
+s2e_test_memspeed:
+    mov ecx, 1000000000
+
+lbl1:
+    push eax
+    pop eax
+    dec ecx
+    jnz lbl1
+
+    push 0
+    push 0
+    call s2e_kill_state
+    add esp, 8
+    ret
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

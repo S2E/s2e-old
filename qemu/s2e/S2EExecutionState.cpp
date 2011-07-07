@@ -82,7 +82,12 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
         m_dirtyMask(NULL), m_qemuIcount(0), m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
-        m_needFinalizeTBExec(false)
+        m_needFinalizeTBExec(false),
+        m_statTranslationBlockConcrete(0), m_statTranslationBlockSymbolic(0),
+        m_statInstructionCountSymbolic(0),
+        m_laststatTranslationBlockConcrete(0), m_laststatTranslationBlockSymbolic(0),
+        m_laststatInstructionCount(0),
+        m_laststatInstructionCountConcrete(0), m_laststatInstructionCountSymbolic(0)
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;

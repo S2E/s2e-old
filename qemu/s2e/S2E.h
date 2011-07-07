@@ -158,7 +158,7 @@ public:
     Plugin* getPlugin(const std::string& name) const;
 
     /** Get Core plugin */
-    CorePlugin* getCorePlugin() const { return m_corePlugin; }
+    inline CorePlugin* getCorePlugin() const { return m_corePlugin; }
 
     /** Get database */
     Database *getDb() const {
