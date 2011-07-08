@@ -66,7 +66,8 @@ static void s2e_timer_cb(void *opaque)
 {
     CorePlugin *c = (CorePlugin*)opaque;
     g_s2e->getDebugStream() << "Firing timer event" << std::endl;
-    s2e_update_execution_stats(g_s2e_state);
+
+    g_s2e->getExecutor()->updateStats(g_s2e_state);
     c->onTimer.emit();
     qemu_mod_timer(c->getTimer(), qemu_get_clock(rt_clock) + 1000);
 }

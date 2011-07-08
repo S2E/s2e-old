@@ -242,7 +242,9 @@ public:
     void queueStateForMerge(S2EExecutionState *state);
 
     void initializeStatistics();
-    void updateStats(S2EExecutionState* state);
+
+    void updateStats(S2EExecutionState *state);
+
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,
                                     klee::ExecutionState* state,

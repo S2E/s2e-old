@@ -326,8 +326,6 @@ unsigned klee_get_value(unsigned expr);
 //Used by S2E.h to reinitialize timers in the forked process
 int init_timer_alarm(void);
 
-void s2e_update_execution_stats(struct S2EExecutionState* state);
-
 /******************************************************/
 /* Prototypes for special functions used in LLVM code */
 /* NOTE: this functions should never be defined. They */
