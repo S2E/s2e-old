@@ -40,10 +40,15 @@
 #include <klee/ExecutionState.h>
 #include <klee/Memory.h>
 
+#include "MemoryCache.h"
+#include "s2e_config.h"
+
 extern "C" {
     struct TranslationBlock;
     struct TimersState;
 }
+
+
 
 // XXX
 struct CPUX86State;
@@ -61,6 +66,23 @@ struct S2ETranslationBlock;
 //typedef std::tr1::unordered_map<const Plugin*, PluginState*> PluginStateMap;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
+
+typedef MemoryCache<klee::ObjectPair,
+                S2E_RAM_OBJECT_SIZE,
+                4096, //XXX: FIX THIS HARD-CODED STUFF!
+                S2E_MEMCACHE_SUPERPAGE_SIZE> S2EMemoryCache;
+
+struct S2EPhysCacheEntry
+{
+    uint64_t hostPage;
+    klee::ObjectState *os;
+    uint8_t *concreteStore;
+
+    S2EPhysCacheEntry() {
+        os = NULL;
+        concreteStore = NULL;
+    }
+};
 
 class S2EExecutionState : public klee::ExecutionState
 {
@@ -100,6 +122,11 @@ protected:
     klee::MemoryObject* m_dirtyMask;
 
     S2EDeviceState *m_deviceState;
+
+    //XXX: This is adhoc, should be replaced by a more general scheme
+    S2EPhysCacheEntry m_physPageCache[S2E_PHYS_PAGE_CACHE_ENTRIES];
+
+    S2EMemoryCache *m_memcache;
 
     /* The following structure is used to store QEMU time accounting
        variables while the state is inactive */
@@ -282,6 +309,13 @@ public:
     bool writeMemory64(uint64_t address, uint64_t value,
                        AddressType addressType = VirtualAddress);
 
+    /** Fast routines used by the DMA subsystem */
+    klee::ObjectState* dmaLoadPage(uint64_t hostPage);
+    void dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned size);
+    void dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned size);
+    void dmaFlushCache();
+
+
     CPUX86State *getConcreteCpuState() const;
 
     /** Creates new unconstrained symbolic value */
@@ -296,6 +330,9 @@ public:
 
     /** Attempt to merge two states */
     bool merge(const ExecutionState &b);
+
+    void updateTlbEntry(CPUX86State* env,
+                              int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
 };
 
 //Some convenience macros

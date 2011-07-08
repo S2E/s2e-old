@@ -963,6 +963,10 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 #endif
         m_unusedMemoryRegions.push_back(make_pair(hostAddress, size));
     }
+
+    if (!strcmp(name, "ram")) {
+        initialState->m_memcache = new S2EMemoryCache(hostAddress, size);
+    }
 }
 
 void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t host_address,
@@ -1050,6 +1054,7 @@ void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
     }
 }
 
+//XXX: Should really move this to S2EExecutionState
 void S2EExecutor::readRamConcrete(S2EExecutionState *state,
                     uint64_t hostAddress, uint8_t* buf, uint64_t size)
 {
@@ -1303,6 +1308,8 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     //the snapshots by QEMU.
     //This is the same mechanism as used by load/save_vmstate, so it should work reliably
     qemu_aio_flush();
+
+    newState->dmaFlushCache();
 
     cpu_disable_ticks();
 
@@ -2595,31 +2602,18 @@ void s2e_update_tlb_entry(S2EExecutionState* state, CPUX86State* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
 #ifdef S2E_ENABLE_S2E_TLB
-    assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
-    assert( (virtAddr & ~TARGET_PAGE_MASK) == 0 );
-
-    unsigned int index = (virtAddr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1);
-    for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i) {
-        S2ETLBEntry* entry = &env->s2e_tlb_table[mmu_idx][index];
-
-        const ObjectPair op = state->addressSpace.findObject(hostAddr);
-        assert(op.first && op.second && op.first->address == hostAddr);
-
-        if(op.first->isSharedConcrete) {
-            entry->objectState = const_cast<klee::ObjectState*>(op.second);
-            entry->addend = (hostAddr - virtAddr) | 1;
-        } else {
-            // XXX: for now we always ensure that all pages in TLB are writable
-            klee::ObjectState *wos = state->addressSpace.getWriteable(op.first, op.second);
-            entry->objectState = wos;
-            entry->addend = ((uintptr_t) wos->getConcreteStore(true) - virtAddr) | 1;
-        }
-
-        index += 1;
-        hostAddr += S2E_RAM_OBJECT_SIZE;
-        virtAddr += S2E_RAM_OBJECT_SIZE;
-    }
+    state->updateTlbEntry(env, mmu_idx, virtAddr, hostAddr);
 #endif
+}
+
+void s2e_dma_read(uint64_t hostAddress, uint8_t *buf, unsigned size)
+{
+    return g_s2e_state->dmaRead(hostAddress, buf, size);
+}
+
+void s2e_dma_write(uint64_t hostAddress, uint8_t *buf, unsigned size)
+{
+    return g_s2e_state->dmaWrite(hostAddress, buf, size);
 }
 
 void s2e_tb_alloc(S2E*, TranslationBlock *tb)

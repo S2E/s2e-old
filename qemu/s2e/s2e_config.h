@@ -42,15 +42,27 @@
     depends on the maximum number of processes (e.g., bitmaps) */
 #define S2E_MAX_PROCESSES 48
 
+/** Enables S2E TLB to speed-up concrete memory accesses */
+#define S2E_ENABLE_S2E_TLB
+
 /** This defines the size of each MemoryObject that represents physical RAM.
     Larget values save some memory, smaller (exponentially) decrease solving
     time for constraints with symbolic addresses */
+
+#ifdef S2E_ENABLE_S2E_TLB
 #define S2E_RAM_OBJECT_BITS 7
+#else
+/* Do not touch this */
+#define S2E_RAM_OBJECT_BITS TARGET_PAGE_BITS
+#endif
+
 #define S2E_RAM_OBJECT_SIZE (1 << S2E_RAM_OBJECT_BITS)
 #define S2E_RAM_OBJECT_MASK (~(S2E_RAM_OBJECT_SIZE - 1))
 
-/** Enables S2E TLB to speed-up concrete memory accesses */
-#define S2E_ENABLE_S2E_TLB
+#define S2E_PHYS_PAGE_CACHE_ENTRIES 4096
+#define S2E_PHYS_PAGE_CACHE_INDEX(a) (((a)>>S2E_RAM_OBJECT_BITS) & (S2E_PHYS_PAGE_CACHE_ENTRIES-1))
+
+#define S2E_MEMCACHE_SUPERPAGE_SIZE 1024*1024
 
 /** Enables simple memory debugging support */
 //#define S2E_DEBUG_MEMORY

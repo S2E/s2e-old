@@ -314,6 +314,8 @@ void s2e_register_dirty_mask(struct S2E *s2e, struct S2EExecutionState *initial_
 uint8_t s2e_read_dirty_mask(uint64_t host_address);
 void s2e_write_dirty_mask(uint64_t host_address, uint8_t val);
 
+void s2e_dma_read(uint64_t hostAddress, uint8_t *buf, unsigned size);
+void s2e_dma_write(uint64_t hostAddress, uint8_t *buf, unsigned size);
 
 //XXX: Provide a means of including KLEE header
 /* Return a possible constant value for the input expression. This
