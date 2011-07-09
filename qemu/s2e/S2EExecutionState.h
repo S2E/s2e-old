@@ -114,14 +114,16 @@ protected:
     */
     bool m_runningConcrete;
 
-    /* Move the following to S2EExecutor */
-    klee::MemoryObject* m_cpuRegistersState;
-    klee::MemoryObject* m_cpuSystemState;
+    /* Move the following to S2EExecutor? */
+    /* Mostly accessed from S2EExecutionState anyway, extra indirection if moved...*/
+    /* Static because they do not change */
+    static klee::MemoryObject* m_cpuRegistersState;
+    static klee::MemoryObject* m_cpuSystemState;
 
     klee::ObjectState *m_cpuRegistersObject;
     klee::ObjectState *m_cpuSystemObject;
 
-    klee::MemoryObject* m_dirtyMask;
+    static klee::MemoryObject* m_dirtyMask;
 
     S2EDeviceState *m_deviceState;
 
@@ -233,6 +235,13 @@ public:
     void enableSymbolicExecution();
     void disableSymbolicExecution();
 
+    /** Return true if hostAddr is registered as a RAM with KLEE */
+    bool isRamRegistered(uint64_t hostAddress);
+
+    /** Return true if hostAddr is registered as a RAM with KLEE */
+    bool isRamSharedConcrete(uint64_t hostAddress);
+
+
     /** Read value from memory, returning false if the value is symbolic */
     bool readMemoryConcrete(uint64_t address, void *buf, uint64_t size,
                             AddressType addressType = VirtualAddress);
@@ -240,6 +249,31 @@ public:
     /** Write concrete value to memory */
     bool writeMemoryConcrete(uint64_t address, void *buf,
                              uint64_t size, AddressType addressType=VirtualAddress);
+
+
+
+    /** Read from physical memory, switching to symbex if
+        the memory contains symbolic value. Note: this
+        function will use longjmp to qemu cpu loop */
+    void readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf, uint64_t size);
+
+
+    /** Read from physical memory, concretizing if nessecary.
+        Note: this function accepts host address (as returned
+        by qemu_get_ram_ptr */
+    void readRamConcrete(uint64_t hostAddress, uint8_t* buf, uint64_t size);
+
+    /** Write concrete data to RAM. Optimized for host addresses */
+    void writeRamConcrete(uint64_t hostAddress, const uint8_t* buf, uint64_t size);
+
+    /** Read from CPU state. Concretize if necessary */
+    void readRegisterConcrete(
+            CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size);
+
+    /** Write concrete data to the CPU */
+    /** XXX: do we really also need writeCpuRegisterConcrete? **/
+    void writeRegisterConcrete(CPUX86State *cpuState,
+                               unsigned offset, const uint8_t* buf, unsigned size);
 
     /** Read an ASCIIZ string from memory */
     bool readString(uint64_t address, std::string &s, unsigned maxLen=256);
@@ -285,6 +319,11 @@ public:
     /** Fast routines used by the DMA subsystem */
     void dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned size);
     void dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned size);
+
+    /** Dirty mask management */
+    uint8_t readDirtyMask(uint64_t host_address);
+    void writeDirtyMask(uint64_t host_address, uint8_t val);
+    void registerDirtyMask(uint64_t host_address, uint64_t size);
 
 
     CPUX86State *getConcreteCpuState() const;

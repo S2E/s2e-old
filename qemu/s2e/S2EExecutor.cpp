@@ -176,14 +176,14 @@ namespace {
     ConcretizeIoWrites("concretize-io-writes",
             cl::desc("Concretize symbolic I/O writes"),
             cl::init(true));
-
-    //The logs may be flooded with messages when switching execution mode.
-    //This option allows disabling printing mode switches.
-    cl::opt<bool>
-    PrintModeSwitch("print-mode-switch",
-                    cl::desc("Print message when switching from symbolic to concrete and vice versa"),
-                    cl::init(false));
 }
+
+//The logs may be flooded with messages when switching execution mode.
+//This option allows disabling printing mode switches.
+cl::opt<bool>
+PrintModeSwitch("print-mode-switch",
+                cl::desc("Print message when switching from symbolic to concrete and vice versa"),
+                cl::init(false));
 
 extern "C" {
     int g_s2e_fork_on_symbolic_address = 0;
@@ -968,229 +968,19 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
 
 }
 
-void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t host_address,
-                               uint64_t size)
+void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t host_address, uint64_t size)
 {
     //Assume that dirty mask is small enough, so no need to split it in small pages
-    m_dirtyMask = addExternalObject(
+    assert(!initial_state->m_dirtyMask);
+    initial_state->m_dirtyMask = g_s2e->getExecutor()->addExternalObject(
             *initial_state, (void*) host_address, size, false,
             /* isUserSpecified = */ true, true, false);
 
-    m_dirtyMask->setName("dirtyMask");
+    initial_state->m_dirtyMask->setName("dirtyMask");
 
-    m_saveOnContextSwitch.push_back(m_dirtyMask);
-
-    initial_state->m_dirtyMask = m_dirtyMask;
+    m_saveOnContextSwitch.push_back(initial_state->m_dirtyMask);
 }
 
-uint8_t S2EExecutor::readDirtyMask(S2EExecutionState *state, uint64_t host_address)
-{
-    uint8_t val;
-    const ObjectState *os = state->addressSpace.findObject(m_dirtyMask);
-    assert(os);
-    host_address -= m_dirtyMask->address;
-    os->readConcrete8(host_address, &val);
-    return val;
-}
-
-void S2EExecutor::writeDirtyMask(S2EExecutionState *state, uint64_t host_address, uint8_t val)
-{
-    const ObjectState *os = state->addressSpace.findObject(m_dirtyMask);
-    assert(os);
-
-    ObjectState *wos = state->addressSpace.getWriteable(m_dirtyMask, os);
-
-    host_address -= m_dirtyMask->address;
-    wos->write8(host_address, val);
-}
-
-bool S2EExecutor::isRamRegistered(S2EExecutionState *state,
-                                      uint64_t hostAddress)
-{
-    ObjectPair op = state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
-    return op.first != NULL && op.first->isUserSpecified;
-}
-
-bool S2EExecutor::isRamSharedConcrete(S2EExecutionState *state,
-                                      uint64_t hostAddress)
-{
-    ObjectPair op = state->addressSpace.findObject(hostAddress & TARGET_PAGE_MASK);
-    assert(op.first);
-    return op.first->isSharedConcrete;
-}
-
-void S2EExecutor::readRamConcreteCheck(S2EExecutionState *state,
-                    uint64_t hostAddress, uint8_t* buf, uint64_t size)
-{
-    assert(state->m_active && state->m_runningConcrete);
-    uint64_t page_offset = hostAddress & ~S2E_RAM_OBJECT_MASK;
-    if(page_offset + size <= S2E_RAM_OBJECT_SIZE) {
-        /* Single-object access */
-
-        uint64_t page_addr = hostAddress & S2E_RAM_OBJECT_MASK;
-        ObjectPair op = state->addressSpace.findObject(page_addr);
-
-        assert(op.first && op.first->isUserSpecified &&
-               op.first->size == S2E_RAM_OBJECT_SIZE);
-
-        for(uint64_t i=0; i<size; ++i) {
-            if(!op.second->readConcrete8(page_offset+i, buf+i)) {
-                if (PrintModeSwitch) {
-                    m_s2e->getMessagesStream(state)
-                            << "Switching to KLEE executor at pc = "
-                            << hexval(state->getPc()) << std::endl;
-                }
-                state->m_startSymbexAtPC = state->getPc();
-                // XXX: what about regs_to_env ?
-                longjmp(env->jmp_env, 1);
-            }
-        }
-    } else {
-        /* Access spans multiple MemoryObject's */
-        uint64_t size1 = S2E_RAM_OBJECT_SIZE - page_offset;
-        readRamConcreteCheck(state, hostAddress, buf, size1);
-        readRamConcreteCheck(state, hostAddress + size1, buf + size1, size - size1);
-    }
-}
-
-//XXX: Should really move this to S2EExecutionState
-void S2EExecutor::readRamConcrete(S2EExecutionState *state,
-                    uint64_t hostAddress, uint8_t* buf, uint64_t size)
-{
-    assert(state->m_active);
-    uint64_t page_offset = hostAddress & ~S2E_RAM_OBJECT_MASK;
-    if(page_offset + size <= S2E_RAM_OBJECT_SIZE) {
-        /* Single-object access */
-
-        uint64_t page_addr = hostAddress & S2E_RAM_OBJECT_MASK;
-        ObjectPair op = state->addressSpace.findObject(page_addr);
-
-        assert(op.first && op.first->isUserSpecified &&
-               op.first->size == S2E_RAM_OBJECT_SIZE);
-
-        ObjectState *wos = NULL;
-        for(uint64_t i=0; i<size; ++i) {
-            if(!op.second->readConcrete8(page_offset+i, buf+i)) {
-                if(!wos) {
-                    op.second = wos = state->addressSpace.getWriteable(
-                                                    op.first, op.second);
-                }
-                buf[i] = toConstant(*state, wos->read8(page_offset+i),
-                       "memory access from concrete code")->getZExtValue(8);
-                wos->write8(page_offset+i, buf[i]);
-            }
-        }
-    } else {
-        /* Access spans multiple MemoryObject's */
-        uint64_t size1 = S2E_RAM_OBJECT_SIZE - page_offset;
-        readRamConcrete(state, hostAddress, buf, size1);
-        readRamConcrete(state, hostAddress + size1, buf + size1, size - size1);
-    }
-}
-
-void S2EExecutor::writeRamConcrete(S2EExecutionState *state,
-                       uint64_t hostAddress, const uint8_t* buf, uint64_t size)
-{
-    assert(state->m_active);
-    uint64_t page_offset = hostAddress & ~S2E_RAM_OBJECT_MASK;
-    if(page_offset + size <= S2E_RAM_OBJECT_SIZE) {
-        /* Single-object access */
-
-        uint64_t page_addr = hostAddress & S2E_RAM_OBJECT_MASK;
-        ObjectPair op = state->addressSpace.findObject(page_addr);
-
-        assert(op.first && op.first->isUserSpecified &&
-               op.first->size == S2E_RAM_OBJECT_SIZE);
-
-        ObjectState* wos =
-                state->addressSpace.getWriteable(op.first, op.second);
-        for(uint64_t i=0; i<size; ++i) {
-            wos->write8(page_offset+i, buf[i]);
-        }
-
-    } else {
-        /* Access spans multiple MemoryObject's */
-        uint64_t size1 = S2E_RAM_OBJECT_SIZE - page_offset;
-        writeRamConcrete(state, hostAddress, buf, size1);
-        writeRamConcrete(state, hostAddress + size1, buf + size1, size - size1);
-    }
-}
-
-void S2EExecutor::readRegisterConcrete(S2EExecutionState *state,
-        CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size)
-{
-    assert(state->m_active);
-    assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
-    assert(offset + size <= CPU_OFFSET(eip));
-
-    if(!state->m_runningConcrete ||
-            !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
-        ObjectState* wos = state->m_cpuRegistersObject;
-
-        for(unsigned i = 0; i < size; ++i) {
-            if(!wos->readConcrete8(offset+i, buf+i)) {
-                const char* reg;
-                switch(offset) {
-                    case 0x00: reg = "eax"; break;
-                    case 0x04: reg = "ecx"; break;
-                    case 0x08: reg = "edx"; break;
-                    case 0x0c: reg = "ebx"; break;
-                    case 0x10: reg = "esp"; break;
-                    case 0x14: reg = "ebp"; break;
-                    case 0x18: reg = "esi"; break;
-                    case 0x1c: reg = "edi"; break;
-
-                    case 0x20: reg = "cc_src"; break;
-                    case 0x24: reg = "cc_dst"; break;
-                    case 0x28: reg = "cc_op"; break;
-                    case 0x3c: reg = "df"; break;
-
-                    default: reg = "unknown"; break;
-                }
-                std::string reason = std::string("access to ") + reg +
-                                     " register from QEMU helper";
-                buf[i] = toConstant(*state, wos->read8(offset+i),
-                                    reason.c_str())->getZExtValue(8);
-                wos->write8(offset+i, buf[i]);
-            }
-        }
-    } else {
-        memcpy(buf, ((uint8_t*)cpuState)+offset, size);
-    }
-
-#ifdef S2E_TRACE_EFLAGS
-    if (offsetof(CPUState, cc_src) == offset) {
-        m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
-                "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
-    }
-#endif
-}
-
-void S2EExecutor::writeRegisterConcrete(S2EExecutionState *state,
-        CPUX86State *cpuState, unsigned offset, const uint8_t* buf, unsigned size)
-{
-    assert(state->m_active);
-    assert(((uint64_t)cpuState) == state->m_cpuRegistersState->address);
-    assert(offset + size <= CPU_OFFSET(eip));
-
-    if(!state->m_runningConcrete ||
-            !state->m_cpuRegistersObject->isConcrete(offset, size*8)) {
-        ObjectState* wos = state->m_cpuRegistersObject;
-        for(unsigned i = 0; i < size; ++i)
-            wos->write8(offset+i, buf[i]);
-    } else {
-        assert(state->m_cpuRegistersObject->isConcrete(offset, size*8));
-        memcpy(((uint8_t*)cpuState)+offset, buf, size);
-    }
-
-#ifdef S2E_TRACE_EFLAGS
-    if (offsetof(CPUState, cc_src) == offset) {
-        m_s2e->getDebugStream() <<  std::hex << state->getPc() <<
-                "write conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
-    }
-#endif
-
-}
 
 void S2EExecutor::switchToConcrete(S2EExecutionState *state)
 {
@@ -2434,64 +2224,7 @@ void s2e_register_dirty_mask(S2E *s2e, S2EExecutionState *initial_state,
     s2e->getExecutor()->registerDirtyMask(initial_state, host_address, size);
 }
 
-uint8_t s2e_read_dirty_mask(uint64_t host_address)
-{
-    return g_s2e->getExecutor()->readDirtyMask(g_s2e_state, host_address);
-}
 
-void s2e_write_dirty_mask(uint64_t host_address, uint8_t val)
-{
-    g_s2e->getExecutor()->writeDirtyMask(g_s2e_state, host_address, val);
-}
-
-
-int s2e_is_ram_registered(S2E *s2e, S2EExecutionState *state,
-                               uint64_t host_address)
-{
-    return s2e->getExecutor()->isRamRegistered(state, host_address);
-}
-
-int s2e_is_ram_shared_concrete(S2E *s2e, S2EExecutionState *state,
-                               uint64_t host_address)
-{
-    return s2e->getExecutor()->isRamSharedConcrete(state, host_address);
-}
-
-void s2e_read_ram_concrete_check(S2E *s2e, S2EExecutionState *state,
-                        uint64_t host_address, uint8_t* buf, uint64_t size)
-{
-    assert(state->isRunningConcrete());
-    if(state->isSymbolicExecutionEnabled())
-        s2e->getExecutor()->readRamConcreteCheck(state, host_address, buf, size);
-    else
-        s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
-}
-
-void s2e_read_ram_concrete(S2E *s2e, S2EExecutionState *state,
-                        uint64_t host_address, uint8_t* buf, uint64_t size)
-{
-    s2e->getExecutor()->readRamConcrete(state, host_address, buf, size);
-}
-
-void s2e_write_ram_concrete(S2E *s2e, S2EExecutionState *state,
-                    uint64_t host_address, const uint8_t* buf, uint64_t size)
-{
-    s2e->getExecutor()->writeRamConcrete(state, host_address, buf, size);
-}
-
-void s2e_read_register_concrete(S2E* s2e, S2EExecutionState* state,
-        CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
-{
-    /** XXX: use cpuState */
-    s2e->getExecutor()->readRegisterConcrete(state, cpuState, offset, buf, size);
-}
-
-void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
-        CPUX86State* cpuState, unsigned offset, uint8_t* buf, unsigned size)
-{
-    /** XXX: use cpuState */
-    s2e->getExecutor()->writeRegisterConcrete(state, cpuState, offset, buf, size);
-}
 
 S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
 {
