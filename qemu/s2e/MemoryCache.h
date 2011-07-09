@@ -19,7 +19,7 @@ private:
             for (unsigned i=0; i<(1<<(PAGESIZE_BITS-OBJSIZE_BITS)); ++i) {
                 level3[i] = T();
             }
-        }        
+        }
     };
 
     struct SecondLevel {
@@ -45,11 +45,11 @@ private:
 
     inline void resize()
     {
+        uint64_t mask = (1<<SUPERPAGESIZE_BITS)-1;
         uint64_t pagecount = m_size >> SUPERPAGESIZE_BITS;
-
-        //If we need to cache a small area
-        if (pagecount == 0)
+        if (m_size & mask) {
             ++pagecount;
+        }
 
         m_level1.resize(pagecount, NULL);
     }
