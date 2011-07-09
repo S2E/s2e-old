@@ -979,6 +979,12 @@ void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t h
     initial_state->m_dirtyMask->setName("dirtyMask");
 
     m_saveOnContextSwitch.push_back(initial_state->m_dirtyMask);
+
+    const ObjectState *dirtyMaskObject = initial_state->addressSpace
+                                .findObject(initial_state->m_dirtyMask);
+
+    initial_state->m_dirtyMaskObject = initial_state->addressSpace
+        .getWriteable(initial_state->m_dirtyMask, dirtyMaskObject);
 }
 
 

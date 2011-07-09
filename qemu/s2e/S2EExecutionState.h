@@ -124,6 +124,7 @@ protected:
     klee::ObjectState *m_cpuSystemObject;
 
     static klee::MemoryObject* m_dirtyMask;
+    klee::ObjectState *m_dirtyMaskObject;
 
     S2EDeviceState *m_deviceState;
 

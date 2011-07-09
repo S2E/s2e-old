@@ -174,6 +174,7 @@ public:
     //be found first in the list.
     void registerPool(uint64_t hostAddrStart, uint64_t size)
     {
+        assert((hostAddrStart & ((1<<PAGESIZE_BITS)-1)) == 0);
         MemoryCacheT *mc = new MemoryCacheT(hostAddrStart, size);
         if (m_caches.size() == 0) {
             m_caches.push_back(mc);
