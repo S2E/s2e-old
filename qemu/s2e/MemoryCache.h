@@ -4,33 +4,35 @@
 
 #include <vector>
 #include <inttypes.h>
+#include <llvm/ADT/SmallVector.h>
+#include <iostream>
 
 namespace s2e {
 
-template <class T, unsigned OBJSIZE, unsigned PAGESIZE, unsigned SUPERPAGESIZE>
+template <class T, unsigned OBJSIZE_BITS, unsigned PAGESIZE_BITS, unsigned SUPERPAGESIZE_BITS>
 class MemoryCache
 {
 private:
     struct ThirdLevel {
-        T level3[PAGESIZE/OBJSIZE];
+        T level3[1<<(PAGESIZE_BITS-OBJSIZE_BITS)];
         ThirdLevel() {
-            for (unsigned i=0; i<PAGESIZE/OBJSIZE; ++i) {
+            for (unsigned i=0; i<(1<<(PAGESIZE_BITS-OBJSIZE_BITS)); ++i) {
                 level3[i] = T();
             }
         }        
     };
 
     struct SecondLevel {
-        ThirdLevel* level2[SUPERPAGESIZE/PAGESIZE];
+        ThirdLevel* level2[1<<(SUPERPAGESIZE_BITS-PAGESIZE_BITS)];
 
         SecondLevel() {
-            for (unsigned i=0; i<SUPERPAGESIZE/PAGESIZE; ++i) {
+            for (unsigned i=0; i<(1<<(SUPERPAGESIZE_BITS-PAGESIZE_BITS)); ++i) {
                 level2[i] = NULL;
             }
         }
 
         ~SecondLevel() {
-            for (unsigned i=0; i<SUPERPAGESIZE/PAGESIZE; ++i) {
+            for (unsigned i=0; i<(1<<(SUPERPAGESIZE_BITS-PAGESIZE_BITS)); ++i) {
                 if (level2[i])
                     delete level2[i];
             }
@@ -41,29 +43,45 @@ private:
     uint64_t m_hostAddrStart;
     uint64_t m_size;
 
+    inline void resize()
+    {
+        uint64_t pagecount = m_size >> SUPERPAGESIZE_BITS;
+
+        //If we need to cache a small area
+        if (pagecount == 0)
+            ++pagecount;
+
+        m_level1.resize(pagecount, NULL);
+    }
 
 public:
     MemoryCache(uint64_t hostAddrStart, uint64_t size)
     {
-        assert((size & ((1<<20)-1)) == 0);
         m_hostAddrStart = hostAddrStart;
         m_size = size;
-
-        m_level1.resize(size / SUPERPAGESIZE, NULL);
+        resize();
     }
 
     //XXX: Clone an empty cache for now
     MemoryCache(const MemoryCache &one) {
         m_hostAddrStart = one.m_hostAddrStart;
         m_size = one.m_size;
-        m_level1.resize(m_size / SUPERPAGESIZE, NULL);
+        resize();
     }
 
     ~MemoryCache() {
         flushCache();
     }
 
-    void flushCache() {
+    inline uint64_t getSize() const {
+        return m_size;
+    }
+
+    inline uint64_t getStart() const {
+        return m_hostAddrStart;
+    }
+
+    inline void flushCache() {
         for (unsigned i=0; i<m_level1.size(); ++i) {
             if (m_level1[i]) {
                 delete m_level1[i];
@@ -71,19 +89,16 @@ public:
         }
     }
 
-    bool contains(uint64_t hostAddress) {
+    inline bool contains(uint64_t hostAddress) {
         return (hostAddress >= m_hostAddrStart) && (hostAddress < m_hostAddrStart + m_size);
     }
 
-    void put(uint64_t hostAddress, const T &obj)
+    inline void put(uint64_t hostAddress, const T &obj)
     {
-        if (!contains(hostAddress)) {
-            return;
-        }
         uint64_t offset = hostAddress - m_hostAddrStart;
-        uint64_t level1 = offset / SUPERPAGESIZE;
-        uint64_t level2 = (offset & (SUPERPAGESIZE-1)) / PAGESIZE;
-        uint64_t level3 = (offset / OBJSIZE) & ((PAGESIZE/OBJSIZE)-1);
+        uint64_t level1 = offset >> SUPERPAGESIZE_BITS;
+        uint64_t level2 = (offset & ((1<<SUPERPAGESIZE_BITS)-1)) >> PAGESIZE_BITS;
+        uint64_t level3 = (offset >> OBJSIZE_BITS) & ((1<<(PAGESIZE_BITS-OBJSIZE_BITS))-1);
 
         SecondLevel *ptrLevel2;
         if (!(ptrLevel2 = m_level1[level1])) {
@@ -100,16 +115,12 @@ public:
         ptrLevel3->level3[level3] = obj;
     }
 
-    T get(uint64_t hostAddress)
+    inline T get(uint64_t hostAddress)
     {
-        if (!contains(hostAddress)) {
-            return T();
-        }
-
         uint64_t offset = hostAddress - m_hostAddrStart;
-        uint64_t level1 = offset / SUPERPAGESIZE;
-        uint64_t level2 = (offset & (SUPERPAGESIZE-1)) / PAGESIZE;
-        uint64_t level3 = (offset / OBJSIZE) & ((PAGESIZE/OBJSIZE)-1);
+        uint64_t level1 = offset >> SUPERPAGESIZE_BITS;
+        uint64_t level2 = (offset & ((1<<SUPERPAGESIZE_BITS)-1)) >> PAGESIZE_BITS;
+        uint64_t level3 = (offset >> OBJSIZE_BITS) & ((1<<(PAGESIZE_BITS-OBJSIZE_BITS))-1);
 
         SecondLevel *ptrLevel2;
         if (!(ptrLevel2 = m_level1[level1])) {
@@ -123,6 +134,87 @@ public:
 
         return ptrLevel3->level3[level3];
     }
+};
+
+template <class T, unsigned OBJSIZE_BITS, unsigned PAGESIZE_BITS, unsigned SUPERPAGESIZE_BITS>
+class MemoryCachePool
+{
+private:
+    typedef MemoryCache<T,OBJSIZE_BITS,PAGESIZE_BITS,SUPERPAGESIZE_BITS> MemoryCacheT;
+    typedef llvm::SmallVector<MemoryCacheT*, 10> Caches;
+    Caches m_caches;
+
+public:
+    MemoryCachePool() {
+
+    }
+
+    MemoryCachePool(const MemoryCachePool &one) {
+        //Don't copy the original cache for now
+    }
+
+    ~MemoryCachePool() {
+        for (unsigned i=0; i<m_caches.size(); ++i) {
+            delete m_caches[i];
+        }
+    }
+
+    void print()
+    {
+        typeof(m_caches.begin()) it = m_caches.begin();
+        for (it = m_caches.begin(); it != m_caches.end(); ++it) {
+            std::cout << std::hex <<
+                    "Cache start=0x" << (*it)->getStart() <<
+                    " size=0x" << (*it)->getSize() << std::endl << std::endl;
+        }
+    }
+
+    //We sort the cache be decreasing size.
+    //The idea is that most accesses fall in the RAM, so it will
+    //be found first in the list.
+    void registerPool(uint64_t hostAddrStart, uint64_t size)
+    {
+        MemoryCacheT *mc = new MemoryCacheT(hostAddrStart, size);
+        if (m_caches.size() == 0) {
+            m_caches.push_back(mc);
+        }
+
+        //Locate the place to insert
+        typeof(m_caches.begin()) it;
+        for (it = m_caches.begin(); it != m_caches.end(); ++it) {
+            if (size > (*it)->getSize()) {
+                break;
+            }
+        }
+
+        m_caches.insert(it, mc);
+
+        print();
+    }
+
+    void put(uint64_t hostAddress, const T &obj)
+    {
+        typeof(m_caches.begin()) it;
+        for (it = m_caches.begin(); it != m_caches.end(); ++it) {
+            if ((*it)->contains(hostAddress)) {
+                (*it)->put(hostAddress, obj);
+                return;
+            }
+        }
+    }
+
+    T get(uint64_t hostAddress)
+    {
+        return T();
+        typeof(m_caches.begin()) it;
+        for (it = m_caches.begin(); it != m_caches.end(); ++it) {
+            if ((*it)->contains(hostAddress)) {
+                return (*it)->get(hostAddress);
+            }
+        }
+        return T();
+    }
+
 };
 
 }

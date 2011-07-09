@@ -86,7 +86,6 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
-    m_memcache = NULL;
 }
 
 S2EExecutionState::~S2EExecutionState()
@@ -219,8 +218,6 @@ ExecutionState* S2EExecutionState::clone()
 
     S2EExecutionState *ret = new S2EExecutionState(*this);
     ret->addressSpace.state = ret;
-
-    ret->m_memcache = new S2EMemoryCache(*m_memcache);
 
     S2EDeviceState *dev1, *dev2;
     m_deviceState->clone(&dev1, &dev2);
@@ -1099,28 +1096,6 @@ CPUState *S2EExecutionState::getConcreteCpuState() const
 }
 
 
-void S2EExecutionState::dmaFlushCache()
-{
-    for (unsigned i=0; i<S2E_PHYS_PAGE_CACHE_ENTRIES; ++i) {
-        m_physPageCache[i].os = NULL;
-    }
-}
-
-klee::ObjectState* S2EExecutionState::dmaLoadPage(uint64_t hostPage)
-{
-    ObjectPair op = addressSpace.findObject(hostPage);
-
-    assert(op.first && op.first->isUserSpecified &&
-           op.first->size == S2E_RAM_OBJECT_SIZE);
-
-    unsigned index = S2E_PHYS_PAGE_CACHE_INDEX(hostPage);
-    ObjectState *ret = addressSpace.getWriteable(op.first, op.second);
-    m_physPageCache[index].os = ret;
-    m_physPageCache[index].concreteStore = ret->getConcreteStore(true);
-    m_physPageCache[index].hostPage = hostPage >> S2E_RAM_OBJECT_BITS;
-    return ret;
-}
-
 //Fast function to read bytes from physical (uses caching)
 void S2EExecutionState::dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned size)
 {
@@ -1131,20 +1106,21 @@ void S2EExecutionState::dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned siz
             length = size;
         }
 
-        unsigned index = S2E_PHYS_PAGE_CACHE_INDEX(hostPage);
-
-        ObjectState *ret = m_physPageCache[index].os;
-        uint64_t cachedPage = m_physPageCache[index].hostPage << S2E_RAM_OBJECT_BITS;
-
-        if (!ret || (hostPage != cachedPage)) {
-            ret = dmaLoadPage(hostPage);
+        ObjectPair op = m_memcache.get(hostPage);
+        if (!op.first) {
+            op = addressSpace.findObject(hostPage);
+            op.second = addressSpace.getWriteable(op.first, op.second);
+            m_memcache.put(hostAddress, op);
         }
+        assert(op.first && op.second && op.first->address == hostPage);
+        ObjectState *os = const_cast<ObjectState*>(op.second);
+        uint8_t *concreteStore = os->getConcreteStore();
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 
         for (unsigned i=0; i<length; ++i) {
-            if (_s2e_check_concrete(ret, offset+i, 1)) {
-                buf[i] = m_physPageCache[index].concreteStore[offset+i];
+            if (_s2e_check_concrete(os, offset+i, 1)) {
+                buf[i] = concreteStore[offset+i];
             }else {
                 g_s2e->getExecutor()->readRamConcrete(this, hostAddress+i, &buf[i], sizeof(buf[i]));
             }
@@ -1164,20 +1140,22 @@ void S2EExecutionState::dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned si
             length = size;
         }
 
-        unsigned index = S2E_PHYS_PAGE_CACHE_INDEX(hostPage);
 
-        ObjectState *ret = m_physPageCache[index].os;
-        uint64_t cachedPage = m_physPageCache[index].hostPage << S2E_RAM_OBJECT_BITS;
-
-        if (!ret || (hostPage != cachedPage)) {
-            ret = dmaLoadPage(hostPage);
+        ObjectPair op = m_memcache.get(hostPage);
+        if (!op.first) {
+            op = addressSpace.findObject(hostPage);
+            op.second = addressSpace.getWriteable(op.first, op.second);
+            m_memcache.put(hostAddress, op);
         }
+        assert(op.first && op.second && op.first->address == hostPage);
+        ObjectState *os = const_cast<ObjectState*>(op.second);
+        uint8_t *concreteStore = os->getConcreteStore();
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 
         for (unsigned i=0; i<length; ++i) {
-            if (_s2e_check_concrete(ret, offset+i, 1)) {
-                m_physPageCache[index].concreteStore[offset+i] = buf[i];
+            if (_s2e_check_concrete(os, offset+i, 1)) {
+                concreteStore[offset+i] = buf[i];
             }else {
                 g_s2e->getExecutor()->writeRamConcrete(this, hostAddress+i, &buf[i], sizeof(buf[i]));
             }
@@ -1199,7 +1177,7 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
     for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i) {
         S2ETLBEntry* entry = &env->s2e_tlb_table[mmu_idx][index];
 
-        ObjectPair op = m_memcache->get(hostAddr);
+        ObjectPair op = m_memcache.get(hostAddr);
         if (!op.first) {
             op = addressSpace.findObject(hostAddr);
         }
@@ -1216,7 +1194,7 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
         }
 
         op = ObjectPair(op.first, (const ObjectState*)entry->objectState);
-        m_memcache->put(hostAddr, op);
+        m_memcache.put(hostAddr, op);
 
         index += 1;
         hostAddr += S2E_RAM_OBJECT_SIZE;

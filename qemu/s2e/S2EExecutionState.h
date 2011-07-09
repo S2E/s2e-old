@@ -69,10 +69,10 @@ struct S2ETranslationBlock;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 
-typedef MemoryCache<klee::ObjectPair,
-                S2E_RAM_OBJECT_SIZE,
-                4096, //XXX: FIX THIS HARD-CODED STUFF!
-                S2E_MEMCACHE_SUPERPAGE_SIZE> S2EMemoryCache;
+typedef MemoryCachePool<klee::ObjectPair,
+                S2E_RAM_OBJECT_BITS,
+                12, //XXX: FIX THIS HARD-CODED STUFF!
+                S2E_MEMCACHE_SUPERPAGE_BITS> S2EMemoryCache;
 
 struct S2EPhysCacheEntry
 {
@@ -125,10 +125,7 @@ protected:
 
     S2EDeviceState *m_deviceState;
 
-    //XXX: This is adhoc, should be replaced by a more general scheme
-    S2EPhysCacheEntry m_physPageCache[S2E_PHYS_PAGE_CACHE_ENTRIES];
-
-    S2EMemoryCache *m_memcache;
+    S2EMemoryCache m_memcache;
 
     /* The following structure is used to store QEMU time accounting
        variables while the state is inactive */
@@ -286,10 +283,8 @@ public:
                        AddressType addressType = VirtualAddress);
 
     /** Fast routines used by the DMA subsystem */
-    klee::ObjectState* dmaLoadPage(uint64_t hostPage);
     void dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned size);
     void dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned size);
-    void dmaFlushCache();
 
 
     CPUX86State *getConcreteCpuState() const;

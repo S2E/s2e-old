@@ -964,9 +964,8 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
         m_unusedMemoryRegions.push_back(make_pair(hostAddress, size));
     }
 
-    if (!strcmp(name, "ram")) {
-        initialState->m_memcache = new S2EMemoryCache(hostAddress, size);
-    }
+    initialState->m_memcache.registerPool(hostAddress, size);
+
 }
 
 void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t host_address,
@@ -1309,7 +1308,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     //This is the same mechanism as used by load/save_vmstate, so it should work reliably
     qemu_aio_flush();
 
-    newState->dmaFlushCache();
 
     cpu_disable_ticks();
 

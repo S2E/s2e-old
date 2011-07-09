@@ -46,7 +46,7 @@
 #define S2E_ENABLE_S2E_TLB
 
 /** This defines the size of each MemoryObject that represents physical RAM.
-    Larget values save some memory, smaller (exponentially) decrease solving
+    Larger values save some memory, smaller (exponentially) decrease solving
     time for constraints with symbolic addresses */
 
 #ifdef S2E_ENABLE_S2E_TLB
@@ -59,10 +59,7 @@
 #define S2E_RAM_OBJECT_SIZE (1 << S2E_RAM_OBJECT_BITS)
 #define S2E_RAM_OBJECT_MASK (~(S2E_RAM_OBJECT_SIZE - 1))
 
-#define S2E_PHYS_PAGE_CACHE_ENTRIES 4096
-#define S2E_PHYS_PAGE_CACHE_INDEX(a) (((a)>>S2E_RAM_OBJECT_BITS) & (S2E_PHYS_PAGE_CACHE_ENTRIES-1))
-
-#define S2E_MEMCACHE_SUPERPAGE_SIZE 1024*1024
+#define S2E_MEMCACHE_SUPERPAGE_BITS 20
 
 /** Enables simple memory debugging support */
 //#define S2E_DEBUG_MEMORY
