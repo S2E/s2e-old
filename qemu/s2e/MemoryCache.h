@@ -188,8 +188,6 @@ public:
         }
 
         m_caches.insert(it, mc);
-
-        print();
     }
 
     void put(uint64_t hostAddress, const T &obj)
@@ -205,7 +203,6 @@ public:
 
     T get(uint64_t hostAddress)
     {
-        return T();
         typeof(m_caches.begin()) it;
         for (it = m_caches.begin(); it != m_caches.end(); ++it) {
             if ((*it)->contains(hostAddress)) {
