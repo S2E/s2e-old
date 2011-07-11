@@ -33,15 +33,18 @@ private:
 
         ~SecondLevel() {
             for (unsigned i=0; i<(1<<(SUPERPAGESIZE_BITS-PAGESIZE_BITS)); ++i) {
-                if (level2[i])
+                if (level2[i]) {
                     delete level2[i];
+                    level2[i] = NULL;
+                }
             }
         }
     };
 
-    std::vector<SecondLevel*> m_level1;
+    SecondLevel **m_level1;
     uint64_t m_hostAddrStart;
     uint64_t m_size;
+    unsigned m_pagecount;
 
     inline void resize()
     {
@@ -51,7 +54,11 @@ private:
             ++pagecount;
         }
 
-        m_level1.resize(pagecount, NULL);
+        m_pagecount = pagecount;
+        m_level1 = new SecondLevel*[pagecount];
+        for (unsigned i=0; i< pagecount; ++i) {
+            m_level1[i] = NULL;
+        }
     }
 
 public:
@@ -82,9 +89,10 @@ public:
     }
 
     inline void flushCache() {
-        for (unsigned i=0; i<m_level1.size(); ++i) {
+        for (unsigned i=0; i<m_pagecount; ++i) {
             if (m_level1[i]) {
                 delete m_level1[i];
+                m_level1[i] = NULL;
             }
         }
     }
@@ -111,6 +119,8 @@ public:
             ptrLevel3 = new ThirdLevel();
             ptrLevel2->level2[level2] = ptrLevel3;
         }
+
+        assert(level3 < (1<<(PAGESIZE_BITS-OBJSIZE_BITS)));
 
         ptrLevel3->level3[level3] = obj;
     }
@@ -150,7 +160,10 @@ public:
     }
 
     MemoryCachePool(const MemoryCachePool &one) {
-        //Don't copy the original cache for now
+        for (unsigned i=0; i<one.m_caches.size(); ++i) {
+            m_caches.push_back(new MemoryCacheT(*one.m_caches[i]));
+        }
+
     }
 
     ~MemoryCachePool() {
@@ -178,6 +191,7 @@ public:
         MemoryCacheT *mc = new MemoryCacheT(hostAddrStart, size);
         if (m_caches.size() == 0) {
             m_caches.push_back(mc);
+            return;
         }
 
         //Locate the place to insert
