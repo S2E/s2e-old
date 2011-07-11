@@ -60,7 +60,9 @@ extern struct CPUX86State *env;
 
 #include <iomanip>
 
-#define small_memcpy(dest, source, count) asm volatile ("rep movsb"::"S"(source), "D"(dest), "c" (count))
+//XXX: The idea is to avoid function calls
+//#define small_memcpy(dest, source, count) asm volatile ("cld; rep movsb"::"S"(source), "D"(dest), "c" (count):"flags", "memory")
+#define small_memcpy __builtin_memcpy
 
 namespace klee {
 extern llvm::cl::opt<bool> DebugLogStateMerge;
@@ -200,6 +202,12 @@ void S2EExecutionState::addressSpaceChange(const klee::MemoryObject *mo,
         }
     }
 #endif
+
+    ObjectPair op = m_memcache.get(mo->address);
+    if (op.first) {
+        op.second = newState;
+        m_memcache.put(mo->address, op);
+    }
 }
 
 ExecutionState* S2EExecutionState::clone()
@@ -255,6 +263,9 @@ ExecutionState* S2EExecutionState::clone()
                             m_cpuRegistersState, m_cpuRegistersObject);
     m_cpuSystemObject = addressSpace.getWriteable(
                             m_cpuSystemState, m_cpuSystemObject);
+
+    ret->m_dirtyMaskObject = ret->addressSpace.getWriteable(
+            m_dirtyMask, m_dirtyMaskObject);
 
     m_dirtyMaskObject = addressSpace.getWriteable(
             m_dirtyMask, m_dirtyMaskObject);
@@ -802,7 +813,6 @@ void S2EExecutionState::readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf,
         ObjectPair op = m_memcache.get(page_addr);
         if (!op.first) {
             op = addressSpace.findObject(page_addr);
-            op.second = addressSpace.getWriteable(op.first, op.second);
             m_memcache.put(page_addr, op);
         }
 
@@ -844,7 +854,6 @@ void S2EExecutionState::readRamConcrete(uint64_t hostAddress, uint8_t* buf, uint
         ObjectPair op = m_memcache.get(page_addr);
         if (!op.first) {
             op = addressSpace.findObject(page_addr);
-            op.second = addressSpace.getWriteable(op.first, op.second);
             m_memcache.put(page_addr, op);
         }
 
@@ -887,7 +896,6 @@ void S2EExecutionState::writeRamConcrete(uint64_t hostAddress, const uint8_t* bu
         ObjectPair op = m_memcache.get(page_addr);
         if (!op.first) {
             op = addressSpace.findObject(page_addr);
-            op.second = addressSpace.getWriteable(op.first, op.second);
             m_memcache.put(page_addr, op);
         }
 
@@ -1331,7 +1339,6 @@ void S2EExecutionState::dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned siz
         ObjectPair op = m_memcache.get(hostPage);
         if (!op.first) {
             op = addressSpace.findObject(hostPage);
-            op.second = addressSpace.getWriteable(op.first, op.second);
             m_memcache.put(hostAddress, op);
         }
         assert(op.first && op.second && op.first->address == hostPage);
@@ -1366,11 +1373,11 @@ void S2EExecutionState::dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned si
         ObjectPair op = m_memcache.get(hostPage);
         if (!op.first) {
             op = addressSpace.findObject(hostPage);
-            op.second = addressSpace.getWriteable(op.first, op.second);
             m_memcache.put(hostAddress, op);
         }
+
         assert(op.first && op.second && op.first->address == hostPage);
-        ObjectState *os = const_cast<ObjectState*>(op.second);
+        ObjectState *os = addressSpace.getWriteable(op.first, op.second);
         uint8_t *concreteStore = os->getConcreteStore();
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
@@ -1403,7 +1410,7 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
         if (!op.first) {
             op = addressSpace.findObject(hostAddr);
         }
-        assert(op.first && op.second && op.first->address == hostAddr);
+        assert(op.first && op.second && op.second->getObject() == op.first && op.first->address == hostAddr);
 
         if(op.first->isSharedConcrete) {
             entry->objectState = const_cast<klee::ObjectState*>(op.second);
