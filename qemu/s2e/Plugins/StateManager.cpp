@@ -136,6 +136,7 @@ void StateManager::resetTimeout()
 {
     llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
     AtomicFunctions::write(&m_shared.get()->timeOfLastNewBlock, curTime.seconds());
+    m_currentTime = curTime.seconds();
 }
 
 void StateManager::resumeSucceeded()
