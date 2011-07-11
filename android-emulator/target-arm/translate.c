@@ -7297,6 +7297,21 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
     }
 #endif
 
+#ifdef CONFIG_S2E
+    tmp = new_tmp();
+    tcg_gen_movi_tl(tmp, s->pc);
+    //tcg_gen_st_tl(tmp, cpu_env, offsetof(CPUState, regs[15]));
+    store_cpu_field(tmp,regs[15]);
+
+    tmp64 = tcg_temp_new_i64();
+    tcg_gen_ld_i64(tmp64, cpu_env, offsetof(CPUState, s2e_icount));
+    tcg_gen_addi_i64(tmp64, tmp64, 1);
+    tcg_gen_st_i64(tmp64, cpu_env, offsetof(CPUState, s2e_icount));
+    tcg_temp_free_i64(tmp64);
+//    if (s->cc_op != CC_OP_DYNAMIC)
+//        gen_op_set_cc_op(s->cc_op);
+#endif
+
     insn |= (uint32_t)insn_hw1 << 16;
 
     s->pc += 2;
