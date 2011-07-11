@@ -149,7 +149,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                         << std::endl;
                 } else {
                     message="<NO MESSAGE>";
-                    if(messagePtr && !state->readString(messagePtr, message)) {
+                    if(!messagePtr || !state->readString(messagePtr, message)) {
                         s2e()->getWarningsStream(state)
                             << "Error reading file name string from the guest" << std::endl;
                     }
@@ -241,7 +241,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
 
         case 0x10: { /* print message */
-            uint32_t address; //XXX
+            uint32_t address = 0; //XXX
             bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
                                                         &address, 4);
             if(!ok) {
@@ -252,7 +252,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             }
 
             std::string str="";
-            if(!state->readString(address, str)) {
+            if(!address || !state->readString(address, str)) {
                 s2e()->getWarningsStream(state)
                         << "Error reading string message from the guest at address 0x"
                         << std::hex << address
