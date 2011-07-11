@@ -1209,6 +1209,12 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
 
     if(states.empty()) {
         m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
+        foreach(S2EExecutionState* s, m_deletedStates) {
+            unrefS2ETb(s->m_lastS2ETb);
+            s->m_lastS2ETb = NULL;
+            delete s;
+        }
+        m_deletedStates.clear();
         exit(0);
     }
 
