@@ -44,10 +44,12 @@ uint32_t goldfish_free_irq;
 
 void goldfish_device_set_irq(struct goldfish_device *dev, int irq, int level)
 {
-    if(irq >= dev->irq_count)
+    if(irq >= dev->irq_count) {
         cpu_abort (cpu_single_env, "goldfish_device_set_irq: Bad irq %d >= %d\n", irq, dev->irq_count);
-    else
+    } else {
+    	qemu_log_mask(CPU_LOG_INT, "GOLDFISH PIC IRQ %d (level: %d) from device %s (base: %x)\n",(dev->irq + irq), level, dev->name, dev->base);
         qemu_set_irq(goldfish_pic[dev->irq + irq], level);
+    }
 }
 
 int goldfish_add_device_no_io(struct goldfish_device *dev)

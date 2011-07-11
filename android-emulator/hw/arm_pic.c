@@ -27,16 +27,20 @@ static void arm_pic_cpu_handler(void *opaque, int irq, int level)
     CPUState *env = (CPUState *)opaque;
     switch (irq) {
     case ARM_PIC_CPU_IRQ:
-        if (level)
+        if (level) {
+        	qemu_log_mask(CPU_LOG_INT, "ARM PIC IRQ at PC: %16"PRIx32"\n",env->regs[15]);
             cpu_interrupt(env, CPU_INTERRUPT_HARD);
-        else
+        } else {
             cpu_reset_interrupt(env, CPU_INTERRUPT_HARD);
+        }
         break;
     case ARM_PIC_CPU_FIQ:
-        if (level)
-            cpu_interrupt(env, CPU_INTERRUPT_FIQ);
-        else
+        if (level) {
+        	qemu_log_mask(CPU_LOG_INT, "ARM PIC FIQ at PC: %16"PRIx32"\n",env->regs[15]);
+        	cpu_interrupt(env, CPU_INTERRUPT_FIQ);
+        } else {
             cpu_reset_interrupt(env, CPU_INTERRUPT_FIQ);
+        }
         break;
     default:
         hw_error("arm_pic_cpu_handler: Bad interrput line %d\n", irq);
