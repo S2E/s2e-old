@@ -207,16 +207,16 @@ namespace klee {
 
   class BatchingSearcher : public Searcher {
     Searcher *baseSearcher;
-    double timeBudget;
+    uint64_t timeBudget;
     unsigned instructionBudget;
 
     ExecutionState *lastState;
-    double lastStartTime;
+    uint64_t lastStartTime;
     unsigned lastStartInstructions;
 
   public:
     BatchingSearcher(Searcher *baseSearcher, 
-                     double _timeBudget,
+                     uint64_t _timeBudget,
                      unsigned _instructionBudget);
     ~BatchingSearcher();
 
