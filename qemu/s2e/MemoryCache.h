@@ -144,6 +144,25 @@ public:
 
         return ptrLevel3->level3[level3];
     }
+
+    inline T* getArray(uint64_t hostAddress)
+    {
+        uint64_t offset = hostAddress - m_hostAddrStart;
+        uint64_t level1 = offset >> SUPERPAGESIZE_BITS;
+        uint64_t level2 = (offset & ((1<<SUPERPAGESIZE_BITS)-1)) >> PAGESIZE_BITS;
+
+        SecondLevel *ptrLevel2;
+        if (!(ptrLevel2 = m_level1[level1])) {
+            return NULL;
+        }
+
+        ThirdLevel *ptrLevel3;
+        if (!(ptrLevel3 = ptrLevel2->level2[level2])) {
+            return NULL;
+        }
+
+        return ptrLevel3->level3;
+    }
 };
 
 template <class T, unsigned OBJSIZE_BITS, unsigned PAGESIZE_BITS, unsigned SUPERPAGESIZE_BITS>
@@ -214,6 +233,16 @@ public:
                 return;
             }
         }
+    }
+
+    T* getArray(uint64_t hostAddress) {
+        typeof(m_caches.begin()) it;
+        for (it = m_caches.begin(); it != m_caches.end(); ++it) {
+            if ((*it)->contains(hostAddress)) {
+                return (*it)->getArray(hostAddress);
+            }
+        }
+        return NULL;
     }
 
     T get(uint64_t hostAddress)
