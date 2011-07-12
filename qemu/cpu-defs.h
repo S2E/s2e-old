@@ -131,8 +131,7 @@ typedef struct S2ETLBEntry {
     uintptr_t addend;
 } S2ETLBEntry;
 
-// XXX: use TARGET_PAGE_BITS here!!!
-#define CPU_S2E_TLB_BITS (CPU_TLB_BITS + 12 - S2E_RAM_OBJECT_BITS)
+#define CPU_S2E_TLB_BITS (CPU_TLB_BITS + TARGET_PAGE_BITS - S2E_RAM_OBJECT_BITS)
 #define CPU_S2E_TLB_SIZE (1 << CPU_S2E_TLB_BITS)
 
 #define _CPU_COMMON_S2E_TLB_TABLE \
