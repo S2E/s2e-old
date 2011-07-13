@@ -88,11 +88,15 @@ void CorePlugin::initialize()
 /******************************/
 /* Functions called from QEMU */
 
+int g_s2e_enable_signals = true;
+
 void s2e_tcg_execution_handler(void* signal, uint64_t pc)
 {
     try {
         ExecutionSignal *s = (ExecutionSignal*)signal;
-        s->emit(g_s2e_state, pc);
+        if (g_s2e_enable_signals) {
+            s->emit(g_s2e_state, pc);
+        }
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
     }
@@ -103,7 +107,7 @@ void s2e_tcg_custom_instruction_handler(uint64_t arg)
     assert(!g_s2e->getCorePlugin()->onCustomInstruction.empty());
 
     try {
-        g_s2e->getCorePlugin()->onCustomInstruction(g_s2e_state, arg);
+        g_s2e->getCorePlugin()->onCustomInstruction.emit(g_s2e_state, arg);
     } catch(s2e::CpuExitException&) {
         longjmp(env->jmp_env, 1);
     }
@@ -331,12 +335,12 @@ void s2e_on_tlb_miss(S2E *s2e, S2EExecutionState* state, uint64_t addr, int is_w
 
 void s2e_on_device_registration(S2E *s2e)
 {
-    s2e->getCorePlugin()->onDeviceRegistration();
+    s2e->getCorePlugin()->onDeviceRegistration.emit();
 }
 
 void s2e_on_device_activation(S2E *s2e, struct PCIBus *bus)
 {
-    s2e->getCorePlugin()->onDeviceActivation(bus);
+    s2e->getCorePlugin()->onDeviceActivation.emit(bus);
 }
 
 
