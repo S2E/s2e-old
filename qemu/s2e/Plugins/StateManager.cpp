@@ -241,9 +241,15 @@ void StateManager::killOnTimeOut()
     }
 }
 
+
 bool StateManager::killAllExcept(StateSet &toKeep, bool ungrab)
 {
-    s2e()->getDebugStream() << "StateManager: killAllExcept" << std::endl;
+    std::ostream &os = s2e()->getDebugStream();
+    os << "StateManager: killAllExcept ";
+    foreach2(it, toKeep.begin(), toKeep.end()) {
+        os << (*it)->getID() << " ";
+    }
+    os << std::endl;
 
     bool killCurrent = false;
     const std::set<klee::ExecutionState*> &states = s2e()->getExecutor()->getStates();
@@ -285,9 +291,6 @@ void StateManager::killAllButOneSuccessfulLocal(bool ungrabLock)
 
     StateSet toKeep;
     toKeep.insert(one);
-
-    uint64_t *successCount = m_shared.get()->successCount;
-    successCount[s2e()->getCurrentProcessId()] = 0;
 
     killAllExcept(toKeep, ungrabLock);
 }
