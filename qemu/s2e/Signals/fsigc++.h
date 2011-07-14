@@ -1,6 +1,45 @@
+/*
+ * S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the Dependable Systems Laboratory, EPFL nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE DEPENDABLE SYSTEMS LABORATORY, EPFL BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Currently maintained by:
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #ifndef _S2E_SIGNALS_
 
 #define _S2E_SIGNALS_
+
+//#define FASSERT assert
+#define FASSERT(x)
 
 #include <cassert>
 #include <stdlib.h>
@@ -18,14 +57,16 @@ private:
     void *m_functor;
     mysignal_base *m_sig;
     bool m_connected;
+    unsigned m_index;
 public:
     connection() {
         m_functor = NULL;
         m_sig = NULL;
         m_connected = false;
+        m_index = 0;
     }
 
-    connection(mysignal_base *sig, void *func);
+    connection(mysignal_base *sig, void *func, unsigned index);
     inline bool connected() const {
         return m_connected;
     }
@@ -36,7 +77,7 @@ public:
 class mysignal_base
 {
 public:
-    virtual void disconnect(void *functor) = 0;
+    virtual void disconnect(void *functor, unsigned index) = 0;
 };
 
 //*************************************************
@@ -48,20 +89,21 @@ template <typename RET, typename P1, typename P2, typename P3,
         typename P4, typename P5, typename P6, typename P7>
 class functor_base
 {
-private:
+protected:
     unsigned m_refcount;
 public:
+    functor_base():m_refcount(0){}
     void incref() { ++m_refcount; }
-    unsigned decref() { assert(m_refcount > 0); return --m_refcount; }
-    virtual ~functor_base() {}
-    virtual RET operator()() {};
-    virtual RET operator()(P1 p1) {};
-    virtual RET operator()(P1 p1, P2 p2) {};
-    virtual RET operator()(P1 p1, P2 p2, P3 p3) {};
-    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4) {};
-    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) {};
-    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6) {};
-    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7) {};
+    unsigned decref() { assert(this->m_refcount > 0); return --m_refcount; }
+    virtual ~functor_base() {assert(m_refcount == 0);}
+    virtual RET operator()() {assert(false);};
+    virtual RET operator()(P1 p1) {assert(false);};
+    virtual RET operator()(P1 p1, P2 p2) {assert(false);};
+    virtual RET operator()(P1 p1, P2 p2, P3 p3) {assert(false);};
+    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4) {assert(false);};
+    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) {assert(false);};
+    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6) {assert(false);};
+    virtual RET operator()(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7) {assert(false);};
 };
 
 
@@ -85,6 +127,7 @@ public:
     virtual ~ptrfun0() {}
 
     virtual RET operator()() {
+        FASSERT(this->m_refcount > 0);
         return (*m_func)();
     };
 };
@@ -122,6 +165,7 @@ public:
     virtual ~functor0() {}
 
     virtual RET operator()() {
+        FASSERT(this->m_refcount > 0);
         return (*m_obj.*m_func)();
     };
 };
@@ -326,11 +370,17 @@ private:
     A1 a1;
 public:
 
-    functor0_1(functor_t *fb, A1 _a1) : a1(_a1) {
-        this->m_fb = fb;
+    functor0_1(functor_t *fb, A1 _a1) : m_fb(fb), a1(_a1) {
+        fb->incref();
     }
-    virtual ~functor0_1() {delete this->m_fb;}
+    virtual ~functor0_1() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
+
     virtual RET operator()() {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(a1);
     };
 
@@ -350,17 +400,22 @@ public:
     typedef functor_base<RET, A1, A2, nil, nil, nil, nil, nil> functor_t;
 
 private:
-    A1 a1; A2 a2;
     functor_t *m_fb;
+    A1 a1; A2 a2;
+
 public:
 
-    functor0_2(functor_t *fb, A1 a1, A2 a2) {
-        this->m_fb = fb;
-        this->a1 = a1;
-        this->a2 = a2;
+    functor0_2(functor_t *fb, A1 a1_, A2 a2_) : m_fb(fb), a1(a1_), a2(a2_) {
+        m_fb->incref();
     }
-    virtual ~functor0_2() {delete this->m_fb;}
+    virtual ~functor0_2() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
+
     virtual RET operator()() {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(a1, a2);
     };
 };
@@ -385,9 +440,15 @@ private:
 public:
 
     functor1_1(functor_t *fb, A1 a1_):m_fb(fb), a1(a1_) {
+        m_fb->incref();
     }
-    virtual ~functor1_1() {delete this->m_fb;}
+    virtual ~functor1_1() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, a1);
     };
 
@@ -411,9 +472,16 @@ private:
     A1 a1; A2 a2;
 public:
 
-    functor1_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {}
-    virtual ~functor1_2() {delete this->m_fb;}
+    functor1_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {
+        m_fb->incref();
+    }
+    virtual ~functor1_2() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, a1, a2);
     };
 
@@ -438,9 +506,16 @@ private:
 
 public:
 
-    functor1_3(functor_t *fb, A1 a1_, A2 a2_, A3 a3_):m_fb(fb), a1(a1_), a2(a2_), a3(a3_) {}
-    virtual ~functor1_3() {delete this->m_fb;}
+    functor1_3(functor_t *fb, A1 a1_, A2 a2_, A3 a3_):m_fb(fb), a1(a1_), a2(a2_), a3(a3_) {
+        m_fb->incref();
+    }
+    virtual ~functor1_3() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, a1, a2, a3);
     };
 
@@ -466,9 +541,16 @@ private:
 
 public:
 
-    functor2_1(functor_t *fb, A1 a1_):m_fb(fb), a1(a1_) {}
-    virtual ~functor2_1() {delete this->m_fb;}
+    functor2_1(functor_t *fb, A1 a1_):m_fb(fb), a1(a1_) {
+        m_fb->incref();
+    }
+    virtual ~functor2_1() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1, BE2 be2) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, be2, a1);
     };
 };
@@ -492,9 +574,16 @@ private:
 
 public:
 
-    functor2_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {}
-    virtual ~functor2_2() {delete this->m_fb;}
+    functor2_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {
+        m_fb->incref();
+    }
+    virtual ~functor2_2() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1, BE2 be2) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, be2, a1, a2);
     };
 
@@ -521,9 +610,16 @@ private:
 
 public:
 
-    functor3_1(functor_t *fb, A1 a1_):m_fb(fb), a1(a1_) {}
-    virtual ~functor3_1() {delete this->m_fb;}
+    functor3_1(functor_t *fb, A1 a1_):m_fb(fb), a1(a1_) {
+        m_fb->incref();
+    }
+    virtual ~functor3_1() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1, BE2 be2, BE3 be3) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, be2, be3, a1);
     };
 };
@@ -547,9 +643,16 @@ private:
 
 public:
 
-    functor3_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {}
-    virtual ~functor3_2() {delete this->m_fb;}
+    functor3_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {
+        m_fb->incref();
+    }
+    virtual ~functor3_2() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1, BE2 be2, BE3 be3) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, be2, be3, a1, a2);
     };
 
@@ -575,9 +678,16 @@ private:
 
 public:
 
-    functor4_1(functor_t *fb, A1 a1_):m_fb(fb), a1(a1_) {}
-    virtual ~functor4_1() {delete this->m_fb;}
+    functor4_1(functor_t *fb, A1 a1_):m_fb(fb), a1(a1_) {
+        m_fb->incref();
+    }
+    virtual ~functor4_1() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1, BE2 be2, BE3 be3, BE4 be4) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, be2, be3, be4, a1);
     };
 };
@@ -601,9 +711,16 @@ private:
 
 public:
 
-    functor4_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {}
-    virtual ~functor4_2() {delete this->m_fb;}
+    functor4_2(functor_t *fb, A1 a1_, A2 a2_):m_fb(fb), a1(a1_), a2(a2_) {
+        m_fb->incref();
+    }
+    virtual ~functor4_2() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1, BE2 be2, BE3 be3, BE4 be4) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, be2, be3, be4, a1, a2);
     };
 };
@@ -627,9 +744,16 @@ private:
 
 public:
 
-    functor4_3(functor_t *fb, A1 a1_, A2 a2_, A3 a3_):m_fb(fb), a1(a1_), a2(a2_), a3(a3_) {}
-    virtual ~functor4_3() {delete this->m_fb;}
+    functor4_3(functor_t *fb, A1 a1_, A2 a2_, A3 a3_):m_fb(fb), a1(a1_), a2(a2_), a3(a3_) {
+        m_fb->incref();
+    }
+    virtual ~functor4_3() {
+        if (!m_fb->decref()) {
+            delete m_fb;
+        }
+    }
     virtual RET operator()(BE1 be1, BE2 be2, BE3 be3, BE4 be4) {
+        FASSERT(this->m_refcount > 0);
         return m_fb->operator ()(be1, be2, be3, be4, a1, a2, a3);
     };
 };

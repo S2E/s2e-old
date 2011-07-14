@@ -1,3 +1,38 @@
+/*
+ * S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the Dependable Systems Laboratory, EPFL nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE DEPENDABLE SYSTEMS LABORATORY, EPFL BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Currently maintained by:
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
 
 template <class T, typename RET, TYPENAMES>
 class FUNCTOR_NAME : public functor_base <RET, BASE_CLASS_INST>
@@ -17,6 +52,7 @@ public:
     virtual ~FUNCTOR_NAME() {}
 
     virtual RET operator()(OPERATOR_PARAM_DECL) {
+        FASSERT(this->m_refcount > 0);
         return (*m_obj.*m_func)(CALL_PARAMS);
     };
 };
@@ -49,6 +85,7 @@ public:
     virtual ~glue(FUNCTOR_NAME, _sl)() {}
 
     virtual RET operator()(OPERATOR_PARAM_DECL) {
+        FASSERT(this->m_refcount > 0);
         return (*m_func)(CALL_PARAMS);
     };
 };
@@ -61,63 +98,3 @@ ptr_fun(RET (*f)(FUNCT_DECL)) {
 
 #undef glue
 #undef xglue
-
-#if 0
-template <class T, typename RET, typename P1>
-class functor1 : public functor_base <RET, P1, P1>
-{
-public:
-    typedef RET (T::*func_t)(P1);
-private:
-    func_t m_func;
-    T* m_obj;
-
-public:
-    functor1(T* obj, func_t f) {
-        m_obj = obj;
-        m_func = f;
-    };
-
-    virtual ~functor1() {}
-
-    virtual RET operator()(P1 p1) {
-        return (*m_obj.*m_func)(p1);
-    };
-};
-
-template <class T, typename RET, typename P1>
-inline functor_base<RET, P1, P1>*
-mem_fun(T &obj, RET (T::*f)(P1)) {
-    return new functor1<T, RET, P1>(&obj, f);
-}
-#endif
-
-#if 0
-template <class T, typename RET, typename P1, typename P2>
-class functor2 : public functor_base <RET, P1, P2>
-{
-public:
-    typedef RET (T::*func_t)(P1, P2);
-private:
-    func_t m_func;
-    T* m_obj;
-
-public:
-    functor2(T* obj, func_t f) {
-        m_obj = obj;
-        m_func = f;
-    };
-
-    virtual ~functor2() {}
-
-    virtual RET operator()(P1 p1, P2 p2) {
-        return (*m_obj.*m_func)(p1, p2);
-    };
-};
-
-template <class T, typename RET, typename P1, typename P2>
-inline functor_base<RET, P1, P2>*
-mem_fun(T &obj, RET (T::*f)(P1, P2)) {
-    return new functor2<T, RET, P1, P2>(&obj, f);
-}
-#endif
