@@ -198,7 +198,7 @@ bool WindowsKmInterceptor::CatchModuleLoad(S2EExecutionState *state)
 {
     assert(m_Os->GetVersion() == WindowsMonitor::SP3);
 
-    uint64_t pDriverObject;
+    uint64_t pDriverObject=0;
 
     if (!state->readMemoryConcrete(state->getSp(), &pDriverObject, m_Os->GetPointerSize())) {
         return false;
