@@ -2843,7 +2843,7 @@ static void notdirty_mem_writeb(void *opaque, target_phys_addr_t ram_addr,
 #endif
 #endif
     }
-    stb_p(qemu_get_ram_ptr(ram_addr), val);
+    stb_raw(qemu_get_ram_ptr(ram_addr), val);
     dirty_flags |= (0xff & ~CODE_DIRTY_FLAG);
 #ifdef CONFIG_S2E
     s2e_write_dirty_mask((uint64_t)&phys_ram_dirty[ram_addr >> TARGET_PAGE_BITS], dirty_flags);
