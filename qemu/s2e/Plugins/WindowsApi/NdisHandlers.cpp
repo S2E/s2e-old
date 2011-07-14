@@ -2230,9 +2230,10 @@ void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool 
 
     if (isQuery) {
         //Keep only those states that have a connected cable
-        if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
-            uint32_t status;
-            if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
+        uint32_t status;
+        if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
+            s2e()->getDebugStream() << "Status=0x" << std::hex << status << std::endl;
+            if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
                 s2e()->getDebugStream(state) << "OID_GEN_MEDIA_CONNECT_STATUS is " << status << std::endl;
                 if (status == 1) {
                    //Disconnected, kill the state
@@ -2251,6 +2252,7 @@ void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool 
 void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     static bool alreadyExplored = false;
+
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
@@ -2260,6 +2262,8 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
 
     readConcreteParameter(state, 1, &plgState->oid);
     readConcreteParameter(state, 2, &plgState->pInformationBuffer);
+
+    s2e()->getDebugStream(state) << "OID=0x" << std::hex << plgState->oid << std::endl;
 
     if (alreadyExplored) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::QueryInformationHandlerRet)
@@ -2299,6 +2303,8 @@ void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonit
 
     readConcreteParameter(state, 1, &plgState->oid);
     readConcreteParameter(state, 2, &plgState->pInformationBuffer);
+
+    s2e()->getDebugStream(state) << "OID=0x" << std::hex << plgState->oid << std::endl;
 
     if (alreadyExplored) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SetInformationHandlerRet)
