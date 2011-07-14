@@ -48,7 +48,11 @@ template <typename RET, typename P1, typename P2, typename P3,
         typename P4, typename P5, typename P6, typename P7>
 class functor_base
 {
+private:
+    unsigned m_refcount;
 public:
+    void incref() { ++m_refcount; }
+    unsigned decref() { assert(m_refcount > 0); return --m_refcount; }
     virtual ~functor_base() {}
     virtual RET operator()() {};
     virtual RET operator()(P1 p1) {};

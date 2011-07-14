@@ -7,9 +7,20 @@ public:
 
 SIGNAL_CLASS() { m_size = 0; m_funcs = 0;}
 
+SIGNAL_CLASS(const SIGNAL_CLASS &one) {
+    m_size = one.m_size;
+    m_funcs = new func_t[m_size];
+    for (unsigned i=0; i<m_size; ++i) {
+        m_funcs[i] = one.m_funcs[i];
+        one.m_funcs[i]->incref();
+    }
+}
+
 ~SIGNAL_CLASS() {
     for (unsigned i=0; i<m_size; ++i) {
-        delete m_funcs[i];
+        if (!m_funcs[i]->decref()) {
+            delete m_funcs[i];
+        }
     }
     if (m_funcs) {
         delete [] m_funcs;
@@ -19,7 +30,9 @@ SIGNAL_CLASS() { m_size = 0; m_funcs = 0;}
 virtual void disconnect(void *functor) {
     for (unsigned i=0; i<m_size; ++i) {
         if (m_funcs[i] == functor) {
-            delete m_funcs[i];
+            if (!m_funcs[i]->decref()) {
+                delete m_funcs[i];
+            }
             m_funcs[i] = NULL;
             return;
         }
@@ -28,6 +41,7 @@ virtual void disconnect(void *functor) {
 }
 
 connection connect(func_t fcn) {
+    fcn->incref();
     for (unsigned i=0; i<m_size; ++i) {
         if (!m_funcs[i]) {
             m_funcs[i] = fcn;
