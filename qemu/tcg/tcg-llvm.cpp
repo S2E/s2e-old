@@ -1000,7 +1000,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
         assert(getValue(args[1])->getType() == wordType());
 
         Value* valueToStore = getValue(args[0]);
-        if (args[1] == 0 && args[2] == offsetof(CPUX86State, eip)) {
+        if (args[1] == 0 && args[2] == offsetof(CPUARMState, regs[15])) {
             valueToStore = m_builder.CreateCall3(m_helperForkAndConcretize,
                                 m_builder.CreateZExt(valueToStore, intType(64)),
                                 ConstantInt::get(intType(64), 0),
@@ -1319,6 +1319,14 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
     } else {
     tb->llvm_tc_ptr = 0;
     tb->llvm_tc_end = 0;
+    }
+#endif
+
+#ifdef DEBUG_DISAS
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP))) {
+        qemu_log("OP:\n");
+        tcg_dump_ops(s, logfile);
+        qemu_log("\n");
     }
 #endif
 

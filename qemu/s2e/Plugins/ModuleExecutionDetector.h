@@ -43,6 +43,7 @@
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/OSMonitor.h>
+#include <string>
 
 #include <inttypes.h>
 #include "OSMonitor.h"

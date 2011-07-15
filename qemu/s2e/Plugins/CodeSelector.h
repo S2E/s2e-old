@@ -46,7 +46,6 @@
 
 #include <inttypes.h>
 #include <set>
-#include <string>
 
 #include "ModuleExecutionDetector.h"
 

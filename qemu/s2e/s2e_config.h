@@ -37,6 +37,7 @@
 #ifndef S2E_CONFIG_H
 #define S2E_CONFIG_H
 
+
 /** How many S2E instances we want to handle.
     Plugins can use this constant to allocate blocks of shared memory whose size
     depends on the maximum number of processes (e.g., bitmaps) */
@@ -44,6 +45,10 @@
 
 /** Enables S2E TLB to speed-up concrete memory accesses */
 #define S2E_ENABLE_S2E_TLB
+
+#define STRING2(x) #x
+#define STRING(x) STRING2(x)
+
 
 /** This defines the size of each MemoryObject that represents physical RAM.
     Larger values save some memory, smaller (exponentially) decrease solving
@@ -64,6 +69,8 @@
 /** Enables simple memory debugging support */
 //#define S2E_DEBUG_MEMORY
 
+
 #define S2E_USE_FAST_SIGNALS
+
 
 #endif // S2E_CONFIG_H

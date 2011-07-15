@@ -42,7 +42,6 @@
 #include <s2e/S2EExecutionState.h>
 #include "ModuleDescriptor.h"
 
-
 namespace s2e {
 namespace plugins {
 

@@ -10,7 +10,7 @@ include $(SRC_PATH)/rules.mak
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
 VPATH=$(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw
-QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -DNEED_CPU_H
+QEMU_CFLAGS+= -fno-inline -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
 ifdef CONFIG_USER_ONLY
 # user emulator name
@@ -323,23 +323,24 @@ s2eobj-y += s2e/Plugin.o s2e/Plugins/CorePlugin.o s2e/Plugins/Example.o
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 s2eobj-y += s2e/Plugins/ModuleExecutionDetector.o
 s2eobj-y += s2e/Plugins/CodeSelector.o
-s2eobj-y += s2e/Plugins/RawMonitor.o
+#s2eobj-y += s2e/Plugins/RawMonitor.o
 s2eobj-y += s2e/Plugins/FunctionMonitor.o
-s2eobj-y += s2e/Plugins/BaseInstructions.o
-s2eobj-y += s2e/Plugins/X86ExceptionInterceptor.o
+s2eobj-y += s2e/Plugins/BaseInstructionsArm.o
+#s2eobj-y += s2e/Plugins/BranchCoverage.o
+#s2eobj-y += s2e/Plugins/X86ExceptionInterceptor.o
 s2eobj-y += s2e/Plugins/DataSelectors/DataSelector.o
 s2eobj-y += s2e/Plugins/DataSelectors/WindowsService.o
 s2eobj-y += s2e/Plugins/DataSelectors/GenericDataSelector.o
-s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsMonitor.o
-s2eobj-y += s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.o
-s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.o
-s2eobj-y += s2e/Plugins/WindowsInterceptor/UserModeInterceptor.o
-s2eobj-y += s2e/Plugins/WindowsInterceptor/KernelModeInterceptor.o
-s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
-s2eobj-y += s2e/Plugins/WindowsApi/NdisHandlers.o
-s2eobj-y += s2e/Plugins/WindowsApi/NtoskrnlHandlers.o
-s2eobj-y += s2e/Plugins/WindowsApi/HalHandlers.o
-s2eobj-y += s2e/Plugins/WindowsApi/Api.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsMonitor.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/UserModeInterceptor.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/KernelModeInterceptor.o
+#s2eobj-y += s2e/Plugins/WindowsInterceptor/WindowsImage.o
+#s2eobj-y += s2e/Plugins/WindowsApi/NdisHandlers.o
+#s2eobj-y += s2e/Plugins/WindowsApi/NtoskrnlHandlers.o
+#s2eobj-y += s2e/Plugins/WindowsApi/HalHandlers.o
+#s2eobj-y += s2e/Plugins/WindowsApi/Api.o
 
 s2eobj-y += s2e/Plugins/ExecutionTracers/ExecutionTracer.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/ModuleTracer.o
@@ -350,13 +351,14 @@ s2eobj-y += s2e/Plugins/ExecutionTracers/InstructionCounter.o
 s2eobj-y += s2e/Plugins/ExecutionTracers/TranslationBlockTracer.o
 s2eobj-y += s2e/Plugins/CacheSim.o
 s2eobj-y += s2e/Plugins/Debugger.o
-s2eobj-y += s2e/Plugins/SymbolicHardware.o
+#s2eobj-y += s2e/Plugins/SymbolicHardware.o
+#s2eobj-y += s2e/Plugins/PollingLoopDetector.o
 s2eobj-y += s2e/Plugins/EdgeKiller.o
 s2eobj-y += s2e/Plugins/StateManager.o
 s2eobj-y += s2e/Plugins/Annotation.o
 s2eobj-y += s2e/Plugins/Searchers/MaxTbSearcher.o
-s2eobj-y += s2e/Plugins/Searchers/CooperativeSearcher.o
-s2eobj-y += s2e/Plugins/HostFiles.o
+#s2eobj-y += s2e/Plugins/Searchers/CooperativeSearcher.o
+#s2eobj-y += s2e/Plugins/HostFiles.o
 
 s2eobj-y += s2e/Plugins/MemoryChecker.o
 
@@ -380,7 +382,7 @@ s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QE
 s2e/Plugins/ExecutionTrace.o s2e/Plugins/DataSelectors/GenericDataSelector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/DataSelectors/DataSelector.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/RawMonitor.o s2e/Plugins/FunctionMonitor.o: QEMU_CXXFLAGS+=-fno-inline
-s2e/Plugins/CacheSim.o s2e/Plugins/BaseInstructions.o: QEMU_CXXFLAGS+=-fno-inline
+s2e/Plugins/CacheSim.o s2e/Plugins/BaseInstructionsArm.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Debugger.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/CallRetTracer.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/ExecutionTracers/InstructionCounter.o: QEMU_CXXFLAGS+=-fno-inline

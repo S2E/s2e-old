@@ -50,10 +50,13 @@ extern "C" {
 }
 
 
-
-// XXX
+#ifdef TARGET_ARM
+struct CPUARMState;
+#define CPU_OFFSET(field) offsetof(CPUARMState, field)
+#elif defined(TARGET_I386)
 struct CPUX86State;
 #define CPU_OFFSET(field) offsetof(CPUX86State, field)
+#endif
 
 //#include <tr1/unordered_map>
 
@@ -149,6 +152,7 @@ protected:
                             klee::ObjectState *newState);
 
 public:
+
     enum AddressType {
         VirtualAddress, PhysicalAddress, HostAddress
     };
@@ -267,14 +271,23 @@ public:
     /** Write concrete data to RAM. Optimized for host addresses */
     void writeRamConcrete(uint64_t hostAddress, const uint8_t* buf, uint64_t size);
 
-    /** Read from CPU state. Concretize if necessary */
-    void readRegisterConcrete(
-            CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size);
+#ifdef TARGET_ARM
+    /** Read from CPU state, Concretize if nessecary. */
+    void readRegisterConcrete(CPUARMState* cpuState,
+            unsigned offset, uint8_t* buf, unsigned size);
+    /** Write concrete data to the CPU. */
+    void writeRegisterConcrete(CPUARMState* cpuState,
+            unsigned offset, const uint8_t* buf, unsigned size);
 
-    /** Write concrete data to the CPU */
-    /** XXX: do we really also need writeCpuRegisterConcrete? **/
-    void writeRegisterConcrete(CPUX86State *cpuState,
-                               unsigned offset, const uint8_t* buf, unsigned size);
+#elif defined(TARGET_I386)
+    /** Read from CPU state, Concretize if nessecary. */
+    void readRegisterConcrete(CPUX86State* cpuState,
+            unsigned offset, uint8_t* buf, unsigned size);
+    /** Write concrete data to the CPU. */
+    void writeRegisterConcrete(CPUX86State* cpuState,
+            unsigned offset, const uint8_t* buf, unsigned size);
+#endif
+
 
     /** Read an ASCIIZ string from memory */
     bool readString(uint64_t address, std::string &s, unsigned maxLen=256);
@@ -326,9 +339,11 @@ public:
     void writeDirtyMask(uint64_t host_address, uint8_t val);
     void registerDirtyMask(uint64_t host_address, uint64_t size);
 
-
+#ifdef TARGET_ARM
+    CPUARMState *getConcreteCpuState() const;
+#elif defined(TARGET_I386)
     CPUX86State *getConcreteCpuState() const;
-
+#endif
     /** Creates new unconstrained symbolic value */
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
                               const std::string& name = std::string());
@@ -337,13 +352,18 @@ public:
             unsigned size, const std::string& name = std::string());
 
     /** Debug functions **/
-    void dumpX86State(std::ostream &os) const;
+    void dumpCpuState(std::ostream &os) const;
 
     /** Attempt to merge two states */
     bool merge(const ExecutionState &b);
 
+#ifdef TARGET_ARM
+    void updateTlbEntry(CPUARMState* env,
+                              int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
+#elif defined(TARGET_I386)
     void updateTlbEntry(CPUX86State* env,
                               int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
+#endif
 };
 
 //Some convenience macros

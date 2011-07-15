@@ -245,8 +245,9 @@ void Debugger::onTranslateInstructionStart(
 
 void Debugger::onInstruction(S2EExecutionState *state, uint64_t pc)
 {
+	//TODO: Find a way to get the last operand
     s2e()->getDebugStream() << std::hex << "IT " << pc <<
-            " CC_SRC=" << state->readCpuRegister(offsetof(CPUState, cc_src), klee::Expr::Int32) <<
+            /*" CC_SRC=" << state->readCpuRegister(offsetof(CPUARMState, cc_src), klee::Expr::Int32) <<*/
             std::endl;
 }
 

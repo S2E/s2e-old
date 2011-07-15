@@ -1,0 +1,6 @@
+images/android_icon.o
+objs/*
+*.*~
+
+/objs
+/2

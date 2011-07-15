@@ -4767,7 +4767,8 @@ char *qemu_find_file(int type, const char *name)
     switch (type) {
     case QEMU_FILE_TYPE_LIB:
         /* XXX: Terrible hack. Redo it after deadline! */
-        subdir="../i386-s2e-softmmu/";
+
+        subdir="../arm-s2e-softmmu/";
         break;
     case QEMU_FILE_TYPE_BIOS:
         subdir = "";
@@ -6186,8 +6187,9 @@ int main(int argc, char **argv, char **envp)
 #ifdef CONFIG_S2E
     s2e_on_device_registration(g_s2e);
 #else
-    void fake_register_devices(fake_pci_t *fake);
-    fake_register_devices(&g_fake_pci);
+// TODO: fakepci for ARM?
+//    void fake_register_devices(fake_pci_t *fake);
+//    fake_register_devices(&g_fake_pci);
 #endif
 
     module_call_init(MODULE_INIT_DEVICE);

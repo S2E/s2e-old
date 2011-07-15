@@ -1,4 +1,4 @@
-S2ESRC:=$(CURDIR)/s2e
+S2ESRC:=/home/aka/S2E/s2eandroid
 S2EBUILD:=$(CURDIR)
 
 JOBS:=8
@@ -19,7 +19,11 @@ else
     LLVM_GCC_SRC=llvm-gcc-4.2-2.6-x86_64-linux
 endif
 
-clean:
+clean-android:
+	rm -Rf $(S2ESRC)/android-emulator/objs
+	rm -Rf stamps/qemu-configure-debug
+
+clean: clean-android
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
 	rm -Rf llvm-2.6
 	rm -Rf $(LLVM_GCC_SRC)
@@ -115,9 +119,9 @@ stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/
 	cd klee && make ENABLE_OPTIMIZED=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
 
-########
-# QEMU #
-########
+####################
+# Android Emulator #
+####################
 
 klee/Debug/bin/klee-config: stamps/klee-make-debug
 
@@ -125,16 +129,18 @@ klee/Release/bin/klee-config: stamps/klee-make-release
 
 stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	mkdir -p qemu-debug
-	cd qemu-debug && $(S2ESRC)/qemu/configure \
-		--prefix=$(S2EBUILD)/opt \
+	cd qemu-debug && $(S2ESRC)/android-emulator/android-configure.sh \
 		--with-llvm=$(S2EBUILD)/llvm/Debug  \
 		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug \
-		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e \
-		--enable-debug
+		--debug \
+		--zero-malloc \
+		--try-64 \
+		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
+		--install=$(S2EBUILD)/opt 
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
@@ -151,7 +157,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS
-	cd qemu-debug && make -j$(JOBS)
+	cd $(S2ESRC)/android-emulator && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release ALWAYS

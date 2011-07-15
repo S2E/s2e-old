@@ -76,6 +76,7 @@ void BaseInstructions::initialize()
  */
 void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcode)
 {
+
     switch((opcode>>8) & 0xFF) {
         case 0: { /* s2e_check */
                 uint32_t v = 1;

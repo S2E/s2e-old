@@ -42,6 +42,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <string>
 
 namespace s2e {
 namespace plugins {
