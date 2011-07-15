@@ -27,72 +27,23 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Currently maintained by:
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
+#ifndef __S2E_SIGNALS_MAIN__
 
-#ifndef S2E_STATSTRACKER_H
-#define S2E_STATSTRACKER_H
+#define __S2E_SIGNALS_MAIN__
 
-#include <klee/Statistic.h>
-#include <klee/StatsTracker.h>
+#include <s2e/s2e_config.h>
 
-namespace klee {
-namespace stats {
-    extern klee::Statistic translationBlocks;
-    extern klee::Statistic translationBlocksConcrete;
-    extern klee::Statistic translationBlocksKlee;
+#ifdef S2E_USE_FAST_SIGNALS
+#define sigc fsigc
+#include "fsigc++.h"
+#else
+#include <sigc++/sigc++.h>
+#endif
 
-    extern klee::Statistic cpuInstructions;
-    extern klee::Statistic cpuInstructionsConcrete;
-    extern klee::Statistic cpuInstructionsKlee;
-
-    extern klee::Statistic concreteModeTime;
-    extern klee::Statistic symbolicModeTime;
-} // namespace stats
-} // namespace klee
-
-namespace s2e {
-
-class S2EStatsTracker: public klee::StatsTracker
-{
-public:
-    S2EStatsTracker(klee::Executor &_executor, std::string _objectFilename,
-                    bool _updateMinDistToUncovered)
-        : StatsTracker(_executor, _objectFilename, _updateMinDistToUncovered) {}
-
-    static uint64_t getProcessMemoryUsage();
-protected:
-    void writeStatsHeader();
-    void writeStatsLine();
-};
-
-class S2EExecutionState;
-
-class S2EStateStats {
-public:
-
-    //Statistics counters
-    uint64_t m_statTranslationBlockConcrete;
-    uint64_t m_statTranslationBlockSymbolic;
-    uint64_t m_statInstructionCountSymbolic;
-
-    //Counter values at the last check
-    uint64_t m_laststatTranslationBlockConcrete;
-    uint64_t m_laststatTranslationBlockSymbolic;
-    uint64_t m_laststatInstructionCount;
-    uint64_t m_laststatInstructionCountConcrete;
-    uint64_t m_laststatInstructionCountSymbolic;
-
-public:
-    S2EStateStats();
-    void updateStats(S2EExecutionState* state);
-
-};
-
-} // namespace s2e
-
-#endif // S2ESTATSTRACKER_H
+#endif

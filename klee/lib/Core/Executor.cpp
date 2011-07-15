@@ -126,7 +126,7 @@ namespace {
 		      cl::init(false));
 
   cl::opt<bool>
-  SuppressExternalWarnings("suppress-external-warnings");
+  SuppressExternalWarnings("suppress-external-warnings", cl::init(true));
 
   cl::opt<bool>
   OnlyOutputStatesCoveringNew("only-output-states-covering-new",

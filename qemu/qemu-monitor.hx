@@ -132,6 +132,21 @@ STEXI
 Execute the specified S2E command
 ETEXI
 
+    {
+        .name       = "s2e-disable",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Disable all s2e instrumentation",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_s2e_disable,
+    },
+
+STEXI
+@item s2e-disable
+Disable all S2E instrumentation
+ETEXI
+
+
 #endif
 
     {

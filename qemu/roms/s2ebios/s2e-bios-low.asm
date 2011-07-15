@@ -106,6 +106,7 @@ start_1:
 %include "s2e-inst.asm"
 %include "s2e-test.asm"
 %include "s2e-test-ndis.asm"
+%include "s2e-test-statemanager.asm"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;Interrupt handlers

@@ -27,72 +27,32 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Currently maintained by:
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
 
-#ifndef S2E_STATSTRACKER_H
-#define S2E_STATSTRACKER_H
+#ifndef __S2E_OPCODES__
 
-#include <klee/Statistic.h>
-#include <klee/StatsTracker.h>
+#define __S2E_OPCODES__
 
-namespace klee {
-namespace stats {
-    extern klee::Statistic translationBlocks;
-    extern klee::Statistic translationBlocksConcrete;
-    extern klee::Statistic translationBlocksKlee;
+#define OPCODE_SIZE (2 + 8)
 
-    extern klee::Statistic cpuInstructions;
-    extern klee::Statistic cpuInstructionsConcrete;
-    extern klee::Statistic cpuInstructionsKlee;
+//Central opcode repository for plugins that implement micro-operations
+#define RAW_MONITOR_OPCODE   0xAA
+#define MEMORY_TRACER_OPCODE 0xAC
+#define STATE_MANAGER_OPCODE 0xAD
 
-    extern klee::Statistic concreteModeTime;
-    extern klee::Statistic symbolicModeTime;
-} // namespace stats
-} // namespace klee
+//Expression evaluates to true if the custom instruction operand contains the
+//specified opcode
+#define OPCODE_CHECK(operand, opcode) ((((operand)>>8) & 0xFF) == (opcode))
 
-namespace s2e {
+//Get an 8-bit function code from the operand.
+//This may or may not be used depending on how a plugin expects an operand to
+//look like
+#define OPCODE_GETSUBFUNCTION(operand) (((operand) >> 16) & 0xFF)
 
-class S2EStatsTracker: public klee::StatsTracker
-{
-public:
-    S2EStatsTracker(klee::Executor &_executor, std::string _objectFilename,
-                    bool _updateMinDistToUncovered)
-        : StatsTracker(_executor, _objectFilename, _updateMinDistToUncovered) {}
 
-    static uint64_t getProcessMemoryUsage();
-protected:
-    void writeStatsHeader();
-    void writeStatsLine();
-};
-
-class S2EExecutionState;
-
-class S2EStateStats {
-public:
-
-    //Statistics counters
-    uint64_t m_statTranslationBlockConcrete;
-    uint64_t m_statTranslationBlockSymbolic;
-    uint64_t m_statInstructionCountSymbolic;
-
-    //Counter values at the last check
-    uint64_t m_laststatTranslationBlockConcrete;
-    uint64_t m_laststatTranslationBlockSymbolic;
-    uint64_t m_laststatInstructionCount;
-    uint64_t m_laststatInstructionCountConcrete;
-    uint64_t m_laststatInstructionCountSymbolic;
-
-public:
-    S2EStateStats();
-    void updateStats(S2EExecutionState* state);
-
-};
-
-} // namespace s2e
-
-#endif // S2ESTATSTRACKER_H
+#endif

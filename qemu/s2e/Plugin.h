@@ -41,7 +41,7 @@
 #include <vector>
 //#include <tr1/unordered_map>
 #include <map>
-#include <sigc++/sigc++.h>
+#include <s2e/Signals/Signals.h>
 
 namespace s2e {
 

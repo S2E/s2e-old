@@ -17,13 +17,13 @@ since it becomes impossible to know which module the absolute program counters b
 
 The second source of information is the binary itself. As soon as the tools read module information from the trace, 
 they attempt to open the corresponding binary, using the recorded name. The paths to the binaries are specified on the 
-command line (colon-separated). The S2E tools support any binary that can be parsed by the BFD library.
+command line. The S2E tools support any binary that can be parsed by the BFD library.
 
 The third source of information are custom function files. These files describe the binary and list all 
 the functions (with their addresses). This file has the same name as the original binary, but suffixed with ".fcn". 
 The S2E tools attempt to use it when the original binary cannot be opened.
 
-Below is an example of such a custom file. It can be produced with the ``instrToFunction.idc`` script (for IDAPro). 
+Below is an example of such a custom file. It can be produced with the ``extractFunctions.py`` script (for IDAPro).
 Such files are useful when dealing with Windows binaries that only have PDB debug information, which is not supported for now.
 
 ::

@@ -543,6 +543,16 @@ static void do_s2e_info(Monitor *mon)
 {
     monitor_printf(mon, "Execute S2E command\n");
 }
+
+extern int g_s2e_enable_signals;
+static void do_s2e_disable(Monitor *mon, const QDict *params, QObject **ret_data)
+{
+    g_s2e_enable_signals = false;
+    extern CPUState *env;
+    tb_flush(env);
+    monitor_printf(mon, "Status: %d\n", g_s2e_enable_signals);
+}
+
 #endif
 
 /**

@@ -40,10 +40,16 @@
 #include <klee/ExecutionState.h>
 #include <klee/Memory.h>
 
+#include "S2EStatsTracker.h"
+#include "MemoryCache.h"
+#include "s2e_config.h"
+
 extern "C" {
     struct TranslationBlock;
     struct TimersState;
 }
+
+
 
 // XXX
 struct CPUX86State;
@@ -56,11 +62,29 @@ namespace s2e {
 class Plugin;
 class PluginState;
 class S2EDeviceState;
+class S2EExecutionState;
 struct S2ETranslationBlock;
 
 //typedef std::tr1::unordered_map<const Plugin*, PluginState*> PluginStateMap;
 typedef std::map<const Plugin*, PluginState*> PluginStateMap;
 typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
+
+typedef MemoryCachePool<klee::ObjectPair,
+                S2E_RAM_OBJECT_BITS,
+                12, //XXX: FIX THIS HARD-CODED STUFF!
+                S2E_MEMCACHE_SUPERPAGE_BITS> S2EMemoryCache;
+
+struct S2EPhysCacheEntry
+{
+    uint64_t hostPage;
+    klee::ObjectState *os;
+    uint8_t *concreteStore;
+
+    S2EPhysCacheEntry() {
+        os = NULL;
+        concreteStore = NULL;
+    }
+};
 
 class S2EExecutionState : public klee::ExecutionState
 {
@@ -90,16 +114,21 @@ protected:
     */
     bool m_runningConcrete;
 
-    /* Move the following to S2EExecutor */
-    klee::MemoryObject* m_cpuRegistersState;
-    klee::MemoryObject* m_cpuSystemState;
+    /* Move the following to S2EExecutor? */
+    /* Mostly accessed from S2EExecutionState anyway, extra indirection if moved...*/
+    /* Static because they do not change */
+    static klee::MemoryObject* m_cpuRegistersState;
+    static klee::MemoryObject* m_cpuSystemState;
 
     klee::ObjectState *m_cpuRegistersObject;
     klee::ObjectState *m_cpuSystemObject;
 
-    klee::MemoryObject* m_dirtyMask;
+    static klee::MemoryObject* m_dirtyMask;
+    klee::ObjectState *m_dirtyMaskObject;
 
     S2EDeviceState *m_deviceState;
+
+    S2EMemoryCache m_memcache;
 
     /* The following structure is used to store QEMU time accounting
        variables while the state is inactive */
@@ -111,6 +140,8 @@ protected:
     uint64_t m_lastMergeICount;
 
     bool m_needFinalizeTBExec;
+
+    S2EStateStats m_stats;
 
     ExecutionState* clone();
     void addressSpaceChange(const klee::MemoryObject *mo,
@@ -134,7 +165,6 @@ public:
     TranslationBlock *getTb() const;
 
     uint64_t getTotalInstructionCount();
-
     /*************************************************/
 
     PluginState* getPluginState(Plugin *plugin, PluginStateFactory factory) {
@@ -206,6 +236,13 @@ public:
     void enableSymbolicExecution();
     void disableSymbolicExecution();
 
+    /** Return true if hostAddr is registered as a RAM with KLEE */
+    bool isRamRegistered(uint64_t hostAddress);
+
+    /** Return true if hostAddr is registered as a RAM with KLEE */
+    bool isRamSharedConcrete(uint64_t hostAddress);
+
+
     /** Read value from memory, returning false if the value is symbolic */
     bool readMemoryConcrete(uint64_t address, void *buf, uint64_t size,
                             AddressType addressType = VirtualAddress);
@@ -213,6 +250,31 @@ public:
     /** Write concrete value to memory */
     bool writeMemoryConcrete(uint64_t address, void *buf,
                              uint64_t size, AddressType addressType=VirtualAddress);
+
+
+
+    /** Read from physical memory, switching to symbex if
+        the memory contains symbolic value. Note: this
+        function will use longjmp to qemu cpu loop */
+    void readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf, uint64_t size);
+
+
+    /** Read from physical memory, concretizing if nessecary.
+        Note: this function accepts host address (as returned
+        by qemu_get_ram_ptr */
+    void readRamConcrete(uint64_t hostAddress, uint8_t* buf, uint64_t size);
+
+    /** Write concrete data to RAM. Optimized for host addresses */
+    void writeRamConcrete(uint64_t hostAddress, const uint8_t* buf, uint64_t size);
+
+    /** Read from CPU state. Concretize if necessary */
+    void readRegisterConcrete(
+            CPUX86State *cpuState, unsigned offset, uint8_t* buf, unsigned size);
+
+    /** Write concrete data to the CPU */
+    /** XXX: do we really also need writeCpuRegisterConcrete? **/
+    void writeRegisterConcrete(CPUX86State *cpuState,
+                               unsigned offset, const uint8_t* buf, unsigned size);
 
     /** Read an ASCIIZ string from memory */
     bool readString(uint64_t address, std::string &s, unsigned maxLen=256);
@@ -255,6 +317,16 @@ public:
     bool writeMemory64(uint64_t address, uint64_t value,
                        AddressType addressType = VirtualAddress);
 
+    /** Fast routines used by the DMA subsystem */
+    void dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned size);
+    void dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned size);
+
+    /** Dirty mask management */
+    uint8_t readDirtyMask(uint64_t host_address);
+    void writeDirtyMask(uint64_t host_address, uint8_t val);
+    void registerDirtyMask(uint64_t host_address, uint64_t size);
+
+
     CPUX86State *getConcreteCpuState() const;
 
     /** Creates new unconstrained symbolic value */
@@ -269,6 +341,9 @@ public:
 
     /** Attempt to merge two states */
     bool merge(const ExecutionState &b);
+
+    void updateTlbEntry(CPUX86State* env,
+                              int mmu_idx, uint64_t virtAddr, uint64_t hostAddr);
 };
 
 //Some convenience macros

@@ -23,11 +23,11 @@ If the <tt class="docutils literal">ModuleTracer</tt> plugin is not enabled, no 
 since it becomes impossible to know which module the absolute program counters belong to.</p>
 <p>The second source of information is the binary itself. As soon as the tools read module information from the trace,
 they attempt to open the corresponding binary, using the recorded name. The paths to the binaries are specified on the
-command line (colon-separated). The S2E tools support any binary that can be parsed by the BFD library.</p>
+command line. The S2E tools support any binary that can be parsed by the BFD library.</p>
 <p>The third source of information are custom function files. These files describe the binary and list all
 the functions (with their addresses). This file has the same name as the original binary, but suffixed with &quot;.fcn&quot;.
 The S2E tools attempt to use it when the original binary cannot be opened.</p>
-<p>Below is an example of such a custom file. It can be produced with the <tt class="docutils literal">instrToFunction.idc</tt> script (for IDAPro).
+<p>Below is an example of such a custom file. It can be produced with the <tt class="docutils literal">extractFunctions.py</tt> script (for IDAPro).
 Such files are useful when dealing with Windows binaries that only have PDB debug information, which is not supported for now.</p>
 <pre class="literal-block">
 #ImageName rtl8139.sys

@@ -133,6 +133,8 @@ const ModuleInstance *ModuleCacheState::getInstance(uint64_t pid, uint64_t pc) c
 bool ModuleCacheState::loadDriver(const std::string &name, uint64_t pid, uint64_t loadBase,
                              uint64_t imageBase, uint64_t size)
 {
+    std::cout << "Loading driver " << name << " pid=0x" << std::hex << pid <<
+            " loadBase=0x" << loadBase << " imageBase=0x" << imageBase << " size=0x" << size << std::endl;
     pid = Library::translatePid(pid, loadBase);
 
     ModuleInstance *mi = new ModuleInstance(name, pid, loadBase, size, imageBase);

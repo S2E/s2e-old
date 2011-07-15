@@ -34,105 +34,89 @@
  *
  */
 
-#ifndef S2E_SYNCHRONIZATION_H
-#define S2E_SYNCHRONIZATION_H
-
-#include <inttypes.h>
-#include <string>
-
-namespace s2e {
-
-class S2ESynchronizedObjectInternal {
+unsigned m_activeSignals;
+unsigned m_size;
 private:
-    void *m_sharedBuffer;
-    unsigned m_size;
-    unsigned m_headerSize;
-
-    S2ESynchronizedObjectInternal() {
-
-    }
-
-public:
-    S2ESynchronizedObjectInternal(unsigned size);
-    ~S2ESynchronizedObjectInternal();
-
-    void lock();
-    void release();
-    void *aquire();
-    void *tryAquire();
-
-    //Unsynchronized function to get the buffer
-    void *get() const {
-        return ((uint8_t*)m_sharedBuffer)+m_headerSize;
-    }
-};
-
-/**
- *  This class creates a shared memory buffer on which
- *  all S2E processes can perform read/write requests.
- */
-template <class T>
-class S2ESynchronizedObject {
-private:
-    S2ESynchronizedObjectInternal sync;
-
+func_t *m_funcs;
 
 public:
 
-    S2ESynchronizedObject():sync(S2ESynchronizedObjectInternal(sizeof(T))) {
-        new (sync.get()) T();
+SIGNAL_CLASS() { m_size = 0; m_funcs = 0; m_activeSignals = 0;}
+
+SIGNAL_CLASS(const SIGNAL_CLASS &one) {
+    m_activeSignals = one.m_activeSignals;
+    m_size = one.m_size;
+    m_funcs = new func_t[m_size];
+    for (unsigned i=0; i<m_size; ++i) {
+        m_funcs[i] = one.m_funcs[i];
+        m_funcs[i]->incref();
     }
-
-    ~S2ESynchronizedObject() {
-        T* t = (T*)sync.get();
-        t->~T();
-    }
-
-    T *acquire() {
-        return (T*)sync.aquire();
-    }
-
-    //Returns null if could not lock the object
-    T *tryAcquire() {
-        return (T*)sync.tryAquire();
-    }
-
-    void release() {
-        sync.release();
-    }
-
-    T* get() const {
-        return (T*)sync.get();
-    }
-
-};
-
-class AtomicFunctions {
-public:
-    static uint64_t read(uint64_t *address);
-    static void write(uint64_t *address, uint64_t value);
-    static void add(uint64_t *address, uint64_t value);
-    static void sub(uint64_t *address, uint64_t value);
-};
-
-template <class T>
-class AtomicObject {
-private:
-    mutable uint64_t m_value;
-
-public:
-    AtomicObject() {}
-
-    T read() const{
-        uint64_t value = AtomicFunctions::read(&m_value);
-        return *(T*)&value;
-    }
-
-    void write(T &object) {
-        AtomicFunctions::write(&m_value, *(uint64_t*)&object);
-    }
-};
-
 }
 
-#endif
+~SIGNAL_CLASS() {
+    for (unsigned i=0; i<m_size; ++i) {
+        if (m_funcs[i] && !m_funcs[i]->decref()) {
+            delete m_funcs[i];
+            m_funcs[i] = NULL;
+        }
+    }
+    if (m_funcs) {
+        delete [] m_funcs;
+    }
+}
+
+virtual void disconnect(void *functor, unsigned index) {
+    assert(m_activeSignals > 0);
+    assert(m_size > index);
+
+    if (m_funcs[index] == functor) {
+        if (!m_funcs[index]->decref()) {
+            delete m_funcs[index];
+        }
+        --m_activeSignals;
+        m_funcs[index] = NULL;
+    }
+}
+
+connection connect(func_t fcn) {
+    fcn->incref();
+    ++m_activeSignals;
+    for (unsigned i=0; i<m_size; ++i) {
+        if (!m_funcs[i]) {
+            m_funcs[i] = fcn;
+            return connection(this, fcn, i);
+        }
+    }
+    ++m_size;
+    func_t *nf = new func_t[m_size];
+
+    if (m_funcs) {
+        memcpy(nf, m_funcs, sizeof(func_t)*(m_size-1));
+        delete [] m_funcs;
+    }
+    m_funcs = nf;
+
+    m_funcs[m_size-1] = fcn;
+    return connection(this, fcn, m_size-1);
+}
+
+bool empty() {
+    return m_activeSignals == 0;
+}
+
+void emit(OPERATOR_PARAM_DECL) {
+    for (unsigned i=0; i<m_size; ++i) {
+        if (m_funcs[i]) {
+            m_funcs[i]->operator ()(CALL_PARAMS);
+        }
+    }
+}
+
+
+#undef SIGNAL_CLASS
+#undef FUNCTOR_NAME
+#undef TYPENAMES
+#undef BASE_CLASS_INST
+#undef FUNCT_DECL
+#undef OPERATOR_PARAM_DECL
+#undef CALL_PARAMS

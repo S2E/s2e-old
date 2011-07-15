@@ -4,18 +4,70 @@
 ;S2E test - this runs in protected mode
 [bits 32]
 s2e_test:
-    call s2e_test2
+    ;call s2e_test_memspeed
+    ;call s2e_sm_test
+    ;call s2e_test2
     ;call s2e_test_memobj
-    ;call s2e_fork_test
+    call s2e_fork_test2
     ;call s2e_symbhwio_test
     ;call s2e_jmptbl_test
     ;call test_ndis
     ;jmp s2e_test
     ;call s2e_test1
     ;call s2e_isa_dev
-    ;jmp s2e_test
     cli
     hlt
+
+
+
+s2e_fork_test2:
+    push 4
+    call s2e_fork_depth
+    add esp, 4
+
+    ;Finish the test
+    push msg_ok
+    push 0
+    call s2e_kill_state
+    add esp, 8
+    ret
+
+
+;Fork lots of states
+s2e_fork_depth:
+    push ebp
+    mov ebp, esp
+    sub esp, 4
+
+    call s2e_fork_enable
+
+    mov eax, dword [ebp + 8]
+    mov dword [ebp - 4], eax  ; Set forking depth to 4 (2^^4 states)
+ssf1:
+    call s2e_int
+    cmp eax, 0
+    ja ssf2
+ssf2:
+    dec dword [ebp - 4]; Decrement forking depth
+    jnz ssf1
+
+    leave
+    ret
+
+s2e_test_memspeed:
+    mov ecx, 1000000000
+
+lbl1:
+    push eax
+    pop eax
+    dec ecx
+    jnz lbl1
+
+    push 0
+    push 0
+    call s2e_kill_state
+    add esp, 8
+    ret
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -356,7 +408,7 @@ sti_1:
 ;Infinite loop, without state killing
 s2e_test2:
     call s2e_enable
-
+    call s2e_fork_enable
 s2etest2_1:
     call s2e_int
     cmp eax, 0
@@ -420,3 +472,4 @@ a:
     ret
 
 
+msg_ok: db "SUCCESS", 0

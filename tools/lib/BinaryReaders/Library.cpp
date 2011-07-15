@@ -41,6 +41,7 @@
 #include <iostream>
 
 #include "llvm/Support/CommandLine.h"
+#include "llvm/System/Path.h"
 
 //XXX: Move this to a better place
 namespace {
@@ -71,19 +72,15 @@ Library::~Library()
     }
 }
 
-//Add a set of library paths, separated by a colon.
-void Library::setPath(const std::string &s)
+void Library::addPath(const std::string &path)
 {
-    std::string::size_type cur=0, prev=0;
-    std::cout << "PATH " << s << std::endl;
+    m_libpath.push_back(path);
+}
 
-    do {
-        cur = s.find(':', prev);
-        std::string path = s.substr(prev, cur - prev);
-        m_libpath.push_back(path);
-        std::cout << "Adding libpath " << path << std::endl;
-        prev = cur+1;
-    }while(cur != std::string::npos);
+void Library::setPaths(const PathList &s)
+{
+    m_libpath.clear();
+    m_libpath = s;
 }
 
 //Cycles through the list of paths and attempts to find the specified library
@@ -92,11 +89,10 @@ bool Library::findLibrary(const std::string &libName, std::string &abspath)
     PathList::const_iterator it;
 
     for (it = m_libpath.begin(); it != m_libpath.end(); ++it) {
-        std::string s = *it + "/";
-        s+=libName;
-        std::ifstream ifs(s.c_str());
-        if (ifs.is_open()) {
-            abspath = s;
+        llvm::sys::Path lib(*it);
+        lib.appendComponent(libName);
+        if (lib.exists()) {
+            abspath = lib.toString();
             return true;
         }
     }

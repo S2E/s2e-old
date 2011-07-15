@@ -149,7 +149,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                         << std::endl;
                 } else {
                     message="<NO MESSAGE>";
-                    if(messagePtr && !state->readString(messagePtr, message)) {
+                    if(!messagePtr || !state->readString(messagePtr, message)) {
                         s2e()->getWarningsStream(state)
                             << "Error reading file name string from the guest" << std::endl;
                     }
@@ -241,7 +241,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
 
         case 0x10: { /* print message */
-            uint32_t address; //XXX
+            uint32_t address = 0; //XXX
             bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
                                                         &address, 4);
             if(!ok) {
@@ -252,7 +252,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             }
 
             std::string str="";
-            if(!state->readString(address, str)) {
+            if(!address || !state->readString(address, str)) {
                 s2e()->getWarningsStream(state)
                         << "Error reading string message from the guest at address 0x"
                         << std::hex << address
@@ -308,6 +308,31 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
+        case 0x30: { /* Get number of active states */
+                uint32_t count = s2e()->getExecutor()->getStatesCount();
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+                break;
+        }
+
+        case 0x31: { /* Get number of active S2E instances */
+                uint32_t count = s2e()->getCurrentProcessCount();
+                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+                break;
+        }
+        case 0x32: { /* Sleep for a given number of seconds */
+                uint32_t duration = 0;
+                state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration, sizeof(uint32_t));
+                s2e()->getDebugStream() << "Sleeping " << std::dec << duration << " seconds" << std::endl;
+
+                llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
+
+                while (llvm::sys::TimeValue::now().seconds() - startTime.seconds() < duration) {
+                    sleep(1);
+                }
+
+                break;
+        }
+
         case 0x50: { /* disable/enable timer interrupt */
             uint64_t disabled = opcode >> 16;
             if(disabled)
@@ -340,7 +365,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             s2e()->getExecutor()->queueStateForMerge(state);
             break;
 
-    default:
+        default:
             s2e()->getWarningsStream(state)
                 << "BaseInstructions: Invalid built-in opcode " << hexval(opcode) << std::endl;
             break;

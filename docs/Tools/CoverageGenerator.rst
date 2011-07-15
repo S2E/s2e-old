@@ -4,7 +4,8 @@ Coverage Generator
 
 The coverage generator tool outputs the basic block coverage of the specified modules.
 There must be a file suffixed with ``.bblist`` on the module path. 
-This file contains the list of basic blocks for the desired module. 
+This file contains the list of basic blocks for the desired module and can be generated with the
+``extractBasicBlocks.py`` script for IDAPro.
 
 Here is an example of such a file (showing a few basic blocks from the rtl8139.sys driver shipped with Windows XP).
 
@@ -23,7 +24,7 @@ Examples
   ::
 
       $ /home/s2e/tools/Release/bin/coverage -trace=s2e-last/ExecutionTracer.dat -outputdir=s2e-last/ \
-        -modpath=/home/s2e/experiments/rtl8139.sys/driver:/home/s2e/experiments/rtl8029.sys/driver
+        -modpath=/home/s2e/experiments/rtl8139.sys/driver -modpath=/home/s2e/experiments/rtl8029.sys/driver
 
 
 Required Plugins

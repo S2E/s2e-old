@@ -37,9 +37,10 @@
 #include "S2EStatsTracker.h"
 
 #include <s2e/S2EExecutor.h>
+#include <s2e/S2EExecutionState.h>
 
 #include <klee/CoreStats.h>
-#include "klee/SolverStats.h"
+#include <klee/SolverStats.h>
 #include <klee/Internal/System/Time.h>
 
 #include <llvm/System/Process.h>
@@ -198,5 +199,52 @@ void S2EStatsTracker::writeStatsLine() {
              << ")\n";
   statsFile->flush();
 }
+
+S2EStateStats::S2EStateStats():
+    m_statTranslationBlockConcrete(0),
+    m_statTranslationBlockSymbolic(0),
+    m_statInstructionCountSymbolic(0),
+    m_laststatTranslationBlockConcrete(0),
+    m_laststatTranslationBlockSymbolic(0),
+    m_laststatInstructionCount(0),
+    m_laststatInstructionCountConcrete(0),
+    m_laststatInstructionCountSymbolic(0)
+{
+
+}
+
+void S2EStateStats::updateStats(S2EExecutionState* state)
+{
+    //Updating translation block counts
+    uint64_t tbcdiff = m_statTranslationBlockConcrete - m_laststatTranslationBlockConcrete;
+    stats::translationBlocksConcrete += tbcdiff;
+    m_laststatTranslationBlockConcrete = m_statTranslationBlockConcrete;
+
+    uint64_t sbcdiff = m_statTranslationBlockSymbolic - m_laststatTranslationBlockSymbolic;
+    stats::translationBlocksKlee += sbcdiff;
+    m_laststatTranslationBlockSymbolic = m_statTranslationBlockSymbolic;
+
+    stats::translationBlocks += tbcdiff + sbcdiff;
+
+    //Updating instruction counts
+
+    //KLEE icount
+    uint64_t sidiff = m_statInstructionCountSymbolic - m_laststatInstructionCountSymbolic;
+    stats::cpuInstructionsKlee += sidiff;
+    m_laststatInstructionCountSymbolic = m_statInstructionCountSymbolic;
+
+    //Total icount
+    uint64_t totalICount = state->getTotalInstructionCount();
+    uint64_t tidiff = totalICount - m_laststatInstructionCount;
+    stats::cpuInstructions += tidiff;
+    m_laststatInstructionCount = totalICount;
+
+    //Concrete icount
+    uint64_t ccount = totalICount - m_statInstructionCountSymbolic;
+    uint64_t cidiff = ccount - m_laststatInstructionCountConcrete;
+    stats::cpuInstructionsConcrete += cidiff;
+    m_laststatInstructionCountConcrete = ccount;
+}
+
 
 } // namespace s2e
