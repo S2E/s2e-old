@@ -236,6 +236,46 @@ s2e_int:
     leave
     ret
 
+
+s2e_get_state_count:
+    db 0x0f
+    db 0x3f ; S2EOP
+
+    db 0x00 ; Built-in instructions
+    db 0x30 ; get number of active states
+    db 0x00 ; succeed
+    db 0x00
+    dd 0x00
+    ret
+
+s2e_get_proc_count:
+    db 0x0f
+    db 0x3f ; S2EOP
+
+    db 0x00 ; Built-in instructions
+    db 0x31 ; get number of current s2e instances
+    db 0x00 ; succeed
+    db 0x00
+    dd 0x00
+    ret
+
+s2e_sleep:
+    mov eax, [esp + 4];
+
+    db 0x0f
+    db 0x3f ; S2EOP
+
+    db 0x00 ; Built-in instructions
+    db 0x32 ; sleep x seconds
+    db 0x00 ; succeed
+    db 0x00
+    dd 0x00
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Raw Plugin Custom Instructions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 s2e_raw_load_import:
     push ebp
     mov ebp, esp
@@ -315,5 +355,28 @@ s2e_coop_yield:
     leave
     ret
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; State Manager Custom Instructions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+s2e_sm_succeed:
+    db 0x0f
+    db 0x3f ; S2EOP
 
+    db 0x00 ; Built-in instructions
+    db 0xAD ; state manager
+    db 0x00 ; succeed
+    db 0x00
+    dd 0x00
+    ret
+
+s2e_sm_succ_count:
+    db 0x0f
+    db 0x3f ; S2EOP
+
+    db 0x00 ; Built-in instructions
+    db 0xAD ; state manager
+    db 0x01 ; count of succeeded states across all nodes
+    db 0x00
+    dd 0x00
+    ret

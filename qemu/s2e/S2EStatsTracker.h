@@ -70,6 +70,29 @@ protected:
     void writeStatsLine();
 };
 
+class S2EExecutionState;
+
+class S2EStateStats {
+public:
+
+    //Statistics counters
+    uint64_t m_statTranslationBlockConcrete;
+    uint64_t m_statTranslationBlockSymbolic;
+    uint64_t m_statInstructionCountSymbolic;
+
+    //Counter values at the last check
+    uint64_t m_laststatTranslationBlockConcrete;
+    uint64_t m_laststatTranslationBlockSymbolic;
+    uint64_t m_laststatInstructionCount;
+    uint64_t m_laststatInstructionCountConcrete;
+    uint64_t m_laststatInstructionCountSymbolic;
+
+public:
+    S2EStateStats();
+    void updateStats(S2EExecutionState* state);
+
+};
+
 } // namespace s2e
 
 #endif // S2ESTATSTRACKER_H

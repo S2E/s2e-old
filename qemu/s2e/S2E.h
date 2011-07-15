@@ -43,6 +43,7 @@
 //#include <tr1/unordered_map>
 #include <map>
 
+#include "s2e_config.h"
 #include "Plugin.h"
 #include "Synchronization.h"
 
@@ -66,6 +67,7 @@ class S2EExecutionState;
 
 class Database;
 
+//Structure used for synchronization among multiple instances of S2E
 struct S2EShared {
     unsigned currentProcessCount;
     unsigned lastFileId;
@@ -73,6 +75,17 @@ struct S2EShared {
     //otherwise offline tools will be extremely confused when
     //aggregating different execution trace files.
     unsigned lastStateId;
+
+    //Array of currently running instances.
+    //Each entry either contains -1 (no instance running) or
+    //the instance index.
+    unsigned processIds[S2E_MAX_PROCESSES];
+
+    S2EShared() {
+        for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i)    {
+            processIds[i] = (unsigned)-1;
+        }
+    }
 };
 
 class S2E
@@ -107,6 +120,7 @@ protected:
     /* How many processes can S2E fork */
     unsigned m_maxProcesses;
     unsigned m_currentProcessIndex;
+    unsigned m_currentProcessId;
 
     std::string m_outputDirectoryBase;
 
@@ -144,7 +158,7 @@ public:
     Plugin* getPlugin(const std::string& name) const;
 
     /** Get Core plugin */
-    CorePlugin* getCorePlugin() const { return m_corePlugin; }
+    inline CorePlugin* getCorePlugin() const { return m_corePlugin; }
 
     /** Get database */
     Database *getDb() const {
@@ -197,6 +211,14 @@ public:
 
     int fork();
     unsigned fetchAndIncrementStateId();
+    unsigned getMaxProcesses() const {
+        return m_maxProcesses;
+    }
+    unsigned getCurrentProcessId() const {
+        return m_currentProcessId;
+    }
+
+    unsigned getCurrentProcessCount();
 };
 
 } // namespace s2e

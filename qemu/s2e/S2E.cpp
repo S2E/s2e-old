@@ -237,6 +237,13 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
         std::cerr << "You must at least allow one process for S2E." << std::endl;
         exit(1);
     }
+
+    if (s2e_max_processes > S2E_MAX_PROCESSES) {
+        std::cerr << "S2E can handle at most " << S2E_MAX_PROCESSES << " processes." << std::endl;
+        std::cerr << "Please increase the S2E_MAX_PROCESSES constant." << std::endl;
+        exit(1);
+    }
+
 #ifdef CONFIG_WIN32
     if (s2e_max_processes > 1) {
         std::cerr << "S2E for Windows does not support more than one process" << std::endl;
@@ -246,10 +253,12 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 
     m_maxProcesses = s2e_max_processes;
     m_currentProcessIndex = 0;
+    m_currentProcessId = 0;
     S2EShared *shared = m_sync.acquire();
     shared->currentProcessCount = 1;
     shared->lastStateId = 0;
     shared->lastFileId = 1;
+    shared->processIds[m_currentProcessId] = m_currentProcessIndex;
     m_sync.release();
 
     /* Open output directory. Do it at the very begining so that
@@ -313,9 +322,15 @@ S2E::~S2E()
 {
     //Tell other instances we are dead so they can fork more    
     S2EShared *shared = m_sync.acquire();
+
+    getDebugStream() <<"arr=" << shared->processIds[m_currentProcessId] << std::endl;
+    assert(shared->processIds[m_currentProcessId] == m_currentProcessIndex);
+    shared->processIds[m_currentProcessId] = (unsigned) -1;
     --shared->currentProcessCount;
+
     m_sync.release();
 
+    //Delete all the stuff used by the instance
     foreach(Plugin* p, m_activePluginsList)
         delete p;
 
@@ -603,7 +618,11 @@ std::ostream& S2E::getStream(std::ostream& stream,
     fflush(stderr);
 
     if(state) {
-        stream << "[State " << std::dec << state->getID() << "] ";
+        if (m_maxProcesses > 1) {
+            stream << std::dec << "[Node " << m_currentProcessIndex << " - State " << state->getID() << "] ";
+        }else {
+            stream << "[State " << std::dec << state->getID() << "] ";
+        }
     }
     return stream;
 }
@@ -646,10 +665,30 @@ int S2E::fork()
     pid_t pid = ::fork();
     if (pid < 0) {
         //Fork failed
+
+        shared = m_sync.acquire();
+        //Do not decrement lastFileId, as other fork may have
+        //succeeded while we were handling the failure.
+
+        --shared->currentProcessCount;
+        m_sync.release();
         return -1;
     }
 
     if (pid == 0) {
+        //Allocate a free slot in the instance map
+        shared = m_sync.acquire();
+        unsigned i=0;
+        for (i=0; i<m_maxProcesses; ++i) {
+            if (shared->processIds[i] == (unsigned)-1) {
+                shared->processIds[i] = newProcessIndex;
+                m_currentProcessId = i;
+                break;
+            }
+        }
+        assert (i < m_maxProcesses);
+        m_sync.release();
+
         m_currentProcessIndex = newProcessIndex;
         //We are the child process, setup the log files again
         initOutputDirectory(m_outputDirectoryBase, 0, true);
@@ -677,6 +716,13 @@ unsigned S2E::fetchAndIncrementStateId()
     return ret;
 }
 
+unsigned S2E::getCurrentProcessCount()
+{
+    S2EShared *shared = m_sync.acquire();
+    unsigned ret = shared->currentProcessCount;
+    m_sync.release();
+    return ret;
+}
 
 } // namespace s2e
 

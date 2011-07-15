@@ -501,7 +501,7 @@ void MergingSearcher::update(ExecutionState *current,
 ///
 
 BatchingSearcher::BatchingSearcher(Searcher *_baseSearcher,
-                                   double _timeBudget,
+                                   uint64_t _timeBudget,
                                    unsigned _instructionBudget) 
   : baseSearcher(_baseSearcher),
     timeBudget(_timeBudget),
@@ -514,9 +514,11 @@ BatchingSearcher::~BatchingSearcher() {
   delete baseSearcher;
 }
 
+extern volatile uint64_t g_timer_ticks;
+
 ExecutionState &BatchingSearcher::selectState() {
   if (!lastState || 
-      (util::getWallTime()-lastStartTime)>timeBudget) {
+      (g_timer_ticks-lastStartTime)>timeBudget) {
 
       //XXX: Remove for S2E, as the number of instructions
       //does not make much sense for now.
@@ -533,7 +535,7 @@ ExecutionState &BatchingSearcher::selectState() {
     ExecutionState* newState = &baseSearcher->selectState();
     if(newState != lastState) {
         lastState = newState;
-        lastStartTime = util::getWallTime();
+        lastStartTime = g_timer_ticks;
         lastStartInstructions = stats::instructions;
     }
     return *newState;

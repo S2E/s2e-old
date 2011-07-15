@@ -59,6 +59,12 @@ public:
     void lock();
     void release();
     void *aquire();
+    void *tryAquire();
+
+    //Unsynchronized function to get the buffer
+    void *get() const {
+        return ((uint8_t*)m_sharedBuffer)+m_headerSize;
+    }
 };
 
 /**
@@ -74,21 +80,57 @@ private:
 public:
 
     S2ESynchronizedObject():sync(S2ESynchronizedObjectInternal(sizeof(T))) {
-
+        new (sync.get()) T();
     }
 
     ~S2ESynchronizedObject() {
-
+        T* t = (T*)sync.get();
+        t->~T();
     }
 
     T *acquire() {
         return (T*)sync.aquire();
     }
 
+    //Returns null if could not lock the object
+    T *tryAcquire() {
+        return (T*)sync.tryAquire();
+    }
+
     void release() {
         sync.release();
     }
 
+    T* get() const {
+        return (T*)sync.get();
+    }
+
+};
+
+class AtomicFunctions {
+public:
+    static uint64_t read(uint64_t *address);
+    static void write(uint64_t *address, uint64_t value);
+    static void add(uint64_t *address, uint64_t value);
+    static void sub(uint64_t *address, uint64_t value);
+};
+
+template <class T>
+class AtomicObject {
+private:
+    mutable uint64_t m_value;
+
+public:
+    AtomicObject() {}
+
+    T read() const{
+        uint64_t value = AtomicFunctions::read(&m_value);
+        return *(T*)&value;
+    }
+
+    void write(T &object) {
+        AtomicFunctions::write(&m_value, *(uint64_t*)&object);
+    }
 };
 
 }

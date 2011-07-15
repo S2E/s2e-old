@@ -101,8 +101,6 @@ protected:
 
     std::vector<S2EExecutionState*> m_deletedStates;
 
-    klee::MemoryObject *m_dirtyMask;
-
     typedef std::set<std::pair<uint64_t,uint64_t> > ToRunSymbolically;
     ToRunSymbolically m_toRunSymbolically;
 
@@ -132,10 +130,8 @@ public:
                         uint64_t hostAddress, bool isSharedConcrete,
                         bool saveOnContextSwitch=true, const char *name="");
 
-    uint8_t readDirtyMask(S2EExecutionState *state, uint64_t host_address);
-    void writeDirtyMask(S2EExecutionState *state, uint64_t host_address, uint8_t val);
-    void registerDirtyMask(S2EExecutionState *initial_state, uint64_t host_address,
-                                   uint64_t size);
+    void registerDirtyMask(S2EExecutionState *initial_state,
+                           uint64_t host_address, uint64_t size);
 
     /* Execute llvm function in current context */
     klee::ref<klee::Expr> executeFunction(S2EExecutionState *state,
@@ -149,38 +145,6 @@ public:
                                 = std::vector<klee::ref<klee::Expr> >());
 
     /* Functions to be called mainly from QEMU */
-
-    /** Return true if hostAddr is registered as a RAM with KLEE */
-    bool isRamRegistered(S2EExecutionState *state, uint64_t hostAddress);
-
-    /** Return true if hostAddr is registered as a RAM with KLEE */
-    bool isRamSharedConcrete(S2EExecutionState *state, uint64_t hostAddress);
-
-    /** Read from physical memory, switching to symbex if
-        the memory contains symbolic value. Note: this
-        function will use longjmp to qemu cpu loop */
-    void readRamConcreteCheck(S2EExecutionState *state,
-            uint64_t hostAddress, uint8_t* buf, uint64_t size);
-
-    /** Read from physical memory, concretizing if nessecary.
-        Note: this function accepts host address (as returned
-        by qemu_get_ram_ptr */
-    void readRamConcrete(S2EExecutionState *state,
-            uint64_t hostAddress, uint8_t* buf, uint64_t size);
-
-    /** Write concrete value to physical memory.
-        Note: this function accepts host address (as returned
-        by qemu_get_ram_ptr */
-    void writeRamConcrete(S2EExecutionState *state,
-            uint64_t hostAddress, const uint8_t* buf, uint64_t size);
-
-    /** Read from register, concretizing if nessecary. */
-    void readRegisterConcrete(S2EExecutionState *state, CPUX86State* cpuState,
-            unsigned offset, uint8_t* buf, unsigned size);
-
-    /** Write concrete value to register. */
-    void writeRegisterConcrete(S2EExecutionState *state, CPUX86State* cpuState,
-            unsigned offset, const uint8_t* buf, unsigned size);
 
     S2EExecutionState* selectNextState(S2EExecutionState* state);
 
@@ -242,6 +206,8 @@ public:
     void queueStateForMerge(S2EExecutionState *state);
 
     void initializeStatistics();
+
+    void updateStats(S2EExecutionState *state);
 
 protected:
     static void handlerTraceMemoryAccess(klee::Executor* executor,

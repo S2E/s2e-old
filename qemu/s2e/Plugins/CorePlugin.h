@@ -40,7 +40,7 @@
 #include <s2e/Plugin.h>
 #include <klee/Expr.h>
 
-#include <sigc++/sigc++.h>
+#include <s2e/Signals/Signals.h>
 #include <vector>
 #include <inttypes.h>
 

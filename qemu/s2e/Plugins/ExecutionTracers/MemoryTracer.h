@@ -38,13 +38,12 @@
 #define S2E_PLUGINS_MEMTRACER_H
 
 #include <s2e/Plugin.h>
+#include <s2e/Plugins/Opcodes.h>
 #include <string>
 #include "ExecutionTracer.h"
 
 namespace s2e{
 namespace plugins{
-
-#define MEMORY_TRACER_OPCODE 0xAC
 
 
 /** Handler required for KLEE interpreter */

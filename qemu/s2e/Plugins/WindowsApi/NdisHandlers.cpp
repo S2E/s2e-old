@@ -85,7 +85,6 @@ void NdisHandlers::initialize()
     m_hwId = cfg->getString(getConfigKey() + ".hwId", "", &ok);
     if (!ok) {
         s2e()->getWarningsStream() << "NDISHANDLERS: You did not configure any symbolic hardware id" << std::endl;
-        exit(-1);
     }else {
         m_devDesc = m_hw->findDevice(m_hwId);
         if (!m_devDesc) {
@@ -1246,8 +1245,18 @@ void NdisHandlers::NdisWriteErrorLogEntry(S2EExecutionState* state, FunctionMoni
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, FunctionMonitorState *fns)
 {
+    if (!m_devDesc) {
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        return;
+    }
+
     if (!calledFromModule(state)) { return; }
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (!m_devDesc) {
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        return;
+    }
 
     uint32_t slot, offset, buffer, length;
     bool ok = true;
@@ -1948,6 +1957,12 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 void NdisHandlers::DisableInterruptHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    if (!m_devDesc) {
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        return;
+    }
+
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::DisableInterruptHandlerRet)
     m_devDesc->setInterrupt(false);
 }
@@ -2041,6 +2056,12 @@ void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
 void NdisHandlers::ISRHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    if (!m_devDesc) {
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        return;
+    }
+
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ISRHandlerRet)
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
@@ -2058,6 +2079,12 @@ void NdisHandlers::ISRHandler(S2EExecutionState* state, FunctionMonitorState *fn
 void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (!m_devDesc) {
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        return;
+    }
+
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
@@ -2203,9 +2230,10 @@ void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool 
 
     if (isQuery) {
         //Keep only those states that have a connected cable
-        if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
-            uint32_t status;
-            if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
+        uint32_t status;
+        if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
+            s2e()->getDebugStream() << "Status=0x" << std::hex << status << std::endl;
+            if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
                 s2e()->getDebugStream(state) << "OID_GEN_MEDIA_CONNECT_STATUS is " << status << std::endl;
                 if (status == 1) {
                    //Disconnected, kill the state
@@ -2224,6 +2252,7 @@ void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool 
 void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     static bool alreadyExplored = false;
+
     s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
@@ -2233,6 +2262,8 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
 
     readConcreteParameter(state, 1, &plgState->oid);
     readConcreteParameter(state, 2, &plgState->pInformationBuffer);
+
+    s2e()->getDebugStream(state) << "OID=0x" << std::hex << plgState->oid << std::endl;
 
     if (alreadyExplored) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::QueryInformationHandlerRet)
@@ -2272,6 +2303,8 @@ void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonit
 
     readConcreteParameter(state, 1, &plgState->oid);
     readConcreteParameter(state, 2, &plgState->pInformationBuffer);
+
+    s2e()->getDebugStream(state) << "OID=0x" << std::hex << plgState->oid << std::endl;
 
     if (alreadyExplored) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SetInformationHandlerRet)
@@ -2337,7 +2370,9 @@ void NdisHandlers::SendHandlerRet(S2EExecutionState* state)
 {
     s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
 
-    m_devDesc->setInterrupt(true);
+    if (m_devDesc) {
+        m_devDesc->setInterrupt(true);
+    }
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());

@@ -80,9 +80,35 @@ void *S2ESynchronizedObjectInternal::aquire()
     return m_sharedBuffer;
 }
 
+void *S2ESynchronizedObjectInternal::tryAquire()
+{
+    return m_sharedBuffer;
+}
+
 void S2ESynchronizedObjectInternal::release()
 {
 
+}
+
+uint64_t AtomicFunctions::read(uint64_t *address)
+{
+   return __sync_fetch_and_add(address, 0);
+}
+
+void AtomicFunctions::add(uint64_t *address, uint64_t value)
+{
+    __sync_fetch_and_add(address, value);
+}
+
+void AtomicFunctions::sub(uint64_t *address, uint64_t value)
+{
+    __sync_fetch_and_sub(address, value);
+}
+
+
+void AtomicFunctions::write(uint64_t *address, uint64_t value)
+{
+    *address = value;
 }
 
 #else
@@ -154,12 +180,36 @@ void *S2ESynchronizedObjectInternal::aquire() {
     
      do {
         ret = sem_wait(&hdr->lock);
-        assert(ret != -EDEADLK && ret != -ENOSYS && ret != -EINVAL);
+        if (ret < 0) {
+            assert(errno != EDEADLK && errno != ENOSYS && errno != EINVAL);
+        }
      }while(ret);
     
 #endif
     return ((uint8_t*)m_sharedBuffer + m_headerSize);
 }
+
+void *S2ESynchronizedObjectInternal::tryAquire()
+{
+    SyncHeader *hdr = (SyncHeader*)m_sharedBuffer;
+#ifdef CONFIG_DARWIN
+    if (__sync_lock_test_and_set(&hdr->lock, 0) != 0) {
+        return NULL;
+    }
+#else
+    int ret;
+
+     do {
+        ret = sem_trywait(&hdr->lock);
+        if (ret < 0 && errno == EAGAIN) {
+            return NULL;
+        }
+     }while(ret);
+
+#endif
+    return ((uint8_t*)m_sharedBuffer + m_headerSize);
+}
+
 
 void S2ESynchronizedObjectInternal::release()
 {
@@ -167,8 +217,30 @@ void S2ESynchronizedObjectInternal::release()
 #ifdef CONFIG_DARWIN
     hdr->lock = 1;
 #else
-    sem_post(&hdr->lock);
+    if (sem_post(&hdr->lock) < 0) {
+        assert(false && "Semaphore failed");
+    }
 #endif
+}
+
+uint64_t AtomicFunctions::read(uint64_t *address)
+{
+    return __sync_fetch_and_add(address, 0);
+}
+
+void AtomicFunctions::add(uint64_t *address, uint64_t value)
+{
+    __sync_fetch_and_add(address, value);
+}
+
+void AtomicFunctions::sub(uint64_t *address, uint64_t value)
+{
+    __sync_fetch_and_sub(address, value);
+}
+
+void AtomicFunctions::write(uint64_t *address, uint64_t value)
+{
+    *address = value;
 }
 
 #endif

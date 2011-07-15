@@ -52,6 +52,7 @@ extern "C" {
 #include <s2e/S2E.h>
 #include <s2e/Utils.h>
 #include <s2e/ConfigFile.h>
+#include <s2e/Plugins/Opcodes.h>
 #include "RawMonitor.h"
 
 #include <sstream>
@@ -155,8 +156,7 @@ void RawMonitor::initialize()
 
 void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
 {
-    //XXX: find a better way of allocating custom opcodes
-    if (!(((opcode>>8) & 0xFF) == 0xAA)) {
+    if (!OPCODE_CHECK(opcode, RAW_MONITOR_OPCODE)) {
         return;
     }
 
