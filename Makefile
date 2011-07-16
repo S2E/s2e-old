@@ -145,15 +145,18 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
 	mkdir -p qemu-release
-	cd qemu-release && $(S2ESRC)/qemu/configure \
-		--prefix=$(S2EBUILD)/opt \
+	cd qemu-release && $(S2ESRC)/android-emulator/android-configure.sh \
 		--with-llvm=$(S2EBUILD)/llvm/Release  \
 		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Release \
-		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
-		--enable-s2e
+		--enable-s2e \
+		--zero-malloc \
+		--try-64 \
+		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
+		--install=$(S2EBUILD)/opt
+
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS
@@ -161,7 +164,7 @@ stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAY
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release ALWAYS
-	cd qemu-release && make -j$(JOBS)
+	cd $(S2ESRC)/android-emulator && make -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 #########

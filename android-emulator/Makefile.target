@@ -22,7 +22,7 @@ endif
 
 # Common compiler flags for all target-dependent libraries
 EMULATOR_TARGET_CFLAGS := \
-	-I$(LOCAL_PATH)/s2e \
+    -I$(LOCAL_PATH)/s2e \
     -I$(LOCAL_PATH)/android/config/$(HOST_PREBUILT_TAG) \
     -I$(LOCAL_PATH)/android/config/target-$(EMULATOR_TARGET_ARCH) \
     -I$(LOCAL_PATH)/target-$(EMULATOR_TARGET_CPU) \
@@ -256,12 +256,12 @@ LOCAL_CFLAGS += \
     
 
 LOCAL_SRC_FILES += \
+    s2e/Signals/signals.cpp \
     s2e/Plugin.cpp \
     s2e/Plugins/CorePlugin.cpp  \
     s2e/Plugins/Example.cpp  \
     s2e/Plugins/ModuleExecutionDetector.cpp  \
     s2e/Plugins/CodeSelector.cpp  \
-    s2e/Plugins/BranchCoverage.cpp  \
     s2e/Plugins/ExecutionTracers/ExecutionTracer.cpp  \
     s2e/Plugins/ExecutionTracers/ModuleTracer.cpp  \
     s2e/Plugins/ExecutionTracers/EventTracer.cpp  \
@@ -270,7 +270,7 @@ LOCAL_SRC_FILES += \
     s2e/Plugins/ExecutionTracers/InstructionCounter.cpp  \
     s2e/Plugins/ExecutionTracers/TranslationBlockTracer.cpp  \
     s2e/Plugins/Debugger.cpp  \
-    s2e/Plugins/PollingLoopDetector.cpp  \
+    s2e/Plugins/EdgeKiller.cpp \
     s2e/Plugins/StateManager.cpp  \
     s2e/Plugins/Annotation.cpp  \
     s2e/Plugins/Searchers/MaxTbSearcher.cpp  \
@@ -280,9 +280,10 @@ LOCAL_SRC_FILES += \
     s2e/ConfigFile.cpp  \
     s2e/SelectRemovalPass.cpp  \
     s2e/S2EExecutor.cpp  \
-    s2e/S2EExecutionState.cpp  \
+    s2e/Synchronization.cpp \
     s2e/S2EDeviceState.cpp  \
     s2e/S2EStatsTracker.cpp  \
+    s2e/S2EExecutionState.cpp  \
     s2e/S2E.cpp \
     
 #   s2e/Plugins/RawMonitor.cpp  \

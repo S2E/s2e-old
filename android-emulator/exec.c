@@ -3429,9 +3429,10 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 /* RAM case */
                 ptr = qemu_get_ram_ptr(addr1);
 #ifdef CONFIG_S2E
-                int i;
+                s2e_dma_write((uintptr_t)ptr, buf, l);
+                /*int i;
                 for(i=0; i<l; ++i)
-                    stb_raw(ptr+i, buf[i]);
+                    stb_raw(ptr+i, buf[i]);*/
 #else
                 memcpy(ptr, buf, l);
 #endif
@@ -3477,9 +3478,10 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                 ptr = qemu_get_ram_ptr(pd & TARGET_PAGE_MASK) +
                     (addr & ~TARGET_PAGE_MASK);
 #ifdef CONFIG_S2E
-                int i;
+                s2e_dma_read((uintptr_t)ptr, buf, l);
+                /*int i;
                 for(i=0; i<l; ++i)
-                    buf[i] = ldub_raw(ptr+i);
+                    buf[i] = ldub_raw(ptr+i);*/
 #else
                 memcpy(buf, ptr, l);
 #endif

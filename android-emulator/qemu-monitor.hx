@@ -107,6 +107,16 @@ STEXI
 Execute the specified S2E command
 ETEXI
 
+    {
+        "s2E", "", do_s2e_disable, "s2e-disable", "Disable all s2e instrumentation",
+
+    },
+
+STEXI
+@item s2e-disable
+Disable all S2E instrumentation
+ETEXI
+
 #endif
 
     { "q|quit", "", do_quit,
