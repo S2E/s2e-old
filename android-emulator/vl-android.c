@@ -4026,6 +4026,7 @@ int main(int argc, char **argv, char **envp)
     const char *s2e_output_dir = NULL;
     int execute_always_klee = 0;
     int s2e_verbose = 0;
+    int s2e_max_processes = 1;
 #endif
 
     const char *usb_devices[MAX_USB_CMDLINE];
@@ -4945,6 +4946,12 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_s2e_verbose:
                 s2e_verbose = 1;
                 break;
+            case QEMU_OPTION_s2e_max_processes:
+            	s2e_max_processes = strtol(optarg, NULL, 0);
+                if (s2e_max_processes == 0) {
+                	s2e_max_processes = 1;
+                }
+            break;
 #endif
 
 
@@ -5138,7 +5145,7 @@ int main(int argc, char **argv, char **envp)
     }
     g_s2e = s2e_initialize(argc, argv, tcg_llvm_ctx,
                            s2e_config_file, s2e_output_dir,
-                           s2e_verbose);
+                           s2e_verbose, s2e_max_processes);
 
     g_s2e_state = s2e_create_initial_state(g_s2e);
 
