@@ -1694,7 +1694,8 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
     assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
     assert( (virtAddr & ~TARGET_PAGE_MASK) == 0 );
 
-    ObjectPair *ops = m_memcache.getArray(hostAddr);
+   ObjectPair *ops = m_memcache.getArray(hostAddr);
+
 
     unsigned int index = (virtAddr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1);
     for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i) {

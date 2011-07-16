@@ -45,6 +45,7 @@
 #include "s2e_config.h"
 
 extern "C" {
+	#include "target-defs.h"
     struct TranslationBlock;
     struct TimersState;
 }
@@ -74,7 +75,7 @@ typedef PluginState* (*PluginStateFactory)(Plugin *p, S2EExecutionState *s);
 
 typedef MemoryCachePool<klee::ObjectPair,
                 S2E_RAM_OBJECT_BITS,
-                12, //XXX: FIX THIS HARD-CODED STUFF!
+                TARGET_PAGE_BITS,
                 S2E_MEMCACHE_SUPERPAGE_BITS> S2EMemoryCache;
 
 struct S2EPhysCacheEntry
