@@ -62,7 +62,7 @@
 
 #define CPUState struct CPUX86State
 
-#define TARGET_PAGE_BITS 12
+#include "target-defs.h"
 
 #include "cpu-defs.h"
 
