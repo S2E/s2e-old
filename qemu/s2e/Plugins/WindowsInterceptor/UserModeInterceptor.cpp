@@ -46,6 +46,7 @@ extern "C" {
 #include "WindowsImage.h"
 
 #include <s2e/Utils.h>
+#include <s2e/S2E.h>
 
 #include <string>
 
@@ -186,24 +187,14 @@ bool WindowsUmInterceptor::WaitForProcessInit(S2EExecutionState* state)
         }
     }else {
         //We are in kernel mode, do it by reading kernel-mode struc
-        uint32_t v, curProcess = -1;
-        if(!state->readMemoryConcrete(fsBase + 0x124, &v, (sizeof(v)))) {
+        uint32_t curProcess = -1;
+
+        curProcess = m_Os->getCurrentProcess(state);
+        if (!curProcess) {
             return false;
         }
 
-        if(!state->readMemoryConcrete(v + KPCR_EPROCESS, &curProcess, (sizeof(curProcess)))) {
-            return false;
-        }
-
-        /*s2e::windows::EPROCESS32 epr;
-
-        if(!state->readMemoryConcrete(curProcess, &epr, (sizeof(epr)))) {
-            return false;
-        }*/
-
-        if(!state->readMemoryConcrete(curProcess + offsetof(s2e::windows::EPROCESS32,Peb), &Peb, (sizeof(Peb)))) {
-            return false;
-        }
+        Peb = m_Os->getPeb(state, curProcess);
     }
 
     if (Peb == 0xFFFFFFFF) {
@@ -221,8 +212,13 @@ bool WindowsUmInterceptor::WaitForProcessInit(S2EExecutionState* state)
     }
 
     /* Check that the structure is correctly initialized */
-    if (LdrData.Length != 0x28)
-        return false;
+    if (m_Os->getBuildNumber() >= BUILD_LONGHORN) {
+        if (LdrData.Length != 0x30)
+            return false;
+    }else {
+        if (LdrData.Length != 0x28)
+            return false;
+    }
 
     if (!LdrData.InLoadOrderModuleList.Flink || !LdrData.InLoadOrderModuleList.Blink )
         return false;
@@ -253,16 +249,16 @@ bool WindowsUmInterceptor::CatchModuleLoad(S2EExecutionState *State)
     return true;
 }
 
-bool WindowsUmInterceptor::CatchProcessTermination(S2EExecutionState *State)
+bool WindowsUmInterceptor::CatchProcessTerminationXp(S2EExecutionState *State)
 {
     uint64_t pEProcess;
 
-    assert(m_Os->GetVersion() == WindowsMonitor::SP3);
+    assert(m_Os->GetVersion() == WindowsMonitor::XPSP3);
 
     pEProcess = cast<klee::ConstantExpr>(
         State->readCpuRegister(CPU_OFFSET(regs[R_EBX]), 8*sizeof(target_ulong)))
             ->getZExtValue();
-    s2e::windows::EPROCESS32 EProcess;
+    s2e::windows::EPROCESS32_XP EProcess;
 
     if (!State->readMemoryConcrete(pEProcess, &EProcess, sizeof(EProcess))) {
         TRACE("Could not read EProcess data structure at %#"PRIx64"!\n", pEProcess);
@@ -276,13 +272,49 @@ bool WindowsUmInterceptor::CatchProcessTermination(S2EExecutionState *State)
     return true;
 }
 
-bool WindowsUmInterceptor::CatchModuleUnload(S2EExecutionState *State)
+bool WindowsUmInterceptor::CatchProcessTerminationServer2008(S2EExecutionState *State)
 {
-    //XXX: This register is hard coded for XP SP3
-    assert(m_Os->GetVersion() == WindowsMonitor::SP3);
-    uint64_t pLdrEntry = cast<klee::ConstantExpr>(
+    uint64_t pThread, pProcess;
+
+    assert(m_Os->GetVersion() == WindowsMonitor::SRV2008SP2);
+
+    pThread = cast<klee::ConstantExpr>(
         State->readCpuRegister(CPU_OFFSET(regs[R_ESI]), 8*sizeof(target_ulong)))
             ->getZExtValue();
+
+
+    if (!State->readMemoryConcrete(pThread + ETHREAD_PROCESS_OFFSET_VISTA, &pProcess, sizeof(pProcess))) {
+        return false;
+    }
+
+    s2e::windows::EPROCESS32_XP EProcess;
+
+    if (!State->readMemoryConcrete(pProcess, &EProcess, sizeof(EProcess))) {
+        TRACE("Could not read EProcess data structure at %#"PRIx64"!\n", pEProcess);
+        return false;
+    }
+
+    DPRINTF("Process %#"PRIx32" %16s unloaded\n", EProcess.Pcb.DirectoryTableBase,
+        EProcess.ImageFileName);
+    m_Os->onProcessUnload.emit(State, EProcess.Pcb.DirectoryTableBase);
+
+    return true;
+}
+
+bool WindowsUmInterceptor::CatchProcessTermination(S2EExecutionState *State)
+{
+    switch(m_Os->GetVersion()) {
+        case WindowsMonitor::XPSP3: return CatchProcessTerminationXp(State);
+        case WindowsMonitor::SRV2008SP2: return CatchProcessTerminationServer2008(State);
+        default: assert(false && "Unsupported OS");
+    }
+    return false;
+}
+
+
+
+bool WindowsUmInterceptor::CatchModuleUnloadBase(S2EExecutionState *State, uint64_t pLdrEntry)
+{
     s2e::windows::LDR_DATA_TABLE_ENTRY32 LdrEntry;
 
     if (!State->readMemoryConcrete(pLdrEntry, &LdrEntry, sizeof(LdrEntry))) {
@@ -308,11 +340,56 @@ bool WindowsUmInterceptor::CatchModuleUnload(S2EExecutionState *State)
     return true;
 }
 
+bool WindowsUmInterceptor::CatchModuleUnloadXPSP3(S2EExecutionState *State)
+{
+    assert(m_Os->GetVersion() == WindowsMonitor::XPSP3);
+    uint64_t pLdrEntry = cast<klee::ConstantExpr>(
+        State->readCpuRegister(CPU_OFFSET(regs[R_ESI]), 8*sizeof(target_ulong)))
+            ->getZExtValue();
+
+    return CatchModuleUnloadBase(State, pLdrEntry);
+}
+
+bool WindowsUmInterceptor::CatchModuleUnloadServer2008(S2EExecutionState *state)
+{
+    assert(m_Os->GetVersion() == WindowsMonitor::SRV2008SP2);
+
+    uint64_t pLdrEntry = cast<klee::ConstantExpr>(
+        state->readCpuRegister(CPU_OFFSET(regs[R_EAX]), 8*sizeof(target_ulong)))
+            ->getZExtValue();
+
+    //Check if the load count reached zero
+    uint16_t loadCount;
+    if (!state->readMemoryConcrete(pLdrEntry + 0x38, &loadCount, sizeof(loadCount))) {
+        return false;
+    }
+
+    if (loadCount > 0) {
+        //Module is still referenced
+        return false;
+    }
+
+    return CatchModuleUnloadBase(state, pLdrEntry);
+}
+
+bool WindowsUmInterceptor::CatchModuleUnload(S2EExecutionState *State)
+{
+    switch(m_Os->GetVersion()) {
+        case WindowsMonitor::XPSP3: return CatchModuleUnloadXPSP3(State);
+        case WindowsMonitor::SRV2008SP2: return CatchModuleUnloadServer2008(State);
+        default: assert(false && "Unsupported OS");
+    }
+    return false;
+}
+
 bool WindowsUmInterceptor::GetPids(S2EExecutionState *State, PidSet &out)
 {
-    s2e::windows::LIST_ENTRY32 ListHead;
+    windows::LIST_ENTRY32 ListHead;
     uint64_t ActiveProcessList = m_Os->GetPsActiveProcessListPtr();
     uint64_t pItem;
+
+    uint64_t CurrentProcess = m_Os->getCurrentProcess(State);
+    g_s2e->getDebugStream() << "CurrentProcess: " << std::hex << CurrentProcess << std::endl;
 
     //Read the head of the list
     if (!State->readMemoryConcrete(ActiveProcessList, &ListHead, sizeof(ListHead))) {
@@ -329,14 +406,13 @@ bool WindowsUmInterceptor::GetPids(S2EExecutionState *State, PidSet &out)
             return false;
         }
 
-        uint32_t pProcessEntry = CONTAINING_RECORD32(pItem, s2e::windows::EPROCESS32, ActiveProcessLinks);
-        s2e::windows::EPROCESS32 ProcessEntry;
+        uint32_t pProcessEntry = m_Os->getProcessFromLink(pItem);
+        uint32_t pDirectoryTableBase = m_Os->getDirectoryTableBase(State, pProcessEntry);
 
-        if (!State->readMemoryConcrete(pProcessEntry, &ProcessEntry, sizeof(ProcessEntry))) {
-            return false;
-        }
+//        g_s2e->getDebugStream() << "Found EPROCESS=0x" <<  pProcessEntry << " PgDir=0x" << std::hex << ProcessEntry.Pcb.DirectoryTableBase <<
+//                ProcessEntry.ImageFileName << std::endl;
 
-        out.insert(ProcessEntry.Pcb.DirectoryTableBase);
+        out.insert(pDirectoryTableBase);
     }
     return true;
 }

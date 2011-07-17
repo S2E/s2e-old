@@ -91,6 +91,13 @@ private:
   void NotifyLoadedProcesses(S2EExecutionState *state);
   void NotifyModuleLoad(S2EExecutionState *state, ModuleDescriptor &Library);
 
+  bool CatchModuleUnloadBase(S2EExecutionState *State, uint64_t pLdrEntry);
+  bool CatchModuleUnloadServer2008(S2EExecutionState *State);
+  bool CatchModuleUnloadXPSP3(S2EExecutionState *State);
+
+  bool CatchProcessTerminationXp(S2EExecutionState *State);
+  bool CatchProcessTerminationServer2008(S2EExecutionState *State);
+
 public:
   WindowsUmInterceptor(WindowsMonitor *Monitor);
   virtual ~WindowsUmInterceptor();
