@@ -1846,15 +1846,17 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
     bool exitLoop = false;
 
     do {
+        m_s2e->getCorePlugin()->onProcessFork.emit(true, false);
         int child = m_s2e->fork();
         if (child < 0) {
             //Fork did not succeed
+            m_s2e->getCorePlugin()->onProcessFork.emit(false, false);
             break;
         }
 
         if (child == 1) {
 	    //Only send notification to the children
-            m_s2e->getCorePlugin()->onProcessFork.emit();
+            m_s2e->getCorePlugin()->onProcessFork.emit(false, true);
 
             //Delete all the states before
             m_s2e->getDebugStream() << "Deleting before i=" << low << " splitIndex=" << splitIndex << std::endl;
@@ -1874,6 +1876,8 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                 break;
             }
         }else {
+            m_s2e->getCorePlugin()->onProcessFork.emit(false, false);
+
             //Delete all the states after
             m_s2e->getDebugStream() << "Deleting after i=" << splitIndex << " high=" << high << std::endl;
             for (int i=splitIndex; i<=high; ++i) {

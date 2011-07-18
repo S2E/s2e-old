@@ -118,7 +118,7 @@ private:
             TranslationBlock *tb,
             uint64_t pc);
 
-    void onProcessFork();
+    void onProcessFork(bool preFork, bool isChild);
     void onTimer();
 
     bool processCommands();

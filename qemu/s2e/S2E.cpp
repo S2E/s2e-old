@@ -323,7 +323,6 @@ S2E::~S2E()
     //Tell other instances we are dead so they can fork more    
     S2EShared *shared = m_sync.acquire();
 
-    getDebugStream() <<"arr=" << shared->processIds[m_currentProcessId] << std::endl;
     assert(shared->processIds[m_currentProcessId] == m_currentProcessIndex);
     shared->processIds[m_currentProcessId] = (unsigned) -1;
     --shared->currentProcessCount;

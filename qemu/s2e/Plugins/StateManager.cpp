@@ -200,8 +200,12 @@ void StateManager::onTimer()
     m_currentTime = curTime.seconds();
 }
 
-void StateManager::onProcessFork()
+void StateManager::onProcessFork(bool preFork, bool isChild)
 {
+    if (preFork) {
+        return;
+    }
+
     StateManagerShared *s = m_shared.acquire();
     s->successCount[s2e()->getCurrentProcessId()] = 0;
     StateManagerShared::Command cmd = {0,0,0,0};
