@@ -66,13 +66,47 @@ void sm_callback(S2EExecutionState *s, bool killingState)
 
     sm->m_shared.acquire();
 
-    //Process the commands that we may have
+    //Process the queued commands for the current process
     sm->processCommands();
 
     //If there are no states, try to resume some successful ones
     if (g_s2e->getExecutor()->getStatesCount() == 0) {
-        sm->killAllButOneSuccessful();
-        sm->m_shared.release();
+
+        //If there are no successful states on the local process,
+        //there is nothing else to do, kill the process
+        if (sm->m_succeeded.size() == 0) {
+            sm->m_shared.release();
+            return;
+        }
+
+        unsigned suspendedCount = g_s2e->getSuspendedProcessCount();
+        unsigned processCount = g_s2e->getCurrentProcessCount();
+
+        if (suspendedCount == processCount - 1) {
+            //Everybody is suspended, we have to choose one
+            //successful state to be resumed and kill everything else
+
+            try {
+                sm->killAllButOneSuccessful();
+            }catch(s2e::CpuExitException &) {
+                //If we kill the current state
+                g_s2e->resumeAllProcesses();
+                sm->m_shared.release();
+                throw s2e::CpuExitException();
+            }
+
+            g_s2e->resumeAllProcesses();
+            sm->m_shared.release();
+        }else {
+            sm->m_shared.release();
+
+            g_s2e->suspendCurrentProcess();
+
+            //Only a kill all can resume us, so we must process commands now
+            sm->m_shared.acquire();
+            sm->processCommands();
+        }
+
         return;
     }
 
@@ -110,7 +144,7 @@ bool StateManager::processCommands()
         s2e()->getDebugStream() << "StateManager: received kill command" << std::endl;
         if (cmd.nodeId == s2e()->getCurrentProcessId()) {
             //Keep one successful
-            killAllButOneSuccessfulLocal(false);
+            killAllButOneSuccessfulLocal(true);
         }else {
             //Kill everything
             StateSet toKeep;
@@ -128,7 +162,13 @@ bool StateManager::timeoutReached() const
         return false;
     }
 
-    uint64_t prevTime = AtomicFunctions::read(&m_shared.get()->timeOfLastNewBlock);
+    uint64_t prevTime = (int64_t)AtomicFunctions::read(&m_shared.get()->timeOfLastNewBlock);
+
+    if (prevTime > m_currentTime) {
+        //Other nodes may be ahead of the current one in terms of time
+        return false;
+    }
+
     return m_currentTime - prevTime >= m_timeout;
 }
 
