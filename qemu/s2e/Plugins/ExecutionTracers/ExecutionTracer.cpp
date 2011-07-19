@@ -51,7 +51,7 @@ S2E_DEFINE_PLUGIN(ExecutionTracer, "ExecutionTracer plugin", "",);
 
 void ExecutionTracer::initialize()
 {
-    createNewTraceFile();
+    createNewTraceFile(false);
 
     s2e()->getCorePlugin()->onStateFork.connect(
             sigc::mem_fun(*this, &ExecutionTracer::onFork));
@@ -70,9 +70,17 @@ ExecutionTracer::~ExecutionTracer()
     fclose(m_LogFile);
 }
 
-void ExecutionTracer::createNewTraceFile()
+void ExecutionTracer::createNewTraceFile(bool append)
 {
-    m_LogFile = fopen(s2e()->getOutputFilename("ExecutionTracer.dat").c_str(), "wb");
+
+    if (append) {
+        assert(m_fileName.size() > 0);
+        m_LogFile = fopen(m_fileName.c_str(), "a");
+    }else {
+        m_fileName = s2e()->getOutputFilename("ExecutionTracer.dat");
+        m_LogFile = fopen(m_fileName.c_str(), "wb");
+    }
+
     if (!m_LogFile) {
         s2e()->getWarningsStream() << "Could not create ExecutionTracer.dat" << std::endl;
         exit(-1);
@@ -93,6 +101,7 @@ uint32_t ExecutionTracer::writeData(
 {
     ExecutionTraceItemHeader item;
 
+    assert(m_LogFile);
 
     item.timeStamp = llvm::sys::TimeValue::now().usec();
     item.size = size;
@@ -121,9 +130,18 @@ void ExecutionTracer::flush()
     }
 }
 
-void ExecutionTracer::onProcessFork()
+void ExecutionTracer::onProcessFork(bool preFork, bool isChild)
 {
-    createNewTraceFile();
+    if (preFork) {
+        fclose(m_LogFile);
+        m_LogFile = NULL;
+    }else {
+        if (isChild) {
+            createNewTraceFile(false);
+        }else {
+            createNewTraceFile(true);
+        }
+    }
 }
 
 void ExecutionTracer::onFork(S2EExecutionState *state,

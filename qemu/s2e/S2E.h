@@ -81,9 +81,12 @@ struct S2EShared {
     //the instance index.
     unsigned processIds[S2E_MAX_PROCESSES];
 
+    bool suspendedProcesses[S2E_MAX_PROCESSES];
+
     S2EShared() {
         for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i)    {
             processIds[i] = (unsigned)-1;
+            suspendedProcesses[i] = false;
         }
     }
 };
@@ -219,6 +222,9 @@ public:
     }
 
     unsigned getCurrentProcessCount();
+    void suspendCurrentProcess();
+    void resumeAllProcesses();
+    unsigned getSuspendedProcessCount();
 };
 
 } // namespace s2e

@@ -62,6 +62,7 @@ class ExecutionTracer : public Plugin
 {
     S2E_PLUGIN
 
+    std::string m_fileName;
     FILE* m_LogFile;
     uint32_t m_CurrentIndex;
     OSMonitor *m_Monitor;
@@ -70,7 +71,7 @@ class ExecutionTracer : public Plugin
     uint16_t getCompressedId(const ModuleDescriptor *desc);
 
     void onTimer();
-    void createNewTraceFile();
+    void createNewTraceFile(bool append);
 public:
     ExecutionTracer(S2E* s2e): Plugin(s2e) {}
     ~ExecutionTracer();
@@ -88,7 +89,7 @@ private:
                 const std::vector<klee::ref<klee::Expr> >& newConditions
                 );
 
-    void onProcessFork();
+    void onProcessFork(bool preFork, bool isChild);
 
 
 };

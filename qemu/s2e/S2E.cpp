@@ -323,7 +323,6 @@ S2E::~S2E()
     //Tell other instances we are dead so they can fork more    
     S2EShared *shared = m_sync.acquire();
 
-    getDebugStream() <<"arr=" << shared->processIds[m_currentProcessId] << std::endl;
     assert(shared->processIds[m_currentProcessId] == m_currentProcessIndex);
     shared->processIds[m_currentProcessId] = (unsigned) -1;
     --shared->currentProcessCount;
@@ -722,6 +721,43 @@ unsigned S2E::getCurrentProcessCount()
     unsigned ret = shared->currentProcessCount;
     m_sync.release();
     return ret;
+}
+
+void S2E::suspendCurrentProcess()
+{
+    getDebugStream() << "Suspending process" << std::endl;
+    S2EShared *shared = m_sync.acquire();
+    shared->suspendedProcesses[m_currentProcessId] = true;
+    m_sync.release();
+
+    while(shared->suspendedProcesses[m_currentProcessId]) {
+        sleep(1);
+    }
+}
+
+void S2E::resumeAllProcesses()
+{
+    getDebugStream() << "Resuming all processes" << std::endl;
+    S2EShared *shared = m_sync.acquire();
+
+    for (unsigned i=0; i<shared->currentProcessCount; ++i) {
+        shared->suspendedProcesses[i] = false;
+    }
+
+    m_sync.release();
+}
+
+unsigned S2E::getSuspendedProcessCount()
+{
+    S2EShared *shared = m_sync.acquire();
+    unsigned count = 0;
+    for (unsigned i=0; i<shared->currentProcessCount; ++i) {
+        if (shared->suspendedProcesses[i]) {
+            ++count;
+        }
+    }
+    m_sync.release();
+    return count;
 }
 
 } // namespace s2e

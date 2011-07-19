@@ -58,7 +58,6 @@ using namespace plugins;
 WindowsKmInterceptor::WindowsKmInterceptor(WindowsMonitor *Os)
 {
   m_Os = Os;
-
 }
 
 
@@ -66,6 +65,7 @@ WindowsKmInterceptor::~WindowsKmInterceptor()
 {
 
 }
+
 
 void WindowsKmInterceptor::NotifyDriverLoad(S2EExecutionState *State, ModuleDescriptor &Desc)
 {
@@ -95,16 +95,9 @@ bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
     uint32_t PsLoadedModuleList;
     s2e::windows::LIST_ENTRY32 ListHead;
     s2e::windows::MODULE_ENTRY32 ModuleEntry;
-    uint32_t KdVersionBlock;
 
-    if (!state->readMemoryConcrete(KD_VERSION_BLOCK, &KdVersionBlock, sizeof(KdVersionBlock))) {
-        return false;
-    }
-
-    //PsLoadedModuleList = KdVersionBlock + PS_LOADED_MODULE_LIST_OFFSET;
-    if (!state->readMemoryConcrete(KdVersionBlock + PS_LOADED_MODULE_LIST_OFFSET, &PsLoadedModuleList, sizeof(PsLoadedModuleList))) {
-        return false;
-    }
+    const windows::DBGKD_GET_VERSION64 &VersionBlock = m_Os->getVersionBlock();
+    PsLoadedModuleList = VersionBlock.PsLoadedModuleList;
 
     pListHead = PsLoadedModuleList;
     if (!state->readMemoryConcrete(PsLoadedModuleList, &ListHead, sizeof(ListHead))) {
@@ -127,8 +120,8 @@ bool WindowsKmInterceptor::ReadModuleList(S2EExecutionState *state)
         state->readUnicodeString(ModuleEntry.driver_Name.Buffer, desc.Name, ModuleEntry.driver_Name.Length);
         std::transform(desc.Name.begin(), desc.Name.end(), desc.Name.begin(), ::tolower);
 
-        s2e_debug_print("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", ModuleEntry.base,
-            0, desc.Name.c_str());
+        //s2e_debug_print("DRIVER_OBJECT Start=%#x Size=%#x DriverName=%s\n", ModuleEntry.base,
+        //    0, desc.Name.c_str());
 
 
         desc.NativeBase = 0; // Image.GetImageBase();

@@ -44,7 +44,7 @@
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/Plugins/OSMonitor.h>
 
-//#include "WindowsSpy.h"
+#include "WindowsImage.h"
 
 #include <inttypes.h>
 #include <set>
@@ -66,16 +66,56 @@ class WindowsMonitor:public OSMonitor
     S2E_PLUGIN
 
 public:
-  typedef enum EWinVer {
-    SP2, SP3
-  }EWinVer;
+
+    //Do not change the order of the constants
+    typedef enum EWinVer {
+        XPSP2=0,
+        XPSP3=1,
+        XPSP2_CHK=2,
+        XPSP3_CHK=3,
+        SRV2008SP2=4,
+        MAXVER
+    }EWinVer;
 
 private:
+
+    //These are the keys to specify in the configuration file
+    static const char *s_windowsKeys[];
+
+    //These are user-friendly strings displayed to the user
+    static const char *s_windowsStrings[];
+
+    //Specifies whether or not the given version is checked
+    static bool s_checkedMap[];
+
+    static unsigned s_pointerSize[];
+    static uint64_t s_kernelNativeBase[];
+
+    static uint64_t s_ntdllNativeBase[];
+    static uint64_t s_ntdllLoadBase[];
+    static uint64_t s_ntdllSize[];
+
+    static uint64_t s_driverLoadPc[];
+    static uint64_t s_driverDeletePc[];
+    static uint64_t s_kdDbgDataBlock[];
+
+    static uint64_t s_panicPc1[];
+    static uint64_t s_panicPc2[];
+    static uint64_t s_panicPc3[];
+
+    static uint64_t s_ntTerminateProc[];
+
+    static uint64_t s_sysServicePc[];
+
+    static uint64_t s_psProcListPtr[];
+
+    static uint64_t s_ldrpCall[];
+    static uint64_t s_dllUnloadPc[];
+
     EWinVer m_Version;
     bool m_UserMode, m_KernelMode;
-    unsigned m_PointerSize;
+
     uint64_t m_KernelBase;
-    bool m_CheckedBuild;
 
     bool m_MonitorModuleLoad;
     bool m_MonitorModuleUnload;
@@ -85,7 +125,9 @@ private:
     bool m_TrackPidSet;
     PidSet m_PidSet;
 
-    uint32_t m_NtkernelBase;
+    //Dynamically-computed addresses. Required for ALSR-enabled Windows versions
+    uint32_t m_pKPCRAddr;
+    windows::DBGKD_GET_VERSION64 m_kdVersion;
 
     WindowsUmInterceptor *m_UserModeInterceptor;
     WindowsKmInterceptor *m_KernelModeInterceptor;
@@ -95,6 +137,7 @@ private:
     ModuleSizeMap m_ModuleInfo;
 
     void readModuleCfg();
+    void InitializeAddresses(S2EExecutionState *state);
 public:
     WindowsMonitor(S2E* s2e): OSMonitor(s2e) {}
     virtual ~WindowsMonitor();
@@ -126,6 +169,7 @@ public:
 
     uint64_t GetUserAddressSpaceSize() const;
     uint64_t GetKernelStart() const;
+    uint64_t GetKernelLoadBase() const;
     uint64_t GetLdrpCallInitRoutine() const;
     uint64_t GetNtTerminateProcessEProcessPoint() const;
     uint64_t GetDllUnloadPc() const;
@@ -134,8 +178,16 @@ public:
     uint64_t GetSystemServicePc() const;
     uint64_t GetPsActiveProcessListPtr() const;
     uint64_t GetKdDebuggerDataBlock() const;
+    uint64_t getCurrentProcess(S2EExecutionState *state);
+    uint64_t getPeb(S2EExecutionState *state, uint64_t eprocess);
+    uint64_t getProcessFromLink(uint64_t pItem);
+    uint64_t getDirectoryTableBase(S2EExecutionState *state, uint64_t pProcessEntry);
 
     uint64_t getModuleSizeFromCfg(const std::string &module) const;
+
+    uint64_t getBuildNumber() const {
+        return m_kdVersion.MinorVersion;
+    }
 
     bool CheckPanic(uint64_t eip) const;
     unsigned GetPointerSize() const;
@@ -149,11 +201,15 @@ public:
     }
 
     bool isCheckedBuild() const {
-        return m_CheckedBuild;
+        return s_checkedMap[m_Version];
     }
 
     virtual bool isKernelAddress(uint64_t pc) const;
     virtual uint64_t getPid(S2EExecutionState *s, uint64_t pc);
+
+    const windows::DBGKD_GET_VERSION64 &getVersionBlock() const {
+        return m_kdVersion;
+    }
 
 };
 
