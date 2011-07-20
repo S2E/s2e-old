@@ -611,13 +611,13 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(fputc)
     __DEFINE_EXT_FUNCTION(fwrite)
 
-
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
 #ifdef TARGET_ARM
     __DEFINE_EXT_FUNCTION(cpu_arm_handle_mmu_fault)
     __DEFINE_EXT_FUNCTION(cpsr_read)
     __DEFINE_EXT_FUNCTION(cpsr_write)
     __DEFINE_EXT_FUNCTION(arm_cpu_list)
+    __DEFINE_EXT_FUNCTION(do_interrupt)
 #endif
 #ifdef TARGET_I386
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
@@ -701,7 +701,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     }
 
     /* Set module for the executor */
-#if 1
+    vector<string> libnames;
+
     char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
     assert(filename);
     ModuleOptions MOpts(vector<string>(1, filename),
@@ -709,11 +710,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
             m_tcgLLVMContext->getFunctionPassManager());
 
     qemu_free(filename);
-
-#else
-    ModuleOptions MOpts(vector<string>(),
-            /* Optimize= */ true, /* CheckDivZero= */ false);
-#endif
 
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
 

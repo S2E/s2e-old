@@ -26,7 +26,10 @@
 
 extern void cpu_loop_exit(void);
 
+
 extern int tracing;
+
+
 extern const char *trace_filename;
 
 /* for execve */

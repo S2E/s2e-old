@@ -321,7 +321,7 @@ LOCAL_CFLAGS += \
 
 LOCAL_LLVM_C_SOURCES := \
 	$(LOCAL_PATH)/target-$(EMULATOR_TARGET_CPU)/op_helper.c
-	
+
 LOCAL_AR :=  $(LLVMAR)
 
 $(call end-emulator-library)

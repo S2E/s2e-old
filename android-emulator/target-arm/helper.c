@@ -608,6 +608,7 @@ uint32_t HELPER(get_r13_banked)(CPUState *env, uint32_t mode)
 
 extern int semihosting_enabled;
 
+
 /* Map CPU modes onto saved register banks.  */
 static inline int bank_number (int mode)
 {
@@ -976,6 +977,7 @@ static inline int check_ap(CPUState *env, int ap, int domain, int access_type,
   }
 }
 
+
 static uint32_t get_level1_table_address(CPUState *env, uint32_t address)
 {
     uint32_t table;
@@ -1251,6 +1253,7 @@ static inline int get_phys_addr(CPUState *env, uint32_t address,
     }
 }
 
+
 int cpu_arm_handle_mmu_fault (CPUState *env, target_ulong address,
                               int access_type, int mmu_idx, int is_softmmu)
 {
@@ -1281,6 +1284,7 @@ int cpu_arm_handle_mmu_fault (CPUState *env, target_ulong address,
     }
     return 1;
 }
+
 
 target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
 {
