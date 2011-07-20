@@ -554,6 +554,12 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
         ref<klee::ConstantExpr> value;
         bool success = s2eExecutor->getSolver()->getValue(
                 Query(branches[i]->constraints, expr), value);
+
+        assert(success && "The solver failed");
+        if (value->getZExtValue() != values[i]) {
+            g_s2e->getWarningsStream() << "Solver error: 0x" << std::hex <<
+                    value->getZExtValue() << " != 0x" << values[i] << std::endl << std::flush;
+        }
         assert(success && value->getZExtValue() == values[i]);
 #endif
         s2eExecutor->bindLocal(target, *branches[i],
@@ -1136,6 +1142,14 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     }
 
     if(newState) {
+        //Do device state restore here because it will invalidate the TLB.
+        //Luckily, it was already saved right before and will be restored right after.
+        timers_state = *newState->m_timersState;
+        qemu_icount = newState->m_qemuIcount;
+        newState->getDeviceState()->restoreDeviceState();
+    }
+
+    if(newState) {
         jmp_buf jmp_env;
         memcpy(&jmp_env, &env->jmp_env, sizeof(jmp_buf));
 
@@ -1173,13 +1187,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     }
 
     s2e_debug_print("Copied %d (count=%d)\n", totalCopied, objectsCopied);
-
-    if(newState) {
-        timers_state = *newState->m_timersState;
-        qemu_icount = newState->m_qemuIcount;
-        newState->getDeviceState()->restoreDeviceState();
-        //copyOutConcretes(*newState);
-    }
 
     if(FlushTBsOnStateSwitch)
         tb_flush(env);
