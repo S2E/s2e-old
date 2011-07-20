@@ -2017,8 +2017,8 @@ do_event_text( ControlClient  client, char*  args )
         if (c <= 0)
             break;
 
-        android_charmap_reverse_map_unicode( NULL, (unsigned)c, 1, &keycodes );
-        android_charmap_reverse_map_unicode( NULL, (unsigned)c, 0, &keycodes );
+        android_charmap_reverse_map_unicode( charmap, (unsigned)c, 1, &keycodes );
+        android_charmap_reverse_map_unicode( charmap, (unsigned)c, 0, &keycodes );
         android_keycodes_flush( &keycodes );
     }
 
