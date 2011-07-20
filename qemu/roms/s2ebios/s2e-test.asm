@@ -8,9 +8,9 @@ s2e_test:
     ;call s2e_sm_test
     ;call s2e_test2
     ;call s2e_test_memobj
-    call s2e_fork_test2
+    ;call s2e_fork_test2
     ;call s2e_symbhwio_test
-    ;call s2e_jmptbl_test
+    call s2e_jmptbl_test
     ;call test_ndis
     ;jmp s2e_test
     ;call s2e_test1
@@ -21,7 +21,7 @@ s2e_test:
 
 
 s2e_fork_test2:
-    push 4
+    push 16
     call s2e_fork_depth
     add esp, 4
 
@@ -231,6 +231,16 @@ s2e_jmptbl1:
     dd sj4
     dd sj5
     dd sj6
+    dd sj7
+    dd sj8
+    dd sj9
+    dd sj10
+    dd sj11
+    dd sj12
+    dd sj13
+    dd sj14
+    dd sj15
+    dd sj16
 
 s2e_jmptbl1_m0: db "Case 0", 0
 s2e_jmptbl1_m1: db "Case 1", 0
@@ -239,6 +249,16 @@ s2e_jmptbl1_m3: db "Case 3", 0
 s2e_jmptbl1_m4: db "Case 4", 0
 s2e_jmptbl1_m5: db "Case 5", 0
 s2e_jmptbl1_m6: db "Case 6", 0
+s2e_jmptbl1_m7: db "Case 7", 0
+s2e_jmptbl1_m8: db "Case 8", 0
+s2e_jmptbl1_m9: db "Case 9", 0
+s2e_jmptbl1_m10: db "Case 10", 0
+s2e_jmptbl1_m11: db "Case 11", 0
+s2e_jmptbl1_m12: db "Case 12", 0
+s2e_jmptbl1_m13: db "Case 13", 0
+s2e_jmptbl1_m14: db "Case 14", 0
+s2e_jmptbl1_m15: db "Case 15", 0
+s2e_jmptbl1_m16: db "Case 16", 0
 
 s2e_jmptbl_test:
     ;XXX: Cannot handle symbolic values in always concrete memory
@@ -252,62 +272,86 @@ s2e_jmptbl_test:
     call s2e_enable
 
     call s2e_int
-    cmp eax, 6
+    cmp eax, 16
     ja sje
     jmp [s2e_jmptbl1 + eax*4]
 
 sj0:
-    push s2e_jmptbl1_m0
-    push eax
-    call s2e_print_expression
-    add esp, 8
+    mov esi, s2e_jmptbl1_m0
     jmp sje
 
 sj1:
-    push s2e_jmptbl1_m1
-    push eax
-    call s2e_print_expression
-    add esp, 8
+    mov esi, s2e_jmptbl1_m1
     jmp sje
 
 sj2:
-    push s2e_jmptbl1_m2
-    push eax
-    call s2e_print_expression
-    add esp, 8
+    mov esi, s2e_jmptbl1_m2
     jmp sje
 
 sj3:
-    push s2e_jmptbl1_m3
-    push eax
-    call s2e_print_expression
-    add esp, 8
+    mov esi, s2e_jmptbl1_m3
     jmp sje
 
 sj4:
-    push s2e_jmptbl1_m4
-    push eax
-    call s2e_print_expression
-    add esp, 8
+    mov esi, s2e_jmptbl1_m4
     jmp sje
 
 sj5:
-    push s2e_jmptbl1_m5
-    push eax
-    call s2e_print_expression
-    add esp, 8
+    mov esi, s2e_jmptbl1_m5
     jmp sje
 
 sj6:
-    push s2e_jmptbl1_m6
-    push eax
-    call s2e_print_expression
-    add esp, 8
+    mov esi, s2e_jmptbl1_m6
     jmp sje
+
+sj7:
+    mov esi, s2e_jmptbl1_m7
+    jmp sje
+
+sj8:
+    mov esi, s2e_jmptbl1_m8
+    jmp sje
+
+sj9:
+    mov esi, s2e_jmptbl1_m9
+    jmp sje
+
+sj10:
+    mov esi, s2e_jmptbl1_m10
+    jmp sje
+
+sj11:
+    mov esi, s2e_jmptbl1_m11
+    jmp sje
+
+sj12:
+    mov esi, s2e_jmptbl1_m12
+    jmp sje
+
+sj13:
+    mov esi, s2e_jmptbl1_m13
+    jmp sje
+
+sj14:
+    mov esi, s2e_jmptbl1_m14
+    jmp sje
+
+sj15:
+    mov esi, s2e_jmptbl1_m15
+    jmp sje
+
+sj16:
+    mov esi, s2e_jmptbl1_m16
+    jmp sje
+
 
 sje:
     call s2e_disable
+
+    push esi
+    push eax
     call s2e_kill_state
+    add esp, 8
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
