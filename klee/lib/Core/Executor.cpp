@@ -3370,6 +3370,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
   solver->setTimeout(stpTimeout);
 
   ExecutionState tmp(state);
+  tmp.addressSpace.state = &tmp;
   if (!NoPreferCex) {
     for (unsigned i = 0; i != state.symbolics.size(); ++i) {
       const MemoryObject *mo = state.symbolics[i].first;
