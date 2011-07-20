@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hello">Buttons call native methods. See LogCat.</string>
+    <string name="app_name">Android NDK 1</string>
+<string name="call_native_1">LogCat via Native</string>
+<string name="call_native_2">Get String from Native</string>
+<string name="call_s2e_version">Get S2E Version</string>
+</resources>
