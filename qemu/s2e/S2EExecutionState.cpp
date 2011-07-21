@@ -53,6 +53,7 @@ extern struct CPUX86State *env;
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
+#include <klee/Solver.h>
 #include <s2e/S2E.h>
 #include <s2e/s2e_qemu.h>
 
@@ -1455,6 +1456,21 @@ void S2EExecutionState::writeDirtyMask(uint64_t host_address, uint8_t val)
 {
     host_address -= m_dirtyMask->address;
     m_dirtyMaskObject->write8(host_address, val);
+}
+
+void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
+{
+    //Check that the added constraint is consistent with
+    //the existing path constraints
+    bool truth;
+    Solver::Validity val;
+    Solver *solver = g_s2e->getExecutor()->getSolver();
+    Query query(constraints,e);
+    //bool res = solver->mayBeTrue(query, mayBeTrue);
+    bool res = solver->mustBeTrue(query.negateExpr(), truth);
+    assert(res && !truth  &&  "state has invalid constraint set");
+
+    constraints.addConstraint(e);
 }
 
 } // namespace s2e

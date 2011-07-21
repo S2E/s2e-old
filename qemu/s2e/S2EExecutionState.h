@@ -329,6 +329,8 @@ public:
 
     CPUX86State *getConcreteCpuState() const;
 
+    virtual void addConstraint(klee::ref<klee::Expr> e);
+
     /** Creates new unconstrained symbolic value */
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
                               const std::string& name = std::string());

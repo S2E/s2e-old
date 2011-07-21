@@ -138,7 +138,7 @@ public:
   void addSymbolic(const MemoryObject *mo, const Array *array) { 
     symbolics.push_back(std::make_pair(mo, array));
   }
-  void addConstraint(ref<Expr> e) { 
+  virtual void addConstraint(ref<Expr> e) { 
     constraints.addConstraint(e); 
   }
 
