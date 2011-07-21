@@ -10,4 +10,5 @@ LOCAL_LDLIBS := -llog
 
 LOCAL_MODULE    := android
 LOCAL_SRC_FILES := native.c
+LOCAL_CFLAGS := -marm
 include $(BUILD_SHARED_LIBRARY)

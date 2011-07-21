@@ -37,7 +37,7 @@ public class S2EAndroidActivity extends Activity {
     
     private native void helloLog(String logThis);
     private native String getString(int value1, int value2);
-    public native String getS2EVersion();
+    private native String getS2EVersion();
     
     static {
         System.loadLibrary("android");

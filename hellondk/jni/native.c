@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <android/log.h>
+#include <s2earm.h>
 
 #define DEBUG_TAG "NDK_S2EAndroidActivity"
 
@@ -61,16 +62,17 @@ jstring Java_ch_epfl_s2e_android_S2EAndroidActivity_getS2EVersion(JNIEnv * env, 
 	return result;
 }
 
-int s2e_version()
-{
-	int version;
-    asm volatile(
-        ".arm \n\t"
-        ".word 0xff000000 \n\t"   /* S2E opcode to store version in r0 */
-        "mov %[v], r0\n\t"
-        : [v] "+r" (version) /* output */
-        : /* no input */
-        : "r0" /* clobbing (let the compiler know that we modify r0 */
-    );
-    return version;
-}
+//int s2e_version()
+//{
+//	int version;
+//    asm volatile(
+//        ".ARM \n\t"
+//        ".WORD 0xff000000 \n\t"   /* S2E opcode to store version in r0 */
+//    	".ALIGN\n\t"
+//        "MOV %[v], r0\n\t"
+//        : [v] "+r" (version) /* output */
+//        : /* no input */
+//        : "r0" /* clobbing (let the compiler know that we modify r0 */
+//    );
+//    return version;
+//}
