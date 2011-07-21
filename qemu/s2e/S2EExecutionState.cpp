@@ -997,13 +997,28 @@ void S2EExecutionState::writeRegisterConcrete(CPUX86State *cpuState,
 
 namespace {
 static int _lastSymbolicId = 0;
+
+std::string s2e_get_unique_varname(const std::string &name)
+{
+    std::string sname;
+    for (unsigned i=0; i<name.size(); ++i) {
+        if (isspace(name[i])) {
+            sname += '_';
+        }else {
+            sname += name[i];
+        }
+    }
+    sname = !sname.empty() ? sname : "symb_" + llvm::utostr(++_lastSymbolicId);
+    return sname;
+}
+
 }
 
 ref<Expr> S2EExecutionState::createSymbolicValue(
             Expr::Width width, const std::string& name)
 {
 
-    std::string sname = !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId);
+    std::string sname = s2e_get_unique_varname(name);
 
     const Array *array = new Array(sname, Expr::getMinBytesForWidth(width));
 
@@ -1021,7 +1036,7 @@ ref<Expr> S2EExecutionState::createSymbolicValue(
 std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
             unsigned size, const std::string& name)
 {
-    std::string sname = !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId);
+    std::string sname = s2e_get_unique_varname(name);
     const Array *array = new Array(sname, size);
 
     UpdateList ul(array, 0);
@@ -1463,7 +1478,6 @@ void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
     //Check that the added constraint is consistent with
     //the existing path constraints
     bool truth;
-    Solver::Validity val;
     Solver *solver = g_s2e->getExecutor()->getSolver();
     Query query(constraints,e);
     //bool res = solver->mayBeTrue(query, mayBeTrue);
