@@ -261,15 +261,18 @@ namespace {
   */
 
   cl::opt<bool>
-  UseExprSimplifier("use-expr-simplifier",
-            cl::desc("Apply expression simplifier for new expressions"),
-            cl::init(true));
-
-  cl::opt<bool>
   ValidateSimplifier("validate-expr-simplifier",
             cl::desc("Checks that the simplification algorithm produced correct expressions"),
             cl::init(false));
 }
+
+//S2E: we want these to be accessible in S2E executor
+cl::opt<bool>
+UseExprSimplifier("use-expr-simplifier",
+          cl::desc("Apply expression simplifier for new expressions"),
+          cl::init(true));
+
+
 
 unsigned Executor::getMaxMemory() { return MaxMemory; }
 bool Executor::getMaxMemoryInhibit() { return MaxMemoryInhibit; }
