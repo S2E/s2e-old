@@ -337,7 +337,7 @@ private:
   void printExpr(const Expr *ep, PrintContext &PC, unsigned indent, bool printConstWidth=false) {
     bool simple = hasSimpleKids(ep);
     
-    print(ep->getKid(0), PC);
+    print(ep->getKid(0), PC, printConstWidth);
     for (unsigned i=1; i<ep->getNumKids(); i++) {
       printSeparator(PC, simple, indent);
       print(ep->getKid(i), PC, printConstWidth);
@@ -456,7 +456,7 @@ public:
         } else if (e->getKind() == Expr::Concat || e->getKind() == Expr::SExt)
 	  printExpr(e.get(), PC, indent, true);
 	else
-          printExpr(e.get(), PC, indent);	
+          printExpr(e.get(), PC, indent, true);
         PC << ")";
       }
     }
@@ -559,7 +559,7 @@ void ExprPPrinter::printQuery(std::ostream &os,
   unsigned indent = PC.pos;
   for (ConstraintManager::const_iterator it = constraints.begin(),
          ie = constraints.end(); it != ie;) {
-    p.print(*it, PC);
+    p.print(*it, PC, true);
     ++it;
     if (it != ie)
       PC.breakLine(indent);
@@ -567,7 +567,7 @@ void ExprPPrinter::printQuery(std::ostream &os,
   PC << ']';
 
   p.printSeparator(PC, constraints.empty(), indent-1);
-  p.print(q, PC);
+  p.print(q, PC, true);
 
   // Print expressions to obtain values for, if any.
   if (evalExprsBegin != evalExprsEnd) {
