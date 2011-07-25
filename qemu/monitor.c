@@ -530,7 +530,7 @@ static void do_s2e(Monitor *mon, const QDict *params, QObject **ret_data)
     }
 
     monitor_printf(mon, "Executing S2E command %s\n", command);
-    
+
     s2e_execute_cmd(command);
 
     return;

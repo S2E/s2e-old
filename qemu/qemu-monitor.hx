@@ -121,10 +121,8 @@ ETEXI
         .args_type  = "command:s",
         .params     = "command",
         .help       = "Execute an S2E command",
+        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_s2e,
-        .mhandler.info = NULL,
-        .mhandler.info_new = NULL,
-        .mhandler.cmd = NULL,
     },
 
 STEXI
