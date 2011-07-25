@@ -1148,8 +1148,6 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
     }
 
     if(newState) {
-        //Do device state restore here because it will invalidate the TLB.
-        //Luckily, it was already saved right before and will be restored right after.
         timers_state = *newState->m_timersState;
         qemu_icount = newState->m_qemuIcount;
         newState->getDeviceState()->restoreDeviceState();
