@@ -185,6 +185,8 @@ PrintModeSwitch("print-mode-switch",
                 cl::desc("Print message when switching from symbolic to concrete and vice versa"),
                 cl::init(false));
 
+extern cl::opt<bool> UseExprSimplifier;
+
 extern "C" {
     int g_s2e_fork_on_symbolic_address = 0;
     int g_s2e_concretize_io_addresses = 1;
@@ -424,7 +426,10 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
     Expr::Width width = expr->getWidth();
 
     // XXX: this might be expensive...
-    expr = s2eExecutor->simplifyExpr(*state, expr);
+    if (UseExprSimplifier) {
+        expr = s2eExecutor->simplifyExpr(*state, expr);
+    }
+
     expr = state->constraints.simplifyExpr(expr);
 
     if(isa<klee::ConstantExpr>(expr)) {
@@ -559,6 +564,7 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
         if (value->getZExtValue() != values[i]) {
             g_s2e->getWarningsStream() << "Solver error: 0x" << std::hex <<
                     value->getZExtValue() << " != 0x" << values[i] << std::endl << std::flush;
+
         }
         assert(success && value->getZExtValue() == values[i]);
 #endif
