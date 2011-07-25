@@ -48,5 +48,35 @@ sst2:
     ret
 
 
+;For some states, succeed half of them, hang the others for ever.
+;Eventually, the state manager will kill the hung one and keep the others.
+msg_sm_kill: db "s2e_sm_succeed_test fake", 0
+s2e_sm_succeed_test:
+    push ebp
+    mov ebp, esp
+    sub esp, 4
 
+    call s2e_int
+    cmp eax, 0
+    je  sst_s1
+    call s2e_sm_succeed
+    jmp sst_success
 
+sst_s1:
+    ;Fork a bunch of states
+    push 16
+    call s2e_fork_depth
+    add esp, 4
+
+    ;Kill all of these states
+    push msg_sm_kill
+    push eax
+    call s2e_kill_state
+    ;Execution does not come here
+
+sst_success:
+    ;Only one state will get
+    push msg_ok
+    push eax
+    call s2e_kill_state
+    ret

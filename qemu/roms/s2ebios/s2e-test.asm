@@ -6,11 +6,12 @@
 s2e_test:
     ;call s2e_test_memspeed
     ;call s2e_sm_test
+    call s2e_sm_succeed_test
     ;call s2e_test2
     ;call s2e_test_memobj
     ;call s2e_fork_test2
     ;call s2e_symbhwio_test
-    call s2e_jmptbl_test
+    ;call s2e_jmptbl_test
     ;call test_ndis
     ;jmp s2e_test
     ;call s2e_test1
@@ -42,7 +43,7 @@ s2e_fork_depth:
     call s2e_fork_enable
 
     mov eax, dword [ebp + 8]
-    mov dword [ebp - 4], eax  ; Set forking depth to 4 (2^^4 states)
+    mov dword [ebp - 4], eax  ; Set forking depth to eax (2^^eax states)
 ssf1:
     call s2e_int
     cmp eax, 0

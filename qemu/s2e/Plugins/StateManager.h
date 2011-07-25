@@ -140,6 +140,8 @@ private:
 
     void onCustomInstruction(S2EExecutionState* state,
         uint64_t opcode);
+
+    void checkInvariants();
 public:
     bool succeedState(S2EExecutionState *s);
 
