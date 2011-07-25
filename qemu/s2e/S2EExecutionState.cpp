@@ -1008,7 +1008,7 @@ std::string s2e_get_unique_varname(const std::string &name)
             sname += name[i];
         }
     }
-    sname = !sname.empty() ? sname : "symb_" + llvm::utostr(++_lastSymbolicId);
+    sname = (!sname.empty() ? ("v_"+sname) : "symb_") + llvm::utostr(++_lastSymbolicId);
     return sname;
 }
 
