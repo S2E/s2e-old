@@ -431,6 +431,11 @@ typedef struct _DRIVER_OBJECT32
 //Offset of the DBGKD_GET_VERSION32 data structure in the KPCR
 #define KPCR_KDVERSION32_OFFSET 0x34
 
+//Offset of the KPRCB in the KPCR
+#define KPCR_KPRCB_OFFSET 0x120
+#define KPCR_KPRCB_PTR_OFFSET 0x20
+
+
 //Offset of the current thread in the FS register
 #define FS_CURRENT_THREAD_OFFSET 0x124
 
@@ -446,7 +451,7 @@ typedef struct _DRIVER_OBJECT32
 #define BUILD_LONGHORN  5048
 
 
-#define KPRCB_OFFSET 0xFFDFF120
+//#define KPRCB_OFFSET 0xFFDFF120
 #define IRQL_OFFSET 0xFFDFF124
 #define PEB_OFFSET 0x7FFDF000
 typedef uint32_t KAFFINITY;

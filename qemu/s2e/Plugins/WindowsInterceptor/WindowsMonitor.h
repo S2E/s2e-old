@@ -127,7 +127,9 @@ private:
 
     //Dynamically-computed addresses. Required for ALSR-enabled Windows versions
     uint32_t m_pKPCRAddr;
+    uint32_t m_pKPRCBAddr;
     windows::DBGKD_GET_VERSION64 m_kdVersion;
+    windows::KPRCB32 m_kprcb;
 
     WindowsUmInterceptor *m_UserModeInterceptor;
     WindowsKmInterceptor *m_KernelModeInterceptor;
@@ -184,6 +186,9 @@ public:
     uint64_t getDirectoryTableBase(S2EExecutionState *state, uint64_t pProcessEntry);
 
     uint64_t getModuleSizeFromCfg(const std::string &module) const;
+
+    windows::KPRCB32 getKprcb() const { return m_kprcb; }
+    uint64_t getKpcrbAddress() const { return m_pKPRCBAddr; }
 
     uint64_t getBuildNumber() const {
         return m_kdVersion.MinorVersion;

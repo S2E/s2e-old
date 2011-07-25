@@ -158,6 +158,7 @@ void WindowsMonitor::initialize()
     }
 
     m_pKPCRAddr = 0;
+    m_pKPRCBAddr = 0;
 
     m_UserModeInterceptor = NULL;
     m_KernelModeInterceptor = NULL;
@@ -217,6 +218,22 @@ void WindowsMonitor::InitializeAddresses(S2EExecutionState *state)
 
     if (!state->readMemoryConcrete(pKdVersionBlock, &m_kdVersion, sizeof(m_kdVersion))) {
         s2e()->getWarningsStream() << "Failed to read KD version block" << std::endl;
+        exit(-1);
+    }
+
+    //Read the KPRCB
+    if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KPRCB_PTR_OFFSET, &m_pKPRCBAddr, sizeof(m_pKPRCBAddr))) {
+        s2e()->getWarningsStream() << "Failed to read pointer to KPRCB" << std::endl;
+        exit(-1);
+    }
+
+    if (m_pKPRCBAddr != m_pKPCRAddr + KPCR_KPRCB_OFFSET) {
+        s2e()->getWarningsStream () << "Invalid KPRCB" << std::endl;
+        exit(-1);
+    }
+
+    if (!state->readMemoryConcrete(m_pKPRCBAddr, &m_kprcb, sizeof(m_kprcb))) {
+        s2e()->getWarningsStream() << "Failed to read KPRCB" << std::endl;
         exit(-1);
     }
 

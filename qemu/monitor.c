@@ -553,6 +553,11 @@ static void do_s2e_disable(Monitor *mon, const QDict *params, QObject **ret_data
     monitor_printf(mon, "Status: %d\n", g_s2e_enable_signals);
 }
 
+static void do_s2e_crashdump(Monitor *mon, const QDict *params, QObject **ret_data)
+{
+    s2e_execute_cmd("c=WindowsCrashDumpInvoker(); c:generateCrashDump('dump');");
+}
+
 #endif
 
 /**
