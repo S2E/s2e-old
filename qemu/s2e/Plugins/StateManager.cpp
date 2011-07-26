@@ -121,8 +121,6 @@ void sm_callback(S2EExecutionState *s, bool killingState)
 void StateManager::checkInvariants()
 {
     uint64_t *successCount = m_shared.get()->successCount;
-    s2e()->getDebugStream() << "CI: " <<
-            successCount[s2e()->getCurrentProcessId()] <<  " - " << m_succeeded.size() << std::endl;
     assert(successCount[s2e()->getCurrentProcessId()] == m_succeeded.size());
 }
 
