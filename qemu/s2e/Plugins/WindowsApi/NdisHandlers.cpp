@@ -2041,6 +2041,7 @@ void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMoni
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HandleInterruptHandlerRet)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
    plgState->isrHandlerExecuted = true;
+   plgState->isrHandlerQueued = false;
 }
 
 void NdisHandlers::HandleInterruptHandlerRet(S2EExecutionState* state)
@@ -2099,8 +2100,13 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
     if (!ok) {
         s2e()->getExecutor()->terminateStateEarly(*state, "Could not determine whether the NDIS driver queued the interrupt");
     }else {
-        if ((!isrRecognized || !isrQueue) && !plgState->isrHandlerExecuted) {
+        //Kill the state if no interrupt will ever occur in it.
+        if ((!isrRecognized || !isrQueue) && (!plgState->isrHandlerExecuted && !plgState->isrHandlerQueued)) {
             s2e()->getExecutor()->terminateStateEarly(*state, "The state will not trigger any interrupt");
+        }
+
+        if (isrRecognized && isrQueue) {
+            plgState->isrHandlerQueued = true;
         }
     }
 
@@ -2425,6 +2431,7 @@ NdisHandlersState::NdisHandlersState()
     isrRecognized = 0;
     isrQueue = 0;
     isrHandlerExecuted = false;
+    isrHandlerQueued = false;
     faketimer = false;
     shutdownHandler = 0;   
     cableStatus = UNKNOWN;
