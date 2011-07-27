@@ -251,6 +251,8 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     }
 #endif
 
+    m_startTimeSeconds = llvm::sys::TimeValue::now().seconds();
+
     m_maxProcesses = s2e_max_processes;
     m_currentProcessIndex = 0;
     m_currentProcessId = 0;
@@ -617,6 +619,9 @@ std::ostream& S2E::getStream(std::ostream& stream,
     fflush(stderr);
 
     if(state) {
+        llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
+        stream << std::dec << (curTime.seconds() - m_startTimeSeconds) << " ";
+
         if (m_maxProcesses > 1) {
             stream << std::dec << "[Node " << m_currentProcessIndex << " - State " << state->getID() << "] ";
         }else {
@@ -723,41 +728,13 @@ unsigned S2E::getCurrentProcessCount()
     return ret;
 }
 
-void S2E::suspendCurrentProcess()
+unsigned S2E::getProcessIndexForId(unsigned id)
 {
-    getDebugStream() << "Suspending process" << std::endl;
+    assert(id < m_maxProcesses);
     S2EShared *shared = m_sync.acquire();
-    shared->suspendedProcesses[m_currentProcessId] = true;
+    unsigned ret = shared->processIds[id];
     m_sync.release();
-
-    while(shared->suspendedProcesses[m_currentProcessId]) {
-        sleep(1);
-    }
-}
-
-void S2E::resumeAllProcesses()
-{
-    getDebugStream() << "Resuming all processes" << std::endl;
-    S2EShared *shared = m_sync.acquire();
-
-    for (unsigned i=0; i<shared->currentProcessCount; ++i) {
-        shared->suspendedProcesses[i] = false;
-    }
-
-    m_sync.release();
-}
-
-unsigned S2E::getSuspendedProcessCount()
-{
-    S2EShared *shared = m_sync.acquire();
-    unsigned count = 0;
-    for (unsigned i=0; i<shared->currentProcessCount; ++i) {
-        if (shared->suspendedProcesses[i]) {
-            ++count;
-        }
-    }
-    m_sync.release();
-    return count;
+    return ret;
 }
 
 } // namespace s2e
