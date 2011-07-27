@@ -89,7 +89,7 @@ private:
                 const std::vector<klee::ref<klee::Expr> >& newConditions
                 );
 
-    void onProcessFork(bool preFork, bool isChild);
+    void onProcessFork(bool preFork, bool isChild, unsigned parentProcId);
 
 
 };

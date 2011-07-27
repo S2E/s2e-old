@@ -130,7 +130,7 @@ void ExecutionTracer::flush()
     }
 }
 
-void ExecutionTracer::onProcessFork(bool preFork, bool isChild)
+void ExecutionTracer::onProcessFork(bool preFork, bool isChild, unsigned parentProcId)
 {
     if (preFork) {
         fclose(m_LogFile);

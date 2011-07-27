@@ -109,6 +109,7 @@ uint64_t helper_set_cc_op_eflags(void);
 
 #include <tr1/functional>
 
+#define S2E_DEBUG_MEMORY
 //#define S2E_DEBUG_INSTRUCTIONS
 //#define S2E_TRACE_EFLAGS
 //#define FORCE_CONCRETIZATION
@@ -1857,17 +1858,18 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
     bool exitLoop = false;
 
     do {
-        m_s2e->getCorePlugin()->onProcessFork.emit(true, false);
+        unsigned parentId = m_s2e->getCurrentProcessId();
+        m_s2e->getCorePlugin()->onProcessFork.emit(true, false, -1);
         int child = m_s2e->fork();
         if (child < 0) {
             //Fork did not succeed
-            m_s2e->getCorePlugin()->onProcessFork.emit(false, false);
+            m_s2e->getCorePlugin()->onProcessFork.emit(false, false, -1);
             break;
         }
 
         if (child == 1) {
 	    //Only send notification to the children
-            m_s2e->getCorePlugin()->onProcessFork.emit(false, true);
+            m_s2e->getCorePlugin()->onProcessFork.emit(false, true, parentId);
 
             //Delete all the states before
             m_s2e->getDebugStream() << "Deleting before i=" << low << " splitIndex=" << splitIndex << std::endl;
@@ -1887,7 +1889,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                 break;
             }
         }else {
-            m_s2e->getCorePlugin()->onProcessFork.emit(false, false);
+            m_s2e->getCorePlugin()->onProcessFork.emit(false, false, parentId);
 
             //Delete all the states after
             m_s2e->getDebugStream() << "Deleting after i=" << splitIndex << " high=" << high << std::endl;
@@ -2360,6 +2362,7 @@ void s2e_tb_free(S2E* s2e, TranslationBlock *tb)
 {
     s2e->getExecutor()->unrefS2ETb(tb->s2e_tb);
 }
+
 
 #ifdef S2E_DEBUG_MEMORY
 #ifdef __linux__
