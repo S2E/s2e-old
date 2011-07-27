@@ -70,6 +70,7 @@ struct StateManagerShared {
     //Access using the current state id modulo max number of processes.
     uint64_t successCount[S2E_MAX_PROCESSES];
     AtomicObject<Command>  commands[S2E_MAX_PROCESSES];
+    bool suspendedProcesses[S2E_MAX_PROCESSES];
 
     StateManagerShared() {
         suspendAll = 0;
@@ -78,6 +79,7 @@ struct StateManagerShared {
         for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i) {
             successCount[i] = 0;
             commands[i].write(cmd);
+            suspendedProcesses[i] = false;
         }
     }
 };
@@ -118,7 +120,7 @@ private:
             TranslationBlock *tb,
             uint64_t pc);
 
-    void onProcessFork(bool preFork, bool isChild);
+    void onProcessFork(bool preFork, bool isChild, unsigned parentProcId);
     void onTimer();
 
     bool processCommands();
@@ -131,7 +133,7 @@ private:
     void resetTimeout();
 
     void sendKillToAllInstances(bool keepOneSuccessful, unsigned procId);
-    void killOnTimeOut();
+    bool killOnTimeOut();
     bool resumeSucceededState(S2EExecutionState *s);
 
     bool killAllButOneSuccessful();
@@ -142,6 +144,11 @@ private:
         uint64_t opcode);
 
     void checkInvariants();
+
+    void suspendCurrentProcess();
+    void resumeAllProcesses();
+    unsigned getSuspendedProcessCount();
+
 public:
     bool succeedState(S2EExecutionState *s);
 
