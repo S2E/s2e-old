@@ -623,7 +623,8 @@ std::ostream& S2E::getStream(std::ostream& stream,
         stream << std::dec << (curTime.seconds() - m_startTimeSeconds) << " ";
 
         if (m_maxProcesses > 1) {
-            stream << std::dec << "[Node " << m_currentProcessIndex << " - State " << state->getID() << "] ";
+            stream << std::dec << "[Node " << m_currentProcessIndex <<
+                    "/" << m_currentProcessId << " - State " << state->getID() << "] ";
         }else {
             stream << "[State " << std::dec << state->getID() << "] ";
         }
