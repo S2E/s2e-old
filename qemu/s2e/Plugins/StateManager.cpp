@@ -158,13 +158,22 @@ unsigned StateManager::getSuspendedProcessCount()
 }
 
 
-void StateManager::checkInvariants()
+void StateManager::checkInvariants(bool grabLock)
 {
+    if (grabLock) {
+        m_shared.acquire();
+    }
+
     uint64_t *successCount = m_shared.get()->successCount;
     if (successCount[s2e()->getCurrentProcessId()] != m_succeeded.size()) {
-        s2e()->getWarningsStream() << "successCount[s2e()->getCurrentProcessId()]=" << std::dec << successCount[s2e()->getCurrentProcessId()] << std::endl;
+        unsigned procId = s2e()->getCurrentProcessId();
+        s2e()->getWarningsStream() << "successCount[" << procId << "]=" << std::dec << successCount[procId] << std::endl;
         s2e()->getWarningsStream() << "m_succeeded.size()=" << std::dec << m_succeeded.size() << std::endl<<std::flush;
-        assert(successCount[s2e()->getCurrentProcessId()] == m_succeeded.size());
+        assert(successCount[procId] == m_succeeded.size());
+    }
+
+    if (grabLock) {
+        m_shared.release();
     }
 }
 
@@ -304,18 +313,25 @@ void StateManager::onTimer()
 void StateManager::onProcessFork(bool preFork, bool isChild, unsigned parentProcId)
 {
     if (preFork) {
+        checkInvariants(true);
         return;
     }
 
     if (isChild) {
         unsigned procId = s2e()->getCurrentProcessId();
+
+        s2e()->getDebugStream() << "StateManager forked curProc=" << std::dec << procId <<
+                " parentProcId=" << parentProcId << std::endl;
+
         StateManagerShared *s = m_shared.acquire();
-        s->successCount[procId] = s->successCount[parentProcId];
+        s->successCount[procId] = m_succeeded.size();
         StateManagerShared::Command cmd = {0,0,0,0};
         s->commands[procId].write(cmd);
         s->suspendedProcesses[procId] = false;
         m_shared.release();
     }
+
+    checkInvariants(true);
 }
 
 //Reset the timeout every time a new block of the module is translated.

@@ -143,7 +143,7 @@ private:
     void onCustomInstruction(S2EExecutionState* state,
         uint64_t opcode);
 
-    void checkInvariants();
+    void checkInvariants(bool grabLock=false);
 
     void suspendCurrentProcess();
     void resumeAllProcesses();
