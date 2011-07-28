@@ -109,7 +109,7 @@ uint64_t helper_set_cc_op_eflags(void);
 
 #include <tr1/functional>
 
-#define S2E_DEBUG_MEMORY
+//#define S2E_DEBUG_MEMORY
 //#define S2E_DEBUG_INSTRUCTIONS
 //#define S2E_TRACE_EFLAGS
 //#define FORCE_CONCRETIZATION
@@ -311,15 +311,10 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
 {
     assert(dynamic_cast<const S2EExecutionState*>(&state) != 0);
     const S2EExecutionState* s = dynamic_cast<const S2EExecutionState*>(&state);
-    S2EExecutionState* s1 = const_cast<S2EExecutionState*>(s);
 
     m_s2e->getWarningsStream(s)
            << "Terminating state " << s->getID()
            << " with message '" << (err ? err : "") << "'" << std::endl;
-
-    if (m_s2e->getExecutor()->getStateManager()) {
-        m_s2e->getExecutor()->getStateManager()(s1, true);
-    }
 
     //XXX: export a core event onStateTermination or something like that
     //to avoid hard-coded test case generation plugin.
@@ -1878,9 +1873,9 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                     exitLoop = true;
                 }
                 m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
-                Executor::terminateState(*newStates[i]);
+                terminateStateAtFork(*newStates[i]);
             }
-  
+
             low = splitIndex;
             splitIndex = (high - splitIndex) / 2 + splitIndex;
             if (high == splitIndex) {
@@ -1897,7 +1892,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                     exitLoop = true;
                 }
                 m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
-                Executor::terminateState(*newStates[i]);
+                terminateStateAtFork(*newStates[i]);
             }
             high = splitIndex-1;
             splitIndex = (splitIndex - low) / 2;
@@ -2053,18 +2048,26 @@ bool S2EExecutor::merge(klee::ExecutionState &_base, klee::ExecutionState &_othe
     }
 }
 
-void S2EExecutor::terminateState(ExecutionState &state)
+void S2EExecutor::terminateState(ExecutionState &s)
 {
-    S2EExecutionState *s = dynamic_cast<S2EExecutionState*>(&state);
-    assert(s);
-
-    Executor::terminateState(state);
+    S2EExecutionState& state = static_cast<S2EExecutionState&>(s);
+    terminateStateAtFork(state);
 
     //No need for exiting the loop if we kill another state.
-    if (s == g_s2e_state) {
-        s->writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
+    if (&state == g_s2e_state) {
+        state.writeCpuState(CPU_OFFSET(exception_index), EXCP_INTERRUPT, 8*sizeof(int));
         throw CpuExitException();
     }
+}
+
+void S2EExecutor::terminateStateAtFork(S2EExecutionState &state)
+{
+    //This will make sure to resume a suspended state before killing it 
+    if (m_stateManager) {
+        m_stateManager(&state, true);
+    }
+
+    Executor::terminateState(state);
 }
 
 inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
