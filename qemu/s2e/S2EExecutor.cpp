@@ -617,7 +617,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpsr_read)
     __DEFINE_EXT_FUNCTION(cpsr_write)
     __DEFINE_EXT_FUNCTION(arm_cpu_list)
-    __DEFINE_EXT_FUNCTION(do_interrupt)
+//    __DEFINE_EXT_FUNCTION(do_interrupt)
 #endif
 #ifdef TARGET_I386
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
@@ -2175,12 +2175,12 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
 
 
 #ifdef TARGET_ARM
-inline void S2EExecutor::doInterrupt(S2EExecutionState *state)
+void S2EExecutor::doInterrupt(S2EExecutionState *state)
 {
     if(state->m_cpuRegistersObject->isAllConcrete() && !m_executeAlwaysKlee) {
         if(!state->m_runningConcrete)
             switchToConcrete(state);
-        TimerStatIncrementer t(stats::concreteModeTime);
+        //TimerStatIncrementer t(stats::concreteModeTime);
         helper_do_interrupt();
     } else {
         if(state->m_runningConcrete)
