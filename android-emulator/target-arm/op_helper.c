@@ -20,6 +20,18 @@
 #include "exec.h"
 #include "helpers.h"
 #include <assert.h>
+#ifdef CONFIG_TRACE
+#include "trace.h"
+#endif
+
+
+#ifdef S2E_LLVM_LIB
+	int semihosting_enabled = 0;
+	int tracing = 0;
+#else
+	extern int semihosting_enabled;
+#endif
+
 
 #define SIGNBIT (uint32_t)0x80000000
 #define SIGNBIT64 ((uint64_t)1 << 63)
@@ -89,10 +101,393 @@ struct CPUARMState* env = 0;
 #endif
 #endif
 
-
-uint64_t helper_do_interrupt(void);
-uint64_t helper_do_interrupt(void)
+/* Map CPU modes onto saved register banks.  */
+static inline int bank_number (int mode)
 {
+    switch (mode) {
+    case ARM_CPU_MODE_USR:
+    case ARM_CPU_MODE_SYS:
+        return 0;
+    case ARM_CPU_MODE_SVC:
+        return 1;
+    case ARM_CPU_MODE_ABT:
+        return 2;
+    case ARM_CPU_MODE_UND:
+        return 3;
+    case ARM_CPU_MODE_IRQ:
+        return 4;
+    case ARM_CPU_MODE_FIQ:
+        return 5;
+    }
+    cpu_abort(cpu_single_env, "Bad mode %x\n", mode);
+    return -1;
+}
+
+void HELPER(set_r13_banked)(CPUState *env, uint32_t mode, uint32_t val)
+{
+	WR_cpu(env,banked_r13[bank_number(mode)], val);
+}
+
+uint32_t HELPER(get_r13_banked)(CPUState *env, uint32_t mode)
+{
+    return RR_cpu(env,banked_r13[bank_number(mode)]);
+}
+
+void switch_mode(CPUState *env, int mode)
+{
+    int old_mode;
+    int i;
+
+    old_mode = env->uncached_cpsr & CPSR_M;
+    if (mode == old_mode)
+        return;
+
+    if (old_mode == ARM_CPU_MODE_FIQ) {
+        //memcpy (env->fiq_regs, env->regs + 8, 5 * sizeof(uint32_t));
+    	WR_cpu(env,fiq_regs[0],RR_cpu(env,regs[8]));
+    	WR_cpu(env,fiq_regs[1],RR_cpu(env,regs[9]));
+    	WR_cpu(env,fiq_regs[2],RR_cpu(env,regs[10]));
+    	WR_cpu(env,fiq_regs[3],RR_cpu(env,regs[11]));
+    	WR_cpu(env,fiq_regs[4],RR_cpu(env,regs[12]));
+
+    	//memcpy (env->regs + 8, env->usr_regs, 5 * sizeof(uint32_t));
+    	WR_cpu(env,regs[8],RR_cpu(env,usr_regs[0]));
+    	WR_cpu(env,regs[9],RR_cpu(env,usr_regs[1]));
+    	WR_cpu(env,regs[10],RR_cpu(env,usr_regs[2]));
+    	WR_cpu(env,regs[11],RR_cpu(env,usr_regs[3]));
+    	WR_cpu(env,regs[12],RR_cpu(env,usr_regs[4]));
+
+    } else if (mode == ARM_CPU_MODE_FIQ) {
+        //memcpy (env->usr_regs, env->regs + 8, 5 * sizeof(uint32_t));
+        WR_cpu(env,usr_regs[0],RR_cpu(env,regs[8]));
+        WR_cpu(env,usr_regs[1],RR_cpu(env,regs[9]));
+        WR_cpu(env,usr_regs[2],RR_cpu(env,regs[10]));
+        WR_cpu(env,usr_regs[3],RR_cpu(env,regs[11]));
+        WR_cpu(env,usr_regs[4],RR_cpu(env,regs[12]));
+
+        //memcpy (env->regs + 8, env->fiq_regs, 5 * sizeof(uint32_t));
+    	WR_cpu(env,regs[8],RR_cpu(env,fiq_regs[0]));
+    	WR_cpu(env,regs[9],RR_cpu(env,fiq_regs[1]));
+    	WR_cpu(env,regs[10],RR_cpu(env,fiq_regs[2]));
+    	WR_cpu(env,regs[11],RR_cpu(env,fiq_regs[3]));
+    	WR_cpu(env,regs[12],RR_cpu(env,fiq_regs[4]));
+    }
+
+    i = bank_number(old_mode);
+    WR_cpu(env,banked_r13[i], RR_cpu(env,regs[13]));
+    WR_cpu(env,banked_r14[i], RR_cpu(env,regs[14]));
+    WR_cpu(env,banked_spsr[i], RR_cpu(env,spsr));
+
+    i = bank_number(mode);
+    WR_cpu(env,regs[13],RR_cpu(env,banked_r13[i]));
+    WR_cpu(env,regs[14],RR_cpu(env,banked_r14[i]));
+    WR_cpu(env,spsr,RR_cpu(env,banked_spsr[i]));
+}
+
+uint32_t cpsr_read(CPUARMState *env)
+{
+	    int ZF;
+	    ZF = (RR_cpu(env,ZF) == 0);
+	    return env->uncached_cpsr | (RR_cpu(env,NF) & 0x80000000) | (ZF << 30) |
+	        (RR_cpu(env,CF) << 29) | ((RR_cpu(env,VF) & 0x80000000) >> 3) | (env->QF << 27)
+	        | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
+	        | ((env->condexec_bits & 0xfc) << 8)
+	        | (env->GE << 16);
+
+// For DEBUG purposes
+//	    int ZF;
+//	    target_ulong NF,CF,VF,QF, thumb, condex1, condex2, GE;
+//	    ZF = (RR_cpu(env,ZF) == 0);
+//	    NF = (RR_cpu(env,NF) & 0x80000000);
+//	    CF = (RR_cpu(env,CF) << 29);
+//	    VF = ((RR_cpu(env,VF) & 0x80000000) >> 3);
+//	    QF = (env->QF << 27);
+//	    thumb = (env->thumb << 5);
+//	    condex1 = ((env->condexec_bits & 3) << 25);
+//	    condex2 = ((env->condexec_bits & 0xfc) << 8);
+//	    GE = (env->GE << 16);
+//	    return env->uncached_cpsr | NF | (ZF << 30) |
+//	        CF | VF | QF
+//	        | thumb | condex1
+//	        | condex2
+//	        | GE;
+}
+
+void cpsr_write(CPUARMState *env, uint32_t val, uint32_t mask)
+{
+    if (mask & CPSR_NZCV) {
+        WR_cpu(env,ZF,((~val) & CPSR_Z));
+        WR_cpu(env,NF,val);
+        WR_cpu(env,CF,((val >> 29) & 1));
+        WR_cpu(env,VF,((val << 3) & 0x80000000));
+    }
+    if (mask & CPSR_Q)
+        env->QF = ((val & CPSR_Q) != 0);
+    if (mask & CPSR_T)
+        env->thumb = ((val & CPSR_T) != 0);
+    if (mask & CPSR_IT_0_1) {
+        env->condexec_bits &= ~3;
+        env->condexec_bits |= (val >> 25) & 3;
+    }
+    if (mask & CPSR_IT_2_7) {
+        env->condexec_bits &= 3;
+        env->condexec_bits |= (val >> 8) & 0xfc;
+    }
+    if (mask & CPSR_GE) {
+        env->GE = (val >> 16) & 0xf;
+    }
+
+    if ((env->uncached_cpsr ^ val) & mask & CPSR_M) {
+        switch_mode(env, val & CPSR_M);
+    }
+    mask &= ~CACHED_CPSR_BITS;
+    env->uncached_cpsr = (env->uncached_cpsr & ~mask) | (val & mask);
+}
+
+static void v7m_push(CPUARMState *env, uint32_t val)
+{
+	WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) - 4));
+    stl_phys(RR_cpu(env,regs[13]), val);
+}
+
+static uint32_t v7m_pop(CPUARMState *env)
+{
+    uint32_t val;
+    val = ldl_phys(RR_cpu(env,regs[13]));
+    WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) + 4));
+    return val;
+}
+
+/* Switch to V7M main or process stack pointer.  */
+static void switch_v7m_sp(CPUARMState *env, int process)
+{
+    uint32_t tmp;
+    if (env->v7m.current_sp != process) {
+        tmp = env->v7m.other_sp;
+        env->v7m.other_sp = RR_cpu(env,regs[13]);
+        WR_cpu(env,regs[13],tmp);
+        env->v7m.current_sp = process;
+    }
+}
+
+static void do_v7m_exception_exit(CPUARMState *env)
+{
+    uint32_t type;
+    uint32_t xpsr;
+
+    type = env->regs[15];
+    if (env->v7m.exception != 0)
+        armv7m_nvic_complete_irq(env->v7m.nvic, env->v7m.exception);
+
+    /* Switch to the target stack.  */
+    switch_v7m_sp(env, (type & 4) != 0);
+    /* Pop registers.  */
+    WR_cpu(env,regs[0],v7m_pop(env));
+    WR_cpu(env,regs[1],v7m_pop(env));
+    WR_cpu(env,regs[2],v7m_pop(env));
+    WR_cpu(env,regs[3],v7m_pop(env));
+    WR_cpu(env,regs[12],v7m_pop(env));
+    WR_cpu(env,regs[14],v7m_pop(env));
+    xpsr = v7m_pop(env);
+    xpsr_write(env, xpsr, 0xfffffdff);
+    /* Undo stack alignment.  */
+    if (xpsr & 0x200)
+        WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) | 4));
+    /* ??? The exception return type specifies Thread/Handler mode.  However
+       this is also implied by the xPSR value. Not sure what to do
+       if there is a mismatch.  */
+    /* ??? Likewise for mismatches between the CONTROL register and the stack
+       pointer.  */
+}
+
+static void do_interrupt_v7m(CPUARMState *env)
+{
+    uint32_t xpsr = xpsr_read(env);
+    uint32_t lr;
+    uint32_t addr;
+
+    lr = 0xfffffff1;
+    if (env->v7m.current_sp)
+        lr |= 4;
+    if (env->v7m.exception == 0)
+        lr |= 8;
+
+    /* For exceptions we just mark as pending on the NVIC, and let that
+       handle it.  */
+    /* TODO: Need to escalate if the current priority is higher than the
+       one we're raising.  */
+    switch (env->exception_index) {
+    case EXCP_UDEF:
+        armv7m_nvic_set_pending(env->v7m.nvic, ARMV7M_EXCP_USAGE);
+        return;
+    case EXCP_SWI:
+        env->regs[15] += 2;
+        armv7m_nvic_set_pending(env->v7m.nvic, ARMV7M_EXCP_SVC);
+        return;
+    case EXCP_PREFETCH_ABORT:
+    case EXCP_DATA_ABORT:
+        armv7m_nvic_set_pending(env->v7m.nvic, ARMV7M_EXCP_MEM);
+        return;
+    case EXCP_BKPT:
+        if (semihosting_enabled) {
+            int nr;
+            nr = lduw_code(env->regs[15]) & 0xff;
+            if (nr == 0xab) {
+                env->regs[15] += 2;
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
+                return;
+            }
+        }
+        armv7m_nvic_set_pending(env->v7m.nvic, ARMV7M_EXCP_DEBUG);
+        return;
+    case EXCP_IRQ:
+        env->v7m.exception = armv7m_nvic_acknowledge_irq(env->v7m.nvic);
+        break;
+    case EXCP_EXCEPTION_EXIT:
+        do_v7m_exception_exit(env);
+        return;
+    default:
+        cpu_abort(env, "Unhandled exception 0x%x\n", env->exception_index);
+        return; /* Never happens.  Keep compiler happy.  */
+    }
+
+    /* Align stack pointer.  */
+    /* ??? Should only do this if Configuration Control Register
+       STACKALIGN bit is set.  */
+    if (RR_cpu(env,regs[13]) & 4) {
+        WR_cpu(env,regs[13],(RR_cpu(env,regs[13]) - 4));
+        xpsr |= 0x200;
+    }
+    /* Switch to the handler mode.  */
+    v7m_push(env, xpsr);
+    v7m_push(env, env->regs[15]);
+    v7m_push(env, RR_cpu(env,regs[14]));
+    v7m_push(env, RR_cpu(env,regs[12]));
+    v7m_push(env, RR_cpu(env,regs[3]));
+    v7m_push(env, RR_cpu(env,regs[2]));
+    v7m_push(env, RR_cpu(env,regs[1]));
+    v7m_push(env, RR_cpu(env,regs[0]));
+    switch_v7m_sp(env, 0);
+    env->uncached_cpsr &= ~CPSR_IT;
+    WR_cpu(env,regs[14],lr);
+    addr = ldl_phys(env->v7m.vecbase + env->v7m.exception * 4);
+    env->regs[15] = addr & 0xfffffffe;
+    env->thumb = addr & 1;
+}
+
+/* Handle a CPU exception.  */
+void do_interrupt(CPUARMState *env)
+{
+    uint32_t addr;
+    uint32_t mask;
+    int new_mode;
+    uint32_t offset;
+
+#ifdef CONFIG_TRACE
+    if (tracing) {
+        trace_exception(env->regs[15]);
+    }
+#endif
+
+    if (IS_M(env)) {
+        do_interrupt_v7m(env);
+        return;
+    }
+    /* TODO: Vectored interrupt controller.  */
+    switch (env->exception_index) {
+    case EXCP_UDEF:
+        new_mode = ARM_CPU_MODE_UND;
+        addr = 0x04;
+        mask = CPSR_I;
+        if (env->thumb)
+            offset = 2;
+        else
+            offset = 4;
+        break;
+    case EXCP_SWI:
+        if (semihosting_enabled) {
+            /* Check for semihosting interrupt.  */
+            if (env->thumb) {
+                mask = lduw_code(env->regs[15] - 2) & 0xff;
+            } else {
+                mask = ldl_code(env->regs[15] - 4) & 0xffffff;
+            }
+            /* Only intercept calls from privileged modes, to provide some
+               semblance of security.  */
+            if (((mask == 0x123456 && !env->thumb)
+                    || (mask == 0xab && env->thumb))
+                  && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
+                return;
+            }
+        }
+        new_mode = ARM_CPU_MODE_SVC;
+        addr = 0x08;
+        mask = CPSR_I;
+        /* The PC already points to the next instruction.  */
+        offset = 0;
+        break;
+    case EXCP_BKPT:
+        /* See if this is a semihosting syscall.  */
+        if (env->thumb && semihosting_enabled) {
+            mask = lduw_code(env->regs[15]) & 0xff;
+            if (mask == 0xab
+                  && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
+                env->regs[15] += 2;
+                WR_cpu(env,regs[0],do_arm_semihosting(env));
+                return;
+            }
+        }
+        /* Fall through to prefetch abort.  */
+    case EXCP_PREFETCH_ABORT:
+        new_mode = ARM_CPU_MODE_ABT;
+        addr = 0x0c;
+        mask = CPSR_A | CPSR_I;
+        offset = 4;
+        break;
+    case EXCP_DATA_ABORT:
+        new_mode = ARM_CPU_MODE_ABT;
+        addr = 0x10;
+        mask = CPSR_A | CPSR_I;
+        offset = 8;
+        break;
+    case EXCP_IRQ:
+        new_mode = ARM_CPU_MODE_IRQ;
+        addr = 0x18;
+        /* Disable IRQ and imprecise data aborts.  */
+        mask = CPSR_A | CPSR_I;
+        offset = 4;
+        break;
+    case EXCP_FIQ:
+        new_mode = ARM_CPU_MODE_FIQ;
+        addr = 0x1c;
+        /* Disable FIQ, IRQ and imprecise data aborts.  */
+        mask = CPSR_A | CPSR_I | CPSR_F;
+        offset = 4;
+        break;
+    default:
+        cpu_abort(env, "Unhandled exception 0x%x\n", env->exception_index);
+        return; /* Never happens.  Keep compiler happy.  */
+    }
+    /* High vectors.  */
+    if (env->cp15.c1_sys & (1 << 13)) {
+        addr += 0xffff0000;
+    }
+    switch_mode (env, new_mode);
+    WR_cpu(env,spsr,cpsr_read(env));
+    /* Clear IT bits.  */
+    env->condexec_bits = 0;
+    /* Switch to the new mode, and switch to Arm mode.  */
+    /* ??? Thumb interrupt handlers not implemented.  */
+    env->uncached_cpsr = (env->uncached_cpsr & ~CPSR_M) | new_mode;
+    env->uncached_cpsr |= mask;
+    env->thumb = 0;
+    WR_cpu(env,regs[14],(env->regs[15] + offset));
+    env->regs[15] = addr;
+    env->interrupt_request |= CPU_INTERRUPT_EXITTB;
+}
+
+uint64_t HELPER(do_interrupt)(void) {
     do_interrupt(env);
     return 0;
 }
@@ -115,6 +510,73 @@ void cpu_lock(void)
 void cpu_unlock(void)
 {
     spin_unlock(&global_cpu_lock);
+}
+
+void HELPER(v7m_msr)(CPUState *env, uint32_t reg, uint32_t val)
+{
+    switch (reg) {
+    case 0: /* APSR */
+        xpsr_write(env, val, 0xf8000000);
+        break;
+    case 1: /* IAPSR */
+        xpsr_write(env, val, 0xf8000000);
+        break;
+    case 2: /* EAPSR */
+        xpsr_write(env, val, 0xfe00fc00);
+        break;
+    case 3: /* xPSR */
+        xpsr_write(env, val, 0xfe00fc00);
+        break;
+    case 5: /* IPSR */
+        /* IPSR bits are readonly.  */
+        break;
+    case 6: /* EPSR */
+        xpsr_write(env, val, 0x0600fc00);
+        break;
+    case 7: /* IEPSR */
+        xpsr_write(env, val, 0x0600fc00);
+        break;
+    case 8: /* MSP */
+        if (env->v7m.current_sp)
+            env->v7m.other_sp = val;
+        else
+            WR_cpu(env,regs[13],val);
+        break;
+    case 9: /* PSP */
+        if (env->v7m.current_sp)
+            WR_cpu(env,regs[13],val);
+        else
+            env->v7m.other_sp = val;
+        break;
+    case 16: /* PRIMASK */
+        if (val & 1)
+            env->uncached_cpsr |= CPSR_I;
+        else
+            env->uncached_cpsr &= ~CPSR_I;
+        break;
+    case 17: /* FAULTMASK */
+        if (val & 1)
+            env->uncached_cpsr |= CPSR_F;
+        else
+            env->uncached_cpsr &= ~CPSR_F;
+        break;
+    case 18: /* BASEPRI */
+        env->v7m.basepri = val & 0xff;
+        break;
+    case 19: /* BASEPRI_MAX */
+        val &= 0xff;
+        if (val != 0 && (val < env->v7m.basepri || env->v7m.basepri == 0))
+            env->v7m.basepri = val;
+        break;
+    case 20: /* CONTROL */
+        env->v7m.control = val & 3;
+        switch_v7m_sp(env, (val & 2) != 0);
+        break;
+    default:
+        /* ??? For debugging only.  */
+        cpu_abort(env, "Unimplemented system register write (%d)\n", reg);
+        return;
+    }
 }
 
 uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def,
