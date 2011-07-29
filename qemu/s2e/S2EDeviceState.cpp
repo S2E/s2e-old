@@ -146,6 +146,8 @@ void S2EDeviceState::initDeviceState()
     //S2E manages the memory and disc state on its own
     ignoreList.insert("ram");
     ignoreList.insert("block");
+    ignoreList.insert("goldfish_fb");
+    ignoreList.insert("goldfish_tty");
 
     g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
 
