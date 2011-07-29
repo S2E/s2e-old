@@ -36,6 +36,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "s2earm.h"
 
 
@@ -54,7 +55,7 @@ void main( int argc, char *argv[ ], char *envp[ ] ) {
 	int symb;
 	int symb2;
 
-	printf("Hello Android!\n");
+	printf("Hell0 Android!\n");
 	s2e_message("Hello S2E, Here is Android.");
 	s2e_warning("Hello S2E, Android writes a warning.");
 	printf("S2E VERSION\t\t\t: %d\n",s2e_version());
@@ -66,10 +67,17 @@ void main( int argc, char *argv[ ], char *envp[ ] ) {
 	s2e_make_symbolic(&symb2,sizeof(symb2), "y");
 //	s2e_concretize(&symb,sizeof(symb));
 //	s2e_get_example(&symb2,sizeof(symb2));
-	s2e_assert(symb==symb2);
-	printf("x:\t\t\t\t: %d\n",symb);
-	printf("y:\t\t\t\t: %d\n",symb2);
+
+	if(symb==symb2) {
+		printf("test1");
+		s2e_print_expression("x:",symb);
+		s2e_print_expression("y:",symb2);
+		s2e_kill_state(333, "kill1");
+	} else {
+		printf("test2");
+		s2e_message("symb and symb2 are not equal!");
+	}
 //  the following Statement kills Android emulator
-//	s2e_kill_state(666, "Android says goodbye to S2E.");
+
 
 }
