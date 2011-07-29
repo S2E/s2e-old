@@ -32,22 +32,22 @@
 #define _AM_EXCP    0
 
 
-DEF_HELPER_2_M(cpsr_write, void, i32, i32, -1 , -1 , 1)
-DEF_HELPER_0_M(cpsr_read, i32, -1, -1, 1)
+DEF_HELPER_2_M(cpsr_write, void, i32, i32, 0 , _M_ALL , 0)
+DEF_HELPER_0_M(cpsr_read, i32, _M_ALL, 0, 1)
 
-DEF_HELPER_1_M(get_user_reg, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(set_user_reg, void, i32, i32, -1, -1 ,1)
+DEF_HELPER_1_M(get_user_reg, i32, i32, (_M_USR_REGS | _M_BANKED_R14 | _M_BANKED_R13 | _M_REGS), 0, 0)
+DEF_HELPER_2_M(set_user_reg, void, i32, i32, 0, (_M_USR_REGS | _M_BANKED_R14 | _M_BANKED_R13 | _M_REGS) ,0)
 
-DEF_HELPER_2_M(add_cc, i32, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(adc_cc, i32, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(sub_cc, i32, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(sbc_cc, i32, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(shl_cc, i32, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(shr_cc, i32, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(sar_cc, i32, i32, i32, -1, -1, 1)
-DEF_HELPER_2_M(ror_cc, i32, i32, i32, -1, -1, 1)
+DEF_HELPER_2_M(add_cc, i32, i32, i32, 0, _WM_EXCP, 0)
+DEF_HELPER_2_M(adc_cc, i32, i32, i32, 0, _WM_EXCP, 0)
+DEF_HELPER_2_M(sub_cc, i32, i32, i32, 0, _WM_EXCP, 0)
+DEF_HELPER_2_M(sbc_cc, i32, i32, i32, _M_CF, _WM_EXCP, 0)
+DEF_HELPER_2_M(shl_cc, i32, i32, i32, 0, _M_CF, 0)
+DEF_HELPER_2_M(shr_cc, i32, i32, i32, 0, _M_CF, 0)
+DEF_HELPER_2_M(sar_cc, i32, i32, i32, 0, _M_CF, 0)
+DEF_HELPER_2_M(ror_cc, i32, i32, i32, 0, _M_CF, 0)
 
-DEF_HELPER_1(clz, i32, i32)
+DEF_HELPER_1_M(clz, i32, i32,0,0,0)
 DEF_HELPER_1(sxtb16, i32, i32)
 DEF_HELPER_1(uxtb16, i32, i32)
 
