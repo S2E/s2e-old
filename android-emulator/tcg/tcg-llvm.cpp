@@ -774,7 +774,6 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             int nb_oargs = args[0] >> 16;
             int nb_iargs = args[0] & 0xffff;
             nb_args = nb_oargs + nb_iargs + def.nb_cargs + 1;
-
             int flags = args[nb_oargs + nb_iargs + 1];
             assert((flags & TCG_CALL_TYPE_MASK) == TCG_CALL_TYPE_STD);
 
@@ -793,7 +792,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 
             assert(nb_oargs == 0 || nb_oargs == 1);
             const Type* retType = nb_oargs == 0 ?
-                Type::getVoidTy(m_context) : wordType(); // XXX?
+                Type::getVoidTy(m_context) : (getValue(args[1]))->getType(); // XXX?
 
             Value* helperAddr = getValue(args[nb_oargs + nb_iargs]);
 #ifdef CONFIG_S2E
@@ -996,7 +995,11 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
     __ST_OP(INDEX_op_st_i32,   32, 32)
 #else
     case INDEX_op_st_i32: {
-        assert(getValue(args[0])->getType() == intType(32));
+    	const llvm::Type* op1 = getValue(args[0])->getType();
+    	const llvm::Type* op2 = getValue(args[1])->getType();
+    	const llvm::Type* itype = intType(32);
+    	const llvm::Type* wtype = wordType();
+    	assert(getValue(args[0])->getType() == intType(32));
         assert(getValue(args[1])->getType() == wordType());
 
         Value* valueToStore = getValue(args[0]);
