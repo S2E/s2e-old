@@ -995,10 +995,6 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
     __ST_OP(INDEX_op_st_i32,   32, 32)
 #else
     case INDEX_op_st_i32: {
-    	const llvm::Type* op1 = getValue(args[0])->getType();
-    	const llvm::Type* op2 = getValue(args[1])->getType();
-    	const llvm::Type* itype = intType(32);
-    	const llvm::Type* wtype = wordType();
     	assert(getValue(args[0])->getType() == intType(32));
         assert(getValue(args[1])->getType() == wordType());
 
