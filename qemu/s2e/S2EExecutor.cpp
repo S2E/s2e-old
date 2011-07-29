@@ -1851,6 +1851,13 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
     bool exitLoop = false;
 
     do {
+        m_s2e->getDebugStream() << std::dec << "Size=" << newStates.size() <<
+                " Low=" << low << " splitIndex=" << splitIndex << " high=" << high << std::endl << std::flush;
+
+        assert(low <= high);
+        assert(splitIndex <= high && splitIndex >= low);
+        assert(splitIndex >= 0 && splitIndex < (int)newStates.size());
+
         unsigned parentId = m_s2e->getCurrentProcessId();
         m_s2e->getCorePlugin()->onProcessFork.emit(true, false, -1);
         int child = m_s2e->fork();
@@ -1861,6 +1868,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
         }
 
         if (child == 1) {
+            m_s2e->getDebugStream() << "Child (parent=" << parentId << ")" << std::endl << std::flush;
 	    //Only send notification to the children
             m_s2e->getCorePlugin()->onProcessFork.emit(false, true, parentId);
 
@@ -1872,16 +1880,21 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                     m_s2e->getDebugStream() << "came across origstate" << std::endl;
                     exitLoop = true;
                 }
-                m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
+                m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << std::endl;
                 terminateStateAtFork(*newStates[i]);
             }
 
             low = splitIndex;
-            splitIndex = (high - splitIndex) / 2 + splitIndex;
+
+            int diff = high - splitIndex;
+            if (diff == 1) ++diff;
+
+            splitIndex = diff / 2 + splitIndex;
             if (high == splitIndex) {
                 break;
             }
         }else {
+            m_s2e->getDebugStream() << "Parent" << std::endl << std::flush;
             m_s2e->getCorePlugin()->onProcessFork.emit(false, false, parentId);
 
             //Delete all the states after
@@ -1891,11 +1904,13 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                     m_s2e->getDebugStream() << "came across origstate" << std::endl;
                     exitLoop = true;
                 }
-                m_s2e->getDebugStream() << "Terminating state idx "<< i << std::endl;
+                m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << std::endl;
                 terminateStateAtFork(*newStates[i]);
             }
-            high = splitIndex-1;
-            splitIndex = (splitIndex - low) / 2;
+            high = splitIndex - 1;
+            int diff = high - low;
+
+            splitIndex = diff / 2 + low;
 
             if (splitIndex == low) {
                 break;
