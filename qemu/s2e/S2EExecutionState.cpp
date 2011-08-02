@@ -1482,6 +1482,11 @@ void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
     Query query(constraints,e);
     //bool res = solver->mayBeTrue(query, mayBeTrue);
     bool res = solver->mustBeTrue(query.negateExpr(), truth);
+    if (!res || truth) {
+       g_s2e->getWarningsStream() << "State has invalid constraints" << std::endl;
+       exit(-1);
+       //g_s2e->getExecutor()->terminateStateEarly(*this, "State has invalid constraint set");
+    }
     assert(res && !truth  &&  "state has invalid constraint set");
 
     constraints.addConstraint(e);
