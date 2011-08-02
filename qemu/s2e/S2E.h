@@ -80,10 +80,11 @@ struct S2EShared {
     //Each entry either contains -1 (no instance running) or
     //the instance index.
     unsigned processIds[S2E_MAX_PROCESSES];
-
+    unsigned processPids[S2E_MAX_PROCESSES];
     S2EShared() {
         for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i)    {
             processIds[i] = (unsigned)-1;
+            processPids[i] = (unsigned)-1;
         }
     }
 };
@@ -223,6 +224,8 @@ public:
     unsigned getProcessIndexForId(unsigned id);
 
     unsigned getCurrentProcessCount();
+
+    bool checkDeadProcesses();
 };
 
 } // namespace s2e
