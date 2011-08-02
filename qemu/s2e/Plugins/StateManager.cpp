@@ -207,14 +207,16 @@ bool StateManager::processCommands()
         s2e()->getDebugStream() << "StateManager: received kill command" << std::endl;
         if (cmd.nodeId == s2e()->getCurrentProcessId()) {
             //Keep one successful
-
+            assert(s->keepOneStateOnNode == cmd.nodeId);
             //It may happen that wake up kills all states locally. Skip this case here.
+            s->keepOneStateOnNode = (unsigned)-1;
             if (m_succeeded.size() > 0) {
                 killAllButOneSuccessfulLocal(true);
             }
         }else {
             //Kill everything
             StateSet toKeep;
+            resumeSucceeded();
             killAllExcept(toKeep, true);
         }
     }
@@ -272,6 +274,21 @@ bool StateManager::resumeSucceededState(S2EExecutionState *s)
         return true;
     }
     return false;
+}
+
+StateManager::~StateManager()
+{
+    StateManagerShared *shared = m_shared.acquire();
+    uint64_t *successCount = shared->successCount;
+
+    checkInvariants();
+    unsigned procId = s2e()->getCurrentProcessId();
+    successCount[procId] -= m_succeeded.size();
+    if (shared->keepOneStateOnNode == procId) {
+        shared->keepOneStateOnNode = (unsigned)-1;
+    }
+
+    m_shared.release();
 }
 
 void StateManager::initialize()
@@ -425,28 +442,33 @@ void StateManager::killAllButOneSuccessfulLocal(bool ungrabLock)
 
 bool StateManager::killAllButOneSuccessful()
 {
-    uint64_t *successCount = m_shared.get()->successCount;
+    StateManagerShared *shared = m_shared.get();
+    uint64_t *successCount = shared->successCount;
     checkInvariants();
 
     unsigned maxProcesses = s2e()->getMaxProcesses();
 
     //Determine the instance that has at least one successful state
-    unsigned hasSuccessfulIndex;
-    for (hasSuccessfulIndex=0; hasSuccessfulIndex < maxProcesses; ++hasSuccessfulIndex) {
-        if (s2e()->getProcessIndexForId(hasSuccessfulIndex) == (unsigned)-1) {
-            continue;
-        }
-        if (successCount[hasSuccessfulIndex] > 0) {
-            break;
+    unsigned hasSuccessfulIndex = shared->keepOneStateOnNode;
+    if ((hasSuccessfulIndex == (unsigned)-1) || (m_succeeded.size() == 0)) {
+        for (hasSuccessfulIndex=0; hasSuccessfulIndex < maxProcesses; ++hasSuccessfulIndex) {
+            if (s2e()->getProcessIndexForId(hasSuccessfulIndex) == (unsigned)-1) {
+                continue;
+            }
+            if (successCount[hasSuccessfulIndex] > 0) {
+                break;
+            }
         }
     }
+
+    assert(hasSuccessfulIndex != (unsigned)-1);
 
     //There are no successful states anywhere, just return
     if (hasSuccessfulIndex == maxProcesses) {
         return false;
     }
 
-    s2e()->getDebugStream() << "Killing all but one successful on node " << std::dec <<
+    s2e()->getDebugStream() << "StateManager: Killing all but one successful on node " << std::dec <<
             s2e()->getProcessIndexForId(hasSuccessfulIndex) << std::endl;
 
     //Kill all states everywhere except one successful on the instance that we found
@@ -460,6 +482,10 @@ bool StateManager::killAllButOneSuccessful()
         //Kill all local states
         killAllButOneSuccessfulLocal(true);
     }else {
+        //All concurrent kills will have to chose the same node
+        //to avoid killing everything by accident
+        shared->keepOneStateOnNode = hasSuccessfulIndex;
+
         //We chose a state on a different instance
         sendKillToAllInstances(true, hasSuccessfulIndex);
 

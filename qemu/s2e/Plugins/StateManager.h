@@ -72,10 +72,17 @@ struct StateManagerShared {
     AtomicObject<Command>  commands[S2E_MAX_PROCESSES];
     bool suspendedProcesses[S2E_MAX_PROCESSES];
 
+    //If killing is in progress, indicate which node
+    //will keep a successful state. Used to handle concurrent killAlls.
+    //-1 if no kill is in progress
+    unsigned keepOneStateOnNode;
+
     StateManagerShared() {
         suspendAll = 0;
         timeOfLastNewBlock = 0;
         Command cmd = {0,0,0,0};
+        keepOneStateOnNode = (unsigned)-1;
+
         for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i) {
             successCount[i] = 0;
             commands[i].write(cmd);
@@ -91,6 +98,7 @@ class StateManager : public Plugin
     S2E_PLUGIN
 public:
     StateManager(S2E* s2e): Plugin(s2e) {}
+    virtual ~StateManager();
     typedef std::set<S2EExecutionState*> StateSet;
 
     void initialize();
