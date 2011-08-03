@@ -34,49 +34,41 @@
  *
  */
 
-#ifndef S2E_PLUGINS_NTOSKRNLHANDLERS_H
-#define S2E_PLUGINS_NTOSKRNLHANDLERS_H
+#ifndef S2E_PLUGINS_WINDOWSDRIVEREXERCISER_H
+#define S2E_PLUGINS_WINDOWSDRIVEREXERCISER_H
 
+#include <s2e/S2E.h>
 #include <s2e/Plugin.h>
 #include <s2e/Utils.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
 
+
 #include <s2e/Plugins/FunctionMonitor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
-#include <s2e/Plugins/SymbolicHardware.h>
 
 #include "Api.h"
-
 
 namespace s2e {
 namespace plugins {
 
-#define STATUS_SUCCESS 0
+class MemoryChecker;
 
-#define NTOSKRNL_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>(state, this, &NtoskrnlHandlers::ep, addr);
+#define WINDRV_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<WindowsDriverExerciser, WindowsDriverExerciser::EntryPoint>(state, this, &WindowsDriverExerciser::ep, addr);
 
-class NtoskrnlHandlers: public WindowsApi
+class WindowsDriverExerciser : public WindowsApi
 {
     S2E_PLUGIN
 public:
-    typedef void (NtoskrnlHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
-    typedef std::map<std::string, NtoskrnlHandlers::EntryPoint> NtoskrnlHandlersMap;
-
-    NtoskrnlHandlers(S2E* s2e): WindowsApi(s2e) {}
+    typedef void (WindowsDriverExerciser::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
+    WindowsDriverExerciser(S2E* s2e):WindowsApi(s2e) {}
 
     void initialize();
 
-public:
-    static const WindowsApiHandler<EntryPoint> s_handlers[];
-    static const NtoskrnlHandlersMap s_handlersMap;
-
 private:
-    bool m_loaded;
-    ModuleDescriptor m_module;
-
-
+    StringSet m_modules;
+    StringSet m_loadedModules;
 
     void onModuleLoad(
             S2EExecutionState* state,
@@ -84,21 +76,11 @@ private:
             );
 
     void onModuleUnload(
-        S2EExecutionState* state,
-        const ModuleDescriptor &module
-        );
+            S2EExecutionState* state,
+            const ModuleDescriptor &module
+            );
 
-    DECLARE_ENTRY_POINT(DebugPrint);
-    DECLARE_ENTRY_POINT(IoCreateSymbolicLink);
-    DECLARE_ENTRY_POINT(IoCreateDevice);
-    DECLARE_ENTRY_POINT(IoIsWdmVersionAvailable);
-    DECLARE_ENTRY_POINT_CO(IoFreeMdl);
-
-    DECLARE_ENTRY_POINT(RtlEqualUnicodeString);
-    DECLARE_ENTRY_POINT(GetSystemUpTime);
-    DECLARE_ENTRY_POINT(KeStallExecutionProcessor);
-
-    DECLARE_ENTRY_POINT(ExAllocatePoolWithTag, uint32_t poolType, uint32_t size);
+    DECLARE_ENTRY_POINT(DriverEntryPoint);
 };
 
 }

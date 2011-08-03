@@ -44,6 +44,7 @@ extern "C" {
 
 #include <s2e/s2e_qemu.h>
 #include <s2e/S2E.h>
+#include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
 #include <klee/Solver.h>
 
@@ -51,6 +52,9 @@ extern "C" {
 #include "Api.h"
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
+
+#include "NdisHandlers.h"
+#include "NtoskrnlHandlers.h"
 
 #include <sstream>
 
@@ -66,36 +70,52 @@ void WindowsApi::initialize()
     m_functionMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
     m_windowsMonitor = static_cast<WindowsMonitor*>(s2e()->getPlugin("Interceptor"));
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
+    m_memoryChecker = static_cast<MemoryChecker*>(s2e()->getPlugin("MemoryChecker"));
+    m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
 
     parseConsistency(getConfigKey());
     parseSpecificConsistency(getConfigKey());
 }
 
-FunctionMonitor::CallSignal* WindowsApi::getCallSignalForImport(Imports &I, const std::string &dll, const std::string &name,
-                                  S2EExecutionState *state)
+void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescriptor &module)
 {
-    //Register all the relevant imported functions
-    Imports::iterator it = I.find(dll);
-    if (it == I.end()) {
-        s2e()->getWarningsStream() << "NdisHandlers: Could not read imports for " << dll << std::endl;
-        return NULL;
+    Imports imports;
+    if (!m_windowsMonitor->getImports(state, module, imports)) {
+        s2e()->getWarningsStream() << "WindowsApi: Could not read imports for module ";
+        module.Print(s2e()->getWarningsStream());
+        return;
     }
 
-    ImportedFunctions &funcs = (*it).second;
-    ImportedFunctions::iterator fit = funcs.find(name);
-    if (fit == funcs.end()) {
-        s2e()->getWarningsStream() << "NdisHandlers: Could not find " << name << " in " << dll << std::endl;
-        return NULL;
+    //Scan the imports and notify all handler plugins that we need to intercept functions
+    foreach2(it, imports.begin(), imports.end()) {
+        const std::string &libraryName = (*it).first;
+        const ImportedFunctions &functions = (*it).second;
+
+        WindowsApi *api = NULL;
+
+        //XXX: Check that these names are actually in the kernel...
+        if (libraryName == "ndis.sys") {
+            api = registerImports<NdisHandlers, NdisHandlers::EntryPoint>(state, "NdisHandlers", functions);
+
+        }else if (libraryName == "ntoskrnl.exe") {
+            api = registerImports<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>(state, "NtoskrnlHandlers", functions);
+        }
+
+        if (api) {
+            api->registerCaller(module);
+        }
     }
-
-    s2e()->getMessagesStream() << "Registering import" << name <<  " at 0x" << std::hex << (*fit).second << std::endl;
-
-
-    FunctionMonitor::CallSignal* cs;
-    cs = m_functionMonitor->getCallSignal(state, (*fit).second, 0);
-    //cs->connect(sigc::mem_fun(*this, handler));
-    return cs;
 }
+
+const ModuleDescriptor* WindowsApi::calledFromModule(S2EExecutionState *s)
+{
+    const ModuleDescriptor *mod = m_detector->getModule(s, s->getTb()->pcOfLastInstr);
+    if (!mod) {
+        return NULL;
+    }
+    return (m_callingModules.find(*mod) != m_callingModules.end()) ? mod : NULL;
+}
+
 
 void WindowsApi::parseConsistency(const std::string &key)
 {
@@ -174,6 +194,16 @@ WindowsApi::Consistency WindowsApi::getConsistency(const std::string &fcn) const
 
 
 //////////////////////////////////////////////
+bool WindowsApi::NtSuccess(S2E *s2e, S2EExecutionState *state)
+{
+    uint32_t eax;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
+        klee::ref<klee::Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
+        return NtSuccess(s2e, state, val);
+    }
+    return ((int32_t)eax >= NDIS_STATUS_SUCCESS);
+}
+
 bool WindowsApi::NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr)
 {
     bool isTrue;
@@ -216,7 +246,6 @@ bool WindowsApi::ReadUnicodeString(S2EExecutionState *state, uint32_t address, s
     return ok;
 }
 
-
 bool WindowsApi::readConcreteParameter(S2EExecutionState *s, unsigned param, uint32_t *val)
 {
     return s->readMemoryConcrete(s->getSp() + (param+1) * sizeof(uint32_t), val, sizeof(*val));
@@ -250,7 +279,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
         S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
 
-        //XXX: Remove this from here.
+        //XXX: Remove this from here (but check all the callers and return a list of forked states...)
         m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
 
         //uint32_t retVal = values[i];
@@ -298,6 +327,18 @@ void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionSt
 
 }
 
+
+//////////////////////////////////////////////
+
+//Default implementation that simply disconnets all registered functions
+void WindowsApi::onModuleUnload(
+        S2EExecutionState* state,
+        const ModuleDescriptor &module
+        )
+{
+    m_functionMonitor->disconnect(state, module);
+    unregisterCaller(module);
+}
 
 //////////////////////////////////////////////
 void WindowsApi::TraceCall(S2EExecutionState* state, FunctionMonitorState *fns)

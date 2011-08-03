@@ -97,13 +97,6 @@ void HalHandlers::onModuleLoad(
 
     m_loaded = true;
     m_module = module;
-
-    //Register the default set of functions
-    //XXX: differentiate versions
-
-    FunctionMonitor::CallSignal *cs;
-    uint32_t dbgPrintAddr = m_module.LoadBase - 0x80010000 + 0x80016020;
-    REGISTER_ENTRY_POINT(cs, dbgPrintAddr, HalpValidPciSlot);
 }
 
 void HalHandlers::onModuleUnload(

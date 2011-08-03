@@ -41,8 +41,11 @@ extern "C" {
 }
 
 #include <s2e/S2E.h>
+#include <s2e/S2EExecutor.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+
+#include <s2e/Plugins/FunctionMonitor.h>
 
 #define CURRENT_CLASS NtoskrnlHandlers
 
@@ -62,6 +65,25 @@ namespace plugins {
 S2E_DEFINE_PLUGIN(NtoskrnlHandlers, "Basic collection of NT Kernel API functions.", "NtoskrnlHandlers",
                   "FunctionMonitor", "Interceptor");
 
+const WindowsApiHandler<NtoskrnlHandlers::EntryPoint> NtoskrnlHandlers::s_handlers[] = {
+
+    DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, IoCreateSymbolicLink),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, IoCreateDevice),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, IoIsWdmVersionAvailable),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, IoFreeMdl),
+
+    DECLARE_EP_STRUC(NtoskrnlHandlers, RtlEqualUnicodeString),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, GetSystemUpTime),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, KeStallExecutionProcessor),
+
+    DECLARE_EP_STRUC(NtoskrnlHandlers, ExAllocatePoolWithTag),
+
+    DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint)
+};
+
+const NtoskrnlHandlers::NtoskrnlHandlersMap NtoskrnlHandlers::s_handlersMap =
+        WindowsApi::initializeHandlerMap<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>();
 
 void NtoskrnlHandlers::initialize()
 {
@@ -96,13 +118,6 @@ void NtoskrnlHandlers::onModuleLoad(
 
     m_loaded = true;
     m_module = module;
-
-    //Register the default set of functions
-    //XXX: differentiate versions
-
-    FunctionMonitor::CallSignal *cs;
-    uint32_t dbgPrintAddr = m_module.LoadBase - 0x400000 + 0x427327;
-    REGISTER_ENTRY_POINT(cs, dbgPrintAddr, DebugPrint);
 }
 
 void NtoskrnlHandlers::onModuleUnload(
@@ -117,7 +132,7 @@ void NtoskrnlHandlers::onModuleUnload(
     //If we get here, Windows is broken.
     m_loaded = false;
 
-    //XXX: Unregister all signals, but is it necessary?
+    m_functionMonitor->disconnect(state, module);
 }
 
 void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -142,6 +157,210 @@ void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState
      s2e()->getMessagesStream(state) << "DebugPrint: " << message << std::endl;
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NtoskrnlHandlers::IoCreateSymbolicLinkRet);
+}
+
+void NtoskrnlHandlers::IoCreateSymbolicLinkRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    if (!NtSuccess(g_s2e, state)) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
+
+    m_functionMonitor->eraseSp(state, state->getPc());
+    throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NtoskrnlHandlers::IoCreateDeviceRet);
+}
+
+void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    if (!NtSuccess(g_s2e, state)) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
+
+    m_functionMonitor->eraseSp(state, state->getPc());
+    throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::IoIsWdmVersionAvailable(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NtoskrnlHandlers::IoIsWdmVersionAvailableRet);
+}
+
+void NtoskrnlHandlers::IoIsWdmVersionAvailableRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    uint32_t isAvailable;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &isAvailable, sizeof(isAvailable))) {
+        return;
+    }
+    if (!isAvailable) {
+        HANDLER_TRACE_FCNFAILED();
+    }
+
+    //Fork a state with success and failure
+    std::vector<uint32_t> values;
+    values.push_back(1);
+    values.push_back(0);
+    forkRange(state, __FUNCTION__, values);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::IoFreeMdl(S2EExecutionState *state, FunctionMonitorState *fns)
+{
+    uint32_t Buffer;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &Buffer);
+
+    if (!ok) {
+        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        return;
+    }
+
+    if(m_memoryChecker) {
+        m_memoryChecker->revokeMemory(state, NULL, Buffer, uint64_t(-1));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
+
+    klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+
+    uint32_t valPtr;
+    if (readConcreteParameter(state, 0, &valPtr)) {
+        state->writeMemory(valPtr, ret);
+        state->bypassFunction(1);
+        throw CpuExitException();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::KeStallExecutionProcessor(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
+
+    state->bypassFunction(1);
+    throw CpuExitException();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+
+    if (getConsistency(__FUNCTION__) == STRICT) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //XXX: local assumes the stuff comes from the registry
+    //XXX: local consistency is broken, because each time gets a new symbolic value,
+    //disregarding the string.
+    if (getConsistency(__FUNCTION__) == OVERAPPROX || getConsistency(__FUNCTION__) == LOCAL) {
+        klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
+        state->bypassFunction(3);
+        throw CpuExitException();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    bool ok = true;
+    uint32_t poolType, size;
+    ok &= readConcreteParameter(state, 0, &poolType);
+    ok &= readConcreteParameter(state, 1, &size);
+    if(!ok) {
+        s2e()->getDebugStream(state) << "Can not read pool type and length of memory allocation" << std::endl;
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
+}
+
+void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32_t poolType, uint32_t size)
+{
+    HANDLER_TRACE_RETURN();
+
+    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+
+    uint32_t address;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &address, sizeof(address))) {
+        return;
+    }
+    if (!address) {
+        return;
+        HANDLER_TRACE_FCNFAILED();
+    }
+
+    //Fork a state with success and failure
+    std::vector<uint32_t> values;
+    values.push_back(address);
+    values.push_back(0);
+    forkRange(state, __FUNCTION__, values);
+}
 
 
 }

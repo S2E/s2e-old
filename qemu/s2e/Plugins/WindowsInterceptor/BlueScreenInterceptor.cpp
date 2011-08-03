@@ -37,9 +37,10 @@
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/S2EExecutor.h>
-#include "BlueScreenInterceptor.h"
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/WindowsApi/Api.h>
+
+#include "BlueScreenInterceptor.h"
 
 #include <iomanip>
 #include <sstream>

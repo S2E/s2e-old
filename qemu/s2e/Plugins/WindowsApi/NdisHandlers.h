@@ -51,33 +51,34 @@
 
 #include <s2e/Plugins/StateManager.h>
 
-#define CURRENT_CLASS NdisHandlers
 #include "Api.h"
 #include "Ndis.h"
 
 namespace s2e {
 namespace plugins {
 
-class MemoryChecker;
+#define NDIS_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<NdisHandlers, NdisHandlers::EntryPoint>(state, this, &NdisHandlers::ep, addr);
 
 class NdisHandlers : public WindowsApi
 {
     S2E_PLUGIN
 public:
+    typedef void (NdisHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
+    typedef std::map<std::string, NdisHandlers::EntryPoint> NdisHandlersMap;
+
     NdisHandlers(S2E* s2e): WindowsApi(s2e) {}
 
     void initialize();
 
+public:
+    static const WindowsApiHandler<EntryPoint> s_handlers[];
+    static const NdisHandlersMap s_handlersMap;
+
 private:
-    StateManager *m_manager;
     SymbolicHardware *m_hw;
     WindowsCrashDumpGenerator *m_crashdumper;
 
-    MemoryChecker *m_memoryChecker;
-
     //Modules we want to intercept
-    StringSet m_modules;
-    StringSet m_loadedModules;
     std::string m_hwId;
     DeviceDescriptor *m_devDesc;
 
@@ -91,20 +92,6 @@ private:
     //Pair of address + private pointer for all registered timer entry points
     typedef std::set<std::pair<uint32_t, uint32_t> > TimerEntryPoints;
     TimerEntryPoints m_timerEntryPoints;
-
-    void onModuleLoad(
-            S2EExecutionState* state,
-            const ModuleDescriptor &module
-            );
-
-    void onModuleUnload(
-        S2EExecutionState* state,
-        const ModuleDescriptor &module
-        );
-
-    const ModuleDescriptor *calledFromModule(S2EExecutionState *s);
-
-    DECLARE_ENTRY_POINT(entryPoint);
 
     DECLARE_ENTRY_POINT(NdisMRegisterMiniport);
     DECLARE_ENTRY_POINT(NdisAllocateMemory, uint32_t Address, uint32_t Length);
@@ -133,7 +120,6 @@ private:
     DECLARE_ENTRY_POINT_CO(NdisFreePacket);
 
     DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer, uint32_t Length);
-    DECLARE_ENTRY_POINT_CO(IoFreeMdl);
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
@@ -141,13 +127,6 @@ private:
     //These are contained inside the miniport handle
     DECLARE_ENTRY_POINT(NdisMStatusHandler);
 
-    //XXX: Move this to ntoskrnl module
-    DECLARE_ENTRY_POINT(RtlEqualUnicodeString);
-    DECLARE_ENTRY_POINT(GetSystemUpTime);
-    DECLARE_ENTRY_POINT(KeStallExecutionProcessor);
-
-    //This is an internal function in ntoskrnl.exe
-    DECLARE_ENTRY_POINT(DebugPrint);
 
     DECLARE_ENTRY_POINT(CheckForHang);
     DECLARE_ENTRY_POINT(InitializeHandler);
@@ -169,6 +148,8 @@ private:
 
     void QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery);
     void QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery);
+
+    //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 };
 
 //XXX: We assume that we are testing only one driver at a time.

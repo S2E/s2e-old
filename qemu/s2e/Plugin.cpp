@@ -71,6 +71,7 @@
 #include <s2e/Plugins/WindowsApi/NdisHandlers.h>
 #include <s2e/Plugins/WindowsApi/NtoskrnlHandlers.h>
 #include <s2e/Plugins/WindowsApi/HalHandlers.h>
+#include <s2e/Plugins/WindowsApi/WindowsDriverExerciser.h>
 
 #include <s2e/Plugins/Searchers/MaxTbSearcher.h>
 #include <s2e/Plugins/Searchers/CooperativeSearcher.h>
@@ -125,6 +126,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::Annotation);
     __S2E_REGISTER_PLUGIN(plugins::X86ExceptionInterceptor);
 
+    __S2E_REGISTER_PLUGIN(plugins::WindowsDriverExerciser);
     __S2E_REGISTER_PLUGIN(plugins::NdisHandlers);
     __S2E_REGISTER_PLUGIN(plugins::NtoskrnlHandlers);
     __S2E_REGISTER_PLUGIN(plugins::HalHandlers);
