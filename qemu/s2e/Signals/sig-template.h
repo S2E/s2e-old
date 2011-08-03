@@ -54,14 +54,19 @@ SIGNAL_CLASS(const SIGNAL_CLASS &one) {
 }
 
 ~SIGNAL_CLASS() {
+    disconnectAll();
+    if (m_funcs) {
+        delete [] m_funcs;
+    }
+}
+
+void disconnectAll()
+{
     for (unsigned i=0; i<m_size; ++i) {
         if (m_funcs[i] && !m_funcs[i]->decref()) {
             delete m_funcs[i];
-            m_funcs[i] = NULL;
         }
-    }
-    if (m_funcs) {
-        delete [] m_funcs;
+        m_funcs[i] = NULL;
     }
 }
 
