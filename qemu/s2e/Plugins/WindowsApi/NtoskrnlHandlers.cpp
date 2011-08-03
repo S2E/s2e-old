@@ -137,6 +137,8 @@ void NtoskrnlHandlers::onModuleUnload(
 
 void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState *fns)
 {
+    if (!calledFromModule(state)) { return; }
+
     //Invoke this function in all contexts
      uint32_t strptr;
      bool ok = true;
@@ -161,6 +163,7 @@ void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMonitorState *fns)
 {
+    if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
     if (getConsistency(__FUNCTION__) < LOCAL) {
@@ -191,6 +194,7 @@ void NtoskrnlHandlers::IoCreateSymbolicLinkRet(S2EExecutionState* state)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorState *fns)
 {
+    if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
     if (getConsistency(__FUNCTION__) < LOCAL) {
@@ -221,6 +225,7 @@ void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::IoIsWdmVersionAvailable(S2EExecutionState* state, FunctionMonitorState *fns)
 {
+    if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
     if (getConsistency(__FUNCTION__) < LOCAL) {
@@ -254,6 +259,7 @@ void NtoskrnlHandlers::IoIsWdmVersionAvailableRet(S2EExecutionState* state)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::IoFreeMdl(S2EExecutionState *state, FunctionMonitorState *fns)
 {
+    if (!calledFromModule(state)) { return; }
     uint32_t Buffer;
     bool ok = true;
     ok &= readConcreteParameter(state, 0, &Buffer);
@@ -322,11 +328,21 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionMonitorState *fns)
 {
+    if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
     if (getConsistency(__FUNCTION__) < LOCAL) {
         return;
     }
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1);
+
+    //Skip the call in the current state
+    state->bypassFunction(4);
+    uint32_t failValue = 0;
+    state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
 
     bool ok = true;
     uint32_t poolType, size;
@@ -337,7 +353,11 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
         return;
     }
 
-    FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
+    //Register the return handler
+    S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
+    FUNCMON_REGISTER_RETURN_A(otherState, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
+
+    throw CpuExitException();
 }
 
 void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32_t poolType, uint32_t size)
@@ -354,12 +374,6 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
         return;
         HANDLER_TRACE_FCNFAILED();
     }
-
-    //Fork a state with success and failure
-    std::vector<uint32_t> values;
-    values.push_back(address);
-    values.push_back(0);
-    forkRange(state, __FUNCTION__, values);
 }
 
 

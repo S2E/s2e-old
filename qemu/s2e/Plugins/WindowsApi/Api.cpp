@@ -261,7 +261,8 @@ bool WindowsApi::writeParameter(S2EExecutionState *s, unsigned param, klee::ref<
     return s->writeMemory(s->getSp() + (param+1) * sizeof(uint32_t), val);
 }
 
-bool WindowsApi::forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values)
+bool WindowsApi::forkRange(S2EExecutionState *state,
+                           const std::string &msg, std::vector<uint32_t> values)
 {
 
     assert(m_functionMonitor);
