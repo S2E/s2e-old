@@ -155,6 +155,8 @@ static inline RES_TYPE glue(glue(ld, USUFFIX), MEMSUFFIX)(target_ulong ptr)
                  (addr & (TARGET_PAGE_MASK | (DATA_SIZE - 1))))) {
         res = glue(glue(__ld, SUFFIX), MMUSUFFIX)(addr, mmu_idx);
     } else {
+        //When we get here, the address is aligned with the size of the access,
+        //which by definition means that it will fall inside the small page, without overflowing.
         physaddr = addr + env->tlb_table[mmu_idx][page_index].addend;
 
 #if defined(CONFIG_S2E) && defined(S2E_ENABLE_S2E_TLB) && !defined(S2E_LLVM_LIB)
