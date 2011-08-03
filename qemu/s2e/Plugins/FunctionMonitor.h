@@ -65,6 +65,7 @@ public:
             uint64_t eip, uint64_t cr3 = 0);
 
     void eraseSp(S2EExecutionState *state, uint64_t pc);
+    void disconnect(S2EExecutionState *state, const ModuleDescriptor &desc);
 protected:
     void slotTranslateBlockEnd(ExecutionSignal*, S2EExecutionState *state,
                                TranslationBlock *tb, uint64_t pc,
@@ -118,6 +119,9 @@ class FunctionMonitorState : public PluginState
 
     void slotCall(S2EExecutionState *state, uint64_t pc);
     void slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal);
+
+    void disconnect(const ModuleDescriptor &desc, CallDescriptorsMap &descMap);
+    void disconnect(const ModuleDescriptor &desc);
 public:
     FunctionMonitorState();
     virtual ~FunctionMonitorState();

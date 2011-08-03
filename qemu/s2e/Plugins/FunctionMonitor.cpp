@@ -110,6 +110,13 @@ void FunctionMonitor::slotCall(S2EExecutionState *state, uint64_t pc)
     return plgState->slotCall(state, pc);
 }
 
+void FunctionMonitor::disconnect(S2EExecutionState *state, const ModuleDescriptor &desc)
+{
+    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+
+    return plgState->disconnect(desc);
+}
+
 //See notes for slotRet to see how to use this function.
 void FunctionMonitor::eraseSp(S2EExecutionState *state, uint64_t pc)
 {
@@ -324,6 +331,33 @@ void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool e
             }
         }
     } while(!finished);
+}
+
+void FunctionMonitorState::disconnect(const ModuleDescriptor &desc, CallDescriptorsMap &descMap)
+{
+    CallDescriptorsMap::iterator it = descMap.begin();
+    while (it != descMap.end()) {
+        uint64_t addr = (*it).first;
+        const CallDescriptor &call = (*it).second;
+        if (desc.Contains(addr) && desc.Pid == call.cr3) {
+            CallDescriptorsMap::iterator it2 = it;
+            ++it;
+            descMap.erase(it2);
+        }else {
+            ++it;
+        }
+    }
+}
+
+//Disconnect all address that belong to desc.
+//This is useful to unregister all handlers when a module is unloaded
+void FunctionMonitorState::disconnect(const ModuleDescriptor &desc)
+{
+
+    disconnect(desc, m_callDescriptors);
+    disconnect(desc, m_newCallDescriptors);
+
+    //XXX: we assume there are no more return descriptors active when the module is unloaded
 }
 
 
