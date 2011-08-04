@@ -133,7 +133,8 @@ protected:
 
     bool forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values);
 
-    void forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count);
+    void forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count,
+                    const std::string &varName);
 
     //The current state is failed, the forked on will invoke the original API
     S2EExecutionState* forkSuccessFailure(S2EExecutionState *state, bool bypass,
@@ -241,6 +242,8 @@ protected:
     void registerImports(S2EExecutionState *state, const ModuleDescriptor &module);
 
     ///////////////////////////////////
+
+    const std::string getVariableName(S2EExecutionState *state, const std::string &base);
 public:
     void onModuleUnload(S2EExecutionState* state, const ModuleDescriptor &module);
 

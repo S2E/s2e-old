@@ -324,17 +324,18 @@ bool WindowsApi::forkRange(S2EExecutionState *state,
 //Creates count copies of the current state.
 //All the states are identical.
 //XXX: Should move to S2EExecutor, use forkRange.
-void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count)
+void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result,
+                            int count, const std::string &varName)
 {
     bool oldForkStatus = state->isForkingEnabled();
     state->enableForking();
 
-    klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, "forkStates");
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
     std::vector<klee::Expr> conditions;
 
     S2EExecutionState *curState = state;
     for (int i=0; i<count; ++i) {
-        klee::ref<klee::Expr> cond = klee::NeExpr::create(success, klee::ConstantExpr::create(i, klee::Expr::Int32));
+        klee::ref<klee::Expr> cond = klee::NeExpr::create(symb, klee::ConstantExpr::create(i, klee::Expr::Int32));
 
         klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*curState, cond, false);
         S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
@@ -344,13 +345,28 @@ void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionSt
         result.push_back(fs);
         fs->setForking(oldForkStatus);
     }
-    klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(count, klee::Expr::Int32));
+    klee::ref<klee::Expr> cond = klee::EqExpr::create(symb, klee::ConstantExpr::create(count, klee::Expr::Int32));
     curState->addConstraint(cond);
     result.push_back(curState);
     curState->setForking(oldForkStatus);
 
 }
 
+//This is meant to be called in a call handler
+const std::string WindowsApi::getVariableName(S2EExecutionState *state, const std::string &base)
+{
+    std::stringstream ss;
+    uint64_t pc = state->getTb()->pcOfLastInstr;
+
+    const ModuleDescriptor *desc = m_detector->getModule(state, pc, true);
+    if (desc) {
+        uint64_t relPc = desc->ToNativeBase(pc);
+        ss << base << "_" << desc->Name << "_0x" << std::hex << relPc;
+    }else {
+        ss << base << "_0x" << std::hex << pc;
+    }
+    return ss.str();
+}
 
 //////////////////////////////////////////////
 
