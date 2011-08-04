@@ -261,6 +261,29 @@ bool WindowsApi::writeParameter(S2EExecutionState *s, unsigned param, klee::ref<
     return s->writeMemory(s->getSp() + (param+1) * sizeof(uint32_t), val);
 }
 
+S2EExecutionState* WindowsApi::forkSuccessFailure(S2EExecutionState *state, bool bypass,
+                                                         unsigned argCount,
+                                                         const std::string &varName)
+{
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
+    klee::ref<klee::Expr> cond = klee::SgtExpr::create(klee::ConstantExpr::create(STATUS_SUCCESS, klee::Expr::Int32), symb);
+    klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
+
+    S2EExecutionState *skippedState = static_cast<S2EExecutionState *>(sp.first);
+    S2EExecutionState *normalState = static_cast<S2EExecutionState *>(sp.second);
+
+    assert(skippedState == state);
+
+    //symb < STATUS_SUCCESS
+    skippedState->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+
+    if (bypass) {
+        skippedState->bypassFunction(argCount);
+    }
+
+    return normalState;
+}
+
 bool WindowsApi::forkRange(S2EExecutionState *state,
                            const std::string &msg, std::vector<uint32_t> values)
 {

@@ -170,25 +170,20 @@ void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMo
         return;
     }
 
-    FUNCMON_REGISTER_RETURN(state, fns, NtoskrnlHandlers::IoCreateSymbolicLinkRet);
+    state->undoCallAndJumpToSymbolic();
+
+    S2EExecutionState *normalState = forkSuccessFailure(state, true, 2, __FUNCTION__);
+    FUNCMON_REGISTER_RETURN(normalState, fns, NtoskrnlHandlers::IoCreateSymbolicLinkRet);
 }
 
 void NtoskrnlHandlers::IoCreateSymbolicLinkRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
 
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
-
     if (!NtSuccess(g_s2e, state)) {
         HANDLER_TRACE_FCNFAILED();
         return;
     }
-
-    klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
-
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -201,25 +196,19 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
-    FUNCMON_REGISTER_RETURN(state, fns, NtoskrnlHandlers::IoCreateDeviceRet);
+    state->jumpToSymbolicCpp();
+    S2EExecutionState *normalState = forkSuccessFailure(state, true, 7, __FUNCTION__);
+    FUNCMON_REGISTER_RETURN(normalState, fns, NtoskrnlHandlers::IoCreateDeviceRet);
 }
 
 void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
 
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
-
     if (!NtSuccess(g_s2e, state)) {
         HANDLER_TRACE_FCNFAILED();
         return;
     }
-
-    klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
-
-    m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -239,7 +228,7 @@ void NtoskrnlHandlers::IoIsWdmVersionAvailableRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
 
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     uint32_t isAvailable;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &isAvailable, sizeof(isAvailable))) {
@@ -278,7 +267,9 @@ void NtoskrnlHandlers::IoFreeMdl(S2EExecutionState *state, FunctionMonitorState 
 void NtoskrnlHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
-    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    HANDLER_TRACE_CALL();
+    state->undoCallAndJumpToSymbolic();
+
     s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
 
     klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
@@ -295,7 +286,7 @@ void NtoskrnlHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitor
 void NtoskrnlHandlers::KeStallExecutionProcessor(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
-    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    HANDLER_TRACE_CALL();
     s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
 
     state->bypassFunction(1);
@@ -306,7 +297,7 @@ void NtoskrnlHandlers::KeStallExecutionProcessor(S2EExecutionState* state, Funct
 void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
-    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    HANDLER_TRACE_CALL();
 
     if (getConsistency(__FUNCTION__) == STRICT) {
         return;
@@ -335,14 +326,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
         return;
     }
 
-    //Fork one successful state and one failed state (where the function is bypassed)
-    std::vector<S2EExecutionState *> states;
-    forkStates(state, states, 1);
-
-    //Skip the call in the current state
-    state->bypassFunction(4);
-    uint32_t failValue = 0;
-    state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
+    state->undoCallAndJumpToSymbolic();
 
     bool ok = true;
     uint32_t poolType, size;
@@ -353,26 +337,33 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
         return;
     }
 
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1);
+
+    //Skip the call in the current state
+    state->bypassFunction(4);
+    uint32_t failValue = 0;
+    state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
+
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
     FUNCMON_REGISTER_RETURN_A(otherState, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
-
-    throw CpuExitException();
 }
 
 void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32_t poolType, uint32_t size)
 {
     HANDLER_TRACE_RETURN();
 
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     uint32_t address;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &address, sizeof(address))) {
         return;
     }
     if (!address) {
-        return;
         HANDLER_TRACE_FCNFAILED();
+        return;
     }
 }
 

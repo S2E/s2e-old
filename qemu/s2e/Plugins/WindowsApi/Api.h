@@ -135,6 +135,10 @@ protected:
 
     void forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count);
 
+    //The current state is failed, the forked on will invoke the original API
+    S2EExecutionState* forkSuccessFailure(S2EExecutionState *state, bool bypass,
+                                          unsigned argCount,
+                                          const std::string &varName);
 
     FunctionMonitor::CallSignal* getCallSignalForImport(Imports &I, const std::string &dll, const std::string &name,
                                       S2EExecutionState *state);
