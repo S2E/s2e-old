@@ -64,6 +64,8 @@ public:
             S2EExecutionState *state,
             uint64_t eip, uint64_t cr3 = 0);
 
+    void registerReturnSignal(S2EExecutionState *state, FunctionMonitor::ReturnSignal &sig);
+
     void eraseSp(S2EExecutionState *state, uint64_t pc);
     void disconnect(S2EExecutionState *state, const ModuleDescriptor &desc);
 protected:
@@ -132,6 +134,7 @@ public:
 
     friend class FunctionMonitor;
 };
+
 
 #define FUNCMON_REGISTER_RETURN(state, fns, func) \
 { \

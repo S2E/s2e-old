@@ -125,6 +125,11 @@ void FunctionMonitor::eraseSp(S2EExecutionState *state, uint64_t pc)
     return plgState->slotRet(state, pc, false);
 }
 
+void FunctionMonitor::registerReturnSignal(S2EExecutionState *state, FunctionMonitor::ReturnSignal &sig)
+{
+    DECLARE_PLUGINSTATE(FunctionMonitorState, state);
+    plgState->registerReturnSignal(state, sig);
+}
 
 
 void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
@@ -134,7 +139,7 @@ void FunctionMonitor::slotRet(S2EExecutionState *state, uint64_t pc)
     return plgState->slotRet(state, pc, true);
 }
 
-
+#if 0
 void FunctionMonitor::slotTraceCall(S2EExecutionState *state, FunctionMonitorState *fns)
 {
     static int f = 0;
@@ -148,12 +153,13 @@ void FunctionMonitor::slotTraceCall(S2EExecutionState *state, FunctionMonitorSta
     ++f;
 }
 
+
 void FunctionMonitor::slotTraceRet(S2EExecutionState *state, int f)
 {
     s2e()->getMessagesStream(state) << "Returning from function "
                 << f << std::endl;
 }
-
+#endif
 
 FunctionMonitorState::FunctionMonitorState()
 {
