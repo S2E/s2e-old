@@ -181,17 +181,7 @@ void NdisHandlers::NdisAllocateMemoryWithTag(S2EExecutionState* state, FunctionM
 {
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
-
-    bool ok = true;
-    uint32_t Address, Length;
-    ok &= readConcreteParameter(state, 0, &Address);
-    ok &= readConcreteParameter(state, 1, &Length);
-    if(!ok) {
-        s2e()->getDebugStream(state) << "Can not read address and length of memory allocation" << std::endl;
-        return;
-    }
-
-    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocateMemoryWithTagRet, Address, Length);
+    NdisAllocateMemoryBase(state, fns);
 }
 
 void NdisHandlers::NdisAllocateMemoryWithTagRet(S2EExecutionState* state, uint32_t Address, uint32_t Length)
@@ -205,6 +195,14 @@ void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
+    NdisAllocateMemoryBase(state, fns);
+}
+
+void NdisHandlers::NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+
+    state->undoCallAndJumpToSymbolic();
+
     bool ok = true;
     uint32_t Address, Length;
     ok &= readConcreteParameter(state, 0, &Address);
@@ -214,7 +212,24 @@ void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
-    FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocateMemoryRet, Address, Length)
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        //We'll have to grant access to the memory array
+        FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NdisHandlers::NdisAllocateMemoryRet, Address, Length);
+        return;
+    }
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__)+"_failure");
+
+    //Skip the call in the current state
+    state->bypassFunction(3);
+    uint32_t failValue = 0xC0000001;
+    state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
+
+    //Register the return handler
+    S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
+    FUNCMON_REGISTER_RETURN_A(otherState, m_functionMonitor, NdisHandlers::NdisAllocateMemoryRet, Address, Length);
 }
 
 void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Address, uint32_t Length)
@@ -230,47 +245,20 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Addr
     }
 
     if (eax) {
+        HANDLER_TRACE_FCNFAILED();
         //The original function has failed
         return;
     }
 
-    //Consistency: LOCAL
-    if (getConsistency(__FUNCTION__) == LOCAL || getConsistency(__FUNCTION__) == OVERAPPROX) {
+    if(m_memoryChecker) {
         uint32_t BufAddress;
         bool ok = state->readMemoryConcrete(Address, &BufAddress, 4);
         if(!ok) {
-            s2e()->getWarningsStream() << __FUNCTION__ << ": can not read allocated address" << std::endl;
+            s2e()->getWarningsStream() << __FUNCTION__ << ": cannot read allocated address" << std::endl;
             return;
         }
-
-        bool oldForkStatus = state->isForkingEnabled();
-        state->enableForking();
-
-        /* Fork success and failure */
-        klee::ref<klee::Expr> success = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
-        klee::ref<klee::Expr> cond = klee::EqExpr::create(success, klee::ConstantExpr::create(0, klee::Expr::Int32));
-
-        klee::Executor::StatePair sp = s2e()->getExecutor()->fork(*state, cond, false);
-
-        S2EExecutionState *ts = static_cast<S2EExecutionState *>(sp.first);
-        S2EExecutionState *fs = static_cast<S2EExecutionState *>(sp.second);
-        m_functionMonitor->eraseSp(state == fs ? ts : fs, state->getPc());
-
-        /* Update each of the states */
-        uint32_t retVal = 0;
-        ts->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-        if(m_memoryChecker) {
-            m_memoryChecker->grantMemory(ts, NULL, BufAddress, Length, 3, "ndis:alloc:NdisAllcateMemory");
-        }
-
-        retVal = 0xC0000001L;
-        fs->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &retVal, sizeof(retVal));
-
-        ts->setForking(oldForkStatus);
-        fs->setForking(oldForkStatus);
-     } else {
-         assert(!m_memoryChecker && "Memory checker is only supported in local consistency");
-     }
+        m_memoryChecker->grantMemory(state, NULL, BufAddress, Length, 3, "ndis:alloc:NdisAllocateMemory");
+    }
 }
 
 void NdisHandlers::NdisAllocateMemoryWithTagPriority(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -637,7 +625,7 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
     exploredEntryPoints.insert(scheduled.begin(), scheduled.end());
 
     //If all timers explored, return
-    if (scheduled.size() ==0) {
+    if (scheduled.size() == 0) {
         s2e()->getDebugStream(state) << "No need to redundantly run the timer another time" << std::endl;
         state->bypassFunction(4);
         throw CpuExitException();
@@ -656,7 +644,7 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
 
     //Fork the number of states corresponding to the number of timers
     std::vector<S2EExecutionState*> states;
-    forkStates(state, states, scheduled.size() - 1);
+    forkStates(state, states, scheduled.size() - 1, __FUNCTION__);
     assert(states.size() == scheduled.size());
 
     //Fetch the physical address of the first parameter.

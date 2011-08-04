@@ -94,6 +94,7 @@ private:
     TimerEntryPoints m_timerEntryPoints;
 
     DECLARE_ENTRY_POINT(NdisMRegisterMiniport);
+    void NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMonitorState *fns);
     DECLARE_ENTRY_POINT(NdisAllocateMemory, uint32_t Address, uint32_t Length);
     DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTag, uint32_t Address, uint32_t Length);
     DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTagPriority, uint32_t Length);

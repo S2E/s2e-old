@@ -172,7 +172,7 @@ void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMo
 
     state->undoCallAndJumpToSymbolic();
 
-    S2EExecutionState *normalState = forkSuccessFailure(state, true, 2, __FUNCTION__);
+    S2EExecutionState *normalState = forkSuccessFailure(state, true, 2, getVariableName(state, __FUNCTION__));
     FUNCMON_REGISTER_RETURN(normalState, fns, NtoskrnlHandlers::IoCreateSymbolicLinkRet);
 }
 
@@ -197,7 +197,7 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
     }
 
     state->jumpToSymbolicCpp();
-    S2EExecutionState *normalState = forkSuccessFailure(state, true, 7, __FUNCTION__);
+    S2EExecutionState *normalState = forkSuccessFailure(state, true, 7, getVariableName(state, __FUNCTION__));
     FUNCMON_REGISTER_RETURN(normalState, fns, NtoskrnlHandlers::IoCreateDeviceRet);
 }
 
@@ -272,7 +272,7 @@ void NtoskrnlHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitor
 
     s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
 
-    klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
+    klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, getVariableName(state, __FUNCTION__));
 
     uint32_t valPtr;
     if (readConcreteParameter(state, 0, &valPtr)) {
@@ -322,10 +322,6 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
-        return;
-    }
-
     state->undoCallAndJumpToSymbolic();
 
     bool ok = true;
@@ -337,9 +333,15 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
         return;
     }
 
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        //We'll have to grant access to the memory array
+        FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
+        return;
+    }
+
     //Fork one successful state and one failed state (where the function is bypassed)
     std::vector<S2EExecutionState *> states;
-    forkStates(state, states, 1);
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
 
     //Skip the call in the current state
     state->bypassFunction(4);
@@ -348,14 +350,12 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
 
     //Register the return handler
     S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
-    FUNCMON_REGISTER_RETURN_A(otherState, fns, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
+    FUNCMON_REGISTER_RETURN_A(otherState, m_functionMonitor, NtoskrnlHandlers::ExAllocatePoolWithTagRet, poolType, size);
 }
 
 void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32_t poolType, uint32_t size)
 {
     HANDLER_TRACE_RETURN();
-
-    state->jumpToSymbolicCpp();
 
     uint32_t address;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &address, sizeof(address))) {
@@ -365,6 +365,8 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
         HANDLER_TRACE_FCNFAILED();
         return;
     }
+
+    //XXX: grant memory access
 }
 
 
