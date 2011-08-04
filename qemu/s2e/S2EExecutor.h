@@ -101,9 +101,6 @@ protected:
 
     std::vector<S2EExecutionState*> m_deletedStates;
 
-    typedef std::set<std::pair<uint64_t,uint64_t> > ToRunSymbolically;
-    ToRunSymbolically m_toRunSymbolically;
-
     bool m_executeAlwaysKlee;
     StateManagerCb m_stateManager;
 
@@ -159,11 +156,6 @@ public:
         klee::Executor::updateStates(current);
     }
 
-    void jumpToSymbolic(S2EExecutionState *state);
-
-    void jumpToSymbolicCpp(S2EExecutionState *state);
-
-    bool needToJumpToSymbolic(S2EExecutionState *state) const;
 
     void setCCOpEflags(S2EExecutionState *state);
     void doInterrupt(S2EExecutionState *state, int intno, int is_int,

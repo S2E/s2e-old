@@ -1063,15 +1063,39 @@ std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
 //XXX: remove circular references with executor?
 void S2EExecutionState::undoCallAndJumpToSymbolic()
 {
-    if (g_s2e->getExecutor()->needToJumpToSymbolic(this)) {
+    if (needToJumpToSymbolic()) {
         //Undo the call
         assert(getTb()->pcOfLastInstr);
         setSp(getSp() + sizeof(uint32_t));
         setPc(getTb()->pcOfLastInstr);
-        g_s2e->getExecutor()->jumpToSymbolicCpp(this);
+        jumpToSymbolicCpp();
     }
 }
 
+void S2EExecutionState::jumpToSymbolicCpp()
+{
+    if (!isRunningConcrete()) {
+        return;
+    }
+    m_toRunSymbolically.insert(std::make_pair(getPc(), getPid()));
+    m_startSymbexAtPC = getPc();
+    // XXX: what about regs_to_env ?
+    throw CpuExitException();
+}
+
+void S2EExecutionState::jumpToSymbolic()
+{
+    assert(isActive() && isRunningConcrete());
+
+    m_startSymbexAtPC = getPc();
+    // XXX: what about regs_to_env ?
+    longjmp(env->jmp_env, 1);
+}
+
+bool S2EExecutionState::needToJumpToSymbolic() const
+{
+    return  isRunningConcrete();
+}
 
 void S2EExecutionState::dumpX86State(std::ostream &os) const
 {

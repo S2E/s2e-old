@@ -340,12 +340,12 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const Runtime
 
 void GenericDataSelector::injectRegister(S2EExecutionState *state, uint64_t pc, unsigned reg, bool concrete, uint32_t val)
 {
-    if (!concrete && s2e()->getExecutor()->needToJumpToSymbolic(state)) {
+    if (!concrete && state->needToJumpToSymbolic()) {
         //We  must update the pc here, because instruction handlers are called before the
         //program counter is updated by the generated code. Otherwise the previous instruction
         //will be reexecuted twice.
         state->setPc(pc);
-        s2e()->getExecutor()->jumpToSymbolicCpp(state);
+        state->jumpToSymbolicCpp();
     }
 
     if (concrete) {
@@ -371,12 +371,12 @@ void GenericDataSelector::injectMemory(S2EExecutionState *state, uint64_t pc,
                                        unsigned size,
                                        bool concrete, uint32_t val)
 {
-    if (!concrete && s2e()->getExecutor()->needToJumpToSymbolic(state)) {
+    if (!concrete && state->needToJumpToSymbolic()) {
         //We  must update the pc here, because instruction handlers are called before the
         //program counter is updated by the generated code. Otherwise the previous instruction
         //will be reexecuted twice.
         state->setPc(pc);
-        s2e()->getExecutor()->jumpToSymbolicCpp(state);
+        state->jumpToSymbolicCpp();
     }
 
     std::ostream &os = s2e()->getDebugStream();

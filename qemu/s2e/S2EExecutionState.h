@@ -114,6 +114,10 @@ protected:
     */
     bool m_runningConcrete;
 
+    typedef std::set<std::pair<uint64_t,uint64_t> > ToRunSymbolically;
+    ToRunSymbolically m_toRunSymbolically;
+
+
     /* Move the following to S2EExecutor? */
     /* Mostly accessed from S2EExecutionState anyway, extra indirection if moved...*/
     /* Static because they do not change */
@@ -215,6 +219,10 @@ public:
 
     bool getReturnAddress(uint64_t *retAddr);
     bool bypassFunction(unsigned paramCount);
+
+    void jumpToSymbolic();
+    void jumpToSymbolicCpp();
+    bool needToJumpToSymbolic() const;
     void undoCallAndJumpToSymbolic();
 
     void dumpStack(unsigned count);

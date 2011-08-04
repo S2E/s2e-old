@@ -1059,33 +1059,7 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
     }
 }
 
-void S2EExecutor::jumpToSymbolic(S2EExecutionState *state)
-{
-    assert(state->isActive() && state->isRunningConcrete());
 
-    state->m_startSymbexAtPC = state->getPc();
-    // XXX: what about regs_to_env ?
-    longjmp(env->jmp_env, 1);
-}
-
-bool S2EExecutor::needToJumpToSymbolic(S2EExecutionState *state) const
-{
-    return  state->isRunningConcrete();
-}
-
-void S2EExecutor::jumpToSymbolicCpp(S2EExecutionState *state)
-{
-    if (!state->isRunningConcrete()) {
-        return;
-    }
-    assert(state->isRunningConcrete());
-
-    //XXX: should be per-state
-    m_toRunSymbolically.insert(std::make_pair(state->getPc(), state->getPid()));
-    state->m_startSymbexAtPC = state->getPc();
-    // XXX: what about regs_to_env ?
-    throw CpuExitException();
-}
 
 void S2EExecutor::copyOutConcretes(ExecutionState &state)
 {
@@ -1694,10 +1668,10 @@ uintptr_t S2EExecutor::executeTranslationBlock(
 
         //XXX: hack to run code symbolically that may be delayed because of interrupts.
         //Size check is important to avoid expensive calls to getPc/getPid in the common case
-        if (m_toRunSymbolically.size() > 0 &&  m_toRunSymbolically.find(std::make_pair(state->getPc(), state->getPid()))
-            != m_toRunSymbolically.end()) {
+        if (state->m_toRunSymbolically.size() > 0 &&  state->m_toRunSymbolically.find(std::make_pair(state->getPc(), state->getPid()))
+            != state->m_toRunSymbolically.end()) {
             executeKlee = true;
-            m_toRunSymbolically.erase(std::make_pair(state->getPc(), state->getPid()));
+            state->m_toRunSymbolically.erase(std::make_pair(state->getPc(), state->getPid()));
         }
 
         if(!executeKlee) {
@@ -2329,12 +2303,12 @@ void s2e_switch_to_symbolic(S2E *s2e, S2EExecutionState *state)
     //XXX: For now, we assume that symbolic hardware, when triggered,
     //will want to start symbexec.
     state->enableSymbolicExecution();
-    s2e->getExecutor()->jumpToSymbolic(state);
+    state->jumpToSymbolic();
 }
 
 void s2e_ensure_symbolic(S2E *s2e, S2EExecutionState *state)
 {
-    s2e->getExecutor()->jumpToSymbolic(state);
+    state->jumpToSymbolic();
 }
 
 /** Tlb cache helpers */

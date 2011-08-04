@@ -389,7 +389,7 @@ void Annotation::onInstruction(S2EExecutionState *state, uint64_t pc)
     }
 
     if ((*it)->switchInstructionToSymbolic) {
-       s2e()->getExecutor()->jumpToSymbolicCpp(state);
+       state->jumpToSymbolicCpp();
     }
 
 
@@ -420,7 +420,7 @@ void Annotation::onFunctionRet(
         AnnotationCfgEntry *entry
         )
 {
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
     s2e()->getDebugStream() << "Annotation: Invoking return annotation "  << entry->cfgname << std::endl;
     invokeAnnotation(state, NULL, entry, false, false);
 }

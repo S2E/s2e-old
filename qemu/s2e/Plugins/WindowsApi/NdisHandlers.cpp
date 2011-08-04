@@ -220,7 +220,7 @@ void NdisHandlers::NdisAllocateMemory(S2EExecutionState* state, FunctionMonitorS
 void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Address, uint32_t Length)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     //Get the return value
     uint32_t eax;
@@ -379,7 +379,7 @@ void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionM
 void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
@@ -791,7 +791,7 @@ void NdisHandlers::NdisMMapIoSpace(S2EExecutionState* state, FunctionMonitorStat
 void NdisHandlers::NdisMMapIoSpaceRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     if (getConsistency(__FUNCTION__) == LOCAL) {
         std::vector<uint32_t> values;
@@ -822,7 +822,7 @@ void NdisHandlers::NdisMAllocateMapRegisters(S2EExecutionState* state, FunctionM
 void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     uint32_t eax;
     if (!state->readCpuRegisterConcrete(offsetof(CPUX86State, regs[R_EAX]), &eax, sizeof(eax))) {
@@ -938,7 +938,7 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
 void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
@@ -1321,7 +1321,7 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
 {
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     //Get the return value
     uint32_t eax;
@@ -1368,7 +1368,7 @@ void NdisHandlers::NdisMRegisterIoPortRange(S2EExecutionState* state, FunctionMo
 void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     //Get the return value
     uint32_t eax;
@@ -1429,7 +1429,7 @@ void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMoni
 void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
@@ -1548,7 +1548,7 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
 void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     //Get the return value
     uint32_t eax;
@@ -2088,7 +2088,7 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
 void NdisHandlers::QueryInformationHandlerRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    s2e()->getExecutor()->jumpToSymbolicCpp(state);
+    state->jumpToSymbolicCpp();
 
     QuerySetInformationHandlerRet(state, true);
 

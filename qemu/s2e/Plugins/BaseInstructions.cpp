@@ -361,7 +361,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         }
 
         case 0x70: /* merge point */
-            s2e()->getExecutor()->jumpToSymbolicCpp(state);
+            state->jumpToSymbolicCpp();
             s2e()->getExecutor()->queueStateForMerge(state);
             break;
 
