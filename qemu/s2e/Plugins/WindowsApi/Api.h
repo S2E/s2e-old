@@ -86,7 +86,7 @@ public:
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s);
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
     static bool NtFailure(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr);
-
+    static klee::ref<klee::Expr> createFailure(S2EExecutionState *state, const std::string &varName);
     static bool ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s);
 
     static klee::ref<klee::Expr> readParameter(S2EExecutionState *s, unsigned param);
@@ -133,7 +133,7 @@ protected:
 
     bool forkRange(S2EExecutionState *state, const std::string &msg, std::vector<uint32_t> values);
 
-    void forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count,
+    klee::ref<klee::Expr> forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result, int count,
                     const std::string &varName);
 
     //The current state is failed, the forked on will invoke the original API

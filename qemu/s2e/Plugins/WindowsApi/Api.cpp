@@ -226,6 +226,14 @@ bool WindowsApi::NtFailure(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr>
     return false;
 }
 
+klee::ref<klee::Expr> WindowsApi::createFailure(S2EExecutionState *state, const std::string &varName)
+{
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
+    klee::ref<klee::Expr> constr = klee::SgtExpr::create(klee::ConstantExpr::create(0, symb.get()->getWidth()), symb);
+    state->addConstraint(constr);
+    return symb;
+}
+
 //Address is a pointer to a UNICODE_STRING32 structure
 bool WindowsApi::ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s)
 {
@@ -324,7 +332,7 @@ bool WindowsApi::forkRange(S2EExecutionState *state,
 //Creates count copies of the current state.
 //All the states are identical.
 //XXX: Should move to S2EExecutor, use forkRange.
-void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result,
+klee::ref<klee::Expr> WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionState*> &result,
                             int count, const std::string &varName)
 {
     bool oldForkStatus = state->isForkingEnabled();
@@ -349,7 +357,7 @@ void WindowsApi::forkStates(S2EExecutionState *state, std::vector<S2EExecutionSt
     curState->addConstraint(cond);
     result.push_back(curState);
     curState->setForking(oldForkStatus);
-
+    return symb;
 }
 
 //This is meant to be called in a call handler

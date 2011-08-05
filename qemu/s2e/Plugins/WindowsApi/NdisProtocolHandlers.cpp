@@ -34,76 +34,13 @@
  *
  */
 
-#ifndef S2E_PLUGINS_NTOSKRNLHANDLERS_H
-#define S2E_PLUGINS_NTOSKRNLHANDLERS_H
-
-#include <s2e/Plugin.h>
-#include <s2e/Utils.h>
-#include <s2e/Plugins/CorePlugin.h>
-#include <s2e/S2EExecutionState.h>
-
-#include <s2e/Plugins/FunctionMonitor.h>
-#include <s2e/Plugins/ModuleExecutionDetector.h>
-#include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
-#include <s2e/Plugins/SymbolicHardware.h>
-
-#include "Api.h"
-
-
-namespace s2e {
-namespace plugins {
-
-#define STATUS_SUCCESS 0
-
-#define NTOSKRNL_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>(state, this, &NtoskrnlHandlers::ep, addr);
-
-class NtoskrnlHandlers: public WindowsApi
-{
-    S2E_PLUGIN
-public:
-    typedef void (NtoskrnlHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
-    typedef std::map<std::string, NtoskrnlHandlers::EntryPoint> NtoskrnlHandlersMap;
-
-    NtoskrnlHandlers(S2E* s2e): WindowsApi(s2e) {}
-
-    void initialize();
-
-public:
-    static const WindowsApiHandler<EntryPoint> s_handlers[];
-    static const NtoskrnlHandlersMap s_handlersMap;
-
-private:
-    bool m_loaded;
-    ModuleDescriptor m_module;
-
-
-
-    void onModuleLoad(
-            S2EExecutionState* state,
-            const ModuleDescriptor &module
-            );
-
-    void onModuleUnload(
-        S2EExecutionState* state,
-        const ModuleDescriptor &module
-        );
-
-    DECLARE_ENTRY_POINT(DebugPrint);
-    DECLARE_ENTRY_POINT(IoCreateSymbolicLink);
-    DECLARE_ENTRY_POINT(IoCreateDevice);
-    DECLARE_ENTRY_POINT(IoIsWdmVersionAvailable);
-    DECLARE_ENTRY_POINT_CO(IoFreeMdl);
-
-    DECLARE_ENTRY_POINT(RtlEqualUnicodeString);
-    DECLARE_ENTRY_POINT(RtlAddAccessAllowedAce);
-
-    DECLARE_ENTRY_POINT(GetSystemUpTime);
-    DECLARE_ENTRY_POINT(KeStallExecutionProcessor);
-
-    DECLARE_ENTRY_POINT(ExAllocatePoolWithTag, uint32_t poolType, uint32_t size);
-};
-
-}
+extern "C" {
+#include <qemu-common.h>
+#include <cpu-all.h>
+#include <exec-all.h>
 }
 
-#endif
+#include "NdisHandlers.h"
+#include "Ndis.h"
+
+

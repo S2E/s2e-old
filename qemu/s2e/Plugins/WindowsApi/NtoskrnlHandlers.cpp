@@ -74,6 +74,7 @@ const WindowsApiHandler<NtoskrnlHandlers::EntryPoint> NtoskrnlHandlers::s_handle
     DECLARE_EP_STRUC(NtoskrnlHandlers, IoFreeMdl),
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, RtlEqualUnicodeString),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, RtlAddAccessAllowedAce),
     DECLARE_EP_STRUC(NtoskrnlHandlers, GetSystemUpTime),
     DECLARE_EP_STRUC(NtoskrnlHandlers, KeStallExecutionProcessor),
 
@@ -314,6 +315,28 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
         state->bypassFunction(3);
         throw CpuExitException();
     }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Skip the call in the current state
+    state->bypassFunction(4);
+
+    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+                            createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

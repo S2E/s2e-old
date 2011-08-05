@@ -174,7 +174,7 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
 
 void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state)
 {
-    s2e()->getDebugStream(state) << "Returning from NDIS entry point "
+    s2e()->getDebugStream(state) << "Returning from WindowsDriverExerciser entry point "
                 << " at " << hexval(state->getPc()) << std::endl;
 
     if(m_memoryChecker) {
