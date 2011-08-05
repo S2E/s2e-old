@@ -42,13 +42,13 @@
 #include <s2e/Plugins/Example.h>
 #include <s2e/Plugins/RawMonitor.h>
 #include <s2e/Plugins/FunctionMonitor.h>
+#include <s2e/Plugins/LibraryCallMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
 #include <s2e/Plugins/WindowsInterceptor/WindowsCrashDumpGenerator.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/CodeSelector.h>
 #include <s2e/Plugins/BaseInstructions.h>
-
 #include <s2e/Plugins/DataSelectors/WindowsService.h>
 #include <s2e/Plugins/DataSelectors/GenericDataSelector.h>
 #include <s2e/Plugins/ExecutionTracers/ExecutionTracer.h>
@@ -65,14 +65,11 @@
 #include <s2e/Plugins/Annotation.h>
 #include <s2e/Plugins/X86ExceptionInterceptor.h>
 #include <s2e/Plugins/HostFiles.h>
-
 #include <s2e/Plugins/MemoryChecker.h>
-
 #include <s2e/Plugins/WindowsApi/NdisHandlers.h>
 #include <s2e/Plugins/WindowsApi/NtoskrnlHandlers.h>
 #include <s2e/Plugins/WindowsApi/HalHandlers.h>
 #include <s2e/Plugins/WindowsApi/WindowsDriverExerciser.h>
-
 #include <s2e/Plugins/Searchers/MaxTbSearcher.h>
 #include <s2e/Plugins/Searchers/CooperativeSearcher.h>
 
@@ -105,6 +102,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(CorePlugin);
     __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
     __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
+    __S2E_REGISTER_PLUGIN(plugins::LibraryCallMonitor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::BlueScreenInterceptor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsCrashDumpGenerator);
@@ -114,6 +112,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::WindowsService);
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);
+
     __S2E_REGISTER_PLUGIN(plugins::ExecutionTracer);
     __S2E_REGISTER_PLUGIN(plugins::ModuleTracer);
     __S2E_REGISTER_PLUGIN(plugins::TestCaseGenerator);
