@@ -60,6 +60,7 @@ extern struct CPUX86State *env;
 #include <llvm/Support/CommandLine.h>
 
 #include <iomanip>
+#include <sstream>
 
 //XXX: The idea is to avoid function calls
 //#define small_memcpy(dest, source, count) asm volatile ("cld; rep movsb"::"S"(source), "D"(dest), "c" (count):"flags", "memory")
@@ -83,6 +84,8 @@ MemoryObject *S2EExecutionState::m_cpuRegistersState = NULL;
 MemoryObject *S2EExecutionState::m_cpuSystemState = NULL;
 MemoryObject *S2EExecutionState::m_dirtyMask = NULL;
 
+unsigned S2EExecutionState::s_lastSymbolicId = 0;
+
 S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         klee::ExecutionState(kf), m_stateID(g_s2e->fetchAndIncrementStateId()),
         m_symbexEnabled(true), m_startSymbexAtPC((uint64_t) -1),
@@ -90,7 +93,7 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
         m_qemuIcount(0), m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
-        m_needFinalizeTBExec(false)
+        m_needFinalizeTBExec(false), m_nextSymbVarId(0)
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
@@ -994,31 +997,31 @@ void S2EExecutionState::writeRegisterConcrete(CPUX86State *cpuState,
 
 }
 
-
-namespace {
-static int _lastSymbolicId = 0;
-
-std::string s2e_get_unique_varname(const std::string &name)
+std::string S2EExecutionState::getUniqueVarName(const std::string &name)
 {
-    std::string sname;
+    std::stringstream ss;
+
+    ss << "v" << (m_nextSymbVarId++) << "_";
+
     for (unsigned i=0; i<name.size(); ++i) {
         if (isspace(name[i])) {
-            sname += '_';
+            ss  << '_';
         }else {
-            sname += name[i];
+            ss << name[i];
         }
     }
-    sname = (!sname.empty() ? ("v_"+sname) : "symb_") + llvm::utostr(++_lastSymbolicId);
-    return sname;
+
+    ss << "_" << s_lastSymbolicId;
+    ++s_lastSymbolicId;
+    return ss.str();
 }
 
-}
 
 ref<Expr> S2EExecutionState::createSymbolicValue(
             Expr::Width width, const std::string& name)
 {
 
-    std::string sname = s2e_get_unique_varname(name);
+    std::string sname = getUniqueVarName(name);
 
     const Array *array = new Array(sname, Expr::getMinBytesForWidth(width));
 
@@ -1036,7 +1039,7 @@ ref<Expr> S2EExecutionState::createSymbolicValue(
 std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
             unsigned size, const std::string& name)
 {
-    std::string sname = s2e_get_unique_varname(name);
+    std::string sname = getUniqueVarName(name);
     const Array *array = new Array(sname, size);
 
     UpdateList ul(array, 0);

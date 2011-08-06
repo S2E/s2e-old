@@ -91,6 +91,8 @@ class S2EExecutionState : public klee::ExecutionState
 protected:
     friend class S2EExecutor;
 
+    static unsigned s_lastSymbolicId;
+
     /** Unique numeric ID for the state */
     int m_stateID;
 
@@ -145,12 +147,16 @@ protected:
 
     bool m_needFinalizeTBExec;
 
+    unsigned m_nextSymbVarId;
+
     S2EStateStats m_stats;
 
     ExecutionState* clone();
     void addressSpaceChange(const klee::MemoryObject *mo,
                             const klee::ObjectState *oldState,
                             klee::ObjectState *newState);
+
+    std::string getUniqueVarName(const std::string &name);
 
 public:
     enum AddressType {
