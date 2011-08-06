@@ -147,7 +147,9 @@ void S2EDeviceState::initDeviceState()
     ignoreList.insert("ram");
     ignoreList.insert("block");
     ignoreList.insert("goldfish_fb");
-    ignoreList.insert("goldfish_tty");
+    ignoreList.insert("qemud");
+    ignoreList.insert("nand_dev");
+
 
     g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
 

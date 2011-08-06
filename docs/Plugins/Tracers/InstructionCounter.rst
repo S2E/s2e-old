@@ -14,6 +14,7 @@ Required Plugins
 ----------------
 
 * `ExecutionTracer <ExecutionTracer.html>`_
+* `ModuleExecutionDetector <../ModuleExecutionDetector.html>`_
 
 Configuration Sample
 --------------------

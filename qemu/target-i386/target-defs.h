@@ -1,0 +1,1 @@
+#define TARGET_PAGE_BITS 12

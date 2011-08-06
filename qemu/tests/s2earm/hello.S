@@ -240,7 +240,7 @@ stm0:
 	bge stm1
 
 	mov r10, #0
-@ comment the following two lines to have single-state memory check / multi-state-memory-check
+@ comment the following two lines to have single-state memory check /uncomment for  multi-state-memory-check
 	bl symbolic_int
     ldr r10, [r8,#0]	@get the symbolic value
 

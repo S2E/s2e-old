@@ -193,7 +193,7 @@ namespace {
 cl::opt<bool>
 PrintModeSwitch("print-mode-switch",
                 cl::desc("Print message when switching from symbolic to concrete and vice versa"),
-                cl::init(false));
+                cl::init(true));
 
 extern "C" {
     int g_s2e_fork_on_symbolic_address = 0;
@@ -201,7 +201,7 @@ extern "C" {
     int g_s2e_concretize_io_writes = 1;
 }
 
-static bool S2EDebugInstructions = true;
+static bool S2EDebugInstructions = false;
 
 namespace s2e {
 
