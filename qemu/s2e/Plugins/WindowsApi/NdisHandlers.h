@@ -57,7 +57,9 @@
 namespace s2e {
 namespace plugins {
 
-#define NDIS_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<NdisHandlers, NdisHandlers::EntryPoint>(state, this, &NdisHandlers::ep, addr);
+#define NDIS_REGISTER_ENTRY_POINT(addr, ep) \
+    s2e()->getDebugStream() << "Registering " << #ep << " at 0x" << std::hex << (addr) << std::endl; \
+    registerEntryPoint<NdisHandlers, NdisHandlers::EntryPoint>(state, this, &NdisHandlers::ep, addr);
 
 class NdisHandlers : public WindowsApi
 {
@@ -120,7 +122,12 @@ private:
     DECLARE_ENTRY_POINT(NdisAllocatePacket, uint32_t pStatus, uint32_t pPacket);
     DECLARE_ENTRY_POINT_CO(NdisFreePacket);
 
+    DECLARE_ENTRY_POINT(NdisAllocateBufferPool);
+    DECLARE_ENTRY_POINT(NdisAllocatePacketPool);
+    DECLARE_ENTRY_POINT(NdisAllocatePacketPoolEx);
     DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer, uint32_t Length);
+
+    DECLARE_ENTRY_POINT(NdisOpenAdapter);
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
@@ -149,6 +156,32 @@ private:
 
     void QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery);
     void QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery);
+
+    //Protocol entry points
+    DECLARE_ENTRY_POINT(NdisRegisterProtocol);
+
+    DECLARE_ENTRY_POINT(OpenAdapterCompleteHandler);
+    DECLARE_ENTRY_POINT(CloseAdapterCompleteHandler);
+    DECLARE_ENTRY_POINT(SendCompleteHandler);
+    DECLARE_ENTRY_POINT(TransferDataCompleteHandler);
+    DECLARE_ENTRY_POINT(ResetCompleteHandler);
+    DECLARE_ENTRY_POINT(RequestCompleteHandler);
+    DECLARE_ENTRY_POINT(ReceiveHandler);
+    DECLARE_ENTRY_POINT(ReceiveCompleteHandler);
+    DECLARE_ENTRY_POINT(StatusHandler);
+    DECLARE_ENTRY_POINT(StatusCompleteHandler);
+
+    DECLARE_ENTRY_POINT(ReceivePacketHandler);
+    DECLARE_ENTRY_POINT(BindAdapterHandler);
+    DECLARE_ENTRY_POINT(UnbindAdapterHandler);
+    DECLARE_ENTRY_POINT(PnPEventHandler);
+    DECLARE_ENTRY_POINT(UnloadHandler);
+
+    DECLARE_ENTRY_POINT(CoSendCompleteHandler);
+    DECLARE_ENTRY_POINT(CoStatusHandler);
+    DECLARE_ENTRY_POINT(CoReceivePacketHandler);
+    DECLARE_ENTRY_POINT(CoAfRegisterNotifyHandler);
+
 
     //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 };

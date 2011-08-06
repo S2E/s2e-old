@@ -135,7 +135,9 @@ void WindowsDriverExerciser::onModuleUnload(
     }
 
     //XXX: We might want to monitor multiple modules, so avoid killing
-    s2e()->getExecutor()->terminateStateEarly(*state, "Module unloaded");
+    std::stringstream ss;
+    ss << module.Name << " unloaded";
+    s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
     return;
 }
 

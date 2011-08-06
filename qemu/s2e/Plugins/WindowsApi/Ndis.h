@@ -39,25 +39,69 @@
 #define _NDIS_H_
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
+#include "NtoskrnlHandlers.h"
 
 namespace s2e {
 namespace windows {
 
-#define NDIS_STATUS_SUCCESS 0
-#define NDIS_STATUS_FAILURE 0xC0000001L
-#define NDIS_STATUS_RESOURCES 0xc000009a
-#define NDIS_STATUS_RESOURCE_CONFLICT 0xc001001E
+static const uint32_t NDIS_STATUS_SUCCESS = 0;
+static const uint32_t NDIS_STATUS_PENDING = STATUS_PENDING;
+static const uint32_t NDIS_STATUS_FAILURE = 0xC0000001L;
+static const uint32_t NDIS_STATUS_CLOSING = 0xC0010002L;
+static const uint32_t NDIS_STATUS_BAD_VERSION = 0xC0010004L;
+static const uint32_t NDIS_STATUS_BAD_CHARACTERISTICS = 0xC0010005L;
+static const uint32_t NDIS_STATUS_ADAPTER_NOT_FOUND = 0xC0010006L;
+static const uint32_t NDIS_STATUS_OPEN_FAILED = 0xC0010007L;
+static const uint32_t NDIS_STATUS_UNSUPPORTED_MEDIA = 0xC0010019L;
+static const uint32_t NDIS_STATUS_RESOURCES = 0xc000009a;
+static const uint32_t NDIS_STATUS_RESOURCE_CONFLICT = 0xc001001E;
 
-#define NDIS_STATUS_MEDIA_CONNECT               (0x4001000BL)
-#define NDIS_STATUS_MEDIA_DISCONNECT            (0x4001000CL)
 
+static const uint32_t NDIS_STATUS_MEDIA_CONNECT = 0x4001000BL;
+static const uint32_t NDIS_STATUS_MEDIA_DISCONNECT = 0x4001000CL;
 
-#define OID_GEN_MEDIA_CONNECT_STATUS 0x00010114
+static const uint32_t OID_GEN_MEDIA_CONNECT_STATUS = 0x00010114;
 
 #define NDIS_ERROR_CODE unsigned long
 typedef uint32_t NDIS_HANDLE, *PNDIS_HANDLE;
 
 typedef int NDIS_STATUS, *PNDIS_STATUS; // note default size
+typedef UNICODE_STRING32 NDIS_STRING, *PNDIS_STRING;
+
+struct NDIS_PROTOCOL_CHARACTERISTICS32 {
+    uint8_t MajorNdisVersion;
+    uint8_t MinorNdisVersion;
+    uint16_t __align;
+    uint32_t Reserved;
+    uint32_t OpenAdapterCompleteHandler;
+    uint32_t CloseAdapterCompleteHandler;
+    uint32_t SendCompleteHandler;
+    uint32_t TransferDataCompleteHandler;
+    uint32_t ResetCompleteHandler;
+    uint32_t RequestCompleteHandler;
+    uint32_t ReceiveHandler;
+    uint32_t ReceiveCompleteHandler;
+    uint32_t StatusHandler;
+    uint32_t StatusCompleteHandler;
+    NDIS_STRING Name;
+//
+// MajorNdisVersion must be set to 0x04 or 0x05
+// with any of the following members.
+//
+    uint32_t ReceivePacketHandler;
+    uint32_t BindAdapterHandler;
+    uint32_t UnbindAdapterHandler;
+    uint32_t PnPEventHandler;
+    uint32_t UnloadHandler;
+//
+// MajorNdisVersion must be set to 0x05
+// with any of the following members.
+//
+    uint32_t CoSendCompleteHandler;
+    uint32_t CoStatusHandler;
+    uint32_t CoReceivePacketHandler;
+    uint32_t CoAfRegisterNotifyHandler;
+}__attribute__((packed));
 
 typedef struct _NDIS_MINIPORT_CHARACTERISTICS32 {
     uint8_t MajorNdisVersion;
@@ -100,7 +144,6 @@ typedef struct _NDIS_MINIPORT_CHARACTERISTICS32 {
     uint32_t AdapterShutdownHandler;
 } NDIS_MINIPORT_CHARACTERISTICS32, *PNDIS_MINIPORT_CHARACTERISTICS32;
 
-typedef s2e::windows::UNICODE_STRING32 NDIS_STRING, *PNDIS_STRING;
 
 typedef enum _NDIS_PARAMETER_TYPE {
   NdisParameterInteger=0,

@@ -75,8 +75,13 @@ const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NdisHandlers, NdisMFreeSharedMemory),
 
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocateBuffer),
+    DECLARE_EP_STRUC(NdisHandlers, NdisAllocateBufferPool),
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocatePacket),
+    DECLARE_EP_STRUC(NdisHandlers, NdisAllocatePacketPool),
+    DECLARE_EP_STRUC(NdisHandlers, NdisAllocatePacketPoolEx),
     DECLARE_EP_STRUC(NdisHandlers, NdisFreePacket),
+
+    DECLARE_EP_STRUC(NdisHandlers, NdisOpenAdapter),
 
     DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterIoPortRange),
     DECLARE_EP_STRUC(NdisHandlers, NdisMMapIoSpace),
@@ -96,7 +101,9 @@ const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NdisHandlers, NdisWriteErrorLogEntry),
 
     DECLARE_EP_STRUC(NdisHandlers, NdisReadPciSlotInformation),
-    DECLARE_EP_STRUC(NdisHandlers, NdisWritePciSlotInformation)
+    DECLARE_EP_STRUC(NdisHandlers, NdisWritePciSlotInformation),
+
+    DECLARE_EP_STRUC(NdisHandlers, NdisRegisterProtocol)
 };
 
 const NdisHandlers::NdisHandlersMap NdisHandlers::s_handlersMap = WindowsApi::initializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
@@ -493,6 +500,161 @@ void NdisHandlers::NdisFreePacket(S2EExecutionState *state, FunctionMonitorState
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisAllocateBufferPool(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    uint32_t pStatus;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pStatus);
+    if (!ok) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Skip the call in the current state
+    state->bypassFunction(3);
+
+    //Write symbolic status code
+    state->writeMemory(pStatus, createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisAllocatePacketPool(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    uint32_t pStatus;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pStatus);
+    if (!ok) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    klee::ref<klee::Expr> symb;
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    }else {
+        std::vector<uint32_t> vec;
+        vec.push_back(NDIS_STATUS_RESOURCES);
+        symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+    }
+    state->writeMemory(pStatus, symb);
+
+    //Skip the call in the current state
+    state->bypassFunction(4);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisAllocatePacketPoolEx(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    uint32_t pStatus;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pStatus);
+    if (!ok) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Write symbolic status code
+    klee::ref<klee::Expr> symb;
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    }else {
+        std::vector<uint32_t> vec;
+        vec.push_back(NDIS_STATUS_RESOURCES);
+        symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    }
+    state->writeMemory(pStatus, symb);
+
+    //Skip the call in the current state
+    state->bypassFunction(5);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisOpenAdapter(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    uint32_t pStatus;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pStatus);
+    if (!ok) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Write symbolic status code
+    klee::ref<klee::Expr> symb;
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    }else {
+        std::vector<uint32_t> vec;
+        //This is a success code. Might cause problems later...
+        //vec.push_back(NDIS_STATUS_PENDING);
+        vec.push_back(NDIS_STATUS_RESOURCES);
+        vec.push_back(NDIS_STATUS_ADAPTER_NOT_FOUND);
+        vec.push_back(NDIS_STATUS_UNSUPPORTED_MEDIA);
+        vec.push_back(NDIS_STATUS_CLOSING);
+        vec.push_back(NDIS_STATUS_OPEN_FAILED);
+        symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+    }
+    state->writeMemory(pStatus, symb);
+
+    //Skip the call in the current state
+    state->bypassFunction(11);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::NdisAllocateBuffer(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }

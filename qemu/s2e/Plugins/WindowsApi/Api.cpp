@@ -234,6 +234,26 @@ klee::ref<klee::Expr> WindowsApi::createFailure(S2EExecutionState *state, const 
     return symb;
 }
 
+klee::ref<klee::Expr> WindowsApi::addDisjunctionToConstraints(S2EExecutionState *state, const std::string &varName,
+                                                    std::vector<uint32_t> values)
+{
+    klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, varName);
+    klee::ref<klee::Expr> constr;
+
+    bool first = true;
+    foreach2(it, values.begin(), values.end()) {
+        klee::ref<klee::Expr> expr = klee::EqExpr::create(klee::ConstantExpr::create(*it, symb.get()->getWidth()), symb);
+        if (first) {
+            constr = expr;
+            first = false;
+        }else {
+            constr = klee::OrExpr::create(constr, expr);
+        }
+    }
+    state->addConstraint(constr);
+    return symb;
+}
+
 //Address is a pointer to a UNICODE_STRING32 structure
 bool WindowsApi::ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s)
 {

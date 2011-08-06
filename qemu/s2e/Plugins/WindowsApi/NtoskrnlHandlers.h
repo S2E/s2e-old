@@ -53,8 +53,6 @@
 namespace s2e {
 namespace plugins {
 
-#define STATUS_SUCCESS 0
-
 #define NTOSKRNL_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>(state, this, &NtoskrnlHandlers::ep, addr);
 
 class NtoskrnlHandlers: public WindowsApi
@@ -96,6 +94,10 @@ private:
 
     DECLARE_ENTRY_POINT(RtlEqualUnicodeString);
     DECLARE_ENTRY_POINT(RtlAddAccessAllowedAce);
+    DECLARE_ENTRY_POINT(RtlCreateSecurityDescriptor);
+    DECLARE_ENTRY_POINT(RtlSetDaclSecurityDescriptor);
+    DECLARE_ENTRY_POINT(RtlAbsoluteToSelfRelativeSD);
+
 
     DECLARE_ENTRY_POINT(GetSystemUpTime);
     DECLARE_ENTRY_POINT(KeStallExecutionProcessor);
@@ -104,6 +106,33 @@ private:
 };
 
 }
+
+namespace windows {
+    static const uint32_t STATUS_SUCCESS = 0;
+    static const uint32_t STATUS_PENDING = 0x00000103;
+    static const uint32_t STATUS_BUFFER_TOO_SMALL = 0xC0000023;
+    static const uint32_t STATUS_UNKNOWN_REVISION = 0xC0000058;
+    static const uint32_t STATUS_INVALID_SECURITY_DESCR = 0xC0000079;
+    static const uint32_t STATUS_BAD_DESCRIPTOR_FORMAT = 0xC00000E7;
+
+    typedef uint32_t PACL32;
+    typedef uint32_t PSID32;
+    typedef uint16_t SECURITY_DESCRIPTOR_CONTROL;
+
+
+    struct SECURITY_DESCRIPTOR32 {
+        uint8_t Revision;
+        uint8_t Sbz1;
+        SECURITY_DESCRIPTOR_CONTROL Control;
+        PSID32 Owner;
+        PSID32 Group;
+        PACL32 Sacl;
+        PACL32 Dacl;
+    }__attribute__((packed));
+
+}
+
+
 }
 
 #endif

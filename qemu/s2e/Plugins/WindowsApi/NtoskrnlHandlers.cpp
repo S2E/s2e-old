@@ -75,6 +75,10 @@ const WindowsApiHandler<NtoskrnlHandlers::EntryPoint> NtoskrnlHandlers::s_handle
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, RtlEqualUnicodeString),
     DECLARE_EP_STRUC(NtoskrnlHandlers, RtlAddAccessAllowedAce),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, RtlCreateSecurityDescriptor),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, RtlSetDaclSecurityDescriptor),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, RtlAbsoluteToSelfRelativeSD),
+
     DECLARE_EP_STRUC(NtoskrnlHandlers, GetSystemUpTime),
     DECLARE_EP_STRUC(NtoskrnlHandlers, KeStallExecutionProcessor),
 
@@ -279,7 +283,6 @@ void NtoskrnlHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitor
     if (readConcreteParameter(state, 0, &valPtr)) {
         state->writeMemory(valPtr, ret);
         state->bypassFunction(1);
-        throw CpuExitException();
     }
 }
 
@@ -291,7 +294,6 @@ void NtoskrnlHandlers::KeStallExecutionProcessor(S2EExecutionState* state, Funct
     s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
 
     state->bypassFunction(1);
-    throw CpuExitException();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -313,7 +315,6 @@ void NtoskrnlHandlers::RtlEqualUnicodeString(S2EExecutionState* state, FunctionM
         klee::ref<klee::Expr> eax = state->createSymbolicValue(klee::Expr::Int32, __FUNCTION__);
         state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), eax);
         state->bypassFunction(3);
-        throw CpuExitException();
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -339,6 +340,135 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
                             createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+                                createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
+    }else {
+        //Put bogus stuff in the structure
+        uint32_t pSecurityDescriptor = 0;
+        if (readConcreteParameter(state, 0, &pSecurityDescriptor)) {
+            SECURITY_DESCRIPTOR32 secDesc;
+            memset(&secDesc, -1, sizeof(SECURITY_DESCRIPTOR32));
+            secDesc.Control = 0;
+            state->writeMemoryConcrete(pSecurityDescriptor, &secDesc, sizeof(secDesc));
+        }
+
+        std::vector<uint32_t> vec;
+        vec.push_back(STATUS_UNKNOWN_REVISION);
+        klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    }
+
+    //Skip the call in the current state
+    state->bypassFunction(2);
+
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::RtlSetDaclSecurityDescriptor(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+                                createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
+    }else {
+        std::vector<uint32_t> vec;
+        vec.push_back(STATUS_UNKNOWN_REVISION);
+        vec.push_back(STATUS_INVALID_SECURITY_DESCR);
+        klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    }
+
+    //Skip the call in the current state
+    state->bypassFunction(4);
+
+    //Register the return handler
+    S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
+    FUNCMON_REGISTER_RETURN(otherState, m_functionMonitor, NtoskrnlHandlers::RtlSetDaclSecurityDescriptorRet);
+}
+
+void NtoskrnlHandlers::RtlSetDaclSecurityDescriptorRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+    uint32_t res;
+    if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
+        if ((int)res < 0) {
+            HANDLER_TRACE_FCNFAILED_VAL(res);
+        }
+    }
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSD(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]),
+                                createFailure(state, getVariableName(state, __FUNCTION__) + "_result"));
+    }else {
+        std::vector<uint32_t> vec;
+        vec.push_back(STATUS_BAD_DESCRIPTOR_FORMAT);
+        vec.push_back(STATUS_BUFFER_TOO_SMALL);
+        klee::ref<klee::Expr> symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+        state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+    }
+
+    //Skip the call in the current state
+    state->bypassFunction(3);
+
+    //Register the return handler
+    S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
+    FUNCMON_REGISTER_RETURN(otherState, m_functionMonitor, NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSDRet);
+}
+
+void NtoskrnlHandlers::RtlAbsoluteToSelfRelativeSDRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+    uint32_t res;
+    if (state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &res, sizeof(res))) {
+        if ((int)res < 0) {
+            HANDLER_TRACE_FCNFAILED_VAL(res);
+        }
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionMonitorState *fns)
 {

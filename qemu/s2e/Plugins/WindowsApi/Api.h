@@ -67,6 +67,7 @@ namespace plugins {
 #define HANDLER_TRACE_CALL() s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl
 #define HANDLER_TRACE_RETURN() s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl
 #define HANDLER_TRACE_FCNFAILED() s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed" << std::endl
+#define HANDLER_TRACE_FCNFAILED_VAL(val) s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed with 0x" << std::hex << (val) << std::endl
 
 template <typename F>
 struct WindowsApiHandler {
@@ -87,6 +88,8 @@ public:
     static bool NtSuccess(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &eq);
     static bool NtFailure(S2E *s2e, S2EExecutionState *s, klee::ref<klee::Expr> &expr);
     static klee::ref<klee::Expr> createFailure(S2EExecutionState *state, const std::string &varName);
+    klee::ref<klee::Expr> addDisjunctionToConstraints(S2EExecutionState *state, const std::string &varName,
+                                                        std::vector<uint32_t> values);
     static bool ReadUnicodeString(S2EExecutionState *state, uint32_t address, std::string &s);
 
     static klee::ref<klee::Expr> readParameter(S2EExecutionState *s, unsigned param);
@@ -167,6 +170,9 @@ protected:
                             HANDLING_PLUGIN *handlingPlugin,
                             HANDLER_PTR handler, uint64_t address)
     {
+        if (!address) {
+            return false;
+        }
         FunctionMonitor::CallSignal* cs;
         cs = m_functionMonitor->getCallSignal(state, address, 0);
         cs->connect(sigc::mem_fun(*handlingPlugin, handler));

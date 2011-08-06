@@ -43,4 +43,309 @@ extern "C" {
 #include "NdisHandlers.h"
 #include "Ndis.h"
 
+namespace s2e {
+namespace plugins {
 
+using namespace windows;
+
+void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Extract the function pointers from the passed data structure
+    uint32_t pProtocol, pStatus;
+    if (!readConcreteParameter(state, 2, &pProtocol)) {
+        return;
+    }
+    if (!readConcreteParameter(state, 0, &pStatus)) {
+        return;
+    }
+
+
+    s2e()->getMessagesStream() << "NDIS_PROTOCOL_CHARACTERISTICS @0x" << pProtocol << std::endl;
+
+    s2e::windows::NDIS_PROTOCOL_CHARACTERISTICS32 Protocol;
+    if (!state->readMemoryConcrete(pProtocol, &Protocol, sizeof(Protocol))) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    //Register each handler
+    NDIS_REGISTER_ENTRY_POINT(Protocol.OpenAdapterCompleteHandler, OpenAdapterCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.CloseAdapterCompleteHandler, CloseAdapterCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.SendCompleteHandler, SendCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.TransferDataCompleteHandler, TransferDataCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.ResetCompleteHandler, ResetCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.RequestCompleteHandler, RequestCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.ReceiveHandler, ReceiveHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.ReceiveCompleteHandler, ReceiveCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.StatusHandler, StatusHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.StatusCompleteHandler, StatusCompleteHandler);
+
+    NDIS_REGISTER_ENTRY_POINT(Protocol.ReceivePacketHandler, ReceivePacketHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.BindAdapterHandler, BindAdapterHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.UnbindAdapterHandler, UnbindAdapterHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.PnPEventHandler, PnPEventHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.UnloadHandler, UnloadHandler);
+
+    NDIS_REGISTER_ENTRY_POINT(Protocol.CoSendCompleteHandler, CoSendCompleteHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.CoStatusHandler, CoStatusHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.CoReceivePacketHandler, CoReceivePacketHandler);
+    NDIS_REGISTER_ENTRY_POINT(Protocol.CoAfRegisterNotifyHandler, CoAfRegisterNotifyHandler);
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    klee::ref<klee::Expr> symb;
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    }else {
+        std::vector<uint32_t> vec;
+        vec.push_back(NDIS_STATUS_RESOURCES);
+        vec.push_back(NDIS_STATUS_BAD_CHARACTERISTICS);
+        vec.push_back(NDIS_STATUS_BAD_VERSION);
+        symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+    }
+    state->writeMemory(pStatus, symb);
+
+    //Skip the call in the current state
+    state->bypassFunction(4);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::OpenAdapterCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::OpenAdapterCompleteHandlerRet)
+}
+
+void NdisHandlers::OpenAdapterCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::CloseAdapterCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::CloseAdapterCompleteHandlerRet)
+}
+
+void NdisHandlers::CloseAdapterCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::SendCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SendCompleteHandlerRet)
+}
+
+void NdisHandlers::SendCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::TransferDataCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::TransferDataCompleteHandlerRet)
+}
+
+void NdisHandlers::TransferDataCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::ResetCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ResetCompleteHandlerRet)
+}
+
+void NdisHandlers::ResetCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::RequestCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::RequestCompleteHandlerRet)
+}
+
+void NdisHandlers::RequestCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::ReceiveHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ReceiveHandlerRet)
+}
+
+void NdisHandlers::ReceiveHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::ReceiveCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ReceiveCompleteHandlerRet)
+}
+
+void NdisHandlers::ReceiveCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::StatusHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::StatusHandlerRet)
+}
+
+void NdisHandlers::StatusHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::StatusCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::StatusCompleteHandlerRet)
+}
+
+void NdisHandlers::StatusCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::ReceivePacketHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::ReceivePacketHandlerRet)
+}
+
+void NdisHandlers::ReceivePacketHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::BindAdapterHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::BindAdapterHandlerRet)
+}
+
+void NdisHandlers::BindAdapterHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::UnbindAdapterHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::UnbindAdapterHandlerRet)
+}
+
+void NdisHandlers::UnbindAdapterHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::PnPEventHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::PnPEventHandlerRet)
+}
+
+void NdisHandlers::PnPEventHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::UnloadHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::UnloadHandlerRet)
+}
+
+void NdisHandlers::UnloadHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::CoSendCompleteHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::CoSendCompleteHandlerRet)
+}
+
+void NdisHandlers::CoSendCompleteHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::CoStatusHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::CoStatusHandlerRet)
+}
+
+void NdisHandlers::CoStatusHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::CoReceivePacketHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::CoReceivePacketHandlerRet)
+}
+
+void NdisHandlers::CoReceivePacketHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::CoAfRegisterNotifyHandler(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    HANDLER_TRACE_CALL();
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::CoAfRegisterNotifyHandlerRet)
+}
+
+void NdisHandlers::CoAfRegisterNotifyHandlerRet(S2EExecutionState* state)
+{
+    HANDLER_TRACE_RETURN();
+}
+
+}
+}
