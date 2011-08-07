@@ -771,6 +771,475 @@ struct PHYSICAL_MEMORY_DESCRIPTOR {
     PHYSICAL_MEMORY_RUN Run[1];
 }__attribute__((packed));
 
+static const uint32_t STATUS_SUCCESS = 0;
+static const uint32_t STATUS_PENDING = 0x00000103;
+static const uint32_t STATUS_BUFFER_TOO_SMALL = 0xC0000023;
+static const uint32_t STATUS_UNKNOWN_REVISION = 0xC0000058;
+static const uint32_t STATUS_INVALID_SECURITY_DESCR = 0xC0000079;
+static const uint32_t STATUS_BAD_DESCRIPTOR_FORMAT = 0xC00000E7;
+
+typedef uint32_t PACL32;
+typedef uint32_t PSID32;
+typedef uint16_t SECURITY_DESCRIPTOR_CONTROL;
+typedef uint32_t PDEVICE_OBJECT32;
+typedef uint8_t KPROCESSOR_MODE;
+typedef uint8_t BOOLEAN;
+typedef uint8_t UCHAR;
+typedef uint16_t USHORT;
+typedef uint32_t ULONG;
+typedef uint32_t HANDLE;
+
+typedef ULONG SECURITY_INFORMATION;
+typedef uint32_t LCID;
+
+#define POINTER_ALIGNMENT
+
+enum DEVICE_RELATION_TYPE {
+    BusRelations,
+    EjectionRelations,
+    PowerRelations,
+    RemovalRelations,
+    TargetDeviceRelation,
+    SingleBusRelations
+};
+
+enum BUS_QUERY_ID_TYPE{
+    BusQueryDeviceID = 0,
+    BusQueryHardwareIDs = 1,
+    BusQueryCompatibleIDs = 2,
+    BusQueryInstanceID = 3,
+    BusQueryDeviceSerialNumber = 4
+};
+
+enum DEVICE_TEXT_TYPE {
+    DeviceTextDescription = 0,
+    DeviceTextLocationInformation = 1
+};
+
+enum DEVICE_USAGE_NOTIFICATION_TYPE {
+    DeviceUsageTypeUndefined,
+    DeviceUsageTypePaging,
+    DeviceUsageTypeHibernation,
+    DeviceUsageTypeDumpFile
+};
+
+enum SYSTEM_POWER_STATE {
+    PowerSystemUnspecified = 0,
+    PowerSystemWorking     = 1,
+    PowerSystemSleeping1   = 2,
+    PowerSystemSleeping2   = 3,
+    PowerSystemSleeping3   = 4,
+    PowerSystemHibernate   = 5,
+    PowerSystemShutdown    = 6,
+    PowerSystemMaximum     = 7
+};
+
+enum POWER_STATE_TYPE {
+    SystemPowerState = 0,
+    DevicePowerState
+};
+
+enum DEVICE_POWER_STATE {
+    PowerDeviceUnspecified = 0,
+    PowerDeviceD0,
+    PowerDeviceD1,
+    PowerDeviceD2,
+    PowerDeviceD3,
+    PowerDeviceMaximum
+};
+
+enum POWER_ACTION{
+    PowerActionNone = 0,
+    PowerActionReserved,
+    PowerActionSleep,
+    PowerActionHibernate,
+    PowerActionShutdown,
+    PowerActionShutdownReset,
+    PowerActionShutdownOff,
+    PowerActionWarmEject
+};
+
+union POWER_STATE {
+    SYSTEM_POWER_STATE SystemState;
+    DEVICE_POWER_STATE DeviceState;
+};
+
+enum FILE_INFORMATION_CLASS {
+    FileDirectoryInformation         = 1,
+    FileFullDirectoryInformation,   // 2
+    FileBothDirectoryInformation,   // 3
+    FileBasicInformation,           // 4
+    FileStandardInformation,        // 5
+    FileInternalInformation,        // 6
+    FileEaInformation,              // 7
+    FileAccessInformation,          // 8
+    FileNameInformation,            // 9
+    FileRenameInformation,          // 10
+    FileLinkInformation,            // 11
+    FileNamesInformation,           // 12
+    FileDispositionInformation,     // 13
+    FilePositionInformation,        // 14
+    FileFullEaInformation,          // 15
+    FileModeInformation,            // 16
+    FileAlignmentInformation,       // 17
+    FileAllInformation,             // 18
+    FileAllocationInformation,      // 19
+    FileEndOfFileInformation,       // 20
+    FileAlternateNameInformation,   // 21
+    FileStreamInformation,          // 22
+    FilePipeInformation,            // 23
+    FilePipeLocalInformation,       // 24
+    FilePipeRemoteInformation,      // 25
+    FileMailslotQueryInformation,   // 26
+    FileMailslotSetInformation,     // 27
+    FileCompressionInformation,     // 28
+    FileObjectIdInformation,        // 29
+    FileCompletionInformation,      // 30
+    FileMoveClusterInformation,     // 31
+    FileQuotaInformation,           // 32
+    FileReparsePointInformation,    // 33
+    FileNetworkOpenInformation,     // 34
+    FileAttributeTagInformation,    // 35
+    FileTrackingInformation,        // 36
+    FileIdBothDirectoryInformation, // 37
+    FileIdFullDirectoryInformation, // 38
+    FileValidDataLengthInformation, // 39
+    FileShortNameInformation,       // 40
+    FileMaximumInformation
+};
+
+enum FS_INFORMATION_CLASS {
+    FileFsVolumeInformation       = 1,
+    FileFsLabelInformation,      // 2
+    FileFsSizeInformation,       // 3
+    FileFsDeviceInformation,     // 4
+    FileFsAttributeInformation,  // 5
+    FileFsControlInformation,    // 6
+    FileFsFullSizeInformation,   // 7
+    FileFsObjectIdInformation,   // 8
+    FileFsDriverPathInformation, // 9
+    FileFsMaximumInformation
+};
+
+struct SECURITY_DESCRIPTOR32 {
+    uint8_t Revision;
+    uint8_t Sbz1;
+    SECURITY_DESCRIPTOR_CONTROL Control;
+    PSID32 Owner;
+    PSID32 Group;
+    PACL32 Sacl;
+    PACL32 Dacl;
+}__attribute__((packed));
+
+struct IO_STACK_LOCATION {
+    UCHAR MajorFunction;
+    UCHAR MinorFunction;
+    UCHAR Flags;
+    UCHAR Control;
+
+    union {
+        struct {
+            uint32_t SecurityContext;
+            ULONG Options;
+            USHORT POINTER_ALIGNMENT FileAttributes;
+            USHORT ShareAccess;
+            ULONG POINTER_ALIGNMENT EaLength;
+        } Create;
+
+        struct {
+            ULONG Length;
+            ULONG POINTER_ALIGNMENT Key;
+            uint64_t ByteOffset;
+        } Read;
+
+        struct {
+            ULONG Length;
+            ULONG POINTER_ALIGNMENT Key;
+            uint64_t ByteOffset;
+        } Write;
+
+        struct {
+            ULONG Length;
+            FILE_INFORMATION_CLASS POINTER_ALIGNMENT FileInformationClass;
+        } QueryFile;
+
+        struct {
+            ULONG Length;
+            FILE_INFORMATION_CLASS POINTER_ALIGNMENT FileInformationClass;
+            uint32_t FileObject;
+            union {
+                struct {
+                    BOOLEAN ReplaceIfExists;
+                    BOOLEAN AdvanceOnly;
+                };
+                ULONG ClusterCount;
+                HANDLE DeleteHandle;
+            };
+        } SetFile;
+
+        struct {
+            ULONG Length;
+            FS_INFORMATION_CLASS POINTER_ALIGNMENT FsInformationClass;
+        } QueryVolume;
+
+
+        struct {
+            ULONG OutputBufferLength;
+            ULONG POINTER_ALIGNMENT InputBufferLength;
+            ULONG POINTER_ALIGNMENT IoControlCode;
+            uint32_t Type3InputBuffer;
+        } DeviceIoControl;
+
+
+        struct {
+            SECURITY_INFORMATION SecurityInformation;
+            ULONG POINTER_ALIGNMENT Length;
+        } QuerySecurity;
+
+
+        struct {
+            SECURITY_INFORMATION SecurityInformation;
+            uint32_t SecurityDescriptor;
+        } SetSecurity;
+
+
+        struct {
+            uint32_t Vpb;
+            uint32_t DeviceObject;
+        } MountVolume;
+
+
+        struct {
+            uint32_t Vpb;
+            uint32_t DeviceObject;
+        } VerifyVolume;
+
+        struct {
+            uint32_t Srb;
+        } Scsi;
+
+        struct {
+            DEVICE_RELATION_TYPE Type;
+        } QueryDeviceRelations;
+
+        struct {
+            uint32_t InterfaceType;
+            USHORT Size;
+            USHORT Version;
+            uint32_t Interface;
+            uint32_t InterfaceSpecificData;
+        } QueryInterface;
+
+        struct {
+            uint32_t Capabilities;
+        } DeviceCapabilities;
+
+        struct {
+            uint32_t IoResourceRequirementList;
+        } FilterResourceRequirements;
+
+        struct {
+            ULONG WhichSpace;
+            uint32_t Buffer;
+            ULONG Offset;
+            ULONG POINTER_ALIGNMENT Length;
+        } ReadWriteConfig;
+
+        struct {
+            BOOLEAN Lock;
+        } SetLock;
+
+        struct {
+            BUS_QUERY_ID_TYPE IdType;
+        } QueryId;
+
+        struct {
+            DEVICE_TEXT_TYPE DeviceTextType;
+            LCID POINTER_ALIGNMENT LocaleId;
+        } QueryDeviceText;
+
+        struct {
+            BOOLEAN InPath;
+            BOOLEAN Reserved[3];
+            DEVICE_USAGE_NOTIFICATION_TYPE POINTER_ALIGNMENT Type;
+        } UsageNotification;
+
+        struct {
+            SYSTEM_POWER_STATE PowerState;
+        } WaitWake;
+
+        struct {
+            uint32_t PowerSequence;
+        } PowerSequence;
+
+        struct {
+            ULONG SystemContext;
+            POWER_STATE_TYPE POINTER_ALIGNMENT Type;
+            POWER_STATE POINTER_ALIGNMENT State;
+            POWER_ACTION POINTER_ALIGNMENT ShutdownType;
+        } Power;
+
+        struct {
+            uint32_t AllocatedResources;
+            uint32_t AllocatedResourcesTranslated;
+        } StartDevice;
+
+        struct {
+            uint32_t ProviderId;
+            uint32_t DataPath;
+            ULONG BufferSize;
+            uint32_t Buffer;
+        } WMI;
+
+        struct {
+            uint32_t Argument1;
+            uint32_t Argument2;
+            uint32_t Argument3;
+            uint32_t Argument4;
+        } Others;
+
+    } Parameters;
+
+    uint32_t DeviceObject;
+
+    uint32_t FileObject;
+
+    uint32_t CompletionRoutine;
+
+    uint32_t Context;
+
+}__attribute__((packed));
+
+struct KAPC32 {
+    uint16_t Type;
+    uint16_t Size;
+    uint32_t Spare0;
+    uint32_t Thread;
+    LIST_ENTRY32 ApcListEntry;
+    uint32_t KernelRoutine;
+    uint32_t RundownRoutine;
+    uint32_t NormalRoutine;
+    uint32_t NormalContext;
+
+    uint32_t SystemArgument1;
+    uint32_t SystemArgument2;
+    uint8_t ApcStateIndex;
+    KPROCESSOR_MODE ApcMode;
+    BOOLEAN Inserted;
+};
+
+struct KDEVICE_QUEUE_ENTRY32 {
+    LIST_ENTRY32 DeviceListEntry;
+    uint32_t SortKey;
+    BOOLEAN Inserted;
+};
+
+struct IO_STATUS_BLOCK32 {
+    union {
+        uint32_t Status;
+        uint32_t Pointer;
+    };
+
+    uint32_t Information;
+};
+
+struct IRP {
+    uint16_t Type;
+    uint16_t Size;
+    uint32_t MdlAddress;
+    uint32_t Flags;
+
+    union {
+        uint32_t MasterIrp;
+        int32_t IrpCount;
+        uint32_t SystemBuffer;
+    } AssociatedIrp;
+
+    LIST_ENTRY32 ThreadListEntry;
+    IO_STATUS_BLOCK32 IoStatus;
+    int8_t RequestorMode;
+    uint8_t PendingReturned;
+    int8_t StackCount;
+    int8_t CurrentLocation;
+    uint8_t Cancel;
+    uint8_t CancelIrql;
+    int8_t ApcEnvironment;
+    uint8_t AllocationFlags;
+
+    uint32_t UserIosb;
+    uint32_t UserEvent;
+    union {
+        struct {
+            uint32_t UserApcRoutine;
+            uint32_t UserApcContext;
+        } AsynchronousParameters;
+        uint64_t AllocationSize;
+    } Overlay;
+
+    uint32_t CancelRoutine;
+    uint32_t UserBuffer;
+
+    union {
+        struct {
+            union {
+                KDEVICE_QUEUE_ENTRY32 DeviceQueueEntry;
+                struct {
+                    uint32_t DriverContext[4];
+                } ;
+            } ;
+
+            uint32_t Thread;
+            uint32_t AuxiliaryBuffer;
+
+            struct {
+                LIST_ENTRY32 ListEntry;
+                union {
+                    uint32_t CurrentStackLocation;
+                    uint32_t PacketType;
+                };
+            };
+            uint32_t OriginalFileObject;
+        } Overlay;
+
+        KAPC32 Apc;
+        uint32_t CompletionKey;
+
+    } Tail;
+
+};
+
+static const uint32_t  IRP_MJ_CREATE                     = 0x00;
+static const uint32_t  IRP_MJ_CREATE_NAMED_PIPE          = 0x01;
+static const uint32_t  IRP_MJ_CLOSE                      = 0x02;
+static const uint32_t  IRP_MJ_READ                       = 0x03;
+static const uint32_t  IRP_MJ_WRITE                      = 0x04;
+static const uint32_t  IRP_MJ_QUERY_INFORMATION          = 0x05;
+static const uint32_t  IRP_MJ_SET_INFORMATION            = 0x06;
+static const uint32_t  IRP_MJ_QUERY_EA                   = 0x07;
+static const uint32_t  IRP_MJ_SET_EA                     = 0x08;
+static const uint32_t  IRP_MJ_FLUSH_BUFFERS              = 0x09;
+static const uint32_t  IRP_MJ_QUERY_VOLUME_INFORMATION   = 0x0a;
+static const uint32_t  IRP_MJ_SET_VOLUME_INFORMATION     = 0x0b;
+static const uint32_t  IRP_MJ_DIRECTORY_CONTROL          = 0x0c;
+static const uint32_t  IRP_MJ_FILE_SYSTEM_CONTROL        = 0x0d;
+static const uint32_t  IRP_MJ_DEVICE_CONTROL             = 0x0e;
+static const uint32_t  IRP_MJ_INTERNAL_DEVICE_CONTROL    = 0x0f;
+static const uint32_t  IRP_MJ_SCSI                       = 0x0f;
+static const uint32_t  IRP_MJ_SHUTDOWN                   = 0x10;
+static const uint32_t  IRP_MJ_LOCK_CONTROL               = 0x11;
+static const uint32_t  IRP_MJ_CLEANUP                    = 0x12;
+static const uint32_t  IRP_MJ_CREATE_MAILSLOT            = 0x13;
+static const uint32_t  IRP_MJ_QUERY_SECURITY             = 0x14;
+static const uint32_t  IRP_MJ_SET_SECURITY               = 0x15;
+static const uint32_t  IRP_MJ_POWER                      = 0x16;
+static const uint32_t  IRP_MJ_SYSTEM_CONTROL             = 0x17;
+static const uint32_t  IRP_MJ_DEVICE_CHANGE              = 0x18;
+static const uint32_t  IRP_MJ_QUERY_QUOTA                = 0x19;
+static const uint32_t  IRP_MJ_SET_QUOTA                  = 0x1a;
+static const uint32_t  IRP_MJ_PNP                        = 0x1b;
+static const uint32_t  IRP_MJ_PNP_POWER                  = 0x1b;
+static const uint32_t  IRP_MJ_MAXIMUM_FUNCTION           = 0x1b;
+
 
 
 } //namespace windows

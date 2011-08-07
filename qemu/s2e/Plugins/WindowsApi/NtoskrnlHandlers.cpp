@@ -529,6 +529,60 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
     HANDLER_TRACE_CALL();
     s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
 
+    uint32_t pIrp = 0;
+    if (!readConcreteParameter(state, 1, &pIrp)) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "NdisHalt");
+        return;
+    }
+
+    IRP irp;
+    if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
+        HANDLER_TRACE_PARAM_FAILED("irp");
+        return;
+    }
+
+    uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
+    IO_STACK_LOCATION stackLocation;
+
+    if (!pStackLocation || !state->readMemoryConcrete(pStackLocation, &stackLocation, sizeof(stackLocation))) {
+        HANDLER_TRACE_PARAM_FAILED("pStackLocation");
+        return;
+    }
+
+
+    if (irpMajor == IRP_MJ_DEVICE_CONTROL) {
+        uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
+
+        s2e()->getMessagesStream() << s_irpMjArray[irpMajor] << " control code 0x" << std::hex << ioctl << std::endl;
+
+        uint32_t ioctlOffset = offsetof(IO_STACK_LOCATION, Parameters.DeviceIoControl.IoControlCode);
+        klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32,
+                                                                getVariableName(state, __FUNCTION__) + "_IoctlCode");
+        symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
+        state->writeMemory(pStackLocation + ioctlOffset, symb);
+
+    }
+
+    FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor);
+}
+
+void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor)
+{
+    HANDLER_TRACE_RETURN();
+
+    //Get the return value
+    klee::ref<klee::Expr> result = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
+
+
+    if (!NtSuccess(s2e(), state, result)) {
+        std::stringstream ss;
+        ss << __FUNCTION__ << " " << s_irpMjArray[irpMajor] << " failed with " << std::hex << result;
+        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
+    }
+
+    m_manager->succeedState(state);
+    m_functionMonitor->eraseSp(state, state->getPc());
+    throw CpuExitException();
 }
 
 }

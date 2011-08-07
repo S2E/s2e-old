@@ -224,7 +224,9 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
         for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
             if (desc->Contains(driverObject.MajorFunction[i])) {
                 s2e()->getMessagesStream() << "Registering IRP " << s_irpMjArray[i] << " at 0x" << std::hex
-                        << driverObject.MajorFunction[i] << std::endl;
+                        << driverObject.MajorFunction[i] << " "
+                        << desc->Name << "!0x" << desc->ToNativeBase(driverObject.MajorFunction[i]) <<
+                        std::endl;
 
                 registerEntryPoint<NtoskrnlHandlers>
                         (state, ntosHandlers, &NtoskrnlHandlers::DriverDispatch, driverObject.MajorFunction[i], i);

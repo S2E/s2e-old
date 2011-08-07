@@ -74,6 +74,7 @@ namespace plugins {
 #define HANDLER_TRACE_RETURN() s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl
 #define HANDLER_TRACE_FCNFAILED() s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed" << std::endl
 #define HANDLER_TRACE_FCNFAILED_VAL(val) s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed with 0x" << std::hex << (val) << std::endl
+#define HANDLER_TRACE_PARAM_FAILED(val) s2e()->getDebugStream() << "Faild to read parameter " << val << " in " << __FUNCTION__ << " at line " << __LINE__ << std::endl
 
 template <typename F>
 struct WindowsApiHandler {
