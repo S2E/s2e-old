@@ -39,6 +39,10 @@
 #include <stdlib.h>
 #include "s2earm.h"
 
+//for system calls
+#include <unistd.h>
+#include <sys/types.h>
+
 
 void testsub() {
 	printf("Hello Subroutine\n");
@@ -51,27 +55,36 @@ void testsub() {
 }
 
 void main( int argc, char *argv[ ], char *envp[ ] ) {
+	s2e_rawmon_loadmodule("s2eandroid",0x8460,0x1AD4);
 
 	int symb;
 	int symb2;
-
 	printf("Hell0 Android!\n");
 	s2e_message("Hello S2E, Here is Android.");
 	s2e_warning("Hello S2E, Android writes a warning.");
 	printf("S2E VERSION\t\t\t: %d\n",s2e_version());
 	printf("PATH ID\t\t\t\t: %d\n",s2e_get_path_id());
 	printf("S2E RAM OBJECT BITS\t\t: %d\n",s2e_get_ram_object_bits());
+	printf("Process ID: %d\n",getpid());
 	s2e_disable_forking();
 	s2e_enable_forking();
 	s2e_make_symbolic(&symb,sizeof(symb), "x");
 	s2e_make_symbolic(&symb2,sizeof(symb2), "y");
-//	s2e_concretize(&symb,sizeof(symb));
+
 //	s2e_get_example(&symb2,sizeof(symb2));
 
 	if(symb==symb2) {
 		printf("test1");
-		s2e_print_expression("x:",symb);
-		s2e_print_expression("y:",symb2);
+//		s2e_print_expression("x:",symb);
+//		s2e_print_expression("y:",symb2);
+		s2e_concretize(&symb,sizeof(symb));
+
+
+		char* msg = "End of State %i. Concretized x is: %i";
+		char* endmsg = malloc(sizeof(msg) + 20);
+
+		sprintf(endmsg,msg,s2e_get_path_id(),symb);
+		s2e_message(endmsg);
 		s2e_kill_state(333, "kill1");
 	} else {
 		printf("test2");

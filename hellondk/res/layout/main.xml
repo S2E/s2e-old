@@ -28,4 +28,16 @@
         android:id="@+id/call_s2e_version" 
         android:onClick="onCallS2EVersion">
 </Button>
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/send_location"
+        android:id="@+id/send_location" 
+        android:onClick="onClickSendLocation">
+</Button>
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/send_uiid"
+        android:id="@+id/send_uiid" 
+        android:onClick="onClickSendUiid">
+</Button>
 </LinearLayout>
