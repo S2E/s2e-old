@@ -65,6 +65,44 @@ using namespace s2e::plugins;
 
 S2E_DEFINE_PLUGIN(WindowsMonitor, "Plugin for monitoring Windows kernel/user-mode events", "Interceptor");
 
+//These are the keys to specify in the configuration file
+const char *WindowsMonitor::s_windowsKeys[] =    {"XPSP2", "XPSP3",
+                                         "XPSP2-CHK", "XPSP3-CHK", "SRV2008SP2"};
+
+//These are user-friendly strings displayed to the user
+const char *WindowsMonitor::s_windowsStrings[] =
+{"Windows XP SP2 RTM",          "Windows XP SP3 RTM",
+ "Windows XP SP2 Checked",      "Windows XP SP3 Checked",
+ "Windows Server 2008 SP2 RTM"};
+
+bool WindowsMonitor::s_checkedMap[] = {false, false, true, true};
+
+unsigned WindowsMonitor::s_pointerSize[] =     {4,4,4,4,4};
+uint64_t WindowsMonitor::s_kernelNativeBase[]= {0x00000000,  0x00400000,  0x00000000, 0x00400000, 0x00400000};
+//uint64_t WindowsMonitor::s_kernelLoadBase[]=   {0x00000000,  0x804d7000,  0x00000000, 0x80a02000, 0x81836000};
+
+uint64_t WindowsMonitor::s_ntdllNativeBase[]=  {0x7c900000,  0x00000000,  0x7c900000, 0x00000000, 0x77ed0000};
+uint64_t WindowsMonitor::s_ntdllLoadBase[]=    {0x7c900000,  0x00000000,  0x7c900000, 0x00000000, 0x77ed0000};
+uint64_t WindowsMonitor::s_ntdllSize[]=        {0x00000000,  0x00000000,  0x0007a000, 0x00000000, 0x001257F8};
+
+uint64_t WindowsMonitor::s_driverLoadPc[] =    {0x00000000, 0x004cc99a, 0x00000000, 0x0053d5d6, 0x00563b82};
+uint64_t WindowsMonitor::s_driverDeletePc[] =  {0x00000000, 0x004EB33F, 0x00000000, 0x00540a72, 0x0054217F};
+uint64_t WindowsMonitor::s_kdDbgDataBlock[] =  {0x00000000, 0x00475DE0, 0x00000000, 0x004ec3f0, 0x004eec98};
+
+uint64_t WindowsMonitor::s_panicPc1[] =        {0x00000000, 0x0045BCAA, 0x00000000, 0x0042f478, 0x004BBE83};
+uint64_t WindowsMonitor::s_panicPc2[] =        {0x00000000, 0x0045C7CD, 0x00000000, 0x0042ff44, 0x004BB857};
+uint64_t WindowsMonitor::s_panicPc3[] =        {0x00000000, 0x0045C7F3, 0x00000000, 0x0042ff62, 0x004BB87B};
+
+uint64_t WindowsMonitor::s_ntTerminateProc[] = {0x00000000, 0x004ab3c8, 0x00000000, 0x005dab73, 0x0061913f};
+
+uint64_t WindowsMonitor::s_sysServicePc[] =    {0x00000000, 0x00407631, 0x00000000, 0x004dca05, 0x0045777E};
+
+uint64_t WindowsMonitor::s_psProcListPtr[] =   {0x00000000, 0x0048A358, 0x00000000, 0x005102b8, 0x00504150};
+
+uint64_t WindowsMonitor::s_ldrpCall[] =        {0x7C901193, 0x7C901176, 0x00000000, 0x00000000, 0x77F11698};
+uint64_t WindowsMonitor::s_dllUnloadPc[] =     {0x00000000, 0x7c91e12a, 0x00000000, 0x00000000, 0x77F0BB58};
+
+
 WindowsMonitor::~WindowsMonitor()
 {
     if (m_UserModeInterceptor) {
@@ -92,34 +130,35 @@ void WindowsMonitor::initialize()
     //XXX: do it only when resuming a snapshot.
     m_TrackPidSet = true;
 
-    if (!strcasecmp(Version.c_str(), "SP2")) {
-        m_Version = WindowsMonitor::SP2;
-        m_PointerSize = 4;
-    }else if (!strcasecmp(Version.c_str(), "SP3")) {
-        m_Version = WindowsMonitor::SP3;
-        m_PointerSize = 4;
-    }else {
-        std::cout << "Unsupported of invalid Windows version " << Version << std::endl;
+    unsigned i;
+    for (i=0; i<(unsigned)MAXVER; ++i) {
+        if (Version == s_windowsKeys[i]) {
+            m_Version = (EWinVer)i;
+            break;
+        }
+    }
+
+    if (i == (EWinVer)MAXVER) {
+        s2e()->getWarningsStream() << "Invalid windows version: " << Version << std::endl;
+        s2e()->getWarningsStream() << "Available versions are:" << std::endl;
+        for (unsigned j=0; j<MAXVER; ++j) {
+            s2e()->getWarningsStream() << s_windowsKeys[j] << ":\t" << s_windowsStrings[j] << std::endl;
+        }
         exit(-1);
     }
 
-    m_CheckedBuild = s2e()->getConfig()->getBool(getConfigKey() + ".checked");
-    if (m_CheckedBuild) {
-        s2e()->getWarningsStream() << "You specified a CHECKED build of Windows. Only kernel-mode interceptor " <<
-                "is properly supported for now" << std::endl;
-    }
-
     switch(m_Version) {
-        case SP2:
-            assert(false && "SP2 support not implemented");
-            break;
-
-        case SP3:
-            m_NtkernelBase = m_CheckedBuild ? 0x80a02000 : 0x804d7000;
+        case XPSP2_CHK:
+        case XPSP3_CHK:
+            s2e()->getWarningsStream() << "You specified a checked build of Windows XP." <<
+                    "Only kernel-mode interceptors are supported for now." << std::endl;
             break;
         default:
-            assert(false);
+            break;
     }
+
+    m_pKPCRAddr = 0;
+    m_pKPRCBAddr = 0;
 
     m_UserModeInterceptor = NULL;
     m_KernelModeInterceptor = NULL;
@@ -156,6 +195,55 @@ void WindowsMonitor::readModuleCfg()
     }
 }
 
+void WindowsMonitor::InitializeAddresses(S2EExecutionState *state)
+{
+    if (m_pKPCRAddr) {
+        return;
+    }
+
+    //Compute the address of the KPCR
+    //It is located in fs:0x1c
+    uint64_t base = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
+    if (!state->readMemoryConcrete(base + KPCR_FS_OFFSET, &m_pKPCRAddr, sizeof(m_pKPCRAddr))) {
+        s2e()->getWarningsStream() << "Failed to initialize KPCR" << std::endl;
+        exit(-1);
+    }
+
+    //Read the version block
+    uint32_t pKdVersionBlock;
+    if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KDVERSION32_OFFSET, &pKdVersionBlock, sizeof(pKdVersionBlock))) {
+        s2e()->getWarningsStream() << "Failed to read KD version block pointer" << std::endl;
+        exit(-1);
+    }
+
+    if (!state->readMemoryConcrete(pKdVersionBlock, &m_kdVersion, sizeof(m_kdVersion))) {
+        s2e()->getWarningsStream() << "Failed to read KD version block" << std::endl;
+        exit(-1);
+    }
+
+    //Read the KPRCB
+    if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KPRCB_PTR_OFFSET, &m_pKPRCBAddr, sizeof(m_pKPRCBAddr))) {
+        s2e()->getWarningsStream() << "Failed to read pointer to KPRCB" << std::endl;
+        exit(-1);
+    }
+
+    if (m_pKPRCBAddr != m_pKPCRAddr + KPCR_KPRCB_OFFSET) {
+        s2e()->getWarningsStream () << "Invalid KPRCB" << std::endl;
+        exit(-1);
+    }
+
+    if (!state->readMemoryConcrete(m_pKPRCBAddr, &m_kprcb, sizeof(m_kprcb))) {
+        s2e()->getWarningsStream() << "Failed to read KPRCB" << std::endl;
+        exit(-1);
+    }
+
+    //Display some info
+    s2e()->getMessagesStream() << "Windows 0x" << std::hex << m_kdVersion.MinorVersion <<
+            (m_kdVersion.MajorVersion == 0xF ? " FREE BUILD" : " CHECKED BUILD") << std::endl;
+
+
+}
+
 void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
                                                    S2EExecutionState *state,
                                                    TranslationBlock *tb,
@@ -165,6 +253,7 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
     //However, when it is called, it will automatically scan all loaded modules.
     if(m_UserMode) {
         if (m_FirstTime) {
+            InitializeAddresses(state);
             m_UserModeInterceptor->GetPids(state, m_PidSet);
             m_UserModeInterceptor->CatchModuleLoad(state);
             m_PidSet.erase(state->getPid());
@@ -188,9 +277,6 @@ void WindowsMonitor::slotTranslateInstructionStart(ExecutionSignal *signal,
             slotKmUpdateModuleList(state, pc);
         }
 
-        /*if (pc == GetSystemServicePc() && m_FirstTime) {
-            m_SyscallConnection = signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmUpdateModuleList));
-        }*/
         if (pc == GetDriverLoadPc()) {
             signal->connect(sigc::mem_fun(*this, &WindowsMonitor::slotKmModuleLoad));
         }else if (pc == GetDeleteDriverPc()) {
@@ -226,7 +312,6 @@ void WindowsMonitor::slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t
         return;
     }
 
-
     if (state->getPid() != plgState->m_CurrentPid) {
         plgState->m_CurrentPid = state->getPid();
         if (m_PidSet.find(state->getPid()) != m_PidSet.end()) {
@@ -236,9 +321,9 @@ void WindowsMonitor::slotMonitorProcessSwitch(S2EExecutionState *state, uint64_t
                 ModuleDescriptor ntdll;
                 ntdll.Pid = state->getPid();
                 ntdll.Name = "ntdll.dll";
-                ntdll.NativeBase = 0x7c900000;
-                ntdll.LoadBase = 0x7c900000;
-                ntdll.Size = 0x7a000;
+                ntdll.NativeBase = s_ntdllNativeBase[m_Version]; // 0x7c900000;
+                ntdll.LoadBase = s_ntdllLoadBase[m_Version];
+                ntdll.Size = s_ntdllSize[m_Version];
                 onModuleLoad.emit(state, ntdll);
             }
             m_PidSet.erase(state->getPid());
@@ -357,79 +442,25 @@ failure:
 
 uint64_t WindowsMonitor::GetDriverLoadPc() const
 {
-    if (m_CheckedBuild) {
-        switch(m_Version) {
-            case SP2: assert(false && "Not implemented");
-            case SP3: return 0x0053d5d6 - 0x400000 + m_NtkernelBase; //0x80B3F5D6
-            default: return 0;
-        }
-
-    }else {
-        switch(m_Version) {
-            case SP2: assert(false && "Not implemented");
-            case SP3: return 0x004cc99a - 0x400000 + m_NtkernelBase; //0x805A399A
-            default: return 0;
-        }
-    }
-
-    assert(false);
-    return 0;
+    assert(s_driverLoadPc[m_Version]);
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return s_driverLoadPc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetKdDebuggerDataBlock() const
 {
-    if (m_CheckedBuild) {
-        switch(m_Version) {
-            case SP2: assert(false && "Not implemented");
-            case SP3: return 0x004ec3f0 - 0x400000 + m_NtkernelBase;
-            default: return 0;
-        }
-
-    }else {
-        switch(m_Version) {
-            case SP2: assert(false && "Not implemented");
-            case SP3: return 0x00475DE0 - 0x400000 + m_NtkernelBase;
-            default: return 0;
-        }
-    }
-
-    assert(false);
-    return 0;
+    assert(s_kdDbgDataBlock[m_Version]);
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return (s_kdDbgDataBlock[m_Version] + offset);
 }
 
 bool WindowsMonitor::CheckPanic(uint64_t eip) const
 {
-    if (m_CheckedBuild) {
-        switch(m_Version) {
-        case SP2:
-            assert(false && "Not implemented");
-            eip = eip - m_NtkernelBase + 0x400000;
-            return (eip == 0x0045B7BA  || eip == 0x0045C2DF || eip == 0x0045C303);
-            break;
-        case SP3:
-            eip = eip - m_NtkernelBase + 0x400000;
-            return (eip == 0x42f478  || eip == 0x42ff44 || eip == 0x42ff62);
-            break;
-        default:
-            return false;
-        }
-    }else {
-        switch(m_Version) {
-        case SP2:
-            assert(false && "Not implemented");
-            eip = eip - m_NtkernelBase + 0x400000;
-            return (eip == 0x0045B7BA  || eip == 0x0045C2DF || eip == 0x0045C303);
-            break;
-        case SP3:
-            eip = eip - m_NtkernelBase + 0x400000;
-            return (eip == 0x0045BCAA  || eip == 0x0045C7CD || eip == 0x0045C7F3);
-            break;
-        default:
-            return false;
-        }
-    }
-
-    return false;
+    assert(s_panicPc1[m_Version] && s_panicPc2[m_Version] && s_panicPc3[m_Version]);
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return eip == s_panicPc1[m_Version] + offset ||
+           eip == s_panicPc2[m_Version] + offset ||
+           eip == s_panicPc3[m_Version] + offset;
 }
 
 
@@ -445,100 +476,57 @@ uint64_t WindowsMonitor::GetKernelStart() const
 
 uint64_t WindowsMonitor::GetLdrpCallInitRoutine() const
 {
-    switch(m_Version) {
-    case SP2: return 0x7C901193;
-    case SP3: return 0x7C901176;
-    }
-    assert(false && "Unknown OS version\n");
-    return 0;
+    assert(s_ldrpCall[m_Version] && "Unsupported OS version");
+    uint64_t offset = s_ntdllLoadBase[m_Version] - s_ntdllNativeBase[m_Version];
+    return s_ldrpCall[m_Version] + offset;
 }
 
 unsigned WindowsMonitor::GetPointerSize() const
 {
-    return m_PointerSize;
+    return s_pointerSize[m_Version];
 }
 
-
+uint64_t WindowsMonitor::GetKernelLoadBase() const
+{
+    if (GetPointerSize() == 4)
+        return (uint32_t)m_kdVersion.KernBase;
+    else
+        return m_kdVersion.KernBase;
+}
 
 uint64_t WindowsMonitor::GetNtTerminateProcessEProcessPoint() const
 {
-    if (m_CheckedBuild) {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-                //XXX: test this
-            case SP3: return (0x5dab73 - 0x400000 + m_NtkernelBase);
-        }
-
-    }else {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-            case SP3: return (0x004ab3c8 - 0x400000 + m_NtkernelBase);
-        }
-    }
-    assert(false && "Unknown OS version\n");
-    return 0;
+    assert(s_ntTerminateProc[m_Version]);
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return s_ntTerminateProc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetDeleteDriverPc() const
 {
-    if (m_CheckedBuild) {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-            case SP3: return (0x540a72 - 0x400000 + m_NtkernelBase);
-        }
-    }else {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-            case SP3: return (0x004EB33F - 0x400000 + m_NtkernelBase);
-        }
-    }
-    assert(false && "Unknown OS version\n");
-    return 0;
+    assert(s_driverDeletePc[m_Version]);
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return s_driverDeletePc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetSystemServicePc() const
 {
-    if (m_CheckedBuild) {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-            case SP3: return (0x4dca05 - 0x400000 + m_NtkernelBase);
-        }
-
-    }else {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-            case SP3: return (0x00407631 - 0x400000 + m_NtkernelBase);
-        }
-    }
-    assert(false && "Unknown OS version\n");
-    return 0;
+    assert(s_sysServicePc[m_Version]);
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return s_sysServicePc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetDllUnloadPc() const
 {
-    switch(m_Version) {
-    case SP2: assert (false && "Not implemented");
-    case SP3: return 0x7c91e12a; //0x7c91dfb3; //LdrUnloadDll
-    }
-    assert(false && "Unknown OS version\n");
-    return 0;
+    assert(s_dllUnloadPc[m_Version] && "Unsupported OS version");
+    uint64_t offset = s_ntdllLoadBase[m_Version] - s_ntdllNativeBase[m_Version];
+    return s_dllUnloadPc[m_Version] + offset;
 }
 
 uint64_t WindowsMonitor::GetPsActiveProcessListPtr() const
 {
-    if (m_CheckedBuild) {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-            case SP3: return (0x5102b8 - 0x400000 + m_NtkernelBase);
-        }
-    } else {
-        switch(m_Version) {
-            case SP2: assert (false && "Not implemented");
-            case SP3: return (0x0048A358 - 0x400000 + m_NtkernelBase);
-        }
-    }
-    assert(false && "Unknown OS version\n");
-    return 0;
+    assert(s_psProcListPtr[m_Version]);
+    uint64_t offset = GetKernelLoadBase() - s_kernelNativeBase[m_Version];
+    return s_psProcListPtr[m_Version] + offset;
 }
 
 bool WindowsMonitor::isKernelAddress(uint64_t pc) const
@@ -553,6 +541,79 @@ uint64_t WindowsMonitor::getPid(S2EExecutionState *s, uint64_t pc)
         return 0;
     }
     return s->getPid();
+}
+
+uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
+{
+    //Compute the address of the KPCR
+    //It is located in fs:KPCR_CURRENT_THREAD_OFFSET
+    uint64_t base = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
+    uint32_t pThread = 0;
+    if (!state->readMemoryConcrete(base + FS_CURRENT_THREAD_OFFSET, &pThread, sizeof(pThread))) {
+        s2e()->getWarningsStream() << "Failed to get thread address" << std::endl;
+        return 0;
+    }
+
+    uint32_t threadOffset;
+    if (m_kdVersion.MinorVersion >= BUILD_LONGHORN) {
+        threadOffset = ETHREAD_PROCESS_OFFSET_VISTA;
+    }else {
+        threadOffset = ETHREAD_PROCESS_OFFSET_XP;
+    }
+
+    uint32_t pProcess = 0;
+    if (!state->readMemoryConcrete(pThread + threadOffset, &pProcess, sizeof(pProcess))) {
+        s2e()->getWarningsStream() << "Failed to get process address" << std::endl;
+        return 0;
+    }
+
+    return pProcess;
+}
+
+uint64_t WindowsMonitor::getPeb(S2EExecutionState *state, uint64_t eprocess)
+{
+    uint32_t offset;
+    if (m_kdVersion.MinorVersion >= BUILD_LONGHORN) {
+        offset = offsetof(s2e::windows::EPROCESS32_VISTA,Peb);
+    }else {
+        offset = offsetof(s2e::windows::EPROCESS32_XP,Peb);
+    }
+
+    uint32_t peb = 0;
+    if (!state->readMemoryConcrete(eprocess + offset, &peb, (sizeof(peb)))) {
+        return 0;
+    }
+    return peb;
+}
+
+uint64_t WindowsMonitor::getProcessFromLink(uint64_t pItem)
+{
+    if (m_kdVersion.MinorVersion >= BUILD_LONGHORN) {
+        return CONTAINING_RECORD32(pItem, s2e::windows::EPROCESS32_VISTA, ActiveProcessLinks);
+    }else {
+        return CONTAINING_RECORD32(pItem, s2e::windows::EPROCESS32_XP, ActiveProcessLinks);
+    }
+}
+
+uint64_t WindowsMonitor::getDirectoryTableBase(S2EExecutionState *state, uint64_t pProcessEntry)
+{
+    if (m_kdVersion.MinorVersion >= BUILD_LONGHORN) {
+        s2e::windows::EPROCESS32_VISTA ProcessEntry;
+
+        if (!state->readMemoryConcrete(pProcessEntry, &ProcessEntry, sizeof(ProcessEntry))) {
+            return 0;
+        }
+
+        return ProcessEntry.Pcb.DirectoryTableBase;
+    }else {
+        s2e::windows::EPROCESS32_XP ProcessEntry;
+
+        if (!state->readMemoryConcrete(pProcessEntry, &ProcessEntry, sizeof(ProcessEntry))) {
+            return 0;
+        }
+
+        return ProcessEntry.Pcb.DirectoryTableBase;
+    }
 }
 
 

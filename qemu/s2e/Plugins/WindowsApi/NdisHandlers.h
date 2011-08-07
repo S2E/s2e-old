@@ -191,6 +191,7 @@ private:
 
     uint32_t isrRecognized, isrQueue;
     bool isrHandlerExecuted;
+    bool isrHandlerQueued;
 
     uint32_t shutdownHandler;
 

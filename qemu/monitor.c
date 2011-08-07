@@ -530,7 +530,7 @@ static void do_s2e(Monitor *mon, const QDict *params, QObject **ret_data)
     }
 
     monitor_printf(mon, "Executing S2E command %s\n", command);
-    
+
     s2e_execute_cmd(command);
 
     return;
@@ -551,6 +551,11 @@ static void do_s2e_disable(Monitor *mon, const QDict *params, QObject **ret_data
     extern CPUState *env;
     tb_flush(env);
     monitor_printf(mon, "Status: %d\n", g_s2e_enable_signals);
+}
+
+static void do_s2e_crashdump(Monitor *mon, const QDict *params, QObject **ret_data)
+{
+    s2e_execute_cmd("c=WindowsCrashDumpInvoker(); c:generateCrashDump('dump');");
 }
 
 #endif

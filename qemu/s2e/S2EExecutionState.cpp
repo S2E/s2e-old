@@ -64,6 +64,7 @@ extern struct CPUX86State *env;
 
 #include <klee/Context.h>
 #include <klee/Memory.h>
+#include <klee/Solver.h>
 #include <s2e/S2E.h>
 #include <s2e/s2e_qemu.h>
 
@@ -1236,13 +1237,28 @@ void S2EExecutionState::writeRegisterConcrete(CPUX86State *cpuState,
 
 namespace {
 static int _lastSymbolicId = 0;
+
+std::string s2e_get_unique_varname(const std::string &name)
+{
+    std::string sname;
+    for (unsigned i=0; i<name.size(); ++i) {
+        if (isspace(name[i])) {
+            sname += '_';
+        }else {
+            sname += name[i];
+        }
+    }
+    sname = (!sname.empty() ? ("v_"+sname) : "symb_") + llvm::utostr(++_lastSymbolicId);
+    return sname;
+}
+
 }
 
 ref<Expr> S2EExecutionState::createSymbolicValue(
             Expr::Width width, const std::string& name)
 {
 
-    std::string sname = !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId);
+    std::string sname = s2e_get_unique_varname(name);
 
     const Array *array = new Array(sname, Expr::getMinBytesForWidth(width));
 
@@ -1260,7 +1276,7 @@ ref<Expr> S2EExecutionState::createSymbolicValue(
 std::vector<ref<Expr> > S2EExecutionState::createSymbolicArray(
             unsigned size, const std::string& name)
 {
-    std::string sname = !name.empty() ? name : "symb_" + llvm::utostr(++_lastSymbolicId);
+    std::string sname = s2e_get_unique_varname(name);
     const Array *array = new Array(sname, size);
 
     UpdateList ul(array, 0);
@@ -1694,8 +1710,7 @@ void S2EExecutionState::updateTlbEntry(CPUX86State* env,
     assert( (hostAddr & ~TARGET_PAGE_MASK) == 0 );
     assert( (virtAddr & ~TARGET_PAGE_MASK) == 0 );
 
-   ObjectPair *ops = m_memcache.getArray(hostAddr);
-
+    ObjectPair *ops = m_memcache.getArray(hostAddr);
 
     unsigned int index = (virtAddr >> S2E_RAM_OBJECT_BITS) & (CPU_S2E_TLB_SIZE - 1);
     for(int i = 0; i < CPU_S2E_TLB_SIZE / CPU_TLB_SIZE; ++i) {
@@ -1749,6 +1764,25 @@ void S2EExecutionState::writeDirtyMask(uint64_t host_address, uint8_t val)
 {
     host_address -= m_dirtyMask->address;
     m_dirtyMaskObject->write8(host_address, val);
+}
+
+void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
+{
+    //Check that the added constraint is consistent with
+    //the existing path constraints
+    bool truth;
+    Solver *solver = g_s2e->getExecutor()->getSolver();
+    Query query(constraints,e);
+    //bool res = solver->mayBeTrue(query, mayBeTrue);
+    bool res = solver->mustBeTrue(query.negateExpr(), truth);
+    if (!res || truth) {
+       g_s2e->getWarningsStream() << "State has invalid constraints" << std::endl;
+       exit(-1);
+       //g_s2e->getExecutor()->terminateStateEarly(*this, "State has invalid constraint set");
+    }
+    assert(res && !truth  &&  "state has invalid constraint set");
+
+    constraints.addConstraint(e);
 }
 
 } // namespace s2e

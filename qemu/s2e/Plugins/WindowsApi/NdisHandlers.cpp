@@ -2000,6 +2000,8 @@ void NdisHandlers::HaltHandler(S2EExecutionState* state, FunctionMonitorState *f
         return;
     }
 
+    state->undoCallAndJumpToSymbolic();
+
     bool oldForkStatus = state->isForkingEnabled();
     state->enableForking();
 

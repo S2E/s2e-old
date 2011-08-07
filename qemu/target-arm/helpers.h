@@ -187,7 +187,6 @@ DEF_HELPER_2(shl, i32, i32, i32)
 DEF_HELPER_2(shr, i32, i32, i32)
 DEF_HELPER_2(sar, i32, i32, i32)
 
-
 /* neon_helper.c */
 DEF_HELPER_3(neon_qadd_u8, i32, env, i32, i32)
 DEF_HELPER_3(neon_qadd_s8, i32, env, i32, i32)

@@ -153,7 +153,6 @@ protected:
                             klee::ObjectState *newState);
 
 public:
-
     enum AddressType {
         VirtualAddress, PhysicalAddress, HostAddress
     };
@@ -345,6 +344,8 @@ public:
 #elif defined(TARGET_I386)
     CPUX86State *getConcreteCpuState() const;
 #endif
+    virtual void addConstraint(klee::ref<klee::Expr> e);
+
     /** Creates new unconstrained symbolic value */
     klee::ref<klee::Expr> createSymbolicValue(klee::Expr::Width width,
                               const std::string& name = std::string());

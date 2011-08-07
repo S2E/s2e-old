@@ -301,6 +301,9 @@ protected:
     /** Kills the specified state and raises an exception to exit the cpu loop */
     virtual void terminateState(klee::ExecutionState &state);
 
+    /** Kills the specified state without exiting to the CPU loop */
+    void terminateStateAtFork(S2EExecutionState &state);
+
     void setupTimersHandler();
 };
 

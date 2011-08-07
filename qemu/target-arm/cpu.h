@@ -216,9 +216,6 @@ typedef struct CPUARMState {
     int eabi;
 #endif
 
-    uint8_t timer_interrupt_disabled;
-    uint8_t all_apic_interrupts_disabled;
-
     CPU_COMMON
 
     /* These fields after the common ones so they are preserved on reset.  */

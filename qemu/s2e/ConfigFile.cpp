@@ -534,6 +534,7 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     return 0;
 }
 
+#ifdef TARGET_ARM
 static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32 &size)
 {
     if (regstr == "r0") {
@@ -598,6 +599,39 @@ static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32
     }
     return true;
 }
+#elif defined(TARGET_I386)
+static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32 &size)
+{
+    if (regstr == "eax") {
+        regIndex = R_EAX;
+        size = 4;
+    }else if (regstr == "ebx") {
+        regIndex = R_EBX;
+        size = 4;
+    }else if (regstr == "ecx") {
+        regIndex = R_ECX;
+        size = 4;
+    }else if (regstr == "edx") {
+        regIndex = R_EDX;
+        size = 4;
+    }else if (regstr == "edi") {
+        regIndex = R_EDI;
+        size = 4;
+    }else if (regstr == "esi") {
+        regIndex = R_ESI;
+        size = 4;
+    }else if (regstr == "esp") {
+        regIndex = R_ESP;
+        size = 4;
+    }else if (regstr == "ebp") {
+        regIndex = R_EBP;
+        size = 4;
+    }else {
+        return false;
+    }
+    return true;
+}
+#endif
 
 int S2ELUAExecutionState::writeRegister(lua_State *L)
 {

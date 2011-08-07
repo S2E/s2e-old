@@ -3470,10 +3470,9 @@ void cpu_physical_memory_write_rom(target_phys_addr_t addr,
             /* ROM/RAM case */
             ptr = qemu_get_ram_ptr(addr1);
 #ifdef CONFIG_S2E
-            s2e_dma_write((uintptr_t)ptr, (uint8_t*)buf, l);
-            /*int i;
+            int i;
             for(i=0; i<l; ++i)
-                stb_raw(ptr+i, buf[i]);*/
+                stb_raw(ptr+i, buf[i]);
 #else
             memcpy(ptr, buf, l);
 #endif

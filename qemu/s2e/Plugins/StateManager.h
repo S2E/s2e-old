@@ -70,14 +70,23 @@ struct StateManagerShared {
     //Access using the current state id modulo max number of processes.
     uint64_t successCount[S2E_MAX_PROCESSES];
     AtomicObject<Command>  commands[S2E_MAX_PROCESSES];
+    bool suspendedProcesses[S2E_MAX_PROCESSES];
+
+    //If killing is in progress, indicate which node
+    //will keep a successful state. Used to handle concurrent killAlls.
+    //-1 if no kill is in progress
+    unsigned keepOneStateOnNode;
 
     StateManagerShared() {
         suspendAll = 0;
         timeOfLastNewBlock = 0;
         Command cmd = {0,0,0,0};
+        keepOneStateOnNode = (unsigned)-1;
+
         for (unsigned i=0; i<S2E_MAX_PROCESSES; ++i) {
             successCount[i] = 0;
             commands[i].write(cmd);
+            suspendedProcesses[i] = false;
         }
     }
 };
@@ -89,6 +98,7 @@ class StateManager : public Plugin
     S2E_PLUGIN
 public:
     StateManager(S2E* s2e): Plugin(s2e) {}
+    virtual ~StateManager();
     typedef std::set<S2EExecutionState*> StateSet;
 
     void initialize();
@@ -118,7 +128,7 @@ private:
             TranslationBlock *tb,
             uint64_t pc);
 
-    void onProcessFork();
+    void onProcessFork(bool preFork, bool isChild, unsigned parentProcId);
     void onTimer();
 
     bool processCommands();
@@ -131,7 +141,7 @@ private:
     void resetTimeout();
 
     void sendKillToAllInstances(bool keepOneSuccessful, unsigned procId);
-    void killOnTimeOut();
+    bool killOnTimeOut();
     bool resumeSucceededState(S2EExecutionState *s);
 
     bool killAllButOneSuccessful();
@@ -140,6 +150,13 @@ private:
 
     void onCustomInstruction(S2EExecutionState* state,
         uint64_t opcode);
+
+    void checkInvariants(bool grabLock=false);
+
+    void suspendCurrentProcess();
+    void resumeAllProcesses();
+    unsigned getSuspendedProcessCount();
+
 public:
     bool succeedState(S2EExecutionState *s);
 

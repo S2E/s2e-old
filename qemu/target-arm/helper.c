@@ -566,7 +566,6 @@ uint32_t HELPER(get_r13_banked)(CPUState *env, uint32_t mode)
 
 extern int semihosting_enabled;
 
-
 /* Map CPU modes onto saved register banks.  */
 static inline int bank_number (int mode)
 {
@@ -771,7 +770,6 @@ static void do_interrupt_v7m(CPUARMState *env)
     env->regs[15] = addr & 0xfffffffe;
     env->thumb = addr & 1;
 }
-
 
 /* Handle a CPU exception.  */
 void do_interrupt(CPUARMState *env)

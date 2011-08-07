@@ -6027,6 +6027,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
     TCGv tmp3;
     TCGv addr;
     TCGv_i64 tmp64;
+
     insn = ldl_code(s->pc);
 
 #ifdef CONFIG_S2E

@@ -201,7 +201,7 @@ void WindowsCrashDumpGenerator::generateCrashDump(S2EExecutionState *state,
 
 
     //Save the original context
-    KprcbProcessContextOffset = KPRCB_OFFSET + offsetof(KPRCB32, ProcessorState.ContextFrame);
+    KprcbProcessContextOffset = m_monitor->getKpcrbAddress() + offsetof(KPRCB32, ProcessorState.ContextFrame);
     for (unsigned i=0; i<sizeof(CONTEXT32); ++i) {
         OriginalContext[i] = state->readMemory(KprcbProcessContextOffset + i, klee::Expr::Int8);
     }
@@ -279,16 +279,11 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     uint32_t *blocks = NULL;
 
     bool ok;
-    s2e::windows::KPRCB32 kprcb;
-    ok = state->readMemoryConcrete(KPRCB_OFFSET, &kprcb, sizeof(kprcb));
-    if (!ok) {
-        s2e()->getDebugStream() << "Could not read KPRCB" << std::endl;
-        return false;
-    }
+    s2e::windows::KPRCB32 kprcb = m_monitor->getKprcb();
 
     hdr->ValidDump = DUMP_HDR_DUMPSIGNATURE;
     hdr->MajorVersion = m_monitor->isCheckedBuild() ? 0xC : 0xF; //Free build (0xC for checked)
-    hdr->MinorVersion = 2600; //XXX: hard-coded for sp3
+    hdr->MinorVersion = m_monitor->getBuildNumber();
     hdr->DirectoryTableBase = state->getPid();
 
     //Fetch KdDebuggerDataBlock
@@ -430,7 +425,7 @@ WindowsCrashDumpInvoker::WindowsCrashDumpInvoker(WindowsCrashDumpGenerator *plg)
 
 WindowsCrashDumpInvoker::WindowsCrashDumpInvoker(lua_State *lua)
 {
-
+    m_plugin = static_cast<WindowsCrashDumpGenerator*>(g_s2e->getPlugin("WindowsCrashDumpGenerator"));
 }
 
 WindowsCrashDumpInvoker::~WindowsCrashDumpInvoker()
@@ -469,6 +464,11 @@ int WindowsCrashDumpInvoker::generateCrashDump(lua_State *L)
 
     if (state == NULL) {
         os << "State with id " << std::dec << stateId << " does not exist" << std::endl;
+        return 0;
+    }
+
+    if (!m_plugin) {
+        os << "Please enable the WindowsCrashDumpGenerator plugin in your configuration file" << std::endl;
         return 0;
     }
 

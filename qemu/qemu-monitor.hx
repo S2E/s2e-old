@@ -121,10 +121,8 @@ ETEXI
         .args_type  = "command:s",
         .params     = "command",
         .help       = "Execute an S2E command",
+        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_s2e,
-        .mhandler.info = NULL,
-        .mhandler.info_new = NULL,
-        .mhandler.cmd = NULL,
     },
 
 STEXI
@@ -146,6 +144,19 @@ STEXI
 Disable all S2E instrumentation
 ETEXI
 
+    {
+        .name       = "s2e-crashdump",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Generates a Windows crash dump of the current state",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_s2e_crashdump,
+    },
+
+STEXI
+@item s2e-crashdump
+Generates a Windows crash dump of the current state
+ETEXI
 
 #endif
 

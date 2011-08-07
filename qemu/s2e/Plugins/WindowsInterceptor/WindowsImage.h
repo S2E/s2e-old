@@ -421,14 +421,75 @@ typedef struct _DRIVER_OBJECT32
   UNICODE_STRING32 DriverName;
 } __attribute__((packed)) DRIVER_OBJECT32, *PDRIVER_OBJECT32;
 
-#define KPCR_OFFSET 0xFFDFF000
-#define KD_VERSION_BLOCK (KPCR_OFFSET + 0x34)
+//KPCR is at fs:1c
+//This is only valid for XP (no ASLR)
+//#define KPCR_ADDRESS  0xFFDFF000
+
+//Offset of the pointer to KPCR relative to the fs register
+#define KPCR_FS_OFFSET 0x1c
+
+//Offset of the DBGKD_GET_VERSION32 data structure in the KPCR
+#define KPCR_KDVERSION32_OFFSET 0x34
+
+//Offset of the KPRCB in the KPCR
+#define KPCR_KPRCB_OFFSET 0x120
+#define KPCR_KPRCB_PTR_OFFSET 0x20
+
+
+//Offset of the current thread in the FS register
+#define FS_CURRENT_THREAD_OFFSET 0x124
+
+//Offset of the pointer to the EPROCESS in the ETHREAD structure
+#define ETHREAD_PROCESS_OFFSET_VISTA 0x48
+#define ETHREAD_PROCESS_OFFSET_XP 0x44
+
+
+//#define KD_VERSION_BLOCK (KPCR_ADDRESS + 0x34)
 #define PS_LOADED_MODULE_LIST_OFFSET 0x70 //Inside the kd version block
-#define KPCR_EPROCESS 0x44
-#define KPRCB_OFFSET 0xFFDFF120
+
+#define BUILD_WINXP     2600
+#define BUILD_LONGHORN  5048
+
+
+//#define KPRCB_OFFSET 0xFFDFF120
 #define IRQL_OFFSET 0xFFDFF124
 #define PEB_OFFSET 0x7FFDF000
 typedef uint32_t KAFFINITY;
+
+typedef struct _DBGKD_GET_VERSION32 {
+    uint16_t    MajorVersion;   // 0xF == Free, 0xC == Checked
+    uint16_t    MinorVersion;
+    uint16_t    ProtocolVersion;
+    uint16_t    Flags;          // DBGKD_VERS_FLAG_XXX
+    uint32_t    KernBase;
+    uint32_t    PsLoadedModuleList;
+    uint16_t    MachineType;
+    uint16_t    ThCallbackStack;
+    uint16_t    NextCallback;
+    uint16_t    FramePointer;
+    uint32_t    KiCallUserMode;
+    uint32_t    KeUserCallbackDispatcher;
+    uint32_t    BreakpointWithStatus;
+    uint32_t    Reserved4;
+} __attribute__((packed)) DBGKD_GET_VERSION32, *PDBGKD_GET_VERSION32;
+
+typedef struct _DBGKD_GET_VERSION64
+{
+     uint16_t MajorVersion;
+     uint16_t MinorVersion;
+     uint8_t ProtocolVersion;
+     uint8_t KdSecondaryVersion;
+     uint16_t Flags;
+     uint16_t MachineType;
+     uint8_t MaxPacketType;
+     uint8_t MaxStateChange;
+     uint8_t MaxManipulate;
+     uint8_t Simulation;
+     uint16_t Unused[1];
+     uint64_t KernBase;
+     uint64_t PsLoadedModuleList;
+     uint64_t DebuggerDataList;
+} __attribute__((packed)) DBGKD_GET_VERSION64, *PDBGKD_GET_VERSION64;
 
 typedef struct _LDR_DATA_TABLE_ENTRY32
 {
@@ -479,21 +540,46 @@ typedef struct _PEB32 {
 } __attribute__((packed))PEB32;
 
 
-typedef struct _KPROCESS32 {
+typedef struct _KPROCESS32_XP {
   uint8_t Unk1[0x18];
   uint32_t DirectoryTableBase;
   uint8_t Unk2[0x50];
-} __attribute__((packed))KPROCESS32;
+} __attribute__((packed))KPROCESS32_XP;
 
-typedef struct _EPROCESS32 {
-  KPROCESS32 Pcb;
-  uint8_t Unk1[0x1C];
+typedef struct _EPROCESS32_XP {
+  KPROCESS32_XP Pcb;
+  uint32_t ProcessLock;
+  uint64_t CreateTime;
+  uint64_t ExitTime;
+  uint32_t RundownProtect;
+  uint32_t UniqueProcessId;
   LIST_ENTRY32 ActiveProcessLinks;
   uint8_t Unk2[0xE4];
   uint8_t ImageFileName[16]; //offset 0x174
   uint32_t Unk3[11];
   uint32_t Peb;
-} __attribute__((packed)) EPROCESS32;
+} __attribute__((packed)) EPROCESS32_XP;
+
+typedef struct _KPROCESS32_VISTA {
+  uint8_t Unk1[0x10];
+  LIST_ENTRY32 ProfileListHead;
+  uint32_t DirectoryTableBase;
+  uint8_t Unk2[0x64];
+} __attribute__((packed))KPROCESS32_VISTA;
+
+typedef struct _EPROCESS32_VISTA {
+  KPROCESS32_VISTA Pcb;
+  uint64_t ProcessLock;
+  uint64_t CreateTime;
+  uint64_t ExitTime;
+  uint32_t RundownProtect;
+  uint32_t UniqueProcessId;
+  LIST_ENTRY32 ActiveProcessLinks;
+  uint8_t Unk2[0xa4];
+  uint8_t ImageFileName[16]; //offset 14c
+  uint32_t Unk3[11];
+  uint32_t Peb;
+} __attribute__((packed)) EPROCESS32_VISTA;
 
 typedef struct _KAPC_STATE32 {
   LIST_ENTRY32 ApcListHead[2];

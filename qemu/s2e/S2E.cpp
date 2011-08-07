@@ -251,6 +251,8 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     }
 #endif
 
+    m_startTimeSeconds = llvm::sys::TimeValue::now().seconds();
+
     m_maxProcesses = s2e_max_processes;
     m_currentProcessIndex = 0;
     m_currentProcessId = 0;
@@ -259,6 +261,7 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
     shared->lastStateId = 0;
     shared->lastFileId = 1;
     shared->processIds[m_currentProcessId] = m_currentProcessIndex;
+    shared->processPids[m_currentProcessId] = getpid();
     m_sync.release();
 
     /* Open output directory. Do it at the very begining so that
@@ -320,19 +323,19 @@ void S2E::writeBitCodeToFile()
 
 S2E::~S2E()
 {
-    //Tell other instances we are dead so they can fork more    
-    S2EShared *shared = m_sync.acquire();
-
-    getDebugStream() <<"arr=" << shared->processIds[m_currentProcessId] << std::endl;
-    assert(shared->processIds[m_currentProcessId] == m_currentProcessIndex);
-    shared->processIds[m_currentProcessId] = (unsigned) -1;
-    --shared->currentProcessCount;
-
-    m_sync.release();
-
     //Delete all the stuff used by the instance
     foreach(Plugin* p, m_activePluginsList)
         delete p;
+
+    //Tell other instances we are dead so they can fork more
+    S2EShared *shared = m_sync.acquire();
+
+    assert(shared->processIds[m_currentProcessId] == m_currentProcessIndex);
+    shared->processIds[m_currentProcessId] = (unsigned) -1;
+    shared->processPids[m_currentProcessId] = (unsigned) -1;
+    --shared->currentProcessCount;
+
+    m_sync.release();
 
     delete m_pluginsFactory;
     delete m_database;
@@ -618,8 +621,12 @@ std::ostream& S2E::getStream(std::ostream& stream,
     fflush(stderr);
 
     if(state) {
+        llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
+        stream << std::dec << (curTime.seconds() - m_startTimeSeconds) << " ";
+
         if (m_maxProcesses > 1) {
-            stream << std::dec << "[Node " << m_currentProcessIndex << " - State " << state->getID() << "] ";
+            stream << std::dec << "[Node " << m_currentProcessIndex <<
+                    "/" << m_currentProcessId << " - State " << state->getID() << "] ";
         }else {
             stream << "[State " << std::dec << state->getID() << "] ";
         }
@@ -682,6 +689,7 @@ int S2E::fork()
         for (i=0; i<m_maxProcesses; ++i) {
             if (shared->processIds[i] == (unsigned)-1) {
                 shared->processIds[i] = newProcessIndex;
+                shared->processPids[i] = getpid();
                 m_currentProcessId = i;
                 break;
             }
@@ -720,6 +728,41 @@ unsigned S2E::getCurrentProcessCount()
 {
     S2EShared *shared = m_sync.acquire();
     unsigned ret = shared->currentProcessCount;
+    m_sync.release();
+    return ret;
+}
+
+unsigned S2E::getProcessIndexForId(unsigned id)
+{
+    assert(id < m_maxProcesses);
+    S2EShared *shared = m_sync.acquire();
+    unsigned ret = shared->processIds[id];
+    m_sync.release();
+    return ret;
+}
+
+bool S2E::checkDeadProcesses()
+{
+    S2EShared *shared = m_sync.acquire();
+    bool ret = false;
+    for (unsigned i=0; i<m_maxProcesses; ++i) {
+        if (shared->processPids[i] == (unsigned)-1) {
+            continue;
+        }
+
+        //Check if pid is alive
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "kill -0 %d", shared->processPids[i]);
+        int ret = system(buffer);
+        if (ret != 0) {
+            //Process is dead, we have to decrement everyting
+            shared->processIds[i] = (unsigned) -1;
+            shared->processPids[i] = (unsigned) -1;
+            --shared->currentProcessCount;
+            ret = true;
+        }
+    }
+
     m_sync.release();
     return ret;
 }

@@ -37,7 +37,6 @@
 #ifndef S2E_CONFIG_H
 #define S2E_CONFIG_H
 
-
 /** How many S2E instances we want to handle.
     Plugins can use this constant to allocate blocks of shared memory whose size
     depends on the maximum number of processes (e.g., bitmaps) */
@@ -69,8 +68,6 @@
 /** Enables simple memory debugging support */
 //#define S2E_DEBUG_MEMORY
 
-
 #define S2E_USE_FAST_SIGNALS
-
 
 #endif // S2E_CONFIG_H

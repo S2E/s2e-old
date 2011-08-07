@@ -35,7 +35,11 @@
  *
  */
 
+#ifdef TARGET_ARM
 extern struct CPUARMState* env;
+#elif defined(TARGET_I386)
+extern struct CPUX86State* env;
+#endif
 
 #ifndef NDEBUG
 static const char * const tcg_target_reg_names[TCG_TARGET_NB_REGS] = {

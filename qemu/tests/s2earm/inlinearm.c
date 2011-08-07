@@ -35,13 +35,13 @@
  * To understand inline ARM assembler, read this: http://www.ethernut.de/en/documents/arm-inline-asm.html
  */
 
-#include<stdio.h>
+#include <stdio.h>
 
 /** Get S2E version or 0 when running without S2E. */
 static inline int s2e_version()
 {
 	int version;
-    asm volatile(
+    __asm__ volatile(
         ".arm \n\t"
         ".word 0xff000000 \n\t"   /* S2E opcode to store version in r0 */
         "mov %[v], r0\n\t"

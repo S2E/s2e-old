@@ -649,8 +649,10 @@ static CharDriverState *qemu_chr_open_pipe(QemuOpts *opts)
 	if (fd_out >= 0)
 	    close(fd_out);
         TFR(fd_in = fd_out = open(filename, O_RDWR | O_BINARY));
-        if (fd_in < 0)
+        if (fd_in < 0) {
+            fprintf(stderr, "errno: %d\n", errno);
             return NULL;
+        }
     }
     return qemu_chr_open_fd(fd_in, fd_out);
 }
