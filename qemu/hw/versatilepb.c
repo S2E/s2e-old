@@ -180,10 +180,20 @@ static void versatile_init(ram_addr_t ram_size,
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
+#ifdef CONFIG_S2E
+        s2e_register_cpu(g_s2e, g_s2e_state, env);
+#endif
+
     ram_offset = qemu_ram_alloc(ram_size);
     /* ??? RAM should repeat to fill physical memory space.  */
     /* SDRAM at address zero.  */
     cpu_register_physical_memory(0, ram_size, ram_offset | IO_MEM_RAM);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state,
+                  0, ram_size,
+                  (uint64_t) qemu_get_ram_ptr(ram_offset | IO_MEM_RAM), 0, 0, "ram");
+#endif
 
     arm_sysctl_init(0x10000000, 0x41007004, 0x02000000);
     cpu_pic = arm_pic_init_cpu(env);

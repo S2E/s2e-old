@@ -604,7 +604,7 @@ typedef struct {
 
 #define NB_MMU_MODES 2
 
-#define TARGET_PAGE_BITS 12
+#include "target-defs.h"
 
 typedef struct CPUX86State {
     /* standard registers */

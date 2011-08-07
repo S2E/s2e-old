@@ -78,8 +78,14 @@ int execute_llvm = 0;
 #endif
 
 #ifdef CONFIG_S2E
+#ifdef TARGET_I386
 #define do_interrupt(intno, is_int, error_code, next_eip, is_hw) \
     s2e_do_interrupt(g_s2e, g_s2e_state, intno, is_int, error_code, next_eip, is_hw)
+#endif
+#ifdef TARGET_ARM
+#define do_interrupt(env) \
+	s2e_do_interrupt(g_s2e,g_s2e_state)
+#endif
 #endif
 
 int tb_invalidated_flag;
@@ -554,7 +560,7 @@ int cpu_exec(CPUState *env1)
                        We avoid this by disabling interrupts when
                        pc contains a magic address.  */
                     if (interrupt_request & CPU_INTERRUPT_HARD
-                        && ((IS_M(env) && RR_cpu(env, regs[15]) < 0xfffffff0)
+                        && ((IS_M(env) && env->regs[15] < 0xfffffff0)
                             || !(env->uncached_cpsr & CPSR_I))) {
                         env->exception_index = EXCP_IRQ;
                         do_interrupt(env);

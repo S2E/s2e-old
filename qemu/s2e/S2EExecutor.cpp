@@ -44,16 +44,26 @@ extern "C" {
 #include <exec-all.h>
 #include <sysemu.h>
 
+#ifdef TARGET_ARM
+extern struct CPUARMState *env;
+#elif defined(TARGET_I386)
 extern struct CPUX86State *env;
+#endif
+
 void QEMU_NORETURN raise_exception(int exception_index);
 void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
 extern const uint8_t parity_table[256];
 extern const uint8_t rclw_table[32];
 extern const uint8_t rclb_table[32];
 
+#ifdef TARGET_ARM
+uint64_t helper_do_interrupt(void);
+#elif defined(TARGET_I386)
 uint64_t helper_do_interrupt(int intno, int is_int, int error_code,
                   target_ulong next_eip, int is_hw);
+#endif
 uint64_t helper_set_cc_op_eflags(void);
+
 }
 #include <malloc.h>
 
@@ -184,8 +194,7 @@ namespace {
 cl::opt<bool>
 PrintModeSwitch("print-mode-switch",
                 cl::desc("Print message when switching from symbolic to concrete and vice versa"),
-                cl::init(false));
-
+                cl::init(true));
 extern cl::opt<bool> UseExprSimplifier;
 
 extern "C" {
@@ -598,16 +607,26 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     //__DEFINE_EXT_FUNCTION(raise_exception)
     //__DEFINE_EXT_FUNCTION(raise_exception_err)
 
+#ifdef _WIN32
     __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_addresses)
     __DEFINE_EXT_VARIABLE(g_s2e_concretize_io_writes)
     __DEFINE_EXT_VARIABLE(g_s2e_fork_on_symbolic_address)
+#endif
 
     __DEFINE_EXT_FUNCTION(fprintf)
     __DEFINE_EXT_FUNCTION(sprintf)
     __DEFINE_EXT_FUNCTION(fputc)
     __DEFINE_EXT_FUNCTION(fwrite)
 
-
+    __DEFINE_EXT_FUNCTION(cpu_io_recompile)
+#ifdef TARGET_ARM
+    __DEFINE_EXT_FUNCTION(cpu_arm_handle_mmu_fault)
+    __DEFINE_EXT_FUNCTION(cpsr_read)
+    __DEFINE_EXT_FUNCTION(cpsr_write)
+    __DEFINE_EXT_FUNCTION(arm_cpu_list)
+//    __DEFINE_EXT_FUNCTION(do_interrupt)
+#endif
+#ifdef TARGET_I386
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
     __DEFINE_EXT_FUNCTION(cpu_x86_handle_mmu_fault)
     __DEFINE_EXT_FUNCTION(cpu_x86_update_cr0)
@@ -619,6 +638,11 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_get_apic_tpr)
     __DEFINE_EXT_FUNCTION(cpu_set_apic_tpr)
     __DEFINE_EXT_FUNCTION(cpu_smm_update)
+    __DEFINE_EXT_FUNCTION(hw_breakpoint_insert)
+    __DEFINE_EXT_FUNCTION(hw_breakpoint_remove)
+    __DEFINE_EXT_FUNCTION(check_hw_breakpoints)
+    __DEFINE_EXT_FUNCTION(cpu_get_tsc)
+#endif
     __DEFINE_EXT_FUNCTION(cpu_outb)
     __DEFINE_EXT_FUNCTION(cpu_outw)
     __DEFINE_EXT_FUNCTION(cpu_outl)
@@ -629,14 +653,13 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpu_restore_state)
     __DEFINE_EXT_FUNCTION(cpu_abort)
     __DEFINE_EXT_FUNCTION(cpu_loop_exit)
-    __DEFINE_EXT_FUNCTION(cpu_get_tsc)
+
     __DEFINE_EXT_FUNCTION(tb_find_pc)
 
     __DEFINE_EXT_FUNCTION(qemu_system_reset_request)
 
-    __DEFINE_EXT_FUNCTION(hw_breakpoint_insert)
-    __DEFINE_EXT_FUNCTION(hw_breakpoint_remove)
-    __DEFINE_EXT_FUNCTION(check_hw_breakpoints)
+    __DEFINE_EXT_FUNCTION(cpu_reset)
+
 
     __DEFINE_EXT_FUNCTION(tlb_flush_page)
     __DEFINE_EXT_FUNCTION(tlb_flush)
@@ -685,7 +708,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     }
 
     /* Set module for the executor */
-#if 1
+
     char* filename =  qemu_find_file(QEMU_FILE_TYPE_LIB, "op_helper.bc");
     assert(filename);
     ModuleOptions MOpts(vector<string>(1, filename),
@@ -693,11 +716,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
             m_tcgLLVMContext->getFunctionPassManager());
 
     qemu_free(filename);
-
-#else
-    ModuleOptions MOpts(vector<string>(),
-            /* Optimize= */ true, /* CheckDivZero= */ false);
-#endif
 
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
 
@@ -743,9 +761,10 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     assert(function);
     addSpecialFunctionHandler(function, handlerTraceMemoryAccess);
 
-    function = kmodule->module->getFunction("tcg_llvm_trace_port_access");
-    assert(function);
-    addSpecialFunctionHandler(function, handlerTracePortAccess);
+// TODO: Find a way to bypass i/o access (when I/O adress is symbolic) for ARM
+//    function = kmodule->module->getFunction("tcg_llvm_trace_port_access");
+//    assert(function);
+//    addSpecialFunctionHandler(function, handlerTracePortAccess);
 
     function = kmodule->module->getFunction("s2e_on_tlb_miss");
     assert(function);
@@ -845,9 +864,9 @@ S2EExecutionState* S2EExecutor::createInitialState()
     __DEFINE_EXT_OBJECT_RO(cpu_single_env)
     __DEFINE_EXT_OBJECT_RO(loglevel)
     __DEFINE_EXT_OBJECT_RO(logfile)
-    __DEFINE_EXT_OBJECT_RO_SYMB(parity_table)
-    __DEFINE_EXT_OBJECT_RO_SYMB(rclw_table)
-    __DEFINE_EXT_OBJECT_RO_SYMB(rclb_table)
+//    __DEFINE_EXT_OBJECT_RO_SYMB(parity_table)
+//    __DEFINE_EXT_OBJECT_RO_SYMB(rclw_table)
+//    __DEFINE_EXT_OBJECT_RO_SYMB(rclb_table)
 
 
     m_s2e->getMessagesStream(state)
@@ -879,6 +898,51 @@ void S2EExecutor::initializeExecution(S2EExecutionState* state,
 
     initTimers();
 }
+
+
+#ifdef TARGET_ARM
+void S2EExecutor::registerCpu(S2EExecutionState *initialState,
+                              CPUARMState *cpuEnv)
+{
+    std::cout << std::hex
+              << "Adding CPU (addr = 0x" << cpuEnv
+              << ", size = 0x" << sizeof(*cpuEnv) << ")"
+              << std::dec << std::endl;
+
+    /* Add registers and eflags area as a true symbolic area */
+    initialState->m_cpuRegistersState =
+        addExternalObject(*initialState, cpuEnv,
+                      offsetof(CPUARMState, regs[15]),
+                      /* isReadOnly = */ false,
+                      /* isUserSpecified = */ false,
+                      /* isSharedConcrete = */ false);
+
+    initialState->m_cpuRegistersState->setName("CpuRegistersState");
+
+    /* Add the rest of the structure as concrete-only area */
+    initialState->m_cpuSystemState =
+        addExternalObject(*initialState,
+                      ((uint8_t*)cpuEnv) + offsetof(CPUARMState, regs[15]),
+                      sizeof(CPUARMState) - offsetof(CPUARMState, regs[15]),
+                      /* isReadOnly = */ false,
+                      /* isUserSpecified = */ true,
+                      /* isSharedConcrete = */ true);
+
+    initialState->m_cpuSystemState->setName("CpuSystemState");
+
+    m_saveOnContextSwitch.push_back(initialState->m_cpuSystemState);
+
+    const ObjectState *cpuSystemObject = initialState->addressSpace
+                                .findObject(initialState->m_cpuSystemState);
+    const ObjectState *cpuRegistersObject = initialState->addressSpace
+                                .findObject(initialState->m_cpuRegistersState);
+
+    initialState->m_cpuRegistersObject = initialState->addressSpace
+        .getWriteable(initialState->m_cpuRegistersState, cpuRegistersObject);
+    initialState->m_cpuSystemObject = initialState->addressSpace
+        .getWriteable(initialState->m_cpuSystemState, cpuSystemObject);
+}
+#elif defined(TARGET_I386)
 
 void S2EExecutor::registerCpu(S2EExecutionState *initialState,
                               CPUX86State *cpuEnv)
@@ -922,6 +986,9 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
         .getWriteable(initialState->m_cpuSystemState, cpuSystemObject);
 }
 
+#endif
+
+
 void S2EExecutor::registerRam(S2EExecutionState *initialState,
                         uint64_t startAddress, uint64_t size,
                         uint64_t hostAddress, bool isSharedConcrete,
@@ -938,6 +1005,12 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
               << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
               << ", isSharedConcrete=" << isSharedConcrete << ")" << std::dec << std::endl;
 
+#ifdef DEBUG_TLB
+    qemu_log("ALLOCATE RAM of size=%"PRIu64"\n",size);
+    qemu_log("\t start address: %"PRIx64".\n", startAddress);
+    qemu_log("\t host_address: %"PRIx64".\n", hostAddress);
+#endif
+
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += S2E_RAM_OBJECT_SIZE) {
         std::stringstream ss;
@@ -948,6 +1021,17 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
                 *initialState, (void*) addr, S2E_RAM_OBJECT_SIZE, false,
                 /* isUserSpecified = */ true, isSharedConcrete,
                 isSharedConcrete && !saveOnContextSwitch && StateSharedMemory);
+
+#ifdef DEBUG_TLB
+        qemu_log("\t mo address: %"PRIx64".\n", mo);
+
+        //get concrete store just for debugging
+        ObjectPair op = initialState->addressSpace.findObject(addr);
+        ObjectState* wos =
+                initialState->addressSpace.getWriteable(op.first, op.second);
+
+        qemu_log("\t wos->concreteStore  address: %"PRIx64".\n", wos->getConcreteStore());
+#endif
 
         mo->setName(ss.str());
 
@@ -986,12 +1070,14 @@ void S2EExecutor::registerDirtyMask(S2EExecutionState *initial_state, uint64_t h
 
     m_saveOnContextSwitch.push_back(initial_state->m_dirtyMask);
 
+
     const ObjectState *dirtyMaskObject = initial_state->addressSpace
                                 .findObject(initial_state->m_dirtyMask);
 
     initial_state->m_dirtyMaskObject = initial_state->addressSpace
         .getWriteable(initial_state->m_dirtyMask, dirtyMaskObject);
 }
+
 
 
 void S2EExecutor::switchToConcrete(S2EExecutionState *state)
@@ -2087,7 +2173,8 @@ void S2EExecutor::terminateStateAtFork(S2EExecutionState &state)
 
 inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
 {
-    uint32_t cc_op = 0;
+#ifdef TARGET_I386
+	uint32_t cc_op = 0;
 
     // Check wether any of cc_op, cc_src, cc_dst or cc_tmp are symbolic
     if((state->getSymbolicRegistersMask() & (0xf<<1)) || m_executeAlwaysKlee) {
@@ -2116,8 +2203,34 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
             helper_set_cc_op_eflags();
         }
     }
+#elif defined(TARGET_ARM)
+    //not needed for ARM
+#endif
 }
 
+
+#ifdef TARGET_ARM
+void S2EExecutor::doInterrupt(S2EExecutionState *state)
+{
+    if(state->m_cpuRegistersObject->isAllConcrete() && !m_executeAlwaysKlee) {
+        if(!state->m_runningConcrete)
+            switchToConcrete(state);
+        //TimerStatIncrementer t(stats::concreteModeTime);
+        helper_do_interrupt();
+    } else {
+        if(state->m_runningConcrete)
+            switchToSymbolic(state);
+        std::vector<klee::ref<klee::Expr> > args(0);
+        try {
+            TimerStatIncrementer t(stats::symbolicModeTime);
+            executeFunction(state, "helper_do_interrupt", args);
+        } catch(s2e::CpuExitException&) {
+            updateStates(state);
+            longjmp(env->jmp_env, 1);
+        }
+    }
+}
+#elif defined(TARGET_I386)
 inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
                                      int is_int, int error_code,
                                      uint64_t next_eip, int is_hw)
@@ -2145,6 +2258,9 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
         }
     }
 }
+#endif
+
+
 
 void S2EExecutor::setupTimersHandler()
 {
@@ -2209,10 +2325,17 @@ void S2EExecutor::queueStateForMerge(S2EExecutionState *state)
     state->m_lastMergeICount = state->getTotalInstructionCount();
 
     uint64_t mergePoint = 0;
+#ifdef TARGET_ARM
+    if(!state->readCpuRegisterConcrete(CPU_OFFSET(regs[13]), &mergePoint, 8)) {
+        m_s2e->getWarningsStream(state)
+                << "Warning: merge request for a state with symbolic SP" << std::endl;
+    }
+#elif defined(TARGET_I386)
     if(!state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &mergePoint, 8)) {
         m_s2e->getWarningsStream(state)
                 << "Warning: merge request for a state with symbolic ESP" << std::endl;
     }
+#endif
     mergePoint = hash64(mergePoint);
     mergePoint = hash64(state->getPc(), mergePoint);
 
@@ -2247,11 +2370,19 @@ void s2e_initialize_execution(S2E *s2e, S2EExecutionState *initial_state,
     tcg_register_helper((void*)&s2e_tcg_custom_instruction_handler, "s2e_tcg_custom_instruction_handler");
 }
 
+#ifdef TARGET_ARM
+void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
+                      CPUARMState *cpu_env)
+{
+    s2e->getExecutor()->registerCpu(initial_state, cpu_env);
+}
+#elif defined(TARGET_I386)
 void s2e_register_cpu(S2E *s2e, S2EExecutionState *initial_state,
                       CPUX86State *cpu_env)
 {
     s2e->getExecutor()->registerCpu(initial_state, cpu_env);
 }
+#endif
 
 void s2e_register_ram(S2E* s2e, S2EExecutionState *initial_state,
         uint64_t start_address, uint64_t size,
@@ -2313,6 +2444,13 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
     s2e->getExecutor()->setCCOpEflags(state);
 }
 
+
+#ifdef TARGET_ARM
+void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state)
+{
+    s2e->getExecutor()->doInterrupt(state);
+}
+#elif defined(TARGET_I386)
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
                       int intno, int is_int, int error_code,
                       uint64_t next_eip, int is_hw)
@@ -2320,6 +2458,7 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
     s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
                                     next_eip, is_hw);
 }
+#endif
 
 /**
  *  Checks whether we are trying to access an I/O port that returns a symbolic value.
@@ -2338,9 +2477,16 @@ void s2e_ensure_symbolic(S2E *s2e, S2EExecutionState *state)
 }
 
 /** Tlb cache helpers */
-void s2e_update_tlb_entry(S2EExecutionState* state, CPUX86State* env,
+#ifdef TARGET_ARM
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUARMState* env,
                           int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
 {
+#elif defined(TARGET_I386)
+void s2e_update_tlb_entry(S2EExecutionState* state, CPUX86State* env,
+	                      int mmu_idx, uint64_t virtAddr, uint64_t hostAddr)
+{
+#endif
+
 #ifdef S2E_ENABLE_S2E_TLB
     state->updateTlbEntry(env, mmu_idx, virtAddr, hostAddr);
 #endif

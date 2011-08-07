@@ -1,0 +1,16 @@
+This directory contains an ARM port of S2E's testbios to ARM.
+Addional testcases were added to debug S2E's functionality for ARM.
+Build the test firmware (hello.S) with buildHello.sh.
+
+run the S2E-enabled 'qemu-system-arm' with something like:
+qemu-system-arm -s2e-config-file /home/user/S2E/config.lua -nographic -kernel /home/user/S2E/s2earm/qemu/tests/s2earm/hello.bin -s2e-verbose -d llvm_ir,in_asm,out_asm,op,int,exec
+
+find debug informations in /tmp/qemu.log
+
+(provided by Andreas Kirchner <akalypse@gmail.com>)
+
+################### NOTICE ###################################
+To compile ARM assembly code on an X86 machine you need to install an ARM toolchain. Take a look at:
+http://www.codesourcery.com/sgpp/lite/arm/portal/release1803
+(the build script in this directory relies on such a toolchain)
+############################################################## 

@@ -149,7 +149,7 @@ void S2EDeviceState::initDeviceState()
 
     //The CPU is taken care of be the S2E executor
     //XXX: What about watchpoints and stuff like that?
-    ignoreList.insert("cpu");
+    //ignoreList.insert("cpu");
 
     g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
 

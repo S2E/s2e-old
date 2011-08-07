@@ -45,6 +45,10 @@
 /** Enables S2E TLB to speed-up concrete memory accesses */
 #define S2E_ENABLE_S2E_TLB
 
+#define STRING2(x) #x
+#define STRING(x) STRING2(x)
+
+
 /** This defines the size of each MemoryObject that represents physical RAM.
     Larger values save some memory, smaller (exponentially) decrease solving
     time for constraints with symbolic addresses */

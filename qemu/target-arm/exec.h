@@ -16,15 +16,39 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include "config.h"
 #include "dyngen-exec.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
+#ifdef CONFIG_S2E
+extern struct CPUARMState *env;
+#else
 register struct CPUARMState *env asm(AREG0);
+#endif
 
 #define M0   env->iwmmxt.val
 
 #include "cpu.h"
 #include "exec-all.h"
+#include "qemu-common.h"
+#include "qemu-log.h"
 
 static inline void env_to_regs(void)
 {
