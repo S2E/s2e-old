@@ -37,8 +37,9 @@ extern "C" {
 #include <qemu-common.h>
 #include <cpu-all.h>
 #include <exec-all.h>
+#include "cpu.h"
 
-extern struct CPUX86State *env;
+extern CPUArchState *env;
 }
 
 
@@ -603,6 +604,72 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     return 0;
 }
 
+#ifdef TARGET_ARM
+static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32 &size)
+{
+    if (regstr == "r0") {
+        regIndex = 0;
+        size = 4;
+    }else if (regstr == "r1") {
+        regIndex = 1;
+        size = 4;
+    }else if (regstr == "r2") {
+        regIndex = 2;
+        size = 4;
+    }else if (regstr == "r3") {
+        regIndex = 3;
+        size = 4;
+    }else if (regstr == "r4") {
+        regIndex = 4;
+        size = 4;
+    }else if (regstr == "r5") {
+        regIndex = 5;
+        size = 4;
+    }else if (regstr == "r6") {
+        regIndex = 6;
+        size = 4;
+    }else if (regstr == "r7") {
+        regIndex = 7;
+        size = 4;
+    }else if (regstr == "r8") {
+        regIndex = 8;
+        size = 4;
+    }else if (regstr == "r9") {
+        regIndex = 9;
+        size = 4;
+    }else if (regstr == "r10") {
+        regIndex = 10;
+        size = 4;
+    }else if (regstr == "r11") {
+        regIndex = 11;
+        size = 4;
+    }else if (regstr == "r12") {
+        regIndex = 12;
+        size = 4;
+    }else if (regstr == "r13") {
+        regIndex = 13;
+        size = 4;
+    }else if (regstr == "r14") {
+        regIndex = 14;
+        size = 4;
+    }else if (regstr == "r15") {
+        regIndex = 15;
+        size = 4;
+    }else if (regstr == "pc") {
+        regIndex = 15;
+        size = 4;
+    }else if (regstr == "sp") {
+        regIndex = 13;
+        size = 4;
+    }else if (regstr == "lr") { /* link register */
+        regIndex = 14;
+        size = 4;
+    }else {
+        return false;
+    }
+    return true;
+}
+#elif defined(TARGET_I386)
 static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32 &size)
 {
     if (regstr == "eax") {
@@ -634,6 +701,7 @@ static bool RegNameToIndex(const std::string &regstr, uint32_t &regIndex, uint32
     }
     return true;
 }
+#endif
 
 int S2ELUAExecutionState::writeRegister(lua_State *L)
 {

@@ -1,0 +1,32 @@
+
+                                 +-+-+-+-+-+-+
+                                 |S|2|E|A|R|M|
+                                 +-+-+-+-+-+-+
+
+This is an alpha version of an ARM-enabled S2E.
+
+Building Instructions (host system: Ubuntu 10.10):
+We assume that S2E source is in /var/s2e/s2e and that the current directory is /var/s2e
+
+1.        make -f s2e/Makefile
+
+2.        make all      (or make all-debug)
+
+3.        find binaries in /var/s2e/qemu-release/arm-s2e-softmmu
+                           /var/s2e/qemu-release/arm-softmmu (S2E not enabled)
+
+(replace 'qemu-release' with 'qemu-debug' when running 'make all-debug')
+
+Hints:
+a.) Look at /var/s2e/s2e/qemu/tests/s2earm for a test firmware which establishes basic communication with S2E. (look at README for tipps how to compile assembler code).
+
+b.) Find the config file in /var/s2e/s2e/config.lua
+
+c.) To invoke custom S2E instructions in native ARM applications
+    you can try the provided header
+    /var/s2e/s2e/guest/include/s2earm.h
+
+d.) To setup an ARM debian target, try:
+http://www.aurel32.net/info/debian_arm_qemu.php
+You find a pre-configured debian lenny ARM image here:
+http://people.debian.org/~aurel32/qemu/arm/

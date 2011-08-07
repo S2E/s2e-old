@@ -15,6 +15,10 @@
 #include "exec-memory.h"
 #include "sysemu.h"
 
+#ifdef CONFIG_S2E
+#include <s2e/s2e_qemu.h>
+#endif
+
 typedef struct {
     SysBusDevice busdev;
     MemoryRegion iomem;
@@ -461,6 +465,11 @@ static void integratorcp_init(ram_addr_t ram_size,
     }
     memory_region_init_ram(ram, "integrator.ram", ram_size);
     vmstate_register_ram_global(ram);
+
+#ifdef CONFIG_S2E
+    s2e_register_cpu(g_s2e, g_s2e_state, env);
+#endif
+
     /* ??? On a real system the first 1Mb is mapped as SSRAM or boot flash.  */
     /* ??? RAM should repeat to fill physical memory space.  */
     /* SDRAM at address zero*/
@@ -468,6 +477,15 @@ static void integratorcp_init(ram_addr_t ram_size,
     /* And again at address 0x80000000 */
     memory_region_init_alias(ram_alias, "ram.alias", ram, 0, ram_size);
     memory_region_add_subregion(address_space_mem, 0x80000000, ram_alias);
+
+#ifdef CONFIG_S2E
+    s2e_register_ram(g_s2e, g_s2e_state,
+                  0, ram_size,
+                  (uint64_t) memory_region_get_ram_ptr(ram), 0, 0, "ram");
+//    s2e_register_ram(g_s2e, g_s2e_state,
+//    			  0x80000000, ram_size,
+//    			  (uint64_t) qemu_get_ram_ptr(ram_offset | IO_MEM_RAM), 0,0, "ramhigh");
+#endif
 
     dev = qdev_create(NULL, "integrator_core");
     qdev_prop_set_uint32(dev, "memsz", ram_size >> 20);
