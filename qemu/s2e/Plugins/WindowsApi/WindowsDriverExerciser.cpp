@@ -47,6 +47,7 @@ extern "C" {
 #include <s2e/S2EExecutor.h>
 
 #include "WindowsDriverExerciser.h"
+#include "NtoskrnlHandlers.h"
 
 using namespace s2e::windows;
 
@@ -67,6 +68,18 @@ void WindowsDriverExerciser::initialize()
         s2e()->getWarningsStream() << "WindowsDriverExerciser: You must specify modules to track in moduleIds" << std::endl;
         exit(-1);
         return;
+    }
+
+    bool ok;
+    std::string strUnloadAction = cfg->getString(getConfigKey() + ".unloadAction", "", &ok);
+
+    if (strUnloadAction == "kill") {
+        m_unloadAction = KILL;
+    }else if (strUnloadAction == "succeed") {
+        m_unloadAction = SUCCEED;
+    }else {
+        s2e()->getWarningsStream() << "WindowsDriverExerciser: You must specify kill or succeed for unloadAction" << std::endl;
+        exit(-1);
     }
 
     foreach2(it, mods.begin(), mods.end()) {
@@ -135,9 +148,15 @@ void WindowsDriverExerciser::onModuleUnload(
     }
 
     //XXX: We might want to monitor multiple modules, so avoid killing
-    std::stringstream ss;
-    ss << module.Name << " unloaded";
-    s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
+    switch(m_unloadAction) {
+        case SUCCEED: m_manager->succeedState(state); break;
+        case KILL: {
+            std::stringstream ss;
+            ss << module.Name << " unloaded";
+            s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
+        }
+    }
+
     return;
 }
 
@@ -147,17 +166,17 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
 {
     HANDLER_TRACE_CALL();
 
+    bool ok = true;
+    uint32_t driverObject, registryPath;
+    ok &= readConcreteParameter(state, 0, &driverObject);
+    ok &= readConcreteParameter(state, 1, &registryPath);
+    if (!ok) {
+        s2e()->getWarningsStream() << "WindowsDriverExerciser: could not read driverObject and/or registryPath" << std::endl;
+        return;
+    }
+
     if(m_memoryChecker) {
         const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
-
-        bool ok = true;
-        uint32_t driverObject, registryPath;
-        ok &= readConcreteParameter(state, 0, &driverObject);
-        ok &= readConcreteParameter(state, 1, &registryPath);
-        if (!ok) {
-            s2e()->getWarningsStream() << "WindowsDriverExerciser: could not read driverObject and/or registryPath" << std::endl;
-            return;
-        }
 
         // Entry point args
         m_memoryChecker->grantMemory(state, module, driverObject, 0x1000, 3,
@@ -171,10 +190,10 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
                                      "driver:globals:KeTickCount", 0, true);
     }
 
-    FUNCMON_REGISTER_RETURN(state, fns, WindowsDriverExerciser::DriverEntryPointRet);
+    FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject);
 }
 
-void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state)
+void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint32_t pDriverObject)
 {
     s2e()->getDebugStream(state) << "Returning from WindowsDriverExerciser entry point "
                 << " at " << hexval(state->getPc()) << std::endl;
@@ -192,6 +211,27 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state)
         ss << "Entry point failed with 0x" << std::hex << eax;
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
         return;
+    }
+
+    NtoskrnlHandlers *ntosHandlers = static_cast<NtoskrnlHandlers*>(s2e()->getPlugin("NtoskrnlHandlers"));
+
+    //Register all major functions, only if they belong to the driver itself
+    DRIVER_OBJECT32 driverObject;
+    if (ntosHandlers && state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
+        const ModuleDescriptor *desc = m_detector->getCurrentDescriptor(state);
+        assert(desc);
+
+        for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
+            if (desc->Contains(driverObject.MajorFunction[i])) {
+                s2e()->getMessagesStream() << "Registering IRP " << s_irpMjArray[i] << " at 0x" << std::hex
+                        << driverObject.MajorFunction[i] << std::endl;
+
+                registerEntryPoint<NtoskrnlHandlers>
+                        (state, ntosHandlers, &NtoskrnlHandlers::DriverDispatch, driverObject.MajorFunction[i], i);
+            }
+        }
+    }else {
+        s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure" << std::endl;
     }
 
     m_manager->succeedState(state);

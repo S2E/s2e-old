@@ -522,6 +522,14 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
     //XXX: grant memory access
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorState *fns, uint32_t irpMajor)
+{
+    HANDLER_TRACE_CALL();
+    s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
+
+}
 
 }
 }

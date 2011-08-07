@@ -59,6 +59,12 @@ namespace plugins {
     void name(S2EExecutionState* state, FunctionMonitorState *fns); \
     void name##Ret(S2EExecutionState* state, ##__VA_ARGS__)
 
+#define DECLARE_ENTRY_POINT_CALL(name, ...) \
+    void name(S2EExecutionState* state, FunctionMonitorState *fns, __VA_ARGS__)
+
+#define DECLARE_ENTRY_POINT_RET(name, ...) \
+    void name##Ret(S2EExecutionState* state, ##__VA_ARGS__)
+
 #define DECLARE_ENTRY_POINT_CO(name, ...) \
     void name(S2EExecutionState* state, FunctionMonitorState *fns);
 
@@ -176,6 +182,20 @@ protected:
         FunctionMonitor::CallSignal* cs;
         cs = m_functionMonitor->getCallSignal(state, address, 0);
         cs->connect(sigc::mem_fun(*handlingPlugin, handler));
+        return true;
+    }
+
+    template <typename HANDLING_PLUGIN, typename HANDLER_PTR, typename T1>
+    bool registerEntryPoint(S2EExecutionState *state,
+                            HANDLING_PLUGIN *handlingPlugin,
+                            HANDLER_PTR handler, uint64_t address, T1 t1)
+    {
+        if (!address) {
+            return false;
+        }
+        FunctionMonitor::CallSignal* cs;
+        cs = m_functionMonitor->getCallSignal(state, address, 0);
+        cs->connect(sigc::bind(sigc::mem_fun(*handlingPlugin, handler), t1));
         return true;
     }
 

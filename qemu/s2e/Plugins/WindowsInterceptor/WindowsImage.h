@@ -419,7 +419,16 @@ typedef struct _DRIVER_OBJECT32
   uint32_t DriverSize; //PVOID
   uint32_t DriverSection; //PVOID
   UNICODE_STRING32 DriverName;
+
+  PUNICODE_STRING32 HardwareDatabase;
+  uint32_t FastIoDispatch;
+  uint32_t DriverInit;
+  uint32_t DriverStartIo;
+  uint32_t DriverUnload;
+  uint32_t MajorFunction[28];
 } __attribute__((packed)) DRIVER_OBJECT32, *PDRIVER_OBJECT32;
+
+extern const char * s_irpMjArray [];
 
 //KPCR is at fs:1c
 //This is only valid for XP (no ASLR)

@@ -61,6 +61,10 @@ class WindowsDriverExerciser : public WindowsApi
 {
     S2E_PLUGIN
 public:
+    enum UnloadAction {
+        KILL, SUCCEED
+    };
+
     typedef void (WindowsDriverExerciser::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
     WindowsDriverExerciser(S2E* s2e):WindowsApi(s2e) {}
 
@@ -69,6 +73,8 @@ public:
 private:
     StringSet m_modules;
     StringSet m_loadedModules;
+
+    UnloadAction m_unloadAction;
 
     void onModuleLoad(
             S2EExecutionState* state,
@@ -80,7 +86,7 @@ private:
             const ModuleDescriptor &module
             );
 
-    DECLARE_ENTRY_POINT(DriverEntryPoint);
+    DECLARE_ENTRY_POINT(DriverEntryPoint, uint32_t pDriverObject);
 };
 
 }
