@@ -431,9 +431,9 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
     Expr::Width width = expr->getWidth();
 
     // XXX: this might be expensive...
-    if (UseExprSimplifier) {
-        expr = s2eExecutor->simplifyExpr(*state, expr);
-    }
+//    if (UseExprSimplifier) {
+//        expr = s2eExecutor->simplifyExpr(*state, expr);
+//    }
 
     expr = state->constraints.simplifyExpr(expr);
 

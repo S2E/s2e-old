@@ -314,27 +314,6 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
-        case 0x50: { /* disable/enable timer interrupt */
-            uint64_t disabled = opcode >> 16;
-            if(disabled)
-                s2e()->getMessagesStream(state) << "Disabling timer interrupt" << std::endl;
-            else
-                s2e()->getMessagesStream(state) << "Enabling timer interrupt" << std::endl;
-            state->writeCpuState(CPU_OFFSET(timer_interrupt_disabled),
-                                 disabled, 8);
-            break;
-        }
-        case 0x51: { /* disable/enable all apic interrupts */
-            uint64_t disabled = opcode >> 16;
-            if(disabled)
-                s2e()->getMessagesStream(state) << "Disabling all apic interrupt" << std::endl;
-            else
-                s2e()->getMessagesStream(state) << "Enabling all apic interrupt" << std::endl;
-            state->writeCpuState(CPU_OFFSET(all_apic_interrupts_disabled),
-                                 disabled, 8);
-            break;
-        }
-
         case 0x52: { /* Gets the current S2E memory object size (in power of 2) */
                 uint32_t size = S2E_RAM_OBJECT_BITS;
                 state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]), &size, 4);
