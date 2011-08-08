@@ -352,7 +352,6 @@ s2eobj-y += s2e/Plugins/ExecutionTracers/TranslationBlockTracer.o
 s2eobj-y += s2e/Plugins/CacheSim.o
 s2eobj-y += s2e/Plugins/Debugger.o
 #s2eobj-y += s2e/Plugins/SymbolicHardware.o
-#s2eobj-y += s2e/Plugins/PollingLoopDetector.o
 s2eobj-y += s2e/Plugins/EdgeKiller.o
 s2eobj-y += s2e/Plugins/StateManager.o
 s2eobj-y += s2e/Plugins/Annotation.o
@@ -377,6 +376,8 @@ s2eobj-y += s2e/S2E.o
 #s2eobj-y += s2e/Slab.o s2e/x64.o #XXX: should also fix for 32 bits archs.
 #s2eobj-y += s2e/Plugins/PluginInterface.o
 
+
+s2e/Plugins/Android/AndroidMonitor.o: QEMU_CFFXFLAGS+=-fno-inline
 #s2e/Plugins/StateManager.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/Annotation.o: QEMU_CXXFLAGS+=-fno-inline
 s2e/Plugins/BranchCoverage.o s2e/Plugins/WindowsInterceptor/WindowsMonitor.o: QEMU_CXXFLAGS+=-fno-inline

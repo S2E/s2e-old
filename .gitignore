@@ -2,3 +2,5 @@ s2e.creator.user
 /.cproject
 /.project
 /.umlproject
+/s2e-out-*
+/s2e-last
