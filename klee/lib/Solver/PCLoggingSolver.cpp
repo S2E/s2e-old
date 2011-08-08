@@ -26,6 +26,8 @@ using namespace klee::util;
 
 ///
 
+std::ostream *g_solverLog = NULL;
+
 class PCLoggingSolver : public SolverImpl {
   Solver *solver;
   std::ofstream os;
@@ -63,6 +65,7 @@ public:
     os(path.c_str(), std::ios::trunc),
     printer(ExprPPrinter::create(os)),
     queryCount(0) {
+      g_solverLog = &os;
   }                                                      
   ~PCLoggingSolver() {
     delete printer;

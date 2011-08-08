@@ -287,7 +287,39 @@ public:
 
 bool ValidatingSolver::computeTruth(const Query& query,
                                     bool &isValid) {
-  bool answer;
+#define VOTING_SOLVER
+#define VOTE_COUNT 3
+#if defined(VOTING_SOLVER)
+    bool results[VOTE_COUNT];
+    unsigned trueCount = 0, falseCount = 0;
+
+    for (unsigned i=0; i<VOTE_COUNT; ++i) {
+        bool res1, res2;
+        if (!oracle->impl->computeTruth(query, res1))
+          return false;
+
+        if (!solver->impl->computeTruth(query, res2))
+          return false;
+
+	if (res1 == res2)
+          results[i] = res1;
+        else
+          results[i] = rand() & 1 ? res1:res2;
+
+        if (results[i])
+            ++trueCount;
+        else
+            ++falseCount;
+    }
+
+    if (trueCount > falseCount) {
+        isValid =  true;
+    }else {
+        isValid = false;
+    }
+    return true;
+#else
+    bool answer;
 
   if (!solver->impl->computeTruth(query, isValid))
     return false;
@@ -298,11 +330,57 @@ bool ValidatingSolver::computeTruth(const Query& query,
     assert(0 && "invalid solver result (computeTruth)");
 
   return true;
+#endif
+
+
 }
 
 bool ValidatingSolver::computeValidity(const Query& query,
                                        Solver::Validity &result) {
-  Solver::Validity answer;
+#if defined(VOTING_SOLVER)
+    Solver::Validity results[VOTE_COUNT];
+    unsigned trueCount = 0, falseCount = 0, unknownCount = 0;
+    for (unsigned i=0; i<VOTE_COUNT; ++i) {
+        Solver::Validity res1, res2;
+        if (!solver->impl->computeValidity(query, res1))
+          return false;
+
+        if (!oracle->impl->computeValidity(query, res2))
+          return false;
+
+        if (res1 == res2)
+          results[i] = res1;
+        else
+          results[i] = res1;
+
+        switch(results[i]) {
+            case Solver::True: ++trueCount; break;
+            case Solver::False: ++falseCount; break;
+            case Solver::Unknown: ++unknownCount; break;
+            default: assert(false);
+        }
+    }
+    if (trueCount > falseCount && falseCount >= unknownCount)
+        result = Solver::True;
+    else
+    if (trueCount > unknownCount && unknownCount >= falseCount)
+        result = Solver::True;
+    else
+    if (falseCount > trueCount && trueCount >= unknownCount)
+        result = Solver::False;
+    else
+    if (falseCount > unknownCount && unknownCount >= trueCount)
+        result = Solver::False;
+    else
+    if (unknownCount > falseCount && falseCount >= trueCount)
+        result = Solver::Unknown;
+    else
+    if (unknownCount > trueCount && trueCount >= falseCount)
+        result = Solver::Unknown;
+    else assert(false);
+    return true;
+#else
+    Solver::Validity answer;
 
   if (!solver->impl->computeValidity(query, result))
     return false;
@@ -313,6 +391,7 @@ bool ValidatingSolver::computeValidity(const Query& query,
     assert(0 && "invalid solver result (computeValidity)");
 
   return true;
+#endif
 }
 
 bool ValidatingSolver::computeValue(const Query& query,
@@ -500,6 +579,12 @@ void STPSolverImpl::reinstantiate()
         vc_Destroy(vc);
         vc = vc_createValidityChecker();
         builder = new STPBuilder(vc);
+
+        #ifdef HAVE_EXT_STP
+        vc_setInterfaceFlags(vc, EXPRDELETE, 0);
+        #endif
+
+        vc_registerErrorHandler(::stp_error_handler);
     }
 }
 
@@ -570,6 +655,7 @@ bool STPSolverImpl::computeValue(const Query& query,
   return true;
 }
 
+
 static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
                    const std::vector<const Array*> &objects,
                    std::vector< std::vector<unsigned char> > &values,
@@ -577,13 +663,21 @@ static void runAndGetCex(::VC vc, STPBuilder *builder, ::VCExpr q,
   // XXX I want to be able to timeout here, safely
     int result;
 
-    /*if (klee_message_stream) {
-        vc_printExprStream(klee_message_stream, vc, q);
-    }*/
-
     result = vc_query(vc, q);
 
     if (result < 0) {
+        if (klee_message_stream) {
+            char *buffer;
+            unsigned long length;
+            vc_push(vc);
+            vc_printQueryStateToBuffer(vc, q,
+                                       &buffer, &length, false);
+            vc_pop(vc);
+
+            *klee_message_stream << buffer << std::endl;
+            free(buffer);
+        }
+
         //Bug in stp
         throw std::exception();
     }
@@ -722,6 +816,8 @@ static bool runAndGetCexForked(::VC vc,
   }
 #endif
 }
+static bool __stp_printstate = true;
+extern std::ostream *g_solverLog;
 
 bool
 STPSolverImpl::computeInitialValues(const Query &query,
@@ -745,11 +841,16 @@ STPSolverImpl::computeInitialValues(const Query &query,
 
   ExprHandle stp_e = builder->construct(query.expr);
 
-  if (0) {
+  if (__stp_printstate) {
     char *buf;
-    unsigned long len;
-    vc_printQueryStateToBuffer(vc, stp_e, &buf, &len, false);
-    fprintf(stderr, "note: STP query: %.*s\n", (unsigned) len, buf);
+    buf = vc_printSMTLIB(vc, stp_e);
+    if (g_solverLog) {
+        *g_solverLog << "==============START=============" << std::endl;
+        *g_solverLog << buf << std::endl << std::flush;
+        *g_solverLog << "==============END=============" << std::endl;
+    }
+    //fprintf(stderr, "note: STP query: %.*s\n", (unsigned) len, buf);
+    free(buf);
   }
 
   bool success;
@@ -762,6 +863,7 @@ STPSolverImpl::computeInitialValues(const Query &query,
         success = true;
     } catch(std::exception &) {
         klee::klee_warning("STP solver threw an exception");
+        exit(-1);
         vc_pop(vc);
         reinstantiate();
         success = false;
