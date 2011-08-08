@@ -1,5 +1,7 @@
 package ch.epfl.s2e.android;
 
+import ch.epfl.s2e.S2EWrapper;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -73,20 +75,20 @@ public class S2EAndroidActivity extends Activity {
     }
     
     public void onCallS2EVersion(View view) {
-        String result = getS2EVersion();
+        String result = "S2E Version: " +S2EWrapper.getVersion();
         Log.v(DEBUG_TAG, "Result: "+result);
     }
     
     private native void helloLog(String logThis);
     private native String getString(int value1, int value2);
-    private native String getS2EVersion();
     
     static {
-        System.loadLibrary("android");
+        System.loadLibrary("s2ewrapper");
     }
     
     public void onClickSendLocation(View view) {
         Log.i(DEBUG_TAG, "Location will be transmitted when the next Location change arrives (use DDMS to invoke location change)");
+        S2EWrapper.traceAndroidLocation("TEST LOCATION TRACE");
     }
     
     private void sendToServer(String message) {
@@ -121,10 +123,10 @@ public class S2EAndroidActivity extends Activity {
 	}
 
 	public void onClickSendUiid(View view) {
-    		Log.d(DEBUG_TAG,"TODO UIID");
     		TelephonyManager tManager = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
     		String uid = tManager.getDeviceId();
     		sendToServer(uid);
+    		S2EWrapper.traceAndroidUID("TEST UID TRACE");
     }
     
 }

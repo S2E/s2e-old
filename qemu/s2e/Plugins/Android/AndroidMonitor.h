@@ -27,36 +27,35 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Currently maintained by:
- *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
- *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Andreas Kirchner <akalypse@gmail.com>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
 
-#ifndef __S2E_OPCODES__
+#ifndef _ANDROIDMONITOR_PLUGIN_H_
 
-#define __S2E_OPCODES__
+#define _ANDROIDMONITOR_PLUGIN_H_
 
-#define OPCODE_SIZE (2 + 8)
+#include <s2e/Plugin.h>
+#include <s2e/Plugins/CorePlugin.h>
+#include <s2e/S2EExecutionState.h>
+#include <vector>
 
-//Central opcode repository for plugins that implement micro-operations
-#define RAW_MONITOR_OPCODE   0xAA
-#define MEMORY_TRACER_OPCODE 0xAC
-#define STATE_MANAGER_OPCODE 0xAD
-#define ANDROID_MONITOR_OPCODE 0xBB
+namespace s2e {
+namespace plugins {
 
-//Expression evaluates to true if the custom instruction operand contains the
-//specified opcode
-#ifdef TARGET_ARM
-#define OPCODE_CHECK(operand, opcode) ((((operand)>>16) & 0xFF) == (opcode))
-#elif defined(TARGET_I386)
-#define OPCODE_CHECK(operand, opcode) ((((operand)>>8) & 0xFF) == (opcode))
-#endif
-//Get an 8-bit function code from the operand.
-//This may or may not be used depending on how a plugin expects an operand to
-//look like
-#define OPCODE_GETSUBFUNCTION(operand) (((operand) >> 16) & 0xFF)
+class AndroidMonitor:public Plugin
+{
+    S2E_PLUGIN
+    void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
+public:
+    AndroidMonitor(S2E* s2e): Plugin(s2e) {}
+    virtual ~AndroidMonitor();
+    void initialize();
+};
 
+} // namespace plugins
+} // namespace s2e
 
 #endif

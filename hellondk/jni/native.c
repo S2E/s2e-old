@@ -38,26 +38,3 @@ jstring Java_ch_epfl_s2e_android_S2EAndroidActivity_getString(JNIEnv * env, jobj
 	
 	return result;
 }
-
-jstring Java_ch_epfl_s2e_android_S2EAndroidActivity_getS2EVersion(JNIEnv * env, jobject this)
-{
-	char *szFormat = "The current version of S2E is: %i";
-	char *szResult;
-
-	// retrieve s2e_version
-	jint v = s2e_version();
-
-	// malloc room for the resulting string
-	szResult = malloc(sizeof(szFormat) + 20);
-
-	// standard sprintf
-	sprintf(szResult, szFormat, v);
-
-	// get an object string
-	jstring result = (*env)->NewStringUTF(env, szResult);
-
-	// cleanup
-	free(szResult);
-
-	return result;
-}

@@ -232,7 +232,6 @@ static inline void _s2e_assert(int b, const char *expression )
 
 #define s2e_assert(expression) _s2e_assert(expression, "Assertion failed: "  #expression)
 
-
 /** Declare a merge point: S2E will try to merge
  *  all states when they reach this point.
  *
@@ -264,3 +263,34 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
     );
 }
 
+/** Android event plugin */
+/** Communicates to S2E if Android events occur. */
+
+
+static inline void s2e_android_trace_location(const char *detailmsg)
+{
+    __asm__ __volatile__(
+            "stmfd sp!,{r0}\n\t"
+    		"MOV r0, %[msg]\n\t"
+            ".WORD 0xFFBB0000\n\t"
+            ".ALIGN\n\t"
+            "ldmfd sp!,{r0}\n\t"
+        : /*no output operand */
+    	: [msg] "r" (detailmsg)
+    	: "r0"
+    );
+}
+
+static inline void s2e_android_trace_uid(const char *detailmsg)
+{
+    __asm__ __volatile__(
+            "stmfd sp!,{r0}\n\t"
+    		"MOV r0, %[msg]\n\t"
+            ".WORD 0xFFBB0100\n\t"
+            ".ALIGN\n\t"
+            "ldmfd sp!,{r0}\n\t"
+        : /*no output operand */
+    	: [msg] "r" (detailmsg)
+    	: "r0"
+    );
+}
