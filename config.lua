@@ -1,6 +1,6 @@
 s2e = {
 	kleeArgs = {
-	-- Run each state for at least 1 second before
+	-- Run each state for at least 30 second before
 	-- switching to the other:
 	"--use-batching-search=true", "--batch-time=30.0"
 	}
