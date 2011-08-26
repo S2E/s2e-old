@@ -30,10 +30,7 @@ guests for now.
    $ chroot ~/debian32
 
    $ # Setup devices
-   $ cd /dev; /sbin/MAKEDEV generic; cd ..
-
-   $ # Install build tools
-        $ apt-get install build-essential kernel-package locales
+   $ cd /dev; MAKEDEV generic; cd ..
 
    $ # Set the locale to UTF-8, otherwise perl will complain
    $ export LANGUAGE=en_US.UTF-8
@@ -42,6 +39,9 @@ guests for now.
    $ locale-gen en_US.UTF-8
    $ dpkg-reconfigure locales
 
+   $ # Install build tools and developer's libraries for ncurses
+   $ apt-get install build-essential kernel-package locales libncurses-dev
+
    $ # Download the kernel
    $ mkdir /root/kernel && cd /root/kernel
    $ wget http://www.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.8.tar.bz2
@@ -49,11 +49,14 @@ guests for now.
    $ cd linux-2.6.26.8
 
    $ # Select your options
-   $ # Make sure the selected CPU type is 32-bit
-   $ make menuconfig
+   $ # On a 64-bit machine, "make menuconfig" automatically switches from 32-bit
+   $ # to 64-bit for x86. Thus, precede "make" with "linux32" to ensure the
+   $ # selected CPU type is 32-bit. Additionally, select Processor type and
+   $ # features ---> Processor family ---> Pentium-Pro
+   $ linux32 make menuconfig
 
-   $ # Compile and generate the packages
-   $ make-kpkg --append-to-version=-s2e --rootcmd fakeroot --initrd kernel_image kernel_headers
+   $ # Compile and generate kernel packages (that will be located in ../)
+   $ linux32 make-kpkg --append-to-version=-s2e --rootcmd fakeroot --cross-compile - --arch=i386 --initrd kernel_image kernel_headers
 
 
 The result of the process is two ``*.deb`` files that you can upload to your VM image.

@@ -26,10 +26,10 @@ SystemTap requires a kernel built with the following settings:
 - CONFIG_KPROBES=y
 - CONFIG_DEBUG_FS=y
 
-For the purpose of this tutorial, also enable the following option:
+For the purpose of this tutorial, also enable the following options:
 
-- CONFIG_PCNET32=y
-
+- CONFIG_PCNET32=m (To enable this option, issue "linux32 make menuconfig", then select Device Drivers ---> Network device support ---> Ethernet (10 or 100Mbit) ---> AMD PCnet32 PCI support)
+- For other additional options, please refer to the `config.s2e.i686 <config.s2e.i686>`_ file.
 
 Refer to the `Building Linux <BuildingLinux.html>`_ tutorial
 for a list of detailed steps.
@@ -54,26 +54,85 @@ In the ``chroot`` 32-bit environment you use to compile your kernel, do the foll
    # Install the compiled kernel, headers, and debug information.
    # You must ensure that kernel-package = 11.015 is installed, later versions (>=12)
    # strip the debug information from the kernel image/modules.
-      
-      
-   # Adapt all the filenames accordingly 
-   $ dpkg -i linux-image-2.6.26.8-s2e.deb
-   $ dpkg -i linux-headers-2.6.26.8-s2e.deb   
    
-   # Get SystemTap, configure, compile, and install.
-   $ wget wget http://sourceware.org/systemtap/ftp/releases/systemtap-1.3.tar.gz
+   # Install initramfs-tools and its dependencies
+   $ apt-get install initramfs-tools klibc-utils libklibc udev libvolume-id0
+   
+   # Set up the Linux image (an INITRD image will be created in /boot/ as well).
+   # Adapt all the filenames accordingly 
+   $ dpkg -i linux-image-2.6.26.8-s2e.deb linux-headers-2.6.26.8-s2e.deb   
+
+   # Install packages on which SystemTap depends:
+   $ apt-get install libdw-dev libebl-dev
+
+   # Get SystemTap, configure, compile, and install:
+   $ wget http://sourceware.org/systemtap/ftp/releases/systemtap-1.3.tar.gz
    $ tar xzvf systemtap-1.3.tar.gz
+   $ cd systemtap-1.3
+   $ ./configure
+   $ linux32 make --jobs=8 # Replace 8 with your number of cores
+   $ linux32 make install
+
+
+Building SystemTap on the guest
+===============================
+
+Build SystemTap dependencies and fetch SystemTap source: 
+
+::
+
+   # Boot the OS image in the vanilla QEMU and login as root
+   $ $S2EBUILD/qemu-release/i386-softmmu/qemu s2e_disk.qcow2
+   
+   # Get packages on which SystemTap depends and install them:
+   $ wget http://ftp.au.debian.org/debian/pool/main/e/elfutils/libelf1_0.131-4_i386.deb
+   $ wget http://ftp.au.debian.org/debian/pool/main/e/elfutils/libelf-dev_0.131-4_i386.deb
+   $ wget http://ftp.au.debian.org/debian/pool/main/e/elfutils/libdw-dev_0.131-4_i386.deb
+   $ wget http://ftp.au.debian.org/debian/pool/main/e/elfutils/libebl-dev_0.131-4_i386.deb
+   $ dpkg -i *.deb
+
+   # Get SystemTap:
+   $ wget http://sourceware.org/systemtap/ftp/releases/systemtap-1.3.tar.gz
+   $ tar xzf systemtap-1.3.tar.gz
+
+Install and boot your new kernel on the guest:
+
+::
+
+   # Upload the kernel packages to the guest OS, install them (adapt all
+   # the filenames accordingly)
+   $ dpkg -i linux-image-2.6.26.8-s2e.deb linux-headers-2.6.26.8-s2e.deb
+   # Reboot your QEMU machine, choose your 2.6.26.8-s2e kernel from the
+   # grub menu and login as root
+   $ reboot
+
+   # Verify that the new version of your kernel rebooted
+   $ uname -a
+
+   # Note: If this is a re-install of a kernel package that you have already
+   # installed (i.e. the same 2.6.26.8-s2e flag as an installed kernel
+   # package), you need to first remove the old package(s), before you do
+   # the dpkg -i of the new ones:
+   $ dpkg -r linux-image-2.6.26.8-s2e.deb
+
+   # You can use the -I option to dpkg to list info about the package file,
+   # including its name (used in the -r option)
+
+Install SystemTap with the following steps:
+
+::
+
    $ cd systemtap-1.3
    $ ./configure
    $ make
    $ make install
 
-Building SystemTap on the guest
-===============================
+Shut down the QEMU machine:
 
-Upload the kernel packages in the guest OS, install them, and reboot.
-Then, download SystemTap and install it following the same staps as previously described.
+::
 
+   $ halt
+ 
 Creating a simple S2E-enabled SystemTap script
 ==============================================
 
@@ -165,7 +224,7 @@ Compile the script with SystemTap in the ``chroot`` environment, adjusting the k
 
 ::
 
-    $ stap -r 2.6.26.8-s2e -g -m pcnet_probe pcnet32.stp
+    $ linux32 stap -r 2.6.26.8-s2e -g -m pcnet_probe pcnet32.stp
     WARNING: kernel release/architecture mismatch with host forces last-pass 4.
     pcnet_probe.ko
     
@@ -197,24 +256,39 @@ Create the ``tcpip.lua`` configuration file with the following content:
 
   
 
-Start S2E with port forwarding enabled by adding ``-redir tcp:2222::22 -redir udp:2222::22``
-to the QEMU command line. This will redirect ports 2222 from ``localhost`` to the guest
-port 22. Adapt the name of the disk image to suite your needs.
+To prepare a snapshot for S2E: start the vanilla QEMU with port forwarding enabled
+by adding ``-redir tcp:2222::22 -redir udp:2222::22`` to the QEMU command line.
+This will redirect ports 2222 from ``localhost`` to the guest port 22. Adapt the
+name of the disk image to suite your needs.
 
 ::
 
-   $ qemu -rtc clock=vm -net user -net nic,model=pcnet -redir tcp:2222::22 -redir udp:2222::22 \
-       -hda linux_tcpip.qcow2 -s2e-config-file tcpip.lua -loadvm ready
+   $ $S2EBUILD/qemu-release/i386-softmmu/qemu -rtc clock=vm -net user \
+       -net nic,model=pcnet -redir tcp:2222::22 -redir udp:2222::22 \
+       -hda s2e_disk.qcow2
+   # Press Ctrl-Alt-2 to reach the QEMU monitor, then save the snapshot with a tag (e.g., ready)
+   $ savevm ready
+   # Press Ctrl-Alt-1 to return to the emulation screen, then shut down the QEMU machine
+   $ su -c halt
 
-Once you uploaded the ``pcnet_probe.ko`` module in the guest OS, run the following command in the guest:
+  
+
+Start the S2E-enabled QEMU with port forwarding enabled:
+::
+
+   $ $S2EBUILD/qemu-release/i386-s2e-softmmu/qemu -rtc clock=vm -net user \
+       -net nic,model=pcnet -redir tcp:2222::22 -redir udp:2222::22 \
+       -hda s2e_disk.qcow2 -s2e-config-file tcpip.lua -loadvm ready
+
+Once you uploaded the ``pcnet_probe.ko`` module to the guest OS, run the following command in the guest:
 
 ::
 
-    $ staprun pcnet_probe.ko
+    $ staprun pcnet_probe.ko &
     
 This will load the probe into the kernel. Symbolic execution will start when the network card
-receives the first packet. To send a packet, open a console in the guest, and use ``netcat``
-to send a UDP packet:
+receives the first packet. To send a packet, use ``netcat`` (in the guest) to send a UDP
+packet:
 
 ::
 
