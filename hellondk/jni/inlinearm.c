@@ -37,12 +37,49 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include<string.h>
 #include "s2earm.h"
 
 //for system calls
 #include <unistd.h>
 #include <sys/types.h>
 
+
+#define H 7
+#define W 11
+
+char maze[H][W] = { "+-+---+---+",
+                    "| |     |#|",
+                    "| | --+ | |",
+                    "| |   | | |",
+                    "| +-- | | |",
+                    "|     |   |",
+                    "+-----+---+" };
+
+//void disableInterrupts() {
+//    __asm__ __volatile__(
+//	"mrs	r0, cpsr\n\t"
+//	"orr	r0,r0,#0x80\n\t"
+//	"msr	cpsr_c,r0\n\t"
+//	"mov r0,#1\n\t"
+//	"bx	lr\n\t"
+//    		:
+//    		:
+//    		: "r0", "cc"
+//	);
+//}
+//
+//void enableInterrupts() {
+//    __asm__ __volatile__(
+//	"mrs	r0, cpsr\n\t"
+//	"bic	r0,r0,#0x80\n\t"
+//	"msr	cpsr_c,r0\n\t"
+//	"bx	lr\n\t"
+//    		:
+//    		:
+//    		: "r0", "cc"
+//	);
+//}
 
 void testsub() {
 	printf("Hello Subroutine\n");
@@ -54,7 +91,106 @@ void testsub() {
 	printf("Exit!\n");
 }
 
-void main( int argc, char *argv[ ], char *envp[ ] ) {
+void testS2EMessages(void) {
+	int i;
+
+	s2e_message("START S2EMessage Test.");
+	char* fmt = "Call # %i";
+	char* msg = malloc(sizeof(fmt) + 20);
+
+	for(i=0;i<10;i++) {
+		sprintf(msg,fmt,i);
+		s2e_message(msg);
+		s2e_warning("---");
+	}
+}
+
+void testMakeSymbolic(void) {
+	int x;
+	float y;
+	char z;
+	s2e_make_symbolic(&x,sizeof(int),"symbint");
+	s2e_make_symbolic(&y,sizeof(float),"symbfloat");
+	s2e_make_symbolic(&z,sizeof(char),"symbchar");
+//	s2e_concretize(&y,sizeof(float));
+//	s2e_concretize(&z,sizeof(char));
+//	s2e_print_expression("x:",x);
+	return;
+}
+
+void testMaze() {
+
+	int x, y;     //Player position
+	int ox, oy;   //Old player position
+	int i = 0;    //Iteration number
+	#define ITERS 32
+	char program[ITERS];
+
+	//Initial position
+	x = 1;
+	y = 1;
+	maze[y][x]='X';
+
+	//read(0,program,ITERS);
+	s2e_make_symbolic(program, ITERS, "input");
+
+	//Iterate and run 'program'
+	while(i < ITERS)
+	{
+		//Save old player position
+		ox = x;
+		oy = y;
+
+		//Move player position depending on the actual command
+		switch (program[i])
+		{
+			case 'w':
+				y--;
+				break;
+			case 's':
+				y++;
+				break;
+			case 'a':
+				x--;
+				break;
+			case 'd':
+				x++;
+				break;
+			default:
+				s2e_kill_state(0, "loose");
+		}
+
+		//If hit the price, You Win!!
+		if (maze[y][x] == '#')
+		{
+			s2e_kill_state(0, "win");
+		}
+
+		//If something is wrong do not advance
+		if (maze[y][x] != ' '
+			&&
+			!((y == 2 && maze[y][x] == '|' && x > 0 && x < W)))
+		{
+			x = ox;
+			y = oy;
+		}
+
+		//If crashed to a wall! Exit, you loose
+		if (ox==x && oy==y)
+			s2e_kill_state(0, "loose");
+
+		//put the player on the maze...
+		maze[y][x]='X';
+		//increment iteration
+		i++;
+	}
+
+	//You couldn't make it! You loose!
+	//printf("You loose\n");
+	s2e_kill_state(0, "loose");
+}
+
+void myfirstone() {
 	s2e_rawmon_loadmodule("s2eandroid",0x8460,0x1AD4);
 
 	int symb;
@@ -71,26 +207,33 @@ void main( int argc, char *argv[ ], char *envp[ ] ) {
 	s2e_make_symbolic(&symb,sizeof(symb), "x");
 	s2e_make_symbolic(&symb2,sizeof(symb2), "y");
 
-//	s2e_get_example(&symb2,sizeof(symb2));
+//	s2e_get_example(&symb2,sizeof(int));
 
 	if(symb==symb2) {
 		printf("test1");
-//		s2e_print_expression("x:",symb);
-//		s2e_print_expression("y:",symb2);
-		s2e_concretize(&symb,sizeof(symb));
+		s2e_print_expression(symb,"x");
+		s2e_print_expression(symb2,"y");
+		s2e_concretize(&symb,sizeof(int));
 
 
-		char* msg = "End of State %i. Concretized x is: %i";
-		char* endmsg = malloc(sizeof(msg) + 20);
-
-		sprintf(endmsg,msg,s2e_get_path_id(),symb);
-		s2e_message(endmsg);
+//		char* msg = "End of State %i. Concretized x is: %i";
+//		char* endmsg = malloc(sizeof(msg) + 20);
+//
+//		sprintf(endmsg,msg,s2e_get_path_id(),symb);
+//		s2e_message(endmsg);
 		s2e_kill_state(333, "kill1");
 	} else {
 		printf("test2");
 		s2e_message("symb and symb2 are not equal!");
 	}
-//  the following Statement kills Android emulator
+}
 
-
+void main( int argc, char *argv[ ], char *envp[ ] ) {
+	s2e_disable_interrupts();
+	testS2EMessages();
+	testMakeSymbolic();
+	testMaze();
+	myfirstone();
+	s2e_enable_interrupts();
+	return;
 }
