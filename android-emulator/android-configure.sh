@@ -632,7 +632,7 @@ fi
 
 echo "CXX=$cxx" >> $config_mk
 echo "ASM=$asm" >> $config_mk
-echo "LINKER=$linker" >> $config_mk
+echo "LINKER=$cxx" >> $config_mk
 
 
 echo "HOST_PREBUILT_TAG := $TARGET_OS" >> $config_mk

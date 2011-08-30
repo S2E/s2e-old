@@ -275,6 +275,7 @@ LOCAL_SRC_FILES += \
     s2e/Plugins/Annotation.cpp  \
     s2e/Plugins/Searchers/MaxTbSearcher.cpp  \
     s2e/Plugins/MemoryChecker.cpp  \
+    s2e/Plugins/Linux/LinuxMonitor.cpp \
     s2e/sqlite3.c  \
     s2e/Database.cpp  \
     s2e/ConfigFile.cpp  \
@@ -286,10 +287,11 @@ LOCAL_SRC_FILES += \
     s2e/S2EExecutionState.cpp  \
     s2e/S2E.cpp \
 
+
 ifeq ($(EMULATOR_TARGET_ARCH),arm)
 	LOCAL_SRC_FILES += \
 	s2e/Plugins/BaseInstructionsArm.cpp \
-    s2e/Plugins/Android/AndroidMonitor.cpp
+        s2e/Plugins/Android/AndroidMonitor.cpp 
 endif
 
 ifeq ($(EMULATOR_TARGET_ARCH),x86)
@@ -298,7 +300,7 @@ ifeq ($(EMULATOR_TARGET_ARCH),x86)
 	s2e/Plugins/BaseInstructions.cpp \
 	s2e/Plugins/RawMonitor.cpp  \
 	s2e/Plugins/FunctionMonitor.cpp  \
-    s2e/Plugins/CacheSim.cpp  
+        s2e/Plugins/CacheSim.cpp  
 endif
     
 
