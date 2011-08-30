@@ -37,14 +37,14 @@
 /** Get S2E version or 0 when running without S2E. */
 static inline int s2e_version()
 {
-	int version;
+	int version = -1;
     __asm__ volatile(
         ".WORD 0xff000000\n\t"   /* S2E opcode to store version in r0 */
     	".ALIGN\n"
     	"mov %[v], r0\n\t"
         : [v] "+r" (version) /* output */
         : /* no input */
-        : "r0" /* clobbing */
+        : "r0" /* clobbing - r0 is scratch register */
     );
     return version;
 }
@@ -54,9 +54,7 @@ static inline void s2e_message(const char* message)
 {
     __asm__ __volatile__(
     	".WORD 0xFF100000\n\t"
-        : /*no output */
-    	: [msg] "r" (message)
-    	: "r0" /* we want the compiler to use r0 */
+    	".ALIGN\n"
     );
 }
 
@@ -64,27 +62,18 @@ static inline void s2e_message(const char* message)
 static inline void s2e_warning(const char* message)
 {
     __asm__ __volatile__(
+
         	".WORD 0xFF100100\n\t"
         	".ALIGN\n"
-            : /*no output */
-        	: [msg] "r" (message)
-        	: "r0" /* we want the compiler to use r0 */
     );
 }
 
 /** Print symbolic expression to the S2E log. */
-static inline void s2e_print_expression(const char* name, int expression)
+static inline void s2e_print_expression(int expression,const char* name)
 {
     __asm__ __volatile__(
-        "stmfd sp!,{r0, r1}\n\t"
-    	"mov r0, %[expr]\n\t"
-    	"mov r1, %[n]\n\t"
         ".WORD 0xFF070100\n\t"
         ".ALIGN\n\t"
-        "ldmfd sp!,{r0, r1}\n\t"
-        : /*no output */
-    	: [expr] "r" (expression), [n] "r" (name)
-    	: "r0", "r1"
     );
 }
 
@@ -106,13 +95,31 @@ static inline void s2e_disable_forking(void)
     );
 }
 
+/** Enable interrupts (unset I bit of PSR). */
+static inline void s2e_enable_interrupts(void)
+{
+    __asm__ __volatile__(
+      ".WORD 0xFF510000\n\t"
+      ".ALIGN\n"
+    );
+}
+
+/** Disable interrupt disturbance (set I bit of PSR). */
+static inline void s2e_disable_interrupts(void)
+{
+    __asm__ __volatile__(
+    		".WORD 0xFF510100\n\t"
+    	    ".ALIGN\n"
+    );
+}
+
 /** Get the current execution path/state id. */
 static inline unsigned s2e_get_path_id(void)
 {
     unsigned id;
     __asm__ __volatile__(
     		".WORD 0xFF050000\n\t"
-    	    ".ALIGN\n"
+    	    ".ALIGN\n\t"
     		"MOV %[result], r0\n\t"
         : [result] "=r" (id) /* write content to C variable id */
         : /* no input operand */
@@ -124,32 +131,36 @@ static inline unsigned s2e_get_path_id(void)
 static inline void s2e_make_symbolic(void* buf, int size, const char* name)
 {
     __asm__ __volatile__(
-    	"stmfd sp!,{r0, r1, r2}\n\t"
-    	"MOV r0, %[buffer]\n\t"
-    	"MOV r1, %[symsize]\n\t"
-    	"MOV r2, %[symname]\n\t"
     	".WORD 0xFF030000\n\t"
     	".ALIGN\n\t"
-    	"ldmfd sp!,{r0, r1, r2}\n\t"
-        : /* no output operands */
-        : [buffer] "r" (buf), [symsize] "r" (size), [symname] "r" (name)
-        : "memory", "r0", "r1", "r2"
+        :
+        :
+        : "memory"
     );
+
+
+//    __asm__ __volatile__(
+//    	"MOV r0, %[buffer]\n\t"
+//    	"MOV r1, %[symsize]\n\t"
+//    	"MOV r2, %[symname]\n\t"
+//    	".WORD 0xFF030000\n\t"
+//    	".ALIGN\n\t"
+//        :
+//        : [buffer] "r" (buf), [symsize] "r" (size), [symname] "r" (name)
+//        : "memory", "r0","r1","r2"
+//    );
+
 }
 
 /** Concretize the expression. */
 static inline void s2e_concretize(void* buf, int size)
 {
     __asm__ __volatile__(
-        "stmfd sp!,{r0, r1}\n\t"
-    	"MOV r0, %[buffer]\n\t"
-    	"MOV r1, %[symsize]\n\t"
         ".WORD 0xFF200000\n\t"
         ".ALIGN\n\t"
-        "ldmfd sp!,{r0, r1}\n\t"
-        : /* no output operands */
-    	: [buffer] "r" (buf), [symsize] "r" (size)
-    	: "memory", "r0", "r1"
+        :
+    	:
+    	: "memory"
     );
 }
 
@@ -157,15 +168,11 @@ static inline void s2e_concretize(void* buf, int size)
 static inline void s2e_get_example(void* buf, int size)
 {
     __asm__ __volatile__(
-            "stmfd sp!,{r0, r1}\n\t"
-        	"MOV r0, %[buffer]\n\t"
-        	"MOV r1, %[symsize]\n\t"
             ".WORD 0xFF210000\n\t"
             ".ALIGN\n\t"
-            "ldmfd sp!,{r0, r1}\n\t"
-            : /* no output operands */
-        	: [buffer] "r" (buf), [symsize] "r" (size)
-        	: "memory", "r0", "r1"
+            :
+        	:
+        	: "memory"
     );
 }
 
@@ -174,16 +181,13 @@ static inline void s2e_get_example(void* buf, int size)
 static inline unsigned s2e_get_example_uint(unsigned val)
 {
     unsigned buf = val;
+    int size = sizeof(unsigned);
     __asm__ __volatile__(
-            "stmfd sp!,{r1}\n\t"
-        	"MOV r0, %[buffer]\n\t"
-        	"MOV r1, %[symsize]\n\t"
             ".WORD 0xFF210000\n\t"
             ".ALIGN\n\t"
-            "ldmfd sp!,{r1}\n\t"
-            : /* no output operands */
-    		: [buffer] "r" (&buf), [symsize] "r" (sizeof(buf))
-          	: "memory", "r0", "r1"
+            :
+    		:
+          	: "memory"
     );
     return buf;
 }
@@ -193,11 +197,9 @@ static inline int s2e_get_ram_object_bits()
 {
     int bits;
     __asm__ __volatile__(
-            "stmfd sp!,{r0}\n\t"
             ".WORD 0xFF520000\n\t"
             ".ALIGN\n\t"
     		"MOV %[robits], r0\n\t"
-            "ldmfd sp!,{r0}\n\t"
         : [robits] "=r" (bits)
         : /* no input */
         : "r0"
@@ -210,15 +212,8 @@ static inline int s2e_get_ram_object_bits()
 static inline void s2e_kill_state(int status, const char* message)
 {
     __asm__ __volatile__(
-        "stmfd sp!,{r0,r1}\n\t"
-    	"MOV r0, %[statcode]\n\t"
-    	"MOV r1, %[killmsg]\n\t"
         ".WORD 0xFF060000\n\t"
         ".ALIGN\n\t"
-        "ldmfd sp!,{r0,r1}\n\t"
-        : /* no output operand*/
-    	: [statcode] "r" (status), [killmsg] "r" (message)
-    	: "r0", "r1"
     );
 }
 
@@ -250,16 +245,8 @@ static inline void s2e_merge_point()
 static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, unsigned size)
 {
     __asm__ __volatile__(
-            "stmfd sp!,{r0,r1,r2}\n\t"
-    		"MOV r0, %[rawname]\n\t"
-    		"MOV r1, %[rawbase]\n\t"
-    		"MOV r2, %[modsize]\n\t"
             ".WORD 0xFFAA0000\n\t"
             ".ALIGN\n\t"
-            "ldmfd sp!,{r0,r1,r2}\n\t"
-        : /*no output operand */
-    	: [rawname] "r" (name), [rawbase] "r" (loadbase), [modsize] "r" (size)
-    	: "r0", "r1", "r2"
     );
 }
 
@@ -270,27 +257,15 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
 static inline void s2e_android_trace_location(const char *detailmsg)
 {
     __asm__ __volatile__(
-            "stmfd sp!,{r0}\n\t"
-    		"MOV r0, %[msg]\n\t"
             ".WORD 0xFFBB0000\n\t"
             ".ALIGN\n\t"
-            "ldmfd sp!,{r0}\n\t"
-        : /*no output operand */
-    	: [msg] "r" (detailmsg)
-    	: "r0"
     );
 }
 
 static inline void s2e_android_trace_uid(const char *detailmsg)
 {
     __asm__ __volatile__(
-            "stmfd sp!,{r0}\n\t"
-    		"MOV r0, %[msg]\n\t"
             ".WORD 0xFFBB0100\n\t"
             ".ALIGN\n\t"
-            "ldmfd sp!,{r0}\n\t"
-        : /*no output operand */
-    	: [msg] "r" (detailmsg)
-    	: "r0"
     );
 }
