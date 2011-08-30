@@ -55,11 +55,15 @@ extern "C" {
 #include <sstream>
 
 using namespace std;
+using namespace s2e;
+using namespace s2e::android;
+using namespace s2e::linuxos;
+using namespace s2e::plugins;
 
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(AndroidMonitor, "Plugin for tracing Android events", "AndroidMonitor");
+S2E_DEFINE_PLUGIN(AndroidMonitor, "Plugin for tracing Android events", "AndroidMonitor", "LinuxMonitor", "ModuleExecutionDetector");
 
 AndroidMonitor::~AndroidMonitor()
 {
@@ -79,8 +83,16 @@ void AndroidMonitor::initialize()
         exit(-1);
     }
 
+    m_linuxMonitor = static_cast<LinuxMonitor*>(s2e()->getPlugin("LinuxMonitor"));
+    assert(m_linuxMonitor);
+
     s2e()->getCorePlugin()->onCustomInstruction.connect(
             sigc::mem_fun(*this, &AndroidMonitor::onCustomInstruction));
+    m_linuxMonitor->onProcessFork.connect(
+            sigc::mem_fun(*this, &AndroidMonitor::onProcessFork));
+    m_linuxMonitor->onSyscall.connect(
+    		sigc::mem_fun(*this, &AndroidMonitor::onSyscall));
+
 
 }
 
@@ -139,6 +151,47 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     default:
     	break;
     }
+}
+
+void AndroidMonitor::onProcessFork(S2EExecutionState *state, uint32_t clone_flags, linux_task* task) {
+
+	s2e()->getDebugStream() << "AndroidMonitor: Fork details: " << "Clone Flags: " << hex << clone_flags << endl << LinuxMonitor::dumpTask(task) << endl;
+	if(!task->comm.compare("zygote")) {
+		if (clone_flags == 0x11) {
+			s2e()->getDebugStream() << "Main thread of Android application started. Waiting for information over custom instruction..." << endl;
+		} else if (clone_flags == 0x45FF) {
+			s2e()->getDebugStream() << "Further thread of new Android application started.  Waiting for information over custom instruction..." << endl;
+		} else  {
+			s2e()->getDebugStream() << "Zygote fork with unrecognized  clone flags:" << hex << clone_flags << endl;
+		}
+	}
+
+	/*
+	 * find all defs in /kernel-common/include/linux/sched.h
+	 * a thread
+	 *     	 0x4000 CLONE_VFORK
+	 *	 	 0x0400 CLONE_FILES
+	 * 		 0x0100 CLONE_VM
+	 *	 	 0x00FF CSIGNAL
+	 *	 	 0x0011 SIGCHLD
+	 *
+	 *
+	 *	1. Zygote forks the process (clone_flags = SIGCHLD).
+	 *	2. Additional 4 threads (clone_flags = CLONE_VFORK & CLONE_FILES & CLONE_VM & CSIGNAL) are created. c.f., dalvik/vm/Init.c:dvmInitAfterZygote(..)
+	 *	   - Signal Catcher Thread that dumps stack after SIGQUIT dvmSignalCatcherStartup()
+	 *	   - Stdout/StdErr copier Thread: dvmStdioConverterStartup()
+	 *	   - JDWP thread for debugger: dvmInitJDWP()
+	 *	   - if JIT enabled: start a thread for the JIT compiler dvmCompilerStartup()
+	 *	   --> every thread uses: dvmCreateInternalThread(..)
+	 *	3. A binder thread is created
+	 *  4. Syscall 5 (open)
+	 */
+
+
+}
+
+void AndroidMonitor::onSyscall(S2EExecutionState *state, uint32_t syscall_nr) {
+	s2e()->getDebugStream() << "LinuxMonitor: syscall observed: " << hex << syscall_nr << endl;
 }
 
 } // namespace plugins

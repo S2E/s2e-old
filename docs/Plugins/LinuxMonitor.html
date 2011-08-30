@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
+<title>LinuxMonitor</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="linuxmonitor">
+<h1 class="title">LinuxMonitor</h1>
+
+<p>The LinuxMonitor plugin automatically detects process creation and fires corresponding module load events.
+Optionally it will also treat and track virtual memory areas belonging to the process as modules (e.g. loaded
+libraries).</p>
+<div class="section" id="options">
+<h1>Options</h1>
+<p>In order to function properly, the LinuxMonitor requires a number of Linux kernel symbol addresses and offsets
+within kernel data structure objects.
+LinuxMonitor has two important sections, 'symbols' and 'globals' that need to be filled with the necessary values.</p>
+<div class="section" id="symbols">
+<h2>Symbols</h2>
+<p>Here go the kernel symbols. The addresses can be determined by grepping the matching System.map file:</p>
+<ul class="simple">
+<li>do_execve</li>
+<li>start_thread</li>
+<li>init_task</li>
+</ul>
+</div>
+<div class="section" id="offsets">
+<h2>Offsets</h2>
+<p>Here go the offsets within some kernel data structures. They can be determined by using gdb on the kernel (vmlinux)
+file, e.g.</p>
+<pre class="literal-block">
+printf &quot;\tpid: 0x%x\n&quot;, ((size_t)&amp;((struct task_struct *)0)-&gt;pid)
+</pre>
+<p>to print the offset of the 'pid' field within the 'task_struct' struct. Required offsets are:</p>
+<ul class="simple">
+<li>task_comm - offset of task_struct.comm</li>
+<li>task_pid - offset of task_struct.pid</li>
+<li>task_mm - offset of task_struct.mm, points to the corresponding mm_struct</li>
+<li>task_next - offset of task_struct.tasks.next, point to the next task_struct</li>
+<li>mm_code_start - offset of mm_struct.start_code</li>
+<li>mm_code_end - offset of mm_struct.end_code</li>
+<li>mm_data_start - offset of mm_struct.start_data</li>
+<li>mm_data_end - offset of mm_struct.end_data</li>
+<li>mm_heap_start - offset of mm_struct.start_brk</li>
+<li>mm_heap_end - offset of mm_struct.brk</li>
+<li>mm_stack_start - offset of mm_struct.start_stack</li>
+<li>vmarea_start - offset of vm_area_struct.vm_start</li>
+<li>vmarea_end - offset of vm_area_struct.vm_end</li>
+<li>vmarea_next - offset of vm_area_struct.vm_next</li>
+<li>vmarea_file - offset of vm_area_struct.vm_file</li>
+<li>file_dentry - offset of file.f_path.dentry</li>
+<li>dentry_name - offset of dentry.d_name.name</li>
+</ul>
+</div>
+<div class="section" id="track-vm-areas-true-false">
+<h2>track_vm_areas=[true|false]</h2>
+<p>Specifies whether virtual memory areas belonging to a process (e.g. loaded libraries) shall also be treated and tracked
+like modules.</p>
+</div>
+</div>
+<div class="section" id="configuration-sample">
+<h1>Configuration Sample</h1>
+<pre class="literal-block">
+pluginsConfig.LinuxMonitor = {
+    track_vm_areas = true,
+    symbols = {
+        do_execve = 0xc10aff49,
+        do_exit = 0xc1030bd0,
+        start_thread = 0xc1001960,
+        init_task = 0xc161ee60
+    },
+    offsets = {
+        task_comm = 0x300,
+        task_pid = 0x20c,
+        task_mm = 0x1ec,
+        task_next = 0x1d0,
+        mm_code_start = 0x80,
+        mm_code_end = 0x84,
+        mm_data_start = 0x88,
+        mm_data_end = 0x8c,
+        mm_heap_start = 0x90,
+        mm_heap_end = 0x94,
+        mm_stack_start = 0x98,
+        vmarea_start = 0x04,
+        vmarea_end = 0x08,
+        vmarea_next = 0x0c,
+        vmarea_file = 0x48,
+        file_dentry = 0xc,
+        dentry_name = 0x28
+    }
+}
+</pre>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="LinuxMonitor.rst">View document source</a>.
+
+</div>
+</body>
+</html>

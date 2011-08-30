@@ -265,7 +265,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                         << std::endl;
             } else {
                 ostream *stream;
-                if(opcode >> 16)
+                if((opcode >> 8) & 0xFF)
                     stream = &s2e()->getWarningsStream(state);
                 else
                     stream = &s2e()->getMessagesStream(state);
@@ -313,6 +313,23 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
             break;
         }
+
+        case 0x51: { /* disable/enable all interrupts */
+                    uint32_t disabled = ( (opcode >> 8) & 0xFF );
+                    uint32_t cpsr = (uint32_t) state->readCpuState(CPU_OFFSET(uncached_cpsr),32);
+                    if(disabled) {
+                        s2e()->getMessagesStream(state) << "Disabling all interrupts (set I bit of PSR)" << std::endl;
+                        cpsr |= (1 << 7); //set I bit of PSR
+                    state->writeCpuState(CPU_OFFSET(uncached_cpsr), cpsr
+                                         , 32);
+                    }else {
+                        s2e()->getMessagesStream(state) << "Enabling all interrupts (unset I bit of PSR)" << std::endl;
+                        cpsr |= (0 << 7); //unset I bit of PSR
+                        state->writeCpuState(CPU_OFFSET(uncached_cpsr), cpsr
+                                             , 32);
+                    }
+                    break;
+                }
 
         case 0x52: { /* Gets the current S2E memory object size (in power of 2) */
                 uint32_t size = S2E_RAM_OBJECT_BITS;

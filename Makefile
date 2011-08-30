@@ -5,9 +5,9 @@ JOBS:=8
 
 all: all-release
 
-all-release: stamps/qemu-make-release stamps/tools-make-release
+all-release: stamps/android-make-release stamps/android-make-release-nos2e stamps/tools-make-release
 
-all-debug: stamps/qemu-make-debug stamps/tools-make-debug
+all-debug: stamps/android-make-debug stamps/android-make-debug-nos2e stamps/tools-make-debug
 
 ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
     $(error You should not run make in S2E source directory!)
@@ -21,10 +21,10 @@ endif
 
 clean-android:
 	rm -Rf $(S2ESRC)/android-emulator/objs
-	rm -Rf stamps/qemu-configure-debug
+	rm -Rf stamps/android-configure-debug
 
 clean: clean-android
-	rm -Rf tools qemu-release qemu-debug klee stp llvm
+	rm -Rf tools android-release android-debug klee stp llvm
 	rm -Rf llvm-2.6
 	rm -Rf $(LLVM_GCC_SRC)
 	rm -Rf stamps
@@ -127,9 +127,9 @@ klee/Debug/bin/klee-config: stamps/klee-make-debug
 
 klee/Release/bin/klee-config: stamps/klee-make-release
 
-stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
-	mkdir -p qemu-debug
-	cd qemu-debug && $(S2ESRC)/android-emulator/android-configure.sh \
+stamps/android-configure-debug: clean-android stamps/klee-configure klee/Debug/bin/klee-config
+	mkdir -p android-debug
+	cd android-debug && $(S2ESRC)/android-emulator/android-configure.sh \
 		--with-llvm=$(S2EBUILD)/llvm/Debug  \
 		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
@@ -140,12 +140,12 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--zero-malloc \
 		--try-64 \
 		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
-		--install=$(S2EBUILD)/opt 
+		--install=$(S2EBUILD)/android-debug 
 	mkdir -p stamps && touch $@
 
-stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
-	mkdir -p qemu-release
-	cd qemu-release && $(S2ESRC)/android-emulator/android-configure.sh \
+stamps/android-configure-release: clean-android stamps/klee-configure klee/Release/bin/klee-config
+	mkdir -p android-release
+	cd android-release && $(S2ESRC)/android-emulator/android-configure.sh \
 		--with-llvm=$(S2EBUILD)/llvm/Release  \
 		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
@@ -155,17 +155,57 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 		--zero-malloc \
 		--try-64 \
 		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
-		--install=$(S2EBUILD)/opt
+		--install=$(S2EBUILD)/android-release
 
 	mkdir -p stamps && touch $@
 
-stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS
+stamps/android-make-debug: stamps/android-configure-debug stamps/klee-make-debug ALWAYS
 	cd $(S2ESRC)/android-emulator && make -j$(JOBS)
 	mkdir -p stamps && touch $@
-
-stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release ALWAYS
+	cp -R $(S2ESRC)/android-emulator/objs $(S2EBUILD)/android-debug
+ 
+stamps/android-make-release: stamps/android-configure-release stamps/klee-make-release ALWAYS
 	cd $(S2ESRC)/android-emulator && make -j$(JOBS)
 	mkdir -p stamps && touch $@
+	cp -R $(S2ESRC)/android-emulator/objs $(S2EBUILD)/android-release
+
+
+###################################
+# Android Emulator (S2E disabled) #
+###################################
+
+stamps/android-configure-debug-nos2e: clean-android stamps/klee-configure klee/Debug/bin/klee-config
+	mkdir -p android-debug
+	cd android-debug && $(S2ESRC)/android-emulator/android-configure.sh \
+		--debug \
+		--zero-malloc \
+		--try-64 \
+		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
+		--install=$(S2EBUILD)/android-debug 
+	mkdir -p stamps && touch $@
+
+stamps/android-configure-release-nos2e: clean-android stamps/klee-configure klee/Release/bin/klee-config
+	mkdir -p android-release
+	cd android-release && $(S2ESRC)/android-emulator/android-configure.sh \
+		--zero-malloc \
+		--try-64 \
+		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
+		--install=$(S2EBUILD)/android-release
+
+	mkdir -p stamps && touch $@
+
+stamps/android-make-debug-nos2e: stamps/android-configure-debug-nos2e stamps/klee-make-debug ALWAYS
+	cd $(S2ESRC)/android-emulator && make -j$(JOBS)
+	mkdir -p stamps && touch $@
+	mkdir -p $(S2EBUILD)/android-debug/objs-nos2e
+	cp -R $(S2ESRC)/android-emulator/objs/* $(S2EBUILD)/android-debug/objs-nos2e/
+ 
+stamps/android-make-release-nos2e: stamps/android-configure-release-nos2e stamps/klee-make-release ALWAYS
+	cd $(S2ESRC)/android-emulator && make -j$(JOBS)
+	mkdir -p stamps && touch $@
+	mkdir -p $(S2EBUILD)/android-release/objs-nos2e
+	cp -R $(S2ESRC)/android-emulator/objs/* $(S2EBUILD)/android-release/objs-nos2e/
+
 
 #########
 # Tools #

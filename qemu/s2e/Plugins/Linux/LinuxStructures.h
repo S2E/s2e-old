@@ -27,51 +27,61 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Currently maintained by:
- *    Andreas Kirchner <akalypse@gmail.com>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
 
-#ifndef _ANDROIDMONITOR_PLUGIN_H_
+/*
+ * Essential structures for Linux operating system
+ */
 
-#define _ANDROIDMONITOR_PLUGIN_H_
+#ifndef _LINUX_STRUCTS_H_
+#define _LINUX_STRUCTS_H_
 
-#include <s2e/Plugin.h>
-#include <s2e/Plugins/CorePlugin.h>
-#include <s2e/S2EExecutionState.h>
-#include <s2e/Plugins/Android/AndroidStructures.h>
-#include <s2e/Plugins/Linux/LinuxMonitor.h>
-#include <vector>
+#include <regex.h>
 
 namespace s2e {
-namespace plugins {
+namespace linuxos {
 
-class LinuxMonitor; //forward declaration
+// represents a VM area belonging to a process as it is defined in the kernel's vm_area struct
+struct vm_area {
+	std::string name;
+	uint32_t start;
+	uint32_t end;
 
-class AndroidMonitor:public Plugin
-{
-    S2E_PLUGIN
-    friend class LinuxMonitor;
-
-private:
-	uint32_t m_zygotePid;
-	uint32_t m_systemServerPid;
-	LinuxMonitor * m_linuxMonitor;
-
-    void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
-public:
-    AndroidMonitor(S2E* s2e): Plugin(s2e) {};
-    virtual ~AndroidMonitor();
-    void initialize();
-
-	void onProcessFork(S2EExecutionState *state, uint32_t clone_flags, s2e::linuxos::linux_task* task);
-	void onSyscall(S2EExecutionState *state, uint32_t syscall_nr);
-
-
+	friend bool operator<(vm_area const& a, vm_area const& b)
+	    {
+	        return a.start < b.start;
+	    }
 };
 
-} // namespace plugins
-} // namespace s2e
+// represents a Linux task
+struct linux_task {
+	uint32_t pid;
+	std::string comm;
+	uint32_t next; //linked list 'tasks' has 'next' as first entry in the list_struct.
+	uint32_t mm;
+	uint32_t code_start;
+	uint32_t code_end;
+	uint32_t data_start;
+	uint32_t data_end;
+	std::vector<struct vm_area> vm_areas;
 
-#endif
+	friend bool operator<(linux_task const& a, linux_task const& b)
+	    {
+	        return a.pid < b.pid;
+	    }
+};
+
+struct parse_expr {
+	const char *name;
+	const char *pattern; //regex to parse a line in a file (currently used for prelink-linux-<arch>.map
+	regex_t *compiled_pattern;
+};
+
+} //namespace linux
+} //namespace s2e
+#endif // _LINUX_STRUCTS_H_

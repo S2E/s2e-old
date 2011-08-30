@@ -27,51 +27,63 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Currently maintained by:
- *    Andreas Kirchner <akalypse@gmail.com>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
  *
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
 
-#ifndef _ANDROIDMONITOR_PLUGIN_H_
+/*
+ * Essential structures for Android operating system
+ */
 
-#define _ANDROIDMONITOR_PLUGIN_H_
+#ifndef _ANDROID_STRUCTS_H_
+#define _ANDROID_STRUCTS_H_
+#include <s2e/Plugins/Linux/LinuxStructures.h>
 
-#include <s2e/Plugin.h>
-#include <s2e/Plugins/CorePlugin.h>
-#include <s2e/S2EExecutionState.h>
-#include <s2e/Plugins/Android/AndroidStructures.h>
-#include <s2e/Plugins/Linux/LinuxMonitor.h>
-#include <vector>
-
+using namespace s2e::linuxos;
 namespace s2e {
-namespace plugins {
+namespace android {
 
-class LinuxMonitor; //forward declaration
+/*
+ * Linear allocation state.
+ */
+typedef struct LinearAllocHdr {
+    int     curOffset;          /* offset where next data goes */
+    char*   mapAddr;            /* start of mmap()ed region */
+    int     mapLength;          /* length of region */
+    int     firstOffset;        /* for chasing through */
+    short*  writeRefCount;      /* for ENFORCE_READ_ONLY */
+} LinearAllocHdr;
 
-class AndroidMonitor:public Plugin
-{
-    S2E_PLUGIN
-    friend class LinuxMonitor;
+struct DalvikVM {
+	bool isZygote;
+	bool isSystemServer;
+	linux_task* task;
 
-private:
-	uint32_t m_zygotePid;
-	uint32_t m_systemServerPid;
-	LinuxMonitor * m_linuxMonitor;
+    /*
+     * Bootstrap class loader linear allocator.
+     */
+	LinearAllocHdr* pBootLoaderAlloc;
+};
 
-    void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
-public:
-    AndroidMonitor(S2E* s2e): Plugin(s2e) {};
-    virtual ~AndroidMonitor();
-    void initialize();
+struct Thread {
+/* thread ID, only useful under Linux */
+uint32_t       systemTid;
+/* start (high addr) of interp stack (subtract size to get malloc addr) */
+uint32_t*         interpStackStart;
 
-	void onProcessFork(S2EExecutionState *state, uint32_t clone_flags, s2e::linuxos::linux_task* task);
-	void onSyscall(S2EExecutionState *state, uint32_t syscall_nr);
+/* current limit of stack; flexes for StackOverflowError */
+const uint32_t*   interpStackEnd;
 
+/* FP of bottom-most (currently executing) stack frame on interp stack */
+void*       curFrame;
 
 };
 
-} // namespace plugins
-} // namespace s2e
 
-#endif
+
+} //namespace android
+} //namespace s2e
+#endif //_ANDROID_STRUCTS_H_

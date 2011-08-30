@@ -91,6 +91,7 @@ extern "C" {
 #include <s2e/Plugins/Android/AndroidMonitor.h>
 #endif
 
+#include <s2e/Plugins/Linux/LinuxMonitor.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -158,6 +159,8 @@ PluginsFactory::PluginsFactory()
 #ifdef TARGET_ARM
     __S2E_REGISTER_PLUGIN(plugins::AndroidMonitor);
 #endif
+
+    __S2E_REGISTER_PLUGIN(plugins::LinuxMonitor);
 
 #undef __S2E_REGISTER_PLUGIN
 }
