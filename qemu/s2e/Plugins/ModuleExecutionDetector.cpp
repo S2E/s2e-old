@@ -143,7 +143,7 @@ void ModuleExecutionDetector::initializeConfiguration()
     m_ConfigureAllModules = cfg->getBool(getConfigKey() + ".configureAllModules");
 
     foreach2(it, keyList.begin(), keyList.end()) {
-        if (*it == "trackAllModules") {
+        if (*it == "trackAllModules" || *it == "configureAllModules") {
             continue;
         }
 
@@ -411,9 +411,10 @@ void ModuleExecutionDetector::onExecution(
 
     //gTRACE("pid=%#"PRIx64" pc=%#"PRIx64"\n", pid, pc);
     if (plgState->m_PreviousModule != currentModule) {
-#if 0
+#warning disable the lines below (AKA debug)
+#if 1
         if (currentModule) {
-            DPRINTF("Entered module %s\n", currentModule->descriptor.Name.c_str());
+            DPRINTF("Entered module %s\n", currentModule->Name.c_str());
         }else {
             DPRINTF("Entered unknown module\n");
         }
