@@ -7,7 +7,7 @@
 #include "helpers.h"
 #include "qemu-common.h"
 #include "gdbstub.h"
-#include "host-utils.h"
+
 #ifdef CONFIG_TRACE
 #include "trace.h"
 #endif
@@ -338,62 +338,6 @@ static uint32_t cpu_arm_find_by_name(const char *name)
 void cpu_arm_close(CPUARMState *env)
 {
     free(env);
-}
-
-/* Sign/zero extend */
-uint32_t HELPER(sxtb16)(uint32_t x)
-{
-    uint32_t res;
-    res = (uint16_t)(int8_t)x;
-    res |= (uint32_t)(int8_t)(x >> 16) << 16;
-    return res;
-}
-
-uint32_t HELPER(uxtb16)(uint32_t x)
-{
-    uint32_t res;
-    res = (uint16_t)(uint8_t)x;
-    res |= (uint32_t)(uint8_t)(x >> 16) << 16;
-    return res;
-}
-
-uint32_t HELPER(clz)(uint32_t x)
-{
-    return clz32(x);
-}
-
-int32_t HELPER(sdiv)(int32_t num, int32_t den)
-{
-    if (den == 0)
-      return 0;
-    return num / den;
-}
-
-uint32_t HELPER(udiv)(uint32_t num, uint32_t den)
-{
-    if (den == 0)
-      return 0;
-    return num / den;
-}
-
-uint32_t HELPER(rbit)(uint32_t x)
-{
-    x =  ((x & 0xff000000) >> 24)
-       | ((x & 0x00ff0000) >> 8)
-       | ((x & 0x0000ff00) << 8)
-       | ((x & 0x000000ff) << 24);
-    x =  ((x & 0xf0f0f0f0) >> 4)
-       | ((x & 0x0f0f0f0f) << 4);
-    x =  ((x & 0x88888888) >> 3)
-       | ((x & 0x44444444) >> 1)
-       | ((x & 0x22222222) << 1)
-       | ((x & 0x11111111) << 3);
-    return x;
-}
-
-uint32_t HELPER(abs)(uint32_t x)
-{
-    return ((int32_t)x < 0) ? -x : x;
 }
 
 #if defined(CONFIG_USER_ONLY)

@@ -1341,6 +1341,11 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
         qemu_log("\n");
         qemu_log_flush();
     }
+
+    if (qemu_loglevel_mask(CPU_LOG_SYMBCPU)) {
+                	s2e_dump_state();
+    }
+
 }
 
 /***********************************/

@@ -628,6 +628,7 @@ s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
                     cpu_loop_exit();
                 }
 // REMOVED BY S2E
+
 #if defined(DEBUG_DISAS) || defined(CONFIG_DEBUG_EXEC)
                 if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
                     /* restore flags in standard format */

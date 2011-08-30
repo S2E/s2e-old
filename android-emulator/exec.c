@@ -1721,6 +1721,10 @@ const CPULogItem cpu_log_items[] = {
       "show trace before each executed TB (lots of logs)" },
     { CPU_LOG_TB_CPU, "cpu",
       "show CPU state before block translation" },
+#ifdef CONFIG_S2E
+      { CPU_LOG_SYMBCPU, "symbcpu",
+      "show (symbolic) CPU state before TB (log into S2E logfiles)"},
+#endif
 #ifdef TARGET_I386
     { CPU_LOG_PCALL, "pcall",
       "show protected mode far calls/returns/exceptions" },
@@ -1736,7 +1740,7 @@ const CPULogItem cpu_log_items[] = {
       "show generated LLVM IR code" },
     { CPU_LOG_LLVM_ASM, "llvm_asm",
       "show LLVM-generated assembly code" },
-      #endif
+#endif
 
     { 0, NULL, NULL },
 };

@@ -261,6 +261,9 @@ int cpu_arm_exec(CPUARMState *s);
 void cpu_arm_close(CPUARMState *s);
 void do_interrupt(CPUARMState *);
 void switch_mode(CPUARMState *, int);
+#ifdef CONFIG_S2E
+void switch_mode_concrete(CPUARMState *, int);
+#endif
 uint32_t do_arm_semihosting(CPUARMState *env);
 
 /* you can call this signal handler from your SIGBUS and SIGSEGV
@@ -307,6 +310,14 @@ static inline void cpu_set_tls(CPUARMState *env, target_ulong newtls)
 uint32_t cpsr_read(CPUARMState *env);
 /* Set the CPSR.  Note that some bits of mask must be all-set or all-clear.  */
 void cpsr_write(CPUARMState *env, uint32_t val, uint32_t mask);
+
+/*
+ * S2E helpers to avoid concretization when logging or storing/loading snapshots
+ */
+#ifdef CONFIG_S2E
+uint32_t cpsr_read_concrete(CPUARMState *env);
+void cpsr_write_concrete(CPUARMState *env, uint32_t val, uint32_t mask);
+#endif
 
 /* Return the current xPSR value.  */
 static inline uint32_t xpsr_read(CPUARMState *env)

@@ -925,6 +925,7 @@ void run_on_cpu(CPUState *env, void (*func)(void *data), void *data);
 #define CPU_LOG_RESET      (1 << 9)
 #define CPU_LOG_LLVM_IR    (1 << 10)
 #define CPU_LOG_LLVM_ASM   (1 << 11)
+#define CPU_LOG_SYMBCPU	   (1 << 12)
 
 /* define log items */
 typedef struct CPULogItem {

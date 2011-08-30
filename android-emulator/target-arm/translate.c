@@ -9314,7 +9314,11 @@ void cpu_dump_state(CPUState *env, FILE *f,
         else
             cpu_fprintf(f, " ");
     }
+#ifdef CONFIG_S2E
+    psr = cpsr_read_concrete(env);
+#else
     psr = cpsr_read(env);
+#endif
     cpu_fprintf(f, "PSR=%08x %c%c%c%c %c %s%d\n",
                 psr,
                 psr & (1 << 31) ? 'N' : '-',

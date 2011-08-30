@@ -20,6 +20,7 @@
 #include "exec.h"
 #include "helpers.h"
 #include <assert.h>
+#include "host-utils.h"
 #ifdef CONFIG_TRACE
 #include "trace.h"
 #endif
@@ -183,6 +184,85 @@ void switch_mode(CPUState *env, int mode)
     WR_cpu(env,regs[14],RR_cpu(env,banked_r14[i]));
     WR_cpu(env,spsr,RR_cpu(env,banked_spsr[i]));
 }
+
+/*
+ * S2E: just a helper for restoring concrete cpustate
+ */
+
+#ifdef CONFIG_S2E
+
+/*
+ * S2E: just a helper for switching execution mode during state restore
+ */
+
+void switch_mode_concrete(CPUState *env, int mode)
+{
+    int old_mode;
+    int i;
+
+    old_mode = env->uncached_cpsr & CPSR_M;
+    if (mode == old_mode)
+        return;
+
+    if (old_mode == ARM_CPU_MODE_FIQ) {
+        memcpy (env->fiq_regs, env->regs + 8, 5 * sizeof(uint32_t));
+    	memcpy (env->regs + 8, env->usr_regs, 5 * sizeof(uint32_t));
+
+    } else if (mode == ARM_CPU_MODE_FIQ) {
+        memcpy (env->usr_regs, env->regs + 8, 5 * sizeof(uint32_t));
+        memcpy (env->regs + 8, env->fiq_regs, 5 * sizeof(uint32_t));
+    }
+}
+
+void cpsr_write_concrete(CPUARMState *env, uint32_t val, uint32_t mask)
+{
+
+    if (mask & CPSR_NZCV) {
+        env->ZF = (~val) & CPSR_Z;
+        env->NF = val;
+        env->CF = (val >> 29) & 1;
+        env->VF = (val << 3) & 0x80000000;
+    }
+    if (mask & CPSR_Q)
+        env->QF = ((val & CPSR_Q) != 0);
+    if (mask & CPSR_T)
+        env->thumb = ((val & CPSR_T) != 0);
+    if (mask & CPSR_IT_0_1) {
+        env->condexec_bits &= ~3;
+        env->condexec_bits |= (val >> 25) & 3;
+    }
+    if (mask & CPSR_IT_2_7) {
+        env->condexec_bits &= 3;
+        env->condexec_bits |= (val >> 8) & 0xfc;
+    }
+    if (mask & CPSR_GE) {
+        env->GE = (val >> 16) & 0xf;
+    }
+
+    if ((env->uncached_cpsr ^ val) & mask & CPSR_M) {
+        switch_mode_concrete(env, val & CPSR_M);
+    }
+    mask &= ~CACHED_CPSR_BITS;
+    env->uncached_cpsr = (env->uncached_cpsr & ~mask) | (val & mask);
+}
+
+/*
+ * S2E: just a helper for dumping concrete cpustate
+ */
+
+uint32_t cpsr_read_concrete(CPUARMState *env)
+{
+
+    int ZF;
+    ZF = (env->ZF == 0);
+    return env->uncached_cpsr | (env->NF & 0x80000000) | (ZF << 30) |
+        (env->CF << 29) | ((env->VF & 0x80000000) >> 3) | (env->QF << 27)
+        | (env->thumb << 5) | ((env->condexec_bits & 3) << 25)
+        | ((env->condexec_bits & 0xfc) << 8)
+        | (env->GE << 16);
+
+}
+#endif
 
 uint32_t cpsr_read(CPUARMState *env)
 {
@@ -1185,4 +1265,60 @@ void HELPER(neon_zip_u16)(void)
     tmp = (T0 & 0xffff) | (T1 << 16);
     T1 = (T1 & 0xffff0000) | (T0 >> 16);
     T0 = tmp;
+}
+
+/* Sign/zero extend */
+uint32_t HELPER(sxtb16)(uint32_t x)
+{
+    uint32_t res;
+    res = (uint16_t)(int8_t)x;
+    res |= (uint32_t)(int8_t)(x >> 16) << 16;
+    return res;
+}
+
+uint32_t HELPER(uxtb16)(uint32_t x)
+{
+    uint32_t res;
+    res = (uint16_t)(uint8_t)x;
+    res |= (uint32_t)(uint8_t)(x >> 16) << 16;
+    return res;
+}
+
+uint32_t HELPER(clz)(uint32_t x)
+{
+    return clz32(x);
+}
+
+int32_t HELPER(sdiv)(int32_t num, int32_t den)
+{
+    if (den == 0)
+      return 0;
+    return num / den;
+}
+
+uint32_t HELPER(udiv)(uint32_t num, uint32_t den)
+{
+    if (den == 0)
+      return 0;
+    return num / den;
+}
+
+uint32_t HELPER(rbit)(uint32_t x)
+{
+    x =  ((x & 0xff000000) >> 24)
+       | ((x & 0x00ff0000) >> 8)
+       | ((x & 0x0000ff00) << 8)
+       | ((x & 0x000000ff) << 24);
+    x =  ((x & 0xf0f0f0f0) >> 4)
+       | ((x & 0x0f0f0f0f) << 4);
+    x =  ((x & 0x88888888) >> 3)
+       | ((x & 0x44444444) >> 1)
+       | ((x & 0x22222222) << 1)
+       | ((x & 0x11111111) << 3);
+    return x;
+}
+
+uint32_t HELPER(abs)(uint32_t x)
+{
+    return ((int32_t)x < 0) ? -x : x;
 }

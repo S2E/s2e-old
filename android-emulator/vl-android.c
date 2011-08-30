@@ -3721,7 +3721,7 @@ char *qemu_find_file(int type, const char *name)
     case QEMU_FILE_TYPE_LIB:
         /* XXX: Terrible hack. Redo it after deadline! */
         //subdir="../i386-s2e-softmmu/";
-        subdir="../objs/intermediates/emulator-s2ellvm-arm/";
+        subdir="../../../buildandroid/android-debug/objs/intermediates/emulator-s2ellvm-arm/";
     	break;
     case QEMU_FILE_TYPE_BIOS:
         subdir = "";
