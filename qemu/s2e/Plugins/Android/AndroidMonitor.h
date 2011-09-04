@@ -44,6 +44,7 @@
 #include <s2e/Plugins/Linux/LinuxMonitor.h>
 #include <s2e/Plugins/ModuleDescriptor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
+#include <s2e/Plugins/FunctionMonitor.h>
 #include <vector>
 
 namespace s2e {
@@ -61,12 +62,16 @@ private:
     s2e::android::DalvikVM systemServer;
     s2e::android::DalvikVM aut; // app under test
 	LinuxMonitor * m_linuxMonitor;
+	FunctionMonitor *m_funcMonitor;
 	s2e::plugins::ModuleExecutionDetector * m_modulePlugin;
 
 	std::string aut_process_name; //exact process name of the application under test (or NULL if no specific app is observed)
 
+	bool swivec_connected; //is function handler to hook SWI execption vector registered?
+
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
     void onModuleTransition(S2EExecutionState* state, const ModuleDescriptor *previousModule, const ModuleDescriptor *nextModule);
+    void swiHook(S2EExecutionState* state, FunctionMonitorState *fns);
 public:
     AndroidMonitor(S2E* s2e): Plugin(s2e) {};
     virtual ~AndroidMonitor();
@@ -76,6 +81,7 @@ public:
 	void onSyscall(S2EExecutionState *state, uint32_t syscall_nr);
 	void onNewThread(S2EExecutionState *state, s2e::linuxos::linux_task* thread, s2e::linuxos::linux_task* process);
 	void onNewProcess(S2EExecutionState *state, s2e::linuxos::linux_task* process);
+	void slotTranslateBlockStart(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc);
 
 
 };

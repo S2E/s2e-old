@@ -66,15 +66,9 @@ class LinuxMonitor: public OSMonitor {
 public:
 	friend class AndroidMonitor;
 
-	struct symbol_struct {
-		uint32_t adr;
-		char type; //symbol type (T,D,...)
-		std::string name;
-	};
-
 	typedef std::set<std::string> StringSet;
 	typedef s2e::linuxos::vm_area kernel_function_area;
-	typedef std::map<std::string,symbol_struct> SymbolTable;
+	typedef std::map<std::string,s2e::linuxos::symbol_struct> SymbolTable;
 private:
 
 	//kernel_symbols which are currently used

@@ -620,7 +620,7 @@ void LinuxMonitor::onInstructionExecution(S2EExecutionState *state, uint64_t pc)
 
     if (pc == symbols.__irq_usr) {
     	//tell me when an interrupt occurs
-    	s2e()->getDebugStream() << "interrupt" << endl;
+//    	s2e()->getDebugStream() << "interrupt" << endl;
     }
 end:
   currentState = NULL;

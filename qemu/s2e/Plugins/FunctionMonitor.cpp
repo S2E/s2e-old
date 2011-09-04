@@ -83,7 +83,7 @@ FunctionMonitor::CallSignal* FunctionMonitor::getCallSignal(
 void FunctionMonitor::slotTranslateBlockEnd(ExecutionSignal *signal,
                                       S2EExecutionState *state,
                                       TranslationBlock *tb,
-                                      uint64_t pc, bool, uint64_t)
+                                      uint64_t inspc, bool staticTarget, uint64_t targetPc)
 {
     /* We intercept all call and ret translation blocks */
     if (tb->s2e_tb_type == TB_CALL || tb->s2e_tb_type == TB_CALL_IND) {

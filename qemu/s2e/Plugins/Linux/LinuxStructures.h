@@ -49,6 +49,12 @@ namespace linuxos {
 struct linux_task; //forward declaration
 typedef std::set<linux_task> TaskSet;
 
+struct symbol_struct {
+	uint32_t adr;
+	char type; //symbol type (T,D,...)
+	std::string name;
+};
+
 // represents a VM area belonging to a process as it is defined in the kernel's vm_area struct
 struct vm_area {
 	std::string name;

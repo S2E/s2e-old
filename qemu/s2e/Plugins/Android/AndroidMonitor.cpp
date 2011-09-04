@@ -63,7 +63,7 @@ using namespace s2e::plugins;
 namespace s2e {
 namespace plugins {
 
-S2E_DEFINE_PLUGIN(AndroidMonitor, "Plugin for tracing Android events", "AndroidMonitor", "LinuxMonitor", "ModuleExecutionDetector");
+S2E_DEFINE_PLUGIN(AndroidMonitor, "Plugin for tracing Android events", "AndroidMonitor", "LinuxMonitor", "ModuleExecutionDetector", "FunctionMonitor");
 
 AndroidMonitor::~AndroidMonitor()
 {
@@ -102,6 +102,13 @@ void AndroidMonitor::initialize()
     m_modulePlugin->onModuleTransition.connect(
     		sigc::mem_fun(*this, &AndroidMonitor::onModuleTransition));
 
+    m_funcMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
+    assert(m_funcMonitor);
+
+    swivec_connected = false;
+
+    s2e()->getCorePlugin()->onTranslateBlockStart.connect(
+               sigc::mem_fun(*this, &AndroidMonitor::slotTranslateBlockStart));
 }
 
 void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
@@ -250,6 +257,7 @@ void AndroidMonitor::onModuleTransition(S2EExecutionState* state, const ModuleDe
 	if(nextModule == NULL) {
 		return;
 	}
+
 	if(nextModule->Name.find(aut_process_name) != string::npos) {
 		s2e()->getMessagesStream() << "AndroidMonitor:: enter " << nextModule->Name << endl;
 	}
@@ -258,6 +266,54 @@ void AndroidMonitor::onModuleTransition(S2EExecutionState* state, const ModuleDe
 	}
 
 }
+
+
+void AndroidMonitor::slotTranslateBlockStart(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc) {
+
+    if (swivec_connected) {
+        return;
+    }
+
+    FunctionMonitor::CallSignal *callSignal;
+
+    //SWI exception vector
+    //XXX: put it config file?
+	s2e::linuxos::symbol_struct irq_usr;
+	bool ok = m_linuxMonitor->searchSymbol("__irq_usr",irq_usr);
+	if(!ok) {
+		s2e()->getDebugStream() << "AndroidMonitor:: Could not find required symbol '__irq_usr'" << endl;
+		exit(-1);
+	}
+	assert(irq_usr.adr);
+
+	// Register a call signal
+	callSignal = m_funcMonitor->getCallSignal(state, irq_usr.adr, -1);
+
+	// Register signal handler
+	callSignal->connect(sigc::mem_fun(*this, &AndroidMonitor::swiHook));
+	swivec_connected = true;
+
+}
+
+void AndroidMonitor::swiHook(S2EExecutionState* state, FunctionMonitorState *fns) {
+
+	//Test: We skip SWI's when something is symbolic
+	uint64_t smask = state->getSymbolicRegistersMask();
+	if (smask) {
+		uint32_t lr;
+		state->readCpuRegisterConcrete(offsetof(CPUState, regs[14]), &lr, 4);
+		s2e()->getMessagesStream() << "AndroidMonitor:: SWI from " << hex << lr << dec << "." << endl;
+//		s2e::linuxos::symbol_struct ret_to_user;
+//		bool ok = m_linuxMonitor->searchSymbol("ret_to_user",ret_to_user);
+//		if(!ok) {
+//			s2e()->getDebugStream() << "AndroidMonitor:: Could not find required symbol 'ret_to_user'" << endl;
+//			exit(-1);
+//		}
+//		//skip the interrupt_handling and jump directly to macro ret_to_user
+//		state->writeCpuState(offsetof(CPUState, regs[15]), ret_to_user.adr, 8*sizeof(uint32_t));
+	}
+}
+
 
 } // namespace plugins
 } // namespace s2e
