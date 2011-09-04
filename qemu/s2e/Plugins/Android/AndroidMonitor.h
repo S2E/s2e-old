@@ -42,6 +42,8 @@
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Plugins/Android/AndroidStructures.h>
 #include <s2e/Plugins/Linux/LinuxMonitor.h>
+#include <s2e/Plugins/ModuleDescriptor.h>
+#include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <vector>
 
 namespace s2e {
@@ -55,11 +57,16 @@ class AndroidMonitor:public Plugin
     friend class LinuxMonitor;
 
 private:
-	uint32_t m_zygotePid;
-	uint32_t m_systemServerPid;
+    s2e::android::DalvikVM zygote;
+    s2e::android::DalvikVM systemServer;
+    s2e::android::DalvikVM aut; // app under test
 	LinuxMonitor * m_linuxMonitor;
+	s2e::plugins::ModuleExecutionDetector * m_modulePlugin;
+
+	std::string aut_process_name; //exact process name of the application under test (or NULL if no specific app is observed)
 
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
+    void onModuleTransition(S2EExecutionState* state, const ModuleDescriptor *previousModule, const ModuleDescriptor *nextModule);
 public:
     AndroidMonitor(S2E* s2e): Plugin(s2e) {};
     virtual ~AndroidMonitor();
@@ -67,6 +74,8 @@ public:
 
 	void onProcessFork(S2EExecutionState *state, uint32_t clone_flags, s2e::linuxos::linux_task* task);
 	void onSyscall(S2EExecutionState *state, uint32_t syscall_nr);
+	void onNewThread(S2EExecutionState *state, s2e::linuxos::linux_task* thread, s2e::linuxos::linux_task* process);
+	void onNewProcess(S2EExecutionState *state, s2e::linuxos::linux_task* process);
 
 
 };

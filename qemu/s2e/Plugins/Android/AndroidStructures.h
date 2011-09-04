@@ -58,9 +58,8 @@ typedef struct LinearAllocHdr {
 } LinearAllocHdr;
 
 struct DalvikVM {
-	bool isZygote;
-	bool isSystemServer;
-	linux_task* task;
+	linux_task process;
+	TaskSet threads;
 
     /*
      * Bootstrap class loader linear allocator.

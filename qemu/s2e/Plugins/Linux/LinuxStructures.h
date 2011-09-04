@@ -46,6 +46,9 @@
 namespace s2e {
 namespace linuxos {
 
+struct linux_task; //forward declaration
+typedef std::set<linux_task> TaskSet;
+
 // represents a VM area belonging to a process as it is defined in the kernel's vm_area struct
 struct vm_area {
 	std::string name;
@@ -58,9 +61,12 @@ struct vm_area {
 	    }
 };
 
-// represents a Linux task
+
+
+// a linux task_struct represents a thread/process
 struct linux_task {
-	uint32_t pid;
+	uint32_t pid;  /* thread id */
+	uint32_t tgid; /* thread group id - getpid() in linux returns the tgid */
 	std::string comm;
 	uint32_t next; //linked list 'tasks' has 'next' as first entry in the list_struct.
 	uint32_t mm;
@@ -74,7 +80,14 @@ struct linux_task {
 	    {
 	        return a.pid < b.pid;
 	    }
+
+	friend bool operator==(linux_task const& a, linux_task const& b)
+	    {
+	        return a.pid == b.pid && a.comm.compare(b.comm);
+	    }
 };
+
+
 
 struct parse_expr {
 	const char *name;

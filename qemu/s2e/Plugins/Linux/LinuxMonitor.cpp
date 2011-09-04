@@ -56,7 +56,7 @@ extern "C" {
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
-
+#include <map>
 
 #define READCONFIG_INT(C) C = s2e()->getConfig()->getInt(getConfigKey() + "." + #C)
 #define IMPORT_SYMBOL(NAME,RESULT)																			\
@@ -87,11 +87,19 @@ LinuxMonitor::~LinuxMonitor() {
 void LinuxMonitor::initialize() {
 
 	track_vm_areas = s2e()->getConfig()->getBool(getConfigKey() + ".track_vm_areas", false);
+    doExecVeConnected = false;
+    startThreadConnected = false;
+    syscallConnected = false;
+    doForkconnected = false;
+    qemuTraceForkconnected = false;
+    doExitConnected = false;
+    switchToConnected = false;
     
     // read important kernel symbol offsets from config
     // TODO: This has to disappear (automatically retrieve from vmlinux)
     READCONFIG_INT(offsets.task_comm);
     READCONFIG_INT(offsets.task_pid);
+    READCONFIG_INT(offsets.task_tgid);
     READCONFIG_INT(offsets.task_mm);
     READCONFIG_INT(offsets.task_next);			//ARM: tasks
     READCONFIG_INT(offsets.thread_info_task);	//ARM: offset to task_struct in thread_info (for context switch)
@@ -136,6 +144,9 @@ void LinuxMonitor::initialize() {
     IMPORT_SYMBOL("do_fork",symbols.do_fork);
     IMPORT_SYMBOL("qemu_trace_fork",symbols.qemu_trace_fork);
     IMPORT_SYMBOL("do_exit",symbols.do_exit);
+    IMPORT_SYMBOL("sys_exit",symbols.sys_exit);
+    IMPORT_SYMBOL("sys_exit_group", symbols.sys_exit_group);
+    IMPORT_SYMBOL("__irq_usr", symbols.__irq_usr);
 
     /* in some architectures (e.g. ARM) start_thread is
      * only a macro. Lets use the address right after the
@@ -442,8 +453,7 @@ bool LinuxMonitor::findPrelinkedLibsInFile(ifstream &filestream, regex_t *compil
 }
 
 void LinuxMonitor::onTranslateInstruction(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc) {
-    static bool doExecVeConnected = false;
-    static bool startThreadConnected = false;
+
     
     if(pc == symbols.do_execve && !doExecVeConnected) {
         signal->connect(sigc::mem_fun(*this, &LinuxMonitor::onInstructionExecution));
@@ -454,25 +464,35 @@ void LinuxMonitor::onTranslateInstruction(ExecutionSignal *signal, S2EExecutionS
         startThreadConnected = true;
     }
     
-    if(pc == symbols.sys_syscall) {
+    if(pc == symbols.sys_syscall && !syscallConnected) {
     	signal->connect(sigc::mem_fun(*this, &LinuxMonitor::onInstructionExecution));
+    	syscallConnected = true;
     }
 
-    if(pc == symbols.do_fork) {
+    if(pc == symbols.do_fork && !doForkconnected) {
     	signal->connect(sigc::mem_fun(*this, &LinuxMonitor::onInstructionExecution));
+    	doForkconnected = true;
     }
 
-    if(pc == symbols.qemu_trace_fork) {
+    if(pc == symbols.qemu_trace_fork && !qemuTraceForkconnected) {
     	signal->connect(sigc::mem_fun(*this, &LinuxMonitor::onInstructionExecution));
+    	qemuTraceForkconnected = true;
     }
 
-    if(pc == symbols.do_exit) {
+    if( pc == symbols.do_exit && !doExitConnected) {
     	signal->connect(sigc::mem_fun(*this, &LinuxMonitor::onInstructionExecution));
+    	doExitConnected = true;
+    }
+
+    if( pc == symbols.__irq_usr && !doIrqUsr) {
+    	signal->connect(sigc::mem_fun(*this, &LinuxMonitor::onInstructionExecution));
+    	doIrqUsr = true;
     }
 
 #ifdef TARGET_ARM
-    if (pc == symbols.switch_to) {
+    if (pc == symbols.switch_to && !switchToConnected) {
     	signal->connect(sigc::mem_fun(*this, &LinuxMonitor::onInstructionExecution));
+    	switchToConnected = true;
     }
 #endif
 
@@ -526,7 +546,8 @@ void LinuxMonitor::onInstructionExecution(S2EExecutionState *state, uint64_t pc)
 
 	if (pc == symbols.do_fork) {
 		//let me now
-		s2e()->getDebugStream() << "LinuxMonitor: Fork detected " << endl;
+		uint32_t pid = getPid(state,pc);
+		s2e()->getDebugStream() << "LinuxMonitor: Task "<< pid << " is about to fork." << endl;
     	goto end;
 	}
 
@@ -555,7 +576,23 @@ void LinuxMonitor::onInstructionExecution(S2EExecutionState *state, uint64_t pc)
 #elif defined(TARGET_I386)
     	uint32_t pid = getPid(state,pc);
 #endif
-    	s2e()->getDebugStream() << "LinuxMonitor: Process " << dec << pid << " ends." << endl;
+    	linux_task task;
+    	if (getTask(pid,&task)) {
+        	s2e()->getDebugStream() << "LinuxMonitor: Task " << task.comm << " (pid: " << dec << task.pid << ") ends." << endl;
+    		tasks.erase(task);
+        	std::map<uint32_t,TaskSet>::iterator element = threadmap.find(pid);
+        	if (element != threadmap.end()) {
+        		s2e()->getDebugStream() << "Corresponding threads are also unloaded:" << endl;
+        		TaskSet::iterator threadIt;
+        		//XXX: Usually, this should happen anyway, because do_exit is called for each task.
+        		for ( threadIt=element->second.begin() ; threadIt != element->second.end(); threadIt++ ) {
+        			s2e()->getDebugStream() << "Thread: " << threadIt->comm << " (pid: " << threadIt->pid << " ) ends." << endl;
+        			onProcessUnload.emit(state,threadIt->pid);
+        			tasks.erase(*threadIt);
+        		}
+        		threadmap.erase(task.pid);
+        	}
+    	}
     	onProcessUnload.emit(state,pid);
     	goto end;
 	}
@@ -575,29 +612,105 @@ void LinuxMonitor::onInstructionExecution(S2EExecutionState *state, uint64_t pc)
         linux_task prevTask = getTaskInfo(previous_task_struct_Address);
         linux_task nextTask= getTaskInfo(next_task_struct_Address);
 
-        last_pid = nextTask.pid; //update pid
+        handleTaskTransition(state, pc, prevTask, nextTask);
 
-        if( tasks.find(nextTask) == tasks.end()) { //not found in list of active tasks
-            s2e()->getDebugStream() << "LinuxMonitor: new task with pid " << dec << nextTask.pid << "discovered: " << nextTask.comm << endl;
-            getTaskMemory(&nextTask);
-            if ( track_vm_areas ) {
-            	getTaskVMareas(&nextTask);
-            }
-            tasks.insert(nextTask);
-            notifyModuleLoad(state,&nextTask);
-        }
-	#if 0
-        string out = dumpContextSwitch(&prevTask,&nextTask);
-        s2e()->getDebugStream() << "LinuxMonitor:: report context switch" << endl << out << endl;
-	#endif
         goto end;
     }
 #endif
+
+    if (pc == symbols.__irq_usr) {
+    	//tell me when an interrupt occurs
+    	s2e()->getDebugStream() << "interrupt" << endl;
+    }
 end:
   currentState = NULL;
 
 } //onInstructionExecution
 
+void LinuxMonitor::handleTaskTransition(S2EExecutionState *state, uint32_t pc, linux_task prevTask, linux_task nextTask) {
+    last_pid = nextTask.pid; //update pid
+
+    if( tasks.find(nextTask) == tasks.end()) { //not found in list of active tasks
+
+    	//get more informations
+        getTaskMemory(&nextTask);
+        if ( track_vm_areas ) {
+        	getTaskVMareas(&nextTask);
+        }
+
+#if 0
+    	s2e()->getDebugStream() << "LinuxMonitor: new process with pid " << dec << nextTask.pid << " (tgid: " << nextTask.tgid << ") discovered: " << nextTask.comm << endl;
+#endif
+
+    	if (nextTask.pid == nextTask.tgid) {
+    		registerNewProcess(state, nextTask);
+    	} else  {
+    		registerNewThread(state, nextTask);
+    	}
+
+        notifyModuleLoad(state,&nextTask);
+    }
+#if 0
+    string out = dumpContextSwitch(&prevTask,&nextTask);
+    s2e()->getDebugStream() << "LinuxMonitor:: report context switch" << endl << out << endl;
+#endif
+}
+
+bool LinuxMonitor::registerNewProcess(S2EExecutionState *state, linux_task &process) {
+	//check: is it a process?
+	if (process.pid != process.tgid) {
+		s2e()->getDebugStream() << "LinuxMonitor::registerNewProcess(): Task " << process.pid << "is not a process, but a thread which belongs to process " << process.tgid << endl;
+		return false;
+	}
+
+	//first add it to tasklist
+	tasks.insert(process);
+
+	if ( threadmap.find(process.pid) != threadmap.end()) { //already registered
+		return false;
+	}
+
+	//then add it to threadmap with zero attached threads
+	TaskSet threads; //empty threadlist
+	threadmap.insert(pair<uint32_t,TaskSet>(process.pid,threads));
+
+	s2e()->getDebugStream() << "LinuxMonitor::registerNewProcess(): Process " << process.comm << " (pid: " << dec << process.pid << ") registered." << endl;
+
+	onNewProcess.emit(state,&process);
+
+	return true;
+
+}
+
+bool LinuxMonitor::registerNewThread(S2EExecutionState *state, linux_task &thread) {
+
+	linux_task process;
+	if (threadmap.find(thread.tgid) == threadmap.end()) {
+		//try to find and register the corresponding process
+		if (!searchForTask(thread.tgid, true, &process)) {
+			s2e()->getDebugStream() << "No corresponding process found for thread " << thread.comm << " ( pid: " << dec << thread.pid << "). We were looking for process with pid: " << dec << thread.tgid  << "."<< endl;
+			return false;
+		}
+		registerNewProcess(state, process);
+		assert(threadmap.find(thread.tgid) != threadmap.end());
+	}
+	assert (getTask(thread.tgid,&process));
+
+	//first add it to tasklist
+	tasks.insert(thread);
+
+	//then map it to corresponding process
+	threadmap[thread.tgid].insert(thread);
+
+
+
+	s2e()->getDebugStream() << "LinuxMonitor::registerNewThread(): Thread " << thread.comm << " ( pid: " << dec << thread.pid << ") attached to " << process.comm << " (pid: " << dec << thread.tgid << ")." << endl;
+
+
+	onNewThread.emit(state,&thread,&process);
+
+	return true;
+}
 
 uint32_t LinuxMonitor::getCurrentSyscall(S2EExecutionState *state) {
 	uint32_t nr_syscall;
@@ -662,11 +775,11 @@ void LinuxMonitor::notifyModuleLoad(S2EExecutionState *state, linux_task *task) 
 					mdl.Name = it->name;
 					mdl.LoadBase = it->start;
 					mdl.Size = it->end - it->start;
-					if(libs.find(it->name) != libs.end()) { //only assign pid when not pre-defined module.
-						mdl.Pid = 0;
-	                } else {
+//					if(libs.find(it->name) != libs.end()) { //only assign pid when not pre-defined module.
+//						mdl.Pid = 0;
+//	                } else {
 	                	mdl.Pid = task->pid;
-	                }
+//	                }
 					onModuleLoad.emit(state, mdl);
 
             }
@@ -678,11 +791,11 @@ void LinuxMonitor::notifyModuleLoad(S2EExecutionState *state, linux_task *task) 
 
 
 bool LinuxMonitor::isKernelAddress(uint64_t pc) const {
-    return (pc >= KERNEL_START);
+	return found_kernel_area ? (pc >= kernel_area->start) && (pc <= kernel_area->end) : (pc >= KERNEL_START);
 }
 
 uint64_t LinuxMonitor::getPid(S2EExecutionState *s, uint64_t pc) {
-    if (pc >= KERNEL_START) {
+    if (isKernelAddress(pc)) {
         return 0;
     } else {
 #ifdef TARGET_ARM
@@ -709,6 +822,7 @@ bool LinuxMonitor::getExports(S2EExecutionState *s, const ModuleDescriptor &desc
 linux_task LinuxMonitor::getTaskInfo(uint32_t address) {
     linux_task task;
     currentState->readMemoryConcrete(address + offsets.task_pid, &task.pid, 4);
+    currentState->readMemoryConcrete(address + offsets.task_tgid, &task.tgid, 4);
     currentState->readString(address + offsets.task_comm, task.comm, 60);
     currentState->readMemoryConcrete(address + offsets.task_next, &task.next, 4);
     task.next -= offsets.task_next;
@@ -765,9 +879,33 @@ bool LinuxMonitor::searchForTask(string name, linux_task *task) {
     return false;
 }
 
+/*
+ * goes through all
+ */
+bool LinuxMonitor::searchForTask(uint32_t pid, bool findProcess, linux_task *result) {
+    *result = getTaskInfo(symbols.init_task);
+    // iterate over all tasks (except swapper)
+    while (result->next != symbols.init_task) {
+        *result = getTaskInfo(result->next);
+        if ( pid == result->pid ) {
+        	if ( findProcess && (pid != result->tgid) ) {
+        		//we now know that pid identifies a thread, not a process.
+        		//thus: look for the process
+        		return searchForTask(result->tgid, true, result);
+        	}
+            // if we found the desired task, retrieve additional information before returning
+            getTaskMemory(result);
+            getTaskVMareas(result);
+            return true;
+        }
+    }
+    return false;
+}
 string LinuxMonitor::dumpTask(linux_task *task) {
     ostringstream oss;
-    oss << "Task\n\tpid: " << dec << task->pid << " comm: " << task->comm << endl;
+    oss << "Task\n\tpid: " << dec << task->pid << " tgid: " << dec << task->tgid <<endl;
+    oss << "comm: " << task->comm << endl;
+    oss << "Task\n\ttgid: " << dec << task->tgid << endl;
     oss << "\tcode area: 0x" << hex << task->code_start << " - 0x" << task->code_end << endl;
     oss << "\tdata area: 0x" << hex << task->data_start << " - 0x" << task->data_end << endl;
     for (vector<vm_area>::iterator it = task->vm_areas.begin(); it < task->vm_areas.end(); it++) {
@@ -785,3 +923,15 @@ string LinuxMonitor::dumpContextSwitch(linux_task *prev_task, linux_task *next_t
     oss << dumpTask(next_task) << endl;
 	return oss.str();
 }
+
+bool LinuxMonitor::getTask(uint32_t pid, linux_task *task)  {
+	TaskSet::iterator it;
+	for ( it=tasks.begin() ; it != tasks.end(); it++ ) {
+		if (pid == it->pid) {
+			*task = *it;
+			return true;
+		}
+	}
+	return false;
+}
+

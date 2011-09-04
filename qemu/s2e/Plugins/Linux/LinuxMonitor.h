@@ -51,6 +51,7 @@
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
+#include <map>
 
 #define KERNEL_START 	0xc0000000
 
@@ -71,7 +72,6 @@ public:
 		std::string name;
 	};
 
-	typedef std::set<s2e::linuxos::linux_task> TaskSet;
 	typedef std::set<std::string> StringSet;
 	typedef s2e::linuxos::vm_area kernel_function_area;
 	typedef std::map<std::string,symbol_struct> SymbolTable;
@@ -94,6 +94,9 @@ private:
 									 */
 
 		uint32_t do_exit;			/* is called whenever a process exits */
+		uint32_t sys_exit;			/* syscall handler for process exit */
+		uint32_t sys_exit_group;	/* called when a whole group exits */
+		uint32_t __irq_usr;
 	};
 
 
@@ -101,6 +104,7 @@ private:
 	struct kernel_offsets {
 		uint32_t task_comm;
 		uint32_t task_pid;
+		uint32_t task_tgid;
 		uint32_t task_mm;
 		uint32_t task_next;
 		uint32_t thread_info_task;
@@ -129,7 +133,9 @@ private:
 	uint32_t threadsize; //needed to find current pid (default: 8192)
 	uint32_t last_pid;
 
-	TaskSet tasks;
+	s2e::linuxos::TaskSet tasks; //all discovered tasks during scheduler switch
+	std::map<uint32_t,TaskSet> threadmap; //threads assigned to the pid (tgid) of a process
+
 	StringSet libs; //names of prelinked libraries (libraries which do not relocate)
 	SymbolTable symboltable; //stores all kernel addresses of System.map
 
@@ -142,7 +148,18 @@ private:
 	s2e::linuxos::vm_area *libsys_area; //region where prelinked system libraries live
 	s2e::linuxos::vm_area *libapp_area; //region where prelinked app libraries live
 
+	//booleans to hold if we already observe a specific instruction execution
+    bool doExecVeConnected;
+    bool startThreadConnected;
+    bool syscallConnected;
+    bool doForkconnected;
+    bool qemuTraceForkconnected;
+    bool doExitConnected;
+    bool switchToConnected;
+    bool doIrqUsr;
+
 	sigc::connection onTranslateInstructionConnection;
+
 
 	S2EExecutionState *currentState;
 
@@ -172,11 +189,24 @@ private:
 
 #endif
 
+	void handleTaskTransition(S2EExecutionState *state, uint32_t pc, linux_task prev, linux_task next);
+	bool registerNewProcess(S2EExecutionState *state, linux_task &process);
+	bool registerNewThread(S2EExecutionState *state, linux_task &thread);
+
 	void compilePattern(const char *pattern, regex_t *result);
 	bool parseSystemMapFile(const char *system_map_file, SymbolTable &result);
 	void parsePrelinkFile(const char *prelink_linux_map_file);
 	bool findPrelinkedLibsInFile(std::ifstream &filestream, regex_t *compiled_pattern, StringSet &libs);
 	bool findAreaInFile(std::ifstream &filestream, regex_t *compiled_pattern, vm_area *result);
+
+	// search for a task by it's name (the 'comm' field in the task_struct)
+	// task is an output parameter the task information will be written to
+	bool searchForTask(std::string name, s2e::linuxos::linux_task *task);
+
+	//search for a task by pid. if findProcess is true, it aims to find
+	// the corresponding process of task with the given pid
+	bool searchForTask(uint32_t pid, bool findProcess, linux_task *result);
+
 
 public:
 	LinuxMonitor(S2E* s2e) :
@@ -198,9 +228,11 @@ public:
 	 */
 	bool searchSymbol(std::string symbolname, symbol_struct &result);
 
-	// search for a task by it's name (the 'comm' field in the task_struct)
-	// task is an output parameter the task information will be written to
-	bool searchForTask(std::string name, s2e::linuxos::linux_task *task);
+	/*
+	 * retrieves task with given pid
+	 * only searches in the set of registered tasks, see field: TaskSet tasks;
+	 */
+	bool getTask(uint32_t pid, s2e::linuxos::linux_task *task);
 
 	// creates a new task object based on the supplied task_struct memory address
 	// this includes: comm, pid, mm and the pointer to the next task_struct
@@ -209,10 +241,13 @@ public:
 	// fills the given task struct with information on code and data memory areas
 	// from the task's mm_struct
 	void getTaskMemory(s2e::linuxos::linux_task *task);
+
 	// fills the given task struct with information on all it's VM areas
 	void getTaskVMareas(s2e::linuxos::linux_task *task);
+
 	// returns a string containing all available information on the task
 	static std::string dumpTask(s2e::linuxos::linux_task *task);
+
 	static std::string dumpContextSwitch(s2e::linuxos::linux_task *prev_task, s2e::linuxos::linux_task *next_task);
 
 	void onTranslateInstruction(ExecutionSignal *signal,
@@ -228,6 +263,13 @@ public:
 
 	sigc::signal<void, S2EExecutionState*, uint32_t /* syscall number */
 	> onSyscall;
+
+	sigc::signal<void, S2EExecutionState*, s2e::linuxos::linux_task* /* new process */
+	> onNewProcess;
+
+	sigc::signal<void, S2EExecutionState*, s2e::linuxos::linux_task*, /* new thread */
+	s2e::linuxos::linux_task* /* corresponding process */
+	> onNewThread;
 
 }; //class LinuxMonitor
 

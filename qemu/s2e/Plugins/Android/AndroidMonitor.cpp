@@ -74,17 +74,20 @@ void AndroidMonitor::initialize()
 {
     std::vector<std::string> Sections;
     Sections = s2e()->getConfig()->getListKeys(getConfigKey());
-    bool noErrors = true;
+    bool ok = false;
 
+    aut_process_name = s2e()->getConfig()->getString(getConfigKey() + ".app_process_name", "", &ok).c_str();
 
-    if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the AndroidMonitor sections"
+    if (!ok) {
+        s2e()->getWarningsStream() << "AndroidMonitor: No process name for application under test provided."
             <<std::endl;
-        exit(-1);
     }
 
     m_linuxMonitor = static_cast<LinuxMonitor*>(s2e()->getPlugin("LinuxMonitor"));
     assert(m_linuxMonitor);
+
+    m_modulePlugin = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
+    assert(m_modulePlugin);
 
     s2e()->getCorePlugin()->onCustomInstruction.connect(
             sigc::mem_fun(*this, &AndroidMonitor::onCustomInstruction));
@@ -92,7 +95,12 @@ void AndroidMonitor::initialize()
             sigc::mem_fun(*this, &AndroidMonitor::onProcessFork));
     m_linuxMonitor->onSyscall.connect(
     		sigc::mem_fun(*this, &AndroidMonitor::onSyscall));
-
+    m_linuxMonitor->onNewProcess.connect(
+    		sigc::mem_fun(*this, &AndroidMonitor::onNewProcess));
+    m_linuxMonitor->onNewThread.connect(
+    		sigc::mem_fun(*this, &AndroidMonitor::onNewThread));
+    m_modulePlugin->onModuleTransition.connect(
+    		sigc::mem_fun(*this, &AndroidMonitor::onModuleTransition));
 
 }
 
@@ -157,13 +165,26 @@ void AndroidMonitor::onProcessFork(S2EExecutionState *state, uint32_t clone_flag
 
 	s2e()->getDebugStream() << "AndroidMonitor: Fork details: " << "Clone Flags: " << hex << clone_flags << endl << LinuxMonitor::dumpTask(task) << endl;
 	if(!task->comm.compare("zygote")) {
+		linux_task appthread = *task;
 		if (clone_flags == 0x11) {
-			s2e()->getDebugStream() << "Main thread of Android application started. Waiting for information over custom instruction..." << endl;
-		} else if (clone_flags == 0x45FF) {
+			s2e()->getDebugStream() << "Main process of Android application started. Waiting for information over custom instruction..." << endl;
+			assert(appthread.pid == appthread.tgid);
+			aut.process = appthread;
+
+		} else if (clone_flags == 0x450F00) {
 			s2e()->getDebugStream() << "Further thread of new Android application started.  Waiting for information over custom instruction..." << endl;
+			linux_task appthread = *task;
+			assert(appthread.pid != appthread.tgid);
+			aut.threads.insert(appthread);
 		} else  {
 			s2e()->getDebugStream() << "Zygote fork with unrecognized  clone flags:" << hex << clone_flags << endl;
 		}
+	}
+
+	if (task->tgid == aut.process.tgid && !task->comm.compare("Binder Thread #")) {
+		s2e()->getDebugStream() << "Binder Thread of Android application started." << endl;
+		linux_task binderthread = *task;
+		aut.threads.insert(binderthread);
 	}
 
 	/*
@@ -186,12 +207,56 @@ void AndroidMonitor::onProcessFork(S2EExecutionState *state, uint32_t clone_flag
 	 *	3. A binder thread is created
 	 *  4. Syscall 5 (open)
 	 */
+}
 
+void AndroidMonitor::onNewThread(S2EExecutionState *state, linux_task* thread, linux_task* process) {
+	if (!process->comm.compare("system_server")) {
+		s2e()->getDebugStream() << "AndroidMonitor:: system_server thread detected with pid: " << dec << thread->pid << endl;
+		linux_task newThread = *process;
+		systemServer.threads.insert(newThread);
+		return;
+	}
+	if (!process->comm.compare("zygote")) {
+		s2e()->getDebugStream() << "AndroidMonitor:: application thread detected with pid: " << dec << thread->pid << endl;
+//		linux_task newThread = *process;
+//		zygote.threads.insert(newThread);
+		return;
+	}
+
+}
+void AndroidMonitor::onNewProcess(S2EExecutionState *state, linux_task* process) {
+
+	if (!process->comm.compare("system_server")) {
+		s2e()->getDebugStream() << "AndroidMonitor:: system_server process detected with pid: " << dec << process->pid << endl;
+		linux_task newProcess = *process;
+		systemServer.process = newProcess;
+		return;
+	}
+
+	if (!process->comm.compare("zygote")) {
+		s2e()->getDebugStream() << "AndroidMonitor:: zygote detected with pid: " << dec << process->pid << endl;
+		linux_task newProcess = *process;
+		zygote.process = newProcess;
+		return;
+	}
 
 }
 
 void AndroidMonitor::onSyscall(S2EExecutionState *state, uint32_t syscall_nr) {
-	s2e()->getDebugStream() << "LinuxMonitor: syscall observed: " << hex << syscall_nr << endl;
+	s2e()->getDebugStream() << "AndroidMonitor:: syscall observed: " << hex << syscall_nr << endl;
+}
+
+void AndroidMonitor::onModuleTransition(S2EExecutionState* state, const ModuleDescriptor *previousModule, const ModuleDescriptor *nextModule) {
+	if(nextModule == NULL) {
+		return;
+	}
+	if(nextModule->Name.find(aut_process_name) != string::npos) {
+		s2e()->getMessagesStream() << "AndroidMonitor:: enter " << nextModule->Name << endl;
+	}
+	if(nextModule->Name.find("libs2ewrapper.so") != string::npos) {
+		s2e()->getMessagesStream() << "AndroidMonitor:: enter " << nextModule->Name << endl;
+	}
+
 }
 
 } // namespace plugins
