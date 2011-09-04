@@ -265,7 +265,7 @@ void ModuleExecutionDetector::processUnloadListener(
 {
     DECLARE_PLUGINSTATE(ModuleTransitionState, state);
 
-    s2e()->getDebugStream() << "Process 0x" << std::hex << pid << " is unloaded" << std::dec << std::endl;
+    s2e()->getDebugStream() << "Process " << std::dec << pid << " is unloaded" << std::dec << std::endl;
 
     plgState->unloadDescriptorsWithPid(pid);
 }
@@ -411,8 +411,7 @@ void ModuleExecutionDetector::onExecution(
 
     //gTRACE("pid=%#"PRIx64" pc=%#"PRIx64"\n", pid, pc);
     if (plgState->m_PreviousModule != currentModule) {
-#warning disable the lines below (AKA debug)
-#if 1
+#if 0
         if (currentModule) {
             DPRINTF("Entered module %s\n", currentModule->Name.c_str());
         }else {

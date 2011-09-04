@@ -100,7 +100,9 @@ typedef struct CPUARMState {
     uint32_t ZF; /* Z set if zero.  */
 
     /* Regs for current mode.  */
-    uint32_t regs[16];	/* regs[15] is the border between concrete and symbolic area, i.e., regs[15] is in concrete-only-area */
+    uint32_t regs[16];	/* regs[15] is the border between concrete
+                         * and symbolic area, i.e., regs[15] is in
+                         * concrete-only-area */
 
     uint32_t QF; /* 0 or 1 */
     uint32_t GE; /* cpsr[19:16] */

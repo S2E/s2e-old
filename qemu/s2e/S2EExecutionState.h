@@ -50,7 +50,6 @@ extern "C" {
     struct TimersState;
 }
 
-
 #ifdef TARGET_ARM
 struct CPUARMState;
 #define CPU_OFFSET(field) offsetof(CPUARMState, field)

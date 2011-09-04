@@ -59,11 +59,11 @@ extern "C" {
 #include <s2e/Plugins/EdgeKiller.h>
 #include <s2e/Plugins/StateManager.h>
 
-#if 0
-
 #include <s2e/Plugins/Annotation.h>
 #include <s2e/Plugins/RawMonitor.h>
 #include <s2e/Plugins/FunctionMonitor.h>
+
+#if 0
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsMonitor.h>
 #include <s2e/Plugins/WindowsInterceptor/BlueScreenInterceptor.h>
@@ -136,9 +136,12 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::MemoryChecker);
     __S2E_REGISTER_PLUGIN(plugins::Debugger);
     __S2E_REGISTER_PLUGIN(plugins::Example);
-#if 0
+
     __S2E_REGISTER_PLUGIN(plugins::RawMonitor);
     __S2E_REGISTER_PLUGIN(plugins::FunctionMonitor);
+    __S2E_REGISTER_PLUGIN(plugins::Annotation);
+
+#if 0
     __S2E_REGISTER_PLUGIN(plugins::WindowsMonitor);
     __S2E_REGISTER_PLUGIN(plugins::BlueScreenInterceptor);
     __S2E_REGISTER_PLUGIN(plugins::WindowsCrashDumpGenerator);
@@ -147,7 +150,7 @@ PluginsFactory::PluginsFactory()
     __S2E_REGISTER_PLUGIN(plugins::GenericDataSelector);
     __S2E_REGISTER_PLUGIN(plugins::CacheSim);
     __S2E_REGISTER_PLUGIN(plugins::SymbolicHardware);
-    __S2E_REGISTER_PLUGIN(plugins::Annotation);
+
     __S2E_REGISTER_PLUGIN(plugins::X86ExceptionInterceptor);
     __S2E_REGISTER_PLUGIN(plugins::NdisHandlers);
     __S2E_REGISTER_PLUGIN(plugins::NtoskrnlHandlers);

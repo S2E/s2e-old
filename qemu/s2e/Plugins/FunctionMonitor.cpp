@@ -73,11 +73,11 @@ void FunctionMonitor::initialize()
 //XXX: Implement onmoduleunload to automatically clear all call signals
 FunctionMonitor::CallSignal* FunctionMonitor::getCallSignal(
         S2EExecutionState *state,
-        uint64_t eip, uint64_t cr3)
+        uint64_t pc, uint64_t pid)
 {
     DECLARE_PLUGINSTATE(FunctionMonitorState, state);
 
-    return plgState->getCallSignal(eip, cr3);
+    return plgState->getCallSignal(pc, pid);
 }
 
 void FunctionMonitor::slotTranslateBlockEnd(ExecutionSignal *signal,
@@ -174,26 +174,26 @@ PluginState *FunctionMonitorState::factory(Plugin *p, S2EExecutionState *s)
 }
 
 FunctionMonitor::CallSignal* FunctionMonitorState::getCallSignal(
-        uint64_t eip, uint64_t cr3)
+        uint64_t pc, uint64_t pid)
 {
     std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
-            range = m_callDescriptors.equal_range(eip);
+            range = m_callDescriptors.equal_range(pc);
 
     for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-        if(it->second.cr3 == cr3)
+        if(it->second.pid == pid)
             return &it->second.signal;
     }
 
-    CallDescriptor descriptor = { cr3, FunctionMonitor::CallSignal() };
+    CallDescriptor descriptor = { pid, FunctionMonitor::CallSignal() };
     CallDescriptorsMap::iterator it =
-            m_newCallDescriptors.insert(std::make_pair(eip, descriptor));
+            m_newCallDescriptors.insert(std::make_pair(pc, descriptor));
     return &it->second.signal;
 }
 
 
 void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
 {
-    target_ulong cr3 = state->getPid();
+    target_ulong pid = state->getPid();
     target_ulong eip = state->getPc();
 
     if (!m_newCallDescriptors.empty()) {
@@ -201,16 +201,16 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
         m_newCallDescriptors.clear();
     }
 
-    /* Issue signals attached to all calls (eip==-1 means catch-all) */
+    /* Issue signals attached to all calls (pc==-1 means catch-all) */
     if (!m_callDescriptors.empty()) {
         std::pair<CallDescriptorsMap::iterator, CallDescriptorsMap::iterator>
                 range = m_callDescriptors.equal_range((uint64_t)-1);
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
             CallDescriptor cd = (*it).second;
             if (m_plugin->m_monitor) {
-                cr3 = m_plugin->m_monitor->getPid(state, pc);
+                pid = m_plugin->m_monitor->getPid(state, pc);
             }
-            if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
+            if(it->second.pid == (uint64_t)-1 || it->second.pid == pid) {
                 cd.signal.emit(state, this);
             }
         }
@@ -229,9 +229,9 @@ void FunctionMonitorState::slotCall(S2EExecutionState *state, uint64_t pc)
         for(CallDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
             CallDescriptor cd = (*it).second;
             if (m_plugin->m_monitor) {
-                cr3 = m_plugin->m_monitor->getPid(state, pc);
+                pid = m_plugin->m_monitor->getPid(state, pc);
             }
-            if(it->second.cr3 == (uint64_t)-1 || it->second.cr3 == cr3) {
+            if(it->second.pid == (uint64_t)-1 || it->second.pid == pid) {
                 cd.signal.emit(state, this);
             }
         }
@@ -253,23 +253,32 @@ void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, Functi
         return;
     }
 
-    uint32_t esp;
+    uint32_t sp;
 
+#ifdef TARGET_ARM
     bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[13]),
-                                             &esp, sizeof(target_ulong));
-    if(!ok) {
-        m_plugin->s2e()->getWarningsStream(state)
-            << "Function call with symbolic ESP!" << std::endl
-            << "  EIP=" << hexval(state->getPc()) << " CR3=" << hexval(state->getPid()) << std::endl;
-        return;
-    }
+                                             &sp, sizeof(target_ulong));
+#elif defined(TARGET_I386)
+    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
+                                             &sp, sizeof(target_ulong));
+#else
+    assert(false);
+#endif
 
     uint64_t pid = state->getPid();
     if (m_plugin->m_monitor) {
         pid = m_plugin->m_monitor->getPid(state, state->getPc());
     }
+
+    if(!ok) {
+        m_plugin->s2e()->getWarningsStream(state)
+            << "Function call with symbolic SP!" << std::endl
+            << "  PC=" << hexval(state->getPc()) << " PID=" << hexval(pid) << std::endl;
+        return;
+    }
+
     ReturnDescriptor descriptor = {pid, sig };
-    m_returnDescriptors.insert(std::make_pair(esp, descriptor));
+    m_returnDescriptors.insert(std::make_pair(sp, descriptor));
 }
 
 /**
@@ -278,55 +287,72 @@ void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, Functi
  * program counter and/or wants to exit to the cpu loop and avoid being called again.
  *
  *  Note: all the return handlers will be erased if emitSignal is false, not just the one
- * that issued the call. Also note that it not possible to return from the handler normally
+ * that issued the call. Also note that it is not possible to return from the handler normally
  * whenever this function is called from within a return handler.
  */
 void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal)
 {
-	//TODO: ARM-equivalent for CR3
-	//    target_ulong cr3 = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
 
-//    target_ulong esp;
-//    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[13]),
-//                                             &esp, sizeof(target_ulong));
-//    if(!ok) {
-//        target_ulong eip = state->readCpuState(CPU_OFFSET(regs[15]),
-//                                               8*sizeof(target_ulong));
-//        m_plugin->s2e()->getWarningsStream(state)
-//            << "Function return with symbolic ESP!" << std::endl
-//            << "  EIP=" << hexval(eip) << /*" CR3=" << hexval(cr3) <<*/ std::endl;
-//        return;
-//    }
-//
-//    if (m_returnDescriptors.empty()) {
-//        return;
-//    }
-//
-//    //m_plugin->s2e()->getDebugStream() << "ESP AT RETURN 0x" << std::hex << esp <<
-//    //        " plgstate=0x" << this << " EmitSignal=" << emitSignal <<  std::endl;
-//
-//    bool finished = true;
-//
-//    do {
-//        finished = true;
-//        std::pair<ReturnDescriptorsMap::iterator, ReturnDescriptorsMap::iterator>
-//                range = m_returnDescriptors.equal_range(esp);
-//        for(ReturnDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
-//            if (m_plugin->m_monitor) {
-//                cr3 = m_plugin->m_monitor->getPid(state, pc);
-//            }
-//
-//
-//            if(it->second.cr3 == cr3) {
-//                if (emitSignal) {
-//                    it->second.signal.emit(state);
-//                }
-//                m_returnDescriptors.erase(it);
-//                finished = false;
-//                break;
-//            }
-//        }
-//    } while(!finished);
+target_ulong pid;
+target_ulong sp;
+#ifdef TARGET_ARM
+	assert(m_plugin->m_monitor);
+	pid = m_plugin->m_monitor->getPid(state, pc);
+
+    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[13]),
+                                             &sp, sizeof(target_ulong));
+    if(!ok) {
+        target_ulong pc = state->readCpuState(CPU_OFFSET(regs[15]),
+                                               8*sizeof(target_ulong));
+        m_plugin->s2e()->getWarningsStream(state)
+            << "Function return with symbolic ESP!" << std::endl
+            << "  PC=" << hexval(pc) << /*" PID=" << hexval(pid) <<*/ std::endl;
+        return;
+    }
+#elif defined(TARGET_I386)
+	pid = state->readCpuState(CPU_OFFSET(cr[3]), 8*sizeof(target_ulong));
+    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]),
+                                             &sp, sizeof(target_ulong));
+    if(!ok) {
+    	target_ulong pc = state->readCpuState(CPU_OFFSET(eip),
+                                               8*sizeof(target_ulong));
+        m_plugin->s2e()->getWarningsStream(state)
+            << "Function return with symbolic ESP!" << std::endl
+            << "  PC=" << hexval(pc) << /*" PID=" << hexval(pid) <<*/ std::endl;
+        return;
+    }
+#else
+	assert(false);
+#endif
+
+    if (m_returnDescriptors.empty()) {
+        return;
+    }
+
+    //m_plugin->s2e()->getDebugStream() << "ESP AT RETURN 0x" << std::hex << esp <<
+    //        " plgstate=0x" << this << " EmitSignal=" << emitSignal <<  std::endl;
+
+    bool finished = true;
+
+    do {
+        finished = true;
+        std::pair<ReturnDescriptorsMap::iterator, ReturnDescriptorsMap::iterator>
+                range = m_returnDescriptors.equal_range(sp);
+        for(ReturnDescriptorsMap::iterator it = range.first; it != range.second; ++it) {
+            if (m_plugin->m_monitor) {
+                pid = m_plugin->m_monitor->getPid(state, pc);
+            }
+
+            if(it->second.pid == pid) {
+                if (emitSignal) {
+                    it->second.signal.emit(state);
+                }
+                m_returnDescriptors.erase(it);
+                finished = false;
+                break;
+            }
+        }
+    } while(!finished);
 
 }
 

@@ -174,13 +174,23 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             uint32_t rtloadbase, name, size;
             bool ok = true;
 
+#ifdef TARGET_ARM
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
+                                                 &name, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
+                                                 &rtloadbase, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
+                                                 &size, 4);
+#elif defined(TARGET_I386)
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
                                                  &name, 4);
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
                                                  &rtloadbase, 4);
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
                                                  &size, 4);
-
+#else
+            assert(false);
+#endif
             if(!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
@@ -216,12 +226,24 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             //Specifying a new import descriptor
             uint32_t dllname, funcname, funcptr;
             bool ok = true;
+
+#ifdef TARGET_ARM
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]),
+                                                 &dllname, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]),
+                                                 &funcname, 4);
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]),
+                                                 &funcptr, 4);
+#elif defined(TARGET_I386)
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
                                                  &dllname, 4);
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
                                                  &funcname, 4);
             ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
                                                  &funcptr, 4);
+#else
+            assert(false);
+#endif
 
             if (!ok) {
                 s2e()->getWarningsStream(state)
@@ -267,6 +289,7 @@ void RawMonitor::loadModule(S2EExecutionState *state, const Cfg &c, bool skipIfD
     md.NativeBase = c.nativebase;
     md.LoadBase = c.start;
     md.Size = c.size;
+    //XXX: PID from state does not work for ARM
     md.Pid = c.kernelMode ? 0 : state->getPid();
     md.EntryPoint = c.entrypoint;
 

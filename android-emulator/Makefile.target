@@ -272,6 +272,8 @@ LOCAL_SRC_FILES += \
     s2e/Plugins/Debugger.cpp  \
     s2e/Plugins/EdgeKiller.cpp \
     s2e/Plugins/StateManager.cpp  \
+    s2e/Plugins/RawMonitor.cpp  \
+    s2e/Plugins/FunctionMonitor.cpp  \
     s2e/Plugins/Annotation.cpp  \
     s2e/Plugins/Searchers/MaxTbSearcher.cpp  \
     s2e/Plugins/MemoryChecker.cpp  \
@@ -298,8 +300,6 @@ ifeq ($(EMULATOR_TARGET_ARCH),x86)
 	LOCAL_SRC_FILES += \
 	s2e/Plugins/X86ExceptionInterceptor.cpp  \
 	s2e/Plugins/BaseInstructions.cpp \
-	s2e/Plugins/RawMonitor.cpp  \
-	s2e/Plugins/FunctionMonitor.cpp  \
         s2e/Plugins/CacheSim.cpp  
 endif
     

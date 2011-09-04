@@ -62,7 +62,7 @@ public:
     
     CallSignal* getCallSignal(
             S2EExecutionState *state,
-            uint64_t eip, uint64_t cr3 = 0);
+            uint64_t pc, uint64_t pid = 0);
 
     void eraseSp(S2EExecutionState *state, uint64_t pc);
 protected:
@@ -92,14 +92,14 @@ class FunctionMonitorState : public PluginState
 {
 
     struct CallDescriptor {
-        uint64_t cr3;
+        uint64_t pid;
         // TODO: add sourceModuleID and targetModuleID
         FunctionMonitor::CallSignal signal;
     };
 
     struct ReturnDescriptor {
         //S2EExecutionState *state;
-        uint64_t cr3;
+        uint64_t pid;
         // TODO: add sourceModuleID and targetModuleID
         FunctionMonitor::ReturnSignal signal;
     };
@@ -112,9 +112,9 @@ class FunctionMonitorState : public PluginState
 
     FunctionMonitor *m_plugin;
 
-    /* Get a signal that is emited on function calls. Passing eip = 0 means
-       any function, and cr3 = 0 means any cr3 */
-    FunctionMonitor::CallSignal* getCallSignal(uint64_t eip, uint64_t cr3 = 0);
+    /* Get a signal that is emited on function calls. Passing pc = 0 means
+       any function, and pid = 0 means any pid */
+    FunctionMonitor::CallSignal* getCallSignal(uint64_t pc, uint64_t pid = 0);
 
     void slotCall(S2EExecutionState *state, uint64_t pc);
     void slotRet(S2EExecutionState *state, uint64_t pc, bool emitSignal);
