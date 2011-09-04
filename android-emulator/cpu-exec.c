@@ -657,6 +657,11 @@ s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
 #endif
                     intNb = -1;
                 }
+#if (defined(CONFIG_S2E) && defined(TARGET_ARM))
+                if (env->exception_index != -1) {
+                    s2e_on_exception(g_s2e, g_s2e_state, env->exception_index);
+                }
+#endif
 
                 tb = tb_find_fast();
                 /* Note: we do it here to avoid a gcc bug on Mac OS X when

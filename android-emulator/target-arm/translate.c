@@ -858,7 +858,6 @@ static const uint8_t table_logic_cc[16] = {
 static inline void gen_bx_im(DisasContext *s, uint32_t addr)
 {
     TCGv tmp;
-    SET_TB_TYPE(TB_CALL_IND);
     s->is_jmp = DISAS_UPDATE;
     tmp = new_tmp();
     if (s->thumb != (addr & 1)) {
@@ -874,7 +873,7 @@ static inline void gen_bx_im(DisasContext *s, uint32_t addr)
 static inline void gen_bx(DisasContext *s, TCGv var)
 {
     TCGv tmp;
-
+    SET_TB_TYPE(TB_CALL);
     s->is_jmp = DISAS_UPDATE;
     tmp = new_tmp();
     tcg_gen_andi_i32(tmp, var, 1);
@@ -3468,18 +3467,22 @@ static inline void gen_goto_tb(DisasContext *s, int n, uint32_t dest)
 
     tb = s->tb;
 
+    if ((tb->pc & TARGET_PAGE_MASK) == (dest & TARGET_PAGE_MASK)) {
+        tcg_gen_goto_tb(n);
+        gen_set_pc_im(dest);
 #ifdef CONFIG_S2E
     s2e_on_translate_block_end(g_s2e, g_s2e_state,
                                tb, s->insPc, 1, dest);
     gen_instr_end(s);
 #endif
-
-    if ((tb->pc & TARGET_PAGE_MASK) == (dest & TARGET_PAGE_MASK)) {
-        tcg_gen_goto_tb(n);
-        gen_set_pc_im(dest);
         tcg_gen_exit_tb((long)tb + n);
     } else {
         gen_set_pc_im(dest);
+#ifdef CONFIG_S2E
+    s2e_on_translate_block_end(g_s2e, g_s2e_state,
+                               tb, s->insPc, 1, dest);
+    gen_instr_end(s);
+#endif
         tcg_gen_exit_tb(0);
     }
 }
@@ -3487,7 +3490,7 @@ static inline void gen_goto_tb(DisasContext *s, int n, uint32_t dest)
 static inline void gen_jmp (DisasContext *s, uint32_t dest)
 {
 
-	SET_TB_TYPE(TB_JMP);
+
 
     if (unlikely(s->singlestep_enabled)) {
         /* An indirect jump so that we still trigger the debug exception.  */
@@ -3566,12 +3569,18 @@ static int gen_set_psr_T0(DisasContext *s, uint32_t mask, int spsr)
 /* Generate an old-style exception return. Marks pc as dead. */
 static void gen_exception_return(DisasContext *s, TCGv pc)
 {
+	SET_TB_TYPE(TB_CALL);
     TCGv tmp;
     store_reg(s, 15, pc);
     tmp = load_cpu_field(spsr);
     gen_set_cpsr(tmp, 0xffffffff);
     dead_tmp(tmp);
     s->is_jmp = DISAS_UPDATE;
+#ifdef CONFIG_S2E
+    s2e_on_translate_block_end(g_s2e, g_s2e_state,
+    		s->tb, s->insPc, 1, GET_TCGV_I32(pc));
+        	gen_instr_end(s);
+#endif
 }
 
 /* Generate a v6 exception return.  Marks both values as dead.  */
@@ -6067,6 +6076,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
             val = (uint32_t)s->pc;
             tmp = new_tmp();
             tcg_gen_movi_i32(tmp, val);
+        	SET_TB_TYPE(TB_CALL);
             store_reg(s, 14, tmp);
             /* Sign-extend the 24-bit offset */
             offset = (((int32_t)insn) << 8) >> 8;
@@ -6130,7 +6140,6 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         s->condlabel = gen_new_label();
         gen_test_cc(cond ^ 1, s->condlabel);
         s->condjmp = 1;
-        SET_TB_TYPE(TB_COND_JMP);
     }
 #ifdef CONFIG_TRACE
     if (tracing && ticks > 0) {
@@ -6201,6 +6210,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         case 0x1:
             if (op1 == 1) {
                 /* branch/exchange thumb (bx).  */
+                if (rm == 14) {
+                    SET_TB_TYPE(TB_RET);
+                    s2e_on_translate_jump_start(g_s2e, g_s2e_state, s->tb, s->pc, JT_RET);
+                }
                 tmp = load_reg(s, rm);
                 gen_bx(s, tmp);
             } else if (op1 == 3) {
@@ -6228,6 +6241,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
               goto illegal_op;
 
             /* branch link/exchange thumb (blx) */
+        	SET_TB_TYPE(TB_CALL);
             tmp = load_reg(s, rm);
             tmp2 = new_tmp();
             tcg_gen_movi_i32(tmp2, s->pc);
@@ -6458,6 +6472,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 if (IS_USER(s)) {
                     goto illegal_op;
                 }
+            	SET_TB_TYPE(TB_CALL);
                 gen_exception_return(s, tmp2);
             } else {
                 if (logic_cc) {
@@ -7042,6 +7057,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             /* load */
                             tmp = gen_ld32(addr, IS_USER(s));
                             if (i == 15) {
+                            	if (rn == 14) {
+                                        SET_TB_TYPE(TB_RET);
+                                        s2e_on_translate_jump_start(g_s2e, g_s2e_state, s->tb, s->pc, JT_RET);
+                            	}
                                 gen_bx(s, tmp);
                             } else if (user) {
                                 gen_helper_set_user_reg(tcg_const_i32(i), tmp);
@@ -7115,6 +7134,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 /* branch (and link) */
                 val = (int32_t)s->pc;
                 if (insn & (1 << 24)) {
+                	SET_TB_TYPE(TB_CALL);
                     tmp = new_tmp();
                     tcg_gen_movi_i32(tmp, val);
                     store_reg(s, 14, tmp);
@@ -7252,6 +7272,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
         insn = insn_hw1;
         if ((insn & (1 << 12)) == 0) {
             /* Second half of blx.  */
+        	SET_TB_TYPE(TB_CALL);
             offset = ((insn & 0x7ff) << 1);
             tmp = load_reg(s, 14);
             tcg_gen_addi_i32(tmp, tmp, offset);
@@ -7265,6 +7286,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
         }
         if (insn & (1 << 11)) {
             /* Second half of bl.  */
+        	SET_TB_TYPE(TB_CALL);
             offset = ((insn & 0x7ff) << 1) | 1;
             tmp = load_reg(s, 14);
             tcg_gen_addi_i32(tmp, tmp, offset);
@@ -7279,6 +7301,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
             /* Instruction spans a page boundary.  Implement it as two
                16-bit instructions in case the second half causes an
                prefetch abort.  */
+        	SET_TB_TYPE(TB_CALL);
             offset = ((int32_t)insn << 21) >> 9;
             gen_op_movl_T0_im(s->pc + 2 + offset);
             gen_movl_reg_T0(s, 14);
@@ -8445,7 +8468,11 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
                 break;
             case 3:/* branch [and link] exchange thumb register */
                 tmp = load_reg(s, rm);
+            	if (rm == 14) {
+            		SET_TB_TYPE(TB_JMP);
+            	}
                 if (insn & (1 << 7)) {
+                	SET_TB_TYPE(TB_CALL);
                     val = (uint32_t)s->pc | 1;
                     tmp2 = new_tmp();
                     tcg_gen_movi_i32(tmp2, val);
@@ -8928,6 +8955,7 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
         s->condlabel = gen_new_label();
         gen_test_cc(cond ^ 1, s->condlabel);
         s->condjmp = 1;
+        SET_TB_TYPE(TB_DEFAULT);
         gen_movl_T1_reg(s, 15);
 
         /* jump to the offset */
