@@ -39,6 +39,9 @@ extern "C" {
 #include "qemu-common.h"
 }
 
+#ifdef CONFIG_WIN32
+#include <windows.h>
+#endif
 
 #include "BaseInstructions.h"
 #include <s2e/S2E.h>
@@ -327,7 +330,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
 
                 while (llvm::sys::TimeValue::now().seconds() - startTime.seconds() < duration) {
-                    sleep(1);
+                    #ifdef _WIN32
+					Sleep(1000);
+					#else
+					sleep(1);
+					#endif
                 }
 
                 break;

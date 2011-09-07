@@ -1,6 +1,6 @@
 S2ESRC:=$(CURDIR)/s2e
 S2EBUILD:=$(CURDIR)
-MINGW:=/mingw64/x86_64-w64-mingw32
+MINGW:=/mingw64/
 
 #Sometimes the build gets stuck with nb. of jobs > 1.
 JOBS:=1
@@ -82,7 +82,7 @@ stamps/llvm-make-debug: stamps/llvm-configure
 #Install the Release version only
 stamps/llvm-make-release: stamps/llvm-configure
 	cd llvm && make ENABLE_OPTIMIZED=1 CXXFLAGS="-fexceptions -Wno-unused-but-set-variable"  install -j$(JOBS)
-	mv $(MINGW)/bin/clang.exe $(MINGW)/bin/llvm-gcc.exe
+	cp llvm/Release/bin/clang.exe $(MINGW)/bin/llvm-gcc.exe
 	cp llvm/Release/bin/clang-cc.exe $(MINGW)/bin/
 	mkdir -p stamps && touch $@
 
