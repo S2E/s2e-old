@@ -404,7 +404,7 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
     if (!forked) {
         //In case we create the first S2E process
         if (outputDirectory.empty()) {
-            llvm::sys::Path cwd(".");
+            llvm::sys::Path cwd = llvm::sys::Path::GetCurrentDirectory();
 
             for (int i = 0; ; i++) {
                 ostringstream dirName;
@@ -428,7 +428,6 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
     }
 
 
-
 #ifndef _WIN32
     if (m_maxProcesses > 1) {
         //Create one output directory per child process
@@ -448,7 +447,14 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
 
     llvm::sys::Path outDir(m_outputDirectory);
     std::string mkdirError;
+
+#ifdef _WIN32
+    //XXX: If set to true on Windows, it fails when parent directories exist
+    //For now, we assume that only the last component needs to be created
+    if (outDir.createDirectoryOnDisk(false, &mkdirError)) {
+#else
     if (outDir.createDirectoryOnDisk(true, &mkdirError)) {
+#endif
         std::cerr << "Could not create output directory " << outDir.toString() <<
                 " error: " << mkdirError << std::endl;
         exit(-1);
@@ -706,8 +712,8 @@ int S2E::fork()
         m_s2eExecutor->initializeSolver();
 
         if (init_timer_alarm()<0) {
-	   getDebugStream() << "Could not initialize timers" << std::endl;
-           exit(-1);
+            getDebugStream() << "Could not initialize timers" << std::endl;
+            exit(-1);
         }
     }
 
