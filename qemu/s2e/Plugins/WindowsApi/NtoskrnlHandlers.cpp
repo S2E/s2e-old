@@ -140,6 +140,19 @@ void NtoskrnlHandlers::onModuleUnload(
     m_functionMonitor->disconnect(state, module);
 }
 
+std::string NtoskrnlHandlers::readUnicodeString(S2EExecutionState *state, uint32_t pUnicodeString)
+{
+    UNICODE_STRING32 UnicodeString;
+
+    if (!state->readMemoryConcrete(pUnicodeString, &UnicodeString)) {
+        return "";
+    }
+
+    std::string ret;
+    state->readUnicodeString(UnicodeString.Buffer, ret, UnicodeString.Length);
+    return ret;
+}
+
 void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
@@ -173,6 +186,20 @@ void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMo
 
     if (getConsistency(__FUNCTION__) < LOCAL) {
         return;
+    }
+
+    uint32_t pSymbolicLinkName, pDeviceName;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pSymbolicLinkName);
+    ok &= readConcreteParameter(state, 0, &pDeviceName);
+    if (!ok) {
+        HANDLER_TRACE_PARAM_FAILED("SymbolicLinkName or DeviceName" );
+    }else {
+        std::string strSymbolicLinkName = readUnicodeString(state, pSymbolicLinkName);
+        std::string strDeviceName = readUnicodeString(state, pDeviceName);
+
+        s2e()->getMessagesStream() << "IoCreateSymbolicName SymbolicLinkName: " << strSymbolicLinkName
+                << " DeviceName: " << strDeviceName << std::endl;
     }
 
     state->undoCallAndJumpToSymbolic();

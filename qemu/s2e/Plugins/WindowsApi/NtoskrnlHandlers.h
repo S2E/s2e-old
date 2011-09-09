@@ -110,6 +110,7 @@ private:
         return ( (Irp)->Tail.Overlay.CurrentStackLocation );
     }
 
+    static std::string readUnicodeString(S2EExecutionState *state, uint32_t pUnicodeString);
 public:
     DECLARE_ENTRY_POINT_CALL(DriverDispatch, uint32_t irpMajor);
     DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor);
