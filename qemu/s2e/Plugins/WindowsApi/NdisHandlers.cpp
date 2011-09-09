@@ -82,6 +82,7 @@ const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NdisHandlers, NdisFreePacket),
 
     DECLARE_EP_STRUC(NdisHandlers, NdisOpenAdapter),
+    DECLARE_EP_STRUC(NdisHandlers, NdisOpenConfiguration),
 
     DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterIoPortRange),
     DECLARE_EP_STRUC(NdisHandlers, NdisMMapIoSpace),
@@ -607,6 +608,47 @@ void NdisHandlers::NdisAllocatePacketPoolEx(S2EExecutionState* state, FunctionMo
 
     //Skip the call in the current state
     state->bypassFunction(5);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+//XXX: Avoid copy/pasting of code with NdisOpenAdapter and other similar functions.
+void NdisHandlers::NdisOpenConfiguration(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    uint32_t pStatus;
+    bool ok = true;
+    ok &= readConcreteParameter(state, 0, &pStatus);
+    if (!ok) {
+        HANDLER_TRACE_FCNFAILED();
+        return;
+    }
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Write symbolic status code
+    klee::ref<klee::Expr> symb;
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    }else {
+        std::vector<uint32_t> vec;
+        //This is a success code. Might cause problems later...
+        vec.push_back(NDIS_STATUS_FAILURE);
+        symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+    }
+    state->writeMemory(pStatus, symb);
+
+    //Skip the call in the current state
+    state->bypassFunction(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1790,7 +1832,6 @@ void NdisHandlers::CheckForHangRet(S2EExecutionState* state)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
-    if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::InitializeHandlerRet)
 
@@ -2209,7 +2250,6 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
     //XXX: what about multiple driver?
     static bool alreadyExplored = false;
 
-    if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
@@ -2252,7 +2292,6 @@ void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonit
 {
     static bool alreadyExplored = false;
 
-    if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);

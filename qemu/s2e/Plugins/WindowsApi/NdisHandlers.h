@@ -128,6 +128,7 @@ private:
     DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer, uint32_t Length);
 
     DECLARE_ENTRY_POINT(NdisOpenAdapter);
+    DECLARE_ENTRY_POINT(NdisOpenConfiguration);
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
