@@ -132,13 +132,13 @@ S2ESynchronizedObjectInternal::S2ESynchronizedObjectInternal(unsigned size) {
 
     unsigned totalSize = m_headerSize + size;
 
-    m_sharedBuffer = mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
+    m_sharedBuffer = (uint8_t*)mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
     if (!m_sharedBuffer) {
         perror("Could not allocate shared memory ");
         exit(-1);
     }
 
-    SyncHeader *hdr = static_cast<SyncHeader*>(m_sharedBuffer);
+    SyncHeader *hdr = static_cast<SyncHeader*>((void*)m_sharedBuffer);
 
 #ifdef CONFIG_DARWIN
     hdr->lock = 1;

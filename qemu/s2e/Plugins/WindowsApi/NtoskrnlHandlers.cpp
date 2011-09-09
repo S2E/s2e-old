@@ -144,7 +144,7 @@ std::string NtoskrnlHandlers::readUnicodeString(S2EExecutionState *state, uint32
 {
     UNICODE_STRING32 UnicodeString;
 
-    if (!state->readMemoryConcrete(pUnicodeString, &UnicodeString)) {
+    if (!state->readMemoryConcrete(pUnicodeString, &UnicodeString, sizeof(UnicodeString))) {
         return "";
     }
 
