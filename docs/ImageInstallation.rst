@@ -24,10 +24,10 @@ S2E supports only 32-bit systems for now.
    $ qemu-img create -f raw s2e_disk.raw 2G
 
    $ # Download debian install CD
-   $ wget http://cdimage.debian.org/debian-cd/5.0.7/i386/iso-cd/debian-507-i386-businesscard.iso
+   $ wget http://cdimage.debian.org/debian-cd/6.0.2.1/i386/iso-cd/debian-6.0.2.1-i386-businesscard.iso
 
    $ # Run QEMU and install the OS
-   $ qemu s2e_disk.qcow2 -cdrom debian-507-i386-businesscard.iso
+   $ qemu s2e_disk.raw -cdrom debian-6.0.2.1-i386-businesscard.iso
    > Follow on-screen instructions to install Debian Linux inside VM
    > Select only "Standard System" component to install
 
