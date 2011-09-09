@@ -217,23 +217,27 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
 
     //Register all major functions, only if they belong to the driver itself
     DRIVER_OBJECT32 driverObject;
-    if (ntosHandlers && state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
-        const ModuleDescriptor *desc = m_detector->getCurrentDescriptor(state);
-        assert(desc);
-
-        for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
-            if (desc->Contains(driverObject.MajorFunction[i])) {
-                s2e()->getMessagesStream() << "Registering IRP " << s_irpMjArray[i] << " at 0x" << std::hex
-                        << driverObject.MajorFunction[i] << " "
-                        << desc->Name << "!0x" << desc->ToNativeBase(driverObject.MajorFunction[i]) <<
-                        std::endl;
-
-                registerEntryPoint<NtoskrnlHandlers>
-                        (state, ntosHandlers, &NtoskrnlHandlers::DriverDispatch, driverObject.MajorFunction[i], i);
+    if (ntosHandlers) {
+        if (!state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
+            const ModuleDescriptor *desc = m_detector->getCurrentDescriptor(state);
+            assert(desc);
+    
+            for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
+                if (desc->Contains(driverObject.MajorFunction[i])) {
+                    s2e()->getMessagesStream() << "Registering IRP " << s_irpMjArray[i] << " at 0x" << std::hex
+                            << driverObject.MajorFunction[i] << " "
+                            << desc->Name << "!0x" << desc->ToNativeBase(driverObject.MajorFunction[i]) <<
+                            std::endl;
+    
+                    registerEntryPoint<NtoskrnlHandlers>
+                            (state, ntosHandlers, &NtoskrnlHandlers::DriverDispatch, driverObject.MajorFunction[i], i);
+                }
             }
+        }else {
+            s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure" << std::endl;
         }
     }else {
-        s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure" << std::endl;
+        s2e()->getWarningsStream() << "NtoskrnlHandlers plugin not loaded. Skipping all IRP annotations." << std::endl;
     }
 
     m_manager->succeedState(state);
