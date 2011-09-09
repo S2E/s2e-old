@@ -177,6 +177,7 @@ stp/tests
 stp/tests/bio-tests
 stp/tests/c-api-tests
 stp/tests/crypto-tests
+stp/tests/for-tests
 stp/tests/generated_tests
 stp/tests/generated_tests/random-tests
 stp/tests/misc-tests
