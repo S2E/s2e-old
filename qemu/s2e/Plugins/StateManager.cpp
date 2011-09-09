@@ -361,6 +361,7 @@ void StateManager::onProcessFork(bool preFork, bool isChild, unsigned parentProc
 
 //Reset the timeout every time a new block of the module is translated.
 //XXX: this is an approximation. The cache could be flushed in between.
+//XXX: don't reset the timeout if this block has been covered somewhere else.
 void StateManager::onNewBlockCovered(
         ExecutionSignal *signal,
         S2EExecutionState* state,
