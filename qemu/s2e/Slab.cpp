@@ -132,11 +132,14 @@ uintptr_t PageAllocator::allocPage()
         m_regions.erase(reg);
     }
 
-    return reg + index * getPageSize();
+    uintptr_t ret = reg + index * getPageSize();
+    memset((void*)ret, 0xAA, getPageSize());
+    return ret;
 }
 
 void PageAllocator::freePage(uintptr_t page)
 {
+    memset((void*)page, 0xBB, getPageSize());
 
     RegionMap::iterator it = m_regions.find(page);
     if (it == m_regions.end()) {
@@ -171,10 +174,30 @@ void PageAllocator::freePage(uintptr_t page)
     return;
 }
 
+//XXX: this needs to be seriously optimized
 bool PageAllocator::belongsToUs(uintptr_t addr) const
 {
-    return (m_regions.find(addr) != m_regions.end()) ||
-            (m_busyRegions.find(addr) != m_busyRegions.end());
+    RegionMap::const_iterator it;
+    RegionSet::const_iterator sit;
+    bool inreg = false;
+
+    for(it = m_regions.begin(); it != m_regions.end(); ++it) {
+        uintptr_t a = (*it).first;
+        if (addr >= a && addr < a + REGION_SIZE) {
+            inreg = true;
+            break;
+        }
+    }
+
+    for(sit = m_busyRegions.begin(); sit != m_busyRegions.end(); ++sit) {
+        uintptr_t a = (*sit);
+        if (addr >= a && addr < a + REGION_SIZE) {
+            inreg = true;
+            break;
+        }
+    }
+
+    return inreg;
 }
 
 
@@ -421,14 +444,6 @@ void SlabAllocator::printStats(std::ostream &os) const
 
 static SlabAllocator *s_slab = NULL;
 
-void slab_init()
-{
-    if (s_slab) {
-        return;
-    }
-
-    s_slab = new SlabAllocator(3, 8);
-}
 
 void slab_print_stats(std::ostream &os)
 {
@@ -441,6 +456,16 @@ void slab_print_stats(std::ostream &os)
 
 }
 
+extern "C" {
+void slab_init()
+{
+    if (s2e::s_slab) {
+        return;
+    }
+
+    s2e::s_slab = new s2e::SlabAllocator(3, 8);
+}
+}
 
 static bool s_inalloc = false;
 

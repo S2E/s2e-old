@@ -44,7 +44,7 @@ namespace s2e {
 
 class S2ESynchronizedObjectInternal {
 private:
-    void *m_sharedBuffer;
+    uint8_t *m_sharedBuffer;
     unsigned m_size;
     unsigned m_headerSize;
 

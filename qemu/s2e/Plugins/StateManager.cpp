@@ -48,6 +48,10 @@ extern "C" {
 #include "StateManager.h"
 #include <klee/Searcher.h>
 
+#ifdef CONFIG_WIN32
+#include <windows.h>
+#endif
+
 namespace s2e {
 namespace plugins {
 
@@ -126,7 +130,11 @@ void StateManager::suspendCurrentProcess()
             }
             m_shared.release();
         }
+        #ifdef CONFIG_WIN32
+        Sleep(1000);
+        #else
         sleep(1);
+        #endif
     }
 }
 

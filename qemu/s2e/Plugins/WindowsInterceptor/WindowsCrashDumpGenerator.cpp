@@ -177,8 +177,7 @@ void WindowsCrashDumpGenerator::generateCrashDump(S2EExecutionState *state,
 
     PHYSICAL_MEMORY_DESCRIPTOR *ppmd;
 
-    unsigned PagesWritten, PreviousPercent, TotalPages,
-    CurrentMemoryRun;
+    unsigned PagesWritten, CurrentMemoryRun;
 
     std::stringstream filename;
     filename << prefix << state->getID() << ".dump";
@@ -220,8 +219,6 @@ void WindowsCrashDumpGenerator::generateCrashDump(S2EExecutionState *state,
     ppmd = (PHYSICAL_MEMORY_DESCRIPTOR*) &blocks[ DH_PHYSICAL_MEMORY_BLOCK ];
 
     PagesWritten = 0;
-    PreviousPercent = 0;
-    TotalPages = ppmd->NumberOfPages;
 
     memset( ZeroPage, 0, 0x1000 );
 
@@ -279,7 +276,6 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     uint32_t *blocks = NULL;
 
     bool ok;
-    s2e::windows::KPRCB32 kprcb = m_monitor->getKprcb();
 
     hdr->ValidDump = DUMP_HDR_DUMPSIGNATURE;
     hdr->MajorVersion = m_monitor->isCheckedBuild() ? 0xC : 0xF; //Free build (0xC for checked)

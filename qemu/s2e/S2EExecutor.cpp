@@ -699,6 +699,14 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
             /* Optimize= */ true, /* CheckDivZero= */ false);
 #endif
 
+    /* This catches obvious LLVM misconfigurations */
+    const Module *M = m_tcgLLVMContext->getModule();
+    TargetData TD(M);
+    assert(M->getPointerSize() == Module::Pointer64 && "Something is broken in your LLVM build: LLVM thinks pointers are 32-bits!");
+
+    s2e->getDebugStream() << "Current data layout: " << m_tcgLLVMContext->getModule()->getDataLayout() << std::endl;
+    s2e->getDebugStream() << "Current target triple: " << m_tcgLLVMContext->getModule()->getTargetTriple() << std::endl;
+
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
 
 
@@ -1843,7 +1851,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
 
         if (child == 1) {
             m_s2e->getDebugStream() << "Child (parent=" << parentId << ")" << std::endl << std::flush;
-	    //Only send notification to the children
+            //Only send notification to the children
             m_s2e->getCorePlugin()->onProcessFork.emit(false, true, parentId);
 
             //Delete all the states before
@@ -2051,7 +2059,7 @@ void S2EExecutor::terminateState(ExecutionState &s)
 
 void S2EExecutor::terminateStateAtFork(S2EExecutionState &state)
 {
-    //This will make sure to resume a suspended state before killing it 
+    //This will make sure to resume a suspended state before killing it
     if (m_stateManager) {
         m_stateManager(&state, true);
     }

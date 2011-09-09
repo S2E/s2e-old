@@ -67,6 +67,8 @@ namespace s2e {
 
 S2ESynchronizedObjectInternal::S2ESynchronizedObjectInternal(unsigned size) {
     m_size = size;
+    m_headerSize = 0;
+
     m_sharedBuffer = new uint8_t[size];
 }
 
@@ -128,18 +130,6 @@ S2ESynchronizedObjectInternal::S2ESynchronizedObjectInternal(unsigned size) {
     m_size = size;
     m_headerSize = sizeof(SyncHeader);
 
-#if 0
-    int fd = shm_open(name, O_RDWR | O_CREAT, 0770);
-    if (fd < 0) {
-        std::cerr << "Could not map " << name << std::endl;
-        exit(-1);
-    }
-    if (ftruncate(fd, size)<0) {
-        std::cerr << "Could not resize " << name << std::endl;
-        exit(-1);
-    }
-#endif
-
     unsigned totalSize = m_headerSize + size;
 
     m_sharedBuffer = mmap(NULL, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
@@ -152,7 +142,7 @@ S2ESynchronizedObjectInternal::S2ESynchronizedObjectInternal(unsigned size) {
 
 #ifdef CONFIG_DARWIN
     hdr->lock = 1;
-#else    
+#else
     if (sem_init(&hdr->lock, 1, 1) < 0) {
         perror("Could not initialize semaphore for shared memory region");
         exit(-1);
@@ -177,14 +167,14 @@ void *S2ESynchronizedObjectInternal::aquire() {
     while (__sync_lock_test_and_set(&hdr->lock, 0) != 0);
 #else
     int ret;
-    
+
      do {
         ret = sem_wait(&hdr->lock);
         if (ret < 0) {
             assert(errno != EDEADLK && errno != ENOSYS && errno != EINVAL);
         }
      }while(ret);
-    
+
 #endif
     return ((uint8_t*)m_sharedBuffer + m_headerSize);
 }
