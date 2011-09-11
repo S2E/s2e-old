@@ -307,7 +307,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
         /* XXX: should we check getSymbolicRegisterMask ? */
         assert(isa<ConstantExpr>(value) &&
                "Can not write symbolic values to registers while executing"
-               " in concrete mode. TODO: fix it by longjmping to main loop");
+               " in concrete mode. TODO: fix it by s2e_longjmping to main loop");
         ConstantExpr* ce = cast<ConstantExpr>(value);
         uint64_t v = ce->getZExtValue(64);
         small_memcpy((void*) (m_cpuRegistersState->address + offset), (void*) &v,
@@ -833,7 +833,7 @@ void S2EExecutionState::readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf,
                 }
                 m_startSymbexAtPC = getPc();
                 // XXX: what about regs_to_env ?
-                longjmp(env->jmp_env, 1);
+                s2e_longjmp(env->jmp_env, 1);
             }
         }
     } else {
@@ -1092,7 +1092,7 @@ void S2EExecutionState::jumpToSymbolic()
 
     m_startSymbexAtPC = getPc();
     // XXX: what about regs_to_env ?
-    longjmp(env->jmp_env, 1);
+    s2e_longjmp(env->jmp_env, 1);
 }
 
 bool S2EExecutionState::needToJumpToSymbolic() const

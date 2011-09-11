@@ -201,7 +201,7 @@ namespace s2e {
 /* Global array to hold tb function arguments */
 volatile void* tb_function_args[3];
 
-/* External dispatcher to convert QEMU longjmp's into C++ exceptions */
+/* External dispatcher to convert QEMU s2e_longjmp's into C++ exceptions */
 class S2EExternalDispatcher: public klee::ExternalDispatcher
 {
 protected:
@@ -215,8 +215,8 @@ public:
 extern "C" {
 
 // FIXME: This is not reentrant.
-static jmp_buf s2e_escapeCallJmpBuf;
-static jmp_buf s2e_cpuExitJmpBuf;
+static s2e_jmp_buf s2e_escapeCallJmpBuf;
+static s2e_jmp_buf s2e_cpuExitJmpBuf;
 
 #ifdef _WIN32
 static void s2e_ext_sigsegv_handler(int signal)
@@ -224,7 +224,7 @@ static void s2e_ext_sigsegv_handler(int signal)
 }
 #else
 static void s2e_ext_sigsegv_handler(int signal, siginfo_t *info, void *context) {
-  longjmp(s2e_escapeCallJmpBuf, 1);
+  s2e_longjmp(s2e_escapeCallJmpBuf, 1);
 }
 #endif
 
@@ -254,11 +254,11 @@ bool S2EExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
 
   memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
 
-  if(setjmp(env->jmp_env)) {
+  if(s2e_setjmp(env->jmp_env)) {
       memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
       throw CpuExitException();
   } else {
-      if (setjmp(s2e_escapeCallJmpBuf)) {
+      if (s2e_setjmp(s2e_escapeCallJmpBuf)) {
         res = false;
       } else {
         std::vector<GenericValue> gvArgs;
@@ -1583,7 +1583,7 @@ uintptr_t S2EExecutor::executeTranslationBlockConcrete(S2EExecutionState *state,
     uintptr_t ret = 0;
     memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
 
-    if(setjmp(env->jmp_env)) {
+    if(s2e_setjmp(env->jmp_env)) {
         memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
         throw CpuExitException();
     } else {
@@ -2084,7 +2084,7 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
                 executeFunction(state, "helper_set_cc_op_eflags");
             } catch(s2e::CpuExitException&) {
                 updateStates(state);
-                longjmp(env->jmp_env, 1);
+                s2e_longjmp(env->jmp_env, 1);
             }
         }
     } else {
@@ -2123,7 +2123,7 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
             executeFunction(state, "helper_do_interrupt", args);
         } catch(s2e::CpuExitException&) {
             updateStates(state);
-            longjmp(env->jmp_env, 1);
+            s2e_longjmp(env->jmp_env, 1);
         }
     }
 }
@@ -2269,7 +2269,7 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
         return ret;
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
-        longjmp(env->jmp_env, 1);
+        s2e_longjmp(env->jmp_env, 1);
     }
 }
 
@@ -2279,7 +2279,7 @@ void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
         s2e->getExecutor()->finalizeTranslationBlockExec(state);
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
-        longjmp(env->jmp_env, 1);
+        s2e_longjmp(env->jmp_env, 1);
     }
 }
 
