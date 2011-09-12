@@ -61,6 +61,9 @@ void LibraryCallMonitor::initialize()
     m_monitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
 
+    ConfigFile *cfg = s2e()->getConfig();
+    m_displayOnce = cfg->getBool(getConfigKey() + ".displayOnce");
+
     m_detector->onModuleLoad.connect(
             sigc::mem_fun(*this,
                     &LibraryCallMonitor::onModuleLoad)
@@ -129,10 +132,19 @@ void LibraryCallMonitor::onFunctionCall(S2EExecutionState* state, FunctionMonito
 
     DECLARE_PLUGINSTATE(LibraryCallMonitorState, state);
     uint64_t pc = state->getPc();
+
+    if (m_displayOnce && (m_alreadyCalledFunctions.find(std::make_pair(mod->Pid, pc)) != m_alreadyCalledFunctions.end())) {
+        return;
+    }
+
     LibraryCallMonitorState::AddressToFunctionName::iterator it = plgState->m_functions.find(pc);
     if (it != plgState->m_functions.end()) {
         const char *str = (*it).second;
         s2e()->getMessagesStream() << mod->Name << "@" << std::hex << mod->ToNativeBase(caller) << " called function " << str << std::endl;
+
+        if (m_displayOnce) {
+            m_alreadyCalledFunctions.insert(std::make_pair(mod->Pid, pc));
+        }
     }
 }
 

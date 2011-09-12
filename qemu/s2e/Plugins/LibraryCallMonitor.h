@@ -57,6 +57,7 @@ class LibraryCallMonitor : public Plugin
     S2E_PLUGIN
 public:
     typedef std::tr1::unordered_set<std::string> StringSet;
+    typedef std::set<std::pair<uint64_t, uint64_t> > AddressPairs;
 
     LibraryCallMonitor(S2E* s2e): Plugin(s2e) {}
 
@@ -67,6 +68,9 @@ private:
     ModuleExecutionDetector *m_detector;
     FunctionMonitor *m_functionMonitor;
     StringSet m_functionNames;
+    AddressPairs m_alreadyCalledFunctions;
+
+    bool m_displayOnce;
 
     void onModuleLoad(
             S2EExecutionState* state,
