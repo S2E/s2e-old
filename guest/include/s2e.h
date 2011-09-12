@@ -34,6 +34,25 @@
  *
  */
 
+/** Forces the read of every byte of the specified string.
+  * This makes sure the memory pages occupied by the string are paged in
+  * before passing them to S2E, which can't page in memory by itself. */
+static inline void __s2e_touch_string(volatile const char *string)
+{
+    while(*string) {
+        ++string;
+    }
+}
+
+static inline void __s2e_touch_buffer(volatile void *buffer, unsigned size)
+{
+    unsigned i;
+    for (i=0; i<size; ++i) {
+        volatile const char *b = (volatile const char *)buffer;
+        *b;
+    }
+}
+
 /** Get S2E version or 0 when running without S2E. */
 static inline int s2e_version()
 {
@@ -50,6 +69,7 @@ static inline int s2e_version()
 /** Print message to the S2E log. */
 static inline void s2e_message(const char* message)
 {
+    __s2e_touch_string(message);
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x10, 0x00, 0x00\n"
@@ -61,6 +81,7 @@ static inline void s2e_message(const char* message)
 /** Print warning to the S2E log and S2E stdout. */
 static inline void s2e_warning(const char* message)
 {
+    __s2e_touch_string(message);
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x10, 0x01, 0x00\n"
@@ -72,6 +93,7 @@ static inline void s2e_warning(const char* message)
 /** Print symbolic expression to the S2E log. */
 static inline void s2e_print_expression(const char* name, int expression)
 {
+    __s2e_touch_string(name);
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x07, 0x01, 0x00\n"
@@ -116,6 +138,8 @@ static inline unsigned s2e_get_path_id(void)
 /** Fill buffer with unconstrained symbolic values. */
 static inline void s2e_make_symbolic(void* buf, int size, const char* name)
 {
+    __s2e_touch_string(name);
+    __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
@@ -130,6 +154,7 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
 /** Concretize the expression. */
 static inline void s2e_concretize(void* buf, int size)
 {
+    __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
@@ -144,6 +169,7 @@ static inline void s2e_concretize(void* buf, int size)
 /** Get example value for expression (without adding state constraints). */
 static inline void s2e_get_example(void* buf, int size)
 {
+    __s2e_touch_buffer(buf, size);
     __asm__ __volatile__(
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
@@ -175,6 +201,7 @@ static inline unsigned s2e_get_example_uint(unsigned val)
 /** Terminate current state. */
 static inline void s2e_kill_state(int status, const char* message)
 {
+    __s2e_touch_string(message);
     __asm__ __volatile__(
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
@@ -258,6 +285,7 @@ static inline void s2e_merge_point()
 static inline int s2e_open(const char* fname)
 {
     int fd;
+    __s2e_touch_string(fname);
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0xEE, 0x00, 0x00\n"
@@ -288,6 +316,7 @@ static inline int s2e_close(int fd)
 static inline int s2e_read(int fd, char* buf, int count)
 {
     int res;
+    __s2e_touch_buffer(buf, count);
     __asm__ __volatile__(
         "pushl %%ebx\n"
         "movl %%esi, %%ebx\n"
@@ -305,6 +334,7 @@ static inline int s2e_read(int fd, char* buf, int count)
     no plugin to automatically parse OS data structures */
 static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, unsigned size)
 {
+    __s2e_touch_string(name);
     __asm__ __volatile__(
         "pushl %%ebx\n"
         "movl %%edx, %%ebx\n"
