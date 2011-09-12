@@ -205,42 +205,47 @@ void WindowsMonitor::InitializeAddresses(S2EExecutionState *state)
     //It is located in fs:0x1c
     uint64_t base = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
     if (!state->readMemoryConcrete(base + KPCR_FS_OFFSET, &m_pKPCRAddr, sizeof(m_pKPCRAddr))) {
-        s2e()->getWarningsStream() << "Failed to initialize KPCR" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to initialize KPCR" << std::endl;
+        goto error;
     }
 
     //Read the version block
     uint32_t pKdVersionBlock;
     if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KDVERSION32_OFFSET, &pKdVersionBlock, sizeof(pKdVersionBlock))) {
-        s2e()->getWarningsStream() << "Failed to read KD version block pointer" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block pointer" << std::endl;
+        goto error;
     }
 
     if (!state->readMemoryConcrete(pKdVersionBlock, &m_kdVersion, sizeof(m_kdVersion))) {
-        s2e()->getWarningsStream() << "Failed to read KD version block" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block" << std::endl;
+        goto error;
     }
 
     //Read the KPRCB
     if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KPRCB_PTR_OFFSET, &m_pKPRCBAddr, sizeof(m_pKPRCBAddr))) {
-        s2e()->getWarningsStream() << "Failed to read pointer to KPRCB" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read pointer to KPRCB" << std::endl;
+        goto error;
     }
 
     if (m_pKPRCBAddr != m_pKPCRAddr + KPCR_KPRCB_OFFSET) {
-        s2e()->getWarningsStream () << "Invalid KPRCB" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream () << "WindowsMonitor: Invalid KPRCB" << std::endl;
+        goto error;
     }
 
     if (!state->readMemoryConcrete(m_pKPRCBAddr, &m_kprcb, sizeof(m_kprcb))) {
-        s2e()->getWarningsStream() << "Failed to read KPRCB" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KPRCB" << std::endl;
+        goto error;
     }
 
     //Display some info
     s2e()->getMessagesStream() << "Windows 0x" << std::hex << m_kdVersion.MinorVersion <<
             (m_kdVersion.MajorVersion == 0xF ? " FREE BUILD" : " CHECKED BUILD") << std::endl;
 
+    return;
+
+error:
+    s2e()->getWarningsStream() << "Make sure you start S2E from a VM snapshot that has Windows already running." << std::endl;
+    exit(-1);
 
 }
 
