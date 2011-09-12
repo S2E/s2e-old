@@ -87,8 +87,45 @@ const WindowsApiHandler<NtoskrnlHandlers::EntryPoint> NtoskrnlHandlers::s_handle
     DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint)
 };
 
+const char * NtoskrnlHandlers::s_ignoredFunctionsList[] = {
+    //XXX: Should revoke read/write grants for these APIs
+    "IoDeleteDevice",
+    "ExFreePoolWithTag",
+    "RtlFreeUnicodeString",
+    "RtlInitUnicodeString",
+
+
+    //XXX: These are variables. Should grant read/write access to them
+    "IoDeviceObjectType", "KeTickCount", "SeExports"
+
+    //Other functions
+    "IoReleaseCancelSpinLock",
+    "IofCompleteRequest",
+    "KeBugCheckEx",
+    "KeEnterCriticalRegion", "KeLeaveCriticalRegion",
+    "RtlLengthSecurityDescriptor",
+    "RtlLengthSid",
+
+    "memcpy", "memset", "wcschr", "_alldiv", "_alldvrm", "_aulldiv", "_aulldvrm",
+    "_snwprintf", "_wcsnicmp",
+
+    NULL
+};
+
+//XXX: These should be implemented:
+//IoDeleteSymbolicLink, KeQueryInterruptTime, KeQuerySystemTime, MmGetSystemRoutineAddress,
+//MmMapLockedPagesSpecifyCache, ObOpenObjectByPointer, RtlGetDaclSecurityDescriptor,
+//RtlGetGroupSecurityDescriptor, RtlGetOwnerSecurityDescriptor, RtlGetSaclSecurityDescriptor,
+//SeCaptureSecurityDescriptor
+
+//Registry:
+//ZwClose, ZwCreateKey, ZwOpenKey, ZwQueryValueKey, ZwSetSecurityObject, ZwSetValueKey
+
 const NtoskrnlHandlers::NtoskrnlHandlersMap NtoskrnlHandlers::s_handlersMap =
         WindowsApi::initializeHandlerMap<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>();
+
+const WindowsApi::StringSet NtoskrnlHandlers::s_ignoredFunctions =
+        WindowsApi::initializeIgnoredFunctionSet<NtoskrnlHandlers>();
 
 void NtoskrnlHandlers::initialize()
 {

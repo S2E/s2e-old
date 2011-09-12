@@ -172,6 +172,18 @@ protected:
         return myMap;
     }
 
+    //Allows to specify which imported functions should be ignored if they don't have any annotation.
+    //This prevents cluttering in the log and makes it simpler to find at a glance which new implementations
+    //should be annotated
+    template <typename HANDLING_PLUGIN>
+    static StringSet initializeIgnoredFunctionSet() {
+        StringSet ignoredFunctions;
+        for (unsigned i=0; HANDLING_PLUGIN::s_ignoredFunctionsList[i]; ++i) {
+            ignoredFunctions.insert(std::string(HANDLING_PLUGIN::s_ignoredFunctionsList[i]));
+        }
+        return ignoredFunctions;
+    }
+
     template <typename HANDLING_PLUGIN, typename HANDLER_PTR>
     bool registerEntryPoint(S2EExecutionState *state,
                             HANDLING_PLUGIN *handlingPlugin,
@@ -225,6 +237,12 @@ protected:
             return false;
         }
 
+        //Check that the import is not ignored
+        if (HANDLING_PLUGIN::s_ignoredFunctions.find(importName) != HANDLING_PLUGIN::s_ignoredFunctions.end()) {
+            s2e()->getWarningsStream() << "Import " << importName << " marked as ignored but has an annotation. Fix the plugin." << std::endl;
+            exit(-1);
+        }
+
         //Do not register signals multiple times
         if (m_signals.find(std::make_pair(address, 0)) != m_signals.end()) {
             return true;
@@ -247,7 +265,9 @@ protected:
 
         foreach2(it, functions.begin(), functions.end()) {
             if (!registerImport<HANDLING_PLUGIN, HANDLER_PTR>(state, plugin, (*it).first, (uint64_t)(*it).second)) {
-                s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << pluginName << std::endl;
+                if (HANDLING_PLUGIN::s_ignoredFunctions.find((*it).first) == HANDLING_PLUGIN::s_ignoredFunctions.end()) {
+                    s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << pluginName << std::endl;
+                }
             }
         }
         return plugin;

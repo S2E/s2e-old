@@ -109,6 +109,34 @@ const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
 
 const NdisHandlers::NdisHandlersMap NdisHandlers::s_handlersMap = WindowsApi::initializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 
+const char *NdisHandlers::s_ignoredFunctionsList[] = {
+    "NdisCancelSendPackets",
+    "NdisCloseAdapter",
+    "NdisCopyFromPacketToPacket",
+    "NdisGeneratePartialCancelId",
+    "NdisInitializeEvent",
+    "NdisReturnPackets",
+    "NdisSetEvent",
+    "NdisUnchainBufferAtFront",
+    "NdisWaitEvent",
+
+    //XXX: Revoke rights for these
+    "NdisDeregisterProtocol",
+    "NdisFreeBufferPool",
+    "NdisFreePacketPool",
+
+
+    NULL
+};
+
+//XXX: Implement these
+//NdisQueryAdapterInstanceName, NdisQueryPendingIOCount
+//NdisRequest
+
+const WindowsApi::StringSet NdisHandlers::s_ignoredFunctions =
+        WindowsApi::initializeIgnoredFunctionSet<NdisHandlers>();
+
+
 void NdisHandlers::initialize()
 {
     ConfigFile *cfg = s2e()->getConfig();

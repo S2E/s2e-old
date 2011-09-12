@@ -72,6 +72,9 @@ public:
     static const WindowsApiHandler<EntryPoint> s_handlers[];
     static const NtoskrnlHandlersMap s_handlersMap;
 
+    static const char *s_ignoredFunctionsList[];
+    static const StringSet s_ignoredFunctions;
+
 private:
     bool m_loaded;
     ModuleDescriptor m_module;

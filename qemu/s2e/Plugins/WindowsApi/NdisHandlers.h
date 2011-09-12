@@ -76,6 +76,9 @@ public:
     static const WindowsApiHandler<EntryPoint> s_handlers[];
     static const NdisHandlersMap s_handlersMap;
 
+    static const char *s_ignoredFunctionsList[];
+    static const StringSet s_ignoredFunctions;
+
 private:
     SymbolicHardware *m_hw;
     WindowsCrashDumpGenerator *m_crashdumper;
