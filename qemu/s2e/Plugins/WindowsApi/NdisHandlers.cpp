@@ -64,47 +64,47 @@ S2E_DEFINE_PLUGIN(NdisHandlers, "Basic collection of NDIS API functions.", "Ndis
 
 //This maps exported NDIS functions to their handlers
 const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
-    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterMiniport),
-
-    DECLARE_EP_STRUC(NdisHandlers, NdisAllocateMemory),
-    DECLARE_EP_STRUC(NdisHandlers, NdisAllocateMemoryWithTag),
-    DECLARE_EP_STRUC(NdisHandlers, NdisAllocateMemoryWithTagPriority),
-    DECLARE_EP_STRUC(NdisHandlers, NdisFreeMemory),
-
-    DECLARE_EP_STRUC(NdisHandlers, NdisMAllocateSharedMemory),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMFreeSharedMemory),
 
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocateBuffer),
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocateBufferPool),
+    DECLARE_EP_STRUC(NdisHandlers, NdisAllocateMemory),
+    DECLARE_EP_STRUC(NdisHandlers, NdisAllocateMemoryWithTag),
+    DECLARE_EP_STRUC(NdisHandlers, NdisAllocateMemoryWithTagPriority),
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocatePacket),
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocatePacketPool),
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocatePacketPoolEx),
+
+    DECLARE_EP_STRUC(NdisHandlers, NdisCloseConfiguration),
+    DECLARE_EP_STRUC(NdisHandlers, NdisFreeMemory),
     DECLARE_EP_STRUC(NdisHandlers, NdisFreePacket),
+
+    DECLARE_EP_STRUC(NdisHandlers, NdisMAllocateMapRegisters),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMAllocateSharedMemory),
+
+    DECLARE_EP_STRUC(NdisHandlers, NdisMFreeSharedMemory),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMInitializeTimer),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMMapIoSpace),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMQueryAdapterInstanceName),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMQueryAdapterResources),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterAdapterShutdownHandler),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterInterrupt),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterIoPortRange),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterMiniport),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMSetAttributes),
+    DECLARE_EP_STRUC(NdisHandlers, NdisMSetAttributesEx),
 
     DECLARE_EP_STRUC(NdisHandlers, NdisOpenAdapter),
     DECLARE_EP_STRUC(NdisHandlers, NdisOpenConfiguration),
+    DECLARE_EP_STRUC(NdisHandlers, NdisQueryAdapterInstanceName),
 
-    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterIoPortRange),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMMapIoSpace),
 
-    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterInterrupt),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMQueryAdapterInstanceName),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMQueryAdapterResources),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMAllocateMapRegisters),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMInitializeTimer),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMSetAttributesEx),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMSetAttributes),
-    DECLARE_EP_STRUC(NdisHandlers, NdisSetTimer),
-    DECLARE_EP_STRUC(NdisHandlers, NdisMRegisterAdapterShutdownHandler),
-    DECLARE_EP_STRUC(NdisHandlers, NdisReadNetworkAddress),
     DECLARE_EP_STRUC(NdisHandlers, NdisReadConfiguration),
-    DECLARE_EP_STRUC(NdisHandlers, NdisCloseConfiguration),
-    DECLARE_EP_STRUC(NdisHandlers, NdisWriteErrorLogEntry),
-
+    DECLARE_EP_STRUC(NdisHandlers, NdisReadNetworkAddress),
     DECLARE_EP_STRUC(NdisHandlers, NdisReadPciSlotInformation),
+    DECLARE_EP_STRUC(NdisHandlers, NdisRegisterProtocol),
+    DECLARE_EP_STRUC(NdisHandlers, NdisSetTimer),
+    DECLARE_EP_STRUC(NdisHandlers, NdisWriteErrorLogEntry),
     DECLARE_EP_STRUC(NdisHandlers, NdisWritePciSlotInformation),
-
-    DECLARE_EP_STRUC(NdisHandlers, NdisRegisterProtocol)
 };
 
 const NdisHandlers::NdisHandlersMap NdisHandlers::s_handlersMap = WindowsApi::initializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
@@ -678,6 +678,88 @@ void NdisHandlers::NdisOpenConfiguration(S2EExecutionState* state, FunctionMonit
     //Skip the call in the current state
     state->bypassFunction(3);
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisMQueryAdapterInstanceName(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    NdisQueryAdapterInstanceName(state, fns);
+}
+
+void NdisHandlers::NdisQueryAdapterInstanceName(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        //XXX: Register a return handler and grant access rights
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Write symbolic status code
+    klee::ref<klee::Expr> symb;
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    }else {
+        std::vector<uint32_t> vec;
+        vec.push_back(NDIS_STATUS_RESOURCES);
+        symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+    }
+    //state->writeMemory(pStatus, symb);
+
+    state->writeCpuRegister(CPU_OFFSET(regs[R_EAX]), symb);
+
+    //Skip the call in the current state
+    state->bypassFunction(2);
+
+    //Register a return handler in the normal state
+    S2EExecutionState *successState = states[0] == state ? states[1] : states[0];
+
+    uint32_t pUnicodeString;
+    if (readConcreteParameter(state, 0, &pUnicodeString)) {
+        FUNCMON_REGISTER_RETURN_A(successState, fns, NdisHandlers::NdisQueryAdapterInstanceNameRet, pUnicodeString);
+    }else {
+        HANDLER_TRACE_PARAM_FAILED(0);
+    }
+}
+
+void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uint64_t pUnicodeString)
+{
+    HANDLER_TRACE_RETURN();
+    if (!pUnicodeString) {
+        return;
+    }
+
+    uint32_t eax;
+    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        return;
+    }
+
+    if(eax) {
+        s2e()->getDebugStream() << __FUNCTION__ << " failed with 0x" << std::hex << eax << std::endl;
+        return;
+    }
+
+    NDIS_STRING s;
+    bool ok = true;
+    ok = state->readMemoryConcrete(pUnicodeString, &s, sizeof(s));
+    if(!ok) {
+        s2e()->getDebugStream() << "Can not read NDIS_STRING" << std::endl;
+        return;
+    }
+
+    if(m_memoryChecker) {
+        m_memoryChecker->grantMemory(state, NULL, s.Buffer, s.Length, 1,
+                             "ndis:ret:NdisMQueryAdapterInstanceName");
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NdisHandlers::NdisOpenAdapter(S2EExecutionState* state, FunctionMonitorState *fns)
@@ -1463,59 +1545,6 @@ void NdisHandlers::NdisMQueryAdapterResourcesRet(S2EExecutionState* state)
     return;
 }
 
-void NdisHandlers::NdisMQueryAdapterInstanceName(S2EExecutionState* state, FunctionMonitorState *fns)
-{
-    if (!calledFromModule(state)) { return; }
-    HANDLER_TRACE_CALL();
-
-    DECLARE_PLUGINSTATE(NdisHandlersState, state);
-
-    bool ok = true;
-    ok &= readConcreteParameter(state, 0, &plgState->val4);
-
-    if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
-        return;
-    }
-
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMQueryAdapterInstanceNameRet)
-}
-
-void NdisHandlers::NdisMQueryAdapterInstanceNameRet(S2EExecutionState* state)
-{
-    HANDLER_TRACE_RETURN();
-
-    DECLARE_PLUGINSTATE(NdisHandlersState, state);
-
-    if (!plgState->val4) {
-        s2e()->getDebugStream() << "PNDIS_STRING is NULL!" << std::endl;
-        return;
-    }
-
-    uint32_t eax;
-    if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
-        return;
-    }
-
-    if(eax)
-        return;
-
-    NDIS_STRING s;
-    bool ok = true;
-    ok = state->readMemoryConcrete(plgState->val4, &s, sizeof(s));
-    if(!ok) {
-        s2e()->getDebugStream() << "Can not read NDIS_STRING" << std::endl;
-        return;
-    }
-
-    if(m_memoryChecker) {
-        m_memoryChecker->grantMemory(state, NULL, s.Buffer, s.Length, 1,
-                             "ndis:ret:NdisMQueryAdapterInstenceName");
-    }
-
-    return;
-}
 
 void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMonitorState *fns)
 {

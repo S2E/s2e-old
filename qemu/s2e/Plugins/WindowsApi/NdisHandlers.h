@@ -110,6 +110,7 @@ private:
     DECLARE_ENTRY_POINT(NdisMMapIoSpace);
     DECLARE_ENTRY_POINT(NdisMRegisterInterrupt);
     DECLARE_ENTRY_POINT(NdisMQueryAdapterInstanceName);
+    DECLARE_ENTRY_POINT(NdisQueryAdapterInstanceName, uint64_t pUnicodeString);
     DECLARE_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_ENTRY_POINT(NdisMAllocateMapRegisters);
     DECLARE_ENTRY_POINT(NdisMInitializeTimer);
@@ -160,6 +161,8 @@ private:
 
     void QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery);
     void QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery);
+
+
 
     //Protocol entry points
     DECLARE_ENTRY_POINT(NdisRegisterProtocol);
