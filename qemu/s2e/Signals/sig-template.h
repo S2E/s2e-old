@@ -105,7 +105,7 @@ connection connect(func_t fcn) {
     return connection(this, fcn, m_size-1);
 }
 
-bool empty() {
+bool empty() const{
     return m_activeSignals == 0;
 }
 
