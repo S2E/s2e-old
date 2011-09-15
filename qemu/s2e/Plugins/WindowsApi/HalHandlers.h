@@ -57,13 +57,24 @@
 namespace s2e {
 namespace plugins {
 
-class HalHandlers: public WindowsApi
+class HalHandlersState;
+
+class HalHandlers: public WindowsAnnotations<HalHandlers, WindowsApiState<HalHandlers> >
 {
     S2E_PLUGIN
 public:
-    HalHandlers(S2E* s2e): WindowsApi(s2e) {}
+    typedef void (HalHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
+    typedef std::map<std::string, HalHandlers::EntryPoint> HalHandlersMap;
+
+    HalHandlers(S2E* s2e): WindowsAnnotations<HalHandlers, WindowsApiState<HalHandlers> >(s2e) {}
 
     void initialize();
+
+    static const WindowsApiHandler<EntryPoint> s_handlers[];
+    static const HalHandlersMap s_handlersMap;
+
+    static const char *s_ignoredFunctionsList[];
+    static const StringSet s_ignoredFunctions;
 
 private:
     bool m_loaded;
@@ -83,56 +94,6 @@ private:
 
 };
 
-enum BUS_DATA_TYPE {
-  ConfigurationSpaceUndefined = -1,
-  Cmos,
-  EisaConfiguration,
-  Pos,
-  CbusConfiguration,
-  PCIConfiguration,
-  VMEConfiguration,
-  NuBusConfiguration,
-  PCMCIAConfiguration,
-  MPIConfiguration,
-  MPSAConfiguration,
-  PNPISAConfiguration,
-  MaximumBusDataType
-};
-
-
-//
-// HAL Bus Handler
-//
-struct BUS_HANDLER32
-{
-    uint32_t Version;
-    s2e::windows::INTERFACE_TYPE InterfaceType;
-    BUS_DATA_TYPE ConfigurationType;
-    uint32_t BusNumber;
-    uint32_t DeviceObject; //PDEVICE_OBJECT
-    uint32_t ParentHandler; //struct _BUS_HANDLER *
-    uint32_t BusData;  //PVOID
-    uint32_t DeviceControlExtensionSize;
-    //PSUPPORTED_RANGES BusAddresses;
-    uint32_t Reserved[4];
-#if 0
-    pGetSetBusData GetBusData;
-    pGetSetBusData SetBusData;
-    pAdjustResourceList AdjustResourceList;
-    pAssignSlotResources AssignSlotResources;
-    pGetInterruptVector GetInterruptVector;
-    pTranslateBusAddress TranslateBusAddress;
-#endif
-    void print(std::ostream &os) const {
-        os << std::hex << "Version:           0x" << std::hex << Version << std::endl;
-        os << std::hex << "InterfaceType:     0x" << std::hex << InterfaceType << std::endl;
-        os << std::hex << "ConfigurationType: 0x" << std::hex << ConfigurationType << std::endl;
-        os << std::hex << "BusNumber:         0x" << std::hex << BusNumber << std::endl;
-        os << std::hex << "DeviceObject:      0x" << std::hex << DeviceObject << std::endl;
-        os << std::hex << "ParentHandler:     0x" << std::hex << ParentHandler << std::endl;
-        os << std::hex << "BusData:           0x" << std::hex << BusData << std::endl;        
-    }
-};
 
 }
 }

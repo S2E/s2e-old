@@ -786,7 +786,9 @@ typedef uint8_t KPROCESSOR_MODE;
 typedef uint8_t BOOLEAN;
 typedef uint8_t UCHAR;
 typedef uint16_t USHORT;
+typedef uint16_t CSHORT;
 typedef uint32_t ULONG;
+typedef uint32_t UINT;
 typedef uint32_t HANDLE;
 
 typedef ULONG SECURITY_INFORMATION;

@@ -39,7 +39,7 @@
 #define _NDIS_H_
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
-#include "NtoskrnlHandlers.h"
+#include "Ntddk.h"
 
 namespace s2e {
 namespace windows {
@@ -210,7 +210,52 @@ NDIS_STATUS
     NDIS_HANDLE             WrapperConfigurationContext
     );
 
+typedef MDL32 NDIS_BUFFER32;
 
+struct NDIS_PACKET_PRIVATE32
+{
+    UINT            PhysicalCount;
+    UINT            TotalLength;
+    uint32_t        Head;  //PNDIS_BUFFER
+    uint32_t        Tail;  //PNDIS_BUFFER
+
+    uint32_t        Pool;           // PNDIS_PACKET_POOL
+    UINT            Count;
+    ULONG           Flags;
+    BOOLEAN         ValidCounts;
+    UCHAR           NdisPacketFlags;
+    USHORT          NdisPacketOobOffset;
+}__attribute__((packed));
+
+
+struct NDIS_PACKET32
+{
+    NDIS_PACKET_PRIVATE32 Private;
+
+    //All sizeofs were PVOID
+    union
+    {
+        struct
+        {
+            UCHAR   MiniportReserved[2*sizeof(uint32_t)];
+            UCHAR   WrapperReserved[2*sizeof(uint32_t)];
+        };
+
+        struct
+        {
+            UCHAR   MiniportReservedEx[3*sizeof(uint32_t)];
+            UCHAR   WrapperReservedEx[sizeof(uint32_t)];
+        };
+
+        struct
+        {
+            UCHAR   MacReserved[4*sizeof(uint32_t)];
+        };
+    };
+
+    uint32_t        Reserved[2]; //uintptr_t
+    UCHAR           ProtocolReserved[1];
+} __attribute__((packed));
 
 
 }

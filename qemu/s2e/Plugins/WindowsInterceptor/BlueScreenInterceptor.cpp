@@ -62,20 +62,22 @@ void BlueScreenInterceptor::initialize()
 
     bool ok;
     m_generateCrashDump = s2e()->getConfig()->getBool(getConfigKey() + ".generateCrashDump", false, &ok);
+
+    m_crashdumper = static_cast<WindowsCrashDumpGenerator*>(s2e()->getPlugin("WindowsCrashDumpGenerator"));
+
     if (m_generateCrashDump) {
-        m_crashdumper = static_cast<WindowsCrashDumpGenerator*>(s2e()->getPlugin("WindowsCrashDumpGenerator"));
         if (!m_crashdumper) {
             s2e()->getWarningsStream() << "The WindowsCrashDumpGenerator plugin is required with the " <<
                     "generateCrashDump option." << std::endl;
             exit(-1);
         }
-
-        //How many dumps to generate at most ?
-        //Dumps are large and there can be many of them.
-        m_currentDumpCount = 0;
-        m_maxDumpCount = s2e()->getConfig()->getInt(getConfigKey() + ".maxDumpCount", (int64_t)-1, &ok);
-        s2e()->getDebugStream() << "BlueScreenInterceptor: Maximum number of dumps:" << m_maxDumpCount << std::endl;
     }
+
+    //How many dumps to generate at most ?
+    //Dumps are large and there can be many of them.
+    m_currentDumpCount = 0;
+    m_maxDumpCount = s2e()->getConfig()->getInt(getConfigKey() + ".maxDumpCount", (int64_t)-1, &ok);
+    s2e()->getDebugStream() << "BlueScreenInterceptor: Maximum number of dumps:" << m_maxDumpCount << std::endl;
 }
 
 void BlueScreenInterceptor::onTranslateBlockStart(
@@ -112,7 +114,10 @@ void BlueScreenInterceptor::onBsod(
 
     if (m_generateCrashDump && m_currentDumpCount < m_maxDumpCount) {
         ++m_currentDumpCount;
-        m_crashdumper->generateDumpOnBsod(state, "bsod");
+        //XXX: Will have to fix this
+        if (m_crashdumper) {
+            m_crashdumper->generateDumpOnBsod(state, "bsod");
+        }
     }
 
     s2e()->getExecutor()->terminateStateEarly(*state, "Killing because of BSOD");

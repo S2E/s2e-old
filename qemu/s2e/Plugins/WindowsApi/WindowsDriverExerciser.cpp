@@ -124,7 +124,7 @@ void WindowsDriverExerciser::onModuleLoad(
 
     WINDRV_REGISTER_ENTRY_POINT(module.ToRuntime(module.EntryPoint), DriverEntryPoint);
 
-    registerImports(state, module);
+    WindowsApi::registerImports(state, module);
 
     state->enableSymbolicExecution();
     state->enableForking();
@@ -142,6 +142,8 @@ void WindowsDriverExerciser::onModuleUnload(
     }
 
     m_functionMonitor->disconnect(state, module);
+    unregisterEntryPoints(state, module);
+    m_loadedModules.erase(*s);
 
     if(m_memoryChecker) {
         m_memoryChecker->checkMemoryLeaks(state, &module);
@@ -218,7 +220,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     //Register all major functions, only if they belong to the driver itself
     DRIVER_OBJECT32 driverObject;
     if (ntosHandlers) {
-        if (!state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
+        if (state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
             const ModuleDescriptor *desc = m_detector->getCurrentDescriptor(state);
             assert(desc);
     
@@ -229,12 +231,13 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
                             << desc->Name << "!0x" << desc->ToNativeBase(driverObject.MajorFunction[i]) <<
                             std::endl;
     
-                    registerEntryPoint<NtoskrnlHandlers>
-                            (state, ntosHandlers, &NtoskrnlHandlers::DriverDispatch, driverObject.MajorFunction[i], i);
+                    ntosHandlers->registerEntryPoint
+                            (state, &NtoskrnlHandlers::DriverDispatch, (uint64_t)driverObject.MajorFunction[i], (uint32_t)i);
                 }
             }
         }else {
-            s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure" << std::endl;
+            s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure at 0x" <<
+                    std::hex << pDriverObject << std::endl;
         }
     }else {
         s2e()->getWarningsStream() << "NtoskrnlHandlers plugin not loaded. Skipping all IRP annotations." << std::endl;

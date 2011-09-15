@@ -65,7 +65,7 @@ namespace plugins {
 S2E_DEFINE_PLUGIN(NtoskrnlHandlers, "Basic collection of NT Kernel API functions.", "NtoskrnlHandlers",
                   "FunctionMonitor", "Interceptor");
 
-const WindowsApiHandler<NtoskrnlHandlers::EntryPoint> NtoskrnlHandlers::s_handlers[] = {
+const NtoskrnlHandlers::AnnotationsArray NtoskrnlHandlers::s_handlers[] = {
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint),
     DECLARE_EP_STRUC(NtoskrnlHandlers, IoCreateSymbolicLink),
@@ -84,7 +84,9 @@ const WindowsApiHandler<NtoskrnlHandlers::EntryPoint> NtoskrnlHandlers::s_handle
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, ExAllocatePoolWithTag),
 
-    DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint)
+    DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint),
+
+    DECLARE_EP_STRUC(NtoskrnlHandlers, MmGetSystemRoutineAddress)
 };
 
 const char * NtoskrnlHandlers::s_ignoredFunctionsList[] = {
@@ -121,11 +123,11 @@ const char * NtoskrnlHandlers::s_ignoredFunctionsList[] = {
 //Registry:
 //ZwClose, ZwCreateKey, ZwOpenKey, ZwQueryValueKey, ZwSetSecurityObject, ZwSetValueKey
 
-const NtoskrnlHandlers::NtoskrnlHandlersMap NtoskrnlHandlers::s_handlersMap =
-        WindowsApi::initializeHandlerMap<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>();
+const NtoskrnlHandlers::AnnotationsMap NtoskrnlHandlers::s_handlersMap =
+        NtoskrnlHandlers::initializeHandlerMap();
 
-const WindowsApi::StringSet NtoskrnlHandlers::s_ignoredFunctions =
-        WindowsApi::initializeIgnoredFunctionSet<NtoskrnlHandlers>();
+const NtoskrnlHandlers::StringSet NtoskrnlHandlers::s_ignoredFunctions =
+        NtoskrnlHandlers::initializeIgnoredFunctionSet();
 
 void NtoskrnlHandlers::initialize()
 {
@@ -173,6 +175,7 @@ void NtoskrnlHandlers::onModuleUnload(
 
     //If we get here, Windows is broken.
     m_loaded = false;
+    assert(false);
 
     m_functionMonitor->disconnect(state, module);
 }
@@ -405,6 +408,34 @@ void NtoskrnlHandlers::RtlAddAccessAllowedAce(S2EExecutionState* state, Function
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::MmGetSystemRoutineAddress(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Skip the call in the current state
+    state->bypassFunction(1);
+
+    klee::ref<klee::Expr> symb;
+    std::vector<uint32_t> vec;
+    vec.push_back(0);
+    symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+
+    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 void NtoskrnlHandlers::RtlCreateSecurityDescriptor(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     if (!calledFromModule(state)) { return; }
@@ -615,6 +646,10 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
 
 
     if (irpMajor == IRP_MJ_DEVICE_CONTROL) {
+        if (m_bsodInterceptor) {
+            m_bsodInterceptor->enableCrashDumpGeneration(true);
+        }
+
         uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
 
         s2e()->getMessagesStream() << s_irpMjArray[irpMajor] << " control code 0x" << std::hex << ioctl << std::endl;

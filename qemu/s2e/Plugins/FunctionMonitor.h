@@ -124,6 +124,9 @@ class FunctionMonitorState : public PluginState
 
     void disconnect(const ModuleDescriptor &desc, CallDescriptorsMap &descMap);
     void disconnect(const ModuleDescriptor &desc);
+
+    bool exists(const CallDescriptorsMap &cdm,
+                uint64_t eip, uint64_t cr3) const;
 public:
     FunctionMonitorState();
     virtual ~FunctionMonitorState();

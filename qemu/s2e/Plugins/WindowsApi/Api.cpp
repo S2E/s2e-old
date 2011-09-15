@@ -72,6 +72,7 @@ void WindowsApi::initialize()
     m_detector = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     m_memoryChecker = static_cast<MemoryChecker*>(s2e()->getPlugin("MemoryChecker"));
     m_manager = static_cast<StateManager*>(s2e()->getPlugin("StateManager"));
+    m_bsodInterceptor = static_cast<BlueScreenInterceptor*>(s2e()->getPlugin("BlueScreenInterceptor"));
 
     parseConsistency(getConfigKey());
     parseSpecificConsistency(getConfigKey());
@@ -91,18 +92,16 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
         const std::string &libraryName = (*it).first;
         const ImportedFunctions &functions = (*it).second;
 
-        WindowsApi *api = NULL;
-
         //XXX: Check that these names are actually in the kernel...
         if (libraryName == "ndis.sys") {
-            api = registerImports<NdisHandlers, NdisHandlers::EntryPoint>(state, "NdisHandlers", functions);
+            NdisHandlers *ndisHandlers = static_cast<NdisHandlers*>(s2e()->getPlugin("NdisHandlers"));
+            ndisHandlers->registerEntryPoints(state, functions);
+            ndisHandlers->registerCaller(module);
 
         }else if (libraryName == "ntoskrnl.exe") {
-            api = registerImports<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>(state, "NtoskrnlHandlers", functions);
-        }
-
-        if (api) {
-            api->registerCaller(module);
+            NtoskrnlHandlers *ntoskrnlHandlers = static_cast<NtoskrnlHandlers*>(s2e()->getPlugin("NtoskrnlHandlers"));
+            ntoskrnlHandlers->registerEntryPoints(state, functions);
+            ntoskrnlHandlers->registerCaller(module);
         }
     }
 }
@@ -405,54 +404,10 @@ void WindowsApi::onModuleUnload(
         )
 {
     m_functionMonitor->disconnect(state, module);
+    unregisterEntryPoints(state, module);
     unregisterCaller(module);
 }
 
-//////////////////////////////////////////////
-void WindowsApi::TraceCall(S2EExecutionState* state, FunctionMonitorState *fns)
-{
-    if (!m_detector) {
-        return;
-    }
-
-
-    std::ostream &os = s2e()->getDebugStream(state);
-
-    const ModuleDescriptor *md = m_detector->getModule(state, state->getPc(), false);
-
-    os << __FUNCTION__ << " ESP=0x" << std::hex << state->readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32)
-            << " EIP=0x" << state->getPc();
-
-    if (md) {
-        os << " " << md->Name << " 0x" << md->ToNativeBase(state->getPc()) << " +" <<
-                md->ToRelative(state->getPc());
-    }
-
-    os << std::endl;
-
-    FUNCMON_REGISTER_RETURN(state, fns, WindowsApi::TraceRet)
-}
-
-void WindowsApi::TraceRet(S2EExecutionState* state)
-{
-    if (!m_detector) {
-        return;
-    }
-
-    std::ostream &os = s2e()->getDebugStream(state);
-
-    const ModuleDescriptor *md = m_detector->getModule(state, state->getPc(), false);
-
-    os << __FUNCTION__ << " ESP=0x" << std::hex << state->readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32)
-            << " EIP=0x" << state->getPc();
-
-    if (md) {
-        os << " " << md->Name << " 0x" << md->ToNativeBase(state->getPc()) << " +" <<
-                md->ToRelative(state->getPc());
-    }
-
-    os << std::endl;
-}
 
 }
 }

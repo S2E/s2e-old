@@ -55,9 +55,9 @@ namespace plugins {
 
 class MemoryChecker;
 
-#define WINDRV_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<WindowsDriverExerciser, WindowsDriverExerciser::EntryPoint>(state, this, &WindowsDriverExerciser::ep, addr);
+#define WINDRV_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint(state, &WindowsDriverExerciser::ep, addr);
 
-class WindowsDriverExerciser : public WindowsApi
+class WindowsDriverExerciser : public WindowsAnnotations<WindowsDriverExerciser, WindowsApiState<WindowsDriverExerciser> >
 {
     S2E_PLUGIN
 public:
@@ -66,7 +66,7 @@ public:
     };
 
     typedef void (WindowsDriverExerciser::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
-    WindowsDriverExerciser(S2E* s2e):WindowsApi(s2e) {}
+    WindowsDriverExerciser(S2E* s2e):WindowsAnnotations<WindowsDriverExerciser, WindowsApiState<WindowsDriverExerciser> >(s2e) {}
 
     void initialize();
 

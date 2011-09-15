@@ -55,22 +55,21 @@
 namespace s2e {
 namespace plugins {
 
-#define NTOSKRNL_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>(state, this, &NtoskrnlHandlers::ep, addr);
+#define NTOSKRNL_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint(state, this, &NtoskrnlHandlers::ep, addr);
 
-class NtoskrnlHandlers: public WindowsApi
+class NtoskrnlHandlersState;
+
+class NtoskrnlHandlers: public WindowsAnnotations<NtoskrnlHandlers, WindowsApiState<NtoskrnlHandlers> >
 {
     S2E_PLUGIN
 public:
-    typedef void (NtoskrnlHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
-    typedef std::map<std::string, NtoskrnlHandlers::EntryPoint> NtoskrnlHandlersMap;
-
-    NtoskrnlHandlers(S2E* s2e): WindowsApi(s2e) {}
+    NtoskrnlHandlers(S2E* s2e): WindowsAnnotations<NtoskrnlHandlers, WindowsApiState<NtoskrnlHandlers> >(s2e) {}
 
     void initialize();
 
 public:
-    static const WindowsApiHandler<EntryPoint> s_handlers[];
-    static const NtoskrnlHandlersMap s_handlersMap;
+    static const WindowsApiHandler<Annotation> s_handlers[];
+    static const AnnotationsMap s_handlersMap;
 
     static const char *s_ignoredFunctionsList[];
     static const StringSet s_ignoredFunctions;
@@ -106,6 +105,8 @@ private:
 
     DECLARE_ENTRY_POINT(GetSystemUpTime);
     DECLARE_ENTRY_POINT(KeStallExecutionProcessor);
+
+    DECLARE_ENTRY_POINT(MmGetSystemRoutineAddress);
 
     DECLARE_ENTRY_POINT(ExAllocatePoolWithTag, uint32_t poolType, uint32_t size);
 

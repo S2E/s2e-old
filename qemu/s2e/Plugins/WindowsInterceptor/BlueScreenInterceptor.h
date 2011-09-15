@@ -64,6 +64,10 @@ public:
     void generateDump(S2EExecutionState *state, const std::string &prefix);
     void generateDumpOnBsod(S2EExecutionState *state, const std::string &prefix);
 
+    void enableCrashDumpGeneration(bool b) {
+        m_generateCrashDump = b;
+    }
+
 private:
     WindowsMonitor *m_monitor;
     WindowsCrashDumpGenerator *m_crashdumper;

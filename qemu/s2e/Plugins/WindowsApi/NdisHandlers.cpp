@@ -63,7 +63,7 @@ S2E_DEFINE_PLUGIN(NdisHandlers, "Basic collection of NDIS API functions.", "Ndis
 
 
 //This maps exported NDIS functions to their handlers
-const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
+const NdisHandlers::AnnotationsArray NdisHandlers::s_handlers[] = {
 
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocateBuffer),
     DECLARE_EP_STRUC(NdisHandlers, NdisAllocateBufferPool),
@@ -96,6 +96,7 @@ const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NdisHandlers, NdisOpenAdapter),
     DECLARE_EP_STRUC(NdisHandlers, NdisOpenConfiguration),
     DECLARE_EP_STRUC(NdisHandlers, NdisQueryAdapterInstanceName),
+    DECLARE_EP_STRUC(NdisHandlers, NdisQueryPendingIOCount),
 
 
     DECLARE_EP_STRUC(NdisHandlers, NdisReadConfiguration),
@@ -107,7 +108,8 @@ const WindowsApiHandler<NdisHandlers::EntryPoint> NdisHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NdisHandlers, NdisWritePciSlotInformation),
 };
 
-const NdisHandlers::NdisHandlersMap NdisHandlers::s_handlersMap = WindowsApi::initializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
+const NdisHandlers::AnnotationsMap NdisHandlers::s_handlersMap =
+        NdisHandlers::initializeHandlerMap();
 
 const char *NdisHandlers::s_ignoredFunctionsList[] = {
     "NdisCancelSendPackets",
@@ -133,8 +135,8 @@ const char *NdisHandlers::s_ignoredFunctionsList[] = {
 //NdisQueryAdapterInstanceName, NdisQueryPendingIOCount
 //NdisRequest
 
-const WindowsApi::StringSet NdisHandlers::s_ignoredFunctions =
-        WindowsApi::initializeIgnoredFunctionSet<NdisHandlers>();
+const NdisHandlers::StringSet NdisHandlers::s_ignoredFunctions =
+        NdisHandlers::initializeIgnoredFunctionSet();
 
 
 void NdisHandlers::initialize()
@@ -145,13 +147,6 @@ void NdisHandlers::initialize()
 
     m_hw = static_cast<SymbolicHardware*>(s2e()->getPlugin("SymbolicHardware"));
 
-
-
-    ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
-    if (mods.size() == 0) {
-        s2e()->getWarningsStream() << "NDISHANDLERS: No modules to track configured for the NdisHandlers plugin" << std::endl;
-        return;
-    }
 
     bool ok;
     m_devDesc = NULL;
@@ -758,6 +753,40 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
         m_memoryChecker->grantMemory(state, NULL, s.Buffer, s.Length, 1,
                              "ndis:ret:NdisMQueryAdapterInstanceName");
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NdisHandlers::NdisQueryPendingIOCount(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Write symbolic status code
+    klee::ref<klee::Expr> symb;
+    if (getConsistency(__FUNCTION__) == OVERAPPROX) {
+        symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    }else {
+        std::vector<uint32_t> vec;
+
+        //XXX: check this one...
+        vec.push_back(NDIS_STATUS_CLOSING);
+        vec.push_back(NDIS_STATUS_FAILURE);
+        symb = addDisjunctionToConstraints(state, getVariableName(state, __FUNCTION__) + "_result", vec);
+    }
+    state->writeCpuRegister(CPU_OFFSET(regs[R_EAX]), symb);
+
+    //Skip the call in the current state
+    state->bypassFunction(2);
 }
 
 
