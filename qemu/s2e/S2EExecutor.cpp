@@ -1854,16 +1854,18 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
             //Only send notification to the children
             m_s2e->getCorePlugin()->onProcessFork.emit(false, true, parentId);
 
-            //Delete all the states before
-            m_s2e->getDebugStream() << "Deleting before i=" << low << " splitIndex=" << splitIndex << std::endl;
+            std::set<ExecutionState*> pathsToDelete = getStates();
+            for (int i=splitIndex; i<=high; ++i) {
+                //Keep only the paths in the upper half of the array
+                pathsToDelete.erase(newStates[i]);
+            }
 
-            for (int i=low; i<splitIndex; ++i) {
-                if (newStates[i] == originalState) {
-                    m_s2e->getDebugStream() << "came across origstate" << std::endl;
+            foreach2(it, pathsToDelete.begin(), pathsToDelete.end()) {
+                S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(*it);
+                if (s2estate == originalState) {
                     exitLoop = true;
                 }
-                m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << std::endl;
-                terminateStateAtFork(*newStates[i]);
+                terminateStateAtFork(*s2estate);
             }
 
             low = splitIndex;
