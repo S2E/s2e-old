@@ -59,9 +59,9 @@ using namespace s2e::plugins;
 
 namespace {
 
-
-cl::opt<std::string>
-    TraceFile("trace", cl::desc("Input trace"), cl::init("ExecutionTracer.dat"));
+cl::list<std::string>
+    TraceFiles("trace", llvm::cl::value_desc("Input trace"), llvm::cl::Prefix,
+               llvm::cl::desc("Specify an execution trace file"));
 
 cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the list of translation blocks into the given folder"), cl::init("."));
@@ -180,7 +180,6 @@ void TbTrace::onItem(unsigned traceIndex,
                 (const s2e::plugins::ExecutionTraceMemory*) item;
         std::string type;
 
-        
         type += te->flags & EXECTRACE_MEM_SYMBHOSTADDR ? "H" : "h";
         type += te->flags & EXECTRACE_MEM_SYMBADDR ? "A" : "a";
         type += te->flags & EXECTRACE_MEM_SYMBVAL ? "S" : "C";
@@ -213,7 +212,7 @@ TbTraceTool::~TbTraceTool()
 void TbTraceTool::flatTrace()
 {
     PathBuilder pb(&m_parser);
-    m_parser.parse(TraceFile);
+    m_parser.parse(TraceFiles);
 
     ModuleCache mc(&pb);
     TestCase tc(&pb);
