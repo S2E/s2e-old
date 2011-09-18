@@ -1,12 +1,15 @@
-package ch.epfl.s2e;
+package ch.epfl.s2e.android;
 
-public class S2EWrapper {
+public class S2EAndroidWrapper {
 
 	public static native int  getVersion();
 	public static native void printMessage(String message);
 	public static native void printWarning(String warning);
+	public static native void printExpressionInt(int symbexpr, String name);
 	public static native void enableForking();
 	public static native void disableForking();
+    public static native void enableInterrupts();
+    public static native void disableInterrupts();
 	public static native void killState(int status, String message);
 	
 	public static native int       getSymbolicInt(String name);
@@ -34,7 +37,7 @@ public class S2EWrapper {
 	
 	//Load the library
 	  static {
-	    System.loadLibrary("s2ewrapper");
+	    System.loadLibrary("s2etest");
 	  }
 	
 }

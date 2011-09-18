@@ -64,8 +64,6 @@ public class S2EAndroidActivity extends Activity {
 			@Override
 			public void onLocationChanged(Location location) {
 				Log.i(DEBUG_TAG, "Location changed");
-		        S2EAndroidWrapper.disableInterrupts();
-		        S2EAndroidWrapper.disableForking();
 		        int test = S2EAndroidWrapper.getSymbolicInt("testvar");
 				double lat = S2EAndroidWrapper.getSymbolicDouble("latitude");
 				double lon = location.getLongitude();
@@ -81,21 +79,16 @@ public class S2EAndroidActivity extends Activity {
 				
 				String concat = new String("lon: "+lonEx+"\n lat:"+latEx);
 				sendToServer(concat);	
-		        S2EAndroidWrapper.enableInterrupts();
-		        S2EAndroidWrapper.enableForking();
 			}
 		});
         
     }
     
     public void onCallNative1(View view) {
-        // call to the native method
-        Log.d(DEBUG_TAG, "This will log to LogCat via the native call.");
-        S2EAndroidWrapper.disableInterrupts();
-        S2EAndroidWrapper.disableForking();
         int test = S2EAndroidWrapper.getSymbolicInt("testvar");
         Log.d(DEBUG_TAG, "Back from journey to S2E. Nice trip.");
-        S2EAndroidWrapper.enableInterrupts();
+        test+=1;
+        Log.d(DEBUG_TAG, "Back from test+=1.");  
     }
     
     public void onCallNative2(View view) {
