@@ -265,6 +265,14 @@ struct ExecutionTraceICount
     uint64_t count;
 }__attribute__((packed));
 
+
+enum ARCH
+{
+	ARCH_ARM=0,
+	ARCH_X86=1
+};
+
+
 //XXX: Avoid hard-coded registers
 //XXX: Extend to other kinds of registers
 struct ExecutionTraceTb
@@ -313,8 +321,9 @@ struct ExecutionTraceTb
     uint32_t size;
     uint8_t tbType;
 
-    uint8_t symbMask;
-    uint32_t registers[8];
+    uint64_t symbMask;
+    uint32_t registers[15];
+    ARCH target_arch; //Instruction set architecture
 }__attribute__((packed));
 
 union ExecutionTraceAll {
@@ -324,6 +333,6 @@ union ExecutionTraceAll {
     ExecutionTraceReturn ret;
 }__attribute__((packed));
 
-}
-}
+}//namespace plugins
+}//namespace s2e
 #endif

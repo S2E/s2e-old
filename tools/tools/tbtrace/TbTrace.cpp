@@ -135,8 +135,22 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
 
 void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
 {
-    const char *regs[] = {"EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI"};
-    for (unsigned i=0; i<8; ++i) {
+	char * regs[15];
+	switch(te->target_arch) {
+
+	case ARCH_ARM:
+	    regs = {"R00", "R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10", "R11", "R12", "R13", "R14"};
+	break;
+
+	case ARCH_X86:
+	    regs = {"EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI"};
+	default:
+	    assert(false);
+	}
+
+	int numregs = sizeof(regs) / sizeof(regs[0]);
+
+    for (unsigned i=0; i<numregs; ++i) {
         if (te->symbMask & (1<<i)) {
             m_output << regs[i] << ": SYMBOLIC ";
         }else {

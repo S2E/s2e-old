@@ -63,14 +63,20 @@ public:
         Disable = 1
     };
 
+    void enableInstructionTracing();
+    void disableInstructionTracing();
+
 private:
     ExecutionTracer *m_tracer;
     ModuleExecutionDetector *m_detector;
 
     sigc::connection m_tbStartConnection;
     sigc::connection m_tbEndConnection;
+    sigc::connection m_insStartConnection;
+    sigc::connection m_androidConnection;
 
     bool m_flushTbOnChange;
+    bool m_fineDebug;
 
     void onModuleTranslateBlockStart(
             ExecutionSignal *signal,
@@ -110,6 +116,10 @@ private:
     void enableTracing();
     void disableTracing();
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
+
+
+    void onTranslateInstruction(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc);
+    void onInstructionExecution(S2EExecutionState *state, uint64_t pc);
 };
 
 } // namespace plugins

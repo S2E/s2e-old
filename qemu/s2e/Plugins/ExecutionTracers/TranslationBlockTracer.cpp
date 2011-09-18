@@ -50,8 +50,8 @@ extern struct CPUX86State *env;
 #include <s2e/S2E.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
-
 #include <iostream>
+#include "TraceEntries.h"
 
 namespace s2e {
 namespace plugins {
@@ -68,6 +68,9 @@ void TranslationBlockTracer::initialize()
     //Specify whether or not to enable cutom instructions for enabling/disabling tracing
     bool manualTrigger = s2e()->getConfig()->getBool(getConfigKey() + ".manualTrigger", false, &ok);
 
+    //Should we trace instruction-by-instruction (and log the state of the system. Useful for fine-grained debugging)
+    bool traceInstructions = s2e()->getConfig()->getBool(getConfigKey() + ".traceInstructions", false, &ok);
+
     //Whether or not to flush the translation block cache when enabling/disabling tracing.
     //This can be useful when tracing is enabled in the middle of a run where most of the blocks
     //are already translated without the tracing instrumentation enabled.
@@ -77,9 +80,16 @@ void TranslationBlockTracer::initialize()
     if (manualTrigger) {
         s2e()->getCorePlugin()->onCustomInstruction.connect(
                 sigc::mem_fun(*this, &TranslationBlockTracer::onCustomInstruction));
-    }else {
+    } else if (traceInstructions) {
+    	//do it from somewhere in the code
+    } else {
         enableTracing();
     }
+
+
+    m_fineDebug = false;
+    m_insStartConnection = s2e()->getCorePlugin()->onTranslateInstructionStart.connect(sigc::mem_fun(*this, &TranslationBlockTracer::onTranslateInstruction));
+
 }
 
 void TranslationBlockTracer::enableTracing()
@@ -97,6 +107,7 @@ void TranslationBlockTracer::enableTracing()
     );
 }
 
+
 void TranslationBlockTracer::disableTracing()
 {
     if (m_flushTbOnChange) {
@@ -107,6 +118,35 @@ void TranslationBlockTracer::disableTracing()
     m_tbEndConnection.disconnect();
 }
 
+void TranslationBlockTracer::enableInstructionTracing()
+{
+	if(m_flushTbOnChange) {
+		tb_flush(env);
+	}
+	m_fineDebug = true;
+}
+
+void TranslationBlockTracer::disableInstructionTracing()
+{
+    if (m_flushTbOnChange) {
+        tb_flush(env);
+    }
+    m_insStartConnection.disconnect();
+    m_fineDebug = false;
+}
+
+void TranslationBlockTracer::onTranslateInstruction(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc) {
+
+	if(m_fineDebug && tb) {
+		signal->connect(sigc::mem_fun(*this, &TranslationBlockTracer::onInstructionExecution));
+	}
+}
+
+void TranslationBlockTracer::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
+	TranslationBlock *tb = state->getTb();
+	uint64_t tb_pc = tb->pc;
+	trace(state, tb_pc, TRACE_TB_START);
+}
 
 void TranslationBlockTracer::onModuleTranslateBlockStart(
         ExecutionSignal *signal,
@@ -146,6 +186,11 @@ void TranslationBlockTracer::trace(S2EExecutionState *state, uint64_t pc, ExecTr
     tb.tbType = state->getTb()->s2e_tb_type;
     tb.symbMask = 0;
     tb.size = state->getTb()->size;
+#ifdef TARGET_ARM
+    tb.target_arch = ARCH_ARM;
+#elif defined(TARGET_I386)
+    tb.target_arch = ARCH_X86;
+#endif
     memset(tb.registers, 0x55, sizeof(tb.registers));
 
     assert(sizeof(tb.symbMask)*8 >= sizeof(tb.registers)/sizeof(tb.registers[0]));
