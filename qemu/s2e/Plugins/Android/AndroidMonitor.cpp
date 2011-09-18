@@ -77,6 +77,7 @@ void AndroidMonitor::initialize()
     bool ok = false;
 
     aut_process_name = s2e()->getConfig()->getString(getConfigKey() + ".app_process_name", "", &ok).c_str();
+    aut_started = false;
 
     if (!ok) {
         s2e()->getWarningsStream() << "AndroidMonitor: No process name for application under test provided."
@@ -102,6 +103,11 @@ void AndroidMonitor::initialize()
     m_modulePlugin->onModuleTransition.connect(
     		sigc::mem_fun(*this, &AndroidMonitor::onModuleTransition));
 
+#if 0
+    s2e()->getCorePlugin()->onException.connect(
+    		sigc::mem_fun(*this, &AndroidMonitor::onException));
+#endif
+
     m_funcMonitor = static_cast<FunctionMonitor*>(s2e()->getPlugin("FunctionMonitor"));
     assert(m_funcMonitor);
 
@@ -110,6 +116,24 @@ void AndroidMonitor::initialize()
     s2e()->getCorePlugin()->onTranslateBlockStart.connect(
                sigc::mem_fun(*this, &AndroidMonitor::slotTranslateBlockStart));
 }
+
+
+#if 0
+#define EXCP_UDEF            1   /* undefined instruction */
+#define EXCP_SWI             2   /* software interrupt */
+#define EXCP_PREFETCH_ABORT  3
+#define EXCP_DATA_ABORT      4
+#define EXCP_IRQ             5
+#define EXCP_FIQ             6
+#define EXCP_BKPT            7
+#define EXCP_EXCEPTION_EXIT  8   /* Return from v7M exception.  */
+#define EXCP_KERNEL_TRAP     9   /* Jumped to kernel code page.  */
+#define EXCP_STREX          10
+
+void AndroidMonitor::onException(S2EExecutionState* state, unsigned type, uint64_t pc) {
+
+}
+#endif
 
 void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
 {
@@ -163,35 +187,106 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     	s2e()->getMessagesStream(state) << "UID traced with info: " << message << std::endl;
     	break;
     }
+    case 2: { /* app start */
+    	uint32_t procNamePtr;
+    	uint32_t compNamePtr;
+    	std::string procName;
+    	std::string compName;
+    	uint32_t pid;
+		int result = 0;
+    	bool ok = true;
+    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]), &procNamePtr, 4);
+    	if (!ok) {
+    	    s2e()->getWarningsStream(state)
+    	    << "ERROR: symbolic argument was passed to s2e_op android monitor (procName)" << std::endl;
+    	    return;
+    	}
+    	if(procNamePtr && !state->readString(procNamePtr, procName)) {
+    	    s2e()->getWarningsStream(state)
+    	    << "Android Monitor:: app start - Error reading procName from guest" << std::endl;
+    	}
+
+    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]), &pid, 4);
+    	if (!ok) {
+    	    s2e()->getWarningsStream(state)
+    	    << "ERROR: symbolic argument was passed to s2e_op android monitor (pid)" << std::endl;
+    	    return;
+    	}
+
+    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]), &compNamePtr, 4);
+    	if (!ok) {
+    	    s2e()->getWarningsStream(state)
+    	    << "ERROR: symbolic argument was passed to s2e_op android monitor (compName)" << std::endl;
+    	    return;
+    	}
+    	if(compNamePtr && !state->readString(compNamePtr, compName)) {
+    	    s2e()->getWarningsStream(state)
+    	    << "Android Monitor:: app start - Error reading compName from guest" << std::endl;
+    	}
+
+    	s2e()->getDebugStream() << "AndroidMonitor:: new Android application started with "
+    			<< "pid: " << pid << " process name: " << procName << " component name: " << compName << endl;
+
+    	//do we want to analyze this application?
+    	if(aut_process_name.compare(procName) == 0) {
+    		//yes we do.
+    		s2e::linuxos::linux_task myAppProcess;
+    		m_linuxMonitor->searchForTask(state,pid,true,&myAppProcess);
+    		myAppProcess.comm = procName;
+    		aut.process = myAppProcess;
+    		assert(myAppProcess.pid == pid);
+
+    		aut_started = true;
+    		result = 0xCAFE; //magic value understood by target-side of the plugin
+
+        	s2e()->getDebugStream() << "AndroidMonitor:: REGISTER application "
+        			<< procName << " ( " << dec << pid << " )" << endl;
+
+        	onAppStart.emit(state,&myAppProcess);
+    	}
+
+		state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]),&result,4);
+
+    }
     default:
     	break;
     }
 }
 
+bool AndroidMonitor::isAppUnderTest(uint32_t pid) {
+	return aut_started ? pid == aut.process.pid : false;
+}
+
 void AndroidMonitor::onProcessFork(S2EExecutionState *state, uint32_t clone_flags, linux_task* task) {
-
-	s2e()->getDebugStream() << "AndroidMonitor: Fork details: " << "Clone Flags: " << hex << clone_flags << endl << LinuxMonitor::dumpTask(task) << endl;
-	if(!task->comm.compare("zygote")) {
-		linux_task appthread = *task;
-		if (clone_flags == 0x11) {
-			s2e()->getDebugStream() << "Main process of Android application started. Waiting for information over custom instruction..." << endl;
-			assert(appthread.pid == appthread.tgid);
-			aut.process = appthread;
-
-		} else if (clone_flags == 0x450F00) {
-			s2e()->getDebugStream() << "Further thread of new Android application started.  Waiting for information over custom instruction..." << endl;
-			linux_task appthread = *task;
-			assert(appthread.pid != appthread.tgid);
-			aut.threads.insert(appthread);
-		} else  {
-			s2e()->getDebugStream() << "Zygote fork with unrecognized  clone flags:" << hex << clone_flags << endl;
-		}
+	//	s2e()->getDebugStream() << "AndroidMonitor: Fork details: " << "Clone Flags: " << hex << clone_flags << endl << LinuxMonitor::dumpTask(task) << endl;
+	linux_task appthread = *task;
+	if (!isAppUnderTest(appthread.tgid)) {
+		return;
+	}
+	if (appthread.tgid == appthread.pid) {
+		//we skip the detection of main processes of new apps, because this is done from inside Dalvik in a more reliable way
+		return;
 	}
 
-	if (task->tgid == aut.process.tgid && !task->comm.compare("Binder Thread #")) {
+#if 0
+	//XXX: Delete this if not needed
+	if (clone_flags == 0x11) {
+				s2e()->getDebugStream() << "AndroidMonitor:: Main process of unknown Android application started... Is it the one we want to analyze? (wait for a sign from the OS)" << endl;
+				assert(appthread.pid == appthread.tgid);
+
+	} else if (clone_flags == 0x450F00) {
+				//typical clone_flag of a new thread.
+	}
+#endif
+
+
+	if(!task->comm.compare("zygote")) {
+			s2e()->getDebugStream() << "AndroidMonitor:: New thread "<< appthread.pid << " of target application "<< aut.process.comm << "( "<< aut.process.pid << " ) detected" << endl;
+			aut.threads.insert(appthread);
+
+	} else if (!task->comm.compare("Binder Thread #")) {
 		s2e()->getDebugStream() << "Binder Thread of Android application started." << endl;
-		linux_task binderthread = *task;
-		aut.threads.insert(binderthread);
+		aut.threads.insert(appthread);
 	}
 
 	/*
@@ -205,7 +300,7 @@ void AndroidMonitor::onProcessFork(S2EExecutionState *state, uint32_t clone_flag
 	 *
 	 *
 	 *	1. Zygote forks the process (clone_flags = SIGCHLD).
-	 *	2. Additional 4 threads (clone_flags = CLONE_VFORK & CLONE_FILES & CLONE_VM & CSIGNAL) are created. c.f., dalvik/vm/Init.c:dvmInitAfterZygote(..)
+	 *	2. Additional 4-6 threads (clone_flags = CLONE_VFORK & CLONE_FILES & CLONE_VM & CSIGNAL) are created. c.f., dalvik/vm/Init.c:dvmInitAfterZygote(..)
 	 *	   - Signal Catcher Thread that dumps stack after SIGQUIT dvmSignalCatcherStartup()
 	 *	   - Stdout/StdErr copier Thread: dvmStdioConverterStartup()
 	 *	   - JDWP thread for debugger: dvmInitJDWP()
@@ -218,15 +313,15 @@ void AndroidMonitor::onProcessFork(S2EExecutionState *state, uint32_t clone_flag
 
 void AndroidMonitor::onNewThread(S2EExecutionState *state, linux_task* thread, linux_task* process) {
 	if (!process->comm.compare("system_server")) {
-		s2e()->getDebugStream() << "AndroidMonitor:: system_server thread detected with pid: " << dec << thread->pid << endl;
+		s2e()->getDebugStream() << "AndroidMonitor:: system_server thread discovered with pid: " << dec << thread->pid << endl;
 		linux_task newThread = *process;
 		systemServer.threads.insert(newThread);
 		return;
 	}
-	if (!process->comm.compare("zygote")) {
-		s2e()->getDebugStream() << "AndroidMonitor:: application thread detected with pid: " << dec << thread->pid << endl;
-//		linux_task newThread = *process;
-//		zygote.threads.insert(newThread);
+	if (isAppUnderTest(thread->tgid)) {
+		s2e()->getDebugStream() << "AndroidMonitor:: application thread discovered with pid: " << dec << thread->pid << endl;
+		linux_task newThread = *process;
+		aut.threads.insert(newThread);
 		return;
 	}
 
@@ -276,8 +371,6 @@ void AndroidMonitor::slotTranslateBlockStart(ExecutionSignal *signal, S2EExecuti
 
     FunctionMonitor::CallSignal *callSignal;
 
-    //SWI exception vector
-    //XXX: put it config file?
 	s2e::linuxos::symbol_struct irq_usr;
 	bool ok = m_linuxMonitor->searchSymbol("__irq_usr",irq_usr);
 	if(!ok) {
@@ -300,9 +393,10 @@ void AndroidMonitor::swiHook(S2EExecutionState* state, FunctionMonitorState *fns
 	//Test: We skip SWI's when something is symbolic
 	uint64_t smask = state->getSymbolicRegistersMask();
 	if (smask) {
+		state->dumpCpuState(s2e()->getDebugStream());
 		uint32_t lr;
 		state->readCpuRegisterConcrete(offsetof(CPUState, regs[14]), &lr, 4);
-		s2e()->getMessagesStream() << "AndroidMonitor:: SWI from " << hex << lr << dec << "." << endl;
+		s2e()->getMessagesStream() << "AndroidMonitor:: SWI from " << hex << lr << dec << ". SMASK:" << std::hex << smask << endl;
 //		s2e::linuxos::symbol_struct ret_to_user;
 //		bool ok = m_linuxMonitor->searchSymbol("ret_to_user",ret_to_user);
 //		if(!ok) {

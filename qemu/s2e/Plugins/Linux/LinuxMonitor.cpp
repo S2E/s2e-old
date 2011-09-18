@@ -527,7 +527,7 @@ void LinuxMonitor::onInstructionExecution(S2EExecutionState *state, uint64_t pc)
 		vector<string>::iterator it = pendingLookups.begin();
 		while (it != pendingLookups.end()) {
 			linux_task task;
-			if (searchForTask(*it, &task)) {
+			if (searchForTask(state, *it, &task)) {
 				s2e()->getDebugStream() << "LinuxMonitor: task loaded: " << task.comm << endl;
 				notifyModuleLoad(state, &task);
 				pendingLookups.erase(it);
@@ -544,12 +544,10 @@ void LinuxMonitor::onInstructionExecution(S2EExecutionState *state, uint64_t pc)
 		goto end;
 	}
 
-	if (pc == symbols.do_fork) {
-		//let me now
-		uint32_t pid = getPid(state,pc);
-		s2e()->getDebugStream() << "LinuxMonitor: Task "<< pid << " is about to fork." << endl;
-    	goto end;
-	}
+//	if (pc == symbols.do_fork) {
+//		//XXX: Do we need this?
+//    	goto end;
+//	}
 
 	if (pc == symbols.qemu_trace_fork) {
 		linux_task task;
@@ -650,6 +648,8 @@ void LinuxMonitor::handleTaskTransition(S2EExecutionState *state, uint32_t pc, l
 
         notifyModuleLoad(state,&nextTask);
     }
+
+
 #if 0
     string out = dumpContextSwitch(&prevTask,&nextTask);
     s2e()->getDebugStream() << "LinuxMonitor:: report context switch" << endl << out << endl;
@@ -687,7 +687,7 @@ bool LinuxMonitor::registerNewThread(S2EExecutionState *state, linux_task &threa
 	linux_task process;
 	if (threadmap.find(thread.tgid) == threadmap.end()) {
 		//try to find and register the corresponding process
-		if (!searchForTask(thread.tgid, true, &process)) {
+		if (!searchForTask(state, thread.tgid, true, &process)) {
 			s2e()->getDebugStream() << "No corresponding process found for thread " << thread.comm << " ( pid: " << dec << thread.pid << "). We were looking for process with pid: " << dec << thread.tgid  << "."<< endl;
 			return false;
 		}
@@ -864,7 +864,8 @@ void LinuxMonitor::getTaskVMareas(linux_task *task) {
     } while (vmarea != NULL && ok);
 }
 
-bool LinuxMonitor::searchForTask(string name, linux_task *task) {
+bool LinuxMonitor::searchForTask(S2EExecutionState *state, string name, linux_task *task) {
+	currentState = state;
     *task = getTaskInfo(symbols.init_task);
     // iterate over all tasks (except swapper)
     while (task->next != symbols.init_task) {
@@ -873,16 +874,19 @@ bool LinuxMonitor::searchForTask(string name, linux_task *task) {
             // if we found the desired task, retrieve additional information before returning
             getTaskMemory(task);
             getTaskVMareas(task);
+            currentState = NULL;
             return true;
         }
     }
+    currentState = NULL;
     return false;
 }
 
 /*
  * goes through all
  */
-bool LinuxMonitor::searchForTask(uint32_t pid, bool findProcess, linux_task *result) {
+bool LinuxMonitor::searchForTask(S2EExecutionState* state, uint32_t pid, bool findProcess, linux_task *result) {
+	currentState = state;
     *result = getTaskInfo(symbols.init_task);
     // iterate over all tasks (except swapper)
     while (result->next != symbols.init_task) {
@@ -891,14 +895,17 @@ bool LinuxMonitor::searchForTask(uint32_t pid, bool findProcess, linux_task *res
         	if ( findProcess && (pid != result->tgid) ) {
         		//we now know that pid identifies a thread, not a process.
         		//thus: look for the process
-        		return searchForTask(result->tgid, true, result);
+        		currentState = NULL;
+        		return searchForTask(state, result->tgid, true, result);
         	}
             // if we found the desired task, retrieve additional information before returning
             getTaskMemory(result);
             getTaskVMareas(result);
+    		currentState = NULL;
             return true;
         }
     }
+	currentState = NULL;
     return false;
 }
 string LinuxMonitor::dumpTask(linux_task *task) {

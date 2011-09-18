@@ -195,11 +195,11 @@ private:
 
 	// search for a task by it's name (the 'comm' field in the task_struct)
 	// task is an output parameter the task information will be written to
-	bool searchForTask(std::string name, s2e::linuxos::linux_task *task);
+	bool searchForTask(S2EExecutionState *state, std::string name, s2e::linuxos::linux_task *task);
 
 	//search for a task by pid. if findProcess is true, it aims to find
 	// the corresponding process of task with the given pid
-	bool searchForTask(uint32_t pid, bool findProcess, linux_task *result);
+	bool searchForTask(S2EExecutionState *state, uint32_t pid, bool findProcess, linux_task *result);
 
 
 public:
