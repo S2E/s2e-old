@@ -463,7 +463,7 @@ bool S2EExecutionState::isRamSharedConcrete(uint64_t hostAddress)
 uint64_t S2EExecutionState::getPc() const
 {
 #ifdef TARGET_ARM
-    return readCpuState(CPU_OFFSET(regs[15]), 8*sizeof(target_ulong));
+    return readCpuState(CPU_OFFSET(regs[15]), 8*sizeof(uint32_t));
 #elif defined(TARGET_I386)
     return readCpuState(CPU_OFFSET(eip), 8*sizeof(target_ulong));
 #endif
@@ -472,7 +472,7 @@ uint64_t S2EExecutionState::getPc() const
 void S2EExecutionState::setPc(uint64_t pc)
 {
 #ifdef TARGET_ARM
-    writeCpuState(CPU_OFFSET(regs[15]), pc, sizeof(target_ulong)*8);
+    writeCpuState(CPU_OFFSET(regs[15]), pc, sizeof(uint32_t)*8);
 #elif defined(TARGET_I386)
     writeCpuState(CPU_OFFSET(eip), pc, sizeof(target_ulong)*8);
 #endif
@@ -481,7 +481,7 @@ void S2EExecutionState::setPc(uint64_t pc)
 void S2EExecutionState::setSp(uint64_t sp)
 {
 #ifdef TARGET_ARM
-    writeCpuRegisterConcrete(CPU_OFFSET(regs[13]), &sp, sizeof(target_ulong));
+    writeCpuRegisterConcrete(CPU_OFFSET(regs[13]), &sp, sizeof(uint32_t));
 #elif defined(TARGET_I386)
     writeCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &sp, sizeof(target_ulong));
 #endif
@@ -492,7 +492,7 @@ uint64_t S2EExecutionState::getSp() const
 {
 #ifdef TARGET_ARM
     ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[13]),
-                                  8*sizeof(target_ulong));
+                                  8*sizeof(uint32_t));
 #elif defined(TARGET_I386)
     ref<Expr> e = readCpuRegister(CPU_OFFSET(regs[R_ESP]),
                                   8*sizeof(target_ulong));
@@ -528,7 +528,15 @@ bool S2EExecutionState::bypassFunction(unsigned paramCount)
 bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
 #ifdef TARGET_ARM
-	assert(false && "not implemented");
+	//XXX: test if LR always contains the return address after a bl instruction
+	*retAddr = 0;
+    bool ok = readCpuRegisterConcrete(CPU_OFFSET(regs[14]),
+                                                 retAddr, sizeof(uint32_t));
+     if(!ok) {
+	     g_s2e->getDebugStream() << "Could not get the return address " << std::endl;
+	     return false;
+     }
+     return true;
 #elif defined(TARGET_I386)
 	 *retAddr = 0;
 	 if (!readMemoryConcrete(getSp(), retAddr, sizeof(uint32_t))) {
@@ -958,7 +966,6 @@ bool S2EExecutionState::writeMemory64(uint64_t address,
     return writeMemory(address, (uint8_t*) &value, 64, addressType);
 }
 
-
 void S2EExecutionState::readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf, uint64_t size)
 {
     assert(m_active && m_runningConcrete);
@@ -1322,10 +1329,7 @@ static const char *cpu_mode_names[16] = {
 
 void S2EExecutionState::dumpCpuState(std::ostream &os) const
 {
-
-	CPUState* cpu = (CPUARMState*) (m_cpuSystemObject->getConcreteStore() - CPU_OFFSET(regs[15]));
-	uint32_t psr = cpu->uncached_cpsr;
-
+	uint32_t psr = readCpuState(offsetof(CPUState, uncached_cpsr), 32);
     os << "[State " << std::dec << m_stateID << "] CPU dump" << std::endl;
     os << "#########################" << std::endl;
     os << "###### MODE: " << cpu_mode_names[psr & 0xf] << ((psr & 0x10) ? 32 : 26) << " ######" << std::endl;
@@ -1345,46 +1349,56 @@ void S2EExecutionState::dumpCpuState(std::ostream &os) const
     os << "R12=0x" << readCpuRegister(offsetof(CPUState, regs[12]), klee::Expr::Int32) << std::endl;
     os << "R13=0x" << readCpuRegister(offsetof(CPUState, regs[13]), klee::Expr::Int32) << std::endl;
     os << "R14=0x" << readCpuRegister(offsetof(CPUState, regs[14]), klee::Expr::Int32) << std::endl;
-    os << "R15=0x" << cpu->regs[15] << std::endl;
+    os << "R15=0x" << readCpuState(offsetof(CPUState, regs[15]), 32) << std::endl;
     os << "--- FLAGS ---" << std::endl;
-    os << "CF=0x" << readCpuRegister(offsetof(CPUState, CF), klee::Expr::Int32) << std::endl;
-    os << "VF=0x" << readCpuRegister(offsetof(CPUState, VF), klee::Expr::Int32) << std::endl;
-    os << "NF=0x" << readCpuRegister(offsetof(CPUState, NF), klee::Expr::Int32) << std::endl;
-    os << "ZF=0x" << readCpuRegister(offsetof(CPUState, ZF), klee::Expr::Int32) << std::endl;
+    os << "CF=0x" << readCpuRegister(offsetof(CPUState, CF), klee::Expr::Int32);
+    os << " VF=0x" << readCpuRegister(offsetof(CPUState, VF), klee::Expr::Int32);
+    os << " NF=0x" << readCpuRegister(offsetof(CPUState, NF), klee::Expr::Int32);
+    os << " ZF=0x" << readCpuRegister(offsetof(CPUState, ZF), klee::Expr::Int32) << std::endl;
     os << "SPSR=0x" << readCpuRegister(offsetof(CPUState, spsr), klee::Expr::Int32) << std::endl;
-    os << "--- BANKED SPSR ---" << std::endl;
-    os << "USR/SYS: 0x" << readCpuRegister(offsetof(CPUState, banked_spsr[0]), klee::Expr::Int32) << std::endl;
-    os << "    SVC: 0x" << readCpuRegister(offsetof(CPUState, banked_spsr[1]), klee::Expr::Int32) << std::endl;
-    os << "    ABT: 0x" << readCpuRegister(offsetof(CPUState, banked_spsr[2]), klee::Expr::Int32) << std::endl;
-    os << "    UND: 0x" << readCpuRegister(offsetof(CPUState, banked_spsr[3]), klee::Expr::Int32) << std::endl;
-    os << "    IRQ: 0x" << readCpuRegister(offsetof(CPUState, banked_spsr[4]), klee::Expr::Int32) << std::endl;
-    os << "    FIQ: 0x" << readCpuRegister(offsetof(CPUState, banked_spsr[5]), klee::Expr::Int32) << std::endl;
-    os << "--- BANKED R13 ---" << std::endl;
-    os << "USR/SYS: 0x" << readCpuRegister(offsetof(CPUState, banked_r13[0]), klee::Expr::Int32) << std::endl;
-    os << "    SVC: 0x" << readCpuRegister(offsetof(CPUState, banked_r13[1]), klee::Expr::Int32) << std::endl;
-    os << "    ABT: 0x" << readCpuRegister(offsetof(CPUState, banked_r13[2]), klee::Expr::Int32) << std::endl;
-    os << "    UND: 0x" << readCpuRegister(offsetof(CPUState, banked_r13[3]), klee::Expr::Int32) << std::endl;
-    os << "    IRQ: 0x" << readCpuRegister(offsetof(CPUState, banked_r13[4]), klee::Expr::Int32) << std::endl;
-    os << "    FIQ: 0x" << readCpuRegister(offsetof(CPUState, banked_r13[5]), klee::Expr::Int32) << std::endl;
-    os << "--- BANKED R14 ---" << std::endl;
-    os << "USR/SYS: 0x" << readCpuRegister(offsetof(CPUState, banked_r14[0]), klee::Expr::Int32) << std::endl;
-    os << "    SVC: 0x" << readCpuRegister(offsetof(CPUState, banked_r14[1]), klee::Expr::Int32) << std::endl;
-    os << "    ABT: 0x" << readCpuRegister(offsetof(CPUState, banked_r14[2]), klee::Expr::Int32) << std::endl;
-    os << "    UND: 0x" << readCpuRegister(offsetof(CPUState, banked_r14[3]), klee::Expr::Int32) << std::endl;
-    os << "    IRQ: 0x" << readCpuRegister(offsetof(CPUState, banked_r14[4]), klee::Expr::Int32) << std::endl;
-    os << "    FIQ: 0x" << readCpuRegister(offsetof(CPUState, banked_r14[5]), klee::Expr::Int32) << std::endl;
-    os << "--- BANKED IN FIQ ---" << std::endl;
-    os << "R08=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[0]), klee::Expr::Int32) << std::endl;
-    os << "R09=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[1]), klee::Expr::Int32) << std::endl;
-    os << "R10=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[2]), klee::Expr::Int32) << std::endl;
-    os << "R11=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[3]), klee::Expr::Int32) << std::endl;
-    os << "R12=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[4]), klee::Expr::Int32) << std::endl;
-    os << "--- BANKED IN USR ---" << std::endl;
-    os << "R08=0x" << readCpuRegister(offsetof(CPUState, usr_regs[0]), klee::Expr::Int32) << std::endl;
-    os << "R09=0x" << readCpuRegister(offsetof(CPUState, usr_regs[1]), klee::Expr::Int32) << std::endl;
-    os << "R10=0x" << readCpuRegister(offsetof(CPUState, usr_regs[2]), klee::Expr::Int32) << std::endl;
-    os << "R11=0x" << readCpuRegister(offsetof(CPUState, usr_regs[3]), klee::Expr::Int32) << std::endl;
-    os << "R12=0x" << readCpuRegister(offsetof(CPUState, usr_regs[4]), klee::Expr::Int32) << std::endl;
+//    os << "--- BANKED SPSR --- | --- BANKED R13 --- | --- BANKED R14 ---" << std::endl;
+//    os << "USR/SYS: 0x";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_spsr[0]), klee::Expr::Int32) << " |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r13[0]), klee::Expr::Int32) << "       |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r14[0]), klee::Expr::Int32) << "       | ";
+//    os << std::endl;
+//    os << "    SVC: 0x";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_spsr[1]), klee::Expr::Int32) << " |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r13[1]), klee::Expr::Int32) << "       |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r14[1]), klee::Expr::Int32) << "       | ";
+//    os << std::endl;
+//    os << "    ABT: 0x";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_spsr[2]), klee::Expr::Int32) << " |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r13[2]), klee::Expr::Int32) << "       |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r14[2]), klee::Expr::Int32) << "       | ";
+//    os << std::endl;
+//    os << "    UND: 0x";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_spsr[3]), klee::Expr::Int32) << " |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r13[3]), klee::Expr::Int32) << "       |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r14[3]), klee::Expr::Int32) << "       | ";
+//    os << std::endl;
+//    os << "    IRQ: 0x";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_spsr[4]), klee::Expr::Int32) << " |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r13[4]), klee::Expr::Int32) << "       |      ";
+//    os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r14[4]), klee::Expr::Int32) << "       | ";
+//    os << std::endl;
+//    os << "    FIQ: 0x";
+//	os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_spsr[5]), klee::Expr::Int32) << " |      ";
+//	os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r13[5]), klee::Expr::Int32) << "       |      ";
+//	os << std::setfill('0') << std::setw(8) << readCpuRegister(offsetof(CPUState, banked_r14[5]), klee::Expr::Int32) << "       | ";
+//	os << std::endl;
+//    os << "--- BANKED IN FIQ ---" << std::endl;
+//    os << "R08=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[0]), klee::Expr::Int32) << std::endl;
+//    os << "R09=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[1]), klee::Expr::Int32) << std::endl;
+//    os << "R10=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[2]), klee::Expr::Int32) << std::endl;
+//    os << "R11=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[3]), klee::Expr::Int32) << std::endl;
+//    os << "R12=0x" << readCpuRegister(offsetof(CPUState, fiq_regs[4]), klee::Expr::Int32) << std::endl;
+//    os << "--- BANKED IN USR ---" << std::endl;
+//    os << "R08=0x" << readCpuRegister(offsetof(CPUState, usr_regs[0]), klee::Expr::Int32) << std::endl;
+//    os << "R09=0x" << readCpuRegister(offsetof(CPUState, usr_regs[1]), klee::Expr::Int32) << std::endl;
+//    os << "R10=0x" << readCpuRegister(offsetof(CPUState, usr_regs[2]), klee::Expr::Int32) << std::endl;
+//    os << "R11=0x" << readCpuRegister(offsetof(CPUState, usr_regs[3]), klee::Expr::Int32) << std::endl;
+//    os << "R12=0x" << readCpuRegister(offsetof(CPUState, usr_regs[4]), klee::Expr::Int32) << std::endl;
     os << std::dec;
 }
 #elif defined(TARGET_I386)
@@ -1925,5 +1939,10 @@ void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
     state->writeRegisterConcrete(cpuState, offset, buf, size);
 }
 #endif
+
+bool s2e_is_symbex_pending(S2EExecutionState *state)
+{
+	return state->symbexPending();
+}
 
 } // extern "C"

@@ -38,6 +38,7 @@
 #define S2E_QEMU_H
 
 #include <inttypes.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 namespace s2e {
@@ -251,6 +252,7 @@ void s2e_write_register_concrete(struct S2E* s2e,
 
 #endif
 
+bool s2e_is_symbex_pending (struct S2EExecutionState* state);
 
 /* helpers that should be run as LLVM functions */
 void s2e_set_cc_op_eflags(struct S2E* s2e,

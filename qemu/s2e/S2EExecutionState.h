@@ -181,6 +181,11 @@ public:
         return (*it).second;
     }
 
+    /* Returns true if a TB wants to be re-executed in symbolic mode.
+     * See s2e/README_Symbex_Interruption_Bug.txt for details.
+     */
+    bool symbexPending() const { return m_startSymbexAtPC != (uint64_t) -1; }
+
     /** Returns true is this is the active state */
     bool isActive() const { return m_active; }
 

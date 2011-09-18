@@ -44,6 +44,8 @@
 
 #ifdef CONFIG_S2E
 #include "s2e/s2e_qemu.h"
+#else
+#define s2e_is_symbex_pending(...) false
 #endif
 
 #include <assert.h>
@@ -346,7 +348,7 @@ s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
 #define env cpu_single_env
 #endif
             /* if an exception is pending, we execute it here */
-            if (env->exception_index >= 0) {
+            if (env->exception_index >= 0 && !(s2e_is_symbex_pending(g_s2e_state))) {
                 if (env->exception_index >= EXCP_INTERRUPT) {
                     /* exit request from the cpu execution loop */
                     ret = env->exception_index;
@@ -554,7 +556,7 @@ s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
 		    }
 #elif defined(TARGET_ARM)
                     if (interrupt_request & CPU_INTERRUPT_FIQ
-                        && !(env->uncached_cpsr & CPSR_F)) {
+                        && !(env->uncached_cpsr & CPSR_F) && !s2e_is_symbex_pending(g_s2e_state)) {
                         env->exception_index = EXCP_FIQ;
                         do_interrupt(env);
                         next_tb = 0;
@@ -570,7 +572,14 @@ s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
                        pc contains a magic address.  */
                     if (interrupt_request & CPU_INTERRUPT_HARD
                     	&& ((IS_M(env) && env->regs[15] < 0xfffffff0)
-                            || !(env->uncached_cpsr & CPSR_I))) {
+                            || !(env->uncached_cpsr & CPSR_I)) && !s2e_is_symbex_pending(g_s2e_state)) {
+
+#if 0
+                    	//XXX: Debug
+                    	uint32_t pc_debug = g_s2e_state->readCpuState(offsetof(CPUState, regs[15]), 32);//                    	uint32_t pc_debug = env->regs[15];
+                        qemu_printf("qemu: pc before interrupt=0x%08lx\n",
+                                    pc_debug);
+#endif
                         env->exception_index = EXCP_IRQ;
                         do_interrupt(env);
                         next_tb = 0;
@@ -646,7 +655,9 @@ s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
                     log_cpu_state(env, 0);
 #endif
                 }
+
 #endif /* DEBUG_DISAS || CONFIG_DEBUG_EXEC */
+
                 spin_lock(&tb_lock);
 
                 if (intNb != -1) {
@@ -657,6 +668,7 @@ s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
 #endif
                     intNb = -1;
                 }
+
 #if (defined(CONFIG_S2E) && defined(TARGET_ARM))
                 if (env->exception_index != -1) {
                     s2e_on_exception(g_s2e, g_s2e_state, env->exception_index);

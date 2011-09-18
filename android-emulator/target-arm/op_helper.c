@@ -562,6 +562,7 @@ void do_interrupt(CPUARMState *env)
     env->uncached_cpsr = (env->uncached_cpsr & ~CPSR_M) | new_mode;
     env->uncached_cpsr |= mask;
     env->thumb = 0;
+
     WR_cpu(env,regs[14],(env->regs[15] + offset));
     env->regs[15] = addr;
     env->interrupt_request |= CPU_INTERRUPT_EXITTB;

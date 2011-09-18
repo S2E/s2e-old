@@ -203,7 +203,7 @@ extern "C" {
     int g_s2e_concretize_io_writes = 1;
 }
 
-static bool S2EDebugInstructions = false;
+static bool S2EDebugInstructions = true;
 
 namespace s2e {
 
@@ -430,11 +430,6 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
     ref<Expr> expr = args[0];
     Expr::Width width = expr->getWidth();
 
-    // XXX: this might be expensive...
-//    if (UseExprSimplifier) {
-//        expr = s2eExecutor->simplifyExpr(*state, expr);
-//    }
-
     expr = state->constraints.simplifyExpr(expr);
 
     if(isa<klee::ConstantExpr>(expr)) {
@@ -624,7 +619,6 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(cpsr_read)
     __DEFINE_EXT_FUNCTION(cpsr_write)
     __DEFINE_EXT_FUNCTION(arm_cpu_list)
-//    __DEFINE_EXT_FUNCTION(do_interrupt)
 #endif
 #ifdef TARGET_I386
     __DEFINE_EXT_FUNCTION(cpu_io_recompile)
@@ -677,7 +671,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(s2e_ensure_symbolic)
 
     //__DEFINE_EXT_FUNCTION(s2e_on_tlb_miss)
-    __DEFINE_EXT_FUNCTION(s2e_on_page_fault)
+	__DEFINE_EXT_FUNCTION(s2e_on_page_fault)
     __DEFINE_EXT_FUNCTION(s2e_is_port_symbolic)
     __DEFINE_EXT_FUNCTION(s2e_is_mmio_symbolic_b)
     __DEFINE_EXT_FUNCTION(s2e_is_mmio_symbolic_w)
@@ -1664,6 +1658,11 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
         state->prevPC = 0;
         state->pc = m_dummyMain->instructions;
 
+#if 0
+        //XXX: debug
+        state->dumpCpuState(m_s2e->getDebugStream());
+#endif
+
     } while(tcg_llvm_runtime.goto_tb != 0xff);
 
     //g_s2e_exec_ret_addr = 0;
@@ -1672,6 +1671,11 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
     ref<Expr> resExpr =
             getDestCell(*state, state->pc).value;
     assert(isa<klee::ConstantExpr>(resExpr));
+
+#if 0
+    //XXX: debug
+    state->dumpCpuState(m_s2e->getDebugStream());
+#endif
 
     //copyOutConcretes(*state);
 
@@ -1774,6 +1778,13 @@ uintptr_t S2EExecutor::executeTranslationBlock(
     /* Think how can we optimize if symbex is disabled */
     if(true/* state->m_symbexEnabled*/) {
         if(state->m_startSymbexAtPC != (uint64_t) -1) {
+
+
+#if 0
+        	//XXX:DEBUG (useful to predict the symbex interruption bug (see s2e/README_Symbex_Interruption_Bug.txt)
+        	uint64_t tmp_pc = state->getPc();
+        	g_s2e->getMessagesStream() << "getPc(): " << std::hex << tmp_pc << " - startSymbexAtPC: " << state->m_startSymbexAtPC << std::dec << std::endl;
+#endif
             executeKlee |= (state->getPc() == state->m_startSymbexAtPC);
             state->m_startSymbexAtPC = (uint64_t) -1;
         }
@@ -2448,7 +2459,7 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
 #ifdef TARGET_ARM
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state)
 {
-    s2e->getExecutor()->doInterrupt(state);
+	s2e->getExecutor()->doInterrupt(state);
 }
 #elif defined(TARGET_I386)
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
