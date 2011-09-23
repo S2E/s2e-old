@@ -34,6 +34,8 @@
  *
  */
 
+#define __STDC_FORMAT_MACROS 1
+
 #include "llvm/Support/CommandLine.h"
 #include <stdio.h>
 #include <inttypes.h>
@@ -48,6 +50,8 @@
 #include <lib/ExecutionTracer/PageFault.h>
 #include <lib/ExecutionTracer/InstructionCounter.h>
 #include <lib/BinaryReaders/BFDInterface.h>
+
+#include "llvm/System/Path.h"
 
 #include "TbTrace.h"
 
@@ -64,10 +68,16 @@ cl::list<std::string>
                llvm::cl::desc("Specify an execution trace file"));
 
 cl::opt<std::string>
+    AsmListingFile("asmlst", cl::desc("IDAPro disassembly listing"), cl::init(""));
+
+cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the list of translation blocks into the given folder"), cl::init("."));
 
 cl::list<std::string>
     ModPath("modpath", cl::desc("Path to modules"));
+
+cl::opt<std::string>
+    DisassemblyPath("asmpath", cl::desc("Path containing the IDA pro disassembly listings (*.lst)"), cl::init("."));
 
 cl::list<unsigned>
     PathList("pathId",
@@ -78,6 +88,10 @@ cl::opt<bool>
 
 cl::opt<bool>
         PrintMemory("printMemory", cl::desc("Print memory trace"), cl::init(false));
+
+cl::opt<bool>
+        PrintDisassembly("printDisassembly", cl::desc("Print disassembly in the trace"), cl::init(false));
+
 
 }
 
@@ -101,6 +115,76 @@ TbTrace::TbTrace(Library *lib, ModuleCache *cache, LogEvents *events, std::ofstr
 TbTrace::~TbTrace()
 {
     m_connection.disconnect();
+}
+
+bool TbTrace::parseDisassembly(const std::string &listingFile, Disassembly &out)
+{
+    //Get the module name
+    llvm::sys::Path listingFilePath(listingFile);
+    std::string moduleName = listingFilePath.getBasename();
+
+    bool added = false;
+
+    char line[1024];
+    std::filebuf file;
+    if (!file.open(listingFile.c_str(), std::ios::in)) {
+        return false;
+    }
+
+    std::istream is(&file);
+
+    while(is.getline(line, sizeof(line))) {
+        std::string ln = line;
+        //Skip the start
+        unsigned i=0;
+        while (line[i] && (line[i]!=':'))
+            ++i;
+        if (line[i] != ':')
+            continue;
+
+        //Grab the address
+        std::string strpc;
+        while(isxdigit(line[i])) {
+            strpc = strpc + line[i];
+            ++i;
+        }
+
+        uint64_t pc;
+        sscanf(strpc.c_str(), "%"PRIx64, &pc);
+        out[moduleName][pc].push_back(ln);
+        added = true;
+    }
+
+    return added;
+}
+
+void TbTrace::printDisassembly(const std::string &module, uint64_t relPc)
+{
+    Disassembly::iterator it = m_disassembly.find(module);
+    if (it == m_disassembly.end()) {
+        llvm::sys::Path path;
+        path.appendComponent(DisassemblyPath);
+        path.appendComponent(module);
+        path.appendSuffix(".lst");
+        if (!parseDisassembly(path.toString(), m_disassembly)) {
+            return;
+        }
+        it = m_disassembly.find(module);
+        assert(it != m_disassembly.end());
+    }
+
+    //Grab the vector of strings for the program counter
+    ModuleDisassembly::iterator modIt = (*it).second.find(relPc);
+    if (modIt == (*it).second.end()) {
+        return;
+    }
+
+    //Print the vector we've got
+    for(DisassemblyEntry::const_iterator asmIt = (*modIt).second.begin();
+        asmIt != (*modIt).second.end(); ++asmIt) {
+        m_output << *asmIt << std::endl;
+    }
+
 }
 
 void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)

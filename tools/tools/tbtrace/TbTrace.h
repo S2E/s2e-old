@@ -51,11 +51,19 @@ namespace s2etools
 class TbTrace
 {
 public:
+    //One program counter can have multiple lines of assembly code
+    typedef std::vector<std::string> DisassemblyEntry;
+
+    //Collects the entire assembly listing for a module
+    typedef std::map<uint64_t, DisassemblyEntry> ModuleDisassembly;
+
+    typedef std::map<std::string, ModuleDisassembly> Disassembly;
 
 private:
     LogEvents *m_events;
     ModuleCache *m_cache;
     Library *m_library;
+    Disassembly m_disassembly;
     std::ofstream &m_output;
 
     sigc::connection m_connection;
@@ -67,6 +75,9 @@ private:
     void onItem(unsigned traceIndex,
                 const s2e::plugins::ExecutionTraceItemHeader &hdr,
                 void *item);
+
+    bool parseDisassembly(const std::string &listingFile, Disassembly &out);
+    void printDisassembly(const std::string &module, uint64_t relPc);
 
     void printDebugInfo(uint64_t pid, uint64_t pc);
     void printRegisters(const s2e::plugins::ExecutionTraceTb *te);
