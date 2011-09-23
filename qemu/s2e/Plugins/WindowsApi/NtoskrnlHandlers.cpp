@@ -626,7 +626,7 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
 
     uint32_t pIrp = 0;
     if (!readConcreteParameter(state, 1, &pIrp)) {
-        s2e()->getExecutor()->terminateStateEarly(*state, "NdisHalt");
+        HANDLER_TRACE_PARAM_FAILED("pirp");
         return;
     }
 
@@ -644,17 +644,39 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
+    state->undoCallAndJumpToSymbolic();
+
+    FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor);
+
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        return;
+    }
 
     if (irpMajor == IRP_MJ_DEVICE_CONTROL) {
-        if (m_bsodInterceptor) {
+        /*if (m_bsodInterceptor) {
             m_bsodInterceptor->enableCrashDumpGeneration(true);
-        }
+        }*/
 
         uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
 
         s2e()->getMessagesStream() << s_irpMjArray[irpMajor] << " control code 0x" << std::hex << ioctl << std::endl;
 
+        DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
+        if (plgState->isIoctlIrpExplored) {
+            return;
+        }
+        plgState->isIoctlIrpExplored = true;
+
+
         uint32_t ioctlOffset = offsetof(IO_STACK_LOCATION, Parameters.DeviceIoControl.IoControlCode);
+
+        //Fork one state that will run unmodified and one fake state with symbolic ioctl code
+        std::vector<S2EExecutionState *> states;
+        forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_fakeioctl");
+
+
+        plgState->isFakeState = true;
+
         klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32,
                                                                 getVariableName(state, __FUNCTION__) + "_IoctlCode");
         symb = klee::OrExpr::create(symb, klee::ConstantExpr::create(ioctl & 3, klee::Expr::Int32));
@@ -662,7 +684,6 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
 
     }
 
-    FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor);
 }
 
 void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpMajor)
@@ -673,15 +694,22 @@ void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpM
     klee::ref<klee::Expr> result = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
 
 
-    if (!NtSuccess(s2e(), state, result)) {
+    /*if (!NtSuccess(s2e(), state, result)) {
         std::stringstream ss;
         ss << __FUNCTION__ << " " << s_irpMjArray[irpMajor] << " failed with " << std::hex << result;
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
+    }*/
+
+    DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
+    if (plgState->isFakeState) {
+        std::stringstream ss;
+        ss << "Killing faked " << __FUNCTION__ << " " << s_irpMjArray[irpMajor];
+        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
     }
 
-    m_manager->succeedState(state);
+/*    m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
-    throw CpuExitException();
+    throw CpuExitException();*/
 }
 
 }

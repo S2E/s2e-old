@@ -59,11 +59,11 @@ namespace plugins {
 
 class NtoskrnlHandlersState;
 
-class NtoskrnlHandlers: public WindowsAnnotations<NtoskrnlHandlers, WindowsApiState<NtoskrnlHandlers> >
+class NtoskrnlHandlers: public WindowsAnnotations<NtoskrnlHandlers, NtoskrnlHandlersState >
 {
     S2E_PLUGIN
 public:
-    NtoskrnlHandlers(S2E* s2e): WindowsAnnotations<NtoskrnlHandlers, WindowsApiState<NtoskrnlHandlers> >(s2e) {}
+    NtoskrnlHandlers(S2E* s2e): WindowsAnnotations<NtoskrnlHandlers, NtoskrnlHandlersState >(s2e) {}
 
     void initialize();
 
@@ -120,9 +120,33 @@ public:
     DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor);
 };
 
+
+class NtoskrnlHandlersState: public WindowsApiState<NtoskrnlHandlers>
+{
+private:
+    bool isFakeState;
+    bool isIoctlIrpExplored;
+
+public:
+    NtoskrnlHandlersState(){
+        isFakeState = false;
+        isIoctlIrpExplored = false;
+    }
+
+    virtual ~NtoskrnlHandlersState(){};
+    virtual NtoskrnlHandlersState* clone() const {
+        return new NtoskrnlHandlersState(*this);
+    }
+
+    static PluginState *factory(Plugin *p, S2EExecutionState *s) {
+        return new NtoskrnlHandlersState();
+    }
+
+    friend class NtoskrnlHandlers;
+};
+
+
 }
-
-
 }
 
 #endif
