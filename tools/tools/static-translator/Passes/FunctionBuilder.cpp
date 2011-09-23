@@ -14,7 +14,7 @@ extern "C" {
 #include <llvm/ModuleProvider.h>
 #include <llvm/PassManager.h>
 #include <llvm/Analysis/Verifier.h>
-#include <llvm/target/TargetData.h>
+#include <llvm/Target/TargetData.h>
 
 #include "lib/Utils/Log.h"
 #include "lib/X86Translator/TbPreprocessor.h"

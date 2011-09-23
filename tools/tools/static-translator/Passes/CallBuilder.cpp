@@ -1,4 +1,4 @@
-#include <llvm/target/TargetData.h>
+#include <llvm/Target/TargetData.h>
 #include <llvm/Analysis/AliasAnalysis.h>
 
 #include "lib/Utils/Log.h"

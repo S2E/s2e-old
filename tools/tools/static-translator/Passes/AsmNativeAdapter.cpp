@@ -1,5 +1,5 @@
 #include <llvm/Function.h>
-#include <llvm/target/TargetData.h>
+#include <llvm/Target/TargetData.h>
 
 #include "lib/X86Translator/CpuStatePatcher.h"
 #include "AsmNativeAdapter.h"

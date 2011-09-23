@@ -9,6 +9,7 @@
 
 #include <llvm/ADT/DenseMapInfo.h>
 
+#if 0
 namespace llvm {
   // Provide DenseMapInfo for uint64_t
   template<> struct DenseMapInfo<uint64_t> {
@@ -23,6 +24,7 @@ namespace llvm {
     }
   };
 }
+#endif
 
 namespace s2etools {
     struct StartSizePair {

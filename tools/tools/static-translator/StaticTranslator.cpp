@@ -19,7 +19,7 @@ extern "C" {
 #include <llvm/PassManager.h>
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Analysis/Passes.h>
-#include <llvm/target/TargetData.h>
+#include <llvm/Target/TargetData.h>
 
 
 
