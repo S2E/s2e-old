@@ -44,6 +44,7 @@
 #include <fstream>
 
 #include <lib/BinaryReaders/Library.h>
+#include <lib/Utils/BasicBlockListParser.h>
 
 namespace s2etools
 {
@@ -59,11 +60,18 @@ public:
 
     typedef std::map<std::string, ModuleDisassembly> Disassembly;
 
+    //Convenient definition of basic blocks
+    typedef BasicBlockListParser::BasicBlocks TbTraceBbs;
+
+    //Gathers all the basic blocks contained in a module
+    typedef std::map<std::string, TbTraceBbs> ModuleBasicBlocks;
+
 private:
     LogEvents *m_events;
     ModuleCache *m_cache;
     Library *m_library;
     Disassembly m_disassembly;
+    ModuleBasicBlocks m_basicBlocks;
     std::ofstream &m_output;
 
     sigc::connection m_connection;

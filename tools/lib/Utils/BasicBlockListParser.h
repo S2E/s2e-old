@@ -34,60 +34,51 @@
  *
  */
 
-#ifndef S2ETOOLS_LIBRARY_H
+#ifndef S2ETOOLS_BBLP_H
+#define S2ETOOLS_BBLP_H
 
-#define S2ETOOLS_LIBRARY_H
-
-#include "ExecutableFile.h"
-
-#include "lib/ExecutionTracer/ModuleParser.h"
-#include "llvm/System/Path.h"
-
-#include <string>
-#include <set>
-#include <inttypes.h>
+#include <llvm/System/Path.h>
 
 namespace s2etools
 {
 
-class Library
+struct BasicBlock
 {
+    uint64_t timeStamp;
+    uint64_t start, size;
+    std::string function;
+
+    bool operator()(const BasicBlock&b1, const BasicBlock &b2) const {
+        return b1.start + b1.size <= b2.start;
+    }
+
+    BasicBlock(uint64_t start, uint64_t size) {
+        this->start = start;
+        this->size = size;
+        timeStamp = 0;
+    }
+
+    BasicBlock() {
+        timeStamp = 0;
+        start = size = 0;
+    }
+
+    struct SortByTime {
+
+        bool operator()(const BasicBlock&b1, const BasicBlock &b2) const {
+            if (b1.timeStamp < b2.timeStamp) {
+                return true;
+            }
+            return b1.start + b1.size <= b2.start;
+        }
+    };
+};
+
+class BasicBlockListParser {
 public:
-    typedef std::map<std::string, s2etools::ExecutableFile*> ModuleNameToExec;
-    typedef std::vector<std::string> PathList;
-    typedef std::set<std::string> StringSet;
+    typedef std::set<BasicBlock, BasicBlock> BasicBlocks;
 
-    Library();
-    virtual ~Library();
-
-    bool addLibrary(const std::string &libName);
-    bool addLibraryAbs(const std::string &libName);
-
-    ExecutableFile *get(const std::string &name);
-
-    void addPath(const std::string &s);
-    void setPaths(const PathList &s);
-
-    bool print(
-            const std::string &modName, uint64_t loadBase, uint64_t imageBase,
-            uint64_t pc, std::string &out, bool file, bool line, bool func);
-
-    bool print(const ModuleInstance *ni, uint64_t pc, std::string &out, bool file, bool line, bool func);
-    bool getInfo(const ModuleInstance *ni, uint64_t pc, std::string &file, uint64_t &line, std::string &func);
-
-    bool findLibrary(const std::string &libName, std::string &abspath);
-    bool findSuffixedModule(const std::string &moduleName, const std::string &suffix, llvm::sys::Path &path);
-    bool findBasicBlockList(const std::string &moduleName, llvm::sys::Path &path);
-    bool findDisassemblyListing(const std::string &moduleName, llvm::sys::Path &path);
-
-
-
-    static uint64_t translatePid(uint64_t pid, uint64_t pc);
-private:
-    PathList m_libpath;
-    //std::string m_libpath;
-    ModuleNameToExec m_libraries;
-    StringSet m_badLibraries;
+    static bool parseListing(llvm::sys::Path &listing, BasicBlocks &blocks);
 
 };
 

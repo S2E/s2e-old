@@ -33,64 +33,54 @@
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
+#define __STDC_FORMAT_MACROS 1
 
-#ifndef S2ETOOLS_LIBRARY_H
 
-#define S2ETOOLS_LIBRARY_H
-
-#include "ExecutableFile.h"
-
-#include "lib/ExecutionTracer/ModuleParser.h"
-#include "llvm/System/Path.h"
-
-#include <string>
-#include <set>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <stdio.h>
 #include <inttypes.h>
+#include "BasicBlockListParser.h"
 
 namespace s2etools
 {
 
-class Library
+bool BasicBlockListParser::parseListing(llvm::sys::Path &listingFile, BasicBlocks &blocks)
 {
-public:
-    typedef std::map<std::string, s2etools::ExecutableFile*> ModuleNameToExec;
-    typedef std::vector<std::string> PathList;
-    typedef std::set<std::string> StringSet;
+    std::filebuf file;
+    if (!file.open(listingFile.c_str(), std::ios::in)) {
+        return false;
+    }
 
-    Library();
-    virtual ~Library();
+    std::istream is(&file);
 
-    bool addLibrary(const std::string &libName);
-    bool addLibraryAbs(const std::string &libName);
+    char line[1024];
+    bool hasErrors = false;
+    while(is.getline(line, sizeof(line))) {
+        //Grab the start and the end
+        uint64_t start, end;
+        sscanf(line, "0x%"PRIx64" 0x%"PRIx64"", &start, &end);
 
-    ExecutableFile *get(const std::string &name);
+        //Grab the function name
+        std::string fcnName = line;
+        fcnName.erase(fcnName.find_last_not_of(" \n\r\t")+1);
+        fcnName.erase(0, fcnName.find_last_of(" \t")+1);
 
-    void addPath(const std::string &s);
-    void setPaths(const PathList &s);
+        BasicBlock bb(start, end-start+1);
+        if (blocks.find(bb) != blocks.end()) {
+            std::cerr << "BasicBlockListParser: bb start=0x" << std::hex
+                      << bb.start << " size=0x" << bb.size << " overlaps an existing block"<< std::endl;
+            hasErrors = true;
+            continue;
+        }
 
-    bool print(
-            const std::string &modName, uint64_t loadBase, uint64_t imageBase,
-            uint64_t pc, std::string &out, bool file, bool line, bool func);
+        bb.function = fcnName;
 
-    bool print(const ModuleInstance *ni, uint64_t pc, std::string &out, bool file, bool line, bool func);
-    bool getInfo(const ModuleInstance *ni, uint64_t pc, std::string &file, uint64_t &line, std::string &func);
+        blocks.insert(bb);
+    }
 
-    bool findLibrary(const std::string &libName, std::string &abspath);
-    bool findSuffixedModule(const std::string &moduleName, const std::string &suffix, llvm::sys::Path &path);
-    bool findBasicBlockList(const std::string &moduleName, llvm::sys::Path &path);
-    bool findDisassemblyListing(const std::string &moduleName, llvm::sys::Path &path);
-
-
-
-    static uint64_t translatePid(uint64_t pid, uint64_t pc);
-private:
-    PathList m_libpath;
-    //std::string m_libpath;
-    ModuleNameToExec m_libraries;
-    StringSet m_badLibraries;
-
-};
-
+    return !hasErrors;
 }
 
-#endif
+}

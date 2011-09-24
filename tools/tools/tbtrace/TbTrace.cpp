@@ -50,6 +50,8 @@
 #include <lib/ExecutionTracer/PageFault.h>
 #include <lib/ExecutionTracer/InstructionCounter.h>
 #include <lib/BinaryReaders/BFDInterface.h>
+#include <lib/Utils/BasicBlockListParser.h>
+
 
 #include "llvm/System/Path.h"
 
@@ -68,16 +70,10 @@ cl::list<std::string>
                llvm::cl::desc("Specify an execution trace file"));
 
 cl::opt<std::string>
-    AsmListingFile("asmlst", cl::desc("IDAPro disassembly listing"), cl::init(""));
-
-cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the list of translation blocks into the given folder"), cl::init("."));
 
 cl::list<std::string>
-    ModPath("modpath", cl::desc("Path to modules"));
-
-cl::opt<std::string>
-    DisassemblyPath("asmpath", cl::desc("Path containing the IDA pro disassembly listings (*.lst)"), cl::init("."));
+    ModPath("modpath", cl::desc("Path to modules. Must contain *.lst and *.bblist files as well if needed."));
 
 cl::list<unsigned>
     PathList("pathId",
@@ -142,6 +138,7 @@ bool TbTrace::parseDisassembly(const std::string &listingFile, Disassembly &out)
         if (line[i] != ':')
             continue;
 
+        ++i;
         //Grab the address
         std::string strpc;
         while(isxdigit(line[i])) {
@@ -149,10 +146,12 @@ bool TbTrace::parseDisassembly(const std::string &listingFile, Disassembly &out)
             ++i;
         }
 
-        uint64_t pc;
+        uint64_t pc=0;
         sscanf(strpc.c_str(), "%"PRIx64, &pc);
-        out[moduleName][pc].push_back(ln);
-        added = true;
+        if (pc) {
+            out[moduleName][pc].push_back(ln);
+            added = true;
+        }
     }
 
     return added;
@@ -162,27 +161,76 @@ void TbTrace::printDisassembly(const std::string &module, uint64_t relPc)
 {
     Disassembly::iterator it = m_disassembly.find(module);
     if (it == m_disassembly.end()) {
-        llvm::sys::Path path;
-        path.appendComponent(DisassemblyPath);
-        path.appendComponent(module);
-        path.appendSuffix(".lst");
-        if (!parseDisassembly(path.toString(), m_disassembly)) {
+        llvm::sys::Path disassemblyListing;
+        if (!m_library->findDisassemblyListing(module, disassemblyListing)) {
+            std::cerr << "Could not find disassembly listing for module "
+                         << module << std::endl;
+            return;
+        }
+
+        if (!parseDisassembly(disassemblyListing.toString(), m_disassembly)) {
             return;
         }
         it = m_disassembly.find(module);
         assert(it != m_disassembly.end());
     }
 
+    //Fetch the basic blocks for our module
+    ModuleBasicBlocks::iterator bbit = m_basicBlocks.find(module);
+    if (bbit == m_basicBlocks.end()) {
+        llvm::sys::Path basicBlockList;
+
+        if (!m_library->findBasicBlockList(module, basicBlockList)) {
+            std::cerr << "TbTrace: could not find basic block list for  "
+                      << module << std::endl;
+            exit(-1);
+        }
+
+        TbTraceBbs moduleBbs;
+
+        if (!BasicBlockListParser::parseListing(basicBlockList, moduleBbs)) {
+            std::cerr << "TbTrace: could not parse basic block list in file "
+                      << basicBlockList << std::endl;
+            exit(-1);
+        }
+
+        m_basicBlocks[module] = moduleBbs;
+        bbit = m_basicBlocks.find(module);
+        assert(bbit != m_basicBlocks.end());
+    }
+
+    //Fetch the right basic block
+    BasicBlock bbToFetch(relPc, 1);
+    TbTraceBbs::iterator mybb = (*bbit).second.find(bbToFetch);
+    if (mybb == (*bbit).second.end()) {
+        m_output << "Could not find basic block 0x" << std::hex << relPc << " in the list" << std::endl;
+        return;
+    }
+
+    //Found the basic block, compute the range of program counters
+    //whose disassembly we are going to print.
+    const BasicBlock &bb = *mybb;
+    uint64_t asmStartPc = relPc;
+    uint64_t asmEndPc = bb.start + bb.size - 1;
+    assert(relPc >= bb.start && relPc < bb.start + bb.size);
+
+    //Fetch the range of program counters from the disassembly file
+
+
     //Grab the vector of strings for the program counter
-    ModuleDisassembly::iterator modIt = (*it).second.find(relPc);
+    ModuleDisassembly::iterator modIt = (*it).second.find(asmStartPc);
     if (modIt == (*it).second.end()) {
         return;
     }
 
-    //Print the vector we've got
-    for(DisassemblyEntry::const_iterator asmIt = (*modIt).second.begin();
-        asmIt != (*modIt).second.end(); ++asmIt) {
-        m_output << *asmIt << std::endl;
+    ModuleDisassembly::iterator modItEnd = (*it).second.upper_bound(asmEndPc);
+
+    for (ModuleDisassembly::iterator it = modIt; it != modItEnd; ++it) {
+        //Print the vector we've got
+        for(DisassemblyEntry::const_iterator asmIt = (*it).second.begin();
+            asmIt != (*it).second.end(); ++asmIt) {
+            m_output << *asmIt << std::endl;
+        }
     }
 
 }
@@ -213,6 +261,11 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
 
         m_output << " " << file << std::dec << ":" << line << " in " << function;
         m_hasDebugInfo = true;
+    }
+
+    if (PrintDisassembly) {
+        m_output << std::endl;
+        printDisassembly(mi->Name, relPc);
     }
 
 }

@@ -99,6 +99,35 @@ bool Library::findLibrary(const std::string &libName, std::string &abspath)
     return false;
 }
 
+bool Library::findSuffixedModule(const std::string &moduleName, const std::string &suffix, llvm::sys::Path &path)
+{
+    PathList::const_iterator it;
+
+    for (it = m_libpath.begin(); it != m_libpath.end(); ++it) {
+        llvm::sys::Path list(*it);
+        list.appendComponent(moduleName);
+        list.appendSuffix(suffix);
+        if (list.exists()) {
+            path = list;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Library::findBasicBlockList(const std::string &moduleName, llvm::sys::Path &path)
+{
+    return findSuffixedModule(moduleName, "bblist", path);
+}
+
+bool Library::findDisassemblyListing(const std::string &moduleName, llvm::sys::Path &path)
+{
+    return findSuffixedModule(moduleName, "lst", path);
+}
+
+
+
+
 //Add a library using a relative path
 bool Library::addLibrary(const std::string &libName)
 {
