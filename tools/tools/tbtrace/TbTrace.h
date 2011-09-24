@@ -85,9 +85,9 @@ private:
                 void *item);
 
     bool parseDisassembly(const std::string &listingFile, Disassembly &out);
-    void printDisassembly(const std::string &module, uint64_t relPc);
+    void printDisassembly(const std::string &module, uint64_t relPc, unsigned tbSize);
 
-    void printDebugInfo(uint64_t pid, uint64_t pc);
+    void printDebugInfo(uint64_t pid, uint64_t pc, unsigned tbSize, bool printListing);
     void printRegisters(const s2e::plugins::ExecutionTraceTb *te);
 public:
     TbTrace(Library *lib, ModuleCache *cache, LogEvents *events, std::ofstream &ofs);

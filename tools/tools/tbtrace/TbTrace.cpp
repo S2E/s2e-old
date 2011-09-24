@@ -157,7 +157,7 @@ bool TbTrace::parseDisassembly(const std::string &listingFile, Disassembly &out)
     return added;
 }
 
-void TbTrace::printDisassembly(const std::string &module, uint64_t relPc)
+void TbTrace::printDisassembly(const std::string &module, uint64_t relPc, unsigned tbSize)
 {
     Disassembly::iterator it = m_disassembly.find(module);
     if (it == m_disassembly.end()) {
@@ -199,43 +199,59 @@ void TbTrace::printDisassembly(const std::string &module, uint64_t relPc)
         assert(bbit != m_basicBlocks.end());
     }
 
-    //Fetch the right basic block
-    BasicBlock bbToFetch(relPc, 1);
-    TbTraceBbs::iterator mybb = (*bbit).second.find(bbToFetch);
-    if (mybb == (*bbit).second.end()) {
-        m_output << "Could not find basic block 0x" << std::hex << relPc << " in the list" << std::endl;
-        return;
-    }
 
-    //Found the basic block, compute the range of program counters
-    //whose disassembly we are going to print.
-    const BasicBlock &bb = *mybb;
-    uint64_t asmStartPc = relPc;
-    uint64_t asmEndPc = bb.start + bb.size - 1;
-    assert(relPc >= bb.start && relPc < bb.start + bb.size);
+    while((int)tbSize > 0) {
+        //Fetch the right basic block
+        BasicBlock bbToFetch(relPc, 1);
+        TbTraceBbs::iterator mybb = (*bbit).second.find(bbToFetch);
+        if (mybb == (*bbit).second.end()) {
+            m_output << "Could not find basic block 0x" << std::hex << relPc << " in the list" << std::endl;
+            return;
+        }
 
-    //Fetch the range of program counters from the disassembly file
+        //Found the basic block, compute the range of program counters
+        //whose disassembly we are going to print.
+        const BasicBlock &bb = *mybb;
+        uint64_t asmStartPc = relPc;
+        uint64_t asmEndPc;
+
+        if (relPc + tbSize >= bb.start + bb.size) {
+            asmEndPc = bb.start + bb.size;
+        }else {
+            asmEndPc = relPc + tbSize;
+        }
+
+        assert(relPc >= bb.start && relPc < bb.start + bb.size);
 
 
-    //Grab the vector of strings for the program counter
-    ModuleDisassembly::iterator modIt = (*it).second.find(asmStartPc);
-    if (modIt == (*it).second.end()) {
-        return;
-    }
+        //Grab the vector of strings for the program counter
+        ModuleDisassembly::iterator modIt = (*it).second.find(asmStartPc);
+        if (modIt == (*it).second.end()) {
+            return;
+        }
 
-    ModuleDisassembly::iterator modItEnd = (*it).second.upper_bound(asmEndPc);
+        //Fetch the range of program counters from the disassembly file
+        ModuleDisassembly::iterator modItEnd = (*it).second.lower_bound(asmEndPc);
 
-    for (ModuleDisassembly::iterator it = modIt; it != modItEnd; ++it) {
-        //Print the vector we've got
-        for(DisassemblyEntry::const_iterator asmIt = (*it).second.begin();
-            asmIt != (*it).second.end(); ++asmIt) {
-            m_output << *asmIt << std::endl;
+        for (ModuleDisassembly::iterator it = modIt; it != modItEnd; ++it) {
+            //Print the vector we've got
+            for(DisassemblyEntry::const_iterator asmIt = (*it).second.begin();
+                asmIt != (*it).second.end(); ++asmIt) {
+                m_output << *asmIt << std::endl;
+            }
+        }
+
+        tbSize -= asmEndPc - asmStartPc;
+        relPc += asmEndPc - asmStartPc;
+
+        if ((int)tbSize < 0) {
+            assert(false && "Cannot be negative");
         }
     }
 
 }
 
-void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
+void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc, unsigned tbSize, bool printListing)
 {
     ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
     const ModuleInstance *mi = mcs->getInstance(pid, pc);
@@ -263,11 +279,10 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
         m_hasDebugInfo = true;
     }
 
-    if (PrintDisassembly) {
+    if (PrintDisassembly && printListing) {
         m_output << std::endl;
-        printDisassembly(mi->Name, relPc);
+        printDisassembly(mi->Name, relPc, tbSize);
     }
-
 }
 
 void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
@@ -289,7 +304,7 @@ void TbTrace::onItem(unsigned traceIndex,
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         m_output << "Forked at 0x" << std::hex << f->pc << " - ";
-        printDebugInfo(hdr.pid, f->pc);
+        printDebugInfo(hdr.pid, f->pc, 0, false);
         m_output << std::endl;
         return;
     }
@@ -306,7 +321,8 @@ void TbTrace::onItem(unsigned traceIndex,
             m_output << std::endl << "    ";
         }
 
-        printDebugInfo(hdr.pid, te->pc);
+        printDebugInfo(hdr.pid, te->pc, te->size, true);
+
         m_output << std::endl;
         m_hasItems = true;
         return;
@@ -329,7 +345,7 @@ void TbTrace::onItem(unsigned traceIndex,
         }
         m_output << "\t";
 
-        printDebugInfo(hdr.pid, te->pc);
+        printDebugInfo(hdr.pid, te->pc, 0, false);
         m_output << std::setfill(' ');
         m_output << std::endl;
        return;
