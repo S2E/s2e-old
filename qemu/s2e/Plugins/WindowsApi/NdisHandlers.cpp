@@ -255,6 +255,12 @@ void NdisHandlers::NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMoni
 
     //Skip the call in the current state
     state->bypassFunction(3);
+
+    //The doc also specifies that the address must be null in case of a failure
+    uint32_t null = 0;
+    bool suc = state->writeMemoryConcrete(Address, &null, sizeof(null));
+    assert(suc);
+
     uint32_t failValue = 0xC0000001;
     state->writeCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &failValue, sizeof(failValue));
 
