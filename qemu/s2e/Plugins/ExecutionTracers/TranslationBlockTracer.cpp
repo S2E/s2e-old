@@ -138,6 +138,14 @@ void TranslationBlockTracer::trace(S2EExecutionState *state, uint64_t pc, ExecTr
 {
     ExecutionTraceTb tb;
 
+    if (type == TRACE_TB_START) {
+        if (pc != state->getTb()->pc) {
+            s2e()->getWarningsStream() << "BUG! pc=0x" << std::hex << pc
+                                       << " tbpc=0x" << std::hex << state->getTb()->pc << std::endl;
+            exit(-1);
+        }
+    }
+
     tb.pc = pc;
     tb.targetPc = state->getPc();
     tb.tbType = state->getTb()->s2e_tb_type;
