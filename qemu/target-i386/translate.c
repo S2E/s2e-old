@@ -7966,10 +7966,10 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     dc->cpuState = env;
     tb->s2e_tb_type = TB_DEFAULT;
 
-    s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
-
     tcg_gen_movi_i64(cpu_tmp1_i64, (uint64_t) tb);
     tcg_gen_st_i64(cpu_tmp1_i64, cpu_env, offsetof(CPUState, s2e_current_tb));
+
+    s2e_on_translate_block_start(g_s2e, g_s2e_state, tb, pc_start);
 #endif
 
     gen_icount_start();
