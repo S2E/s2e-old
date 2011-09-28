@@ -293,7 +293,8 @@ LOCAL_SRC_FILES += \
 ifeq ($(EMULATOR_TARGET_ARCH),arm)
 	LOCAL_SRC_FILES += \
 	s2e/Plugins/BaseInstructionsArm.cpp \
-        s2e/Plugins/Android/AndroidMonitor.cpp 
+        s2e/Plugins/Android/AndroidMonitor.cpp \
+	s2e/Plugins/Android/DalvikTools/OpCodeNames.c
 endif
 
 ifeq ($(EMULATOR_TARGET_ARCH),x86)

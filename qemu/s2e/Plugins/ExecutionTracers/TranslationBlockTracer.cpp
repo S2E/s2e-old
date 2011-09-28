@@ -120,6 +120,8 @@ void TranslationBlockTracer::disableTracing()
 
 void TranslationBlockTracer::enableInstructionTracing()
 {
+	if(m_fineDebug) return;
+
 	if(m_flushTbOnChange) {
 		tb_flush(env);
 	}

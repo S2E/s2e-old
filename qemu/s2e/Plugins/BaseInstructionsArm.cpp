@@ -46,6 +46,7 @@ extern "C" {
 #include <s2e/S2EExecutionState.h>
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
+#include <s2e/Plugins/ExecutionTracers/TranslationBlockTracer.h>
 
 #include <iostream>
 #include <sstream>
@@ -120,6 +121,11 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                     << "Inserting symbolic data at " << hexval(address)
                     << " of size " << hexval(size)
                     << " with name '" << nameStr << "'" << std::endl;
+
+			//XXX: debug!
+//            TranslationBlockTracer *tbtracer = static_cast<TranslationBlockTracer*>(s2e()->getPlugin("TranslationBlockTracer"));
+//			assert(tbtracer);
+//            tbtracer->enableInstructionTracing();
 
             vector<ref<Expr> > symb = state->createSymbolicArray(size, nameStr);
             for(unsigned i = 0; i < size; ++i) {
@@ -353,7 +359,7 @@ void BaseInstructions::onCustomInstruction(S2EExecutionState* state,
         uint64_t opcode)
 {
 
-	s2e()->getWarningsStream(state)
+	s2e()->getDebugStream(state)
 	                        << "onCustomInstruction with opcode "
 	                        << opcode
 	                        << " called."

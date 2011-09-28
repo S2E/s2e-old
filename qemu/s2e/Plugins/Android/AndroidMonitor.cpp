@@ -43,6 +43,7 @@
 extern "C" {
 #include "config.h"
 #include "qemu-common.h"
+#include <s2e/Plugins/Android/DalvikTools/OpCodeNames.h>
 }
 
 
@@ -52,7 +53,30 @@ extern "C" {
 #include <s2e/Plugins/Opcodes.h>
 #include <s2e/Plugins/Android/AndroidMonitor.h>
 
+
 #include <sstream>
+
+//assumes bool ok;
+#define GET_REGISTER_CONCRETE(_regno,_dest,_size) do {										\
+		ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[_regno]), &(_dest), _size);		\
+		if (!ok) {																			\
+		    s2e()->getWarningsStream(state)													\
+		    << "ERROR: cannot read "<< #_dest << "from register "<< #_regno << "."			\
+		    << std::endl;																	\
+		    return;																			\
+		}																					\
+	}while(false)
+
+#define GET_STRING_FROM_REGISTER(_regno,_dest,_default) do {								\
+		uint32_t str_ptr;																	\
+		GET_REGISTER_CONCRETE(_regno,str_ptr,4);											\
+		_dest = _default;																	\
+    	if(str_ptr && !state->readString(str_ptr, _dest)) {									\
+    	    s2e()->getWarningsStream(state)													\
+    	    << "Android Monitor:: Error reading string from guest ( "						\
+			<< #_dest << " ). Use default: "<< _default << std::endl;						\
+    	}																					\
+    }while(false)
 
 using namespace std;
 using namespace s2e;
@@ -89,6 +113,8 @@ void AndroidMonitor::initialize()
 
     m_modulePlugin = static_cast<ModuleExecutionDetector*>(s2e()->getPlugin("ModuleExecutionDetector"));
     assert(m_modulePlugin);
+
+    m_tbtracer = NULL;
 
     s2e()->getCorePlugin()->onCustomInstruction.connect(
             sigc::mem_fun(*this, &AndroidMonitor::onCustomInstruction));
@@ -146,25 +172,14 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
 //        return;
 //    }
 
-    uint8_t op = (opcode>>8) & 0xFF;
+    uint8_t op = (opcode>>8) & 0xFF; // 0xFFBB0401 --> extract 04
+    uint8_t op2 = (opcode) & 0xFF;   // 0xFFBB0401 --> extract 01
 
     switch(op) {
     case 0: { /* trace location */
     	std::string message;
-    	uint32_t messagePtr;
     	bool ok = true;
-    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]), &messagePtr, 4);
-    	if (!ok) {
-    	       s2e()->getWarningsStream(state)
-    	       << "ERROR: symbolic argument was passed to s2e_op android monitor"
-    	       << std::endl;
-    	} else {
-    		message="<NO MESSAGE>";
-    	       if(messagePtr && !state->readString(messagePtr, message)) {
-    	            s2e()->getWarningsStream(state)
-    	             << "Error reading detail informations about location from the guest" << std::endl;
-    	       }
-    	}
+    	GET_STRING_FROM_REGISTER(0,message,"<NO MESSAGE>");
     	s2e()->getMessagesStream(state) << "Location traced with info: " << message << std::endl;
     	break;
     }
@@ -172,57 +187,19 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     	std::string message;
     	uint32_t messagePtr;
     	bool ok = true;
-    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]), &messagePtr, 4);
-    	if (!ok) {
-    	       s2e()->getWarningsStream(state)
-    	       << "ERROR: symbolic argument was passed to s2e_op android monitor"
-    	       << std::endl;
-    	} else {
-        	   message="<NO MESSAGE>";
-    	       if(messagePtr && !state->readString(messagePtr, message)) {
-    	            s2e()->getWarningsStream(state)
-    	             << "Error reading detail informations about location from the guest" << std::endl;
-    	       }
-    	}
+    	GET_STRING_FROM_REGISTER(0,message,"<NO MESSAGE>");
     	s2e()->getMessagesStream(state) << "UID traced with info: " << message << std::endl;
     	break;
     }
     case 2: { /* app start */
-    	uint32_t procNamePtr;
-    	uint32_t compNamePtr;
     	std::string procName;
     	std::string compName;
     	uint32_t pid;
 		int result = 0;
     	bool ok = true;
-    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[0]), &procNamePtr, 4);
-    	if (!ok) {
-    	    s2e()->getWarningsStream(state)
-    	    << "ERROR: symbolic argument was passed to s2e_op android monitor (procName)" << std::endl;
-    	    return;
-    	}
-    	if(procNamePtr && !state->readString(procNamePtr, procName)) {
-    	    s2e()->getWarningsStream(state)
-    	    << "Android Monitor:: app start - Error reading procName from guest" << std::endl;
-    	}
-
-    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[1]), &pid, 4);
-    	if (!ok) {
-    	    s2e()->getWarningsStream(state)
-    	    << "ERROR: symbolic argument was passed to s2e_op android monitor (pid)" << std::endl;
-    	    return;
-    	}
-
-    	ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[2]), &compNamePtr, 4);
-    	if (!ok) {
-    	    s2e()->getWarningsStream(state)
-    	    << "ERROR: symbolic argument was passed to s2e_op android monitor (compName)" << std::endl;
-    	    return;
-    	}
-    	if(compNamePtr && !state->readString(compNamePtr, compName)) {
-    	    s2e()->getWarningsStream(state)
-    	    << "Android Monitor:: app start - Error reading compName from guest" << std::endl;
-    	}
+    	GET_STRING_FROM_REGISTER(0,procName,"<no procname>");
+    	GET_REGISTER_CONCRETE(1,pid,4);
+    	GET_STRING_FROM_REGISTER(2,compName,"<no compname>");
 
     	s2e()->getDebugStream() << "AndroidMonitor:: new Android application started with "
     			<< "pid: " << pid << " process name: " << procName << " component name: " << compName << endl;
@@ -239,14 +216,74 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     		aut_started = true;
     		result = 0xCAFE; //magic value understood by target-side of the plugin
 
-        	s2e()->getDebugStream() << "AndroidMonitor:: REGISTER application "
+        	s2e()->getMessagesStream() << "AndroidMonitor:: REGISTER application "
         			<< procName << " ( " << dec << pid << " )" << endl;
 
         	onAppStart.emit(state,&myAppProcess);
     	}
 
 		state->writeCpuRegisterConcrete(CPU_OFFSET(regs[0]),&result,4);
+    	break;
+    }
 
+    case 3: { /* on interpreted Instruction starts */
+
+    	uint32_t tid;
+    	uint32_t op;
+    	uint32_t virtual_pc;
+    	uint32_t virtual_fp;
+
+    	bool ok = true;
+
+    	GET_REGISTER_CONCRETE(4,tid,4);
+    	GET_REGISTER_CONCRETE(5,op,4);
+    	GET_REGISTER_CONCRETE(6,virtual_pc,4);
+    	GET_REGISTER_CONCRETE(7,virtual_fp,4);
+
+
+    	OpCode opc = (OpCode)op;
+    	const char * opc_name = "-n/a-";
+    	if (opc <= OP_UNUSED_FF) {
+    		 opc_name = getOpcodeName(opc);
+    	}
+    	s2e()->getMessagesStream() << "AndroidMonitor(" << std::dec << tid << ") : " << opc_name << " ( " << std::hex << op << " ) at vpc: " << virtual_pc << " vfp: " << virtual_fp << "." << std::endl;
+    	break;
+    }
+    case 4: { /* on interpreted method call */
+    	bool native = false;
+    	if (op2 == 1) native = true;
+
+    	uint32_t tid;
+    	std::string callee; //method signature which is called
+    	uint32_t virtual_pc;
+    	uint32_t virtual_fp;
+
+    	bool ok = true;
+
+    	GET_REGISTER_CONCRETE(0,tid,4);
+    	GET_STRING_FROM_REGISTER(1,callee,"<no method>");
+    	GET_REGISTER_CONCRETE(2,virtual_pc,4);
+    	GET_REGISTER_CONCRETE(3,virtual_fp,4);
+
+    	s2e()->getMessagesStream() << "AndroidMonitor(" << std::dec << tid << "): *** " << (native ? "NATIVE " : "") << " CALL " << "*** " << callee << " at vpc: " << std::hex << virtual_pc << " vfp: " << virtual_fp << "." << std::endl;
+    	break;
+    }
+
+    case 5: { /* on interpreted method return */
+    	uint32_t tid;
+    	std::string fromMethod; //method which returns
+    	std::string toMethod; //method which receives the return value and continues execution
+    	uint32_t retvalAddr; //address to the address where the JValue retVal is stored.
+
+    	bool ok = true;
+
+    	GET_REGISTER_CONCRETE(0,tid,4);
+    	GET_STRING_FROM_REGISTER(1,fromMethod,"<no fromMethod>");
+    	GET_STRING_FROM_REGISTER(2,toMethod,"<no toMethod>");
+    	GET_REGISTER_CONCRETE(3,retvalAddr,4);
+
+    	s2e()->getMessagesStream() << "AndroidMonitor(" << std::dec << tid << "): *** RETURN FROM *** " << fromMethod << ". Continue execution at " << toMethod << "Address of return value:" << std::hex << retvalAddr << "." << std::endl;
+        break;
     }
     default:
     	break;
@@ -365,26 +402,32 @@ void AndroidMonitor::onModuleTransition(S2EExecutionState* state, const ModuleDe
 
 void AndroidMonitor::slotTranslateBlockStart(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc) {
 
-    if (swivec_connected) {
-        return;
+    if (!swivec_connected) {
+
+		FunctionMonitor::CallSignal *callSignal;
+
+		s2e::linuxos::symbol_struct irq_usr;
+		bool ok = m_linuxMonitor->searchSymbol("__irq_usr",irq_usr);
+		if(!ok) {
+			s2e()->getDebugStream() << "AndroidMonitor:: Could not find required symbol '__irq_usr'" << endl;
+			exit(-1);
+		}
+		assert(irq_usr.adr);
+
+		// Register a call signal
+		callSignal = m_funcMonitor->getCallSignal(state, irq_usr.adr, -1);
+
+		// Register signal handler
+		callSignal->connect(sigc::mem_fun(*this, &AndroidMonitor::swiHook));
+		swivec_connected = true;
     }
 
-    FunctionMonitor::CallSignal *callSignal;
-
-	s2e::linuxos::symbol_struct irq_usr;
-	bool ok = m_linuxMonitor->searchSymbol("__irq_usr",irq_usr);
-	if(!ok) {
-		s2e()->getDebugStream() << "AndroidMonitor:: Could not find required symbol '__irq_usr'" << endl;
-		exit(-1);
+	if (!atomic_connected) {
+		FunctionMonitor::CallSignal *atomic_cmpxchgSignal; //for debugging purposed
+		atomic_cmpxchgSignal = m_funcMonitor->getCallSignal(state, 0xafd0eac4, -1);
+		atomic_cmpxchgSignal->connect(sigc::mem_fun(*this, &AndroidMonitor::cmpxchgHook));
+		atomic_connected = true;
 	}
-	assert(irq_usr.adr);
-
-	// Register a call signal
-	callSignal = m_funcMonitor->getCallSignal(state, irq_usr.adr, -1);
-
-	// Register signal handler
-	callSignal->connect(sigc::mem_fun(*this, &AndroidMonitor::swiHook));
-	swivec_connected = true;
 
 }
 
@@ -405,6 +448,19 @@ void AndroidMonitor::swiHook(S2EExecutionState* state, FunctionMonitorState *fns
 //		}
 //		//skip the interrupt_handling and jump directly to macro ret_to_user
 //		state->writeCpuState(offsetof(CPUState, regs[15]), ret_to_user.adr, 8*sizeof(uint32_t));
+	}
+}
+
+void AndroidMonitor::cmpxchgHook(S2EExecutionState* state, FunctionMonitorState *fns) {
+	uint64_t smask = state->getSymbolicRegistersMask();
+	if (smask) {
+		state->dumpCpuState(s2e()->getDebugStream());
+		s2e()->getMessagesStream() << "AndroidMonitor:: libc.atomic_cmpxchg with non-empty symbregmask called. SMASK:" << std::hex << smask << endl;
+//		if(!m_tbtracer) {
+//			m_tbtracer = static_cast<TranslationBlockTracer*>(s2e()->getPlugin("TranslationBlockTracer"));
+//			assert(m_tbtracer);
+//			m_tbtracer->enableInstructionTracing();
+//		}
 	}
 }
 

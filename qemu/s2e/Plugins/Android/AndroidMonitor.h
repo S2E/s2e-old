@@ -45,6 +45,7 @@
 #include <s2e/Plugins/ModuleDescriptor.h>
 #include <s2e/Plugins/ModuleExecutionDetector.h>
 #include <s2e/Plugins/FunctionMonitor.h>
+#include <s2e/Plugins/ExecutionTracers/TranslationBlockTracer.h>
 #include <s2e/Plugins/OSMonitor.h>
 #include <vector>
 
@@ -69,14 +70,17 @@ private:
 	LinuxMonitor * m_linuxMonitor;
 	FunctionMonitor *m_funcMonitor;
 	s2e::plugins::ModuleExecutionDetector * m_modulePlugin;
+	s2e::plugins::TranslationBlockTracer *m_tbtracer;
 
 	std::string aut_process_name; //exact process name of the application under test (or NULL if no specific app is observed)
 
 	bool swivec_connected; //is function handler to hook SWI execption vector registered?
+	bool atomic_connected;
 
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
     void onModuleTransition(S2EExecutionState* state, const ModuleDescriptor *previousModule, const ModuleDescriptor *nextModule);
     void swiHook(S2EExecutionState* state, FunctionMonitorState *fns);
+    void cmpxchgHook(S2EExecutionState* state, FunctionMonitorState *fns);
 
 #if 0
     void onException(S2EExecutionState* state, unsigned excpnr, uint64_t pc);
