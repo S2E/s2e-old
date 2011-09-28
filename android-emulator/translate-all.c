@@ -180,6 +180,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif  // CONFIG_MEMCHECK
 
 #ifdef CONFIG_S2E
+
     tcg_calc_regmask(s, &tb->reg_rmask, &tb->reg_wmask,
                      &tb->helper_accesses_mem);
 #endif

@@ -574,7 +574,10 @@ void tcg_register_helper_with_reg_mask(void *func, const char *name,
 
 void tcg_register_helper(void *func, const char *name)
 {
-    tcg_register_helper_with_reg_mask(func, name, (uint64_t) -1, (uint64_t) -1, 1);
+	//XXX: Every helper which has not specified rmask, wmask and memory is assumed to
+	// not access registers in symbolic area.
+    tcg_register_helper_with_reg_mask(func, name, 0, 0, 1);
+//    tcg_register_helper_with_reg_mask(func, name, (uint64_t) -1, (uint64_t) -1, 1);
 }
 
 /* Note: we convert the 64 bit args to 32 bit and do some alignment
@@ -987,6 +990,11 @@ void tcg_dump_ops(TCGContext *s, FILE *outfile)
 void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
                       uint64_t *accesses_mem)
 {
+
+#ifdef TARGET_ARM
+    tcg_target_ulong maxoffset = offsetof(CPUARMState,regs[14]); //border between symbolic and concrete region
+#endif
+
     const uint16_t *opc_ptr;
     const TCGArg *args;
     int c, i, nb_oargs, nb_iargs, nb_cargs;
@@ -1056,6 +1064,39 @@ void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
                 temps[args[i]] = 0;
         }
 
+#ifdef TARGET_ARM
+/* if ther current TCG opcode stores or loads values into registers inside the symbolic area, we add
+ * toggle a bit at the registermask at the right position
+ * in ARM only two commands are used to read and write values from/into registers.
+ */
+        if (c == INDEX_op_st_i32) {
+        	TCGArg idx = args[nb_oargs+1]; //the second argument is a candidate for the global var "env"
+        	if (idx == 0) { /* global argument "env" in ARM */
+                    	assert(nb_cargs == 1);
+                    	TCGArg offset = args[nb_oargs + nb_iargs];
+                    	if(offset <= maxoffset) { /* in symbolic area? */
+                    		assert((offset % 4) == 0);
+                    		tcg_target_ulong shiftno = offset / 4;
+                    		*wmask |= (((unsigned long)1) << shiftno);
+                    	}
+                 }
+        } else if (c == INDEX_op_ld_i32) {
+        	TCGArg idx = args[nb_oargs];
+        	if (idx == 0) { /* global argument "env" in ARM */
+                    	assert(nb_cargs == 1);
+                    	TCGArg offset = args[nb_oargs + nb_iargs];
+                    	if(offset <= maxoffset) { /* in symbolic area? */
+                    		assert((offset % 4) == 0);
+                    		tcg_target_ulong shiftno = offset / 4;
+        			if ((*wmask & (1<<shiftno)) == 0) {
+                    			*rmask |= (((unsigned long)1) << shiftno);
+                    		}
+
+                    	}
+                 }
+        }
+
+#else if TARGET_I386
         for(i = 0; i < nb_iargs; i++) {
             TCGArg idx = args[nb_oargs + i];
             if (idx < s->nb_globals) {
@@ -1070,7 +1111,7 @@ void tcg_calc_regmask(TCGContext *s, uint64_t *rmask, uint64_t *wmask,
                 *wmask |= (1<<idx);
             }
         }
-
+#endif
         args += nb_iargs + nb_oargs + nb_cargs;
     }
 }
