@@ -72,7 +72,7 @@ namespace {
 
     struct MemoryRangeLT {
         bool operator()(const MemoryRange& a, const MemoryRange& b) const {
-            return a.start < b.start;
+            return a.start + a.size <= b.start;
         }
     };
 
@@ -136,6 +136,7 @@ void MemoryChecker::initialize()
     ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
     if (mods.size() == 0) {
         s2e()->getWarningsStream() << "MemoryChecker: No modules to track configured for the MemoryChecker plugin" << std::endl;
+        exit(-1);
         return;
     }
 
@@ -176,7 +177,6 @@ void MemoryChecker::initialize()
 void MemoryChecker::onModuleLoad(S2EExecutionState* state,
                                  const ModuleDescriptor &module)
 {
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
     const std::string* moduleId = m_moduleDetector->getModuleId(module);
@@ -192,7 +192,6 @@ void MemoryChecker::onModuleLoad(S2EExecutionState* state,
 void MemoryChecker::onModuleUnload(S2EExecutionState* state,
                     const ModuleDescriptor &module)
 {
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
     if(plgState->m_module.LoadBase == module.LoadBase) {
@@ -207,9 +206,10 @@ void MemoryChecker::onModuleTransition(S2EExecutionState *state,
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
     if(nextModule && nextModule->LoadBase == plgState->m_module.LoadBase) {
-        m_dataMemoryAccessConnection = s2e()->getCorePlugin()
-            ->onDataMemoryAccess.connect(
-                sigc::mem_fun(*this, &MemoryChecker::onDataMemoryAccess));
+        m_dataMemoryAccessConnection =
+            s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*this, &MemoryChecker::onDataMemoryAccess)
+            );
     } else {
         m_dataMemoryAccessConnection.disconnect();
     }
@@ -440,7 +440,6 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
     if(!m_checkMemoryErrors)
         return true;
 
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
     MemoryMap *memoryMap = plgState->getModuleMemoryMap(module);
@@ -502,7 +501,6 @@ bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state,
     if(!m_checkMemoryLeaks)
         return true;
 
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
     MemoryMap *memoryMap = plgState->getModuleMemoryMap(module);

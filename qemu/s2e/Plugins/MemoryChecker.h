@@ -58,7 +58,6 @@ class MemoryChecker : public Plugin
 {
     S2E_PLUGIN
 
-    // Ugh...
     OSMonitor *m_osMonitor;
     ModuleExecutionDetector *m_moduleDetector;
 
