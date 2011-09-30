@@ -548,14 +548,23 @@ uint64_t WindowsMonitor::getPid(S2EExecutionState *s, uint64_t pc)
     return s->getPid();
 }
 
-uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
+uint64_t WindowsMonitor::getCurrentThread(S2EExecutionState *state)
 {
-    //Compute the address of the KPCR
     //It is located in fs:KPCR_CURRENT_THREAD_OFFSET
-    uint64_t base = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
+    uint64_t base = getTibAddress(state);
     uint32_t pThread = 0;
     if (!state->readMemoryConcrete(base + FS_CURRENT_THREAD_OFFSET, &pThread, sizeof(pThread))) {
         s2e()->getWarningsStream() << "Failed to get thread address" << std::endl;
+        return 0;
+    }
+
+    return pThread;
+}
+
+uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
+{
+    uint64_t pThread = getCurrentThread(state);
+    if (!pThread) {
         return 0;
     }
 
@@ -573,6 +582,18 @@ uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
     }
 
     return pProcess;
+}
+
+//Retrieves the current Thread Information Block, stored in the FS register
+uint64_t WindowsMonitor::getTibAddress(S2EExecutionState *state)
+{
+    return state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
+}
+
+bool WindowsMonitor::getTib(S2EExecutionState *state, s2e::windows::NT_TIB32 *tib)
+{
+    uint64_t tibAddress = getTibAddress(state);
+    return state->readMemoryConcrete(tibAddress, &tib, sizeof(*tib));
 }
 
 uint64_t WindowsMonitor::getPeb(S2EExecutionState *state, uint64_t eprocess)
@@ -631,6 +652,33 @@ uint64_t WindowsMonitor::getModuleSizeFromCfg(const std::string &module) const
         return 0;
     }
     return (*it).second;
+}
+
+bool WindowsMonitor::getCurrentStack(S2EExecutionState *state, uint64_t *base, uint64_t *size)
+{
+    if (!isKernelAddress(state->getPc())) {
+        assert(false && "User-mode stack retrieval not implemented");
+    }
+
+    uint64_t pThread = getCurrentThread(state);
+    if (!pThread) {
+        return false;
+    }
+
+    s2e::windows::KTHREAD32 kThread;
+    if (!state->readMemoryConcrete(pThread, &kThread, sizeof(kThread))) {
+        return false;
+    }
+
+
+    if (base) {
+        *base = kThread.StackLimit;
+    }
+    if (size) {
+        *size = kThread.InitialStack - kThread.StackLimit;
+    }
+
+    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////

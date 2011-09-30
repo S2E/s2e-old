@@ -608,6 +608,22 @@ typedef struct _KTHREAD32
 
 } __attribute__((packed))KTHREAD32;
 
+typedef struct _NT_TIB32
+{
+     uint32_t ExceptionList;  //PEXCEPTION_REGISTRATION_RECORD
+     uint32_t StackBase;   //PVOID
+     uint32_t StackLimit; //PVOID
+     uint32_t SubSystemTib; //PVOID
+     union
+     {
+          uint32_t FiberData; //PVOID
+          uint32_t Version; //ULONG
+     };
+     uint32_t ArbitraryUserPointer;
+     uint32_t Self; //PNT_TIB
+}__attribute__((packed)) NT_TIB32;
+
+
 struct DESCRIPTOR32
 {
      uint16_t Pad;
