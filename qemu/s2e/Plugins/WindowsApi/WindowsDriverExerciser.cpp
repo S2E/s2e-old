@@ -134,14 +134,27 @@ void WindowsDriverExerciser::onModuleLoad(
     WindowsApi::registerImports(state, module);
 
     if (m_memoryChecker) {
-        std::stringstream ss;
-        ss << "driver:" << module.Name;
         //XXX: figure out where the data segment is and grand write access to it.
-        m_memoryChecker->grantMemory(
-                    state, &module,
-                    module.LoadBase, module.Size,
-                    MemoryChecker::READ,
-                    ss.str());
+        foreach2(it, module.Sections.begin(), module.Sections.end()){
+            const SectionDescriptor &sec = *it;
+
+            std::stringstream ss;
+            ss << "driver:" << module.Name << ":" << sec.name;
+
+
+            MemoryChecker::Permissions perms = MemoryChecker::NONE;
+            if (sec.isReadable()) {
+                perms = MemoryChecker::Permissions(perms | MemoryChecker::READ);
+            }
+            if (sec.isWritable()) {
+                perms = MemoryChecker::Permissions(perms | MemoryChecker::WRITE);
+            }
+
+            m_memoryChecker->grantMemory(
+                        state, &module,
+                        sec.loadBase, sec.size,
+                        perms, ss.str());
+        }
     }
 
     state->enableSymbolicExecution();
@@ -165,7 +178,7 @@ void WindowsDriverExerciser::onModuleUnload(
 
     if(m_memoryChecker) {
         std::stringstream ss;
-        ss << "driver:" << module.Name;
+        ss << "driver:" << module.Name << ":*";
         m_memoryChecker->revokeMemory(state, &module, ss.str());
         m_memoryChecker->checkMemoryLeaks(state, &module);
     }
