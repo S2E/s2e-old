@@ -42,6 +42,7 @@
 #include <string>
 #include <set>
 #include <map>
+#include <vector>
 #include <ostream>
 #include <iostream>
 
@@ -58,6 +59,43 @@ typedef std::map<std::string, uint64_t> ImportedFunctions;
   
 //Maps the library name to the set of functions it exports
 typedef std::map<std::string, ImportedFunctions > Imports;
+
+/**
+ *  Defines some section of memory
+ */
+struct SectionDescriptor
+{
+    enum SectionType {
+        READ=1, WRITE=2, READWRITE=3,
+        EXECUTE=4
+    };
+
+    uint64_t loadBase;
+    uint64_t size;
+    SectionType type;
+    std::string name;
+
+    void setRead(bool b) {
+        if (b) type = SectionType(type | READ);
+        else type = SectionType(type & (-1 - READ));
+    }
+
+    void setWrite(bool b) {
+        if (b) type = SectionType(type | WRITE);
+        else type = SectionType(type & (-1 - WRITE));
+    }
+
+    void setExecute(bool b) {
+        if (b) type = SectionType(type | EXECUTE);
+        else type = SectionType(type & (-1 - EXECUTE));
+    }
+
+    bool isReadable() const { return type & READ; }
+    bool isWritable() const { return type & WRITE; }
+    bool isExecutable() const { return type & EXECUTE; }
+};
+
+typedef std::vector<SectionDescriptor> ModuleSections;
 
 /**
  *  Characterizes whatever module can be loaded in the memory.
@@ -82,6 +120,9 @@ struct ModuleDescriptor
 
   //The entry point of the module
   uint64_t EntryPoint;
+
+  //A list of sections
+  ModuleSections Sections;
 
   ModuleDescriptor() {
     Pid = 0;
