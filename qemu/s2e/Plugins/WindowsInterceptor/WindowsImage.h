@@ -50,8 +50,8 @@
 namespace s2e {
 namespace windows {
 
-#define IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
-#define IMAGE_NT_SIGNATURE                  0x00004550  // PE00
+static const uint16_t IMAGE_DOS_SIGNATURE = 0x5A4D;      // MZ
+static const uint32_t IMAGE_NT_SIGNATURE = 0x00004550;  // PE00
 
 typedef struct IMAGE_DOS_HEADER {      // DOS .EXE header
     uint16_t   e_magic;                     // Magic number
@@ -234,6 +234,10 @@ typedef struct IMAGE_SECTION_HEADER {
     uint16_t    NumberOfLinenumbers;
     uint32_t   Characteristics;
 }  __attribute__ ((packed)) IMAGE_SECTION_HEADER;
+
+static const uint32_t IMAGE_SCN_MEM_WRITE = 0x80000000;
+static const uint32_t IMAGE_SCN_MEM_READ = 0x40000000;
+static const uint32_t IMAGE_SCN_MEM_EXECUTE = 0x20000000;
 
 #define IMAGE_SIZEOF_SECTION_HEADER          40
 
@@ -1296,8 +1300,12 @@ private:
   Imports m_Imports;
   bool m_ImportsInited;
 
+  ModuleSections m_Sections;
+  bool m_sectionsInited;
+
   int InitImports(S2EExecutionState *s);
   int InitExports(S2EExecutionState *s);
+  bool InitSections(S2EExecutionState *s);
 
   static bool IsValidString(const char *str);
 public:
@@ -1322,9 +1330,8 @@ public:
   virtual uint64_t GetRoundedImageSize() const;
   virtual const Exports& GetExports(S2EExecutionState *s);
   virtual const Imports& GetImports(S2EExecutionState *s);
-  virtual void DumpInfo(std::iostream &os) const;
-
-
+  virtual void DumpInfo(std::ostream &os) const;
+  virtual const ModuleSections &GetSections(S2EExecutionState *s);
 };
 
 }
