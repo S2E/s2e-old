@@ -94,7 +94,7 @@ class MemoryChecker : public Plugin
 
 public:
     enum Permissions {
-        READ=1, WRITE=2
+        NONE=0, READ=1, WRITE=2, READWRITE=3
     };
 
     MemoryChecker(S2E* s2e): Plugin(s2e) {}
