@@ -53,6 +53,7 @@ namespace s2e {
 typedef std::map<std::string,uint64_t> Exports;
   
 //Maps the name of the function to its actual address
+//XXX: Rename the type ImportedFunctions to ImportedSymbol.
 typedef std::map<std::string, uint64_t> ImportedFunctions;
   
 //Maps the library name to the set of functions it exports
