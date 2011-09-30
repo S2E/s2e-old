@@ -171,6 +171,10 @@ void MemoryChecker::initialize()
                 sigc::mem_fun(*this,
                         &MemoryChecker::onModuleTransition)
                 );
+        s2e()->getCorePlugin()->onStateSwitch.connect(
+                sigc::mem_fun(*this,
+                        &MemoryChecker::onStateSwitch)
+                );
     }
 }
 
@@ -214,6 +218,24 @@ void MemoryChecker::onModuleTransition(S2EExecutionState *state,
         m_dataMemoryAccessConnection.disconnect();
     }
 }
+
+void MemoryChecker::onStateSwitch(S2EExecutionState *currentState,
+                                  S2EExecutionState *nextState)
+{
+
+    const ModuleDescriptor *nextModule =
+            m_moduleDetector->getModule(nextState, nextState->getPc());
+
+    m_dataMemoryAccessConnection.disconnect();
+
+    if(nextModule) {
+        m_dataMemoryAccessConnection =
+            s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*this, &MemoryChecker::onDataMemoryAccess)
+            );
+    }
+}
+
 
 void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
                                        klee::ref<klee::Expr> virtualAddress,

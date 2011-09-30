@@ -87,6 +87,9 @@ class MemoryChecker : public Plugin
                  klee::ref<klee::Expr> value,
                  bool isWrite, bool isIO);
 
+    void onStateSwitch(S2EExecutionState *currentState,
+                                      S2EExecutionState *nextState);
+
     // Simple pattern matching for region types. Only one
     // operator is allowed: '*' at the end of pattern means any
     // number of any characters.
