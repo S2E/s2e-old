@@ -90,9 +90,13 @@ class MemoryChecker : public Plugin
     // Simple pattern matching for region types. Only one
     // operator is allowed: '*' at the end of pattern means any
     // number of any characters.
-    bool matchRegionType(const char* pattern, const char* type);
+    bool matchRegionType(const std::string &pattern, const std::string &type);
 
 public:
+    enum Permissions {
+        READ=1, WRITE=2
+    };
+
     MemoryChecker(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
@@ -100,7 +104,7 @@ public:
     void grantMemory(S2EExecutionState *state,
                      const ModuleDescriptor *module,
                      uint64_t start, uint64_t size, uint8_t perms,
-                     const char* regionType, uint64_t regionID = 0,
+                     const std::string &regionType, uint64_t regionID = 0,
                      bool permanent = false);
 
     // Revoke memory by address
@@ -109,14 +113,14 @@ public:
                       const ModuleDescriptor *module,
                       uint64_t start, uint64_t size,
                       uint8_t perms = uint8_t(-1),
-                      const char* regionTypePattern = NULL,
+                      const std::string &regionTypePattern = "",
                       uint64_t regionID = uint64_t(-1));
 
     // Revoke memory by pattern
     // NOTE: regionID can be -1
     bool revokeMemory(S2EExecutionState *state,
                       const ModuleDescriptor *module,
-                      const char* regionTypePattern,
+                      const std::string &regionTypePattern,
                       uint64_t regionID = uint64_t(-1));
 
     // Check acceessibility of memory region

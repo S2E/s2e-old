@@ -65,7 +65,7 @@ namespace {
         MemoryRange range;
         uint8_t perms;
         uint64_t allocPC;
-        const char* type;
+        std::string type;
         uint64_t id;
         bool permanent;
     };
@@ -234,28 +234,29 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
                       isWrite ? 2 : 1);
 }
 
-bool MemoryChecker::matchRegionType(const char *pattern, const char *type)
+bool MemoryChecker::matchRegionType(const std::string &pattern, const std::string &type)
 {
-    if(pattern == NULL)
+    if(pattern.size() == 0)
         return true;
 
-    if(type == NULL)
+    if(type.size() == 0)
         return pattern[0] == '*' && pattern[1] == 0;
 
-    size_t len = strlen(pattern);
+    size_t len = pattern.size();
+
     if(len == 0) // corner case
         return type[0] == 0;
 
     if(pattern[len-1] != '*')
-        return strcmp(pattern, type) == 0;
+        return pattern.compare(type) == 0;
 
-    return strncmp(pattern, type, len-1) == 0;
+    return type.compare(pattern.substr(0, len-1)) == 0;
 }
 
 void MemoryChecker::grantMemory(S2EExecutionState *state,
                                 const ModuleDescriptor *module,
                                 uint64_t start, uint64_t size, uint8_t perms,
-                                const char *regionType, uint64_t regionID,
+                                const std::string &regionType, uint64_t regionID,
                                 bool permanent)
 {
     // XXX: ugh, this is really ugly!
@@ -305,7 +306,7 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
 bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                                  const ModuleDescriptor *module,
                                  uint64_t start, uint64_t size, uint8_t perms,
-                                 const char *regionTypePattern, uint64_t regionID)
+                                 const std::string &regionTypePattern, uint64_t regionID)
 {
     // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
@@ -364,7 +365,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                 << "  NOTE: requested region: " << *region << std::endl;
         }
 
-        if(regionTypePattern && !matchRegionType(regionTypePattern, res->second->type)) {
+        if(regionTypePattern.size()>0 && !matchRegionType(regionTypePattern, res->second->type)) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region with wrong region type!" << std::endl
                 << "  NOTE: allocated region: " << *res->second << std::endl
@@ -398,7 +399,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
 
 bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                                  const ModuleDescriptor *module,
-                                 const char *regionTypePattern, uint64_t regionID)
+                                 const std::string &regionTypePattern, uint64_t regionID)
 {
     // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
@@ -417,7 +418,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
         changed = false;
         for(MemoryMap::iterator it = memoryMap->begin(), ie = memoryMap->end();
                                                         it != ie; ++it) {
-            if(it->second->type
+            if(it->second->type.size()>0
                   && matchRegionType(regionTypePattern, it->second->type)
                   && (regionID == uint64_t(-1) || it->second->id == regionID)) {
                 ret &= revokeMemory(state, module,
@@ -462,7 +463,7 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
         if(!res) {
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
-                    << " can not be accessed: it is not mapped!" << std::endl;
+                    << " cannot be accessed by instruction "<< hexval(state->getPc()) << ": it is not mapped!" << std::endl;
             break;
         }
 
