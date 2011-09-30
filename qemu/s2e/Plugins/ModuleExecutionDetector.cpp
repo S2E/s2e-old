@@ -384,7 +384,15 @@ void ModuleExecutionDetector::exceptionListener(
                        )
 {
     //std::cout << "Exception index " << intNb << std::endl;
-    onExecution(state, pc);
+    //onExecution(state, pc);
+
+    DECLARE_PLUGINSTATE(ModuleTransitionState, state);
+
+    //gTRACE("pid=%#"PRIx64" pc=%#"PRIx64"\n", pid, pc);
+    if (plgState->m_PreviousModule != NULL) {
+        onModuleTransition.emit(state, plgState->m_PreviousModule, NULL);
+        plgState->m_PreviousModule = NULL;
+    }
 }
 
 
