@@ -1218,6 +1218,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     }
 
     if(newState != state) {
+        g_s2e->getCorePlugin()->onStateSwitch.emit(state, newState);
         doStateSwitch(state, newState);
     }
 
@@ -2301,6 +2302,7 @@ void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
                       int intno, int is_int, int error_code,
                       uint64_t next_eip, int is_hw)
 {
+    s2e_on_exception(s2e, state, intno);
     s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
                                     next_eip, is_hw);
 }

@@ -183,6 +183,11 @@ public:
                  const std::vector<klee::ref<klee::Expr> >& /* newConditions */>
             onStateFork;
 
+    sigc::signal<void,
+                 S2EExecutionState*, /* currentState */
+                 S2EExecutionState*> /* nextState */
+            onStateSwitch;
+
     /** Signal emited when spawning a new S2E process */
     /** The signal is emitted in the child processes only */
     sigc::signal<void, bool /* prefork */,

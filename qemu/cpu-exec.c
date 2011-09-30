@@ -616,9 +616,6 @@ int cpu_exec(CPUState *env1)
                 if (intNb != -1) {
                     qemu_log_mask(CPU_LOG_INT,
                                   "CPU interrupt, vector=0x%x\n", intNb);
-#ifdef CONFIG_S2E
-                    s2e_on_exception(g_s2e, g_s2e_state, intNb);
-#endif
                     intNb = -1;
                 }
 
