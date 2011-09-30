@@ -108,9 +108,6 @@ const NdisHandlers::AnnotationsArray NdisHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NdisHandlers, NdisWritePciSlotInformation),
 };
 
-const NdisHandlers::AnnotationsMap NdisHandlers::s_handlersMap =
-        NdisHandlers::initializeHandlerMap();
-
 const char *NdisHandlers::s_ignoredFunctionsList[] = {
     "NdisCancelSendPackets",
     "NdisCloseAdapter",
@@ -135,8 +132,18 @@ const char *NdisHandlers::s_ignoredFunctionsList[] = {
 //NdisQueryAdapterInstanceName, NdisQueryPendingIOCount
 //NdisRequest
 
+const char *NdisHandlers::s_exportedVariablesList[] = {
+    NULL
+};
+
+const NdisHandlers::AnnotationsMap NdisHandlers::s_handlersMap =
+        NdisHandlers::initializeHandlerMap();
+
 const NdisHandlers::StringSet NdisHandlers::s_ignoredFunctions =
         NdisHandlers::initializeIgnoredFunctionSet();
+
+const NdisHandlers::StringSet NdisHandlers::s_exportedVariables =
+        NdisHandlers::initializeExportedVariables();
 
 
 void NdisHandlers::initialize()

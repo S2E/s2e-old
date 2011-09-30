@@ -71,12 +71,20 @@ const char * HalHandlers::s_ignoredFunctionsList[] = {
     NULL
 };
 
+const char *HalHandlers::s_exportedVariablesList[] = {
+    NULL
+};
+
 
 const HalHandlers::HalHandlersMap HalHandlers::s_handlersMap =
         HalHandlers::initializeHandlerMap();
 
 const HalHandlers::StringSet HalHandlers::s_ignoredFunctions =
         HalHandlers::initializeIgnoredFunctionSet();
+
+const HalHandlers::StringSet HalHandlers::s_exportedVariables =
+        HalHandlers::initializeExportedVariables();
+
 
 void HalHandlers::initialize()
 {

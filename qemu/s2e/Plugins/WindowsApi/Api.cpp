@@ -97,11 +97,13 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
             NdisHandlers *ndisHandlers = static_cast<NdisHandlers*>(s2e()->getPlugin("NdisHandlers"));
             ndisHandlers->registerEntryPoints(state, functions);
             ndisHandlers->registerCaller(module);
+            ndisHandlers->registerImportedVariables(state, module, functions);
 
         }else if (libraryName == "ntoskrnl.exe") {
             NtoskrnlHandlers *ntoskrnlHandlers = static_cast<NtoskrnlHandlers*>(s2e()->getPlugin("NtoskrnlHandlers"));
             ntoskrnlHandlers->registerEntryPoints(state, functions);
             ntoskrnlHandlers->registerCaller(module);
+            ntoskrnlHandlers->registerImportedVariables(state, module, functions);
         }
     }
 }

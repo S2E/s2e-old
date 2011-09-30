@@ -82,6 +82,9 @@ public:
     static const char *s_ignoredFunctionsList[];
     static const StringSet s_ignoredFunctions;
 
+    static const char *s_exportedVariablesList[];
+    static const StringSet s_exportedVariables;
+
 private:
     SymbolicHardware *m_hw;
     WindowsCrashDumpGenerator *m_crashdumper;

@@ -95,6 +95,13 @@ void WindowsDriverExerciser::initialize()
             sigc::mem_fun(*this,
                     &WindowsDriverExerciser::onModuleUnload)
             );
+
+    if (m_memoryChecker) {
+        m_detector->onModuleTransition.connect(
+            sigc::mem_fun(*this,
+                &WindowsDriverExerciser::onModuleTransition)
+            );
+    }
 }
 
 void WindowsDriverExerciser::onModuleLoad(
@@ -126,6 +133,17 @@ void WindowsDriverExerciser::onModuleLoad(
 
     WindowsApi::registerImports(state, module);
 
+    if (m_memoryChecker) {
+        std::stringstream ss;
+        ss << "driver:" << module.Name;
+        //XXX: figure out where the data segment is and grand write access to it.
+        m_memoryChecker->grantMemory(
+                    state, &module,
+                    module.LoadBase, module.Size,
+                    MemoryChecker::READ,
+                    ss.str());
+    }
+
     state->enableSymbolicExecution();
     state->enableForking();
 }
@@ -146,6 +164,9 @@ void WindowsDriverExerciser::onModuleUnload(
     m_loadedModules.erase(*s);
 
     if(m_memoryChecker) {
+        std::stringstream ss;
+        ss << "driver:" << module.Name;
+        m_memoryChecker->revokeMemory(state, &module, ss.str());
         m_memoryChecker->checkMemoryLeaks(state, &module);
     }
 
@@ -162,7 +183,44 @@ void WindowsDriverExerciser::onModuleUnload(
     return;
 }
 
+void WindowsDriverExerciser::onModuleTransition(S2EExecutionState *state,
+                        const ModuleDescriptor *prevModule,
+                        const ModuleDescriptor *nextModule)
+{
+    //Revoke rights for the stack when exiting the module
 
+    if (prevModule) {
+        const std::string *s = m_detector->getModuleId(*prevModule);
+        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
+            //Not the right module we want to intercept
+            return;
+        }
+        //Revoke the rights of the current module
+        std::stringstream ss;
+        ss << "driver:" << prevModule->Name << ":stack";
+        m_memoryChecker->revokeMemory(state, prevModule, ss.str());
+    }
+
+    //Grant rights for the new module
+    if (nextModule) {
+        const std::string *s = m_detector->getModuleId(*nextModule);
+        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
+            //Not the right module we want to intercept
+            return;
+        }
+        //Revoke the rights of the current module
+        std::stringstream ss;
+        ss << "driver:" << nextModule->Name << ":stack";
+
+        uint64_t stackBase, stackSize;
+        if (!m_windowsMonitor->getCurrentStack(state, &stackBase, &stackSize)) {
+            s2e()->getWarningsStream() << "Could not retrieve current stack" << std::endl;
+            return;
+        }
+
+        m_memoryChecker->grantMemory(state, nextModule, stackBase, stackSize, MemoryChecker::READ | MemoryChecker::WRITE, ss.str());
+    }
+}
 
 void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
 {
@@ -186,10 +244,7 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
         m_memoryChecker->grantMemory(state, module, registryPath, 0x1000, 3,
                                      "driver:args:EntryPoint:RegistryPath");
 
-        // Global variables
-        assert(false && "Fix the constant");
-        m_memoryChecker->grantMemory(state, module, 0x80552000, 4, 1,
-                                     "driver:globals:KeTickCount", 0, true);
+
     }
 
     FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject);

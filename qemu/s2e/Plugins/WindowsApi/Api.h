@@ -53,6 +53,7 @@
 
 #include <map>
 #include <set>
+#include <sstream>
 
 namespace s2e {
 namespace plugins {
@@ -174,6 +175,7 @@ protected:
 
     ///////////////////////////////////
 
+    //Retrieves a name for use by a symbolic variable
     const std::string getVariableName(S2EExecutionState *state, const std::string &base);
 };
 
@@ -226,6 +228,14 @@ public:
             ignoredFunctions.insert(std::string(ANNOTATIONS_PLUGIN::s_ignoredFunctionsList[i]));
         }
         return ignoredFunctions;
+    }
+
+    static StringSet initializeExportedVariables() {
+        StringSet exportedVariables;
+        for (unsigned i=0; ANNOTATIONS_PLUGIN::s_exportedVariablesList[i]; ++i) {
+            exportedVariables.insert(std::string(ANNOTATIONS_PLUGIN::s_exportedVariablesList[i]));
+        }
+        return exportedVariables;
     }
 
     template <typename T>
@@ -321,6 +331,37 @@ public:
         AnnotationsState *plgState = static_cast<AnnotationsState*>(getPluginState(state, &AnnotationsState::factory));
         plgState->unregisterAnnotations(&module);
     }
+
+    /////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////
+
+    //Checks whether the given name is an exported variable.
+    //Useful for granting access rights to such variables.
+    static bool isExportedVariable(const std::string &name) {
+        return ANNOTATIONS_PLUGIN::s_exportedVariables.find(name) !=
+                ANNOTATIONS_PLUGIN::s_exportedVariables.end();
+    }
+
+    void registerImportedVariables(
+            S2EExecutionState *state,
+            const ModuleDescriptor &module,
+            const ImportedFunctions &symbols)
+    {
+        if (m_memoryChecker) {
+            foreach2(fit, symbols.begin(), symbols.end()) {
+                const std::string &fname = (*fit).first;
+                uint64_t address = (*fit).second;
+                if (isExportedVariable(fname)) {
+                    std::stringstream ss;
+                    ss << "driver:globals:" << fname;
+                    m_memoryChecker->grantMemory(state, &module, address, 4, 1,
+                                                 ss.str(), 0, true);
+                }
+            }
+        }
+    }
+
 
 public:
 

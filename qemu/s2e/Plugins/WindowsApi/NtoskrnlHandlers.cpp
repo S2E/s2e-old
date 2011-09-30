@@ -114,6 +114,11 @@ const char * NtoskrnlHandlers::s_ignoredFunctionsList[] = {
     NULL
 };
 
+const char *NtoskrnlHandlers::s_exportedVariablesList[] = {
+    "KeTickCount", NULL
+};
+
+
 //XXX: These should be implemented:
 //IoDeleteSymbolicLink, KeQueryInterruptTime, KeQuerySystemTime, MmGetSystemRoutineAddress,
 //MmMapLockedPagesSpecifyCache, ObOpenObjectByPointer, RtlGetDaclSecurityDescriptor,
@@ -128,6 +133,9 @@ const NtoskrnlHandlers::AnnotationsMap NtoskrnlHandlers::s_handlersMap =
 
 const NtoskrnlHandlers::StringSet NtoskrnlHandlers::s_ignoredFunctions =
         NtoskrnlHandlers::initializeIgnoredFunctionSet();
+
+const NtoskrnlHandlers::StringSet NtoskrnlHandlers::s_exportedVariables =
+        NtoskrnlHandlers::initializeExportedVariables();
 
 void NtoskrnlHandlers::initialize()
 {
