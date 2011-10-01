@@ -805,9 +805,11 @@ typedef uint32_t PDEVICE_OBJECT32;
 typedef uint8_t KPROCESSOR_MODE;
 typedef uint8_t BOOLEAN;
 typedef uint8_t UCHAR;
+typedef int8_t CCHAR;
 typedef uint16_t USHORT;
 typedef uint16_t CSHORT;
 typedef uint32_t ULONG;
+typedef int32_t LONG;
 typedef uint32_t UINT;
 typedef uint32_t HANDLE;
 
@@ -952,6 +954,10 @@ struct SECURITY_DESCRIPTOR32 {
     PACL32 Sacl;
     PACL32 Dacl;
 }__attribute__((packed));
+
+
+
+typedef struct _FILE_OBJECT *PFILE_OBJECT;
 
 struct IO_STACK_LOCATION {
     UCHAR MajorFunction;
@@ -1124,7 +1130,7 @@ struct IO_STACK_LOCATION {
 
     uint32_t DeviceObject;
 
-    uint32_t FileObject;
+    uint32_t FileObject; //FILE_OBJECT
 
     uint32_t CompletionRoutine;
 
@@ -1216,7 +1222,7 @@ struct IRP {
             struct {
                 LIST_ENTRY32 ListEntry;
                 union {
-                    uint32_t CurrentStackLocation;
+                    uint32_t CurrentStackLocation; //struct IO_STACK_LOCATION *
                     uint32_t PacketType;
                 };
             };

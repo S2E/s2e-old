@@ -142,6 +142,17 @@ public:
     bool revokeMemoryByPointer(S2EExecutionState *state, uint64_t pointer,
                                const std::string &regionTypePattern);
 
+    bool revokeMemoryByPointerForModule(S2EExecutionState *state, uint64_t pointer,
+                               const std::string &regionTypePattern);
+
+
+    bool revokeMemoryByPointerForModule(
+            S2EExecutionState *state,
+            const ModuleDescriptor *module,
+            uint64_t pointer,
+            const std::string &regionTypePattern);
+
+
     // Check accessibility of memory region
     bool checkMemoryAccess(S2EExecutionState *state,
                            uint64_t start, uint64_t size, uint8_t perms,

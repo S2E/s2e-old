@@ -95,7 +95,7 @@ private:
 
     DECLARE_ENTRY_POINT(DebugPrint);
     DECLARE_ENTRY_POINT(IoCreateSymbolicLink);
-    DECLARE_ENTRY_POINT(IoCreateDevice);
+    DECLARE_ENTRY_POINT(IoCreateDevice, uint32_t pDeviceObject);
     DECLARE_ENTRY_POINT(IoIsWdmVersionAvailable);
     DECLARE_ENTRY_POINT_CO(IoFreeMdl);
 
@@ -115,11 +115,17 @@ private:
     DECLARE_ENTRY_POINT(ExFreePool);
     DECLARE_ENTRY_POINT(ExFreePoolWithTag);
 
+    DECLARE_ENTRY_POINT(IofCompleteRequest);
+
     static uint32_t IoGetCurrentIrpStackLocation(windows::IRP *Irp) {
         return ( (Irp)->Tail.Overlay.CurrentStackLocation );
     }
 
     static std::string readUnicodeString(S2EExecutionState *state, uint32_t pUnicodeString);
+
+    void grantAccessToIrp(S2EExecutionState *state, uint32_t pIrp);
+    void revokeAccessToIrp(S2EExecutionState *state, uint32_t pIrp);
+
 public:
     DECLARE_ENTRY_POINT_CALL(DriverDispatch, uint32_t irpMajor);
     DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor);

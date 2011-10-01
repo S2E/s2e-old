@@ -205,6 +205,205 @@ struct SE_EXPORTS {
   PSID SeAllAppPackagesSid;
 };
 
+typedef ULONG DEVICE_TYPE;
+
+typedef uint32_t KSPIN_LOCK;
+
+
+struct KDEVICE_QUEUE32 {
+    CSHORT Type;
+    CSHORT Size;
+    LIST_ENTRY32 DeviceListHead;
+    KSPIN_LOCK Lock;
+
+#if defined(_AMD64_)
+
+    union {
+        BOOLEAN Busy;
+        struct {
+            LONG64 Reserved : 8;
+            LONG64 Hint : 56;
+        };
+    };
+
+#else
+
+    BOOLEAN Busy;
+
+#endif
+
+};
+
+
+struct WAIT_CONTEXT_BLOCK32 {
+    KDEVICE_QUEUE_ENTRY32 WaitQueueEntry;
+    uint32_t DeviceRoutine; //PDRIVER_CONTROL
+    uint32_t DeviceContext; //PVOID
+    ULONG NumberOfMapRegisters;
+    uint32_t DeviceObject; //PVOID
+    uint32_t CurrentIrp; //PVOID
+    uint32_t BufferChainingDpc; //PKDPC
+};
+
+struct KDPC32 {
+    UCHAR Type;
+    UCHAR Importance;
+    volatile USHORT Number;
+    LIST_ENTRY32 DpcListEntry;
+    uint32_t DeferredRoutine; //PKDEFERRED_ROUTINE
+    uint32_t DeferredContext; //PVOID
+    uint32_t SystemArgument1; //PVOID
+    uint32_t SystemArgument2; //PVOID
+    uint32_t DpcData; //PVOID
+};
+
+
+#define TIMER_EXPIRED_INDEX_BITS        6
+#define TIMER_PROCESSOR_INDEX_BITS      5
+
+struct DISPATCHER_HEADER32 {
+    union {
+        struct {
+            UCHAR Type;                 // All (accessible via KOBJECT_TYPE)
+
+            union {
+                union {                 // Timer
+                    UCHAR TimerControlFlags;
+                    struct {
+                        UCHAR Absolute              : 1;
+                        UCHAR Coalescable           : 1;
+                        UCHAR KeepShifting          : 1;    // Periodic timer
+                        UCHAR EncodedTolerableDelay : 5;    // Periodic timer
+                    } DUMMYSTRUCTNAME;
+                } DUMMYUNIONNAME;
+
+                UCHAR Abandoned;        // Queue
+                BOOLEAN Signalling;     // Gate/Events
+            } DUMMYUNIONNAME;
+
+            union {
+                union {
+                    UCHAR ThreadControlFlags;  // Thread
+                    struct {
+                        UCHAR CpuThrottled      : 1;
+                        UCHAR CycleProfiling    : 1;
+                        UCHAR CounterProfiling  : 1;
+                        UCHAR Reserved          : 5;
+                    } DUMMYSTRUCTNAME;
+                } DUMMYUNIONNAME;
+                UCHAR Hand;             // Timer
+                UCHAR Size;             // All other objects
+            } DUMMYUNIONNAME2;
+
+            union {
+                union {                 // Timer
+                    UCHAR TimerMiscFlags;
+                    struct {
+
+#if !defined(_X86_)
+
+                        UCHAR Index             : TIMER_EXPIRED_INDEX_BITS;
+
+#else
+
+                        UCHAR Index             : 1;
+                        UCHAR Processor         : TIMER_PROCESSOR_INDEX_BITS;
+
+#endif
+
+                        UCHAR Inserted          : 1;
+                        volatile UCHAR Expired  : 1;
+                    } DUMMYSTRUCTNAME;
+                } DUMMYUNIONNAME1;
+                union {                 // Thread
+                    BOOLEAN DebugActive;
+                    struct {
+                        BOOLEAN ActiveDR7       : 1;
+                        BOOLEAN Instrumented    : 1;
+                        BOOLEAN Reserved2       : 4;
+                        BOOLEAN UmsScheduled    : 1;
+                        BOOLEAN UmsPrimary      : 1;
+                    } DUMMYSTRUCTNAME;
+                } DUMMYUNIONNAME2;
+                BOOLEAN DpcActive;      // Mutant
+            } DUMMYUNIONNAME3;
+        } DUMMYSTRUCTNAME;
+
+        volatile LONG Lock;             // Interlocked
+    } DUMMYUNIONNAME;
+
+    LONG SignalState;                   // Object lock
+    LIST_ENTRY32 WaitListHead;            // Object lock
+};
+
+struct KEVENT32 {
+    DISPATCHER_HEADER32 Header;
+};
+
+struct DEVICE_OBJECT32 {
+  CSHORT                      Type;
+  USHORT                      Size;
+  LONG                        ReferenceCount;
+  uint32_t  DriverObject; //struct _DRIVER_OBJECT *
+  uint32_t  NextDevice;   //struct _DEVICE_OBJECT *
+  uint32_t  AttachedDevice; //struct _DEVICE_OBJECT *
+  uint32_t  CurrentIrp; //struct _IRP *
+  uint32_t                   Timer; //PIO_TIMER
+  ULONG                       Flags;
+  ULONG                       Characteristics;
+  uint32_t             Vpb; //__volatile PVPB
+  uint32_t                       DeviceExtension; //PVOID
+  DEVICE_TYPE                 DeviceType;
+  CCHAR                       StackSize;
+  union {
+    LIST_ENTRY32         ListEntry;
+    WAIT_CONTEXT_BLOCK32 Wcb;
+  } Queue;
+  ULONG                       AlignmentRequirement;
+  KDEVICE_QUEUE32               DeviceQueue;
+  KDPC32                        Dpc;
+  ULONG                       ActiveThreadCount;
+  uint32_t        SecurityDescriptor; //PSECURITY_DESCRIPTOR
+  KEVENT32                      DeviceLock;
+  USHORT                      SectorSize;
+  USHORT                      Spare1;
+  uint32_t  DeviceObjectExtension; //struct _DEVOBJ_EXTENSION  *
+  uint32_t                       Reserved; //PVOID
+};
+
+struct FILE_OBJECT32 {
+    CSHORT Type;
+    CSHORT Size;
+    uint32_t DeviceObject; //PDEVICE_OBJECT
+    uint32_t Vpb; //PVPB
+    uint32_t FsContext; //PVOID
+    uint32_t FsContext2; //PVOID
+    uint32_t SectionObjectPointer; //PSECTION_OBJECT_POINTERS
+    uint32_t PrivateCacheMap; //PVOID
+    NTSTATUS FinalStatus;
+    uint32_t RelatedFileObject; //struct _FILE_OBJECT *
+    BOOLEAN LockOperation;
+    BOOLEAN DeletePending;
+    BOOLEAN ReadAccess;
+    BOOLEAN WriteAccess;
+    BOOLEAN DeleteAccess;
+    BOOLEAN SharedRead;
+    BOOLEAN SharedWrite;
+    BOOLEAN SharedDelete;
+    ULONG Flags;
+    UNICODE_STRING32 FileName;
+    uint64_t CurrentByteOffset; //LARGE_INTEGER
+    __volatile ULONG Waiters;
+    __volatile ULONG Busy;
+    uint32_t LastLock; //PVOID
+    KEVENT32 Lock;
+    KEVENT32 Event;
+    uint32_t CompletionContext; //__volatile PIO_COMPLETION_CONTEXT
+    KSPIN_LOCK IrpListLock;
+    LIST_ENTRY32 IrpList;
+    uint32_t FileObjectExtension; //__volatile PVOID
+};
+
 }
 }
 

@@ -87,6 +87,8 @@ const NtoskrnlHandlers::AnnotationsArray NtoskrnlHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NtoskrnlHandlers, ExFreePool),
     DECLARE_EP_STRUC(NtoskrnlHandlers, ExFreePoolWithTag),
 
+    DECLARE_EP_STRUC(NtoskrnlHandlers, IofCompleteRequest),
+
     DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint),
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, MmGetSystemRoutineAddress)
@@ -118,6 +120,7 @@ const char * NtoskrnlHandlers::s_ignoredFunctionsList[] = {
 };
 
 const SymbolDescriptor NtoskrnlHandlers::s_exportedVariablesList[] = {
+    {"IoDeviceObjectType", sizeof(uint32_t)},
     {"KeTickCount", sizeof(uint32_t)},
     {"SeExports", sizeof(s2e::windows::SE_EXPORTS)},
     {"", 0}
@@ -277,22 +280,51 @@ void NtoskrnlHandlers::IoCreateDevice(S2EExecutionState* state, FunctionMonitorS
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if (getConsistency(__FUNCTION__) < LOCAL) {
+    uint32_t pDeviceObject;
+    if (!readConcreteParameter(state, 6, &pDeviceObject)) {
+        HANDLER_TRACE_PARAM_FAILED("pDeviceObject");
         return;
     }
 
-    state->jumpToSymbolicCpp();
-    S2EExecutionState *normalState = forkSuccessFailure(state, true, 7, getVariableName(state, __FUNCTION__));
-    FUNCMON_REGISTER_RETURN(normalState, fns, NtoskrnlHandlers::IoCreateDeviceRet);
+    if (getConsistency(__FUNCTION__) < LOCAL) {
+        FUNCMON_REGISTER_RETURN_A(state, fns, NtoskrnlHandlers::IoCreateDeviceRet, pDeviceObject);
+        return;
+    }
+
+    state->undoCallAndJumpToSymbolic();
+
+    //Fork one successful state and one failed state (where the function is bypassed)
+    std::vector<S2EExecutionState *> states;
+    forkStates(state, states, 1, getVariableName(state, __FUNCTION__) + "_failure");
+
+    //Skip the call in the current state
+    state->bypassFunction(7);
+
+    klee::ref<klee::Expr> symb = createFailure(state, getVariableName(state, __FUNCTION__) + "_result");
+    state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
+
+
+    //Register the return handler
+    S2EExecutionState *otherState = states[0] == state ? states[1] : states[0];
+    FUNCMON_REGISTER_RETURN_A(otherState, m_functionMonitor, NtoskrnlHandlers::IoCreateDeviceRet, pDeviceObject);
 }
 
-void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state)
+void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state, uint32_t pDeviceObject)
 {
     HANDLER_TRACE_RETURN();
 
     if (!NtSuccess(g_s2e, state)) {
         HANDLER_TRACE_FCNFAILED();
         return;
+    }
+
+    if (m_memoryChecker) {
+        uint32_t DeviceObject;
+        if (!state->readMemoryConcrete(pDeviceObject, &DeviceObject, sizeof(DeviceObject))) {
+            return;
+        }
+        m_memoryChecker->grantMemory(state, DeviceObject, sizeof(DEVICE_OBJECT32),
+                                     MemoryChecker::READWRITE, "IoCreateDevice");
     }
 }
 
@@ -679,6 +711,8 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
 
     state->undoCallAndJumpToSymbolic();
 
+    grantAccessToIrp(state, pIrp);
+
     FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor);
 
     if (getConsistency(__FUNCTION__) < LOCAL) {
@@ -744,6 +778,86 @@ void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpM
     m_functionMonitor->eraseSp(state, state->getPc());
     throw CpuExitException();*/
 }
+
+//This is a FASTCALL function!
+void NtoskrnlHandlers::IofCompleteRequest(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (m_memoryChecker) {
+        uint32_t pIrp;
+
+        if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_ECX]), &pIrp, sizeof(pIrp))) {
+            HANDLER_TRACE_PARAM_FAILED("pIrp");
+            return;
+        }
+
+        revokeAccessToIrp(state, pIrp);
+    }
+}
+
+void NtoskrnlHandlers::grantAccessToIrp(S2EExecutionState *state, uint32_t pIrp)
+{
+    if (m_memoryChecker) {
+        m_memoryChecker->grantMemoryForModule(state, pIrp, sizeof(IRP),
+                                              MemoryChecker::READWRITE, "irp");
+
+        IRP irp;
+        if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
+            HANDLER_TRACE_PARAM_FAILED("irp");
+            return;
+        }
+
+        uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
+
+        m_memoryChecker->grantMemoryForModule(state, pStackLocation, sizeof(IO_STACK_LOCATION),
+                                              MemoryChecker::READWRITE, "irp-stack-location");
+
+        IO_STACK_LOCATION StackLocation;
+        if (!state->readMemoryConcrete(pStackLocation, &StackLocation, sizeof(StackLocation))) {
+            HANDLER_TRACE_PARAM_FAILED("stacklocation");
+            return;
+        }
+
+        m_memoryChecker->grantMemoryForModule(state, StackLocation.FileObject, sizeof(FILE_OBJECT32),
+                                              MemoryChecker::READWRITE, "file-object");
+
+    }
+
+}
+
+
+void NtoskrnlHandlers::revokeAccessToIrp(S2EExecutionState *state, uint32_t pIrp)
+{
+    uint64_t callee = state->getTb()->pcOfLastInstr;
+    const ModuleDescriptor *desc = m_detector->getModule(state, callee);
+    assert(desc && "There must be a module");
+
+    if (!m_memoryChecker->revokeMemoryByPointerForModule(state, desc, pIrp, "irp")) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "Could not revoke permissions");
+        return;
+    }
+
+    IRP irp;
+    if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
+        HANDLER_TRACE_PARAM_FAILED("irp");
+        return;
+    }
+
+    uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
+
+    m_memoryChecker->revokeMemoryByPointerForModule(state, desc, pStackLocation, "irp-stack-location");
+
+    IO_STACK_LOCATION StackLocation;
+    if (!state->readMemoryConcrete(pStackLocation, &StackLocation, sizeof(StackLocation))) {
+        HANDLER_TRACE_PARAM_FAILED("stacklocation");
+        return;
+    }
+
+    m_memoryChecker->revokeMemoryByPointerForModule(state, desc, StackLocation.FileObject, "file-object");
+}
+
 
 }
 }

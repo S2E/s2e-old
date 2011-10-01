@@ -236,6 +236,7 @@ void MemoryChecker::grantMemoryForModule(S2EExecutionState *state,
 {
     const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
     if (!module) {
+        assert(false);
         return;
     }
 
@@ -445,6 +446,33 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
         }
     }
     return ret;
+}
+
+
+bool MemoryChecker::revokeMemoryByPointerForModule(S2EExecutionState *state,
+                                                   uint64_t pointer,
+                           const std::string &regionTypePattern)
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false);
+        return false;
+    }
+
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionTypePattern;
+    return revokeMemoryByPointer(state, pointer, ss.str());
+}
+
+bool MemoryChecker::revokeMemoryByPointerForModule(
+        S2EExecutionState *state,
+        const ModuleDescriptor *module,
+        uint64_t pointer,
+        const std::string &regionTypePattern)
+{
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionTypePattern;
+    return revokeMemoryByPointer(state, pointer, ss.str());
 }
 
 bool MemoryChecker::revokeMemoryByPointer(S2EExecutionState *state, uint64_t pointer,
