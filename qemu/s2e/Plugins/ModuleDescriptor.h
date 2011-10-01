@@ -97,6 +97,17 @@ struct SectionDescriptor
 
 typedef std::vector<SectionDescriptor> ModuleSections;
 
+struct SymbolDescriptor {
+    std::string name;
+    unsigned size;
+
+    bool operator()(const SymbolDescriptor &s1, const SymbolDescriptor &s2) const {
+        return s1.name.compare(s2.name) < 0;
+    }
+};
+
+typedef std::set<SymbolDescriptor, SymbolDescriptor> SymbolDescriptors;
+
 /**
  *  Characterizes whatever module can be loaded in the memory.
  *  This can be a user-mode library, or a kernel-mode driver.
