@@ -25,6 +25,7 @@
 #include "trace.h"
 #endif
 
+#include <string.h>
 
 #ifdef S2E_LLVM_LIB
 	int semihosting_enabled = 0;

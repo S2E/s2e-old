@@ -609,38 +609,38 @@ uint64_t S2EExecutionState::getSymbolicRegistersMask() const
     uint64_t mask = 0;
 
         if(!os->isConcrete(0, 4*8)) // spsr
-            mask |= ((unsigned long int)(1) << 0);
+            mask |= ((uint64_t)(1) << 0);
         for(int i = 0; i < 6; ++i) { /* banked_spsr */
                 if(!os->isConcrete((1+i)*4, 4*8))
-                    mask |= ((unsigned long int)(1) << (i+1));
+                    mask |= ((uint64_t)(1) << (i+1));
         }
         for(int i = 0; i < 6; ++i) { /* banked r13 */
                 if(!os->isConcrete((7+i)*4, 4*8))
-                    mask |= ((unsigned long int)(1) << (7+i));
+                    mask |= ((uint64_t)(1) << (7+i));
         }
         for(int i = 0; i < 6; ++i) { /* banked r14 */
                 if(!os->isConcrete((13+i)*4, 4*8))
-                    mask |= ((unsigned long int)(1) << (13+i));
+                    mask |= ((uint64_t)(1) << (13+i));
         }
         for(int i = 0; i < 5; ++i) { /* usr_regs */
                 if(!os->isConcrete((19+i)*4, 4*8))
-                    mask |= ((unsigned long int)(1) << (19+i));
+                    mask |= ((uint64_t)(1) << (19+i));
         }
         for(int i = 0; i < 5; ++i) { /* fiq_regs */
                 if(!os->isConcrete((24+i)*4, 4*8))
-                    mask |= ((unsigned long int)(1) << (24+i));
+                    mask |= ((uint64_t)(1) << (24+i));
         }
         if(!os->isConcrete( 29*4, 4*8)) // CF
-            mask |= ((unsigned long int)(1) << 29);
+            mask |= ((uint64_t)(1) << 29);
         if(!os->isConcrete( 30*4, 4*8)) // VF
-            mask |= ((unsigned long int)(1) << 30);
+            mask |= ((uint64_t)(1) << 30);
         if(!os->isConcrete(31*4, 4*8)) // NF
-            mask |= ((unsigned long int)(1) << 31);
+            mask |= ((uint64_t)(1) << 31);
         if(!os->isConcrete(32*4, 4*8)) // ZF
-            mask |= ((unsigned long int)(1) << 32);
+            mask |= ((uint64_t)(1) << 32);
         for(int i = 0; i < 15; ++i) { /* regs */
                 if(!os->isConcrete((33+i)*4, 4*8))
-                    mask |= (unsigned long int)(1) << (33+i);
+                    mask |= (uint64_t)(1) << (33+i);
         }
 
     return mask;

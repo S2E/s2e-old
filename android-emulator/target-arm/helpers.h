@@ -1,39 +1,41 @@
 #include "def-helper.h"
 
-#define _M_CF    (unsigned long int)(1<<29)
-#define _M_VF   (unsigned long int)(1<<30)
-#define _M_NF   (unsigned long int)(1<<31)
-#define _M_ZF   (unsigned long int)(1<<32)
-#define _M_R0      (unsigned long int)(1<<33)
-#define _M_R1      (unsigned long int)(1<<34)
-#define _M_R2      (unsigned long int)(1<<35)
-#define _M_R3      (unsigned long int)(1<<36)
-#define _M_R4      (unsigned long int)(1<<37)
-#define _M_R5      (unsigned long int)(1<<38)
-#define _M_R6      (unsigned long int)(1<<39)
-#define _M_R7      (unsigned long int)(1<<40)
-#define _M_R8      (unsigned long int)(1<<41)
-#define _M_R9      (unsigned long int)(1<<42)
-#define _M_R10      (unsigned long int)(1<<43)
-#define _M_R11      (unsigned long int)(1<<44)
-#define _M_R12      (unsigned long int)(1<<45)
-#define _M_R13      (unsigned long int)(1<<46)
-#define _M_R14      (unsigned long int)(1<<47)
-#define _M_SPSR      (1<<0)
-#define _M_BANKED_SPSR	((unsigned long int)(63)<<1)
-#define _M_BANKED_R13	((unsigned long int)(63)<<7)
-#define _M_BANKED_R14   ((unsigned long int)(63)<<13)
-#define	_M_USR_REGS		((unsigned long int)(32)<<19)
-#define _M_REGS 		(0x7FFF<<33)
-#define _M_ALL		~((unsigned long int)(0)<<39)
+#define _M_CF    ((uint64_t) 1) <<29
+#define _M_VF   ((uint64_t) 1) <<30
+#define _M_NF   ((uint64_t) 1) <<31
+#define _M_ZF   ((uint64_t) 1) <<32
+#define _M_R0   ((uint64_t) 1) <<33
+#define _M_R1   ((uint64_t) 1) <<34
+#define _M_R2   ((uint64_t) 1) <<35
+#define _M_R3   ((uint64_t) 1) <<36
+#define _M_R4   ((uint64_t) 1) <<37
+#define _M_R5   ((uint64_t) 1) <<38
+#define _M_R6   ((uint64_t) 1) <<39
+#define _M_R7   ((uint64_t) 1) <<40
+#define _M_R8   ((uint64_t) 1) <<41
+#define _M_R9   ((uint64_t) 1) <<42
+#define _M_R10  ((uint64_t) 1) << 43
+#define _M_R11  ((uint64_t) 1) << 44
+#define _M_R12  ((uint64_t) 1) << 45
+#define _M_R13  ((uint64_t) 1) << 46
+#define _M_R14  ((uint64_t) 1) << 47
+#define _M_SPSR    				  	(1 << 0 )
+#define _M_BANKED_SPSR	((uint64_t) 63) 	<< 1
+#define _M_BANKED_R13	((uint64_t) 63) 	<< 7
+#define _M_BANKED_R14   ((uint64_t) 63) 	<< 13
+#define	_M_USR_REGS		((uint64_t) 31) 	<< 19
+#define _M_REGS 		((uint64_t) 0x7FFF)<< 33
+#define _M_ALL		~((uint64_t)(0)<<39)
+#define _M_HIGHREGS     ((uint64_t) 0x7F) << 41
+#define CPSR_SPECIAL (_M_HIGHREGS | _M_USR_REGS | _M_BANKED_R13 | _M_BANKED_R14 | _M_SPSR | _M_BANKED_SPSR )
 
 #define _RM_EXCP    (_M_CF | _M_VF | _M_NF | _M_ZF)
 #define _WM_EXCP    (_M_CF | _M_VF | _M_NF | _M_ZF)
 #define _AM_EXCP    0
 
 
-DEF_HELPER_2_M(cpsr_write, void, i32, i32, 0 , _WM_EXCP , 0)
-DEF_HELPER_0_M(cpsr_read, i32, _RM_EXCP, 0, 0)
+DEF_HELPER_2_M(cpsr_write, void, i32, i32, CPSR_SPECIAL, ( CPSR_SPECIAL | _WM_EXCP ) , 0)
+DEF_HELPER_0_M(cpsr_read, i32, ( CPSR_SPECIAL | _RM_EXCP ), CPSR_SPECIAL, 0)
 
 DEF_HELPER_1_M(get_user_reg, i32, i32, (_M_USR_REGS | _M_BANKED_R14 | _M_BANKED_R13 | _M_REGS), 0, 0)
 DEF_HELPER_2_M(set_user_reg, void, i32, i32, 0, (_M_USR_REGS | _M_BANKED_R14 | _M_BANKED_R13 | _M_REGS) ,0)
@@ -63,35 +65,35 @@ DEF_HELPER_1_M(rbit, i32, i32, 0, 0, 0)
 DEF_HELPER_1_M(abs, i32, i32, 0, 0, 0)
 
 #ifdef CONFIG_TRACE
-DEF_HELPER_1(traceTicks, void, i32)
-DEF_HELPER_0(traceInsn, void)
+DEF_HELPER_1_M(traceTicks, void, i32, 0, 0, 0)
+DEF_HELPER_0_M(traceInsn, void, 0, 0, 0)
 #if HOST_LONG_BITS == 32
-DEF_HELPER_2(traceBB32, void, i64, i32)
+DEF_HELPER_2_M(traceBB32, void, i64, i32, 0, 0, 0)
 #endif
 #if HOST_LONG_BITS == 64
-DEF_HELPER_2(traceBB64, void, i64, i64)
+DEF_HELPER_2_M(traceBB64, void, i64, i64, 0, 0, 0)
 #endif
 #endif
 
 #define PAS_OP(pfx)  \
-    DEF_HELPER_3(pfx ## add8, i32, i32, i32, ptr) \
-    DEF_HELPER_3(pfx ## sub8, i32, i32, i32, ptr) \
-    DEF_HELPER_3(pfx ## sub16, i32, i32, i32, ptr) \
-    DEF_HELPER_3(pfx ## add16, i32, i32, i32, ptr) \
-    DEF_HELPER_3(pfx ## addsubx, i32, i32, i32, ptr) \
-    DEF_HELPER_3(pfx ## subaddx, i32, i32, i32, ptr)
+    DEF_HELPER_3_M(pfx ## add8, i32, i32, i32, ptr, 0, 0, 0) \
+    DEF_HELPER_3_M(pfx ## sub8, i32, i32, i32, ptr, 0, 0, 0) \
+    DEF_HELPER_3_M(pfx ## sub16, i32, i32, i32, ptr, 0, 0, 0) \
+    DEF_HELPER_3_M(pfx ## add16, i32, i32, i32, ptr, 0, 0, 0) \
+    DEF_HELPER_3_M(pfx ## addsubx, i32, i32, i32, ptr, 0, 0, 0) \
+    DEF_HELPER_3_M(pfx ## subaddx, i32, i32, i32, ptr, 0, 0, 0)
 
 PAS_OP(s)
 PAS_OP(u)
 #undef PAS_OP
 
 #define PAS_OP(pfx)  \
-    DEF_HELPER_2(pfx ## add8, i32, i32, i32) \
-    DEF_HELPER_2(pfx ## sub8, i32, i32, i32) \
-    DEF_HELPER_2(pfx ## sub16, i32, i32, i32) \
-    DEF_HELPER_2(pfx ## add16, i32, i32, i32) \
-    DEF_HELPER_2(pfx ## addsubx, i32, i32, i32) \
-    DEF_HELPER_2(pfx ## subaddx, i32, i32, i32)
+    DEF_HELPER_2_M(pfx ## add8, i32, i32, i32, 0, 0, 0) \
+    DEF_HELPER_2_M(pfx ## sub8, i32, i32, i32, 0, 0, 0) \
+    DEF_HELPER_2_M(pfx ## sub16, i32, i32, i32, 0, 0, 0) \
+    DEF_HELPER_2_M(pfx ## add16, i32, i32, i32, 0, 0, 0) \
+    DEF_HELPER_2_M(pfx ## addsubx, i32, i32, i32, 0, 0, 0) \
+    DEF_HELPER_2_M(pfx ## subaddx, i32, i32, i32, 0, 0, 0)
 PAS_OP(q)
 PAS_OP(sh)
 PAS_OP(uq)
@@ -107,9 +109,9 @@ DEF_HELPER_2_M(usad8, i32, i32, i32, 0, 0, 0)
 
 DEF_HELPER_1_M(logicq_cc, i32, i64, 0, 0, 0)
 
-DEF_HELPER_3(sel_flags, i32, i32, i32, i32)
-DEF_HELPER_1(exception, void, i32)
-DEF_HELPER_0(wfi, void)
+DEF_HELPER_3_M(sel_flags, i32, i32, i32, i32, 0, 0, 0)
+DEF_HELPER_1_M(exception, void, i32, 0, 0, 0)
+DEF_HELPER_0_M(wfi, void, 0, 0, 0)
 
 DEF_HELPER_2_M(get_r13_banked, i32, env, i32, _M_BANKED_R13, 0, 0)
 DEF_HELPER_3_M(set_r13_banked, void, env, i32, i32, 0, _M_BANKED_R13, 0)
@@ -122,7 +124,7 @@ DEF_HELPER_3(v7m_msr, void, env, i32, i32)
 DEF_HELPER_2(v7m_mrs, i32, env, i32)
 
 DEF_HELPER_3_M(set_cp15, void, env, i32, i32, 0, 0, 0)
-DEF_HELPER_2_M(get_cp15, i32, env, i32, 0, 0, 0)
+DEF_HELPER_2_M(get_cp15, i32, env, i32, 0, _M_ZF, 0)
 
 DEF_HELPER_3_M(set_cp, void, env, i32, i32, 0, 0, 0)
 DEF_HELPER_2_M(get_cp, i32, env, i32, 0, 0, 0)
