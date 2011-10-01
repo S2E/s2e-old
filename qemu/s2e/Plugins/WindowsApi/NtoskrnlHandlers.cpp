@@ -50,6 +50,7 @@ extern "C" {
 #define CURRENT_CLASS NtoskrnlHandlers
 
 #include "NtoskrnlHandlers.h"
+#include "Ntddk.h"
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
 #include <klee/Solver.h>
@@ -83,6 +84,8 @@ const NtoskrnlHandlers::AnnotationsArray NtoskrnlHandlers::s_handlers[] = {
     DECLARE_EP_STRUC(NtoskrnlHandlers, KeStallExecutionProcessor),
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, ExAllocatePoolWithTag),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, ExFreePool),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, ExFreePoolWithTag),
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint),
 
@@ -114,8 +117,10 @@ const char * NtoskrnlHandlers::s_ignoredFunctionsList[] = {
     NULL
 };
 
-const char *NtoskrnlHandlers::s_exportedVariablesList[] = {
-    "KeTickCount", NULL
+const SymbolDescriptor NtoskrnlHandlers::s_exportedVariablesList[] = {
+    {"KeTickCount", sizeof(uint32_t)},
+    {"SeExports", sizeof(s2e::windows::SE_EXPORTS)},
+    {"", 0}
 };
 
 
@@ -134,7 +139,7 @@ const NtoskrnlHandlers::AnnotationsMap NtoskrnlHandlers::s_handlersMap =
 const NtoskrnlHandlers::StringSet NtoskrnlHandlers::s_ignoredFunctions =
         NtoskrnlHandlers::initializeIgnoredFunctionSet();
 
-const NtoskrnlHandlers::StringSet NtoskrnlHandlers::s_exportedVariables =
+const SymbolDescriptors NtoskrnlHandlers::s_exportedVariables =
         NtoskrnlHandlers::initializeExportedVariables();
 
 void NtoskrnlHandlers::initialize()
@@ -339,7 +344,7 @@ void NtoskrnlHandlers::IoFreeMdl(S2EExecutionState *state, FunctionMonitorState 
     }
 
     if(m_memoryChecker) {
-        m_memoryChecker->revokeMemory(state, NULL, Buffer, uint64_t(-1));
+        m_memoryChecker->revokeMemory(state, Buffer, uint64_t(-1));
     }
 }
 
@@ -622,7 +627,27 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
         return;
     }
 
-    //XXX: grant memory access
+    if (m_memoryChecker) {
+        m_memoryChecker->grantMemory(state, address, size, MemoryChecker::READWRITE, "AllocatePool");
+    }
+}
+
+void NtoskrnlHandlers::ExFreePool(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    if (m_memoryChecker) {
+        uint32_t pointer;
+        if (readConcreteParameter(state, 0, &pointer)) {
+            m_memoryChecker->revokeMemoryByPointer(state, pointer, "AllocatePool");
+        }
+    }
+}
+
+void NtoskrnlHandlers::ExFreePoolWithTag(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    ExFreePool(state, fns);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

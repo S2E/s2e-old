@@ -74,8 +74,8 @@ public:
     static const char *s_ignoredFunctionsList[];
     static const StringSet s_ignoredFunctions;
 
-    static const char *s_exportedVariablesList[];
-    static const StringSet s_exportedVariables;
+    static const SymbolDescriptor s_exportedVariablesList[];
+    static const SymbolDescriptors s_exportedVariables;
 
 private:
     bool m_loaded;
@@ -112,6 +112,8 @@ private:
     DECLARE_ENTRY_POINT(MmGetSystemRoutineAddress);
 
     DECLARE_ENTRY_POINT(ExAllocatePoolWithTag, uint32_t poolType, uint32_t size);
+    DECLARE_ENTRY_POINT(ExFreePool);
+    DECLARE_ENTRY_POINT(ExFreePoolWithTag);
 
     static uint32_t IoGetCurrentIrpStackLocation(windows::IRP *Irp) {
         return ( (Irp)->Tail.Overlay.CurrentStackLocation );

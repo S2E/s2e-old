@@ -132,8 +132,8 @@ const char *NdisHandlers::s_ignoredFunctionsList[] = {
 //NdisQueryAdapterInstanceName, NdisQueryPendingIOCount
 //NdisRequest
 
-const char *NdisHandlers::s_exportedVariablesList[] = {
-    NULL
+const SymbolDescriptor NdisHandlers::s_exportedVariablesList[] = {
+    {"", 0}
 };
 
 const NdisHandlers::AnnotationsMap NdisHandlers::s_handlersMap =
@@ -142,7 +142,7 @@ const NdisHandlers::AnnotationsMap NdisHandlers::s_handlersMap =
 const NdisHandlers::StringSet NdisHandlers::s_ignoredFunctions =
         NdisHandlers::initializeIgnoredFunctionSet();
 
-const NdisHandlers::StringSet NdisHandlers::s_exportedVariables =
+const SymbolDescriptors NdisHandlers::s_exportedVariables =
         NdisHandlers::initializeExportedVariables();
 
 
@@ -301,7 +301,7 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Addr
             s2e()->getWarningsStream() << __FUNCTION__ << ": cannot read allocated address" << std::endl;
             return;
         }
-        m_memoryChecker->grantMemory(state, NULL, BufAddress, Length, 3, "ndis:alloc:NdisAllocateMemory");
+        m_memoryChecker->grantMemory(state, BufAddress, Length, MemoryChecker::READWRITE, "ndis:alloc:NdisAllocateMemory");
     }
 }
 
@@ -337,7 +337,9 @@ void NdisHandlers::NdisAllocateMemoryWithTagPriorityRet(S2EExecutionState* state
             return;
         }
 
-        m_memoryChecker->grantMemory(state, NULL, eax, Length, 3, "ndis:alloc:NdisAllocateMemoryWithTagPriority");
+        m_memoryChecker->grantMemory(state, eax, Length,
+                                     MemoryChecker::READWRITE,
+                                     "ndis:alloc:NdisAllocateMemoryWithTagPriority");
     }
 }
 
@@ -354,7 +356,7 @@ void NdisHandlers::NdisFreeMemory(S2EExecutionState* state, FunctionMonitorState
         if(!ok) {
             s2e()->getWarningsStream() << __FUNCTION__ << ": can not read params" << std::endl;
         }
-        m_memoryChecker->revokeMemory(state, NULL, Address, Length);
+        m_memoryChecker->revokeMemory(state, Address, Length);
     }
 }
 
@@ -382,7 +384,7 @@ void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonit
     m_hw->resetSymbolicMmioRange(state, physAddr, length);
 
     if(m_memoryChecker) {
-        m_memoryChecker->revokeMemory(state, NULL, virtAddr, length);
+        m_memoryChecker->revokeMemory(state, virtAddr, length);
     }
 }
 
@@ -465,7 +467,8 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
         fs->setForking(oldForkStatus);
 
         if(m_memoryChecker) {
-            m_memoryChecker->grantMemory(ts, NULL, va, plgState->val3, 3,
+            m_memoryChecker->grantMemory(ts, va, plgState->val3,
+                                         MemoryChecker::READWRITE,
                                          "ndis:hw:NdisMAllocateSharedMemory");
         }
      }
@@ -513,7 +516,7 @@ void NdisHandlers::NdisAllocatePacketRet(S2EExecutionState* state, uint32_t pSta
     //    Length = 0x1000; // XXX
 
     if(m_memoryChecker) {
-        m_memoryChecker->grantMemory(state, NULL, Packet, Length, 3,
+        m_memoryChecker->grantMemory(state, Packet, Length, MemoryChecker::READWRITE,
                                      "ndis:alloc:NdisAllocatePacket");
     }
 }
@@ -533,7 +536,7 @@ void NdisHandlers::NdisFreePacket(S2EExecutionState *state, FunctionMonitorState
     }
 
     if(m_memoryChecker) {
-        m_memoryChecker->revokeMemory(state, NULL, packet, uint64_t(-1));
+        m_memoryChecker->revokeMemory(state, packet, uint64_t(-1));
     }
 }
 
@@ -763,7 +766,7 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
     }
 
     if(m_memoryChecker) {
-        m_memoryChecker->grantMemory(state, NULL, s.Buffer, s.Length, 1,
+        m_memoryChecker->grantMemory(state, s.Buffer, s.Length, MemoryChecker::READ,
                              "ndis:ret:NdisMQueryAdapterInstanceName");
     }
 }
@@ -890,7 +893,7 @@ void NdisHandlers::NdisAllocateBufferRet(S2EExecutionState* state, uint32_t pSta
     //Length += 0x1000; // XXX
 
     if(m_memoryChecker) {
-        m_memoryChecker->grantMemory(state, NULL, Buffer, Length, 3,
+        m_memoryChecker->grantMemory(state, Buffer, Length, MemoryChecker::READWRITE,
                                      "ndis:alloc:NdisAllocateBuffer");
     }
 }
@@ -1358,19 +1361,21 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
 
         /* Update each of the states */
         if(m_memoryChecker) {
-            m_memoryChecker->grantMemory(ts, NULL, pConfigParam, sizeof(ConfigParam), 1,
+            m_memoryChecker->grantMemory(ts, pConfigParam, sizeof(ConfigParam),
+                                         MemoryChecker::READ,
                                          "ndis:ret:NdisReadConfiguration");
             if(ConfigParam.ParameterType == NdisParameterString ||
                     ConfigParam.ParameterType == NdisParameterMultiString) {
-                m_memoryChecker->grantMemory(ts, NULL,
+                m_memoryChecker->grantMemory(ts,
                                              ConfigParam.ParameterData.StringData.Buffer,
-                                             ConfigParam.ParameterData.StringData.Length, 1,
+                                             ConfigParam.ParameterData.StringData.Length,
+                                             MemoryChecker::READ,
                                              "ndis:ret:NdisReadConfiguration:StringData");
             } else if(ConfigParam.ParameterType == NdisParameterBinary) {
-                m_memoryChecker->grantMemory(ts, NULL,
+                m_memoryChecker->grantMemory(ts,
                                              ConfigParam.ParameterData.BinaryData.Buffer,
                                              ConfigParam.ParameterData.BinaryData.Length,
-                                             1,
+                                             MemoryChecker::READ,
                                              "ndis:ret:NdisReadConfiguration:BinaryData");
             }
         }
@@ -1396,7 +1401,7 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
 void NdisHandlers::NdisCloseConfiguration(S2EExecutionState *state, FunctionMonitorState *fns)
 {
     if(m_memoryChecker) {
-        m_memoryChecker->revokeMemory(state, NULL, "ndis:ret:NdisReadConfiguration*");
+        m_memoryChecker->revokeMemory(state, "ndis:ret:NdisReadConfiguration*");
     }
 }
 
@@ -1963,9 +1968,9 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
     s2e()->getDebugStream() << "NDIS_M_STATUS_HANDLER " << std::hex << pStatusHandler << std::endl;
 
     if(m_memoryChecker) {
-        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
-        m_memoryChecker->grantMemory(state, module, pMediumArray, MediumArraySize*4,
-                             1, "ndis:args:MiniportInitialize:MediumArray");
+        //const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
+        m_memoryChecker->grantMemory(state, pMediumArray, MediumArraySize*4,
+                             MemoryChecker::READ, "ndis:args:MiniportInitialize:MediumArray");
     }
 
     NDIS_REGISTER_ENTRY_POINT(pStatusHandler, NdisMStatusHandler);
@@ -2000,10 +2005,10 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
 void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
-    const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
+    //const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
 
     if(m_memoryChecker) {
-        m_memoryChecker->revokeMemory(state, module, "ndis:args:MiniportInitialize:*");
+        m_memoryChecker->revokeMemory(state, "ndis:args:MiniportInitialize:*");
     }
 
     //Check the success status, kill if failure
@@ -2022,7 +2027,7 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
                 " because InitializeHandler failed with 0x" << std::hex << eax << std::endl;
         if(m_memoryChecker) {
             // Driver should free all resources if initialization fails
-            m_memoryChecker->checkMemoryLeaks(state, module);
+            m_memoryChecker->checkMemoryLeaks(state);
         }
         s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler failed");
         return;
@@ -2115,7 +2120,7 @@ void NdisHandlers::HaltHandlerRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
 
     if(m_memoryChecker) {
-        m_memoryChecker->checkMemoryLeaks(state, NULL);
+        m_memoryChecker->checkMemoryLeaks(state);
     }
 
     //There is nothing more to execute, kill the state

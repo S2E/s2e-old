@@ -71,8 +71,8 @@ const char * HalHandlers::s_ignoredFunctionsList[] = {
     NULL
 };
 
-const char *HalHandlers::s_exportedVariablesList[] = {
-    NULL
+const SymbolDescriptor HalHandlers::s_exportedVariablesList[] = {
+    {"", 0}
 };
 
 
@@ -82,7 +82,7 @@ const HalHandlers::HalHandlersMap HalHandlers::s_handlersMap =
 const HalHandlers::StringSet HalHandlers::s_ignoredFunctions =
         HalHandlers::initializeIgnoredFunctionSet();
 
-const HalHandlers::StringSet HalHandlers::s_exportedVariables =
+const SymbolDescriptors HalHandlers::s_exportedVariables =
         HalHandlers::initializeExportedVariables();
 
 

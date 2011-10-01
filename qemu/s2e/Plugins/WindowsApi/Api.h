@@ -86,7 +86,6 @@ struct WindowsApiHandler {
     F function;
 };
 
-
 class WindowsApi: public Plugin
 {
 public:
@@ -230,10 +229,10 @@ public:
         return ignoredFunctions;
     }
 
-    static StringSet initializeExportedVariables() {
-        StringSet exportedVariables;
-        for (unsigned i=0; ANNOTATIONS_PLUGIN::s_exportedVariablesList[i]; ++i) {
-            exportedVariables.insert(std::string(ANNOTATIONS_PLUGIN::s_exportedVariablesList[i]));
+    static SymbolDescriptors initializeExportedVariables() {
+        SymbolDescriptors exportedVariables;
+        for (unsigned i=0; ANNOTATIONS_PLUGIN::s_exportedVariablesList[i].size; ++i) {
+            exportedVariables.insert(ANNOTATIONS_PLUGIN::s_exportedVariablesList[i]);
         }
         return exportedVariables;
     }
@@ -338,9 +337,18 @@ public:
 
     //Checks whether the given name is an exported variable.
     //Useful for granting access rights to such variables.
-    static bool isExportedVariable(const std::string &name) {
-        return ANNOTATIONS_PLUGIN::s_exportedVariables.find(name) !=
-                ANNOTATIONS_PLUGIN::s_exportedVariables.end();
+    static bool isExportedVariable(const std::string &name, unsigned *size = NULL) {
+        SymbolDescriptor desc = {name, 0};
+        SymbolDescriptors::const_iterator it = ANNOTATIONS_PLUGIN::s_exportedVariables.find(desc);
+
+        if (it == ANNOTATIONS_PLUGIN::s_exportedVariables.end()) {
+            return false;
+        }
+
+        if (size) {
+            *size = (*it).size;
+        }
+        return true;
     }
 
     void registerImportedVariables(
@@ -352,11 +360,12 @@ public:
             foreach2(fit, symbols.begin(), symbols.end()) {
                 const std::string &fname = (*fit).first;
                 uint64_t address = (*fit).second;
-                if (isExportedVariable(fname)) {
-                    std::stringstream ss;
-                    ss << "driver:globals:" << fname;
-                    m_memoryChecker->grantMemory(state, &module, address, 4, 1,
-                                                 ss.str(), 0, true);
+                unsigned size;
+                if (isExportedVariable(fname, &size)) {
+                    assert(size > 0);
+                    m_memoryChecker->grantMemoryForModule(state, &module, address, size,
+                                                          MemoryChecker::READ,
+                                                 fname, true);
                 }
             }
         }

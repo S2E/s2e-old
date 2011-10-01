@@ -129,6 +129,82 @@ struct BUS_HANDLER32
     }
 };
 
+struct LUID {
+  uint32_t LowPart;
+  uint32_t HighPart;
+};
+
+typedef uint32_t PSID;
+
+struct SE_EXPORTS {
+  LUID SeCreateTokenPrivilege;
+  LUID SeAssignPrimaryTokenPrivilege;
+  LUID SeLockMemoryPrivilege;
+  LUID SeIncreaseQuotaPrivilege;
+  LUID SeUnsolicitedInputPrivilege;
+  LUID SeTcbPrivilege;
+  LUID SeSecurityPrivilege;
+  LUID SeTakeOwnershipPrivilege;
+  LUID SeLoadDriverPrivilege;
+  LUID SeCreatePagefilePrivilege;
+  LUID SeIncreaseBasePriorityPrivilege;
+  LUID SeSystemProfilePrivilege;
+  LUID SeSystemtimePrivilege;
+  LUID SeProfileSingleProcessPrivilege;
+  LUID SeCreatePermanentPrivilege;
+  LUID SeBackupPrivilege;
+  LUID SeRestorePrivilege;
+  LUID SeShutdownPrivilege;
+  LUID SeDebugPrivilege;
+  LUID SeAuditPrivilege;
+  LUID SeSystemEnvironmentPrivilege;
+  LUID SeChangeNotifyPrivilege;
+  LUID SeRemoteShutdownPrivilege;
+  PSID SeNullSid;
+  PSID SeWorldSid;
+  PSID SeLocalSid;
+  PSID SeCreatorOwnerSid;
+  PSID SeCreatorGroupSid;
+  PSID SeNtAuthoritySid;
+  PSID SeDialupSid;
+  PSID SeNetworkSid;
+  PSID SeBatchSid;
+  PSID SeInteractiveSid;
+  PSID SeLocalSystemSid;
+  PSID SeAliasAdminsSid;
+  PSID SeAliasUsersSid;
+  PSID SeAliasGuestsSid;
+  PSID SeAliasPowerUsersSid;
+  PSID SeAliasAccountOpsSid;
+  PSID SeAliasSystemOpsSid;
+  PSID SeAliasPrintOpsSid;
+  PSID SeAliasBackupOpsSid;
+  PSID SeAuthenticatedUsersSid;
+  PSID SeRestrictedSid;
+  PSID SeAnonymousLogonSid;
+  LUID SeUndockPrivilege;
+  LUID SeSyncAgentPrivilege;
+  LUID SeEnableDelegationPrivilege;
+  PSID SeLocalServiceSid;
+  PSID SeNetworkServiceSid;
+  LUID SeManageVolumePrivilege;
+  LUID SeImpersonatePrivilege;
+  LUID SeCreateGlobalPrivilege;
+  LUID SeTrustedCredManAccessPrivilege;
+  LUID SeRelabelPrivilege;
+  LUID SeIncreaseWorkingSetPrivilege;
+  LUID SeTimeZonePrivilege;
+  LUID SeCreateSymbolicLinkPrivilege;
+  PSID SeIUserSid;
+  PSID SeUntrustedMandatorySid;
+  PSID SeLowMandatorySid;
+  PSID SeMediumMandatorySid;
+  PSID SeHighMandatorySid;
+  PSID SeSystemMandatorySid;
+  PSID SeOwnerRightsSid;
+  PSID SeAllAppPackagesSid;
+};
+
 }
 }
 

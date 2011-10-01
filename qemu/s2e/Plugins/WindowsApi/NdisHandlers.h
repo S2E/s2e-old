@@ -82,8 +82,8 @@ public:
     static const char *s_ignoredFunctionsList[];
     static const StringSet s_ignoredFunctions;
 
-    static const char *s_exportedVariablesList[];
-    static const StringSet s_exportedVariables;
+    static const SymbolDescriptor s_exportedVariablesList[];
+    static const SymbolDescriptors s_exportedVariables;
 
 private:
     SymbolicHardware *m_hw;

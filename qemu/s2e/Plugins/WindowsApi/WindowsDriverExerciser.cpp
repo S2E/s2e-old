@@ -139,7 +139,7 @@ void WindowsDriverExerciser::onModuleLoad(
             const SectionDescriptor &sec = *it;
 
             std::stringstream ss;
-            ss << "driver:" << module.Name << ":" << sec.name;
+            ss << "module:" << module.Name << ":" << sec.name;
 
 
             MemoryChecker::Permissions perms = MemoryChecker::NONE;
@@ -151,7 +151,7 @@ void WindowsDriverExerciser::onModuleLoad(
             }
 
             m_memoryChecker->grantMemory(
-                        state, &module,
+                        state,
                         sec.loadBase, sec.size,
                         perms, ss.str());
         }
@@ -178,9 +178,9 @@ void WindowsDriverExerciser::onModuleUnload(
 
     if(m_memoryChecker) {
         std::stringstream ss;
-        ss << "driver:" << module.Name << ":*";
-        m_memoryChecker->revokeMemory(state, &module, ss.str());
-        m_memoryChecker->checkMemoryLeaks(state, &module);
+        ss << "module:" << module.Name << ":*";
+        m_memoryChecker->revokeMemory(state, ss.str());
+        m_memoryChecker->checkMemoryLeaks(state);
     }
 
     //XXX: We might want to monitor multiple modules, so avoid killing
@@ -209,9 +209,7 @@ void WindowsDriverExerciser::onModuleTransition(S2EExecutionState *state,
             return;
         }
         //Revoke the rights of the current module
-        std::stringstream ss;
-        ss << "driver:" << prevModule->Name << ":stack";
-        m_memoryChecker->revokeMemory(state, prevModule, ss.str());
+        m_memoryChecker->revokeMemoryForModule(state, prevModule, "stack");
     }
 
     //Grant rights for the new module
@@ -222,16 +220,14 @@ void WindowsDriverExerciser::onModuleTransition(S2EExecutionState *state,
             return;
         }
         //Revoke the rights of the current module
-        std::stringstream ss;
-        ss << "driver:" << nextModule->Name << ":stack";
-
         uint64_t stackBase, stackSize;
         if (!m_windowsMonitor->getCurrentStack(state, &stackBase, &stackSize)) {
             s2e()->getWarningsStream() << "Could not retrieve current stack" << std::endl;
             return;
         }
 
-        m_memoryChecker->grantMemory(state, nextModule, stackBase, stackSize, MemoryChecker::READ | MemoryChecker::WRITE, ss.str());
+        m_memoryChecker->grantMemoryForModule(state, nextModule, stackBase, stackSize,
+                                              MemoryChecker::READWRITE, "stack");
     }
 }
 
@@ -249,15 +245,12 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
     }
 
     if(m_memoryChecker) {
-        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
-
-        // Entry point args
-        m_memoryChecker->grantMemory(state, module, driverObject, 0x1000, 3,
-                                     "driver:args:EntryPoint:DriverObject");
-        m_memoryChecker->grantMemory(state, module, registryPath, 0x1000, 3,
-                                     "driver:args:EntryPoint:RegistryPath");
-
-
+        //Entry point args
+        //XXX: Fix the hard-coded sizes!
+        m_memoryChecker->grantMemoryForModule(state, driverObject, 0x1000, MemoryChecker::READWRITE,
+                                     "args:EntryPoint:DriverObject");
+        m_memoryChecker->grantMemoryForModule(state, registryPath, 0x1000, MemoryChecker::READWRITE,
+                                     "args:EntryPoint:RegistryPath");
     }
 
     FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject);
@@ -269,8 +262,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
                 << " at " << hexval(state->getPc()) << std::endl;
 
     if(m_memoryChecker) {
-        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
-        m_memoryChecker->revokeMemory(state, module, "driver:args:EntryPoint:*");
+        m_memoryChecker->revokeMemoryForModule(state, "args:EntryPoint:*");
     }
 
     //Check the success status
