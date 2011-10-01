@@ -84,11 +84,6 @@ private:
 
     bool decideTracing(S2EExecutionState *state, uint64_t addr, uint64_t data) const;
 
-    void onDataMemoryAccess(S2EExecutionState *state,
-                                   klee::ref<klee::Expr> address,
-                                   klee::ref<klee::Expr> hostAddress,
-                                   klee::ref<klee::Expr> value,
-                                   bool isWrite, bool isIO);
 
     void onTlbMiss(S2EExecutionState *state, uint64_t addr, bool is_write);
     void onPageFault(S2EExecutionState *state, uint64_t addr, bool is_write);
@@ -98,6 +93,14 @@ private:
     void enableTracing();
     void disableTracing();
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
+
+public:
+    //May be called directly by other plugins
+    void onDataMemoryAccess(S2EExecutionState *state,
+                                   klee::ref<klee::Expr> address,
+                                   klee::ref<klee::Expr> hostAddress,
+                                   klee::ref<klee::Expr> value,
+                                   bool isWrite, bool isIO);
 
 };
 
