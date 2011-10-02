@@ -185,7 +185,6 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     }
     case 1: { /* trace uid */
     	std::string message;
-    	uint32_t messagePtr;
     	bool ok = true;
     	GET_STRING_FROM_REGISTER(0,message,"<NO MESSAGE>");
     	s2e()->getMessagesStream(state) << "UID traced with info: " << message << std::endl;
@@ -232,6 +231,7 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     	uint32_t op;
     	uint32_t virtual_pc;
     	uint32_t virtual_fp;
+    	uint32_t pc;
 
     	bool ok = true;
 
@@ -239,6 +239,8 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     	GET_REGISTER_CONCRETE(5,op,4);
     	GET_REGISTER_CONCRETE(6,virtual_pc,4);
     	GET_REGISTER_CONCRETE(7,virtual_fp,4);
+    	GET_REGISTER_CONCRETE(14,pc,4);
+//    	pc = (uint32_t) state->readCpuState(offsetof(CPUState, regs[15]), 8*sizeof(uint32_t));
 
 
     	OpCode opc = (OpCode)op;
@@ -246,7 +248,7 @@ void AndroidMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opco
     	if (opc <= OP_UNUSED_FF) {
     		 opc_name = getOpcodeName(opc);
     	}
-    	s2e()->getMessagesStream() << "AndroidMonitor(" << std::dec << tid << ") : " << opc_name << " ( " << std::hex << op << " ) at vpc: " << virtual_pc << " vfp: " << virtual_fp << "." << std::endl;
+    	s2e()->getMessagesStream() << "AndroidMonitor(" << std::dec << tid << ") at pc "<< std::hex << pc << ": " << opc_name << " ( " << std::hex << op << " ) at vpc: " << virtual_pc << " vfp: " << virtual_fp << "." << std::endl;
     	break;
     }
     case 4: { /* on interpreted method call */

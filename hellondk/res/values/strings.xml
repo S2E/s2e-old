@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="hello">Buttons call native methods. See LogCat.</string>
-    <string name="app_name">S2EAndroidActivity</string>
+    <string name="app_name">S2EAndroidApp</string>
 <string name="call_native_1">LogCat via Native</string>
 <string name="call_native_2">Get String from Native</string>
 <string name="call_s2e_version">Get S2E Version</string>
 <string name="send_location">Send Location</string>
-<string name="send_uiid">Send UUID</string>
+<string name="send_uiid">Symbolic Maze Benchmark</string>
+<string name="test_autosymbex">Test Auto-Symbex</string>
 </resources>

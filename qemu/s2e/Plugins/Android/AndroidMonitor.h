@@ -49,6 +49,30 @@
 #include <s2e/Plugins/OSMonitor.h>
 #include <vector>
 
+
+//assumes bool ok;
+#define GET_REGISTER_CONCRETE(_regno,_dest,_size) do {										\
+		ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[_regno]), &(_dest), _size);		\
+		if (!ok) {																			\
+		    s2e()->getWarningsStream(state)													\
+		    << "ERROR: cannot read "<< #_dest << "from register "<< #_regno << "."			\
+		    << std::endl;																	\
+		    return;																			\
+		}																					\
+	}while(false)
+
+#define GET_STRING_FROM_REGISTER(_regno,_dest,_default) do {								\
+		uint32_t str_ptr;																	\
+		GET_REGISTER_CONCRETE(_regno,str_ptr,4);											\
+		_dest = _default;																	\
+    	if(str_ptr && !state->readString(str_ptr, _dest)) {									\
+    	    s2e()->getWarningsStream(state)													\
+    	    << "Android Monitor:: Error reading string from guest ( "						\
+			<< #_dest << " ). Use default: "<< _default << std::endl;						\
+    	}																					\
+    }while(false)
+
+
 namespace s2e {
 namespace plugins {
 

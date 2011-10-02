@@ -40,4 +40,10 @@
         android:id="@+id/send_uiid" 
         android:onClick="onClickSendUiid">
 </Button>
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/test_autosymbex"
+        android:id="@+id/testAutoSymbex" 
+        android:onClick="onClickTestAutoSymbex">
+</Button>
 </LinearLayout>

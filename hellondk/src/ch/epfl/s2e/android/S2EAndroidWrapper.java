@@ -17,6 +17,8 @@ public class S2EAndroidWrapper {
     public static native long      getSymbolicLong(String name);
     public static native float     getSymbolicFloat(String name);
     public static native boolean   getSymbolicBoolean(String name);
+    
+    public static native int[]     getSymbolicIntArray(int size,String name);
 	
 	public static native int       getExampleInt(int symbvar);
 	public static native double    getExampleDouble(double symbvar);

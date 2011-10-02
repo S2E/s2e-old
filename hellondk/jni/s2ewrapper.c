@@ -100,6 +100,36 @@ jboolean Java_ch_epfl_s2e_android_S2EAndroidWrapper_getSymbolicBoolean(JNIEnv * 
     return (jboolean)x;
 }
 
+
+jintArray Java_ch_epfl_s2e_android_S2EAndroidWrapper_getSymbolicIntArray(JNIEnv * env, jobject this, jint size, jstring name) {
+	jboolean iscopy;
+	const char *symbol = (*env)->GetStringUTFChars(
+                env, name, &iscopy);
+
+	jintArray result;
+	 result = (*env)->NewIntArray(env, size);
+	 if (result == NULL) {
+	     return NULL; /* out of memory error thrown */
+	 }
+	 int i;
+
+	 // fill a temp structure to use to populate the java int array
+	 jint fill[size];
+	 //s2e_make_symbolic(&x, sizeof(x), symbol);
+
+	 int c;
+	 char *symname = malloc(sizeof(symbol)+20);
+
+	 for(c=0; c < size; c++) {
+		 sprintf(symname, "%s%i", symbol, c);
+		 s2e_make_symbolic(&fill[c], sizeof(jint), symname);
+	 }
+
+	 // move from the temp structure to the java structure
+	 (*env)->SetIntArrayRegion(env, result, 0, size, fill);
+	 return result;
+}
+
 jint Java_ch_epfl_s2e_android_S2EAndroidWrapper_getExampleInt(JNIEnv * env, jobject this,jint var) {
 	s2e_get_example(&var, sizeof(var));
 	return var;

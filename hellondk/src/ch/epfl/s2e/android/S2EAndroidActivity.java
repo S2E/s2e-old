@@ -63,46 +63,56 @@ public class S2EAndroidActivity extends Activity {
 			
 			@Override
 			public void onLocationChanged(Location location) {
-				Log.i(DEBUG_TAG, "Location changed");
-		        int test = S2EAndroidWrapper.getSymbolicInt("testvar");
-				double lat = S2EAndroidWrapper.getSymbolicDouble("latitude");
-				double lon = location.getLongitude();
-				double latEx = 0;
-				double lonEx = 0;
-                if(lat <= 0) {
-                    latEx = S2EAndroidWrapper.getExampleDouble(lat);
-//                    lonEx = S2EAndroidWrapper.getExampleDouble(lon);
-                } else {
-                    latEx = S2EAndroidWrapper.getExampleDouble(lat);
-//                    lonEx = S2EAndroidWrapper.getExampleDouble(lon);
-                }
-				
-				String concat = new String("lon: "+lonEx+"\n lat:"+latEx);
-				sendToServer(concat);	
+			    startLeakingLocation(location);
 			}
 		});
         
     }
     
+    protected void startLeakingLocation(Location location) {
+        Log.i(DEBUG_TAG, "Location changed");
+      double lon = location.getLongitude();
+      double lat = location.getLatitude();
+      double lonEx = 0;
+      if(lon <= 0) {
+          lonEx = S2EAndroidWrapper.getExampleDouble(lon);
+          String concat = new String(/*"lon: "+lonEx+*/" lon:"+lon);
+          sendToServer(concat);
+          S2EAndroidWrapper.killState(0, "fin! leaked.");
+      } else {
+          
+            S2EAndroidWrapper.killState(0, "fin! not leaked (else).");
+//          Log.i(DEBUG_TAG, "else branch (lat > 0)");
+//          lonEx = S2EAndroidWrapper.getExampleDouble(lon);
+//          Log.i(DEBUG_TAG, "else: after example of latitude");
+//          lonEx = S2EAndroidWrapper.getExampleDouble(lon);
+//          Log.i(DEBUG_TAG, "else: after example of longitude");
+      }
+      S2EAndroidWrapper.killState(0, "fin! not leaked.");
+    }
+
     public void onCallNative1(View view) {
         int test = S2EAndroidWrapper.getSymbolicInt("testvar");
         Log.d(DEBUG_TAG, "Back from journey to S2E. Nice trip.");
         test+=1;
-        Log.d(DEBUG_TAG, "Back from test+=1.");  
+        Log.d(DEBUG_TAG, "Back from test+=1");
+        S2EAndroidWrapper.printExpressionInt(test, "what?");
     }
     
     public void onCallNative2(View view) {
-        String result = getString(5,2);
-        Log.v(DEBUG_TAG, "Result: "+result);
-        
-        result = getString(105, 1232);
-        Log.v(DEBUG_TAG, "Result2: "+result);
+        Location loc = new Location("FakeProvider");
+        startLeakingLocation(loc);
+//        String result = getString(5,2);
+//        Log.v(DEBUG_TAG, "Result: "+result);
+//        
+//        result = getString(105, 1232);
+//        Log.v(DEBUG_TAG, "Result2: "+result);
     }
     
     public void onCallS2EVersion(View view) {
         String result = "S2E Version: " +S2EAndroidWrapper.getVersion();
         Log.v(DEBUG_TAG, "Result: "+result);
-        Toast.makeText(this, "S2E Version:", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, result, Toast.LENGTH_LONG).show();
     }
     
     private native void helloLog(String logThis);
@@ -156,9 +166,202 @@ public class S2EAndroidActivity extends Activity {
 	}
 
 	public void onClickSendUiid(View view) {
-    		TelephonyManager tManager = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
-    		String uid = tManager.getDeviceId();
-    		sendToServer(uid);
+//    		TelephonyManager tManager = (TelephonyManager)getSystemService(Context.TELEPHONY_SERVICE);
+//    		String uid = tManager.getDeviceId();
+//    		sendToServer(uid);
+	    testMaze();
     }
-    
+	
+	
+	public void onClickTestAutoSymbex(View view) {
+	    Log.d(DEBUG_TAG, "We are starting the routine testAutoSymbex and cover all branches!");
+//	    testAutoSymbexInts(0,30,5); //the input params do not matter when autosymbex is on
+//	    Log.d(DEBUG_TAG, "Returned from the routine testAutoSymbex");
+	    testAutoSymbexBoolAndDoubles(30.3,5.4, false); //the input params do not matter when autosymbex is on
+	    Log.d(DEBUG_TAG, "Returned from the routine testAutoSymbex");
+	    S2EAndroidWrapper.printMessage("State is back from autosymbex journey.");
+	}
+	
+	private static void testAutoSymbexInts(int x, int y, int z) {
+	    if (z <= 10) {
+	        if (x == y) {
+	            Log.d(DEBUG_TAG, "z: x == y");
+	        } else {
+	            Log.d(DEBUG_TAG, "z: x != y");
+	        }
+	    } else {
+            if (x == y) {
+                Log.d(DEBUG_TAG, "!z: x == y");
+            } else {
+                Log.d(DEBUG_TAG, "!z: x != y");
+            }	        
+	    }
+	}
+	
+	   private static void testAutoSymbexBoolAndDoubles(double x, double y, boolean z) {
+	        if (z) {
+	            if (x == y) {
+	                Log.d(DEBUG_TAG, "double z: x == y");
+	            } else {
+	                Log.d(DEBUG_TAG, "double z: x != y");
+	            }
+	        } else {
+	            if (x == y) {
+	                Log.d(DEBUG_TAG, "double !z: x == y");
+	            } else {
+	                Log.d(DEBUG_TAG, "double !z: x != y");
+	            }           
+	        }
+	    }
+	
+	
+	// #####################################################################
+	// #####           SYMBOLIC MAZE ported to JAVA                   ######
+	// #####################################################################
+	
+	public void testMaze() {
+	    
+	    final int ITERS = 32;
+	    final int H = 7;
+	    final int W = 11;
+	    int playerpos_x = 1;
+	    int playerpos_y = 1;
+	    int oldpos_x = 0;
+	    int oldpos_y = 0;
+	    //index of array maze represents the vertial position (y)
+	    String[] maze = {   "+-+---+---+",
+	                        "| |     |#|",
+	                        "| | --+ | |",
+	                        "| |   | | |",
+	                        "| +-- | | |",
+	                        "|     |   |",
+	                        "+-----+---+" };
+	    
+	    int numIterations = 0;    //Iteration number
+	    
+//	    int[] program = new int[ITERS];
+//	    for(int i= 0; i < ITERS; i++) {
+//	        program[i] = S2EAndroidWrapper.getSymbolicInt("input"+i);
+//	        
+//	    }
+	    int[] program = S2EAndroidWrapper.getSymbolicIntArray(ITERS,"input");
+
+	    maze[playerpos_y] = replaceCharAt(maze[playerpos_y], playerpos_x, 'X');
+
+	    //Iterate and run 'program'
+	    while(numIterations < ITERS)
+	    {
+	        //print maze
+	        StringBuilder map = new StringBuilder();
+	        map.append("MAP:\n");
+	        for(String curLine : maze) {
+	            map.append("\t\t"+curLine+"\n");
+	        }
+	        map.append("\n\n");
+            S2EAndroidWrapper.printMessage(map.toString());  
+	        
+	        //store old player position
+	        oldpos_x = playerpos_x;
+	        oldpos_y = playerpos_y;
+	        
+	        //Move player position depending on the actual command
+	        
+	        int testval = program[numIterations];
+	        
+	        if (testval == 0) {
+                playerpos_y--;
+	            S2EAndroidWrapper.printMessage("Maze: UP to "+playerpos_x+"/ "+playerpos_y);
+	        } else if (testval == 1) {
+	            playerpos_y++;
+	            S2EAndroidWrapper.printMessage("Maze: DOWN to "+playerpos_x+"/ "+playerpos_y);
+	        } else if (testval == 2) {
+                playerpos_x--;
+	            S2EAndroidWrapper.printMessage("Maze: LEFT to "+playerpos_x+"/ "+playerpos_y);
+	        } else if (testval == 3) {
+                playerpos_x++;
+	            S2EAndroidWrapper.printMessage("Maze: RIGHT to "+playerpos_x+"/ "+playerpos_y);
+	        } else {
+	            S2EAndroidWrapper.printMessage("Maze: UNDEF at "+playerpos_x+"/ "+playerpos_y);
+	            S2EAndroidWrapper.killState(0, "Maze: loose (undef)");
+	        }
+
+//XXX:  switch statement causes troubles with the constraint solver	        
+//	        switch (program[numIterations])
+//	        {
+//	            case 0: 
+//	                playerpos_y--;
+//	                break;
+//	            case 1:    
+//	                playerpos_y++;
+//	                break;
+//	            case 2:  
+//	                playerpos_x--;
+//	                break;
+//	            case 3:
+//	                playerpos_x++;
+//	                break;
+//	            default:
+//	                S2EAndroidWrapper.killState(0, "loose");
+//	        }
+
+	        
+            char block = maze[playerpos_y].charAt(playerpos_x);
+            S2EAndroidWrapper.printMessage("Block is: "+block);  
+	        
+	        //If hit the price, You Win!!
+	        
+            if (block == '#')
+            {
+                S2EAndroidWrapper.printMessage("Maze: WIN in "+numIterations+" steps.\n");
+//                StringBuilder solution = new StringBuilder();
+//                for(int j = 0; j < ITERS; j++) {
+//                    int step = S2EAndroidWrapper.concretizeInt(program[j]);
+//                    solution.append(step+",");
+//                }
+//                S2EAndroidWrapper.printMessage("Maze: Solution "+solution.toString()+"\n");
+                S2EAndroidWrapper.killState(0, "Maze: win");
+            }
+	        //If something is wrong do not advance
+
+	        if ( block != ' ') {
+	            if (playerpos_y == 2   && block == '|' 
+                                       && playerpos_x > 0 
+                                       && playerpos_x < W) {
+	                S2EAndroidWrapper.printMessage("Maze: Secret path.");                      
+                } else {
+    	            S2EAndroidWrapper.printMessage("Maze: BAD. Don't advance to "+playerpos_x+"/ "+playerpos_y);
+    	            playerpos_x = oldpos_x;
+    	            playerpos_y = oldpos_y;
+                }
+	        }
+
+	        //If crashed to a wall! Exit, you loose
+	        if (oldpos_x==playerpos_x && oldpos_y==playerpos_y)
+                S2EAndroidWrapper.killState(0, "Maze: loose (wallcrash at "+playerpos_x+"/ "+playerpos_y+")");
+
+	        //put the player on the maze...
+//            char[] lineold = maze[oldpos_y].toCharArray();
+//	        lineold[oldpos_x]=' ';
+	        
+	        
+	        maze[playerpos_y] = replaceCharAt(maze[playerpos_y], playerpos_x, 'X');
+	        
+	        //increment iteration
+	        
+	        numIterations++;
+	        S2EAndroidWrapper.printMessage("Maze: OK. Step # "+numIterations+ " starts with "+playerpos_x+"/ "+playerpos_y);
+	    }
+
+	    //You couldn't make it! You loose!
+	    //printf("You loose\n");
+	    S2EAndroidWrapper.killState(0, "loose");
+	
+    }
+	
+	public static String replaceCharAt(String s, int pos, char c) {
+	    StringBuffer buf = new StringBuffer( s );
+	    buf.setCharAt( pos, c );
+	    return buf.toString( );
+	  }
+	
 }

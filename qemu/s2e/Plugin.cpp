@@ -89,6 +89,7 @@ extern "C" {
 
 #ifdef TARGET_ARM
 #include <s2e/Plugins/Android/AndroidMonitor.h>
+#include <s2e/Plugins/Android/AndroidAnnotation.h>
 #endif
 
 #include <s2e/Plugins/Linux/LinuxMonitor.h>
@@ -161,6 +162,7 @@ PluginsFactory::PluginsFactory()
 
 #ifdef TARGET_ARM
     __S2E_REGISTER_PLUGIN(plugins::AndroidMonitor);
+    __S2E_REGISTER_PLUGIN(plugins::AndroidAnnotation);
 #endif
 
     __S2E_REGISTER_PLUGIN(plugins::LinuxMonitor);
