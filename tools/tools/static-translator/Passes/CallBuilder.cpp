@@ -150,6 +150,7 @@ bool CallBuilder::processIndirectCall(CallInst *marker)
         //Process call xxx
         //Can be only a register. Constant immediates have been processed elsewhere.
         loadAddress = TbPreprocessor::getRegisterLoadFromIndirectCall(marker);
+        LOGDEBUG("Indirect call: " << *marker << std::endl << std::flush);
         assert(loadAddress && "Something is broken");
     }
 
@@ -255,6 +256,7 @@ bool CallBuilder::runOnModule(llvm::Module &M)
     //compute the size of various types.
     FunctionPassManager fpm(targetBinary->getTranslator()->getModuleProvider());
     fpm.add(new TargetData(&M));
+    fpm.add(new TargetBinary(m_binary, targetBinary->getTranslator()));
     fpm.add(new CallingConvention());
     fpm.add(new RevgenAlias());
     m_memDepAnalysis = new MemoryDependenceAnalysis();
@@ -266,6 +268,8 @@ bool CallBuilder::runOnModule(llvm::Module &M)
         const DenseSet<CallInst*> &cs = (*fit).second;
 
         fpm.run(*F);
+
+        LOGDEBUG("Processing " << *F << std::endl << std::flush);
 
         foreach(cit, cs.begin(), cs.end()) {
             CallInst *ci = *cit;
