@@ -3,7 +3,7 @@
 #include "TypeConsumer.h"
 #include "lib/Utils/Utils.h"
 #include <clang/AST/Type.h>
-#include <clang/Basic/IdentifierTable.h>.h>
+#include <clang/Basic/IdentifierTable.h>
 
 #include <iostream>
 using namespace clang;
