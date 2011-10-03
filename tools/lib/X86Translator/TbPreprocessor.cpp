@@ -65,7 +65,9 @@ LoadInst *TbPreprocessor::getRegisterLoadFromIndirectCall(CallInst *marker)
 {
     ZExtInst *v = dyn_cast<ZExtInst>(TbPreprocessor::getCallTarget(marker));
     if (!v) {
-        return NULL;
+        //When the translator supports 64-bits registers, there is no intermediate zext.
+        LoadInst *cs = dyn_cast<LoadInst>(TbPreprocessor::getCallTarget(marker));
+        return cs;
     }
 
     LoadInst *cs = dyn_cast<LoadInst>(v->getOperand(0));
