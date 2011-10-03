@@ -34,6 +34,9 @@ blacklist = [
     # The following directory contains a symlink to /dev/random
     # which makes QtCreator search go crazy
     'klee/runtime/POSIX/testing-dir',
+
+    'stp/papers',
+    'stp/tests'
 ]
 
 if os.path.isdir('.git'):

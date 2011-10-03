@@ -126,7 +126,6 @@ qemu/target-i386
 qemu/tcg
 qemu/tcg/x86_64
 stp
-stp/papers
 stp/scripts
 stp/src/AST
 stp/src
@@ -171,17 +170,6 @@ stp/src/simplifier
 stp/src/simplifier/constantBitP
 stp/src/to-sat/AIG
 stp/src/to-sat
-stp/tests/big-test
-stp/tests
-stp/tests/bio-tests
-stp/tests/c-api-tests
-stp/tests/crypto-tests
-stp/tests/for-tests
-stp/tests/generated_tests
-stp/tests/generated_tests/random-tests
-stp/tests/misc-tests
-stp/tests/sample-smt-tests
-stp/tests/sample-tests
 stp/unit_test
 tools
 tools/autoconf
@@ -193,6 +181,8 @@ tools/lib/ExecutionTracer
 tools/lib/Utils
 tools/lib/X86Translator
 tools/lib/X86Translator/X86BitcodeLibrary
+tools/test
+tools/test/InlineAssembly
 tools/tools
 tools/tools/coverage
 tools/tools/debugger
