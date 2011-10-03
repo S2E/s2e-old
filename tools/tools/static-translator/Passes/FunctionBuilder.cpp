@@ -131,10 +131,15 @@ void FunctionBuilder::buildConditionalBranch(Module &M, BasicBlocksMap &bbmap, B
     assert(type == BB_COND_JMP || type == BB_REP);
 
     Instruction *loadpc = new LoadInst(m_pcptr);
-    ZExtInst *truncInst = new ZExtInst(loadpc, IntegerType::get(M.getContext(), 64));
+
+    //LOGDEBUG("loadpc:" << *loadpc << std::flush << std::endl);
+
+    //XXX: THIS WAS REQUIRED BEFORE INTRODUCING X64 SUPPORT IN THE TRANSLATOR!!!
+    //XXX: Should probably check whether to do the zero extension (if bit-width smaller)
+    //ZExtInst *truncInst = new ZExtInst(loadpc, IntegerType::get(M.getContext(), 64));
 
     loadpc->insertAfter(&bb->back());
-    truncInst->insertAfter(loadpc);
+    //truncInst->insertAfter(loadpc);
 
     ConstantInt *destInt = dyn_cast<ConstantInt>(tb->getDestination());
     ConstantInt *fbInt = dyn_cast<ConstantInt>(tb->getFallback());
@@ -149,7 +154,7 @@ void FunctionBuilder::buildConditionalBranch(Module &M, BasicBlocksMap &bbmap, B
     BasicBlock *fbBb = (*fit).second;
 
     //Generate compare instruction
-    CmpInst *cmpInst =  new ICmpInst(*bb, ICmpInst::ICMP_EQ, truncInst, destInt, "");
+    CmpInst *cmpInst =  new ICmpInst(*bb, ICmpInst::ICMP_EQ, loadpc, destInt, "");
     //cmpInst->insertAfter(loadpc);
 
     //Generate branch instruction
@@ -208,11 +213,11 @@ void FunctionBuilder::buildUnconditionalBranch(Module &M, BasicBlocksMap &bbmap,
         return;
     }else if (type == BB_JMP_IND) {
         Instruction *loadpc = new LoadInst(m_pcptr);
-        ZExtInst *truncInst = new ZExtInst(loadpc, IntegerType::get(M.getContext(), 64));
+        //ZExtInst *truncInst = new ZExtInst(loadpc, IntegerType::get(M.getContext(), 64));
 
         loadpc->insertAfter(&bb->back());
-        truncInst->insertAfter(loadpc);
-        insertJumpMarker(M, bb, truncInst);
+        //truncInst->insertAfter(loadpc);
+        insertJumpMarker(M, bb, loadpc);
         ReturnInst::Create(M.getContext(), ConstantInt::get(M.getContext(), APInt(64,  0)), bb);
         return;
     }
