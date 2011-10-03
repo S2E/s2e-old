@@ -79,10 +79,6 @@ bool ExperimentManager::initializeOutputDirectory()
     llvm::sys::Path cwd(m_outputFolder);
     std::string finalOutputFolder = m_outputFolder;
 
-    if (m_outputFolder == ".") {
-        return true;
-    }
-
     if (m_autoIncrement) {
         for (int i = 0; ; i++) {
             std::stringstream str;
