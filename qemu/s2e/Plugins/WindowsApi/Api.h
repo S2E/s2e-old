@@ -363,14 +363,41 @@ public:
                 unsigned size;
                 if (isExportedVariable(fname, &size)) {
                     assert(size > 0);
+                    std::string impName = "import:";
+                    impName += fname;
+
                     m_memoryChecker->grantMemoryForModule(state, &module, address, size,
                                                           MemoryChecker::READ,
-                                                 fname, true);
+                                                 impName, true);
                 }
             }
         }
     }
 
+    void unregisterImportedVariables(S2EExecutionState *state) {
+        if (m_memoryChecker) {
+            m_memoryChecker->revokeMemoryForModule(state, "import:*");
+        }
+    }
+
+    void detectLeaks(S2EExecutionState *state,
+                     const ModuleDescriptor &module) {
+        if(m_memoryChecker) {
+            unregisterImportedVariables(state);
+            m_memoryChecker->revokeMemoryForModuleSections(state, module);
+            m_memoryChecker->revokeMemoryForModule(state, &module, "stack");
+            m_memoryChecker->checkMemoryLeaks(state);
+        }
+    }
+
+    void detectLeaks(S2EExecutionState *state) {
+        if(m_memoryChecker) {
+            unregisterImportedVariables(state);
+            m_memoryChecker->revokeMemoryForModuleSections(state);
+            m_memoryChecker->revokeMemoryForModule(state, "stack");
+            m_memoryChecker->checkMemoryLeaks(state);
+        }
+    }
 
 public:
 

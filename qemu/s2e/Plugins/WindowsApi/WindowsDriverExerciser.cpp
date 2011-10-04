@@ -134,27 +134,7 @@ void WindowsDriverExerciser::onModuleLoad(
     WindowsApi::registerImports(state, module);
 
     if (m_memoryChecker) {
-        //XXX: figure out where the data segment is and grand write access to it.
-        foreach2(it, module.Sections.begin(), module.Sections.end()){
-            const SectionDescriptor &sec = *it;
-
-            std::stringstream ss;
-            ss << "module:" << module.Name << ":" << sec.name;
-
-
-            MemoryChecker::Permissions perms = MemoryChecker::NONE;
-            if (sec.isReadable()) {
-                perms = MemoryChecker::Permissions(perms | MemoryChecker::READ);
-            }
-            if (sec.isWritable()) {
-                perms = MemoryChecker::Permissions(perms | MemoryChecker::WRITE);
-            }
-
-            m_memoryChecker->grantMemory(
-                        state,
-                        sec.loadBase, sec.size,
-                        perms, ss.str());
-        }
+        m_memoryChecker->grantMemoryForModuleSections(state, module);
     }
 
     state->enableSymbolicExecution();
@@ -176,12 +156,7 @@ void WindowsDriverExerciser::onModuleUnload(
     unregisterEntryPoints(state, module);
     m_loadedModules.erase(*s);
 
-    if(m_memoryChecker) {
-        std::stringstream ss;
-        ss << "module:" << module.Name << ":*";
-        m_memoryChecker->revokeMemory(state, ss.str());
-        m_memoryChecker->checkMemoryLeaks(state);
-    }
+    detectLeaks(state, module);
 
     //XXX: We might want to monitor multiple modules, so avoid killing
     switch(m_unloadAction) {
@@ -271,6 +246,9 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     if (!NtSuccess(s2e(), state, eax)) {
         std::stringstream ss;
         ss << "Entry point failed with 0x" << std::hex << eax;
+
+        detectLeaks(state);
+
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
         return;
     }

@@ -226,8 +226,58 @@ bool MemoryChecker::matchRegionType(const std::string &pattern, const std::strin
     if(pattern[len-1] != '*')
         return pattern.compare(type) == 0;
 
-    return type.compare(pattern.substr(0, len-1)) == 0;
+    std::string typePrefix = type.substr(0, len-1);
+    std::string patternPrefix = pattern.substr(0, len-1);
+    return typePrefix.compare(patternPrefix) == 0;
 }
+
+void MemoryChecker::grantMemoryForModuleSections(
+            S2EExecutionState *state,
+            const ModuleDescriptor &module
+        )
+{
+    foreach2(it, module.Sections.begin(), module.Sections.end()){
+        const SectionDescriptor &sec = *it;
+
+        MemoryChecker::Permissions perms = MemoryChecker::NONE;
+        if (sec.isReadable()) {
+            perms = MemoryChecker::Permissions(perms | MemoryChecker::READ);
+        }
+        if (sec.isWritable()) {
+            perms = MemoryChecker::Permissions(perms | MemoryChecker::WRITE);
+        }
+
+        std::string sectionName = "section:";
+        sectionName += sec.name;
+
+        grantMemoryForModule(state,
+                             &module,
+                    sec.loadBase, sec.size,
+                    perms, sectionName);
+    }
+}
+
+void MemoryChecker::revokeMemoryForModuleSections(
+            S2EExecutionState *state,
+            const ModuleDescriptor &module
+        )
+{
+    revokeMemoryForModule(state, &module, "section:*");
+}
+
+void MemoryChecker::revokeMemoryForModuleSections(
+            S2EExecutionState *state
+        )
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false && "No module");
+    }
+
+    revokeMemoryForModule(state, module, "section:*");
+}
+
+
 
 void MemoryChecker::grantMemoryForModule(S2EExecutionState *state,
                  uint64_t start, uint64_t size,

@@ -99,6 +99,21 @@ public:
 
     void initialize();
 
+    void grantMemoryForModuleSections(
+                S2EExecutionState *state,
+                const ModuleDescriptor &desc
+            );
+
+    void revokeMemoryForModuleSections(
+                S2EExecutionState *state,
+                const ModuleDescriptor &desc
+            );
+
+
+    void revokeMemoryForModuleSections(
+                S2EExecutionState *state
+            );
+
     void grantMemoryForModule(S2EExecutionState *state,
                      uint64_t start, uint64_t size,
                      Permissions perms,
