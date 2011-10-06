@@ -301,7 +301,8 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Addr
             s2e()->getWarningsStream() << __FUNCTION__ << ": cannot read allocated address" << std::endl;
             return;
         }
-        m_memoryChecker->grantMemory(state, BufAddress, Length, MemoryChecker::READWRITE, "ndis:alloc:NdisAllocateMemory");
+        m_memoryChecker->grantMemory(state, BufAddress, Length, MemoryChecker::READWRITE,
+                                     "ndis:alloc:NdisAllocateMemory", BufAddress);
     }
 }
 
@@ -332,14 +333,14 @@ void NdisHandlers::NdisAllocateMemoryWithTagPriorityRet(S2EExecutionState* state
             return;
         }
 
-        if (eax) {
+        if (!eax) {
             //The original function has failed
             return;
         }
 
         m_memoryChecker->grantMemory(state, eax, Length,
                                      MemoryChecker::READWRITE,
-                                     "ndis:alloc:NdisAllocateMemoryWithTagPriority");
+                                     "ndis:alloc:NdisAllocateMemoryWithTagPriority", eax);
     }
 }
 

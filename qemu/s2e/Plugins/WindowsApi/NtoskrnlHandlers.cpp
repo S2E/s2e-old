@@ -70,7 +70,10 @@ const NtoskrnlHandlers::AnnotationsArray NtoskrnlHandlers::s_handlers[] = {
 
     DECLARE_EP_STRUC(NtoskrnlHandlers, DebugPrint),
     DECLARE_EP_STRUC(NtoskrnlHandlers, IoCreateSymbolicLink),
+
     DECLARE_EP_STRUC(NtoskrnlHandlers, IoCreateDevice),
+    DECLARE_EP_STRUC(NtoskrnlHandlers, IoDeleteDevice),
+
     DECLARE_EP_STRUC(NtoskrnlHandlers, IoIsWdmVersionAvailable),
     DECLARE_EP_STRUC(NtoskrnlHandlers, IoFreeMdl),
 
@@ -96,14 +99,8 @@ const NtoskrnlHandlers::AnnotationsArray NtoskrnlHandlers::s_handlers[] = {
 
 const char * NtoskrnlHandlers::s_ignoredFunctionsList[] = {
     //XXX: Should revoke read/write grants for these APIs
-    "IoDeleteDevice",
-    "ExFreePoolWithTag",
     "RtlFreeUnicodeString",
     "RtlInitUnicodeString",
-
-
-    //XXX: These are variables. Should grant read/write access to them
-    "IoDeviceObjectType", "KeTickCount", "SeExports"
 
     //Other functions
     "IoReleaseCancelSpinLock",
@@ -324,7 +321,26 @@ void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state, uint32_t pDev
             return;
         }
         m_memoryChecker->grantMemory(state, DeviceObject, sizeof(DEVICE_OBJECT32),
-                                     MemoryChecker::READWRITE, "IoCreateDevice");
+                                     MemoryChecker::READWRITE, "IoCreateDevice", DeviceObject);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void NtoskrnlHandlers::IoDeleteDevice(S2EExecutionState* state, FunctionMonitorState *fns)
+{
+    if (!calledFromModule(state)) { return; }
+    HANDLER_TRACE_CALL();
+
+    uint32_t pDeviceObject;
+    if (!readConcreteParameter(state, 0, &pDeviceObject)) {
+        HANDLER_TRACE_PARAM_FAILED("pDeviceObject");
+        return;
+    }
+
+    if (m_memoryChecker) {
+        if (!m_memoryChecker->revokeMemory(state, "IoCreateDevice", pDeviceObject)) {
+            s2e()->getExecutor()->terminateStateEarly(*state, "Could not revoke memory for device object");
+        }
     }
 }
 
@@ -660,7 +676,8 @@ void NtoskrnlHandlers::ExAllocatePoolWithTagRet(S2EExecutionState* state, uint32
     }
 
     if (m_memoryChecker) {
-        m_memoryChecker->grantMemory(state, address, size, MemoryChecker::READWRITE, "AllocatePool");
+        m_memoryChecker->grantMemory(state, address, size, MemoryChecker::READWRITE,
+                                     "AllocatePool", address);
     }
 }
 
@@ -672,7 +689,9 @@ void NtoskrnlHandlers::ExFreePool(S2EExecutionState* state, FunctionMonitorState
     if (m_memoryChecker) {
         uint32_t pointer;
         if (readConcreteParameter(state, 0, &pointer)) {
-            m_memoryChecker->revokeMemoryByPointer(state, pointer, "AllocatePool");
+            if (!m_memoryChecker->revokeMemory(state, "AllocatePool", pointer)) {
+                s2e()->getExecutor()->terminateStateEarly(*state, "Could not revoke memory");
+            }
         }
     }
 }
@@ -695,6 +714,10 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
+    state->undoCallAndJumpToSymbolic();
+
+    grantAccessToIrp(state, pIrp);
+
     IRP irp;
     if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
         HANDLER_TRACE_PARAM_FAILED("irp");
@@ -708,10 +731,6 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
         HANDLER_TRACE_PARAM_FAILED("pStackLocation");
         return;
     }
-
-    state->undoCallAndJumpToSymbolic();
-
-    grantAccessToIrp(state, pIrp);
 
     FUNCMON_REGISTER_RETURN_A(state, m_functionMonitor, NtoskrnlHandlers::DriverDispatchRet, irpMajor);
 

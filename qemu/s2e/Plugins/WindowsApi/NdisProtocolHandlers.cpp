@@ -249,6 +249,10 @@ void NdisHandlers::ReceivePacketHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+//VOID ProtocolBindAdapter(
+//  PNDIS_STATUS Status, NDIS_HANDLE BindContext, PNDIS_STRING DeviceName,
+//  PVOID SystemSpecific1, PVOID SystemSpecific2);
+
 void NdisHandlers::BindAdapterHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();

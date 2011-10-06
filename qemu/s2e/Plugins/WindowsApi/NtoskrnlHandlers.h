@@ -96,6 +96,7 @@ private:
     DECLARE_ENTRY_POINT(DebugPrint);
     DECLARE_ENTRY_POINT(IoCreateSymbolicLink);
     DECLARE_ENTRY_POINT(IoCreateDevice, uint32_t pDeviceObject);
+    DECLARE_ENTRY_POINT(IoDeleteDevice);
     DECLARE_ENTRY_POINT(IoIsWdmVersionAvailable);
     DECLARE_ENTRY_POINT_CO(IoFreeMdl);
 
