@@ -88,6 +88,12 @@ cl::opt<bool>
 cl::opt<bool>
         PrintDisassembly("printDisassembly", cl::desc("Print disassembly in the trace"), cl::init(false));
 
+cl::opt<bool>
+        PrintMemoryChecker("printMemoryChecker", cl::desc("Print memory checker events"), cl::init(false));
+
+cl::opt<bool>
+        PrintMemoryCheckerStack("printMemoryCheckerStack", cl::desc("Print stack grants/revocations"), cl::init(false));
+
 
 }
 
@@ -297,6 +303,49 @@ void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
     }
 }
 
+void TbTrace::printMemoryChecker(const s2e::plugins::ExecutionTraceMemChecker::Serialized *item)
+{
+    ExecutionTraceMemChecker deserializedItem;
+
+    ExecutionTraceMemChecker::deserialize(item, &deserializedItem);
+
+
+    bool isStackItem = deserializedItem.name.find("stack") != deserializedItem.name.npos;
+    if (!PrintMemoryCheckerStack && isStackItem) {
+        return;
+    }
+
+    m_output << "\033[1;31mMEMCHECKER\033[0m";
+
+    std::string nameHighlightCode;
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::REVOKE) {
+        nameHighlightCode = "\033[1;31m";
+        m_output << nameHighlightCode << " REVOKE ";
+
+    }
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::GRANT) {
+        nameHighlightCode = "\033[1;32m";
+        m_output << nameHighlightCode << " GRANT  ";
+    }
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::READ) {
+        m_output << " READ   ";
+    }
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::WRITE) {
+        m_output << " WRITE  ";
+    }
+
+
+
+    m_output << nameHighlightCode << deserializedItem.name << "\033[0m";
+
+    m_output << " address=0x" << std::hex << deserializedItem.start
+             << " size=0x" << deserializedItem.size << std::endl;
+}
+
 void TbTrace::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
             void *item)
@@ -349,6 +398,12 @@ void TbTrace::onItem(unsigned traceIndex,
         m_output << std::setfill(' ');
         m_output << std::endl;
        return;
+    }
+
+    if (PrintMemoryChecker && (hdr.type == s2e::plugins::TRACE_MEM_CHECKER)) {
+        const s2e::plugins::ExecutionTraceMemChecker::Serialized *te =
+                (const s2e::plugins::ExecutionTraceMemChecker::Serialized*) item;
+        printMemoryChecker(te);
     }
 }
 

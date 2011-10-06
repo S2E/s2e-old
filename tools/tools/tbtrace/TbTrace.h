@@ -89,6 +89,7 @@ private:
 
     void printDebugInfo(uint64_t pid, uint64_t pc, unsigned tbSize, bool printListing);
     void printRegisters(const s2e::plugins::ExecutionTraceTb *te);
+    void printMemoryChecker(const s2e::plugins::ExecutionTraceMemChecker::Serialized *item);
 public:
     TbTrace(Library *lib, ModuleCache *cache, LogEvents *events, std::ofstream &ofs);
     virtual ~TbTrace();

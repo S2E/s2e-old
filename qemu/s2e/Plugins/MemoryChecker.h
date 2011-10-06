@@ -61,7 +61,8 @@ class MemoryChecker : public Plugin
 
     OSMonitor *m_osMonitor;
     ModuleExecutionDetector *m_moduleDetector;
-    MemoryTracer *m_tracer;
+    MemoryTracer *m_memoryTracer;
+    ExecutionTracer *m_executionTracer;
 
     bool m_checkMemoryLeaks;
     bool m_checkMemoryErrors;

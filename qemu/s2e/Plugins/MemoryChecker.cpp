@@ -53,7 +53,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(MemoryChecker, "MemoryChecker plugin", "",
-                  "Interceptor", "ModuleExecutionDetector", "MemoryTracer");
+                  "Interceptor", "ModuleExecutionDetector", "ExecutionTracer", "MemoryTracer");
 
 namespace {
     struct MemoryRange {
@@ -130,9 +130,13 @@ void MemoryChecker::initialize()
                             s2e()->getPlugin("ModuleExecutionDetector"));
     assert(m_moduleDetector);
 
-    m_tracer = static_cast<MemoryTracer*>(
+    m_memoryTracer = static_cast<MemoryTracer*>(
                 s2e()->getPlugin("MemoryTracer"));
-    assert(m_tracer);
+    assert(m_memoryTracer);
+
+    m_executionTracer = static_cast<ExecutionTracer*>(
+                s2e()->getPlugin("ExecutionTracer"));
+    assert(m_executionTracer);
 
     m_osMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
     assert(m_osMonitor);
@@ -202,7 +206,7 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
                       isWrite ? 2 : 1, err);
 
     if (!result) {
-        m_tracer->onDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
+        m_memoryTracer->onDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
         if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
@@ -351,6 +355,23 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
     s2e()->getDebugStream(state) << "MemoryChecker::grantMemory("
             << *region << ")" << std::endl;
 
+    /********************************************/
+    /* Write a log entry about the grant event */
+    unsigned traceEntrySize = 0;
+    ExecutionTraceMemChecker::Flags traceFlags = ExecutionTraceMemChecker::GRANT;
+
+    if (perms & READ) traceFlags = ExecutionTraceMemChecker::Flags(traceFlags | ExecutionTraceMemChecker::READ);
+    if (perms & WRITE) traceFlags = ExecutionTraceMemChecker::Flags(traceFlags | ExecutionTraceMemChecker::WRITE);
+
+    ExecutionTraceMemChecker::Serialized *traceEntry =
+            ExecutionTraceMemChecker::serialize(&traceEntrySize, start, size,
+                                                ExecutionTraceMemChecker::GRANT,
+                                                regionType);
+
+    m_executionTracer->writeData(state, traceEntry, traceEntrySize, TRACE_MEM_CHECKER);
+    delete [] (uint8_t*)traceEntry;
+    /********************************************/
+
     if(size == 0 || start + size < start) {
         s2e()->getWarningsStream(state) << "MemoryChecker::grantMemory: "
             << "detected region of " << (size == 0 ? "zero" : "negative")
@@ -393,6 +414,20 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
 
     s2e()->getDebugStream(state) << "MemoryChecker::revokeMemory("
             << *region << ")" << std::endl;
+
+
+    /********************************************/
+    /* Write a log entry about the revoke event */
+    unsigned traceEntrySize = 0;
+    ExecutionTraceMemChecker::Serialized *traceEntry =
+            ExecutionTraceMemChecker::serialize(&traceEntrySize, start, size,
+                                                ExecutionTraceMemChecker::REVOKE,
+                                                regionTypePattern);
+
+
+    m_executionTracer->writeData(state, traceEntry, traceEntrySize, TRACE_MEM_CHECKER);
+    delete [] (uint8_t*)traceEntry;
+    /********************************************/
 
     std::ostringstream err;
 
@@ -468,7 +503,6 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
 bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                                  const std::string &regionTypePattern, uint64_t regionID)
 {
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
     MemoryMap &memoryMap = plgState->getMemoryMap();
