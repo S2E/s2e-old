@@ -76,8 +76,10 @@ ExperimentManager::~ExperimentManager()
 
 bool ExperimentManager::initializeOutputDirectory()
 {
-    llvm::sys::Path cwd(m_outputFolder);
-    std::string finalOutputFolder = m_outputFolder;
+    llvm::sys::Path cwd(".");
+    cwd.makeAbsolute();
+
+    llvm::sys::Path outputDirectory(m_outputFolder);
 
     if (m_autoIncrement) {
         for (int i = 0; ; i++) {
@@ -88,41 +90,42 @@ bool ExperimentManager::initializeOutputDirectory()
             dirPath.appendComponent(str.str());
 
             if(!dirPath.exists()) {
-                finalOutputFolder = dirPath.toString();
+                outputDirectory = dirPath;
                 break;
             }
         }
     }
 
-    LOGINFO("X2L: output directory = \"" << finalOutputFolder << "\"" << std::endl);
+    LOGINFO("X2L: output directory = \"" << outputDirectory.toString() << "\"" << std::endl);
 
-#ifdef _WIN32
-    if(mkdir(finalOutputFolder.c_str()) < 0) {
-#else
-    if(mkdir(finalOutputFolder.c_str(), 0775) < 0)
-#endif
-    {
-        LOGERROR("Unable to create output directory" << std::endl);
-        return false;
+
+    outputDirectory.makeAbsolute();
+
+    if (outputDirectory != cwd) {
+        if (outputDirectory.createDirectoryOnDisk()) {
+            LOGERROR("Unable to create output directory" << std::endl);
+            return false;
+        }
     }
 
-
+    if (m_autoIncrement) {
 #ifndef _WIN32
-    llvm::sys::Path s2eLast(m_outputFolder);
-    s2eLast.appendComponent(m_prefix + "-last");
+        llvm::sys::Path s2eLast(m_outputFolder);
+        s2eLast.appendComponent(m_prefix + "-last");
 
-    if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
-        LOGERROR("Cannot unlink " << m_prefix << "-last" << std::endl);
-        return false;
-    }
+        if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
+            LOGERROR("Cannot unlink " << m_prefix << "-last" << std::endl);
+            return false;
+        }
 
-    if (symlink(finalOutputFolder.c_str(), s2eLast.c_str()) < 0) {
-        LOGERROR("Cannot make symlink " << m_prefix << "-last" << std::endl);
-        return false;
-    }
+        if (symlink(outputDirectory.c_str(), s2eLast.c_str()) < 0) {
+            LOGERROR("Cannot make symlink " << m_prefix << "-last" << std::endl);
+            return false;
+        }
 #endif
+    }
 
-    m_outputFolder = finalOutputFolder;
+    m_outputFolder = outputDirectory.toString();
     return true;
 }
 
