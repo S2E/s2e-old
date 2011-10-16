@@ -95,15 +95,23 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
         //XXX: Check that these names are actually in the kernel...
         if (libraryName == "ndis.sys") {
             NdisHandlers *ndisHandlers = static_cast<NdisHandlers*>(s2e()->getPlugin("NdisHandlers"));
-            ndisHandlers->registerEntryPoints(state, functions);
-            ndisHandlers->registerCaller(module);
-            ndisHandlers->registerImportedVariables(state, module, functions);
+            if (!ndisHandlers) {
+                s2e()->getWarningsStream() << "NdisHandlers not activated!" << std::endl;
+            } else {
+                ndisHandlers->registerEntryPoints(state, functions);
+                ndisHandlers->registerCaller(module);
+                ndisHandlers->registerImportedVariables(state, module, functions);
+            }
 
         }else if (libraryName == "ntoskrnl.exe") {
             NtoskrnlHandlers *ntoskrnlHandlers = static_cast<NtoskrnlHandlers*>(s2e()->getPlugin("NtoskrnlHandlers"));
-            ntoskrnlHandlers->registerEntryPoints(state, functions);
-            ntoskrnlHandlers->registerCaller(module);
-            ntoskrnlHandlers->registerImportedVariables(state, module, functions);
+            if (!ntoskrnlHandlers) {
+                s2e()->getWarningsStream() << "NtoskrnlHandlers not activated!" << std::endl;
+            } else {
+                ntoskrnlHandlers->registerEntryPoints(state, functions);
+                ntoskrnlHandlers->registerCaller(module);
+                ntoskrnlHandlers->registerImportedVariables(state, module, functions);
+            }
         }
     }
 }
