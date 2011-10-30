@@ -601,9 +601,12 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
         const MemoryMap::value_type *res = memoryMap.lookup_previous(range);
 
         if(!res) {
+
+
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
-                    << " cannot be accessed by instruction "<< hexval(state->getPc()) << ": it is not mapped!" << std::endl;
+                    << " cannot be accessed by instruction " << getPrettyCodeLocation(state)
+                    << ": it is not mapped!" << std::endl;
             hasError = true;
             break;
         }
@@ -611,7 +614,8 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
         if(res->first.start + res->first.size < start + size) {
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
-                    << " can not be accessed: it is not mapped!" << std::endl
+                    << " can not be accessed by instruction " << getPrettyCodeLocation(state)
+                    << ": it is not mapped!" << std::endl
                     << "  NOTE: closest allocated memory region: " << *res->second << std::endl;
             hasError = true;
             break;
@@ -620,7 +624,8 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
         if((perms & res->second->perms) != perms) {
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
-                    << " can not be accessed: insufficient permissions!" << std::endl
+                    << " can not be accessed by instruction " << getPrettyCodeLocation(state)
+                    << ": insufficient permissions!" << std::endl
                     << "  NOTE: requested permissions: " << hexval(perms) << std::endl
                     << "  NOTE: closest allocated memory region: " << *res->second << std::endl;
             hasError = true;
@@ -691,6 +696,22 @@ bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state)
     }
 
     return true;
+}
+
+std::string MemoryChecker::getPrettyCodeLocation(S2EExecutionState *state)
+{
+    std::stringstream ss;
+    if (m_moduleDetector) {
+        const ModuleDescriptor *desc = m_moduleDetector->getCurrentDescriptor(state);
+        if (desc) {
+            uint64_t relPc = desc->ToNativeBase(state->getPc());
+            ss << desc->Name << "!0x" << std::hex << relPc;
+        }
+    } else {
+        ss << "<unknown module>!0x" << std::hex << state->getPc();
+    }
+
+    return ss.str();
 }
 
 } // namespace plugins

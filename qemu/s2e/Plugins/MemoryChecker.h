@@ -90,6 +90,7 @@ class MemoryChecker : public Plugin
     // number of any characters.
     bool matchRegionType(const std::string &pattern, const std::string &type);
 
+    std::string getPrettyCodeLocation(S2EExecutionState *state);
 
 public:
     enum Permissions {

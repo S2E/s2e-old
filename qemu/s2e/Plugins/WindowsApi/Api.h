@@ -176,6 +176,13 @@ protected:
 
     //Retrieves a name for use by a symbolic variable
     const std::string getVariableName(S2EExecutionState *state, const std::string &base);
+
+    ///////////////////////////////////
+    bool grantAccessToUnicodeString(S2EExecutionState *state,
+                                    uint64_t address, const std::string &regionType);
+
+    bool revokeAccessToUnicodeString(S2EExecutionState *state,
+                                    uint64_t address);
 };
 
 //Implements methods and helpers common to all kinds of

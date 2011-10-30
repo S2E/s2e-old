@@ -1385,7 +1385,7 @@ void S2EExecutionState::dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned siz
         }
         assert(op.first && op.second && op.first->address == hostPage);
         ObjectState *os = const_cast<ObjectState*>(op.second);
-        uint8_t *concreteStore = os->getConcreteStore();
+        uint8_t *concreteStore = os->getConcreteStore(true);
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 
@@ -1420,7 +1420,7 @@ void S2EExecutionState::dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned si
 
         assert(op.first && op.second && op.first->address == hostPage);
         ObjectState *os = addressSpace.getWriteable(op.first, op.second);
-        uint8_t *concreteStore = os->getConcreteStore();
+        uint8_t *concreteStore = os->getConcreteStore(true);
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 

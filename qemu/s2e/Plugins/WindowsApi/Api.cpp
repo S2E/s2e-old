@@ -405,7 +405,56 @@ const std::string WindowsApi::getVariableName(S2EExecutionState *state, const st
     return ss.str();
 }
 
+
 //////////////////////////////////////////////
+
+
+bool WindowsApi::grantAccessToUnicodeString(S2EExecutionState *state,
+                                uint64_t address, const std::string &regionType)
+{
+    if (!m_memoryChecker) {
+        return false;
+    }
+
+    m_memoryChecker->grantMemory(state, address, sizeof(UNICODE_STRING32),
+                                 MemoryChecker::READWRITE, regionType + ":UnicodeString", address, false);
+
+    UNICODE_STRING32 String;
+    if (!state->readMemoryConcrete(address, &String, sizeof(String))) {
+        s2e()->getWarningsStream() << "grantAccessToUnicodeString failed" << std::endl;
+        return false;
+    }
+
+    if (String.Buffer && String.MaximumLength > 0) {
+        m_memoryChecker->grantMemory(state, String.Buffer, String.MaximumLength * sizeof(uint16_t),
+                                     MemoryChecker::READWRITE, regionType+":UnicodeStringBuffer", String.Buffer, false);
+    }else {
+        s2e()->getWarningsStream() << "grantAccessToUnicodeString: string not initialized properly" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool WindowsApi::revokeAccessToUnicodeString(S2EExecutionState *state,
+                                uint64_t address)
+{
+    if (!m_memoryChecker) {
+        return false;
+    }
+
+    UNICODE_STRING32 String;
+    if (!state->readMemoryConcrete(address, &String, sizeof(String))) {
+        s2e()->getWarningsStream() << "revokeAccessToUnicodeString failed" << std::endl;
+        return false;
+    }
+
+    bool res = true;
+    res &= m_memoryChecker->revokeMemory(state, "", String.Buffer);
+    res &= m_memoryChecker->revokeMemory(state, "", address);
+
+    return res;
+}
 
 //Default implementation that simply disconnets all registered functions
 void WindowsApi::onModuleUnload(

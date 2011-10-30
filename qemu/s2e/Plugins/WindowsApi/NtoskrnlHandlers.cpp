@@ -316,10 +316,14 @@ void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state, uint32_t pDev
     }
 
     if (m_memoryChecker) {
+        s2e()->getDebugStream() << "IoCreateDeviceRet pDeviceObject=0x" << std::hex << pDeviceObject << std::endl;
+
         uint32_t DeviceObject;
+
         if (!state->readMemoryConcrete(pDeviceObject, &DeviceObject, sizeof(DeviceObject))) {
             return;
         }
+
         m_memoryChecker->grantMemory(state, DeviceObject, sizeof(DEVICE_OBJECT32),
                                      MemoryChecker::READWRITE, "IoCreateDevice", DeviceObject);
     }
@@ -708,15 +712,30 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
     HANDLER_TRACE_CALL();
     s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
 
+    state->undoCallAndJumpToSymbolic();
+
+    //Read the parameters
+    uint32_t pDeviceObject = 0;
     uint32_t pIrp = 0;
-    if (!readConcreteParameter(state, 1, &pIrp)) {
-        HANDLER_TRACE_PARAM_FAILED("pirp");
+
+    if (!readConcreteParameter(state, 0, &pDeviceObject)) {
+        HANDLER_TRACE_PARAM_FAILED("pDeviceObject");
         return;
     }
 
-    state->undoCallAndJumpToSymbolic();
+    if (!readConcreteParameter(state, 1, &pIrp)) {
+        HANDLER_TRACE_PARAM_FAILED("pIrp");
+        return;
+    }
 
-    grantAccessToIrp(state, pIrp);
+    //Grant access to the parameters
+    if (m_memoryChecker) {
+        grantAccessToIrp(state, pIrp);
+        m_memoryChecker->grantMemoryForModule(state, pDeviceObject, sizeof(DEVICE_OBJECT32),
+                                              MemoryChecker::READWRITE, "args:DispatchDeviceControl:DeviceObject");
+    }
+
+
 
     IRP irp;
     if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
@@ -793,6 +812,10 @@ void NtoskrnlHandlers::DriverDispatchRet(S2EExecutionState* state, uint32_t irpM
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
     }
 
+    if (m_memoryChecker) {
+        m_memoryChecker->revokeMemoryForModule(state, "args:DispatchDeviceControl:*");
+    }
+
 /*    m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
     throw CpuExitException();*/
@@ -818,37 +841,42 @@ void NtoskrnlHandlers::IofCompleteRequest(S2EExecutionState* state, FunctionMoni
 
 void NtoskrnlHandlers::grantAccessToIrp(S2EExecutionState *state, uint32_t pIrp)
 {
-    if (m_memoryChecker) {
-        m_memoryChecker->grantMemoryForModule(state, pIrp, sizeof(IRP),
-                                              MemoryChecker::READWRITE, "irp");
-
-        IRP irp;
-        if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
-            HANDLER_TRACE_PARAM_FAILED("irp");
-            return;
-        }
-
-        uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
-
-        m_memoryChecker->grantMemoryForModule(state, pStackLocation, sizeof(IO_STACK_LOCATION),
-                                              MemoryChecker::READWRITE, "irp-stack-location");
-
-        IO_STACK_LOCATION StackLocation;
-        if (!state->readMemoryConcrete(pStackLocation, &StackLocation, sizeof(StackLocation))) {
-            HANDLER_TRACE_PARAM_FAILED("stacklocation");
-            return;
-        }
-
-        m_memoryChecker->grantMemoryForModule(state, StackLocation.FileObject, sizeof(FILE_OBJECT32),
-                                              MemoryChecker::READWRITE, "file-object");
-
+    if (!m_memoryChecker) {
+        return;
     }
+
+    m_memoryChecker->grantMemoryForModule(state, pIrp, sizeof(IRP),
+                                          MemoryChecker::READWRITE, "irp");
+
+    IRP irp;
+    if (!pIrp || !state->readMemoryConcrete(pIrp, &irp, sizeof(irp))) {
+        HANDLER_TRACE_PARAM_FAILED("irp");
+        return;
+    }
+
+    uint32_t pStackLocation = IoGetCurrentIrpStackLocation(&irp);
+
+    m_memoryChecker->grantMemoryForModule(state, pStackLocation, sizeof(IO_STACK_LOCATION),
+                                          MemoryChecker::READWRITE, "irp-stack-location");
+
+    IO_STACK_LOCATION StackLocation;
+    if (!state->readMemoryConcrete(pStackLocation, &StackLocation, sizeof(StackLocation))) {
+        HANDLER_TRACE_PARAM_FAILED("stacklocation");
+        return;
+    }
+
+    m_memoryChecker->grantMemoryForModule(state, StackLocation.FileObject, sizeof(FILE_OBJECT32),
+                                          MemoryChecker::READWRITE, "file-object");
 
 }
 
 
 void NtoskrnlHandlers::revokeAccessToIrp(S2EExecutionState *state, uint32_t pIrp)
 {
+    if (!m_memoryChecker) {
+        return;
+    }
+
     uint64_t callee = state->getTb()->pcOfLastInstr;
     const ModuleDescriptor *desc = m_detector->getModule(state, callee);
     assert(desc && "There must be a module");

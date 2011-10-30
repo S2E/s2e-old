@@ -146,7 +146,6 @@ void s2e_on_exception(
 
 /** Called on memory accesses from generated code */
 void s2e_trace_memory_access(
-        struct S2E *s2e, struct S2EExecutionState* state,
         uint64_t vaddr, uint64_t haddr, uint8_t* buf, unsigned size,
         int isWrite, int isIO);
 
