@@ -130,6 +130,33 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             break;
         }
 
+        case 4: { /* is_symbolic */
+            uint32_t address;
+            uint32_t result;
+            char buf;
+            bool ok = true;
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                 &address, 4);
+
+            if(!ok) {
+                s2e()->getWarningsStream(state)
+                    << "ERROR: symbolic argument was passed to s2e_op is_symbolic"
+                    << std::endl;
+                break;
+            }
+
+            s2e()->getMessagesStream(state)
+                    << "Testing whether data at " << hexval(address)
+                    << " is symbolic:";
+
+            // readMemoryConcrete fails if the value is symbolic
+            result = !state->readMemoryConcrete(address, &buf, 1);
+            s2e()->getMessagesStream(state)
+                    << (result ? " true" : " false") << endl;
+            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, 4);
+            break;
+        }
+
         case 5:
             {
                 //Get current path
