@@ -197,8 +197,8 @@ include $(LOCAL_PATH)/Makefile.common
 EMULATOR_TARGET_ARCH := arm
 include $(LOCAL_PATH)/Makefile.target
 
-EMULATOR_TARGET_ARCH := x86
-include $(LOCAL_PATH)/Makefile.target
+# EMULATOR_TARGET_ARCH := x86
+# include $(LOCAL_PATH)/Makefile.target
 
 ##############################################################################
 ##############################################################################

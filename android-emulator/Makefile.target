@@ -295,7 +295,8 @@ ifeq ($(EMULATOR_TARGET_ARCH),arm)
 	s2e/Plugins/BaseInstructionsArm.cpp \
         s2e/Plugins/Android/AndroidMonitor.cpp \
 	s2e/Plugins/Android/AndroidAnnotation.cpp \
-	s2e/Plugins/Android/DalvikTools/OpCodeNames.c
+	s2e/Plugins/Android/DalvikTools/OpCodeNames.c \
+	s2e/Plugins/Android/TransmissionObserver.cpp
 endif
 
 ifeq ($(EMULATOR_TARGET_ARCH),x86)

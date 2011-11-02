@@ -135,7 +135,7 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
 
 void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
 {
-	char * regs[15];
+	const char * regs[15];
 	switch(te->target_arch) {
 
 	case ARCH_ARM:
@@ -148,7 +148,7 @@ void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
 	    assert(false);
 	}
 
-	int numregs = sizeof(regs) / sizeof(regs[0]);
+	unsigned numregs = sizeof(regs) / sizeof(regs[0]);
 
     for (unsigned i=0; i<numregs; ++i) {
         if (te->symbMask & (1<<i)) {

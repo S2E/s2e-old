@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hello">Leakalizer Microbenchmarks</string>
+    <string name="app_name">Leakalizer Eval App</string>
+<string name="call_native_1">LogCat via Native</string>
+<string name="call_native_2">Get String from Native</string>
+<string name="call_s2e_version">Get S2E Version</string>
+<string name="send_location">Send Location</string>
+<string name="send_uiid">Send UID</string>
+<string name="test_maze">Symbolic Maze Benchmark</string>
+<string name="test_autosymbex_int">Test Auto-Symbex (int)</string>
+<string name="test_autosymbex_double">Test Auto-Symbex (double)</string>
+<string name="test_autosymbex_float">Test Auto-Symbex (float)</string>
+<string name="test_autosymbex_char">Test Auto-Symbex (char)</string>
+</resources>

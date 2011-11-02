@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent" 
+    android:id="@+id/mainlayout">
+    <TextView
+        android:layout_height="wrap_content"
+        android:text="@string/hello" android:layout_width="match_parent"/>
+<!--  <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/call_native_1"
+        android:onClick="onCallNative1"
+        android:text="@string/call_native_1">
+</Button>
+<Button android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:id="@+id/call_native_2" 
+		android:text="@string/call_native_2"
+		android:onClick="onCallNative2">
+</Button> 
+
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/call_s2e_version"
+        android:id="@+id/call_s2e_version" 
+        android:onClick="onCallS2EVersion">
+</Button>
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/send_location"
+        android:id="@+id/send_location" 
+        android:onClick="onClickSendLocation">
+</Button>
+ -->
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/send_uiid"
+        android:id="@+id/send_uiid" 
+        android:onClick="onClickSendUiid">
+</Button>
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/test_maze"
+        android:id="@+id/test_maze" 
+        android:onClick="onClickTestMaze">
+</Button>
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/test_autosymbex_int"
+        android:id="@+id/testAutoSymbexInt" 
+        android:onClick="onClickTestAutoSymbexInts">
+</Button>
+
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/test_autosymbex_float"
+        android:id="@+id/testAutoSymbexFloats" 
+        android:onClick="onClickTestAutoSymbexFloats">
+</Button>
+
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/test_autosymbex_double"
+        android:id="@+id/testAutoSymbexDouble" 
+        android:onClick="onClickTestAutoSymbexDoubles">
+</Button>
+<Button android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/test_autosymbex_char"
+        android:id="@+id/testAutoSymbexChar" 
+        android:onClick="onClickTestAutoSymbexChars">
+</Button>
+
+</LinearLayout>

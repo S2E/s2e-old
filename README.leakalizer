@@ -1,0 +1,11 @@
+
+                                 +-+-+-+-+-+-+-+-+-+-+
+                                 |L|E|A|K|A|L|I|Z|E|R|
+                                 +-+-+-+-+-+-+-+-+-+-+
+
+This is an alpha version of Leakalizer, a data leak detection tool for Android applications (based on S2E and the Android emulator).
+
+Find a howto (compile,install,use) in docs/Howtos/Leakalizer.html.
+
+best regards
+Andreas Kirchner <akalypse@gmail.com>
