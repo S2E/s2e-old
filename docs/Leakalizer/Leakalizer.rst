@@ -375,6 +375,3 @@ You should find four encoded solutions, i.e., something like this: ::
 	1457 [State 167] Message from guest (0x124aa18): Maze: Solution 1,3,3,0,3,3,3,3,1,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 	1613 [State 250] Message from guest (0x1378c60): Maze: Solution 1,1,1,1,3,3,3,3,0,0,2,2,0,0,3,3,3,3,1,3,3,0,0,0,0,0,0,0,0,0,0,0,
 	1660 [State 269] Message from guest (0x142ee88): Maze: Solution 1,1,1,1,3,3,3,3,0,0,2,2,0,0,3,3,3,3,1,1,1,1,3,3,0,0,0,0,0,0,0,0,
-
-
-

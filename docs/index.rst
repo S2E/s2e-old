@@ -28,6 +28,14 @@ S²E Documentation
   1. `Building the Linux kernel <BuildingLinux.html>`_
   2. `Using SystemTap with S2E <SystemTap.html>`_
 
+* Analyzing ARM applications (ARM branch of S2E)
+
+  1. `Build and use S2E for ARM <s2earm.html>`_
+
+* Analyzing Android applications (Leakalizer)
+
+  1. `How to detect data leaks with Leakalizer? (Build, Compile, Use) <Leakalizer/Leakalizer.html>`_
+
 * Howtos
 
   1. `How to use execution tracers? <Howtos/ExecutionTracers.html>`_
@@ -100,6 +108,15 @@ Miscellaneous Plugins
 * `FunctionMonitor <Plugins/FunctionMonitor.html>`_ provides client plugins with events triggered when the guest code invokes specified functions.
 * `HostFiles <UsingS2EGet.html>`_ allows to quickly upload files to the guest.
 
+Leakalizer Plugins
+------------------
+
+All Leakalizer plugins require the modified version of S2E called Leakalizer. Most of the Leakalizer plugins require Android images that are included in Leakalizer.
+
+* *LinuxMonitor* detects various kernel event (forks, new processes, and context switches) of the Android/Linux kernel
+* *AndroidMonitor* detects the start of an Android application of interest (requires LinuxMonitor)
+* *AndroidAnnotation* symbolically executes specified Java methods inside an Android application
+* *TransmissionObserver* detects the transmission of symbolic values over socket connections.
 
 S²E Development
 ===============

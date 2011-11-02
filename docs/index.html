@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>The Selective Symbolic Execution (S²E) Platform</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -21,10 +21,11 @@
 <li><a class="reference internal" href="#selection-plugins" id="id6">Selection Plugins</a></li>
 <li><a class="reference internal" href="#analysis-plugins" id="id7">Analysis Plugins</a></li>
 <li><a class="reference internal" href="#miscellaneous-plugins" id="id8">Miscellaneous Plugins</a></li>
+<li><a class="reference internal" href="#leakalizer-plugins" id="id9">Leakalizer Plugins</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#s2e-development" id="id9">S²E Development</a></li>
-<li><a class="reference internal" href="#s2e-publications" id="id10">S²E Publications</a></li>
+<li><a class="reference internal" href="#s2e-development" id="id10">S²E Development</a></li>
+<li><a class="reference internal" href="#s2e-publications" id="id11">S²E Publications</a></li>
 </ul>
 </div>
 <p>Do not forget the <a class="reference external" href="FAQ.html">FAQ</a> if you have questions.</p>
@@ -47,6 +48,14 @@
 <li>Analyzing the Linux Kernel<ol class="arabic">
 <li><a class="reference external" href="BuildingLinux.html">Building the Linux kernel</a></li>
 <li><a class="reference external" href="SystemTap.html">Using SystemTap with S2E</a></li>
+</ol>
+</li>
+<li>Analyzing ARM applications (ARM branch of S2E)<ol class="arabic">
+<li><a class="reference external" href="s2earm.html">Build and use S2E for ARM</a></li>
+</ol>
+</li>
+<li>Analyzing Android applications (Leakalizer)<ol class="arabic">
+<li><a class="reference external" href="Leakalizer/Leakalizer.html">How to detect data leaks with Leakalizer? (Build, Compile, Use)</a></li>
 </ol>
 </li>
 <li>Howtos<ol class="arabic">
@@ -119,6 +128,16 @@ how to combine these tracers.</p>
 <ul class="simple">
 <li><a class="reference external" href="Plugins/FunctionMonitor.html">FunctionMonitor</a> provides client plugins with events triggered when the guest code invokes specified functions.</li>
 <li><a class="reference external" href="UsingS2EGet.html">HostFiles</a> allows to quickly upload files to the guest.</li>
+</ul>
+</div>
+<div class="section" id="leakalizer-plugins">
+<h2>Leakalizer Plugins</h2>
+<p>All Leakalizer plugins require the modified version of S2E called Leakalizer. Most of the Leakalizer plugins require Android images that are included in Leakalizer.</p>
+<ul class="simple">
+<li><em>LinuxMonitor</em> detects various kernel event (forks, new processes, and context switches) of the Android/Linux kernel</li>
+<li><em>AndroidMonitor</em> detects the start of an Android application of interest (requires LinuxMonitor)</li>
+<li><em>AndroidAnnotation</em> symbolically executes specified Java methods inside an Android application</li>
+<li><em>TransmissionObserver</em> detects the transmission of symbolic values over socket connections.</li>
 </ul>
 </div>
 </div>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<title>S2E for ARM</title>
+<link rel="stylesheet" href="./s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="s2e-for-arm">
+<h1 class="title">S2E for ARM</h1>
+
+<p>The arm-branch of S2E is experimental but here are hints on building and using the ARM port for S2E.</p>
+<p>This tutorial was tested with Ubuntu 10.10 as host system.</p>
+<div class="section" id="building-instructions">
+<h1>Building Instructions</h1>
+<ol class="arabic simple">
+<li>cd buildarm</li>
+<li>make all      (or make all-debug)</li>
+<li>find binaries in buildarm/qemu-release/arm-s2e-softmmu (S2E enabled) and buildarm/qemu-release/arm-softmmu (S2E not enabled). Replace 'qemu-release' with 'qemu-debug' when running 'make all-debug'.</li>
+</ol>
+</div>
+<div class="section" id="hints">
+<h1>Hints</h1>
+<ol class="arabic simple">
+<li>Look at /path/to/s2earm/qemu/tests/s2earm for a test firmware which establishes basic communication with S2E. (look at README for tipps how to compile assembler code).</li>
+<li>Find the config file in /path/to/config.lua</li>
+<li>To invoke custom S2E instructions in native ARM applications you can try the provided header: /path/to/s2earm/guest/include/s2earm.h</li>
+<li>To setup an ARM debian target, try: <a class="reference external" href="http://www.aurel32.net/info/debian_arm_qemu.php">http://www.aurel32.net/info/debian_arm_qemu.php</a></li>
+</ol>
+<p>best regards
+Andreas Kirchner &lt;<a class="reference external" href="mailto:akalypse&#64;gmail.com">akalypse&#64;gmail.com</a>&gt;</p>
+<blockquote>
+<table border="1" class="docutils">
+<colgroup>
+<col width="17%" />
+<col width="17%" />
+<col width="17%" />
+<col width="17%" />
+<col width="17%" />
+<col width="17%" />
+</colgroup>
+<tbody valign="top">
+<tr><td>S</td>
+<td>2</td>
+<td>E</td>
+<td>A</td>
+<td>R</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="s2earm.rst">View document source</a>.
+
+</div>
+</body>
+</html>
