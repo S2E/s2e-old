@@ -240,6 +240,9 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
         m_memoryChecker->revokeMemoryForModule(state, "args:EntryPoint:*");
     }
 
+    const ModuleDescriptor *module = m_detector->getCurrentDescriptor(state);
+    assert(module);
+
     //Check the success status
     klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
 
@@ -247,7 +250,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
         std::stringstream ss;
         ss << "Entry point failed with 0x" << std::hex << eax;
 
-        detectLeaks(state);
+        detectLeaks(state, *module);
 
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
         return;
@@ -259,8 +262,7 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     DRIVER_OBJECT32 driverObject;
     if (ntosHandlers) {
         if (state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
-            const ModuleDescriptor *desc = m_detector->getCurrentDescriptor(state);
-            assert(desc);
+            const ModuleDescriptor *desc = module;
     
             for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
                 if (desc->Contains(driverObject.MajorFunction[i])) {

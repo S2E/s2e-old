@@ -731,8 +731,6 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
     //Grant access to the parameters
     if (m_memoryChecker) {
         grantAccessToIrp(state, pIrp);
-        m_memoryChecker->grantMemoryForModule(state, pDeviceObject, sizeof(DEVICE_OBJECT32),
-                                              MemoryChecker::READWRITE, "args:DispatchDeviceControl:DeviceObject");
     }
 
 
