@@ -2267,6 +2267,8 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
             << std::endl;   */
+    state->setRunningExceptionEmulationCode(false);
+
     try {
         uintptr_t ret = s2e->getExecutor()->executeTranslationBlock(state, tb);
         return ret;
@@ -2298,13 +2300,24 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
     s2e->getExecutor()->setCCOpEflags(state);
 }
 
+/**
+ *  We also need to track when execution enters/exits emulation code.
+ *  Some plugins do not care about what memory accesses the emulation
+ *  code performs internally, therefore, there must be a means for such
+ *  plugins to enable/disable tracing upon exiting/entering
+ *  the emulation code.
+ */
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
                       int intno, int is_int, int error_code,
                       uint64_t next_eip, int is_hw)
 {
-    s2e_on_exception(s2e, state, intno);
+    state->setRunningExceptionEmulationCode(true);
+    s2e_on_exception(intno);
+
     s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
                                     next_eip, is_hw);
+
+    state->setRunningExceptionEmulationCode(false);
 }
 
 /**
