@@ -277,15 +277,21 @@ void s2e_on_translate_instruction_end(
     }
 }
 
-void s2e_on_exception(S2E *s2e, S2EExecutionState* state,
-                      unsigned intNb)
+static void s2e_on_exception_slow(unsigned intNb)
 {
-    assert(state->isActive());
+    assert(g_s2e_state->isActive());
 
     try {
-        s2e->getCorePlugin()->onException.emit(state, intNb, state->getPc());
+        g_s2e->getCorePlugin()->onException.emit(g_s2e_state, intNb, g_s2e_state->getPc());
     } catch(s2e::CpuExitException&) {
         s2e_longjmp(env->jmp_env, 1);
+    }
+}
+
+void s2e_on_exception(unsigned intNb)
+{
+    if(unlikely(!g_s2e->getCorePlugin()->onException.empty())) {
+        s2e_on_exception_slow(intNb);
     }
 }
 
@@ -294,7 +300,7 @@ void s2e_init_timers(S2E* s2e)
     s2e->getCorePlugin()->initializeTimers();
 }
 
-void s2e_trace_memory_access_slow(
+static void s2e_trace_memory_access_slow(
         uint64_t vaddr, uint64_t haddr, uint8_t* buf, unsigned size,
         int isWrite, int isIO)
 {
