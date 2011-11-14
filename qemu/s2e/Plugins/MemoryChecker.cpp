@@ -150,6 +150,11 @@ void MemoryChecker::initialize()
                 sigc::mem_fun(*this,
                         &MemoryChecker::onStateSwitch)
                 );
+
+        s2e()->getCorePlugin()->onException.connect(
+                sigc::mem_fun(*this,
+                        &MemoryChecker::onException)
+                );
     }
 }
 
@@ -185,6 +190,12 @@ void MemoryChecker::onStateSwitch(S2EExecutionState *currentState,
     }
 }
 
+void MemoryChecker::onException(S2EExecutionState *state, unsigned intNb, uint64_t pc)
+{
+    //Reconnection will be done automatically upon next
+    //module transition signal.
+    m_dataMemoryAccessConnection.disconnect();
+}
 
 void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
                                        klee::ref<klee::Expr> virtualAddress,
@@ -192,6 +203,12 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
                                        klee::ref<klee::Expr> value,
                                        bool isWrite, bool isIO)
 {
+    if (state->isRunningExceptionEmulationCode()) {
+        //We do not check what memory the CPU accesses.
+        s2e()->getWarningsStream() << "Running emulation code" << std::endl;
+        return;
+    }
+
     if(!isa<klee::ConstantExpr>(virtualAddress)) {
         s2e()->getWarningsStream(state) << "Symbolic memory accesses are "
                 << "not yet supported by MemoryChecker" << std::endl;
@@ -232,6 +249,10 @@ bool MemoryChecker::matchRegionType(const std::string &pattern, const std::strin
 
     std::string typePrefix = type.substr(0, len-1);
     std::string patternPrefix = pattern.substr(0, len-1);
+
+    s2e()->getDebugStream() << "matchRegionType typePrefix=" << typePrefix
+            << " patternPrefix=" << patternPrefix << std::endl;
+
     return typePrefix.compare(patternPrefix) == 0;
 }
 
@@ -299,6 +320,19 @@ void MemoryChecker::grantMemoryForModule(S2EExecutionState *state,
     grantMemory(state, start, size, perms, ss.str(), false);
 }
 
+std::string MemoryChecker::getRegionTypePrefix(S2EExecutionState *state, const std::string &regionType)
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false);
+        return "";
+    }
+
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionType;
+    return ss.str();
+}
+
 void MemoryChecker::grantMemoryForModule(S2EExecutionState *state,
                  const ModuleDescriptor *module,
                  uint64_t start, uint64_t size,
@@ -316,7 +350,7 @@ bool MemoryChecker::revokeMemoryForModule(S2EExecutionState *state,
 {
     const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
     if (!module) {
-        return false;
+        assert(false && "No module found");
     }
 
     std::stringstream ss;
@@ -706,10 +740,11 @@ std::string MemoryChecker::getPrettyCodeLocation(S2EExecutionState *state)
         if (desc) {
             uint64_t relPc = desc->ToNativeBase(state->getPc());
             ss << desc->Name << "!0x" << std::hex << relPc;
+            return ss.str();
         }
-    } else {
-        ss << "<unknown module>!0x" << std::hex << state->getPc();
     }
+
+    ss << "<unknown module>!0x" << std::hex << state->getPc();
 
     return ss.str();
 }
