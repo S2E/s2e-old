@@ -152,17 +152,17 @@ static inline void s2e_make_symbolic(void* buf, int size, const char* name)
 }
 
 /** Returns true if ptr points to a symbolic value */
-static inline void s2e_is_symbolic(void* ptr)
+static inline int s2e_is_symbolic(void* ptr)
 {
-    uint32_t result;
+    int result;
     __s2e_touch_buffer(ptr, 1);
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
         ".byte 0x00, 0x04, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
-        : "=a" (result) : "a" (ptr)
+        : "=a" (result) : "a" (0), "c" (ptr)
     );
-    return bool(result);
+    return result;
 }
 
 /** Concretize the expression. */

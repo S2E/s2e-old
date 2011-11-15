@@ -135,7 +135,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             uint32_t result;
             char buf;
             bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
                                                  &address, 4);
 
             if(!ok) {
