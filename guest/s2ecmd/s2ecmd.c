@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef void (*cmd_handler_t)(const char **args);
 
@@ -59,12 +60,22 @@ void handler_message(const char **args)
     s2e_message(args[0]);
 }
 
+void handler_wait(const char **args)
+{
+    s2e_message("Waiting for S2E...");
+    while (!s2e_version()) {
+        sleep(1);
+    }
+    s2e_message("Done waiting for S2E.");
+}
+
 
 #define COMMAND(c, args) {#c, handler_##c, args}
 
 static cmd_t s_commands[] = {
     COMMAND(kill, 2),
     COMMAND(message, 1),
+    COMMAND(wait, 0),
     {NULL, NULL, 0}
 };
 
