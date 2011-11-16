@@ -142,7 +142,7 @@ void HalHandlers::onModuleUnload(
 void HalHandlers::HalpValidPciSlot(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     //Invoke this function in all contexts
-    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+    s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << '\n';
 
     uint32_t pBusHandler, slotNumber;
      bool ok = true;
@@ -150,19 +150,18 @@ void HalHandlers::HalpValidPciSlot(S2EExecutionState* state, FunctionMonitorStat
      ok &= readConcreteParameter(state, 1, &slotNumber);
 
      if (!ok) {
-         s2e()->getDebugStream() << "Could not read  in HalpValidPciSlot" << std::endl;
+         s2e()->getDebugStream() << "Could not read  in HalpValidPciSlot" << '\n';
          return;
      }
 
      BUS_HANDLER32 BusHandler;
      ok = state->readMemoryConcrete(pBusHandler, &BusHandler, sizeof(BusHandler));
      if (!ok) {
-         s2e()->getDebugStream() << "Could not read BUS_HANDLER32 at address 0x" << std::hex << pBusHandler <<  std::endl;
+         s2e()->getDebugStream() << "Could not read BUS_HANDLER32 at address 0x" << hexval(pBusHandler) <<  '\n';
          return;
      }
 
-     std::ostream &os = s2e()->getMessagesStream(state);
-     BusHandler.print(os);
+     BusHandler.print(s2e()->getMessagesStream(state));
 
 
 }

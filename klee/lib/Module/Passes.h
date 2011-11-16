@@ -44,7 +44,7 @@ class RaiseAsmPass : public llvm::ModulePass {
   bool runOnInstruction(llvm::Module &M, llvm::Instruction *I);
 
 public:
-  RaiseAsmPass() : llvm::ModulePass((intptr_t) &ID) {}
+  RaiseAsmPass() : llvm::ModulePass(ID) {}
   
   virtual bool runOnModule(llvm::Module &M);
 };
@@ -61,7 +61,7 @@ class IntrinsicCleanerPass : public llvm::ModulePass {
 public:
   IntrinsicCleanerPass(const llvm::TargetData &TD,
                        bool LI=true)
-    : llvm::ModulePass((intptr_t) &ID),
+    : llvm::ModulePass(ID),
       TargetData(TD),
       IL(new llvm::IntrinsicLowering(TD)),
       LowerIntrinsics(LI) {}
@@ -77,7 +77,7 @@ class IntrinsicFunctionCleanerPass : public llvm::FunctionPass {
 
   bool runOnBasicBlock(llvm::BasicBlock &b);
 public:
-  IntrinsicFunctionCleanerPass() : llvm::FunctionPass((intptr_t) &ID) {}
+  IntrinsicFunctionCleanerPass() : llvm::FunctionPass(ID) {}
 
   virtual bool runOnFunction(llvm::Function &f);
 };
@@ -98,7 +98,7 @@ class PhiCleanerPass : public llvm::FunctionPass {
   static char ID;
 
 public:
-  PhiCleanerPass() : llvm::FunctionPass((intptr_t) &ID) {}
+  PhiCleanerPass() : llvm::FunctionPass(ID) {}
   
   virtual bool runOnFunction(llvm::Function &f);
 };
@@ -106,7 +106,7 @@ public:
 class DivCheckPass : public llvm::ModulePass {
   static char ID;
 public:
-  DivCheckPass(): ModulePass((intptr_t) &ID) {}
+  DivCheckPass(): ModulePass(ID) {}
   virtual bool runOnModule(llvm::Module &M);
 };
 
@@ -116,7 +116,7 @@ public:
 class LowerSwitchPass : public llvm::FunctionPass {
 public:
   static char ID; // Pass identification, replacement for typeid
-  LowerSwitchPass() : FunctionPass((intptr_t) &ID) {} 
+  LowerSwitchPass() : FunctionPass(ID) {}
   
   virtual bool runOnFunction(llvm::Function &F);
   

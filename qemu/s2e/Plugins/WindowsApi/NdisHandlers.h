@@ -58,7 +58,7 @@ namespace s2e {
 namespace plugins {
 
 #define NDIS_REGISTER_ENTRY_POINT(addr, ep) \
-    s2e()->getDebugStream() << "Registering " << #ep << " at 0x" << std::hex << (addr) << std::endl; \
+    s2e()->getDebugStream() << "Registering " << #ep << " at " << hexval(addr) << '\n'; \
     registerEntryPoint(state, &NdisHandlers::ep, addr);
 
 class NdisHandlersState;

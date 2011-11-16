@@ -65,7 +65,7 @@ void NdisHandlers::NdisRegisterProtocol(S2EExecutionState* state, FunctionMonito
     }
 
 
-    s2e()->getMessagesStream() << "NDIS_PROTOCOL_CHARACTERISTICS @0x" << pProtocol << std::endl;
+    s2e()->getMessagesStream() << "NDIS_PROTOCOL_CHARACTERISTICS @0x" << pProtocol << '\n';
 
     s2e::windows::NDIS_PROTOCOL_CHARACTERISTICS32 Protocol;
     if (!state->readMemoryConcrete(pProtocol, &Protocol, sizeof(Protocol))) {
@@ -282,7 +282,7 @@ void NdisHandlers::BindAdapterHandler(S2EExecutionState* state, FunctionMonitorS
         return;
     }
 
-    s2e()->getMessagesStream() << "BindAdapterHandler: DeviceName=" << deviceName << std::endl;
+    s2e()->getMessagesStream() << "BindAdapterHandler: DeviceName=" << deviceName << '\n';
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::BindAdapterHandlerRet)
 }

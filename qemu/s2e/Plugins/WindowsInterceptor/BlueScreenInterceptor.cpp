@@ -68,7 +68,7 @@ void BlueScreenInterceptor::initialize()
     if (m_generateCrashDump) {
         if (!m_crashdumper) {
             s2e()->getWarningsStream() << "The WindowsCrashDumpGenerator plugin is required with the " <<
-                    "generateCrashDump option." << std::endl;
+                    "generateCrashDump option." << '\n';
             exit(-1);
         }
     }
@@ -77,7 +77,7 @@ void BlueScreenInterceptor::initialize()
     //Dumps are large and there can be many of them.
     m_currentDumpCount = 0;
     m_maxDumpCount = s2e()->getConfig()->getInt(getConfigKey() + ".maxDumpCount", (int64_t)-1, &ok);
-    s2e()->getDebugStream() << "BlueScreenInterceptor: Maximum number of dumps:" << m_maxDumpCount << std::endl;
+    s2e()->getDebugStream() << "BlueScreenInterceptor: Maximum number of dumps:" << m_maxDumpCount << '\n';
 }
 
 void BlueScreenInterceptor::onTranslateBlockStart(
@@ -97,10 +97,10 @@ void BlueScreenInterceptor::onTranslateBlockStart(
 void BlueScreenInterceptor::onBsod(
         S2EExecutionState *state, uint64_t pc)
 {
-    std::ostream &os = s2e()->getMessagesStream(state);
+    llvm::raw_ostream &os = s2e()->getMessagesStream(state);
 
     os << "Killing state "  << state->getID() <<
-            " because of BSOD " << std::endl;
+            " because of BSOD " << '\n';
 
     ModuleExecutionDetector *m_exec = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
 
@@ -137,7 +137,7 @@ void BlueScreenInterceptor::dumpCriticalObjectTermination(S2EExecutionState *sta
     ok &= WindowsApi::readConcreteParameter(state, 4, &message);
 
     if (!ok) {
-        s2e()->getDebugStream() << "Could not read BSOD parameters" << std::endl;
+        s2e()->getDebugStream() << "Could not read BSOD parameters" << '\n';
     }
 
     std::string strMessage, strImage;
@@ -145,9 +145,9 @@ void BlueScreenInterceptor::dumpCriticalObjectTermination(S2EExecutionState *sta
     ok &= state->readString(processImageName, strImage, 256);
 
     s2e()->getDebugStream(state) <<
-            "CRITICAL_OBJECT_TERMINATION" << std::endl <<
-            "ImageName: " << strImage << std::endl <<
-            "Message:   " << strMessage << std::endl;
+            "CRITICAL_OBJECT_TERMINATION" << '\n' <<
+            "ImageName: " << strImage << '\n' <<
+            "Message:   " << strMessage << '\n';
 }
 
 void BlueScreenInterceptor::dispatchErrorCodes(S2EExecutionState *state)
@@ -161,7 +161,7 @@ void BlueScreenInterceptor::dispatchErrorCodes(S2EExecutionState *state)
         break;
 
     default:
-        s2e()->getDebugStream() << "Unknown BSOD code " << errorCode << std::endl;
+        s2e()->getDebugStream() << "Unknown BSOD code " << errorCode << '\n';
         break;
     }
 }

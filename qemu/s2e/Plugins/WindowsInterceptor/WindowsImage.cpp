@@ -34,7 +34,6 @@
  *
  */
 
-#define NDEBUG
 
 #include "WindowsMonitor.h"
 #include "WindowsImage.h"

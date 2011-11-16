@@ -174,7 +174,7 @@ FunctionMonitorState::~FunctionMonitorState()
 FunctionMonitorState* FunctionMonitorState::clone() const
 {
     FunctionMonitorState *ret = new FunctionMonitorState(*this);
-    m_plugin->s2e()->getDebugStream() << "Forking FunctionMonitorState ret=" << std::hex << ret << std::endl;
+    m_plugin->s2e()->getDebugStream() << "Forking FunctionMonitorState ret=" << hexval(ret) << '\n';
     assert(ret->m_returnDescriptors.size() == m_returnDescriptors.size());
     return ret;
 }
@@ -274,8 +274,8 @@ void FunctionMonitorState::registerReturnSignal(S2EExecutionState *state, Functi
                                              &esp, sizeof(target_ulong));
     if(!ok) {
         m_plugin->s2e()->getWarningsStream(state)
-            << "Function call with symbolic ESP!" << std::endl
-            << "  EIP=" << hexval(state->getPc()) << " CR3=" << hexval(state->getPid()) << std::endl;
+            << "Function call with symbolic ESP!\n"
+            << "  EIP=" << hexval(state->getPc()) << " CR3=" << hexval(state->getPid()) << '\n';
         return;
     }
 
@@ -307,8 +307,8 @@ void FunctionMonitorState::slotRet(S2EExecutionState *state, uint64_t pc, bool e
         target_ulong eip = state->readCpuState(CPU_OFFSET(eip),
                                                8*sizeof(target_ulong));
         m_plugin->s2e()->getWarningsStream(state)
-            << "Function return with symbolic ESP!" << std::endl
-            << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << std::endl;
+            << "Function return with symbolic ESP!" << '\n'
+            << "  EIP=" << hexval(eip) << " CR3=" << hexval(cr3) << '\n';
         return;
     }
 

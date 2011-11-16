@@ -84,7 +84,7 @@ void LibraryCallMonitor::onModuleLoad(
     Imports imports;
 
     if (!m_monitor->getImports(state, module, imports)) {
-        s2e()->getWarningsStream() << "LibraryCallMonitor could not retrieve imported functions in " << module.Name << std::endl;
+        s2e()->getWarningsStream() << "LibraryCallMonitor could not retrieve imported functions in " << module.Name << '\n';
         return;
     }
 
@@ -140,7 +140,7 @@ void LibraryCallMonitor::onFunctionCall(S2EExecutionState* state, FunctionMonito
     LibraryCallMonitorState::AddressToFunctionName::iterator it = plgState->m_functions.find(pc);
     if (it != plgState->m_functions.end()) {
         const char *str = (*it).second;
-        s2e()->getMessagesStream() << mod->Name << "@" << std::hex << mod->ToNativeBase(caller) << " called function " << str << std::endl;
+        s2e()->getMessagesStream() << mod->Name << "@" << hexval(mod->ToNativeBase(caller)) << " called function " << str << '\n';
 
         if (m_displayOnce) {
             m_alreadyCalledFunctions.insert(std::make_pair(mod->Pid, pc));

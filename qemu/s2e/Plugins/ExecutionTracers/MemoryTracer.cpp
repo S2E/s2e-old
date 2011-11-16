@@ -80,7 +80,7 @@ void MemoryTracer::initialize()
     m_monitorTlbMisses  = s2e()->getConfig()->getBool(getConfigKey() + ".monitorTlbMisses");
 
     s2e()->getDebugStream() << "MonitorMemory: " << m_monitorMemory << 
-    " PageFaults: " << m_monitorPageFaults << " TlbMisses: " << m_monitorTlbMisses << std::endl;
+    " PageFaults: " << m_monitorPageFaults << " TlbMisses: " << m_monitorTlbMisses << '\n';
 
     if (!m_elapsedTics) {
         if (hasTimeTrigger) {
@@ -191,21 +191,21 @@ void MemoryTracer::onPageFault(S2EExecutionState *state, uint64_t addr, bool is_
 void MemoryTracer::enableTracing()
 {
     if (m_monitorMemory) {
-        s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling memory tracing" << std::endl;
+        s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling memory tracing" << '\n';
         m_memoryMonitor.disconnect();
         m_memoryMonitor = s2e()->getCorePlugin()->onDataMemoryAccess.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onDataMemoryAccess));
     }
 
     if (m_monitorPageFaults) {
-        s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling page fault tracing" << std::endl;
+        s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling page fault tracing" << '\n';
         m_pageFaultsMonitor.disconnect();
         m_pageFaultsMonitor = s2e()->getCorePlugin()->onPageFault.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onPageFault));
     }
 
     if (m_monitorTlbMisses) {
-        s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling TLB miss tracing" << std::endl;
+        s2e()->getMessagesStream() << "MemoryTracer Plugin: Enabling TLB miss tracing" << '\n';
         m_tlbMissesMonitor.disconnect();
         m_tlbMissesMonitor = s2e()->getCorePlugin()->onTlbMiss.connect(
                 sigc::mem_fun(*this, &MemoryTracer::onTlbMiss));
@@ -254,7 +254,7 @@ void MemoryTracer::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
         break;
 
     default:
-        s2e()->getWarningsStream() << "MemoryTracer: unsupported opcode 0x" << std::hex << opc << std::endl;
+        s2e()->getWarningsStream() << "MemoryTracer: unsupported opcode " << hexval(opc) << '\n';
         break;
     }
 

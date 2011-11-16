@@ -151,8 +151,8 @@ bool X86ExceptionInterceptor::registerHandler(S2EExecutionState *state, EX86Exce
             hdlr.idtVector = idtVector;
             m_handlers.insert(hdlr);
 
-            s2e()->getDebugStream() << "Registered task hander at 0x" <<
-                    std::hex << eip << std::endl;
+            s2e()->getDebugStream() << "Registered task hander at " <<
+                    hexval(eip) << '\n';
 
         }
         break;
@@ -164,8 +164,8 @@ bool X86ExceptionInterceptor::registerHandler(S2EExecutionState *state, EX86Exce
             hdlr.idtVector = idtVector;
             m_handlers.insert(hdlr);
 
-            s2e()->getDebugStream() << "Registered interrupt gate hander at 0x" <<
-                    std::hex << hdlr.pc << std::endl;
+            s2e()->getDebugStream() << "Registered interrupt gate hander at " <<
+                    hexval(hdlr.pc) << '\n';
         }
         break;
 
@@ -176,13 +176,13 @@ bool X86ExceptionInterceptor::registerHandler(S2EExecutionState *state, EX86Exce
             hdlr.idtVector = idtVector;
             m_handlers.insert(hdlr);
 
-            s2e()->getDebugStream() << "Registered trap gate hander at 0x" <<
-                    std::hex << hdlr.pc << std::endl;
+            s2e()->getDebugStream() << "Registered trap gate hander at " <<
+                    hexval(hdlr.pc) << '\n';
         }
         break;
 
     default:
-        s2e()->getDebugStream() << "Unhandled entry type " << entry.getType() << std::endl;
+        s2e()->getDebugStream() << "Unhandled entry type " << entry.getType() << '\n';
         return false;
         break;
     }
@@ -191,7 +191,7 @@ bool X86ExceptionInterceptor::registerHandler(S2EExecutionState *state, EX86Exce
 
 void X86ExceptionInterceptor::onExecuteBlockStart(S2EExecutionState *state, uint64_t pc)
 {
-    std::cout << "Fired exception at " << std::hex << pc << std::dec << std::endl;
+    s2e()->getMessagesStream() << "Fired exception at " << hexval(pc) << '\n';
 
     Handler hdlr;
     hdlr.pc = pc;
@@ -202,13 +202,13 @@ void X86ExceptionInterceptor::onExecuteBlockStart(S2EExecutionState *state, uint
 
     switch(h.idtVector) {
         case GPF:
-            s2e()->getMessagesStream() << "General protection fault" << std::endl;
+            s2e()->getMessagesStream() << "General protection fault\n";
             break;
         case STACK_FAULT:
-            s2e()->getMessagesStream() << "Stack fault" << std::endl;
+            s2e()->getMessagesStream() << "Stack fault\n";
             break;
         case DOUBLE_FAULT:
-            s2e()->getMessagesStream() << "Double fault" << std::endl;
+            s2e()->getMessagesStream() << "Double fault\n";
             break;
     }
 
@@ -219,11 +219,11 @@ void X86ExceptionInterceptor::onExecuteBlockStart(S2EExecutionState *state, uint
             break;
 
         case INT_GATE:
-            s2e()->getDebugStream() << "INT_GATE not handled yet" << std::endl;
+            s2e()->getDebugStream() << "INT_GATE not handled yet\n";
             break;
 
         case TRAP_GATE:
-            s2e()->getDebugStream() << "TRAP_GATE not handled yet" << std::endl;
+            s2e()->getDebugStream() << "TRAP_GATE not handled yet\n";
             break;
     }
 #if 0
@@ -245,7 +245,7 @@ void X86ExceptionInterceptor::handleTaskGate(S2EExecutionState *state, const Han
 {
     X86TSS tss, faultyTss;
     if (!X86Parser::getCurrentTss(state, &tss)) {
-        s2e()->getDebugStream() << "Could not read current TSS" << std::endl;
+        s2e()->getDebugStream() << "Could not read current TSS\n";
         return;
     }
 
@@ -254,13 +254,13 @@ void X86ExceptionInterceptor::handleTaskGate(S2EExecutionState *state, const Han
     uint16_t faultyTssSel = tss.m_PreviousTaskLink;
 
     if (!X86Parser::getGdtEntry(state, &gdtEntry, faultyTssSel)) {
-        s2e()->getDebugStream() << "Could not retrieve TSS descriptor for faulty task " << std::dec << faultyTssSel << std::endl;
+        s2e()->getDebugStream() << "Could not retrieve TSS descriptor for faulty task " << faultyTssSel << '\n';
         return;
     }
 
     uint32_t faultyTssBase = X86Parser::getBase(gdtEntry);
     if (!X86Parser::getTss(state, faultyTssBase, &faultyTss)) {
-        s2e()->getDebugStream() <<  "Could not get faulty TSS" << std::endl;
+        s2e()->getDebugStream() <<  "Could not get faulty TSS\n";
         return;
     }
 
@@ -277,41 +277,40 @@ void X86ExceptionInterceptor::handleTaskGate(S2EExecutionState *state, const Han
     //Dump the IDT table for page fault
     //XXX: generalize this
     uint32_t pfhdlr = X86Parser::getOffset(m_idt[14]) ;
-    std::ostream &os = s2e()->getDebugStream();
-    os << "PF handler is at 0x" << std::hex << pfhdlr << std::endl;
+    llvm::raw_ostream &os = s2e()->getDebugStream();
+    os << "PF handler is at 0x" << hexval(pfhdlr) << '\n';
 
     uint8_t chr;
     if (!state->readMemoryConcrete(pfhdlr, &chr, sizeof(chr))) {
-        os << "Could not read here" << std::endl;
+        os << "Could not read here\n";
     }
 }
 
 //////////////////////////////
 
-void X86TSS::dumpInfo(std::ostream &o)
+void X86TSS::dumpInfo(llvm::raw_ostream &o)
 {
-  o << std::hex;
-  o << "============ TSS DUMP =============" <<std::endl;
-  o << "SS0:ESP0=0x" << m_SS0 << ":0x" << m_ESP0 << std::endl;
-  o << "SS1:ESP1=0x" << m_SS1 << ":0x" << m_ESP1 << std::endl;
-  o << "SS2:ESP2=0x" << m_SS2 << ":0x" << m_ESP2 << std::endl << std::endl;
+  o << "============ TSS DUMP =============\n";
+  o << "SS0:ESP0=" << hexval(m_SS0) << ":" << hexval(m_ESP0) << '\n';
+  o << "SS1:ESP1=" << hexval(m_SS1) << ":" << hexval(m_ESP1) << '\n';
+  o << "SS2:ESP2=" << hexval(m_SS2) << ":" << hexval(m_ESP2) << "\n\n";
 
 
-  o << "<<EIP=0x" << m_EIP << ">>" << std::endl;
-  o << "DS=0x" << m_DS << " ";
-  o << "ES=0x" << m_ES << " ";
-  o << "SS=0x" << m_SS << " ";
-  o << "FS=0x" << m_FS << " ";
-  o << "GS=0x" << m_GS << " " << std::endl;
+  o << "<<EIP=" << hexval(m_EIP) << ">>\n";
+  o << "DS=" << hexval(m_DS) << " ";
+  o << "ES=" << hexval(m_ES) << " ";
+  o << "SS=" << hexval(m_SS) << " ";
+  o << "FS=" << hexval(m_FS) << " ";
+  o << "GS=" << hexval(m_GS) << " \n";
 
-  o << "EAX=0x" << m_EAX << " ";
-  o << "EBX=0x" << m_EBX << " ";
-  o << "ECX=0x" << m_ECX << " ";
-  o << "EDX=0x" << m_EDX << " " << std::endl;
-  o << "ESI=0x" << m_ESI << " ";
-  o << "EDI=0x" << m_EDI << " ";
-  o << "EBP=0x" << m_EBP << " ";
-  o << "ESP=0x" << m_ESP << " " << std::endl;
+  o << "EAX=" << hexval(m_EAX) << " ";
+  o << "EBX=" << hexval(m_EBX) << " ";
+  o << "ECX=" << hexval(m_ECX) << " ";
+  o << "EDX=" << hexval(m_EDX) << " \n";
+  o << "ESI=" << hexval(m_ESI) << " ";
+  o << "EDI=" << hexval(m_EDI) << " ";
+  o << "EBP=" << hexval(m_EBP) << " ";
+  o << "ESP=" << hexval(m_ESP) << " \n";
 }
 
 bool X86Parser::getIdt(S2EExecutionState *state, IDT &table)
@@ -331,7 +330,7 @@ bool X86Parser::getIdt(S2EExecutionState *state, IDT &table)
 
     for (unsigned i=0; i<maxHdlrs; i++) {
         if (!state->readMemoryConcrete(idtBase + i * sizeof(X86IDTEntry), &entry, sizeof(X86IDTEntry))) {
-            g_s2e->getDebugStream() << "Could not read IDT entry " << i  << std::endl;
+            g_s2e->getDebugStream() << "Could not read IDT entry " << i  << '\n';
             return false;
         }else {
             table.push_back(entry);
@@ -357,7 +356,7 @@ bool X86Parser::getGdt(S2EExecutionState *state, GDT &table)
 
     for (unsigned i=0; i<maxHdlrs; i++) {
         if (!state->readMemoryConcrete(gdtBase + i * sizeof(X86GDTEntry), &entry, sizeof(X86GDTEntry))) {
-            g_s2e->getDebugStream() << "Could not read GDT entry " << i  << std::endl;
+            g_s2e->getDebugStream() << "Could not read GDT entry " << i  << '\n';
             return false;
         }else {
             table.push_back(entry);
@@ -381,19 +380,19 @@ bool X86Parser::getGdtEntry(S2EExecutionState *state, X86GDTEntry *gdtEntry, uin
 
   if (selector & 4) {
     //LDT entry, bad
-    g_s2e->getDebugStream() << "Requesting and LDT entry"  << std::endl;
+    g_s2e->getDebugStream() << "Requesting and LDT entry\n";
     return false;
   }
 
   uint16_t entry = selector >> 3;
 
   if (entry >= maxHdlrs) {
-    g_s2e->getDebugStream() << "GDT is too small for entry " << entry  << std::endl;
+    g_s2e->getDebugStream() << "GDT is too small for entry " << entry  << '\n';
     return false;
   }
 
   if (!state->readMemoryConcrete(gdtBase + entry * sizeof(X86GDTEntry), gdtEntry, sizeof(X86GDTEntry))) {
-      g_s2e->getDebugStream() << "Could not read GDT entry " << entry  << std::endl;
+      g_s2e->getDebugStream() << "Could not read GDT entry " << entry  << '\n';
       return false;
   }
 
@@ -403,7 +402,7 @@ bool X86Parser::getGdtEntry(S2EExecutionState *state, X86GDTEntry *gdtEntry, uin
 bool X86Parser::getTss(S2EExecutionState *state, uint32_t base, X86TSS *tss)
 {
     if (!state->readMemoryConcrete(base, tss, sizeof(X86TSS))) {
-        g_s2e->getDebugStream() << "Could not read TSS at 0x" << std::hex << base << std::endl;
+        g_s2e->getDebugStream() << "Could not read TSS at " << hexval(base) << '\n';
         return false;
     }
 
@@ -420,7 +419,7 @@ bool X86Parser::getCurrentTss(S2EExecutionState *state, X86TSS *tss)
 
   assert(sizeof(X86TSS) == 0x68);
   if (limit < sizeof(X86TSS)) {
-    g_s2e->getDebugStream() << "Current task register points to an invalid TSS"  << std::endl;
+    g_s2e->getDebugStream() << "Current task register points to an invalid TSS\n";
     return false;
   }
 

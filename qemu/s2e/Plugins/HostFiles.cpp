@@ -51,7 +51,7 @@ extern "C" {
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include <llvm/System/Path.h>
+#include <llvm/Support/Path.h>
 
 namespace s2e {
 namespace plugins {
@@ -96,14 +96,14 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
             if (!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op HostFiles "
-                    << std::endl;
+                    << '\n';
                 break;
             }
 
             std::string fname;
             if(!state->readString(fnamePtr, fname)) {
                 s2e()->getWarningsStream(state)
-                    << "Error reading file name string from the guest" << std::endl;
+                    << "Error reading file name string from the guest" << '\n';
                 break;
             }
 
@@ -113,14 +113,14 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
                 if(!(isalnum(fname[i]) || fname[i] == ','
                         || fname[i] == '_' || fname[i] == '-' || fname[i] == '.')) {
                     s2e()->getWarningsStream(state) <<
-                            "HostFiles: Invalid character " << fname[i] << " in " << fname << std::endl;
+                            "HostFiles: Invalid character " << fname[i] << " in " << fname << '\n';
                     break;
                 }
             }
 
             if(fname.size() == 0 || i != fname.size()) {
                 s2e()->getWarningsStream(state)
-                        << "Guest passed invalid file name to HostFiles plugin: " << fname << std::endl;
+                        << "Guest passed invalid file name to HostFiles plugin: " << fname << '\n';
                 break;
             }
 
@@ -139,7 +139,7 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
                 state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &guestFd, 4);
             }else {
                 s2e()->getWarningsStream(state) <<
-                        "HostFiles could not open " << path.c_str() << "(errno " << errno << ")" << std::endl;
+                        "HostFiles could not open " << path.c_str() << "(errno " << errno << ")" << '\n';
             }
         }
 
@@ -158,7 +158,7 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
             if (!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op HostFiles "
-                    << std::endl;
+                    << '\n';
                 break;
             }
 
@@ -185,13 +185,13 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
 
             if (!ok) {
                 s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op HostFiles" << std::endl;
+                    << "ERROR: symbolic argument was passed to s2e_op HostFiles" << '\n';
                 break;
             }
 
             if(count > 1024*64) {
                 s2e()->getWarningsStream(state)
-                    << "ERROR: count passed to HostFiles is too big" << std::endl;
+                    << "ERROR: count passed to HostFiles is too big" << '\n';
                 break;
             }
 
@@ -209,7 +209,7 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
             ok = state->writeMemoryConcrete(bufAddr, buf, ret);
             if(!ok) {
                 s2e()->getWarningsStream(state)
-                    << "ERROR: HostFiles can not write to guest buffer" << std::endl;
+                    << "ERROR: HostFiles can not write to guest buffer" << '\n';
                 break;
             }
 
@@ -223,8 +223,7 @@ void HostFiles::onCustomInstruction(S2EExecutionState *state, uint64_t opcode)
 
     default:
         s2e()->getWarningsStream(state)
-                << "Invalid HostFiles opcode 0x"
-                << std::hex << op << std::dec << std::endl;
+                << "Invalid HostFiles opcode " << hexval(op)  << '\n';
         break;
     }
 }

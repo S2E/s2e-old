@@ -108,15 +108,15 @@ S2E_DEFINE_PLUGIN(SymbolicHardware, "Symbolic hardware plugin for PCI/ISA device
 void SymbolicHardware::initialize()
 {
     ConfigFile *cfg = s2e()->getConfig();
-    std::ostream &ws = s2e()->getWarningsStream();
+    llvm::raw_ostream &ws = s2e()->getWarningsStream();
     bool ok;
 
-    s2e()->getMessagesStream() << "======= Initializing Symbolic Hardware =======" << std::endl;
+    s2e()->getMessagesStream() << "======= Initializing Symbolic Hardware =======" << '\n';
 
     ConfigFile::string_list keys = cfg->getListKeys(getConfigKey(), &ok);
     if (!ok || keys.empty()) {
         ws << "No symbolic device descriptor specified in " << getConfigKey() << "." <<
-                " S2E will start without symbolic hardware." << std::endl;
+                " S2E will start without symbolic hardware." << '\n';
         return;
     }
 
@@ -125,7 +125,7 @@ void SymbolicHardware::initialize()
         ss << getConfigKey() << "." << *it;
         DeviceDescriptor *dd = DeviceDescriptor::create(this, cfg, ss.str());
         if (!dd) {
-            ws << "Failed to create a symbolic device for " << ss.str() << std::endl;
+            ws << "Failed to create a symbolic device for " << ss.str() << '\n';
             exit(-1);
         }
 
@@ -181,8 +181,8 @@ bool SymbolicHardware::isSymbolic(uint16_t port) const
 //2: On DMA memory registration, in conjunction with the OS annotations.
 bool SymbolicHardware::setSymbolicMmioRange(S2EExecutionState *state, uint64_t physaddr, uint64_t size)
 {
-    s2e()->getDebugStream() << "SymbolicHardware: adding MMIO range 0x" << std::hex << physaddr
-            << " length=0x" << size << std::endl;
+    s2e()->getDebugStream() << "SymbolicHardware: adding MMIO range 0x" << hexval(physaddr)
+            << " length=0x" << size << '\n';
 
     assert(state->isActive());
 
@@ -207,7 +207,7 @@ bool SymbolicHardware::isMmioSymbolic(uint64_t physaddress, uint64_t size) const
     DECLARE_PLUGINSTATE_CONST(SymbolicHardwareState, g_s2e_state);
 
     bool b = plgState->isMmio(physaddress, size);
-    //s2e()->getDebugStream() << "isMmioSymbolic: 0x" << std::hex << physaddress << " res=" << b << std::endl;
+    //s2e()->getDebugStream() << "isMmioSymbolic: 0x" << std::hex << physaddress << " res=" << b << '\n';
     return b;
 }
 
@@ -245,7 +245,7 @@ DeviceDescriptor *SymbolicHardware::findDevice(const std::string &name) const
 
 void SymbolicHardware::onDeviceRegistration()
 {
-    s2e()->getMessagesStream() << "Registering symbolic devices with QEMU..." << std::endl;
+    s2e()->getMessagesStream() << "Registering symbolic devices with QEMU..." << '\n';
     foreach2(it, m_devices.begin(), m_devices.end()) {
         (*it)->initializeQemuDevice();
     }
@@ -253,7 +253,7 @@ void SymbolicHardware::onDeviceRegistration()
 
 void SymbolicHardware::onDeviceActivation(struct PCIBus* pci)
 {
-    s2e()->getMessagesStream() << "Activating symbolic devices..." << std::endl;
+    s2e()->getMessagesStream() << "Activating symbolic devices..." << '\n';
     foreach2(it, m_devices.begin(), m_devices.end()) {
         (*it)->activateQemuDevice(pci);
     }
@@ -281,19 +281,19 @@ DeviceDescriptor::~DeviceDescriptor()
 DeviceDescriptor *DeviceDescriptor::create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key)
 {
     bool ok;
-    std::ostream &ws = plg->s2e()->getWarningsStream();
+    llvm::raw_ostream &ws = plg->s2e()->getWarningsStream();
 
     std::string id = cfg->getString(key + ".id", "", &ok);
     if (!ok || id.empty()) {
         ws << "You must specifiy an id for " << key << ". " <<
-                "This is required by QEMU for saving/restoring snapshots." << std::endl;
+                "This is required by QEMU for saving/restoring snapshots." << '\n';
         return NULL;
     }
 
     //Check the type of device we want to create
     std::string devType = cfg->getString(key + ".type", "", &ok);
     if (!ok || (devType != "pci" && devType != "isa")) {
-        ws << "You must define either an ISA or PCI device!" << std::endl;
+        ws << "You must define either an ISA or PCI device!" << '\n';
         return NULL;
     }
 
@@ -332,7 +332,7 @@ void IsaDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
     isa_create_simple(m_id.c_str());
     if (!isActive()) {
         g_s2e->getWarningsStream() << "ISA device " <<
-                m_id << " is not active. Check that its ID does not collide with native QEMU devices." << std::endl;
+                m_id << " is not active. Check that its ID does not collide with native QEMU devices." << '\n';
         exit(-1);
     }
 }
@@ -350,23 +350,23 @@ IsaDeviceDescriptor::~IsaDeviceDescriptor()
 
 void IsaDeviceDescriptor::print(std::ostream &os) const
 {
-    os << "ISA Device Descriptor id=" << m_id << std::endl;
+    os << "ISA Device Descriptor id=" << m_id << '\n';
     os << std::hex << "Base=0x" << m_isaResource.portBase <<
-            " Size=0x" << m_isaResource.portSize << std::endl;
-    os << std::endl;
+            " Size=0x" << m_isaResource.portSize << '\n';
+    os << '\n';
 }
 
 IsaDeviceDescriptor* IsaDeviceDescriptor::create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key)
 {
     bool ok;
-    std::ostream &ws = plg->s2e()->getWarningsStream();
+    llvm::raw_ostream &ws = plg->s2e()->getWarningsStream();
 
     std::string id = cfg->getString(key + ".id", "", &ok);
     assert(ok);
 
     uint64_t start = cfg->getInt(key + ".start", 0, &ok);
     if (!ok || start > 0xFFFF) {
-        ws << "The base address of an ISA device must be between 0x0 and 0xffff." << std::endl;
+        ws << "The base address of an ISA device must be between 0x0 and 0xffff." << '\n';
         return NULL;
     }
 
@@ -376,13 +376,13 @@ IsaDeviceDescriptor* IsaDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
     }
 
     if (start + size > 0x10000) {
-        ws << "An ISA address range must not exceed 0xffff." << std::endl;
+        ws << "An ISA address range must not exceed 0xffff." << '\n';
         return NULL;
     }
 
     uint8_t irq =  cfg->getInt(key + ".irq", 0, &ok);
     if (!ok || irq > 15) {
-        ws << "You must specify an IRQ between 0 and 15 for the ISA device." << std::endl;
+        ws << "You must specify an IRQ between 0 and 15 for the ISA device." << '\n';
         return NULL;
     }
 
@@ -396,7 +396,7 @@ IsaDeviceDescriptor* IsaDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 
 void IsaDeviceDescriptor::setInterrupt(bool state)
 {
-    g_s2e->getDebugStream() << "IsaDeviceDescriptor::setInterrupt " << state << std::endl;
+    g_s2e->getDebugStream() << "IsaDeviceDescriptor::setInterrupt " << state << '\n';
     assert(m_qemuIrq);
     if (state) {
        qemu_irq_raise(*(qemu_irq*)m_qemuIrq);
@@ -415,38 +415,38 @@ void IsaDeviceDescriptor::assignIrq(void *irq)
 PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key)
 {
     bool ok;
-    std::ostream &ws = plg->s2e()->getWarningsStream();
+    llvm::raw_ostream &ws = plg->s2e()->getWarningsStream();
 
     std::string id = cfg->getString(key + ".id", "", &ok);
     assert(ok);
 
     uint16_t vid = cfg->getInt(key + ".vid", 0, &ok);
     if (!ok) {
-        ws << "You must specifiy a vendor id for a symbolic PCI device!" << std::endl;
+        ws << "You must specifiy a vendor id for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
     uint16_t pid = cfg->getInt(key + ".pid", 0, &ok);
     if (!ok) {
-        ws << "You must specifiy a product id for a symbolic PCI device!" << std::endl;
+        ws << "You must specifiy a product id for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
     uint32_t classCode = cfg->getInt(key + ".classCode", 0, &ok);
     if (!ok || classCode > 0xffffff) {
-        ws << "You must specifiy a valid class code for a symbolic PCI device!" << std::endl;
+        ws << "You must specifiy a valid class code for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
     uint8_t revisionId = cfg->getInt(key + ".revisionId", 0, &ok);
     if (!ok) {
-        ws << "You must specifiy a revision id for a symbolic PCI device!" << std::endl;
+        ws << "You must specifiy a revision id for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
     uint8_t interruptPin = cfg->getInt(key + ".interruptPin", 0, &ok);
     if (!ok || interruptPin > 4) {
-        ws << "You must specifiy an interrupt pin (1-4, 0 for none) for " << key << "!" << std::endl;
+        ws << "You must specifiy an interrupt pin (1-4, 0 for none) for " << key << "!" << '\n';
         return NULL;
     }
 
@@ -455,7 +455,7 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
     //Reading the resource list
     ConfigFile::string_list resKeys = cfg->getListKeys(key + ".resources", &ok);
     if (!ok || resKeys.empty()) {
-        ws << "You must specifiy at least one resource descriptor for a symbolic PCI device!" << std::endl;
+        ws << "You must specifiy at least one resource descriptor for a symbolic PCI device!" << '\n';
         return NULL;
     }
 
@@ -465,19 +465,19 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 
         bool isIo = cfg->getBool(ss.str() + ".isIo", false, &ok);
         if (!ok) {
-            ws << "You must specify whether the resource " << ss.str() << " is IO or MMIO!" << std::endl;
+            ws << "You must specify whether the resource " << ss.str() << " is IO or MMIO!" << '\n';
             return NULL;
         }
 
         bool isPrefetchable = cfg->getBool(ss.str() + ".isPrefetchable", false, &ok);
         if (!ok && !isIo) {
-            ws << "You must specify whether the resource " << ss.str() << " is prefetchable!" << std::endl;
+            ws << "You must specify whether the resource " << ss.str() << " is prefetchable!" << '\n';
             return NULL;
         }
 
         uint32_t size = cfg->getInt(ss.str() + ".size", 0, &ok);
         if (!ok) {
-            ws << "You must specify a size for the resource " << ss.str() << "!" << std::endl;
+            ws << "You must specify a size for the resource " << ss.str() << "!" << '\n';
             return NULL;
         }
 
@@ -489,7 +489,7 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
     }
 
     if (resources.size() > 6) {
-        ws << "A PCI device can have at most 6 resource descriptors!" << std::endl;
+        ws << "A PCI device can have at most 6 resource descriptors!" << '\n';
         return NULL;
     }
 
@@ -507,7 +507,7 @@ PciDeviceDescriptor* PciDeviceDescriptor::create(SymbolicHardware *plg, ConfigFi
 
 void PciDeviceDescriptor::initializeQemuDevice()
 {
-    g_s2e->getDebugStream() << "PciDeviceDescriptor::initializeQemuDevice()" << std::endl;
+    g_s2e->getDebugStream() << "PciDeviceDescriptor::initializeQemuDevice()" << '\n';
     m_vmStateFields = new VMStateField[2];
     memset(m_vmStateFields, 0, sizeof(VMStateField)*2);
     m_vmStateFields[0].name = "dev";
@@ -547,7 +547,7 @@ void PciDeviceDescriptor::activateQemuDevice(struct PCIBus *bus)
 
     if (!isActive()) {
         g_s2e->getWarningsStream() << "PCI device " <<
-                m_id << " is not active. Check that its ID does not collide with native QEMU devices." << std::endl;
+                m_id << " is not active. Check that its ID does not collide with native QEMU devices." << '\n';
         exit(-1);
     }
 }
@@ -581,27 +581,27 @@ PciDeviceDescriptor::~PciDeviceDescriptor()
 
 void PciDeviceDescriptor::print(std::ostream &os) const
 {
-    os << "PCI Device Descriptor id=" << m_id << std::endl;
+    os << "PCI Device Descriptor id=" << m_id << '\n';
     os << std::hex << "VID=0x" << m_vid <<
             " PID=0x" << m_pid <<
-            " RevID=0x" << (unsigned)m_revisionId << std::endl;
+            " RevID=0x" << (unsigned)m_revisionId << '\n';
 
     os << "Class=0x" << (unsigned)m_classCode <<
-            " INT=0x" << (unsigned)m_interruptPin << std::endl;
+            " INT=0x" << (unsigned)m_interruptPin << '\n';
 
     unsigned i=0;
     foreach2(it, m_resources.begin(), m_resources.end()) {
         const PciResource &res = *it;
         os << "R[" << i << "]: " <<
                 "Size=0x" << res.size << " IsIO=" << (int)res.isIo <<
-                " IsPrefetchable=0x" << (int)res.prefetchable << std::endl;
+                " IsPrefetchable=0x" << (int)res.prefetchable << '\n';
     }
-    os << std::endl;
+    os << '\n';
 }
 
 void PciDeviceDescriptor::setInterrupt(bool state)
 {
-    g_s2e->getDebugStream() << "PciDeviceDescriptor::setInterrupt " << state << std::endl;
+    g_s2e->getDebugStream() << "PciDeviceDescriptor::setInterrupt " << state << '\n';
     assert(m_qemuIrq);
     if (state) {
        s2e_print_apic(env);
@@ -622,66 +622,66 @@ void PciDeviceDescriptor::assignIrq(void *irq)
 /////////////////////////////////////////////////////////////////////
 /* Dummy I/O functions for symbolic devices. Unused for now. */
 static void symbhw_write8(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << '\n';
 }
 
 static void symbhw_write16(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << '\n';
 }
 
 static void symbhw_write32(void *opaque, uint32_t address, uint32_t data) {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << " 0x" << data << '\n';
 }
 
 /* These will never be called */
 static uint32_t symbhw_read8(void *opaque, uint32_t address)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << '\n';
     return 0;
 }
 
 static uint32_t symbhw_read16(void *opaque, uint32_t address)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << '\n';
     return 0;
 }
 
 static uint32_t symbhw_read32(void *opaque, uint32_t address)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << address << '\n';
     return 0;
 }
 
 static void symbhw_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << '\n';
 }
 
 static void symbhw_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << '\n';
 }
 
 static void symbhw_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << " 0x" << val << '\n';
 }
 
 static uint32_t symbhw_mmio_readb(void *opaque, target_phys_addr_t addr)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << '\n';
     return 0;
 }
 
 static uint32_t symbhw_mmio_readw(void *opaque, target_phys_addr_t addr)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << '\n';
     return 0;
 }
 
 static uint32_t symbhw_mmio_readl(void *opaque, target_phys_addr_t addr)
 {
-//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << std::endl;
+//    g_s2e->getDebugStream() << __FUNCTION__ << std::hex << " 0x" << addr << '\n';
     return 0;
 }
 
@@ -732,7 +732,7 @@ static void pci_symbhw_map(PCIDevice *pci_dev, int region_num,
 
 static int isa_symbhw_init(ISADevice *dev)
 {
-    g_s2e->getDebugStream() << __FUNCTION__ << " called" << std::endl;
+    g_s2e->getDebugStream() << __FUNCTION__ << " called" << '\n';
 
     SymbolicIsaDeviceState *isa = DO_UPCAST(SymbolicIsaDeviceState, dev, dev);
 

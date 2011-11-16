@@ -14,14 +14,19 @@ ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
 endif
 
 ifeq ($(shell uname -s),Darwin)
-    LLVM_GCC_SRC=llvm-gcc-4.2-2.6-i386-darwin9
+    LLVM_GCC_SRC=llvm-gcc4.2-2.9-i386-darwin9.tar.bz2
+    LLVM_GCC_DIR=llvm-gcc4.2-2.9-i386-darwin9
 else
-    LLVM_GCC_SRC=llvm-gcc-4.2-2.6-x86_64-linux
+    LLVM_GCC_SRC=llvm-gcc4.2-2.9-x86_64-linux.tar.bz2
+    LLVM_GCC_DIR=llvm-gcc4.2-2.9-x86_64-linux
 endif
+
+LLVM_VERSION=2.9
+LLVM_SRC=llvm-2.9.tgz
 
 clean:
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
-	rm -Rf llvm-2.6
+	rm -Rf llvm-$(LLVM_VERSION)
 	rm -Rf $(LLVM_GCC_SRC)
 	rm -Rf stamps
 
@@ -33,18 +38,18 @@ ALWAYS:
 # Downloads #
 #############
 
-$(LLVM_GCC_SRC).tar.gz:
-	wget http://llvm.org/releases/2.6/$(LLVM_GCC_SRC).tar.gz
+$(LLVM_GCC_SRC):
+	wget http://llvm.org/releases/$(LLVM_VERSION)/$(LLVM_GCC_SRC)
 
-stamps/llvm-gcc-unpack: $(LLVM_GCC_SRC).tar.gz
-	tar -zxf $(LLVM_GCC_SRC).tar.gz
+stamps/llvm-gcc-unpack: $(LLVM_GCC_SRC)
+	tar -xjf $(LLVM_GCC_SRC)
 	mkdir -p stamps && touch $@
 
-llvm-2.6.tar.gz:
-	wget http://llvm.org/releases/2.6/llvm-2.6.tar.gz
+$(LLVM_SRC):
+	wget http://llvm.org/releases/$(LLVM_VERSION)/$(LLVM_SRC)
 
-stamps/llvm-unpack: llvm-2.6.tar.gz
-	tar -zxf llvm-2.6.tar.gz
+stamps/llvm-unpack: $(LLVM_SRC)
+	tar -zxf $(LLVM_SRC)
 	mkdir -p stamps && touch $@
 
 ########
@@ -53,19 +58,19 @@ stamps/llvm-unpack: llvm-2.6.tar.gz
 
 stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack
 	mkdir -p llvm
-	cd llvm && $(S2EBUILD)/llvm-2.6/configure \
+	cd llvm && $(S2EBUILD)/llvm-$(LLVM_VERSION)/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvmgccdir=$(S2EBUILD)/$(LLVM_GCC_SRC) \
+		--with-llvmgccdir=$(S2EBUILD)/$(LLVM_GCC_DIR) \
 		--target=x86_64 --enable-targets=x86 --enable-jit \
 		--enable-optimized
 	mkdir -p stamps && touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
-	cd llvm && make ENABLE_OPTIMIZED=0 -j$(JOBS)
+	cd llvm && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 stamps/llvm-make-release: stamps/llvm-configure
-	cd llvm && make ENABLE_OPTIMIZED=1 -j$(JOBS)
+	cd llvm && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 #######
@@ -100,7 +105,7 @@ stamps/klee-configure: stamps/llvm-configure \
 	mkdir -p klee
 	cd klee && $(S2ESRC)/klee/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
+		--with-llvmsrc=$(S2EBUILD)/llvm-$(LLVM_VERSION) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
 		--target=x86_64 \
@@ -128,7 +133,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Debug  \
-		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
+		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_DIR)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -142,7 +147,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Release  \
-		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_SRC)/bin/llvm-gcc \
+		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_DIR)/bin/llvm-gcc \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Release \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -165,7 +170,7 @@ stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
 stamps/tools-configure: stamps/llvm-configure
 	mkdir -p tools
 	cd tools && $(S2ESRC)/tools/configure \
-		--with-llvmsrc=$(S2EBUILD)/llvm-2.6 \
+		--with-llvmsrc=$(S2EBUILD)/llvm-$(LLVM_VERSION) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
 		--target=x86_64

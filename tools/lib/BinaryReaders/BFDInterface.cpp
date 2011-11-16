@@ -40,12 +40,15 @@
 #include "Pe.h"
 #include "Macho.h"
 
+#include "llvm/Support/system_error.h"
+
 #include <stdlib.h>
 #include <cassert>
 
 #include <algorithm>
 #include <iostream>
 #include <vector>
+
 
 namespace s2etools
 {
@@ -59,7 +62,8 @@ BFDInterface::BFDInterface(const std::string &fileName):ExecutableFile(fileName)
     //Fail loading if the image has no symbols
     m_requireSymbols = true;
 
-    m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
+    llvm::MemoryBuffer::getFile(fileName.c_str(), m_file);
+
     m_binary = NULL;
 }
 
@@ -68,7 +72,7 @@ BFDInterface::BFDInterface(const std::string &fileName, bool requireSymbols):Exe
     m_bfd = NULL;
     m_symbolTable = NULL;
     m_requireSymbols = requireSymbols;
-    m_file = llvm::MemoryBuffer::getFile(fileName.c_str());
+    llvm::MemoryBuffer::getFile(fileName.c_str(), m_file);
     m_binary = NULL;
 }
 
@@ -82,10 +86,6 @@ BFDInterface::~BFDInterface()
         free(m_symbolTable);
         bfd_close(m_bfd);
     }
-    if (m_file) {
-        delete m_file;
-    }
-
 }
 
 void BFDInterface::initSections(bfd *abfd, asection *sect, void *obj)
@@ -186,9 +186,9 @@ bool BFDInterface::initialize(const std::string &format)
     assert(vma);
     m_imageBase = vma & (uint64_t)~0xFFF;
 
-    if (PeReader::isValid(m_file)) {
+    if (PeReader::isValid(m_file.get())) {
         m_binary = new PeReader(this);
-    }else if (MachoReader::isValid(m_file)) {
+    }else if (MachoReader::isValid(m_file.get())) {
         m_binary = new MachoReader(this);
     }
 

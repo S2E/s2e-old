@@ -84,7 +84,7 @@ public:
         m_qemuDev = qemuDev;
     }
 
-    virtual void print(std::ostream &os) const {}
+    virtual void print(llvm::raw_ostream &os) const {}
     virtual void initializeQemuDevice() {assert(false);}
     virtual void activateQemuDevice(struct PCIBus *bus) { assert(false);}
     virtual void setInterrupt(bool state) {assert(false);};

@@ -159,11 +159,11 @@ void NdisHandlers::initialize()
     m_devDesc = NULL;
     m_hwId = cfg->getString(getConfigKey() + ".hwId", "", &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "NDISHANDLERS: You did not configure any symbolic hardware id" << std::endl;
+        s2e()->getWarningsStream() << "NDISHANDLERS: You did not configure any symbolic hardware id" << '\n';
     }else {
         m_devDesc = m_hw->findDevice(m_hwId);
         if (!m_devDesc) {
-            s2e()->getWarningsStream() << "NDISHANDLERS: The specified hardware device id is invalid " << m_hwId << std::endl;
+            s2e()->getWarningsStream() << "NDISHANDLERS: The specified hardware device id is invalid " << m_hwId << '\n';
             exit(-1);
         }
     }
@@ -195,7 +195,7 @@ void NdisHandlers::initialize()
         m_crashdumper = static_cast<WindowsCrashDumpGenerator*>(s2e()->getPlugin("WindowsCrashDumpGenerator"));
         if (!m_manager) {
             s2e()->getWarningsStream() << "NDISHANDLERS: generateDumpOnLoad option requires the WindowsCrashDumpGenerator plugin!"
-                    << std::endl;
+                    << '\n';
             exit(-1);
         }
     }
@@ -246,7 +246,7 @@ void NdisHandlers::NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMoni
     ok &= readConcreteParameter(state, 0, &Address);
     ok &= readConcreteParameter(state, 1, &Length);
     if(!ok) {
-        s2e()->getDebugStream(state) << "Can not read address and length of memory allocation" << std::endl;
+        s2e()->getDebugStream(state) << "Can not read address and length of memory allocation" << '\n';
         return;
     }
 
@@ -284,7 +284,7 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Addr
     //Get the return value
     uint32_t eax;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
 
@@ -298,7 +298,7 @@ void NdisHandlers::NdisAllocateMemoryRet(S2EExecutionState* state, uint32_t Addr
         uint32_t BufAddress;
         bool ok = state->readMemoryConcrete(Address, &BufAddress, 4);
         if(!ok) {
-            s2e()->getWarningsStream() << __FUNCTION__ << ": cannot read allocated address" << std::endl;
+            s2e()->getWarningsStream() << __FUNCTION__ << ": cannot read allocated address" << '\n';
             return;
         }
         m_memoryChecker->grantMemory(state, BufAddress, Length, MemoryChecker::READWRITE,
@@ -315,7 +315,7 @@ void NdisHandlers::NdisAllocateMemoryWithTagPriority(S2EExecutionState* state, F
     uint32_t Length;
     ok &= readConcreteParameter(state, 1, &Length);
     if(!ok) {
-        s2e()->getDebugStream(state) << __FUNCTION__ << ": can not read address params" << std::endl;
+        s2e()->getDebugStream(state) << __FUNCTION__ << ": can not read address params" << '\n';
         return;
     }
     FUNCMON_REGISTER_RETURN_A(state, fns, NdisHandlers::NdisAllocateMemoryWithTagPriorityRet, Length);
@@ -329,7 +329,7 @@ void NdisHandlers::NdisAllocateMemoryWithTagPriorityRet(S2EExecutionState* state
         //Get the return value
         uint32_t eax;
         if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
-            s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+            s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
             return;
         }
 
@@ -358,7 +358,7 @@ void NdisHandlers::NdisFreeMemory(S2EExecutionState* state, FunctionMonitorState
     ok &= readConcreteParameter(state, 0, &Address);
     ok &= readConcreteParameter(state, 1, &Length);
     if(!ok) {
-        s2e()->getWarningsStream() << __FUNCTION__ << ": can not read params" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__ << ": can not read params" << '\n';
     }
 
     uint64_t AllocatedAddress, AllocatedLength;
@@ -394,7 +394,7 @@ void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonit
     ok &= readConcreteParameter(state, 4, &physAddr); //PhysicalAddress
 
     if (!ok) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read parameters" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read parameters" << '\n';
         return;
     }
 
@@ -420,7 +420,7 @@ void NdisHandlers::NdisMAllocateSharedMemory(S2EExecutionState* state, FunctionM
     ok &= readConcreteParameter(state, 4, &plgState->val2); //PhysicalAddress
 
     if (!ok) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read parameters" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read parameters" << '\n';
         return;
     }
 
@@ -441,13 +441,13 @@ void NdisHandlers::NdisMAllocateSharedMemoryRet(S2EExecutionState* state)
     ok &= state->readMemoryConcrete(plgState->val1, &va, sizeof(va));
     ok &= state->readMemoryConcrete(plgState->val2, &pa, sizeof(pa));
     if (!ok) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read returned addresses" << std::endl;
-        s2e()->getWarningsStream() << std::hex << "VirtualAddress=0x" << va << " PhysicalAddress=0x" << pa << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": could not read returned addresses" << '\n';
+        s2e()->getWarningsStream() << "VirtualAddress=" << hexval(va) << " PhysicalAddress=" << hexval(pa) << '\n';
         return;
     }
 
     if (!va) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": original call has failed" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": original call has failed" << '\n';
         return;
     }
 
@@ -502,7 +502,7 @@ void NdisHandlers::NdisAllocatePacket(S2EExecutionState* state, FunctionMonitorS
     ok &= readConcreteParameter(state, 1, &pPacket);
 
     if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read parameters" << '\n';
         return;
     }
 
@@ -521,7 +521,7 @@ void NdisHandlers::NdisAllocatePacketRet(S2EExecutionState* state, uint32_t pSta
     ok &= state->readMemoryConcrete(pPacket, &Packet, sizeof(Packet));
     ok &= state->readMemoryConcrete(Packet+4, &Length, 4);
     if(!ok) {
-        s2e()->getDebugStream() << "Can not read result" << std::endl;
+        s2e()->getDebugStream() << "Can not read result" << '\n';
         return;
     }
 
@@ -548,7 +548,7 @@ void NdisHandlers::NdisFreePacket(S2EExecutionState *state, FunctionMonitorState
     ok &= readConcreteParameter(state, 0, &packet);
 
     if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read parameters" << '\n';
         return;
     }
 
@@ -765,12 +765,12 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
 
     uint32_t eax;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
 
     if(eax) {
-        s2e()->getDebugStream() << __FUNCTION__ << " failed with 0x" << std::hex << eax << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << " failed with 0x" << hexval(eax) << '\n';
         return;
     }
 
@@ -778,7 +778,7 @@ void NdisHandlers::NdisQueryAdapterInstanceNameRet(S2EExecutionState* state, uin
     bool ok = true;
     ok = state->readMemoryConcrete(pUnicodeString, &s, sizeof(s));
     if(!ok) {
-        s2e()->getDebugStream() << "Can not read NDIS_STRING" << std::endl;
+        s2e()->getDebugStream() << "Can not read NDIS_STRING" << '\n';
         return;
     }
 
@@ -881,7 +881,7 @@ void NdisHandlers::NdisAllocateBuffer(S2EExecutionState* state, FunctionMonitorS
     ok &= readConcreteParameter(state, 2, &Length);
 
     if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read parameters" << '\n';
         return;
     }
 
@@ -899,7 +899,7 @@ void NdisHandlers::NdisAllocateBufferRet(S2EExecutionState* state, uint32_t pSta
     ok &= state->readMemoryConcrete(pStatus, &Status, sizeof(Status));
     ok &= state->readMemoryConcrete(pBuffer, &Buffer, sizeof(Buffer));
     if(!ok) {
-        s2e()->getDebugStream() << "Can not read result" << std::endl;
+        s2e()->getDebugStream() << "Can not read result" << '\n';
         return;
     }
 
@@ -925,18 +925,18 @@ void NdisHandlers::NdisMInitializeTimer(S2EExecutionState* state, FunctionMonito
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
     if (!readConcreteParameter(state, 2, &plgState->val1)) {
-        s2e()->getDebugStream() << "Could not read function pointer for timer entry point" << std::endl;
+        s2e()->getDebugStream() << "Could not read function pointer for timer entry point" << '\n';
         return;
     }
 
     uint32_t priv;
     if (!readConcreteParameter(state, 3, &priv)) {
-        s2e()->getDebugStream() << "Could not read private pointer for timer entry point" << std::endl;
+        s2e()->getDebugStream() << "Could not read private pointer for timer entry point" << '\n';
         return;
     }
 
-    s2e()->getDebugStream(state) << "NdisMInitializeTimer pc=0x" << std::hex << plgState->val1 <<
-            " priv=0x" << priv << std::endl;
+    s2e()->getDebugStream(state) << "NdisMInitializeTimer pc=0x" << hexval(plgState->val1) <<
+            " priv=0x" << priv << '\n';
 
     m_timerEntryPoints.insert(std::make_pair(plgState->val1, priv));
 
@@ -969,10 +969,10 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
     uint32_t realPc = state->getPc();
     uint32_t realPriv = 0;
     if (!readConcreteParameter(state, 1, &realPriv)) {
-        s2e()->getDebugStream(state) << "Could not read value of opaque pointer" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read value of opaque pointer" << '\n';
         return;
     }
-    s2e()->getDebugStream(state) << "realPc=0x" << std::hex << realPc << " realpriv=0x" << realPriv << std::endl;
+    s2e()->getDebugStream(state) << "realPc=" << hexval(realPc) << " realpriv=" << hexval(realPriv) << '\n';
 
     if (getConsistency(__FUNCTION__) != OVERAPPROX) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisTimerEntryPointRet)
@@ -983,7 +983,7 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
     //If this this entry point is called for real for the first time,
     //schedule it for execution.
     if (exploredRealEntryPoints.find(std::make_pair(realPc, realPriv)) == exploredRealEntryPoints.end()) {
-        s2e()->getDebugStream(state) << "Never called for real, schedule for execution" << std::endl;
+        s2e()->getDebugStream(state) << "Never called for real, schedule for execution" << '\n';
         exploredRealEntryPoints.insert(std::make_pair(realPc, realPriv));
         exploredEntryPoints.insert(std::make_pair(realPc, realPriv));
         scheduled.insert(std::make_pair(realPc, realPriv));
@@ -1002,7 +1002,7 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
 
     //If all timers explored, return
     if (scheduled.size() == 0) {
-        s2e()->getDebugStream(state) << "No need to redundantly run the timer another time" << std::endl;
+        s2e()->getDebugStream(state) << "No need to redundantly run the timer another time" << '\n';
         state->bypassFunction(4);
         throw CpuExitException();
     }
@@ -1039,8 +1039,8 @@ void NdisHandlers::NdisTimerEntryPoint(S2EExecutionState* state, FunctionMonitor
         uint32_t pc = (*it).first;
         uint32_t priv = (*it).second;
 
-        s2e()->getDebugStream() << "Found timer 0x" << std::hex << pc << " with private struct 0x" << priv
-         << " to explore." << std::endl;
+        s2e()->getDebugStream() << "Found timer " << hexval(pc) << " with private struct " << hexval(priv)
+         << " to explore." << '\n';
 
         //Overwrite the original private field with the new one
         klee::ref<klee::Expr> privExpr = klee::ConstantExpr::create(priv, klee::Expr::Int32);
@@ -1085,14 +1085,14 @@ void NdisHandlers::NdisSetTimer(S2EExecutionState* state, FunctionMonitorState *
 
     uint32_t interval;
     if (!readConcreteParameter(state, 1, &interval)) {
-        s2e()->getDebugStream() << "Could not read timer interval" << std::endl;
+        s2e()->getDebugStream() << "Could not read timer interval" << '\n';
         return;
     }
 
     //We make the interval longer to avoid overloading symbolic execution.
     //This should give more time for the rest of the system to execute.
-    s2e()->getDebugStream() << "Setting interval to " << std::dec << interval*m_timerIntervalFactor
-            <<" ms. Was " << interval << " ms." << std::endl;
+    s2e()->getDebugStream() << "Setting interval to " << interval*m_timerIntervalFactor
+            <<" ms. Was " << interval << " ms." << '\n';
 
     klee::ref<klee::Expr> newInterval = klee::ConstantExpr::create(interval*m_timerIntervalFactor, klee::Expr::Int32);
     writeParameter(state, 1, newInterval);
@@ -1107,7 +1107,7 @@ void NdisHandlers::NdisMRegisterAdapterShutdownHandler(S2EExecutionState* state,
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
     if (!readConcreteParameter(state, 2, &plgState->val1)) {
-        s2e()->getDebugStream() << "Could not read function pointer for timer entry point" << std::endl;
+        s2e()->getDebugStream() << "Could not read function pointer for timer entry point" << '\n';
         return;
     }
 
@@ -1193,7 +1193,7 @@ void NdisHandlers::NdisMAllocateMapRegistersRet(S2EExecutionState* state)
         return;
     }
     if (eax != NDIS_STATUS_SUCCESS) {
-        s2e()->getDebugStream(state) <<  __FUNCTION__ << " failed" << std::endl;
+        s2e()->getDebugStream(state) <<  __FUNCTION__ << " failed" << '\n';
         return;
     }
 
@@ -1215,14 +1215,14 @@ void NdisHandlers::NdisMSetAttributesEx(S2EExecutionState* state, FunctionMonito
     HANDLER_TRACE_CALL();
 
     klee::ref<klee::Expr> interfaceType = readParameter(state, 4);
-    s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << std::endl;
+    s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << '\n';
 
     if (getConsistency(__FUNCTION__) != OVERAPPROX) {
         return;
     }
 
     if (((signed)m_forceAdapterType) != InterfaceTypeUndefined) {
-        s2e()->getDebugStream(state) << "Forcing NIC type to " << std::dec << m_forceAdapterType << std::endl;
+        s2e()->getDebugStream(state) << "Forcing NIC type to " << m_forceAdapterType << '\n';
         writeParameter(state, 4, klee::ConstantExpr::create(m_forceAdapterType, klee::Expr::Int32));
     }
 }
@@ -1234,14 +1234,14 @@ void NdisHandlers::NdisMSetAttributes(S2EExecutionState* state, FunctionMonitorS
     HANDLER_TRACE_CALL();
 
     klee::ref<klee::Expr> interfaceType = readParameter(state, 3);
-    s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << std::endl;
+    s2e()->getDebugStream(state) << "InterfaceType: " << interfaceType << '\n';
 
     if (getConsistency(__FUNCTION__) != OVERAPPROX) {
         return;
     }
 
     if (((signed)m_forceAdapterType) != InterfaceTypeUndefined) {
-        s2e()->getDebugStream(state) << "Forcing NIC type to " << std::dec << m_forceAdapterType << std::endl;
+        s2e()->getDebugStream(state) << "Forcing NIC type to " << m_forceAdapterType << '\n';
         writeParameter(state, 3, klee::ConstantExpr::create(m_forceAdapterType, klee::Expr::Int32));
     }
 
@@ -1263,7 +1263,7 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
 
     if(m_memoryChecker) {
         if (!ok) {
-            s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << std::endl;
+            s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << '\n';
             return;
         }
     }
@@ -1273,7 +1273,7 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
     }
 
     if (!ok) {
-        s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << '\n';
         return;
     }
 
@@ -1291,9 +1291,9 @@ void NdisHandlers::NdisReadConfiguration(S2EExecutionState* state, FunctionMonit
         ok &= readConcreteParameter(state, 4, &paramType);
 
         s2e()->getMessagesStream() << "NdisReadConfiguration Module=" << (md ? md->Name : "<unknown>") <<
-                " pc=0x" << std::hex << pc <<
+                " pc=" << hexval(pc) <<
                 " Keyword=" << keyword <<
-            " Type=" << paramType  << std::endl;
+            " Type=" << paramType  << '\n';
     }
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisReadConfigurationRet)
@@ -1307,13 +1307,13 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
     if (!plgState->pStatus) {
-        s2e()->getDebugStream() << "Status is NULL!" << std::endl;
+        s2e()->getDebugStream() << "Status is NULL!" << '\n';
         return;
     }
 
     klee::ref<klee::Expr> Status = state->readMemory(plgState->pStatus, klee::Expr::Int32);
     if (!NtSuccess(s2e(), state, Status)) {
-        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << '\n';
         return;
     }
 
@@ -1323,14 +1323,14 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
 
     ok &= state->readMemoryConcrete(plgState->pConfigParam, &pConfigParam, sizeof(pConfigParam));
     if (!ok || !pConfigParam) {
-        s2e()->getDebugStream() << "Could not read pointer to configuration data" << Status << std::endl;
+        s2e()->getDebugStream() << "Could not read pointer to configuration data" << Status << '\n';
         return;
     }
 
     std::string configString;
     ok = ReadUnicodeString(state, plgState->pConfigString, configString);
     if (!ok) {
-        s2e()->getDebugStream() << "Could not read keyword string" << std::endl;
+        s2e()->getDebugStream() << "Could not read keyword string" << '\n';
     }
 
     //In all consistency models, inject symbolic value in the parameter that was read
@@ -1351,7 +1351,7 @@ void NdisHandlers::NdisReadConfigurationRet(S2EExecutionState* state)
             }
         }
     }else {
-        s2e()->getDebugStream() << "Could not read configuration data" << Status << std::endl;
+        s2e()->getDebugStream() << "Could not read configuration data" << Status << '\n';
         //Continue, this error is not too bad.
     }
 
@@ -1428,7 +1428,7 @@ void NdisHandlers::NdisWriteErrorLogEntry(S2EExecutionState* state, FunctionMoni
 {
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
-    std::ostream &os = s2e()->getDebugStream();
+    std::stringstream os;
 
     uint32_t ErrorCode, NumberOfErrorValues;
     bool ok = true;
@@ -1437,7 +1437,7 @@ void NdisHandlers::NdisWriteErrorLogEntry(S2EExecutionState* state, FunctionMoni
     ok &= readConcreteParameter(state, 2, &NumberOfErrorValues);
 
     if (!ok) {
-        os << "Could not read error parameters" << std::endl;
+        os << "Could not read error parameters" << '\n';
         return;
     }
 
@@ -1447,13 +1447,15 @@ void NdisHandlers::NdisWriteErrorLogEntry(S2EExecutionState* state, FunctionMoni
         uint32_t val;
         ok &= readConcreteParameter(state, 3+i, &val);
         if (!ok) {
-            os << "Could not read error parameters" << std::endl;
+            os << "Could not read error parameters" << '\n';
             break;
         }
         os << val << " ";
     }
 
-    os << std::endl;
+    os << '\n';
+
+    s2e()->getDebugStream() << os.str();
 
 }
 
@@ -1464,7 +1466,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     HANDLER_TRACE_CALL();
 
     if (!m_devDesc) {
-        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << '\n';
         return;
     }
 
@@ -1476,11 +1478,11 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
     ok &= readConcreteParameter(state, 3, &buffer);
     ok &= readConcreteParameter(state, 4, &length);
     if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read parameters" << '\n';
     }
 
-    s2e()->getDebugStream(state) << "Buffer=" << std::hex << buffer <<
-        " Length=" << std::dec << length << " Slot=" << slot << " Offset=" << offset << std::endl;
+    s2e()->getDebugStream(state) << "Buffer=" << hexval(buffer) <<
+        " Length=" << length << " Slot=" << slot << " Offset=" << hexval(offset) << '\n';
 
 
     if (getConsistency(__FUNCTION__) != OVERAPPROX) {
@@ -1508,7 +1510,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
             state->writeMemory(buffer + i, &buf[i], klee::Expr::Int8);
         }else {
             std::stringstream ss;
-            ss << __FUNCTION__ << "_" << std::hex << retaddr << "_"  << i;
+            ss << __FUNCTION__ << "_0x" << std::hex << retaddr << "_"  << i;
             klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int8, ss.str());
             state->writeMemory(buffer+i, symb);
         }
@@ -1516,7 +1518,7 @@ void NdisHandlers::NdisReadPciSlotInformation(S2EExecutionState* state, Function
 
     //Symbolic return value
     std::stringstream ss;
-    ss << __FUNCTION__ << "_" << std::hex << retaddr << "_retval";
+    ss << __FUNCTION__ << "_" <<  std::hex << (retaddr) << "_retval";
     klee::ref<klee::Expr> symb = state->createSymbolicValue(klee::Expr::Int32, ss.str());
     klee::ref<klee::Expr> expr = klee::UleExpr::create(symb, klee::ConstantExpr::create(length, klee::Expr::Int32));
     state->writeCpuRegister(offsetof(CPUState, regs[R_EAX]), symb);
@@ -1543,14 +1545,14 @@ void NdisHandlers::NdisWritePciSlotInformation(S2EExecutionState* state, Functio
 
     ok &= readConcreteParameter(state, 4, &length);
     if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read parameters" << '\n';
     }
 
     uint64_t retaddr;
     ok = state->getReturnAddress(&retaddr);
 
     s2e()->getDebugStream(state) << 
-        " Length=" << std::dec << length << std::endl;
+        " Length=" << length << '\n';
 
     //Symbolic return value
     std::stringstream ss;
@@ -1580,7 +1582,7 @@ void NdisHandlers::NdisMQueryAdapterResources(S2EExecutionState* state, Function
 
     //XXX: Do the other parameters as well
     if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read parameters" << '\n';
     }
 
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::NdisMQueryAdapterResourcesRet)
@@ -1593,13 +1595,13 @@ void NdisHandlers::NdisMQueryAdapterResourcesRet(S2EExecutionState* state)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
     
     if (!plgState->pStatus) {
-        s2e()->getDebugStream() << "Status is NULL!" << std::endl;
+        s2e()->getDebugStream() << "Status is NULL!" << '\n';
         return;
     }
 
     klee::ref<klee::Expr> Status = state->readMemory(plgState->pStatus, klee::Expr::Int32);
     if (!NtSuccess(s2e(), state, Status)) {
-        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << '\n';
         return;
     }
 
@@ -1620,7 +1622,7 @@ void NdisHandlers::NdisMRegisterInterrupt(S2EExecutionState* state, FunctionMoni
         //Make sure there is indeed a miniportisr registered
         DECLARE_PLUGINSTATE(NdisHandlersState, state);
         if (plgState->hasIsrHandler) {
-            s2e()->getDebugStream() << "Pretending that the interrupt is shared." << std::endl;
+            s2e()->getDebugStream() << "Pretending that the interrupt is shared." << '\n';
             //Overwrite the parameter value here
             klee::ref<klee::ConstantExpr> val = klee::ConstantExpr::create(1, klee::Expr::Int32);
             writeParameter(state, 5, val);
@@ -1639,13 +1641,13 @@ void NdisHandlers::NdisMRegisterInterruptRet(S2EExecutionState* state)
     //Get the return value
     uint32_t eax;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
 
     if (eax) {
         //The original function has failed
-        s2e()->getDebugStream() << __FUNCTION__ << ": original function failed with 0x" << std::hex << eax << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << ": original function failed with " << hexval(eax) << '\n';
         return;
     }
 
@@ -1686,7 +1688,7 @@ void NdisHandlers::NdisMRegisterIoPortRangeRet(S2EExecutionState* state)
     //Get the return value
     uint32_t eax;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
 
@@ -1732,7 +1734,7 @@ void NdisHandlers::NdisReadNetworkAddress(S2EExecutionState* state, FunctionMoni
     ok &= readConcreteParameter(state, 2, &plgState->pNetworkAddressLength);
 
     if (!ok) {
-        s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << " could not read stack parameters (maybe symbolic?) "  << '\n';
         return;
     }
 
@@ -1747,13 +1749,13 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
     if (!plgState->pStatus) {
-        s2e()->getDebugStream() << "Status is NULL!" << std::endl;
+        s2e()->getDebugStream() << "Status is NULL!" << '\n';
         return;
     }
 
     klee::ref<klee::Expr> Status = state->readMemory(plgState->pStatus, klee::Expr::Int32);
     if (!NtSuccess(s2e(), state, Status)) {
-        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << " failed with " << Status << '\n';
         return;
     }
 
@@ -1764,7 +1766,7 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
     ok &= state->readMemoryConcrete(plgState->pNetworkAddressLength, &Length, sizeof(Length));
     ok &= state->readMemoryConcrete(plgState->pNetworkAddress, &NetworkAddress, sizeof(NetworkAddress));
     if (!ok || !NetworkAddress) {
-        s2e()->getDebugStream() << "Could not read network address pointer and/or its length" << Status << std::endl;
+        s2e()->getDebugStream() << "Could not read network address pointer and/or its length" << Status << '\n';
         return;
     }
 
@@ -1772,8 +1774,8 @@ void NdisHandlers::NdisReadNetworkAddressRet(S2EExecutionState* state)
     for (unsigned i=0; i<Length; ++i) {
 
         if (m_networkAddress.size() > 0) {
-            s2e()->getDebugStream() << "NetworkAddress[" << i << "]=" << std::hex << 
-              (int)m_networkAddress[i % m_networkAddress.size()] << std::endl;
+            s2e()->getDebugStream() << "NetworkAddress[" << i << "]=" <<
+              hexval(m_networkAddress[i % m_networkAddress.size()]) << '\n';
 
             state->writeMemoryConcrete(NetworkAddress + i, &m_networkAddress[i % m_networkAddress.size()], 1);
         }else {
@@ -1824,15 +1826,15 @@ void NdisHandlers::NdisMRegisterMiniport(S2EExecutionState* state, FunctionMonit
     //Extract the function pointers from the passed data structure
     uint32_t pMiniport;
     if (!state->readMemoryConcrete(state->getSp() + sizeof(pMiniport) * (1+1), &pMiniport, sizeof(pMiniport))) {
-        s2e()->getMessagesStream() << "Could not read pMiniport address from the stack" << std::endl;
+        s2e()->getMessagesStream() << "Could not read pMiniport address from the stack" << '\n';
         return;
     }
 
-    s2e()->getMessagesStream() << "NDIS_MINIPORT_CHARACTERISTICS @0x" << pMiniport << std::endl;
+    s2e()->getMessagesStream() << "NDIS_MINIPORT_CHARACTERISTICS @0x" << pMiniport << '\n';
 
     s2e::windows::NDIS_MINIPORT_CHARACTERISTICS32 Miniport;
     if (!state->readMemoryConcrete(pMiniport, &Miniport, sizeof(Miniport))) {
-        s2e()->getMessagesStream() << "Could not read NDIS_MINIPORT_CHARACTERISTICS" << std::endl;
+        s2e()->getMessagesStream() << "Could not read NDIS_MINIPORT_CHARACTERISTICS" << '\n';
         return;
     }
 
@@ -1866,7 +1868,7 @@ void NdisHandlers::NdisMRegisterMiniportRet(S2EExecutionState* state)
     //Get the return value
     uint32_t eax;
     if (!state->readCpuRegisterConcrete(offsetof(CPUState, regs[R_EAX]), &eax, sizeof(eax))) {
-        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__  << ": return status is not concrete" << '\n';
         return;
     }
 
@@ -1896,17 +1898,17 @@ void NdisHandlers::NdisMStatusHandler(S2EExecutionState* state, FunctionMonitorS
 
     uint32_t status;
     if (!readConcreteParameter(state, 1, &status)) {
-        s2e()->getDebugStream() << "Could not get cable status in " << __FUNCTION__ << std::endl;
+        s2e()->getDebugStream() << "Could not get cable status in " << __FUNCTION__ << '\n';
         return;
     }
 
-    s2e()->getDebugStream() << "Status is 0x" << std::hex << status << std::endl;
+    s2e()->getDebugStream() << "Status is " << hexval(status) << '\n';
 
     if (status == NDIS_STATUS_MEDIA_CONNECT) {
-        s2e()->getDebugStream() << "Cable is connected" << std::endl;
+        s2e()->getDebugStream() << "Cable is connected" << '\n';
         plgState->cableStatus = NdisHandlersState::CONNECTED;
     }else if (status == NDIS_STATUS_MEDIA_DISCONNECT) {
-        s2e()->getDebugStream() << "Cable is disconnected" << std::endl;
+        s2e()->getDebugStream() << "Cable is disconnected" << '\n';
         plgState->cableStatus = NdisHandlersState::DISCONNECTED;
     }
 }   
@@ -1960,29 +1962,29 @@ void NdisHandlers::InitializeHandler(S2EExecutionState* state, FunctionMonitorSt
     uint32_t pMediumArray, MediumArraySize;
 
     if (!readConcreteParameter(state, 2, &pMediumArray)) {
-        s2e()->getDebugStream(state) << "Could not read pMediumArray" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read pMediumArray" << '\n';
         return;
     }
 
     if (!readConcreteParameter(state, 3, &MediumArraySize)) {
-        s2e()->getDebugStream(state) << "Could not read MediumArraySize" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read MediumArraySize" << '\n';
         return;
     }
 
     //Register API exported in the handle
     uint32_t NdisHandle;
     if (!readConcreteParameter(state, 4, &NdisHandle)) { 
-        s2e()->getDebugStream(state) << "Could not read NdisHandle" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read NdisHandle" << '\n';
         return;
     }
     
     uint32_t pStatusHandler;
     if (!state->readMemoryConcrete(NdisHandle + 0x17c, &pStatusHandler, sizeof(pStatusHandler))) {
-        s2e()->getMessagesStream() << "Could not read pointer to status handler" << std::endl;
+        s2e()->getMessagesStream() << "Could not read pointer to status handler" << '\n';
         return;
     }
 
-    s2e()->getDebugStream() << "NDIS_M_STATUS_HANDLER " << std::hex << pStatusHandler << std::endl;
+    s2e()->getDebugStream() << "NDIS_M_STATUS_HANDLER " << hexval(pStatusHandler) << '\n';
 
     if(m_memoryChecker) {
         //const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
@@ -2035,13 +2037,13 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     klee::ref<klee::Expr> eq = klee::EqExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
     if (!solver->mayBeTrue(klee::Query(state->constraints, eq), isTrue)) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
-                " because InitializeHandler failed to determine success" << std::endl;
+                " because InitializeHandler failed to determine success" << '\n';
         s2e()->getExecutor()->terminateStateEarly(*state, "InitializeHandler solver failed");
     }
 
     if (!isTrue) {
         s2e()->getMessagesStream(state) << "Killing state "  << state->getID() <<
-                " because InitializeHandler failed with 0x" << std::hex << eax << std::endl;
+                " because InitializeHandler failed with " << eax << '\n';
         if(m_memoryChecker) {
             // Driver should free all resources if initialization fails
             m_memoryChecker->checkMemoryLeaks(state);
@@ -2054,7 +2056,7 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     klee::ref<klee::Expr> constr = klee::SgeExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
     state->addConstraint(constr);
 
-    s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << eax << std::endl;
+    s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << eax << '\n';
 
     m_manager->succeedState(state);
     m_functionMonitor->eraseSp(state, state->getPc());
@@ -2066,7 +2068,7 @@ void NdisHandlers::DisableInterruptHandler(S2EExecutionState* state, FunctionMon
 {
     HANDLER_TRACE_CALL();
     if (!m_devDesc) {
-        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << '\n';
         return;
     }
 
@@ -2168,7 +2170,7 @@ void NdisHandlers::ISRHandler(S2EExecutionState* state, FunctionMonitorState *fn
 {
     HANDLER_TRACE_CALL();
     if (!m_devDesc) {
-        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << '\n';
         return;
     }
 
@@ -2182,7 +2184,7 @@ void NdisHandlers::ISRHandler(S2EExecutionState* state, FunctionMonitorState *fn
     ok &= readConcreteParameter(state, 1, &plgState->isrQueue);
 
     if (!ok) {
-        s2e()->getDebugStream(state) << "Error reading isrRecognized and isrQueue"<< std::endl;
+        s2e()->getDebugStream(state) << "Error reading isrRecognized and isrQueue"<< '\n';
     }
     m_devDesc->setInterrupt(false);
 }
@@ -2192,7 +2194,7 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
     HANDLER_TRACE_RETURN();
 
     if (!m_devDesc) {
-        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << std::endl;
+        s2e()->getWarningsStream() << __FUNCTION__ << " needs a valid symbolic device" << '\n';
         return;
     }
 
@@ -2205,7 +2207,7 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
     ok &= state->readMemoryConcrete(plgState->isrQueue, &isrQueue, sizeof(isrQueue));
 
     s2e()->getDebugStream(state) << "ISRRecognized=" << (bool)isrRecognized <<
-            " isrQueue="<< (bool)isrQueue << std::endl;
+            " isrQueue="<< (bool)isrQueue << '\n';
 
     if (!ok) {
         s2e()->getExecutor()->terminateStateEarly(*state, "Could not determine whether the NDIS driver queued the interrupt");
@@ -2232,7 +2234,7 @@ void NdisHandlers::QuerySetInformationHandler(S2EExecutionState* state, Function
 {
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
 
-    s2e()->getDebugStream() << "Called with OID=0x" << std::hex << plgState->oid << std::endl;
+    s2e()->getDebugStream() << "Called with OID=" << hexval(plgState->oid) << '\n';
 
     if (getConsistency(__FUNCTION__) != OVERAPPROX) {
         return;
@@ -2343,15 +2345,15 @@ void NdisHandlers::QuerySetInformationHandlerRet(S2EExecutionState* state, bool 
         s2e()->getExecutor()->terminateStateEarly(*state, "Killing state with fake OID");
     }
 
-    s2e()->getDebugStream(state) << "State is not fake, continuing..." << std::endl;
+    s2e()->getDebugStream(state) << "State is not fake, continuing..." << '\n';
 
     if (isQuery) {
         //Keep only those states that have a connected cable
         uint32_t status;
         if (state->readMemoryConcrete(plgState->pInformationBuffer, &status, sizeof(status))) {
-            s2e()->getDebugStream() << "Status=0x" << std::hex << status << std::endl;
+            s2e()->getDebugStream() << "Status=" << hexval(status) << '\n';
             if (plgState->oid == OID_GEN_MEDIA_CONNECT_STATUS) {
-                s2e()->getDebugStream(state) << "OID_GEN_MEDIA_CONNECT_STATUS is " << status << std::endl;
+                s2e()->getDebugStream(state) << "OID_GEN_MEDIA_CONNECT_STATUS is " << status << '\n';
                 if (status == 1) {
                    //Disconnected, kill the state
                    //XXX: For now, we force it to be connected, this is a problem for consistency !!!
@@ -2381,11 +2383,11 @@ void NdisHandlers::QueryInformationHandler(S2EExecutionState* state, FunctionMon
     readConcreteParameter(state, 1, &plgState->oid);
     readConcreteParameter(state, 2, &plgState->pInformationBuffer);
 
-    s2e()->getDebugStream(state) << "OID=0x" << std::hex << plgState->oid << std::endl;
+    s2e()->getDebugStream(state) << "OID=" << hexval(plgState->oid) << '\n';
 
     if (alreadyExplored) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::QueryInformationHandlerRet)
-        s2e()->getDebugStream(state) << "Already explored " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+        s2e()->getDebugStream(state) << "Already explored " << __FUNCTION__ << " at " << hexval(state->getPc()) << '\n';
         return;
     }
 
@@ -2423,11 +2425,11 @@ void NdisHandlers::SetInformationHandler(S2EExecutionState* state, FunctionMonit
     readConcreteParameter(state, 1, &plgState->oid);
     readConcreteParameter(state, 2, &plgState->pInformationBuffer);
 
-    s2e()->getDebugStream(state) << "OID=0x" << std::hex << plgState->oid << std::endl;
+    s2e()->getDebugStream(state) << "OID=" << hexval(plgState->oid) << '\n';
 
     if (alreadyExplored) {
         FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::SetInformationHandlerRet)
-        s2e()->getDebugStream(state) << "Already explored " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl;
+        s2e()->getDebugStream(state) << "Already explored " << __FUNCTION__ << " at " << hexval(state->getPc()) << '\n';
         return;
     }
 

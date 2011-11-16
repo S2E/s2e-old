@@ -71,7 +71,7 @@ void WindowsCrashDumpGenerator::generateDump(S2EExecutionState *state, const std
 {
     s2e::windows::CONTEXT32 context;
     if (!saveContext(state, context)) {
-        s2e()->getDebugStream() << "Could not save BSOD context" << std::endl;
+        s2e()->getDebugStream() << "Could not save BSOD context" << '\n';
         return;
     }
     context.Eip = state->readCpuState(offsetof(CPUState, eip), 8*sizeof(uint32_t));
@@ -88,7 +88,7 @@ void WindowsCrashDumpGenerator::generateDumpOnBsod(S2EExecutionState *state, con
 {
     s2e::windows::CONTEXT32 context;
     if (!saveContext(state, context)) {
-        s2e()->getDebugStream() << "Could not save BSOD context" << std::endl;
+        s2e()->getDebugStream() << "Could not save BSOD context" << '\n';
         return;
     }
 
@@ -209,7 +209,7 @@ void WindowsCrashDumpGenerator::generateCrashDump(S2EExecutionState *state,
     //WinDBG also expects it in the KPCRB, which is null by default
     ok = state->writeMemoryConcrete(KprcbProcessContextOffset, &context, sizeof(CONTEXT32));
     if (!ok) {
-        s2e()->getDebugStream() << "Could not write the context to KPRCB" << std::endl;
+        s2e()->getDebugStream() << "Could not write the context to KPRCB" << '\n';
         goto err1;
     }
 
@@ -226,11 +226,11 @@ void WindowsCrashDumpGenerator::generateCrashDump(S2EExecutionState *state,
     while( CurrentMemoryRun < ppmd->NumberOfRuns ) {
         if( ppmd->Run[CurrentMemoryRun].PageCount == DUMP_HDR_SIGNATURE || ppmd->Run[CurrentMemoryRun].BasePage == DUMP_HDR_SIGNATURE )
         {
-            s2e()->getDebugStream() << "PHYSICAL_MEMORY_DESCRIPTOR corrupted." << std::endl;
+            s2e()->getDebugStream() << "PHYSICAL_MEMORY_DESCRIPTOR corrupted." << '\n';
             break;
         }
 
-        s2e()->getDebugStream() << "Processing run " << std::dec << CurrentMemoryRun << std::endl;
+        s2e()->getDebugStream() << "Processing run " << CurrentMemoryRun << '\n';
 
 
         uint32_t ProcessedPagesInCurrentRun = 0;
@@ -238,7 +238,7 @@ void WindowsCrashDumpGenerator::generateCrashDump(S2EExecutionState *state,
             uint32_t physAddr = (ppmd->Run[CurrentMemoryRun].BasePage + ProcessedPagesInCurrentRun) * 0x1000;
 
             //s2e()->getDebugStream() << "Processing page " << std::dec << ProcessedPagesInCurrentRun
-            //        << "(addr=0x" << std::hex << physAddr << std::endl;
+            //        << "(addr=0x" << std::hex << physAddr << '\n';
 
             memset(TempPage, 0xDA, sizeof(TempPage));
             for (uint32_t i=0; i<0x1000; ++i) {
@@ -305,14 +305,14 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     KD_DEBUGGER_DATA_BLOCK32 KdDebuggerDataBlock;
     ok = state->readMemoryConcrete(hdr->KdDebuggerDataBlock, &KdDebuggerDataBlock, sizeof(KdDebuggerDataBlock));
     if (!ok) {
-        s2e()->getDebugStream() << "Could not read KD_DEBUGGER_DATA_BLOCK32" << std::endl;
+        s2e()->getDebugStream() << "Could not read KD_DEBUGGER_DATA_BLOCK32" << '\n';
         return false;
     }
 
     if(KdDebuggerDataBlock.ValidBlock != DUMP_KDBG_SIGNATURE || KdDebuggerDataBlock.Size != sizeof(KdDebuggerDataBlock) )
     {
         // Invalid debugger data block
-        s2e()->getDebugStream() << "KD_DEBUGGER_DATA_BLOCK32 is invalid" << std::endl;
+        s2e()->getDebugStream() << "KD_DEBUGGER_DATA_BLOCK32 is invalid" << '\n';
         return false;
     }
 
@@ -325,7 +325,7 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     ok = state->readMemoryConcrete(KdDebuggerDataBlock.MmPhysicalMemoryBlock.VirtualAddress,
                                    &pMmPhysicalMemoryBlock, sizeof(pMmPhysicalMemoryBlock));
     if (!ok) {
-        s2e()->getDebugStream() << "Could not read pMmPhysicalMemoryBlock" << std::endl;
+        s2e()->getDebugStream() << "Could not read pMmPhysicalMemoryBlock" << '\n';
         return false;
     }
 
@@ -335,7 +335,7 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
                                    &RunCount, sizeof(RunCount));
 
     if (!ok) {
-        s2e()->getDebugStream() << "Could not read number of runs" << std::endl;
+        s2e()->getDebugStream() << "Could not read number of runs" << '\n';
         return false;
     }
 
@@ -355,7 +355,7 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     ok = state->readMemoryConcrete(pMmPhysicalMemoryBlock,
                                    MmPhysicalMemoryBlock, SizeOfMemoryDescriptor);
     if (!ok) {
-        s2e()->getDebugStream() << "Could not read PHYSICAL_MEMORY_DESCRIPTOR" << std::endl;
+        s2e()->getDebugStream() << "Could not read PHYSICAL_MEMORY_DESCRIPTOR" << '\n';
         delete [] MmPhysicalMemoryBlock;
         return false;
     }
@@ -370,13 +370,13 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     delete [] MmPhysicalMemoryBlock;
 
 
-    s2e()->getDebugStream() << "Writing " << std::dec << sizeof(ctx) << " bytes of DH_CONTEXT_RECORD" << std::endl;
+    s2e()->getDebugStream() << "Writing " << sizeof(ctx) << " bytes of DH_CONTEXT_RECORD" << '\n';
     memcpy(&blocks[ DH_CONTEXT_RECORD ],
                                     &ctx,
                                     sizeof(ctx)
                                     );
 
-    s2e()->getDebugStream() << "Writing " << std::dec << sizeof(ctx) << " bytes of DH_CONTEXT_RECORD" << std::endl;
+    s2e()->getDebugStream() << "Writing " << sizeof(ctx) << " bytes of DH_CONTEXT_RECORD" << '\n';
     memcpy(&blocks[ DH_CONTEXT_RECORD ],
                                     &ctx,
                                     sizeof(ctx)
@@ -390,7 +390,7 @@ bool WindowsCrashDumpGenerator::initializeHeader(S2EExecutionState *state, DUMP_
     exception.ExceptionAddress = ctx.Eip;
     exception.NumberParameters = 0;
 
-    s2e()->getDebugStream() << "Writing " << std::dec << sizeof(exception) << " bytes of DH_EXCEPTION_RECORD" << std::endl;
+    s2e()->getDebugStream() << "Writing " << sizeof(exception) << " bytes of DH_EXCEPTION_RECORD" << '\n';
     //Windows does not store exception parameters in the header
     memcpy(&blocks[ DH_EXCEPTION_RECORD ],
                                     &exception,
@@ -431,10 +431,10 @@ WindowsCrashDumpInvoker::~WindowsCrashDumpInvoker()
 
 int WindowsCrashDumpInvoker::generateCrashDump(lua_State *L)
 {
-    std::ostream &os = g_s2e->getDebugStream();
+    llvm::raw_ostream &os = g_s2e->getDebugStream();
 
     if (!lua_isstring(L, 1)) {
-        os << "First argument to " << __FUNCTION__ << " must be the prefix of the crash dump" << std::endl;
+        os << "First argument to " << __FUNCTION__ << " must be the prefix of the crash dump" << '\n';
         return 0;
     }
 
@@ -459,12 +459,12 @@ int WindowsCrashDumpInvoker::generateCrashDump(lua_State *L)
     }
 
     if (state == NULL) {
-        os << "State with id " << std::dec << stateId << " does not exist" << std::endl;
+        os << "State with id " << stateId << " does not exist" << '\n';
         return 0;
     }
 
     if (!m_plugin) {
-        os << "Please enable the WindowsCrashDumpGenerator plugin in your configuration file" << std::endl;
+        os << "Please enable the WindowsCrashDumpGenerator plugin in your configuration file" << '\n';
         return 0;
     }
 

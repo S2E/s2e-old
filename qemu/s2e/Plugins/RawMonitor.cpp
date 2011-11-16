@@ -76,37 +76,37 @@ bool RawMonitor::initSection(const std::string &cfgKey, const std::string &svcId
     bool ok;
     cfg.name = s2e()->getConfig()->getString(cfgKey + ".name", "", &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".name" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".name\n";
         return false;
     }
 
     cfg.size = s2e()->getConfig()->getInt(cfgKey + ".size", 0, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".size" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".size\n";
         return false;
     }
 
     cfg.start = s2e()->getConfig()->getInt(cfgKey + ".start", 0, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".start" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".start\n";
         return false;
     }
 
     cfg.nativebase = s2e()->getConfig()->getInt(cfgKey + ".nativebase", 0, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".nativebase" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".nativebase\n";
         return false;
     }
 
     cfg.delayLoad = s2e()->getConfig()->getBool(cfgKey + ".delay", false, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".delay" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".delay\n";
         return false;
     }
 
     cfg.kernelMode = s2e()->getConfig()->getBool(cfgKey + ".kernelmode", false, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".kernelmode" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".kernelmode\n";
         return false;
     }
 
@@ -123,7 +123,7 @@ void RawMonitor::initialize()
     bool ok = false;
     m_kernelStart = s2e()->getConfig()->getInt(getConfigKey() + ".kernelStart", 0, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << getConfigKey() << ".kernelStart" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << getConfigKey() << ".kernelStart\n";
         exit(-1);
     }
 
@@ -132,7 +132,7 @@ void RawMonitor::initialize()
             continue;
         }
 
-        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
+        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << '\n';
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
         if (!initSection(sk.str(), *it)) {
@@ -141,8 +141,7 @@ void RawMonitor::initialize()
     }
 
     if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the RawMonitor sections"
-            <<std::endl;
+        s2e()->getWarningsStream() << "Errors while scanning the RawMonitor sections\n";
         exit(-1);
     }
 
@@ -184,14 +183,14 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             if(!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
-                       "rawmonitor loadmodule" << std::endl;
+                       "rawmonitor loadmodule\n";
                 break;
             }
 
             std::string nameStr;
             if(!state->readString(name, nameStr)) {
                 s2e()->getWarningsStream(state)
-                        << "Error reading module name string from the guest" << std::endl;
+                        << "Error reading module name string from the guest\n";
                 return;
             }
 
@@ -202,7 +201,7 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
                 Cfg &c = *it;
                 if (c.name == nameStr) {
                     s2e()->getMessagesStream() << "RawMonitor: Registering " << nameStr << " "
-                            " @0x" << std::hex << rtloadbase << " size=0x" << size  << std::endl;
+                            " @" << hexval(rtloadbase) << " size=" << hexval(size)  << '\n';
                     c.start = rtloadbase;
                     c.size = size;
                     loadModule(state, c, false);
@@ -226,33 +225,33 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
             if (!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
-                       "rawmonitor loadimportdescriptor" << std::endl;
+                       "rawmonitor loadimportdescriptor\n";
                 break;
             }
 
             std::string dllnameStr;
             if(!state->readString(dllname, dllnameStr)) {
                 s2e()->getWarningsStream(state)
-                        << "Error reading dll name string from the guest" << std::endl;
+                        << "Error reading dll name string from the guest\n";
                 return;
             }
 
             std::string funcnameStr;
             if(!state->readString(funcname, funcnameStr)) {
                 s2e()->getWarningsStream(state)
-                        << "Error reading function name string from the guest" << std::endl;
+                        << "Error reading function name string from the guest\n";
                 return;
             }
 
             s2e()->getMessagesStream() << "RawMonitor: Registering " << dllnameStr << " "
-                    << funcnameStr << " @0x" << std::hex << funcptr << std::endl;
+                    << funcnameStr << " @0x" << hexval(funcptr) << '\n';
 
             m_imports[dllnameStr][funcnameStr] = funcptr;
             break;
         }
 
     default:
-        s2e()->getWarningsStream() << "Invalid RawMonitor opcode 0x" << std::hex << opcode << std::dec << std::endl;
+        s2e()->getWarningsStream() << "Invalid RawMonitor opcode " << hexval(opcode) << '\n';
         break;
     }
 }
@@ -271,7 +270,7 @@ void RawMonitor::loadModule(S2EExecutionState *state, const Cfg &c, bool skipIfD
     md.EntryPoint = c.entrypoint;
 
     s2e()->getDebugStream() << "RawMonitor loaded " << c.name << " " <<
-            std::hex << "0x" << c.start << " 0x" << c.size << std::dec << std::endl;
+            hexval(c.start) << ' ' << hexval(c.size) << '\n';
     onModuleLoad.emit(state, md);
 }
 

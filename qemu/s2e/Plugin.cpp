@@ -173,7 +173,7 @@ const PluginInfo* PluginsFactory::getPluginInfo(const string& name) const
 Plugin* PluginsFactory::createPlugin(S2E* s2e, const string& name) const
 {
     const PluginInfo* pluginInfo = getPluginInfo(name);
-    s2e->getMessagesStream() << "Creating plugin " << name << std::endl;
+    s2e->getMessagesStream() << "Creating plugin " << name << "\n";
     if(pluginInfo)
         return pluginInfo->instanceCreator(s2e);
     else

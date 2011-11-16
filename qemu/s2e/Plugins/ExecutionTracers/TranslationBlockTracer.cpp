@@ -140,8 +140,8 @@ void TranslationBlockTracer::trace(S2EExecutionState *state, uint64_t pc, ExecTr
 
     if (type == TRACE_TB_START) {
         if (pc != state->getTb()->pc) {
-            s2e()->getWarningsStream() << "BUG! pc=0x" << std::hex << pc
-                                       << " tbpc=0x" << std::hex << state->getTb()->pc << std::endl;
+            s2e()->getWarningsStream() << "BUG! pc=0x" << hexval(pc)
+                                       << " tbpc=" << hexval(state->getTb()->pc) << '\n';
             exit(-1);
         }
     }
@@ -202,7 +202,7 @@ void TranslationBlockTracer::onCustomInstruction(S2EExecutionState* state, uint6
         break;
 
     default:
-        s2e()->getWarningsStream() << "MemoryTracer: unsupported opcode 0x" << std::hex << opc << std::endl;
+        s2e()->getWarningsStream() << "MemoryTracer: unsupported opcode 0x" << hexval(opc) << '\n';
         break;
     }
 

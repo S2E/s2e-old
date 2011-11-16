@@ -47,7 +47,8 @@ extern "C" {
 #include <inttypes.h>
 
 #include "ExecutableFile.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/ADT/OwningPtr.h>
 
 namespace s2etools
 {
@@ -122,7 +123,7 @@ private:
 
     uint64_t m_imageBase;
     bool m_requireSymbols;
-    llvm::MemoryBuffer *m_file;
+    llvm::OwningPtr<llvm::MemoryBuffer> m_file;
     Binary *m_binary;
 
     //This for copy-on-write, when we need to write stuff to the BFD
@@ -185,7 +186,7 @@ public:
     }
 
     llvm::MemoryBuffer *getFile() const {
-        return m_file;
+        return m_file.get();
     }
 
 };

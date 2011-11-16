@@ -41,7 +41,9 @@
 #include <iostream>
 
 #include "llvm/Support/CommandLine.h"
-#include "llvm/System/Path.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/FileSystem.h"
+
 
 //XXX: Move this to a better place
 namespace {
@@ -91,8 +93,12 @@ bool Library::findLibrary(const std::string &libName, std::string &abspath)
     for (it = m_libpath.begin(); it != m_libpath.end(); ++it) {
         llvm::sys::Path lib(*it);
         lib.appendComponent(libName);
-        if (lib.exists()) {
-            abspath = lib.toString();
+
+        bool exists = false;
+        llvm::sys::fs::exists(lib.str(), exists);
+
+        if (exists) {
+            abspath = lib.str();
             return true;
         }
     }
@@ -107,7 +113,10 @@ bool Library::findSuffixedModule(const std::string &moduleName, const std::strin
         llvm::sys::Path list(*it);
         list.appendComponent(moduleName);
         list.appendSuffix(suffix);
-        if (list.exists()) {
+
+        bool exists = false;
+        llvm::sys::fs::exists(list.str(), exists);
+        if (exists) {
             path = list;
             return true;
         }

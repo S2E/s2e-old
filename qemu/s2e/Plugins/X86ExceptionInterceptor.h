@@ -149,7 +149,7 @@ struct X86TSS {
   unsigned m_Reserved12:15;
   uint16_t m_IOBase;
 
-  void dumpInfo(std::ostream &o);
+  void dumpInfo(llvm::raw_ostream &o);
 }__attribute__((packed));
 
 class X86Parser

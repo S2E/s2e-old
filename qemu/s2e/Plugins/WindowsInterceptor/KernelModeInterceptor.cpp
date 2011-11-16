@@ -34,7 +34,6 @@
  *
  */
 
-#define NDEBUG
 
 // XXX: qemu stuff should be included before anything from KLEE or LLVM !
 extern "C" {

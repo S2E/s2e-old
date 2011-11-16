@@ -37,7 +37,7 @@
 #ifndef S2ETOOLS_BBLP_H
 #define S2ETOOLS_BBLP_H
 
-#include <llvm/System/Path.h>
+#include <llvm/Support/Path.h>
 
 namespace s2etools
 {

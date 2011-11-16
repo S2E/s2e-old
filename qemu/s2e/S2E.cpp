@@ -48,13 +48,14 @@
 #include <s2e/Database.h>
 
 #include <s2e/s2e_qemu.h>
+#include <llvm/Support/FileSystem.h>
 
-#include <llvm/System/Path.h>
-#include <llvm/ModuleProvider.h>
+#include <llvm/Support/Path.h>
 #include <llvm/Module.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Bitcode/ReaderWriter.h>
+#include <llvm/Support/raw_os_ostream.h>
 
 #include <klee/Interpreter.h>
 #include <klee/Common.h>
@@ -82,7 +83,7 @@
 void print_stacktrace(void)
 {
     std::ostream &os = g_s2e->getDebugStream();
-    os << "Stack trace printing unsupported on Windows" << std::endl;
+    os << "Stack trace printing unsupported on Windows" << '\n';
 }
 #else
 #include <stdio.h>
@@ -94,8 +95,8 @@ void print_stacktrace(void)
 void print_stacktrace(void)
 {
     unsigned int max_frames = 63;
-    std::ostream &os = g_s2e->getDebugStream();
-    os << "Stack trace" << std::endl;
+    llvm::raw_ostream &os = g_s2e->getDebugStream();
+    os << "Stack trace" << '\n';
 
     // storage array for stack trace address data
     void* addrlist[max_frames+1];
@@ -234,19 +235,19 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
         : m_tcgLLVMContext(tcgLLVMContext)
 {
     if (s2e_max_processes < 1) {
-        std::cerr << "You must at least allow one process for S2E." << std::endl;
+        std::cerr << "You must at least allow one process for S2E." << '\n';
         exit(1);
     }
 
     if (s2e_max_processes > S2E_MAX_PROCESSES) {
-        std::cerr << "S2E can handle at most " << S2E_MAX_PROCESSES << " processes." << std::endl;
-        std::cerr << "Please increase the S2E_MAX_PROCESSES constant." << std::endl;
+        std::cerr << "S2E can handle at most " << S2E_MAX_PROCESSES << " processes." << '\n';
+        std::cerr << "Please increase the S2E_MAX_PROCESSES constant." << '\n';
         exit(1);
     }
 
 #ifdef CONFIG_WIN32
     if (s2e_max_processes > 1) {
-        std::cerr << "S2E for Windows does not support more than one process" << std::endl;
+        std::cerr << "S2E for Windows does not support more than one process" << '\n';
         exit(1);
     }
 #endif
@@ -308,17 +309,14 @@ S2E::S2E(int argc, char** argv, TCGLLVMContext *tcgLLVMContext,
 
 void S2E::writeBitCodeToFile()
 {
-    string execTraceFile = getOutputDirectory();
-    execTraceFile += "/";
-    execTraceFile += "module.bc";
-
-    ofstream o(execTraceFile.c_str(), ofstream::binary);
+    std::string error;
+    std::string fileName = getOutputFilename("module.bc");
+    llvm::raw_fd_ostream o(fileName.c_str(), error, llvm::raw_fd_ostream::F_Binary);
 
     llvm::Module *module = m_tcgLLVMContext->getModule();
 
     // Output the bitcode file to stdout
     llvm::WriteBitcodeToFile(module, o);
-    o.close();
 }
 
 S2E::~S2E()
@@ -341,10 +339,6 @@ S2E::~S2E()
     delete m_database;
 
     writeBitCodeToFile();
-
-    // KModule wants to delete the llvm::Module in destroyer.
-    // llvm::ModuleProvider wants to delete it too. We have to arbitrate.
-    m_tcgLLVMContext->getModuleProvider()->releaseModule();
 
     //This is necessary, as the execution engine uses the module.
     m_tcgLLVMContext->deleteExecutionEngine();
@@ -378,7 +372,7 @@ std::string S2E::getOutputFilename(const std::string &fileName)
 {
     llvm::sys::Path filePath(m_outputDirectory);
     filePath.appendComponent(fileName);
-    return filePath.toString();
+    return filePath.str();
 }
 
 std::ostream* S2E::openOutputFile(const std::string &fileName)
@@ -389,10 +383,10 @@ std::ostream* S2E::openOutputFile(const std::string &fileName)
     std::string path = getOutputFilename(fileName);
     std::ostream *f = new std::ofstream(path.c_str(), io_mode);
     if (!f) {
-        std::cerr << "ERROR: out of memory" << std::endl;
+        std::cerr << "ERROR: out of memory" << '\n';
         exit(1);
     } else if (!f->good()) {
-        std::cerr << "ERROR: can not open file '" << path << "'" << std::endl;
+        std::cerr << "ERROR: can not open file '" << path << "'" << '\n';
         exit(1);
     }
 
@@ -413,8 +407,11 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
                 llvm::sys::Path dirPath(cwd);
                 dirPath.appendComponent(dirName.str());
 
-                if(!dirPath.exists()) {
-                    m_outputDirectory = dirPath.toString();
+                bool exists = false;
+                llvm::sys::fs::exists(dirPath.str(), exists);
+
+                if(!exists) {
+                    m_outputDirectory = dirPath.str();
                     break;
                 }
             }
@@ -438,8 +435,11 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
         oss << m_currentProcessIndex;
 
         dirPath.appendComponent(oss.str());
-        assert(!dirPath.exists());
-        m_outputDirectory = dirPath.toString();
+        bool exists = false;
+        llvm::sys::fs::exists(dirPath.str(), exists);
+
+        assert(!exists);
+        m_outputDirectory = dirPath.str();
     }
 #endif
 
@@ -455,8 +455,8 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
 #else
     if (outDir.createDirectoryOnDisk(true, &mkdirError)) {
 #endif
-        std::cerr << "Could not create output directory " << outDir.toString() <<
-                " error: " << mkdirError << std::endl;
+        std::cerr << "Could not create output directory " << outDir.str() <<
+                " error: " << mkdirError << '\n';
         exit(-1);
     }
 
@@ -466,7 +466,7 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
         s2eLast.appendComponent("s2e-last");
 
         if ((unlink(s2eLast.c_str()) < 0) && (errno != ENOENT)) {
-            perror("ERRPR: Cannot unlink s2e-last");
+            perror("ERROR: Cannot unlink s2e-last");
             exit(1);
         }
 
@@ -483,18 +483,23 @@ void S2E::initOutputDirectory(const string& outputDirectory, int verbose, bool f
 
     m_infoFile = openOutputFile("info");
     m_infoFile->setf(ios_base::unitbuf);
+    m_infoFileRaw = new llvm::raw_os_ostream(*m_infoFile);
 
     m_debugFile = openOutputFile("debug.txt");
     m_debugFile->setf(ios_base::unitbuf);
     streambuf* debugFileBuf = m_debugFile->rdbuf();
+    m_debugFileRaw = new llvm::raw_os_ostream(*m_debugFile);
 
     m_messagesFile = openOutputFile("messages.txt");
     m_messagesFile->setf(ios_base::unitbuf);
     streambuf* messagesFileBuf = m_messagesFile->rdbuf();
+    m_messagesFileRaw = new llvm::raw_os_ostream(*m_messagesFile);
 
     m_warningsFile = openOutputFile("warnings.txt");
     m_warningsFile->setf(ios_base::unitbuf);
     streambuf* warningsFileBuf = m_warningsFile->rdbuf();
+    m_warningsFileRaw = new llvm::raw_os_ostream(*m_warningsFile);
+
 
     // Messages appear in messages.txt, debug.txt and on stdout
     m_messagesStreamBuf = new TeeStreamBuf(messagesFileBuf);
@@ -566,21 +571,21 @@ void S2E::initPlugins()
         const PluginInfo* pluginInfo = m_pluginsFactory->getPluginInfo(pluginName);
         if(!pluginInfo) {
             std::cerr << "ERROR: plugin '" << pluginName
-                      << "' does not exists in this S2E installation" << std::endl;
+                      << "' does not exists in this S2E installation" << '\n';
             exit(1);
         } else if(getPlugin(pluginInfo->name)) {
             std::cerr << "ERROR: plugin '" << pluginInfo->name
                       << "' was already loaded "
-                      << "(is it enabled multiple times ?)" << std::endl;
+                      << "(is it enabled multiple times ?)" << '\n';
             exit(1);
         } else if(!pluginInfo->functionName.empty() &&
                     getPlugin(pluginInfo->functionName)) {
             std::cerr << "ERROR: plugin '" << pluginInfo->name
                       << "' with function '" << pluginInfo->functionName
-                      << "' can not be loaded because" << std::endl
+                      << "' can not be loaded because" << '\n'
                       <<  "    this function is already provided by '"
                       << getPlugin(pluginInfo->functionName)->getPluginInfo()->name
-                      << "' plugin" << std::endl;
+                      << "' plugin" << '\n';
             exit(1);
         } else {
             Plugin* plugin = m_pluginsFactory->createPlugin(this, pluginName);
@@ -601,7 +606,7 @@ void S2E::initPlugins()
             if(!getPlugin(name)) {
                 std::cerr << "ERROR: plugin '" << p->getPluginInfo()->name
                           << "' depends on plugin '" << name
-                          << "' which is not enabled in config" << std::endl;
+                          << "' which is not enabled in config" << '\n';
                 exit(1);
             }
         }
@@ -620,7 +625,7 @@ void S2E::initExecutor()
     m_s2eExecutor = new S2EExecutor(this, m_tcgLLVMContext, IOpts, m_s2eHandler);
 }
 
-std::ostream& S2E::getStream(std::ostream& stream,
+llvm::raw_ostream& S2E::getStream(llvm::raw_ostream &stream,
                              const S2EExecutionState* state) const
 {
     fflush(stdout);
@@ -628,19 +633,19 @@ std::ostream& S2E::getStream(std::ostream& stream,
 
     if(state) {
         llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
-        stream << std::dec << (curTime.seconds() - m_startTimeSeconds) << " ";
+        stream << (curTime.seconds() - m_startTimeSeconds) << " ";
 
         if (m_maxProcesses > 1) {
-            stream << std::dec << "[Node " << m_currentProcessIndex <<
+            stream  << "[Node " << m_currentProcessIndex <<
                     "/" << m_currentProcessId << " - State " << state->getID() << "] ";
         }else {
-            stream << "[State " << std::dec << state->getID() << "] ";
+            stream << "[State " << state->getID() << "] ";
         }
     }
     return stream;
 }
 
-void S2E::printf(std::ostream &os, const char *fmt, ...)
+void S2E::printf(llvm::raw_ostream &os, const char *fmt, ...)
 {
     va_list vl;
     va_start(vl,fmt);
@@ -712,7 +717,7 @@ int S2E::fork()
         m_s2eExecutor->initializeSolver();
 
         if (init_timer_alarm()<0) {
-            getDebugStream() << "Could not initialize timers" << std::endl;
+            getDebugStream() << "Could not initialize timers" << '\n';
             exit(-1);
         }
     }

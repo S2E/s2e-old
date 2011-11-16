@@ -168,7 +168,7 @@ uint64_t MaxTbSearcher::computeTargetPc(S2EExecutionState *state)
     }
 
     //instr must be a call to tcg_llvm_fork_and_concretize
-    s2e()->getDebugStream() << "MaxTbSearcher: " << *instr << std::endl;
+    s2e()->getDebugStream() << "MaxTbSearcher: " << *instr << '\n';
        
     const CallInst *callInst = dyn_cast<CallInst>(instr);
     if (!callInst) {
@@ -276,8 +276,8 @@ void MaxTbSearcher::onTraceTb(S2EExecutionState* state, uint64_t pc)
     plgState->m_metric = tbm[newPc];
 
 #if 1
-    s2e()->getDebugStream() << "Metric for 0x" << std::hex << (newPc+md->NativeBase) << " = " << plgState->m_metric
-            << std::endl;
+    s2e()->getDebugStream() << "Metric for " << hexval(newPc+md->NativeBase) << " = " << plgState->m_metric
+            << '\n';
 #endif
 
     plgState->m_metric *= state->queryCost < 1 ? 1 : state->queryCost;
@@ -301,7 +301,7 @@ klee::ExecutionState& MaxTbSearcher::selectState()
         //to the list of explored translation blocks
         absNextPc = computeTargetPc(es);
         if(absNextPc != 0) {
-            s2e()->getDebugStream() << "MaxTbSearcher: selected state going to 0x" << std::hex << absNextPc << std::endl;
+            s2e()->getDebugStream() << "MaxTbSearcher: selected state going to 0x" << std::hex << absNextPc << '\n';
             addTb(es, absNextPc);
             return *es;
         }
@@ -332,7 +332,7 @@ bool MaxTbSearcher::updatePc(S2EExecutionState *es)
     uint64_t absNextPc = computeTargetPc(es); //XXX: fix me
 
     if (!absNextPc) {
-        s2e()->getDebugStream() << "MaxTBSearcher: could not determune next pc" << std::endl;
+        s2e()->getDebugStream() << "MaxTBSearcher: could not determune next pc" << '\n';
         //Could not determine next pc
         return false;
     }
@@ -342,8 +342,8 @@ bool MaxTbSearcher::updatePc(S2EExecutionState *es)
     //If not covered, add the forked state to the wait list
     plgState->m_metric = m_coveredTbs[*md][md->ToRelative(absNextPc)];
 #if 1
-    s2e()->getDebugStream() << "MaxTBSearcher updatePc Metric for 0x" << std::hex << md->ToNativeBase(absNextPc) << " = " << plgState->m_metric
-            << std::endl;
+    s2e()->getDebugStream() << "MaxTBSearcher updatePc Metric for " << hexval(md->ToNativeBase(absNextPc)) << " = " << plgState->m_metric
+            << '\n';
 #endif
 
     m_states.insert(es);

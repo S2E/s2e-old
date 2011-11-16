@@ -47,6 +47,7 @@
 #include <iostream>
 
 #include <cstring>
+#include <s2e/Utils.h>
 
 namespace s2e {
 
@@ -195,13 +196,12 @@ struct ModuleDescriptor
     }
   };
 
-  void Print(std::ostream &os) const {
-    os << "Name=" << Name << std::hex <<
-      " NativeBase=0x" << NativeBase << " LoadBase=0x" << LoadBase <<
-      " Size=0x" << Size <<
-      " EntryPoint=0x" << EntryPoint <<
-        std::dec << std::endl;
-  };
+  void Print(llvm::raw_ostream &os) const {
+    os << "Name=" << Name  <<
+      " NativeBase=" << hexval(NativeBase) << " LoadBase=0x" << LoadBase <<
+      " Size=" << hexval(Size) <<
+      " EntryPoint=" << hexval(EntryPoint) << '\n';
+  }
 
 
   typedef std::set<struct ModuleDescriptor, ModuleByLoadBase> MDSet;

@@ -346,7 +346,7 @@ int ConfigFile::report (lua_State *L, int status)
   if (status) {
     const char *msg = lua_tostring(L, -1);
     if (msg == NULL) msg = "(error with no message)";
-    g_s2e->getDebugStream() << "ERROR: "<< msg << std::endl;
+    g_s2e->getDebugStream() << "ERROR: "<< msg << '\n';
     lua_pop(L, 1);
   }
   return status;
@@ -394,18 +394,18 @@ Lunar<S2ELUAExecutionState>::RegType S2ELUAExecutionState::methods[] = {
 
 S2ELUAExecutionState::S2ELUAExecutionState(lua_State *L)
 {
-    g_s2e->getDebugStream() << "Creating S2ELUAExecutionState" << std::endl;
+    g_s2e->getDebugStream() << "Creating S2ELUAExecutionState" << '\n';
 }
 
 S2ELUAExecutionState::S2ELUAExecutionState(S2EExecutionState *s)
 {
     m_state = s;
-    g_s2e->getDebugStream() << "Creating S2ELUAExecutionState" << std::endl;
+    g_s2e->getDebugStream() << "Creating S2ELUAExecutionState" << '\n';
 }
 
 S2ELUAExecutionState::~S2ELUAExecutionState()
 {
-    g_s2e->getDebugStream() << "Deleting S2ELUAExecutionState" << std::endl;
+    g_s2e->getDebugStream() << "Deleting S2ELUAExecutionState" << '\n';
 }
 
 
@@ -415,14 +415,14 @@ int S2ELUAExecutionState::readParameter(lua_State *L)
     uint32_t param = luaL_checkint(L, 1);
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Reading parameter " << param
-            << " from stack" << std::endl;
+            << " from stack" << '\n';
 
     uint32_t val=0;
     uint32_t sp = m_state->getSp() + (param+1) * sizeof(uint32_t);
     bool b = m_state->readMemoryConcrete(sp, &val, sizeof(val));
     if (!b) {
         g_s2e->getDebugStream() << "S2ELUAExecutionState: could not read parameter " << param <<
-                " at 0x"<< std::hex << sp << std::endl;
+                " at "<< hexval(sp) << '\n';
     }
 
     lua_pushnumber(L, val);        /* first result */
@@ -436,14 +436,14 @@ int S2ELUAExecutionState::writeParameter(lua_State *L)
     uint32_t val=luaL_checkint(L, 2);
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing parameter " << param
-            << " from stack" << std::endl;
+            << " from stack" << '\n';
 
 
     uint32_t sp = m_state->getSp() + (param+1) * sizeof(uint32_t);
     bool b = m_state->writeMemoryConcrete(sp, &val, sizeof(val));
     if (!b) {
         g_s2e->getDebugStream() << "S2ELUAExecutionState: could not write parameter " << param <<
-                " at 0x"<< std::hex << sp << std::endl;
+                " at "<< hexval(sp) << '\n';
     }
 
     return 0;
@@ -469,11 +469,11 @@ int S2ELUAExecutionState::writeMemory(lua_State *L)
     uint32_t value = luaL_checkint(L, 3);
 
     if (size > sizeof(value)) {
-        g_s2e->getDebugStream() << "writeMemory: size is too big" << std::hex << size;
+        g_s2e->getDebugStream() << "writeMemory: size is too big" << hexval(size);
     }
 
     if (!m_state->writeMemoryConcrete(address, &value, size)) {
-        g_s2e->getDebugStream() << "writeMemory: Could not write to memory at address 0x" << std::hex << address;
+        g_s2e->getDebugStream() << "writeMemory: Could not write to memory at address 0x" << hexval(address);
         return 0;
     }
 
@@ -495,7 +495,7 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     }
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing symbolic value to memory location" <<
-            " 0x" << std::hex << address << " of size " << size << std::endl;
+            " " << hexval(address) << " of size " << size << '\n';
 
     klee::Expr::Width width=klee::Expr::Int8;
     switch(size) {
@@ -517,7 +517,7 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
     klee::ref<klee::Expr> val = m_state->createSymbolicValue(width, name);
     if (!m_state->writeMemory(address, val)) {
         std::stringstream ss;
-        g_s2e->getDebugStream() << "writeMemorySymb: Could not write to memory at address 0x" << std::hex << address;
+        g_s2e->getDebugStream() << "writeMemorySymb: Could not write to memory at address " << hexval(address);
         return 0;
     }
 
@@ -525,7 +525,7 @@ int S2ELUAExecutionState::writeMemorySymb(lua_State *L)
         klee::ref<klee::Expr> val1 = klee::UleExpr::create(val, klee::ConstantExpr::create(upperBound,width));
         klee::ref<klee::Expr> val2 = klee::NotExpr::create(klee::UltExpr::create(val, klee::ConstantExpr::create(lowerBound,width)));
         klee::ref<klee::Expr> val3 = klee::AndExpr::create(val1, val2);
-        g_s2e->getDebugStream() <<  "writeMemorySymb: " << val3 << std::endl;
+        g_s2e->getDebugStream() <<  "writeMemorySymb: " << val3 << '\n';
         m_state->addConstraint(val3);
     }else {
         val = m_state->createSymbolicValue(width, name);
@@ -574,7 +574,7 @@ int S2ELUAExecutionState::writeRegister(lua_State *L)
     unsigned regIndex=0, size=0;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing to register "
-            << regstr << " 0x" << std::hex << value << std::endl;
+            << regstr << " " << hexval(value) << '\n';
 
     if (!RegNameToIndex(regstr, regIndex, size)) {
         std::stringstream ss;
@@ -596,7 +596,7 @@ int S2ELUAExecutionState::writeRegisterSymb(lua_State *L)
     unsigned regIndex=0, size=0;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Writing to register "
-            << regstr << std::endl;
+            << regstr << '\n';
 
     if (!RegNameToIndex(regstr, regIndex, size)) {
         std::stringstream ss;
@@ -618,7 +618,7 @@ int S2ELUAExecutionState::readRegister(lua_State *L)
     unsigned regIndex=0, size=0;
 
     g_s2e->getDebugStream() << "S2ELUAExecutionState: Reading register "
-            << regstr << std::endl;
+            << regstr << '\n';
 
     if (!RegNameToIndex(regstr, regIndex, size)) {
         std::stringstream ss;
@@ -643,7 +643,7 @@ void ConfigFile::luaError(const char *fmt, ...)
     if (g_s2e) {
         char str[512];
         vsnprintf(str, sizeof(str), fmt, v);
-        g_s2e->getMessagesStream() << "ERROR: " << str << std::endl;
+        g_s2e->getMessagesStream() << "ERROR: " << str << '\n';
     }else {
         vfprintf(stderr, fmt, v);
     }
@@ -660,7 +660,7 @@ void ConfigFile::luaWarning(const char *fmt, ...)
     if (g_s2e) {
         char str[512];
         vsnprintf(str, sizeof(str), fmt, v);
-        g_s2e->getWarningsStream() << "WARNING: " << str << std::endl;
+        g_s2e->getWarningsStream() << "WARNING: " << str << '\n';
     }else {
         vfprintf(stderr, fmt, v);
     }

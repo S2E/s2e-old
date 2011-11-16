@@ -63,7 +63,7 @@ void DataSelector::initialize()
 #endif
 
     foreach2(it, Sections.begin(), Sections.end()) {
-        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
+        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << '\n';
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
         if (!initSection(sk.str(), *it)) {
@@ -72,7 +72,7 @@ void DataSelector::initialize()
     }
 
     if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the sections"  <<std::endl;
+        s2e()->getWarningsStream() << "Errors while scanning the sections\n";
         exit(-1);
     }
 
@@ -101,7 +101,7 @@ bool DataSelector::makeUnicodeStringSymbolic(S2EExecutionState *s, uint64_t addr
         }
 
         ref<Expr> v = getNonNullCharacter(s, Expr::Int16);
-        s2e()->getMessagesStream() << v << std::endl;
+        s2e()->getMessagesStream() << v << '\n';
         s->writeMemory(address, v); 
         address+=sizeof(car);
     }while(1);
@@ -120,7 +120,7 @@ bool DataSelector::makeStringSymbolic(S2EExecutionState *s, uint64_t address)
         }
 
         ref<Expr> v = getNonNullCharacter(s, Expr::Int8);
-        s2e()->getMessagesStream() << v << std::endl;
+        s2e()->getMessagesStream() << v << '\n';
         s->writeMemory(address, v); 
         address+=sizeof(car);
     }while(1);

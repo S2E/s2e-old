@@ -65,7 +65,7 @@ void WindowsDriverExerciser::initialize()
     ConfigFile *cfg = s2e()->getConfig();
     ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
     if (mods.size() == 0) {
-        s2e()->getWarningsStream() << "WindowsDriverExerciser: You must specify modules to track in moduleIds" << std::endl;
+        s2e()->getWarningsStream() << "WindowsDriverExerciser: You must specify modules to track in moduleIds" << '\n';
         exit(-1);
         return;
     }
@@ -78,7 +78,7 @@ void WindowsDriverExerciser::initialize()
     }else if (strUnloadAction == "succeed") {
         m_unloadAction = SUCCEED;
     }else {
-        s2e()->getWarningsStream() << "WindowsDriverExerciser: You must specify kill or succeed for unloadAction" << std::endl;
+        s2e()->getWarningsStream() << "WindowsDriverExerciser: You must specify kill or succeed for unloadAction" << '\n';
         exit(-1);
     }
 
@@ -197,7 +197,7 @@ void WindowsDriverExerciser::onModuleTransition(S2EExecutionState *state,
         //Revoke the rights of the current module
         uint64_t stackBase, stackSize;
         if (!m_windowsMonitor->getCurrentStack(state, &stackBase, &stackSize)) {
-            s2e()->getWarningsStream() << "Could not retrieve current stack" << std::endl;
+            s2e()->getWarningsStream() << "Could not retrieve current stack" << '\n';
             return;
         }
 
@@ -215,7 +215,7 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
     ok &= readConcreteParameter(state, 0, &driverObject);
     ok &= readConcreteParameter(state, 1, &registryPath);
     if (!ok) {
-        s2e()->getWarningsStream() << "WindowsDriverExerciser: could not read driverObject and/or registryPath" << std::endl;
+        s2e()->getWarningsStream() << "WindowsDriverExerciser: could not read driverObject and/or registryPath" << '\n';
         return;
     }
 
@@ -234,7 +234,7 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
 void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint32_t pDriverObject)
 {
     s2e()->getDebugStream(state) << "Returning from WindowsDriverExerciser entry point "
-                << " at " << hexval(state->getPc()) << std::endl;
+                << " at " << hexval(state->getPc()) << '\n';
 
     if(m_memoryChecker) {
         m_memoryChecker->revokeMemoryForModule(state, "args:EntryPoint:*");
@@ -266,21 +266,21 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     
             for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
                 if (desc->Contains(driverObject.MajorFunction[i])) {
-                    s2e()->getMessagesStream() << "Registering IRP " << s_irpMjArray[i] << " at 0x" << std::hex
-                            << driverObject.MajorFunction[i] << " "
-                            << desc->Name << "!0x" << desc->ToNativeBase(driverObject.MajorFunction[i]) <<
-                            std::endl;
+                    s2e()->getMessagesStream() << "Registering IRP " << s_irpMjArray[i] << " at "
+                            << hexval(driverObject.MajorFunction[i]) << " "
+                            << desc->Name << "!" << hexval(desc->ToNativeBase(driverObject.MajorFunction[i])) <<
+                            '\n';
     
                     ntosHandlers->registerEntryPoint
                             (state, &NtoskrnlHandlers::DriverDispatch, (uint64_t)driverObject.MajorFunction[i], (uint32_t)i);
                 }
             }
         }else {
-            s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure at 0x" <<
-                    std::hex << pDriverObject << std::endl;
+            s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure at "
+                    << hexval(pDriverObject) << '\n';
         }
     }else {
-        s2e()->getWarningsStream() << "NtoskrnlHandlers plugin not loaded. Skipping all IRP annotations." << std::endl;
+        s2e()->getWarningsStream() << "NtoskrnlHandlers plugin not loaded. Skipping all IRP annotations." << '\n';
     }
 
     m_manager->succeedState(state);

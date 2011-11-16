@@ -43,7 +43,7 @@
 
 #include <s2e/Plugins/OSMonitor.h>
 
-#include <llvm/System/TimeValue.h>
+#include <llvm/Support/TimeValue.h>
 
 #include <iostream>
 

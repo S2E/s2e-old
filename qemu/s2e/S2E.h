@@ -37,11 +37,14 @@
 #ifndef S2E_H
 #define S2E_H
 
+#undef NDEBUG
+
 #include <fstream>
 #include <string>
 #include <vector>
 //#include <tr1/unordered_map>
 #include <map>
+#include <llvm/Support/raw_ostream.h>
 
 #include "s2e_config.h"
 #include "Plugin.h"
@@ -104,14 +107,18 @@ protected:
 
     std::string m_outputDirectory;
 
+    llvm::raw_ostream*   m_infoFileRaw;
+    llvm::raw_ostream*   m_debugFileRaw;
+    llvm::raw_ostream*   m_messagesFileRaw;
+    llvm::raw_ostream*   m_warningsFileRaw;
+
     std::ostream*   m_infoFile;
-
     std::ostream*   m_debugFile;
-
     std::ostream*   m_messagesFile;
-    std::streambuf* m_messagesStreamBuf;
-
     std::ostream*   m_warningsFile;
+
+
+    std::streambuf* m_messagesStreamBuf;
     std::streambuf* m_warningsStreamBuf;
 
     Database *m_database;
@@ -139,8 +146,9 @@ protected:
     void initExecutor();
     void initPlugins();
 
-    std::ostream& getStream(std::ostream& stream,
+    llvm::raw_ostream& getStream(llvm::raw_ostream &stream,
                             const S2EExecutionState* state) const;
+
 
 public:
     /** Construct S2E */
@@ -182,25 +190,26 @@ public:
 
     /** Get info stream (used only by KLEE internals) */
     std::ostream& getInfoStream(const S2EExecutionState* state = 0) const {
-        return getStream(*m_infoFile, state);
+        getStream(*m_infoFileRaw, state);
+        return *m_infoFile;
     }
 
     /** Get debug stream (used for non-important debug info) */
-    std::ostream& getDebugStream(const S2EExecutionState* state = 0) const {
-        return getStream(*m_debugFile, state);
+    llvm::raw_ostream& getDebugStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_debugFileRaw, state);
     }
 
     /** Get messages stream (used for non-critical information) */
-    std::ostream& getMessagesStream(const S2EExecutionState* state = 0) const {
-        return getStream(*m_messagesFile, state);
+    llvm::raw_ostream& getMessagesStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_messagesFileRaw, state);
     }
 
     /** Get warnings stream (used for warnings, duplicated on the screen) */
-    std::ostream& getWarningsStream(const S2EExecutionState* state = 0) const {
-        return getStream(*m_warningsFile, state);
+    llvm::raw_ostream& getWarningsStream(const S2EExecutionState* state = 0) const {
+        return getStream(*m_warningsFileRaw, state);
     }
 
-    static void printf(std::ostream &os, const char *fmt, ...);
+    static void printf(llvm::raw_ostream &os, const char *fmt, ...);
 
     /***********************/
     /* Runtime information */

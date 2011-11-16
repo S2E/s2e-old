@@ -40,7 +40,7 @@
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 
-#include <llvm/System/TimeValue.h>
+#include <llvm/Support/TimeValue.h>
 
 #include <iostream>
 
@@ -82,7 +82,7 @@ void ExecutionTracer::createNewTraceFile(bool append)
     }
 
     if (!m_LogFile) {
-        s2e()->getWarningsStream() << "Could not create ExecutionTracer.dat" << std::endl;
+        s2e()->getWarningsStream() << "Could not create ExecutionTracer.dat" << '\n';
         exit(-1);
     }
     m_CurrentIndex = 0;

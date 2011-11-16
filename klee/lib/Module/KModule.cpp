@@ -24,9 +24,13 @@
 #include "llvm/Instructions.h"
 #if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
 #include "llvm/LLVMContext.h"
-#endif
-#include "llvm/Module.h"
+#include "llvm/Support/Path.h"
+#else
 #include "llvm/ModuleProvider.h"
+#include "llvm/System/Path.h"
+#endif
+
+#include "llvm/Module.h"
 #include "llvm/PassManager.h"
 #include "llvm/ValueSymbolTable.h"
 #include "llvm/Support/CommandLine.h"
@@ -34,7 +38,6 @@
 #if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
 #include "llvm/Support/raw_os_ostream.h"
 #endif
-#include "llvm/System/Path.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Scalar.h"
 
@@ -90,16 +93,15 @@ extern void CreateOptimizePasses(PassManagerBase&, Module*);
 namespace klee {
 
 struct KModulePrivate {
-  llvm::ExistingModuleProvider moduleProvider;
   llvm::PassManager pmOptimize, pm3, pm4;
   llvm::FunctionPassManager fpmOptimize, fpm3, fpm4;
 
   KModulePrivate(llvm::Module *module,
                  llvm::TargetData *targetData)
-          : moduleProvider(module),
-            fpmOptimize(&moduleProvider),
-            fpm3(&moduleProvider),
-            fpm4(&moduleProvider) {
+          :
+            fpmOptimize(module),
+            fpm3(module),
+            fpm4(module) {
 
     pm3.add(createCFGSimplificationPass());
     fpm3.add(createCFGSimplificationPass());
@@ -130,7 +132,7 @@ struct KModulePrivate {
   }
 
   ~KModulePrivate() {
-    moduleProvider.releaseModule();
+
   }
 };
 

@@ -53,7 +53,7 @@
 #include <lib/Utils/BasicBlockListParser.h>
 
 
-#include "llvm/System/Path.h"
+#include "llvm/Support/Path.h"
 
 #include "TbTrace.h"
 
@@ -123,7 +123,7 @@ bool TbTrace::parseDisassembly(const std::string &listingFile, Disassembly &out)
 {
     //Get the module name
     llvm::sys::Path listingFilePath(listingFile);
-    std::string moduleName = listingFilePath.getBasename();
+    std::string moduleName = llvm::sys::path::stem(listingFilePath.str());
 
     bool added = false;
 
@@ -174,7 +174,7 @@ void TbTrace::printDisassembly(const std::string &module, uint64_t relPc, unsign
             return;
         }
 
-        if (!parseDisassembly(disassemblyListing.toString(), m_disassembly)) {
+        if (!parseDisassembly(disassemblyListing.str(), m_disassembly)) {
             return;
         }
         it = m_disassembly.find(module);
@@ -196,7 +196,7 @@ void TbTrace::printDisassembly(const std::string &module, uint64_t relPc, unsign
 
         if (!BasicBlockListParser::parseListing(basicBlockList, moduleBbs)) {
             std::cerr << "TbTrace: could not parse basic block list in file "
-                      << basicBlockList << std::endl;
+                      << basicBlockList.str() << std::endl;
             exit(-1);
         }
 

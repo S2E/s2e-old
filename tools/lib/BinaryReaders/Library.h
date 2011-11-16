@@ -41,7 +41,7 @@
 #include "ExecutableFile.h"
 
 #include "lib/ExecutionTracer/ModuleParser.h"
-#include "llvm/System/Path.h"
+#include "llvm/Support/Path.h"
 
 #include <string>
 #include <set>

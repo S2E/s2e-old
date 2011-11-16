@@ -151,21 +151,21 @@ void S2EDeviceState::initDeviceState()
     //XXX: What about watchpoints and stuff like that?
     ignoreList.insert("cpu");
 
-    g_s2e->getMessagesStream() << "Initing initial device state." << std::endl;
+    g_s2e->getMessagesStream() << "Initing initial device state." << '\n';
 
     if (!s_DevicesInited) {
         void *se;
-        g_s2e->getDebugStream() << "Looking for relevant virtual devices..." << endl;
+        g_s2e->getDebugStream() << "Looking for relevant virtual devices...";
 
         //Register all active devices detected by QEMU
         for(se = s2e_qemu_get_first_se();
             se != NULL; se = s2e_qemu_get_next_se(se)) {
                 std::string deviceId(s2e_qemu_get_se_idstr(se));
                 if (!ignoreList.count(deviceId)) {
-                    g_s2e->getDebugStream() << "   Registering device " << deviceId << std::endl;
+                    g_s2e->getDebugStream() << "   Registering device " << deviceId << '\n';
                     s_Devices.push_back(se);
                 } else {
-                    g_s2e->getDebugStream() << "   Shared device " << deviceId << std::endl;
+                    g_s2e->getDebugStream() << "   Shared device " << deviceId << '\n';
                 }
         }
         s_DevicesInited = true;
@@ -173,14 +173,14 @@ void S2EDeviceState::initDeviceState()
 
     if (!PersistentDiskWrites) {
         g_s2e->getMessagesStream() <<
-                "WARNING!!! All writes to disk will be lost after shutdown." << std::endl;
+                "WARNING!!! All writes to disk will be lost after shutdown." << '\n';
         __hook_bdrv_read = s2e_bdrv_read;
         __hook_bdrv_write = s2e_bdrv_write;
         __hook_bdrv_aio_read = s2e_bdrv_aio_read;
         __hook_bdrv_aio_write = s2e_bdrv_aio_write;
     }else {
         g_s2e->getMessagesStream() <<
-                "WARNING!!! All disk writes will be SHARED across states! BEWARE OF CORRUPTION!" << std::endl;
+                "WARNING!!! All disk writes will be SHARED across states! BEWARE OF CORRUPTION!" << '\n';
     }
     //saveDeviceState();
     //restoreDeviceState();

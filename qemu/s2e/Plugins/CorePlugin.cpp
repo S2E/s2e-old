@@ -65,7 +65,7 @@ using namespace s2e;
 static void s2e_timer_cb(void *opaque)
 {
     CorePlugin *c = (CorePlugin*)opaque;
-    g_s2e->getDebugStream() << "Firing timer event" << std::endl;
+    g_s2e->getDebugStream() << "Firing timer event" << '\n';
 
     g_s2e->getExecutor()->updateStats(g_s2e_state);
     c->onTimer.emit();
@@ -74,7 +74,7 @@ static void s2e_timer_cb(void *opaque)
 
 void CorePlugin::initializeTimers()
 {
-    s2e()->getDebugStream() << "Initializing periodic timer" << std::endl;
+    s2e()->getDebugStream() << "Initializing periodic timer" << '\n';
     /* Initialize the timer handler */
     m_Timer = qemu_new_timer(rt_clock, s2e_timer_cb, this);
     qemu_mod_timer(m_Timer, qemu_get_clock(rt_clock) + 1000);

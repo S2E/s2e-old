@@ -41,7 +41,10 @@
 #include <cassert>
 #include <ostream>
 #include <iomanip>
+#include <sstream>
 #include <inttypes.h>
+#include <llvm/Support/raw_ostream.h>
+#include <klee/Expr.h>
 
 namespace s2e {
 
@@ -53,18 +56,18 @@ struct hexval {
     hexval(void* _value, int _width=0): value((uint64_t)_value), width(_width) {}
 };
 
-inline std::ostream& operator<<(std::ostream& out, const hexval& h)
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const hexval& h)
 {
     out << "0x";
+    out.write_hex(h.value);
+    return out;
+}
 
-    std::ios_base::fmtflags oldf = out.flags();
-    out.setf(std::ios::hex, std::ios_base::basefield);
-    std::streamsize oldw = out.width(); out.width(h.width);
-    char oldfill = out.fill(); out.fill('0');
-
-    out << h.value;
-
-    out.flags(oldf); out.width(oldw); out.fill(oldfill);
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& out, const klee::ref<klee::Expr> &expr)
+{
+    std::stringstream ss;
+    ss << expr;
+    out << ss.str();
     return out;
 }
 

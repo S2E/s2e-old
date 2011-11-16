@@ -99,7 +99,7 @@ void Debugger::initList(const std::string &key, uint64_t **ptr, unsigned *size)
         unsigned i=0;
 
         for (it = list.begin(); it != list.end(); ++it) {
-            s2e()->getMessagesStream() << "Adding trigger for value 0x" << std::hex << *it << std::endl;
+            s2e()->getMessagesStream() << "Adding trigger for value " << hexval(*it) << '\n';
             (*ptr)[i] = *it;
             ++i;
         }
@@ -118,7 +118,7 @@ void Debugger::initAddressTriggers(const std::string &key)
         bool ok;
 
         ss << key << "[" << (i) << "]";
-        s2e()->getDebugStream() << __FUNCTION__ << ": scanning " << ss.str() << std::endl;
+        s2e()->getDebugStream() << __FUNCTION__ << ": scanning " << ss.str() << '\n';
         list = cfg->getIntegerList(ss.str(), ConfigFile::integer_list(), &ok);
         if (!ok) {
             return;
@@ -139,7 +139,7 @@ void Debugger::initAddressTriggers(const std::string &key)
             e = s;
 
         if (e < s) {
-            s2e()->getWarningsStream() << std::hex << e << " must be bigger than " << s << std::endl;
+            s2e()->getWarningsStream() << hexval(e) << " must be bigger than " << s << '\n';
             continue;
         }
         m_addressTriggers.push_back(AddressRange(list[0], list[1]));
@@ -216,10 +216,10 @@ void Debugger::onDataMemoryAccess(S2EExecutionState *state,
 
     if (decideTracing(state, addr, val)) {
         s2e()->getDebugStream() <<
-                   " MEM PC=0x" << std::hex << state->getPc() <<
-                   " Addr=0x" << addr <<
-                   " Value=0x" << val <<
-                   " IsWrite=" << isWrite << std::endl;
+                   " MEM PC=" << hexval(state->getPc()) <<
+                   " Addr=" << hexval(addr) <<
+                   " Value=" << hexval(val) <<
+                   " IsWrite=" << isWrite << '\n';
     }
 
 }
@@ -245,9 +245,9 @@ void Debugger::onTranslateInstructionStart(
 
 void Debugger::onInstruction(S2EExecutionState *state, uint64_t pc)
 {
-    s2e()->getDebugStream() << std::hex << "IT " << pc <<
+    s2e()->getDebugStream() << "IT " << hexval(pc) <<
             " CC_SRC=" << state->readCpuRegister(offsetof(CPUState, cc_src), klee::Expr::Int32) <<
-            std::endl;
+            '\n';
 }
 
 void Debugger::onTimer()
@@ -256,7 +256,7 @@ void Debugger::onTimer()
         return;
     }
 
-    s2e()->getMessagesStream() << "Debugger Plugin: Enabling memory tracing" << std::endl;
+    s2e()->getMessagesStream() << "Debugger Plugin: Enabling memory tracing" << '\n';
     s2e()->getCorePlugin()->onDataMemoryAccess.connect(
             sigc::mem_fun(*this, &Debugger::onDataMemoryAccess));
 

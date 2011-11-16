@@ -44,7 +44,7 @@
 
   struct SelectRemovalPass : public llvm::FunctionPass {
      static char ID;
-     SelectRemovalPass() : FunctionPass((intptr_t)&ID) {}
+     SelectRemovalPass() : FunctionPass(ID) {}
 
      virtual bool runOnFunction(llvm::Function &F);
      

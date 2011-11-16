@@ -54,7 +54,7 @@ extern "C" {
 #include <iostream>
 #include <sstream>
 
-#include <llvm/System/TimeValue.h>
+#include <llvm/Support/TimeValue.h>
 #include <klee/Searcher.h>
 #include <klee/Solver.h>
 
@@ -101,22 +101,21 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             if(!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
-                       " insert_symbolic opcode" << std::endl;
+                       " insert_symbolic opcode\n";
                 break;
             }
 
             std::string nameStr;
             if(!name || !state->readString(name, nameStr)) {
                 s2e()->getWarningsStream(state)
-                        << "Error reading string from the guest"
-                        << std::endl;
+                        << "Error reading string from the guest\n";
                 nameStr = "defstr";
             }
 
             s2e()->getMessagesStream(state)
                     << "Inserting symbolic data at " << hexval(address)
                     << " of size " << hexval(size)
-                    << " with name '" << nameStr << "'" << std::endl;
+                    << " with name '" << nameStr << "'\n";
 
             vector<ref<Expr> > symb = state->createSymbolicArray(size, nameStr);
             for(unsigned i = 0; i < size; ++i) {
@@ -124,7 +123,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                     s2e()->getWarningsStream(state)
                         << "Can not insert symbolic value"
                         << " at " << hexval(address + i)
-                        << ": can not write to memory" << std::endl;
+                        << ": can not write to memory\n";
                 }
             }
             break;
@@ -148,18 +147,17 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
                 if (!ok) {
                     s2e()->getWarningsStream(state)
-                        << "ERROR: symbolic argument was passed to s2e_op kill state "
-                        << std::endl;
+                        << "ERROR: symbolic argument was passed to s2e_op kill state\n";
                 } else {
                     message="<NO MESSAGE>";
                     if(!messagePtr || !state->readString(messagePtr, message)) {
                         s2e()->getWarningsStream(state)
-                            << "Error reading file name string from the guest" << std::endl;
+                            << "Error reading file name string from the guest\n";
                     }
                 }
 
                 //Kill the current state
-                s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << std::endl;
+                s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << '\n';
                 std::ostringstream os;
                 os << "State was terminated by opcode\n"
                    << "            message: \"" << message << "\"\n"
@@ -180,20 +178,19 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 if(!ok) {
                     s2e()->getWarningsStream(state)
                         << "ERROR: symbolic argument was passed to s2e_op "
-                           "print_expression opcode" << std::endl;
+                           "print_expression opcode\n";
                     break;
                 }
 
                 std::string nameStr = "defstring";
                 if(!name || !state->readString(name, nameStr)) {
                     s2e()->getWarningsStream(state)
-                            << "Error reading string from the guest"
-                            << std::endl;
+                            << "Error reading string from the guest\n";
                 }
 
 
                 s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - "
-                        <<val << std::endl;
+                        <<val << '\n';
                 break;
             }
 
@@ -212,27 +209,26 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                 if(!ok) {
                     s2e()->getWarningsStream(state)
                         << "ERROR: symbolic argument was passed to s2e_op "
-                           "print_expression opcode" << std::endl;
+                           "print_expression opcode\n";
                     break;
                 }
 
                 std::string nameStr = "defstring";
                 if(!name || !state->readString(name, nameStr)) {
                     s2e()->getWarningsStream(state)
-                            << "Error reading string from the guest"
-                            << std::endl;
+                            << "Error reading string from the guest\n";
                 }
 
-                s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << std::endl;
+                s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << '\n';
 
                 for (uint32_t i=0; i<size; ++i) {
 
-                    s2e()->getMessagesStream() << std::hex << "0x" << std::setw(8) << (address+i) << ": " << std::dec;
+                    s2e()->getMessagesStream() << hexval(address+i) << ": ";
                     ref<Expr> res = state->readMemory8(address+i);
                     if (res.isNull()) {
-                        s2e()->getMessagesStream() << "Invalid pointer" << std::endl;
+                        s2e()->getMessagesStream() << "Invalid pointer\n";
                     }else {
-                        s2e()->getMessagesStream() << res << std::endl;
+                        s2e()->getMessagesStream() << res << '\n';
                     }
                 }
 
@@ -250,24 +246,23 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             if(!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
-                       " message opcode" << std::endl;
+                       " message opcode\n";
                 break;
             }
 
             std::string str="";
             if(!address || !state->readString(address, str)) {
                 s2e()->getWarningsStream(state)
-                        << "Error reading string message from the guest at address 0x"
-                        << std::hex << address
-                        << std::endl;
+                        << "Error reading string message from the guest at address "
+                        <<  hexval(address) << '\n';
             } else {
-                ostream *stream;
+                llvm::raw_ostream *stream;
                 if(opcode >> 16)
                     stream = &s2e()->getWarningsStream(state);
                 else
                     stream = &s2e()->getMessagesStream(state);
-                (*stream) << "Message from guest (0x" << std::hex << address <<
-                        "): " <<  str << std::endl;
+                (*stream) << "Message from guest (" << hexval(address) <<
+                        "): " <<  str << '\n';
             }
             break;
         }
@@ -285,7 +280,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
             if(!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
-                       " get_example opcode" << std::endl;
+                       " get_example opcode\n";
                 break;
             }
 
@@ -299,12 +294,12 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
                     if(!state->writeMemory(address + i, expr)) {
                         s2e()->getWarningsStream(state)
                             << "Can not write to memory"
-                            << " at " << hexval(address + i) << std::endl;
+                            << " at " << hexval(address + i) << '\n';
                     }
                 } else {
                     s2e()->getWarningsStream(state)
                         << "Can not read from memory"
-                        << " at " << hexval(address + i) << std::endl;
+                        << " at " << hexval(address + i) << '\n';
                 }
             }
 
@@ -325,16 +320,16 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 0x32: { /* Sleep for a given number of seconds */
                 uint32_t duration = 0;
                 state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration, sizeof(uint32_t));
-                s2e()->getDebugStream() << "Sleeping " << std::dec << duration << " seconds" << std::endl;
+                s2e()->getDebugStream() << "Sleeping " << duration << " seconds\n";
 
                 llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
 
                 while (llvm::sys::TimeValue::now().seconds() - startTime.seconds() < duration) {
                     #ifdef _WIN32
-					Sleep(1000);
-					#else
-					sleep(1);
-					#endif
+                    Sleep(1000);
+                    #else
+                    sleep(1);
+                    #endif
                 }
 
                 break;
@@ -343,9 +338,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 0x50: { /* disable/enable timer interrupt */
             uint64_t disabled = opcode >> 16;
             if(disabled)
-                s2e()->getMessagesStream(state) << "Disabling timer interrupt" << std::endl;
+                s2e()->getMessagesStream(state) << "Disabling timer interrupt\n";
             else
-                s2e()->getMessagesStream(state) << "Enabling timer interrupt" << std::endl;
+                s2e()->getMessagesStream(state) << "Enabling timer interrupt\n";
             state->writeCpuState(CPU_OFFSET(timer_interrupt_disabled),
                                  disabled, 8);
             break;
@@ -353,9 +348,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 0x51: { /* disable/enable all apic interrupts */
             uint64_t disabled = opcode >> 16;
             if(disabled)
-                s2e()->getMessagesStream(state) << "Disabling all apic interrupt" << std::endl;
+                s2e()->getMessagesStream(state) << "Disabling all apic interrupt\n";
             else
-                s2e()->getMessagesStream(state) << "Enabling all apic interrupt" << std::endl;
+                s2e()->getMessagesStream(state) << "Enabling all apic interrupt\n";
             state->writeCpuState(CPU_OFFSET(all_apic_interrupts_disabled),
                                  disabled, 8);
             break;
@@ -374,7 +369,7 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
 
         default:
             s2e()->getWarningsStream(state)
-                << "BaseInstructions: Invalid built-in opcode " << hexval(opcode) << std::endl;
+                << "BaseInstructions: Invalid built-in opcode " << hexval(opcode) << '\n';
             break;
     }
 }

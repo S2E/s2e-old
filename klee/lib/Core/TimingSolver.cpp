@@ -15,7 +15,7 @@
 
 #include "klee/CoreStats.h"
 
-#include "llvm/System/Process.h"
+#include "llvm/Support/Process.h"
 
 using namespace klee;
 using namespace llvm;

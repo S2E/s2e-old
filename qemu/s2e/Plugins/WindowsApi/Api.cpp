@@ -96,7 +96,7 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
         if (libraryName == "ndis.sys") {
             NdisHandlers *ndisHandlers = static_cast<NdisHandlers*>(s2e()->getPlugin("NdisHandlers"));
             if (!ndisHandlers) {
-                s2e()->getWarningsStream() << "NdisHandlers not activated!" << std::endl;
+                s2e()->getWarningsStream() << "NdisHandlers not activated!" << '\n';
             } else {
                 ndisHandlers->registerEntryPoints(state, functions);
                 ndisHandlers->registerCaller(module);
@@ -106,7 +106,7 @@ void WindowsApi::registerImports(S2EExecutionState *state, const ModuleDescripto
         }else if (libraryName == "ntoskrnl.exe") {
             NtoskrnlHandlers *ntoskrnlHandlers = static_cast<NtoskrnlHandlers*>(s2e()->getPlugin("NtoskrnlHandlers"));
             if (!ntoskrnlHandlers) {
-                s2e()->getWarningsStream() << "NtoskrnlHandlers not activated!" << std::endl;
+                s2e()->getWarningsStream() << "NtoskrnlHandlers not activated!" << '\n';
             } else {
                 ntoskrnlHandlers->registerEntryPoints(state, functions);
                 ntoskrnlHandlers->registerCaller(module);
@@ -144,7 +144,7 @@ void WindowsApi::parseConsistency(const std::string &key)
         m_consistency = STRICT;
         s2e()->getExecutor()->setForceConcretizations(true);
     }else {
-        s2e()->getWarningsStream() << "Incorrect consistency " << consistency << std::endl;
+        s2e()->getWarningsStream() << "Incorrect consistency " << consistency << '\n';
         exit(-1);
     }
 }
@@ -164,7 +164,7 @@ void WindowsApi::parseSpecificConsistency(const std::string &key)
         ss << key + ".functionConsistencies." << func;
         ConfigFile::string_list pairs = cfg->getStringList(ss.str());
         if (pairs.size() != 2) {
-            s2e()->getDebugStream() << ss.str() << " must have two elements" << std::endl;
+            s2e()->getDebugStream() << ss.str() << " must have two elements" << '\n';
             exit(-1);
         }
 
@@ -178,15 +178,15 @@ void WindowsApi::parseSpecificConsistency(const std::string &key)
             consistency = OVERAPPROX;
         }else if  (pairs[1] == "overconstrained") {
             //This is strict consistency with forced concretizations
-            s2e()->getWarningsStream() << "NDISHANDLERS: Cannot handle overconstrained for specific functions " << std::endl;
+            s2e()->getWarningsStream() << "NDISHANDLERS: Cannot handle overconstrained for specific functions " << '\n';
             exit(-1);
         }else {
             s2e()->getWarningsStream() << "NDISHANDLERS: Incorrect consistency " << consistency <<
-                    " for " << ss.str() << std::endl;
+                    " for " << ss.str() << '\n';
             exit(-1);
         }
 
-        s2e()->getDebugStream() << "NDISHANDLERS " << pairs[0] << " will have " << pairs[1] << " consistency" << std::endl;
+        s2e()->getDebugStream() << "NDISHANDLERS " << pairs[0] << " will have " << pairs[1] << " consistency" << '\n';
         m_specificConsistency[pairs[0]] = consistency;
     }
 
@@ -271,13 +271,13 @@ bool WindowsApi::ReadUnicodeString(S2EExecutionState *state, uint32_t address, s
 
     ok = state->readMemoryConcrete(address, &configStringUnicode, sizeof(configStringUnicode));
     if (!ok) {
-        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32" << std::endl;
+        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32" << '\n';
         return false;
     }
 
     ok = state->readUnicodeString(configStringUnicode.Buffer, s, configStringUnicode.Length);
     if (!ok) {
-        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32"  << std::endl;
+        g_s2e->getDebugStream() << "Could not read UNICODE_STRING32"  << '\n';
     }
 
     return ok;
@@ -421,7 +421,7 @@ bool WindowsApi::grantAccessToUnicodeString(S2EExecutionState *state,
 
     UNICODE_STRING32 String;
     if (!state->readMemoryConcrete(address, &String, sizeof(String))) {
-        s2e()->getWarningsStream() << "grantAccessToUnicodeString failed" << std::endl;
+        s2e()->getWarningsStream() << "grantAccessToUnicodeString failed" << '\n';
         return false;
     }
 
@@ -429,7 +429,7 @@ bool WindowsApi::grantAccessToUnicodeString(S2EExecutionState *state,
         m_memoryChecker->grantMemory(state, String.Buffer, String.MaximumLength * sizeof(uint16_t),
                                      MemoryChecker::READWRITE, regionType+":UnicodeStringBuffer", String.Buffer, false);
     }else {
-        s2e()->getWarningsStream() << "grantAccessToUnicodeString: string not initialized properly" << std::endl;
+        s2e()->getWarningsStream() << "grantAccessToUnicodeString: string not initialized properly" << '\n';
         return false;
     }
 
@@ -445,7 +445,7 @@ bool WindowsApi::revokeAccessToUnicodeString(S2EExecutionState *state,
 
     UNICODE_STRING32 String;
     if (!state->readMemoryConcrete(address, &String, sizeof(String))) {
-        s2e()->getWarningsStream() << "revokeAccessToUnicodeString failed" << std::endl;
+        s2e()->getWarningsStream() << "revokeAccessToUnicodeString failed" << '\n';
         return false;
     }
 

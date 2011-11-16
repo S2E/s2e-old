@@ -67,12 +67,12 @@ bool WindowsService::initSection(const std::string &cfgKey, const std::string &s
     bool ok;
     std::string moduleId = s2e()->getConfig()->getString(cfgKey + ".module", "", &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".module" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".module\n";
         return false;
     }
     
     if (!m_ExecDetector->isModuleConfigured(moduleId)) {
-        s2e()->getWarningsStream() << moduleId << " is not configured in the execution detector!" << std::endl;   
+        s2e()->getWarningsStream() << moduleId << " is not configured in the execution detector!\n";
         return false;
     }
 
@@ -111,29 +111,30 @@ void WindowsService::onTranslateBlockStart(ExecutionSignal *signal,
 
     if (!m_WindowsMonitor->getExports(state, desc, E)) {
         s2e()->getWarningsStream() << 
-            "Could not get exports for module " << *moduleId << std::endl;
+            "Could not get exports for module " << *moduleId << '\n';
         return;
     }
 
     eit = E.find("ServiceMain");
     if (eit == E.end()) {
         s2e()->getMessagesStream() << 
-            "Could not find the ServiceMain entry point for " << *moduleId << std::endl;
+            "Could not find the ServiceMain entry point for " << *moduleId << '\n';
         m_TbConnection.disconnect();
         return;
     }
 
-    s2e()->getWarningsStream() << "Found ServiceMain at 0x" << std::hex << (*eit).second << std::dec << std::endl;
+    s2e()->getWarningsStream() << "Found ServiceMain at 0x" << hexval((*eit).second) << '\n';
 
     //XXX: cache the export table for reuse.
     if (pc != (*eit).second) {
         s2e()->getMessagesStream() << 
-            std::hex << "ServiceMain " << pc << " " << (*eit).second << std::dec << std::endl;
+            "ServiceMain " << hexval(pc) << " " << hexval((*eit).second) << '\n';
         return;
     }
 
     s2e()->getMessagesStream() << 
-            std::hex << "Found ServiceMain for "<< *moduleId << " "  << pc << " " << (*eit).second << std::dec << std::endl;
+            "Found ServiceMain for "<< *moduleId << " "  << hexval(pc)
+            << " " << hexval((*eit).second) <<'\n';
 
     
     signal->connect(
@@ -152,13 +153,13 @@ void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc)
     uint32_t paramCount;
     uint32_t paramsArray;
     
-    s2e()->getMessagesStream() << "WindowsService entered" << std::endl;
+    s2e()->getMessagesStream() << "WindowsService entered\n";
     //XXX: hard-coded pointer size assumptions
     SREAD(state, state->getSp()+sizeof(uint32_t), paramCount);
     SREAD(state, state->getSp()+2*sizeof(uint32_t), paramsArray);
     
     s2e()->getMessagesStream() << "WindowsService paramCount="  <<
-        paramCount << " - " << std::hex << paramsArray << "esp=" << state->getSp() << std::dec << std::endl;
+        paramCount << " - " << hexval(paramsArray) << "esp=" << hexval(state->getSp())  << '\n';
 
     for(unsigned i=0; i<paramCount; i++) {
         uint32_t paramPtr;
@@ -168,7 +169,7 @@ void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc)
             continue;
         }
         s2e()->getMessagesStream() << "WindowsService param" << i << " - " <<
-            param << std::endl;
+            param << '\n';
 
         if (m_ServiceCfg.makeParamsSymbolic) {
             makeUnicodeStringSymbolic(state, paramPtr);
@@ -178,7 +179,7 @@ void WindowsService::onExecution(S2EExecutionState *state, uint64_t pc)
     //Make number of params symbolic
     if (m_ServiceCfg.makeParamCountSymbolic) {
         klee::ref<klee::Expr> v = getUpperBound(state, paramCount, klee::Expr::Int32);
-        s2e()->getMessagesStream() << "ParamCount is now " << v << std::endl; 
+        s2e()->getMessagesStream() << "ParamCount is now " << v << '\n';
         state->writeMemory(state->getSp()+sizeof(uint32_t), v);
     }
 }

@@ -175,7 +175,7 @@ public:
     // Check accessibility of memory region
     bool checkMemoryAccess(S2EExecutionState *state,
                            uint64_t start, uint64_t size, uint8_t perms,
-                           std::ostream &message);
+                           llvm::raw_ostream &message);
 
     // Check that all memory objects were freed
     bool checkMemoryLeaks(S2EExecutionState *state);

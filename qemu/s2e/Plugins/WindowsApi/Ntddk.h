@@ -118,14 +118,14 @@ struct BUS_HANDLER32
     pGetInterruptVector GetInterruptVector;
     pTranslateBusAddress TranslateBusAddress;
 #endif
-    void print(std::ostream &os) const {
-        os << std::hex << "Version:           0x" << std::hex << Version << std::endl;
-        os << std::hex << "InterfaceType:     0x" << std::hex << InterfaceType << std::endl;
-        os << std::hex << "ConfigurationType: 0x" << std::hex << ConfigurationType << std::endl;
-        os << std::hex << "BusNumber:         0x" << std::hex << BusNumber << std::endl;
-        os << std::hex << "DeviceObject:      0x" << std::hex << DeviceObject << std::endl;
-        os << std::hex << "ParentHandler:     0x" << std::hex << ParentHandler << std::endl;
-        os << std::hex << "BusData:           0x" << std::hex << BusData << std::endl;
+    void print(llvm::raw_ostream &os) const {
+        os << "Version:           " << hexval(Version) << '\n';
+        os << "InterfaceType:     " << hexval(InterfaceType) << '\n';
+        os << "ConfigurationType: " << hexval(ConfigurationType) << '\n';
+        os << "BusNumber:         " << hexval(BusNumber) << '\n';
+        os << "DeviceObject:      " << hexval(DeviceObject) << '\n';
+        os << "ParentHandler:     " << hexval(ParentHandler) << '\n';
+        os << "BusData:           " << hexval(BusData) << '\n';
     }
 };
 

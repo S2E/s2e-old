@@ -82,8 +82,8 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <llvm/Target/TargetData.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
-#include <llvm/System/DynamicLibrary.h>
-#include <llvm/System/Process.h>
+#include <llvm/Support/DynamicLibrary.h>
+#include <llvm/Support/Process.h>
 #include <llvm/Support/CommandLine.h>
 
 #include <klee/PTree.h>
@@ -95,7 +95,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <klee/TimerStatIncrementer.h>
 #include <klee/Solver.h>
 
-#include <llvm/System/TimeValue.h>
+#include <llvm/Support/TimeValue.h>
 
 #include <vector>
 
@@ -314,7 +314,7 @@ void S2EHandler::processTestCase(const klee::ExecutionState &state,
 
     m_s2e->getWarningsStream(s)
            << "Terminating state " << s->getID()
-           << " with message '" << (err ? err : "") << "'" << std::endl;
+           << " with message '" << (err ? err : "") << "'" << '\n';
 
     //XXX: export a core event onStateTermination or something like that
     //to avoid hard-coded test case generation plugin.
@@ -367,7 +367,7 @@ void S2EExecutor::handlerOnTlbMiss(Executor* executor,
         /*
         g_s2e->getWarningsStream()
                 << "Warning: s2e_on_tlb_miss does not support symbolic addresses"
-                << std::endl;
+                << '\n';
                 */
         return;
     }
@@ -437,7 +437,7 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
         return;
     }
 
-    g_s2e->getDebugStream(s2eState) << "forkAndConcretize(" << expr << ")" << std::endl;
+    g_s2e->getDebugStream(s2eState) << "forkAndConcretize(" << expr << ")" << '\n';
 
     if (state->forkDisabled) {
         //Simply pick one possible value and continue
@@ -446,12 +446,12 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
                 Query(state->constraints, expr), value);
 
         if (success) {
-            g_s2e->getDebugStream(s2eState) << "Chosen " << value << std::endl;
+            g_s2e->getDebugStream(s2eState) << "Chosen " << value << '\n';
             ref<Expr> eqCond = EqExpr::create(expr, value);
             state->addConstraint(eqCond);
             s2eExecutor->bindLocal(target, *state, value);
         }else {
-            g_s2e->getDebugStream(s2eState) << "Failed to find a value. Leaving unconstrained." << std::endl;
+            g_s2e->getDebugStream(s2eState) << "Failed to find a value. Leaving unconstrained." << '\n';
             s2eExecutor->bindLocal(target, *state, expr);
         }
         return;
@@ -467,7 +467,7 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
             s2eExecutor->m_s2e->getWarningsStream(s2eState)
                 << "Dropping states with constraint \n"
                 << UleExpr::create(expr, klee::ConstantExpr::create(min, width))
-                << "\n becase max-forks-on-concretize limit was reached." << std::endl;
+                << "\n becase max-forks-on-concretize limit was reached." << '\n';
             break;
         }
 
@@ -558,8 +558,8 @@ void S2EExecutor::handleForkAndConcretize(Executor* executor,
 
         assert(success && "The solver failed");
         if (value->getZExtValue() != values[i]) {
-            g_s2e->getWarningsStream() << "Solver error: 0x" << std::hex <<
-                    value->getZExtValue() << " != 0x" << values[i] << std::endl << std::flush;
+            g_s2e->getWarningsStream() << "Solver error: " <<
+                    hexval(value->getZExtValue()) << " != " << hexval(values[i]) << '\n';
 
         }
         assert(success && value->getZExtValue() == values[i]);
@@ -704,8 +704,8 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     TargetData TD(M);
     assert(M->getPointerSize() == Module::Pointer64 && "Something is broken in your LLVM build: LLVM thinks pointers are 32-bits!");
 
-    s2e->getDebugStream() << "Current data layout: " << m_tcgLLVMContext->getModule()->getDataLayout() << std::endl;
-    s2e->getDebugStream() << "Current target triple: " << m_tcgLLVMContext->getModule()->getTargetTriple() << std::endl;
+    s2e->getDebugStream() << "Current data layout: " << m_tcgLLVMContext->getModule()->getDataLayout() << '\n';
+    s2e->getDebugStream() << "Current target triple: " << m_tcgLLVMContext->getModule()->getTargetTriple() << '\n';
 
     setModule(m_tcgLLVMContext->getModule(), MOpts, false);
 
@@ -859,7 +859,7 @@ S2EExecutionState* S2EExecutor::createInitialState()
 
 
     m_s2e->getMessagesStream(state)
-            << "Created initial state" << std::endl;
+            << "Created initial state" << '\n';
 
     return state;
 }
@@ -894,7 +894,7 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
     std::cout << std::hex
               << "Adding CPU (addr = 0x" << cpuEnv
               << ", size = 0x" << sizeof(*cpuEnv) << ")"
-              << std::dec << std::endl;
+              << std::dec << '\n';
 
     /* Add registers and eflags area as a true symbolic area */
     initialState->m_cpuRegistersState =
@@ -941,10 +941,10 @@ void S2EExecutor::registerRam(S2EExecutionState *initialState,
     assert((size & ~TARGET_PAGE_MASK) == 0);
     assert((hostAddress & ~TARGET_PAGE_MASK) == 0);
 
-    m_s2e->getDebugStream() << std::hex
-              << "Adding memory block (startAddr = 0x" << startAddress
-              << ", size = 0x" << size << ", hostAddr = 0x" << hostAddress
-              << ", isSharedConcrete=" << isSharedConcrete << ")" << std::dec << std::endl;
+    m_s2e->getDebugStream()
+              << "Adding memory block (startAddr = " << hexval(startAddress)
+              << ", size = " << hexval(size) << ", hostAddr = " << hexval(hostAddress)
+              << ", isSharedConcrete=" << isSharedConcrete << ")" << '\n';
 
     for(uint64_t addr = hostAddress; addr < hostAddress+size;
                  addr += S2E_RAM_OBJECT_SIZE) {
@@ -1041,7 +1041,7 @@ void S2EExecutor::switchToConcrete(S2EExecutionState *state)
     if (PrintModeSwitch) {
         m_s2e->getMessagesStream(state)
                 << "Switched to concrete execution at pc = "
-                << hexval(state->getPc()) << std::endl;
+                << hexval(state->getPc()) << '\n';
     }
 }
 
@@ -1063,7 +1063,7 @@ void S2EExecutor::switchToSymbolic(S2EExecutionState *state)
     if (PrintModeSwitch) {
         m_s2e->getMessagesStream(state)
                 << "Switched to symbolic execution at pc = "
-                << hexval(state->getPc()) << std::endl;
+                << hexval(state->getPc()) << '\n';
     }
 }
 
@@ -1097,7 +1097,7 @@ void S2EExecutor::doStateSwitch(S2EExecutionState* oldState,
 
     m_s2e->getMessagesStream(oldState)
             << "Switching from state " << (oldState ? oldState->getID() : -1)
-            << " to state " << (newState ? newState->getID() : -1) << std::endl;
+            << " to state " << (newState ? newState->getID() : -1) << '\n';
 
     const MemoryObject* cpuMo = oldState ? oldState->m_cpuSystemState :
                                             newState->m_cpuSystemState;
@@ -1187,7 +1187,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
         try {
             m_stateManager(NULL, false);
         }catch(CpuExitException &) {
-            m_s2e->getDebugStream() << "Attempted to kill current state, that's fine, we'll select another one." << std::endl;
+            m_s2e->getDebugStream() << "Attempted to kill current state, that's fine, we'll select another one." << '\n';
         }
         //The state manager can kill additional states, we must update the set of states,
         //otherwise, the searcher might select killed states.
@@ -1195,7 +1195,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     }
 
     if(states.empty()) {
-        m_s2e->getWarningsStream() << "All states were terminated" << std::endl;
+        m_s2e->getWarningsStream() << "All states were terminated" << '\n';
         foreach(S2EExecutionState* s, m_deletedStates) {
             unrefS2ETb(s->m_lastS2ETb);
             s->m_lastS2ETb = NULL;
@@ -1309,7 +1309,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
     if ( S2EDebugInstructions ) {
     m_s2e->getDebugStream(state) << "executing "
               << ki->inst->getParent()->getParent()->getNameStr()
-              << ": " << *ki->inst << std::endl;
+              << ": " << *ki->inst << '\n';
     }
 
     stepInstruction(*state);
@@ -1321,7 +1321,7 @@ inline void S2EExecutor::executeOneInstruction(S2EExecutionState *state)
 
 #ifdef S2E_TRACE_EFLAGS
         ref<Expr> efl = state->readCpuRegister(offsetof(CPUState, cc_src), klee::Expr::Int32);
-        m_s2e->getDebugStream() << std::hex << state->getPc() << "  CC_SRC " << efl << std::endl;
+        m_s2e->getDebugStream() << std::hex << state->getPc() << "  CC_SRC " << efl << '\n';
 #endif
 
     } catch(CpuExitException&) {
@@ -1401,9 +1401,9 @@ void S2EExecutor::finalizeTranslationBlockExec(S2EExecutionState *state)
 
     assert(!state->m_runningConcrete);
 
-    m_s2e->getDebugStream() << "Finalizing TB execution " << std::dec << state->getID() << std::endl;
+    m_s2e->getDebugStream() << "Finalizing TB execution " << state->getID() << '\n';
     foreach(const StackFrame& fr, state->stack) {
-        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << std::endl;
+        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
     }
 
     /* Information for GETPC() macro */
@@ -1471,7 +1471,7 @@ uintptr_t S2EExecutor::executeTranslationBlockKlee(
 
     /* Update state */
     //if (!copyInConcretes(*state)) {
-    //    std::cerr << "external modified read-only object" << std::endl;
+    //    std::cerr << "external modified read-only object" << '\n';
     //    exit(1);
     //}
 
@@ -1779,7 +1779,7 @@ klee::ref<klee::Expr> S2EExecutor::executeFunction(S2EExecutionState *state,
 
     /* Update state */
     //if (!copyInConcretes(*state)) {
-    //    std::cerr << "external modified read-only object" << std::endl;
+    //    std::cerr << "external modified read-only object" << '\n';
     //    exit(1);
     //}
 
@@ -1834,8 +1834,8 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
     bool exitLoop = false;
 
     do {
-        m_s2e->getDebugStream() << std::dec << "Size=" << newStates.size() <<
-                " Low=" << low << " splitIndex=" << splitIndex << " high=" << high << std::endl << std::flush;
+        m_s2e->getDebugStream() << "Size=" << newStates.size() <<
+                " Low=" << low << " splitIndex=" << splitIndex << " high=" << high << '\n';
 
         assert(low <= high);
         assert(splitIndex <= high && splitIndex >= low);
@@ -1851,7 +1851,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
         }
 
         if (child == 1) {
-            m_s2e->getDebugStream() << "Child (parent=" << parentId << ")" << std::endl << std::flush;
+            m_s2e->getDebugStream() << "Child (parent=" << parentId << ")" << '\n';
             //Only send notification to the children
             m_s2e->getCorePlugin()->onProcessFork.emit(false, true, parentId);
 
@@ -1879,17 +1879,17 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
                 break;
             }
         }else {
-            m_s2e->getDebugStream() << "Parent" << std::endl << std::flush;
+            m_s2e->getDebugStream() << "Parent" << '\n';
             m_s2e->getCorePlugin()->onProcessFork.emit(false, false, parentId);
 
             //Delete all the states after
-            m_s2e->getDebugStream() << "Deleting after i=" << splitIndex << " high=" << high << std::endl;
+            m_s2e->getDebugStream() << "Deleting after i=" << splitIndex << " high=" << high << '\n';
             for (int i=splitIndex; i<=high; ++i) {
                 if (newStates[i] == originalState) {
-                    m_s2e->getDebugStream() << "came across origstate" << std::endl;
+                    m_s2e->getDebugStream() << "came across origstate" << '\n';
                     exitLoop = true;
                 }
-                m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << std::endl;
+                m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << '\n';
                 terminateStateAtFork(*newStates[i]);
             }
             high = splitIndex - 1;
@@ -1915,17 +1915,17 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
 {
     assert(originalState->m_active && !originalState->m_runningConcrete);
 
-    std::ostream& out = m_s2e->getMessagesStream(originalState);
+    llvm::raw_ostream& out = m_s2e->getMessagesStream(originalState);
     out << "Forking state " << originalState->getID()
             << " at pc = " << hexval(originalState->getPc())
-        << " into states:" << std::endl;
+        << " into states:" << '\n';
 
 
     for(unsigned i = 0; i < newStates.size(); ++i) {
         S2EExecutionState* newState = newStates[i];
 
         out << "    state " << newState->getID() << " with condition "
-            << *newConditions[i].get() << std::endl;
+            << newConditions[i] << '\n';
 
         if(newState != originalState) {
             newState->m_needFinalizeTBExec = true;
@@ -1955,9 +1955,9 @@ void S2EExecutor::doStateFork(S2EExecutionState *originalState,
         }
     }
 
-    m_s2e->getDebugStream() << "Stack frame at fork:" << std::endl;
+    m_s2e->getDebugStream() << "Stack frame at fork:" << '\n';
     foreach(const StackFrame& fr, originalState->stack) {
-        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << std::endl;
+        m_s2e->getDebugStream() << fr.kf->function->getNameStr() << '\n';
     }
 
     m_s2e->getCorePlugin()->onStateFork.emit(originalState,
@@ -2039,11 +2039,11 @@ bool S2EExecutor::merge(klee::ExecutionState &_base, klee::ExecutionState &_othe
 
     if(base.merge(other)) {
         m_s2e->getMessagesStream(&base)
-                << "Merged with state " << other.getID() << std::endl;
+                << "Merged with state " << other.getID() << '\n';
         return true;
     } else {
         m_s2e->getDebugStream(&base)
-                << "Merge with state " << other.getID() << " failed" << std::endl;
+                << "Merge with state " << other.getID() << " failed" << '\n';
         return false;
     }
 }
@@ -2196,12 +2196,12 @@ void S2EExecutor::queueStateForMerge(S2EExecutionState *state)
     uint64_t mergePoint = 0;
     if(!state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ESP]), &mergePoint, 8)) {
         m_s2e->getWarningsStream(state)
-                << "Warning: merge request for a state with symbolic ESP" << std::endl;
+                << "Warning: merge request for a state with symbolic ESP" << '\n';
     }
     mergePoint = hash64(mergePoint);
     mergePoint = hash64(state->getPc(), mergePoint);
 
-    m_s2e->getMessagesStream(state) << "Queueing state for merging" << std::endl;
+    m_s2e->getMessagesStream(state) << "Queueing state for merging" << '\n';
 
     static_cast<MergingSearcher*>(searcher)->queueStateForMerge(*state, mergePoint);
     throw CpuExitException();
@@ -2266,7 +2266,7 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
 {
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
-            << std::endl;   */
+            << '\n';   */
     state->setRunningExceptionEmulationCode(false);
 
     try {

@@ -81,7 +81,7 @@ void CodeSelector::initialize()
 
     if (!ok) {
         s2e()->getWarningsStream() << "You must specify a list of modules in " <<
-                getConfigKey() + ".modules" << std::endl;
+                getConfigKey() + ".modules\n";
         exit(-1);
     }
 
@@ -90,7 +90,7 @@ void CodeSelector::initialize()
             m_interceptedModules.insert(*it);
         }else {
             s2e()->getWarningsStream() << "CodeSelector: " <<
-                    "Module " << *it << " is not configured" << std::endl;
+                    "Module " << *it << " is not configured\n";
             exit(-1);
         }
     }

@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/system_error.h"
 
 // FIXME: Ugh, this is gross. But otherwise our config.h conflicts with LLVMs.
 #undef PACKAGE_BUGREPORT
@@ -47,7 +48,7 @@ int main(int argc, char **argv) {
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
 #include "llvm/Target/TargetSelect.h"
-#include "llvm/System/Signals.h"
+#include "llvm/Support/Signals.h"
 #include <iostream>
 #include <fstream>
 #include <cerrno>
@@ -593,7 +594,7 @@ static void parseArguments(int argc, char **argv) {
     argArray[i] = arguments[i-1].c_str();
   }
 
-  cl::ParseCommandLineOptions(numArgs, (char**) argArray, " klee\n");
+  cl::ParseCommandLineOptions(numArgs, const_cast<char**>(argArray), " klee\n");
   delete[] argArray;
 }
 
@@ -1169,14 +1170,22 @@ int main(int argc, char **argv, char **envp) {
   MP->releaseModule();
   delete MP;
 #else
-  std::string ErrorMsg;
   Module *mainModule = 0;
-  MemoryBuffer *Buffer = MemoryBuffer::getFileOrSTDIN(InputFile, &ErrorMsg);
-  if (Buffer) {
-    mainModule = getLazyBitcodeModule(Buffer, getGlobalContext(), &ErrorMsg);
-    if (!mainModule) delete Buffer;
+
+  llvm::error_code ErrorStr;
+  llvm::OwningPtr<MemoryBuffer>Buffer;
+  if ((ErrorStr = MemoryBuffer::getFileOrSTDIN(InputFile, Buffer))) {
+      klee_error("error loading program '%s': %s", InputFile.c_str(),
+                 ErrorStr.message().c_str());
+    return 1;
   }
-  if (mainModule) {
+
+
+  std::string ErrorMsg;
+    mainModule = getLazyBitcodeModule(Buffer.get(), getGlobalContext(), &ErrorMsg);
+    //if (!mainModule) delete Buffer;
+
+    if (mainModule) {
     if (mainModule->MaterializeAllPermanently(&ErrorMsg)) {
       delete mainModule;
       mainModule = 0;

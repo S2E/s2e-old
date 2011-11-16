@@ -71,7 +71,7 @@ void Annotation::initialize()
 
     //Reading all sections first
     foreach2(it, Sections.begin(), Sections.end()) {
-        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
+        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << '\n';
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
         if (!initSection(sk.str(), *it)) {
@@ -80,7 +80,7 @@ void Annotation::initialize()
     }
 
     if (!noErrors) {
-        s2e()->getWarningsStream() << "Errors while scanning the sections"  <<std::endl;
+        s2e()->getWarningsStream() << "Errors while scanning the sections"  <<'\n';
         exit(-1);
     }
 
@@ -106,7 +106,7 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
     AnnotationCfgEntry e, *ne;
 
     ConfigFile *cfg = s2e()->getConfig();
-    std::ostream &os  = s2e()->getWarningsStream();
+    llvm::raw_ostream &os  = s2e()->getWarningsStream();
 
     e.cfgname = cfgname;
 
@@ -115,17 +115,17 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
 
     e.isActive = cfg->getBool(entry + ".active", false, &ok);
     if (!ok) {
-        os << "You must specify whether the entry is active in " << entry << ".active!" << std::endl;
+        os << "You must specify whether the entry is active in " << entry << ".active!" << '\n';
         return false;
     }
 
     e.module = cfg->getString(entry + ".module", "", &ok);
     if (!ok) {
-        os << "You must specify a valid module for " << entry << ".module!" << std::endl;
+        os << "You must specify a valid module for " << entry << ".module!" << '\n';
         return false;
     }else {
         if (!m_moduleExecutionDetector->isModuleConfigured(e.module)) {
-            os << "The module " << e.module << " is not configured in ModuleExecutionDetector!" << std::endl;
+            os << "The module " << e.module << " is not configured in ModuleExecutionDetector!" << '\n';
             return false;
         }
     }
@@ -133,7 +133,7 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
 
     e.address = cfg->getInt(entry + ".address", 0, &ok);
     if (!ok) {
-        os << "You must specify a valid address for " << entry << ".address!" << std::endl;
+        os << "You must specify a valid address for " << entry << ".address!" << '\n';
         return false;
     }
 
@@ -144,7 +144,7 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
     if (!ok || e.annotation=="") {
         e.annotation = cfg->getString(entry + ".instructionAnnotation", "", &ok);
         if (!ok || e.annotation == "") {
-            os << "You must specifiy either " << entry << ".callAnnotation or .instructionAnnotation!" << std::endl;
+            os << "You must specifiy either " << entry << ".callAnnotation or .instructionAnnotation!" << '\n';
             return false;
         }else {
             e.isCallAnnotation = false;
@@ -157,7 +157,7 @@ bool Annotation::initSection(const std::string &entry, const std::string &cfgnam
 
         e.paramCount = cfg->getInt(entry + ".paramcount", 0, &ok);
         if (!ok) {
-            os << "You must specify a valid number of function parameters for " << entry << ".paramcount!" << std::endl;
+            os << "You must specify a valid number of function parameters for " << entry << ".paramcount!" << '\n';
             return false;
         }
     }
@@ -196,7 +196,7 @@ void Annotation::onModuleLoad(
         }
 
         if (cfg.address - module.NativeBase > module.Size) {
-            s2e()->getWarningsStream() << "Specified pc for annotation exceeds the size of the loaded module" << std::endl;
+            s2e()->getWarningsStream() << "Specified pc for annotation exceeds the size of the loaded module" << '\n';
         }
 
         uint64_t funcPc = module.ToRuntime(cfg.address);
@@ -274,7 +274,7 @@ void Annotation::onTranslateInstruction(
     }
 
     s2e()->getDebugStream() << "Annotation: Instrumenting instruction before=" << isStart <<
-   " " << (*it)->beforeInstruction << " with annotation " << (*it)->cfgname << std::endl;
+   " " << (*it)->beforeInstruction << " with annotation " << (*it)->cfgname << '\n';
 
     signal->connect(
         sigc::mem_fun(*this, &Annotation::onInstruction)
@@ -394,7 +394,7 @@ void Annotation::onInstruction(S2EExecutionState *state, uint64_t pc)
 
 
     s2e()->getDebugStream() << "Annotation: Invoking instruction annotation " << (*it)->cfgname <<
-            " at 0x" << std::hex << e.address << std::endl;
+            " at " << hexval(e.address) << '\n';
     invokeAnnotation(state, NULL, *it, false, true);
 
 }
@@ -410,7 +410,7 @@ void Annotation::onFunctionCall(
     }
 
     state->undoCallAndJumpToSymbolic();
-    s2e()->getDebugStream() << "Annotation: Invoking call annotation " << entry->cfgname << std::endl;
+    s2e()->getDebugStream() << "Annotation: Invoking call annotation " << entry->cfgname << '\n';
     invokeAnnotation(state, fns, entry, true, false);
 
 }
@@ -421,7 +421,7 @@ void Annotation::onFunctionRet(
         )
 {
     state->jumpToSymbolicCpp();
-    s2e()->getDebugStream() << "Annotation: Invoking return annotation "  << entry->cfgname << std::endl;
+    s2e()->getDebugStream() << "Annotation: Invoking return annotation "  << entry->cfgname << '\n';
     invokeAnnotation(state, NULL, entry, false, false);
 }
 
@@ -466,7 +466,7 @@ int LUAAnnotation::setSkip(lua_State *L)
 {
     m_doSkip = lua_toboolean(L, 1);
 
-    g_s2e->getDebugStream() << "LUAAnnotation: setSkip " << m_doSkip << std::endl;
+    g_s2e->getDebugStream() << "LUAAnnotation: setSkip " << m_doSkip << '\n';
     return 0;
 }
 
@@ -475,14 +475,14 @@ int LUAAnnotation::setKill(lua_State *L)
 
     m_doKill = lua_toboolean(L, 1);
 
-    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doKill << std::endl;
+    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doKill << '\n';
     return 0;
 }
 
 int LUAAnnotation::succeed(lua_State *L)
 {
     m_succeed = true;
-    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << std::endl;
+    g_s2e->getDebugStream() << "LUAAnnotation: setKill " << m_doSkip << '\n';
     return 0;
 }
 
@@ -492,7 +492,7 @@ int LUAAnnotation::activateRule(lua_State *L)
     bool activate = lua_toboolean(L, 2);
 
     g_s2e->getDebugStream() << "LUAAnnotation: setting active state of rule " <<
-            rule << " to " << activate << std::endl;
+            rule << " to " << activate << '\n';
 
     foreach2(it, m_plugin->m_entries.begin(), m_plugin->m_entries.end()) {
         if ((*it)->cfgname != rule) {
@@ -525,7 +525,7 @@ int LUAAnnotation::setValue(lua_State *L)
   std::string key = luaL_checkstring(L, 1);
   uint64_t value = luaL_checknumber(L, 2);
 
-  g_s2e->getDebugStream() << "LUAAnnotation: setValue " << key << "=" << value << std::endl;
+  g_s2e->getDebugStream() << "LUAAnnotation: setValue " << key << "=" << value << '\n';
 
   DECLARE_PLUGINSTATE_P(m_plugin, AnnotationState, m_state);
   plgState->setValue(key, value);
@@ -540,7 +540,7 @@ int LUAAnnotation::getValue(lua_State *L)
   DECLARE_PLUGINSTATE_P(m_plugin, AnnotationState, m_state);
   uint64_t value = plgState->getValue(key);
 
-  g_s2e->getDebugStream() << "LUAAnnotation: getValue " << key << "=" << value  << std::endl;
+  g_s2e->getDebugStream() << "LUAAnnotation: getValue " << key << "=" << value  << '\n';
 
   lua_pushnumber(L, value);
   return 1;

@@ -39,7 +39,7 @@ extern "C" {
 #include "qemu-common.h"
 }
 
-#include <llvm/System/TimeValue.h>
+#include <llvm/Support/TimeValue.h>
 
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
@@ -76,12 +76,12 @@ void sm_callback(S2EExecutionState *s, bool killingState)
 
     //If there are no states, try to resume some successful ones
     if (g_s2e->getExecutor()->getStatesCount() == 0) {
-        g_s2e->getDebugStream() << "No more active states" << std::endl;
+        g_s2e->getDebugStream() << "No more active states" << '\n';
 
         //If there are no successful states on the local process,
         //there is nothing else to do, kill the process
         if (sm->m_succeeded.size() == 0) {
-            g_s2e->getDebugStream() << "No more succeeded states" << std::endl;
+            g_s2e->getDebugStream() << "No more succeeded states" << '\n';
             sm->m_shared.release();
             return;
         }
@@ -105,7 +105,7 @@ void sm_callback(S2EExecutionState *s, bool killingState)
 //XXX: Assumes we are called from the callback
 void StateManager::suspendCurrentProcess()
 {
-    s2e()->getDebugStream() << "Suspending process" << std::endl;
+    s2e()->getDebugStream() << "Suspending process" << '\n';
     unsigned currentProcessId = s2e()->getCurrentProcessId();
 
     StateManagerShared *shared = m_shared.acquire();
@@ -140,7 +140,7 @@ void StateManager::suspendCurrentProcess()
 
 void StateManager::resumeAllProcesses()
 {
-    s2e()->getDebugStream() << "Resuming all processes" << std::endl;
+    s2e()->getDebugStream() << "Resuming all processes" << '\n';
     StateManagerShared *shared = m_shared.get();
 
     unsigned maxProcessCount = s2e()->getMaxProcesses();
@@ -175,8 +175,8 @@ void StateManager::checkInvariants(bool grabLock)
     uint64_t *successCount = m_shared.get()->successCount;
     if (successCount[s2e()->getCurrentProcessId()] != m_succeeded.size()) {
         unsigned procId = s2e()->getCurrentProcessId();
-        s2e()->getWarningsStream() << "successCount[" << procId << "]=" << std::dec << successCount[procId] << std::endl;
-        s2e()->getWarningsStream() << "m_succeeded.size()=" << std::dec << m_succeeded.size() << std::endl<<std::flush;
+        s2e()->getWarningsStream() << "successCount[" << procId << "]=" << successCount[procId] << '\n';
+        s2e()->getWarningsStream() << "m_succeeded.size()=" << m_succeeded.size() << '\n';
         assert(successCount[procId] == m_succeeded.size());
     }
 
@@ -212,7 +212,7 @@ bool StateManager::processCommands()
     if (cmd.command == StateManagerShared::KILL) {
         cmd.command = StateManagerShared::EMPTY;
         s->commands[s2e()->getCurrentProcessId()].write(cmd);
-        s2e()->getDebugStream() << "StateManager: received kill command" << std::endl;
+        s2e()->getDebugStream() << "StateManager: received kill command" << '\n';
         if (cmd.nodeId == s2e()->getCurrentProcessId()) {
             //Keep one successful
             assert(s->keepOneStateOnNode == cmd.nodeId);
@@ -345,8 +345,8 @@ void StateManager::onProcessFork(bool preFork, bool isChild, unsigned parentProc
     if (isChild) {
         unsigned procId = s2e()->getCurrentProcessId();
 
-        s2e()->getDebugStream() << "StateManager forked curProc=" << std::dec << procId <<
-                " parentProcId=" << parentProcId << std::endl;
+        s2e()->getDebugStream() << "StateManager forked curProc=" << procId <<
+                " parentProcId=" << parentProcId << '\n';
 
         StateManagerShared *s = m_shared.acquire();
         s->successCount[procId] = m_succeeded.size();
@@ -369,7 +369,7 @@ void StateManager::onNewBlockCovered(
         TranslationBlock *tb,
         uint64_t pc)
 {
-    s2e()->getDebugStream() << "New block " << std::hex << pc << " discovered" << std::endl;
+    s2e()->getDebugStream() << "New block " << hexval(pc) << " discovered" << '\n';
     resetTimeout();
 }
 
@@ -379,16 +379,16 @@ bool StateManager::killOnTimeOut()
         return false;
     }
 
-    s2e()->getDebugStream() << "No more blocks found in " <<
-            std::dec << m_timeout << " seconds, killing states."
-            << std::endl;
+    s2e()->getDebugStream() << "No more blocks found in "
+            << m_timeout << " seconds, killing states."
+            << '\n';
 
     //Reset the counter here to avoid being called again
     //(killAllButOneSuccessful will throw an exception if it deletes the current state).
     resetTimeout();
 
     if (!killAllButOneSuccessful()) {
-        s2e()->getDebugStream() << "There are no successful states to kill..."  << std::endl;
+        s2e()->getDebugStream() << "There are no successful states to kill..."  << '\n';
         return false;
     }
     return true;
@@ -397,12 +397,12 @@ bool StateManager::killOnTimeOut()
 
 bool StateManager::killAllExcept(StateSet &toKeep, bool ungrab)
 {
-    std::ostream &os = s2e()->getDebugStream();
+    llvm::raw_ostream &os = s2e()->getDebugStream();
     os << "StateManager: killAllExcept ";
     foreach2(it, toKeep.begin(), toKeep.end()) {
         os << (*it)->getID() << " ";
     }
-    os << std::endl;
+    os << '\n';
 
     bool killCurrent = false;
     const std::set<klee::ExecutionState*> &states = s2e()->getExecutor()->getStates();
@@ -437,7 +437,7 @@ bool StateManager::killAllExcept(StateSet &toKeep, bool ungrab)
 
 void StateManager::killAllButOneSuccessfulLocal(bool ungrabLock)
 {
-    s2e()->getDebugStream() << "StateManager: killAllButOneSuccessfulLocal" << std::endl;
+    s2e()->getDebugStream() << "StateManager: killAllButOneSuccessfulLocal" << '\n';
     checkInvariants();
     assert(m_succeeded.size() > 0);
     S2EExecutionState *one =  *m_succeeded.begin();
@@ -477,8 +477,8 @@ bool StateManager::killAllButOneSuccessful()
         return false;
     }
 
-    s2e()->getDebugStream() << "StateManager: Killing all but one successful on node " << std::dec <<
-            s2e()->getProcessIndexForId(hasSuccessfulIndex) << std::endl;
+    s2e()->getDebugStream() << "StateManager: Killing all but one successful on node "
+            << s2e()->getProcessIndexForId(hasSuccessfulIndex) << '\n';
 
     //Kill all states everywhere except one successful on the instance that we found
     if (hasSuccessfulIndex == s2e()->getCurrentProcessId()) {
@@ -512,13 +512,13 @@ bool StateManager::killAllButOneSuccessful()
 
 bool StateManager::succeedState(S2EExecutionState *s)
 {
-    s2e()->getDebugStream() << "Succeeding state " << std::dec << s->getID() << std::endl;
+    s2e()->getDebugStream() << "Succeeding state " << s->getID() << '\n';
     checkInvariants();
 
     if (m_succeeded.find(s) != m_succeeded.end()) {
         //Do not suspend states that were consecutively succeeded.
-        s2e()->getDebugStream() << "State " << std::dec << s->getID() <<
-                " was already marked as succeeded" << std::endl;
+        s2e()->getDebugStream() << "State " << s->getID() <<
+                " was already marked as succeeded" << '\n';
         return false;
     }
     m_succeeded.insert(s);
@@ -572,7 +572,7 @@ void StateManager::onCustomInstruction(S2EExecutionState* state, uint64_t opcode
         }
 
         default:
-            s2e()->getWarningsStream() << "StateManager: incorrect opcode " << std::hex << subfunc << std::endl;
+            s2e()->getWarningsStream() << "StateManager: incorrect opcode " << hexval(subfunc) << '\n';
     }
 }
 

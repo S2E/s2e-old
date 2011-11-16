@@ -34,8 +34,6 @@
  *
  */
 
-#define NDEBUG
-
 // XXX: qemu stuff should be included before anything from KLEE or LLVM !
 extern "C" {
 #include "config.h"
@@ -389,7 +387,7 @@ bool WindowsUmInterceptor::GetPids(S2EExecutionState *State, PidSet &out)
     uint64_t pItem;
 
     uint64_t CurrentProcess = m_Os->getCurrentProcess(State);
-    g_s2e->getDebugStream() << "CurrentProcess: " << std::hex << CurrentProcess << std::endl;
+    g_s2e->getDebugStream() << "CurrentProcess: " << hexval(CurrentProcess) << '\n';
 
     //Read the head of the list
     if (!State->readMemoryConcrete(ActiveProcessList, &ListHead, sizeof(ListHead))) {

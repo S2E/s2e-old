@@ -67,40 +67,43 @@ void TestCaseGenerator::processTestCase(const S2EExecutionState &state,
 {
     s2e()->getMessagesStream()
             << "TestCaseGenerator: processTestCase of state " << state.getID()
-            << " at address 0x" << std::hex << state.getPc()
-            << std::endl;
+            << " at address 0x" << hexval(state.getPc())
+            << '\n';
 
     ConcreteInputs out;
     bool success = s2e()->getExecutor()->getSymbolicSolution(state, out);
 
     if (!success) {
-        s2e()->getWarningsStream() << "Could not get symbolic solutions" << std::endl;
+        s2e()->getWarningsStream() << "Could not get symbolic solutions" << '\n';
         return;
     }
 
 #if 0
     foreach2(it, state.constraints.begin(), state.constraints.end()) {
-        s2e()->getMessagesStream() << "Constraint: " << std::hex << *it << std::endl;
+        s2e()->getMessagesStream() << "Constraint: " << std::hex << *it << '\n';
     }
 #endif
 
-    s2e()->getMessagesStream() << std::endl;
+    s2e()->getMessagesStream() << '\n';
 
     ExecutionTracer *tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
     assert(tracer);
 
+    std::stringstream ss;
     ConcreteInputs::iterator it;
     for (it = out.begin(); it != out.end(); ++it) {
         const VarValuePair &vp = *it;
-        s2e()->getMessagesStream() << vp.first << ": ";
+        ss << vp.first << ": ";
 
         for (unsigned i=0; i<vp.second.size(); ++i) {
-            s2e()->getMessagesStream() << std::setw(2) << std::setfill('0') << (unsigned) vp.second[i] << ' '
+            ss << std::setw(2) << std::setfill('0') << (unsigned) vp.second[i] << ' '
                     << (vp.second[i] >= 0x20 ? (char) vp.second[i] : ' ');
         }
 
-        s2e()->getMessagesStream() << std::setfill(' ')<< std::endl;
+        ss << std::setfill(' ')<< '\n';
     }
+
+    s2e()->getMessagesStream() << ss.str();
 
     unsigned bufsize;
     ExecutionTraceTestCase *tc = ExecutionTraceTestCase::serialize(&bufsize, out);

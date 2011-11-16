@@ -30,7 +30,7 @@
 #include "llvm/ExecutionEngine/JIT.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/System/DynamicLibrary.h"
+#include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetSelect.h"
 #include <setjmp.h>

@@ -40,7 +40,7 @@
 #include <s2e/ConfigFile.h>
 #include <s2e/Utils.h>
 
-#include <llvm/System/TimeValue.h>
+#include <llvm/Support/TimeValue.h>
 
 #include <iostream>
 #include <sstream>
@@ -85,7 +85,7 @@ bool EventTracer::initSections(TracerConfigEntryFactory cfgFactory)
             continue;
         }
 
-        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << std::endl;
+        s2e()->getMessagesStream() << "Scanning section " << getConfigKey() << "." << *it << '\n';
         std::stringstream sk;
         sk << getConfigKey() << "." << *it;
 
@@ -108,7 +108,7 @@ bool EventTracer::initSections(TracerConfigEntryFactory cfgFactory)
 
     if (!noErrors) {
         s2e()->getWarningsStream() << "Errors while scanning the " <<
-            getConfigKey() << " sections" <<std::endl;
+            getConfigKey() << " sections" <<'\n';
         return false;
     }
 
@@ -124,7 +124,7 @@ bool EventTracer::initBaseParameters(TracerConfigEntry *cfgEntry,
 
     cfgEntry->moduleId = s2e()->getConfig()->getString(cfgKey + ".moduleId", "", &ok);
     if (!ok && !cfgEntry->traceAll) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".moduleId" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".moduleId" << '\n';
         return false;
     }
     return true;
@@ -135,7 +135,7 @@ bool EventTracer::registerConfigEntry(TracerConfigEntry *cfgEntry)
     if (cfgEntry->traceAll) {
         if (m_Modules.size() > 0) {
             s2e()->getWarningsStream() <<
-                    "EventTracer: There can be only one entry when tracing everything" << std::endl;
+                    "EventTracer: There can be only one entry when tracing everything" << '\n';
             return false;
         }
 
@@ -147,7 +147,7 @@ bool EventTracer::registerConfigEntry(TracerConfigEntry *cfgEntry)
     EventTracerCfgMap::iterator it = m_Modules.find(cfgEntry->moduleId);
     if (it != m_Modules.end()) {
         s2e()->getWarningsStream() <<
-                "EventTracer: " << cfgEntry->moduleId << " defined multiple times" << std::endl;
+                "EventTracer: " << cfgEntry->moduleId << " defined multiple times" << '\n';
         return false;
     }
 

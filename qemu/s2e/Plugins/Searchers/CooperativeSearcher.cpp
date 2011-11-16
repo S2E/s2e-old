@@ -158,7 +158,7 @@ void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t
             if(!ok) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: symbolic argument was passed to s2e_op "
-                       "CooperativeSearcher ScheduleNext" << std::endl;
+                       "CooperativeSearcher ScheduleNext" << '\n';
                 break;
             }
 
@@ -166,13 +166,13 @@ void CooperativeSearcher::onCustomInstruction(S2EExecutionState* state, uint64_t
             if (it == m_states.end()) {
                 s2e()->getWarningsStream(state)
                     << "ERROR: Invalid state passed to " <<
-                    "CooperativeSearcher ScheduleNext: " << std::dec << nextState << std::endl;
+                    "CooperativeSearcher ScheduleNext: " << nextState << '\n';
             }
 
             m_currentState = (*it).second;
 
             s2e()->getMessagesStream(state) <<
-                    "CooperativeSearcher picked the state " << nextState << std::endl;
+                    "CooperativeSearcher picked the state " << nextState << '\n';
 
             //Force rescheduling
             state->writeCpuState(CPU_OFFSET(eip), state->getPc() + 10, 32);

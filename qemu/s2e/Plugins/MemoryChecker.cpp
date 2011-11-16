@@ -80,7 +80,7 @@ namespace {
     typedef klee::ImmutableMap<MemoryRange, const MemoryRegion*,
                                MemoryRangeLT> MemoryMap;
 
-    std::ostream& operator <<(std::ostream& out, const MemoryRegion& r) {
+    llvm::raw_ostream& operator <<(llvm::raw_ostream& out, const MemoryRegion& r) {
         out << "MemoryRegion(\n"
             << "    start = " << hexval(r.range.start) << "\n"
             << "    size = " << hexval(r.range.size) << "\n"
@@ -205,19 +205,20 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
 {
     if (state->isRunningExceptionEmulationCode()) {
         //We do not check what memory the CPU accesses.
-        s2e()->getWarningsStream() << "Running emulation code" << std::endl;
+        s2e()->getWarningsStream() << "Running emulation code" << '\n';
         return;
     }
 
     if(!isa<klee::ConstantExpr>(virtualAddress)) {
         s2e()->getWarningsStream(state) << "Symbolic memory accesses are "
-                << "not yet supported by MemoryChecker" << std::endl;
+                << "not yet supported by MemoryChecker" << '\n';
         return;
     }
 
     uint64_t start = cast<klee::ConstantExpr>(virtualAddress)->getZExtValue();
 
-    std::stringstream err;
+    std::string errstr;
+    llvm::raw_string_ostream err(errstr);
     bool result = checkMemoryAccess(state, start,
                       klee::Expr::getMinBytesForWidth(value->getWidth()),
                       isWrite ? 2 : 1, err);
@@ -227,7 +228,7 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
         if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
-            s2e()->getWarningsStream(state) << err.str() << std::flush;
+            s2e()->getWarningsStream(state) << err.str();
     }
 }
 
@@ -251,7 +252,7 @@ bool MemoryChecker::matchRegionType(const std::string &pattern, const std::strin
     std::string patternPrefix = pattern.substr(0, len-1);
 
     s2e()->getDebugStream() << "matchRegionType typePrefix=" << typePrefix
-            << " patternPrefix=" << patternPrefix << std::endl;
+            << " patternPrefix=" << patternPrefix << '\n';
 
     return typePrefix.compare(patternPrefix) == 0;
 }
@@ -387,7 +388,7 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
     region->permanent = permanent;
 
     s2e()->getDebugStream(state) << "MemoryChecker::grantMemory("
-            << *region << ")" << std::endl;
+            << *region << ")" << '\n';
 
     /********************************************/
     /* Write a log entry about the grant event */
@@ -409,8 +410,8 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
     if(size == 0 || start + size < start) {
         s2e()->getWarningsStream(state) << "MemoryChecker::grantMemory: "
             << "detected region of " << (size == 0 ? "zero" : "negative")
-            << " size!" << std::endl
-            << "This probably means a bug in the OS or S2E API annotations" << std::endl;
+            << " size!" << '\n'
+            << "This probably means a bug in the OS or S2E API annotations" << '\n';
         delete region;
         return;
     }
@@ -418,10 +419,10 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
     const MemoryMap::value_type *res = memoryMap.lookup_previous(region->range);
     if (res && res->first.start + res->first.size > start) {
         s2e()->getWarningsStream(state) << "MemoryChecker::grantMemory: "
-            << "detected overlapping ranges!" << std::endl
-            << "This probably means a bug in the OS or S2E API annotations" << std::endl
-            << "NOTE: requested region: " << *region << std::endl
-            << "NOTE: overlapping region: " << *res->second << std::endl;
+            << "detected overlapping ranges!" << '\n'
+            << "This probably means a bug in the OS or S2E API annotations" << '\n'
+            << "NOTE: requested region: " << *region << '\n'
+            << "NOTE: overlapping region: " << *res->second << '\n';
         delete region;
         return;
     }
@@ -447,7 +448,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
     region->id = regionID;
 
     s2e()->getDebugStream(state) << "MemoryChecker::revokeMemory("
-            << *region << ")" << std::endl;
+            << *region << ")" << '\n';
 
 
     /********************************************/
@@ -463,57 +464,58 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
     delete [] (uint8_t*)traceEntry;
     /********************************************/
 
-    std::ostringstream err;
+    std::string errstr;
+    llvm::raw_string_ostream err(errstr);
 
     do {
         if(size != uint64_t(-1) && start + size < start) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing region of " << (size == 0 ? "zero" : "negative")
-                << " size!" << std::endl;
+                << " size!" << '\n';
             break;
         }
 
         const MemoryMap::value_type *res = memoryMap.lookup_previous(region->range);
         if(!res || res->first.start + res->first.size <= start) {
             err << "MemoryChecker::revokeMemory: "
-                << "BUG: freeing memory that was not allocated!" << std::endl;
+                << "BUG: freeing memory that was not allocated!" << '\n';
             break;
         }
 
         if(res->first.start != start) {
             err << "MemoryChecker::revokeMemory: "
-                << "BUG: freeing memory that was not allocated!" << std::endl
-                << "  NOTE: overlapping region exists: " << *res->second << std::endl
-                << "  NOTE: requested region: " << *region << std::endl;
+                << "BUG: freeing memory that was not allocated!" << '\n'
+                << "  NOTE: overlapping region exists: " << *res->second << '\n'
+                << "  NOTE: requested region: " << *region << '\n';
             break;
         }
 
         if(size != uint64_t(-1) && res->first.size != size) {
             err << "MemoryChecker::revokeMemory: "
-                << "BUG: freeing memory region of wrong size!" << std::endl
-                << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << *region << std::endl;
+                << "BUG: freeing memory region of wrong size!" << '\n'
+                << "  NOTE: allocated region: " << *res->second << '\n'
+                << "  NOTE: requested region: " << *region << '\n';
         }
 
         if(perms != uint8_t(-1) && res->second->perms != perms) {
             err << "MemoryChecker::revokeMemory: "
-                << "BUG: freeing memory region with wrong permissions!" << std::endl
-                << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << *region << std::endl;
+                << "BUG: freeing memory region with wrong permissions!" << '\n'
+                << "  NOTE: allocated region: " << *res->second << '\n'
+                << "  NOTE: requested region: " << *region << '\n';
         }
 
         if(regionTypePattern.size()>0 && !matchRegionType(regionTypePattern, res->second->type)) {
             err << "MemoryChecker::revokeMemory: "
-                << "BUG: freeing memory region with wrong region type!" << std::endl
-                << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << *region << std::endl;
+                << "BUG: freeing memory region with wrong region type!" << '\n'
+                << "  NOTE: allocated region: " << *res->second << '\n'
+                << "  NOTE: requested region: " << *region << '\n';
         }
 
         if(regionID != uint64_t(-1) && res->second->id != regionID) {
             err << "MemoryChecker::revokeMemory: "
-                << "BUG: freeing memory region with wrong region ID!" << std::endl
-                << "  NOTE: allocated region: " << *res->second << std::endl
-                << "  NOTE: requested region: " << *region << std::endl;
+                << "BUG: freeing memory region with wrong region ID!" << '\n'
+                << "  NOTE: allocated region: " << *res->second << '\n'
+                << "  NOTE: requested region: " << *region << '\n';
         }
 
         //we can not just delete it since it can be used by other states!
@@ -527,7 +529,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
         if(m_terminateOnErrors)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
-            s2e()->getWarningsStream(state) << err.str() << std::flush;
+            s2e()->getWarningsStream(state) << err.str();
         return false;
     }
 
@@ -543,7 +545,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
 
     s2e()->getDebugStream(state) << "MemoryChecker::revokeMemory("
             << "pattern = '" << regionTypePattern << "', "
-            << "regionID = " << hexval(regionID) << ")" << std::endl;
+            << "regionID = " << hexval(regionID) << ")" << '\n';
 
     bool ret = true;
     bool changed = true;
@@ -611,7 +613,7 @@ bool MemoryChecker::revokeMemoryByPointer(S2EExecutionState *state, uint64_t poi
 
 bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
                                       uint64_t start, uint64_t size, uint8_t perms,
-                                      std::ostream &err)
+                                      llvm::raw_ostream &err)
 {
     if(!m_checkMemoryErrors)
         return true;
@@ -626,7 +628,7 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
         if(size != uint64_t(-1) && start + size < start) {
             err << "MemoryChecker::checkMemoryAccess: "
                 << "BUG: freeing region of " << (size == 0 ? "zero" : "negative")
-                << " size!" << std::endl;
+                << " size!" << '\n';
             hasError = true;
             break;
         }
@@ -640,7 +642,7 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
                     << " cannot be accessed by instruction " << getPrettyCodeLocation(state)
-                    << ": it is not mapped!" << std::endl;
+                    << ": it is not mapped!" << '\n';
             hasError = true;
             break;
         }
@@ -649,8 +651,8 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
                     << " can not be accessed by instruction " << getPrettyCodeLocation(state)
-                    << ": it is not mapped!" << std::endl
-                    << "  NOTE: closest allocated memory region: " << *res->second << std::endl;
+                    << ": it is not mapped!" << '\n'
+                    << "  NOTE: closest allocated memory region: " << *res->second << '\n';
             hasError = true;
             break;
         }
@@ -659,9 +661,9 @@ bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
                     << " can not be accessed by instruction " << getPrettyCodeLocation(state)
-                    << ": insufficient permissions!" << std::endl
-                    << "  NOTE: requested permissions: " << hexval(perms) << std::endl
-                    << "  NOTE: closest allocated memory region: " << *res->second << std::endl;
+                    << ": insufficient permissions!" << '\n'
+                    << "  NOTE: requested permissions: " << hexval(perms) << '\n'
+                    << "  NOTE: closest allocated memory region: " << *res->second << '\n';
             hasError = true;
             break;
         }
@@ -702,22 +704,23 @@ bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state)
 
     MemoryMap &memoryMap = plgState->getMemoryMap();
 
-    s2e()->getDebugStream(state) << "MemoryChecker::checkMemoryLeaks" << std::endl;
+    s2e()->getDebugStream(state) << "MemoryChecker::checkMemoryLeaks" << '\n';
 
     if(memoryMap.empty())
         return true;
 
-    std::stringstream err;
+    std::string errstr;
+    llvm::raw_string_ostream err(errstr);
 
     for(MemoryMap::iterator it = memoryMap.begin(), ie = memoryMap.end();
                                                      it != ie; ++it) {
         if(!it->second->permanent) {
             if(err.str().empty()) {
                 err << "MemoryChecker::checkMemoryLeaks: "
-                            << "memory leaks detected!" << std::endl;
+                            << "memory leaks detected!" << '\n';
             }
             err << "  NOTE: leaked memory region: "
-                    << *it->second << std::endl;
+                    << *it->second << '\n';
         }
     }
 
@@ -725,7 +728,7 @@ bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state)
         if(m_terminateOnLeaks)
             s2e()->getExecutor()->terminateStateEarly(*state, err.str());
         else
-            s2e()->getWarningsStream(state) << err.str() << std::flush;
+            s2e()->getWarningsStream(state) << err.str();
         return false;
     }
 

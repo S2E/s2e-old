@@ -73,7 +73,6 @@ static void *qemu_st_helpers[5] = {
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Module.h>
-#include <llvm/ModuleProvider.h>
 #include <llvm/PassManager.h>
 #include <llvm/Intrinsics.h>
 #include <llvm/Analysis/Verifier.h>
@@ -82,7 +81,8 @@ static void *qemu_st_helpers[5] = {
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Support/IRBuilder.h>
 
-#include <llvm/System/DynamicLibrary.h>
+#include <llvm/Support/DynamicLibrary.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <iostream>
 #include <sstream>
@@ -120,7 +120,6 @@ struct TCGLLVMContextPrivate {
 
     /* Current m_module */
     Module *m_module;
-    ModuleProvider *m_moduleProvider;
 
     /* JIT engine */
     TJITMemoryManager *m_jitMemoryManager;
@@ -245,8 +244,8 @@ public:
     void setPoisonMemory(bool poison) { m_base->setPoisonMemory(poison); }
     void AllocateGOT() { m_base->AllocateGOT(); }
     uint8_t *getGOTBase() const { return m_base->getGOTBase(); }
-    void SetDlsymTable(void *ptr) { m_base->SetDlsymTable(ptr); }
-    void *getDlsymTable() const { return m_base->getDlsymTable(); }
+    //void SetDlsymTable(void *ptr) { m_base->SetDlsymTable(ptr); }
+    //void *getDlsymTable() const { return m_base->getDlsymTable(); }
     uint8_t *allocateStub(const GlobalValue* F, unsigned StubSize,
                                 unsigned Alignment) {
         return m_base->allocateStub(F, StubSize, Alignment);
@@ -257,15 +256,23 @@ public:
     uint8_t *allocateGlobal(uintptr_t Size, unsigned Alignment) {
         return m_base->allocateGlobal(Size, Alignment);
     }
-    void deallocateMemForFunction(const Function *F) {
-        m_base->deallocateMemForFunction(F);
+    //void deallocateMemForFunction(const Function *F) {
+    //    m_base->deallocateMemForFunction(F);
+    //}
+
+    virtual void deallocateFunctionBody(void *Body) {
+        m_base->deallocateFunctionBody(Body);
     }
+
     uint8_t* startExceptionTable(const Function* F, uintptr_t &ActualSize) {
         return m_base->startExceptionTable(F, ActualSize);
     }
     void endExceptionTable(const Function *F, uint8_t *TableStart,
                                  uint8_t *TableEnd, uint8_t* FrameRegister) {
         m_base->endExceptionTable(F, TableStart, TableEnd, FrameRegister);
+    }
+    virtual void deallocateExceptionTable(void *Body) {
+        m_base->deallocateExceptionTable(Body);
     }
     bool CheckInvariants(std::string &ErrorStr) {
         return m_base->CheckInvariants(ErrorStr);
@@ -296,19 +303,18 @@ TCGLLVMContextPrivate::TCGLLVMContextPrivate()
     InitializeNativeTarget();
 
     m_module = new Module("tcg-llvm", m_context);
-    m_moduleProvider = new ExistingModuleProvider(m_module);
 
     m_jitMemoryManager = new TJITMemoryManager();
 
     std::string error;
     m_executionEngine = ExecutionEngine::createJIT(
-            m_moduleProvider, &error, m_jitMemoryManager);
+            m_module, &error, m_jitMemoryManager);
     if(m_executionEngine == NULL) {
         std::cerr << "Unable to create LLVM JIT: " << error << std::endl;
         exit(1);
     }
 
-    m_functionPassManager = new FunctionPassManager(m_moduleProvider);
+    m_functionPassManager = new FunctionPassManager(m_module);
     m_functionPassManager->add(
             new TargetData(*m_executionEngine->getTargetData()));
 
@@ -1323,7 +1329,8 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
 #endif
 
     if(qemu_loglevel_mask(CPU_LOG_LLVM_IR)) {
-        std::ostringstream s;
+        std::string fcnString;
+        llvm::raw_string_ostream s(fcnString);
         s << *m_tbFunction;
         qemu_log("OUT (LLVM IR):\n");
         qemu_log("%s", s.str().c_str());
@@ -1363,11 +1370,6 @@ LLVMContext& TCGLLVMContext::getLLVMContext()
 Module* TCGLLVMContext::getModule()
 {
     return m_private->m_module;
-}
-
-ModuleProvider* TCGLLVMContext::getModuleProvider()
-{
-    return m_private->m_moduleProvider;
 }
 
 ExecutionEngine* TCGLLVMContext::getExecutionEngine()

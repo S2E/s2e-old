@@ -59,7 +59,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/System/Process.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Target/TargetData.h"
 
 #include <cassert>

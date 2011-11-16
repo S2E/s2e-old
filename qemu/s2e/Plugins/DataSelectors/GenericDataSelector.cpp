@@ -95,19 +95,19 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
     bool ok;
     cfg.moduleId = s2e()->getConfig()->getString(cfgKey + ".moduleId", "", &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".moduleId" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".moduleId\n";
         return false;
     }
 
     if (!m_ExecDetector->isModuleConfigured(cfg.moduleId)) {
-        s2e()->getWarningsStream() << cfg.moduleId << " is not configured in " << cfgKey  << std::endl;
+        s2e()->getWarningsStream() << cfg.moduleId << " is not configured in " << cfgKey  << '\n';
         exit(-1);
         return false;
     }
 
     std::string rule = s2e()->getConfig()->getString(cfgKey + ".rule", "", &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".rule" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".rule" << '\n';
         return false;
     }
 
@@ -120,7 +120,7 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
     }else if (rule == "injectmem") {
         cfg.rule = RuleCfg::INJECTMEM;
     }else {
-        s2e()->getWarningsStream() << "Invalid rule " << rule << std::endl;
+        s2e()->getWarningsStream() << "Invalid rule " << rule << '\n';
         exit(-1);
         return false;
     }
@@ -128,14 +128,14 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
     if (cfg.rule == RuleCfg::INJECTMEM) {
         cfg.size = s2e()->getConfig()->getInt(cfgKey + ".size", 0, &ok);
         if (!ok || cfg.size > 8 || cfg.size < 1) {
-            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".size with injectmem (between 1 and 8)" << std::endl;
+            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".size with injectmem (between 1 and 8)\n";
             exit(-1);
             return false;
         }
 
         cfg.offset = s2e()->getConfig()->getInt(cfgKey + ".offset", 0, &ok);
         if (!ok) {
-            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".offset with injectmem" << std::endl;
+            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".offset with injectmem\n";
             exit(-1);
             return false;
         }
@@ -143,7 +143,7 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
 
     cfg.pc = s2e()->getConfig()->getInt(cfgKey + ".pc", 0, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".pc" << std::endl;
+        s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".pc\n";
         exit(-1);
         return false;
     }
@@ -153,7 +153,7 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
     cfg.value = s2e()->getConfig()->getInt(cfgKey + ".value", 0, &ok);
     if (!ok) {
         if (cfg.concrete) {
-            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".value when injecting concrete values." << std::endl;
+            s2e()->getWarningsStream() << "You must specify " << cfgKey <<  ".value when injecting concrete values.\n";
             exit(-1);
             return false;
         }
@@ -161,13 +161,13 @@ bool GenericDataSelector::initSection(const std::string &cfgKey, const std::stri
 
     cfg.reg = s2e()->getConfig()->getInt(cfgKey + ".register", 0, &ok);
     if (!ok) {
-        s2e()->getWarningsStream() << "You might have forgotten to specify " << cfgKey <<  ".register" << std::endl;
+        s2e()->getWarningsStream() << "You might have forgotten to specify " << cfgKey <<  ".register\n";
         exit(-1);
         return false;
     }
 
     if (cfg.reg >= 8) {
-        s2e()->getWarningsStream() << "You must specifiy a register between 0 and 7 in " << cfgKey <<  ".register" << std::endl;
+        s2e()->getWarningsStream() << "You must specifiy a register between 0 and 7 in " << cfgKey <<  ".register\n";
         exit(-1);
         return false;
     }
@@ -195,7 +195,7 @@ void GenericDataSelector::onModuleLoad(
         DECLARE_PLUGINSTATE(GenericDataSelectorState, state);
 
         if (cfg.pc - module.NativeBase > module.Size) {
-            s2e()->getWarningsStream() << "Specified pc for rule exceeds the size of the loaded module" << std::endl;
+            s2e()->getWarningsStream() << "Specified pc for rule exceeds the size of the loaded module\n";
         }
 
         plgState->activateRule(cfg, module);
@@ -296,7 +296,7 @@ void GenericDataSelector::onExecution(S2EExecutionState *state, uint64_t pc)
         case RuleCfg::INJECTREG: injectRegister(state, pc, r.reg, r.concrete, r.value); break;
         case RuleCfg::INJECTMEM: injectMemory(state, pc, r.reg, r.offset, r.concrete, r.size, r.value); break;
         case RuleCfg::RSAKEYGEN: injectRsaGenKey(state); break;
-        default: s2e()->getWarningsStream() << "Invalid rule type " << r.rule << std::endl;
+        default: s2e()->getWarningsStream() << "Invalid rule type " << r.rule <<  '\n';
             break;
     }
 }
@@ -307,13 +307,13 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const Runtime
     uint32_t paramCount;
     uint32_t paramsArray;
     
-    s2e()->getDebugStream() << "Injecting main() arguments" << std::endl;
+    s2e()->getDebugStream() << "Injecting main() arguments\n";
     //XXX: hard-coded pointer size assumptions
     SREAD(state, state->getSp()+sizeof(uint32_t), paramCount);
     SREAD(state, state->getSp()+2*sizeof(uint32_t), paramsArray);
     
     s2e()->getMessagesStream() << "main paramCount="  <<
-        paramCount << " - " << std::hex << paramsArray << "esp=" << state->getSp() << std::dec << std::endl;
+        paramCount << " - " << hexval(paramsArray) << "esp=" << hexval(state->getSp()) << '\n';
 
     for(unsigned i=0; i<paramCount; i++) {
         uint32_t paramPtr;
@@ -323,7 +323,7 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const Runtime
             continue;
         }
         s2e()->getMessagesStream() << "main param" << i << " - " <<
-            param << std::endl;
+            param << '\n';
 
         if (rule->makeParamsSymbolic) {
             makeStringSymbolic(state, paramPtr);
@@ -333,7 +333,7 @@ void GenericDataSelector::injectMainArgs(S2EExecutionState *state, const Runtime
     //Make number of params symbolic
     if (rule->makeParamCountSymbolic) {
         klee::ref<klee::Expr> v = getUpperBound(state, paramCount, klee::Expr::Int32);
-        s2e()->getMessagesStream() << "ParamCount is now " << v << std::endl; 
+        s2e()->getMessagesStream() << "ParamCount is now " << v << '\n';
         state->writeMemory(state->getSp()+sizeof(uint32_t), v);
     }
 }
@@ -349,14 +349,14 @@ void GenericDataSelector::injectRegister(S2EExecutionState *state, uint64_t pc, 
     }
 
     if (concrete) {
-        s2e()->getDebugStream() << "Injecting concrete value 0x" << std::hex << val << " in register " << reg
-                << " at pc 0x" << state->getPc() << std::endl;
+        s2e()->getDebugStream() << "Injecting concrete value " << hexval(val) << " in register " << reg
+                << " at pc " << hexval(state->getPc()) << '\n';
         //state->dumpStack(20);
         assert (reg < 8);
         state->writeCpuRegisterConcrete(CPU_OFFSET(regs) + reg * sizeof(target_ulong), &val, sizeof(val));
     }else {
         s2e()->getDebugStream() << "Injecting symbolic value in register " << reg
-                << " at pc 0x" << state->getPc() << std::endl;
+                << " at pc " << hexval(state->getPc()) << '\n';
 
         assert (reg < 8);
         //state->dumpStack(20);
@@ -379,12 +379,12 @@ void GenericDataSelector::injectMemory(S2EExecutionState *state, uint64_t pc,
         state->jumpToSymbolicCpp();
     }
 
-    std::ostream &os = s2e()->getDebugStream();
+    llvm::raw_ostream &os = s2e()->getDebugStream();
 
     //Fetch the specified base register
     uint32_t base;
     if (!state->readCpuRegisterConcrete(CPU_OFFSET(regs) + reg * sizeof(target_ulong), &base, sizeof(base))) {
-        os << "Failed to read base register " << std::dec << reg << ". Make sure it is concrete!" << std::endl;
+        os << "Failed to read base register " << reg << ". Make sure it is concrete!\n";
         return;
     }
 
@@ -392,14 +392,14 @@ void GenericDataSelector::injectMemory(S2EExecutionState *state, uint64_t pc,
     assert (size <= 8);
 
     if (concrete) {
-        os << "Injecting concrete value 0x" << std::hex << val << " in memory 0x" << std::hex << base
-                << " at pc 0x" << state->getPc() << std::endl;
+        os << "Injecting concrete value 0x" << hexval(val) << " in memory " << hexval(base)
+                << " at pc " << hexval(state->getPc()) << '\n';
         //state->dumpStack(20);
         assert (reg < 8);
         state->writeMemoryConcrete((uint64_t)base, &val, size);
      }else {
-         s2e()->getDebugStream() << "Injecting symbolic value in memory 0x" << std::hex << base
-                << " at pc 0x" << state->getPc() << std::endl;
+         s2e()->getDebugStream() << "Injecting symbolic value in memory " << hexval(base)
+                << " at pc " << hexval(state->getPc()) << '\n';
 
         assert (reg < 8);
         //state->dumpStack(20);
@@ -420,16 +420,16 @@ void GenericDataSelector::injectRsaGenKey(S2EExecutionState *state)
     SREAD(state, state->getSp()+2*sizeof(uint32_t), origExponent);
     SREAD(state, state->getSp()+3*sizeof(uint32_t), origCallBack);
 
-    s2e()->getMessagesStream() << "Caught RSA_generate_key" << std::endl <<
+    s2e()->getMessagesStream() << "Caught RSA_generate_key" << '\n' <<
         "origKeySize=" << origKeySize << " origExponent=" << origExponent <<
-        " origCallBack=" << std::hex << origCallBack << std::dec << std::endl;
+        " origCallBack=" << hexval(origCallBack) << '\n';
 
     //Now we replace the arguments with properly constrained symbolic values
     klee::ref<klee::Expr> newKeySize = getUpperBound(state, 2048, klee::Expr::Int32);
     klee::ref<klee::Expr> newExponent = getOddValue(state, klee::Expr::Int32, 65537);
 
-    s2e()->getMessagesStream() << "newKeySize=" << newKeySize << std::endl;
-    s2e()->getMessagesStream() << "newExponent=" << newExponent << std::endl;
+    s2e()->getMessagesStream() << "newKeySize=" << newKeySize << '\n';
+    s2e()->getMessagesStream() << "newExponent=" << newExponent << '\n';
 
     state->writeMemory(state->getSp()+sizeof(uint32_t), newKeySize);
     state->writeMemory(state->getSp()+2*sizeof(uint32_t), newExponent);

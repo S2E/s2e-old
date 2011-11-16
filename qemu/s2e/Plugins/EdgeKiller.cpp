@@ -83,7 +83,7 @@ void EdgeKiller::onModuleLoad(
 
     if (!id) {
         s2e()->getDebugStream() << "EdgeKiller could not figure out which "
-                "module id was passed to onModuleLoad!" << std::endl;
+                "module id was passed to onModuleLoad!" << '\n';
         module.Print(s2e()->getDebugStream());
         return;
     }
@@ -96,7 +96,7 @@ void EdgeKiller::onModuleLoad(
 
     if (pollingEntries.size() == 0) {
         s2e()->getWarningsStream() << "EdgeKiller did not find any configured entry for "
-                "the module " << *id <<  "(" << ss.str() << ")" << std::endl;
+                "the module " << *id <<  "(" << ss.str() << ")" << '\n';
         return;
     }
 
@@ -106,20 +106,20 @@ void EdgeKiller::onModuleLoad(
         ConfigFile::integer_list il = cfg->getIntegerList(ss1.str());
         if (il.size() != 2) {
             s2e()->getWarningsStream() << "EdgeKiller entry " << ss1.str() <<
-                    " must be of the form {sourcePc, destPc} format" << *id << std::endl;
+                    " must be of the form {sourcePc, destPc} format" << *id << '\n';
             continue;
         }
 
         bool ok = false;
         uint64_t source = cfg->getInt(ss1.str() + "[1]", 0, &ok);
         if (!ok) {
-            s2e()->getWarningsStream() << "EdgeKiller could not read " << ss1.str() << "[0]" << std::endl;
+            s2e()->getWarningsStream() << "EdgeKiller could not read " << ss1.str() << "[0]" << '\n';
             continue;
         }
 
         uint64_t dest = cfg->getInt(ss1.str() + "[2]", 0, &ok);
         if (!ok) {
-            s2e()->getWarningsStream() << "EdgeKiller could not read " << ss1.str() << "[1]" << std::endl;
+            s2e()->getWarningsStream() << "EdgeKiller could not read " << ss1.str() << "[1]" << '\n';
             continue;
         }
 
@@ -201,7 +201,7 @@ void EdgeKiller::onEdge(S2EExecutionState* state, uint64_t sourcePc)
         ss << "Edge from 0x" <<std::hex << sourcePc << " to 0x"
                 << state->getPc();
 
-        s2e()->getMessagesStream(state) << ss.str() << std::endl;
+        s2e()->getMessagesStream(state) << ss.str() << '\n';
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
     }
 }

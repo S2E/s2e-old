@@ -57,12 +57,12 @@ bool NdisHandlers::makePacketSymbolic(S2EExecutionState *s, uint32_t pPacket, bo
     NDIS_PACKET32 Packet;
 
     if (!s->readMemoryConcrete(pPacket, &Packet, sizeof(Packet))) {
-        s2e()->getWarningsStream() << "Could not read NDIS_PACKET. Maybe it has symbolic data?" << std::endl;
+        s2e()->getWarningsStream() << "Could not read NDIS_PACKET. Maybe it has symbolic data?" << '\n';
         return false;
     }
 
     if (!Packet.Private.Head) {
-        s2e()->getDebugStream() << "NDIS_PACKET 0x" << pPacket << " is empty." << std::endl;
+        s2e()->getDebugStream() << "NDIS_PACKET 0x" << pPacket << " is empty." << '\n';
         return false;
     }
 
@@ -72,14 +72,14 @@ bool NdisHandlers::makePacketSymbolic(S2EExecutionState *s, uint32_t pPacket, bo
     for (pCurrentBuffer = Packet.Private.Head; pCurrentBuffer; pCurrentBuffer = pNextBuffer) {
         MDL32 CurrentMdl;
         if (!s->readMemoryConcrete(pCurrentBuffer, &CurrentMdl, sizeof(CurrentMdl))) {
-            s2e()->getWarningsStream() << "Could not read NDIS_BUFFER. Maybe it has symbolic data?" << std::endl;
+            s2e()->getWarningsStream() << "Could not read NDIS_BUFFER. Maybe it has symbolic data?" << '\n';
             return false;
         }
 
         pNextBuffer = CurrentMdl.Next;
 
         if (!(CurrentMdl.MdlFlags & MDL_MAPPING_FLAGS)) {
-            s2e()->getWarningsStream() << "NDIS_BUFFER MDL is not mapped" << std::endl;
+            s2e()->getWarningsStream() << "NDIS_BUFFER MDL is not mapped" << '\n';
             continue;
         }
 

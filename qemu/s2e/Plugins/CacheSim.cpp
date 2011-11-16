@@ -47,7 +47,7 @@ extern "C" {
 #include <s2e/Utils.h>
 #include <s2e/Database.h>
 
-#include <llvm/System/TimeValue.h>
+#include <llvm/Support/TimeValue.h>
 
 #include <iostream>
 #include <stdlib.h>
@@ -174,7 +174,7 @@ public:
             }
         }
 
-        //g_s2e->getDebugStream() << "Miss at 0x" << std::hex << address << std::endl;
+        //g_s2e->getDebugStream() << "Miss at 0x" << std::hex << address << '\n';
         /* Cache miss. Install new tag as MRU */
         misCount[0] += 1;
         for(unsigned j = m_associativity-1; j > 0; --j)
@@ -251,30 +251,30 @@ CacheSimState::CacheSimState(S2EExecutionState *s, Plugin *p)
         m_i1_length += 1;
         s2e->getMessagesStream() << " -> " << c->getName();
     }
-    s2e->getMessagesStream() << " -> memory" << std::endl;
+    s2e->getMessagesStream() << " -> memory" << '\n';
 
     s2e->getMessagesStream() << "Data cache hierarchy:";
     for(Cache* c = m_d1; c != NULL; c = c->getUpperCache()) {
         m_d1_length += 1;
         s2e->getMessagesStream() << " -> " << c->getName();
     }
-    s2e->getMessagesStream() << " -> memory" << std::endl;
+    s2e->getMessagesStream() << " -> memory" << '\n';
 
 
     if (csp->m_execDetector && csp->m_startOnModuleLoad){
-        s2e->getDebugStream()  << "Connecting to onModuleTranslateBlockStart" << std::endl;
+        s2e->getDebugStream()  << "Connecting to onModuleTranslateBlockStart" << '\n';
         csp->m_ModuleConnection = csp->m_execDetector->onModuleTranslateBlockStart.connect(
                 sigc::mem_fun(*csp, &CacheSim::onModuleTranslateBlockStart));
 
     }else {
         if(m_d1) {
-            s2e->getDebugStream()  << "CacheSim: connecting to onDataMemoryAccess" << std::endl;
+            s2e->getDebugStream()  << "CacheSim: connecting to onDataMemoryAccess" << '\n';
             s2e->getCorePlugin()->onDataMemoryAccess.connect(
                 sigc::mem_fun(*csp, &CacheSim::onDataMemoryAccess));
         }
 
         if(m_i1) {
-            s2e->getDebugStream()  << "CacheSim: connecting to onTranslateBlockStart" << std::endl;
+            s2e->getDebugStream()  << "CacheSim: connecting to onTranslateBlockStart" << '\n';
             s2e->getCorePlugin()->onTranslateBlockStart.connect(
              sigc::mem_fun(*csp, &CacheSim::onTranslateBlockStart));
         }
@@ -294,7 +294,7 @@ CacheSimState::~CacheSimState()
 
 PluginState *CacheSimState::factory(Plugin *p, S2EExecutionState *s)
 {
-    p->s2e()->getDebugStream() << "Creating initial CacheSimState" << std::endl;
+    p->s2e()->getDebugStream() << "Creating initial CacheSimState" << '\n';
     CacheSimState *ret = new CacheSimState(s, p);
     return ret;
 
@@ -364,7 +364,7 @@ void CacheSim::initialize()
     m_Tracer = (ExecutionTracer*)s2e()->getPlugin("ExecutionTracer");
 
     if (!m_execDetector) {
-        s2e()->getMessagesStream() << "ModuleExecutionDetector not found, will profile the whole system" << std::endl;
+        s2e()->getMessagesStream() << "ModuleExecutionDetector not found, will profile the whole system" << '\n';
     }
 
     //Report misses form the entire system
@@ -387,7 +387,7 @@ void CacheSim::initialize()
 
     m_cacheStructureWrittenToLog = false;
     if (m_useBinaryLogFile && !m_Tracer) {
-        s2e()->getWarningsStream() << "ExecutionTracer is required when useBinaryLogFile is set!" << std::endl;
+        s2e()->getWarningsStream() << "ExecutionTracer is required when useBinaryLogFile is set!" << '\n';
         exit(-1);
     }
 
@@ -474,7 +474,7 @@ void CacheSim::onModuleTranslateBlockStart(
     DECLARE_PLUGINSTATE(CacheSimState, state);
 
     s2e()->getDebugStream() << "Module translation CacheSim " << desc.Name << "  " <<
-        pc <<std::endl;
+        pc <<'\n';
 
     if(plgState->m_d1)
         s2e()->getCorePlugin()->onDataMemoryAccess.connect(
@@ -485,7 +485,7 @@ void CacheSim::onModuleTranslateBlockStart(
             sigc::mem_fun(*this, &CacheSim::onTranslateBlockStart));
 
     //We connected ourselves, do not need to monitor modules anymore.
-    s2e()->getDebugStream()  << "Disconnecting module translation cache sim" << std::endl;
+    s2e()->getDebugStream()  << "Disconnecting module translation cache sim" << '\n';
     m_ModuleConnection.disconnect();
 }
 
@@ -583,7 +583,7 @@ void CacheSim::onMemoryAccess(S2EExecutionState *state,
         if(m_cacheLog.size() == CACHESIM_LOG_SIZE)
             flushLogEntries();
 
-       // std::cout << state->getPc() << " "  << c->getName() << ": " << missCount[i] << std::endl;
+       // std::cout << state->getPc() << " "  << c->getName() << ": " << missCount[i] << '\n';
 
         if (m_reportZeroMisses || missCount[i]) {
             if (m_useBinaryLogFile) {
@@ -625,7 +625,7 @@ void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
     if(!isa<ConstantExpr>(hostAddress)) {
         s2e()->getWarningsStream()
                 << "Warning: CacheSim do not support symbolic addresses"
-                << std::endl;
+                << '\n';
         return;
     }
 
@@ -634,7 +634,7 @@ void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
 
     if (m_physAddress) {
         constAddress = cast<ConstantExpr>(hostAddress)->getZExtValue(64);
-  //      s2e()->getDebugStream() << "acc pc=" << std::hex << state->getPc() << " ha=" << constAddress << std::endl;
+  //      s2e()->getDebugStream() << "acc pc=" << std::hex << state->getPc() << " ha=" << constAddress << '\n';
     }else {
         constAddress = cast<ConstantExpr>(address)->getZExtValue(64);
     }
@@ -645,7 +645,7 @@ void CacheSim::onDataMemoryAccess(S2EExecutionState *state,
 void CacheSim::onExecuteBlockStart(S2EExecutionState *state, uint64_t pc,
                                    TranslationBlock *tb, uint64_t hostAddress)
 {
-//    s2e()->getDebugStream() << "exec pc=" << std::hex << pc << " ha=" << hostAddress << std::endl;
+//    s2e()->getDebugStream() << "exec pc=" << std::hex << pc << " ha=" << hostAddress << '\n';
     onMemoryAccess(state, m_physAddress ? hostAddress : pc, tb->size, false, false, true);
 }
 
@@ -658,7 +658,7 @@ void CacheSim::onTranslateBlockStart(ExecutionSignal *signal,
 
     if (m_physAddress) {
         newPc = state->getHostAddress(tb->pc);
-        //s2e()->getDebugStream() << "tb pc=" << std::hex << tb->pc << " ha=" << newPc << std::endl;
+        //s2e()->getDebugStream() << "tb pc=" << std::hex << tb->pc << " ha=" << newPc << '\n';
     }else {
         newPc = tb->pc;
     }

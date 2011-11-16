@@ -216,18 +216,18 @@ void NtoskrnlHandlers::DebugPrint(S2EExecutionState* state, FunctionMonitorState
      ok &= readConcreteParameter(state, 1, &strptr);
 
      if (!ok) {
-         s2e()->getDebugStream() << "Could not read string in DebugPrint" << std::endl;
+         s2e()->getDebugStream() << "Could not read string in DebugPrint" << '\n';
          return;
      }
 
      std::string message;
      ok = state->readString(strptr, message, 255);
      if (!ok) {
-         s2e()->getDebugStream() << "Could not read string in DebugPrint at address 0x" << std::hex << strptr <<  std::endl;
+         s2e()->getDebugStream() << "Could not read string in DebugPrint at address 0x" << hexval(strptr) <<  '\n';
          return;
      }
 
-     s2e()->getMessagesStream(state) << "DebugPrint: " << message << std::endl;
+     s2e()->getMessagesStream(state) << "DebugPrint: " << message << '\n';
 }
 
 
@@ -252,7 +252,7 @@ void NtoskrnlHandlers::IoCreateSymbolicLink(S2EExecutionState* state, FunctionMo
         std::string strDeviceName = readUnicodeString(state, pDeviceName);
 
         s2e()->getMessagesStream() << "IoCreateSymbolicName SymbolicLinkName: " << strSymbolicLinkName
-                << " DeviceName: " << strDeviceName << std::endl;
+                << " DeviceName: " << strDeviceName << '\n';
     }
 
     state->undoCallAndJumpToSymbolic();
@@ -316,7 +316,7 @@ void NtoskrnlHandlers::IoCreateDeviceRet(S2EExecutionState* state, uint32_t pDev
     }
 
     if (m_memoryChecker) {
-        s2e()->getDebugStream() << "IoCreateDeviceRet pDeviceObject=0x" << std::hex << pDeviceObject << std::endl;
+        s2e()->getDebugStream() << "IoCreateDeviceRet pDeviceObject=0x" << hexval(pDeviceObject) << '\n';
 
         uint32_t DeviceObject;
 
@@ -391,7 +391,7 @@ void NtoskrnlHandlers::IoFreeMdl(S2EExecutionState *state, FunctionMonitorState 
     ok &= readConcreteParameter(state, 0, &Buffer);
 
     if (!ok) {
-        s2e()->getDebugStream(state) << "Could not read parameters" << std::endl;
+        s2e()->getDebugStream(state) << "Could not read parameters" << '\n';
         return;
     }
 
@@ -407,7 +407,7 @@ void NtoskrnlHandlers::GetSystemUpTime(S2EExecutionState* state, FunctionMonitor
     HANDLER_TRACE_CALL();
     state->undoCallAndJumpToSymbolic();
 
-    s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
+    s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << '\n';
 
     klee::ref<klee::Expr> ret = state->createSymbolicValue(klee::Expr::Int32, getVariableName(state, __FUNCTION__));
 
@@ -423,7 +423,7 @@ void NtoskrnlHandlers::KeStallExecutionProcessor(S2EExecutionState* state, Funct
 {
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
-    s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << std::endl;
+    s2e()->getDebugStream(state) << "Bypassing function " << __FUNCTION__ << '\n';
 
     state->bypassFunction(1);
 }
@@ -642,7 +642,7 @@ void NtoskrnlHandlers::ExAllocatePoolWithTag(S2EExecutionState* state, FunctionM
     ok &= readConcreteParameter(state, 0, &poolType);
     ok &= readConcreteParameter(state, 1, &size);
     if(!ok) {
-        s2e()->getDebugStream(state) << "Can not read pool type and length of memory allocation" << std::endl;
+        s2e()->getDebugStream(state) << "Can not read pool type and length of memory allocation" << '\n';
         return;
     }
 
@@ -710,7 +710,7 @@ void NtoskrnlHandlers::ExFreePoolWithTag(S2EExecutionState* state, FunctionMonit
 void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorState *fns, uint32_t irpMajor)
 {
     HANDLER_TRACE_CALL();
-    s2e()->getMessagesStream() << "IRP " << std::dec << irpMajor << " " << s_irpMjArray[irpMajor] << std::endl;
+    s2e()->getMessagesStream() << "IRP " << irpMajor << " " << s_irpMjArray[irpMajor] << '\n';
 
     state->undoCallAndJumpToSymbolic();
 
@@ -762,7 +762,7 @@ void NtoskrnlHandlers::DriverDispatch(S2EExecutionState* state, FunctionMonitorS
 
         uint32_t ioctl = stackLocation.Parameters.DeviceIoControl.IoControlCode;
 
-        s2e()->getMessagesStream() << s_irpMjArray[irpMajor] << " control code 0x" << std::hex << ioctl << std::endl;
+        s2e()->getMessagesStream() << s_irpMjArray[irpMajor] << " control code " << hexval(ioctl) << '\n';
 
         DECLARE_PLUGINSTATE(NtoskrnlHandlersState, state);
         if (plgState->isIoctlIrpExplored) {

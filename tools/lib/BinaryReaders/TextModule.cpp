@@ -160,7 +160,9 @@ bool TextModule::parseTextDescription(const std::string &fileName)
         char buffer[1024];
         std::string fcnName;
         uint64_t start, end;
-        fgets(buffer, sizeof(buffer), f);
+        if (fgets(buffer, sizeof(buffer), f) != buffer){
+            break;
+        }
 
         if (processTextDescHeader(buffer)) {
             continue;

@@ -74,11 +74,11 @@ namespace plugins {
 
 #define DECLARE_EP_STRUC(cl, n) { #n, &cl::n }
 
-#define HANDLER_TRACE_CALL() s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl
-#define HANDLER_TRACE_RETURN() s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << std::endl
-#define HANDLER_TRACE_FCNFAILED() s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed" << std::endl
-#define HANDLER_TRACE_FCNFAILED_VAL(val) s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed with 0x" << std::hex << (val) << std::endl
-#define HANDLER_TRACE_PARAM_FAILED(val) s2e()->getDebugStream() << "Faild to read parameter " << val << " in " << __FUNCTION__ << " at line " << __LINE__ << std::endl
+#define HANDLER_TRACE_CALL() s2e()->getDebugStream(state) << "Calling " << __FUNCTION__ << " at " << hexval(state->getPc()) << '\n'
+#define HANDLER_TRACE_RETURN() s2e()->getDebugStream(state) << "Returning from " << __FUNCTION__ << " at " << hexval(state->getPc()) << '\n'
+#define HANDLER_TRACE_FCNFAILED() s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed" << '\n'
+#define HANDLER_TRACE_FCNFAILED_VAL(val) s2e()->getDebugStream() << "Original " << __FUNCTION__ << " failed with 0x" <<  hexval(val) << '\n'
+#define HANDLER_TRACE_PARAM_FAILED(val) s2e()->getDebugStream() << "Faild to read parameter " << val << " in " << __FUNCTION__ << " at line " << __LINE__ << '\n'
 
 template <typename F>
 struct WindowsApiHandler {
@@ -327,7 +327,7 @@ public:
         foreach2(it, entryPoints.begin(), entryPoints.end()) {
             if (!registerEntryPoint(state, (*it).first, (uint64_t)(*it).second)) {
                 if (ANNOTATIONS_PLUGIN::s_ignoredFunctions.find((*it).first) == ANNOTATIONS_PLUGIN::s_ignoredFunctions.end()) {
-                    s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << getPluginInfo()->name << std::endl;
+                    s2e()->getWarningsStream() << "Import " << (*it).first << " not supported by " << getPluginInfo()->name << '\n';
                 }
             }
         }

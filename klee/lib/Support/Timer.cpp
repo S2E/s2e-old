@@ -9,7 +9,12 @@
 
 #include "klee/Internal/Support/Timer.h"
 
+#include "klee/Config/config.h"
+#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
 #include "llvm/System/Process.h"
+#else
+#include "llvm/Support/Process.h"
+#endif
 
 using namespace klee;
 using namespace llvm;

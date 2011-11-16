@@ -14,12 +14,12 @@
 #include "llvm/IntrinsicInst.h"
 #include "llvm/Linker.h"
 #include "llvm/Module.h"
-#include "llvm/Assembly/AsmAnnotationWriter.h"
+#include "llvm/Assembly/AssemblyAnnotationWriter.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/System/Path.h"
+#include "llvm/Support/Path.h"
 
 #include <map>
 #include <iostream>
@@ -64,7 +64,7 @@ Function *klee::getDirectCallTarget(const Instruction *i) {
 }
 
 static bool valueIsOnlyCalled(const Value *v) {
-  for (Value::use_const_iterator it = v->use_begin(), ie = v->use_end();
+  for (Value::const_use_iterator it = v->use_begin(), ie = v->use_end();
        it != ie; ++it) {
     if (const Instruction *instr = dyn_cast<Instruction>(*it)) {
       if (instr->getOpcode()==0) continue; // XXX function numbering inst

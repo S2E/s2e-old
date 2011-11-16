@@ -34,8 +34,6 @@
  *
  */
 
-#define NDEBUG
-
 // XXX: qemu stuff should be included before anything from KLEE or LLVM !
 extern "C" {
 #include "config.h"
@@ -139,10 +137,10 @@ void WindowsMonitor::initialize()
     }
 
     if (i == (EWinVer)MAXVER) {
-        s2e()->getWarningsStream() << "Invalid windows version: " << Version << std::endl;
-        s2e()->getWarningsStream() << "Available versions are:" << std::endl;
+        s2e()->getWarningsStream() << "Invalid windows version: " << Version << '\n';
+        s2e()->getWarningsStream() << "Available versions are:" << '\n';
         for (unsigned j=0; j<MAXVER; ++j) {
-            s2e()->getWarningsStream() << s_windowsKeys[j] << ":\t" << s_windowsStrings[j] << std::endl;
+            s2e()->getWarningsStream() << s_windowsKeys[j] << ":\t" << s_windowsStrings[j] << '\n';
         }
         exit(-1);
     }
@@ -151,7 +149,7 @@ void WindowsMonitor::initialize()
         case XPSP2_CHK:
         case XPSP3_CHK:
             s2e()->getWarningsStream() << "You specified a checked build of Windows XP." <<
-                    "Only kernel-mode interceptors are supported for now." << std::endl;
+                    "Only kernel-mode interceptors are supported for now." << '\n';
             break;
         default:
             break;
@@ -205,46 +203,46 @@ void WindowsMonitor::InitializeAddresses(S2EExecutionState *state)
     //It is located in fs:0x1c
     uint64_t base = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
     if (!state->readMemoryConcrete(base + KPCR_FS_OFFSET, &m_pKPCRAddr, sizeof(m_pKPCRAddr))) {
-        s2e()->getWarningsStream() << "WindowsMonitor: Failed to initialize KPCR" << std::endl;
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to initialize KPCR" << '\n';
         goto error;
     }
 
     //Read the version block
     uint32_t pKdVersionBlock;
     if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KDVERSION32_OFFSET, &pKdVersionBlock, sizeof(pKdVersionBlock))) {
-        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block pointer" << std::endl;
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block pointer" << '\n';
         goto error;
     }
 
     if (!state->readMemoryConcrete(pKdVersionBlock, &m_kdVersion, sizeof(m_kdVersion))) {
-        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block" << std::endl;
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block" << '\n';
         goto error;
     }
 
     //Read the KPRCB
     if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KPRCB_PTR_OFFSET, &m_pKPRCBAddr, sizeof(m_pKPRCBAddr))) {
-        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read pointer to KPRCB" << std::endl;
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read pointer to KPRCB" << '\n';
         goto error;
     }
 
     if (m_pKPRCBAddr != m_pKPCRAddr + KPCR_KPRCB_OFFSET) {
-        s2e()->getWarningsStream () << "WindowsMonitor: Invalid KPRCB" << std::endl;
+        s2e()->getWarningsStream () << "WindowsMonitor: Invalid KPRCB" << '\n';
         goto error;
     }
 
     if (!state->readMemoryConcrete(m_pKPRCBAddr, &m_kprcb, sizeof(m_kprcb))) {
-        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KPRCB" << std::endl;
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KPRCB" << '\n';
         goto error;
     }
 
     //Display some info
-    s2e()->getMessagesStream() << "Windows 0x" << std::hex << m_kdVersion.MinorVersion <<
-            (m_kdVersion.MajorVersion == 0xF ? " FREE BUILD" : " CHECKED BUILD") << std::endl;
+    s2e()->getMessagesStream() << "Windows " << hexval(m_kdVersion.MinorVersion) <<
+            (m_kdVersion.MajorVersion == 0xF ? " FREE BUILD" : " CHECKED BUILD") << '\n';
 
     return;
 
 error:
-    s2e()->getWarningsStream() << "Make sure you start S2E from a VM snapshot that has Windows already running." << std::endl;
+    s2e()->getWarningsStream() << "Make sure you start S2E from a VM snapshot that has Windows already running." << '\n';
     exit(-1);
 
 }
@@ -436,12 +434,12 @@ bool WindowsMonitor::isTaskSwitch(S2EExecutionState *state, uint64_t pc)
     }
 
     //We have got a task switch!
-    s2e()->getDebugStream() << "Detected task switch at 0x" << oldpc << std::endl;
+    s2e()->getDebugStream() << "Detected task switch at 0x" << oldpc << '\n';
 
     return true;
 
 failure:
-    //s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::dec << std::endl;
+    //s2e()->getDebugStream() << "Could not read 0x" << std::hex << oldpc << " in isTaskSwitch" << std::dec << '\n';
     return false;
 }
 
@@ -554,7 +552,7 @@ uint64_t WindowsMonitor::getCurrentThread(S2EExecutionState *state)
     uint64_t base = getTibAddress(state);
     uint32_t pThread = 0;
     if (!state->readMemoryConcrete(base + FS_CURRENT_THREAD_OFFSET, &pThread, sizeof(pThread))) {
-        s2e()->getWarningsStream() << "Failed to get thread address" << std::endl;
+        s2e()->getWarningsStream() << "Failed to get thread address" << '\n';
         return 0;
     }
 
@@ -577,7 +575,7 @@ uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
 
     uint32_t pProcess = 0;
     if (!state->readMemoryConcrete(pThread + threadOffset, &pProcess, sizeof(pProcess))) {
-        s2e()->getWarningsStream() << "Failed to get process address" << std::endl;
+        s2e()->getWarningsStream() << "Failed to get process address" << '\n';
         return 0;
     }
 

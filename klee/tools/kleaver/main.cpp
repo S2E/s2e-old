@@ -17,7 +17,8 @@
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/System/Signals.h"
+#include "llvm/Support/Signals.h"
+#include "llvm/Support/system_error.h"
 
 using namespace llvm;
 using namespace klee;
@@ -268,10 +269,10 @@ int main(int argc, char **argv) {
   llvm::sys::PrintStackTraceOnErrorSignal();
   llvm::cl::ParseCommandLineOptions(argc, argv);
 
-  std::string ErrorStr;
-  MemoryBuffer *MB = MemoryBuffer::getFileOrSTDIN(InputFile.c_str(), &ErrorStr);
-  if (!MB) {
-    std::cerr << argv[0] << ": error: " << ErrorStr << "\n";
+  llvm::error_code ErrorStr;
+  llvm::OwningPtr<MemoryBuffer>MB;
+  if ((ErrorStr = MemoryBuffer::getFileOrSTDIN(InputFile, MB))) {
+    std::cerr << argv[0] << ": error: " << ErrorStr.message() << "\n";
     return 1;
   }
 
@@ -293,22 +294,21 @@ int main(int argc, char **argv) {
 
   switch (ToolAction) {
   case PrintTokens:
-    PrintInputTokens(MB);
+    PrintInputTokens(MB.get());
     break;
   case PrintAST:
-    success = PrintInputAST(InputFile=="-" ? "<stdin>" : InputFile.c_str(), MB,
+    success = PrintInputAST(InputFile=="-" ? "<stdin>" : InputFile.c_str(), MB.get(),
                             Builder);
     break;
   case Evaluate:
     success = EvaluateInputAST(InputFile=="-" ? "<stdin>" : InputFile.c_str(),
-                               MB, Builder);
+                               MB.get(), Builder);
     break;
   default:
     std::cerr << argv[0] << ": error: Unknown program action!\n";
   }
 
   delete Builder;
-  delete MB;
 
   llvm::llvm_shutdown();
   return success ? 0 : 1;

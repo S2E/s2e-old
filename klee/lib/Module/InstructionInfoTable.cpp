@@ -15,12 +15,15 @@
 #include "llvm/IntrinsicInst.h"
 #include "llvm/Linker.h"
 #include "llvm/Module.h"
-#include "llvm/Assembly/AsmAnnotationWriter.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/raw_ostream.h"
 #if !(LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
 #include "llvm/Analysis/DebugInfo.h"
+#include "llvm/Assembly/AssemblyAnnotationWriter.h"
+#include "llvm/Support/FormattedStream.h"
+#else
+#include "llvm/Assembly/AsmAnnotationWriter.h"
 #endif
 #include "llvm/Analysis/ValueTracking.h"
 
@@ -32,9 +35,15 @@ using namespace klee;
 
 class InstructionToLineAnnotator : public llvm::AssemblyAnnotationWriter {
 public:
+#if (LLVM_VERSION_MAJOR == 2 && LLVM_VERSION_MINOR < 7)
   void emitInstructionAnnot(const Instruction *i, llvm::raw_ostream &os) {
     os << "%%%" << (uintptr_t) i;
   }
+#else
+  void emitInstructionAnnot(const Instruction *i, llvm::formatted_raw_ostream &os) {
+    os << "%%%" << (uintptr_t) i;
+  }
+#endif
 };
         
 static void buildInstructionToLineMap(Module *m,

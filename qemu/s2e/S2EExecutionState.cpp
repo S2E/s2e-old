@@ -55,6 +55,7 @@ extern struct CPUX86State *env;
 #include <klee/Memory.h>
 #include <klee/Solver.h>
 #include <s2e/S2E.h>
+#include <s2e/Utils.h>
 #include <s2e/s2e_qemu.h>
 
 #include <llvm/Support/CommandLine.h>
@@ -105,8 +106,7 @@ S2EExecutionState::~S2EExecutionState()
     assert(m_lastS2ETb == NULL);
 
     PluginStateMap::iterator it;
-    g_s2e->getDebugStream() << "Deleting state " << std::dec <<
-            m_stateID << " 0x" << std::hex << this << std::endl;
+    g_s2e->getDebugStream() << "Deleting state " << m_stateID << " " << this << '\n';
 
     //print_stacktrace();
 
@@ -131,7 +131,7 @@ void S2EExecutionState::enableSymbolicExecution()
     m_symbexEnabled = true;
 
     g_s2e->getMessagesStream(this) << "Enabled symbex"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc() << '\n';
 
 }
 
@@ -144,7 +144,7 @@ void S2EExecutionState::disableSymbolicExecution()
     m_symbexEnabled = false;
 
     g_s2e->getMessagesStream(this) << "Disabled symbex"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc() << '\n';
 
 }
 
@@ -157,7 +157,7 @@ void S2EExecutionState::enableForking()
     forkDisabled = false;
 
     g_s2e->getMessagesStream(this) << "Enabled forking"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc() << '\n';
 }
 
 void S2EExecutionState::disableForking()
@@ -169,7 +169,7 @@ void S2EExecutionState::disableForking()
     forkDisabled = true;
 
     g_s2e->getMessagesStream(this) << "Disabled forking"
-            << " at pc = " << (void*) getPc() << std::endl;
+            << " at pc = " << (void*) getPc() << '\n';
 }
 
 
@@ -441,7 +441,7 @@ bool S2EExecutionState::getReturnAddress(uint64_t *retAddr)
 {
     *retAddr = 0;
     if (!readMemoryConcrete(getSp(), retAddr, sizeof(uint32_t))) {
-        g_s2e->getDebugStream() << "Could not get the return address " << std::endl;
+        g_s2e->getDebugStream() << "Could not get the return address " << '\n';
         return false;
     }
     return true;
@@ -454,9 +454,9 @@ void S2EExecutionState::dumpStack(unsigned count)
 
 void S2EExecutionState::dumpStack(unsigned count, uint64_t sp)
 {
-    std::ostream &os = g_s2e->getDebugStream();
+    std::stringstream os;
 
-    os << "Dumping stack @0x" << std::hex << sp << std::endl;
+    os << "Dumping stack @0x" << std::hex << sp << '\n';
 
     for (unsigned i=0; i<count; ++i) {
         klee::ref<klee::Expr> val = readMemory(sp + i * sizeof(uint32_t), klee::Expr::Int32);
@@ -467,8 +467,10 @@ void S2EExecutionState::dumpStack(unsigned count, uint64_t sp)
         }else {
             os << std::hex << "0x" << sp + i * sizeof(uint32_t) << val;
         }
-        os << std::endl;
+        os << '\n';
     }
+
+     g_s2e->getDebugStream();
 }
 
 
@@ -829,7 +831,7 @@ void S2EExecutionState::readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf,
                 if (PrintModeSwitch) {
                     g_s2e->getMessagesStream()
                             << "Switching to KLEE executor at pc = "
-                            << std::hex << getPc() << std::endl;
+                            << hexval(getPc()) << '\n';
                 }
                 m_startSymbexAtPC = getPc();
                 // XXX: what about regs_to_env ?
@@ -966,7 +968,7 @@ void S2EExecutionState::readRegisterConcrete(
 #ifdef S2E_TRACE_EFLAGS
     if (offsetof(CPUState, cc_src) == offset) {
         m_s2e->getDebugStream() <<  std::hex << getPc() <<
-                "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
+                "read conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << '\n';
     }
 #endif
 }
@@ -991,7 +993,7 @@ void S2EExecutionState::writeRegisterConcrete(CPUX86State *cpuState,
 #ifdef S2E_TRACE_EFLAGS
     if (offsetof(CPUState, cc_src) == offset) {
         m_s2e->getDebugStream() <<  std::hex << getPc() <<
-                "write conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << std::endl;
+                "write conc cc_src " << (*(uint32_t*)((uint8_t*)buf)) << '\n';
     }
 #endif
 
@@ -1100,21 +1102,20 @@ bool S2EExecutionState::needToJumpToSymbolic() const
     return  isRunningConcrete();
 }
 
-void S2EExecutionState::dumpX86State(std::ostream &os) const
+void S2EExecutionState::dumpX86State(llvm::raw_ostream &os) const
 {
 
-    os << "[State " << std::dec << m_stateID << "] CPU dump" << std::endl;
-    os << "EAX=0x" << std::hex << readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32) << std::endl;
-    os << "EBX=0x" << readCpuRegister(offsetof(CPUState, regs[R_EBX]), klee::Expr::Int32) << std::endl;
-    os << "ECX=0x" << readCpuRegister(offsetof(CPUState, regs[R_ECX]), klee::Expr::Int32) << std::endl;
-    os << "EDX=0x" << readCpuRegister(offsetof(CPUState, regs[R_EDX]), klee::Expr::Int32) << std::endl;
-    os << "ESI=0x" << readCpuRegister(offsetof(CPUState, regs[R_ESI]), klee::Expr::Int32) << std::endl;
-    os << "EDI=0x" << readCpuRegister(offsetof(CPUState, regs[R_EDI]), klee::Expr::Int32) << std::endl;
-    os << "EBP=0x" << readCpuRegister(offsetof(CPUState, regs[R_EBP]), klee::Expr::Int32) << std::endl;
-    os << "ESP=0x" << readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32) << std::endl;
-    os << "EIP=0x" << readCpuState(offsetof(CPUState, eip), 32) << std::endl;
-    os << "CR2=0x" << readCpuState(offsetof(CPUState, cr[2]), 32) << std::endl;
-    os << std::dec;
+    os << "CPU dump" << '\n';
+    os << "EAX=" << readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32) << '\n';
+    os << "EBX=" << readCpuRegister(offsetof(CPUState, regs[R_EBX]), klee::Expr::Int32) << '\n';
+    os << "ECX=" << readCpuRegister(offsetof(CPUState, regs[R_ECX]), klee::Expr::Int32) << '\n';
+    os << "EDX=" << readCpuRegister(offsetof(CPUState, regs[R_EDX]), klee::Expr::Int32) << '\n';
+    os << "ESI=" << readCpuRegister(offsetof(CPUState, regs[R_ESI]), klee::Expr::Int32) << '\n';
+    os << "EDI=" << readCpuRegister(offsetof(CPUState, regs[R_EDI]), klee::Expr::Int32) << '\n';
+    os << "EBP=" << readCpuRegister(offsetof(CPUState, regs[R_EBP]), klee::Expr::Int32) << '\n';
+    os << "ESP=" << readCpuRegister(offsetof(CPUState, regs[R_ESP]), klee::Expr::Int32) << '\n';
+    os << "EIP=" << readCpuState(offsetof(CPUState, eip), 32) << '\n';
+    os << "CR2=" << readCpuState(offsetof(CPUState, cr[2]), 32) << '\n';
 }
 
 bool S2EExecutionState::merge(const ExecutionState &_b)
@@ -1124,14 +1125,14 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
 
     assert(!m_active && !b.m_active);
 
-    std::ostream& s = g_s2e->getMessagesStream(this);
+    llvm::raw_ostream& s = g_s2e->getMessagesStream(this);
 
     if(DebugLogStateMerge)
-        s << "Attempting merge with state " << b.getID() << std::endl;
+        s << "Attempting merge with state " << b.getID() << '\n';
 
     if(pc != b.pc) {
         if(DebugLogStateMerge)
-            s << "merge failed: different pc" << std::endl;
+            s << "merge failed: different pc" << '\n';
         return false;
     }
 
@@ -1139,7 +1140,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
     // implies difference in object states?
     if(symbolics != b.symbolics) {
         if(DebugLogStateMerge)
-            s << "merge failed: different symbolics" << std::endl;
+            s << "merge failed: different symbolics" << '\n';
         return false;
     }
 
@@ -1150,14 +1151,14 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
             // XXX vaargs?
             if(itA->caller!=itB->caller || itA->kf!=itB->kf) {
                 if(DebugLogStateMerge)
-                    s << "merge failed: different callstacks" << std::endl;
+                    s << "merge failed: different callstacks" << '\n';
             }
           ++itA;
           ++itB;
         }
         if(itA!=stack.end() || itB!=b.stack.end()) {
             if(DebugLogStateMerge)
-                s << "merge failed: different callstacks" << std::endl;
+                s << "merge failed: different callstacks" << '\n';
             return false;
         }
     }
@@ -1190,7 +1191,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
         for(std::set< ref<Expr> >::iterator it = bSuffix.begin(),
                         ie = bSuffix.end(); it != ie; ++it)
         s << *it << ", ";
-        s << "]" << std::endl;
+        s << "]" << '\n';
     }
 
     /* Check CPUState */
@@ -1200,7 +1201,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
         if(memcmp(cpuStateA + CPU_OFFSET(eip), cpuStateB + CPU_OFFSET(eip),
                   CPU_OFFSET(current_tb) - CPU_OFFSET(eip))) {
             if(DebugLogStateMerge)
-                s << "merge failed: different concrete cpu state" << std::endl;
+                s << "merge failed: different concrete cpu state" << '\n';
             return false;
         }
     }
@@ -1235,7 +1236,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
                 }
             }
             if(DebugLogStateMerge)
-                s << "merge failed: different callstacks" << std::endl;
+                s << "merge failed: different callstacks" << '\n';
             return false;
         }
         if(ai->second != bi->second && !ai->first->isValueIgnored &&
@@ -1246,7 +1247,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
             if(mo->isSharedConcrete) {
                 if(DebugLogStateMerge)
                     s << "merge failed: different shared-concrete objects "
-                      << std::endl;
+                      << '\n';
                 return false;
             }
             mutated.insert(mo);
@@ -1254,7 +1255,7 @@ bool S2EExecutionState::merge(const ExecutionState &_b)
     }
     if(ai!=ae || bi!=be) {
         if(DebugLogStateMerge)
-            s << "merge failed: different address maps" << std::endl;
+            s << "merge failed: different address maps" << '\n';
         return false;
     }
 
@@ -1510,7 +1511,7 @@ void S2EExecutionState::addConstraint(klee::ref<klee::Expr> e)
     //bool res = solver->mayBeTrue(query, mayBeTrue);
     bool res = solver->mustBeTrue(query.negateExpr(), truth);
     if (!res || truth) {
-       g_s2e->getWarningsStream() << "State has invalid constraints" << std::endl;
+       g_s2e->getWarningsStream() << "State has invalid constraints" << '\n';
        exit(-1);
        //g_s2e->getExecutor()->terminateStateEarly(*this, "State has invalid constraint set");
     }

@@ -111,7 +111,7 @@ void ExecutionDebugger::onItem(unsigned traceIndex,
         m_os << " - " << dbg;
     }
 
-     m_os << std::endl;
+     m_os << '\n';
 
 }
 
@@ -165,7 +165,7 @@ void MemoryDebugger::doLookForValue(const s2e::plugins::ExecutionTraceItemHeader
         m_os << " - " << dbg;
     }
 
-     m_os << std::endl;
+     m_os << '\n';
 
 }
 
@@ -184,7 +184,7 @@ void MemoryDebugger::doPageFault(const s2e::plugins::ExecutionTraceItemHeader &h
         m_os << " - " << dbg;
     }
 
-     m_os << std::endl;
+     m_os << '\n';
 }
 
 void MemoryDebugger::onItem(unsigned traceIndex,
@@ -247,7 +247,7 @@ assert(false && "Needs rewriting");
             }
         }
 
-        std::cout << "Analyzing path " << pathNum << std::endl;
+        std::cout << "Analyzing path " << pathNum << '\n';
         ModuleCache mc(&pb);
 
         //MemoryDebugger md(&m_binaries, &mc, &pb, logfile);
