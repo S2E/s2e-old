@@ -288,7 +288,7 @@ bool WindowsUmInterceptor::CatchProcessTerminationServer2008(S2EExecutionState *
     s2e::windows::EPROCESS32_XP EProcess;
 
     if (!State->readMemoryConcrete(pProcess, &EProcess, sizeof(EProcess))) {
-        TRACE("Could not read EProcess data structure at %#"PRIx64"!\n", pEProcess);
+        TRACE("Could not read EProcess data structure at %#"PRIx64"!\n", pProcess);
         return false;
     }
 
