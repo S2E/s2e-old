@@ -340,11 +340,11 @@ S2E::~S2E()
 
     writeBitCodeToFile();
 
-    //This is necessary, as the execution engine uses the module.
-    m_tcgLLVMContext->deleteExecutionEngine();
-
     delete m_s2eExecutor;
     delete m_s2eHandler;
+
+    //The execution engine deletion will also delete the module.
+    m_tcgLLVMContext->deleteExecutionEngine();
 
     delete m_configFile;
 
