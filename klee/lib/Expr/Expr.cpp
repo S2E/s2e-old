@@ -328,7 +328,7 @@ void ConstantExpr::toString(std::string &Res, int Base) const {
 ref<ConstantExpr> ConstantExpr::Concat(const ref<ConstantExpr> &RHS) {
   Expr::Width W = getWidth() + RHS->getWidth();
   APInt Tmp(value);
-  Tmp.zext(W);
+  Tmp = Tmp.zext(W);
   Tmp <<= RHS->getWidth();
   Tmp |= APInt(RHS->value).zext(W);
 
