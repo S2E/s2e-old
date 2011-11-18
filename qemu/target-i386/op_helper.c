@@ -36,6 +36,9 @@
 #include "host-utils.h"
 
 #include <inttypes.h>
+#include <sys/types.h>
+#include <stdbool.h>
+
 
 #if defined(CONFIG_S2E) && !defined(S2E_LLVM_LIB)
 
@@ -115,6 +118,55 @@ void trace_port(char *buf, const char *prefix, uint32_t port, uint32_t pc)
     uint32_to_string(pc, buf);
     buf+=8;
     *buf = 0;
+}
+
+///XXX: Move this stuff elsewhere
+//This is needed to replace some LLVM intrinsic functions.
+#define max(a,b) ((a>b) ? a : b)
+
+typedef struct{
+        u_int16_t v;
+        bool c;
+}u_int16_carry;
+
+u_int16_carry uadds(u_int16_t a, u_int16_t b);
+
+u_int16_carry uadds(u_int16_t a, u_int16_t b)
+{
+        u_int16_carry res;
+        res.v = a+b;
+        res.c = (res.v < max(a,b));
+        return res;
+}
+
+typedef struct{
+        u_int32_t v;
+        bool c;
+}u_int32_carry;
+
+u_int32_carry uadd(u_int32_t a, u_int32_t b);
+
+u_int32_carry uadd(u_int32_t a, u_int32_t b)
+{
+        u_int32_carry res;
+        res.v = a+b;
+        res.c = (res.v < max(a,b));
+        return res;
+}
+
+typedef struct{
+        u_int64_t v;
+        bool c;
+}u_int64_carry;
+
+u_int64_carry uaddl(u_int64_t a, u_int64_t b);
+
+u_int64_carry uaddl(u_int64_t a, u_int64_t b)
+{
+        u_int64_carry res;
+        res.v = a+b;
+        res.c = (res.v < max(a,b));
+        return res;
 }
 
 #endif
