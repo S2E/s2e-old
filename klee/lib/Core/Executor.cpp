@@ -2272,17 +2272,103 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     break;
   }
  
+  case Instruction::InsertValue: {
+      KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(ki);
+
+      ref<Expr> agg = eval(ki, 0, state).value;
+      ref<Expr> val = eval(ki, 1, state).value;
+
+      ref<Expr> l = NULL, r = NULL;
+      unsigned lOffset = kgepi->offset*8, rOffset = kgepi->offset*8 + val->getWidth();
+
+      if (lOffset > 0)
+        l = ExtractExpr::create(agg, 0, lOffset);
+      if (rOffset < agg->getWidth())
+        r = ExtractExpr::create(agg, rOffset, agg->getWidth() - rOffset);
+
+      ref<Expr> result;
+      if (!l.isNull() && !r.isNull())
+        result = ConcatExpr::create(r, ConcatExpr::create(val, l));
+      else if (!l.isNull())
+        result = ConcatExpr::create(val, l);
+      else if (!r.isNull())
+        result = ConcatExpr::create(r, val);
+      else
+        result = val;
+
+      bindLocal(ki, state, result);
+      break;
+    }
+    case Instruction::ExtractValue: {
+      KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(ki);
+
+      ref<Expr> agg = eval(ki, 0, state).value;
+
+      ref<Expr> result = ExtractExpr::create(agg, kgepi->offset*8, getWidthForLLVMType(i->getType()));
+
+      bindLocal(ki, state, result);
+      break;
+    }
+
+  case Instruction::ExtractElement: {
+      ExtractElementInst *eei = cast<ExtractElementInst>(i);
+      ref<Expr> vec = eval(ki, 0, state).value;
+      ref<Expr> idx = eval(ki, 1, state).value;
+
+      assert(isa<ConstantExpr>(idx) && "symbolic index unsupported");
+      ConstantExpr *cIdx = cast<ConstantExpr>(idx);
+      uint64_t iIdx = cIdx->getZExtValue();
+
+      const llvm::VectorType *vt = eei->getVectorOperandType();
+      unsigned EltBits = getWidthForLLVMType(vt->getElementType());
+
+      ref<Expr> Result = ExtractExpr::create(vec, EltBits*iIdx, EltBits);
+
+      bindLocal(ki, state, Result);
+      break;
+    }
+    case Instruction::InsertElement: {
+      InsertElementInst *iei = cast<InsertElementInst>(i);
+      ref<Expr> vec = eval(ki, 0, state).value;
+      ref<Expr> newElt = eval(ki, 1, state).value;
+      ref<Expr> idx = eval(ki, 2, state).value;
+
+      assert(isa<ConstantExpr>(idx) && "symbolic index unsupported");
+      ConstantExpr *cIdx = cast<ConstantExpr>(idx);
+      uint64_t iIdx = cIdx->getZExtValue();
+
+      const llvm::VectorType *vt = iei->getType();
+      unsigned EltBits = getWidthForLLVMType(vt->getElementType());
+
+      unsigned ElemCount = vt->getNumElements();
+      ref<Expr> *elems = new ref<Expr>[vt->getNumElements()];
+      for (unsigned i = 0; i < ElemCount; ++i)
+        elems[ElemCount-i-1] = i == iIdx
+                               ? newElt
+                               : ExtractExpr::create(vec, EltBits*i, EltBits);
+
+      ref<Expr> Result = ConcatExpr::createN(ElemCount, elems);
+      delete[] elems;
+
+      bindLocal(ki, state, Result);
+      break;
+    }
+
     // Other instructions...
     // Unhandled
-  case Instruction::ExtractElement:
-  case Instruction::InsertElement:
   case Instruction::ShuffleVector:
     terminateStateOnError(state, "XXX vector instructions unhandled",
                           "xxx.err");
     break;
  
   default:
-    terminateStateOnExecError(state, "illegal instruction");
+    {
+        std::string errstr;
+        llvm::raw_string_ostream err(errstr);
+        err << *i;
+        terminateStateOnExecError(state, "illegal instruction " + errstr);
+    }
+
     break;
   }
 }
@@ -3468,3 +3554,8 @@ Solver *Executor::getSolver() const
 {
     return solver->solver;
 }
+
+Expr::Width Executor::getWidthForLLVMType(const llvm::Type *type) const {
+  return kmodule->targetData->getTypeSizeInBits(type);
+}
+
