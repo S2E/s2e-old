@@ -348,14 +348,18 @@ S2E::~S2E()
 
     delete m_configFile;
 
+    delete m_infoFileRaw;
     delete m_infoFile;
 
+    delete m_warningsFileRaw;
     delete m_warningsFile;
     delete m_warningsStreamBuf;
 
+    delete m_messagesFileRaw;
     delete m_messagesFile;
     delete m_messagesStreamBuf;
 
+    delete m_debugFileRaw;
     delete m_debugFile;
 }
 
