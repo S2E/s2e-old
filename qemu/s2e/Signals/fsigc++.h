@@ -43,6 +43,7 @@
 
 #include <cassert>
 #include <stdlib.h>
+#include <memory.h>
 
 namespace fsigc {
 

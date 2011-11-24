@@ -126,7 +126,7 @@ public:
 
     // -- use this function instead:
     template<class V>
-    friend Clause* Clause_new(const V& ps, bool learnt = false) {
+    static Clause* Clause_new(const V& ps, bool learnt = false) {
         assert(sizeof(Lit)      == sizeof(uint32_t));
         assert(sizeof(float)    == sizeof(uint32_t));
         void* mem = tlmalloc(sizeof(Clause) + sizeof(uint32_t)*(ps.size()));

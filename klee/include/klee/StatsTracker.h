@@ -59,7 +59,7 @@ namespace klee {
   public:
     StatsTracker(Executor &_executor, std::string _objectFilename,
                  bool _updateMinDistToUncovered);
-    ~StatsTracker();
+    virtual ~StatsTracker();
 
     void writeHeaders();
 

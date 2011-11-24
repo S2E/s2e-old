@@ -486,9 +486,9 @@ void MergingSearcher::update(ExecutionState *current,
     for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
            ie = removedStates.end(); it != ie; ++it) {
       ExecutionState *es = *it;
-      std::map<ExecutionState*, uint64_t>::iterator it = statesAtMerge.find(es);
-      if (it!=statesAtMerge.end()) {
-        statesAtMerge.erase(it);
+      std::map<ExecutionState*, uint64_t>::iterator itm = statesAtMerge.find(es);
+      if (itm!=statesAtMerge.end()) {
+        statesAtMerge.erase(itm);
         alt.erase(alt.find(es));
       }
     }    
@@ -579,9 +579,9 @@ void IterativeDeepeningTimeSearcher::update(ExecutionState *current,
     for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
            ie = removedStates.end(); it != ie; ++it) {
       ExecutionState *es = *it;
-      std::set<ExecutionState*>::const_iterator it = pausedStates.find(es);
-      if (it!=pausedStates.end()) {
-        pausedStates.erase(it);
+      std::set<ExecutionState*>::const_iterator itp = pausedStates.find(es);
+      if (itp!=pausedStates.end()) {
+        pausedStates.erase(itp);
         alt.erase(alt.find(es));
       }
     }    

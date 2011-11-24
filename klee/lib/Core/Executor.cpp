@@ -426,7 +426,8 @@ ref<Expr> Executor::simplifyExpr(const ExecutionState &s, ref<Expr> e)
         if (ValidateSimplifier) {
             bool isEqual;
             ref<Expr> eq = EqExpr::create(simplified, e);
-            assert(solver->mustBeTrue(s, eq, isEqual));
+            bool result = solver->mustBeTrue(s, eq, isEqual);
+            assert(result);
             if(!isEqual) {
                 std::cerr << "Error in expression simplifier:" << std::endl;
                 e->dump();
@@ -2408,8 +2409,8 @@ void Executor::bindInstructionConstants(KInstruction *KI) {
   uint64_t index = 1;
   for (gep_type_iterator ii = gep_type_begin(gepi), ie = gep_type_end(gepi);
        ii != ie; ++ii) {
-    if (const StructType *st = dyn_cast<StructType>(*ii)) {
-      const StructLayout *sl = kmodule->targetData->getStructLayout(st);
+    if (const StructType *st1 = dyn_cast<StructType>(*ii)) {
+      const StructLayout *sl = kmodule->targetData->getStructLayout(st1);
       const ConstantInt *ci = cast<ConstantInt>(ii.getOperand());
       uint64_t addend = sl->getElementOffset((unsigned) ci->getZExtValue());
       constantOffset = constantOffset->Add(ConstantExpr::alloc(addend,

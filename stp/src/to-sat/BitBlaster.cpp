@@ -1040,17 +1040,21 @@ BBNodeVec BitBlaster<BBNode,BBNodeManagerT>::BBMult(const BBNodeVec& x, const BB
 
 	if (multiplication_variant2) {
 		const int bitWidth = x.size();
-		stack<BBNode> products[bitWidth];
+                stack<BBNode> *products = new stack<BBNode> [bitWidth];
 		mult_allPairs(x, y, support,products);
-		return buildAdditionNetworkResult(products,bitWidth,nf);
+                vector<BBNode> ret = buildAdditionNetworkResult(products,bitWidth,nf);
+                delete [] products;
+                return ret;
 	}
 
 	if (multiplication_variant3) {
 		const int bitWidth = x.size();
-		stack<BBNode> products[bitWidth];
+                stack<BBNode> *products = new stack<BBNode> [bitWidth];
 		mult_Booth(x, y, support,xN,yN,products);
 		//return pairWiseAdd(products,bitWidth);
-		return buildAdditionNetworkResult(products,bitWidth,nf);
+                vector<BBNode> ret = buildAdditionNetworkResult(products,bitWidth,nf);
+                delete [] products;
+                return ret;
 	}
 
 	FatalError("sda44f");

@@ -135,7 +135,7 @@ bool Solver::addClause(vec<Lit>& ps)
         uncheckedEnqueue(ps[0]);
         return ok = (propagate() == NULL);
     }else{
-        Clause* c = Clause_new(ps, false);
+        Clause* c = Clause::Clause_new(ps, false);
         clauses.push(c);
         attachClause(*c);
     }
@@ -592,7 +592,7 @@ lbool Solver::search(int nof_conflicts, int nof_learnts)
             if (learnt_clause.size() == 1){
                 uncheckedEnqueue(learnt_clause[0]);
             }else{
-                Clause* c = Clause_new(learnt_clause, true);
+                Clause* c = Clause::Clause_new(learnt_clause, true);
                 learnts.push(c);
                 attachClause(*c);
                 claBumpActivity(*c);
