@@ -60,7 +60,9 @@ static="no"
 sparc_cpu=""
 cross_prefix=""
 cc="gcc"
+asancc=""
 cxx="g++"
+asancxx=""
 asm="nasm"
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16"
@@ -87,6 +89,10 @@ for opt do
   --cc=*) cc="$optarg"
   ;;
   --cxx=*) cxx="$optarg"
+  ;;
+  --asancc=*) asancc="$optarg"
+  ;;
+  --asancxx=*) asancxx="$optarg"
   ;;
   --cpu=*) cpu="$optarg"
   ;;
@@ -139,7 +145,8 @@ QEMU_CFLAGS="-I. -I\$(SRC_PATH) $QEMU_CFLAGS"
 QEMU_CCFLAGS="-Wmissing-prototypes -Wstrict-prototypes $QEMU_CCFLAGS"
 QEMU_CXXFLAGS="-D__STDC_FORMAT_MACROS"
 
-gcc_flags="-Wold-style-declaration -Wold-style-definition"
+#gcc_flags="-Wold-style-declaration -Wold-style-definition"
+#gcc_flags="-Wno-mismatched-tags"
 cat > $TMPC << EOF
 int main(void) { }
 EOF
@@ -301,6 +308,7 @@ pkgversion=""
 check_utests="no"
 user_pie="no"
 zero_malloc=""
+address_sanitizer="no"
 
 # OS specific
 if check_define __linux__ ; then
@@ -503,6 +511,10 @@ for opt do
   ;;
   --cxx=*)
   ;;
+  --asancc=*)
+  ;;
+  --asancxx=*)
+  ;;
   --host-cc=*) host_cc="$optarg"
   ;;
   --make=*) make="$optarg"
@@ -548,6 +560,9 @@ for opt do
       debug_tcg="yes"
       debug="yes"
       strip_opt="no"
+  ;;
+  --enable-address-sanitizer)
+        address_sanitizer="yes"
   ;;
   --enable-sparse) sparse="yes"
   ;;
@@ -742,6 +757,13 @@ case "$cpu" in
            ;;
 esac
 
+if [ $address_sanitizer = "yes" ]; then
+    CXXFLAGS="-Wno-mismatched-tags $CXXFLAGS"
+    #This is required for probing LLVM and KLEE, as they
+    #might be compiled with AddressSanitizer instrumentation.
+    LDASAN="-lasan64 -ldl"
+fi
+
 [ -z "$guest_base" ] && guest_base="$host_guest_base"
 
 if test x"$show_help" = x"yes" ; then
@@ -763,6 +785,8 @@ echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --cxx=CXX                use C++ compiler CXX [$cxx]"
+echo "  --asancc=CC              use AddressSanitizer C compiler CC [$asancc]"
+echo "  --asancxx=CXX            use AddressSanitizer C++ compiler CXX [$asancxx]"
 echo "  --host-cc=CC             use C compiler CC [$host_cc] for dyngen etc."
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CCFLAGS"
 echo "  --extra-cxxflags=CXXFLAGS append extra CXX compiler flags QEMU_CXXFLAGS"
@@ -773,6 +797,7 @@ echo "  --static                 enable static build [$static]"
 echo "  --enable-debug-tcg       enable TCG debugging"
 echo "  --disable-debug-tcg      disable TCG debugging (default)"
 echo "  --enable-debug           enable common debug build options"
+echo "  --enable-address-sanitizer enable Google Address Sanitizer memory checker. Requires the corresponding compiler."
 echo "  --enable-sparse          enable sparse checker"
 echo "  --disable-sparse         disable sparse checker (default)"
 echo "  --disable-strip          disable stripping binaries"
@@ -1495,7 +1520,7 @@ EOF
   llvm_ldflags=`$llvm_config $llvm_components --ldflags 2> /dev/null`
   llvm_libs=`$llvm_config $llvm_components --libs 2> /dev/null`
 
-  if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags" ; then
+  if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags $LDASAN" ; then
     : LLVM found
   else
     feature_not_found "llvm (required for --enable-llvm and --enable-s2e)"
@@ -1505,7 +1530,9 @@ fi
 
 if test "$llvm" != "no" ; then
   llvm="yes"
-  LIBS="$llvm_libs $LIBS $llvm_ldflags"
+  #These will be automatically added by klee and we don't want
+  #duplicated libs on the command line.
+  #LIBS="$llvm_libs $LIBS $llvm_ldflags"
   linker="$cxx"
 fi
 
@@ -1535,7 +1562,7 @@ EOF
     klee_libs="$klee_libs -lstp"
   fi
 
-  if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags" ; then
+  if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags $LDASAN" ; then
     s2e="yes"
   else
     feature_not_found "klee (required for s2e)"
@@ -1690,7 +1717,7 @@ EOF
 for pthread_lib in $PTHREADLIBS_LIST; do
   if compile_prog "" "$pthread_lib" ; then
     pthread=yes
-    LIBS="$pthread_lib $LIBS"
+    LIBS="$LIBS $pthread_lib"
     break
   fi
 done
@@ -1975,7 +2002,7 @@ EOF
 if compile_prog "" "" ; then
   :
 elif compile_prog "" "-lrt" ; then
-  LIBS="-lrt $LIBS"
+  LIBS="$LIBS -lrt"
 fi
 
 # Determine what linker flags to use to force archive inclusion
@@ -2059,9 +2086,19 @@ fi
 # After here, no more $cc or $ld runs
 
 if test "$debug" = "no" ; then
-  CFLAGS="-O2 $CFLAGS"
-  CXXFLAGS="-O2 $CXXFLAGS"
+  if [ $address_sanitizer = "yes" ]; then
+   CFLAGS="-O1 $CFLAGS"
+   CXXFLAGS="-O1 $CXXFLAGS"
+  else
+   CFLAGS="-O2 $CFLAGS"
+   CXXFLAGS="-O2 $CXXFLAGS"
+  fi
 else
+  if [ $address_sanitizer = "yes" ]; then
+   #Address Sanitizer requires at least -O1 to work properly
+   CFLAGS="-O1 $CFLAGS"
+   CXXFLAGS="-O1 $CXXFLAGS"
+  fi
   llvm_cxxflags=`echo ${llvm_cxxflags} | sed 's/\-O[23]//' | sed 's/\-DNDEBUG//'`
   klee_cxxflags=`echo ${klee_cxxflags} | sed 's/\-O[23]//' | sed 's/\-DNDEBUG//'`
 fi
@@ -2127,6 +2164,8 @@ fi
 echo "Source path       $source_path"
 echo "C compiler        $cc"
 echo "C++ compiler      $cxx"
+echo "ASAN C compiler   $asancc"
+echo "ASAN C++ compiler $asancxx"
 echo "Host C compiler   $host_cc"
 echo "CFLAGS            $CFLAGS"
 echo "CXXFLAGS          $CXXFLAGS"
@@ -2216,6 +2255,11 @@ if test "$debug_tcg" = "yes" ; then
 fi
 if test "$debug" = "yes" ; then
   echo "CONFIG_DEBUG_EXEC=y" >> $config_host_mak
+fi
+if [ $address_sanitizer = "yes" ]; then
+  echo "CONFIG_ASAN=y" >> $config_host_mak
+  echo "ASAN_FLAGS=-faddress-sanitizer" >> $config_host_mak
+  echo "ASAN_LDFLAGS=$LDASAN" >> $config_host_mak
 fi
 if test "$strip_opt" = "yes" ; then
   echo "STRIP_OPT=-s" >> $config_host_mak
@@ -2463,6 +2507,8 @@ echo "INSTALL_DATA=$install -m0644 -p" >> $config_host_mak
 echo "INSTALL_PROG=$install -m0755 -p" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
 echo "CXX=$cxx" >> $config_host_mak
+echo "ASANCC=$asancc" >> $config_host_mak
+echo "ASANCXX=$asancxx" >> $config_host_mak
 echo "ASM=$asm" >> $config_host_mak
 echo "LINKER=$linker" >> $config_host_mak
 echo "HOST_CC=$host_cc" >> $config_host_mak
@@ -2904,7 +2950,7 @@ fi
 
 if test "$target_s2e" = "yes" ; then
   echo "LINKER=$cxx" >> $config_target_mak
-  echo "LIBS+=$klee_libs $llvm_libs" >> $config_target_mak
+  echo "LIBS:=$klee_libs $llvm_libs \$(LIBS)" >> $config_target_mak
   echo "LIBS+=$lua_libs $sigcxx2_libs" >> $config_target_mak
   echo "LIBS+=\$(filter-out $llvm_ldflags, $klee_ldflags) $llvm_ldflags" >> $config_target_mak
   echo "KLEE_LIBFILES=$klee_libfiles" >> $config_target_mak
@@ -3005,3 +3051,4 @@ ln -s $source_path/Makefile.user $d/Makefile
 if test "$static" = "no" -a "$user_pie" = "yes" ; then
   echo "QEMU_CFLAGS+=-fpie" > $d/config.mak
 fi
+

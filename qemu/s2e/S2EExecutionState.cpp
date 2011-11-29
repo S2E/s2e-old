@@ -602,7 +602,7 @@ bool S2EExecutionState::readString(uint64_t address, std::string &s, unsigned ma
         }
         address++;
         maxLen--;
-    }while(maxLen>=0);
+    }while(maxLen != 0);
     return true;
 }
 
@@ -621,7 +621,7 @@ bool S2EExecutionState::readUnicodeString(uint64_t address, std::string &s, unsi
 
         address+=2;
         maxLen--;
-    }while(maxLen>=0);
+    }while(maxLen != 0);
     return true;
 }
 

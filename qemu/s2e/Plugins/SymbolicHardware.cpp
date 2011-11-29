@@ -348,11 +348,11 @@ IsaDeviceDescriptor::~IsaDeviceDescriptor()
     }
 }
 
-void IsaDeviceDescriptor::print(std::ostream &os) const
+void IsaDeviceDescriptor::print(llvm::raw_ostream &os) const
 {
     os << "ISA Device Descriptor id=" << m_id << '\n';
-    os << std::hex << "Base=0x" << m_isaResource.portBase <<
-            " Size=0x" << m_isaResource.portSize << '\n';
+    os << "Base=" << hexval(m_isaResource.portBase) <<
+            " Size=" << hexval(m_isaResource.portSize) << '\n';
     os << '\n';
 }
 
@@ -579,22 +579,22 @@ PciDeviceDescriptor::~PciDeviceDescriptor()
     if (m_vmState) delete m_vmState;
 }
 
-void PciDeviceDescriptor::print(std::ostream &os) const
+void PciDeviceDescriptor::print(llvm::raw_ostream &os) const
 {
     os << "PCI Device Descriptor id=" << m_id << '\n';
-    os << std::hex << "VID=0x" << m_vid <<
+    os << "VID=" << hexval(m_vid) <<
             " PID=0x" << m_pid <<
-            " RevID=0x" << (unsigned)m_revisionId << '\n';
+            " RevID=" << hexval(m_revisionId) << '\n';
 
-    os << "Class=0x" << (unsigned)m_classCode <<
-            " INT=0x" << (unsigned)m_interruptPin << '\n';
+    os << "Class=" << hexval(m_classCode) <<
+            " INT=0x" << hexval(m_interruptPin) << '\n';
 
     unsigned i=0;
     foreach2(it, m_resources.begin(), m_resources.end()) {
         const PciResource &res = *it;
         os << "R[" << i << "]: " <<
                 "Size=0x" << res.size << " IsIO=" << (int)res.isIo <<
-                " IsPrefetchable=0x" << (int)res.prefetchable << '\n';
+                " IsPrefetchable=" << hexval(res.prefetchable) << '\n';
     }
     os << '\n';
 }

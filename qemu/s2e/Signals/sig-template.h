@@ -53,7 +53,7 @@ SIGNAL_CLASS(const SIGNAL_CLASS &one) {
     }
 }
 
-~SIGNAL_CLASS() {
+virtual ~SIGNAL_CLASS() {
     disconnectAll();
     if (m_funcs) {
         delete [] m_funcs;

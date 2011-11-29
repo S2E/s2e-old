@@ -413,9 +413,9 @@ s2e_llvmobj-y += op_helper.bc
 
 $(s2e_llvmobj-y): %.bc: %.c %.o $(GENERATED_HEADERS)
 
-libs2e_llvm.bca: $(s2e_llvmobj-y)
+#libs2e_llvm.bca: $(s2e_llvmobj-y)
 
-all: libs2e_llvm.bca
+all: $(s2e_llvmobj-y)
 
 endif
 

@@ -196,7 +196,7 @@ void StateManager::sendKillToAllInstances(bool keepOneSuccessful, unsigned procI
     unsigned maxProcessCount = s2e()->getMaxProcesses();
     for(unsigned i=0; i<maxProcessCount; ++i) {
         if (i != s2e()->getCurrentProcessId()) {
-            cmd.nodeId = keepOneSuccessful ? procId : (unsigned)-1;
+            cmd.nodeId = keepOneSuccessful ? procId : (uint8_t)-1;
             s->commands[i].write(cmd);
         }
     }

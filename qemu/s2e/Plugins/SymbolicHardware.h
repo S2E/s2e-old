@@ -112,7 +112,7 @@ public:
 
     static IsaDeviceDescriptor* create(SymbolicHardware *plg, ConfigFile *cfg, const std::string &key);
     virtual ~IsaDeviceDescriptor();
-    virtual void print(std::ostream &os) const;
+    virtual void print(llvm::raw_ostream &os) const;
     virtual void initializeQemuDevice();
     virtual void activateQemuDevice(struct PCIBus *bus);
 
@@ -147,7 +147,7 @@ private:
     struct _VMStateField *m_vmStateFields;
 
     PciDeviceDescriptor(const std::string &id);
-    virtual void print(std::ostream &os) const;
+    virtual void print(llvm::raw_ostream &os) const;
 
 public:
     int mmio_io_addr;

@@ -15,11 +15,23 @@ MAKEFLAGS += -rR
 # Flags for dependency generation
 QEMU_DGFLAGS += -MMD -MP -MT $@
 
+ifdef CONFIG_ASAN
+
+%.o: %.c $(GENERATED_HEADERS)
+	$(call quiet-command,$(ASANCC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) $(ASAN_FLAGS) -c -o $@ $<,"  ASANCC    $(TARGET_DIR)$@")
+
+%.o: %.cpp $(GENERATED_HEADERS)
+	$(call quiet-command,$(ASANCXX) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) $(ASAN_FLAGS) -c -o $@ $<,"  ASANCXX   $(TARGET_DIR)$@")
+
+else
+
 %.o: %.c $(GENERATED_HEADERS)
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
 
 %.o: %.cpp $(GENERATED_HEADERS)
 	$(call quiet-command,$(CXX) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) -c -o $@ $<,"  CXX   $(TARGET_DIR)$@")
+
+endif
 
 %.o: %.S
 	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  AS    $(TARGET_DIR)$@")
@@ -29,8 +41,9 @@ QEMU_DGFLAGS += -MMD -MP -MT $@
 
 %.o: %.asm
 	$(call quiet-command,$(ASM) $(QEMU_ASMFLAGS) -o $@ $<,"  ASM  $(TARGET_DIR)$@")
-	
-LINK = $(call quiet-command,$(LINKER) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(1) $(ARLIBS_BEGIN) $(ARLIBS) $(ARLIBS_END) $(LIBS),"  LINK  $(TARGET_DIR)$@")
+
+
+LINK = $(call quiet-command,$(LINKER) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(1) $(ARLIBS_BEGIN) $(ARLIBS) $(ARLIBS_END) $(LIBS) $(ASAN_LDFLAGS),"  LINK  $(TARGET_DIR)$@")
 
 %$(EXESUF): %.o
 	$(call LINK,$^)
