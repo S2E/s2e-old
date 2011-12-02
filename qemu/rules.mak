@@ -43,7 +43,7 @@ endif
 	$(call quiet-command,$(ASM) $(QEMU_ASMFLAGS) -o $@ $<,"  ASM  $(TARGET_DIR)$@")
 
 
-LINK = $(call quiet-command,$(LINKER) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(1) $(ARLIBS_BEGIN) $(ARLIBS) $(ARLIBS_END) $(LIBS) $(ASAN_LDFLAGS),"  LINK  $(TARGET_DIR)$@")
+LINK = $(call quiet-command,$(LINKER) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(1) $(ARLIBS_BEGIN) $(ARLIBS) $(ARLIBS_END) $(LIBS) $(ASAN_LIBPATH) $(ASAN_LDFLAGS),"  LINK  $(TARGET_DIR)$@")
 
 %$(EXESUF): %.o
 	$(call LINK,$^)

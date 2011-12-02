@@ -761,6 +761,7 @@ if [ $address_sanitizer = "yes" ]; then
     CXXFLAGS="-Wno-mismatched-tags $CXXFLAGS"
     #This is required for probing LLVM and KLEE, as they
     #might be compiled with AddressSanitizer instrumentation.
+    ASANLIBPATH="-L$(dirname $asancc)/../lib"
     LDASAN="-lasan64 -ldl"
 fi
 
@@ -1520,7 +1521,7 @@ EOF
   llvm_ldflags=`$llvm_config $llvm_components --ldflags 2> /dev/null`
   llvm_libs=`$llvm_config $llvm_components --libs 2> /dev/null`
 
-  if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags $LDASAN" ; then
+  if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags $LDASAN $ASANLIBPATH" ; then
     : LLVM found
   else
     feature_not_found "llvm (required for --enable-llvm and --enable-s2e)"
@@ -1532,7 +1533,9 @@ if test "$llvm" != "no" ; then
   llvm="yes"
   #These will be automatically added by klee and we don't want
   #duplicated libs on the command line.
-  #LIBS="$llvm_libs $LIBS $llvm_ldflags"
+  if [ "x$s2e" != "xyes" ]; then
+    LIBS="$llvm_libs $LIBS $llvm_ldflags"
+  fi
   linker="$cxx"
 fi
 
@@ -1562,7 +1565,7 @@ EOF
     klee_libs="$klee_libs -lstp"
   fi
 
-  if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags $LDASAN" ; then
+  if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags $LDASAN $ASANLIBPATH" ; then
     s2e="yes"
   else
     feature_not_found "klee (required for s2e)"
@@ -2260,6 +2263,7 @@ if [ $address_sanitizer = "yes" ]; then
   echo "CONFIG_ASAN=y" >> $config_host_mak
   echo "ASAN_FLAGS=-faddress-sanitizer" >> $config_host_mak
   echo "ASAN_LDFLAGS=$LDASAN" >> $config_host_mak
+  echo "ASAN_LIBPATH=$ASANLIBPATH" >> $config_host_mak
 fi
 if test "$strip_opt" = "yes" ; then
   echo "STRIP_OPT=-s" >> $config_host_mak
@@ -2823,6 +2827,10 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
   echo "LLVMCC:=$llvmgcc" >> $config_target_mak
   echo "LLVMAR:=$llvmar" >> $config_target_mak
+else
+  if [ "$llvm" != "no" ]; then
+    echo "LIBS+=$llvm_libs $llvm_ldflags" >> $config_host_mak
+  fi
 fi
 list=""
 if test ! -z "$gdb_xml_files" ; then
