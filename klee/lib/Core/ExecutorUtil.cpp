@@ -85,7 +85,7 @@ namespace klee {
         ref<ConstantExpr> addend = 
           ConstantExpr::alloc(0, Context::get().getPointerWidth());
 
-        if (const StructType *st1 = dyn_cast<StructType>(*ii)) {
+        if (StructType *st1 = dyn_cast<StructType>(*ii)) {
           const StructLayout *sl = kmodule->targetData->getStructLayout(st1);
           const ConstantInt *ci = cast<ConstantInt>(ii.getOperand());
 
@@ -93,7 +93,7 @@ namespace klee {
                                                             ci->getZExtValue()),
                                        Context::get().getPointerWidth());
         } else {
-          const SequentialType *st = cast<SequentialType>(*ii);
+          SequentialType *st = cast<SequentialType>(*ii);
           ref<ConstantExpr> index = 
             evalConstant(cast<Constant>(ii.getOperand()));
           unsigned elementSize = 

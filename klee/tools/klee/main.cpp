@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
 #undef PACKAGE_STRING
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
-#include "llvm/Target/TargetSelect.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Signals.h"
 #include <iostream>
 #include <fstream>
@@ -645,7 +645,7 @@ static int initEnv(Module *mainModule) {
   std::vector<Value*> args;
   args.push_back(argcPtr);
   args.push_back(argvPtr);
-  Instruction* initEnvCall = CallInst::Create(initEnvFn, args.begin(), args.end(), 
+  Instruction* initEnvCall = CallInst::Create(initEnvFn, ArrayRef<Value*>(args),
 					      "", firstInst);
   Value *argc = new LoadInst(argcPtr, "newArgc", firstInst);
   Value *argv = new LoadInst(argvPtr, "newArgv", firstInst);
@@ -944,12 +944,12 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule) {
   // force import of __uClibc_main
   mainModule->getOrInsertFunction("__uClibc_main",
                                   FunctionType::get(Type::getVoidTy(getGlobalContext()),
-                                                    std::vector<const Type*>(),
+                                                    ArrayRef<Type*>(std::vector<Type*>()),
                                                     true));
   
   // force various imports
   if (WithPOSIXRuntime) {
-    const llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
+    llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
     mainModule->getOrInsertFunction("realpath",
                                     PointerType::getUnqual(i8Ty),
                                     PointerType::getUnqual(i8Ty),
@@ -1052,7 +1052,7 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule) {
   const FunctionType *ft = uclibcMainFn->getFunctionType();
   assert(ft->getNumParams() == 7);
 
-  std::vector<const Type*> fArgs;
+  std::vector<Type*> fArgs;
   fArgs.push_back(ft->getParamType(1)); // argc
   fArgs.push_back(ft->getParamType(2)); // argv
   Function *stub = Function::Create(FunctionType::get(Type::getInt32Ty(getGlobalContext()), fArgs, false),
@@ -1070,7 +1070,7 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule) {
   args.push_back(Constant::getNullValue(ft->getParamType(4))); // app_fini
   args.push_back(Constant::getNullValue(ft->getParamType(5))); // rtld_fini
   args.push_back(Constant::getNullValue(ft->getParamType(6))); // stack_end
-  CallInst::Create(uclibcMainFn, args.begin(), args.end(), "", bb);
+  CallInst::Create(uclibcMainFn, ArrayRef<Value*>(args), "", bb);
   
   new UnreachableInst(getGlobalContext(), bb);
 

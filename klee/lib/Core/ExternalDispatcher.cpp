@@ -32,7 +32,7 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetSelect.h"
+#include "llvm/Support/TargetSelect.h"
 #include <setjmp.h>
 #include <signal.h>
 #include <iostream>
@@ -235,10 +235,10 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
 
   Value **args = new Value*[cs.arg_size()];
 
-  std::vector<const Type*> nullary;
+  std::vector<Type*> nullary;
 
   Function *dispatcher = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()),
-                                nullary, false),
+                                ArrayRef<Type*>(nullary), false),
                       GlobalVariable::ExternalLinkage,
                       "",
                       dispatchModule);
@@ -255,7 +255,7 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
   Instruction *argI64s = new LoadInst(argI64sp, "args", dBB);
 
   // Get the target function type.
-  const FunctionType *FTy =
+  FunctionType *FTy =
     cast<FunctionType>(cast<PointerType>(target->getType())->getElementType());
 
   // Each argument will be passed by writing it into gTheArgsP[i].
@@ -265,7 +265,7 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
     // Determine the type the argument will be passed as. This accomodates for
     // the corresponding code in Executor.cpp for handling calls to bitcasted
     // functions.
-    const Type *argTy = (i < FTy->getNumParams() ? FTy->getParamType(i) :
+    Type *argTy = (i < FTy->getNumParams() ? FTy->getParamType(i) :
                          (*ai)->getType());
     Instruction *argI64p =
       GetElementPtrInst::Create(argI64s,
@@ -283,7 +283,7 @@ Function *ExternalDispatcher::createDispatcher(Function *target, Instruction *in
                                         target->getAttributes()),
         cs.getCalledValue()->getType(), "", dBB);
 
-  Instruction *result = CallInst::Create(dispatchTarget, args, args+i, "", dBB);
+  Instruction *result = CallInst::Create(dispatchTarget, ArrayRef<Value*>(args, cs.arg_size()), "", dBB);
   if (result->getType() != Type::getVoidTy(getGlobalContext())) {
     Instruction *resp =
       new BitCastInst(argI64s, PointerType::getUnqual(result->getType()),

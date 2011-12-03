@@ -13,16 +13,12 @@ ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
     $(error You should not run make in S2E source directory!)
 endif
 
-ifeq ($(shell uname -s),Darwin)
-    LLVM_GCC_SRC=llvm-gcc4.2-2.9-i386-darwin9.tar.bz2
-    LLVM_GCC_DIR=llvm-gcc4.2-2.9-i386-darwin9
-else
-    LLVM_GCC_SRC=llvm-gcc4.2-2.9-x86_64-linux.tar.bz2
-    LLVM_GCC_DIR=llvm-gcc4.2-2.9-x86_64-linux
-endif
 
-LLVM_VERSION=2.9
-LLVM_SRC=llvm-2.9.tgz
+LLVM_VERSION=3.0
+LLVM_SRC=llvm-$(LLVM_VERSION).tar.gz
+LLVM_SRC_DIR=llvm-$(LLVM_VERSION).src
+CLANG_SRC=clang-$(LLVM_VERSION).tar.gz
+CLANG_SRC_DIR=clang-$(LLVM_VERSION).src
 
 clean:
 	rm -Rf tools qemu-release qemu-debug klee stp llvm
@@ -38,12 +34,9 @@ ALWAYS:
 # Downloads #
 #############
 
-$(LLVM_GCC_SRC):
-	wget http://llvm.org/releases/$(LLVM_VERSION)/$(LLVM_GCC_SRC)
+$(CLANG_SRC):
+	wget http://llvm.org/releases/$(LLVM_VERSION)/$(CLANG_SRC)
 
-stamps/llvm-gcc-unpack: $(LLVM_GCC_SRC)
-	tar -xjf $(LLVM_GCC_SRC)
-	mkdir -p stamps && touch $@
 
 $(LLVM_SRC):
 	wget http://llvm.org/releases/$(LLVM_VERSION)/$(LLVM_SRC)
@@ -52,15 +45,20 @@ stamps/llvm-unpack: $(LLVM_SRC)
 	tar -zxf $(LLVM_SRC)
 	mkdir -p stamps && touch $@
 
+stamps/clang-unpack: $(CLANG_SRC) stamps/llvm-unpack
+	tar -zxf $(CLANG_SRC); \
+	mv $(CLANG_SRC_DIR) $(LLVM_SRC_DIR)/tools/clang; \
+	mkdir -p stamps && touch $@
+
+
 ########
 # LLVM #
 ########
 
-stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack
+stamps/llvm-configure: stamps/clang-unpack stamps/llvm-unpack
 	mkdir -p llvm
-	cd llvm && $(S2EBUILD)/llvm-$(LLVM_VERSION)/configure \
+	cd llvm && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvmgccdir=$(S2EBUILD)/$(LLVM_GCC_DIR) \
 		--target=x86_64 --enable-targets=x86 --enable-jit \
 		--enable-optimized
 	mkdir -p stamps && touch $@
@@ -105,7 +103,7 @@ stamps/klee-configure: stamps/llvm-configure \
 	mkdir -p klee
 	cd klee && $(S2ESRC)/klee/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvmsrc=$(S2EBUILD)/llvm-$(LLVM_VERSION) \
+		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
 		--target=x86_64 \
@@ -133,7 +131,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Debug  \
-		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_DIR)/bin/llvm-gcc \
+		--with-llvmgcc=$(S2EBUILD)/llvm/Debug/bin/clang \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
@@ -147,7 +145,7 @@ stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-confi
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Release  \
-		--with-llvmgcc=$(S2EBUILD)/$(LLVM_GCC_DIR)/bin/llvm-gcc \
+		--with-clang=$(S2EBUILD)/llvm/Release/bin/clang \
 		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Release \
 		--target-list=i386-s2e-softmmu,i386-softmmu \

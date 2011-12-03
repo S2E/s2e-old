@@ -69,7 +69,7 @@ static PHINode* GenIf(Function *f, Value *trueV, Value *falseV,
   entry->back().eraseFromParent();
   BranchInst::Create(trueBb, falseBb, condition, entry);
 
-  PHINode *phi = PHINode::Create(trueV->getType(), "");
+  PHINode *phi = PHINode::Create(trueV->getType(), 0, "");
   phi->addIncoming(trueV, trueBb);
   phi->addIncoming(falseV, falseBb);
 

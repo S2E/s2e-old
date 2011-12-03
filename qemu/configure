@@ -49,7 +49,8 @@ compile_prog() {
 compile_prog_cxx() {
   local_cxxflags="$1"
   local_ldflags="$2"
-  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
+echo  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags  > /dev/null 2> /dev/null
 }
 
 # default parameters
@@ -265,7 +266,7 @@ llvmdir=""
 s2e="no"
 kleedir=""
 stpdir=""
-llvmgcc=""
+clang=""
 kvm=""
 nptl=""
 sdl=""
@@ -610,7 +611,7 @@ for opt do
   ;;
   --with-stp=*) stpdir="$optarg"
   ;;
-  --with-llvmgcc=*) llvmgcc="$optarg"
+  --with-clang=*) clang="$optarg"
   ;;
   --disable-kvm) kvm="no"
   ;;
@@ -836,7 +837,7 @@ echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
 echo "  --enable-s2e             enable S2E"
 echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
 echo "  --with-stp=PATH         STP path (PATH/lib/libstp.a must exist)"
-echo "  --with-llvmgcc=PATH      path to llvm-gcc"
+echo "  --with-clang=PATH      path to Clang"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -1633,16 +1634,16 @@ EOF
 fi
 
 ##########################################
-# s2e probe: llvmgcc
+# s2e probe: clang
 
 if test "$s2e" != "no" ; then
-  if test -z "$llvmgcc"; then
-    llvmgcc=`which llvm-gcc`
+  if test -z "$clang"; then
+    clang=`which clang`
   fi
-  if [ -x "$llvmgcc" ]; then
-    : llvm-gcc found
+  if [ -x "$clang" ]; then
+    : clang found
   else
-    feature_not_found "llvmgcc (required for s2e)"
+    feature_not_found "clang (required for s2e)"
     exit 1
   fi
 
@@ -2825,7 +2826,7 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags, $klee_cxxflags)" >> $config_target_mak
   echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
-  echo "LLVMCC:=$llvmgcc" >> $config_target_mak
+  echo "LLVMCC:=$clang" >> $config_target_mak
   echo "LLVMAR:=$llvmar" >> $config_target_mak
 else
   if [ "$llvm" != "no" ]; then

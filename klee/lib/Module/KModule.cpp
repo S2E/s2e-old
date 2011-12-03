@@ -172,7 +172,8 @@ static Function *getStubFunctionForCtorList(Module *m,
   assert(!gv->isDeclaration() && !gv->hasInternalLinkage() &&
          "do not support old LLVM style constructor/destructor lists");
   
-  std::vector<const Type*> nullary;
+  //std::vector<const Type*> nullary;
+  llvm::ArrayRef<Type*> nullary(NULL, (size_t)0);
 
   Function *fn = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()), 
 						    nullary, false),
@@ -231,7 +232,7 @@ static void injectStaticConstructorsAndDestructors(Module *m) {
   }
 }
 
-static void forceImport(Module *m, const char *name, const Type *retType, ...) {
+static void forceImport(Module *m, const char *name, Type *retType, ...) {
   // If module lacks an externally visible symbol for the name then we
   // need to create one. We have to look in the symbol table because
   // we want to check everything (global variables, functions, and
@@ -244,12 +245,14 @@ static void forceImport(Module *m, const char *name, const Type *retType, ...) {
     va_list ap;
 
     va_start(ap, retType);
-    std::vector<const Type *> argTypes;
-    while (const Type *t = va_arg(ap, const Type*))
+    std::vector<Type *> argTypes;
+    while (Type *t = va_arg(ap, Type*))
       argTypes.push_back(t);
     va_end(ap);
 
-    m->getOrInsertFunction(name, FunctionType::get(retType, argTypes, false));
+    ArrayRef<Type*> argTypesA(argTypes);
+
+    m->getOrInsertFunction(name, FunctionType::get(retType, argTypesA, false));
   }
 }
 
@@ -270,9 +273,9 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   if (!MergeAtExit.empty()) {
     Function *mergeFn = module->getFunction("klee_merge");
     if (!mergeFn) {
-      const llvm::FunctionType *Ty = 
+      llvm::FunctionType *Ty =
         FunctionType::get(Type::getVoidTy(getGlobalContext()), 
-                          std::vector<const Type*>(), false);
+                          ArrayRef<Type*>(std::vector<Type*>()), false);
       mergeFn = Function::Create(Ty, GlobalVariable::ExternalLinkage,
 				 "klee_merge",
 				 module);
@@ -293,7 +296,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
       BasicBlock *exit = BasicBlock::Create(getGlobalContext(), "exit", f);
       PHINode *result = 0;
       if (f->getReturnType() != Type::getVoidTy(getGlobalContext()))
-        result = PHINode::Create(f->getReturnType(), "retval", exit);
+        result = PHINode::Create(f->getReturnType(), 0, "retval", exit);
       CallInst::Create(mergeFn, "", exit);
       ReturnInst::Create(getGlobalContext(), result, exit);
 
@@ -339,7 +342,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // by name. We only add them if such a function doesn't exist to
   // avoid creating stale uses.
 
-  const llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
+  llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
   forceImport(module, "memcpy", PointerType::getUnqual(i8Ty),
               PointerType::getUnqual(i8Ty),
               PointerType::getUnqual(i8Ty),

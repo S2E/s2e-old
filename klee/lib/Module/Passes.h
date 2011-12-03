@@ -33,12 +33,11 @@ class RaiseAsmPass : public llvm::ModulePass {
 
   llvm::Function *getIntrinsic(llvm::Module &M,
                                unsigned IID,
-                               const llvm::Type **Tys,
-                               unsigned NumTys);
+                               llvm::ArrayRef<llvm::Type*> Tys);
   llvm::Function *getIntrinsic(llvm::Module &M,
                                unsigned IID, 
-                               const llvm::Type *Ty0) {
-    return getIntrinsic(M, IID, &Ty0, 1);
+                               llvm::Type *Ty0) {
+    return getIntrinsic(M, IID, Ty0);
   }
 
   bool runOnInstruction(llvm::Module &M, llvm::Instruction *I);

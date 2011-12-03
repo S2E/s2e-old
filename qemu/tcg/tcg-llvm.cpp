@@ -77,7 +77,7 @@ static void *qemu_st_helpers[5] = {
 #include <llvm/Intrinsics.h>
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Target/TargetData.h>
-#include <llvm/Target/TargetSelect.h>
+#include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Support/IRBuilder.h>
 
@@ -175,16 +175,16 @@ public:
     }
 
     /* Shortcuts */
-    const Type* intType(int w) { return IntegerType::get(m_context, w); }
-    const Type* intPtrType(int w) { return PointerType::get(intType(w), 0); }
-    const Type* wordType() { return intType(TCG_TARGET_REG_BITS); }
-    const Type* wordPtrType() { return intPtrType(TCG_TARGET_REG_BITS); }
+    Type* intType(int w) { return IntegerType::get(m_context, w); }
+    Type* intPtrType(int w) { return PointerType::get(intType(w), 0); }
+    Type* wordType() { return intType(TCG_TARGET_REG_BITS); }
+    Type* wordPtrType() { return intPtrType(TCG_TARGET_REG_BITS); }
 
-    const Type* tcgType(int type) {
+    Type* tcgType(int type) {
         return type == TCG_TYPE_I64 ? intType(64) : intType(32);
     }
 
-    const Type* tcgPtrType(int type) {
+    Type* tcgPtrType(int type) {
         return type == TCG_TYPE_I64 ? intPtrType(64) : intPtrType(32);
     }
 
@@ -661,11 +661,11 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
                 (uint64_t) &tcg_llvm_runtime.helper_call_addr),
             wordPtrType()));
 
-    std::vector<const Type*> argTypes; argTypes.reserve(3);
+    std::vector<Type*> argTypes; argTypes.reserve(3);
     for(int i=0; i<(ld?2:3); ++i)
         argTypes.push_back(argValues[i]->getType());
 
-    const Type* helperFunctionPtrTy = PointerType::get(
+    Type* helperFunctionPtrTy = PointerType::get(
             FunctionType::get(
                     ld ? intType(bits) : Type::getVoidTy(m_context),
                     argTypes, false),
@@ -679,7 +679,7 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
             ConstantInt::get(wordType(), (uint64_t) tcg_llvm_helper_wrapper),
             helperFunctionPtrTy);
 #endif
-    v2 = m_builder.CreateCall(funcAddr, argValues.begin(), argValues.end());
+    v2 = m_builder.CreateCall(funcAddr, ArrayRef<Value*>(argValues));
 #endif
 
     m_builder.CreateBr(bb_m);
@@ -724,7 +724,7 @@ inline Value* TCGLLVMContextPrivate::generateQemuMemOp(bool ld,
     m_builder.SetInsertPoint(bb_m);
 
     if(ld) {
-        PHINode *phi = m_builder.CreatePHI(intType(bits));
+        PHINode *phi = m_builder.CreatePHI(intType(bits),0);
         phi->addIncoming(v1, bb_1);
         phi->addIncoming(v2, bb_2);
         return phi;
@@ -785,7 +785,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             assert((flags & TCG_CALL_TYPE_MASK) == TCG_CALL_TYPE_STD);
 
             std::vector<Value*> argValues;
-            std::vector<const Type*> argTypes;
+            std::vector<Type*> argTypes;
             argValues.reserve(nb_iargs-1);
             argTypes.reserve(nb_iargs-1);
             for(int i=0; i < nb_iargs-1; ++i) {
@@ -798,7 +798,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             }
 
             assert(nb_oargs == 0 || nb_oargs == 1);
-            const Type* retType = nb_oargs == 0 ?
+            Type* retType = nb_oargs == 0 ?
                 Type::getVoidTy(m_context) : wordType(); // XXX?
 
             Value* helperAddr = getValue(args[nb_oargs + nb_iargs]);
@@ -824,7 +824,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
             }
 
             Value* result = m_builder.CreateCall(helperFunc,
-                                          argValues.begin(), argValues.end());
+                                          ArrayRef<Value*>(argValues));
 
 #else
             m_builder.CreateStore(helperAddr, m_builder.CreateIntToPtr(
@@ -832,7 +832,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
                             (uint64_t) &tcg_llvm_runtime.helper_call_addr),
                         wordPtrType()));
 
-            const Type* helperFunctionPtrTy = PointerType::get(
+            Type* helperFunctionPtrTy = PointerType::get(
                     FunctionType::get(retType, argTypes, false), 0);
 
 #ifdef CONFIG_S2E
@@ -845,7 +845,7 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 #endif
 
             Value* result = m_builder.CreateCall(funcAddr,
-                                argValues.begin(), argValues.end());
+                                ArrayRef<Value*>(argValues));
 #endif
 
             /* Invalidate in-memory values because
@@ -1095,9 +1095,9 @@ int TCGLLVMContextPrivate::generateOperation(int opc, const TCGArg *args)
 #define __ARITH_OP_BSWAP(opc_name, sBits, bits)                     \
     case opc_name: {                                                \
         assert(getValue(args[1])->getType() == intType(bits));      \
-        const Type* Tys[] = { intType(sBits) };                     \
+        Type* Tys[] = { intType(sBits) };                     \
         Function *bswap = Intrinsic::getDeclaration(m_module,       \
-                Intrinsic::bswap, Tys, 1);                          \
+                Intrinsic::bswap, ArrayRef<Type*>(Tys,1));                          \
         v = m_builder.CreateTrunc(getValue(args[1]),intType(sBits));\
         setValue(args[0], m_builder.CreateZExt(                     \
                 m_builder.CreateCall(bswap, v), intType(bits)));    \
@@ -1249,7 +1249,7 @@ void TCGLLVMContextPrivate::generateCode(TCGContext *s, TranslationBlock *tb)
 
     FunctionType *tbFunctionType = FunctionType::get(
             wordType(),
-            std::vector<const Type*>(1, intPtrType(64)), false);
+            std::vector<Type*>(1, intPtrType(64)), false);
     m_tbFunction = Function::Create(tbFunctionType,
             Function::PrivateLinkage, fName.str(), m_module);
     BasicBlock *basicBlock = BasicBlock::Create(m_context,

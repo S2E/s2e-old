@@ -21,9 +21,8 @@ char RaiseAsmPass::ID = 0;
 
 Function *RaiseAsmPass::getIntrinsic(llvm::Module &M,
                                      unsigned IID,
-                                     const Type **Tys,
-                                     unsigned NumTys) {  
-  return Intrinsic::getDeclaration(&M, (llvm::Intrinsic::ID) IID, Tys, NumTys);
+                                     ArrayRef<Type*> Tys) {
+  return Intrinsic::getDeclaration(&M, (llvm::Intrinsic::ID) IID, Tys);
 }
 
 // FIXME: This should just be implemented as a patch to

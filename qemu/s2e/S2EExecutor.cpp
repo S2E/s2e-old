@@ -78,6 +78,7 @@ uint64_t helper_set_cc_op_eflags(void);
 #include <llvm/Function.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/Instructions.h>
+#include <llvm/Constants.h>
 #include <llvm/PassManager.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
@@ -711,12 +712,12 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
 
 
     /* Add dummy TB function declaration */
-    const PointerType* tbFunctionArgTy =
+    PointerType* tbFunctionArgTy =
             PointerType::get(IntegerType::get(ctx, 64), 0);
     FunctionType* tbFunctionTy = FunctionType::get(
             IntegerType::get(ctx, TCG_TARGET_REG_BITS),
-            vector<const Type*>(1, PointerType::get(
-                    IntegerType::get(ctx, 64), 0)),
+            ArrayRef<Type*>(vector<Type*>(1, PointerType::get(
+                    IntegerType::get(ctx, 64), 0))),
             false);
 
     Function* tbFunction = Function::Create(
@@ -733,7 +734,7 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     BasicBlock* dummyMainBB = BasicBlock::Create(ctx, "entry", dummyMain);
 
     vector<Value*> tbFunctionArgs(1, ConstantPointerNull::get(tbFunctionArgTy));
-    CallInst::Create(tbFunction, tbFunctionArgs.begin(), tbFunctionArgs.end(),
+    CallInst::Create(tbFunction, ArrayRef<Value*>(tbFunctionArgs),
             "tbFunctionCall", dummyMainBB);
     ReturnInst::Create(m_tcgLLVMContext->getLLVMContext(), dummyMainBB);
 

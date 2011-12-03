@@ -588,7 +588,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
       // better we could support user definition, or use the EXE style
       // hack where we check the object file information.
 
-      const Type *ty = i->getType()->getElementType();
+      Type *ty = i->getType()->getElementType();
       uint64_t size = kmodule->targetData->getTypeStoreSize(ty);
 
       // XXX - DWD - hardcode some things until we decide how to fix.
@@ -631,7 +631,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
           os->write8(offset, ((unsigned char*)addr)[offset]);
       }
     } else {
-      const Type *ty = i->getType()->getElementType();
+      Type *ty = i->getType()->getElementType();
       uint64_t size = kmodule->targetData->getTypeStoreSize(ty);
       MemoryObject *mo = 0;
 
@@ -669,7 +669,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
   }
 
   // once all objects are allocated, do the actual initialization
-  for (Module::const_global_iterator i = m->global_begin(),
+  for (Module::global_iterator i = m->global_begin(),
          e = m->global_end();
        i != e; ++i) {
     if (i->hasInitializer()) {
@@ -1547,7 +1547,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(cond)) {
       // Somewhat gross to create these all the time, but fine till we
       // switch to an internal rep.
-      const llvm::IntegerType *Ty = 
+      llvm::IntegerType *Ty =
         cast<IntegerType>(si->getCondition()->getType());
       ConstantInt *ci = ConstantInt::get(Ty, CE->getZExtValue());
       unsigned index = si->findCaseValue(ci);
@@ -2409,9 +2409,9 @@ void Executor::bindInstructionConstants(KInstruction *KI) {
   uint64_t index = 1;
   for (gep_type_iterator ii = gep_type_begin(gepi), ie = gep_type_end(gepi);
        ii != ie; ++ii) {
-    if (const StructType *st1 = dyn_cast<StructType>(*ii)) {
+    if (StructType *st1 = dyn_cast<StructType>(*ii)) {
       const StructLayout *sl = kmodule->targetData->getStructLayout(st1);
-      const ConstantInt *ci = cast<ConstantInt>(ii.getOperand());
+      ConstantInt *ci = cast<ConstantInt>(ii.getOperand());
       uint64_t addend = sl->getElementOffset((unsigned) ci->getZExtValue());
       constantOffset = constantOffset->Add(ConstantExpr::alloc(addend,
                                                                Context::get().getPointerWidth()));
@@ -3556,7 +3556,7 @@ Solver *Executor::getSolver() const
     return solver->solver;
 }
 
-Expr::Width Executor::getWidthForLLVMType(const llvm::Type *type) const {
+Expr::Width Executor::getWidthForLLVMType(llvm::Type *type) const {
   return kmodule->targetData->getTypeSizeInBits(type);
 }
 
