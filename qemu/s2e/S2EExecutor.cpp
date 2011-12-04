@@ -893,7 +893,7 @@ void S2EExecutor::registerCpu(S2EExecutionState *initialState,
                               CPUX86State *cpuEnv)
 {
     std::cout << std::hex
-              << "Adding CPU (addr = 0x" << cpuEnv
+            << "Adding CPU (addr = " << std::hex << cpuEnv
               << ", size = 0x" << sizeof(*cpuEnv) << ")"
               << std::dec << '\n';
 
