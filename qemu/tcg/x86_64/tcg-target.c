@@ -687,12 +687,13 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
 #endif
 
     tcg_out_goto(s, 1, qemu_ld_helpers[s_bits]);
-#ifdef CONFIG_S2E
+
+//#ifdef CONFIG_S2E
     /* mov r14, $env */
     tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_ulong) &env);
     /* mov r14, [r14] */
     tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
-#endif
+//#endif
 
     switch(opc) {
     case 0 | 4:
@@ -1484,14 +1485,14 @@ void tcg_target_qemu_prologue(TCGContext *s)
     stack_addend = frame_size - push_size;
     tcg_out_addi(s, TCG_REG_RSP, -stack_addend);
 
-#ifdef CONFIG_S2E
-    /* will TCG_AREG0 */
-
+//#ifdef CONFIG_S2E
+    //Since we do not use a global register anymore, even in vanilla mode,
+    //we must explicitely save and restore the env register.
     /* mov r14, $env */
     tcg_out_movi(s, TCG_TYPE_I64, TCG_AREG0, (tcg_target_long)&env);
     /* mov r14, [r14] */
     tcg_out_modrm_offset2(s, 0x8b | P_REXW, TCG_AREG0, TCG_AREG0, -1, 0, 0);
-#endif
+//#endif
 
 #ifdef __MINGW64__
     tcg_out_modrm(s, 0xff, 4, TCG_REG_RCX); /* jmp *%rcx */

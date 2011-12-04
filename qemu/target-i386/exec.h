@@ -96,7 +96,7 @@ extern struct CPUX86State *env;
 
 #else /* CONFIG_S2E */
 
-register struct CPUX86State *env asm(AREG0);
+extern struct CPUX86State *env;
 
 #undef EAX
 #define EAX (env->regs[R_EAX])

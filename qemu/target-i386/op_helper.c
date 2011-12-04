@@ -171,11 +171,12 @@ u_int64_carry uaddl(u_int64_t a, u_int64_t b)
 
 #endif
 
-#ifndef S2E_LLVM_LIB
-#ifdef CONFIG_S2E
+//Even in non-S2E mode, keep the environment in a variable.
+//#ifndef S2E_LLVM_LIB
+//#ifdef CONFIG_S2E
 struct CPUX86State* env = 0;
-#endif
-#endif
+//#endif
+//#endif
 
 #ifdef DEBUG_PCALL
 #  define LOG_PCALL(...) qemu_log_mask(CPU_LOG_PCALL, ## __VA_ARGS__)
