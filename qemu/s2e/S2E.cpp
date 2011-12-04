@@ -635,6 +635,8 @@ llvm::raw_ostream& S2E::getStream(llvm::raw_ostream &stream,
     fflush(stdout);
     fflush(stderr);
 
+    stream.flush();
+
     if(state) {
         llvm::sys::TimeValue curTime = llvm::sys::TimeValue::now();
         stream << (curTime.seconds() - m_startTimeSeconds) << " ";
@@ -825,6 +827,15 @@ void s2e_debug_print(const char *fmtstr, ...)
     g_s2e->getDebugStream() << str;
 
     va_end(vl);
+}
+
+//Print a klee expression.
+//Useful for invocations from GDB
+void s2e_print_expr(void *expr) {
+    klee::ref<klee::Expr> e = *(klee::ref<klee::Expr>*)expr;
+    std::stringstream ss;
+    ss << e;
+    g_s2e->getDebugStream() << ss.str() << '\n';
 }
 
 extern "C"
