@@ -838,6 +838,11 @@ void s2e_print_expr(void *expr) {
     g_s2e->getDebugStream() << ss.str() << '\n';
 }
 
+void s2e_print_value(void *value) {
+    llvm::Value *v = (llvm::Value*)value;
+    g_s2e->getDebugStream() << *v << '\n';
+}
+
 extern "C"
 {
 void s2e_execute_cmd(const char *cmd)
