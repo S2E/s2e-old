@@ -7,7 +7,7 @@
 LEVEL=../..
 TOOLNAME = debugger
 USEDLIBS = executiontracer.a binaryreaders.a
-LINK_COMPONENTS = support system
+LINK_COMPONENTS = support
 
 include $(LEVEL)/Makefile.common
 

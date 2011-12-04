@@ -36,7 +36,7 @@ namespace klee {
 /// LowerBSWAP - Emit the code to lower bswap of V before the specified
 /// instruction IP.
 static Value *LowerBSWAP(LLVMContext &Context, Value *V, Instruction *IP) {
-  assert(V->getType()->isInteger() && "Can't bswap a non-integer type!");
+  assert(V->getType()->isIntegerTy() && "Can't bswap a non-integer type!");
 
   unsigned BitSize = V->getType()->getPrimitiveSizeInBits();
 

@@ -267,6 +267,7 @@ s2e="no"
 kleedir=""
 stpdir=""
 clang=""
+compileallwithclang="no"
 kvm=""
 nptl=""
 sdl=""
@@ -515,6 +516,8 @@ for opt do
   --asancc=*)
   ;;
   --asancxx=*)
+  ;;
+  --compile-all-with-clang) compileallwithclang="yes"
   ;;
   --host-cc=*) host_cc="$optarg"
   ;;
@@ -836,8 +839,9 @@ echo "  --enable-llvm            enable LLVM support (for all targets)"
 echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
 echo "  --enable-s2e             enable S2E"
 echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
-echo "  --with-stp=PATH         STP path (PATH/lib/libstp.a must exist)"
-echo "  --with-clang=PATH      path to Clang"
+echo "  --with-stp=PATH          STP path (PATH/lib/libstp.a must exist)"
+echo "  --with-clang=PATH        path to Clang"
+echo "  --compile-all-with-clang builds S2E with clang"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -2419,6 +2423,10 @@ fi
 if test "$llvm" = "yes" ; then
   echo "CONFIG_LLVM=y" >> $config_host_mak
   echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_host_mak
+fi
+if test "$compileallwithclang" = "yes"; then
+  echo "CONFIG_CLANG=y" >> $config_host_mak
+  echo "LLVMCC:=$clang" >> $config_host_mak
 fi
 if test "$xen" = "yes" ; then
   echo "CONFIG_XEN=y" >> $config_host_mak

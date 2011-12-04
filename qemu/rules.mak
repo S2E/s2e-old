@@ -26,10 +26,10 @@ ifdef CONFIG_ASAN
 else
 
 %.o: %.c $(GENERATED_HEADERS)
-	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
+	$(call quiet-command,$(LLVMCC) $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
 
 %.o: %.cpp $(GENERATED_HEADERS)
-	$(call quiet-command,$(CXX) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) -c -o $@ $<,"  CXX   $(TARGET_DIR)$@")
+	$(call quiet-command,$(LLVMCC) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) -c -o $@ $<,"  CXX   $(TARGET_DIR)$@")
 
 endif
 

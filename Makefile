@@ -37,7 +37,6 @@ ALWAYS:
 $(CLANG_SRC):
 	wget http://llvm.org/releases/$(LLVM_VERSION)/$(CLANG_SRC)
 
-
 $(LLVM_SRC):
 	wget http://llvm.org/releases/$(LLVM_VERSION)/$(LLVM_SRC)
 
@@ -50,17 +49,34 @@ stamps/clang-unpack: $(CLANG_SRC) stamps/llvm-unpack
 	mv $(CLANG_SRC_DIR) $(LLVM_SRC_DIR)/tools/clang; \
 	mkdir -p stamps && touch $@
 
-
 ########
 # LLVM #
 ########
 
-stamps/llvm-configure: stamps/clang-unpack stamps/llvm-unpack
+
+#First build it with the system's compiler
+stamps/llvm-configure-native: stamps/clang-unpack stamps/llvm-unpack
+	mkdir -p llvm-native
+	cd llvm-native && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--target=x86_64 --enable-targets=x86 --enable-jit \
+		--enable-optimized
+	mkdir -p stamps && touch $@
+
+stamps/llvm-make-release-native: stamps/llvm-configure-native
+	cd llvm-native && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
+	mkdir -p stamps && touch $@
+
+
+#Then, build it with the clang compiler.
+stamps/llvm-configure: stamps/llvm-make-release-native
 	mkdir -p llvm
 	cd llvm && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--target=x86_64 --enable-targets=x86 --enable-jit \
-		--enable-optimized
+		--enable-optimized --enable-assertions\
+		CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
+		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 	mkdir -p stamps && touch $@
 
 stamps/llvm-make-debug: stamps/llvm-configure
@@ -70,6 +86,8 @@ stamps/llvm-make-debug: stamps/llvm-configure
 stamps/llvm-make-release: stamps/llvm-configure
 	cd llvm && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
+
+
 
 #######
 # STP #
@@ -107,7 +125,10 @@ stamps/klee-configure: stamps/llvm-configure \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-stp=$(S2EBUILD)/stp \
 		--target=x86_64 \
-		--enable-exceptions
+		--enable-exceptions --enable-assertions \
+                CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
+		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
+
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
@@ -130,27 +151,28 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 	mkdir -p qemu-debug
 	cd qemu-debug && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvm=$(S2EBUILD)/llvm/Debug  \
-		--with-llvmgcc=$(S2EBUILD)/llvm/Debug/bin/clang \
+		--with-llvm=$(S2EBUILD)/llvm/Debug+Asserts  \
+		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
 		--with-stp=$(S2EBUILD)/stp \
-		--with-klee=$(S2EBUILD)/klee/Debug \
+		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
 		--enable-s2e \
-		--enable-debug
+		--enable-debug --compile-all-with-clang
+
 	mkdir -p stamps && touch $@
 
 stamps/qemu-configure-release: stamps/klee-configure klee/Release/bin/klee-config
 	mkdir -p qemu-release
 	cd qemu-release && $(S2ESRC)/qemu/configure \
 		--prefix=$(S2EBUILD)/opt \
-		--with-llvm=$(S2EBUILD)/llvm/Release  \
-		--with-clang=$(S2EBUILD)/llvm/Release/bin/clang \
+		--with-llvm=$(S2EBUILD)/llvm/Release+Asserts  \
+		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
 		--with-stp=$(S2EBUILD)/stp \
-		--with-klee=$(S2EBUILD)/klee/Release \
+		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
-		--enable-s2e
+		--enable-s2e --compile-all-with-clang
 	mkdir -p stamps && touch $@
 
 stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAYS
@@ -168,17 +190,19 @@ stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release
 stamps/tools-configure: stamps/llvm-configure
 	mkdir -p tools
 	cd tools && $(S2ESRC)/tools/configure \
-		--with-llvmsrc=$(S2EBUILD)/llvm-$(LLVM_VERSION) \
+		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm \
 		--with-s2esrc=$(S2ESRC)/qemu \
-		--target=x86_64
+		--target=x86_64 --enable-assertions \
+		CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
+		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-release: stamps/tools-configure ALWAYS
-	cd tools && make ENABLE_OPTIMIZED=1 -j$(JOBS)
+	cd tools && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1  CXXFLAGS="-fexceptions"  -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 stamps/tools-make-debug: stamps/tools-configure ALWAYS
-	cd tools && make ENABLE_OPTIMIZED=0 -j$(JOBS)
+	cd tools && make ENABLE_OPTIMIZED=0 REQUIRES_RTTI=1 CXXFLAGS="-fexceptions" -j$(JOBS)
 	mkdir -p stamps && touch $@
 
