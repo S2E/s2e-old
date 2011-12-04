@@ -669,10 +669,13 @@ void Executor::initializeGlobals(ExecutionState &state) {
   }
 
   // once all objects are allocated, do the actual initialization
-  for (Module::global_iterator i = m->global_begin(),
-         e = m->global_end();
-       i != e; ++i) {
+  for (Module::global_iterator i = m->global_begin(), e = m->global_end(); i != e; ++i) {
+    if (predefinedSymbols.find(i->getName()) != predefinedSymbols.end()) {
+        continue;
+    }
+
     if (i->hasInitializer()) {
+      assert(globalObjects.find(i) != globalObjects.end());
       const MemoryObject *mo = globalObjects.find(i)->second;
       const ObjectState *os = state.addressSpace.findObject(mo);
       assert(os);
@@ -1044,7 +1047,7 @@ ref<klee::ConstantExpr> Executor::evalConstant(Constant *c) {
     } else if (isa<ConstantPointerNull>(c)) {
       return Expr::createPointer(0);
     } else if (isa<UndefValue>(c)) {
-      return ConstantExpr::create(0, Expr::getWidthForLLVMType(c->getType()));
+      return ConstantExpr::create(0, getWidthForLLVMType(c->getType()));
     } else {
       // Constant{AggregateZero,Array,Struct,Vector}
       assert(0 && "invalid argument to evalConstant()");
@@ -1460,11 +1463,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       }
 
       if (!isVoidReturn) {
-        const Type *t = caller->getType();
+        Type *t = caller->getType();
         if (t != Type::getVoidTy(getGlobalContext())) {
           // may need to do coercion due to bitcasts
           Expr::Width from = result->getWidth();
-          Expr::Width to = Expr::getWidthForLLVMType(t);
+          Expr::Width to = getWidthForLLVMType(t);
             
           if (from != to) {
             CallSite cs = (isa<InvokeInst>(caller) ? CallSite(cast<InvokeInst>(caller)) : 
@@ -1657,7 +1660,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
           Expr::Width to, from = (*ai)->getWidth();
             
           if (i<fType->getNumParams()) {
-            to = Expr::getWidthForLLVMType(fType->getParamType(i));
+            to = getWidthForLLVMType(fType->getParamType(i));
 
             if (from != to) {
               // XXX need to check other param attrs ?
@@ -1721,7 +1724,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     break;
   }
   case Instruction::PHI: {
-    ref<Expr> result = eval(ki, state.incomingBBIndex * 2, state).value;
+    ref<Expr> result = eval(ki, state.incomingBBIndex, state).value;
     bindLocal(ki, state, result);
     break;
   }
@@ -2004,35 +2007,35 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     CastInst *ci = cast<CastInst>(i);
     ref<Expr> result = ExtractExpr::create(eval(ki, 0, state).value,
                                            0,
-                                           Expr::getWidthForLLVMType(ci->getType()));
+                                           getWidthForLLVMType(ci->getType()));
     bindLocal(ki, state, result);
     break;
   }
   case Instruction::ZExt: {
     CastInst *ci = cast<CastInst>(i);
     ref<Expr> result = ZExtExpr::create(eval(ki, 0, state).value,
-                                        Expr::getWidthForLLVMType(ci->getType()));
+                                        getWidthForLLVMType(ci->getType()));
     bindLocal(ki, state, result);
     break;
   }
   case Instruction::SExt: {
     CastInst *ci = cast<CastInst>(i);
     ref<Expr> result = SExtExpr::create(eval(ki, 0, state).value,
-                                        Expr::getWidthForLLVMType(ci->getType()));
+                                        getWidthForLLVMType(ci->getType()));
     bindLocal(ki, state, result);
     break;
   }
 
   case Instruction::IntToPtr: {
     CastInst *ci = cast<CastInst>(i);
-    Expr::Width pType = Expr::getWidthForLLVMType(ci->getType());
+    Expr::Width pType = getWidthForLLVMType(ci->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
     bindLocal(ki, state, ZExtExpr::create(arg, pType));
     break;
   } 
   case Instruction::PtrToInt: {
     CastInst *ci = cast<CastInst>(i);
-    Expr::Width iType = Expr::getWidthForLLVMType(ci->getType());
+    Expr::Width iType = getWidthForLLVMType(ci->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
     bindLocal(ki, state, ZExtExpr::create(arg, iType));
     break;
@@ -2103,7 +2106,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::FPTrunc: {
     FPTruncInst *fi = cast<FPTruncInst>(i);
-    Expr::Width resultType = Expr::getWidthForLLVMType(fi->getType());
+    Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
                                        "floating point");
     if (arg->getWidth() > 64)
@@ -2117,7 +2120,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::FPExt: {
     FPExtInst *fi = cast<FPExtInst>(i);
-    Expr::Width resultType = Expr::getWidthForLLVMType(fi->getType());
+    Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
                                        "floating point");
     if (arg->getWidth() > 64)
@@ -2131,7 +2134,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::FPToUI: {
     FPToUIInst *fi = cast<FPToUIInst>(i);
-    Expr::Width resultType = Expr::getWidthForLLVMType(fi->getType());
+    Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
                                        "floating point");
     if (arg->getWidth() > 64)
@@ -2145,7 +2148,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::FPToSI: {
     FPToSIInst *fi = cast<FPToSIInst>(i);
-    Expr::Width resultType = Expr::getWidthForLLVMType(fi->getType());
+    Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
                                        "floating point");
     if (arg->getWidth() > 64)
@@ -2159,7 +2162,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::UIToFP: {
     UIToFPInst *fi = cast<UIToFPInst>(i);
-    Expr::Width resultType = Expr::getWidthForLLVMType(fi->getType());
+    Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
                                        "floating point");
     if (arg->getWidth() > 64)
@@ -2172,7 +2175,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::SIToFP: {
     SIToFPInst *fi = cast<SIToFPInst>(i);
-    Expr::Width resultType = Expr::getWidthForLLVMType(fi->getType());
+    Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
                                        "floating point");
     if (arg->getWidth() > 64)
@@ -2844,10 +2847,10 @@ void Executor::callExternalFunction(ExecutionState &state,
     return;
   }
 
-  const Type *resultType = target->inst->getType();
+  Type *resultType = target->inst->getType();
   if (resultType != Type::getVoidTy(getGlobalContext())) {
     ref<Expr> e = ConstantExpr::fromMemory((void*) args, 
-                                           Expr::getWidthForLLVMType(resultType));
+                                           getWidthForLLVMType(resultType));
     bindLocal(target, state, e);
   }
 }
@@ -3082,7 +3085,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                       ref<Expr> value /* undef if read */,
                                       KInstruction *target /* undef if write */) {
   Expr::Width type = (isWrite ? value->getWidth() : 
-                     Expr::getWidthForLLVMType(target->inst->getType()));
+                     getWidthForLLVMType(target->inst->getType()));
   unsigned bytes = Expr::getMinBytesForWidth(type);
 
   if (SimplifySymIndices) {
