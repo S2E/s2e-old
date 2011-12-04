@@ -47,13 +47,13 @@ namespace llvm {
 
 namespace klee {  
   class Array;
-  class Cell;
+  struct Cell;
   class ExecutionState;
   class ExternalDispatcher;
   class Expr;
   class InstructionInfoTable;
-  class KFunction;
-  class KInstruction;
+  struct KFunction;
+  struct KInstruction;
   class KInstIterator;
   class KModule;
   class MemoryManager;
@@ -63,7 +63,7 @@ namespace klee {
   class Searcher;
   class SeedInfo;
   class SpecialFunctionHandler;
-  class StackFrame;
+  struct StackFrame;
   class StatsTracker;
   class TimingSolver;
   class TreeStreamWriter;
