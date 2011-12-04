@@ -132,7 +132,7 @@ stamps/klee-configure: stamps/llvm-configure \
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
-	cd klee && make ENABLE_OPTIMIZED=0 -j$(JOBS)
+	cd klee && make ENABLE_OPTIMIZED=0 CXXFLAGS="-g -O0" -j$(JOBS)
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/stp-make ALWAYS

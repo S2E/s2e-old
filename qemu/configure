@@ -143,8 +143,8 @@ QEMU_CFLAGS="-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE $QEMU_CFLA
 QEMU_CFLAGS="-U_FORTIFY_SOURCE $QEMU_CFLAGS"
 QEMU_CFLAGS="-I. -I\$(SRC_PATH) $QEMU_CFLAGS"
 
-QEMU_CCFLAGS="-Wmissing-prototypes -Wstrict-prototypes $QEMU_CCFLAGS"
-QEMU_CXXFLAGS="-D__STDC_FORMAT_MACROS"
+QEMU_CCFLAGS="-Wno-mismatched-tags -Wmissing-prototypes -Wstrict-prototypes $QEMU_CCFLAGS"
+QEMU_CXXFLAGS="-Wno-mismatched-tags -D__STDC_FORMAT_MACROS"
 
 #gcc_flags="-Wold-style-declaration -Wold-style-definition"
 #gcc_flags="-Wno-mismatched-tags"
