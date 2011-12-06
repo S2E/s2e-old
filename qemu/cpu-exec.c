@@ -156,7 +156,7 @@ static void cpu_exec_nocache(int max_cycles, TranslationBlock *orig_tb)
     /* execute the generated code */
 #ifdef CONFIG_S2E
     env->s2e_current_tb = tb;
-    next_tb = s2e_qemu_tb_exec(g_s2e, g_s2e_state, tb);
+    next_tb = s2e_qemu_tb_exec(tb);
     env->s2e_current_tb = NULL;
 #else
     next_tb = tcg_qemu_tb_exec(tb->tc_ptr);
@@ -718,7 +718,7 @@ int cpu_exec(CPUState *env1)
 
 #if defined(CONFIG_S2E)
                     env->s2e_current_tb = tb;
-                    next_tb = s2e_qemu_tb_exec(g_s2e, g_s2e_state, tb);
+                    next_tb = s2e_qemu_tb_exec(tb);
                     env->s2e_current_tb = NULL;
 #elif defined(CONFIG_LLVM)
                     if(execute_llvm) {

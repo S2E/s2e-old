@@ -2262,19 +2262,18 @@ S2EExecutionState* s2e_select_next_state(S2E* s2e, S2EExecutionState* state)
     return s2e->getExecutor()->selectNextState(state);
 }
 
-uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
-                           struct TranslationBlock* tb)
+uintptr_t s2e_qemu_tb_exec(struct TranslationBlock* tb)
 {
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
             << '\n';   */
-    state->setRunningExceptionEmulationCode(false);
+    g_s2e_state->setRunningExceptionEmulationCode(false);
 
     try {
-        uintptr_t ret = s2e->getExecutor()->executeTranslationBlock(state, tb);
+        uintptr_t ret = g_s2e->getExecutor()->executeTranslationBlock(g_s2e_state, tb);
         return ret;
     } catch(s2e::CpuExitException&) {
-        s2e->getExecutor()->updateStates(state);
+        g_s2e->getExecutor()->updateStates(g_s2e_state);
         s2e_longjmp(env->jmp_env, 1);
     }
 }
