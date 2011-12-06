@@ -15,7 +15,7 @@
 #OPTIMIZE      = -O3 -fPIC         # Maximum optimization
 #OPTIMIZE      = -O3 -march=native -fomit-frame-pointer # Maximum optimization
 #OPTIMIZE      = -O3 -march=native -DNDEBUG -DLESSBYTES_PERNODE
-OPTIMIZE      = -Wall -O3  -g -fexceptions  # Maximum optimization
+OPTIMIZE      = -Wall -O3  -g -fexceptions $(ASAN_FLAGS) # Maximum optimization
 CFLAGS_M32   = -m64
 
 #-fno-inline

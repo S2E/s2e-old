@@ -49,6 +49,42 @@ stamps/clang-unpack: $(CLANG_SRC) stamps/llvm-unpack
 	mv $(CLANG_SRC_DIR) $(LLVM_SRC_DIR)/tools/clang; \
 	mkdir -p stamps && touch $@
 
+
+# The following fetches and builds Address Sanitizer
+stamps/llvm-trunk-download:
+	svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm-asan
+	mkdir -p stamps && touch $@
+
+stamps/llvm-trunk-revision: stamps/llvm-trunk-download
+	cd llvm-asan && svn info | grep Revision: | awk '{print $$2}' > ../$@
+
+
+stamps/clang-trunk: stamps/llvm-trunk-revision
+	(cd llvm-asan/tools && svn co -r `cat ../../stamps/llvm-trunk-revision` http://llvm.org/svn/llvm-project/cfe/trunk clang)
+	mkdir -p stamps && touch $@
+
+stamps/compilerrt-trunk: stamps/clang-trunk
+	(cd llvm-asan/projects && svn co -r `cat ../../stamps/llvm-trunk-revision` http://llvm.org/svn/llvm-project/compiler-rt/trunk compiler-rt)
+	mkdir -p stamps && touch $@
+
+stamps/llvm-trunk-build: stamps/compilerrt-trunk
+	(mkdir -p llvm-asan/build && cd llvm-asan/build && ../configure --enable-targets=x86 --enable-optimized && make -j$(JOBS))
+	mkdir -p stamps && touch $@
+
+stamps/asan-get-thirdparty: stamps/llvm-trunk-build
+	cd llvm-asan/projects/compiler-rt/lib/asan && make -f Makefile.old get_third_party
+	mkdir -p stamps && touch $@
+
+stamps/asan-makeinstall: stamps/asan-get-thirdparty
+	cd llvm-asan/projects/compiler-rt/lib/asan && make -f Makefile.old -j$(JOBS)
+	cd llvm-asan/projects/compiler-rt/lib/asan && make -f Makefile.old install -j$(JOBS)
+	cp llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/clang/linux/x86_64/libclang_rt.asan.a llvm-asan/projects/compiler-rt/lib/asan_clang_linux/lib/libasan64.a
+	mkdir -p stamps && touch $@
+
+ASAN_DIR=$(S2EBUILD)/llvm-asan/projects/compiler-rt/lib/asan_clang_linux
+ASAN_CC=$(ASAN_DIR)/bin/clang
+ASAN_CXX=$(ASAN_DIR)/bin/clang++
+
 ########
 # LLVM #
 ########
@@ -87,6 +123,22 @@ stamps/llvm-make-release: stamps/llvm-configure
 	cd llvm && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
 
+#This is for building it with ASAN
+stamps/llvm-configure-asan: stamps/asan-makeinstall
+	mkdir -p llvm-instr-asan
+	cd llvm-instr-asan && $(S2EBUILD)/$(LLVM_SRC_DIR)/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--target=x86_64 --enable-targets=x86 --enable-jit \
+		--enable-optimized --enable-assertions\
+		CC=$(ASAN_CC) \
+		CXX=$(ASAN_CXX) CXXFLAGS="-O1 -faddress-sanitizer" LDFLAGS="-faddress-sanitizer"
+	mkdir -p stamps && touch $@
+
+stamps/llvm-make-release-asan: stamps/llvm-configure-asan
+	-(cd llvm-instr-asan && make ENABLE_OPTIMIZED=1 REQUIRES_RTTI=1 CXXFLAGS="-O1 -faddress-sanitizer" -j$(JOBS))
+	mkdir -p stamps && touch $@
+
+
 
 
 #######
@@ -111,6 +163,23 @@ stp/include/stp/c_interface.h: stamps/stp-configure
 
 stp/lib/libstp.a: stamps/stp-make
 
+#ASAN-enabled STP
+
+stamps/stp-copy-asan:
+	cp -Rup $(S2ESRC)/stp stp-asan
+	mkdir -p stamps && touch $@
+
+stamps/stp-configure-asan: stamps/stp-copy-asan
+	cd stp-asan && bash scripts/configure --with-prefix=$(S2EBUILD)/stp-asan --with-g++=$(ASAN_CXX) --with-gcc=$(ASAN_CC) --with-address-sanitizer
+	cd stp-asan && cp src/c_interface/c_interface.h include/stp
+	mkdir -p stamps && touch $@
+
+stamps/stp-make-asan: stamps/stp-configure-asan ALWAYS
+	cp -Rup $(S2ESRC)/stp stp-asan
+	cd stp-asan && make -j$(JOBS)
+	mkdir -p stamps && touch $@
+
+
 ########
 # KLEE #
 ########
@@ -128,7 +197,6 @@ stamps/klee-configure: stamps/llvm-configure \
 		--enable-exceptions --enable-assertions \
                 CC=$(S2EBUILD)/llvm-native/Release/bin/clang \
 		CXX=$(S2EBUILD)/llvm-native/Release/bin/clang++
-
 	mkdir -p stamps && touch $@
 
 stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-make ALWAYS
@@ -138,6 +206,28 @@ stamps/klee-make-debug: stamps/klee-configure stamps/llvm-make-debug stamps/stp-
 stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/stp-make ALWAYS
 	cd klee && make ENABLE_OPTIMIZED=1 -j$(JOBS)
 	mkdir -p stamps && touch $@
+
+#ASAN-enabled KLEE
+stamps/klee-configure-asan: stamps/llvm-make-release-asan \
+                       stp/include/stp/c_interface.h \
+		       stp/lib/libstp.a
+	mkdir -p klee-asan
+	cd klee-asan && $(S2ESRC)/klee/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
+		--with-llvmobj=$(S2EBUILD)/llvm-instr-asan \
+		--with-stp=$(S2EBUILD)/stp \
+		--target=x86_64 \
+		--enable-exceptions --enable-assertions \
+                CC=$(ASAN_CC) \
+		CXX=$(ASAN_CXX) CXXFLAGS="-O1 -faddress-sanitizer" LDFLAGS="-faddress-sanitizer"
+	mkdir -p stamps && touch $@
+
+stamps/klee-make-release-asan: stamps/klee-configure-asan stamps/stp-make ALWAYS
+	cd klee-asan && make ENABLE_OPTIMIZED=1 CXXFLAGS="-O1 -faddress-sanitizer" LDFLAGS="-faddress-sanitizer"  -j$(JOBS)
+	mkdir -p stamps && touch $@
+
+
 
 ########
 # QEMU #
@@ -153,7 +243,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Debug+Asserts  \
 		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
-		--with-stp=$(S2EBUILD)/stp \
+		--with-stp=$(S2EBUILD)/stp-asan \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
@@ -182,6 +272,28 @@ stamps/qemu-make-debug: stamps/qemu-configure-debug stamps/klee-make-debug ALWAY
 stamps/qemu-make-release: stamps/qemu-configure-release stamps/klee-make-release ALWAYS
 	cd qemu-release && make -j$(JOBS)
 	mkdir -p stamps && touch $@
+
+#ASAN-enabled QEMU
+stamps/qemu-configure-release-asan: stamps/klee-make-release-asan
+	mkdir -p qemu-release-asan
+	cd qemu-release-asan && $(S2ESRC)/qemu/configure \
+		--prefix=$(S2EBUILD)/opt \
+		--with-llvm=$(S2EBUILD)/llvm-instr-asan/Release+Asserts  \
+		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
+		--with-stp=$(S2EBUILD)/stp-asan \
+		--with-klee=$(S2EBUILD)/klee/Release+Asserts \
+		--target-list=i386-s2e-softmmu,i386-softmmu \
+		--asancc=$(ASAN_CC) \
+		--asancxx=$(ASAN_CXX) \
+		--enable-llvm \
+		--enable-s2e --enable-address-sanitizer --compile-all-with-clang
+	mkdir -p stamps && touch $@
+
+stamps/qemu-make-release-asan: stamps/qemu-configure-release-asan stamps/klee-make-release-asan ALWAYS
+	cd qemu-release-asan && make -j$(JOBS)
+	mkdir -p stamps && touch $@
+
+
 
 #########
 # Tools #

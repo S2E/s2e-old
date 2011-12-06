@@ -50,7 +50,7 @@ compile_prog_cxx() {
   local_cxxflags="$1"
   local_ldflags="$2"
 echo  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags
-  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags  > /dev/null 2> /dev/null
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags #  > /dev/null 2> /dev/null
 }
 
 # default parameters
