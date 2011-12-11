@@ -1,7 +1,7 @@
 S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
 
-JOBS:=8
+JOBS:=4
 
 all: all-release
 
@@ -208,7 +208,7 @@ stamps/klee-make-release: stamps/klee-configure stamps/llvm-make-release stamps/
 	mkdir -p stamps && touch $@
 
 #ASAN-enabled KLEE
-stamps/klee-configure-asan: stamps/llvm-make-release-asan \
+stamps/klee-configure-asan: stamps/llvm-make-release-asan stamps/stp-make-asan \
                        stp/include/stp/c_interface.h \
 		       stp/lib/libstp.a
 	mkdir -p klee-asan
@@ -216,7 +216,7 @@ stamps/klee-configure-asan: stamps/llvm-make-release-asan \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvmsrc=$(S2EBUILD)/$(LLVM_SRC_DIR) \
 		--with-llvmobj=$(S2EBUILD)/llvm-instr-asan \
-		--with-stp=$(S2EBUILD)/stp \
+		--with-stp=$(S2EBUILD)/stp-asan \
 		--target=x86_64 \
 		--enable-exceptions --enable-assertions \
                 CC=$(ASAN_CC) \
