@@ -30,7 +30,7 @@ S²E Documentation
 
 * Analyzing ARM applications (ARM branch of S2E)
 
-  1. `Build and use S2E for ARM <s2earm.html>`_
+  1. `Use S2E for ARM <s2earm.html>`_
 
 * Analyzing Android applications (Leakalizer)
 

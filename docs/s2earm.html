@@ -11,24 +11,41 @@
 <div class="document" id="s2e-for-arm">
 <h1 class="title">S2E for ARM</h1>
 
-<p>The arm-branch of S2E is experimental but here are hints on building and using the ARM port for S2E.</p>
-<p>This tutorial was tested with Ubuntu 10.10 as host system.</p>
-<div class="section" id="building-instructions">
-<h1>Building Instructions</h1>
-<ol class="arabic simple">
-<li>cd buildarm</li>
-<li>make all      (or make all-debug)</li>
-<li>find binaries in buildarm/qemu-release/arm-s2e-softmmu (S2E enabled) and buildarm/qemu-release/arm-softmmu (S2E not enabled). Replace 'qemu-release' with 'qemu-debug' when running 'make all-debug'.</li>
-</ol>
-</div>
+<p>Here are hints on building and using the ARM port for S2E.</p>
 <div class="section" id="hints">
 <h1>Hints</h1>
-<ol class="arabic simple">
-<li>Look at /path/to/s2earm/qemu/tests/s2earm for a test firmware which establishes basic communication with S2E. (look at README for tipps how to compile assembler code).</li>
-<li>Find the config file in /path/to/config.lua</li>
-<li>To invoke custom S2E instructions in native ARM applications you can try the provided header: /path/to/s2earm/guest/include/s2earm.h</li>
-<li>To setup an ARM debian target, try: <a class="reference external" href="http://www.aurel32.net/info/debian_arm_qemu.php">http://www.aurel32.net/info/debian_arm_qemu.php</a></li>
+<ol class="arabic">
+<li><p class="first">Look at /path/to/s2e/qemu/tests/s2earm for a test firmware which establishes basic communication with S2E. To run the test bios, try:</p>
+<blockquote>
+<p>/buildpath/qemu-release/arm-s2e-softmmu/qemu-system-arm -s2e-config-file /path/to/config.lua -nographic -kernel /path/to/s2e/qemu/tests/s2earm/hello.bin -s2e-verbose</p>
+</blockquote>
+</li>
+<li><p class="first">To invoke custom S2E instructions in native ARM applications you can try the provided header: /path/to/s2earm/guest/include/s2earm.h</p>
+</li>
+<li><p class="first">To setup an ARM debian target, download the images here: <a class="reference external" href="http://people.debian.org/~aurel32/qemu/arm/">http://people.debian.org/~aurel32/qemu/arm/</a> . Then try:</p>
+<pre class="literal-block">
+/buildpath/qemu-release/arm-s2e-softmmu/qemu-system-arm \
+-M versatilepb -kernel vmlinuz-2.6.26-2-versatile \
+-initrd initrd.img-2.6.26-2-versatile \
+-hda debian_lenny_arm_standard.qcow2 \
+-append &quot;root=/dev/sda1&quot; \
+-s2e-verbose -s2e-config-file /path/to/config.lua
+</pre>
+</li>
 </ol>
+</div>
+<div class="section" id="cross-compile-arm-code">
+<h1>Cross-Compile ARM code</h1>
+<p>If you want to cross-compile ARM code from a X86 host machine, consider the following hints:</p>
+<ul class="simple">
+<li>To compile ARM assembly code on an X86 machine you need to install an ARM toolchain, for example Sourcery G++ Lite for ARM GNU/Linux: <a class="reference external" href="http://www.codesourcery.com/sgpp/lite/arm/portal/release1803">http://www.codesourcery.com/sgpp/lite/arm/portal/release1803</a></li>
+<li>The directory /path/to/s2e/qemu/tests/s2earm contains an ARM port of S2E's testbios. Addional testcases were added to debug S2E's functionality for ARM.</li>
+<li>Build the test firmware (hello.S) with buildHello.sh (this script relies on an ARM toolchain).</li>
+</ul>
+</div>
+<div class="section" id="be-part-of-the-s2e-arm-community">
+<h1>Be part of the S2E-ARM community</h1>
+<p>Feel free to extend the features of S2E for ARM in order to adapt it for your use cases! For example: Port existing S2E-plugins to ARM. In some cases it is possible to make the plugins work for both, X86 and ARM by using qemu's preprocessor macros TARGET_ARM and TARGET_I386.</p>
 <p>best regards
 Andreas Kirchner &lt;<a class="reference external" href="mailto:akalypse&#64;gmail.com">akalypse&#64;gmail.com</a>&gt;</p>
 <blockquote>

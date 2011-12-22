@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
 <title>Building the S2E Platform</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -31,8 +31,9 @@ Linux, Mac, and Windows systems).</p>
 $ sudo apt-get install build-essential
 $ sudo apt-get install subversion
 $ sudo apt-get install git
-$ sudo apt-get install qemu
+$ sudo apt-get install gettext
 $ sudo apt-get install liblua5.1-dev
+$ sudo apt-get install libsdl1.2-dev
 $ sudo apt-get install libsigc++-2.0-dev
 $ sudo apt-get install binutils-dev
 $ sudo apt-get install python-docutils
@@ -88,8 +89,9 @@ $ ln -s ../s2e/Makefile .
 $ make JOBS=4 # Replace 4 with your number of cores
 &gt; Go make some coffee, this will take a lot of time
 </pre>
-<p>By default, the <tt class="docutils literal">make</tt> command compiles S2E in release mode. The resulting
-binary is placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu</span></tt>.
+<p>By default, the <tt class="docutils literal">make</tt> command compiles S2E in release mode. The resulting binary for X86-targets is placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu</span></tt>.
+The binary for ARM-targets is placed in <tt class="docutils literal"><span class="pre">$S2EDIR/build/qemu-release/arm-s2e-softmmu/qemu-system-arm</span></tt>.
+More information on S2E for ARM can be found in <a class="reference external" href="s2earm.html">Use S2E for ARM</a>.
 To compile in Debug mode, use <tt class="docutils literal">make <span class="pre">all-debug</span> JOBS=4</tt>.</p>
 <p>You can also build each component of S2E manually, as described in <a class="reference external" href="BuildingS2EManually.html">Building
 the S2E Framework Manually</a>.</p>

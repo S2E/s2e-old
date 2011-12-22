@@ -18,8 +18,9 @@ Required Packages
     $ sudo apt-get install build-essential
     $ sudo apt-get install subversion
     $ sudo apt-get install git
-    $ sudo apt-get install qemu
+    $ sudo apt-get install gettext
     $ sudo apt-get install liblua5.1-dev
+    $ sudo apt-get install libsdl1.2-dev
     $ sudo apt-get install libsigc++-2.0-dev
     $ sudo apt-get install binutils-dev
     $ sudo apt-get install python-docutils
@@ -77,12 +78,14 @@ The recommended method of building S2E is using the S2E Makefile::
    $ make JOBS=4 # Replace 4 with your number of cores
    > Go make some coffee, this will take a lot of time
 
-By default, the ``make`` command compiles S2E in release mode. The resulting
-binary is placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu``.
+By default, the ``make`` command compiles S2E in release mode. The resulting binary for X86-targets is placed in ``$S2EDIR/build/qemu-release/i386-s2e-softmmu/qemu``.
+The binary for ARM-targets is placed in ``$S2EDIR/build/qemu-release/arm-s2e-softmmu/qemu-system-arm``. 
+More information on S2E for ARM can be found in `Use S2E for ARM <s2earm.html>`_.
 To compile in Debug mode, use ``make all-debug JOBS=4``.
 
 You can also build each component of S2E manually, as described in `Building
 the S2E Framework Manually <BuildingS2EManually.html>`_.
+
 
 Updating S2E
 ============
