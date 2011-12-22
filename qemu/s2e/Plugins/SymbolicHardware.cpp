@@ -595,6 +595,7 @@ void PciDeviceDescriptor::print(std::ostream &os) const
         os << "R[" << i << "]: " <<
                 "Size=0x" << res.size << " IsIO=" << (int)res.isIo <<
                 " IsPrefetchable=0x" << (int)res.prefetchable << std::endl;
+        ++i;
     }
     os << std::endl;
 }
