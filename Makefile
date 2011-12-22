@@ -1,23 +1,13 @@
-S2ESRC:=$(CURDIR)/..
+S2ESRC:=$(CURDIR)/../s2eandroid
 S2EBUILD:=$(CURDIR)
 
 JOBS:=8
 
-all: checkperms all-release
+all: all-release
 
 all-release: stamps/android-make-release stamps/android-make-release-nos2e stamps/tools-make-release
 
 all-debug: stamps/android-make-debug stamps/android-make-debug-nos2e stamps/tools-make-debug
-
-checkperms:
-	chmod +x ../android-emulator/android/tools/gen-hw-config.py
-	chmod +x ../android-emulator/hxtool
-	chmod +x ../android-emulator/feature_to_c.sh
-	chmod +x ../android-emulator/android/build/mkdeps.sh
-	chmod +x ../android-emulator/android-configure.sh
-	chmod +x ../klee/configure
-	chmod +x ../stp/src/AST/genkinds.pl
-	chmod +x ../tools/configure
 
 ifeq ($(shell ls qemu/vl.c 2>&1),qemu/vl.c)
     $(error You should not run make in S2E source directory!)
@@ -149,7 +139,6 @@ stamps/android-configure-debug: clean-android stamps/klee-configure klee/Debug/b
 		--debug \
 		--zero-malloc \
 		--try-64 \
-		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
 		--install=$(S2EBUILD)/android-debug 
 	mkdir -p stamps && touch $@
 
@@ -164,7 +153,6 @@ stamps/android-configure-release: clean-android stamps/klee-configure klee/Relea
 		--enable-s2e \
 		--zero-malloc \
 		--try-64 \
-		--sdl-config=/home/aka/android-sdl/bin/sdl-config \
 		--install=$(S2EBUILD)/android-release
 
 	mkdir -p stamps && touch $@
