@@ -18,7 +18,7 @@ DIRS = lib
 ifeq ($(ENABLE_EXT_STP),0)
   DIRS += stp
 endif
-DIRS += tools runtime
+DIRS += tools
 EXTRA_DIST = include
 
 # Only build support directories when building unittests.
