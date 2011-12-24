@@ -162,10 +162,10 @@ public:
                      int error_code, uint64_t next_eip, int is_hw);
 
     /** Suspend the given state (does not kill it) */
-    bool suspendState(S2EExecutionState *state);
+    bool suspendState(S2EExecutionState *state, bool onlyRemoveFromPtree = false);
 
     /** Puts back the previously suspended state in the queue */
-    bool resumeState(S2EExecutionState *state);
+    bool resumeState(S2EExecutionState *state, bool onlyAddToPtree = false);
 
     klee::Searcher *getSearcher() const {
         return searcher;
