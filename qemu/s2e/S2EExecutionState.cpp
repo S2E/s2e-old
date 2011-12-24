@@ -93,7 +93,7 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
         m_qemuIcount(0), m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
-        m_needFinalizeTBExec(false), m_nextSymbVarId(0)
+        m_needFinalizeTBExec(false), m_nextSymbVarId(0), m_runningExceptionEmulationCode(false)
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
@@ -1591,5 +1591,6 @@ void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
     /** XXX: use cpuState */
     state->writeRegisterConcrete(cpuState, offset, buf, size);
 }
+
 
 } // extern "C"

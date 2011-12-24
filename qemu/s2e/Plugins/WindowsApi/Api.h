@@ -387,16 +387,23 @@ public:
         }
     }
 
+    void unregisterImportedVariables(S2EExecutionState *state, const ModuleDescriptor &module) {
+        if (m_memoryChecker) {
+            m_memoryChecker->revokeMemoryForModule(state, &module, "import:*");
+        }
+    }
+
     void detectLeaks(S2EExecutionState *state,
                      const ModuleDescriptor &module) {
         if(m_memoryChecker) {
-            unregisterImportedVariables(state);
+            unregisterImportedVariables(state, module);
             m_memoryChecker->revokeMemoryForModuleSections(state, module);
             m_memoryChecker->revokeMemoryForModule(state, &module, "stack");
             m_memoryChecker->checkMemoryLeaks(state);
         }
     }
 
+#if 0
     void detectLeaks(S2EExecutionState *state) {
         if(m_memoryChecker) {
             unregisterImportedVariables(state);
@@ -405,6 +412,7 @@ public:
             m_memoryChecker->checkMemoryLeaks(state);
         }
     }
+#endif
 
 public:
 

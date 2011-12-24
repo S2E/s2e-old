@@ -72,6 +72,8 @@ class MemoryChecker : public Plugin
 
     sigc::connection m_dataMemoryAccessConnection;
 
+    void onException(S2EExecutionState *state, unsigned intNb, uint64_t pc);
+
     void onModuleTransition(S2EExecutionState *state,
                             const ModuleDescriptor *prevModule,
                             const ModuleDescriptor *nextModule);
@@ -181,6 +183,10 @@ public:
     bool findMemoryRegion(S2EExecutionState *state,
                           uint64_t address,
                           uint64_t *start, uint64_t *size) const;
+
+    std::string getRegionTypePrefix(S2EExecutionState *state,
+                                    const std::string &regionType);
+
 };
 
 } // namespace plugins

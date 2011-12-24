@@ -349,16 +349,32 @@ void NdisHandlers::NdisFreeMemory(S2EExecutionState* state, FunctionMonitorState
     if (!calledFromModule(state)) { return; }
     HANDLER_TRACE_CALL();
 
-    if(m_memoryChecker) {
-        bool ok = true;
-        uint32_t Address, Length;
-        ok &= readConcreteParameter(state, 0, &Address);
-        ok &= readConcreteParameter(state, 1, &Length);
-        if(!ok) {
-            s2e()->getWarningsStream() << __FUNCTION__ << ": can not read params" << std::endl;
-        }
-        m_memoryChecker->revokeMemory(state, Address, Length);
+    if(!m_memoryChecker) {
+        return;
     }
+
+    bool ok = true;
+    uint32_t Address, Length;
+    ok &= readConcreteParameter(state, 0, &Address);
+    ok &= readConcreteParameter(state, 1, &Length);
+    if(!ok) {
+        s2e()->getWarningsStream() << __FUNCTION__ << ": can not read params" << std::endl;
+    }
+
+    uint64_t AllocatedAddress, AllocatedLength;
+
+    if (!m_memoryChecker->findMemoryRegion(state, Address, &AllocatedAddress, &AllocatedLength)) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "NdisFreeMemory: Tried to free an unallocated memory region");
+    }
+
+    if (AllocatedLength != Length) {
+        std::stringstream ss;
+        ss << "NdisFreeMemory called with length=0x" << std::hex << Length
+           << " but was allocated 0x" << AllocatedLength;
+        s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
+    }
+
+    m_memoryChecker->revokeMemory(state, "*", Address);
 }
 
 void NdisHandlers::NdisMFreeSharedMemory(S2EExecutionState* state, FunctionMonitorState *fns)

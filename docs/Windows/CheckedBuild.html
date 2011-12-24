@@ -12,7 +12,8 @@
 <h1 class="title">Setting Up the Checked Build of Windows</h1>
 
 <p>The checked build of Windows is a version that is compiled with more checks and debugging information.
-It catches bugs earlier, before they propagate through the system and cause non-informative blue screens.</p>
+It catches bugs earlier, before they propagate through the system and cause non-informative blue screens.
+<em>You do not need the checked build for normal S2E use.</em></p>
 <p>It is not necessary to install the entire checked version of Windows.
 It is sufficient to replace the kernel image and the HAL with a checked version, while leaving the rest as is (i.e., in the &quot;Free Build&quot; state).</p>
 <p>The following is an excerpt from an article available <a class="reference external" href="http://www.osronline.com/article.cfm?id=405">here</a>,
@@ -40,14 +41,12 @@ WindowsXP-KB936929-SP3-x86-symbols-full-ENU.exe
 multi(0)disk(0)rdisk(0)partition(1)\WINNT=&quot;Windows MyOS Checked&quot; /fastdetect /kernel=ntkrnlmp.chk /hal=halacpi.chk
 </pre>
 <p>You must replace other system files with their checked versions in <strong>safe mode</strong>. Replacing them in normal mode will trigger the Windows File Protection mechanism, restoring the original file.</p>
-<p>Do not forget to add the <em>checked=true</em> option to the WindowsMonitor plugin.
-Your S2E configuration file should have the following section:</p>
+<p>Your S2E configuration file should have the following section:</p>
 <pre class="literal-block">
 pluginsConfig.WindowsMonitor = {
-  version=&quot;sp3&quot;,
+  version=&quot;XPSP3-CHK&quot;,
   userMode=true,
   kernelMode=true,
-  checked=true,
   monitorModuleLoad=true,
   monitorModuleUnload=true,
   monitorProcessUnload=true

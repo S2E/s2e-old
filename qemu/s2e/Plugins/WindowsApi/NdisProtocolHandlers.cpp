@@ -271,11 +271,9 @@ void NdisHandlers::BindAdapterHandler(S2EExecutionState* state, FunctionMonitorS
 
     //Grant access to the parameters
     if (m_memoryChecker) {
-        m_memoryChecker->grantMemoryForModule(state, pStatus, sizeof(uint32_t),
-                                              MemoryChecker::READWRITE,
-                                              "args:BindAdapterHandler:Status");
-
-        grantAccessToUnicodeString(state, pDeviceName, "args:BindAdapterHandler:DeviceName");
+        grantAccessToUnicodeString(state,
+                                   pDeviceName,
+                                   m_memoryChecker->getRegionTypePrefix(state, "args:BindAdapterHandler:DeviceName"));
     }
 
     std::string deviceName;

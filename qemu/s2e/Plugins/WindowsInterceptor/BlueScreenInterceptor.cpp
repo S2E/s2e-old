@@ -97,7 +97,7 @@ void BlueScreenInterceptor::onTranslateBlockStart(
 void BlueScreenInterceptor::onBsod(
         S2EExecutionState *state, uint64_t pc)
 {
-    std::ostream &os = s2e()->getMessagesStream(state);
+    std::ostream &os = s2e()->getWarningsStream(state);
 
     os << "Killing state "  << state->getID() <<
             " because of BSOD " << std::endl;
@@ -106,11 +106,13 @@ void BlueScreenInterceptor::onBsod(
 
     dispatchErrorCodes(state);
 
+#if 0
     if (m_exec) {
         m_exec->dumpMemory(state, os, state->getSp(), 512);
     }else {
         state->dumpStack(512);
     }
+#endif
 
     if (m_generateCrashDump && m_currentDumpCount < m_maxDumpCount) {
         ++m_currentDumpCount;

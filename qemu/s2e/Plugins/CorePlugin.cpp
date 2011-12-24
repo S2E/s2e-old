@@ -277,15 +277,21 @@ void s2e_on_translate_instruction_end(
     }
 }
 
-void s2e_on_exception(S2E *s2e, S2EExecutionState* state,
-                      unsigned intNb)
+static void s2e_on_exception_slow(unsigned intNb)
 {
-    assert(state->isActive());
+    assert(g_s2e_state->isActive());
 
     try {
-        s2e->getCorePlugin()->onException.emit(state, intNb, state->getPc());
+        g_s2e->getCorePlugin()->onException.emit(g_s2e_state, intNb, g_s2e_state->getPc());
     } catch(s2e::CpuExitException&) {
         s2e_longjmp(env->jmp_env, 1);
+    }
+}
+
+void s2e_on_exception(unsigned intNb)
+{
+    if(unlikely(!g_s2e->getCorePlugin()->onException.empty())) {
+        s2e_on_exception_slow(intNb);
     }
 }
 
@@ -294,24 +300,34 @@ void s2e_init_timers(S2E* s2e)
     s2e->getCorePlugin()->initializeTimers();
 }
 
-void s2e_trace_memory_access(
-        struct S2E *s2e, struct S2EExecutionState* state,
+static void s2e_trace_memory_access_slow(
         uint64_t vaddr, uint64_t haddr, uint8_t* buf, unsigned size,
         int isWrite, int isIO)
 {
-    if(!s2e->getCorePlugin()->onDataMemoryAccess.empty()) {
-        uint64_t value = 0;
-        memcpy((void*) &value, buf, size);
+    uint64_t value = 0;
+    memcpy((void*) &value, buf, size);
 
-        try {
-            s2e->getCorePlugin()->onDataMemoryAccess.emit(state,
-                klee::ConstantExpr::create(vaddr, 64),
-                klee::ConstantExpr::create(haddr, 64),
-                klee::ConstantExpr::create(value, size*8),
-                isWrite, isIO);
-        } catch(s2e::CpuExitException&) {
-            s2e_longjmp(env->jmp_env, 1);
-        }
+    try {
+        g_s2e->getCorePlugin()->onDataMemoryAccess.emit(g_s2e_state,
+            klee::ConstantExpr::create(vaddr, 64),
+            klee::ConstantExpr::create(haddr, 64),
+            klee::ConstantExpr::create(value, size*8),
+            isWrite, isIO);
+    } catch(s2e::CpuExitException&) {
+        s2e_longjmp(env->jmp_env, 1);
+    }
+}
+
+/**
+ * We split the function in two parts so that the common case when
+ * there is no instrumentation is as fast as possible.
+ */
+void s2e_trace_memory_access(
+        uint64_t vaddr, uint64_t haddr, uint8_t* buf, unsigned size,
+        int isWrite, int isIO)
+{
+    if(unlikely(!g_s2e->getCorePlugin()->onDataMemoryAccess.empty())) {
+        s2e_trace_memory_access_slow(vaddr, haddr, buf, size, isWrite, isIO);
     }
 }
 

@@ -4,6 +4,7 @@ Setting Up the Checked Build of Windows
 
 The checked build of Windows is a version that is compiled with more checks and debugging information. 
 It catches bugs earlier, before they propagate through the system and cause non-informative blue screens.
+*You do not need the checked build for normal S2E use.*
 
 It is not necessary to install the entire checked version of Windows. 
 It is sufficient to replace the kernel image and the HAL with a checked version, while leaving the rest as is (i.e., in the "Free Build" state).
@@ -49,16 +50,14 @@ Finally, modify *boot.ini*:
 You must replace other system files with their checked versions in **safe mode**. Replacing them in normal mode will trigger the Windows File Protection mechanism, restoring the original file. 
 
 
-Do not forget to add the *checked=true* option to the WindowsMonitor plugin.
 Your S2E configuration file should have the following section:
 
 ::
 
   pluginsConfig.WindowsMonitor = {
-    version="sp3",
+    version="XPSP3-CHK",
     userMode=true,
     kernelMode=true,
-    checked=true,
     monitorModuleLoad=true,
     monitorModuleUnload=true,
     monitorProcessUnload=true
