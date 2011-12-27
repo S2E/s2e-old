@@ -62,7 +62,7 @@ should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer t
 
 ::
 
-   devcon enable @"*VEN_1022&DEV_2000"
+   devcon enable @"*VEN_1022&DEV_2000*"
    arp -s 192.168.111.1 00-aa-00-62-c6-09
    ping -n 4 -l 999 192.168.111.1
    devcon disable @"*VEN_1022&DEV_2000"
