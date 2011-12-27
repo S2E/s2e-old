@@ -115,6 +115,7 @@ void CodeSelector::onModuleTransition(
     if (m_interceptedModules.find(currentModule->Name) ==
         m_interceptedModules.end()) {
         state->disableForking();
+        return;
     }
 
     state->enableForking();
