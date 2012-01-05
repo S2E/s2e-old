@@ -1849,7 +1849,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
         assert(splitIndex <= high && splitIndex >= low);
         assert(splitIndex >= 0 && splitIndex < (int)newStates.size());
 
-        unsigned parentId = m_s2e->getCurrentProcessId();
+        unsigned parentId = m_s2e->getCurrentProcessIndex();
         m_s2e->getCorePlugin()->onProcessFork.emit(true, false, -1);
         int child = m_s2e->fork();
         if (child < 0) {
