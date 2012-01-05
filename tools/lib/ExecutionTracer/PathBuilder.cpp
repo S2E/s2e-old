@@ -312,7 +312,7 @@ void PathBuilder::processSegment(PathSegment *seg)
                 assert(false && "Trace is broken");
             }
             #ifdef DEBUG_PB
-            std::cout << "T: " << (unsigned)hdr.type << std::endl;
+            //std::cout << "T: " << (unsigned)hdr.type << std::endl;
             #endif
             assert(hdr.stateId == seg->getStateId());
             processItem(s, hdr, data);
