@@ -400,6 +400,7 @@ public:
             m_memoryChecker->revokeMemoryForModuleSections(state, module);
             m_memoryChecker->revokeMemoryForModule(state, &module, "stack");
             m_memoryChecker->checkMemoryLeaks(state);
+            m_memoryChecker->checkResourceLeaks(state);
         }
     }
 

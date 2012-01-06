@@ -125,18 +125,23 @@ private:
     DECLARE_ENTRY_POINT(NdisMSetAttributes);
     DECLARE_ENTRY_POINT(NdisSetTimer);
     DECLARE_ENTRY_POINT(NdisMRegisterAdapterShutdownHandler);
-    DECLARE_ENTRY_POINT(NdisReadNetworkAddress);
-    DECLARE_ENTRY_POINT(NdisReadConfiguration);
+    DECLARE_ENTRY_POINT(NdisReadNetworkAddress, uint32_t pStatus, uint32_t pNetworkAddress,
+                        uint32_t pNetworkAddressLength, uint32_t ConfigurationHandle);
+    DECLARE_ENTRY_POINT(NdisReadConfiguration, uint32_t pStatus, uint32_t ppConfigParam, uint32_t Handle, uint32_t pConfigString);
     DECLARE_ENTRY_POINT_CO(NdisCloseConfiguration);
     DECLARE_ENTRY_POINT(NdisWriteErrorLogEntry);
 
     DECLARE_ENTRY_POINT(NdisAllocatePacket, uint32_t pStatus, uint32_t pPacket);
     DECLARE_ENTRY_POINT_CO(NdisFreePacket);
 
-    DECLARE_ENTRY_POINT(NdisAllocateBufferPool);
-    DECLARE_ENTRY_POINT(NdisAllocatePacketPool);
-    DECLARE_ENTRY_POINT(NdisAllocatePacketPoolEx);
-    DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer, uint32_t Length);
+    DECLARE_ENTRY_POINT(NdisAllocateBufferPool, uint32_t pStatus, uint32_t pPoolHandle);
+    DECLARE_ENTRY_POINT(NdisAllocatePacketPool, uint32_t pStatus, uint32_t pPoolHandle);
+    DECLARE_ENTRY_POINT(NdisAllocatePacketPoolEx, uint32_t pStatus, uint32_t pPoolHandle);
+    DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer);
+
+    DECLARE_ENTRY_POINT_CO(NdisFreeBufferPool);
+    DECLARE_ENTRY_POINT_CO(NdisFreePacketPool);
+    DECLARE_ENTRY_POINT_CO(NdisFreeBuffer);
 
     DECLARE_ENTRY_POINT(NdisOpenAdapter);
     DECLARE_ENTRY_POINT(NdisOpenConfiguration);
@@ -198,6 +203,17 @@ private:
 
 
     bool makePacketSymbolic(S2EExecutionState *s, uint32_t packet, bool keepSymbolicData);
+
+    static std::string makeConfigurationRegionString(uint32_t handle, bool free) {
+        std::stringstream ss;
+        ss << "ndis:NdisReadConfiguration:" << hexval(handle);
+        if (free) {
+            ss << "*";
+        } else {
+            ss << ":";
+        }
+        return ss.str();
+    }
 
     //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 };
