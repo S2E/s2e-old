@@ -176,7 +176,8 @@ struct ExecutionTraceMemChecker
 {
     enum Flags{
         GRANT=1, REVOKE=2,
-        READ=4, WRITE=8, EXECUTE=16
+        READ=4, WRITE=8, EXECUTE=16,
+        RESOURCE=32
     };
 
     struct Serialized {
