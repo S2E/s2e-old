@@ -233,7 +233,7 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
 {
     if (state->isRunningExceptionEmulationCode()) {
         //We do not check what memory the CPU accesses.
-        s2e()->getWarningsStream() << "Running emulation code" << std::endl;
+        //s2e()->getWarningsStream() << "Running emulation code" << std::endl;
         return;
     }
 
@@ -243,12 +243,20 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
         return;
     }
 
+    //XXX: This is a hack.
+    //Sometimes the onModuleTransition is not fired properly...
+    if (!m_moduleDetector->getCurrentDescriptor(state)) {
+        m_dataMemoryAccessConnection.disconnect();
+        return;
+    }
+
     uint64_t start = cast<klee::ConstantExpr>(virtualAddress)->getZExtValue();
 
     std::stringstream err;
     bool result = checkMemoryAccess(state, start,
                       klee::Expr::getMinBytesForWidth(value->getWidth()),
                       isWrite ? 2 : 1, err);
+
 
     if (!result) {
         m_memoryTracer->onDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
@@ -278,8 +286,8 @@ bool MemoryChecker::matchRegionType(const std::string &pattern, const std::strin
     std::string typePrefix = type.substr(0, len-1);
     std::string patternPrefix = pattern.substr(0, len-1);
 
-    s2e()->getDebugStream() << "matchRegionType typePrefix=" << typePrefix
-            << " patternPrefix=" << patternPrefix << std::endl;
+//    s2e()->getDebugStream() << "matchRegionType typePrefix=" << typePrefix
+//            << " patternPrefix=" << patternPrefix << std::endl;
 
     return typePrefix.compare(patternPrefix) == 0;
 }
