@@ -104,13 +104,14 @@ private:
     typedef std::set<std::pair<uint32_t, uint32_t> > TimerEntryPoints;
     TimerEntryPoints m_timerEntryPoints;
 
+    DECLARE_ENTRY_POINT(NdisInitializeWrapper, uint32_t Handle);
     DECLARE_ENTRY_POINT(NdisMRegisterMiniport);
     void NdisAllocateMemoryBase(S2EExecutionState* state, FunctionMonitorState *fns);
     DECLARE_ENTRY_POINT(NdisAllocateMemory, uint32_t Address, uint32_t Length);
     DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTag, uint32_t Address, uint32_t Length);
     DECLARE_ENTRY_POINT(NdisAllocateMemoryWithTagPriority, uint32_t Length);
     DECLARE_ENTRY_POINT_CO(NdisFreeMemory);
-    DECLARE_ENTRY_POINT(NdisMAllocateSharedMemory);
+    DECLARE_ENTRY_POINT(NdisMAllocateSharedMemory, uint32_t Length, uint32_t pVirtualAddress, uint32_t pPhysicalAddress);
     DECLARE_ENTRY_POINT(NdisMFreeSharedMemory);
     DECLARE_ENTRY_POINT(NdisMRegisterIoPortRange);
     DECLARE_ENTRY_POINT(NdisMMapIoSpace);
@@ -120,7 +121,7 @@ private:
     DECLARE_ENTRY_POINT(NdisQueryPendingIOCount);
     DECLARE_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_ENTRY_POINT(NdisMAllocateMapRegisters);
-    DECLARE_ENTRY_POINT(NdisMInitializeTimer);
+    DECLARE_ENTRY_POINT(NdisMInitializeTimer, uint32_t Timer, uint32_t TimerFunction);
     DECLARE_ENTRY_POINT(NdisMSetAttributesEx);
     DECLARE_ENTRY_POINT(NdisMSetAttributes);
     DECLARE_ENTRY_POINT(NdisSetTimer);
@@ -135,7 +136,7 @@ private:
     DECLARE_ENTRY_POINT_CO(NdisFreePacket);
 
     DECLARE_ENTRY_POINT(NdisAllocateBufferPool, uint32_t pStatus, uint32_t pPoolHandle);
-    DECLARE_ENTRY_POINT(NdisAllocatePacketPool, uint32_t pStatus, uint32_t pPoolHandle);
+    DECLARE_ENTRY_POINT(NdisAllocatePacketPool, uint32_t pStatus, uint32_t pPoolHandle, uint32_t ProtocolReservedLength);
     DECLARE_ENTRY_POINT(NdisAllocatePacketPoolEx, uint32_t pStatus, uint32_t pPoolHandle);
     DECLARE_ENTRY_POINT(NdisAllocateBuffer, uint32_t pStatus, uint32_t pBuffer);
 
@@ -148,7 +149,7 @@ private:
 
     DECLARE_ENTRY_POINT(NdisReadPciSlotInformation);
     DECLARE_ENTRY_POINT(NdisWritePciSlotInformation);
-    
+
     //These are contained inside the miniport handle
     DECLARE_ENTRY_POINT(NdisMStatusHandler);
 
@@ -163,7 +164,9 @@ private:
     DECLARE_ENTRY_POINT(QueryInformationHandler);
     DECLARE_ENTRY_POINT(ReconfigureHandler);
     DECLARE_ENTRY_POINT(ResetHandler);
-    DECLARE_ENTRY_POINT(SendHandler);
+    DECLARE_ENTRY_POINT(SendHandler, uint32_t pPacket);
+    DECLARE_ENTRY_POINT(NdisMSendCompleteHandler);
+
     DECLARE_ENTRY_POINT(SendPacketsHandler);
     DECLARE_ENTRY_POINT(SetInformationHandler);
     DECLARE_ENTRY_POINT(TransferDataHandler);
@@ -215,6 +218,99 @@ private:
         return ss.str();
     }
 
+   void grantPacket(S2EExecutionState *state, uint32_t pNdisPacket, uint32_t ProtocolReservedLength) {
+       if(m_memoryChecker) {
+           std::stringstream ss;
+           ss << "ndis:alloc:NDIS_PACKET:" << hexval(pNdisPacket);
+
+           uint32_t size = sizeof(windows::NDIS_PACKET32) +
+                           sizeof(windows::NDIS_PACKET_OOB_DATA32) +
+                           sizeof(windows::NDIS_PACKET_EXTENSION32) +
+                           ProtocolReservedLength;
+           m_memoryChecker->grantMemory(state, pNdisPacket, size,
+                                     MemoryChecker::READWRITE,
+                                     ss.str());
+
+           //Grant access rights to the list of buffers (MDLs)
+           windows::MDL32 CurMdl;
+           windows::NDIS_PACKET32 Packet;
+
+           if (!state->readMemoryConcrete(pNdisPacket, &Packet, sizeof(Packet))) {
+               return;
+           }
+
+           uint32_t head = Packet.Private.Head;
+           while (head) {
+               m_memoryChecker->grantMemory(state, head, sizeof(CurMdl),
+                                MemoryChecker::READ, ss.str() + ":MDL");
+
+               if (!state->readMemoryConcrete(head, &CurMdl, sizeof(CurMdl))) {
+                   break;
+               }
+
+               m_memoryChecker->grantMemory(state, CurMdl.StartVa + CurMdl.ByteOffset, CurMdl.ByteCount,
+                                MemoryChecker::READWRITE, ss.str() + ":MDLBUF");
+
+               head = CurMdl.Next;
+           }
+       }
+   }
+
+   void revokePacket(S2EExecutionState *state, uint32_t pNdisPacket) {
+       if (m_memoryChecker) {
+           std::stringstream ss;
+           ss << "ndis:alloc:NDIS_PACKET:" << hexval(pNdisPacket) << "*";
+           m_memoryChecker->revokeMemory(state, ss.str(), uint64_t(-1));
+       }
+   }
+
+   void revokeMiniportAdapterContext(S2EExecutionState *state) {
+        if (m_memoryChecker) {
+            //Some entry points may be called internally. Don't revoke in such cases.
+            //XXX: broken
+            //if (calledFromModule(state)) {
+            //   return;
+            //}
+            m_memoryChecker->revokeMemory(state, "ndis:NDIS_MINIPORT_BLOCK*");
+        }
+   }
+
+   void grantMiniportAdapterContext(S2EExecutionState *state, uint32_t HandleParamNum) {
+       if (m_memoryChecker) {
+
+           //Some entry points may be called internally. Don't grant in such cases.
+           if (calledFromModule(state)) {
+               return;
+           }
+
+           uint32_t NdisHandle;
+           if (!readConcreteParameter(state, HandleParamNum, &NdisHandle)) {
+               s2e()->getDebugStream(state) << "Could not read NdisHandle" << std::endl;
+               return;
+           }
+           if (NdisHandle) {
+               m_memoryChecker->grantMemory(state, NdisHandle + 0x150, 0x19c - 0x150,
+                                     MemoryChecker::READ,
+                                     "ndis:NDIS_MINIPORT_BLOCK:Callbacks");
+
+               m_memoryChecker->grantMemory(state, NdisHandle + 0xec, 0xf8 - 0xec,
+                                     MemoryChecker::READ,
+                                     "ndis:NDIS_MINIPORT_BLOCK:Callbacks");
+
+               m_memoryChecker->grantMemory(state, NdisHandle + 0xd8, 0xec - 0xd8,
+                                     MemoryChecker::READ,
+                                     "ndis:NDIS_MINIPORT_BLOCK:XFILTER");
+
+           }
+       }
+   }
+
+   virtual void detectLeaks(S2EExecutionState *state,
+                     const ModuleDescriptor &module) {
+        revokeMiniportAdapterContext(state);
+        WindowsAnnotations::detectLeaks(state, module);
+   }
+
     //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 };
 
@@ -244,7 +340,9 @@ private:
 
     //Indicates whether the cable is plugged or not in the current state.
     //It may be unknown
-    CableStatus cableStatus;    
+    CableStatus cableStatus;
+
+    uint32_t ProtocolReservedLength;
 public:
     NdisHandlersState();
     virtual ~NdisHandlersState();
