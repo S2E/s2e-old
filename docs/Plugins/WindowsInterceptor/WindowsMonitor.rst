@@ -28,12 +28,6 @@ Specifies whether the plugin should track driver load and unload.
 If you do not analyze kernel-mode drivers, assigning false to this setting will reduce the
 amount of instrumentation.
 
-checked=[true|false]
-~~~~~~~~~~~~~~~~~~~~
-Specifies whether the VM is running a `checked version <../../Windows/CheckedBuild.html>`_ of the Windows **kernel**.
-**The WindowsMonitor plugin has only support for the checked version of ntoskrnlpa.exe for now!**
-It does not support checked versions of *ntdll.dll*, you must use the free build version of it to monitor user-mode events.
-
 
 If not specified, the default value is false.
 
@@ -56,10 +50,9 @@ Configuration Sample
 ::
 
   pluginsConfig.WindowsMonitor = {
-    version="sp3",
+    version="XPSP3",
     userMode=true,
     kernelMode=true,
-    checked=false,
     monitorModuleLoad=true,
     monitorModuleUnload=true,
     monitorProcessUnload=true

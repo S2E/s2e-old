@@ -33,95 +33,54 @@
  * All contributors are listed in S2E-AUTHORS file.
  *
  */
+#define __STDC_FORMAT_MACROS 1
 
-unsigned m_activeSignals;
-unsigned m_size;
-private:
-func_t *m_funcs;
 
-public:
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <stdio.h>
+#include <inttypes.h>
+#include "BasicBlockListParser.h"
 
-SIGNAL_CLASS() { m_size = 0; m_funcs = 0; m_activeSignals = 0;}
-
-SIGNAL_CLASS(const SIGNAL_CLASS &one) {
-    m_activeSignals = one.m_activeSignals;
-    m_size = one.m_size;
-    m_funcs = new func_t[m_size];
-    for (unsigned i=0; i<m_size; ++i) {
-        m_funcs[i] = one.m_funcs[i];
-        m_funcs[i]->incref();
-    }
-}
-
-~SIGNAL_CLASS() {
-    disconnectAll();
-    if (m_funcs) {
-        delete [] m_funcs;
-    }
-}
-
-void disconnectAll()
+namespace s2etools
 {
-    for (unsigned i=0; i<m_size; ++i) {
-        if (m_funcs[i] && !m_funcs[i]->decref()) {
-            delete m_funcs[i];
+
+bool BasicBlockListParser::parseListing(llvm::sys::Path &listingFile, BasicBlocks &blocks)
+{
+    std::filebuf file;
+    if (!file.open(listingFile.c_str(), std::ios::in)) {
+        return false;
+    }
+
+    std::istream is(&file);
+
+    char line[1024];
+    bool hasErrors = false;
+    while(is.getline(line, sizeof(line))) {
+        //Grab the start and the end
+        uint64_t start, end;
+        sscanf(line, "0x%"PRIx64" 0x%"PRIx64"", &start, &end);
+
+        //Grab the function name
+        std::string fcnName = line;
+        fcnName.erase(fcnName.find_last_not_of(" \n\r\t")+1);
+        fcnName.erase(0, fcnName.find_last_of(" \t")+1);
+
+        BasicBlock bb(start, end-start+1);
+        if (blocks.find(bb) != blocks.end()) {
+            std::cerr << "BasicBlockListParser: bb start=0x" << std::hex
+                      << bb.start << " size=0x" << bb.size << " overlaps an existing block"<< std::endl;
+            hasErrors = true;
+            continue;
         }
-        m_funcs[i] = NULL;
+
+        bb.function = fcnName;
+
+        blocks.insert(bb);
     }
+
+    return !hasErrors;
 }
 
-virtual void disconnect(void *functor, unsigned index) {
-    assert(m_activeSignals > 0);
-    assert(m_size > index);
-
-    if (m_funcs[index] == functor) {
-        if (!m_funcs[index]->decref()) {
-            delete m_funcs[index];
-        }
-        --m_activeSignals;
-        m_funcs[index] = NULL;
-    }
 }
-
-connection connect(func_t fcn) {
-    fcn->incref();
-    ++m_activeSignals;
-    for (unsigned i=0; i<m_size; ++i) {
-        if (!m_funcs[i]) {
-            m_funcs[i] = fcn;
-            return connection(this, fcn, i);
-        }
-    }
-    ++m_size;
-    func_t *nf = new func_t[m_size];
-
-    if (m_funcs) {
-        memcpy(nf, m_funcs, sizeof(func_t)*(m_size-1));
-        delete [] m_funcs;
-    }
-    m_funcs = nf;
-
-    m_funcs[m_size-1] = fcn;
-    return connection(this, fcn, m_size-1);
-}
-
-bool empty() const{
-    return m_activeSignals == 0;
-}
-
-void emit(OPERATOR_PARAM_DECL) {
-    for (unsigned i=0; i<m_size; ++i) {
-        if (m_funcs[i]) {
-            m_funcs[i]->operator ()(CALL_PARAMS);
-        }
-    }
-}
-
-
-#undef SIGNAL_CLASS
-#undef FUNCTOR_NAME
-#undef TYPENAMES
-#undef BASE_CLASS_INST
-#undef FUNCT_DECL
-#undef OPERATOR_PARAM_DECL
-#undef CALL_PARAMS

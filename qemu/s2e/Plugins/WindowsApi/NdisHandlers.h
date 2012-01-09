@@ -59,22 +59,31 @@ namespace plugins {
 
 #define NDIS_REGISTER_ENTRY_POINT(addr, ep) \
     s2e()->getDebugStream() << "Registering " << #ep << " at 0x" << std::hex << (addr) << std::endl; \
-    registerEntryPoint<NdisHandlers, NdisHandlers::EntryPoint>(state, this, &NdisHandlers::ep, addr);
+    registerEntryPoint(state, &NdisHandlers::ep, addr);
 
-class NdisHandlers : public WindowsApi
+class NdisHandlersState;
+
+class NdisHandlers : public WindowsAnnotations<NdisHandlers, NdisHandlersState>
 {
     S2E_PLUGIN
 public:
-    typedef void (NdisHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
-    typedef std::map<std::string, NdisHandlers::EntryPoint> NdisHandlersMap;
+    typedef NdisHandlersState State;
+    //typedef void (NdisHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
+    //typedef std::map<std::string, NdisHandlers::EntryPoint> NdisHandlersMap;
 
-    NdisHandlers(S2E* s2e): WindowsApi(s2e) {}
+    NdisHandlers(S2E* s2e): WindowsAnnotations<NdisHandlers, NdisHandlersState>(s2e) {}
 
     void initialize();
 
 public:
-    static const WindowsApiHandler<EntryPoint> s_handlers[];
-    static const NdisHandlersMap s_handlersMap;
+    static const AnnotationsArray s_handlers[];
+    static const AnnotationsMap s_handlersMap;
+
+    static const char *s_ignoredFunctionsList[];
+    static const StringSet s_ignoredFunctions;
+
+    static const SymbolDescriptor s_exportedVariablesList[];
+    static const SymbolDescriptors s_exportedVariables;
 
 private:
     SymbolicHardware *m_hw;
@@ -107,6 +116,8 @@ private:
     DECLARE_ENTRY_POINT(NdisMMapIoSpace);
     DECLARE_ENTRY_POINT(NdisMRegisterInterrupt);
     DECLARE_ENTRY_POINT(NdisMQueryAdapterInstanceName);
+    DECLARE_ENTRY_POINT(NdisQueryAdapterInstanceName, uint64_t pUnicodeString);
+    DECLARE_ENTRY_POINT(NdisQueryPendingIOCount);
     DECLARE_ENTRY_POINT(NdisMQueryAdapterResources);
     DECLARE_ENTRY_POINT(NdisMAllocateMapRegisters);
     DECLARE_ENTRY_POINT(NdisMInitializeTimer);
@@ -158,6 +169,8 @@ private:
     void QuerySetInformationHandler(S2EExecutionState* state, FunctionMonitorState *fns, bool isQuery);
     void QuerySetInformationHandlerRet(S2EExecutionState* state, bool isQuery);
 
+
+
     //Protocol entry points
     DECLARE_ENTRY_POINT(NdisRegisterProtocol);
 
@@ -184,13 +197,15 @@ private:
     DECLARE_ENTRY_POINT(CoAfRegisterNotifyHandler);
 
 
+    bool makePacketSymbolic(S2EExecutionState *s, uint32_t packet, bool keepSymbolicData);
+
     //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();
 };
 
 //XXX: We assume that we are testing only one driver at a time.
 //All the fields must also be per-driver for correctness in case multiple
 //NDIS drivers are tested.
-class NdisHandlersState: public PluginState
+class NdisHandlersState: public WindowsApiState<NdisHandlers>
 {
 public:
     enum CableStatus {
@@ -222,6 +237,8 @@ public:
 
     friend class NdisHandlers;
 };
+
+
 
 } // namespace plugins
 } // namespace s2e

@@ -30,7 +30,8 @@ blacklist = [
     'qemu/tcg/ppc64/',
     'qemu/tcg/s390/',
     'qemu/tcg/sparc/',
-
+    'stp/papers/',
+    'stp/tests',
     # The following directory contains a symlink to /dev/random
     # which makes QtCreator search go crazy
     'klee/runtime/POSIX/testing-dir',

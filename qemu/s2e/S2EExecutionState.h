@@ -151,6 +151,9 @@ protected:
 
     S2EStateStats m_stats;
 
+    /** Set when execution enters doInterrupt, reset when it exits. */
+    bool m_runningExceptionEmulationCode;
+
     ExecutionState* clone();
     void addressSpaceChange(const klee::MemoryObject *mo,
                             const klee::ObjectState *oldState,
@@ -245,6 +248,14 @@ public:
 
     bool isSymbolicExecutionEnabled() const {
         return m_symbexEnabled;
+    }
+
+    bool isRunningExceptionEmulationCode() const {
+        return m_runningExceptionEmulationCode;
+    }
+
+    inline void setRunningExceptionEmulationCode(bool val) {
+        m_runningExceptionEmulationCode = val;
     }
 
     void enableSymbolicExecution();

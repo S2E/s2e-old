@@ -197,9 +197,11 @@ FunctionMonitor::CallSignal* FunctionMonitorState::getCallSignal(
             return &it->second.signal;
     }
 
+
     CallDescriptor descriptor = { cr3, FunctionMonitor::CallSignal() };
     CallDescriptorsMap::iterator it =
             m_newCallDescriptors.insert(std::make_pair(eip, descriptor));
+
     return &it->second.signal;
 }
 

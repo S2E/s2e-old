@@ -181,7 +181,10 @@ public:
     uint64_t GetPsActiveProcessListPtr() const;
     uint64_t GetKdDebuggerDataBlock() const;
     uint64_t getCurrentProcess(S2EExecutionState *state);
+    uint64_t getCurrentThread(S2EExecutionState *state);
     uint64_t getPeb(S2EExecutionState *state, uint64_t eprocess);
+    uint64_t getTibAddress(S2EExecutionState *state);
+    bool     getTib(S2EExecutionState *state, s2e::windows::NT_TIB32 *tib);
     uint64_t getProcessFromLink(uint64_t pItem);
     uint64_t getDirectoryTableBase(S2EExecutionState *state, uint64_t pProcessEntry);
 
@@ -211,6 +214,8 @@ public:
 
     virtual bool isKernelAddress(uint64_t pc) const;
     virtual uint64_t getPid(S2EExecutionState *s, uint64_t pc);
+    virtual bool getCurrentStack(S2EExecutionState *s, uint64_t *base, uint64_t *size);
+
 
     const windows::DBGKD_GET_VERSION64 &getVersionBlock() const {
         return m_kdVersion;

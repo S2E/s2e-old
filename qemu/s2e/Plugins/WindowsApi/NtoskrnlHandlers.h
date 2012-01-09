@@ -55,22 +55,27 @@
 namespace s2e {
 namespace plugins {
 
-#define NTOSKRNL_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint<NtoskrnlHandlers, NtoskrnlHandlers::EntryPoint>(state, this, &NtoskrnlHandlers::ep, addr);
+#define NTOSKRNL_REGISTER_ENTRY_POINT(addr, ep) registerEntryPoint(state, this, &NtoskrnlHandlers::ep, addr);
 
-class NtoskrnlHandlers: public WindowsApi
+class NtoskrnlHandlersState;
+
+class NtoskrnlHandlers: public WindowsAnnotations<NtoskrnlHandlers, NtoskrnlHandlersState >
 {
     S2E_PLUGIN
 public:
-    typedef void (NtoskrnlHandlers::*EntryPoint)(S2EExecutionState* state, FunctionMonitorState *fns);
-    typedef std::map<std::string, NtoskrnlHandlers::EntryPoint> NtoskrnlHandlersMap;
-
-    NtoskrnlHandlers(S2E* s2e): WindowsApi(s2e) {}
+    NtoskrnlHandlers(S2E* s2e): WindowsAnnotations<NtoskrnlHandlers, NtoskrnlHandlersState >(s2e) {}
 
     void initialize();
 
 public:
-    static const WindowsApiHandler<EntryPoint> s_handlers[];
-    static const NtoskrnlHandlersMap s_handlersMap;
+    static const WindowsApiHandler<Annotation> s_handlers[];
+    static const AnnotationsMap s_handlersMap;
+
+    static const char *s_ignoredFunctionsList[];
+    static const StringSet s_ignoredFunctions;
+
+    static const SymbolDescriptor s_exportedVariablesList[];
+    static const SymbolDescriptors s_exportedVariables;
 
 private:
     bool m_loaded;
@@ -90,7 +95,8 @@ private:
 
     DECLARE_ENTRY_POINT(DebugPrint);
     DECLARE_ENTRY_POINT(IoCreateSymbolicLink);
-    DECLARE_ENTRY_POINT(IoCreateDevice);
+    DECLARE_ENTRY_POINT(IoCreateDevice, uint32_t pDeviceObject);
+    DECLARE_ENTRY_POINT(IoDeleteDevice);
     DECLARE_ENTRY_POINT(IoIsWdmVersionAvailable);
     DECLARE_ENTRY_POINT_CO(IoFreeMdl);
 
@@ -104,21 +110,55 @@ private:
     DECLARE_ENTRY_POINT(GetSystemUpTime);
     DECLARE_ENTRY_POINT(KeStallExecutionProcessor);
 
+    DECLARE_ENTRY_POINT(MmGetSystemRoutineAddress);
+
     DECLARE_ENTRY_POINT(ExAllocatePoolWithTag, uint32_t poolType, uint32_t size);
+    DECLARE_ENTRY_POINT(ExFreePool);
+    DECLARE_ENTRY_POINT(ExFreePoolWithTag);
+
+    DECLARE_ENTRY_POINT(IofCompleteRequest);
 
     static uint32_t IoGetCurrentIrpStackLocation(windows::IRP *Irp) {
         return ( (Irp)->Tail.Overlay.CurrentStackLocation );
     }
 
     static std::string readUnicodeString(S2EExecutionState *state, uint32_t pUnicodeString);
+
+    void grantAccessToIrp(S2EExecutionState *state, uint32_t pIrp);
+    void revokeAccessToIrp(S2EExecutionState *state, uint32_t pIrp);
+
 public:
     DECLARE_ENTRY_POINT_CALL(DriverDispatch, uint32_t irpMajor);
     DECLARE_ENTRY_POINT_RET(DriverDispatch, uint32_t irpMajor);
 };
 
+
+class NtoskrnlHandlersState: public WindowsApiState<NtoskrnlHandlers>
+{
+private:
+    bool isFakeState;
+    bool isIoctlIrpExplored;
+
+public:
+    NtoskrnlHandlersState(){
+        isFakeState = false;
+        isIoctlIrpExplored = false;
+    }
+
+    virtual ~NtoskrnlHandlersState(){};
+    virtual NtoskrnlHandlersState* clone() const {
+        return new NtoskrnlHandlersState(*this);
+    }
+
+    static PluginState *factory(Plugin *p, S2EExecutionState *s) {
+        return new NtoskrnlHandlersState();
+    }
+
+    friend class NtoskrnlHandlers;
+};
+
+
 }
-
-
 }
 
 #endif

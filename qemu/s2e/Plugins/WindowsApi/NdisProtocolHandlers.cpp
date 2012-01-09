@@ -249,15 +249,51 @@ void NdisHandlers::ReceivePacketHandlerRet(S2EExecutionState* state)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+//VOID ProtocolBindAdapter(
+//  PNDIS_STATUS Status, NDIS_HANDLE BindContext, PNDIS_STRING DeviceName,
+//  PVOID SystemSpecific1, PVOID SystemSpecific2);
+
 void NdisHandlers::BindAdapterHandler(S2EExecutionState* state, FunctionMonitorState *fns)
 {
     HANDLER_TRACE_CALL();
+
+    uint32_t pDeviceName;
+    uint32_t pStatus;
+    if (!readConcreteParameter(state, 2, &pDeviceName)) {
+        HANDLER_TRACE_PARAM_FAILED("DeviceName");
+        return;
+    }
+
+    if (!readConcreteParameter(state, 0, &pStatus)) {
+        HANDLER_TRACE_PARAM_FAILED("Status");
+        return;
+    }
+
+    //Grant access to the parameters
+    if (m_memoryChecker) {
+        grantAccessToUnicodeString(state,
+                                   pDeviceName,
+                                   m_memoryChecker->getRegionTypePrefix(state, "args:BindAdapterHandler:DeviceName"));
+    }
+
+    std::string deviceName;
+    if (!ReadUnicodeString(state, pDeviceName, deviceName)) {
+        HANDLER_TRACE_PARAM_FAILED("DeviceName");
+        return;
+    }
+
+    s2e()->getMessagesStream() << "BindAdapterHandler: DeviceName=" << deviceName << std::endl;
+
     FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::BindAdapterHandlerRet)
 }
 
 void NdisHandlers::BindAdapterHandlerRet(S2EExecutionState* state)
 {
     HANDLER_TRACE_RETURN();
+
+    if (m_memoryChecker) {
+        m_memoryChecker->revokeMemoryForModule(state, "args:BindAdapterHandler:*");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

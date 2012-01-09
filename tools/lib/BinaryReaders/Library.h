@@ -41,6 +41,8 @@
 #include "ExecutableFile.h"
 
 #include "lib/ExecutionTracer/ModuleParser.h"
+#include "llvm/System/Path.h"
+
 #include <string>
 #include <set>
 #include <inttypes.h>
@@ -74,6 +76,11 @@ public:
     bool getInfo(const ModuleInstance *ni, uint64_t pc, std::string &file, uint64_t &line, std::string &func);
 
     bool findLibrary(const std::string &libName, std::string &abspath);
+    bool findSuffixedModule(const std::string &moduleName, const std::string &suffix, llvm::sys::Path &path);
+    bool findBasicBlockList(const std::string &moduleName, llvm::sys::Path &path);
+    bool findDisassemblyListing(const std::string &moduleName, llvm::sys::Path &path);
+
+
 
     static uint64_t translatePid(uint64_t pid, uint64_t pc);
 private:

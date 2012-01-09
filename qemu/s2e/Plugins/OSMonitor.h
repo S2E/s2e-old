@@ -73,6 +73,7 @@ public:
    virtual bool getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E) = 0;
    virtual bool isKernelAddress(uint64_t pc) const = 0;
    virtual uint64_t getPid(S2EExecutionState *s, uint64_t pc) = 0;
+   virtual bool getCurrentStack(S2EExecutionState *s, uint64_t *base, uint64_t *size) = 0;
 };
 
 } // namespace plugins

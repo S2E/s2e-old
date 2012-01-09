@@ -53,7 +53,7 @@ namespace s2e {
 namespace plugins {
 
 S2E_DEFINE_PLUGIN(MemoryChecker, "MemoryChecker plugin", "",
-                  "Interceptor", "ModuleExecutionDetector");
+                  "Interceptor", "ModuleExecutionDetector", "ExecutionTracer", "MemoryTracer");
 
 namespace {
     struct MemoryRange {
@@ -61,18 +61,19 @@ namespace {
         uint64_t size;
     };
 
+    //XXX: Should also add per-module permissions
     struct MemoryRegion {
         MemoryRange range;
-        uint8_t perms;
+        MemoryChecker::Permissions perms;
         uint64_t allocPC;
-        const char* type;
+        std::string type;
         uint64_t id;
         bool permanent;
     };
 
     struct MemoryRangeLT {
         bool operator()(const MemoryRange& a, const MemoryRange& b) const {
-            return a.start < b.start;
+            return a.start + a.size <= b.start;
         }
     };
 
@@ -95,17 +96,10 @@ namespace {
 class MemoryCheckerState: public PluginState
 {
 public:
-    //const ModuleDescriptor* module;
-
-    //***** XXX! *****
-    // For some reason OSMonitor sometimes gives different ModuleDescriptors
-    // for the same module. As a workaroung we compare LoadBase instead.
-    ModuleDescriptor m_module;
-
     MemoryMap m_memoryMap;
 
 public:
-    MemoryCheckerState() { m_module.LoadBase = 0; }
+    MemoryCheckerState() {}
     ~MemoryCheckerState() {}
 
     MemoryCheckerState *clone() const { return new MemoryCheckerState(*this); }
@@ -113,19 +107,11 @@ public:
         return new MemoryCheckerState();
     }
 
-    MemoryMap* getModuleMemoryMap(const ModuleDescriptor* module) {
-#warning Checking the module is currently disabled because limitations of NDisHandlers
-        return &m_memoryMap;
-        /*
-        if(module->LoadBase == m_module.LoadBase)
-            return &m_memoryMap;
-        else
-            return 0;
-        */
+    MemoryMap &getMemoryMap() {
+        return m_memoryMap;
     }
 
-    void setModuleMemoryMap(const ModuleDescriptor* module, const MemoryMap& memoryMap) {
-        //assert(module->LoadBase == m_module.LoadBase);
+    void setMemoryMap(const MemoryMap& memoryMap) {
         m_memoryMap = memoryMap;
     }
 };
@@ -133,14 +119,6 @@ public:
 void MemoryChecker::initialize()
 {
     ConfigFile *cfg = s2e()->getConfig();
-    ConfigFile::string_list mods = cfg->getStringList(getConfigKey() + ".moduleIds");
-    if (mods.size() == 0) {
-        s2e()->getWarningsStream() << "MemoryChecker: No modules to track configured for the MemoryChecker plugin" << std::endl;
-        return;
-    }
-
-    assert(mods.size() == 1 && "Only one module is currently supported!");
-    m_moduleId = mods[0];
 
     m_checkMemoryErrors = cfg->getBool(getConfigKey() + ".checkMemoryErrors");
     m_checkMemoryLeaks = cfg->getBool(getConfigKey() + ".checkMemoryLeaks");
@@ -152,67 +130,71 @@ void MemoryChecker::initialize()
                             s2e()->getPlugin("ModuleExecutionDetector"));
     assert(m_moduleDetector);
 
+    m_memoryTracer = static_cast<MemoryTracer*>(
+                s2e()->getPlugin("MemoryTracer"));
+    assert(m_memoryTracer);
+
+    m_executionTracer = static_cast<ExecutionTracer*>(
+                s2e()->getPlugin("ExecutionTracer"));
+    assert(m_executionTracer);
+
     m_osMonitor = static_cast<OSMonitor*>(s2e()->getPlugin("Interceptor"));
     assert(m_osMonitor);
-
-    m_osMonitor->onModuleLoad.connect(
-            sigc::mem_fun(*this,
-                    &MemoryChecker::onModuleLoad)
-            );
-
-    m_osMonitor->onModuleUnload.connect(
-            sigc::mem_fun(*this,
-                    &MemoryChecker::onModuleUnload)
-            );
 
     if(m_checkMemoryErrors) {
         m_moduleDetector->onModuleTransition.connect(
                 sigc::mem_fun(*this,
                         &MemoryChecker::onModuleTransition)
                 );
+        s2e()->getCorePlugin()->onStateSwitch.connect(
+                sigc::mem_fun(*this,
+                        &MemoryChecker::onStateSwitch)
+                );
+
+        s2e()->getCorePlugin()->onException.connect(
+                sigc::mem_fun(*this,
+                        &MemoryChecker::onException)
+                );
     }
 }
 
-void MemoryChecker::onModuleLoad(S2EExecutionState* state,
-                                 const ModuleDescriptor &module)
-{
-    // XXX: ugh, this is really ugly!
-    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
-
-    const std::string* moduleId = m_moduleDetector->getModuleId(module);
-    if(moduleId && *moduleId == m_moduleId) {
-        if(!plgState->m_module.LoadBase) {
-            plgState->m_module = module;
-        } else {
-            assert(plgState->m_module.LoadBase == module.LoadBase);
-        }
-    }
-}
-
-void MemoryChecker::onModuleUnload(S2EExecutionState* state,
-                    const ModuleDescriptor &module)
-{
-    // XXX: ugh, this is really ugly!
-    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
-
-    if(plgState->m_module.LoadBase == module.LoadBase) {
-        plgState->m_module.LoadBase = 0;
-    }
-}
 
 void MemoryChecker::onModuleTransition(S2EExecutionState *state,
                                        const ModuleDescriptor *prevModule,
                                        const ModuleDescriptor *nextModule)
 {
-    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
-
-    if(nextModule && nextModule->LoadBase == plgState->m_module.LoadBase) {
-        m_dataMemoryAccessConnection = s2e()->getCorePlugin()
-            ->onDataMemoryAccess.connect(
-                sigc::mem_fun(*this, &MemoryChecker::onDataMemoryAccess));
+    if(nextModule) {
+        m_dataMemoryAccessConnection =
+            s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*this, &MemoryChecker::onDataMemoryAccess)
+            );
     } else {
         m_dataMemoryAccessConnection.disconnect();
     }
+}
+
+void MemoryChecker::onStateSwitch(S2EExecutionState *currentState,
+                                  S2EExecutionState *nextState)
+{
+
+    const ModuleDescriptor *nextModule =
+            m_moduleDetector->getModule(nextState, nextState->getPc());
+
+    m_dataMemoryAccessConnection.disconnect();
+
+    if(nextModule) {
+        m_dataMemoryAccessConnection =
+            s2e()->getCorePlugin()->onDataMemoryAccess.connect(
+                sigc::mem_fun(*this, &MemoryChecker::onDataMemoryAccess)
+            );
+    }
+}
+
+void MemoryChecker::onException(S2EExecutionState *state, unsigned intNb, uint64_t pc)
+{
+    //Reconnection will be done automatically upon next
+    //module transition signal.
+    m_dataMemoryAccessConnection.disconnect();
 }
 
 void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
@@ -221,49 +203,179 @@ void MemoryChecker::onDataMemoryAccess(S2EExecutionState *state,
                                        klee::ref<klee::Expr> value,
                                        bool isWrite, bool isIO)
 {
+    if (state->isRunningExceptionEmulationCode()) {
+        //We do not check what memory the CPU accesses.
+        s2e()->getWarningsStream() << "Running emulation code" << std::endl;
+        return;
+    }
+
     if(!isa<klee::ConstantExpr>(virtualAddress)) {
         s2e()->getWarningsStream(state) << "Symbolic memory accesses are "
                 << "not yet supported by MemoryChecker" << std::endl;
         return;
     }
 
-    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
     uint64_t start = cast<klee::ConstantExpr>(virtualAddress)->getZExtValue();
-    checkMemoryAccess(state, &plgState->m_module, start,
+
+    std::stringstream err;
+    bool result = checkMemoryAccess(state, start,
                       klee::Expr::getMinBytesForWidth(value->getWidth()),
-                      isWrite ? 2 : 1);
+                      isWrite ? 2 : 1, err);
+
+    if (!result) {
+        m_memoryTracer->onDataMemoryAccess(state, virtualAddress, hostAddress, value, isWrite, isIO);
+        if(m_terminateOnErrors)
+            s2e()->getExecutor()->terminateStateEarly(*state, err.str());
+        else
+            s2e()->getWarningsStream(state) << err.str() << std::flush;
+    }
 }
 
-bool MemoryChecker::matchRegionType(const char *pattern, const char *type)
+bool MemoryChecker::matchRegionType(const std::string &pattern, const std::string &type)
 {
-    if(pattern == NULL)
+    if(pattern.size() == 0)
         return true;
 
-    if(type == NULL)
+    if(type.size() == 0)
         return pattern[0] == '*' && pattern[1] == 0;
 
-    size_t len = strlen(pattern);
+    size_t len = pattern.size();
+
     if(len == 0) // corner case
         return type[0] == 0;
 
     if(pattern[len-1] != '*')
-        return strcmp(pattern, type) == 0;
+        return pattern.compare(type) == 0;
 
-    return strncmp(pattern, type, len-1) == 0;
+    std::string typePrefix = type.substr(0, len-1);
+    std::string patternPrefix = pattern.substr(0, len-1);
+
+    s2e()->getDebugStream() << "matchRegionType typePrefix=" << typePrefix
+            << " patternPrefix=" << patternPrefix << std::endl;
+
+    return typePrefix.compare(patternPrefix) == 0;
+}
+
+void MemoryChecker::grantMemoryForModuleSections(
+            S2EExecutionState *state,
+            const ModuleDescriptor &module
+        )
+{
+    foreach2(it, module.Sections.begin(), module.Sections.end()){
+        const SectionDescriptor &sec = *it;
+
+        MemoryChecker::Permissions perms = MemoryChecker::NONE;
+        if (sec.isReadable()) {
+            perms = MemoryChecker::Permissions(perms | MemoryChecker::READ);
+        }
+        if (sec.isWritable()) {
+            perms = MemoryChecker::Permissions(perms | MemoryChecker::WRITE);
+        }
+
+        std::string sectionName = "section:";
+        sectionName += sec.name;
+
+        grantMemoryForModule(state,
+                             &module,
+                    sec.loadBase, sec.size,
+                    perms, sectionName);
+    }
+}
+
+void MemoryChecker::revokeMemoryForModuleSections(
+            S2EExecutionState *state,
+            const ModuleDescriptor &module
+        )
+{
+    revokeMemoryForModule(state, &module, "section:*");
+}
+
+void MemoryChecker::revokeMemoryForModuleSections(
+            S2EExecutionState *state
+        )
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false && "No module");
+    }
+
+    revokeMemoryForModule(state, module, "section:*");
+}
+
+
+
+void MemoryChecker::grantMemoryForModule(S2EExecutionState *state,
+                 uint64_t start, uint64_t size,
+                 Permissions perms,
+                 const std::string &regionType)
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false);
+        return;
+    }
+
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionType;
+    grantMemory(state, start, size, perms, ss.str(), false);
+}
+
+std::string MemoryChecker::getRegionTypePrefix(S2EExecutionState *state, const std::string &regionType)
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false);
+        return "";
+    }
+
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionType;
+    return ss.str();
+}
+
+void MemoryChecker::grantMemoryForModule(S2EExecutionState *state,
+                 const ModuleDescriptor *module,
+                 uint64_t start, uint64_t size,
+                 Permissions perms,
+                 const std::string &regionType,
+                 bool permanent)
+{
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionType;
+    grantMemory(state, start, size, perms, ss.str(), permanent);
+}
+
+bool MemoryChecker::revokeMemoryForModule(S2EExecutionState *state,
+                                 const std::string &regionTypePattern)
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false && "No module found");
+    }
+
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionTypePattern;
+    return revokeMemory(state, ss.str());
+}
+
+bool MemoryChecker::revokeMemoryForModule(
+        S2EExecutionState *state,
+        const ModuleDescriptor *module,
+        const std::string &regionTypePattern)
+{
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionTypePattern;
+    return revokeMemory(state, ss.str());
 }
 
 void MemoryChecker::grantMemory(S2EExecutionState *state,
-                                const ModuleDescriptor *module,
-                                uint64_t start, uint64_t size, uint8_t perms,
-                                const char *regionType, uint64_t regionID,
+                                uint64_t start, uint64_t size, Permissions perms,
+                                const std::string &regionType, uint64_t regionID,
                                 bool permanent)
 {
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
-    MemoryMap *memoryMap = plgState->getModuleMemoryMap(module);
-    if(!memoryMap)
-        return;
+    MemoryMap &memoryMap = plgState->getMemoryMap();
 
     MemoryRegion *region = new MemoryRegion();
     region->range.start = start;
@@ -277,6 +389,23 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
     s2e()->getDebugStream(state) << "MemoryChecker::grantMemory("
             << *region << ")" << std::endl;
 
+    /********************************************/
+    /* Write a log entry about the grant event */
+    unsigned traceEntrySize = 0;
+    ExecutionTraceMemChecker::Flags traceFlags = ExecutionTraceMemChecker::GRANT;
+
+    if (perms & READ) traceFlags = ExecutionTraceMemChecker::Flags(traceFlags | ExecutionTraceMemChecker::READ);
+    if (perms & WRITE) traceFlags = ExecutionTraceMemChecker::Flags(traceFlags | ExecutionTraceMemChecker::WRITE);
+
+    ExecutionTraceMemChecker::Serialized *traceEntry =
+            ExecutionTraceMemChecker::serialize(&traceEntrySize, start, size,
+                                                ExecutionTraceMemChecker::GRANT,
+                                                regionType);
+
+    m_executionTracer->writeData(state, traceEntry, traceEntrySize, TRACE_MEM_CHECKER);
+    delete [] (uint8_t*)traceEntry;
+    /********************************************/
+
     if(size == 0 || start + size < start) {
         s2e()->getWarningsStream(state) << "MemoryChecker::grantMemory: "
             << "detected region of " << (size == 0 ? "zero" : "negative")
@@ -286,7 +415,7 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
         return;
     }
 
-    const MemoryMap::value_type *res = memoryMap->lookup_previous(region->range);
+    const MemoryMap::value_type *res = memoryMap.lookup_previous(region->range);
     if (res && res->first.start + res->first.size > start) {
         s2e()->getWarningsStream(state) << "MemoryChecker::grantMemory: "
             << "detected overlapping ranges!" << std::endl
@@ -297,22 +426,17 @@ void MemoryChecker::grantMemory(S2EExecutionState *state,
         return;
     }
 
-    plgState->setModuleMemoryMap(module,
-                memoryMap->replace(std::make_pair(region->range, region)));
+    plgState->setMemoryMap(memoryMap.replace(std::make_pair(region->range, region)));
 
 }
 
 bool MemoryChecker::revokeMemory(S2EExecutionState *state,
-                                 const ModuleDescriptor *module,
-                                 uint64_t start, uint64_t size, uint8_t perms,
-                                 const char *regionTypePattern, uint64_t regionID)
+                                 uint64_t start, uint64_t size, Permissions perms,
+                                 const std::string &regionTypePattern, uint64_t regionID)
 {
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
-    MemoryMap *memoryMap = plgState->getModuleMemoryMap(module);
-    if(!memoryMap)
-        return true;
+    MemoryMap &memoryMap = plgState->getMemoryMap();
 
     MemoryRegion *region = new MemoryRegion();
     region->range.start = start;
@@ -325,6 +449,20 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
     s2e()->getDebugStream(state) << "MemoryChecker::revokeMemory("
             << *region << ")" << std::endl;
 
+
+    /********************************************/
+    /* Write a log entry about the revoke event */
+    unsigned traceEntrySize = 0;
+    ExecutionTraceMemChecker::Serialized *traceEntry =
+            ExecutionTraceMemChecker::serialize(&traceEntrySize, start, size,
+                                                ExecutionTraceMemChecker::REVOKE,
+                                                regionTypePattern);
+
+
+    m_executionTracer->writeData(state, traceEntry, traceEntrySize, TRACE_MEM_CHECKER);
+    delete [] (uint8_t*)traceEntry;
+    /********************************************/
+
     std::ostringstream err;
 
     do {
@@ -335,7 +473,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
             break;
         }
 
-        const MemoryMap::value_type *res = memoryMap->lookup_previous(region->range);
+        const MemoryMap::value_type *res = memoryMap.lookup_previous(region->range);
         if(!res || res->first.start + res->first.size <= start) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory that was not allocated!" << std::endl;
@@ -364,7 +502,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
                 << "  NOTE: requested region: " << *region << std::endl;
         }
 
-        if(regionTypePattern && !matchRegionType(regionTypePattern, res->second->type)) {
+        if(regionTypePattern.size()>0 && !matchRegionType(regionTypePattern, res->second->type)) {
             err << "MemoryChecker::revokeMemory: "
                 << "BUG: freeing memory region with wrong region type!" << std::endl
                 << "  NOTE: allocated region: " << *res->second << std::endl
@@ -380,7 +518,7 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
 
         //we can not just delete it since it can be used by other states!
         //delete const_cast<MemoryRegion*>(res->second);
-        plgState->setModuleMemoryMap(module, memoryMap->remove(region->range));
+        plgState->setMemoryMap(memoryMap.remove(region->range));
     } while(false);
 
     delete region;
@@ -397,15 +535,11 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
 }
 
 bool MemoryChecker::revokeMemory(S2EExecutionState *state,
-                                 const ModuleDescriptor *module,
-                                 const char *regionTypePattern, uint64_t regionID)
+                                 const std::string &regionTypePattern, uint64_t regionID)
 {
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
-    MemoryMap *memoryMap = plgState->getModuleMemoryMap(module);
-    if(!memoryMap)
-        return true;
+    MemoryMap &memoryMap = plgState->getMemoryMap();
 
     s2e()->getDebugStream(state) << "MemoryChecker::revokeMemory("
             << "pattern = '" << regionTypePattern << "', "
@@ -415,16 +549,16 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
     bool changed = true;
     while(changed) {
         changed = false;
-        for(MemoryMap::iterator it = memoryMap->begin(), ie = memoryMap->end();
+        for(MemoryMap::iterator it = memoryMap.begin(), ie = memoryMap.end();
                                                         it != ie; ++it) {
-            if(it->second->type
+            if(it->second->type.size()>0
                   && matchRegionType(regionTypePattern, it->second->type)
                   && (regionID == uint64_t(-1) || it->second->id == regionID)) {
-                ret &= revokeMemory(state, module,
+                ret &= revokeMemory(state,
                              it->first.start, it->first.size,
                              it->second->perms, it->second->type, it->second->id);
                 changed = true;
-                memoryMap = plgState->getModuleMemoryMap(module);
+                memoryMap = plgState->getMemoryMap();
                 break;
             }
         }
@@ -433,90 +567,149 @@ bool MemoryChecker::revokeMemory(S2EExecutionState *state,
 }
 
 
+bool MemoryChecker::revokeMemoryByPointerForModule(S2EExecutionState *state,
+                                                   uint64_t pointer,
+                           const std::string &regionTypePattern)
+{
+    const ModuleDescriptor *module = m_moduleDetector->getModule(state, state->getPc());
+    if (!module) {
+        assert(false);
+        return false;
+    }
+
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionTypePattern;
+    return revokeMemoryByPointer(state, pointer, ss.str());
+}
+
+bool MemoryChecker::revokeMemoryByPointerForModule(
+        S2EExecutionState *state,
+        const ModuleDescriptor *module,
+        uint64_t pointer,
+        const std::string &regionTypePattern)
+{
+    std::stringstream ss;
+    ss << "module:" << module->Name << ":" << regionTypePattern;
+    return revokeMemoryByPointer(state, pointer, ss.str());
+}
+
+bool MemoryChecker::revokeMemoryByPointer(S2EExecutionState *state, uint64_t pointer,
+                           const std::string &regionTypePattern)
+{
+    uint64_t start, size;
+    if (!findMemoryRegion(state, pointer, &start, &size)) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "Trying to free an unallocated region");
+        return false;
+    }
+    if (start != pointer) {
+        s2e()->getExecutor()->terminateStateEarly(*state, "Trying to free the middle of an allocated region");
+        return false;
+    }
+
+    return revokeMemory(state, start, size, MemoryChecker::READWRITE, regionTypePattern);
+}
+
 bool MemoryChecker::checkMemoryAccess(S2EExecutionState *state,
-                                      const ModuleDescriptor *module,
-                                      uint64_t start, uint64_t size, uint8_t perms)
+                                      uint64_t start, uint64_t size, uint8_t perms,
+                                      std::ostream &err)
 {
     if(!m_checkMemoryErrors)
         return true;
 
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
-    MemoryMap *memoryMap = plgState->getModuleMemoryMap(module);
-    if(!memoryMap)
-        return true;
+    MemoryMap &memoryMap = plgState->getMemoryMap();
 
-    std::stringstream err;
+    bool hasError = false;
 
     do {
         if(size != uint64_t(-1) && start + size < start) {
             err << "MemoryChecker::checkMemoryAccess: "
                 << "BUG: freeing region of " << (size == 0 ? "zero" : "negative")
                 << " size!" << std::endl;
+            hasError = true;
             break;
         }
 
         MemoryRange range = {start, size};
-        const MemoryMap::value_type *res = memoryMap->lookup_previous(range);
+        const MemoryMap::value_type *res = memoryMap.lookup_previous(range);
 
         if(!res) {
+
+
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
-                    << " can not be accessed: it is not mapped!" << std::endl;
+                    << " cannot be accessed by instruction " << getPrettyCodeLocation(state)
+                    << ": it is not mapped!" << std::endl;
+            hasError = true;
             break;
         }
 
         if(res->first.start + res->first.size < start + size) {
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
-                    << " can not be accessed: it is not mapped!" << std::endl
+                    << " can not be accessed by instruction " << getPrettyCodeLocation(state)
+                    << ": it is not mapped!" << std::endl
                     << "  NOTE: closest allocated memory region: " << *res->second << std::endl;
+            hasError = true;
             break;
         }
 
         if((perms & res->second->perms) != perms) {
             err << "MemoryChecker::checkMemoryAccess: "
                     << "BUG: memory range at " << hexval(start) << " of size " << hexval(size)
-                    << " can not be accessed: insufficient permissions!" << std::endl
+                    << " can not be accessed by instruction " << getPrettyCodeLocation(state)
+                    << ": insufficient permissions!" << std::endl
                     << "  NOTE: requested permissions: " << hexval(perms) << std::endl
                     << "  NOTE: closest allocated memory region: " << *res->second << std::endl;
+            hasError = true;
             break;
         }
     } while(false);
 
-    if(!err.str().empty()) {
-        if(m_terminateOnErrors)
-            s2e()->getExecutor()->terminateStateEarly(*state, err.str());
-        else
-            s2e()->getWarningsStream(state) << err.str() << std::flush;
+    return !hasError;
+}
+
+bool MemoryChecker::findMemoryRegion(S2EExecutionState *state,
+                                     uint64_t address,
+                                     uint64_t *start, uint64_t *size) const
+{
+    DECLARE_PLUGINSTATE(MemoryCheckerState, state);
+
+    const MemoryMap &memoryMap = plgState->getMemoryMap();
+
+    MemoryRange range = {address, 1};
+    const MemoryMap::value_type *res = memoryMap.lookup_previous(range);
+    if (!res) {
         return false;
     }
+
+    if (start)
+        *start = res->first.start;
+
+    if (size)
+        *size = res->first.size;
 
     return true;
 }
 
-bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state,
-                                     const ModuleDescriptor *module)
+bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state)
 {
     if(!m_checkMemoryLeaks)
         return true;
 
-    // XXX: ugh, this is really ugly!
     DECLARE_PLUGINSTATE(MemoryCheckerState, state);
 
-    MemoryMap *memoryMap = plgState->getModuleMemoryMap(module);
-    if(!memoryMap)
-        return true;
+    MemoryMap &memoryMap = plgState->getMemoryMap();
 
     s2e()->getDebugStream(state) << "MemoryChecker::checkMemoryLeaks" << std::endl;
 
-    if(memoryMap->empty())
+    if(memoryMap.empty())
         return true;
 
     std::stringstream err;
 
-    for(MemoryMap::iterator it = memoryMap->begin(), ie = memoryMap->end();
+    for(MemoryMap::iterator it = memoryMap.begin(), ie = memoryMap.end();
                                                      it != ie; ++it) {
         if(!it->second->permanent) {
             if(err.str().empty()) {
@@ -537,6 +730,23 @@ bool MemoryChecker::checkMemoryLeaks(S2EExecutionState *state,
     }
 
     return true;
+}
+
+std::string MemoryChecker::getPrettyCodeLocation(S2EExecutionState *state)
+{
+    std::stringstream ss;
+    if (m_moduleDetector) {
+        const ModuleDescriptor *desc = m_moduleDetector->getCurrentDescriptor(state);
+        if (desc) {
+            uint64_t relPc = desc->ToNativeBase(state->getPc());
+            ss << desc->Name << "!0x" << std::hex << relPc;
+            return ss.str();
+        }
+    }
+
+    ss << "<unknown module>!0x" << std::hex << state->getPc();
+
+    return ss.str();
 }
 
 } // namespace plugins

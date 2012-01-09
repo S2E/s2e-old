@@ -44,8 +44,6 @@
 #include <algorithm>
 
 using namespace std;
-using namespace s2e;
-using namespace plugins;
 
 namespace s2e {
 namespace windows {
@@ -87,6 +85,9 @@ const char * s_irpMjArray [] = {
 }
 }
 
+namespace s2e {
+namespace plugins {
+
 bool WindowsImage::IsValidString(const char *str)
 {
     for (unsigned i=0; str[i]; i++) {
@@ -109,7 +110,7 @@ WindowsImage::WindowsImage(S2EExecutionState *state, uint64_t Base)
         return;
     }
 
-    if (DosHeader.e_magic != IMAGE_DOS_SIGNATURE)  {
+    if (DosHeader.e_magic != s2e::windows::IMAGE_DOS_SIGNATURE)  {
         DPRINTF("PE image has invalid magic\n");
         return;
     }
@@ -119,7 +120,7 @@ WindowsImage::WindowsImage(S2EExecutionState *state, uint64_t Base)
         return;
     }
 
-    if (NtHeader.Signature != IMAGE_NT_SIGNATURE) {
+    if (NtHeader.Signature != s2e::windows::IMAGE_NT_SIGNATURE) {
         DPRINTF("NT header has invalid magic\n");
         return;
     }
@@ -131,6 +132,39 @@ WindowsImage::WindowsImage(S2EExecutionState *state, uint64_t Base)
 
     m_ImportsInited = false;
     m_ExportsInited = false;
+    m_sectionsInited = false;
+}
+
+bool WindowsImage::InitSections(S2EExecutionState *state)
+{
+    unsigned sections = NtHeader.FileHeader.NumberOfSections;
+
+    s2e::windows::IMAGE_SECTION_HEADER sectionHeader;
+    uint64_t pSection = m_Base + DosHeader.e_lfanew +
+            sizeof(s2e::windows::IMAGE_NT_SIGNATURE) +
+            sizeof(s2e::windows::IMAGE_FILE_HEADER) + sizeof(s2e::windows::IMAGE_OPTIONAL_HEADER);
+
+    for (unsigned i=0; i<sections; ++i) {
+        if (!state->readMemoryConcrete(pSection, &sectionHeader, sizeof(sectionHeader))) {
+            return false;
+        }
+        SectionDescriptor sectionDesc;
+        sectionDesc.loadBase = m_Base + sectionHeader.VirtualAddress;
+        sectionDesc.size = sectionHeader.SizeOfRawData;
+
+        for (unsigned i=0; sectionHeader.Name[i] &&  i<IMAGE_SIZEOF_SHORT_NAME; ++i) {
+            sectionDesc.name += sectionHeader.Name[i];
+        }
+
+        sectionDesc.setWrite(sectionHeader.Characteristics & s2e::windows::IMAGE_SCN_MEM_WRITE);
+        sectionDesc.setRead(sectionHeader.Characteristics & s2e::windows::IMAGE_SCN_MEM_READ);
+        sectionDesc.setExecute(sectionHeader.Characteristics & s2e::windows::IMAGE_SCN_MEM_EXECUTE);
+        m_Sections.push_back(sectionDesc);
+
+        pSection += sizeof(sectionHeader);
+    }
+
+    return true;
 }
 
 int WindowsImage::InitExports(S2EExecutionState *state)
@@ -328,7 +362,7 @@ int WindowsImage::InitImports(S2EExecutionState *state)
 }
 
 
-void WindowsImage::DumpInfo(std::iostream &os) const
+void WindowsImage::DumpInfo(std::ostream &os) const
 {
 
 }
@@ -357,4 +391,17 @@ const Imports& WindowsImage::GetImports(S2EExecutionState *s)
       m_ImportsInited = true;
     }
     return m_Imports;
+}
+
+const ModuleSections &WindowsImage::GetSections(S2EExecutionState *s)
+{
+    if (!m_sectionsInited) {
+        InitSections(s);
+        m_sectionsInited = true;
+    }
+
+    return m_Sections;
+}
+
+}
 }

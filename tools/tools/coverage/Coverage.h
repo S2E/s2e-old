@@ -131,10 +131,10 @@ public:
     //Start and end must be local to the module
     //Returns true if the added block resulted in covering new basic blocks
     bool addTranslationBlock(uint64_t ts, uint64_t start, uint64_t end);
-
+    uint64_t getTimeCoverage() const;
     void convertTbToBb();
     void printTimeCoverage(std::ostream &os) const;
-    void printReport(std::ostream &os) const;
+    void printReport(std::ostream &os, uint64_t pathCount) const;
     void printBBCov(std::ostream &os) const;
 
 
@@ -150,6 +150,7 @@ private:
     Library *m_library;
 
     sigc::connection m_connection;
+    uint64_t m_pathCount;
 
     typedef std::map<std::string, BasicBlockCoverage*> BbCoverageMap;
 
@@ -165,6 +166,10 @@ public:
     virtual ~Coverage();
 
     void outputCoverage(const std::string &Path) const;
+
+    uint64_t getPathCount() const {
+        return m_pathCount;
+    }
 
 };
 

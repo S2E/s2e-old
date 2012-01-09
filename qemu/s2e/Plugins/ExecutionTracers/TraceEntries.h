@@ -62,6 +62,7 @@ enum ExecTraceEntryType {
     TRACE_PAGEFAULT,
     TRACE_TLBMISS,
     TRACE_ICOUNT,
+    TRACE_MEM_CHECKER,
     TRACE_MAX
 };
 
@@ -170,6 +171,61 @@ union ExecutionTraceCache {
     ExecutionTraceCacheSimName name;
     ExecutionTraceCacheSimEntry entry;
 }__attribute__((packed));
+
+struct ExecutionTraceMemChecker
+{
+    enum Flags{
+        GRANT=1, REVOKE=2,
+        READ=4, WRITE=8, EXECUTE=16
+    };
+
+    struct Serialized {
+        uint64_t start;
+        uint32_t size;
+        uint32_t flags;
+        uint32_t nameLength;
+    }__attribute__((packed));
+
+    uint64_t start;
+    uint32_t size;
+    Flags flags;
+    std::string name;
+
+    static Serialized *serialize(unsigned *serializedSize,
+                                 uint64_t regionStart, uint32_t regionSize,
+                                 Flags flags, const std::string &name) {
+        unsigned bufsize = sizeof(Serialized)
+                + name.size();
+
+        uint8_t *a = new uint8_t[bufsize];
+        Serialized *ret = (Serialized*)a;
+
+        ret->flags = (uint32_t)flags;
+        ret->start = regionStart;
+        ret->size = regionSize;
+        ret->nameLength = name.length();
+
+        for (unsigned i=0; i<name.length(); ++i) {
+            (a + sizeof(Serialized))[i] = name[i];
+        }
+
+        *serializedSize = bufsize;
+        return ret;
+    }
+
+    static void deserialize(const Serialized *in, ExecutionTraceMemChecker *out) {
+        out->start = in->start;
+        out->size = in->size;
+        out->flags = (Flags)in->flags;
+
+        uint8_t *str = (uint8_t*)(in+1);
+        for (unsigned i=0; i<in->nameLength; ++i) {
+            out->name += str[i];
+        }
+    }
+
+};
+
 
 struct ExecutionTraceTestCase {
     struct Header {

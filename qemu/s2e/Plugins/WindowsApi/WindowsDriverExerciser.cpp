@@ -95,6 +95,13 @@ void WindowsDriverExerciser::initialize()
             sigc::mem_fun(*this,
                     &WindowsDriverExerciser::onModuleUnload)
             );
+
+    if (m_memoryChecker) {
+        m_detector->onModuleTransition.connect(
+            sigc::mem_fun(*this,
+                &WindowsDriverExerciser::onModuleTransition)
+            );
+    }
 }
 
 void WindowsDriverExerciser::onModuleLoad(
@@ -124,7 +131,11 @@ void WindowsDriverExerciser::onModuleLoad(
 
     WINDRV_REGISTER_ENTRY_POINT(module.ToRuntime(module.EntryPoint), DriverEntryPoint);
 
-    registerImports(state, module);
+    WindowsApi::registerImports(state, module);
+
+    if (m_memoryChecker) {
+        m_memoryChecker->grantMemoryForModuleSections(state, module);
+    }
 
     state->enableSymbolicExecution();
     state->enableForking();
@@ -142,10 +153,10 @@ void WindowsDriverExerciser::onModuleUnload(
     }
 
     m_functionMonitor->disconnect(state, module);
+    unregisterEntryPoints(state, module);
+    m_loadedModules.erase(*s);
 
-    if(m_memoryChecker) {
-        m_memoryChecker->checkMemoryLeaks(state, &module);
-    }
+    detectLeaks(state, module);
 
     //XXX: We might want to monitor multiple modules, so avoid killing
     switch(m_unloadAction) {
@@ -160,7 +171,40 @@ void WindowsDriverExerciser::onModuleUnload(
     return;
 }
 
+void WindowsDriverExerciser::onModuleTransition(S2EExecutionState *state,
+                        const ModuleDescriptor *prevModule,
+                        const ModuleDescriptor *nextModule)
+{
+    //Revoke rights for the stack when exiting the module
 
+    if (prevModule) {
+        const std::string *s = m_detector->getModuleId(*prevModule);
+        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
+            //Not the right module we want to intercept
+            return;
+        }
+        //Revoke the rights of the current module
+        m_memoryChecker->revokeMemoryForModule(state, prevModule, "stack");
+    }
+
+    //Grant rights for the new module
+    if (nextModule) {
+        const std::string *s = m_detector->getModuleId(*nextModule);
+        if (!s || (m_loadedModules.find(*s) == m_loadedModules.end())) {
+            //Not the right module we want to intercept
+            return;
+        }
+        //Revoke the rights of the current module
+        uint64_t stackBase, stackSize;
+        if (!m_windowsMonitor->getCurrentStack(state, &stackBase, &stackSize)) {
+            s2e()->getWarningsStream() << "Could not retrieve current stack" << std::endl;
+            return;
+        }
+
+        m_memoryChecker->grantMemoryForModule(state, nextModule, stackBase, stackSize,
+                                              MemoryChecker::READWRITE, "stack");
+    }
+}
 
 void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, FunctionMonitorState *fns)
 {
@@ -176,18 +220,12 @@ void WindowsDriverExerciser::DriverEntryPoint(S2EExecutionState* state, Function
     }
 
     if(m_memoryChecker) {
-        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
-
-        // Entry point args
-        m_memoryChecker->grantMemory(state, module, driverObject, 0x1000, 3,
-                                     "driver:args:EntryPoint:DriverObject");
-        m_memoryChecker->grantMemory(state, module, registryPath, 0x1000, 3,
-                                     "driver:args:EntryPoint:RegistryPath");
-
-        // Global variables
-        assert(false && "Fix the constant");
-        m_memoryChecker->grantMemory(state, module, 0x80552000, 4, 1,
-                                     "driver:globals:KeTickCount", 0, true);
+        //Entry point args
+        //XXX: Fix the hard-coded sizes!
+        m_memoryChecker->grantMemoryForModule(state, driverObject, 0x1000, MemoryChecker::READWRITE,
+                                     "args:EntryPoint:DriverObject");
+        m_memoryChecker->grantMemoryForModule(state, registryPath, 0x1000, MemoryChecker::READWRITE,
+                                     "args:EntryPoint:RegistryPath");
     }
 
     FUNCMON_REGISTER_RETURN_A(state, fns, WindowsDriverExerciser::DriverEntryPointRet, driverObject);
@@ -199,9 +237,11 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
                 << " at " << hexval(state->getPc()) << std::endl;
 
     if(m_memoryChecker) {
-        const ModuleDescriptor* module = m_detector->getModule(state, state->getPc());
-        m_memoryChecker->revokeMemory(state, module, "driver:args:EntryPoint:*");
+        m_memoryChecker->revokeMemoryForModule(state, "args:EntryPoint:*");
     }
+
+    const ModuleDescriptor *module = m_detector->getCurrentDescriptor(state);
+    assert(module);
 
     //Check the success status
     klee::ref<klee::Expr> eax = state->readCpuRegister(offsetof(CPUState, regs[R_EAX]), klee::Expr::Int32);
@@ -209,6 +249,9 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     if (!NtSuccess(s2e(), state, eax)) {
         std::stringstream ss;
         ss << "Entry point failed with 0x" << std::hex << eax;
+
+        detectLeaks(state, *module);
+
         s2e()->getExecutor()->terminateStateEarly(*state, ss.str());
         return;
     }
@@ -218,9 +261,8 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
     //Register all major functions, only if they belong to the driver itself
     DRIVER_OBJECT32 driverObject;
     if (ntosHandlers) {
-        if (!state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
-            const ModuleDescriptor *desc = m_detector->getCurrentDescriptor(state);
-            assert(desc);
+        if (state->readMemoryConcrete(pDriverObject, &driverObject, sizeof(driverObject))) {
+            const ModuleDescriptor *desc = module;
     
             for (unsigned i=0; i<IRP_MJ_MAXIMUM_FUNCTION; ++i) {
                 if (desc->Contains(driverObject.MajorFunction[i])) {
@@ -229,12 +271,13 @@ void WindowsDriverExerciser::DriverEntryPointRet(S2EExecutionState* state, uint3
                             << desc->Name << "!0x" << desc->ToNativeBase(driverObject.MajorFunction[i]) <<
                             std::endl;
     
-                    registerEntryPoint<NtoskrnlHandlers>
-                            (state, ntosHandlers, &NtoskrnlHandlers::DriverDispatch, driverObject.MajorFunction[i], i);
+                    ntosHandlers->registerEntryPoint
+                            (state, &NtoskrnlHandlers::DriverDispatch, (uint64_t)driverObject.MajorFunction[i], (uint32_t)i);
                 }
             }
         }else {
-            s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure" << std::endl;
+            s2e()->getWarningsStream() << "Could not read DRIVER_OBJECT structure at 0x" <<
+                    std::hex << pDriverObject << std::endl;
         }
     }else {
         s2e()->getWarningsStream() << "NtoskrnlHandlers plugin not loaded. Skipping all IRP annotations." << std::endl;

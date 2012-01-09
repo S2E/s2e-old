@@ -97,7 +97,7 @@ void cpu_loop_exit(void)
     /* NOTE: the register at this point must be saved by hand because
        longjmp restore them */
     regs_to_env();
-    longjmp(env->jmp_env, 1);
+    s2e_longjmp(env->jmp_env, 1);
 }
 
 /* exit the current TB from a signal handler. The host registers are
@@ -128,7 +128,7 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     }
 #endif
     env->exception_index = -1;
-    longjmp(env->jmp_env, 1);
+    s2e_longjmp(env->jmp_env, 1);
 }
 
 /* Execute the code without caching the generated code. An interpreter
@@ -318,7 +318,7 @@ int cpu_exec(CPUState *env1)
 
     /* prepare setjmp context for exception handling */
     for(;;) {
-        if (setjmp(env->jmp_env) == 0) {
+        if (s2e_setjmp(env->jmp_env) == 0) {
             #ifdef CONFIG_S2E
             g_s2e_state = s2e_select_next_state(g_s2e, g_s2e_state);
             s2e_qemu_finalize_tb_exec(g_s2e, g_s2e_state);
@@ -376,7 +376,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_ARM)
                     do_interrupt(env);
 #elif defined(TARGET_SH4)
-		    do_interrupt(env);
+                    do_interrupt(env);
 #elif defined(TARGET_ALPHA)
                     do_interrupt(env);
 #elif defined(TARGET_CRIS)
@@ -391,7 +391,7 @@ int cpu_exec(CPUState *env1)
 
             if (kvm_enabled()) {
                 kvm_cpu_exec(env);
-                longjmp(env->jmp_env, 1);
+                s2e_longjmp(env->jmp_env, 1);
             }
 
             next_tb = 0; /* force lookup of first TB */
@@ -448,9 +448,9 @@ int cpu_exec(CPUState *env1)
                             intNb = EXCP12_MCHK;
                             next_tb = 0;
                         } else if ((interrupt_request & CPU_INTERRUPT_HARD) &&
-                                   (((env->hflags2 & HF2_VINTR_MASK) && 
+                                   (((env->hflags2 & HF2_VINTR_MASK) &&
                                      (env->hflags2 & HF2_HIF_MASK)) ||
-                                    (!(env->hflags2 & HF2_VINTR_MASK) && 
+                                    (!(env->hflags2 & HF2_VINTR_MASK) &&
                                      (env->mflags & IF_MASK &&
                                       !(env->hflags & HF_INHIBIT_IRQ_MASK))))) {
                             int intno;
@@ -463,7 +463,7 @@ int cpu_exec(CPUState *env1)
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
-                            intNb = intno;  
+                            intNb = intno;
                             do_interrupt(intno, 0, 0, 0, 1);
                             /* ensure that no TB jump will be modified as
                                the program flow was changed */
@@ -520,23 +520,23 @@ int cpu_exec(CPUState *env1)
                     }
 #elif defined(TARGET_SPARC)
                     if ((interrupt_request & CPU_INTERRUPT_HARD) &&
-			cpu_interrupts_enabled(env)) {
-			int pil = env->interrupt_index & 15;
-			int type = env->interrupt_index & 0xf0;
+                        cpu_interrupts_enabled(env)) {
+                        int pil = env->interrupt_index & 15;
+                        int type = env->interrupt_index & 0xf0;
 
-			if (((type == TT_EXTINT) &&
-			     (pil == 15 || pil > env->psrpil)) ||
-			    type != TT_EXTINT) {
-			    env->interrupt_request &= ~CPU_INTERRUPT_HARD;
-                            env->exception_index = env->interrupt_index;
-                            do_interrupt(env);
-			    env->interrupt_index = 0;
-                        next_tb = 0;
-			}
-		    } else if (interrupt_request & CPU_INTERRUPT_TIMER) {
-			//do_interrupt(0, 0, 0, 0, 0);
-			env->interrupt_request &= ~CPU_INTERRUPT_TIMER;
-		    }
+                        if (((type == TT_EXTINT) &&
+                             (pil == 15 || pil > env->psrpil)) ||
+                            type != TT_EXTINT) {
+                            env->interrupt_request &= ~CPU_INTERRUPT_HARD;
+                                        env->exception_index = env->interrupt_index;
+                                        do_interrupt(env);
+                            env->interrupt_index = 0;
+                                    next_tb = 0;
+                        }
+                    } else if (interrupt_request & CPU_INTERRUPT_TIMER) {
+                        //do_interrupt(0, 0, 0, 0, 0);
+                        env->interrupt_request &= ~CPU_INTERRUPT_TIMER;
+                    }
 #elif defined(TARGET_ARM)
                     if (interrupt_request & CPU_INTERRUPT_FIQ
                         && !(env->uncached_cpsr & CPSR_F)) {
@@ -616,9 +616,6 @@ int cpu_exec(CPUState *env1)
                 if (intNb != -1) {
                     qemu_log_mask(CPU_LOG_INT,
                                   "CPU interrupt, vector=0x%x\n", intNb);
-#ifdef CONFIG_S2E
-                    s2e_on_exception(g_s2e, g_s2e_state, intNb);
-#endif
                     intNb = -1;
                 }
 
@@ -700,7 +697,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_MIPS)
                         log_cpu_state(env, 0);
 #elif defined(TARGET_SH4)
-    		    log_cpu_state(env, 0);
+                        log_cpu_state(env, 0);
 #elif defined(TARGET_ALPHA)
                         log_cpu_state(env, 0);
 #elif defined(TARGET_CRIS)
@@ -1139,7 +1136,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     case 0x2d: // stq
     case 0x2e: // stl_c
     case 0x2f: // stq_c
-	is_write = 1;
+        is_write = 1;
     }
 
     return handle_cpu_signal(pc, (unsigned long)info->si_addr,
@@ -1194,8 +1191,8 @@ int cpu_signal_handler(int host_signum, void *pinfo,
       case 0x25: // stfsr
       case 0x3c: // casa
       case 0x3e: // casxa
-	is_write = 1;
-	break;
+        is_write = 1;
+        break;
       }
     }
     return handle_cpu_signal(pc, (unsigned long)info->si_addr,
@@ -1263,13 +1260,13 @@ int cpu_signal_handler(int host_signum, void *pinfo, void *puc)
       case SIGSEGV:
       case SIGBUS:
       case SIGTRAP:
-	  if (info->si_code && (info->si_segvflags & __ISR_VALID))
-	      /* ISR.W (write-access) is bit 33:  */
-	      is_write = (info->si_isr >> 33) & 1;
-	  break;
+          if (info->si_code && (info->si_segvflags & __ISR_VALID))
+              /* ISR.W (write-access) is bit 33:  */
+              is_write = (info->si_isr >> 33) & 1;
+          break;
 
       default:
-	  break;
+      break;
     }
     return handle_cpu_signal(ip, (unsigned long)info->si_addr,
                              is_write,
@@ -1322,7 +1319,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
     pc = uc->uc_mcontext.sc_iaoq[0];
     /* FIXME: compute is_write */
     is_write = 0;
-    return handle_cpu_signal(pc, (unsigned long)info->si_addr, 
+    return handle_cpu_signal(pc, (unsigned long)info->si_addr,
                              is_write,
                              &uc->uc_sigmask, puc);
 }

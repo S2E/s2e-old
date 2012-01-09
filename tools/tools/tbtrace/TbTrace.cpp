@@ -34,6 +34,8 @@
  *
  */
 
+#define __STDC_FORMAT_MACROS 1
+
 #include "llvm/Support/CommandLine.h"
 #include <stdio.h>
 #include <inttypes.h>
@@ -48,6 +50,10 @@
 #include <lib/ExecutionTracer/PageFault.h>
 #include <lib/ExecutionTracer/InstructionCounter.h>
 #include <lib/BinaryReaders/BFDInterface.h>
+#include <lib/Utils/BasicBlockListParser.h>
+
+
+#include "llvm/System/Path.h"
 
 #include "TbTrace.h"
 
@@ -59,15 +65,15 @@ using namespace s2e::plugins;
 
 namespace {
 
-
-cl::opt<std::string>
-    TraceFile("trace", cl::desc("Input trace"), cl::init("ExecutionTracer.dat"));
+cl::list<std::string>
+    TraceFiles("trace", llvm::cl::value_desc("Input trace"), llvm::cl::Prefix,
+               llvm::cl::desc("Specify an execution trace file"));
 
 cl::opt<std::string>
     LogDir("outputdir", cl::desc("Store the list of translation blocks into the given folder"), cl::init("."));
 
 cl::list<std::string>
-    ModPath("modpath", cl::desc("Path to modules"));
+    ModPath("modpath", cl::desc("Path to modules. Must contain *.lst and *.bblist files as well if needed."));
 
 cl::list<unsigned>
     PathList("pathId",
@@ -78,6 +84,16 @@ cl::opt<bool>
 
 cl::opt<bool>
         PrintMemory("printMemory", cl::desc("Print memory trace"), cl::init(false));
+
+cl::opt<bool>
+        PrintDisassembly("printDisassembly", cl::desc("Print disassembly in the trace"), cl::init(false));
+
+cl::opt<bool>
+        PrintMemoryChecker("printMemoryChecker", cl::desc("Print memory checker events"), cl::init(false));
+
+cl::opt<bool>
+        PrintMemoryCheckerStack("printMemoryCheckerStack", cl::desc("Print stack grants/revocations"), cl::init(false));
+
 
 }
 
@@ -103,7 +119,145 @@ TbTrace::~TbTrace()
     m_connection.disconnect();
 }
 
-void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
+bool TbTrace::parseDisassembly(const std::string &listingFile, Disassembly &out)
+{
+    //Get the module name
+    llvm::sys::Path listingFilePath(listingFile);
+    std::string moduleName = listingFilePath.getBasename();
+
+    bool added = false;
+
+    char line[1024];
+    std::filebuf file;
+    if (!file.open(listingFile.c_str(), std::ios::in)) {
+        return false;
+    }
+
+    std::istream is(&file);
+
+    while(is.getline(line, sizeof(line))) {
+        std::string ln = line;
+        //Skip the start
+        unsigned i=0;
+        while (line[i] && (line[i]!=':'))
+            ++i;
+        if (line[i] != ':')
+            continue;
+
+        ++i;
+        //Grab the address
+        std::string strpc;
+        while(isxdigit(line[i])) {
+            strpc = strpc + line[i];
+            ++i;
+        }
+
+        uint64_t pc=0;
+        sscanf(strpc.c_str(), "%"PRIx64, &pc);
+        if (pc) {
+            out[moduleName][pc].push_back(ln);
+            added = true;
+        }
+    }
+
+    return added;
+}
+
+void TbTrace::printDisassembly(const std::string &module, uint64_t relPc, unsigned tbSize)
+{
+    Disassembly::iterator it = m_disassembly.find(module);
+    if (it == m_disassembly.end()) {
+        llvm::sys::Path disassemblyListing;
+        if (!m_library->findDisassemblyListing(module, disassemblyListing)) {
+            std::cerr << "Could not find disassembly listing for module "
+                         << module << std::endl;
+            return;
+        }
+
+        if (!parseDisassembly(disassemblyListing.toString(), m_disassembly)) {
+            return;
+        }
+        it = m_disassembly.find(module);
+        assert(it != m_disassembly.end());
+    }
+
+    //Fetch the basic blocks for our module
+    ModuleBasicBlocks::iterator bbit = m_basicBlocks.find(module);
+    if (bbit == m_basicBlocks.end()) {
+        llvm::sys::Path basicBlockList;
+
+        if (!m_library->findBasicBlockList(module, basicBlockList)) {
+            std::cerr << "TbTrace: could not find basic block list for  "
+                      << module << std::endl;
+            exit(-1);
+        }
+
+        TbTraceBbs moduleBbs;
+
+        if (!BasicBlockListParser::parseListing(basicBlockList, moduleBbs)) {
+            std::cerr << "TbTrace: could not parse basic block list in file "
+                      << basicBlockList << std::endl;
+            exit(-1);
+        }
+
+        m_basicBlocks[module] = moduleBbs;
+        bbit = m_basicBlocks.find(module);
+        assert(bbit != m_basicBlocks.end());
+    }
+
+
+    while((int)tbSize > 0) {
+        //Fetch the right basic block
+        BasicBlock bbToFetch(relPc, 1);
+        TbTraceBbs::iterator mybb = (*bbit).second.find(bbToFetch);
+        if (mybb == (*bbit).second.end()) {
+            m_output << "Could not find basic block 0x" << std::hex << relPc << " in the list" << std::endl;
+            return;
+        }
+
+        //Found the basic block, compute the range of program counters
+        //whose disassembly we are going to print.
+        const BasicBlock &bb = *mybb;
+        uint64_t asmStartPc = relPc;
+        uint64_t asmEndPc;
+
+        if (relPc + tbSize >= bb.start + bb.size) {
+            asmEndPc = bb.start + bb.size;
+        }else {
+            asmEndPc = relPc + tbSize;
+        }
+
+        assert(relPc >= bb.start && relPc < bb.start + bb.size);
+
+
+        //Grab the vector of strings for the program counter
+        ModuleDisassembly::iterator modIt = (*it).second.find(asmStartPc);
+        if (modIt == (*it).second.end()) {
+            return;
+        }
+
+        //Fetch the range of program counters from the disassembly file
+        ModuleDisassembly::iterator modItEnd = (*it).second.lower_bound(asmEndPc);
+
+        for (ModuleDisassembly::iterator it = modIt; it != modItEnd; ++it) {
+            //Print the vector we've got
+            for(DisassemblyEntry::const_iterator asmIt = (*it).second.begin();
+                asmIt != (*it).second.end(); ++asmIt) {
+                m_output << *asmIt << std::endl;
+            }
+        }
+
+        tbSize -= asmEndPc - asmStartPc;
+        relPc += asmEndPc - asmStartPc;
+
+        if ((int)tbSize < 0) {
+            assert(false && "Cannot be negative");
+        }
+    }
+
+}
+
+void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc, unsigned tbSize, bool printListing)
 {
     ModuleCacheState *mcs = static_cast<ModuleCacheState*>(m_events->getState(m_cache, &ModuleCacheState::factory));
     const ModuleInstance *mi = mcs->getInstance(pid, pc);
@@ -131,6 +285,10 @@ void TbTrace::printDebugInfo(uint64_t pid, uint64_t pc)
         m_hasDebugInfo = true;
     }
 
+    if (PrintDisassembly && printListing) {
+        m_output << std::endl;
+        printDisassembly(mi->Name, relPc, tbSize);
+    }
 }
 
 void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
@@ -145,6 +303,49 @@ void TbTrace::printRegisters(const s2e::plugins::ExecutionTraceTb *te)
     }
 }
 
+void TbTrace::printMemoryChecker(const s2e::plugins::ExecutionTraceMemChecker::Serialized *item)
+{
+    ExecutionTraceMemChecker deserializedItem;
+
+    ExecutionTraceMemChecker::deserialize(item, &deserializedItem);
+
+
+    bool isStackItem = deserializedItem.name.find("stack") != deserializedItem.name.npos;
+    if (!PrintMemoryCheckerStack && isStackItem) {
+        return;
+    }
+
+    m_output << "\033[1;31mMEMCHECKER\033[0m";
+
+    std::string nameHighlightCode;
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::REVOKE) {
+        nameHighlightCode = "\033[1;31m";
+        m_output << nameHighlightCode << " REVOKE ";
+
+    }
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::GRANT) {
+        nameHighlightCode = "\033[1;32m";
+        m_output << nameHighlightCode << " GRANT  ";
+    }
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::READ) {
+        m_output << " READ   ";
+    }
+
+    if (deserializedItem.flags & ExecutionTraceMemChecker::WRITE) {
+        m_output << " WRITE  ";
+    }
+
+
+
+    m_output << nameHighlightCode << deserializedItem.name << "\033[0m";
+
+    m_output << " address=0x" << std::hex << deserializedItem.start
+             << " size=0x" << deserializedItem.size << std::endl;
+}
+
 void TbTrace::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
             void *item)
@@ -152,7 +353,7 @@ void TbTrace::onItem(unsigned traceIndex,
     if (hdr.type == s2e::plugins::TRACE_FORK) {
         s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
         m_output << "Forked at 0x" << std::hex << f->pc << " - ";
-        printDebugInfo(hdr.pid, f->pc);
+        printDebugInfo(hdr.pid, f->pc, 0, false);
         m_output << std::endl;
         return;
     }
@@ -169,7 +370,8 @@ void TbTrace::onItem(unsigned traceIndex,
             m_output << std::endl << "    ";
         }
 
-        printDebugInfo(hdr.pid, te->pc);
+        printDebugInfo(hdr.pid, te->pc, te->size, true);
+
         m_output << std::endl;
         m_hasItems = true;
         return;
@@ -180,7 +382,6 @@ void TbTrace::onItem(unsigned traceIndex,
                 (const s2e::plugins::ExecutionTraceMemory*) item;
         std::string type;
 
-        
         type += te->flags & EXECTRACE_MEM_SYMBHOSTADDR ? "H" : "h";
         type += te->flags & EXECTRACE_MEM_SYMBADDR ? "A" : "a";
         type += te->flags & EXECTRACE_MEM_SYMBVAL ? "S" : "C";
@@ -193,10 +394,16 @@ void TbTrace::onItem(unsigned traceIndex,
         }
         m_output << "\t";
 
-        printDebugInfo(hdr.pid, te->pc);
+        printDebugInfo(hdr.pid, te->pc, 0, false);
         m_output << std::setfill(' ');
         m_output << std::endl;
        return;
+    }
+
+    if (PrintMemoryChecker && (hdr.type == s2e::plugins::TRACE_MEM_CHECKER)) {
+        const s2e::plugins::ExecutionTraceMemChecker::Serialized *te =
+                (const s2e::plugins::ExecutionTraceMemChecker::Serialized*) item;
+        printMemoryChecker(te);
     }
 }
 
@@ -213,7 +420,7 @@ TbTraceTool::~TbTraceTool()
 void TbTraceTool::flatTrace()
 {
     PathBuilder pb(&m_parser);
-    m_parser.parse(TraceFile);
+    m_parser.parse(TraceFiles);
 
     ModuleCache mc(&pb);
     TestCase tc(&pb);

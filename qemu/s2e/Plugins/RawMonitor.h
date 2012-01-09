@@ -90,6 +90,10 @@ public:
     virtual bool getExports(S2EExecutionState *s, const ModuleDescriptor &desc, Exports &E);
     virtual bool isKernelAddress(uint64_t pc) const;
     virtual uint64_t getPid(S2EExecutionState *s, uint64_t pc);
+
+    virtual bool getCurrentStack(S2EExecutionState *state, uint64_t *base, uint64_t *size) {
+        return false;
+    }
 };
 
 

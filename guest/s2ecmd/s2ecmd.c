@@ -34,94 +34,87 @@
  *
  */
 
-unsigned m_activeSignals;
-unsigned m_size;
-private:
-func_t *m_funcs;
+#include <s2e.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-public:
+typedef void (*cmd_handler_t)(const char **args);
 
-SIGNAL_CLASS() { m_size = 0; m_funcs = 0; m_activeSignals = 0;}
+typedef struct _cmd_t {
+    char *name;
+    cmd_handler_t handler;
+    unsigned args_count;
+}cmd_t;
 
-SIGNAL_CLASS(const SIGNAL_CLASS &one) {
-    m_activeSignals = one.m_activeSignals;
-    m_size = one.m_size;
-    m_funcs = new func_t[m_size];
-    for (unsigned i=0; i<m_size; ++i) {
-        m_funcs[i] = one.m_funcs[i];
-        m_funcs[i]->incref();
-    }
-}
-
-~SIGNAL_CLASS() {
-    disconnectAll();
-    if (m_funcs) {
-        delete [] m_funcs;
-    }
-}
-
-void disconnectAll()
+void handler_kill(const char **args)
 {
-    for (unsigned i=0; i<m_size; ++i) {
-        if (m_funcs[i] && !m_funcs[i]->decref()) {
-            delete m_funcs[i];
+    int status = atoi(args[0]);
+    const char *message = args[1];
+    s2e_kill_state(status, message);
+}
+
+void handler_message(const char **args)
+{
+    s2e_message(args[0]);
+}
+
+
+#define COMMAND(c, args) {#c, handler_##c, args}
+
+static cmd_t s_commands[] = {
+    COMMAND(kill, 2),
+    COMMAND(message, 1),
+    {NULL, NULL, 0}
+};
+
+void print_commands()
+{
+    unsigned i=0;
+    printf("%-15s  %s\n\n", "Command name", "Argument count");
+    while(s_commands[i].handler) {
+        printf("%-15s  %d\n", s_commands[i].name, s_commands[i].args_count);
+        ++i;
+    }
+}
+
+int find_command(const char *cmd)
+{
+    unsigned i=0;
+    while(s_commands[i].handler) {
+        if (!strcmp(s_commands[i].name, cmd)) {
+            return i;
         }
-        m_funcs[i] = NULL;
+        ++i;
     }
+    return -1;
 }
 
-virtual void disconnect(void *functor, unsigned index) {
-    assert(m_activeSignals > 0);
-    assert(m_size > index);
-
-    if (m_funcs[index] == functor) {
-        if (!m_funcs[index]->decref()) {
-            delete m_funcs[index];
-        }
-        --m_activeSignals;
-        m_funcs[index] = NULL;
+int main(int argc, char **argv)
+{
+    if (argc < 2) {
+        print_commands();
+        return -1;
     }
-}
 
-connection connect(func_t fcn) {
-    fcn->incref();
-    ++m_activeSignals;
-    for (unsigned i=0; i<m_size; ++i) {
-        if (!m_funcs[i]) {
-            m_funcs[i] = fcn;
-            return connection(this, fcn, i);
-        }
+    const char *cmd = argv[1];
+    int cmd_index = find_command(cmd);
+
+    if (cmd_index == -1) {
+        printf("Command %s not found\n", cmd);
+        return -1;
     }
-    ++m_size;
-    func_t *nf = new func_t[m_size];
 
-    if (m_funcs) {
-        memcpy(nf, m_funcs, sizeof(func_t)*(m_size-1));
-        delete [] m_funcs;
+    argc -= 2;
+    ++argv;
+    ++argv;
+
+    if (argc != s_commands[cmd_index].args_count) {
+        printf("Invalid number of arguments supplied (%d instead of %d)\n", argc, s_commands[cmd_index].args_count);
+        return -1;
     }
-    m_funcs = nf;
 
-    m_funcs[m_size-1] = fcn;
-    return connection(this, fcn, m_size-1);
+    s_commands[cmd_index].handler((const char**)argv);
+
+    return 0;
 }
-
-bool empty() const{
-    return m_activeSignals == 0;
-}
-
-void emit(OPERATOR_PARAM_DECL) {
-    for (unsigned i=0; i<m_size; ++i) {
-        if (m_funcs[i]) {
-            m_funcs[i]->operator ()(CALL_PARAMS);
-        }
-    }
-}
-
-
-#undef SIGNAL_CLASS
-#undef FUNCTOR_NAME
-#undef TYPENAMES
-#undef BASE_CLASS_INST
-#undef FUNCT_DECL
-#undef OPERATOR_PARAM_DECL
-#undef CALL_PARAMS

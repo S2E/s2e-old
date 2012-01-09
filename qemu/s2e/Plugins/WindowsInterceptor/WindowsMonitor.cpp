@@ -205,42 +205,47 @@ void WindowsMonitor::InitializeAddresses(S2EExecutionState *state)
     //It is located in fs:0x1c
     uint64_t base = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
     if (!state->readMemoryConcrete(base + KPCR_FS_OFFSET, &m_pKPCRAddr, sizeof(m_pKPCRAddr))) {
-        s2e()->getWarningsStream() << "Failed to initialize KPCR" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to initialize KPCR" << std::endl;
+        goto error;
     }
 
     //Read the version block
     uint32_t pKdVersionBlock;
     if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KDVERSION32_OFFSET, &pKdVersionBlock, sizeof(pKdVersionBlock))) {
-        s2e()->getWarningsStream() << "Failed to read KD version block pointer" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block pointer" << std::endl;
+        goto error;
     }
 
     if (!state->readMemoryConcrete(pKdVersionBlock, &m_kdVersion, sizeof(m_kdVersion))) {
-        s2e()->getWarningsStream() << "Failed to read KD version block" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KD version block" << std::endl;
+        goto error;
     }
 
     //Read the KPRCB
     if (!state->readMemoryConcrete(m_pKPCRAddr + KPCR_KPRCB_PTR_OFFSET, &m_pKPRCBAddr, sizeof(m_pKPRCBAddr))) {
-        s2e()->getWarningsStream() << "Failed to read pointer to KPRCB" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read pointer to KPRCB" << std::endl;
+        goto error;
     }
 
     if (m_pKPRCBAddr != m_pKPCRAddr + KPCR_KPRCB_OFFSET) {
-        s2e()->getWarningsStream () << "Invalid KPRCB" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream () << "WindowsMonitor: Invalid KPRCB" << std::endl;
+        goto error;
     }
 
     if (!state->readMemoryConcrete(m_pKPRCBAddr, &m_kprcb, sizeof(m_kprcb))) {
-        s2e()->getWarningsStream() << "Failed to read KPRCB" << std::endl;
-        exit(-1);
+        s2e()->getWarningsStream() << "WindowsMonitor: Failed to read KPRCB" << std::endl;
+        goto error;
     }
 
     //Display some info
     s2e()->getMessagesStream() << "Windows 0x" << std::hex << m_kdVersion.MinorVersion <<
             (m_kdVersion.MajorVersion == 0xF ? " FREE BUILD" : " CHECKED BUILD") << std::endl;
 
+    return;
+
+error:
+    s2e()->getWarningsStream() << "Make sure you start S2E from a VM snapshot that has Windows already running." << std::endl;
+    exit(-1);
 
 }
 
@@ -543,14 +548,23 @@ uint64_t WindowsMonitor::getPid(S2EExecutionState *s, uint64_t pc)
     return s->getPid();
 }
 
-uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
+uint64_t WindowsMonitor::getCurrentThread(S2EExecutionState *state)
 {
-    //Compute the address of the KPCR
     //It is located in fs:KPCR_CURRENT_THREAD_OFFSET
-    uint64_t base = state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
+    uint64_t base = getTibAddress(state);
     uint32_t pThread = 0;
     if (!state->readMemoryConcrete(base + FS_CURRENT_THREAD_OFFSET, &pThread, sizeof(pThread))) {
         s2e()->getWarningsStream() << "Failed to get thread address" << std::endl;
+        return 0;
+    }
+
+    return pThread;
+}
+
+uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
+{
+    uint64_t pThread = getCurrentThread(state);
+    if (!pThread) {
         return 0;
     }
 
@@ -568,6 +582,18 @@ uint64_t WindowsMonitor::getCurrentProcess(S2EExecutionState *state)
     }
 
     return pProcess;
+}
+
+//Retrieves the current Thread Information Block, stored in the FS register
+uint64_t WindowsMonitor::getTibAddress(S2EExecutionState *state)
+{
+    return state->readCpuState(CPU_OFFSET(segs[R_FS].base), 32);
+}
+
+bool WindowsMonitor::getTib(S2EExecutionState *state, s2e::windows::NT_TIB32 *tib)
+{
+    uint64_t tibAddress = getTibAddress(state);
+    return state->readMemoryConcrete(tibAddress, &tib, sizeof(*tib));
 }
 
 uint64_t WindowsMonitor::getPeb(S2EExecutionState *state, uint64_t eprocess)
@@ -626,6 +652,33 @@ uint64_t WindowsMonitor::getModuleSizeFromCfg(const std::string &module) const
         return 0;
     }
     return (*it).second;
+}
+
+bool WindowsMonitor::getCurrentStack(S2EExecutionState *state, uint64_t *base, uint64_t *size)
+{
+    if (!isKernelAddress(state->getPc())) {
+        assert(false && "User-mode stack retrieval not implemented");
+    }
+
+    uint64_t pThread = getCurrentThread(state);
+    if (!pThread) {
+        return false;
+    }
+
+    s2e::windows::KTHREAD32 kThread;
+    if (!state->readMemoryConcrete(pThread, &kThread, sizeof(kThread))) {
+        return false;
+    }
+
+
+    if (base) {
+        *base = kThread.StackLimit;
+    }
+    if (size) {
+        *size = kThread.InitialStack - kThread.StackLimit;
+    }
+
+    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////

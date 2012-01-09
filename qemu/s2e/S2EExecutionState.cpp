@@ -93,7 +93,7 @@ S2EExecutionState::S2EExecutionState(klee::KFunction *kf) :
         m_cpuRegistersObject(NULL), m_cpuSystemObject(NULL),
         m_qemuIcount(0), m_lastS2ETb(NULL),
         m_lastMergeICount((uint64_t)-1),
-        m_needFinalizeTBExec(false), m_nextSymbVarId(0)
+        m_needFinalizeTBExec(false), m_nextSymbVarId(0), m_runningExceptionEmulationCode(false)
 {
     m_deviceState = new S2EDeviceState();
     m_timersState = new TimersState;
@@ -307,7 +307,7 @@ void S2EExecutionState::writeCpuRegister(unsigned offset,
         /* XXX: should we check getSymbolicRegisterMask ? */
         assert(isa<ConstantExpr>(value) &&
                "Can not write symbolic values to registers while executing"
-               " in concrete mode. TODO: fix it by longjmping to main loop");
+               " in concrete mode. TODO: fix it by s2e_longjmping to main loop");
         ConstantExpr* ce = cast<ConstantExpr>(value);
         uint64_t v = ce->getZExtValue(64);
         small_memcpy((void*) (m_cpuRegistersState->address + offset), (void*) &v,
@@ -833,7 +833,7 @@ void S2EExecutionState::readRamConcreteCheck(uint64_t hostAddress, uint8_t* buf,
                 }
                 m_startSymbexAtPC = getPc();
                 // XXX: what about regs_to_env ?
-                longjmp(env->jmp_env, 1);
+                s2e_longjmp(env->jmp_env, 1);
             }
         }
     } else {
@@ -1092,7 +1092,7 @@ void S2EExecutionState::jumpToSymbolic()
 
     m_startSymbexAtPC = getPc();
     // XXX: what about regs_to_env ?
-    longjmp(env->jmp_env, 1);
+    s2e_longjmp(env->jmp_env, 1);
 }
 
 bool S2EExecutionState::needToJumpToSymbolic() const
@@ -1385,7 +1385,7 @@ void S2EExecutionState::dmaRead(uint64_t hostAddress, uint8_t *buf, unsigned siz
         }
         assert(op.first && op.second && op.first->address == hostPage);
         ObjectState *os = const_cast<ObjectState*>(op.second);
-        uint8_t *concreteStore = os->getConcreteStore();
+        uint8_t *concreteStore = os->getConcreteStore(true);
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 
@@ -1420,7 +1420,7 @@ void S2EExecutionState::dmaWrite(uint64_t hostAddress, uint8_t *buf, unsigned si
 
         assert(op.first && op.second && op.first->address == hostPage);
         ObjectState *os = addressSpace.getWriteable(op.first, op.second);
-        uint8_t *concreteStore = os->getConcreteStore();
+        uint8_t *concreteStore = os->getConcreteStore(true);
 
         unsigned offset = hostAddress & (S2E_RAM_OBJECT_SIZE-1);
 
@@ -1591,5 +1591,6 @@ void s2e_write_register_concrete(S2E* s2e, S2EExecutionState* state,
     /** XXX: use cpuState */
     state->writeRegisterConcrete(cpuState, offset, buf, size);
 }
+
 
 } // extern "C"

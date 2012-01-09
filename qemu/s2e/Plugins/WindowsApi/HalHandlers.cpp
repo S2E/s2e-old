@@ -47,6 +47,7 @@ extern "C" {
 #define CURRENT_CLASS HalHandlers
 
 #include "HalHandlers.h"
+#include "Ntddk.h"
 
 #include <s2e/Plugins/WindowsInterceptor/WindowsImage.h>
 #include <klee/Solver.h>
@@ -61,6 +62,28 @@ namespace plugins {
 
 S2E_DEFINE_PLUGIN(HalHandlers, "Basic collection of NT Hal API functions.", "HalHandlers",
                   "FunctionMonitor", "Interceptor");
+
+const WindowsApiHandler<HalHandlers::EntryPoint> HalHandlers::s_handlers[] = {
+    DECLARE_EP_STRUC(HalHandlers, HalpValidPciSlot),
+};
+
+const char * HalHandlers::s_ignoredFunctionsList[] = {
+    NULL
+};
+
+const SymbolDescriptor HalHandlers::s_exportedVariablesList[] = {
+    {"", 0}
+};
+
+
+const HalHandlers::HalHandlersMap HalHandlers::s_handlersMap =
+        HalHandlers::initializeHandlerMap();
+
+const HalHandlers::StringSet HalHandlers::s_ignoredFunctions =
+        HalHandlers::initializeIgnoredFunctionSet();
+
+const SymbolDescriptors HalHandlers::s_exportedVariables =
+        HalHandlers::initializeExportedVariables();
 
 
 void HalHandlers::initialize()

@@ -34,94 +34,54 @@
  *
  */
 
-unsigned m_activeSignals;
-unsigned m_size;
-private:
-func_t *m_funcs;
+#ifndef S2ETOOLS_BBLP_H
+#define S2ETOOLS_BBLP_H
 
-public:
+#include <llvm/System/Path.h>
 
-SIGNAL_CLASS() { m_size = 0; m_funcs = 0; m_activeSignals = 0;}
-
-SIGNAL_CLASS(const SIGNAL_CLASS &one) {
-    m_activeSignals = one.m_activeSignals;
-    m_size = one.m_size;
-    m_funcs = new func_t[m_size];
-    for (unsigned i=0; i<m_size; ++i) {
-        m_funcs[i] = one.m_funcs[i];
-        m_funcs[i]->incref();
-    }
-}
-
-~SIGNAL_CLASS() {
-    disconnectAll();
-    if (m_funcs) {
-        delete [] m_funcs;
-    }
-}
-
-void disconnectAll()
+namespace s2etools
 {
-    for (unsigned i=0; i<m_size; ++i) {
-        if (m_funcs[i] && !m_funcs[i]->decref()) {
-            delete m_funcs[i];
+
+struct BasicBlock
+{
+    uint64_t timeStamp;
+    uint64_t start, size;
+    std::string function;
+
+    bool operator()(const BasicBlock&b1, const BasicBlock &b2) const {
+        return b1.start + b1.size <= b2.start;
+    }
+
+    BasicBlock(uint64_t start, uint64_t size) {
+        this->start = start;
+        this->size = size;
+        timeStamp = 0;
+    }
+
+    BasicBlock() {
+        timeStamp = 0;
+        start = size = 0;
+    }
+
+    struct SortByTime {
+
+        bool operator()(const BasicBlock&b1, const BasicBlock &b2) const {
+            if (b1.timeStamp < b2.timeStamp) {
+                return true;
+            }
+            return b1.start + b1.size <= b2.start;
         }
-        m_funcs[i] = NULL;
-    }
+    };
+};
+
+class BasicBlockListParser {
+public:
+    typedef std::set<BasicBlock, BasicBlock> BasicBlocks;
+
+    static bool parseListing(llvm::sys::Path &listing, BasicBlocks &blocks);
+
+};
+
 }
 
-virtual void disconnect(void *functor, unsigned index) {
-    assert(m_activeSignals > 0);
-    assert(m_size > index);
-
-    if (m_funcs[index] == functor) {
-        if (!m_funcs[index]->decref()) {
-            delete m_funcs[index];
-        }
-        --m_activeSignals;
-        m_funcs[index] = NULL;
-    }
-}
-
-connection connect(func_t fcn) {
-    fcn->incref();
-    ++m_activeSignals;
-    for (unsigned i=0; i<m_size; ++i) {
-        if (!m_funcs[i]) {
-            m_funcs[i] = fcn;
-            return connection(this, fcn, i);
-        }
-    }
-    ++m_size;
-    func_t *nf = new func_t[m_size];
-
-    if (m_funcs) {
-        memcpy(nf, m_funcs, sizeof(func_t)*(m_size-1));
-        delete [] m_funcs;
-    }
-    m_funcs = nf;
-
-    m_funcs[m_size-1] = fcn;
-    return connection(this, fcn, m_size-1);
-}
-
-bool empty() const{
-    return m_activeSignals == 0;
-}
-
-void emit(OPERATOR_PARAM_DECL) {
-    for (unsigned i=0; i<m_size; ++i) {
-        if (m_funcs[i]) {
-            m_funcs[i]->operator ()(CALL_PARAMS);
-        }
-    }
-}
-
-
-#undef SIGNAL_CLASS
-#undef FUNCTOR_NAME
-#undef TYPENAMES
-#undef BASE_CLASS_INST
-#undef FUNCT_DECL
-#undef OPERATOR_PARAM_DECL
-#undef CALL_PARAMS
+#endif

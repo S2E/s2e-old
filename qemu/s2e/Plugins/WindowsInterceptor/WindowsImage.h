@@ -50,8 +50,8 @@
 namespace s2e {
 namespace windows {
 
-#define IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
-#define IMAGE_NT_SIGNATURE                  0x00004550  // PE00
+static const uint16_t IMAGE_DOS_SIGNATURE = 0x5A4D;      // MZ
+static const uint32_t IMAGE_NT_SIGNATURE = 0x00004550;  // PE00
 
 typedef struct IMAGE_DOS_HEADER {      // DOS .EXE header
     uint16_t   e_magic;                     // Magic number
@@ -234,6 +234,10 @@ typedef struct IMAGE_SECTION_HEADER {
     uint16_t    NumberOfLinenumbers;
     uint32_t   Characteristics;
 }  __attribute__ ((packed)) IMAGE_SECTION_HEADER;
+
+static const uint32_t IMAGE_SCN_MEM_WRITE = 0x80000000;
+static const uint32_t IMAGE_SCN_MEM_READ = 0x40000000;
+static const uint32_t IMAGE_SCN_MEM_EXECUTE = 0x20000000;
 
 #define IMAGE_SIZEOF_SECTION_HEADER          40
 
@@ -608,6 +612,22 @@ typedef struct _KTHREAD32
 
 } __attribute__((packed))KTHREAD32;
 
+typedef struct _NT_TIB32
+{
+     uint32_t ExceptionList;  //PEXCEPTION_REGISTRATION_RECORD
+     uint32_t StackBase;   //PVOID
+     uint32_t StackLimit; //PVOID
+     uint32_t SubSystemTib; //PVOID
+     union
+     {
+          uint32_t FiberData; //PVOID
+          uint32_t Version; //ULONG
+     };
+     uint32_t ArbitraryUserPointer;
+     uint32_t Self; //PNT_TIB
+}__attribute__((packed)) NT_TIB32;
+
+
 struct DESCRIPTOR32
 {
      uint16_t Pad;
@@ -785,8 +805,12 @@ typedef uint32_t PDEVICE_OBJECT32;
 typedef uint8_t KPROCESSOR_MODE;
 typedef uint8_t BOOLEAN;
 typedef uint8_t UCHAR;
+typedef int8_t CCHAR;
 typedef uint16_t USHORT;
+typedef uint16_t CSHORT;
 typedef uint32_t ULONG;
+typedef int32_t LONG;
+typedef uint32_t UINT;
 typedef uint32_t HANDLE;
 
 typedef ULONG SECURITY_INFORMATION;
@@ -930,6 +954,10 @@ struct SECURITY_DESCRIPTOR32 {
     PACL32 Sacl;
     PACL32 Dacl;
 }__attribute__((packed));
+
+
+
+typedef struct _FILE_OBJECT *PFILE_OBJECT;
 
 struct IO_STACK_LOCATION {
     UCHAR MajorFunction;
@@ -1102,7 +1130,7 @@ struct IO_STACK_LOCATION {
 
     uint32_t DeviceObject;
 
-    uint32_t FileObject;
+    uint32_t FileObject; //FILE_OBJECT
 
     uint32_t CompletionRoutine;
 
@@ -1194,7 +1222,7 @@ struct IRP {
             struct {
                 LIST_ENTRY32 ListEntry;
                 union {
-                    uint32_t CurrentStackLocation;
+                    uint32_t CurrentStackLocation; //struct IO_STACK_LOCATION *
                     uint32_t PacketType;
                 };
             };
@@ -1278,8 +1306,12 @@ private:
   Imports m_Imports;
   bool m_ImportsInited;
 
+  ModuleSections m_Sections;
+  bool m_sectionsInited;
+
   int InitImports(S2EExecutionState *s);
   int InitExports(S2EExecutionState *s);
+  bool InitSections(S2EExecutionState *s);
 
   static bool IsValidString(const char *str);
 public:
@@ -1304,9 +1336,8 @@ public:
   virtual uint64_t GetRoundedImageSize() const;
   virtual const Exports& GetExports(S2EExecutionState *s);
   virtual const Imports& GetImports(S2EExecutionState *s);
-  virtual void DumpInfo(std::iostream &os) const;
-
-
+  virtual void DumpInfo(std::ostream &os) const;
+  virtual const ModuleSections &GetSections(S2EExecutionState *s);
 };
 
 }

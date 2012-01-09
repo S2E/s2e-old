@@ -38,7 +38,7 @@
 #endif
 
 #include "config.h"
-#include <setjmp.h>
+#include <s2e/S2ESJLJ.h>
 #include <inttypes.h>
 #include <signal.h>
 #include "osdep.h"
@@ -118,9 +118,9 @@ typedef struct CPUTLBEntry {
     target_phys_addr_t addend;
 #endif
     /* padding to get a power of two size */
-    uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) - 
-                  (sizeof(target_ulong) * 3 + 
-                   ((-sizeof(target_ulong) * 3) & (sizeof(target_phys_addr_t) - 1)) + 
+    uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) -
+                  (sizeof(target_ulong) * 3 +
+                   ((-sizeof(target_ulong) * 3) & (sizeof(target_phys_addr_t) - 1)) +
                    sizeof(target_phys_addr_t))];
 } CPUTLBEntry;
 
@@ -218,7 +218,7 @@ typedef struct CPUWatchpoint {
     struct GDBRegisterState *gdb_regs;                                  \
                                                                         \
     /* Core interrupt code */                                           \
-    jmp_buf jmp_env;                                                    \
+    s2e_jmp_buf jmp_env;                                                    \
     int exception_index;                                                \
                                                                         \
     CPUState *next_cpu; /* next CPU sharing TB cache */                 \

@@ -201,7 +201,7 @@ namespace s2e {
 /* Global array to hold tb function arguments */
 volatile void* tb_function_args[3];
 
-/* External dispatcher to convert QEMU longjmp's into C++ exceptions */
+/* External dispatcher to convert QEMU s2e_longjmp's into C++ exceptions */
 class S2EExternalDispatcher: public klee::ExternalDispatcher
 {
 protected:
@@ -215,8 +215,8 @@ public:
 extern "C" {
 
 // FIXME: This is not reentrant.
-static jmp_buf s2e_escapeCallJmpBuf;
-static jmp_buf s2e_cpuExitJmpBuf;
+static s2e_jmp_buf s2e_escapeCallJmpBuf;
+static s2e_jmp_buf s2e_cpuExitJmpBuf;
 
 #ifdef _WIN32
 static void s2e_ext_sigsegv_handler(int signal)
@@ -224,7 +224,7 @@ static void s2e_ext_sigsegv_handler(int signal)
 }
 #else
 static void s2e_ext_sigsegv_handler(int signal, siginfo_t *info, void *context) {
-  longjmp(s2e_escapeCallJmpBuf, 1);
+  s2e_longjmp(s2e_escapeCallJmpBuf, 1);
 }
 #endif
 
@@ -254,11 +254,11 @@ bool S2EExternalDispatcher::runProtectedCall(Function *f, uint64_t *args) {
 
   memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
 
-  if(setjmp(env->jmp_env)) {
+  if(s2e_setjmp(env->jmp_env)) {
       memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
       throw CpuExitException();
   } else {
-      if (setjmp(s2e_escapeCallJmpBuf)) {
+      if (s2e_setjmp(s2e_escapeCallJmpBuf)) {
         res = false;
       } else {
         std::vector<GenericValue> gvArgs;
@@ -1218,6 +1218,7 @@ S2EExecutionState* S2EExecutor::selectNextState(S2EExecutionState *state)
     }
 
     if(newState != state) {
+        g_s2e->getCorePlugin()->onStateSwitch.emit(state, newState);
         doStateSwitch(state, newState);
     }
 
@@ -1583,7 +1584,7 @@ uintptr_t S2EExecutor::executeTranslationBlockConcrete(S2EExecutionState *state,
     uintptr_t ret = 0;
     memcpy(s2e_cpuExitJmpBuf, env->jmp_env, sizeof(env->jmp_env));
 
-    if(setjmp(env->jmp_env)) {
+    if(s2e_setjmp(env->jmp_env)) {
         memcpy(env->jmp_env, s2e_cpuExitJmpBuf, sizeof(env->jmp_env));
         throw CpuExitException();
     } else {
@@ -1854,16 +1855,18 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
             //Only send notification to the children
             m_s2e->getCorePlugin()->onProcessFork.emit(false, true, parentId);
 
-            //Delete all the states before
-            m_s2e->getDebugStream() << "Deleting before i=" << low << " splitIndex=" << splitIndex << std::endl;
+            std::set<ExecutionState*> pathsToDelete = getStates();
+            for (int i=splitIndex; i<=high; ++i) {
+                //Keep only the paths in the upper half of the array
+                pathsToDelete.erase(newStates[i]);
+            }
 
-            for (int i=low; i<splitIndex; ++i) {
-                if (newStates[i] == originalState) {
-                    m_s2e->getDebugStream() << "came across origstate" << std::endl;
+            foreach2(it, pathsToDelete.begin(), pathsToDelete.end()) {
+                S2EExecutionState *s2estate = static_cast<S2EExecutionState*>(*it);
+                if (s2estate == originalState) {
                     exitLoop = true;
                 }
-                m_s2e->getDebugStream() << "Terminating state idx "<< i << " (id=" << newStates[i]->getID()  << ")" << std::endl;
-                terminateStateAtFork(*newStates[i]);
+                terminateStateAtFork(*s2estate);
             }
 
             low = splitIndex;
@@ -2084,7 +2087,7 @@ inline void S2EExecutor::setCCOpEflags(S2EExecutionState *state)
                 executeFunction(state, "helper_set_cc_op_eflags");
             } catch(s2e::CpuExitException&) {
                 updateStates(state);
-                longjmp(env->jmp_env, 1);
+                s2e_longjmp(env->jmp_env, 1);
             }
         }
     } else {
@@ -2123,7 +2126,7 @@ inline void S2EExecutor::doInterrupt(S2EExecutionState *state, int intno,
             executeFunction(state, "helper_do_interrupt", args);
         } catch(s2e::CpuExitException&) {
             updateStates(state);
-            longjmp(env->jmp_env, 1);
+            s2e_longjmp(env->jmp_env, 1);
         }
     }
 }
@@ -2135,8 +2138,13 @@ void S2EExecutor::setupTimersHandler()
 }
 
 /** Suspend the given state (does not kill it) */
-bool S2EExecutor::suspendState(S2EExecutionState *state)
+bool S2EExecutor::suspendState(S2EExecutionState *state, bool onlyRemoveFromPtree)
 {
+    if (onlyRemoveFromPtree) {
+        processTree->deactivate(state->ptreeNode);
+        return true;
+    }
+
     if (searcher)  {
         searcher->removeState(state, NULL);
         size_t r = states.erase(state);
@@ -2147,9 +2155,13 @@ bool S2EExecutor::suspendState(S2EExecutionState *state)
     return false;
 }
 
-/** Puts back the previously suspended state in the queue */
-bool S2EExecutor::resumeState(S2EExecutionState *state)
+bool S2EExecutor::resumeState(S2EExecutionState *state, bool onlyAddToPtree)
 {
+    if (onlyAddToPtree) {
+        processTree->activate(state->ptreeNode);
+        return true;
+    }
+
     if (searcher)  {
         if (states.find(state) != states.end()) {
             return false;
@@ -2264,12 +2276,14 @@ uintptr_t s2e_qemu_tb_exec(S2E* s2e, S2EExecutionState* state,
     /*s2e->getDebugStream() << "icount=" << std::dec << s2e_get_executed_instructions()
             << " pc=0x" << std::hex << state->getPc() << std::dec
             << std::endl;   */
+    state->setRunningExceptionEmulationCode(false);
+
     try {
         uintptr_t ret = s2e->getExecutor()->executeTranslationBlock(state, tb);
         return ret;
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
-        longjmp(env->jmp_env, 1);
+        s2e_longjmp(env->jmp_env, 1);
     }
 }
 
@@ -2279,7 +2293,7 @@ void s2e_qemu_finalize_tb_exec(S2E *s2e, S2EExecutionState* state)
         s2e->getExecutor()->finalizeTranslationBlockExec(state);
     } catch(s2e::CpuExitException&) {
         s2e->getExecutor()->updateStates(state);
-        longjmp(env->jmp_env, 1);
+        s2e_longjmp(env->jmp_env, 1);
     }
 }
 
@@ -2295,12 +2309,24 @@ void s2e_set_cc_op_eflags(struct S2E* s2e,
     s2e->getExecutor()->setCCOpEflags(state);
 }
 
+/**
+ *  We also need to track when execution enters/exits emulation code.
+ *  Some plugins do not care about what memory accesses the emulation
+ *  code performs internally, therefore, there must be a means for such
+ *  plugins to enable/disable tracing upon exiting/entering
+ *  the emulation code.
+ */
 void s2e_do_interrupt(struct S2E* s2e, struct S2EExecutionState* state,
                       int intno, int is_int, int error_code,
                       uint64_t next_eip, int is_hw)
 {
+    state->setRunningExceptionEmulationCode(true);
+    s2e_on_exception(intno);
+
     s2e->getExecutor()->doInterrupt(state, intno, is_int, error_code,
                                     next_eip, is_hw);
+
+    state->setRunningExceptionEmulationCode(false);
 }
 
 /**

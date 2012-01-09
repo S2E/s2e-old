@@ -40,6 +40,7 @@
 #include <s2e/Plugin.h>
 #include <s2e/Plugins/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
+#include <s2e/Plugins/ExecutionTracers/MemoryTracer.h>
 
 #include <string>
 
@@ -58,11 +59,10 @@ class MemoryChecker : public Plugin
 {
     S2E_PLUGIN
 
-    // Ugh...
     OSMonitor *m_osMonitor;
     ModuleExecutionDetector *m_moduleDetector;
-
-    std::string m_moduleId;
+    MemoryTracer *m_memoryTracer;
+    ExecutionTracer *m_executionTracer;
 
     bool m_checkMemoryLeaks;
     bool m_checkMemoryErrors;
@@ -72,11 +72,7 @@ class MemoryChecker : public Plugin
 
     sigc::connection m_dataMemoryAccessConnection;
 
-    void onModuleLoad(S2EExecutionState* state,
-                      const ModuleDescriptor &module);
-
-    void onModuleUnload(S2EExecutionState* state,
-                        const ModuleDescriptor &module);
+    void onException(S2EExecutionState *state, unsigned intNb, uint64_t pc);
 
     void onModuleTransition(S2EExecutionState *state,
                             const ModuleDescriptor *prevModule,
@@ -88,46 +84,109 @@ class MemoryChecker : public Plugin
                  klee::ref<klee::Expr> value,
                  bool isWrite, bool isIO);
 
+    void onStateSwitch(S2EExecutionState *currentState,
+                                      S2EExecutionState *nextState);
+
     // Simple pattern matching for region types. Only one
     // operator is allowed: '*' at the end of pattern means any
     // number of any characters.
-    bool matchRegionType(const char* pattern, const char* type);
+    bool matchRegionType(const std::string &pattern, const std::string &type);
+
+    std::string getPrettyCodeLocation(S2EExecutionState *state);
 
 public:
+    enum Permissions {
+        NONE=0, READ=1, WRITE=2, READWRITE=3
+    };
+
     MemoryChecker(S2E* s2e): Plugin(s2e) {}
 
     void initialize();
 
-    void grantMemory(S2EExecutionState *state,
+    void grantMemoryForModuleSections(
+                S2EExecutionState *state,
+                const ModuleDescriptor &desc
+            );
+
+    void revokeMemoryForModuleSections(
+                S2EExecutionState *state,
+                const ModuleDescriptor &desc
+            );
+
+
+    void revokeMemoryForModuleSections(
+                S2EExecutionState *state
+            );
+
+    void grantMemoryForModule(S2EExecutionState *state,
+                     uint64_t start, uint64_t size,
+                     Permissions perms,
+                     const std::string &regionType);
+
+    void grantMemoryForModule(S2EExecutionState *state,
                      const ModuleDescriptor *module,
-                     uint64_t start, uint64_t size, uint8_t perms,
-                     const char* regionType, uint64_t regionID = 0,
+                     uint64_t start, uint64_t size,
+                     Permissions perms,
+                     const std::string &regionType,
+                     bool permanent = false);
+
+    bool revokeMemoryForModule(S2EExecutionState *state,
+                     const std::string &regionTypePattern);
+
+    bool revokeMemoryForModule(
+            S2EExecutionState *state,
+            const ModuleDescriptor *module,
+            const std::string &regionTypePattern);
+
+
+    void grantMemory(S2EExecutionState *state,
+                     uint64_t start, uint64_t size, Permissions perms,
+                     const std::string &regionType, uint64_t regionID = 0,
                      bool permanent = false);
 
     // Revoke memory by address
     // NOTE: end, perms and regionID can be -1, regionTypePattern can be NULL
     bool revokeMemory(S2EExecutionState *state,
-                      const ModuleDescriptor *module,
                       uint64_t start, uint64_t size,
-                      uint8_t perms = uint8_t(-1),
-                      const char* regionTypePattern = NULL,
+                      Permissions perms = READWRITE,
+                      const std::string &regionTypePattern = "",
                       uint64_t regionID = uint64_t(-1));
 
     // Revoke memory by pattern
     // NOTE: regionID can be -1
     bool revokeMemory(S2EExecutionState *state,
-                      const ModuleDescriptor *module,
-                      const char* regionTypePattern,
+                      const std::string &regionTypePattern,
                       uint64_t regionID = uint64_t(-1));
 
-    // Check acceessibility of memory region
+    bool revokeMemoryByPointer(S2EExecutionState *state, uint64_t pointer,
+                               const std::string &regionTypePattern);
+
+    bool revokeMemoryByPointerForModule(S2EExecutionState *state, uint64_t pointer,
+                               const std::string &regionTypePattern);
+
+
+    bool revokeMemoryByPointerForModule(
+            S2EExecutionState *state,
+            const ModuleDescriptor *module,
+            uint64_t pointer,
+            const std::string &regionTypePattern);
+
+
+    // Check accessibility of memory region
     bool checkMemoryAccess(S2EExecutionState *state,
-                           const ModuleDescriptor *module,
-                           uint64_t start, uint64_t size, uint8_t perms);
+                           uint64_t start, uint64_t size, uint8_t perms,
+                           std::ostream &message);
 
     // Check that all memory objects were freed
-    bool checkMemoryLeaks(S2EExecutionState *state,
-                          const ModuleDescriptor *module);
+    bool checkMemoryLeaks(S2EExecutionState *state);
+
+    bool findMemoryRegion(S2EExecutionState *state,
+                          uint64_t address,
+                          uint64_t *start, uint64_t *size) const;
+
+    std::string getRegionTypePrefix(S2EExecutionState *state,
+                                    const std::string &regionType);
+
 };
 
 } // namespace plugins
