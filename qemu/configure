@@ -49,8 +49,7 @@ compile_prog() {
 compile_prog_cxx() {
   local_cxxflags="$1"
   local_ldflags="$2"
-echo  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags
-  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags #  > /dev/null 2> /dev/null
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
 }
 
 # default parameters
@@ -762,7 +761,8 @@ case "$cpu" in
 esac
 
 if [ $address_sanitizer = "yes" ]; then
-    CXXFLAGS="-Wno-mismatched-tags $CXXFLAGS"
+	CFLAGS="-fstack-protector-all $CFLAGS"
+    CXXFLAGS="-fstack-protector-all -Wno-mismatched-tags $CXXFLAGS"
     #This is required for probing LLVM and KLEE, as they
     #might be compiled with AddressSanitizer instrumentation.
     ASANLIBPATH="-L$(dirname $asancc)/../lib"
@@ -2836,11 +2836,16 @@ if test "$target_s2e" = "yes" ; then
   echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
   echo "LLVMCC:=$clang" >> $config_target_mak
   echo "LLVMAR:=$llvmar" >> $config_target_mak
-else
-  if [ "$llvm" != "no" ]; then
-    echo "LIBS+=$llvm_libs $llvm_ldflags" >> $config_host_mak
-  fi
 fi
+
+if [ "$llvm" = "yes" ]; then
+   echo "ifdef CONFIG_S2E" >> $config_target_mak
+   echo "LIBS+=$llvm_ldflags" >> $config_target_mak
+   echo "else" >> $config_target_mak
+   echo "LIBS:=$llvm_libs $llvm_ldflags \$(LIBS)" >> $config_target_mak
+   echo "endif" >> $config_target_mak
+fi
+
 list=""
 if test ! -z "$gdb_xml_files" ; then
   for x in $gdb_xml_files; do
@@ -2972,6 +2977,8 @@ if test "$target_s2e" = "yes" ; then
   echo "LIBS+=\$(filter-out $llvm_ldflags, $klee_ldflags) $llvm_ldflags" >> $config_target_mak
   echo "KLEE_LIBFILES=$klee_libfiles" >> $config_target_mak
 fi
+
+
 
 if test "$gprof" = "yes" ; then
   echo "TARGET_GPROF=yes" >> $config_target_mak
