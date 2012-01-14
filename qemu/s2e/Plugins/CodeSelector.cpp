@@ -105,6 +105,9 @@ void CodeSelector::initialize()
     //Attach the signals
     m_ExecutionDetector->onModuleTransition.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
+
+    s2e()->getCorePlugin()->onCustomInstruction.connect(
+        sigc::mem_fun(*this, &CodeSelector::onCustomInstruction));
 }
 
 void CodeSelector::onModuleTransition(
