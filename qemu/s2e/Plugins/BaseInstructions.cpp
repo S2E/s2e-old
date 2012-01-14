@@ -73,6 +73,257 @@ void BaseInstructions::initialize()
 
 }
 
+void BaseInstructions::makeSymbolic(S2EExecutionState *state)
+{
+    uint32_t address, size, name; // XXX
+    bool ok = true;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                         &address, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                         &size, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                         &name, 4);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op "
+               " insert_symbolic opcode" << std::endl;
+        return;
+    }
+
+    std::string nameStr;
+    if(!name || !state->readString(name, nameStr)) {
+        s2e()->getWarningsStream(state)
+                << "Error reading string from the guest"
+                << std::endl;
+        nameStr = "defstr";
+    }
+
+    s2e()->getMessagesStream(state)
+            << "Inserting symbolic data at " << hexval(address)
+            << " of size " << hexval(size)
+            << " with name '" << nameStr << "'" << std::endl;
+
+    vector<ref<Expr> > symb = state->createSymbolicArray(size, nameStr);
+    for(unsigned i = 0; i < size; ++i) {
+        if(!state->writeMemory8(address + i, symb[i])) {
+            s2e()->getWarningsStream(state)
+                << "Can not insert symbolic value"
+                << " at " << hexval(address + i)
+                << ": can not write to memory" << std::endl;
+        }
+    }
+}
+
+void BaseInstructions::isSymbolic(S2EExecutionState *state)
+{
+    uint32_t address;
+    uint32_t result;
+    char buf;
+    bool ok = true;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                         &address, 4);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op is_symbolic"
+            << std::endl;
+        return;
+    }
+
+    s2e()->getMessagesStream(state)
+            << "Testing whether data at " << hexval(address)
+            << " is symbolic:";
+
+    // readMemoryConcrete fails if the value is symbolic
+    result = !state->readMemoryConcrete(address, &buf, 1);
+    s2e()->getMessagesStream(state)
+            << (result ? " true" : " false") << endl;
+    state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, 4);
+}
+
+void BaseInstructions::killState(S2EExecutionState *state)
+{
+    std::string message;
+    uint32_t messagePtr;
+    bool ok = true;
+    klee::ref<klee::Expr> status = state->readCpuRegister(CPU_OFFSET(regs[R_EAX]), klee::Expr::Int32);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr, 4);
+
+    if (!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_kill_state "
+            << std::endl;
+    } else {
+        message="<NO MESSAGE>";
+        if(!messagePtr || !state->readString(messagePtr, message)) {
+            s2e()->getWarningsStream(state)
+                << "Error reading file name string from the guest" << std::endl;
+        }
+    }
+
+    //Kill the current state
+    s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << std::endl;
+    std::ostringstream os;
+    os << "State was terminated by opcode\n"
+       << "            message: \"" << message << "\"\n"
+       << "            status: " << status;
+    s2e()->getExecutor()->terminateStateEarly(*state, os.str());
+}
+
+void BaseInstructions::printExpression(S2EExecutionState *state)
+{
+    //Print the expression
+    uint32_t name; //xxx
+    bool ok = true;
+    ref<Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                         &name, 4);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op "
+               "print_expression opcode" << std::endl;
+        return;
+    }
+
+    std::string nameStr = "defstring";
+    if(!name || !state->readString(name, nameStr)) {
+        s2e()->getWarningsStream(state)
+                << "Error reading string from the guest"
+                << std::endl;
+    }
+
+
+    s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - "
+            <<val << std::endl;
+}
+
+void BaseInstructions::printMemory(S2EExecutionState *state)
+{
+    uint32_t address, size, name; // XXX should account for 64 bits archs
+    bool ok = true;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                         &address, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                         &size, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                         &name, 4);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op "
+               "print_expression opcode" << std::endl;
+        return;
+    }
+
+    std::string nameStr = "defstring";
+    if(!name || !state->readString(name, nameStr)) {
+        s2e()->getWarningsStream(state)
+                << "Error reading string from the guest"
+                << std::endl;
+    }
+
+    s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << std::endl;
+
+    for (uint32_t i=0; i<size; ++i) {
+
+        s2e()->getMessagesStream() << std::hex << "0x" << std::setw(8) << (address+i) << ": " << std::dec;
+        ref<Expr> res = state->readMemory8(address+i);
+        if (res.isNull()) {
+            s2e()->getMessagesStream() << "Invalid pointer" << std::endl;
+        }else {
+            s2e()->getMessagesStream() << res << std::endl;
+        }
+    }
+}
+
+
+void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint)
+{
+    uint32_t address, size;
+
+    bool ok = true;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                         &address, 4);
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
+                                         &size, 4);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op "
+               " get_example opcode" << std::endl;
+        return;
+    }
+
+    for(unsigned i = 0; i < size; ++i) {
+        ref<Expr> expr = state->readMemory8(address + i);
+        if(!expr.isNull()) {
+            if(addConstraint) { /* concretize */
+                expr = s2e()->getExecutor()->toConstant(*state, expr, "request from guest");
+            } else { /* example */
+                expr = s2e()->getExecutor()->toConstantSilent(*state, expr);
+            }
+
+            if(!state->writeMemory(address + i, expr)) {
+                s2e()->getWarningsStream(state)
+                    << "Can not write to memory"
+                    << " at " << hexval(address + i) << std::endl;
+            }
+        } else {
+            s2e()->getWarningsStream(state)
+                << "Can not read from memory"
+                << " at " << hexval(address + i) << std::endl;
+        }
+    }
+}
+
+void BaseInstructions::sleep(S2EExecutionState *state)
+{
+    uint32_t duration = 0;
+    state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration, sizeof(uint32_t));
+    s2e()->getDebugStream() << "Sleeping " << std::dec << duration << " seconds" << std::endl;
+
+    llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
+
+    while (llvm::sys::TimeValue::now().seconds() - startTime.seconds() < duration) {
+        #ifdef _WIN32
+        Sleep(1000);
+        #else
+        ::sleep(1);
+        #endif
+    }
+}
+
+void BaseInstructions::printMessage(S2EExecutionState *state, bool isWarning)
+{
+    uint32_t address = 0; //XXX
+    bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
+                                                &address, 4);
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "ERROR: symbolic argument was passed to s2e_op "
+               " message opcode" << std::endl;
+        return;
+    }
+
+    std::string str="";
+    if(!address || !state->readString(address, str)) {
+        s2e()->getWarningsStream(state)
+                << "Error reading string message from the guest at address 0x"
+                << std::hex << address
+                << std::endl;
+    } else {
+        ostream *stream;
+        if(isWarning)
+            stream = &s2e()->getWarningsStream(state);
+        else
+            stream = &s2e()->getMessagesStream(state);
+        (*stream) << "Message from guest (0x" << std::hex << address <<
+                "): " <<  str << std::endl;
+    }
+}
+
 /** Handle s2e_op instruction. Instructions:
     0f 3f XX XX XX XX XX XX XX XX
     XX: opcode
@@ -88,283 +339,74 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState* state, uint64_t opcod
         case 1: state->enableSymbolicExecution(); break;
         case 2: state->disableSymbolicExecution(); break;
 
-        case 3: { /* make_symbolic */
-            uint32_t address, size, name; // XXX
-            bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                                 &address, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                                 &size, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                                 &name, 4);
-
-            if(!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op "
-                       " insert_symbolic opcode" << std::endl;
-                break;
-            }
-
-            std::string nameStr;
-            if(!name || !state->readString(name, nameStr)) {
-                s2e()->getWarningsStream(state)
-                        << "Error reading string from the guest"
-                        << std::endl;
-                nameStr = "defstr";
-            }
-
-            s2e()->getMessagesStream(state)
-                    << "Inserting symbolic data at " << hexval(address)
-                    << " of size " << hexval(size)
-                    << " with name '" << nameStr << "'" << std::endl;
-
-            vector<ref<Expr> > symb = state->createSymbolicArray(size, nameStr);
-            for(unsigned i = 0; i < size; ++i) {
-                if(!state->writeMemory8(address + i, symb[i])) {
-                    s2e()->getWarningsStream(state)
-                        << "Can not insert symbolic value"
-                        << " at " << hexval(address + i)
-                        << ": can not write to memory" << std::endl;
-                }
-            }
+        case 3: { /* s2e_make_symbolic */
+            makeSymbolic(state);
             break;
         }
 
-        case 4: { /* is_symbolic */
-            uint32_t address;
-            uint32_t result;
-            char buf;
-            bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                                 &address, 4);
-
-            if(!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op is_symbolic"
-                    << std::endl;
-                break;
-            }
-
-            s2e()->getMessagesStream(state)
-                    << "Testing whether data at " << hexval(address)
-                    << " is symbolic:";
-
-            // readMemoryConcrete fails if the value is symbolic
-            result = !state->readMemoryConcrete(address, &buf, 1);
-            s2e()->getMessagesStream(state)
-                    << (result ? " true" : " false") << endl;
-            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &result, 4);
+        case 4: { /* s2e_is_symbolic */
+            isSymbolic(state);
             break;
         }
 
-        case 5:
-            {
-                //Get current path
-                state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
-                    klee::ConstantExpr::create(state->getID(), klee::Expr::Int32));
-                break;
+        case 5: { /* s2e_get_path_id */
+            state->writeCpuRegister(offsetof(CPUX86State, regs[R_EAX]),
+                klee::ConstantExpr::create(state->getID(), klee::Expr::Int32));
+            break;
+        }
+
+        case 6: { /* s2e_kill_state */
+            killState(state);
+            break;
             }
 
-        case 6:
-            {
-                std::string message;
-                uint32_t messagePtr;
-                bool ok = true;
-                klee::ref<klee::Expr> status = state->readCpuRegister(CPU_OFFSET(regs[R_EAX]), klee::Expr::Int32);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]), &messagePtr, 4);
+        case 7: { /* s2e_print_expression */
+            printExpression(state);
+            break;
+        }
 
-                if (!ok) {
-                    s2e()->getWarningsStream(state)
-                        << "ERROR: symbolic argument was passed to s2e_op kill state "
-                        << std::endl;
-                } else {
-                    message="<NO MESSAGE>";
-                    if(!messagePtr || !state->readString(messagePtr, message)) {
-                        s2e()->getWarningsStream(state)
-                            << "Error reading file name string from the guest" << std::endl;
-                    }
-                }
+        case 8: { //Print memory contents
+            printMemory(state);
+            break;
+        }
 
-                //Kill the current state
-                s2e()->getMessagesStream(state) << "Killing state "  << state->getID() << std::endl;
-                std::ostringstream os;
-                os << "State was terminated by opcode\n"
-                   << "            message: \"" << message << "\"\n"
-                   << "            status: " << status;
-                s2e()->getExecutor()->terminateStateEarly(*state, os.str());
-                break;
-            }
+        case 9:
+            state->enableForking();
+            break;
 
-        case 7:
-            {
-                //Print the expression
-                uint32_t name; //xxx
-                bool ok = true;
-                ref<Expr> val = state->readCpuRegister(offsetof(CPUX86State, regs[R_EAX]), klee::Expr::Int32);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                                     &name, 4);
-
-                if(!ok) {
-                    s2e()->getWarningsStream(state)
-                        << "ERROR: symbolic argument was passed to s2e_op "
-                           "print_expression opcode" << std::endl;
-                    break;
-                }
-
-                std::string nameStr = "defstring";
-                if(!name || !state->readString(name, nameStr)) {
-                    s2e()->getWarningsStream(state)
-                            << "Error reading string from the guest"
-                            << std::endl;
-                }
+        case 10:
+            state->disableForking();
+            break;
 
 
-                s2e()->getMessagesStream() << "SymbExpression " << nameStr << " - "
-                        <<val << std::endl;
-                break;
-            }
-
-        case 8:
-            {
-                //Print memory contents
-                uint32_t address, size, name; // XXX should account for 64 bits archs
-                bool ok = true;
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                                     &address, 4);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                                     &size, 4);
-                ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
-                                                     &name, 4);
-
-                if(!ok) {
-                    s2e()->getWarningsStream(state)
-                        << "ERROR: symbolic argument was passed to s2e_op "
-                           "print_expression opcode" << std::endl;
-                    break;
-                }
-
-                std::string nameStr = "defstring";
-                if(!name || !state->readString(name, nameStr)) {
-                    s2e()->getWarningsStream(state)
-                            << "Error reading string from the guest"
-                            << std::endl;
-                }
-
-                s2e()->getMessagesStream() << "Symbolic memory dump of " << nameStr << std::endl;
-
-                for (uint32_t i=0; i<size; ++i) {
-
-                    s2e()->getMessagesStream() << std::hex << "0x" << std::setw(8) << (address+i) << ": " << std::dec;
-                    ref<Expr> res = state->readMemory8(address+i);
-                    if (res.isNull()) {
-                        s2e()->getMessagesStream() << "Invalid pointer" << std::endl;
-                    }else {
-                        s2e()->getMessagesStream() << res << std::endl;
-                    }
-                }
-
-                break;
-            }
-
-        case 9: state->enableForking(); break;
-        case 10: state->disableForking(); break;
-
-
-        case 0x10: { /* print message */
-            uint32_t address = 0; //XXX
-            bool ok = state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                                        &address, 4);
-            if(!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op "
-                       " message opcode" << std::endl;
-                break;
-            }
-
-            std::string str="";
-            if(!address || !state->readString(address, str)) {
-                s2e()->getWarningsStream(state)
-                        << "Error reading string message from the guest at address 0x"
-                        << std::hex << address
-                        << std::endl;
-            } else {
-                ostream *stream;
-                if(opcode >> 16)
-                    stream = &s2e()->getWarningsStream(state);
-                else
-                    stream = &s2e()->getMessagesStream(state);
-                (*stream) << "Message from guest (0x" << std::hex << address <<
-                        "): " <<  str << std::endl;
-            }
+        case 0x10: { /* s2e_print_message */
+            printMessage(state, opcode >> 16);
             break;
         }
 
         case 0x20: /* concretize */
+            concretize(state, true);
+            break;
+
         case 0x21: { /* replace an expression by one concrete example */
-            uint32_t address, size;
-
-            bool ok = true;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]),
-                                                 &address, 4);
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EBX]),
-                                                 &size, 4);
-
-            if(!ok) {
-                s2e()->getWarningsStream(state)
-                    << "ERROR: symbolic argument was passed to s2e_op "
-                       " get_example opcode" << std::endl;
-                break;
-            }
-
-            for(unsigned i = 0; i < size; ++i) {
-                ref<Expr> expr = state->readMemory8(address + i);
-                if(!expr.isNull()) {
-                    if(((opcode>>8) & 0xFF) == 0x20) /* concretize */
-                        expr = s2e()->getExecutor()->toConstant(*state, expr, "request from guest");
-                    else /* example */
-                        expr = s2e()->getExecutor()->toConstantSilent(*state, expr);
-                    if(!state->writeMemory(address + i, expr)) {
-                        s2e()->getWarningsStream(state)
-                            << "Can not write to memory"
-                            << " at " << hexval(address + i) << std::endl;
-                    }
-                } else {
-                    s2e()->getWarningsStream(state)
-                        << "Can not read from memory"
-                        << " at " << hexval(address + i) << std::endl;
-                }
-            }
-
+            concretize(state, false);
             break;
         }
 
         case 0x30: { /* Get number of active states */
-                uint32_t count = s2e()->getExecutor()->getStatesCount();
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
-                break;
+            uint32_t count = s2e()->getExecutor()->getStatesCount();
+            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+            break;
         }
 
         case 0x31: { /* Get number of active S2E instances */
-                uint32_t count = s2e()->getCurrentProcessCount();
-                state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
-                break;
+            uint32_t count = s2e()->getCurrentProcessCount();
+            state->writeCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &count, sizeof(uint32_t));
+            break;
         }
         case 0x32: { /* Sleep for a given number of seconds */
-                uint32_t duration = 0;
-                state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_EAX]), &duration, sizeof(uint32_t));
-                s2e()->getDebugStream() << "Sleeping " << std::dec << duration << " seconds" << std::endl;
-
-                llvm::sys::TimeValue startTime = llvm::sys::TimeValue::now();
-
-                while (llvm::sys::TimeValue::now().seconds() - startTime.seconds() < duration) {
-                    #ifdef _WIN32
-					Sleep(1000);
-					#else
-					sleep(1);
-					#endif
-                }
-
-                break;
+           sleep(state);
+           break;
         }
 
         case 0x50: { /* disable/enable timer interrupt */
