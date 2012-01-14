@@ -2138,8 +2138,13 @@ void S2EExecutor::setupTimersHandler()
 }
 
 /** Suspend the given state (does not kill it) */
-bool S2EExecutor::suspendState(S2EExecutionState *state)
+bool S2EExecutor::suspendState(S2EExecutionState *state, bool onlyRemoveFromPtree)
 {
+    if (onlyRemoveFromPtree) {
+        processTree->deactivate(state->ptreeNode);
+        return true;
+    }
+
     if (searcher)  {
         searcher->removeState(state, NULL);
         size_t r = states.erase(state);
@@ -2150,9 +2155,13 @@ bool S2EExecutor::suspendState(S2EExecutionState *state)
     return false;
 }
 
-/** Puts back the previously suspended state in the queue */
-bool S2EExecutor::resumeState(S2EExecutionState *state)
+bool S2EExecutor::resumeState(S2EExecutionState *state, bool onlyAddToPtree)
 {
+    if (onlyAddToPtree) {
+        processTree->activate(state->ptreeNode);
+        return true;
+    }
+
     if (searcher)  {
         if (states.find(state) != states.end()) {
             return false;

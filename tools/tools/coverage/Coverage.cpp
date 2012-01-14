@@ -207,7 +207,25 @@ void BasicBlockCoverage::printTimeCoverage(std::ostream &os) const
     }
 }
 
-void BasicBlockCoverage::printReport(std::ostream &os) const
+//Returns the time in seconds of the last covered block
+uint64_t BasicBlockCoverage::getTimeCoverage() const
+{
+    BlocksByTime bbtime;
+    BlocksByTime::const_iterator tfirst;
+    BlocksByTime::const_reverse_iterator tit;
+
+    BasicBlocks::const_iterator it;
+    for (it = m_coveredBbs.begin(); it != m_coveredBbs.end(); ++it) {
+        bbtime.insert(*it);
+    }
+
+    tfirst = bbtime.begin();
+    tit = bbtime.rbegin();
+
+    return ((*tit).timeStamp - (*tfirst).timeStamp)/1000000;
+}
+
+void BasicBlockCoverage::printReport(std::ostream &os, uint64_t pathCount) const
 {
     unsigned touchedFunctions = 0;
     unsigned fullyCoveredFunctions = 0;
@@ -270,6 +288,9 @@ void BasicBlockCoverage::printReport(std::ostream &os) const
     os << "Fully covered functions: " << std::dec << fullyCoveredFunctions << "/" << m_functions.size() <<
             "(" << (fullyCoveredFunctions*100/m_functions.size()) << "%)"  << std::endl;
 
+    os << "Time to cover last block: " << std::dec << getTimeCoverage() << std::endl;
+    os << "# paths:                  " << std::dec << pathCount << std::endl;
+
 }
 
 void BasicBlockCoverage::printBBCov(std::ostream &os) const
@@ -284,7 +305,7 @@ void BasicBlockCoverage::printBBCov(std::ostream &os) const
             Block b(0, (*bbit).start, 0);
             if (m_uniqueTbs.find(b) == m_uniqueTbs.end())
                 os << std::setw(0) << "-";
-            else 
+            else
                 os << std::setw(0) << "+";
 
             os << std::hex << "0x" << std::setfill('0') << std::setw(8) << (*bbit).start << std::setw(0)
@@ -303,6 +324,7 @@ Coverage::Coverage(Library *lib, ModuleCache *cache, LogEvents *events)
             );
     m_cache = cache;
     m_library = lib;
+    m_pathCount = 1;
 }
 
 Coverage::~Coverage()
@@ -319,6 +341,11 @@ void Coverage::onItem(unsigned traceIndex,
             const s2e::plugins::ExecutionTraceItemHeader &hdr,
             void *item)
 {
+    if (hdr.type == s2e::plugins::TRACE_FORK) {
+        s2e::plugins::ExecutionTraceFork *f = (s2e::plugins::ExecutionTraceFork*)item;
+        m_pathCount+=f->stateCount-1;
+    }
+
     if (hdr.type != s2e::plugins::TRACE_TB_START) {
         return;
     }
@@ -375,7 +402,7 @@ void Coverage::outputCoverage(const std::string &path) const
         std::stringstream ss1;
         ss1 << path << "/" << (*it).first << ".repcov";
         std::ofstream report(ss1.str().c_str());
-        (*it).second->printReport(report);
+        (*it).second->printReport(report, m_pathCount);
 
         std::stringstream ss2;
         ss2 << path << "/" << (*it).first << ".bbcov";
