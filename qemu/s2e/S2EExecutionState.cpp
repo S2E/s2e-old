@@ -76,6 +76,7 @@ CPUTLBEntry s_cputlb_empty_entry = { -1, -1, -1, -1 };
 }
 
 extern llvm::cl::opt<bool> PrintModeSwitch;
+extern llvm::cl::opt<bool> PrintForkingStatus;
 
 namespace s2e {
 
@@ -159,9 +160,11 @@ void S2EExecutionState::enableForking()
 
     forkDisabled = false;
 
-    g_s2e->getMessagesStream(this) << "Enabled forking"
-            << " at pc = " << (void*) getPc()
-            << " and pid = " << hexval(getPid()) << std::endl;
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Enabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << std::endl;
+    }
 }
 
 void S2EExecutionState::disableForking()
@@ -172,9 +175,11 @@ void S2EExecutionState::disableForking()
 
     forkDisabled = true;
 
-    g_s2e->getMessagesStream(this) << "Disabled forking"
-            << " at pc = " << (void*) getPc()
-            << " and pid = " << hexval(getPid()) << std::endl;
+    if (PrintForkingStatus) {
+        g_s2e->getMessagesStream(this) << "Disabled forking"
+                << " at pc = " << (void*) getPc()
+                << " and pid = " << hexval(getPid()) << std::endl;
+    }
 }
 
 

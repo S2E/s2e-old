@@ -186,6 +186,11 @@ PrintModeSwitch("print-mode-switch",
                 cl::desc("Print message when switching from symbolic to concrete and vice versa"),
                 cl::init(false));
 
+cl::opt<bool>
+PrintForkingStatus("print-forking-status",
+                cl::desc("Print message when enabling/disabling forking."),
+                cl::init(false));
+
 extern cl::opt<bool> UseExprSimplifier;
 
 extern "C" {
