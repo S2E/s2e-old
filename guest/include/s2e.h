@@ -34,6 +34,9 @@
  *
  */
 
+#include <stdio.h>
+#include <string.h>
+
 /** Forces the read of every byte of the specified string.
   * This makes sure the memory pages occupied by the string are paged in
   * before passing them to S2E, which can't page in memory by itself. */
@@ -358,6 +361,66 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
         "popl %%ebx\n"
         : : "a" (name), "d" (loadbase), "c" (size)
     );
+}
+
+
+/**
+ * If processToRetrive == null,  get the name, load address, and
+ * the size of the currently running process.
+ *
+ * If processToRetrive != null,  get the name, load address, and
+ * the size of the specified module in the currently running process.
+ *
+ * The returned name is an absolute path to the program file.
+ */
+static int s2e_get_process_info(const char *processToRetrieve,
+                                const char *name, size_t maxNameLength,
+                                uint64_t *loadBase, uint64_t *size)
+{
+    const char* progName = NULL;
+    int result = -1;
+
+    if (processToRetrieve) {
+        progName = strrchr(processToRetrieve, '/');
+        if (progName == NULL) {
+            progName = name;
+        } else {
+            ++progName;  // point to the first char after the slash
+        }
+    }
+
+    FILE* maps = fopen("/proc/self/maps", "r");
+    if (!maps) {
+        return result;
+    }
+
+    size_t start, end;
+    char executable;
+
+    char line[256], path[128];
+    while (fgets(line, sizeof(line), maps)) {
+        if (sscanf(line, "%x-%x %*c%*c%c%*c %*x %*s %*d %127[^\n]", &start, &end, &executable, path) == 3) {
+            if (progName) {
+                if (executable == 'x' && strstr(path, progName) != NULL) {
+                    *loadBase = start;
+                    *size = end - start;
+                    strncpy(name, path, maxNameLength);
+                    result = 0;
+                    break;
+                }
+            } else {
+                //Found the process, get its data
+                *loadBase = start;
+                *size = end - start;
+                strncpy(name, path, maxNameLength);
+                result = 0;
+                break;
+            }
+        }
+    }
+
+    fclose(maps);
+    return result;
 }
 
 /* Kills the current state if b is zero */
