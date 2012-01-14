@@ -36,10 +36,17 @@
 
 //#define NDEBUG
 
+extern "C" {
+#include "config.h"
+#include "qemu-common.h"
+}
+
+
 #include <sstream>
 #include <s2e/ConfigFile.h>
 
 #include "CodeSelector.h"
+#include "Opcodes.h"
 #include "ModuleExecutionDetector.h"
 
 #include <s2e/S2E.h>
@@ -98,7 +105,6 @@ void CodeSelector::initialize()
     //Attach the signals
     m_ExecutionDetector->onModuleTransition.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
-
 }
 
 void CodeSelector::onModuleTransition(
@@ -119,6 +125,127 @@ void CodeSelector::onModuleTransition(
     }
 
     state->enableForking();
+}
+
+void CodeSelector::onPageDirectoryChange(
+        S2EExecutionState *state,
+        uint64_t previous, uint64_t current
+        )
+{
+    if (m_pidsToTrack.empty()) {
+        return;
+    }
+
+    Pids::const_iterator it = m_pidsToTrack.find(current);
+    if (it == m_pidsToTrack.end()) {
+        state->disableForking();
+        return;
+    }
+
+    //Enable forking if we track the entire address space
+    if ((*it).second == true) {
+        state->enableForking();
+    }
+}
+
+/**
+ *  Monitor privilege level changes and enable forking
+ *  if execution is in a tracked address space and in
+ *  user-mode.
+ */
+void CodeSelector::onPrivilegeChange(
+        S2EExecutionState *state,
+        unsigned previous, unsigned current
+        )
+{
+    if (m_pidsToTrack.empty()) {
+        return;
+    }
+
+    Pids::const_iterator it = m_pidsToTrack.find(state->getPid());
+    if (it == m_pidsToTrack.end()) {
+        state->disableForking();
+        return;
+    }
+
+    //Enable forking in user mode.
+    if ((*it).second == false) {
+        //XXX: Remove hard-coded CPL level. It is x86-architecture-specific.
+        if (current == 3) {
+            state->enableForking();
+            return;
+        }
+    }
+
+    state->disableForking();
+}
+
+void CodeSelector::onCustomInstruction(
+        S2EExecutionState *state,
+        uint64_t operand
+        )
+{
+    if (!OPCODE_CHECK(operand, CODE_SELECTOR_OPCODE)) {
+        return;
+    }
+
+    uint64_t subfunction = OPCODE_GETSUBFUNCTION(operand);
+
+    switch(subfunction) {
+        //Track the currently-running process (either whole system or user-space only)
+        case 0: {
+            bool ok = true;
+            uint32_t isUserSpace;
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &isUserSpace, 4);
+
+
+            if (isUserSpace) {
+                //Track the current process, but user-space only
+                m_pidsToTrack[state->getPid()] = false;
+
+                if (!m_privilegeTracking.connected()) {
+                    m_privilegeTracking = s2e()->getCorePlugin()->onPrivilegeChange.connect(
+                            sigc::mem_fun(*this, &CodeSelector::onPrivilegeChange));
+                }
+            } else {
+                m_pidsToTrack[state->getPid()] = true;
+
+                if (!m_privilegeTracking.connected()) {
+                    m_privilegeTracking = s2e()->getCorePlugin()->onPageDirectoryChange.connect(
+                            sigc::mem_fun(*this, &CodeSelector::onPageDirectoryChange));
+                }
+            }
+        }
+        break;
+
+
+        //Disable tracking of the selected process
+        //The process's id to not track is in the ecx register.
+        //If ecx is 0, untrack the current process.
+        case 1: {
+            bool ok = true;
+            uint32_t pid;
+            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &pid, 4);
+
+            if(!ok) {
+                s2e()->getWarningsStream(state)
+                    << "CodeSelector: Could not read the pid value of the process to disable.\n";
+                break;
+            }
+
+            if (pid == 0) {
+                pid = state->getPid();
+            }
+
+            m_pidsToTrack.erase(pid);
+
+            if (m_pidsToTrack.empty()) {
+                m_privilegeTracking.disconnect();
+                m_addressSpaceTracking.disconnect();
+            }
+        }
+        break;
+    }
 }
 
 

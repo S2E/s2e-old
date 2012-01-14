@@ -36,6 +36,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 /** Forces the read of every byte of the specified string.
   * This makes sure the memory pages occupied by the string are paged in
@@ -363,6 +364,30 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
     );
 }
 
+/** CodeSelector plugin */
+/** Enable forking in the current process (entire address space or user mode only) */
+static inline void s2e_codeselector_set_address_space(unsigned user_mode_only)
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAE, 0x00, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (user_mode_only)
+    );
+}
+
+/** Disable forking in the specified process (represented by its page directory).
+    If pagedir is 0, disable forking in the current process. */
+static inline void s2e_codeselector_disable_address_space(uint64_t pagedir)
+{
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAE, 0x01, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (pagedir)
+    );
+}
+
 
 /**
  * If processToRetrive == null,  get the name, load address, and
@@ -373,8 +398,8 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
  *
  * The returned name is an absolute path to the program file.
  */
-static int s2e_get_process_info(const char *processToRetrieve,
-                                const char *name, size_t maxNameLength,
+static inline int s2e_get_process_info(const char *processToRetrieve,
+                                char *name, size_t maxNameLength,
                                 uint64_t *loadBase, uint64_t *size)
 {
     const char* progName = NULL;
