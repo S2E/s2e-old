@@ -432,3 +432,31 @@ static inline void _s2e_assert(int b, const char *expression )
 }
 
 #define s2e_assert(expression) _s2e_assert(expression, "Assertion failed: "  #expression)
+
+/** Returns a symbolic value in [start, end) */
+static inline int s2e_range(int start, int end, const char* name) {
+  int x = -1;
+
+  if (start >= end) {
+    s2e_kill_state(1, "s2e_range: invalid range");
+  }
+
+  if (start+1==end) {
+    return start;
+  } else {
+    s2e_make_symbolic(&x, sizeof x, name);
+
+    /* Make nicer constraint when simple... */
+    if (start==0) {
+      if ((unsigned) x >= (unsigned) end) {
+        s2e_kill_state(0, "s2e_range creating a constraint...");
+      }
+    } else {
+      if (x < start || x >= end) {
+        s2e_kill_state(0, "s2e_range creating a constraint...");
+      }
+    }
+
+    return x;
+  }
+}
