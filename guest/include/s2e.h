@@ -364,6 +364,42 @@ static inline void s2e_rawmon_loadmodule(const char *name, unsigned loadbase, un
     );
 }
 
+typedef struct _s2e_opcode_module_config_t {
+    uint32_t name;
+    uint64_t nativeBase;
+    uint64_t loadBase;
+    uint64_t entryPoint;
+    uint64_t size;
+    uint32_t kernelMode;
+} __attribute__((packed)) s2e_opcode_module_config_t;
+
+/** Raw monitor plugin */
+/** Communicates to S2E the coordinates of loaded modules. Useful when there is
+    no plugin to automatically parse OS data structures */
+static inline void s2e_rawmon_loadmodule2(const char *name,
+                                         uint64_t nativebase,
+                                         uint64_t loadbase,
+                                         uint64_t entrypoint,
+                                         uint64_t size, unsigned kernelMode)
+{
+    s2e_opcode_module_config_t cfg;
+    cfg.name = (uint32_t) name;
+    cfg.nativeBase = nativebase;
+    cfg.loadBase = loadbase;
+    cfg.entryPoint = entrypoint;
+    cfg.size = size;
+    cfg.kernelMode = kernelMode;
+
+    __s2e_touch_string(name);
+
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAA, 0x02, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (&cfg)
+    );
+}
+
 /** CodeSelector plugin */
 /** Enable forking in the current process (entire address space or user mode only) */
 static inline void s2e_codeselector_set_address_space(unsigned user_mode_only)

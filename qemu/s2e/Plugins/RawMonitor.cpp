@@ -199,6 +199,47 @@ void RawMonitor::opLoadConfiguredModule(S2EExecutionState *state)
     }
 }
 
+void RawMonitor::opLoadModule(S2EExecutionState *state)
+{
+    uint32_t pModuleConfig;
+    bool ok = true;
+
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]),
+                                         &pModuleConfig, sizeof(pModuleConfig));
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "RawMonitor: Could not read the module descriptor address from the guest\n";
+        return;
+    }
+
+    OpcodeModuleConfig moduleConfig;
+    ok &= state->readMemoryConcrete(pModuleConfig, &moduleConfig, sizeof(moduleConfig));
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "RawMonitor: Could not read the module descriptor from the guest\n";
+        return;
+    }
+
+    ModuleDescriptor moduleDescriptor;
+    moduleDescriptor.NativeBase = moduleConfig.nativeBase;
+    moduleDescriptor.LoadBase = moduleConfig.loadBase;
+    moduleDescriptor.EntryPoint = moduleConfig.entryPoint;
+    moduleDescriptor.Size = moduleConfig.size;
+
+    if (!state->readString(moduleConfig.name, moduleDescriptor.Name)) {
+        s2e()->getWarningsStream(state)
+            << "RawMonitor: Could not read the module string\n";
+        return;
+    }
+
+    moduleDescriptor.Pid = moduleConfig.kernelMode ? 0 : state->getPid();
+
+    s2e()->getDebugStream() << "RawMonitor loaded " << moduleDescriptor.Name << " " <<
+            hexval(moduleDescriptor.LoadBase) << " " << hexval(moduleDescriptor.Size) << "\n";
+
+    onModuleLoad.emit(state, moduleDescriptor);
+}
+
 void RawMonitor::opCreateImportDescriptor(S2EExecutionState *state)
 {
     uint32_t dllname, funcname, funcptr;
@@ -261,6 +302,13 @@ void RawMonitor::onCustomInstruction(S2EExecutionState* state, uint64_t opcode)
     case 1: {
         //Specifying a new import descriptor
         opCreateImportDescriptor(state);
+        break;
+    }
+
+    case 2: {
+        //Load a non-configured module.
+        //Pointer to OpcodeModuleConfig structure is passed in ecx.
+        opLoadModule(state);
         break;
     }
 
