@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
+<title>How to use the init_env library?</title>
+<link rel="stylesheet" href="../s2e.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="how-to-use-the-init-env-library">
+<h1 class="title">How to use the init_env library?</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title first">Contents</p>
+<ul class="simple">
+<li><a class="reference internal" href="#obtaining-and-compiling-init-env" id="id1">1. Obtaining and compiling init_env</a></li>
+<li><a class="reference internal" href="#configuring-s2e-for-use-with-init-env" id="id2">2. Configuring S²E for use with init_env</a></li>
+<li><a class="reference internal" href="#using-init-env" id="id3">3. Using init_env</a></li>
+<li><a class="reference internal" href="#what-about-other-symbolic-input" id="id4">4. What about other symbolic input?</a></li>
+</ul>
+</div>
+<p>The <tt class="docutils literal">init_env</tt> library simplifies the process of executing programs
+symbolically under Linux. It can invoke programs with symbolic command-line
+arguments, and can limit symbolic execution to a particular program (using the
+<a class="reference external" href="../Plugins/SimpleSelect.html">SimpleSelect plugin</a>).</p>
+<div class="section" id="obtaining-and-compiling-init-env">
+<h1>1. Obtaining and compiling init_env</h1>
+<p>The <tt class="docutils literal">init_env</tt> library can be found in the <tt class="docutils literal">guest</tt> folder of the S²E
+distribution. Copy the entire guest directory to your guest virtual machine, and
+run <tt class="docutils literal">make</tt>. This should compile <tt class="docutils literal">init_env</tt> along with some other useful
+tools.</p>
+</div>
+<div class="section" id="configuring-s2e-for-use-with-init-env">
+<h1>2. Configuring S²E for use with init_env</h1>
+<p>In order to use code selection with <tt class="docutils literal">init_env</tt>, the SimpleSelect plugin has to
+be enabled. Add the following to your <tt class="docutils literal">config.lua</tt>:</p>
+<pre class="literal-block">
+plugins = {
+  -- Enable a plugin that handles S2E custom opcodes
+  &quot;BaseInstructions&quot;,
+
+  -- Enable SimpleSelect for use with init_env
+  &quot;SimpleSelect&quot;,
+}
+</pre>
+</div>
+<div class="section" id="using-init-env">
+<h1>3. Using init_env</h1>
+<p>The <tt class="docutils literal">init_env</tt> library needs to be pre-loaded to your binary using
+<tt class="docutils literal">LD_PRELOAD</tt>. It will then overwrite some C library functions and do its magic
+before your program's <tt class="docutils literal">main</tt> function is called. For example, the following
+invokes <tt class="docutils literal">echo</tt> from GNU CoreUtils, using up to two symbolic command line
+arguments, and selecting only code from the <tt class="docutils literal">echo</tt> binary:</p>
+<pre class="literal-block">
+$ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo \
+--select-process-code --sym-args 0 2 4
+</pre>
+<p>The <tt class="docutils literal">init_env</tt> library supports the following commands. Each command is added
+as a command-line parameter to the program being executed. It is removed before
+the program sees the actual command line. In the above example, <tt class="docutils literal">echo</tt> would
+see zero to two command line arguments of up to four bytes, but would not see
+the <tt class="docutils literal"><span class="pre">--select-process-code</span></tt> or <tt class="docutils literal"><span class="pre">--sym-args</span></tt> argument.</p>
+<pre class="literal-block">
+--select-process               Enable forking in the current process only
+--select-process-userspace     Enable forking in userspace-code of the
+                               current process only
+--select-process-code          Enable forking in the code section of the
+                               current binary only
+--sym-arg &lt;N&gt;                  Replace by a symbolic argument with length N
+--sym-arg &lt;N&gt;                  Replace by a symbolic argument with length N
+--sym-args &lt;MIN&gt; &lt;MAX&gt; &lt;N&gt;     Replace by at least MIN arguments and at most
+                               MAX arguments, each with maximum length N
+</pre>
+<p>Additionally, <tt class="docutils literal">init_env</tt> will show a usage message if the sole argument given
+is <tt class="docutils literal"><span class="pre">--help</span></tt>.</p>
+</div>
+<div class="section" id="what-about-other-symbolic-input">
+<h1>4. What about other symbolic input?</h1>
+<p>You can easily feed symbolic data to your program on <tt class="docutils literal">stdin</tt>. Create a program
+that writes the some symbolic data to stdout, as shown in the example below. You
+should try not to create additional forks in this program; that is why it uses
+<tt class="docutils literal">putchar()</tt> instead of <tt class="docutils literal">printf()</tt>. This is not an issue if you use
+<tt class="docutils literal">init_env</tt> with <tt class="docutils literal"><span class="pre">--select-process</span></tt> on the next program in the pipe, as this
+will automatically unselect the symbolic input generator.</p>
+<div class="highlight"><pre><span class="cp">#include &lt;stdio.h&gt;</span>
+<span class="cp">#include &lt;stdlib.h&gt;</span>
+<span class="cp">#include &lt;string.h&gt;</span>
+
+<span class="cp">#include &lt;s2e.h&gt;</span>
+
+<span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span><span class="o">*</span> <span class="n">argv</span><span class="p">[])</span> <span class="p">{</span>
+    <span class="kt">int</span> <span class="n">n_bytes</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">i</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">argc</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;usage: print_symb n_bytes</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="n">n_bytes</span> <span class="o">=</span> <span class="n">atoi</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">n_bytes</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;n_bytes may not be negative&quot;</span><span class="p">);</span>
+        <span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">n_bytes</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kt">char</span><span class="o">*</span> <span class="n">buffer</span> <span class="o">=</span> <span class="n">malloc</span><span class="p">(</span><span class="n">n_bytes</span><span class="o">+</span><span class="mi">1</span><span class="p">);</span>
+    <span class="n">memset</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">n_bytes</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="n">s2e_make_symbolic</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">n_bytes</span><span class="p">,</span> <span class="s">&quot;buffer&quot;</span><span class="p">);</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n_bytes</span><span class="p">;</span> <span class="o">++</span><span class="n">i</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">putchar</span><span class="p">(</span><span class="n">buffer</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+<p>The easiest way to have your program read symbolic data from <em>files</em> (other than
+<tt class="docutils literal">stdin</tt>) currently involves a ramdisk. You would need to redirect the output
+of above program to a file residing on the ramdisk, then have your program under
+test read that file. Please search the S²E mailing list for details if you are
+interested in this. There are some plans to support symbolic files in
+<tt class="docutils literal">init_env</tt>, but the feature is not available at the time of writing.</p>
+</div>
+</div>
+<div class="footer">
+<hr class="footer" />
+<a class="reference external" href="init_env.rst">View document source</a>.
+
+</div>
+</body>
+</html>

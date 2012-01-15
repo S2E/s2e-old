@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.8.1: http://docutils.sourceforge.net/" />
 <title>The Selective Symbolic Execution (S²E) Platform</title>
 <link rel="stylesheet" href="./s2e.css" type="text/css" />
 </head>
@@ -54,6 +54,7 @@
 <li><a class="reference external" href="Howtos/WritingPlugins.html">How to write an S2E plugin?</a></li>
 <li><a class="reference external" href="Howtos/Parallel.html">How to run S2E on multiple cores?</a></li>
 <li><a class="reference external" href="Howtos/Debugging.html">How to debug guest code?</a></li>
+<li><a class="reference external" href="Howtos/init_env.html">How to use the init_env library?</a></li>
 </ol>
 </li>
 <li>S2E Tools<ol class="arabic">
@@ -100,6 +101,8 @@ how to combine these tracers.</p>
 <h2>Selection Plugins</h2>
 <p>These plugins allow you to specify which paths to execute and where to inject symbolic values</p>
 <ul class="simple">
+<li>The <a class="reference external" href="Plugins/SimpleSelect.html">SimpleSelect</a> plugin provides a simple way
+to select individual processes or binaries under Linux.</li>
 <li><a class="reference external" href="Plugins/StateManager.html">StateManager</a> helps exploring library entry points more efficiently.</li>
 <li><a class="reference external" href="Plugins/EdgeKiller.html">EdgeKiller</a> kills execution paths that execute some sequence of instructions (e.g., polling loops).</li>
 <li><a class="reference external" href="Plugins/BaseInstructions.html">BaseInstructions</a> implements various custom instructions to control symbolic execution from the guest.</li>

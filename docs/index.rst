@@ -34,6 +34,7 @@ S²E Documentation
   2. `How to write an S2E plugin? <Howtos/WritingPlugins.html>`_
   3. `How to run S2E on multiple cores? <Howtos/Parallel.html>`_
   4. `How to debug guest code? <Howtos/Debugging.html>`_
+  5. `How to use the init_env library? <Howtos/init_env.html>`_
 
 * S2E Tools
   
@@ -81,6 +82,8 @@ Selection Plugins
 
 These plugins allow you to specify which paths to execute and where to inject symbolic values
 
+* The `SimpleSelect <Plugins/SimpleSelect.html>`_ plugin provides a simple way
+  to select individual processes or binaries under Linux.
 * `StateManager <Plugins/StateManager.html>`_ helps exploring library entry points more efficiently.
 * `EdgeKiller <Plugins/EdgeKiller.html>`_ kills execution paths that execute some sequence of instructions (e.g., polling loops).
 * `BaseInstructions <Plugins/BaseInstructions.html>`_ implements various custom instructions to control symbolic execution from the guest.
