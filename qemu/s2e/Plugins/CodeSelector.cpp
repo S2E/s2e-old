@@ -183,6 +183,55 @@ void CodeSelector::onPrivilegeChange(
     state->disableForking();
 }
 
+void CodeSelector::opEnableProcessTracking(S2EExecutionState *state)
+{
+    bool ok = true;
+    uint32_t isUserSpace;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &isUserSpace, 4);
+
+
+    if (isUserSpace) {
+        //Track the current process, but user-space only
+        m_pidsToTrack[state->getPid()] = false;
+
+        if (!m_privilegeTracking.connected()) {
+            m_privilegeTracking = s2e()->getCorePlugin()->onPrivilegeChange.connect(
+                    sigc::mem_fun(*this, &CodeSelector::onPrivilegeChange));
+        }
+    } else {
+        m_pidsToTrack[state->getPid()] = true;
+
+        if (!m_privilegeTracking.connected()) {
+            m_privilegeTracking = s2e()->getCorePlugin()->onPageDirectoryChange.connect(
+                    sigc::mem_fun(*this, &CodeSelector::onPageDirectoryChange));
+        }
+    }
+}
+
+void CodeSelector::opDisableProcessTracking(S2EExecutionState *state)
+{
+    bool ok = true;
+    uint32_t pid;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &pid, 4);
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "CodeSelector: Could not read the pid value of the process to disable.\n";
+        return;
+    }
+
+    if (pid == 0) {
+        pid = state->getPid();
+    }
+
+    m_pidsToTrack.erase(pid);
+
+    if (m_pidsToTrack.empty()) {
+        m_privilegeTracking.disconnect();
+        m_addressSpaceTracking.disconnect();
+    }
+}
+
 void CodeSelector::onCustomInstruction(
         S2EExecutionState *state,
         uint64_t operand
@@ -197,27 +246,7 @@ void CodeSelector::onCustomInstruction(
     switch(subfunction) {
         //Track the currently-running process (either whole system or user-space only)
         case 0: {
-            bool ok = true;
-            uint32_t isUserSpace;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &isUserSpace, 4);
-
-
-            if (isUserSpace) {
-                //Track the current process, but user-space only
-                m_pidsToTrack[state->getPid()] = false;
-
-                if (!m_privilegeTracking.connected()) {
-                    m_privilegeTracking = s2e()->getCorePlugin()->onPrivilegeChange.connect(
-                            sigc::mem_fun(*this, &CodeSelector::onPrivilegeChange));
-                }
-            } else {
-                m_pidsToTrack[state->getPid()] = true;
-
-                if (!m_privilegeTracking.connected()) {
-                    m_privilegeTracking = s2e()->getCorePlugin()->onPageDirectoryChange.connect(
-                            sigc::mem_fun(*this, &CodeSelector::onPageDirectoryChange));
-                }
-            }
+            opEnableProcessTracking(state);
         }
         break;
 
@@ -226,26 +255,7 @@ void CodeSelector::onCustomInstruction(
         //The process's id to not track is in the ecx register.
         //If ecx is 0, untrack the current process.
         case 1: {
-            bool ok = true;
-            uint32_t pid;
-            ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &pid, 4);
-
-            if(!ok) {
-                s2e()->getWarningsStream(state)
-                    << "CodeSelector: Could not read the pid value of the process to disable.\n";
-                break;
-            }
-
-            if (pid == 0) {
-                pid = state->getPid();
-            }
-
-            m_pidsToTrack.erase(pid);
-
-            if (m_pidsToTrack.empty()) {
-                m_privilegeTracking.disconnect();
-                m_addressSpaceTracking.disconnect();
-            }
+            opDisableProcessTracking(state);
         }
         break;
     }
