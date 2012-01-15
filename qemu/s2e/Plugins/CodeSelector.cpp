@@ -232,6 +232,37 @@ void CodeSelector::opDisableProcessTracking(S2EExecutionState *state)
     }
 }
 
+void CodeSelector::opEnableModuleTracking(S2EExecutionState *state)
+{
+    bool ok = true;
+    //XXX: 32-bits guests only
+    uint32_t moduleId;
+    ok &= state->readCpuRegisterConcrete(CPU_OFFSET(regs[R_ECX]), &moduleId, sizeof(moduleId));
+
+    if(!ok) {
+        s2e()->getWarningsStream(state)
+            << "CodeSelector: Could not read the module id pointer.\n";
+        return;
+    }
+
+    std::string strModuleId;
+    if (!state->readString(moduleId, strModuleId)) {
+        s2e()->getWarningsStream(state)
+            << "CodeSelector: Could not read the module id string.\n";
+        return;
+    }
+
+    if (m_ExecutionDetector->isModuleConfigured(strModuleId)) {
+        m_interceptedModules.insert(strModuleId);
+    }else {
+        s2e()->getWarningsStream() << "CodeSelector: " <<
+                "Module " << strModuleId << " is not configured" << std::endl;
+        return;
+    }
+
+    s2e()->getMessagesStream() << "CodeSelector: tracking module " << strModuleId << '\n';
+}
+
 void CodeSelector::onCustomInstruction(
         S2EExecutionState *state,
         uint64_t operand
@@ -256,6 +287,13 @@ void CodeSelector::onCustomInstruction(
         //If ecx is 0, untrack the current process.
         case 1: {
             opDisableProcessTracking(state);
+        }
+        break;
+
+        //Adds the module id specified in ecx to the list
+        //of modules where to enable forking.
+        case 2: {
+            opEnableModuleTracking(state);
         }
         break;
     }

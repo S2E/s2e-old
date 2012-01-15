@@ -388,6 +388,17 @@ static inline void s2e_codeselector_disable_address_space(uint64_t pagedir)
     );
 }
 
+static inline void s2e_codeselector_select_module(const char *moduleId)
+{
+    __s2e_touch_string(moduleId);
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAE, 0x02, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+        : : "c" (moduleId)
+    );
+}
+
 
 /**
  * If processToRetrive == null,  get the name, load address, and
