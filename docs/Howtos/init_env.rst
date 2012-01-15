@@ -1,6 +1,6 @@
-================================
-How to use the init_env library?
-================================
+===========================================
+How to symbolically execute linux binaries?
+===========================================
 
 .. contents::
 
@@ -23,7 +23,8 @@ tools.
 ----------------------------------------
 
 In order to use code selection with ``init_env``, the SimpleSelect plugin has to
-be enabled. Add the following to your ``config.lua``::
+be enabled. This is only needed if you want to use the ``--select-process*``
+commands. Add the following to your ``config.lua``::
 
     plugins = {
       -- Enable a plugin that handles S2E custom opcodes
@@ -33,15 +34,22 @@ be enabled. Add the following to your ``config.lua``::
       "SimpleSelect",
     }
 
+The SimpleSelect plugin is used by ``init_env`` to disable forking outside
+selected binaries. For details, please refer to the `SimpleSelect plugin
+documentation <../Plugins/SimpleSelect.html>`_.
 
 3. Using init_env
 -----------------
 
 The ``init_env`` library needs to be pre-loaded to your binary using
-``LD_PRELOAD``. It will then overwrite some C library functions and do its magic
-before your program's ``main`` function is called. For example, the following
-invokes ``echo`` from GNU CoreUtils, using up to two symbolic command line
-arguments, and selecting only code from the ``echo`` binary::
+``LD_PRELOAD``. It will then overwrite the C library entry point, and execute
+before the program's main function is called. The ``init_env`` library will
+parse command line parameters of your program. It removes ``init_env``-related
+parameters, and it can add others instead (such as symbolic values).
+
+For example, the following invokes ``echo`` from GNU CoreUtils, using up to two
+symbolic command line arguments, and selecting only code from the ``echo``
+binary::
 
     $ LD_PRELOAD=/path/to/guest/init_env/init_env.so /bin/echo \
     --select-process-code --sym-args 0 2 4
@@ -71,14 +79,17 @@ is ``--help``.
 4. What about other symbolic input?
 -----------------------------------
 
-You can easily feed symbolic data to your program on ``stdin``. Create a program
-that writes the some symbolic data to stdout, as shown in the example below. You
-should try not to create additional forks in this program; that is why it uses
-``putchar()`` instead of ``printf()``. This is not an issue if you use
+You can easily feed symbolic data to your program on ``stdin``. Create a
+``symb_writer`` program that writes some symbolic data to stdout, as shown in
+the example below.
+
+You should try not to create additional forks in this program; that is why it
+uses ``putchar()`` instead of ``printf()``. This is not an issue if you use
 ``init_env`` with ``--select-process`` on the next program in the pipe, as this
-will automatically unselect the symbolic input generator.
+will automatically disable forking in ``symb_writer``.
 
 .. code-block:: c
+    // symb_writer.c: writes symbolic data to stdout
 
     #include <stdio.h>
     #include <stdlib.h>
@@ -115,8 +126,11 @@ will automatically unselect the symbolic input generator.
     }
 
 The easiest way to have your program read symbolic data from *files* (other than
-``stdin``) currently involves a ramdisk. You would need to redirect the output
-of above program to a file residing on the ramdisk, then have your program under
-test read that file. Please search the S²E mailing list for details if you are
-interested in this. There are some plans to support symbolic files in
-``init_env``, but the feature is not available at the time of writing. 
+``stdin``) currently involves a ramdisk. You need to redirect the output
+of ``symb_writer`` to a file residing on the ramdisk, then have your program under
+test read that file. On many linux distributions, the /tmp filesystem resides in
+ram, so using a file in /tmp works. This can be checked using the ``df``
+command: it should print something similar to ``tmpfs 123 456 123 1% /tmp``.
+
+There are some plans to support symbolic files in ``init_env``, but the feature
+is not available at the time of writing. 

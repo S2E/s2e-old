@@ -2,13 +2,18 @@
 SimpleSelect
 ============
 
-The SimpleSelect plugin is supposed to make it simple to select code that you
-want to execute simbolically. It works best together with `init_env
-<../Howtos/init_env.html>`_, but also provides some custom instructions that you
-can directly use in your programs. This page describes the custom instructions.
+The SimpleSelect plugin makes it simple to select code that you want to execute
+simbolically. It works best together with `init_env <../Howtos/init_env.html>`_,
+but also provides some custom instructions that you can directly use in your
+programs. This page describes the custom instructions.
 
 Using SimpleSelect, you can limit symbolic execution to individual processes or
-individual files. Outside your selected files, forking is turned off.
+to code contained in individual binaries. Outside your selected regions, forking
+is turned off. The same effect can be achieved using a combination of the
+CodeSelector, `ModuleExecutionDetector <ModuleExecutionDetector.html>`_ and
+`\*Monitor <RawMonitor.html>`_ plugins. However, if you don't need the
+flexibility of that approach, then using SimpleSelect frees you from the need to
+configure these plugins.
 
 Custom Instruction
 ------------------
@@ -28,8 +33,8 @@ by the current process. Forking only happens in userspace. The third variant,
 binary. This means that forking is disabled in library calls invoked by your
 program (e.g. ``printf`` from the c standard library).
 
-The ``name`` parameter is used for printing nice debug messages only.
-Preferably, you set it to the name of your program. The one *exception* is
+The ``name`` parameter is used for printing debug messages only. Preferably, you
+set it to the name of your program. The one *exception* is
 ``s2e_simpleselect_process_code``, where ``name`` specifies the name of the
 binary that is to be selected.
 
