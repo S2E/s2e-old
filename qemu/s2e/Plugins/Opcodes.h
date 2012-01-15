@@ -45,6 +45,7 @@
 #define MEMORY_TRACER_OPCODE 0xAC
 #define STATE_MANAGER_OPCODE 0xAD
 #define CODE_SELECTOR_OPCODE 0xAE
+#define MODULE_EXECUTION_DETECTOR_OPCODE 0xAF
 
 //Expression evaluates to true if the custom instruction operand contains the
 //specified opcode

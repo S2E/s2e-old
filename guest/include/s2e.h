@@ -399,6 +399,21 @@ static inline void s2e_codeselector_select_module(const char *moduleId)
     );
 }
 
+/** Programmatically add a new configuration entry to the ModuleExecutionDetector plugin */
+static inline void s2e_moduleexec_add_module(const char *moduleId, const char *moduleName, int kernelMode)
+{
+    __s2e_touch_string(moduleId);
+    __s2e_touch_string(moduleName);
+    __asm__ __volatile__(
+        ".byte 0x0f, 0x3f\n"
+        ".byte 0x00, 0xAE, 0x02, 0x00\n"
+        ".byte 0x00, 0x00, 0x00, 0x00\n"
+            : : "c" (moduleId), "a" (moduleName), "d" (kernelMode)
+    );
+}
+
+
+
 
 /**
  * If processToRetrive == null,  get the name, load address, and
