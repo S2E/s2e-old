@@ -132,13 +132,20 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
             s2e_codeselector_set_address_space(1);
         }
         else if (__streq(argv[k], "--select-process-code") || __streq(argv[k], "-select-process-code")) {
-            k++;
-            //Ask ModuleExecutionDetector to create an entry for the current process module
-            //Ask CodeSelector to listen for the current process
-            //Ask RawMonitor to broadcast a module load for the current process
+            char name[512];
+            uint64_t loadBase, size;
 
-            //s2e_simpleselect_process_code("init_env.so");  // Don't disable our own forks ;)
-            //s2e_simpleselect_process_code(argv[0]);
+            k++;
+
+            if (s2e_get_process_info(NULL, name, sizeof(name)-1, &loadBase, &size) < 0) {
+                __emit_error("s2e_get_process_info: could not load process information\n");
+                return;
+            }
+
+            s2e_moduleexec_add_module("init_env_module", name, 0);
+            s2e_codeselector_select_module("init_env_module");
+            //XXX: Also figure out the real native base and the address of the entry point.
+            s2e_rawmon_loadmodule2(name, loadBase, loadBase, 0, size, 0);
         }
         else {
             /* simply copy arguments */

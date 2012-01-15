@@ -211,9 +211,9 @@ bool ModuleExecutionDetector::opAddModuleConfigEntry(S2EExecutionState *state)
     desc.kernelMode = (bool) isKernelMode;
 
     s2e()->getMessagesStream() << "ModuleExecutionDetector: Adding module " <<
-            "id=" << desc.id << " " <<
-            "moduleName=" << desc.moduleName <<
-            "kernelMode=" << desc.kernelMode << "\n";
+            "id=" << desc.id <<
+            " moduleName=" << desc.moduleName <<
+            " kernelMode=" << desc.kernelMode << "\n";
 
     if (m_ConfiguredModulesName.find(desc) != m_ConfiguredModulesName.end()) {
         s2e()->getWarningsStream() << "ModuleExecutionDetector: " <<
@@ -249,7 +249,8 @@ void ModuleExecutionDetector::onCustomInstruction(
         case 0: {
             if (opAddModuleConfigEntry(state)) {
                 tb_flush(env);
-                throw new CpuExitException();
+                state->setPc(state->getPc() + OPCODE_SIZE);
+                throw CpuExitException();
             }
             break;
         }

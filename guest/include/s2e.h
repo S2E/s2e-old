@@ -442,7 +442,7 @@ static inline void s2e_moduleexec_add_module(const char *moduleId, const char *m
     __s2e_touch_string(moduleName);
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
-        ".byte 0x00, 0xAE, 0x02, 0x00\n"
+        ".byte 0x00, 0xAF, 0x00, 0x00\n"
         ".byte 0x00, 0x00, 0x00, 0x00\n"
             : : "c" (moduleId), "a" (moduleName), "d" (kernelMode)
     );
@@ -486,7 +486,7 @@ static inline int s2e_get_process_info(const char *processToRetrieve,
 
     char line[256], path[128];
     while (fgets(line, sizeof(line), maps)) {
-        if (sscanf(line, "%x-%x %*c%*c%c%*c %*x %*s %*d %127[^\n]", &start, &end, &executable, path) == 3) {
+        if (sscanf(line, "%x-%x %*c%*c%c%*c %*x %*s %*d %127[^\n]", &start, &end, &executable, path) == 4) {
             if (progName) {
                 if (executable == 'x' && strstr(path, progName) != NULL) {
                     *loadBase = start;
@@ -496,6 +496,10 @@ static inline int s2e_get_process_info(const char *processToRetrieve,
                     break;
                 }
             } else {
+                if (!executable) {
+                    continue;
+                }
+
                 //Found the process, get its data
                 *loadBase = start;
                 *size = end - start;

@@ -298,7 +298,8 @@ void CodeSelector::onCustomInstruction(
         case 2: {
             if (opSelectModule(state)) {
                 tb_flush(env);
-                throw new CpuExitException();
+                state->setPc(state->getPc() + OPCODE_SIZE);
+                throw CpuExitException();
             }
         }
         break;
