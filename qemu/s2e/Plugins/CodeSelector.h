@@ -92,10 +92,10 @@ private:
         uint64_t operand
     );
 
-    void opEnableProcessTracking(S2EExecutionState *state);
-    void opDisableProcessTracking(S2EExecutionState *state);
+    void opSelectProcess(S2EExecutionState *state);
+    void opUnselectProcess(S2EExecutionState *state);
 
-    void opEnableModuleTracking(S2EExecutionState *state);
+    void opSelectModule(S2EExecutionState *state);
 
 public:
     CodeSelector(S2E* s2e);

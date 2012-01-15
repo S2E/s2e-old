@@ -183,7 +183,7 @@ void CodeSelector::onPrivilegeChange(
     state->disableForking();
 }
 
-void CodeSelector::opEnableProcessTracking(S2EExecutionState *state)
+void CodeSelector::opSelectProcess(S2EExecutionState *state)
 {
     bool ok = true;
     uint32_t isUserSpace;
@@ -208,7 +208,7 @@ void CodeSelector::opEnableProcessTracking(S2EExecutionState *state)
     }
 }
 
-void CodeSelector::opDisableProcessTracking(S2EExecutionState *state)
+void CodeSelector::opUnselectProcess(S2EExecutionState *state)
 {
     bool ok = true;
     uint32_t pid;
@@ -232,7 +232,7 @@ void CodeSelector::opDisableProcessTracking(S2EExecutionState *state)
     }
 }
 
-void CodeSelector::opEnableModuleTracking(S2EExecutionState *state)
+void CodeSelector::opSelectModule(S2EExecutionState *state)
 {
     bool ok = true;
     //XXX: 32-bits guests only
@@ -277,7 +277,7 @@ void CodeSelector::onCustomInstruction(
     switch(subfunction) {
         //Track the currently-running process (either whole system or user-space only)
         case 0: {
-            opEnableProcessTracking(state);
+            opSelectProcess(state);
         }
         break;
 
@@ -286,14 +286,14 @@ void CodeSelector::onCustomInstruction(
         //The process's id to not track is in the ecx register.
         //If ecx is 0, untrack the current process.
         case 1: {
-            opDisableProcessTracking(state);
+            opUnselectProcess(state);
         }
         break;
 
         //Adds the module id specified in ecx to the list
         //of modules where to enable forking.
         case 2: {
-            opEnableModuleTracking(state);
+            opSelectModule(state);
         }
         break;
     }
