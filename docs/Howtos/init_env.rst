@@ -1,51 +1,75 @@
 ===========================================
-How to symbolically execute linux binaries?
+How to symbolically execute Linux binaries?
 ===========================================
 
 .. contents::
 
-The ``init_env`` library simplifies the process of executing programs
-symbolically under Linux. It can invoke programs with symbolic command-line
-arguments, and can limit symbolic execution to a particular program (using the
-`SimpleSelect plugin <../Plugins/SimpleSelect.html>`_).
+In this tutorial, we will show how to symbolically execute *existing* Linux programs,
+*without* modifying their source code. In the `Testing a Simple Program <../TestingMinimalProgram.html>`_ tutorial,
+we instrumented the source code with S2E instructions to inject symbolic values.
+This tutorial shows how to do this directly from the program's command line.
+
+To do so, we use the ``init_env`` shared library and ``LD_PRELOAD``.
+This library intercepts the call to the ``main`` function and inserts user-configured symbolic arguments.
+This library can also restrict symbolic execution to the program itself or to all the code in the program's address space.
 
 
-1. Obtaining and compiling init_env
------------------------------------
+1. Obtaining and compiling ``init_env``
+---------------------------------------
 
-The ``init_env`` library can be found in the ``guest`` folder of the S²E
+The ``init_env`` library can be found in the ``guest`` folder of the S2E
 distribution. Copy the entire guest directory to your guest virtual machine, and
-run ``make``. This should compile ``init_env`` along with some other useful
+run ``make``. This will compile ``init_env`` along with some other useful
 tools.
 
 
-2. Configuring S²E for use with init_env
+2. Configuring S2E for use with init_env
 ----------------------------------------
 
-In order to use code selection with ``init_env``, the SimpleSelect plugin has to
-be enabled. This is only needed if you want to use the ``--select-process*``
-commands. Add the following to your ``config.lua``::
+``init_env`` communicates with several S2E plugins in order to restrict
+symbolic execution to the program of interest. The S2E configuration
+file must contain default settings for these plugins, as follows:
+
+::
 
     plugins = {
-      -- Enable a plugin that handles S2E custom opcodes
+      -- Enable S2E custom opcodes
       "BaseInstructions",
       
-      -- Enable SimpleSelect for use with init_env
-      "SimpleSelect",
+      -- Track when the guest loads programs
+      "RawMonitor",
+
+      -- Detect when execution enters
+      -- the program of interest
+      "ModuleExecutionDetector",
+
+      -- Restrict symbolic execution to
+      -- the programs of interest
+      "CodeSelector"
     }
 
-The SimpleSelect plugin is used by ``init_env`` to disable forking outside
-selected binaries. For details, please refer to the `SimpleSelect plugin
-documentation <../Plugins/SimpleSelect.html>`_.
+    pluginsConfig.RawMonitor = {
+       kernelStart = 0xc0000000
+    }
 
-3. Using init_env
------------------
+    -- init_env will automatically configure new
+    -- modules here, so no need to add anything
+    pluginsConfig.ModuleExecutionDetector = { }
+
+    -- init_env will automatically configure new
+    -- modules here, so no need to add anything
+    pluginsConfig.CodeSelector = {
+       modules = {}
+    }
+
+
+3. Using ``init_env``
+---------------------
 
 The ``init_env`` library needs to be pre-loaded to your binary using
-``LD_PRELOAD``. It will then overwrite the C library entry point, and execute
-before the program's main function is called. The ``init_env`` library will
-parse command line parameters of your program. It removes ``init_env``-related
-parameters, and it can add others instead (such as symbolic values).
+``LD_PRELOAD``. ``init_env`` intercepts the program's entry point invocation, parses
+the command line arguments of the program, configures symbolic execution, and removes ``init_env``-related
+parameters, before invoking the origin program's entry point.
 
 For example, the following invokes ``echo`` from GNU CoreUtils, using up to two
 symbolic command line arguments, and selecting only code from the ``echo``
@@ -79,58 +103,21 @@ is ``--help``.
 4. What about other symbolic input?
 -----------------------------------
 
-You can easily feed symbolic data to your program on ``stdin``. Create a
-``symb_writer`` program that writes some symbolic data to stdout, as shown in
-the example below.
+You can easily feed symbolic data to your program via ``stdin``.
+The idea is to pipe the symbolic output of the first program to the input of the second.
+This can be done using the ``s2ecmd`` utility, located in the guest tools directory.
 
-You should try not to create additional forks in this program; that is why it
-uses ``putchar()`` instead of ``printf()``. This is not an issue if you use
-``init_env`` with ``--select-process`` on the next program in the pipe, as this
-will automatically disable forking in ``symb_writer``.
+::
 
-.. code-block:: c
-    // symb_writer.c: writes symbolic data to stdout
+    $ ./s2ecmd symbwrite 4 | echo
 
-    #include <stdio.h>
-    #include <stdlib.h>
-    #include <string.h>
 
-    #include <s2e.h>
+The command above will pass 4 symbolic bytes to ``echo``.
 
-    int main(int argc, char* argv[]) {
-        int n_bytes = -1;
-        int i;
-        
-        if (argc != 2) {
-            fprintf(stderr, "usage: print_symb n_bytes\n");
-            exit(1);
-        }
-
-        n_bytes = atoi(argv[1]);
-        if (n_bytes < 0) {
-            fprintf(stderr, "n_bytes may not be negative");
-            exit(1);
-        } else if (n_bytes == 0) {
-            return 0;
-        }
-
-        char* buffer = malloc(n_bytes+1);
-        memset(buffer, 0, n_bytes + 1);
-        s2e_make_symbolic(buffer, n_bytes, "buffer");
-
-        for (i = 0; i < n_bytes; ++i) {
-            putchar(buffer[i]);
-        }
-        
-        return 0;
-    }
 
 The easiest way to have your program read symbolic data from *files* (other than
-``stdin``) currently involves a ramdisk. You need to redirect the output
-of ``symb_writer`` to a file residing on the ramdisk, then have your program under
-test read that file. On many linux distributions, the /tmp filesystem resides in
-ram, so using a file in /tmp works. This can be checked using the ``df``
+``stdin``) currently involves a ramdisk. You need to redirect the symbolic output
+of ``s2ecmd symbwrite`` to a file residing on the ramdisk, then have your program under
+test read that file. On many Linux distributions, the ``/tmp`` filesystem resides in
+RAM, so using a file in ``/tmp`` works. This can be checked using the ``df``
 command: it should print something similar to ``tmpfs 123 456 123 1% /tmp``.
-
-There are some plans to support symbolic files in ``init_env``, but the feature
-is not available at the time of writing. 
