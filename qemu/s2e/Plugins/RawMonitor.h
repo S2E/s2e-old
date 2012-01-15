@@ -76,6 +76,10 @@ private:
     bool initSection(const std::string &cfgKey, const std::string &svcId);
     void onCustomInstruction(S2EExecutionState* state, uint64_t opcode);
     void loadModule(S2EExecutionState *state, const Cfg &c, bool delay);
+
+    void opLoadConfiguredModule(S2EExecutionState *state);
+    void opCreateImportDescriptor(S2EExecutionState *state);
+
 public:
     RawMonitor(S2E* s2e): OSMonitor(s2e) {}
     virtual ~RawMonitor();
