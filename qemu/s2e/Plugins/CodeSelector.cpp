@@ -39,6 +39,7 @@
 extern "C" {
 #include "config.h"
 #include "qemu-common.h"
+extern struct CPUX86State *env;
 }
 
 
@@ -232,7 +233,7 @@ void CodeSelector::opUnselectProcess(S2EExecutionState *state)
     }
 }
 
-void CodeSelector::opSelectModule(S2EExecutionState *state)
+bool CodeSelector::opSelectModule(S2EExecutionState *state)
 {
     bool ok = true;
     //XXX: 32-bits guests only
@@ -242,14 +243,14 @@ void CodeSelector::opSelectModule(S2EExecutionState *state)
     if(!ok) {
         s2e()->getWarningsStream(state)
             << "CodeSelector: Could not read the module id pointer.\n";
-        return;
+        return false;
     }
 
     std::string strModuleId;
     if (!state->readString(moduleId, strModuleId)) {
         s2e()->getWarningsStream(state)
             << "CodeSelector: Could not read the module id string.\n";
-        return;
+        return false;
     }
 
     if (m_ExecutionDetector->isModuleConfigured(strModuleId)) {
@@ -257,10 +258,12 @@ void CodeSelector::opSelectModule(S2EExecutionState *state)
     }else {
         s2e()->getWarningsStream() << "CodeSelector: " <<
                 "Module " << strModuleId << " is not configured" << std::endl;
-        return;
+        return false;
     }
 
     s2e()->getMessagesStream() << "CodeSelector: tracking module " << strModuleId << '\n';
+
+    return true;
 }
 
 void CodeSelector::onCustomInstruction(
@@ -293,7 +296,10 @@ void CodeSelector::onCustomInstruction(
         //Adds the module id specified in ecx to the list
         //of modules where to enable forking.
         case 2: {
-            opSelectModule(state);
+            if (opSelectModule(state)) {
+                tb_flush(env);
+                throw new CpuExitException();
+            }
         }
         break;
     }

@@ -95,7 +95,7 @@ private:
     void opSelectProcess(S2EExecutionState *state);
     void opUnselectProcess(S2EExecutionState *state);
 
-    void opSelectModule(S2EExecutionState *state);
+    bool opSelectModule(S2EExecutionState *state);
 
 public:
     CodeSelector(S2E* s2e);
