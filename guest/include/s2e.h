@@ -460,19 +460,19 @@ static inline void s2e_moduleexec_add_module(const char *moduleId, const char *m
  *
  * The returned name is an absolute path to the program file.
  */
-static inline int s2e_get_process_info(const char *processToRetrieve,
+static inline int s2e_get_module_info(const char *moduleToRetrieve,
                                 char *name, size_t maxNameLength,
                                 uint64_t *loadBase, uint64_t *size)
 {
-    const char* progName = NULL;
+    const char* modName = NULL;
     int result = -1;
 
-    if (processToRetrieve) {
-        progName = strrchr(processToRetrieve, '/');
-        if (progName == NULL) {
-            progName = name;
+    if (moduleToRetrieve) {
+        modName = strrchr(moduleToRetrieve, '/');
+        if (modName == NULL) {
+            modName = name;
         } else {
-            ++progName;  // point to the first char after the slash
+            ++modName;  // point to the first char after the slash
         }
     }
 
@@ -487,8 +487,8 @@ static inline int s2e_get_process_info(const char *processToRetrieve,
     char line[256], path[128];
     while (fgets(line, sizeof(line), maps)) {
         if (sscanf(line, "%x-%x %*c%*c%c%*c %*x %*s %*d %127[^\n]", &start, &end, &executable, path) == 4) {
-            if (progName) {
-                if (executable == 'x' && strstr(path, progName) != NULL) {
+            if (modName) {
+                if (executable == 'x' && strstr(path, modName) != NULL) {
                     *loadBase = start;
                     *size = end - start;
                     strncpy(name, path, maxNameLength);
@@ -500,7 +500,7 @@ static inline int s2e_get_process_info(const char *processToRetrieve,
                     continue;
                 }
 
-                //Found the process, get its data
+                //Found the module, get its data
                 *loadBase = start;
                 *size = end - start;
                 strncpy(name, path, maxNameLength);

@@ -177,8 +177,8 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
 
             k++;
 
-            if (s2e_get_process_info(NULL, name, sizeof(name)-1, &loadBase, &size) < 0) {
-                __emit_error("s2e_get_process_info: could not load process information\n");
+            if (s2e_get_module_info(NULL, name, sizeof(name)-1, &loadBase, &size) < 0) {
+                __emit_error("s2e_get_module_info: could not load process information\n");
                 return;
             }
 
