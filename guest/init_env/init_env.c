@@ -129,6 +129,8 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
                          MAX arguments, each with maximum length N\n\n");
     }
 
+    s2e_enable_forking();
+
     while (k < argc) {
         if (__streq(argv[k], "--sym-arg") || __streq(argv[k], "-sym-arg")) {
             const char *msg = "--sym-arg expects an integer argument <max-len>";
@@ -198,8 +200,7 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     *argcPtr = new_argc;
     *argvPtr = final_argv;
 
-    //disable forking when done
-    //also flush all translation blocks to make sure instrumention is properly placed
+    s2e_disable_forking();
 }
 
 // ****************************
