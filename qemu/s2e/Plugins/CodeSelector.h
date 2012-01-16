@@ -64,7 +64,7 @@ public:
     typedef std::map<uint64_t, bool> Pids;
 
 private:
-    ModuleExecutionDetector *m_ExecutionDetector;
+    ModuleExecutionDetector *m_executionDetector;
     Modules m_interceptedModules;
     Pids m_pidsToTrack;
 

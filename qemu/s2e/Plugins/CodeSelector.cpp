@@ -76,8 +76,8 @@ CodeSelector::~CodeSelector()
 
 void CodeSelector::initialize()
 {
-    m_ExecutionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    assert(m_ExecutionDetector);
+    m_executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    assert(m_executionDetector);
 
     ConfigFile *cfg = s2e()->getConfig();
 
@@ -94,7 +94,7 @@ void CodeSelector::initialize()
     }
 
     foreach2(it, moduleList.begin(), moduleList.end()) {
-        if (m_ExecutionDetector->isModuleConfigured(*it)) {
+        if (m_executionDetector->isModuleConfigured(*it)) {
             m_interceptedModules.insert(*it);
         }else {
             s2e()->getWarningsStream() << "CodeSelector: " <<
@@ -104,7 +104,7 @@ void CodeSelector::initialize()
     }
 
     //Attach the signals
-    m_ExecutionDetector->onModuleTransition.connect(
+    m_executionDetector->onModuleTransition.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
 
     s2e()->getCorePlugin()->onCustomInstruction.connect(
@@ -122,7 +122,7 @@ void CodeSelector::onModuleTransition(
         return;
     }
 
-    const std::string *id = m_ExecutionDetector->getModuleId(*currentModule);
+    const std::string *id = m_executionDetector->getModuleId(*currentModule);
     if (m_interceptedModules.find(*id) == m_interceptedModules.end()) {
         state->disableForking();
         return;
@@ -253,7 +253,7 @@ bool CodeSelector::opSelectModule(S2EExecutionState *state)
         return false;
     }
 
-    if (m_ExecutionDetector->isModuleConfigured(strModuleId)) {
+    if (m_executionDetector->isModuleConfigured(strModuleId)) {
         m_interceptedModules.insert(strModuleId);
     }else {
         s2e()->getWarningsStream() << "CodeSelector: " <<
@@ -335,8 +335,8 @@ CodeSelector::~CodeSelector()
  */
 void CodeSelector::initialize()
 {
-    m_ExecutionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
-    assert(m_ExecutionDetector);
+    m_executionDetector = (ModuleExecutionDetector*)s2e()->getPlugin("ModuleExecutionDetector");
+    assert(m_executionDetector);
 
     ConfigFile *cfg = s2e()->getConfig();
 
@@ -357,13 +357,13 @@ void CodeSelector::initialize()
         m_CodeSelDesc.insert(csd);
     }
 
-    m_ExecutionDetector->onModuleTransition.connect(
+    m_executionDetector->onModuleTransition.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTransition));
 
-    m_ExecutionDetector->onModuleTranslateBlockStart.connect(
+    m_executionDetector->onModuleTranslateBlockStart.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTranslateBlockStart));
 
-    m_ExecutionDetector->onModuleTranslateBlockEnd.connect(
+    m_executionDetector->onModuleTranslateBlockEnd.connect(
         sigc::mem_fun(*this, &CodeSelector::onModuleTranslateBlockEnd));
 }
 
