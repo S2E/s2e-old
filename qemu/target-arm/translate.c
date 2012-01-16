@@ -9252,6 +9252,12 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         case DISAS_JUMP:
         case DISAS_UPDATE:
             /* indicate that the hash table must be used to find the next TB */
+
+#ifdef CONFIG_S2E
+            s2e_on_translate_block_end(g_s2e, g_s2e_state,
+                               tb, dc->insPc, 0, 0);
+            gen_instr_end(dc);
+#endif
             tcg_gen_exit_tb(0);
             break;
         case DISAS_TB_JUMP:
