@@ -163,11 +163,11 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
         }
         else if (__streq(argv[k], "--select-process") || __streq(argv[k], "-select-process")) {
             k++;
-            s2e_codeselector_set_address_space(0);
+            s2e_codeselector_enable_address_space(0);
         }
         else if (__streq(argv[k], "--select-process-userspace") || __streq(argv[k], "-select-process-userspace")) {
             k++;
-            s2e_codeselector_set_address_space(1);
+            s2e_codeselector_enable_address_space(1);
         }
         else if (__streq(argv[k], "--select-process-code") || __streq(argv[k], "-select-process-code")) {
             char name[512];

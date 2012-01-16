@@ -402,7 +402,7 @@ static inline void s2e_rawmon_loadmodule2(const char *name,
 
 /** CodeSelector plugin */
 /** Enable forking in the current process (entire address space or user mode only) */
-static inline void s2e_codeselector_set_address_space(unsigned user_mode_only)
+static inline void s2e_codeselector_enable_address_space(unsigned user_mode_only)
 {
     __asm__ __volatile__(
         ".byte 0x0f, 0x3f\n"
