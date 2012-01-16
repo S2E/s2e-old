@@ -87,10 +87,9 @@ void CodeSelector::initialize()
     ConfigFile::string_list moduleList =
             cfg->getStringList(getConfigKey() + ".modules", ConfigFile::string_list(), &ok);
 
-    if (!ok) {
-        s2e()->getWarningsStream() << "You must specify a list of modules in " <<
+    if (!ok || moduleList.empty()) {
+        s2e()->getWarningsStream() << "You should specify a list of modules in " <<
                 getConfigKey() + ".modules" << std::endl;
-        exit(-1);
     }
 
     foreach2(it, moduleList.begin(), moduleList.end()) {

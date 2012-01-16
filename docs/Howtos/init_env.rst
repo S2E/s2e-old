@@ -52,16 +52,6 @@ file must contain default settings for these plugins, as follows:
        kernelStart = 0xc0000000
     }
 
-    -- init_env will automatically configure new
-    -- modules here, so no need to add anything
-    pluginsConfig.ModuleExecutionDetector = { }
-
-    -- init_env will automatically configure new
-    -- modules here, so no need to add anything
-    pluginsConfig.CodeSelector = {
-       modules = {}
-    }
-
 
 3. Using ``init_env``
 ---------------------
