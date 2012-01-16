@@ -48,9 +48,8 @@ file must contain default settings for these plugins, as follows:
       "CodeSelector"
     }
 
-    pluginsConfig.RawMonitor = {
-       kernelStart = 0xc0000000
-    }
+Note that it is not necessary to declare empty configuration blocks
+for ``RawMonitor``, ``ModuleExecutionDetector``, or ``CodeSelector``.
 
 
 3. Using ``init_env``
