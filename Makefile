@@ -1,4 +1,4 @@
-S2ESRC:=$(CURDIR)/s2e
+S2ESRC:=$(CURDIR)/../s2e
 S2EBUILD:=$(CURDIR)
 
 JOBS:=8
@@ -56,7 +56,7 @@ stamps/llvm-configure: stamps/llvm-gcc-unpack stamps/llvm-unpack
 	cd llvm && $(S2EBUILD)/llvm-2.6/configure \
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvmgccdir=$(S2EBUILD)/$(LLVM_GCC_SRC) \
-		--target=x86_64 \
+		--target=x86_64 --enable-targets=x86 --enable-jit \
 		--enable-optimized
 	mkdir -p stamps && touch $@
 
