@@ -122,8 +122,8 @@ void CodeSelector::onModuleTransition(
         return;
     }
 
-    if (m_interceptedModules.find(currentModule->Name) ==
-        m_interceptedModules.end()) {
+    const std::string *id = m_ExecutionDetector->getModuleId(*currentModule);
+    if (m_interceptedModules.find(*id) == m_interceptedModules.end()) {
         state->disableForking();
         return;
     }
