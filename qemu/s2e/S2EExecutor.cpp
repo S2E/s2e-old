@@ -186,6 +186,11 @@ PrintModeSwitch("print-mode-switch",
                 cl::desc("Print message when switching from symbolic to concrete and vice versa"),
                 cl::init(false));
 
+cl::opt<bool>
+PrintForkingStatus("print-forking-status",
+                cl::desc("Print message when enabling/disabling forking."),
+                cl::init(false));
+
 extern cl::opt<bool> UseExprSimplifier;
 
 extern "C" {
@@ -660,6 +665,9 @@ S2EExecutor::S2EExecutor(S2E* s2e, TCGLLVMContext *tcgLLVMContext,
     __DEFINE_EXT_FUNCTION(s2e_is_mmio_symbolic_w)
     __DEFINE_EXT_FUNCTION(s2e_is_mmio_symbolic_l)
     __DEFINE_EXT_FUNCTION(s2e_is_mmio_symbolic_q)
+
+    __DEFINE_EXT_FUNCTION(s2e_on_privilege_change);
+    __DEFINE_EXT_FUNCTION(s2e_on_page_fault);
 
 
     __DEFINE_EXT_FUNCTION(s2e_ismemfunc)
@@ -1841,7 +1849,7 @@ void S2EExecutor::doProcessFork(S2EExecutionState *originalState,
         assert(splitIndex <= high && splitIndex >= low);
         assert(splitIndex >= 0 && splitIndex < (int)newStates.size());
 
-        unsigned parentId = m_s2e->getCurrentProcessId();
+        unsigned parentId = m_s2e->getCurrentProcessIndex();
         m_s2e->getCorePlugin()->onProcessFork.emit(true, false, -1);
         int child = m_s2e->fork();
         if (child < 0) {

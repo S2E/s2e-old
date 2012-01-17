@@ -1011,6 +1011,10 @@ void cpu_x86_update_cr0(CPUX86State *env, uint32_t new_cr0)
    the PDPT */
 void cpu_x86_update_cr3(CPUX86State *env, target_ulong new_cr3)
 {
+#ifdef CONFIG_S2E
+    s2e_on_page_directory_change(env->cr[3], new_cr3);
+#endif
+
     env->cr[3] = new_cr3;
     if (env->cr[0] & CR0_PG_MASK) {
 #if defined(DEBUG_MMU)

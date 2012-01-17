@@ -66,6 +66,7 @@ class MemoryChecker : public Plugin
 
     bool m_checkMemoryLeaks;
     bool m_checkMemoryErrors;
+    bool m_checkResourceLeaks;
 
     bool m_terminateOnLeaks;
     bool m_terminateOnErrors;
@@ -133,11 +134,21 @@ public:
     bool revokeMemoryForModule(S2EExecutionState *state,
                      const std::string &regionTypePattern);
 
+
+    void grantResourceForModule(S2EExecutionState *state,
+                                uint64_t handle,
+                                const std::string &resourceType);
+
     bool revokeMemoryForModule(
             S2EExecutionState *state,
             const ModuleDescriptor *module,
             const std::string &regionTypePattern);
 
+    void grantResource(S2EExecutionState *state,
+                       uint64_t handle, const std::string &resourceType);
+
+    void revokeResource(S2EExecutionState *state,
+                       uint64_t handle);
 
     void grantMemory(S2EExecutionState *state,
                      uint64_t start, uint64_t size, Permissions perms,
@@ -176,6 +187,9 @@ public:
     bool checkMemoryAccess(S2EExecutionState *state,
                            uint64_t start, uint64_t size, uint8_t perms,
                            std::ostream &message);
+
+    // Check that all resources were freed
+    bool checkResourceLeaks(S2EExecutionState *state);
 
     // Check that all memory objects were freed
     bool checkMemoryLeaks(S2EExecutionState *state);

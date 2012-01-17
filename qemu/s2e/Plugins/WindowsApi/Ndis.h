@@ -204,7 +204,7 @@ NDIS_STATUS
 (*W_INITIALIZE_HANDLER)(
     PNDIS_STATUS            OpenErrorStatus,  //OUT
     /*PUINT*/ uint32_t                   SelectedMediumIndex, //OUT
-    PNDIS_MEDIUM            MediumArray,  
+    PNDIS_MEDIUM            MediumArray,
     uint32_t                    MediumArraySize,
     NDIS_HANDLE             MiniportAdapterContext,
     NDIS_HANDLE             WrapperConfigurationContext
@@ -254,9 +254,243 @@ struct NDIS_PACKET32
     };
 
     uint32_t        Reserved[2]; //uintptr_t
-    UCHAR           ProtocolReserved[1];
+    //UCHAR           ProtocolReserved[1];
 } __attribute__((packed));
 
+struct NDIS_PACKET_OOB_DATA32
+{
+    union
+    {
+        uint64_t   TimeToSend;
+        uint64_t   TimeSent;
+    };
+    uint64_t       TimeReceived;
+    UINT            HeaderSize;
+    UINT            SizeMediaSpecificInfo;
+    uint32_t           MediaSpecificInformation; //PVOID
+
+    NDIS_STATUS     Status;
+}__attribute__((packed));
+
+//
+//  NDIS per-packet information.
+//
+enum NDIS_PER_PACKET_INFO
+{
+    TcpIpChecksumPacketInfo,
+    IpSecPacketInfo,
+    TcpLargeSendPacketInfo,
+    ClassificationHandlePacketInfo,
+    NdisReserved,
+    ScatterGatherListPacketInfo,
+    Ieee8021QInfo,
+    OriginalPacketInfo,
+    PacketCancelId,
+    OriginalNetBufferList,
+    CachedNetBufferList,
+    ShortPacketPaddingInfo,
+    MaxPerPacketInfo
+};
+
+struct NDIS_PACKET_EXTENSION32
+{
+    uint32_t       NdisPacketInfo[MaxPerPacketInfo]; //PVOID
+}__attribute__((packed));
+
+struct NDIS_MINIPORT_TIMER32 {
+  KTIMER32  Timer;
+  KDPC32  Dpc;
+  uint32_t  MiniportTimerFunction; //PNDIS_TIMER_FUNCTION
+  uint32_t  MiniportTimerContext; //PVOID
+  uint32_t  Miniport; //PNDIS_MINIPORT_BLOCK
+  uint32_t NextDeferredTimer; // struct _NDIS_MINIPORT_TIMER  *
+}__attribute__((packed));
+
+/*
+lkd> dt ndis!_NDIS_MINIPORT_BLOCK
+   +0x000 Signature        : Ptr32 Void
+   +0x004 NextMiniport     : Ptr32 _NDIS_MINIPORT_BLOCK
+   +0x008 DriverHandle     : Ptr32 _NDIS_M_DRIVER_BLOCK
+   +0x00c MiniportAdapterContext : Ptr32 Void
+   +0x010 MiniportName     : _UNICODE_STRING
+   +0x018 BindPaths        : Ptr32 _NDIS_BIND_PATHS
+   +0x01c OpenQueue        : Ptr32 Void
+   +0x020 ShortRef         : _REFERENCE
+   +0x028 DeviceContext    : Ptr32 Void
+   +0x02c Padding1         : UChar
+   +0x02d LockAcquired     : UChar
+   +0x02e PmodeOpens       : UChar
+   +0x02f AssignedProcessor : UChar
+   +0x030 Lock             : Uint4B
+   +0x034 MediaRequest     : Ptr32 _NDIS_REQUEST
+   +0x038 Interrupt        : Ptr32 _NDIS_MINIPORT_INTERRUPT
+   +0x03c Flags            : Uint4B
+   +0x040 PnPFlags         : Uint4B
+   +0x044 PacketList       : _LIST_ENTRY
+   +0x04c FirstPendingPacket : Ptr32 _NDIS_PACKET
+   +0x050 ReturnPacketsQueue : Ptr32 _NDIS_PACKET
+   +0x054 RequestBuffer    : Uint4B
+   +0x058 SetMCastBuffer   : Ptr32 Void
+   +0x05c PrimaryMiniport  : Ptr32 _NDIS_MINIPORT_BLOCK
+   +0x060 WrapperContext   : Ptr32 Void
+   +0x064 BusDataContext   : Ptr32 Void
+   +0x068 PnPCapabilities  : Uint4B
+   +0x06c Resources        : Ptr32 _CM_RESOURCE_LIST
+   +0x070 WakeUpDpcTimer   : _NDIS_TIMER
+   +0x0b8 BaseName         : _UNICODE_STRING
+   +0x0c0 SymbolicLinkName : _UNICODE_STRING
+   +0x0c8 CheckForHangSeconds : Uint4B
+   +0x0cc CFHangTicks      : Uint2B
+   +0x0ce CFHangCurrentTick : Uint2B
+   +0x0d0 ResetStatus      : Int4B
+   +0x0d4 ResetOpen        : Ptr32 Void
+   +0x0d8 EthDB            : Ptr32 _X_FILTER
+   +0x0d8 NullDB           : Ptr32 _X_FILTER
+   +0x0dc TrDB             : Ptr32 _X_FILTER
+   +0x0e0 FddiDB           : Ptr32 _X_FILTER
+   +0x0e4 ArcDB            : Ptr32 _ARC_FILTER
+   +0x0e8 PacketIndicateHandler : Ptr32     void
+   +0x0ec SendCompleteHandler : Ptr32     void
+   +0x0f0 SendResourcesHandler : Ptr32     void
+   +0x0f4 ResetCompleteHandler : Ptr32     void
+   +0x0f8 MediaType        : _NDIS_MEDIUM
+   +0x0fc BusNumber        : Uint4B
+   +0x100 BusType          : _NDIS_INTERFACE_TYPE
+   +0x104 AdapterType      : _NDIS_INTERFACE_TYPE
+   +0x108 DeviceObject     : Ptr32 _DEVICE_OBJECT
+   +0x10c PhysicalDeviceObject : Ptr32 _DEVICE_OBJECT
+   +0x110 NextDeviceObject : Ptr32 _DEVICE_OBJECT
+   +0x114 MapRegisters     : Ptr32 _MAP_REGISTER_ENTRY
+   +0x118 CallMgrAfList    : Ptr32 _NDIS_AF_LIST
+   +0x11c MiniportThread   : Ptr32 Void
+   +0x120 SetInfoBuf       : Ptr32 Void
+   +0x124 SetInfoBufLen    : Uint2B
+   +0x126 MaxSendPackets   : Uint2B
+   +0x128 FakeStatus       : Int4B
+   +0x12c LockHandler      : Ptr32 Void
+   +0x130 pAdapterInstanceName : Ptr32 _UNICODE_STRING
+   +0x134 TimerQueue       : Ptr32 _NDIS_MINIPORT_TIMER
+   +0x138 MacOptions       : Uint4B
+   +0x13c PendingRequest   : Ptr32 _NDIS_REQUEST
+   +0x140 MaximumLongAddresses : Uint4B
+   +0x144 MaximumShortAddresses : Uint4B
+   +0x148 CurrentLookahead : Uint4B
+   +0x14c MaximumLookahead : Uint4B
+   +0x150 HandleInterruptHandler : Ptr32     void
+   +0x154 DisableInterruptHandler : Ptr32     void
+   +0x158 EnableInterruptHandler : Ptr32     void
+   +0x15c SendPacketsHandler : Ptr32     void
+   +0x160 DeferredSendHandler : Ptr32     unsigned char
+   +0x164 EthRxIndicateHandler : Ptr32     void
+   +0x168 TrRxIndicateHandler : Ptr32     void
+   +0x16c FddiRxIndicateHandler : Ptr32     void
+   +0x170 EthRxCompleteHandler : Ptr32     void
+   +0x174 TrRxCompleteHandler : Ptr32     void
+   +0x178 FddiRxCompleteHandler : Ptr32     void
+   +0x17c StatusHandler    : Ptr32     void
+   +0x180 StatusCompleteHandler : Ptr32     void
+   +0x184 TDCompleteHandler : Ptr32     void
+   +0x188 QueryCompleteHandler : Ptr32     void
+   +0x18c SetCompleteHandler : Ptr32     void
+   +0x190 WanSendCompleteHandler : Ptr32     void
+   +0x194 WanRcvHandler    : Ptr32     void
+   +0x198 WanRcvCompleteHandler : Ptr32     void
+   +0x19c NextGlobalMiniport : Ptr32 _NDIS_MINIPORT_BLOCK
+   +0x1a0 WorkQueue        : [7] _SINGLE_LIST_ENTRY
+   +0x1bc SingleWorkItems  : [6] _SINGLE_LIST_ENTRY
+   +0x1d4 SendFlags        : UChar
+   +0x1d5 TrResetRing      : UChar
+   +0x1d6 ArcnetAddress    : UChar
+   +0x1d7 XState           : UChar
+   +0x1d8 ArcBuf           : Ptr32 _NDIS_ARC_BUF
+   +0x1d8 BusInterface     : Ptr32 Void
+   +0x1dc Log              : Ptr32 _NDIS_LOG
+   +0x1e0 SlotNumber       : Uint4B
+   +0x1e4 AllocatedResources : Ptr32 _CM_RESOURCE_LIST
+   +0x1e8 AllocatedResourcesTranslated : Ptr32 _CM_RESOURCE_LIST
+   +0x1ec PatternList      : _SINGLE_LIST_ENTRY
+   +0x1f0 PMCapabilities   : _NDIS_PNP_CAPABILITIES
+   +0x200 DeviceCaps       : _DEVICE_CAPABILITIES
+   +0x240 WakeUpEnable     : Uint4B
+   +0x244 CurrentDevicePowerState : _DEVICE_POWER_STATE
+   +0x248 pIrpWaitWake     : Ptr32 _IRP
+   +0x24c WaitWakeSystemState : _SYSTEM_POWER_STATE
+   +0x250 VcIndex          : _LARGE_INTEGER
+   +0x258 VcCountLock      : Uint4B
+   +0x25c WmiEnabledVcs    : _LIST_ENTRY
+   +0x264 pNdisGuidMap     : Ptr32 _NDIS_GUID
+   +0x268 pCustomGuidMap   : Ptr32 _NDIS_GUID
+   +0x26c VcCount          : Uint2B
+   +0x26e cNdisGuidMap     : Uint2B
+   +0x270 cCustomGuidMap   : Uint2B
+   +0x272 CurrentMapRegister : Uint2B
+   +0x274 AllocationEvent  : Ptr32 _KEVENT
+   +0x278 BaseMapRegistersNeeded : Uint2B
+   +0x27a SGMapRegistersNeeded : Uint2B
+   +0x27c MaximumPhysicalMapping : Uint4B
+   +0x280 MediaDisconnectTimer : _NDIS_TIMER
+   +0x2c8 MediaDisconnectTimeOut : Uint2B
+   +0x2ca InstanceNumber   : Uint2B
+   +0x2cc OpenReadyEvent   : _NDIS_EVENT
+   +0x2dc PnPDeviceState   : _NDIS_PNP_DEVICE_STATE
+   +0x2e0 OldPnPDeviceState : _NDIS_PNP_DEVICE_STATE
+   +0x2e4 SetBusData       : Ptr32     unsigned long
+   +0x2e8 GetBusData       : Ptr32     unsigned long
+   +0x2ec DeferredDpc      : _KDPC
+   +0x310 NdisStats        : _NDIS_STATS
+   +0x328 IndicatedPacket  : [32] Ptr32 _NDIS_PACKET
+   +0x3a8 RemoveReadyEvent : Ptr32 _KEVENT
+   +0x3ac AllOpensClosedEvent : Ptr32 _KEVENT
+   +0x3b0 AllRequestsCompletedEvent : Ptr32 _KEVENT
+   +0x3b4 InitTimeMs       : Uint4B
+   +0x3b8 WorkItemBuffer   : [6] _NDIS_MINIPORT_WORK_ITEM
+   +0x400 SystemAdapterObject : Ptr32 _DMA_ADAPTER
+   +0x404 DriverVerifyFlags : Uint4B
+   +0x408 OidList          : Ptr32 _OID_LIST
+   +0x40c InternalResetCount : Uint2B
+   +0x40e MiniportResetCount : Uint2B
+   +0x410 MediaSenseConnectCount : Uint2B
+   +0x412 MediaSenseDisconnectCount : Uint2B
+   +0x414 xPackets         : Ptr32 Ptr32 _NDIS_PACKET
+   +0x418 UserModeOpenReferences : Uint4B
+   +0x41c SavedSendHandler : Ptr32 Void
+   +0x41c SavedWanSendHandler : Ptr32 Void
+   +0x420 SavedSendPacketsHandler : Ptr32     void
+   +0x424 SavedCancelSendPacketsHandler : Ptr32     void
+   +0x428 WSendPacketsHandler : Ptr32     void
+   +0x42c MiniportAttributes : Uint4B
+   +0x430 SavedSystemAdapterObject : Ptr32 _DMA_ADAPTER
+   +0x434 NumOpens         : Uint2B
+   +0x436 CFHangXTicks     : Uint2B
+   +0x438 RequestCount     : Uint4B
+   +0x43c IndicatedPacketsCount : Uint4B
+   +0x440 PhysicalMediumType : Uint4B
+   +0x444 LastRequest      : Ptr32 _NDIS_REQUEST
+   +0x448 DmaAdapterRefCount : Int4B
+   +0x44c FakeMac          : Ptr32 Void
+   +0x450 LockDbg          : Uint4B
+   +0x454 LockDbgX         : Uint4B
+   +0x458 LockThread       : Ptr32 Void
+   +0x45c InfoFlags        : Uint4B
+   +0x460 TimerQueueLock   : Uint4B
+   +0x464 ResetCompletedEvent : Ptr32 _KEVENT
+   +0x468 QueuedBindingCompletedEvent : Ptr32 _KEVENT
+   +0x46c DmaResourcesReleasedEvent : Ptr32 _KEVENT
+   +0x470 SavedPacketIndicateHandler : Ptr32     void
+   +0x474 RegisteredInterrupts : Uint4B
+   +0x478 SGListLookasideList : Ptr32 _NPAGED_LOOKASIDE_LIST
+   +0x47c ScatterGatherListSize : Uint4B
+   +0x480 WakeUpTimerEvent : Ptr32 _KEVENT
+   +0x484 SecurityDescriptor : Ptr32 Void
+   +0x488 NumUserOpens     : Uint4B
+   +0x48c NumAdminOpens    : Uint4B
+   +0x490 Ref              : _ULONG_REFERENCE
+
+*/
+
+static const uint32_t NDIS_MINIPORT_BLOCK_SIZE = 0x494;
+static const uint32_t NDIS_M_SEND_COMPLETE_HANDLER_OFFSET = 0xec;
+static const uint32_t NDIS_M_STATUS_HANDLER_OFFSET = 0x17c;
 
 }
 }

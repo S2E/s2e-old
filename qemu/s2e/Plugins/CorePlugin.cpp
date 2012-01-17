@@ -407,3 +407,25 @@ int s2e_is_mmio_symbolic_q(uint64_t address)
     return g_s2e->getCorePlugin()->isMmioSymbolic(address, 8);
 }
 
+void s2e_on_privilege_change(unsigned previous, unsigned current)
+{
+    assert(g_s2e_state->isActive());
+
+    try {
+        g_s2e->getCorePlugin()->onPrivilegeChange.emit(g_s2e_state, previous, current);
+    } catch(s2e::CpuExitException&) {
+        assert(false && "Cannot throw exceptions here. VM state may be inconsistent at this point.");
+    }
+}
+
+void s2e_on_page_directory_change(uint64_t previous, uint64_t current)
+{
+    assert(g_s2e_state->isActive());
+
+    try {
+        g_s2e->getCorePlugin()->onPageDirectoryChange.emit(g_s2e_state, previous, current);
+    } catch(s2e::CpuExitException&) {
+        assert(false && "Cannot throw exceptions here. VM state may be inconsistent at this point.");
+    }
+}
+

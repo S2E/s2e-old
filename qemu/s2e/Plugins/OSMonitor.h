@@ -74,6 +74,14 @@ public:
    virtual bool isKernelAddress(uint64_t pc) const = 0;
    virtual uint64_t getPid(S2EExecutionState *s, uint64_t pc) = 0;
    virtual bool getCurrentStack(S2EExecutionState *s, uint64_t *base, uint64_t *size) = 0;
+
+   bool isOnTheStack(S2EExecutionState *s, uint64_t address) {
+       uint64_t base, size;
+       if (!getCurrentStack(s, &base, &size)) {
+           return false;
+       }
+       return address >= base && address < (base + size);
+   }
 };
 
 } // namespace plugins

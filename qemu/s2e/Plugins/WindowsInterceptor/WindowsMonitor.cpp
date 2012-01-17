@@ -670,6 +670,24 @@ bool WindowsMonitor::getCurrentStack(S2EExecutionState *state, uint64_t *base, u
         return false;
     }
 
+    //XXX: Hack to get DPC stacks
+    uint32_t sp = state->getSp();
+    uint32_t dpcStackPtr = m_pKPRCBAddr + windows::KPRCB32_DPC_STACK_OFFSET;
+    uint32_t dpcStack;
+
+    if (state->readMemoryConcrete(dpcStackPtr, &dpcStack, sizeof(dpcStack))) {
+        dpcStack -= 0x3000;
+        s2e()->getDebugStream() << "WindowsMonitor esp=" << hexval(sp) << " dpc=" << hexval(dpcStack) << std::endl;
+        if (sp >= dpcStack && sp < (dpcStack + 0x3000)) {
+            if (base) {
+                *base = dpcStack;
+            }
+            if (size) {
+                *size = 0x3000;
+            }
+            return true;
+        }
+    }
 
     if (base) {
         *base = kThread.StackLimit;

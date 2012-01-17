@@ -59,6 +59,15 @@ public:
 private:
     void onCustomInstruction(S2EExecutionState* state, 
         uint64_t opcode);
+
+    void makeSymbolic(S2EExecutionState *state);
+    void isSymbolic(S2EExecutionState *state);
+    void killState(S2EExecutionState *state);
+    void printExpression(S2EExecutionState *state);
+    void printMessage(S2EExecutionState *state, bool isWarning);
+    void printMemory(S2EExecutionState *state);
+    void concretize(S2EExecutionState *state, bool addConstraint);
+    void sleep(S2EExecutionState *state);
 };
 
 } // namespace plugins
