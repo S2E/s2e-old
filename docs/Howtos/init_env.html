@@ -15,7 +15,7 @@
 <p class="topic-title first">Contents</p>
 <ul class="simple">
 <li><a class="reference internal" href="#obtaining-and-compiling-init-env" id="id1">1. Obtaining and compiling <tt class="docutils literal">init_env</tt></a></li>
-<li><a class="reference internal" href="#configuring-s2e-for-use-with-init-env" id="id2">2. Configuring S2E for use with init_env</a></li>
+<li><a class="reference internal" href="#configuring-s2e-for-use-with-init-env" id="id2">2. Configuring S2E for use with <tt class="docutils literal">init_env</tt></a></li>
 <li><a class="reference internal" href="#using-init-env" id="id3">3. Using <tt class="docutils literal">init_env</tt></a></li>
 <li><a class="reference internal" href="#what-about-other-symbolic-input" id="id4">4. What about other symbolic input?</a></li>
 </ul>
@@ -35,7 +35,7 @@ run <tt class="docutils literal">make</tt>. This will compile <tt class="docutil
 tools.</p>
 </div>
 <div class="section" id="configuring-s2e-for-use-with-init-env">
-<h1>2. Configuring S2E for use with init_env</h1>
+<h1>2. Configuring S2E for use with <tt class="docutils literal">init_env</tt></h1>
 <p><tt class="docutils literal">init_env</tt> communicates with several S2E plugins in order to restrict
 symbolic execution to the program of interest. The S2E configuration
 file must contain default settings for these plugins, as follows:</p>
@@ -53,7 +53,7 @@ plugins = {
 
   -- Restrict symbolic execution to
   -- the programs of interest
-  &quot;CodeSelector&quot;
+  &quot;CodeSelector&quot;,
 }
 </pre>
 <p>Note that it is not necessary to declare empty configuration blocks
@@ -94,10 +94,11 @@ is <tt class="docutils literal"><span class="pre">--help</span></tt>.</p>
 <div class="section" id="what-about-other-symbolic-input">
 <h1>4. What about other symbolic input?</h1>
 <p>You can easily feed symbolic data to your program via <tt class="docutils literal">stdin</tt>.
-The idea is to pipe the symbolic output of the first program to the input of the second.
-This can be done using the <tt class="docutils literal">s2ecmd</tt> utility, located in the guest tools directory.</p>
+The idea is to pipe the symbolic output of one program to the input of another.
+Symbolic output can be generated using the <tt class="docutils literal">s2ecmd</tt> utility, located in the
+guest tools directory.</p>
 <pre class="literal-block">
-$ ./s2ecmd symbwrite 4 | echo
+$ /path/to/guest/s2ecmd/s2ecmd symbwrite 4 | echo
 </pre>
 <p>The command above will pass 4 symbolic bytes to <tt class="docutils literal">echo</tt>.</p>
 <p>The easiest way to have your program read symbolic data from <em>files</em> (other than

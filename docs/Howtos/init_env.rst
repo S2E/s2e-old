@@ -23,8 +23,8 @@ run ``make``. This will compile ``init_env`` along with some other useful
 tools.
 
 
-2. Configuring S2E for use with init_env
-----------------------------------------
+2. Configuring S2E for use with ``init_env``
+--------------------------------------------
 
 ``init_env`` communicates with several S2E plugins in order to restrict
 symbolic execution to the program of interest. The S2E configuration
@@ -35,7 +35,7 @@ file must contain default settings for these plugins, as follows:
     plugins = {
       -- Enable S2E custom opcodes
       "BaseInstructions",
-      
+
       -- Track when the guest loads programs
       "RawMonitor",
 
@@ -45,7 +45,7 @@ file must contain default settings for these plugins, as follows:
 
       -- Restrict symbolic execution to
       -- the programs of interest
-      "CodeSelector"
+      "CodeSelector",
     }
 
 Note that it is not necessary to declare empty configuration blocks
@@ -93,12 +93,13 @@ is ``--help``.
 -----------------------------------
 
 You can easily feed symbolic data to your program via ``stdin``.
-The idea is to pipe the symbolic output of the first program to the input of the second.
-This can be done using the ``s2ecmd`` utility, located in the guest tools directory.
+The idea is to pipe the symbolic output of one program to the input of another.
+Symbolic output can be generated using the ``s2ecmd`` utility, located in the
+guest tools directory.
 
 ::
 
-    $ ./s2ecmd symbwrite 4 | echo
+    $ /path/to/guest/s2ecmd/s2ecmd symbwrite 4 | echo
 
 
 The command above will pass 4 symbolic bytes to ``echo``.
