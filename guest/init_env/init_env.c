@@ -200,7 +200,7 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     *argcPtr = new_argc;
     *argvPtr = final_argv;
 
-    s2e_disable_forking();
+    //When we return, forking must be enabled in all three cases
 }
 
 // ****************************

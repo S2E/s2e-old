@@ -308,7 +308,7 @@ private:
    virtual void detectLeaks(S2EExecutionState *state,
                      const ModuleDescriptor &module) {
         revokeMiniportAdapterContext(state);
-        WindowsAnnotations::detectLeaks(state, module);
+        WindowsAnnotations<NdisHandlers, NdisHandlersState>::detectLeaks(state, module);
    }
 
     //friend void WindowsApiInitializeHandlerMap<NdisHandlers, NdisHandlers::EntryPoint>();

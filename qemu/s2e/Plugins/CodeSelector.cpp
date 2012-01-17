@@ -167,20 +167,22 @@ void CodeSelector::onPrivilegeChange(
 
     Pids::const_iterator it = m_pidsToTrack.find(state->getPid());
     if (it == m_pidsToTrack.end()) {
+        //Not in a tracked process
         state->disableForking();
         return;
     }
 
-    //Enable forking in user mode.
+    //We are inside a process that we are tracking.
+    //Check now if we are in user-mode.
     if ((*it).second == false) {
         //XXX: Remove hard-coded CPL level. It is x86-architecture-specific.
         if (current == 3) {
+            //Enable forking in user mode.
             state->enableForking();
-            return;
+        } else {
+            state->disableForking();
         }
     }
-
-    state->disableForking();
 }
 
 void CodeSelector::opSelectProcess(S2EExecutionState *state)
