@@ -85,7 +85,7 @@ void CodeSelector::initialize()
 
     //Fetch the list of modules where forking should be enabled
     ConfigFile::string_list moduleList =
-            cfg->getStringList(getConfigKey() + ".modules", ConfigFile::string_list(), &ok);
+            cfg->getStringList(getConfigKey() + ".modulesIds", ConfigFile::string_list(), &ok);
 
     if (!ok || moduleList.empty()) {
         s2e()->getWarningsStream() << "You should specify a list of modules in " <<
