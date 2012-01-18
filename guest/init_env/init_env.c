@@ -100,6 +100,15 @@ static void __add_arg(int *argc, char **argv, char *arg, int argcMax) {
     }
 }
 
+// Returns the base name (without directory) of a path
+static const char* __base_name(const char* path) {
+    const char* lastSlash = strrchr(path, '/');
+    if (lastSlash != NULL) {
+        return lastSlash + 1;  // The character after the slash
+    }
+    return path;
+}
+
 void __s2e_init_env(int* argcPtr, char*** argvPtr) {
     int argc = *argcPtr;
     char** argv = *argvPtr;
@@ -182,10 +191,10 @@ void __s2e_init_env(int* argcPtr, char*** argvPtr) {
                 return;
             }
 
-            s2e_moduleexec_add_module("init_env_module", name, 0);
+            s2e_moduleexec_add_module("init_env_module", __base_name(name), 0);
             s2e_codeselector_select_module("init_env_module");
             //XXX: Also figure out the real native base and the address of the entry point.
-            s2e_rawmon_loadmodule2(name, loadBase, loadBase, 0, size, 0);
+            s2e_rawmon_loadmodule2(__base_name(name), loadBase, loadBase, 0, size, 0);
         }
         else {
             /* simply copy arguments */
