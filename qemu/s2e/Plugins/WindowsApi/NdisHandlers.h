@@ -338,6 +338,8 @@ private:
 
     uint32_t shutdownHandler;
 
+    bool exercisingInitEntryPoint;
+
     //Indicates whether the cable is plugged or not in the current state.
     //It may be unknown
     CableStatus cableStatus;

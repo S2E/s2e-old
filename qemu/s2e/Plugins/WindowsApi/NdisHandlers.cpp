@@ -2241,6 +2241,9 @@ void NdisHandlers::InitializeHandlerRet(S2EExecutionState* state)
     klee::ref<klee::Expr> constr = klee::SgeExpr::create(eax, klee::ConstantExpr::create(0, eax.get()->getWidth()));
     state->addConstraint(constr);
 
+    DECLARE_PLUGINSTATE(NdisHandlersState, state);
+    plgState->exercisingInitEntryPoint = false;
+
     s2e()->getDebugStream(state) << "InitializeHandler succeeded with " << eax << std::endl;
 
     m_manager->succeedState(state);
@@ -2344,8 +2347,12 @@ void NdisHandlers::HandleInterruptHandler(S2EExecutionState* state, FunctionMoni
     HANDLER_TRACE_CALL();
     //grantMiniportAdapterContext(state, 0);
 
-    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HandleInterruptHandlerRet)
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
+    if (plgState->exercisingInitEntryPoint) {
+        return;
+    }
+
+    FUNCMON_REGISTER_RETURN(state, fns, NdisHandlers::HandleInterruptHandlerRet)
     plgState->isrHandlerExecuted = true;
     plgState->isrHandlerQueued = false;
 }
@@ -2398,6 +2405,11 @@ void NdisHandlers::ISRHandlerRet(S2EExecutionState* state)
 
 
     DECLARE_PLUGINSTATE(NdisHandlersState, state);
+
+    if (plgState->exercisingInitEntryPoint) {
+        m_devDesc->setInterrupt(false);
+        return;
+    }
 
     uint8_t isrRecognized=0, isrQueue=0;
     bool ok = true;
@@ -2874,6 +2886,7 @@ NdisHandlersState::NdisHandlersState()
     shutdownHandler = 0;   
     cableStatus = UNKNOWN;
     ProtocolReservedLength = 0;
+    exercisingInitEntryPoint = true;
 }
 
 NdisHandlersState::~NdisHandlersState()
