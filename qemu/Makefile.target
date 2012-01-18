@@ -326,6 +326,7 @@ s2eobj-y += s2e/Plugins/CodeSelector.o
 s2eobj-y += s2e/Plugins/RawMonitor.o
 s2eobj-y += s2e/Plugins/FunctionMonitor.o
 s2eobj-y += s2e/Plugins/LibraryCallMonitor.o
+s2eobj-y += s2e/Plugins/InterruptInjector.o
 s2eobj-y += s2e/Plugins/BaseInstructions.o
 s2eobj-y += s2e/Plugins/X86ExceptionInterceptor.o
 s2eobj-y += s2e/Plugins/DataSelectors/DataSelector.o
