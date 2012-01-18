@@ -169,6 +169,8 @@ void LibraryCallMonitor::onFunctionCall(S2EExecutionState* state, FunctionMonito
         const char *str = (*it).second;
         s2e()->getMessagesStream() << mod->Name << "@" << std::hex << mod->ToNativeBase(caller) << " called function " << str << std::endl;
 
+        onLibraryCall.emit(state, fns, *mod);
+
         if (m_displayOnce) {
             m_alreadyCalledFunctions.insert(std::make_pair(mod->Pid, pc));
         }

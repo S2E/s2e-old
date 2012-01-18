@@ -63,6 +63,12 @@ public:
 
     void initialize();
 
+    sigc::signal<void,
+                 S2EExecutionState*,
+                 FunctionMonitorState*,
+                 const ModuleDescriptor& /* The module  being called */>
+          onLibraryCall;
+
 private:
     OSMonitor * m_monitor;
     ModuleExecutionDetector *m_detector;
