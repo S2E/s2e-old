@@ -381,18 +381,18 @@ static inline void tcg_out_mov(TCGContext *s, int ret, int arg)
 static inline void tcg_out_movi(TCGContext *s, TCGType type,
                                 int ret, tcg_target_long arg)
 {
-    if (arg == 0) {
-        tcg_out_modrm(s, 0x01 | (ARITH_XOR << 3), ret, ret); /* xor r0,r0 */
-    } else if (arg == (uint32_t)arg || type == TCG_TYPE_I32) {
-        tcg_out_opc(s, 0xb8 + (ret & 7), 0, ret, 0);
-        tcg_out32(s, arg);
-    } else if (arg == (int32_t)arg) {
-        tcg_out_modrm(s, 0xc7 | P_REXW, 0, ret);
-        tcg_out32(s, arg);
-    } else {
+    if (type == TCG_TYPE_I64) {
         tcg_out_opc(s, (0xb8 + (ret & 7)) | P_REXW, 0, ret, 0);
         tcg_out32(s, arg);
         tcg_out32(s, arg >> 32);
+    } else if (type == TCG_TYPE_I32) {
+        tcg_out_opc(s, 0xb8 + (ret & 7), 0, ret, 0);
+        tcg_out32(s, arg);
+    } else if (type == TCG_TYPE_PTR) {
+        tcg_out_modrm(s, 0xc7 | P_REXW, 0, ret);
+        tcg_out32(s, arg);
+    } else {
+        assert(0 && "Invalid operands");
     }
 }
 
@@ -1440,8 +1440,7 @@ static int tcg_target_callee_save_regs[] = {
     TCG_REG_RSI,
     TCG_REG_R12,
     TCG_REG_R13,
-    /*    TCG_REG_R14, */ /* currently used for the global env, so no
-                             need to save */
+    TCG_REG_R14,
     TCG_REG_R15,
 };
 #else
@@ -1450,8 +1449,7 @@ static int tcg_target_callee_save_regs[] = {
     TCG_REG_RBX,
     TCG_REG_R12,
     TCG_REG_R13,
-    /*    TCG_REG_R14, */ /* currently used for the global env, so no
-                             need to save */
+    TCG_REG_R14,
     TCG_REG_R15,
 };
 #endif
