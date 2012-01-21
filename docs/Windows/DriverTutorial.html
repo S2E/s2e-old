@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.8: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
 <title>Analyzing Windows Drivers: Step-by-Step Tutorial</title>
 <link rel="stylesheet" href="../s2e.css" type="text/css" />
 </head>
@@ -79,7 +79,7 @@ Then, copy the following script into <em>c:s2epcnet.bat</em> (or to any location
 You may beed to setup and ftp server on your host machine to do the file transfer. The NE2K card we set up previously
 should have an address obtained by DHCP. The gateway should be 10.0.2.2. Refer to the QEMU documentation for more details.</p>
 <pre class="literal-block">
-devcon enable &#64;&quot;*VEN_1022&amp;DEV_2000&quot;
+devcon enable &#64;&quot;*VEN_1022&amp;DEV_2000*&quot;
 arp -s 192.168.111.1 00-aa-00-62-c6-09
 ping -n 4 -l 999 192.168.111.1
 devcon disable &#64;&quot;*VEN_1022&amp;DEV_2000&quot;

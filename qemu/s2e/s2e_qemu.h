@@ -247,8 +247,7 @@ void s2e_tb_free(struct S2E* s2e, struct TranslationBlock *tb);
     in order to update tb->s2e_tb->llvm_function */
 void s2e_set_tb_function(struct S2E* s2e, struct TranslationBlock *tb);
 
-uintptr_t s2e_qemu_tb_exec(
-        struct TranslationBlock* tb);
+uintptr_t s2e_qemu_tb_exec(struct TranslationBlock *tb);
 
 /* Called by QEMU when execution is aborted using longjmp */
 void s2e_qemu_cleanup_tb_exec(

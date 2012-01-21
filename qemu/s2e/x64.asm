@@ -1,9 +1,10 @@
 segment .text
 global bit_scan_forward_64
 global bit_scan_forward_64_posix
-global s2e_setjmp
-global s2e_longjmp
-
+global s2e_setjmp_win32
+global s2e_longjmp_win32
+global s2e_setjmp_posix
+global s2e_longjmp_posix
 
 [bits 64]
 
@@ -48,7 +49,7 @@ endstruc
 
 
 ;rcx: pointer to jmp_buf
-s2e_setjmp:
+s2e_setjmp_win32:
     mov [rcx + s2e_jmpbuf._rax], rax
     mov [rcx + s2e_jmpbuf._rbx], rbx
     mov [rcx + s2e_jmpbuf._rcx], rcx
@@ -71,7 +72,7 @@ s2e_setjmp:
 
 ;rcx: pointer to jmp_buf
 ;rdx: value
-s2e_longjmp:
+s2e_longjmp_win32:
     mov rax, [rcx + s2e_jmpbuf._rax]
     mov rbx, [rcx + s2e_jmpbuf._rbx]
     mov rcx, [rcx + s2e_jmpbuf._rcx]
@@ -93,5 +94,53 @@ s2e_longjmp:
     mov rax, 1
     cmp rdx, 0
     cmovnz rax, rdx
+    ret
+
+;rdi: pointer to jmp_buf
+s2e_setjmp_posix:
+    mov [rdi + s2e_jmpbuf._rax], rax
+    mov [rdi + s2e_jmpbuf._rbx], rbx
+    mov [rdi + s2e_jmpbuf._rcx], rcx
+    mov [rdi + s2e_jmpbuf._rdx], rdx
+    mov [rdi + s2e_jmpbuf._rsi], rsi
+    mov [rdi + s2e_jmpbuf._rdi], rdi
+    mov [rdi + s2e_jmpbuf._rbp], rbp
+    mov [rdi + s2e_jmpbuf._rsp], rsp
+    mov [rdi + s2e_jmpbuf._r8], r8
+    mov [rdi + s2e_jmpbuf._r9], r9
+    mov [rdi + s2e_jmpbuf._r10], r10
+    mov [rdi + s2e_jmpbuf._r11], r11
+    mov [rdi + s2e_jmpbuf._r12], r12
+    mov [rdi + s2e_jmpbuf._r13], r13
+    mov [rdi + s2e_jmpbuf._r14], r14
+    mov rax, [rsp]
+    mov [rdi + s2e_jmpbuf._rip], rax
+    xor rax, rax
+    ret
+
+;rdi: pointer to jmp_buf
+;rsi: value
+s2e_longjmp_posix:
+    mov rax, [rdi + s2e_jmpbuf._rax]
+    mov rbx, [rdi + s2e_jmpbuf._rbx]
+    mov rcx, [rdi + s2e_jmpbuf._rcx]
+    mov rdx, [rdi + s2e_jmpbuf._rdx]
+    ;mov rsi, [rdi + s2e_jmpbuf._rsi]
+    mov rdi, [rdi + s2e_jmpbuf._rdi]
+    mov rbp, [rdi + s2e_jmpbuf._rbp]
+    mov rsp, [rdi + s2e_jmpbuf._rsp]
+    mov r8, [rdi + s2e_jmpbuf._r8]
+    mov r9, [rdi + s2e_jmpbuf._r9]
+    mov r10, [rdi + s2e_jmpbuf._r10]
+    mov r11, [rdi + s2e_jmpbuf._r11]
+    mov r12, [rdi + s2e_jmpbuf._r12]
+    mov r13, [rdi + s2e_jmpbuf._r13]
+    mov r14, [rdi + s2e_jmpbuf._r14]
+    mov r15, [rdi + s2e_jmpbuf._r15]
+    mov rax, [rdi + s2e_jmpbuf._rip]
+    mov [rsp], rax
+    mov rax, 1
+    cmp rsi, 0
+    cmovnz rax, rsi
     ret
 
