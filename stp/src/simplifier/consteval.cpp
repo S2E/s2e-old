@@ -14,55 +14,53 @@ namespace BEEV
 {
 
   //error printing
-  static void BVConstEvaluatorError(CONSTANTBV::ErrCode e, const ASTNode& t)
+  static void BVConstEvaluatorError(CONSTANTBV::ErrCode e)
   {
     std::string ss("BVConstEvaluator:");
     ss += (const char*) BitVector_Error(e);
-    FatalError(ss.c_str(), t);
+    FatalError(ss.c_str());
   }
 
+
+
 // Const evaluator logical and arithmetic operations.
-  ASTNode NonMemberBVConstEvaluator(const ASTNode& t)
+  ASTNode NonMemberBVConstEvaluator(STPMgr* _bm , const Kind k, const ASTVec& input_children, unsigned int inputwidth)
   {
-    if (t.isConstant())
-	 	return t;
-
 	ASTNode OutputNode;
-    Kind k = t.GetKind();
 
-    STPMgr* _bm = t.GetSTPMgr();
     ASTNode& ASTTrue = _bm->ASTTrue;
     ASTNode& ASTFalse = _bm->ASTFalse;
 
-    OutputNode = t;
-
-    unsigned int inputwidth = t.GetValueWidth();
     unsigned int outputwidth = inputwidth;
     CBV output = NULL;
 
     CBV tmp0 = NULL;
     CBV tmp1 = NULL;
 
+    unsigned int number_of_children = input_children.size();
+    assert(number_of_children >=1);
+    assert(k != BVCONST);
+
     ASTVec children;
-    children.reserve(t.Degree());
-    for (int i =0; i < t.Degree(); i++)
+    children.reserve(number_of_children);
+    for (int i =0; i < number_of_children; i++)
     {
-    	if (t[i].isConstant())
-    		children.push_back(t[i]);
+    	if (input_children[i].isConstant())
+    		children.push_back(input_children[i]);
     	else
-    		children.push_back(NonMemberBVConstEvaluator(t[i]));
+    		children.push_back(NonMemberBVConstEvaluator(input_children[i]));
     }
 
-    if ((t.Degree() ==2 || t.Degree() == 1) && t[0].GetType() == BITVECTOR_TYPE)
+    if ((number_of_children ==2 || number_of_children == 1) && input_children[0].GetType() == BITVECTOR_TYPE)
     {
     //saving some typing. BVPLUS does not use these variables. if the
     //input BVPLUS has two nodes, then we want to avoid setting these
     //variables.
-    if (1 == t.Degree())
+    if (1 == number_of_children)
       {
         tmp0 = children[0].GetBVConst();
       }
-    else if (2 == t.Degree() && k != BVPLUS)
+    else if (2 == number_of_children && k != BVPLUS)
       {
         tmp0 = children[0].GetBVConst();
         tmp1 = children[1].GetBVConst();
@@ -75,11 +73,11 @@ namespace BEEV
       case READ:
       case WRITE:
       case SYMBOL:
-    	    FatalError("BVConstEvaluator: term is not a constant-term", t);
+    	    FatalError("BVConstEvaluator: term is not a constant-term");
         break;
-      case BVCONST:
-        OutputNode = t;
-        break;
+      //case BVCONST:
+//        OutputNode = t;
+  //      break;
       case BVNEG:
         {
           output = CONSTANTBV::BitVector_Create(inputwidth, true);
@@ -91,7 +89,7 @@ namespace BEEV
       case BVZX:
         {
           output = CONSTANTBV::BitVector_Create(inputwidth, true);
-          unsigned t0_width = t[0].GetValueWidth();
+          unsigned t0_width = input_children[0].GetValueWidth();
           if (inputwidth == t0_width)
             {
               CONSTANTBV::BitVector_Copy(output, tmp0);
@@ -167,20 +165,38 @@ namespace BEEV
 
       case BVAND:
         {
-          output = CONSTANTBV::BitVector_Create(inputwidth, true);
-          CONSTANTBV::Set_Intersection(output, tmp0, tmp1);
-          OutputNode = _bm->CreateBVConst(output, outputwidth);
-          break;
+        	assert(1 <= number_of_children);
+
+        	output = CONSTANTBV::BitVector_Create(inputwidth, true);
+        	CONSTANTBV::BitVector_Fill(output);
+
+            for (ASTVec::iterator it = children.begin(), itend = children.end(); it != itend; it++)
+              {
+                CBV kk = (*it).GetBVConst();
+                CONSTANTBV::Set_Intersection(output, output, kk);
+              }
+
+            OutputNode = _bm->CreateBVConst(output, outputwidth);
+            break;
         }
       case BVOR:
         {
-          output = CONSTANTBV::BitVector_Create(inputwidth, true);
-          CONSTANTBV::Set_Union(output, tmp0, tmp1);
-          OutputNode = _bm->CreateBVConst(output, outputwidth);
-          break;
+        	assert(1 <= number_of_children);
+
+        	output = CONSTANTBV::BitVector_Create(inputwidth, true);
+
+            for (ASTVec::iterator it = children.begin(), itend = children.end(); it != itend; it++)
+              {
+                CBV kk = (*it).GetBVConst();
+                CONSTANTBV::Set_Union(output, output, kk);
+              }
+
+            OutputNode = _bm->CreateBVConst(output, outputwidth);
+            break;
         }
       case BVXOR:
         {
+          assert(2==number_of_children);
           output = CONSTANTBV::BitVector_Create(inputwidth, true);
           CONSTANTBV::Set_ExclusiveOr(output, tmp0, tmp1);
           OutputNode = _bm->CreateBVConst(output, outputwidth);
@@ -188,6 +204,7 @@ namespace BEEV
         }
       case BVSUB:
         {
+          assert(2==number_of_children);
           output = CONSTANTBV::BitVector_Create(inputwidth, true);
           bool carry = false;
           CONSTANTBV::BitVector_sub(output, tmp0, tmp1, &carry);
@@ -219,7 +236,7 @@ namespace BEEV
 
       case BVCONCAT:
         {
-          assert(2==t.Degree());
+          assert(2==number_of_children);
           output = CONSTANTBV::BitVector_Create(inputwidth, true);
           unsigned t0_width = children[0].GetValueWidth();
           unsigned t1_width = children[1].GetValueWidth();
@@ -233,21 +250,28 @@ namespace BEEV
         }
       case BVMULT:
         {
-          output = CONSTANTBV::BitVector_Create(inputwidth, true);
-          CBV tmp = CONSTANTBV::BitVector_Create(2* inputwidth , true);
-          CONSTANTBV::ErrCode e = CONSTANTBV::BitVector_Multiply(tmp, tmp0, tmp1);
+        output = CONSTANTBV::BitVector_Create(inputwidth, true);
+        CONSTANTBV::BitVector_increment(output);
 
-          if (0 != e)
-            {
-              BVConstEvaluatorError(e, t);
-            }
-          //FIXME WHAT IS MY OUTPUT???? THE SECOND HALF of tmp?
-          //CONSTANTBV::BitVector_Interval_Copy(output, tmp, 0, inputwidth, inputwidth);
-          CONSTANTBV::BitVector_Interval_Copy(output, tmp, 0, 0, inputwidth);
-          OutputNode = _bm->CreateBVConst(output, outputwidth);
-          CONSTANTBV::BitVector_Destroy(tmp);
-          break;
-        }
+        CBV tmp = CONSTANTBV::BitVector_Create(2 * inputwidth, true);
+
+        for (ASTVec::iterator it = children.begin(), itend = children.end(); it != itend; it++)
+          {
+            CBV kk = (*it).GetBVConst();
+            CONSTANTBV::ErrCode e = CONSTANTBV::BitVector_Multiply(tmp, output, kk);
+
+            if (0 != e)
+              {
+                BVConstEvaluatorError(e);
+              }
+            CONSTANTBV::BitVector_Interval_Copy(output, tmp, 0, 0, inputwidth);
+
+          }
+
+        OutputNode = _bm->CreateBVConst(output, outputwidth);
+        CONSTANTBV::BitVector_Destroy(tmp);
+        break;
+      }
       case BVPLUS:
         {
           output = CONSTANTBV::BitVector_Create(inputwidth, true);
@@ -257,7 +281,6 @@ namespace BEEV
               CBV kk = (*it).GetBVConst();
               CONSTANTBV::BitVector_add(output, output, kk, &carry);
               carry = false;
-              //CONSTANTBV::BitVector_Destroy(kk);
             }
           OutputNode = _bm->CreateBVConst(output, outputwidth);
           break;
@@ -273,6 +296,7 @@ namespace BEEV
       case SBVDIV:
       case SBVREM:
         {
+          assert(2==number_of_children);
           CBV quotient = CONSTANTBV::BitVector_Create(inputwidth, true);
           CBV remainder = CONSTANTBV::BitVector_Create(inputwidth, true);
 
@@ -280,8 +304,17 @@ namespace BEEV
               && CONSTANTBV::BitVector_is_empty(tmp1))
             {
               // Expecting a division by zero. Just return one.
-              OutputNode = _bm->CreateOneConst(outputwidth);
-              CONSTANTBV::BitVector_Destroy(remainder);
+        	  if (k==SBVREM)
+        		  OutputNode = children[0];
+        	  else
+        		  {
+        	              if (CONSTANTBV::BitVector_bit_test(tmp0, inputwidth-1))
+        	                OutputNode = _bm->CreateMaxConst(inputwidth);
+        	              else
+        	                OutputNode = _bm->CreateOneConst(inputwidth);
+        		  }
+
+        	  CONSTANTBV::BitVector_Destroy(remainder);
               CONSTANTBV::BitVector_Destroy(quotient);
             }
           else
@@ -312,20 +345,26 @@ namespace BEEV
 
       case SBVMOD:
         {
-          /* Definition taken from the SMTLIB website
-             (bvsmod s t) abbreviates
-             (let (?msb_s (extract[|m-1|:|m-1|] s))
-             (let (?msb_t (extract[|m-1|:|m-1|] t))
-             (ite (and (= ?msb_s bit0) (= ?msb_t bit0))
-             (bvurem s t)
-             (ite (and (= ?msb_s bit1) (= ?msb_t bit0))
-             (bvadd (bvneg (bvurem (bvneg s) t)) t)
-             (ite (and (= ?msb_s bit0) (= ?msb_t bit1))
-             (bvadd (bvurem s (bvneg t)) t)
-             (bvneg (bvurem (bvneg s) (bvneg t)))))))
-          */
+          assert(2==number_of_children);
+/*
+          (bvsmod s t) abbreviates
+              (let ((?msb_s ((_ extract |m-1| |m-1|) s))
+                    (?msb_t ((_ extract |m-1| |m-1|) t)))
+                (let ((abs_s (ite (= ?msb_s #b0) s (bvneg s)))
+                      (abs_t (ite (= ?msb_t #b0) t (bvneg t))))
+                  (let ((u (bvurem abs_s abs_t)))
+                    (ite (= u (_ bv0 m))
+                         u
+                    (ite (and (= ?msb_s #b0) (= ?msb_t #b0))
+                         u
+                    (ite (and (= ?msb_s #b1) (= ?msb_t #b0))
+                         (bvadd (bvneg u) t)
+                    (ite (and (= ?msb_s #b0) (= ?msb_t #b1))
+                         (bvadd u t)
+                         (bvneg u))))))))
+*/
 
-          assert(t[0].GetValueWidth() == t[1].GetValueWidth());
+          assert(input_children[0].GetValueWidth() == input_children[1].GetValueWidth());
 
           bool isNegativeS = CONSTANTBV::BitVector_msb_(tmp0);
           bool isNegativeT = CONSTANTBV::BitVector_msb_(tmp1);
@@ -338,8 +377,8 @@ namespace BEEV
           if (_bm->UserFlags.division_by_zero_returns_one_flag
               && CONSTANTBV::BitVector_is_empty(tmp1))
             {
-              // Expecting a division by zero. Just return one.
-              OutputNode = _bm->CreateOneConst(outputwidth);
+              // Return the top for a division be zero.
+              OutputNode = children[0];
               CONSTANTBV::BitVector_Destroy(remainder);
             }
           else
@@ -362,20 +401,25 @@ namespace BEEV
                   CONSTANTBV::BitVector_Negate(tmp0b, tmp0);
 
                   CONSTANTBV::ErrCode e = CONSTANTBV::BitVector_Div_Pos(quotient, tmp0b, tmp1, remainder);
-
                   assert(e == CONSTANTBV::ErrCode_Ok);
 
                   CBV remb = CONSTANTBV::BitVector_Create(inputwidth, true);
                   CONSTANTBV::BitVector_Negate(remb, remainder);
 
-                  bool carry = false;
-                  CBV res = CONSTANTBV::BitVector_Create(inputwidth, true);
-                  CONSTANTBV::BitVector_add(res, remb, tmp1, &carry);
+                  if (CONSTANTBV::BitVector_is_empty(remb))
+                  {
+					OutputNode = _bm->CreateZeroConst(outputwidth);
+                  }
+                  else
+                  {
+                	CBV res = CONSTANTBV::BitVector_Create(inputwidth, true);
+                	bool carry = false;
+                	CONSTANTBV::BitVector_add(res, remb, tmp1, &carry);
+					OutputNode = _bm->CreateBVConst(res, outputwidth);
+                  }
 
-                  OutputNode = _bm->CreateBVConst(res, outputwidth);
-
-                  CONSTANTBV::BitVector_Destroy(tmp0b);
                   CONSTANTBV::BitVector_Destroy(remb);
+                  CONSTANTBV::BitVector_Destroy(tmp0b);
                   CONSTANTBV::BitVector_Destroy(remainder);
                 }
               else if (!isNegativeS && isNegativeT)
@@ -388,11 +432,17 @@ namespace BEEV
 
                   assert(e == CONSTANTBV::ErrCode_Ok);
 
-                  bool carry = false;
-                  CBV res = CONSTANTBV::BitVector_Create(inputwidth, true);
-                  CONSTANTBV::BitVector_add(res, remainder, tmp1, &carry);
-
-                  OutputNode = _bm->CreateBVConst(res, outputwidth);
+                  if (CONSTANTBV::BitVector_is_empty(remainder))
+                  {
+					OutputNode = _bm->CreateZeroConst(outputwidth);
+				  }
+					else
+				  {
+					CBV res = CONSTANTBV::BitVector_Create(inputwidth, true);
+	                bool carry = false;
+					CONSTANTBV::BitVector_add(res, remainder, tmp1, &carry);
+					OutputNode = _bm->CreateBVConst(res, outputwidth);
+				  }
 
                   CONSTANTBV::BitVector_Destroy(tmp1b);
                   CONSTANTBV::BitVector_Destroy(remainder);
@@ -431,23 +481,30 @@ namespace BEEV
       case BVDIV:
       case BVMOD:
         {
-          CBV quotient = CONSTANTBV::BitVector_Create(inputwidth, true);
-          CBV remainder = CONSTANTBV::BitVector_Create(inputwidth, true);
+          assert(2==number_of_children);
 
           if (_bm->UserFlags.division_by_zero_returns_one_flag 
               && CONSTANTBV::BitVector_is_empty(tmp1))
             {
-              // Expecting a division by zero. Just return one.
-              OutputNode = _bm->CreateOneConst(outputwidth);
+              // a = bq + r, where b!=0 implies r < b. q is quotient, r remainder. i.e. a/b = q.
+              // It doesn't matter what q is when b=0, but r needs to be a.
+              if (k == BVMOD)
+                OutputNode = children[0];
+              else
+                OutputNode = _bm->CreateOneConst(outputwidth);
+                // Expecting a division by zero. Just return one.
+
             }
           else
             {
+              CBV quotient = CONSTANTBV::BitVector_Create(inputwidth, true);
+              CBV remainder = CONSTANTBV::BitVector_Create(inputwidth, true);
 
               // tmp0 is dividend, tmp1 is the divisor All parameters
               //to BitVector_Div_Pos must be distinct unlike
               //BitVector_Divide FIXME the contents of the second
               //parameter to Div_Pos is destroyed As tmp0 is currently
-              //the same as the copy belonging to an ASTNode t[0] this
+              //the same as the copy belonging to an ASTNode input_children[0] this
               //must be copied.
               tmp0 = CONSTANTBV::BitVector_Clone(tmp0);
               CONSTANTBV::ErrCode e = CONSTANTBV::BitVector_Div_Pos(quotient, tmp0, tmp1, remainder);
@@ -455,7 +512,9 @@ namespace BEEV
 
               if (0 != e)
                 {
-                  //error printing
+            	  CONSTANTBV::BitVector_Destroy(quotient);
+            	  CONSTANTBV::BitVector_Destroy(remainder);
+            	  //error printing
                   if (_bm->counterexample_checking_during_refinement)
                     {
                       output = CONSTANTBV::BitVector_Create(inputwidth, true);
@@ -467,7 +526,7 @@ namespace BEEV
                     }
                   else
                     {
-                      BVConstEvaluatorError(e, t);
+                      BVConstEvaluatorError(e);
                     }
                 } //end of error printing
 
@@ -487,24 +546,26 @@ namespace BEEV
         }
       case ITE:
         {
-          if (ASTTrue == t[0])
+          if (ASTTrue == input_children[0])
             OutputNode = children[1];
-          else if (ASTFalse == t[0])
+          else if (ASTFalse == input_children[0])
             OutputNode = children[2];
           else
             {
               cerr << tmp0;
-              FatalError("BVConstEvaluator: ITE condiional must be either TRUE or FALSE:", t);
+              FatalError("BVConstEvaluator: ITE condiional must be either TRUE or FALSE:");
             }
         }
         break;
       case EQ:
+        assert(2==number_of_children);
         if (CONSTANTBV::BitVector_equal(tmp0, tmp1))
           OutputNode = ASTTrue;
         else
           OutputNode = ASTFalse;
         break;
       case BVLT:
+        assert(2==number_of_children);
         if (-1 == CONSTANTBV::BitVector_Lexicompare(tmp0, tmp1))
           OutputNode = ASTTrue;
         else
@@ -512,6 +573,7 @@ namespace BEEV
         break;
       case BVLE:
         {
+          assert(2==number_of_children);
           int comp = CONSTANTBV::BitVector_Lexicompare(tmp0, tmp1);
           if (comp <= 0)
             OutputNode = ASTTrue;
@@ -520,6 +582,7 @@ namespace BEEV
           break;
         }
       case BVGT:
+        assert(2==number_of_children);
         if (1 == CONSTANTBV::BitVector_Lexicompare(tmp0, tmp1))
           OutputNode = ASTTrue;
         else
@@ -527,6 +590,7 @@ namespace BEEV
         break;
       case BVGE:
         {
+          assert(2==number_of_children);
           int comp = CONSTANTBV::BitVector_Lexicompare(tmp0, tmp1);
           if (comp >= 0)
             OutputNode = ASTTrue;
@@ -535,6 +599,7 @@ namespace BEEV
           break;
         }
       case BVSLT:
+        assert(2==number_of_children);
         if (-1 == CONSTANTBV::BitVector_Compare(tmp0, tmp1))
           OutputNode = ASTTrue;
         else
@@ -542,6 +607,7 @@ namespace BEEV
         break;
       case BVSLE:
         {
+          assert(2==number_of_children);
           signed int comp = CONSTANTBV::BitVector_Compare(tmp0, tmp1);
           if (comp <= 0)
             OutputNode = ASTTrue;
@@ -550,6 +616,7 @@ namespace BEEV
           break;
         }
       case BVSGT:
+        assert(2==number_of_children);
         if (1 == CONSTANTBV::BitVector_Compare(tmp0, tmp1))
           OutputNode = ASTTrue;
         else
@@ -557,6 +624,7 @@ namespace BEEV
         break;
       case BVSGE:
         {
+          assert(2==number_of_children);
           int comp = CONSTANTBV::BitVector_Compare(tmp0, tmp1);
           if (comp >= 0)
             OutputNode = ASTTrue;
@@ -572,15 +640,15 @@ namespace BEEV
     	  OutputNode = ASTFalse;
           break;
       case NOT:
-			  if (ASTTrue == t[0])
+			  if (ASTTrue == input_children[0])
 				  return ASTFalse;
-			  else if (ASTFalse == t[0])
+			  else if (ASTFalse == input_children[0])
 				  return ASTTrue;
 			  else
 				  {
 				  cerr << ASTFalse;
-				  cerr << t[0];
-				  FatalError("BVConstEvaluator: unexpected not input", t);
+				  cerr << input_children[0];
+				  FatalError("BVConstEvaluator: unexpected not input");
 				  }
 
       case OR:
@@ -659,7 +727,8 @@ namespace BEEV
 
       case IFF:
       {
-    	  const ASTNode&  t0 = children[0];
+        assert(2==number_of_children);
+        const ASTNode&  t0 = children[0];
     	  const ASTNode&  t1 = children[1];
              if ((ASTTrue == t0 && ASTTrue == t1) || (ASTFalse == t0 && ASTFalse == t1))
                OutputNode = ASTTrue;
@@ -670,7 +739,8 @@ namespace BEEV
 
       case IMPLIES:
       {
-		const ASTNode& t0 = children[0];
+        assert(2==number_of_children);
+        const ASTNode& t0 = children[0];
 		const ASTNode& t1 = children[1];
 		if ((ASTFalse == t0) || (ASTTrue == t0 && ASTTrue == t1))
 			OutputNode = ASTTrue;
@@ -680,7 +750,7 @@ namespace BEEV
 	}
         
       default:
-        FatalError("BVConstEvaluator: The input kind is not supported yet:", t);
+        FatalError("BVConstEvaluator: The input kind is not supported yet:");
         break;
       }
     /*
@@ -697,6 +767,16 @@ namespace BEEV
     //UpdateSimplifyMap(t,OutputNode,false);
     return OutputNode;
   } //End of BVConstEvaluator
+
+  // Const evaluator logical and arithmetic operations.
+    ASTNode NonMemberBVConstEvaluator(const ASTNode& t)
+    {
+        if (t.isConstant())
+    	 	return t;
+
+    	return NonMemberBVConstEvaluator(t.GetSTPMgr(), t.GetKind(), t.GetChildren(),  t.GetValueWidth());
+    }
+
 
   ASTNode Simplifier::BVConstEvaluator(const ASTNode& t)
   {

@@ -2,8 +2,9 @@
 # either leak, or use of unitialised values.
 TOP = ../..
 include $(TOP)/scripts/Makefile.common
-CXXFLAGS= -DEXT_HASH_MAP $(CFLAGS) -I../../src/c_interface -L../../lib 
-LIBS= -lstp 
+CXXFLAGS= -DEXT_HASH_MAP $(CFLAGS) -I../../src/c_interface
+LDFLAGS=-L../../lib
+LIBS=$(LDFLAGS) -lstp 
 
 VALGRINDPATH=`which valgrind`
 ifeq   "$(VALGRINDPATH)" ""
@@ -13,7 +14,7 @@ else
 endif
 
 
-all: 0 1 2 3 4 5 6 7 8 9 10 11 11 12 13 14 15 16 17 18 19 20 21 22
+all: 0 1 2 3 4 5 6 7 8 9 10 11 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28
 	rm -rf *.out
 
 0:	
@@ -42,7 +43,7 @@ all: 0 1 2 3 4 5 6 7 8 9 10 11 11 12 13 14 15 16 17 18 19 20 21 22
 	g++  $(CXXFLAGS) push-pop-1.c  -o a7.out $(LIBS)
 	./a7.out
 8:
-	g++  $(CXXFLAGS)  sbvmod.c  -o a8.out $(LIBS)
+	g++  $(CXXFLAGS)  sbvdiv.c  -o a8.out $(LIBS)
 	./a8.out
 9:
 	g++  $(CXXFLAGS)  simplify.c -o a9.out $(LIBS) 
@@ -70,7 +71,7 @@ all: 0 1 2 3 4 5 6 7 8 9 10 11 11 12 13 14 15 16 17 18 19 20 21 22
 	./a16.out
 17:
 	g++  $(CXXFLAGS)  push-pop.c -o a17.out $(LIBS)
-	./a17.out
+	$(VALGRIND) ./a17.out
 18:
 	g++  $(CXXFLAGS)  cvc-to-c.cpp  -o a18.out $(LIBS)
 	#./a18.out ./t.cvc
@@ -90,5 +91,37 @@ all: 0 1 2 3 4 5 6 7 8 9 10 11 11 12 13 14 15 16 17 18 19 20 21 22
 	g++ $(CXXFLAGS) parsestring-using-cinterface.c -o a22.out $(LIBS)
 	./a22.out
 
+# Test 23 is the same as test 0, except linked in a different order.
+# This is meant to catch problems in which libstp.a contains a
+# main() function or has extra dependencies.
+23:
+	g++ $(CXXFLAGS) -o a23.out \
+         ../../lib/libstp.a array-cvcl-02.c ../../lib/libstp.a
+	./a23.out
+
+24:
+	g++ $(CXXFLAGS) -o a24.out \
+         ../../lib/libstp.a if-check.c ../../lib/libstp.a
+	./a24.out
+
+25:
+	g++ $(CXXFLAGS) -o a25.out \
+         ../../lib/libstp.a stp-bool.c ../../lib/libstp.a
+	./a25.out
+
+26:
+	g++ $(CXXFLAGS) -o a26.out \
+         ../../lib/libstp.a stp-test3.c ../../lib/libstp.a
+	./a26.out
+
+27:
+	g++ $(CXXFLAGS) -o a27.out \
+         ../../lib/libstp.a stp-array-model.c ../../lib/libstp.a
+	./a27.out
+
+28:
+	g++ $(CXXFLAGS) push-no-pop.c -o a28.out $(LIBS)
+	$(VALGRIND) ./a28.out
+
 clean:
-	rm -rf *~ *.out
+	rm -rf *~ *.out *.dSYM

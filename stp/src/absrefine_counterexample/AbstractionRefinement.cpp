@@ -1,6 +1,6 @@
 // -*- c++ -*-
 /********************************************************************
- * AUTHORS: Vijay Ganesh
+ * AUTHORS: Vijay Ganesh, Trevor Hansen
  *
  * BEGIN DATE: November, 2005
  *
@@ -18,7 +18,148 @@ namespace BEEV
   /******************************************************************
    * Abstraction Refinement related functions
    ******************************************************************/  
-  
+
+    enum Polarity
+    {
+        LEFT_ONLY, RIGHT_ONLY, BOTH
+    };
+
+    void
+    getSatVariables(const ASTNode & a, vector<unsigned> & v_a, SATSolver & SatSolver,
+            ToSATBase::ASTNodeToSATVar & satVar)
+    {
+        ToSATBase::ASTNodeToSATVar::iterator it = satVar.find(a);
+        if (it != satVar.end())
+            v_a = it->second;
+        else if (!a.isConstant())
+            {
+                assert(a.GetKind() == SYMBOL);
+                // It was ommitted from the initial problem, so assign it freshly.
+                for (int i = 0; i < a.GetValueWidth(); i++)
+                    {
+                        SATSolver::Var v = SatSolver.newVar();
+                        // We probably don't want the variable eliminated.
+                        SatSolver.setFrozen(v);
+                        v_a.push_back(v);
+                    }
+                satVar.insert(make_pair(a, v_a));
+            }
+    }
+
+
+    // This function adds the clauses to constrain that "a" and "b" equal a fresh variable
+    // (which it returns).
+    // Because it's used to create array axionms (a=b)-> (c=d), it can be
+    // used to only add one of the two polarities.
+    Minisat::Var
+    getEquals(SATSolver& SatSolver, const ASTNode& a, const ASTNode& b, ToSATBase::ASTNodeToSATVar& satVar,
+            Polarity polary = BOTH)
+    {
+        const int width = a.GetValueWidth();
+        assert(width == b.GetValueWidth());
+        assert(!a.isConstant() || !b.isConstant());
+
+        vector<unsigned> v_a;
+        vector<unsigned> v_b;
+
+        getSatVariables(a, v_a, SatSolver, satVar);
+        getSatVariables(b, v_b, SatSolver, satVar);
+
+        // The only time v_a or v_b will be empty is if "a" resp. "b" is a constant.
+
+        if (v_a.size() == width && v_b.size() == width)
+            {
+                SATSolver::vec_literals all;
+                const int result = SatSolver.newVar();
+
+                for (int i = 0; i < width; i++)
+                    {
+                        SATSolver::vec_literals s;
+
+                        if (polary != RIGHT_ONLY)
+                            {
+                                int nv0 = SatSolver.newVar();
+                                s.push(SATSolver::mkLit(v_a[i], true));
+                                s.push(SATSolver::mkLit(v_b[i], true));
+                                s.push(SATSolver::mkLit(nv0, false));
+                                SatSolver.addClause(s);
+                                s.clear();
+
+                                s.push(SATSolver::mkLit(v_a[i], false));
+                                s.push(SATSolver::mkLit(v_b[i], false));
+                                s.push(SATSolver::mkLit(nv0, false));
+                                SatSolver.addClause(s);
+                                s.clear();
+
+                                all.push(SATSolver::mkLit(nv0, true));
+                            }
+
+                        if (polary != LEFT_ONLY)
+                            {
+                                s.push(SATSolver::mkLit(v_a[i], true));
+                                s.push(SATSolver::mkLit(v_b[i], false));
+                                s.push(SATSolver::mkLit(result, true));
+                                SatSolver.addClause(s);
+                                s.clear();
+
+                                s.push(SATSolver::mkLit(v_a[i], false));
+                                s.push(SATSolver::mkLit(v_b[i], true));
+                                s.push(SATSolver::mkLit(result, true));
+                                SatSolver.addClause(s);
+                                s.clear();
+                            }
+                    }
+                if (all.size() > 0)
+                {
+                        all.push(SATSolver::mkLit(result, false));
+                        SatSolver.addClause(all);
+                }
+                return result;
+            }
+        else if (v_a.size() == 0 ^ v_b.size() == 0)
+            {
+                ASTNode constant = a.isConstant() ? a : b;
+                vector<unsigned> vec = v_a.size() == 0 ? v_b : v_a;
+                assert(constant.isConstant());
+                assert(vec.size() == width);
+
+                SATSolver::vec_literals all;
+                const int result = SatSolver.newVar();
+                all.push(SATSolver::mkLit(result, false));
+
+                CBV v = constant.GetBVConst();
+                for (int i = 0; i < width; i++)
+                    {
+                        if (polary != RIGHT_ONLY)
+                            {
+                                if (CONSTANTBV::BitVector_bit_test(v, i))
+                                    all.push(SATSolver::mkLit(vec[i], true));
+                                else
+                                    all.push(SATSolver::mkLit(vec[i], false));
+                            }
+
+                        if (polary != LEFT_ONLY)
+                            {
+                                SATSolver::vec_literals p;
+                                p.push(SATSolver::mkLit(result, true));
+                                if (CONSTANTBV::BitVector_bit_test(v, i))
+                                    p.push(SATSolver::mkLit(vec[i], false));
+                                else
+                                    p.push(SATSolver::mkLit(vec[i], true));
+
+                                SatSolver.addClause(p);
+                            }
+
+                    }
+                if (all.size() > 1)
+                    SatSolver.addClause(all);
+                return result;
+            }
+        else
+            FatalError("Unexpected, both must be constants..");
+    }
+
+
   /******************************************************************
    * ARRAY READ ABSTRACTION REFINEMENT
    *   
@@ -38,143 +179,247 @@ namespace BEEV
    * it compares with other approaches (e.g., one false axiom at a
    * time or all the false axioms each time).
    *****************************************************************/
-  SOLVER_RETURN_TYPE 
-  AbsRefine_CounterExample::
-  SATBased_ArrayReadRefinement(MINISAT::Solver& SatSolver, 
-                               const ASTNode& inputAlreadyInSAT, 
-                               const ASTNode& original_input,
-                               ToSATBase* tosat) {
-    //printf("doing array read refinement\n");
-    // if (!bm->UserFlags.arrayread_refinement_flag)
-    //       {
-    //         FatalError("SATBased_ArrayReadRefinement: "	\
-    //                    "Control should not reach here");
-    //       }
-    ASTVec FalseAxiomsVec, RemainingAxiomsVec;
-    RemainingAxiomsVec.push_back(ASTTrue);
-    FalseAxiomsVec.push_back(ASTTrue);
-    unsigned int oldFalseAxiomsSize = 0;
+  struct AxiomToBe
+    {
+        AxiomToBe(ASTNode i0, ASTNode i1, ASTNode v0, ASTNode v1)
+        {
+            index0 = i0;
+            index1 = i1;
+            value0 = v0;
+            value1 = v1;
+        }
+        ASTNode index0, index1;
+        ASTNode value0, value1;
 
-    //in these loops we try to construct Leibnitz axioms and add it to
-    //the solve(). We add only those axioms that are false in the
-    //current counterexample. we keep adding the axioms until there
-    //are no more axioms to add
-    //
-    //for each array, fetch its list of indices seen so far
-    for (ASTNodeToVecMap::const_iterator 
-           iset = ArrayTransform->ArrayName_ReadIndicesMap()->begin(),
-           iset_end = ArrayTransform->ArrayName_ReadIndicesMap()->end(); 
-         iset != iset_end; iset++)
-      {
-        ASTVec listOfIndices = iset->second;
-        //loop over the list of indices for the array and create LA,
-        //and add to inputAlreadyInSAT
-        for (ASTVec::iterator it = listOfIndices.begin(),
-               itend = listOfIndices.end(); it != itend; it++)
-          {
-            if (BVCONST == it->GetKind())
-              {
-                continue;
-              }
+        int
+        numberOfConstants() const
+        {
+            return ((index0.isConstant() ? 1 : 0) + (index1.isConstant() ? 1 : 0) + (index0.isConstant() ? 1 : 0)
+                    + (index1.isConstant() ? 1 : 0));
+        }
 
-            ASTNode the_index = *it;
-            //get the arrayname
-            ASTNode ArrName = iset->first;
-            // if(SYMBOL != ArrName.GetKind())
-            //        FatalError("SATBased_ArrayReadRefinement: "\
-            // "arrname is not a SYMBOL",ArrName);
-            ASTNode arr_read1 = 
-              bm->CreateTerm(READ, ArrName.GetValueWidth(), ArrName, the_index);
-            //get the variable corresponding to the array_read1
-            //ASTNode arrsym1 = _arrayread_symbol[arr_read1];
-            ASTNode arrsym1 = ArrayTransform->ArrayRead_SymbolMap(arr_read1);
-            if (!(SYMBOL == arrsym1.GetKind() || BVCONST == arrsym1.GetKind()))
-              FatalError("TopLevelSAT: refinementloop:"
-                         "term arrsym1 corresponding to READ must be a var", 
-                         arrsym1);
+    };
 
-            //we have nonconst index here. create Leibnitz axiom for it
-            //w.r.t every index in listOfIndices
-            for (ASTVec::iterator it1 = listOfIndices.begin(), 
-                   itend1 = listOfIndices.end(); it1 != itend1; it1++)
-              {
-                ASTNode compare_index = *it1;
-                //do not compare with yourself
-                if (the_index == compare_index)
-                  continue;
+  void
+    applyAxiomToSAT(SATSolver & SatSolver, AxiomToBe& toBe, ToSATBase::ASTNodeToSATVar & satVar)
+    {
+        Minisat::Var a = getEquals(SatSolver, toBe.index0, toBe.index1, satVar, LEFT_ONLY);
+        Minisat::Var b = getEquals(SatSolver, toBe.value0, toBe.value1, satVar, RIGHT_ONLY);
+        SATSolver::vec_literals satSolverClause;
+        satSolverClause.push(SATSolver::mkLit(a, true));
+        satSolverClause.push(SATSolver::mkLit(b, false));
+        SatSolver.addClause(satSolverClause);
+    }
 
-                //prepare for SAT LOOP
-                //first construct the antecedent for the LA axiom
-                ASTNode eqOfIndices = 
-                  (exprless(the_index, compare_index)) ? 
-                  simp->CreateSimplifiedEQ(the_index, compare_index) : 
-                  simp->CreateSimplifiedEQ(compare_index, the_index);
+    void
+    applyAxiomsToSolver(ToSATBase::ASTNodeToSATVar & satVar, vector<AxiomToBe> & toBe, SATSolver & SatSolver)
+    {
+        for (int i = 0; i < toBe.size(); i++)
+            {
+                applyAxiomToSAT(SatSolver, toBe[i], satVar);
+            }
+        toBe.clear();
+    }
 
-                ASTNode arr_read2 = 
-                  bm->CreateTerm(READ, ArrName.GetValueWidth(),
-                                 ArrName, compare_index);
-                //get the variable corresponding to the array_read2
-                //ASTNode arrsym2 = _arrayread_symbol[arr_read2];
-                ASTNode arrsym2 = 
-                  ArrayTransform->ArrayRead_SymbolMap(arr_read2);
-                if (!(SYMBOL == arrsym2.GetKind() 
-                      || BVCONST == arrsym2.GetKind()))
-                  {
-                    FatalError("TopLevelSAT: refinement loop:"
-                               "term arrsym2 corresponding to "\
-                               "READ must be a var", arrsym2);
-                  }
+    bool
+    sortBySize(const pair<ASTNode, ArrayTransformer::arrTypeMap>& a,
+            const pair<ASTNode, ArrayTransformer::arrTypeMap>& b)
+    {
+        return a.second.size() < b.second.size();
+    }
 
-                ASTNode eqOfReads = simp->CreateSimplifiedEQ(arrsym1, arrsym2);
-                //construct appropriate Leibnitz axiom
-                ASTNode LeibnitzAxiom = 
-                  bm->CreateNode(IMPLIES, eqOfIndices, eqOfReads);
-                if (ASTFalse == ComputeFormulaUsingModel(LeibnitzAxiom))
-                  {
-                    //FalseAxioms =
-                    //bm->CreateNode(AND,FalseAxioms,LeibnitzAxiom);
-                    FalseAxiomsVec.push_back(LeibnitzAxiom);
-                  }
-                else
-                  {
-                    //RemainingAxioms =
-                    //bm->CreateNode(AND,RemainingAxioms,LeibnitzAxiom);
-                    RemainingAxiomsVec.push_back(LeibnitzAxiom);
-                  }
-              }
-            ASTNode FalseAxioms = 
-              (FalseAxiomsVec.size() > 1) ? 
-              bm->CreateNode(AND, FalseAxiomsVec) : FalseAxiomsVec[0];
-            bm->ASTNodeStats("adding false readaxioms to SAT: ", FalseAxioms);
-            //printf("spot 01\n");
-            SOLVER_RETURN_TYPE res2 = SOLVER_UNDECIDED;
-            //if (FalseAxiomsVec.size() > 0)
-            if (FalseAxiomsVec.size() > oldFalseAxiomsSize)
-              {
-                res2 = 
-                  CallSAT_ResultCheck(SatSolver, 
-                                      FalseAxioms, 
-                                      original_input,
-                                      tosat);
-                oldFalseAxiomsSize = FalseAxiomsVec.size();
-              }
-            //printf("spot 02, res2 = %d\n", res2);
-            if (SOLVER_UNDECIDED != res2)
-              {
-                return res2;
-              }
-          }
-      }
-    ASTNode RemainingAxioms = 
-      (RemainingAxiomsVec.size() > 1) ? 
-      bm->CreateNode(AND, RemainingAxiomsVec) : RemainingAxiomsVec[0];
-    bm->ASTNodeStats("adding remaining readaxioms to SAT: ", RemainingAxioms);
-    return CallSAT_ResultCheck(SatSolver, 
-                               RemainingAxioms, 
-                               original_input,
-                               tosat);
-  } //end of SATBased_ArrayReadRefinement
+    bool
+    sortByIndexConstants(const pair<ASTNode, ArrayTransformer::ArrayRead> & a,
+            const pair<ASTNode, ArrayTransformer::ArrayRead> & b)
+    {
+        int aCount = ((a.second.index_symbol.isConstant()) ? 2 : 0) + (a.second.symbol.isConstant() ? 1 : 0);
+        int bCount = ((b.second.index_symbol.isConstant()) ? 2 : 0) + (b.second.symbol.isConstant() ? 1 : 0);
+        return aCount > bCount;
+    }
 
+    bool
+    sortbyConstants(const AxiomToBe & a, const AxiomToBe & b)
+    {
+        return a.numberOfConstants() > b.numberOfConstants();
+    }
+
+    SOLVER_RETURN_TYPE
+    AbsRefine_CounterExample::SATBased_ArrayReadRefinement(SATSolver & SatSolver, const ASTNode & inputAlreadyInSAT,
+            const ASTNode & original_input, ToSATBase *tosat)
+    {
+        vector<AxiomToBe> RemainingAxiomsVec;
+        vector<AxiomToBe> FalseAxiomsVec;
+        // NB. Because we stop this timer before entering the SAT solver, the count
+        // it produces isn't the number of times Array Read Refinement was entered.
+        bm->GetRunTimes()->start(RunTimes::ArrayReadRefinement);
+        /// Check the arrays with the least indexes first.
+
+
+        vector<pair<ASTNode, ArrayTransformer::arrTypeMap> > arrayToIndex;
+        arrayToIndex.insert(arrayToIndex.begin(), ArrayTransform->arrayToIndexToRead.begin(),
+                ArrayTransform->arrayToIndexToRead.end());
+        sort(arrayToIndex.begin(), arrayToIndex.end(), sortBySize);
+
+        //In these loops we try to construct Leibnitz axioms and add it to
+        //the solve(). We add only those axioms that are false in the
+        //current counterexample. we keep adding the axioms until there
+        //are no more axioms to add
+        //
+        //for each array, fetch its list of indices seen so far
+        for (vector<pair<ASTNode, ArrayTransformer::arrTypeMap> >::const_iterator iset = arrayToIndex.begin(),
+                iset_end = arrayToIndex.end(); iset != iset_end; iset++)
+            {
+                const ASTNode& ArrName = iset->first;
+                const map<ASTNode, ArrayTransformer::ArrayRead>& mapper = iset->second;
+
+                vector<ASTNode> listOfIndices;
+                listOfIndices.reserve(mapper.size());
+
+                // Make a vector of the read symbols.
+                ASTVec read_node_symbols;
+                read_node_symbols.reserve(listOfIndices.size());
+
+                vector<Kind> jKind;
+                jKind.reserve(mapper.size());
+
+                vector<ASTNode> concreteIndexes;
+                concreteIndexes.reserve(mapper.size());
+
+                vector<ASTNode> concreteValues;
+                concreteValues.reserve(mapper.size());
+
+                ASTVec index_symbols;
+
+                vector<pair<ASTNode, ArrayTransformer::ArrayRead> > indexToRead;
+                indexToRead.insert(indexToRead.begin(), mapper.begin(), mapper.end());
+                sort(indexToRead.begin(), indexToRead.end(), sortByIndexConstants);
+
+                for (vector<pair<ASTNode, ArrayTransformer::ArrayRead> >::const_iterator it = indexToRead.begin(); it
+                        != indexToRead.end(); it++)
+                    {
+                        const ASTNode& the_index = it->first;
+                        listOfIndices.push_back(the_index);
+
+                        ASTNode arrsym = it->second.symbol;
+                        read_node_symbols.push_back(arrsym);
+
+                        index_symbols.push_back(it->second.index_symbol);
+
+                        assert(read_node_symbols[0].GetValueWidth() == arrsym.GetValueWidth());
+                        assert(listOfIndices[0].GetValueWidth() == the_index.GetValueWidth());
+
+                        jKind.push_back(the_index.GetKind());
+
+                        concreteIndexes.push_back(TermToConstTermUsingModel(the_index));
+                        concreteValues.push_back(TermToConstTermUsingModel(arrsym));
+                    }
+
+                assert(listOfIndices.size() == mapper.size());
+
+                //loop over the list of indices for the array and create LA,
+                //and add to inputAlreadyInSAT
+                for (int i = 0; i < listOfIndices.size(); i++)
+                    {
+                        const ASTNode& index_i = listOfIndices[i];
+                        const Kind iKind = index_i.GetKind();
+
+                        // Create all distinct pairs of indexes.
+                        for (int j = i + 1; j < listOfIndices.size(); j++)
+                            {
+                                const ASTNode& index_j = listOfIndices[j];
+
+                                // If the index is a constant, and different, then there's no reason to check.
+                                // Sometimes we get the same index stored multiple times in the array. Not sure why...
+                                if (BVCONST == iKind && jKind[j] == BVCONST && index_i != index_j)
+                                    continue;
+
+                                if (ASTFalse == simp->CreateSimplifiedEQ(index_i, index_j))
+                                    continue; // shortcut.
+
+                                AxiomToBe o(index_symbols[i], index_symbols[j], read_node_symbols[i],
+                                        read_node_symbols[j]);
+
+                                if (concreteIndexes[i] == concreteIndexes[j] && concreteValues[i] != concreteValues[j])
+                                    {
+                                        FalseAxiomsVec.push_back(o);
+                                        //ToSATBase::ASTNodeToSATVar	& satVar = tosat->SATVar_to_SymbolIndexMap();
+                                        //applyAxiomsToSolver(satVar, FalseAxiomsVec, SatSolver);
+                                    }
+                                else
+                                    RemainingAxiomsVec.push_back(o);
+                            }
+                        if (FalseAxiomsVec.size() > 0)
+                            {
+                                ToSATBase::ASTNodeToSATVar & satVar = tosat->SATVar_to_SymbolIndexMap();
+                                applyAxiomsToSolver(satVar, FalseAxiomsVec, SatSolver);
+
+                                SOLVER_RETURN_TYPE res2;
+                                bm->GetRunTimes()->stop(RunTimes::ArrayReadRefinement);
+                                res2 = CallSAT_ResultCheck(SatSolver, ASTTrue, original_input, tosat, true);
+
+                                if (SOLVER_UNDECIDED != res2)
+                                    return res2;
+                                bm->GetRunTimes()->start(RunTimes::ArrayReadRefinement);
+                            }
+                    }
+            }
+#if 1
+        if (RemainingAxiomsVec.size() > 0)
+            {
+                if (bm->UserFlags.stats_flag)
+                {
+                        cout << "Adding all the remaining " << RemainingAxiomsVec.size() << " read axioms " << endl;
+                }
+                ToSATBase::ASTNodeToSATVar & satVar = tosat->SATVar_to_SymbolIndexMap();
+                applyAxiomsToSolver(satVar, RemainingAxiomsVec, SatSolver);
+
+                bm->GetRunTimes()->stop(RunTimes::ArrayReadRefinement);
+                return CallSAT_ResultCheck(SatSolver, ASTTrue, original_input, tosat, true);
+            }
+       // For difficult problems, I suspec this is a better way to do it.
+       // However because it can cause an extra three SAT solver calls, it slows down
+       // easy problems.
+#else
+        if(RemainingAxiomsVec.size() > 0)
+            {
+                // Add the axioms in order of how many constants there are in each.
+
+                ToSATBase::ASTNodeToSATVar & satVar = tosat->SATVar_to_SymbolIndexMap();
+                sort(RemainingAxiomsVec.begin(), RemainingAxiomsVec.end(), sortbyConstants);
+                int current_position = 0;
+                for(int n_const = 4;n_const >= 0;n_const--)
+                    {
+                        bool added =false;
+                        while(current_position < RemainingAxiomsVec.size() && RemainingAxiomsVec[current_position].numberOfConstants() == n_const)
+                            {
+                                AxiomToBe & toBe = RemainingAxiomsVec[current_position];
+                                applyAxiomToSAT(SatSolver, toBe,satVar);
+                                current_position++;
+                                added = true;
+                            }
+                        if (!added)
+                            continue;
+                        bm->GetRunTimes()->stop(RunTimes::ArrayReadRefinement);
+                        SOLVER_RETURN_TYPE res2;
+                        res2 = CallSAT_ResultCheck(SatSolver, ASTTrue, original_input, tosat, true);
+                        if(SOLVER_UNDECIDED != res2)
+                        return res2;
+
+                        bm->GetRunTimes()->start(RunTimes::ArrayReadRefinement);
+                    }
+                assert(current_position == RemainingAxiomsVec.size());
+                RemainingAxiomsVec.clear();
+                assert(SOLVER_UNDECIDED == CallSAT_ResultCheck(SatSolver, ASTTrue, original_input, tosat, true));
+            }
+#endif
+
+        bm->GetRunTimes()->stop(RunTimes::ArrayReadRefinement);
+        return SOLVER_UNDECIDED;
+    } //end of SATBased_ArrayReadRefinement
+
+
+#if 0
+    // This isn't currently wired up.
 
   /******************************************************************
    * ARRAY WRITE ABSTRACTION REFINEMENT
@@ -183,7 +428,7 @@ namespace BEEV
    *****************************************************************/
   SOLVER_RETURN_TYPE 
   AbsRefine_CounterExample::
-  SATBased_ArrayWriteRefinement(MINISAT::Solver& SatSolver, 
+  SATBased_ArrayWriteRefinement(SATSolver& SatSolver,
                                 const ASTNode& original_input,
                                 ToSATBase *tosat
                               )
@@ -191,12 +436,8 @@ namespace BEEV
     ASTNode writeAxiom;
     ASTNodeMap::const_iterator it = simp->ReadOverWriteMap()->begin();
     ASTNodeMap::const_iterator itend = simp->ReadOverWriteMap()->end();
-    unsigned int oldFalseAxiomsSize = 0;
-    //int count = 0;
-    //int num_write_axioms = ReadOverWrite_NewName_Map.size();
 
     ASTVec FalseAxioms, RemainingAxioms;
-    FalseAxioms.push_back(ASTTrue);
     RemainingAxioms.push_back(ASTTrue);
     for (; it != itend; it++)
       {
@@ -215,38 +456,32 @@ namespace BEEV
           }
       }
 
-    writeAxiom = 
-      (FalseAxioms.size() != 1) ? 
-      bm->CreateNode(AND, FalseAxioms) : FalseAxioms[0];
-    bm->ASTNodeStats("adding false writeaxiom to SAT: ", writeAxiom);
     SOLVER_RETURN_TYPE res2 = SOLVER_UNDECIDED;
-    if (FalseAxioms.size() > oldFalseAxiomsSize)
-      {
-        res2 = CallSAT_ResultCheck(SatSolver, 
-                                   writeAxiom, 
-                                   original_input,
-                                   tosat);
-        oldFalseAxiomsSize = FalseAxioms.size();
-      }
+    if (FalseAxioms.size() > 0)
+    {
+		writeAxiom = (FalseAxioms.size() != 1) ? bm->CreateNode(AND,
+				FalseAxioms) : FalseAxioms[0];
+		bm->ASTNodeStats("adding false writeaxiom to SAT: ", writeAxiom);
+		res2 = CallSAT_ResultCheck(SatSolver, writeAxiom, original_input, tosat,true);
+	}
+
     if (SOLVER_UNDECIDED != res2)
       {
         return res2;
       }
 
-    writeAxiom = 
-      (RemainingAxioms.size() != 1) ? 
-      bm->CreateNode(AND, RemainingAxioms) : RemainingAxioms[0];
-    bm->ASTNodeStats("adding remaining writeaxiom to SAT: ", writeAxiom);
-    res2 = CallSAT_ResultCheck(SatSolver, 
-                               writeAxiom, 
-                               original_input,
-                               tosat);
-    if (SOLVER_UNDECIDED != res2)
-      {
-        return res2;
-      }
-
-    return SOLVER_UNDECIDED;
+    if (RemainingAxioms.size() > 0)
+    {
+		writeAxiom =
+		  (RemainingAxioms.size() != 1) ?
+		  bm->CreateNode(AND, RemainingAxioms) : RemainingAxioms[0];
+		bm->ASTNodeStats("adding remaining writeaxiom to SAT: ", writeAxiom);
+		res2 = CallSAT_ResultCheck(SatSolver,
+								   writeAxiom,
+								   original_input,
+								   tosat, true);
+    }
+    return res2;
   } //end of SATBased_ArrayWriteRefinement
   
   //Creates Array Write Axioms
@@ -265,417 +500,5 @@ namespace BEEV
     ASTNode arraywrite_axiom = simp->CreateSimplifiedEQ(lhs, rhs);
     return arraywrite_axiom;
   }//end of Create_ArrayWriteAxioms()
-
-  //   static void ReplaceOrAddToMap(ASTNodeMap * VarToConstMap, 
-  //                            const ASTNode& key, const ASTNode& value)
-  //   {
-  //     ASTNodeMap::iterator it = VarToConstMap->find(key);
-  //     if(it != VarToConstMap->end())
-  //       {
-  //    VarToConstMap->erase(it);       
-  //       }
-
-  //     (*VarToConstMap)[key] = value;
-  //     return;   
-  //   }
-
-
-  //   /******************************************************************
-  //    * FINITE FORLOOP ABSTRACTION REFINEMENT
-  //    *
-  //    * For each 'finiteloop' in the list 'GlobalList_Of_FiniteLoops'
-  //    *
-  //    * Expand_FiniteLoop(finiteloop);
-  //    *
-  //    * The 'Expand_FiniteLoop' function expands the 'finiteloop' in a
-  //    * counterexample-guided refinement fashion
-  //    *
-  //    * Once all the finiteloops have been expanded, we need to go back
-  //    * and recheck that every discarded constraint is true with the
-  //    * final model. A flag 'done' is set to false if atleast one
-  //    * constraint is false during model-check, and is set to true if all
-  //    * constraints are true during model-check.
-  //    *
-  //    * if the 'done' flag is true, then we terminate this refinement
-  //    * loop.  
-  //    *****************************************************************/
-  //   SOLVER_RETURN_TYPE 
-  //   AbsRefine_CounterExample::
-  //   SATBased_AllFiniteLoops_Refinement(MINISAT::Solver& SatSolver, 
-  //                                          const ASTNode& original_input)
-  //   {
-  //     cout << "The number of abs-refinement limit is " 
-  //          << num_absrefine << endl;
-  //     for(int absrefine_count=0;
-  //         absrefine_count < num_absrefine; absrefine_count++) 
-  //       {
-  //    ASTVec Allretvec0;
-  //    Allretvec0.push_back(ASTTrue);
-  //    SOLVER_RETURN_TYPE res = SOLVER_UNDECIDED;      
-  //    for(ASTVec::iterator i = GlobalList_Of_FiniteLoops.begin(),
-  //          iend=GlobalList_Of_FiniteLoops.end(); i!=iend; i++)
-  //      {
-  //        ASTVec retvec;
-  //        ASTNodeMap ParamToCurrentValMap;
-  //        retvec =  SATBased_FiniteLoop_Refinement(SatSolver,
-  //                                                 original_input,
-  //                                                 *i,
-  //                                                 &ParamToCurrentValMap,
-  //                                                 true); //absrefine flag
-
-  //        for(ASTVec::iterator j=retvec.begin(),jend=retvec.end();
-  //            j!=jend;j++) 
-  //          {
-  //            Allretvec0.push_back(*j);
-  //          }
-  //        //Allretvec0.(Allretvec0.end(),retvec.begin(),retvec.end());
-  //      } //End of For
-          
-  //    ASTNode retformula = 
-  //      (Allretvec0.size() == 1) ?
-  //      Allretvec0[0] : bm->CreateNode(AND,Allretvec0);
-  //    retformula = TransformFormula_TopLevel(retformula);
-        
-  //    //Add the return value of all loops to the SAT Solver
-  //    res = 
-  //      CallSAT_ResultCheck(SatSolver, retformula, original_input);
-  //    if(SOLVER_UNDECIDED != res) 
-  //      {
-  //        return res;
-  //      }     
-  //       } //end of absrefine count
-    
-  //     ASTVec Allretvec1;
-  //     Allretvec1.push_back(ASTTrue);
-  //     SOLVER_RETURN_TYPE res = SOLVER_UNDECIDED;     
-  //     for(ASTVec::iterator i = GlobalList_Of_FiniteLoops.begin(),
-  //      iend=GlobalList_Of_FiniteLoops.end(); i!=iend; i++)
-  //     {
-  //       //cout << "The abs-refine didn't finish the job. "\
-  //                 "Add the remaining formulas\n";
-  //       ASTNodeMap ParamToCurrentValMap;
-  //       ASTVec retvec;
-  //       retvec =  SATBased_FiniteLoop_Refinement(SatSolver,
-  //                                           original_input,
-  //                                           *i,
-  //                                           &ParamToCurrentValMap,
-  //                                           false); //absrefine flag
-  //       for(ASTVec::iterator j=retvec.begin(),jend=retvec.end();j!=jend;j++) 
-  //    {
-  //      Allretvec1.push_back(*j);
-  //    }
-  //     } //End of For    
-        
-  //     ASTNode retformula = 
-  //       (Allretvec1.size() == 1) ?
-  //       Allretvec1[0] : bm->CreateNode(AND,Allretvec1);
-  //     retformula = TransformFormula_TopLevel(retformula);
-  //     //Add the return value of all loops to the SAT Solver
-  //     res = CallSAT_ResultCheck(SatSolver, retformula, original_input);
-  //     return res;
-  //   } //end of SATBased_AllFiniteLoops_Refinement()
-  
-  
-  //   /*****************************************************************
-  //    * SATBased_FiniteLoop_Refinement
-  //    *
-  //    * 'finiteloop' is the finite loop to be expanded
-  //    * Every finiteloop has three parts:
-  //    * 0) Parameter Name
-  //    * 1) Parameter initialization
-  //    * 2) Parameter limit value
-  //    * 3) Increment formula
-  //    * 4) Formula Body
-  //    *
-  //    * ParamToCurrentValMap contains a map from parameters to their
-  //    * current values in the recursion
-  //    *   
-  //    * Nested FORs are allowed, but only the innermost loop can have a
-  //    * formula in it
-  //    *****************************************************************/
-  //   //SATBased_FiniteLoop_Refinement
-  //   //
-  //   //Expand the finite loop, check against model, and add false
-  //   //formulas to the SAT solver
-  //   ASTVec
-  //   AbsRefine_CounterExample::
-  //   SATBased_FiniteLoop_Refinement(MINISAT::Solver& SatSolver, 
-  //                                      const ASTNode& original_input,
-  //                                      const ASTNode& finiteloop,
-  //                                      ASTNodeMap* ParamToCurrentValMap,
-  //                                      bool absrefine_flag)
-  //   {     
-  //     //BVTypeCheck should have already checked the sanity of the input
-  //     //FOR-formula
-  //     ASTNode parameter     = finiteloop[0];
-  //     int paramInit         = GetUnsignedConst(finiteloop[1]);
-  //     int paramLimit        = GetUnsignedConst(finiteloop[2]);
-  //     int paramIncrement    = GetUnsignedConst(finiteloop[3]);
-  //     ASTNode exceptFormula = finiteloop[4];
-  //     ASTNode formulabody   = finiteloop[5];
-  //     int paramCurrentValue = paramInit;
-  //     int width             = finiteloop[1].GetValueWidth();
-
-  //     //Update ParamToCurrentValMap with parameter and its current
-  //     //value. Here paramCurrentValue is the initial value    
-  //     ASTNode value =       
-  //       bm->CreateBVConst(width,paramCurrentValue);
-  //     ReplaceOrAddToMap(ParamToCurrentValMap, parameter, value);
-    
-  //     //Go recursively thru' all the FOR-constructs.
-  //     if(FOR == formulabody.GetKind()) 
-  //       { 
-  //    ASTVec retvec;
-  //    ASTVec retvec_innerfor;
-  //    retvec.push_back(ASTTrue);
-  //         while(paramCurrentValue < paramLimit) 
-  //           {
-  //             retvec_innerfor = 
-  //          SATBased_FiniteLoop_Refinement(SatSolver, 
-  //                                         original_input,
-  //                                         formulabody, 
-  //                                         ParamToCurrentValMap,
-  //                                         absrefine_flag);
-
-  //        for(ASTVec::iterator i=retvec_innerfor.begin(),
-  //              iend=retvec_innerfor.end();i!=iend;i++)
-  //          {
-  //            retvec.push_back(*i);
-  //          }
-
-  //             //Update ParamToCurrentValMap with parameter and its
-  //             //current value.
-  //             paramCurrentValue = paramCurrentValue + paramIncrement;
-  //        value = bm->CreateTerm(BVPLUS, 
-  //                           width, 
-  //                           (*ParamToCurrentValMap)[parameter],
-  //                           bm->CreateOneConst(width));      
-  //        ReplaceOrAddToMap(ParamToCurrentValMap, parameter, value);
-  //           } //end of While
-
-  //    return retvec;
-  //       } //end of recursion FORs
-
-  //     //Expand the leaf level FOR-construct completely
-  //     //increment of paramCurrentValue done inside loop
-  //     int ThisForLoopAllTrue = 0;
-  //     ASTVec ForloopVec;
-  //     ForloopVec.push_back(ASTTrue);
-  //     for(;paramCurrentValue < paramLimit;) 
-  //       {
-  //         ASTNode currentFormula;
-  //    ASTNode currentExceptFormula = exceptFormula;
-  //    currentExceptFormula = 
-  //      SimplifyFormula(exceptFormula, false, ParamToCurrentValMap);
-  //    if(ASTTrue ==  currentExceptFormula)
-  //      {         
-  //        currentFormula = ASTTrue;
-  //      }
-  //    else 
-  //      {
-  //        currentFormula =
-  //          SimplifyFormula(formulabody, false, ParamToCurrentValMap);
-  //      }
-
-  //         //Check the currentformula against the model, and add it to the
-  //         //SAT solver if it is false against the model
-  //         if(absrefine_flag 
-  //       && 
-  //       ASTFalse == ComputeFormulaUsingModel(currentFormula)
-  //       ) 
-  //      {
-  //        ForloopVec.push_back(currentFormula);
-  //           }
-  //    else 
-  //      {
-  //        if(ASTTrue != currentFormula)
-  //          {
-  //            ForloopVec.push_back(currentFormula);
-  //          }
-  //        if(ASTFalse == currentFormula)
-  //          {
-  //            ForloopVec.push_back(ASTFalse);
-  //            return ForloopVec;
-  //          }
-  //      }
-        
-  //         //Update ParamToCurrentValMap with parameter and its current
-  //         //value.
-  //    paramCurrentValue = paramCurrentValue + paramIncrement;
-  //    value = bm->CreateTerm(BVPLUS, 
-  //                       width, 
-  //                       (*ParamToCurrentValMap)[parameter],
-  //                       bm->CreateOneConst(width));  
-  //    ReplaceOrAddToMap(ParamToCurrentValMap, parameter, value);
-  //       } //end of expanding the FOR loop
-    
-  //     return ForloopVec;
-  //   } //end of the SATBased_FiniteLoop_Refinement()
-
-  //   //SATBased_FiniteLoop_Refinement_UsingModel().  Expand the finite
-  //   //loop, check against model
-  //   ASTNode 
-  //   AbsRefine_CounterExample::
-  //   Check_FiniteLoop_UsingModel(const ASTNode& finiteloop,
-  //                                   ASTNodeMap* ParamToCurrentValMap,
-  //                                   bool checkusingmodel_flag = true)
-  //   {
-  //     /*
-  //      * 'finiteloop' is the finite loop to be expanded
-  //      * Every finiteloop has three parts:    
-  //      * 0) Parameter Name     
-  //      * 1) Parameter initialization     
-  //      * 2) Parameter limit value     
-  //      * 3) Increment formula     
-  //      * 4) Formula Body
-  //      *    
-  //      * ParamToCurrentValMap contains a map from parameters to their
-  //      * current values in the recursion
-  //      *   
-  //      * Nested FORs are allowed, but only the innermost loop can have a
-  //      * formula in it
-  //      */
-
-  //     //BVTypeCheck should have already checked the sanity of the input
-  //     //FOR-formula
-  //     ASTNode parameter     = finiteloop[0];
-  //     int paramInit         = GetUnsignedConst(finiteloop[1]);
-  //     int paramLimit        = GetUnsignedConst(finiteloop[2]);
-  //     int paramIncrement    = GetUnsignedConst(finiteloop[3]);
-  //     ASTNode exceptFormula = finiteloop[4];
-  //     ASTNode formulabody   = finiteloop[5];
-  //     int paramCurrentValue = paramInit;
-  //     int width             = finiteloop[1].GetValueWidth();
-
-  //     //Update ParamToCurrentValMap with parameter and its current
-  //     //value. Here paramCurrentValue is the initial value
-  //     ASTNode value =       
-  //       bm->CreateBVConst(width,paramCurrentValue);
-  //     ReplaceOrAddToMap(ParamToCurrentValMap, parameter, value);
-
-  //     ASTNode ret = ASTTrue;
-  //     ASTVec returnVec;
-  //     //Go recursively thru' all the FOR-constructs.
-  //     if(FOR == formulabody.GetKind()) 
-  //       { 
-  //         while(paramCurrentValue < paramLimit) 
-  //           {
-  //             ret = Check_FiniteLoop_UsingModel(formulabody,
-  //                                          ParamToCurrentValMap, 
-  //                                          checkusingmodel_flag);
-  //        if(ASTFalse == ret) 
-  //          {
-  //            //no more expansion needed. Return immediately
-  //            return ret;
-  //          }
-  //        else 
-  //          {
-  //            returnVec.push_back(ret);
-  //          }
-
-  //             //Update ParamToCurrentValMap with parameter and its
-  //             //current value.
-  //             paramCurrentValue = paramCurrentValue + paramIncrement;
-  //        value = bm->CreateTerm(BVPLUS, 
-  //                           width, 
-  //                           (*ParamToCurrentValMap)[parameter],
-  //                           bm->CreateOneConst(width));
-  //        ReplaceOrAddToMap(ParamToCurrentValMap, parameter, value);
-  //           } //end of While
-
-  //    ASTNode retFormula = 
-  //      (returnVec.size() > 1) ? 
-  //      bm->CreateNode(AND, returnVec) : 
-  //      (returnVec.size() == 1) ?
-  //      returnVec[0] :
-  //      ASTTrue;
-  //         return retFormula;      
-  //       }
-
-  //     ASTVec forloopFormulaVector;
-  //     //Expand the leaf level FOR-construct completely
-  //     //incrementing of paramCurrentValue is done inside loop
-  //     for(;paramCurrentValue < paramLimit;)
-  //       {
-  //    ASTNode currentFormula;
-
-  //    ASTNode currentExceptFormula = exceptFormula;
-  //    currentExceptFormula = 
-  //      SimplifyFormula(exceptFormula, false, ParamToCurrentValMap);
-  //    if(ASTTrue ==  currentExceptFormula)
-  //      {
-  //        currentFormula = ASTTrue;
-  //        //continue;
-  //      }
-  //    else 
-  //      {
-  //        currentFormula = 
-  //          SimplifyFormula(formulabody, false, ParamToCurrentValMap);
-  //      }
-
-  //         if(checkusingmodel_flag) 
-  //           {
-  //             //Check the currentformula against the model, and return
-  //             //immediately
-  //        //cout << "Printing current Formula: " << currentFormula << "\n"; 
-  //        ASTNode computedForm = ComputeFormulaUsingModel(currentFormula);
-  //        //cout << "Printing computed Formula: " << computedForm << "\n"; 
-  //             if(ASTFalse == computedForm)
-  //          {
-  //            return ASTFalse;
-  //          }
-  //           }
-  //         else 
-  //           {
-  //        if(ASTTrue != currentFormula)
-  //          {
-  //            forloopFormulaVector.push_back(currentFormula);
-  //          }
-  //           }
-        
-  //         //Update ParamToCurrentValMap with parameter and its current
-  //         //value         
-  //    paramCurrentValue = paramCurrentValue + paramIncrement;
-  //    value = bm->CreateTerm(BVPLUS, 
-  //                       width, 
-  //                       (*ParamToCurrentValMap)[parameter],
-  //                       bm->CreateOneConst(width));  
-  //    ReplaceOrAddToMap(ParamToCurrentValMap, parameter, value);
-  //       } //end of For
-
-  //     if(checkusingmodel_flag) 
-  //       {
-  //    return ASTTrue;
-  //       }
-  //     else 
-  //       {
-  //         ASTNode retFormula = 
-  //           (forloopFormulaVector.size() > 1) ? 
-  //      bm->CreateNode(AND, forloopFormulaVector) :
-  //      (forloopFormulaVector.size() == 1) ? 
-  //      forloopFormulaVector[0] :
-  //      ASTTrue;
-  //         return retFormula;
-  //       }
-  //   } //end of the Check_FiniteLoop_UsingModel()
-  
-
-  //   //Expand_FiniteLoop_For_ModelCheck
-  //   ASTNode 
-  //   AbsRefine_CounterExample::
-  //   Expand_FiniteLoop_TopLevel(const ASTNode& finiteloop) 
-  //   {
-  //     ASTNodeMap ParamToCurrentValMap;
-  //     return Check_FiniteLoop_UsingModel(finiteloop, 
-  //                                   &ParamToCurrentValMap, false);
-  //   } //end of Expand_FiniteLoop_TopLevel()  
-
-  //   ASTNode
-  //   AbsRefine_CounterExample::
-  //   Check_FiniteLoop_UsingModel(const ASTNode& finiteloop)
-  //   {
-  //     ASTNodeMap ParamToCurrentValMap;
-  //     return Check_FiniteLoop_UsingModel(finiteloop, 
-  //                                   &ParamToCurrentValMap, true);
-  //   } //end of Check_FiniteLoop_UsingModel  
+#endif
 };// end of namespace BEEV

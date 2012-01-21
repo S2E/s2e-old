@@ -18,8 +18,9 @@
 
 namespace BEEV
 {
-  void FatalError(const char * str, const ASTNode& a, int w = 0);
-  void FatalError(const char * str);
+  void process_argument(const char ch, STPMgr  *bm);
+  void FatalError(const char * str, const ASTNode& a, int w = 0) __attribute__ ((noreturn));
+  void FatalError(const char * str) __attribute__ ((noreturn));
   void SortByExprNum(ASTVec& c);
   void SortByArith(ASTVec& c);
   bool exprless(const ASTNode n1, const ASTNode n2);
@@ -27,6 +28,7 @@ namespace BEEV
   bool isAtomic(Kind k);
   bool isCommutative(const Kind k);
   bool containsArrayOps(const ASTNode&n);
+  bool  numberOfReadsLessThan(const ASTNode&n, int v);
 
   // If (a > b) in the termorder, then return 1 elseif (a < b) in the
   // termorder, then return -1 else return 0

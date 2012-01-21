@@ -1,6 +1,6 @@
 // -*- c++ -*-
 /********************************************************************
- * AUTHORS: Vijay Ganesh
+ * AUTHORS: Vijay Ganesh, Trevor Hansen
  *
  * BEGIN DATE: November, 2005
  *
@@ -8,11 +8,14 @@
  ********************************************************************/
 
 // to get the PRIu64 macro from inttypes, this needs to be defined.
-#define __STDC_FORMAT_MACROS
+#ifndef __STDC_FORMAT_MACROS
+  #define __STDC_FORMAT_MACROS
+#endif
 #include <inttypes.h>
 #include <cmath>
-#include "../sat/sat.h"
 #include "../STPManager/STPManager.h"
+#include "../printer/SMTLIBPrinter.h"
+#include "NodeIterator.h"
 
 namespace BEEV
 {
@@ -25,7 +28,11 @@ namespace BEEV
         // have alpha.nodenum + 1.
         if (n_ptr->GetKind() == NOT)
           {
-            n_ptr->SetNodeNum(n_ptr->GetChildren()[0].GetNodeNum() + 1);
+        	// The internal node can't be a NOT, because then we'd add
+        	// 1 to the NOT's node number, meaning we'd hit an even number,
+        	// which could duplicate the next newNodeNum().
+        	assert(n_ptr->GetChildren()[0].GetKind() != NOT);
+       		n_ptr->SetNodeNum(n_ptr->GetChildren()[0].GetNodeNum() + 1);
           }
         else
           {
@@ -89,11 +96,11 @@ namespace BEEV
   ////////////////////////////////////////////////////////////////
   // STPMgr member functions to create ASTSymbol and ASTBVConst
   ////////////////////////////////////////////////////////////////
-  ASTNode STPMgr::CreateSymbol(const char * const name)
+  ASTNode STPMgr::LookupOrCreateSymbol(const char * const name)
   {
-    ASTSymbol temp_sym(name);    
+    ASTSymbol temp_sym(name);
     ASTNode n(LookupOrCreateSymbol(temp_sym));
-    return n;
+   return n;
   }
 
   // FIXME: _name is now a constant field, and this assigns to it
@@ -146,6 +153,33 @@ namespace BEEV
       return true;
   }
 
+  bool STPMgr::LookupSymbol(const char * const name)
+  {
+    ASTSymbol s(name);
+    ASTSymbol* s_ptr = &s; // it's a temporary key.
+
+    if (_symbol_unique_table.find(s_ptr) ==
+        _symbol_unique_table.end())
+      return false;
+    else
+      return true;
+  }
+
+  bool STPMgr::LookupSymbol(const char * const name, ASTNode& output)
+  {
+    ASTSymbol temp_sym(name);
+    ASTSymbolSet::const_iterator it = _symbol_unique_table.find(&temp_sym);
+    if (it != _symbol_unique_table.end())
+      {
+        output = ASTNode(*it);
+        return true;
+      }
+  return false;
+  }
+
+
+
+
   //Create a ASTBVConst node
   ASTNode STPMgr::CreateBVConst(unsigned int width, 
 				unsigned long long int bvconst)
@@ -156,7 +190,13 @@ namespace BEEV
 		 "unsigned long long of width: ", 
                  ASTUndefined, width);
 
-    CBV bv = CONSTANTBV::BitVector_Create(width, true);
+
+    // We create a single bvconst that gets reused.
+    if (NULL == CreateBVConstVal)
+      CreateBVConstVal = CONSTANTBV::BitVector_Create(65, true);
+    CreateBVConstVal  = CONSTANTBV::BitVector_Resize(CreateBVConstVal,width);
+    CONSTANTBV::BitVector_Empty(CreateBVConstVal);
+
     unsigned long c_val = (~((unsigned long) 0)) & bvconst;
     unsigned int copied = 0;
 
@@ -169,48 +209,47 @@ namespace BEEV
     //number of bits in unsigned long. The variable "copied" keeps
     //track of the number of chunks copied so far
 
-    int shift_amount = (sizeof(unsigned long) << 3);
-    while (copied + (sizeof(unsigned long) << 3) < width)
+    const int shift_amount = (sizeof(unsigned long) << 3);
+    while (copied + shift_amount < width)
       {
-        CONSTANTBV::BitVector_Chunk_Store(bv, shift_amount, copied, c_val);
+        CONSTANTBV::BitVector_Chunk_Store(CreateBVConstVal, shift_amount, copied, c_val);
         bvconst = bvconst >> shift_amount;
         c_val = (~((unsigned long) 0)) & bvconst;
         copied += shift_amount;
       }
-    CONSTANTBV::BitVector_Chunk_Store(bv, width - copied, copied, c_val);
-    return CreateBVConst(bv, width);
+    CONSTANTBV::BitVector_Chunk_Store(CreateBVConstVal, width - copied, copied, c_val);
+
+    ASTBVConst temp_bvconst(CreateBVConstVal, width,ASTBVConst::CBV_MANAGED_OUTSIDE);
+    return  ASTNode(LookupOrCreateBVConst(temp_bvconst));
+
   }
 
-  ASTNode STPMgr::CreateBVConst(string*& strval, int base, int bit_width)
+  ASTNode STPMgr::charToASTNode(unsigned char* strval, int base , int bit_width)
   {
+    assert ((2 == base || 10 == base || 16 == base));
+    assert (bit_width > 0);
 
-    if (bit_width <= 0)
-      FatalError("CreateBVConst: trying to create a bvconst of width: ", 
-		 ASTUndefined, bit_width);
+    // We create a single bvconst that gets reused.
+    if (NULL == CreateBVConstVal)
+      CreateBVConstVal = CONSTANTBV::BitVector_Create(65, true);
+    CreateBVConstVal  = CONSTANTBV::BitVector_Resize(CreateBVConstVal,bit_width);
+    CONSTANTBV::BitVector_Empty(CreateBVConstVal);
 
-
-    if (!(2 == base || 10 == base || 16 == base))
-      {
-        FatalError("CreateBVConst: unsupported base: ", ASTUndefined, base);
-      }
-
-    //checking if the input is in the correct format
-    CBV bv = CONSTANTBV::BitVector_Create(bit_width, true);
     CONSTANTBV::ErrCode e;
     if (2 == base)
       {
-        e = CONSTANTBV::BitVector_from_Bin(bv,
-					   (unsigned char*) strval->c_str());
+        e = CONSTANTBV::BitVector_from_Bin(CreateBVConstVal,
+                                           strval);
       }
     else if (10 == base)
       {
-        e = CONSTANTBV::BitVector_from_Dec(bv,
-					   (unsigned char*) strval->c_str());
+        e = CONSTANTBV::BitVector_from_Dec(CreateBVConstVal,
+                                           strval);
       }
     else if (16 == base)
       {
-        e = CONSTANTBV::BitVector_from_Hex(bv, 
-					   (unsigned char*) strval->c_str());
+        e = CONSTANTBV::BitVector_from_Hex(CreateBVConstVal,
+                                           strval);
       }
     else
       {
@@ -223,17 +262,25 @@ namespace BEEV
         FatalError("", ASTUndefined);
       }
 
-    return CreateBVConst(bv, bit_width);
+    ASTBVConst temp_bvconst(CreateBVConstVal, bit_width,ASTBVConst::CBV_MANAGED_OUTSIDE);
+    ASTNode n(LookupOrCreateBVConst(temp_bvconst));
+    return n;
   }
 
-  //Create a ASTBVConst node from std::string
+  ASTNode STPMgr::CreateBVConst(string strval, int base, int bit_width)
+  {
+    assert (bit_width > 0);
+
+    return charToASTNode((unsigned char*)strval.c_str(), base , bit_width);
+  }
+
+  //Create a ASTBVConst node from a char*
   ASTNode STPMgr::CreateBVConst(const char* const strval, int base)
   {
+    assert ((2 == base || 10 == base || 16 == base));
+
     size_t width = strlen((const char *) strval);
-    if (!(2 == base || 10 == base || 16 == base))
-      {
-        FatalError("CreateBVConst: unsupported base: ", ASTUndefined, base);
-      }
+
     //FIXME Tim: Earlier versions of the code assume that the length of
     //binary strings is 32 bits.
     if (10 == base)
@@ -241,45 +288,15 @@ namespace BEEV
     if (16 == base)
       width = width * 4;
 
-    //checking if the input is in the correct format
-    CBV bv = CONSTANTBV::BitVector_Create(width, true);
-    CONSTANTBV::ErrCode e;
-    if (2 == base)
-      {
-        e = CONSTANTBV::BitVector_from_Bin(bv, (unsigned char*) strval);
-      }
-    else if (10 == base)
-      {
-        e = CONSTANTBV::BitVector_from_Dec(bv, (unsigned char*) strval);
-      }
-    else if (16 == base)
-      {
-        e = CONSTANTBV::BitVector_from_Hex(bv, (unsigned char*) strval);
-      }
-    else
-      {
-        e = CONSTANTBV::ErrCode_Pars;
-      }
-
-    if (0 != e)
-      {
-        cerr << "CreateBVConst: " << BitVector_Error(e);
-        FatalError("", ASTUndefined);
-      }
-
-    //FIXME
-    return CreateBVConst(bv, width);
+    return charToASTNode((unsigned char*)strval, base , width);
   }
 
-  //FIXME Code currently assumes that it will destroy the bitvector
-  //passed to it
+  //NB Assumes that it will destroy the bitvector passed to it
   ASTNode STPMgr::CreateBVConst(CBV bv, unsigned width)
   {
-    ASTBVConst temp_bvconst(bv, width);
+    ASTBVConst temp_bvconst(bv, width,ASTBVConst::CBV_MANAGED_OUTSIDE);
     ASTNode n(LookupOrCreateBVConst(temp_bvconst));
-
     CONSTANTBV::BitVector_Destroy(bv);
-
     return n;
   }
 
@@ -364,9 +381,7 @@ namespace BEEV
     ASTBVConstSet::const_iterator it;
     if ((it = _bvconst_unique_table.find(s_ptr)) == _bvconst_unique_table.end())
       {
-        // Make a new ASTBVConst with duplicated string (can't assign
-        // _name because it's const).  Can cast the iterator to
-        // non-const -- carefully.
+        // Make a new ASTBVConst with duplicated constant.
 
         ASTBVConst * s_copy = new ASTBVConst(s);
         s_copy->SetNodeNum(NewNodeNum());
@@ -377,7 +392,7 @@ namespace BEEV
       }
     else
       {
-        // return symbol found in table.
+        // return constant found in table.
         return *it;
       }
   }
@@ -599,79 +614,24 @@ namespace BEEV
     if (!UserFlags.stats_flag)
       return;
 
-    StatInfoSet.clear();
-    //print node size:
-    cout << endl << "Printing: " << c;
+    cout << "[" << GetRunTimes()->getDifference() << "]" <<  c;
     if (UserFlags.print_nodes_flag)
-      {
-        //a.PL_Print(cout,0);
-        //cout << endl;
         cout << a << endl;
-      }
-    cout << "Node size is: ";
-    cout << NodeSize(a) << endl;
+
+    cout << "Node size is: " << NodeSize(a) << endl;
   }
 
-  unsigned int STPMgr::NodeSize(const ASTNode& a, bool clearStatInfo)
+  unsigned int STPMgr::NodeSize(const ASTNode& a)
   {
-    if (clearStatInfo)
-      StatInfoSet.clear();
-
-    ASTNodeSet::iterator it;
-    if ((it = StatInfoSet.find(a)) != StatInfoSet.end())
-      //has already been counted
-      return 0;
-
-    //record that you have seen this node already
-    StatInfoSet.insert(a);
-    // cout << "Number of bytes per Node is: ";
-    // cout << sizeof(*(a._int_node_ptr)) << endl;
-
-    //leaf node has a size of 1
-    if (a.Degree() == 0)
-      return 1;
-
-    unsigned newn = 1;
-    const ASTVec& c = a.GetChildren();
-    for (ASTVec::const_iterator it = c.begin(), itend = c.end(); it != itend; it++)
-      newn += NodeSize(*it);
-    return newn;
+      unsigned int result = 0;
+      NodeIterator ni(a, ASTUndefined, *this);
+      ASTNode current;
+      while ((current = ni.next()) != ni.end())
+          {
+               result++;
+         }
+      return result;
   }
-
-  // GLOBAL FUNCTION: Prints statistics from the MINISAT Solver
-  void STPMgr::PrintStats(MINISAT::Solver& s)
-  {
-    if (!UserFlags.stats_flag)
-      return;
-    double cpu_time = MINISAT::cpuTime();
-    uint64_t mem_used = MINISAT::memUsed();
-    printf("restarts              : %"PRIu64"\n",                      s.starts);
-    printf("conflicts             : %"PRIu64"   (%.0f /sec)\n",        s.conflicts   , s.conflicts   /cpu_time);
-    printf("decisions             : %"PRIu64"   (%.0f /sec)\n",        s.decisions   , s.decisions   /cpu_time);
-    printf("propagations          : %"PRIu64"   (%.0f /sec)\n",        s.propagations, s.propagations/cpu_time);
-    printf("conflict literals     : %"PRIu64"   (%4.2f %% deleted)\n", s.tot_literals,
-            (s.max_literals - s.tot_literals)*100 / (double)s.max_literals);
-    if (mem_used != 0)
-        printf("Memory used           : %.2f MB\n", mem_used / 1048576.0);
-    printf("CPU time              : %g s\n", cpu_time);
-  } //end of PrintStats()
-
-
-  //Create a new variable of ValueWidth 'n'
-  ASTNode STPMgr::NewVar(unsigned int n)
-  {
-    std::string c("v");
-    char d[32];
-    sprintf(d, "%d", _symbol_count++);
-    std::string ccc(d);
-    c += "_solver_" + ccc;
-
-    ASTNode CurrentSymbol = CreateSymbol(c.c_str());
-    assert(0 !=n);
-    CurrentSymbol.SetValueWidth(n);
-    CurrentSymbol.SetIndexWidth(0);
-    return CurrentSymbol;
-  } //end of NewVar()
 
   bool STPMgr::VarSeenInTerm(const ASTNode& var, const ASTNode& term)
   {
@@ -733,13 +693,55 @@ namespace BEEV
     str += "(";
     str += outNum.str();
     str += ")";
-    ASTNode CurrentSymbol = CreateSymbol(str.c_str());
-    CurrentSymbol.SetValueWidth(0);
-    CurrentSymbol.SetIndexWidth(0);
+    ASTNode CurrentSymbol = CreateSymbol(str.c_str(),0,0);
     return CurrentSymbol;
   } // End of NewParameterized_BooleanVar()
 
   
+  //If ASTNode remain with references (somewhere), this will segfault.
+  STPMgr::~STPMgr() {
+ 		ClearAllTables();
 
+ 		  printer::NodeLetVarMap.clear();
+ 		  printer::NodeLetVarVec.clear();
+ 		  printer::NodeLetVarMap1.clear();
+
+ 		delete runTimes;
+ 		runTimes = NULL;
+ 		ASTFalse = ASTNode(0);
+ 		ASTTrue = ASTNode(0);
+ 		ASTUndefined = ASTNode(0);
+ 		_current_query = ASTNode(0);
+ 		dummy_node = ASTNode(0);
+
+ 		zeroes.clear();
+ 		ones.clear();
+ 		max.clear();
+
+ 		if (NULL != CreateBVConstVal)
+ 			CONSTANTBV::BitVector_Destroy(CreateBVConstVal);
+
+ 		Introduced_SymbolsSet.clear();
+ 		_symbol_unique_table.clear();
+ 		_bvconst_unique_table.clear();
+
+ 		vector<IntToASTVecMap*>::iterator it = _asserts.begin();
+ 		vector<IntToASTVecMap*>::iterator itend = _asserts.end();
+
+ 		for (; it != itend; it++) {
+ 			IntToASTVecMap * j = (*it);
+ 			for (IntToASTVecMap::iterator it2 = j->begin(); it2 != j->end(); it2++) {
+ 				it2->second->clear();
+ 				delete (it2->second);
+ 			}
+ 			j->clear();
+ 			delete j;
+ 		}
+ 		_asserts.clear();
+
+ 		delete hashingNodeFactory;
+
+ 		_interior_unique_table.clear();
+ 	}
 }; // end namespace beev
 

@@ -38,7 +38,11 @@ namespace simplifier
       Result status;
       WorkList *workList;
       Dependencies * dependents;
-      MultiplicationStatsMap* msm;
+
+      bool topFixed;
+
+      // A vector that's reused.
+      vector< int > previousChildrenFixedCount;
 
       void
       printNodeWithFixings();
@@ -54,6 +58,7 @@ namespace simplifier
 
 public:
       NodeToFixedBitsMap* fixedMap;
+      MultiplicationStatsMap* msm;
 
       bool isUnsatisfiable()
       {
@@ -71,7 +76,7 @@ public:
 
       // Returns the node after writing in simplifications from constant Bit propagation.
       BEEV::ASTNode
-      topLevelBothWays(const BEEV::ASTNode& top);
+      topLevelBothWays(const ASTNode& top, bool setTopToTrue = true, bool conjoinToTop=true);
 
 
       void clearTables()
@@ -100,6 +105,15 @@ public:
 
       void
       setNodeToTrue(const ASTNode& top);
+
+      ASTNodeMap
+      getAllFixed();
+
+      void initWorkList(const ASTNode n)
+      {
+        workList->initWorkList(n);
+      }
+
     };
   }
 }

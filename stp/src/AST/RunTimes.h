@@ -13,6 +13,8 @@
 #include <stack>
 #include <map>
 #include <string>
+#include "../sat/utils/System.h"
+#include <iomanip>
 
 class RunTimes
 {
@@ -26,11 +28,19 @@ public:
       BitBlasting, 
       Solving, 
       BVSolver, 
-      CreateSubstitutionMap, 
+      PropagateEqualities, 
       SendingToSAT,
       CounterExampleGeneration,
       SATSimplifying,
-      ConstantBitPropagation
+      ConstantBitPropagation,
+      ArrayReadRefinement,
+      ApplyingSubstitutions,
+      RemoveUnconstrained,
+      PureLiterals,
+      UseITEContext,
+      AIGSimplifyCore,
+      IntervalPropagation,
+      AlwaysTrue
     };
 
   static std::string CategoryNames[];
@@ -49,6 +59,8 @@ private:
   long getCurrentTime();
   void addTime(Category c, long milliseconds);
   
+  long lastTime;
+
 public:
   
   void addCount(Category c);
@@ -56,7 +68,31 @@ public:
   void stop(Category c);
   void print();
   
-  RunTimes(){}
+  std::string getDifference()
+  {
+    std::stringstream s;
+    long val = getCurrentTime();
+    s << (val -  lastTime) << "ms" ;
+    lastTime = val;
+    s << ":" << std::setiosflags(std::ios::fixed) << std::setprecision(0) << Minisat::memUsed() << "M";
+    return s.str();
+  }
+
+  void resetDifference()
+  {
+    getDifference();
+  }
+
+  void difference()
+  {
+	  std::cout << getDifference()<< std::endl << std::endl;
+
+  }
+
+  RunTimes()
+  {
+	  lastTime = getCurrentTime();
+  }
   
   void clear()
   {

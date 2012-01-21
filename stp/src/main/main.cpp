@@ -1,5 +1,6 @@
+
 /********************************************************************
- * AUTHORS: Vijay Ganesh
+ * AUTHORS: Vijay Ganesh, Trevor Hansen
  *
  * BEGIN DATE: November, 2005
  *
@@ -23,6 +24,7 @@ int main(int argc, char ** argv) {
 #include "../AST/NodeFactory/SimplifyingNodeFactory.h"
 #include "../parser/ParserInterface.h"
 #include <sys/time.h>
+#include <memory>
 
 
 #ifdef EXT_HASH_MAP
@@ -36,11 +38,26 @@ extern int cvcparse(void*);
 extern int cvclex_destroy(void);
 extern int smtlex_destroy(void);
 extern int smt2lex_destroy(void);
+extern vector<ASTVec> assertionsSMT2;
 
 // callback for SIGALRM.
 void handle_time_out(int parameter){
   printf("Timed Out.\n");
-  exit(0);
+
+  abort();
+  // I replaced the exit(0) with an abort().
+  // The exit was sometimes hanging, seemingly because of a bug somewhere else (e.g. loader, glibc).
+  // In strace it output:
+
+  //--- SIGVTALRM (Virtual timer expired) @ 0 (0) ---
+  //fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(136, 5), ...}) = 0
+  //mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7fabca622000
+  //write(1, "Timed Out.\n", 11Timed Out.
+  //)            = 11
+  //futex(0x7fabc9c54e40, FUTEX_WAIT, 2, NULL
+
+  // Then it would just sit there waiting for the mutex (which never came).
+  //exit(0);
 }
 
 bool onePrintBack =false;
@@ -69,7 +86,8 @@ static const intptr_t INITIAL_MEMORY_PREALLOCATION_SIZE = 4000000;
  * step 5. Call SAT to determine if input is SAT or UNSAT
  ********************************************************************/
 
-typedef enum {PRINT_BACK_C=1, PRINT_BACK_CVC, PRINT_BACK_SMTLIB2,PRINT_BACK_SMTLIB1, PRINT_BACK_GDL, PRINT_BACK_DOT, OUTPUT_BENCH, OUTPUT_CNF, USE_SIMPLIFYING_SOLVER, SMT_LIB2_FORMAT, SMT_LIB1_FORMAT, DISABLE_CBITP,EXIT_AFTER_CNF} OptionType;
+typedef enum {PRINT_BACK_C=1, PRINT_BACK_CVC, PRINT_BACK_SMTLIB2,PRINT_BACK_SMTLIB1, PRINT_BACK_GDL, PRINT_BACK_DOT, OUTPUT_BENCH, OUTPUT_CNF, USE_SIMPLIFYING_SOLVER, SMT_LIB2_FORMAT, SMT_LIB1_FORMAT, DISABLE_CBITP,EXIT_AFTER_CNF,USE_CRYPTOMINISAT_SOLVER,USE_MINISAT_SOLVER, DISABLE_SIMPLIFICATIONS, OLDSTYLE_REFINEMENT, DISABLE_EQUALITY, RANDOM_SEED} OptionType;
+
 
 int main(int argc, char ** argv) {
   char * infile = NULL;
@@ -86,97 +104,73 @@ int main(int argc, char ** argv) {
 
 
   STPMgr * bm       = new STPMgr();
+
   Simplifier * simp  = new Simplifier(bm);
-  BVSolver* bvsolver = new BVSolver(bm, simp);
+  auto_ptr<Simplifier> simpCleaner(simp);
+
   ArrayTransformer * arrayTransformer = new ArrayTransformer(bm, simp);
+  auto_ptr<ArrayTransformer> atClearner(arrayTransformer);
+
   ToSAT * tosat      = new ToSAT(bm);
-  AbsRefine_CounterExample * Ctr_Example = 
-    new AbsRefine_CounterExample(bm, simp, arrayTransformer);
+  auto_ptr<ToSAT> tosatCleaner(tosat);
+
+  AbsRefine_CounterExample * Ctr_Example = new AbsRefine_CounterExample(bm, simp, arrayTransformer);
+  auto_ptr<AbsRefine_CounterExample> ctrCleaner(Ctr_Example);
+
   itimerval timeout; 
 
   ParserBM          = bm;
   GlobalSTP         = 
     new STP(bm, 
             simp, 
-            bvsolver, 
             arrayTransformer, 
             tosat, 
             Ctr_Example);
   
+
   //populate the help string
   helpstring += 
-    "STP version: " + version + "\n\n";
-  helpstring +=  
-    "-a  : switch optimizations off (optimizations are ON by default)\n";
-  helpstring +=  
-    "-b  : print STP input back to cout\n";
-  helpstring +=
-    "-c  : construct counterexample\n";
-  helpstring +=  
-    "-d  : check counterexample\n";
+    "STP version            : " + version + "\n"
+    "--disable-simplify     : disable all simplifications\n"
+    "-w                     : switch wordlevel solver off (optimizations are ON by default)\n"
+    "-a                     : disable potentially size-increasing optimisations\n"
+    "--disable-cbitp        : disable constant bit propagation\n"
+    "--disable-equality     : disable equality propagation\n"
+    "\n"
+    "--cryptominisat        : use cryptominisat2 as the solver\n"
+    "--simplifying-minisat  : use simplifying-minisat 2.2 as the solver\n"
+    "--minisat              : use minisat 2.2 as the solver\n"
+    "\n"
+    "--oldstyle-refinement  : Do abstraction-refinement outside the SAT solver\n"
+    "-r                     : Eagerly encode array-read axioms (Ackermannistaion)\n"
+    "\n"
+    "-b                     : print STP input back to cout\n"
+    "--print-back-CVC       : print input in CVC format, then exit\n"
+    "--print-back-SMTLIB2   : print input in SMT-LIB2 format, then exit\n"
+    "--print-back-SMTLIB1   : print input in SMT-LIB1 format, then exit\n"
+    "--print-back-GDL       : print AiSee's graph format, then exit\n"
+    "--print-back-dot       : print dotty/neato's graph format, then exit\n"
+    "\n"
+    "--SMTLIB1 -m           : use the SMT-LIB1 format parser\n"
+    "--SMTLIB2              : use the SMT-LIB2 format parser\n"
+    "\n"
+    "--output-CNF           : save the CNF into output_[0..n].cnf\n"
+    "--output-bench         : save in ABC's bench format to output.bench\n"
+    "\n"
+    "--exit-after-CNF       : exit after the CNF has been generated\n"
+    "-g <time_in_sec>       : timeout (seconds until STP gives up)\n"
+    "-h                     : help\n"
+    "-i <random_seed>       : Randomize STP's satisfiable output. Random_seed is an integer >= 0\n"
+    "--random-seed          : Generate a random number for the SAT solver.\n"
+    "-p                     : print counterexample\n"
+    "-s                     : print function statistics\n"
+    "-t                     : print quick statistics\n"
+    "-v                     : print nodes \n"
+    "-y                     : print counterexample in binary\n";
 
-#ifdef WITHCBITP
-  helpstring +=  
-      "--disable-cbitp  : disable constant bit propagation\n";
-#endif
-
-  helpstring +=  "--exit-after-CNF : exit after the CNF has been generated\n";
-
-  helpstring +=
-    "-e  : expand finite-for construct\n";
-  helpstring +=  
-    "-f  : number of abstraction-refinement loops\n";
-  helpstring +=  
-    "-g  : timeout (seconds until STP gives up)\n";
-  helpstring +=  
-    "-h  : help\n";
-  helpstring +=  
-    "-i <random_seed>  : Randomize STP's satisfiable output. Random_seed is an integer >= 0.\n";
-  helpstring +=  
-    "-j <filename>  : CNF Dumping. Creates a DIMACS equivalent file of the input STP file\n";
-  helpstring +=  
-    "-m  : use the SMTLIB1 parser\n";
-
-  helpstring +=  "--output-CNF : save the CNF into output.cnf\n";
-  helpstring +=  "--output-bench : save in ABC's bench format to output.bench\n";
-
-  helpstring +=  
-    "-p  : print counterexample\n";
-  // I haven't checked that this works so don't want to include it by default.
-  //helpstring +=
-  //    "--print-back-C  : print input as C code (partially works), then exit\n";
-  helpstring +=
-      "--print-back-CVC  : print input in CVC format, then exit\n";
-  helpstring +=
-      "--print-back-SMTLIB2  : print input in SMT-LIB2 format, then exit\n";
-  helpstring +=
-      "--print-back-SMTLIB1  : print input in SMT-LIB1 format, then exit\n";
-  helpstring +=
-	  "--print-back-GDL : print AiSee's graph format, then exit\n";
-  helpstring +=
-	  "--print-back-dot : print dotty/neato's graph format, then exit\n";
-  helpstring +=  
-    "-r  : switch refinement off (optimizations are ON by default)\n";
-  helpstring +=  
-    "-s  : print function statistics\n";
-#if !defined CRYPTOMINISAT2
-helpstring +=
-  "--simplifying-minisat : use simplifying-minisat rather than minisat\n";
-#endif
-  helpstring +=
-	"--SMTLIB1 : use the SMT-LIB1 format parser\n";
-  helpstring +=
-	"--SMTLIB2 : use the SMT-LIB2 format parser\n";
-  helpstring +=  
-    "-t  : print quick statistics\n";
-  helpstring +=  
-    "-v  : print nodes \n";
-  helpstring +=  
-    "-w  : switch wordlevel solver off (optimizations are ON by default)\n";
-  helpstring +=  
-    "-x  : flatten nested XORs\n";
-  helpstring +=  
-    "-y  : print counterexample in binary\n";
+    //  "-x                     : flatten nested XORs\n"
+    //  "-c                     : construct counterexample\n"
+    //   "-d                     : check counterexample\n"
 
   for(int i=1; i < argc;i++)
     {
@@ -187,7 +181,10 @@ helpstring +=
     		  // long options.
     		  map<string,OptionType> lookup;
     		  lookup.insert(make_pair(tolower("--print-back-C"),PRINT_BACK_C));
-			  lookup.insert(make_pair(tolower("--print-back-CVC"),PRINT_BACK_CVC));
+    		  lookup.insert(make_pair(tolower("--cryptominisat"),USE_CRYPTOMINISAT_SOLVER));
+    		lookup.insert(make_pair(tolower("--minisat"),USE_MINISAT_SOLVER));
+
+                          lookup.insert(make_pair(tolower("--print-back-CVC"),PRINT_BACK_CVC));
 			  lookup.insert(make_pair(tolower("--print-back-SMTLIB2"),PRINT_BACK_SMTLIB2));
 			  lookup.insert(make_pair(tolower("--print-back-SMTLIB1"),PRINT_BACK_SMTLIB1));
 			  lookup.insert(make_pair(tolower("--print-back-GDL"),PRINT_BACK_GDL));
@@ -199,7 +196,34 @@ helpstring +=
 			  lookup.insert(make_pair(tolower("--SMTLIB2"),SMT_LIB2_FORMAT));
 			  lookup.insert(make_pair(tolower("--SMTLIB1"),SMT_LIB1_FORMAT));
 			  lookup.insert(make_pair(tolower("--disable-cbitp"),DISABLE_CBITP));
+			  lookup.insert(make_pair(tolower("--disable-simplify"),DISABLE_SIMPLIFICATIONS));
+			  lookup.insert(make_pair(tolower("--oldstyle-refinement"),OLDSTYLE_REFINEMENT));
+			  lookup.insert(make_pair(tolower("--disable-equality"),DISABLE_EQUALITY));
+			  lookup.insert(make_pair(tolower("--random-seed"),RANDOM_SEED));
 
+
+			  if (!strncmp(argv[i],"--config_",strlen("--config_")))
+			  {
+				  // Must contain an equals.
+				  // Must contain a name >=1 character long.
+				  // Must contain a value >=1 char.
+				  string s(argv[i]);
+				  size_t a = s.find("_");
+				  size_t b = s.find("=");
+				  if (a== string::npos || b == string::npos || b < a || b==a+1 || b==s.length()-1)
+				  {
+					   fprintf(stderr,usage,prog);
+		               cout << helpstring;
+		               return -1;
+		               break;
+				  }
+
+				  string name = s.substr(a+1,b-a-1);
+				  string value = s.substr(b+1);
+
+				  bm->UserFlags.set(name,value);
+			  }
+			  else
 
 			  switch(lookup[tolower(argv[i])])
 			  {
@@ -252,14 +276,31 @@ helpstring +=
 				  if (bm->UserFlags.smtlib2_parser_flag)
 					  FatalError("Can't use both the smtlib and smtlib2 parsers");
 				  break;
-
-
-#if !defined CRYPTOMINISAT2
 			  case USE_SIMPLIFYING_SOLVER:
 				  bm->UserFlags.solver_to_use = UserDefinedFlags::SIMPLIFYING_MINISAT_SOLVER;
 				  break;
-#endif
-
+                          case USE_CRYPTOMINISAT_SOLVER:
+                                  bm->UserFlags.solver_to_use = UserDefinedFlags::CRYPTOMINISAT_SOLVER;
+                                  break;
+                          case USE_MINISAT_SOLVER:
+                                  bm->UserFlags.solver_to_use = UserDefinedFlags::MINISAT_SOLVER;
+                                  break;
+                          case OLDSTYLE_REFINEMENT:
+                                  bm->UserFlags.solver_to_use = UserDefinedFlags::MINISAT_SOLVER;
+                                  break;
+                          case DISABLE_SIMPLIFICATIONS:
+                                  bm->UserFlags.disableSimplifications();
+                                break;
+                          case DISABLE_EQUALITY:
+                                  bm->UserFlags.propagate_equalities = false;
+                                  break;
+                          case RANDOM_SEED:
+                            {
+                                srand(time(NULL));
+                                bm->UserFlags.random_seed_flag = true;
+                                bm->UserFlags.random_seed = rand();
+                            }
+                            break;
 
 			  default:
 				  fprintf(stderr,usage,prog);
@@ -280,105 +321,34 @@ helpstring +=
               cout << helpstring;
               return -1;
             }
-          switch(argv[i][1])
-            {
-            case 'a' :
-              bm->UserFlags.optimize_flag = false;
-              break;
-            case 'b':
-              onePrintBack = true;
-              bm->UserFlags.print_STPinput_back_flag = true;
-              break;
-            case 'c':
-              bm->UserFlags.construct_counterexample_flag = true;
-              break;
-            case 'd':
-              bm->UserFlags.construct_counterexample_flag = true;
-              bm->UserFlags.check_counterexample_flag = true;
-              break;
-            case 'e':
-              bm->UserFlags.expand_finitefor_flag = true;
-              break;
-            case 'f':
-              bm->UserFlags.num_absrefine_flag = true;
-              bm->UserFlags.num_absrefine = atoi(argv[++i]);
-              break;            
-            case 'g':
-              signal(SIGVTALRM, handle_time_out);
-              timeout.it_interval.tv_usec = 0;
-              timeout.it_interval.tv_sec  = 0;
-              timeout.it_value.tv_usec    = 0;
-              timeout.it_value.tv_sec     = atoi(argv[++i]);
-              setitimer(ITIMER_VIRTUAL, &timeout, NULL);
-              break;            
-            case 'h':
-              fprintf(stderr,usage,prog);
-              cout << helpstring;
-              return -1;
-              break;
-	    case 'i':
-	      bm->UserFlags.random_seed_flag = true;
-              bm->UserFlags.random_seed = atoi(argv[++i]);
-	      //cerr << "Random seed is: " << bm->UserFlags.random_seed << endl;
-	      if(!(0 <= bm->UserFlags.random_seed))
-		{
-		  FatalError("Random Seed should be an integer >= 0\n");
-		}
-	      break;
-	    case 'j':
-	      bm->UserFlags.print_cnf_flag = true;
-	      bm->UserFlags.cnf_dump_filename = argv[++i];
-	      break;
-            case 'm':
-              bm->UserFlags.smtlib1_parser_flag=true;
-              bm->UserFlags.division_by_zero_returns_one_flag = true;
-			  if (bm->UserFlags.smtlib2_parser_flag)
-				  FatalError("Can't use both the smtlib and smtlib2 parsers");
 
-              break;
-            case 'n':
-              bm->UserFlags.print_output_flag = true;
-              break;
-            case 'p':
-              bm->UserFlags.print_counterexample_flag = true;
-              break;
-            case 'q':
-              bm->UserFlags.print_arrayval_declaredorder_flag = true;
-              break;
-            case 'r':
-              bm->UserFlags.arrayread_refinement_flag = false;
-              break;
-            case 's' :
-              bm->UserFlags.stats_flag = true;
-              break;
-            case 't':
-              bm->UserFlags.quick_statistics_flag = true;
-              break;
-            case 'u':
-              bm->UserFlags.arraywrite_refinement_flag = false;
-              break;
-            case 'v' :
-              bm->UserFlags.print_nodes_flag = true;
-              break;
-            case 'w':
-              bm->UserFlags.wordlevel_solve_flag = false;
-              break;
-            case 'x':
-              bm->UserFlags.xor_flatten_flag = true;
-              break;
-            case 'y':
-              bm->UserFlags.print_binary_flag = true;
-              break;            
-            case 'z':
-              bm->UserFlags.print_sat_varorder_flag = true;
-              break;
-            default:
-              fprintf(stderr,usage,prog);
-              cout << helpstring;
-              //FatalError("");
-              return -1;
-              break;
-            }
+      if (argv[i][1] == 'g')
+        {
+        signal(SIGVTALRM, handle_time_out);
+        timeout.it_interval.tv_usec = 0;
+        timeout.it_interval.tv_sec  = 0;
+        timeout.it_value.tv_usec    = 0;
+        timeout.it_value.tv_sec     = atoi(argv[++i]);
+        setitimer(ITIMER_VIRTUAL, &timeout, NULL);
+        }
+      else if (argv[i][1] == 'i')
+        {
+        bm->UserFlags.random_seed_flag = true;
+        bm->UserFlags.random_seed = atoi(argv[++i]);
+        //cerr << "Random seed is: " << bm->UserFlags.random_seed << endl;
+        if(!(0 <= bm->UserFlags.random_seed))
+          {
+            FatalError("Random Seed should be an integer >= 0\n");
+          }
+        }
+      else if (argv[i][1] == 'b')
+        {
+          onePrintBack = true;
+          bm->UserFlags.print_STPinput_back_flag = true;
+        }
+      else
+    	  process_argument(argv[i][1],bm);
+
         }
         } else {          
         	if (NULL != infile)
@@ -406,12 +376,15 @@ helpstring +=
 	  }
   }
 
+  FILE* toClose= 0;
+
   // If we're not reading the file from stdin.
   if (infile != NULL)
   {
   if (bm->UserFlags.smtlib1_parser_flag)
     {
       smtin = fopen(infile,"r");
+      toClose = smtin;
       if(smtin == NULL)
         {
           fprintf(stderr,"%s: Error: cannot open %s\n",prog,infile);
@@ -421,6 +394,7 @@ helpstring +=
         if (bm->UserFlags.smtlib2_parser_flag)
           {
             smt2in = fopen(infile,"r");
+            toClose = smt2in;
             if(smt2in == NULL)
               {
                 fprintf(stderr,"%s: Error: cannot open %s\n",prog,infile);
@@ -431,6 +405,7 @@ helpstring +=
   else
     {
       cvcin = fopen(infile,"r");
+      toClose = cvcin;
       if(cvcin == NULL)
         {
           fprintf(stderr,"%s: Error: cannot open %s\n",prog,infile);
@@ -451,7 +426,7 @@ helpstring +=
 
   bm->GetRunTimes()->start(RunTimes::Parsing);
 	{
- 	    SimplifyingNodeFactory simpNF(*bm->defaultNodeFactory, *bm);
+ 	    SimplifyingNodeFactory simpNF(*bm->hashingNodeFactory, *bm);
 		TypeChecker nfTypeCheckSimp(simpNF, *bm);
 		TypeChecker nfTypeCheckDefault(*bm->defaultNodeFactory, *bm);
 
@@ -459,99 +434,142 @@ helpstring +=
 		ParserInterface piTypeCheckDefault(*bm, &nfTypeCheckDefault);
 
 		// If you are converting formats, you probably don't want it simplifying (at least I dont).
-		if (false && onePrintBack)
+		if (onePrintBack)
 		{
 			parserInterface = &piTypeCheckDefault;
 		}
 		else
 			parserInterface = &piTypeCheckSimp;
 
+		if (onePrintBack)
+		  {
+		    if (bm->UserFlags.smtlib2_parser_flag)
+		      {
+		        cerr << "Printback from SMTLIB2 inputs isn't currently working." << endl;
+		        cerr << "Please try again later" << endl;
+		        cerr << "It works prior to revision 1354" << endl;
+		        exit(1);
+		      }
+		  }
+
 
 		if (bm->UserFlags.smtlib1_parser_flag) {
 			smtparse((void*) AssertsQuery);
 			smtlex_destroy();
 		} else if (bm->UserFlags.smtlib2_parser_flag) {
-			smt2parse((void*) AssertsQuery);
+		        assertionsSMT2.push_back(ASTVec());
+		        smt2parse((void*) AssertsQuery);
+			//parserInterface->letMgr.cleanupParserSymbolTable();
 			smt2lex_destroy();
 		} else {
 			cvcparse((void*) AssertsQuery);
 			cvclex_destroy();
 		}
 		parserInterface = NULL;
+		if (toClose != NULL)
+			fclose(toClose);
 	}
 	bm->GetRunTimes()->stop(RunTimes::Parsing);
 
-  if(((ASTVec*)AssertsQuery)->empty())
+  /*  The SMTLIB2 has a command language. The parser calls all the functions,
+   *  so when we get to here the parser has already called "exit". i.e. if the
+   *  language is smt2 then all the work has already been done, and all we need
+   *  to do is cleanup...
+   *    */
+  if (!bm->UserFlags.smtlib2_parser_flag)
     {
-      FatalError("Input is Empty. Please enter some asserts and query\n");
+
+      if (((ASTVec*) AssertsQuery)->empty())
+        {
+          FatalError("Input is Empty. Please enter some asserts and query\n");
+        }
+
+      if (((ASTVec*) AssertsQuery)->size() != 2)
+        {
+          FatalError("Input must contain a query\n");
+        }
+
+      ASTNode asserts = (*(ASTVec*) AssertsQuery)[0];
+      ASTNode query = (*(ASTVec*) AssertsQuery)[1];
+
+      if (onePrintBack)
+        {
+
+          ASTNode original_input = bm->CreateNode(AND, bm->CreateNode(NOT, query), asserts);
+
+          if (bm->UserFlags.print_STPinput_back_flag)
+            {
+              if (bm->UserFlags.smtlib1_parser_flag)
+                bm->UserFlags.print_STPinput_back_SMTLIB2_flag = true;
+              else
+                bm->UserFlags.print_STPinput_back_CVC_flag = true;
+            }
+
+          if (bm->UserFlags.print_STPinput_back_CVC_flag)
+            {
+              //needs just the query. Reads the asserts out of the data structure.
+              print_STPInput_Back(original_input);
+            }
+
+          if (bm->UserFlags.print_STPinput_back_SMTLIB1_flag)
+            {
+              printer::SMTLIB1_PrintBack(cout, original_input);
+            }
+
+          if (bm->UserFlags.print_STPinput_back_SMTLIB2_flag)
+            {
+              printer::SMTLIB2_PrintBack(cout, original_input);
+            }
+
+          if (bm->UserFlags.print_STPinput_back_C_flag)
+            {
+              printer::C_Print(cout, original_input);
+            }
+
+          if (bm->UserFlags.print_STPinput_back_GDL_flag)
+            {
+              printer::GDL_Print(cout, original_input);
+            }
+
+          if (bm->UserFlags.print_STPinput_back_dot_flag)
+            {
+              printer::Dot_Print(cout, original_input);
+            }
+
+          return 0;
+        }
+
+      SOLVER_RETURN_TYPE ret = GlobalSTP->TopLevelSTP(asserts, query);
+      if (bm->UserFlags.quick_statistics_flag)
+        {
+          bm->GetRunTimes()->print();
+        }
+      (GlobalSTP->tosat)->PrintOutput(ret);
+
+      asserts = ASTNode();
+      query = ASTNode();
     }
 
-  if(((ASTVec*)AssertsQuery)->size() != 2)
-    {
-      FatalError("Input must contain a query\n");
-    }
+  // Currently for testcase12.stp.smt2 we spend 3 seconds running the destructors,
+  // the total runtime is 17 seconds, so about 20% of runtime is spent destructing
+  // which is wasted work because the process is going to be killed anyway.
+  if (bm->UserFlags.isSet("fast-exit", "1"))
+	  exit(0);
 
-  ASTNode asserts = (*(ASTVec*)AssertsQuery)[0];
-  ASTNode query   = (*(ASTVec*)AssertsQuery)[1];
-
-  if (onePrintBack)
-  {
-
-    ASTNode original_input = bm->CreateNode(AND,
-    		bm->CreateNode(NOT, query),
-    		asserts);
-
-
-  if(bm->UserFlags.print_STPinput_back_flag)
-    {
-      if(bm->UserFlags.smtlib1_parser_flag)
-    	  bm->UserFlags.print_STPinput_back_SMTLIB2_flag = true;
-      else
-    	  bm->UserFlags.print_STPinput_back_CVC_flag = true;
-    }
-
-  if (bm->UserFlags.print_STPinput_back_CVC_flag)
-  {
-	  //needs just the query. Reads the asserts out of the data structure.
-	  print_STPInput_Back(query);
-  }
-
-  if (bm->UserFlags.print_STPinput_back_SMTLIB1_flag)
-    {
-	  printer::SMTLIB1_PrintBack(cout, original_input);
-   }
-
-  if (bm->UserFlags.print_STPinput_back_SMTLIB2_flag)
-    {
-	  printer::SMTLIB2_PrintBack(cout, original_input);
-    }
-
-  if (bm->UserFlags.print_STPinput_back_C_flag)
-    {
-	  printer::C_Print(cout, original_input);
-    }
-
-  if (bm->UserFlags.print_STPinput_back_GDL_flag)
-    {
-	  printer::GDL_Print(cout, original_input);
-    }
-
-  if (bm->UserFlags.print_STPinput_back_dot_flag)
-    {
-	  printer::Dot_Print(cout, original_input);
-    }
-
-  return 0;
-  }
-
-  SOLVER_RETURN_TYPE ret = GlobalSTP->TopLevelSTP(asserts, query);
-  if (bm->UserFlags.quick_statistics_flag) 
-    {
-      bm->GetRunTimes()->print();
-    }
-  (GlobalSTP->tosat)->PrintOutput(ret);
-
+  AssertsQuery->clear();
   delete AssertsQuery;
+
+  _empty_ASTVec.clear();
+
+  simpCleaner.release();
+  atClearner.release();
+  tosatCleaner.release();
+  ctrCleaner.release();
+
+  delete GlobalSTP;
+  delete ParserBM;
+
+
   return 0;
 }//end of Main
 #endif

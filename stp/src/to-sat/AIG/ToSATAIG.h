@@ -11,16 +11,17 @@
 #define TOSATAIG_H
 #include <cmath>
 
-#include "../AST/AST.h"
-#include "../AST/RunTimes.h"
-#include "../STPManager/STPManager.h"
+#include "../../AST/AST.h"
+#include "../../AST/RunTimes.h"
+#include "../../STPManager/STPManager.h"
 #include "../BitBlaster.h"
 #include "BBNodeManagerAIG.h"
+#include "ToCNFAIG.h"
+#include "../../AST/ArrayTransformer.h"
 
 namespace BEEV
 {
 
-  // NB You can't use this with abstraction refinement!!!
   class ToSATAIG : public ToSATBase
   {
   private:
@@ -28,23 +29,51 @@ namespace BEEV
     ASTNodeToSATVar nodeToSATVar;
     simplifier::constantBitP::ConstantBitPropagation* cb;
 
+    ArrayTransformer *arrayTransformer;
+
     // don't assign or copy construct.
     ToSATAIG&  operator = (const ToSATAIG& other);
     ToSATAIG(const ToSATAIG& other);
 
+	int count;
+	bool first;
+
+	ToCNFAIG toCNF;
+
+    void init()
+    {
+        count = 0;
+        first = true;
+        arrayTransformer = NULL;
+    }
+
   public:
 
+    void setArrayTransformer(ArrayTransformer *at)
+    {
+        arrayTransformer = at;
+    }
+
+    bool cbIsDestructed()
+    {
+    	return cb == NULL;
+    }
+
     ToSATAIG(STPMgr * bm) :
-      ToSATBase(bm)
+      ToSATBase(bm), toCNF(bm->UserFlags)
     {
       cb = NULL;
+      init();
     }
 
     ToSATAIG(STPMgr * bm, simplifier::constantBitP::ConstantBitPropagation* cb_) :
-      ToSATBase(bm)
+    	ToSATBase(bm), cb(cb_), toCNF(bm->UserFlags)
     {
       cb = cb_;
+      init();
     }
+
+    ~ToSATAIG();
 
     void
     ClearAllTables()
@@ -59,8 +88,7 @@ namespace BEEV
       return nodeToSATVar;
     }
 
-    // Can not be used with abstraction refinement.
-    bool  CallSAT(MINISAT::Solver& satSolver, const ASTNode& input);
+    bool  CallSAT(SATSolver& satSolver, const ASTNode& input, bool needAbsRef);
 
   };
 }

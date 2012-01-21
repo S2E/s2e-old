@@ -18,6 +18,7 @@
 namespace BEEV
 {
   ASTNode NonMemberBVConstEvaluator(const ASTNode& t);
+  ASTNode NonMemberBVConstEvaluator(STPMgr* _bm , const Kind k, const ASTVec& input_children, unsigned int inputwidth);
 
   class Simplifier
   {
@@ -35,16 +36,16 @@ namespace BEEV
     // value is simplified node.
     ASTNodeMap * SimplifyMap;
     ASTNodeMap * SimplifyNegMap;
-    ASTNodeSet AlwaysTrueFormMap;
+    HASHSET<int> AlwaysTrueHashSet;
     ASTNodeMap MultInverseMap;
 
     // For ArrayWrite Abstraction: map from read-over-write term to
     // newname.
-    ASTNodeMap * ReadOverWrite_NewName_Map;
+    //ASTNodeMap * ReadOverWrite_NewName_Map;
       
     // For ArrayWrite Refinement: Map new arraynames to
     // Read-Over-Write terms
-    ASTNodeMap NewName_ReadOverWrite_Map;
+    //ASTNodeMap NewName_ReadOverWrite_Map;
 
     //Ptr to STP Manager
     STPMgr * _bm;
@@ -54,8 +55,16 @@ namespace BEEV
     SubstitutionMap substitutionMap;
 
     void checkIfInSimplifyMap(const ASTNode& n, ASTNodeSet visited);
+
+    ASTNode makeTower(const Kind k , const ASTVec& children);
+
+    ASTNode pullUpBVSX(const ASTNode output);
+
   public:
-      
+    static ASTNode convertArithmeticKnownShiftAmount(const Kind k, const ASTVec& children, STPMgr& bm, NodeFactory *nf);
+    static ASTNode convertKnownShiftAmount(const Kind k, const ASTVec& children, STPMgr& bm, NodeFactory *nf);
+
+
     /****************************************************************
      * Public Member Functions                                      *
      ****************************************************************/      
@@ -64,7 +73,7 @@ namespace BEEV
     {
       SimplifyMap    = new ASTNodeMap(INITIAL_TABLE_SIZE);
       SimplifyNegMap = new ASTNodeMap(INITIAL_TABLE_SIZE);
-      ReadOverWrite_NewName_Map = new ASTNodeMap();
+      //ReadOverWrite_NewName_Map = new ASTNodeMap();
 
       ASTTrue  = bm->CreateNode(TRUE);
       ASTFalse = bm->CreateNode(FALSE);
@@ -77,7 +86,7 @@ namespace BEEV
     {
       delete SimplifyMap;
       delete SimplifyNegMap;
-      delete ReadOverWrite_NewName_Map;
+      //delete ReadOverWrite_NewName_Map;
       delete nf;
     }
 
@@ -90,29 +99,31 @@ namespace BEEV
                   const ASTNode& key, ASTNode& output);
 
       
-    //functions for checking and updating simplifcation map
+    //functions for checking and updating simplification map
     bool CheckSimplifyMap(const ASTNode& key, 
                           ASTNode& output, 
                           bool pushNeg, ASTNodeMap* VarConstMap=NULL);
     void UpdateSimplifyMap(const ASTNode& key, 
                            const ASTNode& value, 
                            bool pushNeg, ASTNodeMap* VarConstMap=NULL);
-    bool CheckAlwaysTrueFormMap(const ASTNode& key);
-    void UpdateAlwaysTrueFormMap(const ASTNode& val);
+    bool CheckAlwaysTrueFormSet(const ASTNode& key, bool& result);
+    void UpdateAlwaysTrueFormSet(const ASTNode& val);
     bool CheckMultInverseMap(const ASTNode& key, ASTNode& output);
     void UpdateMultInverseMap(const ASTNode& key, const ASTNode& value);
       
     //Map for solved variables
     bool UpdateSolverMap(const ASTNode& e0, const ASTNode& e1);     
-    ASTNode CreateSubstitutionMap(const ASTNode& a,
+    ASTNode topLevel(const ASTNode& a,
   		ArrayTransformer *at);
 
     //substitution
     bool CheckSubstitutionMap(const ASTNode& a, ASTNode& output);
     bool CheckSubstitutionMap(const ASTNode& a);
     bool UpdateSubstitutionMap(const ASTNode& e0, const ASTNode& e1);
+    bool UpdateSubstitutionMapFewChecks(const ASTNode& e0, const ASTNode& e1);
 
     ASTNode applySubstitutionMap(const ASTNode& n);
+    ASTNode applySubstitutionMapUntilArrays(const ASTNode& n);
 
     void ResetSimplifyMaps(void);
 
@@ -131,6 +142,9 @@ namespace BEEV
                             bool pushNeg, 
                             ASTNodeMap* VarConstMap=NULL);
 
+
+    bool hasBeenSimplified(const ASTNode& n);
+
     ASTNode SimplifyTerm(const ASTNode& inputterm, 
                          ASTNodeMap* VarConstMap=NULL);
       
@@ -138,10 +152,6 @@ namespace BEEV
     ASTNode SimplifyFormula_NoRemoveWrites(const ASTNode& a, 
                                            bool pushNeg, 
                                            ASTNodeMap* VarConstMap=NULL);
-
-    void CheckSimplifyInvariant(const ASTNode& a, 
-                                const ASTNode& output);
-
 
     ASTNode SimplifyAtomicFormula(const ASTNode& a, 
                                   bool pushNeg, 
@@ -155,8 +165,6 @@ namespace BEEV
 
     ASTNode PullUpITE(const ASTNode& in);
 
-    ASTNode RemoveContradictionsFromAND(const ASTNode& in);
-      
     ASTNode CreateSimplifiedTermITE(const ASTNode& t1, 
                                     const ASTNode& t2, 
                                     const ASTNode& t3);
@@ -196,20 +204,16 @@ namespace BEEV
     ASTNode SimplifyForFormula(const ASTNode& a,
                                bool pushNeg, ASTNodeMap* VarConstMap=NULL);
 
-    ASTNode Flatten(const ASTNode& a);
-
-    ASTNode FlattenOneLevel(const ASTNode& a);
-
-    ASTNode FlattenAndOr(const ASTNode& a);
 
     ASTNode CombineLikeTerms(const ASTNode& a);
+    ASTNode CombineLikeTerms(const ASTVec& a);
 
     ASTNode LhsMinusRhs(const ASTNode& eq);
 
     ASTNode DistributeMultOverPlus(const ASTNode& a,
                                    bool startdistribution = false);
 
-    ASTNode ConvertBVSXToITE(const ASTNode& a);
+    //ASTNode ConvertBVSXToITE(const ASTNode& a);
 
     ASTNode BVConstEvaluator(const ASTNode& t);
 
@@ -227,40 +231,60 @@ namespace BEEV
 
     ASTNode SimplifyArrayTerm(const ASTNode& term,ASTNodeMap* VarConstMap);
 
-    ASTNode ReadOverWrite_To_ITE(const ASTNode& term, 
-                                 ASTNodeMap* VarConstMap=NULL);
+    //ASTNode ReadOverWrite_To_ITE(const ASTNode& term,
+    //                              ASTNodeMap* VarConstMap=NULL);
 
     void printCacheStatus();
 
+#if 0
     //FIXME: Get rid of this horrible function
     const ASTNodeMap * ReadOverWriteMap()
     {
       return ReadOverWrite_NewName_Map;
     } // End of ReadOverWriteMap()
-      
-    const ASTNodeMap * Return_SolverMap()
+#endif
+
+    bool hasUnappliedSubstitutions()
+    {
+      return substitutionMap.hasUnappliedSubstitutions();
+    }
+
+    ASTNodeMap * Return_SolverMap()
     {
     	return substitutionMap.Return_SolverMap();
     } // End of SolverMap()
+
+    void haveAppliedSubstitutionMap()
+    {
+    	substitutionMap.haveAppliedSubstitutionMap();
+    }
+
 
     void ClearAllTables(void) 
     {
       SimplifyMap->clear();
       SimplifyNegMap->clear();
-      ReadOverWrite_NewName_Map->clear();
-      NewName_ReadOverWrite_Map.clear();
-      AlwaysTrueFormMap.clear();
+      //ReadOverWrite_NewName_Map->clear();
+      //NewName_ReadOverWrite_Map.clear();
+      AlwaysTrueHashSet.clear();
       MultInverseMap.clear();
       substitutionMap.clear();
     }
 
+
     // These can be cleared (to save memory) without changing the answer.
     void ClearCaches()
     {
-        AlwaysTrueFormMap.clear();
+        AlwaysTrueHashSet.clear();
         MultInverseMap.clear();
         SimplifyMap->clear();
         SimplifyNegMap->clear();
+        getVariablesInExpression().ClearAllTables();
+    }
+
+    VariablesInExpression& getVariablesInExpression()
+    {
+    	return substitutionMap.vars;
     }
 
   };//end of class Simplifier

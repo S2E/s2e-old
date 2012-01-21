@@ -1,5 +1,6 @@
-#include "ASTKind.h"
-#include "AST.h"
+#include "../ASTKind.h"
+#include "../AST.h"
+#include "../../STPManager/STPManager.h"
 
 NodeFactory::~NodeFactory()
 {
@@ -103,3 +104,19 @@ BEEV::ASTNode NodeFactory::CreateArrayTerm(Kind kind, unsigned int index,
 	return result;
 }
 
+BEEV::ASTNode NodeFactory::getTrue() {return bm.ASTTrue;}
+BEEV::ASTNode NodeFactory::getFalse(){return bm.ASTFalse;}
+
+
+ASTNode NodeFactory::CreateSymbol(const char * const name, unsigned indexWidth, unsigned valueWidth)
+{
+  ASTNode n = bm.LookupOrCreateSymbol(name);
+  n.SetIndexWidth(indexWidth);
+  n.SetValueWidth(valueWidth);
+  return n;
+}
+
+ASTNode NodeFactory::CreateConstant(BEEV::CBV  cbv, unsigned width)
+{
+  return bm.CreateBVConst(cbv,width);
+}

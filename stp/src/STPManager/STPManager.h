@@ -13,6 +13,7 @@
 #include "UserDefinedFlags.h"
 #include "../AST/AST.h"
 #include "../AST/NodeFactory/HashingNodeFactory.h"
+#include "../sat/SATSolver.h"
 
 namespace BEEV
 {
@@ -78,6 +79,37 @@ namespace BEEV
 
     //frequently used nodes
     ASTNode ASTFalse, ASTTrue, ASTUndefined;
+
+    uint8_t last_iteration;
+
+    // No nodes should already have the iteration number that is returned from here.
+    // This never returns zero.
+    uint8_t getNextIteration()
+    {
+        if (last_iteration == 255)
+            {
+                resetIteration();
+                last_iteration = 0;
+            }
+
+        uint8_t result =  ++last_iteration;
+        assert(result != 0);
+        return result;
+    }
+
+    // Detauls the iteration count back to zero.
+    void resetIteration()
+    {
+        for (ASTInteriorSet::iterator it =_interior_unique_table.begin(); it != _interior_unique_table.end(); it++ )
+            {(*it)->iteration = 0;}
+
+        for (ASTSymbolSet ::iterator it =_symbol_unique_table.begin(); it != _symbol_unique_table.end(); it++ )
+            {(*it)->iteration = 0;}
+
+        for (ASTBVConstSet:: iterator it =_bvconst_unique_table.begin(); it != _bvconst_unique_table.end(); it++ )
+            {(*it)->iteration = 0;}
+    }
+
   private:
 
     // Stack of Logical Context. each entry in the stack is a logical
@@ -90,9 +122,6 @@ namespace BEEV
 
     // Memo table that tracks terms already seen
     ASTNodeMap TermsAlreadySeenMap;
-    
-    //Map for computing ASTNode stats
-    ASTNodeSet StatInfoSet;
     
     // The query for the current logical context.
     ASTNode _current_query;    
@@ -132,7 +161,15 @@ namespace BEEV
     ASTVec ones;
     ASTVec max;
 
+    // Set of new symbols introduced that replace the array read terms
+    ASTNodeSet Introduced_SymbolsSet;
+
+    CBV CreateBVConstVal;
+
   public:
+
+    bool LookupSymbol(const char * const name);
+    bool LookupSymbol(const char * const name, ASTNode& output);
     
     /****************************************************************
      * Public Flags                                                 *
@@ -163,6 +200,9 @@ namespace BEEV
     //count is used in the creation of new variables
     unsigned int _symbol_count;
 
+    // The value to append to the filename when saving the CNF.
+    unsigned int CNFFileNameCounter;
+
     /****************************************************************
      * Public Member Functions                                      *
      ****************************************************************/
@@ -173,7 +213,10 @@ namespace BEEV
       _symbol_unique_table(),
       _bvconst_unique_table(),
       UserFlags(),
-      _symbol_count(0)
+      _symbol_count(0),
+      CNFFileNameCounter(0),
+      last_iteration(0)
+
     {
       _max_node_num = 0;
       Begin_RemoveWrites = false;
@@ -193,7 +236,7 @@ namespace BEEV
       ASTUndefined = CreateNode(UNDEFINED);
       runTimes     = new RunTimes();
       _current_query = ASTUndefined;
-      UserFlags.num_absrefine = 2;
+      CreateBVConstVal = NULL;
     }    
     
     RunTimes * GetRunTimes(void)
@@ -217,9 +260,7 @@ namespace BEEV
       return _max_node_num;
     }
 
-    //reports node size.  Second arg is "clearstatinfo", whatever that
-    //is.
-    unsigned int NodeSize(const ASTNode& a, bool t = false);
+    unsigned int NodeSize(const ASTNode& a);
 
     /****************************************************************
      * Simplifying create formula functions                         *
@@ -256,7 +297,7 @@ namespace BEEV
      ****************************************************************/
 
     // Create and return an ASTNode for a symbol
-    ASTNode CreateSymbol(const char * const name);
+    ASTNode LookupOrCreateSymbol(const char * const name);
 
     // Create and return an ASTNode for a symbol Width is number of
     // bits.
@@ -266,12 +307,19 @@ namespace BEEV
     ASTNode CreateZeroConst(unsigned int width);
     ASTNode CreateBVConst(CBV bv, unsigned width);
     ASTNode CreateBVConst(const char *strval, int base);
-    ASTNode CreateBVConst(string*& strval, int base, int bit_width);    
+    ASTNode CreateBVConst(string strval, int base, int bit_width);
     ASTNode CreateBVConst(unsigned int width, unsigned long long int bvconst);
+    ASTNode charToASTNode(unsigned char* strval, int base , int bit_width);
     
     /****************************************************************
      * Create Node functions                                        *
      ****************************************************************/
+
+    inline ASTNode CreateSymbol(const char * const name, unsigned indexWidth, unsigned valueWidth)
+    {
+      return defaultNodeFactory->CreateSymbol(name,indexWidth,valueWidth);
+    }
+
 
     // Create and return an interior ASTNode
     inline BEEV::ASTNode CreateNode(BEEV::Kind kind, const BEEV::ASTVec& children = _empty_ASTVec)
@@ -303,6 +351,11 @@ namespace BEEV
      inline BEEV::ASTNode CreateTerm(BEEV::Kind kind, unsigned int width, const BEEV::ASTVec &children =_empty_ASTVec)
      {
     	 return defaultNodeFactory->CreateTerm(kind,width,children);
+     }
+
+     inline BEEV::ASTNode CreateArrayTerm(BEEV::Kind kind, unsigned int indexWidth, unsigned int width, const BEEV::ASTVec &children =_empty_ASTVec)
+     {
+         return defaultNodeFactory->CreateArrayTerm(kind,indexWidth, width,children);
      }
 
      inline ASTNode CreateTerm(Kind kind, unsigned int width,
@@ -371,24 +424,27 @@ namespace BEEV
     // Print assertions to the input stream
     void printAssertsToStream(ostream &os, int simplify);
 
-    // Prints SAT solver statistics
-    void PrintStats(MINISAT::Solver& stats);
-    
-    // Create New Variables
-    ASTNode NewVar(unsigned int n);
-
+    // Variables are added automatically to the introduced_symbolset. Variables
+    // in the set aren't printed out as part of the counter example.
     ASTNode CreateFreshVariable(int indexWidth, int valueWidth, std::string prefix)
     {
         char d[32 + prefix.length()];
         sprintf(d, "%s_%d", prefix.c_str(), _symbol_count++);
+        assert(!LookupSymbol(d));
 
-        BEEV::ASTNode CurrentSymbol = CreateSymbol(d);
-        CurrentSymbol.SetValueWidth(valueWidth);
-        CurrentSymbol.SetIndexWidth(indexWidth);
-
+        BEEV::ASTNode CurrentSymbol = CreateSymbol(d,indexWidth,valueWidth);
+        Introduced_SymbolsSet.insert(CurrentSymbol);
         return CurrentSymbol;
     }
 
+    bool FoundIntroducedSymbolSet(const ASTNode& in)
+    {
+      if(Introduced_SymbolsSet.find(in) != Introduced_SymbolsSet.end())
+        {
+          return true;
+        }
+      return false;
+    } // End of IntroduceSymbolSet
 
     bool VarSeenInTerm(const ASTNode& var, const ASTNode& term);
 
@@ -400,40 +456,21 @@ namespace BEEV
       TermsAlreadySeenMap.clear();
     }
 
+    // This is called before SAT solving, so only junk that isn't needed
+    // after SAT solving should be cleaned out.
     void ClearAllTables(void) 
     {
       NodeLetVarMap.clear();
       NodeLetVarMap1.clear();
       PLPrintNodeSet.clear();
       AlreadyPrintedSet.clear();
-      StatInfoSet.clear();
       TermsAlreadySeenMap.clear();
       NodeLetVarVec.clear();
       ListOfDeclaredVars.clear();
     } //End of ClearAllTables()
 
-    ~STPMgr()
-    {
-      ClearAllTables();
+    ~STPMgr();
 
-      vector<IntToASTVecMap*>::iterator it    = _asserts.begin();
-      vector<IntToASTVecMap*>::iterator itend = _asserts.end();
-      for(;it!=itend;it++) 
-        {
-          IntToASTVecMap * j = (*it);
-          j->clear();
-          delete j;
-        }
-      _asserts.clear();
-
-      delete runTimes;
-          
-      _interior_unique_table.clear();
-      _bvconst_unique_table.clear();
-      _symbol_unique_table.clear();
-
-      delete hashingNodeFactory;
-    }
   };//End of Class STPMgr
 };//end of namespace
 #endif

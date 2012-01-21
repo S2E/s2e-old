@@ -57,7 +57,12 @@ extern "C" {
     this flag is set both at the time the objects are created and at
     the time that vc_Destroy is called, vc_Destroy will automatically
     delete them. */
-    EXPRDELETE
+    EXPRDELETE,
+    MS,
+    SMS,
+    CMS2,
+    MSP
+
   };
   void vc_setInterfaceFlags(VC vc, enum ifaceflag_t f, int param_value);
 
@@ -212,6 +217,9 @@ extern "C" {
   //! Return the counterexample after a failed query.
   Expr vc_getCounterExample(VC vc, Expr e);
 
+  //! Return an array from a counterexample after a failed query.
+  void vc_getCounterExampleArray(VC vc, Expr e, Expr **indices, Expr **values, int *size);
+    
   //! get size of counterexample, i.e. the number of variables/array
   //locations in the counterexample.
   int vc_counterexample_size(VC vc);
@@ -235,7 +243,7 @@ extern "C" {
   Type vc_bvType(VC vc, int no_bits);
   Type vc_bv32Type(VC vc);
 
-  Expr vc_bvConstExprFromDecStr(VC vc, const size_t width, const char* decimalInput );
+  Expr vc_bvConstExprFromDecStr(VC vc, int width, const char* decimalInput );
   Expr vc_bvConstExprFromStr(VC vc, const char* binary_repr);
   Expr vc_bvConstExprFromInt(VC vc, int n_bits, unsigned int value);
   Expr vc_bvConstExprFromLL(VC vc, int n_bits, unsigned long long value);
@@ -398,7 +406,6 @@ extern "C" {
       XOR,
       IFF,
       IMPLIES,
-      FOR,
       PARAMBOOL,
       READ,
       WRITE,

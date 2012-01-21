@@ -55,20 +55,18 @@ namespace BEEV
      * Protected Data                                               *
      ****************************************************************/
 
+    mutable uint8_t iteration;
+
     //reference counting for garbage collection
     unsigned int   _ref_count;
    
     // Kind. It's a type tag and the operator.
     enumeration<Kind,unsigned char> _kind;
 
-    // The vector of children
-    ASTVec _children;
-
     //Nodenum is a unique positive integer for the node.  The nodenum
     //of a node should always be greater than its descendents (which
     //is easily achieved by incrementing the number each time a new
     //node is created).
-    //FIXME: Get rid of this
     unsigned int _node_num;
 
     /*******************************************************************
@@ -78,11 +76,8 @@ namespace BEEV
      *                                                                 *
      * Width of the index of an array. Positive for array, 0 otherwise *
      *******************************************************************/
-#ifdef LESSBYTES_PERNODE
-    unsigned char _index_width;
-#else
     unsigned int  _index_width;
-#endif
+
 
     /*******************************************************************
      * ASTNode is of type BV      <==> ((indexwidth=0)&&(valuewidth>0))*
@@ -91,11 +86,7 @@ namespace BEEV
      *                                                                 *
      * Number of bits of bitvector. +ve for array/bitvector,0 otherwise*
      *******************************************************************/
-#ifdef LESSBYTES_PERNODE
-    unsigned char _value_width;
-#else
     unsigned int  _value_width;
-#endif
 
     /****************************************************************
      * Protected Member Functions                                   *
@@ -127,10 +118,7 @@ namespace BEEV
     }
 
     // Get the child nodes of this node
-    virtual ASTVec const &GetChildren() const
-    {
-      return _children;
-    }
+    virtual ASTVec const &GetChildren() const = 0;
 
   public:
 
@@ -138,27 +126,11 @@ namespace BEEV
      * Public Member Functions                                      *
      ****************************************************************/
     
-    // Constructor
-    ASTInternal(int nodenum = 0) :
-      _ref_count(0), _kind(UNDEFINED),
-      _node_num(nodenum), 
-      _index_width(0), _value_width(0)
-    {
-    }
-
     // Constructor (kind only, empty children, int nodenum)
     ASTInternal(Kind kind, int nodenum = 0) :
       _ref_count(0), _kind(kind),
       _node_num(nodenum),
-      _index_width(0), _value_width(0)
-    {
-    }
-
-    // Constructor (kind and children).
-    ASTInternal(Kind kind, const ASTVec &children, int nodenum = 0) :
-      _ref_count(0), _kind(kind), _children(children), 
-      _node_num(nodenum),
-      _index_width(0), _value_width(0)
+      _index_width(0), _value_width(0), iteration(0)
     {
     }
 
@@ -169,10 +141,10 @@ namespace BEEV
     // FIXME:  I don't think children need to be copied.
     ASTInternal(const ASTInternal &int_node, int nodenum = 0) :
       _ref_count(0), _kind(int_node._kind), 
-      _children(int_node._children),
       _node_num(int_node._node_num), 
-      _index_width(int_node._index_width), 
-      _value_width(int_node._value_width)
+      _index_width(int_node._index_width),
+      _value_width(int_node._value_width),
+      iteration(0)
     {
     }
 
@@ -196,6 +168,18 @@ namespace BEEV
     {
       return _node_num;
     } //End of GetNodeNum()
+
+
+    virtual bool isSimplified() const
+    {
+      return false;
+    }
+
+    virtual void hasBeenSimplified() const
+    {
+      cerr << "astinternal has been";
+    }
+
 
     void SetNodeNum(int nn)
     {

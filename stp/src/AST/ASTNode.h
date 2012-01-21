@@ -8,7 +8,7 @@
  ********************************************************************/
 #ifndef ASTNODE_H
 #define ASTNODE_H
-#include "../AST/NodeFactory/HashingNodeFactory.h"
+#include "NodeFactory/HashingNodeFactory.h"
 
 /********************************************************************
  *  This file gives the class description of the ASTNode class      *
@@ -22,6 +22,7 @@ namespace BEEV
    *  This class defines the node datastructure for the DAG that    *
    *  captures input formulas to STP.                               *
    ******************************************************************/
+
   class ASTNode
   {
     friend class STPMgr;
@@ -29,6 +30,8 @@ namespace BEEV
     friend class ASTInterior;
     friend class vector<ASTNode>;
     friend BEEV::ASTNode HashingNodeFactory::CreateNode(const Kind kind,	const BEEV::ASTVec & back_children);
+    friend bool exprless(const ASTNode n1, const ASTNode n2);
+    friend bool arithless(const ASTNode n1, const ASTNode n2);
 
   private:
     /****************************************************************
@@ -70,6 +73,9 @@ namespace BEEV
      * Public Member Functions                                      *
      ****************************************************************/
 
+    uint8_t getIteration() const;
+    void setIteration(uint8_t v) const;
+
     // Default constructor.
     ASTNode() :_int_node_ptr(NULL) {};
 
@@ -95,57 +101,15 @@ namespace BEEV
       return _int_node_ptr == NULL;
     }
 
-    // Sort ASTNodes by expression numbers
-    friend bool exprless(const ASTNode n1, const ASTNode n2)
-    {
-      return (n1.GetNodeNum() < n2.GetNodeNum());
-    }
-
-    // This is for sorting by arithmetic expressions (for
-    // combining like terms, etc.)
-    friend bool arithless(const ASTNode n1, const ASTNode n2)
-    {
-      Kind k1 = n1.GetKind();
-      Kind k2 = n2.GetKind();
-
-      if (n1 == n2)
-        {
-          // necessary for "strict weak ordering"
-          return false;
-        }
-      else if (BVCONST == k1 && BVCONST != k2)
-        {
-          // put consts first
-          return true;
-        }
-      else if (BVCONST != k1 && BVCONST == k2)
-        {
-          // put consts first
-          return false;
-        }
-      else if (SYMBOL == k1 && SYMBOL != k2)
-        {
-          // put symbols next
-          return true;
-        }
-      else if (SYMBOL != k1 && SYMBOL == k2)
-        {
-          // put symbols next
-          return false;
-        }
-      else
-        {
-          // otherwise, sort by exprnum (descendents will appear
-          // before ancestors).
-          return (n1.GetNodeNum() < n2.GetNodeNum());
-        }
-    } //end of arithless
-
     bool isConstant() const
     {
     	const Kind k = GetKind();
     	return (k == BVCONST || k == TRUE || k == FALSE);
     }
+
+    bool isSimplfied() const;
+
+    void hasBeenSimplfied() const;
 
 
     bool isITE() const
@@ -422,5 +386,6 @@ namespace BEEV
     }; //End of ASTNodeEqual
 
   }; //End of Class ASTNode
+
 }; //end of namespace
 #endif

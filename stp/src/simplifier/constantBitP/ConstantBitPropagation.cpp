@@ -5,9 +5,11 @@
 #include "../../AST/NodeFactory/NodeFactory.h"
 #include "../../simplifier/simplifier.h"
 #include "ConstantBitP_Utility.h"
+#include <iostream>
+#include <fstream>
 
-#ifdef WITHCBITP
   #include "ConstantBitP_TransferFunctions.h"
+#ifdef WITHCBITP
   #include "ConstantBitP_MaxPrecision.h"
 #endif
 
@@ -38,8 +40,9 @@ namespace simplifier
     dispatchToMaximallyPrecise(const Kind k, vector<FixedBits*>& children,
         FixedBits& output, const ASTNode n);
 
-    const bool debug_cBitProp_messages = true;
-    const bool output_mult_like = true;
+    const bool debug_cBitProp_messages = false;
+    const bool output_mult_like = false;
+    const bool debug_print_graph_after = false;
 
     ////////////////////
 
@@ -108,7 +111,7 @@ namespace simplifier
 
     // Put anything that's entirely fixed into a from->to map.
     ASTNodeMap
-    getAllFixed(NodeToFixedBitsMap* fixedMap)
+    ConstantBitPropagation::getAllFixed()
     {
       NodeToFixedBitsMap::NodeToFixedBitsMapType::iterator it;
 
@@ -124,8 +127,8 @@ namespace simplifier
           if (node.isConstant())
               continue;
 
-          // other nodes will contain the same information (the extract doesn't change the fixings).
-          if (BVEXTRACT == node.GetKind() || BVCONCAT == node.GetKind())
+          // Concat doesn't change the fixings. Ignore it.
+          if (BVCONCAT == node.GetKind())
             continue;
 
           if (bits.isTotallyFixed())
@@ -140,6 +143,9 @@ namespace simplifier
     void
     ConstantBitPropagation::setNodeToTrue(const ASTNode& top)
     {
+      assert(!topFixed);
+      topFixed = true;
+
       FixedBits & topFB = *getCurrentFixedBits(top);
       topFB.setFixed(0, true);
       topFB.setValue(0, true);
@@ -158,8 +164,7 @@ namespace simplifier
       fixedMap = new NodeToFixedBitsMap(1000); // better to use the function that returns the number of nodes.. whatever that is.
       workList = new WorkList(top);
       dependents = new Dependencies(top); // List of the parents of a node.
-      msm = NULL;
-      //msm = new MultiplicationStatsMap();
+      msm = new MultiplicationStatsMap();
 
 
       // not fixing the topnode.
@@ -195,6 +200,7 @@ namespace simplifier
         }
 #endif
 
+      topFixed = false;
     }
 
     // Both way propagation. Initialising the top to "true".
@@ -203,9 +209,9 @@ namespace simplifier
     //    then we can replace that node by its fixed bits.
     // 2) But if we assume the top node is true, then get the bits, we need to conjoin it.
 
-    // NB: This expects that the constructor was called with teh same node. Sorry.
+    // NB: This expects that the constructor was called with the same node. Sorry.
     ASTNode
-    ConstantBitPropagation::topLevelBothWays(const ASTNode& top)
+    ConstantBitPropagation::topLevelBothWays(const ASTNode& top, bool setTopToTrue, bool conjoinToTop)
     {
       assert(top.GetSTPMgr()->UserFlags.bitConstantProp_flag);
       assert (BOOLEAN_TYPE == top.GetType());
@@ -214,14 +220,15 @@ namespace simplifier
       status = NO_CHANGE;
 
       //Determine what must always be true.
-      ASTNodeMap fromTo = getAllFixed(fixedMap);
+      ASTNodeMap fromTo = getAllFixed();
 
       if (debug_cBitProp_messages)
         {
           cerr << "Number removed by bottom UP:" << fromTo.size() << endl;
         }
 
-      setNodeToTrue(top);
+      if (setTopToTrue)
+    	  setNodeToTrue(top);
 
       if (debug_cBitProp_messages)
         {
@@ -254,10 +261,35 @@ namespace simplifier
         {
           const FixedBits& bits = *it->second;
 
+          const ASTNode& node = (it->first);
+
+          if (false && node.GetKind() == SYMBOL && !bits.isTotallyFixed() && bits.countFixed() > 0)
+            {
+              // replace partially known variables with new variables.
+              int leastFixed = bits.leastUnfixed();
+              int mostFixed = bits.mostUnfixed();
+              const int width = node.GetValueWidth();
+
+              int new_width = mostFixed - leastFixed +1;
+              assert(new_width > 0);
+              ASTNode fresh = node.GetSTPMgr()->CreateFreshVariable(0,new_width,"STP_REPLACE");
+              ASTNode a,b;
+              if (leastFixed > 0)
+                a= node.GetSTPMgr()->CreateBVConst(bits.GetBVConst( leastFixed-1,  0), leastFixed);
+              if (mostFixed != width-1)
+                b =  node.GetSTPMgr()->CreateBVConst(bits.GetBVConst( width-1,  mostFixed+1),width-1-mostFixed);
+              if (!a.IsNull())
+                fresh = nf->CreateTerm(BVCONCAT, a.GetValueWidth() + fresh.GetValueWidth(), fresh, a);
+              if (!b.IsNull())
+                fresh = nf->CreateTerm(BVCONCAT, b.GetValueWidth() + fresh.GetValueWidth(), b, fresh);
+              assert(fresh.GetValueWidth() == node.GetValueWidth());
+              bool r = simplifier->UpdateSubstitutionMap(node, fresh);
+              assert(r);
+            }
+
           if (!bits.isTotallyFixed())
             continue;
 
-          const ASTNode& node = (it->first);
 
           // Don't constrain nodes we already know all about.
           if (node.isConstant())
@@ -272,7 +304,7 @@ namespace simplifier
           ASTNode propositionToAssert;
           ASTNode constantToReplaceWith;
           // skip the assigning and replacing.
-          bool doAssign = true;
+          bool doAssign = false;
 
             {
               // If it is already contained in the fromTo map, then it's one of the values
@@ -290,15 +322,17 @@ namespace simplifier
                       assert(r);
                       doAssign = false;
                     }
-                  else if (bits.getValue(0))
+                  else if (conjoinToTop && bits.getValue(0))
                     {
                       propositionToAssert = node;
                       constantToReplaceWith = constNode;
+                      doAssign=true;
                     }
-                  else
+                  else if (conjoinToTop)
                     {
                       propositionToAssert = nf->CreateNode(NOT, node);
                       constantToReplaceWith = constNode;
+                      doAssign=true;
                     }
                 }
               else if (node.GetType() == BITVECTOR_TYPE)
@@ -310,10 +344,11 @@ namespace simplifier
                       assert(r);
                       doAssign = false;
                     }
-                  else
+                  else if (conjoinToTop)
                     {
                       propositionToAssert = nf->CreateNode(EQ, node, constNode);
                       constantToReplaceWith = constNode;
+                      doAssign=true;
                     }
                 }
               else
@@ -330,9 +365,9 @@ namespace simplifier
 
               fromTo.insert(make_pair(node, constantToReplaceWith));
               toConjoin.push_back(propositionToAssert);
+              assert(conjoinToTop);
             }
         }
-
 
      // Write the constants into the main graph.
       ASTNodeMap cache;
@@ -340,8 +375,25 @@ namespace simplifier
 
       if (0 != toConjoin.size())
         {
-          result = nf->CreateNode(AND, result, toConjoin); // conjoin the new conditions.
+          // It doesn't happen very often. But the "toConjoin" might contain a variable
+          // that was added to the substitution map (because the value was determined just now
+          // during propagation.
+          ASTNode conjunct = (1 == toConjoin.size())? toConjoin[0]: nf->CreateNode(AND,toConjoin);
+          conjunct = simplifier->applySubstitutionMap(conjunct);
+
+          result = nf->CreateNode(AND, result, conjunct); // conjoin the new conditions.
         }
+
+
+  	if (debug_print_graph_after)
+		{
+			ofstream file;
+			file.open("afterCbitp.gdl");
+			PrintingHackfixedMap = fixedMap;
+			printer::GDL_Print(file,top,&toString);
+			file.close();
+		}
+
 
       assert(BVTypeCheck(result));
       assert(status != CONFLICT); // conflict should have been seen earlier.
@@ -442,24 +494,23 @@ namespace simplifier
 
           if (debug_cBitProp_messages)
             {
-              cerr << "working on" << n.GetNodeNum() << endl;
+              cerr << "[" << workList->size() << "]working on" << n.GetNodeNum() << endl;
             }
 
           // get a copy of the current fixing from the cache.
-          FixedBits current = *getCurrentFixedBits(n);
+          int previousTop = getCurrentFixedBits(n)->countFixed();
 
           // get the current for the children.
-          vector<FixedBits> childrenFixedBits;
-          childrenFixedBits.reserve(n.GetChildren().size());
+          previousChildrenFixedCount.clear();
 
           // get a copy of the current fixing from the cache.
           for (unsigned i = 0; i < n.GetChildren().size(); i++)
             {
-              childrenFixedBits.push_back(*getCurrentFixedBits(n[i]));
+              previousChildrenFixedCount.push_back(getCurrentFixedBits(n[i])->countFixed());
             }
 
           // derive the new ones.
-          FixedBits newBits = *getUpdatedFixedBits(n);
+          int newCount = getUpdatedFixedBits(n)->countFixed();
 
           if (CONFLICT == status)
             return;
@@ -467,26 +518,19 @@ namespace simplifier
           // Not all transfer function update the status. But if they report NO_CHANGE. There really is no change.
           if (status != NO_CHANGE)
             {
-              if (!FixedBits::equals(newBits, current)) // has been a change.
+              if (newCount != previousTop) // has been a change.
                 {
-                  assert(FixedBits::updateOK(current,newBits));
-
-                  scheduleUp(n); // schedule everything that depends on n.
-                  if (debug_cBitProp_messages)
-                    {
-                      cerr << "Changed " << n.GetNodeNum() << "from:" << current << "to:" << newBits << endl;
-                    }
+                      assert(newCount >= previousTop);
+                      scheduleUp(n); // schedule everything that depends on n.
                 }
 
               for (unsigned i = 0; i < n.GetChildren().size(); i++)
                 {
-                  if (!FixedBits::equals(*getCurrentFixedBits(n[i]), childrenFixedBits[i]))
+                  if (getCurrentFixedBits(n[i])->countFixed() != previousChildrenFixedCount[i])
                     {
-                      assert(FixedBits::updateOK(childrenFixedBits[i], *getCurrentFixedBits(n[i])) );
-
                       if (debug_cBitProp_messages)
                         {
-                          cerr << "Changed: " << n[i].GetNodeNum() << " from:" << childrenFixedBits[i] << "to:"
+                          cerr << "Changed: " << n[i].GetNodeNum() << " from:" << previousChildrenFixedCount[i] << "to:"
                               << *getCurrentFixedBits(n[i]) << endl;
                         }
 
@@ -597,8 +641,6 @@ namespace simplifier
 
       assert(!n.isConstant());
 
-#ifdef WITHCBITP
-
       Result(*transfer)(vector<FixedBits*>&, FixedBits&);
 
       switch (k)
@@ -651,6 +693,7 @@ namespace simplifier
           MAPTFN(ITE,bvITEBothWays)
           MAPTFN(BVCONCAT, bvConcatBothWays)
 
+
           case BVMULT: // handled specially later.
           case BVDIV:
           case BVMOD:
@@ -659,6 +702,7 @@ namespace simplifier
           case SBVMOD:
           transfer = NULL;
           break;
+
           default:
             {
               notHandled(k);
@@ -668,14 +712,14 @@ namespace simplifier
 #undef MAPTFN
       bool mult_like = false;
 
+
       // safe approximation to no overflow multiplication.
       if (k == BVMULT)
         {
-          //MultiplicationStats ms;
-          //result = bvMultiplyBothWays(children, output, n.GetSTPMgr(),&ms);
-          result = bvMultiplyBothWays(children, output, n.GetSTPMgr());
-          //		if (CONFLICT != result)
-          //			msm->map[n] = ms;
+          MultiplicationStats ms;
+          result = bvMultiplyBothWays(children, output, n.GetSTPMgr(),&ms);
+          		if (CONFLICT != result)
+          			msm->map[n] = ms;
           mult_like=true;
         }
       else if (k == BVDIV)
@@ -704,6 +748,8 @@ namespace simplifier
           mult_like=true;
         }
       else
+
+
       result = transfer(children, output);
 
       if (mult_like && output_mult_like)
@@ -713,7 +759,6 @@ namespace simplifier
           cerr << *children[1] << std::endl;
         }
 
-#endif
       return result;
 
     }

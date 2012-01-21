@@ -11,9 +11,12 @@
 #define BBNODEAIG_H_
 
 #include "../../extlib-abc/aig.h"
+#include <iostream>
 
 namespace BEEV
 {
+  using std::cerr;
+  using std::endl;
 
   // This class wraps around a pointer to an AIG (provided by the ABC tool).
   // uses the default copy constructor and assignment operator.
@@ -56,6 +59,9 @@ public:
     // If the pointer is odd. Then it's the NOT of the pointer one less.
 	Aig_Obj_t * n;
 
+	// After dag aware rewriting the symbol stays at the same position in the vector of PIs.
+	// To get it's CNF variable number we get the node at the same position.
+	int symbol_index;
 
 	BBNodeAIG()
 	{
@@ -97,12 +103,10 @@ public:
 		return n < other.n;
 	}
 
-
-
 	void print() const
-{
+	{
           print(n);
-}
+	}
 
 };
 }

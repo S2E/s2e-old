@@ -1,6 +1,6 @@
 // -*- c++ -*-
 /********************************************************************
- * AUTHORS: Vijay Ganesh
+ * AUTHORS: Vijay Ganesh, Trevor Hansen
  *
  * BEGIN DATE: November, 2005
  *
@@ -8,15 +8,6 @@
  ********************************************************************/
 #ifndef USEFULDEFS_H
 #define USEFULDEFS_H
-
-#ifndef CRYPTOMINISAT2
-#ifndef CORE
-#ifndef SIMP
-#error  "A SAT solver must be specified."
-#endif
-#endif
-#endif
-
 
 #include <stdio.h>
 #include <stdint.h>
@@ -54,12 +45,9 @@
 #define HASHSET      hash_set
 #define HASHMULTISET hash_multiset
 #define INITIAL_TABLE_SIZE 100
-#define CLAUSAL_ABSTRACTION_CUTOFF 0.5
-#define CLAUSAL_BUCKET_LIMIT 3
 
 using namespace std;
 namespace BEEV {
-  using namespace MINISAT;
 #ifdef EXT_HASH_MAP
   using namespace __gnu_cxx;
 #endif
@@ -128,7 +116,7 @@ namespace BEEV {
 #else
   typedef HASHMAP<const char*,
                   int,
-                  hash<char *>,
+                  BEEV::hash<char *>,
                   eqstr> function_counters;
 #endif
 }; //end of namespace

@@ -28,17 +28,6 @@ namespace BEEV
     // Data structure that holds the counterexample
     ASTNodeMap CounterExampleMap;
             
-    // This map for building/printing counterexamples. MINISAT
-    // returns values for each bit (a BVGETBIT Node), and this maps
-    // allows us to assemble the bits into bitvectors.
-    typedef HASHMAP<
-      ASTNode, 
-      HASHMAP<unsigned int, bool> *, 
-      ASTNode::ASTNodeHasher, 
-      ASTNode::ASTNodeEqual> ASTtoBitvectorMap;
-
-    ASTtoBitvectorMap _ASTNode_to_BitvectorMap;
-
     // This memo map is used by the ComputeFormulaUsingModel()
     ASTNodeMap ComputeFormulaMap;
       
@@ -51,9 +40,6 @@ namespace BEEV
     // Ptr to ArrayTransformer
     ArrayTransformer * ArrayTransform;
       
-    // Ptr to ToSAT
-    //ToSATBase * tosat;
-
     // Checks if the counterexample is good. In order for the
     // counterexample to be ok, every assert must evaluate to true
     // w.r.t couner_example, and the query must evaluate to
@@ -71,14 +57,14 @@ namespace BEEV
     void CopySolverMap_To_CounterExample(void);
 
     //Converts a vector of bools to a BVConst
-    ASTNode BoolVectoBVConst(HASHMAP<unsigned, bool> * w, unsigned int l);
+    ASTNode BoolVectoBVConst(const vector<bool> * w, const unsigned int l);
 
     //Converts MINISAT counterexample into an AST memotable (i.e. the
     //function populates the datastructure CounterExampleMap)
-    void ConstructCounterExample(MINISAT::Solver& newS, ToSATBase::ASTNodeToSATVar& satVarToSymbol);
+    void ConstructCounterExample(SATSolver& newS, ToSATBase::ASTNodeToSATVar& satVarToSymbol);
 
     // Prints MINISAT assigment one bit at a time, for debugging.
-    void PrintSATModel(MINISAT::Solver& S, ToSATBase::ASTNodeToSATVar& satVarToSymbol);
+    void PrintSATModel(SATSolver& S, ToSATBase::ASTNodeToSATVar& satVarToSymbol);
 
 
   public:
@@ -94,20 +80,19 @@ namespace BEEV
       ASTUndefined = bm->CreateNode(UNDEFINED);
     }
 
+    //Prints the counterexample to stdout
+    void PrintCounterExample(bool t, std::ostream& os = cout);
+      
     void ClearCounterExampleMap(void)
     {
       CounterExampleMap.clear();
     }
 
-    void ClearComputeFormulaMap(void) 
+    void ClearComputeFormulaMap(void)
     {
       ComputeFormulaMap.clear();
     }
 
-      
-    //Prints the counterexample to stdout
-    void PrintCounterExample(bool t, std::ostream& os = cout);
-      
     //Prints the counterexample to stdout
     void PrintCounterExample_InOrder(bool t);
       
@@ -115,6 +100,9 @@ namespace BEEV
     //to e
     ASTNode GetCounterExample(bool t, const ASTNode& e);
       
+    //queries the counterexample, and returns a vector of index-value pairs for e
+    std::vector<std::pair<ASTNode, ASTNode> > GetCounterExampleArray(bool t, const ASTNode& e);
+
     int CounterExampleSize(void) const
     {
       return CounterExampleMap.size();
@@ -136,58 +124,37 @@ namespace BEEV
      * Array Refinement functions                                   *
      ****************************************************************/      
     SOLVER_RETURN_TYPE
-    CallSAT_ResultCheck(MINISAT::Solver& SatSolver, 
+    CallSAT_ResultCheck(SATSolver& SatSolver,
                         const ASTNode& modified_input,
                         const ASTNode& original_input,
-                        ToSATBase* tosat);
+                        ToSATBase* tosat,
+                        bool refinement);
 
-    //creates array write axiom only for the input term or formula, if
-    //necessary. If there are no axioms to produce then it simply
-    //generates TRUE
-    ASTNode 
-    Create_ArrayWriteAxioms(const ASTNode& array_readoverwrite_term, 
-                            const ASTNode& array_newname);
     
     SOLVER_RETURN_TYPE 
-    SATBased_ArrayReadRefinement(MINISAT::Solver& newS, 
+    SATBased_ArrayReadRefinement(SATSolver& newS,
                                  const ASTNode& modified_input, 
                                  const ASTNode& original_input,
                                  ToSATBase* tosat);
 
+#if 0
     SOLVER_RETURN_TYPE 
-    SATBased_ArrayWriteRefinement(MINISAT::Solver& newS,
+    SATBased_ArrayWriteRefinement(SATSolver& newS,
                                   const ASTNode& orig_input,
                                   ToSATBase *tosat);
-    
-    //     SOLVER_RETURN_TYPE
-    // SATBased_AllFiniteLoops_Refinement(MINISAT::Solver& newS,
-    // const ASTNode& orig_input);
-      
-    //     ASTVec SATBased_FiniteLoop_Refinement(MINISAT::Solver&
-    // SatSolver, const ASTNode& original_input, const ASTNode&
-    // finiteloop, ASTNodeMap* ParamToCurrentValMap, bool
-    // absrefine_flag=false);
-      
-    //     ASTNode Check_FiniteLoop_UsingModel(const ASTNode&
-    // finiteloop, ASTNodeMap* ParamToCurrentValMap, bool
-    // CheckUsingModel_Or_Expand);
-    //
-    //     ASTNode Expand_FiniteLoop_TopLevel(const ASTNode&
-    //     finiteloop); ASTNode Check_FiniteLoop_UsingModel(const
-    //     ASTNode& finiteloop);
+
+    //creates array write axiom only for the input term or formula, if
+    //necessary. If there are no axioms to produce then it simply
+    //generates TRUE
+    ASTNode
+    Create_ArrayWriteAxioms(const ASTNode& array_readoverwrite_term,
+                            const ASTNode& array_newname);
+
+#endif
 
     void ClearAllTables(void)
     {
       CounterExampleMap.clear();
-      for (ASTtoBitvectorMap::iterator
-             it    = _ASTNode_to_BitvectorMap.begin(), 
-             itend = _ASTNode_to_BitvectorMap.end(); 
-           it != itend; it++)
-        {
-          (it->second)->clear();
-          delete (it->second);
-        }
-      _ASTNode_to_BitvectorMap.clear();
       ComputeFormulaMap.clear();
     } //End of ClearAllTables()
 

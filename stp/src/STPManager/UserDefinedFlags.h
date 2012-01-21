@@ -9,8 +9,14 @@
 #ifndef UDEFFLAGS_H
 #define UDEFFLAGS_H
 
+#include <map>
+#include <string>
+#include <assert.h>
+#include <iostream>
+#include <set>
 namespace BEEV
 {
+	using std::string;
 
   /******************************************************************
    * Struct UserDefFlags:
@@ -20,6 +26,9 @@ namespace BEEV
    ******************************************************************/
 
   struct UserDefinedFlags {
+  private:
+	std::set<string> alreadyOutput;
+
   public:
     //collect statistics on certain functions
     bool stats_flag;
@@ -30,14 +39,14 @@ namespace BEEV
     //run STP in optimized mode
     bool optimize_flag;
     
-    //do sat refinement, i.e. underconstraint the problem, and feed to
+    //do sat refinement, i.e. underconstrain the problem, and feed to
     //SAT. if this works, great. else, add a set of suitable constraints
     //to re-constraint the problem correctly, and call SAT again, until
     //all constraints have been added.
-    bool arrayread_refinement_flag;
+    bool ackermannisation; // eagerly write through the array's function congruence axioms.
     
     //switch to control write refinements
-    bool arraywrite_refinement_flag;
+    //bool arraywrite_refinement_flag;
     
     //check the counterexample against the original input to STP
     bool check_counterexample_flag;
@@ -47,14 +56,6 @@ namespace BEEV
     bool construct_counterexample_flag;
     bool print_counterexample_flag;
     bool print_binary_flag;
-    
-    //Expands out the finite for-construct completely
-    bool expand_finitefor_flag;
-    
-    //Determines the number of abstraction-refinement loop count for the
-    //for-construct
-    bool num_absrefine_flag;
-    int num_absrefine;
     
     //if this option is true then print the way dawson wants using a
     //different printer. do not use this printer.
@@ -79,6 +80,10 @@ namespace BEEV
     //turn on word level bitvector solver
     bool wordlevel_solve_flag;
     
+
+    bool propagate_equalities;
+
+
     //XOR flattening optimizations.
     bool xor_flatten_flag;
     
@@ -117,19 +122,75 @@ namespace BEEV
 
     bool exit_after_CNF;
 
+    bool enable_AIG_rewrites_flag;
+
+    bool simplify_during_BB_flag;
+
     // Available back-end SAT solvers.
     enum SATSolvers
       {
         MINISAT_SOLVER =0,
-        SIMPLIFYING_MINISAT_SOLVER
+        SIMPLIFYING_MINISAT_SOLVER,
+        CRYPTOMINISAT_SOLVER,
+        MINISAT_PROPAGATORS
       };
 
     enum SATSolvers solver_to_use;
 
+    std::map<string,string> config_options;
+
+    void set(string n, string v)
+    {
+    	assert(n.size() > 0);
+    	assert(v.size() > 0);
+    	assert(config_options.find(n) == config_options.end());
+    	config_options[n] = v;
+    }
+
+    void disableSimplifications()
+    {
+      optimize_flag = false;
+      bitConstantProp_flag = false;
+      set("enable-unconstrained","0");
+      set("use-intervals","0");
+      wordlevel_solve_flag = false;
+      propagate_equalities = false;
+    }
+
+    string get(string n)
+    {
+    	return get(n,"");
+    }
+
+    // "1" is set.
+    bool isSet(string n, string def)
+    {
+    	return (get(n,def) == string("1"));
+    }
+
+    string get(string n, string def)
+    {
+    	if (config_options.empty())
+    		return def;
+
+    	string result;
+    	std::map<string,string>::const_iterator it = config_options.find(n);
+    	if (it == config_options.end())
+    		result = def;
+    	else
+    		result = it->second;
+
+    	if (stats_flag)
+    		if (alreadyOutput.insert(n).second)
+    			std::cout << n << ":"  << result << std::endl;
+    	return result;
+    }
+
     //CONSTRUCTOR    
     UserDefinedFlags()
     {  
-      //collect statistics on certain functions
+
+    	//collect statistics on certain functions
       stats_flag = false;
       
       //print DAG nodes
@@ -142,10 +203,10 @@ namespace BEEV
       // SAT. if this works, great. else, add a set of suitable
       // constraints to re-constraint the problem correctly, and call SAT again, 
       // until all constraints have been added.
-      arrayread_refinement_flag = true;
+      ackermannisation = false;
   
       //flag to control write refinement
-      arraywrite_refinement_flag = true;
+      //arraywrite_refinement_flag = true;
       
       //check the counterexample against the original input to STP
       check_counterexample_flag = true;
@@ -159,14 +220,6 @@ namespace BEEV
       output_CNF_flag = false;
       output_bench_flag = false;
 
-      //Expands out the finite for-construct completely
-      expand_finitefor_flag = false;
-      
-      //Determines the number of abstraction-refinement loop count for the
-      //for-construct
-      num_absrefine_flag = false;
-      num_absrefine = 0;
-            
       //if this option is true then print the way dawson wants using a
       //different printer. do not use this printer.
       print_arrayval_declaredorder_flag = false;
@@ -175,11 +228,6 @@ namespace BEEV
       //assign random polarity to the Boolean variables
       random_seed_flag = false;
       random_seed = 0;
-
-      //Flag that allows the printing of the DIMACS format of the
-      //input
-      print_cnf_flag = false;
-      cnf_dump_filename = (char*)"stp-input.cnf";
 
       //flag to decide whether to print "valid/invalid" or not
       print_output_flag = false;
@@ -191,6 +239,9 @@ namespace BEEV
       //turn on word level bitvector solver
       wordlevel_solve_flag = true;
       
+      //propagate equalities.
+      propagate_equalities = true;
+
       //turn off XOR flattening
       xor_flatten_flag = false;
       
@@ -216,7 +267,7 @@ namespace BEEV
       tseitin_are_decision_variables_flag=true;
 
       // use minisat by default.
-      solver_to_use = MINISAT_SOLVER;
+      solver_to_use = MINISAT_PROPAGATORS;
 
       // The special Cryptominisat2 CNF generation with this flag enabled seems to go into an infinite loop.
       // beware of turning this on if you are using cryptominsat2.
@@ -229,6 +280,11 @@ namespace BEEV
       cBitP_propagateForDivisionByZero =true;
 
       exit_after_CNF=false;
+
+      enable_AIG_rewrites_flag = false;
+
+      // If the bit-blaster discovers new constants, should the term simplifier be re-run.
+      simplify_during_BB_flag=false;
 
     } //End of constructor for UserDefinedFlags
 

@@ -14,13 +14,13 @@ namespace simplifier
     {
     private:
 
-      typedef hash_map<BEEV::ASTNode, set<BEEV::ASTNode>*,
-          BEEV::ASTNode::ASTNodeHasher, BEEV::ASTNode::ASTNodeEqual>
+      typedef hash_map<BEEV::ASTNode, set<BEEV::ASTNode>*, BEEV::ASTNode::ASTNodeHasher, BEEV::ASTNode::ASTNodeEqual>
           NodeToDependentNodeMap;
       NodeToDependentNodeMap dependents;
 
       const set<ASTNode> empty;
 
+    public:
       // All the nodes that depend on the value of a particular node.
       void
       build(const ASTNode & current, const ASTNode & prior)
@@ -76,6 +76,43 @@ namespace simplifier
           }
       }
 
+      void replaceFresh(const ASTNode& old, const ASTNode& newN, set<ASTNode> *newNDepends,
+                        ASTVec& variables)
+      {
+        NodeToDependentNodeMap::const_iterator it = dependents.find(old);
+        if (it == dependents.end())
+          return;
+
+        it->second->erase(old);
+        dependents.insert(make_pair(newN,newNDepends));
+        variables.push_back(newN);
+      }
+
+      // The "toRemove" node is being removed. Used by unconstrained elimination.
+      void removeNode(const ASTNode& toRemove, ASTVec& variables)
+      {
+        for (unsigned i = 0; i < toRemove.GetChildren().size(); i++)
+          {
+            const ASTNode child = toRemove.GetChildren()[i];
+
+            NodeToDependentNodeMap::const_iterator it = dependents.find(child);
+            if (it == dependents.end())
+              continue;
+
+            it->second->erase(toRemove);
+            if (it->second->size() == 0)
+              {
+                removeNode(child,variables);
+                continue;
+              }
+
+            if (child.GetKind() == SYMBOL && it->second->size() ==1)
+              {
+                variables.push_back(child);
+              }
+          }
+      }
+
       void
       print() const
       {
@@ -122,6 +159,29 @@ namespace simplifier
         const set<ASTNode> *s = getDependents(lower);
         return s->count(higher) > 0;
       }
+
+      bool isUnconstrained(const ASTNode& n)
+      {
+        if (n.GetKind() != SYMBOL)
+          return false;
+
+        NodeToDependentNodeMap::const_iterator it = dependents.find(n);
+        assert(it != dependents.end());
+        return it->second->size() ==1;
+      }
+
+#if 0
+      void
+      getAllVariables(ASTVec& v)
+      {
+        for (NodeToDependentNodeMap::const_iterator it = dependents.begin(); it != dependents. end(); it++)
+          {
+            if (it->first.GetKind() == SYMBOL)
+              v.push_back(it->first);
+          }
+      }
+#endif
+
     };
 
   }

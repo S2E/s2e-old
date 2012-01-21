@@ -20,11 +20,6 @@
 #include <unistd.h>
 #include <vector>
 
-namespace MINISAT
-{
-  class Solver;
-}
-
 namespace BEEV
 {  
   class STPMgr;
@@ -64,7 +59,9 @@ namespace BEEV
       SOLVER_INVALID=0, 
       SOLVER_VALID=1, 
       SOLVER_UNDECIDED=2, 
-      SOLVER_ERROR=-100
+      SOLVER_ERROR=-100,
+      SOLVER_UNSATISFIABLE = 1,
+      SOLVER_SATISFIABLE = 0
     };
 
   //Empty vector. Useful commonly used ASTNodes

@@ -1,5 +1,5 @@
 /********************************************************************
- * AUTHORS: Vijay Ganesh
+ * AUTHORS: Vijay Ganesh, Trevor Hansen
  *
  * BEGIN DATE: November, 2005
  *
@@ -12,6 +12,7 @@
 
 #include "simplifier.h"
 #include "Symbols.h"
+#include "VariablesInExpression.h"
 
 namespace BEEV
 {
@@ -53,34 +54,8 @@ namespace BEEV
     //
     ASTNode ASTTrue, ASTFalse, ASTUndefined;
 
-    //Those formulas which have already been solved. If the same
-    //formula occurs twice then do not solve the second occurence, and
-    //instead drop it
-    ASTNodeMap FormulasAlreadySolvedMap;
-
-    //this map is useful while traversing terms and uniquely
-    //identifying variables in the those terms. Prevents double
-    //counting.
-
-    typedef HASHMAP<
-	  Symbols*,
-	  ASTNodeSet,
-	  SymbolPtrHasher
-	  > SymbolPtrToNode;
-	SymbolPtrToNode TermsAlreadySeenMap;
-
-       //ASTNodeMap TermsAlreadySeenMap_ForArrays;
-
-    //solved variables list: If a variable has been solved for then do
-    //not solve for it again
-    ASTNodeSet DoNotSolve_TheseVars;
-
-    //checks if var has been solved for or not. if yes, then return
-    //true else return false
-    bool DoNotSolveThis(const ASTNode& var);
-
     //choose a suitable var from the term
-    ASTNode ChooseMonom(const ASTNode& eq, ASTNode& modifiedterm);
+    ASTNode ChooseMonom(const ASTNode& eq, ASTNode& modifiedterm, ASTNodeSet& checked);
     //accepts an equation and solves for a variable or a monom in it
     ASTNode BVSolve_Odd(const ASTNode& eq);
 
@@ -89,21 +64,7 @@ namespace BEEV
     ASTNode BVSolve_Even(const ASTNode& eq);
     ASTNode CheckEvenEqn(const ASTNode& input, bool& evenflag);
 
-    //Checks for arrayreads in a term. if yes then returns true, else
-    //return false
-    //bool CheckForArrayReads(const ASTNode& term);
-    //bool CheckForArrayReads_TopLevel(const ASTNode& term);
-
-    typedef HASHSET<Symbols*,SymbolPtrHasher> SymbolPtrSet;
-
-    //this function return true if the var occurs in term, else the
-    //function returns false
-    bool VarSeenInTerm(const ASTNode& var, const ASTNode& term);
-
-    void VarSeenInTerm(Symbols* term, SymbolPtrSet& visited, ASTNodeSet& found, vector<Symbols*>& av);
-
-    ASTNode solveForXOR(const ASTNode& n);
-    ASTNode solveForAndOfXOR(const ASTNode& n);
+    ASTNode substitute(const ASTNode& eq, const ASTNode& lhs, const ASTNode& rhs, const bool single);
 
     //takes an even number "in" as input, and returns an odd number
     //(return value) and a power of 2 (as number_shifts by reference),
@@ -114,6 +75,12 @@ namespace BEEV
     //understanding of the algorithm
     void SplitEven_into_Oddnum_PowerOf2(const ASTNode& in,
                                            unsigned int& number_shifts);
+
+
+    //Those formulas which have already been solved. If the same
+    //formula occurs twice then do not solve the second occurence, and
+    //instead drop it
+    ASTNodeMap FormulasAlreadySolvedMap;
 
     //Once a formula has been solved, then update the alreadysolvedmap
     //with the formula, and the solved value. The solved value can be
@@ -134,48 +101,39 @@ namespace BEEV
     //else returns FALSE
     bool CheckAlreadySolvedMap(const ASTNode& key, ASTNode& output);
 
-	typedef HASHMAP<
-	  ASTNode,
-	  Symbols*,
-	  ASTNode::ASTNodeHasher,
-	  ASTNode::ASTNodeEqual> ASTNodeToNodes;
-	  ASTNodeToNodes symbol_graph;
+    VariablesInExpression& vars;
 
-	  Symbols* BuildSymbolGraph(const ASTNode& n);
+    bool simplify; //Whether to apply the simplifyTerm & simplifyFormula functions.
+
+    ASTNode simplifyNode(const ASTNode n);
+
+    NodeFactory* nf;
 
   public:
     //constructor
-  BVSolver(STPMgr * bm, Simplifier * simp) : _bm(bm), _simp(simp)       
+  BVSolver(STPMgr * bm, Simplifier * simp) : _bm(bm), _simp(simp), vars(simp->getVariablesInExpression())
     {
       ASTTrue = _bm->CreateNode(TRUE);
       ASTFalse = _bm->CreateNode(FALSE);
       ASTUndefined = _bm->CreateNode(UNDEFINED);
+      simplify=true;
+      nf = new SimplifyingNodeFactory(*bm->hashingNodeFactory,*bm);
     };
 
      //Destructor
     ~BVSolver()
       {
     	ClearAllTables();
+    	delete nf;
       }
 
     //Top Level Solver: Goes over the input DAG, identifies the
     //equation to be solved, solves them,
-    ASTNode TopLevelBVSolve(const ASTNode& a);
+    ASTNode TopLevelBVSolve(const ASTNode& a, const bool enable_simplify=true);
 
     void ClearAllTables(void)
     {
-  	  TermsAlreadySeenMap.clear();
-  	  DoNotSolve_TheseVars.clear();
   	  FormulasAlreadySolvedMap.clear();
-  	  set<Symbols*> deleted;
-  	  for (ASTNodeToNodes::iterator it = symbol_graph.begin(); it != symbol_graph.end(); it++)
-  	  {
-  		  if (deleted.find(it->second) == deleted.end())
-  		  {
-  			  deleted.insert(it->second);
-  			  delete it->second;
-  		  }
-  	  }
     } //End of ClearAllTables()
 
   }; //end of class bvsolver

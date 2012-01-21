@@ -15,7 +15,19 @@
  ********************************************************************/
 namespace BEEV 
 {
-  // Constructor; 
+    uint8_t ASTNode::getIteration() const
+    {
+        return _int_node_ptr->iteration;
+    }
+
+    void ASTNode::setIteration(uint8_t v) const
+    {
+        _int_node_ptr->iteration = v;
+    }
+
+
+
+    // Constructor;
   //
   // creates a new pointer, increments refcount of pointed-to object.
   ASTNode::ASTNode(ASTInternal *in) :
@@ -217,6 +229,19 @@ namespace BEEV
       }
   } //End of NFASTPrint()
 
+  bool
+  ASTNode::isSimplfied() const
+  {
+    return _int_node_ptr->isSimplified();
+  }
+
+  void
+  ASTNode::hasBeenSimplfied() const
+  {
+    _int_node_ptr->hasBeenSimplified();
+  }
+
+
   //traverse "*this", and construct "let variables" for terms that
   //occur more than once in "*this".
   void ASTNode::LetizeNode(void) const
@@ -266,9 +291,7 @@ namespace BEEV
                 ostringstream oss;
                 oss << "let_k_" << sz;
 
-                ASTNode CurrentSymbol = bm->CreateSymbol(oss.str().c_str());
-                CurrentSymbol.SetValueWidth(this->GetValueWidth());
-                CurrentSymbol.SetIndexWidth(this->GetIndexWidth());
+                ASTNode CurrentSymbol = bm->CreateSymbol(oss.str().c_str(),this->GetIndexWidth(),this->GetValueWidth());
                 /* If for some reason the variable being created here is
                  * already declared by the user then the printed output will
                  * not be a legal input to the system. too bad. I refuse to

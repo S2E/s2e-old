@@ -11,6 +11,8 @@
 #include "../STPManager/STP.h"
 namespace BEEV
 {
+  const ASTVec ASTBVConst::astbv_empty_children;
+
   /****************************************************************
    * ASTBVConst Member Function definitions                       *
    ****************************************************************/
@@ -21,14 +23,16 @@ namespace BEEV
   {
     _bvconst = CONSTANTBV::BitVector_Clone(bv);
     _value_width = width;
+    cbv_managed_outside =false;
   } //End of ASTBVConst constructor
 
   // Copy constructor.
   ASTBVConst::ASTBVConst(const ASTBVConst &sym) :
-    ASTInternal(sym._kind, sym._children)
+    ASTInternal(sym._kind)
   {
     _bvconst = CONSTANTBV::BitVector_Clone(sym._bvconst);
     _value_width = sym._value_width;
+    cbv_managed_outside =false;
   } //End of copy constructor()
 
   // Call this when deleting a node that has been stored in the the

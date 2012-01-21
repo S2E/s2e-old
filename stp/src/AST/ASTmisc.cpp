@@ -1,6 +1,6 @@
 // -*- c++ -*-
 /********************************************************************
- * AUTHORS: Vijay Ganesh
+ * AUTHORS: Vijay Ganesh, Trevor Hansen
  *
  * BEGIN DATE: November, 2005
  *
@@ -8,6 +8,8 @@
  ********************************************************************/
 
 #include "AST.h"
+#include "../STPManager/STPManager.h"
+#include "../STPManager/NodeIterator.h"
 
 namespace BEEV
 {
@@ -16,26 +18,166 @@ namespace BEEV
    * Universal Helper Functions                                   *
    ****************************************************************/
 
-bool containsArrayOps(const ASTNode& n, ASTNodeSet& visited)
-{
-	if (visited.find(n) != visited.end())
-		return false;
-	if (n.GetType() == ARRAY_TYPE)
-		return true;
+  void process_argument(const char ch, STPMgr  *bm)
+  {
+    switch(ch)
+        {
+        case 'a' :
+          bm->UserFlags.optimize_flag = false;
+          break;
+        case 'c':
+          bm->UserFlags.construct_counterexample_flag = true;
+          break;
+        case 'd':
+          bm->UserFlags.construct_counterexample_flag = true;
+          bm->UserFlags.check_counterexample_flag = true;
+          break;
 
-       for (unsigned i =0; i < n.Degree();i++)
-		if (containsArrayOps(n[i],visited))
-			return true;
+        case 'h':
+          fprintf(stderr,usage,prog);
+          cout << helpstring;
+          exit(-1);
+          break;
+        case 'm':
+          bm->UserFlags.smtlib1_parser_flag=true;
+          bm->UserFlags.division_by_zero_returns_one_flag = true;
+                      if (bm->UserFlags.smtlib2_parser_flag)
+                              FatalError("Can't use both the smtlib and smtlib2 parsers");
+          break;
+        case 'n':
+          bm->UserFlags.print_output_flag = true;
+          break;
+        case 'p':
+          bm->UserFlags.print_counterexample_flag = true;
+          break;
+        case 'q':
+          bm->UserFlags.print_arrayval_declaredorder_flag = true;
+          break;
+        case 'r':
+          bm->UserFlags.ackermannisation = true;
+          break;
+        case 's' :
+          bm->UserFlags.stats_flag = true;
+          break;
+        case 't':
+          bm->UserFlags.quick_statistics_flag = true;
+          break;
+        case 'v' :
+          bm->UserFlags.print_nodes_flag = true;
+          break;
+        case 'w':
+          bm->UserFlags.wordlevel_solve_flag = false;
+          break;
+        case 'x':
+          bm->UserFlags.xor_flatten_flag = true;
+          break;
+        case 'y':
+          bm->UserFlags.print_binary_flag = true;
+          break;
+        case 'z':
+          bm->UserFlags.print_sat_varorder_flag = true;
+          break;
+        default:
+          fprintf(stderr,usage,prog);
+          cout << helpstring;
+          exit(-1);
+          break;
+        }
+  }
 
-	visited.insert(n);
-	return false;
-}
+  // Sort ASTNodes by expression numbers
+  bool exprless(const ASTNode n1, const ASTNode n2)
+  {
+    return (n1.GetNodeNum() < n2.GetNodeNum());
+  }
 
-bool containsArrayOps(const ASTNode&n)
-{
-	ASTNodeSet visited;
-	return containsArrayOps(n, visited);
-}
+  // This is for sorting by arithmetic expressions (for
+  // combining like terms, etc.)
+  bool arithless(const ASTNode n1, const ASTNode n2)
+  {
+    Kind k1 = n1.GetKind();
+    Kind k2 = n2.GetKind();
+
+    if (n1 == n2)
+      {
+        // necessary for "strict weak ordering"
+        return false;
+      }
+    else if (BVCONST == k1 && BVCONST != k2)
+      {
+        // put consts first
+        return true;
+      }
+    else if (BVCONST != k1 && BVCONST == k2)
+      {
+        // put consts first
+        return false;
+      }
+    else if (SYMBOL == k1 && SYMBOL != k2)
+      {
+        // put symbols next
+        return true;
+      }
+    else if (SYMBOL != k1 && SYMBOL == k2)
+      {
+        // put symbols next
+        return false;
+      }
+    else
+      {
+        // otherwise, sort by exprnum (descendents will appear
+        // before ancestors).
+        return (n1.GetNodeNum() < n2.GetNodeNum());
+      }
+  } //end of arithless
+
+
+  // counts the number of reads. Shortcut when we get to the limit.
+  void
+  numberOfReadsLessThan(const ASTNode& n, hash_set<int> & visited, int& soFar, const int limit)
+  {
+    if (n.isAtom())
+      return;
+
+    if (visited.find(n.GetNodeNum()) != visited.end())
+      return;
+
+    if (n.GetKind() == READ)
+      soFar++;
+
+    if (soFar > limit)
+      return;
+
+    visited.insert(n.GetNodeNum());
+
+    for (int i = 0; i < n.Degree(); i++)
+      numberOfReadsLessThan(n[i], visited, soFar,limit);
+  }
+
+  // True if the number of reads in "n" is less than "limit"
+  bool
+  numberOfReadsLessThan(const ASTNode&n, int limit)
+  {
+    hash_set<int> visited;
+    int reads = 0;
+    numberOfReadsLessThan(n, visited, reads,limit);
+    return reads < limit;
+  }
+
+
+    // True if any descendants are arrays.
+    bool
+    containsArrayOps(const ASTNode&n)
+    {
+
+      NodeIterator ni(n, n.GetSTPMgr()->ASTUndefined, *n.GetSTPMgr());
+      ASTNode current;
+      while ((current = ni.next()) != ni.end())
+        if (current.GetIndexWidth()>0)
+          return true;
+
+      return false;
+    }
 
 	bool isCommutative(const Kind k) {
 	switch (k) {
@@ -161,30 +303,28 @@ bool containsArrayOps(const ASTNode&n)
 		}
 }
 
-
-  // Flatten (k ... (k ci cj) ...) to (k ... ci cj ...)
-  // This is local to this file.
-  ASTVec FlattenKind(Kind k, const ASTVec &children)
+  void FlattenKind(const Kind k, const ASTVec &children, ASTVec & flat_children)
   {
-    ASTVec flat_children;
-
     ASTVec::const_iterator ch_end = children.end();
     for (ASTVec::const_iterator it = children.begin(); it != ch_end; it++)
       {
         Kind ck = it->GetKind();
-        const ASTVec &gchildren = it->GetChildren();
         if (k == ck)
           {
-            // append grandchildren to children
-            flat_children.insert(flat_children.end(),
-                                 gchildren.begin(), gchildren.end());
+            FlattenKind(k,it->GetChildren(), flat_children);
           }
         else
           {
             flat_children.push_back(*it);
           }
       }
+  }
 
+  // Flatten (k ... (k ci cj) ...) to (k ... ci cj ...)
+  ASTVec FlattenKind(Kind k, const ASTVec &children)
+  {
+    ASTVec flat_children;
+    FlattenKind(k,children,flat_children);
     return flat_children;
   }
 
@@ -410,9 +550,6 @@ bool containsArrayOps(const ASTNode&n)
           case ITE:
             if (3 != n.Degree())
               FatalError("BVTypeCheck:ITE must have exactly 3 ChildNodes", n);
-            break;
-          case FOR:
-            //FIXME: Todo
             break;
           default:
             FatalError("BVTypeCheck: Unrecognized kind: ");
