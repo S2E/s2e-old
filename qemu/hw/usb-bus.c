@@ -102,6 +102,9 @@ USBDevice *usb_create(USBBus *bus, const char *name)
 USBDevice *usb_create_simple(USBBus *bus, const char *name)
 {
     USBDevice *dev = usb_create(bus, name);
+    if (!dev) {
+        hw_error("Failed to create USB device '%s'\n", name);
+    }
     qdev_init_nofail(&dev->qdev);
     return dev;
 }
@@ -261,7 +264,8 @@ USBDevice *usbdevice_create(const char *cmdline)
     USBBus *bus = usb_bus_find(-1 /* any */);
     DeviceInfo *info;
     USBDeviceInfo *usb;
-    char driver[32], *params;
+    char driver[32];
+    const char *params;
     int len;
 
     params = strchr(cmdline,':');
@@ -272,6 +276,7 @@ USBDevice *usbdevice_create(const char *cmdline)
             len = sizeof(driver);
         pstrcpy(driver, len, cmdline);
     } else {
+        params = "";
         pstrcpy(driver, sizeof(driver), cmdline);
     }
 
@@ -294,7 +299,7 @@ USBDevice *usbdevice_create(const char *cmdline)
     }
 
     if (!usb->usbdevice_init) {
-        if (params) {
+        if (*params) {
             qemu_error("usbdevice %s accepts no params\n", driver);
             return NULL;
         }

@@ -266,7 +266,7 @@ static inline int64_t get_sector_offset(BlockDriverState *bs,
 
         s->last_bitmap_offset = bitmap_offset;
         memset(bitmap, 0xff, s->bitmap_size);
-        bdrv_pwrite(s->hd, bitmap_offset, bitmap, s->bitmap_size);
+        bdrv_pwrite_sync(s->hd, bitmap_offset, bitmap, s->bitmap_size);
     }
 
 //    printf("sector: %" PRIx64 ", index: %x, offset: %x, bioff: %" PRIx64 ", bloff: %" PRIx64 "\n",
@@ -316,7 +316,7 @@ static int rewrite_footer(BlockDriverState* bs)
     BDRVVPCState *s = bs->opaque;
     int64_t offset = s->free_data_block_offset;
 
-    ret = bdrv_pwrite(s->hd, offset, s->footer_buf, HEADER_SIZE);
+    ret = bdrv_pwrite_sync(s->hd, offset, s->footer_buf, HEADER_SIZE);
     if (ret < 0)
         return ret;
 
@@ -351,7 +351,8 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
 
     // Initialize the block's bitmap
     memset(bitmap, 0xff, s->bitmap_size);
-    bdrv_pwrite(s->hd, s->free_data_block_offset, bitmap, s->bitmap_size);
+    bdrv_pwrite_sync(s->hd, s->free_data_block_offset, bitmap,
+        s->bitmap_size);
 
     // Write new footer (the old one will be overwritten)
     s->free_data_block_offset += s->block_size + s->bitmap_size;
@@ -362,7 +363,7 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
     // Write BAT entry to disk
     bat_offset = s->bat_offset + (4 * index);
     bat_value = be32_to_cpu(s->pagetable[index]);
-    ret = bdrv_pwrite(s->hd, bat_offset, &bat_value, 4);
+    ret = bdrv_pwrite_sync(s->hd, bat_offset, &bat_value, 4);
     if (ret < 0)
         goto fail;
 
@@ -470,9 +471,7 @@ static int calculate_geometry(int64_t total_sectors, uint16_t* cyls,
         }
     }
 
-    // Note: Rounding up deviates from the Virtual PC behaviour
-    // However, we need this to avoid truncating images in qemu-img convert
-    *cyls = (cyls_times_heads + *heads - 1) / *heads;
+    *cyls = cyls_times_heads / *heads;
 
     return 0;
 }
@@ -484,9 +483,9 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     struct vhd_dyndisk_header* dyndisk_header =
         (struct vhd_dyndisk_header*) buf;
     int fd, i;
-    uint16_t cyls;
-    uint8_t heads;
-    uint8_t secs_per_cyl;
+    uint16_t cyls = 0;
+    uint8_t heads = 0;
+    uint8_t secs_per_cyl = 0;
     size_t block_size, num_bat_entries;
     int64_t total_sectors = 0;
 
@@ -503,9 +502,14 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     if (fd < 0)
         return -EIO;
 
-    // Calculate matching total_size and geometry
-    if (calculate_geometry(total_sectors, &cyls, &heads, &secs_per_cyl))
-        return -EFBIG;
+    /* Calculate matching total_size and geometry. Increase the number of
+       sectors requested until we get enough (or fail). */
+    for (i = 0; total_sectors > (int64_t)cyls * heads * secs_per_cyl; i++) {
+        if (calculate_geometry(total_sectors + i,
+                               &cyls, &heads, &secs_per_cyl)) {
+            return -EFBIG;
+        }
+    }
     total_sectors = (int64_t) cyls * heads * secs_per_cyl;
 
     // Prepare the Hard Disk Footer

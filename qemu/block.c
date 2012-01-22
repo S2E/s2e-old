@@ -452,6 +452,8 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
             (flags & (BDRV_O_CACHE_MASK|BDRV_O_NATIVE_AIO));
     else
         open_flags = flags & ~(BDRV_O_FILE | BDRV_O_SNAPSHOT);
+
+    bs->open_flags = open_flags;
     if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv))
         ret = -ENOTSUP;
     else
@@ -777,6 +779,43 @@ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
             return ret;
     }
     return count1;
+}
+
+/*
+ * Writes to the file and ensures that no writes are reordered across this
+ * request (acts as a barrier)
+ *
+ * Returns 0 on success, -errno in error cases.
+ */
+int bdrv_pwrite_sync(BlockDriverState *bs, int64_t offset,
+    const void *buf, int count)
+{
+    int ret;
+
+    ret = bdrv_pwrite(bs, offset, buf, count);
+    if (ret < 0) {
+        return ret;
+    }
+
+    /* No flush needed for cache=writethrough, it uses O_DSYNC */
+    if ((bs->open_flags & BDRV_O_CACHE_MASK) != 0) {
+        bdrv_flush(bs);
+    }
+
+    return 0;
+}
+
+/*
+ * Writes to the file and ensures that no writes are reordered across this
+ * request (acts as a barrier)
+ *
+ * Returns 0 on success, -errno in error cases.
+ */
+int bdrv_write_sync(BlockDriverState *bs, int64_t sector_num,
+    const uint8_t *buf, int nb_sectors)
+{
+    return bdrv_pwrite_sync(bs, BDRV_SECTOR_SIZE * sector_num,
+        buf, BDRV_SECTOR_SIZE * nb_sectors);
 }
 
 /**
@@ -1622,21 +1661,30 @@ static void multiwrite_cb(void *opaque, int ret)
 
     if (ret < 0 && !mcb->error) {
         mcb->error = ret;
-        multiwrite_user_cb(mcb);
     }
 
     mcb->num_requests--;
     if (mcb->num_requests == 0) {
-        if (mcb->error == 0) {
-            multiwrite_user_cb(mcb);
-        }
+        multiwrite_user_cb(mcb);
         qemu_free(mcb);
     }
 }
 
 static int multiwrite_req_compare(const void *a, const void *b)
 {
-    return (((BlockRequest*) a)->sector - ((BlockRequest*) b)->sector);
+    const BlockRequest *req1 = a, *req2 = b;
+
+    /*
+     * Note that we can't simply subtract req2->sector from req1->sector
+     * here as that could overflow the return value.
+     */
+    if (req1->sector > req2->sector) {
+        return 1;
+    } else if (req1->sector < req2->sector) {
+        return -1;
+    } else {
+        return 0;
+    }
 }
 
 /*
@@ -1699,7 +1747,7 @@ static int multiwrite_merge(BlockDriverState *bs, BlockRequest *reqs,
             // Add the second request
             qemu_iovec_concat(qiov, reqs[i].qiov, reqs[i].qiov->size);
 
-            reqs[outidx].nb_sectors += reqs[i].nb_sectors;
+            reqs[outidx].nb_sectors = qiov->size >> 9;
             reqs[outidx].qiov = qiov;
 
             mcb->callbacks[i].free_qiov = reqs[outidx].qiov;
@@ -1751,8 +1799,29 @@ int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs, int num_reqs)
     // Check for mergable requests
     num_reqs = multiwrite_merge(bs, reqs, num_reqs, mcb);
 
-    // Run the aio requests
+    /*
+     * Run the aio requests. As soon as one request can't be submitted
+     * successfully, fail all requests that are not yet submitted (we must
+     * return failure for all requests anyway)
+     *
+     * num_requests cannot be set to the right value immediately: If
+     * bdrv_aio_writev fails for some request, num_requests would be too high
+     * and therefore multiwrite_cb() would never recognize the multiwrite
+     * request as completed. We also cannot use the loop variable i to set it
+     * when the first request fails because the callback may already have been
+     * called for previously submitted requests. Thus, num_requests must be
+     * incremented for each request that is submitted.
+     *
+     * The problem that callbacks may be called early also means that we need
+     * to take care that num_requests doesn't become 0 before all requests are
+     * submitted - multiwrite_cb() would consider the multiwrite request
+     * completed. A dummy request that is "completed" by a manual call to
+     * multiwrite_cb() takes care of this.
+     */
+    mcb->num_requests = 1;
+
     for (i = 0; i < num_reqs; i++) {
+        mcb->num_requests++;
         acb = bdrv_aio_writev(bs, reqs[i].sector, reqs[i].qiov,
             reqs[i].nb_sectors, multiwrite_cb, mcb);
 
@@ -1760,23 +1829,25 @@ int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs, int num_reqs)
             // We can only fail the whole thing if no request has been
             // submitted yet. Otherwise we'll wait for the submitted AIOs to
             // complete and report the error in the callback.
-            if (mcb->num_requests == 0) {
-                reqs[i].error = -EIO;
+            if (i == 0) {
                 goto fail;
             } else {
-                mcb->num_requests++;
                 multiwrite_cb(mcb, -EIO);
                 break;
             }
-        } else {
-            mcb->num_requests++;
         }
     }
+
+    /* Complete the dummy request */
+    multiwrite_cb(mcb, 0);
 
     return 0;
 
 fail:
-    free(mcb);
+    for (i = 0; i < mcb->num_callbacks; i++) {
+        reqs[i].error = -EIO;
+    }
+    qemu_free(mcb);
     return -1;
 }
 

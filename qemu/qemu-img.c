@@ -657,6 +657,7 @@ static int img_convert(int argc, char **argv)
     bs_i = 0;
     bs_offset = 0;
     bdrv_get_geometry(bs[0], &bs_sectors);
+    buf = qemu_malloc(IO_BUF_SIZE);
 
     buf = calloc(IO_BUF_SIZE,sizeof(*buf));
     if(buf==NULL)
@@ -793,6 +794,7 @@ static int img_convert(int argc, char **argv)
             }
         }
     }
+    qemu_free(buf);
     bdrv_delete(out_bs);
     for (bs_i = 0; bs_i < bs_n; bs_i++)
         bdrv_delete(bs[bs_i]);
