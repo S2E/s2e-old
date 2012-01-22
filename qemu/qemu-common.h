@@ -3,6 +3,7 @@
 #define QEMU_COMMON_H
 
 #define WINDOW_TITLE "S2E"
+#include "config-host.h"
 
 #define QEMU_NORETURN __attribute__ ((__noreturn__))
 #ifdef CONFIG_GCC_ATTRIBUTE_WARN_UNUSED_RESULT
@@ -31,7 +32,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <assert.h>
-#include "config-host.h"
 
 #ifndef O_LARGEFILE
 #define O_LARGEFILE 0

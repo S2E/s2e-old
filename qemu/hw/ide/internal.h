@@ -397,6 +397,7 @@ struct IDEState {
     /* set for lba48 access */
     uint8_t lba48;
     BlockDriverState *bs;
+    char version[9];
     /* ATAPI specific */
     uint8_t sense_key;
     uint8_t asc;
@@ -416,6 +417,11 @@ struct IDEState {
     uint8_t *data_ptr;
     uint8_t *data_end;
     uint8_t *io_buffer;
+    /* PIO save/restore */
+    int32_t io_buffer_total_len;
+    int cur_io_buffer_offset;
+    int cur_io_buffer_len;
+    uint8_t end_transfer_fn_idx;
     QEMUTimer *sector_write_timer; /* only used for win2k install hack */
     uint32_t irq_count; /* counts IRQs when using win2k install hack */
     /* CF-ATA extended error */
@@ -449,6 +455,7 @@ struct IDEDevice {
     DeviceState qdev;
     uint32_t unit;
     DriveInfo *dinfo;
+    char *version;
 };
 
 typedef int (*ide_qdev_initfn)(IDEDevice *dev);
@@ -548,7 +555,7 @@ uint32_t ide_data_readw(void *opaque, uint32_t addr);
 void ide_data_writel(void *opaque, uint32_t addr, uint32_t val);
 uint32_t ide_data_readl(void *opaque, uint32_t addr);
 
-void ide_init_drive(IDEState *s, DriveInfo *dinfo);
+void ide_init_drive(IDEState *s, DriveInfo *dinfo, const char *version);
 void ide_init2(IDEBus *bus, DriveInfo *hd0, DriveInfo *hd1,
                qemu_irq irq);
 void ide_init_ioport(IDEBus *bus, int iobase, int iobase2);

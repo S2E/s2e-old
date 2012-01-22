@@ -4162,14 +4162,15 @@ static void tcg_cpu_exec(void)
     for (; next_cpu != NULL; next_cpu = next_cpu->next_cpu) {
         CPUState *env = cur_cpu = next_cpu;
 
-        if (!vm_running)
-            break;
         if (timer_alarm_pending) {
             timer_alarm_pending = 0;
             break;
         }
         if (cpu_can_run(env))
             ret = qemu_cpu_exec(env);
+        else if (env->stop)
+            break;
+
         if (ret == EXCP_DEBUG) {
             gdb_set_stop_cpu(env);
             debug_requested = 1;
@@ -6232,6 +6233,8 @@ int main(int argc, char **argv, char **envp)
     /* init generic devices */
     if (qemu_opts_foreach(&qemu_device_opts, device_init_func, NULL, 1) != 0)
         exit(1);
+
+    net_check_clients();
 
     if (!display_state)
         dumb_display_init();

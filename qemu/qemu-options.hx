@@ -448,6 +448,12 @@ ETEXI
 
 DEF("device", HAS_ARG, QEMU_OPTION_device,
     "-device driver[,options]  add device\n")
+STEXI
+@item -device @var{driver}[,@var{option}[,...]]
+Add device @var{driver}. Depending on the device type,
+@var{option} (typically @var{key}=@var{value}) may be useful.
+ETEXI
+
 DEF("name", HAS_ARG, QEMU_OPTION_name,
     "-name string1[,process=string2]    set the name of the guest\n"
     "            string1 sets the window title and string2 the process name (on Linux)\n")
@@ -1937,6 +1943,8 @@ ETEXI
 DEF("nodefaults", 0, QEMU_OPTION_nodefaults, \
     "-nodefaults     don't create default devices.\n")
 STEXI
+@item -nodefaults
+Don't create default devices.
 ETEXI
 
 #ifndef _WIN32
@@ -1959,10 +1967,6 @@ Immediately before starting guest execution, drop root privileges, switching
 to the specified user.
 ETEXI
 
-STEXI
-@end table
-ETEXI
-
 #if defined(TARGET_SPARC) || defined(TARGET_PPC)
 DEF("prom-env", HAS_ARG, QEMU_OPTION_prom_env,
     "-prom-env variable=value\n"
@@ -1978,9 +1982,17 @@ DEF("old-param", 0, QEMU_OPTION_old_param,
 #endif
 DEF("readconfig", HAS_ARG, QEMU_OPTION_readconfig,
     "-readconfig <file>\n")
+STEXI
+@item -readconfig @var{file}
+Read device configuration from @var{file}.
+ETEXI
 DEF("writeconfig", HAS_ARG, QEMU_OPTION_writeconfig,
     "-writeconfig <file>\n"
     "                read/write config file\n")
+STEXI
+@item -writeconfig @var{file}
+Write device configuration to @var{file}.
+ETEXI
 
 #if defined(CONFIG_LLVM)
 #if defined(CONFIG_S2E)
@@ -1996,3 +2008,8 @@ DEF("generate-llvm", 0, QEMU_OPTION_generate_llvm,
 #endif
 #endif
 
+
+HXCOMM This is the last statement. Insert new options before this line!
+STEXI
+@end table
+ETEXI
