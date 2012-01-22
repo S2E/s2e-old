@@ -2319,8 +2319,7 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
         qemu_opt_set(opts, "backend", "udp");
         if (sscanf(p, "%64[^:]:%32[^@,]%n", host, port, &pos) < 2) {
             host[0] = 0;
-            if (sscanf(p, ":%32[^,]%n", port, &pos) < 1) {
-                fprintf(stderr, "udp #1\n");
+            if (sscanf(p, ":%32[^@,]%n", port, &pos) < 1) {
                 goto fail;
             }
         }
@@ -2331,7 +2330,6 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
             if (sscanf(p, "%64[^:]:%32[^,]%n", host, port, &pos) < 2) {
                 host[0] = 0;
                 if (sscanf(p, ":%32[^,]%n", port, &pos) < 1) {
-                    fprintf(stderr, "udp #2\n");
                     goto fail;
                 }
             }
@@ -2359,7 +2357,6 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
     }
 
 fail:
-    fprintf(stderr, "%s: fail on \"%s\"\n", __FUNCTION__, filename);
     qemu_opts_del(opts);
     return NULL;
 }

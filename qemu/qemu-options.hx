@@ -1012,7 +1012,7 @@ the guest, use the following:
 
 @example
 # on the host
-qemu -net user,hostfwd=tcp:5555::23 [...]
+qemu -net user,hostfwd=tcp::5555-:23 [...]
 telnet localhost 5555
 @end example
 

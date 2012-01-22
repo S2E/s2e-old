@@ -377,7 +377,7 @@ static int get_mmu_address(CPUState * env, target_ulong * physical,
 	n = find_itlb_entry(env, address, use_asid, 1);
 	if (n >= 0) {
 	    matching = &env->itlb[n];
-	    if ((env->sr & SR_MD) & !(matching->pr & 2))
+	    if (!(env->sr & SR_MD) && !(matching->pr & 2))
 		n = MMU_ITLB_VIOLATION;
 	    else
 		*prot = PAGE_READ;
@@ -430,7 +430,7 @@ static int get_physical_address(CPUState * env, target_ulong * physical,
     if ((address >= 0x80000000 && address < 0xc0000000) ||
 	address >= 0xe0000000) {
 	if (!(env->sr & SR_MD)
-	    && (address < 0xe0000000 || address > 0xe4000000)) {
+	    && (address < 0xe0000000 || address >= 0xe4000000)) {
 	    /* Unauthorized access in user mode (only store queues are available) */
 	    fprintf(stderr, "Unauthorized access\n");
 	    if (rw == 0)
@@ -572,6 +572,24 @@ void cpu_load_tlb(CPUSH4State * env)
     entry->wt   = (uint8_t)cpu_ptel_wt(env->ptel);
     entry->sa   = (uint8_t)cpu_ptea_sa(env->ptea);
     entry->tc   = (uint8_t)cpu_ptea_tc(env->ptea);
+}
+
+ void cpu_sh4_invalidate_tlb(CPUSH4State *s)
+{
+    int i;
+
+    /* UTLB */
+    for (i = 0; i < UTLB_SIZE; i++) {
+        tlb_t * entry = &s->utlb[i];
+        entry->v = 0;
+    }
+    /* ITLB */
+    for (i = 0; i < UTLB_SIZE; i++) {
+        tlb_t * entry = &s->utlb[i];
+        entry->v = 0;
+    }
+
+    tlb_flush(s, 1);
 }
 
 void cpu_sh4_write_mmaped_utlb_addr(CPUSH4State *s, target_phys_addr_t addr,
