@@ -8,14 +8,30 @@ MAKEFLAGS += -rR
 %.d:
 %.h:
 %.c:
+%.cpp:
 %.m:
 %.mak:
 
 # Flags for dependency generation
 QEMU_DGFLAGS += -MMD -MP -MT $@ -MF $(*D)/$(*F).d
 
-%.o: %.c
-	$(call quiet-command,$(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
+ifdef CONFIG_ASAN
+
+%.o: %.c $(GENERATED_HEADERS)
+	$(call quiet-command,$(ASANCC) $(QEMU_INCLUDES) $(QEMU_CFLAGS)  $(QEMU_DGFLAGS) $(CFLAGS) $(ASAN_FLAGS) -c -o $@ $<,"  ASANCC    $(TARGET_DIR)$@")
+
+%.o: %.cpp $(GENERATED_HEADERS)
+	$(call quiet-command,$(ASANCXX) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) $(ASAN_FLAGS) -c -o $@ $<,"  ASANCXX   $(TARGET_DIR)$@")
+
+else
+
+%.o: %.c $(GENERATED_HEADERS)
+	$(call quiet-command,$(LLVMCC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
+
+%.o: %.cpp $(GENERATED_HEADERS)
+	$(call quiet-command,$(LLVMCC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_CXXFLAGS) $(QEMU_DGFLAGS) $(CXXFLAGS) -c -o $@ $<,"  CXX   $(TARGET_DIR)$@")
+
+endif
 
 ifeq ($(LIBTOOL),)
 %.lo: %.c
@@ -25,11 +41,15 @@ else
 	$(call quiet-command,$(LIBTOOL) --mode=compile --quiet --tag=CC $(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  lt CC $@")
 endif
 
+
 %.o: %.S
 	$(call quiet-command,$(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  AS    $(TARGET_DIR)$@")
 
 %.o: %.m
 	$(call quiet-command,$(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  OBJC  $(TARGET_DIR)$@")
+
+%.o: %.asm
+	$(call quiet-command,$(ASM) $(QEMU_ASMFLAGS) -o $@ $<,"  ASM  $(TARGET_DIR)$@")
 
 LINK = $(call quiet-command,$(CC) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(sort $(1)) $(LIBS),"  LINK  $(TARGET_DIR)$@")
 
@@ -38,6 +58,12 @@ LINK = $(call quiet-command,$(CC) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(so
 
 %.a:
 	$(call quiet-command,rm -f $@ && $(AR) rcs $@ $^,"  AR    $(TARGET_DIR)$@")
+
+%.bc: %.c $(GENERATED_HEADERS)
+	$(call quiet-command,$(LLVMCC) $(filter-out -g -Wold-style-declaration, $(QEMU_CFLAGS) $(QEMU_CCFLAGS) $(CFLAGS)) -c -DS2E_LLVM_LIB -emit-llvm -o $@ $<,"  LLVMCC    $(TARGET_DIR)$@")
+
+%.bca:
+	$(call quiet-command,rm -f $@ && $(LLVMAR) rcs $@ $^,"  LLVMAR    $(TARGET_DIR)$@")
 
 quiet-command = $(if $(V),$1,$(if $(2),@echo $2 && $1, @$1))
 
