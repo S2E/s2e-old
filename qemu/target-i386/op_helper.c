@@ -31,6 +31,9 @@
 #include "softmmu_exec.h"
 #endif /* !defined(CONFIG_USER_ONLY) */
 
+//S2E: Keep the environment in a variable
+struct CPUX86State* env = 0;
+
 //#define DEBUG_PCALL
 
 #ifdef DEBUG_PCALL

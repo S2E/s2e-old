@@ -61,7 +61,9 @@
 #endif
 
 #if defined(AREG0)
-register CPUState *env asm(AREG0);
+//register CPUState *env asm(AREG0);
+//clang does not support register-based global variables.
+extern CPUState *env;
 #else
 /* TODO: Try env = cpu_single_env. */
 extern CPUState *env;

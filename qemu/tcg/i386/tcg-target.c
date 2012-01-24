@@ -1928,10 +1928,10 @@ static int tcg_target_callee_save_regs[] = {
     TCG_REG_RBX,
     TCG_REG_R12,
     TCG_REG_R13,
-    TCG_REG_R14, /* Currently used for the global env. */
+    TCG_REG_R14,
     TCG_REG_R15,
 #else
-    TCG_REG_EBP, /* Currently used for the global env. */
+    TCG_REG_EBP,
     TCG_REG_EBX,
     TCG_REG_ESI,
     TCG_REG_EDI,
@@ -1965,6 +1965,15 @@ static void tcg_target_qemu_prologue(TCGContext *s)
     tcg_out_addi(s, TCG_REG_ESP, -stack_addend);
 
     tcg_out_mov(s, TCG_TYPE_PTR, TCG_AREG0, tcg_target_call_iarg_regs[0]);
+
+    /* S2E hack: update here the global env variable */
+    /* mov TCG_REG_R12, &env */
+    extern CPUState *env;
+    tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_R12, (uintptr_t)&env);
+
+    /* mov [TCG_REG_R12], tcg_target_call_iarg_regs[0] */
+    tcg_out_st(s, TCG_TYPE_PTR, TCG_AREG0, TCG_REG_R12, 0);
+    /*********/
 
     /* jmp *tb.  */
     tcg_out_modrm(s, OPC_GRP5, EXT5_JMPN_Ev, tcg_target_call_iarg_regs[1]);
