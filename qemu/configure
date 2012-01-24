@@ -2,6 +2,14 @@
 #
 # qemu configure script (c) 2003 Fabrice Bellard
 #
+
+# The file was modified for S2E Selective Symbolic Execution Framework
+#
+# Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+#
+# Main authors: Vitaly Chipounov, Volodymyr Kuznetsov.
+# All contributors are listed in S2E-AUTHORS file.
+
 # set temporary file name
 if test ! -z "$TMPDIR" ; then
     TMPDIR1="${TMPDIR}"
@@ -12,6 +20,8 @@ else
 fi
 
 TMPC="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.c"
+TMPCXX="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.cpp"
+TMPASM="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.asm"
 TMPO="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.o"
 TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.exe"
 
@@ -29,13 +39,29 @@ compile_prog() {
   local_cflags="$1"
   local_ldflags="$2"
   echo $cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags >> config.log
-  $cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags >> config.log 2>&1
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags >> config.log 2>&1
+}
+
+compile_prog_cxx() {
+  local_cxxflags="$1"
+  local_ldflags="$2"
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS $local_cxxflags -o $TMPE $TMPCXX $LDFLAGS $local_ldflags > /dev/null 2> /dev/null
+}
+
+compile_object_cxx() {
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS -c -o $TMPO $TMPCXX >> config.log
+  $cxx $QEMU_CFLAGS $QEMU_CXXFLAGS -c -o $TMPO $TMPCXX > /dev/null 2> /dev/null
 }
 
 # symbolically link $1 to $2.  Portable version of "ln -sf".
 symlink() {
   rm -f $2
   ln -s $1 $2
+}
+
+assemble_object_asm() {
+  $asm -o $TMPO $TMPASM >> config.log
+  $asm -o $TMPO $TMPASM > /dev/null 2> /dev/null
 }
 
 # check whether a command is available to this shell (may be either an
@@ -81,6 +107,11 @@ interp_prefix="/usr/gnemul/qemu-%M"
 static="no"
 sparc_cpu=""
 cross_prefix=""
+cc="gcc"
+asancc=""
+cxx="g++"
+asancxx=""
+asm="nasm"
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16 hda"
 audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus hda"
@@ -108,6 +139,7 @@ target_list=""
 # Distributions want to ensure that several features are compiled in, and it
 # is impossible without a --enable-foo that exits if a feature is not found.
 
+address_sanitizer="no"
 bluez=""
 brlapi=""
 curl=""
@@ -192,13 +224,21 @@ for opt do
   case "$opt" in
   --cross-prefix=*) cross_prefix="$optarg"
   ;;
-  --cc=*) CC="$optarg"
+  --cc=*) cc="$optarg"
+  ;;
+  --cxx=*) cxx="$optarg"
+  ;;
+  --asancc=*) asancc="$optarg"
+  ;;
+  --asancxx=*) asancxx="$optarg"
   ;;
   --source-path=*) source_path="$optarg"
   ;;
   --cpu=*) cpu="$optarg"
   ;;
-  --extra-cflags=*) QEMU_CFLAGS="$optarg $QEMU_CFLAGS"
+  --extra-cflags=*) QEMU_CCFLAGS="$optarg $QEMU_CFLAGS"
+  ;;
+  --extra-cxxflags=*) QEMU_CXXFLAGS="$optarg $QEMU_CXXFLAGS"
   ;;
   --extra-ldflags=*) LDFLAGS="$optarg $LDFLAGS"
   ;;
@@ -234,6 +274,10 @@ pkg_config="${PKG_CONFIG-${cross_prefix}pkg-config}"
 sdl_config="${SDL_CONFIG-${cross_prefix}sdl-config}"
 
 # default flags for all hosts
+CFLAGS="-g $CFLAGS"
+CXXFLAGS="-g $CXXFLAGS"
+LDFLAGS="-g $LDFLAGS"
+
 QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
 CFLAGS="-g $CFLAGS"
 QEMU_CFLAGS="-Wall -Wundef -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
@@ -349,6 +393,13 @@ else
   targetos=`uname -s`
 fi
 
+if [ "$cpu" = "i386" ]; then
+  QEMU_ASMFLAGS="-f elf32"
+elif [ "$cpu" = "x86_64" ] ; then
+  QEMU_ASMFLAGS="-f elf64"
+fi
+
+
 case $targetos in
 CYGWIN*)
   mingw32="yes"
@@ -357,6 +408,12 @@ CYGWIN*)
   audio_drv_list="winwave"
 ;;
 MINGW32*)
+  if [ "$cpu" = "i386" ]; then
+       QEMU_ASMFLAGS="-f win32"
+  elif [ "$cpu" = "x86_64" ] ; then
+       QEMU_ASMFLAGS="-f win64"
+  fi
+
   mingw32="yes"
   audio_possible_drivers="winwave dsound sdl fmod"
   audio_drv_list="winwave"
@@ -400,10 +457,12 @@ Darwin)
   # on Leopard most of the system is 32-bit, so we have to ask the kernel it if we can
   # run 64-bit userspace code
   if [ "$cpu" = "i386" ] ; then
+    QEMU_ASMFLAGS="-f macho32"
     is_x86_64=`sysctl -n hw.optional.x86_64`
     [ "$is_x86_64" = "1" ] && cpu=x86_64
   fi
   if [ "$cpu" = "x86_64" ] ; then
+    QEMU_ASMFLAGS="-f macho64"
     QEMU_CFLAGS="-arch x86_64 $QEMU_CFLAGS"
     LDFLAGS="-arch x86_64 $LDFLAGS"
   else
@@ -527,6 +586,14 @@ for opt do
   ;;
   --cc=*)
   ;;
+  --cxx=*)
+  ;;
+  --asancc=*)
+  ;;
+  --asancxx=*)
+  ;;
+  --compile-all-with-clang) compileallwithclang="yes"
+  ;;
   --host-cc=*) host_cc="$optarg"
   ;;
   --make=*) make="$optarg"
@@ -612,6 +679,8 @@ for opt do
       debug="yes"
       strip_opt="no"
   ;;
+  --enable-address-sanitizer) address_sanitizer="yes"
+  ;;
   --enable-sparse) sparse="yes"
   ;;
   --disable-sparse) sparse="no"
@@ -660,6 +729,18 @@ for opt do
   ;;
   --enable-bluez) bluez="yes"
   ;;
+  --enable-llvm) llvm="yes"
+  ;;
+  --with-llvm=*) llvmdir="$optarg"
+  ;;
+  --enable-s2e) s2e="yes"
+  ;;
+  --with-klee=*) kleedir="$optarg"
+  ;;
+  --with-stp=*) stpdir="$optarg"
+  ;;
+  --with-clang=*) clang="$optarg"
+  ;;
   --disable-kvm) kvm="no"
   ;;
   --enable-kvm) kvm="yes"
@@ -673,8 +754,6 @@ for opt do
   --enable-spice) spice="yes"
   ;;
   --disable-libiscsi) libiscsi="no"
-  ;;
-  --enable-libiscsi) libiscsi="yes"
   ;;
   --enable-profiler) profiler="yes"
   ;;
@@ -868,6 +947,15 @@ case "$cpu" in
            ;;
 esac
 
+if [ "x$address_sanitizer" = "xyes" ]; then
+	CFLAGS="-fstack-protector-all $CFLAGS"
+    CXXFLAGS="-fstack-protector-all -Wno-mismatched-tags $CXXFLAGS"
+    #This is required for probing LLVM and KLEE, as they
+    #might be compiled with AddressSanitizer instrumentation.
+    ASANLIBPATH="-L$(dirname $asancc)/../lib"
+    LDASAN="-lasan64 -ldl"
+fi
+
 [ -z "$guest_base" ] && guest_base="$host_guest_base"
 
 
@@ -961,9 +1049,12 @@ echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
-echo "  --host-cc=CC             use C compiler CC [$host_cc] for code run at"
-echo "                           build time"
-echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
+echo "  --cxx=CXX                use C++ compiler CXX [$cxx]"
+echo "  --asancc=CC              use AddressSanitizer C compiler CC [$asancc]"
+echo "  --asancxx=CXX            use AddressSanitizer C++ compiler CXX [$asancxx]"
+echo "  --host-cc=CC             use C compiler CC [$host_cc] for dyngen etc."
+echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CCFLAGS"
+echo "  --extra-cxxflags=CXXFLAGS append extra CXX compiler flags QEMU_CXXFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
@@ -978,6 +1069,7 @@ echo "  --sysconfdir=PATH        install config in PATH/qemu"
 echo "  --enable-debug-tcg       enable TCG debugging"
 echo "  --disable-debug-tcg      disable TCG debugging (default)"
 echo "  --enable-debug           enable common debug build options"
+echo "  --enable-address-sanitizer enable Google Address Sanitizer memory checker. Requires the corresponding compiler."
 echo "  --enable-sparse          enable sparse checker"
 echo "  --disable-sparse         disable sparse checker (default)"
 echo "  --disable-strip          disable stripping binaries"
@@ -1019,6 +1111,13 @@ echo "  --enable-check-utests    enable check unit-tests"
 echo "  --disable-bluez          disable bluez stack connectivity"
 echo "  --enable-bluez           enable bluez stack connectivity"
 echo "  --disable-slirp          disable SLIRP userspace network connectivity"
+echo "  --enable-llvm            enable LLVM support (for all targets)"
+echo "  --with-llvm=PATH         LLVM path (PATH/bin/llvm-config must exist)"
+echo "  --enable-s2e             enable S2E"
+echo "  --with-klee=PATH         KLEE path (PATH/bin/klee-config must exist)"
+echo "  --with-stp=PATH          STP path (PATH/lib/libstp.a must exist)"
+echo "  --with-clang=PATH        path to Clang"
+echo "  --compile-all-with-clang builds S2E with clang"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --enable-tcg-interpreter enable TCG with bytecode interpreter (TCI)"
@@ -1938,6 +2037,190 @@ else
 fi
 
 ##########################################
+# asm support probe
+
+cat > $TMPASM <<EOF
+mov eax, 1
+EOF
+
+if assemble_object_asm ; then
+  :  assembler works ok
+else
+  echo "ERROR: \"$asm\" either does not exist or does not work"
+  exit 1
+fi
+
+##########################################
+# C++ support probe
+
+if test "$llvm" != "no" -o "$s2e" != "no" ; then
+
+# check that the CXX compiler works.
+cat > $TMPCXX <<EOF
+int main(void) {}
+EOF
+
+if compile_object_cxx ; then
+  : CXX compiler works ok
+else
+  echo "ERROR: \"$cxx\" (required for --enable-llvm and --enable-s2e) either does not exist or does not work"
+  exit 1
+fi
+
+fi
+
+##########################################
+# llvm support probe
+
+if test "$llvm" != "no" -o "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <llvm/LLVMContext.h>
+int main(void) { llvm::LLVMContext& c = llvm::getGlobalContext(); return 0; }
+EOF
+  if test "$llvmdir" != ""; then
+      llvm_config="$llvmdir/bin/llvm-config"
+  else
+      llvm_config="llvm-config"
+  fi
+  llvm_components="jit bitreader bitwriter ipo linker engine"
+  llvm_cxxflags=`$llvm_config $llvm_components --cflags 2> /dev/null`
+
+  llvm_ldflags=`$llvm_config $llvm_components --ldflags 2> /dev/null`
+  llvm_libs=`$llvm_config $llvm_components --libs 2> /dev/null`
+
+  if compile_prog_cxx "$llvm_cxxflags" "$llvm_libs $llvm_ldflags $LDASAN $ASANLIBPATH" ; then
+    : LLVM found
+  else
+    feature_not_found "llvm (required for --enable-llvm and --enable-s2e)"
+    exit 1
+  fi
+fi
+
+if test "$llvm" != "no" ; then
+  llvm="yes"
+  #These will be automatically added by klee and we don't want
+  #duplicated libs on the command line.
+  if [ "x$s2e" != "xyes" ]; then
+    LIBS="$llvm_libs $LIBS $llvm_ldflags"
+  fi
+  linker="$cxx"
+fi
+
+##########################################
+# s2e probe: KLEE
+
+if test "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <llvm/LLVMContext.h>
+#include <klee/Common.h>
+int main(void) { llvm::LLVMContext& c = llvm::getGlobalContext(); klee::klee_message("a"); return 0; }
+EOF
+  if test "$kleedir" != ""; then
+      klee_config="$kleedir/bin/klee-config"
+  else
+      klee_config="klee-config"
+  fi
+  klee_cxxflags=`$klee_config --cflags 2> /dev/null`
+  klee_ldflags=`$klee_config --ldflags 2> /dev/null`
+  klee_libs=`$klee_config --libs 2> /dev/null`
+  klee_libdir=`$klee_config --libdir 2> /dev/null | sed s:Debug/lib$:Release/lib:`
+  klee_libfiles=`$klee_config --libfiles 2> /dev/null`
+
+  if test "$stpdir" != ""; then
+    stpdir=$(cd $stpdir>/dev/null && pwd)
+    klee_ldflags="$klee_ldflags -L$stpdir/lib"
+    klee_libs="$klee_libs -lstp"
+  fi
+
+  if compile_prog_cxx "$klee_cxxflags $llvm_cxxflags" "$klee_ldflags $klee_libs $llvm_libs $llvm_ldflags $LDASAN $ASANLIBPATH" ; then
+    s2e="yes"
+  else
+    feature_not_found "klee (required for s2e)"
+    exit 1
+  fi
+fi
+
+##########################################
+# s2e probe: lua
+
+if test "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+extern "C" {
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+}
+int main(void) { lua_State *L = lua_open(); lua_close(L); return 0; }
+EOF
+  if [ "$mingw32" = "yes" ]; then
+    lua_libs="-llua"
+  else
+    if pkg-config --exists lua5.1 ; then
+        lua_pkg="lua5.1"
+    else
+        lua_pkg="lua"
+    fi
+    lua_cxxflags=`pkg-config $lua_pkg --cflags 2> /dev/null`
+    lua_libs=`pkg-config $lua_pkg --libs 2> /dev/null`
+  fi
+
+  if compile_prog_cxx "$lua_cxxflags" "$lua_libs" ; then
+    : LUA found
+  else
+    feature_not_found "lua (required for s2e)"
+    exit 1
+  fi
+fi
+
+##########################################
+# s2e probe: libsigc++-2
+
+if test "$s2e" != "no" ; then
+  cat > $TMPCXX << EOF
+#include <sigc++/sigc++.h>
+int main(void) { sigc::signal<void, int> s; s.emit(1); return 0; }
+EOF
+  if [ "$mingw32" = "yes" ]; then
+    if [ "$static" = "yes" ]; then
+        sigcxx2_libs="-lsigc-2.0"
+    else
+        sigcxx2_libs="-lsigc-2.0.dll"
+    fi
+  else
+    sigcxx2_cxxflags=`pkg-config sigc++-2.0 --cflags 2> /dev/null`
+    sigcxx2_libs=`pkg-config sigc++-2.0 --libs 2> /dev/null`
+  fi
+
+  if compile_prog_cxx "$sigcxx2_cxxflags" "$sigcxx2_libs" ; then
+    : libsigc++-2.0 found
+  else
+    feature_not_found "libsigc++ (required for s2e)"
+    exit 1
+  fi
+fi
+
+##########################################
+# s2e probe: clang
+
+if test "$s2e" != "no" ; then
+  if test -z "$clang"; then
+    clang=`which clang`
+  fi
+  if [ -x "$clang" ]; then
+    : clang found
+  else
+    feature_not_found "clang (required for s2e)"
+    exit 1
+  fi
+
+  if test "$llvmdir" != ""; then
+      llvmar="$llvmdir/bin/llvm-ar"
+  else
+      llvmar="llvm-ar"
+  fi
+fi
+
+##########################################
 # pthread probe
 PTHREADLIBS_LIST="-pthread -lpthread -lpthreadGC2"
 
@@ -2770,9 +3053,15 @@ echo "ELF interp prefix $interp_prefix"
 fi
 echo "Source path       $source_path"
 echo "C compiler        $cc"
+echo "C++ compiler      $cxx"
+echo "ASAN C compiler   $asancc"
+echo "ASAN C++ compiler $asancxx"
 echo "Host C compiler   $host_cc"
 echo "CFLAGS            $CFLAGS"
+echo "CXXFLAGS          $CXXFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
+echo "QEMU_CCFLAGS      $QEMU_CCFLAGS"
+echo "QEMU_CXXFLAGS     $QEMU_CXXFLAGS"
 echo "LDFLAGS           $LDFLAGS"
 echo "make              $make"
 echo "install           $install"
@@ -2827,6 +3116,8 @@ echo "vde support       $vde"
 echo "Linux AIO support $linux_aio"
 echo "ATTR/XATTR support $attr"
 echo "Install blobs     $blobs"
+echo "LLVM support      $llvm"
+echo "S2E targets       $s2e"
 echo "KVM support       $kvm"
 echo "TCG interpreter   $tcg_interpreter"
 echo "fdt support       $fdt"
@@ -2897,6 +3188,12 @@ fi
 if test "$debug" = "yes" ; then
   echo "CONFIG_DEBUG_EXEC=y" >> $config_host_mak
 fi
+if [ $address_sanitizer = "yes" ]; then
+  echo "CONFIG_ASAN=y" >> $config_host_mak
+  echo "ASAN_FLAGS=-faddress-sanitizer" >> $config_host_mak
+  echo "ASAN_LDFLAGS=$LDASAN" >> $config_host_mak
+  echo "ASAN_LIBPATH=$ASANLIBPATH" >> $config_host_mak
+fi
 if test "$strip_opt" = "yes" ; then
   echo "STRIP=${strip}" >> $config_host_mak
 fi
@@ -2943,6 +3240,10 @@ if test "$haiku" = "yes" ; then
 fi
 if test "$static" = "yes" ; then
   echo "CONFIG_STATIC=y" >> $config_host_mak
+  LDFLAGS="-static $LDFLAGS"
+  if test "$mingw32" = "yes" ; then
+    LDFLAGS="-static-libgcc $LDFLAGS"
+  fi
 fi
 if test "$profiler" = "yes" ; then
   echo "CONFIG_PROFILER=y" >> $config_host_mak
@@ -3088,7 +3389,17 @@ if test "$bluez" = "yes" ; then
   echo "CONFIG_BLUEZ=y" >> $config_host_mak
   echo "BLUEZ_CFLAGS=$bluez_cflags" >> $config_host_mak
 fi
+
 echo "GLIB_CFLAGS=$glib_cflags" >> $config_host_mak
+
+if test "$llvm" = "yes" ; then
+  echo "CONFIG_LLVM=y" >> $config_host_mak
+  echo "LLVM_CXXFLAGS=$llvm_cxxflags" >> $config_host_mak
+fi
+if test "$compileallwithclang" = "yes"; then
+  echo "CONFIG_CLANG=y" >> $config_host_mak
+  echo "LLVMCC:=$clang" >> $config_host_mak
+fi
 if test "$xen" = "yes" ; then
   echo "CONFIG_XEN_BACKEND=y" >> $config_host_mak
   echo "CONFIG_XEN_CTRL_INTERFACE_VERSION=$xen_ctrl_version" >> $config_host_mak
@@ -3242,6 +3553,11 @@ echo "INSTALL_PROG=$install -c -m 0755" >> $config_host_mak
 echo "PYTHON=$python" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
 echo "CC_I386=$cc_i386" >> $config_host_mak
+echo "CXX=$cxx" >> $config_host_mak
+echo "ASANCC=$asancc" >> $config_host_mak
+echo "ASANCXX=$asancxx" >> $config_host_mak
+echo "ASM=$asm" >> $config_host_mak
+echo "LINKER=$linker" >> $config_host_mak
 echo "HOST_CC=$host_cc" >> $config_host_mak
 echo "AR=$ar" >> $config_host_mak
 echo "OBJCOPY=$objcopy" >> $config_host_mak
@@ -3249,7 +3565,11 @@ echo "LD=$ld" >> $config_host_mak
 echo "WINDRES=$windres" >> $config_host_mak
 echo "LIBTOOL=$libtool" >> $config_host_mak
 echo "CFLAGS=$CFLAGS" >> $config_host_mak
+echo "CXXFLAGS=$CXXFLAGS" >> $config_host_mak
+echo "QEMU_ASMFLAGS=$QEMU_ASMFLAGS" >> $config_host_mak
 echo "QEMU_CFLAGS=$QEMU_CFLAGS" >> $config_host_mak
+echo "QEMU_CCFLAGS=$QEMU_CCFLAGS" >> $config_host_mak
+echo "QEMU_CXXFLAGS=$QEMU_CXXFLAGS" >> $config_host_mak
 echo "QEMU_INCLUDES=$QEMU_INCLUDES" >> $config_host_mak
 if test "$sparse" = "yes" ; then
   echo "CC           := REAL_CC=\"\$(CC)\" cgcc"       >> $config_host_mak
@@ -3299,9 +3619,18 @@ target_user_only="no"
 target_linux_user="no"
 target_darwin_user="no"
 target_bsd_user="no"
+target_s2e="no"
 case "$target" in
   ${target_arch2}-softmmu)
     target_softmmu="yes"
+    ;;
+  ${target_arch2}-s2e-softmmu)
+    if test "$s2e" != "yes" ; then
+      echo "ERROR: Target '$target' is only available with --enable-s2e"
+      exit 1
+    fi
+    target_softmmu="yes"
+    target_s2e="yes"
     ;;
   ${target_arch2}-linux-user)
     if test "$linux" != "yes" ; then
@@ -3327,6 +3656,19 @@ case "$target" in
     target_user_only="yes"
     target_bsd_user="yes"
     ;;
+  ${target_arch2}-s2e-linux-user)
+    if test "$s2e" != "yes" ; then
+      echo "ERROR: Target '$target' is only available with --enable-s2e"
+      exit 1
+    fi
+    if test "$linux" != "yes" ; then
+      echo "ERROR: Target '$target' is only available on a Linux host"
+      exit 1
+    fi
+    target_user_only="yes"
+    target_linux_user="yes"
+    target_s2e="yes"
+    ;;
   *)
     echo "ERROR: Target '$target' not recognised"
     exit 1
@@ -3341,7 +3683,23 @@ mkdir -p $target_dir/9pfs
 if test "$target" = "arm-linux-user" -o "$target" = "armeb-linux-user" -o "$target" = "arm-bsd-user" -o "$target" = "armeb-bsd-user" ; then
   mkdir -p $target_dir/nwfpe
 fi
+
 symlink $source_path/Makefile.target $target_dir/Makefile
+
+if test "$target_s2e" = "yes"; then
+  S2E_DIRS="s2e s2e/Interceptor s2e/Plugins s2e/Plugins/WindowsInterceptor s2e/Configuration s2e/Signals"
+  S2E_DIRS="$S2E_DIRS s2e/Plugins/DataSelectors s2e/Plugins/ExecutionTracers"
+  S2E_DIRS="$S2E_DIRS s2e/Plugins/WindowsApi s2e/Plugins/Searchers"
+  for dir in $S2E_DIRS ; do
+    mkdir -p $target_dir/$dir
+  done
+fi
+
+#
+# don't use ln -sf as not all "ln -sf" over write the file/link
+#
+rm -f $target_dir/Makefile
+ln -s $source_path/Makefile.target $target_dir/Makefile
 
 
 echo "# Automatically generated by configure - do not modify" > $config_target_mak
@@ -3567,6 +3925,25 @@ if test "$smartcard_nss" = "yes" ; then
   echo "libcacard_libs=$libcacard_libs" >> $config_host_mak
   echo "libcacard_cflags=$libcacard_cflags" >> $config_host_mak
 fi
+
+if test "$target_s2e" = "yes" ; then
+  echo "CONFIG_S2E=y" >> $config_target_mak
+  echo "CONFIG_LLVM=y" >> $config_target_mak
+  echo "LLVM_CXXFLAGS:=$llvm_cxxflags" >> $config_target_mak
+  echo "S2E_CXXFLAGS:=\$(filter-out $llvm_cxxflags, $klee_cxxflags)" >> $config_target_mak
+  echo "S2E_CXXFLAGS+=$lua_cxxflags $sigcxx2_cxxflags" >> $config_target_mak
+  echo "S2E_CXXFLAGS+=-DKLEE_LIBRARY_DIR='\"$klee_libdir\"'" >> $config_target_mak
+  echo "LLVMCC:=$clang" >> $config_target_mak
+  echo "LLVMAR:=$llvmar" >> $config_target_mak
+fi
+
+if [ "$llvm" = "yes" ]; then
+   echo "ifdef CONFIG_S2E" >> $config_target_mak
+   echo "LIBS+=$llvm_ldflags" >> $config_target_mak
+   echo "else" >> $config_target_mak
+   echo "LIBS:=$llvm_libs $llvm_ldflags \$(LIBS)" >> $config_target_mak
+   echo "endif" >> $config_target_mak
+fi
 list=""
 if test ! -z "$gdb_xml_files" ; then
   for x in $gdb_xml_files; do
@@ -3706,6 +4083,16 @@ if test "$target_softmmu" = "yes" -a \( \
   echo "CONFIG_NEED_MMU=y" >> $config_target_mak
 fi
 
+if test "$target_s2e" = "yes" ; then
+  echo "LINKER=$cxx" >> $config_target_mak
+  echo "LIBS:=$klee_libs $llvm_libs \$(LIBS)" >> $config_target_mak
+  echo "LIBS+=$lua_libs $sigcxx2_libs" >> $config_target_mak
+  echo "LIBS+=\$(filter-out $llvm_ldflags, $klee_ldflags) $llvm_ldflags" >> $config_target_mak
+  echo "KLEE_LIBFILES=$klee_libfiles" >> $config_target_mak
+fi
+
+
+
 if test "$gprof" = "yes" ; then
   echo "TARGET_GPROF=yes" >> $config_target_mak
   if test "$target_linux_user" = "yes" ; then
@@ -3791,11 +4178,13 @@ for f in $FILES ; do
 done
 
 # temporary config to build submodules
-for rom in seabios vgabios ; do
+for rom in seabios vgabios s2ebios; do
     config_mak=roms/$rom/config.mak
     echo "# Automatically generated by configure - do not modify" > $config_mak
     echo "SRC_PATH=$source_path/roms/$rom" >> $config_mak
     echo "CC=$cc" >> $config_mak
+    echo "CXX=$cxx" >> $config_mak
+    echo "LINKER=$linker" >> $config_mak
     echo "BCC=bcc" >> $config_mak
     echo "CPP=${cross_prefix}cpp" >> $config_mak
     echo "OBJCOPY=objcopy" >> $config_mak
