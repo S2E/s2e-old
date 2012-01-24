@@ -243,7 +243,7 @@ stamps/qemu-configure-debug: stamps/klee-configure klee/Debug/bin/klee-config
 		--prefix=$(S2EBUILD)/opt \
 		--with-llvm=$(S2EBUILD)/llvm/Debug+Asserts  \
 		--with-clang=$(S2EBUILD)/llvm-native/Release/bin/clang \
-		--with-stp=$(S2EBUILD)/stp-asan \
+		--with-stp=$(S2EBUILD)/stp \
 		--with-klee=$(S2EBUILD)/klee/Debug+Asserts \
 		--target-list=i386-s2e-softmmu,i386-softmmu \
 		--enable-llvm \
