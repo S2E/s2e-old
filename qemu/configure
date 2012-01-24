@@ -4152,7 +4152,7 @@ done # for target in $targets
 # build tree in object directory in case the source is not in the current directory
 DIRS="tests tests/cris slirp audio block net pc-bios/optionrom"
 DIRS="$DIRS pc-bios/spapr-rtas"
-DIRS="$DIRS roms/seabios roms/vgabios"
+DIRS="$DIRS roms/seabios roms/vgabios roms/s2ebios"
 DIRS="$DIRS fsdev ui"
 DIRS="$DIRS qapi qapi-generated"
 DIRS="$DIRS qga trace"
@@ -4160,7 +4160,7 @@ FILES="Makefile tests/Makefile qdict-test-data.txt"
 FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
 FILES="$FILES pc-bios/optionrom/Makefile pc-bios/keymaps"
 FILES="$FILES pc-bios/spapr-rtas/Makefile"
-FILES="$FILES roms/seabios/Makefile roms/vgabios/Makefile"
+FILES="$FILES roms/seabios/Makefile roms/vgabios/Makefile roms/s2ebios/Makefile"
 for bios_file in \
     $source_path/pc-bios/*.bin \
     $source_path/pc-bios/*.rom \

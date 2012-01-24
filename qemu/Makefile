@@ -304,6 +304,9 @@ endif
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
 
+	$(MAKE) -C roms/s2ebios  || exit 1;
+	$(INSTALL_DATA) roms/s2ebios/s2e-bios.bin "$(DESTDIR)$(datadir)";
+
 # various test targets
 test speed: all
 	$(MAKE) -C tests $@
