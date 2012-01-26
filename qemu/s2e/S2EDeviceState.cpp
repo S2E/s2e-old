@@ -38,10 +38,8 @@ extern "C" {
 #include <qemu-common.h>
 #include <block.h>
 
-    void vm_stop(int reason);
-    void vm_start(void);
-
-    int s2e_dev_snapshot_enable = 0;
+void vm_stop(int reason);
+void vm_start(void);
 }
 
 #include "s2e_block.h"
@@ -50,6 +48,7 @@ extern "C" {
 #include <sstream>
 #include <s2e/Utils.h>
 #include <s2e/S2E.h>
+#include <s2e/s2e_qemu.h>
 #include "llvm/Support/CommandLine.h"
 #include "S2EDeviceState.h"
 #include "S2EExecutionState.h"
@@ -70,14 +69,33 @@ namespace {
 using namespace s2e;
 using namespace std;
 
-unsigned int S2EDeviceState::s_PreferedStateSize = 0x1000;
-S2EDeviceState *S2EDeviceState::s_CurrentState = NULL;
-std::vector<void *> S2EDeviceState::s_Devices;
-bool S2EDeviceState::s_DevicesInited=false;
+unsigned int S2EDeviceState::s_preferedStateSize = 0x1000;
+std::vector<void *> S2EDeviceState::s_devices;
+bool S2EDeviceState::s_devicesInited=false;
+
+extern "C" {
+
+static int s2e_qemu_get_buffer(uint8_t *buf, int64_t pos, int size)
+{
+    return g_s2e_state->getDeviceState()->getBuffer(buf, pos, size);
+}
+
+static int s2e_qemu_put_buffer(const uint8_t *buf, int64_t pos, int size)
+{
+    return g_s2e_state->getDeviceState()->putBuffer(buf, pos, size);
+}
+
+void s2e_init_device_state(S2EExecutionState *s)
+{
+    s->getDeviceState()->initDeviceState();
+}
+
+}
 
 
 
-#define REGISTER_DEVICE(dev) { if (!strcmp(s2e_qemu_get_se_idstr(se), dev)) { s_Devices.push_back(se); }}
+
+#define REGISTER_DEVICE(dev) { if (!strcmp(s2e_qemu_get_se_idstr(se), dev)) { s_devices.push_back(se); }}
 
 S2EDeviceState::S2EDeviceState(const S2EDeviceState &)
 {
@@ -93,23 +111,23 @@ void S2EDeviceState::clone(S2EDeviceState **state1, S2EDeviceState **state2)
     //We must make two copies
 
     S2EDeviceState* copy1 = new S2EDeviceState();
-    copy1->m_Parent = this;
-    copy1->m_State = 0;
-    copy1->m_StateSize = 0;
+    copy1->m_parent = this;
+    copy1->m_state = 0;
+    copy1->m_stateSize = 0;
     copy1->m_canTransferSector = m_canTransferSector;
     *state1 = copy1;
 
     S2EDeviceState* copy2 = new S2EDeviceState();
-    copy2->m_Parent = this;
-    copy2->m_State = 0;
-    copy2->m_StateSize = 0;
+    copy2->m_parent = this;
+    copy2->m_state = 0;
+    copy2->m_stateSize = 0;
     copy2->m_canTransferSector = m_canTransferSector;
     *state2 = copy2;
 }
 
 void S2EDeviceState::cloneDiskState()
 {
-    foreach2(it, m_BlockDevices.begin(), m_BlockDevices.end()) {
+    foreach2(it, m_blockDevices.begin(), m_blockDevices.end()) {
         SectorMap &sm = (*it).second;
         foreach2(smit, sm.begin(), sm.end()) {
             uint8_t *newSector = new uint8_t[512];
@@ -121,7 +139,7 @@ void S2EDeviceState::cloneDiskState()
 
 S2EDeviceState::S2EDeviceState()
 {
-    m_Parent = NULL;
+    m_parent = NULL;
     m_canTransferSector = true;
 }
 
@@ -132,10 +150,13 @@ S2EDeviceState::~S2EDeviceState()
 
 void S2EDeviceState::initDeviceState()
 {
-    m_State = NULL;
-    m_StateSize = 0;
+    m_state = NULL;
+    m_stateSize = 0;
     
-    assert(!s_DevicesInited);
+    assert(!s_devicesInited);
+
+    m_memFile = qemu_memfile_open(s2e_qemu_get_buffer, s2e_qemu_put_buffer);
+
 
     std::set<std::string> ignoreList;
     std::stringstream ss(SharedDevices);
@@ -153,7 +174,7 @@ void S2EDeviceState::initDeviceState()
 
     g_s2e->getMessagesStream() << "Initing initial device state." << '\n';
 
-    if (!s_DevicesInited) {
+    if (!s_devicesInited) {
         void *se;
         g_s2e->getDebugStream() << "Looking for relevant virtual devices...";
 
@@ -163,12 +184,12 @@ void S2EDeviceState::initDeviceState()
                 std::string deviceId(s2e_qemu_get_se_idstr(se));
                 if (!ignoreList.count(deviceId)) {
                     g_s2e->getDebugStream() << "   Registering device " << deviceId << '\n';
-                    s_Devices.push_back(se);
+                    s_devices.push_back(se);
                 } else {
                     g_s2e->getDebugStream() << "   Shared device " << deviceId << '\n';
                 }
         }
-        s_DevicesInited = true;
+        s_devicesInited = true;
     }
 
     if (!PersistentDiskWrites) {
@@ -182,63 +203,50 @@ void S2EDeviceState::initDeviceState()
         g_s2e->getMessagesStream() <<
                 "WARNING!!! All disk writes will be SHARED across states! BEWARE OF CORRUPTION!" << '\n';
     }
-    //saveDeviceState();
-    //restoreDeviceState();
 }
 
 int s2edev_dbg=0;
 
 void S2EDeviceState::saveDeviceState()
 {
-    s2e_dev_snapshot_enable = 1;
     vm_stop(0);
-    m_Offset = 0;
-    assert(s_CurrentState == NULL);
-    s_CurrentState = this;
+    m_offset = 0;
 
     //DPRINTF("Saving device state %p\n", this);
     /* Iterate through all device descritors and call
     * their snapshot function */
-    for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
-        //unsigned o = m_Offset;
+    for (vector<void*>::iterator it = s_devices.begin(); it != s_devices.end(); it++) {
+        //unsigned o = m_offset;
         void *se = *it;
         //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));
-        s2e_qemu_save_state(se);
-        //DPRINTF("sz=%d - ", m_Offset - o);
+        s2e_qemu_save_state(m_memFile, se);
+        //DPRINTF("sz=%d - ", m_offset - o);
     }
     //DPRINTF("\n");
 
-    ShrinkBuffer();
-    s2e_dev_snapshot_enable = 0;
-    s_CurrentState = NULL;
+    shrinkBuffer();
     vm_start();
 }
 
 void S2EDeviceState::restoreDeviceState()
 {
-    assert(s_CurrentState == NULL);
-    assert(m_StateSize);
-    assert(m_State);
-
-    s_CurrentState = this;
+    assert(m_stateSize);
+    assert(m_state);
 
     vm_stop(0);
-    s2e_dev_snapshot_enable = 1;
 
-    m_Offset = 0;
+    m_offset = 0;
 
     //DPRINTF("Restoring device state %p\n", this);
-    for (vector<void*>::iterator it = s_Devices.begin(); it != s_Devices.end(); it++) {
-        //unsigned o = m_Offset;
+    for (vector<void*>::iterator it = s_devices.begin(); it != s_devices.end(); it++) {
+        //unsigned o = m_offset;
         void *se = *it;
         //DPRINTF("%s ", s2e_qemu_get_se_idstr(se));  
-        s2e_qemu_load_state(se);
-        //DPRINTF("sz=%d - ", m_Offset - o);
+        s2e_qemu_load_state(m_memFile, se);
+        //DPRINTF("sz=%d - ", m_offset - o);
     }
     //DPRINTF("\n");
 
-    s2e_dev_snapshot_enable = 0;
-    s_CurrentState = NULL;
     vm_start();
 }
 
@@ -252,26 +260,26 @@ bool S2EDeviceState::canTransferSector() const
 /*****************************************************************************/
 /*****************************************************************************/
 
-void S2EDeviceState::AllocateBuffer(unsigned int Sz)
+void S2EDeviceState::allocateBuffer(unsigned int Sz)
 {
-    if (!m_State) {
+    if (!m_state) {
         unsigned int NewSize = Sz < 256 ? 256 : Sz;
-        m_State = (unsigned char *)malloc(NewSize);
-        if (!m_State) {
+        m_state = (unsigned char *)malloc(NewSize);
+        if (!m_state) {
             cerr << "Cannot allocate memory for device state snapshot" << endl;
             exit(-1);
         }
-        m_StateSize = NewSize;
-        m_Offset = 0;
+        m_stateSize = NewSize;
+        m_offset = 0;
         return;
     }
 
-    if (m_Offset + Sz >= m_StateSize) {
+    if (m_offset + Sz >= m_stateSize) {
         /* Need to expand the buffer */
         unsigned int NewSize = Sz < 256 ? 256 : Sz;
-        m_StateSize += NewSize;
-        m_State = (unsigned char*)realloc(m_State, m_StateSize);
-        if (!m_State) {
+        m_stateSize += NewSize;
+        m_state = (unsigned char*)realloc(m_state, m_stateSize);
+        if (!m_state) {
             cerr << "Cannot reallocate memory for device state snapshot" << endl;
             exit(-1);
         }
@@ -279,45 +287,37 @@ void S2EDeviceState::AllocateBuffer(unsigned int Sz)
     }
 }
 
-void S2EDeviceState::ShrinkBuffer()
+void S2EDeviceState::shrinkBuffer()
 {
-    if (m_Offset != m_StateSize) {
-        unsigned char *NewBuf = (unsigned char*)realloc(m_State, m_Offset);
+    if (m_offset != m_stateSize) {
+        unsigned char *NewBuf = (unsigned char*)realloc(m_state, m_offset);
         if (!NewBuf) {
             cerr << "Cannot shrink device state snapshot" << endl;
             return;
         }
-        m_State = NewBuf;
-        m_StateSize = m_Offset;
+        m_state = NewBuf;
+        m_stateSize = m_offset;
     }
 }
 
-void S2EDeviceState::PutByte(int v)
+
+int S2EDeviceState::putBuffer(const uint8_t *buf, int64_t pos, int size)
 {
-    AllocateBuffer(1);
-    m_State[m_Offset++] = v;
+    if (pos + size > m_stateSize) {
+        allocateBuffer(pos + size - m_stateSize);
+        m_offset = pos + size;
+    }
+    memcpy(&m_state[pos], buf, size);
+    return size;
 }
 
-void S2EDeviceState::PutBuffer(const uint8_t *buf, int size1)
+int S2EDeviceState::getBuffer(uint8_t *buf, int64_t pos, int size)
 {
-    AllocateBuffer(size1);
-    memcpy(&m_State[m_Offset], buf, size1);
-    m_Offset += size1;
+    assert(pos + size <= m_stateSize);
+    memcpy(buf, &m_state[pos], size);
+    return size;
 }
 
-int S2EDeviceState::GetByte()
-{
-    assert(m_Offset + 1 <= m_StateSize);
-    return m_State[m_Offset++];
-}
-
-int S2EDeviceState::GetBuffer(uint8_t *buf, int size1)
-{
-    assert(m_Offset + size1 <= m_StateSize);
-    memcpy(buf, &m_State[m_Offset], size1);
-    m_Offset += size1;
-    return size1;
-}
 
 /*****************************************************************************/
 /*****************************************************************************/
@@ -325,7 +325,7 @@ int S2EDeviceState::GetBuffer(uint8_t *buf, int size1)
 
 int S2EDeviceState::writeSector(struct BlockDriverState *bs, int64_t sector, const uint8_t *buf, int nb_sectors)
 {
-    SectorMap &dev = m_BlockDevices[bs];
+    SectorMap &dev = m_blockDevices[bs];
  //   DPRINTF("writeSector %#"PRIx64" count=%d\n", sector, nb_sectors);
     for (int64_t i = sector; i<sector+nb_sectors; i++) {
         SectorMap::iterator it = dev.find(i);
@@ -351,8 +351,8 @@ int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint
     bool hasRead = false;
   //  DPRINTF("readSector %#"PRIx64" count=%d\n", sector, nb_sectors);
     for (int64_t i = sector; i<sector+nb_sectors; i++) {
-        for (S2EDeviceState *curState = this; curState; curState = curState->m_Parent) {
-            SectorMap &dev = curState->m_BlockDevices[bs];
+        for (S2EDeviceState *curState = this; curState; curState = curState->m_parent) {
+            SectorMap &dev = curState->m_blockDevices[bs];
             SectorMap::iterator it = dev.find(i);
             
             if (it != dev.end()) {
@@ -387,32 +387,6 @@ int S2EDeviceState::readSector(struct BlockDriverState *bs, int64_t sector, uint
 */
 
 extern "C" {
-
-void s2e_qemu_put_byte(S2EExecutionState *s, int v)
-{
-    S2EDeviceState::getCurrentVmState()->PutByte(v);
-}
-
-int s2e_qemu_get_byte(S2EExecutionState *s)
-{
-    return S2EDeviceState::getCurrentVmState()->GetByte();
-}
-
-int s2e_qemu_get_buffer(S2EExecutionState *s, uint8_t *buf, int size1)
-{
-    return S2EDeviceState::getCurrentVmState()->GetBuffer(buf, size1);
-}
-
-void s2e_qemu_put_buffer(S2EExecutionState *s, const uint8_t *buf, int size)
-{
-    S2EDeviceState::getCurrentVmState()->PutBuffer(buf, size);
-}
-
-void s2e_init_device_state(S2EExecutionState *s)
-{
-    s->getDeviceState()->initDeviceState();
-}
-
 
 int s2e_bdrv_read(BlockDriverState *bs, int64_t sector_num,
                   uint8_t *buf, int nb_sectors, int *fallback,
@@ -469,6 +443,7 @@ BlockDriverAIOCB *s2e_bdrv_aio_write(
 }
 
 
+void s2e_bdrv_aio_cancel(BlockDriverAIOCB *acb);
 void s2e_bdrv_aio_cancel(BlockDriverAIOCB *acb)
 {
 

@@ -21,6 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/*
+ * The file was modified for S2E Selective Symbolic Execution Framework
+ *
+ * Copyright (c) 2010, Dependable Systems Laboratory, EPFL
+ *
+ * Currently maintained by:
+ *    Volodymyr Kuznetsov <vova.kuznetsov@epfl.ch>
+ *    Vitaly Chipounov <vitaly.chipounov@epfl.ch>
+ *
+ * All contributors are listed in S2E-AUTHORS file.
+ *
+ */
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
@@ -188,6 +202,53 @@ typedef struct QEMUFileSocket
     int fd;
     QEMUFile *file;
 } QEMUFileSocket;
+
+typedef struct QEMUFileMemory
+{
+    memfile_get_buffer_t get;
+    memfile_put_buffer_t put;
+    QEMUFile *file;
+} QEMUFileMemory;
+
+
+static int qemu_memfile_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
+{
+    QEMUFileMemory *s = opaque;
+    return s->get(buf, pos, size);
+}
+
+static int qemu_memfile_put_buffer(void *opaque, const uint8_t *buf,
+                            int64_t pos, int size)
+{
+    QEMUFileMemory *s = opaque;
+    return s->put(buf, pos, size);
+}
+
+
+static int qemu_memfile_close(void *opaque)
+{
+    QEMUFileMemory *s = opaque;
+    g_free(s);
+    return 0;
+}
+
+QEMUFile *qemu_memfile_open(memfile_get_buffer_t get, memfile_put_buffer_t put)
+{
+    QEMUFileMemory *s;
+
+    s = g_malloc0(sizeof(QEMUFileStdio));
+
+    s->get = get;
+    s->put = put;
+    s->file = qemu_fopen_ops(s, qemu_memfile_put_buffer,
+                             qemu_memfile_get_buffer,
+                             qemu_memfile_close,
+                             NULL, NULL, NULL);
+    return s->file;
+}
+
+
+
 
 static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
 {
@@ -593,6 +654,7 @@ int qemu_get_buffer(QEMUFile *f, uint8_t *buf, int size)
 static int qemu_peek_byte(QEMUFile *f, int offset)
 {
     int index = f->buf_index + offset;
+
 
     if (f->is_write) {
         abort();
@@ -1775,6 +1837,37 @@ typedef struct LoadStateEntry {
     int section_id;
     int version_id;
 } LoadStateEntry;
+
+
+void *s2e_qemu_get_first_se(void)
+{
+    return savevm_handlers.tqh_first;
+}
+
+void *s2e_qemu_get_next_se(void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    return sse->entry.tqe_next;
+}
+
+const char *s2e_qemu_get_se_idstr(void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    return sse->idstr;
+}
+
+void s2e_qemu_save_state(QEMUFile *f, void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    vmstate_save(f, sse);
+}
+
+void s2e_qemu_load_state(QEMUFile *f, void *se)
+{
+    SaveStateEntry *sse = (SaveStateEntry*)se;
+    vmstate_load(f, sse, sse->version_id);
+}
+
 
 int qemu_loadvm_state(QEMUFile *f)
 {

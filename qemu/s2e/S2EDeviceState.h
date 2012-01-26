@@ -38,6 +38,10 @@
 
 #define _S2E_DEVICE_STATE_H_
 
+extern "C" {
+#include "hw/hw.h"
+}
+
 #include <vector>
 #include <map>
 #include <set>
@@ -54,34 +58,28 @@ private:
     typedef std::map<int64_t, uint8_t *> SectorMap;
     typedef std::map<BlockDriverState *, SectorMap> BlockDeviceToSectorMap;
 
-    static std::vector<void *> s_Devices;
+    static std::vector<void *> s_devices;
     static std::set<std::string> s_customDevices;
-    static bool s_DevicesInited;
-    static S2EDeviceState *s_CurrentState;
+    static bool s_devicesInited;
 
-    unsigned char *m_State;
-    unsigned int m_StateSize;
-    unsigned int m_Offset;
+    QEMUFile *m_memFile;
+    unsigned char *m_state;
+    unsigned int m_stateSize;
+    unsigned int m_offset;
 
+    static unsigned int s_preferedStateSize;
 
-    static unsigned int s_PreferedStateSize;
-
-    S2EDeviceState *m_Parent;
-    BlockDeviceToSectorMap m_BlockDevices;
+    S2EDeviceState *m_parent;
+    BlockDeviceToSectorMap m_blockDevices;
     bool  m_canTransferSector;
     
-
-    void AllocateBuffer(unsigned int Sz);
-    void ShrinkBuffer();
+    void allocateBuffer(unsigned int Sz);
+    void shrinkBuffer();
 
     void cloneDiskState();
 
     S2EDeviceState(const S2EDeviceState &);
 public:
-
-    static S2EDeviceState *getCurrentVmState() {
-        return s_CurrentState;
-    }
 
     bool canTransferSector() const;
 
@@ -90,23 +88,19 @@ public:
     ~S2EDeviceState();
 
     //From QEMU to KLEE
-    void SaveDeviceState();
+    void saveDeviceState();
     
     //From KLEE to QEMU
-    void RestoreDeviceState();
+    void restoreDeviceState();
 
-    void PutByte(int v);
-    void PutBuffer(const uint8_t *buf, int size1);
-    int GetByte();
-    int GetBuffer(uint8_t *buf, int size1);
+    int putBuffer(const uint8_t *buf, int64_t pos, int size);
+    int getBuffer(uint8_t *buf, int64_t pos, int size);
 
     int writeSector(struct BlockDriverState *bs, int64_t sector, const uint8_t *buf, int nb_sectors);
     int readSector(struct BlockDriverState *bs, int64_t sector, uint8_t *buf, int nb_sectors,
         s2e_raw_read fb);
 
     void initDeviceState();
-    void restoreDeviceState();
-    void saveDeviceState();
 };
 
 }

@@ -59,6 +59,18 @@ int qemu_fclose(QEMUFile *f);
 void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size);
 void qemu_put_byte(QEMUFile *f, int v);
 
+typedef int (*memfile_get_buffer_t)(uint8_t *buf, int64_t pos, int size);
+typedef int (*memfile_put_buffer_t)(const uint8_t *buf, int64_t pos, int size);
+QEMUFile *qemu_memfile_open(memfile_get_buffer_t get, memfile_put_buffer_t put);
+
+/* Called by the load/savevm functions to restore/save the state of the vm */
+void *s2e_qemu_get_first_se(void);
+void *s2e_qemu_get_next_se(void *se);
+const char *s2e_qemu_get_se_idstr(void *se);
+void s2e_qemu_save_state(QEMUFile *f, void *se);
+void s2e_qemu_load_state(QEMUFile *f, void *se);
+
+
 static inline void qemu_put_ubyte(QEMUFile *f, unsigned int v)
 {
     qemu_put_byte(f, (int)v);
@@ -302,7 +314,7 @@ enum VMStateFlags {
     VMS_VARRAY_UINT32    = 0x800,  /* Array with size in uint32_t field*/
 };
 
-typedef struct {
+typedef struct _VMStateField {
     const char *name;
     size_t offset;
     size_t size;
